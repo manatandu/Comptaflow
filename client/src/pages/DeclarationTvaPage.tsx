@@ -103,7 +103,7 @@ export function DeclarationTvaPage() {
 
   return (
     <div className="p-2">
-      <div className="text-[11px] font-mono text-text-dim leading-none">ÉTAT</div>
+      <div className="text-[11px] font-mono text-text-dim leading-none">État</div>
       <h1 className="text-[13px] font-bold leading-tight mb-1.5">Déclaration de TVA</h1>
       <p className="text-[12px] text-text-dim mb-3 max-w-[720px]">
         Registre de suivi par taux sur une période : TVA collectée (443) et TVA déductible (445), à partir des
@@ -148,7 +148,7 @@ export function DeclarationTvaPage() {
               selon que la taxe est due à la facture ou au règlement. */}
           <div className="border border-border bg-surface-alt max-w-[780px] mb-3 px-3.5 py-2">
             <div className="flex items-center gap-2 mb-1">
-              <span className="font-mono text-[11px] font-bold text-text-dim">EXIGIBILITÉ</span>
+              <span className="font-mono text-[11px] font-bold text-text-dim">Exigibilité</span>
               <span
                 className={`font-mono text-[11px] font-bold px-1.5 py-0.5 ${
                   declaration.regimeExigibilite === 'ENCAISSEMENTS'
@@ -186,7 +186,7 @@ export function DeclarationTvaPage() {
             className="border border-border bg-surface shadow-posee max-w-[780px] mb-4 overflow-x-auto"
           >
             <div className="grid grid-cols-[80px_1fr_70px_140px_140px_140px] min-w-[790px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[11px] font-bold text-text-dim">
-              <span>CODE</span><span>INTITULÉ</span><span>TAUX</span><span className="text-right">COLLECTÉE</span><span className="text-right">DÉDUCTIBLE</span><span className="text-right">NET</span>
+              <span>CODE</span><span>Intitulé</span><span>TAUX</span><span className="text-right">Collectée</span><span className="text-right">Déductible</span><span className="text-right">NET</span>
             </div>
             {declaration.lignes.length === 0 && (
               <div className="p-3 text-[12.5px] text-text-dim">Aucun mouvement de TVA sur cette période.</div>
@@ -209,7 +209,7 @@ export function DeclarationTvaPage() {
           </div>
 
           <div className="border border-border max-w-[780px] p-4 mb-4 bg-surface-alt">
-            <div className="font-mono text-[11px] font-semibold text-text-dim mb-2">PRORATA DE DÉDUCTION (art. 43 O.-L. 10/001)</div>
+            <div className="font-mono text-[11px] font-semibold text-text-dim mb-2">PRORATA de DÉDUCTION (art. 43 o.-L. 10/001)</div>
             <div className="grid grid-cols-3 gap-3 font-mono text-[12px]">
               <div>
                 Recettes taxables (numérateur)
@@ -401,7 +401,7 @@ export function DeclarationTvaPage() {
             </p>
             <div className="flex items-end gap-3">
               <label className="flex flex-col gap-1">
-                <span className="text-[11px] font-bold text-text-dim">ANNÉE CIVILE</span>
+                <span className="text-[11px] font-bold text-text-dim">Année civile</span>
                 <input
                   type="number"
                   value={annee}

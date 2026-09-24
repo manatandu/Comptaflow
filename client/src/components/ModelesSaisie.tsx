@@ -412,7 +412,7 @@ export function ModelesSaisieModale({
         <div className="flex-1 min-h-0 flex">
           {/* Liste des modèles */}
           <div className="w-[300px] shrink-0 border-r border-border overflow-auto bg-surface-alt">
-            <div className="px-3 pt-2.5 pb-1 text-[11px] font-bold text-text-dim">OPÉRATIONS COURANTES</div>
+            <div className="px-3 pt-2.5 pb-1 text-[11px] font-bold text-text-dim">Opérations courantes</div>
             {modelesSimples.map((m) => (
               <button
                 key={m.code}
@@ -430,7 +430,7 @@ export function ModelesSaisieModale({
                 {m.libelle}
               </button>
             ))}
-            <div className="px-3 pt-2.5 pb-1 text-[11px] font-bold text-text-dim">AVEC TVA</div>
+            <div className="px-3 pt-2.5 pb-1 text-[11px] font-bold text-text-dim">Avec TVA</div>
             {MODELES_TVA.map((m) => (
               <button
                 key={m.code}
@@ -451,7 +451,7 @@ export function ModelesSaisieModale({
             {/* Famille propre au SYCEBNL · sa route serveur l'est aussi. */}
             {!estSyscohada && (
               <div className="px-3 pt-2.5 pb-1 text-[11px] font-bold text-text-dim">
-                ÉCRITURES-TYPES SYCEBNL (PARTIE 3 · GUIDE)
+                Écritures-types SYCEBNL (partie 3 · guide)
               </div>
             )}
             {!estSyscohada && !catalogue && (
@@ -687,11 +687,11 @@ export function ModelesSaisieModale({
 
                 {proposition && (
                   <div className="mt-3 border border-border">
-                    <div className="grid grid-cols-[110px_1fr_110px_110px] gap-2 px-3 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim">
-                      <span>COMPTE</span>
-                      <span>LIBELLÉ</span>
-                      <span className="text-right">DÉBIT</span>
-                      <span className="text-right">CRÉDIT</span>
+                    <div className="entete-colonnes grid grid-cols-[110px_1fr_110px_110px] gap-2 px-3 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim">
+                      <span>Compte</span>
+                      <span>Libellé</span>
+                      <span className="text-right">Débit</span>
+                      <span className="text-right">Crédit</span>
                     </div>
                     {proposition.lignes.map((l, i) => (
                       <div
@@ -729,7 +729,7 @@ export function ModelesSaisieModale({
                     ))}
                     <div className="grid grid-cols-[110px_1fr_110px_110px] gap-2 px-3 py-1.5 bg-surface-alt text-[12px] font-bold">
                       <span />
-                      <span className="text-right text-[11px] text-text-dim">TOTAUX</span>
+                      <span className="text-right text-[11px] text-text-dim">Totaux</span>
                       <span className="font-mono text-right">{proposition.totalDebit.toLocaleString('fr-FR')}</span>
                       <span className="font-mono text-right">{proposition.totalCredit.toLocaleString('fr-FR')}</span>
                     </div>

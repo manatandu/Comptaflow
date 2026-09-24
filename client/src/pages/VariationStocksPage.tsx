@@ -118,7 +118,7 @@ export function VariationStocksPage() {
     <div className="p-2">
       <EnteteImpression titre="Variation des stocks" />
       <div className="ecran-seul mb-1.5 max-w-[1240px]">
-        <div className="text-[11px] font-mono text-text-dim leading-none">INVENTAIRE INTERMITTENT</div>
+        <div className="text-[11px] font-mono text-text-dim leading-none">Inventaire intermittent</div>
         <h1 className="text-[13px] font-bold leading-tight">Variation des stocks</h1>
         <div className="text-[11px] text-text-dim mt-0.5">
           « Est débité le compte de stock du montant du STOCK FINAL, déterminé par inventaire extra

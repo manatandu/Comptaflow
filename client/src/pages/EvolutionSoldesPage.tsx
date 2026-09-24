@@ -80,12 +80,12 @@ export function EvolutionSoldesPage() {
       <EnteteImpression titre="Évolution des soldes" />
       <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
         <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">RÉVISION</div>
+          <div className="text-[11px] font-mono text-text-dim leading-none">Révision</div>
           <h1 className="text-[13px] font-bold leading-tight">Évolution pluriannuelle des soldes</h1>
         </div>
         <div className="flex items-end gap-3">
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] font-bold text-text-dim">RACINE DE COMPTE</span>
+            <span className="text-[11px] font-bold text-text-dim">Racine de compte</span>
             <input
               value={racine}
               onChange={(e) => setRacine(e.target.value.replace(/\D/g, ''))}
@@ -94,7 +94,7 @@ export function EvolutionSoldesPage() {
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] font-bold text-text-dim">EXERCICES</span>
+            <span className="text-[11px] font-bold text-text-dim">Exercices</span>
             <select
               value={nbExercices}
               onChange={(e) => setNbExercices(Number(e.target.value))}
@@ -127,8 +127,8 @@ export function EvolutionSoldesPage() {
             style={grille}
             className="px-3.5 py-1.5 bg-surface-alt text-[11px] font-bold text-text-dim border-b border-border-dark"
           >
-            <span>N° COMPTE</span>
-            <span>INTITULÉ</span>
+            <span>N° compte</span>
+            <span>Intitulé</span>
             {donnees.exercices.map((e) => (
               <span key={e.id} className="text-right">
                 {e.libelle}

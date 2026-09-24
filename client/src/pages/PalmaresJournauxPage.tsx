@@ -113,7 +113,7 @@ export function PalmaresJournauxPage() {
       <EnteteImpression titre={onglet === 'palmares' ? 'Palmarès des comptes' : 'Analyse des journaux'} />
       <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
         <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">RÉVISION</div>
+          <div className="text-[11px] font-mono text-text-dim leading-none">Révision</div>
           <h1 className="text-[13px] font-bold leading-tight">Palmarès et analyse des journaux</h1>
         </div>
         {onglet === 'palmares' && (
@@ -160,15 +160,15 @@ export function PalmaresJournauxPage() {
 
       {onglet === 'palmares' && palmares && (
         <div className="border border-border bg-surface shadow-posee overflow-x-auto">
-          <div className="grid grid-cols-[100px_minmax(180px,1fr)_70px_120px_120px_120px_80px_80px] min-w-[900px] gap-2 px-3.5 py-1.5 bg-surface-alt text-[11px] font-bold text-text-dim border-b border-border-dark">
-            <span>N° COMPTE</span>
-            <span>INTITULÉ</span>
-            <span>CLASSE</span>
-            <span className="text-right">MOUVEMENT</span>
-            <span className="text-right">SOLDE</span>
-            <span className="text-right">LIGNES</span>
-            <span className="text-right">PART</span>
-            <span className="text-right">CUMUL</span>
+          <div className="entete-colonnes grid grid-cols-[100px_minmax(180px,1fr)_70px_120px_120px_120px_80px_80px] min-w-[900px] gap-2 px-3.5 py-1.5 bg-surface-alt text-[11px] font-bold text-text-dim border-b border-border-dark">
+            <span>N° compte</span>
+            <span>Intitulé</span>
+            <span>Classe</span>
+            <span className="text-right">Mouvement</span>
+            <span className="text-right">Solde</span>
+            <span className="text-right">Lignes</span>
+            <span className="text-right">Part</span>
+            <span className="text-right">Cumul</span>
           </div>
           {palmares.lignes.map((l, i) => (
             <div
@@ -215,15 +215,15 @@ export function PalmaresJournauxPage() {
 
       {onglet === 'journaux' && analyse && (
         <div className="border border-border bg-surface shadow-posee overflow-x-auto">
-          <div className="grid grid-cols-[70px_minmax(160px,1fr)_90px_90px_90px_90px_130px_1fr] min-w-[1000px] gap-2 px-3.5 py-1.5 bg-surface-alt text-[11px] font-bold text-text-dim border-b border-border-dark">
-            <span>CODE</span>
-            <span>INTITULÉ</span>
-            <span className="text-right">ÉCRITURES</span>
-            <span className="text-right">LIGNES</span>
-            <span className="text-right">BROUILLARD</span>
-            <span className="text-right">CLÔTURE</span>
-            <span className="text-right">DÉBIT</span>
-            <span>SÉQUENCE DES PIÈCES</span>
+          <div className="entete-colonnes grid grid-cols-[70px_minmax(160px,1fr)_90px_90px_90px_90px_130px_1fr] min-w-[1000px] gap-2 px-3.5 py-1.5 bg-surface-alt text-[11px] font-bold text-text-dim border-b border-border-dark">
+            <span>Code</span>
+            <span>Intitulé</span>
+            <span className="text-right">Écritures</span>
+            <span className="text-right">Lignes</span>
+            <span className="text-right">Brouillard</span>
+            <span className="text-right">Clôture</span>
+            <span className="text-right">Débit</span>
+            <span>Séquence des pièces</span>
           </div>
           {analyse.lignes.map((l) => (
             <div

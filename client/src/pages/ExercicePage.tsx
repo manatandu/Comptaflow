@@ -254,7 +254,7 @@ export function ExercicePage() {
 
   return (
     <div className="p-2">
-      <div className="text-[11px] font-mono text-text-dim leading-none">TRAITEMENT · FIN D'EXERCICE</div>
+      <div className="text-[11px] font-mono text-text-dim leading-none">Traitement · fin d'exercice</div>
       <h1 className="text-[13px] font-bold leading-tight mb-1.5 flex items-center gap-1.5">
         Clôture d'exercice
         <Aide sujet="exerciceClos" />
@@ -288,7 +288,7 @@ export function ExercicePage() {
       */}
       {exercice && (
         <form onSubmit={arreterComptes} className="mb-4 border border-border bg-surface px-4 py-3 max-w-[720px]">
-          <div className="font-mono text-[12px] font-semibold text-text-dim mb-1">ARRÊTÉ DES COMPTES</div>
+          <div className="font-mono text-[12px] font-semibold text-text-dim mb-1">Arrêté des comptes</div>
           <p className="text-[11px] text-text-dim leading-[1.55] mb-2">
             Date à laquelle les organes dirigeants ont arrêté les comptes. Ce n’est pas la clôture : elle lui est
             postérieure de plusieurs semaines, dans la limite de quatre mois. Elle doit figurer sur chaque page des
@@ -337,7 +337,7 @@ export function ExercicePage() {
             className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-surface-alt"
           >
             <span className="font-mono text-[12px] font-semibold text-text-dim">
-              IMPUTATION AUX CAPITAUX PROPRES D’OUVERTURE
+              Imputation aux capitaux propres d’ouverture
             </span>
             <span className="text-[12px] text-text-dim">{imputationOuverte ? 'Réduire' : 'Déployer'}</span>
           </button>
@@ -496,7 +496,7 @@ export function ExercicePage() {
 
       {exercice && (
         <div className="mb-5 border border-border max-w-[720px] p-4 bg-surface">
-          <div className="font-mono text-[12px] font-semibold text-text-dim mb-2">CLÔTURE ANNUELLE</div>
+          <div className="font-mono text-[12px] font-semibold text-text-dim mb-2">Clôture annuelle</div>
           <p className="text-[12.5px] text-text-dim mb-3">
             Solde les comptes de charges/produits (mode « Aucun ») sur le résultat de l'exercice, puis génère le
             report à-nouveau réel dans l'exercice suivant selon le mode de chaque compte (Solde/Détail). Action
@@ -504,7 +504,7 @@ export function ExercicePage() {
           </p>
           {exercice.statut === 'CLOTURE' ? (
             <span className="font-mono text-[11px] font-bold px-2 py-1 bg-surface-alt text-text-dim w-fit inline-block">
-              EXERCICE DÉJÀ CLÔTURÉ
+              Exercice déjà clôturé
             </span>
           ) : estAdmin ? (
             <button
@@ -524,7 +524,7 @@ export function ExercicePage() {
       {estAdmin && exercice && exercice.statut === 'OUVERT' && (
         <div className="grid grid-cols-3 gap-3 mb-5 max-w-[980px]">
           <form onSubmit={clorePartielle} className="bg-surface border border-border p-3">
-            <div className="font-mono text-[11px] font-semibold text-text-dim mb-2">CLÔTURE PARTIELLE</div>
+            <div className="font-mono text-[11px] font-semibold text-text-dim mb-2">Clôture partielle</div>
             <p className="text-[12px] text-text-dim mb-2">Verrouille un journal jusqu'à une date · réversible.</p>
             <label className="block text-[12px] font-semibold text-text-dim mb-2">
               Journal
@@ -558,7 +558,7 @@ export function ExercicePage() {
           </form>
 
           <form onSubmit={cloreTotale} className="bg-surface border border-border p-3">
-            <div className="font-mono text-[11px] font-semibold text-text-dim mb-2">CLÔTURE TOTALE</div>
+            <div className="font-mono text-[11px] font-semibold text-text-dim mb-2">Clôture totale</div>
             <p className="text-[12px] text-text-dim mb-2">Fige un journal en entier · définitive.</p>
             <label className="block text-[12px] font-semibold text-text-dim mb-2">
               Journal
@@ -582,7 +582,7 @@ export function ExercicePage() {
           </form>
 
           <form onSubmit={clorePeriode} className="bg-surface border border-border p-3">
-            <div className="font-mono text-[11px] font-semibold text-text-dim mb-2">CLÔTURE DE PÉRIODE</div>
+            <div className="font-mono text-[11px] font-semibold text-text-dim mb-2">Clôture de période</div>
             <p className="text-[12px] text-text-dim mb-2">Verrouille tous les journaux jusqu'à une date · définitive.</p>
             <label className="block text-[12px] font-semibold text-text-dim mb-2">
               Date limite
@@ -609,10 +609,10 @@ export function ExercicePage() {
         className="border border-border bg-surface shadow-posee max-w-[980px] overflow-x-auto"
       >
         <div className="grid grid-cols-[90px_1fr_100px_110px_90px_100px] min-w-[710px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[11px] font-bold text-text-dim">
-          <span>GRANULARITÉ</span>
-          <span>JOURNAL</span>
-          <span>DATE LIMITE</span>
-          <span>CRÉÉE LE</span>
+          <span>Granularité</span>
+          <span>Journal</span>
+          <span>Date limite</span>
+          <span>Créée le</span>
           <span>STATUT</span>
           <span>ACTION</span>
         </div>
@@ -633,7 +633,7 @@ export function ExercicePage() {
             <span className="font-mono text-[11px] text-text-dim">{new Date(c.createdAt).toLocaleDateString('fr-FR')}</span>
             <span>
               {c.annuleeAt ? (
-                <span className="font-mono text-[11px] font-bold px-1.5 py-0.5 bg-surface-alt text-text-dim">ANNULÉE</span>
+                <span className="font-mono text-[11px] font-bold px-1.5 py-0.5 bg-surface-alt text-text-dim">Annulée</span>
               ) : (
                 <span className="font-mono text-[11px] font-bold px-1.5 py-0.5 bg-warning-soft text-warning flex items-center gap-1 w-fit">
                   <IconLock width={10} height={10} /> ACTIVE

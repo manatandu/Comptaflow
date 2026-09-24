@@ -58,14 +58,14 @@ describe('fenêtre du groupe · ce que l’agrégat montre désormais', () => {
 
   it('affiche les six contrôles, montés par la fonction éprouvée', () => {
     expect(page).toContain('controlesDeLAgregat(agregat)');
-    expect(page).toContain("CONTRÔLES DE L'AGRÉGAT");
+    expect(page).toContain("Contrôles de l'agrégat");
   });
 
   it('montre CE QUI A ÉTÉ RETIRÉ, ligne à ligne, et son total', () => {
     // Un agrégat dont on ne voit pas ce qui a été retiré ne se vérifie pas :
     // agrégat = cumul des balances moins ces lignes.
     expect(page).toContain('agregat.eliminations.map(');
-    expect(page).toContain('OPÉRATIONS RÉCIPROQUES ÉLIMINÉES');
+    expect(page).toContain('Opérations réciproques éliminées');
     expect(page).toContain('montant(agregat.totauxEliminations.debit)');
     expect(page).toContain('montant(agregat.totauxEliminations.credit)');
     // Le libellé ne promet la déduction que lorsqu'il y a eu élimination · un
@@ -77,7 +77,7 @@ describe('fenêtre du groupe · ce que l’agrégat montre désormais', () => {
     // Le seul écart ne dit pas lequel des deux dossiers a enregistré · les
     // deux soldes le disent, et le logiciel ne tranche pas.
     expect(page).toContain('agregat.ecartsReciprocite.map(');
-    expect(page).toContain('ÉCARTS DE RÉCIPROCITÉ');
+    expect(page).toContain('Écarts de réciprocité');
     expect(page).toContain('montant(e.solde)');
     expect(page).toContain('montant(e.soldeContrepartie)');
     expect(page).toContain("d'un seul côté, ou pour deux montants différents");
@@ -85,7 +85,7 @@ describe('fenêtre du groupe · ce que l’agrégat montre désormais', () => {
 
   it('nomme les rattachements ignorés et dit que rien n’a été éliminé sur leur foi', () => {
     expect(page).toContain('agregat.rattachementsRefuses.map(');
-    expect(page).toContain('RATTACHEMENTS IGNORÉS');
+    expect(page).toContain('Rattachements ignorés');
     expect(page).toContain("Rien n'a été éliminé sur leur foi");
   });
 

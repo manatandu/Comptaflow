@@ -137,7 +137,7 @@ export function JournalAuditPage() {
       <EnteteImpression titre="Journal d'audit" />
       <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
         <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">CHEMIN DE RÉVISION</div>
+          <div className="text-[11px] font-mono text-text-dim leading-none">Chemin de révision</div>
           <h1 className="text-[13px] font-bold leading-tight">Journal d'audit</h1>
         </div>
         <div className="flex items-end gap-3">
@@ -219,11 +219,11 @@ export function JournalAuditPage() {
           className={`${grille} px-3.5 py-1.5 bg-surface-alt text-[11px] font-bold text-text-dim border-b border-border-dark`}
         >
           <div>N°</div>
-          <div>DATE ET HEURE</div>
+          <div>Date et heure</div>
           <div>AUTEUR</div>
           <div>ACTION</div>
           <div>OBJET</div>
-          <div>CHAMPS TOUCHÉS</div>
+          <div>Champs touchés</div>
         </div>
 
         {donnees?.evenements.length === 0 && (
@@ -253,7 +253,7 @@ export function JournalAuditPage() {
                   </pre>
                 </div>
                 <div>
-                  <div className="text-[11px] font-bold text-text-dim mb-1">APRÈS</div>
+                  <div className="text-[11px] font-bold text-text-dim mb-1">Après</div>
                   <pre className="text-[11px] whitespace-pre-wrap break-all">
                     {e.apres ? JSON.stringify(e.apres, null, 1) : 'rien · suppression'}
                   </pre>

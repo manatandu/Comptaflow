@@ -171,7 +171,7 @@ export function CourrierPage() {
     <div className="p-2">
       <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
         <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">DOSSIER</div>
+          <div className="text-[11px] font-mono text-text-dim leading-none">Dossier</div>
           <h1 className="text-[13px] font-bold leading-tight">Courriers sortants</h1>
         </div>
         {peutEcrire && (
@@ -269,13 +269,13 @@ export function CourrierPage() {
         */}
         <div className="overflow-x-auto">
           <div className="grid grid-cols-[86px_120px_minmax(160px,1fr)_minmax(190px,1.3fr)_140px_54px_minmax(180px,1.2fr)] min-w-[1010px] gap-2 px-3 py-1.5 bg-chrome-alt border-b border-border text-[11px] font-bold text-text-dim">
-            <span>ÉCRIT LE</span>
-            <span>ORIGINE</span>
-            <span>DESTINATAIRE</span>
+            <span>Écrit le</span>
+            <span>Origine</span>
+            <span>Destinataire</span>
             <span>SUJET</span>
-            <span>ÉTAT</span>
+            <span>État</span>
             <span className="text-right">ESSAIS</span>
-            <span>DERNIÈRE ERREUR</span>
+            <span>Dernière erreur</span>
           </div>
 
           {!file && <div className="px-3 py-4 text-[12.5px] text-text-dim">Chargement…</div>}
@@ -404,7 +404,7 @@ function FicheMessage({ message, onFermer }: { message: MessageComplet; onFermer
       )}
 
       <div className="border-t border-border/40">
-        <div className="px-3 pt-1.5 text-[11px] font-bold text-text-dim">TEXTE DU MESSAGE</div>
+        <div className="px-3 pt-1.5 text-[11px] font-bold text-text-dim">Texte du message</div>
         {/* Entier, jamais coupé · un texte tronqué se lit comme le message et
             n'en est pas un. */}
         <pre className="px-3 pb-2.5 text-[12px] whitespace-pre-wrap font-sans leading-[1.6]">{message.corps}</pre>

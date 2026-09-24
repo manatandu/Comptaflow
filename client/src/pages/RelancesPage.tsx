@@ -159,7 +159,7 @@ export function RelancesPage() {
       <EnteteImpression titre="Rappel et relevé" />
       <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
         <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">TRAITEMENT</div>
+          <div className="text-[11px] font-mono text-text-dim leading-none">Traitement</div>
           <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             Rappel et relevé
             {/* Le lexique s'aiguille tout seul sur le référentiel du dossier
@@ -255,10 +255,10 @@ export function RelancesPage() {
           </span>
           <span>COMPTE</span>
           <span>TIERS</span>
-          <span>QUALITÉ</span>
-          <span className="text-right">MONTANT DÛ</span>
+          <span>Qualité</span>
+          <span className="text-right">Montant dû</span>
           <span className="text-right">RETARD</span>
-          <span>DERNIÈRE RELANCE</span>
+          <span>Dernière relance</span>
         </div>
 
         {!positions && <div className="px-3 py-4 text-[12.5px] text-text-dim">Chargement…</div>}

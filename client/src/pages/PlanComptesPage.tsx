@@ -195,7 +195,7 @@ export function PlanComptesPage() {
       <EnteteImpression titre="Plan comptable" />
       <div className="flex items-center justify-between mb-2 shrink-0">
         <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">STRUCTURE</div>
+          <div className="text-[11px] font-mono text-text-dim leading-none">Structure</div>
           <h1 className="text-[13px] font-bold leading-tight">Plan comptable</h1>
         </div>
         <div className="flex items-center gap-2">
@@ -228,7 +228,7 @@ export function PlanComptesPage() {
         {/* Classement par classe · la barre de gauche de la fenêtre Sage */}
         <div className="w-[230px] shrink-0 bg-surface border border-border shadow-posee overflow-auto">
           <div className="px-3 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim">
-            CLASSEMENT
+            Classement
           </div>
           {(Object.keys(libelleClasse) as ClasseCompte[]).map((cl) => (
             <button
@@ -255,12 +255,12 @@ export function PlanComptesPage() {
           // qui emportait alors titre, onglets et boutons hors de l'écran.
           className="flex-1 min-w-0 bg-surface border border-border shadow-posee flex flex-col overflow-x-auto"
         >
-          <div className="grid grid-cols-[92px_1fr_58px_72px_74px] min-w-[520px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[11px] font-bold text-text-dim shrink-0">
-            <span>N° COMPTE</span>
-            <span>INTITULÉ</span>
-            <span>TYPE</span>
-            <span title="Mode de report à-nouveau en fin d'exercice">À-NOUVEAU</span>
-            <span>ÉTAT</span>
+          <div className="entete-colonnes grid grid-cols-[92px_1fr_58px_72px_74px] min-w-[520px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[11px] font-bold text-text-dim shrink-0">
+            <span>N° compte</span>
+            <span>Intitulé</span>
+            <span>Type</span>
+            <span title="Mode de report à-nouveau en fin d'exercice">À-nouveau</span>
+            <span>État</span>
           </div>
           <div className="flex-1 overflow-auto min-w-[520px]">
             {!comptes && <div className="px-3.5 py-3 text-[12.5px] text-text-dim">Chargement…</div>}
@@ -320,7 +320,7 @@ export function PlanComptesPage() {
         {/* Fiche du compte sélectionné · volet Identification */}
         <div className="w-[300px] shrink-0 bg-surface border border-border shadow-posee overflow-auto">
           <div className="px-3 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim">
-            FICHE DU COMPTE · IDENTIFICATION
+            Fiche du compte · identification
           </div>
           {!selection && (
             <div className="px-3 py-3 text-[12px] text-text-dim">
@@ -365,7 +365,7 @@ export function PlanComptesPage() {
               {estAdmin && !estComptePrincipalOfficiel(selection) && (
                 <>
                   <label className="block mb-2">
-                    <span className="text-[11px] font-bold text-text-dim">INTITULÉ</span>
+                    <span className="text-[11px] font-bold text-text-dim">Intitulé</span>
                     <div className="flex gap-1.5 mt-0.5">
                       <input
                         ref={champIntitule}
@@ -386,7 +386,7 @@ export function PlanComptesPage() {
 
                   <label className="block mb-3">
                     <span className="text-[11px] font-bold text-text-dim" title="Aucun : pas de report (charges/produits). Solde : seul le solde est repris. Détail : les lignes non lettrées sont reprises une à une (comptes de tiers lettrés).">
-                      REPORT À-NOUVEAU
+                      Report à-nouveau
                     </span>
                     <select
                       value={selection.modeReportANouveau}
@@ -411,7 +411,7 @@ export function PlanComptesPage() {
                   {(selection.numero.startsWith('6') || selection.numero.startsWith('7')) && (
                     <label className="block mb-3">
                       <span className="text-[11px] font-bold text-text-dim" title="Proposé automatiquement en saisie guidée quand ce compte est choisi · modifiable ligne à ligne">
-                        CODE TAXE PAR DÉFAUT
+                        Code taxe par défaut
                       </span>
                       <select
                         value={selection.tauxTvaDefautId ?? ''}
@@ -441,7 +441,7 @@ export function PlanComptesPage() {
                         className="text-[11px] font-bold text-text-dim"
                         title="Ce que TOUT ce qui passe par ce compte devient au résultat fiscal · proposé chaque exercice, jamais inscrit d'office"
                       >
-                        TRAITEMENT FISCAL DE CE COMPTE
+                        Traitement fiscal de ce compte
                       </span>
                       <select
                         value={selection.codeRetraitementFiscal ?? ''}

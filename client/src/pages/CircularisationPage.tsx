@@ -113,7 +113,7 @@ export function CircularisationPage() {
     <div className="p-2">
       <EnteteImpression titre="Circularisation" />
       <div className="ecran-seul mb-1.5 max-w-[1240px]">
-        <div className="text-[11px] font-mono text-text-dim leading-none">INVENTAIRE DOCUMENTAIRE</div>
+        <div className="text-[11px] font-mono text-text-dim leading-none">Inventaire documentaire</div>
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-[13px] font-bold leading-tight">Circularisation</h1>
           {peutEcrire && (
@@ -214,7 +214,7 @@ export function CircularisationPage() {
 
       <div className="flex gap-2.5 max-w-[1400px] items-start">
         <div className="border border-border bg-surface min-w-[240px] max-w-[280px]">
-          <div className="px-2.5 py-1.5 border-b border-border text-[11px] font-mono text-text-dim">CAMPAGNES</div>
+          <div className="px-2.5 py-1.5 border-b border-border text-[11px] font-mono text-text-dim">Campagnes</div>
           {campagnes?.length === 0 && (
             <div className="px-2.5 py-3 text-[12px] text-text-dim">
               Aucune campagne. Le CPCC ouvre chaque cycle de l’inventaire documentaire par la même question : a-t-on

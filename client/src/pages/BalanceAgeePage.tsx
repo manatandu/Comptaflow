@@ -162,7 +162,7 @@ export function BalanceAgeePage() {
       <EnteteImpression titre="Balance âgée" />
       <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
         <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">ÉTAT</div>
+          <div className="text-[11px] font-mono text-text-dim leading-none">État</div>
           <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             Balance âgée
             <Aide sujet="balanceAgee" />
@@ -170,7 +170,7 @@ export function BalanceAgeePage() {
         </div>
         <div className="flex items-end gap-3">
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] font-bold text-text-dim">TYPE DE TIERS</span>
+            <span className="text-[11px] font-bold text-text-dim">Type de tiers</span>
             <select
               value={type}
               onChange={(e) => setType(e.target.value as TypeTiers)}
@@ -184,7 +184,7 @@ export function BalanceAgeePage() {
             </select>
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] font-bold text-text-dim">DATE DE RÉFÉRENCE</span>
+            <span className="text-[11px] font-bold text-text-dim">Date de référence</span>
             <input
               type="date"
               value={dateReference}
@@ -271,7 +271,7 @@ export function BalanceAgeePage() {
               style={grille}
               className="px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[12px] font-bold"
             >
-              <span>TOTAL DÉBITEURS</span>
+              <span>Total débiteurs</span>
               {donnees.tranches.map((t, i) => (
                 <span key={t.cle} className="font-mono text-right">
                   {montant(donnees.totaux.parTranche[i] ?? 0)}
@@ -280,7 +280,7 @@ export function BalanceAgeePage() {
               <span className="font-mono text-right">{montant(donnees.totaux.debiteurs)}</span>
             </div>
             <div style={grille} className="px-3.5 py-1 text-[12px] font-bold">
-              <span>TOTAL SOLDES EN SENS INVERSE</span>
+              <span>Total soldes en sens inverse</span>
               {donnees.tranches.map((t) => (
                 <span key={t.cle} />
               ))}
@@ -290,7 +290,7 @@ export function BalanceAgeePage() {
               style={grille}
               className="px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[12px] font-bold"
             >
-              <span>SOLDE NET</span>
+              <span>Solde net</span>
               {donnees.tranches.map((t) => (
                 <span key={t.cle} />
               ))}

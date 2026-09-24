@@ -88,7 +88,7 @@ export function DashboardPage() {
     <div className="p-2">
       <div className="flex items-center justify-between mb-1.5">
         <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">FENÊTRE</div>
+          <div className="text-[11px] font-mono text-text-dim leading-none">Fenêtre</div>
           <h1 className="text-[13px] font-bold leading-tight">
             Tableau de bord{exerciceCourant && ` · Exercice ${new Date(exerciceCourant.dateDebut).getFullYear()}`}
           </h1>
@@ -201,7 +201,7 @@ export function DashboardPage() {
         className="bg-surface border border-border shadow-posee overflow-x-auto"
       >
         <div className="px-3.5 py-1.5 bg-surface-alt border-b border-border-dark flex items-center justify-between">
-          <span className="text-[11px] font-bold text-text-dim">DERNIÈRES ÉCRITURES</span>
+          <span className="text-[11px] font-bold text-text-dim">Dernières écritures</span>
           <a href="#/journal" className="text-[11px] text-sel hover:underline">
             Ouvrir le journal
           </a>

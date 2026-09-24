@@ -100,26 +100,26 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
           <div className="text-[12px] text-text-dim mb-3">
             Relevé du {new Date(detail.rapprochement.dateReleve).toLocaleDateString('fr-FR')} · solde{' '}
             <span className="font-mono font-semibold">{detail.rapprochement.soldeReleve.toLocaleString('fr-FR')}</span>{' '}
-            {detail.rapprochement.statut === 'CLOTURE' && <span className="font-mono font-bold text-text-dim">(CLÔTURÉ)</span>}
+            {detail.rapprochement.statut === 'CLOTURE' && <span className="font-mono font-bold text-text-dim">(Clôturé)</span>}
           </div>
 
           {info && <div className="text-[12.5px] text-positive bg-positive-soft border border-positive/30 px-3 py-2 mb-3 max-w-[900px]">{info}</div>}
 
           <div className="flex items-center gap-5 mb-3 max-w-[900px] bg-surface border border-border px-4 py-2.5">
             <div>
-              <div className="text-[11px] text-text-dim font-semibold">SOLDE DE DÉPART</div>
+              <div className="text-[11px] text-text-dim font-semibold">Solde de départ</div>
               <div className="font-mono text-[13px]">{detail.soldeDepart.toLocaleString('fr-FR')}</div>
             </div>
             <div>
-              <div className="text-[11px] text-text-dim font-semibold">SOLDE POINTÉ</div>
+              <div className="text-[11px] text-text-dim font-semibold">Solde pointé</div>
               <div className="font-mono text-[13px]">{detail.soldePointe.toLocaleString('fr-FR')}</div>
             </div>
             <div>
-              <div className="text-[11px] text-text-dim font-semibold">SOLDE DU RELEVÉ</div>
+              <div className="text-[11px] text-text-dim font-semibold">Solde du relevé</div>
               <div className="font-mono text-[13px]">{detail.rapprochement.soldeReleve.toLocaleString('fr-FR')}</div>
             </div>
             <div>
-              <div className="text-[11px] text-text-dim font-semibold">ÉCART</div>
+              <div className="text-[11px] text-text-dim font-semibold">Écart</div>
               <div className={`font-mono text-[13px] font-bold ${detail.equilibre ? 'text-positive' : 'text-danger'}`}>
                 {detail.ecart.toLocaleString('fr-FR')}
               </div>
@@ -137,9 +137,9 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
               <span />
               <span>DATE</span>
               <span>JRN</span>
-              <span>LIBELLÉ</span>
-              <span className="text-right">DÉBIT</span>
-              <span className="text-right">CRÉDIT</span>
+              <span>Libellé</span>
+              <span className="text-right">Débit</span>
+              <span className="text-right">Crédit</span>
             </div>
             {detail.lignes.map((l, i) => (
               <div

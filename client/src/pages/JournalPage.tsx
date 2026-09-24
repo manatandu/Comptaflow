@@ -374,7 +374,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
       <EnteteImpression titre="Journal, grand livre et balance" />
       <div className="flex items-center justify-between mb-1.5 gap-2">
         <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">ÉTAT</div>
+          <div className="text-[11px] font-mono text-text-dim leading-none">État</div>
           <h1 className="text-[13px] font-bold leading-tight">
             {onglet === 'journal' ? 'Journal' : onglet === 'grand-livre' ? 'Grand livre des comptes' : 'Balance des comptes'}
           </h1>
@@ -427,7 +427,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
       {onglet === 'journal' && filtresOuverts && (
         <div className="border border-border bg-surface-alt shadow-posee p-3 mb-2.5 flex flex-wrap items-end gap-3">
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] font-bold text-text-dim">JOURNAL</span>
+            <span className="text-[11px] font-bold text-text-dim">Journal</span>
             <select
               value={filtres.journalId}
               onChange={(e) => setFiltres({ ...filtres, journalId: e.target.value })}
@@ -460,7 +460,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
             />
           </label>
           <label className="flex flex-col gap-1 flex-1 min-w-[180px]">
-            <span className="text-[11px] font-bold text-text-dim">LIBELLÉ CONTIENT</span>
+            <span className="text-[11px] font-bold text-text-dim">Libellé contient</span>
             <input
               type="text"
               value={filtres.recherche}
@@ -495,19 +495,19 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
           onClick={() => setOnglet('journal')}
           className={`px-4 py-1.5 text-[12px] font-bold ${onglet === 'journal' ? 'bg-surface border-r border-border' : 'text-text-dim'}`}
         >
-          JOURNAL
+          Journal
         </button>
         <button
           onClick={() => setOnglet('grand-livre')}
           className={`px-4 py-1.5 text-[12px] font-bold ${onglet === 'grand-livre' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'}`}
         >
-          GRAND LIVRE
+          Grand livre
         </button>
         <button
           onClick={() => setOnglet('balance')}
           className={`px-4 py-1.5 text-[12px] font-bold ${onglet === 'balance' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'}`}
         >
-          BALANCE
+          Balance
         </button>
       </div>
 
@@ -539,15 +539,15 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
           // qui emportait alors titre, onglets et boutons hors de l'écran.
           className="border border-border bg-surface shadow-posee rounded-t-none overflow-x-auto"
         >
-          <div className="grid grid-cols-[68px_46px_52px_92px_120px_1fr_108px_108px_128px] min-w-[980px] gap-2.5 px-3.5 py-1.5 bg-surface-alt text-[11px] font-bold text-text-dim border-b border-border-dark">
-            <span>DATE</span>
-            <span>JRN</span>
-            <span className="text-right">PIÈCE</span>
-            <span>RÉFÉRENCE</span>
-            <span>N° COMPTE</span>
-            <span>LIBELLÉ ÉCRITURE</span>
-            <span className="text-right">DÉBIT</span>
-            <span className="text-right">CRÉDIT</span>
+          <div className="entete-colonnes grid grid-cols-[68px_46px_52px_92px_120px_1fr_108px_108px_128px] min-w-[980px] gap-2.5 px-3.5 py-1.5 bg-surface-alt text-[11px] font-bold text-text-dim border-b border-border-dark">
+            <span>Date</span>
+            <span>Jrn</span>
+            <span className="text-right">Pièce</span>
+            <span>Référence</span>
+            <span>N° compte</span>
+            <span>Libellé écriture</span>
+            <span className="text-right">Débit</span>
+            <span className="text-right">Crédit</span>
             <span>CORRECTION (ART. 20)</span>
           </div>
           {lignesJournal.length === 0 && (
@@ -584,7 +584,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
                     className="text-[11px] font-bold text-warning bg-warning-soft border border-warning/40 rounded-[3px] px-1"
                     title="En brouillard · pas encore entrée au livre-journal"
                   >
-                    BROUILLARD
+                    Brouillard
                   </span>
                 )}
                 {l.premiereLigne && etatCorrection(l)}
@@ -593,7 +593,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
           ))}
           <div className="grid grid-cols-[68px_46px_52px_92px_120px_1fr_108px_108px_128px] min-w-[980px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[12px] font-bold">
             <span className="col-span-5" />
-            <span className="text-right text-[11px] text-text-dim self-center">TOTAUX DE LA PÉRIODE</span>
+            <span className="text-right text-[11px] text-text-dim self-center">Totaux de la période</span>
             <span className="font-mono text-right">{totaux.debit.toLocaleString('fr-FR')}</span>
             <span className="font-mono text-right">{totaux.credit.toLocaleString('fr-FR')}</span>
             <span />
@@ -612,7 +612,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
             FILTRE, appliqué à l'état déjà chargé (aucune requête de plus).
           */}
           <div className="px-3.5 py-1.5 bg-surface-alt border-b border-border flex items-center gap-2 flex-wrap">
-            <label className="text-[11px] font-bold text-text-dim">FILTRER SUR UN COMPTE</label>
+            <label className="text-[11px] font-bold text-text-dim">Filtrer sur un compte</label>
             <select
               value={compteGrandLivreId}
               onChange={(e) => setCompteGrandLivreId(e.target.value)}
@@ -656,14 +656,14 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
               <div className={`grid ${GRILLE_GL} gap-2 px-3.5 py-1 bg-surface-alt text-[11px] font-bold text-text-dim border-b border-border`}>
                 <span>DATE</span>
                 <span>JRN</span>
-                <span className="text-right">PIÈCE</span>
-                <span>LIBELLÉ ÉCRITURE</span>
-                <span className="text-right">DÉBIT</span>
-                <span className="text-right">CRÉDIT</span>
-                <span className="text-right">SOLDE PROGR.</span>
+                <span className="text-right">Pièce</span>
+                <span>Libellé écriture</span>
+                <span className="text-right">Débit</span>
+                <span className="text-right">Crédit</span>
+                <span className="text-right">Solde progr.</span>
                 <span>LETTRE</span>
                 <span title="Comptes de sens opposé dans la même écriture. Plusieurs comptes = écriture N débits/M crédits, répartition non déterminable sans information de saisie supplémentaire.">
-                  CONTREPARTIE
+                  Contrepartie
                 </span>
               </div>
               {section.lignes.map((l) => (
@@ -688,7 +688,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
               ))}
               <div className={`grid ${GRILLE_GL} gap-2 px-3.5 py-1 bg-surface-alt border-b border-border-dark text-[12px] font-bold`}>
                 <span className="col-span-3" />
-                <span className="text-right text-[11px] text-text-dim self-center">TOTAL MOUVEMENTS · SOLDE FINAL</span>
+                <span className="text-right text-[11px] text-text-dim self-center">Total mouvements · solde final</span>
                 <Montant valeur={section.totalDebit} />
                 <Montant valeur={section.totalCredit} />
                 <span className="font-mono text-right">{section.soldeFinal.toLocaleString('fr-FR')}</span>
@@ -720,19 +720,19 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
           <div className={`grid ${GRILLE_BALANCE} gap-2 px-3.5 pt-1.5 text-[11px] font-bold text-text-dim bg-surface-alt`}>
             <span />
             <span />
-            <span className="col-span-2 text-center border-b border-border pb-0.5">SOLDE D’OUVERTURE</span>
-            <span className="col-span-2 text-center border-b border-border pb-0.5">MOUVEMENTS</span>
-            <span className="col-span-2 text-center border-b border-border pb-0.5">SOLDE DE CLÔTURE</span>
+            <span className="col-span-2 text-center border-b border-border pb-0.5">Solde d’ouverture</span>
+            <span className="col-span-2 text-center border-b border-border pb-0.5">Mouvements</span>
+            <span className="col-span-2 text-center border-b border-border pb-0.5">Solde de clôture</span>
           </div>
           <div className={`grid ${GRILLE_BALANCE} gap-2 px-3.5 py-1 bg-surface-alt text-[11px] font-bold text-text-dim border-b border-border-dark`}>
-            <span>N° COMPTE</span>
-            <span>INTITULÉ DU COMPTE</span>
-            <span className="text-right">DÉBIT</span>
-            <span className="text-right">CRÉDIT</span>
-            <span className="text-right">DÉBIT</span>
-            <span className="text-right">CRÉDIT</span>
-            <span className="text-right">DÉBIT</span>
-            <span className="text-right">CRÉDIT</span>
+            <span>N° compte</span>
+            <span>Intitulé du compte</span>
+            <span className="text-right">Débit</span>
+            <span className="text-right">Crédit</span>
+            <span className="text-right">Débit</span>
+            <span className="text-right">Crédit</span>
+            <span className="text-right">Débit</span>
+            <span className="text-right">Crédit</span>
           </div>
           {balance.map((l) => (
             <div
@@ -773,7 +773,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
             return (
               <div className={`grid ${GRILLE_BALANCE} gap-2 px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[12px] font-bold`}>
                 <span />
-                <span className="text-right text-[11px] text-text-dim self-center">TOTAUX GÉNÉRAUX</span>
+                <span className="text-right text-[11px] text-text-dim self-center">Totaux généraux</span>
                 <Montant valeur={cumul((l) => Math.max(ouv(l), 0))} />
                 <Montant valeur={cumul((l) => Math.max(-ouv(l), 0))} />
                 <Montant valeur={cumul((l) => l.mouvementDebit)} />

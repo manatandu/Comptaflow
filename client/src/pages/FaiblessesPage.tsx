@@ -215,7 +215,7 @@ export function FaiblessesPage() {
     <div className="p-2">
       <EnteteImpression titre="Registre des faiblesses du contrôle interne" />
       <div className="ecran-seul mb-1.5 max-w-[1240px]">
-        <div className="text-[11px] font-mono text-text-dim leading-none">CONTRÔLE ET RÉVISION</div>
+        <div className="text-[11px] font-mono text-text-dim leading-none">Contrôle et révision</div>
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-[13px] font-bold leading-tight">Registre des faiblesses</h1>
           {peutEcrire && (
@@ -338,7 +338,7 @@ export function FaiblessesPage() {
 
       <div className="flex gap-2.5 max-w-[1400px] items-start">
         <div className="border border-border bg-surface min-w-[240px] max-w-[280px]">
-          <div className="px-2.5 py-1.5 border-b border-border text-[11px] font-mono text-text-dim">REGISTRES</div>
+          <div className="px-2.5 py-1.5 border-b border-border text-[11px] font-mono text-text-dim">Registres</div>
           {registres?.length === 0 && (
             <div className="px-2.5 py-3 text-[12px] text-text-dim">
               Aucun registre. Le CPCC réclame le suivi des faiblesses de l’exercice précédent parmi les travaux de
@@ -642,7 +642,7 @@ export function FaiblessesPage() {
 
               {(detail.mentionsContexte ?? []).length > 0 && (
                 <div className="border border-border bg-chrome px-3.5 py-2 mt-2 text-[10.5px] text-text-dim">
-                  <div className="font-mono mb-0.5">CONTEXTE DE LA COMMUNICATION · ISA 265 § 11 b)</div>
+                  <div className="font-mono mb-0.5">CONTEXTE de la COMMUNICATION · ISA 265 § 11 b)</div>
                   {(detail.mentionsContexte ?? []).map((m) => (
                     <div key={m} className="mt-0.5">
                       {m}

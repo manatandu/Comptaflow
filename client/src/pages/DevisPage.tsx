@@ -124,7 +124,7 @@ export function DevisPage() {
   return (
     <div className="p-2 max-w-[1100px]">
       <p className="text-[12px] text-text-dim mb-2.5 leading-[1.6]">
-        AUDCG, <strong>Livre 8</strong> · un devis n'est pas un brouillon de facture. S'il est suffisamment précis et
+        Audcg, <strong>Livre 8</strong> · un devis n'est pas un brouillon de facture. S'il est suffisamment précis et
         indique la volonté d'être lié, c'est une <strong>offre</strong> (art. 241), et son acceptation forme le contrat
         (art. 244). {etat.aucuneConditionDeForme.mention}
       </p>

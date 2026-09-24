@@ -123,7 +123,7 @@ export function UtilisateursPage() {
     <div className="p-2">
       <div className="flex items-center justify-between mb-2">
         <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">FICHIER</div>
+          <div className="text-[11px] font-mono text-text-dim leading-none">Fichier</div>
           <h1 className="text-[13px] font-bold leading-tight">Autorisations d'accès · utilisateurs du dossier</h1>
         </div>
         <button type="button" onClick={() => setNouveauOuvert(true)} className="bg-sel text-white px-3.5 py-1 text-[12px] font-semibold">
@@ -158,7 +158,7 @@ export function UtilisateursPage() {
         className="border border-border bg-surface shadow-posee max-w-[940px] overflow-x-auto"
       >
         <div className="grid grid-cols-[1fr_150px_90px_100px_190px] min-w-[740px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[11px] font-bold text-text-dim">
-          <span>E-MAIL</span><span>RÔLE</span><span>STATUT</span><span></span><span>MOT DE PASSE</span>
+          <span>E-mail</span><span>Rôle</span><span>STATUT</span><span></span><span>Mot de passe</span>
         </div>
         {!liste && <div className="p-3 text-[12.5px] text-text-dim">Chargement…</div>}
         {liste?.map((u, i) => (
@@ -193,7 +193,7 @@ export function UtilisateursPage() {
                   className="font-mono text-[10.5px] font-bold px-1.5 py-0.5 text-warning bg-warning-soft"
                   title="Le mot de passe a transité par un tiers · le logiciel reste fermé à ce compte tant qu'il ne l'a pas remplacé."
                 >
-                  PROVISOIRE
+                  Provisoire
                 </span>
               )}
               {u.verrouilleJusqua && new Date(u.verrouilleJusqua) > new Date() && (
@@ -241,7 +241,7 @@ export function UtilisateursPage() {
                 que son titulaire ne l'aura pas remplacé. Le geste est inscrit au journal d'audit.
               </p>
               <label className="flex flex-col gap-1">
-                <span className="text-[11px] font-bold text-text-dim">MOT DE PASSE PROVISOIRE</span>
+                <span className="text-[11px] font-bold text-text-dim">Mot de passe provisoire</span>
                 <input
                   value={reinitMotDePasse}
                   onChange={(e) => setReinitMotDePasse(e.target.value)}

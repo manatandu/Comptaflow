@@ -167,18 +167,18 @@ export function OngletBulletins({ moisInitial, peutEcrire }: { moisInitial: stri
                 </tr>
               )}
               {liste.bulletins.map((b) => (
-                <tr key={b.id} className={`border-t border-border ${b.statut === 'ANNULE' ? 'text-text-dim line-through' : ''}`}>
-                  <td className="px-3 py-1.5 font-mono">{b.numero}</td>
+                <tr key={b.id} className={b.statut === 'ANNULE' ? 'text-text-dim' : undefined}>
+                  <td className="px-3 py-1.5">{b.numero}</td>
                   <td className="px-3 py-1.5">
                     {b.nomComplet}
                     {b.matricule ? <span className="text-text-dim"> · {b.matricule}</span> : null}
                   </td>
-                  <td className="px-3 py-1.5 text-right font-mono">{fc(b.totalVerseFc)}</td>
-                  <td className="px-3 py-1.5 text-right font-mono">{fc(b.irppFc)}</td>
-                  <td className="px-3 py-1.5 text-right font-mono">{fc(b.netAPayerFc)}</td>
+                  <td className="px-3 py-1.5 text-right">{fc(b.totalVerseFc)}</td>
+                  <td className="px-3 py-1.5 text-right">{fc(b.irppFc)}</td>
+                  <td className="px-3 py-1.5 text-right">{fc(b.netAPayerFc)}</td>
                   <td className="px-3 py-1.5">{jour(b.remisLe)}</td>
                   <td className="px-3 py-1.5">{b.statut === 'EMIS' ? 'Émis' : 'Annulé'}</td>
-                  <td className="px-3 py-1.5 text-right no-underline">
+                  <td className="px-3 py-1.5 text-right">
                     <button type="button" onClick={() => ouvrir(b.id)} className="text-sel hover:underline">
                       Ouvrir
                     </button>
@@ -188,14 +188,14 @@ export function OngletBulletins({ moisInitial, peutEcrire }: { moisInitial: stri
             </tbody>
             {t && t.nombre > 0 && (
               <tfoot>
-                <tr className="border-t-2 border-border font-semibold">
+                <tr>
                   <td className="px-3 py-1.5" colSpan={2}>
                     Total des {t.nombre} bulletin(s) émis · les annulés n’y entrent pas
                   </td>
-                  <td className="px-3 py-1.5 text-right font-mono">{fc(t.totalVerseFc)}</td>
-                  <td className="px-3 py-1.5 text-right font-mono">{fc(t.irppFc)}</td>
-                  <td className="px-3 py-1.5 text-right font-mono">{fc(t.netAPayerFc)}</td>
-                  <td colSpan={3} className="px-3 py-1.5 text-text-dim font-normal">
+                  <td className="px-3 py-1.5 text-right">{fc(t.totalVerseFc)}</td>
+                  <td className="px-3 py-1.5 text-right">{fc(t.irppFc)}</td>
+                  <td className="px-3 py-1.5 text-right">{fc(t.netAPayerFc)}</td>
+                  <td colSpan={3} className="px-3 py-1.5 text-text-dim">
                     Cotisations · ouvrières {fc(t.cotisationsTravailleurFc)}, patronales{' '}
                     {fc(t.cotisationsEmployeurFc)}
                   </td>
@@ -218,7 +218,7 @@ export function OngletBulletins({ moisInitial, peutEcrire }: { moisInitial: stri
 
           {ouvert.statut === 'ANNULE' && (
             <div className="border border-danger/30 bg-danger-soft px-3 py-2 mb-3">
-              <strong>ANNULÉ</strong> le {jour(ouvert.annuleLe)} · {ouvert.motifAnnulation}
+              <strong>Annulé</strong> le {jour(ouvert.annuleLe)} · {ouvert.motifAnnulation}
             </div>
           )}
 
@@ -247,12 +247,12 @@ export function OngletBulletins({ moisInitial, peutEcrire }: { moisInitial: stri
               {ouvert.entree.elements.map((e, i) => (
                 <tr key={i} className="border-t border-border/60">
                   <td className="py-1">{e.libelle}</td>
-                  <td className="py-1 text-right font-mono">{fc(e.montantFc)}</td>
+                  <td className="py-1 text-right">{fc(e.montantFc)}</td>
                 </tr>
               ))}
               <tr className="border-t border-border font-semibold">
                 <td className="py-1">Total versé</td>
-                <td className="py-1 text-right font-mono">{fc(ouvert.totalVerseFc)}</td>
+                <td className="py-1 text-right">{fc(ouvert.totalVerseFc)}</td>
               </tr>
               {ouvert.calcul.cotisations.lignes
                 .filter((c) => c.charge === 'TRAVAILLEUR')
@@ -261,16 +261,16 @@ export function OngletBulletins({ moisInitial, peutEcrire }: { moisInitial: stri
                     <td className="py-1">
                       Retenue {c.libelle} ({c.tauxPourCent} % de {fc(c.assietteFc)})
                     </td>
-                    <td className="py-1 text-right font-mono">− {fc(c.montantFc)}</td>
+                    <td className="py-1 text-right">− {fc(c.montantFc)}</td>
                   </tr>
                 ))}
               <tr className="border-t border-border/60">
                 <td className="py-1">Retenue IRPP (art. 119)</td>
-                <td className="py-1 text-right font-mono">− {fc(ouvert.irppFc)}</td>
+                <td className="py-1 text-right">− {fc(ouvert.irppFc)}</td>
               </tr>
               <tr className="border-t-2 border-border font-semibold text-[13px]">
                 <td className="py-1.5">Net à payer</td>
-                <td className="py-1.5 text-right font-mono">{fc(ouvert.netAPayerFc)}</td>
+                <td className="py-1.5 text-right">{fc(ouvert.netAPayerFc)}</td>
               </tr>
             </tbody>
           </table>

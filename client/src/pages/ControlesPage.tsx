@@ -82,7 +82,7 @@ export function ControlesPage() {
     <div className="p-2">
       <EnteteImpression titre="Analyse et contrôles" />
       <div className="mb-2.5">
-        <div className="text-[11px] font-mono text-text-dim leading-none">ÉTAT</div>
+        <div className="text-[11px] font-mono text-text-dim leading-none">État</div>
         <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
           Analyse et contrôles
           <Aide sujet="controles" />
@@ -97,16 +97,16 @@ export function ControlesPage() {
 
       <div className="flex bg-chrome border border-border border-b-0 rounded-t-[10px] overflow-hidden">
         <button onClick={() => setOnglet('controles')} className={ongletClasse('controles')}>
-          CONTRÔLES DE COHÉRENCE
+          Contrôles de cohérence
         </button>
         <button onClick={() => setOnglet('caisse')} className={ongletClasse('caisse')}>
-          CONTRÔLE DE CAISSE
+          Contrôle de caisse
         </button>
         <button onClick={() => setOnglet('evolution')} className={ongletClasse('evolution')}>
-          ÉVOLUTION MENSUELLE
+          Évolution mensuelle
         </button>
         <button onClick={() => setOnglet('dormants')} className={ongletClasse('dormants')}>
-          COMPTES DORMANTS
+          Comptes dormants
         </button>
       </div>
 
@@ -151,7 +151,7 @@ export function ControlesPage() {
                     <div className="px-4 py-2 text-[12px] leading-[1.55] border-t border-border/40">
                       <p className="text-text-dim">{a.consequence}</p>
                       <p className="mt-1">
-                        <span className="font-semibold">À faire : </span>
+                        <span className="font-semibold">à faire : </span>
                         {a.action}
                       </p>
                     </div>
@@ -226,9 +226,9 @@ export function ControlesPage() {
               <div className="grid grid-cols-[110px_1fr_140px_140px_150px] min-w-[760px] gap-2 px-4 py-1.5 bg-chrome-alt border-b border-border text-[11px] font-bold text-text-dim">
                 <span>DATE</span>
                 <span />
-                <span className="text-right">ENTRÉES</span>
-                <span className="text-right">SORTIES</span>
-                <span className="text-right">SOLDE AU SOIR</span>
+                <span className="text-right">Entrées</span>
+                <span className="text-right">Sorties</span>
+                <span className="text-right">Solde au soir</span>
               </div>
               <div className="max-h-[320px] overflow-y-auto">
                 {c.journees.map((j) => (

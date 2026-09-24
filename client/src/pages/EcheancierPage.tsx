@@ -46,14 +46,14 @@ export function EcheancierPage() {
       <EnteteImpression titre="Échéancier de trésorerie" />
       <div className="ecran-seul flex items-end justify-between mb-1.5 gap-3 flex-wrap max-w-[1100px]">
         <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">ÉTAT</div>
+          <div className="text-[11px] font-mono text-text-dim leading-none">État</div>
           <h1 className="text-[13px] font-bold leading-tight">Échéancier de trésorerie</h1>
           <div className="text-[11px] text-text-dim mt-0.5">
             Ce qui vient à échéance et ce qu'il restera en caisse · distinct de la balance âgée, qui recense le retard.
           </div>
         </div>
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] font-bold text-text-dim">DATE DE RÉFÉRENCE</span>
+          <span className="text-[11px] font-bold text-text-dim">Date de référence</span>
           <input
             type="date"
             value={dateReference}
@@ -88,12 +88,12 @@ export function EcheancierPage() {
             // qui emportait alors titre, onglets et boutons hors de l'écran.
             className="border border-border bg-surface mb-3 overflow-x-auto"
           >
-            <div className="grid grid-cols-[1fr_130px_130px_130px_150px] min-w-[760px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim">
-              <span>TRANCHE</span>
-              <span className="text-right">ENCAISSEMENTS</span>
-              <span className="text-right">DÉCAISSEMENTS</span>
-              <span className="text-right">NET</span>
-              <span className="text-right">TRÉSORERIE PROJETÉE</span>
+            <div className="entete-colonnes grid grid-cols-[1fr_130px_130px_130px_150px] min-w-[760px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim">
+              <span>Tranche</span>
+              <span className="text-right">Encaissements</span>
+              <span className="text-right">Décaissements</span>
+              <span className="text-right">Net</span>
+              <span className="text-right">Trésorerie projetée</span>
             </div>
             {etat.tranches.map((t) => {
               const vide = t.encaissements === 0 && t.decaissements === 0;
@@ -126,11 +126,11 @@ export function EcheancierPage() {
                   {trancheOuverte === t.cle && (
                     <div className="bg-chrome-alt border-b border-border">
                       <div className="grid grid-cols-[80px_1fr_120px_120px_130px] min-w-[680px] gap-2 px-6 py-1 text-[11px] font-bold text-text-dim">
-                        <span>ÉCHÉANCE</span>
-                        <span>TIERS ET LIBELLÉ</span>
+                        <span>Échéance</span>
+                        <span>Tiers et libellé</span>
                         <span>COMPTE</span>
-                        <span>PIÈCE</span>
-                        <span className="text-right">MONTANT</span>
+                        <span>Pièce</span>
+                        <span className="text-right">Montant</span>
                       </div>
                       {etat.details
                         .filter((d) => d.tranche === t.cle)

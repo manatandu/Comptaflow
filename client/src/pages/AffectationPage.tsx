@@ -372,7 +372,7 @@ export function AffectationPage() {
 
       {historique.length > 0 && (
         <div className="mt-4">
-          <div className="text-[11px] font-bold text-text-dim mb-1">AFFECTATIONS PRÉCÉDENTES</div>
+          <div className="text-[11px] font-bold text-text-dim mb-1">Affectations précédentes</div>
           <div className="bg-surface border border-border rounded-[8px] overflow-hidden">
             {historique.map((a) => (
               <div

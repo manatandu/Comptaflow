@@ -299,14 +299,14 @@ export function PlateformePage() {
       <div className="border border-border bg-surface shadow-posee max-w-[1080px] overflow-x-auto">
         <div className="min-w-[1000px]">
           <div className="grid grid-cols-[1.4fr_100px_1fr_60px_70px_130px_90px_90px_190px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[11px] font-bold text-text-dim">
-            <span>CABINET</span>
+            <span>Cabinet</span>
             <span>JEU</span>
             <span>NIF</span>
-            <span className="text-right">UTIL.</span>
-            <span className="text-right">ÉCRIT.</span>
-            <span>LICENCE</span>
-            <span>ÉCHÉANCE</span>
-            <span>ÉTAT</span>
+            <span className="text-right">Util.</span>
+            <span className="text-right">Écrit.</span>
+            <span>Licence</span>
+            <span>Échéance</span>
+            <span>État</span>
             <span></span>
           </div>
           {!liste && <div className="p-3 text-[12.5px] text-text-dim">Chargement…</div>}
@@ -407,7 +407,7 @@ export function PlateformePage() {
                 relève de l'administrateur de son cabinet. Le geste est inscrit au journal d'audit.
               </p>
               <label className="flex flex-col gap-1">
-                <span className="text-[11px] font-bold text-text-dim">ADRESSE DE L'ADMINISTRATEUR</span>
+                <span className="text-[11px] font-bold text-text-dim">Adresse de l'administrateur</span>
                 <input
                   type="email"
                   value={reinitEmail}
@@ -418,7 +418,7 @@ export function PlateformePage() {
                 />
               </label>
               <label className="flex flex-col gap-1">
-                <span className="text-[11px] font-bold text-text-dim">MOT DE PASSE PROVISOIRE</span>
+                <span className="text-[11px] font-bold text-text-dim">Mot de passe provisoire</span>
                 <input
                   value={reinitMotDePasse}
                   onChange={(e) => setReinitMotDePasse(e.target.value)}

@@ -107,12 +107,12 @@ export function BalanceAuxiliairePage() {
       <EnteteImpression titre="Balance auxiliaire" />
       <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
         <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">ÉTAT</div>
+          <div className="text-[11px] font-mono text-text-dim leading-none">État</div>
           <h1 className="text-[13px] font-bold leading-tight">Balance auxiliaire</h1>
         </div>
         <div className="flex items-end gap-3">
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] font-bold text-text-dim">TYPE DE TIERS</span>
+            <span className="text-[11px] font-bold text-text-dim">Type de tiers</span>
             <select
               value={type}
               onChange={(e) => setType(e.target.value as TypeTiers)}
@@ -143,15 +143,15 @@ export function BalanceAuxiliairePage() {
         <div
           className={`${grille} px-3.5 py-1.5 bg-surface-alt text-[11px] font-bold text-text-dim border-b border-border-dark`}
         >
-          <span>CODE COMPTE</span>
-          <span>CODE TIERS</span>
-          <span>LIBELLÉ TIERS</span>
-          <span className="text-right">SOLDE DÉBIT AV. PÉR.</span>
-          <span className="text-right">SOLDE CRÉDIT AV. PÉR.</span>
-          <span className="text-right">DÉBIT PÉRIODE</span>
-          <span className="text-right">CRÉDIT PÉRIODE</span>
-          <span className="text-right">SOLDE DÉBIT</span>
-          <span className="text-right">SOLDE CRÉDIT</span>
+          <span>Code compte</span>
+          <span>Code tiers</span>
+          <span>Libellé tiers</span>
+          <span className="text-right">Solde débit av. pér.</span>
+          <span className="text-right">Solde crédit av. pér.</span>
+          <span className="text-right">Débit période</span>
+          <span className="text-right">Crédit période</span>
+          <span className="text-right">Solde débit</span>
+          <span className="text-right">Solde crédit</span>
         </div>
 
         {donnees && donnees.comptes.length === 0 && (

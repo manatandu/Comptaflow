@@ -85,7 +85,7 @@ export function DossierRevisionPage() {
   return (
     <div className="p-2">
       <div className="mb-2">
-        <div className="text-[11px] font-mono text-text-dim leading-none">RÉVISION</div>
+        <div className="text-[11px] font-mono text-text-dim leading-none">Révision</div>
         <h1 className="text-[13px] font-bold leading-tight">Dossier de révision</h1>
         <p className="text-[12px] text-text-dim mt-1 max-w-[980px] leading-[1.5]">
           Un bloc par compte mouvementé de l'exercice, avec son solde et les pièces à partir desquelles le référentiel

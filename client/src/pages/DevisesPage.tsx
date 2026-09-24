@@ -175,7 +175,7 @@ export function DevisesPage() {
     <div className="p-2">
       <EnteteImpression titre="Devises et réévaluation" />
       <div className="mb-1.5">
-        <div className="text-[11px] font-mono text-text-dim leading-none">TRAITEMENT</div>
+        <div className="text-[11px] font-mono text-text-dim leading-none">Traitement</div>
         <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
           Devises et réévaluation
           <Aide sujet="devises" />
@@ -428,13 +428,13 @@ export function DevisesPage() {
 
               <div className="grid grid-cols-[110px_1fr_60px_110px_90px_130px_130px_120px] min-w-[980px] gap-2 px-3 py-1.5 bg-chrome-alt border-b border-border text-[11px] font-bold text-text-dim">
                 <span>COMPTE</span>
-                <span>INTITULÉ</span>
-                <span>DEV.</span>
-                <span className="text-right">EN DEVISE</span>
+                <span>Intitulé</span>
+                <span>Dev.</span>
+                <span className="text-right">En devise</span>
                 <span className="text-right">COURS</span>
-                <span className="text-right">COMPTABILISÉ</span>
-                <span className="text-right">RÉÉVALUÉ</span>
-                <span className="text-right">ÉCART</span>
+                <span className="text-right">Comptabilisé</span>
+                <span className="text-right">Réévalué</span>
+                <span className="text-right">Écart</span>
               </div>
               {rapport.positions.map((p) => (
                 <div
@@ -469,7 +469,7 @@ export function DevisesPage() {
           {reevaluations.length > 0 && (
             <div className="border-t border-border">
               <div className="px-3 py-1.5 bg-chrome text-[11px] font-bold text-text-dim">
-                RÉÉVALUATIONS PASSÉES SUR CET EXERCICE
+                Réévaluations passées sur cet exercice
               </div>
               {reevaluations.map((r) => (
                 <div

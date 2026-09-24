@@ -22,7 +22,7 @@ describe('ouverture du dossier · un seul écran', () => {
   it('les dossiers récents survivent · ils portaient toute la valeur de la porte', () => {
     // Ce sont les Favoris du menu Fichier de Sage. Les perdre en supprimant
     // l'écran aurait fait retaper l'adresse à chaque ouverture.
-    expect(page).toContain('DOSSIERS RÉCENTS');
+    expect(page).toContain('Dossiers récents');
     expect(page).toContain('ouvrirDossier(d)');
   });
 
@@ -171,7 +171,7 @@ describe('différenciateur SYCEBNL · les fiches du référentiel, mises au trav
 describe('réintégrations fiscales · le logiciel se souvient, il ne qualifie pas', () => {
   it('le plan comptable laisse DÉCLARER le traitement fiscal d’un compte', () => {
     const page = lire('pages/PlanComptesPage.tsx');
-    expect(page).toContain('TRAITEMENT FISCAL DE CE COMPTE');
+    expect(page).toContain('Traitement fiscal de ce compte');
     expect(page).toContain('codeRetraitementFiscal');
   });
 
@@ -186,7 +186,7 @@ describe('réintégrations fiscales · le logiciel se souvient, il ne qualifie p
     // Une réintégration inscrite d'office serait le « logiciel qui tranche
     // seul » que le catalogue des retraitements refuse explicitement.
     const page = lire('pages/FiscalitePage.tsx');
-    expect(page).toContain('PROPOSITIONS À REPRENDRE');
+    expect(page).toContain('Propositions à reprendre');
     expect(page).toContain("Rien n'est inscrit tant que");
     expect(page).toContain('reprendre(p)');
   });

@@ -243,7 +243,7 @@ export function EngagementsPage() {
             </select>
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] font-bold text-text-dim">LIGNE BUDGÉTAIRE</span>
+            <span className="text-[11px] font-bold text-text-dim">Ligne budgétaire</span>
             <select
               value={sectionId}
               onChange={(e) => setSectionId(e.target.value)}
@@ -259,7 +259,7 @@ export function EngagementsPage() {
             </select>
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] font-bold text-text-dim">RÉFÉRENCE</span>
+            <span className="text-[11px] font-bold text-text-dim">Référence</span>
             <input
               value={reference}
               onChange={(e) => setReference(e.target.value)}
@@ -278,7 +278,7 @@ export function EngagementsPage() {
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] font-bold text-text-dim">BÉNÉFICIAIRE</span>
+            <span className="text-[11px] font-bold text-text-dim">Bénéficiaire</span>
             <input
               value={beneficiaire}
               onChange={(e) => setBeneficiaire(e.target.value)}
@@ -304,7 +304,7 @@ export function EngagementsPage() {
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] font-bold text-text-dim">MONTANT</span>
+            <span className="text-[11px] font-bold text-text-dim">Montant</span>
             <input
               type="number"
               step="0.01"
@@ -322,17 +322,17 @@ export function EngagementsPage() {
 
       <div className="overflow-x-auto">
         <div className="min-w-[1080px] border border-border">
-          <div className="grid grid-cols-[110px_130px_1fr_170px_120px_120px_120px_150px] gap-2 bg-surface-alt px-3 py-1.5 text-[11px] font-bold border-b border-border">
-            <span>NATURE</span>
-            <span>RÉFÉRENCE</span>
-            <span>OBJET · LIGNE BUDGÉTAIRE</span>
-            <span>BÉNÉFICIAIRE</span>
-            <span className="text-right">MONTANT</span>
-            <span className="text-right">EXÉCUTÉ</span>
+          <div className="entete-colonnes grid grid-cols-[110px_130px_1fr_170px_120px_120px_120px_150px] gap-2 bg-surface-alt px-3 py-1.5 text-[11px] font-bold border-b border-border">
+            <span>Nature</span>
+            <span>Référence</span>
+            <span>Objet · ligne budgétaire</span>
+            <span>Bénéficiaire</span>
+            <span className="text-right">Montant</span>
+            <span className="text-right">Exécuté</span>
             <span className="text-right" title="Ce qui pèse encore sur la colonne Engagement du tableau">
-              RESTE À EXÉCUTER
+              Reste à exécuter
             </span>
-            <span className="ecran-seul">ACTIONS</span>
+            <span className="ecran-seul">Actions</span>
           </div>
 
           {engagements?.map((e) => (
@@ -414,7 +414,7 @@ export function EngagementsPage() {
                       className="text-[11px] font-bold text-text-dim"
                       title="Seules les écritures VALIDÉES sont proposées · le tableau d'exécution budgétaire ne lit que le validé"
                     >
-                      ÉCRITURE QUI EXÉCUTE
+                      Écriture qui exécute
                     </span>
                     <select
                       value={rEcritureId}
@@ -435,7 +435,7 @@ export function EngagementsPage() {
                       className="text-[11px] font-bold text-text-dim"
                       title="Saisi, et non déduit de l'écriture : une facture peut solder deux bons de commande, et une commande être livrée en deux fois"
                     >
-                      MONTANT EXÉCUTÉ
+                      Montant exécuté
                     </span>
                     <input
                       type="number"
@@ -463,7 +463,7 @@ export function EngagementsPage() {
 
           {engagements && engagements.length > 0 && (
             <div className="grid grid-cols-[110px_130px_1fr_170px_120px_120px_120px_150px] gap-2 bg-surface-alt px-3 py-1.5 text-[12.5px] font-bold border-t border-border">
-              <span>TOTAL</span>
+              <span>Total</span>
               <span />
               <span />
               <span />

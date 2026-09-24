@@ -121,12 +121,12 @@ export function JustificatifSoldePage() {
       <EnteteImpression titre="Justificatif de solde" />
       <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
         <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">RÉVISION</div>
+          <div className="text-[11px] font-mono text-text-dim leading-none">Révision</div>
           <h1 className="text-[13px] font-bold leading-tight">Justificatif de solde</h1>
         </div>
         <div className="flex items-end gap-3 flex-wrap">
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] font-bold text-text-dim">COMPTE À JUSTIFIER</span>
+            <span className="text-[11px] font-bold text-text-dim">Compte à justifier</span>
             <select
               value={compteId}
               onChange={(e) => setCompteId(e.target.value)}
@@ -141,7 +141,7 @@ export function JustificatifSoldePage() {
             </select>
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] font-bold text-text-dim">ARRÊTÉ AU</span>
+            <span className="text-[11px] font-bold text-text-dim">Arrêté au</span>
             <input
               type="date"
               value={dateArret}
@@ -205,14 +205,14 @@ export function JustificatifSoldePage() {
               className={`${grille} px-3.5 py-1.5 bg-surface-alt text-[11px] font-bold text-text-dim border-b border-border-dark`}
             >
               <span>DATE</span>
-              <span>JOURNAL</span>
-              <span>N° PIÈCE</span>
-              <span>RÉF. PIÈCE</span>
-              <span>LIBELLÉ ÉCRITURE</span>
-              <span>DEV. TR</span>
-              <span className="text-right">MT DEVISE</span>
-              <span className="text-right">DÉBIT</span>
-              <span className="text-right">CRÉDIT</span>
+              <span>Journal</span>
+              <span>N° pièce</span>
+              <span>Réf. pièce</span>
+              <span>Libellé écriture</span>
+              <span>Dev. TR</span>
+              <span className="text-right">mt devise</span>
+              <span className="text-right">Débit</span>
+              <span className="text-right">Crédit</span>
               <span>LETTRE</span>
             </div>
 

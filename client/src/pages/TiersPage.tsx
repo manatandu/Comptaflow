@@ -434,7 +434,7 @@ export function TiersPage() {
     <div className="p-2 flex flex-col h-full">
       <div className="flex items-center justify-between mb-2 shrink-0">
         <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">STRUCTURE</div>
+          <div className="text-[11px] font-mono text-text-dim leading-none">Structure</div>
           <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             Plan des tiers
             <Aide sujet="compte41" />
@@ -476,7 +476,7 @@ export function TiersPage() {
         {/* Filtre par type · la partie gauche de la fenêtre Sage */}
         <div className="w-[190px] shrink-0 bg-surface border border-border shadow-posee overflow-auto">
           <div className="px-3 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim">
-            TYPE DE TIERS
+            Type de tiers
           </div>
           <button
             type="button"
@@ -519,11 +519,11 @@ export function TiersPage() {
           // qui emportait alors titre, onglets et boutons hors de l'écran.
           className="flex-1 min-w-0 bg-surface border border-border shadow-posee flex flex-col overflow-x-auto"
         >
-          <div className="grid grid-cols-[96px_1fr_150px_86px] min-w-[540px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[11px] font-bold text-text-dim shrink-0">
-            <span>CODE</span>
-            <span>NOM</span>
-            <span>MODÈLE DE RÈGLEMENT</span>
-            <span>ÉTAT</span>
+          <div className="entete-colonnes grid grid-cols-[96px_1fr_150px_86px] min-w-[540px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[11px] font-bold text-text-dim shrink-0">
+            <span>Code</span>
+            <span>Nom</span>
+            <span>Modèle de règlement</span>
+            <span>État</span>
           </div>
           <div className="flex-1 overflow-auto min-w-[540px]">
             {!liste && <div className="px-3.5 py-3 text-[12.5px] text-text-dim">Chargement…</div>}
@@ -558,7 +558,7 @@ export function TiersPage() {
         {/* Fiche du tiers sélectionné */}
         <div className="w-[340px] shrink-0 bg-surface border border-border shadow-posee overflow-auto">
           <div className="px-3 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim">
-            FICHE DU TIERS
+            Fiche du tiers
           </div>
           {!tiersSelectionne && (
             <div className="px-3 py-3 text-[12px] text-text-dim">
@@ -607,7 +607,7 @@ export function TiersPage() {
                 requête par caractère saturerait le serveur pour rien.
               */}
               <div className="border-t border-border pt-2.5 mb-3">
-                <div className="text-[11px] font-bold text-text-dim mb-1.5">COORDONNÉES</div>
+                <div className="text-[11px] font-bold text-text-dim mb-1.5">Coordonnées</div>
                 <div className="grid grid-cols-[92px_1fr] gap-x-2 gap-y-1 items-center">
                   {CHAMPS_COORDONNEES.map((champ) => (
                     <Fragment key={champ.cle}>
@@ -653,7 +653,7 @@ export function TiersPage() {
                 avec un tiers.
               */}
               <div className="border-t border-border pt-2.5 mb-3">
-                <div className="text-[11px] font-bold text-text-dim mb-1.5">GROUPE D'ÉTABLISSEMENTS</div>
+                <div className="text-[11px] font-bold text-text-dim mb-1.5">Groupe d'établissements</div>
                 {dossiersGroupe.length === 0 ? (
                   <div className="text-[11px] text-text-dim leading-[1.5]">
                     Ce dossier n'appartient à aucun groupe d'établissements · le rattachement d'un dossier mère et de
@@ -698,7 +698,7 @@ export function TiersPage() {
                 non à l'encaissement · la déduction est donc plus précoce.
               */}
               <div className="border-t border-border pt-2.5 mb-3">
-                <div className="text-[11px] font-bold text-text-dim mb-1.5">TVA D'APRÈS LES DÉBITS</div>
+                <div className="text-[11px] font-bold text-text-dim mb-1.5">TVA d'après les débits</div>
                 <label className="flex items-start gap-1.5 text-[12px] leading-[1.4]">
                   <input
                     type="checkbox"
@@ -739,7 +739,7 @@ export function TiersPage() {
 
               {/* Volet Comptes rattachés */}
               <div className="border-t border-border pt-2.5">
-                <div className="text-[11px] font-bold text-text-dim mb-1.5">COMPTES GÉNÉRAUX RATTACHÉS</div>
+                <div className="text-[11px] font-bold text-text-dim mb-1.5">Comptes généraux rattachés</div>
                 {tiersSelectionne.comptesRattaches.length === 0 && (
                   <div className="text-[12px] text-text-dim mb-2">Aucun compte rattaché.</div>
                 )}
@@ -749,7 +749,7 @@ export function TiersPage() {
                       <span className="font-mono font-semibold">{tc.compte.numero}</span>
                       {tc.estPrincipal ? (
                         <span className="font-mono text-[11px] font-bold px-1.5 py-0.5 bg-positive-soft text-positive flex items-center gap-1">
-                          <IconCheck width={9} height={9} /> PRINCIPAL
+                          <IconCheck width={9} height={9} /> Principal
                         </span>
                       ) : (
                         <button
@@ -956,7 +956,7 @@ export function TiersPage() {
                     </button>
                   </form>
 
-                  <div className="font-mono text-[11px] font-semibold text-text-dim mb-2">SIMULATEUR D'ÉCHÉANCIER</div>
+                  <div className="font-mono text-[11px] font-semibold text-text-dim mb-2">Simulateur d'échéancier</div>
                   <form onSubmit={onCalculer} className="flex items-end gap-2 mb-3">
                     <label className="text-[11px] font-semibold text-text-dim">
                       Date facture

@@ -253,7 +253,7 @@ export function FiscalitePage() {
     <div className="p-2">
       <EnteteImpression titre="Résultat fiscal et impôt sur les bénéfices" />
       <div className="ecran-seul mb-1.5 max-w-[1100px]">
-        <div className="text-[11px] font-mono text-text-dim leading-none">FISCALITÉ</div>
+        <div className="text-[11px] font-mono text-text-dim leading-none">Fiscalité</div>
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             Résultat fiscal et impôt sur les bénéfices <Aide sujet="resultatFiscal" />
@@ -292,7 +292,7 @@ export function FiscalitePage() {
           <section className="border border-border rounded-[8px] p-3">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div>
-                <div className="text-[11px] font-mono text-text-dim leading-none">RÉGIME</div>
+                <div className="text-[11px] font-mono text-text-dim leading-none">Régime</div>
                 <div className="text-[13px] font-bold">{LIBELLE_REGIME[resultat.regime]}</div>
               </div>
               {resultat.regime === 'IRPP_PETITE_ENTREPRISE' && peutEcrire && (
@@ -306,7 +306,7 @@ export function FiscalitePage() {
                     }
                     className="border border-border rounded-[7px] bg-bg px-2 py-1 text-[12.5px]"
                   >
-                    <option value="">À renseigner</option>
+                    <option value="">à renseigner</option>
                     <option value="VENTE">Vente · 1 % du chiffre d’affaires</option>
                     <option value="PRESTATIONS">Prestations de services · 2 %</option>
                   </select>
@@ -353,7 +353,7 @@ export function FiscalitePage() {
               rappelle ce que le comptable a décidé une fois. */}
           {propositions.length > 0 && (
             <section className="border border-warning/40 bg-warning-soft rounded-[8px] p-3">
-              <div className="text-[11px] font-mono text-text-dim leading-none">PROPOSITIONS À REPRENDRE</div>
+              <div className="text-[11px] font-mono text-text-dim leading-none">Propositions à reprendre</div>
               <p className="text-[12px] text-text-dim mt-1 mb-2 leading-[1.5]">
                 Ces comptes portent un traitement fiscal déclaré dans le plan comptable. Rien n'est inscrit tant que
                 vous ne reprenez pas la ligne · vérifiez le montant avant.
@@ -430,7 +430,7 @@ export function FiscalitePage() {
 
           {/* RETRAITEMENTS */}
           <section className="border border-border rounded-[8px] p-3">
-            <div className="text-[11px] font-mono text-text-dim leading-none">RETRAITEMENTS</div>
+            <div className="text-[11px] font-mono text-text-dim leading-none">Retraitements</div>
             {resultat.retraitements.length === 0 ? (
               <p className="text-[12px] text-text-dim mt-1.5">
                 Aucun retraitement saisi. Un résultat fiscal égal au résultat comptable est rare : passez le catalogue
@@ -605,7 +605,7 @@ export function FiscalitePage() {
           {/* DÉFICIT ANTÉRIEUR SAISI */}
           {peutEcrire && (
             <section className="border border-border rounded-[8px] p-3">
-              <div className="text-[11px] font-mono text-text-dim leading-none">DÉFICITS ANTÉRIEURS</div>
+              <div className="text-[11px] font-mono text-text-dim leading-none">Déficits antérieurs</div>
               <p className="text-[12px] text-text-dim mt-1.5 leading-[1.55]">
                 OmegaX calcule les déficits reportables depuis les trois exercices précédents tenus ici
                 {resultat.deficitAnterieur.detail.length > 0
@@ -637,7 +637,7 @@ export function FiscalitePage() {
           {/* IMPÔT */}
           <section className="border border-border rounded-[8px] overflow-hidden">
             <div className="px-3 pt-3">
-              <div className="text-[11px] font-mono text-text-dim leading-none">IMPÔT</div>
+              <div className="text-[11px] font-mono text-text-dim leading-none">Impôt</div>
               <div className="text-[12px] mt-1">{resultat.baseImpot}</div>
               <p className="text-[12px] text-text-dim mt-1 leading-[1.55]">{resultat.explication}</p>
             </div>

@@ -64,14 +64,14 @@ export function RetenuesPage() {
       <EnteteImpression titre="Retenues à la source et échéancier fiscal" />
       <div className="ecran-seul flex items-end justify-between mb-1.5 gap-3 flex-wrap max-w-[1100px]">
         <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">ÉTAT</div>
+          <div className="text-[11px] font-mono text-text-dim leading-none">État</div>
           <h1 className="text-[13px] font-bold leading-tight">Retenues à la source et échéancier fiscal</h1>
           <div className="text-[11px] text-text-dim mt-0.5">
             Ce que vous retenez pour le compte de l'État et des organismes sociaux, et quand il faut le reverser.
           </div>
         </div>
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] font-bold text-text-dim">DATE DE RÉFÉRENCE</span>
+          <span className="text-[11px] font-bold text-text-dim">Date de référence</span>
           <input
             type="date"
             value={dateReference}
@@ -111,13 +111,13 @@ export function RetenuesPage() {
             // qui emportait alors titre, onglets et boutons hors de l'écran.
             className="border border-border bg-surface mb-3 overflow-x-auto"
           >
-            <div className="grid grid-cols-[100px_86px_1fr_130px_150px_110px] min-w-[800px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim">
-              <span>PROCHAINE</span>
-              <span>RYTHME</span>
-              <span>NATURE</span>
-              <span>BÉNÉFICIAIRE</span>
-              <span className="text-right">RESTE À REVERSER</span>
-              <span className="text-right">MOIS EN RETARD</span>
+            <div className="entete-colonnes grid grid-cols-[100px_86px_1fr_130px_150px_110px] min-w-[800px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim">
+              <span>Prochaine</span>
+              <span>Rythme</span>
+              <span>Nature</span>
+              <span>Bénéficiaire</span>
+              <span className="text-right">Reste à reverser</span>
+              <span className="text-right">Mois en retard</span>
             </div>
             {echeancier.echeances.map((e) => (
               <div
@@ -170,7 +170,7 @@ export function RetenuesPage() {
             <div className="grid grid-cols-[100px_86px_1fr_130px_150px_110px] min-w-[800px] gap-2 px-4 py-1.5 bg-surface-alt border-t border-border text-[12.5px] font-bold">
               <span />
               <span />
-              <span>TOTAL RESTANT À REVERSER</span>
+              <span>Total restant à reverser</span>
               <span />
               <span className="font-mono text-right">{montant(echeancier.totalDu)}</span>
               <span />
@@ -193,11 +193,11 @@ export function RetenuesPage() {
       {onglet === 'registre' && registre && (
         <div className="max-w-[1100px]">
           <div className="border border-border bg-surface mb-3 overflow-x-auto">
-            <div className="grid grid-cols-[1fr_140px_140px_140px] min-w-[630px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim">
-              <span>NATURE</span>
-              <span className="text-right">RETENU</span>
-              <span className="text-right">REVERSÉ</span>
-              <span className="text-right">RESTE DÛ</span>
+            <div className="entete-colonnes grid grid-cols-[1fr_140px_140px_140px] min-w-[630px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim">
+              <span>Nature</span>
+              <span className="text-right">Retenu</span>
+              <span className="text-right">Reversé</span>
+              <span className="text-right">Reste dû</span>
             </div>
             {registre.natures.map((n) => (
               <div key={n.cle}>
@@ -242,12 +242,12 @@ export function RetenuesPage() {
                       première colonne les a déplacés.
                     */}
                     <div className="grid grid-cols-[130px_100px_115px_115px_115px_115px] min-w-[780px] gap-2 px-6 py-1 text-[11px] font-bold text-text-dim">
-                      <span>MOIS DE LA RETENUE</span>
-                      <span>À REVERSER LE</span>
+                      <span>Mois de la retenue</span>
+                      <span>à reverser le</span>
                       <span className="text-right">RETENU</span>
-                      <span className="text-right">REVERSÉ (IMPUTÉ)</span>
-                      <span className="text-right">DÉBITÉ CE MOIS</span>
-                      <span className="text-right">RESTE DÛ</span>
+                      <span className="text-right">Reversé (imputé)</span>
+                      <span className="text-right">Débité ce mois</span>
+                      <span className="text-right">Reste dû</span>
                     </div>
                     {n.mois.map((m) => (
                       <div
@@ -279,7 +279,7 @@ export function RetenuesPage() {
               </div>
             ))}
             <div className="grid grid-cols-[1fr_140px_140px_140px] min-w-[630px] gap-2 px-4 py-1.5 bg-surface-alt border-t border-border text-[12.5px] font-bold">
-              <span>TOTAL</span>
+              <span>Total</span>
               <span className="font-mono text-right">{montant(registre.totalRetenu)}</span>
               <span className="font-mono text-right">{montant(registre.totalReverse)}</span>
               <span className="font-mono text-right">{montant(registre.totalDu)}</span>

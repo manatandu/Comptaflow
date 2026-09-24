@@ -214,7 +214,7 @@ export function AuthPage() {
         {dossierVise && (
           <div className="mb-4 flex items-center justify-between gap-2 rounded-[4px] border border-border bg-chrome px-3.5 py-2.5">
             <span className="min-w-0">
-              <span className="block text-[11px] font-bold text-text-dim">DOSSIER</span>
+              <span className="block text-[11px] font-bold text-text-dim">Dossier</span>
               <span className="block text-[13px] font-bold truncate">{dossierVise.nom}</span>
             </span>
             {/* Remplace l'ancien « &lt; Ouvrir un autre dossier » qui renvoyait à
@@ -287,7 +287,7 @@ export function AuthPage() {
             remplit l'adresse au lieu de la retaper. */}
         {recents.length > 0 && (
           <div className="mt-5">
-            <div className="text-[12px] font-bold text-text-dim mb-1.5 px-0.5">DOSSIERS RÉCENTS</div>
+            <div className="text-[12px] font-bold text-text-dim mb-1.5 px-0.5">Dossiers récents</div>
             <div className="rounded-[8px] border border-border bg-surface overflow-hidden">
               {recents.map((d) => (
                 <div key={d.email} className="flex items-center gap-2 border-b border-border last:border-b-0">

@@ -109,7 +109,7 @@ export function JournauxPage() {
     <div className="p-2">
       <div className="flex items-center justify-between mb-2">
         <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">STRUCTURE</div>
+          <div className="text-[11px] font-mono text-text-dim leading-none">Structure</div>
           <h1 className="text-[13px] font-bold leading-tight">Codes journaux</h1>
         </div>
         <button
@@ -134,13 +134,13 @@ export function JournauxPage() {
         // qui emportait alors titre, onglets et boutons hors de l'écran.
         className="border border-border bg-surface shadow-posee overflow-x-auto"
       >
-        <div className="grid grid-cols-[76px_1fr_100px_160px_220px_92px] min-w-[880px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[11px] font-bold text-text-dim">
-          <span>CODE</span>
-          <span>INTITULÉ</span>
-          <span>TYPE</span>
-          <span>NUMÉROTATION DES PIÈCES</span>
-          <span>COMPTE DE TRÉSORERIE</span>
-          <span>ÉTAT</span>
+        <div className="entete-colonnes grid grid-cols-[76px_1fr_100px_160px_220px_92px] min-w-[880px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[11px] font-bold text-text-dim">
+          <span>Code</span>
+          <span>Intitulé</span>
+          <span>Type</span>
+          <span>Numérotation des pièces</span>
+          <span>Compte de trésorerie</span>
+          <span>État</span>
         </div>
         {!liste && <div className="px-3.5 py-3 text-[12.5px] text-text-dim">Chargement…</div>}
         {liste?.map((j) => (

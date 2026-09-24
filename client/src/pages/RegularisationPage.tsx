@@ -268,7 +268,7 @@ export function RegularisationPage() {
   return (
     <div className="p-2">
       <div className="mb-1.5">
-        <div className="text-[11px] font-mono text-text-dim leading-none">TRAITEMENT</div>
+        <div className="text-[11px] font-mono text-text-dim leading-none">Traitement</div>
         <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
           Régularisations et abonnements
           <Aide sujet="regularisation" />
@@ -291,10 +291,10 @@ export function RegularisationPage() {
 
       <div className="flex bg-chrome border border-border border-b-0 rounded-t-[10px] overflow-hidden">
         <button onClick={() => setOnglet('regularisation')} className={ongletClasse('regularisation')}>
-          RÉGULARISATION DES CHARGES ET PRODUITS
+          Régularisation des charges et produits
         </button>
         <button onClick={() => setOnglet('abonnement')} className={ongletClasse('abonnement')}>
-          ÉCRITURES D'ABONNEMENT
+          Écritures d'abonnement
         </button>
       </div>
 
@@ -442,11 +442,11 @@ export function RegularisationPage() {
             className="border border-border rounded-[8px] overflow-x-auto"
           >
             <div className="grid grid-cols-[1fr_120px_120px_150px_150px] min-w-[750px] gap-2 px-3 py-1.5 bg-chrome-alt border-b border-border text-[11px] font-bold text-text-dim">
-              <span>LIBELLÉ</span>
+              <span>Libellé</span>
               <span className="text-right">TOTAL</span>
-              <span className="text-right">DIFFÉRÉ</span>
-              <span>PÉRIODE</span>
-              <span>REPRISE</span>
+              <span className="text-right">Différé</span>
+              <span>Période</span>
+              <span>Reprise</span>
             </div>
             {regularisations.map((r) => (
               <div

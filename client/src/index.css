@@ -415,16 +415,52 @@ progress {
   filter: brightness(0.96);
 }
 
-/* Tableaux · l'en-tête se distingue du corps, la ligne survolée se voit. */
-:where(main thead th) {
-  font-weight: 600;
-  color: var(--text-dim);
+/*
+ * TABLEAUX · UN SEUL DESSIN POUR TOUT LE LOGICIEL (2026-09-24).
+ *
+ * Quarante et un tableaux et des dizaines de grilles de colonnes avaient
+ * chacun leur en-tête : capitales ou non, gras ou non, 11, 12 ou 13 px, fond
+ * gris, blanc ou bleu. Manasse les voulait « professionnels et sobres » ·
+ * ce qui veut dire PAREILS. Ici, contrairement aux finitions ci-dessus, la
+ * règle GAGNE contre l'écran (`!important`) : un en-tête qui garderait son
+ * propre dessin serait exactement l'incohérence qu'on retire.
+ *
+ * Le dessin est celui des grilles de Windows 11 et de Sage : en-tête gris
+ * clair, libellés en casse de phrase, filet fin sous l'en-tête, filets très
+ * clairs entre les lignes, chiffres alignés (tabular-nums), total sur fond
+ * gris. Pas de capitales, pas de couleur, pas de zébrure. Les grilles faites
+ * en `div` portent la classe `entete-colonnes` et reçoivent le même dessin.
+ */
+main table {
+  font-variant-numeric: tabular-nums;
 }
-:where(main thead tr) {
-  background-color: var(--surface-alt);
+main table thead th,
+main .entete-colonnes {
+  background-color: var(--chrome) !important;
+  color: var(--text-dim) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  border-bottom: 1px solid var(--border-dark) !important;
+}
+main table thead th {
+  vertical-align: bottom;
+}
+main table thead tr {
+  background-color: var(--chrome);
+}
+main table tbody td {
+  border-bottom: 1px solid var(--border);
+}
+main table tfoot td,
+main table tfoot th {
+  font-weight: 600;
+  background-color: var(--chrome);
+  border-top: 1px solid var(--border-dark);
 }
 :where(main tbody tr:hover) {
-  background-color: color-mix(in srgb, var(--sel) 5%, transparent);
+  background-color: color-mix(in srgb, var(--sel) 4%, transparent);
 }
 
 /* Une surface posée ou flottante est arrondie et clippe son contenu · les

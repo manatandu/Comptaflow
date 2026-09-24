@@ -544,7 +544,7 @@ export function ParametresDossierPage() {
   return (
     <div className="p-2 h-full flex flex-col">
       <div className="mb-2">
-        <div className="text-[11px] font-mono text-text-dim leading-none">STRUCTURE</div>
+        <div className="text-[11px] font-mono text-text-dim leading-none">Structure</div>
         {/* Le titre porte l'onglet actif · Sage écrit « Identification de
             votre société - IFRS » dans sa barre de titre : on sait où l'on
             se trouve sans relire la liste des onglets. */}
@@ -1189,7 +1189,7 @@ export function ParametresDossierPage() {
                           À trancher · lire les statuts
                         </option>
                         <option value="APPEL">À l’appel · l’entité justifie d’un droit d’agir en recouvrement</option>
-                        <option value="ENCAISSEMENT">À l’encaissement effectif · aucune voie de recouvrement</option>
+                        <option value="ENCAISSEMENT">à l’encaissement effectif · aucune voie de recouvrement</option>
                       </select>
                       <span className="block text-[11px] text-text-dim leading-[1.5] mt-1">
                         Cadre conceptuel § 5.4.2.1 : le fait générateur est l’<strong>appel</strong>, « toutefois, si

@@ -103,7 +103,7 @@ export function ExonerationsPage() {
     <div className="p-2">
       <EnteteImpression titre="Exonérations douanières et fiscales" />
       <div className="ecran-seul mb-1.5 max-w-[1100px]">
-        <div className="text-[11px] font-mono text-text-dim leading-none">REGISTRE</div>
+        <div className="text-[11px] font-mono text-text-dim leading-none">Registre</div>
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-[13px] font-bold leading-tight">Exonérations douanières et fiscales</h1>
           {peutEcrire && (
@@ -158,12 +158,12 @@ export function ExonerationsPage() {
           // qui emportait alors titre, onglets et boutons hors de l'écran.
           className="flex-1 min-w-0 bg-surface border border-border shadow-posee overflow-x-auto"
         >
-          <div className="grid grid-cols-[110px_1fr_120px_100px_92px] min-w-[640px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[11px] font-bold text-text-dim">
-            <span>TYPE</span>
-            <span>OBJET</span>
-            <span>ARRÊTÉ</span>
-            <span>ÉCHÉANCE</span>
-            <span>PIÈCES</span>
+          <div className="entete-colonnes grid grid-cols-[110px_1fr_120px_100px_92px] min-w-[640px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[11px] font-bold text-text-dim">
+            <span>Type</span>
+            <span>Objet</span>
+            <span>Arrêté</span>
+            <span>Échéance</span>
+            <span>Pièces</span>
           </div>
           {!registre && <div className="px-3.5 py-3 text-[12.5px] text-text-dim">Chargement…</div>}
           {registre?.dossiers.length === 0 && (
@@ -214,7 +214,7 @@ export function ExonerationsPage() {
         {/* --- Dossier sélectionné ------------------------------------------ */}
         <div className="w-[400px] shrink-0 bg-surface border border-border shadow-posee">
           <div className="px-3 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim">
-            DOSSIER
+            Dossier
           </div>
           {!selection && (
             <div className="p-3 text-[12px] text-text-dim">

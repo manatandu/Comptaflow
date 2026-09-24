@@ -420,7 +420,7 @@ export function MagasinPage() {
                   <option value="">Méthode de valorisation…</option>
                   <option value="PEPS">P.E.P.S.</option>
                   <option value="CMPACE">C.M.P.A.C.E.</option>
-                  <option value="CMP_PERIODE_STOCKAGE">C.M.P. de période de stockage</option>
+                  <option value="CMP_PERIODE_STOCKAGE">c.M.P. de période de stockage</option>
                 </select>
               </div>
               <div className="mt-1.5 flex items-center gap-3">
@@ -513,13 +513,13 @@ export function MagasinPage() {
                       Mouvement
                     </th>
                     <th className={`${cell} text-center font-semibold`} colSpan={3}>
-                      ENTRÉES
+                      Entrées
                     </th>
                     <th className={`${cell} text-center font-semibold`} colSpan={3}>
-                      SORTIES
+                      Sorties
                     </th>
                     <th className={`${cell} text-center font-semibold`} colSpan={3}>
-                      STOCK
+                      Stock
                     </th>
                   </tr>
                   <tr className="bg-surface-2 text-text-dim">
@@ -574,7 +574,7 @@ export function MagasinPage() {
                   ))}
                   <tr className="bg-surface-2 font-semibold">
                     <td className={cell} colSpan={2}>
-                      TOTAUX DE LA PÉRIODE
+                      Totaux de la période
                     </td>
                     <td className={`${cell} text-right font-mono`}>
                       {qt(fiche.totaux.quantiteEntree)}

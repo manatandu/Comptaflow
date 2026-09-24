@@ -57,7 +57,7 @@ export function RapprochementPage() {
 
   return (
     <div className="p-2">
-      <div className="text-[11px] font-mono text-text-dim leading-none">TRAITEMENT</div>
+      <div className="text-[11px] font-mono text-text-dim leading-none">Traitement</div>
       <div className="flex items-center justify-between mb-1.5 max-w-[1100px]">
         <h1 className="text-[13px] font-bold leading-tight">Rapprochement bancaire</h1>
         {peutEcrire && (
@@ -69,7 +69,7 @@ export function RapprochementPage() {
 
       {peutEcrire && afficherFormulaire && (
         <form onSubmit={onOuvrir} className="bg-surface border border-border p-4 mb-4 max-w-[600px]">
-          <div className="font-mono text-[12px] font-semibold text-text-dim mb-3">NOUVEAU RAPPROCHEMENT</div>
+          <div className="font-mono text-[12px] font-semibold text-text-dim mb-3">Nouveau rapprochement</div>
           <div className="grid grid-cols-2 gap-3 mb-3">
             <label className="text-[12px] font-semibold text-text-dim">
               Compte de trésorerie
@@ -134,10 +134,10 @@ export function RapprochementPage() {
           className="border border-border bg-surface shadow-posee max-w-[900px] overflow-x-auto"
         >
           <div className="grid grid-cols-[110px_1.2fr_100px_110px_90px_100px] min-w-[750px] gap-3 px-3.5 py-1.5 bg-chrome border-b border-border text-[11px] font-bold text-text-dim">
-            <span>DATE RELEVÉ</span>
+            <span>Date relevé</span>
             <span>COMPTE</span>
-            <span className="text-right">SOLDE RELEVÉ</span>
-            <span>OUVERT LE</span>
+            <span className="text-right">Solde relevé</span>
+            <span>Ouvert le</span>
             <span>STATUT</span>
             <span />
           </div>

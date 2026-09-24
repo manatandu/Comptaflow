@@ -758,7 +758,7 @@ export function SaisiePage() {
     return (
       <div className="p-3 flex justify-center">
         <div className="w-full max-w-[640px]">
-          <div className="text-[11px] font-mono text-text-dim mb-1">TRAITEMENT</div>
+          <div className="text-[11px] font-mono text-text-dim mb-1">Traitement</div>
           <h1 className="text-[13px] font-bold leading-tight mb-1.5">Saisie des journaux</h1>
 
           <div className="bg-surface border border-border shadow-posee">
@@ -767,11 +767,11 @@ export function SaisiePage() {
             </div>
             <div className="p-4">
               <div className="border border-border mb-3 max-h-[300px] overflow-auto">
-                <div className="grid grid-cols-[80px_1fr_110px_90px] gap-2 px-3 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim sticky top-0">
-                  <span>CODE</span>
-                  <span>INTITULÉ</span>
-                  <span>TYPE</span>
-                  <span>ÉTAT</span>
+                <div className="entete-colonnes grid grid-cols-[80px_1fr_110px_90px] gap-2 px-3 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim sticky top-0">
+                  <span>Code</span>
+                  <span>Intitulé</span>
+                  <span>Type</span>
+                  <span>État</span>
                 </div>
                 {journaux.map((j) => (
                   <button
@@ -839,7 +839,7 @@ export function SaisiePage() {
       {/* En-tête du journal ouvert */}
       <div className="flex items-center justify-between mb-2">
         <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">SAISIE DES JOURNAUX</div>
+          <div className="text-[11px] font-mono text-text-dim leading-none">Saisie des journaux</div>
           <h1 className="text-[13px] font-bold leading-tight">
             Journal {journal?.code} · {journal?.intitule} · {periode?.libelle}
           </h1>
@@ -912,17 +912,17 @@ export function SaisiePage() {
           style={grilleStyle} className={`${grille} px-3 py-1.5 bg-surface-alt border-b border-border-dark text-[11px] font-bold text-text-dim`}
         >
           <span>JOUR</span>
-          <span>PIÈCE</span>
-          <span>RÉFÉRENCE</span>
-          <span>N° COMPTE</span>
+          <span>Pièce</span>
+          <span>Référence</span>
+          <span>N° compte</span>
           {axesGrille.map((p) => (
             <span key={p.id} title={p.intitule}>
               {p.code}
             </span>
           ))}
-          <span>LIBELLÉ ÉCRITURE</span>
-          <span className="text-right">DÉBIT</span>
-          <span className="text-right">CRÉDIT</span>
+          <span>Libellé écriture</span>
+          <span className="text-right">Débit</span>
+          <span className="text-right">Crédit</span>
           <span />
         </div>
 
@@ -1000,7 +1000,7 @@ export function SaisiePage() {
         {/* Totaux du journal */}
         <div style={grilleStyle} className={`${grille} px-3 py-1.5 bg-surface-alt border-t border-border-dark text-[12px] font-bold`}>
           <span style={{ gridColumn: `span ${4 + axesGrille.length}` }} />
-          <span className="text-right text-[11px] text-text-dim self-center">TOTAUX JOURNAL</span>
+          <span className="text-right text-[11px] text-text-dim self-center">Totaux journal</span>
           <span className="font-mono text-right">{totalDebitJournal.toLocaleString('fr-FR')}</span>
           <span className="font-mono text-right">{totalCreditJournal.toLocaleString('fr-FR')}</span>
           <span />
@@ -1018,7 +1018,7 @@ export function SaisiePage() {
       {peutEcrire ? (
         <div className="bg-surface border border-border-dark mt-2.5 rounded-[10px]">
           <div className="flex items-center justify-between px-3 py-1.5 bg-chrome border-b border-border rounded-t-[10px]">
-            <span className="text-[12px] font-bold text-text-dim">PIÈCE EN COURS DE SAISIE</span>
+            <span className="text-[12px] font-bold text-text-dim">Pièce en cours de saisie</span>
             <div className="flex items-center gap-2.5 text-[12px]">
               <label className="flex items-center gap-1.5">
                 <span className="text-text-dim">Jour :</span>
@@ -1303,7 +1303,7 @@ export function SaisiePage() {
           {/* Pied de la pièce : totaux, équilibre, boutons de bas d'écran Sage */}
           <div style={grilleStyle} className={`${grille} px-3 py-1.5 bg-surface-alt text-[12px] font-bold border-b border-border`}>
             <span className="col-span-4" />
-            <span className="text-right text-[11px] text-text-dim self-center">TOTAUX PIÈCE</span>
+            <span className="text-right text-[11px] text-text-dim self-center">Totaux pièce</span>
             <span className="font-mono text-right">{totalDebitPiece.toLocaleString('fr-FR')}</span>
             <span className="font-mono text-right">{totalCreditPiece.toLocaleString('fr-FR')}</span>
             <span />
@@ -1323,7 +1323,7 @@ export function SaisiePage() {
               ------------------------------------------------------------------ */}
           {apercuTva && (
             <div className="flex items-center gap-2 px-3 py-2 flex-wrap border-b border-border/50 bg-chrome-alt/60">
-              <span className="text-[11px] font-bold text-text-dim">CODE TAXE</span>
+              <span className="text-[11px] font-bold text-text-dim">Code taxe</span>
               <span className="text-[12px]">
                 <span className="font-mono">{apercuTva.ligneHt.numero}</span> ·{' '}
                 {apercuTva.sens === 'depense' ? 'TVA déductible' : 'TVA collectée'} sur{' '}

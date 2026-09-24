@@ -42,7 +42,7 @@ describe("le reclassement d'immobilisation, à l'écran", () => {
       page.indexOf('renouvellementOuvertPour === immo.id &&'),
     );
     expect(formulaire).toContain('setRcMotif');
-    expect(formulaire).toContain('MOTIF DU CHANGEMENT D’UTILISATION');
+    expect(formulaire).toContain('Motif du changement d’utilisation');
     // La raison, pas seulement l'astérisque · le § 1.2 qualifie par l'usage.
     expect(formulaire).toContain('§ 1.2');
     expect(formulaire).toContain('§ 4.2');
@@ -54,7 +54,7 @@ describe("le reclassement d'immobilisation, à l'écran", () => {
       page.indexOf('renouvellementOuvertPour === immo.id &&'),
     );
     expect(formulaire).toContain('cumulDeprecie(immo) > 0 &&');
-    expect(formulaire).toContain('COMPTE 29 DE DESTINATION');
+    expect(formulaire).toContain('Compte 29 de destination');
     // Et il dit pourquoi il n'est pas deviné.
     expect(formulaire).toContain('un 29 deviné serait un compte faux');
   });

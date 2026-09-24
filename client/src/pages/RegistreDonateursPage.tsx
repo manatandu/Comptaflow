@@ -231,7 +231,7 @@ export function RegistreDonateursPage() {
       <EnteteImpression titre="Registre des donateurs" />
       <div className="flex items-center justify-between mb-1.5">
         <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">TRAITEMENT</div>
+          <div className="text-[11px] font-mono text-text-dim leading-none">Traitement</div>
           <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             Registre des donateurs
             <Aide sujet="registreDonateurs" />
@@ -406,9 +406,9 @@ export function RegistreDonateursPage() {
               <span>N°</span>
               <span>DATE</span>
               <span>NATURE</span>
-              <span>DONATEUR</span>
-              <span className="text-right">MONTANT</span>
-              <span>LIBÉRATION</span>
+              <span>Donateur</span>
+              <span className="text-right">Montant</span>
+              <span>Libération</span>
               <span>SIGNATURE (ART. 17)</span>
               <span />
             </div>

@@ -153,7 +153,7 @@ export function ModelesSaisiePage() {
   return (
     <div className="p-2">
       <div className="mb-2">
-        <div className="text-[11px] font-mono text-text-dim leading-none">PARAMÈTRES</div>
+        <div className="text-[11px] font-mono text-text-dim leading-none">Paramètres</div>
         <h1 className="text-[13px] font-bold leading-tight">Modèles de saisie</h1>
         <p className="text-[12px] text-text-dim mt-1 max-w-[900px] leading-[1.5]">
           Un modèle est un squelette d'écriture nommé : les comptes et les libellés sont posés, les montants restent à
@@ -283,10 +283,10 @@ export function ModelesSaisiePage() {
         // qui emportait alors titre, onglets et boutons hors de l'écran.
         className="border border-border bg-surface shadow-posee max-w-[900px] overflow-x-auto"
       >
-        <div className="grid grid-cols-[1.4fr_150px_70px_130px] min-w-[550px] gap-2 px-3 py-1.5 bg-surface-alt border-b border-border-dark text-[11px] font-bold text-text-dim">
-          <span>MODÈLE</span>
-          <span>JOURNAL</span>
-          <span className="text-right">LIGNES</span>
+        <div className="entete-colonnes grid grid-cols-[1.4fr_150px_70px_130px] min-w-[550px] gap-2 px-3 py-1.5 bg-surface-alt border-b border-border-dark text-[11px] font-bold text-text-dim">
+          <span>Modèle</span>
+          <span>Journal</span>
+          <span className="text-right">Lignes</span>
           <span />
         </div>
         {modeles.length === 0 && (

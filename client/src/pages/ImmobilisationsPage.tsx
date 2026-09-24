@@ -419,7 +419,7 @@ export function ImmobilisationsPage() {
 
   return (
     <div className="p-2">
-      <div className="text-[11px] font-mono text-text-dim leading-none">STRUCTURE</div>
+      <div className="text-[11px] font-mono text-text-dim leading-none">Structure</div>
       <div className="flex items-center justify-between mb-1.5 max-w-[1100px]">
         <h1 className="text-[13px] font-bold leading-tight">Immobilisations</h1>
         {/* Les familles sont réservées à l'administrateur (@Roles ADMIN_CABINET),
@@ -477,7 +477,7 @@ export function ImmobilisationsPage() {
 
       {estAdmin && afficherFormFamille && (
         <form onSubmit={onCreerFamille} className="bg-surface border border-border p-4 mb-4 max-w-[900px]">
-          <div className="font-mono text-[12px] font-semibold text-text-dim mb-3">NOUVELLE FAMILLE</div>
+          <div className="font-mono text-[12px] font-semibold text-text-dim mb-3">Nouvelle famille</div>
           <div className="grid grid-cols-3 gap-3 mb-3">
             <label className="text-[12px] font-semibold text-text-dim">
               Code
@@ -528,7 +528,7 @@ export function ImmobilisationsPage() {
 
       {peutEcrire && afficherFormImmo && (
         <form onSubmit={onCreerImmo} className="bg-surface border border-border p-4 mb-4 max-w-[900px]">
-          <div className="font-mono text-[12px] font-semibold text-text-dim mb-3">NOUVELLE IMMOBILISATION</div>
+          <div className="font-mono text-[12px] font-semibold text-text-dim mb-3">Nouvelle immobilisation</div>
           <div className="grid grid-cols-3 gap-3 mb-3">
             <label className="text-[12px] font-semibold text-text-dim col-span-2">
               Désignation
@@ -662,12 +662,12 @@ export function ImmobilisationsPage() {
           className="border border-border bg-surface shadow-posee max-w-[1180px] overflow-x-auto"
         >
           <div className="grid grid-cols-[1.4fr_110px_100px_100px_100px_100px_90px_170px] min-w-[1020px] gap-2.5 px-3.5 py-1.5 bg-chrome border-b border-border text-[11px] font-bold text-text-dim">
-            <span>DÉSIGNATION</span>
-            <span>MISE EN SERVICE</span>
-            <span className="text-right">V. ORIGINE</span>
-            <span className="text-right">CUMUL AMORTI</span>
+            <span>Désignation</span>
+            <span>Mise en service</span>
+            <span className="text-right">v. origine</span>
+            <span className="text-right">Cumul amorti</span>
             <span className="text-right">V.N.C.</span>
-            <span>DURÉE</span>
+            <span>Durée</span>
             <span>STATUT</span>
             <span />
           </div>
@@ -797,7 +797,7 @@ export function ImmobilisationsPage() {
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <label className="flex flex-col gap-1">
-                      <span className="text-[11px] font-bold text-text-dim">NOUVELLE FAMILLE</span>
+                      <span className="text-[11px] font-bold text-text-dim">Nouvelle famille</span>
                       <select
                         value={rcFamille}
                         onChange={(e) => setRcFamille(e.target.value)}
@@ -827,7 +827,7 @@ export function ImmobilisationsPage() {
                     {cumulDeprecie(immo) > 0 && (
                       <label className="flex flex-col gap-1 sm:col-span-2">
                         <span className="text-[11px] font-bold text-text-dim">
-                          COMPTE 29 DE DESTINATION
+                          Compte 29 de destination
                         </span>
                         <select
                           value={rcCompte29}
@@ -852,7 +852,7 @@ export function ImmobilisationsPage() {
                       </label>
                     )}
                     <label className="flex flex-col gap-1 sm:col-span-2">
-                      <span className="text-[11px] font-bold text-text-dim">MOTIF DU CHANGEMENT D’UTILISATION</span>
+                      <span className="text-[11px] font-bold text-text-dim">Motif du changement d’utilisation</span>
                       <input
                         value={rcMotif}
                         onChange={(e) => setRcMotif(e.target.value)}

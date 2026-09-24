@@ -170,7 +170,7 @@ export function BrouillardPage() {
       <EnteteImpression titre="Brouillard" />
       <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
         <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">ÉTAT</div>
+          <div className="text-[11px] font-mono text-text-dim leading-none">État</div>
           <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             Brouillard
             <Aide sujet="brouillard" />
@@ -178,7 +178,7 @@ export function BrouillardPage() {
         </div>
         <div className="flex items-end gap-2.5 flex-wrap">
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] font-bold text-text-dim">JOURNAL</span>
+            <span className="text-[11px] font-bold text-text-dim">Journal</span>
             <select
               value={journalId}
               onChange={(e) => setJournalId(e.target.value)}
@@ -195,7 +195,7 @@ export function BrouillardPage() {
           {peutEcrire && (
             <>
               <label className="flex flex-col gap-1">
-                <span className="text-[11px] font-bold text-text-dim">VALIDER JUSQU'AU</span>
+                <span className="text-[11px] font-bold text-text-dim">Valider jusqu'au</span>
                 <input
                   type="date"
                   value={dateLimite}
@@ -271,11 +271,11 @@ export function BrouillardPage() {
           </span>
           <span>DATE</span>
           <span>JAL</span>
-          <span>PIÈCE</span>
-          <span>LIBELLÉ</span>
-          <span className="text-right">DÉBIT</span>
-          <span className="text-right">CRÉDIT</span>
-          <span className="text-right">ANCIENNETÉ</span>
+          <span>Pièce</span>
+          <span>Libellé</span>
+          <span className="text-right">Débit</span>
+          <span className="text-right">Crédit</span>
+          <span className="text-right">Ancienneté</span>
           <span />
         </div>
 

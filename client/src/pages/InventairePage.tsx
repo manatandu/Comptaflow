@@ -104,7 +104,7 @@ export function InventairePage() {
     <div className="p-2">
       <EnteteImpression titre="Inventaire physique" />
       <div className="ecran-seul mb-1.5 max-w-[1240px]">
-        <div className="text-[11px] font-mono text-text-dim leading-none">INVENTAIRE EXTRA-COMPTABLE</div>
+        <div className="text-[11px] font-mono text-text-dim leading-none">Inventaire extra-comptable</div>
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-[13px] font-bold leading-tight">Inventaire physique</h1>
           {peutEcrire && (
@@ -188,7 +188,7 @@ export function InventairePage() {
       <div className="flex gap-2.5 max-w-[1400px] items-start">
         {/* --- Campagnes -------------------------------------------------- */}
         <div className="border border-border bg-surface min-w-[260px] max-w-[300px]">
-          <div className="px-2.5 py-1.5 border-b border-border text-[11px] font-mono text-text-dim">CAMPAGNES</div>
+          <div className="px-2.5 py-1.5 border-b border-border text-[11px] font-mono text-text-dim">Campagnes</div>
           {campagnes?.length === 0 && (
             <div className="px-2.5 py-3 text-[12px] text-text-dim">
               Aucune campagne. L’inventaire n’est pas une option : son absence expose les dirigeants à une sanction
@@ -296,7 +296,7 @@ export function InventairePage() {
               {ecarts.length > 0 && (
                 <div className="border border-border bg-surface mb-2">
                   <div className="px-2.5 py-1.5 border-b border-border flex items-center justify-between">
-                    <span className="text-[11px] font-mono text-text-dim">ÉCARTS · PAR COMPTE</span>
+                    <span className="text-[11px] font-mono text-text-dim">Écarts · par compte</span>
                     <span className="text-[10.5px] text-text-dim">
                       {manquants.length} manquant{manquants.length > 1 ? 's' : ''} · {excedents.length} excédent
                       {excedents.length > 1 ? 's' : ''} · {sansDecision.length} sans décision

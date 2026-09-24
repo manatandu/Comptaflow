@@ -49,7 +49,7 @@ export function BalanceFonctionnellePage() {
     <div className="p-2">
       <EnteteImpression titre="Balance en monnaie fonctionnelle" />
       <div className="ecran-seul mb-1.5 max-w-[1240px]">
-        <div className="text-[11px] font-mono text-text-dim leading-none">SECOND JEU · DOCUMENT DE GESTION</div>
+        <div className="text-[11px] font-mono text-text-dim leading-none">Second jeu · document de gestion</div>
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-[13px] font-bold leading-tight">Balance en monnaie fonctionnelle</h1>
           <label className="text-[11px] text-text-dim">
@@ -112,11 +112,11 @@ export function BalanceFonctionnellePage() {
             <table className="w-full text-[12px]">
               <thead>
                 <tr className="border-b border-border text-text-dim font-mono text-[11px]">
-                  <th className="text-left px-2.5 py-1.5">COMPTE</th>
-                  <th className="text-left px-2.5 py-1.5">INTITULÉ</th>
-                  <th className="text-right px-2.5 py-1.5">DÉBIT</th>
-                  <th className="text-right px-2.5 py-1.5">CRÉDIT</th>
-                  <th className="text-right px-2.5 py-1.5">SOLDE</th>
+                  <th className="text-left px-2.5 py-1.5">Compte</th>
+                  <th className="text-left px-2.5 py-1.5">Intitulé</th>
+                  <th className="text-right px-2.5 py-1.5">Débit</th>
+                  <th className="text-right px-2.5 py-1.5">Crédit</th>
+                  <th className="text-right px-2.5 py-1.5">Solde</th>
                 </tr>
               </thead>
               <tbody>

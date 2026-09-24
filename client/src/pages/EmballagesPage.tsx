@@ -181,7 +181,7 @@ export function EmballagesPage() {
       <EnteteImpression titre="Consignation d'emballages" />
       <div className="ecran-seul mb-1.5 max-w-[1240px]">
         <div className="text-[11px] font-mono text-text-dim leading-none">
-          COMPTES 4094 ET 4194 · COMPTES D'ATTENTE
+          Comptes 4094 et 4194 · comptes d'attente
         </div>
         <h1 className="text-[13px] font-bold leading-tight">Consignation d'emballages</h1>
         <div className="text-[11px] text-text-dim mt-0.5">

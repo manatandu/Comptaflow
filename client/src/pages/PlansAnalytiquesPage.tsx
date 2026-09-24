@@ -197,7 +197,7 @@ export function PlansAnalytiquesPage() {
     <div className="p-2">
       <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
         <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">STRUCTURE</div>
+          <div className="text-[11px] font-mono text-text-dim leading-none">Structure</div>
           <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             Plans analytiques
             <Aide sujet="analytique" />
@@ -248,7 +248,7 @@ export function PlansAnalytiquesPage() {
         {/* Axes */}
         <aside className="bg-surface border border-border rounded-[10px] shadow-posee overflow-hidden">
           <header className="px-3 py-2 bg-chrome-alt border-b border-border text-[11px] font-bold text-text-dim">
-            AXES D'ANALYSE
+            Axes d'analyse
           </header>
           <div className="p-1">
             {(plans ?? []).map((p) => (
@@ -284,8 +284,8 @@ export function PlansAnalytiquesPage() {
         <section className="bg-surface border border-border rounded-[10px] shadow-posee overflow-hidden">
           <div className={`grid ${grilleSections} gap-2 px-3 py-1.5 bg-chrome-alt border-b border-border text-[11px] font-bold text-text-dim`}>
             <span>CODE</span>
-            <span>INTITULÉ</span>
-            {!estSyscohada && <span>BAILLEUR</span>}
+            <span>Intitulé</span>
+            {!estSyscohada && <span>Bailleur</span>}
             <span>{estSyscohada ? 'PÉRIODE' : 'CONVENTION'}</span>
           </div>
           <div>
@@ -324,7 +324,7 @@ export function PlansAnalytiquesPage() {
         {/* Fiche */}
         <aside className="bg-surface border border-border rounded-[10px] shadow-posee overflow-hidden">
           <header className="px-3 py-2 bg-chrome-alt border-b border-border text-[11px] font-bold text-text-dim">
-            FICHE DE LA SECTION
+            Fiche de la section
           </header>
           {!section ? (
             <p className="p-3 text-[12.5px] text-text-dim leading-[1.55]">
@@ -361,7 +361,7 @@ export function PlansAnalytiquesPage() {
               {plan?.gererBudgets && section.type === 'DETAIL' && (
                 <div className="border-t border-border pt-3">
                   <div className="text-[11px] font-bold text-text-dim mb-2 flex items-center gap-1.5">
-                    DOTATION BUDGÉTAIRE
+                    Dotation budgétaire
                     <Aide sujet="budget" />
                   </div>
                   {estAdmin && (

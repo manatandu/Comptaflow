@@ -144,7 +144,7 @@ export function QuestionnaireRevisionPage() {
     <div className="p-2">
       <EnteteImpression titre="Questionnaire de révision" />
       <div className="ecran-seul mb-1.5 max-w-[1240px]">
-        <div className="text-[11px] font-mono text-text-dim leading-none">CONTRÔLE ET RÉVISION</div>
+        <div className="text-[11px] font-mono text-text-dim leading-none">Contrôle et révision</div>
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-[13px] font-bold leading-tight">Questionnaire de révision</h1>
           {peutEcrire && (
@@ -237,7 +237,7 @@ export function QuestionnaireRevisionPage() {
 
       <div className="flex gap-2.5 max-w-[1400px] items-start">
         <div className="border border-border bg-surface min-w-[220px] max-w-[260px]">
-          <div className="px-2.5 py-1.5 border-b border-border text-[11px] font-mono text-text-dim">QUESTIONNAIRES</div>
+          <div className="px-2.5 py-1.5 border-b border-border text-[11px] font-mono text-text-dim">Questionnaires</div>
           {liste?.length === 0 && (
             <div className="px-2.5 py-3 text-[12px] text-text-dim">
               Aucun questionnaire. Le CPCC ouvre l’inventaire par deux checklists.

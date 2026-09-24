@@ -149,13 +149,13 @@ export function TableauxImmobilisationsPage() {
       <EnteteImpression titre="Tableaux des immobilisations" />
       <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
         <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">RÉVISION</div>
+          <div className="text-[11px] font-mono text-text-dim leading-none">Révision</div>
           <h1 className="text-[13px] font-bold leading-tight">Immobilisations et amortissements</h1>
         </div>
         <div className="flex items-end gap-3">
           {onglet === 'immobilisations' && (
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] font-bold text-text-dim">ARRÊTÉ AU</span>
+              <span className="text-[11px] font-bold text-text-dim">Arrêté au</span>
               <input
                 type="date"
                 value={dateArret}
@@ -198,13 +198,13 @@ export function TableauxImmobilisationsPage() {
           <div
             className={`${grilleImmo} px-3.5 py-1.5 bg-surface-alt text-[11px] font-bold text-text-dim border-b border-border-dark`}
           >
-            <span>LIBELLÉ</span>
-            <span>ACQUISITION</span>
-            <span className="text-right">DURÉE</span>
-            <span className="text-right">VAL. BRUTE</span>
-            <span className="text-right">AMORT. CUMULÉS</span>
-            <span className="text-right">VAL. NETTE</span>
-            <span>OBSERVATIONS</span>
+            <span>Libellé</span>
+            <span>Acquisition</span>
+            <span className="text-right">Durée</span>
+            <span className="text-right">Val. brute</span>
+            <span className="text-right">Amort. cumulés</span>
+            <span className="text-right">Val. nette</span>
+            <span>Observations</span>
           </div>
 
           {immo.groupes.length === 0 && (
@@ -235,7 +235,7 @@ export function TableauxImmobilisationsPage() {
                 </div>
               ))}
               <div className={`${grilleImmo} px-3.5 py-1 text-[12px] font-bold border-b border-border`}>
-                <span>S/TOTAL</span>
+                <span>S/total</span>
                 <span />
                 <span />
                 <span className="font-mono text-right">{montant(g.brut)}</span>
@@ -250,7 +250,7 @@ export function TableauxImmobilisationsPage() {
             <div
               className={`${grilleImmo} px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[12px] font-bold`}
             >
-              <span>TOTAL GÉNÉRAL</span>
+              <span>Total général</span>
               <span />
               <span />
               <span className="font-mono text-right">{montant(immo.totaux.brut)}</span>
@@ -268,18 +268,18 @@ export function TableauxImmobilisationsPage() {
             style={grilleAmort}
             className="px-3.5 py-1.5 bg-surface-alt text-[11px] font-bold text-text-dim border-b border-border-dark"
           >
-            <span>LIBELLÉ</span>
-            <span>ACQUIS.</span>
+            <span>Libellé</span>
+            <span>Acquis.</span>
             <span className="text-right">TAUX</span>
             {amort.mois.map((m) => (
               <span key={m.cle} className="text-right">
                 {m.libelle}
               </span>
             ))}
-            <span className="text-right">DOTATION N</span>
-            <span className="text-right">CUM. N-1</span>
-            <span className="text-right">CUM. N</span>
-            <span className="text-right">VAL. NETTE</span>
+            <span className="text-right">Dotation N</span>
+            <span className="text-right">Cum. N-1</span>
+            <span className="text-right">Cum. N</span>
+            <span className="text-right">Val. nette</span>
           </div>
 
           {amort.groupes.length === 0 && (
@@ -320,7 +320,7 @@ export function TableauxImmobilisationsPage() {
                 </div>
               ))}
               <div style={grilleAmort} className="px-3.5 py-1 text-[12px] font-bold border-b border-border">
-                <span>S/TOTAL</span>
+                <span>S/total</span>
                 <span />
                 <span />
                 {g.parMois.map((m, i) => (
@@ -341,7 +341,7 @@ export function TableauxImmobilisationsPage() {
               style={grilleAmort}
               className="px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[12px] font-bold"
             >
-              <span>TOTAL GÉNÉRAL</span>
+              <span>Total général</span>
               <span />
               <span />
               {amort.totaux.parMois.map((m, i) => (

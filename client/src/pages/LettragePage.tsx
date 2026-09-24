@@ -245,7 +245,7 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
     <div className="p-2">
       <div className="flex items-end justify-between max-w-[1040px] mb-1.5 gap-3 flex-wrap">
         <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">TRAITEMENT</div>
+          <div className="text-[11px] font-mono text-text-dim leading-none">Traitement</div>
           <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             <span>
               Interrogation et lettrage
@@ -261,7 +261,7 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
         </div>
         <div className="flex items-end gap-2">
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] font-bold text-text-dim">COMPTE À CONSULTER</span>
+            <span className="text-[11px] font-bold text-text-dim">Compte à consulter</span>
             <select
               ref={selecteurCompteRef}
               value={compteId ?? ''}
@@ -436,12 +436,12 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
           <div className="border border-border bg-surface shadow-posee max-w-[1040px] overflow-x-auto">
             <div className={`${GRILLE_DOSSIER} px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[11px] font-bold text-text-dim`}>
               <span>COMPTE</span>
-              <span>INTITULÉ</span>
+              <span>Intitulé</span>
               <span>LETTRE</span>
-              <span>ÉTAT</span>
+              <span>État</span>
               <span className="text-right">LIGNES</span>
-              <span className="text-right">RESTE DÛ</span>
-              <span>ORIGINE</span>
+              <span className="text-right">Reste dû</span>
+              <span>Origine</span>
             </div>
             {[...tousGroupes]
               .sort((a, b) => (a.statut === b.statut ? 0 : a.statut === 'PARTIEL' ? -1 : 1))
@@ -479,11 +479,11 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
             <span />
             <span>DATE</span>
             <span>JRN</span>
-            <span>LIBELLÉ ÉCRITURE</span>
-            <span className="text-right">DÉBIT</span>
-            <span className="text-right">CRÉDIT</span>
-            <span className="text-right">SOLDE PROGR.</span>
-            <span>LETTRAGE</span>
+            <span>Libellé écriture</span>
+            <span className="text-right">Débit</span>
+            <span className="text-right">Crédit</span>
+            <span className="text-right">Solde progr.</span>
+            <span>Lettrage</span>
           </div>
           {(() => {
             let cumul = 0;
@@ -547,7 +547,7 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
           {lignes.length > 0 && (
             <div className={`${GRILLE} px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[12px] font-bold`}>
               <span className="col-span-3" />
-              <span className="text-right text-[11px] text-text-dim self-center">TOTAL MOUVEMENTS · SOLDE</span>
+              <span className="text-right text-[11px] text-text-dim self-center">Total mouvements · solde</span>
               <span className="font-mono text-right">{montant(lignes.reduce((t, l) => t + l.debit, 0))}</span>
               <span className="font-mono text-right">{montant(lignes.reduce((t, l) => t + l.credit, 0))}</span>
               <span className="font-mono text-right">{montant(lignes.reduce((t, l) => t + l.debit - l.credit, 0))}</span>
@@ -612,15 +612,15 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
           className="mt-3 max-w-[1040px] border border-border bg-surface overflow-x-auto"
         >
           <div className="px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[11px] font-bold text-text-dim">
-            LETTRAGES DE CE COMPTE
+            Lettrages de ce compte
           </div>
           <div className="grid grid-cols-[60px_90px_110px_150px_110px_1fr_130px] min-w-[890px] gap-2.5 px-3.5 py-1.5 border-b border-border text-[11px] font-bold text-text-dim">
             <span>CODE</span>
             <span>STATUT</span>
-            <span className="text-right">RESTE À SOLDER</span>
-            <span>ORIGINE</span>
-            <span className="text-right">ÉCART DE CHANGE</span>
-            <span>POSÉ LE</span>
+            <span className="text-right">Reste à solder</span>
+            <span>Origine</span>
+            <span className="text-right">Écart de change</span>
+            <span>Posé le</span>
             <span />
           </div>
           {groupes.map((g) => (

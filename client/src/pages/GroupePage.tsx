@@ -321,13 +321,13 @@ export function GroupePage() {
         <div className="border border-border bg-surface shadow-posee max-w-[1120px] overflow-x-auto">
           <div className="min-w-[1020px]">
             <div className="grid grid-cols-[1.3fr_110px_100px_70px_80px_120px_110px_90px_190px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[11px] font-bold text-text-dim">
-              <span>CELLULE</span>
+              <span>Cellule</span>
               <span>JEU</span>
-              <span>DERN. ÉCRITURE</span>
-              <span className="text-right">ÉCRIT.</span>
-              <span className="text-right">BROUIL.</span>
-              <span className="text-right">TRÉSORERIE</span>
-              <span className="text-right">58 (LIAISON)</span>
+              <span>Dern. écriture</span>
+              <span className="text-right">Écrit.</span>
+              <span className="text-right">Brouil.</span>
+              <span className="text-right">Trésorerie</span>
+              <span className="text-right">58 (Liaison)</span>
               <span>STATUT</span>
               <span></span>
             </div>
@@ -390,7 +390,7 @@ export function GroupePage() {
           {agregat && (
             <div className="border border-border bg-surface shadow-posee mb-2">
               <div className="bg-chrome border-b border-border px-3.5 py-1.5 text-[11px] font-bold text-text-dim">
-                CONTRÔLES DE L'AGRÉGAT
+                Contrôles de l'agrégat
               </div>
               {controlesDeLAgregat(agregat).map((c) => (
                 <div
@@ -422,16 +422,16 @@ export function GroupePage() {
               className="border border-warning/40 bg-surface shadow-posee mb-2 overflow-x-auto"
             >
               <div className="bg-warning-soft border-b border-warning/30 px-3.5 py-1.5 text-[12px]">
-                <span className="font-bold">ÉCARTS DE RÉCIPROCITÉ</span> · la créance chez l'un ne répond pas à la dette
+                <span className="font-bold">Écarts de réciprocité</span> · la créance chez l'un ne répond pas à la dette
                 chez l'autre. Une opération est enregistrée d'un seul côté, ou pour deux montants différents · rien n'a
                 été corrigé, la confirmation de solde se fait entre les deux dossiers.
               </div>
               <div className="grid grid-cols-[1fr_1fr_130px_130px_130px] min-w-[750px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[11px] font-bold text-text-dim">
-                <span>DOSSIER</span>
-                <span>CONTREPARTIE</span>
-                <span className="text-right">SOLDE CHEZ LUI</span>
-                <span className="text-right">SOLDE EN FACE</span>
-                <span className="text-right">ÉCART</span>
+                <span>Dossier</span>
+                <span>Contrepartie</span>
+                <span className="text-right">Solde chez lui</span>
+                <span className="text-right">Solde en face</span>
+                <span className="text-right">Écart</span>
               </div>
               {agregat.ecartsReciprocite.map((e) => (
                 <div
@@ -455,11 +455,11 @@ export function GroupePage() {
           {agregat && agregat.rattachementsRefuses.length > 0 && (
             <div className="border border-warning/40 bg-surface shadow-posee mb-2">
               <div className="bg-warning-soft border-b border-warning/30 px-3.5 py-1.5 text-[12px]">
-                <span className="font-bold">RATTACHEMENTS IGNORÉS</span> · ces tiers désignent un dossier qui n'appartient
+                <span className="font-bold">Rattachements ignorés</span> · ces tiers désignent un dossier qui n'appartient
                 pas à ce groupe. Rien n'a été éliminé sur leur foi, et leurs opérations restent dans l'agrégat.
               </div>
               <div className="grid grid-cols-[1fr_1.4fr_1.4fr] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[11px] font-bold text-text-dim">
-                <span>DOSSIER</span>
+                <span>Dossier</span>
                 <span>TIERS</span>
                 <span>MOTIF</span>
               </div>
@@ -491,9 +491,9 @@ export function GroupePage() {
             <div className="border border-border bg-surface shadow-posee max-w-[820px] mb-2 overflow-x-auto">
               <div className="grid grid-cols-[110px_1fr_130px_130px] min-w-[580px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[11px] font-bold text-text-dim">
                 <span>COMPTE</span>
-                <span>INTITULÉ</span>
-                <span className="text-right">DÉBIT</span>
-                <span className="text-right">CRÉDIT</span>
+                <span>Intitulé</span>
+                <span className="text-right">Débit</span>
+                <span className="text-right">Crédit</span>
               </div>
               <div className="max-h-[52vh] overflow-y-auto">
                 {agregat.lignes.map((l, i) => (
@@ -529,18 +529,18 @@ export function GroupePage() {
             <div className="border border-border bg-surface shadow-posee overflow-x-auto">
               <div className="min-w-[980px]">
                 <div className="bg-chrome border-b border-border px-3.5 py-1.5 text-[12px]">
-                  <span className="font-bold text-text-dim">OPÉRATIONS RÉCIPROQUES ÉLIMINÉES</span> · retirées du cumul
+                  <span className="font-bold text-text-dim">Opérations réciproques éliminées</span> · retirées du cumul
                   parce qu'un groupe d'établissements est une seule personne morale. Le total agrégé ci-dessus est le
                   cumul des balances MOINS ces lignes.
                 </div>
                 <div className="grid grid-cols-[1fr_1fr_80px_1.3fr_170px_120px_120px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[11px] font-bold text-text-dim">
-                  <span>DOSSIER</span>
-                  <span>CONTREPARTIE</span>
+                  <span>Dossier</span>
+                  <span>Contrepartie</span>
                   <span>COMPTE</span>
-                  <span>INTITULÉ</span>
+                  <span>Intitulé</span>
                   <span>MOTIF</span>
-                  <span className="text-right">RETIRÉ AU DÉBIT</span>
-                  <span className="text-right">RETIRÉ AU CRÉDIT</span>
+                  <span className="text-right">Retiré au débit</span>
+                  <span className="text-right">Retiré au crédit</span>
                 </div>
                 <div className="max-h-[40vh] overflow-y-auto">
                   {agregat.eliminations.map((e, i) => (
@@ -559,7 +559,7 @@ export function GroupePage() {
                   ))}
                 </div>
                 <div className="grid grid-cols-[1fr_1fr_80px_1.3fr_170px_120px_120px] gap-2 px-3.5 py-1.5 border-t border-border-dark bg-chrome text-[12px] font-bold">
-                  <span>TOTAL ÉLIMINÉ</span>
+                  <span>Total éliminé</span>
                   <span />
                   <span />
                   <span />

@@ -123,7 +123,7 @@ export function ImportPage() {
   return (
     <div className="p-2">
       <div className="mb-2.5">
-        <div className="text-[11px] font-mono text-text-dim leading-none">FICHIER</div>
+        <div className="text-[11px] font-mono text-text-dim leading-none">Fichier</div>
         <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
           Importer des données
           <Aide sujet="import" />
@@ -279,7 +279,7 @@ export function ImportPage() {
 
                   <div className="border border-border rounded-[6px] overflow-hidden">
                     <div className="px-2.5 py-1.5 bg-chrome-alt text-[11px] font-bold text-text-dim">
-                      APERÇU DES PREMIÈRES LIGNES
+                      Aperçu des premières lignes
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-[12px]">
@@ -365,7 +365,7 @@ export function ImportPage() {
 
               {rapport.anomalies.length > 0 && (
                 <div className="border-t border-border">
-                  <div className="px-3 py-1.5 bg-chrome text-[11px] font-bold text-text-dim">ANOMALIES</div>
+                  <div className="px-3 py-1.5 bg-chrome text-[11px] font-bold text-text-dim">Anomalies</div>
                   <div className="max-h-[280px] overflow-y-auto">
                     {rapport.anomalies.map((a, i) => (
                       <div key={i} className="px-3 py-1 text-[12px] border-b border-border/40 flex gap-3">

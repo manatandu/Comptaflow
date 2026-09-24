@@ -91,7 +91,7 @@ export function TauxTvaPage() {
     <div className="p-2">
       <div className="flex items-center justify-between mb-2">
         <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">STRUCTURE</div>
+          <div className="text-[11px] font-mono text-text-dim leading-none">Structure</div>
           <h1 className="text-[13px] font-bold leading-tight">Taux de taxes (TVA)</h1>
         </div>
         <button type="button" onClick={() => setNouveauOuvert(true)} className="bg-sel text-white px-3.5 py-1 text-[12px] font-semibold">
@@ -110,13 +110,13 @@ export function TauxTvaPage() {
         // qui emportait alors titre, onglets et boutons hors de l'écran.
         className="border border-border bg-surface shadow-posee overflow-x-auto"
       >
-        <div className="grid grid-cols-[80px_1fr_78px_210px_210px_80px] min-w-[890px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[11px] font-bold text-text-dim">
-          <span>CODE</span>
-          <span>INTITULÉ</span>
-          <span className="text-right">TAUX</span>
-          <span>COLLECTÉE (443 · VENTES)</span>
-          <span>DÉDUCTIBLE (445 · ACHATS)</span>
-          <span>ÉTAT</span>
+        <div className="entete-colonnes grid grid-cols-[80px_1fr_78px_210px_210px_80px] min-w-[890px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[11px] font-bold text-text-dim">
+          <span>Code</span>
+          <span>Intitulé</span>
+          <span className="text-right">Taux</span>
+          <span>Collectée (443 · ventes)</span>
+          <span>Déductible (445 · achats)</span>
+          <span>État</span>
         </div>
         {!liste && <div className="px-3.5 py-3 text-[12.5px] text-text-dim">Chargement…</div>}
         {liste?.map((t) => (

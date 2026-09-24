@@ -90,7 +90,7 @@ export function BailleursPage() {
     <div className="p-2">
       <div className="flex items-center justify-between mb-1.5">
         <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">STRUCTURE</div>
+          <div className="text-[11px] font-mono text-text-dim leading-none">Structure</div>
           <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             Bailleurs de fonds
             <Aide sujet="bailleur" />
@@ -113,7 +113,7 @@ export function BailleursPage() {
 
       {estAdmin && afficherFormulaire && (
         <form onSubmit={onCreer} className="bg-surface border border-border p-4 mb-4 max-w-[520px]">
-          <div className="font-mono text-[12px] font-semibold text-text-dim mb-3">NOUVEAU BAILLEUR</div>
+          <div className="font-mono text-[12px] font-semibold text-text-dim mb-3">Nouveau bailleur</div>
           <div className="grid grid-cols-2 gap-3 mb-3">
             <label className="text-[12px] font-semibold text-text-dim">
               Code
@@ -198,8 +198,8 @@ export function BailleursPage() {
           <div className="border border-border bg-surface max-w-[720px] overflow-x-auto">
             <div className="grid grid-cols-[90px_1fr_200px] min-w-[500px] gap-3 px-4 py-1.5 bg-chrome border-b border-border text-[11px] font-bold text-text-dim">
               <span>N°</span>
-              <span>LIBELLÉ</span>
-              <span>BAILLEUR</span>
+              <span>Libellé</span>
+              <span>Bailleur</span>
             </div>
             {comptesEligibles.length === 0 && (
               <div className="px-4 py-3 text-[12.5px] text-text-dim">

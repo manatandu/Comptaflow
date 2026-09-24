@@ -107,7 +107,7 @@ export function EtatsAnalytiquesPage() {
       <EnteteImpression titre="États analytiques" />
       <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
         <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">ÉTAT</div>
+          <div className="text-[11px] font-mono text-text-dim leading-none">État</div>
           <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             États analytiques
             <Aide sujet="analytique" />
@@ -130,7 +130,7 @@ export function EtatsAnalytiquesPage() {
           </label>
           {onglet === 'grand-livre' && (
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] font-bold text-text-dim">SECTION</span>
+              <span className="text-[11px] font-bold text-text-dim">Section</span>
               <select
                 value={sectionId}
                 onChange={(e) => setSectionId(e.target.value)}
@@ -148,7 +148,7 @@ export function EtatsAnalytiquesPage() {
           )}
           {onglet === 'budgetaire' && (
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] font-bold text-text-dim">PÉRIODE</span>
+              <span className="text-[11px] font-bold text-text-dim">Période</span>
               <select
                 value={mois}
                 onChange={(e) => setMois(Number(e.target.value))}
@@ -173,16 +173,16 @@ export function EtatsAnalytiquesPage() {
 
       <div className="flex bg-chrome border border-border border-b-0 rounded-t-[10px] overflow-hidden">
         <button onClick={() => setOnglet('balance')} className={ongletClasse('balance')}>
-          BALANCE
+          Balance
         </button>
         <button onClick={() => setOnglet('grand-livre')} className={ongletClasse('grand-livre')}>
-          GRAND LIVRE
+          Grand livre
         </button>
         <button onClick={() => setOnglet('controle')} className={ongletClasse('controle')}>
-          CONTRÔLE DES CUMULS
+          Contrôle des cumuls
         </button>
         <button onClick={() => setOnglet('budgetaire')} className={ongletClasse('budgetaire')}>
-          BUDGÉTAIRE
+          Budgétaire
         </button>
       </div>
 
@@ -197,10 +197,10 @@ export function EtatsAnalytiquesPage() {
           className="border border-border bg-surface rounded-b-[10px] overflow-x-auto"
         >
           <div className="grid grid-cols-[120px_1fr_140px_140px_150px] min-w-[770px] gap-2 px-4 py-1.5 bg-chrome-alt border-b border-border text-[11px] font-bold text-text-dim">
-            <span>SECTION</span>
-            <span>INTITULÉ</span>
-            <span className="text-right">MOUVEMENT DÉBIT</span>
-            <span className="text-right">MOUVEMENT CRÉDIT</span>
+            <span>Section</span>
+            <span>Intitulé</span>
+            <span className="text-right">Mouvement débit</span>
+            <span className="text-right">Mouvement crédit</span>
             <span className="text-right">SOLDE</span>
           </div>
           {!balance && <div className="px-4 py-4 text-[12.5px] text-text-dim">Chargement…</div>}
@@ -253,11 +253,11 @@ export function EtatsAnalytiquesPage() {
           <div className="grid grid-cols-[90px_60px_70px_110px_1fr_120px_120px_130px] min-w-[940px] gap-2 px-4 py-1.5 bg-chrome-alt border-b border-border text-[11px] font-bold text-text-dim">
             <span>DATE</span>
             <span>JAL</span>
-            <span>PIÈCE</span>
+            <span>Pièce</span>
             <span>COMPTE</span>
-            <span>LIBELLÉ</span>
-            <span className="text-right">DÉBIT</span>
-            <span className="text-right">CRÉDIT</span>
+            <span>Libellé</span>
+            <span className="text-right">Débit</span>
+            <span className="text-right">Crédit</span>
             <span className="text-right">SOLDE</span>
           </div>
           {!grandLivre && <div className="px-4 py-4 text-[12.5px] text-text-dim">Chargement…</div>}
@@ -305,8 +305,8 @@ export function EtatsAnalytiquesPage() {
                 </header>
                 <div className="grid grid-cols-[1fr_140px_140px] min-w-[470px] gap-2 px-3 py-1.5 bg-chrome-alt border-b border-border text-[11px] font-bold text-text-dim">
                   <span />
-                  <span className="text-right">DÉBIT</span>
-                  <span className="text-right">CRÉDIT</span>
+                  <span className="text-right">Débit</span>
+                  <span className="text-right">Crédit</span>
                 </div>
                 {[
                   ['Mouvements généraux', c.mouvementsGenerauxDebit, c.mouvementsGenerauxCredit],
@@ -365,12 +365,12 @@ export function EtatsAnalytiquesPage() {
           ) : (
             <>
               <div className="grid grid-cols-[120px_1fr_140px_140px_140px_100px] min-w-[870px] gap-2 px-4 py-1.5 bg-chrome-alt border-b border-border text-[11px] font-bold text-text-dim">
-                <span>SECTION</span>
-                <span>INTITULÉ</span>
+                <span>Section</span>
+                <span>Intitulé</span>
                 <span className="text-right">BUDGET</span>
-                <span className="text-right">RÉALISÉ</span>
-                <span className="text-right">ÉCART</span>
-                <span className="text-right">CONSOMMÉ</span>
+                <span className="text-right">Réalisé</span>
+                <span className="text-right">Écart</span>
+                <span className="text-right">Consommé</span>
               </div>
               {!budgetaire && <div className="px-4 py-4 text-[12.5px] text-text-dim">Chargement…</div>}
               {budgetaire?.lignes.map((l) => (
