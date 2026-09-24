@@ -12,6 +12,8 @@ import { CumulService } from './cumul.service';
 import { EtatsConsolidesService } from './etats-consolides.service';
 import {
   AcquisitionDto,
+  EcartEvaluationDto,
+  FiscaliteEntiteDto,
   ImporterBalanceEntiteDto,
   OperationReciproqueDto,
   ResultatInterneDto,
@@ -101,6 +103,25 @@ export class ConsolidationController {
   @Put('liens/:id/acquisition')
   declarerAcquisition(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: AcquisitionDto) {
     return this.cumuls.declarerAcquisition(user.tenantId, id, dto);
+  }
+
+  // ─── Tranche 4a · écarts d'évaluation et impôts différés ─────────────────
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post('liens/:id/ecarts-evaluation')
+  ajouterEcartEvaluation(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: EcartEvaluationDto) {
+    return this.cumuls.ajouterEcartEvaluation(user.tenantId, id, dto);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Delete('ecarts-evaluation/:id')
+  supprimerEcartEvaluation(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.cumuls.supprimerEcartEvaluation(user.tenantId, id);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Put('fiscalite')
+  enregistrerFiscalite(@CurrentUser() user: AuthenticatedUser, @Body() dto: FiscaliteEntiteDto) {
+    return this.cumuls.enregistrerFiscalite(user.tenantId, dto);
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)

@@ -156,6 +156,18 @@ describe('tableau des flux consolidé · le cas chiffré', () => {
   });
 });
 
+describe('tranche 4a · l’écart d’évaluation d’un stock sorti ne se lit pas comme un encaissement', () => {
+  it('la CAFG en est diminuée, comme de l’élimination des résultats internes', () => {
+    // La baisse du stock consolidé (écart réalisé de 50) est déjà dans la
+    // variation du besoin de financement · sans correction, elle y passerait
+    // pour une trésorerie reçue.
+    const e = groupe();
+    const t = construireTableauFluxConsolide({ ...e, cumulN: { ...e.cumulN, ecartsEvaluationStocksResultat: 50 } }, flux);
+    expect(net(t, 'CAFG')).toBe(950);
+    expect(t.lignes!.find((l) => l.cle === 'CAFG')?.lecture).toMatch(/écarts d’évaluation des stocks sortis/);
+  });
+});
+
 describe('tableau des flux consolidé · les refus, chacun nommé', () => {
   it('une filiale importée sans mouvements', () => {
     const t = construireTableauFluxConsolide(groupe({ f26: F26.map(([n, s]) => [n, s]) }), flux);

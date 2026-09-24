@@ -68,6 +68,7 @@ function doublure() {
     },
     operationReciproqueConsolidation: { findMany: jest.fn(async () => []) },
     resultatInterneConsolidation: { findMany: jest.fn(async () => []) },
+    ecartEvaluationConsolidation: { findMany: jest.fn(async () => []) },
     faitsConsolidationExercice: {
       findFirst: jest.fn(async ({ where }: any) => filtre(faits, where)[0] ?? null),
       create: jest.fn(async ({ data }: any) => {

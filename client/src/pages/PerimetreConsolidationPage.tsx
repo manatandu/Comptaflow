@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
-import { CumulConsolidation, EntiteCumul, LienCumul } from './CumulConsolidation';
+import { CumulConsolidation, EntiteCumul, FiscaliteCumul, LienCumul } from './CumulConsolidation';
 import { EtatsConsolidesVue } from './EtatsConsolidesVue';
 
 /**
@@ -52,13 +52,14 @@ type Faits = {
   chiffreAffairesN1: number | null;
   seuilEquivalentFc: number | null;
   sourceSeuil: string | null;
-};
+} & FiscaliteCumul;
 type Etat = {
   consolidante: { id: string; nom: string };
   entites: (Entite & EntiteCumul)[];
   liens: (Lien & LienCumul)[];
   reciproques: Parameters<typeof CumulConsolidation>[0]['reciproques'];
   resultatsInternes: Parameters<typeof CumulConsolidation>[0]['resultatsInternes'];
+  ecartsEvaluation: Parameters<typeof CumulConsolidation>[0]['ecartsEvaluation'];
   faits: Faits | null;
   resultats: Resultat[];
   obligation: { obligation: string; motifs: string[]; normesIfrsRequises: boolean };
@@ -450,6 +451,8 @@ export function PerimetreConsolidationPage() {
         liens={etat.liens}
         reciproques={etat.reciproques}
         resultatsInternes={etat.resultatsInternes}
+        ecartsEvaluation={etat.ecartsEvaluation}
+        fiscaliteConsolidante={etat.faits}
         peutEcrire={peutEcrire}
         recharger={recharger}
       />

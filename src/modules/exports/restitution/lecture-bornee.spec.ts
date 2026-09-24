@@ -45,8 +45,9 @@ describe('l’inventaire couvre le schéma, sans trou ni surplus', () => {
     // puis à 86 avec le périmètre de consolidation (entités, participations,
     // faits de l'obligation), tous trois portant leur tenantId, puis à 88
     // avec le cumul (balances des filiales, comptes réciproques), idem, puis
-    // à 89 avec les résultats internes de l'art. 86, 4°, idem.
-    expect(modeles).toHaveLength(89);
+    // à 89 avec les résultats internes de l'art. 86, 4°, idem ; à 90 avec les
+    // écarts d'évaluation (tranche 4a), bornés par leur propre `tenantId`.
+    expect(modeles).toHaveLength(90);
     expect([...TABLES_RESTITUEES].sort()).toEqual(modeles.filter((m) => m !== 'Tenant').sort());
   });
 

@@ -2337,8 +2337,8 @@ première au premier correctif. (2) LE COMPTE 10 DE LA CONSOLIDANTE SE LIT COMME
 DANS SES COMPTES · capital 101 à 104 et 109, primes 105 avec les réserves
 consolidées, réévaluation 106 en « Autres capitaux propres » (lecture déclarée).
 Une filiale, elle, partage TOUS ses capitaux propres, primes comprises. (3) CE
-QUI N'EST PAS CALCULÉ VAUT `null`, JAMAIS ZÉRO · impôts différés et écarts de
-conversion (tranche 4), « dont » des corporelles, résultat par action. Ce qui
+QUI N'EST PAS CALCULÉ VAUT `null`, JAMAIS ZÉRO · écarts de conversion
+(tranche 4c), « dont » des corporelles, résultat par action. Ce qui
 est À RETRAITER (ch. XII-3 § 2 · écarts de conversion individuels, provisions
 réglementées, comptes sans poste, résultat reçu au 13) est montré ET compté
 pour que le bilan boucle, et l'état se dit NON PUBLIABLE avec ses motifs ·
@@ -2380,6 +2380,36 @@ comptes propres, ne bouclerait plus avec lui. La variation des capitaux
 propres ne porte que le bloc N · le bloc N-1 du modèle part de la clôture N-2,
 qu'OmegaX ne consolide pas. Sans consolidation N-1, ni l'un ni l'autre ne
 s'établit, et le motif est celui de la colonne comparative.
+
+**Consolidation SYSCOHADA, tranche 4a · écarts d'évaluation et impôts
+différés (2026-09-24).** AUDCIF art. 82 et 92, D4C ch. XII-3 § 3 et XII-6.
+La tranche 4 est découpée · 4a ici, 4b les éliminations de nature fiscale
+(provisions réglementées, 478/479 individuels), 4c la conversion des entités
+étrangères. CINQ RÈGLES À NE PAS DÉFAIRE. (1) L'ÉCART D'ÉVALUATION PASSE « EN
+PRIORITÉ » (art. 82) · les capitaux propres d'entrée sont RÉESTIMÉS de chaque
+écart NET de son impôt différé, et l'écart d'acquisition n'est que le reste.
+Il est porté par la DÉTENUE avant son partage, parce qu'il appartient aux
+majoritaires ET aux minoritaires (§ 3) ; refusé sur une mise en équivalence,
+dont les comptes ne sont pas repris ; affecté à un élément IDENTIFIABLE (2, 3,
+16 à 19), jamais aux capitaux propres. Son sort se DÉCLARE (amortissable avec
+son 28, non amortissable, réalisé à une date), et le moteur comme la
+déclaration appellent la MÊME règle (`motifRefusEcartEvaluation`). (2) AUCUN
+TAUX N'EST ÉCRIT DANS LE MOTEUR · il se déclare par entité, avec sa source,
+« en vigueur à la clôture » · une filiale étrangère n'a pas le taux de la
+mère. La consolidante le déclare dans les faits de l'exercice, n'étant pas une
+ligne d'entité. (3) TROIS SOURCES D'IMPÔT DIFFÉRÉ, chacune lue au texte · les
+écarts d'évaluation (« tous », ch. XII-6 § 1), les marges internes éliminées
+(art. 92, 2°, au taux de la VENDEUSE, qui a payé l'impôt), et les décalages et
+déficits des comptes INDIVIDUELS, DÉCLARÉS en montants d'impôt parce que leur
+base fiscale est dans la liasse et pas dans la balance. JAMAIS sur l'écart
+d'acquisition. (4) NULL N'EST PAS ZÉRO · une entité intégrée qui n'a pas
+répondu (même un seul champ) rend les impôts différés INCOMPLETS, dit sur la
+ligne et en motif de non-publication · zéro est une réponse, l'absence n'en
+est pas une. Un IDA déclaré sans le motif qui le rend PROBABLE est refusé. (5)
+ACTIF ET PASSIF NE SE COMPENSENT PAS, le D4C n'en disant rien, et rien ne
+s'actualise (« actualisation interdite »). Au tableau des flux, l'écart
+d'évaluation d'un STOCK sorti diminue la CAFG comme l'élimination des marges
+internes · la baisse du stock serait sinon lue comme un encaissement.
 
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de

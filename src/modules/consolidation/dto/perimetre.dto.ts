@@ -11,7 +11,7 @@ import {
   Min,
   ValidateIf,
 } from 'class-validator';
-import { MotifExclusionConsolidation, NatureResultatInterne } from '@prisma/client';
+import { ModeEcartEvaluation, MotifExclusionConsolidation, NatureResultatInterne } from '@prisma/client';
 
 export class EntitePerimetreDto {
   @IsUUID()
@@ -165,4 +165,33 @@ export class OperationReciproqueDto {
   @IsString() @MaxLength(13) compteB!: string;
   @IsNumber({ maxDecimalPlaces: 2 }) @Min(0.01) montant!: number;
   @IsString() @MaxLength(300) libelle!: string;
+}
+
+/** Tranche 4a · un écart d'évaluation, rattaché à une participation (D4C ch. XII-6 § 1). */
+export class EcartEvaluationDto {
+  @IsString() @MaxLength(13) compte!: string;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() @MaxLength(13) compteAmortissement?: string | null;
+  @IsString() @MaxLength(300) libelle!: string;
+  /** De combien l'élément vaut de PLUS au bilan consolidé qu'aux livres de la détenue, négatif s'il vaut moins. */
+  @IsNumber({ maxDecimalPlaces: 2 }) montant!: number;
+  @IsEnum(ModeEcartEvaluation) mode!: ModeEcartEvaluation;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber() @Min(1) @Max(99) dureeAnnees?: number | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsDateString() dateRealisation?: string | null;
+}
+
+/**
+ * Tranche 4a · la fiscalité d'une entité du périmètre, ou de la consolidante
+ * quand `entiteId` est absent. Le taux se déclare AVEC sa source ; les impôts
+ * différés individuels en montants d'impôt, null valant « pas de réponse ».
+ */
+export class FiscaliteEntiteDto {
+  @IsUUID() exerciceId!: string;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsUUID() entiteId?: string | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber() @Min(0) @Max(100) tauxImpotDiffere?: number | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() @MaxLength(500) sourceTauxImpot?: string | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) idaOuverture?: number | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) idaCloture?: number | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) idpOuverture?: number | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) idpCloture?: number | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() @MaxLength(2000) justificationIda?: string | null;
 }

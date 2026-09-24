@@ -86,12 +86,46 @@ describe('oracle A · intégration globale à 55 %', () => {
     expect(e.controles.every((c) => c.ok)).toBe(true);
   });
 
-  it('les impôts différés sont NON CALCULÉS, jamais zéro, et l’état n’est pas publiable pour autant', () => {
-    expect(L(e.bilan.actif, 'IMPOTS_DIFFERES_ACTIF').net).toBeNull();
-    expect(L(e.bilan.passif, 'IMPOTS_DIFFERES_PASSIF').net).toBeNull();
-    expect(L(e.compteDeResultat, 'IMPOTS_DIFFERES').net).toBeNull();
+  it('sans déclaration fiscale, les impôts différés sont INCOMPLETS · la ligne le dit, l’état n’est pas publiable', () => {
+    expect(L(e.bilan.actif, 'IMPOTS_DIFFERES_ACTIF').reserve).toMatch(/^Incomplets · /);
+    expect(L(e.bilan.passif, 'IMPOTS_DIFFERES_PASSIF').reserve).toMatch(/« BLEU CIEL » n’a pas déclaré/);
+    expect(L(e.compteDeResultat, 'IMPOTS_DIFFERES').reserve).toMatch(/« GINGER » n’a pas déclaré/);
     expect(e.publiable).toBe(false);
-    expect(e.motifsNonPubliable[0]).toMatch(/tranche 4/);
+    expect(e.motifsNonPubliable).toContainEqual(expect.stringMatching(/^Impôts différés incomplets · « BLEU CIEL »/));
+  });
+});
+
+describe('tranche 4a · un écart d’évaluation sur l’oracle A', () => {
+  // Titres 70 000 ; bâtiment de BLEU CIEL réestimé de 20 000, quatre ans, taux 30 %.
+  // Capitaux propres réestimés 100 000 + 14 000 = 114 000 ; quote-part 55 % = 62 700 ; écart d'acquisition 7 300.
+  // 2021 · 5 000 amortis, reste 15 000 · impôt différé passif 4 500, produit d'impôt 1 500.
+  const fisc = (entiteId: string) => ({ entiteId, tauxImpot: 30, idaOuverture: 0, idaCloture: 0, idpOuverture: 0, idpCloture: 0 });
+  const cumul = cumulerConsolidation(
+    EX21,
+    [ginger([['26100000', 70000]], 230000), bleuCiel('IG', 55)],
+    [
+      acq('GINGER', 'BLEU CIEL', 55, 70000, 100000, {
+        ecartsEvaluation: [{ compte: '24100000', compteAmortissement: '28410000', libelle: 'Bâtiment', montant: 20000, mode: 'AMORTISSABLE', dureeAnnees: 4 }],
+      }),
+    ],
+    [],
+    [],
+    [fisc('GINGER'), fisc('BLEU CIEL')],
+  );
+  const e = construireEtatsConsolides(cumul, R);
+
+  it('l’impôt différé passif et son produit apparaissent distinctement (art. 89 et 90)', () => {
+    expect(passif(e, 'IMPOTS_DIFFERES_PASSIF')).toBe(4500);
+    expect(actif(e, 'IMPOTS_DIFFERES_ACTIF')).toBe(0);
+    expect(cr(e, 'IMPOTS_DIFFERES')).toBe(1500);
+    expect(cr(e, 'ECARTS_EVALUATION_RESULTAT')).toBe(-5000);
+    expect(L(e.bilan.passif, 'IMPOTS_DIFFERES_PASSIF').reserve).toBeUndefined();
+  });
+
+  it('le bilan boucle, le compte de résultat rejoint le cumul, l’écart d’acquisition n’est que le reste', () => {
+    expect(cumul.ecarts[0].ecart).toBe(7300);
+    expect(e.controles.every((c) => c.ok)).toBe(true);
+    expect(e.motifsNonPubliable.some((m) => /Impôts différés incomplets/.test(m))).toBe(false);
   });
 });
 

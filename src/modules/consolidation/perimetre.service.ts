@@ -33,6 +33,24 @@ type LienStocke = { id: string; detentriceId: string | null; detenueId: string; 
  * 100 %, serait sinon accepté en base et ferait tomber la lecture du périmètre
  * entier au prochain appel, sans que personne sache quelle saisie l'a cassé.
  */
+/** Les colonnes fiscales de la tranche 4a, en nombres · null reste null, jamais zéro. */
+function fiscaliteEnNombres(f: {
+  tauxImpotDiffere: unknown;
+  idaOuverture: unknown;
+  idaCloture: unknown;
+  idpOuverture: unknown;
+  idpCloture: unknown;
+}) {
+  const n = (v: unknown) => (v == null ? null : Number(v));
+  return {
+    tauxImpotDiffere: n(f.tauxImpotDiffere),
+    idaOuverture: n(f.idaOuverture),
+    idaCloture: n(f.idaCloture),
+    idpOuverture: n(f.idpOuverture),
+    idpCloture: n(f.idpCloture),
+  };
+}
+
 @Injectable()
 export class PerimetreService {
   constructor(private readonly prisma: PrismaService) {}
@@ -156,11 +174,16 @@ export class PerimetreService {
       where: { tenantId, exerciceId },
       orderBy: { createdAt: 'asc' },
     });
+    const ecartsEvaluation = await this.prisma.ecartEvaluationConsolidation.findMany({
+      where: { tenantId, exerciceId },
+      orderBy: { createdAt: 'asc' },
+    });
     return {
+      ecartsEvaluation: ecartsEvaluation.map((e) => ({ ...e, montant: Number(e.montant) })),
       consolidante: { id: tenant.id, nom: tenant.nom, dateCloture: ex.dateFin },
       resultatsInternes: resultatsInternes.map((o) => ({ ...o, margeOuverture: Number(o.margeOuverture), margeCloture: Number(o.margeCloture) })),
       reciproques: reciproques.map((o) => ({ ...o, montant: Number(o.montant) })),
-      entites,
+      entites: entites.map((e) => ({ ...e, ...fiscaliteEnNombres(e) })),
       liens: liens.map((l) => ({ ...l, pctDroitsVote: Number(l.pctDroitsVote), pctCapital: Number(l.pctCapital) })),
       faits: faits
         ? {
@@ -168,6 +191,7 @@ export class PerimetreService {
             chiffreAffairesN: faits.chiffreAffairesN == null ? null : Number(faits.chiffreAffairesN),
             chiffreAffairesN1: faits.chiffreAffairesN1 == null ? null : Number(faits.chiffreAffairesN1),
             seuilEquivalentFc: faits.seuilEquivalentFc == null ? null : Number(faits.seuilEquivalentFc),
+            ...fiscaliteEnNombres(faits),
           }
         : null,
       resultats,

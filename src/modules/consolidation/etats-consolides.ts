@@ -23,8 +23,8 @@ import { ResultatCumul } from './cumul-consolidation';
  * un numéro · le D4C n'impose aucun plan (ch. XII-5 § 2).
  *
  * TROIS SORTES DE LIGNES QUE LE MODÈLE NE PORTE PAS, DITES COMME TELLES.
- * (1) Ce que le D4C porte et qu'OmegaX ne calcule pas encore · impôts différés
- * et écarts de conversion (tranche 4), « dont » des immobilisations
+ * (1) Ce que le D4C porte et qu'OmegaX ne calcule pas encore · écarts de
+ * conversion des entités étrangères (tranche 4c), « dont » des immobilisations
  * corporelles, résultat par action · montant `null`, jamais zéro : un zéro se
  * lit « il n'y en a pas ». (2) Ce que le modèle individuel porte et que le
  * modèle consolidé ne prévoit pas · quote-part de résultat partagé (AUDCIF
@@ -76,7 +76,7 @@ export interface Resolveurs {
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
 const EPS = 0.005;
-const RESERVE_TRANCHE_4 = 'Calculé avec la tranche 4 (impôts différés, écarts d’évaluation et conversion) · non calculé ici, et non nul pour autant.';
+const RESERVE_CONVERSION = 'Calculé avec la tranche 4c (conversion des entités étrangères) · non calculé ici, et non nul pour autant.';
 
 /**
  * Participations et créances RATTACHÉES · le D4C les réunit dans un poste,
@@ -174,11 +174,20 @@ export function construireEtatsConsolides(cumul: ResultatCumul, resolveurs: Reso
   const corporelles = ligneActif('IMMOBILISATIONS_CORPORELLES', 'Immobilisations corporelles', 'POSTE', ai?.brut ?? 0, ai?.amortissement ?? 0);
   const avances = ligneActif('AVANCES_IMMOBILISATIONS', 'Avances et acomptes versés sur immobilisations', 'POSTE', ap?.brut ?? 0, ap?.amortissement ?? 0);
   const financieres = ligneActif('IMMOBILISATIONS_FINANCIERES', 'Immobilisations financières', 'TOTAL', tme + partBrut + pretsBrut, partAmort + pretsAmort);
+  // IMPÔTS DIFFÉRÉS · art. 89, « en faisant distinctement apparaître […] les
+  // impôts différés ». Montrés tels que calculés, actif et passif SÉPARÉS ·
+  // le D4C ne dit rien d'une compensation. Incomplets, ils le disent sur la
+  // ligne et l'état cesse d'être publiable · jamais un zéro muet.
+  const reserveId = cumul.impotsDifferesIncomplets.length > 0 ? `Incomplets · ${cumul.impotsDifferesIncomplets.join(' ; ')}` : undefined;
+  const ida = ligneActif('IMPOTS_DIFFERES_ACTIF', 'Actifs d’impôts différés', 'POSTE', k('IMPOTS_DIFFERES_ACTIF'), 0, {
+    lecture: 'Écarts d’évaluation, marges internes éliminées et impôts différés déclarés des comptes individuels (art. 92).',
+    reserve: reserveId,
+  });
   const totalImmobilise = ligneActif(
     'TOTAL_ACTIF_IMMOBILISE',
     'TOTAL ACTIF IMMOBILISÉ',
     'TOTAL',
-    somme([incorporelles.brut, corporelles.brut, avances.brut, financieres.brut]),
+    somme([incorporelles.brut, corporelles.brut, avances.brut, financieres.brut, ida.brut]),
     somme([incorporelles.amortissement, corporelles.amortissement, avances.amortissement, financieres.amortissement]),
   );
   const bb = P('BB');
@@ -228,7 +237,7 @@ export function construireEtatsConsolides(cumul: ResultatCumul, resolveurs: Reso
       lecture: 'Titres non consolidés (26, dépréciation 296) et créances rattachées (277 et 2767, dépréciation 2977).',
     }),
     ligneActif('PRETS_ET_AUTRES', 'Prêts et autres immobilisations financières', 'DETAIL', pretsBrut, pretsAmort),
-    { cle: 'IMPOTS_DIFFERES_ACTIF', libelle: 'Actifs d’impôts différés', nature: 'POSTE', net: null, reserve: RESERVE_TRANCHE_4 },
+    ida,
     totalImmobilise,
     stocks,
     creances,
@@ -252,7 +261,7 @@ export function construireEtatsConsolides(cumul: ResultatCumul, resolveurs: Reso
   const primesReserves = lp('PRIMES_RESERVES_CONSOLIDEES', 'Primes et réserves consolidées', 'POSTE', -(k('PRIMES_CONSOLIDANTE') + k('RESERVES_GROUPE')), {
     lecture: 'Primes (105) de la consolidante, ses réserves et report à nouveau, et la part du groupe dans les capitaux propres des entités consolidées depuis leur entrée.',
   });
-  const ecartsConv = lp('ECARTS_CONVERSION', 'Écarts de conversion', 'POSTE', null, { reserve: RESERVE_TRANCHE_4 });
+  const ecartsConv = lp('ECARTS_CONVERSION', 'Écarts de conversion', 'POSTE', null, { reserve: RESERVE_CONVERSION });
   const resultatConsolidante = lp('RESULTAT_CONSOLIDANTE', 'Résultat net (part de l’entité consolidante)', 'POSTE', cp.resultatGroupe);
   const autresCp = lp('AUTRES_CAPITAUX_PROPRES', 'Autres capitaux propres', 'POSTE', -k('ECARTS_REEVALUATION_CONSOLIDANTE'), {
     lecture: 'Écarts de réévaluation (106) de la consolidante · lecture déclarée, le D4C ne rattache aucun compte à ce poste.',
@@ -277,8 +286,11 @@ export function construireEtatsConsolides(cumul: ResultatCumul, resolveurs: Reso
   const ecartNegatif = lp('ECART_ACQUISITION_NEGATIF', 'Écart d’acquisition négatif', 'DETAIL', -k('ECART_ACQUISITION_NEGATIF'), {
     lecture: 'Poste particulier de passif (art. 82), net de la part déjà rapportée au résultat.',
   });
-  const idp = lp('IMPOTS_DIFFERES_PASSIF', 'Passifs d’impôts différés', 'DETAIL', null, { reserve: RESERVE_TRANCHE_4 });
-  const totalDettesFin = lp('TOTAL_DETTES_FINANCIERES', 'Total dettes financières et ressources assimilées', 'TOTAL', somme([emprunts.net, location.net, provisions.net, ecartNegatif.net]));
+  const idp = lp('IMPOTS_DIFFERES_PASSIF', 'Passifs d’impôts différés', 'DETAIL', -k('IMPOTS_DIFFERES_PASSIF'), {
+    lecture: 'Écarts d’évaluation et impôts différés déclarés des comptes individuels · jamais sur l’écart d’acquisition (D4C ch. XII-3 § 3).',
+    reserve: reserveId,
+  });
+  const totalDettesFin = lp('TOTAL_DETTES_FINANCIERES', 'Total dettes financières et ressources assimilées', 'TOTAL', somme([emprunts.net, location.net, provisions.net, ecartNegatif.net, idp.net]));
   const ressourcesStables = lp('TOTAL_RESSOURCES_STABLES', 'TOTAL RESSOURCES STABLES', 'TOTAL', somme([totalCp.net, subventions.net, totalDettesFin.net]));
   const fournisseurs = lp('FOURNISSEURS', 'Fournisseurs et comptes rattachés', 'DETAIL', net('DJ'));
   const autresDettes = lp('AUTRES_DETTES', 'Autres dettes', 'DETAIL', somme(['DH', 'DI', 'DK', 'DM', 'DN'].map(net)), {
@@ -358,7 +370,12 @@ export function construireEtatsConsolides(cumul: ResultatCumul, resolveurs: Reso
       'Marges internes incluses dans les stocks et immobilisations à la clôture, moins celles de l’ouverture · une ligne propre, parce que la marge ' +
       'éliminée peut venir d’une vente, d’une cession HAO ou d’une production immobilisée, et qu’aucun texte ne dit sur laquelle la présenter.',
   });
-  const rex = lc('RESULTAT_EXPLOITATION', 'RÉSULTAT D’EXPLOITATION (A)', 'TOTAL', somme([ebe.net, reprises.net, dotations.net, quotePartPartage.net, eliminationInterne.net]));
+  const ecartsEvaluation = lc('ECARTS_EVALUATION_RESULTAT', 'Écarts d’évaluation rapportés au résultat', 'POSTE', -k('ECARTS_EVALUATION_RESULTAT'), {
+    lecture:
+      'Amortissement de l’écart d’évaluation d’une immobilisation, et écart d’un stock vendu ou d’un élément sorti · une ligne propre, parce qu’il ' +
+      'relève tantôt des dotations, tantôt du coût des ventes, et qu’aucun texte ne dit sur laquelle le présenter.',
+  });
+  const rex = lc('RESULTAT_EXPLOITATION', 'RÉSULTAT D’EXPLOITATION (A)', 'TOTAL', somme([ebe.net, reprises.net, dotations.net, quotePartPartage.net, eliminationInterne.net, ecartsEvaluation.net]));
   const prodFin = lc('PRODUITS_FINANCIERS', 'Produits financiers', 'POSTE', m('TK', 'TL', 'TM'));
   const chFin = lc('CHARGES_FINANCIERES', 'Charges financières', 'POSTE', m('RM', 'RN'));
   const rfin = lc('RESULTAT_FINANCIER', 'RÉSULTAT FINANCIER (B)', 'TOTAL', somme([prodFin.net, chFin.net]));
@@ -371,7 +388,7 @@ export function construireEtatsConsolides(cumul: ResultatCumul, resolveurs: Reso
     lecture: 'Poste du modèle individuel (RQ) que le modèle consolidé ne porte pas · montré plutôt que fondu dans les impôts.',
   });
   const impotsExigibles = lc('IMPOTS_EXIGIBLES', 'Impôts exigibles sur résultat', 'POSTE', m('RS'));
-  const impotsDifferes = lc('IMPOTS_DIFFERES', 'Impôts différés', 'POSTE', null, { reserve: RESERVE_TRANCHE_4 });
+  const impotsDifferes = lc('IMPOTS_DIFFERES', 'Impôts différés', 'POSTE', -k('IMPOTS_DIFFERES_RESULTAT'), { reserve: reserveId });
   const dejaConstate = lc('RESULTAT_DEJA_CONSTATE', 'Résultat porté au compte 13 dans les comptes individuels', 'A_RETRAITER', -k('RESULTAT_DEJA_CONSTATE'), {
     reserve: 'Balance reçue APRÈS clôture · le résultat n’est pas ventilé par nature, et le compte de résultat consolidé ne peut pas l’être non plus. Demander la balance avant clôture.',
   });
@@ -384,7 +401,7 @@ export function construireEtatsConsolides(cumul: ResultatCumul, resolveurs: Reso
     'RESULTAT_ENTITES_INTEGREES',
     'RÉSULTAT NET DES ENTITÉS INTÉGRÉES',
     'TOTAL',
-    somme([rai.net, participation.net, impotsExigibles.net, ...aRetraiterCr.map((l) => l.net)]),
+    somme([rai.net, participation.net, impotsExigibles.net, impotsDifferes.net, ...aRetraiterCr.map((l) => l.net)]),
   );
   const partMe = lc('PART_RESULTATS_ME', 'Part dans les résultats nets des entités mises en équivalence', 'POSTE', -k('QUOTE_PART_RESULTAT_ME'));
   const ensemble = lc('RESULTAT_ENSEMBLE', 'RÉSULTAT NET DE L’ENSEMBLE CONSOLIDÉ', 'TOTAL', somme([rei.net, partMe.net]));
@@ -407,6 +424,7 @@ export function construireEtatsConsolides(cumul: ResultatCumul, resolveurs: Reso
     dotations,
     ...(Math.abs(quotePartPartage.net ?? 0) > EPS ? [quotePartPartage] : []),
     ...(Math.abs(eliminationInterne.net ?? 0) > EPS ? [eliminationInterne] : []),
+    ...(Math.abs(ecartsEvaluation.net ?? 0) > EPS ? [ecartsEvaluation] : []),
     rex,
     prodFin,
     chFin,
@@ -442,7 +460,8 @@ export function construireEtatsConsolides(cumul: ResultatCumul, resolveurs: Reso
   ];
 
   const motifsNonPubliable = [
-    'Impôts différés et écarts de conversion non calculés (tranche 4) · un jeu d’états consolidés qui les omet n’est pas conforme au D4C.',
+    'Conversion des entités étrangères non traitée (tranche 4c) · OmegaX ne sait pas encore dire si une entité du périmètre tient ses comptes dans une autre monnaie (art. 87, D4C ch. XII-4).',
+    ...cumul.impotsDifferesIncomplets.map((m) => `Impôts différés incomplets · ${m}`),
     ...[...actif, ...passif, ...compteDeResultat]
       .filter((l) => l.nature === 'A_RETRAITER')
       .map((l) => `${l.libelle} · ${l.reserve ?? 'à retraiter'}`),

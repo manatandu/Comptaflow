@@ -139,11 +139,14 @@ export function construireTableauFluxConsolide(e: EntreesFluxConsolides, flux: R
   });
 
   // ─── B · activités opérationnelles ───────────────────────────────────────
-  const elimination = -soldeCumul(e.cumulN, 'ELIMINATION_RESULTATS_INTERNES');
+  // Les écarts d'évaluation rapportés au résultat par des STOCKS vendus sont de
+  // la même famille · la baisse du stock consolidé serait lue comme un
+  // encaissement par la variation du besoin de financement.
+  const elimination = -soldeCumul(e.cumulN, 'ELIMINATION_RESULTATS_INTERNES') - e.cumulN.ecartsEvaluationStocksResultat;
   const cafg = L('CAFG', 'Capacité d’autofinancement globale (CAFG)', 'POSTE', f('FA') + elimination, {
     lecture:
       'Formule du ch. 5 § 1.2.1.1 (FA) sur les comptes consolidés' +
-      (Math.abs(elimination) > EPS ? ', diminuée des résultats internes éliminés (art. 86, 4°), que la variation des stocks et des acquisitions lirait sinon comme un encaissement.' : '.'),
+      (Math.abs(elimination) > EPS ? ', diminuée des résultats internes éliminés (art. 86, 4°) et des écarts d’évaluation des stocks sortis, que la variation des stocks et des acquisitions lirait sinon comme un encaissement.' : '.'),
   });
   const bf = L('VARIATION_BF', 'Variation du besoin de financement lié aux activités opérationnelles', 'POSTE', somme(['FB', 'FC', 'FD', 'FE'].map(f)), {
     lecture: 'Actif circulant HAO, stocks, créances et passif circulant (FB à FE).',
@@ -197,7 +200,7 @@ export function construireTableauFluxConsolide(e: EntreesFluxConsolides, flux: R
   const eVar = L('VARIATION_PERIODE', 'Variation de la trésorerie nette de la période (E = B + C + D)', 'TOTAL', somme([b.net, c.net, d.net]));
   const fClot = L('TRESORERIE_CLOTURE', 'Trésorerie nette au 31 décembre (F = A + E)', 'TOTAL', somme([a.net, eVar.net]));
   const g = L('INCIDENCE_DEVISES', 'Incidence des variations de cours des devises (G)', 'POSTE', null, {
-    reserve: 'Calculée avec la tranche 4 (conversion des entités étrangères) · non calculée ici, et non nulle pour autant.',
+    reserve: 'Calculée avec la tranche 4c (conversion des entités étrangères) · non calculée ici, et non nulle pour autant.',
   });
   const h = L('VARIATION_HORS_DEVISES', 'Variation de la trésorerie nette (H = E − G)', 'TOTAL', eVar.net, {
     reserve: 'Égale à E tant que G n’est pas calculée.',
@@ -338,7 +341,7 @@ export function construireVariationCapitauxPropres(
   return {
     lignes,
     reserves: [
-      'Écarts de conversion · calculés avec la tranche 4, colonne laissée vide.',
+      'Écarts de conversion · calculés avec la tranche 4c (conversion des entités étrangères), colonne laissée vide.',
       'Bloc de l’exercice N-1 du modèle (clôture N-2 corrigée, mouvements N-1) · il suppose de consolider N-2, ce que cette version ne fait pas.',
     ],
   };

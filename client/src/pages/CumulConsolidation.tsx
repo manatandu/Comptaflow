@@ -10,7 +10,28 @@ import { api, ApiError } from '../lib/api';
  * déséquilibrée) s'affiche avec son motif au lieu d'un tableau vide.
  */
 type Num = number | string | null;
-export type EntiteCumul = { id: string; nom: string; balanceImporteeLe?: string | null; fichierBalance?: string | null };
+/** Tranche 4a · ce que l'entité déclare de sa fiscalité. null veut dire « pas de réponse », jamais zéro. */
+export type FiscaliteCumul = {
+  tauxImpotDiffere?: number | null;
+  sourceTauxImpot?: string | null;
+  idaOuverture?: number | null;
+  idaCloture?: number | null;
+  idpOuverture?: number | null;
+  idpCloture?: number | null;
+  justificationIda?: string | null;
+};
+export type EntiteCumul = { id: string; nom: string; balanceImporteeLe?: string | null; fichierBalance?: string | null } & FiscaliteCumul;
+export type EcartEvaluationCumul = {
+  id: string;
+  lienId: string;
+  compte: string;
+  compteAmortissement: string | null;
+  libelle: string;
+  montant: number;
+  mode: 'AMORTISSABLE' | 'NON_AMORTISSABLE' | 'REALISE';
+  dureeAnnees: number | null;
+  dateRealisation: string | null;
+};
 export type LienCumul = {
   id: string;
   detentriceId: string | null;
@@ -73,14 +94,18 @@ export function CumulConsolidation(props: {
     margeCloture: number;
     libelle: string;
   }[];
+  ecartsEvaluation: EcartEvaluationCumul[];
+  /** La fiscalité de la consolidante vit dans les faits de l'exercice. */
+  fiscaliteConsolidante: FiscaliteCumul | null;
   peutEcrire: boolean;
   recharger: () => Promise<void>;
 }) {
-  const { exerciceId, consolidante, entites, liens, reciproques, resultatsInternes, peutEcrire, recharger } = props;
+  const { exerciceId, consolidante, entites, liens, reciproques, resultatsInternes, ecartsEvaluation, fiscaliteConsolidante, peutEcrire, recharger } = props;
   const [erreur, setErreur] = useState<string | null>(null);
   const [resultat, setResultat] = useState<Resultat | null>(null);
   const [recip, setRecip] = useState({ entiteAId: '', compteA: '', entiteBId: '', compteB: '', montant: '', libelle: '' });
   const [interne, setInterne] = useState({ vendeuseId: '', acheteuseId: '', nature: 'STOCK', compteActif: '', margeOuverture: '', margeCloture: '', libelle: '' });
+  const [ecartForm, setEcartForm] = useState({ lienId: '', compte: '', compteAmortissement: '', libelle: '', montant: '', mode: 'AMORTISSABLE', dureeAnnees: '', dateRealisation: '' });
   const nomDe = (id: string | null) => (id === null || id === '' ? consolidante.nom : (entites.find((e) => e.id === id)?.nom ?? '?'));
 
   async function agir(action: () => Promise<unknown>) {
@@ -102,6 +127,25 @@ export function CumulConsolidation(props: {
       setErreur(e instanceof ApiError ? e.message : 'Le cumul n’a pas pu être calculé.');
     }
   }
+
+  const fiscaliteDe = (form: HTMLFormElement, entiteId: string | null) => {
+    const f = new FormData(form);
+    const txt = (k: string) => String(f.get(k) ?? '');
+    return {
+      exerciceId,
+      entiteId,
+      tauxImpotDiffere: nombre(txt('taux')),
+      sourceTauxImpot: txt('source') || null,
+      idaOuverture: nombre(txt('idaOuv')),
+      idaCloture: nombre(txt('idaClo')),
+      idpOuverture: nombre(txt('idpOuv')),
+      idpCloture: nombre(txt('idpClo')),
+      justificationIda: txt('justif') || null,
+    };
+  };
+  const vide = (v: number | null | undefined) => v == null;
+  const fiscaliteIncomplete = (x: FiscaliteCumul | null | undefined) =>
+    !x || vide(x.tauxImpotDiffere) || vide(x.idaOuverture) || vide(x.idaCloture) || vide(x.idpOuverture) || vide(x.idpCloture);
 
   const acquisitionDe = (form: HTMLFormElement) => {
     const f = new FormData(form);
@@ -361,6 +405,142 @@ export function CumulConsolidation(props: {
             </tbody>
           </table>
         )}
+      </section>
+
+      <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
+        <h2 className="text-[12.5px] font-bold mb-1.5">Écarts d’évaluation</h2>
+        <p className="text-[11px] text-text-dim mb-1.5 leading-[1.6]">
+          La part de l’écart de consolidation affectée à un élément <strong>identifiable</strong> de la détenue, à sa juste
+          valeur à l’entrée (art. 82, D4C ch. XII-6) · une immobilisation, un stock ou un passif externe, jamais les capitaux
+          propres. Il passe EN PRIORITÉ, et l’écart d’acquisition n’est que le reste. Montant positif si l’élément vaut plus au
+          bilan consolidé qu’aux livres de la détenue. Chaque écart porte son impôt différé au taux déclaré de la détenue, et
+          appartient aux majoritaires comme aux minoritaires. Aucun écart d’évaluation sur une entité mise en équivalence.
+        </p>
+        {peutEcrire && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 mb-2">
+            <label className="text-[12px]">
+              Participation
+              <select className={champ} value={ecartForm.lienId} onChange={(e) => setEcartForm({ ...ecartForm, lienId: e.target.value })}>
+                <option value="">Choisir…</option>
+                {liens.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {nomDe(l.detentriceId)} → {nomDe(l.detenueId)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-[12px]">Compte de l’élément<input className={champ} value={ecartForm.compte} onChange={(e) => setEcartForm({ ...ecartForm, compte: e.target.value })} /></label>
+            <label className="text-[12px]">Écart à l’entrée (FC)<input className={champ} value={ecartForm.montant} onChange={(e) => setEcartForm({ ...ecartForm, montant: e.target.value })} /></label>
+            <label className="text-[12px]">
+              Sort dans le temps
+              <select className={champ} value={ecartForm.mode} onChange={(e) => setEcartForm({ ...ecartForm, mode: e.target.value })}>
+                <option value="AMORTISSABLE">Amortissable · immobilisation</option>
+                <option value="NON_AMORTISSABLE">Non amortissable · terrain</option>
+                <option value="REALISE">Réalisé à une date · stock vendu, bien cédé</option>
+              </select>
+            </label>
+            {ecartForm.mode === 'AMORTISSABLE' && (
+              <>
+                <label className="text-[12px]">Durée restant à courir à l’entrée (années)<input className={champ} value={ecartForm.dureeAnnees} onChange={(e) => setEcartForm({ ...ecartForm, dureeAnnees: e.target.value })} /></label>
+                <label className="text-[12px]">Compte d’amortissement (28)<input className={champ} value={ecartForm.compteAmortissement} onChange={(e) => setEcartForm({ ...ecartForm, compteAmortissement: e.target.value })} /></label>
+              </>
+            )}
+            {ecartForm.mode === 'REALISE' && (
+              <label className="text-[12px]">Date de réalisation<input type="date" className={champ} value={ecartForm.dateRealisation} onChange={(e) => setEcartForm({ ...ecartForm, dateRealisation: e.target.value })} /></label>
+            )}
+            <label className="text-[12px]">Libellé<input className={champ} value={ecartForm.libelle} onChange={(e) => setEcartForm({ ...ecartForm, libelle: e.target.value })} /></label>
+            <button
+              className="border border-border px-2.5 py-1 text-[12px] justify-self-start"
+              disabled={!ecartForm.lienId}
+              onClick={() =>
+                void agir(async () => {
+                  await api.post(`/consolidation/liens/${ecartForm.lienId}/ecarts-evaluation`, {
+                    compte: ecartForm.compte,
+                    compteAmortissement: ecartForm.mode === 'AMORTISSABLE' ? ecartForm.compteAmortissement || null : null,
+                    libelle: ecartForm.libelle,
+                    montant: nombre(ecartForm.montant),
+                    mode: ecartForm.mode,
+                    dureeAnnees: ecartForm.mode === 'AMORTISSABLE' ? nombre(ecartForm.dureeAnnees) : null,
+                    dateRealisation: ecartForm.mode === 'REALISE' ? ecartForm.dateRealisation || null : null,
+                  });
+                  setEcartForm({ ...ecartForm, compte: '', compteAmortissement: '', libelle: '', montant: '', dureeAnnees: '', dateRealisation: '' });
+                })
+              }
+            >
+              Ajouter
+            </button>
+          </div>
+        )}
+        {ecartsEvaluation.length === 0 ? (
+          <p className="text-[12px] text-text-dim">Aucun écart d’évaluation déclaré · l’écart de consolidation est alors tout entier écart d’acquisition.</p>
+        ) : (
+          <table className="w-full text-[12px]">
+            <tbody>
+              {ecartsEvaluation.map((o) => {
+                const l = liens.find((x) => x.id === o.lienId);
+                return (
+                  <tr key={o.id} className="border-b border-border/60">
+                    <td className="py-1 pr-2">{o.libelle}</td>
+                    <td className="py-1 pr-2">{l ? nomDe(l.detenueId) : '?'} · {o.compte}</td>
+                    <td className="py-1 pr-2">
+                      {o.mode === 'AMORTISSABLE' ? `amorti sur ${o.dureeAnnees} ans (${o.compteAmortissement})` : o.mode === 'REALISE' ? `réalisé le ${o.dateRealisation?.slice(0, 10)}` : 'non amortissable'}
+                    </td>
+                    <td className="py-1 pr-2 text-right">{fc(o.montant)}</td>
+                    <td className="py-1 text-right">
+                      {peutEcrire && (
+                        <button className="text-[11px] underline" onClick={() => void agir(() => api.delete(`/consolidation/ecarts-evaluation/${o.id}`))}>
+                          Retirer
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
+        <h2 className="text-[12.5px] font-bold mb-1.5">Fiscalité des entités · impôts différés</h2>
+        <p className="text-[11px] text-text-dim mb-1.5 leading-[1.6]">
+          Le taux est celui « en vigueur à la clôture » (D4C ch. XII-3 § 3), déclaré avec sa source · OmegaX n’en écrit aucun,
+          une filiale étrangère n’ayant pas le taux de la mère. Les impôts différés des comptes individuels (décalages
+          temporaires, déficits reportables, art. 92) se déclarent en <strong>montants d’impôt</strong> · leur base fiscale est
+          dans la liasse de l’entité, pas dans sa balance. Zéro est une réponse, un champ vide n’en est pas une, et l’état
+          consolidé reste non publiable tant qu’une entité n’a pas répondu. Un impôt différé actif demande d’écrire pourquoi son
+          imputation est probable.
+        </p>
+        {[{ id: null as string | null, nom: `${consolidante.nom} (consolidante)`, f: fiscaliteConsolidante }, ...entites.map((e) => ({ id: e.id as string | null, nom: e.nom, f: e as FiscaliteCumul }))].map((x) => (
+          <details key={x.id ?? 'consolidante'} className="border-b border-border/60 py-1">
+            <summary className="text-[12px] cursor-pointer">
+              {x.nom}
+              {fiscaliteIncomplete(x.f) ? <span className="text-warning"> · déclaration incomplète</span> : null}
+            </summary>
+            <form
+              className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 py-1.5"
+              onSubmit={(ev) => {
+                ev.preventDefault();
+                void agir(() => api.put('/consolidation/fiscalite', fiscaliteDe(ev.currentTarget, x.id)));
+              }}
+            >
+              <label className="text-[12px]">Taux d’impôt (%)<input name="taux" className={champ} defaultValue={x.f?.tauxImpotDiffere ?? ''} disabled={!peutEcrire} /></label>
+              <label className="text-[12px] sm:col-span-2">Source du taux<input name="source" className={champ} defaultValue={x.f?.sourceTauxImpot ?? ''} disabled={!peutEcrire} /></label>
+              <label className="text-[12px]">Impôt différé actif, ouverture<input name="idaOuv" className={champ} defaultValue={x.f?.idaOuverture ?? ''} disabled={!peutEcrire} /></label>
+              <label className="text-[12px]">Impôt différé actif, clôture<input name="idaClo" className={champ} defaultValue={x.f?.idaCloture ?? ''} disabled={!peutEcrire} /></label>
+              <span />
+              <label className="text-[12px]">Impôt différé passif, ouverture<input name="idpOuv" className={champ} defaultValue={x.f?.idpOuverture ?? ''} disabled={!peutEcrire} /></label>
+              <label className="text-[12px]">Impôt différé passif, clôture<input name="idpClo" className={champ} defaultValue={x.f?.idpCloture ?? ''} disabled={!peutEcrire} /></label>
+              <span />
+              <label className="text-[12px] sm:col-span-3">Pourquoi l’impôt différé actif est probable<input name="justif" className={champ} defaultValue={x.f?.justificationIda ?? ''} disabled={!peutEcrire} /></label>
+              {peutEcrire && (
+                <button type="submit" className="border border-border px-2.5 py-1 text-[12px] sm:col-span-3 justify-self-start">
+                  Enregistrer
+                </button>
+              )}
+            </form>
+          </details>
+        ))}
       </section>
 
       <section className="border border-border bg-surface px-3.5 py-2.5">

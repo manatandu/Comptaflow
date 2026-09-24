@@ -14,7 +14,7 @@ const T = 'dossier-1';
 const EX = 'ex-2026';
 
 function doublure(balanceDossier: [string, number][]) {
-  const tables: Record<string, any[]> = { entites: [], liens: [], lignes: [], reciproques: [], internes: [], faits: [] };
+  const tables: Record<string, any[]> = { entites: [], liens: [], lignes: [], reciproques: [], internes: [], faits: [], ecarts: [] };
   let seq = 0;
   const correspond = (r: any, where: any) =>
     Object.entries(where ?? {}).every(([k, v]) => (v && typeof v === 'object' && 'in' in (v as any) ? (v as any).in.includes(r[k]) : r[k] === v));
@@ -65,6 +65,7 @@ function doublure(balanceDossier: [string, number][]) {
     ligneBalanceConsolidation: table('lignes'),
     operationReciproqueConsolidation: table('reciproques'),
     resultatInterneConsolidation: table('internes'),
+    ecartEvaluationConsolidation: table('ecarts'),
     faitsConsolidationExercice: table('faits'),
     $transaction: jest.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)),
   };
@@ -308,6 +309,42 @@ describe('CumulService · le cumul de bout en bout', () => {
         modeDureeEcart: 'LIMITEE',
       }),
     ).rejects.toThrow(/durée d’utilité limitée/);
+  });
+});
+
+describe('CumulService · tranche 4a, écarts d’évaluation et fiscalité déclarés', () => {
+  const ACQ = { coutAcquisition: 800, compteTitres: '26100000', dateEntree: '2024-01-01', capitauxPropresEntree: 900, modeDureeEcart: 'NON_DETERMINABLE' as const };
+  const BATIMENT = { compte: '23100000', compteAmortissement: '28310000', libelle: 'Bâtiment', montant: 100, mode: 'AMORTISSABLE' as const, dureeAnnees: 5 };
+  const ZEROS = { idaOuverture: 0, idaCloture: 0, idpOuverture: 0, idpCloture: 0 };
+
+  it('un écart déclaré et les taux déclarés arrivent au moteur · le cas chiffré du moteur, au franc', async () => {
+    const { service, lien, f } = await groupe();
+    await service.declarerAcquisition(T, lien.id, ACQ);
+    await service.ajouterEcartEvaluation(T, lien.id, BATIMENT);
+    await service.enregistrerFiscalite(T, { exerciceId: EX, tauxImpotDiffere: 30, sourceTauxImpot: 'loi de finances', ...ZEROS });
+    await service.enregistrerFiscalite(T, { exerciceId: EX, entiteId: f.id, tauxImpotDiffere: 30, sourceTauxImpot: 'loi de finances', ...ZEROS });
+    const r = await service.cumul(T, EX);
+    expect(r.ecarts[0]).toMatchObject({ quotePartCapitauxPropresEntree: 776, ecart: 24 });
+    expect(r.capitauxPropres).toMatchObject({ reservesGroupe: 1032.8, resultatGroupe: 806.4 });
+    expect(r.lignes.find((l) => l.cle === 'IMPOTS_DIFFERES_PASSIF')?.solde).toBe(-12);
+    expect(r.impotsDifferesIncomplets).toEqual([]);
+  });
+
+  it('la consolidante déclare dans les faits de l’exercice, une entité sur sa ligne · sans déclaration, les deux sont nommées', async () => {
+    const { service, lien } = await groupe();
+    await service.declarerAcquisition(T, lien.id, ACQ);
+    const r = await service.cumul(T, EX);
+    expect(r.impotsDifferesIncomplets.join(' ')).toMatch(/« Mère SA » n’a pas déclaré.*« Filiale » n’a pas déclaré/);
+  });
+
+  it('refus à la porte · un taux sans source, un IDA sans motif, un écart sur les capitaux propres', async () => {
+    const { service, lien, f, tables } = await groupe();
+    await service.declarerAcquisition(T, lien.id, ACQ);
+    await expect(service.enregistrerFiscalite(T, { exerciceId: EX, tauxImpotDiffere: 30 })).rejects.toThrow(/AVEC sa source/);
+    await expect(service.enregistrerFiscalite(T, { exerciceId: EX, entiteId: f.id, idaCloture: 10 })).rejects.toThrow(/probable/);
+    await expect(service.ajouterEcartEvaluation(T, lien.id, { ...BATIMENT, compte: '11800000' })).rejects.toThrow(/jamais aux capitaux propres/);
+    expect(tables.ecarts).toHaveLength(0);
+    expect(tables.faits).toHaveLength(0);
   });
 });
 

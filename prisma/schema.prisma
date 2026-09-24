@@ -621,6 +621,7 @@ model Tenant {
   LigneBalanceConsolidation        LigneBalanceConsolidation[]
   OperationReciproqueConsolidation OperationReciproqueConsolidation[]
   resultatsInternesConsolidation   ResultatInterneConsolidation[]
+  ecartsEvaluationConsolidation    EcartEvaluationConsolidation[]
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -1090,6 +1091,7 @@ model Exercice {
   faitsConsolidation              FaitsConsolidationExercice?
   reciproquesConsolidation        OperationReciproqueConsolidation[]
   resultatsInternesConsolidation  ResultatInterneConsolidation[]
+  ecartsEvaluationConsolidation   EcartEvaluationConsolidation[]
 
   @@unique([tenantId, dateDebut, dateFin])
   @@map("exercices")
@@ -6219,6 +6221,21 @@ model EntitePerimetreConsolidation {
   /// périmètre. Déclaré, libre · aucune nomenclature n'est imposée.
   secteurActivite String?
 
+  /// IMPÔTS DIFFÉRÉS · tranche 4a (art. 92, D4C ch. XII-3 § 3). Le taux « en
+  /// vigueur à la clôture », DÉCLARÉ avec sa source · une filiale étrangère n'a
+  /// pas le taux de la mère, et aucun taux n'est écrit dans le moteur. Les
+  /// impôts différés des comptes individuels (décalages temporaires, déficits
+  /// reportables) se déclarent en MONTANTS D'IMPÔT · NULL veut dire « pas de
+  /// réponse », et l'état consolidé se dit alors non publiable.
+  tauxImpotDiffere Decimal? @db.Decimal(7, 4)
+  sourceTauxImpot  String?
+  idaOuverture     Decimal? @db.Decimal(18, 2)
+  idaCloture       Decimal? @db.Decimal(18, 2)
+  idpOuverture     Decimal? @db.Decimal(18, 2)
+  idpCloture       Decimal? @db.Decimal(18, 2)
+  /// Un impôt différé actif n'est comptabilisé que si son imputation est PROBABLE · le motif s'écrit.
+  justificationIda String?
+
   createdAt DateTime @default(now())
 
   liensDetenus   LienParticipationConsolidation[] @relation("ParticipationDetenue")
@@ -6278,6 +6295,8 @@ model LienParticipationConsolidation {
   /// Ch. XII-5 § 6 · une mise en équivalence négative passe en provision.
   obligationNonDesengagement Boolean                    @default(false)
 
+  ecartsEvaluation EcartEvaluationConsolidation[]
+
   createdAt DateTime @default(now())
 
   @@index([tenantId, exerciceId])
@@ -6306,6 +6325,23 @@ model FaitsConsolidationExercice {
   seuilEquivalentFc Decimal? @db.Decimal(18, 2)
   sourceSeuil       String?
 
+  /// Fiscalité de la CONSOLIDANTE, qui n'est pas une ligne d'entité · mêmes
+  /// champs, même sens que sur `EntitePerimetreConsolidation`.
+  /// IMPÔTS DIFFÉRÉS · tranche 4a (art. 92, D4C ch. XII-3 § 3). Le taux « en
+  /// vigueur à la clôture », DÉCLARÉ avec sa source · une filiale étrangère n'a
+  /// pas le taux de la mère, et aucun taux n'est écrit dans le moteur. Les
+  /// impôts différés des comptes individuels (décalages temporaires, déficits
+  /// reportables) se déclarent en MONTANTS D'IMPÔT · NULL veut dire « pas de
+  /// réponse », et l'état consolidé se dit alors non publiable.
+  tauxImpotDiffere Decimal? @db.Decimal(7, 4)
+  sourceTauxImpot  String?
+  idaOuverture     Decimal? @db.Decimal(18, 2)
+  idaCloture       Decimal? @db.Decimal(18, 2)
+  idpOuverture     Decimal? @db.Decimal(18, 2)
+  idpCloture       Decimal? @db.Decimal(18, 2)
+  /// Un impôt différé actif n'est comptabilisé que si son imputation est PROBABLE · le motif s'écrit.
+  justificationIda String?
+
   updatedAt DateTime @updatedAt
 
   @@index([tenantId])
@@ -6326,9 +6362,9 @@ model LigneBalanceConsolidation {
   entiteId String
   entite   EntitePerimetreConsolidation @relation(fields: [entiteId], references: [id], onDelete: Cascade)
 
-  numero   String
-  intitule String
-  solde    Decimal @db.Decimal(18, 2)
+  numero          String
+  intitule        String
+  solde           Decimal  @db.Decimal(18, 2)
   /// Mouvements PROPRES de l'exercice, report à-nouveau exclu · présents
   /// seulement quand la balance importée les porte (balance à six colonnes).
   /// Le tableau des flux consolidé les exige · le D4C veut des flux bruts,
@@ -6373,6 +6409,42 @@ enum NatureResultatInterne {
 /// Art. 86, 4° · marge interne incluse dans un actif de l'acheteuse, DÉCLARÉE
 /// à l'ouverture et à la clôture (nette de la part amortie pour une
 /// immobilisation). Une entité nulle désigne la consolidante.
+/// Sort d'un écart d'évaluation dans le temps · il suit celui de l'élément.
+enum ModeEcartEvaluation {
+  AMORTISSABLE
+  NON_AMORTISSABLE
+  REALISE
+}
+
+/// ÉCART D'ÉVALUATION · tranche 4a (art. 82, D4C ch. XII-6 § 1 et § 3). La
+/// part de l'écart de consolidation affectée à un élément IDENTIFIABLE de la
+/// détenue, à sa juste valeur à l'entrée · rien ne se déduit, elle se DÉCLARE.
+/// `montant` · de combien l'élément vaut de PLUS au bilan consolidé qu'aux
+/// livres de la détenue, négatif s'il vaut moins.
+model EcartEvaluationConsolidation {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  exerciceId String
+  exercice   Exercice @relation(fields: [exerciceId], references: [id])
+
+  lienId String
+  lien   LienParticipationConsolidation @relation(fields: [lienId], references: [id], onDelete: Cascade)
+
+  compte              String
+  compteAmortissement String?
+  libelle             String
+  montant             Decimal             @db.Decimal(18, 2)
+  mode                ModeEcartEvaluation
+  dureeAnnees         Int?
+  dateRealisation     DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, exerciceId])
+  @@map("ecarts_evaluation_consolidation")
+}
+
 model ResultatInterneConsolidation {
   id         String   @id @default(uuid())
   tenantId   String

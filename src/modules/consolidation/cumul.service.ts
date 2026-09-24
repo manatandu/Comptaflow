@@ -6,13 +6,16 @@ import { lireFichier, lireMontant } from '../import/lecture-fichier';
 import {
   AcquisitionDeclaree,
   cumulerConsolidation,
+  EcartEvaluation,
   EntiteACumuler,
+  FiscaliteEntite,
+  motifRefusEcartEvaluation,
   OperationReciproque,
   RefusConsolidation,
   ResultatInterne,
 } from './cumul-consolidation';
 import { PerimetreService } from './perimetre.service';
-import { AcquisitionDto, ImporterBalanceEntiteDto, OperationReciproqueDto, ResultatInterneDto } from './dto/perimetre.dto';
+import { AcquisitionDto, EcartEvaluationDto, FiscaliteEntiteDto, ImporterBalanceEntiteDto, OperationReciproqueDto, ResultatInterneDto } from './dto/perimetre.dto';
 
 const n = (v: unknown) => (v == null ? null : Number(v));
 const diff = (d: number | null, c: number | null) => (d === null || c === null ? null : d - c);
@@ -248,6 +251,74 @@ export class CumulService {
     return { supprime: true };
   }
 
+  async ajouterEcartEvaluation(tenantId: string, lienId: string, dto: EcartEvaluationDto) {
+    const lien = await this.prisma.lienParticipationConsolidation.findFirst({
+      where: { id: lienId, tenantId },
+      select: { id: true, exerciceId: true, dateEntree: true },
+    });
+    if (!lien) throw new NotFoundException('Participation introuvable dans ce dossier.');
+    const ev: EcartEvaluation = {
+      compte: dto.compte.trim(),
+      compteAmortissement: dto.compteAmortissement?.trim() || null,
+      libelle: dto.libelle.trim(),
+      montant: dto.montant,
+      mode: dto.mode,
+      dureeAnnees: dto.dureeAnnees ?? null,
+      dateRealisation: dto.dateRealisation ? new Date(dto.dateRealisation) : null,
+    };
+    const refus = motifRefusEcartEvaluation(ev, lien.dateEntree);
+    if (refus) throw new BadRequestException(refus);
+    return this.prisma.ecartEvaluationConsolidation.create({
+      data: { tenantId, exerciceId: lien.exerciceId, lienId: lien.id, ...ev },
+    });
+  }
+
+  async supprimerEcartEvaluation(tenantId: string, id: string) {
+    const o = await this.prisma.ecartEvaluationConsolidation.findFirst({ where: { id, tenantId }, select: { id: true } });
+    if (!o) throw new NotFoundException('Écart d’évaluation introuvable dans ce dossier.');
+    await this.prisma.ecartEvaluationConsolidation.delete({ where: { id } });
+    return { supprime: true };
+  }
+
+  /**
+   * La fiscalité d'une entité, ou de la consolidante (`entiteId` absent), qui
+   * n'est pas une ligne d'entité · elle vit avec les faits de l'exercice. Deux
+   * refus à la porte, les mêmes que le moteur · un taux sans source, et un
+   * impôt différé actif sans le motif qui le rend probable.
+   */
+  async enregistrerFiscalite(tenantId: string, dto: FiscaliteEntiteDto) {
+    const ex = await this.prisma.exercice.findFirst({ where: { id: dto.exerciceId, tenantId }, select: { id: true } });
+    if (!ex) throw new NotFoundException('Exercice introuvable dans ce dossier.');
+    if (dto.tauxImpotDiffere != null && !dto.sourceTauxImpot?.trim()) {
+      throw new BadRequestException(
+        'Le taux d’impôt se déclare AVEC sa source · c’est celui « en vigueur à la clôture » (D4C ch. XII-3 § 3), et OmegaX n’en écrit aucun.',
+      );
+    }
+    if (((dto.idaOuverture ?? 0) > 0 || (dto.idaCloture ?? 0) > 0) && !dto.justificationIda?.trim()) {
+      throw new BadRequestException(
+        'Un impôt différé actif n’est comptabilisé que s’il est probable qu’un bénéfice imposable permettra de l’imputer (D4C ch. XII-3 § 3) · écrivez pourquoi.',
+      );
+    }
+    const data = {
+      tauxImpotDiffere: dto.tauxImpotDiffere ?? null,
+      sourceTauxImpot: dto.sourceTauxImpot?.trim() || null,
+      idaOuverture: dto.idaOuverture ?? null,
+      idaCloture: dto.idaCloture ?? null,
+      idpOuverture: dto.idpOuverture ?? null,
+      idpCloture: dto.idpCloture ?? null,
+      justificationIda: dto.justificationIda?.trim() || null,
+    };
+    if (dto.entiteId) {
+      const e = await this.prisma.entitePerimetreConsolidation.findFirst({ where: { id: dto.entiteId, tenantId, exerciceId: ex.id }, select: { id: true } });
+      if (!e) throw new NotFoundException('Entité introuvable dans ce périmètre.');
+      return this.prisma.entitePerimetreConsolidation.update({ where: { id: e.id }, data });
+    }
+    const faits = await this.prisma.faitsConsolidationExercice.findFirst({ where: { tenantId, exerciceId: ex.id }, select: { id: true } });
+    return faits
+      ? this.prisma.faitsConsolidationExercice.update({ where: { id: faits.id }, data })
+      : this.prisma.faitsConsolidationExercice.create({ data: { tenantId, exerciceId: ex.id, ...data } });
+  }
+
   async supprimerReciproque(tenantId: string, id: string) {
     const o = await this.prisma.operationReciproqueConsolidation.findFirst({ where: { id, tenantId }, select: { id: true } });
     if (!o) throw new NotFoundException('Opération réciproque introuvable dans ce dossier.');
@@ -339,9 +410,21 @@ export class CumulService {
       };
     });
 
+    const ecartsStockes = await this.prisma.ecartEvaluationConsolidation.findMany({ where: { tenantId, exerciceId } });
     const acquisitions: AcquisitionDeclaree[] = liensUtiles.map((l) => {
       const b = parLien.get(l.id)!;
       return {
+        ecartsEvaluation: ecartsStockes
+          .filter((e) => e.lienId === l.id)
+          .map((e) => ({
+            compte: e.compte,
+            compteAmortissement: e.compteAmortissement,
+            libelle: e.libelle,
+            montant: Number(e.montant),
+            mode: e.mode,
+            dureeAnnees: e.dureeAnnees,
+            dateRealisation: e.dateRealisation,
+          })),
         detentriceId: versMoteur(l.detentriceId),
         detenueId: l.detenueId,
         pctCapital: Number(b.pctCapital),
@@ -380,12 +463,36 @@ export class CumulService {
       libelle: o.libelle,
     }));
 
+    // Fiscalité · la consolidante la tient dans les faits de l'exercice, les
+    // autres entités sur leur ligne. `n` rend null pour null · jamais zéro.
+    const fisc = (id: string, f: Record<string, unknown> | null | undefined): FiscaliteEntite => ({
+      entiteId: id,
+      tauxImpot: n(f?.tauxImpotDiffere),
+      idaOuverture: n(f?.idaOuverture),
+      idaCloture: n(f?.idaCloture),
+      idpOuverture: n(f?.idpOuverture),
+      idpCloture: n(f?.idpCloture),
+      justificationIda: (f?.justificationIda as string | null | undefined) ?? null,
+    });
+    const fiscalites: FiscaliteEntite[] = [
+      fisc(consolidanteId, etat.faits as Record<string, unknown> | null),
+      ...etat.entites.map((e) => fisc(e.id, e as unknown as Record<string, unknown>)),
+    ];
+
     try {
       return {
-        ...cumulerConsolidation({ dateDebut: ex!.dateDebut, dateFin: ex!.dateFin }, entites, acquisitions, reciproques, resultatsInternes),
+        ...cumulerConsolidation(
+          { dateDebut: ex!.dateDebut, dateFin: ex!.dateFin },
+          entites,
+          acquisitions,
+          reciproques,
+          resultatsInternes,
+          fiscalites,
+        ),
         reserves: [
           'Les balances des filiales sont réputées RETRAITÉES aux règles du groupe (D4C, ch. XII-3) · OmegaX ne fait ni l’homogénéisation ni les éliminations de nature fiscale.',
-          'Les écarts d’évaluation (ch. XII-6 § 1) et leurs impôts différés viennent avec la tranche 4 · l’écart de consolidation est ici tout entier porté en écart d’acquisition.',
+          'Écarts d’évaluation (art. 82, ch. XII-6) · DÉCLARÉS élément par élément, ils passent en priorité et l’écart d’acquisition n’est que le reste. Chacun porte son impôt différé, au taux déclaré de la détenue · jamais l’écart d’acquisition (ch. XII-3 § 3).',
+          'Impôts différés (art. 92) · écarts d’évaluation, marges internes éliminées (au taux de la vendeuse) et impôts différés DÉCLARÉS des comptes individuels. Actif et passif ne sont pas compensés, le D4C n’en disant rien, et aucune actualisation n’est faite (ch. XII-3 § 3). Les éliminations de nature fiscale et la conversion des entités étrangères suivent (tranches 4b et 4c).',
           'Résultats internes inclus dans les stocks et immobilisations (art. 86, 4°) · éliminés sur DÉCLARATION de la marge, totalement entre entités intégrées globalement, au produit des pourcentages avec une entité intégrée proportionnellement (D4C ch. XII-5). Le texte ne dit pas qui la supporte · OmegaX retraite le résultat de la VENDEUSE, qui se partage à son pourcentage d’intérêt (art. 85, résultat consolidé bâti des éléments du résultat de chaque entité). Une marge d’incidence négligeable peut ne pas être déclarée (art. 86, dernier alinéa).',
           'Amortissement de l’écart · prorata au mois, du premier jour du mois d’entrée, convention reprise du module des immobilisations · le D4C dit « linéairement » sans fixer de prorata.',
         ],

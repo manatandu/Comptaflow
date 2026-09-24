@@ -2,6 +2,7 @@ import {
   AcquisitionDeclaree,
   cumulerConsolidation,
   EntiteACumuler,
+  FiscaliteEntite,
   LigneBalanceEntree,
   OperationReciproque,
   ResultatInterne,
@@ -401,5 +402,121 @@ describe('résultats internes inclus dans les actifs (art. 86, 4°)', () => {
 
   it('une immobilisation s’inscrit en classe 2, un stock en classe 3', () => {
     expect(() => cumulerConsolidation(EX, [M, F], A, [], [ri('M', 'F', { nature: 'IMMOBILISATION' })])).toThrow(/classe 2/);
+  });
+});
+
+describe('tranche 4a · écarts d’évaluation et impôts différés (art. 82 et 92, D4C ch. XII-3 § 3 et XII-6)', () => {
+  const fiscal = (entiteId: string, tauxImpot: number | null, extra: Partial<FiscaliteEntite> = {}): FiscaliteEntite => ({
+    entiteId,
+    tauxImpot,
+    idaOuverture: 0,
+    idaCloture: 0,
+    idpOuverture: 0,
+    idpCloture: 0,
+    ...extra,
+  });
+  const FISC = [fiscal('M', 30), fiscal('F', 30)];
+  const batiment = { compte: '23100000', compteAmortissement: '28310000', libelle: 'Bâtiment', montant: 100, mode: 'AMORTISSABLE' as const, dureeAnnees: 5 };
+
+  describe('un bâtiment réestimé de 100, amorti sur cinq ans depuis janvier 2024, taux 30 %', () => {
+    // Capitaux propres réestimés · 900 + 100 × 0,7 = 970 ; quote-part 80 % = 776 ; écart d'acquisition 24.
+    // Écart d'évaluation · 40 amortis à l'ouverture (24 mois / 60), 60 à la clôture · reste 60 puis 40.
+    // Impôt différé passif · 30 % × 40 = 12 ; produit d'impôt de l'exercice · 30 % × 20 = 6.
+    // F partage · capitaux propres 1 600 + 60 × 0,7 = 1 642 ; résultat 400 − 20 + 6 = 386.
+    const r = cumulerConsolidation(EX, [M, F], [acq('M', 'F', 80, 800, 900, { ecartsEvaluation: [batiment] })], [], [], FISC);
+
+    it('l’écart d’évaluation passe en priorité, l’écart d’acquisition n’est que le reste (art. 82)', () => {
+      expect(r.ecarts[0]).toMatchObject({ quotePartCapitauxPropresEntree: 776, ecart: 24, dotationExercice: 2.4 });
+      expect(ligne(r, '23100000')).toBe(100);
+      expect(ligne(r, '28310000')).toBe(-60);
+      expect(ligne(r, 'ECARTS_EVALUATION_RESULTAT')).toBe(20);
+    });
+
+    it('l’impôt différé passif et son produit de l’exercice · jamais sur l’écart d’acquisition', () => {
+      expect(ligne(r, 'IMPOTS_DIFFERES_PASSIF')).toBe(-12);
+      expect(ligne(r, 'IMPOTS_DIFFERES_ACTIF')).toBe(0);
+      expect(ligne(r, 'IMPOTS_DIFFERES_RESULTAT')).toBe(-6);
+      expect(r.ecartsEvaluation[0]).toMatchObject({ restantOuverture: 60, restantCloture: 40, impotDiffereCloture: -12, tauxImpot: 30 });
+    });
+
+    it('il appartient aux majoritaires ET aux minoritaires (ch. XII-6 § 3)', () => {
+      // Réserves groupe · 500 + 0,8 × (1 642 − 970) − 4,8 = 1 032,8 ; minoritaires · 20 % × 1 642 = 328,4.
+      // Résultat groupe · 500 − 2,4 + 0,8 × 386 = 806,4 ; minoritaires · 20 % × 386 = 77,2.
+      expect(r.capitauxPropres).toMatchObject({
+        reservesGroupe: 1032.8,
+        interetsMinoritairesHorsResultat: 328.4,
+        resultatGroupe: 806.4,
+        resultatMinoritaires: 77.2,
+        resultatEnsemble: 883.6,
+      });
+      expect(r.equilibre).toBe(0);
+      expect(r.impotsDifferesIncomplets).toEqual([]);
+    });
+  });
+
+  it('un stock réestimé puis vendu dans l’exercice · tout passe au résultat, le tableau des flux en est averti', () => {
+    const stock = { compte: '31100000', libelle: 'Stock', montant: 50, mode: 'REALISE' as const, dateRealisation: new Date('2026-06-30') };
+    const r = cumulerConsolidation(EX, [M, F], [acq('M', 'F', 80, 800, 900, { ecartsEvaluation: [stock] })], [], [], FISC);
+    expect(ligne(r, '31100000')).toBe(0);
+    expect(ligne(r, 'ECARTS_EVALUATION_RESULTAT')).toBe(50);
+    expect(ligne(r, 'IMPOTS_DIFFERES_RESULTAT')).toBe(-15);
+    expect(ligne(r, 'IMPOTS_DIFFERES_PASSIF')).toBe(0);
+    expect(r.ecartsEvaluationStocksResultat).toBe(50);
+    expect(r.equilibre).toBe(0);
+  });
+
+  it('un passif réestimé en hausse · impôt différé ACTIF, et un écart d’acquisition plus grand', () => {
+    // Provision de 100 · capitaux propres réestimés 900 − 70 = 830 ; quote-part 664 ; écart 136.
+    const litige = { compte: '19100000', libelle: 'Litige', montant: 100, mode: 'NON_AMORTISSABLE' as const };
+    const r = cumulerConsolidation(EX, [M, F], [acq('M', 'F', 80, 800, 900, { ecartsEvaluation: [litige] })], [], [], FISC);
+    expect(r.ecarts[0].ecart).toBe(136);
+    expect(ligne(r, '19100000')).toBe(-100);
+    expect(ligne(r, 'IMPOTS_DIFFERES_ACTIF')).toBe(30);
+    expect(r.equilibre).toBe(0);
+  });
+
+  it('refus · sans taux, sur une mise en équivalence, sur les capitaux propres, amortissable hors classe 2', () => {
+    expect(() => cumulerConsolidation(EX, [M, F], [acq('M', 'F', 80, 800, 900, { ecartsEvaluation: [batiment] })], [], [], [fiscal('M', 30), fiscal('F', null)])).toThrow(
+      /sans taux d’impôt déclaré/,
+    );
+    const FME = ent('F', 'ME', 30, F.balance);
+    expect(() => cumulerConsolidation(EX, [M, FME], [acq('M', 'F', 30, 800, 900, { ecartsEvaluation: [batiment] })], [], [], FISC)).toThrow(/pas d’écart d’évaluation/);
+    expect(() =>
+      cumulerConsolidation(EX, [M, F], [acq('M', 'F', 80, 800, 900, { ecartsEvaluation: [{ ...batiment, compte: '11800000' }] })], [], [], FISC),
+    ).toThrow(/jamais aux capitaux propres/);
+    expect(() =>
+      cumulerConsolidation(EX, [M, F], [acq('M', 'F', 80, 800, 900, { ecartsEvaluation: [{ ...batiment, compte: '31100000' }] })], [], [], FISC),
+    ).toThrow(/amortissable/);
+  });
+
+  it('la marge interne éliminée porte un impôt différé ACTIF au taux de la vendeuse (art. 92, 2°)', () => {
+    // Marge 100 à la clôture, 40 à l'ouverture · IDA 30, produit d'impôt 18, réserves 12.
+    const ri: ResultatInterne = { vendeuseId: 'M', acheteuseId: 'F', nature: 'STOCK', compteActif: '24500000', margeOuverture: 40, margeCloture: 100, libelle: 'x' };
+    const r = cumulerConsolidation(EX, [M, F], [acq('M', 'F', 80, 800, 900)], [], [{ ...ri, nature: 'IMMOBILISATION' }], FISC);
+    expect(ligne(r, 'IMPOTS_DIFFERES_ACTIF')).toBe(30);
+    expect(ligne(r, 'IMPOTS_DIFFERES_RESULTAT')).toBe(-18);
+    expect(r.equilibre).toBe(0);
+    const sansTaux = cumulerConsolidation(EX, [M, F], [acq('M', 'F', 80, 800, 900)], [], [{ ...ri, nature: 'IMMOBILISATION' }], [fiscal('M', null), fiscal('F', 30)]);
+    expect(ligne(sansTaux, 'IMPOTS_DIFFERES_ACTIF')).toBe(0);
+    expect(sansTaux.impotsDifferesIncomplets).toEqual([expect.stringMatching(/aucun taux d’impôt déclaré pour « M »/)]);
+  });
+
+  it('les impôts différés individuels se déclarent · absents, l’état le dit ; un IDA sans motif est refusé', () => {
+    const sans = cumulerConsolidation(EX, [M, F], [acq('M', 'F', 80, 800, 900)], [], [], []);
+    expect(sans.impotsDifferesIncomplets).toHaveLength(2);
+    expect(sans.impotsDifferesIncomplets[1]).toMatch(/« F » n’a pas déclaré/);
+    expect(() => cumulerConsolidation(EX, [M, F], [acq('M', 'F', 80, 800, 900)], [], [], [fiscal('M', 30), fiscal('F', 30, { idaCloture: 50 })])).toThrow(/probable/);
+    // Un seul champ laissé vide suffit · un « pas de réponse » sur l'IDP de clôture n'est pas un zéro.
+    const partiel = cumulerConsolidation(EX, [M, F], [acq('M', 'F', 80, 800, 900)], [], [], [fiscal('M', 30), fiscal('F', 30, { idpCloture: null })]);
+    expect(partiel.impotsDifferesIncomplets).toEqual([expect.stringMatching(/« F » n’a pas déclaré/)]);
+    // IDA 50 à la clôture, 20 à l'ouverture ; IDP 10 puis 0 · produit 30 + 10 = 40, réserves 20 − 10.
+    const r = cumulerConsolidation(EX, [M, F], [acq('M', 'F', 80, 800, 900)], [], [], [
+      fiscal('M', 30),
+      fiscal('F', 30, { idaOuverture: 20, idaCloture: 50, idpOuverture: 10, idpCloture: 0, justificationIda: 'Budget 2027 bénéficiaire' }),
+    ]);
+    expect(ligne(r, 'IMPOTS_DIFFERES_ACTIF')).toBe(50);
+    expect(ligne(r, 'IMPOTS_DIFFERES_PASSIF')).toBe(0);
+    expect(ligne(r, 'IMPOTS_DIFFERES_RESULTAT')).toBe(-40);
+    expect(r.equilibre).toBe(0);
   });
 });

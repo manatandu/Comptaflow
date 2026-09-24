@@ -13,8 +13,8 @@
  * - les RETRAITEMENTS d'homogénéisation et les éliminations de nature fiscale
  *   (ch. XII-3) · les balances reçues sont réputées retraitées, et un solde
  *   aux comptes 14 ou 15 d'une filiale est signalé ;
- * - les ÉCARTS D'ÉVALUATION (ch. XII-6 § 1) · ils donnent tous lieu à impôt
- *   différé, et vont avec la tranche 4 ;
+ * - les éliminations de nature fiscale et la conversion des entités
+ *   étrangères (tranches 4b et 4c) ;
  * - l'élimination des RÉSULTATS INTERNES inclus dans les stocks et les
  *   immobilisations (art. 86, 4°) · le texte veut une élimination totale sans
  *   dire qui du groupe ou des minoritaires du vendeur la supporte ;
@@ -74,6 +74,59 @@ export interface AcquisitionDeclaree {
   compteDividendes?: string | null;
   /** Ch. XII-5 § 6 · mise en équivalence négative portée en provision. */
   obligationNonDesengagement?: boolean;
+  /** Ch. XII-6 § 1 et § 3 · la part de l'écart de consolidation affectée aux éléments identifiables. */
+  ecartsEvaluation?: EcartEvaluation[];
+}
+
+/**
+ * ÉCART D'ÉVALUATION · tranche 4a. « Différence entre la valeur d'entrée au
+ * bilan consolidé (identifiables réestimés à la juste valeur) et la valeur
+ * comptable dans l'entité contrôlée » (D4C ch. XII-6 § 1). L'art. 82 l'impose
+ * « en priorité », avant tout écart d'acquisition. Rien ne se déduit · la
+ * juste valeur d'un bâtiment n'est dans aucune balance.
+ *
+ * `montant` · de combien l'élément VAUT DE PLUS au bilan consolidé qu'aux
+ * livres de la détenue, à la date d'entrée · positif augmente l'actif (classes
+ * 2 et 3) ou le passif (16 à 19), négatif les diminue.
+ *
+ * Son SORT dans le temps se déclare, parce qu'il suit celui de l'élément ·
+ * AMORTISSABLE sur la durée d'utilité restant à courir à l'entrée (une
+ * immobilisation amortissable), NON_AMORTISSABLE (un terrain), REALISE à la
+ * date où l'élément a quitté l'entité (un stock vendu, un bien cédé, un
+ * litige éteint).
+ */
+export type ModeEcartEvaluation = 'AMORTISSABLE' | 'NON_AMORTISSABLE' | 'REALISE';
+
+export interface EcartEvaluation {
+  compte: string;
+  /** Le 28 qui porte l'amortissement de l'écart · AMORTISSABLE seulement. */
+  compteAmortissement?: string | null;
+  libelle: string;
+  montant: number;
+  mode: ModeEcartEvaluation;
+  dureeAnnees?: number | null;
+  dateRealisation?: Date | null;
+}
+
+/**
+ * CE QUE L'ENTITÉ DÉCLARE DE SA FISCALITÉ · tranche 4a (art. 92, D4C ch. XII-3
+ * § 3). Le TAUX est celui « en vigueur à la clôture » (loi promulguée), et il
+ * n'est écrit nulle part dans ce moteur · une filiale étrangère n'a pas le taux
+ * de la mère. Les impôts différés des comptes INDIVIDUELS (décalages
+ * temporaires, déficits reportables) se déclarent en MONTANTS D'IMPÔT · leur
+ * base fiscale est dans la liasse de l'entité, pas dans sa balance. `null`
+ * veut dire « pas de réponse », jamais zéro.
+ */
+export interface FiscaliteEntite {
+  entiteId: string;
+  /** En pour cent. */
+  tauxImpot: number | null;
+  idaOuverture: number | null;
+  idaCloture: number | null;
+  idpOuverture: number | null;
+  idpCloture: number | null;
+  /** Un impôt différé actif n'est comptabilisé que si son imputation est PROBABLE (ch. XII-3 § 3) · le motif s'écrit. */
+  justificationIda?: string | null;
 }
 
 export interface OperationReciproque {
@@ -125,7 +178,11 @@ export type PosteConsolidation =
   | 'RESERVES_GROUPE'
   | 'INTERETS_MINORITAIRES'
   | 'RESULTAT_DEJA_CONSTATE'
-  | 'ELIMINATION_RESULTATS_INTERNES';
+  | 'ELIMINATION_RESULTATS_INTERNES'
+  | 'ECARTS_EVALUATION_RESULTAT'
+  | 'IMPOTS_DIFFERES_ACTIF'
+  | 'IMPOTS_DIFFERES_PASSIF'
+  | 'IMPOTS_DIFFERES_RESULTAT';
 
 export const LIBELLE_POSTE: Record<PosteConsolidation, string> = {
   ECART_ACQUISITION: 'Écart d’acquisition',
@@ -144,6 +201,10 @@ export const LIBELLE_POSTE: Record<PosteConsolidation, string> = {
   INTERETS_MINORITAIRES: 'Intérêts minoritaires (hors résultat)',
   RESULTAT_DEJA_CONSTATE: 'Résultat déjà porté au compte 13 dans les comptes individuels',
   ELIMINATION_RESULTATS_INTERNES: 'Élimination des résultats internes inclus dans les actifs (art. 86, 4°)',
+  ECARTS_EVALUATION_RESULTAT: 'Écarts d’évaluation rapportés au résultat (amortis ou réalisés)',
+  IMPOTS_DIFFERES_ACTIF: 'Actifs d’impôts différés',
+  IMPOTS_DIFFERES_PASSIF: 'Passifs d’impôts différés',
+  IMPOTS_DIFFERES_RESULTAT: 'Impôts différés (charge ou produit de l’exercice)',
 };
 
 /** Les postes qui sont du résultat · le reste est du bilan. */
@@ -153,6 +214,8 @@ const POSTES_DE_RESULTAT = new Set<PosteConsolidation>([
   'QUOTE_PART_RESULTAT_ME',
   'RESULTAT_DEJA_CONSTATE',
   'ELIMINATION_RESULTATS_INTERNES',
+  'ECARTS_EVALUATION_RESULTAT',
+  'IMPOTS_DIFFERES_RESULTAT',
 ]);
 
 /** Clé interne · un ajustement de capitaux propres porté par la détentrice avant son partage. */
@@ -208,11 +271,36 @@ export interface ResultatCumul {
   obstaclesFlux: string[];
   /** Dividendes reçus des entités mises en équivalence · encaissés, et hors de tout compte cumulé. */
   dividendesRecusMe: number;
+  /**
+   * Part du résultat des écarts d'évaluation portée par des STOCKS · la
+   * variation des stocks la lirait comme un encaissement, le tableau des flux
+   * la corrige comme l'élimination des résultats internes.
+   */
+  ecartsEvaluationStocksResultat: number;
+  ecartsEvaluation: EcartEvaluationCalcule[];
+  /**
+   * Ce qui MANQUE pour que les impôts différés soient complets · une entité
+   * sans taux, ou qui n'a pas déclaré ceux de ses comptes individuels. Vide,
+   * ils le sont.
+   */
+  impotsDifferesIncomplets: string[];
+}
+
+export interface EcartEvaluationCalcule {
+  detenue: string;
+  libelle: string;
+  compte: string;
+  montantEntree: number;
+  restantOuverture: number;
+  restantCloture: number;
+  tauxImpot: number;
+  impotDiffereCloture: number;
 }
 
 export class RefusConsolidation extends Error {}
 
-const r2 = (x: number) => Math.round(x * 100) / 100;
+// `|| 0` · jamais de zéro négatif, qui se lirait « -0,00 » sur un état.
+const r2 = (x: number) => Math.round(x * 100) / 100 || 0;
 const PREFIXES_CP_HORS_RESULTAT = ['10', '11', '12'];
 const estCpHorsResultat = (n: string) => n === AJUSTEMENT_RESERVES || PREFIXES_CP_HORS_RESULTAT.some((p) => n.startsWith(p));
 const estResultat13 = (n: string) => n.startsWith('13');
@@ -235,12 +323,46 @@ function planEcart(montantAbs: number, duree: number, entree: Date, date: Date):
   return r2((montantAbs * Math.min(moisEcoules(entree, date), n)) / n);
 }
 
+/**
+ * Pourquoi un écart d'évaluation déclaré est irrecevable, ou `null`. Une seule
+ * règle, que la déclaration et le cumul appellent · deux copies auraient
+ * divergé au premier correctif, et l'une aurait accepté ce que l'autre refuse.
+ */
+export function motifRefusEcartEvaluation(ev: EcartEvaluation, dateEntree: Date | null): string | null {
+  const classe = ev.compte[0];
+  if (!(classe === '2' || classe === '3' || /^1[6-9]/.test(ev.compte))) {
+    return (
+      `Écart d’évaluation « ${ev.libelle} » au compte ${ev.compte} · il s’affecte à un élément IDENTIFIABLE, une immobilisation (2), un stock (3) ` +
+      'ou un passif externe (16 à 19), jamais aux capitaux propres.'
+    );
+  }
+  if (!(Math.abs(ev.montant) > 0.005)) return `Écart d’évaluation « ${ev.libelle} » sans montant.`;
+  if (ev.mode === 'AMORTISSABLE' && (classe !== '2' || !(Number(ev.dureeAnnees) > 0) || !ev.compteAmortissement?.startsWith('28'))) {
+    return (
+      `Écart d’évaluation « ${ev.libelle} » amortissable · il faut une immobilisation (classe 2), la durée d’utilité restant à courir à ` +
+      'l’entrée, et le compte 28 qui porte son amortissement.'
+    );
+  }
+  if (ev.mode === 'REALISE' && (!ev.dateRealisation || (dateEntree && ev.dateRealisation.getTime() < dateEntree.getTime()))) {
+    return `Écart d’évaluation « ${ev.libelle} » réalisé · la date de réalisation manque ou précède l’entrée.`;
+  }
+  return null;
+}
+
+/** Ce qui reste de l'écart à une date, au signe de son solde. */
+function restantEcart(ev: EcartEvaluation, s: number, entree: Date, date: Date): number {
+  if (ev.mode === 'NON_AMORTISSABLE') return s;
+  if (ev.mode === 'REALISE') return date.getTime() >= ev.dateRealisation!.getTime() ? 0 : s;
+  return r2(s - Math.sign(s) * planEcart(Math.abs(s), ev.dureeAnnees!, entree, date));
+}
+
 export function cumulerConsolidation(
   exercice: { dateDebut: Date; dateFin: Date },
   entites: EntiteACumuler[],
   acquisitions: AcquisitionDeclaree[],
   reciproques: OperationReciproque[],
   resultatsInternes: ResultatInterne[] = [],
+  fiscalites: FiscaliteEntite[] = [],
 ): ResultatCumul {
   const avertissements: string[] = [];
   const parId = new Map(entites.map((e) => [e.id, e]));
@@ -334,8 +456,23 @@ export function cumulerConsolidation(
     return { cp: r2(cp), res: r2(res) };
   };
 
+  // ─── Fiscalité déclarée ───────────────────────────────────────────────────
+  const fisc = new Map(fiscalites.map((f) => [f.entiteId, f]));
+  const taux = (id: string) => {
+    const t = fisc.get(id)?.tauxImpot;
+    return t == null ? null : t / 100;
+  };
+  const impotsDifferesIncomplets: string[] = [];
+  /** Un impôt différé au bilan, rangé par son SENS · jamais compensé entre sources, le D4C n'en dit rien. */
+  const poserImpotDiffere = (id: string, soldeCloture: number) => {
+    if (Math.abs(soldeCloture) <= 0.005) return;
+    ajouter(id, soldeCloture > 0 ? 'IMPOTS_DIFFERES_ACTIF' : 'IMPOTS_DIFFERES_PASSIF', soldeCloture);
+  };
+
   // ─── 2. Élimination des titres, écarts, mise en équivalence, dividendes ───
   const ecarts: EcartCalcule[] = [];
+  const ecartsEvaluation: EcartEvaluationCalcule[] = [];
+  let ecartsEvaluationStocksResultat = 0;
   let dividendesRecusMe = 0;
   const veilleOuverture = new Date(exercice.dateDebut.getTime() - 86_400_000);
   for (const a of acquisitions) {
@@ -362,7 +499,64 @@ export function cumulerConsolidation(
       );
     }
     const d = a.pctCapital / 100;
-    const quotePart = r2(d * a.capitauxPropresEntree);
+
+    // ÉCARTS D'ÉVALUATION · ils entrent dans les capitaux propres de la détenue
+    // à l'entrée, NETS de leur impôt différé (« tous les écarts d'évaluation
+    // donnent lieu à imposition différée », ch. XII-6 § 1), et réduisent
+    // d'autant l'écart d'acquisition (art. 82, « en priorité »). Ils
+    // appartiennent aux majoritaires ET aux minoritaires (§ 3) · ils sont donc
+    // portés par la DÉTENUE, avant son partage.
+    const evs = a.ecartsEvaluation ?? [];
+    let reestimation = 0;
+    if (evs.length > 0) {
+      if (detenue.methode === 'ME') {
+        throw new RefusConsolidation(
+          `Écart d’évaluation déclaré sur « ${detenue.nom} », mise en équivalence · ses comptes n’étant pas repris, il n’y a pas d’écart d’évaluation (D4C ch. XII-6 § 3).`,
+        );
+      }
+      const t = taux(a.detenueId);
+      if (t == null) {
+        throw new RefusConsolidation(
+          `Écart d’évaluation sur « ${detenue.nom} » sans taux d’impôt déclaré pour elle · tous les écarts d’évaluation donnent lieu à imposition ` +
+            'différée (D4C ch. XII-6 § 1), au taux en vigueur à la clôture (ch. XII-3 § 3).',
+        );
+      }
+      const f = fraction.get(a.detenueId)!;
+      for (const ev of evs) {
+        const refus = motifRefusEcartEvaluation(ev, a.dateEntree);
+        if (refus) throw new RefusConsolidation(refus);
+        const classe = ev.compte[0];
+        const passif = classe === '1';
+        const s = passif ? -ev.montant : ev.montant;
+        reestimation += s * (1 - t);
+        const rOuv = restantEcart(ev, s, a.dateEntree, veilleOuverture);
+        const rClo = restantEcart(ev, s, a.dateEntree, exercice.dateFin);
+        const D = a.detenueId;
+        if (ev.mode === 'AMORTISSABLE') {
+          ajouter(D, ev.compte, r2(f * s));
+          ajouter(D, ev.compteAmortissement!, -r2(f * (s - rClo)));
+        } else {
+          ajouter(D, ev.compte, r2(f * rClo));
+        }
+        const resultatEcart = r2(f * (rOuv - rClo));
+        ajouter(D, 'ECARTS_EVALUATION_RESULTAT', resultatEcart);
+        if (classe === '3') ecartsEvaluationStocksResultat += resultatEcart;
+        ajouter(D, AJUSTEMENT_RESERVES, -r2(f * rOuv * (1 - t)));
+        poserImpotDiffere(D, -r2(t * f * rClo));
+        ajouter(D, 'IMPOTS_DIFFERES_RESULTAT', -r2(t * resultatEcart));
+        ecartsEvaluation.push({
+          detenue: detenue.nom,
+          libelle: ev.libelle,
+          compte: ev.compte,
+          montantEntree: ev.montant,
+          restantOuverture: passif ? -rOuv : rOuv,
+          restantCloture: passif ? -rClo : rClo,
+          tauxImpot: t * 100,
+          impotDiffereCloture: -r2(t * f * rClo),
+        });
+      }
+    }
+    const quotePart = r2(d * (a.capitauxPropresEntree + reestimation));
     const ecart = r2(a.coutAcquisition - quotePart);
     const duree = a.modeDureeEcart === 'NON_DETERMINABLE' ? DUREE_ECART_NON_DETERMINABLE_ANNEES : (a.dureeEcartAnnees ?? 0);
     if (Math.abs(ecart) > 0.005 && !(duree > 0)) {
@@ -517,6 +711,47 @@ export function cumulerConsolidation(
     ajouter(ri.vendeuseId, 'ELIMINATION_RESULTATS_INTERNES', r2(cloture - ouverture));
     ajouter(ri.vendeuseId, AJUSTEMENT_RESERVES, ouverture);
     ajouter(ri.vendeuseId, ri.compteActif, -cloture);
+    // Art. 92, 2° et ch. XII-3 § 3 · l'élimination abaisse la valeur de l'actif
+    // sous sa base fiscale, la vendeuse ayant été imposée sur la marge · un
+    // impôt différé ACTIF, au taux de la VENDEUSE, qui a payé l'impôt.
+    const t = taux(ri.vendeuseId);
+    if (t == null) {
+      impotsDifferesIncomplets.push(
+        `Résultat interne « ${ri.libelle} » · aucun taux d’impôt déclaré pour « ${nomDe(ri.vendeuseId)} », l’impôt différé sur la marge éliminée n’est pas calculé.`,
+      );
+    } else {
+      poserImpotDiffere(ri.vendeuseId, r2(t * cloture));
+      ajouter(ri.vendeuseId, 'IMPOTS_DIFFERES_RESULTAT', -r2(t * (cloture - ouverture)));
+      ajouter(ri.vendeuseId, AJUSTEMENT_RESERVES, -r2(t * ouverture));
+    }
+  }
+
+  // ─── 2 ter. Impôts différés des comptes individuels ───────────────────────
+  // Approche résultat, 1° et 3° (art. 92) · décalages temporaires et déficits
+  // reportables. DÉCLARÉS en montants d'impôt, à la fraction d'intégration.
+  for (const id of comptes.keys()) {
+    const e = parId.get(id)!;
+    const fi = fisc.get(id);
+    if (!fi || fi.idaOuverture == null || fi.idaCloture == null || fi.idpOuverture == null || fi.idpCloture == null) {
+      impotsDifferesIncomplets.push(
+        `« ${e.nom} » n’a pas déclaré les impôts différés de ses comptes individuels (décalages temporaires, déficits reportables, art. 92) · zéro est une réponse, l’absence n’en est pas une.`,
+      );
+      continue;
+    }
+    for (const v of [fi.idaOuverture, fi.idaCloture, fi.idpOuverture, fi.idpCloture]) {
+      if (v < 0) throw new RefusConsolidation(`« ${e.nom} » · un impôt différé se déclare en montant positif, son sens est celui de la colonne.`);
+    }
+    if ((fi.idaCloture > 0.005 || fi.idaOuverture > 0.005) && !fi.justificationIda?.trim()) {
+      throw new RefusConsolidation(
+        `« ${e.nom} » déclare un impôt différé actif sans dire pourquoi son imputation est probable · il n’est comptabilisé que s’il est « probable que la ` +
+          'différence s’inversera dans un avenir prévisible et qu’un bénéfice imposable existera » (D4C ch. XII-3 § 3).',
+      );
+    }
+    const f = fraction.get(id)!;
+    poserImpotDiffere(id, r2(f * fi.idaCloture));
+    poserImpotDiffere(id, -r2(f * fi.idpCloture));
+    ajouter(id, 'IMPOTS_DIFFERES_RESULTAT', r2(-f * (fi.idaCloture - fi.idaOuverture) + f * (fi.idpCloture - fi.idpOuverture)));
+    ajouter(id, AJUSTEMENT_RESERVES, r2(-f * fi.idaOuverture + f * fi.idpOuverture));
   }
 
   // ─── 3. Partage des capitaux propres ──────────────────────────────────────
@@ -651,5 +886,8 @@ export function cumulerConsolidation(
       .sort((a, b) => a.cle.localeCompare(b.cle)),
     obstaclesFlux,
     dividendesRecusMe: r2(dividendesRecusMe),
+    ecartsEvaluationStocksResultat: r2(ecartsEvaluationStocksResultat),
+    ecartsEvaluation,
+    impotsDifferesIncomplets,
   };
 }
