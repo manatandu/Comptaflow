@@ -28,8 +28,8 @@ colonne « Qui » dit qui tient la première étape.
 
 | Rang | Reste | Qui | Poids | Ce qui le débloque |
 |---|---|---|---|---|
-| 1 | Verser aux compétences l'ordonnance n° 23-042 (jours fériés) | Manasse | minutes | Le fichier, déjà fourni le 2026-09-18 |
-| 2 | Compléter le fichier de l'arrêté n° 013/2015, coupé à l'art. 7 | Manasse | minutes | La fin de l'article 7 et la suite |
+| 1 | ~~Verser aux compétences l'ordonnance n° 23-042 (jours fériés)~~ **FAIT** · vérifié le 2026-09-24, texte intégral au skill `droit-travail-congolais` (`references/ordonnance-23-042-jours-feries.md`, versé le 2026-09-20) | Manasse | · | · |
+| 2 | Compléter le fichier de l'arrêté n° 013/2015, coupé à l'art. 7 · **ALLÉGÉ** le 2026-09-24 : la RÈGLE de l'art. 7 est au corpus, résumée dans `fiscalite-rdc/procedures-fiscales/references/16-mesures-execution-reclamations-recours.md` (« n'est susceptible d'aucune voie de recours »). Ne manque que le texte VERBATIM de la fin, utile pour une citation, plus bloquant pour coder | Manasse | minutes | La fin de l'article 7 et la suite, recopiées du texte officiel |
 | 3 | Poser la variable `BUCKET_SAUVEGARDES` | Manasse | minutes | Trois gestes dans le compte Google |
 | 4 | Mécénat au 4571 ou au 475 | Manasse, puis code | < 1 h | Un arbitrage de doctrine, puis une ligne du catalogue |
 | 5 | Limitation de débit par conteneur | Manasse, puis code | < 1 h ou 1 jour | Assumer le plafond × instances (une phrase) ou poser Redis (une journée) |
