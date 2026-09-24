@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsArray,
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsNumber,
@@ -132,6 +133,15 @@ export class CreerEcritureDto {
   @ValidateNested({ each: true })
   @Type(() => LigneEcritureDto)
   lignes!: LigneEcritureDto[];
+
+  /**
+   * AUDCIF art. 22, 4° · si `date` tombe dans une période clôturée, enregistrer
+   * l'opération au premier jour de la période ouverte et garder `date` comme
+   * DATE DE VALEUR. Une demande expresse, jamais un comportement par défaut.
+   */
+  @IsOptional()
+  @IsBoolean()
+  reporterAuPremierJourOuvert?: boolean;
 }
 
 /**

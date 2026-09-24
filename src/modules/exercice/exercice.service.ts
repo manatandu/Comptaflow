@@ -14,6 +14,16 @@ import { ArreterComptesDto } from './dto/arrete-comptes.dto';
 import { JournalService } from '../journaux/journal.service';
 import { avecRetrySerialisable } from '../../common/prisma-retry.util';
 import { DERNIERE_VERIFICATION, dateJalon, jalonsApplicables } from './planning-cloture';
+import { premierJourNonCloture } from './report-periode-close';
+
+/**
+ * Ce que le refus dit de la voie que le texte ouvre · AUDCIF art. 22, 4°. Le
+ * report n'est jamais fait d'office : c'est le comptable qui le demande.
+ */
+const AIDE_REPORT_ART_22 =
+  "Pour une opération de cette période arrivée après la clôture, l'AUDCIF (art. 22, 4°) veut qu'elle soit " +
+  "enregistrée au premier jour de la période non encore clôturée, sa date de valeur étant mentionnée " +
+  'distinctement · demandez le report au premier jour ouvert.';
 
 const EPSILON = 0.005;
 
@@ -535,6 +545,17 @@ export class ExerciceService {
    * ForbiddenException si une clôture active (Partielle/Totale sur ce
    * journal, ou Période tous journaux) verrouille cette date.
    */
+  /**
+   * Premier jour non clôturé pour ce journal (AUDCIF art. 22, 4°) · voir
+   * `report-periode-close.ts`. `null` si le journal est clôturé totalement.
+   */
+  async premierJourOuvert(tenantId: string, journalId: string, date: Date): Promise<Date | null> {
+    const clotures = await this.prisma.cloture.findMany({
+      where: { tenantId, annuleeAt: null, OR: [{ journalId }, { journalId: null }] },
+    });
+    return premierJourNonCloture(clotures, journalId, date);
+  }
+
   async verifierEcritureAutorisee(tenantId: string, journalId: string, date: Date) {
     const clotures = await this.prisma.cloture.findMany({
       where: { tenantId, annuleeAt: null, OR: [{ journalId }, { journalId: null }] },
@@ -545,12 +566,14 @@ export class ExerciceService {
       }
       if (c.granularite === GranulariteCloture.PARTIELLE && c.journalId === journalId && date <= c.dateLimite) {
         throw new ForbiddenException(
-          `Ce journal est clôturé partiellement jusqu'au ${c.dateLimite.toISOString().slice(0, 10)} · aucune écriture ne peut plus y être datée à cette période ou avant.`,
+          `Ce journal est clôturé partiellement jusqu'au ${c.dateLimite.toISOString().slice(0, 10)} · aucune écriture ne peut plus y être datée à cette période ou avant. ` +
+            AIDE_REPORT_ART_22,
         );
       }
       if (c.granularite === GranulariteCloture.PERIODE && date <= c.dateLimite) {
         throw new ForbiddenException(
-          `La période jusqu'au ${c.dateLimite.toISOString().slice(0, 10)} est clôturée pour tous les journaux.`,
+          `La période jusqu'au ${c.dateLimite.toISOString().slice(0, 10)} est clôturée pour tous les journaux. ` +
+            AIDE_REPORT_ART_22,
         );
       }
     }

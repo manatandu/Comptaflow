@@ -268,6 +268,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
   const lignesJournal = useMemo(() => ecritures.flatMap((e) =>
     e.lignes.map((l, indexLigne) => ({
       date: e.date,
+      dateValeur: e.dateValeur ?? null,
       journal: e.journal?.code ?? '',
       libelle: e.libelle,
       // Libellé au niveau de la LIGNE (celui saisi ligne à ligne), à défaut
@@ -564,6 +565,14 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
             >
               <span className="font-mono text-[11px] text-text-dim">
                 {l.premiereLigne ? new Date(l.date).toLocaleDateString('fr-FR') : ''}
+                {l.premiereLigne && l.dateValeur && (
+                  <span
+                    className="block text-[10.5px] text-text-dim"
+                    title="Opération d'une période clôturée, enregistrée au premier jour de la période ouverte (AUDCIF art. 22, 4°)"
+                  >
+                    valeur {new Date(l.dateValeur).toLocaleDateString('fr-FR')}
+                  </span>
+                )}
               </span>
               <span className="font-mono text-text-dim">{l.premiereLigne ? l.journal : ''}</span>
               <span className="font-mono text-[11px] text-text-dim text-right">

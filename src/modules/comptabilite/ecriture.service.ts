@@ -469,7 +469,33 @@ export class EcritureService {
       );
     }
 
-    const date = new Date(dto.date);
+    let date = new Date(dto.date);
+    let dateValeur: Date | null = null;
+
+    // AUDCIF ART. 22, 4° · sur demande expresse, l'opération datée d'une
+    // période clôturée est enregistrée au premier jour de la période ouverte,
+    // sa date réelle gardée comme date de valeur. Jamais au-delà de
+    // l'exercice : la charge ou le produit changerait d'exercice, contre le
+    // postulat de spécialisation. Voir exercice/report-periode-close.ts.
+    if (dto.reporterAuPremierJourOuvert) {
+      const premier = await this.exerciceService.premierJourOuvert(tenantId, dto.journalId, date);
+      if (premier === null) {
+        throw new ForbiddenException(
+          `Le journal ${journal.code} est clôturé totalement · il n'a plus de période ouverte où reporter l'opération.`,
+        );
+      }
+      if (premier.getTime() !== date.getTime()) {
+        if (premier > exercice.dateFin) {
+          throw new BadRequestException(
+            `Le premier jour non clôturé (${premier.toISOString().slice(0, 10)}) tombe hors de l'exercice ` +
+              `(clos le ${exercice.dateFin.toISOString().slice(0, 10)}) · reporter l'opération changerait l'exercice qui ` +
+              "porte la charge ou le produit. Rouvrez la période, ou traitez-la comme une opération d'exercice antérieur.",
+          );
+        }
+        dateValeur = date;
+        date = premier;
+      }
+    }
 
     // Clôtures Partielle/Totale (par journal) et Période (tous journaux) :
     // verrouillage de saisie indépendant du statut CLOTURE de l'exercice ·
@@ -500,6 +526,7 @@ export class EcritureService {
             journalId: dto.journalId,
             numeroPiece,
             date,
+            dateValeur,
             libelle: dto.libelle,
             reference: dto.reference,
             createdBy,

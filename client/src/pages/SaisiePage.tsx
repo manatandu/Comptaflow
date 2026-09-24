@@ -682,7 +682,10 @@ export function SaisiePage() {
     setErreur(null);
   };
 
-  const enregistrerPiece = async () => {
+  // AUDCIF art. 22, 4° · le serveur refuse une pièce datée d'une période
+  // clôturée et dit que le texte permet de la reporter au premier jour ouvert.
+  // Le report n'est JAMAIS fait d'office : il se demande par ce second envoi.
+  const enregistrerPiece = async (reporterAuPremierJourOuvert = false) => {
     if (!exerciceCourant || !journal || !periode) return;
     setErreur(null);
     setSucces(null);
@@ -705,6 +708,7 @@ export function SaisiePage() {
         libelle:
           libellePiece || `Pièce du ${String(jourBorne).padStart(2, '0')}/${String(periode.mois + 1).padStart(2, '0')}`,
         reference: reference || undefined,
+        ...(reporterAuPremierJourOuvert ? { reporterAuPremierJourOuvert: true } : {}),
         lignes: lignes.map((l) => ({
           compteId: l.compteId,
           libelle: l.libelle || undefined,
@@ -720,7 +724,11 @@ export function SaisiePage() {
             .map((sectionId) => ({ sectionId, debit: l.debit || undefined, credit: l.credit || undefined })),
         })),
       });
-      setSucces('Pièce enregistrée au journal.');
+      setSucces(
+        reporterAuPremierJourOuvert
+          ? 'Pièce enregistrée au premier jour de la période ouverte, sa date réelle gardée comme date de valeur (AUDCIF art. 22, 4°).'
+          : 'Pièce enregistrée au journal.',
+      );
       setLignes([]);
       setReference('');
       setLibellePiece('');
@@ -938,7 +946,17 @@ export function SaisiePage() {
                   annulee ? 'opacity-50 line-through decoration-danger/60' : ''
                 } ${i === 0 ? 'border-t border-border' : ''}`}
               >
-                <span className="font-mono text-text-dim">{i === 0 ? String(jourE).padStart(2, '0') : ''}</span>
+                <span
+                  className="font-mono text-text-dim"
+                  title={
+                    i === 0 && e.dateValeur
+                      ? `Date de valeur ${new Date(e.dateValeur).toLocaleDateString('fr-FR')} · reportée d'une période clôturée (AUDCIF art. 22, 4°)`
+                      : undefined
+                  }
+                >
+                  {i === 0 ? String(jourE).padStart(2, '0') : ''}
+                  {i === 0 && e.dateValeur && <span className="ml-0.5 text-[10px] font-bold text-warning">V</span>}
+                </span>
                 <span className="font-mono text-text-dim">
                   {i === 0 ? (e.numeroPiece ?? '·') : ''}
                   {i === 0 && e.statut === 'BROUILLARD' && (
@@ -1446,7 +1464,7 @@ export function SaisiePage() {
             </button>
             <button
               type="button"
-              onClick={enregistrerPiece}
+              onClick={() => enregistrerPiece()}
               disabled={envoi || !equilibree}
               className="bg-sel text-white px-4 py-1 text-[12px] font-semibold disabled:opacity-50"
             >
@@ -1461,7 +1479,21 @@ export function SaisiePage() {
       )}
 
       {erreur && (
-        <div className="text-[12.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mt-2.5">{erreur}</div>
+        <div className="text-[12.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mt-2.5">
+          {erreur}
+          {peutEcrire && erreur.includes('art. 22, 4°') && (
+            <div className="mt-2">
+              <button
+                type="button"
+                disabled={envoi}
+                onClick={() => enregistrerPiece(true)}
+                className="px-2.5 py-1 border border-border bg-surface text-text"
+              >
+                Reporter au premier jour de la période ouverte
+              </button>
+            </div>
+          )}
+        </div>
       )}
       {succes && !erreur && (
         <div className="text-[12.5px] text-positive bg-positive-soft border border-positive/30 px-3 py-2 mt-2.5">

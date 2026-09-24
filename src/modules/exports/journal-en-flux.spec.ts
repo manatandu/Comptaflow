@@ -105,8 +105,9 @@ describe('Journal exporté en flux', () => {
     expect(feuille.rowCount).toBe(PREMIERE_LIGNE_DONNEES + 5000);
     // Le classeur RELU n'a plus de clés de colonne · elles ne se rangent pas
     // dans le fichier, ce sont des noms d'écriture. On lit donc par rang :
-    // libellé écriture = 5, débit = 9 (I), crédit = 10.
-    expect(feuille.getRow(PREMIERE_LIGNE_DONNEES + 5000).getCell(5).value).toBe('TOTAUX DE LA PÉRIODE');
+    // libellé écriture = 6, débit = 10 (J), crédit = 11 · la colonne 2 est la
+    // date de valeur de l'AUDCIF art. 22, 4°.
+    expect(feuille.getRow(PREMIERE_LIGNE_DONNEES + 5000).getCell(6).value).toBe('TOTAUX DE LA PÉRIODE');
   });
 
   it('les DEUX totaux sont le même · la formule et la valeur jointe', async () => {
@@ -115,9 +116,9 @@ describe('Journal exporté en flux', () => {
     // les lignes écrites. Le classeur disait deux chiffres selon son lecteur.
     const { feuille } = await exporter(2500);
     const ligneTotal = feuille.getRow(PREMIERE_LIGNE_DONNEES + 5000);
-    const debit = ligneTotal.getCell(9).value as ExcelJS.CellFormulaValue;
+    const debit = ligneTotal.getCell(10).value as ExcelJS.CellFormulaValue;
     expect(debit.result).toBe(2500 * 100);
-    expect(debit.formula).toBe(`I${PREMIERE_LIGNE_DONNEES}:I${PREMIERE_LIGNE_DONNEES + 4999}`.replace(/^/, 'SUM(') + ')');
+    expect(debit.formula).toBe(`J${PREMIERE_LIGNE_DONNEES}:J${PREMIERE_LIGNE_DONNEES + 4999}`.replace(/^/, 'SUM(') + ')');
   });
 
   it('lit PAR LOTS · la mémoire ne dépend plus de la taille du dossier', async () => {
@@ -156,6 +157,8 @@ describe('Journal exporté en flux', () => {
     const { feuille } = await exporter(3);
     expect(String(feuille.getRow(1).getCell(1).value)).toContain('JOURNAL · Dossier');
     expect(feuille.getRow(LIGNE_ENTETE).getCell(1).value).toBe('Date');
+    // AUDCIF art. 22, 4° · « sa date de valeur étant mentionnée distinctement ».
+    expect(feuille.getRow(LIGNE_ENTETE).getCell(2).value).toBe('Date de valeur');
     expect(feuille.views[0]).toMatchObject({ state: 'frozen', ySplit: LIGNE_ENTETE });
   });
 
@@ -185,11 +188,13 @@ describe('Journal exporté en flux', () => {
     // compris fausse.
     const { feuille } = await exporter(3);
     const premiere = feuille.getRow(PREMIERE_LIGNE_DONNEES);
-    // Rangs de colonne du journal · 1 Date, 9 Débit, 10 Crédit, 15 Saisie le.
+    // Rangs de colonne du journal · 1 Date, 2 Date de valeur, 10 Débit,
+    // 11 Crédit, 16 Saisie le.
     expect(premiere.getCell(1).numFmt).toBe('DD/MM/YYYY');
-    expect(premiere.getCell(9).numFmt).toBe('#,##0.00');
+    expect(premiere.getCell(2).numFmt).toBe('DD/MM/YYYY');
     expect(premiere.getCell(10).numFmt).toBe('#,##0.00');
-    expect(premiere.getCell(15).numFmt).toBe('DD/MM/YYYY HH:mm');
+    expect(premiere.getCell(11).numFmt).toBe('#,##0.00');
+    expect(premiere.getCell(16).numFmt).toBe('DD/MM/YYYY HH:mm');
   });
 
   it('le périmètre du journal est celui de la fenêtre · une seule écriture du filtre', () => {

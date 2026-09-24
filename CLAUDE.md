@@ -4418,6 +4418,18 @@ empreinte, et la réécrire ferait diverger la base · elle est de l'HISTOIRE, p
 une source. Le module le dit en clair, pour que personne ne « finisse » la
 correction. Même traitement que la migration des cadratins.
 
+**AUDCIF art. 22, 4° · l'opération d'une période close (2026-09-24).** « Lorsque
+cette date correspond à une période déjà clôturée, l'opération est enregistrée au
+premier jour de la période non encore clôturée, sa date de valeur étant
+mentionnée distinctement. » OmegaX refusait sec, et deux de ses trois clôtures
+sont définitives · une facture de mars reçue en mai n'avait aucun chemin.
+Manasse a tranché pour le texte. `Ecriture.dateValeur` porte la date réelle,
+`date` le premier jour ouvert (`exercice/report-periode-close.ts`). TROIS BORNES
+· le report se DEMANDE (`reporterAuPremierJourOuvert`), jamais d'office ; jamais
+au-delà de l'exercice, la charge changerait d'exercice ; jamais sur un journal
+clôturé TOTALEMENT. Et un piège trouvé par le typage · `onClick={enregistrerPiece}`
+aurait passé l'événement du clic comme demande de report, sur chaque pièce.
+
 **PASSE F13 · la loi de finances n° 25/060 et l'IPM (2026-09-24).** Deux FAUX
 corrigés. Le procès-verbal d'assemblée de l'art. 13 bis LPF était servi à tout
 dossier, alors que le texte ne vise que « les sociétés et les autres personnes

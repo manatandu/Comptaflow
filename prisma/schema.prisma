@@ -1117,6 +1117,12 @@ model Ecriture {
   // NumerotationPiece.MANUELLE · voir JournalService.prochainNumeroPiece).
   numeroPiece Int?
   date        DateTime
+  // DATE DE VALEUR · AUDCIF art. 22, 4°. Renseignée SEULEMENT quand une
+  // opération datée d'une période clôturée est enregistrée au premier jour de
+  // la période ouverte : `date` porte alors ce premier jour, et `dateValeur`
+  // la date réelle de l'opération, « mentionnée distinctement ». Null partout
+  // ailleurs · une date de valeur égale à la date ne dirait rien.
+  dateValeur  DateTime?
   libelle     String
   reference   String? // pièce justificative (numéro de facture, référence externe...)
   createdAt   DateTime @default(now())

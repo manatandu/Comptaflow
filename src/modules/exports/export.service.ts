@@ -253,6 +253,9 @@ export class ExportService {
     // numéros de série et les montants sans séparateur. Éprouvé par un test
     // qui relit le classeur produit.
     { header: 'Date', key: 'date', width: 12, style: { numFmt: FORMAT_DATE } },
+    // AUDCIF art. 22, 4° · la date réelle d'une opération reportée au premier
+    // jour d'une période ouverte, « mentionnée distinctement ». Vide sinon.
+    { header: 'Date de valeur', key: 'dateValeur', width: 14, style: { numFmt: FORMAT_DATE } },
     { header: 'Journal', key: 'journal', width: 10 },
     { header: 'N° pièce', key: 'numeroPiece', width: 10 },
     { header: 'Référence', key: 'reference', width: 16 },
@@ -274,8 +277,9 @@ export class ExportService {
     // lors de leur entrée, l'indication de l'ORIGINE, du contenu et de
     // l'imputation, et puissent être RESTITUÉES sur papier ou sous une forme
     // directement intelligible ». La DATE DE SAISIE n'est pas la date
-    // comptable, et l'écart entre les deux est ce que l'art. 22, 4° appelle la
-    // date de valeur, « mentionnée distinctement ».
+    // comptable. Ce n'est pas non plus la « date de valeur » de l'art. 22, 4°,
+    // qui est la date réelle d'une opération reportée hors d'une période close
+    // et qui a sa propre colonne, plus haut.
     { header: 'Statut', key: 'statut', width: 12 },
     { header: 'Saisie le', key: 'saisieLe', width: 18, style: { numFmt: FORMAT_DATE_HEURE } },
     { header: 'Saisie par', key: 'saisiePar', width: 28 },
@@ -597,6 +601,7 @@ export class ExportService {
           nbLignes++;
           await flux.ajouter({
             date: e.date,
+            dateValeur: e.dateValeur ?? null,
             journal: e.journal.code,
             numeroPiece: e.numeroPiece,
             reference: e.reference ?? '',

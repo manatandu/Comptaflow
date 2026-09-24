@@ -213,6 +213,11 @@ export interface Ecriture {
   journal?: Journal;
   numeroPiece: number | null;
   date: string;
+  /**
+   * AUDCIF art. 22, 4° · date réelle d'une opération reportée au premier jour
+   * d'une période ouverte. Null partout ailleurs.
+   */
+  dateValeur?: string | null;
   libelle: string;
   reference: string | null;
   createdAt: string;

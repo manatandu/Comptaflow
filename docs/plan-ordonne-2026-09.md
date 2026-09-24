@@ -36,7 +36,7 @@ colonne « Qui » dit qui tient la première étape.
 | 6 | ~~Sous-compte 388~~ **FAIT le 2026-09-24** · SYSCOHADA seul (le 38 du SYCEBNL porte les dons H.A.O.). Le 388 était lu comme un stock EN COURS DE ROUTE par la variation et par le contrôle, qui annonçait « l'achat reste seul en charge » sur des matières récupérées. Il a désormais son motif propre et son contrôle, `STOCK_IMMOBILISATIONS_388_NON_SOLDE` (Titre VIII, § 2.8 : soldé par le 603 en fin d'exercice). Reste NON FAIT, et nommé : proposer l'écriture de récupération depuis la sortie d'immobilisation | Code | · | · |
 | 7 | ~~Rubrique « stocks en cours de route » absente de la Note 8~~ **FAIT le 2026-09-24** · le 37 était déjà ventilé par nature (371 à 376). Restait le 377 (consignation, dépôt), publié sous « Autres stocks HAO » sans l'être : gardé sur la ligne pour que la note boucle avec BB, et la note le dit par un champ nouveau, `precisionEditeur`, tenu à part du renvoi officiel (décision de Manasse). Trouvé au passage · le 378 du SYCEBNL est le 388 du SYSCOHADA, corrigé | Code | · | · |
 | 8 | ~~Mode « forfait 30 % » de l'IRPP~~ **ÉCARTÉ par Manasse le 2026-09-24** · sans base légale, et inutile quand le simulateur calcule l'impôt exact de l'art. 118. Ne pas le rouvrir sans une nouvelle demande | Manasse | · | · |
-| 9 | Article 22 de l'AUDCIF · opération tombant dans une période close | Professionnel, puis code | 1 à 2 jours | Confirmation d'un praticien ; ensuite, enregistrement au premier jour ouvert avec date de valeur distincte |
+| 9 | ~~Article 22 de l'AUDCIF · opération tombant dans une période close~~ **FAIT le 2026-09-24** · Manasse a tranché pour le texte. Au refus, la saisie propose « Reporter au premier jour de la période ouverte » ; l'écriture prend ce jour, sa date réelle est gardée en `Ecriture.dateValeur`, montrée au journal, à la saisie et dans l'export. Jamais d'office, jamais au-delà de l'exercice, jamais sur un journal clôturé totalement | Manasse, puis code | · | · |
 | 10 | Formulaire de déclaration DGI | Manasse, puis code | 2 jours | Le modèle officiel de l'imprimé |
 | 11 | Salaires en dollars | Source, puis code | 2 à 3 jours | Le texte qui fixe le cours de conversion pour l'IRPP |
 | 12 | Module Groupe ouvert au SYSCOHADA | Manasse, puis code | 3 à 5 jours | L'arbitrage ; les moteurs existent |
@@ -684,7 +684,7 @@ Aucun développement ne les débloque.
   c'est un arbitrage.
 - ~~**Mécénat 4571 contre 475**~~ **TRANCHÉ le 2026-09-24 pour le 475** · les deux comptes sont semés, le catalogue
   n'utilise que le 475. Arbitrage de doctrine, ouvert depuis l'audit d'août.
-- **Article 22 de l'AUDCIF** · le texte prévoit qu'une opération tombant dans
+- ~~**Article 22 de l'AUDCIF**~~ **APPLIQUÉ le 2026-09-24** · le texte prévoit qu'une opération tombant dans
   une période close soit enregistrée au premier jour de la période ouverte
   avec mention distincte de sa date de valeur, alors qu'`exercice.service.ts`
   la rejette purement et simplement. À la lecture faite, c'est un écart de
