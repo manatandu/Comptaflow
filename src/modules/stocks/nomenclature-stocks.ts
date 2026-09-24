@@ -277,6 +277,20 @@ export const STOCKS_HORS_VARIATION_AUTOMATIQUE: StockHorsVariation[] = [
       'déjà quand elle manque.',
   },
   {
+    racine: '388',
+    referentiels: [Referentiel.SYSCOHADA],
+    intitule: 'Stock provenant d’immobilisations mises hors service ou au rebut',
+    motif:
+      "Ce n'est pas un stock en cours de route, bien qu'il soit rangé sous le 38, et il a son propre " +
+      "mécanisme (AUDCIF Titre VIII, dépréciation des stocks, § 2.8) · les matières récupérées d'une " +
+      "immobilisation y entrent EN COURS d'exercice, puis « en fin d'exercice, le compte 388 est SOLDÉ par " +
+      "le débit du compte 603 Variations des stocks de biens achetés. Si des éléments de ce stock subsistent " +
+      "à cette date, ils sont inscrits dans les comptes appropriés de la classe 3 par le crédit du compte " +
+      "603 ». Le compte de classe 3 qui les reçoit dépend de leur nature, qu'OmegaX ne connaît pas · " +
+      "l'écriture se passe à la main, et le contrôle STOCK_IMMOBILISATIONS_388_NON_SOLDE la réclame. " +
+      "Propre au SYSCOHADA : le 38 du SYCEBNL porte les dons en nature H.A.O.",
+  },
+  {
     racine: '37',
     referentiels: [Referentiel.SYCEBNL],
     intitule: 'Stocks en cours de route, en consignation ou en dépôt',

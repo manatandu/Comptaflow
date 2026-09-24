@@ -290,3 +290,36 @@ describe('ce que le module refuse de signaler', () => {
     expect(bloc).not.toMatch(/productionImmobilisee[^\n]*===\s*0/);
   });
 });
+
+/*
+  LE 388 DU SYSCOHADA · sous le 38 sans être un stock en route. AUDCIF
+  Titre VIII, dépréciation des stocks, § 2.8 : entré en cours d'exercice,
+  « en fin d'exercice, le compte 388 est soldé par le débit du compte 603 ».
+*/
+describe('388 · stock provenant d’immobilisations mises hors service', () => {
+  it('un 388 ouvert à la clôture est signalé sous son propre nom, pas comme un stock en route', async () => {
+    const lignes = [ligne('38800000', 'Stock provenant d’immobilisations mises hors service ou au rebut', 2_000_000)];
+    const a = await trouver('STOCK_IMMOBILISATIONS_388_NON_SOLDE', lignes);
+    expect(a).toBeDefined();
+    expect(a!.occurrences[0].montant).toBe(2_000_000);
+    // « l'achat reste seul en charge » serait faux · aucun achat ne l'a fait entrer.
+    expect(await trouver('STOCK_EN_COURS_DE_ROUTE_SANS_VARIATION', lignes)).toBeUndefined();
+  });
+
+  it('un 388 soldé par le 603 ne dit rien', async () => {
+    const a = await trouver('STOCK_IMMOBILISATIONS_388_NON_SOLDE', [
+      ligne('38800000', 'Stock provenant d’immobilisations mises hors service ou au rebut', 2_000_000, 2_000_000),
+      ligne('60310000', 'Variations des stocks de marchandises', 2_000_000, 2_000_000),
+    ]);
+    expect(a).toBeUndefined();
+  });
+
+  it('n’existe pas en SYCEBNL, dont le 38 porte les dons en nature H.A.O.', async () => {
+    const a = await trouver(
+      'STOCK_IMMOBILISATIONS_388_NON_SOLDE',
+      [ligne('38800000', 'Compte ouvert par le cabinet sous les dons H.A.O.', 2_000_000)],
+      Referentiel.SYCEBNL,
+    );
+    expect(a).toBeUndefined();
+  });
+});

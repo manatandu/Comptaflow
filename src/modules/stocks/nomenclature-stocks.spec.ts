@@ -224,3 +224,13 @@ describe('Nomenclature des stocks · ce qui est NOMMÉ hors de la variation auto
     }
   });
 });
+
+describe('388 · hors de la variation automatique, avec SON mécanisme', () => {
+  it('le 388 du SYSCOHADA n’est pas servi comme un stock en cours de route', () => {
+    const m = motifHorsVariation('38800000', Referentiel.SYSCOHADA);
+    expect(m?.racine).toBe('388');
+    expect(m?.motif).toContain('le compte 388 est SOLDÉ par le débit du compte 603');
+    // Le 381 reste, lui, un stock en cours de route.
+    expect(motifHorsVariation('38100000', Referentiel.SYSCOHADA)?.racine).toBe('38');
+  });
+});

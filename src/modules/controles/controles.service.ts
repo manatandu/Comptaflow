@@ -238,6 +238,15 @@ const STOCK_EN_COURS_DE_ROUTE: Record<Referentiel, string> = {
 };
 
 /**
+ * LE 388 DU SYSCOHADA · sous le 38 sans être un stock en route. « Stock
+ * provenant d'immobilisations mises hors service ou au rebut » (AUDCIF
+ * Titre VII, compte 38), soldé par le 603 en fin d'exercice (Titre VIII,
+ * dépréciation des stocks, § 2.8). Le SYCEBNL n'a pas d'équivalent · son 38
+ * porte les dons en nature H.A.O.
+ */
+const STOCK_PROVENANT_D_IMMOBILISATIONS = '388';
+
+/**
  * LES COMPTES QUE LE 72 DÉBITE · fonctionnement identique dans les deux plans.
  * « Est crédité le compte 72 du montant des travaux effectués au cours de
  * l'exercice par l'entité pour elle-même (au coût de production) ; par le
@@ -2598,7 +2607,15 @@ export class ControlesService {
     // du montant · exactement ce que le séminaire décrit, mais pris par le
     // bout qui laisse une trace.
     const racineEnCoursDeRoute = STOCK_EN_COURS_DE_ROUTE[referentielDossier];
-    const enCoursDeRoute = cumul((n) => n.startsWith(racineEnCoursDeRoute));
+    // Le 388 du SYSCOHADA est sous le 38 sans être un stock en route · il a
+    // son contrôle propre, juste après. Le compter ici annoncerait « l'achat
+    // reste seul en charge » sur des matières récupérées, qu'aucun achat n'a
+    // fait entrer.
+    const enCoursDeRoute = cumul(
+      (n) =>
+        n.startsWith(racineEnCoursDeRoute) &&
+        !(referentielDossier === Referentiel.SYSCOHADA && n.startsWith(STOCK_PROVENANT_D_IMMOBILISATIONS)),
+    );
     const variationsStocks = cumul((n) => n.startsWith('603'));
     if (
       enCoursDeRoute.debit + enCoursDeRoute.credit > 0.005 &&
@@ -2627,6 +2644,44 @@ export class ControlesService {
           },
         ],
       });
+    }
+
+    // --- Le 388 non soldé à la clôture (SYSCOHADA) ---------------------------
+    //
+    // AUDCIF Titre VIII, dépréciation des stocks, § 2.8 : les matières
+    // récupérées d'une immobilisation mise hors service entrent au 388 EN
+    // COURS d'exercice, et « en fin d'exercice, le compte 388 est SOLDÉ par le
+    // débit du compte 603 », ce qui subsiste passant au compte de classe 3 de
+    // sa nature par le crédit du 603. Un 388 encore ouvert à la clôture est
+    // donc une écriture de fin d'exercice qui n'a pas été passée · le stock
+    // figure au bilan sous un compte qui doit être vide, et la variation de
+    // l'exercice n'a pas neutralisé l'entrée.
+    if (referentielDossier === Referentiel.SYSCOHADA) {
+      const recupere = cumul((n) => n.startsWith(STOCK_PROVENANT_D_IMMOBILISATIONS));
+      const solde388 = Math.round((recupere.debit - recupere.credit) * 100) / 100;
+      if (Math.abs(solde388) > 0.005) {
+        anomalies.push({
+          code: 'STOCK_IMMOBILISATIONS_388_NON_SOLDE',
+          gravite: 'AVERTISSEMENT',
+          libelle: 'Stock provenant d’immobilisations (388) non soldé à la clôture',
+          consequence:
+            'Le compte 388 « Stock provenant d’immobilisations mises hors service ou au rebut » porte un solde. ' +
+            'L’AUDCIF (Titre VIII, dépréciation des stocks, § 2.8) veut qu’« en fin d’exercice, le compte 388 ' +
+            'est soldé par le débit du compte 603 Variations des stocks de biens achetés », les éléments qui ' +
+            'subsistent étant inscrits « dans les comptes appropriés de la classe 3 par le crédit du compte 603 ». ' +
+            'Le bilan porte le stock sous un compte qui doit être vide, et la balance boucle quand même.',
+          action:
+            'Soldez le 388 par le débit du 603, puis portez ce qui subsiste au compte de stock de sa nature par le ' +
+            'crédit du 603. Le compte de classe 3 dépend de la nature des matières récupérées, et c’est à vous de le choisir.',
+          occurrences: [
+            {
+              reference: '388 Stock provenant d’immobilisations mises hors service ou au rebut',
+              detail: 'Solde à la clôture',
+              montant: solde388,
+            },
+          ],
+        });
+      }
     }
 
     // --- Une production immobilisée sans immobilisation ---------------------
