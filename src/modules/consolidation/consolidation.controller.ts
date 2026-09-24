@@ -14,6 +14,7 @@ import {
   AcquisitionDto,
   ImporterBalanceEntiteDto,
   OperationReciproqueDto,
+  ResultatInterneDto,
   EntitePerimetreDto,
   FaitsConsolidationDto,
   LienParticipationDto,
@@ -100,6 +101,18 @@ export class ConsolidationController {
   @Put('liens/:id/acquisition')
   declarerAcquisition(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: AcquisitionDto) {
     return this.cumuls.declarerAcquisition(user.tenantId, id, dto);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post('resultats-internes')
+  ajouterResultatInterne(@CurrentUser() user: AuthenticatedUser, @Body() dto: ResultatInterneDto) {
+    return this.cumuls.ajouterResultatInterne(user.tenantId, dto);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Delete('resultats-internes/:id')
+  supprimerResultatInterne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.cumuls.supprimerResultatInterne(user.tenantId, id);
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)

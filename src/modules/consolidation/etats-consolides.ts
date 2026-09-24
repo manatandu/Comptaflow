@@ -353,7 +353,12 @@ export function construireEtatsConsolides(cumul: ResultatCumul, resolveurs: Reso
   const quotePartPartage = lc('QUOTE_PART_RESULTAT_PARTAGE', 'Quote-part de résultat partagé', 'POSTE', m('RQP', 'TQP'), {
     lecture: 'Ligne du modèle individuel complété (AUDCIF Titre VIII ch. 33) que le modèle consolidé ne porte pas · montrée plutôt que fondue.',
   });
-  const rex = lc('RESULTAT_EXPLOITATION', 'RÉSULTAT D’EXPLOITATION (A)', 'TOTAL', somme([ebe.net, reprises.net, dotations.net, quotePartPartage.net]));
+  const eliminationInterne = lc('ELIMINATION_RESULTATS_INTERNES', 'Élimination des résultats internes (art. 86, 4°)', 'POSTE', -k('ELIMINATION_RESULTATS_INTERNES'), {
+    lecture:
+      'Marges internes incluses dans les stocks et immobilisations à la clôture, moins celles de l’ouverture · une ligne propre, parce que la marge ' +
+      'éliminée peut venir d’une vente, d’une cession HAO ou d’une production immobilisée, et qu’aucun texte ne dit sur laquelle la présenter.',
+  });
+  const rex = lc('RESULTAT_EXPLOITATION', 'RÉSULTAT D’EXPLOITATION (A)', 'TOTAL', somme([ebe.net, reprises.net, dotations.net, quotePartPartage.net, eliminationInterne.net]));
   const prodFin = lc('PRODUITS_FINANCIERS', 'Produits financiers', 'POSTE', m('TK', 'TL', 'TM'));
   const chFin = lc('CHARGES_FINANCIERES', 'Charges financières', 'POSTE', m('RM', 'RN'));
   const rfin = lc('RESULTAT_FINANCIER', 'RÉSULTAT FINANCIER (B)', 'TOTAL', somme([prodFin.net, chFin.net]));
@@ -401,6 +406,7 @@ export function construireEtatsConsolides(cumul: ResultatCumul, resolveurs: Reso
     reprises,
     dotations,
     ...(Math.abs(quotePartPartage.net ?? 0) > EPS ? [quotePartPartage] : []),
+    ...(Math.abs(eliminationInterne.net ?? 0) > EPS ? [eliminationInterne] : []),
     rex,
     prodFin,
     chFin,

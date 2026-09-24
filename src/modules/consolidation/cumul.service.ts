@@ -8,9 +8,10 @@ import {
   EntiteACumuler,
   OperationReciproque,
   RefusConsolidation,
+  ResultatInterne,
 } from './cumul-consolidation';
 import { PerimetreService } from './perimetre.service';
-import { AcquisitionDto, ImporterBalanceEntiteDto, OperationReciproqueDto } from './dto/perimetre.dto';
+import { AcquisitionDto, ImporterBalanceEntiteDto, OperationReciproqueDto, ResultatInterneDto } from './dto/perimetre.dto';
 
 const n = (v: unknown) => (v == null ? null : Number(v));
 
@@ -156,6 +157,43 @@ export class CumulService {
     });
   }
 
+  /**
+   * Art. 86, 4° · la marge se DÉCLARE, avec ce qui en reste à l'ouverture.
+   * Les refus de fond (mise en équivalence, marge au-delà du solde de
+   * l'actif) sont ceux du moteur, joués au calcul · ici seulement ce qui se
+   * voit sans lui.
+   */
+  async ajouterResultatInterne(tenantId: string, dto: ResultatInterneDto) {
+    for (const id of [dto.vendeuseId, dto.acheteuseId]) if (id) await this.entite(tenantId, id);
+    if ((dto.vendeuseId ?? null) === (dto.acheteuseId ?? null)) {
+      throw new BadRequestException('Un résultat interne relie une vendeuse et une acheteuse DIFFÉRENTES du périmètre.');
+    }
+    const classe = dto.nature === 'STOCK' ? '3' : '2';
+    if (!dto.compteActif.startsWith(classe)) {
+      throw new BadRequestException(`${dto.nature === 'STOCK' ? 'Un stock' : 'Une immobilisation'} s’inscrit en classe ${classe}.`);
+    }
+    return this.prisma.resultatInterneConsolidation.create({
+      data: {
+        tenantId,
+        exerciceId: dto.exerciceId,
+        vendeuseId: dto.vendeuseId ?? null,
+        acheteuseId: dto.acheteuseId ?? null,
+        nature: dto.nature,
+        compteActif: dto.compteActif,
+        margeOuverture: dto.margeOuverture,
+        margeCloture: dto.margeCloture,
+        libelle: dto.libelle.trim(),
+      },
+    });
+  }
+
+  async supprimerResultatInterne(tenantId: string, id: string) {
+    const o = await this.prisma.resultatInterneConsolidation.findFirst({ where: { id, tenantId }, select: { id: true } });
+    if (!o) throw new NotFoundException('Résultat interne introuvable dans ce dossier.');
+    await this.prisma.resultatInterneConsolidation.delete({ where: { id } });
+    return { supprime: true };
+  }
+
   async supprimerReciproque(tenantId: string, id: string) {
     const o = await this.prisma.operationReciproqueConsolidation.findFirst({ where: { id, tenantId }, select: { id: true } });
     if (!o) throw new NotFoundException('Opération réciproque introuvable dans ce dossier.');
@@ -249,13 +287,24 @@ export class CumulService {
       libelle: o.libelle,
     }));
 
+    const internes = await this.prisma.resultatInterneConsolidation.findMany({ where: { tenantId, exerciceId } });
+    const resultatsInternes: ResultatInterne[] = internes.map((o) => ({
+      vendeuseId: versMoteur(o.vendeuseId),
+      acheteuseId: versMoteur(o.acheteuseId),
+      nature: o.nature,
+      compteActif: o.compteActif,
+      margeOuverture: Number(o.margeOuverture),
+      margeCloture: Number(o.margeCloture),
+      libelle: o.libelle,
+    }));
+
     try {
       return {
-        ...cumulerConsolidation({ dateDebut: ex!.dateDebut, dateFin: ex!.dateFin }, entites, acquisitions, reciproques),
+        ...cumulerConsolidation({ dateDebut: ex!.dateDebut, dateFin: ex!.dateFin }, entites, acquisitions, reciproques, resultatsInternes),
         reserves: [
           'Les balances des filiales sont réputées RETRAITÉES aux règles du groupe (D4C, ch. XII-3) · OmegaX ne fait ni l’homogénéisation ni les éliminations de nature fiscale.',
           'Les écarts d’évaluation (ch. XII-6 § 1) et leurs impôts différés viennent avec la tranche 4 · l’écart de consolidation est ici tout entier porté en écart d’acquisition.',
-          'Les résultats internes inclus dans les stocks et les immobilisations (art. 86, 4°) ne sont pas éliminés · le texte ne dit pas qui, du groupe ou des minoritaires du vendeur, supporte l’élimination.',
+          'Résultats internes inclus dans les stocks et immobilisations (art. 86, 4°) · éliminés sur DÉCLARATION de la marge, totalement entre entités intégrées globalement, au produit des pourcentages avec une entité intégrée proportionnellement (D4C ch. XII-5). Le texte ne dit pas qui la supporte · OmegaX retraite le résultat de la VENDEUSE, qui se partage à son pourcentage d’intérêt (art. 85, résultat consolidé bâti des éléments du résultat de chaque entité). Une marge d’incidence négligeable peut ne pas être déclarée (art. 86, dernier alinéa).',
           'Amortissement de l’écart · prorata au mois, du premier jour du mois d’entrée, convention reprise du module des immobilisations · le D4C dit « linéairement » sans fixer de prorata.',
         ],
       };

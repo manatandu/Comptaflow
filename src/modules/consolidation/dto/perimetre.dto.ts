@@ -11,7 +11,7 @@ import {
   Min,
   ValidateIf,
 } from 'class-validator';
-import { MotifExclusionConsolidation } from '@prisma/client';
+import { MotifExclusionConsolidation, NatureResultatInterne } from '@prisma/client';
 
 export class EntitePerimetreDto {
   @IsUUID()
@@ -142,6 +142,18 @@ export class AcquisitionDto {
   @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) dividendesExercice?: number;
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() @MaxLength(13) compteDividendes?: string | null;
   @IsOptional() @IsBoolean() obligationNonDesengagement?: boolean;
+}
+
+export class ResultatInterneDto {
+  @IsUUID() exerciceId!: string;
+  /** Absent ou null · la consolidante. */
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsUUID() vendeuseId?: string | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsUUID() acheteuseId?: string | null;
+  @IsEnum(NatureResultatInterne) nature!: NatureResultatInterne;
+  @IsString() @MaxLength(13) compteActif!: string;
+  @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) margeOuverture!: number;
+  @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) margeCloture!: number;
+  @IsString() @MaxLength(300) libelle!: string;
 }
 
 export class OperationReciproqueDto {

@@ -58,6 +58,7 @@ type Etat = {
   entites: (Entite & EntiteCumul)[];
   liens: (Lien & LienCumul)[];
   reciproques: Parameters<typeof CumulConsolidation>[0]['reciproques'];
+  resultatsInternes: Parameters<typeof CumulConsolidation>[0]['resultatsInternes'];
   faits: Faits | null;
   resultats: Resultat[];
   obligation: { obligation: string; motifs: string[]; normesIfrsRequises: boolean };
@@ -448,6 +449,7 @@ export function PerimetreConsolidationPage() {
         entites={etat.entites}
         liens={etat.liens}
         reciproques={etat.reciproques}
+        resultatsInternes={etat.resultatsInternes}
         peutEcrire={peutEcrire}
         recharger={recharger}
       />

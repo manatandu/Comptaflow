@@ -44,8 +44,9 @@ describe('l’inventaire couvre le schéma, sans trou ni surplus', () => {
     // puis à 83 avec le bulletin de paie émis (P8), borné par son tenantId,
     // puis à 86 avec le périmètre de consolidation (entités, participations,
     // faits de l'obligation), tous trois portant leur tenantId, puis à 88
-    // avec le cumul (balances des filiales, comptes réciproques), idem.
-    expect(modeles).toHaveLength(88);
+    // avec le cumul (balances des filiales, comptes réciproques), idem, puis
+    // à 89 avec les résultats internes de l'art. 86, 4°, idem.
+    expect(modeles).toHaveLength(89);
     expect([...TABLES_RESTITUEES].sort()).toEqual(modeles.filter((m) => m !== 'Tenant').sort());
   });
 

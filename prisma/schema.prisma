@@ -620,6 +620,7 @@ model Tenant {
   FaitsConsolidationExercice       FaitsConsolidationExercice[]
   LigneBalanceConsolidation        LigneBalanceConsolidation[]
   OperationReciproqueConsolidation OperationReciproqueConsolidation[]
+  resultatsInternesConsolidation   ResultatInterneConsolidation[]
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -1088,6 +1089,7 @@ model Exercice {
   liensParticipationConsolidation LienParticipationConsolidation[]
   faitsConsolidation              FaitsConsolidationExercice?
   reciproquesConsolidation        OperationReciproqueConsolidation[]
+  resultatsInternesConsolidation  ResultatInterneConsolidation[]
 
   @@unique([tenantId, dateDebut, dateFin])
   @@map("exercices")
@@ -6224,11 +6226,13 @@ model EntitePerimetreConsolidation {
 
   /// Balance RETRAITÉE importée au canevas de la balance agrégée (Numéro,
   /// Intitulé, Débit, Crédit). Une ligne par compte, remplacée d'un bloc.
-  balance           LigneBalanceConsolidation[]
-  balanceImporteeLe DateTime?
-  fichierBalance    String?
-  reciproquesCommeA OperationReciproqueConsolidation[] @relation("ReciproqueA")
-  reciproquesCommeB OperationReciproqueConsolidation[] @relation("ReciproqueB")
+  balance                  LigneBalanceConsolidation[]
+  balanceImporteeLe        DateTime?
+  fichierBalance           String?
+  reciproquesCommeA        OperationReciproqueConsolidation[] @relation("ReciproqueA")
+  reciproquesCommeB        OperationReciproqueConsolidation[] @relation("ReciproqueB")
+  resultatsInternesVendus  ResultatInterneConsolidation[]     @relation("ResultatInterneVendeuse")
+  resultatsInternesAchetes ResultatInterneConsolidation[]     @relation("ResultatInterneAcheteuse")
 
   @@unique([exerciceId, nom])
   @@index([tenantId, exerciceId])
@@ -6353,4 +6357,35 @@ model OperationReciproqueConsolidation {
 
   @@index([tenantId, exerciceId])
   @@map("operations_reciproques_consolidation")
+}
+
+enum NatureResultatInterne {
+  STOCK
+  IMMOBILISATION
+}
+
+/// Art. 86, 4° · marge interne incluse dans un actif de l'acheteuse, DÉCLARÉE
+/// à l'ouverture et à la clôture (nette de la part amortie pour une
+/// immobilisation). Une entité nulle désigne la consolidante.
+model ResultatInterneConsolidation {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  exerciceId String
+  exercice   Exercice @relation(fields: [exerciceId], references: [id])
+
+  vendeuseId     String?
+  vendeuse       EntitePerimetreConsolidation? @relation("ResultatInterneVendeuse", fields: [vendeuseId], references: [id], onDelete: Cascade)
+  acheteuseId    String?
+  acheteuse      EntitePerimetreConsolidation? @relation("ResultatInterneAcheteuse", fields: [acheteuseId], references: [id], onDelete: Cascade)
+  nature         NatureResultatInterne
+  compteActif    String
+  margeOuverture Decimal                       @default(0) @db.Decimal(18, 2)
+  margeCloture   Decimal                       @db.Decimal(18, 2)
+  libelle        String
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, exerciceId])
+  @@map("resultats_internes_consolidation")
 }

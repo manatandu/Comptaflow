@@ -2304,10 +2304,26 @@ titres, capitaux propres à l'entrée, dividendes, dépréciation et comptes
 réciproques se DÉCLARENT, et une participation retenue sans coût arrête le
 calcul en la nommant. REFUSÉS ET DITS · l'entrée en cours d'exercice, l'IP à
 deux détentrices, l'entité retenue détenue par une exclue, l'écart négatif
-d'une ME. HORS TRANCHE ET DIT À L'ÉCRAN · les résultats internes dans les
-stocks et immobilisations (art. 86, 4° · qui du groupe ou des minoritaires du
-vendeur supporte l'élimination n'est écrit nulle part), les écarts
-d'évaluation (tranche 4), et le dossier OmegaX relié par la console.
+d'une ME. HORS TRANCHE ET DIT À L'ÉCRAN · les écarts d'évaluation (tranche
+4), et le dossier OmegaX relié par la console.
+
+**Résultats internes (art. 86, 4°) · tranchés par la loi le 2026-09-24.**
+Manasse a demandé de s'en remettre au texte. L'art. 86, 4° rend
+l'élimination OBLIGATOIRE ; le D4C (ch. XII-5) la veut TOTALE entre entités
+intégrées globalement, au PRODUIT des pourcentages d'intégration avec une
+entité intégrée proportionnellement. QUI LA SUPPORTE n'est écrit nulle part ·
+OmegaX lit l'art. 85 (le résultat consolidé est fait des « éléments
+constitutifs » du résultat de chaque entité, après retraitement) et retraite
+le résultat de la VENDEUSE AVANT le partage, qui se répartit alors à son
+pourcentage d'intérêt. C'est une LECTURE, dite à l'écran et dans les réserves
+du cumul. La marge se DÉCLARE à l'ouverture (réserves) et à la clôture
+(actif), nette de sa part amortie · aucune balance ne dit quelle part d'un
+stock vient du groupe. Refusée avec une entité mise en équivalence (le § 6
+la fait porter sur les titres, hors tranche) et au-delà du solde du compte
+d'actif de l'acheteuse. Une marge négligeable peut ne pas être déclarée
+(art. 86, dernier alinéa). La durée « non limitée » de l'écart d'acquisition
+reste NON SERVIE · l'art. 82 impose « un plan d'amortissement », sans
+exception.
 
 **Consolidation SYSCOHADA, tranche 3a · bilan, compte de résultat et note du
 périmètre (2026-09-24).** D4C ch. XII-8 § 2, § 3 et § 6. Moteur pur

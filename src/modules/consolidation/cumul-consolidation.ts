@@ -82,6 +82,29 @@ export interface OperationReciproque {
   libelle: string;
 }
 
+/**
+ * Un résultat interne inclus dans un actif · une marge prise par la VENDEUSE
+ * sur un bien encore détenu par l'ACHETEUSE à la clôture (art. 86, 4°). Les
+ * deux montants se DÉCLARENT · aucune balance ne dit quelle part d'un stock
+ * vient d'un fournisseur du groupe, ni à quelle marge.
+ *
+ * `margeOuverture` et `margeCloture` sont la marge encore incluse dans l'actif
+ * à chaque date, NETTE de ce qui en a été amorti pour une immobilisation. La
+ * variation passe au résultat de l'exercice, le stock d'ouverture aux
+ * réserves · le D4C demande de « analyser s'ils relèvent de l'exercice ou
+ * d'exercices antérieurs (impact réserves) » (ch. XII-5 § 4).
+ */
+export interface ResultatInterne {
+  vendeuseId: string;
+  acheteuseId: string;
+  nature: 'STOCK' | 'IMMOBILISATION';
+  /** Compte de l'ACHETEUSE où l'actif est inscrit · 3 pour un stock, 2 pour une immobilisation. */
+  compteActif: string;
+  margeOuverture: number;
+  margeCloture: number;
+  libelle: string;
+}
+
 /** Les postes que la consolidation crée · aucun numéro n'est inventé, le D4C n'impose aucun plan (ch. XII-5 § 2). */
 export type PosteConsolidation =
   | 'ECART_ACQUISITION'
@@ -98,7 +121,8 @@ export type PosteConsolidation =
   | 'ECARTS_REEVALUATION_CONSOLIDANTE'
   | 'RESERVES_GROUPE'
   | 'INTERETS_MINORITAIRES'
-  | 'RESULTAT_DEJA_CONSTATE';
+  | 'RESULTAT_DEJA_CONSTATE'
+  | 'ELIMINATION_RESULTATS_INTERNES';
 
 export const LIBELLE_POSTE: Record<PosteConsolidation, string> = {
   ECART_ACQUISITION: 'Écart d’acquisition',
@@ -116,6 +140,7 @@ export const LIBELLE_POSTE: Record<PosteConsolidation, string> = {
   RESERVES_GROUPE: 'Réserves consolidées',
   INTERETS_MINORITAIRES: 'Intérêts minoritaires (hors résultat)',
   RESULTAT_DEJA_CONSTATE: 'Résultat déjà porté au compte 13 dans les comptes individuels',
+  ELIMINATION_RESULTATS_INTERNES: 'Élimination des résultats internes inclus dans les actifs (art. 86, 4°)',
 };
 
 /** Les postes qui sont du résultat · le reste est du bilan. */
@@ -124,6 +149,7 @@ const POSTES_DE_RESULTAT = new Set<PosteConsolidation>([
   'REPRISE_ECART_ACQUISITION_NEGATIF',
   'QUOTE_PART_RESULTAT_ME',
   'RESULTAT_DEJA_CONSTATE',
+  'ELIMINATION_RESULTATS_INTERNES',
 ]);
 
 /** Clé interne · un ajustement de capitaux propres porté par la détentrice avant son partage. */
@@ -201,6 +227,7 @@ export function cumulerConsolidation(
   entites: EntiteACumuler[],
   acquisitions: AcquisitionDeclaree[],
   reciproques: OperationReciproque[],
+  resultatsInternes: ResultatInterne[] = [],
 ): ResultatCumul {
   const avertissements: string[] = [];
   const parId = new Map(entites.map((e) => [e.id, e]));
@@ -397,6 +424,54 @@ export function cumulerConsolidation(
       ajouter(H, a.compteDividendes, div);
       ajouter(H, AJUSTEMENT_RESERVES, -div);
     }
+  }
+
+  // ─── 2 bis. Résultats internes inclus dans les actifs (art. 86, 4°) ───────
+  // L'élimination est OBLIGATOIRE (art. 86, 4°), et « totale » entre entités
+  // intégrées globalement (D4C ch. XII-5 § 4) · au PRODUIT des pourcentages
+  // d'intégration dès qu'une entité intégrée proportionnellement est en jeu
+  // (§ 6). QUI LA SUPPORTE, aucun des deux textes ne l'écrit. LECTURE
+  // D'OMEGAX · l'art. 85 bâtit le résultat consolidé des « éléments
+  // constitutifs » du résultat de chaque entité, après retraitement, et la
+  // marge est un élément du résultat de la VENDEUSE · l'élimination la retraite
+  // donc AVANT le partage, et elle se répartit comme ce résultat, au
+  // pourcentage d'intérêt de la vendeuse. Une vendeuse qui est la consolidante
+  // la porte tout entière au groupe.
+  for (const ri of resultatsInternes) {
+    for (const id of [ri.vendeuseId, ri.acheteuseId]) {
+      const e = parId.get(id);
+      if (!e) throw new RefusConsolidation(`Résultat interne « ${ri.libelle} » · une des deux entités n’est pas retenue.`);
+      if (!integree(id)) {
+        throw new RefusConsolidation(
+          `Résultat interne « ${ri.libelle} » avec « ${e.nom} », mise en équivalence · son élimination se fait sur les titres mis en ` +
+            'équivalence (D4C ch. XII-5 § 6), que cette tranche ne traite pas.',
+        );
+      }
+    }
+    if (ri.vendeuseId === ri.acheteuseId) {
+      throw new RefusConsolidation(`Résultat interne « ${ri.libelle} » · la vendeuse et l’acheteuse sont la même entité, rien n’est interne au groupe.`);
+    }
+    if (!(ri.margeCloture >= 0) || !(ri.margeOuverture >= 0)) {
+      throw new RefusConsolidation(`Résultat interne « ${ri.libelle} » · une marge se déclare positive · une perte interne ne s’élimine pas par ce chemin.`);
+    }
+    const classeAttendue = ri.nature === 'STOCK' ? '3' : '2';
+    if (!ri.compteActif.startsWith(classeAttendue)) {
+      throw new RefusConsolidation(
+        `Résultat interne « ${ri.libelle} » · ${ri.nature === 'STOCK' ? 'un stock' : 'une immobilisation'} s’inscrit en classe ${classeAttendue}, pas au compte ${ri.compteActif}.`,
+      );
+    }
+    const facteur = fraction.get(ri.vendeuseId)! * fraction.get(ri.acheteuseId)!;
+    const cloture = r2(ri.margeCloture * facteur);
+    const ouverture = r2(ri.margeOuverture * facteur);
+    const soldeActif = comptes.get(ri.acheteuseId)!.get(ri.compteActif) ?? 0;
+    if (soldeActif + 0.005 < cloture) {
+      throw new RefusConsolidation(
+        `Résultat interne « ${ri.libelle} » · ${cloture} à éliminer excède le solde du compte ${ri.compteActif} de « ${nomDe(ri.acheteuseId)} » (${soldeActif}).`,
+      );
+    }
+    ajouter(ri.vendeuseId, 'ELIMINATION_RESULTATS_INTERNES', r2(cloture - ouverture));
+    ajouter(ri.vendeuseId, AJUSTEMENT_RESERVES, ouverture);
+    ajouter(ri.vendeuseId, ri.compteActif, -cloture);
   }
 
   // ─── 3. Partage des capitaux propres ──────────────────────────────────────

@@ -233,3 +233,20 @@ describe('écart d’acquisition amorti ET déprécié', () => {
     expect(e.controles.every((c) => c.ok)).toBe(true);
   });
 });
+
+describe('résultats internes au compte de résultat consolidé', () => {
+  const M = ent('M', 'IG', 100, b([['26100000', 800], ['31100000', 300], ['52100000', 900], ['10100000', -1000], ['11800000', -500], ['70100000', -1000], ['60100000', 500]]), true);
+  const F = ent('F', 'IG', 80, b([['31100000', 500], ['52100000', 1500], ['10100000', -1000], ['11800000', -600], ['70100000', -1000], ['60100000', 600]]));
+  const cumul = cumulerConsolidation({ dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') }, [M, F], [
+    acq('M', 'F', 80, 800, 1000, { dateEntree: new Date('2024-01-01') }),
+  ], [], [{ vendeuseId: 'F', acheteuseId: 'M', nature: 'STOCK', compteActif: '31100000', margeOuverture: 40, margeCloture: 100, libelle: 'x' }]);
+  const e = construireEtatsConsolides(cumul, R);
+
+  it('une ligne propre dans le résultat d’exploitation, stock net de la marge, et tout boucle', () => {
+    // Stock 300 + 500 − 100 ; résultat 500 + 400 − 60.
+    expect(cr(e, 'ELIMINATION_RESULTATS_INTERNES')).toBe(-60);
+    expect(actif(e, 'STOCKS')).toBe(700);
+    expect(cr(e, 'RESULTAT_ENSEMBLE')).toBe(840);
+    expect(e.controles.every((c) => c.ok)).toBe(true);
+  });
+});

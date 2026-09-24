@@ -14,7 +14,7 @@ const T = 'dossier-1';
 const EX = 'ex-2026';
 
 function doublure(balanceDossier: [string, number][]) {
-  const tables: Record<string, any[]> = { entites: [], liens: [], lignes: [], reciproques: [], faits: [] };
+  const tables: Record<string, any[]> = { entites: [], liens: [], lignes: [], reciproques: [], internes: [], faits: [] };
   let seq = 0;
   const correspond = (r: any, where: any) =>
     Object.entries(where ?? {}).every(([k, v]) => (v && typeof v === 'object' && 'in' in (v as any) ? (v as any).in.includes(r[k]) : r[k] === v));
@@ -64,6 +64,7 @@ function doublure(balanceDossier: [string, number][]) {
     lienParticipationConsolidation: table('liens', { coutAcquisition: null, depreciationEcartOuverture: 0, depreciationEcartCloture: 0, dividendesExercice: 0 }),
     ligneBalanceConsolidation: table('lignes'),
     operationReciproqueConsolidation: table('reciproques'),
+    resultatInterneConsolidation: table('internes'),
     faitsConsolidationExercice: table('faits'),
     $transaction: jest.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)),
   };
@@ -208,6 +209,38 @@ describe('CumulService · le cumul de bout en bout', () => {
     await expect(service.cumul(T, EX)).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/en cours d’exercice/) });
   });
 
+  it('un résultat interne déclaré sans vendeuse vise la consolidante, et arrive au moteur', async () => {
+    const { service, lien, f } = await groupe();
+    await service.declarerAcquisition(T, lien.id, {
+      coutAcquisition: 800,
+      compteTitres: '26100000',
+      dateEntree: '2024-01-01',
+      capitauxPropresEntree: 900,
+      modeDureeEcart: 'NON_DETERMINABLE',
+    });
+    await service.ajouterResultatInterne(T, {
+      exerciceId: EX,
+      acheteuseId: f.id,
+      nature: 'IMMOBILISATION',
+      compteActif: '24500000',
+      margeOuverture: 0,
+      margeCloture: 100,
+      libelle: 'Matériel vendu par la mère',
+    });
+    const r = await service.cumul(T, EX);
+    // La mère vend · 812 − 100 au groupe, rien aux minoritaires ; le matériel perd 100.
+    expect(r.capitauxPropres).toMatchObject({ resultatGroupe: 712, resultatMinoritaires: 80 });
+    expect(r.lignes.find((l) => l.cle === '24500000')?.solde).toBe(1900);
+  });
+
+  it('un résultat interne d’une entité avec elle-même, ou sur la mauvaise classe, est refusé avant d’être écrit', async () => {
+    const { service, f, tables } = await groupe();
+    const base = { exerciceId: EX, nature: 'STOCK' as const, compteActif: '31100000', margeOuverture: 0, margeCloture: 10, libelle: 'x' };
+    await expect(service.ajouterResultatInterne(T, base)).rejects.toThrow(/DIFFÉRENTES/);
+    await expect(service.ajouterResultatInterne(T, { ...base, acheteuseId: f.id, compteActif: '24500000' })).rejects.toThrow(/classe 3/);
+    expect(tables.internes).toHaveLength(0);
+  });
+
   it('une durée limitée sans durée est refusée à la déclaration', async () => {
     const { service, lien } = await groupe();
     await expect(
@@ -225,7 +258,7 @@ describe('CumulService · le cumul de bout en bout', () => {
 describe('ConsolidationController · tranche 2', () => {
   it('toute route qui écrit porte @Roles', () => {
     const proto = ConsolidationController.prototype as any;
-    for (const m of ['importerBalance', 'declarerAcquisition', 'ajouterReciproque', 'supprimerReciproque']) {
+    for (const m of ['importerBalance', 'declarerAcquisition', 'ajouterReciproque', 'supprimerReciproque', 'ajouterResultatInterne', 'supprimerResultatInterne']) {
       expect(Reflect.getMetadata(ROLES_KEY, proto[m])).toEqual([RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE]);
     }
   });

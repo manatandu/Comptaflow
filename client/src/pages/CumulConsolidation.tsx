@@ -63,13 +63,24 @@ export function CumulConsolidation(props: {
   entites: EntiteCumul[];
   liens: LienCumul[];
   reciproques: { id: string; entiteAId: string | null; compteA: string; entiteBId: string | null; compteB: string; montant: number; libelle: string }[];
+  resultatsInternes: {
+    id: string;
+    vendeuseId: string | null;
+    acheteuseId: string | null;
+    nature: 'STOCK' | 'IMMOBILISATION';
+    compteActif: string;
+    margeOuverture: number;
+    margeCloture: number;
+    libelle: string;
+  }[];
   peutEcrire: boolean;
   recharger: () => Promise<void>;
 }) {
-  const { exerciceId, consolidante, entites, liens, reciproques, peutEcrire, recharger } = props;
+  const { exerciceId, consolidante, entites, liens, reciproques, resultatsInternes, peutEcrire, recharger } = props;
   const [erreur, setErreur] = useState<string | null>(null);
   const [resultat, setResultat] = useState<Resultat | null>(null);
   const [recip, setRecip] = useState({ entiteAId: '', compteA: '', entiteBId: '', compteB: '', montant: '', libelle: '' });
+  const [interne, setInterne] = useState({ vendeuseId: '', acheteuseId: '', nature: 'STOCK', compteActif: '', margeOuverture: '', margeCloture: '', libelle: '' });
   const nomDe = (id: string | null) => (id === null || id === '' ? consolidante.nom : (entites.find((e) => e.id === id)?.nom ?? '?'));
 
   async function agir(action: () => Promise<unknown>) {
@@ -257,6 +268,88 @@ export function CumulConsolidation(props: {
                   <td className="py-1 text-right">
                     {peutEcrire && (
                       <button className="text-[11px] underline" onClick={() => void agir(() => api.delete(`/consolidation/reciproques/${o.id}`))}>
+                        Retirer
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
+        <h2 className="text-[12.5px] font-bold mb-1.5">Résultats internes inclus dans les actifs</h2>
+        <p className="text-[11px] text-text-dim mb-1.5 leading-[1.6]">
+          Marge prise par une entité du groupe sur un stock ou une immobilisation encore détenu par une autre à la clôture
+          (art. 86, 4°), déclarée à l’ouverture et à la clôture, nette de sa part amortie. Éliminée totalement entre entités
+          intégrées globalement, au produit des pourcentages avec une entité intégrée proportionnellement (D4C ch. XII-5). Le
+          texte ne dit pas qui la supporte · OmegaX retraite le résultat de la <strong>vendeuse</strong>, qui se partage à son
+          pourcentage d’intérêt. Une marge d’incidence négligeable peut ne pas être déclarée (art. 86, dernier alinéa).
+        </p>
+        {peutEcrire && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 mb-2">
+            <label className="text-[12px]">
+              Vendeuse
+              <select className={champ} value={interne.vendeuseId} onChange={(e) => setInterne({ ...interne, vendeuseId: e.target.value })}>
+                <option value="">{consolidante.nom} (consolidante)</option>
+                {entites.map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}
+              </select>
+            </label>
+            <label className="text-[12px]">
+              Acheteuse
+              <select className={champ} value={interne.acheteuseId} onChange={(e) => setInterne({ ...interne, acheteuseId: e.target.value })}>
+                <option value="">{consolidante.nom} (consolidante)</option>
+                {entites.map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}
+              </select>
+            </label>
+            <label className="text-[12px]">
+              Nature
+              <select className={champ} value={interne.nature} onChange={(e) => setInterne({ ...interne, nature: e.target.value })}>
+                <option value="STOCK">Stock (classe 3)</option>
+                <option value="IMMOBILISATION">Immobilisation (classe 2)</option>
+              </select>
+            </label>
+            <label className="text-[12px]">Compte de l’acheteuse<input className={champ} value={interne.compteActif} onChange={(e) => setInterne({ ...interne, compteActif: e.target.value })} /></label>
+            <label className="text-[12px]">Marge à l’ouverture (FC)<input className={champ} value={interne.margeOuverture} onChange={(e) => setInterne({ ...interne, margeOuverture: e.target.value })} /></label>
+            <label className="text-[12px]">Marge à la clôture (FC)<input className={champ} value={interne.margeCloture} onChange={(e) => setInterne({ ...interne, margeCloture: e.target.value })} /></label>
+            <label className="text-[12px]">Libellé<input className={champ} value={interne.libelle} onChange={(e) => setInterne({ ...interne, libelle: e.target.value })} /></label>
+            <button
+              className="border border-border px-2.5 py-1 text-[12px] justify-self-start"
+              onClick={() =>
+                void agir(async () => {
+                  await api.post('/consolidation/resultats-internes', {
+                    exerciceId,
+                    vendeuseId: interne.vendeuseId || null,
+                    acheteuseId: interne.acheteuseId || null,
+                    nature: interne.nature,
+                    compteActif: interne.compteActif,
+                    margeOuverture: nombre(interne.margeOuverture) ?? 0,
+                    margeCloture: nombre(interne.margeCloture),
+                    libelle: interne.libelle,
+                  });
+                  setInterne({ ...interne, compteActif: '', margeOuverture: '', margeCloture: '', libelle: '' });
+                })
+              }
+            >
+              Ajouter
+            </button>
+          </div>
+        )}
+        {resultatsInternes.length === 0 ? (
+          <p className="text-[12px] text-text-dim">Aucun résultat interne déclaré.</p>
+        ) : (
+          <table className="w-full text-[12px]">
+            <tbody>
+              {resultatsInternes.map((o) => (
+                <tr key={o.id} className="border-b border-border/60">
+                  <td className="py-1 pr-2">{o.libelle}</td>
+                  <td className="py-1 pr-2">{nomDe(o.vendeuseId)} → {nomDe(o.acheteuseId)} · {o.compteActif}</td>
+                  <td className="py-1 pr-2 text-right">{fc(o.margeOuverture)} / {fc(o.margeCloture)}</td>
+                  <td className="py-1 text-right">
+                    {peutEcrire && (
+                      <button className="text-[11px] underline" onClick={() => void agir(() => api.delete(`/consolidation/resultats-internes/${o.id}`))}>
                         Retirer
                       </button>
                     )}

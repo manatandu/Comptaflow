@@ -4,6 +4,7 @@ import {
   EntiteACumuler,
   LigneBalanceEntree,
   OperationReciproque,
+  ResultatInterne,
 } from './cumul-consolidation';
 
 /**
@@ -339,5 +340,66 @@ describe('le compte 10 de la consolidante · capital, primes et réévaluation s
     const M3 = ent('M', 'IG', 100, b([['24100000', 500], ['10100000', -400], ['14100000', -100]]), true);
     const s = cumulerConsolidation(EX, [M3], [], []);
     expect(s.avertissements.join(' ')).toMatch(/« M » porte des soldes aux comptes 14 ou 15/);
+  });
+});
+
+describe('résultats internes inclus dans les actifs (art. 86, 4°)', () => {
+  // Mère · titres 800, stock 300, banque 900, capital 1 000, réserves 500,
+  // ventes 1 000, achats 500. Filiale 80 % · stock 500, banque 1 500,
+  // capital 1 000, réserves 600, ventes 1 000, achats 600 (résultat 400).
+  // Capitaux propres à l'entrée 1 000 · coût 800 = 0,8 × 1 000, écart nul.
+  const M = ent('M', 'IG', 100, b([['26100000', 800], ['31100000', 300], ['52100000', 900], ['10100000', -1000], ['11800000', -500], ['70100000', -1000], ['60100000', 500]]), true);
+  const F = ent('F', 'IG', 80, b([['31100000', 500], ['52100000', 1500], ['10100000', -1000], ['11800000', -600], ['70100000', -1000], ['60100000', 600]]));
+  const A = [acq('M', 'F', 80, 800, 1000)];
+  const sans = cumulerConsolidation(EX, [M, F], A, []);
+  const ri = (vendeuseId: string, acheteuseId: string, extra: Partial<ResultatInterne> = {}): ResultatInterne => ({
+    vendeuseId,
+    acheteuseId,
+    nature: 'STOCK',
+    compteActif: '31100000',
+    margeOuverture: 40,
+    margeCloture: 100,
+    libelle: 'marge sur stock',
+    ...extra,
+  });
+
+  it('la consolidante vend · le stock perd la marge de clôture, le résultat la variation, les réserves l’ouverture, tout au groupe', () => {
+    const r = cumulerConsolidation(EX, [M, F], A, [], [ri('M', 'F')]);
+    expect(ligne(r, '31100000')).toBe(ligne(sans, '31100000') - 100);
+    expect(ligne(r, 'ELIMINATION_RESULTATS_INTERNES')).toBe(60);
+    expect(r.capitauxPropres.resultatGroupe).toBe(sans.capitauxPropres.resultatGroupe - 60);
+    expect(r.capitauxPropres.reservesGroupe).toBe(sans.capitauxPropres.reservesGroupe - 40);
+    expect(r.capitauxPropres.resultatMinoritaires).toBe(sans.capitauxPropres.resultatMinoritaires);
+    expect(r.equilibre).toBe(0);
+  });
+
+  it('la filiale à 80 % vend · la vendeuse porte l’élimination, partagée 80 / 20', () => {
+    const r = cumulerConsolidation(EX, [M, F], A, [], [ri('F', 'M', { margeCloture: 100, margeOuverture: 40 })]);
+    // Résultat · −60 dont −48 groupe, −12 minoritaires. Réserves · −40 dont −32 et −8.
+    expect(r.capitauxPropres.resultatGroupe).toBe(sans.capitauxPropres.resultatGroupe - 48);
+    expect(r.capitauxPropres.resultatMinoritaires).toBe(sans.capitauxPropres.resultatMinoritaires - 12);
+    expect(r.capitauxPropres.reservesGroupe).toBe(sans.capitauxPropres.reservesGroupe - 32);
+    expect(r.capitauxPropres.interetsMinoritairesHorsResultat).toBe(sans.capitauxPropres.interetsMinoritairesHorsResultat - 8);
+    expect(r.equilibre).toBe(0);
+  });
+
+  it('une entité intégrée proportionnellement · au produit des pourcentages d’intégration (D4C ch. XII-5 § 6)', () => {
+    const P = ent('F', 'IP', 50, F.balance!);
+    const r = cumulerConsolidation(EX, [M, P], [acq('M', 'F', 50, 500, 1000)], [], [ri('M', 'F', { margeOuverture: 0 })]);
+    const s = cumulerConsolidation(EX, [M, P], [acq('M', 'F', 50, 500, 1000)], []);
+    expect(ligne(r, 'ELIMINATION_RESULTATS_INTERNES')).toBe(50);
+    expect(ligne(r, '31100000')).toBe(ligne(s, '31100000') - 50);
+  });
+
+  it('quatre refus · mise en équivalence, même entité, marge négative, marge au-delà du solde de l’actif', () => {
+    const ME = ent('F', 'ME', 30, F.balance!);
+    expect(() => cumulerConsolidation(EX, [M, ME], [acq('M', 'F', 30, 300, 1000)], [], [ri('M', 'F')])).toThrow(/mise en équivalence/);
+    expect(() => cumulerConsolidation(EX, [M, F], A, [], [ri('F', 'F')])).toThrow(/même entité/);
+    expect(() => cumulerConsolidation(EX, [M, F], A, [], [ri('M', 'F', { margeCloture: -5 })])).toThrow(/positive/);
+    expect(() => cumulerConsolidation(EX, [M, F], A, [], [ri('M', 'F', { margeCloture: 600 })])).toThrow(/excède le solde/);
+  });
+
+  it('une immobilisation s’inscrit en classe 2, un stock en classe 3', () => {
+    expect(() => cumulerConsolidation(EX, [M, F], A, [], [ri('M', 'F', { nature: 'IMMOBILISATION' })])).toThrow(/classe 2/);
   });
 });

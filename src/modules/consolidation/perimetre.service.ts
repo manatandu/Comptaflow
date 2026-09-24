@@ -152,8 +152,13 @@ export class PerimetreService {
       where: { tenantId, exerciceId },
       orderBy: { createdAt: 'asc' },
     });
+    const resultatsInternes = await this.prisma.resultatInterneConsolidation.findMany({
+      where: { tenantId, exerciceId },
+      orderBy: { createdAt: 'asc' },
+    });
     return {
       consolidante: { id: tenant.id, nom: tenant.nom, dateCloture: ex.dateFin },
+      resultatsInternes: resultatsInternes.map((o) => ({ ...o, margeOuverture: Number(o.margeOuverture), margeCloture: Number(o.margeCloture) })),
       reciproques: reciproques.map((o) => ({ ...o, montant: Number(o.montant) })),
       entites,
       liens: liens.map((l) => ({ ...l, pctDroitsVote: Number(l.pctDroitsVote), pctCapital: Number(l.pctCapital) })),
