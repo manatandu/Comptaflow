@@ -184,8 +184,8 @@ export function RetenuesPage() {
           ))}
           <p className="text-[11px] text-text-dim">
             Échéances confrontées aux textes le {jour(echeancier.derniereVerificationEcheances)}. Elles changent : la
-            loi de finances n° 25/060 du 29 décembre 2025 a par exemple déplacé les acomptes provisionnels du 1er août
-            au 25 juillet. Vérifiez avant de vous y fier.
+            loi de finances n° 25/060 du 29 décembre 2025 a par exemple fait passer le premier acompte provisionnel de
+            « avant le 1er août » à « au plus tard le 25 juillet ». Vérifiez avant de vous y fier.
           </p>
         </div>
       )}

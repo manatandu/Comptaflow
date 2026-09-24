@@ -1463,3 +1463,52 @@ describe("CNSS · l'assiette est la rémunération, pas le revenu imposable", ()
     expect(r).toContain('salaire brut imposable');
   });
 });
+
+/*
+  PASSE F13 · la loi de finances n° 25/060 et les obligations qu'elle touche,
+  relues dans la compilation DGI au 19 juillet 2026 (Livre II, Titres I à IV).
+*/
+describe('Passe F13 · échéancier et loi de finances n° 25/060', () => {
+  const cles = (referentiel: 'SYCEBNL' | 'SYSCOHADA', forme?: string) =>
+    obligationsDeclarativesApplicables(referentiel as never, (forme ?? null) as never).map((o) => o.cle);
+
+  it('le PV d’assemblée de l’art. 13 bis ne vise que les personnes soumises à l’IS', () => {
+    // « Les sociétés et les autres personnes morales soumises à l'impôt sur
+    // les sociétés ». Une ASBL en est exemptée, une personne physique n'a
+    // ni assemblée ni IS.
+    expect(cles('SYSCOHADA', 'SA')).toContain('procesVerbalAssemblee');
+    expect(cles('SYSCOHADA')).toContain('procesVerbalAssemblee');
+    expect(cles('SYCEBNL')).not.toContain('procesVerbalAssemblee');
+    for (const forme of FORMES_PERSONNES_PHYSIQUES) {
+      expect(cles('SYSCOHADA', forme)).not.toContain('procesVerbalAssemblee');
+    }
+    const pv = OBLIGATIONS_DECLARATIVES.find((o) => o.cle === 'procesVerbalAssemblee')!;
+    expect(pv.baseLegale).toContain('soumises à l’impôt sur les sociétés');
+  });
+
+  it('la déclaration d’IS dit que le solde de l’impôt se paie au dépôt (art. 57 bis, al. 3)', () => {
+    const is = OBLIGATIONS_DECLARATIVES.find((o) => o.cle === 'declarationImpotSocietes')!;
+    expect(is.contenu).toContain('le solde éventuel de cet impôt devant être versé au moment du dépôt');
+    // L'art. 12 est cité dans sa rédaction de 2026, qui désigne « le
+    // redevable de l'impôt sur les sociétés ».
+    expect(is.baseLegale).toContain('loi de finances n° 25/060');
+    expect(is.baseLegale).toContain('Le redevable de l’impôt sur les sociétés est tenu');
+  });
+
+  it('chaque article est daté de son texte, pas de la loi n° 25/060 par défaut', () => {
+    const salaires = OBLIGATIONS_DECLARATIVES.find((o) => o.cle === 'declarationAnnuelleSalaires')!;
+    expect(salaires.baseLegale).toContain('créé par la loi de finances n° 22/071');
+    expect(salaires.baseLegale).toContain('modifié par la loi de finances n° 25/060');
+    // La fiche individuelle par province ne sort d'aucun solde · c'est dit.
+    expect(salaires.sourceDonnees).toContain('PAR PROVINCE');
+  });
+
+  it('la liste des fournisseurs de l’art. 47 ter lit aussi les fournisseurs d’investissements', () => {
+    const liste = OBLIGATIONS_DECLARATIVES.find((o) => o.cle === 'listeFournisseurs')!;
+    expect(liste.sourceDonnees).toContain('481');
+  });
+
+  it('l’art. 96 bis rend la personne redevable de la retenue ET des pénalités', () => {
+    expect(AVERTISSEMENT_REDEVABLE).toContain('ET DES PÉNALITÉS Y AFFÉRENTES');
+  });
+});

@@ -2355,3 +2355,68 @@ SYSCOHADA. Il est mis à jour avec son motif.
   l'AUDCIF art. 65 qui ne dit pas ce qu'on lui faisait dire, et le troisième
   jalon que l'article 141 vise par son renvoi à l'article 140. La règle n°1
   n'est pas une formalité de contrôle, c'est une source de constats.
+
+## Passe F13 · loi de finances n° 25/060 et impôt personnel minimum (O.-L. n° 71-087) (2026-09-24)
+
+Rang 4 de l'ordre verrouillé. 487 lignes (les mesures fiscales de la loi de
+finances, 156 lignes, et l'O.-L. n° 71-087 relative à l'impôt personnel
+minimum, 331 lignes), en six blocs. 126 agents, 2 h 10 : deux lecteurs sans
+accès au code par bloc, deux confronteurs par bloc, trois réfutateurs par
+constat sous trois angles (le texte, le code, la portée).
+
+**286 obligations extraites, 34 constats, 10 écartés, 24 retenus · qui se
+ramènent à 13 écarts distincts, doublons fondus.** La session principale en a
+écarté un de plus et relu chaque article retenu dans la compilation DGI au
+19 juillet 2026 (Livre II, Titres I à IV), pas dans la fiche de la loi de
+finances, qui ne donne pour la plupart des articles qu'un résumé en tableau.
+
+**L'impôt personnel minimum ne rend aucun constat, et c'est la bonne
+réponse.** Il est perçu « par les chefs des Secteurs ou des Chefferies et par
+les Bourgmestres » (art. 14), au profit exclusif de ces entités (art. 2), sur
+un seuil encore exprimé en zaïres (art. 1er). Aucune retenue n'y est confiée à
+l'employeur. Le dépôt n'en dit rien, et il n'a rien à en dire.
+
+### Ce qui est retenu
+
+| Article | Écart | Gravité | Correction |
+|---|---|---|---|
+| LPF art. 13 bis | Le dépôt du procès-verbal d'assemblée était servi à TOUT dossier, ASBL et personnes physiques compris. Le texte vise « les sociétés et les autres personnes morales soumises à l'impôt sur les sociétés ». Une ASBL en est exemptée (loi n° 23/053, art. 5), une personne physique n'a ni assemblée ni IS. | FAUX | Filtre de la déclaration d'IS (SYSCOHADA, hors `FORMES_PERSONNES_PHYSIQUES`), à l'échéancier ET au planning des événements ; texte de l'article cité. |
+| O.-L. n° 10/001 art. 74, al. 2 | La liste des manques de la déclaration de TVA rangeait l'amende pour une facture servie deux fois à la déduction parmi les amendes du TRIPLE. L'alinéa, ajouté par la L.F. n° 25/060, art. 50, renvoie à « la même sanction prévue à [l']alinéa précédent », une amende « égale au montant des droits indûment déduits ». | FAUX | La sanction exacte est écrite. |
+| LPF art. 57 bis, al. 1er | Sur un exercice ouvert avant 2026, le service qualifiait l'impôt de SIMULATION, puis le présentait, dans la même réponse, comme « la première branche » de la base légale des acomptes. La base est « l'impôt déclaré au titre de l'exercice précédent », et l'impôt 2025 réellement déclaré n'est pas dans OmegaX. C'est le cas ordinaire de septembre 2026. | INCOMPLET | L'avertissement interdit aussi d'y asseoir les acomptes, et l'observation dit que la base servie n'est pas la base légale. |
+| LPF art. 57 bis, al. 3 | Le paiement du solde de l'impôt au dépôt de la déclaration n'était lié à aucune échéance. | INCOMPLET | Porté sur la déclaration d'IS du 30 avril, citation à l'appui. |
+| LPF art. 12 | La déclaration d'IS citait entre guillemets la rédaction de 2023, que la L.F. n° 25/060, art. 18 a réécrite (« Le redevable de l'impôt sur les sociétés… ») et complétée d'un alinéa sur l'information communiquée par l'Administration, sans transfert de responsabilité. | INCOMPLET | Rédaction en vigueur citée, alinéa 2 résumé. |
+| LPF art. 23 | La facturation transcrivait la rédaction de 2023 (« une facture »). Celle de 2026 dit « une facture normalisée », nomme les catégories de bénéfices de l'IRPP, et admet la facture électronique sous des conditions fixées par un décret absent du corpus. | INCOMPLET | Transcription à jour, et le décret manquant est déclaré. |
+| LPF art. 96 bis | L'avertissement disait la retenue omise due par son redevable, sans « les pénalités y afférentes ». | INCOMPLET | Ajouté. |
+| LPF art. 22 ter | La déclaration annuelle des salaires était dite « créée » par la L.F. n° 25/060. Elle l'a été par la L.F. n° 22/071, et seulement modifiée en 2025. Et ses fiches individuelles « classées par province » ne sortent d'aucun solde : le registre du personnel ne porte pas de province. | INCOMPLET | Datation juste ; la source des données dit ce qu'elle ne fournit pas. |
+| LPF art. 47 ter | La liste des fournisseurs était dite tirée du seul compte 401. Le texte dit « la liste de ses fournisseurs », et celui d'une immobilisation est au 481. | INCOMPLET | 40 et 481. |
+| LPF art. 47 | Le commentaire de tête attribuait le relevé trimestriel à la L.F. n° 25/060. Il est dans sa rédaction de la L.F. n° 24/011, art. 40, ce que le même fichier disait trois cents lignes plus bas. | COSMETIQUE | Commentaire corrigé. |
+| Paramètres fiscaux | « Aucune de ces valeurs n'a bougé pour 2026 » coiffait un objet dont les échéances d'acomptes ont changé. | COSMETIQUE | Le commentaire dit ce qui a bougé. |
+| Écran des retenues | « Déplacé du 1er août au 25 juillet » : l'ancienne règle était « avant le 1er août ». | COSMETIQUE | Les deux formules citées. |
+
+**Écarté par la session principale** · le dividende prioritaire des entreprises
+minières du Portefeuille de l'État (art. 52 de la loi de finances) est payé
+sans attendre l'assemblée, et le module d'affectation n'admet qu'une décision
+par exercice. C'est vrai et c'est hors du public d'OmegaX : une recette non
+fiscale d'un type d'entreprise que le logiciel ne tient pas, qu'un réfutateur
+tenait déjà pour sans objet.
+
+Dix réinjections de défaut, dix attrapées. Aucun test existant n'est tombé
+après les corrections · aucun ne gardait les défauts, ce qui est aussi un
+constat.
+
+267 suites / 4 281 tests serveur, 48 fichiers / 608 tests client.
+
+### Ce que cette passe apprend sur la méthode
+
+- **UNE LOI DE FINANCES SE CONFRONTE DANS LE CODE QU'ELLE MODIFIE, PAS DANS SA
+  FICHE.** La fiche `lf-2026-mesures-fiscales.md` résume en tableau les
+  articles de la LPF qu'elle touche. La compilation DGI porte leur texte
+  intégral, avec la mention de chaque modification. Le destinataire de
+  l'art. 13 bis, les pénalités de l'art. 96 bis et la date de création de
+  l'art. 22 ter ne sont que dans la compilation.
+- **LA MÊME ERREUR DE DATE, POUR LA TROISIÈME FOIS.** Après l'art. 96 bis
+  (F9), les art. 22 ter et 47 étaient datés de la loi qui les a modifiés, pas
+  de celle qui les a créés. Une loi de finances annonce ce qu'elle « modifie et
+  complète » : tout article qu'elle touche n'est pas un article qu'elle crée.
+- **UN TEXTE SANS RELAIS DANS L'ENTITÉ NE REND RIEN, ET LE DIRE SUFFIT.** Deux
+  cents lignes d'IPM, perçues au guichet d'une chefferie, pour zéro constat.

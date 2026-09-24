@@ -516,9 +516,12 @@ const EXCLUSIONS_ART_41_A_VERIFIER: ReadonlyArray<readonly [string, string]> = [
  *    règlement, mais NE STOCKE NULLE PART LE MOYEN DE PAIEMENT : il ne peut ni
  *    contrôler ni avertir. Un numéro de compte de trésorerie ne qualifie pas
  *    juridiquement le moyen · un débit de 521 ne prouve pas un virement ;
- *  · LA TAXE DUE DU SEUL FAIT DE SA MENTION (art. 59, alinéas 1 et 3) et LES
- *    AMENDES DU TRIPLE (art. 70, mention abusive ; art. 71, fausse facture ;
- *    art. 74 alinéa 2, document servi DEUX FOIS à la déduction). Toutes
+ *  · LA TAXE DUE DU SEUL FAIT DE SA MENTION (art. 59, alinéas 1 et 3), LES
+ *    AMENDES DU TRIPLE (art. 70, mention abusive ; art. 71, fausse facture) et
+ *    celle de l'art. 74, alinéa 2 (document servi DEUX FOIS à la déduction),
+ *    qui n'est PAS du triple · l'alinéa, ajouté par la L.F. n° 25/060, art. 50,
+ *    renvoie à « la même sanction prévue à [l']alinéa précédent », soit une
+ *    amende « égale au montant des droits indûment déduits ». Toutes
  *    supposent de confronter DEUX gisements que le dépôt tient en parallèle et
  *    ne rapproche jamais : la FACTURE, qui porte son taux et son montant de
  *    taxe, et l'ÉCRITURE, seule lue par cette déclaration. Une facture portant

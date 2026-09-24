@@ -1235,3 +1235,39 @@ describe('Passe F6 · la note de recherche énonce l’arrondi de l’art. 150 e
     expect(arrondirImpotArt150(1_234_549.5)).toBe(1_234_600);
   });
 });
+
+/*
+  PASSE F13 · les acomptes de 2026 ont pour base l'impôt DÉCLARÉ pour 2025.
+
+  Art. 57 bis LPF, tel que modifié par la L.F. n° 25/060 : les acomptes « sont
+  calculés sur base de l'impôt déclaré au titre de l'exercice précédent ». Sur
+  un exercice ouvert avant le 1er janvier 2026, l'impôt liquidé ici est une
+  SIMULATION sous la loi n° 23/053 · le service le disait, puis présentait ce
+  même chiffre comme « la première branche » de la base légale des acomptes,
+  dans la même réponse. C'est le cas ordinaire de septembre 2026.
+*/
+describe('Passe F13 · la simulation d’avant 2026 ne fonde pas les acomptes', () => {
+  const balance = [ligne('13100000', -10_000_000)];
+  const exercice2025 = [{ id: 'A', dateDebut: new Date(Date.UTC(2025, 0, 1)), dateFin: new Date(Date.UTC(2025, 11, 31)) }];
+
+  it('l’avertissement de simulation interdit aussi d’y asseoir les acomptes', async () => {
+    const { s } = service({ balances: { A: balance }, exercices: exercice2025 });
+    const texte = (await s.resultatFiscal('t1', 'A')).observations.join(' | ');
+    expect(texte).toContain('BASE AUX ACOMPTES PROVISIONNELS');
+    expect(texte).toContain("l'impôt déclaré au titre de l'exercice précédent");
+  });
+
+  it('sur 2025, la base servie est dite NON légale ; sur 2026, elle reste la première branche', async () => {
+    const a = service({ balances: { A: balance }, exercices: exercice2025 });
+    const t2025 = (await a.s.resultatFiscal('t1', 'A')).observations.join(' | ');
+    const b = service({ balances: { N: balance } });
+    const t2026 = (await b.s.resultatFiscal('t1', 'N')).observations.join(' | ');
+    // Les deux exercices servent l'observation des acomptes · sans quoi le
+    // test ne prouverait rien.
+    expect(t2025).toContain('Art. 57 bis, al. 1er : la base des acomptes');
+    expect(t2026).toContain('Art. 57 bis, al. 1er : la base des acomptes');
+    expect(t2025).toContain("N'EST PAS la base légale");
+    expect(t2025).not.toContain('La base servie ci-dessous est la première branche');
+    expect(t2026).toContain('La base servie ci-dessous est la première branche');
+  });
+});

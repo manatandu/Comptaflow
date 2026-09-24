@@ -114,13 +114,16 @@ export interface NatureRetenue {
  * et c'est précisément pour cela qu'elle échappait au logiciel : le registre
  * ne connaissait que ce que la comptabilité crédite.
  *
- * Or la loi de finances n° 25/060 du 29 décembre 2025 a créé ou refondu trois
- * obligations qui visent directement une association : le relevé TRIMESTRIEL
- * des sommes versées à des tiers (art. 47 de la loi de procédures fiscales,
- * qui nomme les ASBL et les établissements d'utilité publique), la déclaration
- * ANNUELLE sur les revenus salariaux (art. 22 ter) et la liste ANNUELLE des
- * fournisseurs (art. 47 ter). Aucune ne se déduit d'un solde de compte ; toutes
- * sont sanctionnées.
+ * Trois d'entre elles visent directement une association, et elles ne
+ * viennent pas du même texte · la date compte, un exercice étant jugé sous le
+ * texte qui le régissait. Le relevé TRIMESTRIEL des sommes versées à des tiers
+ * (art. 47 de la loi de procédures fiscales, qui nomme les ASBL et les
+ * établissements d'utilité publique) est dans sa rédaction de la loi de
+ * finances n° 24/011, art. 40. La déclaration ANNUELLE sur les revenus
+ * salariaux (art. 22 ter) a été créée par la loi de finances n° 22/071 et
+ * seulement MODIFIÉE par la loi de finances n° 25/060. Seule la liste ANNUELLE
+ * des fournisseurs (art. 47 ter) est insérée par la loi n° 25/060. Aucune ne
+ * se déduit d'un solde de compte ; toutes sont sanctionnées.
  */
 export interface ObligationDeclarative {
   cle: string;
@@ -751,13 +754,18 @@ export const OBLIGATIONS_DECLARATIVES: ObligationDeclarative[] = [
     jourEcheance: 30,
     echeance: "Au plus tard le 30 avril de l'année qui suit celle de la réalisation des revenus",
     baseLegale:
-      "Article 12 de la loi de procédures fiscales n° 004/2003, modifié par la loi n° 23/052 du 30 novembre 2023 : " +
-      '« Les sociétés et autres personnes morales soumises à l’Impôt sur les Sociétés sont tenues de souscrire ' +
-      'chaque année une déclaration de leurs revenus, au plus tard le 30 avril de l’année qui suit celle de la ' +
-      'réalisation des revenus. »',
+      "Article 12 de la loi de procédures fiscales n° 004/2003, modifié par la loi n° 23/052 du 30 novembre 2023 " +
+      'et par la loi de finances n° 25/060 du 29 décembre 2025 : « Le redevable de l’impôt sur les sociétés est ' +
+      'tenu de souscrire chaque année, au plus tard le 30 avril de l’année qui suit celle de la réalisation des ' +
+      'revenus, une déclaration de ses revenus. » L’alinéa 2, ajouté en 2025, permet à l’Administration de ' +
+      'communiquer les informations dont elle dispose, mais « la responsabilité de la déclaration et du calcul de ' +
+      'l’impôt demeure entièrement à la charge du contribuable ».',
     contenu:
       "Déclaration auto-liquidative des revenus de l'exercice, accompagnée des états financiers certifiés par un " +
-      "membre de l'Ordre national des experts-comptables (art. 13 et 14).",
+      "membre de l'Ordre national des experts-comptables (art. 13 et 14). Le SOLDE de l'impôt se paie au même " +
+      "moment : les trois acomptes « sont à déduire de l'impôt dû par le contribuable pour l'exercice fiscal " +
+      "considéré, le solde éventuel de cet impôt devant être versé au moment du dépôt de la déclaration y " +
+      "afférente » (art. 57 bis, al. 3). Le 30 avril est donc aussi une échéance de paiement.",
     sourceDonnees:
       "Résultat fiscal de la fenêtre État > Résultat fiscal et impôt sur les bénéfices, et liasse de la fenêtre États financiers.",
     referentiels: [Referentiel.SYSCOHADA],
@@ -878,10 +886,15 @@ export const OBLIGATIONS_DECLARATIVES: ObligationDeclarative[] = [
     jourEcheance: 31,
     echeance: "Au plus tard le 31 mars de l'année suivante",
     baseLegale:
-      'Article 22 ter de la loi de procédures fiscales, créé par la loi de finances n° 25/060 du 29 décembre 2025.',
+      'Article 22 ter de la loi de procédures fiscales, créé par la loi de finances n° 22/071 du 28 décembre 2022 ' +
+      'et modifié par la loi de finances n° 25/060 du 29 décembre 2025.',
     contenu:
-      "Déclaration récapitulative des revenus salariaux versés, accompagnée des fiches individuelles de chaque bénéficiaire, classées par province et par ordre alphabétique.",
-    sourceDonnees: 'Comptes 66 (charges de personnel), 4471 et 4472 (impôts retenus à la source).',
+      "Déclaration récapitulative des revenus salariaux et revenus assimilés versés, accompagnée des fiches individuelles de chaque rémunéré, classées par province et par ordre alphabétique, sur le modèle fixé par l'Administration des Impôts.",
+    sourceDonnees:
+      'Comptes 66 (charges de personnel), 4471 et 4472 (impôts retenus à la source) pour les totaux, et les ' +
+      'bulletins de paie émis (fenêtre Personnel) pour les montants par salarié. LA FICHE INDIVIDUELLE NE SORT PAS ' +
+      'DE CES SOLDES · le texte la veut par rémunéré, CLASSÉE PAR PROVINCE, et le registre du personnel ne porte ' +
+      "aucune province d'affectation. Le classement se fait hors du logiciel.",
   },
   {
     cle: 'listeFournisseurs',
@@ -891,11 +904,11 @@ export const OBLIGATIONS_DECLARATIVES: ObligationDeclarative[] = [
     jourEcheance: 31,
     echeance: "Au plus tard le 31 mars de l'année suivante",
     baseLegale:
-      'Article 47 ter de la loi de procédures fiscales, créé par la loi de finances n° 25/060 du 29 décembre 2025.',
+      'Article 47 ter de la loi de procédures fiscales, inséré par la loi de finances n° 25/060 du 29 décembre 2025.',
     contenu:
       "Liste des fournisseurs avec, pour chacun : identité, adresse, boîte postale, Numéro Impôt, montant hors taxes, TVA et montant toutes taxes comprises payé.",
     sourceDonnees:
-      "Comptes 401 (fournisseurs) et 445 (TVA récupérable). Le Numéro Impôt de chaque fournisseur se renseigne sur sa fiche, dans le plan des tiers.",
+      "Comptes 40 (fournisseurs) ET 481 (fournisseurs d'investissements), et 445 (TVA récupérable). Le texte dit « la liste de ses fournisseurs » sans distinguer l'objet de l'achat · celui qui vend une immobilisation en est un, et le relevé du seul 401 l'omettrait. Le Numéro Impôt de chaque fournisseur se renseigne sur sa fiche, dans le plan des tiers.",
   },
   {
     cle: 'procesVerbalAssemblee',
@@ -908,8 +921,19 @@ export const OBLIGATIONS_DECLARATIVES: ObligationDeclarative[] = [
     moisEcheance: 7,
     jourEcheance: 10,
     echeance: "Dans les dix jours de la tenue de l'assemblée générale",
-    baseLegale: 'Article 13 bis de la loi de procédures fiscales, créé par la loi de finances n° 25/060.',
-    contenu: "Procès-verbal de l'assemblée générale ayant approuvé les états financiers certifiés.",
+    baseLegale:
+      'Article 13 bis de la loi de procédures fiscales, inséré par la loi de finances n° 25/060 : « Les sociétés ' +
+      'et les autres personnes morales soumises à l’impôt sur les sociétés sont tenues de déposer […] dans les ' +
+      'dix jours de la tenue de l’Assemblée générale ordinaire approuvant les états financiers certifiés par les ' +
+      'commissaires aux comptes, le procès-verbal de l’Assemblée générale. »',
+    contenu: "Procès-verbal de l'assemblée générale ordinaire ayant approuvé les états financiers certifiés.",
+    // LE DESTINATAIRE EST CELUI DE L'IMPÔT SUR LES SOCIÉTÉS, pas tout dossier.
+    // Une association est exemptée de l'IS (loi n° 23/053, art. 5), et
+    // l'exemption dispense de la déclaration comme du paiement (art. 2, 10°) ;
+    // une personne physique n'a ni assemblée ni IS. Même filtre que la
+    // déclaration d'IS, et pour la même raison.
+    referentiels: [Referentiel.SYSCOHADA],
+    formesExclues: FORMES_PERSONNES_PHYSIQUES,
     sanction: undefined,
     sourceDonnees:
       "Date calculée à partir de l'échéance de dépôt au CPCC, faute de date d'assemblée renseignée : c'est un repère, à corriger sur la date réelle de votre assemblée.",
@@ -1127,9 +1151,9 @@ export function reservePourReferentiel(nature: NatureRetenue, referentiel: Refer
  */
 export const AVERTISSEMENT_REDEVABLE =
   "Le redevable qui n'a pas opéré une retenue, ou qui l'a opérée pour un montant insuffisant, en est PERSONNELLEMENT " +
-  'redevable (article 96 bis de la loi de procédures fiscales, INSÉRÉ par la loi de finances n° 24/011 du ' +
+  'redevable, « du montant de la retenue non effectuée ET DES PÉNALITÉS Y AFFÉRENTES » (article 96 bis de la loi de procédures fiscales, INSÉRÉ par la loi de finances n° 24/011 du ' +
   '20 décembre 2024, art. 46, et REMPLACÉ par la loi de finances n° 25/060 du 29 décembre 2025, art. 35). Une ' +
-  "retenue oubliée ne disparaît pas avec le paiement : elle devient une dette de l'entité elle-même. RÉSERVE · la " +
+  "retenue oubliée ne disparaît pas avec le paiement : elle devient une dette de l'entité elle-même, pénalités comprises. RÉSERVE · la " +
   'rédaction citée ici est celle issue du remplacement de 2025. Le texte de la version de 2024 n\u2019est pas au ' +
   "corpus du logiciel : sur un exercice antérieur à 2026, un article de ce numéro était en vigueur, mais sa " +
   'rédaction exacte reste à vérifier avant tout usage opposable.';

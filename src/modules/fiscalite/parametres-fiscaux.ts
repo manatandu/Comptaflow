@@ -14,7 +14,12 @@
 
 export const DERNIERE_VERIFICATION_FISCALE = '2026-09-05';
 
-/** Loi de finances n° 25/060 du 29 décembre 2025 · aucune de ces valeurs n'a bougé pour 2026. */
+/**
+ * Loi de finances n° 25/060 du 29 décembre 2025 · le taux et l'impôt minimum
+ * n'ont pas bougé pour 2026, les ÉCHÉANCES des acomptes si (art. 57 bis LPF,
+ * « au plus tard le 25 juillet, le 25 septembre et le 25 novembre », au lieu de
+ * « avant le 1er août, le 1er octobre, le 1er décembre »).
+ */
 export const IMPOT_SOCIETES = {
   /** Art. 56 · taux sur le bénéfice net imposable. */
   taux: 0.3,

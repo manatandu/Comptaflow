@@ -4,13 +4,22 @@
  * CE FICHIER NE DÉCIDE RIEN. Il transcrit trois textes lus, et s'arrête là où
  * ils s'arrêtent.
  *
- * 1 · L'OBLIGATION DE FACTURER. Loi de procédures fiscales, art. 23 (modifié
- *     par la loi n° 23/052 du 30 novembre 2023) : « les redevables de l'Impôt
- *     sur les Sociétés et de la Taxe sur la Valeur Ajoutée ainsi que, le cas
- *     échéant, ceux de l'Impôt sur le Revenu des Personnes Physiques doivent
- *     obligatoirement, POUR CHAQUE TRANSACTION EFFECTUÉE, délivrer une facture
- *     ou un document en tenant lieu, dont les mentions sont déterminées par
- *     voie réglementaire ».
+ * 1 · L'OBLIGATION DE FACTURER. Loi de procédures fiscales, art. 23, dans sa
+ *     rédaction issue de la L.F. n° 24/011, de la loi n° 23/052 et de la L.F.
+ *     n° 25/060, art. 24 : « les redevables de l'impôt sur les sociétés et de
+ *     l'impôt sur le revenu des personnes physiques dans les catégories de
+ *     bénéfices des activités industrielles, commerciales, immobilières et
+ *     artisanales et de bénéfices de l'exploitation agricole ainsi que ceux de
+ *     la taxe sur la valeur ajoutée doivent obligatoirement, POUR CHAQUE
+ *     TRANSACTION EFFECTUÉE, délivrer une FACTURE NORMALISÉE ou un document en
+ *     tenant lieu dont les mentions sont déterminées par voie réglementaire ».
+ *     La rédaction de 2023 disait « une facture » tout court ; celle de 2026
+ *     nomme la facture normalisée, que le décret n° 23/10 réglemente déjà
+ *     (point 2). L'alinéa 2, ajouté en 2026, admet la facture ÉLECTRONIQUE
+ *     « avec la même valeur probante qu'une facture papier, sous réserve des
+ *     conditions fixées par Décret délibéré en Conseil des Ministres » · ce
+ *     décret n'est dans aucune source lue, et OmegaX ne se dit pas conforme à
+ *     des conditions qu'il ne connaît pas.
  *
  *     Ce n'est donc pas une obligation du référentiel comptable, et le module
  *     n'est cloisonné sur aucun des deux · l'ASBL assujettie à la TVA sur une

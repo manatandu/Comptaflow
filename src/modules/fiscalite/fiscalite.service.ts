@@ -822,7 +822,7 @@ export class FiscaliteService {
     ];
     if (dateDebutExercice.getTime() < ENTREE_EN_VIGUEUR_LOI_23_053.getTime()) {
       avertissements.push(
-        `EXERCICE ANTÉRIEUR À L'ENTRÉE EN VIGUEUR DE LA LOI. Cet exercice ouvre le ${dateDebutExercice.toISOString().slice(0, 10)}, avant le 1er janvier 2026, date à laquelle la loi n° 23/053 du 30 novembre 2023 est entrée en vigueur. Tout ce qui est calculé ci-dessous en vient : l'assiette, le catalogue des retraitements, le taux, le minimum de perception et le report déficitaire. Le texte applicable à cet exercice n'est PAS celui-ci et n'est pas dans OmegaX · ce chiffre est une SIMULATION sous la loi de 2026, pas le résultat fiscal de l'exercice. Il ne doit servir ni de déclaration, ni de base à un report déficitaire imputé sur un exercice postérieur.`,
+        `EXERCICE ANTÉRIEUR À L'ENTRÉE EN VIGUEUR DE LA LOI. Cet exercice ouvre le ${dateDebutExercice.toISOString().slice(0, 10)}, avant le 1er janvier 2026, date à laquelle la loi n° 23/053 du 30 novembre 2023 est entrée en vigueur. Tout ce qui est calculé ci-dessous en vient : l'assiette, le catalogue des retraitements, le taux, le minimum de perception et le report déficitaire. Le texte applicable à cet exercice n'est PAS celui-ci et n'est pas dans OmegaX · ce chiffre est une SIMULATION sous la loi de 2026, pas le résultat fiscal de l'exercice. Il ne doit servir ni de déclaration, ni de base à un report déficitaire imputé sur un exercice postérieur, ni de BASE AUX ACOMPTES PROVISIONNELS de l'exercice suivant · l'art. 57 bis LPF les assied sur « l'impôt déclaré au titre de l'exercice précédent », c'est-à-dire sur l'impôt effectivement déclaré pour cet exercice-ci, sous le texte qui le régissait.`,
       );
     }
     return avertissements;
@@ -1211,7 +1211,7 @@ export class FiscaliteService {
   private observationsCalendrierPaiement(
     regime: RegimeImposition,
     impotDu: number | null,
-    contexte: { acomptesDus: boolean; sansExerciceAnterieur: boolean },
+    contexte: { acomptesDus: boolean; sansExerciceAnterieur: boolean; simulationAvantLaLoi: boolean },
   ): string[] {
     // LES DEUX BRANCHES D'ASSIETTE QUE LE MODULE NE SERT PAS · art. 57 bis,
     // al. 1er, dans sa rédaction issue de la L.F. n° 25/060 du 29 décembre
@@ -1230,7 +1230,7 @@ export class FiscaliteService {
         );
       }
       acomptes.push(
-        "Art. 57 bis, al. 1er : la base des acomptes est l'impôt déclaré au titre de l'exercice précédent, augmenté des suppléments établis par l'Administration, « ou, en cas d'absence de déclaration, [de] l'impôt reconstitué d'office, que ces sommes fassent ou non l'objet de contestation ». La base servie ci-dessous est la première branche · l'impôt liquidé ici, plus les suppléments saisis. SI L'EXERCICE PRÉCÉDENT N'A PAS ÉTÉ DÉCLARÉ, la base légale est l'impôt reconstitué d'office par l'Administration, qui REMPLACE l'impôt déclaré au lieu de s'y ajouter : OmegaX ne peut pas le connaître, aucune écriture ne le porte, et le champ « suppléments » est additif. Dans ce cas, calculer les acomptes sur l'impôt reconstitué hors du logiciel · l'art. 98 bis punit « le défaut ou l'insuffisance de paiement de l'acompte provisionnel » d'une amende de 50 % de l'acompte non versé.",
+        "Art. 57 bis, al. 1er : la base des acomptes est l'impôt déclaré au titre de l'exercice précédent, augmenté des suppléments établis par l'Administration, « ou, en cas d'absence de déclaration, [de] l'impôt reconstitué d'office, que ces sommes fassent ou non l'objet de contestation ». " + (contexte.simulationAvantLaLoi ? "La base servie ci-dessous N'EST PAS la base légale : cet exercice est antérieur au 1er janvier 2026, l'impôt liquidé ici est une SIMULATION sous la loi n° 23/053, et l'impôt DÉCLARÉ pour cet exercice, qui seul fonde les acomptes, n'est pas dans OmegaX. Les trois montants ne valent qu'ordre de grandeur · calculer les acomptes sur l'impôt réellement déclaré." : "La base servie ci-dessous est la première branche · l'impôt liquidé ici, plus les suppléments saisis.") + " SI L'EXERCICE PRÉCÉDENT N'A PAS ÉTÉ DÉCLARÉ, la base légale est l'impôt reconstitué d'office par l'Administration, qui REMPLACE l'impôt déclaré au lieu de s'y ajouter : OmegaX ne peut pas le connaître, aucune écriture ne le porte, et le champ « suppléments » est additif. Dans ce cas, calculer les acomptes sur l'impôt reconstitué hors du logiciel · l'art. 98 bis punit « le défaut ou l'insuffisance de paiement de l'acompte provisionnel » d'une amende de 50 % de l'acompte non versé.",
       );
     }
     if (regime === 'IRPP_PETITE_ENTREPRISE') {
@@ -1345,6 +1345,7 @@ export class FiscaliteService {
       ...this.observationsCalendrierPaiement(regime, impot.impotDu, {
         acomptesDus,
         sansExerciceAnterieur: anterieurs.length === 0,
+        simulationAvantLaLoi: exercice.dateDebut.getTime() < ENTREE_EN_VIGUEUR_LOI_23_053.getTime(),
       }),
     );
 

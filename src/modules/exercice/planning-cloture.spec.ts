@@ -777,3 +777,16 @@ describe('Passe F6 · l’art. 141, 2° est nommé dans les deux déclarations a
     expect(asbl.source).toContain('art. 141, 2°');
   });
 });
+
+describe('Passe F13 · le PV d’assemblée de l’art. 13 bis LPF', () => {
+  it('n’est pas servi à une association, exemptée de l’IS', () => {
+    const cles = (referentiel: Referentiel) =>
+      obligationsEvenementiellesApplicables({
+        referentiel,
+        formeJuridique: FormeJuridiqueEbnl.ASSOCIATION,
+        droitEtranger: false,
+      }).map((o) => o.cle);
+    expect(cles(Referentiel.SYSCOHADA)).toContain('proceValAssembleeGenerale');
+    expect(cles(Referentiel.SYCEBNL)).not.toContain('proceValAssembleeGenerale');
+  });
+});

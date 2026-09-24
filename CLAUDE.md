@@ -4418,6 +4418,22 @@ empreinte, et la réécrire ferait diverger la base · elle est de l'HISTOIRE, p
 une source. Le module le dit en clair, pour que personne ne « finisse » la
 correction. Même traitement que la migration des cadratins.
 
+**PASSE F13 · la loi de finances n° 25/060 et l'IPM (2026-09-24).** Deux FAUX
+corrigés. Le procès-verbal d'assemblée de l'art. 13 bis LPF était servi à tout
+dossier, alors que le texte ne vise que « les sociétés et les autres personnes
+morales soumises à l'impôt sur les sociétés » · ni l'ASBL exemptée, ni la
+personne physique sans assemblée. Et l'amende de l'art. 74 al. 2 TVA (facture
+servie deux fois) était donnée pour le triple, quand l'alinéa renvoie à celle de
+l'alinéa 1er, égale aux droits indûment déduits. **RÈGLE · UNE LOI DE FINANCES
+SE CONFRONTE DANS LA COMPILATION DU TEXTE QU'ELLE MODIFIE, jamais dans sa seule
+fiche**, qui résume en tableau · le destinataire de l'art. 13 bis, les
+pénalités de l'art. 96 bis et la date de création de l'art. 22 ter n'étaient
+que dans la compilation. Et pour la troisième fois après l'art. 96 bis, un
+article touché par une loi de finances était daté d'elle alors qu'elle ne
+faisait que le modifier. L'IPM (O.-L. n° 71-087) ne rend aucun constat · perçu
+par les chefferies et les communes, il ne confie aucune retenue à l'employeur.
+Journal : `docs/releve-de-manques-fiscal.md`.
+
 **Modèles de saisie · un achat ne se règle pas par la trésorerie dans la même
 écriture.** Signalé par Manasse le 2026-09-18, et c'est une faute de fond, pas
 de présentation. Les quatre modèles de chaque référentiel tenaient en DEUX

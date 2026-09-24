@@ -956,7 +956,12 @@ export const OBLIGATIONS_EVENEMENTIELLES: ObligationEvenementielle[] = [
     libelle: 'Transmission du procès-verbal de l’assemblée générale',
     delai: 'Dans les dix jours de la tenue de l’assemblée',
     destinataire: 'Direction générale des impôts',
-    source: 'Loi de procédures fiscales, art. 13 bis, créé par la loi de finances n° 25/060',
+    source:
+      'Loi de procédures fiscales, art. 13 bis, inséré par la loi de finances n° 25/060 · vise « les sociétés et ' +
+      'les autres personnes morales soumises à l’impôt sur les sociétés »',
+    // Une association est exemptée de l'IS (loi n° 23/053, art. 5) · le
+    // procès-verbal n'est pas à déposer à la DGI par elle.
+    referentiels: [Referentiel.SYSCOHADA],
   },
   {
     cle: 'renouvellementFacilites',
