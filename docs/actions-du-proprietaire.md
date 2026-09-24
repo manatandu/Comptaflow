@@ -75,6 +75,8 @@ type de licence fait-il partie de l'offre ?
 
 ### Les sauvegardes ne vivent que 90 jours
 
+**FAIT le 2026-09-24.** Bucket créé, droit d'écriture accordé à `github-deploy`, variable posée. Le run n° 28, lancé à la main le même jour, a copié la sauvegarde chiffrée vers Cloud Storage. Reste facultatif : une règle de cycle de vie sur le bucket pour en borner le coût.
+
 **Constat, vérifié.** Sur l'exécution nocturne du 2026-09-03, les deux étapes
 *S'authentifier sur Google Cloud* et *Copier vers Cloud Storage* sont
 **SKIPPED** : la variable de dépôt `BUCKET_SAUVEGARDES` n'est pas posée. Tout

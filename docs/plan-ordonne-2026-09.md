@@ -30,7 +30,7 @@ colonne « Qui » dit qui tient la première étape.
 |---|---|---|---|---|
 | 1 | ~~Verser aux compétences l'ordonnance n° 23-042 (jours fériés)~~ **FAIT** · vérifié le 2026-09-24, texte intégral au skill `droit-travail-congolais` (`references/ordonnance-23-042-jours-feries.md`, versé le 2026-09-20) | Manasse | · | · |
 | 2 | Compléter le fichier de l'arrêté n° 013/2015, coupé à l'art. 7 · **ALLÉGÉ** le 2026-09-24 : la RÈGLE de l'art. 7 est au corpus, résumée dans `fiscalite-rdc/procedures-fiscales/references/16-mesures-execution-reclamations-recours.md` (« n'est susceptible d'aucune voie de recours »). Ne manque que le texte VERBATIM de la fin, utile pour une citation, plus bloquant pour coder | Manasse | minutes | La fin de l'article 7 et la suite, recopiées du texte officiel |
-| 3 | Poser la variable `BUCKET_SAUVEGARDES` | Manasse | minutes | Trois gestes dans le compte Google |
+| 3 | ~~Poser la variable `BUCKET_SAUVEGARDES`~~ **FAIT le 2026-09-24** · bucket `omega-x-ec07a-sauvegardes` (europe-west1, accès uniforme), `github-deploy` en Créateur d'objets Storage, variable posée. Prouvé par le run n° 28 : les étapes « S'authentifier » et « Copier vers Cloud Storage » sont VERTES, et non plus ignorées | Manasse | · | · |
 | 4 | Mécénat au 4571 ou au 475 | Manasse, puis code | < 1 h | Un arbitrage de doctrine, puis une ligne du catalogue |
 | 5 | Limitation de débit par conteneur | Manasse, puis code | < 1 h ou 1 jour | Assumer le plafond × instances (une phrase) ou poser Redis (une journée) |
 | 6 | Sous-compte 388 « stocks provenant d'immobilisations mises hors service » | Code | ½ jour | Lecture des deux fiches du compte 38 et de la sortie d'immobilisation |
@@ -643,7 +643,7 @@ Aucun développement ne les débloque.
   refuse désormais d'attribuer ce type, à la création comme au changement
   (`refuserAttributionSurSite`). Reste la décision de fond : livrer ou non une
   installation sur site qui émette le heartbeat.
-- **Variable `BUCKET_SAUVEGARDES`** · sans elle, la sauvegarde n'a que 90
+- ~~**Variable `BUCKET_SAUVEGARDES`**~~ **FAIT le 2026-09-24**, run n° 28 vert jusqu'à la copie Cloud Storage · sans elle, la sauvegarde n'avait que 90
   jours de rétention et le job reste vert. Trois gestes dans le compte Google.
 - **Limitation de débit** · `ThrottlerModule.forRoot` sans `storage` : le
   compteur est par conteneur, donc deux instances Cloud Run doublent le
