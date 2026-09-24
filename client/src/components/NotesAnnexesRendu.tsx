@@ -275,9 +275,12 @@ export function BlocTableauNote({
         </div>
       )}
 
-      {(note.commentaire || note.renvoiOfficiel) && (
+      {(note.commentaire || note.renvoiOfficiel || note.precisionEditeur) && (
         <div className="px-4 py-2 text-[11px] text-text-dim border-t border-border italic">
           {note.renvoiOfficiel && <div className="mb-1">{note.renvoiOfficiel}</div>}
+          {note.precisionEditeur && (
+            <div className="mb-1 not-italic">Précision d’OmegaX (pas du texte officiel) : {note.precisionEditeur}</div>
+          )}
           {note.commentaire && <div>Commentaire officiel : {note.commentaire}</div>}
         </div>
       )}

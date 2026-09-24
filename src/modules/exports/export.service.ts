@@ -2416,6 +2416,7 @@ export class ExportService {
 
       if (note.renvoyeeDepuis?.length) commentaires.push(`Renvoyée depuis les postes : ${note.renvoyeeDepuis.join(', ')}.`);
       if (note.renvoiOfficiel) commentaires.push(note.renvoiOfficiel);
+      if (note.precisionEditeur) commentaires.push(`Précision d'OmegaX (pas du texte officiel) : ${note.precisionEditeur}`);
       if (note.commentaire) commentaires.push(`Commentaire officiel : ${note.commentaire}`);
       if (note.lignes.length === 0) {
         commentaires.push(

@@ -199,6 +199,12 @@ export interface SpecificationNote {
    */
   renvoiOfficiel?: string;
   /**
+   * Précision d'OMEGAX, jamais du texte · là où le modèle officiel oblige à
+   * ranger un compte sous une ligne qui ne le nomme pas, la note le DIT. Tenue
+   * à part du renvoi officiel : la mêler à une citation la falsifierait.
+   */
+  precisionEditeur?: string;
+  /**
    * Article 15 : « les Notes annexes sont organisées par une référence croisée
    * avec l'information liée ». Codes REF des postes d'état qui renvoient ici.
    */
@@ -311,6 +317,7 @@ export interface NoteCalculee {
   lignes: LigneNoteCalculee[];
   commentaire?: string;
   renvoiOfficiel?: string;
+  precisionEditeur?: string;
   renvoyeeDepuis?: string[];
   horsBalance: boolean;
   exerciceN1Disponible: boolean;

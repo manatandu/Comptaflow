@@ -1560,3 +1560,17 @@ describe('note 33 · la fiche de synthèse résume les trois états, elle ne les
     expect((etats.bilan as unknown as jest.Mock)).not.toHaveBeenCalled();
   });
 });
+
+describe('Note 8 · le 377 sur la ligne « Autres stocks HAO », et la note le dit', () => {
+  it('sert la précision d’OmegaX, distincte du renvoi officiel, et garde le 377 dans la note', async () => {
+    // Le modèle officiel n'a aucune ligne pour les stocks en consignation ou
+    // en dépôt. Le 377 reste dans la note pour qu'elle boucle avec BB, et la
+    // note dit qu'il n'est pas un stock H.A.O. (décision du 2026-09-24).
+    const s = service({ e1: [] }, [], prismaAvec(), undefined, etatsVides());
+    const n = note(await s.notesAssociations('t', 'e1'), '8');
+    expect(n.precisionEditeur).toContain('377');
+    expect(n.precisionEditeur).toContain("n'est pas un stock hors activités ordinaires");
+    // Le renvoi officiel reste la citation du texte, sans la précision.
+    expect(String(n.renvoiOfficiel)).not.toContain('377');
+  });
+});

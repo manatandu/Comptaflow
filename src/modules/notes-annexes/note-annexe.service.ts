@@ -671,6 +671,7 @@ export class NoteAnnexeService {
       lignes,
       commentaire: spec.commentaire,
       renvoiOfficiel: spec.renvoiOfficiel,
+      precisionEditeur: spec.precisionEditeur,
       renvoyeeDepuis: spec.renvoyeeDepuis,
       horsBalance: spec.horsBalance ?? false,
       exerciceN1Disponible,

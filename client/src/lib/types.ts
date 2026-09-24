@@ -987,6 +987,8 @@ export interface NoteCalculee {
   lignes: LigneNoteCalculee[];
   commentaire?: string;
   renvoiOfficiel?: string;
+  /** Précision d'OmegaX, jamais du texte officiel. */
+  precisionEditeur?: string;
   renvoyeeDepuis?: string[];
   horsBalance: boolean;
   exerciceN1Disponible: boolean;

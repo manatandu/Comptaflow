@@ -570,6 +570,14 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { libelle: 'Dons en nature', comptes: ['34'] },
       { libelle: 'Produits finis', comptes: ['35', '36', '376'] },
       { libelle: 'Dons en nature HAO', comptes: ['38'] },
+      // LE 37 N'A PAS DE LIGNE AU MODÈLE, alors que sa fiche veut « le détail
+      // par catégorie des stocks figurant au bilan dans le compte 37 ». Il
+      // est réparti par NATURE là où le numéro la dit (371 à 376). Le 378,
+      // récupéré d'immobilisations mises hors service, va aux stocks H.A.O.
+      // Le 377, stocks EN CONSIGNATION OU EN DÉPÔT, n'a pas de nature dans son
+      // numéro et n'est PAS un stock H.A.O. · il reste sur cette ligne pour
+      // que la note boucle avec BB, et `precisionEditeur` le dit (décision de
+      // Manasse, 2026-09-24).
       { libelle: 'Autres stocks HAO', comptes: ['377', '378'] },
       { libelle: 'TOTAL STOCKS ET ENCOURS', totalDeRubriques: [0, 1, 2, 3, 4, 5, 6] },
       { libelle: 'Dépréciations des stocks', comptes: ['39'], presenterEnNegatif: true },
@@ -578,6 +586,11 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     renvoiOfficiel:
       "(1) Les stocks H.A.O. ne doivent être inscrits dans l'actif circulant H.A.O. que lorsque leur montant " +
       "total est significatif (supérieur à 5 % du total de l'actif circulant).",
+    precisionEditeur:
+      "La ligne « Autres stocks HAO » comprend le compte 377 « Stocks en consignation ou en dépôt », qui n'est " +
+      "pas un stock hors activités ordinaires : le modèle officiel ne prévoit aucune ligne pour les stocks en " +
+      "consignation, et le numéro du compte ne dit pas leur nature. Le texte demande « le détail par catégorie " +
+      "des stocks figurant au bilan dans le compte 37 » (Partie 2 ch. 3, compte 37) · à donner dans le commentaire.",
     commentaire:
       "indiquer la date de prise d'inventaire et décrire la procédure et les méthodes comptables d'évaluation ; " +
       'commenter toute variation significative des stocks ; indiquer le détail des stocks dépréciés ainsi que ' +
