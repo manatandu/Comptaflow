@@ -288,7 +288,18 @@ export const STOCKS_HORS_VARIATION_AUTOMATIQUE: StockHorsVariation[] = [
       "à cette date, ils sont inscrits dans les comptes appropriés de la classe 3 par le crédit du compte " +
       "603 ». Le compte de classe 3 qui les reçoit dépend de leur nature, qu'OmegaX ne connaît pas · " +
       "l'écriture se passe à la main, et le contrôle STOCK_IMMOBILISATIONS_388_NON_SOLDE la réclame. " +
-      "Propre au SYSCOHADA : le 38 du SYCEBNL porte les dons en nature H.A.O.",
+      "Le SYCEBNL porte le même objet sous le 378, sans cette règle de solde.",
+  },
+  {
+    racine: '378',
+    referentiels: [Referentiel.SYCEBNL],
+    intitule: "Stock provenant d'immobilisations mises hors service ou au rebut",
+    motif:
+      "Ce n'est pas un stock en cours de route, bien qu'il soit rangé sous le 37 · le SYCEBNL le décrit " +
+      "comme « les éléments récupérés ou démontés d'immobilisations corporelles. Ce compte est débité par le " +
+      "crédit du compte d'immobilisation concerné » (Partie 2 ch. 3, compte 37). Le texte n'écrit aucune " +
+      "règle de solde en fin d'exercice, là où l'AUDCIF solde son 388 par le 603 · OmegaX ne transpose pas " +
+      "cette règle. L'écriture de variation, s'il y en a une, se passe à la main.",
   },
   {
     racine: '37',

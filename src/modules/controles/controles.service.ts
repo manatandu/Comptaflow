@@ -238,13 +238,23 @@ const STOCK_EN_COURS_DE_ROUTE: Record<Referentiel, string> = {
 };
 
 /**
- * LE 388 DU SYSCOHADA · sous le 38 sans être un stock en route. « Stock
- * provenant d'immobilisations mises hors service ou au rebut » (AUDCIF
- * Titre VII, compte 38), soldé par le 603 en fin d'exercice (Titre VIII,
- * dépréciation des stocks, § 2.8). Le SYCEBNL n'a pas d'équivalent · son 38
- * porte les dons en nature H.A.O.
+ * LE STOCK PROVENANT D'IMMOBILISATIONS MISES HORS SERVICE · sous le compte des
+ * stocks en route sans en être un, et sous un numéro différent de chaque côté.
+ * SYSCOHADA 388 (AUDCIF Titre VII, compte 38) · SYCEBNL 378 (Partie 2 ch. 3,
+ * compte 37). Même objet, même intitulé, deux numéros · le 388 du SYCEBNL
+ * n'existe pas, son 38 portant les dons en nature H.A.O.
+ *
+ * ET UNE SEULE RÈGLE DE SOLDE. L'AUDCIF (Titre VIII, dépréciation des stocks,
+ * § 2.8) veut le 388 « soldé par le débit du compte 603 » en fin d'exercice.
+ * Le SYCEBNL n'écrit rien de tel pour son 378 · il dit seulement que le compte
+ * « est débité par le crédit du compte d'immobilisation concerné ». Le
+ * contrôle de solde ne vise donc que le SYSCOHADA ; l'exclusion du contrôle
+ * des stocks en route vaut pour les deux.
  */
-const STOCK_PROVENANT_D_IMMOBILISATIONS = '388';
+const STOCK_PROVENANT_D_IMMOBILISATIONS_PAR_REFERENTIEL: Record<Referentiel, string> = {
+  [Referentiel.SYSCOHADA]: '388',
+  [Referentiel.SYCEBNL]: '378',
+};
 
 /**
  * LES COMPTES QUE LE 72 DÉBITE · fonctionnement identique dans les deux plans.
@@ -2607,14 +2617,14 @@ export class ControlesService {
     // du montant · exactement ce que le séminaire décrit, mais pris par le
     // bout qui laisse une trace.
     const racineEnCoursDeRoute = STOCK_EN_COURS_DE_ROUTE[referentielDossier];
-    // Le 388 du SYSCOHADA est sous le 38 sans être un stock en route · il a
-    // son contrôle propre, juste après. Le compter ici annoncerait « l'achat
+    // Le 388 du SYSCOHADA et le 378 du SYCEBNL sont sous le compte des stocks
+    // en route sans en être · le premier a son contrôle propre, juste après. Le compter ici annoncerait « l'achat
     // reste seul en charge » sur des matières récupérées, qu'aucun achat n'a
     // fait entrer.
     const enCoursDeRoute = cumul(
       (n) =>
         n.startsWith(racineEnCoursDeRoute) &&
-        !(referentielDossier === Referentiel.SYSCOHADA && n.startsWith(STOCK_PROVENANT_D_IMMOBILISATIONS)),
+        !n.startsWith(STOCK_PROVENANT_D_IMMOBILISATIONS_PAR_REFERENTIEL[referentielDossier]),
     );
     const variationsStocks = cumul((n) => n.startsWith('603'));
     if (
@@ -2657,7 +2667,9 @@ export class ControlesService {
     // figure au bilan sous un compte qui doit être vide, et la variation de
     // l'exercice n'a pas neutralisé l'entrée.
     if (referentielDossier === Referentiel.SYSCOHADA) {
-      const recupere = cumul((n) => n.startsWith(STOCK_PROVENANT_D_IMMOBILISATIONS));
+      const recupere = cumul((n) =>
+        n.startsWith(STOCK_PROVENANT_D_IMMOBILISATIONS_PAR_REFERENTIEL[Referentiel.SYSCOHADA]),
+      );
       const solde388 = Math.round((recupere.debit - recupere.credit) * 100) / 100;
       if (Math.abs(solde388) > 0.005) {
         anomalies.push({

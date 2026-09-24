@@ -233,4 +233,11 @@ describe('388 · hors de la variation automatique, avec SON mécanisme', () => {
     // Le 381 reste, lui, un stock en cours de route.
     expect(motifHorsVariation('38100000', Referentiel.SYSCOHADA)?.racine).toBe('38');
   });
+
+  it('le 378 du SYCEBNL est le même objet, avec son motif propre et sans la règle de l’AUDCIF', () => {
+    const m = motifHorsVariation('37800000', Referentiel.SYCEBNL);
+    expect(m?.racine).toBe('378');
+    expect(m?.motif).toContain('OmegaX ne transpose pas');
+    expect(motifHorsVariation('37100000', Referentiel.SYCEBNL)?.racine).toBe('37');
+  });
 });

@@ -314,12 +314,20 @@ describe('388 · stock provenant d’immobilisations mises hors service', () => 
     expect(a).toBeUndefined();
   });
 
-  it('n’existe pas en SYCEBNL, dont le 38 porte les dons en nature H.A.O.', async () => {
-    const a = await trouver(
-      'STOCK_IMMOBILISATIONS_388_NON_SOLDE',
-      [ligne('38800000', 'Compte ouvert par le cabinet sous les dons H.A.O.', 2_000_000)],
-      Referentiel.SYCEBNL,
-    );
-    expect(a).toBeUndefined();
+  it('le même objet est au 378 en SYCEBNL · jamais lu comme un stock en route, et sans règle de solde', async () => {
+    const lignes = [ligne('37800000', 'Stock provenant d’immobilisations mises hors services ou au rebut', 2_000_000)];
+    // Le SYCEBNL n'écrit pas « soldé par le 603 » · le contrôle de solde ne
+    // s'y applique pas.
+    expect(await trouver('STOCK_IMMOBILISATIONS_388_NON_SOLDE', lignes, Referentiel.SYCEBNL)).toBeUndefined();
+    // Mais il n'est pas pour autant un stock en route.
+    expect(await trouver('STOCK_EN_COURS_DE_ROUTE_SANS_VARIATION', lignes, Referentiel.SYCEBNL)).toBeUndefined();
+    // Et le 371, lui, en reste un.
+    expect(
+      await trouver(
+        'STOCK_EN_COURS_DE_ROUTE_SANS_VARIATION',
+        [ligne('37100000', 'Biens liés à l’activité en cours de route', 2_000_000)],
+        Referentiel.SYCEBNL,
+      ),
+    ).toBeDefined();
   });
 });
