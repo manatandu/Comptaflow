@@ -9,12 +9,16 @@ import { CreerExerciceDto } from './dto/creer-exercice.dto';
 import { ClorePartielleDto, CloreTotaleDto, ClorePeriodeDto } from './dto/cloture.dto';
 import { ArreterComptesDto } from './dto/arrete-comptes.dto';
 import { RoleUtilisateur } from '@prisma/client';
+import { AccesRolesCantonnes } from '../../common/decorators/acces-roles-cantonnes.decorator';
 
 @UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
 @Controller('exercices')
 export class ExerciceController {
   constructor(private readonly exerciceService: ExerciceService) {}
 
+  // Le sélecteur d'exercice se charge à l'ouverture de toute fenêtre · la
+  // liste ne porte aucun chiffre comptable.
+  @AccesRolesCantonnes({ gestionnairePaie: true })
   @Get()
   async lister(@CurrentUser() user: AuthenticatedUser) {
     return this.exerciceService.lister(user.tenantId);

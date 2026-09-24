@@ -35,7 +35,8 @@ function montant(n: number): string {
 }
 
 export function BrouillardPage() {
-  const { utilisateur, peutEcrire } = useAuth();
+  // Valider est retiré à l'aide-comptable · il supprime encore ses brouillons.
+  const { utilisateur, peutEcrire, peutValider } = useAuth();
   const { exerciceCourant } = useExercice();
   const [etat, setEtat] = useState<EtatBrouillard | null>(null);
   const [journaux, setJournaux] = useState<Journal[]>([]);
@@ -192,7 +193,7 @@ export function BrouillardPage() {
               ))}
             </select>
           </label>
-          {peutEcrire && (
+          {peutValider && (
             <>
               <label className="flex flex-col gap-1">
                 <span className="text-[11px] font-bold text-text-dim">Valider jusqu'au</span>
@@ -259,7 +260,7 @@ export function BrouillardPage() {
           className={`${grille} px-3 py-1.5 bg-chrome-alt border-b border-border text-[11px] font-bold text-text-dim`}
         >
           <span>
-            {peutEcrire && (
+            {peutValider && (
               <input
                 type="checkbox"
                 checked={selection.size > 0 && selection.size === selectionnables.length}
@@ -288,7 +289,7 @@ export function BrouillardPage() {
               }`}
             >
               <span>
-                {peutEcrire && l.equilibree && (
+                {peutValider && l.equilibree && (
                   <input type="checkbox" checked={selection.has(l.id)} onChange={() => basculer(l.id)} />
                 )}
               </span>

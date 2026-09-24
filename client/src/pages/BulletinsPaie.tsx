@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { BaremeMensuelIrpp, type DetailMensuelIrpp } from './BaremeMensuelIrpp';
 import { PaieDuMois } from './PaieDuMois';
+import { useAuth } from '../lib/auth';
 
 /**
  * P8 · LES BULLETINS ÉMIS, onglet de la fenêtre Personnel.
@@ -83,6 +84,7 @@ const jour = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('fr
 const moisCourant = () => new Date().toISOString().slice(0, 7);
 
 export function OngletBulletins({ moisInitial, peutEcrire }: { moisInitial: string; peutEcrire: boolean }) {
+  const { peutValider } = useAuth();
   const [mois, setMois] = useState(/^\d{4}-\d{2}$/.test(moisInitial) ? moisInitial : moisCourant());
   const [liste, setListe] = useState<ListeBulletins | null>(null);
   const [ouvert, setOuvert] = useState<Bulletin | null>(null);
@@ -213,7 +215,9 @@ export function OngletBulletins({ moisInitial, peutEcrire }: { moisInitial: stri
         </div>
       )}
 
-      <PaieDuMois mois={mois} peutEcrire={peutEcrire} apresChangement={charger} />
+      {/* Passer la paie au journal écrit au livre-journal · le comptable
+          seulement, pas le gestionnaire de paie (roles-cantonnes.ts). */}
+      <PaieDuMois mois={mois} peutEcrire={peutValider} apresChangement={charger} />
 
       {ouvert && (
         <div className="border border-border bg-surface px-5 py-4">

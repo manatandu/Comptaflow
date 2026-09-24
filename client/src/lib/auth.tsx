@@ -3,6 +3,7 @@ import { api, ApiError, setCsrf } from './api';
 import { memoriserDossier } from './dossiersRecents';
 import type { Exercice, JeuEtatsFinanciersSycebnl, SystemeComptableSyscohada, Referentiel, RoleUtilisateur } from './types';
 import { oublierPrechargement, prechargerExercices } from './prechargement';
+import { peutEcrirePourRole, peutValiderPourRole } from './roles-cantonnes';
 
 interface MeResponse {
   id: string;
@@ -51,6 +52,11 @@ interface AuthContextValue {
    * fenêtres.
    */
   peutEcrire: boolean;
+  /**
+   * Valider, corriger, affecter le résultat, passer la paie au journal · le
+   * comptable et l'administrateur seulement (roles-cantonnes.ts).
+   */
+  peutValider: boolean;
   /** Après /auth/login ou /auth/register · la session est déjà posée en
    *  cookie httpOnly par le serveur, on ne reçoit ici que le jeton CSRF. */
   seConnecter: (csrfToken: string) => Promise<void>;
@@ -156,7 +162,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         connecte: !!utilisateur,
         utilisateur,
         estAdmin: utilisateur?.role === 'ADMIN_CABINET',
-        peutEcrire: utilisateur?.role === 'ADMIN_CABINET' || utilisateur?.role === 'COMPTABLE',
+        peutEcrire: peutEcrirePourRole(utilisateur?.role),
+        peutValider: peutValiderPourRole(utilisateur?.role),
         seConnecter,
         rafraichir,
         seDeconnecter,

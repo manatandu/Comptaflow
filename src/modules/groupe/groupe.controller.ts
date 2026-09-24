@@ -10,6 +10,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { GroupeService } from './groupe.service';
 import { CreerCelluleDto, ImporterCanevasDto } from './dto/groupe.dto';
+import { ReserveAuComptable } from '../../common/decorators/acces-roles-cantonnes.decorator';
 
 const EXERCICE_REQUIS = new ParseUUIDPipe({
   exceptionFactory: () =>
@@ -119,6 +120,8 @@ export class GroupeController {
    * combinaison technique, régénéré à chaque appel) · réservé aux rôles qui
    * écrivent, comme le dépôt de canevas.
    */
+  // Écrit une écriture VALIDÉE dans le dossier de combinaison.
+  @ReserveAuComptable()
   @Get('liasse/excel')
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   async liasseGroupe(

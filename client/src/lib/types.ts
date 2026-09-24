@@ -66,7 +66,7 @@ export type FormeJuridiqueSyscohada =
   | 'SUCCURSALE'
   | 'ENTITE_PUBLIQUE'
   | 'AUTRE';
-export type RoleUtilisateur = 'ADMIN_CABINET' | 'COMPTABLE' | 'LECTURE_SEULE';
+export type RoleUtilisateur = 'ADMIN_CABINET' | 'COMPTABLE' | 'LECTURE_SEULE' | 'AIDE_COMPTABLE' | 'GESTIONNAIRE_PAIE';
 
 export interface Utilisateur {
   id: string;

@@ -48,7 +48,7 @@ import { CourrierService, ORIGINE_MOT_DE_PASSE_TEMPORAIRE } from '../courrier/co
  */
 
 /**
- * Les trois rôles, nommés comme la fenêtre les nomme
+ * Les cinq rôles, nommés comme la fenêtre les nomme
  * (client/src/pages/UtilisateursPage.tsx) · un titulaire qui lit
  * « ADMIN_CABINET » dans son courriel et « Administrateur » à l'écran se
  * demande légitimement s'il s'agit du même droit.
@@ -57,6 +57,8 @@ export const LIBELLE_ROLE: Record<RoleUtilisateur, string> = {
   [RoleUtilisateur.ADMIN_CABINET]: 'Administrateur',
   [RoleUtilisateur.COMPTABLE]: 'Comptable',
   [RoleUtilisateur.LECTURE_SEULE]: 'Lecture seule',
+  [RoleUtilisateur.AIDE_COMPTABLE]: 'Aide-comptable',
+  [RoleUtilisateur.GESTIONNAIRE_PAIE]: 'Gestionnaire de paie',
 };
 
 /** Ce qu'il est advenu de l'avis · rendu à l'administrateur qui a agi. */

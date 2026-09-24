@@ -18,6 +18,7 @@ import {
   SimulationPaieDto,
   TerminerContratDto,
 } from './dto/personnel.dto';
+import { AccesRolesCantonnes, ReserveAuComptable } from '../../common/decorators/acces-roles-cantonnes.decorator';
 
 /**
  * LE REGISTRE DU PERSONNEL · commun aux deux référentiels, parce que le Code
@@ -31,6 +32,9 @@ import {
  * `tenantId` ne vient JAMAIS du client · il vient du jeton, et le service le
  * repose dans le `where` de chaque lecture et de chaque écriture.
  */
+// LE MODULE DU GESTIONNAIRE DE PAIE, ET FERMÉ À L'AIDE-COMPTABLE · données
+// nominatives (rémunérations, enfants, CNSS) · voir roles-cantonnes.ts.
+@AccesRolesCantonnes({ aideComptable: false, gestionnairePaie: true })
 @UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
 @Controller('personnel')
 export class PersonnelController {
@@ -195,7 +199,10 @@ export class PersonnelController {
     return this.paieDuMois.proposition(user.tenantId, mois);
   }
 
+  // PASSER LA PAIE AU JOURNAL ÉCRIT AU LIVRE-JOURNAL · réservé au comptable,
+  // le gestionnaire de paie émet les bulletins sans les comptabiliser.
   @Post('paie-du-mois/:mois/comptabilisation')
+  @ReserveAuComptable()
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   async comptabiliserPaieDuMois(
     @CurrentUser() user: AuthenticatedUser,
@@ -206,6 +213,7 @@ export class PersonnelController {
   }
 
   @Delete('paie-du-mois/comptabilisation/:ecritureId')
+  @ReserveAuComptable()
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   async annulerComptabilisationPaie(@CurrentUser() user: AuthenticatedUser, @Param('ecritureId') ecritureId: string) {
     return this.paieDuMois.annulerComptabilisation(user.tenantId, ecritureId);

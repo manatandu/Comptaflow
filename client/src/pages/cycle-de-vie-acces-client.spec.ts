@@ -34,8 +34,11 @@ describe('cycle de vie des accès · côté client', () => {
     // de travail, mais un appel direct à l'API travaillait normalement.
     // CLAUDE.md §4 · « masquer sans refuser laisse la route ouverte ».
     expect(lire('App.tsx')).toContain('doitChangerMotDePasse');
-    const module = lireServeur('app.module.ts');
-    expect(module).toContain('MotDePasseAChangerGuard');
-    expect(module).toContain('APP_GUARD');
+    // CE TEST GELAIT UNE GARDE GLOBALE, ET ELLE NE REFUSAIT RIEN · Nest passe
+    // les gardes globales avant celle qui pose l'utilisateur. Le refus vit
+    // depuis le 2026-09-24 dans JwtAuthGuard, que toute route authentifiée
+    // traverse (common/guards/roles-cantonnes.spec.ts le prouve sur un
+    // serveur Nest réel).
+    expect(lireServeur('modules/auth/jwt-auth.guard.ts')).toContain('new MotDePasseAChangerGuard(this.reflector).canActivate(contexte)');
   });
 });

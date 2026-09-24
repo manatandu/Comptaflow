@@ -79,7 +79,7 @@ function dateCourte(iso: string | null): string {
 }
 
 export function GroupePage() {
-  const { estAdmin, peutEcrire, utilisateur } = useAuth();
+  const { estAdmin, peutEcrire, peutValider, utilisateur } = useAuth();
   // SIÈGE ET SUCCURSALES D'UNE SOCIÉTÉ · la liaison passe par les 184 à 187
   // (fiche du COMPTE 18), et le canevas de trésorerie, bâti sur les comptes
   // du plan SYCEBNL, n'existe pas (le serveur le refuse aussi).
@@ -267,7 +267,7 @@ export function GroupePage() {
           </button>
           {/* Un GET qui écrit dans le dossier de combinaison · le serveur le
               refuse à la lecture seule comme une saisie. */}
-          {peutEcrire && (
+          {peutValider && (
             <button
               type="button"
               disabled={!exerciceActif || liasseEnCours}

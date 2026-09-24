@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { peutEcrirePourRole } from '../lib/roles-cantonnes';
 
 /**
  * LA LECTURE SEULE NE VOIT PAS DE BOUTON QUI ÉCRIT.
@@ -67,15 +68,19 @@ describe('la lecture seule ne voit pas de bouton qui écrit', () => {
   });
 
   it('le droit vit en UN endroit, le contexte de session', () => {
+    // Depuis les rôles cantonnés (2026-09-24), le contexte de session appelle
+    // la règle au lieu de l'écrire · elle vit dans lib/roles-cantonnes.ts, et
+    // la LECTURE SEULE y reste le seul rôle qui n'écrit rien.
     const auth = readFileSync(join(RACINE, 'lib/auth.tsx'), 'utf8');
-    expect(auth).toContain(
-      "peutEcrire: utilisateur?.role === 'ADMIN_CABINET' || utilisateur?.role === 'COMPTABLE'",
-    );
+    expect(auth).toContain('peutEcrire: peutEcrirePourRole(utilisateur?.role)');
+    expect(auth).toContain('peutValider: peutValiderPourRole(utilisateur?.role)');
+    expect(peutEcrirePourRole('LECTURE_SEULE')).toBe(false);
   });
 
   it.each(ecrans.map((e) => [e.nom, e.source] as const))('%s lit le droit avant de proposer une écriture', (nom, source) => {
     if (nom in EXEMPTS) return;
-    const droit = nom in ADMIN_SEULEMENT ? /\bestAdmin\b/ : /\bpeutEcrire\b/;
+    // `peutValider` est plus strict que `peutEcrire` · il vaut lecture du droit.
+    const droit = nom in ADMIN_SEULEMENT ? /\bestAdmin\b/ : /\b(peutEcrire|peutValider)\b/;
     expect([nom, droit.test(source)]).toEqual([nom, true]);
   });
 

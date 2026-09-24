@@ -14,6 +14,7 @@ import { Fenetre } from './Fenetre';
 import { AccueilPage } from '../../pages/AccueilPage';
 import { LimiteErreur } from './LimiteErreur';
 import { AProposModale } from './AProposModale';
+import { fenetreOuverteAuRole } from '../../lib/roles-cantonnes';
 
 /**
  * L'espace de travail, calqué sur la fenêtre principale de Sage 100 i7 :
@@ -72,6 +73,12 @@ export function AppShell() {
    * dans un courriel rouvre la bonne fenêtre.
    */
   useEffect(() => {
+    // LE GESTIONNAIRE DE PAIE N'A PAS D'ACCUEIL · le fond est un tableau de la
+    // comptabilité, qui lui est fermée. Il entre directement au personnel.
+    if (location.pathname === '/' && utilisateur?.role === 'GESTIONNAIRE_PAIE') {
+      navigate('/personnel', { replace: true });
+      return;
+    }
     if (location.pathname === '/') return; // l'accueil est le fond, pas une fenêtre
     const def = definitionPour(location.pathname);
     if (!def) return;
@@ -84,12 +91,17 @@ export function AppShell() {
     //
     // Le serveur refuse déjà ces routes (ReferentielGuard) · c'est la même
     // défense en profondeur, prise du côté qui décide de ce qui s'affiche.
-    if (!fenetreDisponible(def, utilisateur?.tenant.referentiel)) {
+    // RÔLES CANTONNÉS · même principe, même défense en profondeur · le
+    // serveur refuse déjà (JwtAuthGuard, roles-cantonnes.ts).
+    if (
+      !fenetreDisponible(def, utilisateur?.tenant.referentiel) ||
+      !fenetreOuverteAuRole(location.pathname, utilisateur?.role)
+    ) {
       navigate('/', { replace: true });
       return;
     }
     ouvrir(location.pathname + location.search, { titre: def.titre, titreCourt: def.titreCourt });
-  }, [location.pathname, location.search, ouvrir, navigate, utilisateur?.tenant.referentiel]);
+  }, [location.pathname, location.search, ouvrir, navigate, utilisateur?.tenant.referentiel, utilisateur?.role]);
 
   /**
    * … ET RÉCIPROQUEMENT : donner le premier plan à une fenêtre remet l'URL
@@ -111,7 +123,7 @@ export function AppShell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cleActive]);
 
-  const menus: MenuDef[] = [
+  const menusComplets: MenuDef[] = [
     {
       titre: 'Fichier',
       items: [
@@ -221,7 +233,10 @@ export function AppShell() {
         // civil et les engagements, comme le plan des tiers tient les tiers.
         // Le moteur de bulletin, lui, écrira au livre-journal quand il
         // existera, et sa fenêtre ira alors où vont les écritures.
-        { label: 'Registre du personnel', onClick: () => navigate('/personnel') },
+        // Fermé à l'aide-comptable · données nominatives (roles-cantonnes.ts).
+        ...(utilisateur?.role === 'AIDE_COMPTABLE'
+          ? []
+          : [{ label: 'Registre du personnel', onClick: () => navigate('/personnel') }]),
         { label: 'Paramètres du dossier', separateurAvant: true, onClick: () => navigate('/parametres-dossier') },
         // LE MANDAT EST UN FAIT JURIDIQUE DU DOSSIER, PAS UN TRAVAIL DE
         // RÉVISION. Il a d'abord été posé sous « État > Contrôle et révision »,
@@ -544,6 +559,21 @@ export function AppShell() {
     },
   ];
 
+  // LE GESTIONNAIRE DE PAIE N'A QU'UNE FENÊTRE · lui montrer les menus de la
+  // comptabilité serait lui proposer quarante portes fermées.
+  const menus: MenuDef[] =
+    utilisateur?.role === 'GESTIONNAIRE_PAIE'
+      ? [
+          {
+            titre: 'Fichier',
+            items: [
+              { label: 'Registre du personnel', onClick: () => navigate('/personnel') },
+              { label: 'Fermer le dossier (déconnexion)', separateurAvant: true, onClick: seDeconnecter },
+            ],
+          },
+        ]
+      : menusComplets;
+
   return (
     // `overflow-x-hidden` : garde-fou de dernier rang. Aucun élément du
     // chrome ne doit dépasser en largeur, mais si l'un le fait un jour, il
@@ -615,9 +645,11 @@ export function AppShell() {
       */}
       <main className="relative z-0 flex-1 min-h-0 overflow-hidden">
         <div className="absolute inset-0 overflow-auto">
-          <LimiteErreur titreFenetre="Accueil">
-            <AccueilPage />
-          </LimiteErreur>
+          {utilisateur?.role !== 'GESTIONNAIRE_PAIE' && (
+            <LimiteErreur titreFenetre="Accueil">
+              <AccueilPage />
+            </LimiteErreur>
+          )}
         </div>
         {fenetres.map((f) => (
           <Fenetre key={f.cle} fenetre={f} active={f.cle === cleActive} />

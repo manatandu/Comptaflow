@@ -10,6 +10,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { SortieMotDePasseProvisoire } from '../../common/decorators/sortie-mot-de-passe.decorator';
 import { COOKIE_SESSION, OPTIONS_COOKIE_SESSION } from './session.constants';
+import { AccesRolesCantonnes } from '../../common/decorators/acces-roles-cantonnes.decorator';
 
 @Controller('auth')
 export class AuthController {
@@ -74,6 +75,8 @@ export class AuthController {
   }
 
   @SortieMotDePasseProvisoire()
+  // Le strict nécessaire pour ENTRER · ouvert au gestionnaire de paie.
+  @AccesRolesCantonnes({ gestionnairePaie: true })
   @UseGuards(JwtAuthGuard)
   @Get('me')
   async me(@CurrentUser() user: AuthenticatedUser) {
@@ -84,6 +87,8 @@ export class AuthController {
   // est une surface de force brute au même titre que la connexion.
   @Throttle({ default: { ttl: 60_000, limit: 20 } })
   @SortieMotDePasseProvisoire()
+  // Le strict nécessaire pour ENTRER · ouvert au gestionnaire de paie.
+  @AccesRolesCantonnes({ gestionnairePaie: true })
   @UseGuards(JwtAuthGuard)
   @Post('changer-mot-de-passe')
   async changerMotDePasse(
@@ -108,6 +113,8 @@ export class AuthController {
    * l'instant de révocation suffit (voir schema.prisma, User).
    */
   @SortieMotDePasseProvisoire()
+  // Le strict nécessaire pour ENTRER · ouvert au gestionnaire de paie.
+  @AccesRolesCantonnes({ gestionnairePaie: true })
   @UseGuards(JwtAuthGuard)
   @Post('deconnecter-partout')
   async deconnecterPartout(@CurrentUser() user: AuthenticatedUser, @Res({ passthrough: true }) res: Response) {

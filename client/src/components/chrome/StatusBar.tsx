@@ -6,6 +6,8 @@ const LIBELLE_ROLE: Record<string, string> = {
   ADMIN_CABINET: 'Administrateur',
   COMPTABLE: 'Comptable',
   LECTURE_SEULE: 'Lecture seule',
+  AIDE_COMPTABLE: 'Aide-comptable',
+  GESTIONNAIRE_PAIE: 'Gestionnaire de paie',
 };
 
 export function StatusBar() {

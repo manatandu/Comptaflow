@@ -4656,9 +4656,31 @@ avant de l'écrire ; un spec (`compte-seed-syscohada.spec.ts`) le contrôle.
   retrait.
 - Mot de passe transmis par un tiers (console, siège, admin du dossier) :
   `doitChangerMotDePasse` force le changement à la première connexion, et
-  `MotDePasseAChangerGuard` (global) FERME le serveur jusque-là · trois routes
-  de sortie seulement, marquées `@SortieMotDePasseProvisoire()`, liste figée
-  par un test. Le client seul ne suffisait pas.
+  `MotDePasseAChangerGuard` FERME le serveur jusque-là · trois routes de
+  sortie seulement, marquées `@SortieMotDePasseProvisoire()`, liste figée par
+  un test. Le client seul ne suffisait pas. **LA GARDE EST APPELÉE PAR
+  `JwtAuthGuard`, JAMAIS EN GARDE GLOBALE.** Nest exécute les gardes globales
+  AVANT celles du contrôleur, donc avant que `JwtAuthGuard` ne pose
+  `request.user` · posée en `APP_GUARD` de la phase 1a au 2026-09-24, elle
+  lisait un utilisateur absent et ne refusait RIEN en production, sous des
+  tests verts qui l'appelaient à la main avec un utilisateur déjà posé. Vu en
+  montant un serveur Nest réel. **Tout contrôle qui a besoin de l'utilisateur
+  vit dans `JwtAuthGuard`** (ou une garde de contrôleur après lui), et
+  `roles-cantonnes.spec.ts` fige à la fois le fait (une garde globale laisse
+  passer) et la règle (aucune `APP_GUARD` hors `ThrottlerGuard`).
+- **Cinq rôles** (`common/guards/roles-cantonnes.ts`, décision du
+  2026-09-24). Les trois d'origine, plus deux CANTONNÉS, et leurs défauts sont
+  INVERSES. L'AIDE-COMPTABLE hérite du comptable et de la lecture seule
+  partout où une route ne le refuse pas (`@ReserveAuComptable()` · valider,
+  corriger, affecter, liasse du groupe, passer la paie au journal) et le
+  personnel lui est fermé. Le GESTIONNAIRE DE PAIE n'a RIEN tant qu'une route
+  ne l'ouvre pas (`@AccesRolesCantonnes({ gestionnairePaie: true })` · le
+  personnel, se voir, changer son mot de passe, lister les exercices) · un
+  défaut ouvert lui aurait donné tout le grand livre, la plupart des lectures
+  ne portant aucun `@Roles`. Aucun `@Roles` existant ne nomme ces rôles : ils
+  se lisent comme le COMPTABLE ou la LECTURE SEULE qu'ils remplacent, là où la
+  route le leur permet. Côté écran, `peutValider` (admin, comptable) est
+  distinct de `peutEcrire` (qui inclut les deux rôles cantonnés).
 - **Révocation de session** · `User.sessionsInvalidesAvant`. Tout jeton émis
   avant cet instant est refusé par `JwtStrategy`. Posé au changement de mot de
   passe, à la réinitialisation, à la désactivation et au changement de rôle ·

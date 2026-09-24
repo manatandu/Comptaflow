@@ -7,6 +7,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AffectationService } from './affectation.service';
 import { EnregistrerAffectationDto } from './dto/affectation.dto';
+import { ReserveAuComptable } from '../../common/decorators/acces-roles-cantonnes.decorator';
 
 /**
  * AFFECTATION DU RÉSULTAT · commune aux deux référentiels, et c'est voulu.
@@ -35,6 +36,8 @@ export class AffectationController {
     return this.affectation.preparer(user.tenantId, exerciceId);
   }
 
+  // L'affectation du résultat est un acte de clôture · réservé au comptable.
+  @ReserveAuComptable()
   @Post()
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   async enregistrer(
@@ -44,6 +47,7 @@ export class AffectationController {
     return this.affectation.enregistrer(user.tenantId, user.userId, dto);
   }
 
+  @ReserveAuComptable()
   @Delete(':id')
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   async supprimer(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {

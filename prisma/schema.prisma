@@ -641,6 +641,12 @@ enum RoleUtilisateur {
   ADMIN_CABINET
   COMPTABLE
   LECTURE_SEULE
+  /// Saisit au brouillard, ne valide pas, ne passe pas la paie (2026-09-24,
+  /// voir common/guards/roles-cantonnes.ts).
+  AIDE_COMPTABLE
+  /// N'accède qu'au personnel et à la paie · tout le reste lui est fermé par
+  /// défaut (même source).
+  GESTIONNAIRE_PAIE
 }
 
 model User {

@@ -10,6 +10,7 @@ import { CreerEcritureDto, ImputationOuvertureDto } from './dto/creer-ecriture.d
 import { CorrigerEcritureDto } from './dto/corriger-ecriture.dto';
 import { ModifierEcritureDto, ValiderEcrituresDto, ValiderJusquaDto } from './dto/brouillard.dto';
 import { RoleUtilisateur } from '@prisma/client';
+import { ReserveAuComptable } from '../../common/decorators/acces-roles-cantonnes.decorator';
 
 @UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
 @Controller('ecritures')
@@ -52,6 +53,8 @@ export class EcritureController {
    * en négatif « des éléments erronés » · ceux-là, pas d'autres.
    */
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  // La correction contre-passe une écriture VALIDÉE · même geste que valider.
+  @ReserveAuComptable()
   @Post(':id/correction')
   async corriger(
     @CurrentUser() user: AuthenticatedUser,
@@ -111,6 +114,9 @@ export class EcritureController {
    * dans la liste d'exclusion de l'art. 3 du SYCEBNL). Le décorateur sert à
    * RESTREINDRE, jamais à ouvrir.
    */
+  // VALIDER fait entrer la pièce au livre-journal, irréversiblement (AUDCIF
+  // art. 22, 2°) · c'est le geste retiré à l'aide-comptable.
+  @ReserveAuComptable()
   @Post('valider')
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   async valider(@CurrentUser() user: AuthenticatedUser, @Body() dto: ValiderEcrituresDto) {
@@ -118,6 +124,7 @@ export class EcritureController {
   }
 
   /** Valide tout le brouillard jusqu'à une date, éventuellement sur un journal. */
+  @ReserveAuComptable()
   @Post('valider-jusqua')
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   async validerJusqua(@CurrentUser() user: AuthenticatedUser, @Body() dto: ValiderJusquaDto) {

@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { AuditContexteInterceptor } from './common/audit/audit-contexte.interceptor';
-import { MotDePasseAChangerGuard } from './common/guards/mot-de-passe-a-changer.guard';
 import { JournalAuditModule } from './common/audit/journal-audit.module';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -132,10 +131,10 @@ import { CourrierModule } from './modules/courrier/courrier.module';
   controllers: [SanteController],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
-    // GLOBAL · un mot de passe provisoire ferme le logiciel jusqu'à son
-    // remplacement. Posé contrôleur par contrôleur, ce refus serait oublié au
-    // prochain module, et l'oubli ne se verrait pas.
-    { provide: APP_GUARD, useClass: MotDePasseAChangerGuard },
+    // LE MOT DE PASSE PROVISOIRE N'EST PLUS UNE GARDE GLOBALE · Nest exécute
+    // les gardes globales avant celles du contrôleur, et celle-ci ne voyait
+    // donc jamais l'utilisateur · elle ne refusait rien. Le contrôle vit dans
+    // JwtAuthGuard, que toute route authentifiée traverse (2026-09-24).
     // GLOBAL, à dessein · le journal d'audit ne saurait pas qui agit si un
     // seul contrôleur oubliait de poser le contexte.
     { provide: APP_INTERCEPTOR, useClass: AuditContexteInterceptor },

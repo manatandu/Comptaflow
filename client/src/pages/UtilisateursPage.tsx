@@ -8,6 +8,8 @@ const LIBELLE_ROLE: Record<RoleUtilisateur, string> = {
   ADMIN_CABINET: 'Administrateur',
   COMPTABLE: 'Comptable',
   LECTURE_SEULE: 'Lecture seule',
+  AIDE_COMPTABLE: 'Aide-comptable',
+  GESTIONNAIRE_PAIE: 'Gestionnaire de paie',
 };
 
 export function UtilisateursPage() {
@@ -175,6 +177,8 @@ export function UtilisateursPage() {
               <option value="ADMIN_CABINET">Administrateur</option>
               <option value="COMPTABLE">Comptable</option>
               <option value="LECTURE_SEULE">Lecture seule</option>
+              <option value="AIDE_COMPTABLE">Aide-comptable</option>
+              <option value="GESTIONNAIRE_PAIE">Gestionnaire de paie</option>
             </select>
             <span className={`font-mono text-[11px] font-bold px-1.5 py-0.5 w-fit ${u.estActif ? 'text-positive bg-positive-soft' : 'text-text-dim bg-surface-alt'}`}>
               {u.estActif ? 'ACTIF' : 'INACTIF'}
@@ -222,7 +226,9 @@ export function UtilisateursPage() {
       </div>
       <p className="text-[12px] text-text-dim mt-2 max-w-[720px]">
         {LIBELLE_ROLE.ADMIN_CABINET} : accès complet, y compris cette fenêtre. {LIBELLE_ROLE.COMPTABLE} : saisie et
-        consultation. {LIBELLE_ROLE.LECTURE_SEULE} : consultation uniquement.
+        consultation. {LIBELLE_ROLE.LECTURE_SEULE} : consultation uniquement. {LIBELLE_ROLE.AIDE_COMPTABLE} : saisie au
+        brouillard, sans validation ni paie. {LIBELLE_ROLE.GESTIONNAIRE_PAIE} : personnel et paie seulement, sans la
+        comptabilité.
       </p>
 
       {reinitCible && (
@@ -294,6 +300,8 @@ export function UtilisateursPage() {
                   <option value="ADMIN_CABINET">Administrateur</option>
                   <option value="COMPTABLE">Comptable</option>
                   <option value="LECTURE_SEULE">Lecture seule</option>
+              <option value="AIDE_COMPTABLE">Aide-comptable</option>
+              <option value="GESTIONNAIRE_PAIE">Gestionnaire de paie</option>
                 </select>
               </div>
               {erreurForm && <div className="text-[12.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mt-3">{erreurForm}</div>}
