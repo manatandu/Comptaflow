@@ -275,7 +275,7 @@ export interface TableauFluxTresorerieSyscohada {
  * AD et AI pour reconstituer les acquisitions (anomalie n° 3 de la table du
  * TFT), et elle serait fausse si on la déduisait de `comptes`.
  */
-interface PosteBilanCalcule {
+export interface PosteBilanCalcule {
   ref: string;
   libelle: string;
   montant: number;
@@ -285,13 +285,13 @@ interface PosteBilanCalcule {
   comptesBrut: CompteDuPoste[];
 }
 
-interface ResolutionBilan {
+export interface ResolutionBilan {
   parRef: Map<string, PosteBilanCalcule>;
   resultatClasses678: number;
   resultatCompte13: number;
 }
 
-interface ResolutionCompteResultat {
+export interface ResolutionCompteResultat {
   /** Montants signés de TOUS les refs · postes de base ET lignes X*. */
   montantsParRef: Record<string, number>;
   comptesParRef: Map<string, CompteDuPoste[]>;
@@ -565,6 +565,20 @@ export class EtatsFinanciersSyscohadaService {
     }
 
     return { parRef, resultatClasses678, resultatCompte13 };
+  }
+
+  /**
+   * Les postes INDIVIDUELS lus sur des lignes fournies par l'appelant · la
+   * consolidation (D4C ch. XII-8) les lit sur la balance CONSOLIDÉE pour ne
+   * pas réécrire la correspondance postes/comptes du ch. 7. Deux tables pour
+   * une même règle divergeraient au premier correctif.
+   */
+  resoudreBilanSurLignes(lignes: LigneBalancePourEtat[]): { resolution: ResolutionBilan; nonRattaches: CompteDuPoste[] } {
+    return { resolution: this.resoudreTousLesPostesBilan(lignes), nonRattaches: this.comptesNonRattachesDuBilan(lignes) };
+  }
+
+  resoudreCompteResultatSurLignes(lignes: LigneBalancePourEtat[]): ResolutionCompteResultat {
+    return this.resoudreTousLesPostesCR(lignes);
   }
 
   private calculerTotalActif(total: TotalBilan, parRef: Map<string, PosteBilanCalcule>): PosteBilanCalcule {

@@ -2309,6 +2309,33 @@ stocks et immobilisations (art. 86, 4° · qui du groupe ou des minoritaires du
 vendeur supporte l'élimination n'est écrit nulle part), les écarts
 d'évaluation (tranche 4), et le dossier OmegaX relié par la console.
 
+**Consolidation SYSCOHADA, tranche 3a · bilan, compte de résultat et note du
+périmètre (2026-09-24).** D4C ch. XII-8 § 2, § 3 et § 6. Moteur pur
+(`consolidation/etats-consolides.ts`, `note-perimetre.ts`). QUATRE RÈGLES À NE
+PAS DÉFAIRE. (1) LA CORRESPONDANCE POSTES/COMPTES N'EST PAS RÉÉCRITE · le D4C
+ne donne aucune table de comptes, il regroupe des postes. La balance
+consolidée passe par la résolution INDIVIDUELLE du ch. 7
+(`resoudreBilanSurLignes`, `resoudreCompteResultatSurLignes`), puis les postes
+sont regroupés au modèle consolidé · une seconde table aurait divergé de la
+première au premier correctif. (2) LE COMPTE 10 DE LA CONSOLIDANTE SE LIT COMME
+DANS SES COMPTES · capital 101 à 104 et 109, primes 105 avec les réserves
+consolidées, réévaluation 106 en « Autres capitaux propres » (lecture déclarée).
+Une filiale, elle, partage TOUS ses capitaux propres, primes comprises. (3) CE
+QUI N'EST PAS CALCULÉ VAUT `null`, JAMAIS ZÉRO · impôts différés et écarts de
+conversion (tranche 4), « dont » des corporelles, résultat par action. Ce qui
+est À RETRAITER (ch. XII-3 § 2 · écarts de conversion individuels, provisions
+réglementées, comptes sans poste, résultat reçu au 13) est montré ET compté
+pour que le bilan boucle, et l'état se dit NON PUBLIABLE avec ses motifs ·
+jusqu'à la tranche 4, il ne l'est jamais. (4) LE COMPARATIF EST UNE SECONDE
+CONSOLIDATION, apparié PAR CLÉ · un exercice précédent sans périmètre, ou que
+le moteur refuse, laisse la colonne VIDE avec son motif, jamais la mère seule.
+La note du périmètre apparie N et N-1 par la DÉNOMINATION (le périmètre est
+recréé chaque exercice), code « NC » pour une entité exclue, et nomme entrées
+et sorties. Deux lignes du modèle individuel que le modèle consolidé ne porte
+pas (quote-part de résultat partagé, participation des travailleurs) sont
+montrées à part plutôt que fondues. Totaux des quatre corrigés du cours CPCC
+(Bamba Makola) retrouvés · 3 255 000, 3 105 000, 4 820 000, 860 000.
+
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de
 l'inventaire physique » (immobilisations, stocks, caisses) et § VII

@@ -9,6 +9,7 @@ import { ReferentielsAutorises } from '../../common/decorators/referentiels.deco
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PerimetreService } from './perimetre.service';
 import { CumulService } from './cumul.service';
+import { EtatsConsolidesService } from './etats-consolides.service';
 import {
   AcquisitionDto,
   ImporterBalanceEntiteDto,
@@ -32,6 +33,7 @@ export class ConsolidationController {
   constructor(
     private readonly perimetre: PerimetreService,
     private readonly cumuls: CumulService,
+    private readonly etatsConsolides: EtatsConsolidesService,
   ) {}
 
   @Get('perimetre')
@@ -80,6 +82,12 @@ export class ConsolidationController {
   @Get('cumul')
   cumul(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
     return this.cumuls.cumul(user.tenantId, exerciceId);
+  }
+
+  // ─── Tranche 3a · bilan, compte de résultat et note du périmètre ─────────
+  @Get('etats')
+  etats(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
+    return this.etatsConsolides.etats(user.tenantId, exerciceId);
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)

@@ -42,6 +42,12 @@ export class EntitePerimetreDto {
   @ValidateIf((_, v) => v !== null)
   @IsDateString()
   dateCloture?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsString()
+  @MaxLength(200)
+  secteurActivite?: string | null;
 }
 
 export class ModifierEntitePerimetreDto {
@@ -67,6 +73,12 @@ export class ModifierEntitePerimetreDto {
   @ValidateIf((_, v) => v !== null)
   @IsDateString()
   dateCloture?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsString()
+  @MaxLength(200)
+  secteurActivite?: string | null;
 }
 
 export class LienParticipationDto {

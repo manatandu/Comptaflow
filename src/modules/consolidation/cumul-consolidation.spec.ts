@@ -243,3 +243,101 @@ describe('balances déjà clôturées', () => {
     expect(r.equilibre).toBe(0);
   });
 });
+
+/**
+ * ORACLES · les quatre applications chiffrées du cours de S. Bamba Makola
+ * (CPCC, « Consolidation des comptes en système comptable OHADA révisé »,
+ * version du 10 novembre 2025, ch. 3). UN COURS N'EST PAS UNE SOURCE · il
+ * confirme ici l'arithmétique du moteur, la règle vient du D4C. Deux écarts
+ * de mise en scène, dits et non corrigés dans le cours :
+ * - le cours n'y calcule jamais d'écart d'acquisition · les capitaux propres à
+ *   l'entrée sont donc déclarés égaux au coût divisé par le pourcentage, ce qui
+ *   rend un écart nul, comme le cours le suppose ;
+ * - le cas A date l'acquisition du 1er juillet 2021 « lors de la création »,
+ *   et BLEU CIEL porte pourtant 80 000 de réserves au 31 décembre · le cours
+ *   traite tout comme postérieur à l'acquisition, d'où une entrée à
+ *   l'ouverture ici (le moteur refuse l'entrée en cours d'exercice).
+ */
+describe('oracles · cours de consolidation CPCC (Bamba Makola, ch. 3)', () => {
+  const EX21 = { dateDebut: new Date('2021-01-01'), dateFin: new Date('2021-12-31') };
+  const entree = new Date('2021-01-01');
+  const ginger = (titres: [string, number][], ac: number, passif: number) =>
+    ent('GINGER', 'IG', 100, b([['24100000', 2700000], ...titres, ['52100000', ac], ['10100000', -2000000], ['11800000', -500000], ['70100000', -8000000], ['60100000', 7900000], ['40100000', -passif]]), true);
+  const bleuCiel = (methode: 'IG' | 'IP', pct: number) =>
+    ent('BLEU CIEL', methode, pct, b([['24100000', 200000], ['52100000', 110000], ['10100000', -100000], ['11800000', -80000], ['70100000', -900000], ['60100000', 870000], ['40100000', -100000]]));
+
+  it('A · intégration globale à 55 % · réserves consolidées 544 000, résultat groupe 116 500, minoritaires 94 500', () => {
+    const r = cumulerConsolidation(EX21, [ginger([['26100000', 55000]], 245000, 400000), bleuCiel('IG', 55)], [
+      acq('GINGER', 'BLEU CIEL', 55, 55000, 100000, { dateEntree: entree }),
+    ], []);
+    expect(r.capitauxPropres).toMatchObject({ capital: 2000000, reservesGroupe: 544000, resultatGroupe: 116500, resultatEnsemble: 130000 });
+    expect(r.capitauxPropres.interetsMinoritairesHorsResultat + r.capitauxPropres.resultatMinoritaires).toBe(94500);
+    expect(ligne(r, '24100000')).toBe(2900000);
+    expect(ligne(r, '52100000')).toBe(355000);
+    expect(r.equilibre).toBe(0);
+  });
+
+  it('B · intégration proportionnelle à 50 % · réserves 540 000, résultat 115 000, aucun minoritaire', () => {
+    const r = cumulerConsolidation(EX21, [ginger([['26200000', 50000]], 250000, 400000), bleuCiel('IP', 50)], [
+      acq('GINGER', 'BLEU CIEL', 50, 50000, 100000, { dateEntree: entree, compteTitres: '26200000' }),
+    ], []);
+    expect(r.capitauxPropres).toMatchObject({ reservesGroupe: 540000, resultatGroupe: 115000, interetsMinoritairesHorsResultat: 0, resultatMinoritaires: 0 });
+    expect(ligne(r, '24100000')).toBe(2800000);
+    expect(ligne(r, '70100000')).toBe(-8450000);
+    expect(ligne(r, '60100000')).toBe(8335000);
+    expect(r.equilibre).toBe(0);
+  });
+
+  it('C · mise en équivalence à 25 % · titres 110 000, réserves 1 020 000, résultat 290 000', () => {
+    const gm = ent('GINGER', 'IG', 100, b([['24100000', 1950000], ['26300000', 50000], ['26800000', 10000], ['52100000', 2750000], ['10100000', -1000000], ['11800000', -975000], ['13100000', -275000], ['19100000', -250000], ['40100000', -2260000]]), true);
+    const bc = ent('BLEU CIEL', 'ME', 25, b([['24100000', 400000], ['52100000', 460000], ['10100000', -200000], ['11800000', -180000], ['13100000', -60000], ['40100000', -420000]]));
+    const r = cumulerConsolidation(EX21, [gm, bc], [acq('GINGER', 'BLEU CIEL', 25, 50000, 200000, { dateEntree: entree, compteTitres: '26300000' })], []);
+    expect(ligne(r, 'TITRES_MIS_EN_EQUIVALENCE')).toBe(110000);
+    expect(ligne(r, '26800000')).toBe(10000); // GECAMINES, non consolidée, reste au coût
+    expect(r.capitauxPropres).toMatchObject({ reservesGroupe: 1020000, resultatGroupe: 290000 });
+    expect(r.equilibre).toBe(0);
+  });
+
+  it('D et E · chaîne AMOR → BOUMAT 80 % → KONGO CEMENT 60 % · réserves 118 000, résultat 94 800, minoritaires 97 200', () => {
+    const amor = ent('AMOR', 'IG', 100, b([['24100000', 400000], ['26100000', 150000], ['31100000', 100000], ['10100000', -450000], ['11800000', -100000], ['13100000', -50000], ['40100000', -50000]]), true);
+    const boumat = ent('BOUMAT', 'IG', 80, b([['24100000', 200000], ['26100000', 50000], ['31100000', 20000], ['10100000', -150000], ['11800000', -50000], ['13100000', -50000], ['40100000', -20000]]));
+    const kc = ent('KONGO CEMENT', 'IG', 48, b([['24100000', 100000], ['31100000', 40000], ['10100000', -80000], ['11800000', -20000], ['13100000', -10000], ['40100000', -30000]]));
+    const r = cumulerConsolidation(EX21, [amor, boumat, kc], [
+      acq('AMOR', 'BOUMAT', 80, 150000, 187500, { dateEntree: entree }),
+      acq('BOUMAT', 'KONGO CEMENT', 60, 50000, 83333.33, { dateEntree: entree }),
+    ], []);
+    expect(r.capitauxPropres).toMatchObject({ capital: 450000, reservesGroupe: 118000, resultatGroupe: 94800 });
+    expect(r.capitauxPropres.interetsMinoritairesHorsResultat + r.capitauxPropres.resultatMinoritaires).toBe(97200);
+    expect(ligne(r, '24100000')).toBe(700000);
+    expect(ligne(r, '31100000')).toBe(160000);
+    expect(r.equilibre).toBe(0);
+  });
+});
+
+describe('le compte 10 de la consolidante · capital, primes et réévaluation séparés (D4C ch. XII-8 § 2)', () => {
+  // Mère · capital 1 000 dont 100 non appelé (109), primes 300, réévaluation 200.
+  // Filiale · capital 800, primes 200 (tout part en réserves et minoritaires).
+  const M2 = ent('M', 'IG', 100, b([['26100000', 800], ['24100000', 700], ['10110000', -1000], ['10900000', 100], ['10500000', -300], ['10600000', -200], ['70100000', -100], ['60100000', 0]]), true);
+  const F2 = ent('F', 'IG', 80, b([['24500000', 1000], ['10100000', -800], ['10500000', -200]]));
+  const r = cumulerConsolidation(EX, [M2, F2], [acq('M', 'F', 80, 800, 1000)], []);
+
+  it('le capital n’est que 101 à 104 et 109 ; 105 et 106 ont leur poste', () => {
+    // Capital 1 000 − 100 = 900 ; primes 300 ; réévaluation 200.
+    expect(r.capitauxPropres).toMatchObject({ capital: 900, primes: 300, ecartsReevaluation: 200 });
+    expect(ligne(r, 'CAPITAL')).toBe(-900);
+    expect(ligne(r, 'PRIMES_CONSOLIDANTE')).toBe(-300);
+    expect(ligne(r, 'ECARTS_REEVALUATION_CONSOLIDANTE')).toBe(-200);
+  });
+
+  it('les primes d’une filiale se partagent comme le reste de ses capitaux propres', () => {
+    // Quote-part d'entrée 0,8 × 1 000 = 800 = coût · écart nul, réserves groupe 0, minoritaires 200.
+    expect(r.capitauxPropres).toMatchObject({ reservesGroupe: 0, interetsMinoritairesHorsResultat: 200 });
+    expect(r.equilibre).toBe(0);
+  });
+
+  it('les comptes 14 et 15 de la consolidante sont signalés comme ceux d’une filiale', () => {
+    const M3 = ent('M', 'IG', 100, b([['24100000', 500], ['10100000', -400], ['14100000', -100]]), true);
+    const s = cumulerConsolidation(EX, [M3], [], []);
+    expect(s.avertissements.join(' ')).toMatch(/« M » porte des soldes aux comptes 14 ou 15/);
+  });
+});

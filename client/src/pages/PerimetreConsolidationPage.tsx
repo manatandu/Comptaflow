@@ -3,13 +3,15 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { CumulConsolidation, EntiteCumul, LienCumul } from './CumulConsolidation';
+import { EtatsConsolidesVue } from './EtatsConsolidesVue';
 
 /**
  * PÉRIMÈTRE DE CONSOLIDATION · tranche 1 de la consolidation SYSCOHADA (AUDCIF
  * Titre II, art. 74 à 98, et D4C ch. XII). L'écran ne calcule rien : il saisit
  * ce que le cabinet sait (les entités, les participations, les faits hors des
  * livres) et affiche ce que le serveur en tire. Les montants se consolident
- * dans `CumulConsolidation`, sous le périmètre (tranche 2).
+ * dans `CumulConsolidation`, sous le périmètre (tranche 2), et les états
+ * consolidés se produisent dans `EtatsConsolidesVue`, sous le cumul (tranche 3a).
  *
  * DEUX POURCENTAGES PAR PARTICIPATION, JAMAIS UN · les droits de vote font le
  * CONTRÔLE, le capital fait l'INTÉRÊT (D4C, ch. XII-5 § 3). Un seul champ ferait
@@ -27,6 +29,7 @@ type Entite = {
   motifExclusion: string | null;
   justificationExclusion: string | null;
   dateCloture: string | null;
+  secteurActivite: string | null;
 };
 type Lien = { id: string; detentriceId: string | null; detenueId: string; pctDroitsVote: number; pctCapital: number };
 type Resultat = {
@@ -302,6 +305,18 @@ export function PerimetreConsolidationPage() {
                   </select>
                 </label>
                 <label className="text-[12px]">
+                  Secteur d’activité (note du périmètre)
+                  <input
+                    className={champ}
+                    disabled={!peutEcrire}
+                    defaultValue={e.secteurActivite ?? ''}
+                    onBlur={(ev) => {
+                      const v = ev.target.value.trim() || null;
+                      if (v !== (e.secteurActivite ?? null)) void agir(() => api.patch(`/consolidation/entites/${e.id}`, { secteurActivite: v }));
+                    }}
+                  />
+                </label>
+                <label className="text-[12px]">
                   Justification reprise en Notes annexes
                   <input className={champ} disabled={!peutEcrire} defaultValue={e.justificationExclusion ?? ''} id={`justif-${e.id}`} />
                 </label>
@@ -436,6 +451,9 @@ export function PerimetreConsolidationPage() {
         peutEcrire={peutEcrire}
         recharger={recharger}
       />
+
+      <h2 className="text-[13px] font-bold mt-4 mb-2">États consolidés</h2>
+      <EtatsConsolidesVue exerciceId={exerciceId} />
     </div>
   );
 }

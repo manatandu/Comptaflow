@@ -94,6 +94,8 @@ export type PosteConsolidation =
   | 'QUOTE_PART_RESULTAT_ME'
   | 'PROVISION_ME_NEGATIVE'
   | 'CAPITAL'
+  | 'PRIMES_CONSOLIDANTE'
+  | 'ECARTS_REEVALUATION_CONSOLIDANTE'
   | 'RESERVES_GROUPE'
   | 'INTERETS_MINORITAIRES'
   | 'RESULTAT_DEJA_CONSTATE';
@@ -109,6 +111,8 @@ export const LIBELLE_POSTE: Record<PosteConsolidation, string> = {
   QUOTE_PART_RESULTAT_ME: 'Quote-part dans les résultats des entités mises en équivalence',
   PROVISION_ME_NEGATIVE: 'Provision · quote-part négative d’une entité mise en équivalence',
   CAPITAL: 'Capital (entité consolidante)',
+  PRIMES_CONSOLIDANTE: 'Primes liées au capital (entité consolidante)',
+  ECARTS_REEVALUATION_CONSOLIDANTE: 'Écarts de réévaluation (entité consolidante)',
   RESERVES_GROUPE: 'Réserves consolidées',
   INTERETS_MINORITAIRES: 'Intérêts minoritaires (hors résultat)',
   RESULTAT_DEJA_CONSTATE: 'Résultat déjà porté au compte 13 dans les comptes individuels',
@@ -150,7 +154,12 @@ export interface EcartCalcule {
 export interface ResultatCumul {
   lignes: LigneConsolidee[];
   capitauxPropres: {
+    /** 101 à 104 et 109 de la consolidante · les postes CA et CB de ses comptes individuels. */
     capital: number;
+    /** 105 de la consolidante · présentées avec les réserves (« Primes et réserves consolidées », D4C ch. XII-8 § 2). */
+    primes: number;
+    /** 106 de la consolidante · lu en « Autres capitaux propres », LECTURE DÉCLARÉE, le D4C ne rattache aucun compte à ce poste. */
+    ecartsReevaluation: number;
     reservesGroupe: number;
     resultatGroupe: number;
     interetsMinoritairesHorsResultat: number;
@@ -224,7 +233,8 @@ export function cumulerConsolidation(
       }
       fraction.set(e.id, detentrices[0].pctCapital / 100);
     }
-    if (!e.estConsolidante && e.methode !== 'ME' && e.balance.some((l) => /^1[45]/.test(l.numero) && Math.abs(l.solde) > 0.005)) {
+    // La consolidante aussi · sa balance est lue au grand livre, qui n'est pas retraité.
+    if ((e.estConsolidante || e.methode !== 'ME') && e.balance.some((l) => /^1[45]/.test(l.numero) && Math.abs(l.solde) > 0.005)) {
       avertissements.push(
         `« ${e.nom} » porte des soldes aux comptes 14 ou 15 · les subventions d’investissement se reclassent en produits constatés ` +
           'd’avance et les provisions réglementées se contre-passent avant consolidation (D4C, ch. XII-3 § 2). La balance reçue doit être retraitée.',
@@ -395,6 +405,8 @@ export function cumulerConsolidation(
   // les montants sont déjà à la fraction : la part du groupe y est
   // intérêt ÷ fraction, le reste revient aux minoritaires de la détentrice.
   let capital = 0;
+  let primes = 0;
+  let ecartsReevaluation = 0;
   let reservesGroupe = 0;
   let resultatGroupe = 0;
   let imHorsResultat = 0;
@@ -402,22 +414,33 @@ export function cumulerConsolidation(
   const agregat = new Map<string, number>();
   for (const [id, m] of comptes) {
     const e = parId.get(id)!;
+    // Le 10 de la consolidante se lit comme dans ses comptes individuels ·
+    // capital 101 à 104 et 109 (postes CA et CB), primes 105 (CD), écarts de
+    // réévaluation 106 (CE). Une filiale, elle, partage TOUS ses capitaux
+    // propres, primes comprises · aucun n'est du capital du groupe.
     let cpCapital = 0;
+    let cpPrimes = 0;
+    let cpReevaluation = 0;
     let cpAutres = 0;
     let res = 0;
     for (const [cle, solde] of m) {
       if (estCpHorsResultat(cle)) {
-        if (cle.startsWith('10')) cpCapital -= solde;
+        if (cle.startsWith('105')) cpPrimes -= solde;
+        else if (cle.startsWith('106')) cpReevaluation -= solde;
+        else if (cle.startsWith('10')) cpCapital -= solde;
         else cpAutres -= solde;
       } else if (estResultat13(cle) || estGestion(cle)) res -= solde;
     }
     const g = e.estConsolidante ? 1 : e.pctInteret / 100 / fraction.get(id)!;
     if (e.estConsolidante) {
       capital += cpCapital;
+      primes += cpPrimes;
+      ecartsReevaluation += cpReevaluation;
       reservesGroupe += cpAutres;
     } else {
-      reservesGroupe += g * (cpCapital + cpAutres);
-      imHorsResultat += (1 - g) * (cpCapital + cpAutres);
+      const cp = cpCapital + cpPrimes + cpReevaluation + cpAutres;
+      reservesGroupe += g * cp;
+      imHorsResultat += (1 - g) * cp;
     }
     resultatGroupe += g * res;
     resultatMinoritaires += (1 - g) * res;
@@ -466,11 +489,15 @@ export function cumulerConsolidation(
   }
 
   capital = r2(capital);
+  primes = r2(primes);
+  ecartsReevaluation = r2(ecartsReevaluation);
   reservesGroupe = r2(reservesGroupe);
   imHorsResultat = r2(imHorsResultat);
   resultatGroupe = r2(resultatGroupe);
   resultatMinoritaires = r2(resultatMinoritaires);
   agregat.set('CAPITAL', -capital);
+  agregat.set('PRIMES_CONSOLIDANTE', -primes);
+  agregat.set('ECARTS_REEVALUATION_CONSOLIDANTE', -ecartsReevaluation);
   agregat.set('RESERVES_GROUPE', -reservesGroupe);
   agregat.set('INTERETS_MINORITAIRES', -imHorsResultat);
 
@@ -488,6 +515,8 @@ export function cumulerConsolidation(
     lignes,
     capitauxPropres: {
       capital,
+      primes,
+      ecartsReevaluation,
       reservesGroupe,
       resultatGroupe,
       interetsMinoritairesHorsResultat: imHorsResultat,

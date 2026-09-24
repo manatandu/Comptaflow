@@ -6213,6 +6213,10 @@ model EntitePerimetreConsolidation {
   /// Art. 97 · date de clôture de l'entité, comparée à celle du dossier.
   dateCloture DateTime?
 
+  /// D4C ch. XII-8 § 6 · colonne « Secteur d'activité » du tableau du
+  /// périmètre. Déclaré, libre · aucune nomenclature n'est imposée.
+  secteurActivite String?
+
   createdAt DateTime @default(now())
 
   liensDetenus   LienParticipationConsolidation[] @relation("ParticipationDetenue")

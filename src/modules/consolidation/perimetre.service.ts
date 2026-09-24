@@ -209,6 +209,7 @@ export class PerimetreService {
         motifExclusion: dto.motifExclusion ?? null,
         justificationExclusion: dto.justificationExclusion?.trim() || null,
         dateCloture: dto.dateCloture ? new Date(dto.dateCloture) : null,
+        secteurActivite: dto.secteurActivite?.trim() || null,
       },
     });
   }
@@ -231,6 +232,7 @@ export class PerimetreService {
         motifExclusion: motif ?? null,
         justificationExclusion: justif?.trim() || null,
         dateCloture: dto.dateCloture === undefined ? undefined : dto.dateCloture ? new Date(dto.dateCloture) : null,
+        secteurActivite: dto.secteurActivite === undefined ? undefined : dto.secteurActivite?.trim() || null,
       },
     });
   }
