@@ -13,8 +13,7 @@
  * - les RETRAITEMENTS d'homogénéisation et les éliminations de nature fiscale
  *   (ch. XII-3) · les balances reçues sont réputées retraitées, et un solde
  *   aux comptes 14 ou 15 d'une filiale est signalé ;
- * - les éliminations de nature fiscale et la conversion des entités
- *   étrangères (tranches 4b et 4c) ;
+ * - la conversion des entités étrangères (tranche 4c) ;
  * - l'élimination des RÉSULTATS INTERNES inclus dans les stocks et les
  *   immobilisations (art. 86, 4°) · le texte veut une élimination totale sans
  *   dire qui du groupe ou des minoritaires du vendeur la supporte ;
@@ -161,6 +160,35 @@ export interface ResultatInterne {
   libelle: string;
 }
 
+/**
+ * ÉCARTS DE CONVERSION DES COMPTES INDIVIDUELS · tranche 4b (D4C ch. XII-3
+ * § 2) · « annulation au bilan de l'écart de conversion-actif et de la
+ * provision pour perte de change ; au résultat, reclassement de la dotation en
+ * perte de change. Écart de conversion-passif : annulation au bilan et
+ * constatation d'un produit financier ». Les 478 et 479 de clôture sont dans
+ * la balance ; ce qu'aucune balance N ne porte se DÉCLARE · les 478 et 479 de
+ * la clôture N-1 (déjà constatés au résultat consolidé N-1, contre-passés dans
+ * les comptes individuels N), et la provision pour pertes de change, qui loge
+ * dans des comptes (4991, 4997) partagés avec d'autres risques.
+ */
+export interface ConversionIndividuelle {
+  entiteId: string;
+  actifN1: number;
+  passifN1: number;
+  provisions: { compteProvision: string; cloture: number; dotation: number; reprise: number }[];
+}
+
+/**
+ * Le compte de provision décide de la dotation et de la reprise · AUDCIF
+ * Titre VIII ch. 22 § 2.3 (dotations 6591, 6971, 6791 contre 4991, 194, 4997)
+ * et Titre VII classe 7 (reprises 7591, 7971, 7791, de même rang).
+ */
+export const FAMILLES_PROVISION_CHANGE: { provision: string; dotation: string; reprise: string; nature: string }[] = [
+  { provision: '194', dotation: '6971', reprise: '7971', nature: 'opérations financières, risque à long terme' },
+  { provision: '4991', dotation: '6591', reprise: '7591', nature: 'opérations d’exploitation, risque à court terme' },
+  { provision: '4997', dotation: '6791', reprise: '7791', nature: 'opérations financières, risque à court terme' },
+];
+
 /** Les postes que la consolidation crée · aucun numéro n'est inventé, le D4C n'impose aucun plan (ch. XII-5 § 2). */
 export type PosteConsolidation =
   | 'ECART_ACQUISITION'
@@ -182,7 +210,8 @@ export type PosteConsolidation =
   | 'ECARTS_EVALUATION_RESULTAT'
   | 'IMPOTS_DIFFERES_ACTIF'
   | 'IMPOTS_DIFFERES_PASSIF'
-  | 'IMPOTS_DIFFERES_RESULTAT';
+  | 'IMPOTS_DIFFERES_RESULTAT'
+  | 'ECARTS_CONVERSION_INDIVIDUELS_RESULTAT';
 
 export const LIBELLE_POSTE: Record<PosteConsolidation, string> = {
   ECART_ACQUISITION: 'Écart d’acquisition',
@@ -205,6 +234,7 @@ export const LIBELLE_POSTE: Record<PosteConsolidation, string> = {
   IMPOTS_DIFFERES_ACTIF: 'Actifs d’impôts différés',
   IMPOTS_DIFFERES_PASSIF: 'Passifs d’impôts différés',
   IMPOTS_DIFFERES_RESULTAT: 'Impôts différés (charge ou produit de l’exercice)',
+  ECARTS_CONVERSION_INDIVIDUELS_RESULTAT: 'Pertes et gains de change latents constatés (478 et 479 retraités)',
 };
 
 /** Les postes qui sont du résultat · le reste est du bilan. */
@@ -216,6 +246,7 @@ const POSTES_DE_RESULTAT = new Set<PosteConsolidation>([
   'ELIMINATION_RESULTATS_INTERNES',
   'ECARTS_EVALUATION_RESULTAT',
   'IMPOTS_DIFFERES_RESULTAT',
+  'ECARTS_CONVERSION_INDIVIDUELS_RESULTAT',
 ]);
 
 /** Clé interne · un ajustement de capitaux propres porté par la détentrice avant son partage. */
@@ -363,6 +394,7 @@ export function cumulerConsolidation(
   reciproques: OperationReciproque[],
   resultatsInternes: ResultatInterne[] = [],
   fiscalites: FiscaliteEntite[] = [],
+  conversions: ConversionIndividuelle[] = [],
 ): ResultatCumul {
   const avertissements: string[] = [];
   const parId = new Map(entites.map((e) => [e.id, e]));
@@ -396,10 +428,14 @@ export function cumulerConsolidation(
       fraction.set(e.id, detentrices[0].pctCapital / 100);
     }
     // La consolidante aussi · sa balance est lue au grand livre, qui n'est pas retraité.
-    if ((e.estConsolidante || e.methode !== 'ME') && e.balance.some((l) => /^1[45]/.test(l.numero) && Math.abs(l.solde) > 0.005)) {
+    // Les provisions réglementées (15) sont contre-passées plus bas (tranche
+    // 4b) · reste la subvention d'investissement, que le ch. XII-3 § 2 fait
+    // reclasser en produits constatés d'avance et que le ch. XII-8 § 2 présente
+    // sur sa propre ligne, hors capitaux propres · les deux ne s'articulent pas.
+    if ((e.estConsolidante || e.methode !== 'ME') && e.balance.some((l) => /^14/.test(l.numero) && Math.abs(l.solde) > 0.005)) {
       avertissements.push(
-        `« ${e.nom} » porte des soldes aux comptes 14 ou 15 · les subventions d’investissement se reclassent en produits constatés ` +
-          'd’avance et les provisions réglementées se contre-passent avant consolidation (D4C, ch. XII-3 § 2). La balance reçue doit être retraitée.',
+        `« ${e.nom} » porte des subventions d’investissement (14) · présentées sur leur ligne propre, hors capitaux propres (D4C ch. XII-8 § 2) ; ` +
+          'le ch. XII-3 § 2 les reclasse en produits constatés d’avance, sans incidence sur le résultat ni impôt différé.',
       );
     }
   }
@@ -724,6 +760,116 @@ export function cumulerConsolidation(
       ajouter(ri.vendeuseId, 'IMPOTS_DIFFERES_RESULTAT', -r2(t * (cloture - ouverture)));
       ajouter(ri.vendeuseId, AJUSTEMENT_RESERVES, -r2(t * ouverture));
     }
+  }
+
+  // ─── 2 bis bis. Éliminations de nature fiscale (art. 86, 3°) ──────────────
+  // PROVISIONS RÉGLEMENTÉES (15) · « contre-passer ; incidence de l'exercice →
+  // résultat, exercices antérieurs → réserves » (D4C ch. XII-3 § 2). Le compte
+  // 15 n'est « créé ou augmenté EXCLUSIVEMENT par Dotations HAO » (851) et
+  // « réduit ou annulé EXCLUSIVEMENT par Reprises HAO » (861) · Titre VII,
+  // compte 15 · l'incidence de l'exercice se LIT donc sur le 851 et le 861, et
+  // rien n'est déclaré. Ce sont des « réserves non libérées d'impôt, sur
+  // lesquelles pèse une charge latente ou différée d'impôt » · leur
+  // élimination porte un impôt différé PASSIF (art. 92, 2°).
+  for (const [id, m] of comptes) {
+    let c15 = 0;
+    let d851 = 0;
+    let s861 = 0;
+    const cles: string[] = [];
+    for (const [cle, solde] of m) {
+      if (cle.startsWith('15')) c15 += solde;
+      else if (cle.startsWith('851')) d851 += solde;
+      else if (cle.startsWith('861')) s861 += solde;
+      else continue;
+      cles.push(cle);
+    }
+    if (cles.every((c) => Math.abs(m.get(c) ?? 0) <= 0.005)) continue;
+    for (const c of cles) {
+      m.set(c, 0);
+      mouvements.delete(c);
+    }
+    ajouter(id, AJUSTEMENT_RESERVES, r2(c15 + d851 + s861));
+    const t = taux(id);
+    if (t == null) {
+      impotsDifferesIncomplets.push(
+        `« ${nomDe(id)} » · aucun taux d’impôt déclaré, l’impôt différé sur ses provisions réglementées contre-passées n’est pas calculé.`,
+      );
+    } else {
+      poserImpotDiffere(id, r2(t * c15));
+      ajouter(id, 'IMPOTS_DIFFERES_RESULTAT', r2(t * (d851 + s861)));
+      ajouter(id, AJUSTEMENT_RESERVES, -r2(t * (c15 + d851 + s861)));
+    }
+  }
+
+  // ÉCARTS DE CONVERSION DES COMPTES INDIVIDUELS (478, 479) · sur
+  // DÉCLARATION, faute de quoi ils restent au bilan comme « à retraiter » et
+  // l'état n'est pas publiable. Tout le 478 et tout le 479 sont annulés, le
+  // texte ne distinguant aucun sous-compte. Au résultat, la variation de la
+  // position latente nette (clôture N moins clôture N-1, cette dernière déjà
+  // au résultat consolidé N-1) ; la dotation et la reprise de la provision
+  // sortent de leurs comptes, la position latente les remplace. Aucun impôt
+  // différé n'est calculé · il dépend du traitement fiscal des écarts latents,
+  // qu'OmegaX ne tranche pas, et se déclare avec ceux de l'entité.
+  for (const cv of conversions) {
+    const m = comptes.get(cv.entiteId);
+    if (!m) continue;
+    const f = fraction.get(cv.entiteId)!;
+    let X = 0;
+    let Y = 0;
+    for (const [cle, solde] of m) {
+      if (cle.startsWith('478')) X += solde;
+      else if (cle.startsWith('479')) Y -= solde;
+      else continue;
+      m.set(cle, 0);
+      mouvements.delete(cle);
+    }
+    let P = 0;
+    let D = 0;
+    let R = 0;
+    // Les MOUVEMENTS suivent pour la dotation et la reprise, qui sont des
+    // comptes de gestion · la provision, compte de bilan, se lit au tableau
+    // des flux par sa variation de solde, qui est retirée N comme N-1.
+    const retirer = (prefixe: string, montant: number, sens: 1 | -1, quoi: string, suivreMouvements: boolean) => {
+      if (montant <= 0.005) return;
+      const cle = [...m.keys()].sort().find((k) => k.startsWith(prefixe) && sens * (m.get(k) ?? 0) + 0.005 >= montant);
+      if (!cle) {
+        throw new RefusConsolidation(
+          `« ${nomDe(cv.entiteId)} » · ${quoi} de ${montant} déclarée, et aucun compte ${prefixe} de sa balance ne la porte.`,
+        );
+      }
+      ajouter(cv.entiteId, cle, -sens * montant);
+      const mv = suivreMouvements ? mouvements.get(cle) : undefined;
+      if (mv) {
+        if (sens === 1) mv.debit = r2(Math.max(0, mv.debit - montant));
+        else mv.credit = r2(Math.max(0, mv.credit - montant));
+      }
+    };
+    for (const p of cv.provisions) {
+      const fam = FAMILLES_PROVISION_CHANGE.find((x) => p.compteProvision.startsWith(x.provision));
+      if (!fam) {
+        throw new RefusConsolidation(
+          `« ${nomDe(cv.entiteId)} » · la provision pour pertes de change se loge au 194, au 4991 ou au 4997 (Titre VIII ch. 22 § 2.3), pas au ${p.compteProvision}.`,
+        );
+      }
+      if (p.cloture < 0 || p.dotation < 0 || p.reprise < 0 || p.cloture - p.dotation + p.reprise < -0.005) {
+        throw new RefusConsolidation(
+          `« ${nomDe(cv.entiteId)} » · provision ${p.compteProvision} · clôture, dotation et reprise se déclarent positives, et la provision d’ouverture qu’elles donnent (clôture − dotation + reprise) ne peut être négative.`,
+        );
+      }
+      const c = r2(f * p.cloture);
+      const d = r2(f * p.dotation);
+      const rp = r2(f * p.reprise);
+      retirer(p.compteProvision, c, -1, 'provision pour pertes de change', false);
+      retirer(fam.dotation, d, 1, 'dotation', true);
+      retirer(fam.reprise, rp, -1, 'reprise', true);
+      P += c;
+      D += d;
+      R += rp;
+    }
+    const X1 = r2(f * cv.actifN1);
+    const Y1 = r2(f * cv.passifN1);
+    ajouter(cv.entiteId, 'ECARTS_CONVERSION_INDIVIDUELS_RESULTAT', r2(X - Y - (X1 - Y1)));
+    ajouter(cv.entiteId, AJUSTEMENT_RESERVES, r2(X1 - Y1 - (P - D + R)));
   }
 
   // ─── 2 ter. Impôts différés des comptes individuels ───────────────────────

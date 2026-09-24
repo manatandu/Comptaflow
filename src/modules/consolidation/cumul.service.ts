@@ -5,7 +5,9 @@ import { chargerLignes, LigneBalancePourEtat } from '../etats-financiers/etats-f
 import { lireFichier, lireMontant } from '../import/lecture-fichier';
 import {
   AcquisitionDeclaree,
+  ConversionIndividuelle,
   cumulerConsolidation,
+  FAMILLES_PROVISION_CHANGE,
   EcartEvaluation,
   EntiteACumuler,
   FiscaliteEntite,
@@ -15,7 +17,15 @@ import {
   ResultatInterne,
 } from './cumul-consolidation';
 import { PerimetreService } from './perimetre.service';
-import { AcquisitionDto, EcartEvaluationDto, FiscaliteEntiteDto, ImporterBalanceEntiteDto, OperationReciproqueDto, ResultatInterneDto } from './dto/perimetre.dto';
+import {
+  AcquisitionDto,
+  EcartEvaluationDto,
+  FiscaliteEntiteDto,
+  ImporterBalanceEntiteDto,
+  OperationReciproqueDto,
+  ProvisionChangeDto,
+  ResultatInterneDto,
+} from './dto/perimetre.dto';
 
 const n = (v: unknown) => (v == null ? null : Number(v));
 const diff = (d: number | null, c: number | null) => (d === null || c === null ? null : d - c);
@@ -281,6 +291,37 @@ export class CumulService {
   }
 
   /**
+   * La provision pour pertes de change d'une entité · refusée à la porte hors
+   * des trois comptes que le Titre VIII ch. 22 § 2.3 lui donne, et quand
+   * l'ouverture qu'elle implique (clôture − dotation + reprise) serait négative.
+   */
+  async ajouterProvisionChange(tenantId: string, dto: ProvisionChangeDto) {
+    const ex = await this.prisma.exercice.findFirst({ where: { id: dto.exerciceId, tenantId }, select: { id: true } });
+    if (!ex) throw new NotFoundException('Exercice introuvable dans ce dossier.');
+    if (dto.entiteId) {
+      const e = await this.prisma.entitePerimetreConsolidation.findFirst({ where: { id: dto.entiteId, tenantId, exerciceId: ex.id }, select: { id: true } });
+      if (!e) throw new NotFoundException('Entité introuvable dans ce périmètre.');
+    }
+    const compte = dto.compteProvision.trim();
+    if (!FAMILLES_PROVISION_CHANGE.some((f) => compte.startsWith(f.provision))) {
+      throw new BadRequestException('La provision pour pertes de change se loge au 194, au 4991 ou au 4997 (AUDCIF Titre VIII ch. 22 § 2.3).');
+    }
+    if (dto.cloture - dto.dotation + dto.reprise < -0.005) {
+      throw new BadRequestException('Clôture − dotation + reprise donne une provision d’ouverture négative · vérifiez les trois montants.');
+    }
+    return this.prisma.provisionChangeConsolidation.create({
+      data: { tenantId, exerciceId: ex.id, entiteId: dto.entiteId ?? null, compteProvision: compte, cloture: dto.cloture, dotation: dto.dotation, reprise: dto.reprise },
+    });
+  }
+
+  async supprimerProvisionChange(tenantId: string, id: string) {
+    const o = await this.prisma.provisionChangeConsolidation.findFirst({ where: { id, tenantId }, select: { id: true } });
+    if (!o) throw new NotFoundException('Provision introuvable dans ce dossier.');
+    await this.prisma.provisionChangeConsolidation.delete({ where: { id } });
+    return { supprime: true };
+  }
+
+  /**
    * La fiscalité d'une entité, ou de la consolidante (`entiteId` absent), qui
    * n'est pas une ligne d'entité · elle vit avec les faits de l'exercice. Deux
    * refus à la porte, les mêmes que le moteur · un taux sans source, et un
@@ -307,6 +348,8 @@ export class CumulService {
       idpOuverture: dto.idpOuverture ?? null,
       idpCloture: dto.idpCloture ?? null,
       justificationIda: dto.justificationIda?.trim() || null,
+      ecartConversionActifN1: dto.ecartConversionActifN1 ?? null,
+      ecartConversionPassifN1: dto.ecartConversionPassifN1 ?? null,
     };
     if (dto.entiteId) {
       const e = await this.prisma.entitePerimetreConsolidation.findFirst({ where: { id: dto.entiteId, tenantId, exerciceId: ex.id }, select: { id: true } });
@@ -479,6 +522,27 @@ export class CumulService {
       ...etat.entites.map((e) => fisc(e.id, e as unknown as Record<string, unknown>)),
     ];
 
+    // Écarts de conversion individuels · retraités pour les seules entités qui
+    // ont déclaré leur position N-1 (478 ET 479, zéro compris).
+    const provisionsChange = await this.prisma.provisionChangeConsolidation.findMany({ where: { tenantId, exerciceId } });
+    const declarationConversion = (id: string, stockId: string | null, f: Record<string, unknown> | null | undefined): ConversionIndividuelle | null => {
+      const actif = n(f?.ecartConversionActifN1);
+      const passif = n(f?.ecartConversionPassifN1);
+      if (actif === null || passif === null) return null;
+      return {
+        entiteId: id,
+        actifN1: actif,
+        passifN1: passif,
+        provisions: provisionsChange
+          .filter((p) => p.entiteId === stockId)
+          .map((p) => ({ compteProvision: p.compteProvision, cloture: Number(p.cloture), dotation: Number(p.dotation), reprise: Number(p.reprise) })),
+      };
+    };
+    const conversions = [
+      declarationConversion(consolidanteId, null, etat.faits as Record<string, unknown> | null),
+      ...etat.entites.map((e) => declarationConversion(e.id, e.id, e as unknown as Record<string, unknown>)),
+    ].filter((c): c is ConversionIndividuelle => c !== null);
+
     try {
       return {
         ...cumulerConsolidation(
@@ -488,11 +552,13 @@ export class CumulService {
           reciproques,
           resultatsInternes,
           fiscalites,
+          conversions,
         ),
         reserves: [
           'Les balances des filiales sont réputées RETRAITÉES aux règles du groupe (D4C, ch. XII-3) · OmegaX ne fait ni l’homogénéisation ni les éliminations de nature fiscale.',
           'Écarts d’évaluation (art. 82, ch. XII-6) · DÉCLARÉS élément par élément, ils passent en priorité et l’écart d’acquisition n’est que le reste. Chacun porte son impôt différé, au taux déclaré de la détenue · jamais l’écart d’acquisition (ch. XII-3 § 3).',
-          'Impôts différés (art. 92) · écarts d’évaluation, marges internes éliminées (au taux de la vendeuse) et impôts différés DÉCLARÉS des comptes individuels. Actif et passif ne sont pas compensés, le D4C n’en disant rien, et aucune actualisation n’est faite (ch. XII-3 § 3). Les éliminations de nature fiscale et la conversion des entités étrangères suivent (tranches 4b et 4c).',
+          'Impôts différés (art. 92) · écarts d’évaluation, marges internes éliminées (au taux de la vendeuse) et impôts différés DÉCLARÉS des comptes individuels. Actif et passif ne sont pas compensés, le D4C n’en disant rien, et aucune actualisation n’est faite (ch. XII-3 § 3). La conversion des entités étrangères suit (tranche 4c).',
+          'Éliminations de nature fiscale (art. 86, 3°, D4C ch. XII-3 § 2) · provisions réglementées (15) contre-passées, l’exercice au résultat (851 et 861) et l’antérieur aux réserves, avec leur impôt différé passif. Écarts de conversion individuels (478, 479) retraités sur DÉCLARATION de la position N-1 et de la provision pour pertes de change · leur impôt différé éventuel se déclare avec ceux de l’entité. Les subventions d’investissement restent sur leur ligne, hors capitaux propres (ch. XII-8 § 2).',
           'Résultats internes inclus dans les stocks et immobilisations (art. 86, 4°) · éliminés sur DÉCLARATION de la marge, totalement entre entités intégrées globalement, au produit des pourcentages avec une entité intégrée proportionnellement (D4C ch. XII-5). Le texte ne dit pas qui la supporte · OmegaX retraite le résultat de la VENDEUSE, qui se partage à son pourcentage d’intérêt (art. 85, résultat consolidé bâti des éléments du résultat de chaque entité). Une marge d’incidence négligeable peut ne pas être déclarée (art. 86, dernier alinéa).',
           'Amortissement de l’écart · prorata au mois, du premier jour du mois d’entrée, convention reprise du module des immobilisations · le D4C dit « linéairement » sans fixer de prorata.',
         ],

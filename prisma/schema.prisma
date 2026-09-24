@@ -622,6 +622,7 @@ model Tenant {
   OperationReciproqueConsolidation OperationReciproqueConsolidation[]
   resultatsInternesConsolidation   ResultatInterneConsolidation[]
   ecartsEvaluationConsolidation    EcartEvaluationConsolidation[]
+  provisionsChangeConsolidation    ProvisionChangeConsolidation[]
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -1092,6 +1093,7 @@ model Exercice {
   reciproquesConsolidation        OperationReciproqueConsolidation[]
   resultatsInternesConsolidation  ResultatInterneConsolidation[]
   ecartsEvaluationConsolidation   EcartEvaluationConsolidation[]
+  provisionsChangeConsolidation   ProvisionChangeConsolidation[]
 
   @@unique([tenantId, dateDebut, dateFin])
   @@map("exercices")
@@ -6227,14 +6229,19 @@ model EntitePerimetreConsolidation {
   /// impôts différés des comptes individuels (décalages temporaires, déficits
   /// reportables) se déclarent en MONTANTS D'IMPÔT · NULL veut dire « pas de
   /// réponse », et l'état consolidé se dit alors non publiable.
-  tauxImpotDiffere Decimal? @db.Decimal(7, 4)
-  sourceTauxImpot  String?
-  idaOuverture     Decimal? @db.Decimal(18, 2)
-  idaCloture       Decimal? @db.Decimal(18, 2)
-  idpOuverture     Decimal? @db.Decimal(18, 2)
-  idpCloture       Decimal? @db.Decimal(18, 2)
+  tauxImpotDiffere        Decimal? @db.Decimal(7, 4)
+  sourceTauxImpot         String?
+  idaOuverture            Decimal? @db.Decimal(18, 2)
+  idaCloture              Decimal? @db.Decimal(18, 2)
+  idpOuverture            Decimal? @db.Decimal(18, 2)
+  idpCloture              Decimal? @db.Decimal(18, 2)
   /// Un impôt différé actif n'est comptabilisé que si son imputation est PROBABLE · le motif s'écrit.
-  justificationIda String?
+  justificationIda        String?
+  /// ÉCARTS DE CONVERSION INDIVIDUELS · tranche 4b (D4C ch. XII-3 § 2). Les
+  /// 478 et 479 de la clôture N-1, que la balance N ne porte plus · NULL veut
+  /// dire « pas de déclaration », et les 478/479 restent alors à retraiter.
+  ecartConversionActifN1  Decimal? @db.Decimal(18, 2)
+  ecartConversionPassifN1 Decimal? @db.Decimal(18, 2)
 
   createdAt DateTime @default(now())
 
@@ -6248,6 +6255,7 @@ model EntitePerimetreConsolidation {
   fichierBalance           String?
   reciproquesCommeA        OperationReciproqueConsolidation[] @relation("ReciproqueA")
   reciproquesCommeB        OperationReciproqueConsolidation[] @relation("ReciproqueB")
+  provisionsChange         ProvisionChangeConsolidation[]
   resultatsInternesVendus  ResultatInterneConsolidation[]     @relation("ResultatInterneVendeuse")
   resultatsInternesAchetes ResultatInterneConsolidation[]     @relation("ResultatInterneAcheteuse")
 
@@ -6333,14 +6341,19 @@ model FaitsConsolidationExercice {
   /// impôts différés des comptes individuels (décalages temporaires, déficits
   /// reportables) se déclarent en MONTANTS D'IMPÔT · NULL veut dire « pas de
   /// réponse », et l'état consolidé se dit alors non publiable.
-  tauxImpotDiffere Decimal? @db.Decimal(7, 4)
-  sourceTauxImpot  String?
-  idaOuverture     Decimal? @db.Decimal(18, 2)
-  idaCloture       Decimal? @db.Decimal(18, 2)
-  idpOuverture     Decimal? @db.Decimal(18, 2)
-  idpCloture       Decimal? @db.Decimal(18, 2)
+  tauxImpotDiffere        Decimal? @db.Decimal(7, 4)
+  sourceTauxImpot         String?
+  idaOuverture            Decimal? @db.Decimal(18, 2)
+  idaCloture              Decimal? @db.Decimal(18, 2)
+  idpOuverture            Decimal? @db.Decimal(18, 2)
+  idpCloture              Decimal? @db.Decimal(18, 2)
   /// Un impôt différé actif n'est comptabilisé que si son imputation est PROBABLE · le motif s'écrit.
-  justificationIda String?
+  justificationIda        String?
+  /// ÉCARTS DE CONVERSION INDIVIDUELS · tranche 4b (D4C ch. XII-3 § 2). Les
+  /// 478 et 479 de la clôture N-1, que la balance N ne porte plus · NULL veut
+  /// dire « pas de déclaration », et les 478/479 restent alors à retraiter.
+  ecartConversionActifN1  Decimal? @db.Decimal(18, 2)
+  ecartConversionPassifN1 Decimal? @db.Decimal(18, 2)
 
   updatedAt DateTime @updatedAt
 
@@ -6409,6 +6422,31 @@ enum NatureResultatInterne {
 /// Art. 86, 4° · marge interne incluse dans un actif de l'acheteuse, DÉCLARÉE
 /// à l'ouverture et à la clôture (nette de la part amortie pour une
 /// immobilisation). Une entité nulle désigne la consolidante.
+/// PROVISION POUR PERTES DE CHANGE d'une entité · tranche 4b. Elle loge au
+/// 194, au 4991 ou au 4997, comptes partagés avec d'autres risques · sa part
+/// de change, sa dotation et sa reprise de l'exercice se DÉCLARENT.
+/// `entiteId` NULL · la consolidante.
+model ProvisionChangeConsolidation {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  exerciceId String
+  exercice   Exercice @relation(fields: [exerciceId], references: [id])
+
+  entiteId String?
+  entite   EntitePerimetreConsolidation? @relation(fields: [entiteId], references: [id], onDelete: Cascade)
+
+  compteProvision String
+  cloture         Decimal @db.Decimal(18, 2)
+  dotation        Decimal @default(0) @db.Decimal(18, 2)
+  reprise         Decimal @default(0) @db.Decimal(18, 2)
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, exerciceId])
+  @@map("provisions_change_consolidation")
+}
+
 /// Sort d'un écart d'évaluation dans le temps · il suit celui de l'élément.
 enum ModeEcartEvaluation {
   AMORTISSABLE

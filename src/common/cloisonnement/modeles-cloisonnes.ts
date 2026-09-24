@@ -54,6 +54,7 @@ export const MODELES_CLOISONNES = new Set<string>([
   'OperationReciproqueConsolidation',
   'ResultatInterneConsolidation',
   'EcartEvaluationConsolidation',
+  'ProvisionChangeConsolidation',
   'MandatAuditeur',
   'Licence',
   'LiquidationTva',

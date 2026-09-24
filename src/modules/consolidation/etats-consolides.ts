@@ -31,7 +31,9 @@ import { ResultatCumul } from './cumul-consolidation';
  * Titre VIII ch. 33) et participation des travailleurs · une ligne propre,
  * plutôt que de la fondre dans un poste voisin sans le dire. (3) Ce qui doit
  * être RETRAITÉ avant publication (ch. XII-3 § 2) · écarts de conversion des
- * comptes individuels, provisions réglementées, comptes sans poste · montrés
+ * comptes individuels NON DÉCLARÉS, comptes sans poste (les provisions
+ * réglementées sont contre-passées au cumul depuis la tranche 4b, leur ligne
+ * reste en garde et vaut zéro) · montrés
  * et comptés, pour que le bilan boucle et que rien ne disparaisse, mais ils
  * rendent l'état NON PUBLIABLE.
  */
@@ -208,7 +210,9 @@ export function construireEtatsConsolides(cumul: ResultatCumul, resolveurs: Reso
   const bt = P('BT');
   const tresoActif = ligneActif('TRESORERIE_ACTIF', 'TOTAL TRÉSORERIE-ACTIF', 'TOTAL', bt?.brut ?? 0, bt?.amortissement ?? 0);
   const bu = ligneActif('ECART_CONVERSION_ACTIF_INDIVIDUEL', 'Écarts de conversion-Actif des comptes individuels', 'A_RETRAITER', net('BU'), 0, {
-    reserve: 'À éliminer avant consolidation (D4C, ch. XII-3 § 2) · un écart de conversion individuel n’est pas un actif du groupe.',
+    reserve:
+      'À éliminer (D4C, ch. XII-3 § 2) · un écart de conversion individuel n’est pas un actif du groupe. Déclarez, pour l’entité qui le porte, ' +
+      'ses 478 et 479 de la clôture N-1 et sa provision pour pertes de change · OmegaX retraite alors.',
   });
   const sansPosteActif = ligneActif('COMPTES_SANS_POSTE_ACTIF', 'Comptes débiteurs sans poste', 'A_RETRAITER', sansPosteDebiteur, 0, {
     reserve: sansPosteDebiteur > EPS ? `Comptes ${listeSansPoste(1)} · aucun poste du bilan ne les capte.` : undefined,
@@ -299,10 +303,10 @@ export function construireEtatsConsolides(cumul: ResultatCumul, resolveurs: Reso
   const totalPassifCirculant = lp('TOTAL_PASSIF_CIRCULANT', 'TOTAL PASSIF CIRCULANT', 'TOTAL', somme([fournisseurs.net, autresDettes.net]));
   const tresoPassif = lp('TRESORERIE_PASSIF', 'TOTAL TRÉSORERIE-PASSIF', 'TOTAL', net('DT'));
   const cm = lp('PROVISIONS_REGLEMENTEES', 'Provisions réglementées des comptes individuels', 'A_RETRAITER', net('CM'), {
-    reserve: 'À contre-passer avant consolidation (D4C, ch. XII-3 § 2) · elles n’ont de cause que fiscale.',
+    reserve: 'Contre-passées par le cumul (D4C, ch. XII-3 § 2) · un solde ici est un défaut du moteur, jamais une donnée à corriger.',
   });
   const dv = lp('ECART_CONVERSION_PASSIF_INDIVIDUEL', 'Écarts de conversion-Passif des comptes individuels', 'A_RETRAITER', net('DV'), {
-    reserve: 'À éliminer avant consolidation (D4C, ch. XII-3 § 2).',
+    reserve: 'À éliminer (D4C, ch. XII-3 § 2) · déclarez, pour l’entité qui le porte, ses 478 et 479 de la clôture N-1 et sa provision pour pertes de change.',
   });
   const sansPostePassif = lp('COMPTES_SANS_POSTE_PASSIF', 'Comptes créditeurs sans poste', 'A_RETRAITER', sansPosteCrediteur, {
     reserve: sansPosteCrediteur > EPS ? `Comptes ${listeSansPoste(-1)} · aucun poste du bilan ne les capte.` : undefined,
@@ -378,7 +382,15 @@ export function construireEtatsConsolides(cumul: ResultatCumul, resolveurs: Reso
   const rex = lc('RESULTAT_EXPLOITATION', 'RÉSULTAT D’EXPLOITATION (A)', 'TOTAL', somme([ebe.net, reprises.net, dotations.net, quotePartPartage.net, eliminationInterne.net, ecartsEvaluation.net]));
   const prodFin = lc('PRODUITS_FINANCIERS', 'Produits financiers', 'POSTE', m('TK', 'TL', 'TM'));
   const chFin = lc('CHARGES_FINANCIERES', 'Charges financières', 'POSTE', m('RM', 'RN'));
-  const rfin = lc('RESULTAT_FINANCIER', 'RÉSULTAT FINANCIER (B)', 'TOTAL', somme([prodFin.net, chFin.net]));
+  const changeLatent = lc('ECARTS_CONVERSION_INDIVIDUELS_RESULTAT', 'Pertes et gains de change latents (478 et 479 retraités)', 'POSTE', -k('ECARTS_CONVERSION_INDIVIDUELS_RESULTAT'), {
+    lecture:
+      'Variation de la position latente nette des comptes individuels (D4C ch. XII-3 § 2 · perte de change au 478, produit financier au 479), ' +
+      'dotation et reprise de la provision pour pertes de change retirées de leurs comptes.',
+    reserve:
+      'Le ch. 22 § 2.3 range les écarts sur créances et dettes COMMERCIALES en exploitation · la position N-1, déclarée en total, ne se ventile ' +
+      'pas, et la ligne est présentée d’un bloc au résultat financier.',
+  });
+  const rfin = lc('RESULTAT_FINANCIER', 'RÉSULTAT FINANCIER (B)', 'TOTAL', somme([prodFin.net, chFin.net, changeLatent.net]));
   const rao = lc('RESULTAT_ACTIVITES_ORDINAIRES', 'RÉSULTAT DES ACTIVITÉS ORDINAIRES (C = A + B)', 'TOTAL', somme([rex.net, rfin.net]));
   const prodHao = lc('PRODUITS_HAO', 'Produits HAO', 'POSTE', m('TN', 'TO'));
   const chHao = lc('CHARGES_HAO', 'Charges HAO', 'POSTE', m('RO', 'RP'));
@@ -428,6 +440,7 @@ export function construireEtatsConsolides(cumul: ResultatCumul, resolveurs: Reso
     rex,
     prodFin,
     chFin,
+    ...(Math.abs(changeLatent.net ?? 0) > EPS ? [changeLatent] : []),
     rfin,
     rao,
     prodHao,

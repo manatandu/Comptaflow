@@ -2,6 +2,7 @@ import {
   AcquisitionDeclaree,
   cumulerConsolidation,
   EntiteACumuler,
+  ConversionIndividuelle,
   FiscaliteEntite,
   LigneBalanceEntree,
   OperationReciproque,
@@ -223,10 +224,10 @@ describe('refus et signalements', () => {
     );
   });
 
-  it('des soldes aux comptes 14 ou 15 d’une filiale sont signalés (ch. XII-3 § 2)', () => {
-    const F15 = ent('F', 'IG', 80, b([['24500000', 2100], ['15100000', -100], ['10100000', -1000], ['11800000', -600], ['70100000', -1000], ['60100000', 600]]));
-    const r = cumulerConsolidation(EX, [M, F15], [acq('M', 'F', 80, 800, 900)], []);
-    expect(r.avertissements.join(' ')).toContain('ch. XII-3 § 2');
+  it('une subvention d’investissement (14) d’une filiale est signalée, avec les deux paragraphes qui ne s’articulent pas', () => {
+    const F14 = ent('F', 'IG', 80, b([['24500000', 2100], ['14100000', -100], ['10100000', -1000], ['11800000', -600], ['70100000', -1000], ['60100000', 600]]));
+    const r = cumulerConsolidation(EX, [M, F14], [acq('M', 'F', 80, 800, 900)], []);
+    expect(r.avertissements.join(' ')).toMatch(/« F » porte des subventions d’investissement \(14\).*ch\. XII-8 § 2.*ch\. XII-3 § 2/);
   });
 
   it('des titres déclarés au-delà du solde du compte sont signalés', () => {
@@ -337,10 +338,10 @@ describe('le compte 10 de la consolidante · capital, primes et réévaluation s
     expect(r.equilibre).toBe(0);
   });
 
-  it('les comptes 14 et 15 de la consolidante sont signalés comme ceux d’une filiale', () => {
+  it('la subvention d’investissement de la consolidante est signalée comme celle d’une filiale', () => {
     const M3 = ent('M', 'IG', 100, b([['24100000', 500], ['10100000', -400], ['14100000', -100]]), true);
     const s = cumulerConsolidation(EX, [M3], [], []);
-    expect(s.avertissements.join(' ')).toMatch(/« M » porte des soldes aux comptes 14 ou 15/);
+    expect(s.avertissements.join(' ')).toMatch(/« M » porte des subventions d’investissement/);
   });
 });
 
@@ -518,5 +519,125 @@ describe('tranche 4a · écarts d’évaluation et impôts différés (art. 82 e
     expect(ligne(r, 'IMPOTS_DIFFERES_PASSIF')).toBe(0);
     expect(ligne(r, 'IMPOTS_DIFFERES_RESULTAT')).toBe(-40);
     expect(r.equilibre).toBe(0);
+  });
+});
+
+describe('tranche 4b · provisions réglementées contre-passées (art. 86, 3°, D4C ch. XII-3 § 2)', () => {
+  const fiscal = (entiteId: string, tauxImpot: number | null): FiscaliteEntite => ({
+    entiteId,
+    tauxImpot,
+    idaOuverture: 0,
+    idaCloture: 0,
+    idpOuverture: 0,
+    idpCloture: 0,
+  });
+  // Filiale · amortissements dérogatoires 100 au bilan, dont 40 dotés dans
+  // l'exercice (851) ; résultat individuel 400. Taux 30 %.
+  // Contre-passation · résultat 400 + 40 − 12 (impôt différé) = 428 ;
+  // réserves + 60 − 18 = 42 ; impôt différé passif 30.
+  const F15 = ent('F', 'IG', 80, b([['24500000', 2100], ['15100000', -100], ['10100000', -1000], ['11800000', -600], ['70100000', -1000], ['60100000', 560], ['85100000', 40]]));
+  const r = cumulerConsolidation(EX, [M, F15], [acq('M', 'F', 80, 800, 900)], [], [], [fiscal('M', 30), fiscal('F', 30)]);
+  const ligne = (cle: string) => r.lignes.find((l) => l.cle === cle)?.solde ?? 0;
+
+  it('le 15, le 851 et le 861 disparaissent de la balance consolidée', () => {
+    expect(ligne('15100000')).toBe(0);
+    expect(ligne('85100000')).toBe(0);
+    expect(r.mouvements.some((m) => m.cle.startsWith('15') || m.cle.startsWith('851'))).toBe(false);
+  });
+
+  it('exercice → résultat, exercices antérieurs → réserves, avec leur impôt différé passif', () => {
+    // Réserves groupe · 500 + 0,8 × (1 642 − 900) − 16 = 1 077,6 ; résultat groupe · 500 − 8 + 0,8 × 428 = 834,4.
+    expect(r.capitauxPropres).toMatchObject({ reservesGroupe: 1077.6, resultatGroupe: 834.4, resultatMinoritaires: 85.6 });
+    expect(ligne('IMPOTS_DIFFERES_PASSIF')).toBe(-30);
+    expect(ligne('IMPOTS_DIFFERES_RESULTAT')).toBe(12);
+    expect(r.equilibre).toBe(0);
+  });
+
+  it('le 861 porte au résultat, avec son impôt différé · une reprise de 10 réduit l’incidence de l’exercice', () => {
+    const F861 = ent('F', 'IG', 80, b([['24500000', 2110], ['15100000', -100], ['10100000', -1000], ['11800000', -600], ['70100000', -1000], ['60100000', 560], ['85100000', 40], ['86100000', -10]]));
+    const s = cumulerConsolidation(EX, [M, F861], [acq('M', 'F', 80, 800, 900)], [], [], [fiscal('M', 30), fiscal('F', 30)]);
+    // Incidence de l'exercice 40 − 10 = 30, impôt différé au résultat 0,3 × 30 = 9.
+    expect(s.lignes.find((l) => l.cle === 'IMPOTS_DIFFERES_RESULTAT')?.solde).toBe(9);
+    expect(s.lignes.find((l) => l.cle === '86100000')?.solde ?? 0).toBe(0);
+    expect(s.equilibre).toBe(0);
+  });
+
+  it('une balance à six colonnes perd aussi les mouvements du 15 et du 851', () => {
+    const avecMv = b([['24500000', 2100], ['15100000', -100], ['10100000', -1000], ['11800000', -600], ['70100000', -1000], ['60100000', 560], ['85100000', 40]]).map((l) => ({
+      ...l,
+      mouvementDebit: Math.max(l.solde, 0),
+      mouvementCredit: Math.max(-l.solde, 0),
+    }));
+    const s = cumulerConsolidation(EX, [M, ent('F', 'IG', 80, avecMv)], [acq('M', 'F', 80, 800, 900)], [], [], [fiscal('M', 30), fiscal('F', 30)]);
+    expect(s.mouvements.some((m) => m.cle === '24500000')).toBe(true);
+    expect(s.mouvements.filter((m) => m.cle.startsWith('15') || m.cle.startsWith('851'))).toEqual([]);
+  });
+
+  it('sans taux, la contre-passation se fait quand même et l’impôt différé est dit incomplet', () => {
+    const s = cumulerConsolidation(EX, [M, F15], [acq('M', 'F', 80, 800, 900)], [], [], [fiscal('M', 30), fiscal('F', null)]);
+    expect(s.lignes.find((l) => l.cle === '15100000')).toBeUndefined();
+    expect(s.impotsDifferesIncomplets).toContainEqual(expect.stringMatching(/« F » · aucun taux.*provisions réglementées/));
+    expect(s.equilibre).toBe(0);
+  });
+});
+
+describe('tranche 4b · écarts de conversion des comptes individuels (D4C ch. XII-3 § 2)', () => {
+  const zero = (entiteId: string): FiscaliteEntite => ({ entiteId, tauxImpot: 30, idaOuverture: 0, idaCloture: 0, idpOuverture: 0, idpCloture: 0 });
+  // Filiale · 478 = 50, 479 = 20, provision 4991 = 30 (position globale · 50 − 20),
+  // dotée de 30 dans l'exercice, 10 repris (provision N-1). Résultat individuel 380.
+  // N-1 déclaré · 478 = 10, 479 = 5, soit une perte latente nette de 5 déjà au
+  // résultat consolidé N-1 quand la provision individuelle en portait 10.
+  const FX = ent(
+    'F',
+    'IG',
+    80,
+    b([
+      ['24500000', 2000], ['47810000', 50], ['47910000', -20], ['49910000', -30], ['40100000', -20],
+      ['10100000', -1000], ['11800000', -600], ['70100000', -1000], ['60100000', 600], ['65910000', 30], ['75910000', -10],
+    ]),
+  );
+  const conv = (extra: Partial<ConversionIndividuelle> = {}): ConversionIndividuelle => ({
+    entiteId: 'F',
+    actifN1: 10,
+    passifN1: 5,
+    provisions: [{ compteProvision: '49910000', cloture: 30, dotation: 30, reprise: 10 }],
+    ...extra,
+  });
+  const jouer = (c: ConversionIndividuelle[]) => cumulerConsolidation(EX, [M, FX], [acq('M', 'F', 80, 800, 900)], [], [], [zero('M'), zero('F')], c);
+
+  it('478, 479, la provision, sa dotation et sa reprise sortent · la variation latente nette entre au résultat', () => {
+    const r = jouer([conv()]);
+    const ligne = (cle: string) => r.lignes.find((l) => l.cle === cle)?.solde ?? 0;
+    for (const c of ['47810000', '47910000', '49910000', '65910000', '75910000']) expect(ligne(c)).toBe(0);
+    // (50 − 20) − (10 − 5) = 25 de perte latente nette de l'exercice.
+    expect(ligne('ECARTS_CONVERSION_INDIVIDUELS_RESULTAT')).toBe(25);
+    // Résultat de F · 380 + 30 − 10 − 25 = 375 ; réserves de F · 1 600 + 5.
+    // Groupe · réserves 500 + 0,8 × (1 605 − 900) − 16 = 1 048 ; résultat 500 − 8 + 0,8 × 375 = 792.
+    expect(r.capitauxPropres).toMatchObject({ reservesGroupe: 1048, resultatGroupe: 792, resultatMinoritaires: 75 });
+    expect(r.equilibre).toBe(0);
+  });
+
+  it('les mouvements de la dotation et de la reprise sortent · ceux de la provision, compte de bilan, restent', () => {
+    const MV: Record<string, [number, number]> = { '49910000': [10, 40], '65910000': [30, 0], '75910000': [0, 10] };
+    const FXmv = ent('F', 'IG', 80, FX.balance!.map((l) => {
+      const [d, c] = MV[l.numero] ?? [Math.max(l.solde, 0), Math.max(-l.solde, 0)];
+      return { ...l, mouvementDebit: d, mouvementCredit: c };
+    }));
+    const r = cumulerConsolidation(EX, [M, FXmv], [acq('M', 'F', 80, 800, 900)], [], [], [zero('M'), zero('F')], [conv()]);
+    const mv = (cle: string) => r.mouvements.find((m) => m.cle === cle);
+    expect(mv('65910000')).toMatchObject({ debit: 0, credit: 0 });
+    expect(mv('75910000')).toMatchObject({ debit: 0, credit: 0 });
+    expect(mv('49910000')).toMatchObject({ debit: 10, credit: 40 });
+  });
+
+  it('sans déclaration, rien n’est retraité · les 478 et 479 restent, et l’état les dira à retraiter', () => {
+    const r = jouer([]);
+    expect(r.lignes.find((l) => l.cle === '47810000')?.solde).toBe(50);
+  });
+
+  it('refus · une provision hors 194, 4991, 4997 ; une dotation qu’aucun compte ne porte ; une ouverture négative', () => {
+    expect(() => jouer([conv({ provisions: [{ compteProvision: '19100000', cloture: 30, dotation: 30, reprise: 10 }] })])).toThrow(/194, au 4991 ou au 4997/);
+    expect(() => jouer([conv({ provisions: [{ compteProvision: '49910000', cloture: 30, dotation: 90, reprise: 10 }] })])).toThrow(/ouverture/);
+    expect(() => jouer([conv({ provisions: [{ compteProvision: '49970000', cloture: 30, dotation: 30, reprise: 10 }] })])).toThrow(/aucun compte 4997/);
   });
 });

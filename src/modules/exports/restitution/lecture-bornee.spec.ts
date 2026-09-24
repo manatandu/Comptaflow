@@ -46,8 +46,9 @@ describe('l’inventaire couvre le schéma, sans trou ni surplus', () => {
     // faits de l'obligation), tous trois portant leur tenantId, puis à 88
     // avec le cumul (balances des filiales, comptes réciproques), idem, puis
     // à 89 avec les résultats internes de l'art. 86, 4°, idem ; à 90 avec les
-    // écarts d'évaluation (tranche 4a), bornés par leur propre `tenantId`.
-    expect(modeles).toHaveLength(90);
+    // écarts d'évaluation (tranche 4a), bornés par leur propre `tenantId` ; à
+    // 91 avec les provisions pour pertes de change (tranche 4b), idem.
+    expect(modeles).toHaveLength(91);
     expect([...TABLES_RESTITUEES].sort()).toEqual(modeles.filter((m) => m !== 'Tenant').sort());
   });
 

@@ -14,6 +14,7 @@ import {
   AcquisitionDto,
   EcartEvaluationDto,
   FiscaliteEntiteDto,
+  ProvisionChangeDto,
   ImporterBalanceEntiteDto,
   OperationReciproqueDto,
   ResultatInterneDto,
@@ -116,6 +117,19 @@ export class ConsolidationController {
   @Delete('ecarts-evaluation/:id')
   supprimerEcartEvaluation(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.cumuls.supprimerEcartEvaluation(user.tenantId, id);
+  }
+
+  // ─── Tranche 4b · écarts de conversion des comptes individuels ───────────
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post('provisions-change')
+  ajouterProvisionChange(@CurrentUser() user: AuthenticatedUser, @Body() dto: ProvisionChangeDto) {
+    return this.cumuls.ajouterProvisionChange(user.tenantId, dto);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Delete('provisions-change/:id')
+  supprimerProvisionChange(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.cumuls.supprimerProvisionChange(user.tenantId, id);
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)

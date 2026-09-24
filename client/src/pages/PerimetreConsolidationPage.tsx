@@ -60,6 +60,7 @@ type Etat = {
   reciproques: Parameters<typeof CumulConsolidation>[0]['reciproques'];
   resultatsInternes: Parameters<typeof CumulConsolidation>[0]['resultatsInternes'];
   ecartsEvaluation: Parameters<typeof CumulConsolidation>[0]['ecartsEvaluation'];
+  provisionsChange: Parameters<typeof CumulConsolidation>[0]['provisionsChange'];
   faits: Faits | null;
   resultats: Resultat[];
   obligation: { obligation: string; motifs: string[]; normesIfrsRequises: boolean };
@@ -452,6 +453,7 @@ export function PerimetreConsolidationPage() {
         reciproques={etat.reciproques}
         resultatsInternes={etat.resultatsInternes}
         ecartsEvaluation={etat.ecartsEvaluation}
+        provisionsChange={etat.provisionsChange}
         fiscaliteConsolidante={etat.faits}
         peutEcrire={peutEcrire}
         recharger={recharger}

@@ -2339,10 +2339,10 @@ consolidées, réévaluation 106 en « Autres capitaux propres » (lecture décl
 Une filiale, elle, partage TOUS ses capitaux propres, primes comprises. (3) CE
 QUI N'EST PAS CALCULÉ VAUT `null`, JAMAIS ZÉRO · écarts de conversion
 (tranche 4c), « dont » des corporelles, résultat par action. Ce qui
-est À RETRAITER (ch. XII-3 § 2 · écarts de conversion individuels, provisions
-réglementées, comptes sans poste, résultat reçu au 13) est montré ET compté
-pour que le bilan boucle, et l'état se dit NON PUBLIABLE avec ses motifs ·
-jusqu'à la tranche 4, il ne l'est jamais. (4) LE COMPARATIF EST UNE SECONDE
+est À RETRAITER (ch. XII-3 § 2 · écarts de conversion individuels NON
+DÉCLARÉS, comptes sans poste, résultat reçu au 13 ; les provisions
+réglementées sont contre-passées depuis la tranche 4b) est montré ET compté
+pour que le bilan boucle, et l'état se dit NON PUBLIABLE avec ses motifs. (4) LE COMPARATIF EST UNE SECONDE
 CONSOLIDATION, apparié PAR CLÉ · un exercice précédent sans périmètre, ou que
 le moteur refuse, laisse la colonne VIDE avec son motif, jamais la mère seule.
 La note du périmètre apparie N et N-1 par la DÉNOMINATION (le périmètre est
@@ -2410,6 +2410,35 @@ ACTIF ET PASSIF NE SE COMPENSENT PAS, le D4C n'en disant rien, et rien ne
 s'actualise (« actualisation interdite »). Au tableau des flux, l'écart
 d'évaluation d'un STOCK sorti diminue la CAFG comme l'élimination des marges
 internes · la baisse du stock serait sinon lue comme un encaissement.
+
+**Consolidation SYSCOHADA, tranche 4b · éliminations de nature fiscale et
+écarts de conversion individuels (2026-09-24).** AUDCIF art. 86, 3°, et 92,
+D4C ch. XII-3 § 2, Titre VII compte 15, Titre VIII ch. 22 § 2.3. CINQ RÈGLES
+À NE PAS DÉFAIRE. (1) LES PROVISIONS RÉGLEMENTÉES SONT CONTRE-PASSÉES SANS
+DÉCLARATION · le 15 n'est « créé ou augmenté EXCLUSIVEMENT par Dotations HAO »
+(851) et « réduit ou annulé EXCLUSIVEMENT par Reprises HAO » (861) ;
+l'incidence de l'exercice se LIT donc sur le 851 et le 861 et va au résultat,
+le reste aux réserves. Impôt différé PASSIF sur le solde du 15 (« réserves non
+libérées d'impôt »), sa part de l'exercice au résultat ; sans taux, la
+contre-passation se fait quand même et l'impôt différé est dit incomplet.
+(2) LES 478 ET 479 SE RETRAITENT SUR DÉCLARATION de leurs soldes N-1 (actif ET
+passif, zéro compris) · sans elle ils restent « à retraiter » et l'état n'est
+pas publiable. Tout le 478 et tout le 479 sont annulés ; au résultat, la
+VARIATION de la position latente nette (N moins N-1, celle-ci déjà au résultat
+consolidé N-1), sur une ligne propre du résultat financier ; aux réserves, la
+position N-1 moins la provision d'ouverture. (3) LA PROVISION POUR PERTES DE
+CHANGE SE DÉCLARE, jamais devinée dans la balance · au 194, au 4991 ou au 4997,
+avec sa dotation et sa reprise de l'exercice, chacune dans SA famille
+(6971/7971, 6591/7591, 6791/7791, `FAMILLES_PROVISION_CHANGE`). Une dotation
+qu'aucun compte de la balance ne porte est refusée. Les MOUVEMENTS de la
+dotation et de la reprise sortent avec elles ; ceux de la provision, compte de
+bilan, restent, le tableau des flux la lisant par sa variation. (4) AUCUN
+IMPÔT DIFFÉRÉ N'EST CALCULÉ SUR LES ÉCARTS LATENTS · il dépend de leur
+traitement fiscal, qu'OmegaX ne tranche pas, et se déclare avec ceux de
+l'entité. (5) LES SUBVENTIONS D'INVESTISSEMENT (14) RESTENT SUR LEUR LIGNE,
+avec un avertissement · le ch. XII-3 § 2 les range parmi les éliminations
+fiscales, le modèle du ch. XII-8 § 2 les garde hors capitaux propres, et les
+deux textes ne s'articulent pas.
 
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de

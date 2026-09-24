@@ -19,7 +19,11 @@ export type FiscaliteCumul = {
   idpOuverture?: number | null;
   idpCloture?: number | null;
   justificationIda?: string | null;
+  /** Tranche 4b · les 478 et 479 de la balance N-1 de l'entité, pour isoler la part de l'exercice. */
+  ecartConversionActifN1?: number | null;
+  ecartConversionPassifN1?: number | null;
 };
+export type ProvisionChangeCumul = { id: string; entiteId: string | null; compteProvision: string; cloture: number; dotation: number; reprise: number };
 export type EntiteCumul = { id: string; nom: string; balanceImporteeLe?: string | null; fichierBalance?: string | null } & FiscaliteCumul;
 export type EcartEvaluationCumul = {
   id: string;
@@ -97,15 +101,17 @@ export function CumulConsolidation(props: {
   ecartsEvaluation: EcartEvaluationCumul[];
   /** La fiscalité de la consolidante vit dans les faits de l'exercice. */
   fiscaliteConsolidante: FiscaliteCumul | null;
+  provisionsChange: ProvisionChangeCumul[];
   peutEcrire: boolean;
   recharger: () => Promise<void>;
 }) {
-  const { exerciceId, consolidante, entites, liens, reciproques, resultatsInternes, ecartsEvaluation, fiscaliteConsolidante, peutEcrire, recharger } = props;
+  const { exerciceId, consolidante, entites, liens, reciproques, resultatsInternes, ecartsEvaluation, fiscaliteConsolidante, provisionsChange, peutEcrire, recharger } = props;
   const [erreur, setErreur] = useState<string | null>(null);
   const [resultat, setResultat] = useState<Resultat | null>(null);
   const [recip, setRecip] = useState({ entiteAId: '', compteA: '', entiteBId: '', compteB: '', montant: '', libelle: '' });
   const [interne, setInterne] = useState({ vendeuseId: '', acheteuseId: '', nature: 'STOCK', compteActif: '', margeOuverture: '', margeCloture: '', libelle: '' });
   const [ecartForm, setEcartForm] = useState({ lienId: '', compte: '', compteAmortissement: '', libelle: '', montant: '', mode: 'AMORTISSABLE', dureeAnnees: '', dateRealisation: '' });
+  const [provForm, setProvForm] = useState({ entiteId: '', compteProvision: '', cloture: '', dotation: '', reprise: '' });
   const nomDe = (id: string | null) => (id === null || id === '' ? consolidante.nom : (entites.find((e) => e.id === id)?.nom ?? '?'));
 
   async function agir(action: () => Promise<unknown>) {
@@ -141,6 +147,8 @@ export function CumulConsolidation(props: {
       idpOuverture: nombre(txt('idpOuv')),
       idpCloture: nombre(txt('idpClo')),
       justificationIda: txt('justif') || null,
+      ecartConversionActifN1: nombre(txt('ecaN1')),
+      ecartConversionPassifN1: nombre(txt('ecpN1')),
     };
   };
   const vide = (v: number | null | undefined) => v == null;
@@ -532,6 +540,9 @@ export function CumulConsolidation(props: {
               <label className="text-[12px]">Impôt différé passif, ouverture<input name="idpOuv" className={champ} defaultValue={x.f?.idpOuverture ?? ''} disabled={!peutEcrire} /></label>
               <label className="text-[12px]">Impôt différé passif, clôture<input name="idpClo" className={champ} defaultValue={x.f?.idpCloture ?? ''} disabled={!peutEcrire} /></label>
               <span />
+              <label className="text-[12px]">Écarts de conversion actif (478), N-1<input name="ecaN1" className={champ} defaultValue={x.f?.ecartConversionActifN1 ?? ''} disabled={!peutEcrire} /></label>
+              <label className="text-[12px]">Écarts de conversion passif (479), N-1<input name="ecpN1" className={champ} defaultValue={x.f?.ecartConversionPassifN1 ?? ''} disabled={!peutEcrire} /></label>
+              <span />
               <label className="text-[12px] sm:col-span-3">Pourquoi l’impôt différé actif est probable<input name="justif" className={champ} defaultValue={x.f?.justificationIda ?? ''} disabled={!peutEcrire} /></label>
               {peutEcrire && (
                 <button type="submit" className="border border-border px-2.5 py-1 text-[12px] sm:col-span-3 justify-self-start">
@@ -541,6 +552,73 @@ export function CumulConsolidation(props: {
             </form>
           </details>
         ))}
+      </section>
+
+      <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
+        <h2 className="text-[12.5px] font-bold mb-1.5">Provisions pour pertes de change</h2>
+        <p className="text-[11px] text-text-dim mb-1.5 leading-[1.6]">
+          Les écarts de conversion des comptes individuels (478, 479) s’éliminent en consolidation · il faut pour cela les
+          déclarer en N-1 dans la fiscalité de l’entité (ci-dessus), et déclarer ici la provision qui couvrait la perte latente,
+          avec sa dotation et sa reprise de l’exercice. Elle se loge au 194, au 4991 ou au 4997 · OmegaX ne la devine pas dans
+          la balance · le solde du compte ne dit pas quelle part couvre la perte latente. Sans déclaration N-1, les 478 et 479 restent
+          en l’état.
+        </p>
+        {peutEcrire && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 mb-2">
+            <label className="text-[12px]">
+              Entité
+              <select className={champ} value={provForm.entiteId} onChange={(e) => setProvForm({ ...provForm, entiteId: e.target.value })}>
+                <option value="">{consolidante.nom} (consolidante)</option>
+                {entites.map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}
+              </select>
+            </label>
+            <label className="text-[12px]">Compte de la provision<input className={champ} value={provForm.compteProvision} onChange={(e) => setProvForm({ ...provForm, compteProvision: e.target.value })} /></label>
+            <label className="text-[12px]">Solde à la clôture<input className={champ} value={provForm.cloture} onChange={(e) => setProvForm({ ...provForm, cloture: e.target.value })} /></label>
+            <label className="text-[12px]">Dotation de l’exercice<input className={champ} value={provForm.dotation} onChange={(e) => setProvForm({ ...provForm, dotation: e.target.value })} /></label>
+            <label className="text-[12px]">Reprise de l’exercice<input className={champ} value={provForm.reprise} onChange={(e) => setProvForm({ ...provForm, reprise: e.target.value })} /></label>
+            <button
+              className="border border-border px-2.5 py-1 text-[12px] justify-self-start self-end"
+              onClick={() =>
+                void agir(async () => {
+                  await api.post('/consolidation/provisions-change', {
+                    exerciceId,
+                    entiteId: provForm.entiteId || null,
+                    compteProvision: provForm.compteProvision,
+                    cloture: nombre(provForm.cloture) ?? 0,
+                    dotation: nombre(provForm.dotation) ?? 0,
+                    reprise: nombre(provForm.reprise) ?? 0,
+                  });
+                  setProvForm({ entiteId: provForm.entiteId, compteProvision: '', cloture: '', dotation: '', reprise: '' });
+                })
+              }
+            >
+              Ajouter
+            </button>
+          </div>
+        )}
+        {provisionsChange.length === 0 ? (
+          <p className="text-[12px] text-text-dim">Aucune provision pour pertes de change déclarée.</p>
+        ) : (
+          <table className="w-full text-[12px]">
+            <tbody>
+              {provisionsChange.map((o) => (
+                <tr key={o.id} className="border-b border-border/60">
+                  <td className="py-1 pr-2">{nomDe(o.entiteId)} · {o.compteProvision}</td>
+                  <td className="py-1 pr-2 text-right">clôture {fc(o.cloture)}</td>
+                  <td className="py-1 pr-2 text-right">dotation {fc(o.dotation)}</td>
+                  <td className="py-1 pr-2 text-right">reprise {fc(o.reprise)}</td>
+                  <td className="py-1 text-right">
+                    {peutEcrire && (
+                      <button className="text-[11px] underline" onClick={() => void agir(() => api.delete(`/consolidation/provisions-change/${o.id}`))}>
+                        Retirer
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </section>
 
       <section className="border border-border bg-surface px-3.5 py-2.5">

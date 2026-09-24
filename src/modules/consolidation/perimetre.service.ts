@@ -40,6 +40,8 @@ function fiscaliteEnNombres(f: {
   idaCloture: unknown;
   idpOuverture: unknown;
   idpCloture: unknown;
+  ecartConversionActifN1: unknown;
+  ecartConversionPassifN1: unknown;
 }) {
   const n = (v: unknown) => (v == null ? null : Number(v));
   return {
@@ -48,6 +50,8 @@ function fiscaliteEnNombres(f: {
     idaCloture: n(f.idaCloture),
     idpOuverture: n(f.idpOuverture),
     idpCloture: n(f.idpCloture),
+    ecartConversionActifN1: n(f.ecartConversionActifN1),
+    ecartConversionPassifN1: n(f.ecartConversionPassifN1),
   };
 }
 
@@ -178,7 +182,12 @@ export class PerimetreService {
       where: { tenantId, exerciceId },
       orderBy: { createdAt: 'asc' },
     });
+    const provisionsChange = await this.prisma.provisionChangeConsolidation.findMany({
+      where: { tenantId, exerciceId },
+      orderBy: { createdAt: 'asc' },
+    });
     return {
+      provisionsChange: provisionsChange.map((p) => ({ ...p, cloture: Number(p.cloture), dotation: Number(p.dotation), reprise: Number(p.reprise) })),
       ecartsEvaluation: ecartsEvaluation.map((e) => ({ ...e, montant: Number(e.montant) })),
       consolidante: { id: tenant.id, nom: tenant.nom, dateCloture: ex.dateFin },
       resultatsInternes: resultatsInternes.map((o) => ({ ...o, margeOuverture: Number(o.margeOuverture), margeCloture: Number(o.margeCloture) })),

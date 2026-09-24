@@ -268,6 +268,27 @@ describe('écart d’acquisition amorti ET déprécié', () => {
   });
 });
 
+describe('tranche 4b · la perte de change latente retraitée entre au résultat financier', () => {
+  // M · 478 = 40 couvert au 4991 par une dotation 6591 de 40 ; N-1 déclaré à zéro.
+  const M = ent('M', 'IG', 100, b([
+    ['26100000', 800], ['47800000', 40], ['65910000', 40], ['52100000', 170],
+    ['10100000', -1000], ['49910000', -40], ['70100000', -10],
+  ]), true);
+  const F = ent('F', 'IG', 80, b([['24500000', 1000], ['10100000', -1000]]));
+  const cumul = cumulerConsolidation({ dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') }, [M, F], [
+    acq('M', 'F', 80, 800, 1000, { dateEntree: new Date('2024-01-01') }),
+  ], [], [], [], [{ entiteId: 'M', actifN1: 0, passifN1: 0, provisions: [{ compteProvision: '49910000', cloture: 40, dotation: 40, reprise: 0 }] }]);
+  const e = construireEtatsConsolides(cumul, R);
+
+  it('une ligne propre, en charge, comptée dans le résultat financier · et tout boucle', () => {
+    expect(cr(e, 'ECARTS_CONVERSION_INDIVIDUELS_RESULTAT')).toBe(-40);
+    expect(cr(e, 'RESULTAT_FINANCIER')).toBe(-40);
+    expect(cr(e, 'RESULTAT_ENSEMBLE')).toBe(-30);
+    expect(e.bilan.actif.some((l) => l.cle === 'ECART_CONVERSION_ACTIF_INDIVIDUEL' && Math.abs(l.net ?? 0) > 0.005)).toBe(false);
+    expect(e.controles.every((c) => c.ok)).toBe(true);
+  });
+});
+
 describe('résultats internes au compte de résultat consolidé', () => {
   const M = ent('M', 'IG', 100, b([['26100000', 800], ['31100000', 300], ['52100000', 900], ['10100000', -1000], ['11800000', -500], ['70100000', -1000], ['60100000', 500]]), true);
   const F = ent('F', 'IG', 80, b([['31100000', 500], ['52100000', 1500], ['10100000', -1000], ['11800000', -600], ['70100000', -1000], ['60100000', 600]]));

@@ -194,4 +194,17 @@ export class FiscaliteEntiteDto {
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) idpOuverture?: number | null;
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) idpCloture?: number | null;
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() @MaxLength(2000) justificationIda?: string | null;
+  /** Tranche 4b · les 478 et 479 de la clôture N-1, en montants positifs. */
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) ecartConversionActifN1?: number | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) ecartConversionPassifN1?: number | null;
+}
+
+/** Tranche 4b · la provision pour pertes de change d'une entité, ou de la consolidante (`entiteId` absent). */
+export class ProvisionChangeDto {
+  @IsUUID() exerciceId!: string;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsUUID() entiteId?: string | null;
+  @IsString() @MaxLength(13) compteProvision!: string;
+  @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) cloture!: number;
+  @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) dotation!: number;
+  @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) reprise!: number;
 }

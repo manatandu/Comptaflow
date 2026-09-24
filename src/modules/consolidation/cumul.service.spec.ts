@@ -14,7 +14,7 @@ const T = 'dossier-1';
 const EX = 'ex-2026';
 
 function doublure(balanceDossier: [string, number][]) {
-  const tables: Record<string, any[]> = { entites: [], liens: [], lignes: [], reciproques: [], internes: [], faits: [], ecarts: [] };
+  const tables: Record<string, any[]> = { entites: [], liens: [], lignes: [], reciproques: [], internes: [], faits: [], ecarts: [], provisionsChange: [] };
   let seq = 0;
   const correspond = (r: any, where: any) =>
     Object.entries(where ?? {}).every(([k, v]) => (v && typeof v === 'object' && 'in' in (v as any) ? (v as any).in.includes(r[k]) : r[k] === v));
@@ -66,6 +66,7 @@ function doublure(balanceDossier: [string, number][]) {
     operationReciproqueConsolidation: table('reciproques'),
     resultatInterneConsolidation: table('internes'),
     ecartEvaluationConsolidation: table('ecarts'),
+    provisionChangeConsolidation: table('provisionsChange'),
     faitsConsolidationExercice: table('faits'),
     $transaction: jest.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)),
   };
@@ -345,6 +346,57 @@ describe('CumulService · tranche 4a, écarts d’évaluation et fiscalité déc
     await expect(service.ajouterEcartEvaluation(T, lien.id, { ...BATIMENT, compte: '11800000' })).rejects.toThrow(/jamais aux capitaux propres/);
     expect(tables.ecarts).toHaveLength(0);
     expect(tables.faits).toHaveLength(0);
+  });
+});
+
+describe('CumulService · tranche 4b, écarts de conversion individuels déclarés', () => {
+  const ACQ = { coutAcquisition: 800, compteTitres: '26100000', dateEntree: '2024-01-01', capitauxPropresEntree: 900, modeDureeEcart: 'NON_DETERMINABLE' as const };
+  // La filiale porte une perte latente de 50 au 478, couverte au 4991 par une dotation de 50 au 6591.
+  const FILIALE_478 = csv([
+    ['24500000', 'Matériel', 2000, 0],
+    ['47800000', 'Écarts de conversion actif', 50, 0],
+    ['65910000', 'Dotation provision change', 50, 0],
+    ['10100000', 'Capital', 0, 1000],
+    ['11800000', 'Réserves', 0, 600],
+    ['49910000', 'Provision pour pertes de change', 0, 50],
+    ['70100000', 'Ventes', 0, 1050],
+    ['60100000', 'Achats', 600, 0],
+  ]);
+  const solde = (r: any, cle: string) => r.lignes.find((l: any) => l.cle === cle)?.solde;
+
+  it('la déclaration N-1 et la provision déclarée retirent 478, 4991 et 6591 · la perte latente passe au résultat, au franc', async () => {
+    const { service, lien, f } = await groupe(FILIALE_478);
+    await service.declarerAcquisition(T, lien.id, ACQ);
+    await service.enregistrerFiscalite(T, { exerciceId: EX, entiteId: f.id, ecartConversionActifN1: 0, ecartConversionPassifN1: 0 });
+    await service.ajouterProvisionChange(T, { exerciceId: EX, entiteId: f.id, compteProvision: '49910000', cloture: 50, dotation: 50, reprise: 0 });
+    const r = await service.cumul(T, EX);
+    expect(r.lignes.filter((l) => /^(478|4991|6591)/.test(l.cle)).filter((l) => Math.abs(l.solde) > 0.005)).toEqual([]);
+    expect(solde(r, 'ECARTS_CONVERSION_INDIVIDUELS_RESULTAT')).toBe(50);
+    expect(r.capitauxPropres).toMatchObject({ reservesGroupe: 1044, resultatGroupe: 812 });
+    expect(r.equilibre).toBe(0);
+  });
+
+  it('sans déclaration N-1, les 478 et 4991 restent en l’état · une provision de la consolidante ne touche pas la filiale', async () => {
+    const { service, lien, f } = await groupe(FILIALE_478);
+    await service.declarerAcquisition(T, lien.id, ACQ);
+    await service.ajouterProvisionChange(T, { exerciceId: EX, entiteId: null, compteProvision: '49910000', cloture: 50, dotation: 50, reprise: 0 });
+    const sans = await service.cumul(T, EX);
+    expect(sans.lignes.find((l) => l.cle.startsWith('478'))?.solde).toBe(50);
+    expect(solde(sans, 'ECARTS_CONVERSION_INDIVIDUELS_RESULTAT') ?? 0).toBe(0);
+    await service.enregistrerFiscalite(T, { exerciceId: EX, entiteId: f.id, ecartConversionActifN1: 0, ecartConversionPassifN1: 0 });
+    const avec = await service.cumul(T, EX);
+    expect(avec.lignes.find((l) => l.cle.startsWith('478'))?.solde ?? 0).toBe(0);
+    expect(avec.lignes.find((l) => l.cle.startsWith('4991'))?.solde).toBe(-50);
+  });
+
+  it('refus à la porte · une provision hors 194, 4991, 4997, et une ouverture négative', async () => {
+    const { service, f, tables } = await groupe(FILIALE_478);
+    await expect(service.ajouterProvisionChange(T, { exerciceId: EX, entiteId: f.id, compteProvision: '15100000', cloture: 50, dotation: 0, reprise: 0 })).rejects.toThrow(/194, au 4991 ou au 4997/);
+    await expect(service.ajouterProvisionChange(T, { exerciceId: EX, entiteId: f.id, compteProvision: '49910000', cloture: 10, dotation: 50, reprise: 0 })).rejects.toThrow(/ouverture négative/);
+    expect(tables.provisionsChange).toHaveLength(0);
+    const p = await service.ajouterProvisionChange(T, { exerciceId: EX, entiteId: f.id, compteProvision: '49910000', cloture: 50, dotation: 50, reprise: 0 });
+    await service.supprimerProvisionChange(T, p.id);
+    expect(tables.provisionsChange).toHaveLength(0);
   });
 });
 
