@@ -119,6 +119,49 @@ describe('CumulService · import de la balance au canevas de la balance agrégé
     ).rejects.toThrow(/classe 9/);
   });
 
+  const six = (lignes: (string | number)[][]) =>
+    Buffer.from(
+      ['Numéro;Intitulé;Report débit;Report crédit;Mouvement débit;Mouvement crédit;Solde débit;Solde crédit', ...lignes.map((l) => l.join(';'))].join('\n'),
+    ).toString('base64');
+
+  it('une balance à six colonnes garde ses mouvements · un emprunt remboursé en entier reste visible', async () => {
+    const d = doublure(BALANCE_MERE);
+    const f = await d.perimetre.creerEntite(T, { exerciceId: EX, nom: 'F' } as any);
+    const r = await d.service.importerBalance(T, f.id, {
+      nomFichier: 'f.csv',
+      contenuBase64: six([
+        ['16200000', 'Emprunt', 0, 300, 300, 0, 0, 0],
+        ['52100000', 'Banque', 500, 0, 100, 300, 300, 0],
+        ['10100000', 'Capital', 0, 200, 0, 0, 0, 200],
+        ['24500000', 'Matériel', 0, 0, 200, 0, 200, 300 - 300],
+        ['12000000', 'Report', 0, 0, 0, 300, 0, 300],
+      ]),
+    });
+    expect(r).toEqual({ lignes: 5, avecMouvements: true });
+    expect(d.tables.lignes.find((l) => l.numero === '16200000')).toMatchObject({ solde: 0, mouvementDebit: 300, mouvementCredit: 0 });
+    expect(d.tables.lignes.find((l) => l.numero === '52100000')).toMatchObject({ solde: 300, mouvementDebit: 100, mouvementCredit: 300 });
+  });
+
+  it('report + mouvements qui ne donnent pas le solde · la ligne est refusée, rien n’est écrit', async () => {
+    const d = doublure(BALANCE_MERE);
+    const f = await d.perimetre.creerEntite(T, { exerciceId: EX, nom: 'F' } as any);
+    await expect(
+      d.service.importerBalance(T, f.id, {
+        nomFichier: 'f.csv',
+        contenuBase64: six([
+          ['52100000', 'Banque', 500, 0, 100, 300, 350, 0],
+          ['10100000', 'Capital', 0, 500, 0, 0, 0, 350],
+        ]),
+      }),
+    ).rejects.toThrow(/compte 52100000, report \+ mouvements ne donnent pas le solde/);
+    expect(d.tables.lignes).toHaveLength(0);
+  });
+
+  it('une balance à quatre colonnes n’a pas de mouvements · null, jamais zéro', async () => {
+    const { tables } = await groupe();
+    expect(tables.lignes.every((l) => l.mouvementDebit === null && l.mouvementCredit === null)).toBe(true);
+  });
+
   it('un nouvel import remplace le précédent au lieu de s’y ajouter', async () => {
     const { service, tables, f } = await groupe();
     await service.importerBalance(T, f.id, { nomFichier: 'v2.csv', contenuBase64: csv([['24500000', 'x', 50, 0], ['10100000', 'y', 0, 50]]) });
@@ -140,6 +183,19 @@ describe('CumulService · le cumul de bout en bout', () => {
     expect(r.capitauxPropres).toMatchObject({ reservesGroupe: 1044, interetsMinoritairesHorsResultat: 320, resultatGroupe: 812 });
     expect(r.equilibre).toBe(0);
     expect(r.reserves.join(' ')).toContain('art. 86, 4°');
+  });
+
+  it('la consolidante est lue au livre-journal seul, comme ses états individuels', async () => {
+    const { service, lien, ecritures } = await groupe();
+    await service.declarerAcquisition(T, lien.id, {
+      coutAcquisition: 800,
+      compteTitres: '26100000',
+      dateEntree: '2024-01-01',
+      capitauxPropresEntree: 900,
+      modeDureeEcart: 'NON_DETERMINABLE',
+    });
+    await service.cumul(T, EX);
+    expect(ecritures.balance).toHaveBeenCalledWith(T, EX, false);
   });
 
   it('une participation retenue sans coût d’acquisition arrête le cumul et la nomme', async () => {

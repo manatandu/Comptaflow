@@ -28,6 +28,9 @@ export interface LigneBalanceEntree {
   numero: string;
   intitule: string;
   solde: number;
+  /** Mouvements propres de l'exercice · absents d'une balance importée à quatre colonnes. */
+  mouvementDebit?: number | null;
+  mouvementCredit?: number | null;
 }
 
 export interface EntiteACumuler {
@@ -195,6 +198,16 @@ export interface ResultatCumul {
   ecarts: EcartCalcule[];
   avertissements: string[];
   equilibre: number;
+  /**
+   * MOUVEMENTS CONSOLIDÉS de l'exercice, compte par compte · somme des
+   * mouvements des entités intégrées, à leur fraction. Ils ne servent qu'au
+   * tableau des flux, qui ne se lit pas sur des soldes (D4C ch. XII-8 § 4).
+   */
+  mouvements: { cle: string; intitule: string; debit: number; credit: number }[];
+  /** Ce qui empêche le tableau des flux d'être juste · chaque motif nomme l'entité. */
+  obstaclesFlux: string[];
+  /** Dividendes reçus des entités mises en équivalence · encaissés, et hors de tout compte cumulé. */
+  dividendesRecusMe: number;
 }
 
 export class RefusConsolidation extends Error {}
@@ -269,6 +282,8 @@ export function cumulerConsolidation(
     }
   }
 
+  const obstaclesFlux: string[] = [];
+  const mouvements = new Map<string, { debit: number; credit: number }>();
   const comptes = new Map<string, Map<string, number>>();
   const intitules = new Map<string, string>();
   const ajouter = (entiteId: string, cle: string, montant: number) => {
@@ -280,9 +295,30 @@ export function cumulerConsolidation(
     const f = fraction.get(e.id)!;
     const m = new Map<string, number>();
     comptes.set(e.id, m);
+    let sansMouvements = false;
     for (const l of e.balance!) {
       m.set(l.numero, r2((m.get(l.numero) ?? 0) + l.solde * f));
       if (!intitules.has(l.numero) || e.estConsolidante) intitules.set(l.numero, l.intitule);
+      if (l.mouvementDebit == null || l.mouvementCredit == null) {
+        sansMouvements = true;
+        continue;
+      }
+      const mv = mouvements.get(l.numero) ?? { debit: 0, credit: 0 };
+      mv.debit = r2(mv.debit + l.mouvementDebit * f);
+      mv.credit = r2(mv.credit + l.mouvementCredit * f);
+      mouvements.set(l.numero, mv);
+      // Un capital de filiale qui bouge dans l'exercice fait entrer ou sortir
+      // des minoritaires · leur apport ou leur remboursement est un flux de
+      // financement que le cumul ne sépare pas.
+      if (!e.estConsolidante && /^10[1-5]/.test(l.numero) && (Math.abs(l.mouvementDebit) > 0.005 || Math.abs(l.mouvementCredit) > 0.005)) {
+        obstaclesFlux.push(`Le capital de « ${e.nom} » a bougé dans l’exercice (compte ${l.numero}) · la part des minoritaires dans ce flux n’est pas séparée.`);
+      }
+    }
+    if (sansMouvements) {
+      obstaclesFlux.push(`La balance de « ${e.nom} » ne porte pas les mouvements de l’exercice · importez-la à six colonnes (report, mouvements, solde).`);
+    }
+    if (e.balance!.some((l) => l.numero.startsWith('13') && Math.abs(l.solde) > 0.005)) {
+      obstaclesFlux.push(`La balance de « ${e.nom} » est arrêtée APRÈS clôture (résultat au compte 13) · la capacité d’autofinancement ne se calcule pas sans ses charges et produits.`);
     }
   }
   const integree = (id: string) => comptes.has(id);
@@ -300,6 +336,7 @@ export function cumulerConsolidation(
 
   // ─── 2. Élimination des titres, écarts, mise en équivalence, dividendes ───
   const ecarts: EcartCalcule[] = [];
+  let dividendesRecusMe = 0;
   const veilleOuverture = new Date(exercice.dateDebut.getTime() - 86_400_000);
   for (const a of acquisitions) {
     const detenue = parId.get(a.detenueId);
@@ -360,6 +397,13 @@ export function cumulerConsolidation(
 
     const H = a.detentriceId;
     ajouter(H, a.compteTitres, -a.coutAcquisition);
+    const ligneTitres = detentrice.balance?.find((l) => l.numero === a.compteTitres);
+    if (ligneTitres && (Math.abs(ligneTitres.mouvementDebit ?? 0) > 0.005 || Math.abs(ligneTitres.mouvementCredit ?? 0) > 0.005)) {
+      obstaclesFlux.push(
+        `Le compte ${a.compteTitres} de « ${detentrice.nom} » a bougé dans l’exercice · un achat ou une cession de titres de « ${detenue.nom} » ` +
+          'change le pourcentage, ce que ce moteur ne traite pas.',
+      );
+    }
 
     if (detenue.methode === 'IG' || detenue.methode === 'IP') {
       // Art. 81 · aux titres se substituent les éléments de la détenue, déjà
@@ -414,6 +458,7 @@ export function cumulerConsolidation(
     // DIVIDENDES · « éliminés du résultat de la période (rapportés aux
     // réserves) » (ch. XII-5 § 4 et § 6, art. 86, 4°).
     const div = r2(a.dividendesExercice ?? 0);
+    if (div > 0 && detenue.methode === 'ME') dividendesRecusMe += div;
     if (div > 0) {
       if (!a.compteDividendes) {
         throw new RefusConsolidation(`Dividendes de « ${detenue.nom} » déclarés sans le compte qui les porte chez « ${detentrice.nom} ».`);
@@ -601,5 +646,10 @@ export function cumulerConsolidation(
     ecarts,
     avertissements,
     equilibre,
+    mouvements: [...mouvements.entries()]
+      .map(([cle, m]) => ({ cle, intitule: intitules.get(cle) ?? cle, ...m }))
+      .sort((a, b) => a.cle.localeCompare(b.cle)),
+    obstaclesFlux,
+    dividendesRecusMe: r2(dividendesRecusMe),
   };
 }

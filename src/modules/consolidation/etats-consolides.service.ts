@@ -3,12 +3,19 @@ import { PrismaService } from '../../common/prisma.service';
 import { EtatsFinanciersSyscohadaService } from '../etats-financiers-syscohada/etats-financiers-syscohada.service';
 import { CumulService } from './cumul.service';
 import { apparierN1, construireEtatsConsolides, EtatsConsolides, Resolveurs } from './etats-consolides';
+import {
+  construireTableauFluxConsolide,
+  construireVariationCapitauxPropres,
+  TableauFluxConsolide,
+  VariationCapitauxPropres,
+  variationsDuPerimetre,
+} from './flux-capitaux-consolides';
 import { noteDuPerimetre } from './note-perimetre';
 import { PerimetreService } from './perimetre.service';
 
 /**
- * ÉTATS CONSOLIDÉS, tranche 3a · bilan, compte de résultat et note du
- * périmètre, avec leur colonne N-1.
+ * ÉTATS CONSOLIDÉS, tranches 3a et 3b · bilan, compte de résultat, note du
+ * périmètre, tableau des flux de trésorerie et variation des capitaux propres.
  *
  * LE COMPARATIF EST UNE SECONDE CONSOLIDATION, jamais une relecture · le
  * cumul de l'exercice précédent est rejoué sur SON périmètre et SES balances.
@@ -47,6 +54,7 @@ export class EtatsConsolidesService {
       : null;
 
     let n1: EtatsConsolides | null = null;
+    let cumulN1: Awaited<ReturnType<CumulService['cumul']>> | null = null;
     let resultatsN1: Awaited<ReturnType<PerimetreService['etat']>>['resultats'] | null = null;
     let motifSansComparatif: string | null = null;
     if (!precedent) {
@@ -58,12 +66,33 @@ export class EtatsConsolidesService {
       } else {
         resultatsN1 = etatN1.resultats;
         try {
-          n1 = construireEtatsConsolides(await this.cumuls.cumul(tenantId, precedent.id), this.resolveurs());
+          cumulN1 = await this.cumuls.cumul(tenantId, precedent.id);
+          n1 = construireEtatsConsolides(cumulN1, this.resolveurs());
         } catch (e) {
           if (!(e instanceof BadRequestException)) throw e;
           motifSansComparatif = `L’exercice précédent ne se consolide pas · ${e.message}`;
         }
       }
+    }
+
+    // TABLEAU DES FLUX ET VARIATION DES CAPITAUX PROPRES · tous deux partent
+    // des capitaux propres et de la trésorerie d'OUVERTURE, que seule la
+    // consolidation N-1 donne. Sans elle, ils ne s'établissent pas, et le motif
+    // est celui de la colonne comparative.
+    let tft: TableauFluxConsolide;
+    let tvcp: VariationCapitauxPropres | null = null;
+    if (!cumulN1 || !precedent || !resultatsN1) {
+      tft = { lignes: null, obstacles: [motifSansComparatif ?? 'Aucune consolidation de l’exercice précédent.'], controle: null };
+    } else {
+      const [consolidanteN, consolidanteN1] = await Promise.all([
+        this.cumuls.lignesConsolidante(tenantId, exerciceId),
+        this.cumuls.lignesConsolidante(tenantId, precedent.id),
+      ]);
+      tft = construireTableauFluxConsolide(
+        { cumulN, cumulN1, consolidanteN, consolidanteN1, variationsPerimetre: variationsDuPerimetre(etatN.resultats, resultatsN1) },
+        (ln, ln1) => this.etatsIndividuels.resoudreFluxSurLignes(ln, ln1),
+      );
+      tvcp = construireVariationCapitauxPropres(cumulN, cumulN1, consolidanteN);
     }
 
     const secteurs = new Map<string, string | null>(etatN.entites.map((e) => [e.id, e.secteurActivite ?? null]));
@@ -77,6 +106,8 @@ export class EtatsConsolidesService {
       publiable: n.publiable,
       motifsNonPubliable: n.motifsNonPubliable,
       comparatif: { disponible: n1 != null, motif: motifSansComparatif },
+      tableauDesFlux: tft,
+      variationCapitauxPropres: tvcp,
       notePerimetre: noteDuPerimetre(etatN.resultats, secteurs, resultatsN1),
       avertissements: cumulN.avertissements,
       reserves: cumulN.reserves,

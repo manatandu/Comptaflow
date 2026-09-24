@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
+import { chargerLignes, LigneBalancePourEtat } from '../etats-financiers/etats-financiers.communs';
 import { lireFichier, lireMontant } from '../import/lecture-fichier';
 import {
   AcquisitionDeclaree,
@@ -14,6 +15,7 @@ import { PerimetreService } from './perimetre.service';
 import { AcquisitionDto, ImporterBalanceEntiteDto, OperationReciproqueDto, ResultatInterneDto } from './dto/perimetre.dto';
 
 const n = (v: unknown) => (v == null ? null : Number(v));
+const diff = (d: number | null, c: number | null) => (d === null || c === null ? null : d - c);
 
 /**
  * Repère une colonne du canevas par son en-tête · le même canevas que la
@@ -67,28 +69,72 @@ export class CumulService {
     const tableau = await lireFichier(dto.nomFichier, dto.contenuBase64);
     const iNum = colonne(tableau.colonnes, /num|compte|code/);
     const iInt = colonne(tableau.colonnes, /intitul|libell/);
-    const iDeb = colonne(tableau.colonnes, /debit/);
-    const iCre = colonne(tableau.colonnes, /credit/);
-    if (iNum < 0 || iDeb < 0 || iCre < 0) {
+    // DEUX FORMES DE CANEVAS. Quatre colonnes (Numéro, Intitulé, Débit,
+    // Crédit) · les deux montants sont les TOTAUX, dont on ne tire que le
+    // solde. Six colonnes (report, mouvements, solde, chacun en débit et
+    // crédit) · les MOUVEMENTS PROPRES de l'exercice sont conservés, et c'est
+    // ce que le tableau des flux consolidé exige (D4C ch. XII-8 § 4, flux
+    // « bruts en principe »). Une colonne se reconnaît à son en-tête · jamais
+    // à son rang, qui change d'un logiciel à l'autre.
+    const norm = tableau.colonnes.map((c) =>
+      c
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase(),
+    );
+    const trouver = (sens: RegExp, qualif: RegExp | null) =>
+      norm.findIndex((c) => sens.test(c) && (qualif ? qualif.test(c) : !/mouvement|solde|report|ouverture|nouveau/.test(c)));
+    const iMvtDeb = trouver(/debit/, /mouvement/);
+    const iMvtCre = trouver(/credit/, /mouvement/);
+    const iSolDeb = trouver(/debit/, /solde/);
+    const iSolCre = trouver(/credit/, /solde/);
+    const iRepDeb = trouver(/debit/, /report|ouverture|nouveau/);
+    const iRepCre = trouver(/credit/, /report|ouverture|nouveau/);
+    const iDeb = trouver(/debit/, null);
+    const iCre = trouver(/credit/, null);
+    const avecMouvements = iMvtDeb >= 0 && iMvtCre >= 0;
+    const lireSolde: ((l: string[]) => number | null) | null =
+      iSolDeb >= 0 && iSolCre >= 0
+        ? (l) => diff(lireMontant(l[iSolDeb] ?? ''), lireMontant(l[iSolCre] ?? ''))
+        : iDeb >= 0 && iCre >= 0
+          ? (l) => diff(lireMontant(l[iDeb] ?? ''), lireMontant(l[iCre] ?? ''))
+          : avecMouvements && iRepDeb >= 0 && iRepCre >= 0
+            ? (l) => {
+                const r = diff(lireMontant(l[iRepDeb] ?? ''), lireMontant(l[iRepCre] ?? ''));
+                const m = diff(lireMontant(l[iMvtDeb] ?? ''), lireMontant(l[iMvtCre] ?? ''));
+                return r === null || m === null ? null : r + m;
+              }
+            : null;
+    if (iNum < 0 || !lireSolde) {
       throw new BadRequestException(
-        'Le fichier ne suit pas le canevas de la balance agrégée · il faut au moins les colonnes Numéro, Débit et Crédit.',
+        'Le fichier ne suit pas le canevas de la balance agrégée · il faut au moins les colonnes Numéro, Débit et Crédit, ' +
+          'ou une balance à six colonnes (report, mouvements, solde).',
       );
     }
-    const soldes = new Map<string, { intitule: string; solde: number }>();
+    const soldes = new Map<string, { intitule: string; solde: number; mouvementDebit: number | null; mouvementCredit: number | null }>();
     const anomalies: string[] = [];
     tableau.lignes.forEach((l, i) => {
       const numero = (l[iNum] ?? '').trim();
       if (!numero) return;
       if (!/^\d+$/.test(numero)) return void anomalies.push(`ligne ${i + 2} · numéro de compte illisible « ${numero} »`);
       if (numero.startsWith('9')) return void anomalies.push(`ligne ${i + 2} · compte ${numero} de classe 9, hors balance générale`);
-      const d = lireMontant(l[iDeb] ?? '');
-      const c = lireMontant(l[iCre] ?? '');
-      if (d === null || c === null) return void anomalies.push(`ligne ${i + 2} · montant illisible sur le compte ${numero}`);
-      if (d === 0 && c === 0) return;
+      const solde = lireSolde(l);
+      const md = avecMouvements ? lireMontant(l[iMvtDeb] ?? '') : 0;
+      const mc = avecMouvements ? lireMontant(l[iMvtCre] ?? '') : 0;
+      if (solde === null || md === null || mc === null) return void anomalies.push(`ligne ${i + 2} · montant illisible sur le compte ${numero}`);
+      if (solde === 0 && md === 0 && mc === 0) return;
+      if (avecMouvements && iRepDeb >= 0 && iRepCre >= 0 && (iSolDeb >= 0 || iDeb >= 0)) {
+        const r = diff(lireMontant(l[iRepDeb] ?? ''), lireMontant(l[iRepCre] ?? ''));
+        if (r !== null && Math.abs(r + md - mc - solde) > 0.005) {
+          return void anomalies.push(`ligne ${i + 2} · sur le compte ${numero}, report + mouvements ne donnent pas le solde`);
+        }
+      }
       const prec = soldes.get(numero);
       soldes.set(numero, {
         intitule: prec?.intitule || (iInt >= 0 ? (l[iInt] ?? '').trim() : '') || numero,
-        solde: Math.round(((prec?.solde ?? 0) + d - c) * 100) / 100,
+        solde: Math.round(((prec?.solde ?? 0) + solde) * 100) / 100,
+        mouvementDebit: avecMouvements ? Math.round(((prec?.mouvementDebit ?? 0) + md) * 100) / 100 : null,
+        mouvementCredit: avecMouvements ? Math.round(((prec?.mouvementCredit ?? 0) + mc) * 100) / 100 : null,
       });
     });
     if (anomalies.length > 0) {
@@ -101,14 +147,22 @@ export class CumulService {
     await this.prisma.$transaction([
       this.prisma.ligneBalanceConsolidation.deleteMany({ where: { tenantId, entiteId } }),
       this.prisma.ligneBalanceConsolidation.createMany({
-        data: [...soldes.entries()].map(([numero, l]) => ({ tenantId, entiteId, numero, intitule: l.intitule, solde: l.solde })),
+        data: [...soldes.entries()].map(([numero, l]) => ({
+          tenantId,
+          entiteId,
+          numero,
+          intitule: l.intitule,
+          solde: l.solde,
+          mouvementDebit: l.mouvementDebit,
+          mouvementCredit: l.mouvementCredit,
+        })),
       }),
       this.prisma.entitePerimetreConsolidation.update({
         where: { id: entiteId },
         data: { balanceImporteeLe: new Date(), fichierBalance: dto.nomFichier },
       }),
     ]);
-    return { lignes: soldes.size };
+    return { lignes: soldes.size, avecMouvements };
   }
 
   async declarerAcquisition(tenantId: string, lienId: string, dto: AcquisitionDto) {
@@ -201,6 +255,16 @@ export class CumulService {
     return { supprime: true };
   }
 
+  /**
+   * Les comptes propres de la consolidante, tels que ses états individuels les
+   * lisent · le tableau des flux consolidé y prend ses opérations avec SES
+   * actionnaires (capital, prélèvements, dividendes), qu'aucune clé du cumul ne
+   * sépare des mêmes opérations des filiales.
+   */
+  async lignesConsolidante(tenantId: string, exerciceId: string | null): Promise<LigneBalancePourEtat[]> {
+    return chargerLignes(this.ecritures, tenantId, exerciceId);
+  }
+
   async cumul(tenantId: string, exerciceId: string) {
     const etat = await this.perimetre.etat(tenantId, exerciceId);
     const ex = await this.prisma.exercice.findFirst({ where: { id: exerciceId, tenantId }, select: { dateDebut: true, dateFin: true } });
@@ -241,12 +305,30 @@ export class CumulService {
     const lignesImportees = await this.prisma.ligneBalanceConsolidation.findMany({
       where: { tenantId, entiteId: { in: retenus.filter((r) => !r.estConsolidante).map((r) => r.id) } },
     });
-    const balanceDossier = await this.ecritures.balance(tenantId, exerciceId);
+    // `false` · le livre-journal seul, comme les états individuels
+    // (`chargerLignes`). Un état consolidé bâti sur le brouillard de la
+    // consolidante n'engagerait personne, et le tableau des flux, qui relit ses
+    // comptes propres par `lignesConsolidante`, ne bouclerait plus avec lui.
+    const balanceDossier = await this.ecritures.balance(tenantId, exerciceId, false);
 
     const entites: EntiteACumuler[] = retenus.map((r) => {
       const balance = r.estConsolidante
-        ? balanceDossier.lignes.map((l) => ({ numero: l.numero, intitule: l.intitule, solde: Number(l.solde) }))
-        : lignesImportees.filter((l) => l.entiteId === r.id).map((l) => ({ numero: l.numero, intitule: l.intitule, solde: Number(l.solde) }));
+        ? balanceDossier.lignes.map((l) => ({
+            numero: l.numero,
+            intitule: l.intitule,
+            solde: Number(l.solde),
+            mouvementDebit: n(l.mouvementDebit),
+            mouvementCredit: n(l.mouvementCredit),
+          }))
+        : lignesImportees
+            .filter((l) => l.entiteId === r.id)
+            .map((l) => ({
+              numero: l.numero,
+              intitule: l.intitule,
+              solde: Number(l.solde),
+              mouvementDebit: n(l.mouvementDebit),
+              mouvementCredit: n(l.mouvementCredit),
+            }));
       return {
         id: r.id,
         nom: r.nom,

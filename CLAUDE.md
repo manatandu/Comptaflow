@@ -2352,6 +2352,35 @@ pas (quote-part de résultat partagé, participation des travailleurs) sont
 montrées à part plutôt que fondues. Totaux des quatre corrigés du cours CPCC
 (Bamba Makola) retrouvés · 3 255 000, 3 105 000, 4 820 000, 860 000.
 
+**Consolidation SYSCOHADA, tranche 3b · tableau des flux et variation des
+capitaux propres (2026-09-24).** D4C ch. XII-8 § 4 et § 5
+(`consolidation/flux-capitaux-consolides.ts`). CINQ RÈGLES À NE PAS DÉFAIRE.
+(1) LES FLUX SE LISENT SUR DES MOUVEMENTS · le D4C les veut « bruts en
+principe », et une différence de soldes ne rend que la somme d'un emprunt et
+de son remboursement. Les mouvements sont cumulés à la fraction comme les
+soldes ; une balance de filiale importée à QUATRE colonnes n'en porte pas
+(`null`, jamais zéro) et le tableau est REFUSÉ en la nommant. Le canevas
+accepte six colonnes, reconnues à leur EN-TÊTE, et refuse la ligne dont
+report + mouvements ne donnent pas le solde. (2) LA TABLE DU CH. 5 N'EST PAS
+RÉÉCRITE · `resoudreFluxSurLignes` sur la balance consolidée, comme le bilan
+passe par la résolution individuelle. (3) LES FLUX AVEC LES ACTIONNAIRES ne se
+lisent pas sur les capitaux propres consolidés, qui ne sont plus des comptes ·
+capital, prélèvements et dividendes de la CONSOLIDANTE par la même table sur
+SES comptes (`lignesConsolidante`), dividendes des MINORITAIRES par la
+variation de leurs intérêts, résultat déduit, corrigée du 465 des filiales.
+(4) CE QUE CETTE VERSION NE SAIT PAS CHIFFRER REFUSE LE TABLEAU, jamais ne
+vaut zéro · un périmètre qui a bougé depuis N-1 (entrée, sortie, méthode,
+pourcentage d'intérêt, apparié par la dénomination), un capital de filiale
+mouvementé, des titres consolidés mouvementés, un solde au 13. Lire
+l'incidence de périmètre comme zéro verserait le prix d'acquisition dans les
+flux ordinaires sur un tableau qui boucle. (5) LA CONSOLIDANTE EST LUE AU
+LIVRE-JOURNAL SEUL (`balance(…, false)`), comme ses états individuels · le
+cumul lisait jusque-là le brouillard, et le tableau des flux, qui relit ses
+comptes propres, ne bouclerait plus avec lui. La variation des capitaux
+propres ne porte que le bloc N · le bloc N-1 du modèle part de la clôture N-2,
+qu'OmegaX ne consolide pas. Sans consolidation N-1, ni l'un ni l'autre ne
+s'établit, et le motif est celui de la colonne comparative.
+
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de
 l'inventaire physique » (immobilisations, stocks, caisses) et § VII

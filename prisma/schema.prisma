@@ -6329,6 +6329,12 @@ model LigneBalanceConsolidation {
   numero   String
   intitule String
   solde    Decimal @db.Decimal(18, 2)
+  /// Mouvements PROPRES de l'exercice, report à-nouveau exclu · présents
+  /// seulement quand la balance importée les porte (balance à six colonnes).
+  /// Le tableau des flux consolidé les exige · le D4C veut des flux bruts,
+  /// qu'une différence de soldes ne donne pas.
+  mouvementDebit  Decimal? @db.Decimal(18, 2)
+  mouvementCredit Decimal? @db.Decimal(18, 2)
 
   @@unique([entiteId, numero])
   @@index([tenantId])

@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { EtatsFinanciersSyscohadaService } from '../etats-financiers-syscohada/etats-financiers-syscohada.service';
 import { cumulerConsolidation, EntiteACumuler, LigneBalanceEntree } from './cumul-consolidation';
 import { EtatsConsolidesService } from './etats-consolides.service';
+import { variationsDuPerimetre } from './flux-capitaux-consolides';
 import { noteDuPerimetre } from './note-perimetre';
 import { ResultatEntite } from './perimetre-consolidation';
 
@@ -10,7 +11,8 @@ import { ResultatEntite } from './perimetre-consolidation';
  * colonne devient quand il ne se consolide pas. Le moteur est testé à part.
  */
 const T = 'dossier';
-const b = (l: [string, number][]): LigneBalanceEntree[] => l.map(([numero, solde]) => ({ numero, intitule: numero, solde }));
+const b = (l: [string, number][]): LigneBalanceEntree[] =>
+  l.map(([numero, solde]) => ({ numero, intitule: numero, solde, mouvementDebit: Math.max(solde, 0), mouvementCredit: Math.max(-solde, 0) }));
 const mere = (actif: number): EntiteACumuler => ({
   id: T,
   nom: 'Mère',
@@ -35,7 +37,7 @@ const res = (nom: string, methode: ResultatEntite['methode'], pct: number, estCo
   dateCloture: null,
 });
 
-function monter(opts: { precedent: string | null; entitesN1: number; cumulN1?: 'ok' | 'refus' }) {
+function monter(opts: { precedent: string | null; entitesN1: number; cumulN1?: 'ok' | 'refus'; pctN1?: number }) {
   const prisma: any = {
     exercice: {
       findFirst: jest.fn(async ({ where }: any) => {
@@ -50,16 +52,19 @@ function monter(opts: { precedent: string | null; entitesN1: number; cumulN1?: '
       if (opts.cumulN1 === 'refus') throw new BadRequestException('Coût d’acquisition non déclaré');
       return cumul(800);
     }),
+    lignesConsolidante: jest.fn(async (_t: string, ex: string) => [{ numero: '10100000', marque: ex }]),
   };
   const perimetre: any = {
     etat: jest.fn(async (_t: string, ex: string) =>
       ex === 'N'
         ? { entites: [{ id: 'F', secteurActivite: 'Ciment' }], resultats: [res('Mère', 'IG', 100, true), res('F', 'IG', 80)] }
-        : { entites: Array.from({ length: opts.entitesN1 }, () => ({ id: 'x' })), resultats: [res('Mère', 'IG', 100, true), res('F', 'IG', 60)] },
+        : { entites: Array.from({ length: opts.entitesN1 }, () => ({ id: 'x' })), resultats: [res('Mère', 'IG', 100, true), res('F', 'IG', opts.pctN1 ?? 60)] },
     ),
   };
-  const svc = new EtatsConsolidesService(prisma, cumuls, perimetre, new EtatsFinanciersSyscohadaService(null as never, null as never));
-  return { svc, cumuls, prisma };
+  const individuels = new EtatsFinanciersSyscohadaService(null as never, null as never);
+  const flux = jest.spyOn(individuels, 'resoudreFluxSurLignes');
+  const svc = new EtatsConsolidesService(prisma, cumuls, perimetre, individuels);
+  return { svc, cumuls, prisma, flux };
 }
 
 describe('EtatsConsolidesService · la colonne N-1', () => {
@@ -98,6 +103,54 @@ describe('EtatsConsolidesService · la colonne N-1', () => {
     const { svc } = monter({ precedent: 'P', entitesN1: 1 });
     const r = await svc.etats(T, 'N');
     expect(r.notePerimetre.lignes.find((l) => l.denomination === 'F')).toMatchObject({ secteurActivite: 'Ciment', pctControleN: 80, pctControleN1: 60 });
+  });
+});
+
+describe('EtatsConsolidesService · tableau des flux et variation des capitaux propres', () => {
+  it('premier exercice · ni tableau des flux ni variation, et le motif est celui du comparatif', async () => {
+    const { svc, cumuls } = monter({ precedent: null, entitesN1: 0 });
+    const r = await svc.etats(T, 'N');
+    expect(r.tableauDesFlux.lignes).toBeNull();
+    expect(r.tableauDesFlux.obstacles).toEqual([expect.stringMatching(/Premier exercice/)]);
+    expect(r.variationCapitauxPropres).toBeNull();
+    expect(cumuls.lignesConsolidante).not.toHaveBeenCalled();
+  });
+
+  it('un pourcentage d’intérêt qui bouge refuse le tableau et nomme l’entité', async () => {
+    const { svc } = monter({ precedent: 'P', entitesN1: 1, pctN1: 60 });
+    const r = await svc.etats(T, 'N');
+    expect(r.tableauDesFlux.lignes).toBeNull();
+    expect(r.tableauDesFlux.obstacles).toEqual([expect.stringMatching(/^F change de pourcentage d’intérêt \(60 % en N-1, 80 % en N\)/)]);
+  });
+
+  it('les comptes propres de la consolidante N et N-1 vont au résolveur individuel', async () => {
+    const { svc, cumuls, flux } = monter({ precedent: 'P', entitesN1: 1, pctN1: 80 });
+    const r = await svc.etats(T, 'N');
+    expect(cumuls.lignesConsolidante).toHaveBeenCalledWith(T, 'N');
+    expect(cumuls.lignesConsolidante).toHaveBeenCalledWith(T, 'P');
+    expect(flux).toHaveBeenCalledWith([{ numero: '10100000', marque: 'N' }], [{ numero: '10100000', marque: 'P' }]);
+    expect(r.tableauDesFlux.lignes).not.toBeNull();
+    expect(r.variationCapitauxPropres?.lignes.find((l) => l.cle === 'CLOTURE_N')?.montants.capital).toBe(1000);
+  });
+});
+
+describe('variationsDuPerimetre', () => {
+  const e = (nom: string, methode: string, pctInteret: number, estConsolidante = false) => ({ nom, methode, pctInteret, estConsolidante });
+
+  it('entrée, sortie et changement de méthode sont nommés · une entité exclue n’en fait pas', () => {
+    const m = variationsDuPerimetre(
+      [e('Mère', 'IG', 100, true), e('A', 'IG', 80), e('B', 'EXCLUE', 70), e('C', 'ME', 30)],
+      [e('Mère', 'IG', 100, true), e('A', 'IP', 80), e('D', 'ME', 25), e('B', 'NC', 10)],
+    );
+    expect(m.map((x) => x.split(' L’incidence')[0])).toEqual([
+      'A change de méthode (IP en N-1, IG en N).',
+      'C entre dans le périmètre en N (ME).',
+      'D sort du périmètre en N.',
+    ]);
+  });
+
+  it('même périmètre, mêmes pourcentages · rien à dire, la casse de la dénomination ne compte pas', () => {
+    expect(variationsDuPerimetre([e('Mère', 'IG', 100, true), e('Filiale', 'IG', 80)], [e('Mère', 'IG', 100, true), e('FILIALE ', 'IG', 80)])).toEqual([]);
   });
 });
 

@@ -581,6 +581,17 @@ export class EtatsFinanciersSyscohadaService {
     return this.resoudreTousLesPostesCR(lignes);
   }
 
+  /**
+   * Les postes INDIVIDUELS du tableau des flux (FA à FQ, ZA à ZH) sur des
+   * lignes fournies · N avec ses mouvements, N-1 pour les variations. Même
+   * raison que le bilan · le tableau consolidé réutilise la table du ch. 5
+   * plutôt que d'en écrire une seconde.
+   */
+  resoudreFluxSurLignes(lignesN: LigneBalancePourEtat[], lignesN1: LigneBalancePourEtat[]): Map<string, number> {
+    const { parRef } = this.resoudreFluxPourExercice(lignesN, lignesN1, true);
+    return new Map([...parRef.entries()].map(([ref, p]) => [ref, p.montant]));
+  }
+
   private calculerTotalActif(total: TotalBilan, parRef: Map<string, PosteBilanCalcule>): PosteBilanCalcule {
     const composantes = total.deRefs.map((ref) => parRef.get(ref));
     return {

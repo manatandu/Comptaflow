@@ -128,7 +128,9 @@ export function CumulConsolidation(props: {
         <p className="text-[11px] text-text-dim mb-1.5 leading-[1.6]">
           La balance de la consolidante est celle du grand livre. Celle de chaque autre entité s’importe au canevas de la
           balance agrégée (Numéro, Intitulé, Débit, Crédit), en francs congolais, <strong>déjà retraitée</strong> aux règles du
-          groupe (D4C, ch. XII-3). Un nouvel import remplace le précédent.
+          groupe (D4C, ch. XII-3). Un nouvel import remplace le précédent. Le tableau des flux consolidé demande en plus les
+          MOUVEMENTS de l’exercice · importez alors la balance à six colonnes (report, mouvements et solde, chacun en débit et en
+          crédit), les colonnes étant reconnues à leur en-tête. Report et mouvements qui ne donnent pas le solde font refuser la ligne.
         </p>
         {entites.map((e) => (
           <div key={e.id} className="flex flex-wrap items-center gap-2 py-1 border-b border-border/60 text-[12px]">

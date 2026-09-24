@@ -2,8 +2,13 @@ import { useState } from 'react';
 import { api, ApiError } from '../lib/api';
 
 /**
- * ÉTATS CONSOLIDÉS · tranche 3a, sous le cumul. Bilan et compte de résultat
- * au modèle du D4C (ch. XII-8 § 2 et § 3), et note du périmètre (§ 6).
+ * ÉTATS CONSOLIDÉS · tranches 3a et 3b, sous le cumul. Bilan et compte de
+ * résultat au modèle du D4C (ch. XII-8 § 2 et § 3), tableau des flux (§ 4),
+ * variation des capitaux propres (§ 5) et note du périmètre (§ 6).
+ *
+ * Le tableau des flux REFUSÉ n'est pas un tableau vide · il rend ses motifs
+ * (une entité sans mouvements, un périmètre qui a bougé) à la place des
+ * lignes. Des lignes à zéro se liraient comme un groupe sans trésorerie.
  *
  * L'écran ne calcule rien et le dit à trois endroits. Un montant NON CALCULÉ
  * s'affiche comme tel, jamais comme un zéro · les impôts différés d'un groupe
@@ -24,6 +29,18 @@ type Ligne = {
   reserve?: string;
 };
 type Methode = 'IG' | 'IP' | 'ME' | 'NC';
+type ColonneCp = 'capital' | 'primes' | 'reserves' | 'resultat' | 'conversion' | 'reevaluation' | 'groupe' | 'minoritaires' | 'total';
+const COLONNES_CP: [ColonneCp, string][] = [
+  ['capital', 'Capital'],
+  ['primes', 'Primes'],
+  ['reserves', 'Réserves consolidées'],
+  ['resultat', 'Résultat'],
+  ['conversion', 'Écarts de conversion'],
+  ['reevaluation', 'Écarts de réévaluation'],
+  ['groupe', 'Part du groupe'],
+  ['minoritaires', 'Minoritaires'],
+  ['total', 'Total'],
+];
 type Etats = {
   bilan: { actif: Ligne[]; passif: Ligne[] };
   compteDeResultat: Ligne[];
@@ -31,6 +48,15 @@ type Etats = {
   publiable: boolean;
   motifsNonPubliable: string[];
   comparatif: { disponible: boolean; motif: string | null };
+  tableauDesFlux: {
+    lignes: Ligne[] | null;
+    obstacles: string[];
+    controle: { tresorerieParLesFlux: number; tresorerieParLeBilan: number; ecart: number; ok: boolean } | null;
+  };
+  variationCapitauxPropres: {
+    lignes: { cle: string; libelle: string; montants: Record<ColonneCp, number | null>; lecture?: string }[];
+    reserves: string[];
+  } | null;
   notePerimetre: {
     lignes: {
       denomination: string;
@@ -95,7 +121,7 @@ export function EtatsConsolidesVue({ exerciceId }: { exerciceId: string }) {
     <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
       <div className="flex flex-wrap gap-2 items-center mb-2">
         <button className="border border-border px-2.5 py-1 text-[12px]" disabled={chargement} onClick={() => void produire()}>
-          {chargement ? 'Production…' : 'Produire le bilan, le compte de résultat et la note du périmètre'}
+          {chargement ? 'Production…' : 'Produire les états consolidés'}
         </button>
       </div>
       {erreur && <p className="text-[12px] text-danger mb-2">{erreur}</p>}
@@ -193,6 +219,82 @@ export function EtatsConsolidesVue({ exerciceId }: { exerciceId: string }) {
               </tbody>
             </table>
           </div>
+
+          <h3 className="text-[12.5px] font-bold mt-3 mb-1">Tableau des flux de trésorerie consolidé</h3>
+          {etats.tableauDesFlux.lignes === null ? (
+            <div className="text-[12px] border border-warning px-2 py-1.5">
+              <strong>Tableau non établi.</strong>
+              <ul className="list-disc pl-5">
+                {etats.tableauDesFlux.obstacles.map((o) => (
+                  <li key={o}>{o}</li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <>
+              {etats.tableauDesFlux.controle && !etats.tableauDesFlux.controle.ok && (
+                <p className="text-[12px] text-danger mb-1">
+                  La trésorerie de clôture par les flux ({fc(etats.tableauDesFlux.controle.tresorerieParLesFlux)}) ne rejoint pas celle du
+                  bilan ({fc(etats.tableauDesFlux.controle.tresorerieParLeBilan)}) · écart {fc(etats.tableauDesFlux.controle.ecart)}.
+                </p>
+              )}
+              <div className="overflow-x-auto">
+                <table className="w-full text-[12px]">
+                  <thead>
+                    <tr className="text-left border-b border-border">
+                      <th className="py-1 pr-2">Libellé</th>
+                      <th className="py-1 text-right">N</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {etats.tableauDesFlux.lignes.map((l) => (
+                      <tr key={l.cle} className={`align-top ${classeLigne(l)}`}>
+                        <Libelle l={l} />
+                        <td className="py-0.5 text-right"><Montant v={l.net} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+          <h3 className="text-[12.5px] font-bold mt-3 mb-1">Variation des capitaux propres consolidés · exercice N</h3>
+          {etats.variationCapitauxPropres === null ? (
+            <p className="text-[12px] text-text-dim">Non établie · elle part des capitaux propres consolidés de clôture N-1, que seule la consolidation de l’exercice précédent donne.</p>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-[12px]">
+                  <thead>
+                    <tr className="text-left border-b border-border">
+                      <th className="py-1 pr-2">Libellé</th>
+                      {COLONNES_CP.map(([k, t]) => (
+                        <th key={k} className="py-1 pr-2 text-right">{t}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {etats.variationCapitauxPropres.lignes.map((l) => (
+                      <tr key={l.cle} className={`align-top ${l.cle.startsWith('CLOTURE') ? 'font-bold border-t border-border' : ''}`}>
+                        <td className="py-0.5 pr-2" title={l.lecture}>{l.libelle}</td>
+                        {COLONNES_CP.map(([k]) => (
+                          <td key={k} className="py-0.5 pr-2 text-right"><Montant v={l.montants[k]} /></td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {etats.variationCapitauxPropres.reserves.length > 0 && (
+                <ul className="text-[11px] text-text-dim mt-1 list-disc pl-5 leading-[1.6]">
+                  {etats.variationCapitauxPropres.reserves.map((r) => (
+                    <li key={r}>{r}</li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
 
           <h3 className="text-[12.5px] font-bold mt-3 mb-1">Note annexe · informations sur le périmètre</h3>
           <div className="overflow-x-auto">
