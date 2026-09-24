@@ -227,7 +227,24 @@ export const IMPUTATION_PAR_NATURE: Readonly<
 
 export type SensLigne = 'DEBIT' | 'CREDIT';
 
+/**
+ * LES TROIS TEMPS DE L'ÉCRITURE DE PAIE, dans l'ordre du Guide d'application
+ * SYSCOHADA, Partie 1 ch. 3, section 4 et Application 10 · et dans les mots de
+ * la fiche du compte 42, identiques dans les deux plans (AUDCIF Titre VII ;
+ * SYCEBNL Partie 2 ch. 3) :
+ *  · BRUT · « crédité des rémunérations BRUTES à payer au personnel, par le
+ *    débit des comptes de charges intéressés 66 » (§ 4.1) ;
+ *  · RETENUES · le 42 est « débité des versements effectués aux organismes
+ *    sociaux pour le compte du personnel (cotisations salariales), par le
+ *    crédit du compte 43 », et les autres retenues sont « virées de 422 vers
+ *    [...] 447 (impôts retenus à la source) » (§ 4.3) ;
+ *  · PATRONALES · « débit 6641/6642, crédit organismes 431-433 » (§ 4.2).
+ * Le solde du 422 est alors le NET À PAYER, que le règlement solde ensuite.
+ */
+export type BlocPaie = 'BRUT' | 'RETENUES' | 'PATRONALES';
+
 export type LigneProposee = {
+  readonly bloc: BlocPaie;
   readonly compte: string;
   readonly intitule: string;
   readonly sens: SensLigne;
@@ -352,9 +369,21 @@ export function passationPaie(entree: EntreePassation): VerdictPassation {
     };
   }
 
+  const reserveRole = (role: RoleComptePaie) =>
+    NOMENCLATURE_PAIE[role].divergent
+      ? `NUMÉRO PROPRE AU RÉFÉRENTIEL · ce rôle est au ${NOMENCLATURE_PAIE[role].SYSCOHADA} en SYSCOHADA et au ${NOMENCLATURE_PAIE[role].SYCEBNL} en SYCEBNL. L'autre numéro n'est pas ouvert dans ce plan.`
+      : null;
+
+  // 1 · LE BRUT · D/66 par nature, C/422 pour le brut entier. L'impôt et la
+  //     quote-part ouvrière sont DANS ce brut : ce sont des sommes dues au
+  //     salarié, que l'employeur retient et reverse pour son compte. Ni l'une
+  //     ni l'autre n'est une charge de l'employeur.
+  let brutFc = 0;
   for (const [role, montantFc] of parRole) {
     if (montantFc <= 0) continue;
+    brutFc += montantFc;
     lignes.push({
+      bloc: 'BRUT',
       compte: compteDuRole(role, r),
       intitule: NOMENCLATURE_PAIE[role].intitule,
       sens: 'DEBIT',
@@ -362,63 +391,96 @@ export function passationPaie(entree: EntreePassation): VerdictPassation {
       reserve: null,
     });
   }
-
-  // 2 · Les charges sociales PATRONALES, en un seul débit.
-  const patronales = entree.cotisations
-    .filter((c) => c.charge === 'EMPLOYEUR')
-    .reduce((n, c) => n + c.montantFc, 0);
-  if (patronales > 0) {
-    lignes.push({
-      compte: compteDuRole('CHARGES_SOCIALES_PATRONALES', r),
-      intitule: NOMENCLATURE_PAIE.CHARGES_SOCIALES_PATRONALES.intitule,
-      sens: 'DEBIT',
-      montantFc: patronales,
-      reserve:
-        "Le 6641 vise le personnel NATIONAL. Un dossier qui emploie des non-nationaux ventile entre 66410000 et 66420000, et OmegaX ne connaît pas la nationalité ligne à ligne.",
-    });
-  }
-
-  // 3 · Les dettes envers les organismes · la part patronale ET la part
-  //     ouvrière d'une même branche vont au MÊME compte, la Caisse ne
-  //     distinguant pas qui a supporté la cotisation.
-  const parRoleOrganisme = new Map<RoleComptePaie, number>();
-  for (const c of entree.cotisations) {
-    const role = ROLE_PAR_CLE_COTISATION[c.cle];
-    if (!role) continue;
-    parRoleOrganisme.set(role, (parRoleOrganisme.get(role) ?? 0) + c.montantFc);
-  }
-  for (const [role, montantFc] of parRoleOrganisme) {
-    if (montantFc <= 0) continue;
-    lignes.push({
-      compte: compteDuRole(role, r),
-      intitule: NOMENCLATURE_PAIE[role].intitule,
-      sens: 'CREDIT',
-      montantFc,
-      reserve: NOMENCLATURE_PAIE[role].divergent
-        ? `NUMÉRO PROPRE AU RÉFÉRENTIEL · ce rôle est au ${NOMENCLATURE_PAIE[role].SYSCOHADA} en SYSCOHADA et au ${NOMENCLATURE_PAIE[role].SYCEBNL} en SYCEBNL. L'autre numéro n'est pas ouvert dans ce plan.`
-        : null,
-    });
-  }
-
-  // 4 · L'impôt retenu et le net dû.
-  if ((entree.irppFc ?? 0) > 0) {
-    lignes.push({
-      compte: compteDuRole('IRPP_RETENU', r),
-      intitule: NOMENCLATURE_PAIE.IRPP_RETENU.intitule,
-      sens: 'CREDIT',
-      montantFc: entree.irppFc as number,
-      reserve:
-        "L'intitulé « impôts sur salaires » est hérité de l'IPR ; c'est l'IRPP de l'article 119 de la loi n° 23/053 qui s'y loge depuis le 1er janvier 2026.",
-    });
-  }
   lignes.push({
+    bloc: 'BRUT',
     compte: compteDuRole('REMUNERATIONS_DUES', r),
     intitule: NOMENCLATURE_PAIE.REMUNERATIONS_DUES.intitule,
     sens: 'CREDIT',
-    montantFc: entree.netAPayerFc as number,
+    montantFc: brutFc,
     reserve:
-      "LE RÈGLEMENT EST UNE SECONDE ÉCRITURE · le 422 est débité des paiements par le crédit de la trésorerie, dans un autre journal. Les deux textes l'écrivent à la fiche de leur compte 42.",
+      "LE 422 EST CRÉDITÉ DU BRUT, puis débité des retenues · son solde est le net à payer. LE RÈGLEMENT EST UNE SECONDE ÉCRITURE · le 422 est débité des paiements par le crédit de la trésorerie, dans un autre journal. Les deux textes l'écrivent à la fiche de leur compte 42.",
   });
+
+  // 2 · LES RETENUES · D/422, C/43 pour les cotisations ouvrières, C/447 pour
+  //     l'impôt retenu à la source.
+  const ouvrieres = new Map<RoleComptePaie, number>();
+  const patronalesParRole = new Map<RoleComptePaie, number>();
+  for (const c of entree.cotisations) {
+    const role = ROLE_PAR_CLE_COTISATION[c.cle];
+    if (!role || c.montantFc <= 0) continue;
+    const cible = c.charge === 'TRAVAILLEUR' ? ouvrieres : patronalesParRole;
+    cible.set(role, (cible.get(role) ?? 0) + c.montantFc);
+  }
+  const irppFc = Math.max(0, entree.irppFc ?? 0);
+  let retenuesFc = irppFc;
+  for (const m of ouvrieres.values()) retenuesFc += m;
+  if (retenuesFc > 0) {
+    lignes.push({
+      bloc: 'RETENUES',
+      compte: compteDuRole('REMUNERATIONS_DUES', r),
+      intitule: NOMENCLATURE_PAIE.REMUNERATIONS_DUES.intitule,
+      sens: 'DEBIT',
+      montantFc: retenuesFc,
+      reserve: null,
+    });
+    for (const [role, montantFc] of ouvrieres) {
+      lignes.push({
+        bloc: 'RETENUES',
+        compte: compteDuRole(role, r),
+        intitule: NOMENCLATURE_PAIE[role].intitule,
+        sens: 'CREDIT',
+        montantFc,
+        reserve: reserveRole(role),
+      });
+    }
+    if (irppFc > 0) {
+      lignes.push({
+        bloc: 'RETENUES',
+        compte: compteDuRole('IRPP_RETENU', r),
+        intitule: NOMENCLATURE_PAIE.IRPP_RETENU.intitule,
+        sens: 'CREDIT',
+        montantFc: irppFc,
+        reserve:
+          "L'IMPÔT RETENU N'EST PAS UNE CHARGE DE L'EMPLOYEUR · il est prélevé sur le brut du salarié et reversé pour son compte. L'intitulé « impôts sur salaires » est hérité de l'IPR ; c'est l'IRPP de l'article 119 de la loi n° 23/053 qui s'y loge depuis le 1er janvier 2026.",
+      });
+    }
+  }
+
+  // 3 · LES CHARGES PATRONALES · D/664, C/43 · les seules cotisations qui
+  //     soient une charge de l'entité.
+  let patronalesFc = 0;
+  for (const m of patronalesParRole.values()) patronalesFc += m;
+  if (patronalesFc > 0) {
+    lignes.push({
+      bloc: 'PATRONALES',
+      compte: compteDuRole('CHARGES_SOCIALES_PATRONALES', r),
+      intitule: NOMENCLATURE_PAIE.CHARGES_SOCIALES_PATRONALES.intitule,
+      sens: 'DEBIT',
+      montantFc: patronalesFc,
+      reserve:
+        "Le 6641 vise le personnel NATIONAL. Un dossier qui emploie des non-nationaux ventile entre 66410000 et 66420000, et OmegaX ne connaît pas la nationalité ligne à ligne.",
+    });
+    for (const [role, montantFc] of patronalesParRole) {
+      lignes.push({
+        bloc: 'PATRONALES',
+        compte: compteDuRole(role, r),
+        intitule: NOMENCLATURE_PAIE[role].intitule,
+        sens: 'CREDIT',
+        montantFc,
+        reserve: reserveRole(role),
+      });
+    }
+  }
+
+  // LE SOLDE DU 422 DOIT ÊTRE LE NET DU BULLETIN · brut moins retenues. Un
+  // écart dirait que le moteur et la passation ne parlent pas du même bulletin.
+  if (Math.abs(brutFc - retenuesFc - (entree.netAPayerFc as number)) >= 0.005) {
+    refus.push({
+      motif: 'ECRITURE_DESEQUILIBREE',
+      explication: `Le 422 solderait à ${(brutFc - retenuesFc).toFixed(2)} FC quand le net du bulletin est ${(entree.netAPayerFc as number).toFixed(2)} FC. Un écart est un défaut du moteur, jamais un arrondi à rattraper. Rien n'est proposé.`,
+    });
+    return { referentiel: r, lignes: [], totalDebitFc: 0, totalCreditFc: 0, equilibree: false, refus, reserves };
+  }
 
   const totalDebitFc = lignes.filter((l) => l.sens === 'DEBIT').reduce((n, l) => n + l.montantFc, 0);
   const totalCreditFc = lignes.filter((l) => l.sens === 'CREDIT').reduce((n, l) => n + l.montantFc, 0);
@@ -449,7 +511,7 @@ export function passationPaie(entree: EntreePassation): VerdictPassation {
     "LE JOURNAL · le dossier est semé avec cinq journaux (achats, ventes, banque, caisse, opérations diverses). La paie se passe aux OPÉRATIONS DIVERSES tant que le cabinet n'a pas ouvert un journal de paie dédié, ce qu'OmegaX ne fait pas à sa place.",
   );
   reserves.push(
-    "LES AVANTAGES EN NATURE SONT IMPUTÉS DIRECTEMENT AU 66170000, que les deux plans ouvrent sous cet intitulé. Un livre de cours décrit un autre chemin (enregistrement dans les comptes de charges concernés, puis transfert au 6617 par le crédit du 78) ; AUCUNE source lue ne le porte, et une note de cours n'est pas une source.",
+    "LES AVANTAGES EN NATURE SONT ICI IMPUTÉS AU 66170000, ce qui SIMPLIFIE le Guide d'application SYSCOHADA (Partie 1 ch. 3, § 4.5) : il les enregistre « par nature (614 transports, 622 locations, 624 entretien, 628 télécom…) puis régularisation globale fin d'exercice : débit 6617/6627, crédit 781 ». Le total des charges est le même ; la ventilation par nature ne l'est pas. Un dossier qui suit le Guide passe l'avantage par nature et régularise à la clôture.",
   );
 
   return { referentiel: r, lignes, totalDebitFc, totalCreditFc, equilibree, refus, reserves };

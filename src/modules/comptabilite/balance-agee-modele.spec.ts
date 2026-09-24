@@ -60,7 +60,7 @@ describe('balance âgée · le modèle du dossier de révision', () => {
     expect(service).toContain('debiteurs: totalDebiteurs');
     expect(service).toContain('crediteurs: totalCrediteurs');
     expect(service).toContain('net: arrondir(totalDebiteurs + totalCrediteurs)');
-    expect(page).toContain('SOLDE NET');
+    expect(page).toContain('Solde net');
   });
 
   it('n’invente pas un bloc « reste de l’exercice » quand il serait vide', () => {

@@ -145,12 +145,19 @@ C'est la même erreur que le net à payer de P2b, prise par l'autre bout.
    montant manquant**, et rien en aval ne le verrait. C'est le § 10 bis dans sa
    forme la plus discrète.
 3. **IMPOT_INDETERMINE** · pas d'impôt, pas de net.
-4. **ECRITURE_DESEQUILIBREE** · l'écriture s'équilibre PAR CONSTRUCTION (au
-   débit le total versé plus les charges patronales ; au crédit toutes les
-   cotisations plus l'impôt plus le net, et le net vaut le total versé moins la
-   quote-part ouvrière moins l'impôt). Le contrôle est fait quand même, et son
-   échec est un **refus** · aucune ligne de bouclage n'est posée. Un écart est
-   un défaut du moteur, jamais un arrondi à rattraper.
+4. **ECRITURE_DESEQUILIBREE** · le solde du 422 (brut moins retenues) doit
+   égaler le net du bulletin, et l'écriture doit s'équilibrer. Les deux
+   contrôles sont faits, et leur échec est un **refus** · aucune ligne de
+   bouclage n'est posée. Un écart est un défaut du moteur, jamais un arrondi à
+   rattraper.
+
+> **CORRIGÉ LE 2026-09-24.** L'écriture est proposée en TROIS TEMPS, dans
+> l'ordre du Guide d'application SYSCOHADA (Partie 1 ch. 3 section 4,
+> Application 10) : **brut** (D/66, C/422 pour le brut entier, § 4.1),
+> **retenues** (D/422, C/43 part ouvrière, C/447 impôt, § 4.3), **charges
+> patronales** (D/6641, C/43, § 4.2). La version d'origine créditait le 422 du
+> seul net dans une écriture combinée. L'impôt retenu n'est jamais une charge
+> de l'employeur.
 
 ---
 
@@ -163,8 +170,11 @@ C'est la même erreur que le net à payer de P2b, prise par l'autre bout.
   trésorerie, autre journal. Les deux textes l'écrivent à la fiche de leur
   compte 42, et le dépôt l'a payé au chantier des modèles de saisie.
 - **Les avantages en nature** vont directement au 66170000. Le livre de cours
-  décrit un transfert par le 78 ; **aucune source lue ne le porte**, et une note
-  de cours n'est pas une source.
+  décrit un transfert par le 78. **CORRIGÉ LE 2026-09-24** · ce n'était pas
+  « aucune source » : le Guide d'application SYSCOHADA, Partie 1 ch. 3 § 4.5,
+  écrit l'enregistrement par nature puis « régularisation globale fin
+  d'exercice : débit 6617/6627, crédit 781 ». OmegaX simplifie, et la réserve
+  le dit désormais.
 - **Le 6641 vise le personnel NATIONAL.** Un dossier qui emploie des
   non-nationaux ventile entre 66410000 et 66420000, et OmegaX ne connaît pas la
   nationalité ligne à ligne. Réserve portée sur la ligne.

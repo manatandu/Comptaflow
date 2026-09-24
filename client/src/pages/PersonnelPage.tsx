@@ -1,8 +1,19 @@
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { OngletBulletins } from './BulletinsPaie';
+
+/**
+ * Les trois temps de l'écriture de paie, dans l'ordre du Guide d'application
+ * SYSCOHADA (Partie 1 ch. 3 section 4, Application 10). L'impôt retenu est au
+ * deuxième, jamais au troisième : c'est une retenue sur le salarié.
+ */
+const TITRE_BLOC_PAIE = {
+  BRUT: '1 · Salaire brut dû au personnel',
+  RETENUES: '2 · Retenues sur le salaire (cotisations ouvrières, impôt)',
+  PATRONALES: '3 · Charges sociales patronales',
+} as const;
 
 /**
  * LE REGISTRE DU PERSONNEL · l'état civil, les engagements, et ce que
@@ -189,6 +200,7 @@ interface Simulation {
   passation: {
     referentiel: string;
     lignes: {
+      bloc: 'BRUT' | 'RETENUES' | 'PATRONALES';
       compte: string;
       intitule: string;
       sens: 'DEBIT' | 'CREDIT';
@@ -2201,22 +2213,31 @@ export function PersonnelPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {simulation.passation.lignes.map((l, i) => (
-                            <tr key={i} className="border-b border-border/40 align-top">
-                              <td className="py-1 pr-2 font-mono">{l.compte}</td>
-                              <td className="py-1 pr-2">
-                                {l.intitule}
-                                {l.reserve && (
-                                  <div className="text-[10.5px] text-text-dim">{l.reserve}</div>
-                                )}
-                              </td>
-                              <td className="py-1 pr-2 text-right font-mono">
-                                {l.sens === 'DEBIT' ? fc(l.montantFc) : ''}
-                              </td>
-                              <td className="py-1 text-right font-mono">
-                                {l.sens === 'CREDIT' ? fc(l.montantFc) : ''}
-                              </td>
-                            </tr>
+                          {simulation.passation.lignes.map((l, i, tout) => (
+                            <Fragment key={i}>
+                              {(i === 0 || tout[i - 1].bloc !== l.bloc) && (
+                                <tr className="border-b border-border/40">
+                                  <td colSpan={4} className="pt-2 pb-1 font-semibold">
+                                    {TITRE_BLOC_PAIE[l.bloc]}
+                                  </td>
+                                </tr>
+                              )}
+                              <tr className="border-b border-border/40 align-top">
+                                <td className="py-1 pr-2 font-mono">{l.compte}</td>
+                                <td className="py-1 pr-2">
+                                  {l.intitule}
+                                  {l.reserve && (
+                                    <div className="text-[10.5px] text-text-dim">{l.reserve}</div>
+                                  )}
+                                </td>
+                                <td className="py-1 pr-2 text-right font-mono">
+                                  {l.sens === 'DEBIT' ? fc(l.montantFc) : ''}
+                                </td>
+                                <td className="py-1 text-right font-mono">
+                                  {l.sens === 'CREDIT' ? fc(l.montantFc) : ''}
+                                </td>
+                              </tr>
+                            </Fragment>
                           ))}
                           <tr className="border-t border-border font-bold">
                             <td className="py-1" colSpan={2}>

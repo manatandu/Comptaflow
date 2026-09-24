@@ -141,19 +141,59 @@ describe("L'écriture proposée", () => {
     const v = passationPaie(entree());
     expect(v.refus).toEqual([]);
     expect(v.equilibree).toBe(true);
-    // Débit = total versé (1 400 000) + patronales (170 000) = 1 570 000
-    expect(v.totalDebitFc).toBeCloseTo(1_570_000, 6);
-    expect(v.totalCreditFc).toBeCloseTo(1_570_000, 6);
+    // Brut (1 400 000) + retenues (50 000 + 100 000) + patronales (170 000)
+    expect(v.totalDebitFc).toBeCloseTo(1_720_000, 6);
+    expect(v.totalCreditFc).toBeCloseTo(1_720_000, 6);
   });
 
-  it('porte la part patronale ET la part ouvrière au MÊME compte de pension', () => {
-    // La Caisse ne distingue pas qui a supporté la cotisation : les deux
-    // parts font une seule dette de 100 000 FC.
+  it('présente les trois blocs du Guide, dans son ordre', () => {
+    // Guide SYSCOHADA, Partie 1 ch. 3 section 4 et Application 10.
+    const blocs = passationPaie(entree()).lignes.map((l) => l.bloc);
+    expect([...new Set(blocs)]).toEqual(['BRUT', 'RETENUES', 'PATRONALES']);
+    const premierRetenue = blocs.indexOf('RETENUES');
+    expect(blocs.slice(premierRetenue).includes('BRUT')).toBe(false);
+  });
+
+  it('crédite le 422 du BRUT ENTIER', () => {
+    const v = passationPaie(entree());
+    const c422 = v.lignes.filter((l) => l.bloc === 'BRUT' && l.compte === '42200000');
+    expect(c422).toHaveLength(1);
+    expect(c422[0].sens).toBe('CREDIT');
+    expect(c422[0].montantFc).toBeCloseTo(1_400_000, 6);
+  });
+
+  it('débite le 422 des retenues, et son solde est le net du bulletin', () => {
+    const v = passationPaie(entree());
+    const d422 = v.lignes.filter((l) => l.bloc === 'RETENUES' && l.compte === '42200000');
+    expect(d422).toHaveLength(1);
+    expect(d422[0].sens).toBe('DEBIT');
+    expect(d422[0].montantFc).toBeCloseTo(150_000, 6);
+    const solde = v.lignes
+      .filter((l) => l.compte === '42200000')
+      .reduce((n, l) => n + (l.sens === 'CREDIT' ? l.montantFc : -l.montantFc), 0);
+    expect(solde).toBeCloseTo(1_250_000, 6);
+  });
+
+  it("n'impute JAMAIS l'impôt retenu en charge · c'est une retenue sur le salarié", () => {
+    const v = passationPaie(entree());
+    const irpp = v.lignes.filter((l) => l.compte === '44720000');
+    expect(irpp).toHaveLength(1);
+    expect(irpp[0]).toMatchObject({ bloc: 'RETENUES', sens: 'CREDIT' });
+    expect(irpp[0].montantFc).toBeCloseTo(100_000, 6);
+    // Aucune charge de classe 6 n'est débitée hors du brut et des patronales.
+    const charges = v.lignes.filter((l) => l.sens === 'DEBIT' && l.compte.startsWith('6'));
+    const total = charges.reduce((n, l) => n + l.montantFc, 0);
+    expect(total).toBeCloseTo(1_400_000 + 170_000, 6);
+  });
+
+  it('sépare la part ouvrière (retenue) de la part patronale (charge) du même compte', () => {
+    // Même dette envers la Caisse, deux origines : l'une sort du 422, l'autre
+    // du 664. Les fusionner effacerait laquelle des deux est une charge.
     const v = passationPaie(entree());
     const pension = v.lignes.filter((l) => l.compte === '43130000');
-    expect(pension).toHaveLength(1);
-    expect(pension[0].montantFc).toBeCloseTo(100_000, 6);
-    expect(pension[0].sens).toBe('CREDIT');
+    expect(pension.map((l) => l.bloc)).toEqual(['RETENUES', 'PATRONALES']);
+    expect(pension.every((l) => l.sens === 'CREDIT')).toBe(true);
+    expect(pension.reduce((n, l) => n + l.montantFc, 0)).toBeCloseTo(100_000, 6);
   });
 
   it('change de numéro de pension selon le référentiel, et le DIT', () => {
@@ -246,6 +286,7 @@ describe('Ce que la passation annonce', () => {
   it("écarte le chemin du livre de cours pour les avantages en nature", () => {
     const r = passationPaie(entree()).reserves.join(' ');
     expect(r).toContain('66170000');
-    expect(r).toContain("une note de cours n'est pas une source");
+    expect(r).toContain('§ 4.5');
+    expect(r).toContain('781');
   });
 });

@@ -1658,11 +1658,23 @@ EXACTEMENT sur les quinze natures, sans trou ni recouvrement.
 **QUATRE REFUS, CHACUN CONTRE UN DÉFAUT QUI LAISSE LA BALANCE BOUCLÉE.** Le
 plus fin est **COTISATION_EN_ABSTENTION** · sans nature d'employeur déclarée,
 l'écriture serait ÉQUILIBRÉE avec une charge de personnel minorée de l'INPP
-manquant, et rien en aval ne le verrait. Et l'ÉCRITURE S'ÉQUILIBRE PAR
-CONSTRUCTION (débit = total versé + patronales ; crédit = cotisations + impôt +
-net, et net = total versé - quote-part ouvrière - impôt) · le contrôle est fait
-QUAND MÊME, et son échec est un REFUS. Aucune ligne de bouclage n'est posée ·
-un écart est un défaut du moteur, jamais un arrondi à rattraper.
+manquant, et rien en aval ne le verrait. Et le SOLDE DU 422 DOIT ÉGALER LE NET
+DU BULLETIN (brut moins retenues) · le contrôle est fait QUAND MÊME, et son
+échec est un REFUS. Aucune ligne de bouclage n'est posée · un écart est un
+défaut du moteur, jamais un arrondi à rattraper.
+
+**CORRIGÉ LE 2026-09-24 · TROIS TEMPS, PAS UNE ÉCRITURE COMBINÉE.** La première
+version créditait le 422 du seul NET et mêlait dans un même bloc le brut,
+l'impôt et les patronales. Le total était juste ; la présentation n'était pas
+celle du Guide d'application SYSCOHADA (Partie 1 ch. 3 section 4 et
+Application 10), et Manasse l'a relevé. Trois blocs désormais, lus au texte ·
+**BRUT** (D/66 par nature, C/422 pour le brut entier, § 4.1) · **RETENUES**
+(D/422, C/43 pour la part ouvrière, C/447 pour l'impôt, § 4.3 et la fiche du
+compte 42 des deux plans) · **PATRONALES** (D/6641, C/43, § 4.2). **L'IMPÔT
+RETENU N'EST PAS UNE CHARGE DE L'EMPLOYEUR** · un test vérifie qu'aucune ligne
+de classe 6 ne le porte, et la part ouvrière et la part patronale d'une même
+caisse restent deux lignes, parce que les fusionner effacerait laquelle des deux
+est une charge. Cinq défauts réinjectés, cinq attrapés.
 
 **ET UN TEST GELAIT UNE APPROXIMATION.** Le spec de P2a exigeait UN SEUL appel
 Prisma dans `simulerPaie`, comme proxy de « aucune écriture ». Il est tombé
