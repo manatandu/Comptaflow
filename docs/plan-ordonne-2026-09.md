@@ -47,7 +47,7 @@ colonne « Qui » dit qui tient la première étape.
 | 17 | Hébergement en RDC (Code du numérique, art. 201) | Juriste, puis infrastructure | mois | Qualification par un juriste congolais, puis un hébergeur en RDC (`docs/hebergement-en-rdc.md`) |
 | 18 | Homologation d'OmegaX comme SFE (décret n° 23/10, art. 20 à 23) | Manasse et DGI | mois | L'arrêté de l'art. 23, absent du corpus ; la démarche est auprès de la DGI. Conditionne la VENTE en RDC |
 
-Deux lignes pèsent peu et bloquent beaucoup, et c'est pour cela qu'elles sont
+Les deux dernières lignes sont les plus lourdes ET les plus bloquantes, et elles sont
 nommées ici · la 18 conditionne la vente du logiciel, et la 17 son hébergement
 actuel. Leur place en queue dit leur DURÉE, pas leur urgence · la démarche de
 la 18 peut être engagée auprès de la DGI dès aujourd'hui, en parallèle de tout
