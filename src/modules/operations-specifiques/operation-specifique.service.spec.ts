@@ -3,6 +3,7 @@ import { join } from 'path';
 import { BadRequestException } from '@nestjs/common';
 import { OperationSpecifiqueService, CATALOGUE } from './operation-specifique.service';
 import { PLAN_COMPTES_SYCEBNL } from '../comptes/compte-seed';
+import { POSTES_OPERATIONNELS } from '../etats-financiers/correspondance-tft';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 
@@ -465,27 +466,25 @@ describe('Guide, Application 17 · abandons de frais des bénévoles', () => {
 });
 
 describe('Guide, Applications 18 et 19 · mécénat et restitution', () => {
-  it('convention de mécénat de 50 000 000 : créance au 4571, pas au 475', async () => {
-    // LE TEXTE OFFICIEL SE CONTREDIT, ET C'EST L'INTITULÉ QUI TRANCHE.
-    //
-    // La Partie 3 ch. 6 § 3 et le cas chiffré de l'Application 18 écrivent
-    // tous deux « 4751 Mécènes ». Le PLAN DES COMPTES (Partie 2, ch. 2 et
-    // ch. 3, compte 45) ne connaît aucun 4751 : il porte « 457 Mécènes,
-    // bénévoles et assimilés » → « 4571 Mécènes et assimilés ». Et le 475 du
-    // plan s'intitule « Générosités financières à recevoir ».
-    //
-    // L'intitulé « Mécènes » n'existe donc QU'EN 4571 · le « 4751 » du
-    // chapitre 6 est une transposition de chiffres. Ce test figeait
-    // auparavant la coquille.
-    //
-    // La règle de fond, qui dépasse le mécénat : le 45 accueille les
-    // fondateurs, apporteurs et comptes courants, le 47 les débiteurs et
-    // créditeurs divers. Un mécène qui s'engage par convention est un
-    // apporteur nommé, pas un tiers divers.
+  it('convention de mécénat de 50 000 000 : créance au 475, le 4751 du texte', async () => {
+    // Partie 3 ch. 6 § 3 et Application 18 : « débit du compte 4751 Mécènes
+    // par le crédit du compte 7046 Mécénats ». Le plan ne subdivise pas le
+    // 475 « Générosités financières à recevoir » · le 4751 en est lu comme la
+    // subdivision (arbitrage du 2026-09-24). Ce test a figé le 4571 un temps,
+    // et le tableau des flux, lui, cherchait la créance au 475.
     expect((await ecriture('B11-SIGNATURE', { convention: 50_000_000 })).table).toEqual([
-      { numero: '45710000', debit: 50_000_000, credit: 0 },
+      { numero: '47500000', debit: 50_000_000, credit: 0 },
       { numero: '70460000', debit: 0, credit: 50_000_000 },
     ]);
+  });
+
+  it('la créance du mécène est celle que le TFT lit en contrepartie du poste FC', () => {
+    // Le jumeau · un modèle et un état qui ne s'accordent pas sur le compte
+    // font sortir du TFT la part non encaissée, sans que la balance bouge.
+    const fc = POSTES_OPERATIONNELS.find((p) => p.ref === 'FC')!;
+    const b11 = CATALOGUE.flatMap((o) => o.modeles).find((m) => m.code === 'B11-SIGNATURE')!;
+    const creance = b11.lignes.find((l) => l.sens === 'DEBIT')!.compte;
+    expect((fc.comptesContrepartie ?? []).some((c) => creance.startsWith(c))).toBe(true);
   });
 
   it('la générosité simplement PROMISE reste au 475, elle', async () => {

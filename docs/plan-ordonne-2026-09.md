@@ -31,7 +31,7 @@ colonne « Qui » dit qui tient la première étape.
 | 1 | ~~Verser aux compétences l'ordonnance n° 23-042 (jours fériés)~~ **FAIT** · vérifié le 2026-09-24, texte intégral au skill `droit-travail-congolais` (`references/ordonnance-23-042-jours-feries.md`, versé le 2026-09-20) | Manasse | · | · |
 | 2 | Compléter le fichier de l'arrêté n° 013/2015, coupé à l'art. 7 · **ALLÉGÉ** le 2026-09-24 : la RÈGLE de l'art. 7 est au corpus, résumée dans `fiscalite-rdc/procedures-fiscales/references/16-mesures-execution-reclamations-recours.md` (« n'est susceptible d'aucune voie de recours »). Ne manque que le texte VERBATIM de la fin, utile pour une citation, plus bloquant pour coder | Manasse | minutes | La fin de l'article 7 et la suite, recopiées du texte officiel |
 | 3 | ~~Poser la variable `BUCKET_SAUVEGARDES`~~ **FAIT le 2026-09-24** · bucket `omega-x-ec07a-sauvegardes` (europe-west1, accès uniforme), `github-deploy` en Créateur d'objets Storage, variable posée. Prouvé par le run n° 28 : les étapes « S'authentifier » et « Copier vers Cloud Storage » sont VERTES, et non plus ignorées | Manasse | · | · |
-| 4 | Mécénat au 4571 ou au 475 | Manasse, puis code | < 1 h | Un arbitrage de doctrine, puis une ligne du catalogue |
+| 4 | ~~Mécénat au 4571 ou au 475~~ **FAIT le 2026-09-24** · Manasse a tranché pour le 475, le 4751 du texte étant lu comme sa subdivision. Le modèle portait en réalité le 4571, et le TFT cherchait la créance au 475 : une convention non soldée sortait du TFT. Aligné, et un test lie désormais le modèle au poste FC | Manasse, puis code | · | · |
 | 5 | Limitation de débit par conteneur | Manasse, puis code | < 1 h ou 1 jour | Assumer le plafond × instances (une phrase) ou poser Redis (une journée) |
 | 6 | Sous-compte 388 « stocks provenant d'immobilisations mises hors service » | Code | ½ jour | Lecture des deux fiches du compte 38 et de la sortie d'immobilisation |
 | 7 | Rubrique « stocks en cours de route » absente de la Note 8 | Code | ½ jour | Lecture de la Note 8 ; trancher si l'on signale le trou ou si l'on s'abstient |
@@ -682,7 +682,7 @@ Aucun développement ne les débloque.
 - **Module groupe en SYSCOHADA** · le refus est désormais posé aux deux portes
   (2026-09-02). Les moteurs nécessaires existent : ce n'est plus technique,
   c'est un arbitrage.
-- **Mécénat 4571 contre 475** · les deux comptes sont semés, le catalogue
+- ~~**Mécénat 4571 contre 475**~~ **TRANCHÉ le 2026-09-24 pour le 475** · les deux comptes sont semés, le catalogue
   n'utilise que le 475. Arbitrage de doctrine, ouvert depuis l'audit d'août.
 - **Article 22 de l'AUDCIF** · le texte prévoit qu'une opération tombant dans
   une période close soit enregistrée au premier jour de la période ouverte

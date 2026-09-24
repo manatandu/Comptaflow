@@ -127,6 +127,8 @@ construis le report avec sa mention.
 
 ### Mécénat · 4571 ou 475
 
+**TRANCHÉ le 2026-09-24 · 475.** Le paragraphe ci-dessous était périmé : le modèle portait alors le 4571, pas le 475, et le tableau des flux cherchait la créance au 475. Les deux sont alignés sur le 475, le 4751 du texte étant lu comme sa subdivision.
+
 Les deux comptes sont semés, le catalogue n'utilise que le **475** (le modèle
 note lui-même que « le texte écrit 4751 · subdivision du 475 »). Arbitrage de
 doctrine ouvert depuis l'audit d'août. **Ce que ça bloque :** rien, jusqu'au

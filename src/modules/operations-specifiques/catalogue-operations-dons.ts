@@ -399,34 +399,32 @@ const B11: OperationSpecifique = {
       parametres: [{ nom: 'convention', libelle: 'Montant de la convention', type: 'MONTANT' }],
       lignes: [
         {
-          compte: '4571',
-          libelle: 'Mécènes et assimilés',
+          compte: '475',
+          libelle: 'Générosités financières à recevoir',
           sens: 'DEBIT',
           montant: { mode: 'PARAMETRE', parametre: 'convention' },
-          // LE TEXTE OFFICIEL SE CONTREDIT, ET C'EST L'INTITULÉ QUI TRANCHE.
+          // LE TEXTE SE CONTREDIT, ET L'ARBITRAGE EST DE MANASSE (2026-09-24).
           //
-          // La Partie 3 ch. 6 § 3 et le cas chiffré de l'Application 18
-          // écrivent tous deux « 4751 Mécènes ». Mais le PLAN DES COMPTES
-          // (Partie 2, ch. 2 ET ch. 3, compte 45) ne connaît pas de 4751 :
-          // il porte « 457 Mécènes, bénévoles et assimilés », subdivisé en
-          // « 4571 Mécènes et assimilés » et « 4572 Bénévoles et assimilés ».
-          // Et le 475 du plan s'intitule « Générosités financières à
-          // recevoir », pas « Mécènes ».
+          // La Partie 3 ch. 6 § 3 et l'Application 18 écrivent « 4751
+          // Mécènes ». Le plan des comptes ne connaît pas de 4751 : il porte
+          // « 475 Générosités financières à recevoir », non subdivisé, et
+          // « 4571 Mécènes et assimilés » sous le 45. Le 4751 est lu comme une
+          // SUBDIVISION DU 475, que le plan laisse ouverte · trois raisons :
+          // le numéro lui-même ; le mécénat est un revenu de générosité
+          // (704, Partie 3 ch. 4 § 3) dont la créance est exactement une
+          // « générosité financière à recevoir » ; et le compte 45 n'enregistre
+          // que « les créances/dettes envers les apporteurs résultant des
+          // divers mouvements de DOTATION » et les comptes courants, ce qu'une
+          // convention créditée au 7046 n'est pas. Le 4571 reste celui du
+          // mécène qui apporte à la dotation.
           //
-          // L'intitulé « Mécènes » n'existe donc QU'EN 4571. Le « 4751 » du
-          // chapitre 6 est une transposition de chiffres, répétée dans le
-          // guide. On suit la nomenclature, pas la coquille.
-          //
-          // LA RÈGLE DE FOND, qui vaut au-delà du seul mécénat : le compte
-          // 45 accueille les FONDATEURS, APPORTEURS et comptes courants, le
-          // 47 les DÉBITEURS ET CRÉDITEURS DIVERS. Un mécène qui s'engage
-          // par convention relève de la première famille · c'est un
-          // apporteur de ressources nommé, pas un tiers divers. Une
-          // générosité simplement promise par un tiers quelconque reste au
-          // 475 (voir le modèle de promesse de don, plus haut).
+          // LE JUMEAU EST LE TABLEAU DES FLUX · le poste FC (générosité) prend
+          // sa créance au 475. Ce modèle a porté le 4571 pendant un temps, et
+          // une convention signée et non soldée à la clôture sortait alors du
+          // TFT sans que la balance cesse de boucler.
           note:
-            'Le texte de la Partie 3 ch. 6 et le Guide écrivent 4751 · le plan des comptes ne connaît ' +
-            'que 4571 Mécènes et assimilés, et intitule le 475 « Générosités financières à recevoir ».',
+            'Le texte écrit 4751 Mécènes · le plan ne subdivise pas le 475 « Générosités financières à recevoir », ' +
+            'dont le 4751 est lu comme la subdivision. Ouvrez un 4751 sous le 475 si le dossier veut isoler ses mécènes.',
         },
         { compte: '7046', libelle: 'Mécénats', sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'convention' } },
       ],
