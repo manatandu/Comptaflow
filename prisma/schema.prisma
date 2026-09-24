@@ -592,32 +592,34 @@ model Tenant {
 
   // Inventaire extra-comptable · AUDCIF art. 42, sanction art. 111 (SYSCOHADA)
   // ou SYCEBNL art. 24 (EBNL).
-  campagnesInventaire            CampagneInventaire[]
-  sousCommissionsInventaire      SousCommissionInventaire[]
-  membresSousCommission          MembreSousCommission[]
-  fichesInventaire               FicheInventaire[]
-  ecartsInventaire               EcartInventaire[]
-  campagnesCircularisation       CampagneCircularisation[]
-  demandesConfirmation           DemandeConfirmation[]
-  provisionsRisquesCharges       ProvisionRisqueCharge[]
-  registresFaiblesses            RegistreFaiblesses[]
-  faiblessesControleInterne      FaiblesseControleInterne[]
-  questionnairesRevision         QuestionnaireRevision[]
-  reponsesQuestionnaire          ReponseQuestionnaire[]
-  consommationsUniteOeuvre       ConsommationUniteOeuvre[]
-  pvComptageCaisse               ProcesVerbalComptageCaisse[]
-  coupuresComptees               CoupureComptee[]
-  evenementsAudit                EvenementAudit[]
-  mandatsAuditeur                MandatAuditeur[]
-  accordsCadresPlan              AccordCadrePlan[]
-  factures                       Facture[]
-  devis                          Devis[]
-  articlesStock                  ArticleStock[]
-  mouvementsStock                MouvementStock[]
-  consignations                  Consignation[]
-  EntitePerimetreConsolidation   EntitePerimetreConsolidation[]
-  LienParticipationConsolidation LienParticipationConsolidation[]
-  FaitsConsolidationExercice     FaitsConsolidationExercice[]
+  campagnesInventaire              CampagneInventaire[]
+  sousCommissionsInventaire        SousCommissionInventaire[]
+  membresSousCommission            MembreSousCommission[]
+  fichesInventaire                 FicheInventaire[]
+  ecartsInventaire                 EcartInventaire[]
+  campagnesCircularisation         CampagneCircularisation[]
+  demandesConfirmation             DemandeConfirmation[]
+  provisionsRisquesCharges         ProvisionRisqueCharge[]
+  registresFaiblesses              RegistreFaiblesses[]
+  faiblessesControleInterne        FaiblesseControleInterne[]
+  questionnairesRevision           QuestionnaireRevision[]
+  reponsesQuestionnaire            ReponseQuestionnaire[]
+  consommationsUniteOeuvre         ConsommationUniteOeuvre[]
+  pvComptageCaisse                 ProcesVerbalComptageCaisse[]
+  coupuresComptees                 CoupureComptee[]
+  evenementsAudit                  EvenementAudit[]
+  mandatsAuditeur                  MandatAuditeur[]
+  accordsCadresPlan                AccordCadrePlan[]
+  factures                         Facture[]
+  devis                            Devis[]
+  articlesStock                    ArticleStock[]
+  mouvementsStock                  MouvementStock[]
+  consignations                    Consignation[]
+  EntitePerimetreConsolidation     EntitePerimetreConsolidation[]
+  LienParticipationConsolidation   LienParticipationConsolidation[]
+  FaitsConsolidationExercice       FaitsConsolidationExercice[]
+  LigneBalanceConsolidation        LigneBalanceConsolidation[]
+  OperationReciproqueConsolidation OperationReciproqueConsolidation[]
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -1085,6 +1087,7 @@ model Exercice {
   entitesPerimetreConsolidation   EntitePerimetreConsolidation[]
   liensParticipationConsolidation LienParticipationConsolidation[]
   faitsConsolidation              FaitsConsolidationExercice?
+  reciproquesConsolidation        OperationReciproqueConsolidation[]
 
   @@unique([tenantId, dateDebut, dateFin])
   @@map("exercices")
@@ -6215,6 +6218,14 @@ model EntitePerimetreConsolidation {
   liensDetenus   LienParticipationConsolidation[] @relation("ParticipationDetenue")
   liensDetenteur LienParticipationConsolidation[] @relation("ParticipationDetentrice")
 
+  /// Balance RETRAITÉE importée au canevas de la balance agrégée (Numéro,
+  /// Intitulé, Débit, Crédit). Une ligne par compte, remplacée d'un bloc.
+  balance           LigneBalanceConsolidation[]
+  balanceImporteeLe DateTime?
+  fichierBalance    String?
+  reciproquesCommeA OperationReciproqueConsolidation[] @relation("ReciproqueA")
+  reciproquesCommeB OperationReciproqueConsolidation[] @relation("ReciproqueB")
+
   @@unique([exerciceId, nom])
   @@index([tenantId, exerciceId])
   @@map("entites_perimetre_consolidation")
@@ -6237,6 +6248,27 @@ model LienParticipationConsolidation {
 
   pctDroitsVote Decimal @db.Decimal(7, 4)
   pctCapital    Decimal @db.Decimal(7, 4)
+
+  /// ACQUISITION · tranche 2. Rien ne se déduit des livres, tout se déclare :
+  /// le coût des titres frais directs compris (ch. XII-6 § 2), le compte de la
+  /// détentrice qui le porte, la date d'entrée et les capitaux propres de la
+  /// détenue à cette date, résultat à la date compris (art. 82).
+  coutAcquisition            Decimal?                   @db.Decimal(18, 2)
+  compteTitres               String?
+  dateEntree                 DateTime?
+  capitauxPropresEntree      Decimal?                   @db.Decimal(18, 2)
+  /// Art. 82 · un plan d'amortissement. LIMITEE avec sa durée, ou
+  /// NON_DETERMINABLE et c'est dix ans (ch. XII-6 § 4).
+  modeDureeEcart             ModeDureeEcartAcquisition?
+  dureeEcartAnnees           Int?
+  /// Test de dépréciation · un jugement, saisi, jamais repris (ch. XII-6 § 4).
+  depreciationEcartOuverture Decimal                    @default(0) @db.Decimal(18, 2)
+  depreciationEcartCloture   Decimal                    @default(0) @db.Decimal(18, 2)
+  /// Dividendes reçus de la détenue dans l'exercice, et le compte qui les porte.
+  dividendesExercice         Decimal                    @default(0) @db.Decimal(18, 2)
+  compteDividendes           String?
+  /// Ch. XII-5 § 6 · une mise en équivalence négative passe en provision.
+  obligationNonDesengagement Boolean                    @default(false)
 
   createdAt DateTime @default(now())
 
@@ -6270,4 +6302,51 @@ model FaitsConsolidationExercice {
 
   @@index([tenantId])
   @@map("faits_consolidation_exercice")
+}
+
+/// Art. 82 · le plan d'amortissement de l'écart d'acquisition.
+enum ModeDureeEcartAcquisition {
+  LIMITEE
+  NON_DETERMINABLE
+}
+
+/// Une ligne de la balance d'une entité du périmètre. SOLDE = débit − crédit.
+model LigneBalanceConsolidation {
+  id       String                       @id @default(uuid())
+  tenantId String
+  tenant   Tenant                       @relation(fields: [tenantId], references: [id])
+  entiteId String
+  entite   EntitePerimetreConsolidation @relation(fields: [entiteId], references: [id], onDelete: Cascade)
+
+  numero   String
+  intitule String
+  solde    Decimal @db.Decimal(18, 2)
+
+  @@unique([entiteId, numero])
+  @@index([tenantId])
+  @@map("lignes_balance_consolidation")
+}
+
+/// Art. 86, 6° · un compte réciproque déclaré après confirmation de solde.
+/// Entité NULL · la consolidante, c'est-à-dire le dossier.
+model OperationReciproqueConsolidation {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  exerciceId String
+  exercice   Exercice @relation(fields: [exerciceId], references: [id])
+
+  entiteAId String?
+  entiteA   EntitePerimetreConsolidation? @relation("ReciproqueA", fields: [entiteAId], references: [id], onDelete: Cascade)
+  compteA   String
+  entiteBId String?
+  entiteB   EntitePerimetreConsolidation? @relation("ReciproqueB", fields: [entiteBId], references: [id], onDelete: Cascade)
+  compteB   String
+  montant   Decimal                       @db.Decimal(18, 2)
+  libelle   String
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, exerciceId])
+  @@map("operations_reciproques_consolidation")
 }

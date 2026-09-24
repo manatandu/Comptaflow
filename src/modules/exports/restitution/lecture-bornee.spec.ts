@@ -43,8 +43,9 @@ describe('l’inventaire couvre le schéma, sans trou ni surplus', () => {
     // Il est passé de 79 à 82 avec le registre du personnel (P1 de la paie),
     // puis à 83 avec le bulletin de paie émis (P8), borné par son tenantId,
     // puis à 86 avec le périmètre de consolidation (entités, participations,
-    // faits de l'obligation), tous trois portant leur tenantId.
-    expect(modeles).toHaveLength(86);
+    // faits de l'obligation), tous trois portant leur tenantId, puis à 88
+    // avec le cumul (balances des filiales, comptes réciproques), idem.
+    expect(modeles).toHaveLength(88);
     expect([...TABLES_RESTITUEES].sort()).toEqual(modeles.filter((m) => m !== 'Tenant').sort());
   });
 

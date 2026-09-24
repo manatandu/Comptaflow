@@ -148,8 +148,13 @@ export class PerimetreService {
       seuilEquivalentFc: faits?.seuilEquivalentFc == null ? null : Number(faits.seuilEquivalentFc),
       sourceSeuil: faits?.sourceSeuil ?? null,
     });
+    const reciproques = await this.prisma.operationReciproqueConsolidation.findMany({
+      where: { tenantId, exerciceId },
+      orderBy: { createdAt: 'asc' },
+    });
     return {
       consolidante: { id: tenant.id, nom: tenant.nom, dateCloture: ex.dateFin },
+      reciproques: reciproques.map((o) => ({ ...o, montant: Number(o.montant) })),
       entites,
       liens: liens.map((l) => ({ ...l, pctDroitsVote: Number(l.pctDroitsVote), pctCapital: Number(l.pctCapital) })),
       faits: faits

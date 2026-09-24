@@ -107,3 +107,38 @@ export class FaitsConsolidationDto {
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber() @Min(0) seuilEquivalentFc?: number | null;
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() @MaxLength(500) sourceSeuil?: string | null;
 }
+
+export class ImporterBalanceEntiteDto {
+  @IsString()
+  @MaxLength(200)
+  nomFichier!: string;
+
+  /** Fichier CSV ou XLSX, en base64, au canevas de la balance agrégée (Numéro, Intitulé, Débit, Crédit). */
+  @IsString()
+  contenuBase64!: string;
+}
+
+export class AcquisitionDto {
+  @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) coutAcquisition!: number;
+  @IsString() @MaxLength(13) compteTitres!: string;
+  @IsDateString() dateEntree!: string;
+  @IsNumber({ maxDecimalPlaces: 2 }) capitauxPropresEntree!: number;
+  @IsEnum(['LIMITEE', 'NON_DETERMINABLE']) modeDureeEcart!: 'LIMITEE' | 'NON_DETERMINABLE';
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber() @Min(1) @Max(99) dureeEcartAnnees?: number | null;
+  @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) depreciationEcartOuverture?: number;
+  @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) depreciationEcartCloture?: number;
+  @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) dividendesExercice?: number;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() @MaxLength(13) compteDividendes?: string | null;
+  @IsOptional() @IsBoolean() obligationNonDesengagement?: boolean;
+}
+
+export class OperationReciproqueDto {
+  @IsUUID() exerciceId!: string;
+  /** Absent ou null · la consolidante. */
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsUUID() entiteAId?: string | null;
+  @IsString() @MaxLength(13) compteA!: string;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsUUID() entiteBId?: string | null;
+  @IsString() @MaxLength(13) compteB!: string;
+  @IsNumber({ maxDecimalPlaces: 2 }) @Min(0.01) montant!: number;
+  @IsString() @MaxLength(300) libelle!: string;
+}

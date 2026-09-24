@@ -2,13 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
+import { CumulConsolidation, EntiteCumul, LienCumul } from './CumulConsolidation';
 
 /**
  * PÉRIMÈTRE DE CONSOLIDATION · tranche 1 de la consolidation SYSCOHADA (AUDCIF
  * Titre II, art. 74 à 98, et D4C ch. XII). L'écran ne calcule rien : il saisit
  * ce que le cabinet sait (les entités, les participations, les faits hors des
- * livres) et affiche ce que le serveur en tire. Aucun montant n'est consolidé
- * ici · c'est la tranche 2.
+ * livres) et affiche ce que le serveur en tire. Les montants se consolident
+ * dans `CumulConsolidation`, sous le périmètre (tranche 2).
  *
  * DEUX POURCENTAGES PAR PARTICIPATION, JAMAIS UN · les droits de vote font le
  * CONTRÔLE, le capital fait l'INTÉRÊT (D4C, ch. XII-5 § 3). Un seul champ ferait
@@ -51,8 +52,9 @@ type Faits = {
 };
 type Etat = {
   consolidante: { id: string; nom: string };
-  entites: Entite[];
-  liens: Lien[];
+  entites: (Entite & EntiteCumul)[];
+  liens: (Lien & LienCumul)[];
+  reciproques: Parameters<typeof CumulConsolidation>[0]['reciproques'];
   faits: Faits | null;
   resultats: Resultat[];
   obligation: { obligation: string; motifs: string[]; normesIfrsRequises: boolean };
@@ -144,7 +146,7 @@ export function PerimetreConsolidationPage() {
         l’exercice {exerciceCourant?.dateFin?.slice(0, 4)} · AUDCIF art. 74 à 98. OmegaX calcule les pourcentages de
         contrôle et d’intérêt et en déduit la méthode (art. 80). Les faits qui ne sont dans aucun livre se{' '}
         <strong>déclarent</strong> : la désignation des organes, les accords, l’influence notable, les motifs
-        d’exclusion. Aucun montant n’est encore consolidé ici.
+        d’exclusion. Les montants se consolident plus bas, une fois les balances importées et les acquisitions déclarées.
       </p>
 
       {erreur && <p className="text-[12px] text-danger mb-2">{erreur}</p>}
@@ -423,6 +425,17 @@ export function PerimetreConsolidationPage() {
           (une filiale qui détient la consolidante) sont ignorés et ne se saisissent pas.
         </p>
       </section>
+
+      <h2 className="text-[13px] font-bold mt-4 mb-2">Cumul et éliminations</h2>
+      <CumulConsolidation
+        exerciceId={exerciceId}
+        consolidante={etat.consolidante}
+        entites={etat.entites}
+        liens={etat.liens}
+        reciproques={etat.reciproques}
+        peutEcrire={peutEcrire}
+        recharger={recharger}
+      />
     </div>
   );
 }

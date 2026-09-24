@@ -8,7 +8,11 @@ import { ReferentielGuard } from '../../common/guards/referentiel.guard';
 import { ReferentielsAutorises } from '../../common/decorators/referentiels.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PerimetreService } from './perimetre.service';
+import { CumulService } from './cumul.service';
 import {
+  AcquisitionDto,
+  ImporterBalanceEntiteDto,
+  OperationReciproqueDto,
   EntitePerimetreDto,
   FaitsConsolidationDto,
   LienParticipationDto,
@@ -25,7 +29,10 @@ import {
 @ReferentielsAutorises(Referentiel.SYSCOHADA)
 @Controller('consolidation')
 export class ConsolidationController {
-  constructor(private readonly perimetre: PerimetreService) {}
+  constructor(
+    private readonly perimetre: PerimetreService,
+    private readonly cumuls: CumulService,
+  ) {}
 
   @Get('perimetre')
   etat(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
@@ -66,5 +73,36 @@ export class ConsolidationController {
   @Put('faits')
   enregistrerFaits(@CurrentUser() user: AuthenticatedUser, @Body() dto: FaitsConsolidationDto) {
     return this.perimetre.enregistrerFaits(user.tenantId, dto);
+  }
+
+  // ─── Tranche 2 · cumul et éliminations ──────────────────────────────────
+
+  @Get('cumul')
+  cumul(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
+    return this.cumuls.cumul(user.tenantId, exerciceId);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post('entites/:id/balance')
+  importerBalance(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: ImporterBalanceEntiteDto) {
+    return this.cumuls.importerBalance(user.tenantId, id, dto);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Put('liens/:id/acquisition')
+  declarerAcquisition(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: AcquisitionDto) {
+    return this.cumuls.declarerAcquisition(user.tenantId, id, dto);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post('reciproques')
+  ajouterReciproque(@CurrentUser() user: AuthenticatedUser, @Body() dto: OperationReciproqueDto) {
+    return this.cumuls.ajouterReciproque(user.tenantId, dto);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Delete('reciproques/:id')
+  supprimerReciproque(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.cumuls.supprimerReciproque(user.tenantId, id);
   }
 }

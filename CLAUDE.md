@@ -2282,6 +2282,33 @@ mois de l'art. 97 se comptent de date à date, fin de mois comprise · le
 30 septembre mène au 31 décembre. La consolidante est le DOSSIER, jamais une
 ligne de table, et le périmètre vit PAR EXERCICE.
 
+**Consolidation SYSCOHADA, tranche 2 · cumul et éliminations (2026-09-24).**
+AUDCIF art. 80 à 86, D4C ch. XII-5 et XII-6. Moteur pur
+(`consolidation/cumul-consolidation.ts`), balances des filiales importées au
+canevas de la balance agrégée, celle de la consolidante lue au grand livre.
+CINQ RÈGLES À NE PAS DÉFAIRE. (1) CONSOLIDATION DIRECTE GÉNÉRALISÉE · chaque
+entité partage ses capitaux propres au pourcentage d'INTÉRÊT, et la quote-part
+d'entrée éliminée avec les titres pèse sur la DÉTENTRICE, qui la partage à son
+tour. C'est arithmétiquement la méthode par paliers du § 7, et un test le
+prouve sur une chaîne chiffrée à la main · le texte ne décrit la directe que
+« sans liens indirects ». (2) Les comptes réciproques s'éliminent sur
+l'AGRÉGAT, APRÈS le partage · une vente interne retirée avant ferait glisser du
+résultat entre groupe et minoritaires dès que vendeur et acheteur n'ont pas le
+même intérêt. (3) L'écart d'acquisition suit TOUJOURS un plan (art. 82) · la
+durée « non limitée » du D4C contredit la loi et n'est pas servie ; « non
+déterminable » vaut dix ans. Prorata au mois, convention du module des
+immobilisations, dite comme telle. (4) Aucun numéro n'est inventé pour les
+postes de consolidation · ce sont des CLÉS (ECART_ACQUISITION, TITRES_MIS_EN_
+EQUIVALENCE…), le D4C n'imposant aucun plan. (5) Rien ne se déduit · coût des
+titres, capitaux propres à l'entrée, dividendes, dépréciation et comptes
+réciproques se DÉCLARENT, et une participation retenue sans coût arrête le
+calcul en la nommant. REFUSÉS ET DITS · l'entrée en cours d'exercice, l'IP à
+deux détentrices, l'entité retenue détenue par une exclue, l'écart négatif
+d'une ME. HORS TRANCHE ET DIT À L'ÉCRAN · les résultats internes dans les
+stocks et immobilisations (art. 86, 4° · qui du groupe ou des minoritaires du
+vendeur supporte l'élimination n'est écrit nulle part), les écarts
+d'évaluation (tranche 4), et le dossier OmegaX relié par la console.
+
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de
 l'inventaire physique » (immobilisations, stocks, caisses) et § VII
