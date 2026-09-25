@@ -229,7 +229,7 @@ jobs:
           # sans toucher au code. L'adresse du cabinet n'est pas un secret :
           # c'est celle que le message de refus d'inscription donne à tout
           # visiteur.
-          OPERATEURS_PLATEFORME: ${{ secrets.API_OPERATEURS_PLATEFORME || 'admin@vmgconsulting.cd' }}
+          OPERATEURS_PLATEFORME: ${{ secrets.API_OPERATEURS_PLATEFORME || 'admin@vmgconsulting.net' }}
           # Compte d'envoi des courriels · aucun de ces secrets n'existe
           # aujourd'hui, et c'est un état de fonctionnement valide, pas une
           # panne : le logiciel écrit ses messages et les garde. Le jour où

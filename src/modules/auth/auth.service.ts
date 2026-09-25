@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcryptjs';
@@ -259,6 +259,37 @@ export class AuthService {
     // redemande un jeton juste après (voir AuthController), et rien ne
     // distingue, côté serveur, la session du titulaire de celle du voleur.
     return { change: true, ...this.signToken(userId) };
+  }
+
+  /**
+   * CHANGER SA PROPRE ADRESSE DE CONNEXION · l'adresse est l'identifiant de
+   * connexion, unique dans tout le logiciel. Trois règles.
+   *  · le mot de passe actuel est exigé, comme pour le changer ;
+   *  · l'unicité est tenue par la contrainte de la base et non par une
+   *    lecture préalable, qui devrait sortir du cloisonnement pour chercher
+   *    l'adresse chez les autres dossiers · une adresse prise est refusée
+   *    sans dire à qui elle appartient ;
+   *  · les sessions sont fermées puis une neuve reposée, comme au changement
+   *    de mot de passe. Le rôle, le dossier et le drapeau d'opérateur sont
+   *    sur le COMPTE, pas sur l'adresse : ils suivent.
+   */
+  async changerAdresse(userId: string, motDePasseActuel: string, nouvelleAdresse: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('Utilisateur introuvable');
+    if (!(await bcrypt.compare(motDePasseActuel, user.motDePasse))) {
+      throw new UnauthorizedException('Le mot de passe actuel est incorrect');
+    }
+    const adresse = nouvelleAdresse.trim();
+    if (adresse === user.email) throw new BadRequestException("C'est déjà votre adresse de connexion.");
+    try {
+      await this.prisma.user.update({ where: { id: userId }, data: { email: adresse, sessionsInvalidesAvant: new Date() } });
+    } catch (e) {
+      if ((e as { code?: string })?.code === 'P2002') {
+        throw new ConflictException('Cette adresse est déjà utilisée par un autre compte.');
+      }
+      throw e;
+    }
+    return { adresse, ...this.signToken(userId) };
   }
 
   /**

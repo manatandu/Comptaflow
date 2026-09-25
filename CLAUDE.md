@@ -4462,6 +4462,18 @@ c'est lui qui lève la restriction. (4) LA TABLE EST PAR CONTRÔLEUR
 être rangé fait tomber le test. Poser un profil ferme les sessions, comme un
 changement de rôle, et les deux colonnes sont ADMISES au journal d'audit.
 
+**Changer sa propre adresse de connexion (2026-09-25).** Demandé par Manasse
+(admin@vmgconsulting.cd devient .net) · aucun écran ne le permettait, et le
+seul chemin restait une modification à la main dans la base de production.
+`POST /auth/changer-adresse`, fenêtre Utilisateurs, ligne « (vous »). Le mot de
+passe actuel est exigé ; l'unicité est tenue par la contrainte de la base, sans
+lecture hors cloisonnement, et une adresse prise est refusée sans dire à qui
+elle appartient ; les sessions sont fermées puis une neuve reposée. Ce n'est
+PAS une sortie de mot de passe provisoire. Le rôle, le dossier et le drapeau
+d'opérateur sont sur le compte : ils suivent. `OPERATEURS_PLATEFORME` n'accorde
+qu'en ACCORD · la valeur par défaut du workflow passe à .net, et si le secret
+`API_OPERATEURS_PLATEFORME` existe, il prime et se met à jour à la main.
+
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
 nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la

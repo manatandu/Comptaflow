@@ -4,6 +4,7 @@ import { phraseAvisAcces } from '../lib/remise-courriel';
 import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
 import { ModaleFonctions } from '../components/ModaleFonctions';
+import { ModaleMonAdresse } from '../components/ModaleMonAdresse';
 import type { AvisAcces, RoleUtilisateur, Utilisateur } from '../lib/types';
 
 const LIBELLE_ROLE: Record<RoleUtilisateur, string> = {
@@ -30,6 +31,8 @@ export function UtilisateursPage() {
   // Réinitialisation · l'administrateur pose un mot de passe provisoire, que
   // le titulaire devra remplacer avant de travailler. Sans cette fenêtre, un
   // oubli de mot de passe se réglait par un UPDATE SQL en production.
+  // Changer SA propre adresse de connexion.
+  const [adresseOuverte, setAdresseOuverte] = useState(false);
   // Profil de fonctions (point 15).
   const [fonctionsCible, setFonctionsCible] = useState<Utilisateur | null>(null);
   const [reinitCible, setReinitCible] = useState<Utilisateur | null>(null);
@@ -229,6 +232,13 @@ export function UtilisateursPage() {
               >
                 Réinitialiser
               </button>
+              {/* Dans la colonne des actions, pas dans la cellule de l'adresse ·
+                  une adresse longue, tronquée, recouvrait le bouton. */}
+              {u.id === utilisateur?.id && (
+                <button type="button" onClick={() => setAdresseOuverte(true)} className="text-[11.5px] text-sel">
+                  Changer mon adresse
+                </button>
+              )}
               {u.role !== 'ADMIN_CABINET' && (
                 <button onClick={() => setFonctionsCible(u)} className="text-[11.5px] text-sel">
                   {u.restreindreFonctions ? `Fonctions (${u.fonctionsAutorisees?.length ?? 0})` : 'Fonctions'}
@@ -238,6 +248,16 @@ export function UtilisateursPage() {
           </div>
         ))}
       </div>
+
+      {adresseOuverte && utilisateur && (
+        <ModaleMonAdresse
+          adresseActuelle={utilisateur.email}
+          onFermer={() => {
+            setAdresseOuverte(false);
+            void charger();
+          }}
+        />
+      )}
 
       {fonctionsCible && (
         <ModaleFonctions

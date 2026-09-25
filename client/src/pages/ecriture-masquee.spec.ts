@@ -21,6 +21,7 @@ import { peutEcrirePourRole } from '../lib/roles-cantonnes';
 const EXEMPTS: Record<string, string> = {
   'pages/AuthPage.tsx': "la connexion elle-même · personne n'a encore de rôle",
   'pages/ChangerMotDePassePage.tsx': 'chacun change son propre mot de passe, lecture seule comprise',
+  'components/ModaleMonAdresse.tsx': 'chacun change sa propre adresse de connexion, lecture seule comprise',
   'components/NouveauFichierWizard.tsx': "création d'un dossier depuis la porte d'ouverture, avant toute session",
   'pages/PlateformePage.tsx': "console de l'éditeur, gardée par estOperateurPlateforme et non par le rôle du dossier",
   'components/ModelesSaisie.tsx':

@@ -6,6 +6,7 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ChangerMotDePasseDto } from './dto/changer-mot-de-passe.dto';
+import { ChangerAdresseDto } from './dto/changer-adresse.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { SortieMotDePasseProvisoire } from '../../common/decorators/sortie-mot-de-passe.decorator';
@@ -50,7 +51,7 @@ export class AuthController {
     // voulu · fermée à clé, pas démolie.
     if (this.config.get<string>('INSCRIPTION_PUBLIQUE') !== 'true') {
       throw new ForbiddenException(
-        "L'ouverture d'un dossier OmegaX se fait avec VMG Consulting · écrivez à admin@vmgconsulting.cd pour démarrer.",
+        "L'ouverture d'un dossier OmegaX se fait avec VMG Consulting · écrivez à admin@vmgconsulting.net pour démarrer.",
       );
     }
     return this.poserSession(res, await this.authService.register(dto));
@@ -105,6 +106,23 @@ export class AuthController {
       dto.motDePasseActuel,
       dto.nouveauMotDePasse,
     ));
+  }
+
+  /**
+   * Changer sa propre adresse de connexion (AuthService.changerAdresse) ·
+   * même garde que le mot de passe, sauf la sortie de mot de passe provisoire :
+   * un compte au mot de passe provisoire le remplace d'abord.
+   */
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
+  @AccesRolesCantonnes({ gestionnairePaie: true })
+  @UseGuards(JwtAuthGuard)
+  @Post('changer-adresse')
+  async changerAdresse(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ChangerAdresseDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.poserSession(res, await this.authService.changerAdresse(user.userId, dto.motDePasseActuel, dto.nouvelleAdresse));
   }
 
   /**
