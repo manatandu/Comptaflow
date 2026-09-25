@@ -9,6 +9,7 @@ import { EcritureService } from './ecriture.service';
 import { PERIMETRES_BALANCE_AGEE, type PerimetreBalanceAgee } from './ecriture.service';
 import { CreerEcritureDto, ImputationOuvertureDto } from './dto/creer-ecriture.dto';
 import { CorrigerEcritureDto } from './dto/corriger-ecriture.dto';
+import { ReimputerDto } from './dto/reimputer.dto';
 import { ModifierEcritureDto, ValiderEcrituresDto, ValiderJusquaDto } from './dto/brouillard.dto';
 import { RoleUtilisateur } from '@prisma/client';
 import { ReserveAuComptable } from '../../common/decorators/acces-roles-cantonnes.decorator';
@@ -54,6 +55,17 @@ export class EcritureController {
    * corrigée, à l'identique et changés de signe. Le texte impose l'inscription
    * en négatif « des éléments erronés » · ceux-là, pas d'autres.
    */
+  /**
+   * RÉIMPUTATION · voir reimputation.ts. Même réserve que la correction : sur
+   * une ligne validée, elle passe une inscription en négatif au journal.
+   */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @ReserveAuComptable()
+  @Post('reimputation')
+  async reimputer(@CurrentUser() user: AuthenticatedUser, @Body() dto: ReimputerDto) {
+    return this.ecritureService.reimputer(user.tenantId, user.userId, dto);
+  }
+
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   // La correction contre-passe une écriture VALIDÉE · même geste que valider.
   @ReserveAuComptable()

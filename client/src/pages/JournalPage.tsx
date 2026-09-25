@@ -4,6 +4,7 @@ import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
 import { IconFilter, IconExport } from '../components/chrome/icons';
 import { ModaleCorrection } from '../components/ModaleCorrection';
+import { ModaleReimputation } from '../components/ModaleReimputation';
 import type { Ecriture, Journal, LigneBalance, LigneGrandLivre } from '../lib/types';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { Aide } from '../components/chrome/Aide';
@@ -145,6 +146,10 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
   // balance et le grand livre, le verbe reste grisé, ce qui est exact.
 
   const [erreur, setErreur] = useState<string | null>(null);
+  // RÉIMPUTATION · ouverte depuis une recherche filtrée sur un compte, la
+  // seule qui dise de quel compte on déplace les lignes.
+  const [reimputationOuverte, setReimputationOuverte] = useState(false);
+  const [info, setInfo] = useState<string | null>(null);
   // Une correction (art. 20 de l'AUDCIF) change à la fois le journal, la
   // balance et le grand livre : ce compteur, ajouté aux dépendances des trois
   // effets, les recharge tous les trois. Recharger le seul journal laisserait
@@ -418,6 +423,15 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
               Brouillard
             </label>
           )}
+          {onglet === 'journal' && peutValider && filtresAppliques.compte.trim() && (
+            <button
+              onClick={() => setReimputationOuverte(true)}
+              title="Déplacer des lignes de ce compte vers un autre (AUDCIF art. 20)"
+              className="border border-border bg-surface px-3 py-1.5 text-[11.5px] font-bold hover:bg-surface-alt"
+            >
+              Réimputer…
+            </button>
+          )}
           {onglet === 'journal' && boutonExport('Exporter Excel', exporterJournal)}
           {onglet === 'balance' && boutonExport('Exporter Excel', exporterBalance)}
           {onglet === 'grand-livre' && (
@@ -429,6 +443,9 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
         </div>
       </div>
 
+      {info && (
+        <div className="mb-2 text-[11.5px] text-positive bg-positive-soft border border-positive/30 px-3 py-2">{info}</div>
+      )}
       {erreur && (
         <div className="flex items-start justify-between gap-3 border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5">
           <span className="text-[11.5px]">{erreur}</span>
@@ -871,6 +888,19 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
             );
           })()}
         </div>
+      )}
+
+      {reimputationOuverte && (
+        <ModaleReimputation
+          ecritures={ecritures}
+          racineCompte={filtresAppliques.compte.trim()}
+          onFermer={() => setReimputationOuverte(false)}
+          onTermine={(message) => {
+            setReimputationOuverte(false);
+            setInfo(message);
+            charger();
+          }}
+        />
       )}
 
       {aCorriger && (

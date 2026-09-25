@@ -4323,6 +4323,26 @@ EST REFUSÉ, jamais ignoré · ignoré, il élargirait la recherche en silence e
 « aucun résultat » se lirait « tout est vu ». L'export refuse AVANT d'ouvrir
 le flux, une réponse commencée ne pouvant plus devenir un 400.
 
+**Réimputation d'écritures (2026-09-25).** Point 9 de la comparaison Sage i7.
+Les manuels lus NOMMENT la commande sans la décrire · ce qu'elle fait est dit
+par les deux articles qui régissent toute retouche (`reimputation.ts`), et
+c'est écrit. QUATRE RÈGLES À NE PAS DÉFAIRE. (1) AU BROUILLARD, LE COMPTE
+CHANGE · la ligne n'est pas entrée au livre-journal, c'est encore la saisie
+(AUDCIF art. 22, 2°, « toute donnée entrée fait l'objet d'une validation »).
+(2) VALIDÉE, LA LIGNE NE BOUGE JAMAIS · la réimputation passe, dans le journal
+de la pièce, l'inscription en NÉGATIF sur le compte erroné puis
+l'enregistrement exact sur le bon, même sens, même montant (art. 20, «
+exclusivement par inscription en négatif », jamais une contre-passation qui
+gonflerait les deux cumuls). Une écriture par pièce d'origine, motif
+obligatoire. Les ventilations analytiques suivent, en négatif puis à
+l'identique · le projet d'une charge ne change pas avec son compte. (3) TOUT
+SE VÉRIFIE AVANT LA PREMIÈRE ÉCRITURE, et une seule ligne refusée arrête le
+lot : lettrée, pointée, portant un taux de TVA (la déclaration changerait),
+tenue par une immobilisation, venue de la clôture, ou d'un exercice clôturé
+(l'erreur antérieure passe par le report à nouveau, art. 20 al. 3). (4) ELLE
+PART DE LA RECHERCHE D'ÉCRITURES filtrée sur un compte, la seule qui dise de
+quel compte on déplace, et elle est réservée au comptable comme la correction.
+
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
 nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la

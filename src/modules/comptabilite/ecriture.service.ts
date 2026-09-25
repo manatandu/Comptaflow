@@ -11,6 +11,8 @@ import {
 import { CriteresRecherche, filtreRecherche } from './recherche-ecritures';
 import { CreerEcritureDto, ImputationOuvertureDto } from './dto/creer-ecriture.dto';
 import { CorrigerEcritureDto } from './dto/corriger-ecriture.dto';
+import { ReimputerDto } from './dto/reimputer.dto';
+import { lignesDeReimputation, motifRefusLigne } from './reimputation';
 import { ModifierEcritureDto, ValiderJusquaDto } from './dto/brouillard.dto';
 import { JournalService } from '../journaux/journal.service';
 import { ExerciceService } from '../exercice/exercice.service';
@@ -1189,6 +1191,156 @@ export class EcritureService {
       },
       delaiCentralisationJours: joursCentralisation,
     };
+  }
+
+  /**
+   * RÉIMPUTATION · déplacer des lignes d'un compte vers un autre. Règles et
+   * sources dans reimputation.ts : une ligne au brouillard change de compte
+   * (ce n'est pas encore le livre-journal, art. 22, 2°) ; une ligne validée
+   * ne bouge jamais, et la réimputation passe l'inscription en négatif puis
+   * l'enregistrement exact (art. 20), une écriture par pièce d'origine, dans
+   * son journal. TOUT est vérifié avant la première écriture · un lot ne
+   * s'arrête pas au milieu en laissant la moitié des lignes déplacées.
+   *
+   * Les ventilations analytiques suivent · recopiées en négatif sur la ligne
+   * annulée et à l'identique sur la ligne exacte, pour que le projet d'une
+   * charge ne change pas avec son compte.
+   */
+  async reimputer(tenantId: string, createdBy: string, dto: ReimputerDto) {
+    const ids = [...new Set(dto.ligneIds)];
+    const cible = await this.prisma.compte.findFirst({ where: { id: dto.compteCibleId, tenantId } });
+    if (!cible) throw new NotFoundException('Compte cible introuvable pour ce dossier.');
+    if (cible.typeCompte !== TypeCompteDetailTotal.DETAIL) {
+      throw new BadRequestException(`Le ${cible.numero} est un compte Total · il ne reçoit pas d'écriture.`);
+    }
+    if (!cible.estActif) {
+      throw new BadRequestException(`Le ${cible.numero} est en sommeil · réactivez-le avant d'y réimputer.`);
+    }
+
+    const lignes = await this.prisma.ligneEcriture.findMany({
+      where: { id: { in: ids }, ecriture: { tenantId } },
+      include: {
+        compte: { select: { numero: true } },
+        ventilations: true,
+        ecriture: {
+          include: {
+            exercice: true,
+            journal: true,
+            immobilisationAcquisition: { select: { id: true } },
+            immobilisationSortie: { select: { id: true } },
+            dotationAmortissement: { select: { id: true } },
+          },
+        },
+      },
+    });
+    if (lignes.length !== ids.length) throw new NotFoundException('Une ou plusieurs lignes sont introuvables.');
+    const exercices = new Set(lignes.map((l) => l.ecriture.exerciceId));
+    if (exercices.size > 1) throw new BadRequestException('Les lignes à réimputer doivent appartenir au même exercice.');
+
+    const refus = lignes
+      .map((l) =>
+        motifRefusLigne(
+          {
+            id: l.id,
+            compteId: l.compteId,
+            compteNumero: l.compte.numero,
+            debit: Number(l.debit),
+            credit: Number(l.credit),
+            lettre: l.lettre,
+            rapprochementId: l.rapprochementId,
+            tauxTvaId: l.tauxTvaId,
+            statut: l.ecriture.statut,
+            exerciceClos: l.ecriture.exercice.statut === StatutExercice.CLOTURE,
+            estGenereeParCloture: l.ecriture.estGenereeParCloture,
+            tenueParImmobilisation: !!(
+              l.ecriture.immobilisationAcquisition ||
+              l.ecriture.immobilisationSortie ||
+              l.ecriture.dotationAmortissement
+            ),
+          },
+          cible.id,
+        ),
+      )
+      .filter((m): m is string => m !== null);
+    if (refus.length) throw new BadRequestException([...new Set(refus)].join(' '));
+
+    const auBrouillard = lignes.filter((l) => l.ecriture.statut === StatutEcriture.BROUILLARD);
+    const validees = lignes.filter((l) => l.ecriture.statut === StatutEcriture.VALIDEE);
+
+    const exercice = lignes[0].ecriture.exercice;
+    const date = dto.date ? new Date(dto.date) : new Date();
+    const parEcriture = new Map<string, typeof validees>();
+    for (const l of validees) parEcriture.set(l.ecritureId, [...(parEcriture.get(l.ecritureId) ?? []), l]);
+    if (validees.length) {
+      if (date < exercice.dateDebut || date > exercice.dateFin) {
+        throw new BadRequestException(
+          "La date de la réimputation sort de l'exercice des lignes · l'inscription en négatif ne vaut que pour une erreur « commise et découverte sur l'exercice en cours » (AUDCIF art. 20).",
+        );
+      }
+      for (const groupe of parEcriture.values()) {
+        await this.exerciceService.verifierEcritureAutorisee(tenantId, groupe[0].ecriture.journalId, date);
+      }
+    }
+
+    const motif = dto.motif.trim();
+    return avecRetrySerialisable(
+      this.prisma,
+      async (tx) => {
+        for (const l of auBrouillard) {
+          await tx.ligneEcriture.update({ where: { id: l.id }, data: { compteId: cible.id } });
+        }
+        const passees: { numeroPiece: number | null; journal: string }[] = [];
+        for (const groupe of parEcriture.values()) {
+          const origine = groupe[0].ecriture;
+          const numeroPiece = await this.journalService.prochainNumeroPiece(
+            tenantId,
+            origine.journal,
+            origine.exerciceId,
+            date,
+            tx,
+          );
+          const e = await tx.ecriture.create({
+            data: {
+              tenantId,
+              exerciceId: origine.exerciceId,
+              journalId: origine.journalId,
+              numeroPiece,
+              date,
+              libelle: `Réimputation vers ${cible.numero} · ${origine.libelle}`.slice(0, 190),
+              reference: origine.reference,
+              createdBy,
+              motifCorrection: motif,
+              lignes: {
+                create: groupe.flatMap((l) =>
+                  lignesDeReimputation({ compteId: l.compteId, debit: Number(l.debit), credit: Number(l.credit) }, cible.id).map(
+                    (p) => ({
+                      compteId: p.compteId,
+                      libelle: l.libelle,
+                      debit: p.debit,
+                      credit: p.credit,
+                      dateEcheance: l.dateEcheance,
+                      dateVersement: l.dateVersement,
+                      ventilations: {
+                        create: l.ventilations.map((v) => ({
+                          sectionId: v.sectionId,
+                          planId: v.planId,
+                          debit: Number(v.debit) * p.signeAnalytique,
+                          credit: Number(v.credit) * p.signeAnalytique,
+                        })),
+                      },
+                    }),
+                  ),
+                ),
+              },
+            },
+            select: { numeroPiece: true },
+          });
+          passees.push({ numeroPiece: e.numeroPiece, journal: origine.journal.code });
+        }
+        return { auBrouillard: auBrouillard.length, validees: validees.length, ecrituresPassees: passees };
+      },
+      "Trop d'écritures enregistrées au même instant · veuillez réessayer.",
+    );
   }
 
   /**

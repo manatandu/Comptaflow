@@ -66,7 +66,9 @@ tiennent à un texte OHADA ; ils sont signalés comme tels.
 8. ~~Recherche d'écritures multicritère (montant, compte, pièce)~~ · FAIT le
    2026-09-25 : compte (par racine), montant exact ou fourchette, pièce,
    référence, libellé, dans le panneau du journal et son export.
-9. Réimputation d'écritures.
+9. ~~Réimputation d'écritures~~ · FAIT le 2026-09-25, depuis la recherche
+   filtrée sur un compte : compte changé au brouillard, inscription en négatif
+   puis enregistrement exact sur une ligne validée (AUDCIF art. 20 et 22, 2°).
 10. Fusion de comptes, tiers et journaux.
 11. Nouvel exercice avec à-nouveaux provisoires, report des budgets.
 12. Clôture totale qui fige aussi lettrage et analytique.

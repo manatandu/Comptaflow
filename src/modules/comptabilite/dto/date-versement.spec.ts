@@ -109,11 +109,14 @@ describe('La date de versement est PERSISTÉE, pas seulement acceptée', () => {
   const source = () =>
     readFileSync(join(__dirname, '..', 'ecriture.service.ts'), 'utf8');
 
-  it('range la date aux trois endroits où une ligne d’écriture naît', () => {
+  it('range la date aux quatre endroits où une ligne d’écriture naît', () => {
     const s = source();
-    // Création, remplacement des lignes du brouillard, contre-passation.
+    // Création, remplacement des lignes du brouillard, contre-passation, et
+    // réimputation d'une ligne validée (2026-09-25) · la ligne en négatif et
+    // la ligne exacte reprennent la date de l'origine, elles ne la redatent
+    // pas, pour la même raison que la contre-passation.
     const occurrences = s.split('dateVersement:').length - 1;
-    expect(`dateVersement rangé ${occurrences} fois`).toBe('dateVersement rangé 3 fois');
+    expect(`dateVersement rangé ${occurrences} fois`).toBe('dateVersement rangé 4 fois');
   });
 
   it('la range PARTOUT où elle range déjà la date d’échéance, et pas moins', () => {
