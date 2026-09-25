@@ -58,6 +58,7 @@ import { FiscaliteModule } from './modules/fiscalite/fiscalite.module';
 import { PlateformeModule } from './modules/plateforme/plateforme.module';
 import { GroupeModule } from './modules/groupe/groupe.module';
 import { ModelesSaisieModule } from './modules/modeles-saisie/modeles-saisie.module';
+import { BanquesModule } from './modules/banques/banques.module';
 import { CourrierModule } from './modules/courrier/courrier.module';
 
 @Module({
@@ -132,6 +133,7 @@ import { CourrierModule } from './modules/courrier/courrier.module';
     PlateformeModule,
     GroupeModule,
     ModelesSaisieModule,
+    BanquesModule,
     CourrierModule,
   ],
   controllers: [SanteController],

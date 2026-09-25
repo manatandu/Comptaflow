@@ -604,6 +604,9 @@ model Tenant {
   regularisations          Regularisation[]
   modelesAbonnement        ModeleAbonnement[]
   modelesSaisie            ModeleSaisie[]
+  banques                  Banque[]
+  ribsBanque               RibBanque[]
+  libellesEcriture         LibelleEcriture[]
   devises                  Devise[]
   reevaluations            Reevaluation[]
   niveauxRelance           NiveauRelance[]
@@ -980,6 +983,7 @@ model Journal {
   clotures          Cloture[]
   modelesAbonnement ModeleAbonnement[]
   modelesSaisie     ModeleSaisie[]
+  ribsBanque        RibBanque[]
 
   @@unique([tenantId, code])
   @@map("journaux")
@@ -6979,4 +6983,73 @@ enum FonctionMetier {
   CLOTURE
   REVISION
   GROUPE_ET_IFRS
+}
+
+// ---------------------------------------------------------------------------
+// BANQUES ET LIBELLÉS (point 19 de la comparaison Sage i7)
+//
+// Sage, Structure / Banque : « on définit les coordonnées de l'établissement
+// bancaire », et « il est indispensable de créer un compte bancaire pour un
+// journal de banque ». La fiche porte l'établissement (liste : intitulé, code
+// postal, ville) et ses RIB, chacun avec son abrégé, sa devise, son BIC, ses
+// codes banque et guichet, son numéro de compte, sa clé, son IBAN et son
+// JOURNAL BANQUE. Voir `banques/banques.ts`.
+// ---------------------------------------------------------------------------
+model Banque {
+  id         String      @id @default(uuid())
+  tenantId   String
+  tenant     Tenant      @relation(fields: [tenantId], references: [id])
+  intitule   String
+  adresse    String?
+  codePostal String?
+  ville      String?
+  pays       String?
+  telephone  String?
+  email      String?
+  contact    String?
+  createdAt  DateTime    @default(now())
+  ribs       RibBanque[]
+
+  @@unique([tenantId, intitule])
+  @@map("banques")
+}
+
+/// Un RIB de l'établissement. Un journal de banque n'a qu'UN RIB · deux RIB
+/// sur le même journal, et le relevé importé ne saurait plus à quel compte il
+/// se rapporte.
+model RibBanque {
+  id           String   @id @default(uuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  banqueId     String
+  banque       Banque   @relation(fields: [banqueId], references: [id], onDelete: Cascade)
+  abrege       String
+  devise       String?
+  codeBic      String?
+  codeBanque   String?
+  codeGuichet  String?
+  numeroCompte String?
+  cle          String?
+  iban         String?
+  commentaire  String?
+  journalId    String?  @unique
+  journal      Journal? @relation(fields: [journalId], references: [id], onDelete: Restrict)
+  createdAt    DateTime @default(now())
+
+  @@unique([tenantId, abrege])
+  @@map("ribs_banque")
+}
+
+/// Sage, Structure / Libellé · des libellés « pré-enregistrés », appelés en
+/// saisie. Un libellé n'impute rien · il n'écrit que le texte de la ligne.
+model LibelleEcriture {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  code      String
+  intitule  String
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, code])
+  @@map("libelles_ecriture")
 }

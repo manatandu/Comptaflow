@@ -209,6 +209,9 @@ export function AppShell() {
         // docs/analytique-et-budget.md.
         { label: 'Plans analytiques', onClick: () => navigate('/plans-analytiques') },
         { label: 'Codes journaux', onClick: () => navigate('/journaux') },
+        // Sage i7, Structure / Banque et Structure / Libellé (point 19).
+        { label: 'Banques', onClick: () => navigate('/banques') },
+        { label: 'Libellés', onClick: () => navigate('/libelles') },
         { label: 'Taux de taxes', onClick: () => navigate('/taux-tva') },
         { label: 'Modèles de saisie', onClick: () => navigate('/modeles-saisie') },
         // Notion SYCEBNL (division 46) · masqué pour un dossier SYSCOHADA,

@@ -30,6 +30,10 @@ export const MODELES_AUDITES = new Set<string>([
   'SectionAnalytique',
   'FamilleImmobilisation',
   'ModeleSaisie',
+  // Un RIB modifié en silence détourne un paiement · la banque se journalise.
+  'Banque',
+  'RibBanque',
+  'LibelleEcriture',
   'Tiers',
   'Bailleur',
   // Les actes qui font ou défont un exercice.

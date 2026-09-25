@@ -55,6 +55,7 @@ const LIBELLES: Record<string, string> = {
   'Facture.tiersId': 'factures',
   'Devis.tiersId': 'devis',
   'Cloture.journalId': 'clôtures de journal',
+  'RibBanque.journalId': 'RIB bancaire rattaché (Structure > Banques)',
 };
 
 function relationsVers(cible: string, exclure: string[]) {

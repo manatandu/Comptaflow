@@ -35,6 +35,8 @@ const EXEMPTS: Record<string, string> = {
  * d'administration peut encore montrer à la lecture seule tout le reste.
  */
 const ADMIN_SEULEMENT: Record<string, string> = {
+  'pages/BanquesPage.tsx': "banques et RIB, structures du dossier réservées à l'administrateur",
+  'pages/LibellesPage.tsx': "libellés pré-enregistrés, structure du dossier réservée à l'administrateur",
   'pages/UtilisateursPage.tsx': "gestion des accès du dossier, réservée à l'administrateur",
   'pages/BailleursPage.tsx': "création et rattachement des bailleurs, réservés à l'administrateur",
   'pages/ExercicePage.tsx': "clôtures, arrêté des comptes et imputation d'ouverture, réservés à l'administrateur",

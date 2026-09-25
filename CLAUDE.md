@@ -4522,6 +4522,22 @@ lignes ; une rubrique vide des paramètres s'imprime « non renseigné ». (3) S
 LA FENÊTRE ACTIVE S'IMPRIME (`fenetre-inactive`) · jusque-là, « Imprimer »
 sortait aussi toutes les fenêtres ouvertes derrière, états compris.
 
+**Banques et libellés (2026-09-25).** Point 19 de la comparaison, lu au
+support Sage 100 (Structure / Banque : « il est indispensable de créer un
+compte bancaire pour un journal de banque » ; fiche à RIB) et au manuel i7
+(Structure / Libellé, libellés « pré-enregistrés » appelés en saisie).
+TROIS RÈGLES À NE PAS DÉFAIRE. (1) UN RIB SE RATTACHE AU PLUS À UN JOURNAL DE
+BANQUE, et un journal n'a qu'un RIB (`RibBanque.journalId` unique) · un
+journal de trésorerie qui porte une caisse (57, les deux plans) est refusé
+(`banques/banques.ts`). Le journal rattaché ne se supprime plus, l'usage est
+compté par la règle des références. (2) UN SEUL CONTRÔLE DE FORMAT, L'IBAN
+(ISO 13616, modulo 97) · les formats nationaux du RIB ne sont décrits nulle
+part, ils se conservent sans se vérifier. Banque et RIB sont au journal
+d'audit · un RIB modifié en silence détourne un paiement. (3) UN LIBELLÉ
+N'IMPUTE RIEN · il est proposé dans les deux champs de libellé de la saisie
+(datalist) et n'écrit que le texte. COLLABORATEURS ET PLAN REPORTING NE SONT
+PAS SERVIS, faute de source dans le corpus.
+
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
 nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la

@@ -119,6 +119,13 @@ tiennent à un texte OHADA ; ils sont signalés comme tels.
     Le manuel i7 ne fait que nommer ces commandes · les colonnes sont celles
     d'OmegaX. Trouvé au passage : toute impression sortait aussi les fenêtres
     ouvertes derrière la fenêtre active ; corrigé.
-19. Banques, libellés, collaborateurs, plan reporting.
+19. Banques, libellés, collaborateurs, plan reporting · PARTIEL le 2026-09-25.
+    ~~Banques~~ et ~~libellés~~ FAITS : établissement et RIB (IBAN contrôlé
+    ISO 13616, un RIB par journal de banque, jamais sur une caisse) ;
+    libellés pré-enregistrés proposés au fil de la frappe en saisie.
+    COLLABORATEURS et PLAN REPORTING NON FAITS, faute de source · le corpus ne
+    les décrit nulle part (« collaborateurs » n'y paraît que comme exemple
+    d'axe analytique, que les plans analytiques couvrent déjà), et les
+    inventer serait écrire une règle Sage de mémoire.
 20. États personnalisés et reporting.
 21. Documents attachés aux tiers.

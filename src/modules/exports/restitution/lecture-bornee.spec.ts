@@ -60,7 +60,9 @@ describe('l’inventaire couvre le schéma, sans trou ni surplus', () => {
     // propre tenantId.
     // à 103 avec les natures de compte, paramétrage du dossier borné par son
     // tenantId.
-    expect(modeles).toHaveLength(103);
+    // à 106 avec les banques, leurs RIB et les libellés pré-enregistrés,
+    // chacun borné par son propre tenantId (point 19).
+    expect(modeles).toHaveLength(106);
     expect([...TABLES_RESTITUEES].sort()).toEqual(modeles.filter((m) => m !== 'Tenant').sort());
   });
 

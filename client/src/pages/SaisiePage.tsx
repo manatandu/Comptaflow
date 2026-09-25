@@ -331,6 +331,17 @@ export function SaisiePage() {
     [exerciceCourant],
   );
 
+  // LIBELLÉS PRÉ-ENREGISTRÉS (Sage i7, Structure / Libellé · point 19) ·
+  // proposés au fil de la frappe dans les deux champs de libellé. Ils
+  // n'imputent rien, ils n'écrivent que le texte.
+  const [libellesPredefinis, setLibellesPredefinis] = useState<Array<{ id: string; code: string; intitule: string }>>([]);
+  useEffect(() => {
+    api
+      .get<Array<{ id: string; code: string; intitule: string }>>('/libelles-ecriture')
+      .then(setLibellesPredefinis)
+      .catch(() => setLibellesPredefinis([]));
+  }, []);
+
   // La grille se relit à chaque retour à l'étape 1 · une pièce validée ou
   // saisie entre-temps change l'état de sa case.
   useEffect(() => {
@@ -1039,6 +1050,11 @@ export function SaisiePage() {
   // ============ ÉTAPE 2 · le journal du mois, grille de saisie ============
   return (
     <div className="p-2">
+      <datalist id="libelles-predefinis">
+        {libellesPredefinis.map((l) => (
+          <option key={l.id} value={l.intitule} label={l.code} />
+        ))}
+      </datalist>
       {/* En-tête du journal ouvert */}
       <div className="flex items-center justify-between mb-2">
         {/* Le journal et la période ouverts sont une donnée, pas le titre de
@@ -1325,6 +1341,7 @@ export function SaisiePage() {
               <label className="flex items-center gap-1.5">
                 <span className="text-text-dim">Libellé pièce :</span>
                 <input
+                  list="libelles-predefinis"
                   value={libellePiece}
                   onChange={(e) => setLibellePiece(e.target.value)}
                   className="w-[240px] border border-border-dark px-1.5 py-0.5"
@@ -1501,6 +1518,7 @@ export function SaisiePage() {
             })}
             <input
               ref={libelleRef}
+              list="libelles-predefinis"
               value={libelleLigne}
               onChange={(e) => setLibelleLigne(e.target.value)}
               onKeyDown={(e) => {
