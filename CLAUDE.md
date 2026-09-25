@@ -5247,6 +5247,11 @@ captures de la saisie des journaux). Quatre règles à ne pas défaire.
   Restent à l'écran : erreurs, refus, résultats, avertissements portant sur
   une DONNÉE du dossier, et les mentions qu'un test gèle, raccourcies à une
   ligne. Numéros et codes en police d'interface, pas en chasse fixe.
+- **L'accueil est la fenêtre principale de Sage i7**, lue dans ses manuels
+  (« Ergonomie et fonctions communes i7 ») · une BARRE VERTICALE à gauche,
+  groupes thématiques dont un seul est ouvert (« cliquez sur son intitulé »),
+  et l'INTUISAGE à trois onglets, Accueil, Favoris, Indicateurs. Les favoris
+  sont une préférence du poste (navigateur), jamais une donnée du dossier.
 
 ## 10. Tests
 

@@ -30,28 +30,26 @@ import type { SVGProps } from 'react';
 
 /**
  * ACCUEIL · le FOND de l'espace de travail, jamais une fenêtre. Les fenêtres
- * s'ouvrent par-dessus ; les refermer toutes le redécouvre. C'est exactement
- * le rôle de la page IntuiSage de Sage 100 i7.
+ * s'ouvrent par-dessus ; les refermer toutes le redécouvre.
  *
- * Il porte DEUX choses, dans cet ordre :
+ * LE MODÈLE EST CELUI DE SAGE 100 i7, lu dans ses manuels et non imaginé
+ * (manuel « Ergonomie et fonctions communes i7 », Sage 100 Immobilisations ;
+ * cours « Fenêtre d'application Comptabilité », Sage Compta i7 v8), à la
+ * demande de Manasse du 2026-09-25. Deux éléments, pas un de plus :
  *
- *   1. OÙ EN EST CE DOSSIER · ce qui réclame une action (jalons en retard,
- *      anomalies de cohérence, écritures encore au brouillard). C'est la
- *      seule question qu'on se pose en ouvrant un logiciel comptable un
- *      matin, et aucun autre écran n'y répond d'un coup d'œil.
- *   2. PAR OÙ COMMENCER · le lanceur, en tuiles groupées par domaine, comme
- *      IntuiSage groupe les siennes en « Gestion quotidienne », « Gestion des
- *      tiers », « Gestion des comptes généraux ».
+ *   1. LA BARRE VERTICALE, à gauche · « les fonctions sont regroupées au sein
+ *      de groupes de fonctions thématiques. Pour afficher un groupe de
+ *      fonctions différent, cliquez sur son intitulé ». Un seul groupe ouvert
+ *      à la fois, comme chez Sage.
+ *   2. L'INTUISAGE, « interface d'accueil et d'accompagnement », à onglets ·
+ *      Accueil (le dossier ouvert et l'accès aux autres), Favoris (« accès
+ *      rapide et intuitif aux fonctions que vous utilisez le plus souvent »),
+ *      Indicateurs (« quelques indicateurs clés pour suivre et piloter son
+ *      activité »). L'onglet Sage Connect (vidéos, réseaux) n'a pas
+ *      d'équivalent et n'est pas repris.
  *
- * Une grille de raccourcis avait été retirée d'ici, au motif qu'elle
- * répétait la barre d'outils affichée juste au-dessus. Le motif ne tient plus
- * depuis le passage au multi-fenêtres : l'accueil est désormais un FOND,
- * qu'on ne voit que lorsque aucune fenêtre ne le couvre · il n'est donc
- * jamais visible en même temps que le travail en cours, et n'entre plus en
- * concurrence avec rien. C'est précisément la disposition de Sage, dont la
- * barre d'outils porte les actions sur l'enregistrement courant (ajouter,
- * consulter, rechercher) pendant que la page d'accueil, elle, lance les
- * fenêtres. Ce partage-là est le bon, et c'est celui qui est en place ici.
+ * Les grandes cartes à icônes de la version précédente n'existaient chez
+ * aucun logiciel de référence · elles sont retirées.
  */
 
 const JEUX: Record<string, string> = {
@@ -167,6 +165,20 @@ export function AccueilPage() {
   const referentiel = utilisateur?.tenant.referentiel;
   const { exerciceCourant } = useExercice();
   const [aProposOuvert, setAProposOuvert] = useState(false);
+  const tenantId = utilisateur?.tenant.id ?? '';
+  const [onglet, setOnglet] = useState<Onglet>(() => lireOnglet());
+  const [groupeOuvert, setGroupeOuvert] = useState<string>(GROUPES[0].titre);
+  const [favoris, setFavoris] = useState<string[]>([]);
+  useEffect(() => setFavoris(lireFavoris(tenantId)), [tenantId]);
+  const choisirOnglet = (o: Onglet) => {
+    setOnglet(o);
+    ecrire(CLE_ONGLET, o);
+  };
+  const basculerFavori = (chemin: string) => {
+    const suivants = favoris.includes(chemin) ? favoris.filter((c) => c !== chemin) : [...favoris, chemin];
+    setFavoris(suivants);
+    ecrire(cleFavoris(tenantId), JSON.stringify(suivants));
+  };
   const [planning, setPlanning] = useState<PlanningCloture | null>(null);
   const [controles, setControles] = useState<RapportControles | null>(null);
   const [chargement, setChargement] = useState(true);
@@ -235,164 +247,202 @@ export function AccueilPage() {
   const dateCourte = (iso: string) =>
     new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 
+  const toutesTuiles = GROUPES.flatMap((g) => tuilesVisibles(g));
+  const tuilesFavorites = favoris.map((c) => toutesTuiles.find((t) => t.chemin === c)).filter((t): t is TuileDef => !!t);
+
   return (
-    <div className="p-4 pb-8 max-w-[1320px]">
-      {/* --- Bande 1 · identité du dossier --------------------------------- */}
-      {/*
-        EN-TÊTE À LA MANIÈRE DES PARAMÈTRES DE WINDOWS 11 (2026-09-23) · une
-        carte claire, le nom du dossier en grand et une pastille d'accent,
-        là où il y avait un bandeau bleu en dégradé.
-      */}
-      <section className="rounded-[4px] border border-border bg-surface px-5 py-4 mb-5 shadow-plate">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="min-w-0 flex items-center gap-4">
-            <span className="hidden sm:flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[4px] bg-sel text-white">
-              <IconFolderOpen width={24} height={24} />
-            </span>
-            <div className="min-w-0">
-              <h1 className="text-[16px] font-semibold leading-tight truncate">{utilisateur?.tenant.nom}</h1>
-              <div className="text-[11.5px] text-text-dim mt-0.5">
-                {utilisateur?.tenant.referentiel}
-                {jeu && ` · ${jeu}`}
-              </div>
-            </div>
-          </div>
-          {/*
-            `flex-wrap` et non `shrink-0` seul : avec trois boutons (exercice,
-            nouveau dossier, console), le groupe mesurait plus que 360 px et,
-            refusant de rétrécir, débordait du bandeau. Il se replie
-            maintenant sur deux lignes au lieu de sortir de l'écran.
-          */}
-          <div className="flex flex-wrap items-center gap-2 min-w-0">
-            {anneeExercice && (
-              <span className="rounded-[4px] bg-sel-soft text-sel px-3 py-1.5 text-[11.5px] font-semibold">
-                Exercice {anneeExercice}
-              </span>
-            )}
-            {/* La création de dossiers passe par la console VMG (option A :
-                l'auto-inscription est fermée) · le bouton ne s'affiche que
-                pour l'opérateur de la plateforme, et y mène. */}
-            {utilisateur?.estOperateurPlateforme && (
+    <div className="flex flex-col md:flex-row h-full min-h-0">
+      {/* --- Barre verticale · groupes de fonctions, un seul ouvert ------- */}
+      <nav
+        aria-label="Barre verticale"
+        className="md:w-[236px] shrink-0 border-b md:border-b-0 md:border-r border-border-dark bg-[var(--fenetre)] flex flex-col min-h-0 overflow-y-auto"
+      >
+        {GROUPES.map((groupe) => {
+          const tuiles = tuilesVisibles(groupe);
+          if (tuiles.length === 0) return null;
+          const ouvert = groupeOuvert === groupe.titre;
+          return (
+            <div key={groupe.titre} className="border-b border-border-dark">
               <button
                 type="button"
-                onClick={() => navigate('/plateforme')}
-                className="flex items-center gap-1.5 rounded-[4px] border border-border px-3 py-1.5 text-[11.5px] font-semibold"
+                aria-expanded={ouvert}
+                onClick={() => setGroupeOuvert(groupe.titre)}
+                className={`w-full flex items-center gap-2 px-2.5 h-[26px] text-left text-[11.5px] font-semibold border-b border-border ${
+                  ouvert ? 'bg-[#e4e9f1] text-text' : 'bg-[#ececec] text-text hover:bg-[#e4e4e4]'
+                }`}
               >
-                <IconFileAdd width={14} height={14} />
-                Nouveau dossier
+                <groupe.Icon width={14} height={14} className="shrink-0 text-sel" />
+                <span className="truncate">{groupe.titre}</span>
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                seDeconnecter();
-                navigate('/connexion');
-              }}
-              className="flex items-center gap-1.5 rounded-[4px] border border-border px-3 py-1.5 text-[11.5px] font-semibold"
-            >
-              <IconFolderOpen width={14} height={14} />
-              Ouvrir un autre
-            </button>
+              {ouvert && (
+                <ul className="bg-surface py-0.5">
+                  {tuiles.map((t) => (
+                    <li key={t.chemin} className="group flex items-center">
+                      <button
+                        type="button"
+                        onClick={() => navigate(t.chemin)}
+                        className="flex-1 min-w-0 flex items-center gap-2 pl-3 pr-1 h-[22px] text-left text-[11.5px] hover:bg-sel-soft"
+                      >
+                        <t.Icon width={13} height={13} className="shrink-0 text-sel" />
+                        <span className="truncate">{t.label}</span>
+                      </button>
+                      <BoutonFavori actif={favoris.includes(t.chemin)} onClick={() => basculerFavori(t.chemin)} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          );
+        })}
+      </nav>
+
+      {/* --- IntuiSage · trois onglets ---------------------------------- */}
+      <div className="flex-1 min-w-0 min-h-0 overflow-auto p-3">
+        <div className="max-w-[760px] border border-border-dark bg-surface">
+          <div role="tablist" className="flex border-b border-border-dark bg-[#ececec]">
+            {ONGLETS.map((o) => (
+              <button
+                key={o}
+                type="button"
+                role="tab"
+                aria-selected={onglet === o}
+                onClick={() => choisirOnglet(o)}
+                className={`px-3 h-[24px] text-[11.5px] border-r border-border-dark ${
+                  onglet === o ? 'bg-surface font-semibold -mb-px border-b border-b-surface' : 'text-text-dim hover:text-text'
+                }`}
+              >
+                {o}
+              </button>
+            ))}
           </div>
-        </div>
-      </section>
 
-      {/* --- Deux colonnes : le lanceur, et l'état du dossier à droite ------
-          Sur un téléphone l'état passe AU-DESSUS · c'est lui qui dit s'il y a
-          quelque chose à faire, il ne doit pas finir sous cinq cartes. */}
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px] items-start">
-        {/* La CINQUIÈME carte, seule sur sa rangée à gauche, laissait un trou ·
-            sur grand écran elle passe sous la colonne d'état. Sur téléphone
-            et tablette elle reste à la suite des autres, la colonne d'état
-            remontant en tête. Rendue deux fois, une seule est visible. */}
-        <div className="grid gap-4 md:grid-cols-2 items-start">
-          {GROUPES.map((groupe, rang) => {
-            const tuiles = tuilesVisibles(groupe);
-            if (tuiles.length === 0) return null;
-            const derniere = rang === GROUPES.length - 1;
-            return (
-              <div key={groupe.titre} className={derniere ? 'lg:hidden' : undefined}>
-                <CarteGroupe groupe={groupe} tuiles={tuiles} rang={rang} navigate={navigate} />
+          {onglet === 'Accueil' && (
+            <div className="p-3">
+              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-0.5 text-[11.5px]">
+                <dt className="text-text-dim">Dossier</dt>
+                <dd className="font-semibold">{utilisateur?.tenant.nom}</dd>
+                <dt className="text-text-dim">Référentiel</dt>
+                <dd>
+                  {utilisateur?.tenant.referentiel}
+                  {jeu && ` · ${jeu}`}
+                </dd>
+                <dt className="text-text-dim">Exercice</dt>
+                <dd>{anneeExercice ?? 'Aucun'}</dd>
+                <dt className="text-text-dim">Utilisateur</dt>
+                <dd>{utilisateur?.email}</dd>
+              </dl>
+              <div className="flex flex-wrap gap-2 mt-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    seDeconnecter();
+                    navigate('/connexion');
+                  }}
+                  className="flex items-center gap-1.5 border border-border-dark px-2.5 py-[3px] text-[11.5px]"
+                >
+                  <IconFolderOpen width={13} height={13} />
+                  Ouvrir un autre dossier
+                </button>
+                {/* La création de dossiers passe par la console VMG (option A :
+                    l'auto-inscription est fermée) · le bouton ne s'affiche que
+                    pour l'opérateur de la plateforme, et y mène. */}
+                {utilisateur?.estOperateurPlateforme && (
+                  <button
+                    type="button"
+                    onClick={() => navigate('/plateforme')}
+                    className="flex items-center gap-1.5 border border-border-dark px-2.5 py-[3px] text-[11.5px]"
+                  >
+                    <IconFileAdd width={13} height={13} />
+                    Nouveau dossier
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setAProposOuvert(true)}
+                  className="flex items-center gap-1.5 border border-border-dark px-2.5 py-[3px] text-[11.5px]"
+                >
+                  <IconInfo width={13} height={13} />
+                  À propos d’OmegaX
+                </button>
               </div>
-            );
-          })}
-        </div>
-
-        <aside className="order-first lg:order-none flex flex-col gap-3">
-          <section className="rounded-[4px] border border-border bg-surface shadow-plate overflow-hidden">
-            <div className="px-4 pt-3.5 pb-2 text-[13px] font-semibold">Où en est ce dossier</div>
-            {chargement ? (
-              <div className="px-4 pb-4 flex flex-col gap-2">
-                {[0, 1, 2, 3].map((i) => (
-                  <div key={i} className="squelette h-[44px] rounded-[4px]" />
-                ))}
-              </div>
-            ) : (
-              <div>
-                <LigneEtat
-                  titre="Écritures au brouillard"
-                  valeur={brouillard ? brouillard.libelle : 'Non déterminé'}
-                  bon={brouillard?.satisfait ?? true}
-                  chemin="/brouillard"
-                  navigate={navigate}
-                />
-                <LigneEtat
-                  titre="Contrôles de cohérence"
-                  valeur={
-                    !controles
-                      ? 'Non calculés'
-                      : bloquants + avertissements === 0
-                        ? 'Aucune anomalie à traiter'
-                        : `${bloquants > 0 ? `${bloquants} bloquante(s)` : `${avertissements} à vérifier`} · ${
-                            pireAnomalie?.libelle ?? ''
-                          }`
-                  }
-                  bon={!!controles && bloquants + avertissements === 0}
-                  chemin="/controles"
-                  navigate={navigate}
-                />
-                <LigneEtat
-                  titre="Jalons de clôture en retard"
-                  valeur={
-                    enRetard.length === 0
-                      ? 'Aucun jalon en retard'
-                      : `${enRetard.length} en retard · ${enRetard[0].libelle}`
-                  }
-                  bon={enRetard.length === 0}
-                  chemin="/exercice"
-                  navigate={navigate}
-                />
-                <LigneEtat
-                  titre="Prochaine échéance"
-                  valeur={prochain ? `${dateCourte(prochain.echeance)} · ${prochain.libelle}` : 'Rien à venir'}
-                  bon
-                  chemin="/exercice"
-                  navigate={navigate}
-                />
-              </div>
-            )}
-          </section>
-
-          {tuilesVisibles(GROUPES[GROUPES.length - 1]).length > 0 && (
-            <div className="hidden lg:block">
-              <CarteGroupe
-                groupe={GROUPES[GROUPES.length - 1]}
-                tuiles={tuilesVisibles(GROUPES[GROUPES.length - 1])}
-                rang={GROUPES.length - 1}
-                navigate={navigate}
-              />
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={() => setAProposOuvert(true)}
-            className="self-end flex items-center gap-1.5 text-[11.5px] text-text-dim hover:text-text"
-          >
-            <IconInfo width={13} height={13} />
-            À propos d’OmegaX
-          </button>
-        </aside>
+          {onglet === 'Favoris' && (
+            <div className="p-1">
+              {tuilesFavorites.length === 0 ? (
+                <p className="p-2 text-[11.5px] text-text-dim">
+                  Aucun favori · cliquez sur l’étoile d’une fonction de la barre verticale.
+                </p>
+              ) : (
+                <ul>
+                  {tuilesFavorites.map((t) => (
+                    <li key={t.chemin} className="group flex items-center">
+                      <button
+                        type="button"
+                        onClick={() => navigate(t.chemin)}
+                        className="flex-1 min-w-0 flex items-center gap-2 px-2 h-[24px] text-left text-[11.5px] hover:bg-sel-soft"
+                      >
+                        <t.Icon width={13} height={13} className="shrink-0 text-sel" />
+                        <span className="truncate">{t.label}</span>
+                      </button>
+                      <BoutonFavori actif onClick={() => basculerFavori(t.chemin)} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {onglet === 'Indicateurs' && (
+            <div>
+              {chargement ? (
+                <p className="p-3 text-[11.5px] text-text-dim">Chargement…</p>
+              ) : (
+                <table className="w-full text-[11.5px]">
+                  <tbody>
+                    <LigneEtat
+                      titre="Écritures au brouillard"
+                      valeur={brouillard ? brouillard.libelle : 'Non déterminé'}
+                      bon={brouillard?.satisfait ?? true}
+                      chemin="/brouillard"
+                      navigate={navigate}
+                    />
+                    <LigneEtat
+                      titre="Contrôles de cohérence"
+                      valeur={
+                        !controles
+                          ? 'Non calculés'
+                          : bloquants + avertissements === 0
+                            ? 'Aucune anomalie à traiter'
+                            : `${bloquants > 0 ? `${bloquants} bloquante(s)` : `${avertissements} à vérifier`} · ${
+                                pireAnomalie?.libelle ?? ''
+                              }`
+                      }
+                      bon={!!controles && bloquants + avertissements === 0}
+                      chemin="/controles"
+                      navigate={navigate}
+                    />
+                    <LigneEtat
+                      titre="Jalons de clôture en retard"
+                      valeur={enRetard.length === 0 ? 'Aucun jalon en retard' : `${enRetard.length} en retard · ${enRetard[0].libelle}`}
+                      bon={enRetard.length === 0}
+                      chemin="/exercice"
+                      navigate={navigate}
+                    />
+                    <LigneEtat
+                      titre="Prochaine échéance"
+                      valeur={prochain ? `${dateCourte(prochain.echeance)} · ${prochain.libelle}` : 'Rien à venir'}
+                      bon
+                      chemin="/exercice"
+                      navigate={navigate}
+                    />
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {aProposOuvert && <AProposModale onFermer={() => setAProposOuvert(false)} />}
@@ -400,66 +450,69 @@ export function AccueilPage() {
   );
 }
 
-/** Flèche des lignes cliquables, comme dans les Paramètres de Windows 11. */
-function Chevron() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden className="shrink-0 text-text-dim">
-      <path d="M6 3.5 10.5 8 6 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
+type Onglet = 'Accueil' | 'Favoris' | 'Indicateurs';
+const ONGLETS: Onglet[] = ['Accueil', 'Favoris', 'Indicateurs'];
+const CLE_ONGLET = 'omegax.accueil.onglet';
+const cleFavoris = (tenantId: string) => `omegax.favoris.${tenantId}`;
+
+/*
+  Préférences d'affichage, jamais des données du dossier · mémorisées dans le
+  navigateur. `localStorage` jette en fenêtre privée : la préférence est un
+  confort, jamais une condition d'usage, d'où les try/catch.
+*/
+function ecrire(cle: string, valeur: string) {
+  try {
+    localStorage.setItem(cle, valeur);
+  } catch {
+    /* préférence perdue, rien d'autre */
+  }
+}
+function lireOnglet(): Onglet {
+  try {
+    const v = localStorage.getItem(CLE_ONGLET);
+    return ONGLETS.includes(v as Onglet) ? (v as Onglet) : 'Accueil';
+  } catch {
+    return 'Accueil';
+  }
+}
+function lireFavoris(tenantId: string): string[] {
+  if (!tenantId) return [];
+  try {
+    const v = JSON.parse(localStorage.getItem(cleFavoris(tenantId)) ?? '[]');
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
 }
 
-/**
- * Carte de domaine · un en-tête (pastille, titre) puis une ligne
- * par fenêtre. Remplace les tuiles isolées (2026-09-23) : des lignes de même
- * hauteur dans des cartes de même largeur ne laissent aucun trou, quel que
- * soit le nombre de fenêtres du groupe.
- */
-function CarteGroupe({
-  groupe,
-  tuiles,
-  rang,
-  navigate,
-}: {
-  groupe: GroupeDef;
-  tuiles: TuileDef[];
-  rang: number;
-  navigate: (c: string) => void;
-}) {
+function BoutonFavori({ actif, onClick }: { actif: boolean; onClick: () => void }) {
   return (
-    <section
-      style={{ animationDelay: `${rang * 40}ms` }}
-      className="anim-cascade rounded-[4px] border border-border bg-surface shadow-plate overflow-hidden"
+    <button
+      type="button"
+      onClick={onClick}
+      title={actif ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+      aria-pressed={actif}
+      className={`shrink-0 w-[22px] h-[22px] flex items-center justify-center ${
+        actif ? 'text-[#c98a00]' : 'text-text-dim opacity-0 group-hover:opacity-100 focus:opacity-100'
+      }`}
     >
-      <div className="flex items-center gap-3 px-4 pt-3.5 pb-3">
-        <span className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[4px] bg-sel text-white">
-          <groupe.Icon width={18} height={18} />
-        </span>
-        <h2 className="min-w-0 text-[13px] font-semibold leading-tight">{groupe.titre}</h2>
-      </div>
-      <ul>
-        {tuiles.map((t) => (
-          <li key={t.chemin} className="border-t border-border">
-            <button
-              type="button"
-              onClick={() => navigate(t.chemin)}
-              className="group w-full flex items-center gap-3 px-4 h-[40px] text-left transition-colors duration-150 hover:bg-surface-alt active:bg-chrome"
-            >
-              <t.Icon width={16} height={16} className="shrink-0 text-sel" />
-              <span className="flex-1 min-w-0 truncate text-[12px] text-text">{t.label}</span>
-              <Chevron />
-            </button>
-          </li>
-        ))}
-      </ul>
-    </section>
+      <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden>
+        <path
+          d="M8 1.5 10 5.8l4.6.5-3.4 3.1.9 4.6L8 11.7 3.9 14l.9-4.6L1.4 6.3 6 5.8Z"
+          fill={actif ? 'currentColor' : 'none'}
+          stroke="currentColor"
+          strokeWidth="1.2"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </button>
   );
 }
 
 /**
- * Ligne d'état · une phrase, une couleur, une destination. Le vert dit
- * « rien à faire ici », l'ambre « regardez ». Pas de rouge : rien sur cet
- * écran n'est une erreur du logiciel, seulement du travail en attente.
+ * Ligne d'indicateur · une ligne de grille, une couleur, une destination. Le
+ * vert dit « rien à faire ici », l'ambre « regardez ». Pas de rouge : rien
+ * ici n'est une erreur du logiciel, seulement du travail en attente.
  */
 function LigneEtat({
   titre,
@@ -475,19 +528,12 @@ function LigneEtat({
   navigate: (c: string) => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={() => navigate(chemin)}
-      className="w-full flex items-start gap-3 border-t border-border px-4 py-2.5 text-left transition-colors duration-150 hover:bg-surface-alt"
-    >
-      <span className={`mt-[5px] h-2 w-2 shrink-0 rounded-full ${bon ? 'bg-positive' : 'bg-warning'}`} aria-hidden />
-      <span className="flex-1 min-w-0">
-        <span className="block text-[11.5px] text-text-dim">{titre}</span>
-        <span className={`block text-[12px] font-medium leading-snug ${bon ? 'text-text' : 'text-warning'}`}>{valeur}</span>
-      </span>
-      <span className="mt-[3px]">
-        <Chevron />
-      </span>
-    </button>
+    <tr onClick={() => navigate(chemin)} className="cursor-pointer hover:bg-sel-soft">
+      <td className="px-2 py-1 w-[14px]">
+        <span className={`block h-2 w-2 rounded-full ${bon ? 'bg-positive' : 'bg-warning'}`} aria-hidden />
+      </td>
+      <td className="px-2 py-1 text-text-dim whitespace-nowrap">{titre}</td>
+      <td className={`px-2 py-1 ${bon ? 'text-text' : 'text-warning font-semibold'}`}>{valeur}</td>
+    </tr>
   );
 }
