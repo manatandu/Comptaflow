@@ -8,12 +8,14 @@ import {
   ActiviteIfrsDto,
   EffetChangeIfrsDto,
   MouvementCpIfrsDto,
+  NotesIfrsDto,
   PremiereApplicationIfrsDto,
   RegleIfrsDto,
   RetraitementIfrsDto,
   TresorerieIfrsDto,
 } from './dto/ifrs.dto';
-import { construireEtatsIfrs, EtatsIfrs, LIBELLES_GROUPES, motifRefusRetraitement, RefusIfrs, rubriqueDuCompte } from './etats-ifrs';
+import { construireEtatsIfrs, ENTREE_EN_VIGUEUR_IFRS18, EtatsIfrs, LIBELLES_GROUPES, motifRefusRetraitement, RefusIfrs, rubriqueDuCompte } from './etats-ifrs';
+import { construireNotesIfrs, motifsRefusDeclarationsNotes, normaliserDeclarationsNotes, SOUS_TOTAUX_REFERENCE } from './notes-ifrs';
 import { CATEGORIES_FLUX, CategorieFlux, construireFluxTresorerieIfrs, TableauFluxIfrs } from './flux-tresorerie-ifrs';
 import { RUBRIQUE_PAR_CODE } from './rubriques-ifrs';
 import { construirePremiereApplication, lignesOuverture, motifRefusAjustementTransition, PremiereApplication, RetraitementIfrs1 } from './premiere-application-ifrs';
@@ -48,6 +50,13 @@ import { COMPOSANTES_CP, construireVariationCapitauxPropres, motifRefusMouvement
  * tableau SYSCOHADA de l'exercice (`resoudreFluxDetailleSurLignes`), qui lit
  * les flux réels du grand livre · il exige donc l'exercice précédent, comme
  * lui, et le comparatif exige N-2. Sans eux, le tableau n'est pas rendu.
+ *
+ * LES NOTES (tranche 5, IFRS 18 § 113 à 132, IAS 8) se bâtissent EN
+ * DERNIER · la déclaration de conformité du § 6B dépend de tous les autres
+ * motifs de non-publication. Les déclarations sont PAR EXERCICE, et celles de
+ * l'exercice précédent sont rendues à l'écran pour être reprises, jamais
+ * recopiées d'office · une méthode ou un jugement de l'an dernier peut ne plus
+ * valoir.
  */
 type RetraitementLu = { id: string; libelle: string; fondement: string; correctionErreur: boolean; lignes: { rubrique: string; montant: number }[] };
 
@@ -373,7 +382,39 @@ export class IfrsService {
       n.motifsNonPubliable.push(`Tableau des flux de trésorerie comparatif non établi (IFRS 18 § 10 f) · ${fluxN1.motif ?? 'l’exercice précédent n’a pas d’état IFRS.'}`);
     }
 
+    // ─── Notes · IFRS 18 § 113 à 132, IAS 8 ──────────────────────────────────
+    const [notesN, notesN1, tenant, mouvements] = await Promise.all([
+      this.prisma.notesIfrs.findUnique({ where: { tenantId_exerciceId: { tenantId, exerciceId: ex.id } } }),
+      precedent ? this.prisma.notesIfrs.findUnique({ where: { tenantId_exerciceId: { tenantId, exerciceId: precedent.id } } }) : Promise.resolve(null),
+      this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { nom: true, pays: true, adresse: true, ville: true, activite: true } }),
+      this.mouvementsDe(tenantId, ex.id),
+    ]);
+    const declarationsNotes = normaliserDeclarationsNotes(notesN?.contenu ?? {});
+    const declarationsNotesN1 = notesN1 ? normaliserDeclarationsNotes(notesN1.contenu) : null;
+    const notes = construireNotesIfrs({
+      declarations: declarationsNotes,
+      declarationsN1: declarationsNotesN1,
+      // La forme juridique n'est pas reprise de la fiche · son intitulé se
+      // déclare, l'énumération du dossier n'étant pas un libellé publiable.
+      ficheDossier: {
+        nom: tenant?.nom ?? '',
+        formeJuridique: null,
+        pays: tenant?.pays ?? null,
+        adresse: [tenant?.adresse, tenant?.ville].filter((x) => x?.trim()).join(', ') || null,
+        activite: tenant?.activite ?? null,
+      },
+      n,
+      n1,
+      retraitements: retraitements.map(versMoteur),
+      premiereApplication,
+      distributionsDeclarees: mouvements.some((m) => m.type === 'DISTRIBUTION'),
+      applicationAnticipee: ex.dateDebut.getTime() < ENTREE_EN_VIGUEUR_IFRS18,
+      motifsJeu: [...n.motifsNonPubliable],
+    });
+    n.motifsNonPubliable.push(...notes.motifsNonPubliable);
+
     return {
+      notes: { ...notes, declarations: declarationsNotes, declarationsN1: declarationsNotesN1, sousTotauxReference: SOUS_TOTAUX_REFERENCE },
       activitePrincipale: activite,
       premierExerciceIfrsId: premierId,
       decouvertsDansTresorerie: parametres?.decouvertsDansTresorerie ?? null,
@@ -400,9 +441,28 @@ export class IfrsService {
         motifN: blocN.motif,
         n1: blocN1.bloc,
         motifN1: blocN1.motif,
-        mouvements: await this.mouvementsDe(tenantId, ex.id),
+        mouvements,
       },
     };
+  }
+
+  /**
+   * IFRS 18 § 113 à 132 et IAS 8 · les déclarations des notes d'un exercice,
+   * en un seul envoi. Ce qui est contradictoire ou mal formé est refusé ; une
+   * réponse manquante ne l'est pas, elle rend seulement le jeu non publiable.
+   * La forme ENREGISTRÉE est la forme normalisée, celle que le calcul relit.
+   */
+  async declarerNotes(tenantId: string, dto: NotesIfrsDto) {
+    const ex = await this.exercice(tenantId, dto.exerciceId);
+    const contenu = normaliserDeclarationsNotes(dto.contenu);
+    const refus = motifsRefusDeclarationsNotes(contenu);
+    if (refus.length) throw new BadRequestException(refus.join(' '));
+    const json = contenu as unknown as Prisma.InputJsonValue;
+    return this.prisma.notesIfrs.upsert({
+      where: { tenantId_exerciceId: { tenantId, exerciceId: ex.id } },
+      create: { tenantId, exerciceId: ex.id, contenu: json },
+      update: { contenu: json },
+    });
   }
 
   /** IAS 7 § 8 et § 28 · deux déclarations de méthode, valables pour tous les exercices. */

@@ -8,7 +8,7 @@ import { ReferentielGuard } from '../../common/guards/referentiel.guard';
 import { ReferentielsAutorises } from '../../common/decorators/referentiels.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { IfrsService } from './ifrs.service';
-import { ActiviteIfrsDto, EffetChangeIfrsDto, MouvementCpIfrsDto, PremiereApplicationIfrsDto, RegleIfrsDto, RetraitementIfrsDto, TresorerieIfrsDto } from './dto/ifrs.dto';
+import { ActiviteIfrsDto, EffetChangeIfrsDto, MouvementCpIfrsDto, NotesIfrsDto, PremiereApplicationIfrsDto, RegleIfrsDto, RetraitementIfrsDto, TresorerieIfrsDto } from './dto/ifrs.dto';
 
 /**
  * CLOISONNÉ AU SYSCOHADA · l'art. 73-1 de l'AUDCIF vise les entités dont les
@@ -37,6 +37,12 @@ export class IfrsController {
   @Put('premiere-application')
   declarerPremiereApplication(@CurrentUser() user: AuthenticatedUser, @Body() dto: PremiereApplicationIfrsDto) {
     return this.ifrs.declarerPremiereApplication(user.tenantId, dto);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Put('notes')
+  declarerNotes(@CurrentUser() user: AuthenticatedUser, @Body() dto: NotesIfrsDto) {
+    return this.ifrs.declarerNotes(user.tenantId, dto);
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)

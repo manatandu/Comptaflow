@@ -2590,6 +2590,36 @@ variations du tableau de départ, et c'est dit. Dix-sept mutations, toutes
 tuées, dont six après ajout des tests manquants (découverts côté service,
 compte sans règle, dividendes, effet de change au rapprochement).
 
+**États IFRS, tranche 5 · les notes (IFRS 18 § 113 à 132, IAS 8)
+(2026-09-25).** `ifrs/notes-ifrs.ts`. Source · le règlement (UE) 2026/338, texte
+français officiel, extrait conservé dans
+`docs/sources/ifrs18-notes-et-ias8-reglement-ue-2026-338.md`. CINQ RÈGLES À NE
+PAS DÉFAIRE. (1) LE § 113 B N'EST PAS SERVI, ET C'EST DIT · les informations
+que chaque AUTRE norme exige (IFRS 7, 16, IAS 12, IAS 7 § 44A…) dépendent des
+normes qui s'appliquent au dossier. Le jeu reste NON PUBLIABLE sous ce motif
+précis, jamais sous un « jeu incomplet » sans objet. (2) LA DÉCLARATION DE
+CONFORMITÉ DU § 6B N'EST JAMAIS IMPRIMÉE SUR UN JEU NON PUBLIABLE · « que s'ils
+sont conformes à toutes les dispositions ». Déclarée, elle est rendue SUSPENDUE
+avec ses motifs, et elle se pose EN DERNIER parce qu'elle dépend de tout ce que
+les autres notes ont trouvé. (3) RIEN NE SE DÉDUIT DE CE QU'AUCUN LIVRE NE
+PORTE · société mère, continuité, méthodes, jugements, estimations, mesures de
+la performance, gestion du capital, actions, dividendes proposés se DÉCLARENT
+(`NotesIfrs`, JSON par exercice, lu par `normaliserDeclarationsNotes` à la
+porte comme au calcul). `null` n'est pas « non » · zéro dividende est une
+réponse, l'absence n'en est pas une. Les données quantitatives du capital
+(§ 127 b) ne sont pas remplacées par le total des capitaux propres · il est
+montré À CÔTÉ, pour rapprochement. La forme juridique ne se prend pas dans
+l'énumération du dossier. (4) CE QUI SE CALCULE · la composition des postes
+(comptes, retraitements, montant, N et N-1, dans le sens de l'état), les
+renvois du § 114 (poste → notes), l'analyse des autres éléments du résultat
+global avec leur origine (§ 109, l'impôt du § 93 se déclarant PAR POSTE
+présenté), et la valeur des mesures de la performance · sous-total de référence
+du jeu plus éléments déclarés, le comparatif retrouvé par l'INTITULÉ dans les
+déclarations N-1, jamais recopié de N (§ 124 c, § 125). (5) « REPRENDRE N-1 »
+COPIE DANS LE FORMULAIRE ET N'ENREGISTRE RIEN · une méthode ou un jugement de
+l'an dernier peut ne plus valoir. IAS 8 § 6E à 6J (écart à une disposition) est
+nommé non servi dans la note de base.
+
 **Tableau des flux SYSCOHADA · le compte trop agrégé, que « non ventilé »
 ne voyait pas (2026-09-25).** Trouvé en passant au moteur la balance d'un
 expert tenue en comptes génériques (481, 81, 82). La table du ch. 5 lit des

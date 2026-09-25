@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsBoolean, IsEnum, IsNumber, IsOptional, IsString, IsUUID, MaxLength, ValidateIf, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsBoolean, IsEnum, IsNumber, IsObject, IsOptional, IsString, IsUUID, MaxLength, ValidateIf, ValidateNested } from 'class-validator';
 import { ActivitePrincipaleIfrs, CategorieEffetChangeIfrs, ComposanteCpIfrs, TypeMouvementCpIfrs } from '@prisma/client';
 
 export class ActiviteIfrsDto {
@@ -53,4 +53,10 @@ export class EffetChangeIfrsDto {
   @IsNumber({ maxDecimalPlaces: 2 }) montant!: number;
   @IsEnum(CategorieEffetChangeIfrs) categorie!: CategorieEffetChangeIfrs;
   @IsString() @MaxLength(1000) justification!: string;
+}
+
+/** IFRS 18 § 113 à 132, IAS 8 · le contenu est relu par `normaliserDeclarationsNotes`, jamais pris tel quel. */
+export class NotesIfrsDto {
+  @IsUUID() exerciceId!: string;
+  @IsObject() contenu!: Record<string, unknown>;
 }

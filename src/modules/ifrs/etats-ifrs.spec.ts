@@ -83,9 +83,9 @@ describe('états IFRS · projection de la balance légale et retraitements décl
     expect(jouer(REGLES, LOCATION, 'AUCUNE', { dateDebut: new Date('2027-01-01') }).mentions).toEqual([]);
   });
 
-  it('le jeu reste non publiable · il lui manque le tableau des flux, les notes et la première application', () => {
+  it('le jeu reste non publiable · il lui manque les informations des autres normes (§ 113 b), nommées par leur paragraphe', () => {
     expect(e.motifsNonPubliable).toHaveLength(1);
-    expect(e.motifsNonPubliable[0]).toMatch(/^Jeu incomplet · les notes viennent avec une tranche suivante/);
+    expect(e.motifsNonPubliable[0]).toMatch(/^Jeu incomplet · les informations exigées par les autres normes IFRS \(IFRS 18 § 113 b\)/);
   });
 });
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
+import { NotesIfrs, NotesIfrsServies } from '../components/NotesIfrs';
 
 /**
  * ÉTATS IFRS EN SUS DU JEU LÉGAL · item 15, tranche 1 (AUDCIF art. 73-1,
@@ -26,6 +27,10 @@ import { useExercice } from '../lib/exercice';
  * méthode indirecte à partir du résultat d'exploitation, bâti sur les flux
  * réels du tableau SYSCOHADA. Les découverts (§ 8), la présence de devises et
  * l'effet de change (§ 28) se déclarent.
+ *
+ * TRANCHE 5 · les notes d'IFRS 18 et d'IAS 8 (`components/NotesIfrs.tsx`), et
+ * la colonne « Note » des états, qui renvoie à celles qui concernent chaque
+ * poste (§ 114).
  */
 type Rubrique = { code: string; libelle: string; ref: string; etat: 'SITUATION' | 'RESULTAT' | 'RESULTAT_GLOBAL'; section?: string; categorie?: string };
 type LigneVariation = { cle: string; libelle: string; ref?: string; nature: 'SOLDE' | 'MOUVEMENT' | 'TOTAL' | 'ECART'; capital: number; reserves: number; autres: number; total: number };
@@ -90,6 +95,7 @@ const CATEGORIES_CHANGE: Record<CategorieChange, string> = {
 const booleen = (v: boolean | null) => (v == null ? '' : v ? 'OUI' : 'NON');
 const deBooleen = (v: string) => (v === '' ? null : v === 'OUI');
 type Etat = {
+  notes: NotesIfrsServies;
   decouvertsDansTresorerie: boolean | null;
   tresorerieEnDevises: boolean | null;
   effetChange: { montant: number | string; categorie: CategorieChange; justification: string } | null;
@@ -162,7 +168,9 @@ export function EtatsIfrsPage() {
   const libelleRubrique = (code: string) => etat.rubriques.find((r) => r.code === code)?.libelle ?? code;
   const ecartRetr = retr.lignes.reduce((s, l) => s + (Number.isFinite(nombre(l.montant)) ? nombre(l.montant) : 0), 0);
 
-  const tableau = (titre: string, lignes: Ligne[], n1: Ligne[] | null, colonne = 'IFRS N') => {
+  // § 114 · les renvois ne valent que pour les états de l'exercice, pas pour
+  // l'état d'ouverture de la transition.
+  const tableau = (titre: string, lignes: Ligne[], n1: Ligne[] | null, colonne = 'IFRS N', renvois: Record<string, number[]> | null = etat.notes.renvois) => {
     let groupe: string | undefined;
     return (
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
@@ -173,6 +181,7 @@ export function EtatsIfrsPage() {
               <tr className="text-left border-b border-border">
                 <th className="py-1 pr-2">Poste</th>
                 <th className="py-1 pr-2">IFRS 18</th>
+                {renvois && <th className="py-1 pr-2">Note</th>}
                 <th className="py-1 pr-2 text-right">SYSCOHADA reclassé</th>
                 <th className="py-1 pr-2 text-right">Retraitements</th>
                 <th className="py-1 pr-2 text-right">{colonne}</th>
@@ -189,12 +198,13 @@ export function EtatsIfrsPage() {
                   <>
                     {entete && (
                       <tr key={`g-${l.cle}`}>
-                        <td colSpan={6} className="pt-2 pb-0.5 font-semibold text-text-dim">{etat.groupes[entete] ?? entete}</td>
+                        <td colSpan={renvois ? 7 : 6} className="pt-2 pb-0.5 font-semibold text-text-dim">{etat.groupes[entete] ?? entete}</td>
                       </tr>
                     )}
                     <tr key={l.cle} className={l.nature === 'TOTAL' ? 'font-bold border-t border-border' : l.nature === 'NON_CLASSE' ? 'text-warning' : 'border-b border-border/40'}>
                       <td className="py-1 pr-2" title={l.comptes?.map((c) => `${c.numero} ${fc(c.solde)}`).join('\n')}>{l.libelle}</td>
                       <td className="py-1 pr-2 text-text-dim">{l.ref}</td>
+                      {renvois && <td className="py-1 pr-2">{renvois[l.cle]?.join(', ')}</td>}
                       <td className="py-1 pr-2 text-right">{fc(l.legal)}</td>
                       <td className="py-1 pr-2 text-right">{l.retraitements ? fc(l.retraitements) : ''}</td>
                       <td className="py-1 pr-2 text-right">{fc(l.ifrs)}</td>
@@ -508,7 +518,7 @@ export function EtatsIfrsPage() {
         )}
       </section>
 
-      {etat.premiereApplication && tableau(`État de la situation financière d’ouverture au ${etat.premiereApplication.dateTransition} (IFRS 1 § 6)`, etat.premiereApplication.ouverture.situation, null, 'IFRS ouverture')}
+      {etat.premiereApplication && tableau(`État de la situation financière d’ouverture au ${etat.premiereApplication.dateTransition} (IFRS 1 § 6)`, etat.premiereApplication.ouverture.situation, null, 'IFRS ouverture', null)}
 
       {tableau('État de la situation financière', etat.n.situation, etat.n1?.situation ?? null)}
       {tableau('Compte de résultat', etat.n.resultat, etat.n1?.resultat ?? null)}
@@ -725,6 +735,8 @@ export function EtatsIfrsPage() {
           </p>
         ))}
       </section>
+
+      <NotesIfrs notes={etat.notes} exerciceId={exerciceId} rubriques={etat.rubriques} apresEnregistrement={recharger} />
     </div>
   );
 }

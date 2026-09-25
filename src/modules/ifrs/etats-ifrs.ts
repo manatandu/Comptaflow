@@ -31,9 +31,11 @@ import {
  * L'état des variations des capitaux propres vit à côté
  * (`variation-capitaux-propres-ifrs.ts`), parce qu'il lit deux exercices.
  *
- * CE QUI N'EST PAS ENCORE SERVI, et qui rend le jeu NON PUBLIABLE · les
- * notes. La première application (IFRS 1) et le tableau des flux (IAS 7)
- * vivent à côté (`premiere-application-ifrs.ts`, `flux-tresorerie-ifrs.ts`).
+ * CE QUI N'EST PAS SERVI, et qui rend le jeu NON PUBLIABLE · les informations
+ * que chaque autre norme exige dans les notes (IFRS 18 § 113 b). La première
+ * application (IFRS 1), le tableau des flux (IAS 7) et les notes d'IFRS 18 et
+ * d'IAS 8 vivent à côté (`premiere-application-ifrs.ts`,
+ * `flux-tresorerie-ifrs.ts`, `notes-ifrs.ts`).
  */
 
 export interface LigneLegale {
@@ -297,7 +299,9 @@ export function construireEtatsIfrs(
   }
 
   const motifsNonPubliable: string[] = [
-    'Jeu incomplet · les notes viennent avec une tranche suivante.',
+    // IFRS 18 § 113 b · les notes d'IFRS 18 et d'IAS 8 sont servies
+    // (`notes-ifrs.ts`) ; celles des autres normes ne le sont pas.
+    'Jeu incomplet · les informations exigées par les autres normes IFRS (IFRS 18 § 113 b), propres à chaque norme appliquée au dossier, ne sont pas servies par OmegaX.',
   ];
   if (activitePrincipale == null) {
     motifsNonPubliable.push(

@@ -21,7 +21,7 @@ const EX2 = 'ex-2024';
 type LigneDoublure = [string, number] | [string, number, number, number];
 
 function doublure(avecPrecedent = false, avecAvantPrecedent = false, balancesPropres: Record<string, LigneDoublure[]> = {}) {
-  const tables: Record<string, any[]> = { regles: [], retraitements: [], parametres: [], mouvements: [], effets: [] };
+  const tables: Record<string, any[]> = { regles: [], retraitements: [], parametres: [], mouvements: [], effets: [], notes: [] };
   // La doublure HONORE la borne `dateFin < …` · une doublure qui rendrait
   // toujours le même exercice ferait passer la recherche du précédent pour
   // juste quelle que soit la date qu'elle cherche.
@@ -76,6 +76,27 @@ function doublure(avecPrecedent = false, avecAvantPrecedent = false, balancesPro
         return e;
       }),
       delete: jest.fn(async ({ where }: any) => (tables.effets = tables.effets.filter((e) => e.id !== where.id))),
+    },
+    tenant: {
+      findUnique: jest.fn(async ({ where }: any) =>
+        where.id === T ? { nom: 'Société Alpha', pays: 'RD Congo', adresse: '12 avenue du Port', ville: 'Kinshasa', activite: 'Négoce de matériaux' } : null,
+      ),
+    },
+    notesIfrs: {
+      // La doublure HONORE la clé (dossier, exercice) · une déclaration de N-1
+      // ne doit jamais se lire comme celle de N.
+      findUnique: jest.fn(async ({ where }: any) => {
+        const k = where.tenantId_exerciceId;
+        return tables.notes.find((e) => e.tenantId === k.tenantId && e.exerciceId === k.exerciceId) ?? null;
+      }),
+      upsert: jest.fn(async ({ where, create, update }: any) => {
+        const k = where.tenantId_exerciceId;
+        const i = tables.notes.findIndex((e) => e.tenantId === k.tenantId && e.exerciceId === k.exerciceId);
+        const e = i >= 0 ? { ...tables.notes[i], ...update } : { id: `n-${++seq}`, ...create };
+        if (i >= 0) tables.notes[i] = e;
+        else tables.notes.push(e);
+        return e;
+      }),
     },
     mouvementCapitauxPropresIfrs: {
       findMany: jest.fn(async ({ where }: any) => tables.mouvements.filter((m) => m.exerciceId === where.exerciceId && m.tenantId === where.tenantId)),
@@ -535,10 +556,105 @@ describe('IfrsService · tableau des flux de trésorerie (IAS 7 modifiée par IF
 describe('IfrsController · les écritures sont réservées', () => {
   it('toute route qui écrit porte @Roles, sans la lecture seule', () => {
     const proto = IfrsController.prototype as any;
-    for (const m of ['declarerActivite', 'declarerPremiereApplication', 'declarerTresorerie', 'declarerEffetChange', 'supprimerEffetChange', 'ajouterRegle', 'supprimerRegle', 'ajouterRetraitement', 'supprimerRetraitement', 'ajouterMouvementCp', 'supprimerMouvementCp']) {
+    for (const m of ['declarerNotes', 'declarerActivite', 'declarerPremiereApplication', 'declarerTresorerie', 'declarerEffetChange', 'supprimerEffetChange', 'ajouterRegle', 'supprimerRegle', 'ajouterRetraitement', 'supprimerRetraitement', 'ajouterMouvementCp', 'supprimerMouvementCp']) {
       const roles = Reflect.getMetadata(ROLES_KEY, proto[m]);
       expect(roles).toEqual([RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE]);
     }
+  });
+});
+
+describe('IfrsService · les notes (IFRS 18 § 113 à 132, IAS 8)', () => {
+  it('la déclaration est ENREGISTRÉE sous sa forme normalisée · ce qui est illisible devient null', async () => {
+    const { service, tables } = doublure();
+    await service.declarerNotes(T, { exerciceId: EX, contenu: { entite: { domicile: '  Kinshasa ' }, conformiteDeclaree: 'oui', dividendes: { proposesNonComptabilises: '0' } } });
+    expect(tables.notes).toHaveLength(1);
+    expect(tables.notes[0]).toMatchObject({ tenantId: T, exerciceId: EX });
+    expect(tables.notes[0].contenu.entite.domicile).toBe('Kinshasa');
+    expect(tables.notes[0].contenu.conformiteDeclaree).toBeNull();
+    expect(tables.notes[0].contenu.dividendes.proposesNonComptabilises).toBe(0);
+  });
+
+  it('refus à la porte · une déclaration qui se contredit, un exercice d’un autre dossier', async () => {
+    const { service, tables } = doublure();
+    await expect(service.declarerNotes(T, { exerciceId: EX, contenu: { entite: { sansSocieteMere: true, societeMere: 'Holding' } } })).rejects.toThrow(/§ 116 c/);
+    await expect(service.declarerNotes('autre-dossier', { exerciceId: EX, contenu: {} })).rejects.toThrow(/Exercice introuvable/);
+    expect(tables.notes).toHaveLength(0);
+  });
+
+  it('l’état rend les notes de l’exercice, la fiche du dossier à défaut, et les déclarations N-1 lues sur SON exercice', async () => {
+    const { service } = doublure(true);
+    for (const r of REGLES) await service.ajouterRegle(T, r);
+    await service.declarerNotes(T, { exerciceId: EX1, contenu: { conformiteDeclaree: true, methodes: [{ intitule: 'Stocks', texte: 'Coût moyen pondéré.' }] } });
+    const e = await service.etat(T, EX);
+    expect(e.notes.declarations.methodes).toEqual([]);
+    expect(e.notes.declarationsN1!.methodes).toEqual([{ intitule: 'Stocks', texte: 'Coût moyen pondéré.' }]);
+    const entite = e.notes.notes.find((x) => x.cle === 'ENTITE')!.blocs;
+    expect(entite).toContainEqual({ type: 'texte', texte: 'Dénomination · Société Alpha', source: 'FICHE_DOSSIER' });
+    expect(entite).toContainEqual({ type: 'texte', texte: 'Adresse du siège social · 12 avenue du Port, Kinshasa', source: 'FICHE_DOSSIER' });
+    expect(entite).toContainEqual({ type: 'texte', texte: 'Nature des opérations et principales activités · Négoce de matériaux', source: 'FICHE_DOSSIER' });
+    // Les motifs des notes rejoignent ceux du jeu, et la forme juridique ne
+    // se prend pas dans l'énumération du dossier.
+    expect(e.n.motifsNonPubliable).toContain('Notes · forme juridique de l’entité à renseigner (IFRS 18 § 116 a).');
+    expect(e.n.motifsNonPubliable).toContain('Notes · informations significatives sur les méthodes comptables non déclarées (IAS 8 § 27A).');
+    // § 114 · le poste des immobilisations renvoie à sa composition.
+    const composition = e.notes.notes.find((x) => x.cle === 'POSTES')!.numero;
+    expect(e.notes.renvois.SF_IMMOBILISATIONS_CORPORELLES).toEqual([composition]);
+  });
+
+  it('la conformité déclarée n’est jamais imprimée sur un jeu non publiable · les motifs du jeu la suspendent', async () => {
+    const { service } = doublure();
+    for (const r of REGLES) await service.ajouterRegle(T, r);
+    await service.declarerNotes(T, { exerciceId: EX, contenu: { conformiteDeclaree: true } });
+    const e = await service.etat(T, EX);
+    const base = e.notes.notes.find((x) => x.cle === 'BASE')!.blocs[0];
+    expect(base.type).toBe('manque');
+    expect((base as { texte: string }).texte).toMatch(/NON IMPRIMÉE/);
+    expect(e.notes.notes.find((x) => x.cle === 'BASE')!.blocs.some((x) => x.type === 'texte' && /par anticipation/.test(x.texte))).toBe(true);
+  });
+
+  it('des notes complètes ne suffisent pas · les motifs du RESTE du jeu suspendent aussi la conformité', async () => {
+    const { service } = doublure();
+    for (const r of REGLES) await service.ajouterRegle(T, r);
+    await service.declarerNotes(T, {
+      exerciceId: EX,
+      contenu: {
+        entite: { formeJuridique: 'Société anonyme', sansSocieteMere: true, dureeVieLimitee: false },
+        conformiteDeclaree: true,
+        continuite: { retenue: true, incertitudesSignificatives: false },
+        methodes: [{ intitule: 'Immobilisations', texte: 'Coût historique, amortissement linéaire.' }],
+        aucunJugement: true,
+        aucuneEstimation: true,
+        aucuneMesurePerformance: true,
+        capital: {
+          description: 'Les capitaux propres.',
+          commentObjectifsAtteints: 'Autofinancement.',
+          soumisExigencesExternes: false,
+          changements: 'Aucun.',
+          quantitatif: [{ libelle: 'Capitaux propres', montantN: 1000 }],
+        },
+        sansCapitalSocial: true,
+        informationsEquivalentes: 'Associé unique.',
+        dividendes: { proposesNonComptabilises: 0, preferentielsCumulesNonComptabilises: 0 },
+      },
+    });
+    const e = await service.etat(T, EX);
+    expect(e.notes.motifsNonPubliable).toEqual([]);
+    expect(e.n.motifsNonPubliable.some((m) => m.startsWith('Notes ·'))).toBe(false);
+    // Le jeu n'est pas publiable pour d'autres motifs (§ 113 b au moins) · la
+    // conformité déclarée n'est pas imprimée.
+    expect(e.n.motifsNonPubliable.length).toBeGreaterThan(0);
+    expect(e.notes.notes.find((x) => x.cle === 'BASE')!.blocs[0].type).toBe('manque');
+  });
+
+  it('des distributions déclarées sur l’exercice appellent le § 110', async () => {
+    const { service } = doublure();
+    for (const r of REGLES) await service.ajouterRegle(T, r);
+    await service.declarerNotes(T, { exerciceId: EX, contenu: { categoriesActions: [{ intitule: 'Ordinaires' }] } });
+    const avant = await service.etat(T, EX);
+    expect(avant.n.motifsNonPubliable.some((m) => /§ 110/.test(m))).toBe(false);
+    await service.ajouterMouvementCp(T, { exerciceId: EX, type: 'DISTRIBUTION', composante: 'RESERVES', montant: -50, libelle: 'Dividende', justification: 'PV AG' });
+    const apres = await service.etat(T, EX);
+    expect(apres.n.motifsNonPubliable).toContain('Notes · montant par action des dividendes comptabilisés non déclaré (IFRS 18 § 110).');
   });
 });
 
@@ -551,7 +667,7 @@ describe('les tables IFRS ne sont lues que par le module IFRS', () => {
         return statSync(p).isDirectory() ? fichiers(p) : p.endsWith('.ts') && !p.endsWith('.spec.ts') ? [p] : [];
       });
     const lecteurs = fichiers(racine)
-      .filter((f) => /\b(retraitementIfrs|regleCorrespondanceIfrs|parametresIfrs|ligneRetraitementIfrs|RetraitementIfrs|RegleCorrespondanceIfrs|ParametresIfrs|LigneRetraitementIfrs|mouvementCapitauxPropresIfrs|MouvementCapitauxPropresIfrs|effetChangeTresorerieIfrs|EffetChangeTresorerieIfrs)\b/.test(readFileSync(f, 'utf8')))
+      .filter((f) => /\b(retraitementIfrs|regleCorrespondanceIfrs|parametresIfrs|ligneRetraitementIfrs|RetraitementIfrs|RegleCorrespondanceIfrs|ParametresIfrs|LigneRetraitementIfrs|mouvementCapitauxPropresIfrs|MouvementCapitauxPropresIfrs|effetChangeTresorerieIfrs|EffetChangeTresorerieIfrs|notesIfrs|NotesIfrs)\b/.test(readFileSync(f, 'utf8')))
       .map((f) => relative(racine, f))
       .sort();
     expect(lecteurs).toEqual(['common/cloisonnement/modeles-cloisonnes.ts', 'modules/ifrs/ifrs.service.ts']);

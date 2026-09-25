@@ -629,6 +629,7 @@ model Tenant {
   lignesRetraitementIfrs           LigneRetraitementIfrs[]
   mouvementsCapitauxPropresIfrs    MouvementCapitauxPropresIfrs[]
   effetsChangeTresorerieIfrs       EffetChangeTresorerieIfrs[]
+  notesIfrs                        NotesIfrs[]
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -1103,6 +1104,7 @@ model Exercice {
   retraitementsIfrs               RetraitementIfrs[]
   mouvementsCapitauxPropresIfrs   MouvementCapitauxPropresIfrs[]
   effetsChangeTresorerieIfrs      EffetChangeTresorerieIfrs[]
+  notesIfrs                       NotesIfrs[]
 
   @@unique([tenantId, dateDebut, dateFin])
   @@map("exercices")
@@ -6676,6 +6678,23 @@ model EffetChangeTresorerieIfrs {
 
   @@unique([tenantId, exerciceId])
   @@map("effets_change_tresorerie_ifrs")
+}
+
+/// IFRS 18 § 113 à 132 et IAS 8 § 6B, 6K, 27A, 27G, 31A · ce que les notes
+/// demandent et qu'aucun livre ne porte, DÉCLARÉ par exercice. Une seule
+/// forme, lue par `normaliserDeclarationsNotes` à la porte comme au calcul ·
+/// une question sans réponse y vaut `null`, jamais « non ».
+model NotesIfrs {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  exerciceId String
+  exercice   Exercice @relation(fields: [exerciceId], references: [id])
+  contenu    Json
+  updatedAt  DateTime @updatedAt
+
+  @@unique([tenantId, exerciceId])
+  @@map("notes_ifrs")
 }
 
 enum CategorieEffetChangeIfrs {
