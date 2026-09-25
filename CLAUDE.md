@@ -4205,6 +4205,29 @@ servi et dit · l'impression de l'ordre de paiement (chez Sage, le règlement
 n'est effectif qu'après elle) ; ici la pièce naît au brouillard et la
 validation joue ce rôle.
 
+**Suppression des structures · tout lien retient (2026-09-25).** Troisième
+manque de la comparaison Sage i7. Comptes, journaux, tiers et taux de taxes se
+suppriment (route DELETE, administrateur seul), et la règle est celle du manuel
+Sage i7 : « Il n'est pas possible de supprimer un compte mouvementé sur
+l'exercice en cours ou sur un autre exercice ou encore utilisé dans une autre
+commande du menu Fichier ou Structure (par exemple, un compte utilisé dans les
+Taux de taxes) ».
+
+TROIS RÈGLES À NE PAS DÉFAIRE. (1) ON NE S'EN REMET JAMAIS À LA BASE · sur une
+relation FACULTATIVE, Prisma pose SET NULL et la suppression DÉNOUE le lien en
+silence ; supprimer un taux sortirait ses lignes de la déclaration de TVA sans
+erreur. `common/suppression/references.ts` compte donc toutes les références
+avant de supprimer. (2) LA LISTE DES RELATIONS SE LIT DANS LE SCHÉMA (DMMF),
+jamais à la main · trente et une relations pointent vers un compte, et une
+table ajoutée demain sera comptée sans que personne y pense. C'est l'inverse
+voulu de la liste écrite à la main des modules qui retiennent une écriture
+(§ 10 bis) : ici tout lien retient, sans décision à prendre. Chaque comptage
+sur une table cloisonnée porte la borne du dossier. (3) DEUX CAS PROPRES · un
+compte TOTAL ne se supprime pas tant qu'il regroupe des sous-comptes, et les
+rattachements d'un tiers partent avec lui mais un tiers dont un compte rattaché
+est mouvementé est un tiers mouvementé. Le refus nomme chaque usage et renvoie
+à la mise en sommeil.
+
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
 nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la

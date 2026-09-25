@@ -345,6 +345,21 @@ export function TiersPage() {
     }
   };
 
+  // Suppression · le serveur refuse tout objet mouvementé ou utilisé, et
+  // dit lequel (common/suppression/references.ts). La confirmation évite le
+  // clic malheureux sur un objet libre, qui, lui, disparaît pour de bon.
+  const supprimer = async (id: string, nom: string) => {
+    if (!window.confirm(`Supprimer ${nom} ? Cette suppression est définitive.`)) return;
+    setErreur(null);
+    try {
+      await api.delete(`/tiers/${id}`);
+      setSelectionId(null);
+      await charger();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Suppression impossible');
+    }
+  };
+
   const basculerActif = async (t: Tiers) => {
     try {
       await api.patch(`/tiers/${t.id}`, { estActif: !t.estActif });
@@ -583,6 +598,13 @@ export function TiersPage() {
                 className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[11.5px] mb-3"
               >
                 {tiersSelectionne.estActif ? 'Mettre en sommeil' : 'Réactiver'}
+              </button>
+              <button
+                type="button"
+                onClick={() => supprimer(tiersSelectionne.id, `le tiers ${tiersSelectionne.code}`)}
+                className="ml-2 border border-danger/40 text-danger hover:bg-danger-soft px-3 py-1 text-[11.5px] mb-3"
+              >
+                Supprimer
               </button>
 
               {/*

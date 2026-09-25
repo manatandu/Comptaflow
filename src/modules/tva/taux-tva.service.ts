@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { referencesVers, refuserSiReferences } from '../../common/suppression/references';
 import { PrismaService } from '../../common/prisma.service';
 import { CreerTauxTvaDto, ModifierTauxTvaDto } from './dto/taux-tva.dto';
 import { tauxTvaDefaut } from './taux-tva-seed';
@@ -694,6 +695,20 @@ export class TauxTvaService {
     }
     await this.verifierComptes(tenantId, dto);
     return this.prisma.tauxTva.create({ data: { ...dto, tenantId } });
+  }
+
+  /**
+   * SUPPRESSION D'UN TAUX · refusée dès qu'une ligne d'écriture ou de facture
+   * le porte, ou qu'un compte le propose · les trois liens sont FACULTATIFS,
+   * et la base les aurait dénoués en silence, sortant ces lignes de la
+   * déclaration (references.ts).
+   */
+  async supprimer(tenantId: string, id: string) {
+    const taux = await this.prisma.tauxTva.findFirst({ where: { id, tenantId } });
+    if (!taux) throw new NotFoundException('Taux introuvable pour ce dossier.');
+    refuserSiReferences(`Le taux ${taux.code}`, await referencesVers(this.prisma, 'TauxTva', taux.id, tenantId));
+    await this.prisma.tauxTva.delete({ where: { id: taux.id } });
+    return { supprime: true };
   }
 
   async modifier(tenantId: string, id: string, dto: ModifierTauxTvaDto) {

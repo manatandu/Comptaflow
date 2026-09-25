@@ -61,6 +61,15 @@ export class TiersController {
     return this.tiersService.modifier(user.tenantId, id, dto);
   }
 
+  // Suppression · refusée si l'objet est mouvementé ou utilisé ailleurs
+  // (common/suppression/references.ts, règle de Sage 100 i7).
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
+  @Delete(':id')
+  async supprimer(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.tiersService.supprimer(user.tenantId, id);
+  }
+
+
   @Roles(RoleUtilisateur.ADMIN_CABINET)
   @Post(':id/comptes')
   async rattacherCompte(

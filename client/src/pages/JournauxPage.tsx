@@ -97,6 +97,21 @@ export function JournauxPage() {
     }
   };
 
+  // Suppression · le serveur refuse tout objet mouvementé ou utilisé, et
+  // dit lequel (common/suppression/references.ts). La confirmation évite le
+  // clic malheureux sur un objet libre, qui, lui, disparaît pour de bon.
+  const supprimer = async (id: string, nom: string) => {
+    if (!window.confirm(`Supprimer ${nom} ? Cette suppression est définitive.`)) return;
+    setErreurChargement(null);
+    try {
+      await api.delete(`/journaux/${id}`);
+      
+      await charger();
+    } catch (err) {
+      setErreurChargement(err instanceof ApiError ? err.message : 'Suppression impossible');
+    }
+  };
+
   const basculerActif = async (j: Journal) => {
     try {
       await api.patch(`/journaux/${j.id}`, { estActif: !j.estActif });
@@ -136,19 +151,20 @@ export function JournauxPage() {
         // qui emportait alors titre, onglets et boutons hors de l'écran.
         className="border border-border bg-surface shadow-posee overflow-x-auto"
       >
-        <div className="entete-colonnes grid grid-cols-[76px_1fr_100px_160px_220px_92px] min-w-[880px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[11px] font-bold text-text-dim">
+        <div className="entete-colonnes grid grid-cols-[76px_1fr_100px_160px_220px_92px_70px] min-w-[950px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[11px] font-bold text-text-dim">
           <span>Code</span>
           <span>Intitulé</span>
           <span>Type</span>
           <span>Numérotation des pièces</span>
           <span>Compte de trésorerie</span>
           <span>État</span>
+          <span />
         </div>
         {!liste && <div className="px-3.5 py-3 text-[11.5px] text-text-dim">Chargement…</div>}
         {liste?.map((j) => (
           <div
             key={j.id}
-            className={`grid grid-cols-[76px_1fr_100px_160px_220px_92px] min-w-[880px] gap-2.5 items-center px-3.5 py-[4px] border-b border-border/50 last:border-b-0 text-[11.5px] hover:bg-sel-soft ${
+            className={`grid grid-cols-[76px_1fr_100px_160px_220px_92px_70px] min-w-[950px] gap-2.5 items-center px-3.5 py-[4px] border-b border-border/50 last:border-b-0 text-[11.5px] hover:bg-sel-soft ${
               !j.estActif ? 'opacity-55' : ''
             }`}
           >
@@ -165,6 +181,9 @@ export function JournauxPage() {
               className={`text-[11px] text-left ${j.estActif ? 'text-positive hover:underline' : 'text-warning hover:underline'}`}
             >
               {j.estActif ? 'Actif' : 'En sommeil'}
+            </button>
+            <button onClick={() => supprimer(j.id, `le journal ${j.code}`)} className="text-[11px] text-left text-danger hover:underline">
+              Supprimer
             </button>
           </div>
         ))}

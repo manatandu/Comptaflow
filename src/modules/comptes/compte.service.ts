@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { referencesVers, refuserSiReferences } from '../../common/suppression/references';
 import { PrismaService } from '../../common/prisma.service';
 import { refuserBailleurHorsSycebnl } from '../../common/bailleur-referentiel';
 import { ClasseCompte, Prisma, Referentiel, TypeCompteDetailTotal } from '@prisma/client';
@@ -126,6 +127,28 @@ export class CompteService {
         `Code de retraitement fiscal inconnu : ${code}. Voir le catalogue de la fenêtre Fiscalité.`,
       );
     }
+  }
+
+  /**
+   * SUPPRESSION D'UN COMPTE · voir common/suppression/references.ts. Refusée
+   * s'il est mouvementé ou utilisé ailleurs, et, pour un compte TOTAL, tant
+   * qu'il regroupe des sous-comptes · les retirer d'un en-tête laisserait
+   * des comptes Détail sans rubrique dans le plan.
+   */
+  async supprimer(tenantId: string, compteId: string) {
+    const compte = await this.prisma.compte.findFirst({ where: { id: compteId, tenantId } });
+    if (!compte) throw new NotFoundException('Compte introuvable pour ce dossier.');
+    const sousComptes = await this.prisma.compte.count({
+      where: { tenantId, numero: { startsWith: compte.numero }, id: { not: compte.id } },
+    });
+    if (sousComptes > 0) {
+      throw new ConflictException(
+        `Le compte ${compte.numero} regroupe ${sousComptes} sous-compte(s) · supprimez-les d'abord ou mettez-le en sommeil.`,
+      );
+    }
+    refuserSiReferences(`Le compte ${compte.numero}`, await referencesVers(this.prisma, 'Compte', compte.id, tenantId));
+    await this.prisma.compte.delete({ where: { id: compte.id } });
+    return { supprime: true };
   }
 
   async modifier(tenantId: string, compteId: string, dto: ModifierCompteDto) {

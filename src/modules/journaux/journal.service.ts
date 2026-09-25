@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { referencesVers, refuserSiReferences } from '../../common/suppression/references';
 import { PrismaService } from '../../common/prisma.service';
 import { NumerotationPiece, Prisma, Referentiel, TypeJournal } from '@prisma/client';
 import { journauxDefaut } from './journal-seed';
@@ -78,6 +79,15 @@ export class JournalService {
         numerotation: dto.numerotation ?? NumerotationPiece.MANUELLE,
       },
     });
+  }
+
+  /** SUPPRESSION D'UN JOURNAL · refusée s'il porte une écriture ou sert ailleurs (references.ts). */
+  async supprimer(tenantId: string, journalId: string) {
+    const journal = await this.prisma.journal.findFirst({ where: { id: journalId, tenantId } });
+    if (!journal) throw new NotFoundException('Journal introuvable pour ce dossier.');
+    refuserSiReferences(`Le journal ${journal.code}`, await referencesVers(this.prisma, 'Journal', journal.id, tenantId));
+    await this.prisma.journal.delete({ where: { id: journal.id } });
+    return { supprime: true };
   }
 
   async modifier(tenantId: string, journalId: string, dto: ModifierJournalDto) {

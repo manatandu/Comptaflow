@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { referencesVers, refuserSiReferences } from '../../common/suppression/references';
 import { PrismaService } from '../../common/prisma.service';
 import { ClasseCompte, ConditionEcheance, Prisma, Referentiel, TypeEcheance, TypeTiers } from '@prisma/client';
 import { CreerTiersDto, ModifierTiersDto, RattacherCompteDto } from './dto/tiers.dto';
@@ -106,6 +107,41 @@ export class TiersService {
           'clients-usagers. Le plan SYSCOHADA ne porte que des clients : utilisez le type « client ».',
       );
     }
+  }
+
+  /**
+   * SUPPRESSION D'UN TIERS. Ses rattachements de comptes lui APPARTIENNENT et
+   * partent avec lui · le compte, lui, reste au plan. Mais un tiers dont un
+   * compte rattaché est mouvementé est un tiers MOUVEMENTÉ (Sage) · le
+   * supprimer ferait perdre à qui appartient ce compte dans la balance. Tout
+   * autre usage (factures, devis, relances, circularisation, consignations)
+   * refuse aussi (references.ts).
+   */
+  async supprimer(tenantId: string, tiersId: string) {
+    const tiers = await this.prisma.tiers.findFirst({
+      where: { id: tiersId, tenantId },
+      include: { comptesRattaches: { select: { compteId: true } } },
+    });
+    if (!tiers) throw new NotFoundException('Tiers introuvable pour ce dossier.');
+    const comptes = tiers.comptesRattaches.map((r) => r.compteId);
+    const mouvements = comptes.length
+      ? await this.prisma.ligneEcriture.count({ where: { compteId: { in: comptes }, ecriture: { tenantId } } })
+      : 0;
+    if (mouvements > 0) {
+      throw new ConflictException(
+        `Le tiers ${tiers.code} ne peut pas être supprimé · ses comptes sont mouvementés (${mouvements} ligne(s)). ` +
+          'Mettez-le en sommeil pour qu’il ne soit plus proposé.',
+      );
+    }
+    refuserSiReferences(
+      `Le tiers ${tiers.code}`,
+      await referencesVers(this.prisma, 'Tiers', tiers.id, tenantId, ['TiersCompte.tiersId']),
+    );
+    await this.prisma.$transaction([
+      this.prisma.tiersCompte.deleteMany({ where: { tiersId: tiers.id } }),
+      this.prisma.tiers.delete({ where: { id: tiers.id } }),
+    ]);
+    return { supprime: true };
   }
 
   async modifier(tenantId: string, tiersId: string, dto: ModifierTiersDto) {

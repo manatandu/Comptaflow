@@ -94,4 +94,13 @@ export class TauxTvaController {
   async modifier(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: ModifierTauxTvaDto) {
     return this.tauxTvaService.modifier(user.tenantId, id, dto);
   }
+
+  // Suppression · refusée si l'objet est mouvementé ou utilisé ailleurs
+  // (common/suppression/references.ts, règle de Sage 100 i7).
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
+  @Delete(':id')
+  async supprimer(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.tauxTvaService.supprimer(user.tenantId, id);
+  }
+
 }

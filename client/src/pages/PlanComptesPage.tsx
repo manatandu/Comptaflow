@@ -191,6 +191,21 @@ export function PlanComptesPage() {
     }
   };
 
+  // Suppression · le serveur refuse tout objet mouvementé ou utilisé, et
+  // dit lequel (common/suppression/references.ts). La confirmation évite le
+  // clic malheureux sur un objet libre, qui, lui, disparaît pour de bon.
+  const supprimer = async (id: string, nom: string) => {
+    if (!window.confirm(`Supprimer ${nom} ? Cette suppression est définitive.`)) return;
+    setErreur(null);
+    try {
+      await api.delete(`/comptes/${id}`);
+      setSelectionId(null);
+      await charger();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Suppression impossible');
+    }
+  };
+
   return (
     <div className="p-2 flex flex-col h-full">
       <EnteteImpression titre="Plan comptable" />
@@ -359,6 +374,16 @@ export function PlanComptesPage() {
                     source={utilisateur?.tenant.referentiel === 'SYSCOHADA' ? 'AUDCIF art. 18 · Titre VII, ch. 1 et 2' : 'SYCEBNL, Partie 2, ch. 2'}
                   />
                 </p>
+              )}
+
+              {estAdmin && (
+                <button
+                  type="button"
+                  onClick={() => supprimer(selection.id, `le compte ${selection.numero}`)}
+                  className="mb-3 border border-danger/40 text-danger hover:bg-danger-soft px-3 py-1 text-[11.5px]"
+                >
+                  Supprimer ce compte
+                </button>
               )}
 
               {estAdmin && !estComptePrincipalOfficiel(selection) && (

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -71,4 +71,13 @@ export class JournalController {
   ) {
     return this.journalService.modifier(user.tenantId, id, dto);
   }
+
+  // Suppression · refusée si l'objet est mouvementé ou utilisé ailleurs
+  // (common/suppression/references.ts, règle de Sage 100 i7).
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
+  @Delete(':id')
+  async supprimer(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.journalService.supprimer(user.tenantId, id);
+  }
+
 }

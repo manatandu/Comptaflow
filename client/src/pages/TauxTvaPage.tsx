@@ -78,6 +78,21 @@ export function TauxTvaPage() {
     }
   };
 
+  // Suppression · le serveur refuse tout objet mouvementé ou utilisé, et
+  // dit lequel (common/suppression/references.ts). La confirmation évite le
+  // clic malheureux sur un objet libre, qui, lui, disparaît pour de bon.
+  const supprimer = async (id: string, nom: string) => {
+    if (!window.confirm(`Supprimer ${nom} ? Cette suppression est définitive.`)) return;
+    setErreur(null);
+    try {
+      await api.delete(`/taux-tva/${id}`);
+      
+      await charger();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Suppression impossible');
+    }
+  };
+
   const basculerActif = async (t: TauxTva) => {
     try {
       await api.patch(`/taux-tva/${t.id}`, { estActif: !t.estActif });
@@ -115,19 +130,20 @@ export function TauxTvaPage() {
         // qui emportait alors titre, onglets et boutons hors de l'écran.
         className="border border-border bg-surface shadow-posee overflow-x-auto"
       >
-        <div className="entete-colonnes grid grid-cols-[80px_1fr_78px_210px_210px_80px] min-w-[890px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[11px] font-bold text-text-dim">
+        <div className="entete-colonnes grid grid-cols-[80px_1fr_78px_210px_210px_80px_70px] min-w-[960px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[11px] font-bold text-text-dim">
           <span>Code</span>
           <span>Intitulé</span>
           <span className="text-right">Taux</span>
           <span>Collectée (443 · ventes)</span>
           <span>Déductible (445 · achats)</span>
           <span>État</span>
+          <span />
         </div>
         {!liste && <div className="px-3.5 py-3 text-[11.5px] text-text-dim">Chargement…</div>}
         {liste?.map((t) => (
           <div
             key={t.id}
-            className={`grid grid-cols-[80px_1fr_78px_210px_210px_80px] min-w-[890px] gap-2.5 items-center px-3.5 py-[4px] border-b border-border/50 last:border-b-0 text-[11.5px] hover:bg-sel-soft ${
+            className={`grid grid-cols-[80px_1fr_78px_210px_210px_80px_70px] min-w-[960px] gap-2.5 items-center px-3.5 py-[4px] border-b border-border/50 last:border-b-0 text-[11.5px] hover:bg-sel-soft ${
               !t.estActif ? 'opacity-55' : ''
             }`}
           >
@@ -145,6 +161,9 @@ export function TauxTvaPage() {
               className={`text-[11px] text-left ${t.estActif ? 'text-positive hover:underline' : 'text-warning hover:underline'}`}
             >
               {t.estActif ? 'Actif' : 'Inactif'}
+            </button>
+            <button onClick={() => supprimer(t.id, `le taux ${t.code}`)} className="text-[11px] text-left text-danger hover:underline">
+              Supprimer
             </button>
           </div>
         ))}
