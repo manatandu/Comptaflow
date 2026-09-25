@@ -1,5 +1,5 @@
-import { IsBoolean, IsEmail, IsEnum, IsOptional, MinLength } from 'class-validator';
-import { RoleUtilisateur } from '@prisma/client';
+import { IsArray, IsBoolean, IsEmail, IsEnum, IsOptional, MinLength } from 'class-validator';
+import { FonctionMetier, RoleUtilisateur } from '@prisma/client';
 
 export class CreerUtilisateurDto {
   @IsEmail()
@@ -28,4 +28,14 @@ export class ReinitialiserMotDePasseDto {
   // titulaire.
   @MinLength(10, { message: 'Le mot de passe doit contenir au moins 10 caractères' })
   motDePasseProvisoire!: string;
+}
+
+/** Profil de fonctions (point 15) · voir common/fonctions/fonctions-metier.ts. */
+export class DefinirFonctionsDto {
+  @IsBoolean()
+  restreindre!: boolean;
+
+  @IsArray()
+  @IsEnum(FonctionMetier, { each: true })
+  fonctions!: FonctionMetier[];
 }

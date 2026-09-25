@@ -9,6 +9,7 @@ import {
 } from '../../common/decorators/acces-roles-cantonnes.decorator';
 import { MotDePasseAChangerGuard } from '../../common/guards/mot-de-passe-a-changer.guard';
 import { ROLES_CANTONNES, routeOuverteAuRoleCantonne } from '../../common/guards/roles-cantonnes';
+import { fonctionDeRoute, motifRefusFonction } from '../../common/fonctions/fonctions-metier';
 
 /**
  * Vérifie le JWT et peuple `request.user` (voir JwtStrategy.validate), PUIS
@@ -54,6 +55,16 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
             : "Cette fonction est réservée au comptable · l'aide-comptable saisit au brouillard, sans valider ni passer la paie.",
         );
       }
+    }
+
+    // 3 · Le profil de fonctions RESTREINT ce que le rôle permet d'écrire
+    // (common/fonctions/fonctions-metier.ts) · lu ici pour la même raison
+    // que les deux contrôles précédents : il a besoin de l'utilisateur.
+    if (utilisateur) {
+      const requete = contexte.switchToHttp().getRequest();
+      const fonction = fonctionDeRoute(contexte.getClass().name, contexte.getHandler().name);
+      const motif = motifRefusFonction(utilisateur, requete?.method ?? 'GET', fonction);
+      if (motif) throw new ForbiddenException(motif);
     }
     return true;
   }

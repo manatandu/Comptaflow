@@ -40,6 +40,7 @@ const ADMIN_SEULEMENT: Record<string, string> = {
   'pages/ImportPage.tsx': "analyse et exécution d'import, réservées à l'administrateur",
   'pages/JournauxPage.tsx': "création et activation des codes journaux, réservées à l'administrateur",
   'pages/ParametresDossierPage.tsx': "paramètres du dossier, réservés à l'administrateur",
+  'components/ModaleFonctions.tsx': "profil de fonctions d'un utilisateur, route réservée à l'administrateur",
   'components/NaturesCompte.tsx': "natures de compte (fourchettes, défauts, alignement), routes réservées à l'administrateur",
   'pages/PlanComptesPage.tsx': "ouverture et modification des comptes du plan, réservées à l'administrateur",
   'pages/PlansAnalytiquesPage.tsx': "structure analytique (sections, budgets, mise en sommeil), réservée à l'administrateur",

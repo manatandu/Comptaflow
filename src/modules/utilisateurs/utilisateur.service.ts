@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../common/prisma.service';
+import { FonctionMetier, RoleUtilisateur } from '@prisma/client';
 import { CreerUtilisateurDto, ModifierUtilisateurDto } from './dto/utilisateur.dto';
 
 const SALT_ROUNDS = 12;
@@ -17,6 +18,8 @@ const SELECTION = {
   doitChangerMotDePasse: true,
   verrouilleJusqua: true,
   createdAt: true,
+  restreindreFonctions: true,
+  fonctionsAutorisees: true,
 } as const;
 
 @Injectable()
@@ -39,6 +42,34 @@ export class UtilisateurService {
       // connexion, ce qui clôt la période où l'admin pouvait ouvrir le
       // dossier à sa place (voir schema.prisma, User).
       data: { tenantId, email: dto.email, motDePasse: motDePasseHache, role: dto.role, doitChangerMotDePasse: true },
+      select: SELECTION,
+    });
+  }
+
+  /**
+   * PROFIL DE FONCTIONS (point 15, common/fonctions/fonctions-metier.ts) ·
+   * restreint ce que le rôle permet d'écrire. Refusé sur un administrateur,
+   * que le profil ne restreint jamais · l'accepter laisserait croire à une
+   * restriction qui ne s'applique pas. Les sessions sont fermées, comme pour
+   * un changement de rôle : la restriction prend effet tout de suite.
+   */
+  async definirFonctions(tenantId: string, userId: string, dto: { restreindre: boolean; fonctions: FonctionMetier[] }) {
+    const user = await this.prisma.user.findFirst({ where: { id: userId, tenantId } });
+    if (!user) throw new NotFoundException('Utilisateur introuvable pour ce tenant');
+    if (user.role === RoleUtilisateur.ADMIN_CABINET && dto.restreindre) {
+      throw new BadRequestException(
+        "Un administrateur n'est jamais restreint · c'est lui qui ouvre et ferme les fonctions des autres. Changez d'abord son rôle.",
+      );
+    }
+    const inconnue = dto.fonctions.find((f) => !Object.values(FonctionMetier).includes(f));
+    if (inconnue) throw new BadRequestException(`Fonction inconnue : ${inconnue}`);
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        restreindreFonctions: dto.restreindre,
+        fonctionsAutorisees: dto.restreindre ? [...new Set(dto.fonctions)] : [],
+        sessionsInvalidesAvant: new Date(),
+      },
       select: SELECTION,
     });
   }

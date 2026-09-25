@@ -3,6 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { phraseAvisAcces } from '../lib/remise-courriel';
 import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
+import { ModaleFonctions } from '../components/ModaleFonctions';
 import type { AvisAcces, RoleUtilisateur, Utilisateur } from '../lib/types';
 
 const LIBELLE_ROLE: Record<RoleUtilisateur, string> = {
@@ -29,6 +30,8 @@ export function UtilisateursPage() {
   // Réinitialisation · l'administrateur pose un mot de passe provisoire, que
   // le titulaire devra remplacer avant de travailler. Sans cette fenêtre, un
   // oubli de mot de passe se réglait par un UPDATE SQL en production.
+  // Profil de fonctions (point 15).
+  const [fonctionsCible, setFonctionsCible] = useState<Utilisateur | null>(null);
   const [reinitCible, setReinitCible] = useState<Utilisateur | null>(null);
   const [reinitMotDePasse, setReinitMotDePasse] = useState('');
   const [reinitErreur, setReinitErreur] = useState<string | null>(null);
@@ -226,10 +229,29 @@ export function UtilisateursPage() {
               >
                 Réinitialiser
               </button>
+              {u.role !== 'ADMIN_CABINET' && (
+                <button onClick={() => setFonctionsCible(u)} className="text-[11.5px] text-sel">
+                  {u.restreindreFonctions ? `Fonctions (${u.fonctionsAutorisees?.length ?? 0})` : 'Fonctions'}
+                </button>
+              )}
             </div>
           </div>
         ))}
       </div>
+
+      {fonctionsCible && (
+        <ModaleFonctions
+          utilisateurId={fonctionsCible.id}
+          email={fonctionsCible.email}
+          restreindre={!!fonctionsCible.restreindreFonctions}
+          fonctions={fonctionsCible.fonctionsAutorisees ?? []}
+          onFermer={() => setFonctionsCible(null)}
+          onEnregistre={() => {
+            setFonctionsCible(null);
+            void charger();
+          }}
+        />
+      )}
 
       {reinitCible && (
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">

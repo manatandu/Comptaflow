@@ -78,6 +78,9 @@ export interface Utilisateur {
   /** Verrou de force brute en cours, ou null · voir auth/verrouillage.ts. */
   verrouilleJusqua: string | null;
   createdAt: string;
+  /** Profil de fonctions (point 15) · faux = tout ce que le rôle permet. */
+  restreindreFonctions?: boolean;
+  fonctionsAutorisees?: string[];
 }
 export type ClasseCompte =
   | 'CLASSE_1' | 'CLASSE_2' | 'CLASSE_3' | 'CLASSE_4'

@@ -4447,6 +4447,21 @@ et déplacer une fourchette ne doit jamais déplacer un poste. L'incohérence du
 report que Sage signale à la clôture est listée dans Paramètres du dossier et
 s'aligne à la demande, jamais d'office.
 
+**Profil de fonctions par utilisateur (2026-09-25).** Point 15 de la
+comparaison. Les manuels i7 du corpus ne décrivent qu'un mot de passe de
+fichier · le découpage vient du support Sage X3 (« Profils fonctions »),
+résumé au skill `sage-i7`. QUATRE RÈGLES À NE PAS DÉFAIRE. (1) LE PROFIL
+RESTREINT, IL N'ÉLARGIT JAMAIS · il se lit dans `JwtAuthGuard`, APRÈS le rôle ;
+cocher « Validation » à un aide-comptable ne le fait pas valider. (2) IL PORTE
+SUR CE QUI ÉCRIT (POST, PUT, PATCH, DELETE) · fermer les lectures casserait
+les écrans, et la confidentialité d'une donnée relève du rôle cantonné. (3)
+L'ADMINISTRATEUR N'EST JAMAIS RESTREINT, ni à la définition ni au contrôle ·
+c'est lui qui lève la restriction. (4) LA TABLE EST PAR CONTRÔLEUR
+(`common/fonctions/fonctions-metier.ts`), valider rangé à part de saisir, et
+`fonctions-metier.spec.ts` relit les sources · un contrôleur qui écrit sans
+être rangé fait tomber le test. Poser un profil ferme les sessions, comme un
+changement de rôle, et les deux colonnes sont ADMISES au journal d'audit.
+
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
 nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la

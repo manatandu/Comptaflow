@@ -57,6 +57,10 @@ describe('la liste d’exclusion est fermée sur User', () => {
     'tentativesEchouees',
     'verrouilleJusqua',
     'createdAt',
+    // Profil de fonctions (point 15) · ADMIS : qui a ouvert ou fermé quelle
+    // fonction à qui est exactement ce qu'un journal d'audit doit rendre.
+    'restreindreFonctions',
+    'fonctionsAutorisees',
   ];
 
   it('classe chaque colonne de User, sans exception ni oubli', () => {

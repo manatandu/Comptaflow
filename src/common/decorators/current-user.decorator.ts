@@ -5,6 +5,9 @@ export interface AuthenticatedUser {
   tenantId: string;
   email: string;
   role: string;
+  /** Profil de fonctions (point 15) · relu à chaque requête, comme le rôle. Optionnel pour les tests. */
+  restreindreFonctions?: boolean;
+  fonctionsAutorisees?: string[];
   /**
    * Préchargés par JwtStrategy dans LA MÊME requête que l'utilisateur, pour
    * que LicenceGuard et ReferentielGuard n'aient plus à requêter la base à

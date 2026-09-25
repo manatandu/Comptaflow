@@ -90,7 +90,11 @@ tiennent à un texte OHADA ; ils sont signalés comme tels.
     du manuel i7, une fourchette de racines chacune, qui donnent leur mode de
     report et leur lettrage aux comptes créés ensuite ; les comptes dont le
     report contredit leur nature sont listés et s'alignent à la demande.
-15. Droits d'accès fonction par fonction.
+15. ~~Droits d'accès fonction par fonction~~ · FAIT le 2026-09-25 : profil de
+    fonctions par utilisateur (seize fonctions), qui restreint ce que le rôle
+    permet d'écrire et n'élargit jamais rien ; l'administrateur n'est jamais
+    restreint. Source : support Sage X3 (profils de fonctions), les manuels i7
+    du corpus ne décrivant qu'un mot de passe de fichier.
 
 **Secondaires**
 16. Capital, courriel et site dans l'identification.

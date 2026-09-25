@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
+import { LIBELLES_FONCTION } from '../../common/fonctions/fonctions-metier';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -6,7 +7,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { UtilisateurService } from './utilisateur.service';
 import { AvisAccesService } from './avis-acces.service';
-import { CreerUtilisateurDto, ModifierUtilisateurDto, ReinitialiserMotDePasseDto } from './dto/utilisateur.dto';
+import { CreerUtilisateurDto, DefinirFonctionsDto, ModifierUtilisateurDto, ReinitialiserMotDePasseDto } from './dto/utilisateur.dto';
 import { RoleUtilisateur } from '@prisma/client';
 
 // Réservé à l'admin du cabinet : gérer qui a accès au dossier et avec quel
@@ -89,6 +90,18 @@ export class UtilisateurController {
         parQui: user.userId,
       }),
     };
+  }
+
+  /** Le catalogue des fonctions, avec leur libellé · pour l'écran des profils. */
+  @Get('fonctions')
+  catalogueFonctions() {
+    return Object.entries(LIBELLES_FONCTION).map(([code, libelle]) => ({ code, libelle }));
+  }
+
+  /** Profil de fonctions (point 15) · restreint ce que le rôle permet d'écrire. */
+  @Put(':id/fonctions')
+  async definirFonctions(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: DefinirFonctionsDto) {
+    return this.utilisateurService.definirFonctions(user.tenantId, id, dto);
   }
 
   /** Le comptable qui a mal tapé cinq fois et se souvient très bien du sien. */
