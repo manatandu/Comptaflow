@@ -175,9 +175,9 @@ function FenetreInterne({ fenetre, active }: { fenetre: FenetreOuverte; active: 
         */
         className={`shrink-0 flex items-center justify-between gap-2 pl-3.5 select-none border-b border-border ${
           agrandie ? '' : 'cursor-move'
-        } ${active ? 'bg-mica text-text' : 'bg-chrome text-text-dim'}`}
+        } ${active ? 'bg-[var(--bandeau)] text-white' : 'bg-chrome text-text-dim'}`}
       >
-        <span className="truncate text-[12px]">{fenetre.titre}</span>
+        <span className="truncate text-[12px] font-semibold">{fenetre.titre}</span>
         <span className="flex items-stretch self-stretch shrink-0">
           <BoutonTitre
             actif={active}
@@ -269,8 +269,8 @@ function BoutonTitre({
       // boutons de légende de Windows 11. Fermer vire au rouge système au
       // survol, les deux autres à un gris léger.
       className={`flex items-center justify-center w-[46px] transition-colors duration-100 ${
-        danger ? 'hover:bg-[#c42b1c] hover:text-white' : 'hover:bg-chrome-alt'
-      } ${actif ? 'text-text' : 'text-text-dim'}`}
+        danger ? 'hover:bg-[#c42b1c] hover:text-white' : actif ? 'hover:bg-white/10' : 'hover:bg-chrome-alt'
+      } ${actif ? 'text-white' : 'text-text-dim'}`}
     >
       <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
         {dessin}

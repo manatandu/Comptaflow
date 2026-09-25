@@ -1,0 +1,71 @@
+# Sage 100 Comptabilité i7 contre OmegaX · les dix activités à traiter
+
+Relevé du 2026-09-25. La liste des fonctions vient du manuel de formation
+« Sage 100 comptabilité i7 » (Drive, chaîne « Le Formateur », dix activités).
+Chaque statut d'OmegaX a été lu dans le code (routes, DTO, schéma, écrans),
+jamais déduit. OUI = même fonction ; AUTREMENT = le besoin est couvert par un
+autre chemin ; PARTIEL = une partie manque ; NON = absent.
+
+Règle de lecture : un pattern Sage est un point de comparaison, pas une
+prescription (skill `sage-i7`). Plusieurs écarts ci-dessous sont VOULUS et
+tiennent à un texte OHADA ; ils sont signalés comme tels.
+
+## Constats d'ensemble
+
+- **Aucune suppression de structure.** Comptes, journaux, tiers et taux n'ont
+  pas de route de suppression. Seule la mise en sommeil (`estActif`) existe.
+- **Le sommeil d'un compte n'est tenu que par l'écran.** Le serveur refuse la
+  saisie sur un journal en sommeil (`ecriture.service.ts`), pas sur un compte.
+  La source Sage ne dit pas que le sommeil refuse : pour un tiers elle dit
+  « confirmation requise en saisie » (`sage-i7/references/tiers.md`). À
+  trancher avant de coder un refus.
+- **Aucune impression propre aux listes de structures** · seulement
+  « Imprimer la fenêtre ».
+- **Les à-nouveaux ne naissent qu'à la clôture définitive de N.** Pas de
+  « nouvel exercice » à la mode Sage avec à-nouveaux provisoires.
+
+## Activité par activité
+
+| Activité Sage i7 | OmegaX | Ce qui diffère |
+|---|---|---|
+| 1. Lancement, barre verticale, barres d'outils | PARTIEL | Barre verticale sur l'accueil seulement, non masquable. Pas de mode assistant, pas de barres personnalisables (retirées volontairement). |
+| 2. Nouveau fichier, identification, natures de compte, mot de passe | AUTREMENT / PARTIEL | Assistant en 8 étapes, création réservée à la console VMG. Manquent capital, courriel et site de la société. Natures de compte codées par préfixe, non paramétrables. Cinq rôles fixes au lieu d'un mot de passe de fichier. |
+| 3. Plan comptable, journaux, tiers, taux de taxes | PARTIEL | Détail/Total, sommeil, types de journaux, compte de trésorerie : OUI. Suppression avec refus « mouvementé » : NON. Option « contrepartie à chaque ligne » : NON. Tiers : un sous-compte de classe 4 par tiers, pas de compte collectif + auxiliaire. Taux : une fiche porte les deux comptes (443 et 445), sans champ « sens ». |
+| 4. Saisie des écritures | PARTIEL | Saisie journal + mois, F4 sur les comptes, suppression refusée si lettrée ou pointée (et en plus si validée) : OUI. TVA proposée au clic, net à payer par « Équilibrer » : pas automatiques. Saisie par lot, OD analytiques, import d'extraits bancaires, réimputation : NON. |
+| 5. Interrogation et lettrage, recherche | PARTIEL | Lettrage complet (manuel, automatique, pré-lettrage) : OUI. Recherche d'écritures sur le libellé seul. Historique des rappels : route serveur sans écran. |
+| 6. États | OUI pour l'essentiel | Brouillard, journal, grand livre, balance, échéancier, balance âgée, taxes, bilan, analytique, contrôles, révision : OUI. États personnalisés et reporting : NON. Export des listes de structures : NON. |
+| 7. Modèles de saisie | PARTIEL | Modèles par journal, appelés depuis la saisie. Les fonctions de ligne (Répéter, Incrémenter, Équilibrer, Calculer) et l'appel par F4 manquent. |
+| 8. Fin d'exercice | AUTREMENT | Clôture qui solde 6 à 8 sur le 13 et génère le report à-nouveau (Solde ou Détail). Comptes 131/139 du plan OHADA, et non 1191/1199 du plan français · écart VOULU. Pas de report des budgets, pas de suppression du plus ancien exercice. |
+| 9. Fusion des structures | NON | Aucune fusion de comptes, tiers ou journaux. |
+| 10. Clôture des journaux | AUTREMENT | Partielle, totale et par période existent, et verrouillent par DATE. La modification est tenue par la validation (AUDCIF art. 22, 2°), écart VOULU. Le lettrage et l'analytique restent ouverts après une clôture totale, contrairement à Sage. |
+
+## Manques classés par importance pour un cabinet
+
+**Usage quotidien**
+1. Import des extraits bancaires et rapprochement automatique (le relevé n'est
+   aujourd'hui qu'une date et un solde).
+2. Règlement des tiers à partir des échéances.
+3. Suppression des structures avec refus si mouvementée ou utilisée ; statut
+   du sommeil d'un compte côté serveur (voir constats).
+4. TVA et net à payer calculés d'office sur les journaux Achats et Ventes.
+5. Journal de trésorerie avec contrepartie à chaque ligne.
+6. Modèles de saisie à fonctions (Répéter, Incrémenter, Équilibrer, Calculer).
+7. Saisie par lot, saisie par pièce, OD analytiques.
+
+**Importants**
+8. Recherche d'écritures multicritère (montant, compte, pièce).
+9. Réimputation d'écritures.
+10. Fusion de comptes, tiers et journaux.
+11. Nouvel exercice avec à-nouveaux provisoires, report des budgets.
+12. Clôture totale qui fige aussi lettrage et analytique.
+13. Compte collectif et comptes auxiliaires de tiers.
+14. Natures de compte paramétrables.
+15. Droits d'accès fonction par fonction.
+
+**Secondaires**
+16. Capital, courriel et site dans l'identification.
+17. Fenêtre des journaux de saisie ; écran de l'historique des rappels.
+18. Éditions des structures (plan, tiers, journaux, taux, paramètres).
+19. Banques, libellés, collaborateurs, plan reporting.
+20. États personnalisés et reporting.
+21. Documents attachés aux tiers.

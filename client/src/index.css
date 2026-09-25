@@ -236,14 +236,18 @@
   /* FOND TEINTÉ façon Mica de Windows 11 (2026-09-23) · le tout-blanc
      effaçait les repères, fond, cartes et barres ayant la même valeur. Le
      bureau est gris-bleu, les barres un cran plus clair, le contenu blanc. */
-  --bg: #e1e7f0;
+  --bg: #eef2f8;
   --mica: #e8edf4;
   /* FOND DE FENÊTRE · le gris neutre de la face des fenêtres Windows, sur
      lequel Sage 100 pose ses grilles blanches (manuel de formation Sage
      Comptabilité, captures de la saisie des journaux). Il DOIT différer du
      blanc des grilles et du bleu du bureau · sans quoi un tableau se fond
      dans la fenêtre qui le porte. */
-  --fenetre: #f0f0f0;
+  --fenetre: #f4f6fa;
+  /* Bandeau et barre verticale · l'encre de la marque, comme le bandeau
+     sombre de Sage Active (2026-09-25). Blanc dessus : 12,74:1. */
+  --bandeau: var(--a-900);
+  --bandeau-survol: var(--a-800);
   --surface: var(--n-0);
   --surface-alt: var(--n-50);
   --border: var(--n-150);
@@ -417,6 +421,11 @@ progress {
   background-color: var(--chrome-alt);
   border-color: var(--border-dark);
 }
+/* Bouton principal en pilule, comme le « + Créer » de Sage Active. Hors
+   :where() · il doit l'emporter sur l'arrondi posé par l'écran. */
+main button.bg-sel {
+  border-radius: 999px;
+}
 :where(main button.bg-sel:not(:disabled):hover) {
   filter: brightness(1.08);
 }
@@ -442,38 +451,34 @@ progress {
  */
 main table {
   font-variant-numeric: tabular-nums;
-  /* La grille est BLANCHE et cernée, comme chez Sage · posée sur le gris de
-     la fenêtre, elle ne s'y confond plus. */
+  /* Grille BLANCHE sur la fenêtre, comme les listes de Sage Active : en-tête
+     plein à la couleur de la marque, texte blanc, lignes séparées par un
+     filet, sans quadrillage vertical ni zébrure (2026-09-25). */
   background-color: var(--surface);
-  border: 1px solid var(--border-dark);
+  border: 1px solid var(--border);
   border-collapse: collapse;
 }
 main table thead th,
-main table tbody td,
-main table tfoot td,
-main table tfoot th {
-  /* Quadrillage vertical très clair, celui de la liste des écritures de Sage. */
-  border-right: 1px solid var(--border);
-}
-/* Zébrure légère, celle des grilles de Sage 100 (une ligne sur deux bleutée). */
-:where(main table tbody tr:nth-child(even)) {
-  background-color: #f5f8fc;
-}
-main table thead th,
 main .entete-colonnes {
-  background-color: #ececec !important;
-  color: var(--text) !important;
+  background-color: var(--a-700) !important;
+  color: #ffffff !important;
   font-size: 11.5px !important;
-  font-weight: 400 !important;
+  font-weight: 600 !important;
   text-transform: none !important;
   letter-spacing: 0 !important;
-  border-bottom: 1px solid var(--border-dark) !important;
+  border-bottom: 0 !important;
+}
+/* Ce que l'en-tête contient hérite du blanc · un libellé en encre grise sur
+   le bleu tomberait sous le plancher de contraste. Les champs gardent le leur. */
+main table thead th :where(span, a, button, abbr, div, label, svg),
+main .entete-colonnes :where(span, a, button, abbr, div, label, svg) {
+  color: inherit !important;
+}
+main table thead th + th {
+  border-left: 1px solid color-mix(in srgb, #ffffff 18%, transparent);
 }
 main table thead th {
   vertical-align: bottom;
-}
-main table thead tr {
-  background-color: var(--chrome);
 }
 main table tbody td {
   border-bottom: 1px solid var(--border);
@@ -481,11 +486,12 @@ main table tbody td {
 main table tfoot td,
 main table tfoot th {
   font-weight: 600;
-  background-color: var(--chrome);
-  border-top: 1px solid var(--border-dark);
+  color: var(--a-900);
+  background-color: var(--a-50);
+  border-top: 1px solid var(--a-200);
 }
 :where(main tbody tr:hover) {
-  background-color: color-mix(in srgb, var(--sel) 4%, transparent);
+  background-color: color-mix(in srgb, var(--sel) 7%, transparent);
 }
 
 /* Une surface posée ou flottante est arrondie et clippe son contenu · les

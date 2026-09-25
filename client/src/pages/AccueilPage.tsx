@@ -255,35 +255,35 @@ export function AccueilPage() {
       {/* --- Barre verticale · groupes de fonctions, un seul ouvert ------- */}
       <nav
         aria-label="Barre verticale"
-        className="md:w-[236px] shrink-0 border-b md:border-b-0 md:border-r border-border-dark bg-[var(--fenetre)] flex flex-col min-h-0 overflow-y-auto"
+        className="md:w-[236px] shrink-0 border-b md:border-b-0 md:border-r border-[var(--bandeau)] bg-[var(--bandeau)] text-white flex flex-col min-h-0 overflow-y-auto"
       >
         {GROUPES.map((groupe) => {
           const tuiles = tuilesVisibles(groupe);
           if (tuiles.length === 0) return null;
           const ouvert = groupeOuvert === groupe.titre;
           return (
-            <div key={groupe.titre} className="border-b border-border-dark">
+            <div key={groupe.titre} className="border-b border-white/10">
               <button
                 type="button"
                 aria-expanded={ouvert}
                 onClick={() => setGroupeOuvert(groupe.titre)}
-                className={`w-full flex items-center gap-2 px-2.5 h-[26px] text-left text-[11.5px] font-semibold border-b border-border ${
-                  ouvert ? 'bg-[#e4e9f1] text-text' : 'bg-[#ececec] text-text hover:bg-[#e4e4e4]'
+                className={`w-full flex items-center gap-2 px-2.5 h-[26px] text-left text-[11.5px] font-semibold border-l-[3px] ${
+                  ouvert ? 'bg-[var(--bandeau-survol)] border-l-[var(--a-400)] text-white' : 'border-l-transparent text-white/85 hover:bg-white/10'
                 }`}
               >
-                <groupe.Icon width={14} height={14} className="shrink-0 text-sel" />
+                <groupe.Icon width={14} height={14} className="shrink-0 text-[var(--a-200)]" />
                 <span className="truncate">{groupe.titre}</span>
               </button>
               {ouvert && (
-                <ul className="bg-surface py-0.5">
+                <ul className="bg-[var(--bandeau-survol)] pb-1">
                   {tuiles.map((t) => (
                     <li key={t.chemin} className="group flex items-center">
                       <button
                         type="button"
                         onClick={() => navigate(t.chemin)}
-                        className="flex-1 min-w-0 flex items-center gap-2 pl-3 pr-1 h-[22px] text-left text-[11.5px] hover:bg-sel-soft"
+                        className="flex-1 min-w-0 flex items-center gap-2 pl-3 pr-1 h-[24px] text-left text-[11.5px] text-white/85 hover:bg-white/10 hover:text-white"
                       >
-                        <t.Icon width={13} height={13} className="shrink-0 text-sel" />
+                        <t.Icon width={13} height={13} className="shrink-0 text-[var(--a-200)]" />
                         <span className="truncate">{t.label}</span>
                       </button>
                       <BoutonFavori actif={favoris.includes(t.chemin)} onClick={() => basculerFavori(t.chemin)} />
@@ -298,8 +298,8 @@ export function AccueilPage() {
 
       {/* --- IntuiSage · trois onglets ---------------------------------- */}
       <div className="flex-1 min-w-0 min-h-0 overflow-auto p-3">
-        <div className="max-w-[760px] border border-border-dark bg-surface">
-          <div role="tablist" className="flex border-b border-border-dark bg-[#ececec]">
+        <div className="max-w-[760px] rounded-[8px] border border-border bg-surface shadow-posee overflow-hidden">
+          <div role="tablist" className="flex gap-1 px-2 border-b border-border">
             {ONGLETS.map((o) => (
               <button
                 key={o}
@@ -307,8 +307,8 @@ export function AccueilPage() {
                 role="tab"
                 aria-selected={onglet === o}
                 onClick={() => choisirOnglet(o)}
-                className={`px-3 h-[24px] text-[11.5px] border-r border-border-dark ${
-                  onglet === o ? 'bg-surface font-semibold -mb-px border-b border-b-surface' : 'text-text-dim hover:text-text'
+                className={`px-3 h-[32px] text-[12px] -mb-px border-b-2 ${
+                  onglet === o ? 'border-b-sel text-sel font-semibold' : 'border-b-transparent text-text-dim hover:text-text'
                 }`}
               >
                 {o}
@@ -383,7 +383,7 @@ export function AccueilPage() {
                         onClick={() => navigate(t.chemin)}
                         className="flex-1 min-w-0 flex items-center gap-2 px-2 h-[24px] text-left text-[11.5px] hover:bg-sel-soft"
                       >
-                        <t.Icon width={13} height={13} className="shrink-0 text-sel" />
+                        <t.Icon width={13} height={13} className="shrink-0 text-[var(--a-200)]" />
                         <span className="truncate">{t.label}</span>
                       </button>
                       <BoutonFavori actif onClick={() => basculerFavori(t.chemin)} />
@@ -493,7 +493,7 @@ function BoutonFavori({ actif, onClick }: { actif: boolean; onClick: () => void 
       title={actif ? 'Retirer des favoris' : 'Ajouter aux favoris'}
       aria-pressed={actif}
       className={`shrink-0 w-[22px] h-[22px] flex items-center justify-center ${
-        actif ? 'text-[#c98a00]' : 'text-text-dim opacity-0 group-hover:opacity-100 focus:opacity-100'
+        actif ? 'text-[#c98a00]' : 'text-white/60 opacity-0 group-hover:opacity-100 focus:opacity-100'
       }`}
     >
       <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden>

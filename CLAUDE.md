@@ -5227,18 +5227,27 @@ Trois choses à ne pas défaire :
   de la charte a trouvé un `--text-dim` à 3,98:1 sur le fond de l'application,
   sous le plancher AA, que personne n'avait vu en deux ans.
 
-## 9 ter. L'interface · le modèle est Sage 100, pas une invention
+## 9 ter. L'interface · le modèle est Sage, pas une invention
 
 Décidé par Manasse le 2026-09-25 : « réfère-toi aux logiciels qui existent
-vraiment ». La référence est le manuel de formation Sage Comptabilité (Drive,
-captures de la saisie des journaux). Quatre règles à ne pas défaire.
+vraiment ». Deux références, et la seconde prime pour le RENDU. La
+DISPOSITION vient des manuels de Sage 100 i7 (Drive, captures de la saisie
+des journaux) ; le RENDU vient de Sage Active et de Sage 100 Expérience, les
+versions web actuelles de Sage, que Manasse a retenues (« c'est exactement ce
+rendu de Sage moderne que je veux »). Les couleurs sont celles de la charte
+OmegaX, JAMAIS le vert de Sage.
 
 - **Police de 12 px** (Segoe UI 9 pt, celle de Windows et de Sage), posée sur
   `body` ; les tailles explicites des écrans restent entre 10,5 et 13 px.
-- **Grille blanche sur fenêtre grise.** Le corps des fenêtres est `--fenetre`
-  (#f0f0f0), les tableaux sont blancs, cernés, à en-têtes gris, quadrillés et
-  zébrés (`index.css`, bloc TABLEAUX). Un tableau posé sur une couleur proche
-  de la sienne se fond dans la fenêtre · c'est le défaut qui a été corrigé.
+- **Bandeau à l'encre de la marque.** La barre de titre, la barre verticale de
+  l'accueil et la barre de titre de la fenêtre ACTIVE sont `--bandeau`
+  (`--a-900`), texte et symbole en blanc (logo blanc prévu par la charte sur
+  fond sombre). La barre de menus est blanche, survol bleu clair.
+- **Grille blanche, en-tête plein.** Les tableaux sont blancs sur la fenêtre
+  (`--fenetre`, gris bleuté très clair), l'en-tête est plein en `--a-700`
+  texte blanc, les lignes séparées par un filet, sans quadrillage vertical ni
+  zébrure, total sur `--a-50` (`index.css`, bloc TABLEAUX). Le bouton
+  principal (`bg-sel`) est une pilule, comme le « + Créer » de Sage Active.
 - **Aucun titre de page.** La barre de titre de la fenêtre porte le titre ; un
   fil d'Ariane ou un `<h1>` qui le répète est retiré. Les titres de CADRE
   (bloc, onglet, tableau) restent.

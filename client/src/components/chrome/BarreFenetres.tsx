@@ -26,7 +26,7 @@ export function BarreFenetres() {
       pour une fenêtre réduite. C'est le signe que l'œil d'un utilisateur de
       Windows cherche déjà.
     */
-    <div className="ecran-seul relative z-20 h-[34px] shrink-0 flex items-center gap-1 px-2 bg-mica border-t border-border">
+    <div className="ecran-seul relative z-20 h-[34px] shrink-0 flex items-center gap-1 px-2 bg-surface border-t border-border">
       <div className="flex-1 min-w-0 flex items-center gap-0.5 overflow-x-auto h-full">
         {onglets.map((f) => {
           const active = f.cle === cleActive;

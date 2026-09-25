@@ -587,15 +587,14 @@ export function AppShell() {
       {/*
         Barre de titre · elle porte l'identité du dossier ouvert, comme la
         barre de titres de Sage (« Le nouvel exercice s'affiche dans la barre
-        de titres »). CLAIRE depuis le 2026-09-23, comme la barre de titre
-        d'une application Windows 11 · elle était bleu nuit, et c'est ce qui
-        faisait dire que le logiciel ressemblait à Windows 7. Le symbole y
-        passe en ENCRE, le rendu que la charte prévoit sur fond clair (§ 7.3,
-        12,74:1 sur blanc).
+        de titres »). À L'ENCRE DE LA MARQUE depuis le 2026-09-25,
+        comme le bandeau sombre de Sage Active et de Sage 100 Expérience, les
+        versions web actuelles de Sage. Le symbole y passe en BLANC, le rendu
+        que la charte prévoit sur fond sombre (logo-omegax-signe-blanc.svg).
       */}
-      <div className="ecran-seul h-[34px] flex items-center justify-between px-3 bg-mica text-text text-[11.5px] shrink-0 relative">
+      <div className="ecran-seul h-[38px] flex items-center justify-between px-3 bg-[var(--bandeau)] text-white text-[11.5px] shrink-0 relative">
         <div className="flex items-center gap-2.5 min-w-0">
-          <SymboleOmegaX taille={17} className="text-[var(--a-900)]" />
+          <SymboleOmegaX taille={18} className="text-white" />
           {/*
             Le nom du logiciel et sa barre oblique s'effacent sous `sm` : à
             360 px ils prenaient 60 px sur les 360 disponibles et le nom du
@@ -603,19 +602,19 @@ export function AppShell() {
             tombait à 38 px. Le logo à gauche continue de porter l'identité.
           */}
           <span className="hidden sm:inline font-marque font-semibold tracking-[-0.015em]">OmegaX</span>
-          <span className="hidden sm:inline text-border-dark">/</span>
-          <span className="truncate text-text">{utilisateur?.tenant.nom}</span>
+          <span className="hidden sm:inline text-white/40">/</span>
+          <span className="truncate text-white">{utilisateur?.tenant.nom}</span>
           {anneeExercice && (
-            <span className="shrink-0 rounded-full bg-sel-soft px-2 py-[1px] text-[11px] font-semibold text-sel">
+            <span className="shrink-0 rounded-full bg-white/15 px-2 py-[1px] text-[11px] font-semibold text-white">
               Exercice {anneeExercice}
             </span>
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-text-dim text-[11.5px] hidden sm:inline">{utilisateur?.email}</span>
+          <span className="text-white/75 text-[11.5px] hidden sm:inline">{utilisateur?.email}</span>
           <button
             onClick={seDeconnecter}
-            className="rounded-[4px] px-2.5 py-[3px] text-[11.5px] font-semibold text-text-dim hover:bg-chrome-alt hover:text-text"
+            className="rounded-full border border-white/30 px-3 py-[3px] text-[11.5px] font-semibold text-white hover:bg-white/10"
           >
             Déconnexion
           </button>
