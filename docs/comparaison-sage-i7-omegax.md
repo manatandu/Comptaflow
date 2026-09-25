@@ -49,7 +49,8 @@ tiennent à un texte OHADA ; ils sont signalés comme tels.
    pièce par tiers, lettrage immédiat, partiel admis, excédent refusé.
 3. ~~Suppression des structures avec refus si mouvementée ou utilisée~~ ·
    FAIT le 2026-09-25, toutes les références comptées, lues dans le schéma.
-4. TVA et net à payer calculés d'office sur les journaux Achats et Ventes.
+4. ~~TVA et net à payer calculés d'office sur les journaux Achats et Ventes~~ ·
+   FAIT le 2026-09-25, d'office pour un dossier déclaré assujetti, proposée sinon.
 5. Journal de trésorerie avec contrepartie à chaque ligne.
 6. Modèles de saisie à fonctions (Répéter, Incrémenter, Équilibrer, Calculer).
 7. Saisie par lot, saisie par pièce, OD analytiques.

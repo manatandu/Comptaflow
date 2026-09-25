@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { construireLigneTva, montantTva, sensDeLaLigne, type CompteSaisie } from './tva-saisie';
+import { construireLigneTva, montantTva, sensDeLaLigne, type CompteSaisie, modeCalculTva, netAPayer } from './tva-saisie';
 import type { TauxTva } from './types';
 
 /**
@@ -178,19 +178,49 @@ describe('Le taux est porté par la ligne de TVA, jamais par la ligne HT', () =>
   });
 });
 
-describe('La grille propose, elle n’impute pas', () => {
+describe('La TVA à la saisie · trois régimes (Sage i7 : « le calcul de la taxe ne peut se faire que dans un journal de type achat ou vente »)', () => {
   const lire = (chemin: string) => readFileSync(join(__dirname, chemin), 'utf8');
   const saisie = lire('../pages/SaisiePage.tsx');
 
-  it('la proposition attend un geste · aucune ligne ne s’ajoute à l’ajout de la ligne HT', () => {
-    // Ce qui serait le défaut : pousser la ligne de taxe dans la pièce dès que
-    // le compte est saisi. Sur une facture d'association exonérée, elle
-    // passerait inaperçue jusqu'à la déclaration.
-    expect(saisie).toContain('setPropositionTva({');
-    expect(saisie).toContain('onClick={poserLigneTva}');
-    // La pose ne se fait QUE dans le gestionnaire du bouton.
-    expect(saisie.match(/setLignes\(\(prev\) => \[\s*\.\.\.prev,\s*\{\s*compteId: l\.compteId/g)?.length).toBe(1);
+  it('hors achats et ventes, aucun calcul · d’office pour un dossier déclaré assujetti · proposé sinon', () => {
+    expect(modeCalculTva('TRESORERIE', true)).toBe('AUCUN');
+    expect(modeCalculTva('GENERAL', true)).toBe('AUCUN');
+    expect(modeCalculTva('ACHATS', true)).toBe('AUTO');
+    expect(modeCalculTva('VENTES', true)).toBe('AUTO');
+    // Non déclaré, ou pas encore lu · rien ne s'ajoute seul (une ASBL n'est
+    // pas assujettie de plein droit).
+    expect(modeCalculTva('ACHATS', false)).toBe('PROPOSE');
+    expect(modeCalculTva('VENTES', null)).toBe('PROPOSE');
   });
+
+  it('la pose d’office n’existe qu’en régime AUTO, et elle est toujours annoncée', () => {
+    expect(saisie).toContain("mode === 'AUTO' && tauxDefaut && sensHt");
+    expect(saisie).toContain("`TVA ajoutée d'office : ${l.numero}");
+    // Et la bande reste la voie du régime PROPOSE, et du AUTO impossible.
+    expect(saisie).toContain("} else if (mode !== 'AUCUN' && compteChoisi.tauxTvaDefautId) {");
+    expect(saisie).toContain('onClick={poserLigneTva}');
+  });
+});
+
+describe('Net à payer · le tiers reçoit ce qui équilibre la pièce', () => {
+  it('achat · le fournisseur est crédité du TTC', () => {
+    expect(netAPayer({ typeJournal: 'ACHATS', numeroCompte: '40110000', soldePiece: 228000 })).toEqual({ debit: 0, credit: 228000 });
+  });
+  it('vente · le client est débité du TTC', () => {
+    expect(netAPayer({ typeJournal: 'VENTES', numeroCompte: '41110000', soldePiece: -180000 })).toEqual({ debit: 180000, credit: 0 });
+  });
+  it('rien hors achats et ventes, rien sur une avance ou une estimation, rien sur une pièce équilibrée', () => {
+    expect(netAPayer({ typeJournal: 'TRESORERIE', numeroCompte: '40110000', soldePiece: 100 })).toBeNull();
+    expect(netAPayer({ typeJournal: 'ACHATS', numeroCompte: '40910000', soldePiece: 100 })).toBeNull();
+    expect(netAPayer({ typeJournal: 'ACHATS', numeroCompte: '40800000', soldePiece: 100 })).toBeNull();
+    expect(netAPayer({ typeJournal: 'ACHATS', numeroCompte: '60110000', soldePiece: 100 })).toBeNull();
+    expect(netAPayer({ typeJournal: 'ACHATS', numeroCompte: '40110000', soldePiece: 0 })).toBeNull();
+  });
+});
+
+describe('La proposition du régime PROPOSE', () => {
+  const lire = (chemin: string) => readFileSync(join(__dirname, chemin), 'utf8');
+  const saisie = lire('../pages/SaisiePage.tsx');
 
   it('la proposition est retrouvée par son indice ET son compte', () => {
     // Une suppression ou un déplacement doit l'invalider, pas la reporter sur

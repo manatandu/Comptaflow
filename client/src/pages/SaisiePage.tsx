@@ -6,7 +6,7 @@ import { Calculette } from '../components/Calculette';
 import { ordonnerLignes } from '../lib/ordre-ecriture';
 import type { Compte, Ecriture, Journal, PlanAnalytique, SectionAnalytique, TauxTva } from '../lib/types';
 import { useAuth } from '../lib/auth';
-import { construireLigneTva, montantTva, sensDeLaLigne } from '../lib/tva-saisie';
+import { construireLigneTva, modeCalculTva, montantTva, netAPayer, sensDeLaLigne } from '../lib/tva-saisie';
 
 /**
  * SAISIE DES JOURNAUX · l'écran central du logiciel, calqué sur
@@ -217,6 +217,12 @@ export function SaisiePage() {
    * déclaration.
    */
   const [propositionTva, setPropositionTva] = useState<{ index: number; compteId: string; tauxTvaId: string } | null>(null);
+  // Assujettissement du dossier · décide si la TVA s'ajoute d'office (voir
+  // modeCalculTva). `null` tant qu'il n'est pas lu : on ne présume rien.
+  const [assujettiTva, setAssujettiTva] = useState<boolean | null>(null);
+  // Annonce de la ligne de TVA ajoutée d'office · une taxe posée sans un mot
+  // passerait inaperçue jusqu'à la déclaration.
+  const [tvaAjoutee, setTvaAjoutee] = useState<string | null>(null);
 
   const compteRef = useRef<HTMLInputElement>(null);
   const libelleRef = useRef<HTMLInputElement>(null);
@@ -363,6 +369,15 @@ export function SaisiePage() {
   const choisirCompte = (c: Compte) => {
     setCompteChoisi(c);
     setCompteSaisie(c.numero);
+    // NET À PAYER · le compte de tiers d'un journal d'achats ou de ventes
+    // reçoit d'office le montant qui équilibre la pièce, modifiable.
+    if (!debitSaisie && !creditSaisie) {
+      const nap = netAPayer({ typeJournal: journal?.type, numeroCompte: c.numero, soldePiece });
+      if (nap) {
+        setDebitSaisie(nap.debit ? String(nap.debit) : '');
+        setCreditSaisie(nap.credit ? String(nap.credit) : '');
+      }
+    }
     setPickerOuvert(false);
     libelleRef.current?.focus();
   };
@@ -424,7 +439,48 @@ export function SaisiePage() {
     // La proposition vise la ligne qu'on vient de poser (son indice est
     // `prev.length` avant l'ajout, donc `lignes.length` ici) et attend un
     // geste · rien ne s'insère seul.
-    if (compteChoisi.tauxTvaDefautId) {
+    // Trois régimes (lib/tva-saisie.ts, modeCalculTva) · rien hors achats et
+    // ventes, d'office pour un dossier déclaré assujetti, proposé sinon.
+    // L'annonce d'une taxe ajoutée d'office RESTE jusqu'à l'enregistrement de
+    // la pièce · effacée à la ligne suivante, elle ne se lirait pas.
+    const mode = modeCalculTva(journal?.type, assujettiTva);
+    const tauxDefaut = compteChoisi.tauxTvaDefautId
+      ? tauxTvaListe.find((t) => t.id === compteChoisi.tauxTvaDefautId)
+      : undefined;
+    const sensHt = sensDeLaLigne({ debit: d, credit: c });
+    const auto =
+      mode === 'AUTO' && tauxDefaut && sensHt
+        ? construireLigneTva({
+            referentiel: utilisateur?.tenant.referentiel,
+            sens: sensHt,
+            contrepartie: { id: compteChoisi.id, numero: compteChoisi.numero, intitule: compteChoisi.intitule },
+            ht: d || c,
+            taux: tauxDefaut,
+            comptes,
+            numerosDuPlan,
+          })
+        : null;
+    if (auto?.ligne) {
+      const l = auto.ligne;
+      setLignes((prev) => [
+        ...prev,
+        {
+          compteId: l.compteId,
+          numero: l.numero,
+          intitule: l.intitule,
+          libelle: l.libelle,
+          debit: l.debit,
+          credit: l.credit,
+          tauxTvaId: l.tauxTvaId,
+        },
+      ]);
+      setTvaAjoutee(
+        `TVA ajoutée d'office : ${l.numero} · ${tauxDefaut!.code} ${Number(tauxDefaut!.taux)} % de ${(d || c).toLocaleString('fr-FR')} = ${(l.debit || l.credit).toLocaleString('fr-FR')}. Supprimez la ligne pour y renoncer.`,
+      );
+      setPropositionTva(null);
+    } else if (mode !== 'AUCUN' && compteChoisi.tauxTvaDefautId) {
+      // PROPOSE, ou AUTO impossible (compte de taxe non rattaché) · la bande
+      // s'affiche avec son motif plutôt qu'un silence.
       setPropositionTva({ index: lignes.length, compteId: compteChoisi.id, tauxTvaId: compteChoisi.tauxTvaDefautId });
     } else {
       setPropositionTva(null);
@@ -586,6 +642,9 @@ export function SaisiePage() {
     api
       .get<TauxTva[]>('/taux-tva?actifsSeuls=true')
       .then((t) => !annule && setTauxTvaListe(t), () => !annule && setTauxTvaListe([]));
+    api
+      .get<{ assujettiTva: boolean }>('/dossier/parametres')
+      .then((p) => !annule && setAssujettiTva(p.assujettiTva), () => !annule && setAssujettiTva(null));
     return () => {
       annule = true;
     };
@@ -677,6 +736,7 @@ export function SaisiePage() {
 
   const abandonnerPiece = () => {
     setLignes([]);
+    setTvaAjoutee(null);
     setReference('');
     setLibellePiece('');
     setErreur(null);
@@ -740,6 +800,7 @@ export function SaisiePage() {
           : 'Pièce enregistrée au journal.',
       );
       setLignes([]);
+      setTvaAjoutee(null);
       setReference('');
       setLibellePiece('');
       setRechargement((n) => n + 1);
@@ -1334,17 +1395,20 @@ export function SaisiePage() {
           </div>
 
           {/* ------------------------------------------------------------------
-              CODE TAXE PAR DÉFAUT · Sage porte un taux sur la fiche compte et le
-              propose dès que ce compte est saisi. La bande PROPOSE, elle
-              n'impute pas : le taux reste modifiable, la proposition
-              s'abandonne, et rien ne s'ajoute sans un clic. Une ligne de taxe
-              qui s'insérerait d'office passerait inaperçue jusqu'à la
-              déclaration, notamment sur une association exonérée.
+              CODE TAXE PAR DÉFAUT · la bande est la voie du régime PROPOSE
+              (dossier non déclaré assujetti) et du régime AUTO quand la taxe ne
+              peut pas se calculer seule (compte de taxe non rattaché). Le taux
+              reste modifiable, la proposition s'abandonne. En régime AUTO la
+              ligne s'ajoute d'office et l'annonce au-dessus le dit · voir
+              modeCalculTva dans lib/tva-saisie.ts.
 
               LA PIÈCE SE DÉSÉQUILIBRE EN AJOUTANT LA TAXE, et c'est normal : la
               contrepartie de tiers porte le TTC. Le bouton Équilibrer, juste en
               dessous, complète le montant manquant.
               ------------------------------------------------------------------ */}
+          {tvaAjoutee && (
+            <div className="px-3 py-1.5 border-b border-border/50 bg-sel-soft text-[11.5px] text-sel">{tvaAjoutee}</div>
+          )}
           {apercuTva && (
             <div className="flex items-center gap-2 px-3 py-2 flex-wrap border-b border-border/50 bg-chrome-alt/60">
               <span className="text-[11px] font-bold text-text-dim">Code taxe</span>

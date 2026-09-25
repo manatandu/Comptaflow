@@ -208,3 +208,50 @@ export function sensDeLaLigne(ligne: { debit: number; credit: number }): 'recett
   if (ligne.credit > 0.005 && ligne.debit <= 0.005) return 'recette';
   return null;
 }
+
+/**
+ * OÙ ET COMMENT LA TVA SE CALCULE À LA SAISIE (2026-09-25).
+ *
+ * Sage 100 i7 (manuel de formation, taux de taxes) : le taux de taxe sert « à
+ * calculer les montants de TVA automatiquement », et « le calcul de la taxe ne
+ * peut se faire que dans un journal de type achat ou vente ». D'où trois
+ * régimes :
+ *
+ *  · AUCUN · hors journal d'achats ou de ventes. Une banque, une caisse ou une
+ *    opération diverse ne constatent pas de facture, et y proposer une taxe
+ *    ferait déduire ou collecter sur un règlement.
+ *  · AUTO · journal d'achats ou de ventes d'un dossier DÉCLARÉ assujetti. La
+ *    ligne de TVA s'ajoute d'office, et elle est ANNONCÉE à l'écran avec son
+ *    montant · une ligne de taxe qui s'insérerait sans un mot est ce que le
+ *    dépôt refusait jusqu'ici, et il avait raison sur ce point.
+ *  · PROPOSE · journal d'achats ou de ventes d'un dossier NON déclaré
+ *    assujetti. `Tenant.assujettiTva` vaut faux par défaut, une ASBL ne
+ *    l'étant pas de plein droit · rien ne s'ajoute seul, la bande propose.
+ */
+export type ModeCalculTva = 'AUCUN' | 'PROPOSE' | 'AUTO';
+
+export function modeCalculTva(typeJournal: string | undefined, assujettiTva: boolean | null | undefined): ModeCalculTva {
+  if (typeJournal !== 'ACHATS' && typeJournal !== 'VENTES') return 'AUCUN';
+  return assujettiTva === true ? 'AUTO' : 'PROPOSE';
+}
+
+/**
+ * NET À PAYER · dans un journal d'achats ou de ventes, le compte de tiers
+ * reçoit le montant qui équilibre la pièce, c'est-à-dire le TTC (Sage : le
+ * tiers porte 228 000 face à 190 000 de charge et 38 000 de taxe). Il est
+ * PRÉ-REMPLI au choix du compte, dans le sens qui solde, et reste modifiable.
+ * Les avances et les estimations de clôture (408, 409, 418, 419) ne sont pas
+ * un net à payer.
+ */
+export function netAPayer(params: {
+  typeJournal: string | undefined;
+  numeroCompte: string;
+  soldePiece: number;
+}): { debit: number; credit: number } | null {
+  const { typeJournal, numeroCompte, soldePiece } = params;
+  if (typeJournal !== 'ACHATS' && typeJournal !== 'VENTES') return null;
+  if (!/^4[01]/.test(numeroCompte) || /^(408|409|418|419)/.test(numeroCompte)) return null;
+  if (Math.abs(soldePiece) < 0.005) return null;
+  const montant = arrondi2(Math.abs(soldePiece));
+  return soldePiece > 0 ? { debit: 0, credit: montant } : { debit: montant, credit: 0 };
+}

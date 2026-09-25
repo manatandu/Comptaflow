@@ -3237,6 +3237,20 @@ association exonérée. La proposition est retrouvée par son indice ET son
 compte : une suppression l'invalide au lieu de la reporter sur la ligne
 voisine.
 
+**RÉVISÉ LE 2026-09-25 · TROIS RÉGIMES, ET LA SOURCE TRANCHE.** Le manuel Sage
+i7 dit du taux de taxe qu'il sert « à calculer les montants de TVA
+automatiquement », et que « le calcul de la taxe ne peut se faire que dans un
+journal de type achat ou vente ». `modeCalculTva` (lib/tva-saisie.ts) en tire
+trois régimes. AUCUN hors journal d'achats ou de ventes · la grille proposait
+jusque-là une taxe jusque dans la banque. AUTO dans un journal d'achats ou de
+ventes d'un dossier DÉCLARÉ assujetti (`Tenant.assujettiTva`) · la ligne
+s'ajoute d'office, ANNONCÉE à l'écran avec son montant, et se supprime comme
+une autre. PROPOSE sinon · l'argument de l'association exonérée tient toujours,
+et c'est l'assujettissement déclaré, faux par défaut, qui le règle au lieu d'un
+clic imposé à tous. Le NET À PAYER suit (`netAPayer`) · au choix d'un compte de
+tiers d'un journal d'achats ou de ventes, le montant qui équilibre la pièce est
+pré-rempli dans le sens qui solde, 408, 409, 418 et 419 exclus.
+
 **Exclusion de relance par tiers · ce que l'exclusion NE DOIT PAS faire.** Sage
 l'appelle « Hors rappel/relevé » et en fait une case sur la fiche du tiers. La
 case est la partie facile ; le piège est ce qu'on lui fait faire de trop.
