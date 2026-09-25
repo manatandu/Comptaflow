@@ -4538,6 +4538,23 @@ N'IMPUTE RIEN · il est proposé dans les deux champs de libellé de la saisie
 (datalist) et n'écrit que le texte. COLLABORATEURS ET PLAN REPORTING NE SONT
 PAS SERVIS, faute de source dans le corpus.
 
+**États personnalisés (2026-09-25).** Point 20 de la comparaison. Sage NOMME
+les « états libres personnalisables » sans les décrire ; l'Édition pilotée
+décrit un historique « sur 5 ans des indicateurs clés ». La définition est donc
+celle d'OmegaX, et l'aide le dit. QUATRE RÈGLES À NE PAS DÉFAIRE
+(`etats-personnalises/moteur-etat-personnalise.ts`). (1) LE MOINS EST UNE
+EXCLUSION · « 70 -709 » se lit « 70 sauf 709 », la racine la plus longue
+décide ; lu comme une soustraction, il ajoutait les rabais au chiffre
+d'affaires sur une ligne au montant plausible, et c'est le premier jeu d'essai
+qui l'a montré. (2) DEUX MESURES · SOLDE pour un compte de bilan, MOUVEMENT
+(écritures de clôture exclues) pour une charge ou un produit, dont la clôture
+remet le solde à zéro · un chiffre d'affaires lu au SOLDE vaudrait zéro sur
+tout exercice clos. (3) UN TOTAL NE CITE QUE DES LIGNES PRÉCÉDENTES, la même
+règle à la porte et au calcul, et une définition enregistrée est revérifiée
+avant chaque calcul. (4) RIEN N'EST STOCKÉ QUE LA DÉFINITION · chaque colonne
+se recalcule sur `EcritureService.balance`, la balance générale, jusqu'à cinq
+exercices ; zéro négatif ramené à zéro. Ni état financier ni document déposé.
+
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
 nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la

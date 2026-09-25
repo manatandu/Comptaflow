@@ -17,6 +17,9 @@ const PlanComptesPage = lazy(() => import('../pages/PlanComptesPage').then((m) =
 const JournauxPage = lazy(() => import('../pages/JournauxPage').then((m) => ({ default: m.JournauxPage })));
 const BanquesPage = lazy(() => import('../pages/BanquesPage').then((m) => ({ default: m.BanquesPage })));
 const LibellesPage = lazy(() => import('../pages/LibellesPage').then((m) => ({ default: m.LibellesPage })));
+const EtatsPersonnalisesPage = lazy(() =>
+  import('../pages/EtatsPersonnalisesPage').then((m) => ({ default: m.EtatsPersonnalisesPage })),
+);
 const JournalPage = lazy(() => import('../pages/JournalPage').then((m) => ({ default: m.JournalPage })));
 const BalanceAgeePage = lazy(() => import('../pages/BalanceAgeePage').then((m) => ({ default: m.BalanceAgeePage })));
 const JournalAuditPage = lazy(() => import('../pages/JournalAuditPage').then((m) => ({ default: m.JournalAuditPage })));
@@ -174,6 +177,7 @@ export const FENETRES: DefinitionFenetre[] = [
   { motif: /^\/journaux$/, titre: 'Codes journaux', titreCourt: 'Codes journaux', rendre: () => <JournauxPage /> },
   { motif: /^\/banques$/, titre: 'Banques', titreCourt: 'Banques', rendre: () => <BanquesPage /> },
   { motif: /^\/libelles$/, titre: 'Libellés', titreCourt: 'Libellés', rendre: () => <LibellesPage /> },
+  { motif: /^\/etats-personnalises$/, titre: 'États personnalisés', titreCourt: 'États perso.', rendre: () => <EtatsPersonnalisesPage /> },
   {
     motif: /^\/journal$/,
     titre: 'Journal · Grand livre · Balance',

@@ -607,6 +607,7 @@ model Tenant {
   banques                  Banque[]
   ribsBanque               RibBanque[]
   libellesEcriture         LibelleEcriture[]
+  etatsPersonnalises       EtatPersonnalise[]
   devises                  Devise[]
   reevaluations            Reevaluation[]
   niveauxRelance           NiveauRelance[]
@@ -7052,4 +7053,22 @@ model LibelleEcriture {
 
   @@unique([tenantId, code])
   @@map("libelles_ecriture")
+}
+
+/// ÉTAT PERSONNALISÉ (point 20 de la comparaison Sage i7) · une définition
+/// nommée, calculée à la demande sur un à cinq exercices. `lignes` porte des
+/// rubriques de comptes et des totaux (`etats-personnalises/moteur-etat-
+/// personnalise.ts`), vérifiées par la même règle à la porte et au calcul.
+/// Ni état financier ni document déposé.
+model EtatPersonnalise {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  nom       String
+  lignes    Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, nom])
+  @@map("etats_personnalises")
 }

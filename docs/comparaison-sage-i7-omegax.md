@@ -32,7 +32,7 @@ tiennent à un texte OHADA ; ils sont signalés comme tels.
 | 3. Plan comptable, journaux, tiers, taux de taxes | PARTIEL | Détail/Total, sommeil, types de journaux, compte de trésorerie : OUI. Suppression avec refus « mouvementé » : NON. Option « contrepartie à chaque ligne » : NON. Tiers : un sous-compte de classe 4 par tiers, pas de compte collectif + auxiliaire. Taux : une fiche porte les deux comptes (443 et 445), sans champ « sens ». |
 | 4. Saisie des écritures | PARTIEL | Saisie journal + mois, F4 sur les comptes, suppression refusée si lettrée ou pointée (et en plus si validée) : OUI. TVA proposée au clic, net à payer par « Équilibrer » : pas automatiques. Saisie par lot, OD analytiques, import d'extraits bancaires, réimputation : NON. |
 | 5. Interrogation et lettrage, recherche | PARTIEL | Lettrage complet (manuel, automatique, pré-lettrage) : OUI. Recherche d'écritures sur le libellé seul. Historique des rappels : écran depuis le point 17. |
-| 6. États | OUI pour l'essentiel | Brouillard, journal, grand livre, balance, échéancier, balance âgée, taxes, bilan, analytique, contrôles, révision : OUI. États personnalisés et reporting : NON. Export des listes de structures : NON. |
+| 6. États | OUI pour l'essentiel | Brouillard, journal, grand livre, balance, échéancier, balance âgée, taxes, bilan, analytique, contrôles, révision : OUI. États personnalisés : OUI depuis le point 20. Export des listes de structures : NON. |
 | 7. Modèles de saisie | PARTIEL | Modèles par journal, appelés depuis la saisie. Les fonctions de ligne (Répéter, Incrémenter, Équilibrer, Calculer) et l'appel par F4 manquent. |
 | 8. Fin d'exercice | AUTREMENT | Clôture qui solde 6 à 8 sur le 13 et génère le report à-nouveau (Solde ou Détail). Comptes 131/139 du plan OHADA, et non 1191/1199 du plan français · écart VOULU. Pas de report des budgets, pas de suppression du plus ancien exercice. |
 | 9. Fusion des structures | NON | Aucune fusion de comptes, tiers ou journaux. |
@@ -127,5 +127,13 @@ tiennent à un texte OHADA ; ils sont signalés comme tels.
     les décrit nulle part (« collaborateurs » n'y paraît que comme exemple
     d'axe analytique, que les plans analytiques couvrent déjà), et les
     inventer serait écrire une règle Sage de mémoire.
-20. États personnalisés et reporting.
+20. ~~États personnalisés et reporting~~ · FAIT le 2026-09-25 : états définis
+    par le cabinet (rubriques de racines de comptes, « 70 -709 » = 70 sauf 709,
+    mesure solde ou mouvement, sens, totaux « A+B-C » sur lignes
+    précédentes), enregistrés dans le dossier, calculés sur un à cinq
+    exercices côte à côte depuis la balance générale, imprimables. Sage ne
+    fait que nommer les « états libres » ; les cinq exercices viennent de
+    l'historique de l'Édition pilotée. Ni état financier ni document déposé.
+    Le simulateur et le cube de données de l'Édition pilotée ne sont pas
+    repris.
 21. Documents attachés aux tiers.

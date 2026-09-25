@@ -81,6 +81,7 @@ export const MODELES_CLOISONNES = new Set<string>([
   'Banque',
   'RibBanque',
   'LibelleEcriture',
+  'EtatPersonnalise',
   'MouvementStock',
   'NiveauRelance',
   'PlanAnalytique',

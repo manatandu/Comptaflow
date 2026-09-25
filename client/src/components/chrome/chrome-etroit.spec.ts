@@ -222,7 +222,9 @@ describe('menu « État » à 360 px', () => {
     // même raison · des états financiers « en sus » du jeu légal (AUDCIF
     // art. 73-1), SYSCOHADA seulement. Les deux bornes tiennent encore.
     const tous = [...source.matchAll(/label: '([^']+)'/g)].map((m) => m[1]);
-    expect(tous).toHaveLength(32);
+    // Le 2026-09-25, les états personnalisés sont entrés sous « Analyse des
+    // comptes », un état de relecture comme le palmarès. Les bornes tiennent.
+    expect(tous).toHaveLength(33);
     expect([...vues].sort()).toEqual([...tous].sort());
     // DEUX BORNES, et plus un chiffre relevé d'un cran à chaque ajout · c'est
     // la troisième fois en une journée qu'une édition nouvelle faisait tomber

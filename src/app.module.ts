@@ -59,6 +59,7 @@ import { PlateformeModule } from './modules/plateforme/plateforme.module';
 import { GroupeModule } from './modules/groupe/groupe.module';
 import { ModelesSaisieModule } from './modules/modeles-saisie/modeles-saisie.module';
 import { BanquesModule } from './modules/banques/banques.module';
+import { EtatsPersonnalisesModule } from './modules/etats-personnalises/etats-personnalises.module';
 import { CourrierModule } from './modules/courrier/courrier.module';
 
 @Module({
@@ -134,6 +135,7 @@ import { CourrierModule } from './modules/courrier/courrier.module';
     GroupeModule,
     ModelesSaisieModule,
     BanquesModule,
+    EtatsPersonnalisesModule,
     CourrierModule,
   ],
   controllers: [SanteController],

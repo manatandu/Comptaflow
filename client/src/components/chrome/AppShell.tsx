@@ -416,6 +416,9 @@ export function AppShell() {
             { label: 'Justificatif de solde', onClick: () => navigate('/justificatif-solde') },
             { label: 'Évolution des soldes', onClick: () => navigate('/evolution-soldes') },
             { label: 'Palmarès et analyse des journaux', onClick: () => navigate('/palmares-journaux') },
+            // Point 20 · rubriques libres sur un à cinq exercices, un état de
+            // relecture comme le palmarès, pas un état financier.
+            { label: 'États personnalisés', onClick: () => navigate('/etats-personnalises') },
           ],
         },
         {
