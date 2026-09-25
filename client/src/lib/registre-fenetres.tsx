@@ -35,6 +35,7 @@ const TableauxImmobilisationsPage = lazy(() => import('../pages/TableauxImmobili
 const EcheancierPage = lazy(() => import('../pages/EcheancierPage').then((m) => ({ default: m.EcheancierPage })));
 const LettragePage = lazy(() => import('../pages/LettragePage').then((m) => ({ default: m.LettragePage })));
 const RapprochementPage = lazy(() => import('../pages/RapprochementPage').then((m) => ({ default: m.RapprochementPage })));
+const ReglementsPage = lazy(() => import('../pages/ReglementsPage').then((m) => ({ default: m.ReglementsPage })));
 const RapprochementDetailPage = lazy(() => import('../pages/RapprochementDetailPage').then((m) => ({ default: m.RapprochementDetailPage })));
 const ImmobilisationsPage = lazy(() => import('../pages/ImmobilisationsPage').then((m) => ({ default: m.ImmobilisationsPage })));
 const ExercicePage = lazy(() => import('../pages/ExercicePage').then((m) => ({ default: m.ExercicePage })));
@@ -154,6 +155,7 @@ export const FENETRES: DefinitionFenetre[] = [
     titreCourt: 'Rapprochement',
     rendre: ({ capture }) => <RapprochementDetailPage id={capture[0]} />,
   },
+  { motif: /^\/reglements$/, titre: 'Règlement des tiers', titreCourt: 'Règlements', rendre: () => <ReglementsPage /> },
   {
     motif: /^\/rapprochement$/,
     titre: 'Rapprochement bancaire',

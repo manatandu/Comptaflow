@@ -283,6 +283,8 @@ export function AppShell() {
         // compte · passer par le plan comptable était un détour trompeur
         // (le menu « Lettrage » ouvrait une autre fenêtre que celle annoncée).
         { label: 'Interrogation et lettrage', separateurAvant: true, onClick: () => navigate('/lettrage') },
+        // Le règlement suit le lettrage · il en pose un à chaque pièce.
+        { label: 'Règlement des tiers', onClick: () => navigate('/reglements') },
         { label: 'Rapprochement bancaire', onClick: () => navigate('/rapprochement') },
         { label: 'Régularisations et abonnements', onClick: () => navigate('/regularisations') },
         // SOUS « TRAITEMENT », ET NON SOUS « CONTRÔLE ET RÉVISION ».

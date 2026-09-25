@@ -4185,6 +4185,26 @@ datée après la date du relevé est refusée à l'import, et un relevé qui ne
 boucle pas (solde de départ + opérations ≠ solde imprimé) est signalé avant de
 rapprocher.
 
+**Règlement des tiers à partir des échéances (2026-09-25).** Deuxième manque
+« usage quotidien » de la comparaison Sage i7. Fenêtre Traitement > Règlement
+des tiers (`reglements/`). Le comptable coche les échéances dues, OmegaX passe
+UNE pièce de trésorerie par tiers (plusieurs factures d'un tiers en un seul
+règlement, comme Sage) et LETTRE aussitôt factures et règlement.
+
+QUATRE RÈGLES À NE PAS DÉFAIRE. (1) LE RÈGLEMENT NE TOUCHE QUE LE TIERS ET LA
+TRÉSORERIE · guide SYSCOHADA Partie 1 ch. 4 § 1 (flux juridique puis flux
+financier) et fiches des comptes 40 et 41 des deux plans : 40 débité par la
+trésorerie, 41 crédité par la trésorerie. (2) 408, 409, 418 ET 419 NE SE
+RÈGLENT PAS · estimations de clôture ou avances, même sens dans les deux semis.
+(3) MOINS QUE LE DÛ, C'EST UN PARTIEL ET UN LETTRAGE PARTIEL · PLUS, C'EST
+REFUSÉ, l'excédent étant une avance ou un trop-perçu, une autre opération. (4)
+TOUT SE VÉRIFIE AVANT LA PREMIÈRE PIÈCE · un lot ne s'arrête pas au sixième
+règlement en laissant cinq pièces passées. Le lettrage porte l'origine MANUEL ·
+ce n'est pas une présomption, le comptable a choisi les factures payées. Non
+servi et dit · l'impression de l'ordre de paiement (chez Sage, le règlement
+n'est effectif qu'après elle) ; ici la pièce naît au brouillard et la
+validation joue ce rôle.
+
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
 nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la
