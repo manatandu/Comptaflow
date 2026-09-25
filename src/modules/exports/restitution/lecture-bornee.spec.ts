@@ -49,8 +49,9 @@ describe('l’inventaire couvre le schéma, sans trou ni surplus', () => {
     // écarts d'évaluation (tranche 4a), bornés par leur propre `tenantId` ; à
     // 91 avec les provisions pour pertes de change (tranche 4b), idem ; à 95
     // avec les états IFRS (paramètres, règles, retraitements et leurs lignes),
-    // chacun borné par son propre `tenantId`.
-    expect(modeles).toHaveLength(95);
+    // chacun borné par son propre `tenantId` ; à 96 avec les mouvements de
+    // capitaux propres IFRS (tranche 2), idem.
+    expect(modeles).toHaveLength(96);
     expect([...TABLES_RESTITUEES].sort()).toEqual(modeles.filter((m) => m !== 'Tenant').sort());
   });
 

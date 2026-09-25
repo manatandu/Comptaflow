@@ -15,16 +15,25 @@ import { ROLES_KEY } from '../../common/decorators/roles.decorator';
 const T = 'dossier-1';
 const EX = 'ex-2026';
 const EX1 = 'ex-2025';
+const EX2 = 'ex-2024';
 
-function doublure(avecPrecedent = false) {
-  const tables: Record<string, any[]> = { regles: [], retraitements: [], parametres: [] };
+function doublure(avecPrecedent = false, avecAvantPrecedent = false) {
+  const tables: Record<string, any[]> = { regles: [], retraitements: [], parametres: [], mouvements: [] };
+  // La doublure HONORE la borne `dateFin < …` · une doublure qui rendrait
+  // toujours le même exercice ferait passer la recherche du précédent pour
+  // juste quelle que soit la date qu'elle cherche.
+  const exercices = [
+    { id: EX, dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') },
+    ...(avecPrecedent ? [{ id: EX1, dateDebut: new Date('2025-01-01'), dateFin: new Date('2025-12-31') }] : []),
+    ...(avecAvantPrecedent ? [{ id: EX2, dateDebut: new Date('2024-01-01'), dateFin: new Date('2024-12-31') }] : []),
+  ];
   let seq = 0;
   const prisma: any = {
     exercice: {
       findFirst: jest.fn(async ({ where }: any) => {
-        if (where.id === EX && where.tenantId === T) return { id: EX, dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') };
-        if (!where.id && avecPrecedent) return { id: EX1, dateDebut: new Date('2025-01-01') };
-        return null;
+        if (where.id) return (where.tenantId === T && exercices.find((e) => e.id === where.id)) || null;
+        const avant = exercices.filter((e) => e.dateFin < where.dateFin.lt).sort((a, b) => b.dateFin.getTime() - a.dateFin.getTime());
+        return avant[0] ?? null;
       }),
     },
     parametresIfrs: {
@@ -47,6 +56,16 @@ function doublure(avecPrecedent = false) {
       }),
       delete: jest.fn(async ({ where }: any) => (tables.regles = tables.regles.filter((r) => r.id !== where.id))),
     },
+    mouvementCapitauxPropresIfrs: {
+      findMany: jest.fn(async ({ where }: any) => tables.mouvements.filter((m) => m.exerciceId === where.exerciceId && m.tenantId === where.tenantId)),
+      findFirst: jest.fn(async ({ where }: any) => tables.mouvements.find((m) => m.id === where.id && m.tenantId === where.tenantId) ?? null),
+      create: jest.fn(async ({ data }: any) => {
+        const m = { id: `m-${++seq}`, createdAt: new Date(), ...data, montant: new Prisma.Decimal(data.montant) };
+        tables.mouvements.push(m);
+        return m;
+      }),
+      delete: jest.fn(async ({ where }: any) => (tables.mouvements = tables.mouvements.filter((m) => m.id !== where.id))),
+    },
     retraitementIfrs: {
       findMany: jest.fn(async ({ where }: any) => tables.retraitements.filter((r) => r.exerciceId === where.exerciceId)),
       findFirst: jest.fn(async ({ where }: any) => tables.retraitements.find((r) => r.id === where.id && r.tenantId === where.tenantId) ?? null),
@@ -61,6 +80,7 @@ function doublure(avecPrecedent = false) {
   const balances: Record<string, [string, number][]> = {
     [EX]: [['24100000', 1000], ['10100000', -800], ['70100000', -500], ['60100000', 300]],
     [EX1]: [['24100000', 900], ['10100000', -800], ['70100000', -400], ['60100000', 300]],
+    [EX2]: [['24100000', 800], ['10100000', -800]],
   };
   const ecritures: any = {
     balance: jest.fn(async (_t: string, ex: string, brouillard: boolean) => {
@@ -119,10 +139,53 @@ describe('IfrsService · de la balance légale aux états IFRS', () => {
   });
 });
 
+describe('IfrsService · variation des capitaux propres sur trois exercices', () => {
+  // 2024 · capital 800. 2025 · capital 800, résultat 100. 2026 · capital 800,
+  // résultat 200, et le résultat de 2025 ne se retrouve plus nulle part · il a
+  // été distribué, ce que seule une déclaration peut dire.
+  it('deux blocs, N et N-1 ; l’écart non déclaré est nommé, la distribution déclarée l’explique', async () => {
+    const { service, tables } = doublure(true, true);
+    for (const r of REGLES) await service.ajouterRegle(T, r);
+    await service.declarerActivite(T, { activitePrincipale: 'AUCUNE' });
+    let e = await service.etat(T, EX);
+    const L = (v: any, cle: string) => v.lignes.find((l: any) => l.cle === cle);
+    expect(L(e.variationCapitauxPropres.n1, 'RESULTAT_NET').reserves).toBe(100);
+    expect(L(e.variationCapitauxPropres.n1, 'ECART_NON_EXPLIQUE')).toBeUndefined();
+    expect(L(e.variationCapitauxPropres.n, 'ECART_NON_EXPLIQUE').reserves).toBe(-100);
+    expect(e.n.motifsNonPubliable.join(' ')).toMatch(/-100 de variation/);
+
+    await service.ajouterMouvementCp(T, { exerciceId: EX, type: 'DISTRIBUTION', composante: 'RESERVES', montant: -100, libelle: 'Dividende 2025', justification: 'PV AGO' });
+    expect(tables.mouvements).toHaveLength(1);
+    e = await service.etat(T, EX);
+    expect(L(e.variationCapitauxPropres.n, 'DISTRIBUTIONS').reserves).toBe(-100);
+    expect(L(e.variationCapitauxPropres.n, 'ECART_NON_EXPLIQUE')).toBeUndefined();
+    expect(e.n.motifsNonPubliable.join(' ')).not.toMatch(/de variation que ni le résultat global/);
+    expect(e.variationCapitauxPropres.mouvements.map((m: any) => m.montant)).toEqual([-100]);
+  });
+
+  it('sans l’exercice N-2, le bloc comparatif n’est pas rendu et le jeu le dit (§ 10 f)', async () => {
+    const { service } = doublure(true);
+    for (const r of REGLES) await service.ajouterRegle(T, r);
+    const e = await service.etat(T, EX);
+    expect(e.variationCapitauxPropres.n).not.toBeNull();
+    expect(e.variationCapitauxPropres.n1).toBeNull();
+    expect(e.n.motifsNonPubliable.join(' ')).toMatch(/Bloc comparatif de l’état des variations des capitaux propres non établi \(IFRS 18 § 10 f\)/);
+  });
+
+  it('refus à la porte · distribution positive, mouvement d’un autre dossier', async () => {
+    const { service, tables } = doublure();
+    await expect(
+      service.ajouterMouvementCp(T, { exerciceId: EX, type: 'DISTRIBUTION', composante: 'RESERVES', montant: 10, libelle: 'x', justification: 'PV' }),
+    ).rejects.toThrow(/montant est négatif/);
+    await expect(service.supprimerMouvementCp('autre-dossier', 'm-1')).rejects.toThrow(/introuvable/);
+    expect(tables.mouvements).toHaveLength(0);
+  });
+});
+
 describe('IfrsController · les écritures sont réservées', () => {
   it('toute route qui écrit porte @Roles, sans la lecture seule', () => {
     const proto = IfrsController.prototype as any;
-    for (const m of ['declarerActivite', 'ajouterRegle', 'supprimerRegle', 'ajouterRetraitement', 'supprimerRetraitement']) {
+    for (const m of ['declarerActivite', 'ajouterRegle', 'supprimerRegle', 'ajouterRetraitement', 'supprimerRetraitement', 'ajouterMouvementCp', 'supprimerMouvementCp']) {
       const roles = Reflect.getMetadata(ROLES_KEY, proto[m]);
       expect(roles).toEqual([RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE]);
     }
@@ -138,7 +201,7 @@ describe('les tables IFRS ne sont lues que par le module IFRS', () => {
         return statSync(p).isDirectory() ? fichiers(p) : p.endsWith('.ts') && !p.endsWith('.spec.ts') ? [p] : [];
       });
     const lecteurs = fichiers(racine)
-      .filter((f) => /\b(retraitementIfrs|regleCorrespondanceIfrs|parametresIfrs|ligneRetraitementIfrs|RetraitementIfrs|RegleCorrespondanceIfrs|ParametresIfrs|LigneRetraitementIfrs)\b/.test(readFileSync(f, 'utf8')))
+      .filter((f) => /\b(retraitementIfrs|regleCorrespondanceIfrs|parametresIfrs|ligneRetraitementIfrs|RetraitementIfrs|RegleCorrespondanceIfrs|ParametresIfrs|LigneRetraitementIfrs|mouvementCapitauxPropresIfrs|MouvementCapitauxPropresIfrs)\b/.test(readFileSync(f, 'utf8')))
       .map((f) => relative(racine, f))
       .sort();
     expect(lecteurs).toEqual(['common/cloisonnement/modeles-cloisonnes.ts', 'modules/ifrs/ifrs.service.ts']);

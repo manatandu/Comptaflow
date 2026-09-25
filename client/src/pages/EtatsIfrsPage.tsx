@@ -9,8 +9,25 @@ import { useExercice } from '../lib/exercice';
  * légale projetée par des règles de correspondance déclarées, plus des
  * retraitements déclarés, posés à côté. Trois colonnes par poste, pour que le
  * passage d'un référentiel à l'autre se lise ligne à ligne.
+ *
+ * TRANCHE 2 · l'état présentant le résultat global suit immédiatement le compte
+ * de résultat (§ 12 b), et l'état des variations des capitaux propres
+ * rapproche l'ouverture de la clôture composante par composante (§ 107). Les
+ * apports, distributions, transferts et effets IAS 8 se DÉCLARENT · ce que rien
+ * n'explique reste sur une ligne « écart non expliqué ».
  */
-type Rubrique = { code: string; libelle: string; ref: string; etat: 'SITUATION' | 'RESULTAT'; section?: string; categorie?: string };
+type Rubrique = { code: string; libelle: string; ref: string; etat: 'SITUATION' | 'RESULTAT' | 'RESULTAT_GLOBAL'; section?: string; categorie?: string };
+type LigneVariation = { cle: string; libelle: string; ref?: string; nature: 'SOLDE' | 'MOUVEMENT' | 'TOTAL' | 'ECART'; capital: number; reserves: number; autres: number; total: number };
+type Variation = { lignes: LigneVariation[]; mentions: string[]; motifsNonPubliable: string[] };
+type TypeMouvement = 'CHANGEMENT_METHODE' | 'CORRECTION_ERREUR' | 'APPORT' | 'DISTRIBUTION' | 'TRANSFERT';
+type Composante = 'CAPITAL' | 'RESERVES' | 'AUTRES_COMPOSANTES';
+const TYPES_MOUVEMENT: Record<TypeMouvement, string> = {
+  APPORT: 'Apport des propriétaires (§ 107 c iii)',
+  DISTRIBUTION: 'Distribution aux propriétaires (§ 107 c iii)',
+  TRANSFERT: 'Transfert entre composantes',
+  CHANGEMENT_METHODE: 'Changement de méthode comptable (§ 107 b, IAS 8)',
+  CORRECTION_ERREUR: 'Correction d’erreur (§ 107 b, IAS 8)',
+};
 type Ligne = {
   cle: string;
   libelle: string;
@@ -25,6 +42,7 @@ type Ligne = {
 type Etats = {
   situation: Ligne[];
   resultat: Ligne[];
+  resultatGlobal: Ligne[];
   nonClasses: { numero: string; intitule: string; solde: number }[];
   rapprochements: {
     resultatSyscohada: number;
@@ -47,6 +65,14 @@ type Etat = {
   n: Etats;
   n1: Etats | null;
   motifN1: string | null;
+  variationCapitauxPropres: {
+    composantes: Record<Composante, { libelle: string }>;
+    n: Variation | null;
+    motifN: string | null;
+    n1: Variation | null;
+    motifN1: string | null;
+    mouvements: { id: string; type: TypeMouvement; composante: Composante; montant: number; libelle: string; justification: string }[];
+  };
 };
 
 const champ = 'w-full border border-border px-1.5 py-1 text-[12px]';
@@ -60,6 +86,7 @@ export function EtatsIfrsPage() {
   const [etat, setEtat] = useState<Etat | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [regle, setRegle] = useState({ prefixe: '', rubrique: '' });
+  const [mvt, setMvt] = useState({ type: 'DISTRIBUTION' as TypeMouvement, composante: 'RESERVES' as Composante, montant: '', libelle: '', justification: '' });
   const [retr, setRetr] = useState({ libelle: '', fondement: '', lignes: [{ rubrique: '', montant: '' }, { rubrique: '', montant: '' }] });
 
   const recharger = useCallback(async () => {
@@ -138,6 +165,46 @@ export function EtatsIfrsPage() {
     );
   };
 
+  const vcp = etat.variationCapitauxPropres;
+  const blocVariation = (titre: string, v: Variation | null, motif: string | null) => (
+    <div className="mb-2">
+      <p className="text-[12px] font-semibold mb-1">{titre}</p>
+      {!v ? (
+        <p className="text-[12px] text-warning">{motif}</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-[12px]">
+            <thead>
+              <tr className="text-left border-b border-border">
+                <th className="py-1 pr-2">Mouvement</th>
+                <th className="py-1 pr-2">IFRS 18</th>
+                <th className="py-1 pr-2 text-right">{vcp.composantes.CAPITAL.libelle}</th>
+                <th className="py-1 pr-2 text-right">{vcp.composantes.RESERVES.libelle}</th>
+                <th className="py-1 pr-2 text-right">{vcp.composantes.AUTRES_COMPOSANTES.libelle}</th>
+                <th className="py-1 text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {v.lignes.map((l) => (
+                <tr
+                  key={l.cle}
+                  className={l.nature === 'ECART' ? 'text-danger font-semibold' : l.nature === 'MOUVEMENT' ? 'border-b border-border/40' : 'font-bold border-t border-border'}
+                >
+                  <td className="py-1 pr-2">{l.libelle}</td>
+                  <td className="py-1 pr-2 text-text-dim">{l.ref}</td>
+                  <td className="py-1 pr-2 text-right">{fc(l.capital)}</td>
+                  <td className="py-1 pr-2 text-right">{fc(l.reserves)}</td>
+                  <td className="py-1 pr-2 text-right">{fc(l.autres)}</td>
+                  <td className="py-1 text-right">{fc(l.total)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+
   const r = etat.n.rapprochements;
   return (
     <div className="p-2 max-w-[1100px]">
@@ -149,7 +216,9 @@ export function EtatsIfrsPage() {
           n’y est écrit · chaque compte est rangé dans une rubrique d’IFRS 18 par une règle que vous déclarez (le plus long
           préfixe l’emporte), et chaque écart de norme se déclare en retraitement équilibré, avec la norme qui le fonde. Un
           compte de gestion va au compte de résultat, un compte de bilan à l’état de la situation financière · un reclassement
-          de l’un vers l’autre passe par un retraitement. Charges présentées par nature (IFRS 18 § 78 a).
+          de l’un vers l’autre passe par un retraitement. Charges présentées par nature (IFRS 18 § 78 a). Les autres éléments
+          du résultat global n’ont aucun compte au SYSCOHADA · ils entrent par retraitement, avec la norme qui les fait sortir
+          du résultat net (§ B86-B87).
         </p>
         {erreur && <p className="text-[12px] text-danger mt-1.5">{erreur}</p>}
         {etat.n.motifsNonPubliable.length > 0 && (
@@ -183,11 +252,13 @@ export function EtatsIfrsPage() {
             <input className={champ} placeholder="Préfixe (ex. 24)" value={regle.prefixe} onChange={(e) => setRegle({ ...regle, prefixe: e.target.value })} />
             <select className={champ} value={regle.rubrique} onChange={(e) => setRegle({ ...regle, rubrique: e.target.value })}>
               <option value="">Rubrique IFRS 18…</option>
-              {etat.rubriques.map((rb) => (
-                <option key={rb.code} value={rb.code}>
-                  {rb.etat === 'SITUATION' ? 'Situation' : 'Résultat'} · {rb.libelle} ({rb.ref})
-                </option>
-              ))}
+              {etat.rubriques
+                .filter((rb) => rb.etat !== 'RESULTAT_GLOBAL')
+                .map((rb) => (
+                  <option key={rb.code} value={rb.code}>
+                    {rb.etat === 'SITUATION' ? 'Situation' : 'Résultat'} · {rb.libelle} ({rb.ref})
+                  </option>
+                ))}
             </select>
             <button
               className="border border-border px-2.5 py-1 text-[12px]"
@@ -311,7 +382,59 @@ export function EtatsIfrsPage() {
 
       {tableau('État de la situation financière', etat.n.situation, etat.n1?.situation ?? null)}
       {tableau('Compte de résultat', etat.n.resultat, etat.n1?.resultat ?? null)}
+      {tableau('État présentant le résultat global', etat.n.resultatGlobal, etat.n1?.resultatGlobal ?? null)}
       {etat.motifN1 && <p className="text-[12px] text-text-dim mb-2">{etat.motifN1}</p>}
+
+      <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
+        <h2 className="text-[12.5px] font-bold mb-1.5">État des variations des capitaux propres (IFRS 18 § 107 à 112)</h2>
+        {blocVariation('Exercice N', vcp.n, vcp.motifN)}
+        {blocVariation('Exercice N-1 (comparatif, § 10 f)', vcp.n1, vcp.motifN1)}
+        <p className="text-[12px] font-semibold mt-2 mb-1">Mouvements déclarés de l’exercice</p>
+        {peutEcrire && (
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_140px] gap-1.5 mb-1.5">
+            <select className={champ} value={mvt.type} onChange={(e) => setMvt({ ...mvt, type: e.target.value as TypeMouvement })}>
+              {(Object.keys(TYPES_MOUVEMENT) as TypeMouvement[]).map((t) => (
+                <option key={t} value={t}>{TYPES_MOUVEMENT[t]}</option>
+              ))}
+            </select>
+            <select className={champ} value={mvt.composante} onChange={(e) => setMvt({ ...mvt, composante: e.target.value as Composante })}>
+              {(Object.keys(vcp.composantes) as Composante[]).map((c) => (
+                <option key={c} value={c}>{vcp.composantes[c].libelle}</option>
+              ))}
+            </select>
+            <input className={champ} placeholder="Hausse + / baisse −" value={mvt.montant} onChange={(e) => setMvt({ ...mvt, montant: e.target.value })} />
+            <input className={champ} placeholder="Libellé" value={mvt.libelle} onChange={(e) => setMvt({ ...mvt, libelle: e.target.value })} />
+            <input className={champ} placeholder="Justification (procès-verbal, décision, note IAS 8)" value={mvt.justification} onChange={(e) => setMvt({ ...mvt, justification: e.target.value })} />
+            <button
+              className="border border-border px-2.5 py-1 text-[12px]"
+              onClick={() =>
+                void agir(async () => {
+                  await api.post('/ifrs/mouvements-capitaux-propres', { exerciceId, ...mvt, montant: nombre(mvt.montant) });
+                  setMvt({ ...mvt, montant: '', libelle: '', justification: '' });
+                })
+              }
+            >
+              Déclarer
+            </button>
+          </div>
+        )}
+        {vcp.mouvements.length === 0 ? (
+          <p className="text-[12px] text-text-dim">Aucun mouvement déclaré · la variation n’est expliquée que par le résultat global.</p>
+        ) : (
+          vcp.mouvements.map((m) => (
+            <div key={m.id} className="flex justify-between gap-2 border-b border-border/60 py-1 text-[12px]">
+              <span>
+                <strong>{m.libelle}</strong> · {TYPES_MOUVEMENT[m.type]} · {vcp.composantes[m.composante].libelle} · {fc(m.montant)} · {m.justification}
+              </span>
+              {peutEcrire && (
+                <button className="text-[11px] underline" onClick={() => void agir(() => api.delete(`/ifrs/mouvements-capitaux-propres/${m.id}`))}>
+                  Retirer
+                </button>
+              )}
+            </div>
+          ))
+        )}
+      </section>
 
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
         <h2 className="text-[12.5px] font-bold mb-1.5">Rapprochement SYSCOHADA → IFRS</h2>

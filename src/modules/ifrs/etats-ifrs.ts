@@ -1,6 +1,8 @@
 import {
+  CategorieOci,
   CategorieResultat,
   LIBELLE_CATEGORIE,
+  LIBELLE_CATEGORIE_OCI,
   LIBELLE_SECTION,
   motifRefusRegle,
   RUBRIQUE_PAR_CODE,
@@ -21,10 +23,17 @@ import {
  * dans une catégorie d'IFRS 18 (opérationnelle, investissement, financement)
  * dépend de l'activité de l'entité (§ 49 à 66), que seul le cabinet connaît.
  *
- * CE QUI N'EST PAS DANS CETTE TRANCHE, et qui rend le jeu NON PUBLIABLE ·
- * l'état du résultat net et des autres éléments du résultat global, le tableau
- * des flux de trésorerie (IAS 7), l'état des variations des capitaux propres,
- * les notes, et la première application (IFRS 1).
+ * TRANCHE 2 · l'état présentant le résultat global (§ 86 à 95), en état
+ * SÉPARÉ qui commence par le résultat net et suit immédiatement le compte de
+ * résultat (§ 12 b). Les autres éléments du résultat global n'ont AUCUN compte
+ * au SYSCOHADA · ils n'entrent que par des retraitements déclarés, et leur
+ * cumul s'inscrit dans une composante propre des capitaux propres (§ 111).
+ * L'état des variations des capitaux propres vit à côté
+ * (`variation-capitaux-propres-ifrs.ts`), parce qu'il lit deux exercices.
+ *
+ * CE QUI N'EST PAS ENCORE SERVI, et qui rend le jeu NON PUBLIABLE · le
+ * tableau des flux de trésorerie (IAS 7), les notes, et la première
+ * application (IFRS 1).
  */
 
 export interface LigneLegale {
@@ -67,6 +76,8 @@ export interface LigneEtatIfrs {
 export interface EtatsIfrs {
   situation: LigneEtatIfrs[];
   resultat: LigneEtatIfrs[];
+  /** L'état présentant le résultat global · § 86 à 95. */
+  resultatGlobal: LigneEtatIfrs[];
   nonClasses: { numero: string; intitule: string; solde: number }[];
   rapprochements: {
     resultatSyscohada: number;
@@ -87,6 +98,8 @@ const r2 = (x: number) => Math.round(x * 100) / 100 || 0;
 const EPS = 0.005;
 const ORDRE_SECTIONS: SectionSituation[] = ['ACTIF_NON_COURANT', 'ACTIF_COURANT', 'CAPITAUX_PROPRES', 'PASSIF_NON_COURANT', 'PASSIF_COURANT'];
 const ORDRE_CATEGORIES: CategorieResultat[] = ['OPERATIONNELLE', 'INVESTISSEMENT', 'FINANCEMENT', 'IMPOTS', 'ABANDONNEES'];
+/** § 88 · l'ordre du texte, (a) recyclables puis (b) non recyclables. */
+const ORDRE_CATEGORIES_OCI: CategorieOci[] = ['OCI_RECYCLABLE', 'OCI_NON_RECYCLABLE'];
 /** IFRS 18 § C1 · « annual reporting periods beginning on or after 1 January 2027 ». */
 export const ENTREE_EN_VIGUEUR_IFRS18 = Date.UTC(2027, 0, 1);
 
@@ -160,7 +173,7 @@ export function construireEtatsIfrs(
     const rb = RUBRIQUE_PAR_CODE.get(code)!;
     const a = r2(signe * (legal.get(code) ?? 0));
     const b = r2(signe * (retr.get(code) ?? 0));
-    return { cle: code, libelle: rb.libelle, ref: rb.ref, groupe: rb.section ?? rb.categorie, nature: 'POSTE', legal: a, retraitements: b, ifrs: r2(a + b), comptes: comptes.get(code) ?? [] };
+    return { cle: code, libelle: rb.libelle, ref: rb.ref, groupe: rb.section ?? rb.categorie ?? rb.categorieOci, nature: 'POSTE', legal: a, retraitements: b, ifrs: r2(a + b), comptes: comptes.get(code) ?? [] };
   };
   const total = (cle: string, libelle: string, xs: LigneEtatIfrs[], ref?: string): LigneEtatIfrs => ({
     cle,
@@ -194,6 +207,23 @@ export function construireEtatsIfrs(
   );
   resultat.push(...operationnel, tOp, ...parCategorie.get('INVESTISSEMENT')!, tAvant, ...parCategorie.get('FINANCEMENT')!, ...parCategorie.get('IMPOTS')!, ...parCategorie.get('ABANDONNEES')!, tNet);
 
+  // ─── État présentant le résultat global · § 12 b, § 86 à 89 ───────────────
+  // Il COMMENCE par le résultat net (§ 12 b), puis les deux catégories du § 88,
+  // chacune avec ses deux postes du § 89 et son total, puis les deux totaux
+  // du § 86 b et c. Pas d'attribution aux participations ne donnant pas le
+  // contrôle (§ 87) · des comptes individuels n'en ont pas.
+  const resultatGlobal: LigneEtatIfrs[] = [{ ...tNet, cle: 'RG_RESULTAT_NET', ref: '§ 12 b, § 86 a' }];
+  const totauxOci: LigneEtatIfrs[] = [];
+  for (const c of ORDRE_CATEGORIES_OCI) {
+    const xs = RUBRIQUES_IFRS.filter((r) => r.categorieOci === c).map((r) => poste(r.code, -1));
+    const t = total(`TOTAL_${c}`, `Total · ${LIBELLE_CATEGORIE_OCI[c].toLowerCase()}`, xs, '§ 88');
+    totauxOci.push(t);
+    resultatGlobal.push(...xs, t);
+  }
+  const tOci = total('TOTAL_OCI', 'Autres éléments du résultat global', totauxOci, '§ 86 b');
+  const tGlobal = total('RESULTAT_GLOBAL', 'Résultat global', [tNet, tOci], '§ 86 c');
+  resultatGlobal.push(tOci, tGlobal);
+
   // ─── État de la situation financière (§ 96 à 104) ─────────────────────────
   const situation: LigneEtatIfrs[] = [];
   const totaux = new Map<SectionSituation, LigneEtatIfrs>();
@@ -203,6 +233,10 @@ export function construireEtatsIfrs(
     const xs = RUBRIQUES_IFRS.filter((r) => r.section === s).map((r) => poste(r.code, actif ? 1 : -1));
     if (s === 'CAPITAUX_PROPRES') {
       xs.push({ cle: 'SF_RESULTAT', libelle: 'Résultat net de l’exercice', ref: '§ 72', nature: 'POSTE', legal: tNet.legal, retraitements: tNet.retraitements, ifrs: tNet.ifrs });
+      // L'OCI de l'exercice n'est dans aucun compte · sans cette ligne, un
+      // retraitement de réévaluation grossirait l'actif sans contrepartie, et
+      // l'état cesserait de boucler.
+      xs.push({ cle: 'SF_OCI_EXERCICE', libelle: 'Autres éléments du résultat global de l’exercice', ref: '§ 86 b, § 111', nature: 'POSTE', legal: 0, retraitements: tOci.retraitements, ifrs: tOci.ifrs });
     }
     const t = total(`TOTAL_${s}`, `Total · ${LIBELLE_SECTION[s].toLowerCase()}`, xs);
     totaux.set(s, t);
@@ -256,8 +290,14 @@ export function construireEtatsIfrs(
     mentions.push('L’entité investit dans des actifs à titre d’activité principale · le fait doit être indiqué (IFRS 18 § 51 a).');
   }
 
+  if (Math.abs(tOci.ifrs) > EPS) {
+    mentions.push(
+      'Les autres éléments du résultat global sont présentés nets d’impôt (IFRS 18 § 94 a) · l’impôt relatif à chacun, reclassements compris, se donne dans les notes (§ 93), et les reclassements en résultat net aussi s’ils ne sont pas présentés (§ 90).',
+    );
+  }
+
   const motifsNonPubliable: string[] = [
-    'Jeu incomplet · l’état du résultat net et des autres éléments du résultat global, le tableau des flux de trésorerie (IAS 7), l’état des variations des capitaux propres et les notes viennent avec les tranches suivantes.',
+    'Jeu incomplet · le tableau des flux de trésorerie (IAS 7), les notes et la première application (IFRS 1) viennent avec les tranches suivantes.',
   ];
   if (activitePrincipale == null) {
     motifsNonPubliable.push(
@@ -274,8 +314,8 @@ export function construireEtatsIfrs(
   }
   for (const c of controles.filter((x) => !x.ok)) motifsNonPubliable.push(`Contrôle en échec · ${c.libelle} (écart ${c.ecart}).`);
 
-  return { situation, resultat, nonClasses, rapprochements, controles, mentions, motifsNonPubliable };
+  return { situation, resultat, resultatGlobal, nonClasses, rapprochements, controles, mentions, motifsNonPubliable };
 }
 
 /** Les libellés de regroupement, pour l'écran. */
-export const LIBELLES_GROUPES: Record<string, string> = { ...LIBELLE_SECTION, ...LIBELLE_CATEGORIE };
+export const LIBELLES_GROUPES: Record<string, string> = { ...LIBELLE_SECTION, ...LIBELLE_CATEGORIE, ...LIBELLE_CATEGORIE_OCI };

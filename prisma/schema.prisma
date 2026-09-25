@@ -627,6 +627,7 @@ model Tenant {
   reglesCorrespondanceIfrs         RegleCorrespondanceIfrs[]
   retraitementsIfrs                RetraitementIfrs[]
   lignesRetraitementIfrs           LigneRetraitementIfrs[]
+  mouvementsCapitauxPropresIfrs    MouvementCapitauxPropresIfrs[]
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -1099,6 +1100,7 @@ model Exercice {
   ecartsEvaluationConsolidation   EcartEvaluationConsolidation[]
   provisionsChangeConsolidation   ProvisionChangeConsolidation[]
   retraitementsIfrs               RetraitementIfrs[]
+  mouvementsCapitauxPropresIfrs   MouvementCapitauxPropresIfrs[]
 
   @@unique([tenantId, dateDebut, dateFin])
   @@map("exercices")
@@ -6593,4 +6595,43 @@ model LigneRetraitementIfrs {
 
   @@index([retraitementId])
   @@map("lignes_retraitement_ifrs")
+}
+
+// ─── États IFRS, tranche 2 · variations des capitaux propres (IFRS 18 § 107) ──
+
+/// Ce qu'IFRS 18 § 107 b et c demandent de montrer à part, et qu'aucune
+/// balance ne distingue d'une autre variation.
+enum TypeMouvementCpIfrs {
+  CHANGEMENT_METHODE
+  CORRECTION_ERREUR
+  APPORT
+  DISTRIBUTION
+  TRANSFERT
+}
+
+/// Les composantes du § 111 que le jeu d'OmegaX distingue.
+enum ComposanteCpIfrs {
+  CAPITAL
+  RESERVES
+  AUTRES_COMPOSANTES
+}
+
+/// Un mouvement de capitaux propres DÉCLARÉ · jamais déduit d'une différence
+/// de soldes, qui ferait boucler l'état sans rien prouver.
+model MouvementCapitauxPropresIfrs {
+  id            String              @id @default(uuid())
+  tenantId      String
+  tenant        Tenant              @relation(fields: [tenantId], references: [id])
+  exerciceId    String
+  exercice      Exercice            @relation(fields: [exerciceId], references: [id])
+  type          TypeMouvementCpIfrs
+  composante    ComposanteCpIfrs
+  /// Effet sur la composante · positif l'augmente, négatif la diminue.
+  montant       Decimal             @db.Decimal(18, 2)
+  libelle       String
+  justification String
+  createdAt     DateTime            @default(now())
+
+  @@index([tenantId, exerciceId])
+  @@map("mouvements_capitaux_propres_ifrs")
 }

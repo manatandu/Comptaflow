@@ -8,7 +8,7 @@ import { ReferentielGuard } from '../../common/guards/referentiel.guard';
 import { ReferentielsAutorises } from '../../common/decorators/referentiels.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { IfrsService } from './ifrs.service';
-import { ActiviteIfrsDto, RegleIfrsDto, RetraitementIfrsDto } from './dto/ifrs.dto';
+import { ActiviteIfrsDto, MouvementCpIfrsDto, RegleIfrsDto, RetraitementIfrsDto } from './dto/ifrs.dto';
 
 /**
  * CLOISONNÉ AU SYSCOHADA · l'art. 73-1 de l'AUDCIF vise les entités dont les
@@ -55,5 +55,17 @@ export class IfrsController {
   @Delete('retraitements/:id')
   supprimerRetraitement(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.ifrs.supprimerRetraitement(user.tenantId, id);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post('mouvements-capitaux-propres')
+  ajouterMouvementCp(@CurrentUser() user: AuthenticatedUser, @Body() dto: MouvementCpIfrsDto) {
+    return this.ifrs.ajouterMouvementCp(user.tenantId, dto);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Delete('mouvements-capitaux-propres/:id')
+  supprimerMouvementCp(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.ifrs.supprimerMouvementCp(user.tenantId, id);
   }
 }

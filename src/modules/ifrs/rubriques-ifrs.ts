@@ -16,23 +16,33 @@
  * Deux rubriques sont des postes SUPPLÉMENTAIRES (« autres produits » et
  * « autres charges opérationnels »), que le § 24 et les § B78-B79 laissent au
  * jugement de l'entité · elles sont dites comme telles.
+ *
+ * TRANCHE 2 (2026-09-25) · les autres éléments du résultat global, § 86 à 95
+ * lus le même jour. Deux catégories (§ 88 · recyclables en résultat, non
+ * recyclables), et dans chacune les deux postes du § 89 · la quote-part des
+ * entreprises mises en équivalence, et les autres éléments. Rien de plus fin
+ * n'est imposé · le détail par composante (réévaluation IAS 16, écarts
+ * actuariels IAS 19, § B87) relève des notes.
  */
 
 export type SectionSituation = 'ACTIF_NON_COURANT' | 'ACTIF_COURANT' | 'CAPITAUX_PROPRES' | 'PASSIF_NON_COURANT' | 'PASSIF_COURANT';
 export type CategorieResultat = 'OPERATIONNELLE' | 'INVESTISSEMENT' | 'FINANCEMENT' | 'IMPOTS' | 'ABANDONNEES';
+export type CategorieOci = 'OCI_NON_RECYCLABLE' | 'OCI_RECYCLABLE';
 
 export interface RubriqueIfrs {
   code: string;
   libelle: string;
   /** Le paragraphe d'IFRS 18 qui la fonde. */
   ref: string;
-  etat: 'SITUATION' | 'RESULTAT';
+  etat: 'SITUATION' | 'RESULTAT' | 'RESULTAT_GLOBAL';
   section?: SectionSituation;
   categorie?: CategorieResultat;
+  categorieOci?: CategorieOci;
 }
 
 const sf = (code: string, libelle: string, section: SectionSituation, ref: string): RubriqueIfrs => ({ code, libelle, ref, etat: 'SITUATION', section });
 const pl = (code: string, libelle: string, categorie: CategorieResultat, ref: string): RubriqueIfrs => ({ code, libelle, ref, etat: 'RESULTAT', categorie });
+const oci = (code: string, libelle: string, categorieOci: CategorieOci, ref: string): RubriqueIfrs => ({ code, libelle, ref, etat: 'RESULTAT_GLOBAL', categorieOci });
 
 export const RUBRIQUES_IFRS: RubriqueIfrs[] = [
   // ─── État de la situation financière · § 96 à 104 ─────────────────────────
@@ -54,6 +64,9 @@ export const RUBRIQUES_IFRS: RubriqueIfrs[] = [
   sf('SF_ACTIFS_DETENUS_VENTE', 'Actifs détenus en vue de la vente', 'ACTIF_COURANT', '§ 103 l'),
   sf('SF_CAPITAL', 'Capital émis', 'CAPITAUX_PROPRES', '§ 104 b'),
   sf('SF_RESERVES', 'Réserves', 'CAPITAUX_PROPRES', '§ 104 b'),
+  // § 111 · « the accumulated balance of each class of other comprehensive
+  // income » est une composante des capitaux propres à part entière.
+  sf('SF_AUTRES_COMPOSANTES_CP', 'Autres composantes des capitaux propres (autres éléments du résultat global cumulés)', 'CAPITAUX_PROPRES', '§ 104 b, § 111'),
   sf('SF_PASSIFS_FINANCIERS_NC', 'Passifs financiers non courants', 'PASSIF_NON_COURANT', '§ 103 o, § 102'),
   sf('SF_PROVISIONS_NC', 'Provisions non courantes', 'PASSIF_NON_COURANT', '§ 103 n, § 102'),
   sf('SF_FOURNISSEURS_NC', 'Fournisseurs et autres créditeurs non courants', 'PASSIF_NON_COURANT', '§ 103 m, § 102'),
@@ -79,6 +92,14 @@ export const RUBRIQUES_IFRS: RubriqueIfrs[] = [
   pl('PL_CHARGES_FINANCEMENT', 'Charges de financement', 'FINANCEMENT', '§ 59 à 61'),
   pl('PL_IMPOT_RESULTAT', 'Charge (produit) d’impôt sur le résultat', 'IMPOTS', '§ 67, § 75 a iv'),
   pl('PL_ACTIVITES_ABANDONNEES', 'Résultat des activités abandonnées', 'ABANDONNEES', '§ 68, § 75 a v'),
+
+  // ─── Autres éléments du résultat global · § 86 à 89 ───────────────────────
+  // Présentés NETS D'IMPÔT (§ 94 a) · l'impôt de chaque élément se donne alors
+  // dans les notes (§ 93).
+  oci('OCI_NR_QUOTE_PART_MEE', 'Quote-part des autres éléments du résultat global des entreprises mises en équivalence', 'OCI_NON_RECYCLABLE', '§ 88 b, § 89 a'),
+  oci('OCI_NR_AUTRES', 'Autres éléments qui ne seront pas reclassés en résultat net', 'OCI_NON_RECYCLABLE', '§ 88 b, § 89 b'),
+  oci('OCI_R_QUOTE_PART_MEE', 'Quote-part des autres éléments du résultat global des entreprises mises en équivalence', 'OCI_RECYCLABLE', '§ 88 a, § 89 a'),
+  oci('OCI_R_AUTRES', 'Autres éléments qui pourront être reclassés en résultat net', 'OCI_RECYCLABLE', '§ 88 a, § 89 b'),
 ];
 
 export const RUBRIQUE_PAR_CODE = new Map(RUBRIQUES_IFRS.map((r) => [r.code, r]));
@@ -89,6 +110,11 @@ export const LIBELLE_SECTION: Record<SectionSituation, string> = {
   CAPITAUX_PROPRES: 'Capitaux propres',
   PASSIF_NON_COURANT: 'Passifs non courants',
   PASSIF_COURANT: 'Passifs courants',
+};
+
+export const LIBELLE_CATEGORIE_OCI: Record<CategorieOci, string> = {
+  OCI_NON_RECYCLABLE: 'Éléments qui ne seront pas reclassés en résultat net',
+  OCI_RECYCLABLE: 'Éléments qui pourront être reclassés en résultat net lorsque des conditions particulières seront remplies',
 };
 
 export const LIBELLE_CATEGORIE: Record<CategorieResultat, string> = {
@@ -112,6 +138,9 @@ export function motifRefusRegle(prefixe: string, rubrique: string): string | nul
   if (!/^[1-8]\d*$/.test(p)) return `Le préfixe « ${prefixe} » doit être un numéro de compte des classes 1 à 8.`;
   const r = RUBRIQUE_PAR_CODE.get(rubrique);
   if (!r) return `La rubrique « ${rubrique} » n’existe pas au catalogue IFRS 18 d’OmegaX.`;
+  if (r.etat === 'RESULTAT_GLOBAL') {
+    return `La rubrique « ${r.libelle} » est un autre élément du résultat global · un mouvement de l’exercice qu’aucun compte SYSCOHADA ne porte. Il se déclare en retraitement, avec la norme qui le fait sortir du résultat net (IFRS 18 § B86-B87).`;
+  }
   const gestion = /^[678]/.test(p);
   if (gestion && r.etat !== 'RESULTAT') {
     return `Le préfixe ${p} est un compte de gestion (classes 6 à 8) · il va au compte de résultat. Un reclassement vers le bilan se déclare en retraitement.`;

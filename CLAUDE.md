@@ -2503,6 +2503,29 @@ tant que manquent l'état du résultat global, le tableau des flux (IAS 7),
 les variations des capitaux propres, les notes et la première application
 (IFRS 1) · tranches suivantes.
 
+**États IFRS, tranche 2 · résultat global et variations des capitaux propres
+(2026-09-25).** IFRS 18 § 12 b, § 86 à 95 et § 107 à 112. CINQ RÈGLES À NE PAS
+DÉFAIRE. (1) LES AUTRES ÉLÉMENTS DU RÉSULTAT GLOBAL N'ONT AUCUN COMPTE AU
+SYSCOHADA · ils n'entrent que par RETRAITEMENT déclaré, avec la norme qui les
+fait sortir du résultat net (§ B86-B87) ; une règle de correspondance vers eux
+est refusée, une correspondance projette un solde et l'OCI est un flux. Deux
+catégories (§ 88, recyclables d'abord), deux postes chacune (§ 89), nets
+d'impôt (§ 94 a) avec la mention du § 93. (2) L'OCI DE L'EXERCICE a sa ligne de
+capitaux propres (`SF_OCI_EXERCICE`) et son cumul sa composante
+(`SF_AUTRES_COMPOSANTES_CP`, § 111) · sans elle, une réévaluation grossirait
+l'actif sans contrepartie. (3) L'OUVERTURE DE LA VARIATION EST LA CLÔTURE IFRS
+N-1, calculée avec SES retraitements · les effets IAS 8 déclarés remontent au
+solde publié (retraitée moins effets), ils ne s'ajoutent jamais une seconde
+fois. (4) RIEN NE SE DÉDUIT DE LA DIFFÉRENCE · apports, distributions,
+transferts et effets IAS 8 se DÉCLARENT (`MouvementCapitauxPropresIfrs`, avec
+justification) ; ce que rien n'explique reste sur « écart non expliqué » et rend
+le jeu non publiable. Des transferts qui ne se soldent pas aussi. (5) DEUX
+BLOCS, N ET N-1 · le comparatif du § 10 f) part de la clôture N-2, et sans elle
+le bloc n'est pas rendu, avec son motif. Pas d'attribution aux participations
+ne donnant pas le contrôle (§ 87, § 107 a) · des comptes individuels n'en ont
+pas. Restent : tableau des flux (IAS 7), notes, IFRS 1, puis la version
+consolidée.
+
 **Tableau des flux SYSCOHADA · le compte trop agrégé, que « non ventilé »
 ne voyait pas (2026-09-25).** Trouvé en passant au moteur la balance d'un
 expert tenue en comptes génériques (481, 81, 82). La table du ch. 5 lit des

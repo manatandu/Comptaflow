@@ -83,9 +83,9 @@ describe('états IFRS · projection de la balance légale et retraitements décl
     expect(jouer(REGLES, LOCATION, 'AUCUNE', { dateDebut: new Date('2027-01-01') }).mentions).toEqual([]);
   });
 
-  it('le jeu reste non publiable · il lui manque l’état du résultat global, les flux, les variations et les notes', () => {
+  it('le jeu reste non publiable · il lui manque le tableau des flux, les notes et la première application', () => {
     expect(e.motifsNonPubliable).toHaveLength(1);
-    expect(e.motifsNonPubliable[0]).toMatch(/^Jeu incomplet/);
+    expect(e.motifsNonPubliable[0]).toMatch(/^Jeu incomplet · le tableau des flux de trésorerie \(IAS 7\), les notes et la première application \(IFRS 1\)/);
   });
 });
 
