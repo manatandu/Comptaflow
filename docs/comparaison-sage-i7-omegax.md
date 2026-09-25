@@ -31,7 +31,7 @@ tiennent à un texte OHADA ; ils sont signalés comme tels.
 | 2. Nouveau fichier, identification, natures de compte, mot de passe | AUTREMENT / PARTIEL | Assistant en 8 étapes, création réservée à la console VMG. Manquent capital, courriel et site de la société. Natures de compte codées par préfixe, non paramétrables. Cinq rôles fixes au lieu d'un mot de passe de fichier. |
 | 3. Plan comptable, journaux, tiers, taux de taxes | PARTIEL | Détail/Total, sommeil, types de journaux, compte de trésorerie : OUI. Suppression avec refus « mouvementé » : NON. Option « contrepartie à chaque ligne » : NON. Tiers : un sous-compte de classe 4 par tiers, pas de compte collectif + auxiliaire. Taux : une fiche porte les deux comptes (443 et 445), sans champ « sens ». |
 | 4. Saisie des écritures | PARTIEL | Saisie journal + mois, F4 sur les comptes, suppression refusée si lettrée ou pointée (et en plus si validée) : OUI. TVA proposée au clic, net à payer par « Équilibrer » : pas automatiques. Saisie par lot, OD analytiques, import d'extraits bancaires, réimputation : NON. |
-| 5. Interrogation et lettrage, recherche | PARTIEL | Lettrage complet (manuel, automatique, pré-lettrage) : OUI. Recherche d'écritures sur le libellé seul. Historique des rappels : route serveur sans écran. |
+| 5. Interrogation et lettrage, recherche | PARTIEL | Lettrage complet (manuel, automatique, pré-lettrage) : OUI. Recherche d'écritures sur le libellé seul. Historique des rappels : écran depuis le point 17. |
 | 6. États | OUI pour l'essentiel | Brouillard, journal, grand livre, balance, échéancier, balance âgée, taxes, bilan, analytique, contrôles, révision : OUI. États personnalisés et reporting : NON. Export des listes de structures : NON. |
 | 7. Modèles de saisie | PARTIEL | Modèles par journal, appelés depuis la saisie. Les fonctions de ligne (Répéter, Incrémenter, Équilibrer, Calculer) et l'appel par F4 manquent. |
 | 8. Fin d'exercice | AUTREMENT | Clôture qui solde 6 à 8 sur le 13 et génère le report à-nouveau (Solde ou Détail). Comptes 131/139 du plan OHADA, et non 1191/1199 du plan français · écart VOULU. Pas de report des budgets, pas de suppression du plus ancien exercice. |
@@ -104,7 +104,14 @@ tiennent à un texte OHADA ; ils sont signalés comme tels.
     pénale ; « à capital variable », art. 269-2). La ligne s'imprime sous la
     dénomination et ses mentions manquantes sont dites ; refusé à une EBNL et
     à une personne physique.
-17. Fenêtre des journaux de saisie ; écran de l'historique des rappels.
+17. ~~Fenêtre des journaux de saisie ; écran de l'historique des rappels~~ ·
+    FAIT le 2026-09-25 : la saisie s'ouvre sur la grille journal × mois de
+    Sage, chaque case dans son état (Brouillard, Journal, Clôturé ; « Non
+    imprimé » non servi, OmegaX ne trace pas l'impression), un double clic
+    ouvre le journal du mois. L'historique des rappels est un onglet de Rappel
+    et relevé, par période et par compte, montant figé à l'émission, tranche
+    dite ; frais d'impayé et pénalités de Sage non servis, OmegaX n'en
+    calcule aucun.
 18. Éditions des structures (plan, tiers, journaux, taux, paramètres).
 19. Banques, libellés, collaborateurs, plan reporting.
 20. États personnalisés et reporting.

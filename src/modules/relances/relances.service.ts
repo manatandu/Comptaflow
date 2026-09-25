@@ -715,16 +715,54 @@ export class RelancesService {
     });
   }
 
-  async historique(tenantId: string, compteId?: string) {
-    return this.prisma.relance.findMany({
-      where: { tenantId, ...(compteId ? { compteId } : {}) },
-      orderBy: { dateRelance: 'desc' },
-      take: 200,
-      include: {
-        compte: { select: { numero: true, intitule: true } },
-        tiers: { select: { nom: true } },
-        niveauRelance: { select: { niveau: true, libelle: true } },
-      },
-    });
+  /**
+   * HISTORIQUE DES RAPPELS · Sage, État / États tiers / Historique des
+   * rappels : « l'historique des rappels des clients pour une période
+   * donnée », en choisissant les comptes tiers et la date de traitement.
+   *
+   * Une TRANCHE, et elle le DIT (§ 8 bis) · le total est pris sur le
+   * périmètre entier, et `tronque` avertit quand la liste en rend moins. Le
+   * montant est celui FIGÉ à l'émission, jamais le solde d'aujourd'hui · une
+   * relance réglée depuis garde le montant qu'elle réclamait.
+   *
+   * Sage y porte aussi les frais d'impayé et les pénalités de retard ; OmegaX
+   * n'en calcule aucun, et ces colonnes n'existent donc pas ici.
+   */
+  async historique(tenantId: string, filtre: { compteId?: string; du?: string; au?: string } = {}) {
+    const lireDate = (v: string | undefined, fin: boolean) => {
+      if (!v) return undefined;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) throw new BadRequestException(`Date illisible : « ${v} » (AAAA-MM-JJ attendu).`);
+      return new Date(`${v}T${fin ? '23:59:59.999' : '00:00:00.000'}Z`);
+    };
+    const du = lireDate(filtre.du, false);
+    const au = lireDate(filtre.au, true);
+    if (du && au && du > au) throw new BadRequestException('La date de début dépasse la date de fin.');
+    const perimetre = {
+      ...(filtre.compteId ? { compteId: filtre.compteId } : {}),
+      ...(du || au ? { dateRelance: { ...(du ? { gte: du } : {}), ...(au ? { lte: au } : {}) } } : {}),
+    };
+    const [relances, total, somme] = await Promise.all([
+      this.prisma.relance.findMany({
+        where: { tenantId, ...perimetre },
+        orderBy: { dateRelance: 'desc' },
+        take: PLAFOND_HISTORIQUE,
+        include: {
+          compte: { select: { numero: true, intitule: true } },
+          tiers: { select: { nom: true } },
+          niveauRelance: { select: { niveau: true, libelle: true } },
+        },
+      }),
+      this.prisma.relance.count({ where: { tenantId, ...perimetre } }),
+      this.prisma.relance.aggregate({ where: { tenantId, ...perimetre }, _sum: { montant: true } }),
+    ]);
+    return {
+      relances,
+      total,
+      tronque: total > relances.length,
+      montantTotal: Number(somme._sum.montant ?? 0),
+    };
   }
 }
+
+/** Plafond d'une page d'historique · une fenêtre, pas un export (§ 8 bis). */
+export const PLAFOND_HISTORIQUE = 500;

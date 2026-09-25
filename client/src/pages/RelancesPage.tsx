@@ -6,6 +6,7 @@ import { Aide } from '../components/chrome/Aide';
 import type { BilanEmissionRelances, LettreRelance, NiveauRelance, PositionRelance, TypeRelance } from '../lib/types';
 import { libelleRemise, phraseEmission, tonRemise } from '../lib/remise-courriel';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
+import { HistoriqueRappels } from '../components/HistoriqueRappels';
 
 /**
  * RAPPEL ET RELEVÉ · Traitement → Rappel/relevé chez Sage 100 i7, qui
@@ -48,7 +49,7 @@ function montant(n: number): string {
   return n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export function RelancesPage() {
+function PositionsRelances() {
   const { estAdmin, utilisateur } = useAuth();
   const { exerciceCourant } = useExercice();
   const [type, setType] = useState<TypeRelance>('RAPPEL');
@@ -467,6 +468,40 @@ export function RelancesPage() {
           ))}
         </section>
       )}
+    </div>
+  );
+}
+
+/**
+ * DEUX VUES, UNE FENÊTRE · les positions à relancer, et l'historique de ce
+ * qui a été émis (Sage, Historique des rappels · point 17). L'historique vit
+ * ici plutôt qu'en entrée de menu propre : c'est la même matière, et le menu
+ * Traitement est tenu sous son plafond à 360 px (chrome-etroit.spec.ts).
+ */
+export function RelancesPage() {
+  const [vue, setVue] = useState<'positions' | 'historique'>('positions');
+  return (
+    <div>
+      <div className="ecran-seul flex gap-1 px-2 pt-2" role="tablist">
+        {(
+          [
+            ['positions', 'À relancer'],
+            ['historique', 'Historique des rappels'],
+          ] as const
+        ).map(([cle, libelle]) => (
+          <button
+            key={cle}
+            type="button"
+            role="tab"
+            aria-selected={vue === cle}
+            onClick={() => setVue(cle)}
+            className={`px-3 py-1 text-[11.5px] border-b-2 ${vue === cle ? 'border-sel font-semibold' : 'border-transparent text-text-dim'}`}
+          >
+            {libelle}
+          </button>
+        ))}
+      </div>
+      {vue === 'positions' ? <PositionsRelances /> : <div className="p-2"><HistoriqueRappels /></div>}
     </div>
   );
 }

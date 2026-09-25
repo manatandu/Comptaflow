@@ -10,6 +10,7 @@ import { construireLigneTva, modeCalculTva, montantTva, netAPayer, sensDeLaLigne
 import { contrepartieDeLigne } from '../lib/contrepartie-tresorerie';
 import { deroulerModele, lignesASaisir } from '../lib/derouler-modele';
 import { dateDeLaPiece, fenetreDeSaisie, rangBorne } from '../lib/saisie-par-piece';
+import { ETATS_JOURNAL, bulleCase, moisCourt, sigleCase, type LigneGrilleSaisie } from '../lib/etat-journal-saisie';
 
 /**
  * SAISIE DES JOURNAUX · l'écran central du logiciel, calqué sur
@@ -167,6 +168,8 @@ export function SaisiePage() {
   const { exerciceCourant } = useExercice();
   const { utilisateur, peutEcrire } = useAuth();
   const [journaux, setJournaux] = useState<Journal[]>([]);
+  // État de chaque journal, mois par mois (fenêtre des journaux de saisie).
+  const [grilleSaisie, setGrilleSaisie] = useState<LigneGrilleSaisie[]>([]);
   const [comptes, setComptes] = useState<Compte[]>([]);
 
   // Sélection du journal et de la période (étape 1)
@@ -327,6 +330,16 @@ export function SaisiePage() {
     () => (exerciceCourant ? periodesDeLExercice(exerciceCourant.dateDebut, exerciceCourant.dateFin) : []),
     [exerciceCourant],
   );
+
+  // La grille se relit à chaque retour à l'étape 1 · une pièce validée ou
+  // saisie entre-temps change l'état de sa case.
+  useEffect(() => {
+    if (ouvert || !exerciceCourant) return;
+    api
+      .get<{ journaux: LigneGrilleSaisie[] }>(`/journaux/saisie?exerciceId=${exerciceCourant.id}`)
+      .then((r) => setGrilleSaisie(r.journaux))
+      .catch(() => setGrilleSaisie([]));
+  }, [ouvert, exerciceCourant?.id]);
 
   // Période par défaut : le mois courant s'il appartient à l'exercice.
   useEffect(() => {
@@ -893,43 +906,95 @@ export function SaisiePage() {
   if (!ouvert) {
     return (
       <div className="p-3 flex justify-center">
-        <div className="w-full max-w-[640px]">
+        <div className="w-full max-w-[980px]">
           <div className="bg-surface border border-border shadow-posee">
             <div className="px-4 py-2 bg-surface-alt border-b border-border text-[11.5px] font-semibold text-text-dim">
               Sélectionnez le journal et la période de saisie
             </div>
             <div className="p-4">
-              <div className="border border-border mb-3 max-h-[300px] overflow-auto">
-                <div className="entete-colonnes grid grid-cols-[80px_1fr_110px_90px] gap-2 px-3 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim sticky top-0">
-                  <span>Code</span>
-                  <span>Intitulé</span>
-                  <span>Type</span>
-                  <span>État</span>
-                </div>
-                {journaux.map((j) => (
-                  <button
-                    key={j.id}
-                    type="button"
-                    onClick={() => setJournalId(j.id)}
-                    className={`w-full grid grid-cols-[80px_1fr_110px_90px] gap-2 px-3 py-1.5 border-b border-border text-left text-[11.5px] items-center ${
-                      journalId === j.id ? 'bg-sel text-white' : 'hover:bg-chrome-alt'
-                    }`}
-                  >
-                    <span className="font-mono font-semibold">{j.code}</span>
-                    <span>{j.intitule}</span>
-                    <span className={journalId === j.id ? '' : 'text-text-dim'}>{LIBELLE_TYPE_JOURNAL[j.type]}</span>
-                    <span
-                      className={`text-[11.5px] ${journalId === j.id ? '' : j.estActif ? 'text-positive' : 'text-warning'}`}
-                    >
-                      {j.estActif ? 'Actif' : 'En sommeil'}
-                    </span>
-                  </button>
+              {/* LA FENÊTRE DES JOURNAUX DE SAISIE (Sage i7, point 17) ·
+                  chaque journal, chaque mois, et l'état de la case. Un clic
+                  choisit le journal ET le mois, un double clic ouvre. */}
+              <div className="border border-border mb-2 max-h-[340px] overflow-auto">
+                <table className="text-[11.5px] min-w-full">
+                  <thead>
+                    <tr>
+                      <th className="text-left sticky left-0 bg-surface-alt">Code</th>
+                      <th className="text-left">Intitulé</th>
+                      {periodes.map((p) => (
+                        <th key={p.libelle} className="text-center px-1" title={p.libelle}>
+                          {moisCourt(p.mois)}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {journaux.map((j) => {
+                      const ligne = grilleSaisie.find((l) => l.id === j.id);
+                      return (
+                        <tr key={j.id} className={journalId === j.id ? 'font-semibold' : ''}>
+                          <td className="sticky left-0 bg-surface">
+                            <button type="button" onClick={() => setJournalId(j.id)} className="font-semibold">
+                              {j.code}
+                            </button>
+                          </td>
+                          <td title={LIBELLE_TYPE_JOURNAL[j.type]} className={j.estActif ? '' : 'text-warning'}>
+                            {j.intitule}
+                            {!j.estActif && ' (en sommeil)'}
+                          </td>
+                          {periodes.map((p, i) => {
+                            const c = ligne?.cases.find((x) => x.mois === `${p.annee}-${String(p.mois + 1).padStart(2, '0')}`);
+                            const choisie = journalId === j.id && indexPeriode === i && !parPiece;
+                            return (
+                              <td key={p.libelle} className="p-0 text-center">
+                                <button
+                                  type="button"
+                                  aria-label={`${j.code} ${p.libelle}`}
+                                  title={c ? `${p.libelle} · ${bulleCase(c)}` : p.libelle}
+                                  onClick={() => {
+                                    setJournalId(j.id);
+                                    setIndexPeriode(i);
+                                    setParPiece(false);
+                                  }}
+                                  onDoubleClick={() => {
+                                    setJournalId(j.id);
+                                    setIndexPeriode(i);
+                                    setParPiece(false);
+                                    setOuvert(true);
+                                    setSucces(null);
+                                    setErreur(null);
+                                  }}
+                                  className={`w-full min-w-[30px] h-[22px] text-[10.5px] font-bold ${c ? ETATS_JOURNAL[c.etat].classe : ''} ${
+                                    choisie ? 'outline outline-2 outline-sel -outline-offset-2' : ''
+                                  }`}
+                                >
+                                  {c ? sigleCase(c) : ''}
+                                  {c?.figeJusquau ? '·' : ''}
+                                </button>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                    {journaux.length === 0 && (
+                      <tr>
+                        <td colSpan={2 + periodes.length} className="italic text-text-dim">
+                          Aucun journal · créez-les dans Structure → Codes journaux.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex gap-3 mb-3 text-[10.5px] text-text-dim">
+                {(['BROUILLARD', 'JOURNAL', 'CLOTURE'] as const).map((e) => (
+                  <span key={e} className="flex items-center gap-1">
+                    <span className={`inline-block w-[16px] text-center font-bold ${ETATS_JOURNAL[e].classe}`}>{ETATS_JOURNAL[e].sigle}</span>
+                    {ETATS_JOURNAL[e].libelle}
+                  </span>
                 ))}
-                {journaux.length === 0 && (
-                  <div className="px-3 py-2 text-[11.5px] text-text-dim italic">
-                    Aucun journal · créez-les dans Structure → Codes journaux.
-                  </div>
-                )}
+                <span>· figé en cours de mois</span>
               </div>
 
               <div className="flex items-center gap-3">

@@ -50,6 +50,12 @@ export class JournalController {
     });
   }
 
+  /** JOURNAUX DE SAISIE · la grille journal × mois et l'état de chaque case (Sage i7). */
+  @Get('saisie')
+  async grilleSaisie(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
+    return this.analyseJournauxService.grilleSaisie(user.tenantId, exerciceId);
+  }
+
   /** ANALYSE DES JOURNAUX · volumes, brouillard restant, trous de séquence. */
   @Get('analyse')
   async analyse(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {

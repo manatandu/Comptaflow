@@ -4493,6 +4493,23 @@ la ligne s'imprime avec ce qui est connu (en-tête d'impression, par
 sans défaut. Non servi et dit · le devis et la facture n'impriment pas encore
 d'en-tête du dossier.
 
+**Journaux de saisie et historique des rappels (2026-09-25).** Point 17 de la
+comparaison, lu au manuel i7 (« Journaux de saisie : permet de visualiser, de
+modifier et d'enregistrer les mouvements sur les journaux », choisir « le code
+journal et le mois ») et au support Sage 100 (état du journal : Brouillard,
+Non imprimé, Journal, Non clôturé, Clôturé). QUATRE RÈGLES À NE PAS DÉFAIRE.
+(1) L'ÉTAT D'UNE CASE VIT UNE FOIS (`journaux/etat-journaux-saisie.ts`) et le
+gel se lit par `gel-cloture.ts` sur le DERNIER jour du mois · une clôture
+arrêtée au milieu du mois ne clôt pas le mois, elle rend « figé jusqu'au ».
+« Non imprimé » n'est pas servi, rien ne trace l'impression. (2) L'À-NOUVEAU
+PROVISOIRE NE MET PAS UN MOIS EN BROUILLARD, et seul il ne fait pas un mois
+« tout validé » · il reste VIDE et s'annonce « AN ». (3) LE COMPTAGE EST UN
+REGROUPEMENT PAR JOUR (`groupBy`), jamais les écritures une à une. (4)
+L'HISTORIQUE DES RAPPELS EST UNE TRANCHE QUI SE DIT · période et compte,
+total et somme sur le périmètre entier, `tronque` au-delà de 500 ; montant
+figé à l'émission. Il vit en onglet de Rappel et relevé, le menu Traitement
+étant tenu sous son plafond. Frais d'impayé et pénalités de Sage non servis.
+
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
 nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la

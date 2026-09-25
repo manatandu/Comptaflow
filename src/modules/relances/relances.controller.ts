@@ -77,7 +77,12 @@ export class RelancesController {
   }
 
   @Get('historique')
-  async historique(@CurrentUser() user: AuthenticatedUser, @Query('compteId') compteId?: string) {
-    return this.relances.historique(user.tenantId, compteId);
+  async historique(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('compteId') compteId?: string,
+    @Query('du') du?: string,
+    @Query('au') au?: string,
+  ) {
+    return this.relances.historique(user.tenantId, { compteId: compteId || undefined, du: du || undefined, au: au || undefined });
   }
 }

@@ -1,5 +1,7 @@
-import { Injectable } from '@nestjs/common';
-import { NumerotationPiece, StatutEcriture, TypeCompteDetailTotal } from '@prisma/client';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { NumerotationPiece, StatutEcriture, StatutExercice, TypeCompteDetailTotal } from '@prisma/client';
+import { ClotureActive } from '../exercice/gel-cloture';
+import { grilleJournauxSaisie, moisDeLExercice } from './etat-journaux-saisie';
 import { PrismaService } from '../../common/prisma.service';
 import {
   EXPLICATION_PERIMETRE,
@@ -295,6 +297,52 @@ export class AnalyseJournauxService {
         manquants: compterManquants(trousDossier),
         trous: trousDossier,
       },
+    };
+  }
+
+  /**
+   * FENÊTRE DES JOURNAUX DE SAISIE · la grille journal × mois de Sage, avec
+   * l'état de chaque case (`etat-journaux-saisie.ts`). Le comptage passe par
+   * un regroupement par jour · jamais une écriture rapatriée une à une, la
+   * grille reste bornée par le nombre de journaux et de jours de l'exercice
+   * (§ 8 bis).
+   */
+  async grilleSaisie(tenantId: string, exerciceId: string) {
+    const exercice = await this.prisma.exercice.findFirst({ where: { id: exerciceId, tenantId } });
+    if (!exercice) throw new NotFoundException('Exercice introuvable');
+    const [journaux, comptages, clotures] = await Promise.all([
+      this.prisma.journal.findMany({
+        where: { tenantId },
+        orderBy: { code: 'asc' },
+        select: { id: true, code: true, intitule: true, type: true, estActif: true },
+      }),
+      this.prisma.ecriture.groupBy({
+        by: ['journalId', 'date', 'statut', 'estANouveauProvisoire'],
+        where: { tenantId, exerciceId },
+        _count: { _all: true },
+      }),
+      this.prisma.cloture.findMany({
+        where: { tenantId, annuleeAt: null },
+        select: { granularite: true, journalId: true, dateLimite: true },
+      }) as Promise<ClotureActive[]>,
+    ]);
+    const mois = moisDeLExercice(exercice.dateDebut, exercice.dateFin);
+    const grille = grilleJournauxSaisie(
+      journaux,
+      mois,
+      comptages.map((c) => ({
+        journalId: c.journalId,
+        date: c.date,
+        statut: c.statut,
+        estANouveauProvisoire: c.estANouveauProvisoire,
+        nombre: c._count._all,
+      })),
+      clotures,
+      exercice.statut === StatutExercice.CLOTURE,
+    );
+    return {
+      mois: mois.map((m) => m.debut.slice(0, 7)),
+      journaux: journaux.map((j, i) => ({ ...j, cases: grille[i].cases })),
     };
   }
 }
