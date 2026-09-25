@@ -156,7 +156,9 @@ function FenetreInterne({ fenetre, active }: { fenetre: FenetreOuverte; active: 
       ref={refCadre}
       onPointerDown={() => !active && activer(fenetre.cle)}
       style={style}
-      className={`anim-fenetre absolute flex flex-col overflow-hidden rounded-[4px] border bg-surface ${
+      // UNE FENÊTRE INACTIVE NE S'IMPRIME PAS · sans cela, « Imprimer » sortait
+      // aussi toutes les fenêtres ouvertes derrière celle qu'on regardait.
+      className={`anim-fenetre absolute flex flex-col overflow-hidden rounded-[4px] border bg-surface ${active ? '' : 'fenetre-inactive'} ${
         active ? 'border-border-dark shadow-dominante' : 'border-border shadow-posee'
       }`}
     >

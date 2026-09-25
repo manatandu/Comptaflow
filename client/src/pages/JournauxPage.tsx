@@ -3,6 +3,14 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
 import type { Compte, Journal, NumerotationPiece, TypeJournal } from '../lib/types';
+import { BoutonImprimer, EnteteImpression } from '../components/chrome/EnteteImpression';
+import { EditionStructure } from '../components/EditionStructure';
+import {
+  LIBELLE_NUMEROTATION,
+  LIBELLE_TYPE_JOURNAL as LIBELLE_TYPE,
+  editionJournaux,
+  perimetreEdition,
+} from '../lib/editions-structures';
 
 /**
  * CODES JOURNAUX · la fenêtre Structure → Codes journaux de Sage 100 i7 :
@@ -11,21 +19,6 @@ import type { Compte, Journal, NumerotationPiece, TypeJournal } from '../lib/typ
  * après création (règle Sage) ; un journal de trésorerie exige son compte
  * de trésorerie rattaché · c'est lui qui porte la contrepartie automatique.
  */
-
-const LIBELLE_TYPE: Record<TypeJournal, string> = {
-  ACHATS: 'Achats',
-  VENTES: 'Ventes',
-  TRESORERIE: 'Trésorerie',
-  GENERAL: 'Général',
-  SITUATION: 'Situation',
-};
-
-const LIBELLE_NUMEROTATION: Record<NumerotationPiece, string> = {
-  MANUELLE: 'Manuelle',
-  CONTINUE_JOURNAL: 'Continue par journal',
-  CONTINUE_FICHIER: 'Continue pour le fichier',
-  MENSUELLE: 'Mensuelle',
-};
 
 export function JournauxPage() {
   const { estAdmin } = useAuth();
@@ -131,8 +124,11 @@ export function JournauxPage() {
   };
 
   return (
-    <div className="p-2">
+    <div className="p-2 avec-edition">
+      <EnteteImpression titre="Codes journaux" />
+      <EditionStructure edition={editionJournaux(liste ?? [])} perimetre={perimetreEdition([], liste?.length ?? 0, 'journal', 'journaux')} />
       <div className="flex items-center justify-end gap-2 mb-2">
+        <BoutonImprimer libelle="Imprimer la liste" />
         <Aide
           titre="Codes journaux"
           texte="Le type d'un journal détermine le pré-positionnement du curseur en saisie (débit ou crédit selon la racine du compte) et n'est plus modifiable après création. Un journal de trésorerie porte son compte rattaché : la contrepartie s'y enregistre en un clic depuis la saisie. « Situation » : écritures provisoires, jamais clôturé."

@@ -979,6 +979,22 @@ tbody tr {
     display: block !important;
   }
 
+  /* ÉDITION DES STRUCTURES (point 18) · une fenêtre qui porte une édition
+     n'imprime QUE l'en-tête et l'édition, jamais son écran · un plan en
+     arborescence ou une liste filtrée sortait tronqué sans le dire. */
+  /* Seule la fenêtre active s'imprime · les autres restent ouvertes derrière
+     elle à l'écran, jamais sur le papier. */
+  .fenetre-inactive {
+    display: none !important;
+  }
+
+  .avec-edition > *:not(.impression-seul) {
+    display: none !important;
+  }
+  .edition-structure thead {
+    display: table-header-group;
+  }
+
   /* Le conteneur d'application est en h-screen + overflow auto à l'écran :
      sans cette libération, l'impression s'arrêterait à la première page. */
   #root,

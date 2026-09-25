@@ -4,7 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import type { ClasseCompte, Compte, ModeReportANouveau, TauxTva, TypeCompteDetailTotal } from '../lib/types';
-import { EnteteImpression } from '../components/chrome/EnteteImpression';
+import { BoutonImprimer, EnteteImpression } from '../components/chrome/EnteteImpression';
+import { EditionStructure } from '../components/EditionStructure';
+import { editionPlan, perimetreEdition } from '../lib/editions-structures';
 import { Aide } from '../components/chrome/Aide';
 
 /**
@@ -234,10 +236,15 @@ export function PlanComptesPage() {
   };
 
   return (
-    <div className="p-2 flex flex-col h-full">
+    <div className="p-2 flex flex-col h-full avec-edition">
       <EnteteImpression titre="Plan comptable" />
+      <EditionStructure
+        edition={editionPlan(comptes ?? [])}
+        perimetre={perimetreEdition([['Recherche', recherche]], comptes?.length ?? 0, 'compte')}
+      />
       <div className="flex items-center justify-end mb-2 shrink-0">
         <div className="flex items-center gap-2">
+          <BoutonImprimer libelle="Imprimer la liste" />
           <input
             ref={champRecherche}
             value={recherche}

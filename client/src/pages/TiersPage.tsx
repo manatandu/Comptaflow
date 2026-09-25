@@ -6,7 +6,9 @@ import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { IconCheck } from '../components/chrome/icons';
 import { Aide } from '../components/chrome/Aide';
-import { EnteteImpression } from '../components/chrome/EnteteImpression';
+import { BoutonImprimer, EnteteImpression } from '../components/chrome/EnteteImpression';
+import { EditionStructure } from '../components/EditionStructure';
+import { editionTiers, libelleTypeTiers, perimetreEdition } from '../lib/editions-structures';
 import type {
   Compte,
   ConditionEcheance,
@@ -497,9 +499,25 @@ export function TiersPage() {
   }
 
   return (
-    <div className="p-2 flex flex-col h-full">
+    <div className="p-2 flex flex-col h-full avec-edition">
+      <EnteteImpression titre="Plan des tiers" />
+      {/* La liste IMPRIMÉE est celle que l'écran montre · le périmètre dit
+          donc la recherche et le type retenus. */}
+      <EditionStructure
+        edition={editionTiers(listeFiltree)}
+        perimetre={perimetreEdition(
+          [
+            ['Recherche', recherche],
+            ['Type', filtreType ? libelleTypeTiers(filtreType) : null],
+          ],
+          listeFiltree.length,
+          'tiers',
+          'tiers',
+        )}
+      />
       <div className="flex items-center justify-end mb-2 shrink-0">
         <div className="flex items-center gap-2">
+          <BoutonImprimer libelle="Imprimer la liste" />
           <input
             ref={champRecherche}
             value={recherche}

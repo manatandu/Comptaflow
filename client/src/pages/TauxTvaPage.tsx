@@ -3,6 +3,9 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import type { Compte, TauxTva } from '../lib/types';
 import { Aide } from '../components/chrome/Aide';
+import { BoutonImprimer, EnteteImpression } from '../components/chrome/EnteteImpression';
+import { EditionStructure } from '../components/EditionStructure';
+import { editionTaux, perimetreEdition } from '../lib/editions-structures';
 
 /**
  * TAUX DE TAXES · la fenêtre Structure → Taux de taxes de Sage 100 i7 :
@@ -103,8 +106,11 @@ export function TauxTvaPage() {
   };
 
   return (
-    <div className="p-2">
+    <div className="p-2 avec-edition">
+      <EnteteImpression titre="Taux de taxes" />
+      <EditionStructure edition={editionTaux(liste ?? [])} perimetre={perimetreEdition([], liste?.length ?? 0, 'taux', 'taux')} />
       <div className="flex items-center justify-end gap-2 mb-2">
+        <BoutonImprimer libelle="Imprimer la liste" />
         <Aide
           titre="Taux de TVA"
           texte={`Taux normal 16 %, réduits 1 % et 5 % (billets d'avion), zéro (exportations). Une opération exonérée ${

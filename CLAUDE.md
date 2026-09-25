@@ -4510,6 +4510,18 @@ total et somme sur le périmètre entier, `tronque` au-delà de 500 ; montant
 figé à l'émission. Il vit en onglet de Rappel et relevé, le menu Traitement
 étant tenu sous son plafond. Frais d'impayé et pénalités de Sage non servis.
 
+**Éditions des structures (2026-09-25).** Point 18 de la comparaison. Le
+manuel i7 NOMME « Imprimer la liste des comptes », « des journaux », « des
+tiers » et « Imprimer les paramètres de la société », sans maquette · les
+colonnes sont celles d'OmegaX (`lib/editions-structures.ts`). TROIS RÈGLES À NE
+PAS DÉFAIRE. (1) UNE ÉDITION EST UNE LISTE À PLAT, JAMAIS L'ÉCRAN IMPRIMÉ · la
+fenêtre porte `avec-edition` et n'imprime que l'en-tête et l'édition ; un plan
+en arborescence ou une liste filtrée sortait tronqué sans le dire. (2) LE
+PÉRIMÈTRE SE DIT · « Liste complète » ou la sélection exacte, avec le nombre de
+lignes ; une rubrique vide des paramètres s'imprime « non renseigné ». (3) SEULE
+LA FENÊTRE ACTIVE S'IMPRIME (`fenetre-inactive`) · jusque-là, « Imprimer »
+sortait aussi toutes les fenêtres ouvertes derrière, états compris.
+
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
 nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la

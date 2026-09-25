@@ -6,6 +6,10 @@ import { NaturesCompte } from '../components/NaturesCompte';
 import { Ligne, OngletsVerticaux, SectionTitre, champSage } from '../components/FormulaireSage';
 import { SYSTEMES_SYSCOHADA } from '../lib/systemes-syscohada';
 import { FORMES_SYSCOHADA } from '../lib/formes-juridiques-syscohada';
+import { BoutonImprimer, EnteteImpression } from '../components/chrome/EnteteImpression';
+import { EditionStructure } from '../components/EditionStructure';
+import { editionParametres } from '../lib/editions-structures';
+import { LIBELLE_SYSTEME } from '../lib/systemes-syscohada';
 import type {
   FormeJuridiqueEbnl,
   FormeJuridiqueSyscohada,
@@ -570,8 +574,30 @@ export function ParametresDossierPage() {
 
   const verrouille = !!params && params.nombreEcritures > 0;
 
+  // « Imprimer les paramètres de la société » (Sage i7) · la fiche entière,
+  // tous onglets confondus, et non l'onglet ouvert à l'écran.
+  const libellesEdition = params
+    ? {
+        jeuOuSysteme:
+          params.referentiel === 'SYCEBNL'
+            ? (CHOIX.find((c) => c.valeur === params.jeuEtatsFinanciersSycebnl)?.titre ?? null)
+            : params.systemeComptableSyscohada
+              ? LIBELLE_SYSTEME[params.systemeComptableSyscohada]
+              : null,
+        forme:
+          params.referentiel === 'SYCEBNL'
+            ? (FORMES.find((f) => f.valeur === params.formeJuridique)?.titre ?? null)
+            : (FORMES_SYSCOHADA.find((f) => f.valeur === params.formeJuridiqueSyscohada)?.titre ?? null),
+      }
+    : null;
+
   return (
-    <div className="p-2 h-full flex flex-col">
+    <div className="p-2 h-full flex flex-col avec-edition">
+      <EnteteImpression titre="Paramètres du dossier" />
+      {params && libellesEdition && <EditionStructure edition={editionParametres(params, libellesEdition)} perimetre="Fiche complète du dossier" />}
+      <div className="flex justify-end mb-1.5">
+        <BoutonImprimer libelle="Imprimer les paramètres" />
+      </div>
       {erreur && (
         <div className="mb-2 text-[11.5px] text-danger bg-danger-soft border border-danger/30 rounded-[3px] px-2.5 py-1.5">
           {erreur}

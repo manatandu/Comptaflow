@@ -18,8 +18,8 @@ tiennent à un texte OHADA ; ils sont signalés comme tels.
   règle de Sage « confirmation requise en saisie »). Le serveur refuse une
   saisie sur un compte en sommeil tant qu'elle n'est pas confirmée ; la
   clôture et les modules ne sont pas concernés.
-- **Aucune impression propre aux listes de structures** · seulement
-  « Imprimer la fenêtre ».
+- **Impression des listes de structures** · faite au point 18 (liste à
+  plat, périmètre dit).
 - **Les à-nouveaux ne naissent qu'à la clôture définitive de N.** Pas de
   « nouvel exercice » à la mode Sage avec à-nouveaux provisoires.
 
@@ -112,7 +112,13 @@ tiennent à un texte OHADA ; ils sont signalés comme tels.
     et relevé, par période et par compte, montant figé à l'émission, tranche
     dite ; frais d'impayé et pénalités de Sage non servis, OmegaX n'en
     calcule aucun.
-18. Éditions des structures (plan, tiers, journaux, taux, paramètres).
+18. ~~Éditions des structures (plan, tiers, journaux, taux, paramètres)~~ ·
+    FAIT le 2026-09-25 : chaque fenêtre imprime sa liste À PLAT, avec
+    l'en-tête du dossier, et dit son périmètre (liste complète ou sélection
+    exacte, nombre de lignes) ; les paramètres s'impriment en fiche complète.
+    Le manuel i7 ne fait que nommer ces commandes · les colonnes sont celles
+    d'OmegaX. Trouvé au passage : toute impression sortait aussi les fenêtres
+    ouvertes derrière la fenêtre active ; corrigé.
 19. Banques, libellés, collaborateurs, plan reporting.
 20. États personnalisés et reporting.
 21. Documents attachés aux tiers.
