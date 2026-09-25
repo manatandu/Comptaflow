@@ -80,7 +80,8 @@ tiennent à un texte OHADA ; ils sont signalés comme tels.
     2026-09-25 : la clôture totale, la clôture de période et la clôture
     d'exercice figent le lettrage (manuel, automatique, pré-lettrage,
     règlements) et la ventilation analytique ; la partielle les laisse
-    ouverts, comme le dit le manuel i7.
+    ouverts, comme le dit le manuel i7. La clôture totale porte sur un
+    journal jusqu'à une date (« pour le mois de janvier »), plus sur toute sa vie.
 13. Compte collectif et comptes auxiliaires de tiers.
 14. Natures de compte paramétrables.
 15. Droits d'accès fonction par fonction.

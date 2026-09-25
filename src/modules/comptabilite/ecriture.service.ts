@@ -518,11 +518,6 @@ export class EcritureService {
     // postulat de spécialisation. Voir exercice/report-periode-close.ts.
     if (dto.reporterAuPremierJourOuvert) {
       const premier = await this.exerciceService.premierJourOuvert(tenantId, dto.journalId, date);
-      if (premier === null) {
-        throw new ForbiddenException(
-          `Le journal ${journal.code} est clôturé totalement · il n'a plus de période ouverte où reporter l'opération.`,
-        );
-      }
       if (premier.getTime() !== date.getTime()) {
         if (premier > exercice.dateFin) {
           throw new BadRequestException(

@@ -478,14 +478,33 @@ export class ExerciceService {
     });
   }
 
+  /**
+   * CLÔTURE TOTALE · un journal jusqu'à une date. Le manuel Sage i7 l'illustre
+   * par « Clôturer le journal ventes pour le mois de janvier » et « après la
+   * clôture, on ne peut ni ajouter les écritures ni supprimer le journal des
+   * ventes POUR LE MOIS DE JANVIER » : elle porte sur une période, pas sur la
+   * vie entière du journal. Sans date, elle va jusqu'à la fin de l'exercice.
+   */
   async cloreTotale(tenantId: string, exerciceId: string, userId: string, dto: CloreTotaleDto) {
     const exercice = await this.trouverExercice(tenantId, exerciceId);
     const journal = await this.journalService.trouver(tenantId, dto.journalId);
+    const dateLimite = dto.dateLimite ? new Date(dto.dateLimite) : exercice.dateFin;
+    if (dateLimite < exercice.dateDebut || dateLimite > exercice.dateFin) {
+      throw new BadRequestException("La date de la clôture totale tombe hors de l'exercice.");
+    }
     const dejaClos = await this.prisma.cloture.findFirst({
-      where: { tenantId, journalId: journal.id, granularite: GranulariteCloture.TOTALE, annuleeAt: null },
+      where: {
+        tenantId,
+        journalId: journal.id,
+        granularite: GranulariteCloture.TOTALE,
+        annuleeAt: null,
+        dateLimite: { gte: dateLimite },
+      },
     });
     if (dejaClos) {
-      throw new ConflictException(`Le journal ${journal.code} est déjà clôturé totalement`);
+      throw new ConflictException(
+        `Le journal ${journal.code} est déjà clôturé totalement jusqu'au ${dejaClos.dateLimite.toISOString().slice(0, 10)}`,
+      );
     }
     return this.prisma.cloture.create({
       data: {
@@ -493,7 +512,7 @@ export class ExerciceService {
         exerciceId,
         granularite: GranulariteCloture.TOTALE,
         journalId: journal.id,
-        dateLimite: exercice.dateFin,
+        dateLimite,
         annulable: false,
         createdBy: userId,
       },
@@ -550,7 +569,7 @@ export class ExerciceService {
    * Premier jour non clôturé pour ce journal (AUDCIF art. 22, 4°) · voir
    * `report-periode-close.ts`. `null` si le journal est clôturé totalement.
    */
-  async premierJourOuvert(tenantId: string, journalId: string, date: Date): Promise<Date | null> {
+  async premierJourOuvert(tenantId: string, journalId: string, date: Date): Promise<Date> {
     const clotures = await this.prisma.cloture.findMany({
       where: { tenantId, annuleeAt: null, OR: [{ journalId }, { journalId: null }] },
     });
@@ -562,8 +581,13 @@ export class ExerciceService {
       where: { tenantId, annuleeAt: null, OR: [{ journalId }, { journalId: null }] },
     });
     for (const c of clotures) {
-      if (c.granularite === GranulariteCloture.TOTALE && c.journalId === journalId) {
-        throw new ForbiddenException('Ce journal est clôturé totalement · aucune écriture n\'y est plus possible.');
+      // Bornée à sa date limite · une clôture totale de janvier (ou de 2026)
+      // ne ferme pas février (ou 2027) du même journal.
+      if (c.granularite === GranulariteCloture.TOTALE && c.journalId === journalId && date <= c.dateLimite) {
+        throw new ForbiddenException(
+          `Ce journal est clôturé totalement jusqu'au ${c.dateLimite.toISOString().slice(0, 10)} · aucune écriture n'y est plus possible à cette date. ` +
+            AIDE_REPORT_ART_22,
+        );
       }
       if (c.granularite === GranulariteCloture.PARTIELLE && c.journalId === journalId && date <= c.dateLimite) {
         throw new ForbiddenException(

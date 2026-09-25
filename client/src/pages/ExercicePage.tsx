@@ -30,6 +30,8 @@ export function ExercicePage() {
   const [journalPartielleId, setJournalPartielleId] = useState('');
   const [dateLimitePartielle, setDateLimitePartielle] = useState('');
   const [journalTotaleId, setJournalTotaleId] = useState('');
+  // Vide = jusqu'à la fin de l'exercice · Sage vise un journal POUR UNE PÉRIODE.
+  const [dateLimiteTotale, setDateLimiteTotale] = useState('');
   const [dateLimitePeriode, setDateLimitePeriode] = useState('');
   const [dateArrete, setDateArrete] = useState('');
 
@@ -113,9 +115,13 @@ export function ExercicePage() {
     setErreur(null);
     setInfo(null);
     try {
-      await api.post(`/exercices/${exerciceId}/clotures/totale`, { journalId: journalTotaleId });
+      await api.post(`/exercices/${exerciceId}/clotures/totale`, {
+        journalId: journalTotaleId,
+        ...(dateLimiteTotale ? { dateLimite: dateLimiteTotale } : {}),
+      });
       setInfo('Clôture totale enregistrée · définitive.');
       setJournalTotaleId('');
+      setDateLimiteTotale('');
       await charger();
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Impossible d’enregistrer cette clôture totale');
@@ -615,7 +621,7 @@ export function ExercicePage() {
           <form onSubmit={cloreTotale} className="bg-surface border border-border p-3">
             <div className="font-mono text-[11px] font-semibold text-text-dim mb-2 flex items-center gap-1.5">
               Clôture totale
-              <Aide titre="Clôture totale" texte="Fige un journal sur l'exercice · définitive. Ni saisie, ni lettrage, ni ventilation analytique sur ses lignes." source="Sage 100 i7, clôture des journaux" />
+              <Aide titre="Clôture totale" texte="Fige un journal jusqu'à une date (la fin de l'exercice si la date est laissée vide) · définitive. Ni saisie, ni lettrage, ni ventilation analytique sur ses lignes jusqu'à cette date." source="Sage 100 i7, clôture des journaux" />
             </div>
             <label className="block text-[11.5px] font-semibold text-text-dim mb-2">
               Journal
@@ -633,7 +639,16 @@ export function ExercicePage() {
                 ))}
               </select>
             </label>
-            <button type="submit" disabled={envoi} className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5 disabled:opacity-50 mt-[38px]">
+            <label className="block text-[11.5px] font-semibold text-text-dim mb-2">
+              Jusqu'au
+              <input
+                type="date"
+                value={dateLimiteTotale}
+                onChange={(e) => setDateLimiteTotale(e.target.value)}
+                className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px] font-normal"
+              />
+            </label>
+            <button type="submit" disabled={envoi} className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5 disabled:opacity-50">
               Clôturer
             </button>
           </form>

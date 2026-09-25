@@ -4400,7 +4400,14 @@ AUTOMATIQUE ET LE PRÉ-LETTRAGE N'APPARIENT PAS une ligne figée · ils la
 poseraient, ou proposeraient ce que la confirmation refuserait. (4) LE
 RÈGLEMENT DES TIERS VÉRIFIE LE GEL AVANT LA PREMIÈRE PIÈCE · le lettrage suit
 la pièce, et le refus arriverait trop tard. Une OD analytique n'a pas de
-journal · seule la clôture de période l'atteint.
+journal · seule la clôture de période l'atteint. ET LA CLÔTURE TOTALE ELLE-MÊME
+EST BORNÉE À UNE DATE · le manuel l'illustre par « Clôturer le journal ventes
+pour le mois de janvier » et « on ne peut ni ajouter les écritures ni supprimer
+le journal des ventes pour le mois de Janvier ». OmegaX la posait sur tout
+l'exercice et refusait ensuite la saisie dans ce journal SANS REGARDER LA DATE,
+exercices suivants compris. Elle prend désormais une date (fin d'exercice à
+défaut), la saisie et le report de l'art. 22, 4° la franchissent comme les
+autres clôtures.
 
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en

@@ -34,14 +34,17 @@ describe('premier jour de la période non encore clôturée', () => {
     expect(premierJourNonCloture([partielle('j2', '2026-03-31')], 'j1', J('2026-03-15'))).toEqual(J('2026-03-15'));
   });
 
-  it('un journal clôturé totalement n’a plus de période ouverte', () => {
-    const totale: ClotureActive = { granularite: GranulariteCloture.TOTALE, journalId: 'j1', dateLimite: J('2026-12-31') };
-    expect(premierJourNonCloture([totale], 'j1', J('2026-03-15'))).toBeNull();
+  it('une clôture TOTALE porte sur une période du journal · janvier clos, la facture va au 1er février', () => {
+    // Sage i7 · « Clôturer le journal ventes pour le mois de janvier ».
+    const totale: ClotureActive = { granularite: GranulariteCloture.TOTALE, journalId: 'j1', dateLimite: J('2026-01-31') };
+    expect(premierJourNonCloture([totale], 'j1', J('2026-01-15'))).toEqual(J('2026-02-01'));
+    expect(premierJourNonCloture([totale], 'j1', J('2026-02-10'))).toEqual(J('2026-02-10'));
+    expect(premierJourNonCloture([totale], 'j2', J('2026-01-15'))).toEqual(J('2026-01-15'));
   });
 });
 
 /* Le câblage · écrit en même temps que la règle, pas après (passe F4a). */
-function service(premier: Date | null) {
+function service(premier: Date) {
   const cree = jest.fn().mockImplementation(({ data }: { data: unknown }) => Promise.resolve(data));
   const tx = { ecriture: { create: cree } };
   const prisma = {
@@ -104,12 +107,7 @@ describe('création · le report est demandé, jamais fait d’office', () => {
     expect(cree).not.toHaveBeenCalled();
   });
 
-  it('un journal clôturé totalement est refusé, avec son motif', async () => {
-    const { svc } = service(null);
-    await expect(svc.creer('t1', 'u1', { ...DTO, reporterAuPremierJourOuvert: true } as never)).rejects.toThrow(
-      /clôturé totalement/,
-    );
-  });
+
 });
 
 describe('le refus nomme la voie que le texte ouvre', () => {
@@ -120,5 +118,43 @@ describe('le refus nomme la voie que le texte ouvre', () => {
     const svc = new ExerciceService(prisma, {} as never);
     await expect(svc.verifierEcritureAutorisee('t1', 'j1', J('2026-03-15'))).rejects.toThrow(/art\. 22, 4°/);
     await expect(svc.premierJourOuvert('t1', 'j1', J('2026-03-15'))).resolves.toEqual(J('2026-04-01'));
+  });
+});
+
+describe('la clôture totale est bornée à sa date limite (Sage i7, « pour le mois de janvier »)', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { ExerciceService } = require('./exercice.service');
+  const totale = (limite: string): ClotureActive => ({ granularite: GranulariteCloture.TOTALE, journalId: 'j1', dateLimite: J(limite) });
+
+  it('refuse la saisie jusqu’à la date, pas après, et pas dans un autre journal', async () => {
+    const prisma = { cloture: { findMany: jest.fn().mockResolvedValue([totale('2026-01-31')]) } };
+    const svc = new ExerciceService(prisma, {} as never);
+    await expect(svc.verifierEcritureAutorisee('t1', 'j1', J('2026-01-15'))).rejects.toThrow(/clôturé totalement jusqu'au 2026-01-31/);
+    await expect(svc.verifierEcritureAutorisee('t1', 'j1', J('2026-02-01'))).resolves.toBeUndefined();
+    await expect(svc.verifierEcritureAutorisee('t1', 'j1', J('2027-01-10'))).resolves.toBeUndefined();
+  });
+
+  function monterCloture() {
+    const cree = jest.fn().mockImplementation(({ data }: { data: unknown }) => Promise.resolve(data));
+    const prisma = {
+      exercice: { findFirst: jest.fn().mockResolvedValue({ id: 'ex', dateDebut: J('2026-01-01'), dateFin: J('2026-12-31') }) },
+      cloture: { findFirst: jest.fn().mockResolvedValue(null), create: cree },
+    };
+    const journaux = { trouver: jest.fn().mockResolvedValue({ id: 'j1', code: 'VTE' }) };
+    return { svc: new ExerciceService(prisma, journaux), cree };
+  }
+
+  it('sans date, elle va jusqu’à la fin de l’exercice ; avec une date, jusqu’à elle', async () => {
+    const { svc, cree } = monterCloture();
+    await svc.cloreTotale('t1', 'ex', 'u1', { journalId: 'j1' });
+    expect(cree.mock.calls[0][0].data.dateLimite).toEqual(J('2026-12-31'));
+    await svc.cloreTotale('t1', 'ex', 'u1', { journalId: 'j1', dateLimite: '2026-01-31' });
+    expect(cree.mock.calls[1][0].data.dateLimite).toEqual(J('2026-01-31'));
+  });
+
+  it('refuse une date hors de l’exercice', async () => {
+    const { svc, cree } = monterCloture();
+    await expect(svc.cloreTotale('t1', 'ex', 'u1', { journalId: 'j1', dateLimite: '2027-01-31' })).rejects.toThrow(/hors de l'exercice/);
+    expect(cree).not.toHaveBeenCalled();
   });
 });

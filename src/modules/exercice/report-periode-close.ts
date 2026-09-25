@@ -29,7 +29,7 @@ export interface ClotureActive {
 
 /** Même règle de blocage que `ExerciceService.verifierEcritureAutorisee`. */
 function bloque(c: ClotureActive, journalId: string, date: Date): boolean {
-  if (c.granularite === GranulariteCloture.TOTALE) return c.journalId === journalId;
+  if (c.granularite === GranulariteCloture.TOTALE) return c.journalId === journalId && date <= c.dateLimite;
   if (c.granularite === GranulariteCloture.PARTIELLE) return c.journalId === journalId && date <= c.dateLimite;
   return date <= c.dateLimite;
 }
@@ -44,18 +44,18 @@ function lendemain(d: Date): Date {
 
 /**
  * Premier jour de la période non encore clôturée pour ce journal, à partir de
- * `date`. Rend `date` elle-même si rien ne la bloque, et `null` si le journal
- * est clôturé TOTALEMENT · il n'a alors plus aucune période ouverte.
+ * `date`. Rend `date` elle-même si rien ne la bloque. Une clôture TOTALE porte
+ * sur un journal jusqu'à une date, comme chez Sage (« pour le mois de
+ * janvier ») · elle se franchit donc comme les autres.
  *
  * Les clôtures peuvent s'enchaîner (une PARTIELLE du journal au 31 mars, une
  * PÉRIODE au 30 avril) · on avance tant qu'une clôture bloque encore.
  */
-export function premierJourNonCloture(clotures: ClotureActive[], journalId: string, date: Date): Date | null {
+export function premierJourNonCloture(clotures: ClotureActive[], journalId: string, date: Date): Date {
   let d = date;
   for (let garde = 0; garde <= clotures.length; garde++) {
     const bloquantes = clotures.filter((c) => bloque(c, journalId, d));
     if (bloquantes.length === 0) return d;
-    if (bloquantes.some((c) => c.granularite === GranulariteCloture.TOTALE)) return null;
     const limite = bloquantes.reduce((m, c) => (c.dateLimite > m ? c.dateLimite : m), bloquantes[0].dateLimite);
     d = lendemain(limite);
   }

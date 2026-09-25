@@ -24,8 +24,8 @@ import { GranulariteCloture, Prisma, StatutExercice } from '@prisma/client';
  * TROIS CAS FIGENT une ligne, et un seul ne la fige pas :
  *  · l'exercice de la ligne est CLÔTURÉ ;
  *  · une clôture TOTALE active porte sur SON journal, et la ligne est datée
- *    au plus tard de la date limite (la fin de l'exercice clôturé) · une
- *    clôture totale de 2025 ne fige pas les lignes de 2026 du même journal ;
+ *    au plus tard de sa date limite · Sage clôt « le journal ventes pour le
+ *    mois de janvier », pas le journal pour toujours ;
  *  · une clôture PÉRIODE active couvre sa date, tous journaux confondus ;
  *  · la PARTIELLE ne fige rien, c'est tout son objet.
  */
