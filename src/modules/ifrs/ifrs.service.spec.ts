@@ -21,7 +21,7 @@ const EX2 = 'ex-2024';
 type LigneDoublure = [string, number] | [string, number, number, number];
 
 function doublure(avecPrecedent = false, avecAvantPrecedent = false, balancesPropres: Record<string, LigneDoublure[]> = {}) {
-  const tables: Record<string, any[]> = { regles: [], retraitements: [], parametres: [], mouvements: [] };
+  const tables: Record<string, any[]> = { regles: [], retraitements: [], parametres: [], mouvements: [], effets: [] };
   // La doublure HONORE la borne `dateFin < …` · une doublure qui rendrait
   // toujours le même exercice ferait passer la recherche du précédent pour
   // juste quelle que soit la date qu'elle cherche.
@@ -58,6 +58,24 @@ function doublure(avecPrecedent = false, avecAvantPrecedent = false, balancesPro
         return r;
       }),
       delete: jest.fn(async ({ where }: any) => (tables.regles = tables.regles.filter((r) => r.id !== where.id))),
+    },
+    effetChangeTresorerieIfrs: {
+      // La doublure HONORE la clé (dossier, exercice) · un effet déclaré sur un
+      // autre exercice ne doit jamais se lire sur celui-ci.
+      findUnique: jest.fn(async ({ where }: any) => {
+        const k = where.tenantId_exerciceId;
+        return tables.effets.find((e) => e.tenantId === k.tenantId && e.exerciceId === k.exerciceId) ?? null;
+      }),
+      upsert: jest.fn(async ({ where, create, update }: any) => {
+        const k = where.tenantId_exerciceId;
+        const i = tables.effets.findIndex((e) => e.tenantId === k.tenantId && e.exerciceId === k.exerciceId);
+        const e = i >= 0 ? { ...tables.effets[i], ...update } : { id: `e-${++seq}`, ...create };
+        e.montant = new Prisma.Decimal(e.montant);
+        if (i >= 0) tables.effets[i] = e;
+        else tables.effets.push(e);
+        return e;
+      }),
+      delete: jest.fn(async ({ where }: any) => (tables.effets = tables.effets.filter((e) => e.id !== where.id))),
     },
     mouvementCapitauxPropresIfrs: {
       findMany: jest.fn(async ({ where }: any) => tables.mouvements.filter((m) => m.exerciceId === where.exerciceId && m.tenantId === where.tenantId)),
@@ -105,6 +123,8 @@ function doublure(avecPrecedent = false, avecAvantPrecedent = false, balancesPro
           totalCredit: Math.max(-solde, 0),
           reportDebit,
           reportCredit,
+          mouvementDebit: Math.max(solde, 0) - reportDebit,
+          mouvementCredit: Math.max(-solde, 0) - reportCredit,
         })),
       };
     }),
@@ -344,10 +364,178 @@ describe('IfrsService · première application (IFRS 1)', () => {
   });
 });
 
+describe('IfrsService · tableau des flux de trésorerie (IAS 7 modifiée par IFRS 18)', () => {
+  // 2025 · banque 1 000, capital 1 000. 2026, chiffré à la main · ventes
+  // 500 et achats 200 encaissés et payés, intérêts versés 30, intérêts reçus
+  // 10, dotation 50, matériel acheté 300, emprunt reçu 400, titres de
+  // placement achetés 100. Banque 1 280. Résultat 230, d'exploitation 250.
+  const B = {
+    [EX1]: [
+      ['52110000', 1000, 1000, 0],
+      ['10130000', -1000, 0, 1000],
+    ] as LigneDoublure[],
+    [EX]: [
+      ['52110000', 1280, 1000, 0],
+      ['50110000', 100],
+      ['24110000', 300],
+      ['28410000', -50],
+      ['10130000', -1000, 0, 1000],
+      ['16200000', -400],
+      ['70110000', -500],
+      ['60110000', 200],
+      ['68130000', 50],
+      ['67110000', 30],
+      ['77120000', -10],
+    ] as LigneDoublure[],
+  };
+  const REGLES_FLUX = [
+    { prefixe: '24', rubrique: 'SF_IMMOBILISATIONS_CORPORELLES' },
+    { prefixe: '28', rubrique: 'SF_IMMOBILISATIONS_CORPORELLES' },
+    { prefixe: '10', rubrique: 'SF_CAPITAL' },
+    { prefixe: '16', rubrique: 'SF_PASSIFS_FINANCIERS_NC' },
+    { prefixe: '50', rubrique: 'SF_ACTIFS_FINANCIERS_C' },
+    { prefixe: '52', rubrique: 'SF_TRESORERIE' },
+    { prefixe: '70', rubrique: 'PL_PRODUITS' },
+    { prefixe: '60', rubrique: 'PL_ACHATS_CONSOMMES' },
+    { prefixe: '68', rubrique: 'PL_AMORTISSEMENTS' },
+    { prefixe: '67', rubrique: 'PL_CHARGES_FINANCEMENT' },
+    { prefixe: '77', rubrique: 'PL_PRODUITS_INVESTISSEMENT' },
+  ];
+  async function dossier() {
+    const d = doublure(true, false, B);
+    for (const r of REGLES_FLUX) await d.service.ajouterRegle(T, r);
+    await d.service.declarerActivite(T, { activitePrincipale: 'AUCUNE' });
+    return d;
+  }
+  const M = (t: any, cle: string) => t.lignes.find((l: any) => l.cle === cle)?.montant;
+
+  it('du résultat d’exploitation à la trésorerie, chaque flux à sa place (§ 18 b, § 20, § 16, § 17, § 33A, § 34A)', async () => {
+    const { service } = await dossier();
+    await service.declarerTresorerie(T, { decouvertsDansTresorerie: null, tresorerieEnDevises: false });
+    const e = await service.etat(T, EX);
+    const t = e.fluxTresorerie.n!;
+    expect(t).not.toBeNull();
+    // Exploitation · 250 + 50 de dotation = 300, et non les 280 de la CAFG légale, qui porte les intérêts.
+    expect(M(t, 'E_RESULTAT_EXPLOITATION')).toBe(250);
+    expect(M(t, 'E_ELEMENTS_SANS_TRESORERIE')).toBe(50);
+    expect(M(t, 'E_TOTAL')).toBe(300);
+    // Investissement · matériel − 300, placements − 100 (hors équivalents, § 7), intérêts reçus + 10.
+    expect(M(t, 'I_ACQ_CORPORELLES')).toBe(-300);
+    expect(M(t, 'I_PLACEMENTS')).toBe(-100);
+    expect(M(t, 'I_INTERETS_DIVIDENDES')).toBe(10);
+    expect(M(t, 'I_TOTAL')).toBe(-390);
+    // Financement · emprunt + 400, intérêts versés − 30.
+    expect(M(t, 'F_INTERETS')).toBe(-30);
+    expect(M(t, 'F_TOTAL')).toBe(370);
+    // Trésorerie IAS 7 · la banque seule, 1 000 → 1 280.
+    expect([M(t, 'T_VARIATION'), M(t, 'T_OUVERTURE'), M(t, 'T_CLOTURE'), M(t, 'T_ECART')]).toEqual([280, 1000, 1280, undefined]);
+    // Du tableau SYSCOHADA (trésorerie = banque + titres) au tableau IFRS.
+    expect(t.rapprochementLegal.map((x) => [x.syscohada, x.ifrs])).toEqual([[280, 300], [-300, -390], [400, 370], [380, 280]]);
+    expect(t.rapprochementSituation.map((x) => x.montant)).toEqual([1280, 1280]);
+    expect(t.motifsNonPubliable).toEqual([]);
+    // Le comparatif exige 2024, absent du dossier.
+    expect(e.fluxTresorerie.n1).toBeNull();
+    expect(e.n.motifsNonPubliable.join(' ')).toMatch(/Tableau des flux de trésorerie comparatif non établi/);
+  });
+
+  it('un retraitement ne déplace aucune trésorerie · son effet sur le résultat d’exploitation est retiré (§ 20 b)', async () => {
+    const { service } = await dossier();
+    await service.declarerTresorerie(T, { tresorerieEnDevises: false });
+    await service.ajouterRetraitement(T, {
+      exerciceId: EX,
+      libelle: 'Dépréciation',
+      fondement: 'IAS 36 § 59',
+      lignes: [{ rubrique: 'PL_AUTRES_CHARGES_OPERATIONNELLES', montant: 40 }, { rubrique: 'SF_IMMOBILISATIONS_CORPORELLES', montant: -40 }],
+    });
+    const t = (await service.etat(T, EX)).fluxTresorerie.n!;
+    expect([M(t, 'E_RESULTAT_EXPLOITATION'), M(t, 'E_RETRAITEMENTS'), M(t, 'E_TOTAL')]).toEqual([210, 40, 300]);
+  });
+
+  it('§ 28 · la trésorerie en devises se déclare, et l’effet de change sort de sa catégorie pour sa propre ligne', async () => {
+    const { service } = await dossier();
+    let e = await service.etat(T, EX);
+    expect(e.n.motifsNonPubliable.join(' ')).toMatch(/déclarez si la trésorerie comprend des soldes en devises/);
+    await service.declarerTresorerie(T, { tresorerieEnDevises: true });
+    e = await service.etat(T, EX);
+    expect(e.n.motifsNonPubliable.join(' ')).toMatch(/l’effet de change de l’exercice n’est pas déclaré/);
+    // 10 des 10 « reçus » en investissement sont en réalité un gain de change sur la banque.
+    await service.declarerEffetChange(T, { exerciceId: EX, montant: 10, categorie: 'INVESTISSEMENT', justification: 'Conversion au cours de clôture' });
+    const t = (await service.etat(T, EX)).fluxTresorerie.n!;
+    expect([M(t, 'I_INTERETS_DIVIDENDES'), M(t, 'T_CHANGE'), M(t, 'T_CLOTURE'), M(t, 'T_ECART')]).toEqual([0, 10, 1280, undefined]);
+    // La variation IFRS du rapprochement compte l'effet de change · 270 de flux et 10 de change.
+    expect(t.rapprochementLegal[3]).toMatchObject({ syscohada: 380, ifrs: 280 });
+    expect(t.motifsNonPubliable).toEqual([]);
+    await service.declarerTresorerie(T, { tresorerieEnDevises: false });
+    await expect(
+      service.declarerEffetChange(T, { exerciceId: EX, montant: 5, categorie: 'INVESTISSEMENT', justification: 'x' }),
+    ).rejects.toThrow(/sans devises/);
+  });
+
+  // Découvert (561) · 200 à l'ouverture, 300 à la clôture ; banque 1 000 → 1 300 ;
+  // ventes 220 encaissées, un don de 20 versé sur un compte sans règle.
+  const BD = {
+    [EX1]: [
+      ['52110000', 1000, 1000, 0],
+      ['56100000', -200, 0, 200],
+      ['10130000', -800, 0, 800],
+    ] as LigneDoublure[],
+    [EX]: [
+      ['52110000', 1300, 1000, 0],
+      ['56100000', -300, 0, 200],
+      ['10130000', -800, 0, 800],
+      ['70110000', -220],
+      ['65820000', 20],
+    ] as LigneDoublure[],
+  };
+  async function avecDecouvert(regle56: string) {
+    const d = doublure(true, false, BD);
+    for (const r of [
+      { prefixe: '10', rubrique: 'SF_CAPITAL' },
+      { prefixe: '52', rubrique: 'SF_TRESORERIE' },
+      { prefixe: '56', rubrique: regle56 },
+      { prefixe: '70', rubrique: 'PL_PRODUITS' },
+    ]) {
+      await d.service.ajouterRegle(T, r);
+    }
+    return d;
+  }
+
+  it('§ 8 · déclaré hors trésorerie, le découvert est un financement ; déclaré dedans, il se rapproche de la situation (§ 45)', async () => {
+    const { service } = await avecDecouvert('SF_PASSIFS_FINANCIERS_C');
+    let e = await service.etat(T, EX);
+    expect(e.n.motifsNonPubliable.join(' ')).toMatch(/déclarez si les découverts bancaires font partie intégrante/);
+    await service.declarerTresorerie(T, { decouvertsDansTresorerie: false, tresorerieEnDevises: false });
+    let t = (await service.etat(T, EX)).fluxTresorerie.n!;
+    // Le compte sans règle reste à l'exploitation, comme au compte de résultat · 220 − 20.
+    expect([M(t, 'E_TOTAL'), M(t, 'F_CREDITS_TRESORERIE'), M(t, 'I_PLACEMENTS'), M(t, 'T_OUVERTURE'), M(t, 'T_CLOTURE'), M(t, 'T_ECART')]).toEqual([
+      200, 100, undefined, 1000, 1300, undefined,
+    ]);
+    await service.declarerTresorerie(T, { decouvertsDansTresorerie: true, tresorerieEnDevises: false });
+    e = await service.etat(T, EX);
+    t = e.fluxTresorerie.n!;
+    expect([M(t, 'F_CREDITS_TRESORERIE'), M(t, 'T_OUVERTURE'), M(t, 'T_CLOTURE'), M(t, 'T_ECART')]).toEqual([undefined, 800, 1000, undefined]);
+    expect(t.rapprochementSituation.map((x) => [x.cle, x.montant])).toEqual([['R_SITUATION', 1300], ['R_DECOUVERTS', -300], ['R_TABLEAU', 1000]]);
+  });
+
+  it('§ 45 · un découvert déjà rangé en trésorerie par sa règle n’est pas rapproché une seconde fois', async () => {
+    const { service } = await avecDecouvert('SF_TRESORERIE');
+    await service.declarerTresorerie(T, { decouvertsDansTresorerie: true, tresorerieEnDevises: false });
+    const t = (await service.etat(T, EX)).fluxTresorerie.n!;
+    expect(t.rapprochementSituation.map((x) => [x.cle, x.montant])).toEqual([['R_SITUATION', 1000], ['R_TABLEAU', 1000]]);
+  });
+
+  it('sans l’exercice précédent, pas de tableau, et le jeu le dit', async () => {
+    const { service } = doublure();
+    const e = await service.etat(T, EX);
+    expect(e.fluxTresorerie.n).toBeNull();
+    expect(e.n.motifsNonPubliable.join(' ')).toMatch(/Tableau des flux de trésorerie non établi · Sans l’exercice précédent/);
+  });
+});
+
 describe('IfrsController · les écritures sont réservées', () => {
   it('toute route qui écrit porte @Roles, sans la lecture seule', () => {
     const proto = IfrsController.prototype as any;
-    for (const m of ['declarerActivite', 'declarerPremiereApplication', 'ajouterRegle', 'supprimerRegle', 'ajouterRetraitement', 'supprimerRetraitement', 'ajouterMouvementCp', 'supprimerMouvementCp']) {
+    for (const m of ['declarerActivite', 'declarerPremiereApplication', 'declarerTresorerie', 'declarerEffetChange', 'supprimerEffetChange', 'ajouterRegle', 'supprimerRegle', 'ajouterRetraitement', 'supprimerRetraitement', 'ajouterMouvementCp', 'supprimerMouvementCp']) {
       const roles = Reflect.getMetadata(ROLES_KEY, proto[m]);
       expect(roles).toEqual([RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE]);
     }
@@ -363,7 +551,7 @@ describe('les tables IFRS ne sont lues que par le module IFRS', () => {
         return statSync(p).isDirectory() ? fichiers(p) : p.endsWith('.ts') && !p.endsWith('.spec.ts') ? [p] : [];
       });
     const lecteurs = fichiers(racine)
-      .filter((f) => /\b(retraitementIfrs|regleCorrespondanceIfrs|parametresIfrs|ligneRetraitementIfrs|RetraitementIfrs|RegleCorrespondanceIfrs|ParametresIfrs|LigneRetraitementIfrs|mouvementCapitauxPropresIfrs|MouvementCapitauxPropresIfrs)\b/.test(readFileSync(f, 'utf8')))
+      .filter((f) => /\b(retraitementIfrs|regleCorrespondanceIfrs|parametresIfrs|ligneRetraitementIfrs|RetraitementIfrs|RegleCorrespondanceIfrs|ParametresIfrs|LigneRetraitementIfrs|mouvementCapitauxPropresIfrs|MouvementCapitauxPropresIfrs|effetChangeTresorerieIfrs|EffetChangeTresorerieIfrs)\b/.test(readFileSync(f, 'utf8')))
       .map((f) => relative(racine, f))
       .sort();
     expect(lecteurs).toEqual(['common/cloisonnement/modeles-cloisonnes.ts', 'modules/ifrs/ifrs.service.ts']);

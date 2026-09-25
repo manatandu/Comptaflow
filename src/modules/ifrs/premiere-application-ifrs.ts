@@ -8,7 +8,7 @@ import { RUBRIQUE_PAR_CODE } from './rubriques-ifrs';
  * « 2023 Issued Standards » (skill `ifrs`), § 6 à 28 et annexe A. RÉSERVE ·
  * IFRS 18 modifie d'autres normes (son annexe D), et le texte d'IFRS 1 du
  * corpus est antérieur à cette annexe · les paragraphes servis ici (§ 6, 10,
- * 11, 21, 23, 24, 26) sont appliqués tels que le corpus les écrit.
+ * 11, 21, 23, 24, 25, 26) sont appliqués tels que le corpus les écrit.
  *
  * LA DATE DE TRANSITION est le « début de la première période pour laquelle
  * une entité présente des informations IFRS comparatives complètes selon les
@@ -200,6 +200,9 @@ export function construirePremiereApplication(p: {
     'Un ajustement de transition vaut à la date de transition · ce qu’il laisse au bilan à la clôture de l’exercice comparatif s’y redéclare en retraitement de cet exercice, le module ne reportant aucun retraitement d’un exercice à l’autre.',
     'Les exemptions des annexes C à E se traduisent dans les ajustements de transition déclarés · leur choix n’est pas enregistré à part, et une exemption ne s’applique pas par analogie à d’autres éléments (§ D1).',
   ];
+  mentions.push(
+    'IFRS 1 § 25 · les ajustements significatifs du tableau des flux de trésorerie se lisent au rapprochement du tableau SYSCOHADA au tableau IFRS, activité par activité.',
+  );
   if (p.ajustementsTransition.some((r) => /IAS 36/.test(r.fondement))) {
     mentions.push('IFRS 1 § 24 c · une perte de valeur comptabilisée ou reprise à l’ouverture appelle les informations qu’aurait imposées IAS 36 sur la période commençant à la date de transition.');
   }
@@ -214,9 +217,6 @@ export function construirePremiereApplication(p: {
   if (p.ouverture.nonClasses.length > 0) {
     motifsNonPubliable.push(`Première application · ${p.ouverture.nonClasses.length} compte(s) d’ouverture sans rubrique IFRS · ${p.ouverture.nonClasses.map((c) => c.numero).join(', ')}.`);
   }
-  motifsNonPubliable.push(
-    'Première application · les ajustements significatifs du tableau des flux de trésorerie (IFRS 1 § 25) attendent le tableau IAS 7.',
-  );
 
   return { dateTransition: p.dateTransition.toISOString().slice(0, 10), ouverture: p.ouverture, rapprochements, mentions, motifsNonPubliable };
 }

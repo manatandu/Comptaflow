@@ -148,7 +148,7 @@ describe('première application · les rapprochements du § 24', () => {
     const perte = r('perte', [{ rubrique: 'SF_RESERVES', montant: 30 }, { rubrique: 'SF_IMMOBILISATIONS_CORPORELLES', montant: -30 }], false, 'IAS 36 § 59');
     const avec = construirePremiereApplication({ ...base, ouverture: etat(ouvertureLegale, [perte]), ajustementsTransition: [perte] });
     expect(avec.mentions.join(' ')).toMatch(/IFRS 1 § 24 c/);
-    expect(avec.motifsNonPubliable.join(' ')).toMatch(/IFRS 1 § 25\) attendent le tableau IAS 7/);
+    expect(avec.mentions.join(' ')).toMatch(/IFRS 1 § 25 · les ajustements significatifs du tableau des flux/);
   });
 
   it('un ajustement de transition vers le résultat est refusé par le moteur aussi', () => {

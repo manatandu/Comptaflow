@@ -61,6 +61,7 @@ export const MODELES_CLOISONNES = new Set<string>([
   'RetraitementIfrs',
   'LigneRetraitementIfrs',
   'MouvementCapitauxPropresIfrs',
+  'EffetChangeTresorerieIfrs',
   'MandatAuditeur',
   'Licence',
   'LiquidationTva',

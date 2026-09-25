@@ -21,6 +21,11 @@ import { useExercice } from '../lib/exercice';
  * exercice, l'écran rend l'état de la situation financière d'ouverture à la
  * date de transition (§ 6) et les trois rapprochements du § 24, et les
  * ajustements de transition se posent sur l'exercice comparatif (§ 11).
+ *
+ * TRANCHE 3 · l'état des flux de trésorerie (IAS 7 modifiée par IFRS 18),
+ * méthode indirecte à partir du résultat d'exploitation, bâti sur les flux
+ * réels du tableau SYSCOHADA. Les découverts (§ 8), la présence de devises et
+ * l'effet de change (§ 28) se déclarent.
  */
 type Rubrique = { code: string; libelle: string; ref: string; etat: 'SITUATION' | 'RESULTAT' | 'RESULTAT_GLOBAL'; section?: string; categorie?: string };
 type LigneVariation = { cle: string; libelle: string; ref?: string; nature: 'SOLDE' | 'MOUVEMENT' | 'TOTAL' | 'ECART'; capital: number; reserves: number; autres: number; total: number };
@@ -69,7 +74,26 @@ type Rapprochement = {
   lignes: { cle: string; libelle: string; fondement?: string; nature?: 'METHODE' | 'ERREUR'; montant: number }[];
   ecart: number;
 };
+type LigneFlux = { cle: string; libelle: string; ref?: string; section: string; nature: 'FLUX' | 'TOTAL' | 'SOLDE' | 'ECART'; montant: number };
+type Flux = {
+  lignes: LigneFlux[];
+  rapprochementSituation: { cle: string; libelle: string; montant: number }[];
+  rapprochementLegal: { activite: string; syscohada: number; ifrs: number; ecart: number }[];
+  mentions: string[];
+};
+type CategorieChange = 'OPERATIONNELLE' | 'INVESTISSEMENT' | 'FINANCEMENT';
+const CATEGORIES_CHANGE: Record<CategorieChange, string> = {
+  OPERATIONNELLE: 'Catégorie « exploitation »',
+  INVESTISSEMENT: 'Catégorie « investissement »',
+  FINANCEMENT: 'Catégorie « financement »',
+};
+const booleen = (v: boolean | null) => (v == null ? '' : v ? 'OUI' : 'NON');
+const deBooleen = (v: string) => (v === '' ? null : v === 'OUI');
 type Etat = {
+  decouvertsDansTresorerie: boolean | null;
+  tresorerieEnDevises: boolean | null;
+  effetChange: { montant: number | string; categorie: CategorieChange; justification: string } | null;
+  fluxTresorerie: { n: Flux | null; motifN: string | null; n1: Flux | null; motifN1: string | null };
   activitePrincipale: 'AUCUNE' | 'INVESTIR_ACTIFS' | 'FINANCER_CLIENTS' | null;
   premierExerciceIfrsId: string | null;
   dejaAdoptant: boolean;
@@ -106,6 +130,7 @@ export function EtatsIfrsPage() {
   const [erreur, setErreur] = useState<string | null>(null);
   const [regle, setRegle] = useState({ prefixe: '', rubrique: '' });
   const [mvt, setMvt] = useState({ type: 'DISTRIBUTION' as TypeMouvement, composante: 'RESERVES' as Composante, montant: '', libelle: '', justification: '' });
+  const [change, setChange] = useState({ montant: '', categorie: 'FINANCEMENT' as CategorieChange, justification: '' });
   const retrVide = { libelle: '', fondement: '', aLaTransition: false, correctionErreur: false, lignes: [{ rubrique: '', montant: '' }, { rubrique: '', montant: '' }] };
   const [retr, setRetr] = useState(retrVide);
 
@@ -538,6 +563,147 @@ export function EtatsIfrsPage() {
               )}
             </div>
           ))
+        )}
+      </section>
+
+      <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
+        <h2 className="text-[12.5px] font-bold mb-1.5">État des flux de trésorerie (IAS 7, modifiée par IFRS 18)</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mb-2">
+          <label className="text-[12px]">
+            Découverts bancaires remboursables à vue, partie intégrante de la gestion de trésorerie (§ 8)
+            <select
+              className={champ}
+              disabled={!peutEcrire}
+              value={booleen(etat.decouvertsDansTresorerie)}
+              onChange={(e) =>
+                void agir(() => api.put('/ifrs/tresorerie', { decouvertsDansTresorerie: deBooleen(e.target.value), tresorerieEnDevises: etat.tresorerieEnDevises }))
+              }
+            >
+              <option value="">Non déclaré</option>
+              <option value="OUI">Oui · ils font partie de la trésorerie</option>
+              <option value="NON">Non · ce sont des financements</option>
+            </select>
+          </label>
+          <label className="text-[12px]">
+            La trésorerie comprend des soldes en devises (§ 28)
+            <select
+              className={champ}
+              disabled={!peutEcrire}
+              value={booleen(etat.tresorerieEnDevises)}
+              onChange={(e) =>
+                void agir(() => api.put('/ifrs/tresorerie', { decouvertsDansTresorerie: etat.decouvertsDansTresorerie, tresorerieEnDevises: deBooleen(e.target.value) }))
+              }
+            >
+              <option value="">Non déclaré</option>
+              <option value="OUI">Oui</option>
+              <option value="NON">Non</option>
+            </select>
+          </label>
+        </div>
+        {etat.tresorerieEnDevises && (
+          <div className="mb-2">
+            <p className="text-[12px] font-semibold mb-1">Effet des variations des cours de change sur la trésorerie de l’exercice (§ 28)</p>
+            {etat.effetChange ? (
+              <div className="flex justify-between gap-2 text-[12px]">
+                <span>
+                  {fc(Number(etat.effetChange.montant))} · {CATEGORIES_CHANGE[etat.effetChange.categorie]} · {etat.effetChange.justification}
+                </span>
+                {peutEcrire && (
+                  <button className="text-[11px] underline" onClick={() => void agir(() => api.delete(`/ifrs/effet-change/${exerciceId}`))}>
+                    Retirer
+                  </button>
+                )}
+              </div>
+            ) : (
+              peutEcrire && (
+                <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr_1fr_auto] gap-1.5">
+                  <input className={champ} placeholder="Hausse + / baisse −" value={change.montant} onChange={(e) => setChange({ ...change, montant: e.target.value })} />
+                  <select className={champ} value={change.categorie} onChange={(e) => setChange({ ...change, categorie: e.target.value as CategorieChange })}>
+                    {(Object.keys(CATEGORIES_CHANGE) as CategorieChange[]).map((c) => (
+                      <option key={c} value={c}>{CATEGORIES_CHANGE[c]} (où l’écart est comptabilisé)</option>
+                    ))}
+                  </select>
+                  <input className={champ} placeholder="Justification (écriture de conversion)" value={change.justification} onChange={(e) => setChange({ ...change, justification: e.target.value })} />
+                  <button
+                    className="border border-border px-2.5 py-1 text-[12px]"
+                    onClick={() =>
+                      void agir(async () => {
+                        await api.put('/ifrs/effet-change', { exerciceId, ...change, montant: nombre(change.montant) });
+                        setChange({ montant: '', categorie: 'FINANCEMENT', justification: '' });
+                      })
+                    }
+                  >
+                    Déclarer
+                  </button>
+                </div>
+              )
+            )}
+          </div>
+        )}
+        {!etat.fluxTresorerie.n ? (
+          <p className="text-[12px] text-warning">{etat.fluxTresorerie.motifN}</p>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[12px]">
+                <thead>
+                  <tr className="text-left border-b border-border">
+                    <th className="py-1 pr-2">Flux</th>
+                    <th className="py-1 pr-2">IAS 7</th>
+                    <th className="py-1 pr-2 text-right">N</th>
+                    <th className="py-1 text-right">N-1</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {etat.fluxTresorerie.n.lignes.map((l) => (
+                    <tr
+                      key={l.cle}
+                      className={l.nature === 'ECART' ? 'text-danger font-semibold' : l.nature === 'FLUX' ? 'border-b border-border/40' : 'font-bold border-t border-border'}
+                    >
+                      <td className="py-1 pr-2">{l.libelle}</td>
+                      <td className="py-1 pr-2 text-text-dim">{l.ref}</td>
+                      <td className="py-1 pr-2 text-right">{fc(l.montant)}</td>
+                      <td className="py-1 text-right">{etat.fluxTresorerie.n1 ? fc(etat.fluxTresorerie.n1.lignes.find((x) => x.cle === l.cle)?.montant ?? 0) : ''}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {!etat.fluxTresorerie.n1 && <p className="text-[12px] text-text-dim mt-1">{etat.fluxTresorerie.motifN1}</p>}
+            <p className="text-[12px] font-semibold mt-2 mb-1">Rapprochement avec l’état de la situation financière (§ 45)</p>
+            <table className="text-[12px]">
+              <tbody>
+                {etat.fluxTresorerie.n.rapprochementSituation.map((x) => (
+                  <tr key={x.cle} className={x.cle === 'R_TABLEAU' ? 'font-bold' : ''}>
+                    <td className="pr-3">{x.libelle}</td>
+                    <td className="text-right">{fc(x.montant)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="text-[12px] font-semibold mt-2 mb-1">Du tableau SYSCOHADA au tableau IFRS</p>
+            <table className="text-[12px]">
+              <thead>
+                <tr className="text-left border-b border-border">
+                  <th className="pr-3">Activité</th>
+                  <th className="pr-3 text-right">SYSCOHADA</th>
+                  <th className="pr-3 text-right">IFRS</th>
+                  <th className="text-right">Écart</th>
+                </tr>
+              </thead>
+              <tbody>
+                {etat.fluxTresorerie.n.rapprochementLegal.map((x) => (
+                  <tr key={x.activite}>
+                    <td className="pr-3">{x.activite}</td>
+                    <td className="pr-3 text-right">{fc(x.syscohada)}</td>
+                    <td className="pr-3 text-right">{fc(x.ifrs)}</td>
+                    <td className="text-right">{fc(x.ecart)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {etat.fluxTresorerie.n.mentions.map((m) => <p key={m} className="text-[12px] text-text-dim mt-1">{m}</p>)}
+          </>
         )}
       </section>
 

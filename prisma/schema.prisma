@@ -628,6 +628,7 @@ model Tenant {
   retraitementsIfrs                RetraitementIfrs[]
   lignesRetraitementIfrs           LigneRetraitementIfrs[]
   mouvementsCapitauxPropresIfrs    MouvementCapitauxPropresIfrs[]
+  effetsChangeTresorerieIfrs       EffetChangeTresorerieIfrs[]
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -1101,6 +1102,7 @@ model Exercice {
   provisionsChangeConsolidation   ProvisionChangeConsolidation[]
   retraitementsIfrs               RetraitementIfrs[]
   mouvementsCapitauxPropresIfrs   MouvementCapitauxPropresIfrs[]
+  effetsChangeTresorerieIfrs      EffetChangeTresorerieIfrs[]
 
   @@unique([tenantId, dateDebut, dateFin])
   @@map("exercices")
@@ -6540,17 +6542,24 @@ enum ActivitePrincipaleIfrs {
 }
 
 model ParametresIfrs {
-  id                 String                  @id @default(uuid())
-  tenantId           String                  @unique
-  tenant             Tenant                  @relation(fields: [tenantId], references: [id])
-  activitePrincipale ActivitePrincipaleIfrs?
+  id                       String                  @id @default(uuid())
+  tenantId                 String                  @unique
+  tenant                   Tenant                  @relation(fields: [tenantId], references: [id])
+  activitePrincipale       ActivitePrincipaleIfrs?
   /// IFRS 1 · l'exercice des PREMIERS états financiers IFRS de l'entité. La
   /// date de transition est l'ouverture de l'exercice qui le précède (annexe A,
   /// un seul comparatif). NULL avec `dejaAdoptant` faux · pas déclaré.
-  premierExerciceIfrsId String?
+  premierExerciceIfrsId    String?
   /// L'entité publiait déjà des états IFRS · IFRS 1 ne s'applique pas.
-  dejaAdoptant       Boolean                 @default(false)
-  updatedAt          DateTime                @updatedAt
+  dejaAdoptant             Boolean                 @default(false)
+  /// IAS 7 § 8 · les découverts bancaires remboursables à vue font partie
+  /// intégrante de la gestion de trésorerie. NULL · pas déclaré, et le tableau
+  /// des flux n'est pas publiable dès que la trésorerie passive n'est pas nulle.
+  decouvertsDansTresorerie Boolean?
+  /// IAS 7 § 28 · la trésorerie comprend des soldes en devises, dont l'effet de
+  /// change se présente à part. NULL · pas déclaré.
+  tresorerieEnDevises      Boolean?
+  updatedAt                DateTime                @updatedAt
 
   @@map("parametres_ifrs")
 }
@@ -6574,21 +6583,21 @@ model RegleCorrespondanceIfrs {
 /// Un retraitement IFRS · écriture équilibrée hors du grand livre, rattachée
 /// à un exercice, avec la norme qui la fonde.
 model RetraitementIfrs {
-  id         String                  @id @default(uuid())
-  tenantId   String
-  tenant     Tenant                  @relation(fields: [tenantId], references: [id])
-  exerciceId String
-  exercice   Exercice                @relation(fields: [exerciceId], references: [id])
-  libelle    String
-  fondement  String
+  id               String                  @id @default(uuid())
+  tenantId         String
+  tenant           Tenant                  @relation(fields: [tenantId], references: [id])
+  exerciceId       String
+  exercice         Exercice                @relation(fields: [exerciceId], references: [id])
+  libelle          String
+  fondement        String
   /// IFRS 1 § 11 · ajustement à la DATE DE TRANSITION (ouverture de l'exercice
   /// porteur), qui va directement aux capitaux propres.
-  aLaTransition    Boolean               @default(false)
+  aLaTransition    Boolean                 @default(false)
   /// IFRS 1 § 26 · correction d'erreur du référentiel antérieur, distinguée
   /// d'un changement de méthode dans les rapprochements.
-  correctionErreur Boolean               @default(false)
-  createdAt  DateTime                @default(now())
-  lignes     LigneRetraitementIfrs[]
+  correctionErreur Boolean                 @default(false)
+  createdAt        DateTime                @default(now())
+  lignes           LigneRetraitementIfrs[]
 
   @@index([tenantId, exerciceId])
   @@map("retraitements_ifrs")
@@ -6646,4 +6655,31 @@ model MouvementCapitauxPropresIfrs {
 
   @@index([tenantId, exerciceId])
   @@map("mouvements_capitaux_propres_ifrs")
+}
+
+/// IAS 7 § 28 · l'effet des variations des cours de change sur la trésorerie
+/// détenue en devises, DÉCLARÉ par exercice avec la catégorie du compte de
+/// résultat où l'écart a été comptabilisé · aucune balance ne le sépare des
+/// autres écarts de change, et le déduire ferait passer un gain latent pour un
+/// encaissement.
+model EffetChangeTresorerieIfrs {
+  id            String                   @id @default(uuid())
+  tenantId      String
+  tenant        Tenant                   @relation(fields: [tenantId], references: [id])
+  exerciceId    String
+  exercice      Exercice                 @relation(fields: [exerciceId], references: [id])
+  /// Positif · la trésorerie augmente du fait du change.
+  montant       Decimal                  @db.Decimal(18, 2)
+  categorie     CategorieEffetChangeIfrs
+  justification String
+  createdAt     DateTime                 @default(now())
+
+  @@unique([tenantId, exerciceId])
+  @@map("effets_change_tresorerie_ifrs")
+}
+
+enum CategorieEffetChangeIfrs {
+  OPERATIONNELLE
+  INVESTISSEMENT
+  FINANCEMENT
 }

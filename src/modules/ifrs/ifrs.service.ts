@@ -4,8 +4,18 @@ import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { chargerLignes, LigneBalancePourEtat } from '../etats-financiers/etats-financiers.communs';
 import { EtatsFinanciersSyscohadaService } from '../etats-financiers-syscohada/etats-financiers-syscohada.service';
-import { ActiviteIfrsDto, MouvementCpIfrsDto, PremiereApplicationIfrsDto, RegleIfrsDto, RetraitementIfrsDto } from './dto/ifrs.dto';
-import { construireEtatsIfrs, EtatsIfrs, LIBELLES_GROUPES, motifRefusRetraitement, RefusIfrs } from './etats-ifrs';
+import {
+  ActiviteIfrsDto,
+  EffetChangeIfrsDto,
+  MouvementCpIfrsDto,
+  PremiereApplicationIfrsDto,
+  RegleIfrsDto,
+  RetraitementIfrsDto,
+  TresorerieIfrsDto,
+} from './dto/ifrs.dto';
+import { construireEtatsIfrs, EtatsIfrs, LIBELLES_GROUPES, motifRefusRetraitement, RefusIfrs, rubriqueDuCompte } from './etats-ifrs';
+import { CATEGORIES_FLUX, CategorieFlux, construireFluxTresorerieIfrs, TableauFluxIfrs } from './flux-tresorerie-ifrs';
+import { RUBRIQUE_PAR_CODE } from './rubriques-ifrs';
 import { construirePremiereApplication, lignesOuverture, motifRefusAjustementTransition, PremiereApplication, RetraitementIfrs1 } from './premiere-application-ifrs';
 import { motifRefusRegle, RUBRIQUES_IFRS } from './rubriques-ifrs';
 import { COMPOSANTES_CP, construireVariationCapitauxPropres, motifRefusMouvementCp, VariationCapitauxPropres } from './variation-capitaux-propres-ifrs';
@@ -33,6 +43,11 @@ import { COMPOSANTES_CP, construireVariationCapitauxPropres, motifRefusMouvement
  * se mêlent jamais aux retraitements de l'exercice. Les capitaux propres
  * SYSCOHADA des rapprochements du § 24 sont lus par la correspondance du
  * bilan légal (`resoudreBilanSurLignes`), jamais réécrite ici.
+ *
+ * LE TABLEAU DES FLUX (tranche 3, IAS 7 modifiée par IFRS 18) part du
+ * tableau SYSCOHADA de l'exercice (`resoudreFluxDetailleSurLignes`), qui lit
+ * les flux réels du grand livre · il exige donc l'exercice précédent, comme
+ * lui, et le comparatif exige N-2. Sans eux, le tableau n'est pas rendu.
  */
 type RetraitementLu = { id: string; libelle: string; fondement: string; correctionErreur: boolean; lignes: { rubrique: string; montant: number }[] };
 
@@ -46,6 +61,9 @@ const versMoteur = (r: RetraitementLu): RetraitementIfrs1 => ({
 
 /** Le total CP du bilan légal (« capitaux propres et ressources assimilées »), crédit en positif. */
 const REF_CAPITAUX_PROPRES_SYSCOHADA = 'CP';
+const EPS = 0.005;
+
+type Parametres = { decouvertsDansTresorerie: boolean | null; tresorerieEnDevises: boolean | null } | null;
 
 @Injectable()
 export class IfrsService {
@@ -168,6 +186,90 @@ export class IfrsService {
     });
   }
 
+  /**
+   * Le tableau des flux IFRS d'un exercice, ou le motif qui l'empêche. Les
+   * lignes N-1 sont celles de l'exercice précédent, jamais un report à-nouveau ·
+   * le tableau SYSCOHADA de départ a tranché que le report n'équivaut pas à
+   * une variation de poste.
+   */
+  private async fluxDe(
+    tenantId: string,
+    exerciceId: string,
+    etat: EtatsIfrs,
+    lignesN: LigneBalancePourEtat[],
+    lignesN1: LigneBalancePourEtat[] | null,
+    regles: { prefixe: string; rubrique: string }[],
+    parametres: Parametres,
+  ): Promise<{ tableau: TableauFluxIfrs | null; motif: string | null }> {
+    if (!lignesN1) {
+      return { tableau: null, motif: 'Sans l’exercice précédent, les variations et les flux du tableau SYSCOHADA de départ ne se lisent pas.' };
+    }
+    const { montants, reserves } = this.etatsSyscohada.resoudreFluxDetailleSurLignes(lignesN, lignesN1);
+
+    // La CAFG (FA) répartie par catégorie · la formule du ch. 5 ne lit que des
+    // comptes de gestion, compte par compte, et se calcule donc sur chaque
+    // sous-ensemble. La somme est contrôlée plutôt que présumée.
+    const categorie = (numero: string): CategorieFlux => {
+      const code = rubriqueDuCompte(numero, regles);
+      return ((code && RUBRIQUE_PAR_CODE.get(code)?.categorie) as CategorieFlux | undefined) ?? 'OPERATIONNELLE';
+    };
+    const cafgParCategorie = {} as Record<CategorieFlux, number>;
+    for (const c of CATEGORIES_FLUX) {
+      const sousEnsemble = lignesN.filter((l) => /^[678]/.test(l.numero) && categorie(l.numero) === c);
+      cafgParCategorie[c] = sousEnsemble.length ? this.etatsSyscohada.resoudreFluxSurLignes(sousEnsemble, lignesN1).get('FA') ?? 0 : 0;
+    }
+
+    // Le périmètre de la trésorerie · IAS 7 contre bilan légal (BT, DT).
+    const decouverts = parametres?.decouvertsDansTresorerie ?? null;
+    const bilanN = this.etatsSyscohada.resoudreBilanSurLignes(lignesN).resolution.parRef;
+    const bilanN1 = this.etatsSyscohada.resoudreBilanSurLignes(lignesN1).resolution.parRef;
+    const numeros = (ref: string) => [...(bilanN.get(ref)?.comptes ?? []), ...(bilanN1.get(ref)?.comptes ?? [])].map((c) => c.numero);
+    const passif = new Set(numeros('DT'));
+    const legale = new Set([...numeros('BT'), ...passif]);
+    const soldeN = new Map(lignesN.map((l) => [l.numero, Number(l.solde)]));
+    const soldeN1 = new Map(lignesN1.map((l) => [l.numero, Number(l.solde)]));
+    const intitules = new Map([...lignesN1, ...lignesN].map((l) => [l.numero, l.intitule]));
+    const bilan = [...new Set([...soldeN.keys(), ...soldeN1.keys()])].filter((n) => /^[1-5]/.test(n));
+    const rangee = new Set(bilan.filter((n) => rubriqueDuCompte(n, regles) === 'SF_TRESORERIE'));
+    const incluse = new Set([...rangee, ...(decouverts ? [...passif] : [])]);
+    const somme = (m: Map<string, number>, xs: Iterable<string>) => [...xs].reduce((s, n) => s + (m.get(n) ?? 0), 0);
+    const actif = Math.abs(bilanN.get('DT')?.montant ?? 0) > EPS || Math.abs(bilanN1.get('DT')?.montant ?? 0) > EPS;
+
+    const effet = await this.prisma.effetChangeTresorerieIfrs.findUnique({ where: { tenantId_exerciceId: { tenantId, exerciceId } } });
+    const tableau = construireFluxTresorerieIfrs({
+      etat,
+      fluxLegaux: Object.fromEntries(montants),
+      cafgParCategorie,
+      tresorerie: {
+        ouverture: somme(soldeN1, incluse),
+        cloture: somme(soldeN, incluse),
+        horsTresorerieIfrs: [...legale]
+          .filter((n) => !incluse.has(n))
+          .map((n) => ({
+            numero: n,
+            intitule: intitules.get(n) ?? n,
+            activite: passif.has(n) ? ('FINANCEMENT' as const) : ('INVESTISSEMENT' as const),
+            variation: (soldeN.get(n) ?? 0) - (soldeN1.get(n) ?? 0),
+          }))
+          .filter((c) => Math.abs(c.variation) > EPS),
+        horsBilanLegal: [...rangee].filter((n) => !legale.has(n) && (Math.abs(soldeN.get(n) ?? 0) > EPS || Math.abs(soldeN1.get(n) ?? 0) > EPS)),
+        decouvertsInclus: decouverts ? somme(soldeN, [...passif].filter((n) => !rangee.has(n))) : 0,
+        tresoreriePassive: actif,
+      },
+      declarations: {
+        decouvertsDansTresorerie: decouverts,
+        tresorerieEnDevises: parametres?.tresorerieEnDevises ?? null,
+        effetChange: effet ? { montant: Number(effet.montant), categorie: effet.categorie } : null,
+      },
+      reservesLegales: reserves,
+    });
+    const ecartCafg = Math.round((CATEGORIES_FLUX.reduce((s, c) => s + cafgParCategorie[c], 0) - (montants.get('FA') ?? 0)) * 100) / 100;
+    if (Math.abs(ecartCafg) > EPS) {
+      tableau.motifsNonPubliable.push(`Tableau des flux IFRS · la CAFG répartie par catégorie diffère de la CAFG légale de ${ecartCafg}.`);
+    }
+    return { tableau, motif: null };
+  }
+
   async etat(tenantId: string, exerciceId: string) {
     const ex = await this.exercice(tenantId, exerciceId);
     const [parametres, regles, retraitements] = await Promise.all([
@@ -179,7 +281,8 @@ export class IfrsService {
     const premierId = parametres?.premierExerciceIfrsId ?? null;
     const dejaAdoptant = parametres?.dejaAdoptant ?? false;
     const r = regles.map((x) => ({ prefixe: x.prefixe, rubrique: x.rubrique }));
-    const n = await this.calculer(tenantId, ex, r, activite);
+    const lignesN = await chargerLignes(this.ecritures, tenantId, ex.id);
+    const n = await this.calculer(tenantId, ex, r, activite, lignesN);
     const precedent = await this.precedent(tenantId, ex.dateDebut);
     let n1: EtatsIfrs | null = null;
     let motifN1: string | null = null;
@@ -232,10 +335,11 @@ export class IfrsService {
     // d'ouverture à la date de transition · la clôture N-2 n'a jamais été IFRS,
     // et la prendre ferait partir le tableau d'un solde que personne n'a publié.
     let n2: EtatsIfrs | null = null;
-    const avantPrecedent = !estPremier && precedent && n1 ? await this.precedent(tenantId, precedent.dateDebut) : null;
-    if (avantPrecedent) {
+    const avantPrecedent = precedent && n1 ? await this.precedent(tenantId, precedent.dateDebut) : null;
+    const lignesN2 = avantPrecedent ? await chargerLignes(this.ecritures, tenantId, avantPrecedent.id) : null;
+    if (avantPrecedent && !estPremier) {
       try {
-        n2 = await this.calculer(tenantId, avantPrecedent, r, activite);
+        n2 = await this.calculer(tenantId, avantPrecedent, r, activite, lignesN2!);
       } catch {
         n2 = null;
       }
@@ -257,9 +361,25 @@ export class IfrsService {
       );
     }
 
+    // ─── Tableau des flux de trésorerie · N et N-1 (IAS 7, § 10 f d'IFRS 18) ──
+    const fluxN = await this.fluxDe(tenantId, ex.id, n, lignesN, precedent && n1 ? lignesN1 : null, r, parametres);
+    const fluxN1 =
+      precedent && n1
+        ? await this.fluxDe(tenantId, precedent.id, n1, lignesN1, lignesN2, r, parametres)
+        : { tableau: null as TableauFluxIfrs | null, motif: motifN1 };
+    if (fluxN.tableau) n.motifsNonPubliable.push(...fluxN.tableau.motifsNonPubliable);
+    else n.motifsNonPubliable.push(`Tableau des flux de trésorerie non établi · ${fluxN.motif}`);
+    if (!fluxN1.tableau) {
+      n.motifsNonPubliable.push(`Tableau des flux de trésorerie comparatif non établi (IFRS 18 § 10 f) · ${fluxN1.motif ?? 'l’exercice précédent n’a pas d’état IFRS.'}`);
+    }
+
     return {
       activitePrincipale: activite,
       premierExerciceIfrsId: premierId,
+      decouvertsDansTresorerie: parametres?.decouvertsDansTresorerie ?? null,
+      tresorerieEnDevises: parametres?.tresorerieEnDevises ?? null,
+      effetChange: await this.prisma.effetChangeTresorerieIfrs.findUnique({ where: { tenantId_exerciceId: { tenantId, exerciceId: ex.id } } }),
+      fluxTresorerie: { n: fluxN.tableau, motifN: fluxN.motif, n1: fluxN1.tableau, motifN1: fluxN1.motif },
       dejaAdoptant,
       regles,
       retraitements,
@@ -283,6 +403,36 @@ export class IfrsService {
         mouvements: await this.mouvementsDe(tenantId, ex.id),
       },
     };
+  }
+
+  /** IAS 7 § 8 et § 28 · deux déclarations de méthode, valables pour tous les exercices. */
+  async declarerTresorerie(tenantId: string, dto: TresorerieIfrsDto) {
+    const data = { decouvertsDansTresorerie: dto.decouvertsDansTresorerie ?? null, tresorerieEnDevises: dto.tresorerieEnDevises ?? null };
+    return this.prisma.parametresIfrs.upsert({ where: { tenantId }, create: { tenantId, ...data }, update: data });
+  }
+
+  /** IAS 7 § 28 · l'effet de change de l'exercice, déclaré avec sa catégorie et sa justification. */
+  async declarerEffetChange(tenantId: string, dto: EffetChangeIfrsDto) {
+    const ex = await this.exercice(tenantId, dto.exerciceId);
+    if (!dto.justification?.trim()) throw new BadRequestException('Effet de change sans justification · nommez l’écriture de conversion de la trésorerie en devises.');
+    if (!(Math.abs(dto.montant) > EPS)) throw new BadRequestException('Effet de change sans montant.');
+    const parametres = await this.prisma.parametresIfrs.findUnique({ where: { tenantId } });
+    if (parametres?.tresorerieEnDevises === false) {
+      throw new BadRequestException('La trésorerie est déclarée sans devises · il n’y a pas d’effet de change à présenter (IAS 7 § 28).');
+    }
+    const data = { montant: dto.montant, categorie: dto.categorie, justification: dto.justification.trim() };
+    return this.prisma.effetChangeTresorerieIfrs.upsert({
+      where: { tenantId_exerciceId: { tenantId, exerciceId: ex.id } },
+      create: { tenantId, exerciceId: ex.id, ...data },
+      update: data,
+    });
+  }
+
+  async supprimerEffetChange(tenantId: string, exerciceId: string) {
+    const e = await this.prisma.effetChangeTresorerieIfrs.findUnique({ where: { tenantId_exerciceId: { tenantId, exerciceId } } });
+    if (!e) throw new NotFoundException('Aucun effet de change déclaré pour cet exercice.');
+    await this.prisma.effetChangeTresorerieIfrs.delete({ where: { id: e.id } });
+    return { supprime: true };
   }
 
   /**

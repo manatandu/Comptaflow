@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import { ArrayMinSize, IsArray, IsBoolean, IsEnum, IsNumber, IsOptional, IsString, IsUUID, MaxLength, ValidateIf, ValidateNested } from 'class-validator';
-import { ActivitePrincipaleIfrs, ComposanteCpIfrs, TypeMouvementCpIfrs } from '@prisma/client';
+import { ActivitePrincipaleIfrs, CategorieEffetChangeIfrs, ComposanteCpIfrs, TypeMouvementCpIfrs } from '@prisma/client';
 
 export class ActiviteIfrsDto {
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsEnum(ActivitePrincipaleIfrs) activitePrincipale?: ActivitePrincipaleIfrs | null;
@@ -38,5 +38,19 @@ export class MouvementCpIfrsDto {
   @IsEnum(ComposanteCpIfrs) composante!: ComposanteCpIfrs;
   @IsNumber({ maxDecimalPlaces: 2 }) montant!: number;
   @IsString() @MaxLength(300) libelle!: string;
+  @IsString() @MaxLength(1000) justification!: string;
+}
+
+export class TresorerieIfrsDto {
+  /** IAS 7 § 8 · null efface la déclaration. */
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsBoolean() decouvertsDansTresorerie?: boolean | null;
+  /** IAS 7 § 28 · null efface la déclaration. */
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsBoolean() tresorerieEnDevises?: boolean | null;
+}
+
+export class EffetChangeIfrsDto {
+  @IsUUID() exerciceId!: string;
+  @IsNumber({ maxDecimalPlaces: 2 }) montant!: number;
+  @IsEnum(CategorieEffetChangeIfrs) categorie!: CategorieEffetChangeIfrs;
   @IsString() @MaxLength(1000) justification!: string;
 }

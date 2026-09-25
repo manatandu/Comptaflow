@@ -2523,8 +2523,8 @@ le jeu non publiable. Des transferts qui ne se soldent pas aussi. (5) DEUX
 BLOCS, N ET N-1 · le comparatif du § 10 f) part de la clôture N-2, et sans elle
 le bloc n'est pas rendu, avec son motif. Pas d'attribution aux participations
 ne donnant pas le contrôle (§ 87, § 107 a) · des comptes individuels n'en ont
-pas. Restent : tableau des flux (IAS 7), notes, puis la version consolidée ·
-IFRS 1 est la tranche 4.
+pas. Restent : notes, puis la version consolidée · IAS 7 est la tranche 3,
+IFRS 1 la tranche 4.
 
 **États IFRS, tranche 4 · première application (IFRS 1) (2026-09-25).**
 IFRS 1 § 3 à 26 et annexe A (`ifrs/premiere-application-ifrs.ts`). CINQ RÈGLES
@@ -2549,8 +2549,46 @@ résultat net, le SYSCOHADA ne publiant pas de résultat global, et compte
 l'OCI des retraitements. (5) SUR LE PREMIER EXERCICE, LE BLOC COMPARATIF DES
 CAPITAUX PROPRES PART DE L'ÉTAT D'OUVERTURE, jamais de la clôture N-2, qui n'a
 jamais été IFRS. RÉSERVE · le texte d'IFRS 1 du corpus précède l'annexe D
-d'IFRS 18, qui le modifie. Le § 25 (flux de trésorerie) attend IAS 7, dont la
-version modifiée par IFRS 18 n'est pas au corpus.
+d'IFRS 18, qui le modifie. Le § 25 se lit au rapprochement par activité du
+tableau des flux (tranche 3).
+
+**États IFRS, tranche 3 · le tableau des flux (IAS 7 modifiée par IFRS 18)
+(2026-09-25).** `ifrs/flux-tresorerie-ifrs.ts`. LA SOURCE A ÉTÉ TROUVÉE, PAS
+DEMANDÉE · le corpus porte IAS 7 d'avant IFRS 18, et le règlement (UE)
+2026/338 du 13 février 2026 publie au JOUE, en français officiel, les
+paragraphes qu'IFRS 18 y modifie (§ 64 · « L'entité qui applique IFRS 18 doit
+appliquer ces modifications »). Extrait conservé dans
+`docs/sources/ias7-modifie-par-ifrs18-reglement-ue-2026-338.md`. CINQ RÈGLES À
+NE PAS DÉFAIRE. (1) LE TABLEAU PART DES FLUX RÉELS DU GRAND LIVRE · le tableau
+SYSCOHADA du ch. 5 (`resoudreFluxDetailleSurLignes`), jamais une table
+réécrite, puis reclassé. Un retraitement IFRS n'est dans aucun journal et ne
+déplace AUCUNE trésorerie · son effet au résultat d'exploitation est retiré sur
+sa ligne (§ 20 b), et un retraitement qui touche la trésorerie rend le tableau
+non publiable. (2) MÉTHODE INDIRECTE À PARTIR DU RÉSULTAT D'EXPLOITATION (§ 18
+b, § 20), plus du résultat net. La CAFG légale (FA) est ADDITIVE compte par
+compte · elle se répartit par la catégorie où les règles rangent chaque compte
+de gestion, et la somme est CONTRÔLÉE, jamais présumée. Chaque catégorie porte
+sa trésorerie dans son activité · intérêts versés au financement, intérêts et
+dividendes reçus à l'investissement (§ 34A), à condition que les règles
+suivent IFRS 18 ; dividendes versés au financement (§ 33A) ; impôts à
+l'exploitation (§ 35). Un compte de gestion sans règle reste à l'exploitation,
+comme au compte de résultat. (3) LA TRÉSORERIE EST CELLE D'IAS 7 · les comptes
+rangés en « Trésorerie », plus les découverts si l'entité DÉCLARE qu'ils font
+partie intégrante de sa gestion (§ 8). Un compte de la trésorerie légale hors
+de ce périmètre porte sa variation en investissement (placement, § 7) ou en
+financement (crédit de trésorerie) ; un compte rangé en trésorerie sans être de
+la trésorerie légale rend le tableau non publiable, son flux étant déjà ailleurs
+à une place inconnue. Rapprochement § 45 avec la situation, découverts inclus
+nommés. (4) RIEN NE SE DÉDUIT · la présence de devises et l'effet de change sur
+la trésorerie (§ 28) se DÉCLARENT (`EffetChangeTresorerieIfrs`, par exercice,
+avec la catégorie où l'écart est comptabilisé, qu'il quitte pour sa propre
+ligne) ; non déclarés, le tableau n'est pas publiable. (5) COMME LE TABLEAU
+SYSCOHADA, IL EXIGE L'EXERCICE PRÉCÉDENT, et le comparatif N-2 · jamais un
+report à-nouveau pris pour une variation de poste. Les intérêts et dividendes
+sont lus pour leur montant COMPTABILISÉ · l'écart avec l'encaissé reste dans les
+variations du tableau de départ, et c'est dit. Dix-sept mutations, toutes
+tuées, dont six après ajout des tests manquants (découverts côté service,
+compte sans règle, dividendes, effet de change au rapprochement).
 
 **Tableau des flux SYSCOHADA · le compte trop agrégé, que « non ventilé »
 ne voyait pas (2026-09-25).** Trouvé en passant au moteur la balance d'un

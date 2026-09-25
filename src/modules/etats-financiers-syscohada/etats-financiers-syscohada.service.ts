@@ -623,6 +623,19 @@ export class EtatsFinanciersSyscohadaService {
     return new Map([...parRef.entries()].map(([ref, p]) => [ref, p.montant]));
   }
 
+  /**
+   * Les mêmes flux, avec les RÉSERVES de la table (postes non déterminables)
+   * · les états IFRS (tranche 3) partent de ce tableau et doivent reprendre
+   * ce qu'il dit ne pas savoir, pas seulement ses montants.
+   */
+  resoudreFluxDetailleSurLignes(lignesN: LigneBalancePourEtat[], lignesN1: LigneBalancePourEtat[]): { montants: Map<string, number>; reserves: string[] } {
+    const { parRef, postesNonCalculables } = this.resoudreFluxPourExercice(lignesN, lignesN1, true);
+    return {
+      montants: new Map([...parRef.entries()].map(([ref, p]) => [ref, p.montant])),
+      reserves: postesNonCalculables.map((x) => `${x.ref} · ${x.raison}`),
+    };
+  }
+
   private calculerTotalActif(total: TotalBilan, parRef: Map<string, PosteBilanCalcule>): PosteBilanCalcule {
     const composantes = total.deRefs.map((ref) => parRef.get(ref));
     return {
