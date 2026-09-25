@@ -48,6 +48,7 @@ const LIBELLES: Record<string, string> = {
   'TiersCompte.tiersId': 'comptes rattachés',
   'Relance.tiersId': 'relances',
   'Consignation.tiersId': 'consignations',
+  'DocumentTiers.tiersId': 'documents attachés (volet Documents de la fiche)',
   'DemandeConfirmation.tiersId': 'demandes de confirmation',
   'ModeleSaisie.journalId': 'modèles de saisie',
   'Immobilisation.compteImmobilisationId': 'immobilisations',

@@ -58,6 +58,7 @@ export const FONCTION_PAR_CONTROLEUR: Record<string, FonctionMetier> = {
   AccordCadreController: FonctionMetier.STRUCTURE,
   TiersController: FonctionMetier.TIERS,
   ModeleReglementController: FonctionMetier.TIERS,
+  DocumentsTiersController: FonctionMetier.TIERS,
   EcritureController: FonctionMetier.SAISIE,
   RegularisationController: FonctionMetier.SAISIE,
   OperationSpecifiqueController: FonctionMetier.SAISIE,

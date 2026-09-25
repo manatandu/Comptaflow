@@ -35,6 +35,9 @@ export const MODELES_AUDITES = new Set<string>([
   'RibBanque',
   'LibelleEcriture',
   'Tiers',
+  // Retirer le contrat ou le RCCM d'un tiers doit laisser une trace · le
+  // CONTENU n'est pas recopié (colonne exclue ci-dessous), l'empreinte suffit.
+  'DocumentTiers',
   'Bailleur',
   // Les actes qui font ou défont un exercice.
   'Exercice',
@@ -162,6 +165,12 @@ export const MARQUEUR_MASQUE = '[masqué]';
  */
 export const COLONNES_EXCLUES_PAR_MODELE: Readonly<Record<string, readonly string[]>> = {
   User: ['motDePasse', 'estOperateurPlateforme'],
+
+  // LE FICHIER LUI-MÊME · jusqu'à 5 Mo recopiés dans chaque événement, et un
+  // scan de pièce d'identité lisible par tout le dossier dans un journal
+  // conservé plus longtemps que la fiche. Le nom, la taille et l'empreinte
+  // SHA-256 désignent la pièce sans la reproduire.
+  DocumentTiers: ['contenu'],
 
   // LE REGISTRE DU PERSONNEL · le premier cas où l'exclusion ne protège pas
   // le LOGICIEL mais une PERSONNE.

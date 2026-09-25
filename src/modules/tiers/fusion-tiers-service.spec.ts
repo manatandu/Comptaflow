@@ -25,6 +25,7 @@ describe('Fusion de tiers · le service', () => {
       facture: maj(),
       devis: maj(),
       consignation: maj(),
+      documentTiers: maj(),
       tiers: { update: jest.fn().mockResolvedValue({}), delete: jest.fn().mockResolvedValue({}) },
     };
     const prisma = {
@@ -42,13 +43,13 @@ describe('Fusion de tiers · le service', () => {
     const s = new TiersService(prisma as never);
     const r = await s.fusionner('t', 'doublon', 'garde');
 
-    for (const m of ['relance', 'demandeConfirmation', 'facture', 'devis', 'consignation'] as const) {
+    for (const m of ['relance', 'demandeConfirmation', 'facture', 'devis', 'consignation', 'documentTiers'] as const) {
       expect(tx[m].updateMany).toHaveBeenCalledWith({ where: { tiersId: 'doublon', tenantId: 't' }, data: { tiersId: 'garde' } });
     }
     // Le compte principal de la fiche conservée reste le seul.
     expect(tx.tiersCompte.updateMany).toHaveBeenCalledWith({ where: { tiersId: 'doublon' }, data: { estPrincipal: false } });
     expect(tx.tiers.update).toHaveBeenCalledWith({ where: { id: 'garde' }, data: { numeroImpot: 'A123' } });
     expect(tx.tiers.delete).toHaveBeenCalledWith({ where: { id: 'doublon' } });
-    expect(r.reporte).toHaveLength(6);
+    expect(r.reporte).toHaveLength(7);
   });
 });

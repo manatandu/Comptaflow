@@ -8,6 +8,7 @@ import { IconCheck } from '../components/chrome/icons';
 import { Aide } from '../components/chrome/Aide';
 import { BoutonImprimer, EnteteImpression } from '../components/chrome/EnteteImpression';
 import { EditionStructure } from '../components/EditionStructure';
+import { VoletDocumentsTiers } from '../components/VoletDocumentsTiers';
 import { editionTiers, libelleTypeTiers, perimetreEdition } from '../lib/editions-structures';
 import type {
   Compte,
@@ -927,6 +928,9 @@ export function TiersPage() {
                   </div>
                 </form>
               </div>
+
+              {/* Volet Documents · point 21 de la comparaison Sage i7 */}
+              <VoletDocumentsTiers tiersId={tiersSelectionne.id} />
             </div>
           )}
         </div>

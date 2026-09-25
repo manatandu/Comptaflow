@@ -133,8 +133,12 @@ export function colonnesDuModele(modele: string): string[] {
   // liste du journal amputerait l'archive en silence, et elle se dirait
   // complète. Voir `COLONNES_JAMAIS_RESTITUEES`.
   const exclues = colonnesNonRestituables(modele);
+  // UNE COLONNE BINAIRE N'ENTRE PAS DANS UN CSV · un document de 5 Mo y
+  // deviendrait une cellule de 7 Mo en base64, et un lot de 2 000 lignes
+  // tiendrait 10 Go en mémoire. Le fichier sort À CÔTÉ, un par entrée de
+  // l'archive (`fichierDuDocument`), et le CSV garde son empreinte.
   return description.fields
-    .filter((f) => f.kind === 'scalar' || f.kind === 'enum')
+    .filter((f) => (f.kind === 'scalar' && f.type !== 'Bytes') || f.kind === 'enum')
     .map((f) => f.name)
     .filter((n) => !exclues.has(n.toLowerCase()));
 }
@@ -153,4 +157,13 @@ export const TABLES_RESTITUEES: readonly string[] = [
 /** Le nom de fichier d'une table dans l'archive · stable et sans surprise. */
 export function fichierDeLaTable(modele: string): string {
   return `tables/${modele.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()}.csv`;
+}
+
+/**
+ * L'entrée d'archive d'un document attaché à un tiers (point 21) · préfixée de
+ * son identifiant, qui la relie à sa ligne de `tables/document-tiers.csv`
+ * (empreinte SHA-256 comprise), deux pièces pouvant porter le même nom.
+ */
+export function fichierDuDocument(id: string, nomFichier: string): string {
+  return `documents-tiers/${id}-${nomFichier.replace(/[\\/]/g, '_')}`;
 }

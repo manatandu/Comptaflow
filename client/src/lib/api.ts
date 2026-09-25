@@ -1,4 +1,5 @@
 import { entetesRequete } from './entetes-requete';
+import { nomDeDisposition } from './disposition';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
@@ -87,8 +88,7 @@ async function telecharger(path: string, nomParDefaut: string): Promise<void> {
     throw new ApiError(res.status, message);
   }
 
-  const disposition = res.headers.get('Content-Disposition');
-  const nomServeur = disposition?.match(/filename="([^"]+)"/)?.[1];
+  const nomServeur = nomDeDisposition(res.headers.get('Content-Disposition'));
 
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
@@ -99,6 +99,33 @@ async function telecharger(path: string, nomParDefaut: string): Promise<void> {
   lien.click();
   lien.remove();
   URL.revokeObjectURL(url);
+}
+
+/**
+ * Envoie un fichier en `multipart/form-data` · SANS `Content-Type`, que le
+ * navigateur pose lui-même avec la frontière du corps (le poser à la main,
+ * ou laisser `application/json`, rend le corps illisible au serveur). Le
+ * jeton CSRF, lui, voyage comme sur toute écriture.
+ */
+async function envoyerFichier<T>(path: string, corps: FormData): Promise<T> {
+  const csrf = getCsrf();
+  const res = await fetch(`${API_URL}${path}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: csrf ? { 'X-CSRF-Token': csrf } : {},
+    body: corps,
+  });
+  if (!res.ok) {
+    let message = res.statusText;
+    try {
+      const body = await res.json();
+      message = Array.isArray(body.message) ? body.message.join(', ') : body.message ?? message;
+    } catch {
+      // corps non-JSON
+    }
+    throw new ApiError(res.status, message);
+  }
+  return res.json() as Promise<T>;
 }
 
 /**
@@ -166,4 +193,5 @@ export const api = {
     return request<T>(path, { method: 'DELETE', body: body ? JSON.stringify(body) : undefined });
   },
   telecharger,
+  envoyerFichier,
 };

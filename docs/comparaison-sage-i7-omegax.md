@@ -136,4 +136,12 @@ tiennent à un texte OHADA ; ils sont signalés comme tels.
     l'historique de l'Édition pilotée. Ni état financier ni document déposé.
     Le simulateur et le cube de données de l'Édition pilotée ne sont pas
     repris.
-21. Documents attachés aux tiers.
+21. ~~Documents attachés aux tiers~~ · FAIT le 2026-09-25 : volet Documents
+    de la fiche tiers. Sage i7 : « un fichier lié » par pièce, « un commentaire
+    de 69 caractères », rien d'autre ; le reste est d'OmegaX. La pièce est
+    rangée EN BASE (décision de Manasse), 5 Mo au plus, et suit la sauvegarde
+    nocturne comme l'archive de restitution (un fichier par pièce, à côté du
+    CSV qui garde l'empreinte SHA-256). Formats fermés (PDF, PNG, JPEG, Word,
+    Excel), vérifiés sur les OCTETS et non sur le nom ; rendue en
+    téléchargement seulement ; une même pièce n'est pas attachée deux fois au
+    même tiers. Aucun quota par dossier, seulement le plafond par pièce.

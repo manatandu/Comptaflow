@@ -1,6 +1,6 @@
 import { Writable } from 'node:stream';
 import { RestitutionService } from './restitution.service';
-import { TABLES_RESTITUEES, fichierDeLaTable } from './tables-restitution';
+import { TABLES_RESTITUEES, colonnesDuModele, fichierDeLaTable, fichierDuDocument } from './tables-restitution';
 import { analyserCsv } from '../../import/lecture-fichier';
 import { ecrireManifeste } from './manifeste-restitution';
 
@@ -271,5 +271,33 @@ describe('le manifeste dit ce que l’archive n’est pas', () => {
     const deplie = manifeste.replace(/\s+/g, ' ');
     expect(deplie).toContain("Décisions d'OmegaX, et non règles de droit");
     expect(deplie).toContain("Aucun texte lu n'impose la restitution d'un dossier complet");
+  });
+});
+
+describe('les documents attachés aux tiers (point 21)', () => {
+  it('le CSV ne porte jamais la colonne binaire, mais garde l’empreinte qui relie le fichier', () => {
+    const colonnes = colonnesDuModele('DocumentTiers');
+    expect(colonnes).not.toContain('contenu');
+    expect(colonnes).toEqual(expect.arrayContaining(['id', 'nomFichier', 'empreinte', 'taille']));
+  });
+
+  it('chaque pièce sort à côté, sous son identifiant, lue dans le dossier seul', async () => {
+    const { client } = prismaFactice({
+      DocumentTiers: [{ id: 'doc-1', tenantId: DOSSIER, nomFichier: 'statuts.pdf' }],
+    });
+    const lus: unknown[] = [];
+    client.documentTiers.findFirst = async ({ where }: any) => {
+      lus.push(where);
+      return { contenu: Buffer.from('CONTENU-DE-LA-PIECE') };
+    };
+    const service = new RestitutionService(client);
+    const { flux, buffer } = collecteur();
+    await service.produire(DOSSIER, { id: 'u-1', email: 'chef@asbl.cd', adresseIp: null }, flux);
+    expect(buffer().toString('latin1')).toContain(fichierDuDocument('doc-1', 'statuts.pdf'));
+    expect(lus).toEqual([{ id: 'doc-1', tenantId: DOSSIER }]);
+  });
+
+  it('un nom qui porte un séparateur ne crée pas de sous-dossier dans l’archive', () => {
+    expect(fichierDuDocument('x', 'a/b\\c.pdf')).toBe('documents-tiers/x-a_b_c.pdf');
   });
 });

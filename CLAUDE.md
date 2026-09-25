@@ -4555,6 +4555,23 @@ avant chaque calcul. (4) RIEN N'EST STOCKÉ QUE LA DÉFINITION · chaque colonne
 se recalcule sur `EcritureService.balance`, la balance générale, jusqu'à cinq
 exercices ; zéro négatif ramené à zéro. Ni état financier ni document déposé.
 
+**Documents attachés aux tiers (2026-09-25).** Point 21 de la comparaison.
+Sage i7 ne dit que « le rattachement d'un fichier lié » et « un commentaire de
+69 caractères » ; tout le reste est d'OmegaX (`tiers/documents-tiers.ts`). La
+pièce est rangée EN BASE (`DocumentTiers.contenu`), décision de Manasse · une
+application web n'a pas de disque partagé, et en base elle suit la sauvegarde
+et l'archive. QUATRE RÈGLES À NE PAS DÉFAIRE. (1) LE TYPE SE LIT DANS LES
+OCTETS · liste fermée (PDF, PNG, JPEG, docx, xlsx, doc, xls), signature
+confrontée à l'extension ; une page HTML renommée « contrat.pdf » est refusée.
+(2) LA PIÈCE NE SORT QU'EN TÉLÉCHARGEMENT (`attachment`, `nosniff`), et la
+SEULE lecture qui charge `contenu` est `telecharger` · une liste de dix scans
+ferait sinon transiter 50 Mo. (3) 5 MO À LA RÉCEPTION · la limite est posée
+sur multer, en mémoire, pour qu'un envoi énorme ne soit jamais tenu entier ;
+le 413 est redit en français. Aucun quota par dossier. (4) LA COLONNE BINAIRE
+N'ENTRE DANS AUCUN CSV · l'archive de restitution écrit chaque pièce à côté
+(`fichierDuDocument`), et le journal d'audit l'exclut par colonne. Une même
+pièce n'est pas attachée deux fois au même tiers (empreinte SHA-256, P2002).
+
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
 nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la

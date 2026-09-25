@@ -20,6 +20,7 @@ import {
   borneDuModele,
   colonnesDuModele,
   fichierDeLaTable,
+  fichierDuDocument,
   ordreDuModele,
 } from './tables-restitution';
 import { ecrireManifeste } from './manifeste-restitution';
@@ -183,6 +184,21 @@ export class RestitutionService {
       });
     }
 
+    // LES DOCUMENTS ATTACHÉS AUX TIERS (point 21) · un fichier par entrée,
+    // chacun lu au moment où l'archive l'écrit. `archiver` consomme ses
+    // entrées une à une, si bien qu'une seule pièce est en mémoire à la fois,
+    // quel que soit leur nombre.
+    const documents = await this.prisma.documentTiers.findMany({
+      where: { tenantId },
+      orderBy: { id: 'asc' },
+      select: { id: true, nomFichier: true },
+    });
+    for (const document of documents) {
+      archive.append(Readable.from(this.contenuDocument(tenantId, document.id)), {
+        name: fichierDuDocument(document.id, document.nomFichier),
+      });
+    }
+
     // APPENDU EN DERNIER, ET LU EN DERNIER. `archiver` consomme ses entrées
     // dans l'ordre : le corps de ce générateur ne s'exécute qu'une fois les
     // 54 tables écrites, donc une fois les compteurs remplis. C'est ce qui
@@ -195,6 +211,11 @@ export class RestitutionService {
     await archive.finalize();
     const jour = horodatage.toISOString().slice(0, 10);
     return `restitution-${dossier.nom.replace(/[^\w-]+/g, '-').toLowerCase()}-${jour}.zip`;
+  }
+
+  private async *contenuDocument(tenantId: string, id: string): AsyncGenerator<Buffer> {
+    const document = await this.prisma.documentTiers.findFirst({ where: { id, tenantId }, select: { contenu: true } });
+    if (document) yield Buffer.from(document.contenu);
   }
 
   private async *controles(

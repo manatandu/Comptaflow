@@ -291,16 +291,16 @@ model Tenant {
 
   // Coordonnées · collectées par l'assistant « Nouveau fichier comptable »,
   // toutes optionnelles pour ne pas bloquer une inscription rapide.
-  activite  String?
-  adresse   String?
-  ville     String?
-  pays      String? @default("RD Congo")
-  telephone String?
+  activite        String?
+  adresse         String?
+  ville           String?
+  pays            String?  @default("RD Congo")
+  telephone       String?
   // Courriel et site de l'entité · l'exemple d'identification du manuel Sage
   // i7 (point 16 de la comparaison) les porte à côté du téléphone. Simples
   // coordonnées, aucun texte ne les exige ni ne les borne.
-  email     String?
-  siteWeb   String?
+  email           String?
+  siteWeb         String?
   /// CAPITAL SOCIAL · AUSCGIE art. 17 : la dénomination figure « sur tous les
   /// actes et documents émanant de la société et destinés aux tiers » et doit
   /// être « précédée ou suivie immédiatement […] de l'indication de la forme
@@ -332,7 +332,7 @@ model Tenant {
   /// Reste une colonne, et non une constante du code, parce qu'un jour un
   /// dossier d'un autre État partie aura une autre unité légale (XAF...). Ce
   /// qui est interdit, c'est de la CHOISIR · elle découle du pays.
-  devise    String? @default("CDF")
+  devise          String?  @default("CDF")
 
   /// MONNAIE FONCTIONNELLE · celle dans laquelle l'entité vit réellement.
   ///
@@ -608,6 +608,7 @@ model Tenant {
   ribsBanque               RibBanque[]
   libellesEcriture         LibelleEcriture[]
   etatsPersonnalises       EtatPersonnalise[]
+  documentsTiers           DocumentTiers[]
   devises                  Devise[]
   reevaluations            Reevaluation[]
   niveauxRelance           NiveauRelance[]
@@ -1960,6 +1961,7 @@ model Tiers {
   demandesConfirmation DemandeConfirmation[]
   factures             Facture[]
   devis                Devis[]
+  documents            DocumentTiers[]
 
   @@unique([tenantId, code])
   // L'agrégation du groupe interroge les tiers PAR CELLULE · sans cet index
@@ -7071,4 +7073,40 @@ model EtatPersonnalise {
 
   @@unique([tenantId, nom])
   @@map("etats_personnalises")
+}
+
+/// DOCUMENTS ATTACHÉS À UN TIERS (point 21 de la comparaison Sage i7).
+///
+/// Sage i7, fiche tiers, « Sous volet Documents · Ce volet permet de compléter
+/// la fiche d'identification du tiers par le rattachement d'un fichier lié. A
+/// chaque fichier lié peut être associé un commentaire de 69 caractères. »
+/// Sage rattache un CHEMIN vers un fichier du poste ; une application web n'a
+/// pas de disque partagé, et Manasse a retenu le 2026-09-25 de ranger la pièce
+/// DANS LA BASE, plafonnée à 5 Mo · elle suit ainsi la sauvegarde nocturne
+/// chiffrée et l'archive de restitution, sans stockage tiers à créer.
+///
+/// `contenu` n'est JAMAIS lu par une liste · il ne sort que par la route de
+/// téléchargement, une pièce à la fois (`DocumentsTiersService`).
+/// `onDelete: Restrict` · un tiers qui porte des documents ne se supprime pas
+/// en les emportant en silence (règle des références, point 3).
+model DocumentTiers {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  tiersId     String
+  tiers       Tiers    @relation(fields: [tiersId], references: [id], onDelete: Restrict)
+  nomFichier  String
+  typeMime    String
+  taille      Int
+  /// SHA-256 du contenu · refuse un doublon sur le même tiers et permet de
+  /// vérifier qu'une pièce restituée est celle qui a été déposée.
+  empreinte   String
+  commentaire String?  @db.VarChar(69)
+  contenu     Bytes
+  deposePar   String?
+  createdAt   DateTime @default(now())
+
+  @@unique([tiersId, empreinte])
+  @@index([tenantId, tiersId])
+  @@map("documents_tiers")
 }
