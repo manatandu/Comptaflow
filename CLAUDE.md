@@ -4381,6 +4381,27 @@ remplacement (« uniquement sur des écritures non lettrées », Sage). (5) LE
 REPORT DES BUDGETS n'écrase jamais un budget déjà saisi et ne dote pas une
 section dont la convention finit avant le nouvel exercice.
 
+**Clôture qui fige le lettrage et l'analytique (2026-09-25).** Point 12 de la
+comparaison, lu au manuel i7 (Clôture des journaux) · « Partielle : [...] Le
+lettrage et la ventilation analytique par exemple pourront tout de même être
+effectués. Totale : Les journaux ne seront plus modifiables. Période : Les
+journaux jusqu'à la période sélectionnée ne seront plus modifiables. » La
+clôture ne bloquait que la SAISIE ; on pouvait délettrer, relettrer et
+reventiler une période arrêtée sans qu'aucun total ne bouge. QUATRE RÈGLES À NE
+PAS DÉFAIRE. (1) UNE SEULE RÈGLE, `exercice/gel-cloture.ts` · une ligne est
+figée si son exercice est clôturé, si une clôture TOTALE porte sur son journal
+et qu'elle est datée au plus tard de sa date limite (une totale de 2026 ne fige
+pas 2027), ou si une clôture de PÉRIODE couvre sa date ; la PARTIELLE ne fige
+rien, c'est tout son objet. (2) ELLE GARDE TOUS LES CHEMINS · lettrage manuel,
+compléter (lignes anciennes du groupe comprises, puisque la lettre se pose sur
+toutes), délettrer, confirmation d'un pré-lettrage (rejouée, une clôture a pu
+survenir entre-temps), ventiler et effacer une ventilation. (3) LE LETTRAGE
+AUTOMATIQUE ET LE PRÉ-LETTRAGE N'APPARIENT PAS une ligne figée · ils la
+poseraient, ou proposeraient ce que la confirmation refuserait. (4) LE
+RÈGLEMENT DES TIERS VÉRIFIE LE GEL AVANT LA PREMIÈRE PIÈCE · le lettrage suit
+la pièce, et le refus arriverait trop tard. Une OD analytique n'a pas de
+journal · seule la clôture de période l'atteint.
+
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
 nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la

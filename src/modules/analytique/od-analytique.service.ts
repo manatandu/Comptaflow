@@ -1,8 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { StatutExercice, TypeCompteDetailTotal } from '@prisma/client';
+import { GranulariteCloture, StatutExercice, TypeCompteDetailTotal } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { CreerOdAnalytiqueDto } from './dto/od-analytique.dto';
 import { motifRefusOd } from './od-analytique';
+import { motifLigneFigee } from '../exercice/gel-cloture';
 
 /**
  * OD ANALYTIQUES · voir od-analytique.ts pour la règle et sa source. Ce
@@ -52,6 +53,7 @@ export class OdAnalytiqueService {
     if (date < exercice.dateDebut || date > exercice.dateFin) {
       throw new BadRequestException("La date de l'OD tombe hors de l'exercice.");
     }
+    await this.refuserSiPeriodeClose(tenantId, date);
     const plan = await this.prisma.planAnalytique.findFirst({ where: { id: dto.planId, tenantId } });
     if (!plan) throw new NotFoundException('Plan analytique introuvable pour ce dossier.');
     const compte = await this.prisma.compte.findFirst({ where: { id: dto.compteId, tenantId } });
@@ -99,8 +101,25 @@ export class OdAnalytiqueService {
     if (od.exercice.statut === StatutExercice.CLOTURE) {
       throw new BadRequestException("L'exercice est clôturé · son analytique ne se corrige plus.");
     }
+    await this.refuserSiPeriodeClose(tenantId, od.date);
     await this.prisma.odAnalytique.delete({ where: { id } });
     return { supprime: true };
+  }
+
+  /**
+   * Une OD analytique n'a pas de journal · seule la clôture de PÉRIODE, qui
+   * vaut pour tous les journaux, l'atteint (exercice/gel-cloture.ts). La
+   * clôture totale d'un journal ne la concerne pas, la partielle non plus.
+   */
+  private async refuserSiPeriodeClose(tenantId: string, date: Date) {
+    const clotures = await this.prisma.cloture.findMany({
+      where: { tenantId, annuleeAt: null, granularite: GranulariteCloture.PERIODE },
+      select: { granularite: true, journalId: true, dateLimite: true },
+    });
+    const motif = motifLigneFigee({ journalId: '', date, exerciceClos: false }, clotures);
+    if (motif) {
+      throw new BadRequestException(`L'OD analytique ne se passe ni ne se retire à cette date : ${motif}.`);
+    }
   }
 
   /** Cumuls des OD d'un plan sur une fenêtre, section par section. */

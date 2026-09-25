@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../../common/prisma.service';
 import { OrigineLettrage, Prisma, StatutLettrage } from '@prisma/client';
 import { avecRetrySerialisable } from '../../common/prisma-retry.util';
+import { lignesFigees, refuserSiLignesFigees } from '../exercice/gel-cloture';
 
 const EPSILON = 0.005;
 
@@ -369,11 +370,11 @@ export class LettrageService {
           include: { ecriture: true },
         });
         this.verifierLignes(lignes, { compteId, tenantId, nombre: ligneIds.length });
-        // Pas de contrôle de clôture d'exercice ici, volontairement : le
-        // lettrage porte sur des lignes déjà enregistrées (il ne modifie ni
-        // montant ni compte), et reste possible après une clôture partielle
-        // · même règle que chez Sage ("le lettrage... pourront tout de même
-        // être effectués" après une clôture partielle).
+        // Le lettrage reste possible après une clôture PARTIELLE (Sage i7 :
+        // « le lettrage et la ventilation analytique […] pourront tout de même
+        // être effectués »), et SEULEMENT après elle · une clôture totale, de
+        // période ou d'exercice le fige (exercice/gel-cloture.ts).
+        await refuserSiLignesFigees(tx, tenantId, ligneIds, 'lettrer');
 
         const solde = lignes.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
         if (Math.abs(solde) > EPSILON && !options.autoriserPartiel) {
@@ -428,6 +429,10 @@ export class LettrageService {
           include: { ecriture: true },
         });
         this.verifierLignes(nouvelles, { compteId: groupe.compteId, tenantId, nombre: ligneIds.length });
+        // Les lignes DÉJÀ du groupe comptent aussi · le compléter pose la
+        // lettre sur toutes, et en change le statut.
+        const dejaDuGroupe = await tx.ligneEcriture.findMany({ where: { lettrageId }, select: { id: true } });
+        await refuserSiLignesFigees(tx, tenantId, [...ligneIds, ...dejaDuGroupe.map((l) => l.id)], 'compléter ce lettrage');
 
         await tx.ligneEcriture.updateMany({ where: { id: { in: ligneIds } }, data: { lettrageId } });
 
@@ -487,6 +492,8 @@ export class LettrageService {
           `Le lettrage ${groupe.code} est verrouillé · déverrouillez-le avant de le défaire.`,
         );
       }
+      const duGroupe = await this.prisma.ligneEcriture.findMany({ where: { lettrageId: groupe.id }, select: { id: true } });
+      await refuserSiLignesFigees(this.prisma, tenantId, duGroupe.map((l) => l.id), 'délettrer');
       const { count } = await this.prisma.ligneEcriture.updateMany({
         where: { lettrageId: groupe.id },
         data: { lettre: null, lettrageId: null },
@@ -497,6 +504,11 @@ export class LettrageService {
 
     // Aucun groupe : dossier dont un lettrage n'aurait pas été repris par la
     // migration. On retombe sur l'ancien chemin plutôt que de refuser.
+    const anciennes = await this.prisma.ligneEcriture.findMany({
+      where: { compteId, lettre: code, ecriture: { tenantId } },
+      select: { id: true },
+    });
+    await refuserSiLignesFigees(this.prisma, tenantId, anciennes.map((l) => l.id), 'délettrer');
     const resultat = await this.prisma.ligneEcriture.updateMany({
       where: { compteId, lettre: code, ecriture: { tenantId } },
       data: { lettre: null, lettrageId: null },
@@ -688,7 +700,7 @@ export class LettrageService {
     // `lettrageId: null` et non `lettre: null` : une ligne déjà rattachée à un
     // groupe PARTIEL ne porte pas de lettre mais ne doit pas être réappariée
     // ailleurs. Elle se solde en complétant son groupe (voir `completer`).
-    const nonLettrees = await this.prisma.ligneEcriture.findMany({
+    const candidates = await this.prisma.ligneEcriture.findMany({
       where: { compteId, lettrageId: null, ecriture: { tenantId } },
       // La DATE et le LIBELLÉ sont chargés pour le pré-lettrage, qui doit
       // montrer à l'humain ce qu'il confirme · une liste d'identifiants ne se
@@ -697,6 +709,11 @@ export class LettrageService {
       include: { ecriture: { select: { reference: true, date: true } } },
       orderBy: { ecriture: { date: 'asc' } },
     });
+    // Une ligne figée par une clôture (exercice/gel-cloture.ts) n'est pas
+    // proposée · le lettrage automatique la poserait, et le pré-lettrage
+    // proposerait un groupe que sa confirmation refuserait.
+    const figees = await lignesFigees(this.prisma, tenantId, candidates.map((l) => l.id));
+    const nonLettrees = candidates.filter((l) => !figees.has(l.id));
 
     // Ce qui compte pour le lettrage est l'EFFET NET d'une ligne sur le
     // compte, pas la colonne dans laquelle elle est écrite. Sur toutes les
@@ -904,6 +921,9 @@ export class LettrageService {
             include: { ecriture: { select: { tenantId: true, date: true } } },
           });
           this.verifierLignes(lignes, { compteId, tenantId, nombre: g.ligneIds.length });
+          // Une clôture peut être intervenue entre la proposition et la
+          // confirmation · la proposition ne se croit pas, elle se rejoue.
+          await refuserSiLignesFigees(tx, tenantId, g.ligneIds, 'lettrer');
           const solde = lignes.reduce((t, l) => t + Number(l.debit) - Number(l.credit), 0);
           if (Math.abs(solde) > EPSILON) {
             throw new BadRequestException(

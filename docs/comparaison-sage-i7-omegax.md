@@ -76,7 +76,11 @@ tiennent à un texte OHADA ; ils sont signalés comme tels.
 11. ~~Nouvel exercice avec à-nouveaux provisoires, report des budgets~~ · FAIT
     le 2026-09-25 : report provisoire au brouillard, relançable, remplacé par
     le définitif à la clôture ; budgets reportés sans rien écraser.
-12. Clôture totale qui fige aussi lettrage et analytique.
+12. ~~Clôture totale qui fige aussi lettrage et analytique~~ · FAIT le
+    2026-09-25 : la clôture totale, la clôture de période et la clôture
+    d'exercice figent le lettrage (manuel, automatique, pré-lettrage,
+    règlements) et la ventilation analytique ; la partielle les laisse
+    ouverts, comme le dit le manuel i7.
 13. Compte collectif et comptes auxiliaires de tiers.
 14. Natures de compte paramétrables.
 15. Droits d'accès fonction par fonction.

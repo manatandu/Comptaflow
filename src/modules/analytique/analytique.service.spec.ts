@@ -134,9 +134,15 @@ describe('ventilation · équilibre par plan', () => {
     { id: 'sC', planId: 'p2', code: 'UE', type: 'DETAIL', estActive: true, plan: { code: 'BAIL' } },
   ];
 
-  function prisma(sectionsRenvoyees = sections) {
+  const ecritureDeLigne = { date: new Date('2026-03-01'), journalId: 'jACH', journal: { code: 'ACH' }, exercice: { statut: 'OUVERT' } };
+
+  function prisma(sectionsRenvoyees = sections, clotures: Faux[] = []) {
     return {
-      ligneEcriture: { findFirst: jest.fn().mockResolvedValue(ligne) },
+      ligneEcriture: {
+        findFirst: jest.fn().mockResolvedValue(ligne),
+        findMany: jest.fn().mockResolvedValue([{ id: 'l1', ecriture: ecritureDeLigne }]),
+      },
+      cloture: { findMany: jest.fn().mockResolvedValue(clotures) },
       // Le double respecte le `where.id.in` : le service compare le nombre de
       // sections trouvées au nombre demandé pour détecter une section d'un
       // autre dossier, et un double qui renvoie tout ferait échouer ce
@@ -184,6 +190,23 @@ describe('ventilation · équilibre par plan', () => {
     await expect(
       service(prisma(totales)).ventilerLigne('t1', 'l1', [{ sectionId: 'sA', debit: 1000 }]),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('refuse de ventiler, et d’effacer la ventilation, sur une ligne d’un journal clôturé totalement', async () => {
+    const totale = [{ granularite: 'TOTALE', journalId: 'jACH', dateLimite: new Date('2026-12-31') }];
+    const p = prisma(sections, totale) as { ventilationAnalytique: { deleteMany?: jest.Mock }; $transaction: jest.Mock };
+    p.ventilationAnalytique.deleteMany = jest.fn();
+    await expect(service(p as Faux).ventilerLigne('t1', 'l1', [{ sectionId: 'sA', debit: 1000 }])).rejects.toThrow(/ventiler.*clôturé totalement/);
+    await expect(service(p as Faux).effacerVentilation('t1', 'l1')).rejects.toThrow(/Impossible d'effacer la ventilation/);
+    expect(p.ventilationAnalytique.deleteMany).not.toHaveBeenCalled();
+    expect(p.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('une clôture PARTIELLE laisse ventiler · Sage i7 le dit en toutes lettres', async () => {
+    // La requête écarte la partielle (`granularite: { not }`) ; la doublure
+    // la renvoie quand même, pour prouver que la RÈGLE ne la retient pas non plus.
+    const partielle = [{ granularite: 'PARTIELLE', journalId: 'jACH', dateLimite: new Date('2026-12-31') }];
+    await expect(service(prisma(sections, partielle)).ventilerLigne('t1', 'l1', [{ sectionId: 'sA', debit: 1000 }])).resolves.toBeDefined();
   });
 
   it('refuse une section en sommeil', async () => {

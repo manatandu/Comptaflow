@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { refuserBailleurHorsSycebnl } from '../../common/bailleur-referentiel';
+import { refuserSiLignesFigees } from '../exercice/gel-cloture';
 import { ClasseCompte, Prisma, Referentiel, TypeCompteDetailTotal } from '@prisma/client';
 import {
   CreerPlanAnalytiqueDto,
@@ -401,6 +402,9 @@ export class AnalytiqueService {
       include: { compte: { select: { numero: true, classe: true } } },
     });
     if (!ligne) throw new NotFoundException('Ligne d\'écriture introuvable pour ce dossier');
+    // Seule la clôture PARTIELLE laisse la ventilation ouverte (Sage i7) ·
+    // exercice/gel-cloture.ts.
+    await refuserSiLignesFigees(this.prisma, tenantId, [ligneEcritureId], 'ventiler');
 
     const sectionIds = [...new Set(ventilations.map((v) => v.sectionId))];
     const sections = await this.prisma.sectionAnalytique.findMany({
@@ -475,6 +479,7 @@ export class AnalytiqueService {
       select: { id: true },
     });
     if (!ligne) throw new NotFoundException('Ligne d\'écriture introuvable pour ce dossier');
+    await refuserSiLignesFigees(this.prisma, tenantId, [ligneEcritureId], 'effacer la ventilation');
     await this.prisma.ventilationAnalytique.deleteMany({ where: { ligneEcritureId } });
     return { efface: true };
   }

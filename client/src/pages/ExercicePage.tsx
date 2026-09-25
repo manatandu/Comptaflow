@@ -579,7 +579,7 @@ export function ExercicePage() {
           <form onSubmit={clorePartielle} className="bg-surface border border-border p-3">
             <div className="font-mono text-[11px] font-semibold text-text-dim mb-2 flex items-center gap-1.5">
               Clôture partielle
-              <Aide titre="Clôture partielle" texte="Verrouille un journal jusqu'à une date · réversible." source="Clôture d'exercice" />
+              <Aide titre="Clôture partielle" texte="Verrouille la saisie d'un journal jusqu'à une date · réversible. Le lettrage et la ventilation analytique de ses lignes restent possibles." source="Sage 100 i7, clôture des journaux" />
             </div>
             <label className="block text-[11.5px] font-semibold text-text-dim mb-2">
               Journal
@@ -615,7 +615,7 @@ export function ExercicePage() {
           <form onSubmit={cloreTotale} className="bg-surface border border-border p-3">
             <div className="font-mono text-[11px] font-semibold text-text-dim mb-2 flex items-center gap-1.5">
               Clôture totale
-              <Aide titre="Clôture totale" texte="Fige un journal en entier · définitive." source="Clôture d'exercice" />
+              <Aide titre="Clôture totale" texte="Fige un journal sur l'exercice · définitive. Ni saisie, ni lettrage, ni ventilation analytique sur ses lignes." source="Sage 100 i7, clôture des journaux" />
             </div>
             <label className="block text-[11.5px] font-semibold text-text-dim mb-2">
               Journal
@@ -641,7 +641,7 @@ export function ExercicePage() {
           <form onSubmit={clorePeriode} className="bg-surface border border-border p-3">
             <div className="font-mono text-[11px] font-semibold text-text-dim mb-2 flex items-center gap-1.5">
               Clôture de période
-              <Aide titre="Clôture de période" texte="Verrouille tous les journaux jusqu'à une date · définitive." source="Clôture d'exercice" />
+              <Aide titre="Clôture de période" texte="Fige tous les journaux jusqu'à une date · définitive. Ni saisie, ni lettrage, ni ventilation analytique, ni OD analytique sur la période." source="Sage 100 i7, clôture des journaux" />
             </div>
             <label className="block text-[11.5px] font-semibold text-text-dim mb-2">
               Date limite

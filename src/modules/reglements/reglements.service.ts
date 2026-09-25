@@ -3,6 +3,7 @@ import { TypeJournal } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { LettrageService } from '../lettrage/lettrage.service';
+import { refuserSiLignesFigees } from '../exercice/gel-cloture';
 import { EnregistrerReglementsDto } from './reglements.dto';
 import {
   estEcheanceAReglerSur,
@@ -149,6 +150,11 @@ export class ReglementsService {
       if (refus) throw new BadRequestException(`${siennes[0].compte.numero} · ${refus}`);
       return { r, compte: siennes[0].compte, du, montant };
     });
+
+    // Le lettrage vient APRÈS la pièce · une facture figée par une clôture
+    // (exercice/gel-cloture.ts) le ferait refuser une fois la pièce passée.
+    // Vérifiée ici, avec le reste, avant la première écriture.
+    await refuserSiLignesFigees(this.prisma, tenantId, toutesLignes, 'régler');
 
     const resultats = [];
     for (const { r, compte, du, montant } of plan) {

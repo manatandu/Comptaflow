@@ -18,7 +18,14 @@ interface LigneFausse {
   lettrageId: string | null;
   deviseId: string | null;
   montantDevise: number | null;
-  ecriture: { tenantId: string; date: Date; reference: string | null; journal: { code: string } };
+  ecriture: {
+    tenantId: string;
+    date: Date;
+    reference: string | null;
+    journalId: string;
+    journal: { code: string };
+    exercice: { statut: 'OUVERT' | 'CLOTURE' };
+  };
   libelle: string | null;
 }
 
@@ -41,7 +48,11 @@ function ligne(
   id: string,
   debit: number,
   credit: number,
-  extra: Partial<Pick<LigneFausse, 'deviseId' | 'montantDevise' | 'lettre' | 'lettrageId'>> & { reference?: string } = {},
+  extra: Partial<Pick<LigneFausse, 'deviseId' | 'montantDevise' | 'lettre' | 'lettrageId'>> & {
+    reference?: string;
+    date?: string;
+    exerciceClos?: boolean;
+  } = {},
 ): LigneFausse {
   return {
     id,
@@ -53,11 +64,24 @@ function ligne(
     deviseId: extra.deviseId ?? null,
     montantDevise: extra.montantDevise ?? null,
     libelle: null,
-    ecriture: { tenantId: 't1', date: new Date('2026-03-01'), reference: extra.reference ?? null, journal: { code: 'ACH' } },
+    ecriture: {
+      tenantId: 't1',
+      date: new Date(extra.date ?? '2026-03-01'),
+      reference: extra.reference ?? null,
+      journalId: 'jACH',
+      journal: { code: 'ACH' },
+      exercice: { statut: extra.exerciceClos ? 'CLOTURE' : 'OUVERT' },
+    },
   };
 }
 
-function service(lignes: LigneFausse[], options: { lettrable?: boolean } = {}) {
+interface ClotureFausse {
+  granularite: 'PARTIELLE' | 'TOTALE' | 'PERIODE';
+  journalId: string | null;
+  dateLimite: Date;
+}
+
+function service(lignes: LigneFausse[], options: { lettrable?: boolean; clotures?: ClotureFausse[] } = {}) {
   const groupes: GroupeFaux[] = [];
   let seq = 0;
 
@@ -78,6 +102,14 @@ function service(lignes: LigneFausse[], options: { lettrable?: boolean } = {}) {
 
   const prisma = {
     $transaction: <R>(fn: (tx: unknown) => Promise<R>) => fn(prisma),
+    // La doublure honore le filtre `granularite: { not }` · une clôture
+    // PARTIELLE ne doit jamais atteindre la règle, et c'est la requête qui
+    // l'écarte (exercice/gel-cloture.ts).
+    cloture: {
+      findMany: jest.fn().mockImplementation(({ where }: any) =>
+        Promise.resolve((options.clotures ?? []).filter((c) => c.granularite !== where?.granularite?.not)),
+      ),
+    },
     compte: {
       findFirst: jest.fn().mockResolvedValue({
         id: 'c1',
@@ -428,5 +460,81 @@ describe('Pré-lettrage', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
     // Le groupe manuel du second reste seul posé.
     expect(groupes).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Point 12 · la clôture totale fige aussi le lettrage (Sage i7)
+// ---------------------------------------------------------------------------
+
+describe('Gel du lettrage par la clôture', () => {
+  const totale: ClotureFausse = { granularite: 'TOTALE', journalId: 'jACH', dateLimite: new Date('2026-12-31') };
+
+  it('refuse de lettrer une ligne d’un journal clôturé totalement, en nommant le journal', async () => {
+    const { service: s } = service([ligne('a', 1000, 0), ligne('b', 0, 1000)], { clotures: [totale] });
+    await expect(s.lettrerManuel('t1', 'c1', ['a', 'b'], 'u1')).rejects.toThrow(/journal ACH est clôturé totalement/);
+  });
+
+  it('laisse lettrer après une clôture PARTIELLE · c’est tout son objet', async () => {
+    const partielle: ClotureFausse = { granularite: 'PARTIELLE', journalId: 'jACH', dateLimite: new Date('2026-12-31') };
+    const { service: s } = service([ligne('a', 1000, 0), ligne('b', 0, 1000)], { clotures: [partielle] });
+    await expect(s.lettrerManuel('t1', 'c1', ['a', 'b'], 'u1')).resolves.toMatchObject({ statut: 'SOLDE' });
+  });
+
+  it('une clôture totale ne fige pas les lignes postérieures à sa date limite', async () => {
+    const { service: s } = service([ligne('a', 1000, 0, { date: '2027-02-01' }), ligne('b', 0, 1000, { date: '2027-02-02' })], {
+      clotures: [totale],
+    });
+    await expect(s.lettrerManuel('t1', 'c1', ['a', 'b'], 'u1')).resolves.toMatchObject({ statut: 'SOLDE' });
+  });
+
+  it('une clôture de période fige tous les journaux jusqu’à sa date', async () => {
+    const periode: ClotureFausse = { granularite: 'PERIODE', journalId: null, dateLimite: new Date('2026-03-31') };
+    const { service: s } = service([ligne('a', 1000, 0), ligne('b', 0, 1000, { date: '2026-04-10' })], { clotures: [periode] });
+    await expect(s.lettrerManuel('t1', 'c1', ['a', 'b'], 'u1')).rejects.toThrow(/période jusqu'au 2026-03-31/);
+  });
+
+  it('une ligne d’exercice clôturé ne se lettre plus', async () => {
+    const { service: s } = service([ligne('a', 1000, 0, { exerciceClos: true }), ligne('b', 0, 1000)]);
+    await expect(s.lettrerManuel('t1', 'c1', ['a', 'b'], 'u1')).rejects.toThrow(/exercice est clôturé/);
+  });
+
+  it('refuse de délettrer un groupe dont une ligne est devenue figée, et laisse les lignes lettrées', async () => {
+    const clotures: ClotureFausse[] = [];
+    const { service: s, lignes } = service([ligne('a', 1000, 0), ligne('b', 0, 1000)], { clotures });
+    const { lettre } = await s.lettrerManuel('t1', 'c1', ['a', 'b'], 'u1');
+    clotures.push(totale);
+    await expect(s.delettrer('t1', 'c1', lettre)).rejects.toThrow(/délettrer/);
+    expect(lignes.every((l) => l.lettre === lettre)).toBe(true);
+  });
+
+  it('refuse de compléter un partiel dont une ligne ANCIENNE est figée, même si la nouvelle ne l’est pas', async () => {
+    const periode: ClotureFausse = { granularite: 'PERIODE', journalId: null, dateLimite: new Date('2026-03-31') };
+    const clotures: ClotureFausse[] = [];
+    const { service: s, groupes } = service(
+      [ligne('a', 1000, 0), ligne('b', 0, 600), ligne('c', 0, 400, { date: '2026-05-01' })],
+      { clotures },
+    );
+    await s.lettrerManuel('t1', 'c1', ['a', 'b'], 'u1', { autoriserPartiel: true });
+    clotures.push(periode);
+    await expect(s.completer('t1', groupes[0].id, ['c'])).rejects.toThrow(/compléter ce lettrage/);
+  });
+
+  it('le lettrage automatique et le pré-lettrage n’apparient pas une ligne figée', async () => {
+    const lignesAuto = [ligne('a', 500, 0), ligne('b', 0, 500), ligne('x', 700, 0, { date: '2027-01-15' }), ligne('y', 0, 700, { date: '2027-01-20' })];
+    const periode: ClotureFausse = { granularite: 'PERIODE', journalId: null, dateLimite: new Date('2026-12-31') };
+    const { service: s } = service(lignesAuto, { clotures: [periode] });
+    const pre = await s.preLettrage('t1', 'c1');
+    expect(pre.propositions.map((p) => p.ligneIds.sort())).toEqual([['x', 'y']]);
+    const auto = await s.lettrageAutomatique('t1', 'c1', 'u1');
+    expect(auto.groupes).toBe(1);
+    expect(lignesAuto.find((l) => l.id === 'a')!.lettrageId).toBeNull();
+  });
+
+  it('la confirmation d’un pré-lettrage rejoue le gel · une clôture a pu survenir entre-temps', async () => {
+    const { service: s } = service([ligne('a', 500, 0), ligne('b', 0, 500)], { clotures: [totale] });
+    await expect(
+      s.confirmerPreLettrage('t1', 'c1', 'u1', [{ ligneIds: ['a', 'b'], origine: OrigineLettrage.AUTOMATIQUE_MONTANT }]),
+    ).rejects.toThrow(/figée/);
   });
 });
