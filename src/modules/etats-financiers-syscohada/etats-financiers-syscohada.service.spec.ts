@@ -1,5 +1,5 @@
 import { ClasseCompte, TypeCompteDetailTotal } from '@prisma/client';
-import { EtatsFinanciersSyscohadaService } from './etats-financiers-syscohada.service';
+import { EtatsFinanciersSyscohadaService, subdivisionsLuesParLeTft } from './etats-financiers-syscohada.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
 import { ORDRE_AFFICHAGE_COMPTE_RESULTAT } from './correspondance-compte-resultat-syscohada';
@@ -101,6 +101,7 @@ const C4 = ClasseCompte.CLASSE_4;
 const C5 = ClasseCompte.CLASSE_5;
 const C6 = ClasseCompte.CLASSE_6;
 const C7 = ClasseCompte.CLASSE_7;
+const C8 = ClasseCompte.CLASSE_8;
 const C9 = ClasseCompte.CLASSE_9;
 
 /**
@@ -586,6 +587,40 @@ describe('EtatsFinanciersSyscohadaService', () => {
       expect(tft.comptesNonVentiles.some((c) => c.numero === '52110000')).toBe(false);
       expect(tft.comptesNonVentiles.some((c) => c.numero === '41110000')).toBe(false);
       expect(tft.comptesNonVentiles.some((c) => c.numero === '28450000')).toBe(false);
+    });
+
+    it('nomme les comptes tenus sans la subdivision que le tableau lit', async () => {
+      // Vécu sur la balance d'un expert · 481, 81 et 82 tenus en comptes
+      // génériques. Le tableau lit 4812, 812 et 822 : le 48100000 n'est PAS
+      // non ventilé (sa racine 48 est connue du bilan), il est trop agrégé, et
+      // le tableau ne bouclait pas sans que rien ne nomme la cause.
+      const tft = await serviceAvecBalance([
+        // Tenu en report seulement · un solde sans mouvement se signale aussi,
+        // le tableau lisant la VARIATION entre deux soldes.
+        ligne('24500000', C2, 0, 0, { debit: 5000 }),
+        ligne('48100000', C4, 0, 0, { credit: 5000 }),
+        ligne('81000000', C8, 300, 0),
+        ligne('82000000', C8, 0, 300),
+        ligne('48120000', C4, 0, 0, { credit: 100 }),
+        ligne('52110000', C5, 100, 0),
+      ]).tableauFluxTresorerie('t1', 'e1');
+      const parNumero = new Map(tft.comptesTropAgreges.map((c) => [c.numero, c]));
+      expect(parNumero.get('48100000')?.subdivisions).toContain('4812');
+      expect(parNumero.get('48100000')?.montant).toBe(-5000);
+      expect(parNumero.get('81000000')?.subdivisions).toContain('812');
+      expect(parNumero.get('82000000')?.subdivisions).toContain('822');
+      // Le compte détaillé que le tableau lit n'est pas signalé.
+      expect(parNumero.has('48120000')).toBe(false);
+      expect(parNumero.has('52110000')).toBe(false);
+    });
+
+    it('lit la subdivision après avoir retiré les zéros de complément', () => {
+      // 48100000 et 481 sont le même compte · sans le retrait des zéros,
+      // « 4812 » ne commencerait jamais par « 48100000 ».
+      expect(subdivisionsLuesParLeTft('48100000')).toContain('4812');
+      expect(subdivisionsLuesParLeTft('481')).toContain('4812');
+      expect(subdivisionsLuesParLeTft('48120000')).not.toContain('4812');
+      expect(subdivisionsLuesParLeTft('24500000')).toEqual([]);
     });
 
     it('reproduit la maquette du modèle : rubriques intercalées, clés A à H, drill-down des postes', async () => {

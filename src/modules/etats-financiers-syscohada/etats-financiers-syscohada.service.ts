@@ -250,10 +250,41 @@ export interface PosteNonCalculable {
   raison: string;
 }
 
+export interface CompteTropAgrege extends CompteDuPoste {
+  /** Les subdivisions que le tableau des flux lit, et entre lesquelles ce compte n'a pas choisi. */
+  subdivisions: string[];
+}
+
+/** Tous les préfixes que les formules du tableau des flux lisent. */
+const PREFIXES_LUS_PAR_LE_TFT = [
+  ...new Set(TOUS_LES_POSTES_FLUX_SYSCOHADA.flatMap((p) => p.termes.flatMap((t) => t.comptes?.prefixes ?? []))),
+].sort();
+
+/**
+ * Un compte est trop agrégé quand le tableau des flux lit des subdivisions de
+ * son numéro sans lire ce numéro lui-même. Les zéros de fin sont retirés, un
+ * dossier pouvant tenir 48100000 pour 481. Mesuré le 2026-09-25 · aucun des
+ * 1 132 comptes de détail du plan semé n'est pris, et la balance d'un corrigé
+ * d'expert-comptable (481, 81 et 82 tenus sans subdivision) l'est entière.
+ */
+export function subdivisionsLuesParLeTft(numero: string): string[] {
+  const racine = numero.replace(/0+$/, '');
+  if (!racine) return [];
+  return PREFIXES_LUS_PAR_LE_TFT.filter((p) => p.startsWith(racine) && p.length > racine.length);
+}
+
 export interface TableauFluxTresorerieSyscohada {
   lignes: Array<LigneFluxSyscohada | SectionFluxSyscohada>;
   exerciceN1Disponible: boolean;
   comptesNonVentiles: CompteDuPoste[];
+  /**
+   * Comptes tenus PLUS HAUT que ce que le tableau distingue · un 481 quand le
+   * tableau sépare 4811 (incorporelles) et 4812 (corporelles), un 81 ou un 82
+   * quand il sépare 812, 822 et 826. Leur montant ne va ni dans l'une ni dans
+   * l'autre subdivision, et l'écart de bouclage en vient sans que
+   * `comptesNonVentiles` le voie (le 481 est lu par un poste plus large).
+   */
+  comptesTropAgreges: CompteTropAgrege[];
   postesNonCalculables: PosteNonCalculable[];
   controle: {
     tresorerieOuverture: number;
@@ -1299,6 +1330,11 @@ export class EtatsFinanciersSyscohadaService {
       // Calculés sur N seulement : N-1 n'est qu'un comparatif d'affichage, pas
       // un état audité par cet appel (même convention que `bilan()`).
       comptesNonVentiles: this.comptesNonVentiles(lignesN),
+      comptesTropAgreges: lignesN
+        .filter((l) => /^[1-8]/.test(l.numero))
+        .filter((l) => Math.abs(l.solde) > EPSILON || Math.abs(l.mouvementDebit) > EPSILON || Math.abs(l.mouvementCredit) > EPSILON)
+        .map((l) => ({ numero: l.numero, intitule: l.intitule, montant: l.solde, subdivisions: subdivisionsLuesParLeTft(l.numero) }))
+        .filter((c) => c.subdivisions.length > 0),
       postesNonCalculables: resN.postesNonCalculables,
       controle: {
         tresorerieOuverture: resN.parRef.get('ZA')!.montant,

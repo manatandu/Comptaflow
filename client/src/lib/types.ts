@@ -2654,6 +2654,8 @@ export interface TableauFluxTresorerieSyscohada {
   lignes: Array<LigneFluxSyscohada | SectionFluxSyscohada>;
   exerciceN1Disponible: boolean;
   comptesNonVentiles: CompteDuPosteSyscohada[];
+  /** Comptes tenus plus haut que ce que le tableau distingue (481 pour 4811 et 4812, 81 pour 812…). */
+  comptesTropAgreges?: (CompteDuPosteSyscohada & { subdivisions: string[] })[];
   postesNonCalculables: PosteNonCalculableSyscohada[];
   controle: {
     tresorerieOuverture: number;

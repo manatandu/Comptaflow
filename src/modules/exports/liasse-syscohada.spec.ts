@@ -418,6 +418,20 @@ describe('exports SYSCOHADA individuels · charte ETAFI, état seul en valeurs',
 });
 
 describe('liasse complète · Système normal SYSCOHADA', () => {
+  it('le contrôle du TFT nomme les comptes tenus sans la subdivision que le tableau lit', () => {
+    // Sans cette phrase, le classeur montre un écart de bouclage sans cause ·
+    // un 481 générique n'est pas « non ventilé », il est trop agrégé.
+    const message: string = (fabriquerExport() as unknown as {
+      controlesTftSyscohada: (tft: unknown) => string;
+    }).controlesTftSyscohada({
+      controle: { coherent: false, tresorerieClotureParFlux: 1, tresorerieClotureParBilan: 2, ecart: 1 },
+      comptesNonVentiles: [],
+      postesNonCalculables: [],
+      comptesTropAgreges: [{ numero: '48100000', intitule: 'x', montant: -5000, subdivisions: ['4811', '4812'] }],
+    });
+    expect(message).toContain('1 compte(s) tenu(s) sans la subdivision que le tableau lit : 48100000 (lu en 4811, 4812).');
+  });
+
   it('reproduit le classeur du modèle, ses 36 notes et ses recoupements', async () => {
     const { buffer, nomFichier } = await fabriquerExport().liasseCompleteExcel('t1', 'e1');
     expect(nomFichier).toBe('liasse-complete-2026.xlsx');

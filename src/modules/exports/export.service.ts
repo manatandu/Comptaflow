@@ -5133,7 +5133,17 @@ export class ExportService {
       tft.postesNonCalculables.length > 0
         ? ` Postes non calculables sur cet exercice : ${tft.postesNonCalculables.map((p) => p.ref).join(', ')}.`
         : '';
-    return bouclage + nonVentiles + nonCalculables;
+    const tropAgreges =
+      tft.comptesTropAgreges.length > 0
+        ? ` ${tft.comptesTropAgreges.length} compte(s) tenu(s) sans la subdivision que le tableau lit : ` +
+          tft.comptesTropAgreges
+            .slice(0, 6)
+            .map((c) => `${c.numero} (lu en ${c.subdivisions.join(', ')})`)
+            .join(', ') +
+          (tft.comptesTropAgreges.length > 6 ? '…' : '') +
+          '.'
+        : '';
+    return bouclage + nonVentiles + tropAgreges + nonCalculables;
   }
 
   /** Tableau des flux de trésorerie SYSCOHADA · export individuel. */

@@ -789,6 +789,26 @@ function EtatsSyscohadaSystemeNormal() {
                 </div>
               )}
 
+              {/* Un compte tenu plus haut que ce que le tableau distingue ·
+                  un 481 quand les formules lisent 4811 et 4812. Son montant
+                  ne va ni dans l'une ni dans l'autre, et c'est d'ordinaire
+                  la cause de l'écart ci-dessus. */}
+              {(tft.comptesTropAgreges ?? []).length > 0 && (
+                <div className="border border-danger/30 bg-danger-soft mt-2 px-3.5 py-2.5">
+                  <div className="text-[12px] font-bold mb-1.5">
+                    Comptes tenus sans la subdivision que le tableau des flux lit · à ventiler au plan de comptes
+                  </div>
+                  {(tft.comptesTropAgreges ?? []).map((c) => (
+                    <div key={c.numero} className="flex justify-between gap-3 text-[12px] font-mono">
+                      <span className="min-w-0 break-words">
+                        {c.numero} · {c.intitule} · lu en {c.subdivisions.join(', ')}
+                      </span>
+                      <span className="shrink-0">{montant(c.montant)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {tft.comptesNonVentiles.length > 0 && (
                 <div className="border border-danger/30 bg-danger-soft mt-2 px-3.5 py-2.5">
                   <div className="text-[12px] font-bold mb-1.5">

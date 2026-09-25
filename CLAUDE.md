@@ -2503,6 +2503,19 @@ tant que manquent l'état du résultat global, le tableau des flux (IAS 7),
 les variations des capitaux propres, les notes et la première application
 (IFRS 1) · tranches suivantes.
 
+**Tableau des flux SYSCOHADA · le compte trop agrégé, que « non ventilé »
+ne voyait pas (2026-09-25).** Trouvé en passant au moteur la balance d'un
+expert tenue en comptes génériques (481, 81, 82). La table du ch. 5 lit des
+SUBDIVISIONS · 4812 pour les fournisseurs d'investissement, 812 et 822 pour
+les cessions. Un 48100000 n'est pas « non ventilé », sa racine 48 est connue
+du bilan : il est TROP AGRÉGÉ, le tableau ne le lit pas, et l'écart de
+bouclage restait sans cause nommée. `comptesTropAgreges` liste tout compte
+mouvementé ou soldé dont le tableau lit une subdivision plus fine
+(`subdivisionsLuesParLeTft`, zéros de complément retirés avant la
+comparaison), à l'écran et dans le contrôle du classeur. Le logiciel NOMME,
+il ne ventile pas · répartir un 481 entre 4811 et 4812 est une question de
+nature d'opération que seul le cabinet connaît.
+
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de
 l'inventaire physique » (immobilisations, stocks, caisses) et § VII
