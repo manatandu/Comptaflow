@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
+import { Aide } from '../components/chrome/Aide';
 
 /**
  * JUSTIFICATIF DE SOLDE · le détail qui compose le solde d'un compte à une
@@ -119,18 +120,21 @@ export function JustificatifSoldePage() {
   return (
     <div className="p-2">
       <EnteteImpression titre="Justificatif de solde" />
-      <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
-        <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">Révision</div>
-          <h1 className="text-[13px] font-bold leading-tight">Justificatif de solde</h1>
-        </div>
+      <div className="flex items-end justify-end mb-1.5 gap-3 flex-wrap">
         <div className="flex items-end gap-3 flex-wrap">
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] font-bold text-text-dim">Compte à justifier</span>
+            <span className="text-[11px] font-bold text-text-dim flex items-center gap-1">
+              Compte à justifier
+              <Aide
+                titre="Justificatif de solde"
+                texte="À la différence du grand livre, borné à l'exercice, le justificatif remonte aussi loin que le solde le demande : une opération ouverte il y a plusieurs exercices y figure encore si elle n'a pas été soldée."
+                source="Justificatif de solde"
+              />
+            </span>
             <select
               value={compteId}
               onChange={(e) => setCompteId(e.target.value)}
-              className="border border-border-dark bg-surface px-2 py-1 text-[12px] min-w-[320px]"
+              className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] min-w-[320px]"
             >
               <option value="">Choisir un compte…</option>
               {options.map((c) => (
@@ -146,10 +150,10 @@ export function JustificatifSoldePage() {
               type="date"
               value={dateArret}
               onChange={(e) => setDateArret(e.target.value)}
-              className="border border-border-dark bg-surface px-2 py-1 text-[12px] font-mono"
+              className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] font-mono"
             />
           </label>
-          <label className="flex items-center gap-1.5 text-[12px] pb-1">
+          <label className="flex items-center gap-1.5 text-[11.5px] pb-1">
             <input
               type="checkbox"
               checked={masquerLettrees}
@@ -161,7 +165,7 @@ export function JustificatifSoldePage() {
             type="button"
             onClick={exporter}
             disabled={!compteId}
-            className="border border-border-dark bg-surface-alt px-3 py-1 text-[12px] font-semibold disabled:opacity-40"
+            className="border border-border-dark bg-surface-alt px-3 py-1 text-[11.5px] font-semibold disabled:opacity-40"
           >
             Exporter en Excel
           </button>
@@ -169,14 +173,12 @@ export function JustificatifSoldePage() {
       </div>
 
       {erreur && (
-        <div className="text-[12.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-2.5">{erreur}</div>
+        <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-2.5">{erreur}</div>
       )}
 
       {!compteId && (
-        <div className="border border-border bg-surface shadow-posee px-3.5 py-4 text-[12px] text-text-dim">
-          Choisissez le compte dont vous voulez justifier le solde. À la différence du grand livre, borné à
-          l'exercice, le justificatif remonte aussi loin que le solde le demande : une opération ouverte il y
-          a plusieurs exercices y figure encore si elle n'a pas été soldée.
+        <div className="border border-border bg-surface shadow-posee px-3.5 py-4 text-[11.5px] text-text-dim">
+          Choisissez le compte dont vous voulez justifier le solde.
         </div>
       )}
 
@@ -184,7 +186,7 @@ export function JustificatifSoldePage() {
         <>
           {donnees.recoupement.applicable && (
             <div
-              className={`text-[12px] border px-3 py-2 mb-2.5 ${
+              className={`text-[11.5px] border px-3 py-2 mb-2.5 ${
                 donnees.recoupement.concordant
                   ? 'text-text-dim bg-surface-alt border-border'
                   : 'text-danger bg-danger-soft border-danger/30 font-semibold'
@@ -197,9 +199,15 @@ export function JustificatifSoldePage() {
           )}
 
           <div className="border border-border bg-surface shadow-posee overflow-x-auto">
-            <div className="px-3.5 py-1.5 text-[12.5px] font-bold border-b border-border-dark">
+            <div className="px-3.5 py-1.5 text-[11.5px] font-bold border-b border-border-dark">
               {donnees.compte.numero} · {donnees.compte.intitule}
               <span className="font-normal text-text-dim"> · arrêté au {donnees.dateArret}</span>
+              <Aide
+                className="ml-1.5"
+                titre="À-nouveaux et recoupement"
+                texte="Les écritures d'à-nouveau de clôture sont écartées : elles reprennent le cumul des exercices antérieurs, que cet état liste déjà ligne à ligne, et les garder doublerait le solde. Celles du premier exercice du dossier restent, en italique · elles portent le bilan d'ouverture. Le recoupement avec la balance n'est annoncé qu'à la date de clôture et sur l'état complet · à une date intermédiaire, ou en masquant les lignes lettrées, un écart serait attendu et non une anomalie."
+                source="Justificatif de solde"
+              />
             </div>
             <div
               className={`${grille} px-3.5 py-1.5 bg-surface-alt text-[11px] font-bold text-text-dim border-b border-border-dark`}
@@ -217,7 +225,7 @@ export function JustificatifSoldePage() {
             </div>
 
             {donnees.lignes.length === 0 && (
-              <div className="px-3.5 py-4 text-[12px] text-text-dim">
+              <div className="px-3.5 py-4 text-[11.5px] text-text-dim">
                 Aucune ligne ne compose ce solde à la date retenue.
               </div>
             )}
@@ -225,7 +233,7 @@ export function JustificatifSoldePage() {
             {donnees.lignes.map((l) => (
               <div
                 key={l.ligneId}
-                className={`${grille} px-3.5 py-[4px] items-center border-b border-border/50 text-[12px] ${
+                className={`${grille} px-3.5 py-[4px] items-center border-b border-border/50 text-[11.5px] ${
                   l.estANouveau ? 'italic text-text-dim' : ''
                 }`}
               >
@@ -249,7 +257,7 @@ export function JustificatifSoldePage() {
 
             {donnees.lignes.length > 0 && (
               <div
-                className={`${grille} px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[12px] font-bold`}
+                className={`${grille} px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[11.5px] font-bold`}
               >
                 <span>TOTAL</span>
                 <span />
@@ -264,7 +272,7 @@ export function JustificatifSoldePage() {
               </div>
             )}
             {donnees.lignes.length > 0 && (
-              <div className={`${grille} px-3.5 py-1.5 text-[12px] font-bold`}>
+              <div className={`${grille} px-3.5 py-1.5 text-[11.5px] font-bold`}>
                 <span>SOLDE</span>
                 <span />
                 <span />
@@ -279,14 +287,6 @@ export function JustificatifSoldePage() {
             )}
           </div>
 
-          <p className="text-[11px] text-text-dim mt-2 max-w-[900px]">
-            Les écritures d'à-nouveau de clôture sont écartées : elles reprennent le cumul des exercices
-            antérieurs, que cet état liste déjà ligne à ligne, et les garder doublerait le solde. Celles du
-            premier exercice du dossier restent, en italique · elles ne reprennent rien, elles portent le
-            bilan d'ouverture. Le recoupement avec la balance n'est annoncé qu'à la date de clôture et sur
-            l'état complet · à une date intermédiaire, ou en masquant les lignes lettrées, un écart serait
-            attendu et non une anomalie.
-          </p>
         </>
       )}
     </div>

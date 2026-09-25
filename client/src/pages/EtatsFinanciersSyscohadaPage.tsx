@@ -241,7 +241,7 @@ function EtatsSyscohadaSystemeNormal() {
       <div key={l.ref}>
         <div
           {...drill}
-          className={`${COLONNES_ACTIF} gap-2 px-4 py-1 text-[12.5px] items-baseline ${
+          className={`${COLONNES_ACTIF} gap-2 px-4 py-1 text-[11.5px] items-baseline ${
             l.estTotal ? 'font-bold bg-surface-alt border-y border-border' : ''
           } ${classe} ${deplie ? 'bg-surface-alt' : ''}`}
         >
@@ -278,7 +278,7 @@ function EtatsSyscohadaSystemeNormal() {
       <div key={l.ref}>
         <div
           {...drill}
-          className={`${COLONNES_PASSIF} gap-2 px-4 py-1 text-[12.5px] items-baseline ${
+          className={`${COLONNES_PASSIF} gap-2 px-4 py-1 text-[11.5px] items-baseline ${
             l.estTotal ? 'font-bold bg-surface-alt border-y border-border' : ''
           } ${classe} ${deplie ? 'bg-surface-alt' : ''}`}
         >
@@ -306,7 +306,7 @@ function EtatsSyscohadaSystemeNormal() {
       <div key={l.ref}>
         <div
           {...drill}
-          className={`${COLONNES_CR} gap-2 px-4 py-1 text-[12.5px] items-baseline ${
+          className={`${COLONNES_CR} gap-2 px-4 py-1 text-[11.5px] items-baseline ${
             // Les lignes X* sont le cœur de la présentation « en liste » : le
             // ch. 4 les met « en cascade », l'écran les met en évidence.
             l.estSolde ? 'font-bold bg-surface-alt border-y border-border' : ''
@@ -314,7 +314,7 @@ function EtatsSyscohadaSystemeNormal() {
             deplie ? 'bg-surface-alt' : ''
           }`}
         >
-          <span className="font-mono text-[12px] text-text-dim">{l.ref}</span>
+          <span className="font-mono text-[11.5px] text-text-dim">{l.ref}</span>
           <span>
             {l.libelle}
             {/* Formule telle qu'imprimée au modèle · c'est elle qui justifie
@@ -342,11 +342,11 @@ function EtatsSyscohadaSystemeNormal() {
       <div key={l.ref}>
         <div
           {...drill}
-          className={`${COLONNES_TFT} gap-2 px-4 py-1 text-[12.5px] items-baseline ${
+          className={`${COLONNES_TFT} gap-2 px-4 py-1 text-[11.5px] items-baseline ${
             l.estTotal || l.repere ? 'font-bold bg-surface-alt border-y border-border' : ''
           } ${classe} ${deplie ? 'bg-surface-alt' : ''}`}
         >
-          <span className="font-mono text-[12px] text-text-dim">{l.ref}</span>
+          <span className="font-mono text-[11.5px] text-text-dim">{l.ref}</span>
           <span>{l.libelle}</span>
           <span className="font-mono text-right">{montant(l.montant)}</span>
           <span className="font-mono text-right text-text-dim font-normal">{montant(l.montantN1)}</span>
@@ -380,25 +380,21 @@ function EtatsSyscohadaSystemeNormal() {
           un autre. Elles s'IMPRIMENT avec l'état, elles ne sont pas
           `ecran-seul`. */}
       {arreteAu && (
-        <div className="border border-sel/30 bg-sel/5 rounded-[8px] px-3 py-2 mb-2 text-[12px] leading-[1.55] max-w-[980px]">
+        <div className="border border-sel/30 bg-sel/5 rounded-[4px] px-3 py-2 mb-2 text-[11.5px] leading-[1.55] max-w-[980px]">
           <div className="font-bold mb-1">Situation intermédiaire arrêtée au {arreteAu}</div>
           <p className="mb-1">{DECLARATION_METHODES_IDENTIQUES}</p>
           <p className="text-text-dim">{RESERVE_JEU_INCOMPLET}</p>
         </div>
       )}
       <div className="ecran-seul flex flex-wrap items-start justify-between gap-2 mb-1.5">
-        <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">ÉTAT</div>
-          <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
-            États financiers
-            <Aide sujet="jeuEtatsSyscohada" />
-          </h1>
-          <div className="text-[11px] text-text-dim mt-0.5">
+        <div className="flex items-center gap-1.5 text-[11px] text-text-dim">
+          <span>
             SYSCOHADA révisé · Système normal <Aide sujet="systemeSyscohada" /> ·{' '}
             <button onClick={() => navigate('/parametres-dossier')} className="underline hover:text-sel">
               paramètres du dossier
             </button>
-          </div>
+          </span>
+          <Aide sujet="jeuEtatsSyscohada" />
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
           {/* Vide = l'exercice entier · c'est le cas ordinaire, et il reste
@@ -412,7 +408,7 @@ function EtatsSyscohadaSystemeNormal() {
               min={exerciceCourant?.dateDebut?.slice(0, 10)}
               max={exerciceCourant?.dateFin?.slice(0, 10)}
               title="Situation intermédiaire (ch. 39) · laissez vide pour l’exercice entier"
-              className="border border-border rounded-[6px] bg-surface px-2 py-1 text-[12px]"
+              className="border border-border rounded-[3px] bg-surface px-2 py-1 text-[11.5px]"
             />
             {arreteAu && (
               <button
@@ -425,7 +421,7 @@ function EtatsSyscohadaSystemeNormal() {
             )}
           </label>
           {exerciceCourant && (
-            <span className="font-mono text-[12px] border border-border bg-surface px-2.5 py-1.5">
+            <span className="font-mono text-[11.5px] border border-border bg-surface px-2.5 py-1.5">
               Exercice {new Date(exerciceCourant.dateDebut).getFullYear()}
             </span>
           )}
@@ -433,7 +429,7 @@ function EtatsSyscohadaSystemeNormal() {
             onClick={exporterLiasse}
             disabled={exportEnCours}
             title="Tous les états du Système normal dans un seul classeur · les états financiers forment un tout indissociable (AUDCIF art. 8)"
-            className="flex items-center gap-1.5 border border-sel bg-sel text-white px-3 py-1.5 text-[12px] font-bold hover:brightness-110 disabled:opacity-50 disabled:cursor-wait"
+            className="flex items-center gap-1.5 border border-sel bg-sel text-white px-3 py-1.5 text-[11.5px] font-bold hover:brightness-110 disabled:opacity-50 disabled:cursor-wait"
           >
             <IconExport width={13} height={13} />
             {exportEnCours ? 'Export en cours…' : 'Exporter la liasse complète'}
@@ -442,7 +438,7 @@ function EtatsSyscohadaSystemeNormal() {
             onClick={exporter}
             disabled={exportEnCours}
             title="Seulement l’état affiché dans cet onglet"
-            className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[12px] font-bold hover:bg-surface-alt disabled:opacity-50 disabled:cursor-wait"
+            className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[11.5px] font-bold hover:bg-surface-alt disabled:opacity-50 disabled:cursor-wait"
           >
             <IconExport width={13} height={13} />
             Cet onglet
@@ -452,8 +448,8 @@ function EtatsSyscohadaSystemeNormal() {
 
       {erreur && (
         <div className="flex items-start justify-between gap-3 border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5">
-          <span className="text-[12px]">{erreur}</span>
-          <button onClick={() => setErreur(null)} className="text-[12px] font-bold shrink-0 hover:underline">
+          <span className="text-[11.5px]">{erreur}</span>
+          <button onClick={() => setErreur(null)} className="text-[11.5px] font-bold shrink-0 hover:underline">
             Fermer
           </button>
         </div>
@@ -467,17 +463,21 @@ function EtatsSyscohadaSystemeNormal() {
         serveur servant les deux jeux à un dossier SYSCOHADA.
       */}
       {systeme === 'MINIMAL_TRESORERIE' && (
-        <div className="ecran-seul border border-warning/40 bg-warning-soft px-3.5 py-2 mb-2 text-[12px]">
+        <div className="ecran-seul flex items-center gap-1.5 border border-warning/40 bg-warning-soft px-3.5 py-2 mb-2 text-[11.5px]">
           Ce dossier est déclaré au {LIBELLE_SYSTEME.MINIMAL_TRESORERIE} (AUDCIF art. 11 et 13) : son jeu d'états est
-          celui du Titre X, pas celui affiché ici. Les états ci-dessous sont ceux du Système normal, à ne déposer que si
-          le dossier relève bien de ce système.
+          celui du Titre X, pas celui affiché ici.
+          <Aide
+            titre="Système déclaré"
+            texte="Les états affichés sont ceux du Système normal, à ne déposer que si le dossier relève bien de ce système."
+            source="AUDCIF art. 11 et 13"
+          />
         </div>
       )}
 
       <div className="ecran-seul flex overflow-x-auto bg-chrome border border-border border-b-0">
         <button
           onClick={() => setOnglet('bilan')}
-          className={`px-4 py-1.5 text-[12px] font-bold whitespace-nowrap ${
+          className={`px-4 py-1.5 text-[11.5px] font-bold whitespace-nowrap ${
             onglet === 'bilan' ? 'bg-surface border-r border-border' : 'text-text-dim'
           }`}
         >
@@ -485,7 +485,7 @@ function EtatsSyscohadaSystemeNormal() {
         </button>
         <button
           onClick={() => setOnglet('compte-de-resultat')}
-          className={`px-4 py-1.5 text-[12px] font-bold whitespace-nowrap ${
+          className={`px-4 py-1.5 text-[11.5px] font-bold whitespace-nowrap ${
             onglet === 'compte-de-resultat' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'
           }`}
         >
@@ -493,7 +493,7 @@ function EtatsSyscohadaSystemeNormal() {
         </button>
         <button
           onClick={() => setOnglet('flux-tresorerie')}
-          className={`px-4 py-1.5 text-[12px] font-bold whitespace-nowrap ${
+          className={`px-4 py-1.5 text-[11.5px] font-bold whitespace-nowrap ${
             onglet === 'flux-tresorerie' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'
           }`}
         >
@@ -505,6 +505,13 @@ function EtatsSyscohadaSystemeNormal() {
       <div className="ecran-seul flex items-center gap-1.5 border-x border-t border-border bg-surface px-4 pt-2 text-[11px] text-text-dim">
         <span>Ce que dit le référentiel</span>
         <Aide sujet={AIDE_ONGLET[onglet]} />
+        {onglet === 'compte-de-resultat' && (
+          <Aide
+            titre="Présentation en liste"
+            texte="Les charges sont affichées EN NÉGATIF et les lignes X* sont des sommes, jamais des différences. Huit des neuf lignes X* sont les soldes intermédiaires de gestion interprétés par la section 1 · XB, le chiffre d'affaires, est un agrégat de ventes (A + B + C + D) et n'en fait pas partie."
+            source="AUDCIF, Titre IX ch. 4, sections 1 et 2"
+          />
+        )}
       </div>
 
       {/* ------------------------------------------------------------------ */}
@@ -512,7 +519,7 @@ function EtatsSyscohadaSystemeNormal() {
       {/* ------------------------------------------------------------------ */}
       {onglet === 'bilan' && (
         <>
-          {!bilan && <div className="border border-border px-4 py-4 text-[12.5px] text-text-dim">Chargement…</div>}
+          {!bilan && <div className="border border-border px-4 py-4 text-[11.5px] text-text-dim">Chargement…</div>}
           {bilan && (
             <div className="max-w-[1180px]">
               {!bilan.exerciceN1Disponible && (
@@ -566,7 +573,7 @@ function EtatsSyscohadaSystemeNormal() {
                   height={14}
                   className={`mt-0.5 shrink-0 ${bilan.equilibre ? 'text-positive' : 'text-danger'}`}
                 />
-                <span className="font-mono text-[12px] font-medium min-w-0 break-words">
+                <span className="font-mono text-[11.5px] font-medium min-w-0 break-words">
                   {bilan.equilibre
                     ? `LE BILAN EST ÉQUILIBRÉ · BZ = DZ = ${montant(bilan.totalActif)}`
                     : `DÉSÉQUILIBRE DÉTECTÉ · total actif BZ ${montant(bilan.totalActif)} contre total passif DZ ${montant(
@@ -581,7 +588,7 @@ function EtatsSyscohadaSystemeNormal() {
                   deux fois et le bilan bouclerait quand même. */}
               {bilan.controle.doubleComptageProbable && (
                 <div className="flex items-start gap-2 mt-2 px-3.5 py-2.5 border border-warning/40 bg-warning-soft">
-                  <span className="text-[12px]">
+                  <span className="text-[11.5px]">
                     Les classes 6/7/8 ({montant(bilan.controle.resultatClasses678)}) ET le compte 13 (
                     {montant(bilan.controle.resultatCompte13)}) sont tous deux mouvementés · risque de double comptage
                     du résultat. Fournir une balance avant OU après clôture, pas un état intermédiaire.
@@ -591,25 +598,22 @@ function EtatsSyscohadaSystemeNormal() {
 
               {bilan.comptesNonRattaches.length > 0 && (
                 <div className="border border-danger/30 bg-danger-soft mt-2 px-3.5 py-2.5">
-                  <div className="text-[12px] font-bold mb-1.5">
+                  <div className="text-[11.5px] font-bold mb-1.5 flex items-center gap-1.5">
                     Comptes de bilan rattachés à aucun poste officiel · leur montant n'entre dans aucun total
+                    <Aide
+                      titre="Compte rattaché à aucun poste"
+                      texte="Saisir sur la subdivision prévue par le plan officiel, ou vérifier le numéro de compte. Cinq familles y figurent par construction du texte et non par erreur de saisie : le 130 (résultat de l'exercice précédent en instance d'affectation, que ni CJ, qui prend les 131 à 139, ni CH ne reçoit tant que l'assemblée n'a pas statué), les 186 à 188 (comptes de liaison, auxquels le ch. 7 ne donne aucun poste) et les 585 et 588 (virements internes, que le Titre VII impose de solder à la clôture)."
+                      source="AUDCIF, Titre IX ch. 7 · Titre VII"
+                    />
                   </div>
                   {bilan.comptesNonRattaches.map((c) => (
-                    <div key={c.numero} className="flex justify-between gap-3 text-[12px] font-mono">
+                    <div key={c.numero} className="flex justify-between gap-3 text-[11.5px] font-mono">
                       <span className="min-w-0 break-words">
                         {c.numero} · {c.intitule}
                       </span>
                       <span className="shrink-0">{montant(c.montant)}</span>
                     </div>
                   ))}
-                  <p className="text-[11px] text-text-dim mt-1.5 font-sans">
-                    Saisir sur la subdivision prévue par le plan officiel, ou vérifier le numéro de compte. Cinq
-                    familles y figurent par construction du texte et non par erreur de saisie : le 130 (résultat de
-                    l'exercice précédent en instance d'affectation, que ni CJ, qui prend les 131 à 139, ni CH ne
-                    reçoit tant que l'assemblée n'a pas statué), les 186 à 188 (comptes de liaison, auxquels le ch. 7
-                    ne donne aucun poste) et les 585 et 588 (virements internes, que le Titre VII impose de solder à
-                    la clôture).
-                  </p>
                 </div>
               )}
             </div>
@@ -622,7 +626,7 @@ function EtatsSyscohadaSystemeNormal() {
       {/* ------------------------------------------------------------------ */}
       {onglet === 'compte-de-resultat' && (
         <>
-          {!cr && <div className="border border-border px-4 py-4 text-[12.5px] text-text-dim">Chargement…</div>}
+          {!cr && <div className="border border-border px-4 py-4 text-[11.5px] text-text-dim">Chargement…</div>}
           {cr && (
             <div className="max-w-[900px]">
               {!cr.exerciceN1Disponible && (
@@ -630,11 +634,6 @@ function EtatsSyscohadaSystemeNormal() {
                   Aucun exercice antérieur dans ce dossier : la colonne N-1 reste vide, ce n'est pas un zéro.
                 </p>
               )}
-              <p className="text-[11px] text-text-dim mb-1.5">
-                Les charges sont affichées EN NÉGATIF et les lignes X* sont des sommes, jamais des différences (Titre IX
-                ch. 4 section 2). Huit des neuf lignes X* sont les soldes intermédiaires de gestion interprétés par la
-                section 1 · XB, le chiffre d'affaires, est un agrégat de ventes (A + B + C + D) et n'en fait pas partie.
-              </p>
 
               <div className="overflow-x-auto border border-border bg-surface shadow-posee">
                 <div className="min-w-[600px]">
@@ -665,7 +664,7 @@ function EtatsSyscohadaSystemeNormal() {
                   height={14}
                   className={`mt-0.5 shrink-0 ${cr.controle.coherent ? 'text-positive' : 'text-danger'}`}
                 />
-                <span className="font-mono text-[12px] font-medium min-w-0 break-words">
+                <span className="font-mono text-[11.5px] font-medium min-w-0 break-words">
                   {cr.controle.coherent
                     ? `L'ÉTAT BOUCLE · résultat net XI ${montant(cr.soldes.resultatNet)} (${
                         cr.soldes.resultatNet < 0 ? 'perte' : 'bénéfice'
@@ -680,20 +679,22 @@ function EtatsSyscohadaSystemeNormal() {
 
               {cr.comptesNonRattaches.length > 0 && (
                 <div className="border border-danger/30 bg-danger-soft mt-2 px-3.5 py-2.5">
-                  <div className="text-[12px] font-bold mb-1.5">
+                  <div className="text-[11.5px] font-bold mb-1.5 flex items-center gap-1.5">
                     Comptes de gestion rattachés à aucun poste officiel · leur montant n'entre dans aucun total
+                    <Aide
+                      titre="Compte rattaché à aucun poste"
+                      texte="Saisir sur la subdivision prévue par le plan officiel, ou vérifier le numéro de compte."
+                      source="AUDCIF, Titre IX ch. 7"
+                    />
                   </div>
                   {cr.comptesNonRattaches.map((c) => (
-                    <div key={c.numero} className="flex justify-between gap-3 text-[12px] font-mono">
+                    <div key={c.numero} className="flex justify-between gap-3 text-[11.5px] font-mono">
                       <span className="min-w-0 break-words">
                         {c.numero} · {c.intitule}
                       </span>
                       <span className="shrink-0">{montant(c.montant)}</span>
                     </div>
                   ))}
-                  <p className="text-[11px] text-text-dim mt-1.5 font-sans">
-                    Saisir sur la subdivision prévue par le plan officiel, ou vérifier le numéro de compte.
-                  </p>
                 </div>
               )}
             </div>
@@ -706,14 +707,17 @@ function EtatsSyscohadaSystemeNormal() {
       {/* ------------------------------------------------------------------ */}
       {onglet === 'flux-tresorerie' && (
         <>
-          {!tft && <div className="border border-border px-4 py-4 text-[12.5px] text-text-dim">Chargement…</div>}
+          {!tft && <div className="border border-border px-4 py-4 text-[11.5px] text-text-dim">Chargement…</div>}
           {tft && (
             <div className="max-w-[900px]">
               {!tft.exerciceN1Disponible && (
-                <p className="text-[11px] text-text-dim mb-1.5">
-                  Aucun exercice antérieur dans ce dossier : la colonne N-1 reste vide, ce n'est pas un zéro. Un
-                  tableau de flux comparatif demande d'ailleurs TROIS exercices, ses deux colonnes étant elles-mêmes
-                  faites de variations.
+                <p className="flex items-center gap-1.5 text-[11px] text-text-dim mb-1.5">
+                  Aucun exercice antérieur dans ce dossier : la colonne N-1 reste vide, ce n'est pas un zéro.
+                  <Aide
+                    titre="Colonne N-1 du tableau des flux"
+                    texte="Un tableau de flux comparatif demande TROIS exercices, ses deux colonnes étant elles-mêmes faites de variations."
+                    source="AUDCIF, Titre IX ch. 5"
+                  />
                 </p>
               )}
 
@@ -759,7 +763,7 @@ function EtatsSyscohadaSystemeNormal() {
                     height={14}
                     className={`mt-0.5 shrink-0 ${tft.controle.coherent ? 'text-positive' : 'text-danger'}`}
                   />
-                  <span className="font-mono text-[12px] font-medium min-w-0 break-words">
+                  <span className="font-mono text-[11.5px] font-medium min-w-0 break-words">
                     {tft.controle.coherent
                       ? "CONTRÔLE ZH VÉRIFIÉ · trésorerie nette au 31 décembre identique par le cumul des flux et par lecture du bilan"
                       : `ÉCART DE ${montant(tft.controle.ecart)} · la ventilation FA à FQ ne couvre pas tout le mouvement de trésorerie`}
@@ -778,11 +782,11 @@ function EtatsSyscohadaSystemeNormal() {
                   contrôle. */}
               {tft.postesNonCalculables.length > 0 && (
                 <div className="border border-warning/40 bg-warning-soft mt-2 px-3.5 py-2.5">
-                  <div className="text-[12px] font-bold mb-1.5">
+                  <div className="text-[11.5px] font-bold mb-1.5">
                     Postes que la balance ne permet pas de chiffrer, ou pas entièrement
                   </div>
                   {tft.postesNonCalculables.map((p) => (
-                    <p key={p.ref} className="text-[12px] mb-1 last:mb-0">
+                    <p key={p.ref} className="text-[11.5px] mb-1 last:mb-0">
                       <span className="font-mono">{p.ref}</span> · {p.raison}
                     </p>
                   ))}
@@ -795,11 +799,11 @@ function EtatsSyscohadaSystemeNormal() {
                   la cause de l'écart ci-dessus. */}
               {(tft.comptesTropAgreges ?? []).length > 0 && (
                 <div className="border border-danger/30 bg-danger-soft mt-2 px-3.5 py-2.5">
-                  <div className="text-[12px] font-bold mb-1.5">
+                  <div className="text-[11.5px] font-bold mb-1.5">
                     Comptes tenus sans la subdivision que le tableau des flux lit · à ventiler au plan de comptes
                   </div>
                   {(tft.comptesTropAgreges ?? []).map((c) => (
-                    <div key={c.numero} className="flex justify-between gap-3 text-[12px] font-mono">
+                    <div key={c.numero} className="flex justify-between gap-3 text-[11.5px] font-mono">
                       <span className="min-w-0 break-words">
                         {c.numero} · {c.intitule} · lu en {c.subdivisions.join(', ')}
                       </span>
@@ -811,11 +815,11 @@ function EtatsSyscohadaSystemeNormal() {
 
               {tft.comptesNonVentiles.length > 0 && (
                 <div className="border border-danger/30 bg-danger-soft mt-2 px-3.5 py-2.5">
-                  <div className="text-[12px] font-bold mb-1.5">
+                  <div className="text-[11.5px] font-bold mb-1.5">
                     Comptes de bilan mouvementés que le tableau ne ventile nulle part · cause probable de l'écart
                   </div>
                   {tft.comptesNonVentiles.map((c) => (
-                    <div key={c.numero} className="flex justify-between gap-3 text-[12px] font-mono">
+                    <div key={c.numero} className="flex justify-between gap-3 text-[11.5px] font-mono">
                       <span className="min-w-0 break-words">
                         {c.numero} · {c.intitule}
                       </span>
@@ -849,12 +853,12 @@ export function EtatsFinanciersSyscohadaPage() {
   // n'est pas encore connu, et interroger les routes SYSCOHADA depuis un
   // dossier SYCEBNL ne produirait qu'un 403 affiché en rouge.
   if (chargement || !utilisateur) {
-    return <div className="p-2.5 text-[12.5px] text-text-dim">Chargement…</div>;
+    return <div className="p-2.5 text-[11.5px] text-text-dim">Chargement…</div>;
   }
   if (utilisateur.tenant.referentiel !== 'SYSCOHADA') {
     return (
       <div className="p-2.5">
-        <div className="border border-border bg-surface px-4 py-3 text-[12.5px] max-w-[640px]">
+        <div className="border border-border bg-surface px-4 py-3 text-[11.5px] max-w-[640px]">
           Cette fenêtre présente les états financiers de l'AUDCIF (Titre IX), réservés aux dossiers tenus en SYSCOHADA.
           Ce dossier est tenu en {utilisateur.tenant.referentiel} : ses états financiers ont leur propre fenêtre, avec
           d'autres postes et d'autres notes.

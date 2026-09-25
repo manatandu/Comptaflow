@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
+import { Aide } from '../components/chrome/Aide';
 import type { CampagneInventaire, Exercice } from '../lib/types';
 
 /**
@@ -103,42 +104,39 @@ export function InventairePage() {
   return (
     <div className="p-2">
       <EnteteImpression titre="Inventaire physique" />
-      <div className="ecran-seul mb-1.5 max-w-[1240px]">
-        <div className="text-[11px] font-mono text-text-dim leading-none">Inventaire extra-comptable</div>
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="text-[13px] font-bold leading-tight">Inventaire physique</h1>
-          {peutEcrire && (
-            <button
-              type="button"
-              onClick={() => setCreation(true)}
-              className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[12px] font-semibold hover:opacity-90"
-            >
-              Nouvelle campagne
-            </button>
-          )}
-        </div>
-        <div className="text-[11px] text-text-dim mt-0.5">
-          « À la clôture de chaque exercice, l’entité doit procéder au recensement et à l’évaluation de ses biens,
-          créances et dettes à leur valeur effective du moment » · AUDCIF art. 42.
-        </div>
+      <div className="ecran-seul mb-1.5 max-w-[1240px] flex items-center justify-end gap-2">
+        <Aide
+          titre="Inventaire physique"
+          texte="« À la clôture de chaque exercice, l’entité doit procéder au recensement et à l’évaluation de ses biens, créances et dettes à leur valeur effective du moment. » Son absence expose les dirigeants à une sanction pénale."
+          source="AUDCIF art. 42"
+        />
+        {peutEcrire && (
+          <button
+            type="button"
+            onClick={() => setCreation(true)}
+            className="bg-sel text-white rounded-[3px] px-3 py-[3px] text-[11.5px] font-semibold hover:opacity-90"
+          >
+            Nouvelle campagne
+          </button>
+        )}
       </div>
 
       {erreur && (
-        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[12px] max-w-[1240px]">
+        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[11.5px] max-w-[1240px]">
           {erreur}
         </div>
       )}
 
       {creation && (
         <div className="border border-border bg-surface px-3.5 py-2.5 mb-2.5 max-w-[1240px]">
-          <div className="text-[12px] font-semibold mb-1.5">Ouvrir une campagne</div>
+          <div className="text-[11.5px] font-semibold mb-1.5">Ouvrir une campagne</div>
           <div className="flex flex-wrap gap-2 items-end">
             <label className="text-[11px] text-text-dim">
               Exercice
               <select
                 value={exerciceId}
                 onChange={(e) => setExerciceId(e.target.value)}
-                className="block border border-border bg-surface px-2 py-[3px] text-[12px] min-w-[180px]"
+                className="block border border-border bg-surface px-2 py-[3px] text-[11.5px] min-w-[180px]"
               >
                 <option value="">Choisir…</option>
                 {exercices.map((x) => (
@@ -154,7 +152,7 @@ export function InventairePage() {
                 type="date"
                 value={dateInventaire}
                 onChange={(e) => setDateInventaire(e.target.value)}
-                className="block border border-border bg-surface px-2 py-[3px] text-[12px]"
+                className="block border border-border bg-surface px-2 py-[3px] text-[11.5px]"
               />
             </label>
             <label className="text-[11px] text-text-dim flex-1 min-w-[220px]">
@@ -163,21 +161,21 @@ export function InventairePage() {
                 value={libelle}
                 onChange={(e) => setLibelle(e.target.value)}
                 placeholder="Inventaire de clôture 2026"
-                className="block w-full border border-border bg-surface px-2 py-[3px] text-[12px]"
+                className="block w-full border border-border bg-surface px-2 py-[3px] text-[11.5px]"
               />
             </label>
             <button
               type="button"
               onClick={creer}
               disabled={!exerciceId || !dateInventaire || !libelle.trim()}
-              className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[12px] font-semibold disabled:opacity-40"
+              className="bg-sel text-white rounded-[3px] px-3 py-[3px] text-[11.5px] font-semibold disabled:opacity-40"
             >
               Ouvrir
             </button>
             <button
               type="button"
               onClick={() => setCreation(false)}
-              className="border border-border rounded-[6px] px-3 py-[3px] text-[12px]"
+              className="border border-border rounded-[3px] px-3 py-[3px] text-[11.5px]"
             >
               Annuler
             </button>
@@ -190,10 +188,7 @@ export function InventairePage() {
         <div className="border border-border bg-surface min-w-[260px] max-w-[300px]">
           <div className="px-2.5 py-1.5 border-b border-border text-[11px] font-mono text-text-dim">Campagnes</div>
           {campagnes?.length === 0 && (
-            <div className="px-2.5 py-3 text-[12px] text-text-dim">
-              Aucune campagne. L’inventaire n’est pas une option : son absence expose les dirigeants à une sanction
-              pénale.
-            </div>
+            <div className="px-2.5 py-3 text-[11.5px] text-text-dim">Aucune campagne.</div>
           )}
           {campagnes?.map((c) => (
             <button
@@ -204,7 +199,7 @@ export function InventairePage() {
                 c.id === selectionId ? 'bg-sel-soft' : 'hover:bg-chrome'
               }`}
             >
-              <div className="text-[12px] font-semibold leading-tight">{c.libelle}</div>
+              <div className="text-[11.5px] font-semibold leading-tight">{c.libelle}</div>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span className={`text-[10px] px-1.5 py-[1px] rounded ${COULEUR_STATUT[c.statut]}`}>
                   {LIBELLE_STATUT[c.statut]}
@@ -218,7 +213,7 @@ export function InventairePage() {
         {/* --- Détail ------------------------------------------------------ */}
         <div className="flex-1 min-w-0">
           {!detail && (
-            <div className="border border-border bg-surface px-3.5 py-3 text-[12px] text-text-dim">
+            <div className="border border-border bg-surface px-3.5 py-3 text-[11.5px] text-text-dim">
               Choisir une campagne pour en voir les fiches et les écarts.
             </div>
           )}
@@ -228,7 +223,7 @@ export function InventairePage() {
               <div className="border border-border bg-surface px-3.5 py-2 mb-2">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div>
-                    <div className="text-[12.5px] font-bold">{detail.libelle}</div>
+                    <div className="text-[11.5px] font-bold">{detail.libelle}</div>
                     <div className="text-[11px] text-text-dim">
                       Comptage au {jour(detail.dateInventaire)} ·{' '}
                       {detail.procesVerbalEtabliLe
@@ -243,14 +238,14 @@ export function InventairePage() {
                           <button
                             type="button"
                             onClick={() => agir(() => api.post(`/inventaire/${detail.id}/fiches/immobilisations`, {}))}
-                            className="border border-border rounded-[6px] px-2.5 py-[3px] text-[12px]"
+                            className="border border-border rounded-[3px] px-2.5 py-[3px] text-[11.5px]"
                           >
                             Fiches du parc immobilisé
                           </button>
                           <button
                             type="button"
                             onClick={() => agir(() => api.post(`/inventaire/${detail.id}/rapprocher`, {}))}
-                            className="bg-sel text-white rounded-[6px] px-2.5 py-[3px] text-[12px] font-semibold"
+                            className="bg-sel text-white rounded-[3px] px-2.5 py-[3px] text-[11.5px] font-semibold"
                           >
                             Rapprocher de la balance
                           </button>
@@ -260,7 +255,7 @@ export function InventairePage() {
                         <button
                           type="button"
                           onClick={() => agir(() => api.post(`/inventaire/${detail.id}/clore`, {}))}
-                          className="bg-sel text-white rounded-[6px] px-2.5 py-[3px] text-[12px] font-semibold"
+                          className="bg-sel text-white rounded-[3px] px-2.5 py-[3px] text-[11.5px] font-semibold"
                         >
                           Clore la campagne
                         </button>
@@ -269,7 +264,7 @@ export function InventairePage() {
                         <button
                           type="button"
                           onClick={() => agir(() => api.post(`/inventaire/${detail.id}/proces-verbal`, {}))}
-                          className="border border-border rounded-[6px] px-2.5 py-[3px] text-[12px]"
+                          className="border border-border rounded-[3px] px-2.5 py-[3px] text-[11.5px]"
                         >
                           Établir le PV
                         </button>
@@ -285,10 +280,9 @@ export function InventairePage() {
               </div>
 
               {nonValorisees.length > 0 && detail.statut !== 'CLOTUREE' && detail.statut !== 'ARBITRAGE' && (
-                <div className="border border-warning/30 bg-warning-soft px-3.5 py-2 mb-2 text-[12px]">
-                  {nonValorisees.length} fiche{nonValorisees.length > 1 ? 's' : ''} sans valeur d’inventaire. Le
-                  rapprochement les refuse : comptées pour zéro, elles produiraient un manquant que personne n’a
-                  constaté, et le manquant est à la charge de l’entité.
+                <div className="border border-warning/30 bg-warning-soft px-3.5 py-2 mb-2 text-[11.5px]">
+                  {nonValorisees.length} fiche{nonValorisees.length > 1 ? 's' : ''} sans valeur d’inventaire · le
+                  rapprochement les refuse.
                 </div>
               )}
 
@@ -296,13 +290,22 @@ export function InventairePage() {
               {ecarts.length > 0 && (
                 <div className="border border-border bg-surface mb-2">
                   <div className="px-2.5 py-1.5 border-b border-border flex items-center justify-between">
-                    <span className="text-[11px] font-mono text-text-dim">Écarts · par compte</span>
+                    <span className="text-[11px] font-mono text-text-dim flex items-center gap-1">
+                      Écarts · par compte
+                      {excedents.length > 0 && (
+                        <Aide
+                          titre="Excédent d’inventaire"
+                          texte="Un excédent ne se comptabilise pas : « si la valeur d’inventaire est supérieure à la valeur d’entrée, cette dernière est maintenue dans les comptes, sauf cas expressément prévus par la législation ». Il se documente et se porte au résumé de l’opération d’inventaire."
+                          source="AUDCIF art. 43"
+                        />
+                      )}
+                    </span>
                     <span className="text-[10.5px] text-text-dim">
                       {manquants.length} manquant{manquants.length > 1 ? 's' : ''} · {excedents.length} excédent
                       {excedents.length > 1 ? 's' : ''} · {sansDecision.length} sans décision
                     </span>
                   </div>
-                  <table className="w-full text-[12px]">
+                  <table className="w-full text-[11.5px]">
                     <thead>
                       <tr className="text-text-dim border-b border-border/60">
                         <th className="text-left px-2.5 py-1 font-normal">Compte</th>
@@ -347,14 +350,6 @@ export function InventairePage() {
                       })}
                     </tbody>
                   </table>
-                  {excedents.length > 0 && (
-                    <div className="px-2.5 py-1.5 border-t border-border text-[10.5px] text-text-dim">
-                      Un excédent ne se comptabilise pas : « si la valeur d’inventaire est supérieure à la valeur
-                      d’entrée, cette dernière est maintenue dans les comptes, sauf cas expressément prévus par la
-                      législation » · AUDCIF art. 43. Il se documente et se porte au résumé de l’opération
-                      d’inventaire.
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -364,13 +359,10 @@ export function InventairePage() {
                   FICHES DE COMPTAGE · {detail.fiches?.length ?? 0}
                 </div>
                 {(detail.fiches?.length ?? 0) === 0 && (
-                  <div className="px-2.5 py-3 text-[12px] text-text-dim">
-                    Aucune fiche. Le parc immobilisé est déjà tenu par le logiciel : ses fiches s’engendrent d’un
-                    clic, les stocks et les caisses se saisissent à la main.
-                  </div>
+                  <div className="px-2.5 py-3 text-[11.5px] text-text-dim">Aucune fiche.</div>
                 )}
                 {(detail.fiches?.length ?? 0) > 0 && (
-                  <table className="w-full text-[12px]">
+                  <table className="w-full text-[11.5px]">
                     <thead>
                       <tr className="text-text-dim border-b border-border/60">
                         <th className="text-left px-2.5 py-1 font-normal">Désignation</th>

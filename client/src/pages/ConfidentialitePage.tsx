@@ -21,18 +21,18 @@
 const DATE_DE_MISE_A_JOUR = '5 septembre 2026';
 
 function Titre({ children }: { children: React.ReactNode }) {
-  return <h2 className="text-[13px] font-bold mt-4 mb-1.5">{children}</h2>;
+  return <h2 className="text-[12px] font-bold mt-4 mb-1.5">{children}</h2>;
 }
 
 function P({ children }: { children: React.ReactNode }) {
-  return <p className="text-[12.5px] leading-relaxed mb-2">{children}</p>;
+  return <p className="text-[11.5px] leading-relaxed mb-2">{children}</p>;
 }
 
 export function ConfidentialitePage() {
   return (
     <div className="min-h-screen bg-bg py-6 px-4">
       <div className="mx-auto max-w-[760px] bg-surface border border-border px-6 py-5">
-        <h1 className="text-[14px] font-bold">Politique de confidentialité d’OmegaX</h1>
+        <h1 className="text-[13px] font-bold">Politique de confidentialité d’OmegaX</h1>
         <p className="text-[11px] text-text-dim mt-1 mb-3">
           Dernière mise à jour · {DATE_DE_MISE_A_JOUR}
         </p>
@@ -80,7 +80,7 @@ export function ConfidentialitePage() {
         <P>
           Trois hébergeurs interviennent, chacun pour une part précise :
         </P>
-        <ul className="text-[12.5px] leading-relaxed mb-2 list-disc pl-5">
+        <ul className="text-[11.5px] leading-relaxed mb-2 list-disc pl-5">
           <li>
             <strong>Neon</strong> héberge la base de données PostgreSQL qui contient vos dossiers comptables.
           </li>
@@ -157,7 +157,7 @@ export function ConfidentialitePage() {
         </P>
 
         <div className="mt-5 pt-3 border-t border-border">
-          <a href="#/connexion" className="text-[12.5px] text-sel underline">
+          <a href="#/connexion" className="text-[11.5px] text-sel underline">
             Retour à l’ouverture du fichier comptable
           </a>
         </div>

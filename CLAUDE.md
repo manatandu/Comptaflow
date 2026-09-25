@@ -5227,6 +5227,27 @@ Trois choses à ne pas défaire :
   de la charte a trouvé un `--text-dim` à 3,98:1 sur le fond de l'application,
   sous le plancher AA, que personne n'avait vu en deux ans.
 
+## 9 ter. L'interface · le modèle est Sage 100, pas une invention
+
+Décidé par Manasse le 2026-09-25 : « réfère-toi aux logiciels qui existent
+vraiment ». La référence est le manuel de formation Sage Comptabilité (Drive,
+captures de la saisie des journaux). Quatre règles à ne pas défaire.
+
+- **Police de 12 px** (Segoe UI 9 pt, celle de Windows et de Sage), posée sur
+  `body` ; les tailles explicites des écrans restent entre 10,5 et 13 px.
+- **Grille blanche sur fenêtre grise.** Le corps des fenêtres est `--fenetre`
+  (#f0f0f0), les tableaux sont blancs, cernés, à en-têtes gris, quadrillés et
+  zébrés (`index.css`, bloc TABLEAUX). Un tableau posé sur une couleur proche
+  de la sienne se fond dans la fenêtre · c'est le défaut qui a été corrigé.
+- **Aucun titre de page.** La barre de titre de la fenêtre porte le titre ; un
+  fil d'Ariane ou un `<h1>` qui le répète est retiré. Les titres de CADRE
+  (bloc, onglet, tableau) restent.
+- **Aucun paragraphe explicatif à l'écran.** Sage n'en a pas. L'explication,
+  la citation du texte et le « pourquoi » vont dans la bulle `Aide` (« ? »).
+  Restent à l'écran : erreurs, refus, résultats, avertissements portant sur
+  une DONNÉE du dossier, et les mentions qu'un test gèle, raccourcies à une
+  ligne. Numéros et codes en police d'interface, pas en chasse fixe.
+
 ## 10. Tests
 
 Jest côté serveur, Vitest côté client. Un test doit vérifier **ce qui casserait

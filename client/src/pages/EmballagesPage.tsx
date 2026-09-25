@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
+import { Aide } from '../components/chrome/Aide';
 import type { Tiers } from '../lib/types';
 
 /**
@@ -173,31 +174,27 @@ export function EmballagesPage() {
   };
 
   const champ =
-    'border border-border bg-surface px-1.5 py-1 text-[12px] w-full focus:outline-none focus:border-accent';
+    'border border-border bg-surface px-1.5 py-1 text-[11.5px] w-full focus:outline-none focus:border-accent';
   const cell = 'px-2 py-1 border border-border';
 
   return (
     <div className="p-2">
       <EnteteImpression titre="Consignation d'emballages" />
-      <div className="ecran-seul mb-1.5 max-w-[1240px]">
-        <div className="text-[11px] font-mono text-text-dim leading-none">
-          Comptes 4094 et 4194 · comptes d'attente
-        </div>
-        <h1 className="text-[13px] font-bold leading-tight">Consignation d'emballages</h1>
-        <div className="text-[11px] text-text-dim mt-0.5">
-          « Les comptes relatifs aux emballages fonctionnent de la même manière que ceux relatifs aux
-          marchandises et matières. La seule particularité concerne la CONSIGNATION. » · AUDCIF
-          Titre VII et SYCEBNL Partie 2 ch. 3, fiches des comptes 40 et 41.
-        </div>
+      <div className="ecran-seul mb-1.5 max-w-[1240px] flex justify-end">
+        <Aide
+          titre="Consignation d'emballages · comptes 4094 et 4194"
+          texte="« Les comptes relatifs aux emballages fonctionnent de la même manière que ceux relatifs aux marchandises et matières. La seule particularité concerne la CONSIGNATION. »"
+          source="AUDCIF Titre VII et SYCEBNL Partie 2 ch. 3, fiches des comptes 40 et 41"
+        />
       </div>
 
       {erreur && (
-        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[12px] max-w-[1240px]">
+        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[11.5px] max-w-[1240px]">
           {erreur}
         </div>
       )}
       {succes && (
-        <div className="border border-ok/30 bg-ok-soft px-3.5 py-2 mb-2.5 text-[12px] max-w-[1240px]">
+        <div className="border border-ok/30 bg-ok-soft px-3.5 py-2 mb-2.5 text-[11.5px] max-w-[1240px]">
           {succes}
         </div>
       )}
@@ -206,23 +203,23 @@ export function EmballagesPage() {
           Une dette de consignation et une créance de consignation sont de sens
           opposés au bilan ; leur somme ne veut rien dire. */}
       {registre && (
-        <div className="border border-border bg-surface-2 px-3.5 py-2.5 mb-2.5 text-[12px] max-w-[1240px]">
+        <div className="border border-border bg-surface-2 px-3.5 py-2.5 mb-2.5 text-[11.5px] max-w-[1240px]">
           <span className="font-semibold">{registre.enAttente.nombre} consignation(s) en attente</span>
           {' · '}
           dette envers les clients (4194) {mt(registre.enAttente.detteEmise)}
           {' · '}
-          créance sur les fournisseurs (4094) {mt(registre.enAttente.creanceRecue)}.
-          <div className="text-[10.5px] text-text-dim mt-1">
-            Une consignation non dénouée à la clôture est une dette envers un client qui, peut-être,
-            ne rendra jamais l'emballage. La balance boucle quand même : c'est ici que l'attente se
-            voit. Les deux montants ne s'additionnent pas, ils sont de sens opposés au bilan.
-          </div>
+          créance sur les fournisseurs (4094) {mt(registre.enAttente.creanceRecue)}.{' '}
+          <Aide
+            titre="Consignations en attente"
+            texte="Une consignation non dénouée à la clôture est une dette envers un client qui, peut-être, ne rendra jamais l'emballage. La balance boucle quand même : c'est ici que l'attente se voit. Les deux montants ne s'additionnent pas, ils sont de sens opposés au bilan."
+            source="Comptes 4094 et 4194"
+          />
         </div>
       )}
 
       {peutEcrire && (
       <div className="ecran-seul border border-border bg-surface-2 px-3 py-2.5 mb-2.5 max-w-[1240px]">
-        <div className="text-[12px] font-semibold mb-1.5">Nouvelle consignation</div>
+        <div className="text-[11.5px] font-semibold mb-1.5">Nouvelle consignation</div>
         <div className="grid grid-cols-7 gap-2">
           <select
             className={champ}
@@ -288,19 +285,20 @@ export function EmballagesPage() {
               !nouvelle.montant
             }
             onClick={creer}
-            className="px-3 py-1 text-[12px] border border-accent bg-accent/10 disabled:opacity-40"
+            className="px-3 py-1 text-[11.5px] border border-accent bg-accent/10 disabled:opacity-40"
           >
             Enregistrer au registre
           </button>
-          <span className="text-[10.5px] text-text-dim">
-            La NATURE est saisie, jamais déduite · les deux textes routent la conservation d'un
-            emballage et celle d'un matériel vers des comptes différents.
-          </span>
+          <Aide
+            titre="Nature"
+            texte="La NATURE est saisie, jamais déduite · les deux textes routent la conservation d'un emballage et celle d'un matériel vers des comptes différents."
+            source="AUDCIF Titre VII et SYCEBNL Partie 2 ch. 3"
+          />
         </div>
       </div>
       )}
 
-      <table className="w-full border-collapse text-[12px] mb-2.5 max-w-[1240px]">
+      <table className="w-full border-collapse text-[11.5px] mb-2.5 max-w-[1240px]">
         <thead>
           <tr className="bg-surface-2 text-text-dim">
             <th className={`${cell} text-left font-semibold`}>Date</th>
@@ -346,7 +344,7 @@ export function EmballagesPage() {
 
       {selection && (
         <div className="ecran-seul border border-border bg-surface-2 px-3 py-2.5 max-w-[1240px]">
-          <div className="text-[12px] font-semibold mb-1.5">
+          <div className="text-[11.5px] font-semibold mb-1.5">
             Dénouer · {selection.designation} ({mt(selection.montant)})
           </div>
           <div className="grid grid-cols-4 gap-2">
@@ -381,7 +379,7 @@ export function EmballagesPage() {
                   type="button"
                   disabled={enCours || !dateDenouement || !!proposition?.refus}
                   onClick={denouer}
-                  className="px-3 py-1 text-[12px] border border-accent bg-accent/10 disabled:opacity-40"
+                  className="px-3 py-1 text-[11.5px] border border-accent bg-accent/10 disabled:opacity-40"
                 >
                   Dénouer
                 </button>
@@ -399,7 +397,7 @@ export function EmballagesPage() {
 
           {proposition && !proposition.refus && (
             <>
-              <table className="w-full border-collapse text-[12px] mt-2">
+              <table className="w-full border-collapse text-[11.5px] mt-2">
                 <thead>
                   <tr className="bg-surface text-text-dim">
                     <th className={`${cell} text-left font-semibold`}>Compte</th>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { evaluerExpression } from '../lib/calcul';
 import { PortailModale } from './PortailModale';
+import { Aide } from './chrome/Aide';
 
 /**
  * CALCULETTE · Édition → Calculette Sage.
@@ -83,12 +84,23 @@ export function Calculette({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-[280px] bg-surface border border-border rounded-[10px] overflow-hidden shadow-flottante anim-modale modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto"
+        className="w-[280px] bg-surface border border-border rounded-[4px] overflow-hidden shadow-flottante anim-modale modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto"
       >
         <div
-          className="h-[32px] flex items-center justify-between px-3 bg-surface text-text border-b border-border text-[12.5px]"
+          className="h-[32px] flex items-center justify-between px-3 bg-surface text-text border-b border-border text-[11.5px]"
         >
-          <span>Calculette</span>
+          <span className="flex items-center gap-1.5">
+            Calculette
+            <Aide
+              titre="Calculette"
+              texte={
+                onReporter
+                  ? "Le résultat se reporte dans la zone de montant du côté qui manque à l'équilibre de la pièce."
+                  : 'Le résultat se copie dans le presse-papiers.'
+              }
+              source="Édition · Calculette"
+            />
+          </span>
           <button onClick={onFermer} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">
             ✕
           </button>
@@ -103,11 +115,11 @@ export function Calculette({
               if (e.key === 'Enter' && resultat !== null) reporterOuCopier(resultat);
             }}
             placeholder="1250 * 12 + 300"
-            className="w-full border border-border rounded-[6px] px-2.5 py-2 text-[14px] font-mono text-right"
+            className="w-full border border-border rounded-[3px] px-2.5 py-2 text-[13px] font-mono text-right"
           />
           <div
-            className={`mt-1.5 text-right font-mono text-[14px] font-bold h-[22px] ${
-              expression && resultat === null ? 'text-danger text-[12.5px] font-normal' : ''
+            className={`mt-1.5 text-right font-mono text-[13px] font-bold h-[22px] ${
+              expression && resultat === null ? 'text-danger text-[11.5px] font-normal' : ''
             }`}
           >
             {resultat !== null
@@ -125,7 +137,7 @@ export function Calculette({
                   setExpression((e) => e + t);
                   champ.current?.focus();
                 }}
-                className="border border-border rounded-[6px] py-1.5 text-[13px] font-mono hover:bg-chrome-alt"
+                className="border border-border rounded-[3px] py-1.5 text-[12px] font-mono hover:bg-chrome-alt"
               >
                 {t}
               </button>
@@ -135,7 +147,7 @@ export function Calculette({
                 setExpression('');
                 champ.current?.focus();
               }}
-              className="border border-border rounded-[6px] py-1.5 text-[12.5px] hover:bg-chrome-alt"
+              className="border border-border rounded-[3px] py-1.5 text-[11.5px] hover:bg-chrome-alt"
             >
               C
             </button>
@@ -144,7 +156,7 @@ export function Calculette({
                 setExpression((e) => e.slice(0, -1));
                 champ.current?.focus();
               }}
-              className="border border-border rounded-[6px] py-1.5 text-[12.5px] hover:bg-chrome-alt"
+              className="border border-border rounded-[3px] py-1.5 text-[11.5px] hover:bg-chrome-alt"
             >
               ←
             </button>
@@ -153,24 +165,18 @@ export function Calculette({
                 setExpression((e) => e + '+');
                 champ.current?.focus();
               }}
-              className="border border-border rounded-[6px] py-1.5 text-[13px] font-mono hover:bg-chrome-alt"
+              className="border border-border rounded-[3px] py-1.5 text-[12px] font-mono hover:bg-chrome-alt"
             >
               +
             </button>
             <button
               onClick={() => resultat !== null && reporterOuCopier(resultat)}
               disabled={resultat === null}
-              className="bg-sel text-white rounded-[6px] py-1.5 text-[12.5px] font-bold hover:brightness-110 disabled:opacity-40"
+              className="bg-sel text-white rounded-[3px] py-1.5 text-[11.5px] font-bold hover:brightness-110 disabled:opacity-40"
             >
               {onReporter ? 'OK' : 'Copier'}
             </button>
           </div>
-
-          <p className="text-[11px] text-text-dim mt-2 leading-[1.5]">
-            {onReporter
-              ? "Le résultat se reporte dans la zone de montant du côté qui manque à l'équilibre de la pièce."
-              : 'Le résultat se copie dans le presse-papiers.'}
-          </p>
         </div>
       </div>
     </div>

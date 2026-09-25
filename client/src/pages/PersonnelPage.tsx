@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
+import { Aide } from '../components/chrome/Aide';
 import { OngletBulletins } from './BulletinsPaie';
 import { TITRE_BLOC_PAIE } from './PaieDuMois';
 import { BaremeMensuelIrpp, type DetailMensuelIrpp } from './BaremeMensuelIrpp';
@@ -856,7 +857,7 @@ export function PersonnelPage() {
   };
 
   const champ =
-    'border border-border bg-surface px-1.5 py-1 text-[12px] w-full focus:outline-none focus:border-accent';
+    'border border-border bg-surface px-1.5 py-1 text-[11.5px] w-full focus:outline-none focus:border-accent';
   const cell = 'px-2 py-1 border border-border';
   const etiquette = 'text-[10.5px] text-text-dim uppercase tracking-wide';
   const choisi = salaries.find((s) => s.id === selection) ?? null;
@@ -864,33 +865,24 @@ export function PersonnelPage() {
   return (
     <div className="p-2">
       <EnteteImpression titre="Registre du personnel" />
-      <div className="ecran-seul mb-1.5 max-w-[1240px]">
-        <div className="text-[11px] font-mono text-text-dim leading-none">
-          CODE DU TRAVAIL · LOI N° 015/2002, ARTICLE 212
-        </div>
-        <h1 className="text-[13px] font-bold leading-tight">Registre du personnel</h1>
-        <div className="text-[11px] text-text-dim mt-0.5">
-          Le registre tient l’état civil et les engagements, et confronte chaque contrat aux quinze
-          énonciations obligatoires de l’article 212 ainsi qu’aux requalifications de plein droit des
-          articles 40 à 45. L’onglet Simulation rend les deux assiettes d’un mois, les cotisations,
-          la retenue de l’article 119 et l’écriture de passation <strong>proposée</strong>,
-          sans rien conserver ni poster. L’onglet <strong>Bulletins</strong> tient les bulletins émis,
-          numérotés et figés : le décompte écrit de l’article 103.
-        </div>
+      <div className="ecran-seul mb-1.5 max-w-[1240px] text-[11px] text-text-dim">
+        L’onglet Simulation rend l’écriture de passation <strong>proposée</strong>,
+        sans rien conserver ni poster. L’onglet <strong>Bulletins</strong> tient les bulletins émis, numérotés et figés : le décompte
+        écrit de l’article 103.
       </div>
 
       {erreur && (
-        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[12px] max-w-[1240px]">
+        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[11.5px] max-w-[1240px]">
           {erreur}
         </div>
       )}
       {succes && (
-        <div className="border border-ok/30 bg-ok-soft px-3.5 py-2 mb-2.5 text-[12px] max-w-[1240px]">
+        <div className="border border-ok/30 bg-ok-soft px-3.5 py-2 mb-2.5 text-[11.5px] max-w-[1240px]">
           {succes}
         </div>
       )}
 
-      <div className="ecran-seul flex gap-1 mb-2 text-[12px]">
+      <div className="ecran-seul flex gap-1 mb-2 text-[11.5px]">
         {(
           ['registre', 'confrontation', 'effectif', 'simulation', 'bulletins', 'decompte', 'livre'] as const
         ).map((o) => (
@@ -917,6 +909,13 @@ export function PersonnelPage() {
                       : 'Livre de paie'}
           </button>
         ))}
+        <span className="ml-auto self-center">
+          <Aide
+            titre="Registre du personnel"
+            texte="Le registre tient l’état civil et les engagements, et confronte chaque contrat aux quinze énonciations obligatoires de l’article 212 ainsi qu’aux requalifications de plein droit des articles 40 à 45. L’onglet Simulation rend les deux assiettes d’un mois, les cotisations et la retenue de l’article 119."
+            source="Code du travail (loi n° 015/2002), art. 40 à 45 et 212"
+          />
+        </span>
       </div>
 
       {onglet === 'registre' && (
@@ -928,7 +927,7 @@ export function PersonnelPage() {
         <div className="grid grid-cols-[minmax(320px,1fr)_minmax(420px,1.4fr)] gap-2">
           <div className="border border-border">
             <div className="flex items-center justify-between px-2 py-1 border-b border-border">
-              <div className="text-[12px] font-bold">Salariés ({salaries.length})</div>
+              <div className="text-[11.5px] font-bold">Salariés ({salaries.length})</div>
               <div className="flex items-center gap-2">
                 <label className="text-[11px] flex items-center gap-1">
                   <input type="checkbox" checked={tous} onChange={(e) => setTous(e.target.checked)} />
@@ -941,7 +940,7 @@ export function PersonnelPage() {
                 )}
               </div>
             </div>
-            <table className="w-full text-[12px] border-collapse">
+            <table className="w-full text-[11.5px] border-collapse">
               <thead>
                 <tr className="text-text-dim">
                   <th className={`${cell} text-left`}>Matricule</th>
@@ -969,8 +968,7 @@ export function PersonnelPage() {
                 {salaries.length === 0 && (
                   <tr>
                     <td className={cell} colSpan={3}>
-                      Aucun salarié au registre. Un dossier sans salarié est le cas le plus fréquent ·
-                      ce n’est pas une anomalie.
+                      Aucun salarié au registre.
                     </td>
                   </tr>
                 )}
@@ -979,7 +977,7 @@ export function PersonnelPage() {
           </div>
 
           <div className="border border-border p-2">
-            <div className="text-[12px] font-bold mb-1.5">
+            <div className="text-[11.5px] font-bold mb-1.5">
               {selection
                 ? `Fiche · ${salarie.nom}`
                 : peutEcrire
@@ -1203,7 +1201,7 @@ export function PersonnelPage() {
                 type="button"
                 disabled={enCours || !salarie.nom.trim() || !salarie.sexe}
                 onClick={enregistrerSalarie}
-                className="mt-2 px-3 py-1 border border-accent text-accent text-[12px] disabled:opacity-40"
+                className="mt-2 px-3 py-1 border border-accent text-accent text-[11.5px] disabled:opacity-40"
               >
                 {selection ? 'Mettre à jour' : 'Inscrire au registre'}
               </button>
@@ -1211,10 +1209,10 @@ export function PersonnelPage() {
 
             {choisi && (
               <div className="mt-3 border-t border-border pt-2">
-                <div className="text-[12px] font-bold mb-1">
+                <div className="text-[11.5px] font-bold mb-1">
                   Contrats de {nomComplet(choisi)} ({choisi.nombreContrats})
                 </div>
-                <table className="w-full text-[12px] border-collapse mb-2">
+                <table className="w-full text-[11.5px] border-collapse mb-2">
                   <thead>
                     <tr className="text-text-dim">
                       <th className={`${cell} text-left`}>Type</th>
@@ -1465,7 +1463,7 @@ export function PersonnelPage() {
                       type="button"
                       disabled={enCours || !contrat.dateEntreeEnVigueur}
                       onClick={creerContrat}
-                      className="mt-2 px-3 py-1 border border-accent text-accent text-[12px] disabled:opacity-40"
+                      className="mt-2 px-3 py-1 border border-accent text-accent text-[11.5px] disabled:opacity-40"
                     >
                       Enregistrer le contrat
                     </button>
@@ -1481,21 +1479,19 @@ export function PersonnelPage() {
       {onglet === 'confrontation' && confrontation && (
         <div className="max-w-[1240px]">
           {confrontation.manqueEmployeur && (
-            <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mb-2.5 text-[12px]">
+            <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mb-2.5 text-[11.5px]">
               <strong>Le numéro d’immatriculation de l’employeur à la CNSS n’est pas renseigné.</strong>{' '}
-              C’est la deuxième des quinze énonciations de l’article 212, et elle est du côté de
-              l’employeur : tant qu’elle manque, <em>aucun</em> contrat de ce dossier n’est complet,
-              quel que soit le soin mis aux fiches. Renseignez-la dans Structure &gt; Paramètres du
-              dossier.
+              Aucun contrat de ce dossier n’est complet (art. 212, point 2) · Structure &gt; Paramètres
+              du dossier.
             </div>
           )}
-          <div className="text-[12px] mb-1.5">
+          <div className="text-[11.5px] mb-1.5">
             {confrontation.totalSignalements === 0
               ? 'Aucun signalement. Chaque contrat porte les quinze énonciations, et aucune requalification de plein droit ne s’applique.'
               : `${confrontation.totalSignalements} signalement(s) sur ${confrontation.fiches.length} contrat(s).`}
           </div>
           {confrontation.fiches.map((f) => (
-            <div key={f.contratId} className="border border-border mb-2 p-2 text-[12px]">
+            <div key={f.contratId} className="border border-border mb-2 p-2 text-[11.5px]">
               <div className="font-bold">
                 {f.salarie} · {LIBELLE_TYPE[f.type]} du {jour(f.dateEntreeEnVigueur)}
                 {f.dateFin ? ` au ${jour(f.dateFin)}` : ''}
@@ -1579,9 +1575,14 @@ export function PersonnelPage() {
       )}
 
       {onglet === 'effectif' && (
-        <div className="max-w-[1240px] text-[12px]">
+        <div className="max-w-[1240px] text-[11.5px]">
           <label className="block mb-2">
-            <span className={etiquette}>Effectif à la date du</span>
+            <span className={etiquette}>Effectif à la date du</span>{' '}
+            <Aide
+              titre="Effectif proposé"
+              texte="Ces nombres sont une proposition. L’effectif des notes annexes (27B en SYSCOHADA, 29B en SYCEBNL) et la part de main-d’œuvre locale de l’accord-cadre restent des valeurs saisies, avec leur source et leur date : un registre incomplet produirait un pourcentage faux sous une apparence de calcul, sur un engagement dont le manquement se sanctionne."
+              source="Registre du personnel"
+            />
             <input
               type="date"
               className={`${champ} max-w-[180px]`}
@@ -1626,18 +1627,11 @@ export function PersonnelPage() {
               {effectif.reserve}
             </div>
           )}
-          <div className="text-text-dim mt-2">
-            Ces nombres sont une <strong>proposition</strong>. L’effectif des notes annexes (27B en
-            SYSCOHADA, 29B en SYCEBNL) et la part de main-d’œuvre locale de l’accord-cadre restent
-            des valeurs <strong>saisies</strong>, avec leur source et leur date : un registre
-            incomplet produirait un pourcentage faux sous une apparence de calcul, sur un engagement
-            dont le manquement se sanctionne.
-          </div>
         </div>
       )}
 
       {onglet === 'simulation' && (
-        <div className="ecran-seul max-w-[1240px] text-[12px]">
+        <div className="ecran-seul max-w-[1240px] text-[11.5px]">
           {/*
             CE QUE LA FENÊTRE DIT AVANT TOUT CHIFFRE. Un écran qui montre un
             brut, des retenues et un net EST lu comme un bulletin, quoi qu'il
@@ -1646,24 +1640,24 @@ export function PersonnelPage() {
           */}
           <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mb-2.5">
             <strong>Ceci n’est pas un bulletin de paie</strong>, et cela ne tient pas lieu de{' '}
-            <strong>livre de paie</strong> des articles 213 à 215. OmegaX rend ici les{' '}
-            <strong>deux assiettes</strong> d’un mois, les cotisations des deux côtés, la retenue de
-            l’article 119 de la loi n° 23/053, le net, la quotité saisissable de l’article 114 et
-            une <strong>proposition</strong> d’écriture. Il ne conserve rien, ne poste rien et ne
-            remet aucun décompte écrit au sens de l’article 103. La retenue rendue est un{' '}
-            <strong>acompte</strong> sur l’impôt annuel de l’article 116, jamais un solde. Le
-            décompte écrit s’obtient en <strong>émettant le bulletin</strong>, en bas de la
-            simulation, qui fige ce calcul et lui donne un numéro.
+            <strong>livre de paie</strong> des articles 213 à 215 · aucun décompte écrit au sens de
+            l’article 103 tant que le bulletin n’est pas émis.{' '}
+            <Aide
+              titre="Simulation de paie"
+              texte="OmegaX rend ici les deux assiettes d’un mois, les cotisations des deux côtés, la retenue de l’article 119 de la loi n° 23/053, le net, la quotité saisissable de l’article 114 et une proposition d’écriture. Il ne conserve rien et ne poste rien. La retenue rendue est un acompte sur l’impôt annuel de l’article 116, jamais un solde. Le décompte écrit s’obtient en émettant le bulletin, en bas de la simulation, qui fige ce calcul et lui donne un numéro."
+              source="Code du travail, art. 103, 213 à 215 · loi n° 23/053, art. 116 et 119"
+            />
           </div>
 
           <div className="border border-border px-3.5 py-2.5 mb-2.5">
             <div className="text-[11px] text-text-dim mb-2">
-              Les deux assiettes ne coïncident pas, et c’est l’erreur la plus coûteuse du domaine.
-              Le <strong>Code du travail</strong>, article 7, point 8, sort cinq natures de la
-              rémunération <strong>sans aucune condition</strong>. La <strong>loi fiscale</strong>{' '}
-              les fait d’abord entrer dans l’imposable (article 68) puis les immunise{' '}
-              <strong>sous condition</strong> (article 69). Une indemnité de logement de 40 % du
-              salaire sort de l’assiette sociale de plein droit et reste entièrement imposable.
+              Code du travail, art. 7, point 8 : cinq natures hors rémunération sans aucune condition ·
+              loi fiscale : imposables (art. 68) puis immunisées sous condition (art. 69).{' '}
+              <Aide
+                titre="Les deux assiettes"
+                texte="Les deux assiettes ne coïncident pas, et c’est l’erreur la plus coûteuse du domaine. Le Code du travail, article 7, point 8, sort cinq natures de la rémunération sans aucune condition. La loi fiscale les fait d’abord entrer dans l’imposable (article 68) puis les immunise sous condition (article 69). Une indemnité de logement de 40 % du salaire sort de l’assiette sociale de plein droit et reste entièrement imposable."
+                source="Code du travail, art. 7, point 8 · loi n° 23/053, art. 68 et 69"
+              />
             </div>
 
             <div className="flex flex-wrap gap-3 items-end mb-2.5">
@@ -1778,21 +1772,17 @@ export function PersonnelPage() {
             </div>
 
             <div className="text-[11px] text-text-dim mb-2">
-              Les <strong>retenues de l’article 71</strong> sont saisies, quote-part ouvrière de la
-              CNSS en tête : leurs taux vivent au registre des retenues avec leur date d’effet, et
-              ce module ne les recopie pas. Le{' '}
-              <strong>taux légal des allocations familiales</strong>, lui, est désormais{' '}
-              <strong>calculé</strong> à partir du nombre d’enfants bénéficiaires : c’est la colonne
-              19 du décret n° 25/22, mensualisée. Ce n’est <strong>pas</strong> le montant de
-              8 100 FC de l’arrêté ministériel n° 137/2018, qui est une prestation{' '}
-              <strong>servie directement par la Caisse</strong> et que l’employeur n’accorde pas.
-              Le champ de saisie ne sert plus qu’au mois qu’aucune annexe ne couvre. La{' '}
-              <strong>classe</strong> place le seuil de l’article 114 ; sans elle, ou dès qu’un
-              logement est <strong>fourni en nature</strong>, la quotité n’est pas chiffrée.
+              Taux légal des allocations familiales calculé (décret n° 25/22, colonne 19) · pas les
+              8 100 FC de l’arrêté n° 137/2018, prestation servie directement par la Caisse.{' '}
+              <Aide
+                titre="Champs de la simulation"
+                texte="Les retenues de l’article 71 sont saisies, quote-part ouvrière de la CNSS en tête : leurs taux vivent au registre des retenues avec leur date d’effet, et ce module ne les recopie pas. Le taux légal des allocations familiales est calculé à partir du nombre d’enfants bénéficiaires, mensualisé ; l’employeur n’accorde pas la prestation de l’arrêté ministériel n° 137/2018. Le champ de saisie ne sert plus qu’au mois qu’aucune annexe ne couvre. La classe place le seuil de l’article 114 ; sans elle, ou dès qu’un logement est fourni en nature, la quotité n’est pas chiffrée."
+                source="Loi n° 23/053, art. 71 · décret n° 25/22 · Code du travail, art. 114"
+              />
             </div>
           </div>
 
-          <label className="flex items-center gap-2 text-[12px] mb-1.5">
+          <label className="flex items-center gap-2 text-[11.5px] mb-1.5">
             <span className={etiquette}>Rémunération stipulée en</span>
             <select
               value={deviseStipulation}
@@ -1803,9 +1793,11 @@ export function PersonnelPage() {
               <option value="USD">Dollars américains (USD)</option>
             </select>
             {deviseStipulation === 'USD' && (
-              <span className="text-text-dim">
-                Converti au cours du dollar <strong>du jour</strong>, à saisir chaque jour dans Devises.
-              </span>
+              <Aide
+                titre="Rémunération en dollars"
+                texte="Converti au cours du dollar du jour, à saisir chaque jour dans Devises."
+                source="Code du travail, art. 89"
+              />
             )}
           </label>
           <div className="overflow-x-auto">
@@ -1966,7 +1958,7 @@ export function PersonnelPage() {
           {simulation && (
             <div className="mt-3">
               {simulation.conversion && (
-                <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mb-2.5 text-[12px]">
+                <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mb-2.5 text-[11.5px]">
                   <div className="font-semibold">
                     Converti au cours du {simulation.conversion.dateCours.split('-').reverse().join('/')} :
                     1 USD = {simulation.conversion.cours.toLocaleString('fr-FR')} FC
@@ -1988,14 +1980,16 @@ export function PersonnelPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div className="border border-border px-3.5 py-2.5">
-                  <div className={etiquette}>Assiette sociale</div>
-                  <div className="text-[14px] font-bold">
-                    {fc(simulation.assiettes.assietteSocialeFc)} FC
+                  <div className={`${etiquette} flex items-center gap-1`}>
+                    Assiette sociale
+                    <Aide
+                      titre="Assiette sociale"
+                      texte="Rémunération au sens de l’article 7, point 8 du Code du travail, reprise par l’article 17 de l’arrêté ministériel n° 146/2018. C’est elle que les cotisations frappent."
+                      source="Code du travail, art. 7, point 8 · arrêté n° 146/2018, art. 17"
+                    />
                   </div>
-                  <div className="text-[11px] text-text-dim mt-1">
-                    Rémunération au sens de l’article 7, point 8 du Code du travail, reprise par
-                    l’article 17 de l’arrêté ministériel n° 146/2018. C’est elle que les cotisations
-                    frappent.
+                  <div className="text-[13px] font-bold">
+                    {fc(simulation.assiettes.assietteSocialeFc)} FC
                   </div>
                   {simulation.assiettes.horsRemuneration.length > 0 && (
                     <ul className="mt-1.5 text-[11px]">
@@ -2011,7 +2005,7 @@ export function PersonnelPage() {
 
                 <div className="border border-border px-3.5 py-2.5">
                   <div className={etiquette}>Assiette fiscale nette (art. 70)</div>
-                  <div className="text-[14px] font-bold">
+                  <div className="text-[13px] font-bold">
                     {simulation.assiettes.assietteFiscaleNetteFc === null
                       ? 'Indéterminée'
                       : `${fc(simulation.assiettes.assietteFiscaleNetteFc)} FC`}
@@ -2070,7 +2064,7 @@ export function PersonnelPage() {
               {simulation.retenue && (
                 <div className="border border-border px-3.5 py-2.5 mt-2.5">
                   <div className={etiquette}>Retenue du mois (art. 119)</div>
-                  <div className="text-[16px] font-bold">
+                  <div className="text-[14px] font-bold">
                     {fc(simulation.retenue.retenueFc)} FC
                   </div>
                   <BaremeMensuelIrpp
@@ -2153,7 +2147,7 @@ export function PersonnelPage() {
 
               <div className="border border-border px-3.5 py-2.5 mt-2.5">
                 <div className={etiquette}>Net à payer</div>
-                <div className="text-[16px] font-bold">
+                <div className="text-[14px] font-bold">
                   {simulation.net.netAPayerFc === null
                     ? 'Indéterminé'
                     : `${fc(simulation.net.netAPayerFc)} FC`}
@@ -2416,7 +2410,7 @@ export function PersonnelPage() {
       )}
 
       {onglet === 'simulation' && simulation && peutEcrire && (
-        <div className="ecran-seul max-w-[1240px] text-[12px] border border-border bg-surface px-3.5 py-2.5 mb-2.5 flex flex-wrap items-center gap-3">
+        <div className="ecran-seul max-w-[1240px] text-[11.5px] border border-border bg-surface px-3.5 py-2.5 mb-2.5 flex flex-wrap items-center gap-3">
           {selection ? (
             <>
               <button
@@ -2427,15 +2421,15 @@ export function PersonnelPage() {
               >
                 Émettre le bulletin de {moisDePaie}
               </button>
-              <span className="text-text-dim">
-                Numéroté à la suite (art. 214), figé tel que calculé ci-dessus, jamais modifiable
-                ensuite : une erreur se corrige en l’annulant, avec son motif.
-              </span>
+              <Aide
+                titre="Émission du bulletin"
+                texte="Numéroté à la suite, figé tel que calculé ci-dessus, jamais modifiable ensuite : une erreur se corrige en l’annulant, avec son motif."
+                source="Code du travail, art. 214"
+              />
             </>
           ) : (
             <span className="text-text-dim">
-              Choisissez un salarié au registre pour émettre son bulletin · la simulation seule ne
-              désigne personne.
+              Choisissez un salarié au registre pour émettre son bulletin.
             </span>
           )}
         </div>
@@ -2446,13 +2440,16 @@ export function PersonnelPage() {
       )}
 
       {onglet === 'decompte' && (
-        <div className="ecran-seul max-w-[1240px] text-[12px]">
+        <div className="ecran-seul max-w-[1240px] text-[11.5px]">
           <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mb-2.5">
-            <strong>Le Code du travail ne définit pas le « décompte final ».</strong> C’est un
-            usage professionnel, dont le fondement est l’<strong>article 100</strong> : toute somme
-            restant due doit être payée au plus tard dans les <strong>deux jours ouvrables</strong>{' '}
-            qui suivent la cessation des services. OmegaX calcule les durées que le Code fixe, et
-            laisse saisir ce qu’aucun livre ne porte.
+            <strong>Le Code du travail ne définit pas le « décompte final ».</strong> Toute somme due
+            se paie au plus tard dans les deux jours ouvrables qui suivent la cessation des services
+            (art. 100).{' '}
+            <Aide
+              titre="Décompte final"
+              texte="Le décompte final est un usage professionnel, dont le fondement est l’article 100. OmegaX calcule les durées que le Code fixe, et laisse saisir ce qu’aucun livre ne porte."
+              source="Code du travail, art. 100"
+            />
           </div>
 
           <div className="border border-border px-3.5 py-2.5 mb-2.5">
@@ -2466,7 +2463,14 @@ export function PersonnelPage() {
                 />
               </label>
               <label className="flex flex-col gap-0.5">
-                <span className={etiquette}>Mois entiers de service</span>
+                <span className={`${etiquette} flex items-center gap-1`}>
+                  Mois entiers de service
+                  <Aide
+                    titre="Mois entiers de service"
+                    texte="Ils sont saisis : l’article 141, alinéa 2, y fait entrer les jours de repos, de congé payé, les jours fériés et l’incapacité jusqu’à six mois par année. Les reconstituer depuis les dates du contrat donnerait un chiffre plausible et faux."
+                    source="Code du travail, art. 141, al. 2"
+                  />
+                </span>
                 <input
                   value={dec.moisEntiersDeService}
                   onChange={(e) => setDec({ ...dec, moisEntiersDeService: e.target.value })}
@@ -2562,10 +2566,8 @@ export function PersonnelPage() {
               </button>
             </div>
             <div className="text-[11px] text-text-dim mt-2">
-              Les <strong>mois entiers de service</strong> sont saisis : l’article 141, alinéa 2, y
-              fait entrer les jours de repos, de congé payé, les jours fériés et l’incapacité
-              jusqu’à six mois par année. Les reconstituer depuis les dates du contrat donnerait un
-              chiffre plausible et faux.
+              Mois entiers de service saisis (article 141, alinéa 2) · les reconstituer depuis les
+              dates du contrat donnerait un chiffre plausible et faux.
             </div>
           </div>
 
@@ -2574,7 +2576,7 @@ export function PersonnelPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-2.5">
                 <div className="border border-border px-3.5 py-2.5">
                   <div className={etiquette}>Préavis (article 64)</div>
-                  <div className="text-[14px] font-bold">
+                  <div className="text-[13px] font-bold">
                     {decompte.preavis.joursOuvrables === null
                       ? 'Aucun'
                       : `${decompte.preavis.joursOuvrables} jours ouvrables`}
@@ -2587,7 +2589,7 @@ export function PersonnelPage() {
                 </div>
                 <div className="border border-border px-3.5 py-2.5">
                   <div className={etiquette}>Congé (article 141)</div>
-                  <div className="text-[14px] font-bold">
+                  <div className="text-[13px] font-bold">
                     {decompte.conge.joursOuvrables} jours ouvrables
                   </div>
                   <div className="text-[11px] text-text-dim mt-1">
@@ -2650,7 +2652,7 @@ export function PersonnelPage() {
       )}
 
       {onglet === 'livre' && (
-        <div className="ecran-seul max-w-[1240px] text-[12px]">
+        <div className="ecran-seul max-w-[1240px] text-[11.5px]">
           {/*
             CE QUE CETTE FENÊTRE NE FAIT PAS, ET ELLE LE DIT AVANT TOUT LE
             RESTE. OmegaX ne tient pas le livre de paie et ne certifie aucune
@@ -2658,12 +2660,9 @@ export function PersonnelPage() {
             mais pas lu. Ce qui est rendu est une COUVERTURE des mentions.
           */}
           <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mb-2.5">
-            <strong>OmegaX ne tient pas votre livre de paie.</strong> Le modèle est fixé par
-            l’<strong>arrêté ministériel n° 12/CAB.MIN/ETPS/042 du 8 août 2008</strong>, qui est au
-            corpus : ce sont ses <strong>trente-trois énonciations</strong> qui sont vérifiées
-            ci-dessous, et non plus celles de la sécurité sociale. Mais son article 1er exige aussi
-            la conformité <strong>au modèle annexé</strong>, qui est une mise en forme : une liste
-            de mentions ne la prouve pas, et <strong>rien ici ne certifie cette conformité</strong>.
+            <strong>OmegaX ne tient pas votre livre de paie.</strong> Les trente-trois énonciations de
+            l’arrêté n° 12/CAB.MIN/ETPS/042 du 8 août 2008 sont vérifiées ; la conformité
+            au modèle annexé, qui est une mise en forme, ne l’est pas : <strong>rien ici ne certifie cette conformité</strong>.
           </div>
 
           <div className="border border-border px-3.5 py-2.5 mb-2.5">
@@ -2743,14 +2742,14 @@ export function PersonnelPage() {
               </button>
             </div>
             <div className="text-[11px] text-text-dim">
-              L’article 213 impose un livre <strong>dans chacun des sièges d’exploitation</strong>,
-              consignant à chaque paie <strong>toute somme quelconque</strong> attribuée à titre de
-              rémunération. L’article 1er de l’arrêté vise « le livre de paie{' '}
-              <strong>ou fichier informatisé</strong> » : un fichier informatisé est donc une forme
-              du livre, et ne demande <strong>aucune autorisation</strong>. Seul{' '}
-              <strong>tout autre document</strong> tombe sous l’alinéa 2 de l’article 215, où
-              l’autorisation de l’Inspecteur du Travail est un <strong>acte</strong> à obtenir.
-              Forme non déclarée : OmegaX retient le cas le plus exigeant.
+              « Le livre de paie ou fichier informatisé » (arrêté, art. 1er) : un fichier informatisé
+              ne demande aucune autorisation · seul tout autre document requiert celle de l’Inspecteur
+              du Travail (art. 215, al. 2).{' '}
+              <Aide
+                titre="Livre de paie"
+                texte="L’article 213 impose un livre dans chacun des sièges d’exploitation, consignant à chaque paie toute somme quelconque attribuée à titre de rémunération. Un fichier informatisé est une forme du livre. Pour tout autre document, l’autorisation de l’Inspecteur du Travail est un acte à obtenir. Forme non déclarée : OmegaX retient le cas le plus exigeant."
+                source="Code du travail, art. 213 et 215 · arrêté n° 12/CAB.MIN/ETPS/042, art. 1er"
+              />
             </div>
           </div>
 

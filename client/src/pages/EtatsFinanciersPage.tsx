@@ -228,9 +228,9 @@ function EtatsSystemeNormalPage() {
     <div
       key={cle}
       title={p.comptes.length > 0 ? `Comptes : ${p.comptes.map((c) => c.numero).join(', ')}` : 'Aucun compte mouvementé'}
-      className={`grid grid-cols-[46px_1fr_120px_120px] min-w-[500px] gap-2 px-4 py-1 text-[12.5px] ${p.montant === 0 ? 'text-text-dim' : ''}`}
+      className={`grid grid-cols-[46px_1fr_120px_120px] min-w-[500px] gap-2 px-4 py-1 text-[11.5px] ${p.montant === 0 ? 'text-text-dim' : ''}`}
     >
-      <span className="font-mono text-[12px] text-text-dim">{p.ref}</span>
+      <span className="font-mono text-[11.5px] text-text-dim">{p.ref}</span>
       <span>{p.libelle}</span>
       <span className="font-mono text-right">{montant(p.montant)}</span>
       <span className="font-mono text-right text-text-dim">{montant(p.montantN1)}</span>
@@ -242,11 +242,11 @@ function EtatsSystemeNormalPage() {
     <div
       key={l.ref || l.libelle}
       title={l.comptes.length > 0 ? `Comptes : ${l.comptes.map((c) => c.numero).join(', ')}` : undefined}
-      className={`grid grid-cols-[46px_1fr_120px_120px] min-w-[500px] gap-2 px-4 py-1 text-[12.5px] ${
+      className={`grid grid-cols-[46px_1fr_120px_120px] min-w-[500px] gap-2 px-4 py-1 text-[11.5px] ${
         l.estTotal ? 'font-bold bg-surface-alt border-y border-border' : ''
       }`}
     >
-      <span className="font-mono text-[12px] text-text-dim">{l.ref}</span>
+      <span className="font-mono text-[11.5px] text-text-dim">{l.ref}</span>
       <span>{l.libelle}</span>
       <span className="font-mono text-right">{montant(l.montant)}</span>
       <span className="font-mono text-right text-text-dim font-normal">{montant(l.montantN1)}</span>
@@ -254,8 +254,8 @@ function EtatsSystemeNormalPage() {
   );
 
   const ligneTotal = (ref: string, libelle: string, valeur: number, valeurN1?: number) => (
-    <div className="grid grid-cols-[46px_1fr_120px_120px] min-w-[500px] gap-2 px-4 py-1.5 bg-surface-alt border-y border-border text-[12.5px] font-bold">
-      <span className="font-mono text-[12px]">{ref}</span>
+    <div className="grid grid-cols-[46px_1fr_120px_120px] min-w-[500px] gap-2 px-4 py-1.5 bg-surface-alt border-y border-border text-[11.5px] font-bold">
+      <span className="font-mono text-[11.5px]">{ref}</span>
       <span>{libelle}</span>
       <span className="font-mono text-right">{montant(valeur)}</span>
       <span className="font-mono text-right text-text-dim font-normal">{montant(valeurN1)}</span>
@@ -267,7 +267,7 @@ function EtatsSystemeNormalPage() {
     <div
       key={l.ref}
       title={l.comptes.length > 0 ? `Comptes : ${l.comptes.map((c) => c.numero).join(', ')}` : undefined}
-      className={`grid grid-cols-[42px_1.4fr_100px_120px_100px_100px] gap-2 px-4 py-1 text-[12.5px] items-baseline ${
+      className={`grid grid-cols-[42px_1.4fr_100px_120px_100px_100px] gap-2 px-4 py-1 text-[11.5px] items-baseline ${
         l.estTotal ? 'font-bold bg-surface-alt border-y border-border' : ''
       }`}
     >
@@ -285,7 +285,7 @@ function EtatsSystemeNormalPage() {
     <div
       key={l.ref}
       title={l.comptes.length > 0 ? `Comptes : ${l.comptes.map((c) => c.numero).join(', ')}` : undefined}
-      className={`grid grid-cols-[42px_1.4fr_100px_100px] gap-2 px-4 py-1 text-[12.5px] items-baseline ${
+      className={`grid grid-cols-[42px_1.4fr_100px_100px] gap-2 px-4 py-1 text-[11.5px] items-baseline ${
         l.estTotal ? 'font-bold bg-surface-alt border-y border-border' : ''
       }`}
     >
@@ -300,22 +300,25 @@ function EtatsSystemeNormalPage() {
     <div className="p-2">
       <EnteteImpression titre="États financiers" sousTitre={LIBELLE_ONGLET[onglet]} />
       <div className="ecran-seul flex items-center justify-between mb-1.5">
-        <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">ÉTAT</div>
-          <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
-            États financiers
-            <Aide sujet="jeuEtats" />
-          </h1>
-          <div className="text-[11px] text-text-dim mt-0.5">
+        <div className="flex items-center gap-1.5 text-[11px] text-text-dim">
+          <span>
             Jeu {jeuProjet ? 'des projets de développement' : 'des associations et ordres professionnels'} ·{' '}
             <button onClick={() => navigate('/parametres-dossier')} className="underline hover:text-sel">
               paramètres du dossier
             </button>
-          </div>
+          </span>
+          <Aide sujet="jeuEtats" />
+          {jeuProjet && (
+            <Aide
+              titre="Jeu « Projets de développement et assimilés »"
+              texte="Les cinq états du point 2 de l'article 14 sont produits ; la correspondance du tableau emplois-ressources et du tableau d'exécution budgétaire vient du Guide d'application, chapitre 7."
+              source="SYCEBNL, Partie 4 ch. 3 · art. 14 · Guide d'application, ch. 7"
+            />
+          )}
         </div>
         <div className="flex items-center gap-2.5">
           {exerciceCourant && (
-            <span className="font-mono text-[12px] border border-border bg-surface px-2.5 py-1.5">
+            <span className="font-mono text-[11.5px] border border-border bg-surface px-2.5 py-1.5">
               Exercice {new Date(exerciceCourant.dateDebut).getFullYear()}
             </span>
           )}
@@ -336,7 +339,7 @@ function EtatsSystemeNormalPage() {
             onClick={exporterLiasse}
             disabled={exportEnCours}
             title="Tous les états du jeu dans un seul classeur, précédés d’un sommaire · toutes les notes annexes y figurent, les notes sans rien à déclarer portant la mention NEANT"
-            className="flex items-center gap-1.5 border border-sel bg-sel text-white px-3 py-1.5 text-[12px] font-bold hover:brightness-110 disabled:opacity-50 disabled:cursor-wait"
+            className="flex items-center gap-1.5 border border-sel bg-sel text-white px-3 py-1.5 text-[11.5px] font-bold hover:brightness-110 disabled:opacity-50 disabled:cursor-wait"
           >
             <IconExport width={13} height={13} />
             {exportEnCours ? 'Export en cours…' : 'Exporter la liasse complète'}
@@ -345,7 +348,7 @@ function EtatsSystemeNormalPage() {
             onClick={exporter}
             disabled={exportEnCours}
             title="Seulement l’état affiché dans cet onglet"
-            className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[12px] font-bold hover:bg-surface-alt disabled:opacity-50 disabled:cursor-wait"
+            className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[11.5px] font-bold hover:bg-surface-alt disabled:opacity-50 disabled:cursor-wait"
           >
             <IconExport width={13} height={13} />
             Cet onglet
@@ -355,26 +358,18 @@ function EtatsSystemeNormalPage() {
 
       {erreur && (
         <div className="flex items-start justify-between gap-3 border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5">
-          <span className="text-[12px]">{erreur}</span>
-          <button onClick={() => setErreur(null)} className="text-[12px] font-bold shrink-0 hover:underline">
+          <span className="text-[11.5px]">{erreur}</span>
+          <button onClick={() => setErreur(null)} className="text-[11.5px] font-bold shrink-0 hover:underline">
             Fermer
           </button>
         </div>
-      )}
-
-      {jeuProjet && (
-        <p className="text-[11px] text-text-dim mb-1.5">
-          Jeu « Projets de développement et assimilés » (SYCEBNL, Partie 4 ch. 3). Les cinq états du point 2 de
-          l'article 14 sont produits ; la correspondance du tableau emplois-ressources et du tableau d'exécution
-          budgétaire vient du Guide d'application, chapitre 7.
-        </p>
       )}
 
       {jeuProjet ? (
         <div className="ecran-seul flex bg-chrome border border-border border-b-0">
           <button
             onClick={() => setOngletProjet('bilan-projet')}
-            className={`px-4 py-1.5 text-[12px] font-bold ${
+            className={`px-4 py-1.5 text-[11.5px] font-bold ${
               onglet === 'bilan-projet' ? 'bg-surface border-r border-border' : 'text-text-dim'
             }`}
           >
@@ -382,7 +377,7 @@ function EtatsSystemeNormalPage() {
           </button>
           <button
             onClick={() => setOngletProjet('compte-exploitation-projet')}
-            className={`px-4 py-1.5 text-[12px] font-bold ${
+            className={`px-4 py-1.5 text-[11.5px] font-bold ${
               onglet === 'compte-exploitation-projet' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'
             }`}
           >
@@ -390,7 +385,7 @@ function EtatsSystemeNormalPage() {
           </button>
           <button
             onClick={() => setOngletProjet('emplois-ressources')}
-            className={`px-4 py-1.5 text-[12px] font-bold ${
+            className={`px-4 py-1.5 text-[11.5px] font-bold ${
               onglet === 'emplois-ressources' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'
             }`}
           >
@@ -398,7 +393,7 @@ function EtatsSystemeNormalPage() {
           </button>
           <button
             onClick={() => setOngletProjet('execution-budgetaire')}
-            className={`px-4 py-1.5 text-[12px] font-bold ${
+            className={`px-4 py-1.5 text-[11.5px] font-bold ${
               onglet === 'execution-budgetaire' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'
             }`}
           >
@@ -406,7 +401,7 @@ function EtatsSystemeNormalPage() {
           </button>
           <button
             onClick={() => setOngletProjet('reconciliation-tresorerie')}
-            className={`px-4 py-1.5 text-[12px] font-bold ${
+            className={`px-4 py-1.5 text-[11.5px] font-bold ${
               onglet === 'reconciliation-tresorerie' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'
             }`}
           >
@@ -414,7 +409,7 @@ function EtatsSystemeNormalPage() {
           </button>
           <button
             onClick={() => setOngletProjet('note-bailleur')}
-            className={`px-4 py-1.5 text-[12px] font-bold ${
+            className={`px-4 py-1.5 text-[11.5px] font-bold ${
               onglet === 'note-bailleur' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'
             }`}
           >
@@ -425,13 +420,13 @@ function EtatsSystemeNormalPage() {
         <div className="ecran-seul flex bg-chrome border border-border border-b-0">
           <button
             onClick={() => setOngletAssociations('bilan')}
-            className={`px-4 py-1.5 text-[12px] font-bold ${onglet === 'bilan' ? 'bg-surface border-r border-border' : 'text-text-dim'}`}
+            className={`px-4 py-1.5 text-[11.5px] font-bold ${onglet === 'bilan' ? 'bg-surface border-r border-border' : 'text-text-dim'}`}
           >
             BILAN
           </button>
           <button
             onClick={() => setOngletAssociations('compte-de-resultat')}
-            className={`px-4 py-1.5 text-[12px] font-bold ${
+            className={`px-4 py-1.5 text-[11.5px] font-bold ${
               onglet === 'compte-de-resultat' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'
             }`}
           >
@@ -439,7 +434,7 @@ function EtatsSystemeNormalPage() {
           </button>
           <button
             onClick={() => setOngletAssociations('flux-tresorerie')}
-            className={`px-4 py-1.5 text-[12px] font-bold ${
+            className={`px-4 py-1.5 text-[11.5px] font-bold ${
               onglet === 'flux-tresorerie' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'
             }`}
           >
@@ -454,12 +449,24 @@ function EtatsSystemeNormalPage() {
         <div className="ecran-seul flex items-center gap-1.5 border-x border-t border-border bg-surface px-4 pt-2 text-[11px] text-text-dim">
           <span>Ce que dit le référentiel</span>
           <Aide sujet={AIDE_ONGLET[onglet]!} />
+          {onglet === 'note-bailleur' && (
+            <Aide
+              titre="NOTE 9 · Fonds du bailleur"
+              texte="Montants cumulés depuis l'origine du projet, toutes périodes confondues : la note suit le cycle de vie du projet, pas l'exercice comptable. Décaissé = mouvements crédit (hors report à-nouveau) ; Consommé = mouvements débit ; Solde restant = Décaissé − Consommé. Le texte officiel ne précise le compte source que pour « Consommé » côté Fonds d'administration (compte 702) · convention retenue pour le reste détaillée dans EtatsFinanciersProjetService.noteBailleur. Un bailleur n'apparaît ici que si des comptes 162-164/462-464 lui sont rattachés (page Bailleurs)."
+              source="SYCEBNL, Partie 4 ch. 3, Section 6"
+            />
+          )}
+          {onglet === 'note-bailleur' && (
+            <a href="#/bailleurs" className="ml-auto text-sel hover:underline">
+              Bailleurs
+            </a>
+          )}
         </div>
       )}
 
       {onglet === 'bilan' && (
         <>
-          {!bilan && <div className="border border-border px-4 py-4 text-[12.5px] text-text-dim">Chargement…</div>}
+          {!bilan && <div className="border border-border px-4 py-4 text-[11.5px] text-text-dim">Chargement…</div>}
           {bilan && (
             <div className="max-w-[1180px] overflow-x-auto">
               {!bilan.exerciceN1Disponible && (
@@ -496,7 +503,7 @@ function EtatsSystemeNormalPage() {
                 }`}
               >
                 <IconCheck width={14} height={14} className={bilan.equilibre ? 'text-positive' : 'text-danger'} />
-                <span className="font-mono text-[12px] font-medium">
+                <span className="font-mono text-[11.5px] font-medium">
                   {bilan.equilibre
                     ? `LE BILAN EST ÉQUILIBRÉ · ACTIF = PASSIF = ${montant(bilan.totalActif)}`
                     : 'DÉSÉQUILIBRE DÉTECTÉ · vérifier les écritures et les comptes non rattachés ci-dessous'}
@@ -505,7 +512,7 @@ function EtatsSystemeNormalPage() {
 
               {bilan.controle.doubleComptageProbable && (
                 <div className="flex items-start gap-2 mt-2 px-3.5 py-2.5 border border-warning/40 bg-warning-soft">
-                  <span className="text-[12px]">
+                  <span className="text-[11.5px]">
                     ⚠ Les classes 6/7/8 ({montant(bilan.controle.resultatClasses678)}) ET le compte 13 (
                     {montant(bilan.controle.resultatCompte13)}) sont tous deux mouvementés · risque de double comptage
                     du résultat. Fournir une balance avant OU après clôture, pas un état intermédiaire.
@@ -515,11 +522,11 @@ function EtatsSystemeNormalPage() {
 
               {bilan.comptesNonRattaches.length > 0 && (
                 <div className="border border-danger/30 bg-danger-soft mt-2 px-3.5 py-2.5">
-                  <div className="text-[12px] font-bold mb-1.5">
+                  <div className="text-[11.5px] font-bold mb-1.5">
                     Comptes de bilan rattachés à aucun poste officiel · leur montant n'entre dans aucun total
                   </div>
                   {bilan.comptesNonRattaches.map((c) => (
-                    <div key={c.numero} className="flex justify-between text-[12px] font-mono">
+                    <div key={c.numero} className="flex justify-between text-[11.5px] font-mono">
                       <span>
                         {c.numero} · {c.intitule}
                       </span>
@@ -535,7 +542,7 @@ function EtatsSystemeNormalPage() {
 
       {onglet === 'compte-de-resultat' && (
         <>
-          {!cr && <div className="border border-border px-4 py-4 text-[12.5px] text-text-dim">Chargement…</div>}
+          {!cr && <div className="border border-border px-4 py-4 text-[11.5px] text-text-dim">Chargement…</div>}
           {cr && (
             <div
               // `overflow-x-auto` ici, `min-w` sur les lignes · les 342 px de colonnes
@@ -570,8 +577,8 @@ function EtatsSystemeNormalPage() {
                 {lignePoste(cr.produitsHao)}
                 {lignePoste(cr.chargesHao)}
                 {ligneTotal('XD', 'RÉSULTAT H.A.O. (TM − TN)', cr.resultatHao, cr.resultatHaoN1)}
-                <div className="grid grid-cols-[46px_1fr_120px_120px] min-w-[500px] gap-2 px-4 py-2 bg-chrome border-t border-border-dark text-[12.5px] font-bold">
-                  <span className="font-mono text-[12px]">XE</span>
+                <div className="grid grid-cols-[46px_1fr_120px_120px] min-w-[500px] gap-2 px-4 py-2 bg-chrome border-t border-border-dark text-[11.5px] font-bold">
+                  <span className="font-mono text-[11.5px]">XE</span>
                   <span>RÉSULTAT NET DE L'EXERCICE (+excédent, −déficit)</span>
                   <span className="font-mono text-right">{montant(cr.resultatNet)}</span>
                   <span className="font-mono text-right text-text-dim font-normal">{montant(cr.resultatNetN1)}</span>
@@ -588,7 +595,7 @@ function EtatsSystemeNormalPage() {
                   height={14}
                   className={`mt-0.5 shrink-0 ${cr.controle.coherent ? 'text-positive' : 'text-danger'}`}
                 />
-                <span className="font-mono text-[12px] font-medium">
+                <span className="font-mono text-[11.5px] font-medium">
                   {cr.controle.coherent
                     ? "L'ÉTAT BOUCLE · le résultat des postes est identique au résultat logé au bilan"
                     : `ÉCART DE ${montant(cr.controle.ecart)} · l'état ne boucle pas avec le bilan`}
@@ -597,21 +604,22 @@ function EtatsSystemeNormalPage() {
 
               {cr.comptesNonRattaches.length > 0 && (
                 <div className="border border-danger/30 bg-danger-soft mt-2 px-3.5 py-2.5">
-                  <div className="text-[12px] font-bold mb-1.5">
+                  <div className="text-[11.5px] font-bold mb-1.5 flex items-center gap-1.5">
                     Comptes de gestion rattachés à aucun poste officiel · leur montant n'entre dans aucun total
+                    <Aide
+                      titre="Compte rattaché à aucun poste"
+                      texte="Saisir sur la subdivision prévue par le plan officiel (ex. 7051/7052/7053 plutôt que 705), ou vérifier le numéro de compte."
+                      source="SYCEBNL · plan de comptes"
+                    />
                   </div>
                   {cr.comptesNonRattaches.map((c) => (
-                    <div key={c.numero} className="flex justify-between text-[12px] font-mono">
+                    <div key={c.numero} className="flex justify-between text-[11.5px] font-mono">
                       <span>
                         {c.numero} · {c.intitule}
                       </span>
                       <span>{montant(c.montant)}</span>
                     </div>
                   ))}
-                  <p className="text-[11px] text-text-dim mt-1.5 font-sans">
-                    Saisir sur la subdivision prévue par le plan officiel (ex. 7051/7052/7053 plutôt que 705), ou
-                    vérifier le numéro de compte.
-                  </p>
                 </div>
               )}
             </div>
@@ -621,7 +629,7 @@ function EtatsSystemeNormalPage() {
 
       {onglet === 'flux-tresorerie' && (
         <>
-          {!tft && <div className="border border-border px-4 py-4 text-[12.5px] text-text-dim">Chargement…</div>}
+          {!tft && <div className="border border-border px-4 py-4 text-[11.5px] text-text-dim">Chargement…</div>}
           {tft && (
             <div className="max-w-[900px] overflow-x-auto">
               {!tft.exerciceN1Disponible && (
@@ -659,7 +667,7 @@ function EtatsSystemeNormalPage() {
                     height={14}
                     className={`mt-0.5 shrink-0 ${tft.controle.coherent ? 'text-positive' : 'text-danger'}`}
                   />
-                  <span className="font-mono text-[12px] font-medium">
+                  <span className="font-mono text-[11.5px] font-medium">
                     {tft.controle.coherent
                       ? "L'ÉTAT BOUCLE · trésorerie de clôture identique par cumul des flux et par lecture du bilan"
                       : `ÉCART DE ${montant(tft.controle.ecart)} · la ventilation FA-FQ ne couvre pas tout le mouvement de trésorerie`}
@@ -674,11 +682,11 @@ function EtatsSystemeNormalPage() {
 
               {tft.comptesNonVentiles.length > 0 && (
                 <div className="border border-danger/30 bg-danger-soft mt-2 px-3.5 py-2.5">
-                  <div className="text-[12px] font-bold mb-1.5">
+                  <div className="text-[11.5px] font-bold mb-1.5">
                     Comptes encaissables/décaissables rattachés à aucun poste de flux · cause probable de l'écart
                   </div>
                   {tft.comptesNonVentiles.map((c) => (
-                    <div key={c.numero} className="flex justify-between text-[12px] font-mono">
+                    <div key={c.numero} className="flex justify-between text-[11.5px] font-mono">
                       <span>
                         {c.numero} · {c.intitule}
                       </span>
@@ -694,7 +702,7 @@ function EtatsSystemeNormalPage() {
 
       {onglet === 'bilan-projet' && (
         <>
-          {!bilanProjet && <div className="border border-border px-4 py-4 text-[12.5px] text-text-dim">Chargement…</div>}
+          {!bilanProjet && <div className="border border-border px-4 py-4 text-[11.5px] text-text-dim">Chargement…</div>}
           {bilanProjet && (
             <div className="max-w-[1180px] overflow-x-auto">
               {!bilanProjet.exerciceN1Disponible && (
@@ -733,7 +741,7 @@ function EtatsSystemeNormalPage() {
                 }`}
               >
                 <IconCheck width={14} height={14} className={bilanProjet.equilibre ? 'text-positive' : 'text-danger'} />
-                <span className="font-mono text-[12px] font-medium">
+                <span className="font-mono text-[11.5px] font-medium">
                   {bilanProjet.equilibre
                     ? `LE BILAN EST ÉQUILIBRÉ · ACTIF = PASSIF = ${montant(bilanProjet.totalActif)}`
                     : 'DÉSÉQUILIBRE DÉTECTÉ · vérifier les écritures et les comptes non rattachés ci-dessous'}
@@ -742,11 +750,11 @@ function EtatsSystemeNormalPage() {
 
               {bilanProjet.comptesNonRattaches.length > 0 && (
                 <div className="border border-danger/30 bg-danger-soft mt-2 px-3.5 py-2.5">
-                  <div className="text-[12px] font-bold mb-1.5">
+                  <div className="text-[11.5px] font-bold mb-1.5">
                     Comptes de bilan rattachés à aucun poste officiel · leur montant n'entre dans aucun total
                   </div>
                   {bilanProjet.comptesNonRattaches.map((c) => (
-                    <div key={c.numero} className="flex justify-between text-[12px] font-mono">
+                    <div key={c.numero} className="flex justify-between text-[11.5px] font-mono">
                       <span>
                         {c.numero} · {c.intitule}
                       </span>
@@ -762,7 +770,7 @@ function EtatsSystemeNormalPage() {
 
       {onglet === 'compte-exploitation-projet' && (
         <>
-          {!ceProjet && <div className="border border-border px-4 py-4 text-[12.5px] text-text-dim">Chargement…</div>}
+          {!ceProjet && <div className="border border-border px-4 py-4 text-[11.5px] text-text-dim">Chargement…</div>}
           {ceProjet && (
             <div className="max-w-[900px] overflow-x-auto">
               {!ceProjet.exerciceN1Disponible && (
@@ -781,14 +789,14 @@ function EtatsSystemeNormalPage() {
                 {ceProjet.revenus.map((p, i) => lignePoste(p, `revenu-${i}`))}
                 {ligneTotal('XA', 'REVENUS (Somme RA à RE)', ceProjet.totalRevenus, ceProjet.totalRevenusN1)}
                 {ceProjet.charges.map((p, i) => lignePoste(p, `charge-${i}`))}
-                <div className="grid grid-cols-[46px_1fr_120px_120px] min-w-[500px] gap-2 px-4 py-2 bg-chrome border-t border-border-dark text-[12.5px] font-bold">
-                  <span className="font-mono text-[12px]">XB</span>
+                <div className="grid grid-cols-[46px_1fr_120px_120px] min-w-[500px] gap-2 px-4 py-2 bg-chrome border-t border-border-dark text-[11.5px] font-bold">
+                  <span className="font-mono text-[11.5px]">XB</span>
                   <span>CHARGES DE FONCTIONNEMENT (Somme TA à TL)</span>
                   <span className="font-mono text-right">{montant(ceProjet.totalCharges)}</span>
                   <span className="font-mono text-right text-text-dim font-normal">{montant(ceProjet.totalChargesN1)}</span>
                 </div>
-                <div className="grid grid-cols-[46px_1fr_120px_120px] min-w-[500px] gap-2 px-4 py-2 bg-chrome border-t border-border-dark text-[12.5px] font-bold">
-                  <span className="font-mono text-[12px]">XC</span>
+                <div className="grid grid-cols-[46px_1fr_120px_120px] min-w-[500px] gap-2 px-4 py-2 bg-chrome border-t border-border-dark text-[11.5px] font-bold">
+                  <span className="font-mono text-[11.5px]">XC</span>
                   <span>SOLDE DES OPÉRATIONS DE L'EXERCICE (XA − XB)</span>
                   <span className="font-mono text-right">{montant(ceProjet.solde)}</span>
                   <span className="font-mono text-right text-text-dim font-normal">{montant(ceProjet.soldeN1)}</span>
@@ -805,7 +813,7 @@ function EtatsSystemeNormalPage() {
                   height={14}
                   className={`mt-0.5 shrink-0 ${ceProjet.controle.boucleAZero ? 'text-positive' : 'text-warning'}`}
                 />
-                <span className="font-mono text-[12px] font-medium">
+                <span className="font-mono text-[11.5px] font-medium">
                   {ceProjet.controle.boucleAZero
                     ? `XC = ${montant(ceProjet.solde)} (≈ 0) · régime normal pour ce jeu`
                     : `XC = ${montant(ceProjet.solde)} (≠ 0) · pas nécessairement une erreur, vérifier le compte 13 et les comptes non rattachés ci-dessous`}
@@ -814,11 +822,11 @@ function EtatsSystemeNormalPage() {
 
               {ceProjet.comptesNonRattaches.length > 0 && (
                 <div className="border border-danger/30 bg-danger-soft mt-2 px-3.5 py-2.5">
-                  <div className="text-[12px] font-bold mb-1.5">
+                  <div className="text-[11.5px] font-bold mb-1.5">
                     Comptes de gestion rattachés à aucun poste officiel · leur montant n'entre dans aucun total
                   </div>
                   {ceProjet.comptesNonRattaches.map((c) => (
-                    <div key={c.numero} className="flex justify-between text-[12px] font-mono">
+                    <div key={c.numero} className="flex justify-between text-[11.5px] font-mono">
                       <span>
                         {c.numero} · {c.intitule}
                       </span>
@@ -837,7 +845,7 @@ function EtatsSystemeNormalPage() {
       {/* ------------------------------------------------------------- */}
       {onglet === 'emplois-ressources' && (
         <>
-          {!emploisRessources && <div className="border border-border px-4 py-4 text-[12.5px] text-text-dim">Chargement…</div>}
+          {!emploisRessources && <div className="border border-border px-4 py-4 text-[11.5px] text-text-dim">Chargement…</div>}
           {emploisRessources && (
             <div className="max-w-[1000px] overflow-x-auto">
               <div className="border border-border bg-surface mb-3">
@@ -865,7 +873,7 @@ function EtatsSystemeNormalPage() {
                   <div
                     key={`${l.ref}-${i}`}
                     title={l.comptes.length > 0 ? `Comptes : ${l.comptes.map((c) => c.numero).join(', ')}` : undefined}
-                    className={`grid grid-cols-[42px_1fr_100px_100px_120px_120px_120px] min-w-[820px] gap-2 px-4 py-1 text-[12.5px] ${
+                    className={`grid grid-cols-[42px_1fr_100px_100px_120px_120px_120px] min-w-[820px] gap-2 px-4 py-1 text-[11.5px] ${
                       l.estTotal
                         ? 'font-bold bg-surface-alt border-y border-border'
                         : // Une ligne à zéro sur l'exercice n'est PAS une ligne
@@ -900,7 +908,7 @@ function EtatsSystemeNormalPage() {
                 }`}
               >
                 <IconCheck width={14} height={14} className={emploisRessources.controle.boucle ? 'text-positive' : 'text-danger'} />
-                <span className="font-mono text-[12px]">
+                <span className="font-mono text-[11.5px]">
                   {emploisRessources.controle.boucle
                     ? `CONTRÔLE OFFICIEL GZ · TOTAL V = TOTAL VI = ${montant(emploisRessources.encaisseDisponible)}`
                     : `CONTRÔLE OFFICIEL GZ EN ÉCHEC · écart de ${montant(emploisRessources.controle.ecart)} entre l'encaisse reconstituée et les fonds disponibles en fin d'exercice`}
@@ -917,7 +925,7 @@ function EtatsSystemeNormalPage() {
               {(!emploisRessources.controle.cumulDebut.boucle || !emploisRessources.controle.cumulFin.boucle) && (
                 <div className="flex items-start gap-2 px-3.5 py-2.5 border border-danger/30 bg-danger-soft mt-2">
                   <IconCheck width={14} height={14} className="text-danger" />
-                  <span className="font-mono text-[12px]">
+                  <span className="font-mono text-[11.5px]">
                     CONTRÔLE VII EN ÉCHEC SUR UNE COLONNE CUMULÉE ·
                     {!emploisRessources.controle.cumulDebut.boucle &&
                       ` cumul début : écart de ${montant(emploisRessources.controle.cumulDebut.ecart)}`}
@@ -929,11 +937,11 @@ function EtatsSystemeNormalPage() {
 
               {emploisRessources.anomalies.length > 0 && (
                 <div className="border border-warning/40 bg-warning-soft mt-2 px-3.5 py-2.5">
-                  <div className="text-[12px] font-bold mb-1.5">
+                  <div className="text-[11.5px] font-bold mb-1.5">
                     Répartition faussée entre postes · le total des emplois reste exact
                   </div>
                   {emploisRessources.anomalies.map((a) => (
-                    <p key={a.ref} className="text-[12px] mb-1 last:mb-0">
+                    <p key={a.ref} className="text-[11.5px] mb-1 last:mb-0">
                       {a.diagnostic}
                     </p>
                   ))}
@@ -956,12 +964,12 @@ function EtatsSystemeNormalPage() {
       {onglet === 'execution-budgetaire' && (
         <>
           {erreurBudget && (
-            <div className="border border-warning/40 bg-warning-soft px-3.5 py-2.5 text-[12.5px] max-w-[820px]">
+            <div className="border border-warning/40 bg-warning-soft px-3.5 py-2.5 text-[11.5px] max-w-[820px]">
               {erreurBudget}
             </div>
           )}
           {!executionBudget && !erreurBudget && (
-            <div className="border border-border px-4 py-4 text-[12.5px] text-text-dim">Chargement…</div>
+            <div className="border border-border px-4 py-4 text-[11.5px] text-text-dim">Chargement…</div>
           )}
           {executionBudget && (
             <div className="max-w-[1160px] overflow-x-auto">
@@ -983,9 +991,9 @@ function EtatsSystemeNormalPage() {
                 {executionBudget.lignes.map((l) => (
                   <div
                     key={l.code}
-                    className="grid grid-cols-[80px_1fr_120px_120px_120px_120px_120px_90px] gap-2 px-4 py-1 text-[12.5px]"
+                    className="grid grid-cols-[80px_1fr_120px_120px_120px_120px_120px_90px] gap-2 px-4 py-1 text-[11.5px]"
                   >
-                    <span className="font-mono text-[12px]">{l.code}</span>
+                    <span className="font-mono text-[11.5px]">{l.code}</span>
                     <span className="truncate">{l.libelle}</span>
                     <span className="font-mono text-right">{montant(l.budget)}</span>
                     <span className="font-mono text-right">{montant(l.decaissement)}</span>
@@ -1000,11 +1008,11 @@ function EtatsSystemeNormalPage() {
                   </div>
                 ))}
                 {executionBudget.lignes.length === 0 && (
-                  <div className="px-4 py-2 text-[12px] text-text-dim">
+                  <div className="px-4 py-2 text-[11.5px] text-text-dim">
                     Ce plan analytique ne porte encore aucune section.
                   </div>
                 )}
-                <div className="grid grid-cols-[80px_1fr_120px_120px_120px_120px_120px_90px] gap-2 px-4 py-1.5 bg-surface-alt border-t border-border text-[12.5px] font-bold">
+                <div className="grid grid-cols-[80px_1fr_120px_120px_120px_120px_120px_90px] gap-2 px-4 py-1.5 bg-surface-alt border-t border-border text-[11.5px] font-bold">
                   <span>TOTAL</span>
                   <span />
                   <span className="font-mono text-right">{montant(executionBudget.total.budget)}</span>
@@ -1044,7 +1052,7 @@ function EtatsSystemeNormalPage() {
                 type="number"
                 value={paiementsEnInstance}
                 onChange={(e) => setPaiementsEnInstance(e.target.value)}
-                className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] font-mono w-[160px]"
+                className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] font-mono w-[160px]"
               />
             </label>
             <button
@@ -1057,14 +1065,14 @@ function EtatsSystemeNormalPage() {
                   )
                   .then(setReconciliation, (e) => setErreur(e.message));
               }}
-              className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[12px]"
+              className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[11.5px]"
             >
               Établir le tableau
             </button>
           </div>
 
           {!reconciliation && (
-            <div className="border border-border px-4 py-4 text-[12.5px] text-text-dim">
+            <div className="border border-border px-4 py-4 text-[11.5px] text-text-dim">
               Saisissez les paiements en instance puis établissez le tableau.
             </div>
           )}
@@ -1079,7 +1087,7 @@ function EtatsSystemeNormalPage() {
                 {reconciliation.lignes.map((l) => (
                   <div
                     key={l.rep}
-                    className={`grid grid-cols-[1fr_44px_150px] gap-2 px-4 py-1 text-[12.5px] ${
+                    className={`grid grid-cols-[1fr_44px_150px] gap-2 px-4 py-1 text-[11.5px] ${
                       l.rep === 'G' || l.rep === 'I' ? 'font-bold bg-surface-alt border-y border-border' : ''
                     }`}
                   >
@@ -1094,7 +1102,7 @@ function EtatsSystemeNormalPage() {
                   reconciliation.controle.boucle ? 'border-positive/30 bg-positive-soft' : 'border-danger/30 bg-danger-soft'
                 }`}
               >
-                <span className="text-[12px]">
+                <span className="text-[11.5px]">
                   {reconciliation.controle.boucle
                     ? `La trésorerie reconstituée (repère G) correspond au solde des comptes de trésorerie à la balance : ${montant(reconciliation.controle.tresorerieBalance)}.`
                     : `Écart de ${montant(reconciliation.controle.ecart)} entre la trésorerie reconstituée (G) et le solde des comptes de trésorerie à la balance (${montant(reconciliation.controle.tresorerieBalance)}).`}
@@ -1112,24 +1120,18 @@ function EtatsSystemeNormalPage() {
 
       {onglet === 'note-bailleur' && (
         <>
-          {!noteBailleur && <div className="border border-border px-4 py-4 text-[12.5px] text-text-dim">Chargement…</div>}
+          {/* Imprimée avec la note · un lecteur du document papier doit savoir que ses montants sont cumulés. */}
+          <div className="px-1 pb-1 text-[11px] text-text-dim">Montants cumulés depuis l'origine du projet (SYCEBNL, Partie 4 ch. 3, Section 6).</div>
+          {!noteBailleur && <div className="border border-border px-4 py-4 text-[11.5px] text-text-dim">Chargement…</div>}
           {noteBailleur && (
             <div className="max-w-[1000px] overflow-x-auto">
-              <p className="text-[11px] text-text-dim mb-2">
-                Un bailleur n'apparaît ici que si des comptes 162-164/462-464 lui sont rattachés · voir la page{' '}
-                <a href="#/bailleurs" className="text-sel hover:underline">
-                  Bailleurs
-                </a>
-                .
-              </p>
-
               {(['Fonds d’investissement (162-164)', 'Fonds d’administration (462-464)'] as const).map((titre, idx) => {
                 const lignes = idx === 0 ? noteBailleur.investissement : noteBailleur.administration;
                 const nonAffecte = idx === 0 ? noteBailleur.investissementNonAffecte : noteBailleur.administrationNonAffecte;
                 const total = idx === 0 ? noteBailleur.totalInvestissement : noteBailleur.totalAdministration;
                 return (
                   <div key={titre} className="border border-border bg-surface mb-3">
-                    <div className="px-4 py-1.5 bg-chrome border-b border-border text-[12px] font-bold">{titre}</div>
+                    <div className="px-4 py-1.5 bg-chrome border-b border-border text-[11.5px] font-bold">{titre}</div>
                     <div className="grid grid-cols-[1.4fr_130px_130px_130px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim">
                       <span>BAILLEUR</span>
                       <span className="text-right">DÉCAISSÉ</span>
@@ -1137,10 +1139,10 @@ function EtatsSystemeNormalPage() {
                       <span className="text-right">SOLDE RESTANT</span>
                     </div>
                     {lignes.length === 0 && (
-                      <div className="px-4 py-3 text-[12.5px] text-text-dim">Aucun bailleur rattaché à ce type de fonds.</div>
+                      <div className="px-4 py-3 text-[11.5px] text-text-dim">Aucun bailleur rattaché à ce type de fonds.</div>
                     )}
                     {lignes.map((l) => (
-                      <div key={l.bailleur.id} className="grid grid-cols-[1.4fr_130px_130px_130px] gap-2 px-4 py-1 text-[12.5px]">
+                      <div key={l.bailleur.id} className="grid grid-cols-[1.4fr_130px_130px_130px] gap-2 px-4 py-1 text-[11.5px]">
                         <span>
                           {l.bailleur.code} · {l.bailleur.nom}
                         </span>
@@ -1150,14 +1152,14 @@ function EtatsSystemeNormalPage() {
                       </div>
                     ))}
                     {(nonAffecte.decaisse !== 0 || nonAffecte.consomme !== 0 || nonAffecte.soldeRestant !== 0) && (
-                      <div className="grid grid-cols-[1.4fr_130px_130px_130px] gap-2 px-4 py-1 text-[12.5px] text-danger bg-danger-soft italic">
+                      <div className="grid grid-cols-[1.4fr_130px_130px_130px] gap-2 px-4 py-1 text-[11.5px] text-danger bg-danger-soft italic">
                         <span>NON AFFECTÉ (comptes sans bailleur rattaché)</span>
                         <span className="font-mono text-right">{montant(nonAffecte.decaisse)}</span>
                         <span className="font-mono text-right">{montant(nonAffecte.consomme)}</span>
                         <span className="font-mono text-right">{montant(nonAffecte.soldeRestant)}</span>
                       </div>
                     )}
-                    <div className="grid grid-cols-[1.4fr_130px_130px_130px] gap-2 px-4 py-1.5 bg-surface-alt border-t border-border text-[12.5px] font-bold">
+                    <div className="grid grid-cols-[1.4fr_130px_130px_130px] gap-2 px-4 py-1.5 bg-surface-alt border-t border-border text-[11.5px] font-bold">
                       <span>TOTAL</span>
                       <span className="font-mono text-right">{montant(total.decaisse)}</span>
                       <span className="font-mono text-right">{montant(total.consomme)}</span>
@@ -1168,21 +1170,13 @@ function EtatsSystemeNormalPage() {
               })}
 
               <div className="flex items-center gap-2 px-3.5 py-2.5 border border-border bg-chrome">
-                <span className="font-mono text-[12px] font-medium">
+                <span className="font-mono text-[11.5px] font-medium">
                   TOTAL DES FONDS DU BAILLEUR · Décaissé {montant(noteBailleur.totalFondsDuBailleur.decaisse)} · Consommé{' '}
                   {montant(noteBailleur.totalFondsDuBailleur.consomme)} · Solde restant{' '}
                   {montant(noteBailleur.totalFondsDuBailleur.soldeRestant)}
                 </span>
               </div>
 
-              <p className="text-[12px] text-text-dim mt-3">
-                NOTE 9 · Fonds du bailleur (SYCEBNL, Partie 4 ch. 3, Section 6). Montants <strong>cumulés depuis
-                l'origine du projet</strong>, toutes périodes confondues : cette note suit le cycle de vie du projet,
-                pas l'exercice comptable. Décaissé = mouvements crédit (hors report à-nouveau) ; Consommé =
-                mouvements débit ; Solde restant = Décaissé − Consommé. Le texte officiel ne précise le compte
-                source que pour « Consommé » côté Fonds d'administration (compte 702) · convention retenue pour le
-                reste détaillée dans <code>EtatsFinanciersProjetService.noteBailleur</code>.
-              </p>
             </div>
           )}
         </>
@@ -1226,9 +1220,9 @@ export function EtatsFinanciersPage() {
   // le jeu par défaut est celui des associations, et un dossier S.M.T
   // interrogerait d'abord les endpoints du Système normal pour rien.
   if (chargement || !utilisateur) {
-    return <div className="p-2.5 text-[12.5px] text-text-dim">Chargement…</div>;
+    return <div className="p-2.5 text-[11.5px] text-text-dim">Chargement…</div>;
   }
-  const attente = <div className="p-3 text-[12.5px] text-text-dim">Chargement…</div>;
+  const attente = <div className="p-3 text-[11.5px] text-text-dim">Chargement…</div>;
   if (utilisateur.tenant.referentiel === 'SYSCOHADA') {
     return (
       <Suspense fallback={attente}>

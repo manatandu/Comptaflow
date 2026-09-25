@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { Aide } from '../components/chrome/Aide';
 import type { Compte, Journal } from '../lib/types';
 
 /**
@@ -148,27 +149,17 @@ export function ModelesSaisiePage() {
     }
   };
 
-  const champ = 'border border-border bg-surface px-2 py-1 text-[12.5px]';
+  const champ = 'border border-border bg-surface px-2 py-1 text-[11.5px]';
 
   return (
     <div className="p-2">
-      <div className="mb-2">
-        <div className="text-[11px] font-mono text-text-dim leading-none">Paramètres</div>
-        <h1 className="text-[13px] font-bold leading-tight">Modèles de saisie</h1>
-        <p className="text-[12px] text-text-dim mt-1 max-w-[900px] leading-[1.5]">
-          Un modèle est un squelette d'écriture nommé : les comptes et les libellés sont posés, les montants restent à
-          la saisie. Il s'applique depuis la barre « Appeler un modèle » de la fenêtre du journal. Un modèle rattaché à
-          un journal n'est proposé que dans celui-ci.
-        </p>
-      </div>
-
       {erreur && (
-        <div className="text-[12.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-2 max-w-[900px]">
+        <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-2 max-w-[900px]">
           {erreur}
         </div>
       )}
       {info && (
-        <div className="text-[12.5px] text-positive bg-positive-soft border border-positive/30 px-3 py-2 mb-2 max-w-[900px]">
+        <div className="text-[11.5px] text-positive bg-positive-soft border border-positive/30 px-3 py-2 mb-2 max-w-[900px]">
           {info}
         </div>
       )}
@@ -237,7 +228,7 @@ export function ModelesSaisiePage() {
                   onClick={() => setLignes((p) => p.filter((_, k) => k !== i))}
                   disabled={lignes.length <= 2}
                   title={lignes.length <= 2 ? 'Un modèle porte au moins deux lignes' : 'Retirer cette ligne'}
-                  className="px-2 text-[12.5px] text-text-dim hover:text-danger disabled:opacity-30"
+                  className="px-2 text-[11.5px] text-text-dim hover:text-danger disabled:opacity-30"
                 >
                   ×
                 </button>
@@ -248,7 +239,7 @@ export function ModelesSaisiePage() {
               <button
                 type="button"
                 onClick={() => setLignes((p) => [...p, { ...LIGNE_VIDE }])}
-                className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[12px]"
+                className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[11.5px]"
               >
                 + Ligne
               </button>
@@ -257,7 +248,7 @@ export function ModelesSaisiePage() {
                   <button
                     type="button"
                     onClick={reinitialiser}
-                    className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[12px]"
+                    className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[11.5px]"
                   >
                     Annuler
                   </button>
@@ -266,7 +257,7 @@ export function ModelesSaisiePage() {
                   type="button"
                   onClick={enregistrer}
                   disabled={intitule.trim().length < 2 || lignes.filter((l) => l.compteId).length < 2}
-                  className="bg-sel text-white px-4 py-1 text-[12px] font-semibold hover:brightness-110 disabled:opacity-40"
+                  className="bg-sel text-white px-4 py-1 text-[11.5px] font-semibold hover:brightness-110 disabled:opacity-40"
                 >
                   Enregistrer
                 </button>
@@ -284,21 +275,26 @@ export function ModelesSaisiePage() {
         className="border border-border bg-surface shadow-posee max-w-[900px] overflow-x-auto"
       >
         <div className="entete-colonnes grid grid-cols-[1.4fr_150px_70px_130px] min-w-[550px] gap-2 px-3 py-1.5 bg-surface-alt border-b border-border-dark text-[11px] font-bold text-text-dim">
-          <span>Modèle</span>
+          <span className="flex items-center gap-1">
+            Modèle
+            <Aide
+              titre="Modèles de saisie"
+              texte="Un modèle est un squelette d'écriture nommé : les comptes et les libellés sont posés, les montants restent à la saisie. Il s'applique depuis la barre « Appeler un modèle » de la fenêtre du journal. Un modèle rattaché à un journal n'est proposé que dans celui-ci."
+              source="Modèles de saisie"
+            />
+          </span>
           <span>Journal</span>
           <span className="text-right">Lignes</span>
           <span />
         </div>
         {modeles.length === 0 && (
-          <div className="px-3 py-2 text-[12.5px] text-text-dim">
-            {peutEcrire
-              ? "Aucun modèle pour l'instant. Créez celui de l'opération que vous passez le plus souvent."
-              : "Aucun modèle pour l'instant."}
+          <div className="px-3 py-2 text-[11.5px] text-text-dim">
+            Aucun modèle pour l'instant.
           </div>
         )}
         {modeles.map((m) => (
           <div key={m.id} className="border-b border-border/50 last:border-b-0">
-            <div className="grid grid-cols-[1.4fr_150px_70px_130px] min-w-[550px] gap-2 px-3 py-[5px] items-center text-[12px]">
+            <div className="grid grid-cols-[1.4fr_150px_70px_130px] min-w-[550px] gap-2 px-3 py-[5px] items-center text-[11.5px]">
               <span className={m.estActif ? '' : 'text-text-dim line-through'}>
                 {m.intitule}
                 {m.avertissements.length > 0 && (

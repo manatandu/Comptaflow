@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
+import { Aide } from '../components/chrome/Aide';
 import { useExercice } from '../lib/exercice';
 import type { Journal } from '../lib/types';
 
@@ -117,23 +118,21 @@ export function VariationStocksPage() {
   return (
     <div className="p-2">
       <EnteteImpression titre="Variation des stocks" />
-      <div className="ecran-seul mb-1.5 max-w-[1240px]">
-        <div className="text-[11px] font-mono text-text-dim leading-none">Inventaire intermittent</div>
-        <h1 className="text-[13px] font-bold leading-tight">Variation des stocks</h1>
-        <div className="text-[11px] text-text-dim mt-0.5">
-          « Est débité le compte de stock du montant du STOCK FINAL, déterminé par inventaire extra
-          comptable ; est crédité le compte de stock du montant du STOCK INITIAL, POUR SOLDE » ·
-          AUDCIF Titre VII ch. 3 et SYCEBNL Partie 2 ch. 3, dans les mêmes mots.
-        </div>
+      <div className="ecran-seul flex justify-end mb-1.5 max-w-[1240px]">
+        <Aide
+          titre="Variation des stocks"
+          texte="« Est débité le compte de stock du montant du STOCK FINAL, déterminé par inventaire extra comptable ; est crédité le compte de stock du montant du STOCK INITIAL, POUR SOLDE »."
+          source="AUDCIF Titre VII ch. 3 et SYCEBNL Partie 2 ch. 3, dans les mêmes mots"
+        />
       </div>
 
       {erreur && (
-        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[12px] max-w-[1240px]">
+        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[11.5px] max-w-[1240px]">
           {erreur}
         </div>
       )}
       {succes && (
-        <div className="border border-ok/30 bg-ok-soft px-3.5 py-2 mb-2.5 text-[12px] max-w-[1240px]">
+        <div className="border border-ok/30 bg-ok-soft px-3.5 py-2 mb-2.5 text-[11.5px] max-w-[1240px]">
           {succes}
         </div>
       )}
@@ -142,7 +141,7 @@ export function VariationStocksPage() {
           permanent n'a rien à passer ici, et une liste vide se lirait comme
           « rien à faire ». */}
       {etat?.reserve && (
-        <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mb-2.5 text-[12px] max-w-[1240px]">
+        <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mb-2.5 text-[11.5px] max-w-[1240px]">
           {etat.reserve}
         </div>
       )}
@@ -150,7 +149,7 @@ export function VariationStocksPage() {
       {p?.avertissements.map((a) => (
         <div
           key={a}
-          className="border border-warning/40 bg-warning/5 px-3.5 py-2 mb-2 text-[12px] max-w-[1240px]"
+          className="border border-warning/40 bg-warning/5 px-3.5 py-2 mb-2 text-[11.5px] max-w-[1240px]"
         >
           {a}
         </div>
@@ -158,7 +157,7 @@ export function VariationStocksPage() {
 
       {p && (
         <div className="max-w-[1240px]">
-          <table className="w-full border-collapse text-[12px] mb-2.5">
+          <table className="w-full border-collapse text-[11.5px] mb-2.5">
             <thead>
               <tr className="bg-surface-2 text-text-dim">
                 <th className="text-left font-semibold px-2 py-1 border border-border">Compte</th>
@@ -201,7 +200,7 @@ export function VariationStocksPage() {
           {p.refusees.map((r) => (
             <div
               key={`${r.numero}-${r.motif}`}
-              className="border border-border bg-surface-2 px-3.5 py-2 mb-1.5 text-[12px]"
+              className="border border-border bg-surface-2 px-3.5 py-2 mb-1.5 text-[11.5px]"
             >
               <span className="font-mono font-semibold">{r.numero}</span> · {r.explication}
             </div>
@@ -209,12 +208,12 @@ export function VariationStocksPage() {
 
           {p.retenues.length > 0 && (
             <div className="border border-border bg-surface px-3.5 py-2.5 mt-2.5">
-              <div className="text-[12px] font-semibold mb-1.5">
+              <div className="text-[11.5px] font-semibold mb-1.5">
                 Écriture proposée · {p.lignes.length} lignes, {montant(p.totaux.debit)} au débit et{' '}
                 {montant(p.totaux.credit)} au crédit
               </div>
               {!equilibree && (
-                <div className="text-[12px] text-danger mb-1.5">
+                <div className="text-[11.5px] text-danger mb-1.5">
                   L’écriture proposée n’est pas équilibrée. Ne l’enregistrez pas et signalez-le.
                 </div>
               )}
@@ -227,7 +226,7 @@ export function VariationStocksPage() {
                       <select
                         value={journalId}
                         onChange={(e) => setJournalId(e.target.value)}
-                        className="block border border-border bg-surface px-2 py-[3px] text-[12px] min-w-[180px]"
+                        className="block border border-border bg-surface px-2 py-[3px] text-[11.5px] min-w-[180px]"
                       >
                         <option value="">Choisir un journal</option>
                         {journaux.map((j) => (
@@ -243,7 +242,7 @@ export function VariationStocksPage() {
                         type="date"
                         value={date}
                         onChange={(e) => setDate(e.target.value)}
-                        className="block border border-border bg-surface px-2 py-[3px] text-[12px]"
+                        className="block border border-border bg-surface px-2 py-[3px] text-[11.5px]"
                       />
                     </label>
                     <label className="text-[11px] text-text-dim">
@@ -251,21 +250,22 @@ export function VariationStocksPage() {
                       <input
                         value={reference}
                         onChange={(e) => setReference(e.target.value)}
-                        className="block border border-border bg-surface px-2 py-[3px] text-[12px]"
+                        className="block border border-border bg-surface px-2 py-[3px] text-[11.5px]"
                       />
                     </label>
                     <button
                       type="button"
                       disabled={!journalId || !date || enCours || !equilibree}
                       onClick={enregistrer}
-                      className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[12px] font-semibold hover:opacity-90 disabled:opacity-40"
+                      className="bg-sel text-white rounded-[3px] px-3 py-[3px] text-[11.5px] font-semibold hover:opacity-90 disabled:opacity-40"
                     >
                       {enCours ? 'Enregistrement…' : 'Enregistrer l’écriture'}
                     </button>
-                  </div>
-                  <div className="text-[11px] text-text-dim mt-1.5">
-                    Le journal n’est pas deviné · aucun des deux textes n’en nomme un, et le journal des
-                    opérations diverses n’est pas un usage universel.
+                    <Aide
+                      titre="Journal"
+                      texte="Le journal n’est pas deviné · aucun des deux textes n’en nomme un, et le journal des opérations diverses n’est pas un usage universel."
+                      source="AUDCIF Titre VII ch. 3 · SYCEBNL Partie 2 ch. 3"
+                    />
                   </div>
                 </>
               )}

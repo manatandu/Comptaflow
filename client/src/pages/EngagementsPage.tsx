@@ -205,8 +205,7 @@ export function EngagementsPage() {
         sousTitre="Bons de commande remis et contrats signés, non exécutés · colonne Engagement du tableau d'exécution budgétaire"
       />
 
-      <div className="ecran-seul flex items-center gap-2">
-        <h1 className="text-[14px] font-bold">Engagements de dépense</h1>
+      <div className="ecran-seul flex items-center justify-end gap-2">
         <Aide
           titre="Ce que ce registre porte"
           texte={
@@ -220,8 +219,8 @@ export function EngagementsPage() {
         />
       </div>
 
-      {erreur && <div className="ecran-seul border border-danger bg-danger/10 px-3 py-1.5 text-[12.5px]">{erreur}</div>}
-      {info && <div className="ecran-seul border border-border bg-surface-alt px-3 py-1.5 text-[12.5px]">{info}</div>}
+      {erreur && <div className="ecran-seul border border-danger bg-danger/10 px-3 py-1.5 text-[11.5px]">{erreur}</div>}
+      {info && <div className="ecran-seul border border-border bg-surface-alt px-3 py-1.5 text-[11.5px]">{info}</div>}
 
       {peutEcrire && (
         <form
@@ -233,7 +232,7 @@ export function EngagementsPage() {
             <select
               value={nature}
               onChange={(e) => setNature(e.target.value as NatureEngagement)}
-              className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] w-[150px]"
+              className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] w-[150px]"
             >
               {NATURES.map((n) => (
                 <option key={n.valeur} value={n.valeur}>
@@ -248,7 +247,7 @@ export function EngagementsPage() {
               value={sectionId}
               onChange={(e) => setSectionId(e.target.value)}
               required
-              className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] w-[240px]"
+              className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] w-[240px]"
             >
               <option value="">Choisir une section…</option>
               {sections.map((s) => (
@@ -265,7 +264,7 @@ export function EngagementsPage() {
               onChange={(e) => setReference(e.target.value)}
               required
               placeholder="BC-2026-014"
-              className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] font-mono w-[140px]"
+              className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] font-mono w-[140px]"
             />
           </label>
           <label className="flex flex-col gap-1">
@@ -274,7 +273,7 @@ export function EngagementsPage() {
               value={objet}
               onChange={(e) => setObjet(e.target.value)}
               required
-              className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] w-[220px]"
+              className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] w-[220px]"
             />
           </label>
           <label className="flex flex-col gap-1">
@@ -283,7 +282,7 @@ export function EngagementsPage() {
               value={beneficiaire}
               onChange={(e) => setBeneficiaire(e.target.value)}
               required
-              className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] w-[200px]"
+              className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] w-[200px]"
             />
           </label>
           <label className="flex flex-col gap-1">
@@ -300,7 +299,7 @@ export function EngagementsPage() {
               required
               min={exerciceCourant?.dateDebut?.slice(0, 10)}
               max={exerciceCourant?.dateFin?.slice(0, 10)}
-              className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] w-[140px]"
+              className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] w-[140px]"
             />
           </label>
           <label className="flex flex-col gap-1">
@@ -311,10 +310,10 @@ export function EngagementsPage() {
               value={mnt}
               onChange={(e) => setMnt(e.target.value)}
               required
-              className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] font-mono text-right w-[140px]"
+              className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] font-mono text-right w-[140px]"
             />
           </label>
-          <button type="submit" className="border border-border-dark bg-surface-alt px-3 py-1 text-[12.5px] font-bold">
+          <button type="submit" className="border border-border-dark bg-surface-alt px-3 py-1 text-[11.5px] font-bold">
             Enregistrer
           </button>
         </form>
@@ -337,11 +336,11 @@ export function EngagementsPage() {
 
           {engagements?.map((e) => (
             <div key={e.id} className="border-b border-border last:border-b-0">
-              <div className="grid grid-cols-[110px_130px_1fr_170px_120px_120px_120px_150px] gap-2 px-3 py-1 text-[12.5px] items-center">
-                <span className="text-[12px]">
+              <div className="grid grid-cols-[110px_130px_1fr_170px_120px_120px_120px_150px] gap-2 px-3 py-1 text-[11.5px] items-center">
+                <span className="text-[11.5px]">
                   {NATURES.find((n) => n.valeur === e.nature)?.libelle ?? e.nature}
                 </span>
-                <span className="font-mono text-[12px]">{e.reference}</span>
+                <span className="font-mono text-[11.5px]">{e.reference}</span>
                 <span className="truncate">
                   {e.objet}
                   <span className="text-text-dim"> · {e.section.code} {e.section.intitule}</span>
@@ -420,7 +419,7 @@ export function EngagementsPage() {
                       value={rEcritureId}
                       onChange={(ev) => setREcritureId(ev.target.value)}
                       required
-                      className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] w-[380px]"
+                      className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] w-[380px]"
                     >
                       <option value="">Choisir une écriture validée…</option>
                       {ecritures.map((ec) => (
@@ -443,10 +442,10 @@ export function EngagementsPage() {
                       value={rMontant}
                       onChange={(ev) => setRMontant(ev.target.value)}
                       required
-                      className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] font-mono text-right w-[140px]"
+                      className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] font-mono text-right w-[140px]"
                     />
                   </label>
-                  <button type="submit" className="border border-border-dark bg-surface px-3 py-1 text-[12.5px] font-bold">
+                  <button type="submit" className="border border-border-dark bg-surface px-3 py-1 text-[11.5px] font-bold">
                     Rattacher
                   </button>
                 </form>
@@ -455,14 +454,13 @@ export function EngagementsPage() {
           ))}
 
           {engagements?.length === 0 && (
-            <div className="px-3 py-2 text-[12px] text-text-dim">
-              Aucun engagement saisi sur cet exercice. Tant que ce registre est vide, la colonne Engagement du tableau
-              d'exécution budgétaire ne porte que les dettes fournisseurs déjà comptabilisées.
+            <div className="px-3 py-2 text-[11.5px] text-text-dim">
+              Aucun engagement saisi sur cet exercice.
             </div>
           )}
 
           {engagements && engagements.length > 0 && (
-            <div className="grid grid-cols-[110px_130px_1fr_170px_120px_120px_120px_150px] gap-2 bg-surface-alt px-3 py-1.5 text-[12.5px] font-bold border-t border-border">
+            <div className="grid grid-cols-[110px_130px_1fr_170px_120px_120px_120px_150px] gap-2 bg-surface-alt px-3 py-1.5 text-[11.5px] font-bold border-t border-border">
               <span>Total</span>
               <span />
               <span />
@@ -476,10 +474,9 @@ export function EngagementsPage() {
         </div>
       </div>
 
+      {/* Mention gelée par engagements-a-lecran.spec.ts · la limite du registre reste à l'écran. */}
       <p className="text-[11px] text-text-dim max-w-[900px]">
-        Ce registre alimente la colonne Engagement (3) du tableau d'exécution budgétaire, pour le RESTE À EXÉCUTER de
-        chaque ligne. Un engagement qui n'y est pas saisi ne pèse pas sur le tableau, et un engagement dont la facture
-        est arrivée cesse d'y peser dès que l'écriture lui est rattachée.
+        Un engagement qui n'y est pas saisi ne pèse pas sur le tableau d'exécution budgétaire.
       </p>
     </div>
   );

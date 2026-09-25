@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
+import { Aide } from '../components/chrome/Aide';
 import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
 import type { Journal } from '../lib/types';
@@ -310,40 +311,42 @@ export function MagasinPage() {
 
   const c = confrontation?.confrontation;
   const champ =
-    'border border-border bg-surface px-1.5 py-1 text-[12px] w-full focus:outline-none focus:border-accent';
+    'border border-border bg-surface px-1.5 py-1 text-[11.5px] w-full focus:outline-none focus:border-accent';
   const cell = 'px-2 py-1 border border-border';
 
   return (
     <div className="p-2">
       <EnteteImpression titre="Magasin · fiches de stock" />
-      <div className="ecran-seul mb-1.5 max-w-[1240px]">
-        <div className="text-[11px] font-mono text-text-dim leading-none">
-          {liste?.modeInventaire === 'PERMANENT'
-            ? 'INVENTAIRE PERMANENT'
-            : liste?.modeInventaire === 'INTERMITTENT'
-              ? 'INVENTAIRE INTERMITTENT'
-              : 'MODE DE TENUE NON DÉCLARÉ'}
-        </div>
-        <h1 className="text-[13px] font-bold leading-tight">Magasin</h1>
-        <div className="text-[11px] text-text-dim mt-0.5">
-          {liste?.modeInventaire === 'PERMANENT'
-            ? "Les fiches sont l'inventaire COMPTABLE du dossier : leur stock doit égaler le solde du compte, et l'écart avec le comptage physique est un boni ou un mali d'inventaire."
-            : "Les fiches sont EXTRA-COMPTABLES : aucune écriture ne les suit, et ce qu'elles produisent à la clôture est le stock final de l'écriture de variation."}
-        </div>
+      <div className="ecran-seul mb-1.5 max-w-[1240px] flex items-center gap-1.5 text-[11px] font-semibold text-text-dim">
+        {/* Le mode de tenue est une donnée du dossier, pas un titre · il reste à l'écran. */}
+        {liste?.modeInventaire === 'PERMANENT'
+          ? 'Inventaire permanent'
+          : liste?.modeInventaire === 'INTERMITTENT'
+            ? 'Inventaire intermittent'
+            : 'Mode de tenue non déclaré'}
+        <Aide
+          titre="Mode de tenue des stocks"
+          texte={
+            liste?.modeInventaire === 'PERMANENT'
+              ? "Les fiches sont l'inventaire COMPTABLE du dossier : leur stock doit égaler le solde du compte, et l'écart avec le comptage physique est un boni ou un mali d'inventaire."
+              : "Les fiches sont EXTRA-COMPTABLES : aucune écriture ne les suit, et ce qu'elles produisent à la clôture est le stock final de l'écriture de variation."
+          }
+          source="Magasin"
+        />
       </div>
 
       {erreur && (
-        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[12px] max-w-[1240px]">
+        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[11.5px] max-w-[1240px]">
           {erreur}
         </div>
       )}
       {succes && (
-        <div className="border border-ok/30 bg-ok-soft px-3.5 py-2 mb-2.5 text-[12px] max-w-[1240px]">
+        <div className="border border-ok/30 bg-ok-soft px-3.5 py-2 mb-2.5 text-[11.5px] max-w-[1240px]">
           {succes}
         </div>
       )}
       {liste?.reserve && (
-        <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mb-2.5 text-[12px] max-w-[1240px]">
+        <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mb-2.5 text-[11.5px] max-w-[1240px]">
           {liste.reserve}
         </div>
       )}
@@ -359,7 +362,7 @@ export function MagasinPage() {
             key={id}
             type="button"
             onClick={() => setOnglet(id)}
-            className={`px-3 py-1 text-[12px] border ${
+            className={`px-3 py-1 text-[11.5px] border ${
               onglet === id
                 ? 'border-accent bg-accent/10 font-semibold'
                 : 'border-border bg-surface-2 text-text-dim'
@@ -374,7 +377,7 @@ export function MagasinPage() {
         <div className="max-w-[1240px]">
           {peutEcrire && (
             <div className="ecran-seul border border-border bg-surface-2 px-3 py-2.5 mb-2.5">
-              <div className="text-[12px] font-semibold mb-1.5">Nouvel article</div>
+              <div className="text-[11.5px] font-semibold mb-1.5">Nouvel article</div>
               <div className="grid grid-cols-5 gap-2">
                 <select
                   className={champ}
@@ -435,19 +438,20 @@ export function MagasinPage() {
                     !nouveau.methodeValorisation
                   }
                   onClick={creerArticle}
-                  className="px-3 py-1 text-[12px] border border-accent bg-accent/10 disabled:opacity-40"
+                  className="px-3 py-1 text-[11.5px] border border-accent bg-accent/10 disabled:opacity-40"
                 >
                   Créer l'article
                 </button>
-                <span className="text-[10.5px] text-text-dim">
-                  Trois méthodes seulement sont admises (AUDCIF Titre VI). Le coût moyen pondéré ANNUEL
-                  et le D.E.P.S. n'en font pas partie.
-                </span>
+                <Aide
+                  titre="Méthodes de valorisation"
+                  texte="Trois méthodes seulement sont admises. Le coût moyen pondéré ANNUEL et le D.E.P.S. n'en font pas partie."
+                  source="AUDCIF Titre VI"
+                />
               </div>
             </div>
           )}
 
-          <table className="w-full border-collapse text-[12px] mb-2.5">
+          <table className="w-full border-collapse text-[11.5px] mb-2.5">
             <thead>
               <tr className="bg-surface-2 text-text-dim">
                 <th className={`${cell} text-left font-semibold`}>Code</th>
@@ -476,7 +480,7 @@ export function MagasinPage() {
               {liste?.articles.length === 0 && (
                 <tr>
                   <td className={`${cell} text-text-dim`} colSpan={6}>
-                    Aucun article. Une fiche de stock est tenue PAR ARTICLE.
+                    Aucun article.
                   </td>
                 </tr>
               )}
@@ -485,7 +489,7 @@ export function MagasinPage() {
 
           {fiche && (
             <>
-              <div className="text-[12.5px] font-bold mb-1">
+              <div className="text-[11.5px] font-bold mb-1">
                 Fiche de stock · {fiche.article.code} {fiche.article.designation} (
                 {fiche.article.uniteMesure})
               </div>
@@ -503,7 +507,7 @@ export function MagasinPage() {
                 </div>
               ))}
 
-              <table className="w-full border-collapse text-[12px] mb-2.5">
+              <table className="w-full border-collapse text-[11.5px] mb-2.5">
                 <thead>
                   <tr className="bg-surface-2 text-text-dim">
                     <th className={`${cell} text-left font-semibold`} rowSpan={2}>
@@ -606,7 +610,7 @@ export function MagasinPage() {
 
               {peutEcrire && (
                 <div className="ecran-seul border border-border bg-surface-2 px-3 py-2.5 mb-2.5">
-                  <div className="text-[12px] font-semibold mb-1.5">Nouveau mouvement</div>
+                  <div className="text-[11.5px] font-semibold mb-1.5">Nouveau mouvement</div>
                   <div className="grid grid-cols-6 gap-2">
                     <input
                       type="date"
@@ -659,15 +663,15 @@ export function MagasinPage() {
                         (mvt.sens === 'ENTREE' && !mvt.cout)
                       }
                       onClick={ajouterMouvement}
-                      className="px-3 py-1 text-[12px] border border-accent bg-accent/10 disabled:opacity-40"
+                      className="px-3 py-1 text-[11.5px] border border-accent bg-accent/10 disabled:opacity-40"
                     >
                       Enregistrer le mouvement
                     </button>
-                    <span className="text-[10.5px] text-text-dim">
-                      Une SORTIE ne porte jamais son prix · il se calcule. « L'axiomatique comptable
-                      impose une égalité systématique, dans tout compte, des sorties et des entrées en
-                      valeurs » (AUDCIF Titre VI).
-                    </span>
+                    <Aide
+                      titre="Prix d'une sortie"
+                      texte="Une SORTIE ne porte jamais son prix · il se calcule. « L'axiomatique comptable impose une égalité systématique, dans tout compte, des sorties et des entrées en valeurs »."
+                      source="AUDCIF Titre VI"
+                    />
                   </div>
                 </div>
               )}
@@ -678,18 +682,23 @@ export function MagasinPage() {
 
       {onglet === 'inventaire' && (
         <div className="max-w-[1240px]">
-          <div className="text-[11px] text-text-dim mb-2">
-            Saisissez la quantité RÉELLEMENT COMPTÉE. Un article laissé vide n'est pas compté à zéro ·
-            il est simplement hors du rapprochement, et zéro est une information, pas une absence.
-          </div>
 
-          <table className="w-full border-collapse text-[12px] mb-2.5">
+          <table className="w-full border-collapse text-[11.5px] mb-2.5">
             <thead>
               <tr className="bg-surface-2 text-text-dim">
                 <th className={`${cell} text-left font-semibold`}>Code</th>
                 <th className={`${cell} text-left font-semibold`}>Désignation</th>
                 <th className={`${cell} text-left font-semibold`}>Méthode</th>
-                <th className={`${cell} text-right font-semibold`}>Quantité comptée</th>
+                <th className={`${cell} text-right font-semibold`}>
+                  <span className="inline-flex items-center gap-1">
+                    Quantité comptée
+                    <Aide
+                      titre="Quantité comptée"
+                      texte="Saisissez la quantité RÉELLEMENT COMPTÉE. Un article laissé vide n'est pas compté à zéro · il est simplement hors du rapprochement, et zéro est une information, pas une absence."
+                      source="Magasin"
+                    />
+                  </span>
+                </th>
                 <th className={`${cell} text-right font-semibold`}>Coût unitaire d'un boni</th>
                 <th className={`${cell} text-left font-semibold`}>Source du coût</th>
               </tr>
@@ -748,13 +757,13 @@ export function MagasinPage() {
             type="button"
             disabled={enCours || corpsComptages.length === 0}
             onClick={confronter}
-            className="px-3 py-1 text-[12px] border border-accent bg-accent/10 disabled:opacity-40 mb-2.5"
+            className="px-3 py-1 text-[11.5px] border border-accent bg-accent/10 disabled:opacity-40 mb-2.5"
           >
             Confronter au magasin
           </button>
 
           {confrontation?.reserve && (
-            <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mb-2.5 text-[12px]">
+            <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mb-2.5 text-[11.5px]">
               {confrontation.reserve}
             </div>
           )}
@@ -771,7 +780,7 @@ export function MagasinPage() {
 
           {c && c.differences.length > 0 && (
             <>
-              <table className="w-full border-collapse text-[12px] mb-2.5">
+              <table className="w-full border-collapse text-[11.5px] mb-2.5">
                 <thead>
                   <tr className="bg-surface-2 text-text-dim">
                     <th className={`${cell} text-left font-semibold`}>Article</th>
@@ -781,7 +790,16 @@ export function MagasinPage() {
                     <th className={`${cell} text-right font-semibold`}>Écart</th>
                     <th className={`${cell} text-right font-semibold`}>Coût unitaire</th>
                     <th className={`${cell} text-right font-semibold`}>Montant</th>
-                    <th className={`${cell} text-left font-semibold`}>Contrepartie</th>
+                    <th className={`${cell} text-left font-semibold`}>
+                      <span className="inline-flex items-center gap-1">
+                        Contrepartie
+                        <Aide
+                          titre="Contrepartie d'un boni ou d'un mali"
+                          texte="La contrepartie est le compte de VARIATION du stock, et les deux textes la désignent. Un boni débite le stock, un mali le crédite."
+                          source="AUDCIF Titre VII (compte 603) · SYCEBNL Partie 2 ch. 3 (comptes 31 à 36)"
+                        />
+                      </span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -813,11 +831,6 @@ export function MagasinPage() {
                 </tbody>
               </table>
 
-              <div className="text-[10.5px] text-text-dim mb-2">
-                La contrepartie est le compte de VARIATION du stock, et les deux textes la désignent ·
-                AUDCIF Titre VII (compte 603) et SYCEBNL Partie 2 ch. 3 (comptes 31 à 36). Un boni
-                débite le stock, un mali le crédite.
-              </div>
 
               {peutEcrire && (
                 <div className="ecran-seul border border-border bg-surface-2 px-3 py-2.5">
@@ -850,7 +863,7 @@ export function MagasinPage() {
                       type="button"
                       disabled={enCours || !regul.journalId || !regul.date}
                       onClick={enregistrerRegularisation}
-                      className="px-3 py-1 text-[12px] border border-accent bg-accent/10 disabled:opacity-40"
+                      className="px-3 py-1 text-[11.5px] border border-accent bg-accent/10 disabled:opacity-40"
                     >
                       Passer la régularisation
                     </button>
@@ -861,7 +874,7 @@ export function MagasinPage() {
           )}
 
           {c && c.differences.length === 0 && c.refus.length === 0 && (
-            <div className="border border-ok/30 bg-ok-soft px-3.5 py-2 text-[12px]">
+            <div className="border border-ok/30 bg-ok-soft px-3.5 py-2 text-[11.5px]">
               Aucune différence d'inventaire : le magasin et le comptage concordent sur les{' '}
               {c.sansDifference.length} article(s) comptés.
             </div>

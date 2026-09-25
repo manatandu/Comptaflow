@@ -143,7 +143,7 @@ export function BalanceAgeePage() {
     <div
       key={l.cle}
       style={grille}
-      className="px-3.5 py-[4px] items-center border-b border-border/50 text-[12px]"
+      className="px-3.5 py-[4px] items-center border-b border-border/50 text-[11.5px]"
     >
       <span className="truncate" title={l.libelle}>
         {l.libelle}
@@ -160,21 +160,23 @@ export function BalanceAgeePage() {
   return (
     <div className="p-2">
       <EnteteImpression titre="Balance âgée" />
-      <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
-        <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">État</div>
-          <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
-            Balance âgée
-            <Aide sujet="balanceAgee" />
-          </h1>
-        </div>
-        <div className="flex items-end gap-3">
+      <div className="flex items-end justify-end mb-1.5 gap-3 flex-wrap">
+        <div className="flex items-end gap-3 flex-wrap">
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] font-bold text-text-dim">Type de tiers</span>
+            {/* CE QUE L'ANTÉRIORITÉ VEUT DIRE ICI · la phrase vient du serveur, une
+                par périmètre. Sur un compte de personnel, d'organismes sociaux ou
+                d'État, un solde à la clôture est la situation normale, et le
+                tableau se lirait comme un retard de règlement sans elle. */}
+            <span className="text-[11px] font-bold text-text-dim flex items-center gap-1.5">
+              Type de tiers
+              {donnees?.lecture && (
+                <Aide titre={donnees.libellePerimetre} texte={donnees.lecture} source="Balance âgée · lecture du périmètre" />
+              )}
+            </span>
             <select
               value={type}
               onChange={(e) => setType(e.target.value as TypeTiers)}
-              className="border border-border-dark bg-surface px-2 py-1 text-[12px] min-w-[190px]"
+              className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] min-w-[190px]"
             >
               {(Object.keys(libelleType) as TypeTiers[]).map((t) => (
                 <option key={t} value={t}>
@@ -189,34 +191,29 @@ export function BalanceAgeePage() {
               type="date"
               value={dateReference}
               onChange={(e) => setDateReference(e.target.value)}
-              className="border border-border-dark bg-surface px-2 py-1 text-[12px] font-mono"
+              className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] font-mono"
             />
           </label>
           <button
             type="button"
             onClick={exporter}
-            className="border border-border-dark bg-surface-alt px-3 py-1 text-[12px] font-semibold"
+            className="border border-border-dark bg-surface-alt px-3 py-1 text-[11.5px] font-semibold"
           >
             Exporter en Excel
           </button>
+          <span className="flex items-center gap-1.5 pb-1">
+            <Aide sujet="balanceAgee" />
+            <Aide
+              titre="Lecture de la balance âgée"
+              texte="Une ligne par tiers, pas par compte : un tiers qui porte plusieurs comptes rattachés (un compte d'exploitation et un compte douteux, par exemple) présente ici son exposition entière. Une échéance non renseignée en saisie est rattachée à la date de l'écriture. Les lignes lettrées, soldées par définition, n'apparaissent pas. Le solde net doit recouper celui de la balance auxiliaire des mêmes comptes."
+              source="Balance âgée"
+            />
+          </span>
         </div>
       </div>
 
       {erreur && (
-        <div className="text-[12.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-2.5">{erreur}</div>
-      )}
-
-      {/* CE QUE L'ANTÉRIORITÉ VEUT DIRE ICI · la phrase vient du serveur, une
-          par périmètre. Sur un compte de personnel, d'organismes sociaux ou
-          d'État, il n'y a AUCUN crédit commercial : un solde à la clôture y
-          est la situation normale (la paie de décembre versée en janvier),
-          et le même tableau se lirait comme un retard de règlement sans
-          cette ligne. */}
-      {donnees?.lecture && (
-        <div className="text-[12px] text-text-dim bg-surface-alt border border-border px-3 py-2 mb-2.5 leading-[1.55]">
-          <span className="font-semibold text-text">{donnees.libellePerimetre} · </span>
-          {donnees.lecture}
-        </div>
+        <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-2.5">{erreur}</div>
       )}
 
       <div className="border border-border bg-surface shadow-posee overflow-x-auto">
@@ -250,9 +247,8 @@ export function BalanceAgeePage() {
         )}
 
         {donnees && donnees.debiteurs.length === 0 && donnees.crediteurs.length === 0 && (
-          <div className="px-3.5 py-4 text-[12px] text-text-dim">
-            Aucune échéance non lettrée sur les comptes de tiers de cet exercice · soit rien n'est dû, soit
-            tout est lettré. Les créances et dettes lettrées sont soldées, donc hors balance âgée.
+          <div className="px-3.5 py-4 text-[11.5px] text-text-dim">
+            Aucune échéance non lettrée sur les comptes de tiers de cet exercice.
           </div>
         )}
 
@@ -269,7 +265,7 @@ export function BalanceAgeePage() {
           <>
             <div
               style={grille}
-              className="px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[12px] font-bold"
+              className="px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[11.5px] font-bold"
             >
               <span>Total débiteurs</span>
               {donnees.tranches.map((t, i) => (
@@ -279,7 +275,7 @@ export function BalanceAgeePage() {
               ))}
               <span className="font-mono text-right">{montant(donnees.totaux.debiteurs)}</span>
             </div>
-            <div style={grille} className="px-3.5 py-1 text-[12px] font-bold">
+            <div style={grille} className="px-3.5 py-1 text-[11.5px] font-bold">
               <span>Total soldes en sens inverse</span>
               {donnees.tranches.map((t) => (
                 <span key={t.cle} />
@@ -288,7 +284,7 @@ export function BalanceAgeePage() {
             </div>
             <div
               style={grille}
-              className="px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[12px] font-bold"
+              className="px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[11.5px] font-bold"
             >
               <span>Solde net</span>
               {donnees.tranches.map((t) => (
@@ -300,13 +296,6 @@ export function BalanceAgeePage() {
         )}
       </div>
 
-      <p className="text-[11px] text-text-dim mt-2 max-w-[900px]">
-        Une ligne par tiers, pas par compte : un tiers qui porte plusieurs comptes rattachés (un compte
-        d'exploitation et un compte douteux, par exemple) présente ici son exposition entière. Une échéance
-        non renseignée en saisie est rattachée à la date de l'écriture. Les lignes lettrées, soldées par
-        définition, n'apparaissent pas. Le solde net doit recouper celui de la balance auxiliaire des mêmes
-        comptes.
-      </p>
     </div>
   );
 }

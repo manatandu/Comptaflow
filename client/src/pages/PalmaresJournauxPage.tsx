@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
+import { Aide } from '../components/chrome/Aide';
 import { useExercice } from '../lib/exercice';
 
 /**
@@ -104,18 +105,20 @@ export function PalmaresJournauxPage() {
   }, [exerciceCourant, onglet, classe, limite]);
 
   const ongletClasse = (o: typeof onglet) =>
-    `px-3 py-1 text-[12px] font-semibold border-t border-x ${
+    `px-3 py-1 text-[11.5px] font-semibold border-t border-x ${
       onglet === o ? 'bg-surface border-border' : 'bg-surface-alt border-transparent text-text-dim'
     }`;
 
   return (
     <div className="p-2">
       <EnteteImpression titre={onglet === 'palmares' ? 'Palmarès des comptes' : 'Analyse des journaux'} />
-      <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
-        <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">Révision</div>
-          <h1 className="text-[13px] font-bold leading-tight">Palmarès et analyse des journaux</h1>
-        </div>
+      <div className="flex items-end justify-end mb-1.5 gap-3 flex-wrap">
+        <Aide
+          className="mb-1.5"
+          titre="Palmarès et analyse des journaux"
+          texte="Deux outils de RELECTURE d'OmegaX : aucun texte comptable ne les régit et ils ne se déposent nulle part. Le palmarès classe sur le MOUVEMENT de l'exercice, report à-nouveau exclu · un compte de trésorerie soldé à zéro peut y être premier. L'analyse des journaux ne rend aucun contrôle d'équilibre : chaque écriture étant équilibrée et rattachée à un seul journal, débit égale crédit y est vrai par construction."
+          source="Palmarès et analyse des journaux"
+        />
         {onglet === 'palmares' && (
           <div className="flex items-end gap-3">
             <label className="flex flex-col gap-1">
@@ -124,7 +127,7 @@ export function PalmaresJournauxPage() {
                 value={classe}
                 onChange={(e) => setClasse(e.target.value.replace(/\D/g, ''))}
                 placeholder="toutes"
-                className="border border-border-dark bg-surface px-2 py-1 text-[12px] font-mono w-[90px]"
+                className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] font-mono w-[90px]"
               />
             </label>
             <label className="flex flex-col gap-1">
@@ -132,7 +135,7 @@ export function PalmaresJournauxPage() {
               <select
                 value={limite}
                 onChange={(e) => setLimite(Number(e.target.value))}
-                className="border border-border-dark bg-surface px-2 py-1 text-[12px]"
+                className="border border-border-dark bg-surface px-2 py-1 text-[11.5px]"
               >
                 {[10, 25, 50, 100, 200].map((n) => (
                   <option key={n} value={n}>
@@ -155,7 +158,7 @@ export function PalmaresJournauxPage() {
       </div>
 
       {erreur && (
-        <div className="text-[12.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-2.5">{erreur}</div>
+        <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-2.5">{erreur}</div>
       )}
 
       {onglet === 'palmares' && palmares && (
@@ -173,7 +176,7 @@ export function PalmaresJournauxPage() {
           {palmares.lignes.map((l, i) => (
             <div
               key={l.compteId}
-              className="grid grid-cols-[100px_minmax(180px,1fr)_70px_120px_120px_120px_80px_80px] min-w-[900px] gap-2 px-3.5 py-1 text-[12.5px] border-b border-border/40"
+              className="grid grid-cols-[100px_minmax(180px,1fr)_70px_120px_120px_120px_80px_80px] min-w-[900px] gap-2 px-3.5 py-1 text-[11.5px] border-b border-border/40"
             >
               <span className="font-mono">{l.numero}</span>
               <span className="truncate">{l.intitule}</span>
@@ -228,7 +231,7 @@ export function PalmaresJournauxPage() {
           {analyse.lignes.map((l) => (
             <div
               key={l.journalId}
-              className="grid grid-cols-[70px_minmax(160px,1fr)_90px_90px_90px_90px_130px_1fr] min-w-[1000px] gap-2 px-3.5 py-1 text-[12.5px] border-b border-border/40"
+              className="grid grid-cols-[70px_minmax(160px,1fr)_90px_90px_90px_90px_130px_1fr] min-w-[1000px] gap-2 px-3.5 py-1 text-[11.5px] border-b border-border/40"
             >
               <span className="font-mono">{l.code}</span>
               <span className="truncate">{l.intitule}</span>
@@ -239,7 +242,7 @@ export function PalmaresJournauxPage() {
               </span>
               <span className="text-right font-mono text-text-dim">{l.deCloture}</span>
               <span className="text-right font-mono">{montant(l.debit)}</span>
-              <span className="text-[12px]" title={l.sequence.explication}>
+              <span className="text-[11.5px]" title={l.sequence.explication}>
                 {l.sequence.manquants === null ? (
                   <span className="text-text-dim">non applicable</span>
                 ) : l.sequence.manquants === 0 ? (
@@ -262,7 +265,7 @@ export function PalmaresJournauxPage() {
           */}
           {analyse.sequenceDuDossier.applicable && (
             <div
-              className={`px-3.5 py-2 text-[12px] border-t border-border ${
+              className={`px-3.5 py-2 text-[11.5px] border-t border-border ${
                 analyse.sequenceDuDossier.manquants > 0 ? 'bg-danger-soft' : ''
               }`}
             >
@@ -275,13 +278,6 @@ export function PalmaresJournauxPage() {
           )}
         </div>
       )}
-
-      <p className="mt-2 text-[11px] text-text-dim">
-        Ces deux états sont des outils de RELECTURE d'OmegaX. Aucun texte comptable ne les régit et ils ne se déposent
-        nulle part. Le palmarès classe sur le MOUVEMENT de l'exercice, report à-nouveau exclu · un compte de trésorerie
-        soldé à zéro peut y être premier. L'analyse des journaux ne rend aucun contrôle d'équilibre : chaque écriture
-        étant équilibrée et rattachée à un seul journal, débit égale crédit y est vrai par construction.
-      </p>
     </div>
   );
 }

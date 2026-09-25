@@ -221,7 +221,7 @@ export function RegistreDonateursPage() {
         type={options?.type ?? 'text'}
         value={form[cle]}
         onChange={(e) => setForm((f) => ({ ...f, [cle]: e.target.value }))}
-        className="border border-border-dark px-2 py-1 text-[12px]"
+        className="border border-border-dark px-2 py-1 text-[11.5px]"
       />
     </label>
   );
@@ -229,24 +229,23 @@ export function RegistreDonateursPage() {
   return (
     <div className="p-2">
       <EnteteImpression titre="Registre des donateurs" />
-      <div className="flex items-center justify-between mb-1.5">
-        <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">Traitement</div>
-          <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
-            Registre des donateurs
-            <Aide sujet="registreDonateurs" />
-          </h1>
-        </div>
+      <div className="flex items-center justify-end mb-1.5">
         <div className="flex items-center gap-2.5">
+          <Aide sujet="registreDonateurs" />
+          <Aide
+            titre="Tenue du registre"
+            texte="« Il est établi pour chaque entité à but non lucratif un registre des donateurs pour tous les dons, donations et legs reçus par l’entité. » Sa tenue et sa mise à jour sont pénalement sanctionnées (art. 24). Une ligne erronée s’annule avec motif et conserve son numéro · la numérotation doit rester continue."
+            source="SYCEBNL, art. 17 et 24"
+          />
           {exerciceCourant && (
-            <span className="font-mono text-[12px] border border-border bg-surface px-2.5 py-1.5">
+            <span className="font-mono text-[11.5px] border border-border bg-surface px-2.5 py-1.5">
               Exercice {new Date(exerciceCourant.dateDebut).getFullYear()}
             </span>
           )}
           <button
             onClick={exporter}
             disabled={exportEnCours}
-            className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[12px] font-bold hover:bg-surface-alt disabled:opacity-50 disabled:cursor-wait"
+            className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[11.5px] font-bold hover:bg-surface-alt disabled:opacity-50 disabled:cursor-wait"
           >
             <IconExport width={13} height={13} />
             {exportEnCours ? 'Export en cours…' : 'Exporter Excel'}
@@ -254,16 +253,10 @@ export function RegistreDonateursPage() {
         </div>
       </div>
 
-      <p className="text-[11px] text-text-dim mb-2">
-        Article 17 : « Il est établi pour chaque entité à but non lucratif un registre des donateurs pour tous les dons,
-        donations et legs reçus par l’entité. » Sa tenue et sa mise à jour sont <strong>pénalement sanctionnées</strong>{' '}
-        (art. 24). Une ligne erronée s’annule avec motif et conserve son numéro · la numérotation doit rester continue.
-      </p>
-
       {erreur && (
         <div className="flex items-start justify-between gap-3 border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5">
-          <span className="text-[12px]">{erreur}</span>
-          <button onClick={() => setErreur(null)} className="text-[12px] font-bold shrink-0 hover:underline">
+          <span className="text-[11.5px]">{erreur}</span>
+          <button onClick={() => setErreur(null)} className="text-[11.5px] font-bold shrink-0 hover:underline">
             Fermer
           </button>
         </div>
@@ -279,7 +272,7 @@ export function RegistreDonateursPage() {
           <button
             key={cle}
             onClick={() => setOnglet(cle)}
-            className={`px-3.5 py-1.5 text-[12px] font-bold border border-b-0 ${
+            className={`px-3.5 py-1.5 text-[11.5px] font-bold border border-b-0 ${
               onglet === cle ? 'bg-surface border-border' : 'bg-chrome border-transparent text-text-dim hover:bg-surface-alt'
             }`}
           >
@@ -296,14 +289,19 @@ export function RegistreDonateursPage() {
               {!formOuvert ? (
                 <button
                   onClick={() => setFormOuvert(true)}
-                  className="bg-sel text-white text-[12px] font-semibold px-3 py-1.5"
+                  className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5"
                 >
                   Inscrire une libéralité
                 </button>
               ) : (
                 <div className="border border-border bg-surface p-3">
-                  <div className="text-[11px] font-bold text-text-dim mb-2">
-                    NOUVELLE INSCRIPTION · le numéro d’ordre est attribué automatiquement (art. 17)
+                  <div className="text-[11px] font-bold text-text-dim mb-2 flex items-center gap-1.5">
+                    NOUVELLE INSCRIPTION
+                    <Aide
+                      titre="Nouvelle inscription"
+                      texte="Le numéro d’ordre est attribué automatiquement. Les mentions de l’article 17 laissées vides ne bloquent pas l’inscription : elles sont signalées dans l’onglet Conformité."
+                      source="SYCEBNL, art. 17"
+                    />
                   </div>
                   <div className="grid grid-cols-4 gap-2.5 mb-2.5">
                     {champ('Date de l’opération', 'dateOperation', { type: 'date', requis: true })}
@@ -312,7 +310,7 @@ export function RegistreDonateursPage() {
                       <select
                         value={form.nature}
                         onChange={(e) => setForm((f) => ({ ...f, nature: e.target.value as NatureLiberalite }))}
-                        className="border border-border-dark px-2 py-1 text-[12px]"
+                        className="border border-border-dark px-2 py-1 text-[11.5px]"
                       >
                         {NATURES.map((n) => (
                           <option key={n.valeur} value={n.valeur}>
@@ -326,7 +324,7 @@ export function RegistreDonateursPage() {
                       <select
                         value={form.typeDonateur}
                         onChange={(e) => setForm((f) => ({ ...f, typeDonateur: e.target.value as TypeDonateur }))}
-                        className="border border-border-dark px-2 py-1 text-[12px]"
+                        className="border border-border-dark px-2 py-1 text-[11.5px]"
                       >
                         <option value="PERSONNE_PHYSIQUE">Personne physique</option>
                         <option value="PERSONNE_MORALE">Personne morale</option>
@@ -361,7 +359,7 @@ export function RegistreDonateursPage() {
                       <select
                         value={form.modeLiberation}
                         onChange={(e) => setForm((f) => ({ ...f, modeLiberation: e.target.value as ModeLiberation }))}
-                        className="border border-border-dark px-2 py-1 text-[12px]"
+                        className="border border-border-dark px-2 py-1 text-[11.5px]"
                       >
                         {MODES.map((m) => (
                           <option key={m.valeur} value={m.valeur}>
@@ -378,7 +376,7 @@ export function RegistreDonateursPage() {
                     <button
                       onClick={inscrire}
                       disabled={enCours || !form.dateOperation || !form.montant}
-                      className="bg-sel text-white text-[12px] font-semibold px-3 py-1.5 disabled:opacity-50"
+                      className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5 disabled:opacity-50"
                     >
                       {enCours ? 'Inscription…' : 'Inscrire'}
                     </button>
@@ -387,14 +385,10 @@ export function RegistreDonateursPage() {
                         setFormOuvert(false);
                         setForm(FORMULAIRE_VIDE);
                       }}
-                      className="border border-border bg-surface text-[12px] px-3 py-1.5"
+                      className="border border-border bg-surface text-[11.5px] px-3 py-1.5"
                     >
                       Annuler
                     </button>
-                    <span className="text-[11px] text-text-dim italic">
-                      Les mentions de l’article 17 laissées vides ne bloquent pas l’inscription : elles sont signalées
-                      dans l’onglet Conformité.
-                    </span>
                   </div>
                 </div>
               )}
@@ -414,7 +408,7 @@ export function RegistreDonateursPage() {
             </div>
 
             {lignes?.length === 0 && (
-              <div className="px-3 py-4 text-[12.5px] text-text-dim">Aucune libéralité inscrite sur cet exercice.</div>
+              <div className="px-3 py-4 text-[11.5px] text-text-dim">Aucune libéralité inscrite sur cet exercice.</div>
             )}
 
             {lignes?.map((d) => {
@@ -422,7 +416,7 @@ export function RegistreDonateursPage() {
               return (
                 <div
                   key={d.id}
-                  className={`grid grid-cols-[48px_86px_78px_1.4fr_110px_100px_1fr_150px] gap-2 px-3 py-1.5 border-b border-border last:border-b-0 text-[12px] ${
+                  className={`grid grid-cols-[48px_86px_78px_1.4fr_110px_100px_1fr_150px] gap-2 px-3 py-1.5 border-b border-border last:border-b-0 text-[11.5px] ${
                     d.annulee ? 'text-text-dim line-through bg-surface-alt' : ''
                   }`}
                   title={d.annulee ? `Annulée : ${d.motifAnnulation ?? ''}` : undefined}
@@ -476,7 +470,7 @@ export function RegistreDonateursPage() {
 
       {onglet === 'conformite' && rapport && <BlocConformite rapport={rapport} montant={montant} />}
       {onglet === 'conformite' && !rapport && (
-        <div className="border border-border px-4 py-4 text-[12.5px] text-text-dim">Chargement…</div>
+        <div className="border border-border px-4 py-4 text-[11.5px] text-text-dim">Chargement…</div>
       )}
     </div>
   );
@@ -503,8 +497,8 @@ function BlocConformite({
   const constat = (titre: string, ok: boolean, resultat: string, detail: string) => (
     <div className="border border-border bg-surface mb-2 px-3.5 py-2.5">
       <div className="flex items-baseline justify-between gap-3">
-        <span className="text-[12.5px] font-bold">{titre}</span>
-        <span className={`text-[12px] font-bold ${ok ? 'text-positive' : 'text-danger'}`}>{resultat}</span>
+        <span className="text-[11.5px] font-bold">{titre}</span>
+        <span className={`text-[11.5px] font-bold ${ok ? 'text-positive' : 'text-danger'}`}>{resultat}</span>
       </div>
       <div className="text-[11px] text-text-dim mt-1 italic">{detail}</div>
     </div>
@@ -523,7 +517,7 @@ function BlocConformite({
       {comptes.map((c) => (
         <div
           key={c.numero}
-          className={`grid grid-cols-[64px_1fr_92px_110px] min-w-[470px] gap-2 px-3 py-1 border-b border-border last:border-b-0 text-[12px] ${
+          className={`grid grid-cols-[64px_1fr_92px_110px] min-w-[470px] gap-2 px-3 py-1 border-b border-border last:border-b-0 text-[11.5px] ${
             attenue ? 'text-text-dim' : ''
           }`}
           title={c.fondement}
@@ -579,12 +573,12 @@ function BlocConformite({
 
       <div className={`border px-3.5 py-2.5 mb-2 ${r.rapproche ? 'border-positive/40 bg-positive-soft' : 'border-danger/30 bg-danger-soft'}`}>
         <div className="flex items-baseline justify-between gap-3">
-          <span className="text-[12.5px] font-bold">Rapprochement avec la comptabilité</span>
-          <span className={`text-[12px] font-bold ${r.rapproche ? 'text-positive' : 'text-danger'}`}>
+          <span className="text-[11.5px] font-bold">Rapprochement avec la comptabilité</span>
+          <span className={`text-[11.5px] font-bold ${r.rapproche ? 'text-positive' : 'text-danger'}`}>
             {r.rapproche ? 'RAPPROCHÉ' : `Écart de ${montant(r.ecart)}`}
           </span>
         </div>
-        <div className="grid grid-cols-3 gap-4 mt-2 text-[12px]">
+        <div className="grid grid-cols-3 gap-4 mt-2 text-[11.5px]">
           <span>
             Total comptabilisé : <span className="font-mono font-bold">{montant(r.totalComptable)}</span>
           </span>
@@ -605,11 +599,13 @@ function BlocConformite({
         <div className="text-[11px] text-text-dim italic border-t border-border pt-2">{r.avertissement}</div>
       </div>
 
-      <div className="text-[11px] text-text-dim italic mt-2.5 border border-border bg-surface-alt px-3.5 py-2">
-        Ces constatations ne valent pas avis. Art. 18 : « S’il existe un auditeur, ce dernier soumet […] un rapport qui
-        constate l’existence du registre des donateurs et donne son avis sur sa tenue conforme. S’il n’existe pas
-        d’auditeur, une déclaration des dirigeants attestant de la tenue conforme du registre des donateurs est annexée
-        audit rapport ou soumise à l’assemblée générale ou l’instance qui en tient lieu. »
+      <div className="text-[11px] text-text-dim italic mt-2.5 flex items-center gap-1.5">
+        Ces constatations ne valent pas avis.
+        <Aide
+          titre="Avis sur la tenue du registre"
+          texte="« S’il existe un auditeur, ce dernier soumet […] un rapport qui constate l’existence du registre des donateurs et donne son avis sur sa tenue conforme. S’il n’existe pas d’auditeur, une déclaration des dirigeants attestant de la tenue conforme du registre des donateurs est annexée audit rapport ou soumise à l’assemblée générale ou l’instance qui en tient lieu. »"
+          source="SYCEBNL, art. 18"
+        />
       </div>
     </div>
   );

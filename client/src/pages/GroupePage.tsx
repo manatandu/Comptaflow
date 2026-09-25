@@ -3,6 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { controlesDeLAgregat } from '../lib/controles-agregat-groupe';
+import { Aide } from '../components/chrome/Aide';
 import type { BalanceAgregeeGroupe, JeuEtatsFinanciersSycebnl } from '../lib/types';
 
 /**
@@ -232,17 +233,13 @@ export function GroupePage() {
 
   return (
     <div className="p-2">
-      <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
-        <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">GROUPE</div>
-          <h1 className="text-[13px] font-bold leading-tight">Cellules · supervision et balance agrégée</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <label className="text-[12.5px] text-text-dim">Exercice :</label>
+      <div className="flex items-center justify-end mb-2 gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="text-[11.5px] text-text-dim">Exercice :</label>
           <select
             value={exerciceActif ?? ''}
             onChange={(e) => setExerciceId(e.target.value)}
-            className="border border-border-dark px-2 py-1 text-[12.5px] bg-surface"
+            className="border border-border-dark px-2 py-1 text-[11.5px] bg-surface"
           >
             {exercices.map((e) => (
               <option key={e.id} value={e.id}>
@@ -253,7 +250,7 @@ export function GroupePage() {
           {/* Le serveur calcule le plafond, pas le rôle · la création reste
               réservée à l'administrateur (@Roles ADMIN_CABINET). */}
           {estAdmin && meta?.peutCreerCellule && (
-            <button type="button" onClick={() => setCreationOuverte(true)} className="bg-sel text-white px-3.5 py-1 text-[12px] font-semibold">
+            <button type="button" onClick={() => setCreationOuverte(true)} className="bg-sel text-white px-3.5 py-1 text-[11.5px] font-semibold">
               Nouvelle cellule
             </button>
           )}
@@ -261,7 +258,7 @@ export function GroupePage() {
             type="button"
             disabled={!exerciceActif}
             onClick={() => exerciceActif && api.telecharger(`/groupe/balance-agregee/excel?exerciceId=${exerciceActif}`, 'balance-agregee.xlsx')}
-            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3.5 py-1 text-[12px] font-semibold"
+            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3.5 py-1 text-[11.5px] font-semibold"
           >
             Balance (Excel)
           </button>
@@ -285,23 +282,34 @@ export function GroupePage() {
                   setLiasseEnCours(false);
                 }
               }}
-              className="bg-sel text-white px-3.5 py-1 text-[12px] font-semibold disabled:opacity-50"
+              className="bg-sel text-white px-3.5 py-1 text-[11.5px] font-semibold disabled:opacity-50"
             >
               {liasseEnCours ? 'Liasse en cours…' : 'Liasse du groupe (Excel)'}
             </button>
           )}
+          <Aide
+            titre="Supervision du groupe"
+            texte={
+              'Supervision en lecture seule : le siège voit tout, ne modifie rien · une correction se demande à la cellule, qui la passe elle-même. ' +
+              (syscohada
+                ? 'Les opérations entre le siège et une succursale passent par les comptes de liaison 184 à 187 : un compte au nom de la succursale chez le siège, un compte réfléchi au nom du siège chez la succursale, égaux et de sens contraire. Neutralisés, ils sortent de l’agrégat. '
+                : "« Canevas » télécharge le fichier Excel officiel d'une cellule non autonome · « Déposer » importe le canevas rempli (tout ou rien, écritures en brouillard). ") +
+              'Pour la liasse officielle : « Liasse du groupe (Excel) », ou exporter puis importer la feuille « Balance agrégée » dans un dossier de combinaison.'
+            }
+            source={syscohada ? 'AUDCIF Titre VII, compte 18' : 'Module groupe'}
+          />
         </div>
       </div>
 
       {meta && meta.plafondCellules !== null && (
-        <p className="text-[12px] text-text-dim mb-2">
+        <p className="text-[11.5px] text-text-dim mb-2">
           {meta.cellules.length} cellule{meta.cellules.length > 1 ? 's' : ''} sur un plafond de {meta.plafondCellules}.
         </p>
       )}
 
-      {erreur && <div className="text-[12.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-1.5 mb-2 max-w-[1080px]">{erreur}</div>}
+      {erreur && <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-1.5 mb-2 max-w-[1080px]">{erreur}</div>}
       {alertes.map((a) => (
-        <div key={a} className="text-[12.5px] bg-warning-soft border border-warning/30 px-3 py-1.5 mb-2 max-w-[1080px]">
+        <div key={a} className="text-[11.5px] bg-warning-soft border border-warning/30 px-3 py-1.5 mb-2 max-w-[1080px]">
           {a}
         </div>
       ))}
@@ -310,14 +318,14 @@ export function GroupePage() {
         <button
           type="button"
           onClick={() => setOngletBalance(false)}
-          className={`px-3 py-1 text-[12px] font-semibold border ${!ongletBalance ? 'bg-sel text-white border-sel' : 'bg-chrome border-border-dark'}`}
+          className={`px-3 py-1 text-[11.5px] font-semibold border ${!ongletBalance ? 'bg-sel text-white border-sel' : 'bg-chrome border-border-dark'}`}
         >
           Supervision
         </button>
         <button
           type="button"
           onClick={chargerAgregat}
-          className={`px-3 py-1 text-[12px] font-semibold border ${ongletBalance ? 'bg-sel text-white border-sel' : 'bg-chrome border-border-dark'}`}
+          className={`px-3 py-1 text-[11.5px] font-semibold border ${ongletBalance ? 'bg-sel text-white border-sel' : 'bg-chrome border-border-dark'}`}
         >
           Balance agrégée
         </button>
@@ -337,18 +345,18 @@ export function GroupePage() {
               <span>STATUT</span>
               <span></span>
             </div>
-            {chargement && <div className="p-3 text-[12.5px] text-text-dim">Chargement…</div>}
+            {chargement && <div className="p-3 text-[11.5px] text-text-dim">Chargement…</div>}
             {!chargement && supervision?.length === 0 && (
-              <div className="p-3 text-[12.5px] text-text-dim">
-                Aucune cellule rattachée. {meta?.plafondCellules === null ? 'Le rattachement se fait depuis la console VMG Consulting.' : 'Créez la première avec le bouton « Nouvelle cellule ».'}
+              <div className="p-3 text-[11.5px] text-text-dim">
+                Aucune cellule rattachée.
               </div>
             )}
             {supervision?.map((l, i) => (
               <div
                 key={l.id}
-                className={`grid grid-cols-[1.3fr_110px_100px_70px_80px_120px_110px_90px_190px] gap-2 items-center px-3.5 py-1.5 border-b border-border last:border-b-0 text-[12px] ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}
+                className={`grid grid-cols-[1.3fr_110px_100px_70px_80px_120px_110px_90px_190px] gap-2 items-center px-3.5 py-1.5 border-b border-border last:border-b-0 text-[11.5px] ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}
               >
-                <span className="truncate font-semibold text-[12.5px]">{l.nom}</span>
+                <span className="truncate font-semibold text-[11.5px]">{l.nom}</span>
                 {/* Le jeu d'états est un concept SYCEBNL · sur un dossier SYSCOHADA
                     le champ porte une valeur par défaut qui ne veut rien dire. */}
                 <span>{syscohada ? 'SYSCOHADA' : LIBELLE_JEU[l.jeuEtatsFinanciersSycebnl]}</span>
@@ -396,7 +404,7 @@ export function GroupePage() {
 
       {ongletBalance && (
         <div className="max-w-[1120px]">
-          {!agregat && <div className="border border-border bg-surface p-3 text-[12.5px] text-text-dim">Calcul de l'agrégat…</div>}
+          {!agregat && <div className="border border-border bg-surface p-3 text-[11.5px] text-text-dim">Calcul de l'agrégat…</div>}
 
           {/* CE QUE L'AGRÉGAT A VÉRIFIÉ · une agrégation sans contrôle est un
               piège, et un contrôle qui reste dans la réponse du serveur n'en
@@ -412,7 +420,7 @@ export function GroupePage() {
               {controlesDeLAgregat(agregat).map((c) => (
                 <div
                   key={c.cle}
-                  className="grid grid-cols-[20px_1fr] gap-2 px-3.5 py-1 border-b border-border last:border-b-0 text-[12px]"
+                  className="grid grid-cols-[20px_1fr] gap-2 px-3.5 py-1 border-b border-border last:border-b-0 text-[11.5px]"
                 >
                   <span className={`font-mono font-bold ${c.ok ? 'text-positive' : 'text-warning'}`}>{c.ok ? '✓' : '!'}</span>
                   <span>
@@ -438,10 +446,16 @@ export function GroupePage() {
               // qui emportait alors titre, onglets et boutons hors de l'écran.
               className="border border-warning/40 bg-surface shadow-posee mb-2 overflow-x-auto"
             >
-              <div className="bg-warning-soft border-b border-warning/30 px-3.5 py-1.5 text-[12px]">
-                <span className="font-bold">Écarts de réciprocité</span> · la créance chez l'un ne répond pas à la dette
-                chez l'autre. Une opération est enregistrée d'un seul côté, ou pour deux montants différents · rien n'a
-                été corrigé, la confirmation de solde se fait entre les deux dossiers.
+              <div className="bg-warning-soft border-b border-warning/30 px-3.5 py-1.5 text-[11.5px]">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="font-bold">Écarts de réciprocité</span>
+                  <Aide
+                    titre="Écarts de réciprocité"
+                    texte="La créance chez l'un ne répond pas à la dette chez l'autre. Rien n'a été corrigé, la confirmation de solde se fait entre les deux dossiers."
+                    source="AUDCIF, D4C ch. XII-5"
+                  />
+                </span>{' '}
+                · opération enregistrée d'un seul côté, ou pour deux montants différents.
               </div>
               <div className="grid grid-cols-[1fr_1fr_130px_130px_130px] min-w-[750px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[11px] font-bold text-text-dim">
                 <span>Dossier</span>
@@ -453,7 +467,7 @@ export function GroupePage() {
               {agregat.ecartsReciprocite.map((e) => (
                 <div
                   key={`${e.dossier}|${e.contrepartie}`}
-                  className="grid grid-cols-[1fr_1fr_130px_130px_130px] min-w-[750px] gap-2 px-3.5 py-1 border-b border-border last:border-b-0 text-[12px]"
+                  className="grid grid-cols-[1fr_1fr_130px_130px_130px] min-w-[750px] gap-2 px-3.5 py-1 border-b border-border last:border-b-0 text-[11.5px]"
                 >
                   <span className="truncate">{e.dossier}</span>
                   <span className="truncate">{e.contrepartie}</span>
@@ -471,9 +485,16 @@ export function GroupePage() {
               doit être bruyant ici. */}
           {agregat && agregat.rattachementsRefuses.length > 0 && (
             <div className="border border-warning/40 bg-surface shadow-posee mb-2">
-              <div className="bg-warning-soft border-b border-warning/30 px-3.5 py-1.5 text-[12px]">
-                <span className="font-bold">Rattachements ignorés</span> · ces tiers désignent un dossier qui n'appartient
-                pas à ce groupe. Rien n'a été éliminé sur leur foi, et leurs opérations restent dans l'agrégat.
+              <div className="bg-warning-soft border-b border-warning/30 px-3.5 py-1.5 text-[11.5px]">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="font-bold">Rattachements ignorés</span>
+                  <Aide
+                    titre="Rattachements ignorés"
+                    texte="Ces tiers désignent un dossier qui n'appartient pas à ce groupe. Leurs opérations restent dans l'agrégat."
+                    source="Module groupe"
+                  />
+                </span>{' '}
+                · Rien n'a été éliminé sur leur foi.
               </div>
               <div className="grid grid-cols-[1fr_1.4fr_1.4fr] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[11px] font-bold text-text-dim">
                 <span>Dossier</span>
@@ -483,7 +504,7 @@ export function GroupePage() {
               {agregat.rattachementsRefuses.map((r) => (
                 <div
                   key={`${r.dossier}|${r.codeTiers}`}
-                  className="grid grid-cols-[1fr_1.4fr_1.4fr] gap-2 px-3.5 py-1 border-b border-border last:border-b-0 text-[12px]"
+                  className="grid grid-cols-[1fr_1.4fr_1.4fr] gap-2 px-3.5 py-1 border-b border-border last:border-b-0 text-[11.5px]"
                 >
                   <span className="truncate">{r.dossier}</span>
                   <span className="truncate">
@@ -499,7 +520,7 @@ export function GroupePage() {
               retraitements du D4C (cession interne d'immobilisation, marge
               interne en stock) demandent des registres que l'agrégat n'a pas. */}
           {agregat?.avertissements.map((a) => (
-            <div key={a} className="text-[12px] bg-warning-soft border border-warning/30 px-3 py-1.5 mb-2">
+            <div key={a} className="text-[11.5px] bg-warning-soft border border-warning/30 px-3 py-1.5 mb-2">
               {a}
             </div>
           ))}
@@ -516,7 +537,7 @@ export function GroupePage() {
                 {agregat.lignes.map((l, i) => (
                   <div
                     key={l.numero}
-                    className={`grid grid-cols-[110px_1fr_130px_130px] min-w-[580px] gap-2 px-3.5 py-1 border-b border-border last:border-b-0 text-[12px] ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}
+                    className={`grid grid-cols-[110px_1fr_130px_130px] min-w-[580px] gap-2 px-3.5 py-1 border-b border-border last:border-b-0 text-[11.5px] ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}
                   >
                     <span className="font-mono">{l.numero}</span>
                     <span className="truncate">{l.intitule}</span>
@@ -525,7 +546,7 @@ export function GroupePage() {
                   </div>
                 ))}
               </div>
-              <div className="grid grid-cols-[110px_1fr_130px_130px] min-w-[580px] gap-2 px-3.5 py-1.5 border-t border-border-dark bg-chrome text-[12px] font-bold">
+              <div className="grid grid-cols-[110px_1fr_130px_130px] min-w-[580px] gap-2 px-3.5 py-1.5 border-t border-border-dark bg-chrome text-[11.5px] font-bold">
                 <span></span>
                 {/* Le libellé ne promet une déduction que s'il y en a eu une ·
                     un groupe sans tiers-cellule n'a rien à éliminer, et son
@@ -545,10 +566,13 @@ export function GroupePage() {
           {agregat && agregat.eliminations.length > 0 && (
             <div className="border border-border bg-surface shadow-posee overflow-x-auto">
               <div className="min-w-[980px]">
-                <div className="bg-chrome border-b border-border px-3.5 py-1.5 text-[12px]">
-                  <span className="font-bold text-text-dim">Opérations réciproques éliminées</span> · retirées du cumul
-                  parce qu'un groupe d'établissements est une seule personne morale. Le total agrégé ci-dessus est le
-                  cumul des balances MOINS ces lignes.
+                <div className="bg-chrome border-b border-border px-3.5 py-1.5 text-[11.5px] flex items-center gap-1.5">
+                  <span className="font-bold text-text-dim">Opérations réciproques éliminées</span>
+                  <Aide
+                    titre="Opérations réciproques éliminées"
+                    texte="Retirées du cumul parce qu'un groupe d'établissements est une seule personne morale. Le total agrégé ci-dessus est le cumul des balances MOINS ces lignes."
+                    source="AUDCIF, D4C ch. XIII-4"
+                  />
                 </div>
                 <div className="grid grid-cols-[1fr_1fr_80px_1.3fr_170px_120px_120px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[11px] font-bold text-text-dim">
                   <span>Dossier</span>
@@ -563,7 +587,7 @@ export function GroupePage() {
                   {agregat.eliminations.map((e, i) => (
                     <div
                       key={`${e.dossier}|${e.contrepartie}|${e.numero}|${e.motif}`}
-                      className={`grid grid-cols-[1fr_1fr_80px_1.3fr_170px_120px_120px] gap-2 px-3.5 py-1 border-b border-border last:border-b-0 text-[12px] ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}
+                      className={`grid grid-cols-[1fr_1fr_80px_1.3fr_170px_120px_120px] gap-2 px-3.5 py-1 border-b border-border last:border-b-0 text-[11.5px] ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}
                     >
                       <span className="truncate">{e.dossier}</span>
                       <span className="truncate">{e.contrepartie}</span>
@@ -575,7 +599,7 @@ export function GroupePage() {
                     </div>
                   ))}
                 </div>
-                <div className="grid grid-cols-[1fr_1fr_80px_1.3fr_170px_120px_120px] gap-2 px-3.5 py-1.5 border-t border-border-dark bg-chrome text-[12px] font-bold">
+                <div className="grid grid-cols-[1fr_1fr_80px_1.3fr_170px_120px_120px] gap-2 px-3.5 py-1.5 border-t border-border-dark bg-chrome text-[11.5px] font-bold">
                   <span>Total éliminé</span>
                   <span />
                   <span />
@@ -590,54 +614,50 @@ export function GroupePage() {
         </div>
       )}
 
-      <p className="text-[12px] text-text-dim mt-2 max-w-[1080px]">
-        Supervision en lecture seule : le siège voit tout, ne modifie rien · une correction se demande à la cellule, qui
-        la passe elle-même.{' '}
-        {syscohada
-          ? 'Les opérations entre le siège et une succursale passent par les comptes de liaison 184 à 187 : un compte au nom de la succursale chez le siège, un compte réfléchi au nom du siège chez la succursale, égaux et de sens contraire. Neutralisés, ils sortent de l’agrégat.'
-          : "« Canevas » télécharge le fichier Excel officiel d'une cellule non autonome · « Déposer » importe le canevas rempli (tout ou rien, écritures en brouillard)."}{' '}
-        Pour la liasse officielle : « Liasse du groupe (Excel) », ou exporter puis importer la feuille « Balance agrégée »
-        dans un dossier de combinaison.
-      </p>
-
       {creationOuverte && (
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
           <form onSubmit={onCreer} className="anim-modale w-full max-w-[460px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div
-              className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[12px]"
+              className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
             >
               <span>Nouvelle cellule</span>
               <button type="button" onClick={() => setCreationOuverte(false)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">✕</button>
             </div>
             <div className="p-4">
               <div className="grid grid-cols-[150px_1fr] items-center gap-x-3 gap-y-2.5">
-                <label className="text-[12.5px] text-right">Nom de la cellule :</label>
-                <input required autoFocus value={nom} onChange={(e) => setNom(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[13px]" />
-                <label className="text-[12.5px] text-right">E-mail du responsable :</label>
-                <input type="email" required value={emailAdmin} onChange={(e) => setEmailAdmin(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[13px]" />
+                <label className="text-[11.5px] text-right">Nom de la cellule :</label>
+                <input required autoFocus value={nom} onChange={(e) => setNom(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
+                <label className="text-[11.5px] text-right flex items-center justify-end gap-1">
+                  E-mail du responsable :
+                  <Aide
+                    titre="Nouvelle cellule"
+                    texte={
+                      syscohada
+                        ? 'Le dossier de la succursale naît complet, au référentiel et au système comptable du siège, rattaché à ce groupe, avec la licence du siège.'
+                        : 'Le dossier naît complet, rattaché à ce groupe, avec la licence du siège. Pour une cellule non autonome (dépôt Excel), utilisez un alias du comptable du siège comme e-mail.'
+                    }
+                    source="Module groupe"
+                  />
+                </label>
+                <input type="email" required value={emailAdmin} onChange={(e) => setEmailAdmin(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
                 {/* Une succursale SYSCOHADA prend le système comptable du siège ·
                     c'est la même société (le serveur l'impose). */}
                 {!syscohada && (
                   <>
-                    <label className="text-[12.5px] text-right">Tenue des comptes :</label>
-                    <select value={jeu} onChange={(e) => setJeu(e.target.value as JeuEtatsFinanciersSycebnl)} className="border border-border-dark px-2.5 py-1.5 text-[12.5px]">
+                    <label className="text-[11.5px] text-right">Tenue des comptes :</label>
+                    <select value={jeu} onChange={(e) => setJeu(e.target.value as JeuEtatsFinanciersSycebnl)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
                       <option value="SYSTEME_MINIMAL_TRESORERIE">Système minimal de trésorerie (petite cellule)</option>
                       <option value="ASSOCIATIONS_ORDRES_PROFESSIONNELS">Système normal (grande cellule)</option>
                     </select>
                   </>
                 )}
               </div>
-              <p className="text-[12px] text-text-dim mt-2.5">
-                {syscohada
-                  ? 'Le dossier de la succursale naît complet, au référentiel et au système comptable du siège, rattaché à ce groupe, avec la licence du siège.'
-                  : 'Le dossier naît complet, rattaché à ce groupe, avec la licence du siège. Pour une cellule non autonome (dépôt Excel), utilisez un alias du comptable du siège comme e-mail.'}
-              </p>
-              {creationErreur && <div className="text-[12.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mt-3">{creationErreur}</div>}
+              {creationErreur && <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mt-3">{creationErreur}</div>}
               <div className="flex justify-end gap-2 mt-4">
-                <button type="button" onClick={() => setCreationOuverte(false)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[12.5px]">
+                <button type="button" onClick={() => setCreationOuverte(false)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11.5px]">
                   Annuler
                 </button>
-                <button type="submit" disabled={creationEnvoi} className="bg-sel text-white px-4 py-1.5 text-[12.5px] font-semibold disabled:opacity-50">
+                <button type="submit" disabled={creationEnvoi} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold disabled:opacity-50">
                   {creationEnvoi ? 'Création…' : 'Créer la cellule'}
                 </button>
               </div>
@@ -650,22 +670,22 @@ export function GroupePage() {
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
           <div className="anim-modale w-full max-w-[460px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div
-              className="h-[32px] flex items-center px-2.5 bg-surface text-text border-b border-border text-[12px]"
+              className="h-[32px] flex items-center px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
             >
               <span>Cellule créée · {creee.tenant.nom}</span>
             </div>
             <div className="p-4">
-              <div className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-1.5 text-[12.5px]">
+              <div className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-1.5 text-[11.5px]">
                 <span className="text-right text-text-dim">E-mail :</span>
                 <span className="font-mono select-all">{creee.adminEmail}</span>
                 <span className="text-right text-text-dim">Mot de passe :</span>
                 <span className="font-mono select-all font-bold">{creee.motDePasseTemporaire}</span>
               </div>
-              <div className="border border-warning/30 bg-warning-soft px-3 py-2 text-[12px] mt-3">
+              <div className="border border-warning/30 bg-warning-soft px-3 py-2 text-[11.5px] mt-3">
                 Affiché une seule fois · notez-le avant de fermer.
               </div>
               <div className="flex justify-end mt-4">
-                <button type="button" onClick={() => setCreee(null)} className="bg-sel text-white px-4 py-1.5 text-[12.5px] font-semibold">
+                <button type="button" onClick={() => setCreee(null)} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold">
                   J'ai noté le mot de passe
                 </button>
               </div>
@@ -678,7 +698,7 @@ export function GroupePage() {
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
           <div className="anim-modale w-full max-w-[640px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] flex flex-col overflow-x-auto">
             <div
-              className="h-[32px] shrink-0 flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[12px] min-w-[530px]"
+              className="h-[32px] shrink-0 flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px] min-w-[530px]"
             >
               <span>Balance (lecture) · {balanceCellule.cellule.nom}</span>
               <button type="button" onClick={() => setBalanceCellule(null)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">✕</button>
@@ -688,7 +708,7 @@ export function GroupePage() {
                   détail mouvementés (voir EcritureService.balance). */}
               {balanceCellule.lignes
                 .map((l, i) => (
-                  <div key={l.numero} className={`grid grid-cols-[100px_1fr_110px_110px] min-w-[530px] gap-2 px-3.5 py-1 text-[12px] border-b border-border ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}>
+                  <div key={l.numero} className={`grid grid-cols-[100px_1fr_110px_110px] min-w-[530px] gap-2 px-3.5 py-1 text-[11.5px] border-b border-border ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}>
                     <span className="font-mono">{l.numero}</span>
                     <span className="truncate">{l.intitule}</span>
                     <span className="text-right tabular-nums">{montant(l.totalDebit)}</span>
@@ -696,7 +716,7 @@ export function GroupePage() {
                   </div>
                 ))}
             </div>
-            <div className="shrink-0 grid grid-cols-[100px_1fr_110px_110px] min-w-[530px] gap-2 px-3.5 py-1.5 border-t border-border-dark bg-chrome text-[12px] font-bold min-w-[530px]">
+            <div className="shrink-0 grid grid-cols-[100px_1fr_110px_110px] min-w-[530px] gap-2 px-3.5 py-1.5 border-t border-border-dark bg-chrome text-[11.5px] font-bold min-w-[530px]">
               <span></span>
               <span>TOTAL</span>
               <span className="text-right tabular-nums">{montant(balanceCellule.totaux.debit)}</span>
@@ -710,16 +730,20 @@ export function GroupePage() {
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
           <div className="anim-modale w-full max-w-[440px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div
-              className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[12px]"
+              className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
             >
               <span>Déposer un canevas · {depotPour.nom}</span>
               <button type="button" onClick={() => setDepotPour(null)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">✕</button>
             </div>
             <div className="p-4">
-              <p className="text-[12.5px]">
-                Sélectionnez le canevas rempli de cette cellule (.xlsx). L'import est tout ou rien : la moindre ligne
-                fausse est refusée avec son numéro et sa raison.
-              </p>
+              <div className="text-[11.5px] flex items-center gap-1.5">
+                Canevas rempli (.xlsx)
+                <Aide
+                  titre="Dépôt du canevas"
+                  texte="L'import est tout ou rien : la moindre ligne fausse est refusée avec son numéro et sa raison."
+                  source="Module groupe"
+                />
+              </div>
               <input
                 type="file"
                 accept=".xlsx"
@@ -728,9 +752,9 @@ export function GroupePage() {
                   const f = e.target.files?.[0];
                   if (f) deposerCanevas(f);
                 }}
-                className="mt-3 text-[12.5px]"
+                className="mt-3 text-[11.5px]"
               />
-              {depotEnvoi && <div className="text-[12.5px] text-text-dim mt-2">Import en cours…</div>}
+              {depotEnvoi && <div className="text-[11.5px] text-text-dim mt-2">Import en cours…</div>}
             </div>
           </div>
         </div>
@@ -740,25 +764,25 @@ export function GroupePage() {
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
           <div className="anim-modale w-full max-w-[480px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div
-              className="h-[32px] flex items-center px-2.5 bg-surface text-text border-b border-border text-[12px]"
+              className="h-[32px] flex items-center px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
             >
               <span>Dépôt · {rapportDepot.cellule}</span>
             </div>
             <div className="p-4">
               {rapportDepot.rapport.importe ? (
-                <div className="text-[12.5px] text-positive bg-positive-soft border border-positive/30 px-3 py-2">
+                <div className="text-[11.5px] text-positive bg-positive-soft border border-positive/30 px-3 py-2">
                   {rapportDepot.rapport.lignesImportees} ligne{rapportDepot.rapport.lignesImportees > 1 ? 's' : ''} importée
                   {rapportDepot.rapport.lignesImportees > 1 ? 's' : ''} en brouillard · la validation se fait dans le
                   dossier de la cellule.
                 </div>
               ) : (
                 <>
-                  <div className="text-[12.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-2">
+                  <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-2">
                     Rien n'a été importé · corrigez le fichier puis redéposez-le.
                   </div>
                   <div className="max-h-[30vh] overflow-y-auto">
                     {rapportDepot.rapport.anomalies.map((a, i) => (
-                      <div key={i} className="text-[12px] py-0.5 border-b border-border last:border-b-0">
+                      <div key={i} className="text-[11.5px] py-0.5 border-b border-border last:border-b-0">
                         {a.ligne > 0 && <span className="font-mono text-text-dim">Ligne {a.ligne} · </span>}
                         {a.message}
                       </div>
@@ -767,7 +791,7 @@ export function GroupePage() {
                 </>
               )}
               <div className="flex justify-end mt-4">
-                <button type="button" onClick={() => setRapportDepot(null)} className="bg-sel text-white px-4 py-1.5 text-[12.5px] font-semibold">
+                <button type="button" onClick={() => setRapportDepot(null)} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold">
                   Fermer
                 </button>
               </div>

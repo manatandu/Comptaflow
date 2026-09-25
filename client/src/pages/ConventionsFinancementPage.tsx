@@ -214,8 +214,7 @@ export function ConventionsFinancementPage() {
         sousTitre="Conventions de financement, tranches attendues et rapports dus aux bailleurs"
       />
 
-      <div className="ecran-seul flex items-center gap-2">
-        <h1 className="text-[14px] font-bold">Conventions de financement</h1>
+      <div className="ecran-seul flex items-center justify-end gap-2">
         <Aide
           titre="Ce que le caractère de l'engagement commande"
           texte={
@@ -230,14 +229,14 @@ export function ConventionsFinancementPage() {
         />
       </div>
 
-      {erreur && <div className="ecran-seul border border-danger bg-danger/10 px-3 py-1.5 text-[12.5px]">{erreur}</div>}
-      {info && <div className="ecran-seul border border-border bg-surface-alt px-3 py-1.5 text-[12.5px]">{info}</div>}
+      {erreur && <div className="ecran-seul border border-danger bg-danger/10 px-3 py-1.5 text-[11.5px]">{erreur}</div>}
+      {info && <div className="ecran-seul border border-border bg-surface-alt px-3 py-1.5 text-[11.5px]">{info}</div>}
 
       {estAdmin && (
         <form onSubmit={onCreer} className="ecran-seul flex flex-wrap items-end gap-2 border border-border bg-surface px-3 py-2">
           <label className="flex flex-col gap-1">
             <span className="text-[11px] font-bold text-text-dim">Bailleur</span>
-            <select value={bailleurId} onChange={(e) => setBailleurId(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] w-[200px]">
+            <select value={bailleurId} onChange={(e) => setBailleurId(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] w-[200px]">
               <option value="">Choisir…</option>
               {bailleurs.map((b) => (
                 <option key={b.id} value={b.id}>{b.code} · {b.nom}</option>
@@ -246,17 +245,17 @@ export function ConventionsFinancementPage() {
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-[11px] font-bold text-text-dim">Référence</span>
-            <input value={reference} onChange={(e) => setReference(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] font-mono w-[150px]" />
+            <input value={reference} onChange={(e) => setReference(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] font-mono w-[150px]" />
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-[11px] font-bold text-text-dim">OBJET</span>
-            <input value={objet} onChange={(e) => setObjet(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] w-[240px]" />
+            <input value={objet} onChange={(e) => setObjet(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] w-[240px]" />
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-[11px] font-bold text-text-dim" title="Ferme et inconditionnel : créance à recevoir, si l'écrit signé est joint. Conditionnel : mention en Notes annexes seulement.">
               Caractère de l’engagement
             </span>
-            <select value={caractere} onChange={(e) => setCaractere(e.target.value as CaractereEngagement)} className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] w-[190px]">
+            <select value={caractere} onChange={(e) => setCaractere(e.target.value as CaractereEngagement)} className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] w-[190px]">
               {CARACTERES.map((c) => (<option key={c.valeur} value={c.valeur}>{c.libelle}</option>))}
             </select>
           </label>
@@ -265,7 +264,7 @@ export function ConventionsFinancementPage() {
               <span className="text-[11px] font-bold text-text-dim" title="Le § 5.4.2.4 impose de les mentionner en Notes annexes : « conditionnel » sans ses conditions ne se mentionne pas">
                 Conditions
               </span>
-              <input value={conditions} onChange={(e) => setConditions(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] w-[260px]" />
+              <input value={conditions} onChange={(e) => setConditions(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] w-[260px]" />
             </label>
           )}
           <label className="flex items-center gap-1.5 pb-1">
@@ -278,27 +277,27 @@ export function ConventionsFinancementPage() {
             <>
               <label className="flex flex-col gap-1">
                 <span className="text-[11px] font-bold text-text-dim" title="Le texte parle des « représentants HABILITÉS » du financeur">Signataire</span>
-                <input value={signataire} onChange={(e) => setSignataire(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] w-[180px]" />
+                <input value={signataire} onChange={(e) => setSignataire(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] w-[180px]" />
               </label>
               <label className="flex flex-col gap-1">
                 <span className="text-[11px] font-bold text-text-dim">Date de signature</span>
-                <input type="date" value={dateSignature} onChange={(e) => setDateSignature(e.target.value)} className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] w-[140px]" />
+                <input type="date" value={dateSignature} onChange={(e) => setDateSignature(e.target.value)} className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] w-[140px]" />
               </label>
             </>
           )}
           <label className="flex flex-col gap-1">
             <span className="text-[11px] font-bold text-text-dim">Début</span>
-            <input type="date" value={dateDebut} onChange={(e) => setDateDebut(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] w-[140px]" />
+            <input type="date" value={dateDebut} onChange={(e) => setDateDebut(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] w-[140px]" />
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-[11px] font-bold text-text-dim" title="Validité de la convention · le planning de clôture demande de la vérifier à chaque exercice">FIN</span>
-            <input type="date" value={dateFin} onChange={(e) => setDateFin(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] w-[140px]" />
+            <input type="date" value={dateFin} onChange={(e) => setDateFin(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] w-[140px]" />
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-[11px] font-bold text-text-dim">Montant accordé</span>
-            <input type="number" step="0.01" value={accorde} onChange={(e) => setAccorde(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] font-mono text-right w-[150px]" />
+            <input type="number" step="0.01" value={accorde} onChange={(e) => setAccorde(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] font-mono text-right w-[150px]" />
           </label>
-          <button type="submit" className="border border-border-dark bg-surface-alt px-3 py-1 text-[12.5px] font-bold">Enregistrer</button>
+          <button type="submit" className="border border-border-dark bg-surface-alt px-3 py-1 text-[11.5px] font-bold">Enregistrer</button>
         </form>
       )}
 
@@ -316,9 +315,9 @@ export function ConventionsFinancementPage() {
 
           {conventions?.map((c) => (
             <div key={c.id} className="border-b border-border last:border-b-0">
-              <div className="grid grid-cols-[150px_130px_1fr_190px_140px_140px_150px] gap-2 px-3 py-1 text-[12.5px] items-center">
+              <div className="grid grid-cols-[150px_130px_1fr_190px_140px_140px_150px] gap-2 px-3 py-1 text-[11.5px] items-center">
                 <span className="truncate">{c.bailleur.code} · {c.bailleur.nom}</span>
-                <span className="font-mono text-[12px]">{c.reference}</span>
+                <span className="font-mono text-[11.5px]">{c.reference}</span>
                 <span className="truncate">
                   {c.objet}
                   <span className={`text-text-dim ${c.expiree ? 'text-danger font-semibold' : ''}`}>
@@ -364,7 +363,7 @@ export function ConventionsFinancementPage() {
                   <div>
                     <div className="text-[11px] font-bold text-text-dim mb-1">Tranches attendues</div>
                     {c.tranches.map((t) => (
-                      <div key={t.id} className="flex items-center gap-2 text-[12px]">
+                      <div key={t.id} className="flex items-center gap-2 text-[11.5px]">
                         <span className="font-mono w-[24px]">{t.numero}</span>
                         <span className="w-[200px] truncate">{t.libelle}</span>
                         <span className="font-mono w-[130px] text-right">{montant(t.montant)}</span>
@@ -384,11 +383,11 @@ export function ConventionsFinancementPage() {
                     {c.tranches.length === 0 && <div className="text-[11px] text-text-dim">Aucune tranche saisie.</div>}
                     {peutEcrire && (
                       <form onSubmit={(e) => void onAjouterTranche(e, c.id)} className="ecran-seul flex flex-wrap items-end gap-1.5 mt-1.5">
-                        <input name="numero" type="number" min="1" required placeholder="N°" className="border border-border-dark bg-surface px-1.5 py-0.5 text-[12px] w-[60px]" />
-                        <input name="libelle" required placeholder="Libellé de la tranche" className="border border-border-dark bg-surface px-1.5 py-0.5 text-[12px] w-[220px]" />
-                        <input name="montant" type="number" step="0.01" required placeholder="Montant" className="border border-border-dark bg-surface px-1.5 py-0.5 text-[12px] font-mono text-right w-[130px]" />
-                        <input name="datePrevue" type="date" required className="border border-border-dark bg-surface px-1.5 py-0.5 text-[12px] w-[140px]" />
-                        <button type="submit" className="border border-border-dark bg-surface px-2 py-0.5 text-[12px]">Ajouter</button>
+                        <input name="numero" type="number" min="1" required placeholder="N°" className="border border-border-dark bg-surface px-1.5 py-0.5 text-[11.5px] w-[60px]" />
+                        <input name="libelle" required placeholder="Libellé de la tranche" className="border border-border-dark bg-surface px-1.5 py-0.5 text-[11.5px] w-[220px]" />
+                        <input name="montant" type="number" step="0.01" required placeholder="Montant" className="border border-border-dark bg-surface px-1.5 py-0.5 text-[11.5px] font-mono text-right w-[130px]" />
+                        <input name="datePrevue" type="date" required className="border border-border-dark bg-surface px-1.5 py-0.5 text-[11.5px] w-[140px]" />
+                        <button type="submit" className="border border-border-dark bg-surface px-2 py-0.5 text-[11.5px]">Ajouter</button>
                       </form>
                     )}
                   </div>
@@ -398,7 +397,7 @@ export function ConventionsFinancementPage() {
                       Rapports dus
                     </div>
                     {c.rapports.map((r) => (
-                      <div key={r.id} className="flex items-center gap-2 text-[12px]">
+                      <div key={r.id} className="flex items-center gap-2 text-[11.5px]">
                         <span className="w-[240px] truncate">{r.intitule}</span>
                         <span className="w-[80px] text-text-dim">{r.nature}</span>
                         <span className={`w-[170px] ${r.enRetard ? 'text-danger font-semibold' : 'text-text-dim'}`}>
@@ -417,12 +416,12 @@ export function ConventionsFinancementPage() {
                     {c.rapports.length === 0 && <div className="text-[11px] text-text-dim">Aucun rapport enregistré.</div>}
                     {peutEcrire && (
                       <form onSubmit={(e) => void onAjouterRapport(e, c.id)} className="ecran-seul flex flex-wrap items-end gap-1.5 mt-1.5">
-                        <input name="intitule" required placeholder="Intitulé du rapport" className="border border-border-dark bg-surface px-1.5 py-0.5 text-[12px] w-[240px]" />
-                        <select name="nature" className="border border-border-dark bg-surface px-1.5 py-0.5 text-[12px] w-[110px]">
+                        <input name="intitule" required placeholder="Intitulé du rapport" className="border border-border-dark bg-surface px-1.5 py-0.5 text-[11.5px] w-[240px]" />
+                        <select name="nature" className="border border-border-dark bg-surface px-1.5 py-0.5 text-[11.5px] w-[110px]">
                           {NATURES_RAPPORT.map((n) => (<option key={n.valeur} value={n.valeur}>{n.libelle}</option>))}
                         </select>
-                        <input name="dateEcheance" type="date" required className="border border-border-dark bg-surface px-1.5 py-0.5 text-[12px] w-[140px]" />
-                        <button type="submit" className="border border-border-dark bg-surface px-2 py-0.5 text-[12px]">Ajouter</button>
+                        <input name="dateEcheance" type="date" required className="border border-border-dark bg-surface px-1.5 py-0.5 text-[11.5px] w-[140px]" />
+                        <button type="submit" className="border border-border-dark bg-surface px-2 py-0.5 text-[11.5px]">Ajouter</button>
                       </form>
                     )}
                   </div>
@@ -432,9 +431,8 @@ export function ConventionsFinancementPage() {
           ))}
 
           {conventions?.length === 0 && (
-            <div className="px-3 py-2 text-[12px] text-text-dim">
-              Aucune convention enregistrée. Tant que ce dossier est vide, rien ne permet de dire si un financement
-              annoncé peut être porté en créance à recevoir ou seulement mentionné en Notes annexes.
+            <div className="px-3 py-2 text-[11.5px] text-text-dim">
+              Aucune convention enregistrée.
             </div>
           )}
         </div>
@@ -446,15 +444,14 @@ export function ConventionsFinancementPage() {
             MENTIONS À PORTER EN NOTES ANNEXES · ENGAGEMENTS CONDITIONNELS
           </div>
           {mentions.map((m) => (
-            <p key={m} className="text-[12px] mb-1 max-w-[900px]">{m}</p>
+            <p key={m} className="text-[11.5px] mb-1 max-w-[900px]">{m}</p>
           ))}
         </div>
       )}
 
-      <p className="text-[11px] text-text-dim max-w-[900px]">
-        OmegaX ne qualifie pas l’engagement à votre place et ne passe aucune écriture : il enregistre votre lecture de
-        la convention, en tire la mention de Notes annexes que le § 5.4.2.4 impose pour les engagements conditionnels,
-        et vous montre ce qui peut être porté en créance à recevoir.
+      {/* Gardée à l'écran : dossier-de-subvention-a-lecran.spec.ts l'exige. */}
+      <p className="ecran-seul text-[11px] text-text-dim">
+        OmegaX ne qualifie pas l’engagement à votre place et ne passe aucune écriture.
       </p>
     </div>
   );

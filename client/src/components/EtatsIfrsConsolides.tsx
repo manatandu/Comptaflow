@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { Aide } from './chrome/Aide';
 
 /**
  * ÉTATS IFRS CONSOLIDÉS, tranche C1 · la balance consolidée du D4C (celle de la
@@ -47,7 +48,7 @@ type Consolide = {
   postesADeclarer: { poste: string; libelle: string }[];
 };
 
-const champ = 'w-full border border-border px-1.5 py-1 text-[12px]';
+const champ = 'w-full border border-border px-1.5 py-1 text-[11.5px]';
 const fc = (v: number | null | undefined) => (v == null ? '' : v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const nombre = (v: string) => (v.trim() === '' ? NaN : Number(v.replace(/\s/g, '').replace(',', '.')));
 /** Un champ de part vide vaut `null` · « personne n'a répondu », jamais zéro. */
@@ -83,7 +84,7 @@ export function EtatsIfrsConsolides({ exerciceId }: { exerciceId: string }) {
     }
   }
 
-  if (!etat) return <p className="p-2 text-[12px] text-text-dim">{erreur ?? 'Chargement…'}</p>;
+  if (!etat) return <p className="p-2 text-[11.5px] text-text-dim">{erreur ?? 'Chargement…'}</p>;
   const libelleRubrique = (code: string | null) => (code ? (etat.rubriques.find((r) => r.code === code)?.libelle ?? code) : 'Sans rubrique');
   const ecartRetr = retr.lignes.reduce((s, l) => s + (Number.isFinite(nombre(l.montant)) ? nombre(l.montant) : 0), 0);
   const regleDe = (poste: string) => etat.reglesConsolidation.find((r) => r.poste === poste);
@@ -93,9 +94,9 @@ export function EtatsIfrsConsolides({ exerciceId }: { exerciceId: string }) {
     let groupe: string | undefined;
     return (
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[12.5px] font-bold mb-1.5">{titre}</h2>
+        <h2 className="text-[11.5px] font-bold mb-1.5">{titre}</h2>
         <div className="overflow-x-auto">
-          <table className="w-full text-[12px]">
+          <table className="w-full text-[11.5px]">
             <thead>
               <tr className="text-left border-b border-border">
                 <th className="py-1 pr-2">Poste</th>
@@ -139,30 +140,27 @@ export function EtatsIfrsConsolides({ exerciceId }: { exerciceId: string }) {
   return (
     <div>
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[12.5px] font-bold mb-1.5">États IFRS consolidés</h2>
-        <p className="text-[11px] text-text-dim leading-[1.6]">
-          La balance consolidée est celle de la fenêtre Consolidation (AUDCIF art. 74 à 98, D4C ch. XII), jamais recalculée
-          ici. Ses comptes se rangent par les règles de correspondance des comptes individuels, uniformité des méthodes
-          (IFRS 10 § 19) ; ses postes se rangent par IFRS 18 quand la norme nomme la ligne, et se déclarent sinon. Les
-          participations ne donnant pas le contrôle sont présentées dans les capitaux propres, séparément (IFRS 10 § 22,
-          IFRS 18 § 104 a), et le résultat net comme le résultat global se répartissent sous leur total (§ 76, § 87). Un
-          retraitement consolidé déclare la part de chacun de ses effets qui revient aux minoritaires, zéro compris (IFRS 10
-          § B94). Cette tranche ne sert ni le tableau des flux, ni la variation des capitaux propres, ni les notes, ni la
-          première application consolidée · le jeu le dit.
-        </p>
-        {erreur && <p className="text-[12px] text-danger mt-1.5">{erreur}</p>}
+        <h2 className="text-[11.5px] font-bold mb-1.5 flex items-center gap-1.5">
+          États IFRS consolidés
+          <Aide
+            titre="États IFRS consolidés"
+            texte="La balance consolidée est celle de la fenêtre Consolidation, jamais recalculée ici. Ses comptes se rangent par les règles de correspondance des comptes individuels, uniformité des méthodes (IFRS 10 § 19) ; ses postes se rangent par IFRS 18 quand la norme nomme la ligne, et se déclarent sinon. Les participations ne donnant pas le contrôle sont présentées dans les capitaux propres, séparément (IFRS 10 § 22, IFRS 18 § 104 a), et le résultat net comme le résultat global se répartissent sous leur total (§ 76, § 87). Un retraitement consolidé déclare la part de chacun de ses effets qui revient aux minoritaires, zéro compris (IFRS 10 § B94). Cette tranche ne sert ni le tableau des flux, ni la variation des capitaux propres, ni les notes, ni la première application consolidée · le jeu le dit."
+            source="AUDCIF art. 74 à 98 · D4C ch. XII · IFRS 10 § 19, § 22, § B94 · IFRS 18 § 76, § 87, § 104 a"
+          />
+        </h2>
+        {erreur && <p className="text-[11.5px] text-danger mt-1.5">{erreur}</p>}
       </section>
 
       {!etat.n ? (
         <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-          <p className="text-[12px] text-warning">Le dossier ne se consolide pas pour cet exercice · {etat.motifN}</p>
+          <p className="text-[11.5px] text-warning">Le dossier ne se consolide pas pour cet exercice · {etat.motifN}</p>
         </section>
       ) : (
         <>
           <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-            <h2 className="text-[12.5px] font-bold mb-1.5">Postes de la consolidation</h2>
+            <h2 className="text-[11.5px] font-bold mb-1.5">Postes de la consolidation</h2>
             <div className="overflow-x-auto">
-              <table className="w-full text-[12px]">
+              <table className="w-full text-[11.5px]">
                 <thead>
                   <tr className="text-left border-b border-border">
                     <th className="py-1 pr-2">Poste</th>
@@ -208,7 +206,7 @@ export function EtatsIfrsConsolides({ exerciceId }: { exerciceId: string }) {
                   ))}
                 </select>
                 <button
-                  className="border border-border px-2.5 py-1 text-[12px]"
+                  className="border border-border px-2.5 py-1 text-[11.5px]"
                   onClick={() =>
                     void agir(async () => {
                       await api.post('/ifrs/regles-consolidation', regle);
@@ -223,7 +221,7 @@ export function EtatsIfrsConsolides({ exerciceId }: { exerciceId: string }) {
           </section>
 
           <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-            <h2 className="text-[12.5px] font-bold mb-1.5">Retraitements consolidés</h2>
+            <h2 className="text-[11.5px] font-bold mb-1.5">Retraitements consolidés</h2>
             {peutEcrire && (
               <div className="grid grid-cols-1 gap-1.5 mb-2">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
@@ -250,9 +248,13 @@ export function EtatsIfrsConsolides({ exerciceId }: { exerciceId: string }) {
                     />
                   </div>
                 ))}
-                <p className="text-[11px] text-text-dim">
-                  Part des participations ne donnant pas le contrôle, en valeur créditrice (un profit est positif) · à renseigner pour
-                  chaque effet du retraitement, zéro compris (IFRS 10 § B94).
+                <p className="flex items-center gap-1.5 text-[11px] text-text-dim">
+                  Part des participations ne donnant pas le contrôle
+                  <Aide
+                    titre="Part des minoritaires"
+                    texte="En valeur créditrice (un profit est positif) · à renseigner pour chaque effet du retraitement, zéro compris."
+                    source="IFRS 10 § B94"
+                  />
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
                   <input className={champ} placeholder="… de l’effet au résultat net" value={retr.pR} onChange={(e) => setRetr({ ...retr, pR: e.target.value })} />
@@ -260,12 +262,12 @@ export function EtatsIfrsConsolides({ exerciceId }: { exerciceId: string }) {
                   <input className={champ} placeholder="… de l’effet aux capitaux propres" value={retr.pC} onChange={(e) => setRetr({ ...retr, pC: e.target.value })} />
                 </div>
                 <div className="flex items-center gap-2">
-                  <button className="border border-border px-2.5 py-1 text-[12px]" onClick={() => setRetr({ ...retr, lignes: [...retr.lignes, { rubrique: '', montant: '' }] })}>
+                  <button className="border border-border px-2.5 py-1 text-[11.5px]" onClick={() => setRetr({ ...retr, lignes: [...retr.lignes, { rubrique: '', montant: '' }] })}>
                     Ligne de plus
                   </button>
-                  <span className={Math.abs(ecartRetr) > 0.005 ? 'text-[12px] text-warning' : 'text-[12px] text-text-dim'}>Écart {fc(ecartRetr)}</span>
+                  <span className={Math.abs(ecartRetr) > 0.005 ? 'text-[11.5px] text-warning' : 'text-[11.5px] text-text-dim'}>Écart {fc(ecartRetr)}</span>
                   <button
-                    className="border border-border px-2.5 py-1 text-[12px]"
+                    className="border border-border px-2.5 py-1 text-[11.5px]"
                     onClick={() =>
                       void agir(async () => {
                         await api.post('/ifrs/retraitements', {
@@ -288,10 +290,10 @@ export function EtatsIfrsConsolides({ exerciceId }: { exerciceId: string }) {
               </div>
             )}
             {etat.retraitements.length === 0 ? (
-              <p className="text-[12px] text-text-dim">Aucun retraitement consolidé · les états IFRS sont la balance consolidée reclassée.</p>
+              <p className="text-[11.5px] text-text-dim">Aucun retraitement consolidé · les états IFRS sont la balance consolidée reclassée.</p>
             ) : (
               etat.retraitements.map((x) => (
-                <div key={x.id} className="border-b border-border/60 py-1 text-[12px]">
+                <div key={x.id} className="border-b border-border/60 py-1 text-[11.5px]">
                   <div className="flex justify-between gap-2">
                     <span>
                       <strong>{x.libelle}</strong> · {x.fondement}
@@ -320,27 +322,29 @@ export function EtatsIfrsConsolides({ exerciceId }: { exerciceId: string }) {
           {tableau('État consolidé de la situation financière', etat.n.situation, etat.n1?.situation ?? null)}
           {tableau('Compte de résultat consolidé', etat.n.resultat, etat.n1?.resultat ?? null)}
           {tableau('État consolidé présentant le résultat global', etat.n.resultatGlobal, etat.n1?.resultatGlobal ?? null)}
-          {etat.motifN1 && <p className="text-[12px] text-text-dim mb-2">{etat.motifN1}</p>}
+          {etat.motifN1 && <p className="text-[11.5px] text-text-dim mb-2">{etat.motifN1}</p>}
 
           <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-            <h2 className="text-[12.5px] font-bold mb-1.5">Contrôles et publication</h2>
+            <h2 className="text-[11.5px] font-bold mb-1.5">Contrôles et publication</h2>
             {etat.n.controles.map((c) => (
-              <p key={c.cle} className={c.ok ? 'text-[12px] text-text-dim' : 'text-[12px] text-danger'}>
+              <p key={c.cle} className={c.ok ? 'text-[11.5px] text-text-dim' : 'text-[11.5px] text-danger'}>
                 {c.ok ? 'Vérifié' : `Écart ${fc(c.ecart)}`} · {c.libelle}
               </p>
             ))}
             {etat.n.nonClasses.length > 0 && (
-              <p className="text-[12px] text-warning mt-1.5">Sans rubrique · {etat.n.nonClasses.map((c) => `${c.numero} (${fc(c.solde)})`).join(', ')}</p>
+              <p className="text-[11.5px] text-warning mt-1.5">Sans rubrique · {etat.n.nonClasses.map((c) => `${c.numero} (${fc(c.solde)})`).join(', ')}</p>
             )}
             {etat.n.motifsNonPubliable.length > 0 && (
-              <>
-                <p className="text-[12px] font-semibold text-warning mt-1.5">Non publiable en l’état</p>
-                <ul className="list-disc pl-5 text-[12px] text-warning">
+              <details className="mt-1.5">
+                <summary className="cursor-pointer text-[11.5px] font-semibold text-warning">
+                  Non publiable en l’état · {etat.n.motifsNonPubliable.length} motif(s)
+                </summary>
+                <ul className="list-disc pl-5 text-[11.5px] text-warning">
                   {etat.n.motifsNonPubliable.map((m) => <li key={m}>{m}</li>)}
                 </ul>
-              </>
+              </details>
             )}
-            {etat.n.mentions.map((m) => <p key={m} className="text-[12px] text-text-dim mt-1">{m}</p>)}
+            {etat.n.mentions.map((m) => <p key={m} className="text-[11.5px] text-text-dim mt-1">{m}</p>)}
           </section>
         </>
       )}

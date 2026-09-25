@@ -256,7 +256,7 @@ export function PaieDuMois({
                 type="button"
                 disabled={!journalId || !date || !exerciceCourant || enCours || !p.equilibree}
                 onClick={passer}
-                className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[12px] font-semibold hover:opacity-90 disabled:opacity-40"
+                className="bg-sel text-white rounded-[3px] px-3 py-[3px] text-[11.5px] font-semibold hover:opacity-90 disabled:opacity-40"
               >
                 {enCours ? 'Enregistrement…' : 'Passer l’écriture de paie'}
               </button>

@@ -121,14 +121,14 @@ export function EtatsConsolidesVue({ exerciceId }: { exerciceId: string }) {
   return (
     <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
       <div className="flex flex-wrap gap-2 items-center mb-2">
-        <button className="border border-border px-2.5 py-1 text-[12px]" disabled={chargement} onClick={() => void produire()}>
+        <button className="border border-border px-2.5 py-1 text-[11.5px]" disabled={chargement} onClick={() => void produire()}>
           {chargement ? 'Production…' : 'Produire les états consolidés'}
         </button>
       </div>
-      {erreur && <p className="text-[12px] text-danger mb-2">{erreur}</p>}
+      {erreur && <p className="text-[11.5px] text-danger mb-2">{erreur}</p>}
       {etats && (
         <>
-          <div className={`text-[12px] mb-2 border px-2 py-1.5 ${etats.publiable ? 'border-border' : 'border-warning'}`}>
+          <div className={`text-[11.5px] mb-2 border px-2 py-1.5 ${etats.publiable ? 'border-border' : 'border-warning'}`}>
             <strong>{etats.publiable ? 'Publiable.' : 'Non publiable en l’état.'}</strong>
             <ul className="list-disc pl-5">
               {etats.motifsNonPubliable.map((m) => (
@@ -137,10 +137,10 @@ export function EtatsConsolidesVue({ exerciceId }: { exerciceId: string }) {
             </ul>
           </div>
           {!etats.comparatif.disponible && etats.comparatif.motif && (
-            <p className="text-[12px] text-text-dim mb-2">Colonne N-1 vide · {etats.comparatif.motif}</p>
+            <p className="text-[11.5px] text-text-dim mb-2">Colonne N-1 vide · {etats.comparatif.motif}</p>
           )}
           {etats.controles.some((c) => !c.ok) && (
-            <ul className="text-[12px] text-danger mb-2">
+            <ul className="text-[11.5px] text-danger mb-2">
               {etats.controles
                 .filter((c) => !c.ok)
                 .map((c) => (
@@ -151,9 +151,9 @@ export function EtatsConsolidesVue({ exerciceId }: { exerciceId: string }) {
             </ul>
           )}
 
-          <h3 className="text-[12.5px] font-bold mt-2 mb-1">Bilan consolidé · actif</h3>
+          <h3 className="text-[11.5px] font-bold mt-2 mb-1">Bilan consolidé · actif</h3>
           <div className="overflow-x-auto">
-            <table className="w-full text-[12px]">
+            <table className="w-full text-[11.5px]">
               <thead>
                 <tr className="text-left border-b border-border">
                   <th className="py-1 pr-2">Actif</th>
@@ -177,9 +177,9 @@ export function EtatsConsolidesVue({ exerciceId }: { exerciceId: string }) {
             </table>
           </div>
 
-          <h3 className="text-[12.5px] font-bold mt-3 mb-1">Bilan consolidé · passif</h3>
+          <h3 className="text-[11.5px] font-bold mt-3 mb-1">Bilan consolidé · passif</h3>
           <div className="overflow-x-auto">
-            <table className="w-full text-[12px]">
+            <table className="w-full text-[11.5px]">
               <thead>
                 <tr className="text-left border-b border-border">
                   <th className="py-1 pr-2">Passif</th>
@@ -199,9 +199,9 @@ export function EtatsConsolidesVue({ exerciceId }: { exerciceId: string }) {
             </table>
           </div>
 
-          <h3 className="text-[12.5px] font-bold mt-3 mb-1">Compte de résultat consolidé · charges en négatif</h3>
+          <h3 className="text-[11.5px] font-bold mt-3 mb-1">Compte de résultat consolidé · charges en négatif</h3>
           <div className="overflow-x-auto">
-            <table className="w-full text-[12px]">
+            <table className="w-full text-[11.5px]">
               <thead>
                 <tr className="text-left border-b border-border">
                   <th className="py-1 pr-2">Libellé</th>
@@ -221,9 +221,9 @@ export function EtatsConsolidesVue({ exerciceId }: { exerciceId: string }) {
             </table>
           </div>
 
-          <h3 className="text-[12.5px] font-bold mt-3 mb-1">Tableau des flux de trésorerie consolidé</h3>
+          <h3 className="text-[11.5px] font-bold mt-3 mb-1">Tableau des flux de trésorerie consolidé</h3>
           {etats.tableauDesFlux.lignes === null ? (
-            <div className="text-[12px] border border-warning px-2 py-1.5">
+            <div className="text-[11.5px] border border-warning px-2 py-1.5">
               <strong>Tableau non établi.</strong>
               <ul className="list-disc pl-5">
                 {etats.tableauDesFlux.obstacles.map((o) => (
@@ -234,13 +234,13 @@ export function EtatsConsolidesVue({ exerciceId }: { exerciceId: string }) {
           ) : (
             <>
               {etats.tableauDesFlux.controle && !etats.tableauDesFlux.controle.ok && (
-                <p className="text-[12px] text-danger mb-1">
+                <p className="text-[11.5px] text-danger mb-1">
                   La trésorerie de clôture par les flux ({fc(etats.tableauDesFlux.controle.tresorerieParLesFlux)}) ne rejoint pas celle du
                   bilan ({fc(etats.tableauDesFlux.controle.tresorerieParLeBilan)}) · écart {fc(etats.tableauDesFlux.controle.ecart)}.
                 </p>
               )}
               <div className="overflow-x-auto">
-                <table className="w-full text-[12px]">
+                <table className="w-full text-[11.5px]">
                   <thead>
                     <tr className="text-left border-b border-border">
                       <th className="py-1 pr-2">Libellé</th>
@@ -260,13 +260,13 @@ export function EtatsConsolidesVue({ exerciceId }: { exerciceId: string }) {
             </>
           )}
 
-          <h3 className="text-[12.5px] font-bold mt-3 mb-1">Variation des capitaux propres consolidés · exercice N</h3>
+          <h3 className="text-[11.5px] font-bold mt-3 mb-1">Variation des capitaux propres consolidés · exercice N</h3>
           {etats.variationCapitauxPropres === null ? (
-            <p className="text-[12px] text-text-dim">Non établie · elle part des capitaux propres consolidés de clôture N-1, que seule la consolidation de l’exercice précédent donne.</p>
+            <p className="text-[11.5px] text-text-dim">Non établie · elle part des capitaux propres consolidés de clôture N-1, que seule la consolidation de l’exercice précédent donne.</p>
           ) : (
             <>
               <div className="overflow-x-auto">
-                <table className="w-full text-[12px]">
+                <table className="w-full text-[11.5px]">
                   <thead>
                     <tr className="text-left border-b border-border">
                       <th className="py-1 pr-2">Libellé</th>
@@ -297,9 +297,9 @@ export function EtatsConsolidesVue({ exerciceId }: { exerciceId: string }) {
             </>
           )}
 
-          <h3 className="text-[12.5px] font-bold mt-3 mb-1">Note annexe · informations sur le périmètre</h3>
+          <h3 className="text-[11.5px] font-bold mt-3 mb-1">Note annexe · informations sur le périmètre</h3>
           <div className="overflow-x-auto">
-            <table className="w-full text-[12px]">
+            <table className="w-full text-[11.5px]">
               <thead>
                 <tr className="text-left border-b border-border">
                   <th className="py-1 pr-2">Dénomination</th>
@@ -333,9 +333,9 @@ export function EtatsConsolidesVue({ exerciceId }: { exerciceId: string }) {
             </table>
           </div>
           {etats.notePerimetre.sorties.length > 0 && (
-            <p className="text-[12px] mt-1">Sorties du périmètre depuis N-1 · {etats.notePerimetre.sorties.join(', ')}.</p>
+            <p className="text-[11.5px] mt-1">Sorties du périmètre depuis N-1 · {etats.notePerimetre.sorties.join(', ')}.</p>
           )}
-          <div className="text-[12px] mt-2">
+          <div className="text-[11.5px] mt-2">
             {etats.notePerimetre.justifications.map((j) => (
               <div key={j.denomination} className="mb-1">
                 <strong>{j.denomination}</strong> · {j.fondement}

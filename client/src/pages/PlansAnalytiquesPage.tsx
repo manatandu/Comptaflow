@@ -195,26 +195,20 @@ export function PlansAnalytiquesPage() {
 
   return (
     <div className="p-2">
-      <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
-        <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">Structure</div>
-          <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
-            Plans analytiques
-            <Aide sujet="analytique" />
-          </h1>
-        </div>
-        <div className="flex items-end gap-2">
+      <div className="flex items-center justify-end mb-1.5 gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Aide sujet="analytique" />
           <input
             value={recherche}
             onChange={(e) => setRecherche(e.target.value)}
             placeholder="Rechercher (code, intitulé)…"
-            className="border border-border rounded-[6px] bg-surface px-2.5 py-1.5 text-[12.5px] min-w-[240px]"
+            className="border border-border rounded-[3px] bg-surface px-2.5 py-1.5 text-[11.5px] min-w-[240px]"
           />
           {estAdmin && (
             <button
               onClick={() => setNouvelleOuverte(true)}
               disabled={!planId}
-              className="bg-sel text-white text-[12.5px] font-bold px-3.5 py-1.5 rounded-[6px] hover:brightness-110 disabled:opacity-50"
+              className="bg-sel text-white text-[11.5px] font-bold px-3.5 py-1.5 rounded-[3px] hover:brightness-110 disabled:opacity-50"
             >
               Nouvelle section
             </button>
@@ -223,12 +217,12 @@ export function PlansAnalytiquesPage() {
       </div>
 
       {erreur && (
-        <div className="mb-2.5 text-[12.5px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-1.5">
+        <div className="mb-2.5 text-[11.5px] text-danger bg-danger-soft border border-danger/30 rounded-[3px] px-2.5 py-1.5">
           {erreur}
         </div>
       )}
       {info && (
-        <div className="mb-2.5 text-[12.5px] text-positive bg-positive-soft border border-positive/30 rounded-[6px] px-2.5 py-1.5 flex justify-between">
+        <div className="mb-2.5 text-[11.5px] text-positive bg-positive-soft border border-positive/30 rounded-[3px] px-2.5 py-1.5 flex justify-between">
           <span>{info}</span>
           <button onClick={() => setInfo(null)} className="font-bold hover:underline">
             Fermer
@@ -246,7 +240,7 @@ export function PlansAnalytiquesPage() {
       */}
       <div className="grid grid-cols-1 lg:grid-cols-[210px_1fr_330px] gap-2.5 items-start">
         {/* Axes */}
-        <aside className="bg-surface border border-border rounded-[10px] shadow-posee overflow-hidden">
+        <aside className="bg-surface border border-border rounded-[4px] shadow-posee overflow-hidden">
           <header className="px-3 py-2 bg-chrome-alt border-b border-border text-[11px] font-bold text-text-dim">
             Axes d'analyse
           </header>
@@ -255,7 +249,7 @@ export function PlansAnalytiquesPage() {
               <button
                 key={p.id}
                 onClick={() => setPlanId(p.id)}
-                className={`w-full flex items-center justify-between px-2.5 py-1.5 text-[12.5px] rounded-[6px] ${
+                className={`w-full flex items-center justify-between px-2.5 py-1.5 text-[11.5px] rounded-[3px] ${
                   planId === p.id ? 'bg-sel text-white' : 'hover:bg-chrome-alt'
                 }`}
               >
@@ -268,7 +262,7 @@ export function PlansAnalytiquesPage() {
                 <span className={planId === p.id ? 'text-white/70' : 'text-text-dim'}>{p._count?.sections ?? 0}</span>
               </button>
             ))}
-            {plans?.length === 0 && <div className="px-2.5 py-2 text-[12px] text-text-dim">Aucun axe</div>}
+            {plans?.length === 0 && <div className="px-2.5 py-2 text-[11.5px] text-text-dim">Aucun axe</div>}
           </div>
           {plan && (
             <div className="px-3 py-2.5 border-t border-border text-[11px] text-text-dim leading-[1.5]">
@@ -281,7 +275,7 @@ export function PlansAnalytiquesPage() {
         </aside>
 
         {/* Sections */}
-        <section className="bg-surface border border-border rounded-[10px] shadow-posee overflow-hidden">
+        <section className="bg-surface border border-border rounded-[4px] shadow-posee overflow-hidden">
           <div className={`grid ${grilleSections} gap-2 px-3 py-1.5 bg-chrome-alt border-b border-border text-[11px] font-bold text-text-dim`}>
             <span>CODE</span>
             <span>Intitulé</span>
@@ -293,7 +287,7 @@ export function PlansAnalytiquesPage() {
               <button
                 key={s.id}
                 onClick={() => setSectionId(s.id)}
-                className={`w-full grid ${grilleSections} gap-2 px-3 py-1.5 text-[12.5px] text-left border-b border-border/50 ${
+                className={`w-full grid ${grilleSections} gap-2 px-3 py-1.5 text-[11.5px] text-left border-b border-border/50 ${
                   sectionId === s.id ? 'bg-sel text-white' : 'hover:bg-chrome-alt'
                 } ${!s.estActive ? 'opacity-50' : ''}`}
               >
@@ -310,10 +304,7 @@ export function PlansAnalytiquesPage() {
               </button>
             ))}
             {listeFiltree.length === 0 && (
-              <div className="px-3 py-4 text-[12.5px] text-text-dim italic">
-                Aucune section. Un axe sans section ne ventile rien :{' '}
-                {estSyscohada ? 'créez vos sections.' : 'créez vos projets ou vos bailleurs.'}
-              </div>
+              <div className="px-3 py-4 text-[11.5px] text-text-dim italic">Aucune section</div>
             )}
           </div>
           <div className="px-3 py-1.5 border-t border-border bg-chrome text-[11px] text-text-dim">
@@ -322,20 +313,17 @@ export function PlansAnalytiquesPage() {
         </section>
 
         {/* Fiche */}
-        <aside className="bg-surface border border-border rounded-[10px] shadow-posee overflow-hidden">
+        <aside className="bg-surface border border-border rounded-[4px] shadow-posee overflow-hidden">
           <header className="px-3 py-2 bg-chrome-alt border-b border-border text-[11px] font-bold text-text-dim">
             Fiche de la section
           </header>
           {!section ? (
-            <p className="p-3 text-[12.5px] text-text-dim leading-[1.55]">
-              Sélectionnez une section pour voir sa fiche : identification, {estSyscohada ? 'période de validité' : 'convention de financement'} et dotation
-              budgétaire de l'exercice.
-            </p>
+            <p className="p-3 text-[11.5px] text-text-dim">Aucune section sélectionnée.</p>
           ) : (
             <div className="p-3 flex flex-col gap-3">
               <div>
-                <div className="font-mono text-[13px] font-bold">{section.code}</div>
-                <div className="text-[12.5px]">{section.intitule}</div>
+                <div className="font-mono text-[12px] font-bold">{section.code}</div>
+                <div className="text-[11.5px]">{section.intitule}</div>
                 <div className="text-[11px] text-text-dim mt-1">
                   {section.type === 'TOTAL' ? 'Section Total · regroupe ses sections Détail' : 'Section Détail'}
                   {!section.estActive && ' · en sommeil'}
@@ -343,14 +331,14 @@ export function PlansAnalytiquesPage() {
               </div>
 
               {!estSyscohada && section.bailleur && (
-                <div className="text-[12.5px]">
+                <div className="text-[11.5px]">
                   <span className="text-text-dim">Bailleur </span>
                   <span className="font-medium">{section.bailleur.nom}</span>
                 </div>
               )}
 
               {(section.dateDebut || section.dateFin) && (
-                <div className="text-[12.5px]">
+                <div className="text-[11.5px]">
                   <span className="text-text-dim">{estSyscohada ? 'Période ' : 'Convention '}</span>
                   <span className="font-mono">
                     {jour(section.dateDebut)} au {jour(section.dateFin)}
@@ -370,12 +358,12 @@ export function PlansAnalytiquesPage() {
                         value={dotation}
                         onChange={(e) => setDotation(e.target.value)}
                         placeholder="Montant annuel"
-                        className="flex-1 min-w-0 border border-border rounded-[6px] px-2 py-1 text-[12.5px] font-mono"
+                        className="flex-1 min-w-0 border border-border rounded-[3px] px-2 py-1 text-[11.5px] font-mono"
                       />
                       <button
                         onClick={doter}
                         disabled={!dotation}
-                        className="bg-sel text-white text-[12px] font-semibold px-2.5 rounded-[6px] hover:brightness-110 disabled:opacity-50"
+                        className="bg-sel text-white text-[11.5px] font-semibold px-2.5 rounded-[3px] hover:brightness-110 disabled:opacity-50"
                       >
                         Répartir
                       </button>
@@ -383,13 +371,20 @@ export function PlansAnalytiquesPage() {
                   )}
                   {budget && budget.mensuel.length > 0 ? (
                     <>
-                      <div className="flex justify-between text-[12.5px] font-bold mb-1.5">
-                        <span>Exercice</span>
+                      <div className="flex justify-between text-[11.5px] font-bold mb-1.5">
+                        <span className="flex items-center gap-1.5">
+                          Exercice
+                          <Aide
+                            titre="Répartition mensuelle"
+                            texte={`Répartie sur les mois que la ${motPeriode} couvre réellement, et non sur douze : un financement de huit mois étalé sur l'année fausserait tous les écarts.`}
+                            source="OmegaX"
+                          />
+                        </span>
                         <span className="font-mono">{montant(budget.annuel)}</span>
                       </div>
                       <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
                         {budget.mensuel.map((m) => (
-                          <div key={m.mois} className="flex items-center justify-between text-[12px]">
+                          <div key={m.mois} className="flex items-center justify-between text-[11.5px]">
                             <span className="text-text-dim">{MOIS[m.mois - 1]}</span>
                             {estAdmin ? (
                               <input
@@ -403,13 +398,9 @@ export function PlansAnalytiquesPage() {
                           </div>
                         ))}
                       </div>
-                      <p className="text-[11px] text-text-dim mt-2 leading-[1.5]">
-                        Répartie sur les mois que la {motPeriode} couvre réellement, et non sur douze : un financement
-                        de huit mois étalé sur l'année fausserait tous les écarts.
-                      </p>
                     </>
                   ) : (
-                    <p className="text-[12px] text-text-dim">Aucune dotation sur cet exercice.</p>
+                    <p className="text-[11.5px] text-text-dim">Aucune dotation sur cet exercice.</p>
                   )}
                 </div>
               )}
@@ -418,7 +409,7 @@ export function PlansAnalytiquesPage() {
                 <div className="border-t border-border pt-3">
                   <button
                     onClick={basculerSommeil}
-                    className="w-full border border-border rounded-[6px] px-3 py-1.5 text-[12px] hover:bg-chrome-alt"
+                    className="w-full border border-border rounded-[3px] px-3 py-1.5 text-[11.5px] hover:bg-chrome-alt"
                   >
                     {section.estActive ? 'Mettre en sommeil' : 'Réactiver'}
                   </button>
@@ -433,15 +424,15 @@ export function PlansAnalytiquesPage() {
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 anim-voile">
           <form
             onSubmit={creerSection}
-            className="w-full max-w-[520px] bg-surface border border-border rounded-[10px] overflow-hidden shadow-flottante anim-modale max-h-[calc(100dvh-2rem)] overflow-y-auto"
+            className="w-full max-w-[520px] bg-surface border border-border rounded-[4px] overflow-hidden shadow-flottante anim-modale max-h-[calc(100dvh-2rem)] overflow-y-auto"
           >
             <div
-              className="h-[32px] flex items-center px-3 bg-surface text-text border-b border-border text-[12.5px]"
+              className="h-[32px] flex items-center px-3 bg-surface text-text border-b border-border text-[11.5px]"
             >
               Nouvelle section de l'axe {plan?.intitule}
             </div>
             <div className="p-4 grid grid-cols-2 gap-3">
-              <label className="text-[12px] font-semibold text-text-dim">
+              <label className="text-[11.5px] font-semibold text-text-dim">
                 Code
                 <input
                   required
@@ -449,40 +440,40 @@ export function PlansAnalytiquesPage() {
                   value={code}
                   onChange={(e) => setCode(e.target.value.toUpperCase())}
                   placeholder={estSyscohada ? 'CHANTIER-01' : 'EAU-KIVU'}
-                  className="mt-1 w-full border border-border rounded-[6px] px-2.5 py-1.5 text-[13px] font-mono font-normal"
+                  className="mt-1 w-full border border-border rounded-[3px] px-2.5 py-1.5 text-[12px] font-mono font-normal"
                 />
               </label>
-              <label className="text-[12px] font-semibold text-text-dim">
+              <label className="text-[11.5px] font-semibold text-text-dim">
                 Type
                 <select
                   value={type}
                   onChange={(e) => setType(e.target.value as 'DETAIL' | 'TOTAL')}
-                  className="mt-1 w-full border border-border rounded-[6px] px-2.5 py-1.5 text-[13px] font-normal"
+                  className="mt-1 w-full border border-border rounded-[3px] px-2.5 py-1.5 text-[12px] font-normal"
                 >
                   <option value="DETAIL">Détail · reçoit les imputations</option>
                   <option value="TOTAL">Total · regroupe dans les états</option>
                 </select>
               </label>
-              <label className="text-[12px] font-semibold text-text-dim col-span-2">
+              <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
                 Intitulé
                 <input
                   required
                   value={intitule}
                   onChange={(e) => setIntitule(e.target.value)}
                   placeholder={estSyscohada ? 'Chantier de Lubumbashi' : "Accès à l'eau potable · Nord-Kivu"}
-                  className="mt-1 w-full border border-border rounded-[6px] px-2.5 py-1.5 text-[13px] font-normal"
+                  className="mt-1 w-full border border-border rounded-[3px] px-2.5 py-1.5 text-[12px] font-normal"
                 />
               </label>
               {/* Champ MORT en SYSCOHADA, et pas seulement inutile : aucun
                   bailleur ne peut y être créé, la route l'étant. Le serveur
                   refuse désormais le champ, l'écran ne le montre plus. */}
               {!estSyscohada && (
-                <label className="text-[12px] font-semibold text-text-dim col-span-2">
+                <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
                   Bailleur (facultatif)
                   <select
                     value={bailleurId}
                     onChange={(e) => setBailleurId(e.target.value)}
-                    className="mt-1 w-full border border-border rounded-[6px] px-2.5 py-1.5 text-[13px] font-normal"
+                    className="mt-1 w-full border border-border rounded-[3px] px-2.5 py-1.5 text-[12px] font-normal"
                   >
                     <option value="">Aucun</option>
                     {bailleurs.map((b) => (
@@ -493,41 +484,44 @@ export function PlansAnalytiquesPage() {
                   </select>
                 </label>
               )}
-              <label className="text-[12px] font-semibold text-text-dim">
-                Début de {motPeriode}
+              <label className="text-[11.5px] font-semibold text-text-dim">
+                <span className="flex items-center gap-1.5">
+                  Début de {motPeriode}
+                  <Aide
+                    titre={`Dates de ${motPeriode}`}
+                    texte={`Les dates de ${motPeriode} commandent la répartition du budget : seuls les mois qu'elles couvrent reçoivent une dotation.`}
+                    source="OmegaX"
+                  />
+                </span>
                 <input
                   type="date"
                   value={dateDebut}
                   onChange={(e) => setDateDebut(e.target.value)}
-                  className="mt-1 w-full border border-border rounded-[6px] px-2.5 py-1.5 text-[13px] font-mono font-normal"
+                  className="mt-1 w-full border border-border rounded-[3px] px-2.5 py-1.5 text-[12px] font-mono font-normal"
                 />
               </label>
-              <label className="text-[12px] font-semibold text-text-dim">
+              <label className="text-[11.5px] font-semibold text-text-dim">
                 Fin de {motPeriode}
                 <input
                   type="date"
                   value={dateFin}
                   onChange={(e) => setDateFin(e.target.value)}
-                  className="mt-1 w-full border border-border rounded-[6px] px-2.5 py-1.5 text-[13px] font-mono font-normal"
+                  className="mt-1 w-full border border-border rounded-[3px] px-2.5 py-1.5 text-[12px] font-mono font-normal"
                 />
               </label>
-              <p className="col-span-2 text-[12px] text-text-dim leading-[1.5]">
-                Les dates de {motPeriode} commandent la répartition du budget : seuls les mois qu'elles couvrent
-                reçoivent une dotation.
-              </p>
             </div>
             <div className="flex justify-end gap-2 px-4 py-3 border-t border-border bg-chrome">
               <button
                 type="button"
                 onClick={() => setNouvelleOuverte(false)}
-                className="px-4 py-1.5 border border-border rounded-[6px] bg-surface text-[12.5px] hover:bg-chrome-alt"
+                className="px-4 py-1.5 border border-border rounded-[3px] bg-surface text-[11.5px] hover:bg-chrome-alt"
               >
                 Annuler
               </button>
               <button
                 type="submit"
                 disabled={envoi}
-                className="px-5 py-1.5 bg-sel text-white text-[12.5px] font-semibold rounded-[6px] hover:brightness-110 disabled:opacity-50"
+                className="px-5 py-1.5 bg-sel text-white text-[11.5px] font-semibold rounded-[3px] hover:brightness-110 disabled:opacity-50"
               >
                 {envoi ? 'Création…' : 'Créer'}
               </button>

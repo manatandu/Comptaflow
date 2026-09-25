@@ -4,6 +4,7 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import type { ClasseCompte, Compte, ModeReportANouveau, TauxTva, TypeCompteDetailTotal } from '../lib/types';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
+import { Aide } from '../components/chrome/Aide';
 
 /**
  * PLAN COMPTABLE · la fenêtre Structure → Plan comptable de Sage 100 i7 :
@@ -193,24 +194,20 @@ export function PlanComptesPage() {
   return (
     <div className="p-2 flex flex-col h-full">
       <EnteteImpression titre="Plan comptable" />
-      <div className="flex items-center justify-between mb-2 shrink-0">
-        <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">Structure</div>
-          <h1 className="text-[13px] font-bold leading-tight">Plan comptable</h1>
-        </div>
+      <div className="flex items-center justify-end mb-2 shrink-0">
         <div className="flex items-center gap-2">
           <input
             ref={champRecherche}
             value={recherche}
             onChange={(e) => setRecherche(e.target.value)}
             placeholder="Rechercher (numéro ou intitulé)…"
-            className="border border-border-dark bg-surface px-2.5 py-1 text-[12.5px] w-72"
+            className="border border-border-dark bg-surface px-2.5 py-1 text-[11.5px] w-72"
           />
           {estAdmin && (
             <button
               type="button"
               onClick={() => setNouveauOuvert((v) => !v)}
-              className="bg-sel text-white px-3.5 py-1 text-[12px] font-semibold"
+              className="bg-sel text-white px-3.5 py-1 text-[11.5px] font-semibold"
             >
               Nouveau compte
             </button>
@@ -219,7 +216,7 @@ export function PlanComptesPage() {
       </div>
 
       {erreur && (
-        <div className="text-[12.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-1.5 mb-2 shrink-0">
+        <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-1.5 mb-2 shrink-0">
           {erreur}
         </div>
       )}
@@ -235,7 +232,7 @@ export function PlanComptesPage() {
               key={cl}
               type="button"
               onClick={() => setClasseFiltre(cl)}
-              className={`w-full text-left px-3 py-1.5 text-[12px] ${
+              className={`w-full text-left px-3 py-1.5 text-[11.5px] ${
                 classeFiltre === cl ? 'bg-sel text-white' : 'hover:bg-chrome-alt'
               }`}
             >
@@ -263,7 +260,7 @@ export function PlanComptesPage() {
             <span>État</span>
           </div>
           <div className="flex-1 overflow-auto min-w-[520px]">
-            {!comptes && <div className="px-3.5 py-3 text-[12.5px] text-text-dim">Chargement…</div>}
+            {!comptes && <div className="px-3.5 py-3 text-[11.5px] text-text-dim">Chargement…</div>}
             {liste.map((c) => (
               <button
                 key={c.id}
@@ -282,7 +279,7 @@ export function PlanComptesPage() {
                   en le parcourant, sans lire les numéros.
                 */
                 className={`w-full grid grid-cols-[92px_1fr_58px_72px_74px] min-w-[520px] gap-2.5 px-3.5 items-center text-left border-b border-border/50 ${
-                  estComptePrincipalOfficiel(c) ? 'py-[5px] text-[12.5px]' : 'py-[3.5px] text-[12px]'
+                  estComptePrincipalOfficiel(c) ? 'py-[5px] text-[11.5px]' : 'py-[3.5px] text-[11.5px]'
                 } ${
                   selectionId === c.id
                     ? 'bg-sel text-white'
@@ -308,7 +305,7 @@ export function PlanComptesPage() {
               </button>
             ))}
             {comptes && liste.length === 0 && (
-              <div className="px-3.5 py-3 text-[12.5px] text-text-dim italic">Aucun compte ne correspond.</div>
+              <div className="px-3.5 py-3 text-[11.5px] text-text-dim italic">Aucun compte ne correspond.</div>
             )}
           </div>
           <div className="px-3.5 py-1 bg-surface-alt border-t border-border text-[11px] text-text-dim shrink-0">
@@ -323,15 +320,12 @@ export function PlanComptesPage() {
             Fiche du compte · identification
           </div>
           {!selection && (
-            <div className="px-3 py-3 text-[12px] text-text-dim">
-              Sélectionnez un compte dans la liste pour afficher sa fiche. Double-clic sur un compte Détail :
-              interrogation et lettrage.
-            </div>
+            <div className="px-3 py-3 text-[11.5px] text-text-dim">Aucun compte sélectionné.</div>
           )}
           {selection && (
-            <div className="p-3 text-[12px]">
-              <div className="font-mono text-[14px] font-bold">{selection.numero}</div>
-              <div className="text-[12.5px] mb-3">{selection.intitule}</div>
+            <div className="p-3 text-[11.5px]">
+              <div className="font-mono text-[13px] font-bold">{selection.numero}</div>
+              <div className="text-[11.5px] mb-3">{selection.intitule}</div>
 
               <div className="grid grid-cols-[92px_1fr] gap-x-2 gap-y-1.5 items-center mb-3">
                 <span className="text-text-dim text-right">Classe :</span>
@@ -353,12 +347,17 @@ export function PlanComptesPage() {
               </div>
 
               {estComptePrincipalOfficiel(selection) && (
-                <p className="mb-3 rounded-[6px] border border-border bg-surface-alt px-2.5 py-2 text-[12px] text-text-dim leading-[1.5]">
-                  {utilisateur?.tenant.referentiel === 'SYSCOHADA'
-                    ? 'Compte principal du plan SYSCOHADA (AUDCIF art. 18 · Titre VII, ch. 1 pour la liste des comptes à deux chiffres, ch. 2 pour le caractère impératif de la codification)'
-                    : 'Compte principal du plan SYCEBNL (Partie 2, ch. 2)'}{' '}
-                  : son numéro, son intitulé et son rattachement ne se modifient pas. Il regroupe automatiquement les
-                  comptes Détail de sa division · aucune écriture ne s'y saisit jamais.
+                <p className="mb-3 flex items-start gap-1.5 text-[11px] text-text-dim leading-[1.5]">
+                  <span>
+                    {utilisateur?.tenant.referentiel === 'SYSCOHADA'
+                      ? 'Compte principal du plan SYSCOHADA (AUDCIF art. 18 · Titre VII, ch. 1 pour la liste des comptes à deux chiffres, ch. 2 pour le caractère impératif de la codification)'
+                      : 'Compte principal du plan SYCEBNL (Partie 2, ch. 2)'}
+                  </span>
+                  <Aide
+                    titre="Compte principal"
+                    texte="Son numéro, son intitulé et son rattachement ne se modifient pas. Il regroupe automatiquement les comptes Détail de sa division · aucune écriture ne s'y saisit jamais."
+                    source={utilisateur?.tenant.referentiel === 'SYSCOHADA' ? 'AUDCIF art. 18 · Titre VII, ch. 1 et 2' : 'SYCEBNL, Partie 2, ch. 2'}
+                  />
                 </p>
               )}
 
@@ -371,13 +370,13 @@ export function PlanComptesPage() {
                         ref={champIntitule}
                         value={intituleEdit}
                         onChange={(e) => setIntituleEdit(e.target.value)}
-                        className="flex-1 min-w-0 border border-border-dark px-2 py-1 text-[12.5px]"
+                        className="flex-1 min-w-0 border border-border-dark px-2 py-1 text-[11.5px]"
                       />
                       <button
                         type="button"
                         disabled={!intituleEdit.trim() || intituleEdit === selection.intitule}
                         onClick={() => modifier(selection.id, { intitule: intituleEdit.trim() })}
-                        className="border border-border-dark bg-chrome hover:bg-chrome-alt px-2 text-[12px] disabled:opacity-40"
+                        className="border border-border-dark bg-chrome hover:bg-chrome-alt px-2 text-[11.5px] disabled:opacity-40"
                       >
                         OK
                       </button>
@@ -391,7 +390,7 @@ export function PlanComptesPage() {
                     <select
                       value={selection.modeReportANouveau}
                       onChange={(e) => modifier(selection.id, { modeReportANouveau: e.target.value as ModeReportANouveau })}
-                      className="mt-0.5 w-full border border-border-dark px-2 py-1 text-[12.5px]"
+                      className="mt-0.5 w-full border border-border-dark px-2 py-1 text-[11.5px]"
                     >
                       <option value="AUCUN">Aucun · pas de report (charges, produits)</option>
                       <option value="SOLDE">Solde · le solde seul est reporté</option>
@@ -417,7 +416,7 @@ export function PlanComptesPage() {
                         value={selection.tauxTvaDefautId ?? ''}
                         disabled={!estAdmin}
                         onChange={(e) => modifier(selection.id, { tauxTvaDefautId: e.target.value || null })}
-                        className="mt-0.5 w-full border border-border-dark px-2 py-1 text-[12.5px]"
+                        className="mt-0.5 w-full border border-border-dark px-2 py-1 text-[11.5px]"
                       >
                         <option value="">Aucun · taux à saisir à chaque ligne</option>
                         {tauxTva.map((t) => (
@@ -447,7 +446,7 @@ export function PlanComptesPage() {
                         value={selection.codeRetraitementFiscal ?? ''}
                         disabled={!estAdmin}
                         onChange={(e) => modifier(selection.id, { codeRetraitementFiscal: e.target.value || null })}
-                        className="mt-0.5 w-full border border-border-dark px-2 py-1 text-[12.5px]"
+                        className="mt-0.5 w-full border border-border-dark px-2 py-1 text-[11.5px]"
                       >
                         <option value="">Aucun · rien n'est proposé pour ce compte</option>
                         {catalogueFiscal.map((d) => (
@@ -459,7 +458,7 @@ export function PlanComptesPage() {
                     </label>
                   )}
 
-                  <label className="flex items-start gap-2 mb-3 text-[12px]">
+                  <label className="flex items-start gap-2 mb-3 text-[11.5px]">
                     <input
                       type="checkbox"
                       className="mt-0.5"
@@ -467,13 +466,12 @@ export function PlanComptesPage() {
                       checked={selection.lettrable}
                       onChange={(e) => modifier(selection.id, { lettrable: e.target.checked })}
                     />
-                    <span>
-                      Compte lettrable
-                      <span className="block text-[11px] text-text-dim leading-[1.5]">
-                        Autorise le rapprochement débit/crédit sur ce compte. Utile surtout aux comptes de tiers, mais
-                        pas réservé à eux : les virements internes (58) s'y prêtent aussi.
-                      </span>
-                    </span>
+                    <span>Compte lettrable</span>
+                    <Aide
+                      titre="Compte lettrable"
+                      texte="Autorise le rapprochement débit/crédit sur ce compte. Utile surtout aux comptes de tiers, mais pas réservé à eux : les virements internes (58) s'y prêtent aussi."
+                      source="CPCC, Notes de cours d'organisation comptable, ch. 6"
+                    />
                   </label>
                 </>
               )}
@@ -483,7 +481,7 @@ export function PlanComptesPage() {
                   <button
                     type="button"
                     onClick={() => navigate(`/comptes/${selection.id}/lettrage`)}
-                    className="bg-sel text-white px-3 py-1.5 text-[12px] font-semibold"
+                    className="bg-sel text-white px-3 py-1.5 text-[11.5px] font-semibold"
                   >
                     Gérer · interrogation et lettrage
                   </button>
@@ -492,7 +490,7 @@ export function PlanComptesPage() {
                   <button
                     type="button"
                     onClick={() => modifier(selection.id, { estActif: !selection.estActif })}
-                    className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1.5 text-[12px]"
+                    className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1.5 text-[11.5px]"
                   >
                     {selection.estActif ? 'Mettre en sommeil' : 'Réactiver le compte'}
                   </button>
@@ -511,7 +509,7 @@ export function PlanComptesPage() {
             className="anim-modale w-full max-w-[460px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto"
           >
             <div
-              className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[12px]"
+              className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
             >
               <span>Nouveau compte général</span>
               <button type="button" onClick={() => setNouveauOuvert(false)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">
@@ -520,7 +518,7 @@ export function PlanComptesPage() {
             </div>
             <div className="p-4">
               <div className="grid grid-cols-[110px_1fr] items-center gap-x-3 gap-y-2.5">
-                <label className="text-[12.5px] text-right">Numéro :</label>
+                <label className="text-[11.5px] text-right">Numéro :</label>
                 <input
                   required
                   autoFocus
@@ -528,20 +526,20 @@ export function PlanComptesPage() {
                   title="3 à 8 chiffres"
                   value={numero}
                   onChange={(e) => setNumero(e.target.value)}
-                  className="border border-border-dark px-2.5 py-1.5 text-[13px] font-mono"
+                  className="border border-border-dark px-2.5 py-1.5 text-[12px] font-mono"
                 />
-                <label className="text-[12.5px] text-right">Intitulé :</label>
+                <label className="text-[11.5px] text-right">Intitulé :</label>
                 <input
                   required
                   value={intitule}
                   onChange={(e) => setIntitule(e.target.value)}
-                  className="border border-border-dark px-2.5 py-1.5 text-[13px]"
+                  className="border border-border-dark px-2.5 py-1.5 text-[12px]"
                 />
-                <label className="text-[12.5px] text-right">Classe :</label>
+                <label className="text-[11.5px] text-right">Classe :</label>
                 <select
                   value={classe}
                   onChange={(e) => setClasse(e.target.value as ClasseCompte)}
-                  className="border border-border-dark px-2.5 py-1.5 text-[12.5px]"
+                  className="border border-border-dark px-2.5 py-1.5 text-[11.5px]"
                 >
                   {(Object.keys(libelleClasse) as ClasseCompte[]).map((cl) => (
                     <option key={cl} value={cl}>
@@ -549,31 +547,34 @@ export function PlanComptesPage() {
                     </option>
                   ))}
                 </select>
-                <label className="text-[12.5px] text-right">Type :</label>
+                <label className="text-[11.5px] text-right">Type :</label>
                 <select
                   value={typeCompte}
                   onChange={(e) => setTypeCompte(e.target.value as TypeCompteDetailTotal)}
-                  className="border border-border-dark px-2.5 py-1.5 text-[12.5px]"
+                  className="border border-border-dark px-2.5 py-1.5 text-[11.5px]"
                 >
                   <option value="DETAIL">Détail (mouvementable)</option>
                   <option value="TOTAL">Total (regroupement par racine)</option>
                 </select>
               </div>
-              {typeCompte === 'TOTAL' && (
-                <p className="text-[12px] text-text-dim mt-3">
-                  Un compte Total ne reçoit jamais d'écriture : son solde agrège les comptes Détail dont le
-                  numéro commence par le sien (préfixe littéral).
-                </p>
-              )}
-              <div className="flex justify-end gap-2 mt-4">
+              <div className="flex items-center justify-end gap-2 mt-4">
+                {typeCompte === 'TOTAL' && (
+                  <span className="mr-auto">
+                    <Aide
+                      titre="Compte Total"
+                      texte="Un compte Total ne reçoit jamais d'écriture : son solde agrège les comptes Détail dont le numéro commence par le sien (préfixe littéral)."
+                      source="OmegaX"
+                    />
+                  </span>
+                )}
                 <button
                   type="button"
                   onClick={() => setNouveauOuvert(false)}
-                  className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[12.5px]"
+                  className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11.5px]"
                 >
                   Annuler
                 </button>
-                <button type="submit" disabled={envoi} className="bg-sel text-white px-4 py-1.5 text-[12.5px] font-semibold disabled:opacity-50">
+                <button type="submit" disabled={envoi} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold disabled:opacity-50">
                   {envoi ? 'Création…' : 'Créer le compte'}
                 </button>
               </div>

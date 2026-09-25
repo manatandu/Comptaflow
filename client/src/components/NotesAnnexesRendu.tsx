@@ -1,5 +1,6 @@
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
 import type { Compte, LigneFicheRecapitulative, LigneNoteCalculee, NoteCalculee } from '../lib/types';
+import { Aide } from './chrome/Aide';
 
 /**
  * RENDU DES NOTES ANNEXES · pièces d'affichage communes aux deux écrans de
@@ -124,7 +125,7 @@ function LigneTableauNote({
   return (
     <div
       title={ligne.comptes.length > 0 ? `Comptes : ${ligne.comptes.map((c) => c.numero).join(', ')}` : undefined}
-      className={`grid gap-2 px-4 py-1 text-[12.5px] ${ligne.estTotal ? 'font-bold bg-surface-alt border-y border-border' : ''}`}
+      className={`grid gap-2 px-4 py-1 text-[11.5px] ${ligne.estTotal ? 'font-bold bg-surface-alt border-y border-border' : ''}`}
       style={{ gridTemplateColumns: `1.6fr repeat(${note.colonnes.length}, ${cellules ? '1fr' : '108px'})` }}
     >
       <span className={ligne.enAttenteDeRattachement ? 'text-danger italic' : ''}>
@@ -168,7 +169,7 @@ function LigneTableauNote({
               }}
               disabled={saisie.enCours !== null}
               placeholder={c.type === 'LIBRE' ? '' : '0,00'}
-              className={`border border-border bg-surface px-1 py-0.5 text-[12px] disabled:opacity-50 ${
+              className={`border border-border bg-surface px-1 py-0.5 text-[11.5px] disabled:opacity-50 ${
                 c.type === 'LIBRE' ? '' : 'font-mono text-right'
               }`}
             />
@@ -231,7 +232,7 @@ export function BlocTableauNote({
   return (
     <div className="border border-border bg-surface mb-4">
       <div className="px-4 py-2 border-b border-border bg-chrome">
-        <div className="text-[12.5px] font-bold">
+        <div className="text-[11.5px] font-bold">
           NOTE {note.code}
           {note.sousTableau ? ` ${note.sousTableau}` : ''} {note.titre}
         </div>
@@ -243,12 +244,16 @@ export function BlocTableauNote({
       {/* Le logiciel JOINT toutes les notes à la liasse, les vides portant
           la mention NEANT · l'écran doit dire la même chose que le fichier
           produit, sans quoi l'un des deux ment. */}
-      {!note.applicable && <div className="px-4 py-3 text-[12px] text-text-dim italic">{mentionNonApplicable}</div>}
+      {!note.applicable && <div className="px-4 py-3 text-[11.5px] text-text-dim italic">{mentionNonApplicable}</div>}
 
       {afficherHorsBalance && note.horsBalance && (
-        <div className="px-4 py-2 text-[11px] text-text-dim italic border-b border-border">
-          Note renseignée hors comptabilité · aucune balance ne porte ces rubriques. Un montant à zéro signifie
-          qu'elles n'ont pas encore été renseignées, non qu'elles soient nulles.
+        <div className="flex items-center gap-1.5 px-4 py-2 text-[11px] text-text-dim italic border-b border-border">
+          Note renseignée hors comptabilité · un montant à zéro n'est pas encore renseigné.
+          <Aide
+            titre="Note hors comptabilité"
+            texte="Aucune balance ne porte ces rubriques. Un montant à zéro signifie qu'elles n'ont pas encore été renseignées, non qu'elles soient nulles."
+            source="Notes annexes · rubriques en saisie"
+          />
         </div>
       )}
 
@@ -291,7 +296,7 @@ export function BlocTableauNote({
           <div className="text-[11px] font-bold text-text-dim mb-2">RATTACHEMENT DES SOUS-COMPTES DU DOSSIER</div>
 
           {rattachees.map((l) => (
-            <div key={l.cle} className="mb-2 text-[12px]">
+            <div key={l.cle} className="mb-2 text-[11.5px]">
               <span className="font-semibold">{l.libelle}</span>
               <div className="flex flex-wrap gap-1.5 mt-1">
                 {l.comptes.map((c) => (
@@ -323,7 +328,7 @@ export function BlocTableauNote({
             const cleForm = `${note.code}::${r.cle}`;
             return (
               <div key={r.cle} className="mb-2.5 pb-2.5 border-b border-border last:border-b-0 last:pb-0 last:mb-0">
-                <div className="text-[12px] font-semibold text-danger">{r.libelle}</div>
+                <div className="text-[11.5px] font-semibold text-danger">{r.libelle}</div>
                 <div className="text-[11px] text-text-dim mb-1.5">{r.attendu}</div>
                 {estAdmin ? (
                   // `flex-wrap` et `min-w-0` sont la SEULE différence de rendu
@@ -338,7 +343,7 @@ export function BlocTableauNote({
                     <select
                       value={compteChoisi[cleForm] ?? ''}
                       onChange={(e) => setCompteChoisi((v) => ({ ...v, [cleForm]: e.target.value }))}
-                      className="border border-border-dark px-2 py-1 text-[12px] max-w-[360px] min-w-0"
+                      className="border border-border-dark px-2 py-1 text-[11.5px] max-w-[360px] min-w-0"
                     >
                       <option value="">choisir un sous-compte</option>
                       {comptesDetail.map((c) => (
@@ -350,7 +355,7 @@ export function BlocTableauNote({
                     <button
                       onClick={() => rattacher(note.code, r.cle)}
                       disabled={!compteChoisi[cleForm] || enCours !== null}
-                      className="bg-sel text-white text-[12px] font-semibold px-3 py-1 disabled:opacity-50"
+                      className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1 disabled:opacity-50"
                     >
                       Rattacher
                     </button>
@@ -398,7 +403,7 @@ export function FicheRecapitulativeNotes({
         <button
           key={f.code}
           onClick={() => onSelectionner(f.code)}
-          className={`w-full text-left grid grid-cols-[52px_1fr_28px] gap-2 px-3 py-1.5 border-b border-border last:border-b-0 text-[12px] ${
+          className={`w-full text-left grid grid-cols-[52px_1fr_28px] gap-2 px-3 py-1.5 border-b border-border last:border-b-0 text-[11.5px] ${
             codeSelectionne === f.code ? 'bg-sel-soft' : f.applicable ? 'hover:bg-surface-alt' : 'text-text-dim'
           }`}
         >

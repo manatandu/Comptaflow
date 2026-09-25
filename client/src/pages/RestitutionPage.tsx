@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { IconExport } from '../components/chrome/icons';
+import { Aide } from '../components/chrome/Aide';
 
 /**
  * RESTITUTION DU DOSSIER · la copie intégrale, en un fichier.
@@ -37,15 +38,9 @@ export function RestitutionPage() {
 
   return (
     <div className="p-2 max-w-[760px]">
-      <p className="text-[12px] text-text-dim mb-2.5 leading-[1.6]">
-        Une archive ZIP contenant une table par fichier CSV, plus un manifeste qui décrit
-        précisément ce qu'elle contient et ce qu'elle ne contient pas. L'extraction est inscrite
-        dans le journal d'audit du dossier · qui l'a demandée, quand, et sur quel volume.
-      </p>
-
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[12.5px] font-bold mb-1.5">Ce que cette archive n'est pas</h2>
-        <ul className="text-[12px] text-text-dim list-disc pl-4 space-y-1.5 leading-[1.6]">
+        <h2 className="text-[11.5px] font-bold mb-1.5">Ce que cette archive n'est pas</h2>
+        <ul className="text-[11.5px] text-text-dim list-disc pl-4 space-y-1.5 leading-[1.6]">
           <li>
             <strong>Elle ne remplace pas la conservation.</strong> OmegaX ne détient aucune pièce
             justificative numérisée. L'AUDCIF art. 24 vise « les livres comptables ou les documents
@@ -77,29 +72,36 @@ export function RestitutionPage() {
       </section>
 
       {erreur && (
-        <p role="alert" className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[12px]">
+        <p role="alert" className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[11.5px]">
           {erreur}
         </p>
       )}
 
-      {peutExtraire ? (
-        <button
-          type="button"
-          onClick={extraire}
-          disabled={enCours}
-          className="inline-flex items-center gap-1.5 bg-sel text-white text-[12px] font-semibold px-3 py-1.5 disabled:opacity-50"
-        >
-          <IconExport />
-          {enCours ? 'Extraction en cours…' : 'Extraire le dossier complet'}
-        </button>
-      ) : (
-        <p className="text-[12px] text-text-dim">
-          Seul l'administrateur du cabinet peut extraire le dossier complet.
-        </p>
-      )}
+      <div className="flex items-center gap-2">
+        {peutExtraire ? (
+          <button
+            type="button"
+            onClick={extraire}
+            disabled={enCours}
+            className="inline-flex items-center gap-1.5 bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5 disabled:opacity-50"
+          >
+            <IconExport />
+            {enCours ? 'Extraction en cours…' : 'Extraire le dossier complet'}
+          </button>
+        ) : (
+          <p className="text-[11.5px] text-text-dim">
+            Seul l'administrateur du cabinet peut extraire le dossier complet.
+          </p>
+        )}
+        <Aide
+          titre="Archive de restitution"
+          texte="Une archive ZIP contenant une table par fichier CSV, plus un manifeste qui décrit précisément ce qu'elle contient et ce qu'elle ne contient pas. L'extraction est inscrite dans le journal d'audit du dossier · qui l'a demandée, quand, et sur quel volume."
+          source="OmegaX"
+        />
+      </div>
 
       {enCours && (
-        <p className="text-[12px] text-text-dim mt-2">
+        <p className="text-[11.5px] text-text-dim mt-2">
           Sur un dossier chargé, l'extraction prend plusieurs minutes · le fichier ne s'ouvre
           qu'une fois complet, ne fermez pas la fenêtre.
         </p>

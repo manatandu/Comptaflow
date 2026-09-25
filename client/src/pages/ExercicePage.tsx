@@ -254,19 +254,13 @@ export function ExercicePage() {
 
   return (
     <div className="p-2">
-      <div className="text-[11px] font-mono text-text-dim leading-none">Traitement · fin d'exercice</div>
-      <h1 className="text-[13px] font-bold leading-tight mb-1.5 flex items-center gap-1.5">
-        Clôture d'exercice
-        <Aide sujet="exerciceClos" />
-      </h1>
-
       <div className="mb-3 flex items-center gap-2 max-w-[640px]">
-        <label className="text-[12px] font-semibold text-text-dim">
+        <label className="text-[11.5px] font-semibold text-text-dim">
           Exercice
           <select
             value={exerciceId}
             onChange={(e) => setExerciceId(e.target.value)}
-            className="mt-1 ml-2 border border-border-dark px-2.5 py-1 text-[12.5px] font-normal"
+            className="mt-1 ml-2 border border-border-dark px-2.5 py-1 text-[11.5px] font-normal"
           >
             {exercices.map((e) => (
               <option key={e.id} value={e.id}>
@@ -276,7 +270,8 @@ export function ExercicePage() {
             ))}
           </select>
         </label>
-        {chargementExercices && <span className="text-[12px] text-text-dim">Chargement…</span>}
+        {chargementExercices && <span className="text-[11.5px] text-text-dim">Chargement…</span>}
+        <Aide sujet="exerciceClos" />
       </div>
 
       {/*
@@ -288,37 +283,39 @@ export function ExercicePage() {
       */}
       {exercice && (
         <form onSubmit={arreterComptes} className="mb-4 border border-border bg-surface px-4 py-3 max-w-[720px]">
-          <div className="font-mono text-[12px] font-semibold text-text-dim mb-1">Arrêté des comptes</div>
-          <p className="text-[11px] text-text-dim leading-[1.55] mb-2">
-            Date à laquelle les organes dirigeants ont arrêté les comptes. Ce n’est pas la clôture : elle lui est
-            postérieure de plusieurs semaines, dans la limite de quatre mois. Elle doit figurer sur chaque page des
-            états financiers publiés, et le logiciel l’imprime dès qu’elle est renseignée.
-          </p>
+          <div className="font-mono text-[11.5px] font-semibold text-text-dim mb-2 flex items-center gap-1.5">
+            Arrêté des comptes
+            <Aide
+              titre="Arrêté des comptes"
+              texte="Date à laquelle les organes dirigeants ont arrêté les comptes. Ce n’est pas la clôture : elle lui est postérieure de plusieurs semaines, dans la limite de quatre mois. Elle doit figurer sur chaque page des états financiers publiés, et le logiciel l’imprime dès qu’elle est renseignée."
+              source="AUDCIF Titre IX ch. 1 § 2.4 · Titre VIII ch. 31 § 1.3"
+            />
+          </div>
           <div className="flex items-end gap-2 flex-wrap">
             {/* La date se consulte par tous, elle ne se pose que par
                 l'administrateur (@Roles ADMIN_CABINET sur arrete-comptes). */}
             {estAdmin && (
               <>
-                <label className="text-[12px] font-semibold text-text-dim">
+                <label className="text-[11.5px] font-semibold text-text-dim">
                   Comptes arrêtés le
                   <input
                     type="date"
                     value={dateArrete}
                     onChange={(e) => setDateArrete(e.target.value)}
-                    className="mt-1 block border border-border-dark px-2 py-1 text-[12.5px] font-mono"
+                    className="mt-1 block border border-border-dark px-2 py-1 text-[11.5px] font-mono"
                   />
                 </label>
-                <button type="submit" disabled={envoi} className="bg-sel text-white text-[12.5px] font-semibold px-3 py-1.5 disabled:opacity-50">
+                <button type="submit" disabled={envoi} className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5 disabled:opacity-50">
                   {envoi ? '…' : 'Enregistrer'}
                 </button>
               </>
             )}
             {exercice.dateArreteComptes ? (
-              <span className="text-[12px] text-positive">
+              <span className="text-[11.5px] text-positive">
                 Actuellement : {new Date(exercice.dateArreteComptes).toLocaleDateString('fr-FR')}
               </span>
             ) : (
-              <span className="text-[12px] text-danger">Non renseignée · les états s’impriment sans elle</span>
+              <span className="text-[11.5px] text-danger">Non renseignée · les états s’impriment sans elle</span>
             )}
           </div>
         </form>
@@ -332,56 +329,55 @@ export function ExercicePage() {
       */}
       {estAdmin && exercice && (
         <div className="mb-4 border border-border bg-surface max-w-[720px]">
-          <button
-            onClick={() => setImputationOuverte((v) => !v)}
-            className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-surface-alt"
-          >
-            <span className="font-mono text-[12px] font-semibold text-text-dim">
-              Imputation aux capitaux propres d’ouverture
-            </span>
-            <span className="text-[12px] text-text-dim">{imputationOuverte ? 'Réduire' : 'Déployer'}</span>
-          </button>
+          <div className="flex items-center pr-3 hover:bg-surface-alt">
+            <button
+              onClick={() => setImputationOuverte((v) => !v)}
+              className="flex-1 flex items-center justify-between px-4 py-2.5 text-left"
+            >
+              <span className="font-mono text-[11.5px] font-semibold text-text-dim">
+                Imputation aux capitaux propres d’ouverture
+              </span>
+              <span className="text-[11.5px] text-text-dim">{imputationOuverte ? 'Réduire' : 'Déployer'}</span>
+            </button>
+            <Aide
+              titre="Imputation aux capitaux propres d’ouverture"
+              texte="Le bilan d’ouverture d’un exercice doit correspondre au bilan de clôture du précédent. Les incidences d’un changement de méthode et les charges ou produits d’exercices antérieurs omis transitent par le compte de résultat, jamais directement par les capitaux propres. Deux exceptions seulement, et elles se justifient en Notes annexes."
+              source="AUDCIF art. 34 · SYCEBNL art. 16, 4)"
+            />
+          </div>
           {imputationOuverte && (
             <form onSubmit={imputerOuverture} className="px-4 pb-3 border-t border-border pt-3">
-              <p className="text-[11px] text-text-dim leading-[1.55] mb-2.5">
-                Le bilan d’ouverture d’un exercice doit correspondre au bilan de clôture du précédent. Les
-                incidences d’un changement de méthode et les charges ou produits d’exercices antérieurs omis
-                transitent par le compte de résultat, jamais directement par les capitaux propres.
-                <span className="block mt-1 font-semibold">
-                  Deux exceptions seulement, et elles se justifient en Notes annexes.
-                </span>
-              </p>
               <div className="grid grid-cols-2 gap-3">
-                <label className="text-[12px] font-semibold text-text-dim col-span-2">
+                <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
                   Motif
-                  <select value={iMotif} onChange={(e) => setIMotif(e.target.value as typeof iMotif)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[12.5px]">
+                  <select value={iMotif} onChange={(e) => setIMotif(e.target.value as typeof iMotif)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]">
                     <option value="CHANGEMENT_METHODE">Changement de méthode à impact fort significatif</option>
                     <option value="CORRECTION_ERREUR_SIGNIFICATIVE">Correction d’une erreur significative d’un exercice antérieur</option>
                   </select>
                 </label>
-                <label className="text-[12px] font-semibold text-text-dim">
+                <label className="text-[11.5px] font-semibold text-text-dim">
                   Report à nouveau (compte 12)
-                  <select required value={iCompteRan} onChange={(e) => setICompteRan(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[12.5px]">
+                  <select required value={iCompteRan} onChange={(e) => setICompteRan(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]">
                     <option value="" />
                     {comptes.filter((c) => c.numero.startsWith('12')).map((c) => (
                       <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
                     ))}
                   </select>
                 </label>
-                <label className="text-[12px] font-semibold text-text-dim">
+                <label className="text-[11.5px] font-semibold text-text-dim">
                   Contrepartie (poste de bilan)
-                  <select required value={iCompteContrepartie} onChange={(e) => setICompteContrepartie(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[12.5px]">
+                  <select required value={iCompteContrepartie} onChange={(e) => setICompteContrepartie(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]">
                     <option value="" />
                     {comptes.filter((c) => !/^[67]/.test(c.numero)).map((c) => (
                       <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
                     ))}
                   </select>
                 </label>
-                <label className="text-[12px] font-semibold text-text-dim col-span-2">
+                <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
                   Montant · positif pour DÉBITER le report à nouveau, négatif pour le créditer
-                  <input required type="number" step="0.01" value={iMontant} onChange={(e) => setIMontant(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[12.5px] font-mono" />
+                  <input required type="number" step="0.01" value={iMontant} onChange={(e) => setIMontant(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px] font-mono" />
                 </label>
-                <label className="text-[12px] font-semibold text-text-dim col-span-2">
+                <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
                   Justification · reprise en Notes annexes
                   <textarea
                     required
@@ -390,11 +386,11 @@ export function ExercicePage() {
                     value={iJustification}
                     onChange={(e) => setIJustification(e.target.value)}
                     placeholder="Nature du changement ou de l’erreur, exercice concerné, méthode de détermination de l’impact…"
-                    className="mt-1 w-full border border-border-dark px-2 py-1 text-[12.5px] leading-[1.5]"
+                    className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px] leading-[1.5]"
                   />
                 </label>
               </div>
-              <button type="submit" disabled={envoi} className="mt-3 bg-sel text-white text-[12.5px] font-semibold px-3 py-1.5 disabled:opacity-50">
+              <button type="submit" disabled={envoi} className="mt-3 bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5 disabled:opacity-50">
                 {envoi ? '…' : 'Enregistrer l’imputation'}
               </button>
             </form>
@@ -402,8 +398,8 @@ export function ExercicePage() {
         </div>
       )}
 
-      {erreur && <div className="text-[12.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mb-3 max-w-[720px]">{erreur}</div>}
-      {info && <div className="text-[12.5px] text-positive bg-positive-soft border border-positive/30 px-2.5 py-1.5 mb-3 max-w-[720px]">{info}</div>}
+      {erreur && <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mb-3 max-w-[720px]">{erreur}</div>}
+      {info && <div className="text-[11.5px] text-positive bg-positive-soft border border-positive/30 px-2.5 py-1.5 mb-3 max-w-[720px]">{info}</div>}
 
       {/*
         PLANNING DE CLÔTURE · l'état prévisionnel des travaux de fin
@@ -421,15 +417,15 @@ export function ExercicePage() {
             onClick={() => setPlanningOuvert((v) => !v)}
             className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-surface-alt"
           >
-            <span className="font-mono text-[12px] font-semibold text-text-dim">
+            <span className="font-mono text-[11.5px] font-semibold text-text-dim">
               PLANNING DE CLÔTURE · {planning.jalons.filter((j) => j.enRetard).length} jalon(s) en retard
             </span>
-            <span className="text-[12px] text-text-dim">{planningOuvert ? 'Réduire' : 'Déployer'}</span>
+            <span className="text-[11.5px] text-text-dim">{planningOuvert ? 'Réduire' : 'Déployer'}</span>
           </button>
 
           {planningOuvert && (
             <div className="border-t border-border">
-              <table className="w-full text-[12px] border-collapse">
+              <table className="w-full text-[11.5px] border-collapse">
                 <thead>
                   <tr className="bg-chrome-alt text-[11px] font-mono text-text-dim">
                     <th className="text-left px-3 py-1.5 font-semibold w-8">#</th>
@@ -444,8 +440,10 @@ export function ExercicePage() {
                     <tr key={j.etape} className="border-t border-border align-top">
                       <td className="px-3 py-2 font-mono text-text-dim">{j.etape}</td>
                       <td className="px-3 py-2">
-                        <div className="font-semibold">{j.libelle}</div>
-                        <div className="text-[12px] text-text-dim mt-0.5">{j.detail}</div>
+                        <div className="font-semibold flex items-center gap-1.5">
+                          {j.libelle}
+                          <Aide titre={j.libelle} texte={j.detail} source={j.source} />
+                        </div>
                         {/* La sanction est affichée SOUS le détail et non dans la
                             colonne « Nature » · l'étiquette LÉGAL y qualifie une
                             échéance opposable à un tiers, alors qu'ici c'est
@@ -453,7 +451,6 @@ export function ExercicePage() {
                         {j.sanction && (
                           <div className="text-[11px] text-danger mt-1 leading-[1.5]">{j.sanction}</div>
                         )}
-                        <div className="text-[11px] text-text-dim mt-1 italic">{j.source}</div>
                       </td>
                       <td className={`px-3 py-2 font-mono ${j.enRetard ? 'text-danger font-bold' : ''}`}>
                         {new Date(j.echeance).toLocaleDateString('fr-FR')}
@@ -467,7 +464,7 @@ export function ExercicePage() {
                           {j.nature === 'LEGALE' ? 'LÉGAL' : 'INTERNE'}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-[12px]">
+                      <td className="px-3 py-2 text-[11.5px]">
                         {j.observation ? (
                           <span className={j.observation.satisfait ? 'text-positive' : 'text-danger'}>
                             {j.observation.satisfait ? '✓ ' : '! '}
@@ -481,14 +478,14 @@ export function ExercicePage() {
                   ))}
                 </tbody>
               </table>
-              <p className="px-3 py-2.5 text-[11px] text-text-dim border-t border-border">
-                Les dates se calculent à partir de la date de clôture de cet exercice. Chaque jalon porte sa
-                source : ceux qui citent un acte uniforme, une loi ou un article ont été lus sur texte primaire ;
-                ceux qui citent les notes de cours d’organisation comptable du CPCC (novembre 2020) en viennent, et
-                n’ont pas été revérifiés sur texte primaire. Dans tous les cas ce sont des jalons indicatifs, pas un
-                calcul d’obligation. Dernière vérification de la table : {planning.derniereVerification}. Aucune
-                astreinte n’est chiffrée ici.
-              </p>
+              <div className="px-3 py-1.5 text-[11px] text-text-dim border-t border-border flex items-center gap-1.5">
+                Jalons indicatifs · dernière vérification de la table : {planning.derniereVerification}
+                <Aide
+                  titre="Planning de clôture"
+                  texte="Les dates se calculent à partir de la date de clôture de cet exercice. Chaque jalon porte sa source : ceux qui citent un acte uniforme, une loi ou un article ont été lus sur texte primaire ; ceux qui citent les notes de cours d’organisation comptable du CPCC (novembre 2020) en viennent, et n’ont pas été revérifiés sur texte primaire. Ce sont des jalons indicatifs, pas un calcul d’obligation. Aucune astreinte n’est chiffrée ici."
+                  source="CPCC, notes de cours d’organisation comptable, § 2.3 et § 7.1"
+                />
+              </div>
             </div>
           )}
         </div>
@@ -496,12 +493,14 @@ export function ExercicePage() {
 
       {exercice && (
         <div className="mb-5 border border-border max-w-[720px] p-4 bg-surface">
-          <div className="font-mono text-[12px] font-semibold text-text-dim mb-2">Clôture annuelle</div>
-          <p className="text-[12.5px] text-text-dim mb-3">
-            Solde les comptes de charges/produits (mode « Aucun ») sur le résultat de l'exercice, puis génère le
-            report à-nouveau réel dans l'exercice suivant selon le mode de chaque compte (Solde/Détail). Action
-            définitive.
-          </p>
+          <div className="font-mono text-[11.5px] font-semibold text-text-dim mb-2 flex items-center gap-1.5">
+            Clôture annuelle
+            <Aide
+              titre="Clôture annuelle"
+              texte="Solde les comptes de charges/produits (mode « Aucun ») sur le résultat de l'exercice, puis génère le report à-nouveau réel dans l'exercice suivant selon le mode de chaque compte (Solde/Détail). Action définitive."
+              source="Clôture d'exercice"
+            />
+          </div>
           {exercice.statut === 'CLOTURE' ? (
             <span className="font-mono text-[11px] font-bold px-2 py-1 bg-surface-alt text-text-dim w-fit inline-block">
               Exercice déjà clôturé
@@ -510,13 +509,13 @@ export function ExercicePage() {
             <button
               onClick={cloturerExercice}
               disabled={envoi}
-              className="bg-danger text-white text-[12.5px] font-semibold px-4 py-1.5 disabled:opacity-50 flex items-center gap-1.5"
+              className="bg-danger text-white text-[11.5px] font-semibold px-4 py-1.5 disabled:opacity-50 flex items-center gap-1.5"
             >
               <IconLock width={14} height={14} />
               {envoi ? 'Clôture…' : "Clôturer l'exercice"}
             </button>
           ) : (
-            <span className="text-[12px] text-text-dim">Réservé aux administrateurs du dossier.</span>
+            <span className="text-[11.5px] text-text-dim">Réservé aux administrateurs du dossier.</span>
           )}
         </div>
       )}
@@ -524,15 +523,17 @@ export function ExercicePage() {
       {estAdmin && exercice && exercice.statut === 'OUVERT' && (
         <div className="grid grid-cols-3 gap-3 mb-5 max-w-[980px]">
           <form onSubmit={clorePartielle} className="bg-surface border border-border p-3">
-            <div className="font-mono text-[11px] font-semibold text-text-dim mb-2">Clôture partielle</div>
-            <p className="text-[12px] text-text-dim mb-2">Verrouille un journal jusqu'à une date · réversible.</p>
-            <label className="block text-[12px] font-semibold text-text-dim mb-2">
+            <div className="font-mono text-[11px] font-semibold text-text-dim mb-2 flex items-center gap-1.5">
+              Clôture partielle
+              <Aide titre="Clôture partielle" texte="Verrouille un journal jusqu'à une date · réversible." source="Clôture d'exercice" />
+            </div>
+            <label className="block text-[11.5px] font-semibold text-text-dim mb-2">
               Journal
               <select
                 required
                 value={journalPartielleId}
                 onChange={(e) => setJournalPartielleId(e.target.value)}
-                className="mt-1 w-full border border-border-dark px-2 py-1 text-[12.5px] font-normal"
+                className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px] font-normal"
               >
                 <option value="">Sélectionner</option>
                 {journaux.map((j) => (
@@ -542,31 +543,33 @@ export function ExercicePage() {
                 ))}
               </select>
             </label>
-            <label className="block text-[12px] font-semibold text-text-dim mb-2">
+            <label className="block text-[11.5px] font-semibold text-text-dim mb-2">
               Date limite
               <input
                 required
                 type="date"
                 value={dateLimitePartielle}
                 onChange={(e) => setDateLimitePartielle(e.target.value)}
-                className="mt-1 w-full border border-border-dark px-2 py-1 text-[12.5px] font-normal"
+                className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px] font-normal"
               />
             </label>
-            <button type="submit" disabled={envoi} className="bg-sel text-white text-[12px] font-semibold px-3 py-1.5 disabled:opacity-50">
+            <button type="submit" disabled={envoi} className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5 disabled:opacity-50">
               Clôturer
             </button>
           </form>
 
           <form onSubmit={cloreTotale} className="bg-surface border border-border p-3">
-            <div className="font-mono text-[11px] font-semibold text-text-dim mb-2">Clôture totale</div>
-            <p className="text-[12px] text-text-dim mb-2">Fige un journal en entier · définitive.</p>
-            <label className="block text-[12px] font-semibold text-text-dim mb-2">
+            <div className="font-mono text-[11px] font-semibold text-text-dim mb-2 flex items-center gap-1.5">
+              Clôture totale
+              <Aide titre="Clôture totale" texte="Fige un journal en entier · définitive." source="Clôture d'exercice" />
+            </div>
+            <label className="block text-[11.5px] font-semibold text-text-dim mb-2">
               Journal
               <select
                 required
                 value={journalTotaleId}
                 onChange={(e) => setJournalTotaleId(e.target.value)}
-                className="mt-1 w-full border border-border-dark px-2 py-1 text-[12.5px] font-normal"
+                className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px] font-normal"
               >
                 <option value="">Sélectionner</option>
                 {journaux.map((j) => (
@@ -576,25 +579,27 @@ export function ExercicePage() {
                 ))}
               </select>
             </label>
-            <button type="submit" disabled={envoi} className="bg-sel text-white text-[12px] font-semibold px-3 py-1.5 disabled:opacity-50 mt-[38px]">
+            <button type="submit" disabled={envoi} className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5 disabled:opacity-50 mt-[38px]">
               Clôturer
             </button>
           </form>
 
           <form onSubmit={clorePeriode} className="bg-surface border border-border p-3">
-            <div className="font-mono text-[11px] font-semibold text-text-dim mb-2">Clôture de période</div>
-            <p className="text-[12px] text-text-dim mb-2">Verrouille tous les journaux jusqu'à une date · définitive.</p>
-            <label className="block text-[12px] font-semibold text-text-dim mb-2">
+            <div className="font-mono text-[11px] font-semibold text-text-dim mb-2 flex items-center gap-1.5">
+              Clôture de période
+              <Aide titre="Clôture de période" texte="Verrouille tous les journaux jusqu'à une date · définitive." source="Clôture d'exercice" />
+            </div>
+            <label className="block text-[11.5px] font-semibold text-text-dim mb-2">
               Date limite
               <input
                 required
                 type="date"
                 value={dateLimitePeriode}
                 onChange={(e) => setDateLimitePeriode(e.target.value)}
-                className="mt-1 w-full border border-border-dark px-2 py-1 text-[12.5px] font-normal"
+                className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px] font-normal"
               />
             </label>
-            <button type="submit" disabled={envoi} className="bg-sel text-white text-[12px] font-semibold px-3 py-1.5 disabled:opacity-50 mt-[38px]">
+            <button type="submit" disabled={envoi} className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5 disabled:opacity-50 mt-[38px]">
               Clôturer
             </button>
           </form>
@@ -616,12 +621,12 @@ export function ExercicePage() {
           <span>STATUT</span>
           <span>ACTION</span>
         </div>
-        {!clotures && <div className="p-3 text-[12.5px] text-text-dim">Chargement…</div>}
-        {clotures?.length === 0 && <div className="p-3 text-[12.5px] text-text-dim">Aucune clôture enregistrée sur cet exercice.</div>}
+        {!clotures && <div className="p-3 text-[11.5px] text-text-dim">Chargement…</div>}
+        {clotures?.length === 0 && <div className="p-3 text-[11.5px] text-text-dim">Aucune clôture enregistrée sur cet exercice.</div>}
         {clotures?.map((c, i) => (
           <div
             key={c.id}
-            className={`grid grid-cols-[90px_1fr_100px_110px_90px_100px] min-w-[710px] gap-2 items-center px-3.5 py-1.5 border-b border-border last:border-b-0 text-[12px] ${
+            className={`grid grid-cols-[90px_1fr_100px_110px_90px_100px] min-w-[710px] gap-2 items-center px-3.5 py-1.5 border-b border-border last:border-b-0 text-[11.5px] ${
               i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'
             }`}
           >

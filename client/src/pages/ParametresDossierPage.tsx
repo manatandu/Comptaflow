@@ -543,35 +543,31 @@ export function ParametresDossierPage() {
 
   return (
     <div className="p-2 h-full flex flex-col">
-      <div className="mb-2">
-        <div className="text-[11px] font-mono text-text-dim leading-none">Structure</div>
-        {/* Le titre porte l'onglet actif · Sage écrit « Identification de
-            votre société - IFRS » dans sa barre de titre : on sait où l'on
-            se trouve sans relire la liste des onglets. */}
-        <h1 className="text-[13px] font-bold leading-tight">
-          Identification du dossier
-          <span className="font-normal text-text-dim"> · {ONGLETS.find((o) => o.cle === onglet)?.libelle}</span>
-        </h1>
-      </div>
-
       {erreur && (
-        <div className="mb-2 text-[12.5px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-1.5">
+        <div className="mb-2 text-[11.5px] text-danger bg-danger-soft border border-danger/30 rounded-[3px] px-2.5 py-1.5">
           {erreur}
         </div>
       )}
       {info && (
-        <div className="mb-2 text-[12.5px] text-positive bg-positive-soft border border-positive/30 rounded-[6px] px-2.5 py-1.5">
+        <div className="mb-2 text-[11.5px] text-positive bg-positive-soft border border-positive/30 rounded-[3px] px-2.5 py-1.5">
           {info}
         </div>
       )}
 
       {!params ? (
-        <div className="text-[12.5px] text-text-dim">Chargement…</div>
+        <div className="text-[11.5px] text-text-dim">Chargement…</div>
       ) : (
         <OngletsVerticaux onglets={ONGLETS} actif={onglet} onChanger={setOnglet}>
           {onglet === 'identification' && (
             <>
-              <SectionTitre>Identification</SectionTitre>
+              <SectionTitre>
+                Identification{' '}
+                <Aide
+                  titre="Coordonnées et monnaies"
+                  texte="L’adresse, la ville et le pays composent l’adresse imprimée en tête de chaque état financier. La comptabilité est exprimée en francs congolais, et les livres comme les états déposés le restent. La monnaie fonctionnelle est celle dans laquelle votre entité vit réellement : elle commande un second jeu de documents, à côté du jeu légal et sans valeur légale. Elle doit être une devise déjà ouverte dans Structure > Devises et cours, avec ses cours du jour."
+                  source="Loi n° 23/053, art. 141, 1° · AUDCIF, art. 17, 1°"
+                />
+              </SectionTitre>
               {/* Chaque valeur est POSÉE CONTRE son étiquette, et non
                   repoussée au bord opposé : sur une fenêtre large, une liste
                   étirée oblige l'œil à traverser tout l'écran pour relier un
@@ -675,20 +671,16 @@ export function ParametresDossierPage() {
                     />
                   </Ligne>
                 </div>
-                <p className="text-[12px] text-text-dim">
-                  L’adresse, la ville et le pays composent l’adresse imprimée en tête de chaque état financier.{' '}
-                  <strong>La monnaie de tenue ne se choisit pas</strong> · la comptabilité est exprimée en francs
-                  congolais (loi n° 23/053, art. 141, 1° · AUDCIF, art. 17, 1°), et les livres comme les états déposés
-                  le restent. La <strong>monnaie fonctionnelle</strong> est celle dans laquelle votre entité vit
-                  réellement : elle commande un second jeu de documents, à côté du jeu légal et sans valeur légale.
-                  Elle doit être une devise déjà ouverte dans Structure &gt; Devises et cours, avec ses cours du jour.
+                <p className="text-[11.5px] text-text-dim">
+                  La monnaie de tenue ne se choisit pas · francs congolais (loi n° 23/053, art. 141, 1° · AUDCIF,
+                  art. 17, 1°).
                 </p>
                 {estAdmin && (
                   <div>
                     <button
                       type="submit"
                       disabled={envoi}
-                      className="border border-border rounded-[6px] bg-surface px-3 py-1.5 text-[12px] font-bold hover:bg-surface-alt disabled:opacity-60"
+                      className="border border-border rounded-[3px] bg-surface px-3 py-1.5 text-[11.5px] font-bold hover:bg-surface-alt disabled:opacity-60"
                     >
                       Enregistrer
                     </button>
@@ -702,38 +694,46 @@ export function ParametresDossierPage() {
                   c'est un PLAFOND pour les comptes que le cabinet ouvre
                   lui-même, pas une renumérotation du plan normalisé.
                   ---------------------------------------------------------- */}
-              <Ligne label="Longueur des comptes" large>
-                {estAdmin ? (
-                  <select
-                    value={params.longueurCompte}
-                    disabled={envoi}
-                    onChange={(e) => changerLongueurCompte(Number(e.target.value))}
-                    className="border border-border-dark bg-surface px-2 py-1 text-[12px] disabled:opacity-60"
-                  >
-                    {Array.from({ length: 11 }, (_, i) => i + 3).map((n) => (
-                      <option key={n} value={n} disabled={n < params.longueurCompteMinimale}>
-                        {n} chiffres
-                        {n < params.longueurCompteMinimale ? ' · impossible, comptes plus longs déjà ouverts' : ''}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <div className="text-[12.5px] leading-[26px] font-medium">{params.longueurCompte} chiffres</div>
-                )}
-              </Ligne>
-              <p className="text-[12px] text-text-dim">
-                C’est la longueur MAXIMALE des numéros que vous ouvrez vous-même · l’élargir permet des sous-comptes
-                plus fins sous une racine du plan (un adhérent, un bailleur, un projet). Le plan normalisé semé à la
-                création garde ses huit chiffres et n’est pas renuméroté.
-                {params.longueurCompteMinimale > 0 && (
+              <Ligne
+                label="Longueur des comptes"
+                large
+                aide={
                   <>
-                    {' '}Vous ne pouvez pas descendre sous <strong>{params.longueurCompteMinimale} chiffres</strong> :
-                    ce dossier porte déjà des numéros de cette longueur
-                    {params.longueurCompteExemple ? ` (par exemple ${params.longueurCompteExemple})` : ''}, et les
-                    raccourcir les rendrait invalides alors qu’ils sont mouvementés et repris dans les états.
+                    Le plan normalisé semé à la création garde ses huit chiffres et n’est pas renuméroté.
+                    {params.longueurCompteMinimale > 0 && (
+                      <>
+                        {' '}Plancher : <strong>{params.longueurCompteMinimale} chiffres</strong>
+                        {params.longueurCompteExemple ? ` (par exemple ${params.longueurCompteExemple})` : ''}.
+                      </>
+                    )}
                   </>
-                )}
-              </p>
+                }
+              >
+                <div className="flex items-center gap-2">
+                  {estAdmin ? (
+                    <select
+                      value={params.longueurCompte}
+                      disabled={envoi}
+                      onChange={(e) => changerLongueurCompte(Number(e.target.value))}
+                      className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] disabled:opacity-60"
+                    >
+                      {Array.from({ length: 11 }, (_, i) => i + 3).map((n) => (
+                        <option key={n} value={n} disabled={n < params.longueurCompteMinimale}>
+                          {n} chiffres
+                          {n < params.longueurCompteMinimale ? ' · impossible, comptes plus longs déjà ouverts' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="text-[11.5px] leading-[26px] font-medium">{params.longueurCompte} chiffres</div>
+                  )}
+                  <Aide
+                    titre="Longueur des comptes"
+                    texte="C’est la longueur MAXIMALE des numéros que vous ouvrez vous-même · l’élargir permet des sous-comptes plus fins sous une racine du plan (un adhérent, un bailleur, un projet). Elle ne descend pas sous le plus long numéro déjà ouvert : le raccourcir rendrait invalides des comptes mouvementés et repris dans les états."
+                    source="Paramètres du dossier"
+                  />
+                </div>
+              </Ligne>
               {/* Ce qui NE SE CHANGE PAS, et pourquoi · le référentiel sème le
                   plan de comptes à la création. */}
               <div>
@@ -744,19 +744,23 @@ export function ParametresDossierPage() {
                   ] as [string, string | null][]
                 ).map(([cle, valeur]) => (
                   <Ligne key={cle} label={cle} large>
-                    <div className="text-[12.5px] leading-[26px] font-medium">{valeur || '·'}</div>
+                    <div className="text-[11.5px] leading-[26px] font-medium">{valeur || '·'}</div>
                   </Ligne>
                 ))}
               </div>
-              <SectionTitre>Immatriculation</SectionTitre>
+              <SectionTitre>
+                Immatriculation{' '}
+                <Aide
+                  titre="Immatriculation"
+                  texte={
+                    estSycebnl
+                      ? 'Le numéro d’impôt est porté en tête de chaque page imprimée, au même titre que la dénomination, la date de clôture et la durée de l’exercice. L’acte de personnalité juridique est celui qui reconnaît l’entité (loi n° 004/2001) ; les autres identifiants servent aux dossiers déposés auprès des ministères et des bailleurs. Une entité à but non lucratif n’est pas immatriculée au registre du commerce : l’Acte uniforme sur le droit commercial général (art. 2) n’y assujettit que les commerçants et les sociétés. Le champ RCCM n’est donc pas proposé ici. L’identification nationale reste facultative, elle n’est requise que des agents économiques.'
+                      : 'Le numéro d’impôt est porté en tête de chaque page imprimée, au même titre que la dénomination, la date de clôture et la durée de l’exercice.'
+                  }
+                  source={estSycebnl ? 'Loi n° 004/2001 · AUDCG, art. 2' : 'Paramètres du dossier'}
+                />
+              </SectionTitre>
               <form onSubmit={enregistrerIdentite} className="flex flex-col gap-3">
-                <p className="text-[12px] text-text-dim">
-                  Le numéro d’impôt est porté en tête de chaque page imprimée, au même titre que la dénomination, la
-                  date de clôture et la durée de l’exercice.
-                  {estSycebnl
-                    ? ' L’acte de personnalité juridique est celui qui reconnaît l’entité (loi n° 004/2001) ; les autres identifiants servent aux dossiers déposés auprès des ministères et des bailleurs.'
-                    : ''}
-                </p>
                 <div>
                   {champsImmatriculation.map(({ label, valeur, set, exemple, date }) => (
                     <Ligne key={label} label={label}>
@@ -773,20 +777,12 @@ export function ParametresDossierPage() {
                     </Ligne>
                   ))}
                 </div>
-                {estSycebnl && (
-                  <p className="text-[12px] text-text-dim">
-                    <span className="font-bold">Important !</span> Une entité à but non lucratif n’est pas
-                    immatriculée au registre du commerce : l’Acte uniforme sur le droit commercial général (art. 2)
-                    n’y assujettit que les commerçants et les sociétés. Le champ RCCM n’est donc pas proposé ici.
-                    L’identification nationale reste facultative, elle n’est requise que des agents économiques.
-                  </p>
-                )}
                 {estAdmin && (
                   <div>
                     <button
                       type="submit"
                       disabled={envoi}
-                      className="border border-border rounded-[6px] bg-surface px-3 py-1.5 text-[12px] font-bold hover:bg-surface-alt disabled:opacity-60"
+                      className="border border-border rounded-[3px] bg-surface px-3 py-1.5 text-[11.5px] font-bold hover:bg-surface-alt disabled:opacity-60"
                     >
                       Enregistrer
                     </button>
@@ -813,8 +809,8 @@ export function ParametresDossierPage() {
               {estSycebnl && exemption && (
                 <div className="mt-5 border-t border-border pt-4 flex flex-col gap-2">
                   <SectionTitre>Exemption d’impôt sur les sociétés</SectionTitre>
-                  <p className="text-[12px] leading-[1.6]">{exemption.enonce}</p>
-                  <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[12px]">
+                  <p className="text-[11.5px] leading-[1.6]">{exemption.enonce}</p>
+                  <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[11.5px]">
                     <dt className="text-text-dim">Attestation exigée</dt>
                     <dd>
                       {exemption.attestationRequise === null
@@ -844,7 +840,7 @@ export function ParametresDossierPage() {
                       {exemption.avertissements.map((a) => (
                         <li
                           key={a.slice(0, 60)}
-                          className="text-[12px] leading-[1.6] border-l-2 border-border-dark pl-2.5 text-text-dim"
+                          className="text-[11.5px] leading-[1.6] border-l-2 border-border-dark pl-2.5 text-text-dim"
                         >
                           {a}
                         </li>
@@ -863,19 +859,22 @@ export function ParametresDossierPage() {
               affaires, et le serveur refuse d'ailleurs le croisement. */}
           {onglet === 'forme' && params.referentiel === 'SYCEBNL' && (
             <>
-              <SectionTitre>Forme juridique</SectionTitre>
+              <SectionTitre>
+                Forme juridique{' '}
+                <Aide
+                  titre="Forme juridique"
+                  texte="Au sens de la loi n° 004/2001 du 20 juillet 2001. Ce choix ne change pas vos états financiers : il détermine les obligations annuelles proposées par le planning de clôture."
+                  source="Loi n° 004/2001 du 20 juillet 2001"
+                />
+              </SectionTitre>
               <div className="flex flex-col gap-2">
-                <p className="text-[12px] text-text-dim">
-                  Au sens de la loi n° 004/2001 du 20 juillet 2001. Ce choix ne change pas vos états financiers : il
-                  détermine les obligations annuelles proposées par le planning de clôture.
-                </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {FORMES.map((f) => {
                     const actif = params.formeJuridique === f.valeur;
                     return (
                       <label
                         key={f.valeur}
-                        className={`flex items-start gap-2.5 rounded-[8px] border p-2.5 transition-colors ${
+                        className={`flex items-start gap-2.5 rounded-[4px] border p-2.5 transition-colors ${
                           actif ? 'border-sel bg-sel-soft' : 'border-border hover:bg-surface-alt'
                         } ${estAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}
                       >
@@ -888,14 +887,14 @@ export function ParametresDossierPage() {
                           onChange={() => changerForme(f.valeur)}
                         />
                         <span className="min-w-0">
-                          <span className="block text-[12.5px] font-semibold">{f.titre}</span>
-                          <span className="block text-[12px] text-text-dim mt-0.5">{f.detail}</span>
+                          <span className="block text-[11.5px] font-semibold">{f.titre}</span>
+                          <span className="block text-[11.5px] text-text-dim mt-0.5">{f.detail}</span>
                         </span>
                       </label>
                     );
                   })}
                 </div>
-                <label className="flex items-center gap-2 text-[12px] mt-1">
+                <label className="flex items-center gap-2 text-[11.5px] mt-1">
                   <input
                     type="checkbox"
                     checked={params.droitEtranger ?? false}
@@ -914,20 +913,17 @@ export function ParametresDossierPage() {
             <>
               <SectionTitre>
                 Forme juridique OHADA <Aide sujet="formeJuridiqueSyscohada" />
+                <Aide
+                  titre="Forme et planning de clôture"
+                  texte="Au sens du droit OHADA des affaires · l’AUSCGIE pour les sociétés commerciales et le groupement d’intérêt économique, l’AUSCOOP pour les coopératives, l’AUDCG pour le commerçant personne physique et l’entreprenant. Ce choix ne change pas vos états financiers : il détermine les obligations annuelles proposées par le planning de clôture, qui ne sont pas les mêmes selon que l’entité tient une assemblée générale, dépose au registre du commerce, ou ni l’un ni l’autre. La forme se lit dans les statuts. Les montants de capital sont ceux de l’Acte uniforme, exprimés en francs CFA. Celui de la SARL ne s’applique PAS en RDC : l’article 311 réserve le cas de « dispositions nationales contraires », et l’arrêté interministériel n° 002/CAB/MIN/JGS&DH/014 et n° 243/CAB/MIN/FINANCES/2014 du 30 décembre 2014 laisse les associés fixer librement le capital compte tenu de l’objet social. Le même arrêté rend le notaire facultatif pour les statuts. La transformation d’une société en une autre forme est prévue par l’article 181 : ce choix se corrige à tout moment."
+                  source="AUSCGIE, art. 181 et 311 · arrêté interministériel du 30 décembre 2014"
+                />
               </SectionTitre>
               <div className="flex flex-col gap-2">
-                <p className="text-[12px] text-text-dim">
-                  Au sens du droit OHADA des affaires · l’AUSCGIE pour les sociétés commerciales et le groupement
-                  d’intérêt économique, l’AUSCOOP pour les coopératives, l’AUDCG pour le commerçant personne physique
-                  et l’entreprenant. Ce choix ne change pas vos états financiers : il détermine les obligations
-                  annuelles proposées par le planning de clôture, qui ne sont pas les mêmes selon que l’entité tient
-                  une assemblée générale, dépose au registre du commerce, ou ni l’un ni l’autre.
-                </p>
                 {params.formeJuridiqueSyscohada === null && (
-                  <p className="text-[12px] text-text-dim border border-border rounded-[7px] p-2.5 leading-[1.55]">
-                    <strong>Aucune forme n’est encore renseignée.</strong> Le planning de clôture n’affiche donc, pour
-                    l’instant, que les jalons communs à toutes les entités · ni l’assemblée générale, ni le dépôt au
-                    registre du commerce, qui dépendent de la forme. Elle se lit dans vos statuts.
+                  <p className="text-[11.5px] text-text-dim border border-border rounded-[4px] p-2.5 leading-[1.55]">
+                    <strong>Aucune forme n’est encore renseignée.</strong> Le planning de clôture n’affiche que les
+                    jalons communs à toutes les entités.
                   </p>
                 )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -936,7 +932,7 @@ export function ParametresDossierPage() {
                     return (
                       <label
                         key={f.valeur}
-                        className={`flex items-start gap-2.5 rounded-[8px] border p-2.5 transition-colors ${
+                        className={`flex items-start gap-2.5 rounded-[4px] border p-2.5 transition-colors ${
                           actif ? 'border-sel bg-sel-soft' : 'border-border hover:bg-surface-alt'
                         } ${estAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}
                       >
@@ -949,70 +945,37 @@ export function ParametresDossierPage() {
                           onChange={() => changerFormeSyscohada(f.valeur)}
                         />
                         <span className="min-w-0">
-                          <span className="block text-[12.5px] font-semibold">{f.titre}</span>
-                          <span className="block text-[12px] text-text-dim mt-0.5 leading-[1.5]">{f.detail}</span>
+                          <span className="block text-[11.5px] font-semibold">{f.titre}</span>
+                          <span className="block text-[11.5px] text-text-dim mt-0.5 leading-[1.5]">{f.detail}</span>
                         </span>
                       </label>
                     );
                   })}
                 </div>
-                <p className="text-[12px] text-text-dim mt-1 leading-[1.55]">
-                  Les montants de capital sont ceux de l’Acte uniforme, exprimés en francs CFA. Celui de la SARL ne
-                  s’applique PAS en RDC : l’article 311 réserve le cas de « dispositions nationales contraires », et
-                  l’arrêté interministériel n° 002/CAB/MIN/JGS&amp;DH/014 et n° 243/CAB/MIN/FINANCES/2014 du 30
-                  décembre 2014 laisse les associés fixer librement le capital compte tenu de l’objet social. Le même
-                  arrêté rend le notaire facultatif pour les statuts. La transformation d’une société en une autre
-                  forme est par ailleurs prévue par l’article 181 : ce choix se corrige à tout moment.
-                </p>
               </div>
             </>
           )}
 
           {onglet === 'regime' && (
             <>
-              <SectionTitre>Régime fiscal et effectif</SectionTitre>
-              <div className="space-y-3">
-                {/* IMPÔT SUR LES BÉNÉFICES · bloc d'information, pas un
-                    réglage : le régime ne se stocke pas ici, il se déduit du
-                    chiffre d'affaires de l'exercice dans la fenêtre Fiscalité,
-                    et un régime figé au dossier se périmerait dès le
-                    franchissement d'un seuil. Ce qui change ici entre les deux
-                    référentiels n'est pas la présentation mais le fond · une
-                    ASBL peut être EXEMPTÉE, une société ne l'est jamais. */}
+              {/* IMPÔT SUR LES BÉNÉFICES · une aide, pas un réglage : le régime
+                  ne se stocke pas ici, il se déduit du chiffre d'affaires de
+                  l'exercice dans la fenêtre Fiscalité, et un régime figé au
+                  dossier se périmerait dès le franchissement d'un seuil. */}
+              <SectionTitre>
+                Régime fiscal et effectif
                 {params.referentiel === 'SYSCOHADA' && (
-                  <div className="border border-border rounded-[7px] p-2.5">
-                    <span className="block text-[12.5px] font-semibold">Impôt sur les bénéfices</span>
-                    <span className="block text-[11px] text-text-dim leading-[1.55] mt-1">
-                      Depuis le 1<sup>er</sup> janvier 2026, la loi n° 23/053 du 30 novembre 2023 a remplacé l’impôt
-                      professionnel sur les bénéfices par deux impôts distincts, selon que l’entité est une personne
-                      morale ou une personne physique. L’<strong>IPR et l’IBP n’existent plus</strong> : un logiciel ou
-                      un conseil qui les mobilise encore raisonne sous un régime abrogé.
-                    </span>
-                    <ul className="block text-[11px] text-text-dim leading-[1.55] mt-1.5 list-disc pl-4 space-y-1">
-                      <li>
-                        <strong>Personnes morales</strong> · impôt sur les sociétés à 30 % du bénéfice net imposable
-                        (art. 56), avec un impôt minimum de 1 % du chiffre d’affaires déclaré lorsque le résultat est
-                        déficitaire, ou bénéficiaire mais donnant un impôt inférieur (art. 57).
-                      </li>
-                      <li>
-                        <strong>Personnes physiques</strong> · entreprise individuelle et entreprenant relèvent de
-                        l’impôt sur le revenu, dont le régime dépend du chiffre d’affaires annuel hors taxes :
-                        micro-entreprise jusqu’à 25 000 000,00 FC, imposée à un forfait annuel (art. 107 et 128) ;
-                        petite entreprise de 25 000 001,00 à 300 000 000,00 FC, imposée à 1 % du chiffre d’affaires
-                        pour la vente et 2 % pour les prestations de services (art. 109 et 127) ; régime réel au-delà
-                        (art. 112). Le déclassement suppose deux exercices consécutifs sous le seuil, le surclassement
-                        est immédiat (art. 113).
-                      </li>
-                    </ul>
-                    <span className="block text-[11px] text-text-dim leading-[1.55] mt-1.5">
-                      Ces seuils et ce forfait sont réajustables par arrêté du Ministre des Finances · vérifiez-les
-                      avant de les opposer à un client. La fenêtre <strong>Fiscalité</strong> monte le tableau de
-                      passage du résultat comptable au résultat fiscal, liquide l’impôt et calcule les acomptes ·
-                      l’imprimé officiel de déclaration, lui, reste à remplir à la main tant que le modèle n’est pas
-                      en notre possession.
-                    </span>
-                  </div>
+                  <>
+                    {' '}
+                    <Aide
+                      titre="Impôt sur les bénéfices"
+                      texte="Depuis le 1er janvier 2026, la loi n° 23/053 du 30 novembre 2023 a remplacé l’impôt professionnel sur les bénéfices par deux impôts distincts, selon que l’entité est une personne morale ou une personne physique. L’IPR et l’IBP n’existent plus. Personnes morales · impôt sur les sociétés à 30 % du bénéfice net imposable (art. 56), avec un impôt minimum de 1 % du chiffre d’affaires déclaré lorsque le résultat est déficitaire, ou bénéficiaire mais donnant un impôt inférieur (art. 57). Personnes physiques · entreprise individuelle et entreprenant relèvent de l’impôt sur le revenu, dont le régime dépend du chiffre d’affaires annuel hors taxes : micro-entreprise jusqu’à 25 000 000,00 FC, imposée à un forfait annuel (art. 107 et 128) ; petite entreprise de 25 000 001,00 à 300 000 000,00 FC, imposée à 1 % du chiffre d’affaires pour la vente et 2 % pour les prestations de services (art. 109 et 127) ; régime réel au-delà (art. 112). Le déclassement suppose deux exercices consécutifs sous le seuil, le surclassement est immédiat (art. 113). Ces seuils et ce forfait sont réajustables par arrêté du Ministre des Finances. La fenêtre Fiscalité monte le tableau de passage du résultat comptable au résultat fiscal, liquide l’impôt et calcule les acomptes · l’imprimé officiel de déclaration reste à remplir à la main."
+                      source="Loi n° 23/053 du 30 novembre 2023, art. 56, 57, 107 à 113, 127 et 128"
+                    />
+                  </>
                 )}
+              </SectionTitre>
+              <div className="space-y-3">
                 {/* ----------------------------------------------------------
                     DOUBLE REGARD À LA VALIDATION.
 
@@ -1022,7 +985,7 @@ export function ParametresDossierPage() {
                     obligation, et le cabinet qui la décoche croirait
                     contrevenir à quelque chose.
                     ---------------------------------------------------------- */}
-                <label className="flex items-start gap-2 text-[12px]">
+                <label className="flex items-start gap-2 text-[11.5px]">
                   <input
                     type="checkbox"
                     className="mt-[3px]"
@@ -1031,22 +994,24 @@ export function ParametresDossierPage() {
                     onChange={(e) => changerDoubleRegard(e.target.checked)}
                   />
                   <span>
-                    Double regard à la validation
+                    Double regard à la validation{' '}
+                    <Aide
+                      titre="Double regard"
+                      texte={`Une écriture n’est validée que par un autre utilisateur que celui qui l’a saisie. La validation est le franchissement : c’est elle qui fait entrer la pièce au livre-journal, et l’AUDCIF art. 22, 2° pose que « l’irréversibilité des traitements interdise toute suppression, addition ou modification ultérieure ». Le même art. 22, 2° impose la validation et ne nomme personne. ${
+                        params.referentiel === 'SYCEBNL'
+                          ? 'Le SYCEBNL art. 16, 2) demande « la mise en place de procédures nécessaires à une organisation comptable permettant un contrôle interne fiable et le contrôle externe ».'
+                          : 'Art. 69 : « L’entité détermine, SOUS SA RESPONSABILITÉ, les procédures nécessaires à la mise en place d’une organisation comptable permettant aussi bien un contrôle interne fiable que le contrôle externe. »'
+                      } Un dossier à un seul comptable peut la laisser décochée, ou la cocher et porter à la validation le NOM du second regard exercé hors logiciel et son motif · les deux s’impriment alors au journal. L’activer ou la retirer ne dévalide rien de ce qui est déjà entré.`}
+                      source={params.referentiel === 'SYCEBNL' ? 'AUDCIF art. 22, 2° · SYCEBNL art. 16, 2)' : 'AUDCIF art. 22, 2° et 69'}
+                    />
                     <span className="block text-[11px] text-text-dim leading-[1.5] mt-0.5">
-                      Une écriture n’est validée que par un autre utilisateur que celui qui l’a saisie. La
-                      validation est le franchissement : c’est elle qui fait entrer la pièce au livre-journal, et
-                      l’AUDCIF art. 22, 2° pose que « l’irréversibilité des traitements interdise toute
-                      suppression, addition ou modification ultérieure ».{' '}
                       {params.referentiel === 'SYCEBNL'
-                        ? 'AUCUN TEXTE N’IMPOSE cette séparation : le même art. 22, 2° impose la validation et ne nomme personne. L’option outille une procédure que l’entité se donne, au titre du SYCEBNL art. 16, 2) qui demande « la mise en place de procédures nécessaires à une organisation comptable permettant un contrôle interne fiable et le contrôle externe ». L’art. 69 de l’AUDCIF, qui délègue expressément ces procédures à l’entité, est exclu par l’art. 3 du SYCEBNL.'
-                        : 'AUCUN TEXTE N’IMPOSE cette séparation : le même art. 22, 2° impose la validation et ne nomme personne. L’option outille une procédure que l’entité se donne, au titre de l’art. 69 : « L’entité détermine, SOUS SA RESPONSABILITÉ, les procédures nécessaires à la mise en place d’une organisation comptable permettant aussi bien un contrôle interne fiable que le contrôle externe. »'}{' '}
-                      Un dossier à un seul comptable peut la laisser décochée, ou la cocher et porter à la
-                      validation le NOM du second regard exercé hors logiciel et son motif · les deux s’impriment
-                      alors au journal. L’activer ou la retirer ne dévalide rien de ce qui est déjà entré.
+                        ? 'AUCUN TEXTE N’IMPOSE cette séparation · procédure que l’entité se donne (SYCEBNL art. 16, 2) ; l’art. 69 de l’AUDCIF est exclu par l’art. 3 du SYCEBNL).'
+                        : 'AUCUN TEXTE N’IMPOSE cette séparation · procédure que l’entité se donne (AUDCIF art. 69).'}
                     </span>
                   </span>
                 </label>
-                <label className="flex items-start gap-2 text-[12px]">
+                <label className="flex items-start gap-2 text-[11.5px]">
                   <input
                     type="checkbox"
                     className="mt-[3px]"
@@ -1055,62 +1020,56 @@ export function ParametresDossierPage() {
                     onChange={(e) => changerRegime({ assujettiTva: e.target.checked })}
                   />
                   <span>
-                    Entité assujettie à la TVA
-                    {params.referentiel === 'SYCEBNL' ? (
-                      <span className="block text-[11px] text-text-dim leading-[1.5] mt-0.5">
-                        L’assujettissement est de PLEIN DROIT dès 80 000 000 FC de chiffre d’affaires annuel
-                        (ordonnance-loi n° 10/001, art. 14) · le décret n° 011/42, art. 42, y soumet « les personnes
-                        physiques ET MORALES », sans écarter les associations, et précise que ce chiffre d’affaires
-                        s’entend HORS TVA ; son art. 43 le mesure sur l’année précédente, ou sur le prévisionnel
-                        pour une entité nouvelle. Ce qui est propre à une association tient aux EXONÉRATIONS, non au
-                        seuil : ses ventes et importations à caractère social, sportif, culturel, religieux,
-                        éducatif ou philanthropique conforme à son objet sont exonérées (art. 15, 2°), comme ses
-                        prestations d’activité normale tant que leur non-assujettissement ne fausse pas la
-                        concurrence (art. 17, 8°) · ces opérations ne produisent donc pas de chiffre d’affaires
-                        taxable. Une activité accessoire taxable, elle, compte. En deçà du seuil, l’option reste
-                        possible et engage deux ans. Décochée, la TVA supportée n’est pas récupérable et se porte en
-                        charge.
-                      </span>
-                    ) : (
-                      <span className="block text-[11px] text-text-dim leading-[1.5] mt-0.5">
-                        L’assujettissement est de PLEIN DROIT dès 80 000 000 FC de chiffre d’affaires annuel hors
-                        taxes (ordonnance-loi n° 10/001, art. 14) · à la différence d’une association, une entité
-                        commerciale qui atteint ce seuil n’a rien à choisir. En deçà, l’option reste possible sur
-                        demande expresse à l’administration, et elle est définitive pendant deux ans. Une fois
-                        assujettie, l’entité conserve cette qualité pendant les deux années qui suivent le constat de
-                        la baisse sous le seuil. Décochée, la TVA supportée n’est pas récupérable et se porte en
-                        charge.
-                      </span>
-                    )}
+                    Entité assujettie à la TVA{' '}
+                    <Aide
+                      titre="Assujettissement à la TVA"
+                      texte={
+                        params.referentiel === 'SYCEBNL'
+                          ? 'L’assujettissement est de PLEIN DROIT dès 80 000 000 FC de chiffre d’affaires annuel (ordonnance-loi n° 10/001, art. 14) · le décret n° 011/42, art. 42, y soumet « les personnes physiques ET MORALES », sans écarter les associations, et précise que ce chiffre d’affaires s’entend HORS TVA ; son art. 43 le mesure sur l’année précédente, ou sur le prévisionnel pour une entité nouvelle. Ce qui est propre à une association tient aux EXONÉRATIONS, non au seuil : ses ventes et importations à caractère social, sportif, culturel, religieux, éducatif ou philanthropique conforme à son objet sont exonérées (art. 15, 2°), comme ses prestations d’activité normale tant que leur non-assujettissement ne fausse pas la concurrence (art. 17, 8°) · ces opérations ne produisent donc pas de chiffre d’affaires taxable. Une activité accessoire taxable, elle, compte. En deçà du seuil, l’option reste possible et engage deux ans. Décochée, la TVA supportée n’est pas récupérable et se porte en charge.'
+                          : 'L’assujettissement est de PLEIN DROIT dès 80 000 000 FC de chiffre d’affaires annuel hors taxes (ordonnance-loi n° 10/001, art. 14) · à la différence d’une association, une entité commerciale qui atteint ce seuil n’a rien à choisir. En deçà, l’option reste possible sur demande expresse à l’administration, et elle est définitive pendant deux ans. Une fois assujettie, l’entité conserve cette qualité pendant les deux années qui suivent le constat de la baisse sous le seuil. Décochée, la TVA supportée n’est pas récupérable et se porte en charge.'
+                      }
+                      source={
+                        params.referentiel === 'SYCEBNL'
+                          ? 'O.-L. n° 10/001, art. 14, 15 et 17 · décret n° 011/42, art. 42 et 43'
+                          : 'O.-L. n° 10/001, art. 14'
+                      }
+                    />
                   </span>
                 </label>
                 {/* RÉGIME D'EXIGIBILITÉ · n'a de sens qu'assujetti. Il ne change
                     pas le MONTANT de la taxe mais la PÉRIODE où elle est due,
                     ce qui est la première cause d'écart sur une déclaration. */}
                 {params.assujettiTva && (
-                  <label className="block text-[12px]">
-                    Exigibilité de la TVA
+                  <label className="block text-[11.5px]">
+                    Exigibilité de la TVA{' '}
+                    <Aide
+                      titre="Exigibilité de la TVA"
+                      texte="Pour les prestations de services et les travaux immobiliers, le régime de droit commun est celui de l’encaissement : une facture émise en mars et réglée en juin se déclare en juin. Laisser « Livraisons » sur un dossier de services fait verser chaque mois une taxe qui n’a pas encore été encaissée. Le régime des débits ne s’ouvre que sur autorisation écrite du Directeur Général des Impôts, et ne dispense pas de payer à l’encaissement s’il précède la facture."
+                      source="O.-L. n° 10/001, art. 25 et 26"
+                    />
                     <select
                       value={params.regimeExigibiliteTva}
                       disabled={!estAdmin || envoi}
                       onChange={(e) => changerRegime({ regimeExigibiliteTva: e.target.value as RegimeExigibiliteTva })}
-                      className="mt-1 block w-full max-w-[420px] border border-border rounded-[7px] bg-bg px-2 py-1 text-[12.5px] focus:outline-none focus:border-sel"
+                      className="mt-1 block w-full max-w-[420px] border border-border rounded-[4px] bg-bg px-2 py-1 text-[11.5px] focus:outline-none focus:border-sel"
                     >
                       <option value="LIVRAISONS">Livraisons · taxe due à la livraison du bien (art. 25, 1°)</option>
                       <option value="ENCAISSEMENTS">Encaissements · taxe due au règlement (art. 25, 2°)</option>
                       <option value="DEBITS">Débits · sur autorisation du DGI (art. 26)</option>
                     </select>
-                    <span className="block text-[11px] text-text-dim leading-[1.5] mt-1">
-                      Pour les PRESTATIONS DE SERVICES et les travaux immobiliers, le régime de droit commun est celui
-                      de l’<strong>encaissement</strong> : une facture émise en mars et réglée en juin se déclare en
-                      juin. Laisser « Livraisons » sur un dossier de services fait verser chaque mois une taxe qui n’a
-                      pas encore été encaissée. Le régime des débits ne s’ouvre que sur autorisation écrite du Directeur
-                      Général des Impôts, et ne dispense pas de payer à l’encaissement s’il précède la facture.
-                    </span>
                   </label>
                 )}
-                <label className="block text-[12px]">
-                  Effectif permanent
+                <label className="block text-[11.5px]">
+                  Effectif permanent{' '}
+                  <Aide
+                    titre="Effectif permanent"
+                    texte={
+                      params.referentiel === 'SYCEBNL'
+                        ? 'Au-delà de vingt personnes, la désignation d’un auditeur devient obligatoire (SYCEBNL, art. 19, troisième critère). Ce nombre commande aussi la tranche de cotisation INPP.'
+                        : 'Au-delà de cinquante personnes, l’effectif devient l’un des trois critères de désignation obligatoire d’un commissaire aux comptes dans une SARL (AUSCGIE, art. 376) et dans une SAS (art. 853-13) · il en faut DEUX sur trois, les deux autres étant le total du bilan au-delà de 125 000 000 FCFA et le chiffre d’affaires annuel au-delà de 250 000 000 FCFA. Dans une société anonyme, le commissaire aux comptes est obligatoire sans condition de taille (art. 702). Ce nombre commande aussi la tranche de cotisation INPP.'
+                    }
+                    source={params.referentiel === 'SYCEBNL' ? 'SYCEBNL, art. 19' : 'AUSCGIE, art. 376, 702 et 853-13'}
+                  />
                   <input
                     type="number"
                     min={0}
@@ -1122,31 +1081,21 @@ export function ParametresDossierPage() {
                         changerRegime({ effectifPermanent: Math.max(0, Math.trunc(valeur)) });
                       }
                     }}
-                    className="mt-1 w-32 border border-border rounded-[7px] bg-bg px-2 py-1 text-[12.5px] focus:outline-none focus:border-sel"
+                    className="mt-1 w-32 border border-border rounded-[4px] bg-bg px-2 py-1 text-[11.5px] focus:outline-none focus:border-sel"
                   />
-                  {params.referentiel === 'SYCEBNL' ? (
-                    <span className="block text-[11px] text-text-dim leading-[1.5] mt-1">
-                      Au-delà de vingt personnes, la désignation d’un auditeur devient obligatoire (SYCEBNL, art. 19,
-                      troisième critère). Ce nombre commande aussi la tranche de cotisation INPP.
-                    </span>
-                  ) : (
-                    <span className="block text-[11px] text-text-dim leading-[1.5] mt-1">
-                      Au-delà de cinquante personnes, l’effectif devient l’un des trois critères de désignation
-                      obligatoire d’un commissaire aux comptes dans une SARL (AUSCGIE, art. 376) et dans une SAS
-                      (art. 853-13) · il en faut DEUX sur trois, les deux autres étant le total du bilan au-delà de
-                      125 000 000 FCFA et le chiffre d’affaires annuel au-delà de 250 000 000 FCFA. Dans une société
-                      anonyme, le commissaire aux comptes est obligatoire sans condition de taille (art. 702). Ce
-                      nombre commande aussi la tranche de cotisation INPP.
-                    </span>
-                  )}
                 </label>
 
                 {/* N° CNSS DE L'EMPLOYEUR · art. 212, point 2 du Code du
                     travail. Le registre du personnel renvoie ICI quand il
                     manque · il faut donc qu'il y soit. Un renvoi vers un champ
                     qui n'existe pas est le trou du câblage. */}
-                <label className="block text-[12px]">
-                  Numéro d’immatriculation à la CNSS (employeur)
+                <label className="block text-[11.5px]">
+                  Numéro d’immatriculation à la CNSS (employeur){' '}
+                  <Aide
+                    titre="N° CNSS de l’employeur"
+                    texte="Deuxième des quinze énonciations que l’article 212 du Code du travail exige de tout contrat constaté par écrit, et la seule qui soit du côté de l’employeur. Tant qu’elle manque, aucun contrat de ce dossier n’est complet au sens de l’article 212, quel que soit le soin mis à la fiche de chaque salarié · le registre du personnel le signale en tête de sa confrontation."
+                    source="Code du travail, art. 212, point 2"
+                  />
                   <input
                     type="text"
                     defaultValue={params.numeroAffiliationCnssEmployeur ?? ''}
@@ -1157,15 +1106,8 @@ export function ParametresDossierPage() {
                         changerRegime({ numeroAffiliationCnssEmployeur: valeur });
                       }
                     }}
-                    className="mt-1 w-64 border border-border rounded-[7px] bg-bg px-2 py-1 text-[12.5px] focus:outline-none focus:border-sel"
+                    className="mt-1 w-64 border border-border rounded-[4px] bg-bg px-2 py-1 text-[11.5px] focus:outline-none focus:border-sel"
                   />
-                  <span className="block text-[11px] text-text-dim leading-[1.5] mt-1">
-                    Deuxième des quinze énonciations que l’article 212 du Code du travail exige de tout contrat
-                    constaté par écrit, et la seule qui soit du côté de l’employeur. Tant qu’elle manque,{' '}
-                    <strong>aucun contrat de ce dossier n’est complet</strong> au sens de l’article 212, quel que soit
-                    le soin mis à la fiche de chaque salarié · le registre du personnel le signale en tête de sa
-                    confrontation.
-                  </span>
                 </label>
 
                 {/* COTISATIONS · propre au jeu associations et ordres
@@ -1174,8 +1116,13 @@ export function ParametresDossierPage() {
                     refuse le réglage · le montrer serait une promesse fausse. */}
                 {params.referentiel === 'SYCEBNL' &&
                   params.jeuEtatsFinanciersSycebnl === 'ASSOCIATIONS_ORDRES_PROFESSIONNELS' && (
-                    <label className="block text-[12px]">
-                      Comptabilisation des cotisations et du droit d’entrée
+                    <label className="block text-[11.5px]">
+                      Comptabilisation des cotisations et du droit d’entrée{' '}
+                      <Aide
+                        titre="Cotisations et droit d’entrée"
+                        texte="Le fait générateur est l’appel, « toutefois, si l’entité ne peut justifier d’un droit d’agir en recouvrement, les cotisations et le droit d’entrée sont comptabilisés lors de leur encaissement effectif ». Ce n’est donc pas une préférence de méthode mais un fait à vérifier dans les statuts. Le même paragraphe impose de « préciser dans les notes annexes, la méthode retenue ». À l’encaissement, les modèles d’appel de cotisation sont refusés : ils inscriraient au 411 des créances que l’entité n’a aucun moyen de poursuivre."
+                        source="SYCEBNL, cadre conceptuel § 5.4.2.1"
+                      />
                       <select
                         value={params.methodeCotisations ?? ''}
                         disabled={!estAdmin || envoi}
@@ -1183,7 +1130,7 @@ export function ParametresDossierPage() {
                           const v = e.target.value;
                           if (v === 'APPEL' || v === 'ENCAISSEMENT') changerMethodeCotisations(v);
                         }}
-                        className="mt-1 block w-full max-w-[420px] border border-border rounded-[7px] bg-bg px-2 py-1 text-[12.5px] focus:outline-none focus:border-sel"
+                        className="mt-1 block w-full max-w-[420px] border border-border rounded-[4px] bg-bg px-2 py-1 text-[11.5px] focus:outline-none focus:border-sel"
                       >
                         <option value="" disabled>
                           À trancher · lire les statuts
@@ -1191,15 +1138,6 @@ export function ParametresDossierPage() {
                         <option value="APPEL">À l’appel · l’entité justifie d’un droit d’agir en recouvrement</option>
                         <option value="ENCAISSEMENT">à l’encaissement effectif · aucune voie de recouvrement</option>
                       </select>
-                      <span className="block text-[11px] text-text-dim leading-[1.5] mt-1">
-                        Cadre conceptuel § 5.4.2.1 : le fait générateur est l’<strong>appel</strong>, « toutefois, si
-                        l’entité ne peut justifier d’un droit d’agir en recouvrement, les cotisations et le droit
-                        d’entrée sont comptabilisés lors de leur encaissement effectif ». Ce n’est donc pas une
-                        préférence de méthode mais un fait à vérifier dans les statuts. Le même paragraphe impose de
-                        « préciser dans les notes annexes, la méthode retenue ». À l’encaissement, les modèles
-                        d’appel de cotisation sont refusés : ils inscriraient au 411 des créances que l’entité n’a
-                        aucun moyen de poursuivre.
-                      </span>
                     </label>
                   )}
               </div>
@@ -1219,7 +1157,7 @@ export function ParametresDossierPage() {
                   return (
                     <label
                       key={c.valeur}
-                      className={`flex items-start gap-2.5 rounded-[8px] border p-3 transition-colors ${
+                      className={`flex items-start gap-2.5 rounded-[4px] border p-3 transition-colors ${
                         actif ? 'border-sel bg-sel-soft' : 'border-border'
                       } ${modifiable ? 'cursor-pointer hover:border-sel/50' : 'cursor-default'}`}
                     >
@@ -1232,16 +1170,16 @@ export function ParametresDossierPage() {
                         onChange={() => changerSysteme(c.valeur)}
                       />
                       <span className="min-w-0">
-                        <span className="block text-[13px] font-semibold flex items-center gap-1.5">
+                        <span className="block text-[12px] font-semibold flex items-center gap-1.5">
                           {c.titre}
                           <Aide sujet="systemeSyscohada" />
                         </span>
-                        <span className="block text-[12px] text-text-dim mt-1 leading-[1.5]">{c.description}</span>
+                        <span className="block text-[11.5px] text-text-dim mt-1 leading-[1.5]">{c.description}</span>
                       </span>
                     </label>
                   );
                 })}
-                <p className="text-[12px] text-text-dim mt-1 leading-[1.55]">
+                <p className="text-[11.5px] text-text-dim mt-1 leading-[1.55]">
                   {verrouille
                     ? `Ce dossier porte ${params.nombreEcritures} écriture(s) : le système comptable est désormais figé. Pour tenir une entité relevant de l'autre système, créez un dossier distinct.`
                     : estAdmin
@@ -1262,7 +1200,7 @@ export function ParametresDossierPage() {
                   return (
                     <label
                       key={c.valeur}
-                      className={`flex items-start gap-2.5 rounded-[8px] border p-3 transition-colors ${
+                      className={`flex items-start gap-2.5 rounded-[4px] border p-3 transition-colors ${
                         actif ? 'border-sel bg-sel-soft' : 'border-border'
                       } ${modifiable ? 'cursor-pointer hover:border-sel/50' : 'cursor-default'}`}
                     >
@@ -1275,17 +1213,17 @@ export function ParametresDossierPage() {
                         onChange={() => changerJeu(c.valeur)}
                       />
                       <span className="min-w-0">
-                        <span className="block text-[13px] font-semibold flex items-center gap-1.5">
+                        <span className="block text-[12px] font-semibold flex items-center gap-1.5">
                           {c.titre}
                           {c.valeur === 'SYSTEME_MINIMAL_TRESORERIE' && <Aide sujet="smt" />}
                         </span>
-                        <span className="block text-[12px] text-text-dim mt-1">{c.etats.join(' · ')}</span>
+                        <span className="block text-[11.5px] text-text-dim mt-1">{c.etats.join(' · ')}</span>
                       </span>
                     </label>
                   );
                 })}
 
-                <p className="text-[12px] text-text-dim mt-1 leading-[1.55]">
+                <p className="text-[11.5px] text-text-dim mt-1 leading-[1.55]">
                   {verrouille
                     ? `Ce dossier porte ${params.nombreEcritures} écriture(s) : le jeu d'états financiers est désormais figé. Pour tenir une entité de l'autre type, créez un dossier distinct.`
                     : estAdmin

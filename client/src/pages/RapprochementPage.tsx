@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { Aide } from '../components/chrome/Aide';
 import type { Compte, RapprochementBancaire } from '../lib/types';
 
 /**
@@ -57,26 +58,24 @@ export function RapprochementPage() {
 
   return (
     <div className="p-2">
-      <div className="text-[11px] font-mono text-text-dim leading-none">Traitement</div>
-      <div className="flex items-center justify-between mb-1.5 max-w-[1100px]">
-        <h1 className="text-[13px] font-bold leading-tight">Rapprochement bancaire</h1>
-        {peutEcrire && (
-          <button type="button" onClick={() => setAfficherFormulaire((v) => !v)} className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[12px] font-semibold hover:opacity-90">
+      {peutEcrire && (
+        <div className="flex items-center justify-end mb-1.5 max-w-[900px]">
+          <button type="button" onClick={() => setAfficherFormulaire((v) => !v)} className="bg-sel text-white rounded-[3px] px-3 py-[3px] text-[11.5px] font-semibold hover:opacity-90">
             Nouveau rapprochement
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {peutEcrire && afficherFormulaire && (
         <form onSubmit={onOuvrir} className="bg-surface border border-border p-4 mb-4 max-w-[600px]">
-          <div className="font-mono text-[12px] font-semibold text-text-dim mb-3">Nouveau rapprochement</div>
+          <div className="font-mono text-[11.5px] font-semibold text-text-dim mb-3">Nouveau rapprochement</div>
           <div className="grid grid-cols-2 gap-3 mb-3">
-            <label className="text-[12px] font-semibold text-text-dim">
+            <label className="text-[11.5px] font-semibold text-text-dim">
               Compte de trésorerie
               <select
                 value={compteId}
                 onChange={(e) => setCompteId(e.target.value)}
-                className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal"
+                className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal"
               >
                 {(comptes ?? []).map((c) => (
                   <option key={c.id} value={c.id}>
@@ -85,45 +84,48 @@ export function RapprochementPage() {
                 ))}
               </select>
             </label>
-            <label className="text-[12px] font-semibold text-text-dim">
+            <label className="text-[11.5px] font-semibold text-text-dim">
               Date du relevé
               <input
                 type="date"
                 required
                 value={dateReleve}
                 onChange={(e) => setDateReleve(e.target.value)}
-                className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal font-mono"
+                className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono"
               />
             </label>
-            <label className="text-[12px] font-semibold text-text-dim">
-              Solde du relevé
+            <label className="text-[11.5px] font-semibold text-text-dim">
+              <span className="flex items-center gap-1.5">
+                Solde du relevé
+                <Aide
+                  titre="Solde du relevé"
+                  texte="Le solde à saisir est celui affiché en bas du relevé papier/PDF de la banque à la date choisie · pas un solde comptable. L'écart avec le solde pointé sera calculé automatiquement sur l'écran suivant."
+                  source="OmegaX"
+                />
+              </span>
               <input
                 type="number"
                 step="0.01"
                 required
                 value={soldeReleve}
                 onChange={(e) => setSoldeReleve(e.target.value)}
-                className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal font-mono"
+                className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono"
               />
             </label>
           </div>
-          <p className="text-[12px] text-text-dim mb-3">
-            Le solde à saisir est celui affiché en bas du relevé papier/PDF de la banque à la date choisie · pas un
-            solde comptable. L'écart avec le solde pointé sera calculé automatiquement sur l'écran suivant.
-          </p>
-          {erreur && <div className="text-[12.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mb-3">{erreur}</div>}
+          {erreur && <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mb-3">{erreur}</div>}
           <div className="flex gap-2">
-            <button type="submit" disabled={envoi || !compteId} className="bg-sel text-white text-[12.5px] font-semibold px-4 py-1.5 disabled:opacity-50">
+            <button type="submit" disabled={envoi || !compteId} className="bg-sel text-white text-[11.5px] font-semibold px-4 py-1.5 disabled:opacity-50">
               {envoi ? 'Ouverture…' : 'Ouvrir'}
             </button>
-            <button type="button" onClick={() => setAfficherFormulaire(false)} className="text-[12.5px] font-semibold text-text-dim px-4 py-1.5">
+            <button type="button" onClick={() => setAfficherFormulaire(false)} className="text-[11.5px] font-semibold text-text-dim px-4 py-1.5">
               Annuler
             </button>
           </div>
         </form>
       )}
 
-      {!rapprochements && <div className="text-[12.5px] text-text-dim">Chargement…</div>}
+      {!rapprochements && <div className="text-[11.5px] text-text-dim">Chargement…</div>}
 
       {rapprochements && (
         <div
@@ -144,7 +146,7 @@ export function RapprochementPage() {
           {rapprochements.map((r, i) => (
             <div
               key={r.id}
-              className={`grid grid-cols-[110px_1.2fr_100px_110px_90px_100px] min-w-[750px] gap-3 px-3.5 py-1.5 items-center border-b border-border last:border-b-0 text-[12.5px] ${
+              className={`grid grid-cols-[110px_1.2fr_100px_110px_90px_100px] min-w-[750px] gap-3 px-3.5 py-1.5 items-center border-b border-border last:border-b-0 text-[11.5px] ${
                 i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'
               }`}
             >
@@ -165,7 +167,7 @@ export function RapprochementPage() {
             </div>
           ))}
           {rapprochements.length === 0 && (
-            <div className="p-3 text-[12.5px] text-text-dim">Aucun rapprochement pour l'instant.</div>
+            <div className="p-3 text-[11.5px] text-text-dim">Aucun rapprochement pour l'instant.</div>
           )}
         </div>
       )}

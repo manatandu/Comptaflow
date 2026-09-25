@@ -448,9 +448,9 @@ describe('les écrans qui débordaient le plus', () => {
     // barre de défilement pour aller la chercher. Quatre panneaux étaient dans
     // ce cas (Contrôles, Devises, États analytiques, Régularisations).
     expect(lire('ControlesPage.tsx')).toMatch(/rounded-b-\[10px\] overflow-x-auto/);
-    expect(lire('DevisesPage.tsx')).toMatch(/rounded-\[10px\] shadow-posee overflow-x-auto/);
+    expect(lire('DevisesPage.tsx')).toMatch(/rounded-\[\d+px\] shadow-posee overflow-x-auto/);
     expect(lire('EtatsAnalytiquesPage.tsx')).toMatch(/rounded-b-\[10px\] overflow-x-auto/);
-    expect(lire('RegularisationPage.tsx')).toMatch(/rounded-\[8px\] overflow-x-auto/);
+    expect(lire('RegularisationPage.tsx')).toMatch(/rounded-\[\d+px\] overflow-x-auto/);
   });
 
   it('la balance auxiliaire rend ses six colonnes de montants atteignables', () => {

@@ -72,8 +72,6 @@ interface TuileDef {
 
 interface GroupeDef {
   titre: string;
-  /** Une ligne sous le titre, pour dire ce que la carte rassemble. */
-  sousTitre: string;
   Icon: (p: SVGProps<SVGSVGElement>) => JSX.Element;
   tuiles: TuileDef[];
 }
@@ -102,7 +100,6 @@ interface GroupeDef {
 const GROUPES: GroupeDef[] = [
   {
     titre: 'Saisie et consultation',
-    sousTitre: 'Le travail de tous les jours',
     Icon: IconGrille,
     tuiles: [
       { label: 'Saisie des journaux', chemin: '/saisie', Icon: IconGrille },
@@ -114,7 +111,6 @@ const GROUPES: GroupeDef[] = [
   },
   {
     titre: 'Tiers',
-    sousTitre: 'Adhérents, clients, fournisseurs, salariés',
     Icon: IconUsers,
     tuiles: [
       { label: 'Plan des tiers', chemin: '/tiers', Icon: IconUsers },
@@ -126,7 +122,6 @@ const GROUPES: GroupeDef[] = [
   },
   {
     titre: 'Comptes et immobilisations',
-    sousTitre: 'Le plan comptable et les biens durables',
     Icon: IconComptes,
     tuiles: [
       { label: 'Plan comptable', chemin: '/comptes', Icon: IconComptes },
@@ -138,7 +133,6 @@ const GROUPES: GroupeDef[] = [
   },
   {
     titre: 'Clôture et états financiers',
-    sousTitre: "Arrêter les comptes et produire la liasse",
     Icon: IconEtats,
     tuiles: [
       { label: 'États financiers', chemin: '/etats-financiers', Icon: IconEtats },
@@ -157,7 +151,6 @@ const GROUPES: GroupeDef[] = [
     // valent pour tout référentiel · un dossier SYSCOHADA voit donc une carte
     // à deux lignes, jamais une carte vide sous un titre qui ne le concerne pas.
     titre: 'Analytique et obligations',
-    sousTitre: 'Projets, bailleurs et fiscalité',
     Icon: IconDashboard,
     tuiles: [
       { label: 'Registre des donateurs', chemin: '/registre-donateurs', Icon: IconBook, referentielsApplicables: ['SYCEBNL'] },
@@ -250,16 +243,15 @@ export function AccueilPage() {
         carte claire, le nom du dossier en grand et une pastille d'accent,
         là où il y avait un bandeau bleu en dégradé.
       */}
-      <section className="rounded-[8px] border border-border bg-surface px-5 py-4 mb-5 shadow-plate">
+      <section className="rounded-[4px] border border-border bg-surface px-5 py-4 mb-5 shadow-plate">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="min-w-0 flex items-center gap-4">
-            <span className="hidden sm:flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[8px] bg-sel text-white">
+            <span className="hidden sm:flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[4px] bg-sel text-white">
               <IconFolderOpen width={24} height={24} />
             </span>
             <div className="min-w-0">
-              <div className="text-[12px] text-text-dim">Dossier ouvert</div>
-              <h1 className="text-[20px] font-semibold leading-tight truncate">{utilisateur?.tenant.nom}</h1>
-              <div className="text-[12.5px] text-text-dim mt-0.5">
+              <h1 className="text-[16px] font-semibold leading-tight truncate">{utilisateur?.tenant.nom}</h1>
+              <div className="text-[11.5px] text-text-dim mt-0.5">
                 {utilisateur?.tenant.referentiel}
                 {jeu && ` · ${jeu}`}
               </div>
@@ -273,7 +265,7 @@ export function AccueilPage() {
           */}
           <div className="flex flex-wrap items-center gap-2 min-w-0">
             {anneeExercice && (
-              <span className="rounded-[4px] bg-sel-soft text-sel px-3 py-1.5 text-[12.5px] font-semibold">
+              <span className="rounded-[4px] bg-sel-soft text-sel px-3 py-1.5 text-[11.5px] font-semibold">
                 Exercice {anneeExercice}
               </span>
             )}
@@ -284,7 +276,7 @@ export function AccueilPage() {
               <button
                 type="button"
                 onClick={() => navigate('/plateforme')}
-                className="flex items-center gap-1.5 rounded-[4px] border border-border px-3 py-1.5 text-[12.5px] font-semibold"
+                className="flex items-center gap-1.5 rounded-[4px] border border-border px-3 py-1.5 text-[11.5px] font-semibold"
               >
                 <IconFileAdd width={14} height={14} />
                 Nouveau dossier
@@ -296,7 +288,7 @@ export function AccueilPage() {
                 seDeconnecter();
                 navigate('/connexion');
               }}
-              className="flex items-center gap-1.5 rounded-[4px] border border-border px-3 py-1.5 text-[12.5px] font-semibold"
+              className="flex items-center gap-1.5 rounded-[4px] border border-border px-3 py-1.5 text-[11.5px] font-semibold"
             >
               <IconFolderOpen width={14} height={14} />
               Ouvrir un autre
@@ -327,8 +319,8 @@ export function AccueilPage() {
         </div>
 
         <aside className="order-first lg:order-none flex flex-col gap-3">
-          <section className="rounded-[8px] border border-border bg-surface shadow-plate overflow-hidden">
-            <div className="px-4 pt-3.5 pb-2 text-[14px] font-semibold">Où en est ce dossier</div>
+          <section className="rounded-[4px] border border-border bg-surface shadow-plate overflow-hidden">
+            <div className="px-4 pt-3.5 pb-2 text-[13px] font-semibold">Où en est ce dossier</div>
             {chargement ? (
               <div className="px-4 pb-4 flex flex-col gap-2">
                 {[0, 1, 2, 3].map((i) => (
@@ -395,7 +387,7 @@ export function AccueilPage() {
           <button
             type="button"
             onClick={() => setAProposOuvert(true)}
-            className="self-end flex items-center gap-1.5 text-[12px] text-text-dim hover:text-text"
+            className="self-end flex items-center gap-1.5 text-[11.5px] text-text-dim hover:text-text"
           >
             <IconInfo width={13} height={13} />
             À propos d’OmegaX
@@ -418,7 +410,7 @@ function Chevron() {
 }
 
 /**
- * Carte de domaine · un en-tête (pastille, titre, sous-titre) puis une ligne
+ * Carte de domaine · un en-tête (pastille, titre) puis une ligne
  * par fenêtre. Remplace les tuiles isolées (2026-09-23) : des lignes de même
  * hauteur dans des cartes de même largeur ne laissent aucun trou, quel que
  * soit le nombre de fenêtres du groupe.
@@ -437,16 +429,13 @@ function CarteGroupe({
   return (
     <section
       style={{ animationDelay: `${rang * 40}ms` }}
-      className="anim-cascade rounded-[8px] border border-border bg-surface shadow-plate overflow-hidden"
+      className="anim-cascade rounded-[4px] border border-border bg-surface shadow-plate overflow-hidden"
     >
       <div className="flex items-center gap-3 px-4 pt-3.5 pb-3">
-        <span className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[8px] bg-sel text-white">
+        <span className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[4px] bg-sel text-white">
           <groupe.Icon width={18} height={18} />
         </span>
-        <div className="min-w-0">
-          <h2 className="text-[14px] font-semibold leading-tight">{groupe.titre}</h2>
-          <div className="text-[12px] text-text-dim truncate">{groupe.sousTitre}</div>
-        </div>
+        <h2 className="min-w-0 text-[13px] font-semibold leading-tight">{groupe.titre}</h2>
       </div>
       <ul>
         {tuiles.map((t) => (
@@ -457,7 +446,7 @@ function CarteGroupe({
               className="group w-full flex items-center gap-3 px-4 h-[40px] text-left transition-colors duration-150 hover:bg-surface-alt active:bg-chrome"
             >
               <t.Icon width={16} height={16} className="shrink-0 text-sel" />
-              <span className="flex-1 min-w-0 truncate text-[13px] text-text">{t.label}</span>
+              <span className="flex-1 min-w-0 truncate text-[12px] text-text">{t.label}</span>
               <Chevron />
             </button>
           </li>
@@ -493,8 +482,8 @@ function LigneEtat({
     >
       <span className={`mt-[5px] h-2 w-2 shrink-0 rounded-full ${bon ? 'bg-positive' : 'bg-warning'}`} aria-hidden />
       <span className="flex-1 min-w-0">
-        <span className="block text-[12px] text-text-dim">{titre}</span>
-        <span className={`block text-[13px] font-medium leading-snug ${bon ? 'text-text' : 'text-warning'}`}>{valeur}</span>
+        <span className="block text-[11.5px] text-text-dim">{titre}</span>
+        <span className={`block text-[12px] font-medium leading-snug ${bon ? 'text-text' : 'text-warning'}`}>{valeur}</span>
       </span>
       <span className="mt-[3px]">
         <Chevron />

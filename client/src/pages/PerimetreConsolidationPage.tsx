@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
+import { Aide } from '../components/chrome/Aide';
 import { CumulConsolidation, EntiteCumul, FiscaliteCumul, LienCumul } from './CumulConsolidation';
 import { EtatsConsolidesVue } from './EtatsConsolidesVue';
 
@@ -90,7 +91,7 @@ const FAITS_ENTITE: { cle: keyof Entite; libelle: string }[] = [
   { cle: 'influenceNotableDeclaree', libelle: 'Influence notable par d’autres éléments que les droits de vote (art. 78)' },
 ];
 
-const champ = 'w-full border border-border px-1.5 py-1 text-[12px]';
+const champ = 'w-full border border-border px-1.5 py-1 text-[11.5px]';
 
 export function PerimetreConsolidationPage() {
   const { peutEcrire } = useAuth();
@@ -128,8 +129,8 @@ export function PerimetreConsolidationPage() {
     }
   }
 
-  if (!exerciceId) return <p className="p-2 text-[12px] text-text-dim">Aucun exercice sélectionné.</p>;
-  if (!etat) return <p className="p-2 text-[12px] text-text-dim">{erreur ?? 'Chargement…'}</p>;
+  if (!exerciceId) return <p className="p-2 text-[11.5px] text-text-dim">Aucun exercice sélectionné.</p>;
+  if (!etat) return <p className="p-2 text-[11.5px] text-text-dim">{erreur ?? 'Chargement…'}</p>;
 
   const nomDe = (id: string | null) => (id === null ? etat.consolidante.nom : (etat.entites.find((e) => e.id === id)?.nom ?? '?'));
   const faits: Faits = etat.faits ?? {
@@ -147,21 +148,26 @@ export function PerimetreConsolidationPage() {
 
   return (
     <div className="p-2 max-w-[1100px]">
-      <p className="text-[12px] text-text-dim mb-2.5 leading-[1.6]">
-        Le périmètre de consolidation de <strong>{etat.consolidante.nom}</strong>, entité consolidante, pour
-        l’exercice {exerciceCourant?.dateFin?.slice(0, 4)} · AUDCIF art. 74 à 98. OmegaX calcule les pourcentages de
-        contrôle et d’intérêt et en déduit la méthode (art. 80). Les faits qui ne sont dans aucun livre se{' '}
-        <strong>déclarent</strong> : la désignation des organes, les accords, l’influence notable, les motifs
-        d’exclusion. Les montants se consolident plus bas, une fois les balances importées et les acquisitions déclarées.
-      </p>
+      <div className="flex justify-end mb-1.5">
+        <Aide
+          titre="Périmètre de consolidation"
+          texte="OmegaX calcule les pourcentages de contrôle et d’intérêt et en déduit la méthode (art. 80). Les faits qui ne sont dans aucun livre se déclarent : la désignation des organes, les accords, l’influence notable, les motifs d’exclusion. Les montants se consolident plus bas, une fois les balances importées et les acquisitions déclarées."
+          source="AUDCIF art. 74 à 98"
+        />
+      </div>
 
-      {erreur && <p className="text-[12px] text-danger mb-2">{erreur}</p>}
+      {erreur && <p className="text-[11.5px] text-danger mb-2">{erreur}</p>}
 
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[12.5px] font-bold mb-1.5">
-          Obligation de consolider · {LIBELLE_OBLIGATION[etat.obligation.obligation] ?? etat.obligation.obligation}
+        <h2 className="text-[11.5px] font-bold mb-1.5">
+          Obligation de consolider · {LIBELLE_OBLIGATION[etat.obligation.obligation] ?? etat.obligation.obligation}{' '}
+          <Aide
+            titre="Seuil de l’art. 95"
+            texte="Le seuil de l’art. 95 est écrit en francs CFA, « ou l’équivalent dans l’unité monétaire ayant cours légal ». Aucune source lue ne fixe cet équivalent en francs congolais · il se déclare avec sa source, et sans lui la dispense n’est pas examinée."
+            source="AUDCIF art. 95"
+          />
         </h2>
-        <ul className="text-[12px] list-disc pl-5 leading-[1.6]">
+        <ul className="text-[11.5px] list-disc pl-5 leading-[1.6]">
           {etat.obligation.motifs.map((m) => (
             <li key={m}>{m}</li>
           ))}
@@ -176,40 +182,35 @@ export function PerimetreConsolidationPage() {
                 ['demandeAssociesDixieme', 'Consolidation demandée par des associés détenant au moins le dixième (art. 77)'],
               ] as [keyof Faits, string][]
             ).map(([cle, libelle]) => (
-              <label key={cle} className="text-[12px] flex gap-1.5 items-start">
+              <label key={cle} className="text-[11.5px] flex gap-1.5 items-start">
                 <input type="checkbox" checked={faits[cle] === true} onChange={(e) => void enregistrerFaits({ [cle]: e.target.checked })} />
                 <span>{libelle}</span>
               </label>
             ))}
-            <label className="text-[12px]">
+            <label className="text-[11.5px]">
               Chiffre d’affaires HT de l’ensemble, exercice N (FC)
               <input className={champ} defaultValue={faits.chiffreAffairesN ?? ''} onBlur={(e) => void enregistrerFaits({ chiffreAffairesN: nombre(e.target.value) })} />
             </label>
-            <label className="text-[12px]">
+            <label className="text-[11.5px]">
               Chiffre d’affaires HT de l’ensemble, exercice N-1 (FC)
               <input className={champ} defaultValue={faits.chiffreAffairesN1 ?? ''} onBlur={(e) => void enregistrerFaits({ chiffreAffairesN1: nombre(e.target.value) })} />
             </label>
-            <label className="text-[12px]">
+            <label className="text-[11.5px]">
               Source de l’équivalent (texte, cours, date)
               <input className={champ} defaultValue={faits.sourceSeuil ?? ''} onBlur={(e) => void enregistrerFaits({ sourceSeuil: e.target.value || null })} />
             </label>
-            <label className="text-[12px]">
+            <label className="text-[11.5px]">
               Équivalent en FC de 500 000 000 FCFA (art. 95)
               <input className={champ} defaultValue={faits.seuilEquivalentFc ?? ''} onBlur={(e) => void enregistrerFaits({ seuilEquivalentFc: nombre(e.target.value) })} />
             </label>
           </div>
         )}
-        <p className="text-[11px] text-text-dim mt-2 leading-[1.6]">
-          Le seuil de l’art. 95 est écrit en francs CFA, « ou l’équivalent dans l’unité monétaire ayant cours légal ».
-          Aucune source lue ne fixe cet équivalent en francs congolais · il se déclare avec sa source, et sans lui la
-          dispense n’est pas examinée.
-        </p>
       </section>
 
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[12.5px] font-bold mb-1.5">Périmètre calculé</h2>
+        <h2 className="text-[11.5px] font-bold mb-1.5">Périmètre calculé</h2>
         <div className="overflow-x-auto">
-          <table className="w-full text-[12px]">
+          <table className="w-full text-[11.5px]">
             <thead>
               <tr className="text-left border-b border-border">
                 <th className="py-1 pr-2">Entité</th>
@@ -244,19 +245,19 @@ export function PerimetreConsolidationPage() {
       </section>
 
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[12.5px] font-bold mb-1.5">Entités</h2>
+        <h2 className="text-[11.5px] font-bold mb-1.5">Entités</h2>
         {peutEcrire && (
           <div className="flex flex-wrap gap-2 items-end mb-2">
-            <label className="text-[12px]">
+            <label className="text-[11.5px]">
               Nom
               <input className={champ} value={nom} onChange={(e) => setNom(e.target.value)} />
             </label>
-            <label className="text-[12px]">
+            <label className="text-[11.5px]">
               Date de clôture (art. 97)
               <input type="date" className={champ} value={dateCloture} onChange={(e) => setDateCloture(e.target.value)} />
             </label>
             <button
-              className="border border-border px-2.5 py-1 text-[12px]"
+              className="border border-border px-2.5 py-1 text-[11.5px]"
               disabled={!nom.trim()}
               onClick={() =>
                 void agir(async () => {
@@ -271,17 +272,17 @@ export function PerimetreConsolidationPage() {
           </div>
         )}
         {etat.entites.length === 0 ? (
-          <p className="text-[12px] text-text-dim">Aucune entité saisie.</p>
+          <p className="text-[11.5px] text-text-dim">Aucune entité saisie.</p>
         ) : (
           etat.entites.map((e) => (
             <details key={e.id} className="border-b border-border/60 py-1">
-              <summary className="text-[12px] cursor-pointer">
+              <summary className="text-[11.5px] cursor-pointer">
                 {e.nom}
                 {e.motifExclusion && <span className="text-text-dim"> · exclue</span>}
               </summary>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 py-1.5">
                 {FAITS_ENTITE.map((f) => (
-                  <label key={f.cle} className="text-[12px] flex gap-1.5 items-start">
+                  <label key={f.cle} className="text-[11.5px] flex gap-1.5 items-start">
                     <input
                       type="checkbox"
                       disabled={!peutEcrire}
@@ -291,7 +292,7 @@ export function PerimetreConsolidationPage() {
                     <span>{f.libelle}</span>
                   </label>
                 ))}
-                <label className="text-[12px]">
+                <label className="text-[11.5px]">
                   Motif d’exclusion (art. 96)
                   <select
                     className={champ}
@@ -307,7 +308,7 @@ export function PerimetreConsolidationPage() {
                     ))}
                   </select>
                 </label>
-                <label className="text-[12px]">
+                <label className="text-[11.5px]">
                   Secteur d’activité (note du périmètre)
                   <input
                     className={champ}
@@ -319,7 +320,7 @@ export function PerimetreConsolidationPage() {
                     }}
                   />
                 </label>
-                <label className="text-[12px]">
+                <label className="text-[11.5px]">
                   Justification reprise en Notes annexes
                   <input className={champ} disabled={!peutEcrire} defaultValue={e.justificationExclusion ?? ''} id={`justif-${e.id}`} />
                 </label>
@@ -327,7 +328,7 @@ export function PerimetreConsolidationPage() {
               {peutEcrire && (
                 <div className="flex gap-2 pb-1">
                   <button
-                    className="border border-border px-2.5 py-1 text-[12px]"
+                    className="border border-border px-2.5 py-1 text-[11.5px]"
                     onClick={() => {
                       const motif = (document.getElementById(`motif-${e.id}`) as HTMLSelectElement).value || null;
                       const justif = (document.getElementById(`justif-${e.id}`) as HTMLInputElement).value || null;
@@ -337,7 +338,7 @@ export function PerimetreConsolidationPage() {
                     Enregistrer l’exclusion
                   </button>
                   <button
-                    className="border border-border px-2.5 py-1 text-[12px]"
+                    className="border border-border px-2.5 py-1 text-[11.5px]"
                     onClick={() => void agir(() => api.delete(`/consolidation/entites/${e.id}`))}
                   >
                     Retirer l’entité
@@ -350,10 +351,17 @@ export function PerimetreConsolidationPage() {
       </section>
 
       <section className="border border-border bg-surface px-3.5 py-2.5">
-        <h2 className="text-[12.5px] font-bold mb-1.5">Participations</h2>
+        <h2 className="text-[11.5px] font-bold mb-1.5">
+          Participations{' '}
+          <Aide
+            titre="Participations"
+            texte="Les droits de vote font le pourcentage de contrôle, le capital le pourcentage d’intérêt. Le contrôle indirect ne passe que par une entité contrôlée exclusivement ; l’intérêt ne remonte que par des entités retenues dans le périmètre. Les titres d’autocontrôle (une filiale qui détient la consolidante) sont ignorés et ne se saisissent pas."
+            source="D4C, ch. XII-5 § 3"
+          />
+        </h2>
         {peutEcrire && etat.entites.length > 0 && (
           <div className="flex flex-wrap gap-2 items-end mb-2">
-            <label className="text-[12px]">
+            <label className="text-[11.5px]">
               Détentrice
               <select className={champ} value={detentrice} onChange={(e) => setDetentrice(e.target.value)}>
                 <option value="">{etat.consolidante.nom} (consolidante)</option>
@@ -364,7 +372,7 @@ export function PerimetreConsolidationPage() {
                 ))}
               </select>
             </label>
-            <label className="text-[12px]">
+            <label className="text-[11.5px]">
               Détenue
               <select className={champ} value={detenue} onChange={(e) => setDetenue(e.target.value)}>
                 <option value="">Choisir</option>
@@ -375,16 +383,16 @@ export function PerimetreConsolidationPage() {
                 ))}
               </select>
             </label>
-            <label className="text-[12px]">
+            <label className="text-[11.5px]">
               % droits de vote
               <input className={champ} value={vote} onChange={(e) => setVote(e.target.value)} />
             </label>
-            <label className="text-[12px]">
+            <label className="text-[11.5px]">
               % capital
               <input className={champ} value={capital} onChange={(e) => setCapital(e.target.value)} />
             </label>
             <button
-              className="border border-border px-2.5 py-1 text-[12px]"
+              className="border border-border px-2.5 py-1 text-[11.5px]"
               disabled={!detenue || vote === '' || capital === ''}
               onClick={() =>
                 void agir(async () => {
@@ -405,9 +413,9 @@ export function PerimetreConsolidationPage() {
           </div>
         )}
         {etat.liens.length === 0 ? (
-          <p className="text-[12px] text-text-dim">Aucune participation saisie.</p>
+          <p className="text-[11.5px] text-text-dim">Aucune participation saisie.</p>
         ) : (
-          <table className="w-full text-[12px]">
+          <table className="w-full text-[11.5px]">
             <thead>
               <tr className="text-left border-b border-border">
                 <th className="py-1 pr-2">Détentrice</th>
@@ -436,15 +444,9 @@ export function PerimetreConsolidationPage() {
             </tbody>
           </table>
         )}
-        <p className="text-[11px] text-text-dim mt-2 leading-[1.6]">
-          Les droits de vote font le pourcentage de <strong>contrôle</strong>, le capital le pourcentage d’
-          <strong>intérêt</strong> (D4C, ch. XII-5 § 3). Le contrôle indirect ne passe que par une entité contrôlée
-          exclusivement ; l’intérêt ne remonte que par des entités retenues dans le périmètre. Les titres d’autocontrôle
-          (une filiale qui détient la consolidante) sont ignorés et ne se saisissent pas.
-        </p>
       </section>
 
-      <h2 className="text-[13px] font-bold mt-4 mb-2">Cumul et éliminations</h2>
+      <h2 className="text-[12px] font-bold mt-4 mb-2">Cumul et éliminations</h2>
       <CumulConsolidation
         exerciceId={exerciceId}
         consolidante={etat.consolidante}
@@ -459,7 +461,7 @@ export function PerimetreConsolidationPage() {
         recharger={recharger}
       />
 
-      <h2 className="text-[13px] font-bold mt-4 mb-2">États consolidés</h2>
+      <h2 className="text-[12px] font-bold mt-4 mb-2">États consolidés</h2>
       <EtatsConsolidesVue exerciceId={exerciceId} />
     </div>
   );

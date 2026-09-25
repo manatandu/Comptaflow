@@ -7,6 +7,7 @@
  * douze. Ce composant ne calcule rien : il montre ce que le serveur a rendu,
  * sans quoi l'écran et le bulletin pourraient dire deux impôts différents.
  */
+import { Aide } from '../components/chrome/Aide';
 
 export type DetailMensuelIrpp = {
   revenuRetenuFc: number;
@@ -84,12 +85,16 @@ export function BaremeMensuelIrpp({
         </tbody>
       </table>
       </div>
-      <div className="text-text-dim mt-1">
-        Revenu imposable retenu : {fc(mensuel.revenuRetenuFc)} FC par mois
-        {revenuAnnualiseFc !== undefined && (
-          <> ({fc(revenuAnnualiseFc)} FC sur l’année, arrondis au millier inférieur comme l’écrit l’art. 118)</>
-        )}
-        . Tranches de l’article 118 divisées par douze.
+      <div className="text-text-dim mt-1 flex items-center gap-1.5 flex-wrap">
+        <span>
+          Revenu imposable retenu : {fc(mensuel.revenuRetenuFc)} FC par mois
+          {revenuAnnualiseFc !== undefined && <> ({fc(revenuAnnualiseFc)} FC sur l’année)</>}
+        </span>
+        <Aide
+          titre="Barème mensuel de l’IRPP"
+          texte="L’impôt est calculé sur l’année, revenu arrondi au millier inférieur comme l’écrit l’art. 118, puis relu avec les tranches de l’article 118 divisées par douze."
+          source="Art. 118"
+        />
       </div>
     </div>
   );

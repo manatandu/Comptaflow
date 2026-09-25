@@ -261,27 +261,23 @@ export function RegularisationPage() {
     }
   };
 
-  const champ = 'mt-1 w-full border border-border rounded-[6px] px-2.5 py-1.5 text-[12.5px] font-normal';
+  const champ = 'mt-1 w-full border border-border rounded-[3px] px-2.5 py-1.5 text-[11.5px] font-normal';
   const ongletClasse = (o: 'regularisation' | 'abonnement') =>
-    `px-4 py-1.5 text-[12px] font-bold ${onglet === o ? 'bg-surface border-x border-border' : 'text-text-dim'}`;
+    `px-4 py-1.5 text-[11.5px] font-bold ${onglet === o ? 'bg-surface border-x border-border' : 'text-text-dim'}`;
 
   return (
     <div className="p-2">
-      <div className="mb-1.5">
-        <div className="text-[11px] font-mono text-text-dim leading-none">Traitement</div>
-        <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
-          Régularisations et abonnements
-          <Aide sujet="regularisation" />
-        </h1>
+      <div className="mb-1.5 flex items-center justify-end">
+        <Aide sujet="regularisation" />
       </div>
 
       {erreur && (
-        <div className="mb-2.5 text-[12.5px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-1.5">
+        <div className="mb-2.5 text-[11.5px] text-danger bg-danger-soft border border-danger/30 rounded-[3px] px-2.5 py-1.5">
           {erreur}
         </div>
       )}
       {info && (
-        <div className="mb-2.5 text-[12.5px] text-positive bg-positive-soft border border-positive/30 rounded-[6px] px-2.5 py-1.5 flex justify-between">
+        <div className="mb-2.5 text-[11.5px] text-positive bg-positive-soft border border-positive/30 rounded-[3px] px-2.5 py-1.5 flex justify-between">
           <span>{info}</span>
           <button onClick={() => setInfo(null)} className="font-bold hover:underline">
             Fermer
@@ -301,8 +297,8 @@ export function RegularisationPage() {
       {onglet === 'regularisation' && (
         <div className="border border-border bg-surface rounded-b-[10px] p-3 grid grid-cols-1 xl:grid-cols-[400px_1fr] gap-3 items-start">
           {peutEcrire && (
-            <form onSubmit={creerRegularisation} className="border border-border rounded-[8px] overflow-hidden">
-              <div className="px-3 py-2 bg-chrome-alt border-b border-border text-[12px] font-bold">
+            <form onSubmit={creerRegularisation} className="border border-border rounded-[4px] overflow-hidden">
+              <div className="px-3 py-2 bg-chrome-alt border-b border-border text-[11.5px] font-bold">
                 Nouvelle régularisation
               </div>
               <div className="p-3 flex flex-col gap-2.5">
@@ -310,7 +306,7 @@ export function RegularisationPage() {
                   {TYPES.map((t) => (
                     <label
                       key={t.valeur}
-                      className={`flex items-start gap-2 rounded-[6px] border p-2 cursor-pointer text-[12.5px] ${
+                      className={`flex items-start gap-2 rounded-[3px] border p-2 cursor-pointer text-[11.5px] ${
                         type === t.valeur ? 'border-sel bg-sel-soft' : 'border-border'
                       }`}
                     >
@@ -324,22 +320,28 @@ export function RegularisationPage() {
                           setSimulation(null);
                         }}
                       />
-                      <span>
-                        <span className="font-semibold block">{t.titre}</span>
-                        <span className="text-[12px] text-text-dim leading-[1.45] block">
-                          {estSycebnl ? t.aide : (t.aideSyscohada ?? t.aide)}
-                        </span>
-                      </span>
+                      <span className="font-semibold">{t.titre}</span>
+                      <Aide
+                        titre={t.titre}
+                        texte={estSycebnl ? t.aide : (t.aideSyscohada ?? t.aide)}
+                        source={
+                          estSycebnl
+                            ? t.valeur === 'SUBVENTION_PLURIANNUELLE'
+                              ? 'SYCEBNL, Partie 3 ch. 6, section 1'
+                              : 'SYCEBNL, postulat de spécialisation des exercices'
+                            : 'AUDCIF art. 59'
+                        }
+                      />
                     </label>
                   ))}
                 </div>
 
-                <label className="text-[12px] font-semibold text-text-dim">
+                <label className="text-[11.5px] font-semibold text-text-dim">
                   Libellé
                   <input required value={libelle} onChange={(e) => setLibelle(e.target.value)} className={champ} />
                 </label>
 
-                <label className="text-[12px] font-semibold text-text-dim">
+                <label className="text-[11.5px] font-semibold text-text-dim">
                   Compte de {type === 'CHARGE_CONSTATEE_AVANCE' ? 'charge (classe 6)' : 'produit (classe 7)'}
                   <select required value={compteId} onChange={(e) => setCompteId(e.target.value)} className={champ}>
                     <option value="">Choisir…</option>
@@ -355,7 +357,7 @@ export function RegularisationPage() {
                   </select>
                 </label>
 
-                <label className="text-[12px] font-semibold text-text-dim">
+                <label className="text-[11.5px] font-semibold text-text-dim">
                   Montant total comptabilisé
                   <input
                     required
@@ -369,7 +371,7 @@ export function RegularisationPage() {
                 </label>
 
                 <div className="grid grid-cols-2 gap-2">
-                  <label className="text-[12px] font-semibold text-text-dim">
+                  <label className="text-[11.5px] font-semibold text-text-dim">
                     Période du
                     <input
                       type="date"
@@ -382,7 +384,7 @@ export function RegularisationPage() {
                       className={`${champ} font-mono`}
                     />
                   </label>
-                  <label className="text-[12px] font-semibold text-text-dim">
+                  <label className="text-[11.5px] font-semibold text-text-dim">
                     au
                     <input
                       type="date"
@@ -400,13 +402,13 @@ export function RegularisationPage() {
                 <button
                   type="button"
                   onClick={simuler}
-                  className="border border-border rounded-[6px] py-1.5 text-[12.5px] font-semibold hover:bg-chrome-alt"
+                  className="border border-border rounded-[3px] py-1.5 text-[11.5px] font-semibold hover:bg-chrome-alt"
                 >
                   Calculer le prorata
                 </button>
 
                 {simulation && (
-                  <div className="border border-sel/30 bg-sel-soft rounded-[6px] p-2.5 text-[12.5px]">
+                  <div className="border border-sel/30 bg-sel-soft rounded-[3px] p-2.5 text-[11.5px]">
                     <div className="flex justify-between">
                       <span>Rattaché à cet exercice</span>
                       <span className="font-mono font-bold">{montant(simulation.montantExercice)}</span>
@@ -415,9 +417,12 @@ export function RegularisationPage() {
                       <span>Différé aux exercices ultérieurs</span>
                       <span className="font-mono font-bold text-sel">{montant(simulation.montantDiffere)}</span>
                     </div>
-                    <div className="text-[11px] text-text-dim mt-1.5 leading-[1.5]">
-                      {simulation.joursApresCloture} jour(s) sur {simulation.joursTotal} tombent après la clôture du{' '}
-                      {jour(simulation.finExercice)}. Le prorata se compte en jours, pas en mois entiers.
+                    <div className="text-[11px] text-text-dim mt-1.5 leading-[1.5] flex items-center gap-1.5">
+                      <span>
+                        {simulation.joursApresCloture} jour(s) sur {simulation.joursTotal} tombent après la clôture du{' '}
+                        {jour(simulation.finExercice)}.
+                      </span>
+                      <Aide titre="Prorata" texte="Le prorata se compte en jours, pas en mois entiers." source="OmegaX" />
                     </div>
                   </div>
                 )}
@@ -425,7 +430,7 @@ export function RegularisationPage() {
                 <button
                   type="submit"
                   disabled={envoi || !simulation || simulation.montantDiffere <= 0}
-                  className="bg-sel text-white text-[12.5px] font-bold py-2 rounded-[6px] hover:brightness-110 disabled:opacity-50"
+                  className="bg-sel text-white text-[11.5px] font-bold py-2 rounded-[3px] hover:brightness-110 disabled:opacity-50"
                 >
                   {envoi ? 'Enregistrement…' : 'Enregistrer et passer l’écriture'}
                 </button>
@@ -439,19 +444,34 @@ export function RegularisationPage() {
             // fenêtre à 360 px. Le panneau ROGNAIT (`overflow-hidden`) : la page ne
             // partait pas de côté, mais « REPRISE » était simplement invisible, sans
             // barre de défilement pour aller la chercher.
-            className="border border-border rounded-[8px] overflow-x-auto"
+            className="border border-border rounded-[4px] overflow-x-auto"
           >
             <div className="grid grid-cols-[1fr_120px_120px_150px_150px] min-w-[750px] gap-2 px-3 py-1.5 bg-chrome-alt border-b border-border text-[11px] font-bold text-text-dim">
               <span>Libellé</span>
               <span className="text-right">TOTAL</span>
               <span className="text-right">Différé</span>
               <span>Période</span>
-              <span>Reprise</span>
+              <span className="flex items-center gap-1.5">
+                Reprise
+                <Aide
+                  titre="Date de reprise"
+                  texte={
+                    utilisateur?.tenant.referentiel === 'SYSCOHADA'
+                      ? "La reprise se passe À L'OUVERTURE de l'exercice concerné : le référentiel permet les deux dates, mais recommande vivement la contre-passation à l'ouverture · reprise seulement à la clôture, la part différée reste au bilan douze mois de plus et fausse toutes les situations intermédiaires de l'année."
+                      : "La reprise se passe À LA FIN de l'exercice concerné, comme le veut la Partie 3 ch. 6 du SYCEBNL, et non par contre-passation à son ouverture."
+                  }
+                  source={
+                    utilisateur?.tenant.referentiel === 'SYSCOHADA'
+                      ? 'SYSCOHADA révisé, § 5.5 (charges) et § 6.5 (produits)'
+                      : 'SYCEBNL, Partie 3 ch. 6'
+                  }
+                />
+              </span>
             </div>
             {regularisations.map((r) => (
               <div
                 key={r.id}
-                className="grid grid-cols-[1fr_120px_120px_150px_150px] min-w-[750px] gap-2 px-3 py-1.5 text-[12.5px] items-center border-b border-border/40"
+                className="grid grid-cols-[1fr_120px_120px_150px_150px] min-w-[750px] gap-2 px-3 py-1.5 text-[11.5px] items-center border-b border-border/40"
               >
                 <span>
                   {r.libelle}
@@ -466,14 +486,14 @@ export function RegularisationPage() {
                 </span>
                 <span>
                   {r.ecritureReprise ? (
-                    <span className="text-[12px] text-positive font-semibold">
+                    <span className="text-[11.5px] text-positive font-semibold">
                       Reprise le {jour(r.ecritureReprise.date)}
                     </span>
                   ) : peutEcrire ? (
                     <select
                       defaultValue=""
                       onChange={(e) => e.target.value && reprendre(r.id, e.target.value)}
-                      className="w-full border border-border rounded-[4px] px-1 py-0.5 text-[12px]"
+                      className="w-full border border-border rounded-[4px] px-1 py-0.5 text-[11.5px]"
                     >
                       <option value="">Reprendre sur…</option>
                       {exercices
@@ -485,21 +505,16 @@ export function RegularisationPage() {
                         ))}
                     </select>
                   ) : (
-                    <span className="text-[12px] text-text-dim">à reprendre</span>
+                    <span className="text-[11.5px] text-text-dim">à reprendre</span>
                   )}
                 </span>
               </div>
             ))}
             {regularisations.length === 0 && (
-              <div className="px-3 py-4 text-[12.5px] text-text-dim italic">
+              <div className="px-3 py-4 text-[11.5px] text-text-dim italic">
                 Aucune régularisation sur cet exercice.
               </div>
             )}
-            <p className="px-3 py-2 border-t border-border text-[11px] text-text-dim leading-[1.55]">
-              {utilisateur?.tenant.referentiel === 'SYSCOHADA'
-                ? "La reprise se passe À L'OUVERTURE de l'exercice concerné : le référentiel permet les deux dates, mais recommande vivement la contre-passation à l'ouverture · reprise seulement à la clôture, la part différée reste au bilan douze mois de plus et fausse toutes les situations intermédiaires de l'année."
-                : "La reprise se passe À LA FIN de l'exercice concerné, comme le veut la Partie 3 ch. 6 du SYCEBNL, et non par contre-passation à son ouverture."}
-            </p>
           </div>
         </div>
       )}
@@ -507,12 +522,12 @@ export function RegularisationPage() {
       {onglet === 'abonnement' && (
         <div className="border border-border bg-surface rounded-b-[10px] p-3 grid grid-cols-1 xl:grid-cols-[400px_1fr] gap-3 items-start">
           {peutEcrire && (
-            <form onSubmit={creerAbonnement} className="border border-border rounded-[8px] overflow-hidden">
-              <div className="px-3 py-2 bg-chrome-alt border-b border-border text-[12px] font-bold">
+            <form onSubmit={creerAbonnement} className="border border-border rounded-[4px] overflow-hidden">
+              <div className="px-3 py-2 bg-chrome-alt border-b border-border text-[11.5px] font-bold">
                 Nouvel abonnement
               </div>
               <div className="p-3 grid grid-cols-2 gap-2.5">
-                <label className="text-[12px] font-semibold text-text-dim">
+                <label className="text-[11.5px] font-semibold text-text-dim">
                   Code
                   <input
                     required
@@ -522,7 +537,7 @@ export function RegularisationPage() {
                     className={`${champ} font-mono`}
                   />
                 </label>
-                <label className="text-[12px] font-semibold text-text-dim">
+                <label className="text-[11.5px] font-semibold text-text-dim">
                   Périodicité
                   <select
                     value={periodicite}
@@ -536,7 +551,7 @@ export function RegularisationPage() {
                     ))}
                   </select>
                 </label>
-                <label className="text-[12px] font-semibold text-text-dim col-span-2">
+                <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
                   Intitulé
                   <input
                     required
@@ -546,7 +561,7 @@ export function RegularisationPage() {
                     className={champ}
                   />
                 </label>
-                <label className="text-[12px] font-semibold text-text-dim col-span-2">
+                <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
                   Journal
                   <select required value={journalId} onChange={(e) => setJournalId(e.target.value)} className={champ}>
                     <option value="">Choisir…</option>
@@ -557,7 +572,7 @@ export function RegularisationPage() {
                     ))}
                   </select>
                 </label>
-                <label className="text-[12px] font-semibold text-text-dim col-span-2">
+                <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
                   Compte débité
                   <select
                     required
@@ -573,7 +588,7 @@ export function RegularisationPage() {
                     ))}
                   </select>
                 </label>
-                <label className="text-[12px] font-semibold text-text-dim col-span-2">
+                <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
                   Compte crédité
                   <select
                     required
@@ -589,7 +604,7 @@ export function RegularisationPage() {
                     ))}
                   </select>
                 </label>
-                <label className="text-[12px] font-semibold text-text-dim">
+                <label className="text-[11.5px] font-semibold text-text-dim">
                   Du
                   <input
                     type="date"
@@ -599,7 +614,7 @@ export function RegularisationPage() {
                     className={`${champ} font-mono`}
                   />
                 </label>
-                <label className="text-[12px] font-semibold text-text-dim">
+                <label className="text-[11.5px] font-semibold text-text-dim">
                   Au
                   <input
                     type="date"
@@ -609,7 +624,7 @@ export function RegularisationPage() {
                     className={`${champ} font-mono`}
                   />
                 </label>
-                <label className="text-[12px] font-semibold text-text-dim col-span-2">
+                <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
                   Montant de chaque échéance
                   <input
                     required
@@ -621,7 +636,7 @@ export function RegularisationPage() {
                 <button
                   type="submit"
                   disabled={envoi}
-                  className="col-span-2 bg-sel text-white text-[12.5px] font-bold py-2 rounded-[6px] hover:brightness-110 disabled:opacity-50"
+                  className="col-span-2 bg-sel text-white text-[11.5px] font-bold py-2 rounded-[3px] hover:brightness-110 disabled:opacity-50"
                 >
                   {envoi ? 'Création…' : "Créer l'abonnement"}
                 </button>
@@ -633,31 +648,31 @@ export function RegularisationPage() {
             {abonnements.map((a) => {
               const generees = a.echeances.filter((e) => e.ecritureId).length;
               return (
-                <section key={a.id} className="border border-border rounded-[8px] overflow-hidden">
+                <section key={a.id} className="border border-border rounded-[4px] overflow-hidden">
                   <header className="px-3 py-2 bg-chrome-alt border-b border-border flex items-center justify-between">
-                    <span className="text-[12.5px] font-semibold">
+                    <span className="text-[11.5px] font-semibold">
                       <span className="font-mono">{a.code}</span> {a.intitule}
-                      <span className="text-[12px] text-text-dim">
+                      <span className="text-[11.5px] text-text-dim">
                         {' '}
                         · {PERIODICITES.find((p) => p.valeur === a.periodicite)?.libelle.toLowerCase()} ·{' '}
                         {montant(a.montant)} par échéance
                       </span>
                     </span>
                     <span className="flex items-center gap-2">
-                      <span className="text-[12px] text-text-dim">
+                      <span className="text-[11.5px] text-text-dim">
                         {generees} / {a.echeances.length} passée(s)
                       </span>
                       {peutEcrire && generees < a.echeances.length && (
                         <button
                           onClick={() => genererAbonnement(a.id)}
-                          className="bg-sel text-white text-[12px] font-bold px-2.5 py-1 rounded-[6px] hover:brightness-110"
+                          className="bg-sel text-white text-[11.5px] font-bold px-2.5 py-1 rounded-[3px] hover:brightness-110"
                         >
                           Générer les échues
                         </button>
                       )}
                     </span>
                   </header>
-                  <div className="px-3 py-1.5 text-[12px] text-text-dim border-b border-border/40 font-mono">
+                  <div className="px-3 py-1.5 text-[11.5px] text-text-dim border-b border-border/40 font-mono">
                     {a.compteDebit.numero} au débit · {a.compteCredit.numero} au crédit · journal {a.journal.code}
                   </div>
                   <div className="flex flex-wrap gap-1 p-2">
@@ -679,7 +694,7 @@ export function RegularisationPage() {
               );
             })}
             {abonnements.length === 0 && (
-              <div className="border border-border rounded-[8px] px-3 py-4 text-[12.5px] text-text-dim italic">
+              <div className="border border-border rounded-[4px] px-3 py-4 text-[11.5px] text-text-dim italic">
                 Aucun abonnement. Un abonnement automatise une écriture répétitive : loyer, assurance,{' '}
                 {estSycebnl ? "versement périodique d'une convention de financement" : 'redevance ou honoraires mensuels'}.
               </div>

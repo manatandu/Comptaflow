@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { Aide } from '../components/chrome/Aide';
 
 /**
  * FACTURATION · la pièce que la loi exige pour chaque transaction.
@@ -201,7 +202,7 @@ export function FacturationPage() {
     }
   }
 
-  if (!etat) return <div className="p-3 text-[12.5px] text-text-dim">Chargement…</div>;
+  if (!etat) return <div className="p-3 text-[11.5px] text-text-dim">Chargement…</div>;
 
   return (
     <div className="p-2 max-w-[1100px]">
@@ -209,58 +210,59 @@ export function FacturationPage() {
           page, comme le second jeu en monnaie fonctionnelle : un document qui
           ressemble à une facture normalisée et qui n'en est pas une doit dire
           lequel des deux il est AVANT qu'on en lise les chiffres. */}
-      <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[12.5px] font-bold mb-1.5">Ce n'est pas une facture normalisée</h2>
-        <p className="text-[12px] text-text-dim leading-[1.6]">{etat.homologation.qualification}</p>
+      <div className="border border-warning/30 bg-warning-soft px-3.5 py-1.5 mb-2.5 text-[11.5px] flex flex-wrap items-center gap-x-3 gap-y-1">
         {/* LA PROCÉDURE EXISTE · cet écran a dit le contraire pendant un jour.
-            Une lacune déclarée à tort dispense d'une démarche qui est due. */}
-        <p className="text-[12px] text-text-dim leading-[1.6] mt-1.5">{etat.homologation.procedure}</p>
-        <p className="text-[12px] text-text-dim leading-[1.6] mt-1.5">{etat.homologation.consequence}</p>
-        {/* LA SECONDE LACUNE, trouvée par la passe F1 · la catégorie dont le
-            module tire sa dispense est elle aussi définie par un arrêté non lu. */}
-        <p className="text-[12px] text-text-dim leading-[1.6] mt-1.5">
-          {etat.homologation.qualificationHypothetique}
-        </p>
-        <p className="text-[11px] text-text-dim mt-1.5">{etat.homologation.source}</p>
-      </section>
-
-      <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[12.5px] font-bold mb-1.5">Ce que vous devez refuser de vos fournisseurs</h2>
-        <p className="text-[12px] text-text-dim leading-[1.6]">{etat.obligationDAcceptation.mention}</p>
+            Une lacune déclarée à tort dispense d'une démarche qui est due. La
+            seconde lacune (passe F1) · la catégorie dont le module tire sa
+            dispense est elle aussi définie par un arrêté non lu. */}
+        <span className="flex items-center gap-1.5 font-semibold">
+          Ce n'est pas une facture normalisée
+          <Aide
+            titre="Ce n'est pas une facture normalisée"
+            texte={[
+              etat.homologation.qualification,
+              etat.homologation.procedure,
+              etat.homologation.consequence,
+              etat.homologation.qualificationHypothetique,
+            ].join(' ')}
+            source={etat.homologation.source}
+          />
+        </span>
         {/* TROIS SUPPORTS, ET NON UN SEUL · ce panneau disait « la TVA n'est
             déductible QUE SI elle figure sur une facture normalisée », ce qui
             aurait dissuadé un cabinet d'une déduction d'importation que le
             texte lui accorde. L'art. 25 dit « de façon générale ». */}
-        <p className="text-[12px] text-text-dim leading-[1.6] mt-2">
-          Pour être admise en déduction, la TVA doit figurer (art. 25) :
-        </p>
-        <ul className="text-[12px] text-text-dim leading-[1.6] mt-1">
-          {etat.obligationDAcceptation.supportsDeDeduction.map((s) => (
-            <li key={s.cas}>
-              <strong>{s.cas}</strong> · {s.support}
-              {!s.tenuParOmegaX && <span className="text-danger"> · non tenu par OmegaX</span>}
-            </li>
-          ))}
-        </ul>
-        <p className="text-[11px] text-text-dim mt-1.5 leading-[1.6]">{etat.obligationDAcceptation.reserveSupports}</p>
-        <p className="text-[11px] text-text-dim mt-1.5">{etat.obligationDAcceptation.source}</p>
-      </section>
-
-      <p className="text-[12px] text-text-dim mb-2.5 leading-[1.6]">
-        Loi de procédures fiscales, <strong>art. 23</strong> · une facture est due « pour chaque transaction
-        effectuée ». Ses mentions sont celles de l'<strong>art. 26 du décret n° 23/10 du 3 mars 2023</strong> ·
-        douze groupes, dont deux ne s'obtiennent que d'un dispositif électronique fiscal et que le dernier
-        alinéa retire du document en tenant lieu. Dix restent dues, et l'art. 97 bis sanctionne chaque omission.
-        La fenêtre confronte chaque pièce à ces mentions ; elle ne les complète jamais d'office.
-      </p>
+        <span className="flex items-center gap-1.5">
+          Factures à refuser de vos fournisseurs
+          <Aide
+            titre="Ce que vous devez refuser de vos fournisseurs"
+            texte={[
+              etat.obligationDAcceptation.mention,
+              'Pour être admise en déduction, la TVA doit figurer (art. 25) :',
+              ...etat.obligationDAcceptation.supportsDeDeduction.map(
+                (s) => `${s.cas} · ${s.support}${s.tenuParOmegaX ? '' : ' · non tenu par OmegaX'}.`,
+              ),
+              etat.obligationDAcceptation.reserveSupports,
+            ].join(' ')}
+            source={etat.obligationDAcceptation.source}
+          />
+        </span>
+      </div>
 
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[12.5px] font-bold mb-1.5">Enregistrer une facture</h2>
+        <h2 className="text-[11.5px] font-bold mb-1.5 flex items-center gap-1.5">
+          Enregistrer une facture
+          <Aide
+            titre="Mentions obligatoires"
+            texte="Une facture est due « pour chaque transaction effectuée ». Ses mentions sont celles de l'art. 26 du décret n° 23/10 du 3 mars 2023 · douze groupes, dont deux ne s'obtiennent que d'un dispositif électronique fiscal et que le dernier alinéa retire du document en tenant lieu. Dix restent dues, et l'art. 97 bis sanctionne chaque omission. La fenêtre confronte chaque pièce à ces mentions ; elle ne les complète jamais d'office."
+            source="Loi de procédures fiscales, art. 23 · décret n° 23/10 du 3 mars 2023, art. 26"
+          />
+        </h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          <label className="text-[12px]">
+          <label className="text-[11.5px]">
             Sens
             <select
-              className="w-full border border-border px-1.5 py-1 text-[12px]"
+              className="w-full border border-border px-1.5 py-1 text-[11.5px]"
               value={sens}
               onChange={(e) => setSens(e.target.value as 'VENTE' | 'ACHAT')}
             >
@@ -268,59 +270,71 @@ export function FacturationPage() {
               <option value="ACHAT">Achat (facture reçue)</option>
             </select>
           </label>
-          <label className="text-[12px]">
+          <label className="text-[11.5px]">
             N° de série
-            <input className="w-full border border-border px-1.5 py-1 text-[12px]" value={numeroSerie} onChange={(e) => setNumeroSerie(e.target.value)} />
+            <input className="w-full border border-border px-1.5 py-1 text-[11.5px]" value={numeroSerie} onChange={(e) => setNumeroSerie(e.target.value)} />
           </label>
-          <label className="text-[12px]">
+          <label className="text-[11.5px]">
             Date
-            <input type="date" className="w-full border border-border px-1.5 py-1 text-[12px]" value={dateFacture} onChange={(e) => setDateFacture(e.target.value)} />
+            <input type="date" className="w-full border border-border px-1.5 py-1 text-[11.5px]" value={dateFacture} onChange={(e) => setDateFacture(e.target.value)} />
           </label>
-          <label className="text-[12px]">
+          <label className="text-[11.5px]">
             {sens === 'VENTE' ? 'Client' : 'Fournisseur'}
-            <input className="w-full border border-border px-1.5 py-1 text-[12px]" value={contrepartieNom} onChange={(e) => setContrepartieNom(e.target.value)} />
+            <input className="w-full border border-border px-1.5 py-1 text-[11.5px]" value={contrepartieNom} onChange={(e) => setContrepartieNom(e.target.value)} />
           </label>
-          <label className="text-[12px]">
+          <label className="text-[11.5px]">
             Adresse exacte de la contrepartie (art. 26)
-            <input className="w-full border border-border px-1.5 py-1 text-[12px]" value={contrepartieAdresse} onChange={(e) => setContrepartieAdresse(e.target.value)} />
+            <input className="w-full border border-border px-1.5 py-1 text-[11.5px]" value={contrepartieAdresse} onChange={(e) => setContrepartieAdresse(e.target.value)} />
           </label>
-          <label className="text-[12px]">
+          <label className="text-[11.5px]">
             N° impôt de la contrepartie
-            <input className="w-full border border-border px-1.5 py-1 text-[12px]" value={contrepartieNumeroImpot} onChange={(e) => setContrepartieNumeroImpot(e.target.value)} />
+            <input className="w-full border border-border px-1.5 py-1 text-[11.5px]" value={contrepartieNumeroImpot} onChange={(e) => setContrepartieNumeroImpot(e.target.value)} />
           </label>
-          <label className="text-[12px]">
+          <label className="text-[11.5px]">
             Désignation
-            <input className="w-full border border-border px-1.5 py-1 text-[12px]" value={designation} onChange={(e) => setDesignation(e.target.value)} />
+            <input className="w-full border border-border px-1.5 py-1 text-[11.5px]" value={designation} onChange={(e) => setDesignation(e.target.value)} />
           </label>
-          <label className="text-[12px]">
+          <label className="text-[11.5px]">
             Quantité
-            <input type="number" className="w-full border border-border px-1.5 py-1 text-[12px]" value={quantite} onChange={(e) => setQuantite(e.target.value === '' ? '' : Number(e.target.value))} />
+            <input type="number" className="w-full border border-border px-1.5 py-1 text-[11.5px]" value={quantite} onChange={(e) => setQuantite(e.target.value === '' ? '' : Number(e.target.value))} />
           </label>
-          <label className="text-[12px]">
+          <label className="text-[11.5px]">
             Prix unitaire
-            <input type="number" className="w-full border border-border px-1.5 py-1 text-[12px]" value={prixUnitaire} onChange={(e) => setPrixUnitaire(e.target.value === '' ? '' : Number(e.target.value))} />
+            <input type="number" className="w-full border border-border px-1.5 py-1 text-[11.5px]" value={prixUnitaire} onChange={(e) => setPrixUnitaire(e.target.value === '' ? '' : Number(e.target.value))} />
           </label>
-          <label className="text-[12px]">
+          <label className="text-[11.5px]">
             Montant HT
-            <input type="number" className="w-full border border-border px-1.5 py-1 text-[12px]" value={montantHT} onChange={(e) => setMontantHT(e.target.value === '' ? '' : Number(e.target.value))} />
+            <input type="number" className="w-full border border-border px-1.5 py-1 text-[11.5px]" value={montantHT} onChange={(e) => setMontantHT(e.target.value === '' ? '' : Number(e.target.value))} />
           </label>
-          <label className="text-[12px]">
+          <label className="text-[11.5px]">
             Taux de TVA (%)
-            <input type="number" className="w-full border border-border px-1.5 py-1 text-[12px]" value={tauxApplique} onChange={(e) => setTauxApplique(e.target.value === '' ? '' : Number(e.target.value))} />
+            <input type="number" className="w-full border border-border px-1.5 py-1 text-[11.5px]" value={tauxApplique} onChange={(e) => setTauxApplique(e.target.value === '' ? '' : Number(e.target.value))} />
           </label>
-          <label className="text-[12px]">
+          <label className="text-[11.5px]">
             Montant de TVA
-            <input type="number" className="w-full border border-border px-1.5 py-1 text-[12px]" value={montantTva} onChange={(e) => setMontantTva(e.target.value === '' ? '' : Number(e.target.value))} />
+            <input type="number" className="w-full border border-border px-1.5 py-1 text-[11.5px]" value={montantTva} onChange={(e) => setMontantTva(e.target.value === '' ? '' : Number(e.target.value))} />
           </label>
-          <label className="text-[12px] flex items-center gap-1.5 mt-4">
+          <label className="text-[11.5px] flex items-center gap-1.5 mt-4">
             <input type="checkbox" checked={imposable} onChange={(e) => setImposable(e.target.checked)} />
             Ligne imposable
+            <Aide
+              titre="Ligne imposable"
+              texte="Décochez « imposable » pour une opération exonérée. Une opération au taux zéro (exportation) reste imposable : les deux zéros ne se confondent pas."
+              source="Décret n° 011/42, art. 100"
+            />
           </label>
-          <label className="text-[12px]">
-            Autres impôts et taxes (art. 26 j)
+          <label className="text-[11.5px]">
+            <span className="flex items-center gap-1.5">
+              Autres impôts et taxes (art. 26 j)
+              <Aide
+                titre="Autres impôts et taxes"
+                texte="Portez 0 s'il n'y en a pas : un champ vide n'est pas une réponse, et la mention manque."
+                source="Décret n° 23/10 du 3 mars 2023, art. 26 j)"
+              />
+            </span>
             <input
               type="number"
-              className="w-full border border-border px-1.5 py-1 text-[12px]"
+              className="w-full border border-border px-1.5 py-1 text-[11.5px]"
               value={autresImpots}
               onChange={(e) => setAutresImpots(e.target.value === '' ? '' : Number(e.target.value))}
               placeholder="0 s'il n'y en a pas"
@@ -330,31 +344,29 @@ export function FacturationPage() {
         {/* La distinction imposable / non imposable est demandée par l'art. 100
             lui-même · elle ne se déduit pas d'un taux nul, une opération au
             taux zéro (exportation) étant imposable. */}
-        <p className="text-[11px] text-text-dim mt-2 leading-[1.6]">
-          Décochez « imposable » pour une opération <strong>exonérée</strong>. Une opération au taux zéro
-          (exportation) reste imposable : les deux zéros ne se confondent pas. Et portez <strong>0</strong> aux
-          autres impôts et taxes s'il n'y en a pas : un champ vide n'est pas une réponse, et la mention manque.
-        </p>
-        {erreur && <p className="text-[12px] text-danger mt-2">{erreur}</p>}
+        {erreur && <p className="text-[11.5px] text-danger mt-2">{erreur}</p>}
         {peutEcrire && (
-          <button className="mt-2 border border-border px-2.5 py-1 text-[12px]" onClick={() => void enregistrer()}>
+          <button className="mt-2 border border-border px-2.5 py-1 text-[11.5px]" onClick={() => void enregistrer()}>
             Enregistrer
           </button>
         )}
       </section>
 
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[12.5px] font-bold mb-1.5">État détaillé de la déclaration mensuelle</h2>
-        <p className="text-[12px] text-text-dim leading-[1.6] mb-2">
-          O.-L. n° 10/001, <strong>art. 56</strong> · l'état détaillé n'est pas une pièce de confort, c'est la
-          condition du droit à déduction. Son défaut entraîne la réintégration d'office des déductions opérées.
-        </p>
+        <h2 className="text-[11.5px] font-bold mb-1.5 flex items-center gap-1.5">
+          État détaillé de la déclaration mensuelle
+          <Aide
+            titre="État détaillé"
+            texte="L'état détaillé n'est pas une pièce de confort, c'est la condition du droit à déduction. Son défaut entraîne la réintégration d'office des déductions opérées."
+            source="O.-L. n° 10/001, art. 56"
+          />
+        </h2>
         <div className="flex items-end gap-2">
-          <label className="text-[12px]">
+          <label className="text-[11.5px]">
             Période (AAAA-MM)
-            <input className="w-full border border-border px-1.5 py-1 text-[12px]" value={periode} onChange={(e) => setPeriode(e.target.value)} placeholder="2026-09" />
+            <input className="w-full border border-border px-1.5 py-1 text-[11.5px]" value={periode} onChange={(e) => setPeriode(e.target.value)} placeholder="2026-09" />
           </label>
-          <button className="border border-border px-2.5 py-1 text-[12px]" onClick={() => void produireEtatDetaille()}>
+          <button className="border border-border px-2.5 py-1 text-[11.5px]" onClick={() => void produireEtatDetaille()}>
             Produire
           </button>
         </div>
@@ -362,7 +374,7 @@ export function FacturationPage() {
         {detaille && (
           <div className="mt-2.5">
             <div className="overflow-x-auto">
-              <table className="w-full text-[12px]">
+              <table className="w-full text-[11.5px]">
                 <thead>
                   <tr className="text-left border-b border-border">
                     <th className="py-1 pr-2">Fournisseur</th>
@@ -404,8 +416,8 @@ export function FacturationPage() {
 
             {detaille.incompletudes.length > 0 && (
               <div className="mt-2 border border-border px-2.5 py-1.5">
-                <p className="text-[12px] font-bold">Lignes incomplètes au regard de l'art. 134</p>
-                <ul className="text-[12px] text-text-dim mt-1">
+                <p className="text-[11.5px] font-bold">Lignes incomplètes au regard de l'art. 134</p>
+                <ul className="text-[11.5px] text-text-dim mt-1">
                   {detaille.incompletudes.map((i, r) => (
                     <li key={`${i.numeroFacture}-${r}`}>
                       Facture {i.numeroFacture} · {i.designation} · manque {i.manques.join(', ')}
@@ -418,19 +430,21 @@ export function FacturationPage() {
             {/* LA LACUNE DÉCLARÉE PLUTÔT QUE COMBLÉE · OmegaX ne tient aucune
                 déclaration en douane, et déduire une valeur en douane d'un
                 compte d'achat l'inventerait. */}
-            <p className="text-[11px] text-text-dim mt-2 leading-[1.6]">{detaille.voletImportations.motif}</p>
-            <p className="text-[11px] text-text-dim mt-1 leading-[1.6]">{detaille.consequenceDuDefaut}</p>
+            <p className="text-[11px] text-text-dim mt-2 leading-[1.6] flex items-start gap-1.5">
+              <span>{detaille.voletImportations.motif}</span>
+              <Aide titre="Défaut de l'état détaillé" texte={detaille.consequenceDuDefaut} source={detaille.source} />
+            </p>
           </div>
         )}
       </section>
 
       <section className="border border-border bg-surface px-3.5 py-2.5">
-        <h2 className="text-[12.5px] font-bold mb-1.5">Factures enregistrées</h2>
+        <h2 className="text-[11.5px] font-bold mb-1.5">Factures enregistrées</h2>
         {etat.factures.length === 0 ? (
-          <p className="text-[12px] text-text-dim">Aucune facture enregistrée.</p>
+          <p className="text-[11.5px] text-text-dim">Aucune facture enregistrée.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-[12px]">
+            <table className="w-full text-[11.5px]">
               <thead>
                 <tr className="text-left border-b border-border">
                   <th className="py-1 pr-2">Sens</th>
@@ -506,9 +520,9 @@ export function FacturationPage() {
                               sanctionne « par omission » sans définir l'unité
                               de l'omission. Multiplier serait inventer un
                               barème. */}
-                          <p className="text-[11px] text-text-dim mt-0.5">
-                            Amende de {f.mentions.amendeUnitaire.toLocaleString('fr-FR')} FC par omission.{' '}
-                            {f.mentions.reserveAmende}
+                          <p className="text-[11px] text-text-dim mt-0.5 flex items-center gap-1.5">
+                            Amende de {f.mentions.amendeUnitaire.toLocaleString('fr-FR')} FC par omission.
+                            <Aide titre="Amende par omission" texte={f.mentions.reserveAmende} source={f.mentions.source} />
                           </p>
                         </>
                       )}

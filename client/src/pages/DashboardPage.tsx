@@ -4,6 +4,7 @@ import { api } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
 import { IconNew } from '../components/chrome/icons';
+import { Aide } from '../components/chrome/Aide';
 import type { EcheancierFiscal, Ecriture, LigneBalance } from '../lib/types';
 import { echeancesAVenir } from '../lib/echeances-a-venir';
 
@@ -86,16 +87,15 @@ export function DashboardPage() {
 
   return (
     <div className="p-2">
-      <div className="flex items-center justify-between mb-1.5">
-        <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">Fenêtre</div>
-          <h1 className="text-[13px] font-bold leading-tight">
-            Tableau de bord{exerciceCourant && ` · Exercice ${new Date(exerciceCourant.dateDebut).getFullYear()}`}
-          </h1>
-        </div>
+      <div className="flex items-center justify-end gap-2 mb-1.5">
+        <Aide
+          titre="Indicateurs"
+          texte={`Indicateurs calculés en direct depuis la balance de l'exercice · aucune donnée parallèle. Le résultat est provisoire tant que les écritures d'inventaire et de clôture ne sont pas passées ; les états financiers ${utilisateur?.tenant.referentiel === 'SYSCOHADA' ? 'SYSCOHADA' : 'SYCEBNL'} restent la référence (menu État).`}
+          source="Balance de l'exercice"
+        />
         <button
           onClick={() => navigate('/saisie')}
-          className="flex items-center gap-2 px-4 py-1.5 bg-sel text-white text-[12.5px] font-semibold"
+          className="flex items-center gap-2 px-4 py-1.5 bg-sel text-white text-[11.5px] font-semibold"
         >
           <IconNew width={15} height={15} />
           Saisie des journaux
@@ -110,7 +110,7 @@ export function DashboardPage() {
           return (
             <div key={ind.label} className="bg-surface border border-border shadow-posee px-3.5 py-2.5">
               <div className="text-[11px] font-bold text-text-dim tracking-wide">{ind.label}</div>
-              <div className={`font-mono text-[17px] font-bold leading-tight mt-0.5 ${teinte}`}>
+              <div className={`font-mono text-[14px] font-bold leading-tight mt-0.5 ${teinte}`}>
                 {balance ? ind.valeur.toLocaleString('fr-FR') : '…'}
                 <span className="text-[11px] font-normal text-text-dim ml-1">CDF</span>
               </div>
@@ -141,7 +141,7 @@ export function DashboardPage() {
             </a>
           </div>
           {aVenir.proches.length === 0 ? (
-            <div className="p-3 text-[12px] text-text-dim">
+            <div className="p-3 text-[11.5px] text-text-dim">
               Aucune échéance dans les {aVenir.horizonJours} prochains jours. Cela ne veut pas dire que les
               déclarations antérieures ont été déposées · OmegaX ne détient pas cette information.
             </div>
@@ -149,7 +149,7 @@ export function DashboardPage() {
             aVenir.proches.map((e) => (
               <div
                 key={e.cle}
-                className="grid grid-cols-[78px_1fr_92px_120px] min-w-[520px] gap-2.5 items-center px-3.5 py-[4px] border-b border-border/50 last:border-b-0 text-[12px]"
+                className="grid grid-cols-[78px_1fr_92px_120px] min-w-[520px] gap-2.5 items-center px-3.5 py-[4px] border-b border-border/50 last:border-b-0 text-[11.5px]"
               >
                 <span className="font-mono text-[11px] text-text-dim">
                   {new Date(e.date).toLocaleDateString('fr-FR')}
@@ -186,8 +186,7 @@ export function DashboardPage() {
           )}
           {aVenir.auDela > 0 && (
             <div className="px-3.5 py-1.5 text-[11px] text-text-dim border-t border-border/50">
-              {aVenir.auDela} autre(s) échéance(s) au-delà de {aVenir.horizonJours} jours · elles sont dans la
-              fenêtre Retenues.
+              {aVenir.auDela} autre(s) échéance(s) au-delà de {aVenir.horizonJours} jours.
             </div>
           )}
         </div>
@@ -206,10 +205,10 @@ export function DashboardPage() {
             Ouvrir le journal
           </a>
         </div>
-        {!ecritures && <div className="p-3 text-[12.5px] text-text-dim">Chargement…</div>}
+        {!ecritures && <div className="p-3 text-[11.5px] text-text-dim">Chargement…</div>}
         {ecritures?.length === 0 && (
-          <div className="p-3 text-[12.5px] text-text-dim">
-            Aucune écriture sur cet exercice · commencez par la saisie des journaux.
+          <div className="p-3 text-[11.5px] text-text-dim">
+            Aucune écriture sur cet exercice.
           </div>
         )}
         {ecritures?.map((e) => {
@@ -217,7 +216,7 @@ export function DashboardPage() {
           return (
             <div
               key={e.id}
-              className="grid grid-cols-[76px_52px_56px_1fr_130px] min-w-[540px] gap-2.5 items-center px-3.5 py-[4px] border-b border-border/50 last:border-b-0 text-[12px]"
+              className="grid grid-cols-[76px_52px_56px_1fr_130px] min-w-[540px] gap-2.5 items-center px-3.5 py-[4px] border-b border-border/50 last:border-b-0 text-[11.5px]"
             >
               <span className="font-mono text-[11px] text-text-dim">
                 {new Date(e.date).toLocaleDateString('fr-FR')}
@@ -230,13 +229,6 @@ export function DashboardPage() {
           );
         })}
       </div>
-
-      <p className="text-[11px] text-text-dim mt-2 max-w-[860px]">
-        Indicateurs calculés en direct depuis la balance de l'exercice · aucune donnée parallèle. Le résultat
-        est provisoire tant que les écritures d'inventaire et de clôture ne sont pas passées ; les états
-        financiers {utilisateur?.tenant.referentiel === 'SYSCOHADA' ? 'SYSCOHADA' : 'SYCEBNL'} restent la
-        référence (menu État).
-      </p>
     </div>
   );
 }

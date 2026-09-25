@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
+import { Aide } from '../components/chrome/Aide';
 
 /**
  * ÉVOLUTION PLURIANNUELLE DES SOLDES · le même compte sur plusieurs
@@ -78,11 +79,7 @@ export function EvolutionSoldesPage() {
   return (
     <div className="p-2">
       <EnteteImpression titre="Évolution des soldes" />
-      <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
-        <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">Révision</div>
-          <h1 className="text-[13px] font-bold leading-tight">Évolution pluriannuelle des soldes</h1>
-        </div>
+      <div className="flex items-end justify-end mb-1.5 gap-3 flex-wrap">
         <div className="flex items-end gap-3">
           <label className="flex flex-col gap-1">
             <span className="text-[11px] font-bold text-text-dim">Racine de compte</span>
@@ -90,7 +87,7 @@ export function EvolutionSoldesPage() {
               value={racine}
               onChange={(e) => setRacine(e.target.value.replace(/\D/g, ''))}
               placeholder="ex. 47"
-              className="border border-border-dark bg-surface px-2 py-1 text-[12px] font-mono w-[110px]"
+              className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] font-mono w-[110px]"
             />
           </label>
           <label className="flex flex-col gap-1">
@@ -98,7 +95,7 @@ export function EvolutionSoldesPage() {
             <select
               value={nbExercices}
               onChange={(e) => setNbExercices(Number(e.target.value))}
-              className="border border-border-dark bg-surface px-2 py-1 text-[12px]"
+              className="border border-border-dark bg-surface px-2 py-1 text-[11.5px]"
             >
               {[3, 5, 8, 10, 15, 20].map((n) => (
                 <option key={n} value={n}>
@@ -110,15 +107,20 @@ export function EvolutionSoldesPage() {
           <button
             type="button"
             onClick={exporter}
-            className="border border-border-dark bg-surface-alt px-3 py-1 text-[12px] font-semibold"
+            className="border border-border-dark bg-surface-alt px-3 py-1 text-[11.5px] font-semibold"
           >
             Exporter en Excel
           </button>
+          <Aide
+            titre="Évolution pluriannuelle des soldes"
+            texte="Solde de clôture de chaque exercice, à-nouveaux compris, comparable à la balance de l'année. Une case vide signifie que le compte n'était pas mouvementé cet exercice-là, ce qui n'est pas un solde nul. Montants signés : débiteur positif, créditeur négatif."
+            source="Évolution des soldes"
+          />
         </div>
       </div>
 
       {erreur && (
-        <div className="text-[12.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-2.5">{erreur}</div>
+        <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-2.5">{erreur}</div>
       )}
 
       <div className="border border-border bg-surface shadow-posee overflow-x-auto">
@@ -138,7 +140,7 @@ export function EvolutionSoldesPage() {
         )}
 
         {donnees && lignes.length === 0 && (
-          <div className="px-3.5 py-4 text-[12px] text-text-dim">
+          <div className="px-3.5 py-4 text-[11.5px] text-text-dim">
             {donnees.lignes.length === 0
               ? "Aucun compte mouvementé sur la fenêtre retenue."
               : `Aucun compte ne commence par « ${racine} ».`}
@@ -149,7 +151,7 @@ export function EvolutionSoldesPage() {
           <div
             key={l.compteId}
             style={grille}
-            className="px-3.5 py-[4px] items-center border-b border-border/50 text-[12px]"
+            className="px-3.5 py-[4px] items-center border-b border-border/50 text-[11.5px]"
           >
             <span className="font-mono">{l.numero}</span>
             <span className="truncate" title={l.intitule}>
@@ -167,13 +169,6 @@ export function EvolutionSoldesPage() {
           </div>
         ))}
       </div>
-
-      <p className="text-[11px] text-text-dim mt-2 max-w-[900px]">
-        Solde de clôture de chaque exercice, à-nouveaux compris · c'est la définition de la balance, et c'est
-        ce qui rend chaque colonne comparable à la balance de l'année. Une case vide signifie que le compte
-        n'était pas mouvementé cet exercice-là, ce qui n'est pas la même chose qu'un solde nul. Les montants
-        sont signés : débiteur positif, créditeur négatif.
-      </p>
     </div>
   );
 }

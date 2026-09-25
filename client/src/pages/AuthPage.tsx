@@ -2,6 +2,7 @@ import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { Aide } from '../components/chrome/Aide';
 import { LogotypeOmegaX, SymboleOmegaX } from '../components/chrome/Logo';
 import { DossierRecent, lireDossiersRecents, oublierDossier } from '../lib/dossiersRecents';
 import type { AuthResponse } from '../lib/types';
@@ -131,7 +132,7 @@ export function AuthPage() {
   // Même gabarit de champ que l'assistant de création : un dialogue et son
   // assistant ne doivent pas avoir deux styles de saisie.
   const champClasse =
-    'w-full rounded-[4px] border border-border bg-surface px-2.5 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-sel/25 focus:border-sel';
+    'w-full rounded-[4px] border border-border bg-surface px-2.5 py-1.5 text-[12px] focus:outline-none focus:ring-2 focus:ring-sel/25 focus:border-sel';
 
   const dateCourte = (iso: string) =>
     new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -154,10 +155,10 @@ export function AuthPage() {
           ouvre porte exactement le même cadre : la première seconde
           d'utilisation dit déjà « logiciel installé », pas « site ».
           ------------------------------------------------------------------ */}
-      <div className="relative z-10 w-full max-w-[620px] bg-surface border border-border rounded-[8px] overflow-hidden shadow-flottante anim-modale">
+      <div className="relative z-10 w-full max-w-[620px] bg-surface border border-border rounded-[4px] overflow-hidden shadow-flottante anim-modale">
         {/* Barre de titre CLAIRE, comme toute fenêtre de Windows 11 : le
             signe porte la couleur, la barre ne la porte plus. */}
-        <div className="h-[32px] flex items-center gap-2 px-3 bg-surface text-text text-[12.5px] border-b border-border">
+        <div className="h-[32px] flex items-center gap-2 px-3 bg-surface text-text text-[11.5px] border-b border-border">
           <SymboleOmegaX taille={14} className="text-[var(--a-900)]" />
           <span>Ouverture du dossier comptable</span>
         </div>
@@ -175,7 +176,7 @@ export function AuthPage() {
             className="w-full sm:w-[168px] sm:flex-shrink-0 p-4 flex flex-row sm:flex-col items-center sm:items-stretch gap-3 sm:gap-0 justify-between bg-chrome border-b sm:border-b-0 sm:border-r border-border"
           >
             <div className="min-w-0">
-              <div className="w-[38px] h-[38px] rounded-[8px] bg-sel flex items-center justify-center text-white">
+              <div className="w-[38px] h-[38px] rounded-[4px] bg-sel flex items-center justify-center text-white">
                 <SymboleOmegaX taille={23} />
               </div>
               {/*
@@ -206,16 +207,11 @@ export function AuthPage() {
       {/* Un seul écran · quel dossier, et qui êtes-vous.                     */}
       {/* ------------------------------------------------------------------ */}
       <div className="w-full">
-        <p className="text-[12.5px] text-text-dim leading-[1.6] mb-4">
-          {dossierVise
-            ? 'Saisissez les identifiants donnés à ce dossier lors de sa création.'
-            : 'Saisissez les identifiants du dossier comptable à ouvrir.'}
-        </p>
         {dossierVise && (
           <div className="mb-4 flex items-center justify-between gap-2 rounded-[4px] border border-border bg-chrome px-3.5 py-2.5">
             <span className="min-w-0">
               <span className="block text-[11px] font-bold text-text-dim">Dossier</span>
-              <span className="block text-[13px] font-bold truncate">{dossierVise.nom}</span>
+              <span className="block text-[12px] font-bold truncate">{dossierVise.nom}</span>
             </span>
             {/* Remplace l'ancien « &lt; Ouvrir un autre dossier » qui renvoyait à
                 la porte · il n'y a plus d'écran derrière, seulement un champ
@@ -223,7 +219,7 @@ export function AuthPage() {
             <button
               type="button"
               onClick={() => ouvrirDossier(null)}
-              className="flex-shrink-0 px-2 py-1 text-[12px] text-text-dim hover:text-sel"
+              className="flex-shrink-0 px-2 py-1 text-[11.5px] text-text-dim hover:text-sel"
             >
               Un autre dossier
             </button>
@@ -232,7 +228,7 @@ export function AuthPage() {
 
         <form onSubmit={onSubmit} className="flex flex-col gap-3">
           <label className="flex flex-col gap-1.5">
-            <span className="text-[12.5px] font-semibold text-text-dim">Adresse e-mail</span>
+            <span className="text-[11.5px] font-semibold text-text-dim">Adresse e-mail</span>
             <input
               type="email"
               required
@@ -244,7 +240,7 @@ export function AuthPage() {
           </label>
 
           <label className="flex flex-col gap-1.5">
-            <span className="text-[12.5px] font-semibold text-text-dim">Mot de passe</span>
+            <span className="text-[11.5px] font-semibold text-text-dim">Mot de passe</span>
             <div className="relative">
               <input
                 type={motDePasseVisible ? 'text' : 'password'}
@@ -266,7 +262,7 @@ export function AuthPage() {
           </label>
 
           {erreur && (
-            <div className="text-[12.5px] text-danger bg-danger-soft border border-danger/30 rounded-[4px] px-3 py-2">
+            <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 rounded-[4px] px-3 py-2">
               {erreur}
             </div>
           )}
@@ -275,7 +271,7 @@ export function AuthPage() {
             <button
               type="submit"
               disabled={envoi}
-              className="px-4 py-1.5 rounded-[4px] bg-sel text-white text-[12.5px] font-semibold hover:brightness-110 disabled:opacity-50"
+              className="px-4 py-1.5 rounded-[4px] bg-sel text-white text-[11.5px] font-semibold hover:brightness-110 disabled:opacity-50"
             >
               {envoi ? 'Un instant…' : 'Ouvrir le dossier'}
             </button>
@@ -287,8 +283,15 @@ export function AuthPage() {
             remplit l'adresse au lieu de la retaper. */}
         {recents.length > 0 && (
           <div className="mt-5">
-            <div className="text-[12px] font-bold text-text-dim mb-1.5 px-0.5">Dossiers récents</div>
-            <div className="rounded-[8px] border border-border bg-surface overflow-hidden">
+            <div className="text-[11.5px] font-bold text-text-dim mb-1.5 px-0.5 flex items-center gap-1.5">
+              Dossiers récents
+              <Aide
+                titre="Dossiers récents"
+                texte="Ces raccourcis ne sont enregistrés que sur cet appareil et ne contiennent aucun mot de passe."
+                source="OmegaX"
+              />
+            </div>
+            <div className="rounded-[4px] border border-border bg-surface overflow-hidden">
               {recents.map((d) => (
                 <div key={d.email} className="flex items-center gap-2 border-b border-border last:border-b-0">
                   <button
@@ -298,8 +301,8 @@ export function AuthPage() {
                       dossierVise?.email === d.email ? 'bg-sel-soft' : ''
                     }`}
                   >
-                    <span className="block text-[13px] font-semibold truncate">{d.nom}</span>
-                    <span className="block text-[12px] text-text-dim truncate">
+                    <span className="block text-[12px] font-semibold truncate">{d.nom}</span>
+                    <span className="block text-[11.5px] text-text-dim truncate">
                       {d.email} · ouvert le {dateCourte(d.derniereOuverture)}
                     </span>
                   </button>
@@ -307,22 +310,19 @@ export function AuthPage() {
                     type="button"
                     onClick={() => retirer(d.email)}
                     title="Retirer ce raccourci de cet appareil"
-                    className="px-3 text-[12px] text-text-dim hover:text-danger"
+                    className="px-3 text-[11.5px] text-text-dim hover:text-danger"
                   >
                     Retirer
                   </button>
                 </div>
               ))}
             </div>
-            <p className="mt-1.5 px-0.5 text-[11px] text-text-dim">
-              Ces raccourcis ne sont enregistrés que sur cet appareil et ne contiennent aucun mot de passe.
-            </p>
           </div>
         )}
 
         {/* L'auto-inscription est fermée · la règle doit rester dite, mais une
             ligne y suffit : elle occupait un tiers de l'écran. */}
-        <div className="mt-4 text-[12.5px] text-text-dim">
+        <div className="mt-4 text-[11.5px] text-text-dim">
           Pas encore de dossier ? L'ouverture se fait avec VMG Consulting.
         </div>
         {/*

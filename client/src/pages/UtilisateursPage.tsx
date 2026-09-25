@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { phraseAvisAcces } from '../lib/remise-courriel';
 import { useAuth } from '../lib/auth';
+import { Aide } from '../components/chrome/Aide';
 import type { AvisAcces, RoleUtilisateur, Utilisateur } from '../lib/types';
 
 const LIBELLE_ROLE: Record<RoleUtilisateur, string> = {
@@ -57,7 +58,7 @@ export function UtilisateursPage() {
   if (!estAdmin) {
     return (
       <div className="p-4">
-        <div className="border border-warning/30 bg-warning-soft px-4 py-3 text-[12.5px] max-w-[480px]">
+        <div className="border border-warning/30 bg-warning-soft px-4 py-3 text-[11.5px] max-w-[480px]">
           Cette page est réservée aux administrateurs du dossier.
         </div>
       </div>
@@ -123,20 +124,16 @@ export function UtilisateursPage() {
 
   return (
     <div className="p-2">
-      <div className="flex items-center justify-between mb-2">
-        <div>
-          <div className="text-[11px] font-mono text-text-dim leading-none">Fichier</div>
-          <h1 className="text-[13px] font-bold leading-tight">Autorisations d'accès · utilisateurs du dossier</h1>
-        </div>
-        <button type="button" onClick={() => setNouveauOuvert(true)} className="bg-sel text-white px-3.5 py-1 text-[12px] font-semibold">
+      <div className="flex items-center justify-end mb-2">
+        <button type="button" onClick={() => setNouveauOuvert(true)} className="bg-sel text-white px-3.5 py-1 text-[11.5px] font-semibold">
           Nouvel utilisateur
         </button>
       </div>
 
-      {erreurChargement && <div className="text-[12.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-1.5 mb-2 max-w-[720px]">{erreurChargement}</div>}
+      {erreurChargement && <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-1.5 mb-2 max-w-[720px]">{erreurChargement}</div>}
 
       {reinitFait && (
-        <div className="border border-positive/30 bg-positive-soft px-3.5 py-2 text-[12.5px] mb-2 max-w-[940px]">
+        <div className="border border-positive/30 bg-positive-soft px-3.5 py-2 text-[11.5px] mb-2 max-w-[940px]">
           Mot de passe réinitialisé pour <strong>{reinitFait}</strong>. Remettez-le en main propre · il est
           PROVISOIRE, ses sessions ouvertes sont fermées, et le logiciel lui restera fermé tant qu'il ne l'aura pas
           remplacé.
@@ -144,7 +141,7 @@ export function UtilisateursPage() {
       )}
 
       {avisRemis && (
-        <div className="border border-border bg-chrome-alt px-3.5 py-2 text-[12.5px] mb-2 max-w-[940px] flex justify-between gap-3">
+        <div className="border border-border bg-chrome-alt px-3.5 py-2 text-[11.5px] mb-2 max-w-[940px] flex justify-between gap-3">
           <span>{avisRemis}</span>
           <button onClick={() => setAvisRemis(null)} className="font-bold hover:underline shrink-0">
             Fermer
@@ -160,19 +157,28 @@ export function UtilisateursPage() {
         className="border border-border bg-surface shadow-posee max-w-[940px] overflow-x-auto"
       >
         <div className="grid grid-cols-[1fr_150px_90px_100px_190px] min-w-[740px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[11px] font-bold text-text-dim">
-          <span>E-mail</span><span>Rôle</span><span>STATUT</span><span></span><span>Mot de passe</span>
+          <span>E-mail</span>
+          <span className="flex items-center gap-1">
+            Rôle
+            <Aide
+              titre="Rôles"
+              texte={`${LIBELLE_ROLE.ADMIN_CABINET} : accès complet, y compris cette fenêtre. ${LIBELLE_ROLE.COMPTABLE} : saisie et consultation. ${LIBELLE_ROLE.LECTURE_SEULE} : consultation uniquement. ${LIBELLE_ROLE.AIDE_COMPTABLE} : saisie au brouillard, sans validation ni paie. ${LIBELLE_ROLE.GESTIONNAIRE_PAIE} : personnel et paie seulement, sans la comptabilité.`}
+              source="Autorisations d'accès"
+            />
+          </span>
+          <span>STATUT</span><span>STATUT</span><span></span><span>Mot de passe</span>
         </div>
-        {!liste && <div className="p-3 text-[12.5px] text-text-dim">Chargement…</div>}
+        {!liste && <div className="p-3 text-[11.5px] text-text-dim">Chargement…</div>}
         {liste?.map((u, i) => (
           <div key={u.id} className={`grid grid-cols-[1fr_150px_90px_100px_190px] min-w-[740px] gap-2 items-center px-3.5 py-1.5 border-b border-border last:border-b-0 ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}>
-            <span className="text-[12.5px] truncate">
+            <span className="text-[11.5px] truncate">
               {u.email}
               {u.id === utilisateur?.id && <span className="text-text-dim"> (vous)</span>}
             </span>
             <select
               value={u.role}
               onChange={(e) => changerRole(u.id, e.target.value as RoleUtilisateur)}
-              className="border border-border-dark px-1.5 py-1 text-[12px] bg-surface"
+              className="border border-border-dark px-1.5 py-1 text-[11.5px] bg-surface"
             >
               <option value="ADMIN_CABINET">Administrateur</option>
               <option value="COMPTABLE">Comptable</option>
@@ -187,7 +193,7 @@ export function UtilisateursPage() {
               onClick={() => basculerActif(u)}
               disabled={u.id === utilisateur?.id && u.estActif}
               title={u.id === utilisateur?.id && u.estActif ? 'Impossible de désactiver son propre compte' : undefined}
-              className="text-[12px] text-sel text-left disabled:opacity-40 disabled:cursor-not-allowed"
+              className="text-[11.5px] text-sel text-left disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {u.estActif ? 'Désactiver' : 'Réactiver'}
             </button>
@@ -216,7 +222,7 @@ export function UtilisateursPage() {
                   setReinitErreur(null);
                   setReinitFait(null);
                 }}
-                className="text-[12px] text-sel"
+                className="text-[11.5px] text-sel"
               >
                 Réinitialiser
               </button>
@@ -224,12 +230,6 @@ export function UtilisateursPage() {
           </div>
         ))}
       </div>
-      <p className="text-[12px] text-text-dim mt-2 max-w-[720px]">
-        {LIBELLE_ROLE.ADMIN_CABINET} : accès complet, y compris cette fenêtre. {LIBELLE_ROLE.COMPTABLE} : saisie et
-        consultation. {LIBELLE_ROLE.LECTURE_SEULE} : consultation uniquement. {LIBELLE_ROLE.AIDE_COMPTABLE} : saisie au
-        brouillard, sans validation ni paie. {LIBELLE_ROLE.GESTIONNAIRE_PAIE} : personnel et paie seulement, sans la
-        comptabilité.
-      </p>
 
       {reinitCible && (
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
@@ -237,29 +237,31 @@ export function UtilisateursPage() {
             onSubmit={onReinitialiser}
             className="anim-fenetre bg-surface border border-border-dark shadow-flottant w-[440px] max-w-full max-h-[calc(100dvh-2rem)] overflow-y-auto"
           >
-            <div className="px-3.5 py-2 bg-chrome border-b border-border-dark text-[12.5px] font-bold">
+            <div className="px-3.5 py-2 bg-chrome border-b border-border-dark text-[11.5px] font-bold">
               Réinitialiser le mot de passe · {reinitCible.email}
             </div>
             <div className="p-3.5 flex flex-col gap-2.5">
-              <p className="text-[12px] text-text-dim">
-                Vous posez un mot de passe PROVISOIRE, que vous remettez en main propre. Il ferme aussitôt les
-                sessions ouvertes du compte, lève un éventuel verrou, et le logiciel restera fermé à ce compte tant
-                que son titulaire ne l'aura pas remplacé. Le geste est inscrit au journal d'audit.
-              </p>
               <label className="flex flex-col gap-1">
-                <span className="text-[11px] font-bold text-text-dim">Mot de passe provisoire</span>
+                <span className="text-[11px] font-bold text-text-dim flex items-center gap-1">
+                  Mot de passe provisoire
+                  <Aide
+                    titre="Mot de passe provisoire"
+                    texte="Vous posez un mot de passe PROVISOIRE, que vous remettez en main propre. Il ferme aussitôt les sessions ouvertes du compte, lève un éventuel verrou, et le logiciel restera fermé à ce compte tant que son titulaire ne l'aura pas remplacé. Le geste est inscrit au journal d'audit."
+                    source="Autorisations d'accès"
+                  />
+                </span>
                 <input
                   value={reinitMotDePasse}
                   onChange={(e) => setReinitMotDePasse(e.target.value)}
                   minLength={10}
                   required
                   autoFocus
-                  className="border border-border-dark px-2.5 py-1.5 text-[12.5px]"
+                  className="border border-border-dark px-2.5 py-1.5 text-[11.5px]"
                 />
                 <span className="text-[11px] text-text-dim">Dix caractères au minimum.</span>
               </label>
               {reinitErreur && (
-                <div className="text-[12.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5">
+                <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5">
                   {reinitErreur}
                 </div>
               )}
@@ -268,11 +270,11 @@ export function UtilisateursPage() {
               <button
                 type="button"
                 onClick={() => setReinitCible(null)}
-                className="border border-border-dark px-3 py-1 text-[12px]"
+                className="border border-border-dark px-3 py-1 text-[11.5px]"
               >
                 Annuler
               </button>
-              <button type="submit" className="border border-border-dark bg-chrome px-3 py-1 text-[12px] font-semibold">
+              <button type="submit" className="border border-border-dark bg-chrome px-3 py-1 text-[11.5px] font-semibold">
                 Réinitialiser
               </button>
             </div>
@@ -284,19 +286,19 @@ export function UtilisateursPage() {
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
           <form onSubmit={onCreer} className="anim-modale w-full max-w-[440px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div
-              className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[12px]"
+              className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
             >
               <span>Nouvel utilisateur</span>
               <button type="button" onClick={() => setNouveauOuvert(false)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">✕</button>
             </div>
             <div className="p-4">
               <div className="grid grid-cols-[130px_1fr] items-center gap-x-3 gap-y-2.5">
-                <label className="text-[12.5px] text-right">E-mail :</label>
-                <input type="email" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[13px]" />
-                <label className="text-[12.5px] text-right">Mot de passe :</label>
-                <input type="password" required minLength={10} placeholder="10 caractères min." value={motDePasse} onChange={(e) => setMotDePasse(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[13px]" />
-                <label className="text-[12.5px] text-right">Rôle :</label>
-                <select value={role} onChange={(e) => setRole(e.target.value as RoleUtilisateur)} className="border border-border-dark px-2.5 py-1.5 text-[12.5px]">
+                <label className="text-[11.5px] text-right">E-mail :</label>
+                <input type="email" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
+                <label className="text-[11.5px] text-right">Mot de passe :</label>
+                <input type="password" required minLength={10} placeholder="10 caractères min." value={motDePasse} onChange={(e) => setMotDePasse(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
+                <label className="text-[11.5px] text-right">Rôle :</label>
+                <select value={role} onChange={(e) => setRole(e.target.value as RoleUtilisateur)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
                   <option value="ADMIN_CABINET">Administrateur</option>
                   <option value="COMPTABLE">Comptable</option>
                   <option value="LECTURE_SEULE">Lecture seule</option>
@@ -304,12 +306,12 @@ export function UtilisateursPage() {
               <option value="GESTIONNAIRE_PAIE">Gestionnaire de paie</option>
                 </select>
               </div>
-              {erreurForm && <div className="text-[12.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mt-3">{erreurForm}</div>}
+              {erreurForm && <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mt-3">{erreurForm}</div>}
               <div className="flex justify-end gap-2 mt-4">
-                <button type="button" onClick={() => setNouveauOuvert(false)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[12.5px]">
+                <button type="button" onClick={() => setNouveauOuvert(false)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11.5px]">
                   Annuler
                 </button>
-                <button type="submit" disabled={envoi} className="bg-sel text-white px-4 py-1.5 text-[12.5px] font-semibold disabled:opacity-50">
+                <button type="submit" disabled={envoi} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold disabled:opacity-50">
                   {envoi ? 'Création…' : "Créer l'utilisateur"}
                 </button>
               </div>

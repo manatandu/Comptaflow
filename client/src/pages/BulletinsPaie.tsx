@@ -3,6 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { BaremeMensuelIrpp, type DetailMensuelIrpp } from './BaremeMensuelIrpp';
 import { PaieDuMois } from './PaieDuMois';
 import { useAuth } from '../lib/auth';
+import { Aide } from '../components/chrome/Aide';
 
 /**
  * P8 · LES BULLETINS ÉMIS, onglet de la fenêtre Personnel.
@@ -130,7 +131,7 @@ export function OngletBulletins({ moisInitial, peutEcrire }: { moisInitial: stri
   const t = liste?.totauxEmis;
 
   return (
-    <div className="max-w-[1240px] text-[12px]">
+    <div className="max-w-[1240px] text-[11.5px]">
       <div className="ecran-seul flex flex-wrap items-center gap-3 mb-2.5">
         <label className="flex items-center gap-2">
           Mois de paie
@@ -146,6 +147,13 @@ export function OngletBulletins({ moisInitial, peutEcrire }: { moisInitial: stri
             {liste.total} bulletin(s) pour ce mois
             {liste.tronque ? ` · les ${liste.bulletins.length} derniers affichés` : ''}
           </span>
+        )}
+        {liste && (
+          <Aide
+            titre="Bulletins émis"
+            texte={`On émet un bulletin depuis l’onglet Simulation, salarié choisi. ${liste.textes.numerotation} ${liste.textes.inalterabilite} ${liste.textes.article103}`}
+            source="Code du travail, art. 103 et 214 · arrêté n° 12/CAB.MIN/ETPS/042, art. 4"
+          />
         )}
       </div>
 
@@ -170,8 +178,7 @@ export function OngletBulletins({ moisInitial, peutEcrire }: { moisInitial: stri
               {liste.bulletins.length === 0 && (
                 <tr>
                   <td colSpan={8} className="px-3 py-2 text-text-dim">
-                    Aucun bulletin émis pour ce mois. On émet un bulletin depuis l’onglet Simulation,
-                    salarié choisi.
+                    Aucun bulletin émis pour ce mois.
                   </td>
                 </tr>
               )}
@@ -223,7 +230,7 @@ export function OngletBulletins({ moisInitial, peutEcrire }: { moisInitial: stri
         <div className="border border-border bg-surface px-5 py-4">
           {/* LE BULLETIN · c'est la partie qui s'imprime. */}
           <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
-            <h2 className="text-[15px] font-semibold">
+            <h2 className="text-[13px] font-semibold">
               Bulletin de paie n° {ouvert.numero} · {ouvert.moisDePaie}
             </h2>
             <span className="text-text-dim">Émis le {jour(ouvert.emisLe)}</span>
@@ -281,7 +288,7 @@ export function OngletBulletins({ moisInitial, peutEcrire }: { moisInitial: stri
                 <td className="py-1">Retenue IRPP (art. 119)</td>
                 <td className="py-1 text-right">− {fc(ouvert.irppFc)}</td>
               </tr>
-              <tr className="border-t-2 border-border font-semibold text-[13px]">
+              <tr className="border-t-2 border-border font-semibold text-[12px]">
                 <td className="py-1.5">Net à payer</td>
                 <td className="py-1.5 text-right">{fc(ouvert.netAPayerFc)}</td>
               </tr>
@@ -354,13 +361,6 @@ export function OngletBulletins({ moisInitial, peutEcrire }: { moisInitial: stri
         </div>
       )}
 
-      {liste && (
-        <ul className="ecran-seul text-[11px] text-text-dim list-disc pl-4 mt-2.5">
-          <li>{liste.textes.numerotation}</li>
-          <li>{liste.textes.inalterabilite}</li>
-          <li>{liste.textes.article103}</li>
-        </ul>
-      )}
     </div>
   );
 }

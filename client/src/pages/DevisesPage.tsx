@@ -169,26 +169,22 @@ export function DevisesPage() {
     }
   };
 
-  const champ = 'mt-1 w-full border border-border rounded-[6px] px-2.5 py-1.5 text-[12.5px] font-normal';
+  const champ = 'mt-1 w-full border border-border rounded-[3px] px-2.5 py-1.5 text-[11.5px] font-normal';
 
   return (
     <div className="p-2">
       <EnteteImpression titre="Devises et réévaluation" />
-      <div className="mb-1.5">
-        <div className="text-[11px] font-mono text-text-dim leading-none">Traitement</div>
-        <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
-          Devises et réévaluation
-          <Aide sujet="devises" />
-        </h1>
+      <div className="mb-1.5 flex justify-end">
+        <Aide sujet="devises" />
       </div>
 
       {erreur && (
-        <div className="mb-2.5 text-[12.5px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-1.5">
+        <div className="mb-2.5 text-[11.5px] text-danger bg-danger-soft border border-danger/30 rounded-[3px] px-2.5 py-1.5">
           {erreur}
         </div>
       )}
       {info && (
-        <div className="mb-2.5 text-[12.5px] text-positive bg-positive-soft border border-positive/30 rounded-[6px] px-2.5 py-1.5 flex justify-between">
+        <div className="mb-2.5 text-[11.5px] text-positive bg-positive-soft border border-positive/30 rounded-[3px] px-2.5 py-1.5 flex justify-between">
           <span>{info}</span>
           <button onClick={() => setInfo(null)} className="font-bold hover:underline">
             Fermer
@@ -199,12 +195,12 @@ export function DevisesPage() {
       <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr] gap-2.5 items-start">
         <div className="flex flex-col gap-2.5">
           {estAdmin && (
-            <form onSubmit={creerDevise} className="bg-surface border border-border rounded-[10px] shadow-posee overflow-hidden">
-              <div className="px-3 py-2 bg-chrome-alt border-b border-border text-[12px] font-bold">
+            <form onSubmit={creerDevise} className="bg-surface border border-border rounded-[4px] shadow-posee overflow-hidden">
+              <div className="px-3 py-2 bg-chrome-alt border-b border-border text-[11.5px] font-bold">
                 Ajouter une devise
               </div>
               <div className="p-3 grid grid-cols-[90px_1fr] gap-2">
-                <label className="text-[12px] font-semibold text-text-dim">
+                <label className="text-[11.5px] font-semibold text-text-dim">
                   Code
                   <input
                     required
@@ -215,7 +211,7 @@ export function DevisesPage() {
                     className={`${champ} font-mono`}
                   />
                 </label>
-                <label className="text-[12px] font-semibold text-text-dim">
+                <label className="text-[11.5px] font-semibold text-text-dim">
                   Intitulé
                   <input
                     required
@@ -228,7 +224,7 @@ export function DevisesPage() {
                 <button
                   type="submit"
                   disabled={envoi}
-                  className="col-span-2 bg-sel text-white text-[12.5px] font-bold py-1.5 rounded-[6px] hover:brightness-110 disabled:opacity-50"
+                  className="col-span-2 bg-sel text-white text-[11.5px] font-bold py-1.5 rounded-[3px] hover:brightness-110 disabled:opacity-50"
                 >
                   Ajouter
                 </button>
@@ -237,12 +233,12 @@ export function DevisesPage() {
           )}
 
           {peutEcrire && devises.length > 0 && (
-            <form onSubmit={poserCours} className="bg-surface border border-border rounded-[10px] shadow-posee overflow-hidden">
-              <div className="px-3 py-2 bg-chrome-alt border-b border-border text-[12px] font-bold">
+            <form onSubmit={poserCours} className="bg-surface border border-border rounded-[4px] shadow-posee overflow-hidden">
+              <div className="px-3 py-2 bg-chrome-alt border-b border-border text-[11.5px] font-bold">
                 Coter un cours
               </div>
               <div className="p-3 flex flex-col gap-2">
-                <label className="text-[12px] font-semibold text-text-dim">
+                <label className="text-[11.5px] font-semibold text-text-dim">
                   Devise
                   <select required value={deviseCours} onChange={(e) => setDeviseCours(e.target.value)} className={champ}>
                     <option value="">Choisir…</option>
@@ -254,7 +250,7 @@ export function DevisesPage() {
                   </select>
                 </label>
                 <div className="grid grid-cols-2 gap-2">
-                  <label className="text-[12px] font-semibold text-text-dim">
+                  <label className="text-[11.5px] font-semibold text-text-dim">
                     Date
                     <input
                       type="date"
@@ -264,8 +260,15 @@ export function DevisesPage() {
                       className={`${champ} font-mono`}
                     />
                   </label>
-                  <label className="text-[12px] font-semibold text-text-dim">
-                    Cours
+                  <label className="text-[11.5px] font-semibold text-text-dim">
+                    <span className="flex items-center gap-1">
+                      Cours
+                      <Aide
+                        titre="Cours"
+                        texte="Combien vaut UNE unité de la devise dans la monnaie de tenue du dossier. En RDC, le cours de référence est celui publié par la Banque Centrale du Congo."
+                        source="Banque Centrale du Congo"
+                      />
+                    </span>
                     <input
                       required
                       value={valeurCours}
@@ -275,14 +278,10 @@ export function DevisesPage() {
                     />
                   </label>
                 </div>
-                <p className="text-[11px] text-text-dim leading-[1.5]">
-                  Combien vaut UNE unité de la devise dans la monnaie de tenue du dossier. En RDC, le cours de
-                  référence est celui publié par la Banque Centrale du Congo.
-                </p>
                 <button
                   type="submit"
                   disabled={envoi}
-                  className="bg-sel text-white text-[12.5px] font-bold py-1.5 rounded-[6px] hover:brightness-110 disabled:opacity-50"
+                  className="bg-sel text-white text-[11.5px] font-bold py-1.5 rounded-[3px] hover:brightness-110 disabled:opacity-50"
                 >
                   Coter
                 </button>
@@ -290,28 +289,27 @@ export function DevisesPage() {
             </form>
           )}
 
-          <section className="bg-surface border border-border rounded-[10px] shadow-posee overflow-hidden">
-            <div className="px-3 py-2 bg-chrome-alt border-b border-border text-[12px] font-bold">
+          <section className="bg-surface border border-border rounded-[4px] shadow-posee overflow-hidden">
+            <div className="px-3 py-2 bg-chrome-alt border-b border-border text-[11.5px] font-bold">
               Devises du dossier
             </div>
             {devises.map((d) => (
               <div key={d.id} className="px-3 py-2 border-b border-border/40">
-                <div className="text-[12.5px] font-semibold">
+                <div className="text-[11.5px] font-semibold">
                   <span className="font-mono">{d.code}</span> {d.intitule}
                 </div>
                 {d.cours.length > 0 ? (
-                  <div className="text-[12px] text-text-dim mt-0.5 font-mono">
+                  <div className="text-[11.5px] text-text-dim mt-0.5 font-mono">
                     dernier cours {montant(d.cours[0].cours)} au {jour(d.cours[0].date)}
                   </div>
                 ) : (
-                  <div className="text-[12px] text-warning mt-0.5">aucun cours coté</div>
+                  <div className="text-[11.5px] text-warning mt-0.5">aucun cours coté</div>
                 )}
               </div>
             ))}
             {devises.length === 0 && (
-              <div className="px-3 py-3 text-[12.5px] text-text-dim italic">
-                Aucune devise. Une entité qui encaisse en dollars et paie en francs en a besoin pour justifier
-                ses écarts de change.
+              <div className="px-3 py-3 text-[11.5px] text-text-dim italic">
+                Aucune devise.
               </div>
             )}
           </section>
@@ -323,10 +321,21 @@ export function DevisesPage() {
           // fenêtre à 360 px. Le panneau ROGNAIT (`overflow-hidden`) : la page ne
           // partait pas de côté, mais « ÉCART » était simplement invisible, sans
           // barre de défilement pour aller la chercher.
-          className="bg-surface border border-border rounded-[10px] shadow-posee overflow-x-auto"
+          className="bg-surface border border-border rounded-[4px] shadow-posee overflow-x-auto"
         >
           <div className="px-3 py-2 bg-chrome-alt border-b border-border flex items-center justify-between">
-            <span className="text-[12px] font-bold">Réévaluation à la clôture</span>
+            <span className="text-[11.5px] font-bold flex items-center gap-1.5">
+              Réévaluation à la clôture
+              <Aide
+                titre="Réévaluation à la clôture"
+                texte={`Le calcul reprend chaque position non lettrée portant une devise, la convertit au cours de la date retenue, et sépare ce que ${
+                  utilisateur?.tenant.referentiel === 'SYSCOHADA'
+                    ? "l'AUDCIF sépare (art. 54 et 57)"
+                    : 'le SYCEBNL sépare'
+                } : l'écart d'une créance ou d'une dette est LATENT et va au 478 ou au 479, celui d'une disponibilité est RÉALISÉ et va droit au résultat en 676 ou 776.`}
+                source={utilisateur?.tenant.referentiel === 'SYSCOHADA' ? 'AUDCIF, art. 54 et 57' : 'SYCEBNL'}
+              />
+            </span>
             <span className="flex items-center gap-2">
               <input
                 type="date"
@@ -335,10 +344,10 @@ export function DevisesPage() {
                   setDateReeval(e.target.value);
                   setRapport(null);
                 }}
-                className="border border-border rounded-[6px] px-2 py-1 text-[12px] font-mono"
+                className="border border-border rounded-[3px] px-2 py-1 text-[11.5px] font-mono"
               />
               <label
-                className="flex items-center gap-1.5 text-[12px]"
+                className="flex items-center gap-1.5 text-[11.5px]"
                 title="AUDCIF art. 58 · la dotation est limitée à l'excédent des pertes probables sur les gains latents, devise par devise. Le texte la subordonne à une justification par l'entité, et elle ne vaut qu'entre éléments dont l'échéance tombe dans le même exercice."
               >
                 <input
@@ -353,7 +362,7 @@ export function DevisesPage() {
               </label>
               <button
                 onClick={calculer}
-                className="border border-border rounded-[6px] bg-surface px-3 py-1 text-[12px] font-semibold hover:bg-chrome"
+                className="border border-border rounded-[3px] bg-surface px-3 py-1 text-[11.5px] font-semibold hover:bg-chrome"
               >
                 Calculer
               </button>
@@ -361,7 +370,7 @@ export function DevisesPage() {
                 <button
                   onClick={reevaluer}
                   disabled={envoi}
-                  className="bg-sel text-white text-[12px] font-bold px-3 py-1 rounded-[6px] hover:brightness-110 disabled:opacity-50"
+                  className="bg-sel text-white text-[11.5px] font-bold px-3 py-1 rounded-[3px] hover:brightness-110 disabled:opacity-50"
                 >
                   Passer les écritures
                 </button>
@@ -369,22 +378,10 @@ export function DevisesPage() {
             </span>
           </div>
 
-          {!rapport && (
-            <p className="p-3 text-[12.5px] text-text-dim leading-[1.55]">
-              Le calcul reprend chaque position non lettrée portant une devise, la convertit au cours de la date
-              retenue, et sépare ce que{' '}
-              {utilisateur?.tenant.referentiel === 'SYSCOHADA'
-                ? "l'AUDCIF sépare (art. 54 et 57)"
-                : 'le SYCEBNL sépare'}{' '}
-              : l'écart d'une créance ou d'une dette est LATENT et va au 478 ou au 479, celui d'une disponibilité est
-              RÉALISÉ et va droit au résultat en 676 ou 776.
-            </p>
-          )}
-
           {rapport && (
             <>
               {rapport.avertissements.length > 0 && (
-                <div className="mx-3 mt-3 text-[12.5px] text-warning bg-warning-soft border border-warning/30 rounded-[6px] px-2.5 py-2 leading-[1.55]">
+                <div className="mx-3 mt-3 text-[11.5px] text-warning bg-warning-soft border border-warning/30 rounded-[3px] px-2.5 py-2 leading-[1.55]">
                   <strong>Étalement à décider · AUDCIF art. 56.</strong>
                   <ul className="mt-1 list-disc pl-4 flex flex-col gap-1">
                     {rapport.avertissements.map((a) => (
@@ -395,15 +392,14 @@ export function DevisesPage() {
               )}
 
               {rapport.positionGlobaleRetenue && rapport.provisionSansPositionGlobale > rapport.provision && (
-                <div className="mx-3 mt-3 text-[12.5px] text-text-dim bg-chrome-alt border border-border rounded-[6px] px-2.5 py-1.5 leading-[1.55]">
-                  Position globale de change retenue : la dotation est limitée à l'excédent des pertes probables
-                  sur les gains latents, devise par devise (AUDCIF art. 58). Sans elle, elle serait de{' '}
+                <div className="mx-3 mt-3 text-[11.5px] text-text-dim bg-chrome-alt border border-border rounded-[3px] px-2.5 py-1.5 leading-[1.55]">
+                  Position globale de change retenue (AUDCIF art. 58) · sans elle, la dotation serait de{' '}
                   {montant(rapport.provisionSansPositionGlobale)}.
                 </div>
               )}
 
               {rapport.coursManquants.length > 0 && (
-                <div className="mx-3 mt-3 text-[12.5px] text-warning bg-warning-soft border border-warning/30 rounded-[6px] px-2.5 py-1.5">
+                <div className="mx-3 mt-3 text-[11.5px] text-warning bg-warning-soft border border-warning/30 rounded-[3px] px-2.5 py-1.5">
                   Aucun cours coté au {jour(rapport.dateReevaluation)} ou avant pour :{' '}
                   {rapport.coursManquants.join(', ')}. Ces positions ne sont pas réévaluées.
                 </div>
@@ -419,7 +415,7 @@ export function DevisesPage() {
                 ].map(([libelle, valeur, couleur]) => (
                   <div key={libelle as string}>
                     <div className="text-[11px] text-text-dim">{libelle}</div>
-                    <div className={`text-[14px] font-bold font-mono ${valeur ? (couleur as string) : 'text-text-dim'}`}>
+                    <div className={`text-[13px] font-bold font-mono ${valeur ? (couleur as string) : 'text-text-dim'}`}>
                       {montant(valeur as number)}
                     </div>
                   </div>
@@ -439,7 +435,7 @@ export function DevisesPage() {
               {rapport.positions.map((p) => (
                 <div
                   key={`${p.compteId}-${p.deviseId}`}
-                  className="grid grid-cols-[110px_1fr_60px_110px_90px_130px_130px_120px] min-w-[980px] gap-2 px-3 py-1 text-[12.5px] border-b border-border/40"
+                  className="grid grid-cols-[110px_1fr_60px_110px_90px_130px_130px_120px] min-w-[980px] gap-2 px-3 py-1 text-[11.5px] border-b border-border/40"
                 >
                   <span className="font-mono">{p.numero}</span>
                   <span className="truncate">
@@ -459,7 +455,7 @@ export function DevisesPage() {
                 </div>
               ))}
               {rapport.positions.length === 0 && (
-                <div className="px-3 py-4 text-[12.5px] text-text-dim italic">
+                <div className="px-3 py-4 text-[11.5px] text-text-dim italic">
                   Aucune position en devise à réévaluer à cette date.
                 </div>
               )}
@@ -468,13 +464,18 @@ export function DevisesPage() {
 
           {reevaluations.length > 0 && (
             <div className="border-t border-border">
-              <div className="px-3 py-1.5 bg-chrome text-[11px] font-bold text-text-dim">
+              <div className="px-3 py-1.5 bg-chrome text-[11px] font-bold text-text-dim flex items-center gap-1.5">
                 Réévaluations passées sur cet exercice
+                <Aide
+                  titre="Contre-passation"
+                  texte="Les écarts de conversion se contre-passent à l'OUVERTURE de l'exercice suivant : ils décrivent une situation à une date d'arrêté, pas une charge rattachée à une période. C'est l'inverse de la reprise d'une régularisation, qui se fait à la fin de l'exercice concerné."
+                  source="Écarts de conversion · comptes 478 et 479"
+                />
               </div>
               {reevaluations.map((r) => (
                 <div
                   key={r.id}
-                  className="grid grid-cols-[130px_1fr_200px] min-w-[520px] gap-2 px-3 py-1.5 text-[12.5px] items-center border-b border-border/40"
+                  className="grid grid-cols-[130px_1fr_200px] min-w-[520px] gap-2 px-3 py-1.5 text-[11.5px] items-center border-b border-border/40"
                 >
                   <span className="font-mono">{jour(r.dateReevaluation)}</span>
                   <span className="text-text-dim">
@@ -483,14 +484,14 @@ export function DevisesPage() {
                   </span>
                   <span>
                     {r.ecritureExtourne ? (
-                      <span className="text-[12px] text-positive font-semibold">
+                      <span className="text-[11.5px] text-positive font-semibold">
                         Contre-passée le {jour(r.ecritureExtourne.date)}
                       </span>
                     ) : peutEcrire ? (
                       <select
                         defaultValue=""
                         onChange={(e) => e.target.value && extourner(r.id, e.target.value)}
-                        className="w-full border border-border rounded-[4px] px-1 py-0.5 text-[12px]"
+                        className="w-full border border-border rounded-[4px] px-1 py-0.5 text-[11.5px]"
                       >
                         <option value="">Contre-passer sur…</option>
                         {exercices
@@ -505,11 +506,6 @@ export function DevisesPage() {
                   </span>
                 </div>
               ))}
-              <p className="px-3 py-2 text-[11px] text-text-dim leading-[1.55]">
-                Les écarts de conversion se contre-passent à l'OUVERTURE de l'exercice suivant : ils décrivent une
-                situation à une date d'arrêté, pas une charge rattachée à une période. C'est l'inverse de la reprise
-                d'une régularisation, qui se fait à la fin de l'exercice concerné.
-              </p>
             </div>
           )}
         </section>

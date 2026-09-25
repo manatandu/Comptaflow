@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { NotesIfrs, NotesIfrsServies } from '../components/NotesIfrs';
 import { EtatsIfrsConsolides } from '../components/EtatsIfrsConsolides';
+import { Aide } from '../components/chrome/Aide';
 
 /**
  * ÉTATS IFRS EN SUS DU JEU LÉGAL · item 15, tranche 1 (AUDCIF art. 73-1,
@@ -129,7 +130,7 @@ type Etat = {
   };
 };
 
-const champ = 'w-full border border-border px-1.5 py-1 text-[12px]';
+const champ = 'w-full border border-border px-1.5 py-1 text-[11.5px]';
 const fc = (v: number | null | undefined) => (v == null ? '' : v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const nombre = (v: string) => (v.trim() === '' ? NaN : Number(v.replace(/\s/g, '').replace(',', '.')));
 
@@ -138,7 +139,7 @@ export function EtatsIfrsPage() {
   const { exerciceCourant } = useExercice();
   const [vue, setVue] = useState<'INDIVIDUELS' | 'CONSOLIDES'>('INDIVIDUELS');
   const bouton = (v: typeof vue, texte: string) => (
-    <button className={`border border-border px-2.5 py-1 text-[12px] ${vue === v ? 'font-bold bg-surface' : 'text-text-dim'}`} onClick={() => setVue(v)}>
+    <button className={`border border-border px-2.5 py-1 text-[11.5px] ${vue === v ? 'font-bold bg-surface' : 'text-text-dim'}`} onClick={() => setVue(v)}>
       {texte}
     </button>
   );
@@ -153,7 +154,7 @@ export function EtatsIfrsPage() {
       ) : exerciceCourant ? (
         <EtatsIfrsConsolides key={exerciceCourant.id} exerciceId={exerciceCourant.id} />
       ) : (
-        <p className="p-2 text-[12px] text-text-dim">Aucun exercice sélectionné.</p>
+        <p className="p-2 text-[11.5px] text-text-dim">Aucun exercice sélectionné.</p>
       )}
     </div>
   );
@@ -194,8 +195,8 @@ function EtatsIfrsIndividuels() {
     }
   }
 
-  if (!exerciceId) return <p className="p-2 text-[12px] text-text-dim">Aucun exercice sélectionné.</p>;
-  if (!etat) return <p className="p-2 text-[12px] text-text-dim">{erreur ?? 'Chargement…'}</p>;
+  if (!exerciceId) return <p className="p-2 text-[11.5px] text-text-dim">Aucun exercice sélectionné.</p>;
+  if (!etat) return <p className="p-2 text-[11.5px] text-text-dim">{erreur ?? 'Chargement…'}</p>;
   const libelleRubrique = (code: string) => etat.rubriques.find((r) => r.code === code)?.libelle ?? code;
   const ecartRetr = retr.lignes.reduce((s, l) => s + (Number.isFinite(nombre(l.montant)) ? nombre(l.montant) : 0), 0);
 
@@ -205,9 +206,9 @@ function EtatsIfrsIndividuels() {
     let groupe: string | undefined;
     return (
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[12.5px] font-bold mb-1.5">{titre}</h2>
+        <h2 className="text-[11.5px] font-bold mb-1.5">{titre}</h2>
         <div className="overflow-x-auto">
-          <table className="w-full text-[12px]">
+          <table className="w-full text-[11.5px]">
             <thead>
               <tr className="text-left border-b border-border">
                 <th className="py-1 pr-2">Poste</th>
@@ -254,12 +255,12 @@ function EtatsIfrsIndividuels() {
   const vcp = etat.variationCapitauxPropres;
   const blocVariation = (titre: string, v: Variation | null, motif: string | null) => (
     <div className="mb-2">
-      <p className="text-[12px] font-semibold mb-1">{titre}</p>
+      <p className="text-[11.5px] font-semibold mb-1">{titre}</p>
       {!v ? (
-        <p className="text-[12px] text-warning">{motif}</p>
+        <p className="text-[11.5px] text-warning">{motif}</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-[12px]">
+          <table className="w-full text-[11.5px]">
             <thead>
               <tr className="text-left border-b border-border">
                 <th className="py-1 pr-2">Mouvement</th>
@@ -292,7 +293,7 @@ function EtatsIfrsIndividuels() {
   );
 
   const listeRetraitement = (x: Retraitement) => (
-    <div key={x.id} className="border-b border-border/60 py-1 text-[12px]">
+    <div key={x.id} className="border-b border-border/60 py-1 text-[11.5px]">
       <div className="flex justify-between gap-2">
         <span>
           <strong>{x.libelle}</strong> · {x.fondement}
@@ -317,29 +318,28 @@ function EtatsIfrsIndividuels() {
   return (
     <div>
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[12.5px] font-bold mb-1.5">États IFRS en sus du jeu légal</h2>
-        <p className="text-[11px] text-text-dim leading-[1.6]">
-          Les entités dont les titres sont cotés ou qui font appel public à l’épargne déposent, <strong>en sus</strong> des
-          états SYSCOHADA, des états établis selon les normes IFRS (AUDCIF art. 73-1). Le grand livre reste SYSCOHADA et rien
-          n’y est écrit · chaque compte est rangé dans une rubrique d’IFRS 18 par une règle que vous déclarez (le plus long
-          préfixe l’emporte), et chaque écart de norme se déclare en retraitement équilibré, avec la norme qui le fonde. Un
-          compte de gestion va au compte de résultat, un compte de bilan à l’état de la situation financière · un reclassement
-          de l’un vers l’autre passe par un retraitement. Charges présentées par nature (IFRS 18 § 78 a). Les autres éléments
-          du résultat global n’ont aucun compte au SYSCOHADA · ils entrent par retraitement, avec la norme qui les fait sortir
-          du résultat net (§ B86-B87).
-        </p>
-        {erreur && <p className="text-[12px] text-danger mt-1.5">{erreur}</p>}
+        <h2 className="text-[11.5px] font-bold mb-1.5 flex items-center gap-1.5">
+          États IFRS en sus du jeu légal
+          <Aide
+            titre="États IFRS en sus du jeu légal"
+            texte="Les entités dont les titres sont cotés ou qui font appel public à l’épargne déposent, en sus des états SYSCOHADA, des états établis selon les normes IFRS. Le grand livre reste SYSCOHADA et rien n’y est écrit · chaque compte est rangé dans une rubrique d’IFRS 18 par une règle que vous déclarez (le plus long préfixe l’emporte), et chaque écart de norme se déclare en retraitement équilibré, avec la norme qui le fonde. Un compte de gestion va au compte de résultat, un compte de bilan à l’état de la situation financière · un reclassement de l’un vers l’autre passe par un retraitement. Charges présentées par nature (IFRS 18 § 78 a). Les autres éléments du résultat global n’ont aucun compte au SYSCOHADA · ils entrent par retraitement, avec la norme qui les fait sortir du résultat net (§ B86-B87)."
+            source="AUDCIF art. 73-1 · IFRS 18 § 78 a, B86-B87"
+          />
+        </h2>
+        {erreur && <p className="text-[11.5px] text-danger mt-1.5">{erreur}</p>}
         {etat.n.motifsNonPubliable.length > 0 && (
-          <div className="mt-1.5">
-            <p className="text-[12px] font-semibold text-warning">Non publiable</p>
-            {etat.n.motifsNonPubliable.map((m) => <p key={m} className="text-[12px] text-warning">· {m}</p>)}
-          </div>
+          <details className="mt-1.5">
+            <summary className="cursor-pointer text-[11.5px] font-semibold text-warning">
+              Non publiable · {etat.n.motifsNonPubliable.length} motif(s)
+            </summary>
+            {etat.n.motifsNonPubliable.map((m) => <p key={m} className="text-[11.5px] text-warning">· {m}</p>)}
+          </details>
         )}
-        {etat.n.mentions.map((m) => <p key={m} className="text-[12px] text-text-dim mt-1">{m}</p>)}
+        {etat.n.mentions.map((m) => <p key={m} className="text-[11.5px] text-text-dim mt-1">{m}</p>)}
       </section>
 
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[12.5px] font-bold mb-1.5">Activité principale (IFRS 18 § 49 à 51)</h2>
+        <h2 className="text-[11.5px] font-bold mb-1.5">Activité principale (IFRS 18 § 49 à 51)</h2>
         <select
           className={champ + ' max-w-[520px]'}
           disabled={!peutEcrire}
@@ -354,7 +354,7 @@ function EtatsIfrsIndividuels() {
       </section>
 
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[12.5px] font-bold mb-1.5">Règles de correspondance</h2>
+        <h2 className="text-[11.5px] font-bold mb-1.5">Règles de correspondance</h2>
         {peutEcrire && (
           <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr_auto] gap-1.5 mb-2">
             <input className={champ} placeholder="Préfixe (ex. 24)" value={regle.prefixe} onChange={(e) => setRegle({ ...regle, prefixe: e.target.value })} />
@@ -369,7 +369,7 @@ function EtatsIfrsIndividuels() {
                 ))}
             </select>
             <button
-              className="border border-border px-2.5 py-1 text-[12px]"
+              className="border border-border px-2.5 py-1 text-[11.5px]"
               disabled={!regle.prefixe || !regle.rubrique}
               onClick={() =>
                 void agir(async () => {
@@ -383,9 +383,9 @@ function EtatsIfrsIndividuels() {
           </div>
         )}
         {etat.regles.length === 0 ? (
-          <p className="text-[12px] text-text-dim">Aucune règle · tous les comptes sont sans rubrique.</p>
+          <p className="text-[11.5px] text-text-dim">Aucune règle · tous les comptes sont sans rubrique.</p>
         ) : (
-          <table className="w-full text-[12px]">
+          <table className="w-full text-[11.5px]">
             <tbody>
               {etat.regles.map((x) => (
                 <tr key={x.id} className="border-b border-border/60">
@@ -404,14 +404,14 @@ function EtatsIfrsIndividuels() {
           </table>
         )}
         {etat.n.nonClasses.length > 0 && (
-          <p className="text-[12px] text-warning mt-1.5">
+          <p className="text-[11.5px] text-warning mt-1.5">
             Sans rubrique · {etat.n.nonClasses.map((c) => `${c.numero} (${fc(c.solde)})`).join(', ')}
           </p>
         )}
       </section>
 
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[12.5px] font-bold mb-1.5">Retraitements de l’exercice</h2>
+        <h2 className="text-[11.5px] font-bold mb-1.5">Retraitements de l’exercice</h2>
         {peutEcrire && (
           <div className="grid grid-cols-1 gap-1.5 mb-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
@@ -438,7 +438,7 @@ function EtatsIfrsIndividuels() {
                 />
               </div>
             ))}
-            <div className="flex flex-wrap items-center gap-3 text-[12px]">
+            <div className="flex flex-wrap items-center gap-3 text-[11.5px]">
               <label className="flex items-center gap-1">
                 <input type="checkbox" checked={retr.correctionErreur} onChange={(e) => setRetr({ ...retr, correctionErreur: e.target.checked })} />
                 Correction d’erreur du référentiel antérieur (IFRS 1 § 26)
@@ -451,12 +451,12 @@ function EtatsIfrsIndividuels() {
               )}
             </div>
             <div className="flex items-center gap-2">
-              <button className="border border-border px-2.5 py-1 text-[12px]" onClick={() => setRetr({ ...retr, lignes: [...retr.lignes, { rubrique: '', montant: '' }] })}>
+              <button className="border border-border px-2.5 py-1 text-[11.5px]" onClick={() => setRetr({ ...retr, lignes: [...retr.lignes, { rubrique: '', montant: '' }] })}>
                 Ligne de plus
               </button>
-              <span className={Math.abs(ecartRetr) > 0.005 ? 'text-[12px] text-warning' : 'text-[12px] text-text-dim'}>Écart {fc(ecartRetr)}</span>
+              <span className={Math.abs(ecartRetr) > 0.005 ? 'text-[11.5px] text-warning' : 'text-[11.5px] text-text-dim'}>Écart {fc(ecartRetr)}</span>
               <button
-                className="border border-border px-2.5 py-1 text-[12px]"
+                className="border border-border px-2.5 py-1 text-[11.5px]"
                 onClick={() =>
                   void agir(async () => {
                     // Un ajustement de transition se pose sur l'exercice comparatif, dont
@@ -479,14 +479,14 @@ function EtatsIfrsIndividuels() {
           </div>
         )}
         {etat.retraitements.length === 0 ? (
-          <p className="text-[12px] text-text-dim">Aucun retraitement · les états IFRS sont la balance légale reclassée.</p>
+          <p className="text-[11.5px] text-text-dim">Aucun retraitement · les états IFRS sont la balance légale reclassée.</p>
         ) : (
           etat.retraitements.map((x) => listeRetraitement(x))
         )}
       </section>
 
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[12.5px] font-bold mb-1.5">Première application des IFRS (IFRS 1)</h2>
+        <h2 className="text-[11.5px] font-bold mb-1.5">Première application des IFRS (IFRS 1)</h2>
         <select
           className={champ + ' max-w-[520px]'}
           disabled={!peutEcrire}
@@ -508,24 +508,24 @@ function EtatsIfrsIndividuels() {
             </option>
           ))}
         </select>
-        {etat.motifPremiereApplication && <p className="text-[12px] text-warning mt-1.5">{etat.motifPremiereApplication}</p>}
+        {etat.motifPremiereApplication && <p className="text-[11.5px] text-warning mt-1.5">{etat.motifPremiereApplication}</p>}
         {etat.premiereApplication && (
           <>
-            <p className="text-[12px] mt-1.5">
+            <p className="text-[11.5px] mt-1.5">
               Date de transition · <strong>{etat.premiereApplication.dateTransition}</strong> (ouverture de l’exercice comparatif, annexe A).
             </p>
-            <p className="text-[12px] font-semibold mt-2 mb-1">Ajustements de transition</p>
+            <p className="text-[11.5px] font-semibold mt-2 mb-1">Ajustements de transition</p>
             {etat.ajustementsTransition.length === 0 ? (
-              <p className="text-[12px] text-text-dim">Aucun ajustement · l’état d’ouverture est la balance d’ouverture légale reclassée.</p>
+              <p className="text-[11.5px] text-text-dim">Aucun ajustement · l’état d’ouverture est la balance d’ouverture légale reclassée.</p>
             ) : (
               etat.ajustementsTransition.map((x) => listeRetraitement(x))
             )}
             {etat.premiereApplication.rapprochements.map((rp) => (
               <div key={rp.ref} className="mt-2">
-                <p className="text-[12px] font-semibold mb-1">
+                <p className="text-[11.5px] font-semibold mb-1">
                   {rp.titre} ({rp.ref})
                 </p>
-                <table className="w-full text-[12px]">
+                <table className="w-full text-[11.5px]">
                   <tbody>
                     {rp.lignes.map((l) => (
                       <tr
@@ -544,7 +544,7 @@ function EtatsIfrsIndividuels() {
                 </table>
               </div>
             ))}
-            {etat.premiereApplication.mentions.map((m) => <p key={m} className="text-[12px] text-text-dim mt-1">{m}</p>)}
+            {etat.premiereApplication.mentions.map((m) => <p key={m} className="text-[11.5px] text-text-dim mt-1">{m}</p>)}
           </>
         )}
       </section>
@@ -554,13 +554,13 @@ function EtatsIfrsIndividuels() {
       {tableau('État de la situation financière', etat.n.situation, etat.n1?.situation ?? null)}
       {tableau('Compte de résultat', etat.n.resultat, etat.n1?.resultat ?? null)}
       {tableau('État présentant le résultat global', etat.n.resultatGlobal, etat.n1?.resultatGlobal ?? null)}
-      {etat.motifN1 && <p className="text-[12px] text-text-dim mb-2">{etat.motifN1}</p>}
+      {etat.motifN1 && <p className="text-[11.5px] text-text-dim mb-2">{etat.motifN1}</p>}
 
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[12.5px] font-bold mb-1.5">État des variations des capitaux propres (IFRS 18 § 107 à 112)</h2>
+        <h2 className="text-[11.5px] font-bold mb-1.5">État des variations des capitaux propres (IFRS 18 § 107 à 112)</h2>
         {blocVariation('Exercice N', vcp.n, vcp.motifN)}
         {blocVariation('Exercice N-1 (comparatif, § 10 f)', vcp.n1, vcp.motifN1)}
-        <p className="text-[12px] font-semibold mt-2 mb-1">Mouvements déclarés de l’exercice</p>
+        <p className="text-[11.5px] font-semibold mt-2 mb-1">Mouvements déclarés de l’exercice</p>
         {peutEcrire && (
           <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_140px] gap-1.5 mb-1.5">
             <select className={champ} value={mvt.type} onChange={(e) => setMvt({ ...mvt, type: e.target.value as TypeMouvement })}>
@@ -577,7 +577,7 @@ function EtatsIfrsIndividuels() {
             <input className={champ} placeholder="Libellé" value={mvt.libelle} onChange={(e) => setMvt({ ...mvt, libelle: e.target.value })} />
             <input className={champ} placeholder="Justification (procès-verbal, décision, note IAS 8)" value={mvt.justification} onChange={(e) => setMvt({ ...mvt, justification: e.target.value })} />
             <button
-              className="border border-border px-2.5 py-1 text-[12px]"
+              className="border border-border px-2.5 py-1 text-[11.5px]"
               onClick={() =>
                 void agir(async () => {
                   await api.post('/ifrs/mouvements-capitaux-propres', { exerciceId, ...mvt, montant: nombre(mvt.montant) });
@@ -590,10 +590,10 @@ function EtatsIfrsIndividuels() {
           </div>
         )}
         {vcp.mouvements.length === 0 ? (
-          <p className="text-[12px] text-text-dim">Aucun mouvement déclaré · la variation n’est expliquée que par le résultat global.</p>
+          <p className="text-[11.5px] text-text-dim">Aucun mouvement déclaré · la variation n’est expliquée que par le résultat global.</p>
         ) : (
           vcp.mouvements.map((m) => (
-            <div key={m.id} className="flex justify-between gap-2 border-b border-border/60 py-1 text-[12px]">
+            <div key={m.id} className="flex justify-between gap-2 border-b border-border/60 py-1 text-[11.5px]">
               <span>
                 <strong>{m.libelle}</strong> · {TYPES_MOUVEMENT[m.type]} · {vcp.composantes[m.composante].libelle} · {fc(m.montant)} · {m.justification}
               </span>
@@ -608,9 +608,9 @@ function EtatsIfrsIndividuels() {
       </section>
 
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[12.5px] font-bold mb-1.5">État des flux de trésorerie (IAS 7, modifiée par IFRS 18)</h2>
+        <h2 className="text-[11.5px] font-bold mb-1.5">État des flux de trésorerie (IAS 7, modifiée par IFRS 18)</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mb-2">
-          <label className="text-[12px]">
+          <label className="text-[11.5px]">
             Découverts bancaires remboursables à vue, partie intégrante de la gestion de trésorerie (§ 8)
             <select
               className={champ}
@@ -625,7 +625,7 @@ function EtatsIfrsIndividuels() {
               <option value="NON">Non · ce sont des financements</option>
             </select>
           </label>
-          <label className="text-[12px]">
+          <label className="text-[11.5px]">
             La trésorerie comprend des soldes en devises (§ 28)
             <select
               className={champ}
@@ -643,9 +643,9 @@ function EtatsIfrsIndividuels() {
         </div>
         {etat.tresorerieEnDevises && (
           <div className="mb-2">
-            <p className="text-[12px] font-semibold mb-1">Effet des variations des cours de change sur la trésorerie de l’exercice (§ 28)</p>
+            <p className="text-[11.5px] font-semibold mb-1">Effet des variations des cours de change sur la trésorerie de l’exercice (§ 28)</p>
             {etat.effetChange ? (
-              <div className="flex justify-between gap-2 text-[12px]">
+              <div className="flex justify-between gap-2 text-[11.5px]">
                 <span>
                   {fc(Number(etat.effetChange.montant))} · {CATEGORIES_CHANGE[etat.effetChange.categorie]} · {etat.effetChange.justification}
                 </span>
@@ -666,7 +666,7 @@ function EtatsIfrsIndividuels() {
                   </select>
                   <input className={champ} placeholder="Justification (écriture de conversion)" value={change.justification} onChange={(e) => setChange({ ...change, justification: e.target.value })} />
                   <button
-                    className="border border-border px-2.5 py-1 text-[12px]"
+                    className="border border-border px-2.5 py-1 text-[11.5px]"
                     onClick={() =>
                       void agir(async () => {
                         await api.put('/ifrs/effet-change', { exerciceId, ...change, montant: nombre(change.montant) });
@@ -682,11 +682,11 @@ function EtatsIfrsIndividuels() {
           </div>
         )}
         {!etat.fluxTresorerie.n ? (
-          <p className="text-[12px] text-warning">{etat.fluxTresorerie.motifN}</p>
+          <p className="text-[11.5px] text-warning">{etat.fluxTresorerie.motifN}</p>
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full text-[12px]">
+              <table className="w-full text-[11.5px]">
                 <thead>
                   <tr className="text-left border-b border-border">
                     <th className="py-1 pr-2">Flux</th>
@@ -710,9 +710,9 @@ function EtatsIfrsIndividuels() {
                 </tbody>
               </table>
             </div>
-            {!etat.fluxTresorerie.n1 && <p className="text-[12px] text-text-dim mt-1">{etat.fluxTresorerie.motifN1}</p>}
-            <p className="text-[12px] font-semibold mt-2 mb-1">Rapprochement avec l’état de la situation financière (§ 45)</p>
-            <table className="text-[12px]">
+            {!etat.fluxTresorerie.n1 && <p className="text-[11.5px] text-text-dim mt-1">{etat.fluxTresorerie.motifN1}</p>}
+            <p className="text-[11.5px] font-semibold mt-2 mb-1">Rapprochement avec l’état de la situation financière (§ 45)</p>
+            <table className="text-[11.5px]">
               <tbody>
                 {etat.fluxTresorerie.n.rapprochementSituation.map((x) => (
                   <tr key={x.cle} className={x.cle === 'R_TABLEAU' ? 'font-bold' : ''}>
@@ -722,8 +722,8 @@ function EtatsIfrsIndividuels() {
                 ))}
               </tbody>
             </table>
-            <p className="text-[12px] font-semibold mt-2 mb-1">Du tableau SYSCOHADA au tableau IFRS</p>
-            <table className="text-[12px]">
+            <p className="text-[11.5px] font-semibold mt-2 mb-1">Du tableau SYSCOHADA au tableau IFRS</p>
+            <table className="text-[11.5px]">
               <thead>
                 <tr className="text-left border-b border-border">
                   <th className="pr-3">Activité</th>
@@ -743,14 +743,14 @@ function EtatsIfrsIndividuels() {
                 ))}
               </tbody>
             </table>
-            {etat.fluxTresorerie.n.mentions.map((m) => <p key={m} className="text-[12px] text-text-dim mt-1">{m}</p>)}
+            {etat.fluxTresorerie.n.mentions.map((m) => <p key={m} className="text-[11.5px] text-text-dim mt-1">{m}</p>)}
           </>
         )}
       </section>
 
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[12.5px] font-bold mb-1.5">Rapprochement SYSCOHADA → IFRS</h2>
-        <table className="text-[12px]">
+        <h2 className="text-[11.5px] font-bold mb-1.5">Rapprochement SYSCOHADA → IFRS</h2>
+        <table className="text-[11.5px]">
           <tbody>
             <tr><td className="pr-3">Résultat SYSCOHADA</td><td className="text-right">{fc(r.resultatSyscohada)}</td></tr>
             <tr><td className="pr-3">Retraitements au résultat</td><td className="text-right">{fc(r.retraitementsResultat)}</td></tr>
@@ -761,7 +761,7 @@ function EtatsIfrsIndividuels() {
           </tbody>
         </table>
         {etat.n.controles.map((c) => (
-          <p key={c.cle} className={c.ok ? 'text-[12px] text-text-dim mt-1' : 'text-[12px] text-danger mt-1'}>
+          <p key={c.cle} className={c.ok ? 'text-[11.5px] text-text-dim mt-1' : 'text-[11.5px] text-danger mt-1'}>
             {c.ok ? 'Vérifié' : `Écart ${fc(c.ecart)}`} · {c.libelle}
           </p>
         ))}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { Aide } from './chrome/Aide';
 
 /**
  * LES NOTES DES ÉTATS IFRS · item 15, tranche 5 (IFRS 18 § 113 à 132, IAS 8).
@@ -84,7 +85,7 @@ export type NotesIfrsServies = {
 };
 type Rubrique = { code: string; libelle: string; etat: 'SITUATION' | 'RESULTAT' | 'RESULTAT_GLOBAL' };
 
-const champ = 'w-full border border-border px-1.5 py-1 text-[12px]';
+const champ = 'w-full border border-border px-1.5 py-1 text-[11.5px]';
 const fc = (v: number | string | null) =>
   v == null || v === '' ? '' : typeof v === 'number' ? v.toLocaleString('fr-FR', { maximumFractionDigits: 2 }) : v;
 const tri = (v: boolean | null) => (v == null ? '' : v ? 'OUI' : 'NON');
@@ -93,7 +94,7 @@ const SOURCES: Record<string, string> = { FICHE_DOSSIER: 'fiche du dossier', TEX
 
 function Question({ libelle, valeur, onChange, actif, oui = 'Oui', non = 'Non' }: { libelle: string; valeur: boolean | null; onChange: (v: boolean | null) => void; actif: boolean; oui?: string; non?: string }) {
   return (
-    <label className="block text-[12px] mb-1">
+    <label className="block text-[11.5px] mb-1">
       <span className="text-text-dim">{libelle}</span>
       <select className={champ} disabled={!actif} value={tri(valeur)} onChange={(e) => onChange(deTri(e.target.value))}>
         <option value="">Non déclaré</option>
@@ -106,7 +107,7 @@ function Question({ libelle, valeur, onChange, actif, oui = 'Oui', non = 'Non' }
 
 function Texte({ libelle, valeur, onChange, actif, lignes = 2 }: { libelle: string; valeur: string | null; onChange: (v: string) => void; actif: boolean; lignes?: number }) {
   return (
-    <label className="block text-[12px] mb-1">
+    <label className="block text-[11.5px] mb-1">
       <span className="text-text-dim">{libelle}</span>
       <textarea className={champ} rows={lignes} disabled={!actif} value={valeur ?? ''} onChange={(e) => onChange(e.target.value)} />
     </label>
@@ -115,7 +116,7 @@ function Texte({ libelle, valeur, onChange, actif, lignes = 2 }: { libelle: stri
 
 function Nombre({ libelle, valeur, onChange, actif }: { libelle: string; valeur: number | string | null; onChange: (v: string) => void; actif: boolean }) {
   return (
-    <label className="block text-[12px] mb-1">
+    <label className="block text-[11.5px] mb-1">
       <span className="text-text-dim">{libelle}</span>
       <input className={champ} inputMode="decimal" disabled={!actif} value={valeur ?? ''} onChange={(e) => onChange(e.target.value)} />
     </label>
@@ -125,23 +126,23 @@ function Nombre({ libelle, valeur, onChange, actif }: { libelle: string; valeur:
 function Rendu({ note }: { note: Note }) {
   return (
     <div className="mb-3" id={`note-ifrs-${note.numero}`}>
-      <p className="text-[12.5px] font-bold">
+      <p className="text-[11.5px] font-bold">
         Note {note.numero} · {note.titre} <span className="font-normal text-text-dim">({note.ref})</span>
       </p>
       {note.blocs.map((b, i) =>
         b.type === 'texte' ? (
-          <p key={i} className="text-[12px] leading-[1.6]">
+          <p key={i} className="text-[11.5px] leading-[1.6]">
             {b.texte}
             {b.source && SOURCES[b.source] ? <span className="text-text-dim"> · {SOURCES[b.source]}</span> : null}
           </p>
         ) : b.type === 'manque' ? (
-          <p key={i} className="text-[12px] text-warning leading-[1.6]">
+          <p key={i} className="text-[11.5px] text-warning leading-[1.6]">
             · {b.texte}
           </p>
         ) : (
           <div key={i} className="overflow-x-auto my-1">
-            {b.titre && <p className="text-[12px] font-semibold">{b.titre}</p>}
-            <table className="w-full text-[12px]">
+            {b.titre && <p className="text-[11.5px] font-semibold">{b.titre}</p>}
+            <table className="w-full text-[11.5px]">
               <thead>
                 <tr className="text-left border-b border-border">
                   <th className="py-1 pr-2" />
@@ -236,29 +237,35 @@ export function NotesIfrs({
   return (
     <>
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[12.5px] font-bold mb-1.5">Notes (IFRS 18 § 113 à 132, IAS 8)</h2>
-        <p className="text-[11px] text-text-dim leading-[1.6] mb-2">
-          Les notes d’IFRS 18 et d’IAS 8 sont servies · celles qu’exige chacune des autres normes appliquées (§ 113 b) ne le sont
-          pas, et le jeu reste non publiable tant qu’elles ne sont pas jointes. La déclaration de conformité du § 6B n’est jamais
-          imprimée sur un jeu non publiable. La colonne « Note » des états renvoie aux notes qui concernent chaque poste (§ 114).
-        </p>
+        <h2 className="text-[11.5px] font-bold mb-1.5 flex items-center gap-1.5">
+          Notes (IFRS 18 § 113 à 132, IAS 8)
+          <Aide
+            titre="Notes des états IFRS"
+            texte="Les notes d’IFRS 18 et d’IAS 8 sont servies · celles qu’exige chacune des autres normes appliquées (§ 113 b) ne le sont pas, et le jeu reste non publiable tant qu’elles ne sont pas jointes. La déclaration de conformité du § 6B n’est jamais imprimée sur un jeu non publiable. La colonne « Note » des états renvoie aux notes qui concernent chaque poste (§ 114)."
+            source="IFRS 18 § 113 b, § 114 · IAS 8 § 6B"
+          />
+        </h2>
         {notes.notes.map((n) => (
           <Rendu key={n.cle} note={n} />
         ))}
       </section>
 
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[12.5px] font-bold mb-1.5">Déclarations des notes de l’exercice</h2>
+        <h2 className="text-[11.5px] font-bold mb-1.5">Déclarations des notes de l’exercice</h2>
         {peutEcrire && notes.declarationsN1 && (
-          <p className="text-[12px] mb-2">
+          <p className="text-[11.5px] mb-2">
             <button type="button" className="underline" onClick={() => setD(structuredClone(notes.declarationsN1!))}>
               Reprendre les déclarations de l’exercice précédent
             </button>{' '}
-            <span className="text-text-dim">· elles sont copiées dans le formulaire, à relire, puis à enregistrer.</span>
+            <Aide
+              titre="Reprise des déclarations"
+              texte="Les déclarations de l’exercice précédent sont copiées dans le formulaire, à relire, puis à enregistrer."
+              source="Notes IFRS · déclarations de l’exercice"
+            />
           </p>
         )}
 
-        <h3 className="text-[12px] font-bold mt-2">L’entité (§ 116)</h3>
+        <h3 className="text-[11.5px] font-bold mt-2">L’entité (§ 116)</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3">
           {(
             [
@@ -284,7 +291,7 @@ export function NotesIfrs({
           )}
         </div>
 
-        <h3 className="text-[12px] font-bold mt-2">Base d’établissement (IAS 8 § 6B, § 6K)</h3>
+        <h3 className="text-[11.5px] font-bold mt-2">Base d’établissement (IAS 8 § 6B, § 6K)</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3">
           <Question libelle="L’entité déclare-t-elle la conformité à toutes les dispositions des normes IFRS ? (§ 6B)" actif={peutEcrire} valeur={d.conformiteDeclaree} onChange={(v) => maj((x) => void (x.conformiteDeclaree = v))} />
           <Question libelle="La base de la continuité d’exploitation est-elle retenue ? (§ 6K)" actif={peutEcrire} valeur={d.continuite.retenue} onChange={(v) => maj((x) => void (x.continuite.retenue = v))} />
@@ -302,8 +309,14 @@ export function NotesIfrs({
           )}
         </div>
 
-        <h3 className="text-[12px] font-bold mt-2">Méthodes comptables significatives (IAS 8 § 27A à 27F)</h3>
-        <p className="text-[11px] text-text-dim">Propres à l’entité · une formule qui ne fait que résumer la norme n’apprend rien au lecteur (§ 27D).</p>
+        <h3 className="text-[11.5px] font-bold mt-2 flex items-center gap-1.5">
+          Méthodes comptables significatives (IAS 8 § 27A à 27F)
+          <Aide
+            titre="Méthodes comptables significatives"
+            texte="Propres à l’entité · une formule qui ne fait que résumer la norme n’apprend rien au lecteur."
+            source="IAS 8 § 27D"
+          />
+        </h3>
         {liste(
           d.methodes,
           (m, i) => (
@@ -317,7 +330,7 @@ export function NotesIfrs({
           'Ajouter une méthode',
         )}
 
-        <h3 className="text-[12px] font-bold mt-2">Jugements (IAS 8 § 27G) et sources d’incertitude (§ 31A)</h3>
+        <h3 className="text-[11.5px] font-bold mt-2">Jugements (IAS 8 § 27G) et sources d’incertitude (§ 31A)</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3">
           <Question libelle="Aucun jugement significatif, hors estimations ?" oui="Aucun" non="Il y en a" actif={peutEcrire} valeur={d.aucunJugement} onChange={(v) => maj((x) => void (x.aucunJugement = v))} />
           <Question libelle="Aucune source majeure d’incertitude ?" oui="Aucune" non="Il y en a" actif={peutEcrire} valeur={d.aucuneEstimation} onChange={(v) => maj((x) => void (x.aucuneEstimation = v))} />
@@ -341,7 +354,7 @@ export function NotesIfrs({
             (s, i) => (
               <>
                 <Texte libelle="Nature de l’incertitude (§ 31A a)" lignes={1} actif={peutEcrire} valeur={s.nature} onChange={(v) => maj((x) => void (x.estimations[i].nature = v))} />
-                <label className="block text-[12px] mb-1">
+                <label className="block text-[11.5px] mb-1">
                   <span className="text-text-dim">Poste qui porte l’actif ou le passif</span>
                   <select className={champ} disabled={!peutEcrire} value={s.rubrique} onChange={(e) => maj((x) => void (x.estimations[i].rubrique = e.target.value))}>
                     <option value="">Poste…</option>
@@ -361,7 +374,7 @@ export function NotesIfrs({
             'Ajouter une source d’incertitude',
           )}
 
-        <h3 className="text-[12px] font-bold mt-2">Mesures de la performance définies par la direction (§ 117 à 125)</h3>
+        <h3 className="text-[11.5px] font-bold mt-2">Mesures de la performance définies par la direction (§ 117 à 125)</h3>
         <Question
           libelle="L’entité communique-t-elle, hors des états financiers, des sous-totaux de produits et de charges au sens du § 117 ?"
           oui="Aucun"
@@ -378,7 +391,7 @@ export function NotesIfrs({
                 <Texte libelle="Intitulé de la mesure (§ 123)" lignes={1} actif={peutEcrire} valeur={m.libelle} onChange={(v) => maj((x) => void (x.mesuresPerformance[i].libelle = v))} />
                 <Texte libelle="Aspect de la performance communiqué, et pourquoi il est utile (§ 123 a)" actif={peutEcrire} valeur={m.aspect} onChange={(v) => maj((x) => void (x.mesuresPerformance[i].aspect = v))} />
                 <Texte libelle="Mode de calcul (§ 123 b)" actif={peutEcrire} valeur={m.calcul} onChange={(v) => maj((x) => void (x.mesuresPerformance[i].calcul = v))} />
-                <label className="block text-[12px] mb-1">
+                <label className="block text-[11.5px] mb-1">
                   <span className="text-text-dim">Sous-total de référence du rapprochement (§ 123 c)</span>
                   <select className={champ} disabled={!peutEcrire} value={m.sousTotalReference} onChange={(e) => maj((x) => void (x.mesuresPerformance[i].sousTotalReference = e.target.value))}>
                     <option value="">Sous-total…</option>
@@ -423,7 +436,7 @@ export function NotesIfrs({
             'Ajouter une mesure',
           )}
 
-        <h3 className="text-[12px] font-bold mt-2">Gestion du capital (§ 126 à 129)</h3>
+        <h3 className="text-[11.5px] font-bold mt-2">Gestion du capital (§ 126 à 129)</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3">
           <Texte libelle="Ce que l’entité gère comme capital (§ 127 a i)" actif={peutEcrire} valeur={d.capital.description} onChange={(v) => maj((x) => void (x.capital.description = texteOuNull(v)))} />
           <Texte libelle="Comment elle atteint ses objectifs (§ 127 a iii)" actif={peutEcrire} valeur={d.capital.commentObjectifsAtteints} onChange={(v) => maj((x) => void (x.capital.commentObjectifsAtteints = texteOuNull(v)))} />
@@ -453,7 +466,7 @@ export function NotesIfrs({
           'Ajouter une donnée quantitative (§ 127 b)',
         )}
 
-        <h3 className="text-[12px] font-bold mt-2">Capital et réserves (§ 130, § 131)</h3>
+        <h3 className="text-[11.5px] font-bold mt-2">Capital et réserves (§ 130, § 131)</h3>
         <Question libelle="L’entité a-t-elle un capital social ?" oui="Non (§ 131)" non="Oui (§ 130 a)" actif={peutEcrire} valeur={d.sansCapitalSocial} onChange={(v) => maj((x) => void (x.sansCapitalSocial = v))} />
         {d.sansCapitalSocial === true && (
           <Texte libelle="Informations équivalentes · variations et droits de chaque catégorie de capitaux propres (§ 131)" actif={peutEcrire} valeur={d.informationsEquivalentes} onChange={(v) => maj((x) => void (x.informationsEquivalentes = texteOuNull(v)))} />
@@ -477,7 +490,7 @@ export function NotesIfrs({
                 ).map(([k, l]) => (
                   <Nombre key={k} libelle={l} actif={peutEcrire && !(k === 'valeurNominale' && a.sansValeurNominale)} valeur={a[k]} onChange={(v) => maj((x) => void (x.categoriesActions[i][k] = v))} />
                 ))}
-                <label className="text-[12px] flex items-center gap-1">
+                <label className="text-[11.5px] flex items-center gap-1">
                   <input type="checkbox" disabled={!peutEcrire} checked={a.sansValeurNominale} onChange={(e) => maj((x) => void Object.assign(x.categoriesActions[i], { sansValeurNominale: e.target.checked, valeurNominale: null }))} />
                   Sans valeur nominale (iii)
                 </label>
@@ -515,7 +528,7 @@ export function NotesIfrs({
           />
         ))}
 
-        <h3 className="text-[12px] font-bold mt-2">Dividendes (§ 110, § 132) · zéro est une réponse</h3>
+        <h3 className="text-[11.5px] font-bold mt-2">Dividendes (§ 110, § 132) · zéro est une réponse</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3">
           {(
             [
@@ -529,7 +542,7 @@ export function NotesIfrs({
           ))}
         </div>
 
-        <h3 className="text-[12px] font-bold mt-2">Impôt relatif aux autres éléments du résultat global (§ 93)</h3>
+        <h3 className="text-[11.5px] font-bold mt-2">Impôt relatif aux autres éléments du résultat global (§ 93)</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3">
           {rubriquesDe('RESULTAT_GLOBAL').map((r) => (
             <Nombre
@@ -543,12 +556,12 @@ export function NotesIfrs({
         </div>
 
         {peutEcrire && (
-          <button type="button" className="mt-2 border border-border px-3 py-1 text-[12px] font-semibold" onClick={() => void enregistrer()}>
+          <button type="button" className="mt-2 border border-border px-3 py-1 text-[11.5px] font-semibold" onClick={() => void enregistrer()}>
             Enregistrer les déclarations
           </button>
         )}
-        {message && <p className="text-[12px] text-success mt-1">{message}</p>}
-        {erreur && <p className="text-[12px] text-danger mt-1">{erreur}</p>}
+        {message && <p className="text-[11.5px] text-success mt-1">{message}</p>}
+        {erreur && <p className="text-[11.5px] text-danger mt-1">{erreur}</p>}
       </section>
     </>
   );

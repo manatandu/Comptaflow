@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
+import { Aide } from '../components/chrome/Aide';
 import type { Exercice, TableauVariationProvisions } from '../lib/types';
 
 /**
@@ -83,15 +84,16 @@ export function ProvisionsPage() {
     <div className="p-2">
       <EnteteImpression titre="Registre des provisions pour risques et charges" />
       <div className="ecran-seul mb-1.5 max-w-[1240px]">
-        <div className="text-[11px] font-mono text-text-dim leading-none">
-          AUDCIF TITRE VIII CH. 18 · PROVISIONS, PASSIFS ET ACTIFS ÉVENTUELS
-        </div>
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="text-[13px] font-bold leading-tight">Provisions pour risques et charges</h1>
+        <div className="flex items-center justify-end gap-2">
+          <Aide
+            titre="Provisions, passifs et actifs éventuels"
+            texte="Le registre suit le tableau des mouvements du ch. 18 § 5.3 : utilisations et reprises restent séparées, et chaque provision est rapprochée du solde de son compte."
+            source="AUDCIF Titre VIII ch. 18"
+          />
           <select
             value={exerciceId}
             onChange={(e) => setExerciceId(e.target.value)}
-            className="border border-bord rounded-[6px] px-2 py-[2px] text-[12px]"
+            className="border border-bord rounded-[3px] px-2 py-[2px] text-[11.5px]"
           >
             {exercices.map((ex) => (
               <option key={ex.id} value={ex.id}>
@@ -104,7 +106,7 @@ export function ProvisionsPage() {
       </div>
 
       {erreur && (
-        <div className="mb-1.5 max-w-[1240px] border border-rouge/40 bg-rouge/5 text-rouge rounded-[6px] px-2 py-1 text-[12px]">
+        <div className="mb-1.5 max-w-[1240px] border border-rouge/40 bg-rouge/5 text-rouge rounded-[3px] px-2 py-1 text-[11.5px]">
           {erreur}
         </div>
       )}
@@ -118,11 +120,16 @@ export function ProvisionsPage() {
             fait tomber aucun contrôle, et ne se voit nulle part ailleurs.
           */}
           {ecartsSignales.length > 0 && (
-            <div className="border border-rouge/40 bg-rouge/5 rounded-[6px] px-2 py-1.5">
-              <div className="text-[12px] font-semibold text-rouge mb-1">
+            <div className="border border-rouge/40 bg-rouge/5 rounded-[3px] px-2 py-1.5">
+              <div className="text-[11.5px] font-semibold text-rouge mb-1 flex items-center gap-1.5">
                 {ecartsSignales.length} compte(s) où le registre et la balance ne disent pas la même chose
+                <Aide
+                  titre="Écart registre / balance"
+                  texte="Une dotation passée sans être documentée, ou documentée sans être passée. Ni l'une ni l'autre ne déséquilibre la balance."
+                  source="AUDCIF Titre VIII ch. 18 § 5.3"
+                />
               </div>
-              <table className="w-full text-[12px]">
+              <table className="w-full text-[11.5px]">
                 <thead className="text-text-dim">
                   <tr>
                     <th className="text-left font-normal">Compte</th>
@@ -142,15 +149,11 @@ export function ProvisionsPage() {
                   ))}
                 </tbody>
               </table>
-              <div className="text-[10.5px] text-text-dim mt-1 leading-snug">
-                Une dotation passée sans être documentée, ou documentée sans être passée. Ni l'une ni l'autre ne
-                déséquilibre la balance.
-              </div>
             </div>
           )}
 
-          <div className="border border-bord rounded-[6px] overflow-x-auto">
-            <table className="w-full text-[12px] whitespace-nowrap">
+          <div className="border border-bord rounded-[3px] overflow-x-auto">
+            <table className="w-full text-[11.5px] whitespace-nowrap">
               <thead className="bg-fond-2 text-text-dim">
                 <tr>
                   <th className="text-left font-normal px-1.5 py-1">Objet</th>
@@ -217,11 +220,11 @@ export function ProvisionsPage() {
             exactement l'inverse.
           */}
           {t.passifsEventuels.length > 0 && (
-            <div className="border border-bord rounded-[6px] px-2 py-1.5">
-              <div className="text-[12px] font-semibold mb-1">
+            <div className="border border-bord rounded-[3px] px-2 py-1.5">
+              <div className="text-[11.5px] font-semibold mb-1">
                 Passifs éventuels · à mentionner aux Notes annexes, rien au bilan
               </div>
-              <ul className="text-[12px] space-y-[3px]">
+              <ul className="text-[11.5px] space-y-[3px]">
                 {t.passifsEventuels.map((l) => (
                   <li key={l.id}>
                     <span className="font-medium">{l.objet}</span>
@@ -232,15 +235,16 @@ export function ProvisionsPage() {
             </div>
           )}
 
-          <div className="border border-bord rounded-[6px] px-2 py-1.5">
-            <div className="text-[12px] font-semibold mb-1">
+          <div className="border border-bord rounded-[3px] px-2 py-1.5">
+            <div className="text-[11.5px] font-semibold mb-1 flex items-center gap-1.5">
               Natures admises dans le plan de ce dossier
+              <Aide
+                titre="Natures par référentiel"
+                texte="Les deux référentiels emploient les mêmes numéros pour des natures différentes · au 192, le SYSCOHADA loge les garanties données aux clients, le SYCEBNL les charges sur donations et legs."
+                source="Plans de comptes SYSCOHADA et SYCEBNL"
+              />
             </div>
-            <div className="text-[10.5px] text-text-dim mb-1 leading-snug">
-              Les deux référentiels emploient les mêmes numéros pour des natures différentes · au 192, le SYSCOHADA
-              loge les garanties données aux clients, le SYCEBNL les charges sur donations et legs.
-            </div>
-            <ul className="text-[12px] grid grid-cols-2 gap-x-4">
+            <ul className="text-[11.5px] grid grid-cols-2 gap-x-4">
               {t.natures.map((n) => (
                 <li key={n.nature}>
                   <span className="font-mono">{n.compte}</span> · {n.intitule}
