@@ -1,4 +1,5 @@
 import { Fragment, FormEvent, useEffect, useMemo, useState, useRef } from 'react';
+import { ModaleFusion } from '../components/ModaleFusion';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -348,6 +349,30 @@ export function TiersPage() {
   // Suppression · le serveur refuse tout objet mouvementé ou utilisé, et
   // dit lequel (common/suppression/references.ts). La confirmation évite le
   // clic malheureux sur un objet libre, qui, lui, disparaît pour de bon.
+  // FUSION · le doublon est absorbé par la fiche conservée, ses comptes et
+  // ses pièces la suivent, puis il est supprimé (fusion-tiers.ts). Aucune
+  // écriture n'est touchée : elles sont passées sur des comptes.
+  const [fusionOuverte, setFusionOuverte] = useState(false);
+  const fusionner = async (cibleId: string) => {
+    if (!tiersSelectionne) return;
+    setErreur(null);
+    try {
+      const r = await api.post<{ conserve: string; supprime: string; reporte: string[] }>(
+        `/tiers/${tiersSelectionne.id}/fusion/${cibleId}`,
+        {},
+      );
+      setFusionOuverte(false);
+      setInfo(
+        `${r.supprime} fusionné dans ${r.conserve}` + (r.reporte.length ? ` · reporté : ${r.reporte.join(', ')}.` : '.'),
+      );
+      setSelectionId(cibleId);
+      await charger();
+    } catch (err) {
+      setFusionOuverte(false);
+      setErreur(err instanceof ApiError ? err.message : 'Fusion impossible');
+    }
+  };
+
   const supprimer = async (id: string, nom: string) => {
     if (!window.confirm(`Supprimer ${nom} ? Cette suppression est définitive.`)) return;
     setErreur(null);
@@ -606,6 +631,27 @@ export function TiersPage() {
               >
                 Supprimer
               </button>
+              <button
+                type="button"
+                onClick={() => setFusionOuverte(true)}
+                className="ml-2 border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[11.5px] mb-3"
+              >
+                Fusionner…
+              </button>
+              {fusionOuverte && (
+                <ModaleFusion
+                  titre="Fusion de tiers"
+                  absorbe={`${tiersSelectionne.code} · ${tiersSelectionne.nom} est le doublon : ses comptes, factures, devis, relances et consignations passent à la fiche conservée, puis il est supprimé.`}
+                  options={(liste ?? [])
+                    .filter((t) => t.id !== tiersSelectionne.id && t.type === tiersSelectionne.type)
+                    .map((t) => ({ id: t.id, libelle: `${t.code} · ${t.nom}` }))}
+                  avecMotif={false}
+                  aide="Les écritures sont passées sur des comptes, jamais sur des tiers : la fusion ne touche aucune ligne du livre-journal. La fiche conservée garde ses coordonnées ; celles du doublon ne comblent que ses vides."
+                  source="OmegaX · voir fusion-tiers.ts"
+                  onFermer={() => setFusionOuverte(false)}
+                  onValider={(cibleId) => fusionner(cibleId)}
+                />
+              )}
 
               {/*
                 VOLET COORDONNÉES · il manquait, et son absence rendait

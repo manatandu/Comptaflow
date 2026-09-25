@@ -24,3 +24,16 @@ export class ReimputerDto {
   @IsNotEmpty()
   motif!: string;
 }
+
+/** Fusion de comptes · le compte absorbé, le compte conservé, et la raison. */
+export class FusionnerComptesDto {
+  @IsString()
+  compteSourceId!: string;
+
+  @IsString()
+  compteCibleId!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  motif!: string;
+}

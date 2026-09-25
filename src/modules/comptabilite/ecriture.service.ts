@@ -12,7 +12,8 @@ import { CriteresRecherche, filtreRecherche } from './recherche-ecritures';
 import { CreerEcritureDto, ImputationOuvertureDto } from './dto/creer-ecriture.dto';
 import { CorrigerEcritureDto } from './dto/corriger-ecriture.dto';
 import { ReimputerDto } from './dto/reimputer.dto';
-import { lignesDeReimputation, motifRefusLigne } from './reimputation';
+import { dateDansExercice, lignesDeReimputation, motifRefusFusionComptes, motifRefusLigne } from './reimputation';
+import { libelleReference, referencesVers } from '../../common/suppression/references';
 import { ModifierEcritureDto, ValiderJusquaDto } from './dto/brouillard.dto';
 import { JournalService } from '../journaux/journal.service';
 import { ExerciceService } from '../exercice/exercice.service';
@@ -1206,7 +1207,7 @@ export class EcritureService {
    * annulée et à l'identique sur la ligne exacte, pour que le projet d'une
    * charge ne change pas avec son compte.
    */
-  async reimputer(tenantId: string, createdBy: string, dto: ReimputerDto) {
+  async reimputer(tenantId: string, createdBy: string, dto: ReimputerDto, options: { simuler?: boolean } = {}) {
     const ids = [...new Set(dto.ligneIds)];
     const cible = await this.prisma.compte.findFirst({ where: { id: dto.compteCibleId, tenantId } });
     if (!cible) throw new NotFoundException('Compte cible introuvable pour ce dossier.');
@@ -1282,6 +1283,9 @@ export class EcritureService {
       }
     }
 
+    // Une fusion vérifie TOUS ses exercices avant d'en écrire un seul.
+    if (options.simuler) return { auBrouillard: auBrouillard.length, validees: validees.length, ecrituresPassees: [] };
+
     const motif = dto.motif.trim();
     return avecRetrySerialisable(
       this.prisma,
@@ -1341,6 +1345,61 @@ export class EcritureService {
       },
       "Trop d'écritures enregistrées au même instant · veuillez réessayer.",
     );
+  }
+
+  /**
+   * FUSION DE COMPTES · voir `motifRefusFusionComptes` (reimputation.ts). Les
+   * lignes de chaque exercice ouvert sont réimputées, toutes vérifiées avant
+   * la première écriture, puis le compte absorbé est mis en sommeil. Ce que
+   * les structures (taux de taxes, journaux, modèles, fiches d'immobilisation…)
+   * disent encore de lui est RENDU, jamais reporté d'office · qu'un taux de
+   * TVA passe d'un compte à l'autre est une décision, pas une conséquence.
+   */
+  async fusionnerComptes(tenantId: string, createdBy: string, sourceId: string, cibleId: string, motif: string) {
+    const [source, cible] = await Promise.all([
+      this.prisma.compte.findFirst({ where: { id: sourceId, tenantId } }),
+      this.prisma.compte.findFirst({ where: { id: cibleId, tenantId } }),
+    ]);
+    if (!source || !cible) throw new NotFoundException('Compte introuvable pour ce dossier.');
+    const refus = motifRefusFusionComptes(source, cible);
+    if (refus) throw new BadRequestException(refus);
+    if (!motif?.trim()) throw new BadRequestException('Le motif de la fusion est obligatoire.');
+
+    const lignes = await this.prisma.ligneEcriture.findMany({
+      where: { compteId: source.id, ecriture: { tenantId, exercice: { statut: StatutExercice.OUVERT } } },
+      select: { id: true, ecriture: { select: { exercice: { select: { id: true, dateDebut: true, dateFin: true } } } } },
+    });
+    const parExercice = new Map<string, { exercice: { dateDebut: Date; dateFin: Date }; ids: string[] }>();
+    for (const l of lignes) {
+      const e = l.ecriture.exercice;
+      const g = parExercice.get(e.id) ?? { exercice: e, ids: [] };
+      g.ids.push(l.id);
+      parExercice.set(e.id, g);
+    }
+    const aujourdhui = new Date();
+    const demandes = [...parExercice.values()].map((g) => ({
+      ligneIds: g.ids,
+      compteCibleId: cible.id,
+      date: dateDansExercice(aujourdhui, g.exercice).toISOString().slice(0, 10),
+      motif: `Fusion du ${source.numero} dans le ${cible.numero} · ${motif.trim()}`,
+    }));
+    for (const d of demandes) await this.reimputer(tenantId, createdBy, d, { simuler: true });
+
+    const resultats = [];
+    for (const d of demandes) resultats.push(await this.reimputer(tenantId, createdBy, d));
+    await this.prisma.compte.update({ where: { id: source.id }, data: { estActif: false } });
+
+    const restantes = await referencesVers(this.prisma, 'Compte', source.id, tenantId, ['LigneEcriture.compteId']);
+    return {
+      fusionne: true,
+      source: source.numero,
+      cible: cible.numero,
+      auBrouillard: resultats.reduce((t, r) => t + r.auBrouillard, 0),
+      validees: resultats.reduce((t, r) => t + r.validees, 0),
+      ecrituresPassees: resultats.flatMap((r) => r.ecrituresPassees),
+      // Ce qui cite encore le compte absorbé, à repointer par le cabinet.
+      encoreUtilisePar: restantes.map(libelleReference),
+    };
   }
 
   /**

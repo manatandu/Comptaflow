@@ -78,3 +78,36 @@ export function lignesDeReimputation(l: { compteId: string; debit: number; credi
     { compteId: compteCibleId, debit: l.debit, credit: l.credit, signeAnalytique: 1 },
   ];
 }
+
+/**
+ * FUSION DE COMPTES · la réimputation de TOUTES les lignes d'un compte, sur
+ * chaque exercice encore ouvert, puis la mise en sommeil du compte absorbé.
+ * Ses lignes des exercices clôturés restent où elles sont : elles ont été
+ * publiées sur lui, et l'art. 20 al. 3 renvoie leur correction au report à
+ * nouveau, pas à une fusion. D'où la mise en SOMMEIL et non la suppression ·
+ * le compte garde son histoire.
+ */
+export function motifRefusFusionComptes(
+  source: { id: string; numero: string; classe: string; typeCompte: string },
+  cible: { id: string; numero: string; classe: string; typeCompte: string; estActif: boolean },
+): string | null {
+  if (source.id === cible.id) return 'Un compte ne se fusionne pas avec lui-même.';
+  if (source.typeCompte !== 'DETAIL' || cible.typeCompte !== 'DETAIL') {
+    return 'Seuls deux comptes de détail se fusionnent · un compte Total ne porte aucune écriture.';
+  }
+  if (source.classe !== cible.classe) {
+    return (
+      `${source.numero} et ${cible.numero} ne sont pas de la même classe · une fusion réunit deux comptes de même ` +
+      "nature. Déplacer des lignes d'une classe à l'autre est une réimputation, ligne par ligne, depuis le journal."
+    );
+  }
+  if (!cible.estActif) return `Le ${cible.numero} est en sommeil · réactivez-le avant d'y fusionner.`;
+  return null;
+}
+
+/** La date de la correction dans un exercice · aujourd'hui s'il y tombe, sinon sa dernière journée. */
+export function dateDansExercice(aujourdhui: Date, exercice: { dateDebut: Date; dateFin: Date }): Date {
+  if (aujourdhui < exercice.dateDebut) return exercice.dateDebut;
+  if (aujourdhui > exercice.dateFin) return exercice.dateFin;
+  return aujourdhui;
+}

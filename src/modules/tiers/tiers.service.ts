@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { referencesVers, refuserSiReferences } from '../../common/suppression/references';
+import { libelleReference, referencesVers, refuserSiReferences, reporterReferences } from '../../common/suppression/references';
+import { coordonneesAComblement, motifRefusFusionTiers } from './fusion-tiers';
 import { PrismaService } from '../../common/prisma.service';
 import { ClasseCompte, ConditionEcheance, Prisma, Referentiel, TypeEcheance, TypeTiers } from '@prisma/client';
 import { CreerTiersDto, ModifierTiersDto, RattacherCompteDto } from './dto/tiers.dto';
@@ -142,6 +143,43 @@ export class TiersService {
       this.prisma.tiers.delete({ where: { id: tiers.id } }),
     ]);
     return { supprime: true };
+  }
+
+  /**
+   * FUSION · le doublon `sourceId` est absorbé par `cibleId` (voir
+   * fusion-tiers.ts). Tout ce qui pointe vers le doublon est reporté, lu dans
+   * le schéma ; ses coordonnées ne comblent que les vides de la fiche
+   * conservée ; puis le doublon, qui n'est plus référencé par rien, est
+   * supprimé. Une seule transaction · une fusion à moitié faite laisserait
+   * deux fiches se partager les comptes d'un même tiers.
+   */
+  async fusionner(tenantId: string, sourceId: string, cibleId: string) {
+    const [source, cible] = await Promise.all([
+      this.prisma.tiers.findFirst({ where: { id: sourceId, tenantId } }),
+      this.prisma.tiers.findFirst({ where: { id: cibleId, tenantId }, include: { comptesRattaches: true } }),
+    ]);
+    if (!source || !cible) throw new NotFoundException('Tiers introuvable pour ce dossier.');
+    const refus = motifRefusFusionTiers(source, cible);
+    if (refus) throw new BadRequestException(refus);
+
+    const reportees = await this.prisma.$transaction(async (tx) => {
+      // Un seul compte principal par tiers · ceux du doublon arrivent
+      // secondaires si la fiche conservée a déjà le sien.
+      if (cible.comptesRattaches.some((r) => r.estPrincipal)) {
+        await tx.tiersCompte.updateMany({ where: { tiersId: source.id }, data: { estPrincipal: false } });
+      }
+      const r = await reporterReferences(tx, 'Tiers', source.id, cible.id, tenantId);
+      const complement = coordonneesAComblement(source, cible);
+      if (Object.keys(complement).length) await tx.tiers.update({ where: { id: cible.id }, data: complement });
+      await tx.tiers.delete({ where: { id: source.id } });
+      return r;
+    });
+    return {
+      fusionne: true,
+      conserve: cible.code,
+      supprime: source.code,
+      reporte: reportees.map(libelleReference),
+    };
   }
 
   async modifier(tenantId: string, tiersId: string, dto: ModifierTiersDto) {

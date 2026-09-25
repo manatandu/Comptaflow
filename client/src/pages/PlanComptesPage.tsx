@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState, useRef } from 'react';
+import { ModaleFusion } from '../components/ModaleFusion';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -194,6 +195,32 @@ export function PlanComptesPage() {
   // Suppression · le serveur refuse tout objet mouvementé ou utilisé, et
   // dit lequel (common/suppression/references.ts). La confirmation évite le
   // clic malheureux sur un objet libre, qui, lui, disparaît pour de bon.
+  // FUSION · le compte absorbé voit ses lignes des exercices ouverts
+  // réimputées (inscription en négatif si validées) puis s'endort ; ce qui
+  // le cite encore est rendu, à repointer (reimputation.ts côté serveur).
+  const [fusionOuverte, setFusionOuverte] = useState(false);
+  const [infoFusion, setInfoFusion] = useState<string | null>(null);
+  const fusionner = async (cibleId: string, motif: string) => {
+    if (!selection) return;
+    setErreur(null);
+    try {
+      const r = await api.post<{ source: string; cible: string; auBrouillard: number; validees: number; encoreUtilisePar: string[] }>(
+        '/ecritures/fusion-comptes',
+        { compteSourceId: selection.id, compteCibleId: cibleId, motif },
+      );
+      setFusionOuverte(false);
+      setInfoFusion(
+        `Le ${r.source} est fusionné dans le ${r.cible} et mis en sommeil · ${r.auBrouillard} ligne(s) au brouillard déplacée(s), ` +
+          `${r.validees} ligne(s) validée(s) réimputée(s) par inscription en négatif.` +
+          (r.encoreUtilisePar.length ? ` Il est encore cité par : ${r.encoreUtilisePar.join(', ')}.` : ''),
+      );
+      await charger();
+    } catch (err) {
+      setFusionOuverte(false);
+      setErreur(err instanceof ApiError ? err.message : 'Fusion impossible');
+    }
+  };
+
   const supprimer = async (id: string, nom: string) => {
     if (!window.confirm(`Supprimer ${nom} ? Cette suppression est définitive.`)) return;
     setErreur(null);
@@ -230,6 +257,9 @@ export function PlanComptesPage() {
         </div>
       </div>
 
+      {infoFusion && (
+        <div className="mb-2 text-[11.5px] text-positive bg-positive-soft border border-positive/30 px-3 py-2">{infoFusion}</div>
+      )}
       {erreur && (
         <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-1.5 mb-2 shrink-0">
           {erreur}
@@ -384,6 +414,29 @@ export function PlanComptesPage() {
                 >
                   Supprimer ce compte
                 </button>
+              )}
+              {estAdmin && selection.typeCompte === 'DETAIL' && (
+                <button
+                  type="button"
+                  onClick={() => setFusionOuverte(true)}
+                  className="mb-3 ml-2 border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[11.5px]"
+                >
+                  Fusionner…
+                </button>
+              )}
+              {fusionOuverte && (
+                <ModaleFusion
+                  titre="Fusion de comptes"
+                  absorbe={`Le ${selection.numero} ${selection.intitule} sera absorbé : ses lignes des exercices ouverts passent au compte conservé, puis il est mis en sommeil.`}
+                  options={(comptes ?? [])
+                    .filter((c) => c.id !== selection.id && c.typeCompte === 'DETAIL' && c.estActif && c.classe === selection.classe)
+                    .map((c) => ({ id: c.id, libelle: `${c.numero} · ${c.intitule}` }))}
+                  avecMotif
+                  aide="Une ligne au brouillard change de compte. Une ligne validée ne se modifie jamais : elle reçoit une inscription en négatif sur le compte absorbé puis l'enregistrement exact sur le compte conservé. Les exercices clôturés gardent leurs lignes sur le compte absorbé, d'où la mise en sommeil et non la suppression. Taux de taxes, journaux, modèles qui le citent encore sont listés, à repointer."
+                  source="AUDCIF art. 20 et art. 22, 2°"
+                  onFermer={() => setFusionOuverte(false)}
+                  onValider={fusionner}
+                />
               )}
 
               {estAdmin && !estComptePrincipalOfficiel(selection) && (

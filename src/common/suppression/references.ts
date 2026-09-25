@@ -45,6 +45,10 @@ const LIBELLES: Record<string, string> = {
   'Compte.tauxTvaDefautId': 'comptes qui le proposent par défaut',
   'TiersCompte.compteId': 'rattachement à un tiers',
   'LigneModeleSaisie.compteId': 'modèles de saisie',
+  'TiersCompte.tiersId': 'comptes rattachés',
+  'Relance.tiersId': 'relances',
+  'Consignation.tiersId': 'consignations',
+  'DemandeConfirmation.tiersId': 'demandes de confirmation',
   'ModeleSaisie.journalId': 'modèles de saisie',
   'Immobilisation.compteImmobilisationId': 'immobilisations',
   'FamilleImmobilisation.compteImmobilisationId': "familles d'immobilisations",
@@ -101,4 +105,33 @@ export function refuserSiReferences(objet: string, refs: Reference[]) {
     `${objet} ne peut pas être supprimé · il est utilisé : ${refs.map(libelleReference).join(', ')}. ` +
       'Mettez-le en sommeil pour qu’il ne soit plus proposé.',
   );
+}
+
+/**
+ * FUSION · reporte sur `cibleId` TOUT ce qui se réfère à `sourceId`, relation
+ * par relation, lue dans le schéma comme pour la suppression · une table
+ * ajoutée demain qui pointe vers un tiers sera reportée sans que personne ait
+ * à y penser, là où une liste écrite à la main l'oublierait et bloquerait la
+ * suppression du doublon sur une erreur de clé étrangère.
+ */
+export async function reporterReferences(
+  prisma: unknown,
+  cible: string,
+  sourceId: string,
+  cibleId: string,
+  tenantId: string,
+): Promise<Reference[]> {
+  const client = prisma as Record<
+    string,
+    { updateMany: (a: { where: Record<string, unknown>; data: Record<string, unknown> }) => Promise<{ count: number }> }
+  >;
+  const reportees: Reference[] = [];
+  for (const lien of relationsVers(cible, [])) {
+    const delegue = client[lien.modele.charAt(0).toLowerCase() + lien.modele.slice(1)];
+    const where: Record<string, unknown> = { [lien.champ]: sourceId };
+    if (lien.cloisonne) where.tenantId = tenantId;
+    const { count } = await delegue.updateMany({ where, data: { [lien.champ]: cibleId } });
+    if (count > 0) reportees.push({ modele: lien.modele, champ: lien.champ, nombre: count });
+  }
+  return reportees;
 }

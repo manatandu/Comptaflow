@@ -4343,6 +4343,26 @@ tenue par une immobilisation, venue de la clôture, ou d'un exercice clôturé
 PART DE LA RECHERCHE D'ÉCRITURES filtrée sur un compte, la seule qui dise de
 quel compte on déplace, et elle est réservée au comptable comme la correction.
 
+**Fusion des structures (2026-09-25).** Point 10 de la comparaison Sage i7 ;
+le manuel i7 NOMME l'activité (« Fusion des structures ») sans que ses pages
+soient au corpus lu, donc la règle vient des textes qui régissent une retouche.
+QUATRE RÈGLES À NE PAS DÉFAIRE. (1) FUSIONNER DEUX TIERS NE TOUCHE AUCUNE
+ÉCRITURE · elles sont passées sur des comptes. Tout ce qui pointe vers le
+doublon est reporté sur la fiche conservée, relation par relation LUE DANS LE
+SCHÉMA (`reporterReferences`), puis le doublon est supprimé ; la fiche gardée
+conserve ses coordonnées, le doublon ne comble que ses vides ; deux types
+différents (client, fournisseur) ne se fusionnent pas. (2) FUSIONNER DEUX
+COMPTES EST UNE RÉIMPUTATION DE TOUTES SES LIGNES DES EXERCICES OUVERTS
+(point 9 · négatif puis exact sur une ligne validée), chaque exercice SIMULÉ
+avant le premier écrit ; même classe, deux comptes de détail. (3) LE COMPTE
+ABSORBÉ S'ENDORT, IL NE DISPARAÎT PAS · ses lignes des exercices clôturés
+restent sur lui (art. 20 al. 3 renvoie l'erreur antérieure au report à
+nouveau), et ce que les structures disent encore de lui (taux de taxes,
+journaux, modèles, fiches) est RENDU, jamais reporté d'office · qu'un taux de
+TVA change de compte est une décision. (4) LES JOURNAUX NE SE FUSIONNENT PAS ·
+une pièce validée ne change ni de journal ni de numéro (art. 22, 2° et 3°,
+irréversibilité et chronologie) ; un journal vide se supprime (point 3).
+
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
 nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la

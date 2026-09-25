@@ -69,7 +69,10 @@ tiennent à un texte OHADA ; ils sont signalés comme tels.
 9. ~~Réimputation d'écritures~~ · FAIT le 2026-09-25, depuis la recherche
    filtrée sur un compte : compte changé au brouillard, inscription en négatif
    puis enregistrement exact sur une ligne validée (AUDCIF art. 20 et 22, 2°).
-10. Fusion de comptes, tiers et journaux.
+10. ~~Fusion de comptes, tiers et journaux~~ · FAIT le 2026-09-25 pour les
+    comptes (réimputation des exercices ouverts, puis sommeil) et les tiers
+    (fiche absorbée, rien au journal). Les journaux ne se fusionnent pas : leurs
+    pièces validées ne changent ni de journal ni de numéro (AUDCIF art. 22).
 11. Nouvel exercice avec à-nouveaux provisoires, report des budgets.
 12. Clôture totale qui fige aussi lettrage et analytique.
 13. Compte collectif et comptes auxiliaires de tiers.

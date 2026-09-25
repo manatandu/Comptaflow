@@ -63,6 +63,14 @@ export class TiersController {
 
   // Suppression · refusée si l'objet est mouvementé ou utilisé ailleurs
   // (common/suppression/references.ts, règle de Sage 100 i7).
+  // Fusion d'un doublon dans la fiche conservée · voir fusion-tiers.ts. Même
+  // droit que la suppression, dont elle est l'issue.
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
+  @Post(':id/fusion/:cibleId')
+  async fusionner(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Param('cibleId') cibleId: string) {
+    return this.tiersService.fusionner(user.tenantId, id, cibleId);
+  }
+
   @Roles(RoleUtilisateur.ADMIN_CABINET)
   @Delete(':id')
   async supprimer(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {

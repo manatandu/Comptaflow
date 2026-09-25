@@ -9,7 +9,7 @@ import { EcritureService } from './ecriture.service';
 import { PERIMETRES_BALANCE_AGEE, type PerimetreBalanceAgee } from './ecriture.service';
 import { CreerEcritureDto, ImputationOuvertureDto } from './dto/creer-ecriture.dto';
 import { CorrigerEcritureDto } from './dto/corriger-ecriture.dto';
-import { ReimputerDto } from './dto/reimputer.dto';
+import { FusionnerComptesDto, ReimputerDto } from './dto/reimputer.dto';
 import { ModifierEcritureDto, ValiderEcrituresDto, ValiderJusquaDto } from './dto/brouillard.dto';
 import { RoleUtilisateur } from '@prisma/client';
 import { ReserveAuComptable } from '../../common/decorators/acces-roles-cantonnes.decorator';
@@ -59,6 +59,16 @@ export class EcritureController {
    * RÉIMPUTATION · voir reimputation.ts. Même réserve que la correction : sur
    * une ligne validée, elle passe une inscription en négatif au journal.
    */
+  /**
+   * FUSION DE COMPTES · une opération de STRUCTURE qui passe des écritures ·
+   * réservée à l'administrateur, comme la suppression d'un compte.
+   */
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
+  @Post('fusion-comptes')
+  async fusionnerComptes(@CurrentUser() user: AuthenticatedUser, @Body() dto: FusionnerComptesDto) {
+    return this.ecritureService.fusionnerComptes(user.tenantId, user.userId, dto.compteSourceId, dto.compteCibleId, dto.motif);
+  }
+
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @ReserveAuComptable()
   @Post('reimputation')
