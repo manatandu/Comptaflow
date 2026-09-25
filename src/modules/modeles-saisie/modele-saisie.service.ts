@@ -3,6 +3,7 @@ import { Prisma, SensModeleSaisie } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { CreerModeleSaisieDto, LigneModeleSaisieDto, ModifierModeleSaisieDto } from './dto/modele-saisie.dto';
 import { diagnostiquerTiers } from './diagnostic-tiers';
+import { motifRefusFonctions } from './fonctions-modele';
 
 /**
  * MODÈLES DE SAISIE · les « opérations courantes » d'un journal.
@@ -28,6 +29,9 @@ export class ModeleSaisieService {
    * Sans `journalId`, la liste complète · c'est l'écran de gestion.
    */
   async lister(tenantId: string, journalId?: string, inclureInactifs = false) {
+    const typeDuJournal = journalId
+      ? (await this.prisma.journal.findFirst({ where: { id: journalId, tenantId }, select: { type: true } }))?.type
+      : undefined;
     // LE DIAGNOSTIC SE SERT SUR LA LISTE, ET C'EST LÀ QU'IL COMPTE. Le poser
     // seulement à la création ne dirait rien des modèles DÉJÀ enregistrés,
     // qui sont précisément ceux qui tournent aujourd'hui dans les dossiers.
@@ -41,7 +45,18 @@ export class ModeleSaisieService {
       where: {
         tenantId,
         ...(inclureInactifs ? {} : { estActif: true }),
-        ...(journalId ? { OR: [{ journalId }, { journalId: null }] } : {}),
+        // Un journal voit ses propres modèles, ceux de son TYPE, et ceux de
+        // tous les journaux · jamais ceux d'un autre type (un modèle « Achats »
+        // n'a rien à faire dans la caisse).
+        ...(journalId
+          ? {
+              OR: [
+                { journalId },
+                { journalId: null, typeJournal: null },
+                ...(typeDuJournal ? [{ journalId: null, typeJournal: typeDuJournal }] : []),
+              ],
+            }
+          : {}),
       },
       include: {
         journal: { select: { id: true, code: true, intitule: true } },
@@ -57,6 +72,7 @@ export class ModeleSaisieService {
       id: m.id,
       intitule: m.intitule,
       journalId: m.journalId,
+      typeJournal: m.typeJournal,
       journalCode: m.journal?.code ?? null,
       journalIntitule: m.journal?.intitule ?? null,
       estActif: m.estActif,
@@ -68,6 +84,8 @@ export class ModeleSaisieService {
         sens: l.sens,
         libelle: l.libelle,
         montant: l.montant === null ? null : Number(l.montant),
+        fonction: l.fonction,
+        tauxTvaId: l.tauxTvaId,
       })),
       avertissements: diagnostiquerTiers(
         m.lignes.map((l) => ({ numero: l.compte.numero, sens: l.sens })),
@@ -85,6 +103,7 @@ export class ModeleSaisieService {
         tenantId,
         intitule: dto.intitule.trim(),
         journalId: dto.journalId ?? null,
+        typeJournal: dto.journalId ? null : (dto.typeJournal ?? null),
         createdBy: userId,
         lignes: { create: dto.lignes.map((l, ordre) => this.versLigne(l, ordre)) },
       },
@@ -114,6 +133,7 @@ export class ModeleSaisieService {
         data: {
           ...(dto.intitule !== undefined ? { intitule: dto.intitule.trim() } : {}),
           ...(dto.journalId !== undefined ? { journalId: dto.journalId } : {}),
+          ...(dto.typeJournal !== undefined ? { typeJournal: dto.typeJournal } : {}),
           ...(dto.estActif !== undefined ? { estActif: dto.estActif } : {}),
         },
         select: { id: true },
@@ -164,6 +184,8 @@ export class ModeleSaisieService {
       sens: l.sens,
       libelle: l.libelle?.trim() || null,
       montant: l.montant === undefined ? null : new Prisma.Decimal(l.montant),
+      fonction: l.fonction ?? 'SAISIR',
+      tauxTvaId: l.tauxTvaId ?? null,
     } as never;
   }
 
@@ -198,6 +220,14 @@ export class ModeleSaisieService {
         `Un modèle ne peut pas viser un compte de totalisation : ${totaux.join(', ')}. ` +
           "Choisissez un compte d'imputation.",
       );
+    }
+
+    const refusFonctions = motifRefusFonctions(lignes);
+    if (refusFonctions) throw new BadRequestException(refusFonctions);
+    const taux = [...new Set(lignes.map((l) => l.tauxTvaId).filter((t): t is string => !!t))];
+    if (taux.length) {
+      const trouves = await this.prisma.tauxTva.count({ where: { id: { in: taux }, tenantId } });
+      if (trouves !== taux.length) throw new BadRequestException('Un taux de taxe du modèle est introuvable dans ce dossier');
     }
 
     const aDebit = lignes.some((l) => l.sens === SensModeleSaisie.DEBIT);

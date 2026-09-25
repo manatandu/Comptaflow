@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
-import type { Compte, Journal } from '../lib/types';
+import type { Compte, Journal, TauxTva } from '../lib/types';
 
 /**
  * MODÈLES DE SAISIE · les « opérations courantes » d'un journal.
@@ -17,17 +17,37 @@ import type { Compte, Journal } from '../lib/types';
  * bailleur ne pouvait pas se la fabriquer.
  */
 
+type FonctionLigne = 'SAISIR' | 'REPETER' | 'CALCULER' | 'EQUILIBRER';
+
 interface LigneModele {
   compteId: string;
   sens: 'DEBIT' | 'CREDIT';
   libelle: string;
   montant: string;
+  /** Fonction de la ligne (Sage i7) · voir lib/derouler-modele.ts. */
+  fonction: FonctionLigne;
+  tauxTvaId: string;
 }
+
+const LIBELLE_FONCTION: Record<FonctionLigne, string> = {
+  SAISIR: 'Saisir',
+  REPETER: 'Répéter',
+  CALCULER: 'Calculer (taxe)',
+  EQUILIBRER: 'Équilibrer',
+};
+
+const TYPES_JOURNAL: Array<[string, string]> = [
+  ['ACHATS', 'Type Achats'],
+  ['VENTES', 'Type Ventes'],
+  ['TRESORERIE', 'Type Trésorerie'],
+  ['GENERAL', 'Type Opérations diverses'],
+];
 
 interface ModeleSaisie {
   id: string;
   intitule: string;
   journalId: string | null;
+  typeJournal: string | null;
   journalCode: string | null;
   journalIntitule: string | null;
   estActif: boolean;
@@ -39,6 +59,8 @@ interface ModeleSaisie {
     sens: 'DEBIT' | 'CREDIT';
     libelle: string | null;
     montant: number | null;
+    fonction: FonctionLigne;
+    tauxTvaId: string | null;
   }>;
   /**
    * Ce que le serveur a lu du modèle · vide quand il n'y a rien à dire. Le
@@ -48,7 +70,7 @@ interface ModeleSaisie {
   avertissements: string[];
 }
 
-const LIGNE_VIDE: LigneModele = { compteId: '', sens: 'DEBIT', libelle: '', montant: '' };
+const LIGNE_VIDE: LigneModele = { compteId: '', sens: 'DEBIT', libelle: '', montant: '', fonction: 'SAISIR', tauxTvaId: '' };
 
 export function ModelesSaisiePage() {
   // Créer, modifier, supprimer : réservé (`@Roles` ADMIN_CABINET, COMPTABLE).
@@ -58,6 +80,7 @@ export function ModelesSaisiePage() {
   const [modeles, setModeles] = useState<ModeleSaisie[]>([]);
   const [journaux, setJournaux] = useState<Journal[]>([]);
   const [comptes, setComptes] = useState<Compte[]>([]);
+  const [taux, setTaux] = useState<TauxTva[]>([]);
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
@@ -68,11 +91,13 @@ export function ModelesSaisiePage() {
 
   const charger = async () => {
     try {
-      const [m, j, c] = await Promise.all([
+      const [m, j, c, t] = await Promise.all([
         api.get<ModeleSaisie[]>('/modeles-saisie?inclureInactifs=true'),
         api.get<Journal[]>('/journaux'),
         api.get<Compte[]>('/comptes'),
+        api.get<TauxTva[]>('/taux-tva?actifsSeuls=true'),
       ]);
+      setTaux(t);
       setModeles(m);
       setJournaux(j);
       // Seuls les comptes d'IMPUTATION · un compte de totalisation ne reçoit
@@ -99,13 +124,15 @@ export function ModelesSaisiePage() {
   const reprendre = (m: ModeleSaisie) => {
     setEdite(m.id);
     setIntitule(m.intitule);
-    setJournalId(m.journalId ?? '');
+    setJournalId(m.journalId ?? (m.typeJournal ? `type:${m.typeJournal}` : ''));
     setLignes(
       m.lignes.map((l) => ({
         compteId: l.compteId,
         sens: l.sens,
         libelle: l.libelle ?? '',
         montant: l.montant === null ? '' : String(l.montant),
+        fonction: l.fonction ?? 'SAISIR',
+        tauxTvaId: l.tauxTvaId ?? '',
       })),
     );
   };
@@ -115,7 +142,11 @@ export function ModelesSaisiePage() {
     setInfo(null);
     const corps = {
       intitule,
-      journalId: journalId || undefined,
+      // La cible est un journal précis OU un type de journal (« Type :
+      // Achats » chez Sage), jamais les deux.
+      ...(journalId.startsWith('type:')
+        ? { typeJournal: journalId.slice(5), ...(edite ? { journalId: null } : {}) }
+        : { journalId: journalId || (edite ? null : undefined), ...(edite ? { typeJournal: null } : {}) }),
       lignes: lignes
         .filter((l) => l.compteId)
         .map((l) => ({
@@ -123,8 +154,11 @@ export function ModelesSaisiePage() {
           sens: l.sens,
           libelle: l.libelle || undefined,
           // Un champ vide vaut « pas de montant », pas « zéro » · c'est le
-          // cas courant, et zéro serait un montant figé à corriger.
-          montant: l.montant.trim() === '' ? undefined : Number(l.montant),
+          // cas courant, et zéro serait un montant figé à corriger. Seule une
+          // ligne « Saisir » porte un montant figé, les autres le calculent.
+          montant: l.fonction !== 'SAISIR' || l.montant.trim() === '' ? undefined : Number(l.montant),
+          fonction: l.fonction,
+          tauxTvaId: l.fonction === 'CALCULER' && l.tauxTvaId ? l.tauxTvaId : undefined,
         })),
     };
     try {
@@ -179,6 +213,11 @@ export function ModelesSaisiePage() {
               />
               <select value={journalId} onChange={(e) => setJournalId(e.target.value)} className={`${champ} w-[240px]`}>
                 <option value="">Tous les journaux</option>
+                {TYPES_JOURNAL.map(([v, lib]) => (
+                  <option key={v} value={`type:${v}`}>
+                    {lib}
+                  </option>
+                ))}
                 {journaux.map((j) => (
                   <option key={j.id} value={j.id}>
                     {j.code} · {j.intitule}
@@ -217,12 +256,42 @@ export function ModelesSaisiePage() {
                   placeholder="Libellé pré-rempli"
                   className={`${champ} w-[220px]`}
                 />
-                <input
-                  value={l.montant}
-                  onChange={(e) => setLignes((p) => p.map((x, k) => (k === i ? { ...x, montant: e.target.value } : x)))}
-                  placeholder="Montant (facultatif)"
-                  className={`${champ} w-[140px] text-right`}
-                />
+                <select
+                  value={l.fonction}
+                  onChange={(e) =>
+                    setLignes((p) => p.map((x, k) => (k === i ? { ...x, fonction: e.target.value as FonctionLigne } : x)))
+                  }
+                  title="Saisir : montant donné à l'appel · Répéter : montant de la ligne précédente · Calculer : taxe de la ligne précédente · Équilibrer : ce qui solde la pièce"
+                  className={`${champ} w-[130px]`}
+                >
+                  {(Object.keys(LIBELLE_FONCTION) as FonctionLigne[]).map((f) => (
+                    <option key={f} value={f}>
+                      {LIBELLE_FONCTION[f]}
+                    </option>
+                  ))}
+                </select>
+                {l.fonction === 'CALCULER' ? (
+                  <select
+                    value={l.tauxTvaId}
+                    onChange={(e) => setLignes((p) => p.map((x, k) => (k === i ? { ...x, tauxTvaId: e.target.value } : x)))}
+                    className={`${champ} w-[140px]`}
+                  >
+                    <option value="">Taux…</option>
+                    {taux.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.code} · {Number(t.taux)} %
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    value={l.fonction === 'SAISIR' ? l.montant : ''}
+                    disabled={l.fonction !== 'SAISIR'}
+                    onChange={(e) => setLignes((p) => p.map((x, k) => (k === i ? { ...x, montant: e.target.value } : x)))}
+                    placeholder={l.fonction === 'SAISIR' ? 'Montant (facultatif)' : 'calculé'}
+                    className={`${champ} w-[140px] text-right disabled:opacity-50`}
+                  />
+                )}
                 <button
                   type="button"
                   onClick={() => setLignes((p) => p.filter((_, k) => k !== i))}
@@ -279,7 +348,7 @@ export function ModelesSaisiePage() {
             Modèle
             <Aide
               titre="Modèles de saisie"
-              texte="Un modèle est un squelette d'écriture nommé : les comptes et les libellés sont posés, les montants restent à la saisie. Il s'applique depuis la barre « Appeler un modèle » de la fenêtre du journal. Un modèle rattaché à un journal n'est proposé que dans celui-ci."
+              texte="Un modèle est un squelette d'écriture nommé : les comptes et les libellés sont posés, les montants restent à la saisie. Il s'applique depuis la barre « Appeler un modèle » de la fenêtre du journal. Un modèle rattaché à un journal n'est proposé que dans celui-ci, un modèle rattaché à un type dans les journaux de ce type. Chaque ligne a sa fonction : Saisir (montant demandé à l'appel, ou figé), Répéter (montant de la ligne précédente), Calculer (taxe de la ligne précédente au taux choisi), Équilibrer (ce qui solde la pièce, une seule ligne). Dans le journal, F4 ouvre la liste des modèles."
               source="Modèles de saisie"
             />
           </span>

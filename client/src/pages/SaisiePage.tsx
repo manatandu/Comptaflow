@@ -8,6 +8,7 @@ import type { Compte, Ecriture, Journal, PlanAnalytique, SectionAnalytique, Taux
 import { useAuth } from '../lib/auth';
 import { construireLigneTva, modeCalculTva, montantTva, netAPayer, sensDeLaLigne } from '../lib/tva-saisie';
 import { contrepartieDeLigne } from '../lib/contrepartie-tresorerie';
+import { deroulerModele, lignesASaisir } from '../lib/derouler-modele';
 
 /**
  * SAISIE DES JOURNAUX · l'écran central du logiciel, calqué sur
@@ -72,6 +73,8 @@ interface ModeleSaisie {
   intitule: string;
   journalId: string | null;
   journalCode: string | null;
+  /** Modèle rattaché à un TYPE de journal (Sage : « modèles de saisie de type ACHATS »). */
+  typeJournal?: string | null;
   lignes: Array<{
     ordre: number;
     compteId: string;
@@ -80,6 +83,8 @@ interface ModeleSaisie {
     sens: 'DEBIT' | 'CREDIT';
     libelle: string | null;
     montant: number | null;
+    fonction?: 'SAISIR' | 'REPETER' | 'CALCULER' | 'EQUILIBRER';
+    tauxTvaId?: string | null;
   }>;
   /** Servi par /modeles-saisie · vide quand il n'y a rien à dire. */
   avertissements: string[];
@@ -200,6 +205,8 @@ export function SaisiePage() {
   // Le serveur rend ceux du journal PLUS ceux qui ne visent aucun journal.
   const [modeles, setModeles] = useState<ModeleSaisie[]>([]);
   const [modeleChoisi, setModeleChoisi] = useState('');
+  // Montants des lignes « Saisir » demandés à l'appel du modèle, par ordre.
+  const [saisiesModele, setSaisiesModele] = useState<Record<number, string>>({});
   // LES FICHES DU RÉFÉRENTIEL · chargées une fois par ouverture de la
   // fenêtre, pas à chaque ligne saisie (78 entrées, quelques dizaines de Ko).
   const [regles, setRegles] = useState<RegleCompte[]>([]);
@@ -732,19 +739,16 @@ export function SaisiePage() {
       les crédits, la TVA après les comptes de nature (Partie 1 ch. 2,
       Applications 1 et 2).
     */
-    setLignes((prev) => [
-      ...prev,
-      ...ordonnerLignes(
-        modele.lignes.map((l) => ({
-          compteId: l.compteId,
-          numero: l.compteNumero,
-          intitule: l.compteIntitule,
-          libelle: l.libelle ?? '',
-          debit: l.sens === 'DEBIT' ? (l.montant ?? 0) : 0,
-          credit: l.sens === 'CREDIT' ? (l.montant ?? 0) : 0,
-        })),
-      ),
-    ]);
+    // FONCTIONS DE LIGNE (Sage i7) · Saisir, Répéter, Calculer, Équilibrer,
+    // déroulées par lib/derouler-modele.ts. Seules les lignes « Saisir » sans
+    // montant figé ont été demandées ; le reste se calcule.
+    const saisies = Object.fromEntries(
+      Object.entries(saisiesModele).map(([k, v]) => [Number(k), Number(v.replace(',', '.')) || 0]),
+    );
+    const deroule = deroulerModele(modele.lignes, saisies, tauxTvaListe);
+    setLignes((prev) => [...prev, ...ordonnerLignes(deroule.lignes)]);
+    if (deroule.motif) setErreur(deroule.motif);
+    setSaisiesModele({});
     if (!libellePiece) setLibellePiece(modele.intitule);
   };
 
@@ -971,17 +975,49 @@ export function SaisiePage() {
           <span className="text-[11.5px] text-text-dim flex-shrink-0">Appeler un modèle</span>
           <select
             value={modeleChoisi}
-            onChange={(e) => setModeleChoisi(e.target.value)}
+            onChange={(e) => {
+              setModeleChoisi(e.target.value);
+              setSaisiesModele({});
+            }}
+            // F4 ouvre la liste, comme chez Sage (« appuyer sur la touche F4
+            // pour afficher la liste des modèles de saisie »).
+            onKeyDown={(e) => {
+              if (e.key === 'F4') {
+                e.preventDefault();
+                (e.currentTarget as HTMLSelectElement & { showPicker?: () => void }).showPicker?.();
+              }
+            }}
+            title="F4 : liste des modèles"
             className="flex-1 min-w-0 border border-border bg-surface px-2 py-1 text-[11.5px]"
           >
             <option value="">Modèle de saisie…</option>
             {modeles.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.intitule}
-                {m.journalCode ? '' : ' · tous journaux'}
+                {m.journalCode || m.typeJournal ? '' : ' · tous journaux'}
               </option>
             ))}
           </select>
+          {(() => {
+            const m = modeles.find((x) => x.id === modeleChoisi);
+            return m
+              ? lignesASaisir(m.lignes).map((l) => (
+                  <label key={l.ordre} className="flex items-center gap-1 text-[11.5px] flex-shrink-0">
+                    <span className="text-text-dim">{l.compteNumero}</span>
+                    <input
+                      inputMode="decimal"
+                      value={saisiesModele[l.ordre] ?? ''}
+                      onChange={(e) => setSaisiesModele((s) => ({ ...s, [l.ordre]: e.target.value }))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') appliquerModele();
+                      }}
+                      placeholder="montant"
+                      className="w-[110px] border border-border bg-surface px-2 py-1 text-right"
+                    />
+                  </label>
+                ))
+              : null;
+          })()}
           <button
             type="button"
             onClick={appliquerModele}

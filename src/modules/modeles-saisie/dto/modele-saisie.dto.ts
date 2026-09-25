@@ -11,7 +11,7 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
-import { SensModeleSaisie } from '@prisma/client';
+import { FonctionLigneModele, SensModeleSaisie, TypeJournal } from '@prisma/client';
 
 export class LigneModeleSaisieDto {
   @IsString()
@@ -32,6 +32,16 @@ export class LigneModeleSaisieDto {
   @IsOptional()
   @IsNumber()
   montant?: number;
+
+  /** Fonction de la ligne · voir fonctions-modele.ts. Défaut SAISIR. */
+  @IsOptional()
+  @IsEnum(FonctionLigneModele)
+  fonction?: FonctionLigneModele;
+
+  /** Taux appliqué par une ligne « Calculer ». */
+  @IsOptional()
+  @IsString()
+  tauxTvaId?: string;
 }
 
 export class CreerModeleSaisieDto {
@@ -44,6 +54,11 @@ export class CreerModeleSaisieDto {
   @IsOptional()
   @IsString()
   journalId?: string;
+
+  /** Type de journal (« Type : Achats » chez Sage) · exclusif de journalId. */
+  @IsOptional()
+  @IsEnum(TypeJournal)
+  typeJournal?: TypeJournal;
 
   @IsArray()
   // DEUX LIGNES AU MOINS · un modèle d'une seule ligne ne pose aucune
@@ -65,6 +80,10 @@ export class ModifierModeleSaisieDto {
   @IsOptional()
   @IsString()
   journalId?: string | null;
+
+  @IsOptional()
+  @IsEnum(TypeJournal)
+  typeJournal?: TypeJournal | null;
 
   @IsOptional()
   @IsBoolean()

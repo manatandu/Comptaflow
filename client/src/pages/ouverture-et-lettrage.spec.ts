@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { deroulerModele } from '../lib/derouler-modele';
 import { join } from 'node:path';
 
 const lire = (p: string) => readFileSync(join(__dirname, '..', p), 'utf8');
@@ -108,7 +109,18 @@ describe('modèles de saisie · la barre de Sage, dans la fenêtre du journal', 
   });
 
   it('une ligne sans montant arrive à zéro, prête à être chiffrée', () => {
-    expect(saisie).toContain("l.sens === 'DEBIT' ? (l.montant ?? 0) : 0");
+    // La règle vit dans lib/derouler-modele.ts depuis les fonctions de ligne
+    // (2026-09-25) · la grille l'appelle, et le cas est rejoué ci-dessous.
+    expect(saisie).toContain('deroulerModele(modele.lignes, saisies, tauxTvaListe)');
+    const r = deroulerModele(
+      [
+        { ordre: 0, compteId: 'a', compteNumero: '62', compteIntitule: '', sens: 'DEBIT', libelle: null, montant: null },
+        { ordre: 1, compteId: 'b', compteNumero: '57', compteIntitule: '', sens: 'CREDIT', libelle: null, montant: null },
+      ],
+      {},
+      [],
+    );
+    expect(r.lignes.map((l) => l.debit + l.credit)).toEqual([0, 0]);
   });
 
   it('l’écran de gestion n’offre que des comptes d’imputation', () => {

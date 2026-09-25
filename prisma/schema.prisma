@@ -929,8 +929,8 @@ model Journal {
   // reste équilibrée ligne à ligne, et le livre de caisse se lit opération par
   // opération plutôt qu'en un total. Sans objet hors trésorerie, et refusée
   // par le service sur un autre type.
-  contrepartieChaqueLigne Boolean @default(false)
-  createdAt    DateTime          @default(now())
+  contrepartieChaqueLigne Boolean  @default(false)
+  createdAt               DateTime @default(now())
 
   ecritures         Ecriture[]
   clotures          Cloture[]
@@ -2670,6 +2670,12 @@ model ModeleSaisie {
   journalId String?
   journal   Journal? @relation(fields: [journalId], references: [id], onDelete: Restrict)
 
+  /// Type de journal auquel le modèle est proposé · « Type : Achats » du
+  /// modèle Sage (manuel i7, modèles de saisie). NULL avec `journalId` NULL =
+  /// tous les journaux. Les deux ne se posent pas ensemble · un modèle vise un
+  /// journal précis OU un type, jamais les deux à la fois.
+  typeJournal TypeJournal?
+
   estActif  Boolean  @default(true)
   createdAt DateTime @default(now())
   createdBy String
@@ -2681,6 +2687,13 @@ model ModeleSaisie {
   @@unique([tenantId, intitule])
   @@index([tenantId, journalId])
   @@map("modeles_saisie")
+}
+
+enum FonctionLigneModele {
+  SAISIR
+  REPETER
+  CALCULER
+  EQUILIBRER
 }
 
 model LigneModeleSaisie {
@@ -2704,6 +2717,15 @@ model LigneModeleSaisie {
   /// poser les comptes, pas à figer une somme. Il n'est servi que pour les
   /// écritures dont le montant ne varie pas.
   montant Decimal? @db.Decimal(18, 2)
+
+  /// Fonction de la ligne (Sage i7, « boutons de fonctions » du modèle) ·
+  /// SAISIR, la valeur est donnée à l'appel (ou figée par `montant`) ;
+  /// RÉPÉTER, le montant de la ligne précédente ; CALCULER, la taxe de la
+  /// ligne précédente au taux `tauxTvaId` ; ÉQUILIBRER, ce qui solde la
+  /// pièce. Règles dans modeles-saisie/fonctions-modele.ts.
+  fonction  FonctionLigneModele @default(SAISIR)
+  tauxTvaId String?
+  tauxTva   TauxTva?            @relation(fields: [tauxTvaId], references: [id])
 
   @@unique([modeleId, ordre])
   @@index([modeleId])
@@ -2959,8 +2981,9 @@ model TauxTva {
   estActif  Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  lignesEcriture LigneEcriture[]
-  lignesFacture  LigneFacture[]
+  lignesEcriture     LigneEcriture[]
+  lignesFacture      LigneFacture[]
+  lignesModeleSaisie LigneModeleSaisie[]
 
   // Comptes de charge ou de produit qui proposent ce taux en saisie.
   comptesAvecCeTauxParDefaut Compte[] @relation("CompteTauxTvaDefaut")

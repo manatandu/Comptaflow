@@ -4261,6 +4261,27 @@ doit simplement pas porter de taux par défaut. L'annonce est rendue AU-DESSUS
 de la zone de saisie · la liste des comptes s'ouvre en dessous après chaque
 ligne et la couvrait, trouvé par le test navigateur.
 
+**Modèles de saisie à fonctions (2026-09-25).** Point 6 de la comparaison Sage
+i7. Chaque ligne d'un modèle porte une fonction, lue au manuel i7 (modèles de
+saisie) · SAISIR (« la valeur correspondante doit être saisie manuellement »,
+ou montant fixe), RÉPÉTER (« la même valeur que celle mentionnée sur la ligne
+précédente »), CALCULER (« ex : calcul de TVA automatiquement », au taux porté
+par la ligne, qui devient la ligne de taxe) et ÉQUILIBRER (« par équilibrage
+avec les autres montants saisis en débit et crédit »). Un modèle se rattache à
+un journal, à un TYPE de journal (« les modèles de saisie de type ACHATS ») ou
+à tous ; la saisie l'appelle par F4. QUATRE RÈGLES À NE PAS DÉFAIRE. (1) LA
+MÊME RÈGLE À LA PORTE ET AU DÉROULÉ · `fonctions-modele.ts` refuse au serveur
+ce que `derouler-modele.ts` ne saurait pas dérouler (un seul Équilibrer,
+ni Répéter ni Calculer en première ligne, taux exigé sur Calculer et sur lui
+seul, montant fixe sur Saisir seul). (2) ÉQUILIBRER SE CALCULE EN DERNIER, et
+un solde du mauvais sens vaut zéro avec un motif affiché · l'inverser ferait
+changer le compte de sens en silence. (3) UN TAUX INTROUVABLE LAISSE LA LIGNE À
+ZÉRO ET LE DIT, jamais un taux deviné. (4) INCRÉMENTER ET FONCTION NE SONT PAS
+REPRIS · le premier sert aux numéros de pièce, qu'OmegaX tient par la
+numérotation du journal ; le second, une fonction pré-paramétrée, n'est
+décrit nulle part dans le manuel, et l'inventer serait écrire une règle Sage
+de mémoire.
+
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
 nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la

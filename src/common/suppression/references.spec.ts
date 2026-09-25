@@ -25,11 +25,11 @@ function fauxPrisma(comptes: Record<string, number>) {
 }
 
 describe('les relations se lisent dans le schéma', () => {
-  it('un taux de TVA · ses trois liens facultatifs sont tous comptés', async () => {
+  it('un taux de TVA · ses liens facultatifs sont tous comptés, modèles de saisie compris', async () => {
     const { proxy, appels } = fauxPrisma({});
     await referencesVers(proxy, 'TauxTva', 'x', 't');
     expect(appels.map((a) => `${a.modele}.${Object.keys(a.where)[0]}`).sort()).toEqual(
-      ['compte.tauxTvaDefautId', 'ligneEcriture.tauxTvaId', 'ligneFacture.tauxTvaId'].sort(),
+      ['compte.tauxTvaDefautId', 'ligneEcriture.tauxTvaId', 'ligneFacture.tauxTvaId', 'ligneModeleSaisie.tauxTvaId'].sort(),
     );
   });
 

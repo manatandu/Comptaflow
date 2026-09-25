@@ -53,7 +53,10 @@ tiennent à un texte OHADA ; ils sont signalés comme tels.
    FAIT le 2026-09-25, d'office pour un dossier déclaré assujetti, proposée sinon.
 5. ~~Journal de trésorerie avec contrepartie à chaque ligne~~ · FAIT le
    2026-09-25, option par journal de trésorerie, refusée ailleurs.
-6. Modèles de saisie à fonctions (Répéter, Incrémenter, Équilibrer, Calculer).
+6. ~~Modèles de saisie à fonctions (Répéter, Incrémenter, Équilibrer, Calculer)~~ ·
+   FAIT le 2026-09-25 : Saisir, Répéter, Calculer (TVA), Équilibrer, modèle
+   rattaché à un type de journal, appelé par F4. Incrémenter et Fonction non
+   repris (CLAUDE.md § 6).
 7. Saisie par lot, saisie par pièce, OD analytiques.
 
 **Importants**
