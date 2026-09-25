@@ -4363,6 +4363,24 @@ TVA change de compte est une décision. (4) LES JOURNAUX NE SE FUSIONNENT PAS ·
 une pièce validée ne change ni de journal ni de numéro (art. 22, 2° et 3°,
 irréversibilité et chronologie) ; un journal vide se supprime (point 3).
 
+**Nouvel exercice avec à-nouveaux provisoires (2026-09-25).** Point 11 de la
+comparaison, lu au manuel i7 (Traitement / Fin d'exercice / Nouvel exercice :
+« à tout moment, il sera possible de lancer, voir de relancer les reports à
+nouveaux »). CINQ RÈGLES À NE PAS DÉFAIRE. (1) UN SEUL CALCUL POUR LA CLÔTURE
+ET LE PROVISOIRE (`exercice/report-a-nouveau.ts`) · le bilan d'ouverture
+provisoire doit ressembler au définitif, et la clôture n'avait AUCUN test
+unitaire avant ce chantier (`cloture-annuelle.spec.ts` le fige désormais).
+(2) LE PROVISOIRE EST CALCULÉ SUR LE LIVRE-JOURNAL, résultat compris sur le
+13, et le brouillard restant est DIT, jamais lu. (3) IL RESTE AU BROUILLARD ET
+NE SE VALIDE JAMAIS (`Ecriture.estANouveauProvisoire`) · validé, il ne
+pourrait plus être remplacé (AUDCIF art. 22, 2°) ; `valider` le refuse,
+`validerJusqua` l'écarte. (4) RELANCER ou CLÔTURER le remplace et lui reprend
+son NUMÉRO DE PIÈCE, sans quoi chaque relance creuserait un trou dans la
+séquence du journal ; une ligne lettrée ou pointée entre-temps REFUSE le
+remplacement (« uniquement sur des écritures non lettrées », Sage). (5) LE
+REPORT DES BUDGETS n'écrase jamais un budget déjà saisi et ne dote pas une
+section dont la convention finit avant le nouvel exercice.
+
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
 nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la

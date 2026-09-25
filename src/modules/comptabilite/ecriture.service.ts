@@ -970,6 +970,13 @@ export class EcritureService {
     const aValider = ecritures.filter((e) => e.statut === StatutEcriture.BROUILLARD);
 
     for (const e of aValider) {
+      // Le report PROVISOIRE ne se valide jamais · validé, il ne pourrait plus
+      // être remplacé à la relance ni par la clôture (AUDCIF art. 22, 2°).
+      if (e.estANouveauProvisoire) {
+        throw new BadRequestException(
+          "Le report à-nouveau PROVISOIRE ne se valide pas · il est remplacé par le report définitif à la clôture de l'exercice précédent.",
+        );
+      }
       if (e.exercice.statut === StatutExercice.CLOTURE) {
         throw new ForbiddenException(`L'exercice de l'écriture ${e.journal.code} n° ${e.numeroPiece ?? ''} est clôturé.`);
       }
@@ -1089,6 +1096,8 @@ export class EcritureService {
         tenantId,
         exerciceId: dto.exerciceId,
         statut: StatutEcriture.BROUILLARD,
+        // Le report provisoire attend la clôture, pas une validation par lot.
+        estANouveauProvisoire: false,
         date: { lte: new Date(dto.dateLimite) },
         ...(dto.journalId ? { journalId: dto.journalId } : {}),
       },

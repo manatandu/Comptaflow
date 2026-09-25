@@ -73,7 +73,9 @@ tiennent à un texte OHADA ; ils sont signalés comme tels.
     comptes (réimputation des exercices ouverts, puis sommeil) et les tiers
     (fiche absorbée, rien au journal). Les journaux ne se fusionnent pas : leurs
     pièces validées ne changent ni de journal ni de numéro (AUDCIF art. 22).
-11. Nouvel exercice avec à-nouveaux provisoires, report des budgets.
+11. ~~Nouvel exercice avec à-nouveaux provisoires, report des budgets~~ · FAIT
+    le 2026-09-25 : report provisoire au brouillard, relançable, remplacé par
+    le définitif à la clôture ; budgets reportés sans rien écraser.
 12. Clôture totale qui fige aussi lettrage et analytique.
 13. Compte collectif et comptes auxiliaires de tiers.
 14. Natures de compte paramétrables.

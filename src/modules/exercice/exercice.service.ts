@@ -15,6 +15,7 @@ import { JournalService } from '../journaux/journal.service';
 import { avecRetrySerialisable } from '../../common/prisma-retry.util';
 import { DERNIERE_VERIFICATION, dateJalon, jalonsApplicables } from './planning-cloture';
 import { premierJourNonCloture } from './report-periode-close';
+import { budgetsAReporter, CompteRan, lignesReportANouveau, resultatDesComptesDeGestion } from './report-a-nouveau';
 
 /**
  * Ce que le refus dit de la voie que le texte ouvre · AUDCIF art. 22, 4°. Le
@@ -804,46 +805,15 @@ export class ExerciceService {
           exerciceSuivant = await tx.exercice.create({ data: { tenantId, dateDebut, dateFin } });
         }
 
-        const lignesRan: Array<{
-          compteId: string;
-          debit: number;
-          credit: number;
-          libelle: string;
-          dateEcheance?: Date | null;
-        }> = [];
-
-        const comptesSolde = comptes.filter((c) => c.modeReportANouveau === ModeReportANouveau.SOLDE);
-        for (const c of comptesSolde) {
-          const s = solde(c) + (c.id === compteResultatId ? deltaResultat : 0);
-          if (Math.abs(s) <= EPSILON) continue;
-          lignesRan.push({
-            compteId: c.id,
-            debit: s > 0 ? s : 0,
-            credit: s < 0 ? -s : 0,
-            libelle: `Report à-nouveau ${c.numero} · ${c.intitule}`,
-          });
-        }
-
-        const comptesDetail = comptes.filter((c) => c.modeReportANouveau === ModeReportANouveau.DETAIL);
-        for (const c of comptesDetail) {
-          for (const l of c.lignesEcriture) {
-            if (l.lettre) continue; // seuls les mouvements NON lettrés sont reportés en détail
-            lignesRan.push({
-              compteId: c.id,
-              debit: Number(l.debit),
-              credit: Number(l.credit),
-              libelle: `RAN détail ${c.numero} · ${l.libelle ?? l.ecriture.libelle}`,
-              // L'échéance suit la créance ou la dette qu'elle qualifie : sans
-              // ce report, la ventilation par échéance des notes 6, 9, 10, 18A
-              // et 19 à 21 se viderait à chaque clôture, et une créance à trois
-              // ans deviendrait « non ventilée » l'exercice suivant. Le report
-              // à-nouveau en mode SOLDE, lui, agrège en une ligne unique : il
-              // ne peut par construction porter aucune échéance · raison de
-              // plus pour tenir les comptes de tiers en mode DÉTAIL.
-              dateEcheance: l.dateEcheance,
-            });
-          }
-        }
+        // Le calcul vit dans report-a-nouveau.ts, partagé avec le report
+        // PROVISOIRE · les deux doivent rendre le même report sur le même livre.
+        const lignesRan = lignesReportANouveau(
+          comptes.map((c) => versCompteRan(c)),
+          compteResultatId ? { compteId: compteResultatId, montant: deltaResultat } : null,
+        );
+        // Le report provisoire éventuel s'efface devant le définitif, et lui
+        // laisse son numéro de pièce · la séquence du journal reste continue.
+        const numeroProvisoire = await retirerANouveauProvisoire(tx, tenantId, exerciceSuivant.id);
 
         if (lignesRan.length > 0) {
           const totalDebit = lignesRan.reduce((s, l) => s + l.debit, 0);
@@ -853,13 +823,9 @@ export class ExerciceService {
               "Report à-nouveau déséquilibré · anomalie interne (identité partie double violée), clôture annulée.",
             );
           }
-          const numeroPieceRan = await this.journalService.prochainNumeroPiece(
-            tenantId,
-            journal,
-            exerciceSuivant.id,
-            exerciceSuivant.dateDebut,
-            tx,
-          );
+          const numeroPieceRan =
+            numeroProvisoire ??
+            (await this.journalService.prochainNumeroPiece(tenantId, journal, exerciceSuivant.id, exerciceSuivant.dateDebut, tx));
           await tx.ecriture.create({
             data: {
               tenantId,
@@ -880,4 +846,205 @@ export class ExerciceService {
       "Trop d'opérations simultanées sur cet exercice · veuillez réessayer.",
     );
   }
+
+  /**
+   * À-NOUVEAUX PROVISOIRES · Sage i7, Traitement / Fin d'exercice / Nouvel
+   * exercice « avec génération des reports » : « Le nouvel exercice peut être
+   * ouvert dès la fin de l'année courante. Ainsi vous pourrez commencer la
+   * saisie des écritures concernant la nouvelle année tout en continuant à
+   * saisir sur l'année passée », et « à tout moment, il sera possible de
+   * lancer, voir de relancer les reports à nouveaux ».
+   *
+   * QUATRE RÈGLES. (1) Le calcul est CELUI DE LA CLÔTURE (report-a-nouveau.ts),
+   * sur le LIVRE-JOURNAL de l'exercice · ce qui reste au brouillard n'y entre
+   * qu'à la relance suivant sa validation, et c'est rendu. (2) Le report reste
+   * AU BROUILLARD et ne se valide jamais · relancé, il est remplacé, ce qu'une
+   * écriture validée ne permet plus (AUDCIF art. 22, 2°). (3) Une relance est
+   * refusée si une ligne du report a été lettrée ou pointée sur le nouvel
+   * exercice · « cette correction sera effectuée uniquement sur des écritures
+   * non lettrées » (Sage), et le remplacer effacerait ce lettrage sans le dire.
+   * (4) La clôture le remplace par le report définitif, même numéro de pièce.
+   */
+  async genererANouveauxProvisoires(
+    tenantId: string,
+    exerciceId: string,
+    userId: string,
+    options: { reporterBudgets?: boolean } = {},
+  ) {
+    const exercice = await this.trouverExercice(tenantId, exerciceId);
+    if (exercice.statut === StatutExercice.CLOTURE) {
+      throw new BadRequestException(
+        "Cet exercice est clôturé · son report à-nouveau est DÉFINITIF et a été passé par la clôture.",
+      );
+    }
+    const { referentiel } = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { referentiel: true },
+    });
+    const brouillardNonRepris = await this.prisma.ecriture.count({
+      where: { tenantId, exerciceId, statut: StatutEcriture.BROUILLARD },
+    });
+
+    const resultat = await avecRetrySerialisable(
+      this.prisma,
+      async (tx) => {
+        const comptes = await tx.compte.findMany({
+          where: { tenantId },
+          include: {
+            lignesEcriture: {
+              where: { ecriture: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE } },
+              include: { ecriture: true },
+            },
+          },
+        });
+        const journal =
+          (await tx.journal.findFirst({ where: { tenantId, code: 'OD' } })) ??
+          (await tx.journal.findFirst({ where: { tenantId, type: TypeJournal.GENERAL } }));
+        if (!journal) {
+          throw new BadRequestException("Aucun journal de type Général disponible pour le report à-nouveau (journal 'OD' attendu).");
+        }
+
+        let exerciceSuivant = await tx.exercice.findFirst({
+          where: { tenantId, dateDebut: { gt: exercice.dateFin } },
+          orderBy: { dateDebut: 'asc' },
+        });
+        if (!exerciceSuivant) {
+          // Même règle que la clôture · l'exercice suivant est une année civile.
+          const { dateDebut, dateFin } = exerciceSuivantApres(exercice.dateFin);
+          exerciceSuivant = await tx.exercice.create({ data: { tenantId, dateDebut, dateFin } });
+        }
+        if (exerciceSuivant.statut === StatutExercice.CLOTURE) {
+          throw new BadRequestException("L'exercice suivant est clôturé · il ne reçoit plus de report.");
+        }
+
+        const ran = comptes.map((c) => versCompteRan(c));
+        const delta = resultatDesComptesDeGestion(ran);
+        let resultatCompte: { compteId: string; montant: number } | null = null;
+        if (Math.abs(delta) > EPSILON) {
+          const compte = await this.trouverCompteResultat(tenantId, tx, delta > 0, referentiel);
+          resultatCompte = { compteId: compte.id, montant: delta };
+        }
+        const lignes = lignesReportANouveau(ran, resultatCompte);
+        const debit = lignes.reduce((t, l) => t + l.debit, 0);
+        const credit = lignes.reduce((t, l) => t + l.credit, 0);
+        if (Math.abs(debit - credit) > EPSILON) {
+          throw new InternalServerErrorException('Report à-nouveau provisoire déséquilibré · anomalie interne, rien n’a été passé.');
+        }
+
+        const numeroProvisoire = await retirerANouveauProvisoire(tx, tenantId, exerciceSuivant.id);
+        if (lignes.length > 0) {
+          const numeroPiece =
+            numeroProvisoire ??
+            (await this.journalService.prochainNumeroPiece(tenantId, journal, exerciceSuivant.id, exerciceSuivant.dateDebut, tx));
+          await tx.ecriture.create({
+            data: {
+              tenantId,
+              exerciceId: exerciceSuivant.id,
+              journalId: journal.id,
+              numeroPiece,
+              date: exerciceSuivant.dateDebut,
+              libelle: `Report à-nouveau PROVISOIRE · ouverture exercice ${exerciceSuivant.dateDebut.getUTCFullYear()}`,
+              createdBy: userId,
+              estGenereeParCloture: true,
+              estANouveauProvisoire: true,
+              lignes: { create: lignes },
+            },
+          });
+        }
+        return { exerciceSuivantId: exerciceSuivant.id, lignes: lignes.length, resultat: delta };
+      },
+      "Trop d'opérations simultanées sur cet exercice · veuillez réessayer.",
+    );
+
+    const budgets = options.reporterBudgets ? await this.reporterBudgets(tenantId, exerciceId) : null;
+    return { ...resultat, brouillardNonRepris, budgetsReportes: budgets?.reportes ?? null };
+  }
+
+  /**
+   * REPORT DES BUDGETS sur l'exercice suivant (Sage i7) · voir
+   * `budgetsAReporter` : rien n'est écrasé, aucune convention close n'est
+   * dotée. L'exercice suivant doit exister · on ne le crée pas pour un budget.
+   */
+  async reporterBudgets(tenantId: string, exerciceId: string) {
+    const exercice = await this.trouverExercice(tenantId, exerciceId);
+    const suivant = await this.prisma.exercice.findFirst({
+      where: { tenantId, dateDebut: { gt: exercice.dateFin } },
+      orderBy: { dateDebut: 'asc' },
+    });
+    if (!suivant) throw new BadRequestException("L'exercice suivant n'existe pas encore · ouvrez-le avant d'y reporter les budgets.");
+    const [budgets, dejaDotes, sections] = await Promise.all([
+      this.prisma.budgetSection.findMany({ where: { exerciceId, section: { tenantId } } }),
+      this.prisma.budgetSection.findMany({ where: { exerciceId: suivant.id, section: { tenantId } } }),
+      this.prisma.sectionAnalytique.findMany({ where: { tenantId }, select: { id: true, dateFin: true } }),
+    ]);
+    const closes = new Set(sections.filter((x) => x.dateFin && x.dateFin < suivant.dateDebut).map((x) => x.id));
+    const aReporter = budgetsAReporter(
+      budgets.map((b) => ({ sectionId: b.sectionId, mois: b.mois, montant: Number(b.montant) })),
+      dejaDotes,
+      closes,
+    );
+    if (aReporter.length) {
+      await this.prisma.budgetSection.createMany({
+        data: aReporter.map((b) => ({ sectionId: b.sectionId, exerciceId: suivant.id, mois: b.mois, montant: b.montant })),
+      });
+    }
+    return { reportes: aReporter.length, dejaDotes: dejaDotes.length, sectionsCloses: closes.size };
+  }
+}
+
+
+/** Un compte du plan, avec ses lignes de l'exercice, au format du calcul partagé. */
+function versCompteRan(c: {
+  id: string;
+  numero: string;
+  intitule: string;
+  modeReportANouveau: ModeReportANouveau;
+  lignesEcriture: {
+    debit: Prisma.Decimal;
+    credit: Prisma.Decimal;
+    lettre: string | null;
+    libelle: string | null;
+    dateEcheance: Date | null;
+    ecriture: { libelle: string };
+  }[];
+}): CompteRan {
+  return {
+    id: c.id,
+    numero: c.numero,
+    intitule: c.intitule,
+    modeReportANouveau: c.modeReportANouveau,
+    lignes: c.lignesEcriture.map((l) => ({
+      debit: Number(l.debit),
+      credit: Number(l.credit),
+      lettre: l.lettre,
+      libelle: l.libelle ?? l.ecriture.libelle,
+      dateEcheance: l.dateEcheance,
+    })),
+  };
+}
+
+/**
+ * Retire le report PROVISOIRE d'un exercice et rend son numéro de pièce, pour
+ * que le report suivant le reprenne. Refuse s'il a été lettré ou pointé : le
+ * remplacer effacerait ce travail sans le dire.
+ */
+async function retirerANouveauProvisoire(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  exerciceId: string,
+): Promise<number | null> {
+  const provisoire = await tx.ecriture.findFirst({
+    where: { tenantId, exerciceId, estANouveauProvisoire: true },
+    include: { lignes: { select: { lettre: true, rapprochementId: true } } },
+  });
+  if (!provisoire) return null;
+  if (provisoire.lignes.some((l) => l.lettre || l.rapprochementId)) {
+    throw new BadRequestException(
+      "Des lignes du report à-nouveau provisoire ont été lettrées ou pointées sur le nouvel exercice · délettrez-les " +
+        "(ou dépointez-les) avant de relancer le report. Le remplacer effacerait ce travail sans le dire.",
+    );
+  }
+  await tx.ligneEcriture.deleteMany({ where: { ecritureId: provisoire.id } });
+  await tx.ecriture.delete({ where: { id: provisoire.id } });
+  return provisoire.numeroPiece;
 }

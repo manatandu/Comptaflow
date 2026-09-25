@@ -30,6 +30,30 @@ export class ExerciceController {
     return this.exerciceService.creer(user.tenantId, dto);
   }
 
+  /**
+   * NOUVEL EXERCICE AVEC REPORTS PROVISOIRES (Sage i7) · ouvre l'exercice
+   * suivant s'il n'existe pas, y passe le report à-nouveau provisoire au
+   * brouillard (relancé = remplacé), et reporte les budgets si demandé.
+   */
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
+  @Post(':id/a-nouveaux-provisoires')
+  async aNouveauxProvisoires(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: { reporterBudgets?: boolean },
+  ) {
+    return this.exerciceService.genererANouveauxProvisoires(user.tenantId, id, user.userId, {
+      reporterBudgets: body?.reporterBudgets === true,
+    });
+  }
+
+  /** Report des budgets des sections sur l'exercice suivant, sans rien écraser. */
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
+  @Post(':id/reporter-budgets')
+  async reporterBudgets(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.exerciceService.reporterBudgets(user.tenantId, id);
+  }
+
   /** Clôture ANNUELLE : solde les charges/produits sur le résultat et génère le report à-nouveau réel. */
   @Roles(RoleUtilisateur.ADMIN_CABINET)
   @Post(':id/cloturer')

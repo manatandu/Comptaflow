@@ -1223,6 +1223,15 @@ model Ecriture {
   // clôture est un reste de sa première version · il dit « à-nouveau ».
   estGenereeParCloture Boolean @default(false)
 
+  // À-NOUVEAUX PROVISOIRES (2026-09-25) · le report à-nouveau calculé sur un
+  // exercice ENCORE OUVERT, pour saisir le suivant sans attendre la clôture
+  // (Sage i7, « Nouvel exercice » avec génération des reports ; « à tout
+  // moment, il sera possible de lancer, voir de relancer les reports à
+  // nouveaux »). Il reste au BROUILLARD et ne se valide jamais : relancé, il
+  // est remplacé, et une écriture validée ne se modifie plus (AUDCIF art. 22,
+  // 2°). La clôture le remplace par le report définitif.
+  estANouveauProvisoire Boolean @default(false)
+
   // ---------------------------------------------------------------------
   // LES DEUX SEULES EXCEPTIONS À LA CORRESPONDANCE BILAN DE CLÔTURE ·
   // BILAN D'OUVERTURE.

@@ -227,6 +227,34 @@ export function ExercicePage() {
     }
   };
 
+  // NOUVEL EXERCICE AVEC REPORTS PROVISOIRES (Sage i7) · relançable à
+  // volonté, remplacé par le report définitif à la clôture.
+  const [reporterBudgetsAussi, setReporterBudgetsAussi] = useState(true);
+  const genererProvisoires = async () => {
+    if (!exercice) return;
+    setEnvoi(true);
+    setErreur(null);
+    setInfo(null);
+    try {
+      const r = await api.post<{ lignes: number; brouillardNonRepris: number; budgetsReportes: number | null }>(
+        `/exercices/${exercice.id}/a-nouveaux-provisoires`,
+        { reporterBudgets: reporterBudgetsAussi },
+      );
+      setInfo(
+        `Report à-nouveau provisoire passé au brouillard de l'exercice suivant (${r.lignes} ligne(s)).` +
+          (r.budgetsReportes !== null ? ` ${r.budgetsReportes} budget(s) reporté(s).` : '') +
+          (r.brouillardNonRepris
+            ? ` ${r.brouillardNonRepris} écriture(s) encore au brouillard n'y sont pas : validez-les puis relancez.`
+            : ''),
+      );
+      await rechargerExercices();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Report provisoire impossible');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
   const cloturerExercice = async () => {
     if (!exercice) return;
     if (
@@ -488,6 +516,32 @@ export function ExercicePage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {estAdmin && exercice && exercice.statut === 'OUVERT' && (
+        <div className="mb-3 border border-border max-w-[720px] p-4 bg-surface">
+          <div className="font-mono text-[11.5px] font-semibold text-text-dim mb-2 flex items-center gap-1.5">
+            Nouvel exercice
+            <Aide
+              titre="Nouvel exercice avec reports provisoires"
+              texte="Ouvre l'exercice suivant s'il n'existe pas et y passe le report à-nouveau calculé sur le livre-journal de celui-ci, comme le fera la clôture, résultat compris. Le report reste au brouillard, ne se valide pas, et se relance à volonté : chaque relance le remplace. La clôture le remplace par le report définitif. Une relance est refusée si une ligne du report a été lettrée ou pointée entre-temps. Les budgets des sections peuvent être reportés, sans écraser un budget déjà saisi ni doter une convention terminée."
+              source="Sage 100 i7, Traitement / Fin d'exercice / Nouvel exercice · AUDCIF art. 22, 2°"
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={genererProvisoires}
+              disabled={envoi}
+              className="bg-sel text-white text-[11.5px] font-semibold px-4 py-1.5 disabled:opacity-50"
+            >
+              {envoi ? '…' : 'Générer les à-nouveaux provisoires'}
+            </button>
+            <label className="flex items-center gap-1.5 text-[11.5px]">
+              <input type="checkbox" checked={reporterBudgetsAussi} onChange={(e) => setReporterBudgetsAussi(e.target.checked)} />
+              Reporter aussi les budgets
+            </label>
+          </div>
         </div>
       )}
 
