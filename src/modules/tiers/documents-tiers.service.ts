@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import {
   LONGUEUR_MAX_COMMENTAIRE,
+  decoderNomMultipart,
   empreinteDocument,
   identifierType,
   motifRefusDocument,
@@ -54,9 +55,8 @@ export class DocumentsTiersService {
   ) {
     await this.tiersDuDossier(tenantId, tiersId);
     if (!fichier) throw new BadRequestException('Aucun fichier reçu.');
-    // Multer décode le nom en latin1 · un nom accentué arriverait mutilé
-    // (« SociÃ©tÃ© »). On le relit en UTF-8, ce que les navigateurs envoient.
-    const nomRecu = Buffer.from(fichier.originalname, 'latin1').toString('utf8');
+    // Multer lit le nom en latin1 · voir `decoderNomMultipart`.
+    const nomRecu = decoderNomMultipart(fichier.originalname);
     const refus = motifRefusDocument({ nom: nomRecu, contenu: fichier.buffer, commentaire });
     if (refus) throw new BadRequestException(refus);
     const nomFichier = nettoyerNomFichier(nomRecu);

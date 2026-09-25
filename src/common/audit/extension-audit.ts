@@ -19,6 +19,32 @@ const ACTIONS: Record<string, 'CREATION' | 'MODIFICATION' | 'SUPPRESSION'> = {
 };
 
 /**
+ * La pré-image ne relit jamais une colonne BINAIRE. Elle serait masquée de
+ * toute façon (aucun octet n'entre au journal), mais la relire coûterait le
+ * transfert entier · 5 Mo remontés de la base pour changer le commentaire
+ * d'une pièce attachée à un tiers. Sans colonne binaire, aucun `select` n'est
+ * posé et la ligne entière est lue, comme avant.
+ */
+const selectsPreImage = new Map<string, { select?: Record<string, true> }>();
+export function selectPreImage(model: string): { select?: Record<string, true> } {
+  const connu = selectsPreImage.get(model);
+  if (connu) return connu;
+  const champs = Prisma.dmmf.datamodel.models.find((m) => m.name === model)?.fields ?? [];
+  const binaires = champs.some((f) => f.kind === 'scalar' && f.type === 'Bytes');
+  const resultat = binaires
+    ? {
+        select: Object.fromEntries(
+          champs
+            .filter((f) => (f.kind === 'scalar' && f.type !== 'Bytes') || f.kind === 'enum')
+            .map((f) => [f.name, true as const]),
+        ),
+      }
+    : {};
+  selectsPreImage.set(model, resultat);
+  return resultat;
+}
+
+/**
  * Ajoute un maillon à la chaîne du dossier.
  *
  * Le verrou consultatif est PAR CHAÎNE (le dossier, ou la plateforme). Sans
@@ -151,7 +177,7 @@ export async function intercepterEcriture(
     try {
       avant = await (base as unknown as Record<string, { findFirst: (x: unknown) => Promise<unknown> }>)[
         model.charAt(0).toLowerCase() + model.slice(1)
-      ].findFirst({ where: a.where });
+      ].findFirst({ where: a.where, ...selectPreImage(model) });
     } catch {
       // Une lecture de pré-image impossible ne doit pas empêcher l'opération ·
       // l'événement sera simplement moins riche.

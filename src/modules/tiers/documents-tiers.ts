@@ -79,10 +79,30 @@ export function nettoyerNomFichier(nom: string): string {
   const dernier = nom.split(/[\\/]/).pop() ?? '';
   // eslint-disable-next-line no-control-regex
   const propre = dernier.replace(/[\u0000-\u001f\u007f"<>|:*?]/g, '').trim();
-  if (propre.length <= LONGUEUR_MAX_NOM) return propre;
+  // La borne se compte en POINTS DE CODE, jamais en unités UTF-16 · couper
+  // un emoji en son milieu laisserait une demi-paire isolée, que
+  // `encodeURIComponent` refuse au téléchargement (URIError, donc un 500 à
+  // chaque demande de la pièce).
+  const points = Array.from(propre);
+  if (points.length <= LONGUEUR_MAX_NOM) return propre;
   const point = propre.lastIndexOf('.');
   const extension = point > 0 && propre.length - point <= 6 ? propre.slice(point) : '';
-  return propre.slice(0, LONGUEUR_MAX_NOM - extension.length) + extension;
+  return points.slice(0, LONGUEUR_MAX_NOM - Array.from(extension).length).join('') + extension;
+}
+
+/**
+ * Le nom tel que multer le rend, remis en UTF-8 SI ET SEULEMENT SI il en a
+ * été mal décodé. multer 2 ne transmet pas `defParamCharset` à busboy, qui lit
+ * donc en latin1 le `filename=` que les navigateurs envoient en UTF-8 brut
+ * (« SociÃ©tÃ© »). Mais un `filename*=UTF-8''…` est déjà bien décodé, et un
+ * vrai nom latin1 aussi : les relire aveuglément les mutilerait à leur tour.
+ * La relecture n'a donc lieu que si le nom ne porte que des octets (≤ U+00FF)
+ * ET que ces octets forment un UTF-8 valide.
+ */
+export function decoderNomMultipart(nom: string): string {
+  if (!/[\u0080-\u00ff]/.test(nom) || /[^\u0000-\u00ff]/.test(nom)) return nom;
+  const relu = Buffer.from(nom, 'latin1').toString('utf8');
+  return relu.includes('\ufffd') ? nom : relu;
 }
 
 function extensionDe(nom: string): string {

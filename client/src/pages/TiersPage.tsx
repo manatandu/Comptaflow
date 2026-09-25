@@ -930,7 +930,7 @@ export function TiersPage() {
               </div>
 
               {/* Volet Documents · point 21 de la comparaison Sage i7 */}
-              <VoletDocumentsTiers tiersId={tiersSelectionne.id} />
+              <VoletDocumentsTiers key={tiersSelectionne.id} tiersId={tiersSelectionne.id} />
             </div>
           )}
         </div>

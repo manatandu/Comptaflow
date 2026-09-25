@@ -4571,6 +4571,14 @@ le 413 est redit en français. Aucun quota par dossier. (4) LA COLONNE BINAIRE
 N'ENTRE DANS AUCUN CSV · l'archive de restitution écrit chaque pièce à côté
 (`fichierDuDocument`), et le journal d'audit l'exclut par colonne. Une même
 pièce n'est pas attachée deux fois au même tiers (empreinte SHA-256, P2002).
+AUDIT DU MÊME JOUR, QUATRE CORRECTIONS. La FUSION de deux tiers qui portent
+la même pièce tombait en 500 sur cette unicité · l'exemplaire du doublon est
+désormais retiré avant le report (même empreinte, même contenu). Une pièce
+ILLISIBLE à la restitution ne lève plus · l'erreur d'une entrée est émise par
+son propre flux, qu'`archiver` n'écoute pas, et elle arrêtait le serveur ; elle
+est consignée dans `controles.txt`. La pré-image d'audit ne relit plus la
+colonne binaire (`selectPreImage`). Et le nom se tronque par points de code,
+un emoji coupé rendant `encodeURIComponent` fatal au téléchargement.
 
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en

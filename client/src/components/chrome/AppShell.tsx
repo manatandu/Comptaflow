@@ -281,7 +281,8 @@ export function AppShell() {
         },
         {
           titre: 'Tiers et trésorerie',
-          separateurAvant: true,
+          // Pas de trait · deux groupes consécutifs se délimitent d'eux-mêmes,
+          // et le menu large n'en trace jamais entre eux (`entreDeuxGroupes`).
           items: [
             { label: 'Interrogation et lettrage', onClick: () => navigate('/lettrage') },
             // Le règlement suit le lettrage · il en pose un à chaque pièce.

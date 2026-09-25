@@ -145,3 +145,35 @@ tiennent à un texte OHADA ; ils sont signalés comme tels.
     Excel), vérifiés sur les OCTETS et non sur le nom ; rendue en
     téléchargement seulement ; une même pièce n'est pas attachée deux fois au
     même tiers. Aucun quota par dossier, seulement le plafond par pièce.
+
+## Les autres produits Sage du corpus (relevé du 2026-09-25)
+
+Les 21 points ci-dessus ne portaient que sur Sage 100 Comptabilité i7. Le skill
+`sage-i7` documente aussi Sage Immobilisations, Moyens de Paiement, Édition
+Pilotée, Paie et RH, et Sage X3 (`references/`). Relevé fait dans le code, même
+méthode. D = la source décrit la fonction ; N = elle ne fait que la nommer.
+
+| Produit | Fonction | Source | OmegaX |
+|---|---|---|---|
+| Immobilisations | Familles, composants, renouvellement, sortie | D | OUI |
+| Immobilisations | Nature d'acquisition, lieu du bien sur la fiche | N | NON (le lieu n'existe que sur la fiche d'inventaire) |
+| Immobilisations | Dégressif à coefficients, amortissement dérogatoire (15), plan fiscal plafond | D | NON · différé au plan de construction ; le texte RDC porte trois anomalies (art. 32-33) à trancher avant tout calcul |
+| Immobilisations | Plans National et IFRS natifs sur le bien | D | ÉCARTÉ · IFRS par retraitement à côté du jeu légal (décision multi-classification) |
+| Moyens de Paiement | RIB des tiers, ordre de virement ou bordereau imprimable, état « en attente d'impression » | D (pattern), N (formats) | NON · seul le RIB de l'entreprise existe (point 19) |
+| Moyens de Paiement | LCR, SEPA, ETEBAC, EBICS | N | ÉCARTÉ · formats européens |
+| Moyens de Paiement | Lots de virements récurrents | N | PARTIEL · les abonnements produisent des écritures, pas des lots de paiement |
+| Édition Pilotée | Tableau de bord, vue sur 5 ans | D | OUI (tableau de bord, états personnalisés) |
+| Édition Pilotée | Simulateur de scénarios, cube de données | D | NON / ÉCARTÉ (plan de construction) |
+| Paie et RH | Fiche salarié, contrat, bulletins, passation | D | OUI (P1 à P9) |
+| Paie et RH | Moteur de constantes et barèmes paramétrables | D | NON · barèmes RDC codés avec leur article |
+| Paie et RH | Rubriques créées par l'utilisateur, bulletins modèles | D / N | NON · catalogue fermé d'éléments légaux |
+| Paie et RH | Avances et prêts sur salaire (événement, retenue, solde) | D | PARTIEL · nommés à l'art. 112, non gérés |
+| Sage X3 | Profils fonctions | N | OUI (point 15) |
+| Sage X3 | Habilitation par écran ou champ, filtrage des données par compte ou journal | N | NON · tenu en réserve au plan |
+
+Priorités proposées pour un cabinet congolais : (1) RIB des tiers et ordre de
+virement imprimable ; (2) avances et prêts sur salaire, rubriques de paie
+paramétrables ; (3) dégressif et dérogatoire pour le SYSCOHADA, après
+confrontation de l'arrêté ; (4) barèmes de paie en données datées ; (5)
+filtrage des données par rôle ; (6) simulateur budgétaire. Le reste n'est que
+nommé dans les sources et ne s'implémente pas sans meilleure source.

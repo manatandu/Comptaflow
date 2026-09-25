@@ -25,7 +25,7 @@ describe('Fusion de tiers · le service', () => {
       facture: maj(),
       devis: maj(),
       consignation: maj(),
-      documentTiers: maj(),
+      documentTiers: { ...maj(), findMany: jest.fn().mockResolvedValue([]), deleteMany: jest.fn() },
       tiers: { update: jest.fn().mockResolvedValue({}), delete: jest.fn().mockResolvedValue({}) },
     };
     const prisma = {
@@ -51,5 +51,40 @@ describe('Fusion de tiers · le service', () => {
     expect(tx.tiers.update).toHaveBeenCalledWith({ where: { id: 'garde' }, data: { numeroImpot: 'A123' } });
     expect(tx.tiers.delete).toHaveBeenCalledWith({ where: { id: 'doublon' } });
     expect(r.reporte).toHaveLength(7);
+  });
+
+  it('une pièce que la fiche conservée détient déjà n’est pas reportée · l’unicité (tiers, empreinte) tiendrait sinon la fusion en échec', async () => {
+    const maj = () => ({ updateMany: jest.fn().mockResolvedValue({ count: 0 }) });
+    const ordre: string[] = [];
+    const documentTiers = {
+      findMany: jest.fn().mockResolvedValue([{ empreinte: 'abc' }]),
+      deleteMany: jest.fn(async () => {
+        ordre.push('deleteMany');
+        return { count: 1 };
+      }),
+      updateMany: jest.fn(async () => {
+        ordre.push('updateMany');
+        return { count: 0 };
+      }),
+    };
+    const tx: Record<string, unknown> = {
+      tiersCompte: maj(), relance: maj(), demandeConfirmation: maj(), facture: maj(), devis: maj(), consignation: maj(),
+      documentTiers,
+      tiers: { update: jest.fn(), delete: jest.fn() },
+    };
+    const prisma = {
+      tiers: {
+        findFirst: jest.fn(({ where }: { where: { id: string } }) =>
+          Promise.resolve(where.id === 'doublon' ? fiche('doublon') : { ...fiche('garde'), comptesRattaches: [] }),
+        ),
+      },
+      $transaction: jest.fn((fn: (t: typeof tx) => unknown) => fn(tx)),
+    };
+    await new TiersService(prisma as never).fusionner('t', 'doublon', 'garde');
+    expect(documentTiers.findMany).toHaveBeenCalledWith({ where: { tenantId: 't', tiersId: 'garde' }, select: { empreinte: true } });
+    expect(documentTiers.deleteMany).toHaveBeenCalledWith({
+      where: { tenantId: 't', tiersId: 'doublon', empreinte: { in: ['abc'] } },
+    });
+    expect(ordre).toEqual(['deleteMany', 'updateMany']);
   });
 });

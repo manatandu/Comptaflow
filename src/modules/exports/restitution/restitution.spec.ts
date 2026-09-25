@@ -198,7 +198,7 @@ describe('le contrôle dit l’écart au lieu de le taire', () => {
     const service = new RestitutionService(client);
     const ecrites = { Journal: { ecrites: 1 } } as Record<string, { ecrites: number }>;
     let texte = '';
-    for await (const bout of (service as any).controles({ Journal: 3 }, ecrites)) texte += bout;
+    for await (const bout of (service as any).controles({ Journal: 3 }, ecrites, { annoncees: 0, ecrites: 0, manquantes: [] })) texte += bout;
 
     expect(texte).toContain('Journal;3;1;ECART');
     expect(texte).toContain('table(s) en écart.');
@@ -208,7 +208,7 @@ describe('le contrôle dit l’écart au lieu de le taire', () => {
     const { client } = prismaFactice();
     const service = new RestitutionService(client);
     let texte = '';
-    for await (const bout of (service as any).controles({}, {})) texte += bout;
+    for await (const bout of (service as any).controles({}, {}, { annoncees: 0, ecrites: 0, manquantes: [] })) texte += bout;
     expect(texte).toContain('Aucun écart.');
   });
 });
@@ -299,5 +299,33 @@ describe('les documents attachés aux tiers (point 21)', () => {
 
   it('un nom qui porte un séparateur ne crée pas de sous-dossier dans l’archive', () => {
     expect(fichierDuDocument('x', 'a/b\\c.pdf')).toBe('documents-tiers/x-a_b_c.pdf');
+  });
+
+  it('une pièce illisible ne fait pas tomber l’archive · elle est nommée dans controles.txt', async () => {
+    const { client } = prismaFactice({
+      DocumentTiers: [
+        { id: 'doc-1', tenantId: DOSSIER, nomFichier: 'statuts.pdf' },
+        { id: 'doc-2', tenantId: DOSSIER, nomFichier: 'rccm.pdf' },
+      ],
+    });
+    client.documentTiers.findFirst = async ({ where }: any) => {
+      if (where.id === 'doc-1') throw new Error('délai dépassé');
+      return null;
+    };
+    const service = new RestitutionService(client);
+    const { flux } = collecteur();
+    const texte: string[] = [];
+    const controles = (service as any).controles.bind(service);
+    (service as any).controles = async function* (...a: any[]) {
+      for await (const x of controles(...a)) {
+        texte.push(x);
+        yield x;
+      }
+    };
+    await service.produire(DOSSIER, { id: 'u-1', email: 'chef@asbl.cd', adresseIp: null }, flux);
+    const lu = texte.join('');
+    expect(lu).toContain('2 annoncé(s), 0 écrit(s)');
+    expect(lu).toContain('PIECE NON RESTITUEE;doc-1 · illisible (délai dépassé)');
+    expect(lu).toContain("PIECE NON RESTITUEE;doc-2 · retirée pendant l'extraction");
   });
 });

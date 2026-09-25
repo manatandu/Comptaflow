@@ -48,6 +48,13 @@ const SEPARATEUR = ';';
  * réversibilité doit exclure. C'est une décision de VMG et non une règle de
  * droit · aucun texte lu ne tranche, c'est une clause de contrat de licence.
  */
+/** Ce que l'archive a réellement écrit des pièces attachées, pour `controles.txt`. */
+interface SuiviPieces {
+  annoncees: number;
+  ecrites: number;
+  manquantes: string[];
+}
+
 @Injectable()
 export class RestitutionService {
   private readonly journal = new Logger(RestitutionService.name);
@@ -163,6 +170,14 @@ export class RestitutionService {
 
     const archive = archiver('zip', { zlib: { level: 6 } });
     archive.on('warning', (e: archiver.ArchiverError) => this.journal.warn(`Archive · ${e.message}`));
+    // Une erreur émise par l'archive elle-même détruit la réponse plutôt que
+    // de la clore · un ZIP tronqué est refusé par l'utilitaire d'archive, au
+    // lieu de s'ouvrir incomplet. Sans écouteur, Node la lèverait hors de
+    // toute promesse et le serveur tomberait pour tous les cabinets.
+    archive.on('error', (e: Error) => {
+      this.journal.error(`Archive interrompue · ${e.message}`);
+      sortie.destroy(e);
+    });
     archive.pipe(sortie);
 
     archive.append(
@@ -193,8 +208,9 @@ export class RestitutionService {
       orderBy: { id: 'asc' },
       select: { id: true, nomFichier: true },
     });
+    const pieces: SuiviPieces = { annoncees: documents.length, ecrites: 0, manquantes: [] };
     for (const document of documents) {
-      archive.append(Readable.from(this.contenuDocument(tenantId, document.id)), {
+      archive.append(Readable.from(this.contenuDocument(tenantId, document.id, pieces)), {
         name: fichierDuDocument(document.id, document.nomFichier),
       });
     }
@@ -204,7 +220,7 @@ export class RestitutionService {
     // 54 tables écrites, donc une fois les compteurs remplis. C'est ce qui
     // permet de comparer l'inventaire annoncé à ce qui est réellement sorti,
     // sans rien garder en mémoire.
-    archive.append(Readable.from(this.controles(lignesParTable, ecrites)), {
+    archive.append(Readable.from(this.controles(lignesParTable, ecrites, pieces)), {
       name: 'controles.txt',
     });
 
@@ -213,14 +229,34 @@ export class RestitutionService {
     return `restitution-${dossier.nom.replace(/[^\w-]+/g, '-').toLowerCase()}-${jour}.zip`;
   }
 
-  private async *contenuDocument(tenantId: string, id: string): AsyncGenerator<Buffer> {
-    const document = await this.prisma.documentTiers.findFirst({ where: { id, tenantId }, select: { contenu: true } });
-    if (document) yield Buffer.from(document.contenu);
+  /**
+   * UNE PIÈCE ILLISIBLE NE FAIT JAMAIS TOMBER L'ARCHIVE. L'erreur d'une entrée
+   * est émise par son propre flux, qu'`archiver` n'écoute pas · levée ici,
+   * elle sortait hors de toute promesse et arrêtait le serveur pour tous les
+   * cabinets (vu en test). Elle est donc consignée, et `controles.txt` nomme
+   * la pièce · une entrée vide sans un mot se lirait comme une pièce vide.
+   * Même traitement pour une pièce retirée entre l'inventaire et sa lecture.
+   */
+  private async *contenuDocument(tenantId: string, id: string, pieces: SuiviPieces): AsyncGenerator<Buffer> {
+    try {
+      const document = await this.prisma.documentTiers.findFirst({ where: { id, tenantId }, select: { contenu: true } });
+      if (!document) {
+        pieces.manquantes.push(`${id} · retirée pendant l'extraction`);
+        return;
+      }
+      pieces.ecrites++;
+      yield Buffer.from(document.contenu);
+    } catch (e) {
+      const motif = e instanceof Error ? e.message : String(e);
+      this.journal.warn(`Pièce ${id} non lue · ${motif}`);
+      pieces.manquantes.push(`${id} · illisible (${motif})`);
+    }
   }
 
   private async *controles(
     annonce: Record<string, number>,
     ecrites: Record<string, { ecrites: number }>,
+    pieces: SuiviPieces,
   ): AsyncGenerator<string> {
     yield 'Contrôle de l\'extraction · lignes annoncées par l\'inventaire, lignes réellement écrites.\r\n';
     yield "Un écart n'est pas une erreur : les tables sont lues l'une après l'autre, sans\r\n";
@@ -234,5 +270,7 @@ export class RestitutionService {
       yield `${modele};${a};${e};${a === e ? 'conforme' : 'ECART'}\r\n`;
     }
     yield `\r\n${ecarts === 0 ? 'Aucun écart.' : `${ecarts} table(s) en écart.`}\r\n`;
+    yield `\r\nDocuments attachés aux tiers · ${pieces.annoncees} annoncé(s), ${pieces.ecrites} écrit(s).\r\n`;
+    for (const m of pieces.manquantes) yield `PIECE NON RESTITUEE;${m}\r\n`;
   }
 }

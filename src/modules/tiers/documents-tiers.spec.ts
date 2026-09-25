@@ -1,10 +1,11 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException, PayloadTooLargeException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   LONGUEUR_MAX_COMMENTAIRE,
   TAILLE_MAX_DOCUMENT,
+  decoderNomMultipart,
   dispositionTelechargement,
   empreinteDocument,
   identifierType,
@@ -12,6 +13,8 @@ import {
   nettoyerNomFichier,
 } from './documents-tiers';
 import { DocumentsTiersService } from './documents-tiers.service';
+import { REFUS_MULTER, RefusEnvoi } from './documents-tiers.controller';
+import { selectPreImage } from '../../common/audit/extension-audit';
 
 const PDF = Buffer.from('%PDF-1.7\n%contenu');
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a]);
@@ -229,5 +232,64 @@ describe('Documents attachés aux tiers · le service', () => {
     expect(appels.update[0].select.contenu).toBeUndefined();
     await expect(s.modifierCommentaire('t', 'doc', 'x'.repeat(70))).rejects.toBeInstanceOf(BadRequestException);
     expect(appels.update).toHaveLength(1);
+  });
+});
+
+describe('Documents attachés aux tiers · corrections de l’audit', () => {
+  it('ne coupe jamais un emoji en deux · le nom tronqué reste encodable au téléchargement', () => {
+    const nom = nettoyerNomFichier('a'.repeat(145) + '😀' + 'b'.repeat(20) + '.pdf');
+    expect(Array.from(nom)).toHaveLength(150);
+    expect(nom.endsWith('.pdf')).toBe(true);
+    expect(() => dispositionTelechargement(nom)).not.toThrow();
+  });
+
+  it('relit en UTF-8 le nom que multer a lu en latin1, et seulement lui', () => {
+    const mutile = Buffer.from('Société.pdf', 'utf8').toString('latin1');
+    expect(decoderNomMultipart(mutile)).toBe('Société.pdf');
+    // Déjà bien décodé (filename*=UTF-8'') ou vrai latin1 · laissé intact.
+    expect(decoderNomMultipart('Société.pdf')).toBe('Société.pdf');
+    expect(decoderNomMultipart('Café 😀.pdf')).toBe('Café 😀.pdf');
+    expect(decoderNomMultipart('rccm.pdf')).toBe('rccm.pdf');
+  });
+
+  function repondre(e: unknown) {
+    const envoye: { statut?: number; corps?: unknown } = {};
+    const reponse = {
+      status(c: number) {
+        envoye.statut = c;
+        return this;
+      },
+      json(b: unknown) {
+        envoye.corps = b;
+      },
+    };
+    new RefusEnvoi().catch(e as never, { switchToHttp: () => ({ getResponse: () => reponse }) } as never);
+    return envoye;
+  }
+
+  it('redit en français les refus de multer, et laisse passer les 400 du service', () => {
+    expect(repondre(new PayloadTooLargeException('File too large'))).toEqual({
+      statut: 413,
+      corps: expect.objectContaining({ message: expect.stringContaining('dépasse 5 Mo') }),
+    });
+    expect(repondre(new BadRequestException('Too many files')).corps).toEqual({
+      statusCode: 400,
+      message: REFUS_MULTER['Too many files'],
+    });
+    expect((repondre(new BadRequestException('Multipart: Unexpected end of form')).corps as any).message).toContain(
+      'mal formé',
+    );
+    const propre = repondre(new BadRequestException('Le fichier est vide.'));
+    expect(propre.statut).toBe(400);
+    expect((propre.corps as any).message).toBe('Le fichier est vide.');
+  });
+
+  it('la pré-image d’audit ne relit jamais la colonne binaire, et ne restreint rien ailleurs', () => {
+    const { select } = selectPreImage('DocumentTiers');
+    expect(select).toBeDefined();
+    expect(select!.contenu).toBeUndefined();
+    expect(select!.nomFichier).toBe(true);
+    expect(select!.tenantId).toBe(true);
+    expect(selectPreImage('Tiers')).toEqual({});
   });
 });

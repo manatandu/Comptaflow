@@ -252,6 +252,20 @@ export class TiersService {
       if (cible.comptesRattaches.some((r) => r.estPrincipal)) {
         await tx.tiersCompte.updateMany({ where: { tiersId: source.id }, data: { estPrincipal: false } });
       }
+      // UNE PIÈCE DÉJÀ DÉTENUE PAR LA FICHE CONSERVÉE N'EST PAS REPORTÉE · deux
+      // doublons portent souvent le même RCCM, et le report violerait l'unicité
+      // (tiers, empreinte) : la fusion tomberait en erreur sur le cas même
+      // qu'elle existe pour traiter. Même empreinte SHA-256, même contenu ·
+      // l'exemplaire du doublon part, et le journal d'audit le trace.
+      const detenues = await tx.documentTiers.findMany({
+        where: { tenantId, tiersId: cible.id },
+        select: { empreinte: true },
+      });
+      if (detenues.length) {
+        await tx.documentTiers.deleteMany({
+          where: { tenantId, tiersId: source.id, empreinte: { in: detenues.map((d) => d.empreinte) } },
+        });
+      }
       const r = await reporterReferences(tx, 'Tiers', source.id, cible.id, tenantId);
       const complement = coordonneesAComblement(source, cible);
       if (Object.keys(complement).length) await tx.tiers.update({ where: { id: cible.id }, data: complement });

@@ -45,12 +45,19 @@ export function VoletDocumentsTiers({ tiersId }: { tiersId: string }) {
       .then(setDocuments)
       .catch((e) => setErreur(e instanceof ApiError ? e.message : 'Documents illisibles'));
 
+  // UNE RÉPONSE ARRIVÉE APRÈS UN CHANGEMENT DE TIERS EST IGNORÉE · sans ce
+  // drapeau, la liste de A lente à venir s'afficherait sous la fiche de B, et
+  // « Retirer » y supprimerait une pièce de A en croyant agir sur B. Le parent
+  // pose aussi `key={tiersId}`, qui remonte le volet et vide le champ fichier.
   useEffect(() => {
-    setErreur(null);
-    setEdition(null);
-    setDocuments([]);
-    recharger();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let actuel = true;
+    api
+      .get<DocumentTiers[]>(`/tiers/${tiersId}/documents`)
+      .then((l) => actuel && setDocuments(l))
+      .catch((e) => actuel && setErreur(e instanceof ApiError ? e.message : 'Documents illisibles'));
+    return () => {
+      actuel = false;
+    };
   }, [tiersId]);
 
   const deposer = async (e: FormEvent) => {
