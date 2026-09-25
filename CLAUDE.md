@@ -2523,8 +2523,34 @@ le jeu non publiable. Des transferts qui ne se soldent pas aussi. (5) DEUX
 BLOCS, N ET N-1 · le comparatif du § 10 f) part de la clôture N-2, et sans elle
 le bloc n'est pas rendu, avec son motif. Pas d'attribution aux participations
 ne donnant pas le contrôle (§ 87, § 107 a) · des comptes individuels n'en ont
-pas. Restent : tableau des flux (IAS 7), notes, IFRS 1, puis la version
-consolidée.
+pas. Restent : tableau des flux (IAS 7), notes, puis la version consolidée ·
+IFRS 1 est la tranche 4.
+
+**États IFRS, tranche 4 · première application (IFRS 1) (2026-09-25).**
+IFRS 1 § 3 à 26 et annexe A (`ifrs/premiere-application-ifrs.ts`). CINQ RÈGLES
+À NE PAS DÉFAIRE. (1) LA PREMIÈRE APPLICATION SE DÉCLARE · le premier exercice
+IFRS, ou le fait que l'entité présente déjà des états conformes (§ 4 et 5),
+jamais les deux ; non déclarée, le jeu n'est pas publiable. (2) LA DATE DE
+TRANSITION est l'ouverture de l'exercice comparatif (annexe A, un seul
+comparatif au § 21), et l'état d'ouverture (§ 6) est son report à-nouveau des
+classes 1 à 5 projeté par les mêmes règles · les classes 6 à 8 d'un exercice
+clos portent la contrepassation de clôture, pas une ouverture. (3) UN
+AJUSTEMENT DE TRANSITION VA AUX CAPITAUX PROPRES ET À ELLES SEULES (§ 11) · il
+vit sur l'exercice comparatif sous `aLaTransition` et n'entre JAMAIS dans ses
+retraitements, qui le compteraient deux fois dans la clôture du comparatif ;
+ce qu'il laisse au bilan se REDÉCLARE en retraitement de cet exercice, le
+module ne reportant rien d'un exercice à l'autre. (4) LES RAPPROCHEMENTS DU
+§ 24 PARTENT DU CHIFFRE PUBLIÉ · le total CP du bilan légal, lu par
+`resoudreBilanSurLignes` et jamais par une seconde table ; ce que les règles
+déplacent hors des capitaux propres (une subvention au 14) est une ligne de
+RECLASSEMENT, puis une ligne par retraitement, les méthodes avant les erreurs
+(§ 26), et le reste un écart qui rend le jeu non publiable. Le § 24 b part du
+résultat net, le SYSCOHADA ne publiant pas de résultat global, et compte
+l'OCI des retraitements. (5) SUR LE PREMIER EXERCICE, LE BLOC COMPARATIF DES
+CAPITAUX PROPRES PART DE L'ÉTAT D'OUVERTURE, jamais de la clôture N-2, qui n'a
+jamais été IFRS. RÉSERVE · le texte d'IFRS 1 du corpus précède l'annexe D
+d'IFRS 18, qui le modifie. Le § 25 (flux de trésorerie) attend IAS 7, dont la
+version modifiée par IFRS 18 n'est pas au corpus.
 
 **Tableau des flux SYSCOHADA · le compte trop agrégé, que « non ventilé »
 ne voyait pas (2026-09-25).** Trouvé en passant au moteur la balance d'un

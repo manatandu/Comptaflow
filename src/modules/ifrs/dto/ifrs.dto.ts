@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsEnum, IsNumber, IsOptional, IsString, IsUUID, MaxLength, ValidateIf, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsBoolean, IsEnum, IsNumber, IsOptional, IsString, IsUUID, MaxLength, ValidateIf, ValidateNested } from 'class-validator';
 import { ActivitePrincipaleIfrs, ComposanteCpIfrs, TypeMouvementCpIfrs } from '@prisma/client';
 
 export class ActiviteIfrsDto {
@@ -21,6 +21,15 @@ export class RetraitementIfrsDto {
   @IsString() @MaxLength(300) libelle!: string;
   @IsString() @MaxLength(1000) fondement!: string;
   @IsArray() @ArrayMinSize(2) @ValidateNested({ each: true }) @Type(() => LigneRetraitementIfrsDto) lignes!: LigneRetraitementIfrsDto[];
+  /** IFRS 1 § 11 · un ajustement daté de la transition, jamais un retraitement de l'exercice. */
+  @IsOptional() @IsBoolean() aLaTransition?: boolean;
+  /** IFRS 1 § 26 · une correction d'erreur du référentiel antérieur, distinguée d'un changement de méthode. */
+  @IsOptional() @IsBoolean() correctionErreur?: boolean;
+}
+
+export class PremiereApplicationIfrsDto {
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsUUID() premierExerciceIfrsId?: string | null;
+  @IsOptional() @IsBoolean() dejaAdoptant?: boolean;
 }
 
 export class MouvementCpIfrsDto {

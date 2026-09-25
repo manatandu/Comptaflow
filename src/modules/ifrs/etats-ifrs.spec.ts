@@ -85,7 +85,7 @@ describe('états IFRS · projection de la balance légale et retraitements décl
 
   it('le jeu reste non publiable · il lui manque le tableau des flux, les notes et la première application', () => {
     expect(e.motifsNonPubliable).toHaveLength(1);
-    expect(e.motifsNonPubliable[0]).toMatch(/^Jeu incomplet · le tableau des flux de trésorerie \(IAS 7\), les notes et la première application \(IFRS 1\)/);
+    expect(e.motifsNonPubliable[0]).toMatch(/^Jeu incomplet · le tableau des flux de trésorerie \(IAS 7\) et les notes viennent/);
   });
 });
 

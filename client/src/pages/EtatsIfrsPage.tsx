@@ -15,6 +15,12 @@ import { useExercice } from '../lib/exercice';
  * rapproche l'ouverture de la clôture composante par composante (§ 107). Les
  * apports, distributions, transferts et effets IAS 8 se DÉCLARENT · ce que rien
  * n'explique reste sur une ligne « écart non expliqué ».
+ *
+ * TRANCHE 4 · la première application (IFRS 1) se déclare · le premier
+ * exercice IFRS, ou le fait que l'entité applique déjà les IFRS. Sur le premier
+ * exercice, l'écran rend l'état de la situation financière d'ouverture à la
+ * date de transition (§ 6) et les trois rapprochements du § 24, et les
+ * ajustements de transition se posent sur l'exercice comparatif (§ 11).
  */
 type Rubrique = { code: string; libelle: string; ref: string; etat: 'SITUATION' | 'RESULTAT' | 'RESULTAT_GLOBAL'; section?: string; categorie?: string };
 type LigneVariation = { cle: string; libelle: string; ref?: string; nature: 'SOLDE' | 'MOUVEMENT' | 'TOTAL' | 'ECART'; capital: number; reserves: number; autres: number; total: number };
@@ -56,10 +62,23 @@ type Etats = {
   mentions: string[];
   motifsNonPubliable: string[];
 };
+type Retraitement = { id: string; libelle: string; fondement: string; correctionErreur: boolean; lignes: { rubrique: string; montant: number }[] };
+type Rapprochement = {
+  titre: string;
+  ref: string;
+  lignes: { cle: string; libelle: string; fondement?: string; nature?: 'METHODE' | 'ERREUR'; montant: number }[];
+  ecart: number;
+};
 type Etat = {
   activitePrincipale: 'AUCUNE' | 'INVESTIR_ACTIFS' | 'FINANCER_CLIENTS' | null;
+  premierExerciceIfrsId: string | null;
+  dejaAdoptant: boolean;
+  exerciceTransitionId: string | null;
+  ajustementsTransition: Retraitement[];
+  premiereApplication: { dateTransition: string; ouverture: Etats; rapprochements: Rapprochement[]; mentions: string[] } | null;
+  motifPremiereApplication: string | null;
   regles: { id: string; prefixe: string; rubrique: string }[];
-  retraitements: { id: string; libelle: string; fondement: string; lignes: { rubrique: string; montant: number }[] }[];
+  retraitements: Retraitement[];
   rubriques: Rubrique[];
   groupes: Record<string, string>;
   n: Etats;
@@ -81,13 +100,14 @@ const nombre = (v: string) => (v.trim() === '' ? NaN : Number(v.replace(/\s/g, '
 
 export function EtatsIfrsPage() {
   const { peutEcrire } = useAuth();
-  const { exerciceCourant } = useExercice();
+  const { exerciceCourant, exercices } = useExercice();
   const exerciceId = exerciceCourant?.id;
   const [etat, setEtat] = useState<Etat | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [regle, setRegle] = useState({ prefixe: '', rubrique: '' });
   const [mvt, setMvt] = useState({ type: 'DISTRIBUTION' as TypeMouvement, composante: 'RESERVES' as Composante, montant: '', libelle: '', justification: '' });
-  const [retr, setRetr] = useState({ libelle: '', fondement: '', lignes: [{ rubrique: '', montant: '' }, { rubrique: '', montant: '' }] });
+  const retrVide = { libelle: '', fondement: '', aLaTransition: false, correctionErreur: false, lignes: [{ rubrique: '', montant: '' }, { rubrique: '', montant: '' }] };
+  const [retr, setRetr] = useState(retrVide);
 
   const recharger = useCallback(async () => {
     if (!exerciceId) return;
@@ -117,7 +137,7 @@ export function EtatsIfrsPage() {
   const libelleRubrique = (code: string) => etat.rubriques.find((r) => r.code === code)?.libelle ?? code;
   const ecartRetr = retr.lignes.reduce((s, l) => s + (Number.isFinite(nombre(l.montant)) ? nombre(l.montant) : 0), 0);
 
-  const tableau = (titre: string, lignes: Ligne[], n1: Ligne[] | null) => {
+  const tableau = (titre: string, lignes: Ligne[], n1: Ligne[] | null, colonne = 'IFRS N') => {
     let groupe: string | undefined;
     return (
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
@@ -130,7 +150,7 @@ export function EtatsIfrsPage() {
                 <th className="py-1 pr-2">IFRS 18</th>
                 <th className="py-1 pr-2 text-right">SYSCOHADA reclassé</th>
                 <th className="py-1 pr-2 text-right">Retraitements</th>
-                <th className="py-1 pr-2 text-right">IFRS N</th>
+                <th className="py-1 pr-2 text-right">{colonne}</th>
                 <th className="py-1 text-right">IFRS N-1</th>
               </tr>
             </thead>
@@ -202,6 +222,28 @@ export function EtatsIfrsPage() {
           </table>
         </div>
       )}
+    </div>
+  );
+
+  const listeRetraitement = (x: Retraitement) => (
+    <div key={x.id} className="border-b border-border/60 py-1 text-[12px]">
+      <div className="flex justify-between gap-2">
+        <span>
+          <strong>{x.libelle}</strong> · {x.fondement}
+          {x.correctionErreur ? ' · correction d’erreur (IFRS 1 § 26)' : ''}
+        </span>
+        {peutEcrire && (
+          <button className="text-[11px] underline" onClick={() => void agir(() => api.delete(`/ifrs/retraitements/${x.id}`))}>
+            Retirer
+          </button>
+        )}
+      </div>
+      {x.lignes.map((l, i) => (
+        <div key={i} className="flex justify-between pl-3 text-text-dim">
+          <span>{libelleRubrique(l.rubrique)}</span>
+          <span>{fc(l.montant)}</span>
+        </div>
+      ))}
     </div>
   );
 
@@ -330,6 +372,18 @@ export function EtatsIfrsPage() {
                 />
               </div>
             ))}
+            <div className="flex flex-wrap items-center gap-3 text-[12px]">
+              <label className="flex items-center gap-1">
+                <input type="checkbox" checked={retr.correctionErreur} onChange={(e) => setRetr({ ...retr, correctionErreur: e.target.checked })} />
+                Correction d’erreur du référentiel antérieur (IFRS 1 § 26)
+              </label>
+              {etat.exerciceTransitionId && (
+                <label className="flex items-center gap-1">
+                  <input type="checkbox" checked={retr.aLaTransition} onChange={(e) => setRetr({ ...retr, aLaTransition: e.target.checked })} />
+                  Ajustement de transition, aux capitaux propres d’ouverture (IFRS 1 § 11)
+                </label>
+              )}
+            </div>
             <div className="flex items-center gap-2">
               <button className="border border-border px-2.5 py-1 text-[12px]" onClick={() => setRetr({ ...retr, lignes: [...retr.lignes, { rubrique: '', montant: '' }] })}>
                 Ligne de plus
@@ -339,13 +393,17 @@ export function EtatsIfrsPage() {
                 className="border border-border px-2.5 py-1 text-[12px]"
                 onClick={() =>
                   void agir(async () => {
+                    // Un ajustement de transition se pose sur l'exercice comparatif, dont
+                    // l'ouverture est la date de transition (IFRS 1, annexe A).
                     await api.post('/ifrs/retraitements', {
-                      exerciceId,
+                      exerciceId: retr.aLaTransition && etat.exerciceTransitionId ? etat.exerciceTransitionId : exerciceId,
                       libelle: retr.libelle,
                       fondement: retr.fondement,
+                      aLaTransition: retr.aLaTransition,
+                      correctionErreur: retr.correctionErreur,
                       lignes: retr.lignes.filter((x) => x.rubrique).map((x) => ({ rubrique: x.rubrique, montant: nombre(x.montant) })),
                     });
-                    setRetr({ libelle: '', fondement: '', lignes: [{ rubrique: '', montant: '' }, { rubrique: '', montant: '' }] });
+                    setRetr(retrVide);
                   })
                 }
               >
@@ -357,28 +415,75 @@ export function EtatsIfrsPage() {
         {etat.retraitements.length === 0 ? (
           <p className="text-[12px] text-text-dim">Aucun retraitement · les états IFRS sont la balance légale reclassée.</p>
         ) : (
-          etat.retraitements.map((x) => (
-            <div key={x.id} className="border-b border-border/60 py-1 text-[12px]">
-              <div className="flex justify-between gap-2">
-                <span>
-                  <strong>{x.libelle}</strong> · {x.fondement}
-                </span>
-                {peutEcrire && (
-                  <button className="text-[11px] underline" onClick={() => void agir(() => api.delete(`/ifrs/retraitements/${x.id}`))}>
-                    Retirer
-                  </button>
-                )}
-              </div>
-              {x.lignes.map((l, i) => (
-                <div key={i} className="flex justify-between pl-3 text-text-dim">
-                  <span>{libelleRubrique(l.rubrique)}</span>
-                  <span>{fc(l.montant)}</span>
-                </div>
-              ))}
-            </div>
-          ))
+          etat.retraitements.map((x) => listeRetraitement(x))
         )}
       </section>
+
+      <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
+        <h2 className="text-[12.5px] font-bold mb-1.5">Première application des IFRS (IFRS 1)</h2>
+        <select
+          className={champ + ' max-w-[520px]'}
+          disabled={!peutEcrire}
+          value={etat.dejaAdoptant ? 'DEJA' : (etat.premierExerciceIfrsId ?? '')}
+          onChange={(e) =>
+            void agir(() =>
+              api.put('/ifrs/premiere-application', {
+                premierExerciceIfrsId: e.target.value && e.target.value !== 'DEJA' ? e.target.value : null,
+                dejaAdoptant: e.target.value === 'DEJA',
+              }),
+            )
+          }
+        >
+          <option value="">Non déclarée</option>
+          <option value="DEJA">L’entité présente déjà des états conformes aux IFRS (§ 4 et 5)</option>
+          {exercices.map((x) => (
+            <option key={x.id} value={x.id}>
+              Premier exercice IFRS · {x.dateDebut.slice(0, 10)} au {x.dateFin.slice(0, 10)}
+            </option>
+          ))}
+        </select>
+        {etat.motifPremiereApplication && <p className="text-[12px] text-warning mt-1.5">{etat.motifPremiereApplication}</p>}
+        {etat.premiereApplication && (
+          <>
+            <p className="text-[12px] mt-1.5">
+              Date de transition · <strong>{etat.premiereApplication.dateTransition}</strong> (ouverture de l’exercice comparatif, annexe A).
+            </p>
+            <p className="text-[12px] font-semibold mt-2 mb-1">Ajustements de transition</p>
+            {etat.ajustementsTransition.length === 0 ? (
+              <p className="text-[12px] text-text-dim">Aucun ajustement · l’état d’ouverture est la balance d’ouverture légale reclassée.</p>
+            ) : (
+              etat.ajustementsTransition.map((x) => listeRetraitement(x))
+            )}
+            {etat.premiereApplication.rapprochements.map((rp) => (
+              <div key={rp.ref} className="mt-2">
+                <p className="text-[12px] font-semibold mb-1">
+                  {rp.titre} ({rp.ref})
+                </p>
+                <table className="w-full text-[12px]">
+                  <tbody>
+                    {rp.lignes.map((l) => (
+                      <tr
+                        key={l.cle}
+                        className={l.cle === 'ECART' ? 'text-danger font-semibold' : l.cle === 'DEPART' || l.cle === 'ARRIVEE' ? 'font-bold border-t border-border' : 'border-b border-border/40'}
+                      >
+                        <td className="py-1 pr-2">
+                          {l.libelle}
+                          {l.nature === 'ERREUR' ? ' · correction d’erreur (§ 26)' : l.nature === 'METHODE' ? ' · changement de méthode' : ''}
+                        </td>
+                        <td className="py-1 pr-2 text-text-dim">{l.fondement}</td>
+                        <td className="py-1 text-right">{fc(l.montant)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+            {etat.premiereApplication.mentions.map((m) => <p key={m} className="text-[12px] text-text-dim mt-1">{m}</p>)}
+          </>
+        )}
+      </section>
+
+      {etat.premiereApplication && tableau(`État de la situation financière d’ouverture au ${etat.premiereApplication.dateTransition} (IFRS 1 § 6)`, etat.premiereApplication.ouverture.situation, null, 'IFRS ouverture')}
 
       {tableau('État de la situation financière', etat.n.situation, etat.n1?.situation ?? null)}
       {tableau('Compte de résultat', etat.n.resultat, etat.n1?.resultat ?? null)}

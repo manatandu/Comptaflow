@@ -6544,6 +6544,12 @@ model ParametresIfrs {
   tenantId           String                  @unique
   tenant             Tenant                  @relation(fields: [tenantId], references: [id])
   activitePrincipale ActivitePrincipaleIfrs?
+  /// IFRS 1 · l'exercice des PREMIERS états financiers IFRS de l'entité. La
+  /// date de transition est l'ouverture de l'exercice qui le précède (annexe A,
+  /// un seul comparatif). NULL avec `dejaAdoptant` faux · pas déclaré.
+  premierExerciceIfrsId String?
+  /// L'entité publiait déjà des états IFRS · IFRS 1 ne s'applique pas.
+  dejaAdoptant       Boolean                 @default(false)
   updatedAt          DateTime                @updatedAt
 
   @@map("parametres_ifrs")
@@ -6575,6 +6581,12 @@ model RetraitementIfrs {
   exercice   Exercice                @relation(fields: [exerciceId], references: [id])
   libelle    String
   fondement  String
+  /// IFRS 1 § 11 · ajustement à la DATE DE TRANSITION (ouverture de l'exercice
+  /// porteur), qui va directement aux capitaux propres.
+  aLaTransition    Boolean               @default(false)
+  /// IFRS 1 § 26 · correction d'erreur du référentiel antérieur, distinguée
+  /// d'un changement de méthode dans les rapprochements.
+  correctionErreur Boolean               @default(false)
   createdAt  DateTime                @default(now())
   lignes     LigneRetraitementIfrs[]
 

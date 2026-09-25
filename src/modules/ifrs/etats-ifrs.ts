@@ -32,8 +32,8 @@ import {
  * (`variation-capitaux-propres-ifrs.ts`), parce qu'il lit deux exercices.
  *
  * CE QUI N'EST PAS ENCORE SERVI, et qui rend le jeu NON PUBLIABLE · le
- * tableau des flux de trésorerie (IAS 7), les notes, et la première
- * application (IFRS 1).
+ * tableau des flux de trésorerie (IAS 7) et les notes. La première
+ * application (IFRS 1) vit à côté (`premiere-application-ifrs.ts`).
  */
 
 export interface LigneLegale {
@@ -297,7 +297,7 @@ export function construireEtatsIfrs(
   }
 
   const motifsNonPubliable: string[] = [
-    'Jeu incomplet · le tableau des flux de trésorerie (IAS 7), les notes et la première application (IFRS 1) viennent avec les tranches suivantes.',
+    'Jeu incomplet · le tableau des flux de trésorerie (IAS 7) et les notes viennent avec les tranches suivantes.',
   ];
   if (activitePrincipale == null) {
     motifsNonPubliable.push(

@@ -5,6 +5,7 @@ import { Prisma, RoleUtilisateur } from '@prisma/client';
 import { IfrsService } from './ifrs.service';
 import { IfrsController } from './ifrs.controller';
 import { ROLES_KEY } from '../../common/decorators/roles.decorator';
+import { EtatsFinanciersSyscohadaService } from '../etats-financiers-syscohada/etats-financiers-syscohada.service';
 
 /**
  * Le câblage des états IFRS · la balance légale arrive au moteur par la même
@@ -17,7 +18,9 @@ const EX = 'ex-2026';
 const EX1 = 'ex-2025';
 const EX2 = 'ex-2024';
 
-function doublure(avecPrecedent = false, avecAvantPrecedent = false) {
+type LigneDoublure = [string, number] | [string, number, number, number];
+
+function doublure(avecPrecedent = false, avecAvantPrecedent = false, balancesPropres: Record<string, LigneDoublure[]> = {}) {
   const tables: Record<string, any[]> = { regles: [], retraitements: [], parametres: [], mouvements: [] };
   // La doublure HONORE la borne `dateFin < …` · une doublure qui rendrait
   // toujours le même exercice ferait passer la recherche du précédent pour
@@ -67,7 +70,12 @@ function doublure(avecPrecedent = false, avecAvantPrecedent = false) {
       delete: jest.fn(async ({ where }: any) => (tables.mouvements = tables.mouvements.filter((m) => m.id !== where.id))),
     },
     retraitementIfrs: {
-      findMany: jest.fn(async ({ where }: any) => tables.retraitements.filter((r) => r.exerciceId === where.exerciceId)),
+      // La doublure HONORE `aLaTransition` · sans quoi un ajustement de
+      // transition paraîtrait bien écarté des retraitements de l'exercice
+      // quel que soit le filtre que le service pose.
+      findMany: jest.fn(async ({ where }: any) =>
+        tables.retraitements.filter((r) => r.exerciceId === where.exerciceId && (r.aLaTransition ?? false) === (where.aLaTransition ?? false)),
+      ),
       findFirst: jest.fn(async ({ where }: any) => tables.retraitements.find((r) => r.id === where.id && r.tenantId === where.tenantId) ?? null),
       create: jest.fn(async ({ data }: any) => {
         const r = { id: `t-${++seq}`, createdAt: new Date(), ...data, lignes: data.lignes.create.map((l: any) => ({ ...l, montant: new Prisma.Decimal(l.montant) })) };
@@ -77,18 +85,35 @@ function doublure(avecPrecedent = false, avecAvantPrecedent = false) {
       delete: jest.fn(async ({ where }: any) => (tables.retraitements = tables.retraitements.filter((r) => r.id !== where.id))),
     },
   };
-  const balances: Record<string, [string, number][]> = {
+  const balances: Record<string, LigneDoublure[]> = {
     [EX]: [['24100000', 1000], ['10100000', -800], ['70100000', -500], ['60100000', 300]],
     [EX1]: [['24100000', 900], ['10100000', -800], ['70100000', -400], ['60100000', 300]],
     [EX2]: [['24100000', 800], ['10100000', -800]],
+    ...balancesPropres,
   };
   const ecritures: any = {
     balance: jest.fn(async (_t: string, ex: string, brouillard: boolean) => {
       expect(brouillard).toBe(false);
-      return { lignes: balances[ex].map(([numero, solde]) => ({ numero, intitule: numero, solde, typeCompte: 'DETAIL' })) };
+      return {
+        lignes: balances[ex].map(([numero, solde, reportDebit = 0, reportCredit = 0]) => ({
+          numero,
+          intitule: numero,
+          classe: `CLASSE_${numero[0]}`,
+          typeCompte: 'DETAIL',
+          solde,
+          totalDebit: Math.max(solde, 0),
+          totalCredit: Math.max(-solde, 0),
+          reportDebit,
+          reportCredit,
+        })),
+      };
     }),
   };
-  return { prisma, tables, ecritures, service: new IfrsService(prisma, ecritures) };
+  // Le VRAI service des états SYSCOHADA · c'est sa correspondance du bilan qui
+  // donne les capitaux propres publiés, et une doublure ferait passer un
+  // signe inversé pour juste.
+  const syscohada = new EtatsFinanciersSyscohadaService(ecritures, {} as any);
+  return { prisma, tables, ecritures, service: new IfrsService(prisma, ecritures, syscohada) };
 }
 
 const REGLES = [
@@ -182,10 +207,147 @@ describe('IfrsService · variation des capitaux propres sur trois exercices', ()
   });
 });
 
+describe('IfrsService · première application (IFRS 1)', () => {
+  // 2025, l'exercice comparatif · ouverture 24 : 750 au débit, capital 700 et
+  // subvention (14) 50 au crédit ; en cours d'exercice, un apport en nature de
+  // 100 porte le capital à 800 ; clôture 24 : 950, résultat 100. La subvention
+  // est reclassée hors des capitaux propres par la règle du 14. Le capital
+  // BOUGE exprès · un jeu où report et solde coïncident laisserait lire
+  // l'ouverture sur la clôture sans que rien ne tombe.
+  const B = {
+    [EX1]: [
+      ['24100000', 950, 750, 0],
+      ['10100000', -800, 0, 700],
+      ['14100000', -50, 0, 50],
+      ['70100000', -400],
+      ['60100000', 300],
+    ] as LigneDoublure[],
+  };
+  const REGLES_PA = [...REGLES, { prefixe: '14', rubrique: 'SF_FOURNISSEURS_NC' }];
+  const lignes = (immo: number, contrepartie: string, montant = immo) => [
+    { rubrique: 'SF_IMMOBILISATIONS_CORPORELLES', montant: immo },
+    { rubrique: contrepartie, montant: -montant },
+  ];
+
+  async function dossier() {
+    const d = doublure(true, true, B);
+    for (const r of REGLES_PA) await d.service.ajouterRegle(T, r);
+    await d.service.declarerActivite(T, { activitePrincipale: 'AUCUNE' });
+    await d.service.declarerPremiereApplication(T, { premierExerciceIfrsId: EX, dejaAdoptant: false });
+    return d;
+  }
+
+  it('trois rapprochements chiffrés à la main, reclassement et méthodes avant erreurs (§ 24 a i, a ii, b, § 26)', async () => {
+    const { service } = await dossier();
+    // Coût présumé à la transition (§ D5) · +100 aux immobilisations, aux réserves.
+    await service.ajouterRetraitement(T, { exerciceId: EX1, libelle: 'Coût présumé', fondement: 'IFRS 1 § D5', lignes: lignes(100, 'SF_RESERVES'), aLaTransition: true });
+    // Le même écart, redéclaré à la clôture du comparatif, plus l'amortissement de l'écart et une erreur.
+    await service.ajouterRetraitement(T, { exerciceId: EX1, libelle: 'Coût présumé reporté', fondement: 'IFRS 1 § D5', lignes: lignes(100, 'SF_RESERVES') });
+    await service.ajouterRetraitement(T, {
+      exerciceId: EX1,
+      libelle: 'Amortissement de l’écart',
+      fondement: 'IAS 16 § 50',
+      lignes: [{ rubrique: 'PL_AUTRES_CHARGES_OPERATIONNELLES', montant: 20 }, { rubrique: 'SF_IMMOBILISATIONS_CORPORELLES', montant: -20 }],
+    });
+    await service.ajouterRetraitement(T, {
+      exerciceId: EX1,
+      libelle: 'Facture omise',
+      fondement: 'IAS 8 § 42',
+      correctionErreur: true,
+      lignes: [{ rubrique: 'PL_AUTRES_CHARGES_OPERATIONNELLES', montant: 10 }, { rubrique: 'SF_FOURNISSEURS', montant: -10 }],
+    });
+    const e = await service.etat(T, EX);
+    const pa = e.premiereApplication!;
+    expect(pa.dateTransition).toBe('2025-01-01');
+    const [ouverture, cloture, global] = pa.rapprochements;
+    // Ouverture · 700 + 50 publiés = 750, − 50 reclassés, + 100 = 800.
+    expect(ouverture.lignes.map((l) => [l.cle.replace(/^R_.*/, 'R'), l.montant])).toEqual([['DEPART', 750], ['RECLASSEMENTS', -50], ['R', 100], ['ARRIVEE', 800]]);
+    // Clôture 2025 · 950 publiés (résultat 100 compris), − 50, + 100, − 20, puis l'erreur − 10 = 970.
+    expect(cloture.lignes.map((l) => [l.libelle, l.nature ?? null, l.montant])).toEqual([
+      ['Capitaux propres selon le SYSCOHADA (bilan, total CP)', null, 950],
+      ['Reclassements de présentation (règles de correspondance)', null, -50],
+      ['Coût présumé reporté', 'METHODE', 100],
+      ['Amortissement de l’écart', 'METHODE', -20],
+      ['Facture omise', 'ERREUR', -10],
+      ['Capitaux propres selon les IFRS', null, 970],
+    ]);
+    // Résultat global 2025 · 100 − 20 − 10 = 70 ; le report de bilan n'y figure pas.
+    expect(global.lignes.map((l) => l.montant)).toEqual([100, -20, -10, 70]);
+    expect(pa.rapprochements.every((r) => r.ecart === 0)).toBe(true);
+    // L'ajustement de transition n'entre pas dans la clôture du comparatif · sinon 1 070.
+    expect(e.n1!.rapprochements.capitauxPropresIfrs).toBe(970);
+    expect(e.ajustementsTransition.map((r: any) => r.libelle)).toEqual(['Coût présumé']);
+  });
+
+  it('le bloc comparatif des capitaux propres part de l’état d’ouverture, pas de la clôture N-2', async () => {
+    const { service } = await dossier();
+    await service.ajouterRetraitement(T, { exerciceId: EX1, libelle: 'Coût présumé', fondement: 'IFRS 1 § D5', lignes: lignes(100, 'SF_RESERVES'), aLaTransition: true });
+    await service.ajouterRetraitement(T, { exerciceId: EX1, libelle: 'Coût présumé reporté', fondement: 'IFRS 1 § D5', lignes: lignes(100, 'SF_RESERVES') });
+    await service.ajouterMouvementCp(T, { exerciceId: EX1, type: 'APPORT', composante: 'CAPITAL', montant: 100, libelle: 'Apport en nature', justification: 'PV AGE' });
+    const e = await service.etat(T, EX);
+    const L = (cle: string) => e.variationCapitauxPropres.n1!.lignes.find((l: any) => l.cle === cle);
+    expect(L('OUVERTURE_PUBLIEE')).toMatchObject({ capital: 700, reserves: 100 });
+    expect(L('APPORTS')).toMatchObject({ capital: 100 });
+    expect(L('CLOTURE')).toMatchObject({ capital: 800, reserves: 200 });
+    expect(L('ECART_NON_EXPLIQUE')).toBeUndefined();
+  });
+
+  it('ajustement de transition · refusé hors de l’exercice comparatif, sans premier exercice déclaré, ou vers le résultat (§ 11)', async () => {
+    const nu = doublure(true);
+    await expect(
+      nu.service.ajouterRetraitement(T, { exerciceId: EX1, libelle: 'x', fondement: 'IFRS 1 § D5', lignes: lignes(10, 'SF_RESERVES'), aLaTransition: true }),
+    ).rejects.toThrow(/suppose un premier exercice IFRS déclaré/);
+    const { service, tables } = await dossier();
+    await expect(
+      service.ajouterRetraitement(T, { exerciceId: EX, libelle: 'x', fondement: 'IFRS 1 § D5', lignes: lignes(10, 'SF_RESERVES'), aLaTransition: true }),
+    ).rejects.toThrow(/se pose sur l’exercice comparatif/);
+    await expect(
+      service.ajouterRetraitement(T, {
+        exerciceId: EX1,
+        libelle: 'x',
+        fondement: 'IFRS 1 § D5',
+        lignes: [{ rubrique: 'PL_AUTRES_CHARGES_OPERATIONNELLES', montant: 10 }, { rubrique: 'SF_FOURNISSEURS', montant: -10 }],
+        aLaTransition: true,
+      }),
+    ).rejects.toThrow(/IFRS 1 § 11/);
+    expect(tables.retraitements).toHaveLength(0);
+  });
+
+  it('la déclaration · non déclarée, le jeu le dit ; déjà adoptant, rien ; les deux à la fois, refusé', async () => {
+    const { service } = doublure(true, false, B);
+    for (const r of REGLES_PA) await service.ajouterRegle(T, r);
+    let e = await service.etat(T, EX);
+    expect(e.n.motifsNonPubliable.join(' ')).toMatch(/Première application non déclarée · les premiers états financiers IFRS relèvent d’IFRS 1 \(§ 2 et 3\)/);
+    expect(e.premiereApplication).toBeNull();
+    await service.declarerPremiereApplication(T, { premierExerciceIfrsId: null, dejaAdoptant: true });
+    e = await service.etat(T, EX);
+    expect(e.n.motifsNonPubliable.join(' ')).not.toMatch(/Première application/);
+    await expect(service.declarerPremiereApplication(T, { premierExerciceIfrsId: EX, dejaAdoptant: true })).rejects.toThrow(/l’un ou l’autre/);
+    await expect(service.declarerPremiereApplication(T, { premierExerciceIfrsId: 'ailleurs', dejaAdoptant: false })).rejects.toThrow(/introuvable/);
+  });
+
+  it('un premier exercice sans exercice comparatif, et un exercice antérieur à la transition, sont nommés', async () => {
+    const seul = doublure();
+    await seul.service.declarerPremiereApplication(T, { premierExerciceIfrsId: EX });
+    const e = await seul.service.etat(T, EX);
+    expect(e.premiereApplication).toBeNull();
+    expect(e.motifPremiereApplication).toMatch(/au moins un exercice comparatif \(IFRS 1 § 21\)/);
+    expect(e.n.motifsNonPubliable.join(' ')).toMatch(/Première application non établie · Le premier exercice IFRS présente/);
+
+    const trois = doublure(true, true);
+    for (const r of REGLES) await trois.service.ajouterRegle(T, r);
+    await trois.service.declarerPremiereApplication(T, { premierExerciceIfrsId: EX });
+    const avant = await trois.service.etat(T, EX2);
+    expect(avant.n.motifsNonPubliable.join(' ')).toMatch(/Exercice antérieur à la date de transition aux IFRS/);
+    const comparatif = await trois.service.etat(T, EX1);
+    expect(comparatif.n.motifsNonPubliable.join(' ')).not.toMatch(/Exercice antérieur à la date de transition/);
+  });
+});
+
 describe('IfrsController · les écritures sont réservées', () => {
   it('toute route qui écrit porte @Roles, sans la lecture seule', () => {
     const proto = IfrsController.prototype as any;
-    for (const m of ['declarerActivite', 'ajouterRegle', 'supprimerRegle', 'ajouterRetraitement', 'supprimerRetraitement', 'ajouterMouvementCp', 'supprimerMouvementCp']) {
+    for (const m of ['declarerActivite', 'declarerPremiereApplication', 'ajouterRegle', 'supprimerRegle', 'ajouterRetraitement', 'supprimerRetraitement', 'ajouterMouvementCp', 'supprimerMouvementCp']) {
       const roles = Reflect.getMetadata(ROLES_KEY, proto[m]);
       expect(roles).toEqual([RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE]);
     }

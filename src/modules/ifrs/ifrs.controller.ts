@@ -8,7 +8,7 @@ import { ReferentielGuard } from '../../common/guards/referentiel.guard';
 import { ReferentielsAutorises } from '../../common/decorators/referentiels.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { IfrsService } from './ifrs.service';
-import { ActiviteIfrsDto, MouvementCpIfrsDto, RegleIfrsDto, RetraitementIfrsDto } from './dto/ifrs.dto';
+import { ActiviteIfrsDto, MouvementCpIfrsDto, PremiereApplicationIfrsDto, RegleIfrsDto, RetraitementIfrsDto } from './dto/ifrs.dto';
 
 /**
  * CLOISONNÉ AU SYSCOHADA · l'art. 73-1 de l'AUDCIF vise les entités dont les
@@ -31,6 +31,12 @@ export class IfrsController {
   @Put('activite')
   declarerActivite(@CurrentUser() user: AuthenticatedUser, @Body() dto: ActiviteIfrsDto) {
     return this.ifrs.declarerActivite(user.tenantId, dto);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Put('premiere-application')
+  declarerPremiereApplication(@CurrentUser() user: AuthenticatedUser, @Body() dto: PremiereApplicationIfrsDto) {
+    return this.ifrs.declarerPremiereApplication(user.tenantId, dto);
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
