@@ -49,7 +49,7 @@ function BoutonChrome({
       title={infobulle ?? titre}
       aria-label={titre}
       onClick={onClick}
-      className="flex items-center justify-center w-[22px] h-[22px] rounded-[5px] text-text-dim transition-colors duration-150 hover:bg-chrome-alt hover:text-text"
+      className="flex items-center justify-center w-[22px] h-[22px] rounded-[3px] text-text-dim transition-colors duration-150 hover:bg-chrome-alt hover:text-text"
     >
       {children}
     </button>
@@ -145,7 +145,7 @@ export function ClocheChrome() {
       title={titreCloche(compteurs)}
       aria-label={titreCloche(compteurs)}
       onClick={() => navigate('/courrier')}
-      className="relative flex items-center justify-center w-[22px] h-[22px] rounded-[5px] text-text-dim transition-colors duration-150 hover:bg-chrome-alt hover:text-text"
+      className="relative flex items-center justify-center w-[22px] h-[22px] rounded-[3px] text-text-dim transition-colors duration-150 hover:bg-chrome-alt hover:text-text"
     >
       <IconCloche width={13} height={13} />
       {pastille && (

@@ -593,7 +593,7 @@ export function AppShell() {
         passe en ENCRE, le rendu que la charte prévoit sur fond clair (§ 7.3,
         12,74:1 sur blanc).
       */}
-      <div className="ecran-seul h-[34px] flex items-center justify-between px-3 bg-mica text-text text-[12px] shrink-0 relative">
+      <div className="ecran-seul h-[34px] flex items-center justify-between px-3 bg-mica text-text text-[11.5px] shrink-0 relative">
         <div className="flex items-center gap-2.5 min-w-0">
           <SymboleOmegaX taille={17} className="text-[var(--a-900)]" />
           {/*
@@ -612,10 +612,10 @@ export function AppShell() {
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-text-dim text-[12px] hidden sm:inline">{utilisateur?.email}</span>
+          <span className="text-text-dim text-[11.5px] hidden sm:inline">{utilisateur?.email}</span>
           <button
             onClick={seDeconnecter}
-            className="rounded-[4px] px-2.5 py-[3px] text-[12px] font-semibold text-text-dim hover:bg-chrome-alt hover:text-text"
+            className="rounded-[4px] px-2.5 py-[3px] text-[11.5px] font-semibold text-text-dim hover:bg-chrome-alt hover:text-text"
           >
             Déconnexion
           </button>

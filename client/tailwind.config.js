@@ -33,7 +33,23 @@ export default {
         // Servie depuis notre origine depuis le 2026-09-05. Elle était nommée
         // ici depuis longtemps sans être chargée nulle part : chaque poste
         // retombait sur `ui-monospace`, et la promesse du code était fausse.
-        mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', '"Courier New"', 'monospace'],
+        // `font-mono` SUIT LA POLICE D'INTERFACE depuis le 2026-09-25 · Sage 100
+        // affiche numéros de compte, codes et montants dans la police de
+        // Windows, pas en chasse fixe (manuel de formation Sage Comptabilité,
+        // captures de la saisie des journaux). Les chiffres restent alignés
+        // par `tabular-nums`, posé sur `body`. IBM Plex Mono reste servie
+        // (`public/polices`) pour la marque, qui ne l'emploie plus à l'écran.
+        mono: [
+          '"Segoe UI Variable Text"',
+          '"Segoe UI Variable"',
+          '"Segoe UI"',
+          'ui-sans-serif',
+          'system-ui',
+          '-apple-system',
+          'Roboto',
+          'Arial',
+          'sans-serif',
+        ],
       },
       colors: {
         chrome: 'var(--chrome)',
@@ -59,7 +75,7 @@ export default {
         'danger-soft': 'var(--danger-soft)',
       },
       borderRadius: {
-        DEFAULT: '6px',
+        DEFAULT: '3px',
       },
       boxShadow: {
         plate: 'var(--ombre-plate)',

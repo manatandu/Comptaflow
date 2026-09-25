@@ -156,7 +156,7 @@ function FenetreInterne({ fenetre, active }: { fenetre: FenetreOuverte; active: 
       ref={refCadre}
       onPointerDown={() => !active && activer(fenetre.cle)}
       style={style}
-      className={`anim-fenetre absolute flex flex-col overflow-hidden rounded-[8px] border bg-surface ${
+      className={`anim-fenetre absolute flex flex-col overflow-hidden rounded-[4px] border bg-surface ${
         active ? 'border-border-dark shadow-dominante' : 'border-border shadow-posee'
       }`}
     >
@@ -177,7 +177,7 @@ function FenetreInterne({ fenetre, active }: { fenetre: FenetreOuverte; active: 
           agrandie ? '' : 'cursor-move'
         } ${active ? 'bg-mica text-text' : 'bg-chrome text-text-dim'}`}
       >
-        <span className="truncate text-[13px]">{fenetre.titre}</span>
+        <span className="truncate text-[12px]">{fenetre.titre}</span>
         <span className="flex items-stretch self-stretch shrink-0">
           <BoutonTitre
             actif={active}
@@ -213,14 +213,14 @@ function FenetreInterne({ fenetre, active }: { fenetre: FenetreOuverte; active: 
       </div>
 
       {/* --- Contenu -------------------------------------------------------- */}
-      <div className="flex-1 min-h-0 overflow-auto bg-bg">
+      <div className="flex-1 min-h-0 overflow-auto bg-[var(--fenetre)]">
         <LimiteErreur titreFenetre={fenetre.titre}>
           {/* La clé porte le compteur d'Actualiser : l'incrémenter remonte le
               contenu, qui recharge ses données · le F5 de Sage.
               Les pages sont chargées à la demande (registre-fenetres, lazy) :
               le temps du transfert de son module, la fenêtre affiche le même
               « Chargement… » que ses données · rien ne clignote deux fois. */}
-          <Suspense key={fenetre.version} fallback={<div className="p-3 text-[12.5px] text-text-dim">Chargement…</div>}>
+          <Suspense key={fenetre.version} fallback={<div className="p-3 text-[11.5px] text-text-dim">Chargement…</div>}>
             {rendreFenetre(fenetre.adresse)}
           </Suspense>
         </LimiteErreur>

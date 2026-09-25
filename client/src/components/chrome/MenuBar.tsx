@@ -90,9 +90,9 @@ function CommandeMenu({
       // `pl-[27px]` n'est pas un retrait décoratif · c'est l'abscisse du titre
       // de groupe (px-3 = 12 px, chevron 10 px, gap 5 px), si bien qu'une
       // commande repliée se lit à l'aplomb du titre qui la contient.
-      className={`w-full flex items-center text-left rounded-[5px] ${
+      className={`w-full flex items-center text-left rounded-[3px] ${
         retrait ? 'pl-[27px] pr-3' : 'px-3'
-      } h-[30px] text-[13px] hover:enabled:bg-chrome-alt focus-visible:bg-chrome-alt outline-none disabled:opacity-40 disabled:cursor-not-allowed`}
+      } h-[30px] text-[12px] hover:enabled:bg-chrome-alt focus-visible:bg-chrome-alt outline-none disabled:opacity-40 disabled:cursor-not-allowed`}
     >
       <span className="min-w-0 truncate">{item.label}</span>
     </button>
@@ -241,7 +241,7 @@ export function MenuBar({
                 setGroupeDeplie(entree.titre);
               }
             }}
-            className={`w-full flex items-center gap-2 text-left rounded-[5px] px-3 h-[30px] text-[13px] outline-none focus-visible:bg-chrome-alt ${
+            className={`w-full flex items-center gap-2 text-left rounded-[3px] px-3 h-[30px] text-[12px] outline-none focus-visible:bg-chrome-alt ${
               deplie ? 'bg-chrome-alt' : 'hover:bg-chrome-alt'
             }`}
           >
@@ -258,7 +258,7 @@ export function MenuBar({
               }}
               className={`anim-sous-menu ${
                 cote === 'droite' ? 'sous-menu-droite' : 'sous-menu-gauche'
-              } absolute top-[-5px] z-10 min-w-[232px] rounded-[8px] border border-border panneau-menu p-1`}
+              } absolute top-[-5px] z-10 min-w-[232px] rounded-[4px] border border-border panneau-menu p-1`}
             >
               {entree.items.map((item, j) => (
                 <div key={`${item.label}-${j}`}>
@@ -288,7 +288,7 @@ export function MenuBar({
               type="button"
               aria-expanded={ligne.deplie}
               onClick={() => setGroupeDeplie(ligne.deplie ? null : ligne.groupe.titre)}
-              className="w-full flex items-center gap-[5px] text-left rounded-[5px] px-3 h-[30px] text-[13px] font-semibold hover:bg-chrome-alt"
+              className="w-full flex items-center gap-[5px] text-left rounded-[3px] px-3 h-[30px] text-[12px] font-semibold hover:bg-chrome-alt"
             >
               {/* La petite flèche dit dans quel sens le repli va, comme un
                   dossier de l'explorateur. `aria-hidden` : l'état est déjà
@@ -356,7 +356,7 @@ export function MenuBar({
               setOuvert(survolable ? m.titre : ouvert === m.titre ? null : m.titre);
             }}
             onMouseEnter={() => survolerTitre(m.titre)}
-            className={`rounded-[5px] px-2.5 h-[26px] text-[13px] transition-colors duration-100 ${
+            className={`rounded-[3px] px-2.5 h-[26px] text-[12px] transition-colors duration-100 ${
               ouvert === m.titre ? 'bg-chrome-alt text-text' : 'text-text/85 hover:bg-chrome-alt hover:text-text'
             }`}
           >
@@ -370,7 +370,7 @@ export function MenuBar({
               // En mode volant, le panneau ne défile pas : un conteneur qui
               // défile rogne tout ce qui en dépasse, sous-menu compris. Il
               // n'en a plus besoin, les groupes gardant sa hauteur fixe.
-              className={`anim-menu absolute left-2 right-2 sm:left-0 sm:right-auto top-full mt-1 z-30 sm:min-w-[232px] rounded-[8px] border border-border panneau-menu p-1 ${
+              className={`anim-menu absolute left-2 right-2 sm:left-0 sm:right-auto top-full mt-1 z-30 sm:min-w-[232px] rounded-[4px] border border-border panneau-menu p-1 ${
                 volant ? '' : 'max-h-[calc(100dvh-64px)] overflow-y-auto'
               }`}
             >

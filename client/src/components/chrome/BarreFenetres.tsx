@@ -53,7 +53,7 @@ export function BarreFenetres() {
                 // la barre des tâches de Windows : le même bouton sert à
                 // montrer et à masquer, sans avoir à viser autre chose.
                 onClick={() => (active ? reduire(f.cle) : activer(f.cle))}
-                className={`max-w-[190px] truncate px-3 h-full text-[12px] ${active ? 'font-semibold' : ''}`}
+                className={`max-w-[190px] truncate px-3 h-full text-[11.5px] ${active ? 'font-semibold' : ''}`}
               >
                 {f.titreCourt}
               </button>
@@ -85,7 +85,7 @@ export function BarreFenetres() {
           type="button"
           onClick={fermerTout}
           title="Fermer toutes les fenêtres et revenir à l’accueil"
-          className="shrink-0 rounded-[4px] px-2.5 h-[28px] text-[12px] text-text-dim hover:bg-surface hover:text-text"
+          className="shrink-0 rounded-[4px] px-2.5 h-[28px] text-[11.5px] text-text-dim hover:bg-surface hover:text-text"
         >
           Tout fermer
         </button>

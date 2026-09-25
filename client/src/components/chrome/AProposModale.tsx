@@ -22,12 +22,12 @@ export function AProposModale({ onFermer }: { onFermer: () => void }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="bg-chrome border-b border-border px-3 py-2 flex items-center justify-between">
-          <span className="text-[12.5px] font-bold">À propos d'OmegaX</span>
-          <button onClick={onFermer} className="text-text-dim hover:text-text text-[13px] leading-none px-1">
+          <span className="text-[11.5px] font-bold">À propos d'OmegaX</span>
+          <button onClick={onFermer} className="text-text-dim hover:text-text text-[12px] leading-none px-1">
             ✕
           </button>
         </div>
-        <div className="p-4 text-[12.5px] space-y-2">
+        <div className="p-4 text-[11.5px] space-y-2">
           {/*
             La boîte « À propos » est le seul écran dont le SUJET est le
             logiciel lui-même : c'est la place du bloc complet, signe et mot
@@ -44,7 +44,7 @@ export function AProposModale({ onFermer }: { onFermer: () => void }) {
           <p className="text-text-dim">Version de développement.</p>
         </div>
         <div className="border-t border-border px-3 py-2 flex justify-end">
-          <button onClick={onFermer} className="bg-sel text-white text-[12px] font-semibold px-3 py-1">
+          <button onClick={onFermer} className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1">
             Fermer
           </button>
         </div>

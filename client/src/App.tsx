@@ -11,7 +11,7 @@ import { ConfidentialitePage } from './pages/ConfidentialitePage';
 function ZoneProtegee({ children }: { children: JSX.Element }) {
   const { chargement, connecte, utilisateur } = useAuth();
   if (chargement) {
-    return <div className="min-h-screen flex items-center justify-center text-[13px] text-text-dim">Chargement…</div>;
+    return <div className="min-h-screen flex items-center justify-center text-[12px] text-text-dim">Chargement…</div>;
   }
   if (!connecte) return <Navigate to="/connexion" replace />;
   // Mot de passe provisoire (remis par la console VMG, le siège d'un groupe
