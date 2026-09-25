@@ -1350,6 +1350,14 @@ export interface ParametresDossier {
   ville: string | null;
   pays: string | null;
   telephone: string | null;
+  email: string | null;
+  siteWeb: string | null;
+  /** AUSCGIE art. 17 · refusé par le serveur à une EBNL et à une personne physique. */
+  capitalSocial: number | null;
+  /** AUSCGIE art. 269-2 · « à capital variable » ajouté à la forme sociale. */
+  capitalVariable: boolean;
+  /** Ligne de l'art. 17 telle qu'elle s'imprime, et ses mentions manquantes · `ligne` null hors des sociétés commerciales. */
+  mentionsSociete: { ligne: string | null; manquantes: string[] };
   devise: string | null;
   /** Identifiants légaux congolais · CPCC, § 7.4 règle 7-a. */
   numeroImpot: string | null;

@@ -1,4 +1,4 @@
-import { IsBoolean, IsEnum, IsOptional, IsString, MaxLength, MinLength, IsDateString, IsInt, Max, Min, ValidateIf } from 'class-validator';
+import { IsBoolean, IsEmail, IsEnum, IsNumber, IsOptional, IsString, MaxLength, MinLength, IsDateString, IsInt, Max, Min, ValidateIf } from 'class-validator';
 import {
   FormeJuridiqueEbnl,
   FormeJuridiqueSyscohada,
@@ -65,6 +65,33 @@ export class ModifierCoordonneesDto {
   @IsString()
   @MaxLength(50)
   telephone?: string;
+
+  /** Chaîne vide = effacement · seule une adresse non vide est contrôlée. */
+  @IsOptional()
+  @ValidateIf((_, v) => v !== '')
+  @IsEmail({}, { message: "Le courriel de l'entité n'est pas une adresse valide." })
+  @MaxLength(200)
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  siteWeb?: string;
+
+  /**
+   * Capital social · AUSCGIE art. 17. `null` l'efface. Refusé par le service
+   * à une EBNL et à une personne physique (`motifRefusCapital`).
+   */
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'Le capital social est un montant, à deux décimales au plus.' })
+  @Min(0.01, { message: 'Le capital social est un montant positif.' })
+  capitalSocial?: number | null;
+
+  /** AUSCGIE art. 269-2 · « à capital variable » ajouté à la forme sociale. */
+  @IsOptional()
+  @IsBoolean()
+  capitalVariable?: boolean;
 
   /**
    * MONNAIE FONCTIONNELLE · celle dans laquelle l'entité vit réellement

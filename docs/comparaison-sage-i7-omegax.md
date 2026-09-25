@@ -97,7 +97,13 @@ tiennent à un texte OHADA ; ils sont signalés comme tels.
     du corpus ne décrivant qu'un mot de passe de fichier.
 
 **Secondaires**
-16. Capital, courriel et site dans l'identification.
+16. ~~Capital, courriel et site dans l'identification~~ · FAIT le 2026-09-25 :
+    les trois champs de l'exemple i7. Le capital n'est pas décoratif · l'AUSCGIE
+    art. 17 l'impose à côté de la dénomination, avec la forme, le siège et le
+    RCCM, sur tout document destiné aux tiers (art. 891-1, 2°, sanction
+    pénale ; « à capital variable », art. 269-2). La ligne s'imprime sous la
+    dénomination et ses mentions manquantes sont dites ; refusé à une EBNL et
+    à une personne physique.
 17. Fenêtre des journaux de saisie ; écran de l'historique des rappels.
 18. Éditions des structures (plan, tiers, journaux, taux, paramètres).
 19. Banques, libellés, collaborateurs, plan reporting.

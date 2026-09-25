@@ -296,6 +296,25 @@ model Tenant {
   ville     String?
   pays      String? @default("RD Congo")
   telephone String?
+  // Courriel et site de l'entité · l'exemple d'identification du manuel Sage
+  // i7 (point 16 de la comparaison) les porte à côté du téléphone. Simples
+  // coordonnées, aucun texte ne les exige ni ne les borne.
+  email     String?
+  siteWeb   String?
+  /// CAPITAL SOCIAL · AUSCGIE art. 17 : la dénomination figure « sur tous les
+  /// actes et documents émanant de la société et destinés aux tiers » et doit
+  /// être « précédée ou suivie immédiatement […] de l'indication de la forme
+  /// de la société, du MONTANT DE SON CAPITAL SOCIAL, de l'adresse de son
+  /// siège social et de la mention de son numéro d'immatriculation au RCCM »,
+  /// sanction pénale de l'art. 891-1, 2°. NULLABLE, sans défaut · le montant
+  /// se lit dans les statuts (art. 13, 10°), il ne se devine pas. Refusé à un
+  /// dossier SYCEBNL et à une personne physique, qui n'ont pas de capital
+  /// social (`tenant/mentions-societe.ts`).
+  capitalSocial   Decimal? @db.Decimal(18, 2)
+  /// AUSCGIE art. 269-2 · la société à capital variable le mentionne « dans
+  /// tous les actes et documents […] destinés aux tiers, par l'addition à la
+  /// forme sociale des mots « à capital variable » ».
+  capitalVariable Boolean  @default(false)
   /// MONNAIE DE TENUE · elle ne se choisit pas.
   ///
   /// Loi n° 23/053, art. 141, 1° : les redevables sont dans l'obligation « de

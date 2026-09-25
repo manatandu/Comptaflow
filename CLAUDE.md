@@ -4474,6 +4474,25 @@ d'opérateur sont sur le compte : ils suivent. `OPERATEURS_PLATEFORME` n'accorde
 qu'en ACCORD · la valeur par défaut du workflow passe à .net, et si le secret
 `API_OPERATEURS_PLATEFORME` existe, il prime et se met à jour à la main.
 
+**Capital, courriel et site de l'entité (2026-09-25).** Point 16 de la
+comparaison. Le manuel i7 les porte dans son exemple d'identification sans en
+dire plus ; la règle qui donne son poids au capital est l'AUSCGIE art. 17
+(dénomination « précédée ou suivie immédiatement » de la forme, du MONTANT DU
+CAPITAL SOCIAL, du siège et du RCCM, sur tout document destiné aux tiers ;
+sanction pénale, art. 891-1, 2°), plus l'art. 269-2 (« à capital variable »
+ajouté à la forme). TROIS RÈGLES À NE PAS DÉFAIRE. (1) LE PÉRIMÈTRE EST LES
+CINQ SOCIÉTÉS COMMERCIALES DE L'ART. 6 · la ligne (`tenant/mentions-societe.ts`)
+n'est ni composée ni réclamée ailleurs ; GIE, coopérative, succursale et entité
+publique relèvent de textes non lus, le capital leur reste saisissable sans
+être exigé. (2) UNE EBNL ET UNE PERSONNE PHYSIQUE N'ONT PAS DE CAPITAL, et la
+ROUTE le refuse (`motifRefusCapital`), pas seulement l'écran · imprimé sous la
+dénomination d'une ASBL, il lui prêterait une forme de société. Le retrait
+reste toujours permis. (3) UNE MENTION ABSENTE EST DITE, JAMAIS REMPLACÉE ·
+la ligne s'imprime avec ce qui est connu (en-tête d'impression, par
+/auth/me) et l'écran nomme ce qui manque. Le montant est celui des statuts,
+sans défaut. Non servi et dit · le devis et la facture n'impriment pas encore
+d'en-tête du dossier.
+
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
 nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la

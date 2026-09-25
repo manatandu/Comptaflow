@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { mentionsArticle17 } from '../tenant/mentions-societe';
 import { JwtService } from '@nestjs/jwt';
 import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcryptjs';
@@ -343,6 +344,13 @@ export class AuthService {
         // Porté jusqu'au front pour l'en-tête d'impression : le n° impôt doit
         // figurer sur chaque page d'un état déposé (CPCC, § 7.4 règle 7-a).
         numeroImpot: user.tenant.numeroImpot,
+        // AUSCGIE art. 17 · forme, capital, siège et RCCM à côté de la
+        // dénomination sur tout document destiné aux tiers. `null` hors des
+        // sociétés commerciales (`tenant/mentions-societe.ts`).
+        mentionsSociete: mentionsArticle17({
+          ...user.tenant,
+          capitalSocial: user.tenant.capitalSocial === null ? null : Number(user.tenant.capitalSocial),
+        }).ligne,
         // Dossier mère d'un groupe d'établissements · ouvre l'entrée de menu
         // « Balance agrégée du groupe » (le serveur re-vérifie de toute façon
         // le lien à chaque appel /groupe).

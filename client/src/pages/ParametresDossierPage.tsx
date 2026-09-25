@@ -146,6 +146,10 @@ export function ParametresDossierPage() {
   const [ville, setVille] = useState('');
   const [pays, setPays] = useState('');
   const [telephone, setTelephone] = useState('');
+  const [email, setEmail] = useState('');
+  const [siteWeb, setSiteWeb] = useState('');
+  const [capitalSocial, setCapitalSocial] = useState('');
+  const [capitalVariable, setCapitalVariable] = useState(false);
   const [devise, setDevise] = useState('');
   const [deviseFonctionnelle, setDeviseFonctionnelle] = useState('');
 
@@ -162,6 +166,13 @@ export function ParametresDossierPage() {
   const [dateAttestationIs, setDateAttestationIs] = useState('');
   const [exemption, setExemption] = useState<QualificationExemptionIs | null>(null);
 
+  // Même règle que `motifRefusCapital` côté serveur · ni une EBNL ni une
+  // personne physique n'ont de capital social.
+  const peutPorterCapital =
+    params?.referentiel === 'SYSCOHADA' &&
+    params.formeJuridiqueSyscohada !== 'ENTREPRISE_INDIVIDUELLE' &&
+    params.formeJuridiqueSyscohada !== 'ENTREPRENANT';
+
   const charger = async () => {
     try {
       const p = await api.get<ParametresDossier>('/dossier/parametres');
@@ -172,6 +183,10 @@ export function ParametresDossierPage() {
       setVille(p.ville ?? '');
       setPays(p.pays ?? '');
       setTelephone(p.telephone ?? '');
+      setEmail(p.email ?? '');
+      setSiteWeb(p.siteWeb ?? '');
+      setCapitalSocial(p.capitalSocial === null ? '' : String(p.capitalSocial).replace('.', ','));
+      setCapitalVariable(p.capitalVariable);
       setDevise(p.devise ?? '');
       setDeviseFonctionnelle(p.deviseFonctionnelle ?? '');
       setNumeroImpot(p.numeroImpot ?? '');
@@ -477,6 +492,15 @@ export function ParametresDossierPage() {
       setErreur('La dénomination ne peut pas être vide : elle figure en tête de chaque état financier.');
       return;
     }
+    // Le capital n'est envoyé qu'au dossier qui peut en porter un · le serveur
+    // le refuse aux autres, et l'envoyer vide ferait échouer tout
+    // l'enregistrement d'une ASBL pour un champ qu'elle ne voit pas.
+    const texteCapital = capitalSocial.replace(/\s/g, '').replace(',', '.');
+    const capital = texteCapital === '' ? null : Number(texteCapital);
+    if (capital !== null && !(capital > 0)) {
+      setErreur('Le capital social est un montant positif.');
+      return;
+    }
     setEnvoi(true);
     setErreur(null);
     setInfo(null);
@@ -489,6 +513,9 @@ export function ParametresDossierPage() {
           ville,
           pays,
           telephone,
+          email,
+          siteWeb,
+          ...(peutPorterCapital ? { capitalSocial: capital, capitalVariable } : {}),
           // La monnaie n'est envoyée que si elle peut encore changer · sinon
           // le serveur refuserait tout l'enregistrement pour un champ que
           // l'écran affiche de toute façon en lecture seule.
@@ -643,6 +670,74 @@ export function ParametresDossierPage() {
                       className={champSage}
                     />
                   </Ligne>
+                  <Ligne label="Courriel" large>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      disabled={!estAdmin || envoi}
+                      maxLength={200}
+                      aria-label="Courriel"
+                      className={champSage}
+                    />
+                  </Ligne>
+                  <Ligne label="Site" large>
+                    <input
+                      value={siteWeb}
+                      onChange={(e) => setSiteWeb(e.target.value)}
+                      disabled={!estAdmin || envoi}
+                      maxLength={200}
+                      aria-label="Site"
+                      className={champSage}
+                    />
+                  </Ligne>
+                  {/* CAPITAL SOCIAL · AUSCGIE art. 17, imprimé à côté de la
+                      dénomination avec la forme, le siège et le RCCM. Une
+                      EBNL et une personne physique n'en ont pas, et le
+                      serveur le refuse (`motifRefusCapital`). */}
+                  {peutPorterCapital && (
+                    <>
+                      <Ligne label="Capital social" large>
+                        <div className="flex items-center gap-2">
+                          <input
+                            value={capitalSocial}
+                            onChange={(e) => setCapitalSocial(e.target.value)}
+                            disabled={!estAdmin || envoi}
+                            inputMode="decimal"
+                            aria-label="Capital social"
+                            className={`${champSage} text-right`}
+                          />
+                          <span className="text-[11px]">{devise}</span>
+                          <label className="flex items-center gap-1 text-[11px] whitespace-nowrap">
+                            <input
+                              type="checkbox"
+                              checked={capitalVariable}
+                              onChange={(e) => setCapitalVariable(e.target.checked)}
+                              disabled={!estAdmin || envoi}
+                            />
+                            À capital variable
+                          </label>
+                          <Aide
+                            titre="Capital social"
+                            texte="La dénomination figure sur tous les actes et documents destinés aux tiers, « précédée ou suivie immédiatement […] de l'indication de la forme de la société, du montant de son capital social, de l'adresse de son siège social et de la mention de son numéro d'immatriculation au registre du commerce et du crédit mobilier ». Une société à capital variable ajoute ces mots à sa forme sociale. Le montant est celui des statuts."
+                            source="AUSCGIE art. 17, 269-2, 13, 10° · sanction pénale, art. 891-1, 2°"
+                          />
+                        </div>
+                      </Ligne>
+                      {params?.mentionsSociete.ligne && (
+                        <Ligne label="Art. 17" large>
+                          <div className="text-[11px]">
+                            {params.mentionsSociete.ligne}
+                            {params.mentionsSociete.manquantes.length > 0 && (
+                              <div className="text-warning font-semibold">
+                                Manque : {params.mentionsSociete.manquantes.join(', ')}
+                              </div>
+                            )}
+                          </div>
+                        </Ligne>
+                      )}
+                    </>
+                  )}
                   {/* LA MONNAIE DE TENUE NE SE CHOISIT PAS · loi n° 23/053
                       art. 141, 1° (« Cette comptabilité est exprimée en Franc
                       congolais ») et AUDCIF art. 17, 1°. Elle était modifiable

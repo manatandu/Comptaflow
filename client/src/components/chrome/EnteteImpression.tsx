@@ -100,6 +100,11 @@ export function EnteteImpression({ titre, sousTitre }: { titre: string; sousTitr
       <div className="flex items-start justify-between gap-6">
         <div>
           <div className="text-[13px] font-bold uppercase">{tenant?.nom}</div>
+          {/* AUSCGIE art. 17 · « précédée ou suivie immédiatement » de la
+              forme, du capital, du siège et du RCCM, sur tout document
+              destiné aux tiers. Servie par /auth/me, null hors des sociétés
+              commerciales. */}
+          {tenant?.mentionsSociete && <div className="text-[11px]">{tenant.mentionsSociete}</div>}
           <div className="text-[11px]">
             Référentiel {tenant?.referentiel}
             {tenant?.referentiel === 'SYCEBNL' && ` · ${jeu}`}

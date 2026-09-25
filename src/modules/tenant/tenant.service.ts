@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { siSycebnl } from '../../common/reponse-referentiel';
 import { PrismaService } from '../../common/prisma.service';
 import { MONNAIE_DE_TENUE } from '../../common/monnaie-de-tenue';
+import { mentionsArticle17, motifRefusCapital } from './mentions-societe';
 import { Prisma, FormeJuridiqueEbnl,
   FormeJuridiqueSyscohada, JeuEtatsFinanciersSycebnl, MethodeCotisations, Referentiel, RegimeExigibiliteTva, SystemeComptableSyscohada, TypeLicence,
   MethodeInventaireStocks,
@@ -90,6 +91,13 @@ export class TenantService {
       ville: tenant.ville,
       pays: tenant.pays,
       telephone: tenant.telephone,
+      email: tenant.email,
+      siteWeb: tenant.siteWeb,
+      capitalSocial: tenant.capitalSocial === null ? null : Number(tenant.capitalSocial),
+      capitalVariable: tenant.capitalVariable,
+      // La ligne de l'art. 17 AUSCGIE telle qu'elle s'imprime, et ce qui y
+      // manque · même calcul que l'en-tête d'impression (/auth/me).
+      mentionsSociete: mentionsArticle17({ ...tenant, capitalSocial: tenant.capitalSocial === null ? null : Number(tenant.capitalSocial) }),
       // MONNAIE DE TENUE · lecture seule côté écran. Elle ne se choisit pas
       // (loi n° 23/053 art. 141, 1° · AUDCIF art. 17, 1°) et elle n'a jamais
       // rien converti · elle étiquette le cartouche des états.
@@ -238,12 +246,24 @@ export class TenantService {
       ville?: string;
       pays?: string;
       telephone?: string;
+      email?: string;
+      siteWeb?: string;
+      capitalSocial?: number | null;
+      capitalVariable?: boolean;
       deviseFonctionnelle?: string;
     },
   ) {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant) {
       throw new NotFoundException('Dossier introuvable');
+    }
+    // UN CAPITAL SUR UNE ENTITÉ QUI N'EN A PAS EST REFUSÉ À LA ROUTE, pas
+    // seulement masqué à l'écran (§ 6) · imprimé à côté de la dénomination
+    // d'une ASBL, il lui prêterait une forme de société qu'elle n'a pas. Le
+    // retrait (`null`, ou « non » au capital variable) reste toujours permis.
+    if ((dto.capitalSocial !== undefined && dto.capitalSocial !== null) || dto.capitalVariable === true) {
+      const motif = motifRefusCapital(tenant.referentiel, tenant.formeJuridiqueSyscohada);
+      if (motif) throw new BadRequestException(motif);
     }
     // LA MONNAIE FONCTIONNELLE DOIT EXISTER DANS LE DOSSIER. Sans cette
     // vérification, un dossier pourrait nommer « USD » sans qu'aucun cours ne
@@ -281,6 +301,10 @@ export class TenantService {
         ville: normaliser(dto.ville),
         pays: normaliser(dto.pays),
         telephone: normaliser(dto.telephone),
+        email: normaliser(dto.email),
+        siteWeb: normaliser(dto.siteWeb),
+        capitalSocial: dto.capitalSocial === undefined ? undefined : dto.capitalSocial === null ? null : new Prisma.Decimal(dto.capitalSocial),
+        capitalVariable: dto.capitalVariable,
         // LA MONNAIE DE TENUE N'EST PLUS TOUCHÉE ICI. Elle ne convertissait
         // rien · elle étiquetait le cartouche (« montants en X »), si bien
         // qu'en changer la valeur imprimait une unité fausse sur toute la

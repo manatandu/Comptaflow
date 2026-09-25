@@ -32,6 +32,9 @@ interface MeResponse {
     devise: string | null;
     /** N° impôt · exigé en en-tête de chaque page imprimée (CPCC, § 7.4). */
     numeroImpot: string | null;
+    /** AUSCGIE art. 17 · forme, capital, siège et RCCM à côté de la
+     *  dénomination. null hors des sociétés commerciales. */
+    mentionsSociete?: string | null;
     /** > 0 = dossier mère d'un groupe d'établissements · ouvre le menu
      *  « Balance agrégée du groupe ». */
     nombreCellules: number;
