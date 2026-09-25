@@ -112,6 +112,15 @@ export function JournauxPage() {
     }
   };
 
+  const basculerContrepartie = async (j: Journal) => {
+    try {
+      await api.patch(`/journaux/${j.id}`, { contrepartieChaqueLigne: !j.contrepartieChaqueLigne });
+      await charger();
+    } catch (err) {
+      setErreurChargement(err instanceof ApiError ? err.message : 'Action impossible');
+    }
+  };
+
   const basculerActif = async (j: Journal) => {
     try {
       await api.patch(`/journaux/${j.id}`, { estActif: !j.estActif });
@@ -174,6 +183,16 @@ export function JournauxPage() {
             <span className="text-[11px] text-text-dim">{LIBELLE_NUMEROTATION[j.numerotation]}</span>
             <span className="font-mono text-[11px] text-text-dim truncate">
               {j.compteTresorerie ? `${j.compteTresorerie.numero} ${j.compteTresorerie.intitule}` : ''}
+              {j.type === 'TRESORERIE' && (
+                <label className="flex items-center gap-1 font-sans text-text" title="Chaque ligne saisie reçoit aussitôt sa ligne de trésorerie, même libellé, sens inverse (Sage i7)">
+                  <input
+                    type="checkbox"
+                    checked={!!j.contrepartieChaqueLigne}
+                    onChange={() => basculerContrepartie(j)}
+                  />
+                  Contrepartie à chaque ligne
+                </label>
+              )}
             </span>
             <button
               onClick={() => basculerActif(j)}

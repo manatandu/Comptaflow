@@ -21,6 +21,11 @@ export class CreerJournalDto {
   @IsOptional()
   @IsEnum(NumerotationPiece)
   numerotation?: NumerotationPiece;
+
+  /** Contrepartie de trésorerie générée à chaque ligne (journaux de trésorerie seulement). */
+  @IsOptional()
+  @IsBoolean()
+  contrepartieChaqueLigne?: boolean;
 }
 
 export class ModifierJournalDto {
@@ -39,4 +44,9 @@ export class ModifierJournalDto {
   @IsOptional()
   @IsBoolean()
   estActif?: boolean;
+
+  /** Contrepartie de trésorerie générée à chaque ligne (journaux de trésorerie seulement). */
+  @IsOptional()
+  @IsBoolean()
+  contrepartieChaqueLigne?: boolean;
 }

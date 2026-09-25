@@ -7,6 +7,7 @@ import { ordonnerLignes } from '../lib/ordre-ecriture';
 import type { Compte, Ecriture, Journal, PlanAnalytique, SectionAnalytique, TauxTva } from '../lib/types';
 import { useAuth } from '../lib/auth';
 import { construireLigneTva, modeCalculTva, montantTva, netAPayer, sensDeLaLigne } from '../lib/tva-saisie';
+import { contrepartieDeLigne } from '../lib/contrepartie-tresorerie';
 
 /**
  * SAISIE DES JOURNAUX · l'écran central du logiciel, calqué sur
@@ -222,7 +223,7 @@ export function SaisiePage() {
   const [assujettiTva, setAssujettiTva] = useState<boolean | null>(null);
   // Annonce de la ligne de TVA ajoutée d'office · une taxe posée sans un mot
   // passerait inaperçue jusqu'à la déclaration.
-  const [tvaAjoutee, setTvaAjoutee] = useState<string | null>(null);
+  const [tvaAjoutee, setTvaAjoutee] = useState<{ message: string; compteId: string; tauxTvaId: string } | null>(null);
 
   const compteRef = useRef<HTMLInputElement>(null);
   const libelleRef = useRef<HTMLInputElement>(null);
@@ -439,6 +440,21 @@ export function SaisiePage() {
     // La proposition vise la ligne qu'on vient de poser (son indice est
     // `prev.length` avant l'ajout, donc `lignes.length` ici) et attend un
     // geste · rien ne s'insère seul.
+    // CONTREPARTIE À CHAQUE LIGNE · option du journal de trésorerie (Sage i7,
+    // « Générer une contrepartie à chaque ligne »). La ligne saisie reçoit
+    // aussitôt sa ligne sur le compte de trésorerie du journal, même libellé,
+    // sens inverse · jamais sur la ligne de trésorerie elle-même, qui se
+    // solderait contre elle-même.
+    const contrepartie = contrepartieDeLigne({
+      journal,
+      compteLigneId: compteChoisi.id,
+      comptes,
+      debit: d,
+      credit: c,
+      libelle: libelleLigne || libellePiece,
+    });
+    if (contrepartie) setLignes((prev) => [...prev, contrepartie]);
+
     // Trois régimes (lib/tva-saisie.ts, modeCalculTva) · rien hors achats et
     // ventes, d'office pour un dossier déclaré assujetti, proposé sinon.
     // L'annonce d'une taxe ajoutée d'office RESTE jusqu'à l'enregistrement de
@@ -474,9 +490,11 @@ export function SaisiePage() {
           tauxTvaId: l.tauxTvaId,
         },
       ]);
-      setTvaAjoutee(
-        `TVA ajoutée d'office : ${l.numero} · ${tauxDefaut!.code} ${Number(tauxDefaut!.taux)} % de ${(d || c).toLocaleString('fr-FR')} = ${(l.debit || l.credit).toLocaleString('fr-FR')}. Supprimez la ligne pour y renoncer.`,
-      );
+      setTvaAjoutee({
+        message: `TVA ajoutée d'office : ${l.numero} · ${tauxDefaut!.code} ${Number(tauxDefaut!.taux)} % de ${(d || c).toLocaleString('fr-FR')} = ${(l.debit || l.credit).toLocaleString('fr-FR')}.`,
+        compteId: l.compteId,
+        tauxTvaId: l.tauxTvaId!,
+      });
       setPropositionTva(null);
     } else if (mode !== 'AUCUN' && compteChoisi.tauxTvaDefautId) {
       // PROPOSE, ou AUTO impossible (compte de taxe non rattaché) · la bande
@@ -580,6 +598,19 @@ export function SaisiePage() {
     });
     return { ligneHt, taux, sens, ht, montant: montantTva(ht, taux), resultat };
   }, [propositionTva, lignes, tauxTvaListe, comptes, numerosDuPlan, utilisateur?.tenant.referentiel]);
+
+  const retirerTvaAjoutee = () => {
+    if (!tvaAjoutee) return;
+    setLignes((prev) => {
+      for (let i = prev.length - 1; i >= 0; i--) {
+        if (prev[i].compteId === tvaAjoutee.compteId && prev[i].tauxTvaId === tvaAjoutee.tauxTvaId) {
+          return [...prev.slice(0, i), ...prev.slice(i + 1)];
+        }
+      }
+      return prev;
+    });
+    setTvaAjoutee(null);
+  };
 
   const poserLigneTva = () => {
     if (!apercuTva?.resultat.ligne) return;
@@ -1195,6 +1226,21 @@ export function SaisiePage() {
             </div>
           ))}
 
+          {/* AU-DESSUS de la zone de saisie · la liste des comptes s'ouvre EN
+              DESSOUS après chaque ligne, et couvrait l'annonce et son bouton. */}
+          {tvaAjoutee && (
+            <div className="flex flex-wrap items-center gap-2 px-3 py-1.5 border-b border-border/50 bg-sel-soft text-[11.5px] text-sel">
+              <span>{tvaAjoutee.message}</span>
+              {/* UN ASSUJETTI A AUSSI DES OPÉRATIONS EXONÉRÉES (O.-L. n° 10/001,
+                  art. 15 et suivants) · le taux par défaut du compte ne dit pas
+                  la nature de CETTE opération. Le retrait se fait en un clic,
+                  sur la dernière ligne de taxe posée d'office, et seulement
+                  elle. */}
+              <button type="button" onClick={retirerTvaAjoutee} className="border border-sel/40 bg-surface px-2 py-[1px] font-semibold">
+                Opération exonérée · retirer la TVA
+              </button>
+            </div>
+          )}
           {/* Zone de saisie de la ligne · Tab de zone en zone, Entrée valide. */}
           <div style={grilleStyle} className={`${grille} px-3 py-1.5 items-center border-b border-border bg-surface`}>
             <span className="font-mono text-[11.5px] text-text-dim text-center">·</span>
@@ -1406,9 +1452,6 @@ export function SaisiePage() {
               contrepartie de tiers porte le TTC. Le bouton Équilibrer, juste en
               dessous, complète le montant manquant.
               ------------------------------------------------------------------ */}
-          {tvaAjoutee && (
-            <div className="px-3 py-1.5 border-b border-border/50 bg-sel-soft text-[11.5px] text-sel">{tvaAjoutee}</div>
-          )}
           {apercuTva && (
             <div className="flex items-center gap-2 px-3 py-2 flex-wrap border-b border-border/50 bg-chrome-alt/60">
               <span className="text-[11px] font-bold text-text-dim">Code taxe</span>

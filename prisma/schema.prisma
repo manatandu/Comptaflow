@@ -921,6 +921,15 @@ model Journal {
 
   numerotation NumerotationPiece @default(MANUELLE)
   estActif     Boolean           @default(true) // "mise en sommeil" réversible
+
+  // « Générer une contrepartie à chaque ligne » · option des journaux de
+  // trésorerie de Sage 100 i7 (manuel de formation, codes journaux et journal
+  // Caisse). Cochée, chaque ligne saisie reçoit AUSSITÔT sa propre ligne sur
+  // le compte de trésorerie du journal, même libellé, sens inverse · la pièce
+  // reste équilibrée ligne à ligne, et le livre de caisse se lit opération par
+  // opération plutôt qu'en un total. Sans objet hors trésorerie, et refusée
+  // par le service sur un autre type.
+  contrepartieChaqueLigne Boolean @default(false)
   createdAt    DateTime          @default(now())
 
   ecritures         Ecriture[]

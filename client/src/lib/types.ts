@@ -195,6 +195,8 @@ export interface Journal {
   compteTresorerie?: Compte | null;
   numerotation: NumerotationPiece;
   estActif: boolean;
+  /** « Générer une contrepartie à chaque ligne » (Sage i7) · journaux de trésorerie. */
+  contrepartieChaqueLigne?: boolean;
 }
 
 export interface LigneEcriture {

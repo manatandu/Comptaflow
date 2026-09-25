@@ -193,9 +193,16 @@ describe('La TVA à la saisie · trois régimes (Sage i7 : « le calcul de la ta
     expect(modeCalculTva('VENTES', null)).toBe('PROPOSE');
   });
 
+  it('un assujetti a aussi des opérations exonérées · la taxe posée d’office se retire en un clic, elle seule', () => {
+    expect(saisie).toContain('Opération exonérée · retirer la TVA');
+    // Le retrait vise la DERNIÈRE ligne portant ce compte de taxe ET ce taux,
+    // jamais une ligne de TVA saisie à la main plus haut dans la pièce.
+    expect(saisie).toContain('prev[i].compteId === tvaAjoutee.compteId && prev[i].tauxTvaId === tvaAjoutee.tauxTvaId');
+  });
+
   it('la pose d’office n’existe qu’en régime AUTO, et elle est toujours annoncée', () => {
     expect(saisie).toContain("mode === 'AUTO' && tauxDefaut && sensHt");
-    expect(saisie).toContain("`TVA ajoutée d'office : ${l.numero}");
+    expect(saisie).toContain("message: `TVA ajoutée d'office : ${l.numero}");
     // Et la bande reste la voie du régime PROPOSE, et du AUTO impossible.
     expect(saisie).toContain("} else if (mode !== 'AUCUN' && compteChoisi.tauxTvaDefautId) {");
     expect(saisie).toContain('onClick={poserLigneTva}');

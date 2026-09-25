@@ -77,6 +77,7 @@ export class JournalService {
         type: dto.type,
         compteTresorerieId: dto.compteTresorerieId,
         numerotation: dto.numerotation ?? NumerotationPiece.MANUELLE,
+        contrepartieChaqueLigne: dto.type === TypeJournal.TRESORERIE && dto.contrepartieChaqueLigne === true,
       },
     });
   }
@@ -102,6 +103,14 @@ export class JournalService {
       throw new BadRequestException('Un journal de type Trésorerie doit avoir un compte de trésorerie associé');
     }
 
+    // Une contrepartie de trésorerie n'a de sens que sur un journal de
+    // trésorerie · cochée sur un journal d'achats, elle solderait chaque charge
+    // contre une banque que le journal ne porte pas.
+    if (dto.contrepartieChaqueLigne === true && journal.type !== TypeJournal.TRESORERIE) {
+      throw new BadRequestException(
+        `La contrepartie à chaque ligne ne vaut que pour un journal de trésorerie · ${journal.code} est un journal ${journal.type.toLowerCase()}.`,
+      );
+    }
     return this.prisma.journal.update({ where: { id: journal.id }, data: dto });
   }
 

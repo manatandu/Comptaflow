@@ -4242,6 +4242,25 @@ rattachements d'un tiers partent avec lui mais un tiers dont un compte rattaché
 est mouvementé est un tiers mouvementé. Le refus nomme chaque usage et renvoie
 à la mise en sommeil.
 
+**Contrepartie à chaque ligne et opérations exonérées (2026-09-25).** Point 5
+de la comparaison Sage i7. `Journal.contrepartieChaqueLigne` porte l'option
+« Générer une contrepartie à chaque ligne » des journaux de trésorerie (manuel
+i7, codes journaux et journal Caisse) · chaque ligne saisie reçoit aussitôt sa
+ligne sur le compte de trésorerie du journal, même libellé, sens inverse
+(`lib/contrepartie-tresorerie.ts`), jamais sur la ligne de trésorerie
+elle-même. Défaut FAUX, et REFUSÉE par le service hors trésorerie · cochée sur
+un journal d'achats, elle solderait chaque charge contre une banque que le
+journal ne porte pas.
+
+UN ASSUJETTI A AUSSI DES OPÉRATIONS EXONÉRÉES (relevé par Manasse le jour
+même). Le taux par défaut d'un compte ne dit pas la nature de CETTE opération ·
+l'annonce de la TVA posée d'office porte un bouton « Opération exonérée ·
+retirer la TVA » qui retire la dernière ligne de ce compte de taxe et de ce
+taux, et elle seule. Un compte qui ne sert qu'à des opérations exonérées ne
+doit simplement pas porter de taux par défaut. L'annonce est rendue AU-DESSUS
+de la zone de saisie · la liste des comptes s'ouvre en dessous après chaque
+ligne et la couvrait, trouvé par le test navigateur.
+
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
 nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la
