@@ -59,6 +59,12 @@ interface Filtres {
   dateDebut: string;
   dateFin: string;
   recherche: string;
+  /** Recherche d'écritures (Sage i7) · compte et montant se cherchent sur la même ligne. */
+  compte: string;
+  montant: string;
+  montantMax: string;
+  numeroPiece: string;
+  reference: string;
   /**
    * Le journal est un état de TRAVAIL : il montre le brouillard par défaut,
    * marqué comme tel. Décoché, il donne le livre-journal seul · c'est cette
@@ -72,6 +78,11 @@ const FILTRES_VIDES: Filtres = {
   dateDebut: '',
   dateFin: '',
   recherche: '',
+  compte: '',
+  montant: '',
+  montantMax: '',
+  numeroPiece: '',
+  reference: '',
   inclureBrouillard: true,
 };
 
@@ -82,6 +93,9 @@ function versQuery(exerciceId: string, filtres: Filtres): string {
   if (filtres.dateDebut) params.set('dateDebut', filtres.dateDebut);
   if (filtres.dateFin) params.set('dateFin', filtres.dateFin);
   if (filtres.recherche) params.set('recherche', filtres.recherche);
+  for (const cle of ['compte', 'montant', 'montantMax', 'numeroPiece', 'reference'] as const) {
+    if (filtres[cle].trim()) params.set(cle, filtres[cle].trim());
+  }
   if (!filtres.inclureBrouillard) params.set('inclureBrouillard', 'false');
   return params.toString();
 }
@@ -126,9 +140,9 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
   const [filtresOuverts, setFiltresOuverts] = useState(false);
 
   // « Rechercher » de la barre d'outils = la Recherche d'écritures de Sage ·
-  // ici, le panneau de filtres du journal (période, compte, montant). Il
-  // n'existe que sur l'onglet Journal : sur la balance et le grand livre, le
-  // verbe reste grisé, ce qui est exact.
+  // ici, le panneau de filtres du journal (période, compte, montant, pièce,
+  // référence, libellé). Il n'existe que sur l'onglet Journal : sur la
+  // balance et le grand livre, le verbe reste grisé, ce qui est exact.
 
   const [erreur, setErreur] = useState<string | null>(null);
   // Une correction (art. 20 de l'AUDCIF) change à la fois le journal, la
@@ -227,7 +241,10 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
   );
 
   const filtreActif = useMemo(
-    () => Object.values(filtresAppliques).some((v) => v !== ''),
+    // Comparé aux filtres VIDES, champ par champ · comparer à '' comptait la
+    // case du brouillard (un booléen, vrai par défaut) comme un filtre, et le
+    // bouton disait « actif » sur un journal que rien ne filtrait.
+    () => (Object.keys(FILTRES_VIDES) as (keyof Filtres)[]).some((k) => filtresAppliques[k] !== FILTRES_VIDES[k]),
     [filtresAppliques],
   );
 
@@ -454,6 +471,65 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
               value={filtres.dateFin}
               onChange={(e) => setFiltres({ ...filtres, dateFin: e.target.value })}
               className="border border-border bg-surface px-2 py-1 text-[11.5px] font-mono"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-bold text-text-dim">Compte</span>
+            <input
+              aria-label="Compte"
+              inputMode="numeric"
+              value={filtres.compte}
+              onChange={(e) => setFiltres({ ...filtres, compte: e.target.value })}
+              onKeyDown={(e) => e.key === 'Enter' && setFiltresAppliques(filtres)}
+              placeholder="ex. 401"
+              className="border border-border bg-surface px-2 py-1 text-[11.5px] w-[110px]"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-bold text-text-dim">Montant</span>
+            <input
+              aria-label="Montant"
+              inputMode="decimal"
+              value={filtres.montant}
+              onChange={(e) => setFiltres({ ...filtres, montant: e.target.value })}
+              onKeyDown={(e) => e.key === 'Enter' && setFiltresAppliques(filtres)}
+              placeholder="exact"
+              className="border border-border bg-surface px-2 py-1 text-[11.5px] w-[120px] text-right"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-bold text-text-dim">jusqu'à</span>
+            <input
+              aria-label="jusqu'à"
+              inputMode="decimal"
+              value={filtres.montantMax}
+              onChange={(e) => setFiltres({ ...filtres, montantMax: e.target.value })}
+              onKeyDown={(e) => e.key === 'Enter' && setFiltresAppliques(filtres)}
+              placeholder="facultatif"
+              className="border border-border bg-surface px-2 py-1 text-[11.5px] w-[120px] text-right"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-bold text-text-dim">N° pièce</span>
+            <input
+              aria-label="N° pièce"
+              inputMode="numeric"
+              value={filtres.numeroPiece}
+              onChange={(e) => setFiltres({ ...filtres, numeroPiece: e.target.value })}
+              onKeyDown={(e) => e.key === 'Enter' && setFiltresAppliques(filtres)}
+              placeholder=""
+              className="border border-border bg-surface px-2 py-1 text-[11.5px] w-[80px]"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-bold text-text-dim">Référence</span>
+            <input
+              aria-label="Référence"
+              value={filtres.reference}
+              onChange={(e) => setFiltres({ ...filtres, reference: e.target.value })}
+              onKeyDown={(e) => e.key === 'Enter' && setFiltresAppliques(filtres)}
+              placeholder="n° facture…"
+              className="border border-border bg-surface px-2 py-1 text-[11.5px] w-[120px]"
             />
           </label>
           <label className="flex flex-col gap-1 flex-1 min-w-[180px]">

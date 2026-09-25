@@ -8,6 +8,7 @@ import {
   StatutExercice,
   TypeCompteDetailTotal,
 } from '@prisma/client';
+import { CriteresRecherche, filtreRecherche } from './recherche-ecritures';
 import { CreerEcritureDto, ImputationOuvertureDto } from './dto/creer-ecriture.dto';
 import { CorrigerEcritureDto } from './dto/corriger-ecriture.dto';
 import { ModifierEcritureDto, ValiderJusquaDto } from './dto/brouillard.dto';
@@ -134,9 +135,8 @@ export function perimetreJournal(
     journalId?: string;
     dateDebut?: string;
     dateFin?: string;
-    recherche?: string;
     inclureBrouillard?: boolean;
-  },
+  } & CriteresRecherche,
 ): Prisma.EcritureWhereInput {
   return {
     tenantId,
@@ -151,7 +151,9 @@ export function perimetreJournal(
           },
         }
       : {}),
-    ...(filtres.recherche ? { libelle: { contains: filtres.recherche, mode: 'insensitive' as const } } : {}),
+    // Les critères de la recherche d'écritures (compte, montant, pièce,
+    // référence, libellé) · voir recherche-ecritures.ts pour leur lecture.
+    ...filtreRecherche(filtres),
   };
 }
 
@@ -1430,6 +1432,11 @@ export class EcritureService {
       dateDebut?: string;
       dateFin?: string;
       recherche?: string;
+      compte?: string;
+      montantMin?: number;
+      montantMax?: number;
+      numeroPiece?: number;
+      reference?: string;
       /**
        * Le journal est un état de TRAVAIL : il montre le brouillard par
        * défaut, marqué comme tel, pour que le comptable voie où il en est.

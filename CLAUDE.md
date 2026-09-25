@@ -4309,6 +4309,20 @@ base, et le fichier préparé ailleurs passe par l'import d'écritures, qui met
 TOUT au brouillard · la validation joue la mise à jour. Une table de lots
 doublerait le brouillard.
 
+**Recherche d'écritures multicritère (2026-09-25).** Point 8 de la
+comparaison Sage i7 (« Traitement / Recherche d'écritures »). Elle vit dans le
+panneau de filtres du journal, et la règle dans `recherche-ecritures.ts`, que
+`perimetreJournal` appelle · la fenêtre ET l'export lisent donc le même
+périmètre. TROIS RÈGLES À NE PAS DÉFAIRE. (1) LE COMPTE ET LE MONTANT SE
+CHERCHENT SUR LA MÊME LIGNE, un seul `lignes.some` · deux conditions séparées
+rendraient la pièce où le 401 porte 5 000 et une autre ligne 116 000, et
+retrouver un règlement se noierait dans le bruit. (2) UN MONTANT SEUL EST
+EXACT, au débit ou au crédit ; une borne haute en fait une fourchette. Le
+compte se lit par sa RACINE, comme un compte Total. (3) UN CRITÈRE ILLISIBLE
+EST REFUSÉ, jamais ignoré · ignoré, il élargirait la recherche en silence et
+« aucun résultat » se lirait « tout est vu ». L'export refuse AVANT d'ouvrir
+le flux, une réponse commencée ne pouvant plus devenir un 400.
+
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
 nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la

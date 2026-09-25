@@ -63,7 +63,9 @@ tiennent à un texte OHADA ; ils sont signalés comme tels.
    propre : l'import d'écritures au brouillard en tient lieu (CLAUDE.md § 6).
 
 **Importants**
-8. Recherche d'écritures multicritère (montant, compte, pièce).
+8. ~~Recherche d'écritures multicritère (montant, compte, pièce)~~ · FAIT le
+   2026-09-25 : compte (par racine), montant exact ou fourchette, pièce,
+   référence, libellé, dans le panneau du journal et son export.
 9. Réimputation d'écritures.
 10. Fusion de comptes, tiers et journaux.
 11. Nouvel exercice avec à-nouveaux provisoires, report des budgets.

@@ -1,4 +1,5 @@
 import { BadRequestException, Controller, Get, Param, ParseUUIDPipe, Query, Res, UseGuards } from '@nestjs/common';
+import { criteresOuRefus } from '../comptabilite/recherche-ecritures';
 import type { PerimetreBalanceAgee } from '../comptabilite/ecriture.service';
 import { Referentiel } from '@prisma/client';
 import { Response } from 'express';
@@ -115,11 +116,18 @@ export class ExportController {
     @Query('dateDebut') dateDebut?: string,
     @Query('dateFin') dateFin?: string,
     @Query('recherche') recherche?: string,
+    @Query('compte') compte?: string,
+    @Query('montant') montant?: string,
+    @Query('montantMax') montantMax?: string,
+    @Query('numeroPiece') numeroPiece?: string,
+    @Query('reference') reference?: string,
   ) {
+    // Refusé AVANT le flux · une réponse commencée ne peut plus devenir un 400.
+    const criteres = criteresOuRefus({ compte, montant, montantMax, numeroPiece, reference });
     await envoyerXlsxEnFlux(res, (ouvrir) =>
       this.exportService.journalExcelEnFlux(
         user.tenantId,
-        { exerciceId, journalId, dateDebut, dateFin, recherche },
+        { exerciceId, journalId, dateDebut, dateFin, recherche, ...criteres },
         ouvrir,
       ),
     );

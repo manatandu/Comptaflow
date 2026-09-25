@@ -3,6 +3,7 @@ import { REFS_DE_SOLDE } from '../etats-financiers/correspondance-projet-emplois
 import type { Writable } from 'stream';
 import type { PerimetreBalanceAgee } from '../comptabilite/ecriture.service';
 import { perimetreJournal } from '../comptabilite/ecriture.service';
+import type { CriteresRecherche } from '../comptabilite/recherche-ecritures';
 import {
   PREMIERE_LIGNE_DONNEES,
   ouvrirFeuilleEnFlux,
@@ -542,7 +543,7 @@ export class ExportService {
    */
   async journalExcelEnFlux(
     tenantId: string,
-    filtres: { exerciceId?: string; journalId?: string; dateDebut?: string; dateFin?: string; recherche?: string },
+    filtres: { exerciceId?: string; journalId?: string; dateDebut?: string; dateFin?: string } & CriteresRecherche,
     ouvrir: (nomFichier: string) => Writable,
   ): Promise<{ lignes: number }> {
     const where = perimetreJournal(tenantId, filtres);

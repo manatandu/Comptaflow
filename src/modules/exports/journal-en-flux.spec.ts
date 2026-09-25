@@ -206,7 +206,17 @@ describe('Journal exporté en flux', () => {
       exerciceId: 'ex',
       journalId: 'j',
       date: { gte: new Date('2026-01-01') },
-      libelle: { contains: 'vente', mode: 'insensitive' },
+      // Depuis la recherche d'écritures (point 8), le libellé se cherche sur
+      // l'écriture ET sur ses lignes · une ligne libellée « vente » dans une
+      // pièce intitulée autrement était introuvable.
+      AND: [
+        {
+          OR: [
+            { libelle: { contains: 'vente', mode: 'insensitive' } },
+            { lignes: { some: { libelle: { contains: 'vente', mode: 'insensitive' } } } },
+          ],
+        },
+      ],
     });
   });
 });

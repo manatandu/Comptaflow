@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { criteresOuRefus } from './recherche-ecritures';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -144,6 +145,11 @@ export class EcritureController {
     @Query('recherche') recherche?: string,
     @Query('inclureBrouillard') inclureBrouillard?: string,
     @Query('limite') limite?: string,
+    @Query('compte') compte?: string,
+    @Query('montant') montant?: string,
+    @Query('montantMax') montantMax?: string,
+    @Query('numeroPiece') numeroPiece?: string,
+    @Query('reference') reference?: string,
   ) {
     const limiteN = limite ? Math.min(Math.max(parseInt(limite, 10) || 0, 0), 500) : undefined;
     return this.ecritureService.lister(user.tenantId, {
@@ -152,6 +158,7 @@ export class EcritureController {
       dateDebut,
       dateFin,
       recherche,
+      ...criteresOuRefus({ compte, montant, montantMax, numeroPiece, reference }),
       inclureBrouillard: inclureBrouillard !== 'false',
       ...(limiteN ? { limite: limiteN } : {}),
     });
