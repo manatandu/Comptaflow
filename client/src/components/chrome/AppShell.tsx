@@ -201,129 +201,118 @@ export function AppShell() {
     },
     {
       titre: 'Structure',
+      // REGROUPÉ EN SOUS-MENUS le 2026-09-25, à la demande de Manasse · le
+      // menu déroulait dix-sept entrées d'un bloc. Même mécanique que le menu
+      // « État » (menu-groupes.ts) : un groupe vide ne s'affiche pas, ce qui
+      // garde les entrées conditionnelles telles qu'elles étaient.
       items: [
         { label: 'Plan comptable', onClick: () => navigate('/comptes') },
         { label: 'Plan des tiers', onClick: () => navigate('/tiers') },
-        // Sage : Structure → Plan analytique. Chez une EBNL, l'axe analytique
-        // est celui des projets et des bailleurs · voir
-        // docs/analytique-et-budget.md.
+        // Chez une EBNL, l'axe analytique est celui des projets et des
+        // bailleurs · voir docs/analytique-et-budget.md.
         { label: 'Plans analytiques', onClick: () => navigate('/plans-analytiques') },
         { label: 'Codes journaux', onClick: () => navigate('/journaux') },
-        // Sage i7, Structure / Banque et Structure / Libellé (point 19).
-        { label: 'Banques', onClick: () => navigate('/banques') },
-        { label: 'Libellés', onClick: () => navigate('/libelles') },
-        { label: 'Taux de taxes', onClick: () => navigate('/taux-tva') },
-        { label: 'Modèles de saisie', onClick: () => navigate('/modeles-saisie') },
-        // Notion SYCEBNL (division 46) · masqué pour un dossier SYSCOHADA,
-        // comme le registre des donateurs · le serveur refuse pareil.
-        ...(estSycebnl
-          ? [
-              { label: 'Bailleurs de fonds', separateurAvant: true, onClick: () => navigate('/bailleurs') },
-              // Le dossier de subvention suit son bailleur · même
-              // cloisonnement, et le serveur refuse pareil.
-              { label: 'Dossier de subvention', onClick: () => navigate('/conventions-financement') },
-            ]
-          : []),
-        { label: 'Immobilisations', separateurAvant: !estSycebnl, onClick: () => navigate('/immobilisations') },
-        // Sage : Fichier > Paramètres société, où l'utilisateur « met à jour le
-        // système comptable utilisé ». Ici les paramètres décisifs sont le
-        // référentiel et le jeu d'états financiers SYCEBNL (associations et
-        // ordres professionnels / projets de développement / Système minimal
-        // de trésorerie), qui commandent toute la liasse · ils ont leur place
-        // dans Structure, avec les autres éléments qui structurent le dossier.
-        // AVEC LES RÉFÉRENTIELS DU DOSSIER, pas avec les traitements. Le
-        // registre du personnel ne passe AUCUNE écriture · il tient l'état
-        // civil et les engagements, comme le plan des tiers tient les tiers.
-        // Le moteur de bulletin, lui, écrira au livre-journal quand il
-        // existera, et sa fenêtre ira alors où vont les écritures.
-        // Fermé à l'aide-comptable · données nominatives (roles-cantonnes.ts).
+        {
+          titre: 'Paramètres de saisie',
+          items: [
+            // Sage i7, Structure / Banque et Structure / Libellé (point 19).
+            { label: 'Banques', onClick: () => navigate('/banques') },
+            { label: 'Libellés', onClick: () => navigate('/libelles') },
+            { label: 'Taux de taxes', onClick: () => navigate('/taux-tva') },
+            { label: 'Modèles de saisie', onClick: () => navigate('/modeles-saisie') },
+          ],
+        },
+        {
+          titre: 'Bailleurs et subventions',
+          // Notion SYCEBNL (division 46) · groupe vide, donc absent, pour un
+          // dossier SYSCOHADA. Le serveur refuse pareil.
+          items: estSycebnl
+            ? [
+                { label: 'Bailleurs de fonds', onClick: () => navigate('/bailleurs') },
+                { label: 'Dossier de subvention', onClick: () => navigate('/conventions-financement') },
+              ]
+            : [],
+        },
+        { label: 'Immobilisations', separateurAvant: true, onClick: () => navigate('/immobilisations') },
+        // Le registre ne passe AUCUNE écriture · il tient l'état civil et les
+        // engagements, comme le plan des tiers tient les tiers. Fermé à
+        // l'aide-comptable · données nominatives (roles-cantonnes.ts).
         ...(utilisateur?.role === 'AIDE_COMPTABLE'
           ? []
           : [{ label: 'Registre du personnel', onClick: () => navigate('/personnel') }]),
-        { label: 'Paramètres du dossier', separateurAvant: true, onClick: () => navigate('/parametres-dossier') },
-        // LE MANDAT EST UN FAIT JURIDIQUE DU DOSSIER, PAS UN TRAVAIL DE
-        // RÉVISION. Il a d'abord été posé sous « État > Contrôle et révision »,
-        // où le test du chrome à 360 px l'a refusé · et ce refus avait raison
-        // sur le fond, pas seulement sur la place. Les registres de ce groupe
-        // sont ce que le CABINET produit en révisant ; le mandat est ce que
-        // l'ENTITÉ a fait devant son assemblée, au même titre que sa forme
-        // juridique ou son référentiel. Ouvert aux deux référentiels · le
-        // SYCEBNL (art. 19 à 22) comme l'AUSCGIE (art. 379, 702 à 705)
-        // imposent un contrôleur au-delà de leurs seuils, chacun par son texte.
-        { label: 'Mandat du contrôleur des comptes', onClick: () => navigate('/mandat-auditeur') },
-        // Loi n° 004/2001, art. 37 · réservé à l'ONG de DROIT ÉTRANGER, et
-        // masqué aux dossiers SYSCOHADA comme aux autres formes d'EBNL. La
-        // fenêtre elle-même dit « ce dossier n'est pas concerné » quand la
-        // forme ne correspond pas · le menu ne peut pas la lire d'ici.
-        ...(estSycebnl
-          ? [
-              { label: 'Accord-cadre (Ministère du Plan)', onClick: () => navigate('/accord-cadre') },
-              // En amont de tout le reste · c'est cette checklist qui produit
-              // le certificat d'enregistrement que la fenêtre Exonérations
-              // réclame « en cours de validité ».
-              { label: 'Checklist de constitution', onClick: () => navigate('/constitution') },
-            ]
-          : []),
+        {
+          titre: 'Dossier et entité',
+          separateurAvant: true,
+          items: [
+            // Référentiel, jeu d'états, coordonnées · ce qui commande la liasse.
+            { label: 'Paramètres du dossier', onClick: () => navigate('/parametres-dossier') },
+            // Le mandat est ce que l'ENTITÉ a fait devant son assemblée, pas
+            // un registre de révision du cabinet · d'où sa place ici.
+            { label: 'Mandat du contrôleur des comptes', onClick: () => navigate('/mandat-auditeur') },
+            // Loi n° 004/2001, art. 37 · réservé aux dossiers SYCEBNL.
+            ...(estSycebnl
+              ? [
+                  { label: 'Accord-cadre (Ministère du Plan)', onClick: () => navigate('/accord-cadre') },
+                  { label: 'Checklist de constitution', onClick: () => navigate('/constitution') },
+                ]
+              : []),
+          ],
+        },
       ],
     },
     {
       titre: 'Traitement',
+      // REGROUPÉ EN SOUS-MENUS le 2026-09-25 · dix-huit entrées d'un bloc.
       items: [
         { label: 'Saisie des journaux', onClick: () => navigate('/saisie') },
-        // Juste sous la saisie, comme chez Sage (« Saisie des OD analytiques »,
-        // menu Traitement) · une OD corrige une ventilation, elle ne passe
-        // aucune écriture au livre-journal.
+        // Juste sous la saisie, comme chez Sage · une OD corrige une
+        // ventilation, elle ne passe aucune écriture au livre-journal.
         { label: 'Saisie des OD analytiques', onClick: () => navigate('/od-analytiques') },
-        // La facture PRÉCÈDE l'écriture · elle est la pièce que la loi de
-        // procédures fiscales exige pour chaque transaction (art. 23), et
-        // c'est l'écriture qui la comptabilise, jamais l'inverse. Rangée
-        // ici plutôt que sous « État » : ce n'est pas une restitution, c'est
-        // un travail de tenue. Ouverte aux deux référentiels · l'obligation
-        // vise des redevables d'impôts, pas un référentiel comptable.
-        ...(estSycebnl
-          ? []
-          : // Le Livre 8 de l'AUDCG ne régit que la vente entre commerçants ·
+        {
+          titre: 'Ventes',
+          items: [
+            // Le Livre 8 de l'AUDCG ne régit que la vente entre commerçants ·
             // une ASBL n'en est pas une, et l'entrée ne lui est pas servie.
-            [{ label: 'Devis et commande client', onClick: () => navigate('/devis') }]),
-        { label: 'Facturation', onClick: () => navigate('/facturation') },
-        // La fenêtre s'ouvre directement, son sélecteur intégré désigne le
-        // compte · passer par le plan comptable était un détour trompeur
-        // (le menu « Lettrage » ouvrait une autre fenêtre que celle annoncée).
-        { label: 'Interrogation et lettrage', separateurAvant: true, onClick: () => navigate('/lettrage') },
-        // Le règlement suit le lettrage · il en pose un à chaque pièce.
-        { label: 'Règlement des tiers', onClick: () => navigate('/reglements') },
-        { label: 'Rapprochement bancaire', onClick: () => navigate('/rapprochement') },
-        { label: 'Régularisations et abonnements', onClick: () => navigate('/regularisations') },
-        // SOUS « TRAITEMENT », ET NON SOUS « CONTRÔLE ET RÉVISION ».
-        // Premier essai, la fenêtre avait été posée à côté de l'inventaire
-        // physique, dont elle découle · le plafond du menu à 360 px l'a
-        // refusée, et il avait raison sur le FOND. Les registres de
-        // « Contrôle et révision » sont ce que le cabinet PRODUIT en
-        // révisant ; la variation de stocks, elle, PASSE UNE ÉCRITURE au
-        // livre-journal, exactement comme la régularisation juste au-dessus
-        // et l'affectation du résultat juste en dessous. Deuxième fois que ce
-        // plafond fait relire la place d'une fenêtre au lieu de se faire
-        // relever d'un cran.
-        { label: 'Variation des stocks', onClick: () => navigate('/variation-stocks') },
-        // MÊME GROUPE, ET POUR LA MÊME RAISON · le magasin PASSE UNE
-        // ÉCRITURE (la régularisation des différences d'inventaire),
-        // il ne produit pas un registre de révision. Il vit donc à côté
-        // de la variation dont il est l'autre moitié : l'une sert
-        // l'inventaire intermittent, l'autre le permanent.
-        { label: 'Magasin et fiches de stock', onClick: () => navigate('/magasin') },
-        // MÊME GROUPE · la consignation ouvre puis dénoue un compte
-        // d'attente au livre-journal (4094 ou 4194). C'est une écriture,
-        // pas un registre de révision.
-        { label: "Consignation d'emballages", onClick: () => navigate('/emballages') },
-        // Geste ANNUEL, décidé par un organe · rangé avec les traitements de
-        // fin d'exercice plutôt qu'avec la saisie courante.
-        { label: 'Affectation du résultat', onClick: () => navigate('/affectation-resultat') },
-        { label: 'Devises et réévaluation', onClick: () => navigate('/devises') },
-        { label: 'Rappel et relevé', onClick: () => navigate('/relances') },
+            ...(estSycebnl ? [] : [{ label: 'Devis et commande client', onClick: () => navigate('/devis') }]),
+            // La facture PRÉCÈDE l'écriture (L.P.F. art. 23) · ouverte aux deux
+            // référentiels, l'obligation vise des redevables d'impôts.
+            { label: 'Facturation', onClick: () => navigate('/facturation') },
+          ],
+        },
+        {
+          titre: 'Tiers et trésorerie',
+          separateurAvant: true,
+          items: [
+            { label: 'Interrogation et lettrage', onClick: () => navigate('/lettrage') },
+            // Le règlement suit le lettrage · il en pose un à chaque pièce.
+            { label: 'Règlement des tiers', onClick: () => navigate('/reglements') },
+            { label: 'Rapprochement bancaire', onClick: () => navigate('/rapprochement') },
+            { label: 'Rappel et relevé', onClick: () => navigate('/relances') },
+          ],
+        },
+        {
+          titre: 'Stocks',
+          // Sous « Traitement » et non sous « Contrôle et révision » · chacune
+          // de ces fenêtres PASSE UNE ÉCRITURE au livre-journal.
+          items: [
+            { label: 'Variation des stocks', onClick: () => navigate('/variation-stocks') },
+            { label: 'Magasin et fiches de stock', onClick: () => navigate('/magasin') },
+            { label: "Consignation d'emballages", onClick: () => navigate('/emballages') },
+          ],
+        },
+        {
+          titre: 'Clôture',
+          items: [
+            { label: 'Régularisations et abonnements', onClick: () => navigate('/regularisations') },
+            { label: 'Devises et réévaluation', onClick: () => navigate('/devises') },
+            // Geste ANNUEL, décidé par un organe · ouvert aux deux référentiels.
+            { label: 'Affectation du résultat', onClick: () => navigate('/affectation-resultat') },
+            { label: "Fin d'exercice…", onClick: () => navigate('/exercice') },
+          ],
+        },
         ...(estSycebnl
           ? [{ label: 'Registre des donateurs', separateurAvant: true, onClick: () => navigate('/registre-donateurs') }]
           : []),
-        { label: "Fin d'exercice…", onClick: () => navigate('/exercice') },
       ],
     },
     {

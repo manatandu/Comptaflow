@@ -331,3 +331,64 @@ describe('côté du sous-menu volant', () => {
     expect(coteSousMenu(1024 - LARGEUR_SOUS_MENU - 7, 1024)).toBe('gauche');
   });
 });
+
+/**
+ * STRUCTURE ET TRAITEMENT REGROUPÉS EN SOUS-MENUS (2026-09-25).
+ *
+ * Demande de Manasse · les deux menus déroulaient dix-sept et dix-huit
+ * entrées d'un bloc. Même mécanique que le menu « État », et le même parseur
+ * d'indentation : une commande de groupe s'écrit à douze espaces au moins,
+ * une commande directe à huit.
+ */
+describe('menus « Structure » et « Traitement » regroupés', () => {
+  const shell = lire('AppShell.tsx');
+  const entreesDe = (debut: string, fin: string): MenuEntreeDef[] => {
+    const source = shell.slice(shell.indexOf(debut), shell.indexOf(fin));
+    const entrees: MenuEntreeDef[] = [];
+    let groupe: MenuGroupeDef | null = null;
+    for (const ligne of source.split('\n')) {
+      const titre = ligne.match(/^ {10}titre: '(.+)',$/);
+      if (titre) {
+        groupe = { titre: titre[1], items: [] };
+        entrees.push(groupe);
+        continue;
+      }
+      const commande = ligne.match(/^( +).*label: ['"]([^'"]+)['"]/);
+      if (!commande) continue;
+      if (groupe && commande[1].length >= 12) groupe.items.push({ label: commande[2] });
+      else {
+        groupe = null;
+        entrees.push({ label: commande[2] });
+      }
+    }
+    return entrees;
+  };
+  const nom = (l: LigneMenu) => (l.sorte === 'groupe' ? l.groupe.titre : l.item.label);
+
+  for (const [menu, debut, fin, auRepos, total] of [
+    ['Structure', "titre: 'Structure',", "titre: 'Traitement',", 9, 16],
+    ['Traitement', "titre: 'Traitement',", "titre: 'État',", 7, 16],
+  ] as const) {
+    it(`${menu} · ${auRepos} lignes au repos, les ${total} commandes toujours atteignables`, () => {
+      const entrees = entreesDe(debut, fin);
+      // Au repos, un groupe n'occupe qu'une ligne · c'est ce qui raccourcit
+      // le panneau. Le décompte est EN DUR pour faire rouvrir ce test à
+      // chaque entrée ajoutée.
+      expect(lignesDuMenu(entrees, null).map(nom)).toHaveLength(auRepos);
+      const groupes = entrees.filter((e): e is MenuGroupeDef => 'items' in e);
+      expect(groupes.length).toBeGreaterThanOrEqual(3);
+      const vues = new Set<string>();
+      for (const deplie of [null, ...groupes.map((g) => g.titre)]) {
+        for (const l of lignesDuMenu(entrees, deplie)) if (l.sorte === 'commande') vues.add(l.item.label);
+      }
+      const tous = [...shell.slice(shell.indexOf(debut), shell.indexOf(fin)).matchAll(/label: ['"]([^'"]+)['"]/g)].map((m) => m[1]);
+      expect(tous).toHaveLength(total);
+      expect([...vues].sort()).toEqual([...tous].sort());
+    });
+  }
+
+  it('une ligne de menu mesure 24 px · réduite de 30 à la demande de Manasse', () => {
+    const src = lire('MenuBar.tsx');
+    expect(src.match(/h-\[24px\] text-\[12px\]/g)?.length).toBeGreaterThanOrEqual(3);
+  });
+});

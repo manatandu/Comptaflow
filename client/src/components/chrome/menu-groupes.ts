@@ -62,8 +62,8 @@ export type LigneMenu =
  *
  * `groupeDeplie` porte UN titre, jamais une collection : la signature
  * interdit d'en ouvrir deux, donc le panneau ne peut pas regagner la hauteur
- * qu'on vient de lui retirer. Chaque ligne mesure 22 px (`py-[3px]` +
- * `leading-[16px]` dans MenuBar.tsx) ; le menu « État », qui déroulait
+ * qu'on vient de lui retirer. Chaque ligne mesure 24 px (`h-[24px]` dans
+ * MenuBar.tsx, réduit de 30 à 24 le 2026-09-25 à la demande de Manasse) ; le menu « État », qui déroulait
  * vingt-deux commandes, en montre sept une fois replié et onze au plus quand
  * son plus gros groupe est ouvert.
  *
