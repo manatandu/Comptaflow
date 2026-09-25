@@ -685,7 +685,16 @@ export function SaisiePage() {
   // AUDCIF art. 22, 4° · le serveur refuse une pièce datée d'une période
   // clôturée et dit que le texte permet de la reporter au premier jour ouvert.
   // Le report n'est JAMAIS fait d'office : il se demande par ce second envoi.
-  const enregistrerPiece = async (reporterAuPremierJourOuvert = false) => {
+  // Même chemin pour le COMPTE EN SOMMEIL · la saisie se confirme (règle de
+  // Sage, voir EcritureService.verifierComptesEnSommeil). Un objet d'options,
+  // jamais un booléen positionnel : `onClick={enregistrerPiece}` passerait
+  // l'événement du clic comme demande.
+  const enregistrerPiece = async (
+    { reporterAuPremierJourOuvert = false, confirmerComptesEnSommeil = false } = {} as {
+      reporterAuPremierJourOuvert?: boolean;
+      confirmerComptesEnSommeil?: boolean;
+    },
+  ) => {
     if (!exerciceCourant || !journal || !periode) return;
     setErreur(null);
     setSucces(null);
@@ -709,6 +718,7 @@ export function SaisiePage() {
           libellePiece || `Pièce du ${String(jourBorne).padStart(2, '0')}/${String(periode.mois + 1).padStart(2, '0')}`,
         reference: reference || undefined,
         ...(reporterAuPremierJourOuvert ? { reporterAuPremierJourOuvert: true } : {}),
+        ...(confirmerComptesEnSommeil ? { confirmerComptesEnSommeil: true } : {}),
         lignes: lignes.map((l) => ({
           compteId: l.compteId,
           libelle: l.libelle || undefined,
@@ -1482,10 +1492,22 @@ export function SaisiePage() {
               <button
                 type="button"
                 disabled={envoi}
-                onClick={() => enregistrerPiece(true)}
+                onClick={() => enregistrerPiece({ reporterAuPremierJourOuvert: true })}
                 className="px-2.5 py-1 border border-border bg-surface text-text"
               >
                 Reporter au premier jour de la période ouverte
+              </button>
+            </div>
+          )}
+          {peutEcrire && erreur.startsWith('Compte en sommeil') && (
+            <div className="mt-2">
+              <button
+                type="button"
+                disabled={envoi}
+                onClick={() => enregistrerPiece({ confirmerComptesEnSommeil: true })}
+                className="px-2.5 py-1 border border-border bg-surface text-text"
+              >
+                Confirmer la saisie sur le compte en sommeil
               </button>
             </div>
           )}

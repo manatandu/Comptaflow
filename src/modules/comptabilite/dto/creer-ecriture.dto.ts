@@ -142,6 +142,16 @@ export class CreerEcritureDto {
   @IsOptional()
   @IsBoolean()
   reporterAuPremierJourOuvert?: boolean;
+
+  /**
+   * MISE EN SOMMEIL · une saisie sur un compte en sommeil se CONFIRME, elle
+   * n'est ni libre ni interdite. C'est la règle de Sage (« désactivation
+   * réversible, confirmation requise en saisie », skill sage-i7, tiers.md).
+   * Jamais posé d'office · voir EcritureService.verifierComptesEnSommeil.
+   */
+  @IsOptional()
+  @IsBoolean()
+  confirmerComptesEnSommeil?: boolean;
 }
 
 /**

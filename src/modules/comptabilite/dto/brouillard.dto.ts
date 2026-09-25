@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
+  IsBoolean,
   IsArray,
   IsDateString,
   IsOptional,
@@ -37,6 +38,11 @@ export class ModifierEcritureDto {
   @ValidateNested({ each: true })
   @Type(() => LigneEcritureDto)
   lignes?: LigneEcritureDto[];
+
+  /** Voir CreerEcritureDto.confirmerComptesEnSommeil. */
+  @IsOptional()
+  @IsBoolean()
+  confirmerComptesEnSommeil?: boolean;
 }
 
 /** Validation d'une sélection d'écritures. */

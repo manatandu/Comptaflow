@@ -14,11 +14,10 @@ tiennent à un texte OHADA ; ils sont signalés comme tels.
 
 - **Aucune suppression de structure.** Comptes, journaux, tiers et taux n'ont
   pas de route de suppression. Seule la mise en sommeil (`estActif`) existe.
-- **Le sommeil d'un compte n'est tenu que par l'écran.** Le serveur refuse la
-  saisie sur un journal en sommeil (`ecriture.service.ts`), pas sur un compte.
-  La source Sage ne dit pas que le sommeil refuse : pour un tiers elle dit
-  « confirmation requise en saisie » (`sage-i7/references/tiers.md`). À
-  trancher avant de coder un refus.
+- **Le sommeil d'un compte se confirme à la saisie** (tranché le 2026-09-25,
+  règle de Sage « confirmation requise en saisie »). Le serveur refuse une
+  saisie sur un compte en sommeil tant qu'elle n'est pas confirmée ; la
+  clôture et les modules ne sont pas concernés.
 - **Aucune impression propre aux listes de structures** · seulement
   « Imprimer la fenêtre ».
 - **Les à-nouveaux ne naissent qu'à la clôture définitive de N.** Pas de
@@ -45,8 +44,7 @@ tiennent à un texte OHADA ; ils sont signalés comme tels.
 1. Import des extraits bancaires et rapprochement automatique (le relevé n'est
    aujourd'hui qu'une date et un solde).
 2. Règlement des tiers à partir des échéances.
-3. Suppression des structures avec refus si mouvementée ou utilisée ; statut
-   du sommeil d'un compte côté serveur (voir constats).
+3. Suppression des structures avec refus si mouvementée ou utilisée.
 4. TVA et net à payer calculés d'office sur les journaux Achats et Ventes.
 5. Journal de trésorerie avec contrepartie à chaque ligne.
 6. Modèles de saisie à fonctions (Répéter, Incrémenter, Équilibrer, Calculer).

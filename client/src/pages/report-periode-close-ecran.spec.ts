@@ -18,6 +18,6 @@ describe('saisie · le report de l’art. 22, 4° est une demande expresse', () 
 
   it('le report n’est proposé qu’après le refus qui cite l’article', () => {
     expect(source).toContain("erreur.includes('art. 22, 4°')");
-    expect(source).toContain('onClick={() => enregistrerPiece(true)}');
+    expect(source).toContain('onClick={() => enregistrerPiece({ reporterAuPremierJourOuvert: true })}');
   });
 });

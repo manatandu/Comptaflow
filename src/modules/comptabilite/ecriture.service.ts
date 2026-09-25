@@ -390,6 +390,40 @@ export class EcritureService {
     });
   }
 
+  /**
+   * MISE EN SOMMEIL D'UN COMPTE · la saisie se CONFIRME. La source ne dit pas
+   * que le sommeil interdit : elle dit « désactivation réversible,
+   * confirmation requise en saisie » (skill sage-i7, tiers.md), et le plan
+   * comptable ne décrit que la « désactivation réversible d'un compte sans
+   * suppression » (comptabilite-generale.md). Refuser sec bloquerait une
+   * régularisation légitime sur un compte qu'on a endormi trop tôt ; laisser
+   * passer sans rien dire rendait le sommeil purement décoratif, l'écran seul
+   * le tenant. D'où le chemin du report de l'art. 22, 4° · refus nommé, puis
+   * second envoi qui confirme.
+   *
+   * Appelée par le CONTRÔLEUR seulement, jamais par `creer` · la clôture, les
+   * imports, la paie et les autres modules passent des écritures que personne
+   * ne « saisit », et une clôture ne doit jamais tomber parce qu'un compte de
+   * charge mouvementé dans l'exercice a été endormi depuis.
+   */
+  async verifierComptesEnSommeil(
+    tenantId: string,
+    lignes: { compteId: string }[] | undefined,
+    confirme: boolean | undefined,
+  ) {
+    if (confirme || !lignes || lignes.length === 0) return;
+    const ids = [...new Set(lignes.map((l) => l.compteId))];
+    const endormis = await this.prisma.compte.findMany({
+      where: { id: { in: ids }, tenantId, estActif: false },
+      select: { numero: true },
+    });
+    if (endormis.length === 0) return;
+    throw new BadRequestException(
+      `Compte en sommeil : ${endormis.map((c) => c.numero).join(', ')} · confirmez la saisie ` +
+        'ou réactivez le compte dans le plan comptable.',
+    );
+  }
+
   async creer(tenantId: string, createdBy: string, dto: CreerEcritureDto) {
     const exercice = await this.prisma.exercice.findFirst({
       where: { id: dto.exerciceId, tenantId },
