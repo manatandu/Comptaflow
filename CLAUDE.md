@@ -4156,6 +4156,41 @@ ENFIN LE DEVIS N'EST PAS OBLIGATOIRE, à la différence de la facture. Art. 240 
 aucune condition de forme. Il est prouvé par tous moyens. » La fenêtre le dit,
 pour ne jamais laisser croire qu'une vente sans devis serait irrégulière.
 
+**Relevé bancaire importé et rapprochement proposé (2026-09-25).** Premier
+manque « usage quotidien » de la comparaison avec Sage i7
+(`docs/comparaison-sage-i7-omegax.md`). Le relevé de la banque (CSV ou XLSX)
+s'importe dans un rapprochement EN COURS (`LigneReleveBancaire`), et OmegaX
+PROPOSE les correspondances (`rapprochement/releve-bancaire.ts`). Sage fait la
+même chose avec une tolérance de montant et une écriture d'ajustement ; OmegaX
+reprend l'import et refuse les deux autres, pour les raisons du pré-lettrage.
+
+CINQ RÈGLES À NE PAS DÉFAIRE. (1) LE SENS · débit et crédit du relevé sont ceux
+de la BANQUE et restent tels qu'imprimés ; un crédit du relevé est un DÉBIT du
+52 (`montantVuDuCompte`). Comparer débit à débit proposerait chaque
+encaissement face à un décaissement du même montant. (2) AUCUNE TOLÉRANCE ·
+deux montants voisins ne sont pas la même opération, et l'écart se
+COMPTABILISE, il ne se rapproche pas (le refus du serveur le dit en ces mots).
+(3) AUCUNE DEVINETTE · plusieurs écritures candidates, ou une écriture
+convoitée par deux lignes du relevé, et RIEN n'est proposé ; « le plus proche »
+se tromperait sans le dire. La référence départage, y compris par ses chiffres
+à trois chiffres au moins (« CHQ 0042 » = « 0042 »). La fenêtre de dates est
+une convention d'OmegaX, réglable à l'écran. (4) PROPOSER N'EST PAS POINTER ·
+la proposition n'est pas stockée, les cases arrivent décochées, et la
+confirmation REJOUE tout au serveur (même ligne libre, même compte, somme au
+centime) avant de pointer ; une correspondance confirmée EST un pointage,
+c'est lui que l'écart et la clôture lisent. Dépointer dénoue aussi la
+correspondance. (5) RIEN N'EST PASSÉ D'OFFICE · une ligne du relevé sans
+écriture (frais, agios, virement non saisi) est « à comptabiliser ». Une ligne
+datée après la date du relevé est refusée à l'import, et un relevé qui ne
+boucle pas (solde de départ + opérations ≠ solde imprimé) est signalé avant de
+rapprocher.
+
+**Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
+(« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
+nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la
+vérification vit au CONTRÔLEUR, jamais dans `creer`, que la clôture et les
+modules appellent pour des écritures que personne ne saisit.
+
 ### Migrations écrites à la main
 
 Une migration écrite à la main peut DIVERGER du schéma sans que rien ne le

@@ -572,6 +572,7 @@ model Tenant {
   tauxTva                  TauxTva[]
   liquidationsTva          LiquidationTva[]
   rapprochements           RapprochementBancaire[]
+  lignesReleveBancaire     LigneReleveBancaire[]
   famillesImmobilisation   FamilleImmobilisation[]
   immobilisations          Immobilisation[]
   plansAnalytiques         PlanAnalytique[]
@@ -1408,6 +1409,15 @@ model LigneEcriture {
   rapprochementId String?
   rapprochement   RapprochementBancaire? @relation(fields: [rapprochementId], references: [id])
 
+  // Ligne du RELEVÉ importé à laquelle cette ligne correspond (2026-09-25).
+  // Plusieurs lignes du compte peuvent répondre à une seule ligne du relevé ·
+  // une remise de trois chèques est UN crédit bancaire. Posée seulement par
+  // la confirmation d'une correspondance, jamais d'office. SET NULL déclaré :
+  // retirer une ligne de relevé dénoue la correspondance, et le service
+  // dépointe la ligne dans le même geste (RapprochementService).
+  ligneReleveId String?
+  ligneReleve   LigneReleveBancaire? @relation(fields: [ligneReleveId], references: [id], onDelete: SetNull)
+
   // Date d'échéance de la créance ou de la dette portée par cette ligne.
   //
   // Les notes annexes 6, 9, 10, 18A, 19, 20 et 21 exigent la ventilation des
@@ -1587,8 +1597,45 @@ model RapprochementBancaire {
   clotureAt DateTime?
 
   lignes LigneEcriture[]
+  releve LigneReleveBancaire[]
 
   @@map("rapprochements_bancaires")
+}
+
+// ---------------------------------------------------------------------------
+// Ligne d'un RELEVÉ BANCAIRE importé (2026-09-25) · la source externe que le
+// rapprochement confronte au compte 52. Sage i7 récupère les « extraits
+// bancaires par import avant réconciliation » (skill sage-i7,
+// comptabilite-generale.md) ; le CPCC range l'extrait parmi les pièces
+// justificatives EXTERNES de la banque (organisation comptable, ch. 4.3).
+//
+// DÉBIT ET CRÉDIT SONT CEUX DU RELEVÉ, c'est-à-dire du point de vue de la
+// BANQUE · un crédit du relevé est une ENTRÉE, donc un DÉBIT du compte 52.
+// Les deux sens sont gardés tels qu'imprimés : les inverser à l'import
+// rendrait la ligne méconnaissable face au papier qu'elle transcrit.
+// ---------------------------------------------------------------------------
+model LigneReleveBancaire {
+  id              String                @id @default(uuid())
+  tenantId        String
+  tenant          Tenant                @relation(fields: [tenantId], references: [id])
+  rapprochementId String
+  rapprochement   RapprochementBancaire @relation(fields: [rapprochementId], references: [id], onDelete: Cascade)
+
+  // Rang dans le fichier · l'ordre du relevé est celui de la banque, et deux
+  // opérations du même jour doivent se relire dans cet ordre.
+  rang      Int
+  date      DateTime
+  libelle   String
+  reference String?
+  debit     Decimal  @default(0) @db.Decimal(18, 2)
+  credit    Decimal  @default(0) @db.Decimal(18, 2)
+  createdAt DateTime @default(now())
+
+  lignesEcriture LigneEcriture[]
+
+  @@index([rapprochementId])
+  @@index([tenantId])
+  @@map("lignes_releve_bancaire")
 }
 
 // ---------------------------------------------------------------------------

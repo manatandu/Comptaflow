@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import type { DetailRapprochement } from '../lib/types';
+import type { DetailRapprochement, PropositionsRapprochement } from '../lib/types';
+import { Aide } from '../components/chrome/Aide';
 
 /**
  * Pointage écriture par écriture d'un rapprochement bancaire (§3.4) : chaque
@@ -38,6 +39,77 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
   }, [id]);
 
   const enCours = detail?.rapprochement.statut === 'EN_COURS';
+
+  // --- Relevé importé et correspondances ---------------------------------
+  const [propositions, setPropositions] = useState<PropositionsRapprochement | null>(null);
+  // Cases DÉCOCHÉES à l'arrivée · un panneau pré-coché ferait de la
+  // confirmation un acquiescement, alors que c'est l'examen qui est demandé.
+  const [retenues, setRetenues] = useState<Set<string>>(new Set());
+  const [fenetreJours, setFenetreJours] = useState(15);
+  // Association MANUELLE · une ligne du relevé choisie, puis les lignes du
+  // compte qui la composent (une remise de chèques en compte plusieurs).
+  const [associationPour, setAssociationPour] = useState<string | null>(null);
+  const [choixEcritures, setChoixEcritures] = useState<Set<string>>(new Set());
+
+  const executer = async (action: () => Promise<unknown>, succes?: string) => {
+    setErreur(null);
+    setInfo(null);
+    setEnvoi(true);
+    try {
+      await action();
+      if (succes) setInfo(succes);
+      await charger();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Opération impossible');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  const importerReleve = async (fichier: File) => {
+    const octets = new Uint8Array(await fichier.arrayBuffer());
+    let binaire = '';
+    for (let i = 0; i < octets.length; i += 8192) binaire += String.fromCharCode(...octets.subarray(i, i + 8192));
+    setPropositions(null);
+    await executer(
+      () => api.post(`/rapprochements/${id}/releve`, { nomFichier: fichier.name, contenuBase64: btoa(binaire) }),
+      'Relevé importé.',
+    );
+  };
+
+  const proposer = async () => {
+    setErreur(null);
+    try {
+      const p = await api.get<PropositionsRapprochement>(`/rapprochements/${id}/propositions?fenetreJours=${fenetreJours}`);
+      setPropositions(p);
+      setRetenues(new Set());
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Impossible de calculer les propositions');
+    }
+  };
+
+  const confirmerRetenues = async () => {
+    if (!propositions) return;
+    const correspondances = propositions.propositions
+      .filter((p) => retenues.has(p.ligneReleveId))
+      .map((p) => ({ ligneReleveId: p.ligneReleveId, ligneEcritureIds: p.ligneEcritureIds }));
+    if (correspondances.length === 0) return;
+    await executer(() => api.post(`/rapprochements/${id}/correspondances`, { correspondances }), `${correspondances.length} correspondance(s) confirmée(s).`);
+    setPropositions(null);
+  };
+
+  const validerAssociation = async () => {
+    if (!associationPour || choixEcritures.size === 0) return;
+    await executer(
+      () =>
+        api.post(`/rapprochements/${id}/correspondances`, {
+          correspondances: [{ ligneReleveId: associationPour, ligneEcritureIds: [...choixEcritures] }],
+        }),
+      'Correspondance confirmée.',
+    );
+    setAssociationPour(null);
+    setChoixEcritures(new Set());
+  };
 
   const basculerPointage = async (ligneId: string, pointee: boolean) => {
     if (!id || !enCours) return;
@@ -128,6 +200,33 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
             </div>
           </div>
 
+          <BlocReleve
+            detail={detail}
+            modifiable={!!peutEcrire && !!enCours}
+            envoi={envoi}
+            propositions={propositions}
+            retenues={retenues}
+            setRetenues={setRetenues}
+            fenetreJours={fenetreJours}
+            setFenetreJours={setFenetreJours}
+            associationPour={associationPour}
+            choixEcritures={choixEcritures}
+            onImporter={importerReleve}
+            onRetirer={() => executer(() => api.delete(`/rapprochements/${id}/releve`), 'Relevé retiré.')}
+            onProposer={proposer}
+            onConfirmer={confirmerRetenues}
+            onDissocier={(rid) => executer(() => api.post(`/rapprochements/${id}/releve/${rid}/dissocier`, {}), 'Correspondance défaite.')}
+            onAssocier={(rid) => {
+              setAssociationPour(rid);
+              setChoixEcritures(new Set());
+            }}
+            onValiderAssociation={validerAssociation}
+            onAbandonnerAssociation={() => {
+              setAssociationPour(null);
+              setChoixEcritures(new Set());
+            }}
+          />
+
           <div
             // `overflow-x-auto` ici, `min-w` sur les lignes · les 420 px de colonnes
             // incompressibles du tableau ne tiennent pas dans les ~326 px utiles d'une
@@ -151,12 +250,29 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
                 }`}
               >
                 {/* La case reste affichée à la lecture seule : cochée, elle DIT qu'une ligne est pointée. */}
-                <input
-                  type="checkbox"
-                  disabled={!enCours || !peutEcrire}
-                  checked={l.pointee}
-                  onChange={() => basculerPointage(l.id, l.pointee)}
-                />
+                {associationPour ? (
+                  <input
+                    type="checkbox"
+                    aria-label="Choisir pour la correspondance"
+                    disabled={l.pointee}
+                    checked={choixEcritures.has(l.id)}
+                    onChange={() =>
+                      setChoixEcritures((prev) => {
+                        const n = new Set(prev);
+                        if (n.has(l.id)) n.delete(l.id);
+                        else n.add(l.id);
+                        return n;
+                      })
+                    }
+                  />
+                ) : (
+                  <input
+                    type="checkbox"
+                    disabled={!enCours || !peutEcrire}
+                    checked={l.pointee}
+                    onChange={() => basculerPointage(l.id, l.pointee)}
+                  />
+                )}
                 <span className="font-mono text-[11px] text-text-dim">{new Date(l.date).toLocaleDateString('fr-FR')}</span>
                 <span className="font-mono text-text-dim">{l.journalCode}</span>
                 <span className="truncate">{l.libelle}</span>
@@ -184,6 +300,214 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
               </button>
             </div>
           )}
+        </>
+      )}
+    </div>
+  );
+}
+
+const fmt = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/**
+ * LE RELEVÉ IMPORTÉ · chaque ligne dit son état : rapprochée, proposée, ou À
+ * COMPTABILISER. Cette dernière est la moitié de l'état de rapprochement que le
+ * CPCC range parmi les états de sortie de la trésorerie (organisation
+ * comptable, ch. 4) · l'autre moitié, les écritures absentes du relevé, se lit
+ * dans le tableau du compte, sur les lignes non pointées.
+ */
+function BlocReleve(props: {
+  detail: DetailRapprochement;
+  modifiable: boolean;
+  envoi: boolean;
+  propositions: PropositionsRapprochement | null;
+  retenues: Set<string>;
+  setRetenues: (s: Set<string>) => void;
+  fenetreJours: number;
+  setFenetreJours: (n: number) => void;
+  associationPour: string | null;
+  choixEcritures: Set<string>;
+  onImporter: (f: File) => void;
+  onRetirer: () => void;
+  onProposer: () => void;
+  onConfirmer: () => void;
+  onDissocier: (ligneReleveId: string) => void;
+  onAssocier: (ligneReleveId: string) => void;
+  onValiderAssociation: () => void;
+  onAbandonnerAssociation: () => void;
+}) {
+  const { detail, modifiable, propositions, retenues } = props;
+  const parReleve = new Map((propositions?.propositions ?? []).map((p) => [p.ligneReleveId, p]));
+  const lignesCompte = new Map(detail.lignes.map((l) => [l.id, l]));
+  const aComptabiliser = detail.releve.filter((r) => r.ligneEcritureIds.length === 0 && !parReleve.has(r.id));
+  const ligneAssociee = detail.releve.find((r) => r.id === props.associationPour);
+  const sommeChoix = [...props.choixEcritures].reduce((acc, lid) => {
+    const l = lignesCompte.get(lid);
+    return l ? acc + l.debit - l.credit : acc;
+  }, 0);
+
+  return (
+    <div className="max-w-[900px] mb-3 border border-border bg-surface shadow-posee">
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-border">
+        <span className="text-[12px] font-semibold">Relevé bancaire</span>
+        <Aide
+          titre="Relevé importé"
+          texte="Fichier CSV ou Excel de la banque, colonnes Date, Libellé, Débit et Crédit (ou un Montant signé, négatif pour une sortie). Débit et crédit sont ceux de la banque : un crédit du relevé est un débit du compte 52. Les correspondances sont proposées au montant exact et au bon sens, dans une fenêtre de dates que vous réglez ; plusieurs écritures candidates, rien n'est proposé. Rien n'est pointé sans votre confirmation, et une ligne du relevé sans écriture est à comptabiliser, jamais passée d'office."
+          source="Sage 100 i7, rapprochement bancaire · CPCC, organisation comptable, ch. 4"
+        />
+        <span className="flex-1" />
+        {modifiable && (
+          <>
+            <label className="border border-border px-2.5 py-[3px] text-[11.5px] cursor-pointer hover:bg-chrome-alt">
+              {detail.releve.length ? 'Réimporter' : 'Importer le relevé'}
+              <input
+                type="file"
+                accept=".csv,.txt,.xlsx"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) props.onImporter(f);
+                  e.target.value = '';
+                }}
+              />
+            </label>
+            {detail.releve.length > 0 && (
+              <button onClick={props.onRetirer} disabled={props.envoi} className="border border-border px-2.5 py-[3px] text-[11.5px]">
+                Retirer
+              </button>
+            )}
+          </>
+        )}
+      </div>
+
+      {detail.releve.length === 0 ? (
+        <p className="px-3 py-2 text-[11.5px] text-text-dim">Aucun relevé importé · le pointage manuel reste possible ci-dessous.</p>
+      ) : (
+        <>
+          {detail.ecartReleve !== null && Math.abs(detail.ecartReleve) >= 0.005 && (
+            <p className="mx-3 mt-2 text-[11.5px] text-warning bg-warning-soft border border-warning/30 px-2.5 py-1.5">
+              Le relevé ne boucle pas : solde de départ plus ses opérations diffèrent du solde imprimé de {fmt(detail.ecartReleve)}.
+              Fichier incomplet ou solde de départ différent de celui de la banque.
+            </p>
+          )}
+
+          {modifiable && (
+            <div className="flex flex-wrap items-center gap-2 px-3 pt-2 text-[11.5px]">
+              <span className="text-text-dim">Fenêtre</span>
+              <input
+                type="number"
+                min={0}
+                max={120}
+                value={props.fenetreJours}
+                onChange={(e) => props.setFenetreJours(Math.max(0, Number(e.target.value) || 0))}
+                className="w-[56px] border border-border px-1.5 py-[2px] text-right"
+              />
+              <span className="text-text-dim">jours</span>
+              <button onClick={props.onProposer} disabled={props.envoi} className="border border-border px-2.5 py-[3px]">
+                Proposer les correspondances
+              </button>
+              {propositions && (
+                <>
+                  <span className="text-text-dim">
+                    {propositions.propositions.length} proposée(s) · {propositions.lignesReleveSansProposition} sans proposition
+                  </span>
+                  <button
+                    onClick={props.onConfirmer}
+                    disabled={props.envoi || retenues.size === 0}
+                    className="bg-sel text-white px-3 py-[3px] font-semibold disabled:opacity-40"
+                  >
+                    Confirmer la sélection ({retenues.size})
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          {ligneAssociee && (
+            <div className="mx-3 mt-2 flex flex-wrap items-center gap-2 text-[11.5px] bg-sel-soft border border-sel/30 px-2.5 py-1.5">
+              <span>
+                Associer « {ligneAssociee.libelle} » ({fmt(ligneAssociee.credit - ligneAssociee.debit)} vu du compte) · cochez les écritures ci-dessous.
+                Sélection : <b>{fmt(sommeChoix)}</b>
+              </span>
+              <button onClick={props.onValiderAssociation} disabled={props.envoi || props.choixEcritures.size === 0} className="bg-sel text-white px-3 py-[3px] font-semibold disabled:opacity-40">
+                Valider
+              </button>
+              <button onClick={props.onAbandonnerAssociation} className="border border-border px-2.5 py-[3px]">
+                Abandonner
+              </button>
+            </div>
+          )}
+
+          <div className="overflow-x-auto p-3">
+            <table className="w-full min-w-[640px] text-[11.5px]">
+              <thead>
+                <tr>
+                  <th className="text-left px-2 py-1 w-[80px]">Date</th>
+                  <th className="text-left px-2 py-1">Libellé</th>
+                  <th className="text-left px-2 py-1 w-[90px]">Référence</th>
+                  <th className="text-right px-2 py-1 w-[100px]">Débit</th>
+                  <th className="text-right px-2 py-1 w-[100px]">Crédit</th>
+                  <th className="text-left px-2 py-1 w-[190px]">État</th>
+                </tr>
+              </thead>
+              <tbody>
+                {detail.releve.map((r) => {
+                  const p = parReleve.get(r.id);
+                  return (
+                    <tr key={r.id}>
+                      <td className="px-2 py-1">{new Date(r.date).toLocaleDateString('fr-FR')}</td>
+                      <td className="px-2 py-1 truncate max-w-[260px]">{r.libelle}</td>
+                      <td className="px-2 py-1 text-text-dim">{r.reference ?? ''}</td>
+                      <td className="px-2 py-1 text-right">{r.debit ? fmt(r.debit) : ''}</td>
+                      <td className="px-2 py-1 text-right">{r.credit ? fmt(r.credit) : ''}</td>
+                      <td className="px-2 py-1">
+                        {r.ligneEcritureIds.length > 0 ? (
+                          <span className="inline-flex items-center gap-2">
+                            <span className="rounded-full bg-positive-soft text-positive px-2 py-[1px] font-semibold">Rapprochée</span>
+                            {modifiable && (
+                              <button onClick={() => props.onDissocier(r.id)} className="text-text-dim underline">
+                                défaire
+                              </button>
+                            )}
+                          </span>
+                        ) : p ? (
+                          <label className="inline-flex items-center gap-1.5">
+                            <input
+                              type="checkbox"
+                              disabled={!modifiable}
+                              checked={retenues.has(r.id)}
+                              onChange={() => {
+                                const n = new Set(retenues);
+                                if (n.has(r.id)) n.delete(r.id);
+                                else n.add(r.id);
+                                props.setRetenues(n);
+                              }}
+                            />
+                            <span className="rounded-full bg-sel-soft text-sel px-2 py-[1px] font-semibold">
+                              Proposée · {p.motif === 'REFERENCE' ? 'référence' : 'montant et date'}
+                            </span>
+                          </label>
+                        ) : (
+                          <span className="inline-flex items-center gap-2">
+                            <span className="rounded-full bg-warning-soft text-warning px-2 py-[1px] font-semibold">À comptabiliser</span>
+                            {modifiable && (
+                              <button onClick={() => props.onAssocier(r.id)} className="text-text-dim underline">
+                                associer
+                              </button>
+                            )}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {aComptabiliser.length > 0 && (
+              <p className="mt-2 text-[11.5px] text-text-dim">
+                {aComptabiliser.length} opération(s) du relevé sans écriture au compte · frais, agios ou virements à comptabiliser, ou à associer à la main.
+              </p>
+            )}
+          </div>
         </>
       )}
     </div>

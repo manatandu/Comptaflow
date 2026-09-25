@@ -41,8 +41,10 @@ tiennent à un texte OHADA ; ils sont signalés comme tels.
 ## Manques classés par importance pour un cabinet
 
 **Usage quotidien**
-1. Import des extraits bancaires et rapprochement automatique (le relevé n'est
-   aujourd'hui qu'une date et un solde).
+1. ~~Import des extraits bancaires et rapprochement automatique~~ · FAIT le
+   2026-09-25 : import CSV/XLSX, correspondances proposées au montant exact
+   puis confirmées, lignes « à comptabiliser ». Sans tolérance ni écriture
+   d'ajustement, écart voulu avec Sage (CLAUDE.md § 6).
 2. Règlement des tiers à partir des échéances.
 3. Suppression des structures avec refus si mouvementée ou utilisée.
 4. TVA et net à payer calculés d'office sur les journaux Achats et Ventes.

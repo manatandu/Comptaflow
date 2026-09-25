@@ -1,7 +1,17 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { ClasseCompte, Prisma, StatutRapprochement, TypeCompteDetailTotal } from '@prisma/client';
-import { OuvrirRapprochementDto } from './dto/rapprochement.dto';
+import { ConfirmerCorrespondancesDto, ImporterReleveDto, OuvrirRapprochementDto } from './dto/rapprochement.dto';
+import { lireFichier } from '../import/lecture-fichier';
+import {
+  arrondi,
+  FENETRE_JOURS_DEFAUT,
+  lireReleve,
+  montantVuDuCompte,
+  proposerCorrespondances,
+  reconnaitreColonnes,
+  type ChampReleve,
+} from './releve-bancaire';
 import { avecRetrySerialisable } from '../../common/prisma-retry.util';
 
 const EPSILON = 0.005;
@@ -136,12 +146,41 @@ export class RapprochementService {
       soldeDepart + lignesPointees.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
     const ecart = soldePointe - Number(rapprochement.soldeReleve);
 
+    const releve = await this.prisma.ligneReleveBancaire.findMany({
+      where: { tenantId, rapprochementId: id },
+      orderBy: { rang: 'asc' },
+    });
+    // CONTRÔLE DU RELEVÉ LUI-MÊME · solde de départ plus ses mouvements doit
+    // donner le solde imprimé. Un écart dit que le fichier ne couvre pas toute
+    // la période (lignes manquantes, export tronqué) ou que le solde de départ
+    // n'est pas celui de la banque · il se lit AVANT de rapprocher, sinon on
+    // rapproche un relevé incomplet.
+    const ecartReleve =
+      releve.length === 0
+        ? null
+        : arrondi(
+            soldeDepart +
+              releve.reduce((acc, r) => acc + Number(r.credit) - Number(r.debit), 0) -
+              Number(rapprochement.soldeReleve),
+          );
+
     return {
       rapprochement,
       soldeDepart,
       soldePointe,
       ecart,
       equilibre: Math.abs(ecart) < EPSILON,
+      ecartReleve,
+      releve: releve.map((r) => ({
+        id: r.id,
+        rang: r.rang,
+        date: r.date,
+        libelle: r.libelle,
+        reference: r.reference,
+        debit: Number(r.debit),
+        credit: Number(r.credit),
+        ligneEcritureIds: lignes.filter((l) => l.ligneReleveId === r.id).map((l) => l.id),
+      })),
       lignes: lignes.map((l) => ({
         id: l.id,
         date: l.ecriture.date,
@@ -151,6 +190,7 @@ export class RapprochementService {
         debit: Number(l.debit),
         credit: Number(l.credit),
         pointee: l.rapprochementId === id,
+        ligneReleveId: l.ligneReleveId,
       })),
     };
   }
@@ -190,7 +230,10 @@ export class RapprochementService {
     await this.assurerEnCours(tenantId, id);
     const resultat = await this.prisma.ligneEcriture.updateMany({
       where: { id: { in: ligneIds }, rapprochementId: id, ecriture: { tenantId } },
-      data: { rapprochementId: null },
+      // Dépointer dénoue aussi la correspondance avec le relevé · une ligne
+      // dépointée restée rattachée à une ligne du relevé la ferait passer pour
+      // rapprochée à l'écran sans compter dans le solde pointé.
+      data: { rapprochementId: null, ligneReleveId: null },
     });
     return { nombreLignes: resultat.count };
   }
@@ -222,7 +265,7 @@ export class RapprochementService {
     const rapprochement = await this.assurerEnCours(tenantId, id);
     await this.prisma.ligneEcriture.updateMany({
       where: { rapprochementId: rapprochement.id },
-      data: { rapprochementId: null },
+      data: { rapprochementId: null, ligneReleveId: null },
     });
     try {
       await this.prisma.rapprochementBancaire.delete({ where: { id: rapprochement.id } });
@@ -233,5 +276,196 @@ export class RapprochementService {
       throw err;
     }
     return { supprime: true };
+  }
+
+  // =========================================================================
+  // RELEVÉ IMPORTÉ ET CORRESPONDANCES (2026-09-25) · voir releve-bancaire.ts
+  // =========================================================================
+
+  /**
+   * IMPORTE le relevé du rapprochement. Refusé dès qu'une anomalie est lue,
+   * et quand une ligne est datée APRÈS la date du relevé · elle appartient au
+   * relevé suivant, et la prendre ici ferait rapprocher une opération que le
+   * solde imprimé ne contient pas. Un relevé déjà importé se REMPLACE tant
+   * qu'aucune de ses lignes n'est rapprochée ; après, il faut dissocier
+   * d'abord, pour qu'aucune correspondance confirmée ne disparaisse sans geste.
+   */
+  async importerReleve(tenantId: string, id: string, dto: ImporterReleveDto) {
+    const rapprochement = await this.assurerEnCours(tenantId, id);
+    const tableau = await lireFichier(dto.nomFichier, dto.contenuBase64);
+    const index = reconnaitreColonnes(tableau.colonnes, (dto.colonnes ?? {}) as Partial<Record<ChampReleve, string>>);
+    const { lignes, anomalies } = lireReleve(tableau, index);
+    const fin = rapprochement.dateReleve.getTime();
+    lignes.forEach((l) => {
+      if (l.date.getTime() > fin) {
+        anomalies.push(
+          `Opération du ${l.date.toISOString().slice(0, 10)} (« ${l.libelle} ») postérieure à la date du relevé · elle appartient au relevé suivant.`,
+        );
+      }
+    });
+    if (anomalies.length > 0) {
+      // Les dix premières seulement, et le compte du reste · un relevé mal
+      // lu d'un bout à l'autre rendrait sinon un message de trois écrans.
+      const reste = anomalies.length > 10 ? ` Et ${anomalies.length - 10} autre(s).` : '';
+      throw new BadRequestException(
+        `Relevé non importé · ${anomalies.slice(0, 10).join(' ')}${reste} Colonnes du fichier : ${tableau.colonnes.join(', ')}.`,
+      );
+    }
+    if (lignes.length === 0) {
+      throw new BadRequestException('Le relevé ne contient aucune opération.');
+    }
+    const dejaRapprochees = await this.prisma.ligneEcriture.count({
+      where: { ecriture: { tenantId }, ligneReleve: { rapprochementId: id, tenantId } },
+    });
+    if (dejaRapprochees > 0) {
+      throw new ConflictException(
+        'Des lignes du relevé actuel sont déjà rapprochées · dissociez-les avant de réimporter le relevé.',
+      );
+    }
+    await this.prisma.$transaction([
+      this.prisma.ligneReleveBancaire.deleteMany({ where: { tenantId, rapprochementId: id } }),
+      this.prisma.ligneReleveBancaire.createMany({
+        data: lignes.map((l) => ({
+          tenantId,
+          rapprochementId: id,
+          rang: l.rang,
+          date: l.date,
+          libelle: l.libelle,
+          reference: l.reference,
+          debit: l.debit,
+          credit: l.credit,
+        })),
+      }),
+    ]);
+    return { nombreLignes: lignes.length };
+  }
+
+  /** Retire le relevé importé, s'il n'a encore aucune ligne rapprochée. */
+  async retirerReleve(tenantId: string, id: string) {
+    await this.assurerEnCours(tenantId, id);
+    const dejaRapprochees = await this.prisma.ligneEcriture.count({
+      where: { ecriture: { tenantId }, ligneReleve: { rapprochementId: id, tenantId } },
+    });
+    if (dejaRapprochees > 0) {
+      throw new ConflictException('Des lignes du relevé sont rapprochées · dissociez-les avant de retirer le relevé.');
+    }
+    const r = await this.prisma.ligneReleveBancaire.deleteMany({ where: { tenantId, rapprochementId: id } });
+    return { nombreLignes: r.count };
+  }
+
+  /**
+   * PROPOSE les correspondances, sans rien écrire. Recalculée à chaque appel,
+   * elle ne peut pas être périmée · même parti que le pré-lettrage.
+   */
+  async proposer(tenantId: string, id: string, fenetreJours = FENETRE_JOURS_DEFAUT) {
+    const rapprochement = await this.assurerEnCours(tenantId, id);
+    const releve = await this.prisma.ligneReleveBancaire.findMany({
+      where: { tenantId, rapprochementId: id, lignesEcriture: { none: {} } },
+      orderBy: { rang: 'asc' },
+    });
+    const compte = await this.prisma.ligneEcriture.findMany({
+      where: { compteId: rapprochement.compteId, ecriture: { tenantId }, rapprochementId: null, ligneReleveId: null },
+      include: { ecriture: { select: { date: true, reference: true } } },
+    });
+    const propositions = proposerCorrespondances(
+      releve.map((r) => ({
+        id: r.id,
+        rang: r.rang,
+        date: r.date,
+        libelle: r.libelle,
+        reference: r.reference,
+        debit: Number(r.debit),
+        credit: Number(r.credit),
+      })),
+      compte.map((l) => ({
+        id: l.id,
+        date: l.ecriture.date,
+        reference: l.ecriture.reference,
+        debit: Number(l.debit),
+        credit: Number(l.credit),
+      })),
+      fenetreJours,
+    );
+    return {
+      fenetreJours,
+      propositions,
+      // Ce qui n'a PAS été rapproché est compté · une proposition qui ne
+      // montrerait que ses trouvailles laisserait croire que le reste l'est.
+      lignesReleveSansProposition: releve.length - propositions.length,
+    };
+  }
+
+  /**
+   * CONFIRME des correspondances, proposées ou composées à la main. Rien de ce
+   * que le client renvoie n'est cru · chaque groupe est REJOUÉ : ligne du
+   * relevé de CE rapprochement et libre, lignes du compte rapproché, du
+   * dossier, libres, et somme vue du compte ÉGALE au montant du relevé, au
+   * centime. Puis la ligne est pointée · une correspondance confirmée EST un
+   * pointage, et c'est lui que l'écart et la clôture lisent déjà.
+   */
+  async confirmer(tenantId: string, id: string, dto: ConfirmerCorrespondancesDto) {
+    const rapprochement = await this.assurerEnCours(tenantId, id);
+    const idsReleve = dto.correspondances.map((c) => c.ligneReleveId);
+    const idsCompte = dto.correspondances.flatMap((c) => c.ligneEcritureIds);
+    if (new Set(idsReleve).size !== idsReleve.length || new Set(idsCompte).size !== idsCompte.length) {
+      throw new BadRequestException('Une même ligne figure dans deux correspondances.');
+    }
+    const releve = await this.prisma.ligneReleveBancaire.findMany({
+      where: { tenantId, rapprochementId: id, id: { in: idsReleve } },
+      include: { lignesEcriture: { select: { id: true } } },
+    });
+    if (releve.length !== idsReleve.length) {
+      throw new NotFoundException('Une ligne du relevé est introuvable dans ce rapprochement.');
+    }
+    const compte = await this.prisma.ligneEcriture.findMany({
+      where: { id: { in: idsCompte }, ecriture: { tenantId } },
+    });
+    if (compte.length !== idsCompte.length) {
+      throw new NotFoundException('Une ligne d\'écriture est introuvable.');
+    }
+    for (const c of dto.correspondances) {
+      const r = releve.find((x) => x.id === c.ligneReleveId)!;
+      if (r.lignesEcriture.length > 0) {
+        throw new BadRequestException(`La ligne du relevé « ${r.libelle} » est déjà rapprochée.`);
+      }
+      const lignes = compte.filter((l) => c.ligneEcritureIds.includes(l.id));
+      for (const l of lignes) {
+        if (l.compteId !== rapprochement.compteId) {
+          throw new BadRequestException('Toutes les lignes doivent appartenir au compte rapproché.');
+        }
+        if ((l.rapprochementId && l.rapprochementId !== id) || l.ligneReleveId) {
+          throw new BadRequestException('Une des lignes est déjà pointée ou rapprochée.');
+        }
+      }
+      const attendu = montantVuDuCompte({ debit: Number(r.debit), credit: Number(r.credit) });
+      const obtenu = arrondi(lignes.reduce((acc, l) => acc + Number(l.debit) - Number(l.credit), 0));
+      if (Math.abs(attendu - obtenu) >= EPSILON) {
+        throw new BadRequestException(
+          `« ${r.libelle} » : le relevé porte ${attendu.toFixed(2)} vu du compte, les lignes choisies ${obtenu.toFixed(2)} · ` +
+            'un écart ne se rapproche pas, il se comptabilise.',
+        );
+      }
+    }
+    await this.prisma.$transaction(
+      dto.correspondances.map((c) =>
+        this.prisma.ligneEcriture.updateMany({
+          where: { id: { in: c.ligneEcritureIds }, ecriture: { tenantId }, ligneReleveId: null },
+          data: { rapprochementId: id, ligneReleveId: c.ligneReleveId },
+        }),
+      ),
+    );
+    return { nombreCorrespondances: dto.correspondances.length };
+  }
+
+  /** Dissocie une ligne du relevé de ses écritures, et les dépointe. */
+  async dissocier(tenantId: string, id: string, ligneReleveId: string) {
+    await this.assurerEnCours(tenantId, id);
+    const r = await this.prisma.ligneReleveBancaire.findFirst({ where: { id: ligneReleveId, tenantId, rapprochementId: id } });
+    if (!r) throw new NotFoundException('Ligne du relevé introuvable dans ce rapprochement.');
+    const res = await this.prisma.ligneEcriture.updateMany({
+      where: { ligneReleveId, ecriture: { tenantId } },
+      data: { ligneReleveId: null, rapprochementId: null },
+    });
+    return { nombreLignes: res.count };
   }
 }

@@ -357,6 +357,25 @@ export interface LignePointage {
   debit: number;
   credit: number;
   pointee: boolean;
+  ligneReleveId: string | null;
+}
+
+/** Ligne du relevé importé · débit et crédit VUS DE LA BANQUE, tels qu'imprimés. */
+export interface LigneReleve {
+  id: string;
+  rang: number;
+  date: string;
+  libelle: string;
+  reference: string | null;
+  debit: number;
+  credit: number;
+  ligneEcritureIds: string[];
+}
+
+export interface PropositionsRapprochement {
+  fenetreJours: number;
+  propositions: { ligneReleveId: string; ligneEcritureIds: string[]; motif: 'REFERENCE' | 'MONTANT_DATE' }[];
+  lignesReleveSansProposition: number;
 }
 
 export interface DetailRapprochement {
@@ -365,6 +384,9 @@ export interface DetailRapprochement {
   soldePointe: number;
   ecart: number;
   equilibre: boolean;
+  /** Solde de départ + mouvements du relevé − solde imprimé · null sans relevé importé. */
+  ecartReleve: number | null;
+  releve: LigneReleve[];
   lignes: LignePointage[];
 }
 

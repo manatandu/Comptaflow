@@ -54,7 +54,9 @@ describe('l’inventaire couvre le schéma, sans trou ni surplus', () => {
     // sur la trésorerie IFRS (tranche 3), bornés par leur propre `tenantId` ;
     // à 98 avec les déclarations des notes IFRS (tranche 5), idem.
     // à 99 avec les règles de rangement des postes de consolidation IFRS, idem.
-    expect(modeles).toHaveLength(99);
+    // à 100 avec les lignes du relevé bancaire importé, cloisonnées par leur
+    // propre tenantId et restituées comme pièce externe de la banque.
+    expect(modeles).toHaveLength(100);
     expect([...TABLES_RESTITUEES].sort()).toEqual(modeles.filter((m) => m !== 'Tenant').sort());
   });
 
