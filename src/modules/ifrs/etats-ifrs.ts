@@ -5,6 +5,7 @@ import {
   LIBELLE_CATEGORIE_OCI,
   LIBELLE_SECTION,
   motifRefusRegle,
+  RUBRIQUE_NCI,
   RUBRIQUE_PAR_CODE,
   RUBRIQUES_IFRS,
   SectionSituation,
@@ -57,6 +58,77 @@ export interface RetraitementDeclare {
   fondement: string;
   /** Débit positif, crédit négatif · la somme est nulle. */
   lignes: { rubrique: string; montant: number }[];
+  /**
+   * COMPTES CONSOLIDÉS SEULEMENT (IFRS 10 § B94) · la part de chacun des
+   * effets du retraitement qui revient aux participations ne donnant pas le
+   * contrôle, en valeur créditrice (un profit est positif). Déclarée, jamais
+   * déduite · aucun livre ne dit à quelle entité un retraitement se rapporte.
+   */
+  partMinoritairesResultat?: number | null;
+  partMinoritairesOci?: number | null;
+  partMinoritairesCapitauxPropres?: number | null;
+}
+
+/**
+ * Ce que la consolidation apporte au moteur · ses POSTES (écart
+ * d'acquisition, titres mis en équivalence, capitaux propres partagés), qui
+ * ne sont pas des comptes et se rangent par une table propre, et la part du
+ * résultat légal qui revient aux minoritaires.
+ */
+export interface OptionsConsolidation {
+  rubriqueDuPoste: (cle: string) => string | null;
+  estPosteDeResultat: (cle: string) => boolean;
+  /** Résultat légal attribuable aux minoritaires (D4C), en valeur créditrice. */
+  resultatMinoritaires: number;
+  /** Résultat de l'ensemble consolidé, tel que le cumul le calcule · contrôlé contre la projection. */
+  resultatEnsemble: number;
+}
+
+/** Les trois effets d'un retraitement sur les capitaux propres, en valeur créditrice. */
+export function effetsRetraitement(r: Pick<RetraitementDeclare, 'lignes'>): { resultat: number; oci: number; capitauxPropres: number } {
+  let resultat = 0;
+  let oci = 0;
+  let capitauxPropres = 0;
+  for (const l of r.lignes) {
+    const rb = RUBRIQUE_PAR_CODE.get(l.rubrique);
+    if (rb?.etat === 'RESULTAT') resultat -= l.montant;
+    else if (rb?.etat === 'RESULTAT_GLOBAL') oci -= l.montant;
+    else if (rb?.section === 'CAPITAUX_PROPRES') capitauxPropres -= l.montant;
+  }
+  return { resultat: r2(resultat), oci: r2(oci), capitauxPropres: r2(capitauxPropres) };
+}
+
+/**
+ * IFRS 10 § B94 · la part des minoritaires d'un retraitement consolidé.
+ * Chaque effet non nul l'exige, zéro compris ; elle a le signe de l'effet et
+ * ne le dépasse pas. Un retraitement des comptes individuels n'en porte pas.
+ */
+export function motifRefusPartsMinoritaires(r: RetraitementDeclare, consolide: boolean): string | null {
+  const parts = [r.partMinoritairesResultat, r.partMinoritairesOci, r.partMinoritairesCapitauxPropres];
+  if (!consolide) {
+    return parts.some((x) => x != null)
+      ? `Retraitement « ${r.libelle} » · une part des participations ne donnant pas le contrôle n’existe que dans les comptes consolidés.`
+      : null;
+  }
+  const e = effetsRetraitement(r);
+  const couples: [number, number | null | undefined, string][] = [
+    [e.resultat, r.partMinoritairesResultat, 'au résultat net'],
+    [e.oci, r.partMinoritairesOci, 'aux autres éléments du résultat global'],
+    [e.capitauxPropres, r.partMinoritairesCapitauxPropres, 'aux capitaux propres'],
+  ];
+  for (const [effet, part, ou] of couples) {
+    if (Math.abs(effet) <= EPS) {
+      if (part != null && Math.abs(part) > EPS) return `Retraitement « ${r.libelle} » · une part des minoritaires ${ou} sans effet ${ou}.`;
+      continue;
+    }
+    if (part == null) {
+      return `Retraitement « ${r.libelle} » · son effet ${ou} (${effet}) s’attribue aux propriétaires et aux participations ne donnant pas le contrôle (IFRS 10 § B94) · déclarez la part de ces dernières, zéro compris.`;
+    }
+    if (Math.abs(part) > EPS && (Math.sign(part) !== Math.sign(effet) || Math.abs(part) > Math.abs(effet) + EPS)) {
+      return `Retraitement « ${r.libelle} » · la part des minoritaires ${ou} (${part}) a le signe de l’effet (${effet}) et ne le dépasse pas.`;
+    }
+  }
+  return null;
 }
 
 export type ActivitePrincipale = 'AUCUNE' | 'INVESTIR_ACTIFS' | 'FINANCER_CLIENTS';
@@ -122,6 +194,9 @@ export function motifRefusRetraitement(r: Pick<RetraitementDeclare, 'libelle' | 
   if (r.lignes.length < 2) return `Retraitement « ${r.libelle} » · une écriture a au moins deux lignes.`;
   for (const l of r.lignes) {
     if (!RUBRIQUE_PAR_CODE.has(l.rubrique)) return `Retraitement « ${r.libelle} » · la rubrique « ${l.rubrique} » n’existe pas au catalogue.`;
+    if (l.rubrique === RUBRIQUE_NCI) {
+      return `Retraitement « ${r.libelle} » · les participations ne donnant pas le contrôle ne se retraitent pas directement · leur part se déclare avec le retraitement (IFRS 10 § B94).`;
+    }
     if (!(Math.abs(l.montant) > EPS)) return `Retraitement « ${r.libelle} » · une ligne sans montant.`;
   }
   const ecart = r2(r.lignes.reduce((s, l) => s + l.montant, 0));
@@ -135,13 +210,14 @@ export function construireEtatsIfrs(
   regles: RegleCorrespondance[],
   retraitements: RetraitementDeclare[],
   activitePrincipale: ActivitePrincipale | null,
+  conso?: OptionsConsolidation,
 ): EtatsIfrs {
   for (const r of regles) {
     const m = motifRefusRegle(r.prefixe, r.rubrique);
     if (m) throw new RefusIfrs(m);
   }
   for (const r of retraitements) {
-    const m = motifRefusRetraitement(r);
+    const m = motifRefusRetraitement(r) ?? motifRefusPartsMinoritaires(r, !!conso);
     if (m) throw new RefusIfrs(m);
   }
 
@@ -151,10 +227,15 @@ export function construireEtatsIfrs(
   const nonClasses: { numero: string; intitule: string; solde: number }[] = [];
   let resultatSyscohada = 0;
   let capitauxPropresSyscohada = 0;
+  // Un POSTE de consolidation n'est pas un compte · il n'a pas de classe, et
+  // c'est la table de la consolidation qui dit s'il est du résultat.
+  const estPoste = (numero: string) => !!conso && !/^\d/.test(numero);
+  const estGestion = (numero: string) => (estPoste(numero) ? conso!.estPosteDeResultat(numero) : /^[678]/.test(numero));
   for (const l of lignes) {
-    if (Math.abs(l.solde) <= EPS || /^9/.test(l.numero) || !/^[1-8]/.test(l.numero)) continue;
-    if (/^[678]/.test(l.numero)) resultatSyscohada -= l.solde;
-    const code = rubriqueDuCompte(l.numero, regles);
+    if (Math.abs(l.solde) <= EPS) continue;
+    if (!estPoste(l.numero) && (/^9/.test(l.numero) || !/^[1-8]/.test(l.numero))) continue;
+    if (estGestion(l.numero)) resultatSyscohada -= l.solde;
+    const code = estPoste(l.numero) ? conso!.rubriqueDuPoste(l.numero) : rubriqueDuCompte(l.numero, regles);
     if (!code) {
       nonClasses.push({ numero: l.numero, intitule: l.intitule, solde: r2(l.solde) });
       continue;
@@ -193,7 +274,7 @@ export function construireEtatsIfrs(
   for (const c of ORDRE_CATEGORIES) {
     parCategorie.set(c, RUBRIQUES_IFRS.filter((r) => r.categorie === c).map((r) => poste(r.code, -1)));
   }
-  const nonClassesResultat = nonClasses.filter((c) => /^[678]/.test(c.numero));
+  const nonClassesResultat = nonClasses.filter((c) => estGestion(c.numero));
   const ligneNonClasses = (cle: string, xs: { solde: number }[], signe: 1 | -1): LigneEtatIfrs => {
     const v = r2(signe * xs.reduce((s, x) => s + x.solde, 0));
     return { cle, libelle: 'Comptes sans rubrique', nature: 'NON_CLASSE', legal: v, retraitements: 0, ifrs: v };
@@ -208,6 +289,31 @@ export function construireEtatsIfrs(
     '§ 69 c, § 72',
   );
   resultat.push(...operationnel, tOp, ...parCategorie.get('INVESTISSEMENT')!, tAvant, ...parCategorie.get('FINANCEMENT')!, ...parCategorie.get('IMPOTS')!, ...parCategorie.get('ABANDONNEES')!, tNet);
+
+  // ─── Comptes consolidés · la part des minoritaires (IFRS 10 § B94) ────────
+  // Légale, elle vient du partage du D4C ; celle des retraitements se déclare
+  // avec eux. Aucune n'est déduite d'un pourcentage.
+  const sommeParts = (k: 'partMinoritairesResultat' | 'partMinoritairesOci' | 'partMinoritairesCapitauxPropres') =>
+    r2(retraitements.reduce((s, r) => s + (r[k] ?? 0), 0));
+  const nci = conso
+    ? { resultatLegal: r2(conso.resultatMinoritaires), resultat: sommeParts('partMinoritairesResultat'), oci: sommeParts('partMinoritairesOci'), capitauxPropres: sommeParts('partMinoritairesCapitauxPropres') }
+    : null;
+  const attribution = (cle: string, libelle: string, ref: string, legal: number, retr: number): LigneEtatIfrs => ({
+    cle,
+    libelle,
+    ref,
+    nature: 'POSTE',
+    legal: r2(legal),
+    retraitements: r2(retr),
+    ifrs: r2(legal + retr),
+  });
+  if (nci) {
+    // § 76 · hors de toutes les catégories du § 47, sous le résultat net.
+    resultat.push(
+      attribution('RN_PARTICIPATIONS_NE_DONNANT_PAS_CONTROLE', 'Résultat net attribuable aux participations ne donnant pas le contrôle', '§ 76 a', nci.resultatLegal, nci.resultat),
+      attribution('RN_PROPRIETAIRES', 'Résultat net attribuable aux propriétaires de la société mère', '§ 76 b', tNet.legal - nci.resultatLegal, tNet.retraitements - nci.resultat),
+    );
+  }
 
   // ─── État présentant le résultat global · § 12 b, § 86 à 89 ───────────────
   // Il COMMENCE par le résultat net (§ 12 b), puis les deux catégories du § 88,
@@ -225,20 +331,53 @@ export function construireEtatsIfrs(
   const tOci = total('TOTAL_OCI', 'Autres éléments du résultat global', totauxOci, '§ 86 b');
   const tGlobal = total('RESULTAT_GLOBAL', 'Résultat global', [tNet, tOci], '§ 86 c');
   resultatGlobal.push(tOci, tGlobal);
+  if (nci) {
+    resultatGlobal.push(
+      attribution('RG_PARTICIPATIONS_NE_DONNANT_PAS_CONTROLE', 'Résultat global attribuable aux participations ne donnant pas le contrôle', '§ 87 a', nci.resultatLegal, nci.resultat + nci.oci),
+      attribution('RG_PROPRIETAIRES', 'Résultat global attribuable aux propriétaires de la société mère', '§ 87 b', tGlobal.legal - nci.resultatLegal, tGlobal.retraitements - nci.resultat - nci.oci),
+    );
+  }
 
   // ─── État de la situation financière (§ 96 à 104) ─────────────────────────
   const situation: LigneEtatIfrs[] = [];
   const totaux = new Map<SectionSituation, LigneEtatIfrs>();
-  const nonClassesBilan = nonClasses.filter((c) => !/^[678]/.test(c.numero));
+  const nonClassesBilan = nonClasses.filter((c) => !estGestion(c.numero));
   for (const s of ORDRE_SECTIONS) {
     const actif = s.startsWith('ACTIF');
-    const xs = RUBRIQUES_IFRS.filter((r) => r.section === s).map((r) => poste(r.code, actif ? 1 : -1));
-    if (s === 'CAPITAUX_PROPRES') {
+    const xs = RUBRIQUES_IFRS.filter((r) => r.section === s && r.code !== RUBRIQUE_NCI).map((r) => poste(r.code, actif ? 1 : -1));
+    if (s === 'CAPITAUX_PROPRES' && !nci) {
       xs.push({ cle: 'SF_RESULTAT', libelle: 'Résultat net de l’exercice', ref: '§ 72', nature: 'POSTE', legal: tNet.legal, retraitements: tNet.retraitements, ifrs: tNet.ifrs });
       // L'OCI de l'exercice n'est dans aucun compte · sans cette ligne, un
       // retraitement de réévaluation grossirait l'actif sans contrepartie, et
       // l'état cesserait de boucler.
       xs.push({ cle: 'SF_OCI_EXERCICE', libelle: 'Autres éléments du résultat global de l’exercice', ref: '§ 86 b, § 111', nature: 'POSTE', legal: 0, retraitements: tOci.retraitements, ifrs: tOci.ifrs });
+    }
+    if (s === 'CAPITAUX_PROPRES' && nci) {
+      // § 104 · les capitaux propres attribuables aux propriétaires d'abord,
+      // puis les participations ne donnant pas le contrôle, qui reçoivent
+      // leur part du résultat, des autres éléments et des corrections
+      // directes · ce qui leur est donné est retiré aux propriétaires.
+      const reserves = xs.find((x) => x.cle === 'SF_RESERVES')!;
+      reserves.retraitements = r2(reserves.retraitements - nci.capitauxPropres);
+      reserves.ifrs = r2(reserves.ifrs - nci.capitauxPropres);
+      xs.push(
+        attribution('SF_RESULTAT', 'Résultat net de l’exercice attribuable aux propriétaires de la société mère', '§ 72, § 76 b', tNet.legal - nci.resultatLegal, tNet.retraitements - nci.resultat),
+        attribution('SF_OCI_EXERCICE', 'Autres éléments du résultat global de l’exercice attribuables aux propriétaires', '§ 86 b, § 111', 0, tOci.retraitements - nci.oci),
+      );
+      const proprietaires = total('TOTAL_CAPITAUX_PROPRES_PROPRIETAIRES', 'Capitaux propres attribuables aux propriétaires de la société mère', xs, '§ 104 b');
+      const m = poste(RUBRIQUE_NCI, -1);
+      const minoritaires: LigneEtatIfrs = {
+        ...m,
+        libelle: 'Participations ne donnant pas le contrôle (résultat de l’exercice compris)',
+        legal: r2(m.legal + nci.resultatLegal),
+        retraitements: r2(m.retraitements + nci.resultat + nci.oci + nci.capitauxPropres),
+        ifrs: r2(m.ifrs + nci.resultatLegal + nci.resultat + nci.oci + nci.capitauxPropres),
+      };
+      xs.push(proprietaires, minoritaires);
+      const t = total(`TOTAL_${s}`, `Total · ${LIBELLE_SECTION[s].toLowerCase()}`, [proprietaires, minoritaires]);
+      totaux.set(s, t);
+      situation.push(...xs, t);
+      continue;
     }
     const t = total(`TOTAL_${s}`, `Total · ${LIBELLE_SECTION[s].toLowerCase()}`, xs);
     totaux.set(s, t);
@@ -280,6 +419,7 @@ export function construireEtatsIfrs(
   const controles = [
     controle('SITUATION_EQUILIBREE', 'Total de l’actif = total des capitaux propres et du passif', totalActif.ifrs, totalPassif.ifrs),
     controle('RESULTAT_SYSCOHADA', 'Résultat de la balance légale = résultat projeté avant retraitements', resultatSyscohada, tNet.legal),
+    ...(conso ? [controle('RESULTAT_ENSEMBLE', 'Résultat projeté = résultat de l’ensemble consolidé (D4C)', resultatSyscohada, conso.resultatEnsemble)] : []),
   ];
 
   const mentions: string[] = [];

@@ -4,17 +4,31 @@ import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { chargerLignes, LigneBalancePourEtat } from '../etats-financiers/etats-financiers.communs';
 import { EtatsFinanciersSyscohadaService } from '../etats-financiers-syscohada/etats-financiers-syscohada.service';
+import { CumulService } from '../consolidation/cumul.service';
+import { LIBELLE_POSTE, PosteConsolidation } from '../consolidation/cumul-consolidation';
 import {
   ActiviteIfrsDto,
   EffetChangeIfrsDto,
   MouvementCpIfrsDto,
   NotesIfrsDto,
   PremiereApplicationIfrsDto,
+  RegleConsolidationIfrsDto,
   RegleIfrsDto,
   RetraitementIfrsDto,
   TresorerieIfrsDto,
 } from './dto/ifrs.dto';
-import { construireEtatsIfrs, ENTREE_EN_VIGUEUR_IFRS18, EtatsIfrs, LIBELLES_GROUPES, motifRefusRetraitement, RefusIfrs, rubriqueDuCompte } from './etats-ifrs';
+import {
+  construireEtatsIfrs,
+  ENTREE_EN_VIGUEUR_IFRS18,
+  EtatsIfrs,
+  LIBELLES_GROUPES,
+  motifRefusPartsMinoritaires,
+  motifRefusRetraitement,
+  RefusIfrs,
+  RetraitementDeclare,
+  rubriqueDuCompte,
+} from './etats-ifrs';
+import { construireEtatsIfrsConsolides, EtatsIfrsConsolides, motifRefusRegleConsolidation, POSTES_A_DECLARER, POSTES_RANGES } from './etats-ifrs-consolides';
 import { construireNotesIfrs, motifsRefusDeclarationsNotes, normaliserDeclarationsNotes, SOUS_TOTAUX_REFERENCE } from './notes-ifrs';
 import { CATEGORIES_FLUX, CategorieFlux, construireFluxTresorerieIfrs, TableauFluxIfrs } from './flux-tresorerie-ifrs';
 import { RUBRIQUE_PAR_CODE } from './rubriques-ifrs';
@@ -58,7 +72,16 @@ import { COMPOSANTES_CP, construireVariationCapitauxPropres, motifRefusMouvement
  * recopiées d'office · une méthode ou un jugement de l'an dernier peut ne plus
  * valoir.
  */
-type RetraitementLu = { id: string; libelle: string; fondement: string; correctionErreur: boolean; lignes: { rubrique: string; montant: number }[] };
+type RetraitementLu = {
+  id: string;
+  libelle: string;
+  fondement: string;
+  correctionErreur: boolean;
+  lignes: { rubrique: string; montant: number }[];
+  partMinoritairesResultat: number | null;
+  partMinoritairesOci: number | null;
+  partMinoritairesCapitauxPropres: number | null;
+};
 
 const versMoteur = (r: RetraitementLu): RetraitementIfrs1 => ({
   id: r.id,
@@ -67,6 +90,27 @@ const versMoteur = (r: RetraitementLu): RetraitementIfrs1 => ({
   correctionErreur: r.correctionErreur,
   lignes: r.lignes.map((l) => ({ rubrique: l.rubrique, montant: l.montant })),
 });
+
+/** Un retraitement CONSOLIDÉ porte, en plus, la part des minoritaires de chacun de ses effets (IFRS 10 § B94). */
+const versMoteurConsolide = (r: RetraitementLu): RetraitementDeclare => ({
+  ...versMoteur(r),
+  partMinoritairesResultat: r.partMinoritairesResultat,
+  partMinoritairesOci: r.partMinoritairesOci,
+  partMinoritairesCapitauxPropres: r.partMinoritairesCapitauxPropres,
+});
+
+const nombreOuNull = (x: Prisma.Decimal | number | null | undefined) => (x == null ? null : Number(x));
+
+/**
+ * Ce que la tranche C1 ne sert pas des comptes consolidés IFRS · dit sur le
+ * jeu, jamais tu. Chaque motif nomme la norme qui l'exige.
+ */
+export const MOTIFS_CONSOLIDES_NON_SERVIS = [
+  'Tableau des flux de trésorerie consolidé non servi par cette tranche (IAS 7, IFRS 18 § 10 d).',
+  'État des variations des capitaux propres consolidé non servi par cette tranche · sa colonne des participations ne donnant pas le contrôle (IFRS 18 § 107 a) comprise.',
+  'Notes des états consolidés non servies par cette tranche · dont les informations d’IFRS 12 sur les intérêts détenus dans d’autres entités (IFRS 18 § 113 b).',
+  'Première application des IFRS aux comptes consolidés non servie par cette tranche (IFRS 1) · les ajustements de transition du groupe ne se déclarent pas encore.',
+];
 
 /** Le total CP du bilan légal (« capitaux propres et ressources assimilées »), crédit en positif. */
 const REF_CAPITAUX_PROPRES_SYSCOHADA = 'CP';
@@ -80,6 +124,7 @@ export class IfrsService {
     private readonly prisma: PrismaService,
     private readonly ecritures: EcritureService,
     private readonly etatsSyscohada: EtatsFinanciersSyscohadaService,
+    private readonly cumuls: CumulService,
   ) {}
 
   private async exercice(tenantId: string, exerciceId: string) {
@@ -93,14 +138,26 @@ export class IfrsService {
    * retraitements de l'exercice et les ajustements de transition datés de son
    * ouverture (IFRS 1 § 11). Les additionner mettrait l'effet de la
    * transition deux fois dans la clôture du comparatif.
+   *
+   * `consolide` sépare de même les retraitements des comptes INDIVIDUELS de
+   * ceux des comptes CONSOLIDÉS · un retraitement du groupe (l'annulation de
+   * l'amortissement d'un écart d'acquisition) n'a aucun sens sur la balance
+   * de la seule société mère, et l'inverse fausserait la consolidation, où
+   * les comptes individuels sont déjà cumulés.
    */
-  private async retraitementsDe(tenantId: string, exerciceId: string, aLaTransition = false) {
+  private async retraitementsDe(tenantId: string, exerciceId: string, aLaTransition = false, consolide = false) {
     const rs = await this.prisma.retraitementIfrs.findMany({
-      where: { tenantId, exerciceId, aLaTransition },
+      where: { tenantId, exerciceId, aLaTransition, consolide },
       include: { lignes: { orderBy: { ordre: 'asc' } } },
       orderBy: { createdAt: 'asc' },
     });
-    return rs.map((r) => ({ ...r, lignes: r.lignes.map((l) => ({ ...l, montant: Number(l.montant) })) }));
+    return rs.map((r) => ({
+      ...r,
+      partMinoritairesResultat: nombreOuNull(r.partMinoritairesResultat),
+      partMinoritairesOci: nombreOuNull(r.partMinoritairesOci),
+      partMinoritairesCapitauxPropres: nombreOuNull(r.partMinoritairesCapitauxPropres),
+      lignes: r.lignes.map((l) => ({ ...l, montant: Number(l.montant) })),
+    }));
   }
 
   private async precedent(tenantId: string, dateDebut: Date) {
@@ -447,6 +504,90 @@ export class IfrsService {
   }
 
   /**
+   * ÉTATS IFRS CONSOLIDÉS, tranche C1 · la balance consolidée du D4C
+   * (`CumulService.cumul`, jamais réécrit) projetée par les règles du dossier
+   * et par celles des postes, puis corrigée des retraitements CONSOLIDÉS. Un
+   * dossier qui ne se consolide pas ne rend pas d'état, et dit pourquoi.
+   */
+  async etatConsolide(tenantId: string, exerciceId: string) {
+    const ex = await this.exercice(tenantId, exerciceId);
+    const [parametres, regles, reglesConsolidation, retraitements] = await Promise.all([
+      this.prisma.parametresIfrs.findUnique({ where: { tenantId } }),
+      this.prisma.regleCorrespondanceIfrs.findMany({ where: { tenantId }, orderBy: { prefixe: 'asc' } }),
+      this.prisma.regleConsolidationIfrs.findMany({ where: { tenantId }, orderBy: { poste: 'asc' } }),
+      this.retraitementsDe(tenantId, ex.id, false, true),
+    ]);
+    const activite = parametres?.activitePrincipale ?? null;
+    const r = regles.map((x) => ({ prefixe: x.prefixe, rubrique: x.rubrique }));
+    const rc = reglesConsolidation.map((x) => ({ poste: x.poste, rubrique: x.rubrique }));
+    const commun = {
+      activitePrincipale: activite,
+      regles,
+      reglesConsolidation,
+      retraitements,
+      rubriques: RUBRIQUES_IFRS,
+      groupes: LIBELLES_GROUPES,
+      postesRanges: Object.entries(POSTES_RANGES).map(([poste, v]) => ({ poste, libelle: LIBELLE_POSTE[poste as PosteConsolidation], ...v })),
+      postesADeclarer: POSTES_A_DECLARER.map((poste) => ({ poste, libelle: LIBELLE_POSTE[poste] })),
+    };
+
+    const jouer = async (e: { id: string; dateDebut: Date }, retr: RetraitementLu[]): Promise<EtatsIfrsConsolides> => {
+      const cumul = await this.cumuls.cumul(tenantId, e.id);
+      try {
+        return construireEtatsIfrsConsolides({ dateDebut: e.dateDebut }, cumul, r, rc, retr.map(versMoteurConsolide), activite);
+      } catch (err) {
+        if (err instanceof RefusIfrs) throw new BadRequestException(err.message);
+        throw err;
+      }
+    };
+
+    let n: EtatsIfrsConsolides;
+    try {
+      n = await jouer(ex, retraitements);
+    } catch (e) {
+      if (!(e instanceof BadRequestException)) throw e;
+      return { ...commun, n: null, motifN: e.message, n1: null, motifN1: null };
+    }
+
+    const precedent = await this.precedent(tenantId, ex.dateDebut);
+    let n1: EtatsIfrsConsolides | null = null;
+    let motifN1: string | null = null;
+    if (!precedent) motifN1 = 'Aucun exercice précédent dans le dossier · la colonne comparative est vide.';
+    else {
+      try {
+        n1 = await jouer(precedent, await this.retraitementsDe(tenantId, precedent.id, false, true));
+      } catch (e) {
+        if (!(e instanceof BadRequestException)) throw e;
+        motifN1 = `L’exercice précédent ne se consolide pas · ${e.message}`;
+      }
+    }
+    if (!n1) n.motifsNonPubliable.push(`Comparatif consolidé non établi (IFRS 18 § 10 f) · ${motifN1}`);
+    n.motifsNonPubliable.push(...MOTIFS_CONSOLIDES_NON_SERVIS);
+    return { ...commun, n, motifN: null, n1, motifN1 };
+  }
+
+  /** Un poste de consolidation qui se déclare, et la rubrique IFRS 18 qui le reçoit. */
+  async ajouterRegleConsolidation(tenantId: string, dto: RegleConsolidationIfrsDto) {
+    const motif = motifRefusRegleConsolidation(dto.poste, dto.rubrique);
+    if (motif) throw new BadRequestException(motif);
+    try {
+      return await this.prisma.regleConsolidationIfrs.create({ data: { tenantId, poste: dto.poste, rubrique: dto.rubrique } });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        throw new ConflictException(`Le poste ${dto.poste} a déjà une rubrique · retirez la règle avant d’en poser une autre.`);
+      }
+      throw e;
+    }
+  }
+
+  async supprimerRegleConsolidation(tenantId: string, id: string) {
+    const r = await this.prisma.regleConsolidationIfrs.findFirst({ where: { id, tenantId }, select: { id: true } });
+    if (!r) throw new NotFoundException('Règle introuvable dans ce dossier.');
+    await this.prisma.regleConsolidationIfrs.delete({ where: { id } });
+    return { supprime: true };
+  }
+
+  /**
    * IFRS 18 § 113 à 132 et IAS 8 · les déclarations des notes d'un exercice,
    * en un seul envoi. Ce qui est contradictoire ou mal formé est refusé ; une
    * réponse manquante ne l'est pas, elle rend seulement le jeu non publiable.
@@ -545,6 +686,18 @@ export class IfrsService {
     const motif = motifRefusRetraitement({ libelle: dto.libelle, fondement: dto.fondement, lignes: dto.lignes });
     if (motif) throw new BadRequestException(motif);
     const aLaTransition = dto.aLaTransition ?? false;
+    const consolide = dto.consolide ?? false;
+    const parts = {
+      partMinoritairesResultat: dto.partMinoritairesResultat ?? null,
+      partMinoritairesOci: dto.partMinoritairesOci ?? null,
+      partMinoritairesCapitauxPropres: dto.partMinoritairesCapitauxPropres ?? null,
+    };
+    // Même règle qu'au calcul · la porte ne laisse entrer que ce que le moteur accepte.
+    const motifParts = motifRefusPartsMinoritaires({ id: '', libelle: dto.libelle, fondement: dto.fondement, lignes: dto.lignes, ...parts }, consolide);
+    if (motifParts) throw new BadRequestException(motifParts);
+    if (consolide && aLaTransition) {
+      throw new BadRequestException('La première application des IFRS aux comptes consolidés n’est pas servie · un ajustement de transition se déclare sur les comptes individuels (IFRS 1 § 11).');
+    }
     if (aLaTransition) {
       const motifTransition = motifRefusAjustementTransition({ libelle: dto.libelle, lignes: dto.lignes });
       if (motifTransition) throw new BadRequestException(motifTransition);
@@ -570,6 +723,8 @@ export class IfrsService {
         libelle: dto.libelle.trim(),
         fondement: dto.fondement.trim(),
         aLaTransition,
+        consolide,
+        ...parts,
         correctionErreur: dto.correctionErreur ?? false,
         lignes: { create: dto.lignes.map((l, i) => ({ tenantId, ordre: i + 1, rubrique: l.rubrique, montant: l.montant })) },
       },

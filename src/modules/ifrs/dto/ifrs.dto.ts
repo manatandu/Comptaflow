@@ -25,6 +25,18 @@ export class RetraitementIfrsDto {
   @IsOptional() @IsBoolean() aLaTransition?: boolean;
   /** IFRS 1 § 26 · une correction d'erreur du référentiel antérieur, distinguée d'un changement de méthode. */
   @IsOptional() @IsBoolean() correctionErreur?: boolean;
+  /** Retraitement des comptes CONSOLIDÉS · jamais lu avec ceux des comptes individuels. */
+  @IsOptional() @IsBoolean() consolide?: boolean;
+  /** IFRS 10 § B94 · la part des participations ne donnant pas le contrôle de chaque effet, en valeur créditrice. */
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber({ maxDecimalPlaces: 2 }) partMinoritairesResultat?: number | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber({ maxDecimalPlaces: 2 }) partMinoritairesOci?: number | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber({ maxDecimalPlaces: 2 }) partMinoritairesCapitauxPropres?: number | null;
+}
+
+/** Un poste de la consolidation qui se déclare, et sa rubrique IFRS 18. */
+export class RegleConsolidationIfrsDto {
+  @IsString() @MaxLength(64) poste!: string;
+  @IsString() @MaxLength(64) rubrique!: string;
 }
 
 export class PremiereApplicationIfrsDto {

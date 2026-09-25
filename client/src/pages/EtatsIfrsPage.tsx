@@ -3,6 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { NotesIfrs, NotesIfrsServies } from '../components/NotesIfrs';
+import { EtatsIfrsConsolides } from '../components/EtatsIfrsConsolides';
 
 /**
  * ÉTATS IFRS EN SUS DU JEU LÉGAL · item 15, tranche 1 (AUDCIF art. 73-1,
@@ -31,6 +32,10 @@ import { NotesIfrs, NotesIfrsServies } from '../components/NotesIfrs';
  * TRANCHE 5 · les notes d'IFRS 18 et d'IAS 8 (`components/NotesIfrs.tsx`), et
  * la colonne « Note » des états, qui renvoie à celles qui concernent chaque
  * poste (§ 114).
+ *
+ * TRANCHE C1 · les états consolidés (`components/EtatsIfrsConsolides.tsx`),
+ * sur la balance consolidée du D4C, avec la part des participations ne donnant
+ * pas le contrôle. Les deux vues ne partagent aucun retraitement.
  */
 type Rubrique = { code: string; libelle: string; ref: string; etat: 'SITUATION' | 'RESULTAT' | 'RESULTAT_GLOBAL'; section?: string; categorie?: string };
 type LigneVariation = { cle: string; libelle: string; ref?: string; nature: 'SOLDE' | 'MOUVEMENT' | 'TOTAL' | 'ECART'; capital: number; reserves: number; autres: number; total: number };
@@ -128,7 +133,33 @@ const champ = 'w-full border border-border px-1.5 py-1 text-[12px]';
 const fc = (v: number | null | undefined) => (v == null ? '' : v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const nombre = (v: string) => (v.trim() === '' ? NaN : Number(v.replace(/\s/g, '').replace(',', '.')));
 
+/** Comptes individuels ou comptes consolidés · deux jeux IFRS, deux ensembles de retraitements. */
 export function EtatsIfrsPage() {
+  const { exerciceCourant } = useExercice();
+  const [vue, setVue] = useState<'INDIVIDUELS' | 'CONSOLIDES'>('INDIVIDUELS');
+  const bouton = (v: typeof vue, texte: string) => (
+    <button className={`border border-border px-2.5 py-1 text-[12px] ${vue === v ? 'font-bold bg-surface' : 'text-text-dim'}`} onClick={() => setVue(v)}>
+      {texte}
+    </button>
+  );
+  return (
+    <div className="p-2 max-w-[1100px]">
+      <div className="flex gap-1.5 mb-2">
+        {bouton('INDIVIDUELS', 'Comptes individuels')}
+        {bouton('CONSOLIDES', 'Comptes consolidés')}
+      </div>
+      {vue === 'INDIVIDUELS' ? (
+        <EtatsIfrsIndividuels />
+      ) : exerciceCourant ? (
+        <EtatsIfrsConsolides key={exerciceCourant.id} exerciceId={exerciceCourant.id} />
+      ) : (
+        <p className="p-2 text-[12px] text-text-dim">Aucun exercice sélectionné.</p>
+      )}
+    </div>
+  );
+}
+
+function EtatsIfrsIndividuels() {
   const { peutEcrire } = useAuth();
   const { exerciceCourant, exercices } = useExercice();
   const exerciceId = exerciceCourant?.id;
@@ -284,7 +315,7 @@ export function EtatsIfrsPage() {
 
   const r = etat.n.rapprochements;
   return (
-    <div className="p-2 max-w-[1100px]">
+    <div>
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
         <h2 className="text-[12.5px] font-bold mb-1.5">États IFRS en sus du jeu légal</h2>
         <p className="text-[11px] text-text-dim leading-[1.6]">

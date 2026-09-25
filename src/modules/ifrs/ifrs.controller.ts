@@ -8,7 +8,7 @@ import { ReferentielGuard } from '../../common/guards/referentiel.guard';
 import { ReferentielsAutorises } from '../../common/decorators/referentiels.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { IfrsService } from './ifrs.service';
-import { ActiviteIfrsDto, EffetChangeIfrsDto, MouvementCpIfrsDto, NotesIfrsDto, PremiereApplicationIfrsDto, RegleIfrsDto, RetraitementIfrsDto, TresorerieIfrsDto } from './dto/ifrs.dto';
+import { ActiviteIfrsDto, EffetChangeIfrsDto, MouvementCpIfrsDto, NotesIfrsDto, PremiereApplicationIfrsDto, RegleConsolidationIfrsDto, RegleIfrsDto, RetraitementIfrsDto, TresorerieIfrsDto } from './dto/ifrs.dto';
 
 /**
  * CLOISONNÉ AU SYSCOHADA · l'art. 73-1 de l'AUDCIF vise les entités dont les
@@ -25,6 +25,23 @@ export class IfrsController {
   @Get()
   etat(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
     return this.ifrs.etat(user.tenantId, exerciceId);
+  }
+
+  @Get('consolide')
+  etatConsolide(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
+    return this.ifrs.etatConsolide(user.tenantId, exerciceId);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post('regles-consolidation')
+  ajouterRegleConsolidation(@CurrentUser() user: AuthenticatedUser, @Body() dto: RegleConsolidationIfrsDto) {
+    return this.ifrs.ajouterRegleConsolidation(user.tenantId, dto);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Delete('regles-consolidation/:id')
+  supprimerRegleConsolidation(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.ifrs.supprimerRegleConsolidation(user.tenantId, id);
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)

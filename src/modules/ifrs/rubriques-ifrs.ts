@@ -67,6 +67,9 @@ export const RUBRIQUES_IFRS: RubriqueIfrs[] = [
   // § 111 · « the accumulated balance of each class of other comprehensive
   // income » est une composante des capitaux propres à part entière.
   sf('SF_AUTRES_COMPOSANTES_CP', 'Autres composantes des capitaux propres (autres éléments du résultat global cumulés)', 'CAPITAUX_PROPRES', '§ 104 b, § 111'),
+  // § 104 a et IFRS 10 § 22 · COMPTES CONSOLIDÉS SEULEMENT. Aucun compte
+  // individuel n'en porte · une règle de correspondance vers elle est refusée.
+  sf('SF_PARTICIPATIONS_NE_DONNANT_PAS_CONTROLE', 'Participations ne donnant pas le contrôle', 'CAPITAUX_PROPRES', '§ 104 a, IFRS 10 § 22'),
   sf('SF_PASSIFS_FINANCIERS_NC', 'Passifs financiers non courants', 'PASSIF_NON_COURANT', '§ 103 o, § 102'),
   sf('SF_PROVISIONS_NC', 'Provisions non courantes', 'PASSIF_NON_COURANT', '§ 103 n, § 102'),
   sf('SF_FOURNISSEURS_NC', 'Fournisseurs et autres créditeurs non courants', 'PASSIF_NON_COURANT', '§ 103 m, § 102'),
@@ -104,6 +107,9 @@ export const RUBRIQUES_IFRS: RubriqueIfrs[] = [
 
 export const RUBRIQUE_PAR_CODE = new Map(RUBRIQUES_IFRS.map((r) => [r.code, r]));
 
+/** IFRS 18 § 104 a · la ligne des minoritaires, que seule la consolidation alimente. */
+export const RUBRIQUE_NCI = 'SF_PARTICIPATIONS_NE_DONNANT_PAS_CONTROLE';
+
 export const LIBELLE_SECTION: Record<SectionSituation, string> = {
   ACTIF_NON_COURANT: 'Actifs non courants',
   ACTIF_COURANT: 'Actifs courants',
@@ -140,6 +146,9 @@ export function motifRefusRegle(prefixe: string, rubrique: string): string | nul
   if (!r) return `La rubrique « ${rubrique} » n’existe pas au catalogue IFRS 18 d’OmegaX.`;
   if (r.etat === 'RESULTAT_GLOBAL') {
     return `La rubrique « ${r.libelle} » est un autre élément du résultat global · un mouvement de l’exercice qu’aucun compte SYSCOHADA ne porte. Il se déclare en retraitement, avec la norme qui le fait sortir du résultat net (IFRS 18 § B86-B87).`;
+  }
+  if (r.code === RUBRIQUE_NCI) {
+    return 'Les participations ne donnant pas le contrôle n’existent que dans les comptes consolidés (IFRS 10 § 22) · elles viennent de la consolidation, jamais d’un compte individuel.';
   }
   const gestion = /^[678]/.test(p);
   if (gestion && r.etat !== 'RESULTAT') {

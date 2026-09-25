@@ -285,7 +285,7 @@ export const LIBELLE_POSTE: Record<PosteConsolidation, string> = {
 };
 
 /** Les postes qui sont du résultat · le reste est du bilan. */
-const POSTES_DE_RESULTAT = new Set<PosteConsolidation>([
+export const POSTES_DE_RESULTAT = new Set<PosteConsolidation>([
   'DOTATION_ECART_ACQUISITION',
   'REPRISE_ECART_ACQUISITION_NEGATIF',
   'QUOTE_PART_RESULTAT_ME',

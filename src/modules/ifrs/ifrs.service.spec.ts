@@ -1,8 +1,10 @@
 import 'reflect-metadata';
 import { readdirSync, readFileSync, statSync } from 'fs';
 import { join, relative } from 'path';
+import { BadRequestException } from '@nestjs/common';
 import { Prisma, RoleUtilisateur } from '@prisma/client';
-import { IfrsService } from './ifrs.service';
+import { IfrsService, MOTIFS_CONSOLIDES_NON_SERVIS } from './ifrs.service';
+import { LIBELLE_POSTE } from '../consolidation/cumul-consolidation';
 import { IfrsController } from './ifrs.controller';
 import { ROLES_KEY } from '../../common/decorators/roles.decorator';
 import { EtatsFinanciersSyscohadaService } from '../etats-financiers-syscohada/etats-financiers-syscohada.service';
@@ -21,7 +23,7 @@ const EX2 = 'ex-2024';
 type LigneDoublure = [string, number] | [string, number, number, number];
 
 function doublure(avecPrecedent = false, avecAvantPrecedent = false, balancesPropres: Record<string, LigneDoublure[]> = {}) {
-  const tables: Record<string, any[]> = { regles: [], retraitements: [], parametres: [], mouvements: [], effets: [], notes: [] };
+  const tables: Record<string, any[]> = { regles: [], reglesConso: [], retraitements: [], parametres: [], mouvements: [], effets: [], notes: [] };
   // La doublure HONORE la borne `dateFin < …` · une doublure qui rendrait
   // toujours le même exercice ferait passer la recherche du précédent pour
   // juste quelle que soit la date qu'elle cherche.
@@ -58,6 +60,19 @@ function doublure(avecPrecedent = false, avecAvantPrecedent = false, balancesPro
         return r;
       }),
       delete: jest.fn(async ({ where }: any) => (tables.regles = tables.regles.filter((r) => r.id !== where.id))),
+    },
+    regleConsolidationIfrs: {
+      findMany: jest.fn(async ({ where }: any) => tables.reglesConso.filter((r) => r.tenantId === where.tenantId)),
+      findFirst: jest.fn(async ({ where }: any) => tables.reglesConso.find((r) => r.id === where.id && r.tenantId === where.tenantId) ?? null),
+      create: jest.fn(async ({ data }: any) => {
+        if (tables.reglesConso.some((r) => r.tenantId === data.tenantId && r.poste === data.poste)) {
+          throw new Prisma.PrismaClientKnownRequestError('unique', { code: 'P2002', clientVersion: 'x' });
+        }
+        const r = { id: `rc-${++seq}`, ...data };
+        tables.reglesConso.push(r);
+        return r;
+      }),
+      delete: jest.fn(async ({ where }: any) => (tables.reglesConso = tables.reglesConso.filter((r) => r.id !== where.id))),
     },
     effetChangeTresorerieIfrs: {
       // La doublure HONORE la clé (dossier, exercice) · un effet déclaré sur un
@@ -109,11 +124,16 @@ function doublure(avecPrecedent = false, avecAvantPrecedent = false, balancesPro
       delete: jest.fn(async ({ where }: any) => (tables.mouvements = tables.mouvements.filter((m) => m.id !== where.id))),
     },
     retraitementIfrs: {
-      // La doublure HONORE `aLaTransition` · sans quoi un ajustement de
-      // transition paraîtrait bien écarté des retraitements de l'exercice
-      // quel que soit le filtre que le service pose.
+      // La doublure HONORE `aLaTransition` et `consolide` · sans quoi un
+      // ajustement de transition, ou un retraitement du groupe, paraîtrait bien
+      // écarté des retraitements individuels quel que soit le filtre posé.
       findMany: jest.fn(async ({ where }: any) =>
-        tables.retraitements.filter((r) => r.exerciceId === where.exerciceId && (r.aLaTransition ?? false) === (where.aLaTransition ?? false)),
+        tables.retraitements.filter(
+          (r) =>
+            r.exerciceId === where.exerciceId &&
+            (r.aLaTransition ?? false) === where.aLaTransition &&
+            (r.consolide ?? false) === where.consolide,
+        ),
       ),
       findFirst: jest.fn(async ({ where }: any) => tables.retraitements.find((r) => r.id === where.id && r.tenantId === where.tenantId) ?? null),
       create: jest.fn(async ({ data }: any) => {
@@ -154,7 +174,18 @@ function doublure(avecPrecedent = false, avecAvantPrecedent = false, balancesPro
   // donne les capitaux propres publiés, et une doublure ferait passer un
   // signe inversé pour juste.
   const syscohada = new EtatsFinanciersSyscohadaService(ecritures, {} as any);
-  return { prisma, tables, ecritures, service: new IfrsService(prisma, ecritures, syscohada) };
+  // Le cumul D4C est DOUBLÉ par exercice · une valeur, ou le refus du module de
+  // consolidation (dossier non consolidable), qu'il lève en BadRequest.
+  const cumulsParExercice: Record<string, unknown> = {};
+  const cumuls: any = {
+    cumul: jest.fn(async (t: string, ex: string) => {
+      expect(t).toBe(T);
+      const c = cumulsParExercice[ex];
+      if (c === undefined || typeof c === 'string') throw new BadRequestException(c ?? 'Aucun périmètre de consolidation pour cet exercice.');
+      return c;
+    }),
+  };
+  return { prisma, tables, ecritures, cumuls, cumulsParExercice, service: new IfrsService(prisma, ecritures, syscohada, cumuls) };
 }
 
 const REGLES = [
@@ -556,7 +587,7 @@ describe('IfrsService · tableau des flux de trésorerie (IAS 7 modifiée par IF
 describe('IfrsController · les écritures sont réservées', () => {
   it('toute route qui écrit porte @Roles, sans la lecture seule', () => {
     const proto = IfrsController.prototype as any;
-    for (const m of ['declarerNotes', 'declarerActivite', 'declarerPremiereApplication', 'declarerTresorerie', 'declarerEffetChange', 'supprimerEffetChange', 'ajouterRegle', 'supprimerRegle', 'ajouterRetraitement', 'supprimerRetraitement', 'ajouterMouvementCp', 'supprimerMouvementCp']) {
+    for (const m of ['declarerNotes', 'declarerActivite', 'declarerPremiereApplication', 'declarerTresorerie', 'declarerEffetChange', 'supprimerEffetChange', 'ajouterRegle', 'supprimerRegle', 'ajouterRetraitement', 'supprimerRetraitement', 'ajouterMouvementCp', 'supprimerMouvementCp', 'ajouterRegleConsolidation', 'supprimerRegleConsolidation']) {
       const roles = Reflect.getMetadata(ROLES_KEY, proto[m]);
       expect(roles).toEqual([RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE]);
     }
@@ -658,6 +689,146 @@ describe('IfrsService · les notes (IFRS 18 § 113 à 132, IAS 8)', () => {
   });
 });
 
+/**
+ * Une balance consolidée du D4C chiffrée à la main · écart d'acquisition 100
+ * amorti de 20 (dont 10 dans l'exercice), résultat de l'ensemble 290 dont 40
+ * aux minoritaires, intérêts minoritaires hors résultat 60.
+ */
+const LC = (cle: string, solde: number) => ({ cle, intitule: `Ligne ${cle}`, solde, poste: !/^\d/.test(cle) });
+const CUMUL = {
+  lignes: [
+    LC('24100000', 1000), LC('52100000', 200), LC('40100000', -300), LC('70100000', -900), LC('60100000', 600),
+    LC('ECART_ACQUISITION', 100), LC('AMORTISSEMENT_ECART_ACQUISITION', -20), LC('DOTATION_ECART_ACQUISITION', 10),
+    LC('CAPITAL', -500), LC('RESERVES_GROUPE', -130), LC('INTERETS_MINORITAIRES', -60),
+  ],
+  capitauxPropres: {
+    capital: 500, primes: 0, ecartsReevaluation: 0, reservesGroupe: 130, ecartsConversion: 0,
+    resultatGroupe: 250, interetsMinoritairesHorsResultat: 60, resultatMinoritaires: 40, resultatEnsemble: 290,
+  },
+  conversions: [],
+  conversionsIncompletes: [],
+  impotsDifferesIncomplets: [],
+};
+const REGLES_CONSO = [
+  { prefixe: '24', rubrique: 'SF_IMMOBILISATIONS_CORPORELLES' }, { prefixe: '52', rubrique: 'SF_TRESORERIE' },
+  { prefixe: '40', rubrique: 'SF_FOURNISSEURS' }, { prefixe: '70', rubrique: 'PL_PRODUITS' }, { prefixe: '60', rubrique: 'PL_ACHATS_CONSOMMES' },
+];
+const ANNULATION_GOODWILL = {
+  libelle: 'Annulation de l’amortissement de l’écart d’acquisition',
+  fondement: 'IFRS 3 § B63 a, IAS 36 § 90',
+  lignes: [
+    { rubrique: 'SF_GOODWILL', montant: 20 },
+    { rubrique: 'PL_AUTRES_CHARGES_OPERATIONNELLES', montant: -10 },
+    { rubrique: 'SF_RESERVES', montant: -10 },
+  ],
+};
+const X = (xs: { cle: string }[], cle: string) => xs.find((x) => x.cle === cle) as any;
+
+async function dossierConsolide(avecPrecedent = false) {
+  const d = doublure(avecPrecedent);
+  for (const r of REGLES_CONSO) await d.service.ajouterRegle(T, r);
+  await d.service.ajouterRegleConsolidation(T, { poste: 'DOTATION_ECART_ACQUISITION', rubrique: 'PL_AUTRES_CHARGES_OPERATIONNELLES' });
+  d.cumulsParExercice[EX] = CUMUL;
+  return d;
+}
+
+describe('IfrsService · états IFRS consolidés (tranche C1)', () => {
+  it('un dossier qui ne se consolide pas ne rend pas d’état · il dit pourquoi, sans lever', async () => {
+    const { service } = doublure();
+    const e = await service.etatConsolide(T, EX);
+    expect(e.n).toBeNull();
+    expect(e.motifN).toBe('Aucun périmètre de consolidation pour cet exercice.');
+  });
+
+  it('la balance du cumul projetée, les minoritaires répartis, et ce que la tranche ne sert pas est dit', async () => {
+    const { service } = await dossierConsolide();
+    const e = await service.etatConsolide(T, EX);
+    expect(X(e.n!.situation, 'SF_PARTICIPATIONS_NE_DONNANT_PAS_CONTROLE').ifrs).toBe(100);
+    expect(X(e.n!.resultat, 'RN_PARTICIPATIONS_NE_DONNANT_PAS_CONTROLE').ifrs).toBe(40);
+    expect(X(e.n!.resultat, 'PL_AUTRES_CHARGES_OPERATIONNELLES').legal).toBe(-10);
+    const m = e.n!.motifsNonPubliable;
+    expect(m).toEqual(expect.arrayContaining(MOTIFS_CONSOLIDES_NON_SERVIS));
+    expect(m).toContain('Comparatif consolidé non établi (IFRS 18 § 10 f) · Aucun exercice précédent dans le dossier · la colonne comparative est vide.');
+    expect(m.join(' ')).toMatch(/IFRS 3 § B63 a/);
+  });
+
+  it('les retraitements individuels et consolidés ne se lisent jamais l’un pour l’autre', async () => {
+    const { service } = await dossierConsolide();
+    await service.ajouterRetraitement(T, { exerciceId: EX, ...ANNULATION_GOODWILL, consolide: true, partMinoritairesResultat: 0, partMinoritairesCapitauxPropres: 0 });
+    const c = await service.etatConsolide(T, EX);
+    expect(X(c.n!.situation, 'SF_GOODWILL').ifrs).toBe(100);
+    expect(c.n!.motifsNonPubliable.join(' ')).not.toMatch(/IFRS 3 § B63 a l’évalue/);
+    expect(c.retraitements).toHaveLength(1);
+    // Les comptes individuels ne voient pas le retraitement du groupe.
+    const i = await service.etat(T, EX);
+    expect(i.retraitements).toHaveLength(0);
+    expect(X(i.n.situation, 'SF_GOODWILL')?.retraitements ?? 0).toBe(0);
+  });
+
+  it('un retraitement individuel ne corrige pas l’état consolidé', async () => {
+    const { service, tables } = await dossierConsolide();
+    tables.retraitements.push({
+      id: 'ind', tenantId: T, exerciceId: EX, aLaTransition: false, consolide: false, createdAt: new Date(), correctionErreur: false,
+      libelle: 'Individuel', fondement: 'IAS 16', partMinoritairesResultat: null, partMinoritairesOci: null, partMinoritairesCapitauxPropres: null,
+      lignes: [{ rubrique: 'SF_GOODWILL', montant: new Prisma.Decimal(20) }, { rubrique: 'SF_RESERVES', montant: new Prisma.Decimal(-20) }],
+    });
+    const c = await service.etatConsolide(T, EX);
+    expect(c.retraitements).toHaveLength(0);
+    expect(X(c.n!.situation, 'SF_GOODWILL').ifrs).toBe(80);
+  });
+
+  it('la part des minoritaires déclarée est enregistrée et répartie (IFRS 10 § B94)', async () => {
+    const { service, tables } = await dossierConsolide();
+    await service.ajouterRetraitement(T, {
+      exerciceId: EX,
+      libelle: 'Perte de valeur de l’écart d’acquisition',
+      fondement: 'IAS 36 § 90',
+      lignes: [{ rubrique: 'PL_AUTRES_CHARGES_OPERATIONNELLES', montant: 12 }, { rubrique: 'SF_GOODWILL', montant: -12 }],
+      consolide: true,
+      partMinoritairesResultat: -3,
+    });
+    expect(tables.retraitements[0]).toMatchObject({ consolide: true, partMinoritairesResultat: -3, partMinoritairesOci: null });
+    const c = await service.etatConsolide(T, EX);
+    expect(X(c.n!.resultat, 'RN_PARTICIPATIONS_NE_DONNANT_PAS_CONTROLE').ifrs).toBe(37);
+    expect(X(c.n!.resultat, 'RN_PROPRIETAIRES').ifrs).toBe(241);
+  });
+
+  it('la porte refuse ce que le moteur refuserait · part manquante, part sur un individuel, transition consolidée', async () => {
+    const { service, tables } = await dossierConsolide();
+    await expect(service.ajouterRetraitement(T, { exerciceId: EX, ...ANNULATION_GOODWILL, consolide: true })).rejects.toThrow(/IFRS 10 § B94/);
+    await expect(service.ajouterRetraitement(T, { exerciceId: EX, ...ANNULATION_GOODWILL, partMinoritairesResultat: 0 })).rejects.toThrow(/n’existe que dans les comptes consolidés/);
+    await expect(
+      service.ajouterRetraitement(T, { exerciceId: EX, ...ANNULATION_GOODWILL, consolide: true, aLaTransition: true, partMinoritairesResultat: 0, partMinoritairesCapitauxPropres: 0 }),
+    ).rejects.toThrow(/première application des IFRS aux comptes consolidés n’est pas servie/);
+    expect(tables.retraitements).toHaveLength(0);
+  });
+
+  it('le comparatif est une seconde consolidation, avec SES retraitements, ou son motif', async () => {
+    const d = await dossierConsolide(true);
+    let e = await d.service.etatConsolide(T, EX);
+    expect(e.n1).toBeNull();
+    expect(e.motifN1).toBe('L’exercice précédent ne se consolide pas · Aucun périmètre de consolidation pour cet exercice.');
+    d.cumulsParExercice[EX1] = CUMUL;
+    await d.service.ajouterRetraitement(T, { exerciceId: EX1, ...ANNULATION_GOODWILL, consolide: true, partMinoritairesResultat: 0, partMinoritairesCapitauxPropres: 0 });
+    e = await d.service.etatConsolide(T, EX);
+    expect(X(e.n1!.situation, 'SF_GOODWILL').ifrs).toBe(100);
+    expect(X(e.n!.situation, 'SF_GOODWILL').ifrs).toBe(80);
+    expect(e.n!.motifsNonPubliable.join(' ')).not.toMatch(/Comparatif consolidé non établi/);
+    expect(d.cumuls.cumul).toHaveBeenCalledWith(T, EX1);
+  });
+
+  it('une règle de poste passe par la même règle que le calcul, une seule par poste', async () => {
+    const { service, tables } = await dossierConsolide();
+    await expect(service.ajouterRegleConsolidation(T, { poste: 'ECART_ACQUISITION', rubrique: 'SF_GOODWILL' })).rejects.toThrow(/rangé par IFRS 18 elle-même/);
+    await expect(service.ajouterRegleConsolidation(T, { poste: 'DOTATION_ECART_ACQUISITION', rubrique: 'PL_PRODUITS' })).rejects.toThrow(/déjà une rubrique/);
+    await expect(service.supprimerRegleConsolidation('autre-dossier', tables.reglesConso[0].id)).rejects.toThrow(/introuvable/);
+    await service.supprimerRegleConsolidation(T, tables.reglesConso[0].id);
+    expect(tables.reglesConso).toHaveLength(0);
+    const e = await service.etatConsolide(T, EX);
+    expect(e.n!.motifsNonPubliable).toContain(`Poste de consolidation « ${LIBELLE_POSTE.DOTATION_ECART_ACQUISITION} » sans rubrique IFRS · déclarez la ligne où il se range.`);
+  });
+});
+
 describe('les tables IFRS ne sont lues que par le module IFRS', () => {
   it('les fichiers du serveur qui les nomment sont exactement le service IFRS et la liste du cloisonnement', () => {
     const racine = join(__dirname, '..', '..');
@@ -667,7 +838,7 @@ describe('les tables IFRS ne sont lues que par le module IFRS', () => {
         return statSync(p).isDirectory() ? fichiers(p) : p.endsWith('.ts') && !p.endsWith('.spec.ts') ? [p] : [];
       });
     const lecteurs = fichiers(racine)
-      .filter((f) => /\b(retraitementIfrs|regleCorrespondanceIfrs|parametresIfrs|ligneRetraitementIfrs|RetraitementIfrs|RegleCorrespondanceIfrs|ParametresIfrs|LigneRetraitementIfrs|mouvementCapitauxPropresIfrs|MouvementCapitauxPropresIfrs|effetChangeTresorerieIfrs|EffetChangeTresorerieIfrs|notesIfrs|NotesIfrs)\b/.test(readFileSync(f, 'utf8')))
+      .filter((f) => /\b(retraitementIfrs|regleCorrespondanceIfrs|parametresIfrs|ligneRetraitementIfrs|RetraitementIfrs|RegleCorrespondanceIfrs|ParametresIfrs|LigneRetraitementIfrs|mouvementCapitauxPropresIfrs|MouvementCapitauxPropresIfrs|effetChangeTresorerieIfrs|EffetChangeTresorerieIfrs|notesIfrs|NotesIfrs|regleConsolidationIfrs|RegleConsolidationIfrs)\b/.test(readFileSync(f, 'utf8')))
       .map((f) => relative(racine, f))
       .sort();
     expect(lecteurs).toEqual(['common/cloisonnement/modeles-cloisonnes.ts', 'modules/ifrs/ifrs.service.ts']);

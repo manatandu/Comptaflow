@@ -53,7 +53,8 @@ describe('l’inventaire couvre le schéma, sans trou ni surplus', () => {
     // capitaux propres IFRS (tranche 2), idem ; à 97 avec les effets de change
     // sur la trésorerie IFRS (tranche 3), bornés par leur propre `tenantId` ;
     // à 98 avec les déclarations des notes IFRS (tranche 5), idem.
-    expect(modeles).toHaveLength(98);
+    // à 99 avec les règles de rangement des postes de consolidation IFRS, idem.
+    expect(modeles).toHaveLength(99);
     expect([...TABLES_RESTITUEES].sort()).toEqual(modeles.filter((m) => m !== 'Tenant').sort());
   });
 

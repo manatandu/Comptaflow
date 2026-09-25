@@ -2620,6 +2620,39 @@ COPIE DANS LE FORMULAIRE ET N'ENREGISTRE RIEN · une méthode ou un jugement de
 l'an dernier peut ne plus valoir. IAS 8 § 6E à 6J (écart à une disposition) est
 nommé non servi dans la note de base.
 
+**États IFRS consolidés, tranche C1 · situation, résultat et résultat global
+(2026-09-25).** `ifrs/etats-ifrs-consolides.ts`. Sources lues · IFRS 18 § 76,
+§ 87, § 104, § 107 a ; IFRS 10 § 19, § 22, § B86 à B96 ; IFRS 3 § 19, § 32,
+§ 34, § B63 a ; IAS 36 § 90 ; IAS 21 § 39 c et § 41. CINQ RÈGLES À NE PAS
+DÉFAIRE. (1) LA BALANCE CONSOLIDÉE N'EST PAS RECALCULÉE · c'est celle du D4C
+(`CumulService.cumul`), projetée par le MÊME moteur que les comptes individuels
+(`construireEtatsIfrs` avec `OptionsConsolidation`), et ce qui rend la
+consolidation incomplète (conversion, impôts différés) rend le jeu IFRS non
+publiable. Un second moteur divergerait du premier au premier correctif. (2)
+LES COMPTES se rangent par les règles du dossier (uniformité, IFRS 10 § 19) ;
+LES POSTES de consolidation par une table à deux étages · rangés par OmegaX
+quand IFRS 18 nomme la ligne (`POSTES_RANGES`, avec leur paragraphe), DÉCLARÉS
+sinon (`RegleConsolidationIfrs`), la même règle à la porte et au calcul
+(`motifRefusRegleConsolidation`). (3) RETRAITEMENTS INDIVIDUELS ET CONSOLIDÉS
+NE SE LISENT JAMAIS L'UN POUR L'AUTRE · `RetraitementIfrs.consolide`, filtré
+dans les deux sens · l'annulation d'un amortissement d'écart d'acquisition n'a
+aucun sens sur la balance de la mère seule, et un retraitement individuel
+appliqué au consolidé compterait deux fois ce que le cumul contient déjà. (4)
+LA PART DES MINORITAIRES D'UN RETRAITEMENT SE DÉCLARE, effet par effet (résultat,
+OCI, capitaux propres), zéro compris, du signe de l'effet et sans le dépasser
+(IFRS 10 § B94, `motifRefusPartsMinoritaires`) · aucun livre ne dit à quelle
+entité un retraitement se rapporte. Refusée sur un retraitement individuel. La
+part légale vient du partage du D4C, jamais d'un pourcentage. (5) TROIS ÉCARTS
+D4C / IFRS NOMMÉS, JAMAIS CORRIGÉS EN SILENCE · l'écart d'acquisition amorti
+(AUDCIF art. 82 contre IFRS 3 § B63 a et IAS 36 § 90) et l'écart négatif étalé
+(IFRS 3 § 34) rendent le jeu non publiable tant qu'aucun retraitement ne touche
+leur rubrique ; les écarts de conversion portés en capitaux propres (IAS 21
+§ 39 c et § 41, OCI avec la part des minoritaires) ne sont pas servis. NON
+SERVIS ET DITS sur le jeu (`MOTIFS_CONSOLIDES_NON_SERVIS`) · tableau des flux,
+variation des capitaux propres avec sa colonne des minoritaires (§ 107 a),
+notes dont IFRS 12 (§ 113 b), première application consolidée (un ajustement de
+transition consolidé est refusé à la porte).
+
 **Tableau des flux SYSCOHADA · le compte trop agrégé, que « non ventilé »
 ne voyait pas (2026-09-25).** Trouvé en passant au moteur la balance d'un
 expert tenue en comptes génériques (481, 81, 82). La table du ch. 5 lit des

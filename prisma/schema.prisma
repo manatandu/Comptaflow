@@ -630,6 +630,7 @@ model Tenant {
   mouvementsCapitauxPropresIfrs    MouvementCapitauxPropresIfrs[]
   effetsChangeTresorerieIfrs       EffetChangeTresorerieIfrs[]
   notesIfrs                        NotesIfrs[]
+  reglesConsolidationIfrs          RegleConsolidationIfrs[]
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -6585,24 +6586,50 @@ model RegleCorrespondanceIfrs {
 /// Un retraitement IFRS · écriture équilibrée hors du grand livre, rattachée
 /// à un exercice, avec la norme qui la fonde.
 model RetraitementIfrs {
-  id               String                  @id @default(uuid())
-  tenantId         String
-  tenant           Tenant                  @relation(fields: [tenantId], references: [id])
-  exerciceId       String
-  exercice         Exercice                @relation(fields: [exerciceId], references: [id])
-  libelle          String
-  fondement        String
+  id                              String                  @id @default(uuid())
+  tenantId                        String
+  tenant                          Tenant                  @relation(fields: [tenantId], references: [id])
+  exerciceId                      String
+  exercice                        Exercice                @relation(fields: [exerciceId], references: [id])
+  libelle                         String
+  fondement                       String
   /// IFRS 1 § 11 · ajustement à la DATE DE TRANSITION (ouverture de l'exercice
   /// porteur), qui va directement aux capitaux propres.
-  aLaTransition    Boolean                 @default(false)
+  aLaTransition                   Boolean                 @default(false)
   /// IFRS 1 § 26 · correction d'erreur du référentiel antérieur, distinguée
   /// d'un changement de méthode dans les rapprochements.
-  correctionErreur Boolean                 @default(false)
-  createdAt        DateTime                @default(now())
-  lignes           LigneRetraitementIfrs[]
+  correctionErreur                Boolean                 @default(false)
+  /// Retraitement des comptes CONSOLIDÉS · il corrige la balance consolidée
+  /// du D4C, jamais la balance individuelle, et les deux ne se lisent jamais
+  /// l'une pour l'autre.
+  consolide                       Boolean                 @default(false)
+  /// IFRS 10 § B94 · part des participations ne donnant pas le contrôle dans
+  /// chacun des effets, en valeur créditrice. NULL hors consolidation, et
+  /// déclarée (zéro compris) pour tout effet non nul d'un retraitement consolidé.
+  partMinoritairesResultat        Decimal?                @db.Decimal(18, 2)
+  partMinoritairesOci             Decimal?                @db.Decimal(18, 2)
+  partMinoritairesCapitauxPropres Decimal?                @db.Decimal(18, 2)
+  createdAt                       DateTime                @default(now())
+  lignes                          LigneRetraitementIfrs[]
 
   @@index([tenantId, exerciceId])
   @@map("retraitements_ifrs")
+}
+
+/// Les postes de la consolidation (D4C) qui ne se rangent pas d'eux-mêmes ·
+/// une marge interne éliminée corrige la ligne où la marge avait été portée,
+/// et seul le cabinet sait laquelle. Les postes dont IFRS 18 nomme la ligne
+/// ne se déclarent pas (`etats-ifrs-consolides.ts`).
+model RegleConsolidationIfrs {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  poste     String   @db.VarChar(64)
+  rubrique  String
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, poste])
+  @@map("regles_consolidation_ifrs")
 }
 
 /// Débit positif, crédit négatif · la somme des lignes d'un retraitement est nulle.
