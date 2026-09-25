@@ -18,6 +18,8 @@ import {
   ModifierSectionDto,
   VentilerLigneDto,
 } from './dto/analytique.dto';
+import { CreerOdAnalytiqueDto } from './dto/od-analytique.dto';
+import { OdAnalytiqueService } from './od-analytique.service';
 import { CloreEngagementDto, CreerEngagementDto, RattacherExecutionDto } from './dto/engagement.dto';
 import { Referentiel, RoleUtilisateur } from '@prisma/client';
 
@@ -39,7 +41,33 @@ export class AnalytiqueController {
     private readonly analytique: AnalytiqueService,
     private readonly etats: EtatsAnalytiquesService,
     private readonly engagements: EngagementService,
+    private readonly od: OdAnalytiqueService,
   ) {}
+
+  // --- OD analytiques ------------------------------------------------------
+  // Un acte de saisie, pas de structure : il suit les droits d'écriture, comme
+  // la ventilation qu'il corrige.
+
+  @Get('od')
+  async listerOd(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('exerciceId') exerciceId: string,
+    @Query('planId') planId?: string,
+  ) {
+    return this.od.lister(user.tenantId, exerciceId, planId);
+  }
+
+  @Post('od')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  async creerOd(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreerOdAnalytiqueDto) {
+    return this.od.creer(user.tenantId, user.userId, dto);
+  }
+
+  @Delete('od/:odId')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  async supprimerOd(@CurrentUser() user: AuthenticatedUser, @Param('odId') odId: string) {
+    return this.od.supprimer(user.tenantId, odId);
+  }
 
   // --- Plans ---------------------------------------------------------------
 

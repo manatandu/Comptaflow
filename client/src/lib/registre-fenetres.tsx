@@ -78,6 +78,7 @@ const DevisesPage = lazy(() => import('../pages/DevisesPage').then((m) => ({ def
 const RelancesPage = lazy(() => import('../pages/RelancesPage').then((m) => ({ default: m.RelancesPage })));
 const ConventionsFinancementPage = lazy(() => import('../pages/ConventionsFinancementPage').then((m) => ({ default: m.ConventionsFinancementPage })));
 const EngagementsPage = lazy(() => import('../pages/EngagementsPage').then((m) => ({ default: m.EngagementsPage })));
+const OdAnalytiquesPage = lazy(() => import('../pages/OdAnalytiquesPage').then((m) => ({ default: m.OdAnalytiquesPage })));
 const EtatsAnalytiquesPage = lazy(() => import('../pages/EtatsAnalytiquesPage').then((m) => ({ default: m.EtatsAnalytiquesPage })));
 const BailleursPage = lazy(() => import('../pages/BailleursPage').then((m) => ({ default: m.BailleursPage })));
 const PlateformePage = lazy(() => import('../pages/PlateformePage').then((m) => ({ default: m.PlateformePage })));
@@ -549,6 +550,13 @@ export const FENETRES: DefinitionFenetre[] = [
     rendre: () => <CourrierPage />,
   },
   { motif: /^\/relances$/, titre: 'Rappel et relevé', titreCourt: 'Rappel et relevé', rendre: () => <RelancesPage /> },
+  {
+    // Commune aux deux référentiels, comme les plans analytiques qu'elle corrige.
+    motif: /^\/od-analytiques$/,
+    titre: 'Saisie des OD analytiques',
+    titreCourt: 'OD analytiques',
+    rendre: () => <OdAnalytiquesPage />,
+  },
   {
     motif: /^\/etats-analytiques$/,
     titre: 'États analytiques et budgétaires',

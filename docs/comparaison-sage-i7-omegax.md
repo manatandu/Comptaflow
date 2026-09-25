@@ -57,7 +57,10 @@ tiennent à un texte OHADA ; ils sont signalés comme tels.
    FAIT le 2026-09-25 : Saisir, Répéter, Calculer (TVA), Équilibrer, modèle
    rattaché à un type de journal, appelé par F4. Incrémenter et Fonction non
    repris (CLAUDE.md § 6).
-7. Saisie par lot, saisie par pièce, OD analytiques.
+7. ~~Saisie par lot, saisie par pièce, OD analytiques~~ · FAIT le 2026-09-25 :
+   saisie par pièce (date libre, Précédent / Suivant), OD analytiques
+   équilibrées reprises par les états analytiques. Le lot n'a pas de stockage
+   propre : l'import d'écritures au brouillard en tient lieu (CLAUDE.md § 6).
 
 **Importants**
 8. Recherche d'écritures multicritère (montant, compte, pièce).

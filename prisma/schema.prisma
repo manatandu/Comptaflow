@@ -578,6 +578,8 @@ model Tenant {
   plansAnalytiques         PlanAnalytique[]
   sectionsAnalytiques      SectionAnalytique[]
   engagementsDepense       EngagementDepense[]
+  odAnalytiques            OdAnalytique[]
+  lignesOdAnalytique       LigneOdAnalytique[]
   conventionsFinancement   ConventionFinancement[]
   regularisations          Regularisation[]
   modelesAbonnement        ModeleAbonnement[]
@@ -830,6 +832,7 @@ model Compte {
   bailleur   Bailleur? @relation(fields: [bailleurId], references: [id])
 
   lignesEcriture                LigneEcriture[]
+  odAnalytiques                 OdAnalytique[]
   journauxTresorerie            Journal[] // journaux de type TRESORERIE dont ce compte est la contrepartie
   // Rattachement à un tiers (cf. §3.2) : au plus un tiers par compte · un
   // compte de classe 4 est le sous-compte auxiliaire d'un seul tiers.
@@ -1083,6 +1086,7 @@ model Exercice {
   reclassementsImmo      ReclassementImmobilisation[]
   budgetsSection         BudgetSection[]
   engagementsDepense     EngagementDepense[]
+  odAnalytiques          OdAnalytique[]
   regularisations        Regularisation[]
   reevaluations          Reevaluation[]
   affectationResultat    AffectationResultat?
@@ -2121,7 +2125,8 @@ model PlanAnalytique {
   estActif  Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  sections SectionAnalytique[]
+  sections      SectionAnalytique[]
+  odAnalytiques OdAnalytique[]
 
   @@unique([tenantId, code])
   @@map("plans_analytiques")
@@ -2161,6 +2166,7 @@ model SectionAnalytique {
   budgets      BudgetSection[]
   ventilations VentilationAnalytique[]
   engagements  EngagementDepense[]
+  lignesOd     LigneOdAnalytique[]
 
   @@unique([planId, code])
   @@index([tenantId])
@@ -2456,6 +2462,62 @@ enum NatureRapportBailleur {
 // ventilation par ligne » mais « par PLAN, la somme des ventilations d'une
 // ligne égale son montant, ou il n'y en a aucune ». C'est ce que vérifie
 // l'état de contrôle des cumuls.
+// ---------------------------------------------------------------------------
+// OD ANALYTIQUES · écritures analytiques pures (2026-09-25)
+// ---------------------------------------------------------------------------
+//
+// Sage 100 i7, manuel de formation, « Saisie des OD analytiques » : « Les OD
+// analytiques sont des écritures analytiques pures, totalement
+// extra-comptables. Elles permettent de corriger une ventilation analytique
+// sans pour autant modifier les ventilations analytiques d'origine […]. Elles
+// n'ont aucun impact sur la comptabilité générale. Les OD analytiques
+// apparaissent dans les États analytiques du menu État. »
+//
+// Une OD porte un plan, un compte général et une date ; ses lignes portent
+// les sections. OmegaX exige qu'elle S'ÉQUILIBRE (reclassement entre sections
+// du même compte), voir `od-analytique.ts` pour la raison. Chaque table porte
+// son tenantId, lignes comprises, comme les tables IFRS.
+model OdAnalytique {
+  id         String         @id @default(uuid())
+  tenantId   String
+  tenant     Tenant         @relation(fields: [tenantId], references: [id])
+  exerciceId String
+  exercice   Exercice       @relation(fields: [exerciceId], references: [id])
+  planId     String
+  plan       PlanAnalytique @relation(fields: [planId], references: [id])
+  // Le compte général sur lequel porte la ventilation corrigée (Sage : « un
+  // compte général sur lequel se fait la ventilation analytique »).
+  compteId   String
+  compte     Compte         @relation(fields: [compteId], references: [id])
+  date       DateTime
+  reference  String?
+  libelle    String
+
+  createdAt DateTime @default(now())
+  createdBy String
+
+  lignes LigneOdAnalytique[]
+
+  @@index([tenantId, exerciceId])
+  @@map("od_analytiques")
+}
+
+model LigneOdAnalytique {
+  id        String            @id @default(uuid())
+  tenantId  String
+  tenant    Tenant            @relation(fields: [tenantId], references: [id])
+  odId      String
+  od        OdAnalytique      @relation(fields: [odId], references: [id], onDelete: Cascade)
+  sectionId String
+  section   SectionAnalytique @relation(fields: [sectionId], references: [id])
+  debit     Decimal           @default(0) @db.Decimal(18, 2)
+  credit    Decimal           @default(0) @db.Decimal(18, 2)
+
+  @@index([odId])
+  @@index([sectionId])
+  @@map("lignes_od_analytique")
+}
+
 model VentilationAnalytique {
   id              String            @id @default(uuid())
   ligneEcritureId String

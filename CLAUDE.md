@@ -4282,6 +4282,33 @@ numérotation du journal ; le second, une fonction pré-paramétrée, n'est
 décrit nulle part dans le manuel, et l'inventer serait écrire une règle Sage
 de mémoire.
 
+**Saisie par pièce, OD analytiques, et le lot qui n'a pas de table (2026-09-25).**
+Point 7 de la comparaison Sage i7, lu au manuel i7 (« Saisie par pièce »,
+« Saisie par lot », « Saisie des OD analytiques »). QUATRE RÈGLES À NE PAS
+DÉFAIRE. (1) LA SAISIE PAR PIÈCE EST UN MODE DE LA FENÊTRE DE SAISIE, pas une
+seconde fenêtre · même grille, mêmes contrôles, même enregistrement ; seules
+changent la fenêtre lue (l'exercice entier) et la date, saisie en entier et
+refusée hors exercice avant l'envoi (`lib/saisie-par-piece.ts`). Les pièces
+existantes défilent une à une, [Précédent] et [Suivant] comme chez Sage. Une
+seconde fenêtre aurait recopié la TVA d'office, la contrepartie et les
+modèles, et divergé au premier correctif. (2) L'OD ANALYTIQUE S'ÉQUILIBRE,
+écart voulu avec Sage qui admet une OD non soldée · elle ferait diverger
+l'analytique du grand livre sans que rien ne dise pourquoi, et c'est ce
+réalisé qu'un bailleur rapproche des comptes (`analytique/od-analytique.ts`).
+Même plan, même compte général (d'une classe que le plan ventile), sections
+Détail seulement. (3) LES OD ENTRENT DANS LES TROIS ÉTATS DE SAGE PAR UNE SEULE
+LECTURE (`cumulsPlan` · balance, grand livre sous le journal « OD ANA », état
+budgétaire), et NE SONT PAS REPRISES par le tableau d'exécution budgétaire du
+SYCEBNL · établi sur la comptabilité, il lit sur l'écriture si la dépense est
+payée ou engagée, ce qu'une OD ne dit pas. Il les compte et le DIT. Le contrôle
+des cumuls ne les lit pas non plus : une OD équilibrée n'y change rien par
+construction. (4) LA SAISIE PAR LOT N'A PAS DE TABLE · chez Sage elle sert la
+saisie décentralisée sur un poste isolé, puis « Mettre à jour la
+comptabilité ». Dans une application web tous les postes écrivent dans la même
+base, et le fichier préparé ailleurs passe par l'import d'écritures, qui met
+TOUT au brouillard · la validation joue la mise à jour. Une table de lots
+doublerait le brouillard.
+
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
 nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la

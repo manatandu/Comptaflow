@@ -23,6 +23,9 @@ export const MODELES_CLOISONNES = new Set<string>([
   'Ecriture',
   'EnfantACharge',
   'EngagementDepense',
+  // OD analytiques (2026-09-25) · la ligne porte son tenantId, comme l'en-tête.
+  'OdAnalytique',
+  'LigneOdAnalytique',
   'EvenementAudit',
   'Exercice',
   'Exoneration',

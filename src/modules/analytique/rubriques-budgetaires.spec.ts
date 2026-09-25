@@ -59,6 +59,7 @@ function serviceAnalytique(options: {
   sections: Array<{ id: string; code: string; intitule: string; type: TypeCompteDetailTotal }>;
   budgets?: Array<{ sectionId: string; montant: number }>;
   ventilations?: Array<{ sectionId: string; debit: number; credit: number }>;
+  od?: Array<{ sectionId: string; debit: number; credit: number }>;
 }) {
   const prisma = {
     planAnalytique: {
@@ -82,6 +83,17 @@ function serviceAnalytique(options: {
     ventilationAnalytique: {
       groupBy: jest.fn().mockResolvedValue(
         (options.ventilations ?? []).map((v) => ({ sectionId: v.sectionId, _sum: { debit: v.debit, credit: v.credit } })),
+      ),
+    },
+    // Les OD analytiques · le faux HONORE le plan demandé, sans quoi une OD
+    // d'un autre plan passerait pour une OD de celui-ci.
+    ligneOdAnalytique: {
+      groupBy: jest.fn(({ where }: any) =>
+        Promise.resolve(
+          where?.od?.planId === 'p1'
+            ? (options.od ?? []).map((v) => ({ sectionId: v.sectionId, _sum: { debit: v.debit, credit: v.credit } }))
+            : [],
+        ),
       ),
     },
   } as unknown as PrismaService;
@@ -167,5 +179,30 @@ describe('Balance analytique', () => {
     expect(b.lignes.find((l) => l.code === '1')!.credit).toBe(100);
     expect(b.totaux.debit).toBe(750);
     expect(b.totaux.solde).toBe(650);
+  });
+});
+
+describe('OD analytiques dans les états analytiques', () => {
+  it("DÉPLACE le réalisé d'une section à l'autre sans changer le total du plan", async () => {
+    // 100 imputés à tort aux salaires, reclassés aux charges sociales.
+    const s = serviceAnalytique({
+      sections: NOMENCLATURE,
+      budgets: [
+        { sectionId: 's11', montant: 800 },
+        { sectionId: 's12', montant: 200 },
+      ],
+      ventilations: [{ sectionId: 's11', debit: 600, credit: 0 }],
+      od: [
+        { sectionId: 's11', debit: 0, credit: 100 },
+        { sectionId: 's12', debit: 100, credit: 0 },
+      ],
+    });
+    const etat = await s.etatBudgetaire('t1', { planId: 'p1', exerciceId: 'e1' });
+    expect(etat.lignes.find((l) => l.code === '11')!.realise).toBe(500);
+    expect(etat.lignes.find((l) => l.code === '12')!.realise).toBe(100);
+    expect(etat.totaux.realise).toBe(600);
+    const balance = await s.balance('t1', { planId: 'p1', exerciceId: 'e1' });
+    expect(balance.lignes.find((l) => l.code === '12')!.debit).toBe(100);
+    expect(balance.totaux.solde).toBe(600);
   });
 });

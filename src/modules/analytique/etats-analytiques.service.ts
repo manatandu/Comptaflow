@@ -3,6 +3,8 @@ import { PrismaService } from '../../common/prisma.service';
 import { ClasseCompte, TypeCompteDetailTotal } from '@prisma/client';
 import type { LigneBalanceAnalytique, LigneEtatBudgetaire } from './analytique.service';
 import { totalDesFeuilles, valeurDeLaLigne } from './rubriques-budgetaires';
+import { fusionnerCumuls } from './od-analytique';
+import { OdAnalytiqueService } from './od-analytique.service';
 
 /** Une ligne du grand livre analytique : le détail d'une section. */
 export interface LigneGrandLivreAnalytique {
@@ -59,7 +61,32 @@ export interface LigneControleCumuls {
  */
 @Injectable()
 export class EtatsAnalytiquesService {
-  constructor(private readonly prisma: PrismaService) {}
+  /**
+   * LES OD ANALYTIQUES ENTRENT DANS LES TROIS ÉTATS DE SAGE, par une seule
+   * lecture · « Les OD analytiques apparaissent dans les États analytiques du
+   * menu État » (manuel i7). Balance, grand livre et état budgétaire les
+   * ajoutent aux ventilations ; le contrôle des cumuls ne les lit pas, il
+   * mesure la ventilation des lignes du grand livre, et une OD équilibrée n'y
+   * change rien par construction.
+   */
+  private readonly od: OdAnalytiqueService;
+
+  constructor(private readonly prisma: PrismaService) {
+    this.od = new OdAnalytiqueService(prisma);
+  }
+
+  /** Ventilations + OD d'un plan sur une fenêtre, section par section. */
+  private async cumulsPlan(tenantId: string, planId: string, exerciceId: string, du: Date, au: Date) {
+    const ventilations = await this.prisma.ventilationAnalytique.groupBy({
+      by: ['sectionId'],
+      where: { planId, ligne: { ecriture: { tenantId, exerciceId, date: { gte: du, lte: au } } } },
+      _sum: { debit: true, credit: true },
+    });
+    const v = new Map(
+      ventilations.map((x) => [x.sectionId, { debit: Number(x._sum.debit ?? 0), credit: Number(x._sum.credit ?? 0) }]),
+    );
+    return fusionnerCumuls(v, await this.od.cumulsParSection(tenantId, planId, exerciceId, du, au));
+  }
 
   private async plan(tenantId: string, planId: string) {
     const plan = await this.prisma.planAnalytique.findFirst({ where: { id: planId, tenantId } });
@@ -93,15 +120,7 @@ export class EtatsAnalytiquesService {
       where: { planId: params.planId, tenantId },
       orderBy: { code: 'asc' },
     });
-    const ventilations = await this.prisma.ventilationAnalytique.groupBy({
-      by: ['sectionId'],
-      where: {
-        planId: params.planId,
-        ligne: { ecriture: { tenantId, exerciceId: params.exerciceId, date: { gte: du, lte: au } } },
-      },
-      _sum: { debit: true, credit: true },
-    });
-    const cumuls = new Map(ventilations.map((v) => [v.sectionId, v._sum]));
+    const cumuls = await this.cumulsPlan(tenantId, params.planId, params.exerciceId, du, au);
 
     // La règle d'agrégation des rubriques vit dans `rubriques-budgetaires.ts`
     // et sert les TROIS états budgétaires · la balance analytique était le seul
@@ -147,16 +166,20 @@ export class EtatsAnalytiquesService {
       },
     });
 
-    ventilations.sort((a, b) => {
-      const d = a.ligne.ecriture.date.getTime() - b.ligne.ecriture.date.getTime();
-      return d !== 0 ? d : (a.ligne.ecriture.numeroPiece ?? 0) - (b.ligne.ecriture.numeroPiece ?? 0);
+    // Les lignes d'OD s'intercalent à leur date · le journal affiché est
+    // « OD ANA », pour qu'une correction extra-comptable ne se lise jamais
+    // comme une pièce du livre-journal.
+    const lignesOd = await this.prisma.ligneOdAnalytique.findMany({
+      where: {
+        tenantId,
+        sectionId: params.sectionId,
+        od: { tenantId, exerciceId: params.exerciceId, date: { gte: du, lte: au } },
+      },
+      include: { od: { include: { compte: { select: { numero: true, intitule: true } } } } },
     });
-
-    let cumul = 0;
-    const lignes: LigneGrandLivreAnalytique[] = ventilations.map((v) => {
-      cumul += Number(v.debit) - Number(v.credit);
-      return {
-        date: v.ligne.ecriture.date.toISOString().slice(0, 10),
+    const brutes = [
+      ...ventilations.map((v) => ({
+        date: v.ligne.ecriture.date,
         journal: v.ligne.ecriture.journal.code,
         numeroPiece: v.ligne.ecriture.numeroPiece,
         compteNumero: v.ligne.compte.numero,
@@ -164,8 +187,27 @@ export class EtatsAnalytiquesService {
         libelle: v.ligne.libelle ?? v.ligne.ecriture.libelle,
         debit: Number(v.debit),
         credit: Number(v.credit),
-        soldeProgressif: cumul,
-      };
+      })),
+      ...lignesOd.map((l) => ({
+        date: l.od.date,
+        journal: 'OD ANA',
+        numeroPiece: null,
+        compteNumero: l.od.compte.numero,
+        compteIntitule: l.od.compte.intitule,
+        libelle: l.od.libelle,
+        debit: Number(l.debit),
+        credit: Number(l.credit),
+      })),
+    ];
+    brutes.sort((a, b) => {
+      const d = a.date.getTime() - b.date.getTime();
+      return d !== 0 ? d : (a.numeroPiece ?? 0) - (b.numeroPiece ?? 0);
+    });
+
+    let cumul = 0;
+    const lignes: LigneGrandLivreAnalytique[] = brutes.map((b) => {
+      cumul += b.debit - b.credit;
+      return { ...b, date: b.date.toISOString().slice(0, 10), soldeProgressif: cumul };
     });
 
     return {
@@ -316,15 +358,7 @@ export class EtatsAnalytiquesService {
       },
     });
     const budgetDe = (id: string) => Number(budgets.find((b) => b.sectionId === id)?.montant ?? 0);
-    const ventilations = await this.prisma.ventilationAnalytique.groupBy({
-      by: ['sectionId'],
-      where: {
-        planId: params.planId,
-        ligne: { ecriture: { tenantId, exerciceId: params.exerciceId, date: { gte: debut, lte: fin } } },
-      },
-      _sum: { debit: true, credit: true },
-    });
-    const cumuls = new Map(ventilations.map((v) => [v.sectionId, v._sum]));
+    const cumuls = await this.cumulsPlan(tenantId, params.planId, params.exerciceId, debut, fin);
 
     // Le réalisé est pris en VALEUR ABSOLUE par section, jamais sur la somme
     // algébrique d'une rubrique : une rubrique qui mêle une charge et son

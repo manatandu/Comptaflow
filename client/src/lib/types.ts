@@ -2106,6 +2106,8 @@ export interface TableauExecutionBudgetaire {
   lignes: LigneExecutionBudgetaire[];
   total: Omit<LigneExecutionBudgetaire, 'code' | 'libelle'>;
   engagementsHorsComptabilite: string;
+  /** Les OD analytiques du plan, que ce tableau établi sur la comptabilité ne reprend pas. */
+  odAnalytiquesNonReprises?: string | null;
 }
 
 export interface TableauReconciliationTresorerie {

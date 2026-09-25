@@ -147,7 +147,9 @@ export class AnalytiqueService {
 
   async supprimerPlan(tenantId: string, planId: string) {
     await this.trouverPlan(tenantId, planId);
-    const ventilations = await this.prisma.ventilationAnalytique.count({ where: { planId } });
+    const ventilations =
+      (await this.prisma.ventilationAnalytique.count({ where: { planId } })) +
+      (await this.prisma.odAnalytique.count({ where: { tenantId, planId } }));
     if (ventilations > 0) {
       throw new BadRequestException(
         `Ce plan porte ${ventilations} ventilation(s) : il ne peut plus être supprimé. Mettez-le en sommeil.`,
@@ -230,7 +232,11 @@ export class AnalytiqueService {
 
   async supprimerSection(tenantId: string, sectionId: string) {
     await this.trouverSection(tenantId, sectionId);
-    const ventilations = await this.prisma.ventilationAnalytique.count({ where: { sectionId } });
+    // Les lignes d'OD retiennent la section comme les ventilations · la clé
+    // étrangère refuserait sinon avec une erreur technique, sans nom.
+    const ventilations =
+      (await this.prisma.ventilationAnalytique.count({ where: { sectionId } })) +
+      (await this.prisma.ligneOdAnalytique.count({ where: { tenantId, sectionId } }));
     if (ventilations > 0) {
       throw new BadRequestException(
         `Cette section porte ${ventilations} ventilation(s) : elle ne peut plus être supprimée. Mettez-la en sommeil.`,

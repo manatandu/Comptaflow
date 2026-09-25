@@ -59,6 +59,7 @@ function service(options: {
   sections?: { id: string; code: string; intitule: string; type: TypeCompteDetailTotal }[];
   budgets?: { sectionId: string; montant: number }[];
   plan?: { id: string; code: string; intitule: string } | null;
+  nombreOd?: number;
   engagements?: {
     sectionId: string;
     statut: 'OUVERT' | 'CLOS';
@@ -82,6 +83,8 @@ function service(options: {
     // comptables de la colonne Engagement (guide, ch. 7, APPLICATION 22,
     // règle (d)).
     engagementDepense: { findMany: jest.fn().mockResolvedValue(options.engagements ?? []) },
+    // Les OD analytiques du plan · comptées pour être DITES, jamais reprises.
+    odAnalytique: { count: jest.fn().mockResolvedValue(options.nombreOd ?? 0) },
   } as unknown as PrismaService;
   return new EtatsFinanciersProjetBudgetService(ecritureService, prisma, new EngagementService(prisma));
 }
@@ -375,5 +378,15 @@ describe('Tableau de réconciliation de trésorerie', () => {
     expect(t.lignes.find((l) => l.rep === 'H')!.montant).toBe(120_000);
     expect(t.lignes.find((l) => l.rep === 'I')!.montant).toBe(380_000);
     expect(t.avertissements.some((a) => a.includes('extra-comptables'))).toBe(true);
+  });
+});
+
+describe("Tableau d'exécution budgétaire · les OD analytiques", () => {
+  it("ne les reprend pas, et le DIT dès qu'il en existe sur le plan", async () => {
+    const sections = [{ id: 's1', code: '1', intitule: 'Achats', type: TypeCompteDetailTotal.DETAIL }];
+    const sans = await service({ sections }).executionBudgetaire('t1', 'e1');
+    expect(sans.odAnalytiquesNonReprises).toBeNull();
+    const avec = await service({ sections, nombreOd: 2 }).executionBudgetaire('t1', 'e1');
+    expect(avec.odAnalytiquesNonReprises).toMatch(/2 OD analytique\(s\) de ce plan ne sont pas reprises/);
   });
 });

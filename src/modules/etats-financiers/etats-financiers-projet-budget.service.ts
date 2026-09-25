@@ -131,7 +131,7 @@ export class EtatsFinanciersProjetBudgetService {
       );
     }
 
-    const [sections, budgets, ecritures, resteEngageParSection] = await Promise.all([
+    const [sections, budgets, ecritures, resteEngageParSection, nombreOd] = await Promise.all([
       this.prisma.sectionAnalytique.findMany({
         where: { planId: plan.id, tenantId },
         orderBy: { code: 'asc' },
@@ -146,6 +146,7 @@ export class EtatsFinanciersProjetBudgetService {
         },
       }),
       this.engagementService.resteParSection(tenantId, exerciceId),
+      this.prisma.odAnalytique.count({ where: { tenantId, exerciceId, planId: plan.id } }),
     ]);
 
     const budgetParSection = new Map<string, number>();
@@ -260,6 +261,16 @@ export class EtatsFinanciersProjetBudgetService {
       // ce qui les rend complets, à savoir la tenue du registre. Un engagement
       // non saisi reste invisible, et le taire ferait croire à une exhaustivité
       // que seul le comptable peut donner.
+      // LES OD ANALYTIQUES N'ENTRENT PAS ICI, et c'est dit. Ce tableau est
+      // établi sur la COMPTABILITÉ (guide, ch. 7, APPLICATION 22), et sa
+      // colonne décaissement / engagement se lit sur l'écriture elle-même
+      // (trésorerie touchée, fournisseur lettré) · une OD extra-comptable ne
+      // dit pas si le montant qu'elle déplace a été payé. Les états
+      // analytiques, eux, la reprennent (manuel Sage i7).
+      odAnalytiquesNonReprises:
+        nombreOd > 0
+          ? `${nombreOd} OD analytique(s) de ce plan ne sont pas reprises · ce tableau est établi sur la comptabilité, et une OD ne dit pas si le montant qu'elle déplace a été payé ou engagé. Pour qu'une correction y pèse, corrigez la ventilation de l'écriture d'origine.`
+          : null,
       engagementsHorsComptabilite:
         "La colonne Engagement réunit les trois termes du guide (ch. 7, APPLICATION 22, règle (d)) : le solde créditeur des comptes fournisseurs d'exploitation (40) et d'investissement (481), les bons de commande remis aux fournisseurs non exécutés, et les contrats signés non exécutés. Les deux derniers ne sont pas des écritures : ils viennent du registre des engagements, pour leur RESTE À EXÉCUTER. Un engagement qui n'y est pas saisi ne pèse pas sur ce tableau.",
     };

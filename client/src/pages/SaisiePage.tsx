@@ -9,6 +9,7 @@ import { useAuth } from '../lib/auth';
 import { construireLigneTva, modeCalculTva, montantTva, netAPayer, sensDeLaLigne } from '../lib/tva-saisie';
 import { contrepartieDeLigne } from '../lib/contrepartie-tresorerie';
 import { deroulerModele, lignesASaisir } from '../lib/derouler-modele';
+import { dateDeLaPiece, fenetreDeSaisie, rangBorne } from '../lib/saisie-par-piece';
 
 /**
  * SAISIE DES JOURNAUX · l'écran central du logiciel, calqué sur
@@ -172,6 +173,11 @@ export function SaisiePage() {
   const [journalId, setJournalId] = useState('');
   const [indexPeriode, setIndexPeriode] = useState(0);
   const [ouvert, setOuvert] = useState(false);
+  // SAISIE PAR PIÈCE (Sage i7) · le journal s'ouvre sur l'exercice entier, la
+  // date se saisit en entier, et les pièces existantes défilent une à une.
+  const [parPiece, setParPiece] = useState(false);
+  const [datePiece, setDatePiece] = useState('');
+  const [rangPiece, setRangPiece] = useState(0);
 
   // Journal ouvert (étape 2)
   const [ecritures, setEcritures] = useState<Ecriture[]>([]);
@@ -335,28 +341,35 @@ export function SaisiePage() {
   // « AAAA-MM » de la période ouverte · sert à dire au comptable qu'une date
   // de versement tombant dans ce mois-là n'a rien à apporter, la date de
   // l'écriture faisant déjà foi.
-  const moisDeLaPeriode = periode ? `${periode.annee}-${String(periode.mois + 1).padStart(2, '0')}` : null;
+  const moisDeLaPeriode = parPiece
+    ? datePiece.slice(0, 7) || null
+    : periode
+      ? `${periode.annee}-${String(periode.mois + 1).padStart(2, '0')}`
+      : null;
 
   // Chargement des écritures du journal ouvert, sur la période.
   useEffect(() => {
-    if (!ouvert || !exerciceCourant || !journal || !periode) return;
+    if (!ouvert || !exerciceCourant || !journal) return;
+    const fenetre = fenetreDeSaisie(parPiece, periode, exerciceCourant);
+    if (!fenetre) return;
     let annule = false;
-    const debut = `${periode.annee}-${String(periode.mois + 1).padStart(2, '0')}-01`;
-    const fin = `${periode.annee}-${String(periode.mois + 1).padStart(2, '0')}-${String(
-      joursDansMois(periode.annee, periode.mois),
-    ).padStart(2, '0')}`;
+    const { debut, fin } = fenetre;
     api
       .get<{ ecritures: Ecriture[] }>(
         `/ecritures?exerciceId=${exerciceCourant.id}&journalId=${journal.id}&dateDebut=${debut}&dateFin=${fin}`,
       )
       .then((r) => {
-        if (!annule) setEcritures(r.ecritures);
+        if (annule) return;
+        setEcritures(r.ecritures);
+        // Par pièce, la dernière pièce s'affiche · celle qu'on vient
+        // d'enregistrer, ou la plus récente à l'ouverture.
+        setRangPiece(r.ecritures.length - 1);
       });
     return () => {
       annule = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ouvert, journalId, indexPeriode, exerciceCourant?.id, rechargement]);
+  }, [ouvert, journalId, indexPeriode, parPiece, exerciceCourant?.id, rechargement]);
 
   // ------- Pièce en cours -------
   const totalDebitPiece = lignes.reduce((s, l) => s + l.debit, 0);
@@ -790,9 +803,14 @@ export function SaisiePage() {
       confirmerComptesEnSommeil?: boolean;
     },
   ) => {
-    if (!exerciceCourant || !journal || !periode) return;
+    if (!exerciceCourant || !journal) return;
     setErreur(null);
     setSucces(null);
+    const datee = dateDeLaPiece({ parPiece, datePiece, periode, jour, exercice: exerciceCourant });
+    if ('motif' in datee) {
+      setErreur(datee.motif);
+      return;
+    }
     if (!journal.estActif) {
       setErreur(`Le journal ${journal.code} est en sommeil · réactivez-le dans Codes journaux avant de saisir.`);
       return;
@@ -803,14 +821,13 @@ export function SaisiePage() {
     }
     setEnvoi(true);
     try {
-      const jourBorne = Math.min(Math.max(1, jour), joursDansMois(periode.annee, periode.mois));
-      const date = `${periode.annee}-${String(periode.mois + 1).padStart(2, '0')}-${String(jourBorne).padStart(2, '0')}`;
+      const { date } = datee;
       await api.post('/ecritures', {
         exerciceId: exerciceCourant.id,
         journalId: journal.id,
         date,
         libelle:
-          libellePiece || `Pièce du ${String(jourBorne).padStart(2, '0')}/${String(periode.mois + 1).padStart(2, '0')}`,
+          libellePiece || `Pièce du ${date.slice(8, 10)}/${date.slice(5, 7)}`,
         reference: reference || undefined,
         ...(reporterAuPremierJourOuvert ? { reporterAuPremierJourOuvert: true } : {}),
         ...(confirmerComptesEnSommeil ? { confirmerComptesEnSommeil: true } : {}),
@@ -859,6 +876,11 @@ export function SaisiePage() {
       }
     return { totalDebitJournal: d, totalCreditJournal: c };
   }, [ecritures]);
+
+  // Par pièce, la grille ne montre qu'UNE pièce à la fois, que [Précédent] et
+  // [Suivant] font défiler · le manuel i7 décrit exactement cette navigation.
+  const rangAffiche = rangBorne(rangPiece, ecritures.length);
+  const ecrituresAffichees = parPiece ? ecritures.slice(rangAffiche, rangAffiche + 1) : ecritures;
 
   // La grille gagne une colonne par axe analytique doté de sections · sans
   // axe, elle retrouve exactement sa largeur d'origine.
@@ -913,6 +935,7 @@ export function SaisiePage() {
               <div className="flex items-center gap-3">
                 <label className="text-[11.5px]">Période :</label>
                 <select
+                  disabled={parPiece}
                   value={indexPeriode}
                   onChange={(e) => setIndexPeriode(Number(e.target.value))}
                   className="border border-border-dark px-2 py-1 text-[11.5px]"
@@ -923,10 +946,14 @@ export function SaisiePage() {
                     </option>
                   ))}
                 </select>
+                <label className="flex items-center gap-1.5 text-[11.5px]" title="Sage i7 · Saisie par pièce">
+                  <input type="checkbox" checked={parPiece} onChange={(e) => setParPiece(e.target.checked)} />
+                  Saisie par pièce
+                </label>
                 <div className="flex-1" />
                 <button
                   type="button"
-                  disabled={!journalId || !periode}
+                  disabled={!journalId || (!parPiece && !periode)}
                   onClick={() => {
                     setOuvert(true);
                     setSucces(null);
@@ -952,7 +979,7 @@ export function SaisiePage() {
         {/* Le journal et la période ouverts sont une donnée, pas le titre de
             la fenêtre · Sage les porte aussi dans sa barre de titre. */}
         <div className="text-[12px] font-bold leading-tight">
-          Journal {journal?.code} · {journal?.intitule} · {periode?.libelle}
+          Journal {journal?.code} · {journal?.intitule} · {parPiece ? 'saisie par pièce' : periode?.libelle}
         </div>
         <button
           type="button"
@@ -1069,8 +1096,31 @@ export function SaisiePage() {
         </div>
 
         {/* Écritures existantes de la période */}
+        {parPiece && ecritures.length > 0 && (
+          <div className="flex items-center gap-2 px-3 py-1 border-b border-border text-[11.5px]">
+            <button
+              type="button"
+              disabled={rangAffiche === 0}
+              onClick={() => setRangPiece(rangAffiche - 1)}
+              className="border border-border-dark bg-chrome px-2 py-[1px] disabled:opacity-40"
+            >
+              ◀ Précédent
+            </button>
+            <span className="text-text-dim">
+              Pièce {rangAffiche + 1} / {ecritures.length}
+            </span>
+            <button
+              type="button"
+              disabled={rangAffiche >= ecritures.length - 1}
+              onClick={() => setRangPiece(rangAffiche + 1)}
+              className="border border-border-dark bg-chrome px-2 py-[1px] disabled:opacity-40"
+            >
+              Suivant ▶
+            </button>
+          </div>
+        )}
         <div className="max-h-[34vh] overflow-auto">
-          {ecritures.map((e) => {
+          {ecrituresAffichees.map((e) => {
             const jourE = new Date(e.date).getDate();
             const annulee = !!e.correction;
             return e.lignes.map((l, i) => (
@@ -1121,7 +1171,7 @@ export function SaisiePage() {
           })}
           {ecritures.length === 0 && (
             <div className="px-3 py-2.5 text-[11.5px] text-text-dim italic">
-              Aucune écriture sur ce journal pour {periode?.libelle}.
+              Aucune écriture sur ce journal pour {parPiece ? "l'exercice" : periode?.libelle}.
             </div>
           )}
         </div>
@@ -1172,6 +1222,20 @@ export function SaisiePage() {
           <div className="flex items-center justify-between px-3 py-1.5 bg-chrome border-b border-border rounded-t-[10px]">
             <span className="text-[11.5px] font-bold text-text-dim">Pièce en cours de saisie</span>
             <div className="flex items-center gap-2.5 text-[11.5px]">
+              {parPiece ? (
+                <label className="flex items-center gap-1.5">
+                  <span className="text-text-dim">Date :</span>
+                  <input
+                    type="date"
+                    aria-label="Date de la pièce"
+                    value={datePiece}
+                    min={exerciceCourant?.dateDebut.slice(0, 10)}
+                    max={exerciceCourant?.dateFin.slice(0, 10)}
+                    onChange={(e) => setDatePiece(e.target.value)}
+                    className="border border-border-dark px-1.5 py-0.5 font-mono"
+                  />
+                </label>
+              ) : (
               <label className="flex items-center gap-1.5">
                 <span className="text-text-dim">Jour :</span>
                 <input
@@ -1183,6 +1247,7 @@ export function SaisiePage() {
                   className="w-[52px] border border-border-dark px-1.5 py-0.5 font-mono text-right"
                 />
               </label>
+              )}
               <label className="flex items-center gap-1.5">
                 <span className="text-text-dim">Référence :</span>
                 <input
@@ -1209,7 +1274,9 @@ export function SaisiePage() {
               key={i}
               style={grilleStyle} className={`${grille} px-3 py-[3px] border-b border-border/60 text-[11.5px] items-center bg-positive-soft/40`}
             >
-              <span className="font-mono text-text-dim">{i === 0 ? String(jour).padStart(2, '0') : ''}</span>
+              <span className="font-mono text-text-dim">
+                {i === 0 ? (parPiece ? datePiece.slice(8, 10) : String(jour).padStart(2, '0')) : ''}
+              </span>
               <span className="font-mono text-text-dim">{i === 0 ? '(auto)' : ''}</span>
               <span className="font-mono text-[11px] text-text-dim truncate">{i === 0 ? reference : ''}</span>
               <span className="font-mono" title={l.intitule}>

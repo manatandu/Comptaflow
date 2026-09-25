@@ -56,7 +56,9 @@ describe('l’inventaire couvre le schéma, sans trou ni surplus', () => {
     // à 99 avec les règles de rangement des postes de consolidation IFRS, idem.
     // à 100 avec les lignes du relevé bancaire importé, cloisonnées par leur
     // propre tenantId et restituées comme pièce externe de la banque.
-    expect(modeles).toHaveLength(100);
+    // à 102 avec les OD analytiques et leurs lignes, chacune bornée par son
+    // propre tenantId.
+    expect(modeles).toHaveLength(102);
     expect([...TABLES_RESTITUEES].sort()).toEqual(modeles.filter((m) => m !== 'Tenant').sort());
   });
 

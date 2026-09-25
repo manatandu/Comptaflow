@@ -1033,6 +1033,9 @@ function EtatsSystemeNormalPage() {
                 exécuter sur les bons de commande et contrats du registre des engagements.
               </p>
               <p className="text-[11px] text-text-dim max-w-[900px]">{executionBudget.engagementsHorsComptabilite}</p>
+              {executionBudget.odAnalytiquesNonReprises && (
+                <p className="text-[11px] text-warning max-w-[900px]">{executionBudget.odAnalytiquesNonReprises}</p>
+              )}
             </div>
           )}
         </>

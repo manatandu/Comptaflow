@@ -267,6 +267,10 @@ export function AppShell() {
       titre: 'Traitement',
       items: [
         { label: 'Saisie des journaux', onClick: () => navigate('/saisie') },
+        // Juste sous la saisie, comme chez Sage (« Saisie des OD analytiques »,
+        // menu Traitement) · une OD corrige une ventilation, elle ne passe
+        // aucune écriture au livre-journal.
+        { label: 'Saisie des OD analytiques', onClick: () => navigate('/od-analytiques') },
         // La facture PRÉCÈDE l'écriture · elle est la pièce que la loi de
         // procédures fiscales exige pour chaque transaction (art. 23), et
         // c'est l'écriture qui la comptabilise, jamais l'inverse. Rangée
