@@ -21,6 +21,8 @@ export const MODELES_AUDITES = new Set<string>([
   // La configuration comptable · en changer un poste change tous les états
   // produits ensuite, sans qu'aucune écriture ne bouge.
   'Compte',
+  // Les natures commandent les défauts des comptes créés ensuite.
+  'NatureCompte',
   'Journal',
   'TauxTva',
   'Devise',

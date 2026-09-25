@@ -7,6 +7,8 @@ import { PLAN_COMPTES_SYCEBNL } from './compte-seed';
 import { CATALOGUE_RETRAITEMENTS } from '../fiscalite/catalogue-retraitements';
 import { PLAN_COMPTES_SYSCOHADA } from './compte-seed-syscohada';
 import { CreerCompteDto, ModifierCompteDto } from './dto/creer-compte.dto';
+import { naturesDuDossier } from './natures-compte.service';
+import { LIBELLES_NATURE, natureDe } from './natures-compte';
 
 /**
  * Comptes ouverts au lettrage à la création d'un dossier.
@@ -80,7 +82,17 @@ export class CompteService {
           }
         : {}),
     };
-    return this.prisma.compte.findMany({ where, orderBy: { numero: 'asc' } });
+    const [comptes, natures] = await Promise.all([
+      this.prisma.compte.findMany({ where, orderBy: { numero: 'asc' } }),
+      naturesDuDossier(this.prisma, tenantId),
+    ]);
+    // La nature s'AFFICHE, elle ne se stocke pas · « la nature d'un compte
+    // s'affiche automatiquement en fonction du numéro de compte et du
+    // paramétrage des comptes par nature » (support Sage 100).
+    return comptes.map((c) => {
+      const n = natureDe(c.numero, natures);
+      return { ...c, nature: n ? LIBELLES_NATURE[n.nature] : null };
+    });
   }
 
   async creer(tenantId: string, dto: CreerCompteDto) {
@@ -101,11 +113,20 @@ export class CompteService {
     if (existant) {
       throw new ConflictException(`Le compte ${dto.numero} existe déjà pour ce tenant`);
     }
-    // `lettrable` omis : on retient le défaut déduit du numéro plutôt que le
-    // `false` du schéma, pour qu'un compte de tiers créé à la main se
-    // comporte comme ceux du plan semé.
+    // Défauts pris à la NATURE du numéro (natures-compte.ts, Sage i7 :
+    // « le programme affecte automatiquement la nature du compte en fonction
+    // de son numéro »), puis à la règle d'avant hors de toute nature · un
+    // compte de tiers créé à la main se comporte comme ceux du plan semé.
+    const nature = natureDe(dto.numero, await naturesDuDossier(this.prisma, tenantId));
     return this.prisma.compte.create({
-      data: { ...dto, tenantId, lettrable: dto.lettrable ?? estLettrableParDefaut(dto.numero) },
+      data: {
+        ...dto,
+        tenantId,
+        lettrable: dto.lettrable ?? nature?.lettrable ?? estLettrableParDefaut(dto.numero),
+        ...(dto.modeReportANouveau ?? nature?.modeReportANouveau
+          ? { modeReportANouveau: dto.modeReportANouveau ?? nature?.modeReportANouveau }
+          : {}),
+      },
     });
   }
 

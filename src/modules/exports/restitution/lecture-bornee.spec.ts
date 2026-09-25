@@ -58,7 +58,9 @@ describe('l’inventaire couvre le schéma, sans trou ni surplus', () => {
     // propre tenantId et restituées comme pièce externe de la banque.
     // à 102 avec les OD analytiques et leurs lignes, chacune bornée par son
     // propre tenantId.
-    expect(modeles).toHaveLength(102);
+    // à 103 avec les natures de compte, paramétrage du dossier borné par son
+    // tenantId.
+    expect(modeles).toHaveLength(103);
     expect([...TABLES_RESTITUEES].sort()).toEqual(modeles.filter((m) => m !== 'Tenant').sort());
   });
 

@@ -4428,6 +4428,25 @@ lie (RESTRICT · un collectif qui porte des individuels ne se supprime pas).
 jamais par le numéro ; les totaux ne bougent pas, le détail reste à la balance
 auxiliaire.
 
+**Natures de compte paramétrables (2026-09-25).** Point 14 de la comparaison,
+lu au manuel i7 (« Cette option permet de définir, pour chaque nature de
+compte, une fourchette de numéros de comptes. Ainsi, en création de compte, le
+programme affecte automatiquement la nature du compte en fonction de son
+numéro »). QUATRE RÈGLES À NE PAS DÉFAIRE. (1) LES SEPT NATURES DU MANUEL,
+PAS UNE DE PLUS · Stock, Clients, Fournisseurs, Banque, Caisse, Charges,
+Produits (`comptes/natures-compte.ts`), une ligne par dossier et par nature
+(`NatureCompte`), posées à la première lecture ; leurs défauts reprennent le
+mode que les deux semis portent déjà, et un spec le relit (zéro écart). (2)
+LA NATURE DONNE DES DÉFAUTS, JAMAIS UNE CONTRAINTE · mode de report et lettrage
+d'un compte créé ensuite, le DTO restant maître ; hors de toute nature, la
+règle d'avant (`estLettrableParDefaut`). Elle S'AFFICHE, ne se stocke pas sur
+le compte. (3) AUCUN CHEVAUCHEMENT ENTRE NATURES · un compte rattaché à deux
+natures recevrait l'un ou l'autre défaut selon l'ordre de lecture. (4) LES
+ÉTATS FINANCIERS NE LA LISENT PAS · ils lisent les numéros du plan officiel,
+et déplacer une fourchette ne doit jamais déplacer un poste. L'incohérence du
+report que Sage signale à la clôture est listée dans Paramètres du dossier et
+s'aligne à la demande, jamais d'office.
+
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
 nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la

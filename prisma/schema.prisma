@@ -580,6 +580,7 @@ model Tenant {
   engagementsDepense       EngagementDepense[]
   odAnalytiques            OdAnalytique[]
   lignesOdAnalytique       LigneOdAnalytique[]
+  naturesCompte            NatureCompte[]
   conventionsFinancement   ConventionFinancement[]
   regularisations          Regularisation[]
   modelesAbonnement        ModeleAbonnement[]
@@ -6890,4 +6891,43 @@ enum CategorieEffetChangeIfrs {
   OPERATIONNELLE
   INVESTISSEMENT
   FINANCEMENT
+}
+
+// ---------------------------------------------------------------------------
+// NATURES DE COMPTE (point 14 de la comparaison Sage i7, 2026-09-25) · Sage,
+// « Paramètres société / comptes généraux / nature de compte » : « Cette
+// option permet de définir, pour chaque nature de compte, une fourchette de
+// numéros de comptes. Ainsi, en création de compte, le programme affecte
+// automatiquement la nature du compte en fonction de son numéro. » La nature
+// porte aussi le code de report à-nouveau, que la clôture confronte au compte
+// (« une incohérence pour le compte général 3421 a été détectée sur le code
+// report à nouveau »). Les sept natures sont celles du manuel i7 · Stock,
+// Clients, Fournisseurs, Banque, Caisse, Charges, Produits.
+//
+// Une ligne par nature et par dossier ; `fourchettes` est une liste de
+// { du, au } de racines, validée par comptes/natures-compte.ts (chiffres
+// seulement, du ≤ au, aucun chevauchement entre natures).
+// ---------------------------------------------------------------------------
+enum NatureCompteType {
+  STOCK
+  CLIENT
+  FOURNISSEUR
+  BANQUE
+  CAISSE
+  CHARGE
+  PRODUIT
+}
+
+model NatureCompte {
+  id                 String             @id @default(uuid())
+  tenantId           String
+  tenant             Tenant             @relation(fields: [tenantId], references: [id])
+  nature             NatureCompteType
+  fourchettes        Json
+  modeReportANouveau ModeReportANouveau
+  lettrable          Boolean            @default(false)
+  updatedAt          DateTime           @updatedAt
+
+  @@unique([tenantId, nature])
+  @@map("natures_compte")
 }

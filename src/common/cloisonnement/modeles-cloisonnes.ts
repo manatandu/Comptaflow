@@ -25,6 +25,8 @@ export const MODELES_CLOISONNES = new Set<string>([
   'EngagementDepense',
   // OD analytiques (2026-09-25) · la ligne porte son tenantId, comme l'en-tête.
   'OdAnalytique',
+  // Natures de compte (2026-09-25) · paramétrage du dossier.
+  'NatureCompte',
   'LigneOdAnalytique',
   'EvenementAudit',
   'Exercice',

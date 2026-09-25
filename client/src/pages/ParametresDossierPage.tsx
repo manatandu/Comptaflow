@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
+import { NaturesCompte } from '../components/NaturesCompte';
 import { Ligne, OngletsVerticaux, SectionTitre, champSage } from '../components/FormulaireSage';
 import { SYSTEMES_SYSCOHADA } from '../lib/systemes-syscohada';
 import { FORMES_SYSCOHADA } from '../lib/formes-juridiques-syscohada';
@@ -123,6 +124,7 @@ const ONGLETS = [
   { cle: 'forme', libelle: 'Forme juridique' },
   { cle: 'regime', libelle: 'Régime fiscal' },
   { cle: 'referentiel', libelle: 'Référentiel' },
+  { cle: 'natures', libelle: 'Natures de compte' },
 ] as const;
 
 type CleOnglet = (typeof ONGLETS)[number]['cle'];
@@ -1233,6 +1235,7 @@ export function ParametresDossierPage() {
               </div>
             </>
           )}
+          {onglet === 'natures' && <NaturesCompte />}
         </OngletsVerticaux>
       )}
     </div>

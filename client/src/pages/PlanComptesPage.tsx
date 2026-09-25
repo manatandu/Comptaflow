@@ -461,6 +461,13 @@ export function PlanComptesPage() {
                     </div>
                   </label>
 
+                  {/* Nature · affichée, jamais saisie : elle vient du numéro et du
+                      paramétrage des natures (Paramètres du dossier). */}
+                  <div className="mb-3 text-[11.5px]">
+                    <span className="text-[11px] font-bold text-text-dim">Nature</span>
+                    <div>{selection.nature ?? 'Hors nature'}</div>
+                  </div>
+
                   <label className="block mb-3">
                     <span className="text-[11px] font-bold text-text-dim" title="Aucun : pas de report (charges/produits). Solde : seul le solde est repris. Détail : les lignes non lettrées sont reprises une à une (comptes de tiers lettrés).">
                       Report à-nouveau

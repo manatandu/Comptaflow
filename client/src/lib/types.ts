@@ -98,6 +98,8 @@ export interface Compte {
   estActif: boolean;
   /** Report à-nouveau en fin d'exercice · Aucun (charges/produits), Solde, ou Détail (lignes non lettrées). */
   modeReportANouveau: ModeReportANouveau;
+  /** Nature (Sage) déduite du numéro et du paramétrage du dossier · lue par GET /comptes, jamais stockée. */
+  nature?: string | null;
   /** Rattachement à un Bailleur (comptabilité analytique par projet/bailleur) · voir Bailleur. */
   bailleurId: string | null;
   /** Compte ouvert au lettrage · « liberté de définir la liste des comptes auxquels s'applique le lettrage » (CPCC, ch. 6). */

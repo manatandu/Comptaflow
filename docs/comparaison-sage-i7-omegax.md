@@ -86,7 +86,10 @@ tiennent à un texte OHADA ; ils sont signalés comme tels.
     choix de Manasse : un compte individuel par tiers, créé tout seul sous le
     collectif de son type ; balance générale regroupable par collectif, le
     détail restant à la balance auxiliaire.
-14. Natures de compte paramétrables.
+14. ~~Natures de compte paramétrables~~ · FAIT le 2026-09-25 : les sept natures
+    du manuel i7, une fourchette de racines chacune, qui donnent leur mode de
+    report et leur lettrage aux comptes créés ensuite ; les comptes dont le
+    report contredit leur nature sont listés et s'alignent à la demande.
 15. Droits d'accès fonction par fonction.
 
 **Secondaires**
