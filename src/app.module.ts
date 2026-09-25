@@ -46,6 +46,7 @@ import { FaiblessesModule } from './modules/faiblesses/faiblesses.module';
 import { MandatAuditeurModule } from './modules/mandat-auditeur/mandat-auditeur.module';
 import { AccordCadreModule } from './modules/accord-cadre/accord-cadre.module';
 import { ConsolidationModule } from './modules/consolidation/consolidation.module';
+import { IfrsModule } from './modules/ifrs/ifrs.module';
 import { FacturationModule } from './modules/facturation/facturation.module';
 import { CommercialModule } from './modules/commercial/commercial.module';
 import { ConstitutionModule } from './modules/constitution/constitution.module';
@@ -118,6 +119,7 @@ import { CourrierModule } from './modules/courrier/courrier.module';
     MandatAuditeurModule,
     AccordCadreModule,
     ConsolidationModule,
+    IfrsModule,
     FacturationModule,
     CommercialModule,
     ConstitutionModule,

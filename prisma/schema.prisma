@@ -623,6 +623,10 @@ model Tenant {
   resultatsInternesConsolidation   ResultatInterneConsolidation[]
   ecartsEvaluationConsolidation    EcartEvaluationConsolidation[]
   provisionsChangeConsolidation    ProvisionChangeConsolidation[]
+  parametresIfrs                   ParametresIfrs?
+  reglesCorrespondanceIfrs         RegleCorrespondanceIfrs[]
+  retraitementsIfrs                RetraitementIfrs[]
+  lignesRetraitementIfrs           LigneRetraitementIfrs[]
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -1094,6 +1098,7 @@ model Exercice {
   resultatsInternesConsolidation  ResultatInterneConsolidation[]
   ecartsEvaluationConsolidation   EcartEvaluationConsolidation[]
   provisionsChangeConsolidation   ProvisionChangeConsolidation[]
+  retraitementsIfrs               RetraitementIfrs[]
 
   @@unique([tenantId, dateDebut, dateFin])
   @@map("exercices")
@@ -6517,4 +6522,75 @@ model ResultatInterneConsolidation {
 
   @@index([tenantId, exerciceId])
   @@map("resultats_internes_consolidation")
+}
+
+// ─── États IFRS en sus du jeu légal · item 15, tranche 1 (AUDCIF art. 73-1) ──
+// Posés À CÔTÉ du grand livre, qui les ignore (`docs/decision-multi-
+// classification.md`). Aucun état légal ne lit ces tables · un spec le gèle.
+
+/// L'ACTIVITÉ PRINCIPALE au sens d'IFRS 18 § 49 · elle décide du classement de
+/// certains produits et charges entre les catégories. NULL veut dire « pas
+/// déclarée », et le jeu IFRS n'est pas publiable.
+enum ActivitePrincipaleIfrs {
+  AUCUNE
+  INVESTIR_ACTIFS
+  FINANCER_CLIENTS
+}
+
+model ParametresIfrs {
+  id                 String                  @id @default(uuid())
+  tenantId           String                  @unique
+  tenant             Tenant                  @relation(fields: [tenantId], references: [id])
+  activitePrincipale ActivitePrincipaleIfrs?
+  updatedAt          DateTime                @updatedAt
+
+  @@map("parametres_ifrs")
+}
+
+/// Préfixe de compte → rubrique d'IFRS 18 · le plus long préfixe l'emporte.
+/// DÉCLARÉE par le cabinet, jamais écrite par OmegaX · le classement dépend de
+/// l'activité de l'entité (IFRS 18 § 49 à 66).
+model RegleCorrespondanceIfrs {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  prefixe   String   @db.VarChar(13)
+  rubrique  String
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, prefixe])
+  @@index([tenantId])
+  @@map("regles_correspondance_ifrs")
+}
+
+/// Un retraitement IFRS · écriture équilibrée hors du grand livre, rattachée
+/// à un exercice, avec la norme qui la fonde.
+model RetraitementIfrs {
+  id         String                  @id @default(uuid())
+  tenantId   String
+  tenant     Tenant                  @relation(fields: [tenantId], references: [id])
+  exerciceId String
+  exercice   Exercice                @relation(fields: [exerciceId], references: [id])
+  libelle    String
+  fondement  String
+  createdAt  DateTime                @default(now())
+  lignes     LigneRetraitementIfrs[]
+
+  @@index([tenantId, exerciceId])
+  @@map("retraitements_ifrs")
+}
+
+/// Débit positif, crédit négatif · la somme des lignes d'un retraitement est nulle.
+model LigneRetraitementIfrs {
+  id             String           @id @default(uuid())
+  tenantId       String
+  tenant         Tenant           @relation(fields: [tenantId], references: [id])
+  retraitementId String
+  retraitement   RetraitementIfrs @relation(fields: [retraitementId], references: [id], onDelete: Cascade)
+  ordre          Int
+  rubrique       String
+  montant        Decimal          @db.Decimal(18, 2)
+
+  @@index([retraitementId])
+  @@map("lignes_retraitement_ifrs")
 }

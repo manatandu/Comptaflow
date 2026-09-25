@@ -2471,6 +2471,38 @@ isolée. Sans entité convertie, G vaut zéro et le dit. Les montants déclarés
 ailleurs (coût et capitaux propres d'entrée, marges, impôts différés, 478 et
 479, réciproques) le sont en monnaie de présentation.
 
+**États IFRS en sus du jeu légal, tranche 1 · état de la situation
+financière et compte de résultat (2026-09-25).** AUDCIF art. 73-1, IFRS 18
+(`src/modules/ifrs/`). Décidé par Manasse · lancé sans attendre un client coté,
+IFRS 18 SEUL (obligatoire aux exercices ouverts dès le 1er janvier 2027, § C1,
+appliqué par anticipation avant, et dit), comptes individuels d'abord. CINQ
+RÈGLES À NE PAS DÉFAIRE. (1) LE GRAND LIVRE N'EST JAMAIS TOUCHÉ
+(`docs/decision-multi-classification.md`) · le jeu IFRS est la balance LÉGALE
+(`chargerLignes`, livre-journal seul) projetée par des RÈGLES DE
+CORRESPONDANCE déclarées (préfixe → rubrique, le plus long préfixe l'emporte),
+plus des RETRAITEMENTS déclarés, écritures équilibrées dans leurs tables. Un
+spec gèle l'ensemble exact des fichiers qui nomment ces tables · le service
+IFRS et la liste du cloisonnement, aucun état légal. (2) OMEGAX N'ÉCRIT AUCUNE
+RÈGLE · classer en catégories opérationnelle, investissement et financement
+dépend de l'activité principale (§ 49 à 66), que seul le cabinet connaît, et
+qui se DÉCLARE (non déclarée, ou « financer des clients », non servie ici · non
+publiable). (3) UN COMPTE DE GESTION VA AU RÉSULTAT, UN COMPTE DE BILAN À LA
+SITUATION · la même règle (`motifRefusRegle`) à la porte et au calcul ; un
+reclassement de l'un vers l'autre passe par un retraitement, jamais par une
+correspondance qui le cacherait. Chaque retraitement porte la norme et le
+paragraphe qui le fondent, et s'équilibre. (4) CHAQUE RUBRIQUE PORTE SON
+PARAGRAPHE (§ 75, § 80, § 103, § 104) · charges PAR NATURE (§ 78 a), la
+présentation par fonction demandant une affectation qu'aucune balance ne
+porte ; deux postes supplémentaires (autres produits, autres charges
+opérationnels) dits comme tels (§ 24, § B78). Sous-totaux du § 69. (5) CE QUI
+MANQUE EST MONTRÉ ET COMPTÉ · un compte sans rubrique reste sur une ligne
+« sans rubrique » pour que l'état boucle, et le rend non publiable ; trois
+colonnes par poste (SYSCOHADA reclassé, retraitements, IFRS) et un
+rapprochement du résultat et des capitaux propres. Le jeu reste NON PUBLIABLE
+tant que manquent l'état du résultat global, le tableau des flux (IAS 7),
+les variations des capitaux propres, les notes et la première application
+(IFRS 1) · tranches suivantes.
+
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de
 l'inventaire physique » (immobilisations, stocks, caisses) et § VII

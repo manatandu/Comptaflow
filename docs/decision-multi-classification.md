@@ -93,6 +93,11 @@ Le jour où un dossier en aura besoin, et pas avant :
 
 `Journal` n'est concerné par aucun des deux chantiers.
 
+> **Le 2026-09-25, Manasse a décidé de lancer le chantier IFRS sans attendre ce
+> signal** (item 15 du plan ordonné). La structure est celle de la section 4 ·
+> règles de correspondance et retraitements dans leurs tables, le grand livre
+> intact, et un spec qui gèle les seuls fichiers autorisés à lire ces tables.
+
 ## 5. Ce qui rouvrirait la question
 
 Un signal client, pas une date :

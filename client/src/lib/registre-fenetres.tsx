@@ -23,6 +23,7 @@ const JustificatifSoldePage = lazy(() => import('../pages/JustificatifSoldePage'
 const EvolutionSoldesPage = lazy(() => import('../pages/EvolutionSoldesPage').then((m) => ({ default: m.EvolutionSoldesPage })));
 const PalmaresJournauxPage = lazy(() => import('../pages/PalmaresJournauxPage').then((m) => ({ default: m.PalmaresJournauxPage })));
 const MandatAuditeurPage = lazy(() => import('../pages/MandatAuditeurPage').then((m) => ({ default: m.MandatAuditeurPage })));
+const EtatsIfrsPage = lazy(() => import('../pages/EtatsIfrsPage').then((m) => ({ default: m.EtatsIfrsPage })));
 const PerimetreConsolidationPage = lazy(() =>
   import('../pages/PerimetreConsolidationPage').then((m) => ({ default: m.PerimetreConsolidationPage })),
 );
@@ -220,6 +221,16 @@ export const FENETRES: DefinitionFenetre[] = [
     // l'AUDCIF, donc tout le Titre II. La route se refuse aussi (§ 6).
     referentielsApplicables: ['SYSCOHADA'],
     rendre: () => <PerimetreConsolidationPage />,
+  },
+  {
+    motif: /^\/ifrs$/,
+    titre: 'États IFRS',
+    titreCourt: 'IFRS',
+    // Cloisonné au SYSCOHADA · l'art. 73-1 de l'AUDCIF vise les entités cotées
+    // ou faisant appel public à l'épargne, et l'art. 3 du SYCEBNL écarte les
+    // art. 73 à 113. La route se refuse aussi (§ 6).
+    referentielsApplicables: ['SYSCOHADA'],
+    rendre: () => <EtatsIfrsPage />,
   },
   {
     motif: /^\/devis$/,

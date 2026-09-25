@@ -55,6 +55,11 @@ export const MODELES_CLOISONNES = new Set<string>([
   'ResultatInterneConsolidation',
   'EcartEvaluationConsolidation',
   'ProvisionChangeConsolidation',
+  // États IFRS (item 15) · chaque table, lignes comprises, porte son tenantId.
+  'ParametresIfrs',
+  'RegleCorrespondanceIfrs',
+  'RetraitementIfrs',
+  'LigneRetraitementIfrs',
   'MandatAuditeur',
   'Licence',
   'LiquidationTva',

@@ -501,6 +501,7 @@ export function AppShell() {
             // du SYCEBNL en écarte les art. 73 à 113. Une association et ses
             // cellules relèvent du groupe, qui n'est pas une consolidation.
             ...(estSycebnl ? [] : [{ label: 'Périmètre de consolidation', onClick: () => navigate('/consolidation') }]),
+            ...(estSycebnl ? [] : [{ label: 'États IFRS', onClick: () => navigate('/ifrs') }]),
           ],
         },
         {

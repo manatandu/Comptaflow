@@ -218,8 +218,11 @@ describe('menu « État » à 360 px', () => {
     // financiers », SYSCOHADA seulement · ce sont des comptes consolidés,
     // c'est-à-dire des états financiers (AUDCIF Titre II), et non un registre
     // de révision. Les deux bornes ci-dessous ont tenu sans être touchées.
+    // Le 2026-09-25, les états IFRS l'ont rejoint, au même endroit et pour la
+    // même raison · des états financiers « en sus » du jeu légal (AUDCIF
+    // art. 73-1), SYSCOHADA seulement. Les deux bornes tiennent encore.
     const tous = [...source.matchAll(/label: '([^']+)'/g)].map((m) => m[1]);
-    expect(tous).toHaveLength(31);
+    expect(tous).toHaveLength(32);
     expect([...vues].sort()).toEqual([...tous].sort());
     // DEUX BORNES, et plus un chiffre relevé d'un cran à chaque ajout · c'est
     // la troisième fois en une journée qu'une édition nouvelle faisait tomber
