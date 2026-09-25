@@ -792,6 +792,18 @@ model Compte {
   // lignes lettrées.
   lettrable Boolean @default(false)
 
+  // COMPTE COLLECTIF d'un compte individuel de tiers (2026-09-25) · Sage
+  // propose à la création d'un tiers le compte collectif de son type (manuel
+  // i7 : « compte général selon le type des tiers »). OmegaX garde un compte
+  // individuel par tiers, créé sous ce collectif, et retient ici de quel
+  // collectif il relève · c'est ce lien que la balance générale lit pour
+  // regrouper les tiers sur leur collectif, comme la balance de Sage. Posé à
+  // la création automatique, jamais déduit du numéro. RESTRICT : un collectif
+  // qui porte des comptes individuels ne se supprime pas en les dénouant.
+  collectifId String?
+  collectif   Compte?  @relation("CompteCollectif", fields: [collectifId], references: [id], onDelete: Restrict)
+  individuels Compte[] @relation("CompteCollectif")
+
   // Taux de taxe proposé automatiquement dès que ce compte est saisi · Sage
   // porte un code taxe sur la fiche compte (skill sage-i7,
   // comptabilite-generale.md). Rien n'est déduit du numéro : tous les achats

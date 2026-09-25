@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { regrouperSurCollectifs } from '../tiers/collectifs-tiers';
 import { PrismaService } from '../../common/prisma.service';
 import {
   MotifImputationOuverture,
@@ -2703,6 +2704,24 @@ export class EcritureService {
         credit: lignesBalance.reduce((s, l) => s + l.totalCredit, 0),
       },
     };
+  }
+
+  /**
+   * BALANCE GÉNÉRALE REGROUPÉE PAR COLLECTIF · chaque compte individuel de
+   * tiers (Compte.collectifId) est fondu sur son collectif, comme la balance
+   * générale de Sage ; le détail tiers par tiers reste à la balance
+   * auxiliaire. Les totaux sont ceux de la balance compte par compte.
+   */
+  async balanceRegroupeeParCollectif(tenantId: string, exerciceId: string) {
+    const [balance, individuels] = await Promise.all([
+      this.balance(tenantId, exerciceId),
+      this.prisma.compte.findMany({
+        where: { tenantId, collectifId: { not: null } },
+        select: { id: true, collectif: { select: { id: true, numero: true, intitule: true } } },
+      }),
+    ]);
+    const collectifDe = new Map(individuels.filter((c) => c.collectif).map((c) => [c.id, c.collectif!]));
+    return { lignes: regrouperSurCollectifs(balance.lignes, collectifDe), totaux: balance.totaux };
   }
 
   /**

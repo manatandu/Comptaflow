@@ -15,6 +15,15 @@ export class CreerTiersDto {
   @IsUUID()
   modeleReglementId?: string;
 
+  /**
+   * Créer le compte individuel du tiers sous le collectif de son type
+   * (collectifs-tiers.ts). Vrai par défaut, comme la proposition de Sage ;
+   * faux pour rattacher ensuite un compte existant à la main.
+   */
+  @IsOptional()
+  @IsBoolean()
+  creerCompteIndividuel?: boolean;
+
   /*
     COORDONNÉES · elles manquaient, et cela rendait inutilisable une brique
     déjà construite : le module de relances compose des lettres de rappel

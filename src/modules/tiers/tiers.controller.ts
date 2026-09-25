@@ -78,6 +78,13 @@ export class TiersController {
   }
 
 
+  /** Compte individuel sous le collectif du type · point 13 (collectifs-tiers.ts). */
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
+  @Post(':id/compte-individuel')
+  async creerCompteIndividuel(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.tiersService.creerCompteIndividuel(user.tenantId, id);
+  }
+
   @Roles(RoleUtilisateur.ADMIN_CABINET)
   @Post(':id/comptes')
   async rattacherCompte(

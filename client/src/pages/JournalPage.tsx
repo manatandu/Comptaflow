@@ -128,7 +128,9 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
   const [totaux, setTotaux] = useState({ debit: 0, credit: 0 });
   /** Servi quand la fenêtre ne montre qu'une tranche du journal. */
   const [troncature, setTroncature] = useState<{ montrees: number; total: number } | null>(null);
-  const [balance, setBalance] = useState<LigneBalance[]>([]);
+  const [balance, setBalance] = useState<(LigneBalance & { regroupe?: number })[]>([]);
+  // Balance générale façon Sage · les tiers fondus sur leur compte collectif.
+  const [regrouperTiers, setRegrouperTiers] = useState(false);
   const [journaux, setJournaux] = useState<Journal[]>([]);
   const [compteGrandLivreId, setCompteGrandLivreId] = useState('');
   const [grandLivre, setGrandLivre] = useState<SectionGrandLivre[] | null>(null);
@@ -215,14 +217,18 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
   useEffect(() => {
     if (!exerciceCourant || onglet !== 'balance') return;
     let annule = false;
-    api.get<{ lignes: LigneBalance[] }>(`/ecritures/balance?exerciceId=${exerciceCourant.id}`).then(
-      (r) => !annule && setBalance(r.lignes),
-      (e) => !annule && setErreur(e.message),
-    );
+    api
+      .get<{ lignes: (LigneBalance & { regroupe?: number })[] }>(
+        `/ecritures/balance?exerciceId=${exerciceCourant.id}${regrouperTiers ? '&regrouperTiers=1' : ''}`,
+      )
+      .then(
+        (r) => !annule && setBalance(r.lignes),
+        (e) => !annule && setErreur(e.message),
+      );
     return () => {
       annule = true;
     };
-  }, [exerciceCourant?.id, rechargement, onglet]);
+  }, [exerciceCourant?.id, rechargement, onglet, regrouperTiers]);
 
   // Le grand livre COMPLET est chargé une fois par visite de l'onglet · le
   // filtre par compte travaille ensuite sur ce qui est déjà là, sans requête
@@ -820,6 +826,17 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
         que les comptes Détail pour ne rien compter deux fois.
       */}
       {onglet === 'balance' && (
+        <label className="flex items-center gap-1.5 text-[11.5px] mb-1.5">
+          <input type="checkbox" checked={regrouperTiers} onChange={(e) => setRegrouperTiers(e.target.checked)} />
+          Regrouper les tiers sur leur compte collectif
+          <Aide
+            titre="Balance regroupée par collectif"
+            texte="Chaque compte individuel de tiers est fondu sur son compte collectif (4011 Fournisseurs, 4111 Clients…), comme la balance générale de Sage. Le détail tiers par tiers est à la balance auxiliaire. Les totaux ne changent pas."
+            source="Sage 100 i7, plan tiers et compte collectif"
+          />
+        </label>
+      )}
+      {onglet === 'balance' && (
         <div className="border border-border bg-surface shadow-posee rounded-t-none overflow-x-auto">
           <div className={`grid ${GRILLE_BALANCE} gap-2 px-3.5 pt-1.5 text-[11px] font-bold text-text-dim bg-surface-alt`}>
             <span />
@@ -846,6 +863,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
               <span className="font-mono">{l.numero}</span>
               <span className="truncate" title={l.intitule}>
                 {l.intitule}
+                {l.regroupe ? <span className="text-text-dim"> · {l.regroupe} compte(s) de tiers</span> : null}
               </span>
               {(() => {
                 // Ouverture et clôture s'affichent en SOLDE NET, chacun dans

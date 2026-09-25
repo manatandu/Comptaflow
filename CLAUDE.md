@@ -4409,6 +4409,25 @@ exercices suivants compris. Elle prend désormais une date (fin d'exercice à
 défaut), la saisie et le report de l'art. 22, 4° la franchissent comme les
 autres clôtures.
 
+**Compte collectif et compte individuel de tiers (2026-09-25).** Point 13 de
+la comparaison. Sage saisit sur le collectif et porte le tiers sur la ligne ;
+Manasse a retenu l'autre modèle, que rien dans les textes n'interdit · UN
+COMPTE INDIVIDUEL PAR TIERS, parce que le lettrage, les relances, la balance
+âgée et les règlements lisent tous un compte. QUATRE RÈGLES À NE PAS DÉFAIRE.
+(1) LA TABLE DES COLLECTIFS VIT DANS `tiers/collectifs-tiers.ts`, PAR
+RÉFÉRENTIEL · fournisseur 40110000 des deux côtés, client 41200000
+« Clients-usagers » au SYCEBNL et 41110000 « Clients » au SYSCOHADA, adhérent
+41100000 au SYCEBNL seul ; un spec relit les deux semis. (2) SALARIÉ ET AUTRE
+N'ONT PAS DE COLLECTIF PROPOSÉ · la paie passe au 422 global, et un tiers
+« autre » peut être débiteur ou créditeur, le deviner rangerait une dette en
+créance. (3) LE COMPTE NAÎT AVEC LE TIERS, dans la même transaction, au premier
+numéro libre sous la racine du collectif et à la longueur du dossier, avec les
+réglages du collectif, rattaché comme principal, et `Compte.collectifId` le
+lie (RESTRICT · un collectif qui porte des individuels ne se supprime pas).
+(4) LA BALANCE GÉNÉRALE PEUT LES FONDRE SUR LEUR COLLECTIF, par ce lien et
+jamais par le numéro ; les totaux ne bougent pas, le détail reste à la balance
+auxiliaire.
+
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
 nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la

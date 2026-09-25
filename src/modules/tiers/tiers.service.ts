@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { libelleReference, referencesVers, refuserSiReferences, reporterReferences } from '../../common/suppression/references';
 import { coordonneesAComblement, motifRefusFusionTiers } from './fusion-tiers';
+import { numeroCollectif, prochainNumeroIndividuel, racineCollectif } from './collectifs-tiers';
 import { PrismaService } from '../../common/prisma.service';
 import { ClasseCompte, ConditionEcheance, Prisma, Referentiel, TypeEcheance, TypeTiers } from '@prisma/client';
 import { CreerTiersDto, ModifierTiersDto, RattacherCompteDto } from './dto/tiers.dto';
@@ -84,7 +85,90 @@ export class TiersService {
     if (dto.celluleGroupeId) {
       await this.exigerMemeGroupe(tenantId, dto.celluleGroupeId);
     }
-    return this.prisma.tiers.create({ data: { ...dto, tenantId } });
+    const { creerCompteIndividuel, ...donnees } = dto;
+    // Le compte naît dans la même transaction que le tiers · un tiers créé
+    // sans le compte qu'on lui annonce serait une fiche qui ne recevrait
+    // aucune écriture, et personne ne s'en apercevrait avant la relance.
+    return this.prisma.$transaction(async (tx) => {
+      const tiers = await tx.tiers.create({ data: { ...donnees, tenantId } });
+      const compteIndividuel =
+        creerCompteIndividuel === false ? null : await this.poserCompteIndividuel(tx, tenantId, tiers, { silencieux: true });
+      return { ...tiers, compteIndividuel };
+    });
+  }
+
+  /**
+   * Crée, pour un tiers qui n'en a pas, son compte individuel sous le
+   * collectif de son type · les tiers créés avant le point 13, ou ceux créés
+   * sans. Refuse en le disant quand le type n'a pas de collectif proposé.
+   */
+  async creerCompteIndividuel(tenantId: string, tiersId: string) {
+    const tiers = await this.trouver(tenantId, tiersId);
+    return this.prisma.$transaction((tx) => this.poserCompteIndividuel(tx, tenantId, tiers, { silencieux: false }));
+  }
+
+  /**
+   * COMPTE INDIVIDUEL SOUS LE COLLECTIF (collectifs-tiers.ts) · numéro libre
+   * suivant, intitulé du tiers, mêmes réglages que le collectif (classe,
+   * lettrage, mode de report à-nouveau), rattaché comme Principal. En mode
+   * `silencieux` (création d'un tiers), un type sans collectif ne bloque pas
+   * la création · il rend null et le compte se rattache à la main.
+   */
+  private async poserCompteIndividuel(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    tiers: { id: string; type: TypeTiers; nom: string; code: string },
+    options: { silencieux: boolean },
+  ) {
+    const refus = (motif: string) => {
+      if (options.silencieux) return null;
+      throw new BadRequestException(motif);
+    };
+    const { referentiel, longueurCompte } = await tx.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { referentiel: true, longueurCompte: true },
+    });
+    const numero = numeroCollectif(referentiel, tiers.type);
+    if (!numero) {
+      return refus(
+        'Ce type de tiers n\'a pas de compte collectif proposé · un salarié passe par le 422 de la paie, un tiers « autre » ' +
+          'peut être débiteur ou créditeur. Rattachez son compte à la main.',
+      );
+    }
+    const collectif = await tx.compte.findFirst({ where: { tenantId, numero } });
+    if (!collectif || !collectif.estActif) {
+      return refus(`Le compte collectif ${numero} n'existe pas ou est en sommeil dans ce dossier · rattachez un compte à la main.`);
+    }
+    const dejaPrincipal = await tx.tiersCompte.findFirst({ where: { tiersId: tiers.id, estPrincipal: true } });
+    if (dejaPrincipal) {
+      return refus('Ce tiers a déjà un compte principal.');
+    }
+    const racine = racineCollectif(numero);
+    const existants = await tx.compte.findMany({
+      where: { tenantId, numero: { startsWith: racine } },
+      select: { numero: true },
+    });
+    const numeroIndividuel = prochainNumeroIndividuel(racine, longueurCompte, [numero, ...existants.map((c) => c.numero)]);
+    if (!numeroIndividuel) {
+      return refus(
+        `Plus aucun numéro libre sous le collectif ${numero} à ${longueurCompte} chiffres · allongez les numéros de compte ` +
+          '(Structure > Paramètres du dossier) ou rattachez un compte à la main.',
+      );
+    }
+    const compte = await tx.compte.create({
+      data: {
+        tenantId,
+        numero: numeroIndividuel,
+        intitule: tiers.nom,
+        classe: collectif.classe,
+        typeCompte: collectif.typeCompte,
+        modeReportANouveau: collectif.modeReportANouveau,
+        lettrable: collectif.lettrable,
+        collectifId: collectif.id,
+      },
+    });
+    await tx.tiersCompte.create({ data: { tiersId: tiers.id, compteId: compte.id, estPrincipal: true } });
+    return { id: compte.id, numero: compte.numero, collectif: collectif.numero };
   }
 
   /**

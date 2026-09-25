@@ -82,7 +82,10 @@ tiennent à un texte OHADA ; ils sont signalés comme tels.
     règlements) et la ventilation analytique ; la partielle les laisse
     ouverts, comme le dit le manuel i7. La clôture totale porte sur un
     journal jusqu'à une date (« pour le mois de janvier »), plus sur toute sa vie.
-13. Compte collectif et comptes auxiliaires de tiers.
+13. ~~Compte collectif et comptes auxiliaires de tiers~~ · FAIT le 2026-09-25,
+    choix de Manasse : un compte individuel par tiers, créé tout seul sous le
+    collectif de son type ; balance générale regroupable par collectif, le
+    détail restant à la balance auxiliaire.
 14. Natures de compte paramétrables.
 15. Droits d'accès fonction par fonction.
 

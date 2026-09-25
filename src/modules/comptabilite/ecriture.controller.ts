@@ -188,8 +188,17 @@ export class EcritureController {
 
   /** Balance · voir l'onglet Balance du même écran. */
   @Get('balance')
-  async balance(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
-    return this.ecritureService.balance(user.tenantId, exerciceId);
+  async balance(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('exerciceId') exerciceId: string,
+    @Query('regrouperTiers') regrouperTiers?: string,
+  ) {
+    // Balance générale « façon Sage » · les comptes individuels des tiers
+    // fondus sur leur collectif (tiers/collectifs-tiers.ts). Le défaut ne
+    // change pas : les autres écrans lisent la balance compte par compte.
+    return regrouperTiers === '1'
+      ? this.ecritureService.balanceRegroupeeParCollectif(user.tenantId, exerciceId)
+      : this.ecritureService.balance(user.tenantId, exerciceId);
   }
 
   /** Grand livre d'un compte · voir l'onglet Grand livre du même écran. */

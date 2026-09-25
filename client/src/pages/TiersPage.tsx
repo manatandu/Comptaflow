@@ -249,14 +249,29 @@ export function TiersPage() {
     (c) => !tiersSelectionne?.comptesRattaches.some((tc) => tc.compteId === c.id),
   );
 
+  // Compte individuel sous le collectif du type, créé avec le tiers (point 13,
+  // tiers/collectifs-tiers.ts côté serveur) · coché par défaut, comme Sage
+  // propose le compte collectif du type.
+  const [creerCompteIndividuel, setCreerCompteIndividuel] = useState(true);
+
   const onCreerTiers = async (e: FormEvent) => {
     e.preventDefault();
     setErreur(null);
     setInfo(null);
     setEnvoi(true);
     try {
-      await api.post('/tiers', { type, code, nom, ...(modeleReglementId ? { modeleReglementId } : {}) });
-      setInfo(`Tiers ${code} créé.`);
+      const cree = await api.post<{ compteIndividuel: { numero: string; collectif: string } | null }>('/tiers', {
+        type,
+        code,
+        nom,
+        creerCompteIndividuel,
+        ...(modeleReglementId ? { modeleReglementId } : {}),
+      });
+      setInfo(
+        cree.compteIndividuel
+          ? `Tiers ${code} créé, avec son compte ${cree.compteIndividuel.numero} sous le collectif ${cree.compteIndividuel.collectif}.`
+          : `Tiers ${code} créé, sans compte · rattachez-en un dans sa fiche.`,
+      );
       setCode('');
       setNom('');
       setModeleReglementId('');
@@ -292,6 +307,18 @@ export function TiersPage() {
       await charger();
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Impossible de définir ce compte comme principal');
+    }
+  };
+
+  const creerSonCompte = async () => {
+    if (!selectionId) return;
+    setErreur(null);
+    try {
+      const c = await api.post<{ numero: string; collectif: string }>(`/tiers/${selectionId}/compte-individuel`, {});
+      setInfo(`Compte ${c.numero} créé sous le collectif ${c.collectif}, rattaché comme principal.`);
+      await charger();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Impossible de créer ce compte');
     }
   };
 
@@ -810,7 +837,12 @@ export function TiersPage() {
               <div className="border-t border-border pt-2.5">
                 <div className="text-[11px] font-bold text-text-dim mb-1.5">Comptes généraux rattachés</div>
                 {tiersSelectionne.comptesRattaches.length === 0 && (
-                  <div className="text-[11.5px] text-text-dim mb-2">Aucun compte rattaché.</div>
+                  <div className="text-[11.5px] text-text-dim mb-2 flex items-center gap-2">
+                    Aucun compte rattaché.
+                    <button type="button" onClick={creerSonCompte} className="text-sel hover:underline">
+                      Créer son compte sous le collectif
+                    </button>
+                  </div>
                 )}
                 {tiersSelectionne.comptesRattaches.map((tc) => (
                   <div key={tc.id} className="border border-border mb-1.5 px-2.5 py-1.5">
@@ -911,6 +943,20 @@ export function TiersPage() {
                     <option key={m.id} value={m.id}>{m.intitule}</option>
                   ))}
                 </select>
+                <span />
+                <label className="flex items-center gap-1.5 text-[11.5px]">
+                  <input
+                    type="checkbox"
+                    checked={creerCompteIndividuel}
+                    onChange={(e) => setCreerCompteIndividuel(e.target.checked)}
+                  />
+                  Créer son compte sous le collectif
+                  <Aide
+                    titre="Compte individuel du tiers"
+                    texte="OmegaX crée le compte du tiers sous le compte collectif de son type (fournisseurs 4011, clients 4111 ou 412, adhérents 411) avec le numéro suivant libre, et le rattache comme principal. Un salarié ou un tiers « autre » n'a pas de collectif proposé : son compte se rattache à la main."
+                    source="Sage 100 i7, plan tiers : compte collectif selon le type"
+                  />
+                </label>
               </div>
               <div className="flex justify-end gap-2 mt-4">
                 <button type="button" onClick={() => setNouveauOuvert(false)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11.5px]">

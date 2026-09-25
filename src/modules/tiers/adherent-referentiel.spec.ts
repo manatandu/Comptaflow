@@ -20,8 +20,15 @@ import { Referentiel, TypeTiers } from '@prisma/client';
  * refuser laisse la route ouverte à un appel direct (CLAUDE.md § 6).
  */
 
+/** Le tiers et son compte naissent dans une transaction (point 13) · la doublure la rejoue sur elle-même. */
+function avecTransaction<T extends object>(p: T): T {
+  const avec = p as T & { $transaction: (f: (tx: T) => unknown) => unknown };
+  avec.$transaction = (f) => f(avec);
+  return avec;
+}
+
 function service(referentiel: Referentiel, capture: { cree?: unknown } = {}) {
-  return new TiersService({
+  return new TiersService(avecTransaction({
     tenant: { findUniqueOrThrow: async () => ({ referentiel }) },
     tiers: {
       findUnique: async () => null,
@@ -30,10 +37,11 @@ function service(referentiel: Referentiel, capture: { cree?: unknown } = {}) {
         return data;
       },
     },
-  } as unknown as PrismaService);
+  }) as unknown as PrismaService);
 }
 
-const dto = { code: 'ADH-1', nom: 'Membre', type: TypeTiers.ADHERENT };
+// Le compte individuel a son propre spec (collectifs-tiers.spec.ts) · ici on ne regarde que le type.
+const dto = { code: 'ADH-1', nom: 'Membre', type: TypeTiers.ADHERENT, creerCompteIndividuel: false };
 
 describe('type de tiers · adhérent réservé au SYCEBNL', () => {
   it('refuse un adhérent sur un dossier SYSCOHADA, sans rien écrire', async () => {
@@ -53,7 +61,7 @@ describe('type de tiers · adhérent réservé au SYCEBNL', () => {
     // Le contrôle ne doit pas coûter une requête de plus à chaque création :
     // il ne se déclenche que sur le type litigieux.
     const capture: { cree?: unknown } = {};
-    const sansTenant = new TiersService({
+    const sansTenant = new TiersService(avecTransaction({
       tiers: {
         findUnique: async () => null,
         create: async ({ data }: { data: unknown }) => {
@@ -61,8 +69,9 @@ describe('type de tiers · adhérent réservé au SYCEBNL', () => {
           return data;
         },
       },
-    } as unknown as PrismaService);
-    await sansTenant.creer('t1', { code: 'CLI-1', nom: 'Client', type: TypeTiers.CLIENT });
+    }) as unknown as PrismaService);
+    // Sans compte individuel, qui lit légitimement le dossier (son plan et sa longueur).
+    await sansTenant.creer('t1', { code: 'CLI-1', nom: 'Client', type: TypeTiers.CLIENT, creerCompteIndividuel: false });
     expect(capture.cree).toMatchObject({ type: TypeTiers.CLIENT });
   });
 });

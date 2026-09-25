@@ -50,8 +50,15 @@ function correspond(d: (typeof DOSSIERS)[string], ou: Ou): boolean {
   return true;
 }
 
+/** Le tiers et son compte naissent dans une transaction (point 13) · la doublure la rejoue sur elle-même. */
+function avecTransaction<T extends object>(p: T): T {
+  const avec = p as T & { $transaction: (f: (tx: T) => unknown) => unknown };
+  avec.$transaction = (f) => f(avec);
+  return avec;
+}
+
 function service(capture: { cree?: any; modifie?: any } = {}) {
-  return new TiersService({
+  return new TiersService(avecTransaction({
     tenant: {
       findUnique: async ({ where }: { where: { id: string } }) => DOSSIERS[where.id] ?? null,
       findUniqueOrThrow: async ({ where }: { where: { id: string } }) => DOSSIERS[where.id],
@@ -69,10 +76,11 @@ function service(capture: { cree?: any; modifie?: any } = {}) {
         return args;
       },
     },
-  } as unknown as PrismaService);
+  }) as unknown as PrismaService);
 }
 
-const base = { code: 'CLI-1', nom: 'Siège', type: TypeTiers.CLIENT };
+// Le compte individuel a son propre spec (collectifs-tiers.spec.ts).
+const base = { code: 'CLI-1', nom: 'Siège', type: TypeTiers.CLIENT, creerCompteIndividuel: false };
 
 describe('tiers · rattachement à une cellule du groupe', () => {
   it('accepte le dossier mère depuis une cellule', async () => {
