@@ -58,6 +58,7 @@ function serviceEcriture(detenteurs: Record<string, number> = {}) {
     consignation: { count: compteur('consignation') },
     bulletinPaie: { count: compteur('bulletinPaie') },
     ligneOrdreVirement: { count: compteur('ligneOrdreVirement') },
+    amortissementDerogatoire: { count: compteur('amortissementDerogatoire') },
     $transaction: jest.fn().mockImplementation((f: (tx: unknown) => unknown) => f(prisma)),
   } as Faux;
 
@@ -216,6 +217,12 @@ describe('3 · une écriture qu’un module tient ne se supprime pas', () => {
     await expect(
       serviceEcriture({ ligneOrdreVirement: 1 }).supprimer('t1', 'e1'),
     ).rejects.toThrow(/ordre de virement/i);
+  });
+
+  it("refuse aussi quand l'écriture passe un amortissement dérogatoire", async () => {
+    await expect(
+      serviceEcriture({ amortissementDerogatoire: 1 }).supprimer('t1', 'e1'),
+    ).rejects.toThrow(/dérogatoire/i);
   });
 
   it('laisse partir une écriture que personne ne tient', async () => {

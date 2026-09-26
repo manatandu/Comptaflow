@@ -892,6 +892,9 @@ export class EcritureService {
       // disparaîtrait sous un ordre que la banque exécute quand même · la
       // dette serait rouverte au 40 pendant que le fournisseur est payé.
       // L'annulation de l'ordre, avec son motif, libère la pièce.
+      // Le dérogatoire d'un exercice · supprimée seule, l'écriture laisserait
+      // le plan fiscal se dire passé, et le cumul du 151 faux.
+      ['un amortissement dérogatoire', this.prisma.amortissementDerogatoire.count({ where: { tenantId, ecritureId } })],
       ['un ordre de virement', this.prisma.ligneOrdreVirement.count({ where: { tenantId, ecritureId } })],
       ["une consignation d'emballages", this.prisma.consignation.count({
         where: { tenantId, OR: [{ ecritureConsignationId: ecritureId }, { ecritureDenouementId: ecritureId }] },

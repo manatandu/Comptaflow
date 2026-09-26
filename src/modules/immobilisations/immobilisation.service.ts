@@ -2101,6 +2101,18 @@ export class ImmobilisationService {
     if (dateSortie < immo.dateMiseEnService) {
       throw new BadRequestException('La date de sortie ne peut pas précéder la date de mise en service');
     }
+    // UN BIEN SORTI NE GARDE PAS SA PROVISION RÉGLEMENTÉE · tant que le 151
+    // porte un dérogatoire pour lui, la sortie est refusée et nomme la reprise
+    // à passer (degressif.service.ts, `solder`).
+    if (immo.degressifFiscal) {
+      const d = await this.prisma.amortissementDerogatoire.findMany({ where: { tenantId, immobilisationId: id }, select: { dotation: true, reprise: true } });
+      const cumul = Math.round(d.reduce((s, x) => s + Number(x.dotation) - Number(x.reprise), 0) * 100) / 100;
+      if (cumul > 0) {
+        throw new BadRequestException(
+          `Ce bien porte ${cumul.toFixed(2)} d'amortissement dérogatoire au 151 · reprenez-le d'abord (D/151, C/861) depuis son plan fiscal, puis sortez le bien.`,
+        );
+      }
+    }
     if (dateSortie < exercice.dateDebut || dateSortie > exercice.dateFin) {
       throw new BadRequestException("La date de sortie doit se situer dans l'exercice indiqué");
     }

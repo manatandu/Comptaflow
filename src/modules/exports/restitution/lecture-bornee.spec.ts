@@ -66,8 +66,9 @@ describe('l’inventaire couvre le schéma, sans trou ni surplus', () => {
     // à 108 avec les documents attachés aux tiers, bornés par leur tenantId (point 21),
     // à 111 avec les RIB des tiers, les ordres de virement et leurs lignes,
     // chacun borné par son propre tenantId ; à 114 avec les rubriques de paie
-    // du cabinet, les avances et prêts au personnel et leurs retenues, idem.
-    expect(modeles).toHaveLength(114);
+    // du cabinet, les avances et prêts au personnel et leurs retenues, idem ;
+    // à 115 avec les amortissements dérogatoires, bornés par leur tenantId.
+    expect(modeles).toHaveLength(115);
     expect([...TABLES_RESTITUEES].sort()).toEqual(modeles.filter((m) => m !== 'Tenant').sort());
   });
 

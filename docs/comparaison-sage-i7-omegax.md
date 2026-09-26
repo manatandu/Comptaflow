@@ -157,7 +157,7 @@ méthode. D = la source décrit la fonction ; N = elle ne fait que la nommer.
 |---|---|---|---|
 | Immobilisations | Familles, composants, renouvellement, sortie | D | OUI |
 | Immobilisations | Nature d'acquisition, lieu du bien sur la fiche | N | NON (le lieu n'existe que sur la fiche d'inventaire) |
-| Immobilisations | Dégressif à coefficients, amortissement dérogatoire (15), plan fiscal plafond | D | NON · différé au plan de construction ; le texte RDC porte trois anomalies (art. 32-33) à trancher avant tout calcul |
+| Immobilisations | Dégressif à coefficients, amortissement dérogatoire (15), plan fiscal plafond | D | OUI (2026-09-26, SYSCOHADA) · plan fiscal des art. 31 à 35, dérogatoire au 851/151 et reprise au 861 ; les anomalies des art. 32-33 tranchées et déclarées |
 | Immobilisations | Plans National et IFRS natifs sur le bien | D | ÉCARTÉ · IFRS par retraitement à côté du jeu légal (décision multi-classification) |
 | Moyens de Paiement | RIB des tiers, ordre de virement ou bordereau imprimable, état « en attente d'impression » | D (pattern), N (formats) | OUI (2026-09-26) · volet Coordonnées bancaires de la fiche tiers, ordre de virement préparé depuis Règlement des tiers, « en attente d'impression » puis imprimé, duplicata, annulation motivée |
 | Moyens de Paiement | LCR, SEPA, ETEBAC, EBICS | N | ÉCARTÉ · formats européens |
@@ -173,7 +173,7 @@ méthode. D = la source décrit la fonction ; N = elle ne fait que la nommer.
 
 Priorités proposées pour un cabinet congolais : (1) RIB des tiers et ordre de
 virement imprimable, servi le 2026-09-26 ; (2) avances et prêts sur salaire, rubriques de paie
-paramétrables, servis le 2026-09-26 ; (3) dégressif et dérogatoire pour le SYSCOHADA, après
-confrontation de l'arrêté ; (4) barèmes de paie en données datées ; (5)
+paramétrables, servis le 2026-09-26 ; (3) dégressif et dérogatoire pour le SYSCOHADA, servis le
+2026-09-26 ; (4) barèmes de paie en données datées ; (5)
 filtrage des données par rôle ; (6) simulateur budgétaire. Le reste n'est que
 nommé dans les sources et ne s'implémente pas sans meilleure source.

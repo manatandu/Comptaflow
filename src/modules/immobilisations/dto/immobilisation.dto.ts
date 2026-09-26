@@ -2,6 +2,8 @@ import {
   IsBoolean,
   IsDateString,
   IsEnum,
+  IsInt,
+  Max,
   IsNumber,
   IsOptional,
   IsPositive,
@@ -423,4 +425,28 @@ export class ReclasserImmobilisationDto {
   @IsOptional()
   @IsUUID('4')
   nouveauCompteDepreciationId?: string;
+}
+
+/** Option pour le dégressif fiscal · loi n° 23/053, art. 31 à 33. */
+export class OptionDegressifDto {
+  @IsString()
+  categorie!: string;
+
+  /** Art. 31 · « biens neufs », attesté par le cabinet. */
+  @IsBoolean()
+  bienNeuf!: boolean;
+
+  /** Durée normale d'utilisation de l'arrêté n° 013/2025, en années entières. */
+  @IsInt()
+  @Min(1)
+  @Max(99)
+  dureeFiscaleAns!: number;
+}
+
+export class PasserDerogatoireDto {
+  @IsUUID('4')
+  exerciceId!: string;
+
+  @IsUUID('4')
+  journalId!: string;
 }

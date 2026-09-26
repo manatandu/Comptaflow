@@ -540,13 +540,14 @@ model Tenant {
 
   // LE REGISTRE DU PERSONNEL · P1 de la paie. Voir le bloc « Le registre du
   // personnel » en fin de schéma.
-  salaries        Salarie[]
-  enfantsACharge  EnfantACharge[]
-  contratsTravail ContratTravail[]
-  bulletinsPaie   BulletinPaie[]
-  rubriquesPaie   RubriquePaie[]
-  avancesSalaire  AvanceSalaire[]
-  retenuesAvance  RetenueAvanceBulletin[]
+  salaries                   Salarie[]
+  enfantsACharge             EnfantACharge[]
+  contratsTravail            ContratTravail[]
+  bulletinsPaie              BulletinPaie[]
+  rubriquesPaie              RubriquePaie[]
+  avancesSalaire             AvanceSalaire[]
+  retenuesAvance             RetenueAvanceBulletin[]
+  amortissementsDerogatoires AmortissementDerogatoire[]
 
   // GROUPE D'ÉTABLISSEMENTS · une même personne morale (une église et ses
   // cellules, un siège et ses antennes) tenue en plusieurs dossiers. Le lien
@@ -1108,12 +1109,13 @@ model DossierFiscalExercice {
 }
 
 model Exercice {
-  id        String         @id @default(uuid())
-  tenantId  String
-  tenant    Tenant         @relation(fields: [tenantId], references: [id])
-  dateDebut DateTime
-  dateFin   DateTime
-  statut    StatutExercice @default(OUVERT)
+  id                         String                     @id @default(uuid())
+  tenantId                   String
+  tenant                     Tenant                     @relation(fields: [tenantId], references: [id])
+  amortissementsDerogatoires AmortissementDerogatoire[]
+  dateDebut                  DateTime
+  dateFin                    DateTime
+  statut                     StatutExercice             @default(OUVERT)
 
   /// DATE D'ARRÊTÉ DES COMPTES · la quatrième mention obligatoire de chaque
   /// page d'états financiers publiés, et la seule que le dossier ne portait
@@ -1207,28 +1209,29 @@ enum StatutEcriture {
 }
 
 model Ecriture {
-  id                  String               @id @default(uuid())
-  tenantId            String
-  tenant              Tenant               @relation(fields: [tenantId], references: [id])
-  exerciceId          String
-  exercice            Exercice             @relation(fields: [exerciceId], references: [id])
-  journalId           String
-  journal             Journal              @relation(fields: [journalId], references: [id])
+  id                       String                    @id @default(uuid())
+  tenantId                 String
+  tenant                   Tenant                    @relation(fields: [tenantId], references: [id])
+  exerciceId               String
+  exercice                 Exercice                  @relation(fields: [exerciceId], references: [id])
+  journalId                String
+  journal                  Journal                   @relation(fields: [journalId], references: [id])
   // Numéro de pièce auto-calculé selon Journal.numerotation (null si
   // NumerotationPiece.MANUELLE · voir JournalService.prochainNumeroPiece).
-  numeroPiece         Int?
-  date                DateTime
+  numeroPiece              Int?
+  date                     DateTime
   // DATE DE VALEUR · AUDCIF art. 22, 4°. Renseignée SEULEMENT quand une
   // opération datée d'une période clôturée est enregistrée au premier jour de
   // la période ouverte : `date` porte alors ce premier jour, et `dateValeur`
   // la date réelle de l'opération, « mentionnée distinctement ». Null partout
   // ailleurs · une date de valeur égale à la date ne dirait rien.
-  dateValeur          DateTime?
-  libelle             String
-  reference           String? // pièce justificative (numéro de facture, référence externe...)
-  createdAt           DateTime             @default(now())
-  createdBy           String // piste d'audit : jamais modifiable après clôture de l'exercice
-  lignesOrdreVirement LigneOrdreVirement[]
+  dateValeur               DateTime?
+  libelle                  String
+  reference                String? // pièce justificative (numéro de facture, référence externe...)
+  createdAt                DateTime                  @default(now())
+  createdBy                String // piste d'audit : jamais modifiable après clôture de l'exercice
+  lignesOrdreVirement      LigneOrdreVirement[]
+  amortissementDerogatoire AmortissementDerogatoire?
 
   // Brouillard tant que l'écriture n'est pas validée · voir StatutEcriture.
   // Les états de travail (journal, grand livre, balance, analytique) la
@@ -3391,6 +3394,16 @@ model Immobilisation {
   dotations     DotationAmortissement[]
   depreciations DepreciationImmobilisation[]
 
+  /// DÉGRESSIF FISCAL (loi n° 23/053, art. 31 à 35) · une option FISCALE qui
+  /// laisse le plan comptable intact ; l'écart se passe en dérogatoire
+  /// (immobilisations/amortissement-degressif.ts). La catégorie de l'art. 31
+  /// et la durée fiscale de l'arrêté n° 013/2025 se déclarent.
+  degressifFiscal    Boolean                    @default(false)
+  categorieDegressif String?
+  dureeFiscaleAns    Int?
+  optionDegressifLe  DateTime?
+  derogatoires       AmortissementDerogatoire[]
+
   fichesInventaire FicheInventaire[]
 
   @@index([immobilisationPrincipaleId])
@@ -3413,6 +3426,37 @@ model DotationAmortissement {
 
   @@unique([immobilisationId, exerciceId])
   @@map("dotations_amortissement")
+}
+
+enum NatureDerogatoire {
+  EXERCICE
+  SOLDE_SORTIE
+}
+
+/// Le dérogatoire d'un exercice · annuité fiscale, dotation comptable, et ce
+/// qui en a été passé (851/151 ou 151/861). SOLDE_SORTIE reprend le cumul
+/// d'un bien qui quitte l'actif.
+model AmortissementDerogatoire {
+  id                  String            @id @default(uuid())
+  tenantId            String
+  tenant              Tenant            @relation(fields: [tenantId], references: [id])
+  immobilisationId    String
+  immobilisation      Immobilisation    @relation(fields: [immobilisationId], references: [id], onDelete: Restrict)
+  exerciceId          String
+  exercice            Exercice          @relation(fields: [exerciceId], references: [id], onDelete: Restrict)
+  nature              NatureDerogatoire @default(EXERCICE)
+  annuiteFiscale      Decimal           @db.Decimal(18, 2)
+  dotationComptable   Decimal           @db.Decimal(18, 2)
+  dotation            Decimal           @db.Decimal(18, 2)
+  reprise             Decimal           @db.Decimal(18, 2)
+  excedentAReintegrer Decimal           @db.Decimal(18, 2)
+  ecritureId          String?           @unique
+  ecriture            Ecriture?         @relation(fields: [ecritureId], references: [id], onDelete: Restrict)
+  createdAt           DateTime          @default(now())
+
+  @@unique([immobilisationId, exerciceId, nature])
+  @@index([tenantId])
+  @@map("amortissements_derogatoires")
 }
 
 // ---------------------------------------------------------------------------

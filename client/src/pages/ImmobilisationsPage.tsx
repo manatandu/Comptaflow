@@ -3,6 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { Aide } from '../components/chrome/Aide';
+import { PlanFiscalDegressif } from '../components/PlanFiscalDegressif';
 import type { Compte, FamilleImmobilisation, Immobilisation, Journal, TypeComposant } from '../lib/types';
 
 /**
@@ -15,7 +16,10 @@ import type { Compte, FamilleImmobilisation, Immobilisation, Journal, TypeCompos
  * de biens limitées).
  */
 export function ImmobilisationsPage() {
-  const { estAdmin, peutEcrire } = useAuth();
+  const { estAdmin, peutEcrire, utilisateur } = useAuth();
+  // Le dégressif est une option de l'impôt sur les sociétés · SYSCOHADA seul.
+  const syscohada = utilisateur?.tenant.referentiel === 'SYSCOHADA';
+  const [fiscalOuvertPour, setFiscalOuvertPour] = useState<string | null>(null);
   const { exerciceCourant } = useExercice();
   const [familles, setFamilles] = useState<FamilleImmobilisation[] | null>(null);
   const [immobilisations, setImmobilisations] = useState<Immobilisation[] | null>(null);
@@ -754,6 +758,15 @@ export function ImmobilisationsPage() {
                           Renouveler
                         </button>
                       )}
+                      {syscohada && (
+                        <button
+                          onClick={() => setFiscalOuvertPour(fiscalOuvertPour === immo.id ? null : immo.id)}
+                          title="Dégressif fiscal et amortissement dérogatoire"
+                          className="text-[11px] text-sel hover:underline"
+                        >
+                          Fiscal
+                        </button>
+                      )}
                       <button
                         onClick={() =>
                           setReclassementOuvertPour(reclassementOuvertPour === immo.id ? null : immo.id)
@@ -782,6 +795,14 @@ export function ImmobilisationsPage() {
                   )}
                 </span>
               </div>
+              {fiscalOuvertPour === immo.id && (
+                <PlanFiscalDegressif
+                  immoId={immo.id}
+                  journalId={(journaux.find((j) => j.code === 'OD') ?? journaux[0])?.id}
+                  exerciceId={exerciceCourant?.id}
+                  peutEcrire={peutEcrire}
+                />
+              )}
               {reclassementOuvertPour === immo.id && (
                 <form onSubmit={(e) => onReclasser(e, immo.id)} className="bg-chrome border-b border-border px-4 py-3">
                   {/* Ch. 10 § 2.4 · « Étant donné que les immeubles de placement sont

@@ -4644,6 +4644,34 @@ avance qui porte une retenue ne se supprime plus. (5) AUCUN PLAFOND N'EST
 OPPOSÉ AU NOM DE L'ART. 114 · l'art. 112 n'y renvoie que pour son litera d) ;
 la quotité est montrée pour comparaison, et c'est dit.
 
+**Dégressif fiscal et amortissement dérogatoire, SYSCOHADA (2026-09-26).**
+Priorité 3 de la comparaison avec les autres produits Sage
+(`immobilisations/amortissement-degressif.ts`, bouton « Fiscal » de la fenêtre
+Immobilisations). CINQ RÈGLES À NE PAS DÉFAIRE. (1) LE DÉGRESSIF N'EST PAS UN
+MODE COMPTABLE DE PLUS · AUDCIF, fiche du compte 68 : quand le fisc autorise
+un amortissement accéléré et en impose la comptabilisation (loi n° 23/053,
+art. 28, 3°), le normal reste au 68 et « le complément d'amortissement fiscal
+autorisé figure au débit du compte 85, par le crédit du compte 151 ». Le bien
+garde son plan ; l'enum `ModeAmortissement` reste figée. La reprise passe au
+861 (Titre VIII ch. 18 § 4.5.1.3). (2) LE PLAN FISCAL EST CELUI DES ART. 31 À 35
+· option des SOCIÉTÉS (pas d'entreprise individuelle), bien NEUF d'une des dix
+catégories de l'art. 31 (déclarée, aucun numéro ne la donne), jamais un
+incorporel, durée fiscale de quatre à vingt ans en années entières, taux
+linéaire de l'arrêté n° 013/2025 DÉCLARÉ (distinct de la durée comptable),
+coefficients 1,5 / 2 / 2,5, première annuité au prorata du mois de mise en
+service, bascule en linéaire de l'art. 35. Quatre ans reçoit 1,5 malgré le
+« de trois à quatre ans » de l'art. 33, a) (lecture du socle fiscal). (3)
+L'OPTION SE PREND AVANT LA PREMIÈRE DOTATION et jamais sur un bien repris avec
+un amortissement antérieur · un plan fiscal ne se reconstitue pas. (4) LE
+DÉROGATOIRE D'UN EXERCICE EXIGE SA DOTATION COMPTABLE ET CEUX DES EXERCICES
+ANTÉRIEURS · une annuité fiscale sautée serait perdue en silence. Une reprise
+ne dépasse jamais le cumul du 151 ; au-delà, l'excédent comptable n'est pas du
+dérogatoire mais une charge à réintégrer (art. 28), MONTRÉE, jamais postée.
+(5) UN BIEN NE SORT PAS AVEC SON DÉROGATOIRE · la sortie est refusée tant que
+le 151 porte un solde pour lui, et « Reprendre le solde » le passe au 861
+(lecture d'OmegaX, aucun texte lu ne règle ce moment). L'écriture est retenue
+par `verifierAucunModuleNeLaTient`.
+
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
 nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la
