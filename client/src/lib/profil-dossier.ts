@@ -78,3 +78,26 @@ export function cheminAuMenu(chemin: string, t: RegimeDossierClient | null | und
   const base = chemin.split('?')[0];
   return !CHEMINS_SANS_OBJET_SMT.includes(base);
 }
+
+/**
+ * LES SOUS-FONCTIONS D'UNE FENÊTRE UTILE · même règle, un cran plus bas. La
+ * fenêtre reste au menu du SMT ; ce qui, à l'intérieur, n'y a pas d'objet
+ * disparaît. Masquer, jamais refuser · un composant déjà porté se renouvelle
+ * encore, un ordre déjà émis se relit encore.
+ *  - lots et ordres de virement · moyens de paiement de Sage, aucun texte ne
+ *    les prévoit (colonne Sb et So de l'audit) ;
+ *  - composants et reconstitution d'une révision majeure · la Note 1 des deux
+ *    SMT ne connaît que le bien, avec sa date et sa durée.
+ */
+export type SousFonction = 'lots-virement' | 'ordre-virement' | 'composants' | 'revision-majeure';
+
+export const SOUS_FONCTIONS_SANS_OBJET_SMT: readonly SousFonction[] = [
+  'lots-virement',
+  'ordre-virement',
+  'composants',
+  'revision-majeure',
+];
+
+export function sousFonctionServie(cle: SousFonction, t: RegimeDossierClient | null | undefined): boolean {
+  return !estSystemeMinimalDossier(t) || !SOUS_FONCTIONS_SANS_OBJET_SMT.includes(cle);
+}

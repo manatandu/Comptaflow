@@ -36,7 +36,7 @@ describe("l'ordre de virement à l'écran", () => {
 
   it("l'ordre n'est demandé que pour des fournisseurs", () => {
     const enregistrer = corps(reglements, 'enregistrer');
-    expect(enregistrer).toContain("avecOrdre && sens === 'FOURNISSEUR'");
+    expect(enregistrer).toContain("avecOrdre && ordresServis && sens === 'FOURNISSEUR'");
     expect(enregistrer).toContain('ordreVirement: true');
   });
 

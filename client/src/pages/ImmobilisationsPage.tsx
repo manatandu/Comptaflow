@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { sousFonctionServie } from '../lib/profil-dossier';
 import { useExercice } from '../lib/exercice';
 import { Aide } from '../components/chrome/Aide';
 import { PlanFiscalDegressif } from '../components/PlanFiscalDegressif';
@@ -17,6 +18,11 @@ import type { Compte, FamilleImmobilisation, Immobilisation, Journal, TypeCompos
  */
 export function ImmobilisationsPage() {
   const { estAdmin, peutEcrire, utilisateur } = useAuth();
+  // Au SMT, la Note 1 ne connaît que le bien · ni composant ni révision
+  // majeure reconstituée (lib/profil-dossier.ts). Un composant déjà porté
+  // garde son bouton Renouveler.
+  const composantsServis = sousFonctionServie('composants', utilisateur?.tenant);
+  const revisionServie = sousFonctionServie('revision-majeure', utilisateur?.tenant);
   // Le dégressif est une option de l'impôt sur les sociétés · SYSCOHADA seul.
   const syscohada = utilisateur?.tenant.referentiel === 'SYSCOHADA';
   const [fiscalOuvertPour, setFiscalOuvertPour] = useState<string | null>(null);
@@ -605,6 +611,7 @@ export function ImmobilisationsPage() {
               une immobilisation ordinaire, c'est-à-dire une STRUCTURE au sens du
               ch. 4 § 1. Le renseigner rattache le bien et lui garde son PROPRE
               plan d'amortissement, ce qui est tout l'objet du chapitre. */}
+{composantsServis && (
           <div className="border-t border-border pt-3 mb-3">
             <div className="font-mono text-[11px] font-semibold text-text-dim mb-2 flex items-center gap-1.5">
               COMPOSANT D’UNE AUTRE IMMOBILISATION (facultatif)
@@ -652,6 +659,7 @@ export function ImmobilisationsPage() {
               </>
             )}
           </div>
+          )}
           <div className="flex gap-2">
             <button type="submit" disabled={envoi || !exerciceCourant} className="bg-sel text-white text-[11.5px] font-semibold px-4 py-1.5 disabled:opacity-50">{envoi ? 'Création…' : 'Ajouter'}</button>
             <button type="button" onClick={() => setAfficherFormImmo(false)} className="text-[11.5px] font-semibold text-text-dim px-4 py-1.5">Annuler</button>
@@ -717,7 +725,7 @@ export function ImmobilisationsPage() {
                     <>
                       {/* L'estimation est un GET qui n'écrit rien · elle reste
                           offerte à la lecture seule. */}
-                      {!immo.immobilisationPrincipaleId && (
+                      {revisionServie && !immo.immobilisationPrincipaleId && (
                         <button
                           onClick={() => reconstituerRevision(immo)}
                           title="Estimer un composant « révisions majeures » jamais identifié (AUDCIF ch. 5 § 1)"

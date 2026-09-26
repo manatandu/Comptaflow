@@ -4795,7 +4795,10 @@ SYCEBNL ; Système normal, SMT au SYSCOHADA), décidé par Manasse. QUATRE RÈGL
 À NE PAS DÉFAIRE. (1) MASQUER N'EST PAS REFUSER · `client/src/lib/profil-dossier.ts`
 retire des menus et de l'accueil ce qui n'a pas d'objet au SMT, l'aiguillage
 d'AppShell ne le lit pas, la route reste ouverte et rien n'est supprimé. Chaque
-commande de menu porte son `chemin`, et `filtrerParProfil` l'applique. (2) LE
+commande de menu porte son `chemin`, et `filtrerParProfil` l'applique. Un
+cran plus bas, `sousFonctionServie` masque dans leur fenêtre les lots et
+ordres de virement, les composants et la reconstitution d'une révision
+majeure ; ce qui existe déjà (composant porté, ordre émis) reste accessible. (2) LE
 SMT GARDE LES TIERS, LA FACTURATION, LE LETTRAGE ET LA VARIATION DE STOCKS ·
 ses états lisent les notes 2 et 3 et leurs lignes de variation dans ces
 comptes, les masquer les viderait sans qu'aucun total ne bouge. Et le registre

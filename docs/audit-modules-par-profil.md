@@ -124,9 +124,12 @@ chiffre faux sans rien dire.
   colonnes Sb et So, aux menus et aux tuiles de l'accueil. La route reste
   ouverte ; rien n'est supprimé.
 - **Non codé, et pourquoi** · les colonnes « F » (selon un fait) ne masquent
-  rien : les masquer par profil serait faux. Les sous-fonctions « S » à
-  l'intérieur d'une fenêtre (lots de virements, composants) restent
-  visibles · leur fenêtre est utile, le reste est un raffinement.
+  rien : les masquer par profil serait faux.
+- **Sous-fonctions masquées dans leur fenêtre** (même fichier,
+  `sousFonctionServie`) · au SMT, la case « Préparer un ordre de virement » et
+  le panneau des lots dans Règlement des tiers, le bloc des composants et le
+  bouton « Révision » dans Immobilisations. Un composant déjà porté garde son
+  bouton Renouveler, un ordre déjà émis se relit.
 - **Une hypothèse de l'audit ne tient pas** · « un dossier qui passe du SMT au
   Système normal retrouve ses menus » : le système comptable se verrouille
   dès la première écriture (`TenantService`). Les masques restent réversibles

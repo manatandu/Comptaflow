@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { sousFonctionServie } from '../lib/profil-dossier';
 import { useExercice } from '../lib/exercice';
 import type { Journal } from '../lib/types';
 import { Aide } from '../components/chrome/Aide';
@@ -38,7 +39,10 @@ const aujourdhui = () => new Date().toISOString().slice(0, 10);
  * payer est une décision, pas un défaut.
  */
 export function ReglementsPage() {
-  const { peutEcrire } = useAuth();
+  const { peutEcrire, utilisateur } = useAuth();
+  // Au SMT, lots et ordres de virement n'ont pas d'objet (lib/profil-dossier.ts).
+  const ordresServis = sousFonctionServie('ordre-virement', utilisateur?.tenant);
+  const lotsServis = sousFonctionServie('lots-virement', utilisateur?.tenant);
   const { exerciceCourant } = useExercice();
   const [sens, setSens] = useState<Sens>('FOURNISSEUR');
   const [jusquau, setJusquau] = useState(aujourdhui());
@@ -126,7 +130,7 @@ export function ReglementsPage() {
     setInfo(null);
     setEnvoi(true);
     try {
-      const ordreVirement = avecOrdre && sens === 'FOURNISSEUR';
+      const ordreVirement = avecOrdre && ordresServis && sens === 'FOURNISSEUR';
       const r = await api.post<{
         reglements: { compte: string; montant: number; partiel: boolean; lettre: string }[];
         ordre: { id: string; numero: number } | null;
@@ -269,7 +273,7 @@ export function ReglementsPage() {
               <span className="text-text-dim">Date du règlement</span>
               <input type="date" value={dateReglement} onChange={(e) => setDateReglement(e.target.value)} className="border border-border px-2 py-[2px]" />
             </label>
-            {sens === 'FOURNISSEUR' && (
+            {sens === 'FOURNISSEUR' && ordresServis && (
               <label className="flex items-center gap-1.5 pb-[3px]">
                 <input type="checkbox" checked={avecOrdre} onChange={(e) => setAvecOrdre(e.target.checked)} />
                 Préparer un ordre de virement
@@ -277,7 +281,7 @@ export function ReglementsPage() {
             )}
           </>
         )}
-        {sens === 'FOURNISSEUR' && (lots.length > 0 || peutEcrire) && (
+        {sens === 'FOURNISSEUR' && lotsServis && (lots.length > 0 || peutEcrire) && (
           <span className="flex items-end gap-1.5">
             <label className="flex flex-col gap-0.5">
               <span className="text-text-dim">Lot de virements</span>

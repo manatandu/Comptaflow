@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CHEMINS_SANS_OBJET_SMT, cheminAuMenu, estSystemeMinimalDossier } from './profil-dossier';
+import { CHEMINS_SANS_OBJET_SMT, cheminAuMenu, estSystemeMinimalDossier, sousFonctionServie } from './profil-dossier';
 import { filtrerParProfil, type MenuDef } from '../components/chrome/menu-groupes';
 
 // Aucun import de « vitest » · convention du dépôt, le spec tourne aussi sous
@@ -129,5 +129,36 @@ describe('l’accueil applique le même filtre', () => {
   it('les tuiles passent par cheminAuMenu', () => {
     const accueil = readFileSync(join(__dirname, '../pages/AccueilPage.tsx'), 'utf8');
     expect(accueil).toMatch(/\.filter\(\(t\) => cheminAuMenu\(t\.chemin, utilisateur\?\.tenant\)\)/);
+  });
+});
+
+describe('les sous-fonctions d’une fenêtre utile', () => {
+  it('lots, ordres, composants et révision majeure sont masqués au SMT, et seulement là', () => {
+    for (const cle of ['lots-virement', 'ordre-virement', 'composants', 'revision-majeure'] as const) {
+      expect(sousFonctionServie(cle, SMT_SYCEBNL)).toBe(false);
+      expect(sousFonctionServie(cle, SMT_SYSCOHADA)).toBe(false);
+      for (const t of [ASSOCIATIONS, PROJETS, NORMAL]) expect(sousFonctionServie(cle, t)).toBe(true);
+      expect(sousFonctionServie(cle, undefined)).toBe(true);
+    }
+  });
+
+  const page = (nom: string) => readFileSync(join(__dirname, '../pages', nom), 'utf8');
+
+  it('Règlement des tiers garde la case et le panneau derrière la règle, et n’envoie aucun ordre masqué', () => {
+    const src = page('ReglementsPage.tsx');
+    expect(src).toContain("{sens === 'FOURNISSEUR' && ordresServis && (");
+    expect(src).toContain("{sens === 'FOURNISSEUR' && lotsServis && (lots.length > 0 || peutEcrire) && (");
+    // Une case cochée avant le chargement du dossier ne doit pas émettre d'ordre.
+    expect(src).toContain("const ordreVirement = avecOrdre && ordresServis && sens === 'FOURNISSEUR';");
+  });
+
+  it('Immobilisations enveloppe le bloc des composants et le bouton Révision', () => {
+    const src = page('ImmobilisationsPage.tsx');
+    const bloc = src.indexOf('COMPOSANT D’UNE AUTRE IMMOBILISATION');
+    const garde = src.lastIndexOf('{composantsServis && (', bloc);
+    expect(garde).toBeGreaterThan(0);
+    // Aucune autre accolade JSX ouverte entre la garde et le titre du bloc.
+    expect(src.slice(garde, bloc)).not.toContain('{/*');
+    expect(src).toContain('{revisionServie && !immo.immobilisationPrincipaleId && (');
   });
 });
