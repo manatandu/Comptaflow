@@ -17,7 +17,10 @@ const { privateKey, publicKey } = generateKeyPairSync('ed25519');
 const PRIVE = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
 const PUBLIQUE = publicKey.export({ type: 'spki', format: 'pem' }).toString();
 const ID = 'machine-guid-du-poste';
-const DONNEES = '/donnees';
+// Un chemin que même root ne peut pas créer (sous un fichier) · si le service touchait le
+// disque au lieu de passer par l'accès au poste, le test tomberait partout,
+// et pas seulement sur la CI qui ne tourne pas en root.
+const DONNEES = '/dev/null/omegax-donnees-factices';
 const VERSION = '/app';
 
 function poste(jour = '2026-10-01') {

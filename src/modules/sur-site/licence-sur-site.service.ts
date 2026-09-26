@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { execFileSync } from 'child_process';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { dirname, join } from 'path';
 import { estSurSite } from '../../common/mode-installation';
 import { CLE_PUBLIQUE_EDITEUR } from './cle-publique-editeur';
 import { ContenuLicence, empreinteDe, StatutLicenceSurSite, verifierLicence, VerdictLicence } from './licence-signee';
@@ -53,6 +53,7 @@ export const ACCES_POSTE_PAR_DEFAUT: AccesPoste = {
   // coupure de courant, le cas ordinaire) laisserait sinon un fichier de
   // licence tronqué, donc illisible, et un client coupé au redémarrage.
   ecrire: (chemin, contenu) => {
+    mkdirSync(dirname(chemin), { recursive: true });
     const provisoire = `${chemin}.tmp`;
     writeFileSync(provisoire, contenu, 'utf8');
     renameSync(provisoire, chemin);
@@ -176,7 +177,6 @@ export class LicenceSurSiteService implements OnModuleInit, OnModuleDestroy {
     const max = this.horlogeMax();
     if (this.etatCourant.statut !== 'HORLOGE_RECULEE' && (!max || aujourdhui > max)) {
       try {
-        mkdirSync(this.dossierDonnees, { recursive: true });
         this.acces.ecrire(this.cheminHorloge, JSON.stringify({ max: aujourdhui }));
       } catch (e) {
         this.log.warn(`Borne d’horloge non écrite · ${(e as Error).message}`);
@@ -216,7 +216,6 @@ export class LicenceSurSiteService implements OnModuleInit, OnModuleDestroy {
         `La licence n° ${actuel.contenu.numero}, émise le ${actuel.contenu.emiseLe}, est plus récente que celle déposée (n° ${candidat.contenu!.numero}, émise le ${candidat.contenu!.emiseLe}).`,
       );
     }
-    mkdirSync(this.dossierDonnees, { recursive: true });
     this.acces.ecrire(this.cheminLicence, texte);
     return this.actualiser();
   }
