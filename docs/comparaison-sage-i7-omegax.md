@@ -12,31 +12,35 @@ tiennent à un texte OHADA ; ils sont signalés comme tels.
 
 ## Constats d'ensemble
 
-- **Aucune suppression de structure.** Comptes, journaux, tiers et taux n'ont
-  pas de route de suppression. Seule la mise en sommeil (`estActif`) existe.
-- **Le sommeil d'un compte se confirme à la saisie** (tranché le 2026-09-25,
-  règle de Sage « confirmation requise en saisie »). Le serveur refuse une
-  saisie sur un compte en sommeil tant qu'elle n'est pas confirmée ; la
-  clôture et les modules ne sont pas concernés.
-- **Impression des listes de structures** · faite au point 18 (liste à
-  plat, périmètre dit).
-- **Les à-nouveaux ne naissent qu'à la clôture définitive de N.** Pas de
-  « nouvel exercice » à la mode Sage avec à-nouveaux provisoires.
+État relu le 2026-09-26, après les points 1 à 21 ci-dessous. Le tableau de la
+première version (2026-09-25) disait « NON » de fonctions servies depuis ·
+une liste de manques vieillit, elle se relit contre le code, jamais contre
+elle-même (CLAUDE.md, P6).
+
+- **Suppression des structures** · servie (point 3) : refusée tant qu'un
+  lien existe, lu dans le schéma ; la mise en sommeil reste le chemin normal.
+- **Le sommeil d'un compte se confirme à la saisie** (règle de Sage
+  « confirmation requise en saisie ») ; la clôture et les modules ne sont
+  pas concernés.
+- **Impression des listes de structures** · point 18 (liste à plat,
+  périmètre dit).
+- **Nouvel exercice avec à-nouveaux provisoires** · point 11, relançables,
+  jamais validés, remplacés à la clôture définitive.
 
 ## Activité par activité
 
-| Activité Sage i7 | OmegaX | Ce qui diffère |
+| Activité Sage i7 | OmegaX | Ce qui diffère encore |
 |---|---|---|
-| 1. Lancement, barre verticale, barres d'outils | PARTIEL | Barre verticale sur l'accueil seulement, non masquable. Pas de mode assistant, pas de barres personnalisables (retirées volontairement). |
-| 2. Nouveau fichier, identification, natures de compte, mot de passe | AUTREMENT / PARTIEL | Assistant en 8 étapes, création réservée à la console VMG. Manquent capital, courriel et site de la société. Natures de compte codées par préfixe, non paramétrables. Cinq rôles fixes au lieu d'un mot de passe de fichier. |
-| 3. Plan comptable, journaux, tiers, taux de taxes | PARTIEL | Détail/Total, sommeil, types de journaux, compte de trésorerie : OUI. Suppression avec refus « mouvementé » : NON. Option « contrepartie à chaque ligne » : NON. Tiers : un sous-compte de classe 4 par tiers, pas de compte collectif + auxiliaire. Taux : une fiche porte les deux comptes (443 et 445), sans champ « sens ». |
-| 4. Saisie des écritures | PARTIEL | Saisie journal + mois, F4 sur les comptes, suppression refusée si lettrée ou pointée (et en plus si validée) : OUI. TVA proposée au clic, net à payer par « Équilibrer » : pas automatiques. Saisie par lot, OD analytiques, import d'extraits bancaires, réimputation : NON. |
-| 5. Interrogation et lettrage, recherche | PARTIEL | Lettrage complet (manuel, automatique, pré-lettrage) : OUI. Recherche d'écritures sur le libellé seul. Historique des rappels : écran depuis le point 17. |
-| 6. États | OUI pour l'essentiel | Brouillard, journal, grand livre, balance, échéancier, balance âgée, taxes, bilan, analytique, contrôles, révision : OUI. États personnalisés : OUI depuis le point 20. Export des listes de structures : NON. |
-| 7. Modèles de saisie | PARTIEL | Modèles par journal, appelés depuis la saisie. Les fonctions de ligne (Répéter, Incrémenter, Équilibrer, Calculer) et l'appel par F4 manquent. |
-| 8. Fin d'exercice | AUTREMENT | Clôture qui solde 6 à 8 sur le 13 et génère le report à-nouveau (Solde ou Détail). Comptes 131/139 du plan OHADA, et non 1191/1199 du plan français · écart VOULU. Pas de report des budgets, pas de suppression du plus ancien exercice. |
-| 9. Fusion des structures | NON | Aucune fusion de comptes, tiers ou journaux. |
-| 10. Clôture des journaux | AUTREMENT | Partielle, totale et par période existent, et verrouillent par DATE. La modification est tenue par la validation (AUDCIF art. 22, 2°), écart VOULU. Le lettrage et l'analytique restent ouverts après une clôture totale, contrairement à Sage. |
+| 1. Lancement, barre verticale, barres d'outils | PARTIEL | Barre verticale et Intuisage (Accueil, Favoris, Indicateurs) sur l'accueil. Pas de mode assistant, pas de barres personnalisables (retirées volontairement). |
+| 2. Nouveau fichier, identification, natures de compte, mot de passe | AUTREMENT | Création réservée à la console VMG. Capital, courriel et site servis (point 16), imprimés sur la facture et le devis (AUSCGIE art. 17). Natures de compte paramétrables (point 14). Rôles et profils de fonctions (point 15) au lieu d'un mot de passe de fichier. |
+| 3. Plan comptable, journaux, tiers, taux de taxes | OUI, avec écarts voulus | Suppression refusée si utilisée (point 3), contrepartie à chaque ligne (point 5), banques et libellés (point 19). Un compte individuel par tiers rattaché à son collectif (point 13), choix de Manasse. Taux : une fiche porte 443 et 445, sans champ « sens ». Collaborateurs et plan reporting non servis, faute de source. |
+| 4. Saisie des écritures | OUI | TVA et net à payer d'office dans les journaux d'achats et de ventes d'un dossier assujetti, opération exonérée retirable (point 4 et 5). Saisie par pièce et OD analytiques (point 7), import des relevés bancaires (point 1 de l'usage quotidien), réimputation (point 9). La saisie par lot n'a pas de table · l'import d'écritures au brouillard en tient lieu. |
+| 5. Interrogation et lettrage, recherche | OUI | Lettrage manuel, automatique et pré-lettrage à confirmer. Recherche multicritère (point 8). Historique des rappels (point 17). Frais d'impayé et pénalités de relance non servis. |
+| 6. États | OUI | États personnalisés (point 20), éditions des structures (point 18), simulateur budgétaire (priorité 6). « Non imprimé » des journaux non servi, rien ne trace l'impression. |
+| 7. Modèles de saisie | OUI | Fonctions Saisir, Répéter, Calculer, Équilibrer et appel par F4 (point 6). Incrémenter et Fonction non repris · l'un sert aux numéros de pièce, l'autre n'est décrit nulle part. |
+| 8. Fin d'exercice | AUTREMENT | À-nouveaux provisoires et report des budgets (point 11). Comptes 131/139 du plan OHADA et non 1191/1199 du plan français, écart VOULU. Pas de suppression du plus ancien exercice (conservation de dix ans, AUDCIF art. 24). |
+| 9. Fusion des structures | OUI, sauf les journaux | Tiers et comptes (point 10) ; les journaux ne se fusionnent pas, une pièce validée ne change ni de journal ni de numéro (AUDCIF art. 22). |
+| 10. Clôture des journaux | OUI | Partielle, totale bornée à une date, et par période ; la totale et la période figent aussi le lettrage et l'analytique (point 12). La modification reste tenue par la validation (AUDCIF art. 22, 2°), écart VOULU. |
 
 ## Manques classés par importance pour un cabinet
 
@@ -161,7 +165,7 @@ méthode. D = la source décrit la fonction ; N = elle ne fait que la nommer.
 | Immobilisations | Plans National et IFRS natifs sur le bien | D | ÉCARTÉ · IFRS par retraitement à côté du jeu légal (décision multi-classification) |
 | Moyens de Paiement | RIB des tiers, ordre de virement ou bordereau imprimable, état « en attente d'impression » | D (pattern), N (formats) | OUI (2026-09-26) · volet Coordonnées bancaires de la fiche tiers, ordre de virement préparé depuis Règlement des tiers, « en attente d'impression » puis imprimé, duplicata, annulation motivée |
 | Moyens de Paiement | LCR, SEPA, ETEBAC, EBICS | N | ÉCARTÉ · formats européens |
-| Moyens de Paiement | Lots de virements récurrents | N | PARTIEL · les abonnements produisent des écritures, pas des lots de paiement |
+| Moyens de Paiement | Lots de virements récurrents | N | OUI (2026-09-26) · définition d'OmegaX : fournisseurs et montant habituel, rappelés dans Règlement des tiers, factures les plus anciennes d'abord, jamais au-delà du dû ni sans facture ouverte |
 | Édition Pilotée | Tableau de bord, vue sur 5 ans | D | OUI (tableau de bord, états personnalisés) |
 | Édition Pilotée | Simulateur de scénarios, cube de données | N (méthode), D (pattern) | OUI pour le simulateur (2026-09-26) · définition d'OmegaX : prévu tiré du réalisé d'un exercice de référence, taux par compte à deux chiffres des classes 6 et 7, prévu à date au prorata des jours, jauge sur l'écart défavorable aux seuils de la simulation ; le cube reste ÉCARTÉ, les requêtes vivantes suffisent |
 | Paie et RH | Fiche salarié, contrat, bulletins, passation | D | OUI (P1 à P9) |
@@ -178,6 +182,7 @@ paramétrables, servis le 2026-09-26 ; (3) dégressif et dérogatoire pour le SY
 cotisation et le SMIG ; (5)
 filtrage des données par rôle, servi le 2026-09-26 comme journaux autorisés en saisie ; (6) simulateur budgétaire, servi le 2026-09-26. Restes relevés le même jour :
 en-tête du dossier (AUSCGIE art. 17) sur la facture de vente et le devis émis,
-servi le 2026-09-26 avec leur impression ; lots de virements récurrents ;
-tableau de synthèse du début de ce document, à remettre à jour. Le reste n'est que
+servi le 2026-09-26 avec leur impression ; lots de virements récurrents, servis
+le 2026-09-26 (Règlement des tiers, définition d'OmegaX) ; tableau de synthèse
+du début de ce document, remis à jour le 2026-09-26. Le reste n'est que
 nommé dans les sources et ne s'implémente pas sans meilleure source.

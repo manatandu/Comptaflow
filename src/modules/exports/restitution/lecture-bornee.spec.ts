@@ -69,8 +69,8 @@ describe('l’inventaire couvre le schéma, sans trou ni surplus', () => {
     // du cabinet, les avances et prêts au personnel et leurs retenues, idem ;
     // à 115 avec les amortissements dérogatoires, bornés par leur tenantId, et
     // à 116 avec les versions de barème de paie du cabinet, bornées de même,
-    // et à 117 avec les simulations budgétaires.
-    expect(modeles).toHaveLength(117);
+    // et à 117 avec les simulations budgétaires, 119 avec les lots de virements.
+    expect(modeles).toHaveLength(119);
     expect([...TABLES_RESTITUEES].sort()).toEqual(modeles.filter((m) => m !== 'Tenant').sort());
   });
 

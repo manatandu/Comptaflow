@@ -69,6 +69,7 @@ export const FONCTION_PAR_CONTROLEUR: Record<string, FonctionMetier> = {
   RapprochementController: FonctionMetier.TRESORERIE,
   ReglementsController: FonctionMetier.TRESORERIE,
   OrdresVirementController: FonctionMetier.TRESORERIE,
+  LotsVirementController: FonctionMetier.TRESORERIE,
   RelancesController: FonctionMetier.RELANCES,
   CourrierController: FonctionMetier.RELANCES,
   ImmobilisationController: FonctionMetier.IMMOBILISATIONS,

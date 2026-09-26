@@ -5,6 +5,7 @@ import { useExercice } from '../lib/exercice';
 import type { Journal } from '../lib/types';
 import { Aide } from '../components/chrome/Aide';
 import { OrdresVirement } from '../components/OrdresVirement';
+import { lignesDepuisSelection, rappelerLot, type LotVirement } from '../lib/lots-virement';
 
 type Sens = 'FOURNISSEUR' | 'CLIENT';
 
@@ -55,6 +56,14 @@ export function ReglementsPage() {
   const [avecOrdre, setAvecOrdre] = useState(false);
   const [ordreCree, setOrdreCree] = useState<string | null>(null);
   const [ordreOuvert, setOrdreOuvert] = useState(false);
+  // Lots de virements récurrents · un lot PRÉSÉLECTIONNE, il ne paie rien.
+  const [lots, setLots] = useState<LotVirement[]>([]);
+  const [lotId, setLotId] = useState('');
+  const [constatsLot, setConstatsLot] = useState<string[]>([]);
+  const chargerLots = () => api.get<LotVirement[]>('/lots-virement').then(setLots).catch(() => setLots([]));
+  useEffect(() => {
+    void chargerLots();
+  }, []);
 
   useEffect(() => {
     api
@@ -75,6 +84,7 @@ export function ReglementsPage() {
         `/reglements/echeances?exerciceId=${exerciceCourant.id}&sens=${sens}&jusquau=${jusquau}`,
       );
       setGroupes(g);
+      setConstatsLot([]);
       setCochees(new Set());
       setMontants({});
       setReferences({});
@@ -157,6 +167,49 @@ export function ReglementsPage() {
     }
   };
 
+  const rappeler = () => {
+    const lot = lots.find((l) => l.id === lotId);
+    if (!lot || !groupes) return;
+    const r = rappelerLot(lot, groupes);
+    setCochees(new Set(r.cochees));
+    setMontants(r.montants);
+    setConstatsLot(r.constats);
+    setAvecOrdre(true);
+    if (lot.journalId && journaux.some((j) => j.id === lot.journalId)) setJournalId(lot.journalId);
+  };
+
+  const enregistrerLot = async () => {
+    const lignes = lignesDepuisSelection(groupes ?? [], cochees, montants);
+    const existant = lots.find((l) => l.id === lotId);
+    const nom = window.prompt('Nom du lot', existant?.nom ?? '');
+    if (!nom) return;
+    setErreur(null);
+    try {
+      const corps = { nom, journalId: journalId || null, lignes };
+      const remplacer = existant && existant.nom === nom.trim();
+      const r = remplacer
+        ? await api.patch<{ id: string }>(`/lots-virement/${existant.id}`, corps)
+        : await api.post<{ id: string }>('/lots-virement', corps);
+      await chargerLots();
+      setLotId(r.id);
+      setInfo(`Lot « ${nom.trim()} » enregistré · ${lignes.length} fournisseur(s).`);
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Lot non enregistré');
+    }
+  };
+
+  const supprimerLot = async () => {
+    const lot = lots.find((l) => l.id === lotId);
+    if (!lot || !window.confirm(`Supprimer le lot « ${lot.nom} » ?`)) return;
+    try {
+      await api.delete(`/lots-virement/${lot.id}`);
+      setLotId('');
+      await chargerLots();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Suppression impossible');
+    }
+  };
+
   const ongletActif = (o: typeof onglet) =>
     `px-3 py-1 text-[11.5px] border-b-2 ${onglet === o ? 'border-sel font-semibold' : 'border-transparent text-text-dim hover:text-text'}`;
   const barreOnglets = (
@@ -224,6 +277,41 @@ export function ReglementsPage() {
             )}
           </>
         )}
+        {sens === 'FOURNISSEUR' && (lots.length > 0 || peutEcrire) && (
+          <span className="flex items-end gap-1.5">
+            <label className="flex flex-col gap-0.5">
+              <span className="text-text-dim">Lot de virements</span>
+              <select aria-label="Lot de virements" value={lotId} onChange={(e) => setLotId(e.target.value)} className="border border-border px-2 py-[3px] bg-surface">
+                <option value="">·</option>
+                {lots.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.nom}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {peutEcrire && lotId && (
+              <button type="button" onClick={rappeler} className="border border-border px-2 py-[3px]">
+                Rappeler
+              </button>
+            )}
+            {peutEcrire && aRegler.length > 0 && (
+              <button type="button" onClick={() => void enregistrerLot()} className="border border-border px-2 py-[3px]">
+                Enregistrer comme lot
+              </button>
+            )}
+            {peutEcrire && lotId && (
+              <button type="button" onClick={() => void supprimerLot()} className="text-danger px-1 py-[3px]">
+                Supprimer
+              </button>
+            )}
+            <Aide
+              titre="Lots de virements"
+              texte="Un lot retient des fournisseurs et un montant habituel (loyers, abonnements). Rappelé, il coche leurs factures ouvertes, les plus anciennes d'abord, jusqu'au montant habituel, et prépare l'ordre de virement · rien n'est passé avant que vous n'enregistriez. Au-delà du dû, seul le dû est proposé ; un fournisseur sans facture ouverte n'est pas payé, un paiement sans facture étant une avance. Définition d'OmegaX."
+              source="Sage Moyens de Paiement · lots préétablis de virements récurrents (nommés, non décrits)"
+            />
+          </span>
+        )}
         <Aide
           titre="Règlement des tiers"
           texte="Cochez les factures à régler. OmegaX passe une pièce par tiers au journal de trésorerie choisi (40 contre 52 pour un fournisseur, 52 contre 41 pour un client) et lettre aussitôt chaque facture avec son règlement. Un montant inférieur au dû donne un règlement partiel et un lettrage partiel ; un montant supérieur est refusé, l'excédent étant une avance ou un trop-perçu. Les factures non parvenues, produits à recevoir et avances (408, 409, 418, 419) ne se règlent pas ici."
@@ -232,6 +320,13 @@ export function ReglementsPage() {
       </div>
 
       {erreur && <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2">{erreur}</div>}
+      {constatsLot.length > 0 && (
+        <div className="text-[11.5px] text-warning bg-warning-soft border border-warning/30 px-3 py-2 space-y-0.5">
+          {constatsLot.map((c) => (
+            <div key={c}>{c}</div>
+          ))}
+        </div>
+      )}
       {info && <div className="text-[11.5px] text-positive bg-positive-soft border border-positive/30 px-3 py-2">{info}</div>}
       {peutEcrire && journaux.length === 0 && (
         <div className="text-[11.5px] text-warning bg-warning-soft border border-warning/30 px-3 py-2">

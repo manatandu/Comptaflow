@@ -291,6 +291,8 @@ model Tenant {
   ribsTiers                 RibTiers[]
   ordresVirement            OrdreVirement[]
   lignesOrdreVirement       LigneOrdreVirement[]
+  lotsVirement              LotVirement[]
+  lignesLotVirement         LigneLotVirement[]
 
   // Coordonnées · collectées par l'assistant « Nouveau fichier comptable »,
   // toutes optionnelles pour ne pas bloquer une inscription rapide.
@@ -946,6 +948,8 @@ model Compte {
   /// Articles de magasin rattachés à ce compte de stock (classe 3).
   articlesStock ArticleStock[]
 
+  lignesLotVirement LigneLotVirement[]
+
   @@unique([tenantId, numero])
   // Le résultat fiscal ne cherche que les comptes qui portent un code de
   // retraitement · sans cet index il balaie tout le plan du dossier.
@@ -980,6 +984,7 @@ model Journal {
   intitule       String
   type           TypeJournal
   ordresVirement OrdreVirement[]
+  lotsVirement   LotVirement[]
 
   // Obligatoire si type = TRESORERIE (compte sur lequel la contrepartie est
   // automatiquement enregistrée) ; sans objet pour ACHATS/VENTES/SITUATION.
@@ -7325,6 +7330,48 @@ model LigneOrdreVirement {
   @@index([ordreId])
   @@index([tenantId, ecritureId])
   @@map("lignes_ordre_virement")
+}
+
+/// LOT DE VIREMENTS RÉCURRENTS · Moyens de Paiement de Sage le NOMME (« lots
+/// préétablis de virements récurrents, paramétrés une fois, rappelés et
+/// ajustés à chaque échéance ») sans le décrire · la définition est celle
+/// d'OmegaX (`reglements/lots-virement.ts`). Un lot n'est PAS un paiement ·
+/// il présélectionne les factures ouvertes de ses fournisseurs dans Règlement
+/// des tiers, et c'est le comptable qui ajuste et passe.
+model LotVirement {
+  id        String             @id @default(uuid())
+  tenantId  String
+  tenant    Tenant             @relation(fields: [tenantId], references: [id])
+  nom       String
+  /// Journal de banque proposé au rappel · facultatif, il se change à l'écran.
+  journalId String?
+  journal   Journal?           @relation(fields: [journalId], references: [id], onDelete: Restrict)
+  creePar   String
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  lignes    LigneLotVirement[]
+
+  @@unique([tenantId, nom])
+  @@map("lots_virement")
+}
+
+model LigneLotVirement {
+  id       String      @id @default(uuid())
+  tenantId String
+  tenant   Tenant      @relation(fields: [tenantId], references: [id])
+  lotId    String
+  lot      LotVirement @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  /// Le compte fournisseur (40, hors 408 et 409) · RESTRICT, un compte porté
+  /// par un lot ne se supprime pas en le laissant orphelin.
+  compteId String
+  compte   Compte      @relation(fields: [compteId], references: [id], onDelete: Restrict)
+  /// Le montant habituel · une proposition, ajustable à chaque rappel.
+  montant  Decimal     @db.Decimal(18, 2)
+  ordre    Int
+
+  @@unique([lotId, compteId])
+  @@index([tenantId])
+  @@map("lignes_lot_virement")
 }
 
 /// Sage, Structure / Libellé · des libellés « pré-enregistrés », appelés en

@@ -7,10 +7,12 @@ import { ReglementsController } from './reglements.controller';
 import { ReglementsService } from './reglements.service';
 import { OrdresVirementController } from './ordres-virement.controller';
 import { OrdresVirementService } from './ordres-virement.service';
+import { LotsVirementController } from './lots-virement.controller';
+import { LotsVirementService } from './lots-virement.service';
 
 @Module({
   imports: [LicenceModule, JwtAuthModule, ComptabiliteModule, LettrageModule],
-  controllers: [ReglementsController, OrdresVirementController],
-  providers: [ReglementsService, OrdresVirementService],
+  controllers: [ReglementsController, OrdresVirementController, LotsVirementController],
+  providers: [ReglementsService, OrdresVirementService, LotsVirementService],
 })
 export class ReglementsModule {}

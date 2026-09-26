@@ -4772,6 +4772,23 @@ facture normalisée » est imprimé, pas seulement affiché. Un manque de l'art.
 prix présumé hors taxes (AUDCG art. 263), la fermeté seulement si elle a été
 déclarée avec un délai (art. 242) et les délais des art. 258 et 259.
 
+**Lots de virements récurrents (2026-09-26).** Point 2 des restes de la
+comparaison Sage. Moyens de Paiement NOMME des « lots préétablis de virements
+récurrents, paramétrés une fois, rappelés et ajustés à chaque échéance » sans
+les décrire · la définition est celle d'OmegaX (`reglements/lots-virement.ts`,
+`client/src/lib/lots-virement.ts`, panneau de Règlement des tiers). QUATRE
+RÈGLES À NE PAS DÉFAIRE. (1) UN LOT NE PAIE RIEN · il retient des fournisseurs
+et un montant habituel, et son rappel PRÉSÉLECTIONNE leurs factures ouvertes ;
+le comptable ajuste et enregistre, et le règlement garde ses propres règles
+(une pièce par tiers, lettrage, excédent refusé, ordre de virement). (2) LES
+FACTURES LES PLUS ANCIENNES D'ABORD, jusqu'au montant habituel, la dernière en
+partiel · au-delà du dû, seul le dû est proposé et c'est dit. (3) UN
+FOURNISSEUR SANS FACTURE OUVERTE N'EST PAS PAYÉ · payer sans facture serait une
+avance au 409, une autre opération. (4) UN LOT NE PORTE QUE DES COMPTES QUE LE
+RÈGLEMENT RÈGLE (40 de détail, hors 408 et 409, même règle
+`estEcheanceAReglerSur`), une fois chacun ; ses lignes retiennent leur compte
+(RESTRICT), et le journal proposé est de trésorerie.
+
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
 nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la

@@ -92,6 +92,8 @@ export const MODELES_CLOISONNES = new Set<string>([
   'RetenueAvanceBulletin',
   'OrdreVirement',
   'LigneOrdreVirement',
+  'LotVirement',
+  'LigneLotVirement',
   'MouvementStock',
   'NiveauRelance',
   'PlanAnalytique',
