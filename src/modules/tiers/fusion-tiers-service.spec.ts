@@ -28,6 +28,7 @@ describe('Fusion de tiers · le service', () => {
       documentTiers: { ...maj(), findMany: jest.fn().mockResolvedValue([]), deleteMany: jest.fn() },
       ribTiers: { ...maj(), count: jest.fn().mockResolvedValue(1) },
       ligneOrdreVirement: maj(),
+      abonnementCabinet: maj(),
       tiers: { update: jest.fn().mockResolvedValue({}), delete: jest.fn().mockResolvedValue({}) },
     };
     const prisma = {
@@ -50,12 +51,15 @@ describe('Fusion de tiers · le service', () => {
     }
     // Le compte principal de la fiche conservée reste le seul.
     expect(tx.tiersCompte.updateMany).toHaveBeenCalledWith({ where: { tiersId: 'doublon' }, data: { estPrincipal: false } });
+    // L'abonnement de l'éditeur pointe le client facturé · il suit la fiche
+    // conservée, sans borne de dossier (la table est hors dossier).
+    expect(tx.abonnementCabinet.updateMany).toHaveBeenCalledWith({ where: { tiersId: 'doublon' }, data: { tiersId: 'garde' } });
     // Même règle pour les RIB · le prochain virement part sur le principal de la fiche gardée.
     expect(tx.ribTiers.count).toHaveBeenCalledWith({ where: { tenantId: 't', tiersId: 'garde', estPrincipal: true } });
     expect(tx.ribTiers.updateMany).toHaveBeenCalledWith({ where: { tenantId: 't', tiersId: 'doublon' }, data: { estPrincipal: false } });
     expect(tx.tiers.update).toHaveBeenCalledWith({ where: { id: 'garde' }, data: { numeroImpot: 'A123' } });
     expect(tx.tiers.delete).toHaveBeenCalledWith({ where: { id: 'doublon' } });
-    expect(r.reporte).toHaveLength(9);
+    expect(r.reporte).toHaveLength(10);
   });
 
   it('une pièce que la fiche conservée détient déjà n’est pas reportée · l’unicité (tiers, empreinte) tiendrait sinon la fusion en échec', async () => {
@@ -74,7 +78,7 @@ describe('Fusion de tiers · le service', () => {
     };
     const tx: Record<string, unknown> = {
       tiersCompte: maj(), relance: maj(), demandeConfirmation: maj(), facture: maj(), devis: maj(), consignation: maj(),
-      ribTiers: { ...maj(), count: jest.fn().mockResolvedValue(0) }, ligneOrdreVirement: maj(),
+      ribTiers: { ...maj(), count: jest.fn().mockResolvedValue(0) }, ligneOrdreVirement: maj(), abonnementCabinet: maj(),
       documentTiers,
       tiers: { update: jest.fn(), delete: jest.fn() },
     };
@@ -99,7 +103,7 @@ describe('Fusion de tiers · le service', () => {
     const ribTiers = { ...maj(), count: jest.fn().mockResolvedValue(0) };
     const tx: Record<string, unknown> = {
       tiersCompte: maj(), relance: maj(), demandeConfirmation: maj(), facture: maj(), devis: maj(), consignation: maj(),
-      ribTiers, ligneOrdreVirement: maj(),
+      ribTiers, ligneOrdreVirement: maj(), abonnementCabinet: maj(),
       documentTiers: { ...maj(), findMany: jest.fn().mockResolvedValue([]), deleteMany: jest.fn() },
       tiers: { update: jest.fn(), delete: jest.fn() },
     };

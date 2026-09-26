@@ -431,9 +431,16 @@ export class FacturationService {
   async supprimer(tenantId: string, id: string) {
     const facture = await this.prisma.facture.findFirst({
       where: { id, tenantId },
-      select: { id: true, noteDeCredit: { select: { numeroSerie: true } } },
+      select: { id: true, noteDeCredit: { select: { numeroSerie: true } }, factureAbonnement: { select: { periode: true } } },
     });
     if (!facture) throw new NotFoundException('Facture introuvable dans ce dossier.');
+    // Une facture d'abonnement est tenue par la console de l'éditeur, qui y
+    // lit ce qui a été facturé · la supprimer ici ferait refacturer la période.
+    if (facture.factureAbonnement) {
+      throw new BadRequestException(
+        `Cette facture est celle de l’abonnement pour ${facture.factureAbonnement.periode} · elle ne se supprime pas ; une erreur s’annule par une note de crédit.`,
+      );
+    }
     // LA FACTURE ANNULÉE SE CONSERVE. Décret n° 011/42, art. 127 : elle « doit
     // être barrée et conservée dans le facturier ou classeur des factures selon
     // l'ordre chronologique de numérotation ». La clé étrangère RESTRICT le

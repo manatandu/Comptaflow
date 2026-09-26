@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { LicencesSurSiteConsole } from '../components/LicencesSurSiteConsole';
+import { AbonnementsConsole } from '../components/AbonnementsConsole';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
@@ -711,6 +712,7 @@ export function PlateformePage() {
           </div>
         </div>
       )}
+      <AbonnementsConsole cabinets={liste ?? []} />
       <LicencesSurSiteConsole />
     </div>
   );

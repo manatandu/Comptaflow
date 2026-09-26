@@ -24,6 +24,7 @@ const EXEMPTS: Record<string, string> = {
   'components/ModaleMonAdresse.tsx': 'chacun change sa propre adresse de connexion, lecture seule comprise',
   'components/NouveauFichierWizard.tsx': "création d'un dossier depuis la porte d'ouverture, avant toute session",
   'components/PanneauSurSite.tsx': "dépôt de la licence sur site depuis la porte d'ouverture, avant qu'aucun compte n'existe",
+  'components/AbonnementsConsole.tsx': "abonnements et facturation des cabinets, dans la console de l'éditeur gardée par estOperateurPlateforme",
   'components/LicencesSurSiteConsole.tsx': "émission des licences sur site, dans la console de l'éditeur gardée par estOperateurPlateforme",
   'pages/PlateformePage.tsx': "console de l'éditeur, gardée par estOperateurPlateforme et non par le rôle du dossier",
   'components/ModelesSaisie.tsx':

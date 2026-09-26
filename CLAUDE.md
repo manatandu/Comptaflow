@@ -4991,6 +4991,29 @@ passe de la base et secret de session sont tirés au générateur
 cryptographique, et le compte Service réseau reçoit le droit sur la base qu'il
 fait tourner.
 
+**Abonnements des cabinets et leur facturation (2026-09-26).** Grille décidée
+par Manasse · Essentiel, Standard, Cabinet, option Groupe, paie en option de
+l'Essentiel, mensuel ou annuel, trente jours d'essai (`src/modules/abonnements/`,
+cadre « Abonnements » de la console). QUATRE RÈGLES À NE PAS DÉFAIRE. (1) LES
+FACTURES NAISSENT DANS LE DOSSIER DE VMG (licence PROPRIETAIRE), par
+`FacturationService.enregistrer`, jamais par un second circuit · mêmes
+mentions, même facturier, et l'assujettissement à la TVA est celui de ce
+dossier (`Tenant.assujettiTva`), l'interrupteur à basculer à la création de la
+société. Non assujetti, aucune ligne ne porte de TVA ; assujetti, le taux se
+choisit dans les taux du dossier, jamais écrit en dur. La session doit être
+dans le dossier de l'éditeur. (2) LES PRIX SONT EN DOLLARS ET NON ARRÊTÉS · ils
+se saisissent, et une formule sans prix REFUSE la période entière plutôt que
+de facturer zéro ou une facture amputée d'une option. La facture est en
+francs, au cours du JOUR de la facture saisi dans Devises, à la date exacte,
+refusée sans lui (règle du cabinet déjà retenue pour la paie). (3) DEUX
+CONVENTIONS D'OMEGAX, dites · l'essai couvre tout mois qui commence avant sa
+fin, et un début en cours de mois ne facture pas le mois entamé ; aucun
+prorata. L'annuel revient tous les douze mois. (4) UNE PÉRIODE NE SE FACTURE
+QU'UNE FOIS · unicité (abonnement, période), la pièce d'un second clic est
+retirée, et une facture d'abonnement ne se supprime pas du facturier (note de
+crédit). Les quatre tables sont HORS DOSSIER (`MODELES_HORS_DOSSIER`,
+`cabinetId` et non `tenantId`).
+
 ### Migrations écrites à la main
 
 Une migration écrite à la main peut DIVERGER du schéma sans que rien ne le

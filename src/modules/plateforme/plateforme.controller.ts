@@ -3,10 +3,15 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OperateurPlateformeGuard } from './operateur-plateforme.guard';
 import { PlateformeService } from './plateforme.service';
 import { LicencesSurSiteService } from './licences-sur-site.service';
+import { AbonnementsService } from '../abonnements/abonnements.service';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import {
   CreerCabinetDto,
+  ActiverAbonnementDto,
   EmettreLicenceSurSiteDto,
+  EnregistrerAbonnementDto,
+  FacturerAbonnementsDto,
+  FixerPrixFormuleDto,
   ModifierGroupeDto,
   ModifierLicenceDto,
   PreparerDemonstrationDto,
@@ -28,7 +33,38 @@ export class PlateformeController {
   constructor(
     private readonly plateformeService: PlateformeService,
     private readonly licencesSurSite: LicencesSurSiteService,
+    private readonly abonnements: AbonnementsService,
   ) {}
+
+  @Get('formules')
+  formules() {
+    return this.abonnements.formules();
+  }
+
+  @Patch('formules/:code')
+  fixerPrix(@Param('code') code: string, @Body() dto: FixerPrixFormuleDto) {
+    return this.abonnements.fixerPrix(code, dto.prixMensuelUsd ?? null, dto.prixAnnuelUsd ?? null);
+  }
+
+  @Get('abonnements')
+  listeAbonnements() {
+    return this.abonnements.lister();
+  }
+
+  @Post('abonnements')
+  enregistrerAbonnement(@Body() dto: EnregistrerAbonnementDto) {
+    return this.abonnements.enregistrer(dto);
+  }
+
+  @Patch('abonnements/:id')
+  activerAbonnement(@Param('id') id: string, @Body() dto: ActiverAbonnementDto) {
+    return this.abonnements.activer(id, dto.actif);
+  }
+
+  @Post('abonnements/facturer')
+  facturerAbonnements(@Body() dto: FacturerAbonnementsDto, @CurrentUser() operateur: AuthenticatedUser) {
+    return this.abonnements.facturer(operateur.tenantId, dto.periode, dto.dateFacture, dto.tauxTvaId ?? null);
+  }
 
   @Get('licences-sur-site')
   listeLicencesSurSite() {

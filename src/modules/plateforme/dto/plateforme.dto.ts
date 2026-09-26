@@ -1,4 +1,4 @@
-import { IsDateString, IsEmail, IsEnum, IsIn, IsInt, IsOptional, IsString, IsUUID, Matches, Min, MinLength, ValidateIf } from 'class-validator';
+import { IsArray, IsBoolean, IsDateString, IsEmail, IsEnum, IsIn, IsInt, IsNumber, IsOptional, IsString, IsUUID, Matches, Min, MinLength, ValidateIf } from 'class-validator';
 import { JeuEtatsFinanciersSycebnl, Referentiel, StatutLicence, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
 
 /**
@@ -182,4 +182,59 @@ export class EmettreLicenceSurSiteDto {
   @IsInt()
   @Min(1)
   dossiersMax!: number;
+}
+
+export class FixerPrixFormuleDto {
+  @IsOptional()
+  @IsNumber()
+  prixMensuelUsd?: number | null;
+
+  @IsOptional()
+  @IsNumber()
+  prixAnnuelUsd?: number | null;
+}
+
+export class EnregistrerAbonnementDto {
+  @IsUUID()
+  cabinetId!: string;
+
+  @IsString()
+  formuleCode!: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  options!: string[];
+
+  @IsInt()
+  @Min(0)
+  dossiersSupplementaires!: number;
+
+  @IsIn(['MENSUELLE', 'ANNUELLE'])
+  periodicite!: 'MENSUELLE' | 'ANNUELLE';
+
+  @IsDateString({ strict: true })
+  debut!: string;
+
+  @IsBoolean()
+  essai!: boolean;
+
+  @IsUUID()
+  tiersId!: string;
+}
+
+export class ActiverAbonnementDto {
+  @IsBoolean()
+  actif!: boolean;
+}
+
+export class FacturerAbonnementsDto {
+  @Matches(/^\d{4}-(0[1-9]|1[0-2])$/, { message: 'La période s’écrit AAAA-MM.' })
+  periode!: string;
+
+  @IsDateString({ strict: true })
+  dateFacture!: string;
+
+  @IsOptional()
+  @IsUUID()
+  tauxTvaId?: string | null;
 }

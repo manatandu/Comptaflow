@@ -172,4 +172,8 @@ export const MODELES_PORTES_PAR_LEUR_PARENT = new Set<string>([
  */
 export const MODELES_HORS_DOSSIER: Record<string, string> = {
   LicenceSurSiteEmise: 'registre des licences sur site émises par VMG, lu par la console de l’opérateur',
+  FormuleAbonnement: 'grille des formules et prix de l’abonnement OmegaX, tenue par l’éditeur',
+  AbonnementCabinet: 'abonnement d’un dossier client, donnée de l’éditeur sur son client',
+  OptionAbonnement: 'options souscrites par un abonnement, portées par lui',
+  FactureAbonnement: 'lien entre une période facturée et la facture née dans le dossier de l’éditeur',
 };

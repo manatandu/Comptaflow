@@ -53,6 +53,7 @@ const LIBELLES: Record<string, string> = {
   'AvanceSalaire.salarieId': 'avances et prêts au personnel',
   'RibTiers.tiersId': 'coordonnées bancaires (volet de la fiche)',
   'LigneOrdreVirement.tiersId': 'ordres de virement',
+  'AbonnementCabinet.tiersId': 'abonnement OmegaX facturé à ce client (console de l’éditeur)',
   'OrdreVirement.journalId': 'ordres de virement',
   'LigneOrdreVirement.ecritureId': 'ordres de virement',
   'DemandeConfirmation.tiersId': 'demandes de confirmation',
