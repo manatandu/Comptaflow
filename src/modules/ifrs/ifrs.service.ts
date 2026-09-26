@@ -7,7 +7,7 @@ import { EtatsFinanciersSyscohadaService } from '../etats-financiers-syscohada/e
 import { CumulService } from '../consolidation/cumul.service';
 import { PerimetreService } from '../consolidation/perimetre.service';
 import { ResultatCumul } from '../consolidation/cumul-consolidation';
-import { construireTableauFluxConsolide, lignesAvecMouvements, variationsDuPerimetre } from '../consolidation/flux-capitaux-consolides';
+import { changementsDuPerimetre, construireTableauFluxConsolide, lignesAvecMouvements, variationsDuPerimetre } from '../consolidation/flux-capitaux-consolides';
 import { LIBELLE_POSTE, PosteConsolidation } from '../consolidation/cumul-consolidation';
 import {
   ActiviteIfrsDto,
@@ -31,7 +31,7 @@ import {
   RetraitementDeclare,
   rubriqueDuCompte,
 } from './etats-ifrs';
-import { construireEtatsIfrsConsolides, EtatsIfrsConsolides, motifRefusRegleConsolidation, POSTES_A_DECLARER, POSTES_RANGES } from './etats-ifrs-consolides';
+import { aDesEcartsDeConversion, ComparaisonConversion, construireEtatsIfrsConsolides, EtatsIfrsConsolides, motifRefusRegleConsolidation, POSTES_A_DECLARER, POSTES_RANGES } from './etats-ifrs-consolides';
 import { construireNotesIfrs, motifsRefusDeclarationsNotes, normaliserDeclarationsNotes, SOUS_TOTAUX_REFERENCE } from './notes-ifrs';
 import { construireNoteIfrs12, normaliserDeclarationsIfrs12 } from './notes-ifrs12';
 import { CATEGORIES_FLUX, CategorieFlux, construireFluxTresorerieIfrs, EntreesFluxIfrs, TableauFluxIfrs } from './flux-tresorerie-ifrs';
@@ -575,20 +575,45 @@ export class IfrsService {
       }),
     };
 
-    const jouer = async (e: { id: string; dateDebut: Date }, retr: RetraitementLu[]) => {
-      const cumul = await this.cumuls.cumul(tenantId, e.id);
+    // Chaque cumul n'est calculé qu'une fois · N-1 sert à la fois de
+    // comparatif et de départ à la variation des écarts de conversion de N.
+    const cumulsLus = new Map<string, Promise<ResultatCumul>>();
+    const cumulDe = (id: string) => {
+      if (!cumulsLus.has(id)) cumulsLus.set(id, this.cumuls.cumul(tenantId, id));
+      return cumulsLus.get(id)!;
+    };
+    // IAS 21 § 39 c · la variation des écarts de conversion de l'exercice est
+    // la différence de deux cumuls. Le périmètre n'est relu que si le groupe
+    // a des entités converties.
+    const comparaisonDe = async (e: { id: string }, cumul: ResultatCumul, avant: { id: string } | null): Promise<ComparaisonConversion> => {
+      if (!avant) return { cumulPrecedent: null, changements: [] };
+      let cumulPrecedent: ResultatCumul | null = null;
       try {
-        return { etat: construireEtatsIfrsConsolides({ dateDebut: e.dateDebut }, cumul, r, rc, retr.map(versMoteurConsolide), activite), cumul };
+        cumulPrecedent = await cumulDe(avant.id);
+      } catch (err) {
+        if (!(err instanceof BadRequestException)) throw err;
+      }
+      if (!cumulPrecedent || (!aDesEcartsDeConversion(cumul) && !aDesEcartsDeConversion(cumulPrecedent))) return { cumulPrecedent, changements: [] };
+      const [pn, pn1] = await Promise.all([this.perimetre.etat(tenantId, e.id), this.perimetre.etat(tenantId, avant.id)]);
+      return { cumulPrecedent, changements: changementsDuPerimetre(pn.resultats, pn1.resultats) };
+    };
+    const jouer = async (e: { id: string; dateDebut: Date }, retr: RetraitementLu[], avant?: { id: string } | null) => {
+      const cumul = await cumulDe(e.id);
+      const comparaison = avant === undefined ? undefined : await comparaisonDe(e, cumul, avant);
+      try {
+        return { etat: construireEtatsIfrsConsolides({ dateDebut: e.dateDebut }, cumul, r, rc, retr.map(versMoteurConsolide), activite, comparaison), cumul };
       } catch (err) {
         if (err instanceof RefusIfrs) throw new BadRequestException(err.message);
         throw err;
       }
     };
 
+    const precedent = await this.precedent(tenantId, ex.dateDebut);
+    const avant = precedent ? await this.precedent(tenantId, precedent.dateDebut) : null;
     let n: EtatsIfrsConsolides;
     let cumulN: ResultatCumul;
     try {
-      ({ etat: n, cumul: cumulN } = await jouer(ex, retraitements));
+      ({ etat: n, cumul: cumulN } = await jouer(ex, retraitements, precedent));
     } catch (e) {
       if (!(e instanceof BadRequestException)) throw e;
       return {
@@ -607,14 +632,13 @@ export class IfrsService {
       };
     }
 
-    const precedent = await this.precedent(tenantId, ex.dateDebut);
     let n1: EtatsIfrsConsolides | null = null;
     let cumulN1: ResultatCumul | null = null;
     let motifN1: string | null = null;
     if (!precedent) motifN1 = 'Aucun exercice précédent dans le dossier · la colonne comparative est vide.';
     else {
       try {
-        ({ etat: n1, cumul: cumulN1 } = await jouer(precedent, await this.retraitementsDe(tenantId, precedent.id, false, true)));
+        ({ etat: n1, cumul: cumulN1 } = await jouer(precedent, await this.retraitementsDe(tenantId, precedent.id, false, true), avant));
       } catch (e) {
         if (!(e instanceof BadRequestException)) throw e;
         motifN1 = `L’exercice précédent ne se consolide pas · ${e.message}`;
@@ -636,7 +660,6 @@ export class IfrsService {
     let cumulN2: ResultatCumul | null = null;
     let motifN2 = 'Aucun exercice avant l’exercice précédent dans le dossier.';
     if (precedent && n1 && cumulN1) {
-      const avant = await this.precedent(tenantId, precedent.dateDebut);
       if (avant) {
         try {
           ({ etat: n2, cumul: cumulN2 } = await jouer(avant, await this.retraitementsDe(tenantId, avant.id, false, true)));

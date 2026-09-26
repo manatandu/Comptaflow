@@ -351,7 +351,7 @@ export function construireVariationCapitauxPropres(
 
 // ─── Variation du périmètre ───────────────────────────────────────────────
 
-interface EntiteComparee {
+export interface EntiteComparee {
   nom: string;
   estConsolidante: boolean;
   methode: string;
@@ -371,20 +371,27 @@ const RETENUES = new Set(['IG', 'IP', 'ME']);
  * parce que le périmètre est recréé à chaque exercice.
  */
 export function variationsDuPerimetre(n: EntiteComparee[], n1: EntiteComparee[]): string[] {
+  return changementsDuPerimetre(n, n1).map(({ motif: m }) =>
+    `${m} L’incidence des variations de périmètre (D4C ch. XII-8 § 4) n’est pas calculée par cette version · le tableau n’est pas établi.`,
+  );
+}
+
+export type NatureChangementPerimetre = 'ENTREE' | 'SORTIE' | 'METHODE' | 'POURCENTAGE';
+
+/** Les mêmes changements, entité par entité, avec leur nature · appariés par la dénomination. */
+export function changementsDuPerimetre(n: EntiteComparee[], n1: EntiteComparee[]): { nom: string; nature: NatureChangementPerimetre; motif: string }[] {
   const retenues = (xs: EntiteComparee[]) =>
     new Map(xs.filter((e) => e.estConsolidante || RETENUES.has(e.methode)).map((e) => [e.nom.trim().toLowerCase(), e]));
   const a = retenues(n);
   const b = retenues(n1);
-  const motifs: string[] = [];
+  const out: { nom: string; nature: NatureChangementPerimetre; motif: string }[] = [];
   for (const [cle, e] of a) {
     const p = b.get(cle);
-    if (!p) motifs.push(`${e.nom} entre dans le périmètre en N (${e.methode}).`);
-    else if (p.methode !== e.methode) motifs.push(`${e.nom} change de méthode (${p.methode} en N-1, ${e.methode} en N).`);
+    if (!p) out.push({ nom: e.nom, nature: 'ENTREE', motif: `${e.nom} entre dans le périmètre en N (${e.methode}).` });
+    else if (p.methode !== e.methode) out.push({ nom: e.nom, nature: 'METHODE', motif: `${e.nom} change de méthode (${p.methode} en N-1, ${e.methode} en N).` });
     else if (Math.abs(p.pctInteret - e.pctInteret) > EPS)
-      motifs.push(`${e.nom} change de pourcentage d’intérêt (${p.pctInteret} % en N-1, ${e.pctInteret} % en N).`);
+      out.push({ nom: e.nom, nature: 'POURCENTAGE', motif: `${e.nom} change de pourcentage d’intérêt (${p.pctInteret} % en N-1, ${e.pctInteret} % en N).` });
   }
-  for (const [cle, p] of b) if (!a.has(cle)) motifs.push(`${p.nom} sort du périmètre en N.`);
-  return motifs.map(
-    (m) => `${m} L’incidence des variations de périmètre (D4C ch. XII-8 § 4) n’est pas calculée par cette version · le tableau n’est pas établi.`,
-  );
+  for (const [cle, p] of b) if (!a.has(cle)) out.push({ nom: p.nom, nature: 'SORTIE', motif: `${p.nom} sort du périmètre en N.` });
+  return out;
 }

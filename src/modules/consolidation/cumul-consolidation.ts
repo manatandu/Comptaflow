@@ -339,6 +339,18 @@ export interface ResultatCumul {
     reservesGroupe: number;
     /** Part du groupe dans les écarts de conversion (ch. XII-4 § 3), solde créditeur positif. */
     ecartsConversion: number;
+    /**
+     * Part des minoritaires dans les écarts de conversion, comprise dans
+     * `interetsMinoritairesHorsResultat` · séparée pour IAS 21 § 41, qui
+     * l'affecte aux participations ne donnant pas le contrôle.
+     */
+    ecartsConversionMinoritaires: number;
+    /**
+     * Écarts de conversion nés des entités mises en équivalence, groupe et
+     * minoritaires de la détentrice ensemble · IFRS 18 § 89 a les présente
+     * sur la ligne de la quote-part des mises en équivalence.
+     */
+    ecartsConversionMe: number;
     resultatGroupe: number;
     interetsMinoritairesHorsResultat: number;
     resultatMinoritaires: number;
@@ -565,6 +577,9 @@ export function cumulerConsolidation(
   const mouvements = new Map<string, { debit: number; credit: number }>();
   const comptes = new Map<string, Map<string, number>>();
   const intitules = new Map<string, string>();
+  // Ce que la conversion d'une mise en équivalence a porté chez sa détentrice ·
+  // il reste un écart de conversion, et IFRS 18 § 89 a le veut sur sa ligne.
+  const conversionMe = new Map<string, number>();
   const ajouter = (entiteId: string, cle: string, montant: number) => {
     const m = comptes.get(entiteId)!;
     m.set(cle, r2((m.get(cle) ?? 0) + montant));
@@ -836,7 +851,10 @@ export function cumulerConsolidation(
       // Ce que la conversion a fait naître reste un écart de conversion · le
       // reste de la variation des capitaux propres va aux réserves.
       const partConversion = cv && valeurRetenue === valeur ? r2(d * ecDetenue + netEcartHist * (rc - 1) + dotationHist * (rp - 1)) : 0;
-      if (partConversion !== 0) ajouter(H, ECART_CONVERSION_ENTITE, -partConversion);
+      if (partConversion !== 0) {
+        ajouter(H, ECART_CONVERSION_ENTITE, -partConversion);
+        conversionMe.set(H, r2((conversionMe.get(H) ?? 0) + partConversion));
+      }
       ajouter(H, AJUSTEMENT_RESERVES, -r2(valeurRetenue - a.coutAcquisition - partResultat - partConversion));
     }
 
@@ -1065,6 +1083,8 @@ export function cumulerConsolidation(
   let ecartsReevaluation = 0;
   let reservesGroupe = 0;
   let ecartsConversion = 0;
+  let ecartsConversionMinoritaires = 0;
+  let ecartsConversionMe = 0;
   let resultatGroupe = 0;
   let imHorsResultat = 0;
   let resultatMinoritaires = 0;
@@ -1103,6 +1123,8 @@ export function cumulerConsolidation(
     }
     ecartsConversion += g * ec;
     imHorsResultat += (1 - g) * ec;
+    ecartsConversionMinoritaires += (1 - g) * ec;
+    ecartsConversionMe += conversionMe.get(id) ?? 0;
     resultatGroupe += g * res;
     resultatMinoritaires += (1 - g) * res;
     for (const [cle, solde] of m) {
@@ -1154,6 +1176,8 @@ export function cumulerConsolidation(
   ecartsReevaluation = r2(ecartsReevaluation);
   reservesGroupe = r2(reservesGroupe);
   ecartsConversion = r2(ecartsConversion);
+  ecartsConversionMinoritaires = r2(ecartsConversionMinoritaires);
+  ecartsConversionMe = r2(ecartsConversionMe);
   imHorsResultat = r2(imHorsResultat);
   resultatGroupe = r2(resultatGroupe);
   resultatMinoritaires = r2(resultatMinoritaires);
@@ -1182,6 +1206,8 @@ export function cumulerConsolidation(
       ecartsReevaluation,
       reservesGroupe,
       ecartsConversion,
+      ecartsConversionMinoritaires,
+      ecartsConversionMe,
       resultatGroupe,
       interetsMinoritairesHorsResultat: imHorsResultat,
       resultatMinoritaires,

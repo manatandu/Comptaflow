@@ -179,6 +179,51 @@ describe('IFRS consolidés · ce que le D4C porte autrement', () => {
     expect(jouer([ANNULATION]).motifsNonPubliable.some((m) => /IAS 21/.test(m))).toBe(false);
   });
 
+  it('IAS 21 § 39 c et § 41 · la variation de l’exercice passe en OCI, la part des minoritaires leur est attribuée', () => {
+    // Cumul N · groupe 15, minoritaires 5, dont 4 nés d'une mise en
+    // équivalence. N-1 · 10, 3 et 1. Variation · groupe 5, minoritaires 2,
+    // mises en équivalence 3.
+    const n = cumul([L('ECARTS_CONVERSION', -15), L('INTERETS_MINORITAIRES', -5), L('24100000', 20)], { ecartsConversion: 15, ecartsConversionMinoritaires: 5, ecartsConversionMe: 4, interetsMinoritairesHorsResultat: 65 });
+    (n as any).conversions = [{ entite: 'Filiale' }];
+    const n1 = cumul([], { ecartsConversion: 10, ecartsConversionMinoritaires: 3, ecartsConversionMe: 1 });
+    (n1 as any).conversions = [{ entite: 'Filiale' }];
+    const e = construireEtatsIfrsConsolides(EX, n, REGLES, DOTATION, [ANNULATION], 'AUCUNE', { cumulPrecedent: n1, changements: [] });
+    expect(X(e.resultatGlobal, 'OCI_R_AUTRES').legal).toBe(4);
+    expect(X(e.resultatGlobal, 'OCI_R_QUOTE_PART_MEE').legal).toBe(3);
+    expect(X(e.resultatGlobal, 'TOTAL_OCI').legal).toBe(7);
+    expect(X(e.resultatGlobal, 'RG_PARTICIPATIONS_NE_DONNANT_PAS_CONTROLE').legal).toBe(42);
+    expect(X(e.resultatGlobal, 'RG_PROPRIETAIRES').legal).toBe(255);
+    // Le cumul de N-1 reste en composante, la variation revient par l'OCI de l'exercice.
+    expect(X(e.situation, 'SF_AUTRES_COMPOSANTES_CP').legal).toBe(10);
+    expect(X(e.situation, 'SF_OCI_EXERCICE').legal).toBe(5);
+    expect(X(e.situation, 'TOTAL_CAPITAUX_PROPRES_PROPRIETAIRES').legal).toBe(895);
+    expect(X(e.situation, 'SF_PARTICIPATIONS_NE_DONNANT_PAS_CONTROLE').legal).toBe(105);
+    expect(X(e.situation, 'TOTAL_CAPITAUX_PROPRES').legal).toBe(1000);
+    expect(e.controles.every((c) => c.ok)).toBe(true);
+    expect(e.motifsNonPubliable.some((m) => /IAS 21/.test(m))).toBe(false);
+    expect(e.mentions.some((m) => /IAS 21 § 39 c/.test(m) && /§ 41/.test(m))).toBe(true);
+
+    // Sans consolidation N-1, rien n'est reclassé, et c'est dit.
+    const sans = construireEtatsIfrsConsolides(EX, n, REGLES, DOTATION, [ANNULATION], 'AUCUNE', { cumulPrecedent: null, changements: [] });
+    expect(X(sans.resultatGlobal, 'TOTAL_OCI').legal).toBe(0);
+    expect(X(sans.situation, 'SF_AUTRES_COMPOSANTES_CP').legal).toBe(15);
+    expect(sans.motifsNonPubliable.some((m) => /IAS 21 § 39 c/.test(m) && /exercice précédent/.test(m))).toBe(true);
+
+    // Une entrée ne gêne pas ; un changement sur une entité non convertie non plus.
+    const entree = construireEtatsIfrsConsolides(EX, n, REGLES, DOTATION, [ANNULATION], 'AUCUNE', {
+      cumulPrecedent: n1,
+      changements: [{ nom: 'Filiale', nature: 'ENTREE' }, { nom: 'Autre', nature: 'SORTIE' }],
+    });
+    expect(X(entree.resultatGlobal, 'TOTAL_OCI').legal).toBe(7);
+    // Une sortie (§ 48) ou un changement de pourcentage (IFRS 10 § B96) d'une entité convertie ne se sépare pas.
+    const sortie = construireEtatsIfrsConsolides(EX, n, REGLES, DOTATION, [ANNULATION], 'AUCUNE', { cumulPrecedent: n1, changements: [{ nom: ' filiale ', nature: 'SORTIE' }] });
+    expect(X(sortie.resultatGlobal, 'TOTAL_OCI').legal).toBe(0);
+    expect(sortie.motifsNonPubliable.some((m) => /IAS 21 § 48/.test(m))).toBe(true);
+    const pct = construireEtatsIfrsConsolides(EX, n, REGLES, DOTATION, [ANNULATION], 'AUCUNE', { cumulPrecedent: n1, changements: [{ nom: 'Filiale', nature: 'POURCENTAGE' }] });
+    expect(X(pct.resultatGlobal, 'TOTAL_OCI').legal).toBe(0);
+    expect(pct.motifsNonPubliable.some((m) => /IFRS 10 § B96/.test(m))).toBe(true);
+  });
+
   it('un poste à déclarer qui ne l’est pas est nommé, et reste sur la ligne « sans rubrique »', () => {
     const e = jouer([], cumul(), []);
     expect(e.motifsNonPubliable).toContain('Poste de consolidation « Dotations aux amortissements et dépréciations de l’écart d’acquisition » sans rubrique IFRS · déclarez la ligne où il se range.');

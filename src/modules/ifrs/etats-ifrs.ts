@@ -82,6 +82,14 @@ export interface OptionsConsolidation {
   resultatMinoritaires: number;
   /** Résultat de l'ensemble consolidé, tel que le cumul le calcule · contrôlé contre la projection. */
   resultatEnsemble: number;
+  /**
+   * Variation des écarts de conversion de l'exercice, en valeur créditrice ·
+   * part du groupe, part des minoritaires, et ce qui en vient des mises en
+   * équivalence (compris dans les deux premières). Le D4C les porte en
+   * capitaux propres ; IAS 21 § 39 c les fait passer par les autres éléments
+   * du résultat global. Absente, rien n'est reclassé.
+   */
+  conversionExercice?: { groupe: number; minoritaires: number; me: number };
 }
 
 /** Les trois effets d'un retraitement sur les capitaux propres, en valeur créditrice. */
@@ -246,6 +254,27 @@ export function construireEtatsIfrs(
   }
   resultatSyscohada = r2(resultatSyscohada);
 
+  // ─── IAS 21 § 39 c · les écarts de conversion de l'exercice ───────────────
+  // Une RECLASSIFICATION de présentation de la colonne SYSCOHADA, pas un
+  // retraitement · le montant est au cumul du D4C, seule la ligne change. La
+  // variation de l'exercice quitte la composante cumulée pour les autres
+  // éléments du résultat global, et y revient par la ligne de l'OCI de
+  // l'exercice · le total des capitaux propres ne bouge pas. La part des
+  // mises en équivalence va sur sa ligne (IFRS 18 § 89 a), celle des
+  // minoritaires leur est attribuée (IAS 21 § 41).
+  const conversion = conso?.conversionExercice;
+  if (conversion) {
+    const totale = r2(conversion.groupe + conversion.minoritaires);
+    const porter = (code: string, montant: number, intitule: string) => {
+      if (Math.abs(montant) <= EPS) return;
+      legal.set(code, r2((legal.get(code) ?? 0) + montant));
+      comptes.set(code, [...(comptes.get(code) ?? []), { numero: 'ECARTS_CONVERSION_EXERCICE', intitule, solde: r2(montant) }]);
+    };
+    porter('SF_AUTRES_COMPOSANTES_CP', conversion.groupe, 'Écarts de conversion de l’exercice, part du groupe · présentés en autres éléments du résultat global (IAS 21 § 39 c)');
+    porter('OCI_R_AUTRES', -r2(totale - conversion.me), 'Écarts de conversion de l’exercice (IAS 21 § 39 c)');
+    porter('OCI_R_QUOTE_PART_MEE', -conversion.me, 'Écarts de conversion de l’exercice nés des mises en équivalence (IAS 21 § 39 c, IFRS 18 § 89 a)');
+  }
+
   // ─── Retraitements ────────────────────────────────────────────────────────
   const retr = new Map<string, number>();
   for (const r of retraitements) for (const l of r.lignes) retr.set(l.rubrique, r2((retr.get(l.rubrique) ?? 0) + l.montant));
@@ -296,7 +325,14 @@ export function construireEtatsIfrs(
   const sommeParts = (k: 'partMinoritairesResultat' | 'partMinoritairesOci' | 'partMinoritairesCapitauxPropres') =>
     r2(retraitements.reduce((s, r) => s + (r[k] ?? 0), 0));
   const nci = conso
-    ? { resultatLegal: r2(conso.resultatMinoritaires), resultat: sommeParts('partMinoritairesResultat'), oci: sommeParts('partMinoritairesOci'), capitauxPropres: sommeParts('partMinoritairesCapitauxPropres') }
+    ? {
+        resultatLegal: r2(conso.resultatMinoritaires),
+        // IAS 21 § 41 · la part des minoritaires dans les écarts de conversion de l'exercice.
+        ociLegal: r2(conversion?.minoritaires ?? 0),
+        resultat: sommeParts('partMinoritairesResultat'),
+        oci: sommeParts('partMinoritairesOci'),
+        capitauxPropres: sommeParts('partMinoritairesCapitauxPropres'),
+      }
     : null;
   const attribution = (cle: string, libelle: string, ref: string, legal: number, retr: number): LigneEtatIfrs => ({
     cle,
@@ -333,8 +369,8 @@ export function construireEtatsIfrs(
   resultatGlobal.push(tOci, tGlobal);
   if (nci) {
     resultatGlobal.push(
-      attribution('RG_PARTICIPATIONS_NE_DONNANT_PAS_CONTROLE', 'Résultat global attribuable aux participations ne donnant pas le contrôle', '§ 87 a', nci.resultatLegal, nci.resultat + nci.oci),
-      attribution('RG_PROPRIETAIRES', 'Résultat global attribuable aux propriétaires de la société mère', '§ 87 b', tGlobal.legal - nci.resultatLegal, tGlobal.retraitements - nci.resultat - nci.oci),
+      attribution('RG_PARTICIPATIONS_NE_DONNANT_PAS_CONTROLE', 'Résultat global attribuable aux participations ne donnant pas le contrôle', '§ 87 a', nci.resultatLegal + nci.ociLegal, nci.resultat + nci.oci),
+      attribution('RG_PROPRIETAIRES', 'Résultat global attribuable aux propriétaires de la société mère', '§ 87 b', tGlobal.legal - nci.resultatLegal - nci.ociLegal, tGlobal.retraitements - nci.resultat - nci.oci),
     );
   }
 
@@ -362,7 +398,7 @@ export function construireEtatsIfrs(
       reserves.ifrs = r2(reserves.ifrs - nci.capitauxPropres);
       xs.push(
         attribution('SF_RESULTAT', 'Résultat net de l’exercice attribuable aux propriétaires de la société mère', '§ 72, § 76 b', tNet.legal - nci.resultatLegal, tNet.retraitements - nci.resultat),
-        attribution('SF_OCI_EXERCICE', 'Autres éléments du résultat global de l’exercice attribuables aux propriétaires', '§ 86 b, § 111', 0, tOci.retraitements - nci.oci),
+        attribution('SF_OCI_EXERCICE', 'Autres éléments du résultat global de l’exercice attribuables aux propriétaires', '§ 86 b, § 111', tOci.legal - nci.ociLegal, tOci.retraitements - nci.oci),
       );
       const proprietaires = total('TOTAL_CAPITAUX_PROPRES_PROPRIETAIRES', 'Capitaux propres attribuables aux propriétaires de la société mère', xs, '§ 104 b');
       const m = poste(RUBRIQUE_NCI, -1);

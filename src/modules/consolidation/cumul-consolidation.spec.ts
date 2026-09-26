@@ -671,6 +671,8 @@ describe('tranche 4c · conversion d’une entité étrangère au cours de clôt
     // Groupe · 0,8 × 100 + 3,75 = 83,75 ; minoritaires 0,2 × (400 + 100) = 100.
     // Réserves · 0,8 × 400 − 240 − 2 = 78 ; résultat du groupe 0,8 × 100 − 1,25 = 78,75.
     expect(r.capitauxPropres).toMatchObject({ ecartsConversion: 83.75, reservesGroupe: 78, interetsMinoritairesHorsResultat: 100, resultatGroupe: 78.75, resultatMinoritaires: 20 });
+    // IAS 21 § 41 · la part des minoritaires dans l'écart, comprise dans leurs intérêts · 0,2 × 100 = 20. Rien ne vient d'une mise en équivalence.
+    expect(r.capitauxPropres).toMatchObject({ ecartsConversionMinoritaires: 20, ecartsConversionMe: 0 });
     expect(ligne(r, 'ECARTS_CONVERSION')).toBe(-83.75);
     expect(r.obstaclesFlux.join(' ')).toMatch(/« F » est convertie de USD en CDF/);
   });
@@ -690,6 +692,8 @@ describe('tranche 4c · conversion d’une entité étrangère au cours de clôt
     const r = jouer([USD], [MM, ME], [acq('M', 'F', 30, 100, 300)]);
     expect(ligne(r, 'TITRES_MIS_EN_EQUIVALENCE')).toBe(190.5);
     expect(r.capitauxPropres).toMatchObject({ ecartsConversion: 33.75, reservesGroupe: 28, resultatGroupe: 28.75 });
+    // IFRS 18 § 89 a · tout l'écart vient de la mise en équivalence, et la consolidante n'a pas de minoritaires.
+    expect(r.capitauxPropres).toMatchObject({ ecartsConversionMe: 33.75, ecartsConversionMinoritaires: 0 });
     expect(r.equilibre).toBe(0);
   });
 

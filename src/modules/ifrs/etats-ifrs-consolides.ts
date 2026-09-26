@@ -1,4 +1,5 @@
 import { LIBELLE_POSTE, PosteConsolidation, POSTES_DE_RESULTAT, ResultatCumul } from '../consolidation/cumul-consolidation';
+import { NatureChangementPerimetre } from '../consolidation/flux-capitaux-consolides';
 import { ActivitePrincipale, construireEtatsIfrs, EtatsIfrs, RefusIfrs, RegleCorrespondance, RetraitementDeclare } from './etats-ifrs';
 import { RUBRIQUE_NCI, RUBRIQUE_PAR_CODE } from './rubriques-ifrs';
 
@@ -35,9 +36,65 @@ import { RUBRIQUE_NCI, RUBRIQUE_PAR_CODE } from './rubriques-ifrs';
  * directement en capitaux propres quand IAS 21 § 39 c les fait passer par les
  * autres éléments du résultat global, la part des minoritaires leur étant
  * affectée (§ 41). Les deux premiers se retraitent, et le jeu reste non
- * publiable tant qu'aucun retraitement ne touche le poste · le troisième n'est
- * pas servi par cette tranche.
+ * publiable tant qu'aucun retraitement ne touche le poste.
+ *
+ * LE TROISIÈME SE RECLASSE, IL NE SE RETRAITE PAS (tranche IAS 21,
+ * 2026-09-26) · le montant est au cumul, juste, et seule sa ligne change. La
+ * variation de l'exercice est la différence de DEUX cumuls, N et N-1, que le
+ * moteur reçoit tous deux · jamais une variation déduite d'un seul solde, qui
+ * rendrait tout le cumul historique en OCI de l'année. Elle se sépare en part
+ * du groupe, part des minoritaires (§ 41) et part née des mises en
+ * équivalence (IFRS 18 § 89 a). Trois cas ne se séparent pas, et le disent ·
+ * sans consolidation N-1 ; une entité convertie qui SORT (le cumul est alors
+ * reclassé en résultat, § 48, ce que le D4C ne fait pas) ; une entité
+ * convertie qui change de méthode ou de pourcentage d'intérêt (la variation
+ * mêle un transfert entre groupe et minoritaires, IFRS 10 § B96). Une ENTRÉE
+ * ne gêne pas · son écart naît dans l'exercice.
  */
+
+/** Ce dont la variation des écarts de conversion de l'exercice a besoin · le cumul N-1 et ce qui a bougé du périmètre. */
+export interface ComparaisonConversion {
+  cumulPrecedent: ResultatCumul | null;
+  changements: { nom: string; nature: NatureChangementPerimetre }[];
+}
+
+export const aDesEcartsDeConversion = (c: ResultatCumul) =>
+  c.conversions.length > 0 ||
+  Math.abs(c.capitauxPropres.ecartsConversion) > EPS ||
+  Math.abs(c.capitauxPropres.ecartsConversionMinoritaires ?? 0) > EPS ||
+  Math.abs(c.lignes.find((l) => l.cle === 'ECARTS_CONVERSION')?.solde ?? 0) > EPS;
+
+/**
+ * La variation des écarts de conversion de l'exercice, ou le motif qui
+ * l'empêche · `null` des deux côtés quand le groupe n'a aucune entité
+ * convertie.
+ */
+export function variationConversionExercice(
+  cumul: ResultatCumul,
+  comparaison: ComparaisonConversion | null | undefined,
+): { variation: { groupe: number; minoritaires: number; me: number } | null; motif: string | null } {
+  const precedent = comparaison?.cumulPrecedent ?? null;
+  if (!aDesEcartsDeConversion(cumul) && !(precedent && aDesEcartsDeConversion(precedent))) return { variation: null, motif: null };
+  const prefixe = 'Écarts de conversion · IAS 21 § 39 c les veut dans les autres éléments du résultat global de l’exercice, et § 41 en affecte la part aux participations ne donnant pas le contrôle.';
+  if (!precedent) {
+    return { variation: null, motif: `${prefixe} Sans consolidation de l’exercice précédent, la variation de l’exercice ne se sépare pas du cumul · ils restent en capitaux propres.` };
+  }
+  const converties = new Set([...cumul.conversions, ...precedent.conversions].map((c) => c.entite.trim().toLowerCase()));
+  const genants = (comparaison?.changements ?? []).filter((c) => c.nature !== 'ENTREE' && converties.has(c.nom.trim().toLowerCase()));
+  const sorties = genants.filter((c) => c.nature === 'SORTIE').map((c) => c.nom);
+  const autres = genants.filter((c) => c.nature !== 'SORTIE').map((c) => c.nom);
+  const motifs: string[] = [];
+  if (sorties.length) motifs.push(`${sorties.join(', ')} sort du périmètre · le cumul de ses écarts se reclasse en résultat (IAS 21 § 48), ce que cette version ne sert pas.`);
+  if (autres.length) motifs.push(`${autres.join(', ')} change de méthode ou de pourcentage d’intérêt · la variation mêle un transfert entre groupe et minoritaires (IFRS 10 § B96), que cette version ne sépare pas.`);
+  if (motifs.length) return { variation: null, motif: `${prefixe} ${motifs.join(' ')}` };
+  const a = cumul.capitauxPropres;
+  const b = precedent.capitauxPropres;
+  const d = (x: number | undefined, y: number | undefined) => Math.round(((x ?? 0) - (y ?? 0)) * 100) / 100;
+  return {
+    variation: { groupe: d(a.ecartsConversion, b.ecartsConversion), minoritaires: d(a.ecartsConversionMinoritaires, b.ecartsConversionMinoritaires), me: d(a.ecartsConversionMe, b.ecartsConversionMe) },
+    motif: null,
+  };
+}
 
 /** Les postes dont IFRS 18 nomme la ligne · rangés par OmegaX, avec le paragraphe qui les place. */
 export const POSTES_RANGES: Partial<Record<PosteConsolidation, { rubrique: string; fondement: string }>> = {
@@ -107,6 +164,7 @@ export function construireEtatsIfrsConsolides(
   reglesConsolidation: RegleConsolidation[],
   retraitements: RetraitementDeclare[],
   activitePrincipale: ActivitePrincipale | null,
+  comparaison?: ComparaisonConversion | null,
 ): EtatsIfrsConsolides {
   const declarees = new Map<string, string>();
   for (const r of reglesConsolidation) {
@@ -115,6 +173,7 @@ export function construireEtatsIfrsConsolides(
     declarees.set(r.poste, r.rubrique);
   }
   const rubriqueDuPoste = (cle: string) => POSTES_RANGES[cle as PosteConsolidation]?.rubrique ?? declarees.get(cle) ?? null;
+  const conversion = variationConversionExercice(cumul, comparaison);
   const etat = construireEtatsIfrs(
     exercice,
     cumul.lignes.map((l) => ({ numero: l.cle, intitule: l.intitule, solde: l.solde })),
@@ -126,6 +185,7 @@ export function construireEtatsIfrsConsolides(
       estPosteDeResultat: (cle) => POSTES_DE_RESULTAT.has(cle as PosteConsolidation),
       resultatMinoritaires: cumul.capitauxPropres.resultatMinoritaires,
       resultatEnsemble: cumul.capitauxPropres.resultatEnsemble,
+      ...(conversion.variation ? { conversionExercice: conversion.variation } : {}),
     },
   );
 
@@ -154,10 +214,12 @@ export function construireEtatsIfrsConsolides(
       'Écart d’acquisition négatif étalé selon le D4C · IFRS 3 § 34 comptabilise le profit en résultat net à la date d’acquisition. Déclarez le retraitement qui solde le poste.',
     );
   }
-  // (3) IAS 21 § 39 c et § 41 · non servi par cette tranche.
-  if (Math.abs(solde('ECARTS_CONVERSION')) > EPS || cumul.conversions.length > 0) {
-    etat.motifsNonPubliable.push(
-      'Écarts de conversion · IAS 21 § 39 c les comptabilise dans les autres éléments du résultat global de l’exercice, et § 41 en affecte la part aux participations ne donnant pas le contrôle. Le D4C les porte directement en capitaux propres, et cette tranche ne les ventile pas.',
+  // (3) IAS 21 § 39 c et § 41 · la variation de l'exercice est reclassée en
+  // OCI par le moteur ; ce qui ne se sépare pas est nommé.
+  if (conversion.motif) etat.motifsNonPubliable.push(conversion.motif);
+  if (conversion.variation) {
+    etat.mentions.push(
+      'Écarts de conversion · la variation de l’exercice est présentée dans les autres éléments du résultat global (IAS 21 § 39 c), la part des participations ne donnant pas le contrôle leur est attribuée (§ 41) et le cumul reste une composante distincte des capitaux propres jusqu’à la sortie de l’entité (§ 48).',
     );
   }
   for (const p of POSTES_A_DECLARER) {

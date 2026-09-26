@@ -851,6 +851,59 @@ describe('IfrsService · états IFRS consolidés (tranche C1)', () => {
 });
 
 /**
+ * IAS 21 § 39 c · la variation des écarts de conversion est la différence de
+ * DEUX cumuls, N et N-1, que le service va chercher · N-2 pour le comparatif.
+ */
+const CUMUL_CONVERSION = (groupe: number, minoritaires: number, me: number) => ({
+  ...CUMUL,
+  lignes: [...CUMUL.lignes, LC('ECARTS_CONVERSION', -groupe), LC('INTERETS_MINORITAIRES', -minoritaires), LC('24100000', groupe + minoritaires)],
+  capitauxPropres: { ...CUMUL.capitauxPropres, ecartsConversion: groupe, ecartsConversionMinoritaires: minoritaires, ecartsConversionMe: me, interetsMinoritairesHorsResultat: 60 + minoritaires },
+  conversions: [{ entite: 'Filiale', monnaie: 'USD', coursCloture: 1, coursProduitsCharges: 1, ecartConversion: groupe + minoritaires }],
+  obstaclesFlux: ['Filiale est convertie.'],
+  mouvements: [],
+});
+
+describe('IfrsService · écarts de conversion consolidés (IAS 21 § 39 c et § 41)', () => {
+  it('la variation de N se lit sur le cumul N-1, celle du comparatif sur N-2, ou son motif', async () => {
+    const d = doublure(true);
+    for (const r of REGLES_CONSO) await d.service.ajouterRegle(T, r);
+    await d.service.ajouterRegleConsolidation(T, { poste: 'DOTATION_ECART_ACQUISITION', rubrique: 'PL_AUTRES_CHARGES_OPERATIONNELLES' });
+    d.cumulsParExercice[EX] = CUMUL_CONVERSION(15, 5, 4);
+    d.cumulsParExercice[EX1] = CUMUL_CONVERSION(10, 3, 1);
+    const filiale = { ...ENTITE, id: 'f', nom: 'Filiale', estConsolidante: false, methode: 'IG', pctInteret: 75 };
+    d.perimetresParExercice[EX] = [PERIMETRE[0], filiale];
+    d.perimetresParExercice[EX1] = [PERIMETRE[0], filiale];
+    const e = await d.service.etatConsolide(T, EX);
+    expect(X(e.n!.resultatGlobal, 'OCI_R_AUTRES').legal).toBe(4);
+    expect(X(e.n!.resultatGlobal, 'OCI_R_QUOTE_PART_MEE').legal).toBe(3);
+    expect(X(e.n!.resultatGlobal, 'RG_PARTICIPATIONS_NE_DONNANT_PAS_CONTROLE').legal).toBe(42);
+    expect(e.n!.motifsNonPubliable.some((m) => /IAS 21/.test(m))).toBe(false);
+    // Le comparatif n'a pas de N-2 · rien n'y est reclassé.
+    expect(X(e.n1!.resultatGlobal, 'TOTAL_OCI').legal).toBe(0);
+    expect(e.n1!.motifsNonPubliable.some((m) => /IAS 21 § 39 c/.test(m) && /exercice précédent/.test(m))).toBe(true);
+    // Chaque cumul n'est calculé qu'une fois.
+    expect(d.cumuls.cumul.mock.calls.filter((c: string[]) => c[1] === EX1)).toHaveLength(1);
+
+    // Avec N-2, le comparatif reclasse lui aussi · (10 - 8) + (3 - 2) = 3.
+    const d2 = doublure(true, true);
+    for (const r of REGLES_CONSO) await d2.service.ajouterRegle(T, r);
+    await d2.service.ajouterRegleConsolidation(T, { poste: 'DOTATION_ECART_ACQUISITION', rubrique: 'PL_AUTRES_CHARGES_OPERATIONNELLES' });
+    d2.cumulsParExercice[EX] = CUMUL_CONVERSION(15, 5, 4);
+    d2.cumulsParExercice[EX1] = CUMUL_CONVERSION(10, 3, 1);
+    d2.cumulsParExercice[EX2] = CUMUL_CONVERSION(8, 2, 0);
+    const e2 = await d2.service.etatConsolide(T, EX);
+    expect(X(e2.n1!.resultatGlobal, 'TOTAL_OCI').legal).toBe(3);
+    expect(X(e2.n1!.resultatGlobal, 'OCI_R_QUOTE_PART_MEE').legal).toBe(1);
+
+    // Un changement de pourcentage de l'entité convertie · la variation ne se sépare pas (IFRS 10 § B96).
+    d.perimetresParExercice[EX1] = [PERIMETRE[0], { ...filiale, pctInteret: 60 }];
+    const p = await d.service.etatConsolide(T, EX);
+    expect(X(p.n!.resultatGlobal, 'TOTAL_OCI').legal).toBe(0);
+    expect(p.n!.motifsNonPubliable.some((m) => /IFRS 10 § B96/.test(m))).toBe(true);
+  });
+});
+
+/**
  * Tranche C2 · deux consolidations chiffrées à la main, AVEC leurs
  * mouvements. Ventes 900 et achats 600 encaissés et payés, dividende de 30
  * reçu d'une mise en équivalence (titres 100 → 70) · trésorerie 200 → 530.

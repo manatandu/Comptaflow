@@ -2648,7 +2648,7 @@ D4C / IFRS NOMMÉS, JAMAIS CORRIGÉS EN SILENCE · l'écart d'acquisition amorti
 (AUDCIF art. 82 contre IFRS 3 § B63 a et IAS 36 § 90) et l'écart négatif étalé
 (IFRS 3 § 34) rendent le jeu non publiable tant qu'aucun retraitement ne touche
 leur rubrique ; les écarts de conversion portés en capitaux propres (IAS 21
-§ 39 c et § 41, OCI avec la part des minoritaires) ne sont pas servis. Le
+§ 39 c et § 41) sont reclassés en OCI depuis la tranche IAS 21 (plus bas). Le
 reste du jeu consolidé est servi par les tranches C2 à C5.
 
 **États IFRS consolidés, tranche C2 · le tableau des flux (2026-09-26).**
@@ -2689,8 +2689,8 @@ une variation de parts d'intérêts sans perte du contrôle
 (`VARIATION_PARTS_INTERETS`) a sa ligne. Les deux sont refusés aux comptes
 individuels, à la porte et au calcul (`motifRefusMouvementCp(m, consolide)`).
 (4) DEUX BLOCS · le comparatif part de la clôture N-2 consolidée, et sans elle
-il n'est pas rendu, avec son motif. Les écarts de conversion (IAS 21 § 41,
-non servis) ressortent en « écart non expliqué ».
+il n'est pas rendu, avec son motif. Les écarts de conversion passent par
+les attributions du résultat global depuis la tranche IAS 21.
 
 **États IFRS consolidés, tranche C4 · les notes et IFRS 12 (2026-09-26).**
 `notes-ifrs12.ts`. Sources lues · IFRS 12 § 7 à 13, § 18, § 21, § 22, B10 à
@@ -2731,6 +2731,29 @@ DE L'EXEMPTION C1 SE DÉCLARE (`exemptionRegroupementsC1`) · non déclaré, le 
 n'est pas publiable. Exemption prise, l'écart d'acquisition de l'ouverture est
 sa valeur AUDCIF sans ajustement de l'amortissement antérieur (§ C4 h ii), et
 le test IAS 36 à la date de transition (§ C4 g ii) se déclare en ajustement.
+
+**États IFRS consolidés, tranche IAS 21 · les écarts de conversion
+(2026-09-26).** `variationConversionExercice`, `OptionsConsolidation.
+conversionExercice`. Sources lues · IAS 21 § 39 c, § 41, § 48 (skill `ifrs`) ;
+IFRS 18 § 88 à 90. QUATRE RÈGLES À NE PAS DÉFAIRE. (1) C'EST UNE
+RECLASSIFICATION DE LA COLONNE SYSCOHADA, PAS UN RETRAITEMENT · le montant est
+au cumul du D4C et juste, seule sa ligne change. La variation de l'exercice
+quitte `SF_AUTRES_COMPOSANTES_CP` pour l'OCI et y revient par `SF_OCI_EXERCICE`
+· le total des capitaux propres ne bouge pas. (2) LA VARIATION EST LA
+DIFFÉRENCE DE DEUX CUMULS, N et N-1 · jamais un seul solde, qui ferait passer
+tout l'historique en OCI de l'année. Le cumul porte à part la part des
+minoritaires (`ecartsConversionMinoritaires`, comprise dans leurs intérêts) et
+ce qui naît des mises en équivalence (`ecartsConversionMe`), présenté sur
+`OCI_R_QUOTE_PART_MEE` (§ 89 a), le reste sur `OCI_R_AUTRES`. (3) LA PART DES
+MINORITAIRES EST UNE ATTRIBUTION (§ 41) · `nci.ociLegal` entre dans
+`RG_PARTICIPATIONS…` et sort de `SF_OCI_EXERCICE` ; leur ligne de situation
+n'est pas touchée, elle contient déjà le cumul. (4) TROIS CAS NE SE SÉPARENT PAS
+ET LE DISENT, rien n'étant alors reclassé · sans consolidation N-1 ; une entité
+convertie qui SORT (reclassement en résultat du § 48, que le D4C ne fait pas) ;
+une entité convertie qui change de méthode ou de pourcentage (transfert entre
+groupe et minoritaires, IFRS 10 § B96). Une ENTRÉE ne gêne pas, son écart naît
+dans l'exercice. Le service ne relit le périmètre (`changementsDuPerimetre`)
+que si le groupe a des écarts, et ne calcule chaque cumul qu'une fois.
 
 **Tableau des flux SYSCOHADA · le compte trop agrégé, que « non ventilé »
 ne voyait pas (2026-09-25).** Trouvé en passant au moteur la balance d'un
