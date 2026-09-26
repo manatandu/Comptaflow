@@ -673,3 +673,42 @@ export class VersionBaremePaieDto {
   @IsString() @MinLength(8) @MaxLength(400) reference!: string;
   @IsObject() valeurs!: Record<string, unknown>;
 }
+
+/** Un élément d'un bulletin modèle · personnel/modeles-bulletin.ts. */
+export class LigneModeleBulletinDto {
+  @IsString()
+  @MaxLength(60)
+  nature!: string;
+
+  @IsString()
+  @MaxLength(160)
+  libelle!: string;
+
+  @IsOptional()
+  @IsUUID('4')
+  rubriqueId?: string | null;
+
+  @IsOptional()
+  @IsNumber()
+  montant?: number | null;
+}
+
+export class ModeleBulletinDto {
+  @IsString()
+  @MaxLength(80)
+  nom!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  categorie?: string;
+
+  /** La monnaie dans laquelle les montants du modèle sont stipulés. */
+  @IsEnum(['CDF', 'USD'])
+  deviseStipulation!: 'CDF' | 'USD';
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => LigneModeleBulletinDto)
+  lignes!: LigneModeleBulletinDto[];
+}

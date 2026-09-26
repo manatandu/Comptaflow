@@ -1,7 +1,8 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, StatutBulletinPaie } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
-import { AvanceSalaireDto, ModifierRubriquePaieDto, RubriquePaieDto } from './dto/personnel.dto';
+import { AvanceSalaireDto, ModeleBulletinDto, ModifierRubriquePaieDto, RubriquePaieDto } from './dto/personnel.dto';
+import { motifRefusModele, normaliserLignes } from './modeles-bulletin';
 import { NATURES_DES_RUBRIQUES, motifRefusRubrique } from './rubriques-paie';
 import { LITTERA_ARTICLE_112, compteDeLAvance, motifRefusAvance, soldeAvance, type CategoriePret, type TypeAvance } from './avances-salaire';
 
@@ -54,6 +55,47 @@ export class AvancesRubriquesService {
         ...(dto.actif !== undefined ? { actif: dto.actif } : {}),
       },
     });
+  }
+
+  // ---- Bulletins modèles (modeles-bulletin.ts) ------------------------
+
+  listerModeles(tenantId: string) {
+    return this.prisma.modeleBulletin.findMany({ where: { tenantId }, orderBy: { nom: 'asc' } });
+  }
+
+  /** Les rubriques sont relues dans CE dossier · un id étranger n'existe pas. */
+  async creerModele(tenantId: string, creePar: string, dto: ModeleBulletinDto) {
+    const rubriques = await this.prisma.rubriquePaie.findMany({
+      where: { tenantId },
+      select: { id: true, nature: true, actif: true },
+    });
+    const refus = motifRefusModele(dto, rubriques);
+    if (refus) throw new BadRequestException(refus);
+    const nom = dto.nom.trim();
+    try {
+      return await this.prisma.modeleBulletin.create({
+        data: {
+          tenantId,
+          nom,
+          categorie: dto.categorie?.trim() || null,
+          deviseStipulation: dto.deviseStipulation,
+          lignes: normaliserLignes(dto.lignes, rubriques) as unknown as Prisma.InputJsonValue,
+          creePar,
+        },
+      });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        throw new ConflictException(`Un modèle nommé « ${nom} » existe déjà dans ce dossier.`);
+      }
+      throw e;
+    }
+  }
+
+  async supprimerModele(tenantId: string, id: string) {
+    const m = await this.prisma.modeleBulletin.findFirst({ where: { id, tenantId }, select: { id: true } });
+    if (!m) throw new NotFoundException('Modèle introuvable dans ce dossier.');
+    await this.prisma.modeleBulletin.delete({ where: { id: m.id } });
+    return { supprime: true };
   }
 
   /** Le registre, avec le SOLDE calculé et le compte que chaque retenue crédite. */

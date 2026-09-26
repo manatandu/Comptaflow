@@ -7,7 +7,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AccesRolesCantonnes } from '../../common/decorators/acces-roles-cantonnes.decorator';
 import { AvancesRubriquesService } from './avances-rubriques.service';
-import { AvanceSalaireDto, ModifierRubriquePaieDto, RubriquePaieDto } from './dto/personnel.dto';
+import { AvanceSalaireDto, ModeleBulletinDto, ModifierRubriquePaieDto, RubriquePaieDto } from './dto/personnel.dto';
 
 /**
  * Rubriques de paie du cabinet et registre des avances · mêmes droits que le
@@ -36,6 +36,24 @@ export class AvancesRubriquesController {
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   modifierRubrique(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: ModifierRubriquePaieDto) {
     return this.service.modifierRubrique(user.tenantId, id, dto);
+  }
+
+  @Get('modeles-bulletin')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE, RoleUtilisateur.LECTURE_SEULE)
+  listerModeles(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.listerModeles(user.tenantId);
+  }
+
+  @Post('modeles-bulletin')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  creerModele(@CurrentUser() user: AuthenticatedUser, @Body() dto: ModeleBulletinDto) {
+    return this.service.creerModele(user.tenantId, user.email, dto);
+  }
+
+  @Delete('modeles-bulletin/:id')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  supprimerModele(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.service.supprimerModele(user.tenantId, id);
   }
 
   @Get('avances')

@@ -8,6 +8,7 @@ import { OngletBaremesPaie } from '../components/BaremesPaie';
 import { OngletRubriquesAvances, type AvanceSalaire, type RubriquePaie } from '../components/RubriquesAvancesPaie';
 import { TITRE_BLOC_PAIE } from './PaieDuMois';
 import { BaremeMensuelIrpp, type DetailMensuelIrpp } from './BaremeMensuelIrpp';
+import { lignesDepuisModele, lignesVersModele, type ModeleBulletin } from '../lib/modeles-bulletin';
 
 /**
  * LE REGISTRE DU PERSONNEL · l'état civil, les engagements, et ce que
@@ -493,6 +494,10 @@ export function PersonnelPage() {
     'registre' | 'confrontation' | 'effectif' | 'simulation' | 'bulletins' | 'rubriques' | 'baremes' | 'decompte' | 'livre'
   >('registre');
   const [rubriques, setRubriques] = useState<RubriquePaie[]>([]);
+  // Bulletins modèles · ils pré-remplissent la saisie, rien de plus.
+  const [modeles, setModeles] = useState<ModeleBulletin[]>([]);
+  const [modeleId, setModeleId] = useState('');
+  const [avisModele, setAvisModele] = useState<string[]>([]);
   const [avancesSalarie, setAvancesSalarie] = useState<AvanceSalaire[]>([]);
   const [retenuesAvances, setRetenuesAvances] = useState<Record<string, string>>({});
   const [tous, setTous] = useState(false);
@@ -557,6 +562,7 @@ export function PersonnelPage() {
   useEffect(() => {
     if (onglet !== 'simulation') return;
     api.get<{ rubriques: RubriquePaie[] }>('/personnel/rubriques').then((r) => setRubriques(r.rubriques), () => setRubriques([]));
+    api.get<ModeleBulletin[]>('/personnel/modeles-bulletin').then(setModeles, () => setModeles([]));
     if (!selection) {
       setAvancesSalarie([]);
       return;
@@ -1815,6 +1821,102 @@ export function PersonnelPage() {
               />
             </div>
           </div>
+
+          {(modeles.length > 0 || peutEcrire) && (
+            <div className="flex flex-wrap items-center gap-2 text-[11.5px] mb-1.5">
+              <span className={etiquette}>Bulletin modèle</span>
+              <select
+                aria-label="Bulletin modèle"
+                value={modeleId}
+                onChange={(e) => setModeleId(e.target.value)}
+                className="border border-border bg-transparent px-1.5 py-0.5"
+              >
+                <option value="">·</option>
+                {modeles.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.nom}
+                    {m.categorie ? ` · ${m.categorie}` : ''} ({m.deviseStipulation})
+                  </option>
+                ))}
+              </select>
+              {modeleId && (
+                <button
+                  type="button"
+                  className="border border-border px-2 py-0.5"
+                  onClick={() => {
+                    const m = modeles.find((x) => x.id === modeleId);
+                    if (!m) return;
+                    const r = lignesDepuisModele(m, deviseStipulation, rubriques.filter((x) => x.actif));
+                    setLignes(r.lignes.length > 0 ? r.lignes : [{ ...LIGNE_VIERGE }]);
+                    setAvisModele(r.avertissements);
+                  }}
+                >
+                  Appliquer
+                </button>
+              )}
+              {peutEcrire && (
+                <button
+                  type="button"
+                  className="border border-border px-2 py-0.5"
+                  onClick={async () => {
+                    const elements = lignesVersModele(lignes);
+                    if (elements.length === 0) {
+                      setErreur('Aucun élément avec un libellé · rien à enregistrer comme modèle.');
+                      return;
+                    }
+                    const nom = window.prompt('Nom du bulletin modèle (par exemple « Employé » ou « Cadre »)');
+                    if (!nom?.trim()) return;
+                    const categorie = window.prompt('Catégorie de salarié (facultatif)') ?? '';
+                    try {
+                      const cree = await api.post<ModeleBulletin>('/personnel/modeles-bulletin', {
+                        nom,
+                        categorie: categorie.trim() || undefined,
+                        deviseStipulation,
+                        lignes: elements,
+                      });
+                      setModeles((ms) => [...ms, cree].sort((a, b) => a.nom.localeCompare(b.nom)));
+                      setModeleId(cree.id);
+                      setErreur('');
+                    } catch (e) {
+                      setErreur(e instanceof ApiError ? e.message : 'Impossible d’enregistrer ce modèle.');
+                    }
+                  }}
+                >
+                  Enregistrer comme modèle
+                </button>
+              )}
+              {peutEcrire && modeleId && (
+                <button
+                  type="button"
+                  className="text-danger px-1 py-0.5"
+                  onClick={async () => {
+                    if (!window.confirm('Supprimer ce bulletin modèle ?')) return;
+                    try {
+                      await api.delete(`/personnel/modeles-bulletin/${modeleId}`);
+                      setModeles((ms) => ms.filter((m) => m.id !== modeleId));
+                      setModeleId('');
+                    } catch (e) {
+                      setErreur(e instanceof ApiError ? e.message : 'Impossible de supprimer ce modèle.');
+                    }
+                  }}
+                >
+                  Supprimer
+                </button>
+              )}
+              <Aide
+                titre="Bulletins modèles"
+                texte="Un modèle pré-remplit les éléments de la paie (nature, libellé, rubrique, montant). Il ne décide rien : la simulation et l’émission recalculent tout. L’attestation de l’article 69 et les retenues d’avance se donnent à chaque paie. Un montant n’est repris que dans la devise du modèle. Définition d’OmegaX."
+                source="Sage Paie, bulletins modèles (nommés, non décrits)"
+              />
+            </div>
+          )}
+          {avisModele.length > 0 && (
+            <ul className="text-[11px] text-warning mb-1.5">
+              {avisModele.map((a, i) => (
+                <li key={i}>{a}</li>
+              ))}
+            </ul>
+          )}
 
           <label className="flex items-center gap-2 text-[11.5px] mb-1.5">
             <span className={etiquette}>Rémunération stipulée en</span>

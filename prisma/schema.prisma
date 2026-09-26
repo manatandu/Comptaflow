@@ -671,6 +671,7 @@ model Tenant {
   notesIfrs                        NotesIfrs[]
   reglesConsolidationIfrs          RegleConsolidationIfrs[]
   lieuxBiens                       LieuBien[]
+  modelesBulletin                  ModeleBulletin[]
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -6508,6 +6509,25 @@ model RubriquePaie {
 
   @@unique([tenantId, code])
   @@map("rubriques_paie")
+}
+
+/// BULLETIN MODÈLE · gabarit d'éléments qui pré-remplit la saisie d'une paie
+/// (Sage Paie, « bulletins modèles »). Il ne décide rien · la simulation et
+/// l'émission rejouent tout (personnel/modeles-bulletin.ts). `lignes` porte
+/// nature, libellé, rubrique et montant facultatif, dans la `deviseStipulation` du modèle.
+model ModeleBulletin {
+  id                String   @id @default(uuid())
+  tenantId          String
+  tenant            Tenant   @relation(fields: [tenantId], references: [id])
+  nom               String
+  categorie         String?
+  deviseStipulation String   @default("CDF")
+  lignes            Json
+  creePar           String
+  createdAt         DateTime @default(now())
+
+  @@unique([tenantId, nom])
+  @@map("modeles_bulletin")
 }
 
 /// VERSION DE BARÈME DE PAIE SAISIE PAR LE CABINET · un arrêté ou un décret

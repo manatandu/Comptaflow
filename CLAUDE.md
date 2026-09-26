@@ -4829,6 +4829,19 @@ N'EXISTE PAS · cherché par le couple id et dossier avant toute affectation. La
 NATURE D'ACQUISITION de Sage n'est pas reprise : l'origine du bien se lit déjà
 dans son financement et son amortissement antérieur.
 
+**Bulletins modèles (2026-09-26).** Point 2 des restes de l'audit. Sage Paie
+décrit des « gabarits de rubriques pré-activées par catégorie de salarié » ; la
+définition est celle d'OmegaX (`personnel/modeles-bulletin.ts`, table
+`ModeleBulletin`, bouton de l'onglet Simulation). QUATRE RÈGLES. (1) UN MODÈLE
+PRÉ-REMPLIT, IL NE DÉCIDE RIEN · simulation et émission rejouent tout. (2) LA
+RUBRIQUE DÉCIDE DE LA NATURE, dans le modèle comme au bulletin · une rubrique
+désactivée ou d'un autre dossier est refusée à l'enregistrement, et signalée à
+l'application. (3) CE QUI TIENT À UN MOIS OU À UN SALARIÉ N'Y ENTRE PAS ·
+attestation de l'art. 69, 8, remboursement de l'art. 68, 1, retenues d'avance,
+personnes à charge. (4) UN MONTANT N'EST REPRIS QUE DANS SA DEVISE · le champ
+s'appelle `deviseStipulation`, jamais `devise`, qui est la monnaie de tenue et
+qu'aucun service n'écrit (`monnaie-de-tenue.spec.ts`).
+
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
 nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la
