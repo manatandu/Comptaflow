@@ -670,6 +670,7 @@ model Tenant {
   effetsChangeTresorerieIfrs       EffetChangeTresorerieIfrs[]
   notesIfrs                        NotesIfrs[]
   reglesConsolidationIfrs          RegleConsolidationIfrs[]
+  lieuxBiens                       LieuBien[]
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -3283,6 +3284,12 @@ model Immobilisation {
 
   designation      String
   numeroInventaire String?
+
+  /// LIEU DU BIEN · référentiel des lieux du dossier (Sage Immobilisations,
+  /// « Lieux des biens »). Information de fiche, sans effet comptable ; un
+  /// lieu qui porte des biens ne se supprime pas (RESTRICT).
+  lieuId String?
+  lieu   LieuBien? @relation(fields: [lieuId], references: [id], onDelete: Restrict)
 
   // Comptes réels de CETTE immobilisation · copiés depuis la famille à la
   // création, mais indépendants ensuite (voir commentaire de
@@ -7376,6 +7383,22 @@ model LigneLotVirement {
 
 /// Sage, Structure / Libellé · des libellés « pré-enregistrés », appelés en
 /// saisie. Un libellé n'impute rien · il n'écrit que le texte de la ligne.
+/// LIEU D'UN BIEN · référentiel séparé de localisation physique des
+/// immobilisations (Sage Immobilisations, « Lieux des biens »). Définition
+/// d'OmegaX : un code et un intitulé, rien de plus.
+model LieuBien {
+  id              String           @id @default(uuid())
+  tenantId        String
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  code            String
+  intitule        String
+  createdAt       DateTime         @default(now())
+  immobilisations Immobilisation[]
+
+  @@unique([tenantId, code])
+  @@map("lieux_biens")
+}
+
 model LibelleEcriture {
   id        String   @id @default(uuid())
   tenantId  String

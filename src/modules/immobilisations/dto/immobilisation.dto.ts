@@ -9,6 +9,7 @@ import {
   IsPositive,
   IsString,
   IsUUID,
+  Matches,
   MaxLength,
   Min,
 } from 'class-validator';
@@ -61,6 +62,11 @@ export class CreerImmobilisationDto {
   @IsOptional()
   @IsString()
   numeroInventaire?: string;
+
+  /** Lieu du bien, au référentiel des lieux du dossier. */
+  @IsOptional()
+  @IsUUID('4')
+  lieuId?: string;
 
   @IsDateString()
   dateAcquisition!: string;
@@ -449,4 +455,24 @@ export class PasserDerogatoireDto {
 
   @IsUUID('4')
   journalId!: string;
+}
+
+/** Lieu d'un bien (Sage Immobilisations, « Lieux des biens »). */
+export class LieuBienDto {
+  @IsString()
+  @Matches(/\S/, { message: 'Le code du lieu est obligatoire.' })
+  @MaxLength(20)
+  code!: string;
+
+  @IsString()
+  @Matches(/\S/, { message: 'L’intitulé du lieu est obligatoire.' })
+  @MaxLength(120)
+  intitule!: string;
+}
+
+/** Porter un bien à un lieu, ou le retirer de tout lieu (`null`). */
+export class AffecterLieuDto {
+  @IsOptional()
+  @IsUUID('4')
+  lieuId?: string | null;
 }

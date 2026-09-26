@@ -5,7 +5,7 @@ import { sousFonctionServie } from '../lib/profil-dossier';
 import { useExercice } from '../lib/exercice';
 import { Aide } from '../components/chrome/Aide';
 import { PlanFiscalDegressif } from '../components/PlanFiscalDegressif';
-import type { Compte, FamilleImmobilisation, Immobilisation, Journal, TypeComposant } from '../lib/types';
+import type { Compte, FamilleImmobilisation, Immobilisation, Journal, LieuBien, TypeComposant } from '../lib/types';
 
 /**
  * Immobilisations (§3.3) : familles (gabarits, comptes + durée par défaut ·
@@ -34,6 +34,10 @@ export function ImmobilisationsPage() {
   const [journaux, setJournaux] = useState<Journal[]>([]);
 
   const [afficherFormFamille, setAfficherFormFamille] = useState(false);
+  // Lieux des biens · référentiel du dossier (Sage Immobilisations).
+  const [lieux, setLieux] = useState<LieuBien[]>([]);
+  const [afficherLieux, setAfficherLieux] = useState(false);
+  const [iLieuId, setILieuId] = useState('');
   const [afficherFormImmo, setAfficherFormImmo] = useState(false);
 
   const [sortieOuvertePour, setSortieOuvertePour] = useState<string | null>(null);
@@ -116,13 +120,15 @@ export function ImmobilisationsPage() {
   const [rContrepartie, setRContrepartie] = useState('');
 
   const charger = async () => {
-    const [f, i, c2, ctrésorerie, jrn] = await Promise.all([
+    const [f, i, c2, ctrésorerie, jrn, lx] = await Promise.all([
       api.get<FamilleImmobilisation[]>('/immobilisations/familles'),
       api.get<Immobilisation[]>('/immobilisations'),
       api.get<Compte[]>('/comptes?classe=CLASSE_2&typeCompte=DETAIL'),
       api.get<Compte[]>('/comptes?typeCompte=DETAIL'),
       api.get<Journal[]>('/journaux'),
+      api.get<LieuBien[]>('/immobilisations/lieux'),
     ]);
+    setLieux(lx);
     setFamilles(f);
     setImmobilisations(i);
     setComptesClasse2(c2);
@@ -177,6 +183,7 @@ export function ImmobilisationsPage() {
         familleId: iFamilleId,
         designation: iDesignation,
         numeroInventaire: iNumeroInventaire || undefined,
+        lieuId: iLieuId || undefined,
         dateAcquisition: iDateAcquisition,
         dateMiseEnService: iDateMiseEnService,
         valeurOrigine: Number(iValeurOrigine),
@@ -193,6 +200,7 @@ export function ImmobilisationsPage() {
       setIPrincipal('');
       setIJustification('');
       setINumeroInventaire('');
+      setILieuId('');
       setIValeurOrigine('');
       setIValeurResiduelle('0');
       setAfficherFormImmo(false);
@@ -428,6 +436,41 @@ export function ImmobilisationsPage() {
     MISE_HORS_SERVICE: 'Hors service',
   };
 
+  const creerLieu = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const donnees = new FormData(form);
+    setErreur(null);
+    try {
+      await api.post('/immobilisations/lieux', { code: String(donnees.get('code') ?? ''), intitule: String(donnees.get('intitule') ?? '') });
+      form.reset();
+      await charger();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Impossible d’ajouter ce lieu');
+    }
+  };
+
+  const supprimerLieu = async (l: LieuBien) => {
+    if (!window.confirm(`Supprimer le lieu ${l.code} ?`)) return;
+    setErreur(null);
+    try {
+      await api.delete(`/immobilisations/lieux/${l.id}`);
+      await charger();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Impossible de supprimer ce lieu');
+    }
+  };
+
+  const deplacer = async (immo: Immobilisation, lieuId: string) => {
+    setErreur(null);
+    try {
+      await api.patch(`/immobilisations/${immo.id}/lieu`, { lieuId: lieuId || null });
+      await charger();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Impossible de déplacer ce bien');
+    }
+  };
+
   return (
     <div className="p-2">
       <div className="flex items-center justify-end mb-1.5 max-w-[1100px]">
@@ -435,6 +478,15 @@ export function ImmobilisationsPage() {
             les immobilisations s'ouvrent aussi au comptable. */}
         {peutEcrire && (
           <div className="flex items-center gap-1.5">
+            {estAdmin && (
+              <button
+                type="button"
+                onClick={() => setAfficherLieux((v) => !v)}
+                className="border border-border rounded-[3px] bg-surface px-3 py-[3px] text-[11.5px] font-semibold hover:bg-surface-alt"
+              >
+                Lieux
+              </button>
+            )}
             {estAdmin && (
               <button
                 type="button"
@@ -483,6 +535,46 @@ export function ImmobilisationsPage() {
         </div>
       )}
       {info && <div className="text-[11.5px] text-positive bg-positive-soft border border-positive/30 px-3 py-2 mb-3 max-w-[1100px]">{info}</div>}
+
+      {estAdmin && afficherLieux && (
+        <div className="border border-border bg-surface p-3 mb-4 max-w-[640px] text-[11.5px]">
+          <div className="flex items-center gap-1.5 font-semibold mb-2">
+            Lieux des biens
+            <Aide
+              titre="Lieux des biens"
+              texte="Où se trouve physiquement chaque bien · pour le retrouver le jour de l’inventaire. Sans effet comptable. Un lieu qui porte des biens ne se supprime pas : déplacez-les d’abord. Définition d’OmegaX."
+              source="Sage Immobilisations, « Lieux des biens » (nommés, non décrits)"
+            />
+          </div>
+          <table className="w-full mb-2">
+            <tbody>
+              {lieux.map((l) => (
+                <tr key={l.id} className="border-t border-border">
+                  <td className="py-1 font-semibold w-24">{l.code}</td>
+                  <td className="py-1">{l.intitule}</td>
+                  <td className="py-1 text-right text-text-dim">{l._count.immobilisations} bien(s)</td>
+                  <td className="py-1 text-right w-20">
+                    <button type="button" onClick={() => void supprimerLieu(l)} className="text-danger hover:underline">
+                      Supprimer
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <form onSubmit={(e) => void creerLieu(e)} className="flex items-end gap-2">
+            <label className="flex flex-col gap-0.5">
+              <span className="text-text-dim">Code</span>
+              <input name="code" required maxLength={20} className="border border-border-dark px-2 py-[3px] w-28" />
+            </label>
+            <label className="flex flex-col gap-0.5 flex-1">
+              <span className="text-text-dim">Intitulé</span>
+              <input name="intitule" required maxLength={120} className="border border-border-dark px-2 py-[3px]" />
+            </label>
+            <button type="submit" className="bg-sel text-white px-3 py-[4px] font-semibold">Ajouter</button>
+          </form>
+        </div>
+      )}
 
       {estAdmin && afficherFormFamille && (
         <form onSubmit={onCreerFamille} className="bg-surface border border-border p-4 mb-4 max-w-[900px]">
@@ -553,6 +645,15 @@ export function ImmobilisationsPage() {
             <label className="text-[11.5px] font-semibold text-text-dim">
               N° inventaire
               <input value={iNumeroInventaire} onChange={(e) => setINumeroInventaire(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono" />
+            </label>
+            <label className="text-[11.5px] font-semibold text-text-dim">
+              Lieu
+              <select value={iLieuId} onChange={(e) => setILieuId(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal">
+                <option value="">Non placé</option>
+                {lieux.map((l) => (
+                  <option key={l.id} value={l.id}>{l.code} · {l.intitule}</option>
+                ))}
+              </select>
             </label>
             <label className="text-[11.5px] font-semibold text-text-dim">
               Famille
@@ -702,6 +803,22 @@ export function ImmobilisationsPage() {
                     <span className="block text-[11px] text-text-dim">
                       composant de {nomPrincipal(immo.immobilisationPrincipaleId) ?? '…'}
                     </span>
+                  )}
+                  {/* Le lieu se change ici · un déplacement n'a aucun effet comptable. */}
+                  {peutEcrire && lieux.length > 0 && immo.statut === 'EN_SERVICE' ? (
+                    <select
+                      aria-label={`Lieu de ${immo.designation}`}
+                      value={immo.lieuId ?? ''}
+                      onChange={(e) => void deplacer(immo, e.target.value)}
+                      className="block mt-0.5 text-[11px] text-text-dim bg-transparent border-0 p-0"
+                    >
+                      <option value="">Non placé</option>
+                      {lieux.map((l) => (
+                        <option key={l.id} value={l.id}>{l.code} · {l.intitule}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    immo.lieu && <span className="block text-[11px] text-text-dim">{immo.lieu.code} · {immo.lieu.intitule}</span>
                   )}
                 </span>
                 <span className="font-mono text-[11px] text-text-dim">{new Date(immo.dateMiseEnService).toLocaleDateString('fr-FR')}</span>

@@ -4818,6 +4818,17 @@ EST DÉCLARÉ · `CHEMINS_SELON_UN_FAIT` cache l'accord-cadre hors ONG de droit
 (effectif 0, `assujettiTva` faux) sont des valeurs par défaut, pas des
 réponses.
 
+**Lieux des biens (2026-09-26).** Point 2 des restes de l'audit. Sage
+Immobilisations tient un « référentiel séparé de localisation physique des
+actifs » ; la définition est celle d'OmegaX (`LieuBien`, code et intitulé,
+`Immobilisation.lieuId`). TROIS RÈGLES. (1) AUCUN EFFET COMPTABLE · déplacer
+un bien ne passe aucune écriture, et le comptable le fait depuis la liste. (2)
+UN LIEU QUI PORTE DES BIENS NE SE SUPPRIME PAS · RESTRICT au schéma, refus
+nommé au service avec le nombre de biens. (3) UN LIEU D'UN AUTRE DOSSIER
+N'EXISTE PAS · cherché par le couple id et dossier avant toute affectation. La
+NATURE D'ACQUISITION de Sage n'est pas reprise : l'origine du bien se lit déjà
+dans son financement et son amortissement antérieur.
+
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
 nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la

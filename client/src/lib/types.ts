@@ -894,6 +894,9 @@ export interface Immobilisation {
   famille?: FamilleImmobilisation;
   designation: string;
   numeroInventaire: string | null;
+  /** Lieu du bien (référentiel des lieux du dossier) · null si non placé. */
+  lieuId?: string | null;
+  lieu?: { id: string; code: string; intitule: string } | null;
   compteImmobilisationId: string;
   compteImmobilisation?: Compte;
   compteAmortissementId: string;
@@ -3780,4 +3783,12 @@ export interface BalanceFonctionnelle {
     ecartDeConversion: number;
   };
   origine: { lignes: number; lignesExactes: number; lignesConverties: number; ecritures: number };
+}
+
+/** Lieu d'un bien · Sage Immobilisations, « Lieux des biens ». */
+export interface LieuBien {
+  id: string;
+  code: string;
+  intitule: string;
+  _count: { immobilisations: number };
 }

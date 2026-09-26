@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -8,6 +8,8 @@ import { ImmobilisationService } from './immobilisation.service';
 import {
   CreerFamilleDto,
   CreerImmobilisationDto,
+  AffecterLieuDto,
+  LieuBienDto,
   ModifierFamilleDto,
   PasserDotationDto,
   SaisirConsommationDto,
@@ -64,6 +66,32 @@ export class ImmobilisationController {
   @Patch('familles/:id')
   async modifierFamille(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: ModifierFamilleDto) {
     return this.immobilisationService.modifierFamille(user.tenantId, id, dto);
+  }
+
+  // Lieux des biens · la STRUCTURE (créer, supprimer) est à
+  // l'administrateur, comme les familles ; déplacer un bien est un geste de
+  // tenue, ouvert au comptable.
+  @Get('lieux')
+  async listerLieux(@CurrentUser() user: AuthenticatedUser) {
+    return this.immobilisationService.listerLieux(user.tenantId);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
+  @Post('lieux')
+  async creerLieu(@CurrentUser() user: AuthenticatedUser, @Body() dto: LieuBienDto) {
+    return this.immobilisationService.creerLieu(user.tenantId, dto);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
+  @Delete('lieux/:id')
+  async supprimerLieu(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.immobilisationService.supprimerLieu(user.tenantId, id);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Patch(':id/lieu')
+  async affecterLieu(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: AffecterLieuDto) {
+    return this.immobilisationService.affecterLieu(user.tenantId, id, dto.lieuId ?? null);
   }
 
   @Get()

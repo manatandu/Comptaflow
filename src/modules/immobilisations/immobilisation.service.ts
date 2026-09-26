@@ -16,6 +16,7 @@ import { FAMILLES_IMMOBILISATION_DEFAUT, FAMILLES_IMMOBILISATION_DEFAUT_SYSCOHAD
 import {
   CreerFamilleDto,
   CreerImmobilisationDto,
+  LieuBienDto,
   DepreciationDto,
   RenouvelerComposantDto,
   ModifierFamilleDto,
@@ -477,6 +478,71 @@ export class ImmobilisationService {
     }
   }
 
+  // ---- Lieux des biens ------------------------------------------------
+  //
+  // Sage Immobilisations tient un « référentiel séparé de localisation
+  // physique des actifs » (skill sage-i7). La définition est celle d'OmegaX :
+  // un code et un intitulé, portés sur la fiche, sans effet comptable. Ils
+  // servent à retrouver un bien le jour de l'inventaire physique.
+
+  listerLieux(tenantId: string) {
+    return this.prisma.lieuBien.findMany({
+      where: { tenantId },
+      orderBy: { code: 'asc' },
+      select: { id: true, code: true, intitule: true, _count: { select: { immobilisations: true } } },
+    });
+  }
+
+  async creerLieu(tenantId: string, dto: LieuBienDto) {
+    const code = dto.code.trim().toUpperCase();
+    try {
+      return await this.prisma.lieuBien.create({ data: { tenantId, code, intitule: dto.intitule.trim() } });
+    } catch (e) {
+      if ((e as { code?: string }).code === CODE_CONTRAINTE_UNIQUE) {
+        throw new ConflictException(`Un lieu de code ${code} existe déjà dans ce dossier.`);
+      }
+      throw e;
+    }
+  }
+
+  /**
+   * UN LIEU QUI PORTE DES BIENS NE SE SUPPRIME PAS · la relation est en
+   * RESTRICT, mais le refus est rendu ici, avec le nombre de biens, plutôt
+   * qu'en erreur de base. Le déplacer d'abord est un geste, pas une purge.
+   */
+  async supprimerLieu(tenantId: string, id: string) {
+    const lieu = await this.prisma.lieuBien.findFirst({
+      where: { id, tenantId },
+      select: { id: true, code: true, _count: { select: { immobilisations: true } } },
+    });
+    if (!lieu) throw new NotFoundException('Lieu introuvable');
+    if (lieu._count.immobilisations > 0) {
+      throw new BadRequestException(
+        `Le lieu ${lieu.code} porte ${lieu._count.immobilisations} bien(s) · déplacez-les avant de le supprimer.`,
+      );
+    }
+    await this.prisma.lieuBien.delete({ where: { id } });
+    return { supprime: true };
+  }
+
+  /** Déplacer un bien · `null` le retire de tout lieu. */
+  async affecterLieu(tenantId: string, id: string, lieuId: string | null) {
+    const immo = await this.prisma.immobilisation.findFirst({ where: { id, tenantId }, select: { id: true } });
+    if (!immo) throw new NotFoundException('Immobilisation introuvable');
+    if (lieuId) await this.lieuDuDossier(tenantId, lieuId);
+    return this.prisma.immobilisation.update({
+      where: { id },
+      data: { lieuId },
+      select: { id: true, lieuId: true },
+    });
+  }
+
+  /** Un lieu d'un autre dossier n'existe pas, pour celui-ci. */
+  private async lieuDuDossier(tenantId: string, lieuId: string) {
+    const lieu = await this.prisma.lieuBien.findFirst({ where: { id: lieuId, tenantId }, select: { id: true } });
+    if (!lieu) throw new BadRequestException('Lieu introuvable pour ce dossier');
+  }
+
   async creerFamille(tenantId: string, dto: CreerFamilleDto) {
     await this.verifierComptesFamille(tenantId, dto);
     const existant = await this.prisma.familleImmobilisation.findUnique({
@@ -499,6 +565,7 @@ export class ImmobilisationService {
       where: { tenantId, ...(statut ? { statut } : {}) },
       include: {
         famille: true,
+        lieu: { select: { id: true, code: true, intitule: true } },
         compteImmobilisation: true,
         compteAmortissement: true,
         dotations: true,
@@ -863,12 +930,15 @@ export class ImmobilisationService {
       if (refusSmt) throw new BadRequestException(refusSmt);
     }
 
+    if (dto.lieuId) await this.lieuDuDossier(tenantId, dto.lieuId);
+
     const immobilisation = await this.prisma.immobilisation.create({
       data: {
         tenantId,
         familleId: famille.id,
         designation: dto.designation,
         numeroInventaire: dto.numeroInventaire,
+        lieuId: dto.lieuId ?? null,
         compteImmobilisationId: famille.compteImmobilisationId,
         compteAmortissementId: famille.compteAmortissementId,
         compteDotationId: famille.compteDotationId,

@@ -160,7 +160,7 @@ méthode. D = la source décrit la fonction ; N = elle ne fait que la nommer.
 | Produit | Fonction | Source | OmegaX |
 |---|---|---|---|
 | Immobilisations | Familles, composants, renouvellement, sortie | D | OUI |
-| Immobilisations | Nature d'acquisition, lieu du bien sur la fiche | N | NON (le lieu n'existe que sur la fiche d'inventaire) |
+| Immobilisations | Nature d'acquisition, lieu du bien sur la fiche | N | PARTIEL (2026-09-26) · lieux des biens servis (référentiel du dossier, porté sur la fiche, déplacement sans effet comptable) ; nature d'acquisition NON reprise · l'origine d'un bien se lit déjà dans son financement et son amortissement antérieur, un second champ donnerait deux sources pour un même fait |
 | Immobilisations | Dégressif à coefficients, amortissement dérogatoire (15), plan fiscal plafond | D | OUI (2026-09-26, SYSCOHADA) · plan fiscal des art. 31 à 35, dérogatoire au 851/151 et reprise au 861 ; les anomalies des art. 32-33 tranchées et déclarées |
 | Immobilisations | Plans National et IFRS natifs sur le bien | D | ÉCARTÉ · IFRS par retraitement à côté du jeu légal (décision multi-classification) |
 | Moyens de Paiement | RIB des tiers, ordre de virement ou bordereau imprimable, état « en attente d'impression » | D (pattern), N (formats) | OUI (2026-09-26) · volet Coordonnées bancaires de la fiche tiers, ordre de virement préparé depuis Règlement des tiers, « en attente d'impression » puis imprimé, duplicata, annulation motivée |
