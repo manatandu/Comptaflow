@@ -1064,6 +1064,49 @@ export class ControlesService {
       }
     }
 
+    // --- 6 ter. Système minimal · un compte que son modèle ne présente pas --
+    // Les modèles SMT des deux textes n'ouvrent aucun poste de provision
+    // réglementée (15), de provision pour risques (19) ni de dépréciation
+    // d'immobilisation (29) · SYCEBNL Partie 4 ch. 4 (bilan GA à HZ), AUDCIF
+    // Titre X ch. 2. OmegaX refuse déjà de les PROPOSER (systeme-minimal.ts) ;
+    // une écriture saisie à la main, elle, passe, et le montant finit sous un
+    // poste qui n'est pas le sien. On signale, on ne bloque pas · même parti
+    // que CHARGE_SANS_TIERS. Les écritures de clôture sont hors champ, elles
+    // reportent un solde et n'en créent pas.
+    if (auSystemeMinimal) {
+      const RACINES_SANS_POSTE_SMT = ['15', '19', '29'];
+      const horsModele = ecritures.filter(
+        (e) =>
+          !e.estGenereeParCloture &&
+          e.lignes.some((l) => RACINES_SANS_POSTE_SMT.some((r) => l.compte.numero.startsWith(r))),
+      );
+      if (horsModele.length > 0) {
+        anomalies.push({
+          code: 'SMT_COMPTE_SANS_POSTE',
+          gravite: 'AVERTISSEMENT',
+          libelle: 'Provision ou dépréciation dans un dossier au Système minimal de trésorerie',
+          consequence:
+            'Le modèle d’états du Système minimal de trésorerie n’a aucun poste pour une provision réglementée (15), ' +
+            'une provision pour risques (19) ou une dépréciation d’immobilisation (29) ' +
+            (tenant.referentiel === Referentiel.SYCEBNL
+              ? '(SYCEBNL, Partie 4 ch. 4, bilan GA à HZ).'
+              : '(AUDCIF, Titre X ch. 2).') +
+            ' Le montant sera présenté sous un poste qui n’est pas le sien.',
+          action:
+            'Vérifiez que le dossier relève bien du Système minimal de trésorerie. Si oui, contre-passez ces écritures ; sinon, le dossier doit tenir le Système normal.',
+          occurrences: horsModele.slice(0, 200).map((e) => {
+            const lignes = e.lignes.filter((l) => RACINES_SANS_POSTE_SMT.some((r) => l.compte.numero.startsWith(r)));
+            return {
+              reference: `${e.journal.code} n° ${e.numeroPiece ?? '·'}`,
+              detail: `${e.libelle} · ${lignes.map((l) => l.compte.numero).join(', ')}`,
+              montant: lignes.reduce((s2, l) => s2 + Number(l.credit) - Number(l.debit), 0),
+              date: e.date.toISOString().slice(0, 10),
+            };
+          }),
+        });
+      }
+    }
+
     // --- 6 bis. Méthode de comptabilisation des cotisations non précisée ----
     // Cadre conceptuel SYCEBNL § 5.4.2.1 : « Le fait générateur de la
     // comptabilisation des cotisations et du droit d'entrée est l'appel [...]

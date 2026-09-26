@@ -38,6 +38,8 @@ interface MeResponse {
     /** > 0 = dossier mère d'un groupe d'établissements · ouvre le menu
      *  « Balance agrégée du groupe ». */
     nombreCellules: number;
+    /** ONG de droit étranger (loi n° 004/2001, art. 37) · null hors SYCEBNL. */
+    ongEtrangere?: boolean | null;
   };
 }
 

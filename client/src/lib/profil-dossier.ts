@@ -56,6 +56,8 @@ export const CHEMINS_SANS_OBJET_SMT: readonly string[] = [
 
 export interface RegimeDossierClient {
   referentiel: Referentiel;
+  /** Fait déclaré · voir `CHEMINS_SELON_UN_FAIT`. Absent = inconnu. */
+  ongEtrangere?: boolean | null;
   jeuEtatsFinanciersSycebnl?: JeuEtatsFinanciersSycebnl | null;
   systemeComptableSyscohada?: SystemeComptableSyscohada | null;
 }
@@ -74,10 +76,30 @@ export function estSystemeMinimalDossier(t: RegimeDossierClient | null | undefin
  * ce qu'il est en droit d'avoir.
  */
 export function cheminAuMenu(chemin: string, t: RegimeDossierClient | null | undefined): boolean {
-  if (!estSystemeMinimalDossier(t)) return true;
   const base = chemin.split('?')[0];
+  const fait = CHEMINS_SELON_UN_FAIT[base];
+  if (fait && t && fait(t) === false) return false;
+  if (!estSystemeMinimalDossier(t)) return true;
   return !CHEMINS_SANS_OBJET_SMT.includes(base);
 }
+
+/**
+ * MASQUES SELON UN FAIT DÉCLARÉ, pas selon le profil. Un seul fait est assez
+ * sûr pour masquer : la forme de l'entité et son droit, que le dossier
+ * déclare et que le module lit déjà. Rendre `false` masque ; `true` ou
+ * `null` (inconnu, ou sans objet dans ce référentiel) laisse l'entrée.
+ *
+ * VOLONTAIREMENT ABSENTS · la paie (l'effectif vaut 0 par défaut, et c'est
+ * dans cette fenêtre qu'on inscrit le premier salarié), la TVA
+ * (`assujettiTva` vaut faux par défaut, il ne distingue pas « non assujetti »
+ * de « pas encore dit ») et la facturation d'une ASBL (aucun champ ne dit
+ * qu'elle vend). Masquer sur une valeur par défaut cacherait un module à qui
+ * en a besoin.
+ */
+export const CHEMINS_SELON_UN_FAIT: Record<string, (t: RegimeDossierClient) => boolean | null> = {
+  // Loi n° 004/2001, art. 37 · l'accord-cadre ne vise que l'ONG étrangère.
+  '/accord-cadre': (t) => (t.ongEtrangere === undefined ? null : t.ongEtrangere),
+};
 
 /**
  * LES SOUS-FONCTIONS D'UNE FENÊTRE UTILE · même règle, un cran plus bas. La

@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { identiteSociete, mentionsArticle17 } from '../tenant/mentions-societe';
+import { articleTrenteSeptApplicable } from '../accord-cadre/conditions-ong-etrangere';
 import { JwtService } from '@nestjs/jwt';
 import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcryptjs';
@@ -352,6 +353,13 @@ export class AuthService {
         // « Balance agrégée du groupe » (le serveur re-vérifie de toute façon
         // le lien à chaque appel /groupe).
         nombreCellules: user.tenant._count.cellules,
+        // FAIT DÉCLARÉ qui commande un menu · l'accord-cadre (loi n° 004/2001,
+        // art. 37) ne vise que l'ONG de droit étranger. `null` hors SYCEBNL,
+        // où la question ne se pose pas. Même règle que le module.
+        ongEtrangere:
+          user.tenant.referentiel === Referentiel.SYCEBNL
+            ? articleTrenteSeptApplicable(user.tenant.formeJuridique, user.tenant.droitEtranger)
+            : null,
       },
     };
   }

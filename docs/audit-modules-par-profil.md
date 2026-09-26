@@ -123,8 +123,15 @@ chiffre faux sans rien dire.
 - **Masques** (`client/src/lib/profil-dossier.ts`) · les entrées « S » des
   colonnes Sb et So, aux menus et aux tuiles de l'accueil. La route reste
   ouverte ; rien n'est supprimé.
-- **Non codé, et pourquoi** · les colonnes « F » (selon un fait) ne masquent
-  rien : les masquer par profil serait faux.
+- **Selon un fait** (`CHEMINS_SELON_UN_FAIT`) · un seul fait est assez sûr
+  pour masquer : l'accord-cadre ne s'affiche qu'à une ONG de droit étranger
+  (loi n° 004/2001, art. 37), fait porté par /auth/me. La paie, la TVA et la
+  facturation d'une ASBL NE sont PAS masquées · l'effectif vaut 0 et
+  `assujettiTva` faux par défaut, aucun champ ne dit qu'une ASBL vend, et
+  masquer sur une valeur par défaut cacherait le module à qui en a besoin.
+- **Contrôle `SMT_COMPTE_SANS_POSTE`** · une écriture saisie à la main sur un
+  15, un 19 ou un 29 dans un dossier SMT est signalée (avertissement, jamais
+  bloquée) : aucun des deux modèles n'a de poste pour elle.
 - **Sous-fonctions masquées dans leur fenêtre** (même fichier,
   `sousFonctionServie`) · au SMT, la case « Préparer un ordre de virement » et
   le panneau des lots dans Règlement des tiers, le bloc des composants et le

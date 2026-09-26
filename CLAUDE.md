@@ -4811,8 +4811,12 @@ mode à son SMT · ne pas transposer. Ce qui solde l'historique (reprise,
 solde du dérogatoire) reste ouvert. (4) LES 69 ET 85 RESTENT LUS EN F au SMT
 SYSCOHADA · c'est ce qui garde G égal au résultat du bilan ; la décision
 « ne pas publier une provision comme un amortissement » est tenue à la source,
-pas en retirant une lecture. Ce qui dépend d'un FAIT (personnel, TVA, ventes,
-ONG étrangère) ne se masque pas par profil.
+pas en retirant une lecture, et une écriture saisie à la main sur un 15, 19
+ou 29 est signalée par `SMT_COMPTE_SANS_POSTE`. (5) UN FAIT NE MASQUE QUE S'IL
+EST DÉCLARÉ · `CHEMINS_SELON_UN_FAIT` cache l'accord-cadre hors ONG de droit
+étranger ; la paie, la TVA et la facturation ne se masquent pas, leurs champs
+(effectif 0, `assujettiTva` faux) sont des valeurs par défaut, pas des
+réponses.
 
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en

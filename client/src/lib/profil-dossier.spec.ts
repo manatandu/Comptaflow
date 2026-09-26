@@ -162,3 +162,24 @@ describe('les sous-fonctions d’une fenêtre utile', () => {
     expect(src).toContain('{revisionServie && !immo.immobilisationPrincipaleId && (');
   });
 });
+
+describe('le masque selon un fait déclaré', () => {
+  it('l’accord-cadre ne s’affiche qu’à une ONG de droit étranger', () => {
+    expect(cheminAuMenu('/accord-cadre', { ...ASSOCIATIONS, ongEtrangere: false })).toBe(false);
+    expect(cheminAuMenu('/accord-cadre', { ...ASSOCIATIONS, ongEtrangere: true })).toBe(true);
+    // Fait inconnu (serveur ancien, dossier pas chargé) · on ne cache rien.
+    expect(cheminAuMenu('/accord-cadre', ASSOCIATIONS)).toBe(true);
+    expect(cheminAuMenu('/accord-cadre', { ...ASSOCIATIONS, ongEtrangere: null })).toBe(true);
+  });
+
+  it('au SMT, le fait se cumule au profil sans l’annuler', () => {
+    expect(cheminAuMenu('/accord-cadre', { ...SMT_SYCEBNL, ongEtrangere: true })).toBe(true);
+    expect(cheminAuMenu('/balance-agee', { ...SMT_SYCEBNL, ongEtrangere: true })).toBe(false);
+  });
+
+  it('ne masque ni la paie, ni la TVA, ni la facturation sur une valeur par défaut', () => {
+    for (const chemin of ['/personnel', '/declaration-tva', '/facturation']) {
+      expect(cheminAuMenu(chemin, { ...ASSOCIATIONS, ongEtrangere: false })).toBe(true);
+    }
+  });
+});
