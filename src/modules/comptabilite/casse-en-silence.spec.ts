@@ -57,6 +57,7 @@ function serviceEcriture(detenteurs: Record<string, number> = {}) {
     mouvementStock: { count: compteur('mouvementStock') },
     consignation: { count: compteur('consignation') },
     bulletinPaie: { count: compteur('bulletinPaie') },
+    ligneOrdreVirement: { count: compteur('ligneOrdreVirement') },
     $transaction: jest.fn().mockImplementation((f: (tx: unknown) => unknown) => f(prisma)),
   } as Faux;
 
@@ -207,6 +208,14 @@ describe('3 · une écriture qu’un module tient ne se supprime pas', () => {
     await expect(
       serviceEcriture({ bulletinPaie: 3 }).supprimer('t1', 'e1'),
     ).rejects.toThrow(/paie du mois/i);
+  });
+
+  it("refuse aussi quand l'écriture est exécutée par un ordre de virement", async () => {
+    // Supprimée seule, la pièce rouvrirait la dette au 40 pendant que la
+    // banque exécute l'ordre · c'est l'annulation de l'ordre qui la libère.
+    await expect(
+      serviceEcriture({ ligneOrdreVirement: 1 }).supprimer('t1', 'e1'),
+    ).rejects.toThrow(/ordre de virement/i);
   });
 
   it('laisse partir une écriture que personne ne tient', async () => {

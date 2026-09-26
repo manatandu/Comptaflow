@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
+  IsBoolean,
   IsArray,
   IsDateString,
   IsIn,
@@ -54,4 +55,12 @@ export class EnregistrerReglementsDto {
   @ValidateNested({ each: true })
   @Type(() => ReglementTiersDto)
   reglements!: ReglementTiersDto[];
+
+  /**
+   * Préparer l'ordre de virement de ces règlements (fournisseurs seulement) ·
+   * il naît « en attente d'impression », sur les pièces qu'il exécute.
+   */
+  @IsOptional()
+  @IsBoolean()
+  ordreVirement?: boolean;
 }

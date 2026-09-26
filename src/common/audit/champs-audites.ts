@@ -38,6 +38,11 @@ export const MODELES_AUDITES = new Set<string>([
   // Retirer le contrat ou le RCCM d'un tiers doit laisser une trace · le
   // CONTENU n'est pas recopié (colonne exclue ci-dessous), l'empreinte suffit.
   'DocumentTiers',
+  // Même raison que RibBanque · le RIB d'un fournisseur changé la veille d'un
+  // virement est la fraude la plus courante qui soit. L'ordre de virement se
+  // journalise à la tête · création, impressions, annulation.
+  'RibTiers',
+  'OrdreVirement',
   'Bailleur',
   // Les actes qui font ou défont un exercice.
   'Exercice',

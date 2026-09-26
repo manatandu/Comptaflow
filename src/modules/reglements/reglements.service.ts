@@ -5,6 +5,7 @@ import { EcritureService } from '../comptabilite/ecriture.service';
 import { LettrageService } from '../lettrage/lettrage.service';
 import { refuserSiLignesFigees } from '../exercice/gel-cloture';
 import { EnregistrerReglementsDto } from './reglements.dto';
+import { OrdresVirementService, type LigneAOrdonner } from './ordres-virement.service';
 import {
   estEcheanceAReglerSur,
   lignesDuReglement,
@@ -29,6 +30,7 @@ export class ReglementsService {
     private readonly prisma: PrismaService,
     private readonly ecritures: EcritureService,
     private readonly lettrage: LettrageService,
+    private readonly ordres: OrdresVirementService,
   ) {}
 
   /**
@@ -94,7 +96,7 @@ export class ReglementsService {
    * un lot de dix règlements ne doit pas s'arrêter au sixième en laissant
    * cinq pièces passées et cinq non.
    */
-  async enregistrer(tenantId: string, userId: string, dto: EnregistrerReglementsDto) {
+  async enregistrer(tenantId: string, userId: string, dto: EnregistrerReglementsDto, email: string = userId) {
     const journal = await this.prisma.journal.findFirst({ where: { id: dto.journalId, tenantId } });
     if (!journal) throw new NotFoundException('Journal introuvable pour ce dossier.');
     if (journal.type !== TypeJournal.TRESORERIE || !journal.compteTresorerieId) {
@@ -156,7 +158,20 @@ export class ReglementsService {
     // Vérifiée ici, avec le reste, avant la première écriture.
     await refuserSiLignesFigees(this.prisma, tenantId, toutesLignes, 'régler');
 
+    // L'ORDRE DE VIREMENT se prépare ICI, avec le reste · un tiers sans RIB
+    // découvert après la cinquième pièce laisserait cinq règlements passés
+    // sans l'ordre qui devait les exécuter. Un virement PAIE un fournisseur ·
+    // l'encaissement d'un client ne s'ordonne pas à sa banque.
+    let preparation = null;
+    if (dto.ordreVirement) {
+      if (dto.sens !== 'FOURNISSEUR') {
+        throw new BadRequestException("Un ordre de virement paie un fournisseur · l'encaissement d'un client ne s'ordonne pas.");
+      }
+      preparation = await this.ordres.preparer(tenantId, dto.journalId, idsComptes);
+    }
+
     const resultats = [];
+    const aOrdonner: LigneAOrdonner[] = [];
     for (const { r, compte, du, montant } of plan) {
       const libelle = `Règlement ${compte.tiersCompte?.tiers.nom ?? compte.intitule}`.slice(0, 190);
       const ecriture = await this.ecritures.creer(tenantId, userId, {
@@ -173,7 +188,17 @@ export class ReglementsService {
         autoriserPartiel: partiel,
       });
       resultats.push({ compte: compte.numero, ecritureId: ecriture.id, montant, partiel, lettre: lettre.lettre });
+      aOrdonner.push({
+        compteId: r.compteId,
+        montant,
+        reference: r.reference || null,
+        ecritureId: ecriture.id,
+        pieceReglement: [journal.code, ecriture.numeroPiece].filter((v) => v !== null && v !== undefined).join(' '),
+      });
     }
-    return { reglements: resultats };
+    const ordre = preparation
+      ? await this.ordres.creer(tenantId, email, dto.journalId, dto.date, preparation, aOrdonner)
+      : null;
+    return { reglements: resultats, ordre };
   }
 }

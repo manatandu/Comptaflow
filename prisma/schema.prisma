@@ -288,6 +288,9 @@ model Tenant {
   // dossier SYSCOHADA, jamais pour un dossier SYCEBNL.
   systemeComptableSyscohada SystemeComptableSyscohada?
   createdAt                 DateTime                   @default(now())
+  ribsTiers                 RibTiers[]
+  ordresVirement            OrdreVirement[]
+  lignesOrdreVirement       LigneOrdreVirement[]
 
   // Coordonnées · collectées par l'assistant « Nouveau fichier comptable »,
   // toutes optionnelles pour ne pas bloquer une inscription rapide.
@@ -956,12 +959,13 @@ enum NumerotationPiece {
 }
 
 model Journal {
-  id       String      @id @default(uuid())
-  tenantId String
-  tenant   Tenant      @relation(fields: [tenantId], references: [id])
-  code     String // ex : "ACH", "VEN", "BQ", "CA", "OD"
-  intitule String
-  type     TypeJournal
+  id             String          @id @default(uuid())
+  tenantId       String
+  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  code           String // ex : "ACH", "VEN", "BQ", "CA", "OD"
+  intitule       String
+  type           TypeJournal
+  ordresVirement OrdreVirement[]
 
   // Obligatoire si type = TRESORERIE (compte sur lequel la contrepartie est
   // automatiquement enregistrée) ; sans objet pour ACHATS/VENTES/SITUATION.
@@ -1200,27 +1204,28 @@ enum StatutEcriture {
 }
 
 model Ecriture {
-  id          String    @id @default(uuid())
-  tenantId    String
-  tenant      Tenant    @relation(fields: [tenantId], references: [id])
-  exerciceId  String
-  exercice    Exercice  @relation(fields: [exerciceId], references: [id])
-  journalId   String
-  journal     Journal   @relation(fields: [journalId], references: [id])
+  id                  String               @id @default(uuid())
+  tenantId            String
+  tenant              Tenant               @relation(fields: [tenantId], references: [id])
+  exerciceId          String
+  exercice            Exercice             @relation(fields: [exerciceId], references: [id])
+  journalId           String
+  journal             Journal              @relation(fields: [journalId], references: [id])
   // Numéro de pièce auto-calculé selon Journal.numerotation (null si
   // NumerotationPiece.MANUELLE · voir JournalService.prochainNumeroPiece).
-  numeroPiece Int?
-  date        DateTime
+  numeroPiece         Int?
+  date                DateTime
   // DATE DE VALEUR · AUDCIF art. 22, 4°. Renseignée SEULEMENT quand une
   // opération datée d'une période clôturée est enregistrée au premier jour de
   // la période ouverte : `date` porte alors ce premier jour, et `dateValeur`
   // la date réelle de l'opération, « mentionnée distinctement ». Null partout
   // ailleurs · une date de valeur égale à la date ne dirait rien.
-  dateValeur  DateTime?
-  libelle     String
-  reference   String? // pièce justificative (numéro de facture, référence externe...)
-  createdAt   DateTime  @default(now())
-  createdBy   String // piste d'audit : jamais modifiable après clôture de l'exercice
+  dateValeur          DateTime?
+  libelle             String
+  reference           String? // pièce justificative (numéro de facture, référence externe...)
+  createdAt           DateTime             @default(now())
+  createdBy           String // piste d'audit : jamais modifiable après clôture de l'exercice
+  lignesOrdreVirement LigneOrdreVirement[]
 
   // Brouillard tant que l'écriture n'est pas validée · voir StatutEcriture.
   // Les états de travail (journal, grand livre, balance, analytique) la
@@ -1962,6 +1967,8 @@ model Tiers {
   factures             Facture[]
   devis                Devis[]
   documents            DocumentTiers[]
+  ribs                 RibTiers[]
+  lignesOrdreVirement  LigneOrdreVirement[]
 
   @@unique([tenantId, code])
   // L'agrégation du groupe interroge les tiers PAR CELLULE · sans cet index
@@ -7041,6 +7048,101 @@ model RibBanque {
 
   @@unique([tenantId, abrege])
   @@map("ribs_banque")
+}
+
+/// Coordonnées bancaires d'un TIERS (Sage, Moyens de Paiement : « RIB/IBAN/BIC,
+/// à la fois par banque de l'entreprise ET par tiers »). Préalable de tout
+/// ordre de virement · un RIB modifié en silence détourne un paiement, d'où le
+/// journal d'audit. Le RIB appartient au tiers et part avec lui.
+model RibTiers {
+  id           String   @id @default(uuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  tiersId      String
+  tiers        Tiers    @relation(fields: [tiersId], references: [id], onDelete: Cascade)
+  /// Établissement teneur du compte, en clair (le tiers n'est pas client
+  /// d'une banque du dossier).
+  banque       String
+  titulaire    String?
+  codeBanque   String?
+  codeGuichet  String?
+  numeroCompte String?
+  cle          String?
+  iban         String?
+  codeBic      String?
+  devise       String?
+  /// Le RIB proposé par défaut à l'ordre de virement · un seul par tiers.
+  estPrincipal Boolean  @default(false)
+  commentaire  String?
+  createdAt    DateTime @default(now())
+
+  @@index([tenantId, tiersId])
+  @@map("ribs_tiers")
+}
+
+enum StatutOrdreVirement {
+  A_IMPRIMER
+  IMPRIME
+  ANNULE
+}
+
+/// ORDRE DE VIREMENT remis à la banque (Sage : « édition des ordres de
+/// paiement » ; « le règlement n'est effectif qu'après impression » · état
+/// « en attente d'impression »). Numérotation continue par dossier, jamais
+/// réutilisée. Le donneur d'ordre et chaque bénéficiaire sont RECOPIÉS à la
+/// date de l'ordre · un document daté ne change pas quand un RIB change.
+model OrdreVirement {
+  id                    String               @id @default(uuid())
+  tenantId              String
+  tenant                Tenant               @relation(fields: [tenantId], references: [id])
+  numero                Int
+  date                  DateTime             @db.Date
+  journalId             String
+  journal               Journal              @relation(fields: [journalId], references: [id], onDelete: Restrict)
+  donneurBanque         String
+  donneurCoordonnees    String
+  donneurBic            String?
+  total                 Decimal              @db.Decimal(18, 2)
+  statut                StatutOrdreVirement  @default(A_IMPRIMER)
+  premiereImpressionLe  DateTime?
+  premiereImpressionPar String?
+  nombreImpressions     Int                  @default(0)
+  annuleLe              DateTime?
+  annulePar             String?
+  motifAnnulation       String?
+  creePar               String
+  createdAt             DateTime             @default(now())
+  lignes                LigneOrdreVirement[]
+
+  @@unique([tenantId, numero])
+  @@map("ordres_virement")
+}
+
+/// Un bénéficiaire de l'ordre · le règlement qu'il exécute (la pièce de
+/// trésorerie passée par la fenêtre Règlement des tiers) et le RIB recopié.
+model LigneOrdreVirement {
+  id             String        @id @default(uuid())
+  tenantId       String
+  tenant         Tenant        @relation(fields: [tenantId], references: [id])
+  ordreId        String
+  ordre          OrdreVirement @relation(fields: [ordreId], references: [id], onDelete: Cascade)
+  tiersId        String
+  tiers          Tiers         @relation(fields: [tiersId], references: [id], onDelete: Restrict)
+  beneficiaire   String
+  banque         String
+  coordonnees    String
+  codeBic        String?
+  montant        Decimal       @db.Decimal(18, 2)
+  reference      String?
+  /// Journal et numéro de la pièce de règlement, recopiés · l'ordre annulé
+  /// libère la pièce (ecritureId à null) sans perdre ce qu'il exécutait.
+  pieceReglement String
+  ecritureId     String?
+  ecriture       Ecriture?     @relation(fields: [ecritureId], references: [id], onDelete: Restrict)
+
+  @@index([ordreId])
+  @@index([tenantId, ecritureId])
+  @@map("lignes_ordre_virement")
 }
 
 /// Sage, Structure / Libellé · des libellés « pré-enregistrés », appelés en

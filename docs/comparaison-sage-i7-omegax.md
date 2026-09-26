@@ -159,7 +159,7 @@ méthode. D = la source décrit la fonction ; N = elle ne fait que la nommer.
 | Immobilisations | Nature d'acquisition, lieu du bien sur la fiche | N | NON (le lieu n'existe que sur la fiche d'inventaire) |
 | Immobilisations | Dégressif à coefficients, amortissement dérogatoire (15), plan fiscal plafond | D | NON · différé au plan de construction ; le texte RDC porte trois anomalies (art. 32-33) à trancher avant tout calcul |
 | Immobilisations | Plans National et IFRS natifs sur le bien | D | ÉCARTÉ · IFRS par retraitement à côté du jeu légal (décision multi-classification) |
-| Moyens de Paiement | RIB des tiers, ordre de virement ou bordereau imprimable, état « en attente d'impression » | D (pattern), N (formats) | NON · seul le RIB de l'entreprise existe (point 19) |
+| Moyens de Paiement | RIB des tiers, ordre de virement ou bordereau imprimable, état « en attente d'impression » | D (pattern), N (formats) | OUI (2026-09-26) · volet Coordonnées bancaires de la fiche tiers, ordre de virement préparé depuis Règlement des tiers, « en attente d'impression » puis imprimé, duplicata, annulation motivée |
 | Moyens de Paiement | LCR, SEPA, ETEBAC, EBICS | N | ÉCARTÉ · formats européens |
 | Moyens de Paiement | Lots de virements récurrents | N | PARTIEL · les abonnements produisent des écritures, pas des lots de paiement |
 | Édition Pilotée | Tableau de bord, vue sur 5 ans | D | OUI (tableau de bord, états personnalisés) |
@@ -172,7 +172,7 @@ méthode. D = la source décrit la fonction ; N = elle ne fait que la nommer.
 | Sage X3 | Habilitation par écran ou champ, filtrage des données par compte ou journal | N | NON · tenu en réserve au plan |
 
 Priorités proposées pour un cabinet congolais : (1) RIB des tiers et ordre de
-virement imprimable ; (2) avances et prêts sur salaire, rubriques de paie
+virement imprimable, servi le 2026-09-26 ; (2) avances et prêts sur salaire, rubriques de paie
 paramétrables ; (3) dégressif et dérogatoire pour le SYSCOHADA, après
 confrontation de l'arrêté ; (4) barèmes de paie en données datées ; (5)
 filtrage des données par rôle ; (6) simulateur budgétaire. Le reste n'est que

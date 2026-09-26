@@ -888,6 +888,11 @@ export class EcritureService {
       // passation se défait depuis la fenêtre Personnel, qui libère les
       // bulletins dans le même geste.
       ['la paie du mois (bulletins de paie)', this.prisma.bulletinPaie.count({ where: { tenantId, ecritureId } })],
+      // L'ordre de virement non annulé. Sans ce refus, la pièce de règlement
+      // disparaîtrait sous un ordre que la banque exécute quand même · la
+      // dette serait rouverte au 40 pendant que le fournisseur est payé.
+      // L'annulation de l'ordre, avec son motif, libère la pièce.
+      ['un ordre de virement', this.prisma.ligneOrdreVirement.count({ where: { tenantId, ecritureId } })],
       ["une consignation d'emballages", this.prisma.consignation.count({
         where: { tenantId, OR: [{ ecritureConsignationId: ecritureId }, { ecritureDenouementId: ecritureId }] },
       })],

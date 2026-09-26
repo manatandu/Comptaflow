@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { estEcheanceAReglerSur, lignesDuReglement, montantDu, motifRefusMontant } from './reglement-tiers';
 import { ReglementsService } from './reglements.service';
+import type { OrdresVirementService } from './ordres-virement.service';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { LettrageService } from '../lettrage/lettrage.service';
@@ -61,6 +62,7 @@ function monter(clotures: { granularite: string; journalId: string | null; dateL
   const lignes = [
     { id: 'f1', compteId: 'c401', debit: 0, credit: 600, lettrageId: null, compte: { numero: '40110000', intitule: 'Fournisseur A' }, ecriture: { exerciceId: 'ex', date: new Date('2026-03-01'), journalId: 'jACH', journal: { code: 'ACH' }, exercice: { statut: 'OUVERT' } } },
     { id: 'f2', compteId: 'c401', debit: 0, credit: 400, lettrageId: null, compte: { numero: '40110000', intitule: 'Fournisseur A' }, ecriture: { exerciceId: 'ex', date: new Date('2026-03-01'), journalId: 'jACH', journal: { code: 'ACH' }, exercice: { statut: 'OUVERT' } } },
+    { id: 'k1', compteId: 'c411', debit: 500, credit: 0, lettrageId: null, compte: { numero: '41110000', intitule: 'Client K' }, ecriture: { exerciceId: 'ex', date: new Date('2026-03-01'), journalId: 'jVEN', journal: { code: 'VEN' }, exercice: { statut: 'OUVERT' } } },
     { id: 'g1', compteId: 'c402', debit: 0, credit: 300, lettrageId: null, compte: { numero: '40120000', intitule: 'Fournisseur B' }, ecriture: { exerciceId: 'ex', date: new Date('2026-03-01'), journalId: 'jACH', journal: { code: 'ACH' }, exercice: { statut: 'OUVERT' } } },
   ];
   const prisma = {
@@ -77,8 +79,26 @@ function monter(clotures: { granularite: string; journalId: string | null; dateL
     return { id: 'e' + n, lignes: dto.lignes.map((l, i) => ({ ...l, id: `p${n}-${i}` })) };
   });
   const lettrerManuel = jest.fn(async () => ({ lettre: 'A' }));
-  const service = new ReglementsService(prisma, { creer } as unknown as EcritureService, { lettrerManuel } as unknown as LettrageService);
-  return { service, creer, lettrerManuel, lignes };
+  const ordre = jest.fn();
+  const ordres = {
+    preparer: jest.fn(async () => {
+      ordre('preparer');
+      return { donneur: { banque: 'B', coordonnees: 'X', codeBic: null }, beneficiaires: new Map() };
+    }),
+    creer: jest.fn(async () => ({ id: 'o1', numero: 1, total: 0 })),
+  };
+  creer.mockImplementation(async (_t: string, _u: string, dto: { lignes: { compteId: string }[] }): Promise<Piece> => {
+    ordre('piece');
+    n += 1;
+    return { id: 'e' + n, lignes: dto.lignes.map((l, i) => ({ ...l, id: `p${n}-${i}` })) };
+  });
+  const service = new ReglementsService(
+    prisma,
+    { creer } as unknown as EcritureService,
+    { lettrerManuel } as unknown as LettrageService,
+    ordres as unknown as OrdresVirementService,
+  );
+  return { service, creer, lettrerManuel, lignes, ordres, ordre };
 }
 
 const base = { sens: 'FOURNISSEUR' as const, exerciceId: 'ex', journalId: 'bq', date: '2026-09-25' };
@@ -127,5 +147,50 @@ describe('enregistrer', () => {
   it('le contrôleur réserve l’enregistrement aux rôles qui écrivent', () => {
     const src = readFileSync(join(__dirname, 'reglements.controller.ts'), 'utf8');
     expect(src).toContain('@Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)\n  @Post()');
+  });
+});
+
+describe('ordre de virement préparé avec les règlements', () => {
+  it('se vérifie AVANT la première pièce, puis naît sur les pièces passées', async () => {
+    const { service, ordres, ordre } = monter();
+    const r = await service.enregistrer(
+      't',
+      'u',
+      { ...base, ordreVirement: true, reglements: [{ compteId: 'c401', ligneIds: ['f1', 'f2'], reference: 'VIR 12' }, { compteId: 'c402', ligneIds: ['g1'] }] },
+      'compta@exemple.cd',
+    );
+    expect(ordre.mock.calls.map((c) => c[0])).toEqual(['preparer', 'piece', 'piece']);
+    expect(ordres.preparer).toHaveBeenCalledWith('t', 'bq', ['c401', 'c402']);
+    expect(ordres.creer).toHaveBeenCalledWith('t', 'compta@exemple.cd', 'bq', '2026-09-25', expect.anything(), [
+      { compteId: 'c401', montant: 1000, reference: 'VIR 12', ecritureId: 'e1', pieceReglement: 'BQ' },
+      { compteId: 'c402', montant: 300, reference: null, ecritureId: 'e2', pieceReglement: 'BQ' },
+    ]);
+    expect(r.ordre).toEqual({ id: 'o1', numero: 1, total: 0 });
+  });
+
+  it('un tiers sans RIB refuse le lot entier · aucune pièce passée', async () => {
+    const { service, ordres, creer } = monter();
+    ordres.preparer.mockRejectedValueOnce(new Error('pas de RIB'));
+    await expect(
+      service.enregistrer('t', 'u', { ...base, ordreVirement: true, reglements: [{ compteId: 'c401', ligneIds: ['f1'] }] }),
+    ).rejects.toThrow('pas de RIB');
+    expect(creer).not.toHaveBeenCalled();
+  });
+
+  it("l'encaissement d'un client ne s'ordonne pas", async () => {
+    const { service, creer, ordres } = monter();
+    await expect(
+      service.enregistrer('t', 'u', { ...base, sens: 'CLIENT', ordreVirement: true, reglements: [{ compteId: 'c411', ligneIds: ['k1'] }] }),
+    ).rejects.toThrow(/paie un fournisseur/);
+    expect(ordres.preparer).not.toHaveBeenCalled();
+    expect(creer).not.toHaveBeenCalled();
+  });
+
+  it("sans la case, aucun ordre n'est préparé", async () => {
+    const { service, ordres } = monter();
+    const r = await service.enregistrer('t', 'u', { ...base, reglements: [{ compteId: 'c401', ligneIds: ['f1'] }] });
+    expect(ordres.preparer).not.toHaveBeenCalled();
+    expect(ordres.creer).not.toHaveBeenCalled();
+    expect(r.ordre).toBeNull();
   });
 });

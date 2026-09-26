@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import type { Journal } from '../lib/types';
 import { Aide } from '../components/chrome/Aide';
+import { OrdresVirement } from '../components/OrdresVirement';
 
 type Sens = 'FOURNISSEUR' | 'CLIENT';
 
@@ -50,6 +51,10 @@ export function ReglementsPage() {
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
+  const [onglet, setOnglet] = useState<'reglements' | 'ordres'>('reglements');
+  const [avecOrdre, setAvecOrdre] = useState(false);
+  const [ordreCree, setOrdreCree] = useState<string | null>(null);
+  const [ordreOuvert, setOrdreOuvert] = useState(false);
 
   useEffect(() => {
     api
@@ -111,10 +116,15 @@ export function ReglementsPage() {
     setInfo(null);
     setEnvoi(true);
     try {
-      const r = await api.post<{ reglements: { compte: string; montant: number; partiel: boolean; lettre: string }[] }>(
+      const ordreVirement = avecOrdre && sens === 'FOURNISSEUR';
+      const r = await api.post<{
+        reglements: { compte: string; montant: number; partiel: boolean; lettre: string }[];
+        ordre: { id: string; numero: number } | null;
+      }>(
         '/reglements',
         {
           sens,
+          ...(ordreVirement ? { ordreVirement: true } : {}),
           exerciceId: exerciceCourant.id,
           journalId,
           date: dateReglement,
@@ -132,9 +142,14 @@ export function ReglementsPage() {
       const partiels = r.reglements.filter((x) => x.partiel).length;
       setInfo(
         `${r.reglements.length} règlement(s) passé(s) au brouillard et lettré(s)` +
-          (partiels ? `, dont ${partiels} partiel(s) en lettrage partiel.` : '.'),
+          (partiels ? `, dont ${partiels} partiel(s) en lettrage partiel.` : '.') +
+          (r.ordre ? ` Ordre de virement n° ${r.ordre.numero} préparé, en attente d'impression.` : ''),
       );
       await charger();
+      if (r.ordre) {
+        setOrdreCree(r.ordre.id);
+        setOnglet('ordres');
+      }
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Règlements non enregistrés');
     } finally {
@@ -142,8 +157,37 @@ export function ReglementsPage() {
     }
   };
 
+  const ongletActif = (o: typeof onglet) =>
+    `px-3 py-1 text-[11.5px] border-b-2 ${onglet === o ? 'border-sel font-semibold' : 'border-transparent text-text-dim hover:text-text'}`;
+  const barreOnglets = (
+    <div className="flex gap-1 border-b border-border" role="tablist">
+      <button type="button" role="tab" aria-selected={onglet === 'reglements'} className={ongletActif('reglements')} onClick={() => setOnglet('reglements')}>
+        Règlements
+      </button>
+      <button type="button" role="tab" aria-selected={onglet === 'ordres'} className={ongletActif('ordres')} onClick={() => setOnglet('ordres')}>
+        Ordres de virement
+      </button>
+    </div>
+  );
+
+  if (onglet === 'ordres') {
+    return (
+      <div className={`p-3 space-y-3 ${ordreOuvert ? 'avec-edition' : ''}`}>
+        {barreOnglets}
+        <OrdresVirement
+          ordreInitial={ordreCree}
+          onSelection={(ouvert) => {
+            setOrdreOuvert(ouvert);
+            if (!ouvert) setOrdreCree(null);
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="p-3 space-y-3">
+      {barreOnglets}
       <div className="flex flex-wrap items-end gap-3 text-[11.5px]">
         <label className="flex flex-col gap-0.5">
           <span className="text-text-dim">Règlement</span>
@@ -172,6 +216,12 @@ export function ReglementsPage() {
               <span className="text-text-dim">Date du règlement</span>
               <input type="date" value={dateReglement} onChange={(e) => setDateReglement(e.target.value)} className="border border-border px-2 py-[2px]" />
             </label>
+            {sens === 'FOURNISSEUR' && (
+              <label className="flex items-center gap-1.5 pb-[3px]">
+                <input type="checkbox" checked={avecOrdre} onChange={(e) => setAvecOrdre(e.target.checked)} />
+                Préparer un ordre de virement
+              </label>
+            )}
           </>
         )}
         <Aide

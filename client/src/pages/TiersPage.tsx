@@ -9,6 +9,7 @@ import { Aide } from '../components/chrome/Aide';
 import { BoutonImprimer, EnteteImpression } from '../components/chrome/EnteteImpression';
 import { EditionStructure } from '../components/EditionStructure';
 import { VoletDocumentsTiers } from '../components/VoletDocumentsTiers';
+import { VoletRibsTiers } from '../components/VoletRibsTiers';
 import { editionTiers, libelleTypeTiers, perimetreEdition } from '../lib/editions-structures';
 import type {
   Compte,
@@ -942,6 +943,9 @@ export function TiersPage() {
                 </form>
                 )}
               </div>
+
+              {/* Coordonnées bancaires · RIB des tiers, recopiés par l'ordre de virement */}
+              <VoletRibsTiers key={`rib-${tiersSelectionne.id}`} tiersId={tiersSelectionne.id} />
 
               {/* Volet Documents · point 21 de la comparaison Sage i7 */}
               <VoletDocumentsTiers key={tiersSelectionne.id} tiersId={tiersSelectionne.id} />

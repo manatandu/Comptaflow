@@ -220,9 +220,13 @@ export class TiersService {
     }
     refuserSiReferences(
       `Le tiers ${tiers.code}`,
-      await referencesVers(this.prisma, 'Tiers', tiers.id, tenantId, ['TiersCompte.tiersId']),
+      await referencesVers(this.prisma, 'Tiers', tiers.id, tenantId, ['TiersCompte.tiersId', 'RibTiers.tiersId']),
     );
+    // Ses RIB lui appartiennent comme ses rattachements · un ordre de virement
+    // qui en a recopié un, lui, RETIENT le tiers (LigneOrdreVirement, compté
+    // par references.ts), et la copie sur l'ordre ne dépend pas du RIB.
     await this.prisma.$transaction([
+      this.prisma.ribTiers.deleteMany({ where: { tenantId, tiersId: tiers.id } }),
       this.prisma.tiersCompte.deleteMany({ where: { tiersId: tiers.id } }),
       this.prisma.tiers.delete({ where: { id: tiers.id } }),
     ]);
@@ -251,6 +255,11 @@ export class TiersService {
       // secondaires si la fiche conservée a déjà le sien.
       if (cible.comptesRattaches.some((r) => r.estPrincipal)) {
         await tx.tiersCompte.updateMany({ where: { tiersId: source.id }, data: { estPrincipal: false } });
+      }
+      // Même règle pour les RIB · le prochain virement part sur le RIB
+      // principal de la fiche conservée, pas sur celui du doublon.
+      if ((await tx.ribTiers.count({ where: { tenantId, tiersId: cible.id, estPrincipal: true } })) > 0) {
+        await tx.ribTiers.updateMany({ where: { tenantId, tiersId: source.id }, data: { estPrincipal: false } });
       }
       // UNE PIÈCE DÉJÀ DÉTENUE PAR LA FICHE CONSERVÉE N'EST PAS REPORTÉE · deux
       // doublons portent souvent le même RCCM, et le report violerait l'unicité

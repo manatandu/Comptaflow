@@ -30,6 +30,6 @@ export class ReglementsController {
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post()
   async enregistrer(@CurrentUser() user: AuthenticatedUser, @Body() dto: EnregistrerReglementsDto) {
-    return this.reglements.enregistrer(user.tenantId, user.userId, dto);
+    return this.reglements.enregistrer(user.tenantId, user.userId, dto, user.email);
   }
 }

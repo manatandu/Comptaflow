@@ -4214,10 +4214,10 @@ RÈGLENT PAS · estimations de clôture ou avances, même sens dans les deux sem
 REFUSÉ, l'excédent étant une avance ou un trop-perçu, une autre opération. (4)
 TOUT SE VÉRIFIE AVANT LA PREMIÈRE PIÈCE · un lot ne s'arrête pas au sixième
 règlement en laissant cinq pièces passées. Le lettrage porte l'origine MANUEL ·
-ce n'est pas une présomption, le comptable a choisi les factures payées. Non
-servi et dit · l'impression de l'ordre de paiement (chez Sage, le règlement
-n'est effectif qu'après elle) ; ici la pièce naît au brouillard et la
-validation joue ce rôle.
+ce n'est pas une présomption, le comptable a choisi les factures payées.
+L'ordre de virement imprimable est servi depuis le 2026-09-26 (paragraphe
+suivant les documents attachés aux tiers) ; il ne bloque pas la validation de
+la pièce, qui reste au brouillard jusqu'à la décision du comptable.
 
 **Suppression des structures · tout lien retient (2026-09-25).** Troisième
 manque de la comparaison Sage i7. Comptes, journaux, tiers et taux de taxes se
@@ -4588,6 +4588,35 @@ son propre flux, qu'`archiver` n'écoute pas, et elle arrêtait le serveur ; ell
 est consignée dans `controles.txt`. La pré-image d'audit ne relit plus la
 colonne binaire (`selectPreImage`). Et le nom se tronque par points de code,
 un emoji coupé rendant `encodeURIComponent` fatal au téléchargement.
+
+**RIB des tiers et ordre de virement (2026-09-26).** Priorité 1 de la
+comparaison avec les autres produits Sage. La source ne porte que « RIB/IBAN/BIC
+par tiers », « l'édition des ordres de paiement » et « le règlement n'est
+effectif qu'après impression · état "en attente d'impression" » · la maquette,
+les mentions et les règles sont celles d'OmegaX (`tiers/ribs-tiers.ts`), et
+l'aide le dit. Les formats d'échange (SEPA, ETEBAC) ne sont pas servis.
+CINQ RÈGLES À NE PAS DÉFAIRE. (1) LE RIB EST DE LA STRUCTURE DU TIERS ·
+administrateur seul, à l'écran (`estAdmin`) comme au serveur, et au journal
+d'audit (un RIB changé la veille d'un virement est la fraude la plus courante).
+Un seul contrôle de format, l'IBAN ; sans IBAN ni numéro de compte, refusé. Un
+seul PRINCIPAL par tiers, le premier l'est d'office, et la fusion garde celui
+de la fiche conservée. (2) L'ORDRE NAÎT AVEC SES PIÈCES, jamais seul · case
+« Préparer un ordre de virement » de Règlement des tiers, fournisseurs
+seulement. TOUT SE VÉRIFIE AVANT LA PREMIÈRE PIÈCE (`OrdresVirementService.
+preparer`) · RIB du journal (Structure > Banques), sa devise, RIB principal de
+chaque tiers, tous les manques nommés en un refus. (3) LE DONNEUR D'ORDRE EST EN
+MONNAIE DE TENUE · un RIB de journal en USD est refusé, les montants de l'ordre
+étant ceux des pièces, en francs (loi n° 23/053 art. 141, 1°) ; sans devise, il
+est pris pour le franc. (4) TOUT EST RECOPIÉ À LA DATE DE L'ORDRE, donneur et
+bénéficiaires · un ordre remis à la banque ne change pas avec un RIB.
+Numérotation continue par dossier, jamais réutilisée. L'impression est
+ENREGISTRÉE au serveur avant la boîte d'impression · la première fait passer
+l'ordre à « imprimé » avec sa date et son auteur, les suivantes sortent en
+duplicata. (5) L'ANNULATION EXIGE UN MOTIF ET LIBÈRE LES PIÈCES SANS LES DÉFAIRE ·
+tant que l'ordre tient une pièce, elle ne se supprime pas
+(`verifierAucunModuleNeLaTient`) ; un tiers payé par un ordre ne se supprime
+pas, ses RIB partent avec lui. L'état ne bloque pas la validation de la pièce ·
+décision déclarée, la validation restant l'acte du comptable.
 
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
