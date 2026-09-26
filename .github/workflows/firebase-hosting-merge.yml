@@ -10,7 +10,7 @@ jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # firebase.json vit dans client/, pas à la racine du dépôt (le dépôt
       # contient aussi le serveur NestJS) : sans ce dossier de travail, npm
       # construisait le serveur et l'action ne trouvait pas firebase.json.
