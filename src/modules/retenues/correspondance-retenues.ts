@@ -217,7 +217,6 @@ export const NATURES_RETENUES: NatureRetenue[] = [
     // AVERTIT donc, et ne calcule aucune quotité · le forfait est libellé en
     // dollars, et le taux de change du jour du paiement n'est pas ici.
     reserve:
-      "Depuis le 1er janvier 2026, c'est l'IRPP et non plus l'IPR : la loi n° 23/053 a abrogé l'impôt professionnel sur les rémunérations. Une part importante de la documentation congolaise en ligne, pages de la DGI comprises, décrit encore le régime abrogé. " +
       "PERSONNEL DOMESTIQUE ET SALARIÉS DE MICRO-ENTREPRISES · leurs rémunérations ne suivent PAS ce régime mensuel. " +
       "L'article 70, alinéa 2 de la loi n° 23/053 les impose « suivant les taux forfaitaires fixés par voie d'Arrêté du " +
       "Ministre ayant les Finances dans ses attributions », et l'arrêté ministériel n° 019/CAB/MIN/FINANCES/2025 du " +
@@ -328,7 +327,7 @@ export const NATURES_RETENUES: NatureRetenue[] = [
     // sont elles. Servir la réserve d'une ASBL à une entreprise lui suggérait
     // de faire trancher un point qui ne se discute pas.
     reserveSyscohada:
-      "Prélèvement dû par toute entreprise individuelle ou sociétaire située en RDC employant du personnel expatrié (art. 145), assis sur le montant brut des rémunérations de l'article 68 (art. 146), les exemptions et immunités des articles 64 et 69 s'y appliquant (art. 147). Il est dû lorsque les revenus sont payés ou mis à la disposition de leurs bénéficiaires (art. 149), non lorsque la charge est engagée. Il reste à charge de l'entreprise et n'est pas déductible du bénéfice imposable (art. 50, 2°). Le taux réduit du secteur minier, le plancher au SMIG du pays d'origine et l'assimilation des ressortissants des pays limitrophes sont MORTS avec l'ordonnance-loi n° 69/007, que l'article 152 abroge nommément · MAIS SEULEMENT À COMPTER DU 1er JANVIER 2026, l'article 153 fixant l'entrée en vigueur de la loi « après vingt-quatre mois à compter du 31 décembre de l'année de sa promulgation » et la loi datant du 30 novembre 2023. SUR UN EXERCICE ANTÉRIEUR, ces trois règles étaient en vigueur et régissent la période que vous arrêtez : cet état est servi exercice par exercice, et c'est à vous de lire la réserve à la date de l'exercice affiché. Les pages en ligne qui les mentionnent encore décrivent un régime abrogé pour l'avenir, pas pour le passé.",
+      "Prélèvement dû par toute entreprise individuelle ou sociétaire située en RDC employant du personnel expatrié (art. 145), assis sur le montant brut des rémunérations de l'article 68 (art. 146), les exemptions et immunités des articles 64 et 69 s'y appliquant (art. 147). Il est dû lorsque les revenus sont payés ou mis à la disposition de leurs bénéficiaires (art. 149), non lorsque la charge est engagée. Il reste à charge de l'entreprise et n'est pas déductible du bénéfice imposable (art. 50, 2°). SUR UN EXERCICE ANTÉRIEUR au 1er JANVIER 2026, trois règles de l'ordonnance-loi n° 69/007 s'appliquaient encore : le taux réduit du secteur minier, le plancher au SMIG du pays d'origine et l'assimilation des ressortissants des pays limitrophes. Cet état est servi exercice par exercice · lisez cette réserve à la date de l'exercice affiché.",
   },
   {
     cle: 'capitauxMobiliers',
@@ -607,7 +606,7 @@ export const OBLIGATIONS_DECLARATIVES: ObligationDeclarative[] = [
     baseLegale:
       "Article 2 de l'arrêté ministériel n° 028/CAB/MIN.ET/FMM/RK/09/2025 (date, voir la réserve portée sur la contribution ONEM).",
     contenu:
-      "Déclaration de la rémunération mensuelle payée aux travailleurs et de la contribution de 0,5 % qui en découle. Elle figure comme ligne dédiée de la Déclaration mensuelle unique du guichet unique (DGI, ONEM, INPP, CNSS), aux côtés de l'IPR, de l'INPP et de la CNSS.",
+      "Déclaration de la rémunération mensuelle payée aux travailleurs et de la contribution de 0,5 % qui en découle. Elle figure comme ligne dédiée de la Déclaration mensuelle unique du guichet unique (DGI, ONEM, INPP, CNSS), aux côtés de l'IRPP, de l'INPP et de la CNSS.",
     sanction:
       "50 % du montant de la contribution due en cas de défaut de déclaration ou de déclaration fausse, inexacte ou incomplète (art. 2). Le versement tardif, lui, subit une majoration de 0,5 % par jour, tout mois commencé compté entier (art. 3).",
     sourceDonnees: 'Comptes 66 (charges de personnel) pour l’assiette, et 4335 pour la contribution due.',

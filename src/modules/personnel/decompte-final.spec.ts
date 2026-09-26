@@ -202,9 +202,10 @@ describe('Ce que le décompte écarte du séminaire CPCC', () => {
 
   it("écarte l'IPR à 10 % et la retenue syndicale de 2 %", () => {
     const r = v().reserves.join(' ');
-    expect(r).toContain('ABROGÉ');
+    // Ni l'histoire de l'IPR ni le taux du séminaire ne s'affichent (décision
+    // du 2026-09-26) · seule la règle en vigueur est dite.
     expect(r).toContain('article 112');
-    expect(r).toContain("syndicat 2 %");
+    expect(r).toContain('Aucune retenue « syndicat » n\'est appliquée');
   });
 
   it("signale l'exception du LOGEMENT de l'article 142", () => {

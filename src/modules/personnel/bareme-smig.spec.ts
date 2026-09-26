@@ -143,7 +143,7 @@ describe('l’article 2 fixe, l’article 3 échelonne, et L’ANNEXE TRANCHE', 
     const avant = annexeApplicable('2025-04');
     expect(avant.valeur).toBeNull();
     expect(avant.refus).toBe('ANTERIEUR_AU_DECRET');
-    expect(avant.explication).toContain('18/017');
+    expect(avant.explication).toContain('antérieur à mai 2025');
     expect(allocationFamilialeJournaliere('2025-04').valeur).toBeNull();
     expect(tauxJournalierDeLaClasse(5, '2025-04').valeur).toBeNull();
   });

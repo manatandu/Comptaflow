@@ -5915,6 +5915,10 @@ OmegaX, JAMAIS le vert de Sage.
 - **Aucun titre de page.** La barre de titre de la fenêtre porte le titre ; un
   fil d'Ariane ou un `<h1>` qui le répète est retiré. Les titres de CADRE
   (bloc, onglet, tableau) restent.
+- **Aucun historique législatif à l'écran** (décision du 2026-09-26). Ce qui
+  a été abrogé, remplacé ou renommé (IBP, IPR, Système allégé, INSS…) ne
+  s'affiche pas · l'utilisateur lit la règle en vigueur et, pour un exercice
+  antérieur, sa borne de date. L'histoire vit dans le code et les commentaires.
 - **Aucun paragraphe explicatif à l'écran.** Sage n'en a pas. L'explication,
   la citation du texte et le « pourquoi » vont dans la bulle `Aide` (« ? »).
   Restent à l'écran : erreurs, refus, résultats, avertissements portant sur

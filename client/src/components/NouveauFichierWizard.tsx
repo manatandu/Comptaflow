@@ -490,7 +490,7 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                         texte={
                           form.referentiel === 'SYCEBNL'
                             ? 'Le SYCEBNL en prévoit trois. Ce choix commande la présentation de toute la liasse et se verrouille à la première écriture.'
-                            : "L'AUDCIF n'en admet que deux · l'ancien Système allégé est abrogé. Ce choix se verrouille à la première écriture."
+                            : "L'AUDCIF en admet deux. Ce choix se verrouille à la première écriture."
                         }
                         source={form.referentiel === 'SYCEBNL' ? 'SYCEBNL, art. 4 à 6' : 'AUDCIF, art. 11'}
                       />

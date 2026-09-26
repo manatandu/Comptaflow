@@ -2463,8 +2463,7 @@ export class ControlesService {
             'régularisation de la situation ». OmegaX NE CONSTATE AUCUN MANQUEMENT · le dépôt est un fait ' +
             'externe qu’aucune comptabilité ne porte, et ce signalement est un rappel, pas un reproche. ' +
             'Réserve à connaître : l’art. 136 vise « toutes les entreprises » sans définir le mot et sans ' +
-            'réserve d’exemption ; l’ordonnance-loi abrogée visait expressément les exonérés, ce que la loi ' +
-            'nouvelle ne reprend pas. Pour une entité à but non lucratif, le point n’est tranché par aucun ' +
+            'réserve d’exemption. Pour une entité à but non lucratif, le point n’est tranché par aucun ' +
             'texte lu.',
           action:
             'Établissez la déclaration spéciale sur le modèle des imprimés du Conseil Permanent de la ' +

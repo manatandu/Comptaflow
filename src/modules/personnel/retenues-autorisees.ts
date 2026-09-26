@@ -139,9 +139,8 @@ export const RESERVE_CESSION_SYNDICALE =
   "elle suppose un ÉCRIT DU TRAVAILLEUR, révocable, jamais une clause qui vaudrait pour tous.";
 
 export const RESERVE_LITTERAE_DATEES =
-  "DEUX LITTERAE SONT DATÉS ET SE LISENT PAR ÉQUIVALENCE · le a) nomme la « taxe professionnelle », abrogée, " +
-  "et le b) l'« Institut National de Sécurité Sociale », devenu la CNSS en 2018. La souplesse vaut pour un " +
-  "texte qui REMPLACE celui que la liste nomme · JAMAIS pour une retenue que la liste n'a jamais prévue.";
+  "Les litterae a) et b) se lisent avec les organismes et impôts actuels (la CNSS pour le b). Cette lecture " +
+  "ne vaut JAMAIS pour une retenue que la liste n'a jamais prévue.";
 
 /**
  * Une retenue proposée est-elle dans la liste ? La fonction ne devine pas :

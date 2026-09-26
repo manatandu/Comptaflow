@@ -60,7 +60,7 @@ export function ConstitutionPage() {
         </span>
         <Aide
           titre="Trois fondements, et ils ne se valent pas"
-          texte="Loi · exigée par la loi n° 004/2001 elle-même, article à l'appui. Pratique administrative · exigée par la note circulaire n° 003/2013, qui écrit d'elle-même qu'elle « ne crée pas de droit nouveau » ; refuser de la fournir bloque le dossier, ce n'est pas pour autant une obligation légale. Sans base légale en vigueur · réclamée en pratique, mais son fondement est abrogé ; à fournir en le sachant. OmegaX n'engendre aucune pièce et ne saisit aucune administration · c'est une liste de contrôle, et les modèles d'actes sont au guide."
+          texte="Loi · exigée par la loi n° 004/2001 elle-même, article à l'appui. Pratique administrative · exigée par la note circulaire n° 003/2013, qui écrit d'elle-même qu'elle « ne crée pas de droit nouveau » ; refuser de la fournir bloque le dossier, ce n'est pas pour autant une obligation légale. Sans base légale en vigueur · réclamée en pratique, sans texte qui la fonde ; à fournir en le sachant. OmegaX n'engendre aucune pièce et ne saisit aucune administration · c'est une liste de contrôle, et les modèles d'actes sont au guide."
           source="Loi n° 004/2001 · note circulaire n° 003/2013"
         />
       </section>

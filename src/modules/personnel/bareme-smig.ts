@@ -235,8 +235,8 @@ const MOIS_VALIDE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 const REFUS_ANTERIEUR =
   "Ce mois de paie est antérieur à mai 2025, premier mois couvert par l'annexe 1 du décret " +
-  "n° 25/22. Le décret n° 18/017 du 22 mai 2018 régissait alors ; il est abrogé par l'article 11 " +
-  "et n'est PAS au corpus d'OmegaX · ses montants ne sont pas reconstitués ici.";
+  "n° 25/22. Les montants applicables avant ce mois ne sont pas au corpus d'OmegaX et ne sont pas " +
+  "reconstitués ici.";
 
 /** Le nom d'une annexe dans un message · celle du décret, ou la version du cabinet. */
 export const nomAnnexe = (a: Annexe) =>
@@ -501,9 +501,8 @@ export const LACUNES_DECLAREES: readonly { objet: string; article: string; conse
       objet: 'Le DÉCRET N° 18/017 du 22 mai 2018',
       article: 'décret n° 25/22, art. 11',
       consequence:
-        "Abrogé, mais il régissait les mois de paie antérieurs à mai 2025. Ses montants ne sont pas " +
-        'au corpus et ne sont pas reconstitués · un exercice clos avant mai 2025 ne se liquide donc ' +
-        'pas ici.',
+        "Il régit les mois de paie antérieurs à mai 2025. Ses montants ne sont pas au corpus · un " +
+        'exercice clos avant mai 2025 ne se liquide donc pas ici.',
     },
     {
       objet: "Les SECTEURS AGRO-INDUSTRIELS ET PASTORAUX",

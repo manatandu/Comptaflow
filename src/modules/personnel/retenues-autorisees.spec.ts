@@ -42,7 +42,7 @@ describe("Les sept retenues de l'article 112, recopiées", () => {
   });
 
   it("borne la souplesse de l'équivalence", () => {
-    expect(RESERVE_LITTERAE_DATEES).toMatch(/REMPLACE/);
+    expect(RESERVE_LITTERAE_DATEES).toMatch(/CNSS pour le b/);
     expect(RESERVE_LITTERAE_DATEES).toMatch(/JAMAIS pour une retenue que la liste n'a jamais prévue/i);
   });
 });

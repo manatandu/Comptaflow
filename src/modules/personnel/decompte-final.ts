@@ -386,7 +386,7 @@ export function decompteFinal(params: {
     reserves: [
       "UN SOLDE PARTIEL SE LIT COMME UN SOLDE · dès qu'une rubrique est indéterminée, le total l'est aussi. Le travailleur signe pour ce qui est écrit.",
       "LE DÉCOMPTE FINAL N'EST PAS DÉFINI PAR LE CODE · c'est un usage professionnel, et son fondement est l'article 100, qui n'en donne ni la liste ni la forme.",
-      "LES RETENUES NE SONT PAS APPLIQUÉES ICI · l'assiette sociale, l'assiette fiscale et le barème de l'article 118 valent pour le décompte comme pour un mois ordinaire, et ils vivent dans `assiettes-paie.ts` et `bareme-irpp.ts`. Le séminaire CPCC y porte l'IPR à 10 %, ABROGÉ au 1er janvier 2026, et une retenue « syndicat 2 % » qu'AUCUN article ne fonde · l'article 112 énumère les retenues autorisées et ne la nomme pas.",
+      "LES RETENUES NE SONT PAS APPLIQUÉES ICI · l'assiette sociale, l'assiette fiscale et le barème de l'article 118 valent pour le décompte comme pour un mois ordinaire, et ils vivent dans `assiettes-paie.ts` et `bareme-irpp.ts`. Aucune retenue « syndicat » n'est appliquée · l'article 112 énumère les retenues autorisées et ne la nomme pas.",
       ...preavis.reserves,
       ...conge.reserves,
     ],

@@ -39,8 +39,7 @@ describe('Catalogue de constitution · trois fondements qui ne se valent pas', (
     expect(sansBase).toHaveLength(1);
     expect(sansBase[0].cle).toBe('reconnaissance-provinciale');
     expect(sansBase[0].reserve).toMatch(/AUCUN TEXTE LÉGAL/);
-    expect(sansBase[0].reserve).toMatch(/Décret-loi n° 195/);
-    expect(sansBase[0].reserve).toMatch(/ABROGÉ/);
+    expect(sansBase[0].reserve).toMatch(/réclamée en pratique/);
     // Et elle est CONSERVÉE, parce qu'un dossier sans elle est recalé · la
     // retirer tromperait autant que taire son origine.
     expect(pieces.some((p) => p.cle === 'reconnaissance-provinciale')).toBe(true);

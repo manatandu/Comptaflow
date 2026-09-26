@@ -345,7 +345,7 @@ export function cotisations(
   const cnss = tauxCnss(parametres.moisDePaie, v?.cnss);
   if (!cnss) {
     abstentions.push(
-      `CNSS · aucun barème lu pour le mois ${parametres.moisDePaie} · le décret n° 18/041 est entré en vigueur le 24 novembre 2018 (art. 11), et le régime antérieur n'est pas au corpus.`,
+      `CNSS · aucun barème lu pour le mois ${parametres.moisDePaie} · OmegaX n'en tient aucun avant le 24 novembre 2018 (décret n° 18/041, art. 11).`,
     );
   } else {
     // Une version saisie par le cabinet porte SA référence, et la réserve le dit.

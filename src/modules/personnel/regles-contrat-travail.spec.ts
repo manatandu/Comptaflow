@@ -512,7 +512,7 @@ describe('la rémunération convenue confrontée au minimum de sa classe', () =>
   it('NE CONTRÔLE RIEN avant mai 2025 · le barème de 2018 n’est pas au corpus', () => {
     const v = verdictRemunerationMinimale(manoeuvre, '2025-03');
     expect(v.abstention).toBe('HORS_BAREME');
-    expect(v.explication).toContain('18/017');
+    expect(v.explication).toContain('antérieur à mai 2025');
   });
 
   it('ne déduit PAS la classe de la catégorie de la convention collective', () => {

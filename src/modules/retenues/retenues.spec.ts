@@ -1380,10 +1380,10 @@ describe('Passe F6 · le prélèvement des capitaux mobiliers ne vise que « les
 describe('Passe F6 · l’abrogation de l’O.-L. n° 69/007 porte sa date d’effet (art. 152 et 153)', () => {
   it('borne la mort du régime expatrié au 1er janvier 2026', () => {
     const nature = NATURES_RETENUES.find((n) => n.cle === 'prelevementExpatries')!;
-    expect(nature.reserveSyscohada).toContain('1er JANVIER 2026');
-    expect(nature.reserveSyscohada).toContain('vingt-quatre mois');
-    expect(nature.reserveSyscohada).toContain('30 novembre 2023');
-    expect(nature.reserveSyscohada).toContain('SUR UN EXERCICE ANTÉRIEUR');
+    // Le calcul de la date d'effet (art. 153) vit dans le code, pas à l'écran ·
+    // l'utilisateur lit la borne, pas l'histoire de la loi (décision du
+    // 2026-09-26).
+    expect(nature.reserveSyscohada).toContain('SUR UN EXERCICE ANTÉRIEUR au 1er JANVIER 2026');
   });
 });
 

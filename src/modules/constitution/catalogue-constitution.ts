@@ -197,11 +197,10 @@ const ETAPE_ENREGISTREMENT_PLAN: EtapeConstitution = {
       fondement: 'USAGE_SANS_BASE_LEGALE',
       source: 'Note circulaire n° 003/2013, section A, point 4',
       reserve:
-        'CETTE EXIGENCE NE DÉCOULE D’AUCUN TEXTE LÉGAL EN VIGUEUR. Le guide Kahasha (§ 6) : « elle procède de ' +
-        'la pratique d’un ancien texte de loi, savoir le Décret-loi n° 195 du 29 janvier 1999 en son article 37, ' +
-        'ABROGÉ par la loi n° 004/2001 », et « cette procédure informelle, non réglementée par un texte, peut se ' +
-        'révéler dangereuse pour l’ONG et ne lui fournit aucune garantie, vu qu’elle est tributaire de la ' +
-        'personne contactée ». Elle reste réclamée en pratique : la fournir, en le sachant.',
+        'CETTE EXIGENCE NE DÉCOULE D’AUCUN TEXTE LÉGAL EN VIGUEUR. Le guide Kahasha (§ 6) : « cette procédure ' +
+        'informelle, non réglementée par un texte, peut se révéler dangereuse pour l’ONG et ne lui fournit aucune ' +
+        'garantie, vu qu’elle est tributaire de la personne contactée ». Elle reste réclamée en pratique : la ' +
+        'fournir, en le sachant.',
     },
     {
       cle: 'autorisation-fonctionnement',

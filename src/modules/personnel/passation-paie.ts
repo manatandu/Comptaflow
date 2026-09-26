@@ -474,7 +474,7 @@ export function passationPaie(entree: EntreePassation): VerdictPassation {
         sens: 'CREDIT',
         montantFc: irppFc,
         reserve:
-          "L'IMPÔT RETENU N'EST PAS UNE CHARGE DE L'EMPLOYEUR · il est prélevé sur le brut du salarié et reversé pour son compte. L'intitulé « impôts sur salaires » est hérité de l'IPR ; c'est l'IRPP de l'article 119 de la loi n° 23/053 qui s'y loge depuis le 1er janvier 2026.",
+          "L'IMPÔT RETENU N'EST PAS UNE CHARGE DE L'EMPLOYEUR · il est prélevé sur le brut du salarié et reversé pour son compte. C'est l'IRPP de l'article 119 de la loi n° 23/053 qui s'y loge.",
       });
     }
   }

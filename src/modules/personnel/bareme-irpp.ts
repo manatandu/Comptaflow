@@ -57,7 +57,7 @@ export const LOI_IRPP = {
   articleBareme: 'article 118',
   entreeEnVigueur: '2026-01-01',
   regimeAnterieur:
-    "Impôt professionnel sur les rémunérations (IPR), abrogé au 1er janvier 2026 et absent du corpus lu · OmegaX ne calcule rien avant cette date.",
+    "OmegaX ne calcule pas l'impôt sur les rémunérations avant cette date.",
 } as const;
 
 /**
