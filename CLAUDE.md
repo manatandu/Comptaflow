@@ -5029,6 +5029,21 @@ aucun abonnement n'est alors écrit. La console lit la licence d'un autre
 dossier HORS CLOISONNEMENT (`modifierLicence` aussi, qui rendait 404 sous la
 garde).
 
+**Factures et licences envoyées par courriel (2026-09-26).**
+`abonnements/courriels-editeur.ts` (composition pure) et
+`CourrielsEditeurService`, boutons « Envoyer » de la console et case « Envoyer
+par courriel aux clients » de la facturation. QUATRE RÈGLES. (1) TOUT PASSE PAR
+LA FILE (`CourrierService.mettreEnFile`) · sans messagerie posée, le courriel
+attend en file (SANS_TRANSPORT), et l'écran dit « en file », jamais « envoyé ».
+(2) LA FACTURE PART EN TEXTE DANS LE CORPS, pas en seconde maquette (PDF ou
+HTML serveur) qui divergerait de la pièce imprimée · elle reprend numéro,
+émetteur et ligne de l'art. 17, lignes, totaux et cours, et porte la mention
+« non homologué » comme la pièce. L'adresse saisie prime, sinon celle du tiers
+facturé ; sans adresse rien n'est mis en file. (3) LA LICENCE PART EN PIÈCE
+JOINTE, EN TEXTE (`Message.pieceJointeTexte`), sous le nom du téléchargement ·
+une colonne texte reste réversible dans le CSV de restitution. (4) UN ÉCHEC
+D'ENVOI NE DÉFAIT JAMAIS LA FACTURE · il se dit sur sa ligne de résultat.
+
 **Écriture passée depuis une facture (2026-09-26).** `facturation/ecriture-facture.ts`
 (moteur pur) et `ComptabilisationFactureService`, bouton « Passer l'écriture »
 de la fenêtre Facturation. TROIS RÈGLES. (1) LE SCHÉMA DES FICHES DES COMPTES

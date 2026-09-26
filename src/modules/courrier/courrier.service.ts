@@ -28,6 +28,8 @@ import { ManqueTransport, TransportCourriel, texteDErreur } from './transport-co
  */
 export const ORIGINE_RELANCE = 'RELANCE';
 export const ORIGINE_MOT_DE_PASSE_TEMPORAIRE = 'MOT_DE_PASSE_TEMPORAIRE';
+export const ORIGINE_LICENCE_SUR_SITE = 'LICENCE_SUR_SITE';
+export const ORIGINE_FACTURE_ABONNEMENT = 'FACTURE_ABONNEMENT';
 
 export interface MessageAMettreEnFile {
   destinataire: string;
@@ -40,6 +42,8 @@ export interface MessageAMettreEnFile {
   origineId?: string | null;
   /** Identifiant de l'utilisateur qui a décidé l'envoi, quand il y en a un. */
   createdBy?: string | null;
+  /** Une pièce jointe en TEXTE (fichier de licence), écrite avec le message. */
+  pieceJointe?: { nom: string; texte: string } | null;
 }
 
 export interface ResultatMiseEnFile {
@@ -164,6 +168,13 @@ export class CourrierService {
       throw new BadRequestException("Message sans origine · la file serait illisible sans elle.");
     }
 
+    const piece = message.pieceJointe ?? null;
+    // Une pièce annoncée et vide partirait comme un fichier que le
+    // destinataire ne pourra pas ouvrir, sous un courriel qui dit le contraire.
+    if (piece && (piece.nom.trim().length === 0 || piece.texte.trim().length === 0)) {
+      throw new BadRequestException('Pièce jointe sans nom ou sans contenu · le message n’a pas été mis en file.');
+    }
+
     const ligne = await this.prisma.message.create({
       data: {
         tenantId,
@@ -174,6 +185,8 @@ export class CourrierService {
         origine,
         origineId: message.origineId ?? null,
         createdBy: message.createdBy ?? null,
+        pieceJointeNom: piece?.nom.trim() ?? null,
+        pieceJointeTexte: piece?.texte ?? null,
       },
     });
 
@@ -385,6 +398,8 @@ export class CourrierService {
       sujet: string;
       corps: string;
       tentatives: number;
+      pieceJointeNom: string | null;
+      pieceJointeTexte: string | null;
     },
   ): Promise<ResultatMiseEnFile> {
     if (!this.transport.etat().configure) {
@@ -404,6 +419,7 @@ export class CourrierService {
         destinataireNom: ligne.destinataireNom,
         sujet: ligne.sujet,
         corps: ligne.corps,
+        pieceJointe: ligne.pieceJointeNom && ligne.pieceJointeTexte ? { nom: ligne.pieceJointeNom, texte: ligne.pieceJointeTexte } : null,
       });
       return this.marquer(tenantId, ligne.id, {
         statut: StatutMessage.ENVOYE,

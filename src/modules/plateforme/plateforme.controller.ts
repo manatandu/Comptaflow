@@ -4,12 +4,14 @@ import { OperateurPlateformeGuard } from './operateur-plateforme.guard';
 import { PlateformeService } from './plateforme.service';
 import { LicencesSurSiteService } from './licences-sur-site.service';
 import { AbonnementsService } from '../abonnements/abonnements.service';
+import { CourrielsEditeurService } from '../abonnements/courriels-editeur.service';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import {
   CreerCabinetDto,
   ActiverAbonnementDto,
   EmettreLicenceSurSiteDto,
   EnregistrerAbonnementDto,
+  EnvoyerParCourrielDto,
   FacturerAbonnementsDto,
   FixerPrixFormuleDto,
   MarquerPayeeDto,
@@ -35,6 +37,7 @@ export class PlateformeController {
     private readonly plateformeService: PlateformeService,
     private readonly licencesSurSite: LicencesSurSiteService,
     private readonly abonnements: AbonnementsService,
+    private readonly courriels: CourrielsEditeurService,
   ) {}
 
   @Get('formules')
@@ -69,7 +72,12 @@ export class PlateformeController {
 
   @Post('abonnements/facturer')
   facturerAbonnements(@Body() dto: FacturerAbonnementsDto, @CurrentUser() operateur: AuthenticatedUser) {
-    return this.abonnements.facturer(operateur.tenantId, dto.periode, dto.dateFacture, dto.tauxTvaId ?? null);
+    return this.abonnements.facturer(operateur.tenantId, dto.periode, dto.dateFacture, dto.tauxTvaId ?? null, dto.envoyer ? { userId: operateur.userId } : null);
+  }
+
+  @Post('abonnements/factures/:id/envoyer')
+  envoyerFactureAbonnement(@Param('id') id: string, @Body() dto: EnvoyerParCourrielDto, @CurrentUser() operateur: AuthenticatedUser) {
+    return this.courriels.envoyerFacture({ tenantId: operateur.tenantId, userId: operateur.userId }, id, dto.destinataire ?? null);
   }
 
   @Get('licences-sur-site')
@@ -80,6 +88,11 @@ export class PlateformeController {
   @Get('licences-sur-site/:id/fichier')
   fichierLicenceSurSite(@Param('id') id: string) {
     return this.licencesSurSite.fichier(id);
+  }
+
+  @Post('licences-sur-site/:id/envoyer')
+  envoyerLicenceSurSite(@Param('id') id: string, @Body() dto: EnvoyerParCourrielDto, @CurrentUser() operateur: AuthenticatedUser) {
+    return this.courriels.envoyerLicence({ tenantId: operateur.tenantId, userId: operateur.userId }, id, dto.destinataire ?? '', dto.destinataireNom ?? null);
   }
 
   @Post('licences-sur-site')

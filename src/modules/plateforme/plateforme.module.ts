@@ -7,15 +7,18 @@ import { PlateformeController } from './plateforme.controller';
 import { OperateurPlateformeGuard } from './operateur-plateforme.guard';
 import { LicencesSurSiteService } from './licences-sur-site.service';
 import { PrismaService } from '../../common/prisma.service';
+import { CourrierModule } from '../courrier/courrier.module';
+import { CourrielsEditeurService } from '../abonnements/courriels-editeur.service';
 
 @Module({
   // AuthModule pour AuthService : la création d'un cabinet client réutilise
   // le pipeline d'inscription (voir PlateformeService.creerCabinet).
-  imports: [AuthModule, FacturationModule],
+  imports: [AuthModule, FacturationModule, CourrierModule],
   controllers: [PlateformeController],
   providers: [
     PlateformeService,
     AbonnementsService,
+    CourrielsEditeurService,
     OperateurPlateformeGuard,
     // Fabrique · l'environnement et la clé publique sont des paramètres par
     // défaut, remplaçables dans les tests, que l'injection ne sait pas lire.

@@ -37,6 +37,7 @@ export function LicencesSurSiteConsole() {
   const [dossiersMax, setDossiersMax] = useState('1');
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
+  const [info, setInfo] = useState<string | null>(null);
 
   const charger = () =>
     api
@@ -67,6 +68,22 @@ export function LicencesSurSiteConsole() {
       setErreur(err instanceof ApiError ? err.message : 'L’émission a échoué.');
     } finally {
       setEnvoi(false);
+    }
+  };
+
+  // L'adresse se saisit · un titulaire de licence n'est pas un tiers du dossier.
+  const envoyerParCourriel = async (l: LicenceEmise) => {
+    const destinataire = window.prompt(`Envoyer la licence ${l.numero} à l’adresse`, '');
+    if (!destinataire || !destinataire.trim()) return;
+    setErreur(null);
+    setInfo(null);
+    try {
+      const r = await api.post<{ statut: string }>(`/plateforme/licences-sur-site/${l.id}/envoyer`, { destinataire: destinataire.trim(), destinataireNom: l.titulaire });
+      setInfo(
+        `Licence ${l.numero} · courriel ${r.statut === 'ENVOYE' ? 'envoyé' : r.statut === 'SANS_TRANSPORT' ? 'en file, messagerie non configurée' : `en file (${r.statut})`}.`,
+      );
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Le courriel n’a pas pu être mis en file.');
     }
   };
 
@@ -106,6 +123,7 @@ export function LicencesSurSiteConsole() {
           {erreur}
         </p>
       )}
+      {info && <p className="mt-2 text-[11.5px]">{info}</p>}
       {liste.length > 0 && (
         <div className="overflow-x-auto mt-3">
           <table className="w-full text-[11.5px]">
@@ -134,6 +152,9 @@ export function LicencesSurSiteConsole() {
                   <td>
                     <button type="button" className="underline" onClick={() => telecharger(l)}>
                       Fichier
+                    </button>{' '}
+                    <button type="button" className="underline" onClick={() => envoyerParCourriel(l)}>
+                      Envoyer
                     </button>
                   </td>
                 </tr>

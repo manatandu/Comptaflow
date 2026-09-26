@@ -529,7 +529,7 @@ export interface Totaux {
 }
 
 /** Les totaux que l'art. 100 demande de porter au pied de la facture. */
-export function totauxFacture(f: FactureVerifiable): Totaux {
+export function totauxFacture(f: Pick<FactureVerifiable, 'lignes'>): Totaux {
   let montantHT = 0;
   let montantNonTaxable = 0;
   let montantTva = 0;

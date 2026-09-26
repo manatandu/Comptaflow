@@ -61,6 +61,7 @@ export interface EnvoiCourriel {
   destinataireNom?: string | null;
   sujet: string;
   corps: string;
+  pieceJointe?: { nom: string; texte: string } | null;
 }
 
 /**
@@ -209,6 +210,9 @@ export class TransportCourriel {
       // coupé, il devient un décompte faux remis à un tiers, et c'est le
       // logiciel qui l'aura signé.
       text: envoi.corps,
+      ...(envoi.pieceJointe
+        ? { attachments: [{ filename: envoi.pieceJointe.nom, content: envoi.pieceJointe.texte, contentType: 'text/plain; charset=utf-8' }] }
+        : {}),
     });
   }
 

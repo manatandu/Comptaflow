@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsDateString, IsEmail, IsEnum, IsIn, IsInt, IsNumber, IsOptional, IsString, IsUUID, Matches, Min, MinLength, ValidateIf } from 'class-validator';
+import { IsArray, IsBoolean, IsDateString, IsEmail, IsEnum, IsIn, IsInt, IsNumber, IsOptional, IsString, IsUUID, Matches, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
 import { JeuEtatsFinanciersSycebnl, Referentiel, StatutLicence, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
 
 /**
@@ -237,6 +237,24 @@ export class FacturerAbonnementsDto {
   @IsOptional()
   @IsUUID()
   tauxTvaId?: string | null;
+
+  /** Envoyer chaque facture émise au courriel du client facturé. */
+  @IsOptional()
+  @IsBoolean()
+  envoyer?: boolean;
+}
+
+/** L'adresse est vérifiée par la file (`adresseAcceptable`), une seule règle. */
+export class EnvoyerParCourrielDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(320)
+  destinataire?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  destinataireNom?: string | null;
 }
 
 export class MarquerPayeeDto {

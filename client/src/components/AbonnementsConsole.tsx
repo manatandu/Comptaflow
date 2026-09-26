@@ -31,7 +31,12 @@ interface Resultat {
   motif?: string;
   numero?: string;
   totalUsd?: number;
+  courriel?: string;
 }
+
+/** Ce que la file a fait d'un courriel · « en file » n'est pas « envoyé ». */
+const statutCourriel = (s: string) =>
+  s === 'ENVOYE' ? 'envoyé' : s === 'SANS_TRANSPORT' ? 'en file, messagerie non configurée' : `en file (${s})`;
 
 const champ = 'border border-border px-2 py-1 text-[11.5px] bg-surface';
 const aujourdhui = () => new Date(Date.now() + 3_600_000).toISOString().slice(0, 10);
@@ -55,9 +60,10 @@ export function AbonnementsConsole({ cabinets }: { cabinets: { id: string; nom: 
   const [taux, setTaux] = useState<{ id: string; intitule: string }[]>([]);
   const [prix, setPrix] = useState<Record<string, { m: string; a: string }>>({});
   const [erreur, setErreur] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [resultats, setResultats] = useState<Resultat[] | null>(null);
   const [f, setF] = useState({ cabinetId: '', formuleCode: 'ESSENTIEL', options: [] as string[], dossiersSupplementaires: '0', periodicite: 'MENSUELLE', debut: aujourdhui(), essai: true, tiersId: '' });
-  const [fac, setFac] = useState({ periode: aujourdhui().slice(0, 7), dateFacture: aujourdhui(), tauxTvaId: '' });
+  const [fac, setFac] = useState({ periode: aujourdhui().slice(0, 7), dateFacture: aujourdhui(), tauxTvaId: '', envoyer: false });
 
   const charger = async () => {
     const [fo, ab] = await Promise.all([api.get<Formule[]>('/plateforme/formules'), api.get<Abonnement[]>('/plateforme/abonnements')]);
@@ -73,6 +79,7 @@ export function AbonnementsConsole({ cabinets }: { cabinets: { id: string; nom: 
 
   const agir = async (action: () => Promise<unknown>) => {
     setErreur(null);
+    setInfo(null);
     try {
       await action();
       await charger();
@@ -104,6 +111,16 @@ export function AbonnementsConsole({ cabinets }: { cabinets: { id: string; nom: 
     if (payeeLe) void agir(() => api.patch(`/plateforme/abonnements/factures/${id}/payee`, { payeeLe }));
   };
 
+  // Vide · l'adresse du client facturé, lue sur sa fiche de tiers.
+  const envoyer = (id: string, numero: string) => {
+    const destinataire = window.prompt(`Envoyer la facture ${numero} à (vide : l’adresse du client)`, '');
+    if (destinataire === null) return;
+    void agir(async () => {
+      const r = await api.post<{ statut: string }>(`/plateforme/abonnements/factures/${id}/envoyer`, { destinataire: destinataire.trim() || null });
+      setInfo(`Facture ${numero} · courriel ${statutCourriel(r.statut)}.`);
+    });
+  };
+
   const options = formules.filter((x) => x.type === 'OPTION');
   return (
     <section className="border border-border bg-surface px-3.5 py-2.5 mt-3 text-[11.5px]">
@@ -113,6 +130,7 @@ export function AbonnementsConsole({ cabinets }: { cabinets: { id: string; nom: 
           {erreur}
         </p>
       )}
+      {info && <p className="mb-2">{info}</p>}
 
       <h3 className="font-semibold mb-1">Formules et prix (USD)</h3>
       <div className="overflow-x-auto">
@@ -252,6 +270,9 @@ export function AbonnementsConsole({ cabinets }: { cabinets: { id: string; nom: 
                               <button type="button" className="underline" onClick={() => encaisser(x.id)}>
                                 Encaissée
                               </button>
+                              <button type="button" className="underline" onClick={() => envoyer(x.id, x.numero)}>
+                                Envoyer
+                              </button>
                             </div>
                           ))}
                   </td>
@@ -279,6 +300,10 @@ export function AbonnementsConsole({ cabinets }: { cabinets: { id: string; nom: 
             </option>
           ))}
         </select>
+        <label className="flex items-center gap-1">
+          <input type="checkbox" checked={fac.envoyer} onChange={(e) => setFac({ ...fac, envoyer: e.target.checked })} />
+          Envoyer par courriel aux clients
+        </label>
         <button type="submit" className="bg-sel text-white px-3 py-1.5 font-semibold">
           Facturer
         </button>
@@ -289,6 +314,7 @@ export function AbonnementsConsole({ cabinets }: { cabinets: { id: string; nom: 
             <li key={r.cabinet}>
               <strong>{r.cabinet}</strong> ·{' '}
               {r.statut === 'FACTURE' ? `facture ${r.numero}, ${r.totalUsd} USD` : r.statut === 'DEJA_FACTURE' ? 'déjà facturé pour cette période' : r.motif}
+              {r.courriel && ` · ${r.courriel}`}
             </li>
           ))}
         </ul>

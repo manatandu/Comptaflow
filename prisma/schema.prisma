@@ -1983,6 +1983,12 @@ model Message {
   origine   String
   origineId String?
 
+  // UNE PIÈCE JOINTE, ET EN TEXTE SEULEMENT · un fichier de licence est du
+  // texte signé. Une colonne texte reste réversible dans le CSV de la
+  // restitution, là où un binaire devrait en sortir à part.
+  pieceJointeNom   String?
+  pieceJointeTexte String? @db.Text
+
   statut          StatutMessage @default(EN_ATTENTE)
   tentatives      Int           @default(0)
   dernierEssaiAt  DateTime?

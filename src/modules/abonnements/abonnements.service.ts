@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/prisma.service';
 import { FacturationService } from '../facturation/facturation.service';
 import { PlateformeService } from '../plateforme/plateforme.service';
 import { jourLisible, usdEnFc } from '../personnel/conversion-usd';
+import { CourrielsEditeurService } from './courriels-editeur.service';
 import {
   AbonnementAFacturer,
   expirationApresPaiement,
@@ -67,6 +68,7 @@ export class AbonnementsService {
     private readonly prisma: PrismaService,
     private readonly facturation: FacturationService,
     private readonly plateforme: PlateformeService,
+    private readonly courriels?: CourrielsEditeurService,
   ) {}
 
   async formules() {
@@ -216,7 +218,7 @@ export class AbonnementsService {
    * et un abonnement refusé (prix manquant, essai) n'empêche pas les autres.
    * Le cours manquant, lui, arrête tout · il vaut pour toutes les factures.
    */
-  async facturer(operateurTenantId: string, periode: string, dateFacture: string, tauxTvaId: string | null) {
+  async facturer(operateurTenantId: string, periode: string, dateFacture: string, tauxTvaId: string | null, envoi: { userId: string } | null = null) {
     const editeur = await this.dossierEditeur();
     // Les factures s'écrivent dans le dossier de l'éditeur · la session doit
     // y être, sans quoi la garde de cloisonnement refuserait d'y écrire et,
@@ -249,7 +251,7 @@ export class AbonnementsService {
     const abonnements = await this.prisma.abonnementCabinet.findMany({
       include: { cabinet: { select: { nom: true } }, formule: true, options: { include: { formule: true } }, factures: { where: { periode }, select: { id: true } } },
     });
-    const resultats: { cabinet: string; statut: 'FACTURE' | 'DEJA_FACTURE' | 'NON_DU'; motif?: string; numero?: string; totalUsd?: number }[] = [];
+    const resultats: { cabinet: string; statut: 'FACTURE' | 'DEJA_FACTURE' | 'NON_DU'; motif?: string; numero?: string; totalUsd?: number; courriel?: string }[] = [];
     for (const a of abonnements) {
       if (a.factures.length) {
         resultats.push({ cabinet: a.cabinet.nom, statut: 'DEJA_FACTURE' });
@@ -302,9 +304,11 @@ export class AbonnementsService {
         tiersId: a.tiersId,
         lignes,
       });
+      let fa: { id: string };
       try {
-        await this.prisma.factureAbonnement.create({
+        fa = await this.prisma.factureAbonnement.create({
           data: { abonnementId: a.id, periode, factureId: f.id, montantUsd: new Prisma.Decimal(v.totalUsd), cours: new Prisma.Decimal(cours) },
+          select: { id: true },
         });
       } catch (e) {
         // Un second clic a facturé la même période entre-temps · la pièce
@@ -316,7 +320,18 @@ export class AbonnementsService {
         }
         throw e;
       }
-      resultats.push({ cabinet: a.cabinet.nom, statut: 'FACTURE', numero, totalUsd: v.totalUsd });
+      // L'envoi suit la facture et ne la défait jamais · un client sans
+      // adresse ou une messagerie absente se DIT sur sa ligne, la pièce reste.
+      let courriel: string | undefined;
+      if (envoi && this.courriels) {
+        try {
+          const r = await this.courriels.envoyerFacture({ tenantId: editeur, userId: envoi.userId }, fa.id);
+          courriel = r.statut === 'ENVOYE' ? 'Envoyée par courriel' : `Courriel en file (${r.statut})`;
+        } catch (e) {
+          courriel = `Courriel non envoyé · ${e instanceof Error ? e.message : String(e)}`;
+        }
+      }
+      resultats.push({ cabinet: a.cabinet.nom, statut: 'FACTURE', numero, totalUsd: v.totalUsd, ...(courriel ? { courriel } : {}) });
     }
     return { periode, cours, assujetti: t.assujettiTva, resultats };
   }

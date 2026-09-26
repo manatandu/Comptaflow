@@ -131,3 +131,26 @@ describe('transport SMTP · tout ou rien', () => {
     expect(texteDErreur({ code: 'ECONNRESET' })).toBe('Erreur sans message rendue par le transport');
   });
 });
+
+describe('la pièce jointe part avec le message', () => {
+  const monte = () => {
+    const sendMail = jest.fn(async () => ({}));
+    const t = new TransportEprouve(COMPLET);
+    (t as unknown as { transporteurPour: () => unknown }).transporteurPour = () => ({ sendMail });
+    return { t, sendMail };
+  };
+
+  it('un fichier de licence est joint en texte, sous son nom', async () => {
+    const { t, sendMail } = monte();
+    await t.envoyer({ destinataire: 'a@b.cd', sujet: 's', corps: 'c', pieceJointe: { nom: 'licence-OMX-2026-0001.omegax', texte: '{"x":1}' } });
+    expect(sendMail).toHaveBeenCalledWith(
+      expect.objectContaining({ attachments: [{ filename: 'licence-OMX-2026-0001.omegax', content: '{"x":1}', contentType: 'text/plain; charset=utf-8' }] }),
+    );
+  });
+
+  it('sans pièce, aucune pièce jointe annoncée', async () => {
+    const { t, sendMail } = monte();
+    await t.envoyer({ destinataire: 'a@b.cd', sujet: 's', corps: 'c', pieceJointe: null });
+    expect(sendMail.mock.calls[0]).toEqual([expect.not.objectContaining({ attachments: expect.anything() })]);
+  });
+});

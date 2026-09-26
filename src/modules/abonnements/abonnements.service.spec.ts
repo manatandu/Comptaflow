@@ -5,7 +5,7 @@ const F = (code: string, type: 'FORMULE' | 'OPTION', m: number | null, a: number
   id: `f-${code}`, code, libelle: code, type, prixMensuelUsd: m === null ? null : { toString: () => String(m), valueOf: () => m }, prixAnnuelUsd: a,
 });
 
-function monde(o: { assujetti?: boolean; cours?: number | null; dejaFacture?: boolean; numeros?: string[] } = {}) {
+function monde(o: { assujetti?: boolean; cours?: number | null; dejaFacture?: boolean; numeros?: string[]; courriels?: unknown } = {}) {
   const factures: Record<string, unknown>[] = [];
   const liens: Record<string, unknown>[] = [];
   const prisma = {
@@ -28,7 +28,7 @@ function monde(o: { assujetti?: boolean; cours?: number | null; dejaFacture?: bo
       ]),
     },
     facture: { findMany: jest.fn(async () => (o.numeros ?? []).map((numeroSerie) => ({ numeroSerie }))) },
-    factureAbonnement: { create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => liens.push(data)) },
+    factureAbonnement: { create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({ id: `fa-${liens.push(data)}` })) },
   };
   const facturation = {
     enregistrer: jest.fn(async (_t: string, dto: Record<string, unknown>) => {
@@ -37,7 +37,7 @@ function monde(o: { assujetti?: boolean; cours?: number | null; dejaFacture?: bo
     }),
     supprimer: jest.fn(),
   };
-  return { s: new AbonnementsService(prisma as never, facturation as never, {} as never), factures, liens, facturation };
+  return { s: new AbonnementsService(prisma as never, facturation as never, {} as never, o.courriels as never), factures, liens, facturation };
 }
 
 describe('facturation des abonnements · service', () => {
@@ -165,5 +165,28 @@ describe('enregistrer un abonnement pose d’abord la licence', () => {
     await expect(m.s.enregistrer(m.d as never)).rejects.toThrow(/perpétuelle/);
     expect(m.prisma.abonnementCabinet.create).not.toHaveBeenCalled();
     expect(m.prisma.abonnementCabinet.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('facturer puis envoyer', () => {
+  it('chaque facture émise part au client, et un échec d’envoi ne défait pas la facture', async () => {
+    const courriels = { envoyerFacture: jest.fn(async () => ({ id: 'm', statut: 'ENVOYE', erreur: null })) };
+    const m = monde({ courriels });
+    const r = await m.s.facturer(EDITEUR, '2026-10', '2026-10-31', null, { userId: 'u1' });
+    expect(courriels.envoyerFacture).toHaveBeenCalledWith({ tenantId: EDITEUR, userId: 'u1' }, 'fa-1');
+    expect(r.resultats[0]).toMatchObject({ statut: 'FACTURE', courriel: 'Envoyée par courriel' });
+
+    const refus = { envoyerFacture: jest.fn(async () => { throw new Error('pas d’adresse de courriel'); }) };
+    const m2 = monde({ courriels: refus });
+    const r2 = await m2.s.facturer(EDITEUR, '2026-10', '2026-10-31', null, { userId: 'u1' });
+    expect(r2.resultats[0]).toMatchObject({ statut: 'FACTURE', courriel: expect.stringContaining('pas d’adresse') });
+    expect(m2.liens).toHaveLength(1);
+  });
+
+  it('sans la case, rien ne part', async () => {
+    const courriels = { envoyerFacture: jest.fn() };
+    const r = await monde({ courriels }).s.facturer(EDITEUR, '2026-10', '2026-10-31', null);
+    expect(courriels.envoyerFacture).not.toHaveBeenCalled();
+    expect(r.resultats[0]).not.toHaveProperty('courriel');
   });
 });

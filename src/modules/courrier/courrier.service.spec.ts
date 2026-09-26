@@ -222,6 +222,7 @@ describe('sans transport · ni mentir, ni perdre, ni refuser', () => {
       destinataireNom: RELANCE.destinataireNom,
       sujet: RELANCE.sujet,
       corps: RELANCE.corps,
+      pieceJointe: null,
     });
     expect(memoire.table[0]).toMatchObject({ statut: StatutMessage.ENVOYE, tentatives: 1 });
     expect(memoire.table[0].envoyeAt).toBeInstanceOf(Date);
@@ -540,5 +541,23 @@ describe('cloisonnement · la borne est posée aux DEUX bouts', () => {
     const service = new CourrierService(memoire.prisma, transportFactice({ configure: false }));
     await service.mettreEnFile(DOSSIER, RELANCE);
     expect((memoire.prisma as any).message.create.mock.calls[0][0].data.tenantId).toBe(DOSSIER);
+  });
+});
+
+describe('pièce jointe · écrite avec le message, remise au transport', () => {
+  it('le fichier est gardé en file et part à la tentative', async () => {
+    const memoire = baseMemoire();
+    const transport = transportFactice({ configure: true });
+    const service = new CourrierService(memoire.prisma, transport);
+    await service.mettreEnFile(DOSSIER, { ...RELANCE, pieceJointe: { nom: 'licence.omegax', texte: 'contenu signé' } });
+    expect(memoire.table[0]).toMatchObject({ pieceJointeNom: 'licence.omegax', pieceJointeTexte: 'contenu signé' });
+    expect(transport.envoyer).toHaveBeenCalledWith(expect.objectContaining({ pieceJointe: { nom: 'licence.omegax', texte: 'contenu signé' } }));
+  });
+
+  it('une pièce vide est refusée avant toute écriture', async () => {
+    const memoire = baseMemoire();
+    const service = new CourrierService(memoire.prisma, transportFactice({ configure: true }));
+    await expect(service.mettreEnFile(DOSSIER, { ...RELANCE, pieceJointe: { nom: 'licence.omegax', texte: '  ' } })).rejects.toThrow(/Pièce jointe/);
+    expect(memoire.table).toHaveLength(0);
   });
 });
