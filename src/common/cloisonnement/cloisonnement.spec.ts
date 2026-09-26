@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { MODELES_CLOISONNES, MODELES_PORTES_PAR_LEUR_PARENT } from './modeles-cloisonnes';
+import { MODELES_CLOISONNES, MODELES_HORS_DOSSIER, MODELES_PORTES_PAR_LEUR_PARENT } from './modeles-cloisonnes';
 import { filtreBorne, garderCloisonnement } from './extension-cloisonnement';
 import { horsCloisonnement, CloisonnementViole } from './contexte-cloisonnement';
 import { dansContexteAudit } from '../audit/contexte-audit';
@@ -34,7 +34,12 @@ describe('la liste des modèles cloisonnés suit le schéma', () => {
     expect([...MODELES_CLOISONNES].sort()).toEqual(avec.sort());
     // `Tenant` est le dossier lui-même · il ne se cloisonne pas contre
     // lui-même, il est la borne.
-    expect([...MODELES_PORTES_PAR_LEUR_PARENT].sort()).toEqual(sans.filter((n) => n !== 'Tenant').sort());
+    // Les modèles HORS DOSSIER (registre de l'éditeur) sont nommés à part,
+    // avec leur motif · ni portés par un parent, ni cloisonnés.
+    expect([...MODELES_PORTES_PAR_LEUR_PARENT].sort()).toEqual(
+      sans.filter((n) => n !== 'Tenant' && !(n in MODELES_HORS_DOSSIER)).sort(),
+    );
+    for (const n of Object.keys(MODELES_HORS_DOSSIER)) expect(sans).toContain(n);
   });
 });
 

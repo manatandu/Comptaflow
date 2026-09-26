@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { Licence, StatutLicence, TypeLicence } from '@prisma/client';
+import { LicenceSurSiteService } from '../sur-site/licence-sur-site.service';
 
 /**
  * Logique d'accès dictée par le type de licence :
@@ -13,16 +14,21 @@ import { Licence, StatutLicence, TypeLicence } from '@prisma/client';
  *   C'est ce qui distingue "perpétuel installé chez le client" d'un simple
  *   logiciel copiable sans contrôle.
  *
- * PHASE 4, PAS ENCORE LIVRÉE · `enregistrerHeartbeat` n'a aucun émetteur dans
- * le produit (ni route, ni tâche planifiée, ni client sur site). La règle
- * ci-dessous n'est donc pas fausse, elle est EN AVANCE : elle sera juste le
- * jour où une installation sur site existera. En attendant, c'est
- * l'ATTRIBUTION du type qui est fermée, dans PlateformeService · aucun
- * dossier neuf ne peut plus tomber sur ce verrou.
+ * LE HEARTBEAT N'A PAS ÉTÉ RETENU (2026-09-26) · Manasse a choisi une
+ * licence qui marche SANS INTERNET, la connexion d'un bureau congolais
+ * tombant des jours entiers. Une installation sur site ne lit donc pas cette
+ * table : elle lit un fichier signé par VMG (`sur-site/licence-signee.ts`),
+ * et `evaluerLicence` le consulte AVANT toute autre règle. La branche
+ * PERPETUEL_ONPREMISE ci-dessous ne sert plus qu'en ligne, où ce type reste
+ * fermé à l'attribution (PlateformeService) · aucun dossier en ligne ne
+ * tombe sur ce verrou.
  */
 @Injectable()
 export class LicenceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly surSite?: LicenceSurSiteService,
+  ) {}
 
   async estAccesAutorise(tenantId: string): Promise<{ autorise: boolean; motif?: string }> {
     const licence = await this.prisma.licence.findUnique({ where: { tenantId } });
@@ -36,6 +42,11 @@ export class LicenceService {
    * reste la voie de service pour les appels qui partent d'un tenantId seul.
    */
   evaluerLicence(licence: Licence | null): { autorise: boolean; motif?: string } {
+    // SUR SITE, UNE SEULE LICENCE POUR TOUTE L'INSTALLATION · le fichier
+    // signé décide, avant et à la place de la ligne du dossier. Une ligne
+    // PROPRIETAIRE ou ABONNEMENT arrivée par une restauration de sauvegarde
+    // ne doit ni ouvrir ni fermer une installation que VMG n'a pas licenciée.
+    if (this.surSite?.surSite) return this.surSite.autorisation();
     if (!licence) {
       return { autorise: false, motif: 'Aucune licence associée à ce tenant' };
     }

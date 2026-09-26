@@ -1,0 +1,129 @@
+# PAQUET D'INSTALLATION SUR SITE (Windows) · lancé à la main, jamais à chaque
+# push : un paquet est une livraison à un client, pas un déploiement.
+#
+# Il produit UN fichier, `OmegaX-installation-<date>-<commit>.exe`, qui porte
+# tout ce qu'un poste serveur hors ligne doit avoir · Node, PostgreSQL, le
+# serveur compilé avec ses dépendances et ses moteurs Prisma, l'interface,
+# le service Windows (WinSW) et les scripts d'initialisation. Rien ne se
+# télécharge chez le client.
+name: Paquet sur site (Windows)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # La version majeure de PostgreSQL ne change JAMAIS d'un paquet à l'autre
+  # sans conversion des bases des clients (pg_upgrade) · le paquet refuse de
+  # se construire sur une autre, et le programme d'installation refuse de
+  # remplacer les binaires d'une base d'une autre version.
+  PG_MAJEUR_ATTENDU: '17'
+  WINSW_VERSION: 'v2.12.0'
+
+jobs:
+  paquet:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Exiger la clé publique de l'éditeur
+        run: |
+          $s = Get-Content src/modules/sur-site/cle-publique-editeur.ts -Raw
+          if ($s -notmatch 'BEGIN PUBLIC KEY') {
+            throw "La clé publique de VMG n'est pas posée dans cle-publique-editeur.ts · un paquet sans elle ne peut vérifier aucune licence (voir docs/installation-sur-site.md)."
+          }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Version du paquet
+        id: version
+        run: |
+          $date = git log -1 --format=%cs
+          $commit = git rev-parse --short=12 HEAD
+          "date=$date" >> $env:GITHUB_OUTPUT
+          "commit=$commit" >> $env:GITHUB_OUTPUT
+
+      - name: Compiler le serveur
+        run: |
+          npm ci
+          npx prisma generate
+          npm run build
+
+      - name: Compiler l'interface (API servie par la même origine)
+        working-directory: client
+        env:
+          VITE_API_URL: meme-origine
+        run: |
+          npm ci
+          npm run build
+
+      - name: Assembler le serveur
+        run: |
+          $S = 'paquet/serveur'
+          New-Item -ItemType Directory -Force $S | Out-Null
+          # Prisma est une dépendance de développement du dépôt, mais le poste
+          # du client en a besoin pour ses migrations · il passe dans les
+          # dépendances du paquet, à la version exacte du verrou.
+          node -e "const p=require('./package.json');p.dependencies.prisma=p.devDependencies.prisma;delete p.devDependencies;delete p.scripts;require('fs').writeFileSync('$S/package.json',JSON.stringify(p,null,2))"
+          Copy-Item package-lock.json $S
+          Copy-Item -Recurse dist, prisma $S
+          Copy-Item installation/demarrer.cjs $S
+          @{ date = '${{ steps.version.outputs.date }}'; commit = '${{ steps.version.outputs.commit }}' } | ConvertTo-Json | Set-Content "$S/version-sur-site.json" -Encoding utf8NoBOM
+          Push-Location $S
+          # Les scripts d'installation restent actifs · c'est eux qui déposent
+          # les moteurs de Prisma, que le poste hors ligne ne pourrait pas
+          # télécharger au premier démarrage.
+          npm install --omit=dev --no-audit --no-fund
+          node node_modules/prisma/build/index.js generate
+          $moteurs = Get-ChildItem -Recurse node_modules/@prisma/engines, node_modules/.prisma/client -Include '*schema-engine*', '*query_engine*' -ErrorAction SilentlyContinue
+          if (-not ($moteurs | Where-Object Name -like '*schema-engine*')) { throw 'Moteur de migration Prisma absent du paquet.' }
+          if (-not ($moteurs | Where-Object Name -like '*query_engine*')) { throw 'Moteur de requêtes Prisma absent du paquet.' }
+          Pop-Location
+
+      - name: Assembler Node, PostgreSQL, le service et les scripts
+        run: |
+          $P = 'paquet'
+          New-Item -ItemType Directory -Force "$P/node", "$P/pgsql", "$P/installation" | Out-Null
+          Copy-Item (Get-Command node).Source "$P/node/node.exe"
+
+          $majeur = ((& "$env:PGROOT\bin\pg_ctl.exe" --version) -replace '^\D*(\d+).*$', '$1').Trim()
+          if ($majeur -ne $env:PG_MAJEUR_ATTENDU) { throw "PostgreSQL $majeur sur la machine de construction, $env:PG_MAJEUR_ATTENDU attendu." }
+          "OMEGAX_PG_MAJEUR=$majeur" >> $env:GITHUB_ENV
+          foreach ($d in 'bin', 'lib', 'share') { Copy-Item -Recurse "$env:PGROOT\$d" "$P/pgsql/$d" }
+          # Les binaires de PostgreSQL ont besoin de la bibliothèque d'exécution
+          # Visual C++, absente de certains postes · déposée à côté d'eux.
+          foreach ($dll in 'vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll') {
+            $src = Join-Path $env:SystemRoot "System32\$dll"
+            if ((Test-Path $src) -and -not (Test-Path "$P/pgsql/bin/$dll")) { Copy-Item $src "$P/pgsql/bin/$dll" }
+          }
+
+          Invoke-WebRequest "https://github.com/winsw/winsw/releases/download/$env:WINSW_VERSION/WinSW-x64.exe" -OutFile "$P/omegax-service.exe"
+          Write-Host "SHA-256 de WinSW : $((Get-FileHash "$P/omegax-service.exe" -Algorithm SHA256).Hash)"
+          Copy-Item installation/windows/omegax-service.xml "$P/omegax-service.xml"
+          Copy-Item installation/windows/ouvrir-omegax.cmd "$P/ouvrir-omegax.cmd"
+          Copy-Item installation/windows/initialiser.ps1, installation/windows/desinstaller.ps1 "$P/installation"
+          Copy-Item -Recurse client/dist "$P/client"
+
+      - name: Compiler le programme d'installation
+        env:
+          OMEGAX_VERSION: ${{ steps.version.outputs.date }}
+          OMEGAX_COMMIT: ${{ steps.version.outputs.commit }}
+          OMEGAX_PAQUET: ${{ github.workspace }}\paquet
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress; }
+          & $iscc installation/windows/omegax.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC a échoué ($LASTEXITCODE)" }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OmegaX-installation-${{ steps.version.outputs.date }}-${{ steps.version.outputs.commit }}
+          path: installation/windows/sortie/*.exe
+          if-no-files-found: error

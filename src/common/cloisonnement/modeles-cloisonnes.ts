@@ -162,3 +162,14 @@ export const MODELES_PORTES_PAR_LEUR_PARENT = new Set<string>([
   'TiersCompte',
   'VentilationAnalytique',
 ]);
+
+/**
+ * LES MODÈLES QUI N'APPARTIENNENT À AUCUN DOSSIER · le registre de l'éditeur,
+ * lu par la seule console de l'opérateur. Ils ne portent pas de `tenantId`,
+ * n'entrent dans aucune archive de restitution (ce n'est pas une donnée du
+ * client) et la liste est FERMÉE · un modèle ajouté ici sans motif ferait
+ * sortir une table de tout contrôle.
+ */
+export const MODELES_HORS_DOSSIER: Record<string, string> = {
+  LicenceSurSiteEmise: 'registre des licences sur site émises par VMG, lu par la console de l’opérateur',
+};

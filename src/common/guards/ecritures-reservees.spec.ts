@@ -97,6 +97,15 @@ function routesOuvertes(): RouteOuverte[] {
   }
   return ouvertes;
 }
+/**
+ * Routes PUBLIQUES qui écrivent hors de toute base de dossier, avec leur
+ * motif. Aucun compte n'existe quand elles servent.
+ */
+const ROUTES_PUBLIQUES: Record<string, string> = {
+  "sur-site/sur-site.controller.ts @Post('licence')":
+    "Dépôt du fichier de licence d'une installation sur site · à la première installation, aucun compte n'existe encore. " +
+    'Le fichier ne vaut que signé par VMG et pour ce poste, et une licence plus ancienne ne remplace jamais une plus récente.',
+};
 
 describe('Routes d’écriture · réservées à un rôle', () => {
   const ouvertes = routesOuvertes();
@@ -109,12 +118,13 @@ describe('Routes d’écriture · réservées à un rôle', () => {
     const sansMotif = ouvertes
       .filter((r) => !CONTROLEURS_EXEMPTES[r.fichier])
       .filter((r) => !ROUTES_DE_CALCUL[`${r.fichier} ${r.route}`])
+      .filter((r) => !ROUTES_PUBLIQUES[`${r.fichier} ${r.route}`])
       .map((r) => `${r.fichier} ${r.route}`);
     expect(sansMotif).toEqual([]);
   });
 
   it('chaque exemption vise une route qui existe encore · une exemption orpheline masquerait la suivante', () => {
-    for (const cle of Object.keys(ROUTES_DE_CALCUL)) {
+    for (const cle of [...Object.keys(ROUTES_DE_CALCUL), ...Object.keys(ROUTES_PUBLIQUES)]) {
       expect(ouvertes.map((r) => `${r.fichier} ${r.route}`)).toContain(cle);
     }
   });

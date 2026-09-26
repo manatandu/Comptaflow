@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
+import { PanneauSurSite } from '../components/PanneauSurSite';
+import type { EtatSurSite } from '../lib/sur-site';
 import { LogotypeOmegaX, SymboleOmegaX } from '../components/chrome/Logo';
 import { DossierRecent, lireDossiersRecents, oublierDossier } from '../lib/dossiersRecents';
 import type { AuthResponse } from '../lib/types';
@@ -88,6 +90,7 @@ export function AuthPage() {
   const [dossierVise, setDossierVise] = useState<DossierRecent | null>(() => lireDossiersRecents()[0] ?? null);
   const [email, setEmail] = useState(() => lireDossiersRecents()[0]?.email ?? '');
   const [motDePasse, setMotDePasse] = useState('');
+  const [surSite, setSurSite] = useState<EtatSurSite | null>(null);
   const [motDePasseVisible, setMotDePasseVisible] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
@@ -226,6 +229,7 @@ export function AuthPage() {
           </div>
         )}
 
+        <PanneauSurSite onEtat={setSurSite} />
         <form onSubmit={onSubmit} className="flex flex-col gap-3">
           <label className="flex flex-col gap-1.5">
             <span className="text-[11.5px] font-semibold text-text-dim">Adresse e-mail</span>
@@ -322,9 +326,22 @@ export function AuthPage() {
 
         {/* L'auto-inscription est fermée · la règle doit rester dite, mais une
             ligne y suffit : elle occupait un tiers de l'écran. */}
-        <div className="mt-4 text-[11.5px] text-text-dim">
-          Pas encore de dossier ? L'ouverture se fait avec VMG Consulting.
-        </div>
+        {surSite?.surSite ? (
+          // Sur site, la création est ouverte (le serveur la borne par la
+          // licence, nombre de dossiers compris) · c'est la seule porte vers
+          // le premier dossier d'une installation neuve.
+          surSite.statut === 'VALIDE' && (
+            <div className="mt-4 text-[11.5px]">
+              <a href="#/inscription" className="underline">
+                Créer un dossier sur cette installation
+              </a>
+            </div>
+          )
+        ) : (
+          <div className="mt-4 text-[11.5px] text-text-dim">
+            Pas encore de dossier ? L'ouverture se fait avec VMG Consulting.
+          </div>
+        )}
         {/*
           Le lien vers la politique de confidentialité est ICI parce que c'est
           la seule page qu'un visiteur non connecté voit · un lien enfoui dans

@@ -1,5 +1,6 @@
 import { faitAssujettissementTva } from '../tenant/faits-declares';
-import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Optional, UnauthorizedException } from '@nestjs/common';
+import { LicenceSurSiteService } from '../sur-site/licence-sur-site.service';
 import { identiteSociete, mentionsArticle17 } from '../tenant/mentions-societe';
 import { articleTrenteSeptApplicable } from '../accord-cadre/conditions-ong-etrangere';
 import { JwtService } from '@nestjs/jwt';
@@ -36,6 +37,7 @@ export class AuthService {
     private readonly immobilisationService: ImmobilisationService,
     private readonly analytiqueService: AnalytiqueService,
     private readonly relancesService: RelancesService,
+    @Optional() private readonly surSite?: LicenceSurSiteService,
   ) {}
 
   /**
@@ -69,6 +71,16 @@ export class AuthService {
     );
     if (emailExistant) {
       throw new ConflictException('Un compte existe déjà avec cet email');
+    }
+
+    // SUR SITE · un dossier de plus n'ouvre que si la licence de
+    // l'installation le couvre, et il naît sous la licence de l'installation,
+    // quoi qu'en dise l'appelant · une cellule de groupe créée par le siège
+    // est un dossier comme un autre, et compte.
+    if (this.surSite?.surSite) {
+      const ouverts = await horsCloisonnement('installation sur site · plafond de dossiers de la licence', () => this.prisma.tenant.count());
+      this.surSite.verifierPlafondDossiers(ouverts);
+      dto = { ...dto, typeLicence: TypeLicence.PERPETUEL_ONPREMISE };
     }
 
     const motDePasseHache = await bcrypt.hash(dto.motDePasse, SALT_ROUNDS);

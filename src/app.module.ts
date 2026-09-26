@@ -62,6 +62,7 @@ import { BanquesModule } from './modules/banques/banques.module';
 import { EtatsPersonnalisesModule } from './modules/etats-personnalises/etats-personnalises.module';
 import { SimulationsModule } from './modules/simulations/simulations.module';
 import { CourrierModule } from './modules/courrier/courrier.module';
+import { SurSiteModule } from './modules/sur-site/sur-site.module';
 
 @Module({
   imports: [
@@ -139,6 +140,7 @@ import { CourrierModule } from './modules/courrier/courrier.module';
     EtatsPersonnalisesModule,
     SimulationsModule,
     CourrierModule,
+    SurSiteModule,
   ],
   controllers: [SanteController],
   providers: [

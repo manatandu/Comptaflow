@@ -1,7 +1,8 @@
 import { entetesRequete } from './entetes-requete';
 import { nomDeDisposition } from './disposition';
+import { adresseApi } from './adresse-api';
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+const API_URL = adresseApi(import.meta.env.VITE_API_URL);
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {

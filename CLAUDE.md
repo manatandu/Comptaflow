@@ -4958,6 +4958,39 @@ nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la
 vérification vit au CONTRÔLEUR, jamais dans `creer`, que la clôture et les
 modules appellent pour des écritures que personne ne saisit.
 
+**Installation sur site (2026-09-26).** Décidé par Manasse · une licence en
+FICHIER SIGNÉ vérifiée sans internet, et un PC Windows du client comme
+serveur (`src/modules/sur-site/`, `installation/`, workflow
+`paquet-sur-site.yml`, fiche `docs/installation-sur-site.md`). Le mode se
+pose par `MODE_INSTALLATION=SUR_SITE` ; en ligne, rien de ce module n'agit.
+CINQ RÈGLES À NE PAS DÉFAIRE. (1) LA LICENCE EST SIGNÉE EN Ed25519 PAR LA CLÉ
+PRIVÉE DE VMG, et le code ne porte que la clé PUBLIQUE, jamais lue dans
+l'environnement (`cle-publique-editeur.ts`) · une clé lue dans l'environnement
+se remplacerait par celle de n'importe qui. Le contenu est signé sous une
+forme à ordre FIXE (`serialiser`), un éditeur de texte pouvant réordonner les
+clés. (2) ELLE TIENT PAR L'EMPREINTE DU POSTE (hachage du MachineGuid, jamais
+une adresse MAC, qui change avec une carte réseau) et par deux dates qui ne
+disent pas la même chose · `finMaintenance` borne les VERSIONS (date du paquet,
+`version-sur-site.json`, jamais l'horloge), `expiration` borne l'USAGE, null
+pour une perpétuelle. L'horloge reculée de plus d'un jour sous la date la plus
+tardive vue suspend la licence. (3) SUR SITE, LE FICHIER REMPLACE LA LICENCE
+PAR DOSSIER (`LicenceService.evaluerLicence`), le plafond de dossiers se vérifie
+à la création, et le dépôt refuse une émission ANTÉRIEURE à celle en place.
+L'état et le dépôt sont PUBLICS, aucun compte n'existant à la première
+installation · un fichier ne vaut que signé et pour ce poste. (4) LES
+SAUVEGARDES NE PASSENT PAS PAR `LicenceGuard` · une licence expirée n'empêche
+jamais un client de sauvegarder ses données. Une copie par jour tentée chaque
+heure, mot de passe en variable d'environnement de `pg_dump` et jamais en
+argument, et une copie AVANT chaque migration de mise à jour (le lanceur
+`demarrer.cjs`, identité de version par le COMMIT, deux paquets du même jour
+ne se confondant pas). (5) LA VERSION MAJEURE DE POSTGRESQL EST GELÉE · le
+programme d'installation refuse de remplacer les binaires d'une base d'une
+autre version AVANT toute copie, et `initialiser.ps1` le revérifie. Le
+cookie de session perd `secure` sur site (http sur le réseau local) ; mot de
+passe de la base et secret de session sont tirés au générateur
+cryptographique, et le compte Service réseau reçoit le droit sur la base qu'il
+fait tourner.
+
 ### Migrations écrites à la main
 
 Une migration écrite à la main peut DIVERGER du schéma sans que rien ne le

@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { LicencesSurSiteConsole } from '../components/LicencesSurSiteConsole';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
@@ -710,6 +711,7 @@ export function PlateformePage() {
           </div>
         </div>
       )}
+      <LicencesSurSiteConsole />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { SauvegardesSurSite } from '../components/SauvegardesSurSite';
 import { IconExport } from '../components/chrome/icons';
 import { Aide } from '../components/chrome/Aide';
 
@@ -106,6 +107,7 @@ export function RestitutionPage() {
           qu'une fois complet, ne fermez pas la fenêtre.
         </p>
       )}
+      <SauvegardesSurSite />
     </div>
   );
 }

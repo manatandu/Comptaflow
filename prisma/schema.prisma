@@ -506,22 +506,22 @@ model Tenant {
   // de l'AUDCIF.
   doubleRegardValidation Boolean @default(false)
 
-  assujettiTva  Boolean   @default(false)
+  assujettiTva               Boolean   @default(false)
   // LA QUESTION A-T-ELLE ÉTÉ RÉPONDUE ? `assujettiTva` vaut faux par défaut et
   // ne distingue donc pas « non assujetti » de « pas encore dit ». Un menu ne se
   // masque que sur une RÉPONSE (`client/src/lib/profil-dossier.ts`) · masquer la
   // déclaration de TVA sur la valeur par défaut la cacherait à un assujetti qui
   // n'a simplement pas encore rempli ses paramètres.
-  assujettissementTvaRepondu Boolean @default(false)
+  assujettissementTvaRepondu Boolean   @default(false)
   // L'ENTITÉ VEND-ELLE DES BIENS OU DES SERVICES ? null = pas encore dit. Fait
   // DÉCLARÉ par le cabinet, jamais déduit d'un compte 70 : une association qui
   // ne vend rien aujourd'hui peut ouvrir une activité accessoire demain (loi
   // n° 004/2001, art. 1er), et un compte vide ne dit pas qu'il le restera.
-  venteBiensServices Boolean?
+  venteBiensServices         Boolean?
   // Date d'effet de l'option ou du franchissement du seuil · sert à dater le
   // début des obligations déclaratives, et à rappeler que l'option prise en
   // deçà du seuil engage deux ans.
-  dateOptionTva DateTime?
+  dateOptionTva              DateTime?
 
   // RÉGIME D'EXIGIBILITÉ DE LA TVA · voir l'enum RegimeExigibiliteTva.
   // LIVRAISONS par défaut : c'est le régime des ventes de biens, le plus
@@ -703,6 +703,28 @@ model Licence {
   joursGraceHorsLigne Int           @default(7) // tolérance hors-ligne avant coupure (on-premise)
 
   @@map("licences")
+}
+
+/// Les licences d'INSTALLATION SUR SITE émises par la console de VMG
+/// (src/modules/sur-site/licence-signee.ts). Hors de tout dossier · c'est le
+/// registre de l'éditeur, pas une donnée d'un client. Le fichier signé est
+/// conservé tel qu'il a été remis, pour le renvoyer à l'identique à un client
+/// qui l'a perdu : une réémission changerait la date et le numéro.
+model LicenceSurSiteEmise {
+  id               String   @id @default(uuid())
+  numero           String   @unique
+  titulaire        String
+  empreinteMachine String
+  emiseLe          String // AAAA-MM-JJ, la date signée
+  finMaintenance   String // AAAA-MM-JJ
+  expiration       String? // AAAA-MM-JJ, null pour une licence perpétuelle
+  dossiersMax      Int
+  fichier          String   @db.Text
+  emisePar         String // courriel de l'opérateur, recopié à l'émission
+  createdAt        DateTime @default(now())
+
+  @@index([empreinteMachine])
+  @@map("licences_sur_site_emises")
 }
 
 enum RoleUtilisateur {
@@ -6975,37 +6997,37 @@ enum ActivitePrincipaleIfrs {
 }
 
 model ParametresIfrs {
-  id                       String                  @id @default(uuid())
-  tenantId                 String                  @unique
-  tenant                   Tenant                  @relation(fields: [tenantId], references: [id])
-  activitePrincipale       ActivitePrincipaleIfrs?
+  id                             String                  @id @default(uuid())
+  tenantId                       String                  @unique
+  tenant                         Tenant                  @relation(fields: [tenantId], references: [id])
+  activitePrincipale             ActivitePrincipaleIfrs?
   /// IFRS 1 · l'exercice des PREMIERS états financiers IFRS de l'entité. La
   /// date de transition est l'ouverture de l'exercice qui le précède (annexe A,
   /// un seul comparatif). NULL avec `dejaAdoptant` faux · pas déclaré.
-  premierExerciceIfrsId    String?
+  premierExerciceIfrsId          String?
   /// L'entité publiait déjà des états IFRS · IFRS 1 ne s'applique pas.
-  dejaAdoptant             Boolean                 @default(false)
+  dejaAdoptant                   Boolean                 @default(false)
   /// IFRS 1 aux comptes CONSOLIDÉS · le premier exercice des premiers états
   /// consolidés IFRS, déclaré à part de celui des comptes individuels · la
   /// mère et le groupe n'adoptent pas forcément à la même date (§ D17).
   premierExerciceIfrsConsolideId String?
   /// Le groupe publiait déjà des états consolidés IFRS.
-  dejaAdoptantConsolide    Boolean                 @default(false)
+  dejaAdoptantConsolide          Boolean                 @default(false)
   /// IFRS 1 § C1 · les regroupements d'entreprises passés ne sont pas
   /// retraités selon IFRS 3. NULL · pas déclaré.
-  exemptionRegroupementsC1 Boolean?
+  exemptionRegroupementsC1       Boolean?
   /// IAS 7 § 8 · les découverts bancaires remboursables à vue font partie
   /// intégrante de la gestion de trésorerie. NULL · pas déclaré, et le tableau
   /// des flux n'est pas publiable dès que la trésorerie passive n'est pas nulle.
-  decouvertsDansTresorerie Boolean?
+  decouvertsDansTresorerie       Boolean?
   /// IAS 7 § 28 · la trésorerie comprend des soldes en devises, dont l'effet de
   /// change se présente à part. NULL · pas déclaré.
-  tresorerieEnDevises      Boolean?
+  tresorerieEnDevises            Boolean?
   /// IAS 7 § 28, comptes CONSOLIDÉS · la trésorerie du GROUPE comprend des
   /// soldes en devises. Distinct de `tresorerieEnDevises` · une filiale peut
   /// tenir des devises quand la mère n'en tient pas. NULL · pas déclaré.
-  tresorerieGroupeEnDevises Boolean?
-  updatedAt                DateTime                @updatedAt
+  tresorerieGroupeEnDevises      Boolean?
+  updatedAt                      DateTime                @updatedAt
 
   @@map("parametres_ifrs")
 }

@@ -1,0 +1,25 @@
+<!--
+  Service Windows d'OmegaX, piloté par WinSW. Il démarre le LANCEUR
+  (demarrer.cjs), jamais le serveur directement : le lanceur lit la
+  configuration du poste, sauvegarde avant une mise à jour et applique les
+  migrations. Il dépend du service PostgreSQL, que Windows démarre d'abord.
+-->
+<service>
+  <id>OmegaX</id>
+  <name>OmegaX</name>
+  <description>Serveur de comptabilité OmegaX (VMG Consulting)</description>
+  <executable>%BASE%\node\node.exe</executable>
+  <arguments>"%BASE%\serveur\demarrer.cjs"</arguments>
+  <workingdirectory>%BASE%\serveur</workingdirectory>
+  <depend>OmegaX-PostgreSQL</depend>
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+  <onfailure action="restart" delay="30 sec"/>
+  <onfailure action="restart" delay="60 sec"/>
+  <resetfailure>1 hour</resetfailure>
+  <logpath>%ProgramData%\OmegaX\journaux</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>8</keepFiles>
+  </log>
+</service>

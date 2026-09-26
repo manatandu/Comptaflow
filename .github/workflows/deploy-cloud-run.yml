@@ -244,6 +244,10 @@ jobs:
           SMTP_PASS: ${{ secrets.API_SMTP_PASS }}
           SMTP_SECURE: ${{ secrets.API_SMTP_SECURE }}
           COURRIER_EXPEDITEUR: ${{ secrets.API_COURRIER_EXPEDITEUR }}
+          # La clé PRIVÉE qui signe les licences sur site (console de
+          # l'opérateur) · facultative, absente la console refuse d'émettre
+          # et le dit. Jamais dans le code, jamais affichée.
+          CLE_PRIVEE_LICENCE: ${{ secrets.API_CLE_PRIVEE_LICENCE }}
           # L'auto-inscription est FERMÉE : aucune variable INSCRIPTION_PUBLIQUE
           # n'est posée, et /auth/register refuse. Elle a été ouverte le temps
           # de créer le compte du cabinet (1er septembre 2026), puis retirée
@@ -319,6 +323,11 @@ jobs:
           # (le bootstrap n'accorde alors rien, et ne retire jamais rien).
           if os.environ.get("OPERATEURS_PLATEFORME"):
               variables["OPERATEURS_PLATEFORME"] = os.environ["OPERATEURS_PLATEFORME"]
+
+          # Facultative, comme la précédente · la console d'émission des
+          # licences sur site la lit, et elle seule.
+          if os.environ.get("CLE_PRIVEE_LICENCE"):
+              variables["CLE_PRIVEE_LICENCE"] = os.environ["CLE_PRIVEE_LICENCE"]
 
           # LE COMPTE D'ENVOI DES COURRIELS · toutes facultatives, toutes de
           # passage ici et nulle part ailleurs.

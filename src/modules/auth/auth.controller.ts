@@ -10,7 +10,7 @@ import { ChangerAdresseDto } from './dto/changer-adresse.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { SortieMotDePasseProvisoire } from '../../common/decorators/sortie-mot-de-passe.decorator';
-import { COOKIE_SESSION, OPTIONS_COOKIE_SESSION } from './session.constants';
+import { COOKIE_SESSION, optionsCookieSession } from './session.constants';
 import { AccesRolesCantonnes } from '../../common/decorators/acces-roles-cantonnes.decorator';
 
 @Controller('auth')
@@ -28,7 +28,7 @@ export class AuthController {
    */
   private poserSession<T extends { accessToken: string; csrfToken: string }>(res: Response, resultat: T) {
     const { accessToken, ...reste } = resultat;
-    res.cookie(COOKIE_SESSION, accessToken, OPTIONS_COOKIE_SESSION);
+    res.cookie(COOKIE_SESSION, accessToken, optionsCookieSession());
     return reste;
   }
 
@@ -71,7 +71,7 @@ export class AuthController {
   // une session déjà expirée (sinon impossible de « fermer » proprement).
   @Post('logout')
   async logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie(COOKIE_SESSION, { ...OPTIONS_COOKIE_SESSION, maxAge: undefined });
+    res.clearCookie(COOKIE_SESSION, { ...optionsCookieSession(), maxAge: undefined });
     return { deconnecte: true };
   }
 
@@ -137,7 +137,7 @@ export class AuthController {
   @Post('deconnecter-partout')
   async deconnecterPartout(@CurrentUser() user: AuthenticatedUser, @Res({ passthrough: true }) res: Response) {
     const resultat = await this.authService.deconnecterPartout(user.userId);
-    res.clearCookie(COOKIE_SESSION, { ...OPTIONS_COOKIE_SESSION, maxAge: undefined });
+    res.clearCookie(COOKIE_SESSION, { ...optionsCookieSession(), maxAge: undefined });
     return resultat;
   }
 }

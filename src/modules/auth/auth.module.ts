@@ -1,3 +1,4 @@
+import { LicenceModule } from '../licence/licence.module';
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -27,6 +28,7 @@ import { JwtAuthModule } from './jwt-auth.module';
       }),
     }),
     TenantModule,
+    LicenceModule,
     ComptesModule,
     ExerciceModule,
     JournauxModule,

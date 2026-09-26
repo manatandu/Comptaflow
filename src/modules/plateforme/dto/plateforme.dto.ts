@@ -1,4 +1,4 @@
-import { IsDateString, IsEmail, IsEnum, IsIn, IsInt, IsOptional, IsString, IsUUID, Min, MinLength, ValidateIf } from 'class-validator';
+import { IsDateString, IsEmail, IsEnum, IsIn, IsInt, IsOptional, IsString, IsUUID, Matches, Min, MinLength, ValidateIf } from 'class-validator';
 import { JeuEtatsFinanciersSycebnl, Referentiel, StatutLicence, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
 
 /**
@@ -161,4 +161,25 @@ export class PreparerDemonstrationDto {
   @IsOptional()
   @IsEnum(Referentiel)
   referentiel?: Referentiel;
+}
+
+/** Émission d'une licence d'installation sur site · la date d'émission et le numéro sont posés par le serveur. */
+export class EmettreLicenceSurSiteDto {
+  @IsString()
+  @MinLength(2)
+  titulaire!: string;
+
+  @Matches(/^[0-9a-fA-F]{64}$/, { message: 'L’empreinte du poste compte 64 caractères hexadécimaux.' })
+  empreinteMachine!: string;
+
+  @IsDateString({ strict: true })
+  finMaintenance!: string;
+
+  @IsOptional()
+  @IsDateString({ strict: true })
+  expiration?: string | null;
+
+  @IsInt()
+  @Min(1)
+  dossiersMax!: number;
 }

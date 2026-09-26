@@ -2,8 +2,11 @@ import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/co
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OperateurPlateformeGuard } from './operateur-plateforme.guard';
 import { PlateformeService } from './plateforme.service';
+import { LicencesSurSiteService } from './licences-sur-site.service';
+import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import {
   CreerCabinetDto,
+  EmettreLicenceSurSiteDto,
   ModifierGroupeDto,
   ModifierLicenceDto,
   PreparerDemonstrationDto,
@@ -22,7 +25,28 @@ import {
 @Controller('plateforme')
 @UseGuards(JwtAuthGuard, OperateurPlateformeGuard)
 export class PlateformeController {
-  constructor(private readonly plateformeService: PlateformeService) {}
+  constructor(
+    private readonly plateformeService: PlateformeService,
+    private readonly licencesSurSite: LicencesSurSiteService,
+  ) {}
+
+  @Get('licences-sur-site')
+  listeLicencesSurSite() {
+    return this.licencesSurSite.lister();
+  }
+
+  @Get('licences-sur-site/:id/fichier')
+  fichierLicenceSurSite(@Param('id') id: string) {
+    return this.licencesSurSite.fichier(id);
+  }
+
+  @Post('licences-sur-site')
+  emettreLicenceSurSite(@Body() dto: EmettreLicenceSurSiteDto, @CurrentUser() operateur: AuthenticatedUser) {
+    return this.licencesSurSite.emettre(
+      { titulaire: dto.titulaire, empreinteMachine: dto.empreinteMachine, finMaintenance: dto.finMaintenance, expiration: dto.expiration ?? null, dossiersMax: dto.dossiersMax },
+      operateur.email,
+    );
+  }
 
   @Get('cabinets')
   listeCabinets() {

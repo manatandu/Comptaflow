@@ -23,6 +23,8 @@ const EXEMPTS: Record<string, string> = {
   'pages/ChangerMotDePassePage.tsx': 'chacun change son propre mot de passe, lecture seule comprise',
   'components/ModaleMonAdresse.tsx': 'chacun change sa propre adresse de connexion, lecture seule comprise',
   'components/NouveauFichierWizard.tsx': "création d'un dossier depuis la porte d'ouverture, avant toute session",
+  'components/PanneauSurSite.tsx': "dépôt de la licence sur site depuis la porte d'ouverture, avant qu'aucun compte n'existe",
+  'components/LicencesSurSiteConsole.tsx': "émission des licences sur site, dans la console de l'éditeur gardée par estOperateurPlateforme",
   'pages/PlateformePage.tsx': "console de l'éditeur, gardée par estOperateurPlateforme et non par le rôle du dossier",
   'components/ModelesSaisie.tsx':
     "calcule une proposition sans rien enregistrer (POST /operations-specifiques/proposition) · l'insertion va dans la saisie, que SaisiePage garde",
@@ -37,6 +39,7 @@ const EXEMPTS: Record<string, string> = {
 const ADMIN_SEULEMENT: Record<string, string> = {
   'pages/BanquesPage.tsx': "banques et RIB, structures du dossier réservées à l'administrateur",
   'pages/LibellesPage.tsx': "libellés pré-enregistrés, structure du dossier réservée à l'administrateur",
+  'components/SauvegardesSurSite.tsx': "sauvegardes d'une installation sur site, route réservée à l'administrateur",
   'pages/UtilisateursPage.tsx': "gestion des accès du dossier, réservée à l'administrateur",
   'pages/BailleursPage.tsx': "création et rattachement des bailleurs, réservés à l'administrateur",
   'pages/ExercicePage.tsx': "clôtures, arrêté des comptes et imputation d'ouverture, réservés à l'administrateur",

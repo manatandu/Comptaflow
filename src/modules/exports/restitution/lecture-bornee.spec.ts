@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { filtreBorne } from '../../../common/cloisonnement/extension-cloisonnement';
-import { MODELES_CLOISONNES, MODELES_PORTES_PAR_LEUR_PARENT } from '../../../common/cloisonnement/modeles-cloisonnes';
+import { MODELES_CLOISONNES, MODELES_HORS_DOSSIER, MODELES_PORTES_PAR_LEUR_PARENT } from '../../../common/cloisonnement/modeles-cloisonnes';
 import {
   BORNES_PORTEES,
   ModeleSansBorne,
@@ -69,9 +69,14 @@ describe('l’inventaire couvre le schéma, sans trou ni surplus', () => {
     // du cabinet, les avances et prêts au personnel et leurs retenues, idem ;
     // à 115 avec les amortissements dérogatoires, bornés par leur tenantId, et
     // à 116 avec les versions de barème de paie du cabinet, bornées de même,
-    // et à 117 avec les simulations budgétaires, 119 avec les lots de virements, 120 avec les lieux des biens, 121 avec les bulletins modèles.
-    expect(modeles).toHaveLength(121);
-    expect([...TABLES_RESTITUEES].sort()).toEqual(modeles.filter((m) => m !== 'Tenant').sort());
+    // et à 117 avec les simulations budgétaires, 119 avec les lots de virements, 120 avec les lieux des biens, 121 avec les bulletins modèles,
+    // 122 avec le registre des licences sur site, HORS DOSSIER et donc hors archive.
+    expect(modeles).toHaveLength(122);
+    expect([...TABLES_RESTITUEES].sort()).toEqual(modeles.filter((m) => m !== 'Tenant' && !(m in MODELES_HORS_DOSSIER)).sort());
+    for (const m of Object.keys(MODELES_HORS_DOSSIER)) {
+      expect(modeles).toContain(m);
+      expect(MODELES_CLOISONNES.has(m)).toBe(false);
+    }
   });
 
   it('L’ARCHIVE REND LES DONNÉES QUE LE JOURNAL MASQUE · deux listes, deux fins', () => {

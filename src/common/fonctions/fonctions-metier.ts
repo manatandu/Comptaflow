@@ -120,6 +120,7 @@ export const CONTROLEURS_HORS_PROFIL: Record<string, string> = {
   AuthController: "Connexion et mot de passe · l'utilisateur lui-même, quel que soit son profil.",
   PlateformeController: "Console de l'opérateur, hors de tout dossier.",
   UtilisateurController: "Gestion des accès · réservée à l'administrateur, que le profil ne restreint jamais.",
+  SurSiteController: "Licence et sauvegardes du poste d'une installation sur site · l'installation, pas un dossier.",
 };
 
 const METHODES_QUI_ECRIVENT = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);

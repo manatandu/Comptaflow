@@ -1,4 +1,5 @@
 import { CookieOptions } from 'express';
+import { estSurSite } from '../../common/mode-installation';
 
 /**
  * SESSION EN COOKIE httpOnly · le jeton de session ne passe plus par
@@ -29,3 +30,16 @@ export const OPTIONS_COOKIE_SESSION: CookieOptions = {
   path: '/',
   maxAge: 8 * 60 * 60 * 1000,
 };
+
+/**
+ * SUR SITE, LE COOKIE CHANGE DE RÉGIME · l'interface et l'API y sont la MÊME
+ * origine, servies en http sur le réseau local (http://192.168.1.10:8080). Un
+ * navigateur refuse un cookie `Secure` sur une origine http qui n'est pas
+ * localhost : garder le régime en ligne, c'était une connexion qui « réussit »
+ * côté serveur et une session que le navigateur jette, depuis tous les postes
+ * du bureau sauf la machine serveur elle-même. `lax` suffit, rien ne voyage
+ * plus entre deux sites · le jeton CSRF reste exigé, il ne coûte rien.
+ */
+export function optionsCookieSession(surSite = estSurSite()): CookieOptions {
+  return surSite ? { ...OPTIONS_COOKIE_SESSION, secure: false, sameSite: 'lax' } : OPTIONS_COOKIE_SESSION;
+}
