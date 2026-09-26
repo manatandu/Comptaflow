@@ -4490,8 +4490,8 @@ dénomination d'une ASBL, il lui prêterait une forme de société. Le retrait
 reste toujours permis. (3) UNE MENTION ABSENTE EST DITE, JAMAIS REMPLACÉE ·
 la ligne s'imprime avec ce qui est connu (en-tête d'impression, par
 /auth/me) et l'écran nomme ce qui manque. Le montant est celui des statuts,
-sans défaut. Non servi et dit · le devis et la facture n'impriment pas encore
-d'en-tête du dossier.
+sans défaut. La facture de vente et le devis émis s'impriment depuis le
+2026-09-26 avec cette ligne (paragraphe « Pièces imprimées » plus bas).
 
 **Journaux de saisie et historique des rappels (2026-09-25).** Point 17 de la
 comparaison, lu au manuel i7 (« Journaux de saisie : permet de visualiser, de
@@ -4754,6 +4754,23 @@ SIMULATION COLORENT, et seul l'écart DÉFAVORABLE (produit en retard, charge en
 dépassement) · aucun texte n'en fixe. Seules les hypothèses sont enregistrées,
 rien n'est passé au journal ; définies par l'administrateur et le comptable
 (`peutValider`), consultées par tous.
+
+**Pièces imprimées · facture de vente et devis (2026-09-26).** Point 1 des
+restes de la comparaison Sage. L'AUSCGIE art. 17 vise « tous les actes et
+documents émanant de la société et destinés aux tiers, notamment [...] les
+factures ». TROIS RÈGLES À NE PAS DÉFAIRE. (1) LES MENTIONS SONT RECOPIÉES À LA
+DATE DE LA PIÈCE (`mentionsSocieteEmetteur`, dénomination, ligne et manques),
+comme les identités · un capital augmenté ne réécrit pas la facture de l'an
+dernier. Une pièce antérieure le DIT à l'écran, jamais n'emprunte les mentions
+du jour ; la note de crédit recopie celles de la facture qu'elle annule. (2)
+SEULE UNE PIÈCE QUE LE DOSSIER ÉMET S'IMPRIME · une facture d'achat est le
+document du fournisseur, un devis reçu est l'offre du client, et rien de leur
+capital n'est connu. (3) LA PIÈCE IMPRIMÉE DIT CE QU'ELLE N'EST PAS · « système
+de facturation non homologué (décret n° 23/10, art. 22) · ce n'est pas une
+facture normalisée » est imprimé, pas seulement affiché. Un manque de l'art. 17
+à l'établissement se signale à l'écran, jamais sur la pièce ; le devis porte le
+prix présumé hors taxes (AUDCG art. 263), la fermeté seulement si elle a été
+déclarée avec un délai (art. 242) et les délais des art. 258 et 259.
 
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
+import { BlocEmetteur, montantImprime, TableauLignes } from '../components/PieceImprimable';
+import { avertissementArticle17, type MentionsRecopiees } from '../lib/mentions-piece';
 
 /**
  * DEVIS ET COMMANDE CLIENT · l'OFFRE et son ACCEPTATION au sens de l'AUDCG.
@@ -27,6 +29,8 @@ type Etat = {
     nature: string;
     clientNom: string;
     objet: string | null;
+    /** AUSCGIE art. 17, recopiée quand le dossier émet · null sur une offre reçue ou antérieure. */
+    mentionsSocieteEmetteur: MentionsRecopiees | null;
     natureReponse: string | null;
     dateReponse: string | null;
     detailReponse: string | null;
@@ -54,8 +58,22 @@ const LIBELLE_ETAT: Record<string, string> = {
 const somme = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const jour = (d: string | null) => (d ? d.slice(0, 10) : '·');
 
+type UnDevis = Etat['devis'][number];
+
 export function DevisPage() {
-  const { peutEcrire } = useAuth();
+  const { peutEcrire, utilisateur } = useAuth();
+  // L'offre remise au client · seule imprimée tant qu'elle est ouverte.
+  const [aImprimer, setAImprimer] = useState<UnDevis | null>(null);
+  const dossierEstUneSociete = !!utilisateur?.tenant?.mentionsSociete;
+  useEffect(() => {
+    const fermer = () => setAImprimer(null);
+    window.addEventListener('afterprint', fermer);
+    return () => window.removeEventListener('afterprint', fermer);
+  }, []);
+  const imprimer = (d: UnDevis) => {
+    setAImprimer(d);
+    window.setTimeout(() => window.print(), 50);
+  };
   const [etat, setEtat] = useState<Etat | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [numero, setNumero] = useState('');
@@ -123,7 +141,8 @@ export function DevisPage() {
   if (!etat) return <div className="p-3 text-[11.5px] text-text-dim">Chargement…</div>;
 
   return (
-    <div className="p-2 max-w-[1100px]">
+    <div className={`p-2 max-w-[1100px] ${aImprimer ? 'avec-edition' : ''}`}>
+      {aImprimer && <DevisImprime d={aImprimer} delais={etat.delaisDeConformite} nomDossier={utilisateur?.tenant?.nom ?? ''} />}
       {/* Émettre et répondre sont réservés à ADMIN_CABINET et COMPTABLE côté
           serveur · la lecture seule garde l'état de chaque offre et son motif. */}
       {peutEcrire && (
@@ -241,6 +260,17 @@ export function DevisPage() {
                     <td className="py-1 pr-2">
                       {d.numero}
                       {d.emetteur === 'CLIENT' && <div className="text-[11px] text-text-dim">reçu du client</div>}
+                      {/* Seule une offre que le DOSSIER émet part chez le client. */}
+                      {d.emetteur === 'DOSSIER' && (
+                        <div>
+                          <button className="text-[11px] underline" onClick={() => imprimer(d)}>
+                            Imprimer
+                          </button>
+                          {avertissementArticle17(d.mentionsSocieteEmetteur, dossierEstUneSociete) && (
+                            <p className="text-[11px] text-warning">{avertissementArticle17(d.mentionsSocieteEmetteur, dossierEstUneSociete)}</p>
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td className="py-1 pr-2">{jour(d.dateEmission)}</td>
                     <td className="py-1 pr-2">{d.clientNom}</td>
@@ -295,6 +325,47 @@ export function DevisPage() {
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+/**
+ * L'offre telle qu'elle part chez le client. Elle porte ce que le texte attache
+ * à la vente et que le client découvre d'ordinaire trop tard · le prix présumé
+ * hors taxes (art. 263) et les deux délais de dénonciation (art. 258 et 259).
+ * Le délai d'acceptation court de la date portée sur l'offre (art. 246), et
+ * « offre ferme » n'est imprimé que si elle a été DÉCLARÉE irrévocable avec un
+ * délai (art. 242) · un délai seul n'engage à rien.
+ */
+function DevisImprime({ d, delais, nomDossier }: { d: UnDevis; delais: Etat['delaisDeConformite']; nomDossier: string }) {
+  return (
+    <div className="impression-seul text-[12px] text-black">
+      <div className="flex justify-between gap-6 mb-6">
+        {/* Le devis ne recopiait pas le nom avant l'art. 17 · à défaut, celui du
+            dossier, et l'écran a dit que la pièce est antérieure. */}
+        <BlocEmetteur mentions={d.mentionsSocieteEmetteur} nomRepli={nomDossier} />
+        <div className="text-right font-bold">{d.clientNom}</div>
+      </div>
+      <div className="text-[15px] font-bold mb-1">DEVIS N° {d.numero}</div>
+      <div className="mb-1">du {new Date(d.dateEmission).toLocaleDateString('fr-FR')}</div>
+      {d.objet && <div className="mb-4">Objet : {d.objet}</div>}
+      <TableauLignes lignes={d.lignes} avecTva={false} />
+      <div className="text-right font-bold mb-4">Total hors taxes : {montantImprime(d.totalHT)}</div>
+      <div className="mb-1">{d.prixPresume.mention} ({d.prixPresume.article})</div>
+      {d.delaiJours !== null && (
+        <div className="mb-1">
+          Offre valable {d.delaiJours} jours à compter du {new Date(d.dateEmission).toLocaleDateString('fr-FR')}
+          {d.declareeIrrevocable && ', ferme et irrévocable pendant ce délai'}.
+        </div>
+      )}
+      <div className="mt-3">Dénonciation des défauts de conformité :</div>
+      <ul className="list-disc pl-5">
+        {delais.map((x) => (
+          <li key={x.cle}>
+            {x.libelle} : {x.delai} ({x.article}).
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

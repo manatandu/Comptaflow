@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
+import { BlocEmetteur, montantImprime, TableauLignes } from '../components/PieceImprimable';
+import { avertissementArticle17, type MentionsRecopiees } from '../lib/mentions-piece';
 
 /**
  * FACTURATION · la pièce que la loi exige pour chaque transaction.
@@ -37,6 +39,8 @@ type Facture = {
   contrepartieAdresse: string | null;
   contrepartieNumeroImpot: string | null;
   mentionTvaDebits: boolean;
+  /** AUSCGIE art. 17, recopiée à l'établissement d'une vente · null sur un achat ou une pièce antérieure. */
+  mentionsSocieteEmetteur: MentionsRecopiees | null;
   ecritureId: string | null;
   lignes: {
     id: string;
@@ -137,6 +141,19 @@ export function FacturationPage() {
   const [autresImpots, setAutresImpots] = useState<number | ''>('');
   const [periode, setPeriode] = useState('');
   const [detaille, setDetaille] = useState<EtatDetaille | null>(null);
+  // La pièce remise au client · seule imprimée tant qu'elle est ouverte.
+  const [aImprimer, setAImprimer] = useState<Facture | null>(null);
+  const dossierEstUneSociete = !!utilisateur?.tenant?.mentionsSociete;
+  useEffect(() => {
+    const fermer = () => setAImprimer(null);
+    window.addEventListener('afterprint', fermer);
+    return () => window.removeEventListener('afterprint', fermer);
+  }, []);
+  const imprimer = (f: Facture) => {
+    setAImprimer(f);
+    // La pièce doit être rendue avant que la boîte d'impression ne fige la page.
+    window.setTimeout(() => window.print(), 50);
+  };
 
   const recharger = () => api.get<Etat>('/facturation').then(setEtat);
   useEffect(() => {
@@ -205,7 +222,8 @@ export function FacturationPage() {
   if (!etat) return <div className="p-3 text-[11.5px] text-text-dim">Chargement…</div>;
 
   return (
-    <div className="p-2 max-w-[1100px]">
+    <div className={`p-2 max-w-[1100px] ${aImprimer ? 'avec-edition' : ''}`}>
+      {aImprimer && <FactureImprimee f={aImprimer} />}
       {/* CE QUE CETTE FENÊTRE N'EST PAS · en tête et non en note de bas de
           page, comme le second jeu en monnaie fonctionnelle : un document qui
           ressemble à une facture normalisée et qui n'en est pas une doit dire
@@ -474,6 +492,18 @@ export function FacturationPage() {
                       {f.barree && (
                         <p className="text-[11px] text-text-dim">Annulée par {f.noteDeCredit?.numeroSerie}</p>
                       )}
+                      {/* SEULE UNE PIÈCE QUE LE DOSSIER ÉMET S'IMPRIME · une facture
+                          reçue est le document du fournisseur, pas le nôtre. */}
+                      {f.sens === 'VENTE' && (
+                        <div className="mt-1">
+                          <button className="text-[11px] underline" onClick={() => imprimer(f)}>
+                            Imprimer
+                          </button>
+                          {avertissementArticle17(f.mentionsSocieteEmetteur, dossierEstUneSociete) && (
+                            <p className="text-[11px] text-warning">{avertissementArticle17(f.mentionsSocieteEmetteur, dossierEstUneSociete)}</p>
+                          )}
+                        </div>
+                      )}
                       {peutEcrire && f.nature === 'FACTURE' && !f.barree && (
                         noteSur === f.id ? (
                           <div className="mt-1 flex flex-wrap gap-1 items-center">
@@ -547,6 +577,63 @@ export function FacturationPage() {
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+/**
+ * La facture de vente telle qu'elle part chez le client. L'avertissement de
+ * l'homologation est IMPRIMÉ, pas seulement affiché · une pièce d'allure
+ * officielle qui ne le dit pas ferait croire au client qu'il tient une
+ * facture normalisée (décret n° 23/10, art. 22).
+ */
+function FactureImprimee({ f }: { f: Facture }) {
+  const titre = f.nature === 'NOTE_DE_CREDIT' ? 'NOTE DE CRÉDIT' : 'FACTURE';
+  return (
+    <div className="impression-seul text-[12px] text-black">
+      <div className="flex justify-between gap-6 mb-6">
+        <BlocEmetteur
+          mentions={f.mentionsSocieteEmetteur}
+          nomRepli={f.emetteurNom}
+          complement={
+            <>
+              {/* La ligne de l'art. 17 porte déjà le siège · l'adresse de
+                  l'art. 26 a) ne se répète que là où cette ligne manque. */}
+              {f.emetteurAdresse && !f.mentionsSocieteEmetteur?.ligne && <div>{f.emetteurAdresse}</div>}
+              {f.emetteurNumeroImpot && <div>N° impôt {f.emetteurNumeroImpot}</div>}
+            </>
+          }
+        />
+        <div className="text-right">
+          <div className="font-bold">{f.contrepartieNom}</div>
+          {f.contrepartieAdresse && <div>{f.contrepartieAdresse}</div>}
+          {f.contrepartieNumeroImpot && <div>N° impôt {f.contrepartieNumeroImpot}</div>}
+        </div>
+      </div>
+      <div className="text-[15px] font-bold mb-1">
+        {titre} N° {f.numeroSerie}
+      </div>
+      <div className="mb-4">
+        du {new Date(f.dateFacture).toLocaleDateString('fr-FR')}
+        {f.nature === 'NOTE_DE_CREDIT' && f.factureAnnulee && ` · annule et remplace la facture n° ${f.factureAnnulee.numeroSerie}`}
+      </div>
+      <TableauLignes lignes={f.lignes} avecTva />
+      <table className="ml-auto mb-4 border-collapse">
+        <tbody>
+          <tr><td className="pr-4">Montant non taxable</td><td className="text-right">{montantImprime(f.totaux.montantNonTaxable)}</td></tr>
+          <tr><td className="pr-4">Montant hors TVA</td><td className="text-right">{montantImprime(f.totaux.montantHT)}</td></tr>
+          <tr><td className="pr-4">TVA</td><td className="text-right">{montantImprime(f.totaux.montantTva)}</td></tr>
+          {f.autresImpotsEtTaxes !== null && (
+            <tr><td className="pr-4">Autres impôts et taxes</td><td className="text-right">{montantImprime(f.autresImpotsEtTaxes)}</td></tr>
+          )}
+          <tr className="font-bold"><td className="pr-4">Montant TTC</td><td className="text-right">{montantImprime(f.totaux.montantTTC)}</td></tr>
+        </tbody>
+      </table>
+      {f.mentionTvaDebits && <div className="mb-2">Autorisation d'acquitter la TVA d'après les débits.</div>}
+      <div className="text-[10.5px] mt-6 border-t border-black pt-1">
+        Pièce établie par un système de facturation non homologué (décret n° 23/10 du 3 mars 2023, art. 22) · ce
+        n'est pas une facture normalisée.
+      </div>
     </div>
   );
 }

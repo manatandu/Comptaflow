@@ -39,6 +39,7 @@ const INITIALE = {
   contrepartieAdresse: '4, boulevard du 30 Juin',
   contrepartieNumeroImpot: 'B7654321Y',
   mentionTvaDebits: false,
+  mentionsSocieteEmetteur: { denomination: 'Le dossier (au 10 septembre)', ligne: 'Société anonyme · au capital de 1 000 000 CDF', manquantes: [] },
   autresImpotsEtTaxes: d(0),
   noteDeCredit: null as Faux | null,
   lignes: [
@@ -108,6 +109,8 @@ describe('Émettre une note de crédit · elle ANNULE la facture initiale, enti�
     expect(data.emetteurNom).toBe('Le dossier (au 10 septembre)');
     expect(data.contrepartieNom).toBe('Client SARL');
     expect(data.contrepartieNumeroImpot).toBe('B7654321Y');
+    // AUSCGIE art. 17 · la ligne recopiée de la facture, pas celle du jour.
+    expect(data.mentionsSocieteEmetteur).toEqual(INITIALE.mentionsSocieteEmetteur);
   });
 
   it('rend les totaux de la note, égaux à ceux de la facture annulée', async () => {

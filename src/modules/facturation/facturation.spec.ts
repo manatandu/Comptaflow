@@ -316,6 +316,13 @@ function service(factures: Faux[] = [], doublon: Faux | null = null) {
         numeroImpot: 'A0000000A',
         formeJuridique: null,
         formeJuridiqueSyscohada: 'SOCIETE_RESPONSABILITE_LIMITEE',
+        referentiel: 'SYSCOHADA',
+        capitalSocial: new Prisma.Decimal(10_000_000),
+        capitalVariable: false,
+        adresse: '12, avenue de la Justice',
+        ville: 'Kinshasa',
+        rccm: null,
+        devise: 'CDF',
       }),
     },
     tiers: { findFirst: jest.fn().mockResolvedValue(null) },
@@ -358,6 +365,25 @@ describe('Le service · qui est l’émetteur, et qui est la contrepartie', () =
     const data = (create.mock.calls[0][0] as Faux).data as Faux;
     expect(data.emetteurNom).toBe('Fournisseur SARL');
     expect(data.contrepartieNom).toBe('Le dossier');
+  });
+
+  it('SUR UNE VENTE, les mentions de l’AUSCGIE art. 17 sont RECOPIÉES à la date de la pièce', async () => {
+    const { svc, create } = service();
+    await svc.enregistrer('t', dto() as never);
+    const data = (create.mock.calls[0][0] as Faux).data as Faux;
+    expect(data.mentionsSocieteEmetteur).toEqual({
+      denomination: 'Le dossier',
+      ligne: 'Société à responsabilité limitée · au capital de 10 000 000 CDF · siège social : 12, avenue de la Justice, Kinshasa',
+      // Le RCCM manque au dossier · la pièce le garde écrit, elle ne le devine pas.
+      manquantes: ["numéro d'immatriculation au RCCM"],
+    });
+  });
+
+  it('SUR UN ACHAT, rien n’est recopié · le capital du fournisseur n’est pas connu', async () => {
+    const { svc, create } = service();
+    await svc.enregistrer('t', dto({ sens: SensFacture.ACHAT, contrepartieNom: 'Fournisseur SARL' }) as never);
+    const data = (create.mock.calls[0][0] as Faux).data as Faux;
+    expect(data.mentionsSocieteEmetteur).toBe(Prisma.DbNull);
   });
 
   it('refuse un n° de série déjà porté par une facture du MÊME sens', async () => {

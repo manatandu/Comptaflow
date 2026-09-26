@@ -176,5 +176,8 @@ virement imprimable, servi le 2026-09-26 ; (2) avances et prêts sur salaire, ru
 paramétrables, servis le 2026-09-26 ; (3) dégressif et dérogatoire pour le SYSCOHADA, servis le
 2026-09-26 ; (4) barèmes de paie en données datées, servis le 2026-09-26 pour les taux de
 cotisation et le SMIG ; (5)
-filtrage des données par rôle, servi le 2026-09-26 comme journaux autorisés en saisie ; (6) simulateur budgétaire, servi le 2026-09-26. Le reste n'est que
+filtrage des données par rôle, servi le 2026-09-26 comme journaux autorisés en saisie ; (6) simulateur budgétaire, servi le 2026-09-26. Restes relevés le même jour :
+en-tête du dossier (AUSCGIE art. 17) sur la facture de vente et le devis émis,
+servi le 2026-09-26 avec leur impression ; lots de virements récurrents ;
+tableau de synthèse du début de ce document, à remettre à jour. Le reste n'est que
 nommé dans les sources et ne s'implémente pas sans meilleure source.

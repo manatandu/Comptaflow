@@ -99,3 +99,25 @@ export function mentionsArticle17(t: IdentiteSociete): MentionsSociete {
   else manquantes.push("numéro d'immatriculation au RCCM");
   return { ligne: morceaux.join(' · '), manquantes };
 }
+
+/**
+ * L'identité telle que la base la rend (capital en Decimal) · un seul
+ * convertisseur, pour que /auth/me et les pièces émises lisent la même ligne.
+ */
+export function identiteSociete(t: Omit<IdentiteSociete, 'capitalSocial'> & { capitalSocial: { toString(): string } | number | null }): IdentiteSociete {
+  return { ...t, capitalSocial: t.capitalSocial === null ? null : Number(t.capitalSocial) };
+}
+
+/** Ce qu'une pièce émise par le dossier recopie à sa date (facture, devis). */
+export interface MentionsRecopiees extends MentionsSociete {
+  denomination: string;
+}
+
+/**
+ * LA COPIE PORTÉE PAR UNE PIÈCE ÉMISE. La dénomination voyage avec la ligne ·
+ * un devis ne recopie pas le nom du dossier ailleurs, et la relire au jour de
+ * l'impression réécrirait l'offre faite l'an dernier.
+ */
+export function mentionsRecopiees(t: IdentiteSociete): MentionsRecopiees {
+  return { denomination: t.nom, ...mentionsArticle17(t) };
+}

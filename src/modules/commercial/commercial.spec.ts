@@ -222,6 +222,12 @@ function service(opts: { referentiel?: Referentiel; devis?: Faux[]; unDevis?: Fa
         nom: 'Le dossier',
         referentiel: opts.referentiel ?? Referentiel.SYSCOHADA,
         formeJuridiqueSyscohada: 'SOCIETE_RESPONSABILITE_LIMITEE',
+        capitalSocial: null,
+        capitalVariable: false,
+        adresse: null,
+        ville: null,
+        rccm: null,
+        devise: 'CDF',
       }),
     },
     tiers: { findFirst: jest.fn().mockResolvedValue(null) },
@@ -290,6 +296,18 @@ describe('Le service · la contre-proposition ne naît que d’un rejet', () => 
     });
     await svc.emettre('t', dto({ numero: 'DV-2', contrePropositionDeId: 'p1' }) as never);
     expect(((create.mock.calls[0][0] as Faux).data as Faux).emetteur).toBe('CLIENT');
+    // L'offre vient du client · son capital n'est pas connu, rien n'est recopié.
+    expect(((create.mock.calls[0][0] as Faux).data as Faux).mentionsSocieteEmetteur).toBe(Prisma.DbNull);
+  });
+
+  it('un devis ÉMIS par le dossier recopie les mentions de l’AUSCGIE art. 17 à sa date', async () => {
+    const { svc, create } = service();
+    await svc.emettre('t', dto() as never);
+    const recopie = ((create.mock.calls[0][0] as Faux).data as Faux).mentionsSocieteEmetteur as Faux;
+    expect(recopie.denomination).toBe('Le dossier');
+    expect(recopie.ligne).toBe('Société à responsabilité limitée');
+    // Rien n'est deviné · ce qui manque au dossier reste écrit sur la pièce.
+    expect(recopie.manquantes).toEqual(['montant du capital social', 'adresse du siège social', "numéro d'immatriculation au RCCM"]);
   });
 });
 

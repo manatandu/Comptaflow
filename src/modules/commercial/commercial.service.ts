@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { NatureReponseDevis, Prisma, Referentiel } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
+import { identiteSociete, mentionsRecopiees, type MentionsRecopiees } from '../tenant/mentions-societe';
 import { EmettreDevisDto, EnregistrerReponseDto, RevoquerDevisDto } from './dto/devis.dto';
 import {
   AUCUNE_CONDITION_DE_FORME,
@@ -23,7 +24,19 @@ export class CommercialService {
   private async dossier(tenantId: string) {
     return this.prisma.tenant.findUniqueOrThrow({
       where: { id: tenantId },
-      select: { id: true, nom: true, referentiel: true, formeJuridiqueSyscohada: true },
+      select: {
+        id: true,
+        nom: true,
+        referentiel: true,
+        formeJuridiqueSyscohada: true,
+        // AUSCGIE art. 17 · recopié sur un devis que le dossier émet.
+        capitalSocial: true,
+        capitalVariable: true,
+        adresse: true,
+        ville: true,
+        rccm: true,
+        devise: true,
+      },
     });
   }
 
@@ -72,6 +85,7 @@ export class CommercialService {
       nature: d.nature,
       clientNom: d.clientNom,
       objet: d.objet,
+      mentionsSocieteEmetteur: d.mentionsSocieteEmetteur as MentionsRecopiees | null,
       natureReponse: d.natureReponse,
       dateReponse: d.dateReponse,
       detailReponse: d.detailReponse,
@@ -178,6 +192,10 @@ export class CommercialService {
         tiersId: dto.tiersId ?? null,
         clientNom,
         objet: dto.objet?.trim() || null,
+        // Un devis est un document destiné aux tiers (AUSCGIE art. 17) quand
+        // le DOSSIER l'émet · recopié à sa date. Une offre reçue n'en porte pas.
+        mentionsSocieteEmetteur:
+          emetteur === 'DOSSIER' ? (mentionsRecopiees(identiteSociete(t)) as unknown as Prisma.InputJsonValue) : Prisma.DbNull,
         contrePropositionDeId: dto.contrePropositionDeId ?? null,
         lignes: {
           create: dto.lignes.map((l, i) => ({
@@ -191,7 +209,6 @@ export class CommercialService {
       },
       include: { lignes: true },
     });
-    void t;
     return this.vue(devis, new Date());
   }
 

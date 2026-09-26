@@ -5600,6 +5600,17 @@ model Facture {
   /// que les identités.
   mentionTvaDebits Boolean @default(false)
 
+  /// AUSCGIE ART. 17 · la dénomination « doit figurer sur tous les actes et
+  /// documents émanant de la société et destinés aux tiers, notamment [...]
+  /// les factures », précédée ou suivie de la forme, du capital, du siège et
+  /// du RCCM. RECOPIÉE à l'établissement, comme les identités, et pour la
+  /// même raison · un capital augmenté l'an prochain ne réécrit pas la facture
+  /// de cette année. `{ ligne, manquantes }` sur une VENTE (ligne null hors
+  /// des sociétés commerciales), null sur un achat · et null sur une vente
+  /// établie avant le 2026-09-26, qui n'a rien recopié et le DIT à
+  /// l'impression plutôt que de reprendre les mentions d'aujourd'hui.
+  mentionsSocieteEmetteur Json?
+
   /// ART. 26 j) DU DÉCRET N° 23/10 · « le montant de tous autres impôts et
   /// taxes, LE CAS ÉCHÉANT ». Dixième mention obligatoire, ajoutée par le
   /// décret de 2023 que l'art. 100 de 2011 ne portait pas.
@@ -5748,6 +5759,11 @@ model Devis {
   clientNom String
 
   objet String?
+
+  /// AUSCGIE ART. 17, recopiée comme sur la facture (voir `Facture.
+  /// mentionsSocieteEmetteur`). Portée seulement quand l'émetteur est le
+  /// DOSSIER · une offre reçue vient d'un tiers dont on ignore le capital.
+  mentionsSocieteEmetteur Json?
 
   /// LA RÉPONSE, telle qu'elle est PARVENUE (art. 244). Les deux champs vont
   /// ensemble : une nature sans date ne dit pas quand le contrat s'est formé,

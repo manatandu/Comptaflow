@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { siSycebnl } from '../../common/reponse-referentiel';
 import { PrismaService } from '../../common/prisma.service';
 import { MONNAIE_DE_TENUE } from '../../common/monnaie-de-tenue';
-import { mentionsArticle17, motifRefusCapital } from './mentions-societe';
+import { identiteSociete, mentionsArticle17, motifRefusCapital } from './mentions-societe';
 import { Prisma, FormeJuridiqueEbnl,
   FormeJuridiqueSyscohada, JeuEtatsFinanciersSycebnl, MethodeCotisations, Referentiel, RegimeExigibiliteTva, SystemeComptableSyscohada, TypeLicence,
   MethodeInventaireStocks,
@@ -97,7 +97,7 @@ export class TenantService {
       capitalVariable: tenant.capitalVariable,
       // La ligne de l'art. 17 AUSCGIE telle qu'elle s'imprime, et ce qui y
       // manque · même calcul que l'en-tête d'impression (/auth/me).
-      mentionsSociete: mentionsArticle17({ ...tenant, capitalSocial: tenant.capitalSocial === null ? null : Number(tenant.capitalSocial) }),
+      mentionsSociete: mentionsArticle17(identiteSociete(tenant)),
       // MONNAIE DE TENUE · lecture seule côté écran. Elle ne se choisit pas
       // (loi n° 23/053 art. 141, 1° · AUDCIF art. 17, 1°) et elle n'a jamais
       // rien converti · elle étiquette le cartouche des états.

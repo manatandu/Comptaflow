@@ -11,6 +11,7 @@ import {
 } from './mentions-facture';
 import { construireEtatDetaille, FactureAchatSource } from './etat-detaille-tva';
 import { FORMES_PERSONNES_PHYSIQUES } from '../retenues/correspondance-retenues';
+import { identiteSociete, mentionsRecopiees, type MentionsRecopiees } from '../tenant/mentions-societe';
 
 const nombre = (d: Prisma.Decimal | number | null): number | null =>
   d === null || d === undefined ? null : Number(d);
@@ -39,6 +40,12 @@ export class FacturationService {
         ville: true,
         formeJuridique: true,
         formeJuridiqueSyscohada: true,
+        // AUSCGIE art. 17 · les mentions recopiées sur une facture émise.
+        referentiel: true,
+        capitalSocial: true,
+        capitalVariable: true,
+        rccm: true,
+        devise: true,
         // Décret n° 011/42, art. 60 · la mention n'est due que par le dossier
         // AUTORISÉ, et seulement sur les factures qu'il DÉLIVRE.
         regimeExigibiliteTva: true,
@@ -175,6 +182,7 @@ export class FacturationService {
           contrepartieAdresse: f.contrepartieAdresse,
           contrepartieNumeroImpot: f.contrepartieNumeroImpot,
           mentionTvaDebits: f.mentionTvaDebits,
+          mentionsSocieteEmetteur: f.mentionsSocieteEmetteur as MentionsRecopiees | null,
           autresImpotsEtTaxes: nombre(f.autresImpotsEtTaxes),
           ecritureId: f.ecritureId,
           lignes: f.lignes.map((l) => ({
@@ -266,6 +274,11 @@ export class FacturationService {
         contrepartieAdresse: dto.sens === SensFacture.VENTE ? contrepartieAdresse : adresseDossier,
         contrepartieNumeroImpot: dto.sens === SensFacture.VENTE ? contrepartieNumeroImpot : t.numeroImpot,
         mentionTvaDebits: dto.mentionTvaDebits ?? false,
+        // Sur une vente, le dossier émet · l'art. 17 lui est recopié à la date
+        // de la pièce. Sur un achat, l'émetteur est un tiers dont on ignore le
+        // capital, rien n'est recopié.
+        mentionsSocieteEmetteur:
+          dto.sens === SensFacture.VENTE ? (mentionsRecopiees(identiteSociete(t)) as unknown as Prisma.InputJsonValue) : Prisma.DbNull,
         autresImpotsEtTaxes:
           dto.autresImpotsEtTaxes === undefined ? null : new Prisma.Decimal(dto.autresImpotsEtTaxes),
         ecritureId: dto.ecritureId ?? null,
@@ -385,6 +398,9 @@ export class FacturationService {
         contrepartieAdresse: initiale.contrepartieAdresse,
         contrepartieNumeroImpot: initiale.contrepartieNumeroImpot,
         mentionTvaDebits: initiale.mentionTvaDebits,
+        // Recopiée de la facture annulée, comme les identités · la note la
+        // remplace, elle ne réécrit pas qui l'a émise.
+        mentionsSocieteEmetteur: (initiale.mentionsSocieteEmetteur ?? Prisma.DbNull) as Prisma.InputJsonValue,
         autresImpotsEtTaxes: initiale.autresImpotsEtTaxes,
         ecritureId: dto.ecritureId ?? null,
         lignes: {
