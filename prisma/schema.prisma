@@ -7164,9 +7164,15 @@ model NotesIfrs {
   exerciceId String
   exercice   Exercice @relation(fields: [exerciceId], references: [id])
   contenu    Json
+  /// Notes des états CONSOLIDÉS · jamais lues pour les comptes individuels,
+  /// ni l'inverse.
+  consolide  Boolean  @default(false)
+  /// IFRS 12 · les réponses propres aux intérêts dans d'autres entités
+  /// (`normaliserDeclarationsIfrs12`), consolidé seulement.
+  ifrs12     Json?
   updatedAt  DateTime @updatedAt
 
-  @@unique([tenantId, exerciceId])
+  @@unique([tenantId, exerciceId, consolide])
   @@map("notes_ifrs")
 }
 

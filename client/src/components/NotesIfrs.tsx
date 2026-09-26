@@ -178,11 +178,14 @@ export function NotesIfrs({
   exerciceId,
   rubriques,
   apresEnregistrement,
+  consolide = false,
 }: {
   notes: NotesIfrsServies;
   exerciceId: string;
   rubriques: Rubrique[];
   apresEnregistrement: () => Promise<void>;
+  /** Les notes des états consolidés · leurs déclarations se rangent à part de celles du dossier. */
+  consolide?: boolean;
 }) {
   const { peutEcrire } = useAuth();
   const [d, setD] = useState<Declarations>(notes.declarations);
@@ -203,7 +206,7 @@ export function NotesIfrs({
     setErreur(null);
     setMessage(null);
     try {
-      await api.put('/ifrs/notes', { exerciceId, contenu: d });
+      await api.put('/ifrs/notes', { exerciceId, contenu: d, ...(consolide ? { consolide: true } : {}) });
       await apresEnregistrement();
       setMessage('Notes enregistrées.');
     } catch (e) {

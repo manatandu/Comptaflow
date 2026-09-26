@@ -4,6 +4,8 @@ import { useAuth } from '../lib/auth';
 import { Aide } from './chrome/Aide';
 import { DeclarationEffetChange, EffetChange, FluxServi, TableauFluxIfrs } from './FluxTresorerieIfrs';
 import { VariationCapitauxPropresIfrs, VariationServie } from './VariationCapitauxPropresIfrs';
+import { NotesIfrs, NotesIfrsServies } from './NotesIfrs';
+import { DeclarationsIfrs12, DeclarationsIfrs12Form, EntiteIfrs12 } from './DeclarationsIfrs12';
 
 /**
  * ÉTATS IFRS CONSOLIDÉS, tranche C1 · la balance consolidée du D4C (celle de la
@@ -24,6 +26,10 @@ import { VariationCapitauxPropresIfrs, VariationServie } from './VariationCapita
  * TRANCHE C3 · la variation des capitaux propres, avec la colonne des
  * minoritaires (§ 107 a), par le même composant que les comptes individuels.
  * Ses mouvements sont ceux du GROUPE, jamais ceux du dossier.
+ *
+ * TRANCHE C4 · les notes consolidées, par le même composant que les comptes
+ * individuels, plus les réponses d'IFRS 12. Leurs déclarations sont celles du
+ * groupe, jamais celles du dossier.
  */
 type Rubrique = { code: string; libelle: string; ref: string; etat: 'SITUATION' | 'RESULTAT' | 'RESULTAT_GLOBAL'; section?: string };
 type Ligne = { cle: string; libelle: string; ref?: string; groupe?: string; nature: 'POSTE' | 'TOTAL' | 'NON_CLASSE'; legal: number; retraitements: number; ifrs: number };
@@ -58,6 +64,7 @@ type Consolide = {
   postesADeclarer: { poste: string; libelle: string }[];
   fluxTresorerie: FluxServi | null;
   variationCapitauxPropres: VariationServie | null;
+  notes: (NotesIfrsServies & { ifrs12: DeclarationsIfrs12; entitesIfrs12: EntiteIfrs12[] }) | null;
   decouvertsDansTresorerie: boolean | null;
   tresorerieGroupeEnDevises: boolean | null;
   effetChange: EffetChange | null;
@@ -159,7 +166,7 @@ export function EtatsIfrsConsolides({ exerciceId }: { exerciceId: string }) {
           États IFRS consolidés
           <Aide
             titre="États IFRS consolidés"
-            texte="La balance consolidée est celle de la fenêtre Consolidation, jamais recalculée ici. Ses comptes se rangent par les règles de correspondance des comptes individuels, uniformité des méthodes (IFRS 10 § 19) ; ses postes se rangent par IFRS 18 quand la norme nomme la ligne, et se déclarent sinon. Les participations ne donnant pas le contrôle sont présentées dans les capitaux propres, séparément (IFRS 10 § 22, IFRS 18 § 104 a), et le résultat net comme le résultat global se répartissent sous leur total (§ 76, § 87). Un retraitement consolidé déclare la part de chacun de ses effets qui revient aux minoritaires, zéro compris (IFRS 10 § B94). Le tableau des flux et la variation des capitaux propres consolidés sont servis ; les notes et la première application consolidée ne le sont pas encore · le jeu le dit."
+            texte="La balance consolidée est celle de la fenêtre Consolidation, jamais recalculée ici. Ses comptes se rangent par les règles de correspondance des comptes individuels, uniformité des méthodes (IFRS 10 § 19) ; ses postes se rangent par IFRS 18 quand la norme nomme la ligne, et se déclarent sinon. Les participations ne donnant pas le contrôle sont présentées dans les capitaux propres, séparément (IFRS 10 § 22, IFRS 18 § 104 a), et le résultat net comme le résultat global se répartissent sous leur total (§ 76, § 87). Un retraitement consolidé déclare la part de chacun de ses effets qui revient aux minoritaires, zéro compris (IFRS 10 § B94). Le tableau des flux, la variation des capitaux propres et les notes consolidés, IFRS 12 comprise, sont servis ; la première application consolidée ne l’est pas encore · le jeu le dit."
             source="AUDCIF art. 74 à 98 · D4C ch. XII · IFRS 10 § 19, § 22, § B94 · IFRS 18 § 76, § 87, § 104 a · IAS 7"
           />
         </h2>
@@ -380,6 +387,19 @@ export function EtatsIfrsConsolides({ exerciceId }: { exerciceId: string }) {
               )}
               <TableauFluxIfrs flux={etat.fluxTresorerie} />
             </section>
+          )}
+
+          {etat.notes && (
+            <>
+              <DeclarationsIfrs12Form
+                key={`ifrs12-${exerciceId}`}
+                exerciceId={exerciceId}
+                declarations={etat.notes.ifrs12}
+                entites={etat.notes.entitesIfrs12}
+                apresEnregistrement={recharger}
+              />
+              <NotesIfrs notes={etat.notes} exerciceId={exerciceId} rubriques={etat.rubriques} apresEnregistrement={recharger} consolide />
+            </>
           )}
 
           <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">

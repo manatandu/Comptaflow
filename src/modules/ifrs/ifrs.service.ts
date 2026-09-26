@@ -33,6 +33,7 @@ import {
 } from './etats-ifrs';
 import { construireEtatsIfrsConsolides, EtatsIfrsConsolides, motifRefusRegleConsolidation, POSTES_A_DECLARER, POSTES_RANGES } from './etats-ifrs-consolides';
 import { construireNotesIfrs, motifsRefusDeclarationsNotes, normaliserDeclarationsNotes, SOUS_TOTAUX_REFERENCE } from './notes-ifrs';
+import { construireNoteIfrs12, normaliserDeclarationsIfrs12 } from './notes-ifrs12';
 import { CATEGORIES_FLUX, CategorieFlux, construireFluxTresorerieIfrs, EntreesFluxIfrs, TableauFluxIfrs } from './flux-tresorerie-ifrs';
 import { RUBRIQUE_PAR_CODE } from './rubriques-ifrs';
 import { construirePremiereApplication, lignesOuverture, motifRefusAjustementTransition, PremiereApplication, RetraitementIfrs1 } from './premiere-application-ifrs';
@@ -111,11 +112,10 @@ const versMoteurConsolide = (r: RetraitementLu): RetraitementDeclare => ({
 const nombreOuNull = (x: Prisma.Decimal | number | null | undefined) => (x == null ? null : Number(x));
 
 /**
- * Ce que les tranches C1 à C3 ne servent pas des comptes consolidés IFRS ·
+ * Ce que les tranches C1 à C4 ne servent pas des comptes consolidés IFRS ·
  * dit sur le jeu, jamais tu. Chaque motif nomme la norme qui l'exige.
  */
 export const MOTIFS_CONSOLIDES_NON_SERVIS = [
-  'Notes des états consolidés non servies par cette tranche · dont les informations d’IFRS 12 sur les intérêts détenus dans d’autres entités (IFRS 18 § 113 b).',
   'Première application des IFRS aux comptes consolidés non servie par cette tranche (IFRS 1) · les ajustements de transition du groupe ne se déclarent pas encore.',
 ];
 
@@ -473,8 +473,8 @@ export class IfrsService {
 
     // ─── Notes · IFRS 18 § 113 à 132, IAS 8 ──────────────────────────────────
     const [notesN, notesN1, tenant, mouvements] = await Promise.all([
-      this.prisma.notesIfrs.findUnique({ where: { tenantId_exerciceId: { tenantId, exerciceId: ex.id } } }),
-      precedent ? this.prisma.notesIfrs.findUnique({ where: { tenantId_exerciceId: { tenantId, exerciceId: precedent.id } } }) : Promise.resolve(null),
+      this.prisma.notesIfrs.findUnique({ where: { tenantId_exerciceId_consolide: { tenantId, exerciceId: ex.id, consolide: false } } }),
+      precedent ? this.prisma.notesIfrs.findUnique({ where: { tenantId_exerciceId_consolide: { tenantId, exerciceId: precedent.id, consolide: false } } }) : Promise.resolve(null),
       this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { nom: true, pays: true, adresse: true, ville: true, activite: true } }),
       this.mouvementsDe(tenantId, ex.id),
     ]);
@@ -585,7 +585,7 @@ export class IfrsService {
       ({ etat: n, cumul: cumulN } = await jouer(ex, retraitements));
     } catch (e) {
       if (!(e instanceof BadRequestException)) throw e;
-      return { ...commun, n: null, motifN: e.message, n1: null, motifN1: null, fluxTresorerie: null, variationCapitauxPropres: null };
+      return { ...commun, n: null, motifN: e.message, n1: null, motifN1: null, fluxTresorerie: null, variationCapitauxPropres: null, notes: null };
     }
 
     const precedent = await this.precedent(tenantId, ex.dateDebut);
@@ -659,6 +659,56 @@ export class IfrsService {
     if (fluxN.tableau && !fluxN1.tableau) n.motifsNonPubliable.push(`Tableau des flux consolidé comparatif non établi (IFRS 18 § 10 f) · ${fluxN1.motif}`);
 
     n.motifsNonPubliable.push(...MOTIFS_CONSOLIDES_NON_SERVIS);
+
+    // TRANCHE C4 · les notes, EN DERNIER · la déclaration de conformité (IAS 8
+    // § 6B) dépend de tout ce que le reste du jeu a trouvé. Les notes de base
+    // sont celles des comptes individuels, sur l'état consolidé et avec SES
+    // déclarations ; la note IFRS 12 s'y ajoute.
+    const [notesN, notesN1, tenant, mouvementsGroupe, perimetreN] = await Promise.all([
+      this.prisma.notesIfrs.findUnique({ where: { tenantId_exerciceId_consolide: { tenantId, exerciceId: ex.id, consolide: true } } }),
+      precedent
+        ? this.prisma.notesIfrs.findUnique({ where: { tenantId_exerciceId_consolide: { tenantId, exerciceId: precedent.id, consolide: true } } })
+        : Promise.resolve(null),
+      this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { nom: true, pays: true, adresse: true, ville: true, activite: true } }),
+      this.mouvementsDe(tenantId, ex.id, true),
+      this.perimetre.etat(tenantId, ex.id),
+    ]);
+    const declarationsIfrs12 = normaliserDeclarationsIfrs12(notesN?.ifrs12 ?? {});
+    const ifrs = (liste: 'situation' | 'resultat', cle: string) => n[liste].find((l) => l.cle === cle)?.ifrs ?? 0;
+    const ifrs12 = construireNoteIfrs12({
+      entites: perimetreN.resultats,
+      declarations: declarationsIfrs12,
+      totaux: { resultatMinoritaires: ifrs('resultat', 'RN_PARTICIPATIONS_NE_DONNANT_PAS_CONTROLE'), cumulMinoritaires: ifrs('situation', 'SF_PARTICIPATIONS_NE_DONNANT_PAS_CONTROLE') },
+      variationsPartsInterets: mouvementsGroupe
+        .filter((m) => m.type === 'VARIATION_PARTS_INTERETS')
+        .map((m) => ({ libelle: m.libelle, groupe: m.composante === 'MINORITAIRES' ? 0 : m.montant, minoritaires: m.composante === 'MINORITAIRES' ? m.montant : 0 })),
+    });
+    n.motifsNonPubliable.push(...ifrs12.motifs);
+    const declarationsNotes = normaliserDeclarationsNotes(notesN?.contenu ?? {});
+    const declarationsNotesN1 = notesN1 ? normaliserDeclarationsNotes(notesN1.contenu) : null;
+    const notes = construireNotesIfrs({
+      declarations: declarationsNotes,
+      declarationsN1: declarationsNotesN1,
+      ficheDossier: {
+        nom: tenant?.nom ?? '',
+        formeJuridique: null,
+        pays: tenant?.pays ?? null,
+        adresse: [tenant?.adresse, tenant?.ville].filter((x) => x?.trim()).join(', ') || null,
+        activite: tenant?.activite ?? null,
+      },
+      n,
+      n1,
+      retraitements: retraitements.map(versMoteurConsolide),
+      premiereApplication: null,
+      distributionsDeclarees: mouvementsGroupe.some((m) => m.type === 'DISTRIBUTION'),
+      applicationAnticipee: ex.dateDebut.getTime() < ENTREE_EN_VIGUEUR_IFRS18,
+      motifsJeu: [...n.motifsNonPubliable],
+    });
+    // La note IFRS 12 prend le numéro suivant, et ses postes leurs renvois (§ 114).
+    const numero = notes.notes.length + 1;
+    notes.notes.push({ ...ifrs12.note, numero });
+    for (const cle of ifrs12.note.postes) (notes.renvois[cle] ??= []).push(numero);
+    n.motifsNonPubliable.push(...notes.motifsNonPubliable);
     return {
       ...commun,
       n,
@@ -666,6 +716,14 @@ export class IfrsService {
       n1,
       motifN1,
       fluxTresorerie: { n: fluxN.tableau, motifN: fluxN.motif, n1: fluxN1.tableau, motifN1: fluxN1.motif },
+      notes: {
+        ...notes,
+        declarations: declarationsNotes,
+        declarationsN1: declarationsNotesN1,
+        sousTotauxReference: SOUS_TOTAUX_REFERENCE,
+        ifrs12: declarationsIfrs12,
+        entitesIfrs12: perimetreN.resultats.map((e) => ({ nom: e.nom, methode: e.methode, estConsolidante: e.estConsolidante, pctInteret: e.pctInteret, natureControle: e.natureControle, exclue: e.exclusion != null })),
+      },
       variationCapitauxPropres: {
         composantes: COMPOSANTES_CP,
         n: variationN.bloc,
@@ -798,10 +856,26 @@ export class IfrsService {
     const refus = motifsRefusDeclarationsNotes(contenu);
     if (refus.length) throw new BadRequestException(refus.join(' '));
     const json = contenu as unknown as Prisma.InputJsonValue;
+    const consolide = dto.consolide ?? false;
     return this.prisma.notesIfrs.upsert({
-      where: { tenantId_exerciceId: { tenantId, exerciceId: ex.id } },
-      create: { tenantId, exerciceId: ex.id, contenu: json },
+      where: { tenantId_exerciceId_consolide: { tenantId, exerciceId: ex.id, consolide } },
+      create: { tenantId, exerciceId: ex.id, consolide, contenu: json },
       update: { contenu: json },
+    });
+  }
+
+  /**
+   * IFRS 12 · les réponses propres aux intérêts dans d'autres entités, aux
+   * comptes consolidés seulement. La forme enregistrée est la forme
+   * normalisée, celle que le calcul relit · ce qui ne se lit pas vaut `null`.
+   */
+  async declarerNotesIfrs12(tenantId: string, dto: NotesIfrsDto) {
+    const ex = await this.exercice(tenantId, dto.exerciceId);
+    const ifrs12 = normaliserDeclarationsIfrs12(dto.contenu) as unknown as Prisma.InputJsonValue;
+    return this.prisma.notesIfrs.upsert({
+      where: { tenantId_exerciceId_consolide: { tenantId, exerciceId: ex.id, consolide: true } },
+      create: { tenantId, exerciceId: ex.id, consolide: true, contenu: {}, ifrs12 },
+      update: { ifrs12 },
     });
   }
 

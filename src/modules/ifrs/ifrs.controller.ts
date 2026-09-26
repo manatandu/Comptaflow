@@ -63,6 +63,12 @@ export class IfrsController {
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Put('notes-ifrs12')
+  declarerNotesIfrs12(@CurrentUser() user: AuthenticatedUser, @Body() dto: NotesIfrsDto) {
+    return this.ifrs.declarerNotesIfrs12(user.tenantId, dto);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Put('tresorerie')
   declarerTresorerie(@CurrentUser() user: AuthenticatedUser, @Body() dto: TresorerieIfrsDto) {
     return this.ifrs.declarerTresorerie(user.tenantId, dto);

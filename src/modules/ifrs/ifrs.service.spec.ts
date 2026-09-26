@@ -99,15 +99,15 @@ function doublure(avecPrecedent = false, avecAvantPrecedent = false, balancesPro
       ),
     },
     notesIfrs: {
-      // La doublure HONORE la clé (dossier, exercice) · une déclaration de N-1
-      // ne doit jamais se lire comme celle de N.
+      // La doublure HONORE la clé (dossier, exercice, consolidé) · une
+      // déclaration de N-1, ou de l'autre jeu, ne doit jamais se lire ici.
       findUnique: jest.fn(async ({ where }: any) => {
-        const k = where.tenantId_exerciceId;
-        return tables.notes.find((e) => e.tenantId === k.tenantId && e.exerciceId === k.exerciceId) ?? null;
+        const k = where.tenantId_exerciceId_consolide;
+        return tables.notes.find((e) => e.tenantId === k.tenantId && e.exerciceId === k.exerciceId && (e.consolide ?? false) === k.consolide) ?? null;
       }),
       upsert: jest.fn(async ({ where, create, update }: any) => {
-        const k = where.tenantId_exerciceId;
-        const i = tables.notes.findIndex((e) => e.tenantId === k.tenantId && e.exerciceId === k.exerciceId);
+        const k = where.tenantId_exerciceId_consolide;
+        const i = tables.notes.findIndex((e) => e.tenantId === k.tenantId && e.exerciceId === k.exerciceId && (e.consolide ?? false) === k.consolide);
         const e = i >= 0 ? { ...tables.notes[i], ...update } : { id: `n-${++seq}`, ...create };
         if (i >= 0) tables.notes[i] = e;
         else tables.notes.push(e);
@@ -191,7 +191,7 @@ function doublure(avecPrecedent = false, avecAvantPrecedent = false, balancesPro
     lignesConsolidante: jest.fn(async () => []),
   };
   // Le périmètre de chaque exercice · vide tant qu'un test ne le pose pas.
-  const perimetresParExercice: Record<string, { nom: string; estConsolidante: boolean; methode: string; pctInteret: number }[]> = {};
+  const perimetresParExercice: Record<string, any[]> = {};
   const perimetre: any = {
     etat: jest.fn(async (_t: string, ex: string) => {
       const resultats = perimetresParExercice[ex] ?? [];
@@ -872,9 +872,10 @@ const cumulFlux = (n: boolean) => ({
   conversionsIncompletes: [],
   impotsDifferesIncomplets: [],
 });
+const ENTITE = { pctControle: 100, natureControle: 'EXCLUSIF_DE_DROIT', fondement: 'art. 78', aJustifierEnNotes: [], exclusion: null, dateCloture: null };
 const PERIMETRE = [
-  { nom: 'Mère', estConsolidante: true, methode: 'IG', pctInteret: 100 },
-  { nom: 'Associée', estConsolidante: false, methode: 'ME', pctInteret: 30 },
+  { ...ENTITE, id: 'm', nom: 'Mère', estConsolidante: true, methode: 'IG', pctInteret: 100 },
+  { ...ENTITE, id: 'a', nom: 'Associée', estConsolidante: false, methode: 'ME', pctInteret: 30, pctControle: 30, natureControle: 'INFLUENCE_NOTABLE' },
 ];
 
 async function dossierFluxConsolide() {
@@ -977,6 +978,34 @@ describe('IfrsService · variation des capitaux propres consolidée (tranche C3)
     await expect(d.service.ajouterMouvementCp(T, m)).rejects.toThrow(/n’existent que dans les comptes consolidés/);
     await d.service.ajouterMouvementCp(T, { ...m, consolide: true });
     expect(d.tables.mouvements).toHaveLength(1);
+  });
+});
+
+describe('IfrsService · notes consolidées et IFRS 12 (tranche C4)', () => {
+  it('la note IFRS 12 prend le dernier numéro, ses postes leurs renvois, et ses manques rendent le jeu non publiable', async () => {
+    const { service } = await dossierFluxConsolide();
+    const e = await service.etatConsolide(T, EX);
+    const derniere = e.notes!.notes[e.notes!.notes.length - 1];
+    expect([derniere.cle, derniere.numero]).toEqual(['IFRS12_INTERETS_AUTRES_ENTITES', e.notes!.notes.length]);
+    expect(e.notes!.renvois.SF_PARTICIPATIONS_MEE).toContain(derniere.numero);
+    const m = e.n!.motifsNonPubliable.join(' ');
+    expect(m).toContain('Notes · IFRS 12 · Associée · établissement principal');
+    expect(m).not.toContain('Notes des états consolidés non servies');
+  });
+
+  it('les déclarations du groupe se rangent à part · IFRS 12 normalisé, notes de base consolidées, jamais lues pour le dossier', async () => {
+    const d = await dossierFluxConsolide();
+    await d.service.declarerNotesIfrs12(T, { exerciceId: EX, contenu: { jugements: 'Influence notable sur l’associée.', restrictions: '  ', partenaires: { Associée: { etablissement: 'Kinshasa' } } } });
+    await d.service.declarerNotes(T, { exerciceId: EX, contenu: { conformiteDeclaree: true }, consolide: true });
+    expect(d.tables.notes).toHaveLength(1);
+    expect(d.tables.notes[0]).toMatchObject({ consolide: true, ifrs12: { jugements: 'Influence notable sur l’associée.', restrictions: null } });
+    const e = await d.service.etatConsolide(T, EX);
+    expect(e.notes!.ifrs12.partenaires.Associée.etablissement).toBe('Kinshasa');
+    expect(e.notes!.declarations.conformiteDeclaree).toBe(true);
+    expect(e.n!.motifsNonPubliable.join(' ')).not.toContain('hypothèses et jugements importants non déclarés');
+    // Les comptes individuels ne voient ni l'une ni l'autre déclaration.
+    const i = await d.service.etat(T, EX);
+    expect(i.notes.declarations.conformiteDeclaree).toBeNull();
   });
 });
 

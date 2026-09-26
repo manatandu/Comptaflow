@@ -77,4 +77,6 @@ export class EffetChangeIfrsDto {
 export class NotesIfrsDto {
   @IsUUID() exerciceId!: string;
   @IsObject() contenu!: Record<string, unknown>;
+  /** Les notes des états consolidés, déclarées à part. */
+  @IsOptional() @IsBoolean() consolide?: boolean;
 }

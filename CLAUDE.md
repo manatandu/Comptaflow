@@ -2694,6 +2694,27 @@ individuels, à la porte et au calcul (`motifRefusMouvementCp(m, consolide)`).
 il n'est pas rendu, avec son motif. Les écarts de conversion (IAS 21 § 41,
 non servis) ressortent en « écart non expliqué ».
 
+**États IFRS consolidés, tranche C4 · les notes et IFRS 12 (2026-09-26).**
+`notes-ifrs12.ts`. Sources lues · IFRS 12 § 7 à 13, § 18, § 21, § 22, B10 à
+B12 ; IFRS 11 § 14 à 16, § 20, § 24. CINQ RÈGLES À NE PAS DÉFAIRE. (1) LES
+NOTES DE BASE SONT CELLES DES COMPTES INDIVIDUELS (`construireNotesIfrs`) sur
+l'état consolidé, avec les déclarations du GROUPE (`NotesIfrs.consolide`),
+jamais lues pour le dossier ni l'inverse. Elles se bâtissent EN DERNIER · la
+conformité (IAS 8 § 6B) dépend de tous les motifs, IFRS 12 compris. (2) CE
+QUI SE CALCULE VIENT DU PÉRIMÈTRE · composition du groupe, pourcentages,
+minoritaires en pourcentage (100 moins l'intérêt, 100 moins le contrôle),
+dates de clôture décalées. (3) LE CUMUL DU D4C NE VENTILE PAS LES
+MINORITAIRES PAR FILIALE · leur résultat et leur cumul (§ 12 e et f) se
+DÉCLARENT, et leur somme doit rendre les totaux de l'état consolidé ; une
+ventilation incomplète n'est pas confrontée, elle est nommée. (4) TOUTES les
+filiales à minoritaires et TOUS les partenariats sont présentés · le
+« significatif » est un jugement de l'entité (§ 4), OmegaX ne le tranche pas en
+taisant une ligne. (5) UNE COENTREPRISE EN INTÉGRATION PROPORTIONNELLE EST À
+RETRAITER (IFRS 11 § 24), le type de partenariat se déclarant (§ 7 c). Les
+informations financières résumées (B10 b, B12 b) ne sont pas servies et le
+disent ; les entités structurées se déclarent (oui, non, pas encore dit) et
+ne bloquent que sur « oui » ou sans réponse.
+
 **Tableau des flux SYSCOHADA · le compte trop agrégé, que « non ventilé »
 ne voyait pas (2026-09-25).** Trouvé en passant au moteur la balance d'un
 expert tenue en comptes génériques (481, 81, 82). La table du ch. 5 lit des
