@@ -5,6 +5,7 @@ import { useExercice } from '../lib/exercice';
 import { controlesDeLAgregat } from '../lib/controles-agregat-groupe';
 import { Aide } from '../components/chrome/Aide';
 import type { BalanceAgregeeGroupe, JeuEtatsFinanciersSycebnl } from '../lib/types';
+import { PortailModale } from '../components/PortailModale';
 
 /**
  * GROUPE D'ÉTABLISSEMENTS · fenêtre du dossier MÈRE (le siège). Une même
@@ -615,189 +616,199 @@ export function GroupePage() {
       )}
 
       {creationOuverte && (
-        <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
-          <form onSubmit={onCreer} className="anim-modale w-full max-w-[460px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
-            <div
-              className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
-            >
-              <span>Nouvelle cellule</span>
-              <button type="button" onClick={() => setCreationOuverte(false)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">✕</button>
-            </div>
-            <div className="p-4">
-              <div className="grid grid-cols-[150px_1fr] items-center gap-x-3 gap-y-2.5">
-                <label className="text-[11.5px] text-right">Nom de la cellule :</label>
-                <input required autoFocus value={nom} onChange={(e) => setNom(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
-                <label className="text-[11.5px] text-right flex items-center justify-end gap-1">
-                  E-mail du responsable :
-                  <Aide
-                    titre="Nouvelle cellule"
-                    texte={
-                      syscohada
-                        ? 'Le dossier de la succursale naît complet, au référentiel et au système comptable du siège, rattaché à ce groupe, avec la licence du siège.'
-                        : 'Le dossier naît complet, rattaché à ce groupe, avec la licence du siège. Pour une cellule non autonome (dépôt Excel), utilisez un alias du comptable du siège comme e-mail.'
-                    }
-                    source="Module groupe"
-                  />
-                </label>
-                <input type="email" required value={emailAdmin} onChange={(e) => setEmailAdmin(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
-                {/* Une succursale SYSCOHADA prend le système comptable du siège ·
-                    c'est la même société (le serveur l'impose). */}
-                {!syscohada && (
-                  <>
-                    <label className="text-[11.5px] text-right">Tenue des comptes :</label>
-                    <select value={jeu} onChange={(e) => setJeu(e.target.value as JeuEtatsFinanciersSycebnl)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
-                      <option value="SYSTEME_MINIMAL_TRESORERIE">Système minimal de trésorerie (petite cellule)</option>
-                      <option value="ASSOCIATIONS_ORDRES_PROFESSIONNELS">Système normal (grande cellule)</option>
-                    </select>
-                  </>
-                )}
+        <PortailModale>
+          <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+            <form onSubmit={onCreer} className="anim-modale w-full max-w-[460px] bg-surface border border-border-dark shadow-flottante modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto">
+              <div
+                className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
+              >
+                <span>Nouvelle cellule</span>
+                <button type="button" onClick={() => setCreationOuverte(false)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">✕</button>
               </div>
-              {creationErreur && <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mt-3">{creationErreur}</div>}
-              <div className="flex justify-end gap-2 mt-4">
-                <button type="button" onClick={() => setCreationOuverte(false)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11.5px]">
-                  Annuler
-                </button>
-                <button type="submit" disabled={creationEnvoi} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold disabled:opacity-50">
-                  {creationEnvoi ? 'Création…' : 'Créer la cellule'}
-                </button>
+              <div className="p-4">
+                <div className="grid grid-cols-[150px_1fr] items-center gap-x-3 gap-y-2.5">
+                  <label className="text-[11.5px] text-right">Nom de la cellule :</label>
+                  <input required autoFocus value={nom} onChange={(e) => setNom(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
+                  <label className="text-[11.5px] text-right flex items-center justify-end gap-1">
+                    E-mail du responsable :
+                    <Aide
+                      titre="Nouvelle cellule"
+                      texte={
+                        syscohada
+                          ? 'Le dossier de la succursale naît complet, au référentiel et au système comptable du siège, rattaché à ce groupe, avec la licence du siège.'
+                          : 'Le dossier naît complet, rattaché à ce groupe, avec la licence du siège. Pour une cellule non autonome (dépôt Excel), utilisez un alias du comptable du siège comme e-mail.'
+                      }
+                      source="Module groupe"
+                    />
+                  </label>
+                  <input type="email" required value={emailAdmin} onChange={(e) => setEmailAdmin(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
+                  {/* Une succursale SYSCOHADA prend le système comptable du siège ·
+                      c'est la même société (le serveur l'impose). */}
+                  {!syscohada && (
+                    <>
+                      <label className="text-[11.5px] text-right">Tenue des comptes :</label>
+                      <select value={jeu} onChange={(e) => setJeu(e.target.value as JeuEtatsFinanciersSycebnl)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
+                        <option value="SYSTEME_MINIMAL_TRESORERIE">Système minimal de trésorerie (petite cellule)</option>
+                        <option value="ASSOCIATIONS_ORDRES_PROFESSIONNELS">Système normal (grande cellule)</option>
+                      </select>
+                    </>
+                  )}
+                </div>
+                {creationErreur && <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mt-3">{creationErreur}</div>}
+                <div className="flex justify-end gap-2 mt-4">
+                  <button type="button" onClick={() => setCreationOuverte(false)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11.5px]">
+                    Annuler
+                  </button>
+                  <button type="submit" disabled={creationEnvoi} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold disabled:opacity-50">
+                    {creationEnvoi ? 'Création…' : 'Créer la cellule'}
+                  </button>
+                </div>
               </div>
-            </div>
-          </form>
-        </div>
+            </form>
+          </div>
+        </PortailModale>
       )}
 
       {creee && (
-        <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
-          <div className="anim-modale w-full max-w-[460px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
-            <div
-              className="h-[32px] flex items-center px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
-            >
-              <span>Cellule créée · {creee.tenant.nom}</span>
-            </div>
-            <div className="p-4">
-              <div className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-1.5 text-[11.5px]">
-                <span className="text-right text-text-dim">E-mail :</span>
-                <span className="font-mono select-all">{creee.adminEmail}</span>
-                <span className="text-right text-text-dim">Mot de passe :</span>
-                <span className="font-mono select-all font-bold">{creee.motDePasseTemporaire}</span>
+        <PortailModale>
+          <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+            <div className="anim-modale w-full max-w-[460px] bg-surface border border-border-dark shadow-flottante modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto">
+              <div
+                className="h-[32px] flex items-center px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
+              >
+                <span>Cellule créée · {creee.tenant.nom}</span>
               </div>
-              <div className="border border-warning/30 bg-warning-soft px-3 py-2 text-[11.5px] mt-3">
-                Affiché une seule fois · notez-le avant de fermer.
-              </div>
-              <div className="flex justify-end mt-4">
-                <button type="button" onClick={() => setCreee(null)} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold">
-                  J'ai noté le mot de passe
-                </button>
+              <div className="p-4">
+                <div className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-1.5 text-[11.5px]">
+                  <span className="text-right text-text-dim">E-mail :</span>
+                  <span className="font-mono select-all">{creee.adminEmail}</span>
+                  <span className="text-right text-text-dim">Mot de passe :</span>
+                  <span className="font-mono select-all font-bold">{creee.motDePasseTemporaire}</span>
+                </div>
+                <div className="border border-warning/30 bg-warning-soft px-3 py-2 text-[11.5px] mt-3">
+                  Affiché une seule fois · notez-le avant de fermer.
+                </div>
+                <div className="flex justify-end mt-4">
+                  <button type="button" onClick={() => setCreee(null)} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold">
+                    J'ai noté le mot de passe
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </PortailModale>
       )}
 
       {balanceCellule && (
-        <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
-          <div className="anim-modale w-full max-w-[640px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] flex flex-col overflow-x-auto">
-            <div
-              className="h-[32px] shrink-0 flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px] min-w-[530px]"
-            >
-              <span>Balance (lecture) · {balanceCellule.cellule.nom}</span>
-              <button type="button" onClick={() => setBalanceCellule(null)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">✕</button>
-            </div>
-            <div className="overflow-y-auto min-w-[530px]">
-              {/* Plus de filtre : la balance ne rend que des comptes de
-                  détail mouvementés (voir EcritureService.balance). */}
-              {balanceCellule.lignes
-                .map((l, i) => (
-                  <div key={l.numero} className={`grid grid-cols-[100px_1fr_110px_110px] min-w-[530px] gap-2 px-3.5 py-1 text-[11.5px] border-b border-border ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}>
-                    <span className="font-mono">{l.numero}</span>
-                    <span className="truncate">{l.intitule}</span>
-                    <span className="text-right tabular-nums">{montant(l.totalDebit)}</span>
-                    <span className="text-right tabular-nums">{montant(l.totalCredit)}</span>
-                  </div>
-                ))}
-            </div>
-            <div className="shrink-0 grid grid-cols-[100px_1fr_110px_110px] min-w-[530px] gap-2 px-3.5 py-1.5 border-t border-border-dark bg-chrome text-[11.5px] font-bold min-w-[530px]">
-              <span></span>
-              <span>TOTAL</span>
-              <span className="text-right tabular-nums">{montant(balanceCellule.totaux.debit)}</span>
-              <span className="text-right tabular-nums">{montant(balanceCellule.totaux.credit)}</span>
+        <PortailModale>
+          <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+            <div className="anim-modale w-full max-w-[640px] bg-surface border border-border-dark shadow-flottante modale-bornee max-h-[calc(100dvh-2rem)] flex flex-col overflow-x-auto">
+              <div
+                className="h-[32px] shrink-0 flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px] min-w-[530px]"
+              >
+                <span>Balance (lecture) · {balanceCellule.cellule.nom}</span>
+                <button type="button" onClick={() => setBalanceCellule(null)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">✕</button>
+              </div>
+              <div className="overflow-y-auto min-w-[530px]">
+                {/* Plus de filtre : la balance ne rend que des comptes de
+                    détail mouvementés (voir EcritureService.balance). */}
+                {balanceCellule.lignes
+                  .map((l, i) => (
+                    <div key={l.numero} className={`grid grid-cols-[100px_1fr_110px_110px] min-w-[530px] gap-2 px-3.5 py-1 text-[11.5px] border-b border-border ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}>
+                      <span className="font-mono">{l.numero}</span>
+                      <span className="truncate">{l.intitule}</span>
+                      <span className="text-right tabular-nums">{montant(l.totalDebit)}</span>
+                      <span className="text-right tabular-nums">{montant(l.totalCredit)}</span>
+                    </div>
+                  ))}
+              </div>
+              <div className="shrink-0 grid grid-cols-[100px_1fr_110px_110px] min-w-[530px] gap-2 px-3.5 py-1.5 border-t border-border-dark bg-chrome text-[11.5px] font-bold min-w-[530px]">
+                <span></span>
+                <span>TOTAL</span>
+                <span className="text-right tabular-nums">{montant(balanceCellule.totaux.debit)}</span>
+                <span className="text-right tabular-nums">{montant(balanceCellule.totaux.credit)}</span>
+              </div>
             </div>
           </div>
-        </div>
+        </PortailModale>
       )}
 
       {depotPour && (
-        <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
-          <div className="anim-modale w-full max-w-[440px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
-            <div
-              className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
-            >
-              <span>Déposer un canevas · {depotPour.nom}</span>
-              <button type="button" onClick={() => setDepotPour(null)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">✕</button>
-            </div>
-            <div className="p-4">
-              <div className="text-[11.5px] flex items-center gap-1.5">
-                Canevas rempli (.xlsx)
-                <Aide
-                  titre="Dépôt du canevas"
-                  texte="L'import est tout ou rien : la moindre ligne fausse est refusée avec son numéro et sa raison."
-                  source="Module groupe"
-                />
+        <PortailModale>
+          <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+            <div className="anim-modale w-full max-w-[440px] bg-surface border border-border-dark shadow-flottante modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto">
+              <div
+                className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
+              >
+                <span>Déposer un canevas · {depotPour.nom}</span>
+                <button type="button" onClick={() => setDepotPour(null)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">✕</button>
               </div>
-              <input
-                type="file"
-                accept=".xlsx"
-                disabled={depotEnvoi}
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) deposerCanevas(f);
-                }}
-                className="mt-3 text-[11.5px]"
-              />
-              {depotEnvoi && <div className="text-[11.5px] text-text-dim mt-2">Import en cours…</div>}
+              <div className="p-4">
+                <div className="text-[11.5px] flex items-center gap-1.5">
+                  Canevas rempli (.xlsx)
+                  <Aide
+                    titre="Dépôt du canevas"
+                    texte="L'import est tout ou rien : la moindre ligne fausse est refusée avec son numéro et sa raison."
+                    source="Module groupe"
+                  />
+                </div>
+                <input
+                  type="file"
+                  accept=".xlsx"
+                  disabled={depotEnvoi}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) deposerCanevas(f);
+                  }}
+                  className="mt-3 text-[11.5px]"
+                />
+                {depotEnvoi && <div className="text-[11.5px] text-text-dim mt-2">Import en cours…</div>}
+              </div>
             </div>
           </div>
-        </div>
+        </PortailModale>
       )}
 
       {rapportDepot && (
-        <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
-          <div className="anim-modale w-full max-w-[480px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
-            <div
-              className="h-[32px] flex items-center px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
-            >
-              <span>Dépôt · {rapportDepot.cellule}</span>
-            </div>
-            <div className="p-4">
-              {rapportDepot.rapport.importe ? (
-                <div className="text-[11.5px] text-positive bg-positive-soft border border-positive/30 px-3 py-2">
-                  {rapportDepot.rapport.lignesImportees} ligne{rapportDepot.rapport.lignesImportees > 1 ? 's' : ''} importée
-                  {rapportDepot.rapport.lignesImportees > 1 ? 's' : ''} en brouillard · la validation se fait dans le
-                  dossier de la cellule.
+        <PortailModale>
+          <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+            <div className="anim-modale w-full max-w-[480px] bg-surface border border-border-dark shadow-flottante modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto">
+              <div
+                className="h-[32px] flex items-center px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
+              >
+                <span>Dépôt · {rapportDepot.cellule}</span>
+              </div>
+              <div className="p-4">
+                {rapportDepot.rapport.importe ? (
+                  <div className="text-[11.5px] text-positive bg-positive-soft border border-positive/30 px-3 py-2">
+                    {rapportDepot.rapport.lignesImportees} ligne{rapportDepot.rapport.lignesImportees > 1 ? 's' : ''} importée
+                    {rapportDepot.rapport.lignesImportees > 1 ? 's' : ''} en brouillard · la validation se fait dans le
+                    dossier de la cellule.
+                  </div>
+                ) : (
+                  <>
+                    <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-2">
+                      Rien n'a été importé · corrigez le fichier puis redéposez-le.
+                    </div>
+                    <div className="max-h-[30vh] overflow-y-auto">
+                      {rapportDepot.rapport.anomalies.map((a, i) => (
+                        <div key={i} className="text-[11.5px] py-0.5 border-b border-border last:border-b-0">
+                          {a.ligne > 0 && <span className="font-mono text-text-dim">Ligne {a.ligne} · </span>}
+                          {a.message}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+                <div className="flex justify-end mt-4">
+                  <button type="button" onClick={() => setRapportDepot(null)} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold">
+                    Fermer
+                  </button>
                 </div>
-              ) : (
-                <>
-                  <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-2">
-                    Rien n'a été importé · corrigez le fichier puis redéposez-le.
-                  </div>
-                  <div className="max-h-[30vh] overflow-y-auto">
-                    {rapportDepot.rapport.anomalies.map((a, i) => (
-                      <div key={i} className="text-[11.5px] py-0.5 border-b border-border last:border-b-0">
-                        {a.ligne > 0 && <span className="font-mono text-text-dim">Ligne {a.ligne} · </span>}
-                        {a.message}
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-              <div className="flex justify-end mt-4">
-                <button type="button" onClick={() => setRapportDepot(null)} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold">
-                  Fermer
-                </button>
               </div>
             </div>
           </div>
-        </div>
+        </PortailModale>
       )}
     </div>
   );

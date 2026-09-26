@@ -8,6 +8,7 @@ import { ModaleJournaux } from '../components/ModaleJournaux';
 import { ModaleMonAdresse } from '../components/ModaleMonAdresse';
 import { ModaleDoubleAuth } from '../components/ModaleDoubleAuth';
 import type { AvisAcces, RoleUtilisateur, Utilisateur } from '../lib/types';
+import { PortailModale } from '../components/PortailModale';
 
 const LIBELLE_ROLE: Record<RoleUtilisateur, string> = {
   ADMIN_CABINET: 'Administrateur',
@@ -308,92 +309,96 @@ export function UtilisateursPage() {
       )}
 
       {reinitCible && (
-        <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
-          <form
-            onSubmit={onReinitialiser}
-            className="anim-fenetre bg-surface border border-border-dark shadow-flottant w-[440px] max-w-full max-h-[calc(100dvh-2rem)] overflow-y-auto"
-          >
-            <div className="px-3.5 py-2 bg-chrome border-b border-border-dark text-[11.5px] font-bold">
-              Réinitialiser le mot de passe · {reinitCible.email}
-            </div>
-            <div className="p-3.5 flex flex-col gap-2.5">
-              <label className="flex flex-col gap-1">
-                <span className="text-[11px] font-bold text-text-dim flex items-center gap-1">
-                  Mot de passe provisoire
-                  <Aide
-                    titre="Mot de passe provisoire"
-                    texte="Vous posez un mot de passe PROVISOIRE, que vous remettez en main propre. Il ferme aussitôt les sessions ouvertes du compte, lève un éventuel verrou, et le logiciel restera fermé à ce compte tant que son titulaire ne l'aura pas remplacé. Le geste est inscrit au journal d'audit."
-                    source="Autorisations d'accès"
+        <PortailModale>
+          <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+            <form
+              onSubmit={onReinitialiser}
+              className="anim-fenetre bg-surface border border-border-dark shadow-flottant w-[440px] max-w-full modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto"
+            >
+              <div className="px-3.5 py-2 bg-chrome border-b border-border-dark text-[11.5px] font-bold">
+                Réinitialiser le mot de passe · {reinitCible.email}
+              </div>
+              <div className="p-3.5 flex flex-col gap-2.5">
+                <label className="flex flex-col gap-1">
+                  <span className="text-[11px] font-bold text-text-dim flex items-center gap-1">
+                    Mot de passe provisoire
+                    <Aide
+                      titre="Mot de passe provisoire"
+                      texte="Vous posez un mot de passe PROVISOIRE, que vous remettez en main propre. Il ferme aussitôt les sessions ouvertes du compte, lève un éventuel verrou, et le logiciel restera fermé à ce compte tant que son titulaire ne l'aura pas remplacé. Le geste est inscrit au journal d'audit."
+                      source="Autorisations d'accès"
+                    />
+                  </span>
+                  <input
+                    value={reinitMotDePasse}
+                    onChange={(e) => setReinitMotDePasse(e.target.value)}
+                    minLength={10}
+                    required
+                    autoFocus
+                    className="border border-border-dark px-2.5 py-1.5 text-[11.5px]"
                   />
-                </span>
-                <input
-                  value={reinitMotDePasse}
-                  onChange={(e) => setReinitMotDePasse(e.target.value)}
-                  minLength={10}
-                  required
-                  autoFocus
-                  className="border border-border-dark px-2.5 py-1.5 text-[11.5px]"
-                />
-                <span className="text-[11px] text-text-dim">Dix caractères au minimum.</span>
-              </label>
-              {reinitErreur && (
-                <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5">
-                  {reinitErreur}
-                </div>
-              )}
-            </div>
-            <div className="px-3.5 py-2 bg-surface-alt border-t border-border flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setReinitCible(null)}
-                className="border border-border-dark px-3 py-1 text-[11.5px]"
-              >
-                Annuler
-              </button>
-              <button type="submit" className="border border-border-dark bg-chrome px-3 py-1 text-[11.5px] font-semibold">
-                Réinitialiser
-              </button>
-            </div>
-          </form>
-        </div>
+                  <span className="text-[11px] text-text-dim">Dix caractères au minimum.</span>
+                </label>
+                {reinitErreur && (
+                  <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5">
+                    {reinitErreur}
+                  </div>
+                )}
+              </div>
+              <div className="px-3.5 py-2 bg-surface-alt border-t border-border flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setReinitCible(null)}
+                  className="border border-border-dark px-3 py-1 text-[11.5px]"
+                >
+                  Annuler
+                </button>
+                <button type="submit" className="border border-border-dark bg-chrome px-3 py-1 text-[11.5px] font-semibold">
+                  Réinitialiser
+                </button>
+              </div>
+            </form>
+          </div>
+        </PortailModale>
       )}
 
       {nouveauOuvert && (
-        <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
-          <form onSubmit={onCreer} className="anim-modale w-full max-w-[440px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
-            <div
-              className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
-            >
-              <span>Nouvel utilisateur</span>
-              <button type="button" onClick={() => setNouveauOuvert(false)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">✕</button>
-            </div>
-            <div className="p-4">
-              <div className="grid grid-cols-[130px_1fr] items-center gap-x-3 gap-y-2.5">
-                <label className="text-[11.5px] text-right">E-mail :</label>
-                <input type="email" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
-                <label className="text-[11.5px] text-right">Mot de passe :</label>
-                <input type="password" required minLength={10} placeholder="10 caractères min." value={motDePasse} onChange={(e) => setMotDePasse(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
-                <label className="text-[11.5px] text-right">Rôle :</label>
-                <select value={role} onChange={(e) => setRole(e.target.value as RoleUtilisateur)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
-                  <option value="ADMIN_CABINET">Administrateur</option>
-                  <option value="COMPTABLE">Comptable</option>
-                  <option value="LECTURE_SEULE">Lecture seule</option>
-              <option value="AIDE_COMPTABLE">Aide-comptable</option>
-              <option value="GESTIONNAIRE_PAIE">Gestionnaire de paie</option>
-                </select>
+        <PortailModale>
+          <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+            <form onSubmit={onCreer} className="anim-modale w-full max-w-[440px] bg-surface border border-border-dark shadow-flottante modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto">
+              <div
+                className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
+              >
+                <span>Nouvel utilisateur</span>
+                <button type="button" onClick={() => setNouveauOuvert(false)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">✕</button>
               </div>
-              {erreurForm && <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mt-3">{erreurForm}</div>}
-              <div className="flex justify-end gap-2 mt-4">
-                <button type="button" onClick={() => setNouveauOuvert(false)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11.5px]">
-                  Annuler
-                </button>
-                <button type="submit" disabled={envoi} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold disabled:opacity-50">
-                  {envoi ? 'Création…' : "Créer l'utilisateur"}
-                </button>
+              <div className="p-4">
+                <div className="grid grid-cols-[130px_1fr] items-center gap-x-3 gap-y-2.5">
+                  <label className="text-[11.5px] text-right">E-mail :</label>
+                  <input type="email" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
+                  <label className="text-[11.5px] text-right">Mot de passe :</label>
+                  <input type="password" required minLength={10} placeholder="10 caractères min." value={motDePasse} onChange={(e) => setMotDePasse(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
+                  <label className="text-[11.5px] text-right">Rôle :</label>
+                  <select value={role} onChange={(e) => setRole(e.target.value as RoleUtilisateur)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
+                    <option value="ADMIN_CABINET">Administrateur</option>
+                    <option value="COMPTABLE">Comptable</option>
+                    <option value="LECTURE_SEULE">Lecture seule</option>
+                <option value="AIDE_COMPTABLE">Aide-comptable</option>
+                <option value="GESTIONNAIRE_PAIE">Gestionnaire de paie</option>
+                  </select>
+                </div>
+                {erreurForm && <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mt-3">{erreurForm}</div>}
+                <div className="flex justify-end gap-2 mt-4">
+                  <button type="button" onClick={() => setNouveauOuvert(false)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11.5px]">
+                    Annuler
+                  </button>
+                  <button type="submit" disabled={envoi} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold disabled:opacity-50">
+                    {envoi ? 'Création…' : "Créer l'utilisateur"}
+                  </button>
+                </div>
               </div>
-            </div>
-          </form>
-        </div>
+            </form>
+          </div>
+        </PortailModale>
       )}
     </div>
   );

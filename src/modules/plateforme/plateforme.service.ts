@@ -363,10 +363,15 @@ export class PlateformeService implements OnModuleInit {
     // Échéance de licence choisie à la création · register() n'en pose pas
     // (l'auto-inscription publique n'a pas de flux commercial).
     if (dto.dateExpiration) {
-      await this.prisma.licence.update({
-        where: { tenantId: resultat.tenant.id },
-        data: { dateExpiration: new Date(dto.dateExpiration), statut: StatutLicence.ACTIVE },
-      });
+      // SORTIE DE CLOISONNEMENT · la licence est celle du dossier QUI VIENT
+      // D'ÊTRE CRÉÉ, et la session porte celui de l'opérateur · sans elle, la
+      // garde refusait l'écriture et la création échouait après coup.
+      await horsCloisonnement('console · échéance posée à la création du dossier', () =>
+        this.prisma.licence.update({
+          where: { tenantId: resultat.tenant.id },
+          data: { dateExpiration: new Date(dto.dateExpiration!), statut: StatutLicence.ACTIVE },
+        }),
+      );
     }
     // Rattachement au groupe à la création · mêmes validations que le PATCH.
     if (dto.dossierMereId) {

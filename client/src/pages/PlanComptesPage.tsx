@@ -8,6 +8,7 @@ import { BoutonImprimer, EnteteImpression } from '../components/chrome/EnteteImp
 import { EditionStructure } from '../components/EditionStructure';
 import { editionPlan, perimetreEdition } from '../lib/editions-structures';
 import { Aide } from '../components/chrome/Aide';
+import { PortailModale } from '../components/PortailModale';
 
 /**
  * PLAN COMPTABLE · la fenêtre Structure → Plan comptable de Sage 100 i7 :
@@ -595,84 +596,86 @@ export function PlanComptesPage() {
 
       {/* Nouveau compte · boîte de dialogue */}
       {estAdmin && nouveauOuvert && (
-        <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
-          <form
-            onSubmit={onCreer}
-            className="anim-modale w-full max-w-[460px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto"
-          >
-            <div
-              className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
+        <PortailModale>
+          <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+            <form
+              onSubmit={onCreer}
+              className="anim-modale w-full max-w-[460px] bg-surface border border-border-dark shadow-flottante modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto"
             >
-              <span>Nouveau compte général</span>
-              <button type="button" onClick={() => setNouveauOuvert(false)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">
-                ✕
-              </button>
-            </div>
-            <div className="p-4">
-              <div className="grid grid-cols-[110px_1fr] items-center gap-x-3 gap-y-2.5">
-                <label className="text-[11.5px] text-right">Numéro :</label>
-                <input
-                  required
-                  autoFocus
-                  pattern="\d{3,8}"
-                  title="3 à 8 chiffres"
-                  value={numero}
-                  onChange={(e) => setNumero(e.target.value)}
-                  className="border border-border-dark px-2.5 py-1.5 text-[12px] font-mono"
-                />
-                <label className="text-[11.5px] text-right">Intitulé :</label>
-                <input
-                  required
-                  value={intitule}
-                  onChange={(e) => setIntitule(e.target.value)}
-                  className="border border-border-dark px-2.5 py-1.5 text-[12px]"
-                />
-                <label className="text-[11.5px] text-right">Classe :</label>
-                <select
-                  value={classe}
-                  onChange={(e) => setClasse(e.target.value as ClasseCompte)}
-                  className="border border-border-dark px-2.5 py-1.5 text-[11.5px]"
-                >
-                  {(Object.keys(libelleClasse) as ClasseCompte[]).map((cl) => (
-                    <option key={cl} value={cl}>
-                      {cl.replace('CLASSE_', 'Classe ')} · {libelleClasse[cl]}
-                    </option>
-                  ))}
-                </select>
-                <label className="text-[11.5px] text-right">Type :</label>
-                <select
-                  value={typeCompte}
-                  onChange={(e) => setTypeCompte(e.target.value as TypeCompteDetailTotal)}
-                  className="border border-border-dark px-2.5 py-1.5 text-[11.5px]"
-                >
-                  <option value="DETAIL">Détail (mouvementable)</option>
-                  <option value="TOTAL">Total (regroupement par racine)</option>
-                </select>
-              </div>
-              <div className="flex items-center justify-end gap-2 mt-4">
-                {typeCompte === 'TOTAL' && (
-                  <span className="mr-auto">
-                    <Aide
-                      titre="Compte Total"
-                      texte="Un compte Total ne reçoit jamais d'écriture : son solde agrège les comptes Détail dont le numéro commence par le sien (préfixe littéral)."
-                      source="OmegaX"
-                    />
-                  </span>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setNouveauOuvert(false)}
-                  className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11.5px]"
-                >
-                  Annuler
-                </button>
-                <button type="submit" disabled={envoi} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold disabled:opacity-50">
-                  {envoi ? 'Création…' : 'Créer le compte'}
+              <div
+                className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
+              >
+                <span>Nouveau compte général</span>
+                <button type="button" onClick={() => setNouveauOuvert(false)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">
+                  ✕
                 </button>
               </div>
-            </div>
-          </form>
-        </div>
+              <div className="p-4">
+                <div className="grid grid-cols-[110px_1fr] items-center gap-x-3 gap-y-2.5">
+                  <label className="text-[11.5px] text-right">Numéro :</label>
+                  <input
+                    required
+                    autoFocus
+                    pattern="\d{3,8}"
+                    title="3 à 8 chiffres"
+                    value={numero}
+                    onChange={(e) => setNumero(e.target.value)}
+                    className="border border-border-dark px-2.5 py-1.5 text-[12px] font-mono"
+                  />
+                  <label className="text-[11.5px] text-right">Intitulé :</label>
+                  <input
+                    required
+                    value={intitule}
+                    onChange={(e) => setIntitule(e.target.value)}
+                    className="border border-border-dark px-2.5 py-1.5 text-[12px]"
+                  />
+                  <label className="text-[11.5px] text-right">Classe :</label>
+                  <select
+                    value={classe}
+                    onChange={(e) => setClasse(e.target.value as ClasseCompte)}
+                    className="border border-border-dark px-2.5 py-1.5 text-[11.5px]"
+                  >
+                    {(Object.keys(libelleClasse) as ClasseCompte[]).map((cl) => (
+                      <option key={cl} value={cl}>
+                        {cl.replace('CLASSE_', 'Classe ')} · {libelleClasse[cl]}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="text-[11.5px] text-right">Type :</label>
+                  <select
+                    value={typeCompte}
+                    onChange={(e) => setTypeCompte(e.target.value as TypeCompteDetailTotal)}
+                    className="border border-border-dark px-2.5 py-1.5 text-[11.5px]"
+                  >
+                    <option value="DETAIL">Détail (mouvementable)</option>
+                    <option value="TOTAL">Total (regroupement par racine)</option>
+                  </select>
+                </div>
+                <div className="flex items-center justify-end gap-2 mt-4">
+                  {typeCompte === 'TOTAL' && (
+                    <span className="mr-auto">
+                      <Aide
+                        titre="Compte Total"
+                        texte="Un compte Total ne reçoit jamais d'écriture : son solde agrège les comptes Détail dont le numéro commence par le sien (préfixe littéral)."
+                        source="OmegaX"
+                      />
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setNouveauOuvert(false)}
+                    className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11.5px]"
+                  >
+                    Annuler
+                  </button>
+                  <button type="submit" disabled={envoi} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold disabled:opacity-50">
+                    {envoi ? 'Création…' : 'Créer le compte'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </PortailModale>
       )}
     </div>
   );

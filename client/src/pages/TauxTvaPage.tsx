@@ -6,6 +6,7 @@ import { Aide } from '../components/chrome/Aide';
 import { BoutonImprimer, EnteteImpression } from '../components/chrome/EnteteImpression';
 import { EditionStructure } from '../components/EditionStructure';
 import { editionTaux, perimetreEdition } from '../lib/editions-structures';
+import { PortailModale } from '../components/PortailModale';
 
 /**
  * TAUX DE TAXES · la fenêtre Structure → Taux de taxes de Sage 100 i7 :
@@ -176,54 +177,56 @@ export function TauxTvaPage() {
       </div>
 
       {nouveauOuvert && (
-        <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
-          <form onSubmit={onCreer} className="anim-modale w-full max-w-[480px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
-            <div
-              className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
-            >
-              <span>Nouveau taux de taxe</span>
-              <button type="button" onClick={() => setNouveauOuvert(false)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">
-                ✕
-              </button>
-            </div>
-            <div className="p-4">
-              <div className="grid grid-cols-[150px_1fr] items-center gap-x-3 gap-y-2.5">
-                <label className="text-[11.5px] text-right">Code :</label>
-                <input required autoFocus value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="TVA16…" className="border border-border-dark px-2.5 py-1.5 text-[12px] font-mono" />
-                <label className="text-[11.5px] text-right">Intitulé :</label>
-                <input required value={intitule} onChange={(e) => setIntitule(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
-                <label className="text-[11.5px] text-right">Taux (%) :</label>
-                <input required type="number" min={0} max={100} step="0.01" value={taux} onChange={(e) => setTaux(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px] font-mono text-right" />
-                <label className="text-[11.5px] text-right">Collectée (443) :</label>
-                <select value={compteCollecteId} onChange={(e) => setCompteCollecteId(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
-                  <option value="">Aucun</option>
-                  {comptesClasse4.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.numero} · {c.intitule}
-                    </option>
-                  ))}
-                </select>
-                <label className="text-[11.5px] text-right">Déductible (445) :</label>
-                <select value={compteDeductibleId} onChange={(e) => setCompteDeductibleId(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
-                  <option value="">Aucun</option>
-                  {comptesClasse4.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.numero} · {c.intitule}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex justify-end gap-2 mt-4">
-                <button type="button" onClick={() => setNouveauOuvert(false)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11.5px]">
-                  Annuler
-                </button>
-                <button type="submit" disabled={envoi} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold disabled:opacity-50">
-                  {envoi ? 'Création…' : 'Créer le taux'}
+        <PortailModale>
+          <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+            <form onSubmit={onCreer} className="anim-modale w-full max-w-[480px] bg-surface border border-border-dark shadow-flottante modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto">
+              <div
+                className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
+              >
+                <span>Nouveau taux de taxe</span>
+                <button type="button" onClick={() => setNouveauOuvert(false)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">
+                  ✕
                 </button>
               </div>
-            </div>
-          </form>
-        </div>
+              <div className="p-4">
+                <div className="grid grid-cols-[150px_1fr] items-center gap-x-3 gap-y-2.5">
+                  <label className="text-[11.5px] text-right">Code :</label>
+                  <input required autoFocus value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="TVA16…" className="border border-border-dark px-2.5 py-1.5 text-[12px] font-mono" />
+                  <label className="text-[11.5px] text-right">Intitulé :</label>
+                  <input required value={intitule} onChange={(e) => setIntitule(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
+                  <label className="text-[11.5px] text-right">Taux (%) :</label>
+                  <input required type="number" min={0} max={100} step="0.01" value={taux} onChange={(e) => setTaux(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px] font-mono text-right" />
+                  <label className="text-[11.5px] text-right">Collectée (443) :</label>
+                  <select value={compteCollecteId} onChange={(e) => setCompteCollecteId(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
+                    <option value="">Aucun</option>
+                    {comptesClasse4.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.numero} · {c.intitule}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="text-[11.5px] text-right">Déductible (445) :</label>
+                  <select value={compteDeductibleId} onChange={(e) => setCompteDeductibleId(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
+                    <option value="">Aucun</option>
+                    {comptesClasse4.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.numero} · {c.intitule}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex justify-end gap-2 mt-4">
+                  <button type="button" onClick={() => setNouveauOuvert(false)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11.5px]">
+                    Annuler
+                  </button>
+                  <button type="submit" disabled={envoi} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold disabled:opacity-50">
+                    {envoi ? 'Création…' : 'Créer le taux'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </PortailModale>
       )}
     </div>
   );

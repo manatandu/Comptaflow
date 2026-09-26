@@ -22,6 +22,7 @@ import type {
   TypeEcheance,
   TypeTiers,
 } from '../lib/types';
+import { PortailModale } from '../components/PortailModale';
 
 /**
  * PLAN DES TIERS · la fenêtre Structure → Plan tiers de Sage 100 i7 :
@@ -956,212 +957,216 @@ export function TiersPage() {
 
       {/* Boîte de dialogue · Nouveau tiers */}
       {nouveauOuvert && (
-        <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
-          <form onSubmit={onCreerTiers} className="anim-modale w-full max-w-[440px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
-            <div
-              className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
-            >
-              <span>Nouveau tiers</span>
-              <button type="button" onClick={() => setNouveauOuvert(false)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">✕</button>
-            </div>
-            <div className="p-4">
-              <div className="grid grid-cols-[110px_1fr] items-center gap-x-3 gap-y-2.5">
-                <label className="text-[11.5px] text-right">Type :</label>
-                <select value={type} onChange={(e) => setType(e.target.value as TypeTiers)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
-                  {tableaux.ordre.map((t) => (
-                    <option key={t} value={t}>{`${tableaux.libelle[t]} · compte ${tableaux.compte[t]}`}</option>
-                  ))}
-                </select>
-                <label className="text-[11.5px] text-right">Code :</label>
-                <input required autoFocus value={code} onChange={(e) => setCode(e.target.value)} placeholder="ex. CLI-0001" className="border border-border-dark px-2.5 py-1.5 text-[12px] font-mono" />
-                <label className="text-[11.5px] text-right">Nom :</label>
-                <input required value={nom} onChange={(e) => setNom(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
-                <label className="text-[11.5px] text-right">Règlement :</label>
-                <select value={modeleReglementId} onChange={(e) => setModeleReglementId(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
-                  <option value="">Aucun modèle</option>
-                  {modeles.map((m) => (
-                    <option key={m.id} value={m.id}>{m.intitule}</option>
-                  ))}
-                </select>
-                <span />
-                <label className="flex items-center gap-1.5 text-[11.5px]">
-                  <input
-                    type="checkbox"
-                    checked={creerCompteIndividuel}
-                    onChange={(e) => setCreerCompteIndividuel(e.target.checked)}
-                  />
-                  Créer son compte sous le collectif
-                  <Aide
-                    titre="Compte individuel du tiers"
-                    texte="OmegaX crée le compte du tiers sous le compte collectif de son type (fournisseurs 4011, clients 4111 ou 412, adhérents 411) avec le numéro suivant libre, et le rattache comme principal. Un salarié ou un tiers « autre » n'a pas de collectif proposé : son compte se rattache à la main."
-                    source="Sage 100 i7, plan tiers : compte collectif selon le type"
-                  />
-                </label>
+        <PortailModale>
+          <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+            <form onSubmit={onCreerTiers} className="anim-modale w-full max-w-[440px] bg-surface border border-border-dark shadow-flottante modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto">
+              <div
+                className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
+              >
+                <span>Nouveau tiers</span>
+                <button type="button" onClick={() => setNouveauOuvert(false)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">✕</button>
               </div>
-              <div className="flex justify-end gap-2 mt-4">
-                <button type="button" onClick={() => setNouveauOuvert(false)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11.5px]">
-                  Annuler
-                </button>
-                <button type="submit" disabled={envoi} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold disabled:opacity-50">
-                  {envoi ? 'Création…' : 'Créer le tiers'}
-                </button>
+              <div className="p-4">
+                <div className="grid grid-cols-[110px_1fr] items-center gap-x-3 gap-y-2.5">
+                  <label className="text-[11.5px] text-right">Type :</label>
+                  <select value={type} onChange={(e) => setType(e.target.value as TypeTiers)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
+                    {tableaux.ordre.map((t) => (
+                      <option key={t} value={t}>{`${tableaux.libelle[t]} · compte ${tableaux.compte[t]}`}</option>
+                    ))}
+                  </select>
+                  <label className="text-[11.5px] text-right">Code :</label>
+                  <input required autoFocus value={code} onChange={(e) => setCode(e.target.value)} placeholder="ex. CLI-0001" className="border border-border-dark px-2.5 py-1.5 text-[12px] font-mono" />
+                  <label className="text-[11.5px] text-right">Nom :</label>
+                  <input required value={nom} onChange={(e) => setNom(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
+                  <label className="text-[11.5px] text-right">Règlement :</label>
+                  <select value={modeleReglementId} onChange={(e) => setModeleReglementId(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
+                    <option value="">Aucun modèle</option>
+                    {modeles.map((m) => (
+                      <option key={m.id} value={m.id}>{m.intitule}</option>
+                    ))}
+                  </select>
+                  <span />
+                  <label className="flex items-center gap-1.5 text-[11.5px]">
+                    <input
+                      type="checkbox"
+                      checked={creerCompteIndividuel}
+                      onChange={(e) => setCreerCompteIndividuel(e.target.checked)}
+                    />
+                    Créer son compte sous le collectif
+                    <Aide
+                      titre="Compte individuel du tiers"
+                      texte="OmegaX crée le compte du tiers sous le compte collectif de son type (fournisseurs 4011, clients 4111 ou 412, adhérents 411) avec le numéro suivant libre, et le rattache comme principal. Un salarié ou un tiers « autre » n'a pas de collectif proposé : son compte se rattache à la main."
+                      source="Sage 100 i7, plan tiers : compte collectif selon le type"
+                    />
+                  </label>
+                </div>
+                <div className="flex justify-end gap-2 mt-4">
+                  <button type="button" onClick={() => setNouveauOuvert(false)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11.5px]">
+                    Annuler
+                  </button>
+                  <button type="submit" disabled={envoi} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold disabled:opacity-50">
+                    {envoi ? 'Création…' : 'Créer le tiers'}
+                  </button>
+                </div>
               </div>
-            </div>
-          </form>
-        </div>
+            </form>
+          </div>
+        </PortailModale>
       )}
 
       {/* Boîte de dialogue · Modèles de règlement (Structure → Modèles chez Sage) */}
       {modelesOuverts && (
-        <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
-          <div className="anim-modale w-full max-w-[720px] max-h-[86vh] flex flex-col bg-surface border border-border-dark shadow-flottante">
-            <div
-              className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px] shrink-0"
-            >
-              <span>Modèles de règlement</span>
-              <button type="button" onClick={() => setModelesOuverts(false)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">✕</button>
-            </div>
-            <div className="flex-1 min-h-0 overflow-auto p-4">
-              <div className="border border-border mb-3">
-                {modeles.length === 0 && <div className="p-2.5 text-[11.5px] text-text-dim">Aucun modèle de règlement.</div>}
-                {modeles.map((m) => (
-                  <div
-                    key={m.id}
-                    onClick={() => setModeleSelectionneId(m.id === modeleSelectionneId ? null : m.id)}
-                    className={`grid grid-cols-[1fr_100px_180px_80px] gap-2 items-center px-3 py-1.5 border-b border-border last:border-b-0 text-[11.5px] cursor-pointer ${
-                      m.id === modeleSelectionneId ? 'bg-sel-soft' : 'hover:bg-chrome-alt'
-                    }`}
-                  >
-                    <span>{m.intitule}</span>
-                    <span className="text-text-dim">
-                      {m.echeances.length > 0 ? `${m.echeances.length} échéances` : `${m.delaiJours} j.`}
-                    </span>
-                    <span className="text-[11px] text-text-dim">
-                      {m.echeances.length > 0 ? 'Fractionné' : LIBELLE_ECHEANCE[m.echeance]}
-                    </span>
-                    <span className="text-[11px] text-sel">{m.id === modeleSelectionneId ? '▾ fermer' : '▸ détail'}</span>
-                  </div>
-                ))}
+        <PortailModale>
+          <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+            <div className="anim-modale w-full max-w-[720px] max-h-[86vh] flex flex-col bg-surface border border-border-dark shadow-flottante">
+              <div
+                className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px] shrink-0"
+              >
+                <span>Modèles de règlement</span>
+                <button type="button" onClick={() => setModelesOuverts(false)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">✕</button>
               </div>
-
-              {modeleSelectionne && (
-                <div className="border border-border mb-3 p-3 bg-surface-alt">
-                  <div className="font-mono text-[11px] font-semibold text-text-dim mb-2">
-                    ÉCHÉANCES · {modeleSelectionne.intitule}
-                  </div>
-                  {modeleSelectionne.echeances.length === 0 && (
-                    <div className="text-[11.5px] text-text-dim mb-2">
-                      Mono-échéance : 100 % à {modeleSelectionne.delaiJours} j. ({LIBELLE_ECHEANCE[modeleSelectionne.echeance]}).
+              <div className="flex-1 min-h-0 overflow-auto p-4">
+                <div className="border border-border mb-3">
+                  {modeles.length === 0 && <div className="p-2.5 text-[11.5px] text-text-dim">Aucun modèle de règlement.</div>}
+                  {modeles.map((m) => (
+                    <div
+                      key={m.id}
+                      onClick={() => setModeleSelectionneId(m.id === modeleSelectionneId ? null : m.id)}
+                      className={`grid grid-cols-[1fr_100px_180px_80px] gap-2 items-center px-3 py-1.5 border-b border-border last:border-b-0 text-[11.5px] cursor-pointer ${
+                        m.id === modeleSelectionneId ? 'bg-sel-soft' : 'hover:bg-chrome-alt'
+                      }`}
+                    >
+                      <span>{m.intitule}</span>
+                      <span className="text-text-dim">
+                        {m.echeances.length > 0 ? `${m.echeances.length} échéances` : `${m.delaiJours} j.`}
+                      </span>
+                      <span className="text-[11px] text-text-dim">
+                        {m.echeances.length > 0 ? 'Fractionné' : LIBELLE_ECHEANCE[m.echeance]}
+                      </span>
+                      <span className="text-[11px] text-sel">{m.id === modeleSelectionneId ? '▾ fermer' : '▸ détail'}</span>
                     </div>
-                  )}
-                  {modeleSelectionne.echeances.length > 0 && (
-                    <div className="border border-border mb-3 bg-surface">
-                      {modeleSelectionne.echeances.map((ech) => (
-                        <div
-                          key={ech.id}
-                          className="grid grid-cols-[40px_130px_90px_70px_150px_70px] gap-2 items-center px-2.5 py-1 border-b border-border last:border-b-0 text-[11.5px]"
-                        >
-                          <span className="font-mono">#{ech.ordre}</span>
-                          <span>{LIBELLE_TYPE_ECHEANCE[ech.type]}</span>
-                          <span className="text-right font-mono">{ech.valeur ?? '·'}</span>
-                          <span className="text-text-dim">{ech.delaiJours} j.</span>
-                          <span className="text-[11px] text-text-dim">{LIBELLE_ECHEANCE[ech.echeance]}</span>
-                          <button onClick={() => onSupprimerEcheance(ech.id)} className="text-danger text-[11px] font-semibold hover:underline w-fit">
-                            Supprimer
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <form onSubmit={onAjouterEcheance} className="grid grid-cols-6 gap-2 items-end mb-4">
-                    <label className="text-[11px] font-semibold text-text-dim">
-                      Ordre
-                      <input required type="number" min={1} value={ordreEch} onChange={(e) => setOrdreEch(Number(e.target.value))} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]" />
-                    </label>
-                    <label className="text-[11px] font-semibold text-text-dim">
-                      Type
-                      <select value={typeEch} onChange={(e) => setTypeEch(e.target.value as TypeEcheance)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]">
-                        {(Object.keys(LIBELLE_TYPE_ECHEANCE) as TypeEcheance[]).map((t) => (
-                          <option key={t} value={t}>{LIBELLE_TYPE_ECHEANCE[t]}</option>
-                        ))}
-                      </select>
-                    </label>
-                    {typeEch !== 'EQUILIBRE' && (
-                      <label className="text-[11px] font-semibold text-text-dim">
-                        {typeEch === 'POURCENTAGE' ? 'Valeur (%)' : 'Valeur (montant)'}
-                        <input required type="number" min={0} step="0.01" value={valeurEch} onChange={(e) => setValeurEch(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]" />
-                      </label>
-                    )}
-                    <label className="text-[11px] font-semibold text-text-dim">
-                      Délai (j.)
-                      <input required type="number" min={0} value={delaiJoursEch} onChange={(e) => setDelaiJoursEch(Number(e.target.value))} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]" />
-                    </label>
-                    <label className="text-[11px] font-semibold text-text-dim">
-                      Condition
-                      <select value={echeanceEch} onChange={(e) => setEcheanceEch(e.target.value as ConditionEcheance)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]">
-                        {(Object.keys(LIBELLE_ECHEANCE) as ConditionEcheance[]).map((c) => (
-                          <option key={c} value={c}>{LIBELLE_ECHEANCE[c]}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <button type="submit" className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5 h-fit">
-                      Ajouter
-                    </button>
-                  </form>
-
-                  <div className="font-mono text-[11px] font-semibold text-text-dim mb-2">Simulateur d'échéancier</div>
-                  <form onSubmit={onCalculer} className="flex items-end gap-2 mb-3">
-                    <label className="text-[11px] font-semibold text-text-dim">
-                      Date facture
-                      <input required type="date" value={dateFactureCalc} onChange={(e) => setDateFactureCalc(e.target.value)} className="mt-1 block border border-border-dark px-2 py-1 text-[11.5px]" />
-                    </label>
-                    <label className="text-[11px] font-semibold text-text-dim">
-                      Montant
-                      <input required type="number" min={0.01} step="0.01" value={montantCalc} onChange={(e) => setMontantCalc(e.target.value)} className="mt-1 block border border-border-dark px-2 py-1 text-[11.5px]" />
-                    </label>
-                    <button type="submit" className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5">
-                      Calculer
-                    </button>
-                  </form>
-                  {resultatCalc && (
-                    <div className="border border-border bg-surface shadow-posee">
-                      {resultatCalc.map((r) => (
-                        <div key={r.ordre} className="grid grid-cols-3 gap-2 px-2.5 py-1 border-b border-border last:border-b-0 text-[11.5px] font-mono">
-                          <span>#{r.ordre}</span>
-                          <span className="text-right">{r.montant.toLocaleString('fr-FR')}</span>
-                          <span className="text-text-dim">{new Date(r.dateEcheance).toLocaleDateString('fr-FR')}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  ))}
                 </div>
-              )}
-
-              <form onSubmit={onCreerModele} className="grid grid-cols-4 gap-2 items-end border-t border-border pt-3">
-                <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
-                  Nouveau modèle · intitulé
-                  <input required value={intituleModele} onChange={(e) => setIntituleModele(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px] font-normal" />
-                </label>
-                <label className="text-[11.5px] font-semibold text-text-dim">
-                  Délai (j.)
-                  <input required type="number" min={0} value={delaiJours} onChange={(e) => setDelaiJours(Number(e.target.value))} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px] font-normal" />
-                </label>
-                <label className="text-[11.5px] font-semibold text-text-dim">
-                  Échéance
-                  <select value={echeance} onChange={(e) => setEcheance(e.target.value as ConditionEcheance)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px] font-normal">
-                    {(Object.keys(LIBELLE_ECHEANCE) as ConditionEcheance[]).map((c) => (
-                      <option key={c} value={c}>{LIBELLE_ECHEANCE[c]}</option>
-                    ))}
-                  </select>
-                </label>
-                <button type="submit" className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5 col-span-4 w-fit">
-                  Ajouter le modèle
-                </button>
-              </form>
+  
+                {modeleSelectionne && (
+                  <div className="border border-border mb-3 p-3 bg-surface-alt">
+                    <div className="font-mono text-[11px] font-semibold text-text-dim mb-2">
+                      ÉCHÉANCES · {modeleSelectionne.intitule}
+                    </div>
+                    {modeleSelectionne.echeances.length === 0 && (
+                      <div className="text-[11.5px] text-text-dim mb-2">
+                        Mono-échéance : 100 % à {modeleSelectionne.delaiJours} j. ({LIBELLE_ECHEANCE[modeleSelectionne.echeance]}).
+                      </div>
+                    )}
+                    {modeleSelectionne.echeances.length > 0 && (
+                      <div className="border border-border mb-3 bg-surface">
+                        {modeleSelectionne.echeances.map((ech) => (
+                          <div
+                            key={ech.id}
+                            className="grid grid-cols-[40px_130px_90px_70px_150px_70px] gap-2 items-center px-2.5 py-1 border-b border-border last:border-b-0 text-[11.5px]"
+                          >
+                            <span className="font-mono">#{ech.ordre}</span>
+                            <span>{LIBELLE_TYPE_ECHEANCE[ech.type]}</span>
+                            <span className="text-right font-mono">{ech.valeur ?? '·'}</span>
+                            <span className="text-text-dim">{ech.delaiJours} j.</span>
+                            <span className="text-[11px] text-text-dim">{LIBELLE_ECHEANCE[ech.echeance]}</span>
+                            <button onClick={() => onSupprimerEcheance(ech.id)} className="text-danger text-[11px] font-semibold hover:underline w-fit">
+                              Supprimer
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+  
+                    <form onSubmit={onAjouterEcheance} className="grid grid-cols-6 gap-2 items-end mb-4">
+                      <label className="text-[11px] font-semibold text-text-dim">
+                        Ordre
+                        <input required type="number" min={1} value={ordreEch} onChange={(e) => setOrdreEch(Number(e.target.value))} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]" />
+                      </label>
+                      <label className="text-[11px] font-semibold text-text-dim">
+                        Type
+                        <select value={typeEch} onChange={(e) => setTypeEch(e.target.value as TypeEcheance)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]">
+                          {(Object.keys(LIBELLE_TYPE_ECHEANCE) as TypeEcheance[]).map((t) => (
+                            <option key={t} value={t}>{LIBELLE_TYPE_ECHEANCE[t]}</option>
+                          ))}
+                        </select>
+                      </label>
+                      {typeEch !== 'EQUILIBRE' && (
+                        <label className="text-[11px] font-semibold text-text-dim">
+                          {typeEch === 'POURCENTAGE' ? 'Valeur (%)' : 'Valeur (montant)'}
+                          <input required type="number" min={0} step="0.01" value={valeurEch} onChange={(e) => setValeurEch(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]" />
+                        </label>
+                      )}
+                      <label className="text-[11px] font-semibold text-text-dim">
+                        Délai (j.)
+                        <input required type="number" min={0} value={delaiJoursEch} onChange={(e) => setDelaiJoursEch(Number(e.target.value))} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]" />
+                      </label>
+                      <label className="text-[11px] font-semibold text-text-dim">
+                        Condition
+                        <select value={echeanceEch} onChange={(e) => setEcheanceEch(e.target.value as ConditionEcheance)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]">
+                          {(Object.keys(LIBELLE_ECHEANCE) as ConditionEcheance[]).map((c) => (
+                            <option key={c} value={c}>{LIBELLE_ECHEANCE[c]}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <button type="submit" className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5 h-fit">
+                        Ajouter
+                      </button>
+                    </form>
+  
+                    <div className="font-mono text-[11px] font-semibold text-text-dim mb-2">Simulateur d'échéancier</div>
+                    <form onSubmit={onCalculer} className="flex items-end gap-2 mb-3">
+                      <label className="text-[11px] font-semibold text-text-dim">
+                        Date facture
+                        <input required type="date" value={dateFactureCalc} onChange={(e) => setDateFactureCalc(e.target.value)} className="mt-1 block border border-border-dark px-2 py-1 text-[11.5px]" />
+                      </label>
+                      <label className="text-[11px] font-semibold text-text-dim">
+                        Montant
+                        <input required type="number" min={0.01} step="0.01" value={montantCalc} onChange={(e) => setMontantCalc(e.target.value)} className="mt-1 block border border-border-dark px-2 py-1 text-[11.5px]" />
+                      </label>
+                      <button type="submit" className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5">
+                        Calculer
+                      </button>
+                    </form>
+                    {resultatCalc && (
+                      <div className="border border-border bg-surface shadow-posee">
+                        {resultatCalc.map((r) => (
+                          <div key={r.ordre} className="grid grid-cols-3 gap-2 px-2.5 py-1 border-b border-border last:border-b-0 text-[11.5px] font-mono">
+                            <span>#{r.ordre}</span>
+                            <span className="text-right">{r.montant.toLocaleString('fr-FR')}</span>
+                            <span className="text-text-dim">{new Date(r.dateEcheance).toLocaleDateString('fr-FR')}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+  
+                <form onSubmit={onCreerModele} className="grid grid-cols-4 gap-2 items-end border-t border-border pt-3">
+                  <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
+                    Nouveau modèle · intitulé
+                    <input required value={intituleModele} onChange={(e) => setIntituleModele(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px] font-normal" />
+                  </label>
+                  <label className="text-[11.5px] font-semibold text-text-dim">
+                    Délai (j.)
+                    <input required type="number" min={0} value={delaiJours} onChange={(e) => setDelaiJours(Number(e.target.value))} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px] font-normal" />
+                  </label>
+                  <label className="text-[11.5px] font-semibold text-text-dim">
+                    Échéance
+                    <select value={echeance} onChange={(e) => setEcheance(e.target.value as ConditionEcheance)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px] font-normal">
+                      {(Object.keys(LIBELLE_ECHEANCE) as ConditionEcheance[]).map((c) => (
+                        <option key={c} value={c}>{LIBELLE_ECHEANCE[c]}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <button type="submit" className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5 col-span-4 w-fit">
+                    Ajouter le modèle
+                  </button>
+                </form>
+              </div>
             </div>
           </div>
-        </div>
+        </PortailModale>
       )}
     </div>
   );

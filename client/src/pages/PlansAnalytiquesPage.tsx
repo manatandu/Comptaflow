@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { Aide } from '../components/chrome/Aide';
 import type { Bailleur, BudgetSection, PlanAnalytique, SectionAnalytique } from '../lib/types';
+import { PortailModale } from '../components/PortailModale';
 
 /**
  * PLANS ANALYTIQUES · Structure → Plan analytique de Sage 100 i7, dans la
@@ -421,113 +422,115 @@ export function PlansAnalytiquesPage() {
       </div>
 
       {nouvelleOuverte && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 anim-voile">
-          <form
-            onSubmit={creerSection}
-            className="w-full max-w-[520px] bg-surface border border-border rounded-[4px] overflow-hidden shadow-flottante anim-modale max-h-[calc(100dvh-2rem)] overflow-y-auto"
-          >
-            <div
-              className="h-[32px] flex items-center px-3 bg-surface text-text border-b border-border text-[11.5px]"
+        <PortailModale>
+          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 anim-voile">
+            <form
+              onSubmit={creerSection}
+              className="w-full max-w-[520px] bg-surface border border-border rounded-[4px] overflow-hidden shadow-flottante anim-modale modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto"
             >
-              Nouvelle section de l'axe {plan?.intitule}
-            </div>
-            <div className="p-4 grid grid-cols-2 gap-3">
-              <label className="text-[11.5px] font-semibold text-text-dim">
-                Code
-                <input
-                  required
-                  autoFocus
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.toUpperCase())}
-                  placeholder={estSyscohada ? 'CHANTIER-01' : 'EAU-KIVU'}
-                  className="mt-1 w-full border border-border rounded-[3px] px-2.5 py-1.5 text-[12px] font-mono font-normal"
-                />
-              </label>
-              <label className="text-[11.5px] font-semibold text-text-dim">
-                Type
-                <select
-                  value={type}
-                  onChange={(e) => setType(e.target.value as 'DETAIL' | 'TOTAL')}
-                  className="mt-1 w-full border border-border rounded-[3px] px-2.5 py-1.5 text-[12px] font-normal"
-                >
-                  <option value="DETAIL">Détail · reçoit les imputations</option>
-                  <option value="TOTAL">Total · regroupe dans les états</option>
-                </select>
-              </label>
-              <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
-                Intitulé
-                <input
-                  required
-                  value={intitule}
-                  onChange={(e) => setIntitule(e.target.value)}
-                  placeholder={estSyscohada ? 'Chantier de Lubumbashi' : "Accès à l'eau potable · Nord-Kivu"}
-                  className="mt-1 w-full border border-border rounded-[3px] px-2.5 py-1.5 text-[12px] font-normal"
-                />
-              </label>
-              {/* Champ MORT en SYSCOHADA, et pas seulement inutile : aucun
-                  bailleur ne peut y être créé, la route l'étant. Le serveur
-                  refuse désormais le champ, l'écran ne le montre plus. */}
-              {!estSyscohada && (
-                <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
-                  Bailleur (facultatif)
+              <div
+                className="h-[32px] flex items-center px-3 bg-surface text-text border-b border-border text-[11.5px]"
+              >
+                Nouvelle section de l'axe {plan?.intitule}
+              </div>
+              <div className="p-4 grid grid-cols-2 gap-3">
+                <label className="text-[11.5px] font-semibold text-text-dim">
+                  Code
+                  <input
+                    required
+                    autoFocus
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.toUpperCase())}
+                    placeholder={estSyscohada ? 'CHANTIER-01' : 'EAU-KIVU'}
+                    className="mt-1 w-full border border-border rounded-[3px] px-2.5 py-1.5 text-[12px] font-mono font-normal"
+                  />
+                </label>
+                <label className="text-[11.5px] font-semibold text-text-dim">
+                  Type
                   <select
-                    value={bailleurId}
-                    onChange={(e) => setBailleurId(e.target.value)}
+                    value={type}
+                    onChange={(e) => setType(e.target.value as 'DETAIL' | 'TOTAL')}
                     className="mt-1 w-full border border-border rounded-[3px] px-2.5 py-1.5 text-[12px] font-normal"
                   >
-                    <option value="">Aucun</option>
-                    {bailleurs.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.code} · {b.nom}
-                      </option>
-                    ))}
+                    <option value="DETAIL">Détail · reçoit les imputations</option>
+                    <option value="TOTAL">Total · regroupe dans les états</option>
                   </select>
                 </label>
-              )}
-              <label className="text-[11.5px] font-semibold text-text-dim">
-                <span className="flex items-center gap-1.5">
-                  Début de {motPeriode}
-                  <Aide
-                    titre={`Dates de ${motPeriode}`}
-                    texte={`Les dates de ${motPeriode} commandent la répartition du budget : seuls les mois qu'elles couvrent reçoivent une dotation.`}
-                    source="OmegaX"
+                <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
+                  Intitulé
+                  <input
+                    required
+                    value={intitule}
+                    onChange={(e) => setIntitule(e.target.value)}
+                    placeholder={estSyscohada ? 'Chantier de Lubumbashi' : "Accès à l'eau potable · Nord-Kivu"}
+                    className="mt-1 w-full border border-border rounded-[3px] px-2.5 py-1.5 text-[12px] font-normal"
                   />
-                </span>
-                <input
-                  type="date"
-                  value={dateDebut}
-                  onChange={(e) => setDateDebut(e.target.value)}
-                  className="mt-1 w-full border border-border rounded-[3px] px-2.5 py-1.5 text-[12px] font-mono font-normal"
-                />
-              </label>
-              <label className="text-[11.5px] font-semibold text-text-dim">
-                Fin de {motPeriode}
-                <input
-                  type="date"
-                  value={dateFin}
-                  onChange={(e) => setDateFin(e.target.value)}
-                  className="mt-1 w-full border border-border rounded-[3px] px-2.5 py-1.5 text-[12px] font-mono font-normal"
-                />
-              </label>
-            </div>
-            <div className="flex justify-end gap-2 px-4 py-3 border-t border-border bg-chrome">
-              <button
-                type="button"
-                onClick={() => setNouvelleOuverte(false)}
-                className="px-4 py-1.5 border border-border rounded-[3px] bg-surface text-[11.5px] hover:bg-chrome-alt"
-              >
-                Annuler
-              </button>
-              <button
-                type="submit"
-                disabled={envoi}
-                className="px-5 py-1.5 bg-sel text-white text-[11.5px] font-semibold rounded-[3px] hover:brightness-110 disabled:opacity-50"
-              >
-                {envoi ? 'Création…' : 'Créer'}
-              </button>
-            </div>
-          </form>
-        </div>
+                </label>
+                {/* Champ MORT en SYSCOHADA, et pas seulement inutile : aucun
+                    bailleur ne peut y être créé, la route l'étant. Le serveur
+                    refuse désormais le champ, l'écran ne le montre plus. */}
+                {!estSyscohada && (
+                  <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
+                    Bailleur (facultatif)
+                    <select
+                      value={bailleurId}
+                      onChange={(e) => setBailleurId(e.target.value)}
+                      className="mt-1 w-full border border-border rounded-[3px] px-2.5 py-1.5 text-[12px] font-normal"
+                    >
+                      <option value="">Aucun</option>
+                      {bailleurs.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.code} · {b.nom}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                <label className="text-[11.5px] font-semibold text-text-dim">
+                  <span className="flex items-center gap-1.5">
+                    Début de {motPeriode}
+                    <Aide
+                      titre={`Dates de ${motPeriode}`}
+                      texte={`Les dates de ${motPeriode} commandent la répartition du budget : seuls les mois qu'elles couvrent reçoivent une dotation.`}
+                      source="OmegaX"
+                    />
+                  </span>
+                  <input
+                    type="date"
+                    value={dateDebut}
+                    onChange={(e) => setDateDebut(e.target.value)}
+                    className="mt-1 w-full border border-border rounded-[3px] px-2.5 py-1.5 text-[12px] font-mono font-normal"
+                  />
+                </label>
+                <label className="text-[11.5px] font-semibold text-text-dim">
+                  Fin de {motPeriode}
+                  <input
+                    type="date"
+                    value={dateFin}
+                    onChange={(e) => setDateFin(e.target.value)}
+                    className="mt-1 w-full border border-border rounded-[3px] px-2.5 py-1.5 text-[12px] font-mono font-normal"
+                  />
+                </label>
+              </div>
+              <div className="flex justify-end gap-2 px-4 py-3 border-t border-border bg-chrome">
+                <button
+                  type="button"
+                  onClick={() => setNouvelleOuverte(false)}
+                  className="px-4 py-1.5 border border-border rounded-[3px] bg-surface text-[11.5px] hover:bg-chrome-alt"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={envoi}
+                  className="px-5 py-1.5 bg-sel text-white text-[11.5px] font-semibold rounded-[3px] hover:brightness-110 disabled:opacity-50"
+                >
+                  {envoi ? 'Création…' : 'Créer'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </PortailModale>
       )}
     </div>
   );

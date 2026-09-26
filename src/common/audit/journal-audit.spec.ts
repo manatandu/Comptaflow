@@ -3,7 +3,9 @@ import { masquer, estChampSensible, MARQUEUR_MASQUE, MODELES_AUDITES } from './c
 import { JournalAuditService } from './journal-audit.service';
 import { JournalAuditController } from './journal-audit.controller';
 import { intercepterEcriture } from './extension-audit';
-import { dansContexteAudit, ACTEUR_SYSTEME } from './contexte-audit';
+import { dansContexteAudit, ACTEUR_SYSTEME, journaliserDansTransaction } from './contexte-audit';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { Logger } from '@nestjs/common';
 
 /**
@@ -476,3 +478,112 @@ describe('l’interception, telle qu’elle est branchée', () => {
     expect(maillons[0].apres).toEqual({ operation: 'deleteMany', filtre: { classe: 'CLASSE_9' }, resultat: { count: 17 } });
   });
 });
+
+describe('la création d’un dossier se journalise DANS sa transaction', () => {
+  /**
+   * LE DÉFAUT DU 2026-09-26 · chaque inscription écrivait « Maillon d'audit
+   * NON écrit … evenements_audit_tenantId_fkey » au journal du serveur. Le
+   * maillon partait par une connexion à part, qui ne voyait pas encore le
+   * dossier en cours de création · la création d'un dossier n'était jamais
+   * journalisée, sans que rien ne le dise à l'écran.
+   */
+  function transactionFactice(dernier: { rang: number; empreinte: string } | null) {
+    const maillons: any[] = [];
+    const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      // Lecture BRUTE · le client de la transaction porte le cloisonnement.
+      $queryRaw: jest.fn().mockResolvedValue(dernier ? [dernier] : []),
+      evenementAudit: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockImplementation(async ({ data }: any) => {
+          maillons.push(data);
+          return data;
+        }),
+      },
+    };
+    const base: any = { $transaction: jest.fn().mockRejectedValue(new Error('ne doit pas être appelée')) };
+    return { tx, base, maillons };
+  }
+
+  it('écrit par le client de la transaction, jamais par la connexion à part', async () => {
+    const { tx, base, maillons } = transactionFactice(null);
+    await journaliserDansTransaction(tx, () =>
+      intercepterEcriture(base, {
+        model: 'User',
+        operation: 'create',
+        args: { data: {} },
+        query: async () => ({ id: 'u-1', tenantId: 'nouveau', email: 'a@b.cd' }),
+      }),
+    );
+    expect(base.$transaction).not.toHaveBeenCalled();
+    expect(maillons).toHaveLength(1);
+    expect(maillons[0]).toMatchObject({ tenantId: 'nouveau', rang: 1, entite: 'User' });
+  });
+
+  it('lit le maillon précédent en SQL brut, que le cloisonnement ne filtre pas', async () => {
+    const { tx, base, maillons } = transactionFactice({ rang: 4, empreinte: 'e4' });
+    await journaliserDansTransaction(tx, () =>
+      intercepterEcriture(base, {
+        model: 'Journal',
+        operation: 'create',
+        args: { data: {} },
+        query: async () => ({ id: 'j-1', tenantId: 'nouveau' }),
+      }),
+    );
+    expect(tx.$queryRaw).toHaveBeenCalled();
+    expect(tx.evenementAudit.findFirst).not.toHaveBeenCalled();
+    expect(maillons[0]).toMatchObject({ rang: 5, empreintePrecedente: 'e4' });
+  });
+
+  it('un maillon qui échoue dans la transaction fait échouer l’acte, en le disant', async () => {
+    const { tx, base } = transactionFactice(null);
+    tx.evenementAudit.create.mockRejectedValue(new Error('refus'));
+    await expect(
+      journaliserDansTransaction(tx, () =>
+        intercepterEcriture(base, {
+          model: 'User',
+          operation: 'create',
+          args: { data: {} },
+          query: async () => ({ id: 'u-1', tenantId: 'nouveau' }),
+        }),
+      ),
+    ).rejects.toThrow(/Maillon d'audit NON écrit dans la transaction · User\.create/);
+  });
+
+  it('la création du dossier ouvre SA chaîne, pas celle de l’acteur', async () => {
+    const { tx, base, maillons } = transactionFactice(null);
+    await dansContexteAudit({ acteurEmail: 'operateur@vmg.cd', tenantId: 'editeur' }, () =>
+      journaliserDansTransaction(tx, () =>
+        intercepterEcriture(base, {
+          model: 'Tenant',
+          operation: 'create',
+          args: { data: {} },
+          query: async () => ({ id: 'nouveau', nom: 'Cabinet' }),
+        }),
+      ),
+    );
+    expect(maillons[0]).toMatchObject({ tenantId: 'nouveau', entite: 'Tenant', entiteId: 'nouveau' });
+  });
+
+  it('le semis s’exécute au nom du dossier qui naît, pas de celui de la session', () => {
+    // Depuis la console, la session porte le dossier de l'éditeur · la garde
+    // de cloisonnement tenait le semis pour une écriture chez un voisin, et la
+    // création d'un cabinet échouait sur l'upsert des journaux (vu le
+    // 2026-09-26, reproduit sur une base réelle avant correction).
+    const source = readFileSync(join(__dirname, '../../modules/auth/auth.service.ts'), 'utf8');
+    const corps = source.slice(source.indexOf('async register('), source.indexOf('async login('));
+    const bascule = corps.indexOf('return dansContexteAudit({ ...(acteurCourant()');
+    expect(bascule).toBeGreaterThan(corps.indexOf('this.tenantService.creerTenant('));
+    expect(corps.slice(bascule, bascule + 140)).toMatch(/tenantId: tenant\.id \}/);
+    for (const semis of ['seedPlan(', 'user.create(']) expect(corps.indexOf(semis)).toBeGreaterThan(bascule);
+  });
+
+  it('l’inscription pose la transaction au contexte du journal', () => {
+    // Structure, pas distance · le premier argument de la transaction de
+    // register est la fonction qui pose le contexte.
+    const source = readFileSync(join(__dirname, '../../modules/auth/auth.service.ts'), 'utf8');
+    const corps = source.slice(source.indexOf('async register('), source.indexOf('async login('));
+    expect(corps).toMatch(/this\.prisma\.\$transaction\(\s*(?:\/\/[^\n]*\n\s*)*\(tx\) => journaliserDansTransaction\(tx,/);
+  });
+});
+

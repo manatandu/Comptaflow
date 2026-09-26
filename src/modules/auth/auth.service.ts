@@ -20,6 +20,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { Referentiel, RoleUtilisateur, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
 import { horsCloisonnement } from '../../common/cloisonnement/contexte-cloisonnement';
+import { journaliserDansTransaction, dansContexteAudit, acteurCourant, ACTEUR_SYSTEME } from '../../common/audit/contexte-audit';
 import { instantDeverrouillage, messageVerrou } from './verrouillage';
 import { genererCodesSecours, genererSecret, secondFacteurAccepte, uriOtpauth, verifierCodeTotp } from './double-authentification';
 
@@ -93,7 +94,10 @@ export class AuthService {
     // tenir trente secondes ne coûte rien, et échouer à mi-chemin coûterait
     // un dossier inutilisable.
     const { tenant, user, exercice } = await this.prisma.$transaction(
-      async (tx) => {
+      // LE JOURNAL D'AUDIT S'ÉCRIT DANS CETTE TRANSACTION · écrit à part, il
+      // désignait un dossier que sa connexion ne voyait pas encore, et la clé
+      // étrangère refusait chaque maillon de la création (contexte-audit.ts).
+      (tx) => journaliserDansTransaction(tx, async () => {
         // Les DEUX référentiels se sèment désormais (SYCEBNL depuis l'origine,
         // SYSCOHADA depuis compte-seed-syscohada.ts) · le refus historique du
         // SYSCOHADA est levé. Un dossier SYSCOHADA se TIENT et s'IMPRIME
@@ -127,46 +131,55 @@ export class AuthService {
           telephone: dto.telephone,
         }, tx);
 
-        const user = await tx.user.create({
-          data: {
-            tenantId: tenant.id,
-            email: dto.email,
-            motDePasse: motDePasseHache,
-            role: RoleUtilisateur.ADMIN_CABINET,
-          },
+        // LE DOSSIER QUI NAÎT EST LE DOSSIER DE L'ACTE · depuis la console ou
+        // le siège, la session porte un AUTRE dossier, et la garde de
+        // cloisonnement tenait chaque écriture du semis pour une écriture chez
+        // un voisin (la pose des journaux tombait sur son upsert). Ce qui suit
+        // s'exécute donc au nom du dossier créé, l'acteur restant celui qui
+        // crée (journal d'audit).
+        return dansContexteAudit({ ...(acteurCourant() ?? { acteurEmail: ACTEUR_SYSTEME }), tenantId: tenant.id }, async () => {
+
+          const user = await tx.user.create({
+            data: {
+              tenantId: tenant.id,
+              email: dto.email,
+              motDePasse: motDePasseHache,
+              role: RoleUtilisateur.ADMIN_CABINET,
+            },
+          });
+
+          await this.compteService.seedPlan(tenant.id, dto.referentiel, tx);
+          // Les journaux par défaut référencent des comptes de trésorerie du plan
+          // qui vient d'être semé : le seed des comptes doit donc toujours précéder
+          // celui des journaux. Même contrainte pour les taux de TVA et les
+          // familles d'immobilisations. Les numéros référencés sont PROPRES à
+          // chaque référentiel (caisse 5710/5711, TVA déductible 4451/4452,
+          // mobilier 2441/2444... · voir chaque fichier *-seed.ts).
+          await this.journalService.seedJournauxDefaut(tenant.id, dto.referentiel, tx);
+          await this.tauxTvaService.seedTauxDefaut(tenant.id, dto.referentiel, tx);
+          await this.immobilisationService.seedFamillesDefaut(tenant.id, dto.referentiel, tx);
+          // Axes analytiques Projets (+ Bailleurs en SYCEBNL) · aucune dépendance
+          // sur les comptes, mais placés ici pour que le dossier soit prêt à
+          // ventiler dès la première écriture.
+          await this.analytiqueService.seedPlansDefaut(tenant.id, dto.referentiel, tx);
+          // Trois niveaux de relance, au ton d'une association à ses membres ou
+          // d'une entreprise à ses clients selon le référentiel · voir
+          // RelancesService.NIVEAUX_DEFAUT. Ces lettres partent vraiment, sous
+          // la signature du dossier : c'est le seul texte du logiciel qui sort
+          // de l'écran.
+          await this.relancesService.seedNiveauxDefaut(tenant.id, dto.referentiel, tx);
+          const exercice =
+            dto.dateDebutExercice && dto.dateFinExercice
+              ? await this.exerciceService.creer(
+                  tenant.id,
+                  { dateDebut: dto.dateDebutExercice, dateFin: dto.dateFinExercice },
+                  tx,
+                )
+              : await this.exerciceService.creerExerciceCourant(tenant.id, tx);
+
+          return { tenant, user, exercice };
         });
-
-        await this.compteService.seedPlan(tenant.id, dto.referentiel, tx);
-        // Les journaux par défaut référencent des comptes de trésorerie du plan
-        // qui vient d'être semé : le seed des comptes doit donc toujours précéder
-        // celui des journaux. Même contrainte pour les taux de TVA et les
-        // familles d'immobilisations. Les numéros référencés sont PROPRES à
-        // chaque référentiel (caisse 5710/5711, TVA déductible 4451/4452,
-        // mobilier 2441/2444... · voir chaque fichier *-seed.ts).
-        await this.journalService.seedJournauxDefaut(tenant.id, dto.referentiel, tx);
-        await this.tauxTvaService.seedTauxDefaut(tenant.id, dto.referentiel, tx);
-        await this.immobilisationService.seedFamillesDefaut(tenant.id, dto.referentiel, tx);
-        // Axes analytiques Projets (+ Bailleurs en SYCEBNL) · aucune dépendance
-        // sur les comptes, mais placés ici pour que le dossier soit prêt à
-        // ventiler dès la première écriture.
-        await this.analytiqueService.seedPlansDefaut(tenant.id, dto.referentiel, tx);
-        // Trois niveaux de relance, au ton d'une association à ses membres ou
-        // d'une entreprise à ses clients selon le référentiel · voir
-        // RelancesService.NIVEAUX_DEFAUT. Ces lettres partent vraiment, sous
-        // la signature du dossier : c'est le seul texte du logiciel qui sort
-        // de l'écran.
-        await this.relancesService.seedNiveauxDefaut(tenant.id, dto.referentiel, tx);
-        const exercice =
-          dto.dateDebutExercice && dto.dateFinExercice
-            ? await this.exerciceService.creer(
-                tenant.id,
-                { dateDebut: dto.dateDebutExercice, dateFin: dto.dateFinExercice },
-                tx,
-              )
-            : await this.exerciceService.creerExerciceCourant(tenant.id, tx);
-
-        return { tenant, user, exercice };
-      },
+      }),
       { maxWait: 10_000, timeout: 30_000 },
     );
 

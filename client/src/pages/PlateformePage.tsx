@@ -6,6 +6,7 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
 import type { JeuEtatsFinanciersSycebnl, SystemeComptableSyscohada } from '../lib/types';
+import { PortailModale } from '../components/PortailModale';
 
 /**
  * CONSOLE DE L'OPÉRATEUR DE PLATEFORME · vue transversale des cabinets
@@ -392,326 +393,336 @@ export function PlateformePage() {
       )}
 
       {reinitEnCours && (
-        <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
-          <form
-            onSubmit={onReinitialiserAdmin}
-            className="anim-fenetre bg-surface border border-border-dark shadow-flottant w-[460px] max-w-full max-h-[calc(100dvh-2rem)] overflow-y-auto"
-          >
-            <div className="px-3.5 py-2 bg-chrome border-b border-border-dark text-[11.5px] font-bold flex items-center gap-1.5">
-              Mot de passe administrateur · {reinitEnCours.nom}
-              <Aide
-                titre="Réinitialisation"
-                texte="Dernier recours, quand l'administrateur du cabinet a perdu son mot de passe et que personne dans son dossier ne peut le lui rendre. Vous ne pouvez réinitialiser QUE des administrateurs · un comptable relève de l'administrateur de son cabinet. Le geste est inscrit au journal d'audit."
-                source="OmegaX"
-              />
-            </div>
-            <div className="p-3.5 flex flex-col gap-2.5">
-              <label className="flex flex-col gap-1">
-                <span className="text-[11px] font-bold text-text-dim">Adresse de l'administrateur</span>
-                <input
-                  type="email"
-                  value={reinitEmail}
-                  onChange={(e) => setReinitEmail(e.target.value)}
-                  required
-                  autoFocus
-                  className="border border-border-dark px-2.5 py-1.5 text-[11.5px]"
+        <PortailModale>
+          <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+            <form
+              onSubmit={onReinitialiserAdmin}
+              className="anim-fenetre bg-surface border border-border-dark shadow-flottant w-[460px] max-w-full modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto"
+            >
+              <div className="px-3.5 py-2 bg-chrome border-b border-border-dark text-[11.5px] font-bold flex items-center gap-1.5">
+                Mot de passe administrateur · {reinitEnCours.nom}
+                <Aide
+                  titre="Réinitialisation"
+                  texte="Dernier recours, quand l'administrateur du cabinet a perdu son mot de passe et que personne dans son dossier ne peut le lui rendre. Vous ne pouvez réinitialiser QUE des administrateurs · un comptable relève de l'administrateur de son cabinet. Le geste est inscrit au journal d'audit."
+                  source="OmegaX"
                 />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-[11px] font-bold text-text-dim">Mot de passe provisoire</span>
-                <input
-                  value={reinitMotDePasse}
-                  onChange={(e) => setReinitMotDePasse(e.target.value)}
-                  minLength={10}
-                  required
-                  className="border border-border-dark px-2.5 py-1.5 text-[11.5px]"
-                />
-                <span className="text-[11px] text-text-dim">Dix caractères au minimum.</span>
-              </label>
-              {reinitErreur && (
-                <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5">
-                  {reinitErreur}
-                </div>
-              )}
-            </div>
-            <div className="px-3.5 py-2 bg-surface-alt border-t border-border flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setReinitEnCours(null)}
-                className="border border-border-dark px-3 py-1 text-[11.5px]"
-              >
-                Annuler
-              </button>
-              <button type="submit" className="border border-border-dark bg-chrome px-3 py-1 text-[11.5px] font-semibold">
-                Réinitialiser
-              </button>
-            </div>
-          </form>
-        </div>
+              </div>
+              <div className="p-3.5 flex flex-col gap-2.5">
+                <label className="flex flex-col gap-1">
+                  <span className="text-[11px] font-bold text-text-dim">Adresse de l'administrateur</span>
+                  <input
+                    type="email"
+                    value={reinitEmail}
+                    onChange={(e) => setReinitEmail(e.target.value)}
+                    required
+                    autoFocus
+                    className="border border-border-dark px-2.5 py-1.5 text-[11.5px]"
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-[11px] font-bold text-text-dim">Mot de passe provisoire</span>
+                  <input
+                    value={reinitMotDePasse}
+                    onChange={(e) => setReinitMotDePasse(e.target.value)}
+                    minLength={10}
+                    required
+                    className="border border-border-dark px-2.5 py-1.5 text-[11.5px]"
+                  />
+                  <span className="text-[11px] text-text-dim">Dix caractères au minimum.</span>
+                </label>
+                {reinitErreur && (
+                  <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5">
+                    {reinitErreur}
+                  </div>
+                )}
+              </div>
+              <div className="px-3.5 py-2 bg-surface-alt border-t border-border flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setReinitEnCours(null)}
+                  className="border border-border-dark px-3 py-1 text-[11.5px]"
+                >
+                  Annuler
+                </button>
+                <button type="submit" className="border border-border-dark bg-chrome px-3 py-1 text-[11.5px] font-semibold">
+                  Réinitialiser
+                </button>
+              </div>
+            </form>
+          </div>
+        </PortailModale>
       )}
 
       {licenceEnCours && (
-        <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
-          <form onSubmit={onEnregistrerLicence} className="anim-modale w-full max-w-[440px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
-            <div
-              className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
-            >
-              <span>Licence · {licenceEnCours.nom}</span>
-              <button type="button" onClick={() => setLicenceEnCours(null)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">✕</button>
-            </div>
-            <div className="p-4">
-              <div className="grid grid-cols-[130px_1fr] items-center gap-x-3 gap-y-2.5">
-                <label className="text-[11.5px] text-right">Type :</label>
-                {/* LE MODE SUR SITE N'EST PAS UN CHOIX · l'énumération le porte
-                    en « Phase 4 » (prisma/schema.prisma, enum TypeLicence), et
-                    la phase n'est pas livrée : LicenceService.evaluerLicence
-                    refuse une licence de ce type dont le heartbeat est NUL, et
-                    enregistrerHeartbeat n'a aucun émetteur dans le produit (ni
-                    route, ni tâche planifiée, ni client sur site). L'attribuer
-                    faisait donc basculer le dossier hors service dès sa
-                    première requête, et PlateformeService.modifierLicence le
-                    refuse désormais avant même de lire la licence : la console
-                    proposait une ligne qui ne peut que finir en erreur.
-
-                    Ce qui reste ici n'est PLUS un choix mais un AFFICHAGE ·
-                    l'option n'existe que pour un dossier qui porte déjà ce
-                    type, faute de quoi le sélecteur s'ouvrirait VIDE sur une
-                    donnée réelle ; elle se lit dans LIBELLE_LICENCE, la même
-                    table que la colonne LICENCE de la liste, pour que les deux
-                    ne puissent pas diverger ; et `disabled` interdit d'y
-                    revenir une fois qu'on en est sorti. */}
-                <select value={licType} onChange={(e) => setLicType(e.target.value as TypeLicence)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
-                  <option value="ABONNEMENT">Abonnement</option>
-                  <option value="PERPETUEL_SAAS">Perpétuelle (SaaS)</option>
-                  {licenceEnCours.licence?.type === 'PERPETUEL_ONPREMISE' && (
-                    <option value="PERPETUEL_ONPREMISE" disabled>
-                      {LIBELLE_LICENCE.PERPETUEL_ONPREMISE}
-                    </option>
-                  )}
-                  {/* LE TYPE « ÉDITEUR » N'EST PAS DANS CETTE LISTE, et le
-                      serveur refuse de l'attribuer par cette route. Il se pose
-                      par un geste nommé, une seule fois · le mettre ici, à
-                      côté d'« Abonnement », en ferait un choix qu'on clique.
-                      Affiché seulement, et grisé, quand c'est déjà le cas. */}
-                  {licenceEnCours.licence?.type === 'PROPRIETAIRE' && (
-                    <option value="PROPRIETAIRE" disabled>
-                      {LIBELLE_LICENCE.PROPRIETAIRE}
-                    </option>
-                  )}
-                </select>
-                <p className="col-start-2 text-[11.5px] text-text-dim -mt-1">
-                  « {LIBELLE_LICENCE.PERPETUEL_ONPREMISE} » n'est plus proposée : l'installation sur site relève de la
-                  phase 4, et rien n'émet encore la vérification en ligne qu'elle exige · le dossier serait refusé dès
-                  sa première requête. Pour une licence sans échéance, choisir « {LIBELLE_LICENCE.PERPETUEL_SAAS} ».
-                  {licenceEnCours.licence?.type === 'PERPETUEL_ONPREMISE' &&
-                    " Ce dossier la porte encore : choisissez un autre type pour l'en sortir, l'enregistrer telle quelle serait refusé."}
-                </p>
-                <label className="text-[11.5px] text-right flex items-center justify-end gap-1.5">
-                  <Aide
-                    titre="Échéance"
-                    texte="Laisser l'échéance vide pour une licence sans date de fin. L'expiration se constate à l'échéance · renouveler, c'est poser une nouvelle date."
-                    source="OmegaX"
-                  />
-                  Échéance :
-                </label>
-                <input type="date" value={licExpiration} onChange={(e) => setLicExpiration(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
+        <PortailModale>
+          <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+            <form onSubmit={onEnregistrerLicence} className="anim-modale w-full max-w-[440px] bg-surface border border-border-dark shadow-flottante modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto">
+              <div
+                className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
+              >
+                <span>Licence · {licenceEnCours.nom}</span>
+                <button type="button" onClick={() => setLicenceEnCours(null)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">✕</button>
               </div>
-              {licErreur && <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mt-3">{licErreur}</div>}
-              <div className="flex justify-end gap-2 mt-4">
-                <button type="button" onClick={() => setLicenceEnCours(null)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11.5px]">
-                  Annuler
-                </button>
-                <button type="submit" disabled={licEnvoi} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold disabled:opacity-50">
-                  {licEnvoi ? 'Enregistrement…' : 'Enregistrer'}
-                </button>
+              <div className="p-4">
+                <div className="grid grid-cols-[130px_1fr] items-center gap-x-3 gap-y-2.5">
+                  <label className="text-[11.5px] text-right">Type :</label>
+                  {/* LE MODE SUR SITE N'EST PAS UN CHOIX · l'énumération le porte
+                      en « Phase 4 » (prisma/schema.prisma, enum TypeLicence), et
+                      la phase n'est pas livrée : LicenceService.evaluerLicence
+                      refuse une licence de ce type dont le heartbeat est NUL, et
+                      enregistrerHeartbeat n'a aucun émetteur dans le produit (ni
+                      route, ni tâche planifiée, ni client sur site). L'attribuer
+                      faisait donc basculer le dossier hors service dès sa
+                      première requête, et PlateformeService.modifierLicence le
+                      refuse désormais avant même de lire la licence : la console
+                      proposait une ligne qui ne peut que finir en erreur.
+  
+                      Ce qui reste ici n'est PLUS un choix mais un AFFICHAGE ·
+                      l'option n'existe que pour un dossier qui porte déjà ce
+                      type, faute de quoi le sélecteur s'ouvrirait VIDE sur une
+                      donnée réelle ; elle se lit dans LIBELLE_LICENCE, la même
+                      table que la colonne LICENCE de la liste, pour que les deux
+                      ne puissent pas diverger ; et `disabled` interdit d'y
+                      revenir une fois qu'on en est sorti. */}
+                  <select value={licType} onChange={(e) => setLicType(e.target.value as TypeLicence)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
+                    <option value="ABONNEMENT">Abonnement</option>
+                    <option value="PERPETUEL_SAAS">Perpétuelle (SaaS)</option>
+                    {licenceEnCours.licence?.type === 'PERPETUEL_ONPREMISE' && (
+                      <option value="PERPETUEL_ONPREMISE" disabled>
+                        {LIBELLE_LICENCE.PERPETUEL_ONPREMISE}
+                      </option>
+                    )}
+                    {/* LE TYPE « ÉDITEUR » N'EST PAS DANS CETTE LISTE, et le
+                        serveur refuse de l'attribuer par cette route. Il se pose
+                        par un geste nommé, une seule fois · le mettre ici, à
+                        côté d'« Abonnement », en ferait un choix qu'on clique.
+                        Affiché seulement, et grisé, quand c'est déjà le cas. */}
+                    {licenceEnCours.licence?.type === 'PROPRIETAIRE' && (
+                      <option value="PROPRIETAIRE" disabled>
+                        {LIBELLE_LICENCE.PROPRIETAIRE}
+                      </option>
+                    )}
+                  </select>
+                  <p className="col-start-2 text-[11.5px] text-text-dim -mt-1">
+                    « {LIBELLE_LICENCE.PERPETUEL_ONPREMISE} » n'est plus proposée : l'installation sur site relève de la
+                    phase 4, et rien n'émet encore la vérification en ligne qu'elle exige · le dossier serait refusé dès
+                    sa première requête. Pour une licence sans échéance, choisir « {LIBELLE_LICENCE.PERPETUEL_SAAS} ».
+                    {licenceEnCours.licence?.type === 'PERPETUEL_ONPREMISE' &&
+                      " Ce dossier la porte encore : choisissez un autre type pour l'en sortir, l'enregistrer telle quelle serait refusé."}
+                  </p>
+                  <label className="text-[11.5px] text-right flex items-center justify-end gap-1.5">
+                    <Aide
+                      titre="Échéance"
+                      texte="Laisser l'échéance vide pour une licence sans date de fin. L'expiration se constate à l'échéance · renouveler, c'est poser une nouvelle date."
+                      source="OmegaX"
+                    />
+                    Échéance :
+                  </label>
+                  <input type="date" value={licExpiration} onChange={(e) => setLicExpiration(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
+                </div>
+                {licErreur && <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mt-3">{licErreur}</div>}
+                <div className="flex justify-end gap-2 mt-4">
+                  <button type="button" onClick={() => setLicenceEnCours(null)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11.5px]">
+                    Annuler
+                  </button>
+                  <button type="submit" disabled={licEnvoi} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold disabled:opacity-50">
+                    {licEnvoi ? 'Enregistrement…' : 'Enregistrer'}
+                  </button>
+                </div>
               </div>
-            </div>
-          </form>
-        </div>
+            </form>
+          </div>
+        </PortailModale>
       )}
 
       {groupeEnCours && (
-        <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
-          <form onSubmit={onEnregistrerGroupe} className="anim-modale w-full max-w-[440px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
-            <div
-              className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
-            >
-              <span>Groupe · {groupeEnCours.nom}</span>
-              <button type="button" onClick={() => setGroupeEnCours(null)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">✕</button>
-            </div>
-            <div className="p-4">
-              {groupeEnCours.nbCellules > 0 ? (
-                <p className="text-[11.5px]">
-                  Ce dossier est la mère de {groupeEnCours.nbCellules} cellule{groupeEnCours.nbCellules > 1 ? 's' : ''} ·
-                  il ne peut pas devenir lui-même une cellule.
-                </p>
-              ) : (
-                <>
-                  <div className="grid grid-cols-[110px_1fr] items-center gap-x-3 gap-y-2.5">
-                    <label className="text-[11.5px] text-right flex items-center justify-end gap-1.5">
-                      <Aide
-                        titre="Rattachement à un groupe"
-                        texte="Rattacher ce dossier comme cellule autorise le dossier mère à lire sa balance pour la balance agrégée du groupe (une même personne morale en plusieurs dossiers). Un groupe n'a qu'un niveau."
-                        source="OmegaX"
-                      />
-                      Dossier mère :
-                    </label>
-                    <select value={groupeMereId} onChange={(e) => setGroupeMereId(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
-                      <option value="">Aucun (dossier indépendant)</option>
-                      {meresPossibles(groupeEnCours.id).map((m) => (
-                        <option key={m.id} value={m.id}>{m.nom}</option>
-                      ))}
-                    </select>
-                  </div>
-                </>
-              )}
-              {groupeErreur && <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mt-3">{groupeErreur}</div>}
-              <div className="flex justify-end gap-2 mt-4">
-                <button type="button" onClick={() => setGroupeEnCours(null)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11.5px]">
-                  Annuler
-                </button>
-                {groupeEnCours.nbCellules === 0 && (
-                  <button type="submit" disabled={groupeEnvoi} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold disabled:opacity-50">
-                    {groupeEnvoi ? 'Enregistrement…' : 'Enregistrer'}
-                  </button>
-                )}
+        <PortailModale>
+          <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+            <form onSubmit={onEnregistrerGroupe} className="anim-modale w-full max-w-[440px] bg-surface border border-border-dark shadow-flottante modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto">
+              <div
+                className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
+              >
+                <span>Groupe · {groupeEnCours.nom}</span>
+                <button type="button" onClick={() => setGroupeEnCours(null)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">✕</button>
               </div>
-            </div>
-          </form>
-        </div>
+              <div className="p-4">
+                {groupeEnCours.nbCellules > 0 ? (
+                  <p className="text-[11.5px]">
+                    Ce dossier est la mère de {groupeEnCours.nbCellules} cellule{groupeEnCours.nbCellules > 1 ? 's' : ''} ·
+                    il ne peut pas devenir lui-même une cellule.
+                  </p>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-[110px_1fr] items-center gap-x-3 gap-y-2.5">
+                      <label className="text-[11.5px] text-right flex items-center justify-end gap-1.5">
+                        <Aide
+                          titre="Rattachement à un groupe"
+                          texte="Rattacher ce dossier comme cellule autorise le dossier mère à lire sa balance pour la balance agrégée du groupe (une même personne morale en plusieurs dossiers). Un groupe n'a qu'un niveau."
+                          source="OmegaX"
+                        />
+                        Dossier mère :
+                      </label>
+                      <select value={groupeMereId} onChange={(e) => setGroupeMereId(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
+                        <option value="">Aucun (dossier indépendant)</option>
+                        {meresPossibles(groupeEnCours.id).map((m) => (
+                          <option key={m.id} value={m.id}>{m.nom}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                )}
+                {groupeErreur && <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mt-3">{groupeErreur}</div>}
+                <div className="flex justify-end gap-2 mt-4">
+                  <button type="button" onClick={() => setGroupeEnCours(null)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11.5px]">
+                    Annuler
+                  </button>
+                  {groupeEnCours.nbCellules === 0 && (
+                    <button type="submit" disabled={groupeEnvoi} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold disabled:opacity-50">
+                      {groupeEnvoi ? 'Enregistrement…' : 'Enregistrer'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </form>
+          </div>
+        </PortailModale>
       )}
 
       {nouveauOuvert && (
-        <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
-          <form onSubmit={onCreer} className="anim-modale w-full max-w-[480px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
-            <div
-              className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
-            >
-              <span>Nouveau cabinet client</span>
-              <button type="button" onClick={() => setNouveauOuvert(false)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">✕</button>
-            </div>
-            <div className="p-4">
-              <div className="grid grid-cols-[140px_1fr] items-center gap-x-3 gap-y-2.5">
-                <label className="text-[11.5px] text-right">Nom de l'entité :</label>
-                <input required autoFocus value={nomEntite} onChange={(e) => setNomEntite(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
-                <label className="text-[11.5px] text-right">E-mail de l'admin :</label>
-                <input type="email" required value={emailAdmin} onChange={(e) => setEmailAdmin(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
-                <label className="text-[11.5px] text-right">Référentiel :</label>
-                <select
-                  value={referentielChoisi}
-                  onChange={(e) => setReferentielChoisi(e.target.value as 'SYCEBNL' | 'SYSCOHADA')}
-                  className="border border-border-dark px-2.5 py-1.5 text-[11.5px]"
-                >
-                  <option value="SYCEBNL">SYCEBNL · entité à but non lucratif</option>
-                  <option value="SYSCOHADA">SYSCOHADA révisé · entreprise</option>
-                </select>
-                {referentielChoisi === 'SYCEBNL' ? (
-                  <>
-                    <label className="text-[11.5px] text-right">Type d'entité :</label>
-                    <select value={jeu} onChange={(e) => setJeu(e.target.value as JeuEtatsFinanciersSycebnl)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
-                      <option value="ASSOCIATIONS_ORDRES_PROFESSIONNELS">Association / ordre professionnel</option>
-                      <option value="PROJETS_DEVELOPPEMENT">Projet de développement</option>
-                      <option value="SYSTEME_MINIMAL_TRESORERIE">Système minimal de trésorerie</option>
-                    </select>
-                  </>
-                ) : (
-                  <>
-                    {/* AUDCIF art. 11 : deux systèmes, pas un · le SMT de
-                        l'art. 13 est réservé aux entités sous seuil de
-                        chiffre d'affaires (60 M négoce, 40 M artisanat,
-                        30 M services). Même question que côté assistant. */}
-                    <label className="text-[11.5px] text-right">Système comptable :</label>
-                    <select
-                      value={systemeChoisi}
-                      onChange={(e) => setSystemeChoisi(e.target.value as SystemeComptableSyscohada)}
-                      className="border border-border-dark px-2.5 py-1.5 text-[11.5px]"
-                    >
-                      <option value="NORMAL">Système normal</option>
-                      <option value="MINIMAL_TRESORERIE">Système minimal de trésorerie (sous seuil)</option>
-                    </select>
-                  </>
-                )}
-                <label className="text-[11.5px] text-right">Licence :</label>
-                {/* MÊME FERMETURE QU'À LA MODALE « Licence » · ici il n'y a rien
-                    à afficher, aucun dossier n'existe encore, donc l'option
-                    disparaît entièrement. PlateformeService.creerCabinet refuse
-                    ce type AVANT register() : la console y gagnait un cabinet
-                    complet (tenant, licence, admin, plan de comptes, exercice)
-                    et inaccessible dès la seconde suivante. */}
-                <select value={typeLicence} onChange={(e) => setTypeLicence(e.target.value as TypeLicence)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
-                  <option value="ABONNEMENT">Abonnement</option>
-                  <option value="PERPETUEL_SAAS">Perpétuelle (SaaS)</option>
-                </select>
-                <p className="col-start-2 text-[11.5px] text-text-dim -mt-1">
-                  « {LIBELLE_LICENCE.PERPETUEL_ONPREMISE} » n'est plus proposée : l'installation sur site relève de la
-                  phase 4, et rien n'émet encore la vérification en ligne qu'elle exige · le dossier serait refusé dès
-                  sa première requête. Pour une licence sans échéance, choisir « {LIBELLE_LICENCE.PERPETUEL_SAAS} ».
+        <PortailModale>
+          <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+            <form onSubmit={onCreer} className="anim-modale w-full max-w-[480px] bg-surface border border-border-dark shadow-flottante modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto">
+              <div
+                className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
+              >
+                <span>Nouveau cabinet client</span>
+                <button type="button" onClick={() => setNouveauOuvert(false)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">✕</button>
+              </div>
+              <div className="p-4">
+                <div className="grid grid-cols-[140px_1fr] items-center gap-x-3 gap-y-2.5">
+                  <label className="text-[11.5px] text-right">Nom de l'entité :</label>
+                  <input required autoFocus value={nomEntite} onChange={(e) => setNomEntite(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
+                  <label className="text-[11.5px] text-right">E-mail de l'admin :</label>
+                  <input type="email" required value={emailAdmin} onChange={(e) => setEmailAdmin(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
+                  <label className="text-[11.5px] text-right">Référentiel :</label>
+                  <select
+                    value={referentielChoisi}
+                    onChange={(e) => setReferentielChoisi(e.target.value as 'SYCEBNL' | 'SYSCOHADA')}
+                    className="border border-border-dark px-2.5 py-1.5 text-[11.5px]"
+                  >
+                    <option value="SYCEBNL">SYCEBNL · entité à but non lucratif</option>
+                    <option value="SYSCOHADA">SYSCOHADA révisé · entreprise</option>
+                  </select>
+                  {referentielChoisi === 'SYCEBNL' ? (
+                    <>
+                      <label className="text-[11.5px] text-right">Type d'entité :</label>
+                      <select value={jeu} onChange={(e) => setJeu(e.target.value as JeuEtatsFinanciersSycebnl)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
+                        <option value="ASSOCIATIONS_ORDRES_PROFESSIONNELS">Association / ordre professionnel</option>
+                        <option value="PROJETS_DEVELOPPEMENT">Projet de développement</option>
+                        <option value="SYSTEME_MINIMAL_TRESORERIE">Système minimal de trésorerie</option>
+                      </select>
+                    </>
+                  ) : (
+                    <>
+                      {/* AUDCIF art. 11 : deux systèmes, pas un · le SMT de
+                          l'art. 13 est réservé aux entités sous seuil de
+                          chiffre d'affaires (60 M négoce, 40 M artisanat,
+                          30 M services). Même question que côté assistant. */}
+                      <label className="text-[11.5px] text-right">Système comptable :</label>
+                      <select
+                        value={systemeChoisi}
+                        onChange={(e) => setSystemeChoisi(e.target.value as SystemeComptableSyscohada)}
+                        className="border border-border-dark px-2.5 py-1.5 text-[11.5px]"
+                      >
+                        <option value="NORMAL">Système normal</option>
+                        <option value="MINIMAL_TRESORERIE">Système minimal de trésorerie (sous seuil)</option>
+                      </select>
+                    </>
+                  )}
+                  <label className="text-[11.5px] text-right">Licence :</label>
+                  {/* MÊME FERMETURE QU'À LA MODALE « Licence » · ici il n'y a rien
+                      à afficher, aucun dossier n'existe encore, donc l'option
+                      disparaît entièrement. PlateformeService.creerCabinet refuse
+                      ce type AVANT register() : la console y gagnait un cabinet
+                      complet (tenant, licence, admin, plan de comptes, exercice)
+                      et inaccessible dès la seconde suivante. */}
+                  <select value={typeLicence} onChange={(e) => setTypeLicence(e.target.value as TypeLicence)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
+                    <option value="ABONNEMENT">Abonnement</option>
+                    <option value="PERPETUEL_SAAS">Perpétuelle (SaaS)</option>
+                  </select>
+                  <p className="col-start-2 text-[11.5px] text-text-dim -mt-1">
+                    « {LIBELLE_LICENCE.PERPETUEL_ONPREMISE} » n'est plus proposée : l'installation sur site relève de la
+                    phase 4, et rien n'émet encore la vérification en ligne qu'elle exige · le dossier serait refusé dès
+                    sa première requête. Pour une licence sans échéance, choisir « {LIBELLE_LICENCE.PERPETUEL_SAAS} ».
+                  </p>
+                  {typeLicence === 'ABONNEMENT' && (
+                    <>
+                      <label className="text-[11.5px] text-right">Échéance :</label>
+                      <input type="date" value={dateExpiration} onChange={(e) => setDateExpiration(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
+                    </>
+                  )}
+                  <label className="text-[11.5px] text-right">Ville :</label>
+                  <input value={ville} onChange={(e) => setVille(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
+                  <label className="text-[11.5px] text-right">Pays :</label>
+                  <input value={pays} onChange={(e) => setPays(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
+                  <label className="text-[11.5px] text-right">Dossier mère :</label>
+                  <select value={creationMereId} onChange={(e) => setCreationMereId(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
+                    <option value="">Aucun (dossier indépendant)</option>
+                    {meresPossibles().map((m) => (
+                      <option key={m.id} value={m.id}>{m.nom}</option>
+                    ))}
+                  </select>
+                </div>
+                <p className="text-[11.5px] text-text-dim mt-2.5">
+                  Le dossier est créé complet (plan de comptes {referentielChoisi}, journaux, taxes, exercice
+                  courant). Le mot de passe de l'administrateur est généré et affiché une seule fois à l'étape
+                  suivante.
                 </p>
-                {typeLicence === 'ABONNEMENT' && (
-                  <>
-                    <label className="text-[11.5px] text-right">Échéance :</label>
-                    <input type="date" value={dateExpiration} onChange={(e) => setDateExpiration(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
-                  </>
-                )}
-                <label className="text-[11.5px] text-right">Ville :</label>
-                <input value={ville} onChange={(e) => setVille(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
-                <label className="text-[11.5px] text-right">Pays :</label>
-                <input value={pays} onChange={(e) => setPays(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
-                <label className="text-[11.5px] text-right">Dossier mère :</label>
-                <select value={creationMereId} onChange={(e) => setCreationMereId(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
-                  <option value="">Aucun (dossier indépendant)</option>
-                  {meresPossibles().map((m) => (
-                    <option key={m.id} value={m.id}>{m.nom}</option>
-                  ))}
-                </select>
+                {creationErreur && <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mt-3">{creationErreur}</div>}
+                <div className="flex justify-end gap-2 mt-4">
+                  <button type="button" onClick={() => setNouveauOuvert(false)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11.5px]">
+                    Annuler
+                  </button>
+                  <button type="submit" disabled={creationEnvoi} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold disabled:opacity-50">
+                    {creationEnvoi ? 'Création…' : 'Créer le cabinet'}
+                  </button>
+                </div>
               </div>
-              <p className="text-[11.5px] text-text-dim mt-2.5">
-                Le dossier est créé complet (plan de comptes {referentielChoisi}, journaux, taxes, exercice
-                courant). Le mot de passe de l'administrateur est généré et affiché une seule fois à l'étape
-                suivante.
-              </p>
-              {creationErreur && <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mt-3">{creationErreur}</div>}
-              <div className="flex justify-end gap-2 mt-4">
-                <button type="button" onClick={() => setNouveauOuvert(false)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11.5px]">
-                  Annuler
-                </button>
-                <button type="submit" disabled={creationEnvoi} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold disabled:opacity-50">
-                  {creationEnvoi ? 'Création…' : 'Créer le cabinet'}
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
+            </form>
+          </div>
+        </PortailModale>
       )}
 
       {cree && (
-        <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
-          <div className="anim-modale w-full max-w-[460px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
-            <div
-              className="h-[32px] flex items-center px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
-            >
-              <span>Cabinet créé · {cree.tenant.nom}</span>
-            </div>
-            <div className="p-4">
-              <p className="text-[11.5px]">Remettez ces identifiants à l'administrateur du cabinet :</p>
-              <div className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-1.5 mt-2.5 text-[11.5px]">
-                <span className="text-right text-text-dim">E-mail :</span>
-                <span className="font-mono select-all">{cree.adminEmail}</span>
-                <span className="text-right text-text-dim">Mot de passe :</span>
-                <span className="font-mono select-all font-bold">{cree.motDePasseTemporaire}</span>
+        <PortailModale>
+          <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+            <div className="anim-modale w-full max-w-[460px] bg-surface border border-border-dark shadow-flottante modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto">
+              <div
+                className="h-[32px] flex items-center px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
+              >
+                <span>Cabinet créé · {cree.tenant.nom}</span>
               </div>
-              <div className="border border-warning/30 bg-warning-soft px-3 py-2 text-[11.5px] mt-3">
-                Ce mot de passe n'est affiché qu'UNE SEULE FOIS · le serveur n'en garde qu'une empreinte. Notez-le
-                maintenant, puis invitez le client à le changer à sa première connexion.
-              </div>
-              <div className="flex justify-end mt-4">
-                <button type="button" onClick={() => setCree(null)} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold">
-                  J'ai noté le mot de passe
-                </button>
+              <div className="p-4">
+                <p className="text-[11.5px]">Remettez ces identifiants à l'administrateur du cabinet :</p>
+                <div className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-1.5 mt-2.5 text-[11.5px]">
+                  <span className="text-right text-text-dim">E-mail :</span>
+                  <span className="font-mono select-all">{cree.adminEmail}</span>
+                  <span className="text-right text-text-dim">Mot de passe :</span>
+                  <span className="font-mono select-all font-bold">{cree.motDePasseTemporaire}</span>
+                </div>
+                <div className="border border-warning/30 bg-warning-soft px-3 py-2 text-[11.5px] mt-3">
+                  Ce mot de passe n'est affiché qu'UNE SEULE FOIS · le serveur n'en garde qu'une empreinte. Notez-le
+                  maintenant, puis invitez le client à le changer à sa première connexion.
+                </div>
+                <div className="flex justify-end mt-4">
+                  <button type="button" onClick={() => setCree(null)} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold">
+                    J'ai noté le mot de passe
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </PortailModale>
       )}
       <AbonnementsConsole cabinets={liste ?? []} />
       <DemonstrationConsole />

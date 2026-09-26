@@ -1,5 +1,6 @@
 import { useAuth } from '../../lib/auth';
 import { BlocMarqueOmegaX } from './Logo';
+import { PortailModale } from '../PortailModale';
 
 /**
  * DIVISION SYCEBNL / SYSCOHADA · la boîte annonçait « référentiel SYCEBNL »
@@ -16,39 +17,41 @@ export function AProposModale({ onFermer }: { onFermer: () => void }) {
   const { utilisateur } = useAuth();
   const referentiel = utilisateur?.tenant.referentiel;
   return (
-    <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center" onClick={onFermer}>
-      <div
-        className="bg-surface border border-border-dark w-[360px] shadow-none max-h-[calc(100dvh-2rem)] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="bg-chrome border-b border-border px-3 py-2 flex items-center justify-between">
-          <span className="text-[11.5px] font-bold">À propos d'OmegaX</span>
-          <button onClick={onFermer} className="text-text-dim hover:text-text text-[12px] leading-none px-1">
-            ✕
-          </button>
-        </div>
-        <div className="p-4 text-[11.5px] space-y-2">
-          {/*
-            La boîte « À propos » est le seul écran dont le SUJET est le
-            logiciel lui-même : c'est la place du bloc complet, signe et mot
-            dans leur rapport figé. Ailleurs le signe suffit, le nom étant
-            déjà écrit à côté.
-          */}
-          <BlocMarqueOmegaX hauteur={26} className="text-[color:var(--a-900)] mb-3" />
-          {/* Le filet de clôture · il sépare la marque de ce qui la décrit. */}
-          <hr className="filet-cloture text-text-dim !mb-3" />
-          <p className="text-text-dim">
-            Logiciel de comptabilité OHADA
-            {referentiel && LIBELLE_REFERENTIEL[referentiel] ? ` · ${LIBELLE_REFERENTIEL[referentiel]}` : ''}.
-          </p>
-          <p className="text-text-dim">Version de développement.</p>
-        </div>
-        <div className="border-t border-border px-3 py-2 flex justify-end">
-          <button onClick={onFermer} className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1">
-            Fermer
-          </button>
+    <PortailModale>
+      <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center" onClick={onFermer}>
+        <div
+          className="bg-surface border border-border-dark w-[360px] shadow-none modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="bg-chrome border-b border-border px-3 py-2 flex items-center justify-between">
+            <span className="text-[11.5px] font-bold">À propos d'OmegaX</span>
+            <button onClick={onFermer} className="text-text-dim hover:text-text text-[12px] leading-none px-1">
+              ✕
+            </button>
+          </div>
+          <div className="p-4 text-[11.5px] space-y-2">
+            {/*
+              La boîte « À propos » est le seul écran dont le SUJET est le
+              logiciel lui-même : c'est la place du bloc complet, signe et mot
+              dans leur rapport figé. Ailleurs le signe suffit, le nom étant
+              déjà écrit à côté.
+            */}
+            <BlocMarqueOmegaX hauteur={26} className="text-[color:var(--a-900)] mb-3" />
+            {/* Le filet de clôture · il sépare la marque de ce qui la décrit. */}
+            <hr className="filet-cloture text-text-dim !mb-3" />
+            <p className="text-text-dim">
+              Logiciel de comptabilité OHADA
+              {referentiel && LIBELLE_REFERENTIEL[referentiel] ? ` · ${LIBELLE_REFERENTIEL[referentiel]}` : ''}.
+            </p>
+            <p className="text-text-dim">Version de développement.</p>
+          </div>
+          <div className="border-t border-border px-3 py-2 flex justify-end">
+            <button onClick={onFermer} className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1">
+              Fermer
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </PortailModale>
   );
 }

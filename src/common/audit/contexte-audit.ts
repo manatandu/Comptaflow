@@ -27,6 +27,29 @@ export interface ActeurAudit {
 
 const stockage = new AsyncLocalStorage<ActeurAudit>();
 
+/**
+ * LA TRANSACTION DANS LAQUELLE L'ACTE SE FAIT, quand il naît dans l'une ·
+ * aujourd'hui la seule création d'un dossier (`AuthService.register`).
+ *
+ * Le journal s'écrit d'ordinaire par une connexion À PART (le client non
+ * étendu). Pendant l'inscription, c'est faux deux fois : le dossier n'existe
+ * pas encore pour cette connexion, si bien que chaque maillon qui le désigne
+ * est refusé par la clé étrangère (`evenements_audit_tenantId_fkey`) et que
+ * la création du dossier n'est JAMAIS journalisée ; et un maillon écrit à
+ * part survit à une transaction annulée, décrivant un dossier qui n'a pas
+ * existé. Écrit DANS la transaction, il naît et meurt avec l'acte.
+ */
+export type ClientTransactionAudit = unknown;
+const transactions = new AsyncLocalStorage<ClientTransactionAudit>();
+
+export function journaliserDansTransaction<T>(tx: ClientTransactionAudit, suite: () => T): T {
+  return transactions.run(tx, suite);
+}
+
+export function transactionAuditee(): ClientTransactionAudit | undefined {
+  return transactions.getStore();
+}
+
 export function dansContexteAudit<T>(acteur: ActeurAudit, suite: () => T): T {
   return stockage.run(acteur, suite);
 }

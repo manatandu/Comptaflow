@@ -40,6 +40,7 @@ export interface LigneInseree {
 import { MODELES_SIMPLES_SYCEBNL, MODELES_SIMPLES_SYSCOHADA, type ModeleSimple } from '../lib/modeles-saisie';
 import { ordonnerLignes } from '../lib/ordre-ecriture';
 import { construireLigneTva, montantTva } from '../lib/tva-saisie';
+import { PortailModale } from './PortailModale';
 
 /*
   UNE FACTURE AVEC TVA PASSE PAR UN TIERS, ELLE AUSSI. Ces deux modèles
@@ -399,368 +400,370 @@ export function ModelesSaisieModale({
       : [];
 
   return (
-    <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
-      <div className="anim-modale w-full max-w-[900px] max-h-[88vh] flex flex-col bg-surface border border-border-dark shadow-flottante">
-        <div
-          className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px] shrink-0"
-        >
-          <span>Appel d'un modèle de saisie</span>
-          <button onClick={onFermer} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">
-            ✕
-          </button>
-        </div>
-
-        <div className="flex-1 min-h-0 flex">
-          {/* Liste des modèles */}
-          <div className="w-[300px] shrink-0 border-r border-border overflow-auto bg-surface-alt">
-            <div className="px-3 pt-2.5 pb-1 text-[11px] font-bold text-text-dim">Opérations courantes</div>
-            {modelesSimples.map((m) => (
-              <button
-                key={m.code}
-                type="button"
-                onClick={() => {
-                  setSelection({ genre: 'simple', modele: m });
-                  setErreur(null);
-                }}
-                className={`w-full text-left px-3 py-1.5 text-[11.5px] ${
-                  selection?.genre === 'simple' && selection.modele.code === m.code
-                    ? 'bg-sel text-white'
-                    : 'hover:bg-chrome-alt'
-                }`}
-              >
-                {m.libelle}
-              </button>
-            ))}
-            <div className="px-3 pt-2.5 pb-1 text-[11px] font-bold text-text-dim">Avec TVA</div>
-            {MODELES_TVA.map((m) => (
-              <button
-                key={m.code}
-                type="button"
-                onClick={() => {
-                  setSelection({ genre: 'tva', modele: m });
-                  setErreur(null);
-                }}
-                className={`w-full text-left px-3 py-1.5 text-[11.5px] ${
-                  selection?.genre === 'tva' && selection.modele.code === m.code
-                    ? 'bg-sel text-white'
-                    : 'hover:bg-chrome-alt'
-                }`}
-              >
-                {m.libelle}
-              </button>
-            ))}
-            {/* Famille propre au SYCEBNL · sa route serveur l'est aussi. */}
-            {!estSyscohada && (
-              <div className="px-3 pt-2.5 pb-1 text-[11px] font-bold text-text-dim">
-                Écritures-types SYCEBNL (partie 3 · guide)
-              </div>
-            )}
-            {!estSyscohada && !catalogue && (
-              <div className="px-3 py-1.5 text-[11.5px] text-text-dim italic">Chargement…</div>
-            )}
-            {catalogue &&
-              [...catalogue.operations, ...catalogue.operationsAutreJeu].map((op) => (
-                <div key={op.code}>
-                  <div className="px-3 pt-1.5 pb-0.5 text-[11px] font-semibold text-text-dim">
-                    {op.code} · {op.libelle}
-                  </div>
-                  {op.modeles.map((mo) => (
-                    <button
-                      key={mo.code}
-                      type="button"
-                      onClick={() => choisirEbnl(op, mo)}
-                      className={`w-full text-left pl-5 pr-3 py-1 text-[11.5px] ${
-                        selection?.genre === 'ebnl' && selection.modele.code === mo.code
-                          ? 'bg-sel text-white'
-                          : 'hover:bg-chrome-alt'
-                      }`}
-                    >
-                      {mo.libelle}
-                    </button>
-                  ))}
-                </div>
-              ))}
+    <PortailModale>
+      <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+        <div className="anim-modale w-full max-w-[900px] max-h-[88vh] flex flex-col bg-surface border border-border-dark shadow-flottante">
+          <div
+            className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px] shrink-0"
+          >
+            <span>Appel d'un modèle de saisie</span>
+            <button onClick={onFermer} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">
+              ✕
+            </button>
           </div>
-
-          {/* Paramètres du modèle sélectionné */}
-          <div className="flex-1 min-w-0 overflow-auto p-4">
-            {!selection && (
-              <div className="text-[11.5px] text-text-dim flex items-center gap-1.5">
-                Sélectionnez un modèle à gauche.
-                <Aide
-                  titre="Appel d'un modèle de saisie"
-                  texte="Le modèle pré-remplit la pièce en cours de saisie · toutes les lignes générées restent modifiables avant enregistrement."
-                  source="Saisie"
-                />
-              </div>
-            )}
-
-            {selection && (selection.genre === 'simple' || selection.genre === 'tva') && (
-              <div className="max-w-[440px]">
-                <h3 className="text-[12px] font-bold mb-0.5">{selection.modele.libelle}</h3>
-                {selection.genre === 'simple' && (
-                  <p className="text-[11.5px] text-text-dim mb-3">
-                    Se saisit au journal des {selection.modele.journal.toLowerCase()}.
-                  </p>
-                )}
-                {selection.genre === 'tva' && <p className="text-[11.5px] text-text-dim mb-3">Facture.</p>}
-                <div className="grid grid-cols-[150px_1fr] items-center gap-x-3 gap-y-2.5">
-                  <label className="text-[11.5px] text-right">
-                    {selection.genre === 'tva' ? 'Montant HT :' : 'Montant :'}
-                  </label>
-                  <input
-                    type="number"
-                    min={0.01}
-                    step="0.01"
-                    value={montant}
-                    onChange={(e) => setMontant(e.target.value)}
-                    className="border border-border-dark px-2 py-1 text-[12px] font-mono text-right"
-                  />
-
-                  {selection.genre === 'tva' && (
-                    <>
-                      <label className="text-[11.5px] text-right">
-                        {selection.modele.code === 'vente_tva' ? 'Compte de produit :' : 'Compte de charge :'}
-                      </label>
-                      <select
-                        value={compteContrepartieTvaId}
-                        onChange={(e) => setCompteContrepartieTvaId(e.target.value)}
-                        className="border border-border-dark px-2 py-1 text-[11.5px]"
-                      >
-                        <option value="">Sélectionner</option>
-                        {(selection.modele.code === 'vente_tva' ? comptesProduits : comptesCharges).map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.numero} · {c.intitule}
-                          </option>
-                        ))}
-                      </select>
-                      <label className="text-[11.5px] text-right">Taux de TVA :</label>
-                      <select
-                        value={tauxTvaId}
-                        onChange={(e) => setTauxTvaId(e.target.value)}
-                        className="border border-border-dark px-2 py-1 text-[11.5px]"
-                      >
-                        <option value="">Sélectionner</option>
-                        {tauxDisponibles.map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.code} · {t.intitule}
-                          </option>
-                        ))}
-                      </select>
-                    </>
-                  )}
-
-                  {comptesTiers.length > 0 && (
-                    <>
-                      <label className="text-[11.5px] text-right">
-                        {racineTiers === '401'
-                          ? 'Fournisseur :'
-                          : racineTiers === '411'
-                            ? 'Client ou adhérent :'
-                            : racineTiers === '422'
-                              ? 'Compte de personnel :'
-                              : 'Compte de tiers :'}
-                      </label>
-                      <select
-                        value={compteTiersId}
-                        onChange={(e) => setCompteTiersId(e.target.value)}
-                        className="border border-border-dark px-2 py-1 text-[11.5px]"
-                      >
-                        {comptesTiers.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.numero} · {c.intitule}
-                          </option>
-                        ))}
-                      </select>
-                    </>
-                  )}
-
-                  {racineTiers && comptesTiers.length === 0 && (
-                    <div className="col-span-2 border border-danger/50 bg-danger/5 px-2.5 py-2 text-[11.5px] leading-[1.5]">
-                      Aucun compte n'est ouvert sous la racine {racineTiers} dans le plan de ce dossier. Cette
-                      opération passe OBLIGATOIREMENT par un compte de tiers · ouvrez-le au plan comptable avant
-                      d'employer ce modèle.
-                    </div>
-                  )}
-
-                  {utiliseTresorerie && (
-                    <>
-                      <label className="text-[11.5px] text-right">Compte de trésorerie :</label>
-                      <select
-                        value={compteTresorerieId}
-                        onChange={(e) => setCompteTresorerieId(e.target.value)}
-                        className="border border-border-dark px-2 py-1 text-[11.5px]"
-                      >
-                        {comptesTresorerie.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.numero} · {c.intitule}
-                          </option>
-                        ))}
-                      </select>
-                    </>
-                  )}
-                </div>
-
-                {/*
-                  CE QUE LE MODÈLE NE FAIT PAS, DIT AVANT L'INSERTION. Une
-                  facture n'est que la première moitié de l'opération, et le
-                  logiciel ne devine pas la seconde · il la nomme.
-                */}
-                {selection.modele.suite && (
-                  <div className="mt-3 border border-border bg-surface-alt px-2.5 py-2 text-[11.5px] leading-[1.55]">
-                    {selection.modele.suite}
-                  </div>
-                )}
-
+  
+          <div className="flex-1 min-h-0 flex">
+            {/* Liste des modèles */}
+            <div className="w-[300px] shrink-0 border-r border-border overflow-auto bg-surface-alt">
+              <div className="px-3 pt-2.5 pb-1 text-[11px] font-bold text-text-dim">Opérations courantes</div>
+              {modelesSimples.map((m) => (
                 <button
+                  key={m.code}
                   type="button"
-                  onClick={() =>
-                    selection.genre === 'simple' ? insererSimple(selection.modele) : insererTva(selection.modele)
-                  }
-                  className="mt-4 bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold"
+                  onClick={() => {
+                    setSelection({ genre: 'simple', modele: m });
+                    setErreur(null);
+                  }}
+                  className={`w-full text-left px-3 py-1.5 text-[11.5px] ${
+                    selection?.genre === 'simple' && selection.modele.code === m.code
+                      ? 'bg-sel text-white'
+                      : 'hover:bg-chrome-alt'
+                  }`}
                 >
-                  Insérer dans la pièce
+                  {m.libelle}
                 </button>
-              </div>
-            )}
-
-            {selection && selection.genre === 'ebnl' && (
-              <div>
-                <h3 className="text-[12px] font-bold mb-0.5">{selection.modele.libelle}</h3>
-                <p className="text-[11.5px] text-text-dim mb-1">{selection.modele.objet}</p>
-                <p className="text-[11px] font-mono text-text-dim mb-3">
-                  {selection.modele.source}
-                  {selection.modele.applicationGuide && ` · ${selection.modele.applicationGuide}`}
-                </p>
-
-                {/* MODÈLE D'APPEL · il débite le 411 Adhérents, ce que le
-                    § 5.4.2.1 réserve au dossier qui justifie d'un droit d'agir
-                    en recouvrement. Le serveur refuse un dossier à
-                    l'encaissement ; le dire AVANT la saisie vaut mieux que de
-                    laisser essuyer un 400 après avoir rempli les montants. */}
-                {selection.modele.exigeDroitDAgir && catalogue?.methodeCotisations !== 'APPEL' && (
-                  <div
-                    className={`mb-3 px-2.5 py-2 text-[11.5px] leading-[1.5] border ${
-                      catalogue?.methodeCotisations === 'ENCAISSEMENT'
-                        ? 'border-danger text-danger'
-                        : 'border-border text-text-dim'
-                    }`}
-                  >
-                    {catalogue?.methodeCotisations === 'ENCAISSEMENT' ? (
+              ))}
+              <div className="px-3 pt-2.5 pb-1 text-[11px] font-bold text-text-dim">Avec TVA</div>
+              {MODELES_TVA.map((m) => (
+                <button
+                  key={m.code}
+                  type="button"
+                  onClick={() => {
+                    setSelection({ genre: 'tva', modele: m });
+                    setErreur(null);
+                  }}
+                  className={`w-full text-left px-3 py-1.5 text-[11.5px] ${
+                    selection?.genre === 'tva' && selection.modele.code === m.code
+                      ? 'bg-sel text-white'
+                      : 'hover:bg-chrome-alt'
+                  }`}
+                >
+                  {m.libelle}
+                </button>
+              ))}
+              {/* Famille propre au SYCEBNL · sa route serveur l'est aussi. */}
+              {!estSyscohada && (
+                <div className="px-3 pt-2.5 pb-1 text-[11px] font-bold text-text-dim">
+                  Écritures-types SYCEBNL (partie 3 · guide)
+                </div>
+              )}
+              {!estSyscohada && !catalogue && (
+                <div className="px-3 py-1.5 text-[11.5px] text-text-dim italic">Chargement…</div>
+              )}
+              {catalogue &&
+                [...catalogue.operations, ...catalogue.operationsAutreJeu].map((op) => (
+                  <div key={op.code}>
+                    <div className="px-3 pt-1.5 pb-0.5 text-[11px] font-semibold text-text-dim">
+                      {op.code} · {op.libelle}
+                    </div>
+                    {op.modeles.map((mo) => (
+                      <button
+                        key={mo.code}
+                        type="button"
+                        onClick={() => choisirEbnl(op, mo)}
+                        className={`w-full text-left pl-5 pr-3 py-1 text-[11.5px] ${
+                          selection?.genre === 'ebnl' && selection.modele.code === mo.code
+                            ? 'bg-sel text-white'
+                            : 'hover:bg-chrome-alt'
+                        }`}
+                      >
+                        {mo.libelle}
+                      </button>
+                    ))}
+                  </div>
+                ))}
+            </div>
+  
+            {/* Paramètres du modèle sélectionné */}
+            <div className="flex-1 min-w-0 overflow-auto p-4">
+              {!selection && (
+                <div className="text-[11.5px] text-text-dim flex items-center gap-1.5">
+                  Sélectionnez un modèle à gauche.
+                  <Aide
+                    titre="Appel d'un modèle de saisie"
+                    texte="Le modèle pré-remplit la pièce en cours de saisie · toutes les lignes générées restent modifiables avant enregistrement."
+                    source="Saisie"
+                  />
+                </div>
+              )}
+  
+              {selection && (selection.genre === 'simple' || selection.genre === 'tva') && (
+                <div className="max-w-[440px]">
+                  <h3 className="text-[12px] font-bold mb-0.5">{selection.modele.libelle}</h3>
+                  {selection.genre === 'simple' && (
+                    <p className="text-[11.5px] text-text-dim mb-3">
+                      Se saisit au journal des {selection.modele.journal.toLowerCase()}.
+                    </p>
+                  )}
+                  {selection.genre === 'tva' && <p className="text-[11.5px] text-text-dim mb-3">Facture.</p>}
+                  <div className="grid grid-cols-[150px_1fr] items-center gap-x-3 gap-y-2.5">
+                    <label className="text-[11.5px] text-right">
+                      {selection.genre === 'tva' ? 'Montant HT :' : 'Montant :'}
+                    </label>
+                    <input
+                      type="number"
+                      min={0.01}
+                      step="0.01"
+                      value={montant}
+                      onChange={(e) => setMontant(e.target.value)}
+                      className="border border-border-dark px-2 py-1 text-[12px] font-mono text-right"
+                    />
+  
+                    {selection.genre === 'tva' && (
                       <>
-                        Ce dossier constate ses cotisations à l’ENCAISSEMENT · ce modèle sera refusé. Il inscrirait
-                        au 411 Adhérents une créance que l’entité n’a aucun moyen de poursuivre (cadre conceptuel
-                        § 5.4.2.1).
+                        <label className="text-[11.5px] text-right">
+                          {selection.modele.code === 'vente_tva' ? 'Compte de produit :' : 'Compte de charge :'}
+                        </label>
+                        <select
+                          value={compteContrepartieTvaId}
+                          onChange={(e) => setCompteContrepartieTvaId(e.target.value)}
+                          className="border border-border-dark px-2 py-1 text-[11.5px]"
+                        >
+                          <option value="">Sélectionner</option>
+                          {(selection.modele.code === 'vente_tva' ? comptesProduits : comptesCharges).map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.numero} · {c.intitule}
+                            </option>
+                          ))}
+                        </select>
+                        <label className="text-[11.5px] text-right">Taux de TVA :</label>
+                        <select
+                          value={tauxTvaId}
+                          onChange={(e) => setTauxTvaId(e.target.value)}
+                          className="border border-border-dark px-2 py-1 text-[11.5px]"
+                        >
+                          <option value="">Sélectionner</option>
+                          {tauxDisponibles.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.code} · {t.intitule}
+                            </option>
+                          ))}
+                        </select>
                       </>
-                    ) : (
+                    )}
+  
+                    {comptesTiers.length > 0 && (
                       <>
-                        Ce modèle constate la créance dès l’appel. Le § 5.4.2.1 le réserve à l’entité qui justifie
-                        d’un droit d’agir en recouvrement · la méthode du dossier n’est pas encore renseignée
-                        (Structure &gt; Paramètres du dossier).
+                        <label className="text-[11.5px] text-right">
+                          {racineTiers === '401'
+                            ? 'Fournisseur :'
+                            : racineTiers === '411'
+                              ? 'Client ou adhérent :'
+                              : racineTiers === '422'
+                                ? 'Compte de personnel :'
+                                : 'Compte de tiers :'}
+                        </label>
+                        <select
+                          value={compteTiersId}
+                          onChange={(e) => setCompteTiersId(e.target.value)}
+                          className="border border-border-dark px-2 py-1 text-[11.5px]"
+                        >
+                          {comptesTiers.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.numero} · {c.intitule}
+                            </option>
+                          ))}
+                        </select>
+                      </>
+                    )}
+  
+                    {racineTiers && comptesTiers.length === 0 && (
+                      <div className="col-span-2 border border-danger/50 bg-danger/5 px-2.5 py-2 text-[11.5px] leading-[1.5]">
+                        Aucun compte n'est ouvert sous la racine {racineTiers} dans le plan de ce dossier. Cette
+                        opération passe OBLIGATOIREMENT par un compte de tiers · ouvrez-le au plan comptable avant
+                        d'employer ce modèle.
+                      </div>
+                    )}
+  
+                    {utiliseTresorerie && (
+                      <>
+                        <label className="text-[11.5px] text-right">Compte de trésorerie :</label>
+                        <select
+                          value={compteTresorerieId}
+                          onChange={(e) => setCompteTresorerieId(e.target.value)}
+                          className="border border-border-dark px-2 py-1 text-[11.5px]"
+                        >
+                          {comptesTresorerie.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.numero} · {c.intitule}
+                            </option>
+                          ))}
+                        </select>
                       </>
                     )}
                   </div>
-                )}
-
-                {selection.modele.parametres.length > 0 && (
-                  <div className="grid grid-cols-[220px_180px] items-center gap-x-3 gap-y-2 mb-3">
-                    {selection.modele.parametres.map((p) => (
-                      <div key={p.nom} className="contents">
-                        <label className="text-[11.5px] text-right" title={p.aide}>
-                          {p.libelle} :
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={parametres[p.nom] ?? ''}
-                          onChange={(e) => setParametres((prev) => ({ ...prev, [p.nom]: e.target.value }))}
-                          className="border border-border-dark px-2 py-1 text-[12px] font-mono text-right"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <button
-                  type="button"
-                  disabled={calcul}
-                  onClick={() => calculerEbnl(selection.modele, comptesChoisis)}
-                  className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3.5 py-1 text-[11.5px] disabled:opacity-50"
-                >
-                  {calcul ? 'Calcul…' : "Calculer l'écriture"}
-                </button>
-
-                {proposition && (
-                  <div className="mt-3 border border-border">
-                    <div className="entete-colonnes grid grid-cols-[110px_1fr_110px_110px] gap-2 px-3 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim">
-                      <span>Compte</span>
-                      <span>Libellé</span>
-                      <span className="text-right">Débit</span>
-                      <span className="text-right">Crédit</span>
+  
+                  {/*
+                    CE QUE LE MODÈLE NE FAIT PAS, DIT AVANT L'INSERTION. Une
+                    facture n'est que la première moitié de l'opération, et le
+                    logiciel ne devine pas la seconde · il la nomme.
+                  */}
+                  {selection.modele.suite && (
+                    <div className="mt-3 border border-border bg-surface-alt px-2.5 py-2 text-[11.5px] leading-[1.55]">
+                      {selection.modele.suite}
                     </div>
-                    {proposition.lignes.map((l, i) => (
-                      <div
-                        key={i}
-                        className="grid grid-cols-[110px_1fr_110px_110px] gap-2 px-3 py-1 border-b border-border text-[11.5px] items-center"
-                      >
-                        <span className="font-mono">
-                          {l.choixRequis ? (
-                            <select
-                              value={comptesChoisis[l.choixRequis.racine] ?? ''}
-                              onChange={(e) => {
-                                const choix = { ...comptesChoisis, [l.choixRequis!.racine]: e.target.value };
-                                setComptesChoisis(choix);
-                                calculerEbnl(selection.modele, choix);
-                              }}
-                              className="border border-border-dark px-1 py-0.5 text-[11.5px] w-full"
-                            >
-                              <option value="">{l.numero}… à choisir</option>
-                              {l.choixRequis.candidats.map((c) => (
-                                <option key={c.id} value={c.id}>
-                                  {c.numero} · {c.intitule}
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
-                            l.numero
-                          )}
-                        </span>
-                        <span className="truncate" title={`${l.intitule} · ${l.libelle}`}>
-                          {l.libelle}
-                        </span>
-                        <span className="font-mono text-right">{l.debit ? l.debit.toLocaleString('fr-FR') : ''}</span>
-                        <span className="font-mono text-right">{l.credit ? l.credit.toLocaleString('fr-FR') : ''}</span>
-                      </div>
-                    ))}
-                    <div className="grid grid-cols-[110px_1fr_110px_110px] gap-2 px-3 py-1.5 bg-surface-alt text-[11.5px] font-bold">
-                      <span />
-                      <span className="text-right text-[11px] text-text-dim">Totaux</span>
-                      <span className="font-mono text-right">{proposition.totalDebit.toLocaleString('fr-FR')}</span>
-                      <span className="font-mono text-right">{proposition.totalCredit.toLocaleString('fr-FR')}</span>
-                    </div>
-                  </div>
-                )}
-
-                {proposition && (
+                  )}
+  
                   <button
                     type="button"
-                    onClick={insererEbnl}
-                    className="mt-3 bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold"
+                    onClick={() =>
+                      selection.genre === 'simple' ? insererSimple(selection.modele) : insererTva(selection.modele)
+                    }
+                    className="mt-4 bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold"
                   >
                     Insérer dans la pièce
                   </button>
-                )}
-              </div>
-            )}
-
-            {erreur && (
-              <div className="mt-3 text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 max-w-[560px]">
-                {erreur}
-              </div>
-            )}
+                </div>
+              )}
+  
+              {selection && selection.genre === 'ebnl' && (
+                <div>
+                  <h3 className="text-[12px] font-bold mb-0.5">{selection.modele.libelle}</h3>
+                  <p className="text-[11.5px] text-text-dim mb-1">{selection.modele.objet}</p>
+                  <p className="text-[11px] font-mono text-text-dim mb-3">
+                    {selection.modele.source}
+                    {selection.modele.applicationGuide && ` · ${selection.modele.applicationGuide}`}
+                  </p>
+  
+                  {/* MODÈLE D'APPEL · il débite le 411 Adhérents, ce que le
+                      § 5.4.2.1 réserve au dossier qui justifie d'un droit d'agir
+                      en recouvrement. Le serveur refuse un dossier à
+                      l'encaissement ; le dire AVANT la saisie vaut mieux que de
+                      laisser essuyer un 400 après avoir rempli les montants. */}
+                  {selection.modele.exigeDroitDAgir && catalogue?.methodeCotisations !== 'APPEL' && (
+                    <div
+                      className={`mb-3 px-2.5 py-2 text-[11.5px] leading-[1.5] border ${
+                        catalogue?.methodeCotisations === 'ENCAISSEMENT'
+                          ? 'border-danger text-danger'
+                          : 'border-border text-text-dim'
+                      }`}
+                    >
+                      {catalogue?.methodeCotisations === 'ENCAISSEMENT' ? (
+                        <>
+                          Ce dossier constate ses cotisations à l’ENCAISSEMENT · ce modèle sera refusé. Il inscrirait
+                          au 411 Adhérents une créance que l’entité n’a aucun moyen de poursuivre (cadre conceptuel
+                          § 5.4.2.1).
+                        </>
+                      ) : (
+                        <>
+                          Ce modèle constate la créance dès l’appel. Le § 5.4.2.1 le réserve à l’entité qui justifie
+                          d’un droit d’agir en recouvrement · la méthode du dossier n’est pas encore renseignée
+                          (Structure &gt; Paramètres du dossier).
+                        </>
+                      )}
+                    </div>
+                  )}
+  
+                  {selection.modele.parametres.length > 0 && (
+                    <div className="grid grid-cols-[220px_180px] items-center gap-x-3 gap-y-2 mb-3">
+                      {selection.modele.parametres.map((p) => (
+                        <div key={p.nom} className="contents">
+                          <label className="text-[11.5px] text-right" title={p.aide}>
+                            {p.libelle} :
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={parametres[p.nom] ?? ''}
+                            onChange={(e) => setParametres((prev) => ({ ...prev, [p.nom]: e.target.value }))}
+                            className="border border-border-dark px-2 py-1 text-[12px] font-mono text-right"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+  
+                  <button
+                    type="button"
+                    disabled={calcul}
+                    onClick={() => calculerEbnl(selection.modele, comptesChoisis)}
+                    className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3.5 py-1 text-[11.5px] disabled:opacity-50"
+                  >
+                    {calcul ? 'Calcul…' : "Calculer l'écriture"}
+                  </button>
+  
+                  {proposition && (
+                    <div className="mt-3 border border-border">
+                      <div className="entete-colonnes grid grid-cols-[110px_1fr_110px_110px] gap-2 px-3 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim">
+                        <span>Compte</span>
+                        <span>Libellé</span>
+                        <span className="text-right">Débit</span>
+                        <span className="text-right">Crédit</span>
+                      </div>
+                      {proposition.lignes.map((l, i) => (
+                        <div
+                          key={i}
+                          className="grid grid-cols-[110px_1fr_110px_110px] gap-2 px-3 py-1 border-b border-border text-[11.5px] items-center"
+                        >
+                          <span className="font-mono">
+                            {l.choixRequis ? (
+                              <select
+                                value={comptesChoisis[l.choixRequis.racine] ?? ''}
+                                onChange={(e) => {
+                                  const choix = { ...comptesChoisis, [l.choixRequis!.racine]: e.target.value };
+                                  setComptesChoisis(choix);
+                                  calculerEbnl(selection.modele, choix);
+                                }}
+                                className="border border-border-dark px-1 py-0.5 text-[11.5px] w-full"
+                              >
+                                <option value="">{l.numero}… à choisir</option>
+                                {l.choixRequis.candidats.map((c) => (
+                                  <option key={c.id} value={c.id}>
+                                    {c.numero} · {c.intitule}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              l.numero
+                            )}
+                          </span>
+                          <span className="truncate" title={`${l.intitule} · ${l.libelle}`}>
+                            {l.libelle}
+                          </span>
+                          <span className="font-mono text-right">{l.debit ? l.debit.toLocaleString('fr-FR') : ''}</span>
+                          <span className="font-mono text-right">{l.credit ? l.credit.toLocaleString('fr-FR') : ''}</span>
+                        </div>
+                      ))}
+                      <div className="grid grid-cols-[110px_1fr_110px_110px] gap-2 px-3 py-1.5 bg-surface-alt text-[11.5px] font-bold">
+                        <span />
+                        <span className="text-right text-[11px] text-text-dim">Totaux</span>
+                        <span className="font-mono text-right">{proposition.totalDebit.toLocaleString('fr-FR')}</span>
+                        <span className="font-mono text-right">{proposition.totalCredit.toLocaleString('fr-FR')}</span>
+                      </div>
+                    </div>
+                  )}
+  
+                  {proposition && (
+                    <button
+                      type="button"
+                      onClick={insererEbnl}
+                      className="mt-3 bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold"
+                    >
+                      Insérer dans la pièce
+                    </button>
+                  )}
+                </div>
+              )}
+  
+              {erreur && (
+                <div className="mt-3 text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 max-w-[560px]">
+                  {erreur}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </PortailModale>
   );
 }

@@ -5915,6 +5915,13 @@ PUIS `dvh` dans la même règle CSS · deux classes utilitaires séparées ne
 peuvent pas l'exprimer, l'ordre de la feuille engendrée ne suivant pas l'ordre
 des classes écrites.
 
+QUATRIÈME CAUSE, la plus large (2026-09-26, console) · une fenêtre est
+positionnée et porte un z-index, elle fait CONTEXTE D'EMPILEMENT. Une modale
+rendue dedans passe sous la barre de titre et la barre d'état de
+l'application, quel que soit son z-index. Mesuré : haut et bas cachés dans la
+fenêtre, visibles une fois portés. TOUTE modale passe donc par `PortailModale`,
+et `modales-dans-l-ecran.spec.ts` le gèle voile par voile.
+
 Deux gardes de plus sur la calculette. `.voile-centre-sur` remplace
 `items-center` par un voile défilant et un centrage par marges automatiques ·
 une marge automatique ne devient jamais négative, donc un contenu trop haut se
@@ -6093,7 +6100,15 @@ avant de l'écrire ; un spec (`compte-seed-syscohada.spec.ts`) le contrôle.
   par /utilisateurs » et que le journal rendait pourtant en clair à tout
   utilisateur du dossier. Un test tient la liste fermée · une colonne ajoutée
   à `User` le fait tomber tant qu'elle n'est pas classée. (`masquer()` remplace
-  mot de passe, jeton et secret par un marqueur).
+  mot de passe, jeton et secret par un marqueur). **LA CRÉATION D'UN DOSSIER
+  SE JOURNALISE DANS SA TRANSACTION** (2026-09-26, `journaliserDansTransaction`)
+  · écrit par la connexion à part, chaque maillon désignait un dossier que
+  cette connexion ne voyait pas encore, et la clé étrangère le refusait : aucune
+  création de dossier n'était journalisée. Le dossier est sa propre chaîne (sa
+  création en est le rang 1), et `register` sème AU NOM du dossier qui naît ·
+  depuis la console, la garde de cloisonnement tenait sinon le semis pour une
+  écriture chez un voisin, et la création d'un cabinet échouait (reproduit sur
+  une base réelle avant correction).
 
 - **Le dossier de l'éditeur ne se coupe jamais** · `TypeLicence.PROPRIETAIRE`.
   C'est un verrou de sûreté avant d'être une formule commerciale : VMG

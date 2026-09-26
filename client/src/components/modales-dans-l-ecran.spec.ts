@@ -74,6 +74,44 @@ describe('Toute modale reste dans l’écran', () => {
     }
   });
 
+  it('TOUTE MODALE PASSE PAR LE PORTAIL · posée dans une fenêtre, elle passe sous le chrome', () => {
+    /*
+      QUATRIÈME CAUSE, RELEVÉE PAR MANASSE SUR LA CONSOLE (2026-09-26) · « la
+      fenêtre qui apparaît s'éclipse ». Une fenêtre est positionnée et porte
+      un z-index : elle fait CONTEXTE D'EMPILEMENT, et le z-40 d'une modale
+      rendue dedans ne vaut que DANS elle. Mesuré au navigateur (1280 × 720) ·
+      la même modale posée dans une fenêtre a son haut sous la barre de titre
+      de l'application et son bas sous la barre d'état ; portée dans le
+      <body>, elle est visible de bout en bout. Le portail n'est donc pas une
+      précaution réservée à la barre floutée · c'est la règle de toute modale.
+    */
+    const manquants: string[] = [];
+    for (const chemin of fichiersTsx(RACINE)) {
+      if (chemin.endsWith('PortailModale.tsx')) continue;
+      const texte = readFileSync(chemin, 'utf8');
+      const nbVoiles = texte.split('fixed inset-0').length - 1;
+      if (nbVoiles === 0) continue;
+      // Chaque voile est le premier enfant d'un portail · on compte les
+      // ouvertures suivies, au plus proche, d'un voile.
+      const portes = (texte.match(/<PortailModale>\s*<\w+[^>]*?fixed inset-0/g) ?? []).length;
+      if (portes < nbVoiles) manquants.push(`${chemin.replace(RACINE + '/', '')} · ${nbVoiles - portes} voile(s) hors portail`);
+    }
+    expect(manquants).toEqual([]);
+  });
+
+  it('`100dvh` n’est jamais écrit sans son repli `modale-bornee`', () => {
+    const fautifs: string[] = [];
+    for (const chemin of fichiersTsx(RACINE)) {
+      readFileSync(chemin, 'utf8')
+        .split('\n')
+        .forEach((l, i) => {
+          const commentaire = /^\s*(\/\/|\*|\/\*)/.test(l);
+          if (!commentaire && l.includes('max-h-[calc(100dvh-2rem)]') && !l.includes('modale-bornee')) fautifs.push(`${chemin.replace(RACINE + '/', '')}:${i + 1}`);
+        });
+    }
+    expect(fautifs).toEqual([]);
+  });
+
   it('la calculette passe par le PORTAIL · sa barre d’appel est floutée', () => {
     // `backdrop-blur-md` sur la barre de menus fait d'elle le bloc conteneur
     // des descendants `fixed`. Le portail rend la modale indépendante de

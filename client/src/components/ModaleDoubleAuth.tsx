@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError, setCsrf } from '../lib/api';
 import { cleLisible } from '../lib/double-auth';
+import { PortailModale } from './PortailModale';
 
 interface Etat {
   active: boolean;
@@ -77,93 +78,95 @@ export function ModaleDoubleAuth({ onFermer }: { onFermer: () => void }) {
 
   const champ = 'border border-border px-2 py-[3px]';
   return (
-    <div className="fixed inset-0 z-50 bg-black/35 flex items-center justify-center p-4" onClick={onFermer}>
-      <div
-        className="anim-modale w-[460px] max-h-full overflow-auto rounded-[4px] bg-surface border border-border-dark shadow-dominante text-[11.5px]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-3.5 h-[32px] border-b border-border">
-          <span className="font-bold">Double authentification</span>
-          <button type="button" onClick={onFermer} aria-label="Fermer">
-            ✕
-          </button>
-        </div>
-        <div className="p-3 space-y-2">
-          {erreur && <div className="text-danger bg-danger-soft border border-danger/30 px-3 py-2">{erreur}</div>}
-
-          {codesSecours && (
-            <div className="border border-warning/40 bg-warning-soft px-3 py-2 space-y-1">
-              <div className="font-semibold">Codes de secours · notez-les maintenant, ils ne s’afficheront plus.</div>
-              <div>Chacun remplace une fois le code du téléphone, si celui-ci est perdu.</div>
-              <ul className="grid grid-cols-2 gap-x-4 font-mono">
-                {codesSecours.map((c) => (
-                  <li key={c}>{c}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {etat && !etat.active && !cle && (
-            <>
-              <div>{etat.exigeePourLaConsole ? 'Non active · la console des cabinets l’exige.' : 'Non active.'}</div>
-              <div className="flex justify-end">
-                <button type="button" onClick={commencer} disabled={envoi} className="bg-sel text-white font-semibold px-4 py-1.5 disabled:opacity-40">
-                  Activer
-                </button>
+    <PortailModale>
+      <div className="fixed inset-0 z-50 bg-black/35 flex items-center justify-center p-4" onClick={onFermer}>
+        <div
+          className="anim-modale w-[460px] max-h-full overflow-auto rounded-[4px] bg-surface border border-border-dark shadow-dominante text-[11.5px]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between px-3.5 h-[32px] border-b border-border">
+            <span className="font-bold">Double authentification</span>
+            <button type="button" onClick={onFermer} aria-label="Fermer">
+              ✕
+            </button>
+          </div>
+          <div className="p-3 space-y-2">
+            {erreur && <div className="text-danger bg-danger-soft border border-danger/30 px-3 py-2">{erreur}</div>}
+  
+            {codesSecours && (
+              <div className="border border-warning/40 bg-warning-soft px-3 py-2 space-y-1">
+                <div className="font-semibold">Codes de secours · notez-les maintenant, ils ne s’afficheront plus.</div>
+                <div>Chacun remplace une fois le code du téléphone, si celui-ci est perdu.</div>
+                <ul className="grid grid-cols-2 gap-x-4 font-mono">
+                  {codesSecours.map((c) => (
+                    <li key={c}>{c}</li>
+                  ))}
+                </ul>
               </div>
-            </>
-          )}
-
-          {cle && (
-            <form onSubmit={activer} className="space-y-2">
-              <div>Dans l’application d’authentification du téléphone, ajoutez un compte avec cette clé :</div>
-              <div className="font-mono text-[13px] tracking-wide select-all break-all">{cleLisible(cle.secret)}</div>
-              <a href={cle.uri} className="text-sel underline">
-                Ouvrir dans l’application (sur le téléphone)
-              </a>
-              <label className="flex flex-col gap-0.5">
-                <span className="text-text-dim">Code affiché par l’application</span>
-                <input inputMode="numeric" autoComplete="one-time-code" required value={code} onChange={(e) => setCode(e.target.value)} className={champ} />
-              </label>
-              <div className="flex justify-end">
-                <button type="submit" disabled={envoi} className="bg-sel text-white font-semibold px-4 py-1.5 disabled:opacity-40">
-                  Confirmer
-                </button>
-              </div>
-            </form>
-          )}
-
-          {etat?.active && (
-            <>
-              <div>
-                Active depuis le {etat.depuis ? new Date(etat.depuis).toLocaleDateString('fr-FR') : '·'} · {etat.codesSecoursRestants} code(s) de secours restant(s).
-              </div>
-              <form onSubmit={renouveler} className="flex items-end gap-2">
-                <label className="flex flex-col gap-0.5 flex-1">
-                  <span className="text-text-dim">Code (téléphone ou secours)</span>
-                  <input required value={code} onChange={(e) => setCode(e.target.value)} className={champ} />
+            )}
+  
+            {etat && !etat.active && !cle && (
+              <>
+                <div>{etat.exigeePourLaConsole ? 'Non active · la console des cabinets l’exige.' : 'Non active.'}</div>
+                <div className="flex justify-end">
+                  <button type="button" onClick={commencer} disabled={envoi} className="bg-sel text-white font-semibold px-4 py-1.5 disabled:opacity-40">
+                    Activer
+                  </button>
+                </div>
+              </>
+            )}
+  
+            {cle && (
+              <form onSubmit={activer} className="space-y-2">
+                <div>Dans l’application d’authentification du téléphone, ajoutez un compte avec cette clé :</div>
+                <div className="font-mono text-[13px] tracking-wide select-all break-all">{cleLisible(cle.secret)}</div>
+                <a href={cle.uri} className="text-sel underline">
+                  Ouvrir dans l’application (sur le téléphone)
+                </a>
+                <label className="flex flex-col gap-0.5">
+                  <span className="text-text-dim">Code affiché par l’application</span>
+                  <input inputMode="numeric" autoComplete="one-time-code" required value={code} onChange={(e) => setCode(e.target.value)} className={champ} />
                 </label>
-                <button type="submit" disabled={envoi} className="border border-border-dark px-3 py-1 disabled:opacity-40">
-                  Nouveaux codes de secours
-                </button>
+                <div className="flex justify-end">
+                  <button type="submit" disabled={envoi} className="bg-sel text-white font-semibold px-4 py-1.5 disabled:opacity-40">
+                    Confirmer
+                  </button>
+                </div>
               </form>
-              <form onSubmit={retirer} className="flex items-end gap-2 border-t border-border pt-2">
-                <label className="flex flex-col gap-0.5 flex-1">
-                  <span className="text-text-dim">Mot de passe actuel</span>
-                  <input type="password" required value={motDePasse} onChange={(e) => setMotDePasse(e.target.value)} className={champ} />
-                </label>
-                <label className="flex flex-col gap-0.5 w-[110px]">
-                  <span className="text-text-dim">Code</span>
-                  <input required value={codeRetrait} onChange={(e) => setCodeRetrait(e.target.value)} className={champ} />
-                </label>
-                <button type="submit" disabled={envoi} className="text-danger border border-danger/40 px-3 py-1 disabled:opacity-40">
-                  Retirer
-                </button>
-              </form>
-            </>
-          )}
+            )}
+  
+            {etat?.active && (
+              <>
+                <div>
+                  Active depuis le {etat.depuis ? new Date(etat.depuis).toLocaleDateString('fr-FR') : '·'} · {etat.codesSecoursRestants} code(s) de secours restant(s).
+                </div>
+                <form onSubmit={renouveler} className="flex items-end gap-2">
+                  <label className="flex flex-col gap-0.5 flex-1">
+                    <span className="text-text-dim">Code (téléphone ou secours)</span>
+                    <input required value={code} onChange={(e) => setCode(e.target.value)} className={champ} />
+                  </label>
+                  <button type="submit" disabled={envoi} className="border border-border-dark px-3 py-1 disabled:opacity-40">
+                    Nouveaux codes de secours
+                  </button>
+                </form>
+                <form onSubmit={retirer} className="flex items-end gap-2 border-t border-border pt-2">
+                  <label className="flex flex-col gap-0.5 flex-1">
+                    <span className="text-text-dim">Mot de passe actuel</span>
+                    <input type="password" required value={motDePasse} onChange={(e) => setMotDePasse(e.target.value)} className={champ} />
+                  </label>
+                  <label className="flex flex-col gap-0.5 w-[110px]">
+                    <span className="text-text-dim">Code</span>
+                    <input required value={codeRetrait} onChange={(e) => setCodeRetrait(e.target.value)} className={champ} />
+                  </label>
+                  <button type="submit" disabled={envoi} className="text-danger border border-danger/40 px-3 py-1 disabled:opacity-40">
+                    Retirer
+                  </button>
+                </form>
+              </>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </PortailModale>
   );
 }

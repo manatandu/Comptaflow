@@ -1,6 +1,6 @@
 import { ActionAudit, Prisma, PrismaClient } from '@prisma/client';
 import { Logger } from '@nestjs/common';
-import { acteurCourant, ACTEUR_SYSTEME } from './contexte-audit';
+import { acteurCourant, ACTEUR_SYSTEME, transactionAuditee } from './contexte-audit';
 import { MODELES_AUDITES, colonnesExclues, masquer } from './champs-audites';
 import { calculerEmpreinte, EMPREINTE_ORIGINE } from './empreinte-audit';
 
@@ -70,6 +70,18 @@ export function selectPreImage(model: string): { select?: Record<string, true> }
  * empreinte, ce qui permet de rattacher plus tard une copie qui circule à
  * l'acte qui l'a produite.
  */
+type EvenementAEcrire = {
+  tenantId: string | null;
+  acteurId: string | null;
+  acteurEmail: string;
+  adresseIp: string | null;
+  action: ActionAudit;
+  entite: string;
+  entiteId: string | null;
+  avant: unknown;
+  apres: unknown;
+};
+
 export async function ajouterMaillon(
   base: PrismaClient,
   evenement: {
@@ -84,7 +96,36 @@ export async function ajouterMaillon(
     apres: unknown;
   },
 ): Promise<{ rang: number; empreinte: string }> {
-  return base.$transaction(async (tx) => {
+  return base.$transaction((tx) => ecrireMaillon(tx as unknown as ClientMaillon, evenement, false));
+}
+
+type ClientMaillon = {
+  $executeRaw: (gabarit: TemplateStringsArray, ...valeurs: unknown[]) => Promise<number>;
+  $queryRaw: <T>(gabarit: TemplateStringsArray, ...valeurs: unknown[]) => Promise<T>;
+  evenementAudit: {
+    findFirst: (x: unknown) => Promise<{ rang: number; empreinte: string } | null>;
+    create: (x: unknown) => Promise<unknown>;
+  };
+};
+
+/**
+ * L'UNIQUE ÉCRIVAIN DE LA CHAÎNE · appelé soit dans une transaction courte
+ * ouverte pour lui (`ajouterMaillon`), soit dans la transaction de l'acte
+ * lui-même (`journaliserDansTransaction`).
+ *
+ * `lectureBrute` · le client d'une transaction d'acte porte les extensions,
+ * cloisonnement compris. Lu à travers lui depuis la console (session du
+ * dossier de l'éditeur), le dernier maillon du dossier qui naît serait tenu
+ * pour « inexistant », le rang repartirait à 1 et la contrainte d'unicité
+ * ferait échouer la création du dossier. La lecture passe alors en SQL brut,
+ * que les extensions de modèle ne voient pas.
+ */
+async function ecrireMaillon(
+  tx: ClientMaillon,
+  evenement: EvenementAEcrire,
+  lectureBrute: boolean,
+): Promise<{ rang: number; empreinte: string }> {
+  {
     const cle = evenement.tenantId ?? 'plateforme';
     // `$executeRaw` et NON `$queryRaw` · `pg_advisory_xact_lock` rend le type
     // `void`, que le moteur Prisma ne sait pas désérialiser en colonne · le
@@ -93,11 +134,18 @@ export async function ajouterMaillon(
     // `$executeRaw` ne lit aucune colonne, seulement un nombre de lignes.
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${cle}))`;
 
-    const precedent = await tx.evenementAudit.findFirst({
-      where: { tenantId: evenement.tenantId },
-      orderBy: { rang: 'desc' },
-      select: { rang: true, empreinte: true },
-    });
+    const precedent = lectureBrute
+      ? ((
+          await tx.$queryRaw<{ rang: number; empreinte: string }[]>`
+            SELECT rang, empreinte FROM evenements_audit
+            WHERE "tenantId" IS NOT DISTINCT FROM ${evenement.tenantId}::text
+            ORDER BY rang DESC LIMIT 1`
+        )[0] ?? null)
+      : await tx.evenementAudit.findFirst({
+          where: { tenantId: evenement.tenantId },
+          orderBy: { rang: 'desc' },
+          select: { rang: true, empreinte: true },
+        });
 
     const rang = (precedent?.rang ?? 0) + 1;
     const empreintePrecedente = precedent?.empreinte ?? EMPREINTE_ORIGINE;
@@ -122,7 +170,13 @@ export async function ajouterMaillon(
       },
     });
     return { rang, empreinte };
-  });
+  }
+}
+
+class ErreurMaillonDansTransaction extends Error {
+  constructor(model: string, operation: string, cause: unknown) {
+    super(`Maillon d'audit NON écrit dans la transaction · ${model}.${operation} · ${cause instanceof Error ? cause.message : cause}`);
+  }
 }
 
 /** L'identifiant de la ligne touchée, quand l'opération en désigne une seule. */
@@ -135,7 +189,17 @@ function identifiant(resultat: unknown, args: { where?: Record<string, unknown> 
 }
 
 /** Le dossier touché · celui de la ligne si elle le porte, sinon celui de l'acteur. */
-function dossier(avant: unknown, apres: unknown, secours: string | null): string | null {
+function dossier(model: string, avant: unknown, apres: unknown, secours: string | null): string | null {
+  // LE DOSSIER EST SA PROPRE CHAÎNE · sa création en est le premier maillon.
+  // Rangée sous le dossier de l'acteur, la création d'un cabinet depuis la
+  // console irait grossir la chaîne de l'éditeur, et celle du cabinet
+  // commencerait sans dire d'où il vient.
+  if (model === 'Tenant') {
+    for (const source of [apres, avant]) {
+      const s = source as { id?: unknown } | null;
+      if (s && typeof s === 'object' && typeof s.id === 'string') return s.id;
+    }
+  }
   for (const source of [apres, avant]) {
     const s = source as { tenantId?: unknown; id?: unknown } | null;
     if (s && typeof s === 'object' && typeof s.tenantId === 'string') return s.tenantId;
@@ -195,8 +259,8 @@ export async function intercepterEcriture(
     const apres = ['delete', 'deleteMany'].includes(operation) ? null : resultat;
     const estMasse = ['createMany', 'createManyAndReturn', 'updateMany', 'deleteMany'].includes(operation);
 
-    await ajouterMaillon(base, {
-      tenantId: dossier(avant, apres, acteur?.tenantId ?? null),
+    const evenement: EvenementAEcrire = {
+      tenantId: dossier(model, avant, apres, acteur?.tenantId ?? null),
       acteurId: acteur?.acteurId ?? null,
       acteurEmail: acteur?.acteurEmail ?? ACTEUR_SYSTEME,
       adresseIp: acteur?.adresseIp ?? null,
@@ -209,8 +273,21 @@ export async function intercepterEcriture(
       apres: estMasse
         ? masquer({ operation, filtre: a.where ?? null, resultat }, exclues)
         : masquer(apres, exclues),
-    });
+    };
+    const tx = transactionAuditee();
+    if (tx) {
+      // DANS LA TRANSACTION DE L'ACTE, une erreur n'est PAS avalée · une
+      // requête qui échoue invalide toute la transaction PostgreSQL, et la
+      // suite de l'acte tomberait de toute façon, sur un motif trompeur.
+      // Mieux vaut qu'elle tombe ici, en disant pourquoi.
+      await ecrireMaillon(tx as ClientMaillon, evenement, true).catch((erreur) => {
+        throw new ErreurMaillonDansTransaction(model, operation, erreur);
+      });
+    } else {
+      await ajouterMaillon(base, evenement);
+    }
   } catch (erreur) {
+    if (erreur instanceof ErreurMaillonDansTransaction) throw erreur;
     // CHOIX ASSUMÉ · l'opération métier a RÉUSSI à ce stade. Faire échouer la
     // requête ferait voir une erreur pour un acte accompli, et l'utilisateur
     // le rejouerait · une écriture en double vaut pire qu'un trou dans le

@@ -6,6 +6,7 @@ import { SymboleOmegaX } from '../components/chrome/Logo';
 import { Aide } from '../components/chrome/Aide';
 import type { AuthResponse, JeuEtatsFinanciersSycebnl, Referentiel, SystemeComptableSyscohada } from '../lib/types';
 import { LIBELLE_SYSTEME, SYSTEMES_SYSCOHADA } from '../lib/systemes-syscohada';
+import { PortailModale } from './PortailModale';
 
 /**
  * ÉTAPES NOMMÉES, et non numérotées · l'assistant de Sage pose UNE question
@@ -318,549 +319,551 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 anim-voile">
-      {/* Surface de marque, comme la porte d'ouverture · voir AuthPage. */}
-      <div className="w-full max-w-[700px] max-h-[calc(100dvh-2rem)] flex flex-col bg-surface border border-border rounded-[4px] overflow-hidden shadow-flottante anim-modale font-marque">
-        <div
-          className="h-[32px] flex items-center justify-between px-3 bg-surface text-text border-b border-border text-[11.5px]"
-        >
-          <div className="flex items-center gap-2">
-            <SymboleOmegaX taille={14} className="text-[var(--a-900)]" />
-            <span>Assistant de création de fichier comptable</span>
-          </div>
-          {!envoi && (
-            <button onClick={onClose} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c] text-[11.5px]">
-              ✕
-            </button>
-          )}
-        </div>
-
-        {succes ? (
-          <div className="p-8 flex flex-col items-center text-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-positive-soft flex items-center justify-center">
-              <IconCheck width={22} height={22} className="text-positive" />
+    <PortailModale>
+      <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 anim-voile">
+        {/* Surface de marque, comme la porte d'ouverture · voir AuthPage. */}
+        <div className="w-full max-w-[700px] modale-bornee max-h-[calc(100dvh-2rem)] flex flex-col bg-surface border border-border rounded-[4px] overflow-hidden shadow-flottante anim-modale font-marque">
+          <div
+            className="h-[32px] flex items-center justify-between px-3 bg-surface text-text border-b border-border text-[11.5px]"
+          >
+            <div className="flex items-center gap-2">
+              <SymboleOmegaX taille={14} className="text-[var(--a-900)]" />
+              <span>Assistant de création de fichier comptable</span>
             </div>
-            <h2 className="text-[13px] font-bold">Dossier « {form.nomEntite} » créé</h2>
-            <p className="text-[11.5px] text-text-dim max-w-[440px]">
-              Le plan de comptes {form.referentiel} et l'exercice {new Date(form.dateDebutExercice).getFullYear()} sont
-              prêts.{' '}
-              {form.referentiel === 'SYCEBNL'
-                ? `Les états financiers seront ceux ${LIBELLE_JEU[form.jeuEtatsFinanciersSycebnl]}.`
-                : `Le dossier est tenu selon le ${LIBELLE_SYSTEME[form.systemeComptableSyscohada]}.`}
-            </p>
-            <button
-              onClick={() => (onTermine ? onTermine() : onClose())}
-              className="mt-2 bg-sel text-white text-[12px] font-semibold px-6 py-2 rounded-[3px] hover:brightness-110"
-            >
-              Compléter l'identification
-            </button>
+            {!envoi && (
+              <button onClick={onClose} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c] text-[11.5px]">
+                ✕
+              </button>
+            )}
           </div>
-        ) : (
-          <div className="flex flex-1 min-h-0">
-            <div
-              className="w-[172px] flex-shrink-0 p-4 overflow-y-auto bg-chrome border-r border-border"
-            >
-              <div className="text-[11.5px] font-bold text-text mb-4 leading-snug">Nouveau dossier</div>
-              {etapes.map((c, i) => (
-                <div key={c} className="flex items-center gap-2 py-1">
-                  <span
-                    className={`w-[18px] h-[18px] rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0 ${
-                      i < rang
-                        ? 'bg-sel text-white'
-                        : i === rang
-                          ? 'border-2 border-sel text-sel'
-                          : 'border border-border-dark text-text-dim'
-                    }`}
-                  >
-                    {i < rang ? '✓' : i + 1}
-                  </span>
-                  <span className={`text-[11.5px] ${i === rang ? 'text-text font-semibold' : 'text-text-dim'}`}>
-                    {LIBELLE_ETAPE[c]}
-                  </span>
-                </div>
-              ))}
+  
+          {succes ? (
+            <div className="p-8 flex flex-col items-center text-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-positive-soft flex items-center justify-center">
+                <IconCheck width={22} height={22} className="text-positive" />
+              </div>
+              <h2 className="text-[13px] font-bold">Dossier « {form.nomEntite} » créé</h2>
+              <p className="text-[11.5px] text-text-dim max-w-[440px]">
+                Le plan de comptes {form.referentiel} et l'exercice {new Date(form.dateDebutExercice).getFullYear()} sont
+                prêts.{' '}
+                {form.referentiel === 'SYCEBNL'
+                  ? `Les états financiers seront ceux ${LIBELLE_JEU[form.jeuEtatsFinanciersSycebnl]}.`
+                  : `Le dossier est tenu selon le ${LIBELLE_SYSTEME[form.systemeComptableSyscohada]}.`}
+              </p>
+              <button
+                onClick={() => (onTermine ? onTermine() : onClose())}
+                className="mt-2 bg-sel text-white text-[12px] font-semibold px-6 py-2 rounded-[3px] hover:brightness-110"
+              >
+                Compléter l'identification
+              </button>
             </div>
-
-            <form
-              onSubmit={
-                derniereEtape
-                  ? onTerminer
-                  : (e) => {
-                      e.preventDefault();
-                      suivant();
-                    }
-              }
-              className="flex-1 flex flex-col min-w-0"
-            >
-              {/* HAUTEUR DISPONIBLE, ET NON HAUTEUR FIGÉE · la boîte
-                  valait auparavant `h-[400px] max-h-[55dvh]`, ce qui la
-                  ramenait à ~305 px sur un portable de 554 px de haut : les
-                  écrans à choix étaient coupés en deux et il fallait
-                  descendre pour voir la dernière option, celle qu'on venait
-                  justement de proposer. `flex-1 min-h-0` lui fait prendre
-                  tout ce que la modale laisse entre l'en-tête et les
-                  boutons ; `overflow-y-auto` ne sert plus que de filet sur
-                  un écran vraiment court.
-
-                  Le PLANCHER, lui, sert la stabilité : sans lui la boîte
-                  épouserait chaque écran (270 px ici, 343 px là) et la
-                  rangée de boutons sauterait à chaque « Suivant ». Il est
-                  calé au-dessus du plus haut des seize écrans, et cède
-                  devant la hauteur réelle de la fenêtre pour ne jamais
-                  pousser les boutons hors de vue sur un portable court. */}
-              <div className="p-5 flex-1 min-h-[min(400px,calc(100dvh-15rem))] overflow-y-auto">
-                {cle === 'referentiel' && (
-                  <>
-                    <h2 className="text-[13px] font-bold mb-1 flex items-center gap-1.5">
-                      Indiquez le référentiel comptable de l'entité
-                      {/*
-                        PAS `sujet="jeuEtats"` ICI · cette entrée n'explique que
-                        l'article 4 du SYCEBNL (35 notes pour une association,
-                        24 pour un projet), et la bulle est posée AVANT le
-                        choix, donc aussi devant qui crée un dossier SYSCOHADA.
-                        Le lexique s'aiguille sur le référentiel du dossier
-                        OUVERT · il n'y en a pas encore.
-                      */}
-                      <Aide
-                        titre="Référentiel comptable"
-                        texte="Le SYCEBNL vise les entités à but non lucratif au sens de son article 2 : celles qui poursuivent un but désintéressé et dont les ressources servent au fonctionnement et à la réalisation de leur objet social · associations, ordres professionnels, entités gérant un projet de développement. Le SYSCOHADA révisé vise les entités de l'article 2 de l'AUDCIF, qui exercent des activités économiques fondées sur des actes répétitifs. Le choix commande le plan de comptes semé et la présentation des états financiers, et ne se refait pas ensuite · pour l'autre référentiel, on ouvre un autre dossier."
-                        source="SYCEBNL, art. premier et 2 · AUDCIF, art. 2 et 5"
-                      />
-                    </h2>
-                    {/* Le plan de comptes est SEMÉ à la création (voir le
-                        commentaire de REFERENTIELS) et aucun écran ne re-sème
-                        un dossier · la bulle le dit, « modifiable plus tard »
-                        serait faux. */}
-                    <div className="flex flex-col gap-1.5 mt-2.5">
-                      {REFERENTIELS.map((r) => {
-                        const actif = r.disponible && form.referentiel === r.valeur;
-                        return (
-                          <label
-                            key={r.valeur}
-                            className={`flex items-start gap-2.5 rounded-[4px] border p-2.5 transition-colors ${
-                              !r.disponible
-                                ? 'border-border bg-chrome-alt opacity-60 cursor-not-allowed'
-                                : actif
-                                  ? 'border-sel bg-sel-soft cursor-pointer'
-                                  : 'border-border hover:border-sel/50 cursor-pointer'
-                            }`}
-                          >
-                            <input
-                              type="radio"
-                              name="referentiel"
-                              className="mt-0.5"
-                              disabled={!r.disponible}
-                              checked={actif}
-                              onChange={() => r.disponible && majer('referentiel', r.valeur)}
-                            />
-                            <span className="min-w-0">
-                              <span className="block text-[11.5px] font-semibold flex items-center gap-1.5">
-                                {r.titre}
-                                <span className="text-[11.5px] font-normal text-text-dim">{r.sousTitre}</span>
-                                {!r.disponible && (
-                                  <span className="text-[11px] font-semibold text-warning">bientôt</span>
-                                )}
-                              </span>
-                              <span className="block text-[11.5px] text-text-dim leading-[1.45] mt-0.5">
-                                {r.description}
-                              </span>
-                            </span>
-                          </label>
-                        );
-                      })}
-                    </div>
-
-                  </>
-                )}
-
-                {/* UN SEUL écran pour les deux référentiels · il change de
-                    liste, pas de forme. Le SYCEBNL y pose ses trois jeux
-                    d'états (art. 4 à 6), le SYSCOHADA ses deux systèmes
-                    (AUDCIF art. 11 et 13) · dans les deux cas le choix est
-                    encadré par un seuil, et l'écran donne le seuil. */}
-                {cle === 'systeme' && (
-                  <>
-                    <h2 className="text-[13px] font-bold mb-1 flex items-center gap-1.5">
-                      {form.referentiel === 'SYCEBNL'
-                        ? "Choisissez le jeu d'états financiers"
-                        : 'Choisissez le système comptable'}
-                      <Aide sujet={form.referentiel === 'SYCEBNL' ? 'jeuEtats' : 'systemeSyscohada'} />
-                      <Aide
-                        titre="Verrouillage"
-                        texte={
-                          form.referentiel === 'SYCEBNL'
-                            ? 'Le SYCEBNL en prévoit trois. Ce choix commande la présentation de toute la liasse et se verrouille à la première écriture.'
-                            : "L'AUDCIF en admet deux. Ce choix se verrouille à la première écriture."
-                        }
-                        source={form.referentiel === 'SYCEBNL' ? 'SYCEBNL, art. 4 à 6' : 'AUDCIF, art. 11'}
-                      />
-                    </h2>
-                    <div className="flex flex-col gap-1.5 mt-2.5">
-                      {form.referentiel === 'SYCEBNL'
-                        ? TYPES_ENTITE.map((t) => {
-                            const actif = form.jeuEtatsFinanciersSycebnl === t.valeur;
-                            return (
-                              <label
-                                key={t.valeur}
-                                className={`flex items-start gap-2.5 rounded-[4px] border p-2.5 cursor-pointer transition-colors ${
-                                  actif ? 'border-sel bg-sel-soft' : 'border-border hover:border-sel/50'
-                                }`}
-                              >
-                                <input
-                                  type="radio"
-                                  name="typeEntite"
-                                  className="mt-0.5"
-                                  checked={actif}
-                                  onChange={() => majer('jeuEtatsFinanciersSycebnl', t.valeur)}
-                                />
-                                <span className="min-w-0">
-                                  <span className="block text-[11.5px] font-semibold">{t.titre}</span>
-                                  <span className="block text-[11.5px] text-text-dim leading-[1.45] mt-0.5">
-                                    {t.description}
-                                  </span>
-                                </span>
-                              </label>
-                            );
-                          })
-                        : SYSTEMES_SYSCOHADA.map((t) => {
-                            const actif = form.systemeComptableSyscohada === t.valeur;
-                            return (
-                              <label
-                                key={t.valeur}
-                                className={`flex items-start gap-2.5 rounded-[4px] border p-2.5 cursor-pointer transition-colors ${
-                                  actif ? 'border-sel bg-sel-soft' : 'border-border hover:border-sel/50'
-                                }`}
-                              >
-                                <input
-                                  type="radio"
-                                  name="systemeSyscohada"
-                                  className="mt-0.5"
-                                  checked={actif}
-                                  onChange={() => majer('systemeComptableSyscohada', t.valeur)}
-                                />
-                                <span className="min-w-0">
-                                  <span className="block text-[11.5px] font-semibold">{t.titre}</span>
-                                  <span className="block text-[11.5px] text-text-dim leading-[1.45] mt-0.5">
-                                    {t.description}
-                                  </span>
-                                </span>
-                              </label>
-                            );
-                          })}
-                    </div>
-                    {/* Le régime allégé est un DROIT sous condition, pas une
-                        option de confort · le dire au moment où on le coche,
-                        dans les deux référentiels. */}
-                    {((form.referentiel === 'SYCEBNL' &&
-                      form.jeuEtatsFinanciersSycebnl === 'SYSTEME_MINIMAL_TRESORERIE') ||
-                      (form.referentiel === 'SYSCOHADA' &&
-                        form.systemeComptableSyscohada === 'MINIMAL_TRESORERIE')) && (
-                      <p className="mt-2 text-[11.5px] text-warning bg-warning-soft border border-warning/30 rounded-[3px] px-2.5 py-1.5 leading-[1.5]">
-                        Le Système minimal de trésorerie est une exception liée à la taille. C'est à l'entité de
-                        vérifier qu'elle reste sous le seuil, exercice après exercice.
-                      </p>
-                    )}
-                  </>
-                )}
-
-                {cle === 'raisonSociale' && (
-                  <>
-                    <h2 className="text-[13px] font-bold mb-3 flex items-center gap-1.5">
-                      Indiquez la dénomination de l'entité
-                      <Aide
-                        titre="Dénomination"
-                        texte="Telle qu'elle figure aux statuts : elle sera portée en tête de chaque état imprimé, et c'est sous ce nom que le dossier s'ouvrira."
-                        source="Assistant de création"
-                      />
-                    </h2>
-                    <input
-                      autoFocus
-                      value={form.nomEntite}
-                      onChange={(e) => majer('nomEntite', e.target.value)}
-                      // L'AUSCGIE art. 17 veut la dénomination suivie de
-                      // l'indication de la forme : proposer « asbl » à une
-                      // SARL n'est pas seulement dépaysant, c'est faux.
-                      placeholder={form.referentiel === 'SYSCOHADA' ? 'Kivu Négoce SARL' : 'Espoir pour Tous asbl'}
-                      className={champ}
-                    />
-                  </>
-                )}
-
-                {cle === 'coordonnees' && (
-                  <>
-                    <h2 className="text-[13px] font-bold mb-1.5 flex items-center gap-1.5">
-                      Renseignez l'identification du dossier
-                      <Aide
-                        titre="Identification"
-                        texte="Tout est facultatif ici, et se corrige ensuite dans Structure > Paramètres du dossier · l'adresse, la ville et le pays composent l'adresse imprimée en tête de chaque état financier."
-                        source="Assistant de création"
-                      />
-                    </h2>
-                    {/* Le nom saisi à l'écran précédent · chez Sage « Renseignez
-                        la fiche Identification de la société DDZCZ ». Le
-                        logiciel montre qu'il a retenu. */}
-                    <div className="text-[11.5px] text-text-dim mb-4">
-                      {form.nomEntite ? <strong className="text-text">{form.nomEntite}</strong> : "l'entité"}
-                    </div>
-
-                    <Ligne label="Activité" large>
-                      <input value={form.activite} onChange={(e) => majer('activite', e.target.value)} className={champ} />
-                    </Ligne>
-                    <Ligne label="Adresse" large>
-                      <input value={form.adresse} onChange={(e) => majer('adresse', e.target.value)} className={champ} />
-                    </Ligne>
-                    <Ligne label="Ville / Pays" large>
-                      <div className="flex gap-2">
-                        <input
-                          value={form.ville}
-                          onChange={(e) => majer('ville', e.target.value)}
-                          className={champ}
-                          placeholder="Kinshasa"
+          ) : (
+            <div className="flex flex-1 min-h-0">
+              <div
+                className="w-[172px] flex-shrink-0 p-4 overflow-y-auto bg-chrome border-r border-border"
+              >
+                <div className="text-[11.5px] font-bold text-text mb-4 leading-snug">Nouveau dossier</div>
+                {etapes.map((c, i) => (
+                  <div key={c} className="flex items-center gap-2 py-1">
+                    <span
+                      className={`w-[18px] h-[18px] rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0 ${
+                        i < rang
+                          ? 'bg-sel text-white'
+                          : i === rang
+                            ? 'border-2 border-sel text-sel'
+                            : 'border border-border-dark text-text-dim'
+                      }`}
+                    >
+                      {i < rang ? '✓' : i + 1}
+                    </span>
+                    <span className={`text-[11.5px] ${i === rang ? 'text-text font-semibold' : 'text-text-dim'}`}>
+                      {LIBELLE_ETAPE[c]}
+                    </span>
+                  </div>
+                ))}
+              </div>
+  
+              <form
+                onSubmit={
+                  derniereEtape
+                    ? onTerminer
+                    : (e) => {
+                        e.preventDefault();
+                        suivant();
+                      }
+                }
+                className="flex-1 flex flex-col min-w-0"
+              >
+                {/* HAUTEUR DISPONIBLE, ET NON HAUTEUR FIGÉE · la boîte
+                    valait auparavant `h-[400px] max-h-[55dvh]`, ce qui la
+                    ramenait à ~305 px sur un portable de 554 px de haut : les
+                    écrans à choix étaient coupés en deux et il fallait
+                    descendre pour voir la dernière option, celle qu'on venait
+                    justement de proposer. `flex-1 min-h-0` lui fait prendre
+                    tout ce que la modale laisse entre l'en-tête et les
+                    boutons ; `overflow-y-auto` ne sert plus que de filet sur
+                    un écran vraiment court.
+  
+                    Le PLANCHER, lui, sert la stabilité : sans lui la boîte
+                    épouserait chaque écran (270 px ici, 343 px là) et la
+                    rangée de boutons sauterait à chaque « Suivant ». Il est
+                    calé au-dessus du plus haut des seize écrans, et cède
+                    devant la hauteur réelle de la fenêtre pour ne jamais
+                    pousser les boutons hors de vue sur un portable court. */}
+                <div className="p-5 flex-1 min-h-[min(400px,calc(100dvh-15rem))] overflow-y-auto">
+                  {cle === 'referentiel' && (
+                    <>
+                      <h2 className="text-[13px] font-bold mb-1 flex items-center gap-1.5">
+                        Indiquez le référentiel comptable de l'entité
+                        {/*
+                          PAS `sujet="jeuEtats"` ICI · cette entrée n'explique que
+                          l'article 4 du SYCEBNL (35 notes pour une association,
+                          24 pour un projet), et la bulle est posée AVANT le
+                          choix, donc aussi devant qui crée un dossier SYSCOHADA.
+                          Le lexique s'aiguille sur le référentiel du dossier
+                          OUVERT · il n'y en a pas encore.
+                        */}
+                        <Aide
+                          titre="Référentiel comptable"
+                          texte="Le SYCEBNL vise les entités à but non lucratif au sens de son article 2 : celles qui poursuivent un but désintéressé et dont les ressources servent au fonctionnement et à la réalisation de leur objet social · associations, ordres professionnels, entités gérant un projet de développement. Le SYSCOHADA révisé vise les entités de l'article 2 de l'AUDCIF, qui exercent des activités économiques fondées sur des actes répétitifs. Le choix commande le plan de comptes semé et la présentation des états financiers, et ne se refait pas ensuite · pour l'autre référentiel, on ouvre un autre dossier."
+                          source="SYCEBNL, art. premier et 2 · AUDCIF, art. 2 et 5"
                         />
-                        <input value={form.pays} onChange={(e) => majer('pays', e.target.value)} className={champ} />
+                      </h2>
+                      {/* Le plan de comptes est SEMÉ à la création (voir le
+                          commentaire de REFERENTIELS) et aucun écran ne re-sème
+                          un dossier · la bulle le dit, « modifiable plus tard »
+                          serait faux. */}
+                      <div className="flex flex-col gap-1.5 mt-2.5">
+                        {REFERENTIELS.map((r) => {
+                          const actif = r.disponible && form.referentiel === r.valeur;
+                          return (
+                            <label
+                              key={r.valeur}
+                              className={`flex items-start gap-2.5 rounded-[4px] border p-2.5 transition-colors ${
+                                !r.disponible
+                                  ? 'border-border bg-chrome-alt opacity-60 cursor-not-allowed'
+                                  : actif
+                                    ? 'border-sel bg-sel-soft cursor-pointer'
+                                    : 'border-border hover:border-sel/50 cursor-pointer'
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name="referentiel"
+                                className="mt-0.5"
+                                disabled={!r.disponible}
+                                checked={actif}
+                                onChange={() => r.disponible && majer('referentiel', r.valeur)}
+                              />
+                              <span className="min-w-0">
+                                <span className="block text-[11.5px] font-semibold flex items-center gap-1.5">
+                                  {r.titre}
+                                  <span className="text-[11.5px] font-normal text-text-dim">{r.sousTitre}</span>
+                                  {!r.disponible && (
+                                    <span className="text-[11px] font-semibold text-warning">bientôt</span>
+                                  )}
+                                </span>
+                                <span className="block text-[11.5px] text-text-dim leading-[1.45] mt-0.5">
+                                  {r.description}
+                                </span>
+                              </span>
+                            </label>
+                          );
+                        })}
                       </div>
-                    </Ligne>
-
-                    <SectionTitre>Télécommunication</SectionTitre>
-                    <Ligne label="Téléphone">
+  
+                    </>
+                  )}
+  
+                  {/* UN SEUL écran pour les deux référentiels · il change de
+                      liste, pas de forme. Le SYCEBNL y pose ses trois jeux
+                      d'états (art. 4 à 6), le SYSCOHADA ses deux systèmes
+                      (AUDCIF art. 11 et 13) · dans les deux cas le choix est
+                      encadré par un seuil, et l'écran donne le seuil. */}
+                  {cle === 'systeme' && (
+                    <>
+                      <h2 className="text-[13px] font-bold mb-1 flex items-center gap-1.5">
+                        {form.referentiel === 'SYCEBNL'
+                          ? "Choisissez le jeu d'états financiers"
+                          : 'Choisissez le système comptable'}
+                        <Aide sujet={form.referentiel === 'SYCEBNL' ? 'jeuEtats' : 'systemeSyscohada'} />
+                        <Aide
+                          titre="Verrouillage"
+                          texte={
+                            form.referentiel === 'SYCEBNL'
+                              ? 'Le SYCEBNL en prévoit trois. Ce choix commande la présentation de toute la liasse et se verrouille à la première écriture.'
+                              : "L'AUDCIF en admet deux. Ce choix se verrouille à la première écriture."
+                          }
+                          source={form.referentiel === 'SYCEBNL' ? 'SYCEBNL, art. 4 à 6' : 'AUDCIF, art. 11'}
+                        />
+                      </h2>
+                      <div className="flex flex-col gap-1.5 mt-2.5">
+                        {form.referentiel === 'SYCEBNL'
+                          ? TYPES_ENTITE.map((t) => {
+                              const actif = form.jeuEtatsFinanciersSycebnl === t.valeur;
+                              return (
+                                <label
+                                  key={t.valeur}
+                                  className={`flex items-start gap-2.5 rounded-[4px] border p-2.5 cursor-pointer transition-colors ${
+                                    actif ? 'border-sel bg-sel-soft' : 'border-border hover:border-sel/50'
+                                  }`}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="typeEntite"
+                                    className="mt-0.5"
+                                    checked={actif}
+                                    onChange={() => majer('jeuEtatsFinanciersSycebnl', t.valeur)}
+                                  />
+                                  <span className="min-w-0">
+                                    <span className="block text-[11.5px] font-semibold">{t.titre}</span>
+                                    <span className="block text-[11.5px] text-text-dim leading-[1.45] mt-0.5">
+                                      {t.description}
+                                    </span>
+                                  </span>
+                                </label>
+                              );
+                            })
+                          : SYSTEMES_SYSCOHADA.map((t) => {
+                              const actif = form.systemeComptableSyscohada === t.valeur;
+                              return (
+                                <label
+                                  key={t.valeur}
+                                  className={`flex items-start gap-2.5 rounded-[4px] border p-2.5 cursor-pointer transition-colors ${
+                                    actif ? 'border-sel bg-sel-soft' : 'border-border hover:border-sel/50'
+                                  }`}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="systemeSyscohada"
+                                    className="mt-0.5"
+                                    checked={actif}
+                                    onChange={() => majer('systemeComptableSyscohada', t.valeur)}
+                                  />
+                                  <span className="min-w-0">
+                                    <span className="block text-[11.5px] font-semibold">{t.titre}</span>
+                                    <span className="block text-[11.5px] text-text-dim leading-[1.45] mt-0.5">
+                                      {t.description}
+                                    </span>
+                                  </span>
+                                </label>
+                              );
+                            })}
+                      </div>
+                      {/* Le régime allégé est un DROIT sous condition, pas une
+                          option de confort · le dire au moment où on le coche,
+                          dans les deux référentiels. */}
+                      {((form.referentiel === 'SYCEBNL' &&
+                        form.jeuEtatsFinanciersSycebnl === 'SYSTEME_MINIMAL_TRESORERIE') ||
+                        (form.referentiel === 'SYSCOHADA' &&
+                          form.systemeComptableSyscohada === 'MINIMAL_TRESORERIE')) && (
+                        <p className="mt-2 text-[11.5px] text-warning bg-warning-soft border border-warning/30 rounded-[3px] px-2.5 py-1.5 leading-[1.5]">
+                          Le Système minimal de trésorerie est une exception liée à la taille. C'est à l'entité de
+                          vérifier qu'elle reste sous le seuil, exercice après exercice.
+                        </p>
+                      )}
+                    </>
+                  )}
+  
+                  {cle === 'raisonSociale' && (
+                    <>
+                      <h2 className="text-[13px] font-bold mb-3 flex items-center gap-1.5">
+                        Indiquez la dénomination de l'entité
+                        <Aide
+                          titre="Dénomination"
+                          texte="Telle qu'elle figure aux statuts : elle sera portée en tête de chaque état imprimé, et c'est sous ce nom que le dossier s'ouvrira."
+                          source="Assistant de création"
+                        />
+                      </h2>
                       <input
-                        value={form.telephone}
-                        onChange={(e) => majer('telephone', e.target.value)}
+                        autoFocus
+                        value={form.nomEntite}
+                        onChange={(e) => majer('nomEntite', e.target.value)}
+                        // L'AUSCGIE art. 17 veut la dénomination suivie de
+                        // l'indication de la forme : proposer « asbl » à une
+                        // SARL n'est pas seulement dépaysant, c'est faux.
+                        placeholder={form.referentiel === 'SYSCOHADA' ? 'Kivu Négoce SARL' : 'Espoir pour Tous asbl'}
                         className={champ}
-                        placeholder="+243 …"
                       />
-                    </Ligne>
-                  </>
-                )}
-
-                {cle === 'exercice' && (
-                  <>
-                    <h2 className="text-[13px] font-bold mb-4 flex items-center gap-1.5">
-                      Définissez le premier exercice
-                      <Aide
-                        titre="Important !"
-                        texte="Les dates restent modifiables tant qu'aucune écriture n'est saisie. Après la première écriture, elles sont figées : le report à-nouveau et tous les états s'appuient dessus."
-                        source="Assistant de création"
-                      />
-                    </h2>
-
-                    <Ligne label="Date début d'exercice">
-                      <input
-                        type="date"
-                        value={form.dateDebutExercice}
-                        onChange={(e) => majer('dateDebutExercice', e.target.value)}
-                        className={`${champ} font-mono`}
-                      />
-                    </Ligne>
-                    <Ligne label="Date fin d'exercice">
-                      <input
-                        type="date"
-                        value={form.dateFinExercice}
-                        onChange={(e) => majer('dateFinExercice', e.target.value)}
-                        className={`${champ} font-mono`}
-                      />
-                    </Ligne>
-
-                  </>
-                )}
-
-                {cle === 'monnaie' && (
-                  <>
-                    <h2 className="text-[13px] font-bold mb-1.5 flex items-center gap-1.5">
-                      Identifiez la monnaie de tenue des comptes
-                      <Aide
-                        titre="Code de la monnaie"
-                        texte="Le code sur trois lettres est celui qui s'imprimera en tête des états financiers. Il ne se change plus une fois des écritures saisies."
-                        source="Norme ISO 4217"
-                      />
-                    </h2>
-                    <p className="text-[11.5px] text-text-dim leading-[1.6] mb-4">Vous tenez votre comptabilité en :</p>
-
-                    <div className="flex flex-col gap-2.5">
-                      <label className="flex items-center gap-2.5 text-[12px] cursor-pointer">
-                        <input
-                          type="radio"
-                          name="devise"
-                          checked={!autreDevise && form.devise === 'CDF'}
-                          onChange={() => {
-                            setAutreDevise(false);
-                            majer('devise', 'CDF');
-                          }}
+                    </>
+                  )}
+  
+                  {cle === 'coordonnees' && (
+                    <>
+                      <h2 className="text-[13px] font-bold mb-1.5 flex items-center gap-1.5">
+                        Renseignez l'identification du dossier
+                        <Aide
+                          titre="Identification"
+                          texte="Tout est facultatif ici, et se corrige ensuite dans Structure > Paramètres du dossier · l'adresse, la ville et le pays composent l'adresse imprimée en tête de chaque état financier."
+                          source="Assistant de création"
                         />
-                        Franc congolais (CDF)
-                      </label>
-                      <label className="flex items-center gap-2.5 text-[12px] cursor-pointer">
+                      </h2>
+                      {/* Le nom saisi à l'écran précédent · chez Sage « Renseignez
+                          la fiche Identification de la société DDZCZ ». Le
+                          logiciel montre qu'il a retenu. */}
+                      <div className="text-[11.5px] text-text-dim mb-4">
+                        {form.nomEntite ? <strong className="text-text">{form.nomEntite}</strong> : "l'entité"}
+                      </div>
+  
+                      <Ligne label="Activité" large>
+                        <input value={form.activite} onChange={(e) => majer('activite', e.target.value)} className={champ} />
+                      </Ligne>
+                      <Ligne label="Adresse" large>
+                        <input value={form.adresse} onChange={(e) => majer('adresse', e.target.value)} className={champ} />
+                      </Ligne>
+                      <Ligne label="Ville / Pays" large>
+                        <div className="flex gap-2">
+                          <input
+                            value={form.ville}
+                            onChange={(e) => majer('ville', e.target.value)}
+                            className={champ}
+                            placeholder="Kinshasa"
+                          />
+                          <input value={form.pays} onChange={(e) => majer('pays', e.target.value)} className={champ} />
+                        </div>
+                      </Ligne>
+  
+                      <SectionTitre>Télécommunication</SectionTitre>
+                      <Ligne label="Téléphone">
                         <input
-                          type="radio"
-                          name="devise"
-                          checked={!autreDevise && form.devise === 'USD'}
-                          onChange={() => {
-                            setAutreDevise(false);
-                            majer('devise', 'USD');
-                          }}
+                          value={form.telephone}
+                          onChange={(e) => majer('telephone', e.target.value)}
+                          className={champ}
+                          placeholder="+243 …"
                         />
-                        Dollar américain (USD)
-                      </label>
-
-                      {/* « Autre, à préciser » + champ adjacent, désactivé tant
-                          que l'option n'est pas retenue · exactement le motif
-                          de l'écran monnaie de Sage. */}
-                      <div className="flex items-center gap-2.5">
-                        <label className="flex items-center gap-2.5 text-[12px] cursor-pointer whitespace-nowrap">
+                      </Ligne>
+                    </>
+                  )}
+  
+                  {cle === 'exercice' && (
+                    <>
+                      <h2 className="text-[13px] font-bold mb-4 flex items-center gap-1.5">
+                        Définissez le premier exercice
+                        <Aide
+                          titre="Important !"
+                          texte="Les dates restent modifiables tant qu'aucune écriture n'est saisie. Après la première écriture, elles sont figées : le report à-nouveau et tous les états s'appuient dessus."
+                          source="Assistant de création"
+                        />
+                      </h2>
+  
+                      <Ligne label="Date début d'exercice">
+                        <input
+                          type="date"
+                          value={form.dateDebutExercice}
+                          onChange={(e) => majer('dateDebutExercice', e.target.value)}
+                          className={`${champ} font-mono`}
+                        />
+                      </Ligne>
+                      <Ligne label="Date fin d'exercice">
+                        <input
+                          type="date"
+                          value={form.dateFinExercice}
+                          onChange={(e) => majer('dateFinExercice', e.target.value)}
+                          className={`${champ} font-mono`}
+                        />
+                      </Ligne>
+  
+                    </>
+                  )}
+  
+                  {cle === 'monnaie' && (
+                    <>
+                      <h2 className="text-[13px] font-bold mb-1.5 flex items-center gap-1.5">
+                        Identifiez la monnaie de tenue des comptes
+                        <Aide
+                          titre="Code de la monnaie"
+                          texte="Le code sur trois lettres est celui qui s'imprimera en tête des états financiers. Il ne se change plus une fois des écritures saisies."
+                          source="Norme ISO 4217"
+                        />
+                      </h2>
+                      <p className="text-[11.5px] text-text-dim leading-[1.6] mb-4">Vous tenez votre comptabilité en :</p>
+  
+                      <div className="flex flex-col gap-2.5">
+                        <label className="flex items-center gap-2.5 text-[12px] cursor-pointer">
                           <input
                             type="radio"
                             name="devise"
-                            checked={autreDevise}
+                            checked={!autreDevise && form.devise === 'CDF'}
                             onChange={() => {
-                              setAutreDevise(true);
-                              majer('devise', '');
+                              setAutreDevise(false);
+                              majer('devise', 'CDF');
                             }}
                           />
-                          Autre, à préciser
+                          Franc congolais (CDF)
                         </label>
-                        <input
-                          value={autreDevise ? form.devise : ''}
-                          disabled={!autreDevise}
-                          onChange={(e) => majer('devise', e.target.value.toUpperCase().slice(0, 3))}
-                          placeholder="EUR"
-                          aria-label="Code de la monnaie"
-                          className={`${champ} w-[110px] font-mono uppercase disabled:bg-chrome disabled:text-text-dim`}
+                        <label className="flex items-center gap-2.5 text-[12px] cursor-pointer">
+                          <input
+                            type="radio"
+                            name="devise"
+                            checked={!autreDevise && form.devise === 'USD'}
+                            onChange={() => {
+                              setAutreDevise(false);
+                              majer('devise', 'USD');
+                            }}
+                          />
+                          Dollar américain (USD)
+                        </label>
+  
+                        {/* « Autre, à préciser » + champ adjacent, désactivé tant
+                            que l'option n'est pas retenue · exactement le motif
+                            de l'écran monnaie de Sage. */}
+                        <div className="flex items-center gap-2.5">
+                          <label className="flex items-center gap-2.5 text-[12px] cursor-pointer whitespace-nowrap">
+                            <input
+                              type="radio"
+                              name="devise"
+                              checked={autreDevise}
+                              onChange={() => {
+                                setAutreDevise(true);
+                                majer('devise', '');
+                              }}
+                            />
+                            Autre, à préciser
+                          </label>
+                          <input
+                            value={autreDevise ? form.devise : ''}
+                            disabled={!autreDevise}
+                            onChange={(e) => majer('devise', e.target.value.toUpperCase().slice(0, 3))}
+                            placeholder="EUR"
+                            aria-label="Code de la monnaie"
+                            className={`${champ} w-[110px] font-mono uppercase disabled:bg-chrome disabled:text-text-dim`}
+                          />
+                        </div>
+                      </div>
+  
+                    </>
+                  )}
+  
+                  {cle === 'reprise' && (
+                    <>
+                      <h2 className="text-[13px] font-bold mb-3 flex items-center gap-1.5">
+                        Reprise des éléments comptables
+                        <Aide
+                          titre="Modèle standard"
+                          texte={`Le dossier peut être créé à partir du modèle livré en standard. Vous n'aurez alors plus qu'à définir les éléments propres à votre entité ${
+                            form.referentiel === 'SYSCOHADA'
+                              ? '(tiers clients et fournisseurs, banques)'
+                              : '(tiers, bailleurs, banques)'
+                          } avant de saisir.`}
+                          source="Assistant de création"
                         />
+                      </h2>
+                      {/* La QUESTION, en toutes lettres, juste avant les options ·
+                          chez Sage « Souhaitez-vous créer votre fichier à partir
+                          du modèle standard ? ». Sans elle, trois phrases
+                          commençant par « Oui » ne répondent à rien de visible. */}
+                      <p className="text-[11.5px] text-text mb-3">
+                        Souhaitez-vous créer le dossier à partir du modèle standard ?
+                      </p>
+                      <div className="flex flex-col gap-2.5">
+                        <label className="flex items-start gap-2 text-[12px]">
+                          <input type="radio" checked readOnly className="mt-0.5" />
+                          <span>
+                            Oui, le dossier sera prêt à l'emploi : plan de comptes {form.referentiel} standard et
+                            exercice généré automatiquement
+                            <span className="block text-[11.5px] text-text-dim">
+                              (recommandé · c'est la seule option disponible pour l'instant)
+                            </span>
+                          </span>
+                        </label>
+                        <label className="flex items-start gap-2 text-[12px] text-text-dim opacity-60">
+                          <input type="radio" disabled className="mt-0.5" />
+                          <span>
+                            Oui, mais avec une sélection partielle des données
+                            <span className="inline-flex items-center gap-1 ml-2 text-[11px] font-semibold text-warning">
+                              bientôt
+                            </span>
+                          </span>
+                        </label>
+                        <label className="flex items-start gap-2 text-[12px] text-text-dim opacity-60">
+                          <input type="radio" disabled className="mt-0.5" />
+                          <span>
+                            Non, paramétrage manuel
+                            <span className="inline-flex items-center gap-1 ml-2 text-[11px] font-semibold text-warning">
+                              bientôt
+                            </span>
+                          </span>
+                        </label>
                       </div>
-                    </div>
-
-                  </>
-                )}
-
-                {cle === 'reprise' && (
-                  <>
-                    <h2 className="text-[13px] font-bold mb-3 flex items-center gap-1.5">
-                      Reprise des éléments comptables
-                      <Aide
-                        titre="Modèle standard"
-                        texte={`Le dossier peut être créé à partir du modèle livré en standard. Vous n'aurez alors plus qu'à définir les éléments propres à votre entité ${
-                          form.referentiel === 'SYSCOHADA'
-                            ? '(tiers clients et fournisseurs, banques)'
-                            : '(tiers, bailleurs, banques)'
-                        } avant de saisir.`}
-                        source="Assistant de création"
-                      />
-                    </h2>
-                    {/* La QUESTION, en toutes lettres, juste avant les options ·
-                        chez Sage « Souhaitez-vous créer votre fichier à partir
-                        du modèle standard ? ». Sans elle, trois phrases
-                        commençant par « Oui » ne répondent à rien de visible. */}
-                    <p className="text-[11.5px] text-text mb-3">
-                      Souhaitez-vous créer le dossier à partir du modèle standard ?
-                    </p>
-                    <div className="flex flex-col gap-2.5">
-                      <label className="flex items-start gap-2 text-[12px]">
-                        <input type="radio" checked readOnly className="mt-0.5" />
-                        <span>
-                          Oui, le dossier sera prêt à l'emploi : plan de comptes {form.referentiel} standard et
-                          exercice généré automatiquement
-                          <span className="block text-[11.5px] text-text-dim">
-                            (recommandé · c'est la seule option disponible pour l'instant)
-                          </span>
-                        </span>
-                      </label>
-                      <label className="flex items-start gap-2 text-[12px] text-text-dim opacity-60">
-                        <input type="radio" disabled className="mt-0.5" />
-                        <span>
-                          Oui, mais avec une sélection partielle des données
-                          <span className="inline-flex items-center gap-1 ml-2 text-[11px] font-semibold text-warning">
-                            bientôt
-                          </span>
-                        </span>
-                      </label>
-                      <label className="flex items-start gap-2 text-[12px] text-text-dim opacity-60">
-                        <input type="radio" disabled className="mt-0.5" />
-                        <span>
-                          Non, paramétrage manuel
-                          <span className="inline-flex items-center gap-1 ml-2 text-[11px] font-semibold text-warning">
-                            bientôt
-                          </span>
-                        </span>
-                      </label>
-                    </div>
-                  </>
-                )}
-
-                {derniereEtape && (
-                  <>
-                    <h2 className="text-[13px] font-bold mb-1.5">Création du dossier comptable</h2>
-                    {/* Dernier écran = RÉCAPITULATIF de ce qui sera créé, avant
-                        les identifiants · la forme de l'écran « Création du
-                        fichier comptable » de Sage. */}
-                    <p className="text-[11.5px] text-text-dim leading-[1.6] mb-4">
-                      Le dossier{' '}
-                      <strong className="text-text">{form.nomEntite || 'sans nom'}</strong> sera tenu en{' '}
-                      {form.referentiel}
-                      {form.referentiel === 'SYCEBNL'
-                        ? `, selon les états ${LIBELLE_JEU[form.jeuEtatsFinanciersSycebnl]}`
-                        : `, selon le ${LIBELLE_SYSTEME[form.systemeComptableSyscohada]}`}
-                      , en{' '}
-                      {form.devise || 'monnaie non précisée'}, sur l'exercice du{' '}
-                      {form.dateDebutExercice.split('-').reverse().join('/')} au{' '}
-                      {form.dateFinExercice.split('-').reverse().join('/')}.
-                    </p>
-
-                    <Ligne label="Adresse e-mail" large>
-                      <input type="email" value={form.email} onChange={(e) => majer('email', e.target.value)} className={champ} />
-                    </Ligne>
-                    <Ligne label="Mot de passe" large>
-                      <input
-                        type="password"
-                        minLength={10}
-                        value={form.motDePasse}
-                        onChange={(e) => majer('motDePasse', e.target.value)}
-                        className={champ}
-                        placeholder="10 caractères minimum"
-                      />
-                    </Ligne>
-
-                    {erreur && (
-                      <div className="mt-3 text-[11.5px] text-danger bg-danger-soft border border-danger/30 rounded-[3px] px-2.5 py-1.5">
-                        {erreur}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-
-              <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border bg-chrome">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  disabled={envoi}
-                  className="px-4 py-1.5 border border-border rounded-[3px] bg-surface text-[11.5px] hover:bg-chrome-alt disabled:opacity-50"
-                >
-                  Annuler
-                </button>
-                {/* Toujours présent, désactivé sur le premier écran · chez
-                    Sage la rangée de boutons ne se déplace jamais d'une
-                    étape à l'autre : le curseur retrouve « Suivant » au
-                    même endroit. */}
-                <button
-                  type="button"
-                  onClick={precedent}
-                  disabled={envoi || rang === 0}
-                  className="px-4 py-1.5 border border-border rounded-[3px] bg-surface text-[11.5px] hover:bg-chrome-alt disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  &lt; Précédent
-                </button>
-                <button
-                  type="submit"
-                  disabled={!peutAvancer || envoi}
-                  className="px-5 py-1.5 bg-sel text-white text-[11.5px] font-semibold rounded-[3px] hover:brightness-110 disabled:opacity-50"
-                >
-                  {envoi ? 'Création…' : derniereEtape ? 'Fin' : 'Suivant >'}
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
+                    </>
+                  )}
+  
+                  {derniereEtape && (
+                    <>
+                      <h2 className="text-[13px] font-bold mb-1.5">Création du dossier comptable</h2>
+                      {/* Dernier écran = RÉCAPITULATIF de ce qui sera créé, avant
+                          les identifiants · la forme de l'écran « Création du
+                          fichier comptable » de Sage. */}
+                      <p className="text-[11.5px] text-text-dim leading-[1.6] mb-4">
+                        Le dossier{' '}
+                        <strong className="text-text">{form.nomEntite || 'sans nom'}</strong> sera tenu en{' '}
+                        {form.referentiel}
+                        {form.referentiel === 'SYCEBNL'
+                          ? `, selon les états ${LIBELLE_JEU[form.jeuEtatsFinanciersSycebnl]}`
+                          : `, selon le ${LIBELLE_SYSTEME[form.systemeComptableSyscohada]}`}
+                        , en{' '}
+                        {form.devise || 'monnaie non précisée'}, sur l'exercice du{' '}
+                        {form.dateDebutExercice.split('-').reverse().join('/')} au{' '}
+                        {form.dateFinExercice.split('-').reverse().join('/')}.
+                      </p>
+  
+                      <Ligne label="Adresse e-mail" large>
+                        <input type="email" value={form.email} onChange={(e) => majer('email', e.target.value)} className={champ} />
+                      </Ligne>
+                      <Ligne label="Mot de passe" large>
+                        <input
+                          type="password"
+                          minLength={10}
+                          value={form.motDePasse}
+                          onChange={(e) => majer('motDePasse', e.target.value)}
+                          className={champ}
+                          placeholder="10 caractères minimum"
+                        />
+                      </Ligne>
+  
+                      {erreur && (
+                        <div className="mt-3 text-[11.5px] text-danger bg-danger-soft border border-danger/30 rounded-[3px] px-2.5 py-1.5">
+                          {erreur}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+  
+                <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border bg-chrome">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    disabled={envoi}
+                    className="px-4 py-1.5 border border-border rounded-[3px] bg-surface text-[11.5px] hover:bg-chrome-alt disabled:opacity-50"
+                  >
+                    Annuler
+                  </button>
+                  {/* Toujours présent, désactivé sur le premier écran · chez
+                      Sage la rangée de boutons ne se déplace jamais d'une
+                      étape à l'autre : le curseur retrouve « Suivant » au
+                      même endroit. */}
+                  <button
+                    type="button"
+                    onClick={precedent}
+                    disabled={envoi || rang === 0}
+                    className="px-4 py-1.5 border border-border rounded-[3px] bg-surface text-[11.5px] hover:bg-chrome-alt disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    &lt; Précédent
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!peutAvancer || envoi}
+                    className="px-5 py-1.5 bg-sel text-white text-[11.5px] font-semibold rounded-[3px] hover:brightness-110 disabled:opacity-50"
+                  >
+                    {envoi ? 'Création…' : derniereEtape ? 'Fin' : 'Suivant >'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </PortailModale>
   );
 }

@@ -10,6 +10,7 @@ import type {
   StatutExoneration,
   TypeDemandeExoneration,
 } from '../lib/types';
+import { PortailModale } from '../components/PortailModale';
 
 /**
  * REGISTRE DES EXONÉRATIONS DOUANIÈRES ET FISCALES.
@@ -322,65 +323,67 @@ export function ExonerationsPage() {
 
       {/* --- Création ------------------------------------------------------- */}
       {creation && (
-        <div className="fixed inset-0 bg-black/25 flex items-center justify-center z-50" onClick={() => setCreation(null)}>
-          <div className="bg-surface border border-border-dark shadow-dominante w-[520px] p-4 max-h-[calc(100dvh-2rem)] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="text-[12px] font-bold mb-2.5">Nouveau dossier d’exonération</div>
-            <label className="block text-[11.5px] mb-2">
-              Type de demande
-              <select
-                value={creation}
-                onChange={(e) => setCreation(e.target.value as TypeDemandeExoneration)}
-                className="mt-1 block w-full border border-border-dark bg-bg px-2 py-1 text-[11.5px]"
-              >
-                <option value="PONCTUEL">Arrêté ponctuel · une opération d’importation isolée</option>
-                <option value="PREVISIONNEL">Arrêté prévisionnel · flux récurrent, deux ans</option>
-                <option value="RENOUVELLEMENT">Renouvellement d’un arrêté prévisionnel</option>
-              </select>
-              <span className="block text-[11px] text-text-dim leading-[1.5] mt-1">
-                {referentiel?.modeles.find((m) => m.type === creation)?.objet}
-              </span>
-            </label>
-            <label className="block text-[11.5px] mb-2">
-              Objet
-              <input
-                value={objet}
-                onChange={(e) => setObjet(e.target.value)}
-                placeholder="Lot de médicaments Kinshasa, don MSF"
-                className="mt-1 block w-full border border-border-dark bg-bg px-2 py-1 text-[11.5px]"
-              />
-            </label>
-            {creation !== 'PONCTUEL' && (
-              <label className="block text-[11.5px] mb-3">
-                <span className="flex items-center gap-1.5">
-                  Début de validité
-                  <Aide
-                    titre="Début de validité"
-                    texte="L’échéance se déduit toute seule : deux ans. Une date de fin saisie à la main est la faute la plus coûteuse de ce registre."
-                    source="Registre des exonérations"
-                  />
+        <PortailModale>
+          <div className="fixed inset-0 bg-black/25 flex items-center justify-center z-50" onClick={() => setCreation(null)}>
+            <div className="bg-surface border border-border-dark shadow-dominante w-[520px] p-4 modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="text-[12px] font-bold mb-2.5">Nouveau dossier d’exonération</div>
+              <label className="block text-[11.5px] mb-2">
+                Type de demande
+                <select
+                  value={creation}
+                  onChange={(e) => setCreation(e.target.value as TypeDemandeExoneration)}
+                  className="mt-1 block w-full border border-border-dark bg-bg px-2 py-1 text-[11.5px]"
+                >
+                  <option value="PONCTUEL">Arrêté ponctuel · une opération d’importation isolée</option>
+                  <option value="PREVISIONNEL">Arrêté prévisionnel · flux récurrent, deux ans</option>
+                  <option value="RENOUVELLEMENT">Renouvellement d’un arrêté prévisionnel</option>
+                </select>
+                <span className="block text-[11px] text-text-dim leading-[1.5] mt-1">
+                  {referentiel?.modeles.find((m) => m.type === creation)?.objet}
                 </span>
+              </label>
+              <label className="block text-[11.5px] mb-2">
+                Objet
                 <input
-                  type="date"
-                  value={debutValidite}
-                  onChange={(e) => setDebutValidite(e.target.value)}
-                  className="mt-1 block w-full border border-border-dark bg-bg px-2 py-1 text-[11.5px] font-mono"
+                  value={objet}
+                  onChange={(e) => setObjet(e.target.value)}
+                  placeholder="Lot de médicaments Kinshasa, don MSF"
+                  className="mt-1 block w-full border border-border-dark bg-bg px-2 py-1 text-[11.5px]"
                 />
               </label>
-            )}
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setCreation(null)} className="px-3 py-1.5 text-[11.5px] border border-border">
-                Annuler
-              </button>
-              <button
-                onClick={creer}
-                disabled={!objet.trim()}
-                className="px-3 py-1.5 text-[11.5px] bg-sel text-white font-semibold disabled:opacity-50"
-              >
-                Créer le dossier
-              </button>
+              {creation !== 'PONCTUEL' && (
+                <label className="block text-[11.5px] mb-3">
+                  <span className="flex items-center gap-1.5">
+                    Début de validité
+                    <Aide
+                      titre="Début de validité"
+                      texte="L’échéance se déduit toute seule : deux ans. Une date de fin saisie à la main est la faute la plus coûteuse de ce registre."
+                      source="Registre des exonérations"
+                    />
+                  </span>
+                  <input
+                    type="date"
+                    value={debutValidite}
+                    onChange={(e) => setDebutValidite(e.target.value)}
+                    className="mt-1 block w-full border border-border-dark bg-bg px-2 py-1 text-[11.5px] font-mono"
+                  />
+                </label>
+              )}
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setCreation(null)} className="px-3 py-1.5 text-[11.5px] border border-border">
+                  Annuler
+                </button>
+                <button
+                  onClick={creer}
+                  disabled={!objet.trim()}
+                  className="px-3 py-1.5 text-[11.5px] bg-sel text-white font-semibold disabled:opacity-50"
+                >
+                  Créer le dossier
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </PortailModale>
       )}
     </div>
   );

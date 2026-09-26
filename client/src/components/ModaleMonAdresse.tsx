@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { api, ApiError, setCsrf } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { PortailModale } from './PortailModale';
 
 /**
  * CHANGER SON ADRESSE DE CONNEXION · confirmée par le mot de passe actuel
@@ -37,42 +38,44 @@ export function ModaleMonAdresse({ adresseActuelle, onFermer }: { adresseActuell
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/35 flex items-center justify-center p-4" onClick={onFermer}>
-      <form
-        onSubmit={envoyer}
-        className="anim-modale w-[440px] max-h-full overflow-auto rounded-[4px] bg-surface border border-border-dark shadow-dominante text-[11.5px]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-3.5 h-[32px] border-b border-border">
-          <span className="font-bold">Changer mon adresse de connexion</span>
-          <button type="button" onClick={onFermer} aria-label="Fermer">
-            ✕
-          </button>
-        </div>
-        <div className="p-3 space-y-2">
-          {erreur && <div className="text-danger bg-danger-soft border border-danger/30 px-3 py-2">{erreur}</div>}
-          {fait ? (
-            <div className="text-positive bg-positive-soft border border-positive/30 px-3 py-2">{fait}</div>
-          ) : (
-            <>
-              <div className="text-text-dim">Adresse actuelle : {adresseActuelle}</div>
-              <label className="flex flex-col gap-0.5">
-                <span className="text-text-dim">Nouvelle adresse</span>
-                <input type="email" required value={nouvelle} onChange={(e) => setNouvelle(e.target.value)} className="border border-border px-2 py-[3px]" />
-              </label>
-              <label className="flex flex-col gap-0.5">
-                <span className="text-text-dim">Mot de passe actuel</span>
-                <input type="password" required value={motDePasse} onChange={(e) => setMotDePasse(e.target.value)} className="border border-border px-2 py-[3px]" />
-              </label>
-              <div className="flex justify-end">
-                <button type="submit" disabled={!utilisateur || envoi} className="bg-sel text-white font-semibold px-4 py-1.5 disabled:opacity-40">
-                  {envoi ? '…' : 'Changer'}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </form>
-    </div>
+    <PortailModale>
+      <div className="fixed inset-0 z-50 bg-black/35 flex items-center justify-center p-4" onClick={onFermer}>
+        <form
+          onSubmit={envoyer}
+          className="anim-modale w-[440px] max-h-full overflow-auto rounded-[4px] bg-surface border border-border-dark shadow-dominante text-[11.5px]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between px-3.5 h-[32px] border-b border-border">
+            <span className="font-bold">Changer mon adresse de connexion</span>
+            <button type="button" onClick={onFermer} aria-label="Fermer">
+              ✕
+            </button>
+          </div>
+          <div className="p-3 space-y-2">
+            {erreur && <div className="text-danger bg-danger-soft border border-danger/30 px-3 py-2">{erreur}</div>}
+            {fait ? (
+              <div className="text-positive bg-positive-soft border border-positive/30 px-3 py-2">{fait}</div>
+            ) : (
+              <>
+                <div className="text-text-dim">Adresse actuelle : {adresseActuelle}</div>
+                <label className="flex flex-col gap-0.5">
+                  <span className="text-text-dim">Nouvelle adresse</span>
+                  <input type="email" required value={nouvelle} onChange={(e) => setNouvelle(e.target.value)} className="border border-border px-2 py-[3px]" />
+                </label>
+                <label className="flex flex-col gap-0.5">
+                  <span className="text-text-dim">Mot de passe actuel</span>
+                  <input type="password" required value={motDePasse} onChange={(e) => setMotDePasse(e.target.value)} className="border border-border px-2 py-[3px]" />
+                </label>
+                <div className="flex justify-end">
+                  <button type="submit" disabled={!utilisateur || envoi} className="bg-sel text-white font-semibold px-4 py-1.5 disabled:opacity-40">
+                    {envoi ? '…' : 'Changer'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </form>
+      </div>
+    </PortailModale>
   );
 }

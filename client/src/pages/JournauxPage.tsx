@@ -11,6 +11,7 @@ import {
   editionJournaux,
   perimetreEdition,
 } from '../lib/editions-structures';
+import { PortailModale } from '../components/PortailModale';
 
 /**
  * CODES JOURNAUX · la fenêtre Structure → Codes journaux de Sage 100 i7 :
@@ -206,98 +207,100 @@ export function JournauxPage() {
 
 
       {nouveauOuvert && (
-        <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
-          <form onSubmit={onCreer} className="anim-modale w-full max-w-[460px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
-            <div
-              className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
-            >
-              <span>Nouveau code journal</span>
-              <button type="button" onClick={() => setNouveauOuvert(false)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">
-                ✕
-              </button>
-            </div>
-            <div className="p-4">
-              <div className="grid grid-cols-[130px_1fr] items-center gap-x-3 gap-y-2.5">
-                <label className="text-[11.5px] text-right">Code :</label>
-                <input
-                  required
-                  autoFocus
-                  maxLength={6}
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.toUpperCase())}
-                  placeholder="ACH, VEN, BQ…"
-                  className="border border-border-dark px-2.5 py-1.5 text-[12px] font-mono"
-                />
-                <label className="text-[11.5px] text-right">Intitulé :</label>
-                <input
-                  required
-                  value={intitule}
-                  onChange={(e) => setIntitule(e.target.value)}
-                  className="border border-border-dark px-2.5 py-1.5 text-[12px]"
-                />
-                <label className="text-[11.5px] text-right">Type :</label>
-                <select
-                  value={type}
-                  onChange={(e) => setType(e.target.value as TypeJournal)}
-                  className="border border-border-dark px-2.5 py-1.5 text-[11.5px]"
-                >
-                  {(Object.keys(LIBELLE_TYPE) as TypeJournal[]).map((t) => (
-                    <option key={t} value={t}>
-                      {LIBELLE_TYPE[t]}
-                    </option>
-                  ))}
-                </select>
-                <label className="text-[11.5px] text-right">Numérotation :</label>
-                <select
-                  value={numerotation}
-                  onChange={(e) => setNumerotation(e.target.value as NumerotationPiece)}
-                  className="border border-border-dark px-2.5 py-1.5 text-[11.5px]"
-                >
-                  {(Object.keys(LIBELLE_NUMEROTATION) as NumerotationPiece[]).map((n) => (
-                    <option key={n} value={n}>
-                      {LIBELLE_NUMEROTATION[n]}
-                    </option>
-                  ))}
-                </select>
-                {type === 'TRESORERIE' && (
-                  <>
-                    <label className="text-[11.5px] text-right">Compte de trésorerie :</label>
-                    <select
-                      required
-                      value={compteTresorerieId}
-                      onChange={(e) => setCompteTresorerieId(e.target.value)}
-                      className="border border-border-dark px-2.5 py-1.5 text-[11.5px]"
-                    >
-                      <option value="">Sélectionner</option>
-                      {comptesTresorerie.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.numero} · {c.intitule}
-                        </option>
-                      ))}
-                    </select>
-                  </>
-                )}
+        <PortailModale>
+          <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+            <form onSubmit={onCreer} className="anim-modale w-full max-w-[460px] bg-surface border border-border-dark shadow-flottante modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto">
+              <div
+                className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]"
+              >
+                <span>Nouveau code journal</span>
+                <button type="button" onClick={() => setNouveauOuvert(false)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">
+                  ✕
+                </button>
               </div>
-              {erreurForm && (
-                <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mt-3">
-                  {erreurForm}
+              <div className="p-4">
+                <div className="grid grid-cols-[130px_1fr] items-center gap-x-3 gap-y-2.5">
+                  <label className="text-[11.5px] text-right">Code :</label>
+                  <input
+                    required
+                    autoFocus
+                    maxLength={6}
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.toUpperCase())}
+                    placeholder="ACH, VEN, BQ…"
+                    className="border border-border-dark px-2.5 py-1.5 text-[12px] font-mono"
+                  />
+                  <label className="text-[11.5px] text-right">Intitulé :</label>
+                  <input
+                    required
+                    value={intitule}
+                    onChange={(e) => setIntitule(e.target.value)}
+                    className="border border-border-dark px-2.5 py-1.5 text-[12px]"
+                  />
+                  <label className="text-[11.5px] text-right">Type :</label>
+                  <select
+                    value={type}
+                    onChange={(e) => setType(e.target.value as TypeJournal)}
+                    className="border border-border-dark px-2.5 py-1.5 text-[11.5px]"
+                  >
+                    {(Object.keys(LIBELLE_TYPE) as TypeJournal[]).map((t) => (
+                      <option key={t} value={t}>
+                        {LIBELLE_TYPE[t]}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="text-[11.5px] text-right">Numérotation :</label>
+                  <select
+                    value={numerotation}
+                    onChange={(e) => setNumerotation(e.target.value as NumerotationPiece)}
+                    className="border border-border-dark px-2.5 py-1.5 text-[11.5px]"
+                  >
+                    {(Object.keys(LIBELLE_NUMEROTATION) as NumerotationPiece[]).map((n) => (
+                      <option key={n} value={n}>
+                        {LIBELLE_NUMEROTATION[n]}
+                      </option>
+                    ))}
+                  </select>
+                  {type === 'TRESORERIE' && (
+                    <>
+                      <label className="text-[11.5px] text-right">Compte de trésorerie :</label>
+                      <select
+                        required
+                        value={compteTresorerieId}
+                        onChange={(e) => setCompteTresorerieId(e.target.value)}
+                        className="border border-border-dark px-2.5 py-1.5 text-[11.5px]"
+                      >
+                        <option value="">Sélectionner</option>
+                        {comptesTresorerie.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.numero} · {c.intitule}
+                          </option>
+                        ))}
+                      </select>
+                    </>
+                  )}
                 </div>
-              )}
-              <div className="flex justify-end gap-2 mt-4">
-                <button
-                  type="button"
-                  onClick={() => setNouveauOuvert(false)}
-                  className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11.5px]"
-                >
-                  Annuler
-                </button>
-                <button type="submit" disabled={envoi} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold disabled:opacity-50">
-                  {envoi ? 'Création…' : 'Créer le journal'}
-                </button>
+                {erreurForm && (
+                  <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mt-3">
+                    {erreurForm}
+                  </div>
+                )}
+                <div className="flex justify-end gap-2 mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setNouveauOuvert(false)}
+                    className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11.5px]"
+                  >
+                    Annuler
+                  </button>
+                  <button type="submit" disabled={envoi} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold disabled:opacity-50">
+                    {envoi ? 'Création…' : 'Créer le journal'}
+                  </button>
+                </div>
               </div>
-            </div>
-          </form>
-        </div>
+            </form>
+          </div>
+        </PortailModale>
       )}
     </div>
   );

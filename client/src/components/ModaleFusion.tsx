@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../lib/auth';
 import { Aide } from './chrome/Aide';
+import { PortailModale } from './PortailModale';
 
 /**
  * FUSION D'UNE STRUCTURE · la boîte commune au plan comptable et au plan des
@@ -44,55 +45,57 @@ export function ModaleFusion({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/35 flex items-center justify-center p-4" onClick={onFermer}>
-      <div
-        className="anim-modale w-[520px] max-h-full overflow-auto rounded-[4px] bg-surface border border-border-dark shadow-dominante text-[11.5px]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-3.5 h-[32px] border-b border-border">
-          <span className="font-bold">{titre}</span>
-          <div className="flex items-center gap-2">
-            <Aide titre={titre} texte={aide} source={source} />
-            <button onClick={onFermer} aria-label="Fermer">
-              ✕
-            </button>
+    <PortailModale>
+      <div className="fixed inset-0 z-50 bg-black/35 flex items-center justify-center p-4" onClick={onFermer}>
+        <div
+          className="anim-modale w-[520px] max-h-full overflow-auto rounded-[4px] bg-surface border border-border-dark shadow-dominante text-[11.5px]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between px-3.5 h-[32px] border-b border-border">
+            <span className="font-bold">{titre}</span>
+            <div className="flex items-center gap-2">
+              <Aide titre={titre} texte={aide} source={source} />
+              <button onClick={onFermer} aria-label="Fermer">
+                ✕
+              </button>
+            </div>
           </div>
-        </div>
-        <div className="p-3 space-y-2">
-          <p>{absorbe}</p>
-          <label className="flex flex-col gap-0.5">
-            <span className="text-text-dim">Conserver</span>
-            <select
-              aria-label="Structure conservée"
-              value={cibleId}
-              onChange={(e) => setCibleId(e.target.value)}
-              className="border border-border px-2 py-[3px] bg-surface"
-            >
-              <option value="">Choisir…</option>
-              {options.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.libelle}
-                </option>
-              ))}
-            </select>
-          </label>
-          {avecMotif && (
+          <div className="p-3 space-y-2">
+            <p>{absorbe}</p>
             <label className="flex flex-col gap-0.5">
-              <span className="text-text-dim">Motif</span>
-              <input value={motif} onChange={(e) => setMotif(e.target.value)} className="border border-border px-2 py-[2px]" />
+              <span className="text-text-dim">Conserver</span>
+              <select
+                aria-label="Structure conservée"
+                value={cibleId}
+                onChange={(e) => setCibleId(e.target.value)}
+                className="border border-border px-2 py-[3px] bg-surface"
+              >
+                <option value="">Choisir…</option>
+                {options.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.libelle}
+                  </option>
+                ))}
+              </select>
             </label>
-          )}
-          <div className="flex justify-end">
-            <button
-              onClick={valider}
-              disabled={!estAdmin || envoi || !cibleId || (avecMotif && !motif.trim())}
-              className="bg-sel text-white font-semibold px-4 py-1.5 disabled:opacity-40"
-            >
-              {envoi ? '…' : 'Fusionner'}
-            </button>
+            {avecMotif && (
+              <label className="flex flex-col gap-0.5">
+                <span className="text-text-dim">Motif</span>
+                <input value={motif} onChange={(e) => setMotif(e.target.value)} className="border border-border px-2 py-[2px]" />
+              </label>
+            )}
+            <div className="flex justify-end">
+              <button
+                onClick={valider}
+                disabled={!estAdmin || envoi || !cibleId || (avecMotif && !motif.trim())}
+                className="bg-sel text-white font-semibold px-4 py-1.5 disabled:opacity-40"
+              >
+                {envoi ? '…' : 'Fusionner'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </PortailModale>
   );
 }
