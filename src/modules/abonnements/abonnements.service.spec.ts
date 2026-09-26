@@ -37,7 +37,7 @@ function monde(o: { assujetti?: boolean; cours?: number | null; dejaFacture?: bo
     }),
     supprimer: jest.fn(),
   };
-  return { s: new AbonnementsService(prisma as never, facturation as never), factures, liens, facturation };
+  return { s: new AbonnementsService(prisma as never, facturation as never, {} as never), factures, liens, facturation };
 }
 
 describe('facturation des abonnements · service', () => {
@@ -71,5 +71,99 @@ describe('facturation des abonnements · service', () => {
     const r = await m.s.facturer(EDITEUR, '2026-10', '2026-10-31', null);
     expect(m.facturation.enregistrer).not.toHaveBeenCalled();
     expect(r.resultats[0]).toMatchObject({ statut: 'DEJA_FACTURE' });
+  });
+});
+
+describe('le paiement déclaré prolonge la licence', () => {
+  const monte = (o: { payee?: boolean; echeance?: string; libre?: boolean } = {}) => {
+    const plateforme = { echeanceAbonnement: jest.fn(async (_c: string, e: string) => e) };
+    const prisma = {
+      factureAbonnement: {
+        findUnique: jest.fn(async () => ({
+          id: 'fa', periode: '2026-08', payeeLe: o.payee ? new Date('2026-08-05T00:00:00Z') : null,
+          facture: { dateFacture: new Date('2026-08-01T00:00:00Z') },
+          abonnement: { cabinetId: 'c1', periodicite: 'MENSUELLE', cabinet: { licence: { dateExpiration: o.echeance ? new Date(`${o.echeance}T23:59:59Z`) : null } } },
+        })),
+        updateMany: jest.fn(async () => ({ count: o.libre === false ? 0 : 1 })),
+      },
+    };
+    return { s: new AbonnementsService(prisma as never, {} as never, plateforme as never), plateforme, prisma };
+  };
+
+  it('fin de la période payée plus quinze jours, posée sur la licence du client', async () => {
+    const m = monte({ echeance: '2026-08-15' });
+    await expect(m.s.marquerPayee('fa', '2026-08-10')).resolves.toEqual({ echeanceLicence: '2026-09-15' });
+    expect(m.plateforme.echeanceAbonnement).toHaveBeenCalledWith('c1', '2026-09-15');
+  });
+
+  it('refuse un double paiement, une date future ou antérieure à la facture', async () => {
+    await expect(monte({ payee: true }).s.marquerPayee('fa', '2026-08-10')).rejects.toThrow(/déjà déclarée payée/);
+    await expect(monte().s.marquerPayee('fa', '2999-01-01')).rejects.toThrow(/futur/);
+    await expect(monte().s.marquerPayee('fa', '2026-07-01')).rejects.toThrow(/précéder/);
+    const m = monte({ libre: false });
+    await expect(m.s.marquerPayee('fa', '2026-08-10')).rejects.toThrow(/vient d’être/);
+    expect(m.plateforme.echeanceAbonnement).not.toHaveBeenCalled();
+  });
+});
+
+describe('le paiement ne se note que sur une facture encore impayée', () => {
+  it('filtre la mise à jour sur payeeLe nul', async () => {
+    const plateforme = { echeanceAbonnement: jest.fn(async (_c: string, e: string) => e) };
+    const updateMany = jest.fn(async () => ({ count: 1 }));
+    const prisma = {
+      factureAbonnement: {
+        findUnique: jest.fn(async () => ({
+          id: 'fa', periode: '2026-08', payeeLe: null,
+          facture: { dateFacture: new Date('2026-08-01T00:00:00Z') },
+          abonnement: { cabinetId: 'c1', periodicite: 'MENSUELLE', cabinet: { licence: null } },
+        })),
+        updateMany,
+      },
+    };
+    await new AbonnementsService(prisma as never, {} as never, plateforme as never).marquerPayee('fa', '2026-08-10');
+    expect(updateMany).toHaveBeenCalledWith({ where: { id: 'fa', payeeLe: null }, data: { payeeLe: new Date('2026-08-10T00:00:00Z') } });
+  });
+});
+
+describe('enregistrer un abonnement pose d’abord la licence', () => {
+  const monte = (refus = false) => {
+    const plateforme = {
+      echeanceAbonnement: jest.fn(async () => {
+        if (refus) throw new Error('Ce dossier a une licence perpétuelle');
+        return 'x';
+      }),
+    };
+    const prisma = {
+      licence: { findFirst: jest.fn(async () => ({ tenantId: 'editeur' })) },
+      tenant: { findUnique: jest.fn(async () => ({ id: 'c1' })) },
+      tiers: { findFirst: jest.fn(async () => ({ id: 't1' })) },
+      formuleAbonnement: {
+        findUnique: jest.fn(async () => ({ id: 'f1', type: 'FORMULE' })),
+        findMany: jest.fn(async () => []),
+      },
+      abonnementCabinet: {
+        findUnique: jest.fn(async () => null),
+        create: jest.fn(async () => ({ id: 'a1' })),
+        update: jest.fn(),
+      },
+      optionAbonnement: { deleteMany: jest.fn(async () => ({})), createMany: jest.fn() },
+    };
+    const s = new AbonnementsService(prisma as never, {} as never, plateforme as never);
+    const d = { cabinetId: 'c1', formuleCode: 'ESSENTIEL', options: [], dossiersSupplementaires: 0, periodicite: 'MENSUELLE', debut: '2026-09-10', essai: true, tiersId: 't1' };
+    return { s, d, plateforme, prisma };
+  };
+
+  it('échéance = fin de l’essai plus quinze jours', async () => {
+    const m = monte();
+    await m.s.enregistrer(m.d as never);
+    expect(m.plateforme.echeanceAbonnement).toHaveBeenCalledWith('c1', '2026-10-25');
+    expect(m.prisma.abonnementCabinet.create).toHaveBeenCalled();
+  });
+
+  it('une licence refusée n’écrit aucun abonnement', async () => {
+    const m = monte(true);
+    await expect(m.s.enregistrer(m.d as never)).rejects.toThrow(/perpétuelle/);
+    expect(m.prisma.abonnementCabinet.create).not.toHaveBeenCalled();
+    expect(m.prisma.abonnementCabinet.update).not.toHaveBeenCalled();
   });
 });

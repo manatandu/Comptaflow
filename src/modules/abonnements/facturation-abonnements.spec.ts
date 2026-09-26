@@ -73,3 +73,22 @@ describe('facturation des abonnements', () => {
     expect(numeroFactureSuivant('2026', ['VMG-2026-0004', 'VMG-2025-0009', 'F-12'])).toBe('VMG-2026-0005');
   });
 });
+
+describe('la licence suit l’abonnement', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const m = require('./facturation-abonnements') as typeof import('./facturation-abonnements');
+  it('quinze jours après l’essai, puis après chaque période payée', () => {
+    expect(m.expirationInitiale('2026-10-01', '2026-10-31')).toBe('2026-11-15');
+    expect(m.expirationInitiale('2026-10-01', null)).toBe('2026-10-16');
+    expect(m.finPeriodeCouverte('2026-11', 'MENSUELLE')).toBe('2026-11-30');
+    expect(m.finPeriodeCouverte('2026-02', 'MENSUELLE')).toBe('2026-02-28');
+    expect(m.finPeriodeCouverte('2026-11', 'ANNUELLE')).toBe('2027-10-31');
+    expect(m.expirationApresPaiement('2026-11', 'MENSUELLE', '2026-11-15')).toBe('2026-12-15');
+  });
+  it('un paiement tardif d’une vieille période ne recule jamais l’échéance', () => {
+    expect(m.expirationApresPaiement('2026-11', 'MENSUELLE', '2027-03-15')).toBe('2027-03-15');
+  });
+  it('compte les jours de retard au calendrier', () => {
+    expect(m.joursDepuis('2026-11-01', '2026-12-01')).toBe(30);
+  });
+});

@@ -2,10 +2,14 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PeriodiciteFacturationEditeur, Prisma, SensFacture, TypeFormuleAbonnement, TypeLicence } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { FacturationService } from '../facturation/facturation.service';
+import { PlateformeService } from '../plateforme/plateforme.service';
 import { jourLisible, usdEnFc } from '../personnel/conversion-usd';
 import {
   AbonnementAFacturer,
+  expirationApresPaiement,
+  expirationInitiale,
   finEssaiDepuis,
+  joursDepuis,
   FormulePrix,
   numeroFactureSuivant,
   verdictPeriode,
@@ -36,6 +40,8 @@ export interface DemandeAbonnement {
   tiersId: string;
 }
 
+/** Le jour du calendrier de Kinshasa (UTC+1). */
+const aujourdhuiKinshasa = () => new Date(Date.now() + 3_600_000).toISOString().slice(0, 10);
 const nombre = (d: Prisma.Decimal | null) => (d === null ? null : Number(d));
 const jour = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 
@@ -60,6 +66,7 @@ export class AbonnementsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly facturation: FacturationService,
+    private readonly plateforme: PlateformeService,
   ) {}
 
   async formules() {
@@ -98,11 +105,15 @@ export class AbonnementsService {
     const a = await this.prisma.abonnementCabinet.findMany({
       orderBy: { createdAt: 'asc' },
       include: {
-        cabinet: { select: { nom: true } },
+        cabinet: { select: { nom: true, licence: { select: { dateExpiration: true, statut: true } } } },
         formule: { select: { code: true, libelle: true } },
         options: { select: { formule: { select: { code: true, libelle: true } } } },
         tiers: { select: { nom: true } },
-        factures: { orderBy: { periode: 'desc' }, take: 12, select: { periode: true, montantUsd: true, facture: { select: { numeroSerie: true } } } },
+        factures: {
+          orderBy: { periode: 'desc' },
+          take: 24,
+          select: { id: true, periode: true, montantUsd: true, payeeLe: true, facture: { select: { numeroSerie: true, dateFacture: true } } },
+        },
       },
     });
     return a.map((x) => ({
@@ -117,7 +128,17 @@ export class AbonnementsService {
       finEssai: jour(x.finEssai),
       tiers: x.tiers.nom,
       actif: x.actif,
-      factures: x.factures.map((f) => ({ periode: f.periode, montantUsd: Number(f.montantUsd), numero: f.facture.numeroSerie })),
+      echeanceLicence: jour(x.cabinet.licence?.dateExpiration ?? null),
+      licenceSuspendue: x.cabinet.licence?.statut === 'SUSPENDUE',
+      factures: x.factures.map((f) => ({
+        id: f.id,
+        periode: f.periode,
+        montantUsd: Number(f.montantUsd),
+        numero: f.facture.numeroSerie,
+        emiseLe: jour(f.facture.dateFacture),
+        payeeLe: jour(f.payeeLe),
+        joursImpayee: f.payeeLe ? null : joursDepuis(jour(f.facture.dateFacture)!, aujourdhuiKinshasa()),
+      })),
     }));
   }
 
@@ -146,6 +167,9 @@ export class AbonnementsService {
       finEssai: d.essai ? new Date(`${finEssaiDepuis(d.debut)}T00:00:00Z`) : null,
       tiersId: d.tiersId,
     };
+    // La licence d'abord · un dossier perpétuel refuse, et rien n'est écrit.
+    // Fin de l'essai (ou début) plus le délai de paiement ; jamais reculée.
+    await this.plateforme.echeanceAbonnement(d.cabinetId, expirationInitiale(d.debut, data.finEssai ? finEssaiDepuis(d.debut) : null));
     const existant = await this.prisma.abonnementCabinet.findUnique({ where: { cabinetId: d.cabinetId }, select: { id: true } });
     const a = existant
       ? await this.prisma.abonnementCabinet.update({ where: { id: existant.id }, data })
@@ -155,6 +179,31 @@ export class AbonnementsService {
       await this.prisma.optionAbonnement.createMany({ data: options.map((o) => ({ abonnementId: a.id, formuleId: o.id })) });
     }
     return { id: a.id };
+  }
+
+  /**
+   * Déclare l'encaissement d'une facture d'abonnement · c'est lui, et lui
+   * seul, qui prolonge la licence du client. La date est celle que
+   * l'opérateur constate ; elle ne peut être ni future ni antérieure à la
+   * facture.
+   */
+  async marquerPayee(factureAbonnementId: string, payeeLe: string) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(payeeLe)) throw new BadRequestException('Date d’encaissement illisible.');
+    const fa = await this.prisma.factureAbonnement.findUnique({
+      where: { id: factureAbonnementId },
+      select: { id: true, periode: true, payeeLe: true, facture: { select: { dateFacture: true } }, abonnement: { select: { cabinetId: true, periodicite: true, cabinet: { select: { licence: { select: { dateExpiration: true } } } } } } },
+    });
+    if (!fa) throw new NotFoundException('Facture d’abonnement introuvable.');
+    if (fa.payeeLe) throw new BadRequestException(`Cette facture est déjà déclarée payée le ${jour(fa.payeeLe)}.`);
+    if (payeeLe > aujourdhuiKinshasa()) throw new BadRequestException('Un encaissement ne se déclare pas dans le futur.');
+    if (payeeLe < jour(fa.facture.dateFacture)!) throw new BadRequestException('L’encaissement ne peut précéder la facture.');
+    const echeance = expirationApresPaiement(fa.periode, fa.abonnement.periodicite, jour(fa.abonnement.cabinet.licence?.dateExpiration ?? null));
+    // Le paiement n'est noté que sur une facture encore impayée · deux clics
+    // simultanés ne prolongent pas deux fois.
+    const { count } = await this.prisma.factureAbonnement.updateMany({ where: { id: fa.id, payeeLe: null }, data: { payeeLe: new Date(`${payeeLe}T00:00:00Z`) } });
+    if (count === 0) throw new BadRequestException('Cette facture vient d’être déclarée payée.');
+    const retenue = await this.plateforme.echeanceAbonnement(fa.abonnement.cabinetId, echeance);
+    return { echeanceLicence: retenue };
   }
 
   async activer(id: string, actif: boolean) {

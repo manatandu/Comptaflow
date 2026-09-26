@@ -5014,6 +5014,21 @@ retirée, et une facture d'abonnement ne se supprime pas du facturier (note de
 crédit). Les quatre tables sont HORS DOSSIER (`MODELES_HORS_DOSSIER`,
 `cabinetId` et non `tenantId`).
 
+**La licence suit l'abonnement (2026-09-26).** Un abonnement enregistré pose
+la licence ABONNEMENT du cabinet, et c'est l'ENCAISSEMENT déclaré d'une facture
+(« Encaissée », date constatée, jamais future ni antérieure à la facture) qui
+la prolonge (`PlateformeService.echeanceAbonnement`). TROIS RÈGLES. (1)
+CONVENTION D'OMEGAX, dite · délai de paiement de QUINZE JOURS
+(`DELAI_PAIEMENT_JOURS`) · la licence court jusqu'à la fin de l'essai (ou le
+début) plus quinze jours, puis jusqu'à la fin de la période payée plus quinze
+jours. (2) L'ÉCHÉANCE NE RECULE JAMAIS · un paiement tardif d'une vieille
+période ne raccourcit rien, et le paiement ne se note que sur une facture
+encore impayée (deux clics ne prolongent pas deux fois). (3) LA LICENCE PASSE
+AVANT L'ÉCRITURE · une licence perpétuelle ou celle de l'éditeur refuse, et
+aucun abonnement n'est alors écrit. La console lit la licence d'un autre
+dossier HORS CLOISONNEMENT (`modifierLicence` aussi, qui rendait 404 sous la
+garde).
+
 **Écriture passée depuis une facture (2026-09-26).** `facturation/ecriture-facture.ts`
 (moteur pur) et `ComptabilisationFactureService`, bouton « Passer l'écriture »
 de la fenêtre Facturation. TROIS RÈGLES. (1) LE SCHÉMA DES FICHES DES COMPTES

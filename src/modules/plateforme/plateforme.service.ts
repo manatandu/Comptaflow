@@ -149,6 +149,34 @@ export class PlateformeService implements OnModuleInit {
     return horsCloisonnement('console · licence d’un cabinet client', () => this.modifierLicenceSansGarde(tenantId, dto));
   }
 
+  /**
+   * L'ÉCHÉANCE DE LA LICENCE D'UN CLIENT ABONNÉ · posée par la souscription,
+   * prolongée par chaque paiement déclaré (src/modules/abonnements). Jamais
+   * reculée, jamais levée d'une suspension posée à la main, et refusée sur une
+   * licence perpétuelle ou sur celle de l'éditeur, qu'un abonnement ne
+   * gouverne pas.
+   */
+  echeanceAbonnement(cabinetId: string, echeance: string) {
+    return horsCloisonnement('console · échéance de la licence d’un cabinet abonné', async () => {
+      const l = await this.prisma.licence.findUnique({ where: { tenantId: cabinetId }, select: { type: true, dateExpiration: true } });
+      const date = new Date(`${echeance}T23:59:59Z`);
+      if (!l) {
+        await this.prisma.licence.create({ data: { tenantId: cabinetId, type: TypeLicence.ABONNEMENT, statut: StatutLicence.ACTIVE, dateExpiration: date } });
+        return echeance;
+      }
+      if (l.type !== TypeLicence.ABONNEMENT) {
+        throw new BadRequestException(
+          l.type === TypeLicence.PROPRIETAIRE
+            ? 'Le dossier de l’éditeur n’a pas d’abonnement.'
+            : 'Ce dossier a une licence perpétuelle · un abonnement ne la gouverne pas. Changez d’abord le type de licence.',
+        );
+      }
+      if (l.dateExpiration && l.dateExpiration >= date) return l.dateExpiration.toISOString().slice(0, 10);
+      await this.prisma.licence.update({ where: { tenantId: cabinetId }, data: { dateExpiration: date } });
+      return echeance;
+    });
+  }
+
   private async modifierLicenceSansGarde(tenantId: string, dto: ModifierLicenceDto) {
     // Avant toute lecture : un type non attribuable est un défaut de la
     // DEMANDE, il n'a pas à dépendre de l'existence de la cible, et surtout

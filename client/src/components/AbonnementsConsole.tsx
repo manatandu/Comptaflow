@@ -21,7 +21,9 @@ interface Abonnement {
   finEssai: string | null;
   tiers: string;
   actif: boolean;
-  factures: { periode: string; montantUsd: number; numero: string }[];
+  echeanceLicence: string | null;
+  licenceSuspendue: boolean;
+  factures: { id: string; periode: string; montantUsd: number; numero: string; emiseLe: string | null; payeeLe: string | null; joursImpayee: number | null }[];
 }
 interface Resultat {
   cabinet: string;
@@ -93,6 +95,13 @@ export function AbonnementsConsole({ cabinets }: { cabinets: { id: string; nom: 
       const r = await api.post<{ resultats: Resultat[] }>('/plateforme/abonnements/facturer', { ...fac, tauxTvaId: fac.tauxTvaId || null });
       setResultats(r.resultats);
     });
+  };
+
+  // L'encaissement se déclare à la date du jour, modifiable · c'est lui qui
+  // prolonge la licence du client.
+  const encaisser = (id: string) => {
+    const payeeLe = window.prompt('Date d’encaissement (AAAA-MM-JJ)', aujourdhui());
+    if (payeeLe) void agir(() => api.patch(`/plateforme/abonnements/factures/${id}/payee`, { payeeLe }));
   };
 
   const options = formules.filter((x) => x.type === 'OPTION');
@@ -213,7 +222,8 @@ export function AbonnementsConsole({ cabinets }: { cabinets: { id: string; nom: 
                 <th className="text-left">Formule</th>
                 <th className="text-left">Paiement</th>
                 <th className="text-left">Essai jusqu’au</th>
-                <th className="text-left">Dernière facture</th>
+                <th className="text-left">Licence jusqu’au</th>
+                <th className="text-left">Factures impayées</th>
                 <th />
               </tr>
             </thead>
@@ -228,7 +238,23 @@ export function AbonnementsConsole({ cabinets }: { cabinets: { id: string; nom: 
                   </td>
                   <td>{a.periodicite === 'ANNUELLE' ? 'Annuel' : 'Mensuel'}</td>
                   <td>{a.finEssai ?? 'sans essai'}</td>
-                  <td>{a.factures[0] ? `${a.factures[0].numero} · ${a.factures[0].periode} · ${a.factures[0].montantUsd} USD` : 'aucune'}</td>
+                  <td className={a.licenceSuspendue ? 'text-danger' : ''}>{a.licenceSuspendue ? 'suspendue' : (a.echeanceLicence ?? '·')}</td>
+                  <td>
+                    {a.factures.filter((x) => !x.payeeLe).length === 0
+                      ? 'aucune'
+                      : a.factures
+                          .filter((x) => !x.payeeLe)
+                          .map((x) => (
+                            <div key={x.id} className="flex items-center gap-2">
+                              <span className={(x.joursImpayee ?? 0) > 15 ? 'text-danger' : ''}>
+                                {x.numero} · {x.montantUsd} USD · {x.joursImpayee} j
+                              </span>
+                              <button type="button" className="underline" onClick={() => encaisser(x.id)}>
+                                Encaissée
+                              </button>
+                            </div>
+                          ))}
+                  </td>
                   <td>
                     <button type="button" className="underline" onClick={() => agir(() => api.patch(`/plateforme/abonnements/${a.id}`, { actif: !a.actif }))}>
                       {a.actif ? 'Suspendre' : 'Reprendre'}

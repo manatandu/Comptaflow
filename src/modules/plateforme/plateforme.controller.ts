@@ -12,6 +12,7 @@ import {
   EnregistrerAbonnementDto,
   FacturerAbonnementsDto,
   FixerPrixFormuleDto,
+  MarquerPayeeDto,
   ModifierGroupeDto,
   ModifierLicenceDto,
   PreparerDemonstrationDto,
@@ -59,6 +60,11 @@ export class PlateformeController {
   @Patch('abonnements/:id')
   activerAbonnement(@Param('id') id: string, @Body() dto: ActiverAbonnementDto) {
     return this.abonnements.activer(id, dto.actif);
+  }
+
+  @Patch('abonnements/factures/:id/payee')
+  marquerPayee(@Param('id') id: string, @Body() dto: MarquerPayeeDto) {
+    return this.abonnements.marquerPayee(id, dto.payeeLe);
   }
 
   @Post('abonnements/facturer')

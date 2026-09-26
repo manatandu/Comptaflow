@@ -29,3 +29,33 @@ describe('console · licence d’un cabinet client, à travers la garde', () => 
     expect(r).toMatchObject({ statut: 'SUSPENDUE' });
   });
 });
+
+describe('console · échéance de la licence d’un abonné', () => {
+  const monte = (licence: Record<string, unknown> | null) => {
+    const prisma = {
+      licence: {
+        findUnique: jest.fn(async () => licence),
+        create: jest.fn(async () => ({})),
+        update: jest.fn(async () => ({})),
+      },
+    };
+    return { s: new PlateformeService(prisma as never, { get: () => undefined } as never, undefined as never), prisma };
+  };
+
+  it('crée la licence d’abonnement si elle manque, et ne recule jamais l’échéance', async () => {
+    const a = monte(null);
+    await a.s.echeanceAbonnement('c', '2026-11-15');
+    expect(a.prisma.licence.create).toHaveBeenCalledWith({ data: expect.objectContaining({ tenantId: 'c', type: 'ABONNEMENT', statut: 'ACTIVE' }) });
+    const b = monte({ type: 'ABONNEMENT', dateExpiration: new Date('2027-01-01T23:59:59Z') });
+    await expect(b.s.echeanceAbonnement('c', '2026-12-15')).resolves.toBe('2027-01-01');
+    expect(b.prisma.licence.update).not.toHaveBeenCalled();
+    const c = monte({ type: 'ABONNEMENT', dateExpiration: new Date('2026-11-15T23:59:59Z') });
+    await c.s.echeanceAbonnement('c', '2026-12-15');
+    expect(c.prisma.licence.update).toHaveBeenCalledWith({ where: { tenantId: 'c' }, data: { dateExpiration: new Date('2026-12-15T23:59:59Z') } });
+  });
+
+  it('refuse une licence perpétuelle ou celle de l’éditeur', async () => {
+    await expect(monte({ type: 'PERPETUEL_SAAS' }).s.echeanceAbonnement('c', '2026-12-15')).rejects.toThrow(/perpétuelle/);
+    await expect(monte({ type: 'PROPRIETAIRE' }).s.echeanceAbonnement('c', '2026-12-15')).rejects.toThrow(/éditeur/);
+  });
+});

@@ -238,3 +238,8 @@ export class FacturerAbonnementsDto {
   @IsUUID()
   tauxTvaId?: string | null;
 }
+
+export class MarquerPayeeDto {
+  @IsDateString({ strict: true })
+  payeeLe!: string;
+}

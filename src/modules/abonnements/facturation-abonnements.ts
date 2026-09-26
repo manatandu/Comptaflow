@@ -139,3 +139,36 @@ export function numeroFactureSuivant(annee: string, existants: string[]): string
     .reduce((a, b) => Math.max(a, b), 0);
   return `${prefixe}${String(max + 1).padStart(4, '0')}`;
 }
+
+/**
+ * LA LICENCE SUIT L'ABONNEMENT · troisième convention d'OmegaX, dite comme
+ * telle. Le client dispose de QUINZE JOURS après la fin de l'essai, puis
+ * après la fin de chaque période payée, pour régler la facture suivante ;
+ * passé ce délai sans paiement déclaré, la licence expire et l'accès se
+ * ferme par la règle ordinaire de `LicenceService` (« Abonnement expiré »).
+ * Aucun courriel, aucun clic n'est nécessaire pour couper · et un paiement
+ * déclaré rouvre aussitôt.
+ */
+export const DELAI_PAIEMENT_JOURS = 15;
+
+/** Dernier jour de la période couverte · le mois, ou les douze mois d'un annuel. */
+export function finPeriodeCouverte(periode: string, periodicite: Periodicite): string {
+  const i = moisIndex(periode) + (periodicite === 'ANNUELLE' ? 12 : 1);
+  return ajouterJours(`${periodeDe(i)}-01`, -1);
+}
+
+/** L'échéance posée à la souscription · fin de l'essai (ou début) plus le délai de paiement. */
+export function expirationInitiale(debut: string, finEssai: string | null): string {
+  return ajouterJours(finEssai ?? debut, DELAI_PAIEMENT_JOURS);
+}
+
+/** L'échéance après un paiement · jamais reculée, un paiement tardif d'une vieille période ne raccourcit rien. */
+export function expirationApresPaiement(periode: string, periodicite: Periodicite, actuelle: string | null): string {
+  const nouvelle = ajouterJours(finPeriodeCouverte(periode, periodicite), DELAI_PAIEMENT_JOURS);
+  return actuelle && actuelle > nouvelle ? actuelle : nouvelle;
+}
+
+/** Jours écoulés depuis l'émission d'une facture impayée, au calendrier. */
+export function joursDepuis(emiseLe: string, aujourdhui: string): number {
+  return Math.round((Date.parse(`${aujourdhui}T00:00:00Z`) - Date.parse(`${emiseLe}T00:00:00Z`)) / 86_400_000);
+}
