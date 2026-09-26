@@ -4571,6 +4571,15 @@ le 413 est redit en français. Aucun quota par dossier. (4) LA COLONNE BINAIRE
 N'ENTRE DANS AUCUN CSV · l'archive de restitution écrit chaque pièce à côté
 (`fichierDuDocument`), et le journal d'audit l'exclut par colonne. Une même
 pièce n'est pas attachée deux fois au même tiers (empreinte SHA-256, P2002).
+LA FENÊTRE PLAN DES TIERS EST OUVERTE EN CONSULTATION depuis le 2026-09-26
+(décision de Manasse) · le volet Documents vivait dans une fenêtre réservée à
+l'administrateur, si bien que le comptable avait le droit au serveur et pas le
+moyen à l'écran. La STRUCTURE (créer, modifier, fusionner, supprimer, mettre
+en sommeil, rattacher un compte, modèles de règlement) reste à
+l'administrateur, à l'écran (`estAdmin`) comme au serveur (`@Roles
+ADMIN_CABINET`) ; les documents suivent `peutEcrire`. Un spec relit chaque
+action de structure dans son bloc `estAdmin &&`, par équilibrage et non par
+distance.
 AUDIT DU MÊME JOUR, QUATRE CORRECTIONS. La FUSION de deux tiers qui portent
 la même pièce tombait en 500 sur cette unicité · l'exemplaire du doublon est
 désormais retiré avant le report (même empreinte, même contenu). Une pièce

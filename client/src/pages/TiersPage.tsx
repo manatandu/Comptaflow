@@ -488,17 +488,12 @@ export function TiersPage() {
     }
   };
 
-  if (!estAdmin) {
-    return (
-      <div className="p-2">
-      <EnteteImpression titre="Plan des tiers" />
-        <div className="border border-warning/30 bg-warning-soft px-4 py-3 text-[11.5px] max-w-[480px]">
-          La gestion des tiers est réservée aux administrateurs du dossier.
-        </div>
-      </div>
-    );
-  }
-
+  // OUVERTE À TOUS EN CONSULTATION depuis le 2026-09-26 (décision de
+  // Manasse). Ce qui touche à la STRUCTURE (créer, modifier, fusionner,
+  // supprimer un tiers, rattacher ses comptes, les modèles de règlement) reste
+  // à l'administrateur, à l'écran comme au serveur (@Roles ADMIN_CABINET).
+  // Le volet Documents suit `peutEcrire`, comme ses routes · joindre une pièce
+  // est un geste de tenue, pas une retouche de la structure.
   return (
     <div className="p-2 flex flex-col h-full avec-edition">
       <EnteteImpression titre="Plan des tiers" />
@@ -526,6 +521,7 @@ export function TiersPage() {
             placeholder="Rechercher (code, nom)…"
             className="border border-border-dark bg-surface px-2.5 py-1 text-[11.5px] w-64"
           />
+          {estAdmin && (
           <button
             type="button"
             onClick={() => setModelesOuverts(true)}
@@ -533,6 +529,8 @@ export function TiersPage() {
           >
             Modèles de règlement…
           </button>
+          )}
+          {estAdmin && (
           <button
             type="button"
             onClick={() => setNouveauOuvert(true)}
@@ -540,6 +538,7 @@ export function TiersPage() {
           >
             Nouveau tiers
           </button>
+          )}
           <Aide sujet="compte41" />
         </div>
       </div>
@@ -663,6 +662,8 @@ export function TiersPage() {
                   {tiersSelectionne.estActif ? 'Actif' : 'En sommeil'}
                 </span>
               </div>
+              {estAdmin && (
+              <>
               <button
                 type="button"
                 onClick={() => basculerActif(tiersSelectionne)}
@@ -684,6 +685,8 @@ export function TiersPage() {
               >
                 Fusionner…
               </button>
+              </>
+              )}
               {fusionOuverte && (
                 <ModaleFusion
                   titre="Fusion de tiers"
@@ -727,7 +730,8 @@ export function TiersPage() {
                         // sans elle, un champ non contrôlé garderait la valeur
                         // du tiers précédent.
                         key={`${tiersSelectionne.id}-${champ.cle}`}
-                        onBlur={(e) => enregistrerCoordonnee(tiersSelectionne, champ.cle, e.target.value)}
+                        readOnly={!estAdmin}
+                        onBlur={(e) => estAdmin && enregistrerCoordonnee(tiersSelectionne, champ.cle, e.target.value)}
                         className="border border-border rounded-[3px] bg-bg px-2 py-[3px] text-[11.5px] focus:outline-none focus:border-sel"
                       />
                     </Fragment>
@@ -776,6 +780,7 @@ export function TiersPage() {
                   <>
                     <select
                       value={tiersSelectionne.celluleGroupeId ?? ''}
+                      disabled={!estAdmin}
                       onChange={(e) =>
                         enregistrerChamp(tiersSelectionne, { celluleGroupeId: e.target.value || null })
                       }
@@ -822,6 +827,7 @@ export function TiersPage() {
                     type="checkbox"
                     className="mt-[2px]"
                     checked={tiersSelectionne.autoriseTvaDebits}
+                    disabled={!estAdmin}
                     onChange={(e) =>
                       enregistrerChamp(tiersSelectionne, { autoriseTvaDebits: e.target.checked })
                     }
@@ -838,7 +844,9 @@ export function TiersPage() {
                       key={`${tiersSelectionne.id}-referenceAutorisationDebits`}
                       defaultValue={tiersSelectionne.referenceAutorisationDebits ?? ''}
                       placeholder="décision du Directeur Général des Impôts"
+                      readOnly={!estAdmin}
                       onBlur={(e) => {
+                        if (!estAdmin) return;
                         const propre = e.target.value.trim();
                         if (propre === (tiersSelectionne.referenceAutorisationDebits ?? '')) return;
                         enregistrerChamp(tiersSelectionne, { referenceAutorisationDebits: propre || null });
@@ -858,9 +866,11 @@ export function TiersPage() {
                 {tiersSelectionne.comptesRattaches.length === 0 && (
                   <div className="text-[11.5px] text-text-dim mb-2 flex items-center gap-2">
                     Aucun compte rattaché.
-                    <button type="button" onClick={creerSonCompte} className="text-sel hover:underline">
-                      Créer son compte sous le collectif
-                    </button>
+                    {estAdmin && (
+                      <button type="button" onClick={creerSonCompte} className="text-sel hover:underline">
+                        Créer son compte sous le collectif
+                      </button>
+                    )}
                   </div>
                 )}
                 {tiersSelectionne.comptesRattaches.map((tc) => (
@@ -872,7 +882,7 @@ export function TiersPage() {
                           <IconCheck width={9} height={9} /> Principal
                         </span>
                       ) : (
-                        <button
+                        estAdmin && <button
                           onClick={() => definirPrincipal(tc.compteId)}
                           className="text-[11px] text-sel hover:underline"
                         >
@@ -892,17 +902,20 @@ export function TiersPage() {
                         >
                           Interroger / lettrer
                         </button>
-                        <button
-                          onClick={() => detacherCompte(tc.compteId)}
-                          className="text-[11px] text-danger hover:underline"
-                        >
-                          Détacher
-                        </button>
+                        {estAdmin && (
+                          <button
+                            onClick={() => detacherCompte(tc.compteId)}
+                            className="text-[11px] text-danger hover:underline"
+                          >
+                            Détacher
+                          </button>
+                        )}
                       </span>
                     </div>
                   </div>
                 ))}
 
+                {estAdmin && (
                 <form onSubmit={onRattacherCompte} className="mt-2">
                   <select
                     required
@@ -927,6 +940,7 @@ export function TiersPage() {
                     </button>
                   </div>
                 </form>
+                )}
               </div>
 
               {/* Volet Documents · point 21 de la comparaison Sage i7 */}
