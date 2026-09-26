@@ -4711,6 +4711,27 @@ antérieur hors corpus), et avant le 24 novembre 2018 toute la CNSS s'abstient.
 Septième lacune déclarée à tort, même cause que les autres · le texte était au
 corpus, personne ne l'avait relu pour sa date.
 
+**Journaux autorisés par utilisateur (2026-09-26).** Priorité 5 de la
+comparaison avec les autres produits Sage. X3 NOMME des rôles qui filtrent les
+DONNÉES (compétence `sage-i7`, paie-et-x3.md) sans les décrire · la règle est
+celle d'OmegaX (`common/perimetre/extension-perimetre-journaux.ts`, bouton
+« Journaux » de la fenêtre Utilisateurs). CINQ RÈGLES À NE PAS DÉFAIRE. (1) C'EST
+LA SAISIE QUI EST RESTREINTE, JAMAIS LA LECTURE · créer, modifier, valider,
+supprimer ou déplacer une écriture hors des journaux cochés est refusé (403).
+Une balance, un grand livre ou un bilan lus sur une partie des journaux
+boucleraient et seraient faux (AUDCIF art. 22, 6°) ; la confidentialité relève
+du rôle cantonné. Lettrage et pointage restent ouverts, ce ne sont pas des
+saisies. (2) POSÉE SUR LE CLIENT PRISMA, entre le cloisonnement et l'audit ·
+huit fichiers écrivent des écritures (saisie, imports, clôture, affectation,
+immobilisations, paie, TVA, groupe) et aucun ne peut l'oublier. Une
+modification relit le journal des écritures visées, le filtre ne le porte pas.
+(3) L'ADMINISTRATEUR N'EST JAMAIS RESTREINT, ni à la définition ni au contrôle
+(l'intercepteur d'audit pose `journauxAutorises` à null pour lui). (4) UNE LISTE
+VIDE FERME TOUTE SAISIE · un utilisateur qui consulte sans saisir, et c'est dit.
+Un journal d'un autre dossier est refusé à la définition. (5) POSER LA
+RESTRICTION FERME LES SESSIONS, comme le profil de fonctions, et les deux
+colonnes sont ADMISES au journal d'audit.
+
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
 nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la

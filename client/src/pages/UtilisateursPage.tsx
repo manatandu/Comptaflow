@@ -4,6 +4,7 @@ import { phraseAvisAcces } from '../lib/remise-courriel';
 import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
 import { ModaleFonctions } from '../components/ModaleFonctions';
+import { ModaleJournaux } from '../components/ModaleJournaux';
 import { ModaleMonAdresse } from '../components/ModaleMonAdresse';
 import type { AvisAcces, RoleUtilisateur, Utilisateur } from '../lib/types';
 
@@ -35,6 +36,7 @@ export function UtilisateursPage() {
   const [adresseOuverte, setAdresseOuverte] = useState(false);
   // Profil de fonctions (point 15).
   const [fonctionsCible, setFonctionsCible] = useState<Utilisateur | null>(null);
+  const [journauxCible, setJournauxCible] = useState<Utilisateur | null>(null);
   const [reinitCible, setReinitCible] = useState<Utilisateur | null>(null);
   const [reinitMotDePasse, setReinitMotDePasse] = useState('');
   const [reinitErreur, setReinitErreur] = useState<string | null>(null);
@@ -244,6 +246,11 @@ export function UtilisateursPage() {
                   {u.restreindreFonctions ? `Fonctions (${u.fonctionsAutorisees?.length ?? 0})` : 'Fonctions'}
                 </button>
               )}
+              {u.role !== 'ADMIN_CABINET' && (
+                <button onClick={() => setJournauxCible(u)} className="text-[11.5px] text-sel">
+                  {u.restreindreJournaux ? `Journaux (${u.journauxAutorises?.length ?? 0})` : 'Journaux'}
+                </button>
+              )}
             </div>
           </div>
         ))}
@@ -268,6 +275,20 @@ export function UtilisateursPage() {
           onFermer={() => setFonctionsCible(null)}
           onEnregistre={() => {
             setFonctionsCible(null);
+            void charger();
+          }}
+        />
+      )}
+
+      {journauxCible && (
+        <ModaleJournaux
+          utilisateurId={journauxCible.id}
+          email={journauxCible.email}
+          restreindre={!!journauxCible.restreindreJournaux}
+          journaux={journauxCible.journauxAutorises ?? []}
+          onFermer={() => setJournauxCible(null)}
+          onEnregistre={() => {
+            setJournauxCible(null);
             void charger();
           }}
         />

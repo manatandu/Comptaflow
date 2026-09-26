@@ -61,6 +61,10 @@ describe('la liste d’exclusion est fermée sur User', () => {
     // fonction à qui est exactement ce qu'un journal d'audit doit rendre.
     'restreindreFonctions',
     'fonctionsAutorisees',
+    // Journaux autorisés (priorité 5) · ADMIS, pour la même raison : ouvrir
+    // la banque à un caissier la veille d'un décaissement doit se relire.
+    'restreindreJournaux',
+    'journauxAutorises',
   ];
 
   it('classe chaque colonne de User, sans exception ni oubli', () => {

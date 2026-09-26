@@ -7,7 +7,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { UtilisateurService } from './utilisateur.service';
 import { AvisAccesService } from './avis-acces.service';
-import { CreerUtilisateurDto, DefinirFonctionsDto, ModifierUtilisateurDto, ReinitialiserMotDePasseDto } from './dto/utilisateur.dto';
+import { CreerUtilisateurDto, DefinirFonctionsDto, DefinirJournauxDto, ModifierUtilisateurDto, ReinitialiserMotDePasseDto } from './dto/utilisateur.dto';
 import { RoleUtilisateur } from '@prisma/client';
 
 // Réservé à l'admin du cabinet : gérer qui a accès au dossier et avec quel
@@ -102,6 +102,12 @@ export class UtilisateurController {
   @Put(':id/fonctions')
   async definirFonctions(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: DefinirFonctionsDto) {
     return this.utilisateurService.definirFonctions(user.tenantId, id, dto);
+  }
+
+  /** Journaux autorisés (priorité 5) · restreint la saisie, jamais la lecture. */
+  @Put(':id/journaux')
+  async definirJournaux(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: DefinirJournauxDto) {
+    return this.utilisateurService.definirJournaux(user.tenantId, id, dto);
   }
 
   /** Le comptable qui a mal tapé cinq fois et se souvient très bien du sien. */

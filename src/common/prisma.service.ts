@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/commo
 import { PrismaClient } from '@prisma/client';
 import { extensionAudit } from './audit/extension-audit';
 import { extensionCloisonnement } from './cloisonnement/extension-cloisonnement';
+import { extensionPerimetreJournaux } from './perimetre/extension-perimetre-journaux';
 import { lireEtatDuPooling, messageDePooling } from './pooling-base';
 
 /**
@@ -46,7 +47,11 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     // journal n'ait de résultat à consigner, dans un sens comme dans l'autre.
     // Le journal ne consigne donc jamais un acte qui n'a pas eu lieu.
     const nu: PrismaClient = this;
-    const etendu = this.$extends(extensionCloisonnement(this)).$extends(extensionAudit(this)) as unknown as this;
+    // Le périmètre de saisie par journal se pose après le cloisonnement · une
+    // écriture d'un autre dossier est refusée par lui d'abord, avec son motif.
+    const etendu = this.$extends(extensionCloisonnement(this))
+      .$extends(extensionPerimetreJournaux(this))
+      .$extends(extensionAudit(this)) as unknown as this;
     // `defineProperty` et non une affectation · le champ doit être posé sur
     // l'objet ÉTENDU que le constructeur retourne (c'est lui que Nest
     // injecte), et rester NON énumérable pour qu'aucune sérialisation du

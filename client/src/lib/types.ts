@@ -81,6 +81,9 @@ export interface Utilisateur {
   /** Profil de fonctions (point 15) · faux = tout ce que le rôle permet. */
   restreindreFonctions?: boolean;
   fonctionsAutorisees?: string[];
+  /** Journaux autorisés (priorité 5) · faux = saisie dans tous les journaux. */
+  restreindreJournaux?: boolean;
+  journauxAutorises?: string[];
 }
 export type ClasseCompte =
   | 'CLASSE_1' | 'CLASSE_2' | 'CLASSE_3' | 'CLASSE_4'

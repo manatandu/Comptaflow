@@ -20,6 +20,8 @@ const SELECTION = {
   createdAt: true,
   restreindreFonctions: true,
   fonctionsAutorisees: true,
+  restreindreJournaux: true,
+  journauxAutorises: true,
 } as const;
 
 @Injectable()
@@ -68,6 +70,37 @@ export class UtilisateurService {
       data: {
         restreindreFonctions: dto.restreindre,
         fonctionsAutorisees: dto.restreindre ? [...new Set(dto.fonctions)] : [],
+        sessionsInvalidesAvant: new Date(),
+      },
+      select: SELECTION,
+    });
+  }
+
+  /**
+   * JOURNAUX AUTORISÉS (priorité 5, common/perimetre/extension-perimetre-journaux.ts) ·
+   * restreint la SAISIE aux journaux cochés. Mêmes refus que le profil de
+   * fonctions · jamais un administrateur, et un journal d'un autre dossier
+   * n'entre pas dans la liste. Une restriction sans aucun journal est
+   * permise · c'est un utilisateur qui consulte sans saisir, et c'est dit.
+   */
+  async definirJournaux(tenantId: string, userId: string, dto: { restreindre: boolean; journaux: string[] }) {
+    const user = await this.prisma.user.findFirst({ where: { id: userId, tenantId } });
+    if (!user) throw new NotFoundException('Utilisateur introuvable pour ce tenant');
+    if (user.role === RoleUtilisateur.ADMIN_CABINET && dto.restreindre) {
+      throw new BadRequestException(
+        "Un administrateur n'est jamais restreint · c'est lui qui ouvre et ferme les journaux des autres. Changez d'abord son rôle.",
+      );
+    }
+    const ids = [...new Set(dto.journaux)];
+    if (dto.restreindre && ids.length) {
+      const trouves = await this.prisma.journal.count({ where: { tenantId, id: { in: ids } } });
+      if (trouves !== ids.length) throw new BadRequestException('Un des journaux cochés n’appartient pas à ce dossier.');
+    }
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        restreindreJournaux: dto.restreindre,
+        journauxAutorises: dto.restreindre ? ids : [],
         sessionsInvalidesAvant: new Date(),
       },
       select: SELECTION,

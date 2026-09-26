@@ -169,12 +169,12 @@ méthode. D = la source décrit la fonction ; N = elle ne fait que la nommer.
 | Paie et RH | Rubriques créées par l'utilisateur, bulletins modèles | D / N | PARTIEL (2026-09-26) · rubriques du cabinet qui nomment un élément et en prennent la nature, jamais les assiettes ; bulletins modèles non servis |
 | Paie et RH | Avances et prêts sur salaire (événement, retenue, solde) | D | OUI (2026-09-26) · registre, retenue sur le bulletin (4211, 4212, 272), solde calculé |
 | Sage X3 | Profils fonctions | N | OUI (point 15) |
-| Sage X3 | Habilitation par écran ou champ, filtrage des données par compte ou journal | N | NON · tenu en réserve au plan |
+| Sage X3 | Habilitation par écran ou champ, filtrage des données par compte ou journal | N | PARTIEL (2026-09-26) · journaux autorisés par utilisateur, qui restreignent la SAISIE ; la lecture n'est pas filtrée, un état lu sur une partie des journaux serait faux ; l'habilitation par champ n'est pas servie |
 
 Priorités proposées pour un cabinet congolais : (1) RIB des tiers et ordre de
 virement imprimable, servi le 2026-09-26 ; (2) avances et prêts sur salaire, rubriques de paie
 paramétrables, servis le 2026-09-26 ; (3) dégressif et dérogatoire pour le SYSCOHADA, servis le
 2026-09-26 ; (4) barèmes de paie en données datées, servis le 2026-09-26 pour les taux de
 cotisation et le SMIG ; (5)
-filtrage des données par rôle ; (6) simulateur budgétaire. Le reste n'est que
+filtrage des données par rôle, servi le 2026-09-26 comme journaux autorisés en saisie ; (6) simulateur budgétaire. Le reste n'est que
 nommé dans les sources et ne s'implémente pas sans meilleure source.

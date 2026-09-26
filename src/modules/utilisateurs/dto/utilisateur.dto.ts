@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsEmail, IsEnum, IsOptional, MinLength } from 'class-validator';
+import { IsArray, IsBoolean, IsEmail, IsEnum, IsOptional, IsUUID, MinLength } from 'class-validator';
 import { FonctionMetier, RoleUtilisateur } from '@prisma/client';
 
 export class CreerUtilisateurDto {
@@ -38,4 +38,14 @@ export class DefinirFonctionsDto {
   @IsArray()
   @IsEnum(FonctionMetier, { each: true })
   fonctions!: FonctionMetier[];
+}
+
+/** Journaux autorisés (priorité 5) · voir common/perimetre/extension-perimetre-journaux.ts. */
+export class DefinirJournauxDto {
+  @IsBoolean()
+  restreindre!: boolean;
+
+  @IsArray()
+  @IsUUID('all', { each: true })
+  journaux!: string[];
 }

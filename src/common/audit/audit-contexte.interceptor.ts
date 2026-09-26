@@ -31,6 +31,12 @@ export class AuditContexteInterceptor implements NestInterceptor {
         (typeof requete.headers?.['x-forwarded-for'] === 'string'
           ? requete.headers['x-forwarded-for'].split(',')[0].trim()
           : undefined) || requete.ip,
+      // L'administrateur n'est jamais restreint · c'est lui qui lève la
+      // restriction (voir extension-perimetre-journaux.ts).
+      journauxAutorises:
+        utilisateur.role !== 'ADMIN_CABINET' && utilisateur.restreindreJournaux
+          ? (utilisateur.journauxAutorises ?? [])
+          : null,
     };
 
     return new Observable((observateur) => {

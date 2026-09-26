@@ -117,6 +117,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       estOperateurPlateforme: user.estOperateurPlateforme,
       restreindreFonctions: user.restreindreFonctions,
       fonctionsAutorisees: user.fonctionsAutorisees,
+      restreindreJournaux: user.restreindreJournaux,
+      journauxAutorises: user.journauxAutorises,
     };
   }
 }

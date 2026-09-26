@@ -18,6 +18,11 @@ export interface ActeurAudit {
   /** Nul pour les actes de la plateforme, qui ne relèvent d'aucun dossier. */
   tenantId?: string;
   adresseIp?: string;
+  /**
+   * Journaux où l'acteur peut saisir · null ou absent, aucune restriction
+   * (common/perimetre/extension-perimetre-journaux.ts).
+   */
+  journauxAutorises?: readonly string[] | null;
 }
 
 const stockage = new AsyncLocalStorage<ActeurAudit>();
