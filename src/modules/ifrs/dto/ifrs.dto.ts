@@ -42,6 +42,10 @@ export class RegleConsolidationIfrsDto {
 export class PremiereApplicationIfrsDto {
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsUUID() premierExerciceIfrsId?: string | null;
   @IsOptional() @IsBoolean() dejaAdoptant?: boolean;
+  /** La première application des comptes CONSOLIDÉS, déclarée à part. */
+  @IsOptional() @IsBoolean() consolide?: boolean;
+  /** IFRS 1 § C1 · consolidé seulement, null efface. */
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsBoolean() exemptionRegroupementsC1?: boolean | null;
 }
 
 export class MouvementCpIfrsDto {

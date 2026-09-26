@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { useExercice } from '../lib/exercice';
 import { Aide } from './chrome/Aide';
 import { DeclarationEffetChange, EffetChange, FluxServi, TableauFluxIfrs } from './FluxTresorerieIfrs';
 import { VariationCapitauxPropresIfrs, VariationServie } from './VariationCapitauxPropresIfrs';
@@ -30,6 +31,11 @@ import { DeclarationsIfrs12, DeclarationsIfrs12Form, EntiteIfrs12 } from './Decl
  * TRANCHE C4 · les notes consolidées, par le même composant que les comptes
  * individuels, plus les réponses d'IFRS 12. Leurs déclarations sont celles du
  * groupe, jamais celles du dossier.
+ *
+ * TRANCHE C5 · la première application consolidée (IFRS 1) se déclare pour le
+ * groupe, à part des comptes individuels, avec le choix de l'exemption C1. Les
+ * ajustements de transition sont des retraitements consolidés posés sur
+ * l'exercice comparatif.
  */
 type Rubrique = { code: string; libelle: string; ref: string; etat: 'SITUATION' | 'RESULTAT' | 'RESULTAT_GLOBAL'; section?: string };
 type Ligne = { cle: string; libelle: string; ref?: string; groupe?: string; nature: 'POSTE' | 'TOTAL' | 'NON_CLASSE'; legal: number; retraitements: number; ifrs: number };
@@ -64,6 +70,18 @@ type Consolide = {
   postesADeclarer: { poste: string; libelle: string }[];
   fluxTresorerie: FluxServi | null;
   variationCapitauxPropres: VariationServie | null;
+  premiereApplication: {
+    dateTransition: string;
+    ouverture: Etats;
+    rapprochements: { titre: string; ref: string; lignes: { cle: string; libelle: string; fondement?: string; nature?: 'METHODE' | 'ERREUR'; montant: number }[] }[];
+    mentions: string[];
+  } | null;
+  motifPremiereApplication: string | null;
+  premierExerciceIfrsConsolideId: string | null;
+  dejaAdoptantConsolide: boolean;
+  exemptionRegroupementsC1: boolean | null;
+  exerciceTransitionId: string | null;
+  ajustementsTransition: Retraitement[];
   notes: (NotesIfrsServies & { ifrs12: DeclarationsIfrs12; entitesIfrs12: EntiteIfrs12[] }) | null;
   decouvertsDansTresorerie: boolean | null;
   tresorerieGroupeEnDevises: boolean | null;
@@ -78,6 +96,8 @@ const part = (v: string) => (v.trim() === '' ? null : nombre(v));
 
 export function EtatsIfrsConsolides({ exerciceId }: { exerciceId: string }) {
   const { peutEcrire } = useAuth();
+  const { exercices } = useExercice();
+  const [transition, setTransition] = useState(false);
   const [etat, setEtat] = useState<Consolide | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [regle, setRegle] = useState({ poste: '', rubrique: '' });
@@ -166,7 +186,7 @@ export function EtatsIfrsConsolides({ exerciceId }: { exerciceId: string }) {
           États IFRS consolidés
           <Aide
             titre="États IFRS consolidés"
-            texte="La balance consolidée est celle de la fenêtre Consolidation, jamais recalculée ici. Ses comptes se rangent par les règles de correspondance des comptes individuels, uniformité des méthodes (IFRS 10 § 19) ; ses postes se rangent par IFRS 18 quand la norme nomme la ligne, et se déclarent sinon. Les participations ne donnant pas le contrôle sont présentées dans les capitaux propres, séparément (IFRS 10 § 22, IFRS 18 § 104 a), et le résultat net comme le résultat global se répartissent sous leur total (§ 76, § 87). Un retraitement consolidé déclare la part de chacun de ses effets qui revient aux minoritaires, zéro compris (IFRS 10 § B94). Le tableau des flux, la variation des capitaux propres et les notes consolidés, IFRS 12 comprise, sont servis ; la première application consolidée ne l’est pas encore · le jeu le dit."
+            texte="La balance consolidée est celle de la fenêtre Consolidation, jamais recalculée ici. Ses comptes se rangent par les règles de correspondance des comptes individuels, uniformité des méthodes (IFRS 10 § 19) ; ses postes se rangent par IFRS 18 quand la norme nomme la ligne, et se déclarent sinon. Les participations ne donnant pas le contrôle sont présentées dans les capitaux propres, séparément (IFRS 10 § 22, IFRS 18 § 104 a), et le résultat net comme le résultat global se répartissent sous leur total (§ 76, § 87). Un retraitement consolidé déclare la part de chacun de ses effets qui revient aux minoritaires, zéro compris (IFRS 10 § B94). Le tableau des flux, la variation des capitaux propres, les notes (IFRS 12 comprise) et la première application (IFRS 1) consolidés sont servis ; ce qui n’est pas servi dans chacun est dit sur le jeu."
             source="AUDCIF art. 74 à 98 · D4C ch. XII · IFRS 10 § 19, § 22, § B94 · IFRS 18 § 76, § 87, § 104 a · IAS 7"
           />
         </h2>
@@ -288,13 +308,20 @@ export function EtatsIfrsConsolides({ exerciceId }: { exerciceId: string }) {
                     Ligne de plus
                   </button>
                   <span className={Math.abs(ecartRetr) > 0.005 ? 'text-[11.5px] text-warning' : 'text-[11.5px] text-text-dim'}>Écart {fc(ecartRetr)}</span>
+                  {etat.exerciceTransitionId && (
+                    <label className="text-[11.5px] flex items-center gap-1">
+                      <input type="checkbox" checked={transition} onChange={(e) => setTransition(e.target.checked)} />
+                      Ajustement de transition (IFRS 1 § 11)
+                    </label>
+                  )}
                   <button
                     className="border border-border px-2.5 py-1 text-[11.5px]"
                     onClick={() =>
                       void agir(async () => {
                         await api.post('/ifrs/retraitements', {
-                          exerciceId,
+                          exerciceId: transition && etat.exerciceTransitionId ? etat.exerciceTransitionId : exerciceId,
                           consolide: true,
+                          ...(transition && etat.exerciceTransitionId ? { aLaTransition: true } : {}),
                           libelle: retr.libelle,
                           fondement: retr.fondement,
                           lignes: retr.lignes.filter((x) => x.rubrique).map((x) => ({ rubrique: x.rubrique, montant: nombre(x.montant) })),
@@ -340,6 +367,114 @@ export function EtatsIfrsConsolides({ exerciceId }: { exerciceId: string }) {
               ))
             )}
           </section>
+
+          <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
+            <h2 className="text-[11.5px] font-bold mb-1.5 flex items-center gap-1.5">
+              Première application aux comptes consolidés (IFRS 1)
+              <Aide
+                titre="Première application consolidée"
+                texte="Le groupe déclare son premier exercice IFRS, à part des comptes individuels (la mère et le groupe n’adoptent pas forcément à la même date). L’état d’ouverture à la date de transition est la consolidation de clôture de l’exercice qui précède le comparatif, corrigée des ajustements de transition consolidés. Le choix de l’exemption C1 décide si l’écart d’acquisition amorti selon l’AUDCIF passe tel quel à l’ouverture."
+                source="IFRS 1 § 6 à 26, § C1, § C4, § D17"
+              />
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+              <select
+                className={champ}
+                disabled={!peutEcrire}
+                value={etat.dejaAdoptantConsolide ? 'DEJA' : (etat.premierExerciceIfrsConsolideId ?? '')}
+                onChange={(e) =>
+                  void agir(() =>
+                    api.put('/ifrs/premiere-application', {
+                      consolide: true,
+                      premierExerciceIfrsId: e.target.value && e.target.value !== 'DEJA' ? e.target.value : null,
+                      dejaAdoptant: e.target.value === 'DEJA',
+                      exemptionRegroupementsC1: etat.exemptionRegroupementsC1,
+                    }),
+                  )
+                }
+              >
+                <option value="">Non déclarée</option>
+                <option value="DEJA">Le groupe présente déjà des états consolidés conformes aux IFRS (§ 4 et 5)</option>
+                {exercices.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    Premier exercice IFRS du groupe · {x.dateDebut.slice(0, 10)} au {x.dateFin.slice(0, 10)}
+                  </option>
+                ))}
+              </select>
+              <select
+                className={champ}
+                disabled={!peutEcrire || !etat.premierExerciceIfrsConsolideId}
+                value={etat.exemptionRegroupementsC1 == null ? '' : etat.exemptionRegroupementsC1 ? 'OUI' : 'NON'}
+                onChange={(e) =>
+                  void agir(() =>
+                    api.put('/ifrs/premiere-application', {
+                      consolide: true,
+                      premierExerciceIfrsId: etat.premierExerciceIfrsConsolideId,
+                      dejaAdoptant: false,
+                      exemptionRegroupementsC1: e.target.value === '' ? null : e.target.value === 'OUI',
+                    }),
+                  )
+                }
+              >
+                <option value="">Regroupements passés · choix non déclaré (§ C1)</option>
+                <option value="OUI">Regroupements passés non retraités selon IFRS 3 (exemption C1)</option>
+                <option value="NON">Regroupements passés retraités selon IFRS 3</option>
+              </select>
+            </div>
+            {etat.motifPremiereApplication && <p className="text-[11.5px] text-warning mt-1.5">{etat.motifPremiereApplication}</p>}
+            {etat.premiereApplication && (
+              <>
+                <p className="text-[11.5px] mt-1.5">
+                  Date de transition · <strong>{etat.premiereApplication.dateTransition}</strong> (ouverture de l’exercice comparatif, annexe A).
+                </p>
+                <p className="text-[11.5px] font-semibold mt-2 mb-1">Ajustements de transition consolidés</p>
+                {etat.ajustementsTransition.length === 0 ? (
+                  <p className="text-[11.5px] text-text-dim">Aucun ajustement · l’état d’ouverture est la consolidation de clôture reclassée.</p>
+                ) : (
+                  etat.ajustementsTransition.map((x) => (
+                    <div key={x.id} className="flex justify-between gap-2 border-b border-border/60 py-1 text-[11.5px]">
+                      <span>
+                        <strong>{x.libelle}</strong> · {x.fondement}
+                      </span>
+                      {peutEcrire && (
+                        <button className="text-[11px] underline" onClick={() => void agir(() => api.delete(`/ifrs/retraitements/${x.id}`))}>
+                          Retirer
+                        </button>
+                      )}
+                    </div>
+                  ))
+                )}
+                {etat.premiereApplication.rapprochements.map((rp) => (
+                  <div key={rp.ref} className="mt-2">
+                    <p className="text-[11.5px] font-semibold mb-1">
+                      {rp.titre} ({rp.ref})
+                    </p>
+                    <table className="w-full text-[11.5px]">
+                      <tbody>
+                        {rp.lignes.map((l) => (
+                          <tr
+                            key={l.cle}
+                            className={l.cle === 'ECART' ? 'text-danger font-semibold' : l.cle === 'DEPART' || l.cle === 'ARRIVEE' ? 'font-bold border-t border-border' : 'border-b border-border/40'}
+                          >
+                            <td className="py-1 pr-2">
+                              {l.libelle}
+                              {l.nature === 'ERREUR' ? ' · correction d’erreur (§ 26)' : l.nature === 'METHODE' ? ' · changement de méthode' : ''}
+                            </td>
+                            <td className="py-1 pr-2 text-text-dim">{l.fondement}</td>
+                            <td className="py-1 text-right">{fc(l.montant)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
+                {etat.premiereApplication.mentions.map((m) => <p key={m} className="text-[11.5px] text-text-dim mt-1">{m}</p>)}
+              </>
+            )}
+          </section>
+
+          {etat.premiereApplication &&
+            tableau(`État consolidé de la situation financière d’ouverture au ${etat.premiereApplication.dateTransition} (IFRS 1 § 6)`, etat.premiereApplication.ouverture.situation, null)}
 
           {tableau('État consolidé de la situation financière', etat.n.situation, etat.n1?.situation ?? null)}
           {tableau('Compte de résultat consolidé', etat.n.resultat, etat.n1?.resultat ?? null)}

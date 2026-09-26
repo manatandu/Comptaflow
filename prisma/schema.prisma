@@ -6985,6 +6985,15 @@ model ParametresIfrs {
   premierExerciceIfrsId    String?
   /// L'entité publiait déjà des états IFRS · IFRS 1 ne s'applique pas.
   dejaAdoptant             Boolean                 @default(false)
+  /// IFRS 1 aux comptes CONSOLIDÉS · le premier exercice des premiers états
+  /// consolidés IFRS, déclaré à part de celui des comptes individuels · la
+  /// mère et le groupe n'adoptent pas forcément à la même date (§ D17).
+  premierExerciceIfrsConsolideId String?
+  /// Le groupe publiait déjà des états consolidés IFRS.
+  dejaAdoptantConsolide    Boolean                 @default(false)
+  /// IFRS 1 § C1 · les regroupements d'entreprises passés ne sont pas
+  /// retraités selon IFRS 3. NULL · pas déclaré.
+  exemptionRegroupementsC1 Boolean?
   /// IAS 7 § 8 · les découverts bancaires remboursables à vue font partie
   /// intégrante de la gestion de trésorerie. NULL · pas déclaré, et le tableau
   /// des flux n'est pas publiable dès que la trésorerie passive n'est pas nulle.

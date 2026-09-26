@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, statSync } from 'fs';
 import { join, relative } from 'path';
 import { BadRequestException } from '@nestjs/common';
 import { Prisma, RoleUtilisateur } from '@prisma/client';
-import { IfrsService, MOTIFS_CONSOLIDES_NON_SERVIS } from './ifrs.service';
+import { IfrsService } from './ifrs.service';
 import { LIBELLE_POSTE } from '../consolidation/cumul-consolidation';
 import { IfrsController } from './ifrs.controller';
 import { ROLES_KEY } from '../../common/decorators/roles.decorator';
@@ -761,14 +761,14 @@ describe('IfrsService · états IFRS consolidés (tranche C1)', () => {
     expect(e.motifN).toBe('Aucun périmètre de consolidation pour cet exercice.');
   });
 
-  it('la balance du cumul projetée, les minoritaires répartis, et ce que la tranche ne sert pas est dit', async () => {
+  it('la balance du cumul projetée, les minoritaires répartis, et la première application non déclarée est dite', async () => {
     const { service } = await dossierConsolide();
     const e = await service.etatConsolide(T, EX);
     expect(X(e.n!.situation, 'SF_PARTICIPATIONS_NE_DONNANT_PAS_CONTROLE').ifrs).toBe(100);
     expect(X(e.n!.resultat, 'RN_PARTICIPATIONS_NE_DONNANT_PAS_CONTROLE').ifrs).toBe(40);
     expect(X(e.n!.resultat, 'PL_AUTRES_CHARGES_OPERATIONNELLES').legal).toBe(-10);
     const m = e.n!.motifsNonPubliable;
-    expect(m).toEqual(expect.arrayContaining(MOTIFS_CONSOLIDES_NON_SERVIS));
+    expect(m).toContain('Première application consolidée non déclarée · les premiers états consolidés IFRS relèvent d’IFRS 1 (§ 2 et 3). Déclarez le premier exercice IFRS du groupe, ou qu’il présente déjà des états consolidés conformes aux IFRS (§ 4 et 5).');
     expect(m).toContain('Comparatif consolidé non établi (IFRS 18 § 10 f) · Aucun exercice précédent dans le dossier · la colonne comparative est vide.');
     expect(m.join(' ')).toMatch(/IFRS 3 § B63 a/);
   });
@@ -820,7 +820,7 @@ describe('IfrsService · états IFRS consolidés (tranche C1)', () => {
     await expect(service.ajouterRetraitement(T, { exerciceId: EX, ...ANNULATION_GOODWILL, partMinoritairesResultat: 0 })).rejects.toThrow(/n’existe que dans les comptes consolidés/);
     await expect(
       service.ajouterRetraitement(T, { exerciceId: EX, ...ANNULATION_GOODWILL, consolide: true, aLaTransition: true, partMinoritairesResultat: 0, partMinoritairesCapitauxPropres: 0 }),
-    ).rejects.toThrow(/première application des IFRS aux comptes consolidés n’est pas servie/);
+    ).rejects.toThrow(/IFRS 1 § 11/);
     expect(tables.retraitements).toHaveLength(0);
   });
 
@@ -1006,6 +1006,81 @@ describe('IfrsService · notes consolidées et IFRS 12 (tranche C4)', () => {
     // Les comptes individuels ne voient ni l'une ni l'autre déclaration.
     const i = await d.service.etat(T, EX);
     expect(i.notes.declarations.conformiteDeclaree).toBeNull();
+  });
+});
+
+describe('IfrsService · première application consolidée (tranche C5, IFRS 1)', () => {
+  // Trois consolidations · 2024 (ouverture à la date de transition), 2025
+  // (comparatif), 2026 (premier exercice IFRS du groupe). Capitaux propres du
+  // D4C à la transition · 900.
+  async function dossierIfrs1() {
+    const d = doublure(true, true);
+    for (const r of REGLES_CONSO) await d.service.ajouterRegle(T, r);
+    d.cumulsParExercice[EX] = cumulFlux(true);
+    d.cumulsParExercice[EX1] = cumulFlux(false);
+    // 2024 · réserves 400 et banque 100 · capitaux propres du D4C 900, distincts de ceux de 2025.
+    const n2 = cumulFlux(false);
+    d.cumulsParExercice[EX2] = {
+      ...n2,
+      lignes: n2.lignes.map((l) => (l.cle === '52100000' ? { ...l, solde: 100 } : l.cle === 'RESERVES_GROUPE' ? { ...l, solde: -400 } : l)),
+      capitauxPropres: { ...n2.capitauxPropres, reservesGroupe: 400 },
+    };
+    return d;
+  }
+  const AJUSTEMENT = {
+    libelle: 'Réévaluation d’un terrain au coût présumé',
+    fondement: 'IFRS 1 § D5',
+    lignes: [{ rubrique: 'SF_IMMOBILISATIONS_CORPORELLES', montant: 50 }, { rubrique: 'SF_RESERVES', montant: -50 }],
+    consolide: true,
+    aLaTransition: true,
+    partMinoritairesCapitauxPropres: 0,
+  };
+
+  it('l’ouverture est la consolidation de clôture N-2, les rapprochements du § 24 partent des capitaux propres du D4C', async () => {
+    const d = await dossierIfrs1();
+    await d.service.declarerPremiereApplication(T, { premierExerciceIfrsId: EX, consolide: true });
+    await d.service.ajouterRetraitement(T, { exerciceId: EX1, ...AJUSTEMENT });
+    const e = await d.service.etatConsolide(T, EX);
+    const pa = e.premiereApplication!;
+    expect(pa.dateTransition).toBe('2025-01-01');
+    expect(pa.rapprochements[0]).toMatchObject({ depart: 900, arrivee: 950, ecart: 0 });
+    expect(pa.rapprochements[0].lignes.map((l) => l.cle)).toEqual(['DEPART', `R_${d.tables.retraitements[0].id}`, 'ARRIVEE']);
+    expect(e.exerciceTransitionId).toBe(EX1);
+    expect(e.ajustementsTransition).toHaveLength(1);
+    // Le bloc comparatif de la variation part de l'état d'ouverture.
+    expect(e.variationCapitauxPropres!.n1!.lignes.find((l: { cle: string }) => l.cle === 'OUVERTURE_RETRAITEE')!.total).toBe(950);
+    expect(d.cumuls.cumul).toHaveBeenCalledWith(T, EX2);
+  });
+
+  it('§ C1 · le choix sur les regroupements passés se déclare, et il se dit', async () => {
+    const d = await dossierIfrs1();
+    await d.service.declarerPremiereApplication(T, { premierExerciceIfrsId: EX, consolide: true });
+    let e = await d.service.etatConsolide(T, EX);
+    expect(e.n!.motifsNonPubliable.join(' ')).toContain('(IFRS 1 § C1)');
+    await d.service.declarerPremiereApplication(T, { premierExerciceIfrsId: EX, consolide: true, exemptionRegroupementsC1: true });
+    e = await d.service.etatConsolide(T, EX);
+    expect(e.n!.motifsNonPubliable.join(' ')).not.toContain('(IFRS 1 § C1)');
+    expect(e.premiereApplication!.mentions.join(' ')).toContain('§ C4 g et h ii');
+  });
+
+  it('la déclaration du groupe ne touche pas celle du dossier, et l’ajustement consolidé se pose sur le comparatif du groupe', async () => {
+    const d = await dossierIfrs1();
+    await d.service.declarerPremiereApplication(T, { premierExerciceIfrsId: EX1 });
+    await expect(d.service.ajouterRetraitement(T, { exerciceId: EX2, ...AJUSTEMENT })).rejects.toThrow(/premier exercice IFRS du groupe déclaré/);
+    await d.service.declarerPremiereApplication(T, { premierExerciceIfrsId: EX, consolide: true, exemptionRegroupementsC1: false });
+    expect(d.tables.parametres[0]).toMatchObject({ premierExerciceIfrsId: EX1, premierExerciceIfrsConsolideId: EX, exemptionRegroupementsC1: false });
+    await expect(d.service.ajouterRetraitement(T, { exerciceId: EX, ...AJUSTEMENT })).rejects.toThrow(/se pose sur l’exercice comparatif/);
+    await d.service.ajouterRetraitement(T, { exerciceId: EX1, ...AJUSTEMENT });
+    expect(d.tables.retraitements).toHaveLength(1);
+  });
+
+  it('sans consolidation N-2, l’ouverture ne s’établit pas et le jeu le dit', async () => {
+    const d = await dossierIfrs1();
+    delete d.cumulsParExercice[EX2];
+    await d.service.declarerPremiereApplication(T, { premierExerciceIfrsId: EX, consolide: true, exemptionRegroupementsC1: true });
+    const e = await d.service.etatConsolide(T, EX);
+    expect(e.premiereApplication).toBeNull();
+    expect(e.motifPremiereApplication).toMatch(/^L’état d’ouverture à la date de transition est la consolidation de clôture/);
   });
 });
 

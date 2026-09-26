@@ -111,13 +111,16 @@ const versMoteurConsolide = (r: RetraitementLu): RetraitementDeclare => ({
 
 const nombreOuNull = (x: Prisma.Decimal | number | null | undefined) => (x == null ? null : Number(x));
 
+
 /**
- * Ce que les tranches C1 à C4 ne servent pas des comptes consolidés IFRS ·
- * dit sur le jeu, jamais tu. Chaque motif nomme la norme qui l'exige.
+ * Les capitaux propres consolidés du D4C, minoritaires compris · lus sur le
+ * cumul, jamais recalculés. C'est le chiffre « selon le référentiel
+ * antérieur » des rapprochements d'IFRS 1 (§ 24) aux comptes consolidés.
  */
-export const MOTIFS_CONSOLIDES_NON_SERVIS = [
-  'Première application des IFRS aux comptes consolidés non servie par cette tranche (IFRS 1) · les ajustements de transition du groupe ne se déclarent pas encore.',
-];
+const capitauxPropresD4c = (c: ResultatCumul) => {
+  const x = c.capitauxPropres;
+  return Math.round((x.capital + x.primes + x.ecartsReevaluation + x.reservesGroupe + x.ecartsConversion + x.resultatGroupe + x.interetsMinoritairesHorsResultat + x.resultatMinoritaires) * 100) / 100;
+};
 
 /** Le total CP du bilan légal (« capitaux propres et ressources assimilées »), crédit en positif. */
 const REF_CAPITAUX_PROPRES_SYSCOHADA = 'CP';
@@ -564,6 +567,9 @@ export class IfrsService {
       postesADeclarer: POSTES_A_DECLARER.map((poste) => ({ poste, libelle: LIBELLE_POSTE[poste] })),
       decouvertsDansTresorerie: parametres?.decouvertsDansTresorerie ?? null,
       tresorerieGroupeEnDevises: parametres?.tresorerieGroupeEnDevises ?? null,
+      premierExerciceIfrsConsolideId: parametres?.premierExerciceIfrsConsolideId ?? null,
+      dejaAdoptantConsolide: parametres?.dejaAdoptantConsolide ?? false,
+      exemptionRegroupementsC1: parametres?.exemptionRegroupementsC1 ?? null,
       effetChange: await this.prisma.effetChangeTresorerieIfrs.findUnique({
         where: { tenantId_exerciceId_consolide: { tenantId, exerciceId: ex.id, consolide: true } },
       }),
@@ -585,7 +591,20 @@ export class IfrsService {
       ({ etat: n, cumul: cumulN } = await jouer(ex, retraitements));
     } catch (e) {
       if (!(e instanceof BadRequestException)) throw e;
-      return { ...commun, n: null, motifN: e.message, n1: null, motifN1: null, fluxTresorerie: null, variationCapitauxPropres: null, notes: null };
+      return {
+        ...commun,
+        n: null,
+        motifN: e.message,
+        n1: null,
+        motifN1: null,
+        fluxTresorerie: null,
+        variationCapitauxPropres: null,
+        notes: null,
+        premiereApplication: null,
+        motifPremiereApplication: null,
+        exerciceTransitionId: null,
+        ajustementsTransition: [],
+      };
     }
 
     const precedent = await this.precedent(tenantId, ex.dateDebut);
@@ -614,10 +633,10 @@ export class IfrsService {
     // L'exercice N-2 consolidé · départ du tableau des flux comparatif et du
     // bloc comparatif de la variation des capitaux propres.
     let n2: EtatsIfrsConsolides | null = null;
+    let cumulN2: ResultatCumul | null = null;
     let motifN2 = 'Aucun exercice avant l’exercice précédent dans le dossier.';
     if (precedent && n1 && cumulN1) {
       const avant = await this.precedent(tenantId, precedent.dateDebut);
-      let cumulN2: ResultatCumul | null = null;
       if (avant) {
         try {
           ({ etat: n2, cumul: cumulN2 } = await jouer(avant, await this.retraitementsDe(tenantId, avant.id, false, true)));
@@ -631,6 +650,14 @@ export class IfrsService {
           ? await this.fluxConsolideDe(tenantId, precedent.id, avant, n1, cumulN1, cumulN2, r, tresorerie, activite)
           : { tableau: null, motif: `Le tableau des flux comparatif ne s’établit pas · ${motifN2}` };
     }
+
+    // TRANCHE C5 · la première application des IFRS aux comptes consolidés.
+    const ia1 = await this.premiereApplicationConsolidee(tenantId, ex, precedent, n, n1, motifN1, cumulN1, cumulN2, motifN2, r, rc, activite, parametres);
+    // Sur le premier exercice IFRS consolidé, le bloc comparatif de la
+    // variation part de l'état d'ouverture · la clôture N-2 n'a jamais été
+    // IFRS, et la prendre ferait partir le tableau d'un solde que personne
+    // n'a publié.
+    if (ia1.estPremier) n2 = (ia1.premiereApplication?.ouverture as EtatsIfrsConsolides | undefined) ?? null;
 
     // TRANCHE C3 · la variation des capitaux propres, avec la colonne des
     // minoritaires (§ 107 a). Deux blocs, comme aux comptes individuels.
@@ -658,7 +685,6 @@ export class IfrsService {
     else n.motifsNonPubliable.push(`Tableau des flux de trésorerie consolidé non établi (IAS 7, IFRS 18 § 10 d) · ${fluxN.motif}`);
     if (fluxN.tableau && !fluxN1.tableau) n.motifsNonPubliable.push(`Tableau des flux consolidé comparatif non établi (IFRS 18 § 10 f) · ${fluxN1.motif}`);
 
-    n.motifsNonPubliable.push(...MOTIFS_CONSOLIDES_NON_SERVIS);
 
     // TRANCHE C4 · les notes, EN DERNIER · la déclaration de conformité (IAS 8
     // § 6B) dépend de tout ce que le reste du jeu a trouvé. Les notes de base
@@ -716,6 +742,10 @@ export class IfrsService {
       n1,
       motifN1,
       fluxTresorerie: { n: fluxN.tableau, motifN: fluxN.motif, n1: fluxN1.tableau, motifN1: fluxN1.motif },
+      premiereApplication: ia1.premiereApplication,
+      motifPremiereApplication: ia1.motif,
+      exerciceTransitionId: ia1.estPremier ? (precedent?.id ?? null) : null,
+      ajustementsTransition: ia1.estPremier && precedent ? await this.retraitementsDe(tenantId, precedent.id, true, true) : [],
       notes: {
         ...notes,
         declarations: declarationsNotes,
@@ -733,6 +763,107 @@ export class IfrsService {
         mouvements: await this.mouvementsDe(tenantId, ex.id, true),
       },
     };
+  }
+
+  /**
+   * PREMIÈRE APPLICATION DES IFRS AUX COMPTES CONSOLIDÉS, tranche C5 (IFRS 1,
+   * § 6 à 26, annexe C, § D17). Le moteur est celui des comptes individuels
+   * (`construirePremiereApplication`), trois choses changeant ·
+   *
+   *  · LA DÉCLARATION EST CELLE DU GROUPE (`premierExerciceIfrsConsolideId`),
+   *    la mère et le groupe n'adoptant pas forcément à la même date ;
+   *  · L'ÉTAT D'OUVERTURE à la date de transition est la consolidation de
+   *    CLÔTURE de l'exercice qui précède le comparatif · une consolidation n'a
+   *    pas de report à-nouveau, et sa clôture est l'ouverture du suivant. Elle
+   *    est projetée avec les ajustements de transition CONSOLIDÉS ;
+   *  · LES CAPITAUX PROPRES DU RÉFÉRENTIEL ANTÉRIEUR sont ceux du cumul du
+   *    D4C, minoritaires compris, jamais recalculés.
+   *
+   * LE CHOIX DE L'EXEMPTION C1 SE DÉCLARE · il décide si l'écart d'acquisition
+   * amorti selon l'AUDCIF passe tel quel à l'ouverture (§ C4 g et h ii) ou si
+   * les regroupements sont retraités selon IFRS 3.
+   */
+  private async premiereApplicationConsolidee(
+    tenantId: string,
+    ex: { id: string; dateDebut: Date; dateFin: Date },
+    precedent: { id: string; dateDebut: Date } | null,
+    n: EtatsIfrsConsolides,
+    n1: EtatsIfrsConsolides | null,
+    motifN1: string | null,
+    cumulN1: ResultatCumul | null,
+    cumulN2: ResultatCumul | null,
+    motifN2: string,
+    regles: { prefixe: string; rubrique: string }[],
+    reglesConsolidation: { poste: string; rubrique: string }[],
+    activite: ActiviteIfrsDto['activitePrincipale'],
+    parametres: { premierExerciceIfrsConsolideId: string | null; dejaAdoptantConsolide: boolean; exemptionRegroupementsC1: boolean | null } | null,
+  ): Promise<{ estPremier: boolean; premiereApplication: PremiereApplication | null; motif: string | null }> {
+    const premierId = parametres?.premierExerciceIfrsConsolideId ?? null;
+    const deja = parametres?.dejaAdoptantConsolide ?? false;
+    const estPremier = premierId === ex.id;
+    if (!premierId && !deja) {
+      n.motifsNonPubliable.push(
+        'Première application consolidée non déclarée · les premiers états consolidés IFRS relèvent d’IFRS 1 (§ 2 et 3). Déclarez le premier exercice IFRS du groupe, ou qu’il présente déjà des états consolidés conformes aux IFRS (§ 4 et 5).',
+      );
+      return { estPremier, premiereApplication: null, motif: null };
+    }
+    if (!estPremier) {
+      if (premierId && !deja) {
+        const premier = await this.prisma.exercice.findFirst({ where: { id: premierId, tenantId }, select: { dateDebut: true } });
+        const comparatifDuPremier = premier ? await this.precedent(tenantId, premier.dateDebut) : null;
+        const debutTransition = comparatifDuPremier?.dateDebut ?? premier?.dateDebut;
+        if (debutTransition && ex.dateFin.getTime() < debutTransition.getTime()) {
+          n.motifsNonPubliable.push(
+            'Exercice antérieur à la date de transition du groupe aux IFRS (IFRS 1, annexe A) · ces états projettent la consolidation du D4C sur les rubriques IFRS, ils ne sont pas des états IFRS.',
+          );
+        }
+      }
+      return { estPremier, premiereApplication: null, motif: null };
+    }
+    let motif: string | null = null;
+    let premiereApplication: PremiereApplication | null = null;
+    if (!precedent || !n1 || !cumulN1) {
+      motif = `Le premier exercice IFRS du groupe présente au moins un exercice comparatif (IFRS 1 § 21), dont l’ouverture est la date de transition (annexe A) · ${motifN1 ?? 'il manque au dossier.'}`;
+    } else if (!cumulN2) {
+      motif = `L’état d’ouverture à la date de transition est la consolidation de clôture de l’exercice qui précède le comparatif · ${motifN2}`;
+    } else {
+      const ajustements = (await this.retraitementsDe(tenantId, precedent.id, true, true)).map(versMoteurConsolide) as RetraitementIfrs1[];
+      const retraitementsComparatif = (await this.retraitementsDe(tenantId, precedent.id, false, true)).map(versMoteurConsolide) as RetraitementIfrs1[];
+      try {
+        const ouverture = construireEtatsIfrsConsolides({ dateDebut: precedent.dateDebut }, cumulN2, regles, reglesConsolidation, ajustements, activite ?? null);
+        premiereApplication = construirePremiereApplication({
+          dateTransition: precedent.dateDebut,
+          ouverture,
+          ajustementsTransition: ajustements,
+          capitauxPropresSyscohadaTransition: capitauxPropresD4c(cumulN2),
+          comparatif: n1,
+          retraitementsComparatif,
+          capitauxPropresSyscohadaComparatif: capitauxPropresD4c(cumulN1),
+        });
+      } catch (e) {
+        if (!(e instanceof RefusIfrs)) throw e;
+        motif = e.message;
+      }
+    }
+    if (premiereApplication) {
+      for (const r of premiereApplication.rapprochements) r.lignes[0].libelle = 'Capitaux propres consolidés selon le D4C (part du groupe et minoritaires)';
+      const c1 = parametres?.exemptionRegroupementsC1 ?? null;
+      if (c1 === true) {
+        premiereApplication.mentions.push(
+          'IFRS 1 § C1 · les regroupements d’entreprises antérieurs à la date de transition ne sont pas retraités selon IFRS 3 · l’écart d’acquisition de l’ouverture est sa valeur comptable selon l’AUDCIF, sans ajustement de son amortissement antérieur (§ C4 g et h ii) ; un test de dépréciation selon IAS 36 est dû à la date de transition (§ C4 g ii), et son effet se déclare en ajustement de transition.',
+        );
+      } else if (c1 === false) {
+        premiereApplication.mentions.push(
+          'IFRS 1 § C1 · les regroupements d’entreprises antérieurs sont retraités selon IFRS 3, et IFRS 10 appliquée depuis le premier retraité · l’effet sur l’écart d’acquisition et les capitaux propres se déclare en ajustements de transition.',
+        );
+      } else {
+        premiereApplication.motifsNonPubliable.push(
+          'Première application consolidée · déclarez si les regroupements d’entreprises antérieurs à la date de transition sont retraités selon IFRS 3 ou non (IFRS 1 § C1) · le choix décide de l’écart d’acquisition de l’ouverture.',
+        );
+      }
+      n.motifsNonPubliable.push(...premiereApplication.motifsNonPubliable);
+    } else n.motifsNonPubliable.push(`Première application consolidée non établie · ${motif}`);
+    return { estPremier, premiereApplication, motif };
   }
 
   /**
@@ -936,6 +1067,16 @@ export class IfrsService {
       throw new BadRequestException('Une entité qui applique déjà les IFRS n’a pas de premier exercice IFRS (IFRS 1 § 4 et 5) · déclarez l’un ou l’autre.');
     }
     if (premierExerciceIfrsId) await this.exercice(tenantId, premierExerciceIfrsId);
+    // Le groupe se déclare à part · les champs des comptes individuels ne
+    // bougent pas, et l'inverse.
+    if (dto.consolide) {
+      const data = {
+        premierExerciceIfrsConsolideId: premierExerciceIfrsId,
+        dejaAdoptantConsolide: dejaAdoptant,
+        exemptionRegroupementsC1: dto.exemptionRegroupementsC1 ?? null,
+      };
+      return this.prisma.parametresIfrs.upsert({ where: { tenantId }, create: { tenantId, ...data }, update: data });
+    }
     return this.prisma.parametresIfrs.upsert({
       where: { tenantId },
       create: { tenantId, premierExerciceIfrsId, dejaAdoptant },
@@ -983,20 +1124,19 @@ export class IfrsService {
     // Même règle qu'au calcul · la porte ne laisse entrer que ce que le moteur accepte.
     const motifParts = motifRefusPartsMinoritaires({ id: '', libelle: dto.libelle, fondement: dto.fondement, lignes: dto.lignes, ...parts }, consolide);
     if (motifParts) throw new BadRequestException(motifParts);
-    if (consolide && aLaTransition) {
-      throw new BadRequestException('La première application des IFRS aux comptes consolidés n’est pas servie · un ajustement de transition se déclare sur les comptes individuels (IFRS 1 § 11).');
-    }
     if (aLaTransition) {
       const motifTransition = motifRefusAjustementTransition({ libelle: dto.libelle, lignes: dto.lignes });
       if (motifTransition) throw new BadRequestException(motifTransition);
       // L'ajustement se date de la transition, c'est-à-dire de l'ouverture de
       // l'exercice qui PRÉCÈDE le premier exercice IFRS (annexe A) · posé sur
       // un autre exercice, il ne serait lu par aucun rapprochement.
+      // Consolidé, c'est le premier exercice IFRS du GROUPE qui fixe la date.
       const parametres = await this.prisma.parametresIfrs.findUnique({ where: { tenantId } });
-      const premier = parametres?.premierExerciceIfrsId
-        ? await this.prisma.exercice.findFirst({ where: { id: parametres.premierExerciceIfrsId, tenantId }, select: { id: true, dateDebut: true } })
-        : null;
-      if (!premier) throw new BadRequestException('Un ajustement de transition suppose un premier exercice IFRS déclaré (IFRS 1 § 3).');
+      const premierId = consolide ? parametres?.premierExerciceIfrsConsolideId : parametres?.premierExerciceIfrsId;
+      const premier = premierId ? await this.prisma.exercice.findFirst({ where: { id: premierId, tenantId }, select: { id: true, dateDebut: true } }) : null;
+      if (!premier) {
+        throw new BadRequestException(`Un ajustement de transition suppose un premier exercice IFRS ${consolide ? 'du groupe ' : ''}déclaré (IFRS 1 § 3).`);
+      }
       const comparatif = await this.precedent(tenantId, premier.dateDebut);
       if (!comparatif || comparatif.id !== ex.id) {
         throw new BadRequestException(

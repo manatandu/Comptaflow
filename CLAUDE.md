@@ -2648,10 +2648,8 @@ D4C / IFRS NOMMÉS, JAMAIS CORRIGÉS EN SILENCE · l'écart d'acquisition amorti
 (AUDCIF art. 82 contre IFRS 3 § B63 a et IAS 36 § 90) et l'écart négatif étalé
 (IFRS 3 § 34) rendent le jeu non publiable tant qu'aucun retraitement ne touche
 leur rubrique ; les écarts de conversion portés en capitaux propres (IAS 21
-§ 39 c et § 41, OCI avec la part des minoritaires) ne sont pas servis. NON
-SERVIS ET DITS sur le jeu (`MOTIFS_CONSOLIDES_NON_SERVIS`) ·
-notes dont IFRS 12 (§ 113 b), première application consolidée (un ajustement de
-transition consolidé est refusé à la porte).
+§ 39 c et § 41, OCI avec la part des minoritaires) ne sont pas servis. Le
+reste du jeu consolidé est servi par les tranches C2 à C5.
 
 **États IFRS consolidés, tranche C2 · le tableau des flux (2026-09-26).**
 `IfrsService.fluxConsolideDe`. Sources lues · IAS 7 § 28, § 33A, § 34A b,
@@ -2714,6 +2712,25 @@ RETRAITER (IFRS 11 § 24), le type de partenariat se déclarant (§ 7 c). Les
 informations financières résumées (B10 b, B12 b) ne sont pas servies et le
 disent ; les entités structurées se déclarent (oui, non, pas encore dit) et
 ne bloquent que sur « oui » ou sans réponse.
+
+**États IFRS consolidés, tranche C5 · la première application (IFRS 1)
+(2026-09-26).** `IfrsService.premiereApplicationConsolidee`. Sources lues ·
+IFRS 1 § C1, § C4, § D16, § D17. QUATRE RÈGLES À NE PAS DÉFAIRE. (1) LE GROUPE
+DÉCLARE À PART (`premierExerciceIfrsConsolideId`, `dejaAdoptantConsolide`) ·
+la mère et le groupe n'adoptent pas forcément à la même date (§ D17), et une
+déclaration ne touche jamais l'autre. (2) L'ÉTAT D'OUVERTURE EST LA
+CONSOLIDATION DE CLÔTURE DE L'EXERCICE QUI PRÉCÈDE LE COMPARATIF · une
+consolidation n'a pas de report à-nouveau. Elle est projetée avec les
+AJUSTEMENTS DE TRANSITION CONSOLIDÉS (retraitements `consolide` et
+`aLaTransition` sur le comparatif du groupe, part des minoritaires déclarée),
+et sert de départ au bloc comparatif de la variation des capitaux propres. (3)
+LES RAPPROCHEMENTS DU § 24 PARTENT DES CAPITAUX PROPRES DU CUMUL DU D4C,
+minoritaires compris (`capitauxPropresD4c`), jamais recalculés · le moteur est
+celui des comptes individuels (`construirePremiereApplication`). (4) LE CHOIX
+DE L'EXEMPTION C1 SE DÉCLARE (`exemptionRegroupementsC1`) · non déclaré, le jeu
+n'est pas publiable. Exemption prise, l'écart d'acquisition de l'ouverture est
+sa valeur AUDCIF sans ajustement de l'amortissement antérieur (§ C4 h ii), et
+le test IAS 36 à la date de transition (§ C4 g ii) se déclare en ajustement.
 
 **Tableau des flux SYSCOHADA · le compte trop agrégé, que « non ventilé »
 ne voyait pas (2026-09-25).** Trouvé en passant au moteur la balance d'un
