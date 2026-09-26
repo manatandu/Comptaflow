@@ -60,6 +60,7 @@ import { GroupeModule } from './modules/groupe/groupe.module';
 import { ModelesSaisieModule } from './modules/modeles-saisie/modeles-saisie.module';
 import { BanquesModule } from './modules/banques/banques.module';
 import { EtatsPersonnalisesModule } from './modules/etats-personnalises/etats-personnalises.module';
+import { SimulationsModule } from './modules/simulations/simulations.module';
 import { CourrierModule } from './modules/courrier/courrier.module';
 
 @Module({
@@ -136,6 +137,7 @@ import { CourrierModule } from './modules/courrier/courrier.module';
     ModelesSaisieModule,
     BanquesModule,
     EtatsPersonnalisesModule,
+    SimulationsModule,
     CourrierModule,
   ],
   controllers: [SanteController],

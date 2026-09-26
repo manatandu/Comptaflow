@@ -4732,6 +4732,29 @@ Un journal d'un autre dossier est refusé à la définition. (5) POSER LA
 RESTRICTION FERME LES SESSIONS, comme le profil de fonctions, et les deux
 colonnes sont ADMISES au journal d'audit.
 
+**Simulateur budgétaire (2026-09-26).** Priorité 6 de la comparaison avec les
+autres produits Sage. L'Édition pilotée NOMME le simulateur (« hypothèse de
+croissance du chiffre d'affaires, poids des charges », jauge vert, orange,
+rouge) sans en décrire la méthode · la définition est celle d'OmegaX
+(`simulations/simulateur-budgetaire.ts`, fenêtre État > Suivi et prévision), et
+l'aide le dit. Le cube n'est pas repris. CINQ RÈGLES À NE PAS DÉFAIRE. (1) LA
+MAILLE EST LE COMPTE À DEUX CHIFFRES DES CLASSES 6 ET 7, intitulé lu dans le
+plan du dossier · les deux plans ne donnent pas le même sens aux mêmes numéros.
+Le résultat simulé est celui des ACTIVITÉS ORDINAIRES, H.A.O. et impôt exclus,
+et il porte ce nom. (2) LE RÉALISÉ EST UN MOUVEMENT, clôture exclue, lu sur la
+MÊME balance que la balance générale · lu au solde, un exercice clos vaudrait
+zéro. (3) LES PRODUITS SUIVENT LA CROISSANCE DU CHIFFRE D'AFFAIRES, LES CHARGES
+RESTENT AU RÉALISÉ tant qu'aucun taux ne leur est donné · une charge variable se
+déclare, elle ne se devine pas. Un taux illisible est refusé à l'écran, jamais
+ignoré. (4) LE PRÉVU À DATE EST AU PRORATA DES JOURS DE CALENDRIER, convention
+de lecture dite à l'écran, 1 sur un exercice clos · des jours, pas une durée
+arrondie, l'arrêté posé à 23 h 59 en gagnait un. Une référence d'une autre
+durée que la cible est signalée, jamais corrigée. (5) SEULS LES SEUILS DE LA
+SIMULATION COLORENT, et seul l'écart DÉFAVORABLE (produit en retard, charge en
+dépassement) · aucun texte n'en fixe. Seules les hypothèses sont enregistrées,
+rien n'est passé au journal ; définies par l'administrateur et le comptable
+(`peutValider`), consultées par tous.
+
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
 nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la

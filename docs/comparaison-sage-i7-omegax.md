@@ -134,8 +134,8 @@ tiennent à un texte OHADA ; ils sont signalés comme tels.
     exercices côte à côte depuis la balance générale, imprimables. Sage ne
     fait que nommer les « états libres » ; les cinq exercices viennent de
     l'historique de l'Édition pilotée. Ni état financier ni document déposé.
-    Le simulateur et le cube de données de l'Édition pilotée ne sont pas
-    repris.
+    Le cube de données de l'Édition pilotée n'est pas repris ; le simulateur
+    l'est depuis le 2026-09-26 (priorité 6 ci-dessous).
 21. ~~Documents attachés aux tiers~~ · FAIT le 2026-09-25 : volet Documents
     de la fiche tiers. Sage i7 : « un fichier lié » par pièce, « un commentaire
     de 69 caractères », rien d'autre ; le reste est d'OmegaX. La pièce est
@@ -163,7 +163,7 @@ méthode. D = la source décrit la fonction ; N = elle ne fait que la nommer.
 | Moyens de Paiement | LCR, SEPA, ETEBAC, EBICS | N | ÉCARTÉ · formats européens |
 | Moyens de Paiement | Lots de virements récurrents | N | PARTIEL · les abonnements produisent des écritures, pas des lots de paiement |
 | Édition Pilotée | Tableau de bord, vue sur 5 ans | D | OUI (tableau de bord, états personnalisés) |
-| Édition Pilotée | Simulateur de scénarios, cube de données | D | NON / ÉCARTÉ (plan de construction) |
+| Édition Pilotée | Simulateur de scénarios, cube de données | N (méthode), D (pattern) | OUI pour le simulateur (2026-09-26) · définition d'OmegaX : prévu tiré du réalisé d'un exercice de référence, taux par compte à deux chiffres des classes 6 et 7, prévu à date au prorata des jours, jauge sur l'écart défavorable aux seuils de la simulation ; le cube reste ÉCARTÉ, les requêtes vivantes suffisent |
 | Paie et RH | Fiche salarié, contrat, bulletins, passation | D | OUI (P1 à P9) |
 | Paie et RH | Moteur de constantes et barèmes paramétrables | D | PARTIEL (2026-09-26) · taux CNSS, INPP et ONEM et SMIG du manœuvre en versions datées, ajoutées par le cabinet avec leur texte après les versions livrées, la grille SMIG tirée de la tension salariale ; l'IRPP reste celui de la loi lue |
 | Paie et RH | Rubriques créées par l'utilisateur, bulletins modèles | D / N | PARTIEL (2026-09-26) · rubriques du cabinet qui nomment un élément et en prennent la nature, jamais les assiettes ; bulletins modèles non servis |
@@ -176,5 +176,5 @@ virement imprimable, servi le 2026-09-26 ; (2) avances et prêts sur salaire, ru
 paramétrables, servis le 2026-09-26 ; (3) dégressif et dérogatoire pour le SYSCOHADA, servis le
 2026-09-26 ; (4) barèmes de paie en données datées, servis le 2026-09-26 pour les taux de
 cotisation et le SMIG ; (5)
-filtrage des données par rôle, servi le 2026-09-26 comme journaux autorisés en saisie ; (6) simulateur budgétaire. Le reste n'est que
+filtrage des données par rôle, servi le 2026-09-26 comme journaux autorisés en saisie ; (6) simulateur budgétaire, servi le 2026-09-26. Le reste n'est que
 nommé dans les sources et ne s'implémente pas sans meilleure source.

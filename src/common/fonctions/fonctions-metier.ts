@@ -54,6 +54,7 @@ export const FONCTION_PAR_CONTROLEUR: Record<string, FonctionMetier> = {
   ModeleSaisieController: FonctionMetier.STRUCTURE,
   BanquesController: FonctionMetier.STRUCTURE,
   EtatsPersonnalisesController: FonctionMetier.REVISION,
+  SimulationsController: FonctionMetier.REVISION,
   TenantController: FonctionMetier.STRUCTURE,
   AccordCadreController: FonctionMetier.STRUCTURE,
   TiersController: FonctionMetier.TIERS,

@@ -412,15 +412,19 @@ export function AppShell() {
           ],
         },
         {
-          // Les trois états qui regardent au-delà de la clôture : un plan
+          // Les états qui regardent au-delà de la clôture : un plan
           // d'amortissement court sur les exercices suivants, un échéancier
-          // annonce des flux, un budget se compare à son réalisé.
+          // annonce des flux, un budget ou une simulation se compare à son
+          // réalisé.
           titre: 'Suivi et prévision',
           separateurAvant: true,
           items: [
             { label: 'Immobilisations et amortissements', onClick: () => navigate('/tableaux-immobilisations') },
             { label: 'Échéancier de trésorerie', onClick: () => navigate('/echeancier') },
             { label: 'États analytiques et budgétaires', onClick: () => navigate('/etats-analytiques') },
+            // Priorité 6 · un prévu tiré d'un exercice de référence, comparé au
+            // réalisé. Aucune écriture, seules les hypothèses sont gardées.
+            { label: 'Simulateur budgétaire', onClick: () => navigate('/simulations-budgetaires') },
             // SYCEBNL seulement · la colonne Engagement qu'il alimente vient
             // du tableau d'exécution budgétaire du jeu « projets de
             // développement ». Le serveur refuse pareil.

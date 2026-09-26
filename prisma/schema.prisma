@@ -548,6 +548,7 @@ model Tenant {
   avancesSalaire             AvanceSalaire[]
   retenuesAvance             RetenueAvanceBulletin[]
   versionsBaremesPaie        VersionBaremePaie[]
+  simulationsBudgetaires     SimulationBudgetaire[]
   amortissementsDerogatoires AmortissementDerogatoire[]
 
   // GROUPE D'ÉTABLISSEMENTS · une même personne morale (une église et ses
@@ -1185,6 +1186,8 @@ model Exercice {
   mouvementsCapitauxPropresIfrs   MouvementCapitauxPropresIfrs[]
   effetsChangeTresorerieIfrs      EffetChangeTresorerieIfrs[]
   notesIfrs                       NotesIfrs[]
+  simulationsReference            SimulationBudgetaire[]             @relation("SimulationReference")
+  simulationsCible                SimulationBudgetaire[]             @relation("SimulationCible")
 
   @@unique([tenantId, dateDebut, dateFin])
   @@map("exercices")
@@ -7374,4 +7377,30 @@ model DocumentTiers {
   @@unique([tiersId, empreinte])
   @@index([tenantId, tiersId])
   @@map("documents_tiers")
+}
+
+/// SIMULATION BUDGÉTAIRE (priorité 6 de la comparaison Sage, Édition pilotée) ·
+/// un scénario nommé, bâti sur le réalisé d'un exercice de référence et
+/// comparé à celui d'un exercice cible (simulations/simulateur-budgetaire.ts).
+/// Seules les hypothèses sont stockées · les montants se recalculent à chaque
+/// lecture sur la balance, jamais figés. Aucune écriture.
+model SimulationBudgetaire {
+  id                  String   @id @default(uuid())
+  tenantId            String
+  tenant              Tenant   @relation(fields: [tenantId], references: [id])
+  nom                 String
+  exerciceReferenceId String
+  exerciceReference   Exercice @relation("SimulationReference", fields: [exerciceReferenceId], references: [id], onDelete: Restrict)
+  exerciceCibleId     String
+  exerciceCible       Exercice @relation("SimulationCible", fields: [exerciceCibleId], references: [id], onDelete: Restrict)
+  /// { croissanceProduitsPct, variations: { "60": 5, ... } }
+  hypotheses          Json
+  seuilOrangePct      Decimal  @db.Decimal(7, 2)
+  seuilRougePct       Decimal  @db.Decimal(7, 2)
+  creePar             String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([tenantId, nom])
+  @@map("simulations_budgetaires")
 }

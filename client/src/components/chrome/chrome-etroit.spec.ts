@@ -224,7 +224,10 @@ describe('menu « État » à 360 px', () => {
     const tous = [...source.matchAll(/label: '([^']+)'/g)].map((m) => m[1]);
     // Le 2026-09-25, les états personnalisés sont entrés sous « Analyse des
     // comptes », un état de relecture comme le palmarès. Les bornes tiennent.
-    expect(tous).toHaveLength(33);
+    // Le 2026-09-26, le simulateur budgétaire est entré sous « Suivi et
+    // prévision », à côté des états budgétaires · un prévu comparé à son
+    // réalisé. Les bornes tiennent encore.
+    expect(tous).toHaveLength(34);
     expect([...vues].sort()).toEqual([...tous].sort());
     // DEUX BORNES, et plus un chiffre relevé d'un cran à chaque ajout · c'est
     // la troisième fois en une journée qu'une édition nouvelle faisait tomber
