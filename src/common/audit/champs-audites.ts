@@ -129,6 +129,10 @@ export const MODELES_AUDITES = new Set<string>([
   // masqué comme la rémunération du contrat, la clé reste.
   'RubriquePaie',
   'AvanceSalaire',
+  // Un taux de cotisation saisi par le cabinet change le calcul de tous les
+  // bulletins à venir · la trace dit qui l'a posé, sur quel texte, et qui l'a
+  // retiré.
+  'VersionBaremePaie',
 ]);
 
 /**

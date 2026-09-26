@@ -85,6 +85,7 @@ export const MODELES_CLOISONNES = new Set<string>([
   'DocumentTiers',
   'RibTiers',
   'RubriquePaie',
+  'VersionBaremePaie',
   'AmortissementDerogatoire',
   'AvanceSalaire',
   'RetenueAvanceBulletin',

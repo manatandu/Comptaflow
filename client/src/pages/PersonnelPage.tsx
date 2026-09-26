@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { Aide } from '../components/chrome/Aide';
 import { OngletBulletins } from './BulletinsPaie';
+import { OngletBaremesPaie } from '../components/BaremesPaie';
 import { OngletRubriquesAvances, type AvanceSalaire, type RubriquePaie } from '../components/RubriquesAvancesPaie';
 import { TITRE_BLOC_PAIE } from './PaieDuMois';
 import { BaremeMensuelIrpp, type DetailMensuelIrpp } from './BaremeMensuelIrpp';
@@ -489,7 +490,7 @@ export function PersonnelPage() {
   const [confrontation, setConfrontation] = useState<Confrontation | null>(null);
   const [effectif, setEffectif] = useState<Effectif | null>(null);
   const [onglet, setOnglet] = useState<
-    'registre' | 'confrontation' | 'effectif' | 'simulation' | 'bulletins' | 'rubriques' | 'decompte' | 'livre'
+    'registre' | 'confrontation' | 'effectif' | 'simulation' | 'bulletins' | 'rubriques' | 'baremes' | 'decompte' | 'livre'
   >('registre');
   const [rubriques, setRubriques] = useState<RubriquePaie[]>([]);
   const [avancesSalarie, setAvancesSalarie] = useState<AvanceSalaire[]>([]);
@@ -913,7 +914,7 @@ export function PersonnelPage() {
 
       <div className="ecran-seul flex gap-1 mb-2 text-[11.5px]">
         {(
-          ['registre', 'confrontation', 'effectif', 'simulation', 'bulletins', 'rubriques', 'decompte', 'livre'] as const
+          ['registre', 'confrontation', 'effectif', 'simulation', 'bulletins', 'rubriques', 'baremes', 'decompte', 'livre'] as const
         ).map((o) => (
           <button
             key={o}
@@ -935,6 +936,8 @@ export function PersonnelPage() {
                       ? 'Bulletins'
                       : o === 'rubriques'
                       ? 'Rubriques et avances'
+                      : o === 'baremes'
+                      ? 'Barèmes'
                       : o === 'decompte'
                       ? 'Décompte final'
                       : 'Livre de paie'}
@@ -2536,6 +2539,7 @@ export function PersonnelPage() {
       )}
 
       {onglet === 'rubriques' && <OngletRubriquesAvances salaries={salaries} peutEcrire={peutEcrire} />}
+      {onglet === 'baremes' && <OngletBaremesPaie peutEcrire={peutEcrire} />}
 
       {onglet === 'decompte' && (
         <div className="ecran-seul max-w-[1240px] text-[11.5px]">

@@ -153,8 +153,9 @@ export function tauxInpp(
   moisDePaie: string,
   nature: NatureEmployeurInpp,
   effectif: number | null,
-): { tauxPourCent: number | null; source: string; motifAbstention: string | null } {
-  const bareme = baremeDuMois(BAREMES_INPP, moisDePaie);
+  versionsDossier: readonly BaremeInpp[] = [],
+): { tauxPourCent: number | null; source: string; motifAbstention: string | null; saisieCabinet?: boolean } {
+  const bareme = baremeDuMois(fusionner(BAREMES_INPP, versionsDossier), moisDePaie);
   if (!bareme) {
     return {
       tauxPourCent: null,
@@ -163,7 +164,7 @@ export function tauxInpp(
     };
   }
   if (nature === 'PUBLIC') {
-    return { tauxPourCent: bareme.publicPourCent, source: bareme.reference, motifAbstention: null };
+    return { tauxPourCent: bareme.publicPourCent, source: bareme.reference, motifAbstention: null, saisieCabinet: bareme.saisieCabinet };
   }
   if (effectif === null || !Number.isFinite(effectif) || effectif <= 0) {
     // L'effectif commande la tranche, et il ne se devine pas. Retenir la
@@ -178,21 +179,75 @@ export function tauxInpp(
   }
   for (const tranche of bareme.priveParTranche) {
     if (tranche.jusqua === null || effectif <= tranche.jusqua) {
-      return { tauxPourCent: tranche.tauxPourCent, source: bareme.reference, motifAbstention: null };
+      return { tauxPourCent: tranche.tauxPourCent, source: bareme.reference, motifAbstention: null, saisieCabinet: bareme.saisieCabinet };
     }
   }
   return { tauxPourCent: null, source: bareme.reference, motifAbstention: 'Tranche introuvable.' };
 }
 
-export function tauxOnem(moisDePaie: string): { tauxPourCent: number | null; source: string } {
-  const bareme = baremeDuMois(BAREMES_ONEM, moisDePaie);
+export function tauxOnem(
+  moisDePaie: string,
+  versionsDossier: VersionsDuDossier['onem'] = [],
+): { tauxPourCent: number | null; source: string; saisieCabinet?: boolean } {
+  const bareme = baremeDuMois(fusionner(BAREMES_ONEM, versionsDossier), moisDePaie);
   return bareme
-    ? { tauxPourCent: bareme.tauxPourCent, source: bareme.reference }
+    ? { tauxPourCent: bareme.tauxPourCent, source: bareme.reference, saisieCabinet: bareme.saisieCabinet }
     : { tauxPourCent: null, source: '' };
 }
 
+/**
+ * LES TAUX CNSS DU MOIS · ceux du décret n° 18/041 (livrés sans date d'effet
+ * écrite, puisqu'aucune n'a été lue), sauf si le cabinet a déclaré une version
+ * dont la date est atteinte.
+ */
+export function tauxCnss(moisDePaie: string, versionsDossier: readonly VersionCnss[] = []) {
+  const version = baremeDuMois([...versionsDossier].sort((a, b) => (a.aPartirDu < b.aPartirDu ? -1 : 1)), moisDePaie);
+  if (!version) {
+    return {
+      prestationsAuxFamilles: TAUX_CNSS.prestationsAuxFamilles.tauxPourCent,
+      pensionsEmployeur: TAUX_CNSS.pensionsEmployeur.tauxPourCent,
+      pensionsTravailleur: TAUX_CNSS.pensionsTravailleur.tauxPourCent,
+      risquesProfessionnels: TAUX_CNSS.risquesProfessionnels.tauxPourCent,
+      reference: null as string | null,
+    };
+  }
+  return { ...version, reference: version.reference as string | null };
+}
+
+/**
+ * UNE VERSION DE BARÈME SAISIE PAR LE CABINET · un arrêté ou un décret paru
+ * après la livraison d'OmegaX. Elle ne REMPLACE rien · elle s'ajoute à la suite
+ * des versions livrées et ne mord qu'à partir de sa date d'effet
+ * (baremes-dossier.ts). Le texte qui la fonde voyage avec chaque ligne.
+ */
+export type VersionCnss = {
+  readonly aPartirDu: string;
+  readonly reference: string;
+  readonly prestationsAuxFamilles: number;
+  readonly pensionsEmployeur: number;
+  readonly pensionsTravailleur: number;
+  readonly risquesProfessionnels: number;
+};
+
+export type VersionsDuDossier = {
+  readonly cnss: readonly VersionCnss[];
+  readonly inpp: readonly BaremeInpp[];
+  readonly onem: readonly { aPartirDu: string; tauxPourCent: number; reference: string }[];
+};
+
+export const RESERVE_BAREME_CABINET =
+  "BARÈME SAISI PAR LE CABINET · OmegaX n'a pas lu ce texte. Le taux et sa référence sont ceux que le cabinet a déclarés, et c'est à lui d'en répondre.";
+
+/** Les versions livrées puis celles du dossier, dans l'ordre des dates d'effet. */
+const fusionner = <T extends { aPartirDu: string }>(livrees: readonly T[], dossier: readonly T[] | undefined) =>
+  [...livrees, ...(dossier ?? []).map((v) => ({ ...v, saisieCabinet: true }))].sort((a, b) =>
+    a.aPartirDu < b.aPartirDu ? -1 : a.aPartirDu > b.aPartirDu ? 1 : 0,
+  ) as (T & { saisieCabinet?: boolean })[];
+
 export type ParametresCotisations = {
   readonly moisDePaie: string;
+  /** Versions de barème ajoutées par le cabinet (baremes-dossier.ts). */
+  readonly versionsDossier?: VersionsDuDossier;
   readonly natureEmployeurInpp?: NatureEmployeurInpp | null;
   readonly effectif?: number | null;
   /** Article 5 du décret n° 18/041 · décision de la Caisse, jamais présumée. */
@@ -249,12 +304,17 @@ export function cotisations(
     });
   };
 
-  poser('cnss-pf', 'CNSS · prestations aux familles', 'CNSS', 'EMPLOYEUR', TAUX_CNSS.prestationsAuxFamilles.tauxPourCent, `${sourceCnss} Taux : ${TAUX_CNSS.prestationsAuxFamilles.article}.`, null);
-  poser('cnss-pension-employeur', 'CNSS · pensions, part employeur', 'CNSS', 'EMPLOYEUR', TAUX_CNSS.pensionsEmployeur.tauxPourCent, `${sourceCnss} Taux : ${TAUX_CNSS.pensionsEmployeur.article}.`, null);
-  poser('cnss-pension-travailleur', 'CNSS · pensions, quote-part ouvrière', 'CNSS', 'TRAVAILLEUR', TAUX_CNSS.pensionsTravailleur.tauxPourCent, `${sourceCnss} Taux : ${TAUX_CNSS.pensionsTravailleur.article}.`, "C'est la SEULE cotisation retenue sur la paie, et la seule que l'article 71 de la loi n° 23/053 laisse déduire du brut imposable.");
+  const v = parametres.versionsDossier;
+  const cnss = tauxCnss(parametres.moisDePaie, v?.cnss);
+  // Une version saisie par le cabinet porte SA référence, et la réserve le dit.
+  const srcCnss = (article: string) => (cnss.reference ? `${cnss.reference} (saisi par le cabinet).` : `${sourceCnss} Taux : ${article}.`);
+  const reserveCnss = cnss.reference ? RESERVE_BAREME_CABINET : null;
+  poser('cnss-pf', 'CNSS · prestations aux familles', 'CNSS', 'EMPLOYEUR', cnss.prestationsAuxFamilles, srcCnss(TAUX_CNSS.prestationsAuxFamilles.article), reserveCnss);
+  poser('cnss-pension-employeur', 'CNSS · pensions, part employeur', 'CNSS', 'EMPLOYEUR', cnss.pensionsEmployeur, srcCnss(TAUX_CNSS.pensionsEmployeur.article), reserveCnss);
+  poser('cnss-pension-travailleur', 'CNSS · pensions, quote-part ouvrière', 'CNSS', 'TRAVAILLEUR', cnss.pensionsTravailleur, srcCnss(TAUX_CNSS.pensionsTravailleur.article), reserveCnss ?? "C'est la SEULE cotisation retenue sur la paie, et la seule que l'article 71 de la loi n° 23/053 laisse déduire du brut imposable.");
 
   const tauxRp =
-    TAUX_CNSS.risquesProfessionnels.tauxPourCent *
+    cnss.risquesProfessionnels *
     (parametres.majorationRisquesProfessionnels ? MAJORATION_RISQUES_PROFESSIONNELS_MAXIMUM : 1);
   poser(
     'cnss-rp',
@@ -262,10 +322,10 @@ export function cotisations(
     'CNSS',
     'EMPLOYEUR',
     tauxRp,
-    `${sourceCnss} Taux : ${TAUX_CNSS.risquesProfessionnels.article}.`,
-    parametres.majorationRisquesProfessionnels
+    srcCnss(TAUX_CNSS.risquesProfessionnels.article),
+    reserveCnss ?? (parametres.majorationRisquesProfessionnels
       ? "Taux MAJORÉ au double par décision de la Caisse (article 5 du décret n° 18/041). La majoration se déclare, elle ne se déduit d'aucun manquement constaté par le logiciel."
-      : null,
+      : null),
   );
 
   const nature = parametres.natureEmployeurInpp ?? null;
@@ -274,19 +334,19 @@ export function cotisations(
       "INPP · le taux dépend d'abord de la NATURE de l'employeur, public ou privé. Elle n'est pas renseignée, et OmegaX ne la présume pas.",
     );
   } else {
-    const inpp = tauxInpp(parametres.moisDePaie, nature, parametres.effectif ?? null);
+    const inpp = tauxInpp(parametres.moisDePaie, nature, parametres.effectif ?? null, v?.inpp);
     if (inpp.tauxPourCent === null) {
       abstentions.push(`INPP · ${inpp.motifAbstention}`);
     } else {
-      poser('inpp', 'INPP · contribution patronale', 'INPP', 'EMPLOYEUR', inpp.tauxPourCent, inpp.source, RESERVE_ASSIETTE_EMPRUNTEE);
+      poser('inpp', 'INPP · contribution patronale', 'INPP', 'EMPLOYEUR', inpp.tauxPourCent, inpp.source, inpp.saisieCabinet ? `${RESERVE_BAREME_CABINET} ${RESERVE_ASSIETTE_EMPRUNTEE}` : RESERVE_ASSIETTE_EMPRUNTEE);
     }
   }
 
-  const onem = tauxOnem(parametres.moisDePaie);
+  const onem = tauxOnem(parametres.moisDePaie, v?.onem);
   if (onem.tauxPourCent === null) {
     abstentions.push(`ONEM · aucun barème lu pour le mois ${parametres.moisDePaie}.`);
   } else {
-    poser('onem', 'ONEM · contribution patronale', 'ONEM', 'EMPLOYEUR', onem.tauxPourCent, onem.source, RESERVE_ASSIETTE_EMPRUNTEE);
+    poser('onem', 'ONEM · contribution patronale', 'ONEM', 'EMPLOYEUR', onem.tauxPourCent, onem.source, onem.saisieCabinet ? `${RESERVE_BAREME_CABINET} ${RESERVE_ASSIETTE_EMPRUNTEE}` : RESERVE_ASSIETTE_EMPRUNTEE);
   }
 
   const totalEmployeurFc = lignes

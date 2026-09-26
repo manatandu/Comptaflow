@@ -4672,6 +4672,28 @@ le 151 porte un solde pour lui, et « Reprendre le solde » le passe au 861
 (lecture d'OmegaX, aucun texte lu ne règle ce moment). L'écriture est retenue
 par `verifierAucunModuleNeLaTient`.
 
+**Barèmes de paie en données datées (2026-09-26).** Priorité 4 de la
+comparaison avec les autres produits Sage (Sage Paie tient ses barèmes en
+table). Onglet « Barèmes » de la fenêtre Personnel
+(`personnel/baremes-dossier.ts`, table `VersionBaremePaie`). CINQ RÈGLES À NE
+PAS DÉFAIRE. (1) SEULS LES TAUX CNSS, INPP ET ONEM SE SAISISSENT · le SMIG
+(grille à dix-sept classes, taux payé et taux fixé, annexe vérifiée par son
+arithmétique) et les tranches de l'IRPP (loi n° 23/053, art. 118) restent ceux
+des textes lus. (2) UNE VERSION S'AJOUTE APRÈS LA DERNIÈRE CONNUE du même
+barème, livrée ou du cabinet · jamais insérée entre deux, qui réécrirait le
+taux d'une période payée ; la CNSS, livrée sans date d'effet lue, est bornée
+par la date du décret n° 18/041. Les versions livrées ne se modifient pas. (3)
+LE TEXTE EST OBLIGATOIRE ET VOYAGE AVEC LE BULLETIN · chaque ligne calculée sur
+une version du cabinet porte sa référence et `RESERVE_BAREME_CABINET` (OmegaX
+ne l'a pas lu). Le moteur la prend dès son MOIS d'effet, comme les versions
+livrées. (4) UN TAUX NUL EST REFUSÉ · supprimer une cotisation n'est pas
+changer un taux, et un zéro saisi par erreur retirerait la ligne de tous les
+bulletins. (5) L'AJOUT N'EST PAS REFUSÉ PAR UN BULLETIN DÉJÀ ÉMIS · un texte peut
+mordre à sa signature et être connu plus tard ; les bulletins de la période
+sont RENDUS pour que le cabinet décide de les annuler. LE RETRAIT, LUI, EST
+REFUSÉ tant qu'un bulletin émis porte un mois que la version couvre (jusqu'à
+la version suivante du même barème) · son taux ne se relirait plus nulle part.
+
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
 nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la

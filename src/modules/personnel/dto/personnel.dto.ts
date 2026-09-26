@@ -6,6 +6,7 @@ import {
   IsEnum,
   IsInt,
   IsNumber,
+  IsObject,
   IsOptional,
   IsString,
   IsUUID,
@@ -663,4 +664,12 @@ export class AvanceSalaireDto {
 
   @IsString() @MinLength(1) @MaxLength(200) objet!: string;
   @IsString() @MinLength(1) @MaxLength(200) pieceJustificative!: string;
+}
+
+/** Les valeurs se vérifient par barème dans baremes-dossier.ts (lireValeurs). */
+export class VersionBaremePaieDto {
+  @IsEnum(['CNSS', 'INPP', 'ONEM']) bareme!: 'CNSS' | 'INPP' | 'ONEM';
+  @IsDateString() aPartirDu!: string;
+  @IsString() @MinLength(8) @MaxLength(400) reference!: string;
+  @IsObject() valeurs!: Record<string, unknown>;
 }

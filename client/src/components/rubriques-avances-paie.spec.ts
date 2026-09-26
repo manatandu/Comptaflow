@@ -36,3 +36,21 @@ describe('rubriques et avances dans la simulation', () => {
     expect(page).toContain("{onglet === 'rubriques' && <OngletRubriquesAvances");
   });
 });
+
+describe('barèmes de paie datés', () => {
+  const onglet = readFileSync(join(__dirname, 'BaremesPaie.tsx'), 'utf8');
+
+  it("l'onglet Barèmes est branché et reçoit peutEcrire", () => {
+    expect(page).toContain("{onglet === 'baremes' && <OngletBaremesPaie peutEcrire={peutEcrire} />}");
+  });
+
+  it("l'ajout et le retrait ne s'affichent qu'à qui peut écrire", () => {
+    expect(onglet).toMatch(/\{peutEcrire && \(\s*<form onSubmit=\{ajouter\}/);
+    expect(onglet).toMatch(/\{peutEcrire && \(\s*<button[^>]*onClick=\{\(\) => retirer\(v\)\}/);
+  });
+
+  it("l'ajout envoie la date, le texte et les valeurs, jamais un taux livré", () => {
+    expect(onglet).toContain("api.post<{ bulletinsDejaEmis: { numero: number; moisDePaie: string }[] }>('/personnel/baremes', {");
+    expect(onglet).toContain('reference: f.reference,');
+  });
+});

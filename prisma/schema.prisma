@@ -547,6 +547,7 @@ model Tenant {
   rubriquesPaie              RubriquePaie[]
   avancesSalaire             AvanceSalaire[]
   retenuesAvance             RetenueAvanceBulletin[]
+  versionsBaremesPaie        VersionBaremePaie[]
   amortissementsDerogatoires AmortissementDerogatoire[]
 
   // GROUPE D'ÉTABLISSEMENTS · une même personne morale (une église et ses
@@ -6468,6 +6469,30 @@ model RubriquePaie {
 
   @@unique([tenantId, code])
   @@map("rubriques_paie")
+}
+
+/// VERSION DE BARÈME DE PAIE SAISIE PAR LE CABINET · un arrêté ou un décret
+/// paru après la livraison d'OmegaX (personnel/baremes-dossier.ts). Elle
+/// s'ajoute aux versions livrées dans le code, jamais ne les remplace, et ne
+/// mord qu'à partir de sa date d'effet. Taux CNSS, INPP et ONEM seulement ·
+/// le SMIG et l'IRPP restent ceux des textes lus.
+model VersionBaremePaie {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  /// CNSS, INPP ou ONEM.
+  bareme    String
+  /// AAAA-MM-JJ, la forme que le moteur de cotisations compare déjà.
+  aPartirDu String
+  /// Les taux, dans la forme du barème livré qu'elle suit.
+  valeurs   Json
+  /// Le texte qui fonde la version · porté sur chaque bulletin calculé avec elle.
+  reference String
+  saisiPar  String
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, bareme, aPartirDu])
+  @@map("versions_baremes_paie")
 }
 
 enum TypeAvanceSalaire {

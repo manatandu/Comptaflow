@@ -71,6 +71,7 @@ import {
   type FormeDuDocument,
 } from './livre-de-paie';
 import { MULTIPLICATEURS_ARTICLE_7, allocationFamilialeJournaliere } from './bareme-smig';
+import { versionsDuDossier } from './baremes-dossier';
 import {
   decompteFinal,
   type InitiativeRupture,
@@ -705,8 +706,15 @@ export class PersonnelService {
     const premierPassage = assiettes(elements, {
       tauxLegalAllocationsFamilialesFc,
     });
+    // Les versions de barème que le cabinet a ajoutées (baremes-dossier.ts) ·
+    // le moteur ne les prend qu'à partir de leur date d'effet.
+    const versionsBaremes = await this.prisma.versionBaremePaie.findMany({
+      where: { tenantId },
+      select: { bareme: true, aPartirDu: true, reference: true, valeurs: true },
+    });
     const lesCotisations = cotisations(premierPassage.assietteSocialeFc, {
       moisDePaie: dto.moisDePaie,
+      versionsDossier: versionsDuDossier(versionsBaremes),
       natureEmployeurInpp: (dto.natureEmployeurInpp as NatureEmployeurInpp | undefined) ?? null,
       effectif: dto.effectif ?? null,
       majorationRisquesProfessionnels: dto.majorationRisquesProfessionnels,

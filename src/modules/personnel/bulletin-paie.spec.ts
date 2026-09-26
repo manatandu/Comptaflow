@@ -166,6 +166,7 @@ function service(opts: { salarie?: unknown; actif?: unknown; max?: number | null
   const prisma: Record<string, unknown> = {
     salarie: { findFirst: jest.fn().mockResolvedValue(opts.salarie === undefined ? SALARIE : opts.salarie) },
     tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel: 'SYSCOHADA' }) },
+    versionBaremePaie: { findMany: jest.fn().mockResolvedValue([]) },
     bulletinPaie: { findFirst: bulletinFindFirst, aggregate, create, update: jest.fn() },
   };
   prisma.$transaction = (fn: (tx: unknown) => unknown) => fn(prisma);

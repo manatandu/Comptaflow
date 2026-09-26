@@ -27,6 +27,7 @@ function service(cours: Record<string, number>) {
   const prisma = {
     salarie: { findFirst: jest.fn().mockResolvedValue(null) },
     tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel: 'SYSCOHADA' }) },
+    versionBaremePaie: { findMany: jest.fn().mockResolvedValue([]) },
     coursDevise: {
       findFirst: jest.fn(async (args: { where: { date: Date; devise: { tenantId: string; code: string } } }) => {
         lectures.push(args.where);

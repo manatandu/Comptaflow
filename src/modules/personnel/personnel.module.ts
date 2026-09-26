@@ -7,11 +7,13 @@ import { ComptabiliteModule } from '../comptabilite/comptabilite.module';
 import { ComptabilisationPaieService } from './comptabilisation-paie.service';
 import { AvancesRubriquesController } from './avances-rubriques.controller';
 import { AvancesRubriquesService } from './avances-rubriques.service';
+import { BaremesPaieController } from './baremes-paie.controller';
+import { BaremesPaieService } from './baremes-paie.service';
 
 @Module({
   imports: [LicenceModule, JwtAuthModule, ComptabiliteModule],
-  controllers: [PersonnelController, AvancesRubriquesController],
-  providers: [PersonnelService, ComptabilisationPaieService, AvancesRubriquesService],
+  controllers: [PersonnelController, AvancesRubriquesController, BaremesPaieController],
+  providers: [PersonnelService, ComptabilisationPaieService, AvancesRubriquesService, BaremesPaieService],
   exports: [PersonnelService],
 })
 export class PersonnelModule {}

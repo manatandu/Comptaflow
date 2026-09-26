@@ -26,6 +26,7 @@ function service(salarie?: unknown, referentiel?: 'SYSCOHADA' | 'SYCEBNL') {
     // pas lieu.
     salarie: { findFirst },
     tenant: { findUniqueOrThrow: tenantFind },
+    versionBaremePaie: { findMany: jest.fn().mockResolvedValue([]) },
   } as unknown as PrismaService;
   return { svc: new PersonnelService(prisma), findFirst, tenantFind };
 }
@@ -232,6 +233,8 @@ describe("Ce que la simulation annonce ne pas être", () => {
     // Et les deux lectures attendues sont bien là.
     expect(corps).toContain('this.prisma.salarie.findFirst(');
     expect(corps).toContain('this.prisma.tenant.findUniqueOrThrow(');
+    // Les versions de barème du cabinet sont lues à chaque calcul.
+    expect(corps).toContain('this.prisma.versionBaremePaie.findMany(');
   });
 });
 
