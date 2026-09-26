@@ -5,7 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 import { PrismaService } from '../../common/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
-import { COOKIE_SESSION, ENTETE_CSRF } from './session.constants';
+import { ANCIEN_COOKIE_SESSION, COOKIE_SESSION, ENTETE_CSRF } from './session.constants';
 
 interface JwtPayload {
   sub: string; // userId
@@ -35,7 +35,7 @@ export function sessionRevoquee(iat: number | undefined, sessionsInvalidesAvant:
 
 /** Lit le jeton de session dans le cookie httpOnly (voir session.constants.ts). */
 export function extraireJetonDuCookie(req: Request): string | null {
-  return (req.cookies?.[COOKIE_SESSION] as string | undefined) ?? null;
+  return ((req.cookies?.[COOKIE_SESSION] ?? req.cookies?.[ANCIEN_COOKIE_SESSION]) as string | undefined) ?? null;
 }
 
 const METHODES_MUTANTES = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);

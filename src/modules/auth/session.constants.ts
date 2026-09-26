@@ -16,7 +16,19 @@ import { estSurSite } from '../../common/mode-installation';
  *   en-tête X-CSRF-Token · JwtStrategy exige la correspondance sur toute
  *   requête MUTANTE portée par le cookie (voir jwt.strategy.ts).
  */
-export const COOKIE_SESSION = 'omegax_session';
+export const COOKIE_SESSION = '__session';
+
+/**
+ * LE NOM `__session` N'EST PAS UN CHOIX DE STYLE. Le site sert l'API sous sa
+ * propre adresse (oomega.web.app/api, relayé par Firebase Hosting vers Cloud
+ * Run), pour que le cookie de session soit un cookie DU SITE et non un cookie
+ * tiers · les navigateurs de l'iPhone jettent tout cookie tiers, et la
+ * connexion y « réussissait » pour être aussitôt perdue. Or Firebase Hosting
+ * retire des requêtes relayées TOUS les cookies sauf celui qui porte ce nom.
+ * L'ancien nom reste LU le temps que les sessions ouvertes sous lui expirent
+ * (huit heures au plus).
+ */
+export const ANCIEN_COOKIE_SESSION = 'omegax_session';
 
 /** En-tête porteur du jeton CSRF apparié au cookie de session. */
 export const ENTETE_CSRF = 'x-csrf-token';

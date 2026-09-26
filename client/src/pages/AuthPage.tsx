@@ -1,6 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, ApiError } from '../lib/api';
+import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
 import { PanneauSurSite } from '../components/PanneauSurSite';
@@ -8,6 +8,7 @@ import type { EtatSurSite } from '../lib/sur-site';
 import { LogotypeOmegaX, SymboleOmegaX } from '../components/chrome/Logo';
 import { DossierRecent, lireDossiersRecents, oublierDossier } from '../lib/dossiersRecents';
 import type { AuthResponse } from '../lib/types';
+import { messageConnexion } from '../lib/message-connexion';
 
 /**
  * PORTE D'ENTRÉE · calquée sur la logique d'ouverture de Sage 100, pas sur
@@ -139,7 +140,7 @@ export function AuthPage() {
       await seConnecter(res.csrfToken);
       navigate('/');
     } catch (err) {
-      setErreur(err instanceof ApiError ? err.message : 'Une erreur est survenue');
+      setErreur(messageConnexion(err));
     } finally {
       setEnvoi(false);
     }

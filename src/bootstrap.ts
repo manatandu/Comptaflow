@@ -13,7 +13,23 @@ import * as cookieParser from 'cookie-parser';
  * qui change selon la cible de déploiement, invisible à la relecture du code
  * métier.
  */
+/**
+ * L'API SOUS L'ADRESSE DU SITE · Firebase Hosting relaie oomega.web.app/api/**
+ * vers Cloud Run en gardant le chemin entier. Le préfixe est retiré ici, et
+ * les routes restent les mêmes · un appel direct à l'adresse de Cloud Run
+ * (sans préfixe) continue donc de marcher, ce qui rend la bascule sans coupure.
+ */
+export function retirerPrefixeApi(url: string): string {
+  if (url === '/api') return '/';
+  if (url.startsWith('/api?')) return `/${url.slice(4)}`;
+  return url.startsWith('/api/') ? url.slice(4) : url;
+}
+
 export function configurerApplication(app: INestApplication) {
+  app.use((req: { url: string }, _res: unknown, next: () => void) => {
+    req.url = retirerPrefixeApi(req.url);
+    next();
+  });
   // DURCISSEMENT · l'API ne sert que du JSON à un client connu, jamais de
   // pages HTML : la politique la plus stricte ne casse donc rien.
   //
