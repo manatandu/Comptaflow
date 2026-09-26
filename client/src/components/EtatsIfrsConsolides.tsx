@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Aide } from './chrome/Aide';
+import { DeclarationEffetChange, EffetChange, FluxServi, TableauFluxIfrs } from './FluxTresorerieIfrs';
 
 /**
  * ÉTATS IFRS CONSOLIDÉS, tranche C1 · la balance consolidée du D4C (celle de la
@@ -14,6 +15,10 @@ import { Aide } from './chrome/Aide';
  * LA PART DES MINORITAIRES D'UN RETRAITEMENT SE DÉCLARE, effet par effet
  * (IFRS 10 § B94) · aucun livre ne dit à quelle entité du groupe un
  * retraitement se rapporte. Zéro est une réponse, le vide n'en est pas une.
+ *
+ * TRANCHE C2 · le tableau des flux consolidé (IAS 7), rendu par le même
+ * composant que celui des comptes individuels. La trésorerie du GROUPE en
+ * devises et son effet de change se déclarent ici, à part de ceux du dossier.
  */
 type Rubrique = { code: string; libelle: string; ref: string; etat: 'SITUATION' | 'RESULTAT' | 'RESULTAT_GLOBAL'; section?: string };
 type Ligne = { cle: string; libelle: string; ref?: string; groupe?: string; nature: 'POSTE' | 'TOTAL' | 'NON_CLASSE'; legal: number; retraitements: number; ifrs: number };
@@ -46,6 +51,10 @@ type Consolide = {
   rubriques: Rubrique[];
   groupes: Record<string, string>;
   postesADeclarer: { poste: string; libelle: string }[];
+  fluxTresorerie: FluxServi | null;
+  decouvertsDansTresorerie: boolean | null;
+  tresorerieGroupeEnDevises: boolean | null;
+  effetChange: EffetChange | null;
 };
 
 const champ = 'w-full border border-border px-1.5 py-1 text-[11.5px]';
@@ -144,8 +153,8 @@ export function EtatsIfrsConsolides({ exerciceId }: { exerciceId: string }) {
           États IFRS consolidés
           <Aide
             titre="États IFRS consolidés"
-            texte="La balance consolidée est celle de la fenêtre Consolidation, jamais recalculée ici. Ses comptes se rangent par les règles de correspondance des comptes individuels, uniformité des méthodes (IFRS 10 § 19) ; ses postes se rangent par IFRS 18 quand la norme nomme la ligne, et se déclarent sinon. Les participations ne donnant pas le contrôle sont présentées dans les capitaux propres, séparément (IFRS 10 § 22, IFRS 18 § 104 a), et le résultat net comme le résultat global se répartissent sous leur total (§ 76, § 87). Un retraitement consolidé déclare la part de chacun de ses effets qui revient aux minoritaires, zéro compris (IFRS 10 § B94). Cette tranche ne sert ni le tableau des flux, ni la variation des capitaux propres, ni les notes, ni la première application consolidée · le jeu le dit."
-            source="AUDCIF art. 74 à 98 · D4C ch. XII · IFRS 10 § 19, § 22, § B94 · IFRS 18 § 76, § 87, § 104 a"
+            texte="La balance consolidée est celle de la fenêtre Consolidation, jamais recalculée ici. Ses comptes se rangent par les règles de correspondance des comptes individuels, uniformité des méthodes (IFRS 10 § 19) ; ses postes se rangent par IFRS 18 quand la norme nomme la ligne, et se déclarent sinon. Les participations ne donnant pas le contrôle sont présentées dans les capitaux propres, séparément (IFRS 10 § 22, IFRS 18 § 104 a), et le résultat net comme le résultat global se répartissent sous leur total (§ 76, § 87). Un retraitement consolidé déclare la part de chacun de ses effets qui revient aux minoritaires, zéro compris (IFRS 10 § B94). Le tableau des flux consolidé est servi ; la variation des capitaux propres, les notes et la première application consolidée ne le sont pas encore · le jeu le dit."
+            source="AUDCIF art. 74 à 98 · D4C ch. XII · IFRS 10 § 19, § 22, § B94 · IFRS 18 § 76, § 87, § 104 a · IAS 7"
           />
         </h2>
         {erreur && <p className="text-[11.5px] text-danger mt-1.5">{erreur}</p>}
@@ -323,6 +332,38 @@ export function EtatsIfrsConsolides({ exerciceId }: { exerciceId: string }) {
           {tableau('Compte de résultat consolidé', etat.n.resultat, etat.n1?.resultat ?? null)}
           {tableau('État consolidé présentant le résultat global', etat.n.resultatGlobal, etat.n1?.resultatGlobal ?? null)}
           {etat.motifN1 && <p className="text-[11.5px] text-text-dim mb-2">{etat.motifN1}</p>}
+
+          {etat.fluxTresorerie && (
+            <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
+              <h2 className="text-[11.5px] font-bold mb-1.5 flex items-center gap-1.5">
+                Tableau consolidé des flux de trésorerie (IAS 7, modifiée par IFRS 18)
+                <Aide
+                  titre="Tableau consolidé des flux de trésorerie"
+                  texte="Il part du tableau des flux consolidé du D4C (ch. XII-8 § 4) et en garde les refus · un périmètre ou un pourcentage d’intérêt qui a changé depuis l’exercice précédent, ou une entité convertie, l’arrête. Les dividendes reçus des entités mises en équivalence passent à l’investissement, ceux versés aux participations ne donnant pas le contrôle au financement. Les découverts suivent la déclaration faite dans les comptes individuels (uniformité des méthodes) ; la trésorerie du groupe en devises et son effet de change se déclarent ici."
+                  source="IAS 7 § 28, § 33A, § 34A b, § 38, § 39 à 42A · IFRS 10 § 19 · D4C ch. XII-8 § 4"
+                />
+              </h2>
+              <label className="text-[11.5px] block mb-2 max-w-[420px]">
+                La trésorerie du groupe comprend des soldes en devises (§ 28)
+                <select
+                  className={champ}
+                  disabled={!peutEcrire}
+                  value={etat.tresorerieGroupeEnDevises == null ? '' : etat.tresorerieGroupeEnDevises ? 'OUI' : 'NON'}
+                  onChange={(e) =>
+                    void agir(() => api.put('/ifrs/tresorerie', { tresorerieGroupeEnDevises: e.target.value === '' ? null : e.target.value === 'OUI' }))
+                  }
+                >
+                  <option value="">Non déclaré</option>
+                  <option value="OUI">Oui</option>
+                  <option value="NON">Non</option>
+                </select>
+              </label>
+              {etat.tresorerieGroupeEnDevises && (
+                <DeclarationEffetChange exerciceId={exerciceId} effetChange={etat.effetChange} consolide peutEcrire={peutEcrire} agir={agir} />
+              )}
+              <TableauFluxIfrs flux={etat.fluxTresorerie} />
+            </section>
+          )}
 
           <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
             <h2 className="text-[11.5px] font-bold mb-1.5">Contrôles et publication</h2>

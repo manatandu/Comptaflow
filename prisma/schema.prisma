@@ -6992,6 +6992,10 @@ model ParametresIfrs {
   /// IAS 7 § 28 · la trésorerie comprend des soldes en devises, dont l'effet de
   /// change se présente à part. NULL · pas déclaré.
   tresorerieEnDevises      Boolean?
+  /// IAS 7 § 28, comptes CONSOLIDÉS · la trésorerie du GROUPE comprend des
+  /// soldes en devises. Distinct de `tresorerieEnDevises` · une filiale peut
+  /// tenir des devises quand la mère n'en tient pas. NULL · pas déclaré.
+  tresorerieGroupeEnDevises Boolean?
   updatedAt                DateTime                @updatedAt
 
   @@map("parametres_ifrs")
@@ -7131,9 +7135,13 @@ model EffetChangeTresorerieIfrs {
   montant       Decimal                  @db.Decimal(18, 2)
   categorie     CategorieEffetChangeIfrs
   justification String
+  /// Effet de change sur la trésorerie du GROUPE (tableau consolidé) · un
+  /// effet individuel et un effet consolidé ne se lisent jamais l'un pour
+  /// l'autre, comme les retraitements.
+  consolide     Boolean                  @default(false)
   createdAt     DateTime                 @default(now())
 
-  @@unique([tenantId, exerciceId])
+  @@unique([tenantId, exerciceId, consolide])
   @@map("effets_change_tresorerie_ifrs")
 }
 

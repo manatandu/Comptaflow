@@ -75,15 +75,16 @@ function doublure(avecPrecedent = false, avecAvantPrecedent = false, balancesPro
       delete: jest.fn(async ({ where }: any) => (tables.reglesConso = tables.reglesConso.filter((r) => r.id !== where.id))),
     },
     effetChangeTresorerieIfrs: {
-      // La doublure HONORE la clé (dossier, exercice) · un effet déclaré sur un
-      // autre exercice ne doit jamais se lire sur celui-ci.
+      // La doublure HONORE la clé (dossier, exercice, consolidé) · un effet
+      // déclaré sur un autre exercice, ou pour l'autre jeu, ne doit jamais se
+      // lire sur celui-ci.
       findUnique: jest.fn(async ({ where }: any) => {
-        const k = where.tenantId_exerciceId;
-        return tables.effets.find((e) => e.tenantId === k.tenantId && e.exerciceId === k.exerciceId) ?? null;
+        const k = where.tenantId_exerciceId_consolide;
+        return tables.effets.find((e) => e.tenantId === k.tenantId && e.exerciceId === k.exerciceId && (e.consolide ?? false) === k.consolide) ?? null;
       }),
       upsert: jest.fn(async ({ where, create, update }: any) => {
-        const k = where.tenantId_exerciceId;
-        const i = tables.effets.findIndex((e) => e.tenantId === k.tenantId && e.exerciceId === k.exerciceId);
+        const k = where.tenantId_exerciceId_consolide;
+        const i = tables.effets.findIndex((e) => e.tenantId === k.tenantId && e.exerciceId === k.exerciceId && (e.consolide ?? false) === k.consolide);
         const e = i >= 0 ? { ...tables.effets[i], ...update } : { id: `e-${++seq}`, ...create };
         e.montant = new Prisma.Decimal(e.montant);
         if (i >= 0) tables.effets[i] = e;
@@ -184,8 +185,25 @@ function doublure(avecPrecedent = false, avecAvantPrecedent = false, balancesPro
       if (c === undefined || typeof c === 'string') throw new BadRequestException(c ?? 'Aucun périmètre de consolidation pour cet exercice.');
       return c;
     }),
+    lignesConsolidante: jest.fn(async () => []),
   };
-  return { prisma, tables, ecritures, cumuls, cumulsParExercice, service: new IfrsService(prisma, ecritures, syscohada, cumuls) };
+  // Le périmètre de chaque exercice · vide tant qu'un test ne le pose pas.
+  const perimetresParExercice: Record<string, { nom: string; estConsolidante: boolean; methode: string; pctInteret: number }[]> = {};
+  const perimetre: any = {
+    etat: jest.fn(async (_t: string, ex: string) => {
+      const resultats = perimetresParExercice[ex] ?? [];
+      return { entites: resultats, resultats };
+    }),
+  };
+  return {
+    prisma,
+    tables,
+    ecritures,
+    cumuls,
+    cumulsParExercice,
+    perimetresParExercice,
+    service: new IfrsService(prisma, ecritures, syscohada, cumuls, perimetre),
+  };
 }
 
 const REGLES = [
@@ -826,6 +844,104 @@ describe('IfrsService · états IFRS consolidés (tranche C1)', () => {
     expect(tables.reglesConso).toHaveLength(0);
     const e = await service.etatConsolide(T, EX);
     expect(e.n!.motifsNonPubliable).toContain(`Poste de consolidation « ${LIBELLE_POSTE.DOTATION_ECART_ACQUISITION} » sans rubrique IFRS · déclarez la ligne où il se range.`);
+  });
+});
+
+/**
+ * Tranche C2 · deux consolidations chiffrées à la main, AVEC leurs
+ * mouvements. Ventes 900 et achats 600 encaissés et payés, dividende de 30
+ * reçu d'une mise en équivalence (titres 100 → 70) · trésorerie 200 → 530.
+ */
+const LM = (cle: string, debit: number, credit: number) => ({ cle, intitule: `Ligne ${cle}`, debit, credit });
+const cumulFlux = (n: boolean) => ({
+  lignes: n
+    ? [LC('52100000', 530), LC('24100000', 1000), LC('40100000', -300), LC('70100000', -900), LC('60100000', 600), LC('CAPITAL', -500), LC('RESERVES_GROUPE', -500), LC('TITRES_MIS_EN_EQUIVALENCE', 70)]
+    : [LC('52100000', 200), LC('24100000', 1000), LC('40100000', -300), LC('CAPITAL', -500), LC('RESERVES_GROUPE', -500), LC('TITRES_MIS_EN_EQUIVALENCE', 100)],
+  mouvements: n ? [LM('52100000', 930, 600), LM('70100000', 0, 900), LM('60100000', 600, 0)] : [],
+  capitauxPropres: {
+    capital: 500, primes: 0, ecartsReevaluation: 0, reservesGroupe: 500, ecartsConversion: 0,
+    resultatGroupe: n ? 300 : 0, interetsMinoritairesHorsResultat: 0, resultatMinoritaires: 0, resultatEnsemble: n ? 300 : 0,
+  },
+  obstaclesFlux: [],
+  dividendesRecusMe: n ? 30 : 0,
+  ecartsEvaluationStocksResultat: 0,
+  conversions: [],
+  conversionsIncompletes: [],
+  impotsDifferesIncomplets: [],
+});
+const PERIMETRE = [
+  { nom: 'Mère', estConsolidante: true, methode: 'IG', pctInteret: 100 },
+  { nom: 'Associée', estConsolidante: false, methode: 'ME', pctInteret: 30 },
+];
+
+async function dossierFluxConsolide() {
+  const d = doublure(true);
+  for (const r of REGLES_CONSO) await d.service.ajouterRegle(T, r);
+  d.cumulsParExercice[EX] = cumulFlux(true);
+  d.cumulsParExercice[EX1] = cumulFlux(false);
+  d.perimetresParExercice[EX] = PERIMETRE;
+  d.perimetresParExercice[EX1] = PERIMETRE;
+  await d.service.declarerTresorerie(T, { tresorerieGroupeEnDevises: false });
+  return d;
+}
+
+describe('IfrsService · tableau des flux IFRS consolidé (tranche C2)', () => {
+  it('le tableau du D4C repris puis reclassé · le dividende de la mise en équivalence à l’investissement, la trésorerie boucle', async () => {
+    const { service } = await dossierFluxConsolide();
+    const e = await service.etatConsolide(T, EX);
+    const t = e.fluxTresorerie!.n!;
+    expect([X(t.lignes, 'E_TOTAL').montant, X(t.lignes, 'I_DIVIDENDES_MEE').montant, X(t.lignes, 'T_VARIATION').montant, X(t.lignes, 'T_CLOTURE').montant]).toEqual([300, 30, 330, 530]);
+    expect(X(t.lignes, 'T_ECART')).toBeUndefined();
+    // Le rapprochement se fait au tableau du D4C, qui porte le dividende à l'exploitation.
+    expect(t.rapprochementLegal.map((x: any) => x.syscohada)).toEqual([330, 0, 0, 330]);
+    expect(e.n!.motifsNonPubliable.join(' ')).not.toMatch(/Tableau des flux de trésorerie consolidé non/);
+    expect(e.fluxTresorerie!.motifN1).toMatch(/Aucun exercice avant l’exercice précédent/);
+  });
+
+  it('un périmètre qui a bougé arrête le tableau par le refus du D4C, dit sur le jeu', async () => {
+    const d = await dossierFluxConsolide();
+    d.perimetresParExercice[EX1] = [PERIMETRE[0]];
+    const e = await d.service.etatConsolide(T, EX);
+    expect(e.fluxTresorerie!.n).toBeNull();
+    expect(e.fluxTresorerie!.motifN).toMatch(/^Le tableau des flux consolidé du D4C ne s’établit pas · .*Associée/);
+    expect(e.n!.motifsNonPubliable.join(' ')).toMatch(/Tableau des flux de trésorerie consolidé non établi \(IAS 7, IFRS 18 § 10 d\)/);
+  });
+
+  it('la trésorerie du groupe en devises se déclare à part, et l’effet individuel ne se lit pas au consolidé', async () => {
+    const d = await dossierFluxConsolide();
+    await d.service.declarerTresorerie(T, { tresorerieGroupeEnDevises: true });
+    await d.service.declarerTresorerie(T, { tresorerieEnDevises: true });
+    await d.service.declarerEffetChange(T, { exerciceId: EX, montant: 12, categorie: 'FINANCEMENT', justification: 'Conversion des comptes en USD de la mère' });
+    let e = await d.service.etatConsolide(T, EX);
+    expect(X(e.fluxTresorerie!.n!.lignes, 'T_CHANGE')).toBeUndefined();
+    expect(e.n!.motifsNonPubliable.join(' ')).toMatch(/l’effet de change de l’exercice n’est pas déclaré/);
+    await d.service.declarerEffetChange(T, { exerciceId: EX, montant: 5, categorie: 'FINANCEMENT', justification: 'Filiale · USD', consolide: true });
+    e = await d.service.etatConsolide(T, EX);
+    expect(X(e.fluxTresorerie!.n!.lignes, 'T_CHANGE').montant).toBe(5);
+    expect(Number(e.effetChange!.montant)).toBe(5);
+    // Une déclaration partielle ne remet pas l'autre à null.
+    expect(d.tables.parametres[0]).toMatchObject({ tresorerieEnDevises: true, tresorerieGroupeEnDevises: true });
+    await d.service.supprimerEffetChange(T, EX, true);
+    expect(d.tables.effets.map((x: any) => Number(x.montant))).toEqual([12]);
+  });
+
+  it('la CAFG est celle du D4C, élimination comprise · l’écart avec le tableau du D4C n’est que le dividende déplacé', async () => {
+    const d = await dossierFluxConsolide();
+    d.cumulsParExercice[EX] = { ...cumulFlux(true), ecartsEvaluationStocksResultat: 10 };
+    const t = (await d.service.etatConsolide(T, EX)).fluxTresorerie!.n!;
+    expect(t.rapprochementLegal[0]).toMatchObject({ syscohada: 320, ifrs: 290, ecart: -30 });
+    expect(t.motifsNonPubliable.join(' ')).not.toMatch(/CAFG répartie/);
+  });
+
+  it('la déclaration des comptes individuels n’efface pas celle du groupe', async () => {
+    const d = await dossierFluxConsolide();
+    await d.service.declarerTresorerie(T, { decouvertsDansTresorerie: true, tresorerieEnDevises: false });
+    expect(d.tables.parametres[0]).toMatchObject({ decouvertsDansTresorerie: true, tresorerieEnDevises: false, tresorerieGroupeEnDevises: false });
+  });
+
+  it('un groupe déclaré sans devises refuse un effet de change consolidé', async () => {
+    const d = await dossierFluxConsolide();
+    await expect(d.service.declarerEffetChange(T, { exerciceId: EX, montant: 5, categorie: 'FINANCEMENT', justification: 'x', consolide: true })).rejects.toThrow(/du groupe est déclarée sans devises/);
   });
 });
 

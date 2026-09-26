@@ -106,3 +106,40 @@ describe('tableau des flux IFRS · le moteur', () => {
     expect(t.mentions).toContain('Tableau SYSCOHADA de départ · FB · part HAO non séparable');
   });
 });
+
+describe('tableau des flux IFRS consolidé · les deux flux lus hors des comptes', () => {
+  // Le D4C : B = CAFG 100 + dividendes ME 30 = 130 ; D = dividendes aux minoritaires − 20 ; E = 110.
+  const consolide = (x: Partial<NonNullable<EntreesFluxIfrs['consolidation']>> = {}): EntreesFluxIfrs => {
+    const p = base();
+    p.fluxLegaux = { ZB: 130, ZC: 0, ZF: -20, ZG: 110 };
+    p.tresorerie.cloture = 610;
+    p.etat = etat({ legal: 100, retraitements: 0 }, { legal: 610, retraitements: 0 });
+    p.consolidation = { dividendesRecusMe: 30, dividendesMinoritaires: -20, activiteSelonParagraphe34B: false, ...x };
+    return p;
+  };
+
+  it('§ 34A b et § 38 · les dividendes des mises en équivalence passent de l’exploitation à l’investissement, la variation ne bouge pas', () => {
+    const t = construireFluxTresorerieIfrs(consolide());
+    expect([M(t, 'E_TOTAL'), M(t, 'I_DIVIDENDES_MEE'), M(t, 'I_TOTAL'), M(t, 'T_VARIATION'), M(t, 'T_ECART')]).toEqual([100, 30, 30, 110, undefined]);
+    const ligne = (a: string) => t.rapprochementLegal.find((x) => x.activite === a);
+    expect([ligne('Activités opérationnelles')?.ecart, ligne('Activités d’investissement')?.ecart, ligne('Variation de la trésorerie')?.ecart]).toEqual([-30, 30, 0]);
+  });
+
+  it('§ 33A · les dividendes versés aux minoritaires au financement, à côté de ceux de la mère', () => {
+    const t = construireFluxTresorerieIfrs(consolide());
+    expect([M(t, 'F_DIVIDENDES_MINORITAIRES'), M(t, 'F_TOTAL')]).toEqual([-20, -20]);
+    expect(t.lignes.find((l) => l.cle === 'F_DIVIDENDES')?.libelle).toBe('Dividendes versés par la société mère');
+    expect(t.motifsNonPubliable).toEqual([]);
+  });
+
+  it('les mentions disent pourquoi aucun flux de périmètre n’est présenté (§ 39 à 42A)', () => {
+    const t = construireFluxTresorerieIfrs(consolide());
+    expect(t.mentions.some((m) => m.includes('§ 39 à 42') && m.includes('§ 42A'))).toBe(true);
+    expect(construireFluxTresorerieIfrs(base()).mentions.some((m) => m.includes('§ 42A'))).toBe(false);
+  });
+
+  it('§ 34B · une activité principale d’investissement ne classe pas les dividendes des mises en équivalence, et le jeu le dit', () => {
+    expect(construireFluxTresorerieIfrs(consolide({ activiteSelonParagraphe34B: true })).motifsNonPubliable.join(' ')).toContain('§ 34B');
+    expect(construireFluxTresorerieIfrs(consolide({ activiteSelonParagraphe34B: true, dividendesRecusMe: 0 })).motifsNonPubliable.join(' ')).not.toContain('§ 34B');
+  });
+});

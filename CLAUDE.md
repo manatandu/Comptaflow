@@ -2649,10 +2649,33 @@ D4C / IFRS NOMMÉS, JAMAIS CORRIGÉS EN SILENCE · l'écart d'acquisition amorti
 (IFRS 3 § 34) rendent le jeu non publiable tant qu'aucun retraitement ne touche
 leur rubrique ; les écarts de conversion portés en capitaux propres (IAS 21
 § 39 c et § 41, OCI avec la part des minoritaires) ne sont pas servis. NON
-SERVIS ET DITS sur le jeu (`MOTIFS_CONSOLIDES_NON_SERVIS`) · tableau des flux,
-variation des capitaux propres avec sa colonne des minoritaires (§ 107 a),
+SERVIS ET DITS sur le jeu (`MOTIFS_CONSOLIDES_NON_SERVIS`) · variation des
+capitaux propres avec sa colonne des minoritaires (§ 107 a),
 notes dont IFRS 12 (§ 113 b), première application consolidée (un ajustement de
 transition consolidé est refusé à la porte).
+
+**États IFRS consolidés, tranche C2 · le tableau des flux (2026-09-26).**
+`IfrsService.fluxConsolideDe`. Sources lues · IAS 7 § 28, § 33A, § 34A b,
+§ 34B, § 37 à 42A (skill `ifrs` et règlement (UE) 2026/338). CINQ RÈGLES À NE
+PAS DÉFAIRE. (1) IL PART DU TABLEAU DU D4C (`construireTableauFluxConsolide`)
+ET GARDE SES REFUS · périmètre ou pourcentage changé, entité convertie,
+balance sans mouvements. C'est aussi ce qui dispense des flux d'obtention ou de
+perte du contrôle (§ 39 à 42) et de modification de pourcentage (§ 42A), et une
+mention le dit. (2) LE MOTEUR EST CELUI DES COMPTES INDIVIDUELS, sur
+`lignesAvecMouvements` du cumul · flux avec les actionnaires lus sur la MÈRE
+(FK, FM, FN), totaux légaux (ZB, ZC, ZF, ZG) pris au tableau du D4C, auquel le
+rapprochement SYSCOHADA → IFRS se fait. (3) LA CAFG EST CELLE DU D4C ·
+l'élimination des résultats internes et des écarts d'évaluation des stocks
+reste à l'exploitation, et la somme par catégorie est contrôlée contre elle.
+(4) DEUX FLUX LUS HORS DES COMPTES · les dividendes des mises en équivalence,
+en exploitation au D4C, vont à l'investissement (§ 34A b, § 38) ; ceux des
+minoritaires au financement (§ 33A). Une activité principale du § 34B rend le
+jeu non publiable dès qu'il y a de tels dividendes. (5) LES DÉCOUVERTS SUIVENT
+LA DÉCLARATION DU DOSSIER (uniformité, IFRS 10 § 19) ; LES DEVISES DU GROUPE SE
+DÉCLARENT À PART (`ParametresIfrs.tresorerieGroupeEnDevises`), et l'effet de
+change consolidé porte `consolide` dans sa clé · jamais lu pour l'individuel.
+Une déclaration de trésorerie partielle ne remet pas les autres à null. Le
+comparatif exige une consolidation N-2.
 
 **Tableau des flux SYSCOHADA · le compte trop agrégé, que « non ventilé »
 ne voyait pas (2026-09-25).** Trouvé en passant au moteur la balance d'un

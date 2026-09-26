@@ -76,8 +76,8 @@ export class IfrsController {
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Delete('effet-change/:exerciceId')
-  supprimerEffetChange(@CurrentUser() user: AuthenticatedUser, @Param('exerciceId') exerciceId: string) {
-    return this.ifrs.supprimerEffetChange(user.tenantId, exerciceId);
+  supprimerEffetChange(@CurrentUser() user: AuthenticatedUser, @Param('exerciceId') exerciceId: string, @Query('consolide') consolide?: string) {
+    return this.ifrs.supprimerEffetChange(user.tenantId, exerciceId, consolide === 'true');
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)

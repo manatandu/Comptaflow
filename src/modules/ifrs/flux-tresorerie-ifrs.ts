@@ -71,6 +71,18 @@ export interface EntreesFluxIfrs {
   };
   /** Les réserves du tableau légal (postes non déterminables), reprises telles quelles. */
   reservesLegales: string[];
+  /**
+   * COMPTES CONSOLIDÉS · les deux flux que le tableau du D4C (ch. XII-8 § 4)
+   * lit hors des comptes, montants de son tableau, signe de trésorerie. Les
+   * dividendes reçus des entités mises en équivalence y sont en activité
+   * opérationnelle ; IAS 7 § 34A b et § 38 les portent à l'investissement.
+   */
+  consolidation?: {
+    dividendesRecusMe: number;
+    dividendesMinoritaires: number;
+    /** L'activité principale relève du § 34B · le classement des dividendes reçus n'y suit plus le § 34A. */
+    activiteSelonParagraphe34B: boolean;
+  };
 }
 
 export interface LigneFluxIfrs {
@@ -151,13 +163,20 @@ export function construireFluxTresorerieIfrs(p: EntreesFluxIfrs): TableauFluxIfr
     true,
   );
   flux('INVESTISSEMENT', 'I_INTERETS_DIVIDENDES', 'Intérêts et dividendes reçus (catégorie « investissement »)', cafg.INVESTISSEMENT, '§ 16 i, § 34A b');
+  const conso = p.consolidation;
+  if (conso) {
+    flux('INVESTISSEMENT', 'I_DIVIDENDES_MEE', 'Dividendes reçus des entités mises en équivalence', conso.dividendesRecusMe, '§ 34A b, § 38', true);
+  }
   const totalInvestissement = total('INVESTISSEMENT', 'I_TOTAL', 'Flux de trésorerie liés aux activités d’investissement');
 
   // ─── Activités de financement (§ 17) ───────────────────────────────────────
   flux('FINANCEMENT', 'F_CAPITAL', 'Augmentations de capital par apports nouveaux', f('FK'), '§ 17 a');
   flux('FINANCEMENT', 'F_SUBVENTIONS', 'Subventions d’investissement reçues', f('FL'), 'classement du tableau SYSCOHADA');
   flux('FINANCEMENT', 'F_PRELEVEMENTS', 'Prélèvements sur le capital', f('FM'), '§ 17 b');
-  flux('FINANCEMENT', 'F_DIVIDENDES', 'Dividendes versés', f('FN'), '§ 17 f, § 33A');
+  flux('FINANCEMENT', 'F_DIVIDENDES', conso ? 'Dividendes versés par la société mère' : 'Dividendes versés', f('FN'), '§ 17 f, § 33A');
+  if (conso) {
+    flux('FINANCEMENT', 'F_DIVIDENDES_MINORITAIRES', 'Dividendes versés aux participations ne donnant pas le contrôle', conso.dividendesMinoritaires, '§ 17 f, § 33A', true);
+  }
   flux('FINANCEMENT', 'F_EMPRUNTS', 'Emprunts et autres dettes financières', f('FO') + f('FP'), '§ 17 c');
   flux('FINANCEMENT', 'F_REMBOURSEMENTS', 'Remboursements des emprunts et autres dettes financières', f('FQ'), '§ 17 d');
   const credits = p.tresorerie.horsTresorerieIfrs.filter((c) => c.activite === 'FINANCEMENT');
@@ -202,6 +221,12 @@ export function construireFluxTresorerieIfrs(p: EntreesFluxIfrs): TableauFluxIfr
     'Les intérêts et dividendes suivent la catégorie où les règles rangent leurs comptes au compte de résultat, pour le montant comptabilisé · § 34A, et § 34B à 34D pour une activité principale d’investissement, à condition que les règles suivent IFRS 18.',
     'Les transactions d’investissement et de financement sans effet sur la trésorerie en sont exclues et se décrivent dans les notes (§ 43), comme les variations des passifs issus des activités de financement (§ 44A).',
     ...p.reservesLegales.map((r) => `Tableau SYSCOHADA de départ · ${r}`),
+    ...(conso
+      ? [
+          'Tableau consolidé · même périmètre et mêmes pourcentages d’intérêt qu’à l’exercice précédent, condition de production du tableau consolidé · aucun flux d’obtention ou de perte du contrôle (§ 39 à 42) ni de modification de pourcentage sans perte du contrôle (§ 42A) n’est à présenter.',
+          'Tableau consolidé · les flux avec les actionnaires de la société mère sont lus sur ses comptes propres, ceux des participations ne donnant pas le contrôle par la variation de leurs intérêts (tableau du D4C, ch. XII-8 § 4).',
+        ]
+      : []),
   ];
 
   const motifsNonPubliable: string[] = [];
@@ -223,6 +248,11 @@ export function construireFluxTresorerieIfrs(p: EntreesFluxIfrs): TableauFluxIfr
   }
   if (Math.abs(retraitementsTresorerie) > EPS) {
     motifsNonPubliable.push('Tableau des flux IFRS · un retraitement modifie la trésorerie · la trésorerie ne bouge que par un flux, et un retraitement n’en porte aucun. Rangez le compte par une règle.');
+  }
+  if (conso?.activiteSelonParagraphe34B && Math.abs(conso.dividendesRecusMe) > EPS) {
+    motifsNonPubliable.push(
+      'Tableau des flux IFRS consolidé · l’activité principale relève du § 34B, qui classe les dividendes reçus selon la catégorie de leurs produits au résultat · ceux des entités mises en équivalence n’y figurent pas, et ce module ne les classe pas.',
+    );
   }
   if (Math.abs(cafg.ABANDONNEES) > EPS) {
     motifsNonPubliable.push('Tableau des flux IFRS · les flux des activités abandonnées ne sont pas ventilés entre les trois activités par ce module.');

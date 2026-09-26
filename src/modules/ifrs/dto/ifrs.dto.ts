@@ -58,6 +58,8 @@ export class TresorerieIfrsDto {
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsBoolean() decouvertsDansTresorerie?: boolean | null;
   /** IAS 7 § 28 · null efface la déclaration. */
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsBoolean() tresorerieEnDevises?: boolean | null;
+  /** IAS 7 § 28, comptes consolidés · null efface la déclaration. */
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsBoolean() tresorerieGroupeEnDevises?: boolean | null;
 }
 
 export class EffetChangeIfrsDto {
@@ -65,6 +67,8 @@ export class EffetChangeIfrsDto {
   @IsNumber({ maxDecimalPlaces: 2 }) montant!: number;
   @IsEnum(CategorieEffetChangeIfrs) categorie!: CategorieEffetChangeIfrs;
   @IsString() @MaxLength(1000) justification!: string;
+  /** L'effet de change sur la trésorerie du groupe (tableau consolidé). */
+  @IsOptional() @IsBoolean() consolide?: boolean;
 }
 
 /** IFRS 18 § 113 à 132, IAS 8 · le contenu est relu par `normaliserDeclarationsNotes`, jamais pris tel quel. */
