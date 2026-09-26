@@ -1,3 +1,5 @@
+import type { ReponseFait } from './dto/parametres-dossier.dto';
+import { donneesAssujettissementTva, donneesVenteBiensServices, faitAssujettissementTva } from './faits-declares';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { siSycebnl } from '../../common/reponse-referentiel';
 import { PrismaService } from '../../common/prisma.service';
@@ -131,6 +133,9 @@ export class TenantService {
       longueurCompteMinimale,
       longueurCompteExemple,
       assujettiTva: tenant.assujettiTva,
+      // `null` = pas encore dit · voir `faits-declares.ts`.
+      assujettissementTva: faitAssujettissementTva(tenant),
+      venteBiensServices: tenant.venteBiensServices,
       dateOptionTva: tenant.dateOptionTva,
       regimeExigibiliteTva: tenant.regimeExigibiliteTva,
       dateAutorisationDebitsTva: tenant.dateAutorisationDebitsTva,
@@ -674,6 +679,8 @@ export class TenantService {
     tenantId: string,
     dto: {
       assujettiTva?: boolean;
+      reponseAssujettissementTva?: ReponseFait;
+      venteBiensServices?: ReponseFait;
       dateOptionTva?: string;
       effectifPermanent?: number;
       numeroAffiliationCnssEmployeur?: string;
@@ -688,7 +695,8 @@ export class TenantService {
     await this.prisma.tenant.update({
       where: { id: tenantId },
       data: {
-        ...(dto.assujettiTva === undefined ? {} : { assujettiTva: dto.assujettiTva }),
+        ...donneesAssujettissementTva(dto.reponseAssujettissementTva, dto.assujettiTva),
+        ...donneesVenteBiensServices(dto.venteBiensServices),
         ...(dto.dateOptionTva === undefined ? {} : { dateOptionTva: new Date(dto.dateOptionTva) }),
         ...(dto.effectifPermanent === undefined ? {} : { effectifPermanent: dto.effectifPermanent }),
         ...(dto.numeroAffiliationCnssEmployeur === undefined

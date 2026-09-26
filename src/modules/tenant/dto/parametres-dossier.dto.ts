@@ -1,4 +1,4 @@
-import { IsBoolean, IsEmail, IsEnum, IsNumber, IsOptional, IsString, MaxLength, MinLength, IsDateString, IsInt, Max, Min, ValidateIf } from 'class-validator';
+import { IsBoolean, IsEmail, IsEnum, IsNumber, IsOptional, IsString, MaxLength, MinLength, IsDateString, IsIn, IsInt, Max, Min, ValidateIf } from 'class-validator';
 import {
   FormeJuridiqueEbnl,
   FormeJuridiqueSyscohada,
@@ -210,6 +210,10 @@ export class ModifierFormeSyscohadaDto {
   formeJuridiqueSyscohada!: FormeJuridiqueSyscohada;
 }
 
+/** Réponse à une question déclarée · la troisième valeur n'est pas « non ». */
+export const REPONSES_FAIT = ['OUI', 'NON', 'PAS_ENCORE_DIT'] as const;
+export type ReponseFait = (typeof REPONSES_FAIT)[number];
+
 /**
  * ASSUJETTISSEMENT À LA TVA et EFFECTIF PERMANENT · deux données que le
  * logiciel ne détenait pas et sans lesquelles il ne pouvait appliquer ni les
@@ -220,6 +224,21 @@ export class ModifierRegimeDto {
   @IsOptional()
   @IsBoolean()
   assujettiTva?: boolean;
+
+  /**
+   * LA RÉPONSE, AVEC SA TROISIÈME VALEUR. « PAS_ENCORE_DIT » remet
+   * `assujettiTva` à faux ET efface la réponse · un menu ne se masque que sur
+   * une réponse donnée (`client/src/lib/profil-dossier.ts`). `assujettiTva`
+   * seul reste accepté et vaut réponse.
+   */
+  @IsOptional()
+  @IsIn(REPONSES_FAIT)
+  reponseAssujettissementTva?: ReponseFait;
+
+  /** L'entité vend-elle des biens ou des services ? Même trois valeurs. */
+  @IsOptional()
+  @IsIn(REPONSES_FAIT)
+  venteBiensServices?: ReponseFait;
 
   @IsOptional()
   @IsDateString()

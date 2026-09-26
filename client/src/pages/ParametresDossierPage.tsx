@@ -1,3 +1,4 @@
+import { versReponse, type ReponseFait } from '../lib/profil-dossier';
 import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -337,6 +338,8 @@ export function ParametresDossierPage() {
 
   const changerRegime = async (dto: {
     assujettiTva?: boolean;
+    reponseAssujettissementTva?: ReponseFait;
+    venteBiensServices?: ReponseFait;
     effectifPermanent?: number;
     numeroAffiliationCnssEmployeur?: string | null;
     regimeExigibiliteTva?: RegimeExigibiliteTva;
@@ -345,6 +348,9 @@ export function ParametresDossierPage() {
     setErreur(null);
     try {
       setParams(await api.patch<ParametresDossier>('/dossier/regime', dto));
+      // Les deux faits commandent des MENUS (`lib/profil-dossier.ts`), lus sur
+      // /auth/me · sans relecture, le menu garderait l'ancienne réponse.
+      if (dto.reponseAssujettissementTva !== undefined || dto.venteBiensServices !== undefined) await rafraichir();
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Modification impossible');
     } finally {
@@ -1134,22 +1140,14 @@ export function ParametresDossierPage() {
                     </span>
                   </span>
                 </label>
-                <label className="flex items-start gap-2 text-[11.5px]">
-                  <input
-                    type="checkbox"
-                    className="mt-[3px]"
-                    checked={params.assujettiTva}
-                    disabled={!estAdmin || envoi}
-                    onChange={(e) => changerRegime({ assujettiTva: e.target.checked })}
-                  />
-                  <span>
-                    Entité assujettie à la TVA{' '}
-                    <Aide
+                <label className="block text-[11.5px]">
+                  Entité assujettie à la TVA{' '}
+                  <Aide
                       titre="Assujettissement à la TVA"
                       texte={
                         params.referentiel === 'SYCEBNL'
-                          ? 'L’assujettissement est de PLEIN DROIT dès 80 000 000 FC de chiffre d’affaires annuel (ordonnance-loi n° 10/001, art. 14) · le décret n° 011/42, art. 42, y soumet « les personnes physiques ET MORALES », sans écarter les associations, et précise que ce chiffre d’affaires s’entend HORS TVA ; son art. 43 le mesure sur l’année précédente, ou sur le prévisionnel pour une entité nouvelle. Ce qui est propre à une association tient aux EXONÉRATIONS, non au seuil : ses ventes et importations à caractère social, sportif, culturel, religieux, éducatif ou philanthropique conforme à son objet sont exonérées (art. 15, 2°), comme ses prestations d’activité normale tant que leur non-assujettissement ne fausse pas la concurrence (art. 17, 8°) · ces opérations ne produisent donc pas de chiffre d’affaires taxable. Une activité accessoire taxable, elle, compte. En deçà du seuil, l’option reste possible et engage deux ans. Décochée, la TVA supportée n’est pas récupérable et se porte en charge.'
-                          : 'L’assujettissement est de PLEIN DROIT dès 80 000 000 FC de chiffre d’affaires annuel hors taxes (ordonnance-loi n° 10/001, art. 14) · à la différence d’une association, une entité commerciale qui atteint ce seuil n’a rien à choisir. En deçà, l’option reste possible sur demande expresse à l’administration, et elle est définitive pendant deux ans. Une fois assujettie, l’entité conserve cette qualité pendant les deux années qui suivent le constat de la baisse sous le seuil. Décochée, la TVA supportée n’est pas récupérable et se porte en charge.'
+                          ? 'L’assujettissement est de PLEIN DROIT dès 80 000 000 FC de chiffre d’affaires annuel (ordonnance-loi n° 10/001, art. 14) · le décret n° 011/42, art. 42, y soumet « les personnes physiques ET MORALES », sans écarter les associations, et précise que ce chiffre d’affaires s’entend HORS TVA ; son art. 43 le mesure sur l’année précédente, ou sur le prévisionnel pour une entité nouvelle. Ce qui est propre à une association tient aux EXONÉRATIONS, non au seuil : ses ventes et importations à caractère social, sportif, culturel, religieux, éducatif ou philanthropique conforme à son objet sont exonérées (art. 15, 2°), comme ses prestations d’activité normale tant que leur non-assujettissement ne fausse pas la concurrence (art. 17, 8°) · ces opérations ne produisent donc pas de chiffre d’affaires taxable. Une activité accessoire taxable, elle, compte. En deçà du seuil, l’option reste possible et engage deux ans. Sur « Non », la TVA supportée n’est pas récupérable et se porte en charge.'
+                          : 'L’assujettissement est de PLEIN DROIT dès 80 000 000 FC de chiffre d’affaires annuel hors taxes (ordonnance-loi n° 10/001, art. 14) · à la différence d’une association, une entité commerciale qui atteint ce seuil n’a rien à choisir. En deçà, l’option reste possible sur demande expresse à l’administration, et elle est définitive pendant deux ans. Une fois assujettie, l’entité conserve cette qualité pendant les deux années qui suivent le constat de la baisse sous le seuil. Sur « Non », la TVA supportée n’est pas récupérable et se porte en charge.'
                       }
                       source={
                         params.referentiel === 'SYCEBNL'
@@ -1157,7 +1155,34 @@ export function ParametresDossierPage() {
                           : 'O.-L. n° 10/001, art. 14'
                       }
                     />
-                  </span>
+                  <select
+                    value={versReponse(params.assujettissementTva)}
+                    disabled={!estAdmin || envoi}
+                    onChange={(e) => changerRegime({ reponseAssujettissementTva: e.target.value as ReponseFait })}
+                    className="mt-1 block w-full max-w-[420px] border border-border rounded-[4px] bg-bg px-2 py-1 text-[11.5px] focus:outline-none focus:border-sel"
+                  >
+                    <option value="PAS_ENCORE_DIT">Pas encore dit</option>
+                    <option value="OUI">Oui</option>
+                    <option value="NON">Non</option>
+                  </select>
+                </label>
+                <label className="block text-[11.5px]">
+                  L’entité vend-elle des biens ou des services ?{' '}
+                  <Aide
+                    titre="Ventes de biens ou de services"
+                    texte="Répondre « Non » retire du menu les devis ; avec « Non » aussi à la TVA, la facturation. Rien n’est supprimé, et « Oui » ou « Pas encore dit » les rend. Tant que la question n’est pas répondue, rien n’est masqué. La facturation reste avec une seule des deux réponses à « Oui » : elle porte aussi les factures d’achat dont l’état détaillé conditionne la déduction."
+                    source="Règle d’OmegaX · O.-L. n° 10/001, art. 56 ; décret n° 011/42, art. 134"
+                  />
+                  <select
+                    value={versReponse(params.venteBiensServices)}
+                    disabled={!estAdmin || envoi}
+                    onChange={(e) => changerRegime({ venteBiensServices: e.target.value as ReponseFait })}
+                    className="mt-1 block w-full max-w-[420px] border border-border rounded-[4px] bg-bg px-2 py-1 text-[11.5px] focus:outline-none focus:border-sel"
+                  >
+                    <option value="PAS_ENCORE_DIT">Pas encore dit</option>
+                    <option value="OUI">Oui</option>
+                    <option value="NON">Non</option>
+                  </select>
                 </label>
                 {/* RÉGIME D'EXIGIBILITÉ · n'a de sens qu'assujetti. Il ne change
                     pas le MONTANT de la taxe mais la PÉRIODE où elle est due,

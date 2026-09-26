@@ -129,6 +129,16 @@ chiffre faux sans rien dire.
   facturation d'une ASBL NE sont PAS masquées · l'effectif vaut 0 et
   `assujettiTva` faux par défaut, aucun champ ne dit qu'une ASBL vend, et
   masquer sur une valeur par défaut cacherait le module à qui en a besoin.
+- **Deux questions explicites** (décision « Go » suivante du 2026-09-26,
+  `src/modules/tenant/faits-declares.ts`) · Paramètres du dossier pose
+  « Entité assujettie à la TVA » et « L'entité vend-elle des biens ou des
+  services ? », chacune à trois réponses (oui, non, pas encore dit). Seule une
+  réponse masque : « non » à la TVA retire la déclaration de TVA, « non » aux
+  ventes retire les devis, et la facturation ne tombe que sur les deux « non »
+  (elle porte aussi les factures d'achat de l'état détaillé, O.-L. n° 10/001,
+  art. 56). Les dossiers déjà cochés assujettis sont repris comme ayant
+  répondu « oui » ; tous les autres restent à « pas encore dit ». La paie ne
+  se masque toujours pas.
 - **Contrôle `SMT_COMPTE_SANS_POSTE`** · une écriture saisie à la main sur un
   15, un 19 ou un 29 dans un dossier SMT est signalée (avertissement, jamais
   bloquée) : aucun des deux modèles n'a de poste pour elle.

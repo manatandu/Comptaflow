@@ -35,3 +35,20 @@ describe('/auth/me · le fait « ONG de droit étranger »', () => {
     expect((await me({ referentiel: 'SYSCOHADA', systemeComptableSyscohada: 'NORMAL' })).tenant.ongEtrangere).toBeNull();
   });
 });
+
+describe('/auth/me · assujettissement à la TVA et ventes, trois valeurs', () => {
+  const base = { referentiel: 'SYSCOHADA', systemeComptableSyscohada: 'NORMAL' };
+
+  it('le faux par défaut, sans réponse, vaut « pas encore dit »', async () => {
+    const t = (await me({ ...base, assujettiTva: false, assujettissementTvaRepondu: false, venteBiensServices: null })).tenant;
+    expect(t.assujettissementTva).toBeNull();
+    expect(t.venteBiensServices).toBeNull();
+  });
+
+  it('une réponse donnée est rendue telle quelle', async () => {
+    const t = (await me({ ...base, assujettiTva: false, assujettissementTvaRepondu: true, venteBiensServices: false })).tenant;
+    expect(t.assujettissementTva).toBe(false);
+    expect(t.venteBiensServices).toBe(false);
+    expect((await me({ ...base, assujettiTva: true, assujettissementTvaRepondu: true })).tenant.assujettissementTva).toBe(true);
+  });
+});

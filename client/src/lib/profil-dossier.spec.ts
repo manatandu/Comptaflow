@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CHEMINS_SANS_OBJET_SMT, cheminAuMenu, estSystemeMinimalDossier, sousFonctionServie } from './profil-dossier';
+import { CHEMINS_SANS_OBJET_SMT, cheminAuMenu, estSystemeMinimalDossier, sousFonctionServie, versReponse } from './profil-dossier';
 import { filtrerParProfil, type MenuDef } from '../components/chrome/menu-groupes';
 
 // Aucun import de « vitest » · convention du dépôt, le spec tourne aussi sous
@@ -177,9 +177,34 @@ describe('le masque selon un fait déclaré', () => {
     expect(cheminAuMenu('/balance-agee', { ...SMT_SYCEBNL, ongEtrangere: true })).toBe(false);
   });
 
-  it('ne masque ni la paie, ni la TVA, ni la facturation sur une valeur par défaut', () => {
-    for (const chemin of ['/personnel', '/declaration-tva', '/facturation']) {
+  it('ne masque ni la paie, ni la TVA, ni les devis, ni la facturation tant que rien n’est répondu', () => {
+    for (const chemin of ['/personnel', '/declaration-tva', '/devis', '/facturation']) {
       expect(cheminAuMenu(chemin, { ...ASSOCIATIONS, ongEtrangere: false })).toBe(true);
+      expect(cheminAuMenu(chemin, { ...NORMAL, assujettissementTva: null, venteBiensServices: null })).toBe(true);
     }
+  });
+
+  it('la déclaration de TVA suit la RÉPONSE à l’assujettissement', () => {
+    expect(cheminAuMenu('/declaration-tva', { ...NORMAL, assujettissementTva: false })).toBe(false);
+    expect(cheminAuMenu('/declaration-tva', { ...NORMAL, assujettissementTva: true })).toBe(true);
+  });
+
+  it('les devis suivent la réponse sur les ventes', () => {
+    expect(cheminAuMenu('/devis', { ...NORMAL, venteBiensServices: false })).toBe(false);
+    expect(cheminAuMenu('/devis', { ...NORMAL, venteBiensServices: true })).toBe(true);
+  });
+
+  it('la facturation ne tombe que sur DEUX « non » · elle porte aussi les achats de l’état détaillé', () => {
+    expect(cheminAuMenu('/facturation', { ...NORMAL, venteBiensServices: false, assujettissementTva: false })).toBe(false);
+    expect(cheminAuMenu('/facturation', { ...NORMAL, venteBiensServices: false, assujettissementTva: true })).toBe(true);
+    expect(cheminAuMenu('/facturation', { ...NORMAL, venteBiensServices: true, assujettissementTva: false })).toBe(true);
+    expect(cheminAuMenu('/facturation', { ...NORMAL, venteBiensServices: false, assujettissementTva: null })).toBe(true);
+  });
+
+  it('la liste à trois choix rend « pas encore dit » pour une absence de réponse', () => {
+    expect(versReponse(undefined)).toBe('PAS_ENCORE_DIT');
+    expect(versReponse(null)).toBe('PAS_ENCORE_DIT');
+    expect(versReponse(false)).toBe('NON');
+    expect(versReponse(true)).toBe('OUI');
   });
 });

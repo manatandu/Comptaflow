@@ -4814,9 +4814,17 @@ SYSCOHADA · c'est ce qui garde G égal au résultat du bilan ; la décision
 pas en retirant une lecture, et une écriture saisie à la main sur un 15, 19
 ou 29 est signalée par `SMT_COMPTE_SANS_POSTE`. (5) UN FAIT NE MASQUE QUE S'IL
 EST DÉCLARÉ · `CHEMINS_SELON_UN_FAIT` cache l'accord-cadre hors ONG de droit
-étranger ; la paie, la TVA et la facturation ne se masquent pas, leurs champs
-(effectif 0, `assujettiTva` faux) sont des valeurs par défaut, pas des
-réponses.
+étranger. Deux questions à TROIS réponses (oui, non, pas encore dit) ont été
+ajoutées le même jour, décision de Manasse (`tenant/faits-declares.ts`) ·
+l'assujettissement à la TVA, dont la réponse vit à côté du booléen
+(`assujettissementTvaRepondu`, le faux par défaut n'étant pas « non »), et la
+vente de biens ou de services (`venteBiensServices`, null par défaut). « Non »
+à la TVA masque la déclaration ; « non » aux ventes masque les devis ; la
+FACTURATION ne tombe que sur les DEUX « non », parce qu'elle porte aussi les
+factures d'achat de l'état détaillé (O.-L. n° 10/001, art. 56). « Pas encore
+dit » remet `assujettiTva` à faux, qui commande la TVA posée d'office en
+saisie. La paie ne se masque pas · l'effectif 0 est une valeur par défaut, et
+c'est dans sa fenêtre qu'on inscrit le premier salarié.
 
 **Lieux des biens (2026-09-26).** Point 2 des restes de l'audit. Sage
 Immobilisations tient un « référentiel séparé de localisation physique des

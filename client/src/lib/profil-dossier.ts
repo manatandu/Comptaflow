@@ -58,6 +58,9 @@ export interface RegimeDossierClient {
   referentiel: Referentiel;
   /** Fait déclaré · voir `CHEMINS_SELON_UN_FAIT`. Absent = inconnu. */
   ongEtrangere?: boolean | null;
+  /** Faits déclarés · `null` ou absent = pas encore dit. */
+  assujettissementTva?: boolean | null;
+  venteBiensServices?: boolean | null;
   jeuEtatsFinanciersSycebnl?: JeuEtatsFinanciersSycebnl | null;
   systemeComptableSyscohada?: SystemeComptableSyscohada | null;
 }
@@ -84,22 +87,40 @@ export function cheminAuMenu(chemin: string, t: RegimeDossierClient | null | und
 }
 
 /**
- * MASQUES SELON UN FAIT DÉCLARÉ, pas selon le profil. Un seul fait est assez
- * sûr pour masquer : la forme de l'entité et son droit, que le dossier
- * déclare et que le module lit déjà. Rendre `false` masque ; `true` ou
- * `null` (inconnu, ou sans objet dans ce référentiel) laisse l'entrée.
+ * MASQUES SELON UN FAIT DÉCLARÉ, pas selon le profil. Rendre `false` masque ;
+ * `true` ou `null` (pas encore dit, ou sans objet dans ce référentiel) laisse
+ * l'entrée. TROIS FAITS, chacun posé par une question qui a une troisième
+ * réponse, « pas encore dit » · masquer sur une valeur par défaut cacherait un
+ * module à qui en a besoin.
+ *  - la forme et le droit de l'entité (accord-cadre) ;
+ *  - l'assujettissement à la TVA, RÉPONDU (`Tenant.assujettissementTvaRepondu`) ;
+ *  - la vente de biens ou de services (`Tenant.venteBiensServices`).
  *
- * VOLONTAIREMENT ABSENTS · la paie (l'effectif vaut 0 par défaut, et c'est
- * dans cette fenêtre qu'on inscrit le premier salarié), la TVA
- * (`assujettiTva` vaut faux par défaut, il ne distingue pas « non assujetti »
- * de « pas encore dit ») et la facturation d'une ASBL (aucun champ ne dit
- * qu'elle vend). Masquer sur une valeur par défaut cacherait un module à qui
- * en a besoin.
+ * LA FACTURATION NE SE MASQUE QUE SUR DEUX « NON ». Elle sert aussi les
+ * factures d'ACHAT dont l'état détaillé conditionne la déduction (O.-L.
+ * n° 10/001, art. 56 ; décret n° 011/42, art. 134) · une entité qui ne vend
+ * rien mais déduit sa TVA en a besoin.
+ *
+ * VOLONTAIREMENT ABSENTE · la paie (l'effectif vaut 0 par défaut, et c'est
+ * dans cette fenêtre qu'on inscrit le premier salarié).
  */
+const nonDeclare = (v: boolean | null | undefined): boolean | null => (v === undefined ? null : v);
+
 export const CHEMINS_SELON_UN_FAIT: Record<string, (t: RegimeDossierClient) => boolean | null> = {
   // Loi n° 004/2001, art. 37 · l'accord-cadre ne vise que l'ONG étrangère.
-  '/accord-cadre': (t) => (t.ongEtrangere === undefined ? null : t.ongEtrangere),
+  '/accord-cadre': (t) => nonDeclare(t.ongEtrangere),
+  '/declaration-tva': (t) => nonDeclare(t.assujettissementTva),
+  // AUDCG art. 241 · un devis est une offre de vente.
+  '/devis': (t) => nonDeclare(t.venteBiensServices),
+  '/facturation': (t) =>
+    t.venteBiensServices === false && t.assujettissementTva === false ? false : null,
 };
+
+/** Un fait déclaré vers la valeur de sa liste à trois choix. */
+export type ReponseFait = 'OUI' | 'NON' | 'PAS_ENCORE_DIT';
+export function versReponse(v: boolean | null | undefined): ReponseFait {
+  return v === true ? 'OUI' : v === false ? 'NON' : 'PAS_ENCORE_DIT';
+}
 
 /**
  * LES SOUS-FONCTIONS D'UNE FENÊTRE UTILE · même règle, un cran plus bas. La

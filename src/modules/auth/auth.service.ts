@@ -1,3 +1,4 @@
+import { faitAssujettissementTva } from '../tenant/faits-declares';
 import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { identiteSociete, mentionsArticle17 } from '../tenant/mentions-societe';
 import { articleTrenteSeptApplicable } from '../accord-cadre/conditions-ong-etrangere';
@@ -360,6 +361,10 @@ export class AuthService {
           user.tenant.referentiel === Referentiel.SYCEBNL
             ? articleTrenteSeptApplicable(user.tenant.formeJuridique, user.tenant.droitEtranger)
             : null,
+        // DEUX FAITS DÉCLARÉS de plus · `null` = pas encore dit, et rien ne se
+        // masque sur lui (`tenant/faits-declares.ts`).
+        assujettissementTva: faitAssujettissementTva(user.tenant),
+        venteBiensServices: user.tenant.venteBiensServices,
       },
     };
   }

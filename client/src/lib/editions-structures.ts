@@ -167,7 +167,10 @@ export function editionParametres(
     ['Monnaie de tenue', v(p.devise)],
     ['Monnaie fonctionnelle', v(p.deviseFonctionnelle)],
     ['Longueur des comptes', `${p.longueurCompte} chiffres`],
-    ['Assujetti à la TVA', ouiNon(p.assujettiTva)],
+    // La RÉPONSE, pas le booléen · un faux par défaut s'imprimerait « Non »
+    // sur un dossier qui n'a jamais répondu.
+    ['Assujetti à la TVA', p.assujettissementTva == null ? 'non renseigné' : ouiNon(p.assujettissementTva)],
+    ['Vente de biens ou de services', p.venteBiensServices == null ? 'non renseigné' : ouiNon(p.venteBiensServices)],
     ['Double regard à la validation', ouiNon(p.doubleRegardValidation)],
   );
   return { colonnes: ['Rubrique', 'Valeur'], lignes };

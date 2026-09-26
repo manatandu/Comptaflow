@@ -40,6 +40,9 @@ interface MeResponse {
     nombreCellules: number;
     /** ONG de droit étranger (loi n° 004/2001, art. 37) · null hors SYCEBNL. */
     ongEtrangere?: boolean | null;
+    /** Faits déclarés · `null` = pas encore dit (`lib/profil-dossier.ts`). */
+    assujettissementTva?: boolean | null;
+    venteBiensServices?: boolean | null;
   };
 }
 

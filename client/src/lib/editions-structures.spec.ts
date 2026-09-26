@@ -64,6 +64,10 @@ describe('Éditions des structures', () => {
     const s = editionParametres(base, { jeuOuSysteme: 'Système normal', forme: null });
     const cles = s.lignes.map((l) => l[0]);
     expect(s.lignes.find((l) => l[0] === 'Forme juridique')?.[1]).toBe('non renseigné');
+    // Le faux par défaut n'est pas une réponse.
+    expect(s.lignes.find((l) => l[0] === 'Assujetti à la TVA')?.[1]).toBe('non renseigné');
+    expect(editionParametres({ ...base, assujettissementTva: false, venteBiensServices: true } as ParametresDossier, { jeuOuSysteme: null, forme: null })
+      .lignes.filter((l) => l[0] === 'Assujetti à la TVA' || l[0] === 'Vente de biens ou de services').map((l) => l[1])).toEqual(['Non', 'Oui']);
     expect(s.lignes.find((l) => l[0] === 'Capital social')?.[1]).toBe(`${(1000000).toLocaleString('fr-FR')} CDF · à capital variable`);
     expect(cles).toContain('RCCM');
     expect(cles).not.toContain('Enregistrement sectoriel');

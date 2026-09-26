@@ -1415,6 +1415,10 @@ export interface ParametresDossier {
    * d'affaires annuel hors taxes ; exonérations des art. 15, 2° et 17, 8°).
    */
   assujettiTva: boolean;
+  /** La RÉPONSE · `null` = pas encore dit (le faux par défaut n'est pas « non »). */
+  assujettissementTva: boolean | null;
+  /** L'entité vend-elle des biens ou des services ? `null` = pas encore dit. */
+  venteBiensServices: boolean | null;
   dateOptionTva: string | null;
   /**
    * Régime d'exigibilité de la TVA · O.-L. n° 10/001, art. 25 et 26. Il

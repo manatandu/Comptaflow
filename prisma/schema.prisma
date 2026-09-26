@@ -507,6 +507,17 @@ model Tenant {
   doubleRegardValidation Boolean @default(false)
 
   assujettiTva  Boolean   @default(false)
+  // LA QUESTION A-T-ELLE ÉTÉ RÉPONDUE ? `assujettiTva` vaut faux par défaut et
+  // ne distingue donc pas « non assujetti » de « pas encore dit ». Un menu ne se
+  // masque que sur une RÉPONSE (`client/src/lib/profil-dossier.ts`) · masquer la
+  // déclaration de TVA sur la valeur par défaut la cacherait à un assujetti qui
+  // n'a simplement pas encore rempli ses paramètres.
+  assujettissementTvaRepondu Boolean @default(false)
+  // L'ENTITÉ VEND-ELLE DES BIENS OU DES SERVICES ? null = pas encore dit. Fait
+  // DÉCLARÉ par le cabinet, jamais déduit d'un compte 70 : une association qui
+  // ne vend rien aujourd'hui peut ouvrir une activité accessoire demain (loi
+  // n° 004/2001, art. 1er), et un compte vide ne dit pas qu'il le restera.
+  venteBiensServices Boolean?
   // Date d'effet de l'option ou du franchissement du seuil · sert à dater le
   // début des obligations déclaratives, et à rappeler que l'option prise en
   // deçà du seuil engage deux ans.
