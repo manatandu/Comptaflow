@@ -18,7 +18,7 @@ import { ConfigService } from '@nestjs/config';
 
 type Faux = Record<string, unknown>;
 
-function service(options: { existant?: unknown } = {}) {
+function service(options: { existant?: unknown; garnissage?: unknown } = {}) {
   const tenantUpdate = jest.fn().mockResolvedValue({});
   const userUpdateMany = jest.fn().mockResolvedValue({});
   const prisma = {
@@ -26,14 +26,14 @@ function service(options: { existant?: unknown } = {}) {
       findFirst: jest.fn().mockResolvedValue(options.existant ?? null),
       update: tenantUpdate,
     },
-    user: { updateMany: userUpdateMany },
+    user: { updateMany: userUpdateMany, findFirstOrThrow: jest.fn().mockResolvedValue({ id: 'u-demo' }) },
   } as Faux;
   const authService = {
     register: jest.fn().mockResolvedValue({ tenant: { id: 't-demo', nom: 'Démo' } }),
   } as unknown as AuthService;
   const config = { get: jest.fn().mockReturnValue(undefined) } as unknown as ConfigService;
   return {
-    service: new PlateformeService(prisma as unknown as PrismaService, config, authService),
+    service: new PlateformeService(prisma as unknown as PrismaService, config, authService, options.garnissage as never),
     prisma,
     authService,
     tenantUpdate,
@@ -51,6 +51,21 @@ describe("l'ouverture du dossier de démonstration", () => {
     const { service: s, tenantUpdate } = service();
     await s.preparerDossierDemonstration(DTO);
     expect(tenantUpdate.mock.calls[0][0].data).toEqual({ estDemonstration: true });
+  });
+
+  it('une SARL au SYSCOHADA · système normal, forme SARL', async () => {
+    const { service: s, tenantUpdate, authService } = service();
+    await s.preparerDossierDemonstration({ ...DTO, referentiel: 'SYSCOHADA' as never });
+    expect((authService.register as jest.Mock).mock.calls[0][0]).toMatchObject({ referentiel: 'SYSCOHADA', systemeComptableSyscohada: 'NORMAL' });
+    expect(tenantUpdate.mock.calls[0][0].data).toEqual({ estDemonstration: true, formeJuridiqueSyscohada: 'SOCIETE_RESPONSABILITE_LIMITEE' });
+  });
+
+  it('le dossier naît garni, par l’utilisateur du dossier lui-même', async () => {
+    const garnissage = { garnir: jest.fn().mockResolvedValue({ tiers: 4, ecritures: 9 }) };
+    const { service: s } = service({ garnissage });
+    const r = await s.preparerDossierDemonstration(DTO);
+    expect(garnissage.garnir).toHaveBeenCalledWith('t-demo', 'u-demo');
+    expect(r.garni).toEqual({ tiers: 4, ecritures: 9 });
   });
 
   it("n'impose PAS le changement de mot de passe · sinon la vitrine ne s'ouvre jamais", async () => {
@@ -78,7 +93,7 @@ describe("l'ouverture du dossier de démonstration", () => {
     await expect(s.preparerDossierDemonstration(DTO)).rejects.toThrow(/demo@vmgconsulting.cd/);
   });
 
-  it("cherche la vitrine existante SUR SON DRAPEAU, et sur rien d'autre", async () => {
+  it('cherche la vitrine existante SUR SON DRAPEAU et dans SON référentiel · une ASBL et une SARL ne se gênent pas', async () => {
     // Ce test manquait, et une mutation l'a montré : la doublure rendait le
     // dossier existant quelle que soit la requête, si bien qu'une borne fausse
     // (un `id` improbable ajouté au `where`) laissait le refus s'endormir sans
@@ -86,7 +101,9 @@ describe("l'ouverture du dossier de démonstration", () => {
     const { service: s, prisma } = service({ existant: null });
     await s.preparerDossierDemonstration(DTO);
     const where = (prisma.tenant as { findFirst: jest.Mock }).findFirst.mock.calls[0][0].where;
-    expect(where).toEqual({ estDemonstration: true });
+    expect(where).toEqual({ estDemonstration: true, referentiel: 'SYCEBNL' });
+    await s.preparerDossierDemonstration({ ...DTO, referentiel: 'SYSCOHADA' as never });
+    expect((prisma.tenant as { findFirst: jest.Mock }).findFirst.mock.calls[1][0].where).toEqual({ estDemonstration: true, referentiel: 'SYSCOHADA' });
   });
 
   it('ne renvoie jamais le mot de passe', async () => {

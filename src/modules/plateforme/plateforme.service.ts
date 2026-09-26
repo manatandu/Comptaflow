@@ -1,8 +1,10 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit, Optional } from '@nestjs/common';
 import { SANS_DOUBLE_AUTH } from '../auth/double-authentification';
 import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
-import { Referentiel, RoleUtilisateur, StatutLicence, TypeLicence } from '@prisma/client';
+import { FormeJuridiqueSyscohada, Referentiel, RoleUtilisateur, StatutLicence, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
+import { GarnissageDemonstrationService } from './garnissage-demonstration.service';
+import { scenarioDemonstration } from './scenario-demonstration';
 import { siSycebnl } from '../../common/reponse-referentiel';
 import { PrismaService } from '../../common/prisma.service';
 import { AuthService } from '../auth/auth.service';
@@ -24,6 +26,7 @@ export class PlateformeService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly authService: AuthService,
+    @Optional() private readonly garnissage?: GarnissageDemonstrationService,
   ) {}
 
   /**
@@ -470,6 +473,13 @@ export class PlateformeService implements OnModuleInit {
    * effacer ne l'est pas, et un second dossier de démonstration est un
    * désordre, pas un incident. Elle REFUSE donc quand il en existe déjà un, en
    * nommant celui qui existe.
+   *
+   * UN PAR RÉFÉRENTIEL (2026-09-26) · une association (SYCEBNL) et une SARL
+   * (SYSCOHADA) ne montrent pas le même logiciel, et ne divergent pas l'une de
+   * l'autre : ce sont deux vitrines de deux produits. Deux vitrines du MÊME
+   * référentiel restent refusées. Le dossier naît GARNI d'opérations fictives
+   * (`GarnissageDemonstrationService`), validées, pour que la balance, la
+   * balance âgée et les états financiers aient quelque chose à montrer.
    */
   /**
    * DÉSIGNER LE DOSSIER DE L'ÉDITEUR · un geste, une fois, et pas un menu
@@ -533,7 +543,7 @@ export class PlateformeService implements OnModuleInit {
       'console · un seul dossier de démonstration à la fois, tous cabinets confondus',
       () =>
         this.prisma.tenant.findFirst({
-          where: { estDemonstration: true },
+          where: { estDemonstration: true, referentiel: dto.referentiel ?? Referentiel.SYCEBNL },
           select: { id: true, nom: true, users: { select: { email: true }, take: 1 } },
         }),
     );
@@ -545,20 +555,26 @@ export class PlateformeService implements OnModuleInit {
       );
     }
 
+    const referentiel = dto.referentiel ?? Referentiel.SYCEBNL;
+    const scenario = scenarioDemonstration(referentiel);
     const resultat = await this.authService.register({
-      nomEntite: dto.nomEntite ?? 'OmegaX · dossier de démonstration',
-      referentiel: dto.referentiel ?? Referentiel.SYCEBNL,
+      nomEntite: dto.nomEntite ?? scenario.nomEntite,
+      referentiel,
       email: dto.email,
       motDePasse: dto.motDePasse,
       typeLicence: TypeLicence.ABONNEMENT,
-      activite: 'Démonstration · toutes les données de ce dossier sont fictives',
+      activite: scenario.activite,
       pays: 'République démocratique du Congo',
+      ...(referentiel === Referentiel.SYSCOHADA ? { systemeComptableSyscohada: SystemeComptableSyscohada.NORMAL } : {}),
     });
 
     await horsCloisonnement('console · marquage du dossier de démonstration', async () => {
       await this.prisma.tenant.update({
         where: { id: resultat.tenant.id },
-        data: { estDemonstration: true },
+        data: {
+          estDemonstration: true,
+          ...(referentiel === Referentiel.SYSCOHADA ? { formeJuridiqueSyscohada: FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE } : {}),
+        },
       });
       // Voir le point 2 du commentaire ci-dessus · sans cette ligne, la
       // vitrine ne s'ouvre jamais sur autre chose que l'écran de changement de
@@ -569,9 +585,21 @@ export class PlateformeService implements OnModuleInit {
       });
     });
 
+    // GARNI · par les chemins ordinaires de saisie, dans le dossier qui vient
+    // de naître et qui n'est pas celui de la session de l'opérateur.
+    let garni: { tiers: number; ecritures: number } | null = null;
+    if (this.garnissage) {
+      const garnissage = this.garnissage;
+      garni = await horsCloisonnement('console · garnissage du dossier de démonstration', async () => {
+        const auteur = await this.prisma.user.findFirstOrThrow({ where: { tenantId: resultat.tenant.id }, select: { id: true } });
+        return garnissage.garnir(resultat.tenant.id, auteur.id);
+      });
+    }
+
     this.logger.log(`Dossier de démonstration ouvert · ${dto.email}`);
     return {
       tenantId: resultat.tenant.id,
+      garni,
       nom: resultat.tenant.nom,
       email: dto.email,
       // Le mot de passe n'est PAS renvoyé · l'opérateur vient de le choisir, il

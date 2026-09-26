@@ -5044,6 +5044,20 @@ JOINTE, EN TEXTE (`Message.pieceJointeTexte`), sous le nom du téléchargement �
 une colonne texte reste réversible dans le CSV de restitution. (4) UN ÉCHEC
 D'ENVOI NE DÉFAIT JAMAIS LA FACTURE · il se dit sur sa ligne de résultat.
 
+**Dossiers de démonstration garnis (2026-09-26).** Une association (SYCEBNL)
+et une SARL (SYSCOHADA), UNE PAR RÉFÉRENTIEL · deux vitrines du même
+référentiel restent refusées (cadre « Dossiers de démonstration » de la
+console). TROIS RÈGLES. (1) AUCUN NUMÉRO CHOISI POUR LA VITRINE · les comptes de
+nature du scénario (`plateforme/scenario-demonstration.ts`) sont ceux des
+modèles de saisie de l'écran, déjà sourcés, et un spec l'exige, sens compris ;
+les tiers passent par leur compte INDIVIDUEL, la trésorerie par le compte du
+journal BQ. (2) LE SCÉNARIO EST JOUÉ PAR LES CHEMINS ORDINAIRES
+(`GarnissageDemonstrationService` · `TiersService.creer`,
+`EcritureService.creer`, puis `valider`), jamais écrit en base à la main, dans
+une sortie de cloisonnement déclarée. (3) LES ÉCRITURES SONT VALIDÉES, les états
+ne lisant que le livre-journal, et des factures restent OUVERTES à dessein pour
+la balance âgée et les relances. Tout y est fictif, et le nom le dit.
+
 **Écriture passée depuis une facture (2026-09-26).** `facturation/ecriture-facture.ts`
 (moteur pur) et `ComptabilisationFactureService`, bouton « Passer l'écriture »
 de la fenêtre Facturation. TROIS RÈGLES. (1) LE SCHÉMA DES FICHES DES COMPTES
