@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { PasserEcritureFacture } from '../components/PasserEcritureFacture';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
@@ -504,6 +505,8 @@ export function FacturationPage() {
                           )}
                         </div>
                       )}
+                      {peutEcrire && !f.ecritureId && <PasserEcritureFacture facture={f} onFait={() => void recharger()} />}
+                      {f.ecritureId && <p className="text-[11px] text-text-dim mt-1">Écriture passée</p>}
                       {peutEcrire && f.nature === 'FACTURE' && !f.barree && (
                         noteSur === f.id ? (
                           <div className="mt-1 flex flex-wrap gap-1 items-center">

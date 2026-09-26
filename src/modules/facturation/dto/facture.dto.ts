@@ -1,5 +1,7 @@
 import { Type } from 'class-transformer';
 import {
+  IsUUID,
+  IsObject,
   ArrayMinSize,
   IsArray,
   IsBoolean,
@@ -121,4 +123,19 @@ export class EmettreNoteDeCreditDto {
   @IsOptional()
   @IsString()
   ecritureId?: string;
+}
+
+/** Passer l'écriture d'une facture · le journal et le compte de gestion sont choisis, jamais devinés. */
+export class ComptabiliserFactureDto {
+  @IsUUID()
+  journalId!: string;
+
+  @IsOptional()
+  @IsUUID()
+  compteGestionId?: string | null;
+
+  /** Identifiant de ligne de facture → compte de gestion, pour une ligne qui diffère. */
+  @IsOptional()
+  @IsObject()
+  comptesParLigne?: Record<string, string>;
 }

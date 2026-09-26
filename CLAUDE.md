@@ -5014,6 +5014,21 @@ retirée, et une facture d'abonnement ne se supprime pas du facturier (note de
 crédit). Les quatre tables sont HORS DOSSIER (`MODELES_HORS_DOSSIER`,
 `cabinetId` et non `tenantId`).
 
+**Écriture passée depuis une facture (2026-09-26).** `facturation/ecriture-facture.ts`
+(moteur pur) et `ComptabilisationFactureService`, bouton « Passer l'écriture »
+de la fenêtre Facturation. TROIS RÈGLES. (1) LE SCHÉMA DES FICHES DES COMPTES
+40 ET 41 · vente, client au débit du TTC, produit et 443 au crédit ; achat,
+charge (ou immobilisation) et 445 au débit, fournisseur au crédit ; une note
+de crédit est l'inverse exact. Le tiers reçoit la somme EXACTE des autres
+lignes, jamais un TTC recalculé. (2) RIEN N'EST DEVINÉ · journal et compte de
+gestion CHOISIS (classe 7 sur une vente, 6 ou 2 sur un achat, vérifiée au
+serveur), compte de TVA pris au TAUX de la ligne, compte du tiers pris à son
+compte principal ; il en manque un, et rien n'est passé. D'autres impôts et
+taxes sur la facture refusent aussi, leur compte dépendant de leur nature.
+(3) PAR LE CHEMIN DE SAISIE ORDINAIRE, au brouillard (`EcritureService.creer`),
+puis la facture est liée, sur une facture encore libre · un second clic
+retire l'écriture qu'il vient de créer.
+
 ### Migrations écrites à la main
 
 Une migration écrite à la main peut DIVERGER du schéma sans que rien ne le

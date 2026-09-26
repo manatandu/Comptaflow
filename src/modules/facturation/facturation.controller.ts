@@ -6,7 +6,8 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { FacturationService } from './facturation.service';
-import { EmettreNoteDeCreditDto, EnregistrerFactureDto } from './dto/facture.dto';
+import { ComptabiliserFactureDto, EmettreNoteDeCreditDto, EnregistrerFactureDto } from './dto/facture.dto';
+import { ComptabilisationFactureService } from './comptabilisation-facture.service';
 
 /**
  * PAS DE CLOISONNEMENT PAR RÉFÉRENTIEL, ET CE N'EST PAS UN OUBLI.
@@ -29,7 +30,10 @@ import { EmettreNoteDeCreditDto, EnregistrerFactureDto } from './dto/facture.dto
 @UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
 @Controller('facturation')
 export class FacturationController {
-  constructor(private readonly facturation: FacturationService) {}
+  constructor(
+    private readonly facturation: FacturationService,
+    private readonly comptabilisation: ComptabilisationFactureService,
+  ) {}
 
   @Get()
   lister(@CurrentUser() user: AuthenticatedUser, @Query('sens') sens?: SensFacture) {
@@ -56,6 +60,16 @@ export class FacturationController {
     @Body() dto: EmettreNoteDeCreditDto,
   ) {
     return this.facturation.emettreNoteDeCredit(user.tenantId, id, dto);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post(':id/comptabiliser')
+  comptabiliser(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: ComptabiliserFactureDto) {
+    return this.comptabilisation.comptabiliser(user.tenantId, user.userId, id, {
+      journalId: dto.journalId,
+      compteGestionId: dto.compteGestionId ?? null,
+      comptesParLigne: dto.comptesParLigne,
+    });
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
