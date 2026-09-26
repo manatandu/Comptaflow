@@ -67,3 +67,7 @@ node_modules/
 
 # dataconnect generated files
 .dataconnect
+
+# Sorties de tsc -b · engendrées, jamais suivies (un vite.config.js périmé
+# masquait la vraie configuration).
+*.tsbuildinfo

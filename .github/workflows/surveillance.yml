@@ -26,6 +26,10 @@ concurrency:
 
 env:
   URL_SANTE: https://comptaflow-api-968832127045.us-east1.run.app/health
+  # LE CHEMIN DES CLIENTS · le site relaie /api vers le service (firebase.json).
+  # Le service peut répondre en direct et le relais être cassé : c'est ce
+  # chemin-là que les navigateurs empruntent, c'est lui qui doit répondre.
+  URL_SANTE_RELAIS: https://oomega.web.app/api/health
   URL_SITE: https://oomega.web.app/
   ETIQUETTE: panne-production
 
@@ -38,7 +42,7 @@ jobs:
         id: sonde
         run: |
           echec=""
-          for cible in "$URL_SANTE" "$URL_SITE"; do
+          for cible in "$URL_SANTE" "$URL_SANTE_RELAIS" "$URL_SITE"; do
             ok=0
             for essai in 1 2 3; do
               # /health répond 503 quand la base est injoignable · -f en fait un échec.

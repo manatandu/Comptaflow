@@ -29,5 +29,13 @@ export default defineConfig({
     trace: 'retain-on-failure',
     launchOptions: process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {},
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 1366, height: 900 } } }],
+  // WEBKIT · le moteur de TOUS les navigateurs de l'iPhone. Sans lui, la panne
+  // du 2026-09-26 (session jetée aussitôt ouverte) passait au vert sous Chrome.
+  // Posé en CI par PW_WEBKIT ; en local, seulement si WebKit est installé.
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 1366, height: 900 } } },
+    ...(process.env.PW_WEBKIT
+      ? [{ name: 'webkit', use: { ...devices['Desktop Safari'], viewport: { width: 1366, height: 900 } } }]
+      : []),
+  ],
 });

@@ -11,7 +11,8 @@ import { CodeDoubleAuthDto, DesactiverDoubleAuthDto } from './dto/double-authent
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { SortieMotDePasseProvisoire } from '../../common/decorators/sortie-mot-de-passe.decorator';
-import { ANCIEN_COOKIE_SESSION, COOKIE_SESSION, optionsCookieSession } from './session.constants';
+import { ANCIEN_COOKIE_SESSION, COOKIE_SESSION, estHttpLocal, optionsCookieSession } from './session.constants';
+import { estSurSite } from '../../common/mode-installation';
 import { AccesRolesCantonnes } from '../../common/decorators/acces-roles-cantonnes.decorator';
 
 @Controller('auth')
@@ -29,7 +30,7 @@ export class AuthController {
    */
   private poserSession<T extends { accessToken: string; csrfToken: string }>(res: Response, resultat: T) {
     const { accessToken, ...reste } = resultat;
-    res.cookie(COOKIE_SESSION, accessToken, optionsCookieSession());
+    res.cookie(COOKIE_SESSION, accessToken, optionsCookieSession(estSurSite(), estHttpLocal(res.req)));
     return reste;
   }
 
@@ -75,8 +76,8 @@ export class AuthController {
   // une session déjà expirée (sinon impossible de « fermer » proprement).
   @Post('logout')
   async logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie(COOKIE_SESSION, { ...optionsCookieSession(), maxAge: undefined });
-    res.clearCookie(ANCIEN_COOKIE_SESSION, { ...optionsCookieSession(), maxAge: undefined });
+    res.clearCookie(COOKIE_SESSION, { ...optionsCookieSession(estSurSite(), estHttpLocal(res.req)), maxAge: undefined });
+    res.clearCookie(ANCIEN_COOKIE_SESSION, { ...optionsCookieSession(estSurSite(), estHttpLocal(res.req)), maxAge: undefined });
     return { deconnecte: true };
   }
 
@@ -187,8 +188,8 @@ export class AuthController {
   @Post('deconnecter-partout')
   async deconnecterPartout(@CurrentUser() user: AuthenticatedUser, @Res({ passthrough: true }) res: Response) {
     const resultat = await this.authService.deconnecterPartout(user.userId);
-    res.clearCookie(COOKIE_SESSION, { ...optionsCookieSession(), maxAge: undefined });
-    res.clearCookie(ANCIEN_COOKIE_SESSION, { ...optionsCookieSession(), maxAge: undefined });
+    res.clearCookie(COOKIE_SESSION, { ...optionsCookieSession(estSurSite(), estHttpLocal(res.req)), maxAge: undefined });
+    res.clearCookie(ANCIEN_COOKIE_SESSION, { ...optionsCookieSession(estSurSite(), estHttpLocal(res.req)), maxAge: undefined });
     return resultat;
   }
 }

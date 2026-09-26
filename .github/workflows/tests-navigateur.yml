@@ -50,11 +50,17 @@ jobs:
       JWT_EXPIRES_IN: 8h
       PORT: '8080'
       INSCRIPTION_PUBLIQUE: 'true'
-      # Même hôte que le client · le cookie de session voyage entre deux
-      # ports de localhost comme entre oomega.web.app et Cloud Run.
+      # À L'IMAGE DE LA PRODUCTION · le client appelle /api sur SA propre
+      # adresse, et `vite preview` relaie vers le serveur comme Firebase
+      # Hosting relaie vers Cloud Run (client/vite.config.ts). Appeler le
+      # serveur en direct laissait passer la panne du 2026-09-26 : un cookie
+      # de session d'un autre site, jeté par tous les navigateurs de l'iPhone.
       CORS_ORIGIN: http://localhost:4173
       OMEGAX_APP: http://localhost:4173
-      OMEGAX_API: http://localhost:8080
+      OMEGAX_API: http://localhost:4173/api
+      OMEGAX_API_RELAIS: http://localhost:8080
+      # Le moteur de l'iPhone, en plus de Chrome (e2e/playwright.config.ts).
+      PW_WEBKIT: '1'
 
     steps:
       - uses: actions/checkout@v4
@@ -90,7 +96,7 @@ jobs:
       - name: Construire et servir le client
         working-directory: client
         env:
-          VITE_API_URL: http://localhost:8080
+          VITE_API_URL: /api
         run: |
           npm ci
           npx vite build --outDir dist-e2e
@@ -107,7 +113,7 @@ jobs:
         working-directory: e2e
         run: |
           npm ci
-          npx playwright install --with-deps chromium
+          npx playwright install --with-deps chromium webkit
 
       - name: Typage des tests
         working-directory: e2e

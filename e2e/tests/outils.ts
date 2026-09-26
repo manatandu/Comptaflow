@@ -1,6 +1,6 @@
 import { expect, type Page, type Response } from '@playwright/test';
 
-export const API = process.env.OMEGAX_API ?? 'http://localhost:8080';
+export const API = process.env.OMEGAX_API ?? 'http://localhost:4173/api';
 export const MOT_DE_PASSE = 'MotDePasse-e2e-2026!';
 
 /** Ce qu'une fenêtre qui plante affiche (`LimiteErreur.tsx`). */

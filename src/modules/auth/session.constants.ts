@@ -52,6 +52,17 @@ export const OPTIONS_COOKIE_SESSION: CookieOptions = {
  * du bureau sauf la machine serveur elle-même. `lax` suffit, rien ne voyage
  * plus entre deux sites · le jeton CSRF reste exigé, il ne coûte rien.
  */
-export function optionsCookieSession(surSite = estSurSite()): CookieOptions {
-  return surSite ? { ...OPTIONS_COOKIE_SESSION, secure: false, sameSite: 'lax' } : OPTIONS_COOKIE_SESSION;
+export function optionsCookieSession(surSite = estSurSite(), httpLocal = false): CookieOptions {
+  return surSite || httpLocal ? { ...OPTIONS_COOKIE_SESSION, secure: false, sameSite: 'lax' } : OPTIONS_COOKIE_SESSION;
+}
+
+/**
+ * UNE REQUÊTE EN HTTP SUR CETTE MACHINE MÊME · le développement et les tests
+ * navigateur. WebKit (le moteur de l'iPhone) refuse un cookie `Secure` sur
+ * http://localhost là où Chrome l'accepte · sans cette exception, les tests
+ * sous WebKit ne pourraient pas ouvrir de session. Jamais vrai en production,
+ * servie en https sous un nom qui n'est pas localhost.
+ */
+export function estHttpLocal(req?: { secure?: boolean; hostname?: string } | null): boolean {
+  return !!req && !req.secure && ['localhost', '127.0.0.1', '::1'].includes(req.hostname ?? '');
 }
