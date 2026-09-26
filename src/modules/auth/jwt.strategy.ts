@@ -115,6 +115,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       referentiel: user.tenant.referentiel,
       licence: user.tenant.licence,
       estOperateurPlateforme: user.estOperateurPlateforme,
+      doubleAuthentificationActive: user.doubleAuthActiveDepuis !== null,
       restreindreFonctions: user.restreindreFonctions,
       fonctionsAutorisees: user.fonctionsAutorisees,
       restreindreJournaux: user.restreindreJournaux,

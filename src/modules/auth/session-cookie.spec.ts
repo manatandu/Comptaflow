@@ -100,6 +100,7 @@ describe('AuthService · jeton CSRF apparié au jeton de session', () => {
       undefined as never,
     );
     const resultat = await s.login({ email: 'a@a.cd', motDePasse: 'mot-de-passe-correct' });
+    if ('deuxiemeFacteurRequis' in resultat) throw new Error('second facteur inattendu');
     expect(resultat.csrfToken).toBe(payload!.csrf);
     expect(resultat.csrfToken).toMatch(/^[0-9a-f]{32}$/);
     expect(resultat.accessToken).toBe('jwt-signe');
@@ -170,5 +171,19 @@ describe('AuthController · auto-inscription fermée (option A)', () => {
       { get: (cle: string) => (cle === 'INSCRIPTION_PUBLIQUE' ? 'true' : undefined) } as never,
     );
     await expect(controleur.register({} as never, res)).resolves.toEqual({ csrfToken: 'y' });
+  });
+});
+
+describe('la double authentification voyage avec l’utilisateur relu', () => {
+  const avec = (doubleAuthActiveDepuis: Date | null) =>
+    new JwtStrategy(
+      { getOrThrow: () => 'secret-de-test' } as never,
+      { user: { findUnique: async () => ({ ...UTILISATEUR, doubleAuthActiveDepuis }) } } as never,
+    );
+
+  it('active seulement si une date d’activation est posée', async () => {
+    const req = { method: 'GET', cookies: {}, headers: { authorization: 'Bearer jeton' } } as never;
+    await expect(avec(null).validate(req, { sub: 'u1' })).resolves.toMatchObject({ doubleAuthentificationActive: false });
+    await expect(avec(new Date()).validate(req, { sub: 'u1' })).resolves.toMatchObject({ doubleAuthentificationActive: true });
   });
 });

@@ -5,6 +5,8 @@ export interface AuthenticatedUser {
   tenantId: string;
   email: string;
   role: string;
+  /** La double authentification est-elle active sur ce compte ? Relu à chaque requête. */
+  doubleAuthentificationActive?: boolean;
   /** Profil de fonctions (point 15) · relu à chaque requête, comme le rôle. Optionnel pour les tests. */
   restreindreFonctions?: boolean;
   fonctionsAutorisees?: string[];

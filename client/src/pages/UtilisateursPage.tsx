@@ -6,6 +6,7 @@ import { Aide } from '../components/chrome/Aide';
 import { ModaleFonctions } from '../components/ModaleFonctions';
 import { ModaleJournaux } from '../components/ModaleJournaux';
 import { ModaleMonAdresse } from '../components/ModaleMonAdresse';
+import { ModaleDoubleAuth } from '../components/ModaleDoubleAuth';
 import type { AvisAcces, RoleUtilisateur, Utilisateur } from '../lib/types';
 
 const LIBELLE_ROLE: Record<RoleUtilisateur, string> = {
@@ -34,6 +35,7 @@ export function UtilisateursPage() {
   // oubli de mot de passe se réglait par un UPDATE SQL en production.
   // Changer SA propre adresse de connexion.
   const [adresseOuverte, setAdresseOuverte] = useState(false);
+  const [doubleAuthOuverte, setDoubleAuthOuverte] = useState(false);
   // Profil de fonctions (point 15).
   const [fonctionsCible, setFonctionsCible] = useState<Utilisateur | null>(null);
   const [journauxCible, setJournauxCible] = useState<Utilisateur | null>(null);
@@ -241,6 +243,16 @@ export function UtilisateursPage() {
                   Changer mon adresse
                 </button>
               )}
+              {u.id === utilisateur?.id && (
+                <button type="button" onClick={() => setDoubleAuthOuverte(true)} className="text-[11.5px] text-sel">
+                  Double authentification
+                </button>
+              )}
+              {u.doubleAuthActiveDepuis && (
+                <span className="font-mono text-[10.5px] font-bold px-1.5 py-0.5 text-positive bg-positive-soft" title="Double authentification active">
+                  2FA
+                </span>
+              )}
               {u.role !== 'ADMIN_CABINET' && (
                 <button onClick={() => setFonctionsCible(u)} className="text-[11.5px] text-sel">
                   {u.restreindreFonctions ? `Fonctions (${u.fonctionsAutorisees?.length ?? 0})` : 'Fonctions'}
@@ -256,6 +268,7 @@ export function UtilisateursPage() {
         ))}
       </div>
 
+      {doubleAuthOuverte && <ModaleDoubleAuth onFermer={() => setDoubleAuthOuverte(false)} />}
       {adresseOuverte && utilisateur && (
         <ModaleMonAdresse
           adresseActuelle={utilisateur.email}

@@ -230,6 +230,8 @@ describe('4 · la réinitialisation par l’administrateur du dossier', () => {
     expect(capture.data!.sessionsInvalidesAvant).toBeInstanceOf(Date);
     // Déverrouillé · c'est aussi la sortie de secours d'un comptable bloqué.
     expect(capture.data!.tentativesEchouees).toBe(0);
+    // Et le second facteur tombe · le titulaire le réactivera lui-même.
+    expect(capture.data).toMatchObject({ secretDoubleAuth: null, doubleAuthActiveDepuis: null, codesSecoursDoubleAuth: [] });
     expect(capture.data!.verrouilleJusqua).toBeNull();
     // Jamais en clair.
     expect(capture.data!.motDePasse).not.toBe('provisoire-tres-long');
@@ -287,6 +289,9 @@ describe('5 · la chaîne de recours va jusqu’au bout', () => {
     expect(capture.data!.sessionsInvalidesAvant).toBeInstanceOf(Date);
     expect(capture.data!.verrouilleJusqua).toBeNull();
     expect(await bcrypt.compare('provisoire-tres-long', capture.data!.motDePasse as string)).toBe(true);
+    // Le second facteur tombe avec le mot de passe · sinon un administrateur
+    // qui a perdu son téléphone et ses codes resterait dehors pour de bon.
+    expect(capture.data).toMatchObject({ secretDoubleAuth: null, doubleAuthActiveDepuis: null, codesSecoursDoubleAuth: [] });
   });
 
   it('refuse un compte qui n’est PAS administrateur du dossier visé', async () => {

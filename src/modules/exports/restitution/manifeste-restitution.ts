@@ -41,10 +41,12 @@ Un fichier CSV par table, séparateur point-virgule, encodage UTF-8, guillemets
 selon la RFC 4180 · un champ contenant un point-virgule, un guillemet ou un
 retour à la ligne est protégé, et un guillemet interne est doublé.
 
-Les colonnes sont celles du schéma, moins deux, retirées à dessein :
-\`User.motDePasse\` (l'empreinte du mot de passe) et
+Les colonnes sont celles du schéma, moins cinq, retirées à dessein :
+\`User.motDePasse\` (l'empreinte du mot de passe),
 \`User.estOperateurPlateforme\` (le drapeau qui désigne le compte de
-l'éditeur). Aucune autre colonne n'est retirée.
+l'éditeur), et les trois colonnes du second facteur de connexion
+(\`User.secretDoubleAuth\`, \`User.dernierPasDoubleAuth\`,
+\`User.codesSecoursDoubleAuth\`). Aucune autre colonne n'est retirée.
 
 ## CE QUE CETTE ARCHIVE N'EST PAS
 

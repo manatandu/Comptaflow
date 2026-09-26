@@ -7,6 +7,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ChangerMotDePasseDto } from './dto/changer-mot-de-passe.dto';
 import { ChangerAdresseDto } from './dto/changer-adresse.dto';
+import { CodeDoubleAuthDto, DesactiverDoubleAuthDto } from './dto/double-authentification.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { SortieMotDePasseProvisoire } from '../../common/decorators/sortie-mot-de-passe.decorator';
@@ -64,7 +65,10 @@ export class AuthController {
   @Throttle({ default: { ttl: 60_000, limit: 20 } })
   @Post('login')
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
-    return this.poserSession(res, await this.authService.login(dto));
+    const r = await this.authService.login(dto);
+    // Mot de passe juste, code attendu · AUCUNE session n'est posée.
+    if ('deuxiemeFacteurRequis' in r) return r;
+    return this.poserSession(res, r);
   }
 
   // Sans garde : effacer un cookie est inoffensif et doit marcher même avec
@@ -123,6 +127,51 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     return this.poserSession(res, await this.authService.changerAdresse(user.userId, dto.motDePasseActuel, dto.nouvelleAdresse));
+  }
+
+  /**
+   * DOUBLE AUTHENTIFICATION de son propre compte (AuthService). Pas de sortie
+   * de mot de passe provisoire · un compte au mot de passe provisoire le
+   * remplace d'abord. Ouverte à tous les rôles, gestionnaire de paie compris.
+   */
+  @AccesRolesCantonnes({ gestionnairePaie: true })
+  @UseGuards(JwtAuthGuard)
+  @Get('double-authentification')
+  etatDoubleAuth(@CurrentUser() user: AuthenticatedUser) {
+    return this.authService.etatDoubleAuth(user.userId);
+  }
+
+  @AccesRolesCantonnes({ gestionnairePaie: true })
+  @UseGuards(JwtAuthGuard)
+  @Post('double-authentification/initier')
+  initierDoubleAuth(@CurrentUser() user: AuthenticatedUser) {
+    return this.authService.initierDoubleAuth(user.userId);
+  }
+
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
+  @AccesRolesCantonnes({ gestionnairePaie: true })
+  @UseGuards(JwtAuthGuard)
+  @Post('double-authentification/activer')
+  async activerDoubleAuth(@CurrentUser() user: AuthenticatedUser, @Body() dto: CodeDoubleAuthDto, @Res({ passthrough: true }) res: Response) {
+    // Les autres sessions sont fermées · celle-ci est reposée, comme au
+    // changement de mot de passe.
+    return this.poserSession(res, await this.authService.activerDoubleAuth(user.userId, dto.code));
+  }
+
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
+  @AccesRolesCantonnes({ gestionnairePaie: true })
+  @UseGuards(JwtAuthGuard)
+  @Post('double-authentification/desactiver')
+  async desactiverDoubleAuth(@CurrentUser() user: AuthenticatedUser, @Body() dto: DesactiverDoubleAuthDto, @Res({ passthrough: true }) res: Response) {
+    return this.poserSession(res, await this.authService.desactiverDoubleAuth(user.userId, dto.motDePasseActuel, dto.code));
+  }
+
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
+  @AccesRolesCantonnes({ gestionnairePaie: true })
+  @UseGuards(JwtAuthGuard)
+  @Post('double-authentification/codes-secours')
+  regenererCodesSecours(@CurrentUser() user: AuthenticatedUser, @Body() dto: CodeDoubleAuthDto) {
+    return this.authService.regenererCodesSecours(user.userId, dto.code);
   }
 
   /**

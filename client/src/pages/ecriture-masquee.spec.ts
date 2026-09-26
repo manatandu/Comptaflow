@@ -22,6 +22,7 @@ const EXEMPTS: Record<string, string> = {
   'pages/AuthPage.tsx': "la connexion elle-même · personne n'a encore de rôle",
   'pages/ChangerMotDePassePage.tsx': 'chacun change son propre mot de passe, lecture seule comprise',
   'components/ModaleMonAdresse.tsx': 'chacun change sa propre adresse de connexion, lecture seule comprise',
+  'components/ModaleDoubleAuth.tsx': 'chacun protège son propre compte par un second facteur, lecture seule comprise',
   'components/NouveauFichierWizard.tsx': "création d'un dossier depuis la porte d'ouverture, avant toute session",
   'components/PanneauSurSite.tsx': "dépôt de la licence sur site depuis la porte d'ouverture, avant qu'aucun compte n'existe",
   'components/AbonnementsConsole.tsx': "abonnements et facturation des cabinets, dans la console de l'éditeur gardée par estOperateurPlateforme",

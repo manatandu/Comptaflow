@@ -65,6 +65,10 @@ describe('la liste d’exclusion est fermée sur User', () => {
     // la banque à un caissier la veille d'un décaissement doit se relire.
     'restreindreJournaux',
     'journauxAutorises',
+    // Double authentification · ADMIS pour sa DATE seulement : qui l'a
+    // activée ou retirée, et quand, se relit. Le secret, le dernier pas et
+    // les empreintes des codes de secours sont exclus.
+    'doubleAuthActiveDepuis',
   ];
 
   it('classe chaque colonne de User, sans exception ni oubli', () => {

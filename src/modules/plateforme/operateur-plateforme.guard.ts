@@ -23,6 +23,16 @@ export class OperateurPlateformeGuard implements CanActivate {
     if (request.user?.estOperateurPlateforme !== true) {
       throw new ForbiddenException('Réservé à l’opérateur de la plateforme');
     }
+    // DOUBLE AUTHENTIFICATION EXIGÉE · la console rouvre et coupe les
+    // licences, et réinitialise l'administrateur de n'importe quel cabinet.
+    // Un mot de passe seul, volé une fois, en donnerait les clés à tous. Le
+    // compte qui l'active a fermé ses autres sessions en le faisant : toute
+    // session vivante a donc présenté le second facteur à la connexion.
+    if (request.user?.doubleAuthentificationActive !== true) {
+      throw new ForbiddenException(
+        'La console exige la double authentification · activez-la sur votre ligne dans la fenêtre Utilisateurs, puis revenez.',
+      );
+    }
     return true;
   }
 }

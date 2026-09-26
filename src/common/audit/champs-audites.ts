@@ -179,7 +179,10 @@ export const MARQUEUR_MASQUE = '[masqué]';
  * qui ne se périme pas en silence.
  */
 export const COLONNES_EXCLUES_PAR_MODELE: Readonly<Record<string, readonly string[]>> = {
-  User: ['motDePasse', 'estOperateurPlateforme'],
+  // Le secret de la double authentification, le pas consommé et les
+  // empreintes des codes de secours · un second facteur recopié dans un
+  // journal lisible par tout le dossier n'en serait plus un.
+  User: ['motDePasse', 'estOperateurPlateforme', 'secretDoubleAuth', 'dernierPasDoubleAuth', 'codesSecoursDoubleAuth'],
 
   // LE FICHIER LUI-MÊME · jusqu'à 5 Mo recopiés dans chaque événement, et un
   // scan de pièce d'identité lisible par tout le dossier dans un journal
@@ -261,7 +264,9 @@ export function colonnesExclues(modele: string): ReadonlySet<string> {
  * compte de l'exploitant du logiciel.
  */
 export const COLONNES_JAMAIS_RESTITUEES: Readonly<Record<string, readonly string[]>> = {
-  User: ['motDePasse', 'estOperateurPlateforme'],
+  // Le second facteur est, comme le mot de passe, un moyen d'entrer, pas une
+  // donnée du dossier.
+  User: ['motDePasse', 'estOperateurPlateforme', 'secretDoubleAuth', 'dernierPasDoubleAuth', 'codesSecoursDoubleAuth'],
 };
 
 /** Les colonnes qu'une ARCHIVE DE RESTITUTION ne porte pas. */

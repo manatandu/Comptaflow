@@ -37,8 +37,13 @@ describe('OperateurPlateformeGuard', () => {
     expect(() => garde.canActivate(contexte({ userId: 'u1', estOperateurPlateforme: 'true' }))).toThrow(ForbiddenException);
   });
 
-  it("laisse passer l'opérateur (drapeau strictement vrai)", () => {
-    expect(garde.canActivate(contexte({ userId: 'u1', estOperateurPlateforme: true }))).toBe(true);
+  it("laisse passer l'opérateur qui a activé la double authentification", () => {
+    expect(garde.canActivate(contexte({ userId: 'u1', estOperateurPlateforme: true, doubleAuthentificationActive: true }))).toBe(true);
+  });
+
+  it('refuse l’opérateur sans double authentification, et le dit', () => {
+    expect(() => garde.canActivate(contexte({ userId: 'u1', estOperateurPlateforme: true }))).toThrow(/double authentification/);
+    expect(() => garde.canActivate(contexte({ userId: 'u1', estOperateurPlateforme: true, doubleAuthentificationActive: false }))).toThrow(ForbiddenException);
   });
 });
 

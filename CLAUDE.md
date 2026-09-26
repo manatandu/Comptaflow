@@ -5996,6 +5996,23 @@ avant de l'écrire ; un spec (`compte-seed-syscohada.spec.ts`) le contrôle.
   un jeton vit huit heures, sans cela un mot de passe volé restait utile
   jusqu'à son expiration. La comparaison tronque à la SECONDE (l'`iat` du JWT
   est en secondes) · sans quoi le titulaire est éjecté par son propre geste.
+- **Double authentification** (`src/modules/auth/double-authentification.ts`,
+  2026-09-26) · TOTP, RFC 6238, écrit ici et figé par les vecteurs des RFC,
+  vérifiable hors ligne donc aussi sur site. OUVERTE À TOUS, EXIGÉE POUR LA
+  CONSOLE (`OperateurPlateformeGuard`, relu par `JwtStrategy`) · l'exiger de
+  chaque administrateur fermerait des cabinets entiers le jour du déploiement.
+  Quatre règles. (1) Le mot de passe seul ne rend AUCUNE session, seulement
+  `deuxiemeFacteurRequis` · le mot de passe est redemandé avec le code, aucun
+  état intermédiaire n'est gardé. (2) Un code faux compte comme un mot de
+  passe faux (verrou), et un code ne resert pas (`dernierPasDoubleAuth`, un
+  pas de trente secondes de part et d'autre). (3) Huit codes de secours,
+  montrés UNE fois, gardés en empreinte, chacun à usage unique · activer ferme
+  les autres sessions, retirer exige mot de passe ET code. (4) Une
+  RÉINITIALISATION de mot de passe (administrateur du dossier, opérateur) lève
+  aussi le second facteur (`SANS_DOUBLE_AUTH`) · celui qui réinitialise tient
+  déjà l'entrée, et un téléphone perdu avec ses codes fermerait le compte pour
+  de bon. Secret, pas et empreintes n'entrent ni au journal d'audit ni à la
+  restitution ; la date d'activation, si.
 - **Verrouillage par compte** temporaire et croissant (`src/modules/auth/
   verrouillage.ts`), vérifié AVANT bcrypt. Jamais définitif : un verrou
   définitif se retourne en refus de service.

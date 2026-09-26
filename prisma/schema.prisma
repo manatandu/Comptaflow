@@ -892,6 +892,17 @@ model User {
   tentativesEchouees Int       @default(0)
   verrouilleJusqua   DateTime?
 
+  // DOUBLE AUTHENTIFICATION (src/modules/auth/double-authentification.ts) ·
+  // TOTP, RFC 6238. Le secret est posé à l'initiation et ne vaut qu'une fois
+  // `doubleAuthActiveDepuis` renseigné, c'est-à-dire après un premier code
+  // juste. `dernierPasDoubleAuth` refuse qu'un code serve deux fois. Les codes
+  // de secours ne sont gardés qu'en empreinte, et chacun sert une fois.
+  // Aucune de ces colonnes n'entre au journal d'audit ni à la restitution.
+  secretDoubleAuth       String?
+  doubleAuthActiveDepuis DateTime?
+  dernierPasDoubleAuth   Int?
+  codesSecoursDoubleAuth String[]  @default([])
+
   createdAt DateTime @default(now())
 
   @@map("users")

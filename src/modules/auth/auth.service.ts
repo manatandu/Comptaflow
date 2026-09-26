@@ -21,6 +21,7 @@ import { LoginDto } from './dto/login.dto';
 import { Referentiel, RoleUtilisateur, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
 import { horsCloisonnement } from '../../common/cloisonnement/contexte-cloisonnement';
 import { instantDeverrouillage, messageVerrou } from './verrouillage';
+import { genererCodesSecours, genererSecret, secondFacteurAccepte, uriOtpauth, verifierCodeTotp } from './double-authentification';
 
 const SALT_ROUNDS = 12;
 
@@ -202,18 +203,24 @@ export class AuthService {
       throw new UnauthorizedException(messageVerrou(user.verrouilleJusqua, maintenant));
     }
 
-    const motDePasseValide = await bcrypt.compare(dto.motDePasse, user.motDePasse);
-    if (!motDePasseValide) {
-      // Le compteur repart de zéro si le verrou précédent est ÉCHU · sinon
-      // une faute de frappe six mois plus tard hériterait de la sévérité d'un
-      // incident oublié.
+    // Le compteur repart de zéro si le verrou précédent est ÉCHU · sinon une
+    // faute de frappe six mois plus tard hériterait de la sévérité d'un
+    // incident oublié. Un code de vérification faux compte comme un mot de
+    // passe faux · sans quoi six chiffres se devineraient à l'infini derrière
+    // un mot de passe volé.
+    const compterEchec = () => {
       const echecs = (user.verrouilleJusqua && user.verrouilleJusqua <= maintenant ? 0 : user.tentativesEchouees) + 1;
-      await horsCloisonnement('connexion · décompte des échecs sur un compte non encore identifié', () =>
+      return horsCloisonnement('connexion · décompte des échecs sur un compte non encore identifié', () =>
         this.prisma.user.update({
           where: { id: user.id },
           data: { tentativesEchouees: echecs, verrouilleJusqua: instantDeverrouillage(echecs, maintenant) },
         }),
       );
+    };
+
+    const motDePasseValide = await bcrypt.compare(dto.motDePasse, user.motDePasse);
+    if (!motDePasseValide) {
+      await compterEchec();
       // Le message reste le MÊME que pour un compte inexistant · dire « mot de
       // passe faux » apprendrait que l'adresse existe.
       throw new UnauthorizedException('Identifiants invalides');
@@ -223,19 +230,111 @@ export class AuthService {
       throw new UnauthorizedException('Ce compte a été désactivé');
     }
 
+    // SECOND FACTEUR · sans code, la réponse dit seulement qu'il en faut un,
+    // et aucune session n'est posée. Le mot de passe est redemandé avec le
+    // code : aucun état intermédiaire n'est gardé entre les deux appels.
+    let consomme: Record<string, unknown> = {};
+    if (user.doubleAuthActiveDepuis) {
+      if (!dto.code?.trim()) return { deuxiemeFacteurRequis: true as const };
+      const r = secondFacteurAccepte(user, dto.code, maintenant.getTime());
+      if (!r) {
+        await compterEchec();
+        throw new UnauthorizedException('Code de vérification invalide');
+      }
+      consomme = r;
+    }
+
     // Connexion réussie · le compteur d'échecs et le verrou tombent.
     // `> 0` et non `!== 0` · le compteur vaut 0 par défaut en base, mais
     // écrire l'inégalité stricte ferait tourner une écriture inutile à chaque
     // connexion sur tout compte dont le champ n'est pas encore servi.
-    if (user.tentativesEchouees > 0 || user.verrouilleJusqua) {
+    if (user.tentativesEchouees > 0 || user.verrouilleJusqua || Object.keys(consomme).length > 0) {
       await horsCloisonnement('connexion · remise à zéro du décompte', () =>
         this.prisma.user.update({
           where: { id: user.id },
-          data: { tentativesEchouees: 0, verrouilleJusqua: null },
+          data: { tentativesEchouees: 0, verrouilleJusqua: null, ...consomme },
         }),
       );
     }
     return this.signToken(user.id);
+  }
+
+  // ── DOUBLE AUTHENTIFICATION ─────────────────────────────────────────────
+  //
+  // Ouverte à tout utilisateur, EXIGÉE pour la console de la plateforme
+  // (OperateurPlateformeGuard) · la console tient les licences et les
+  // administrateurs de tous les cabinets. L'exiger de chaque administrateur
+  // de dossier fermerait des cabinets entiers le jour du déploiement, tant
+  // qu'ils n'ont pas d'application d'authentification.
+
+  private async compteDoubleAuth(userId: string) {
+    const u = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!u) throw new UnauthorizedException('Utilisateur introuvable');
+    return u;
+  }
+
+  async etatDoubleAuth(userId: string) {
+    const u = await this.compteDoubleAuth(userId);
+    return {
+      active: u.doubleAuthActiveDepuis !== null,
+      depuis: u.doubleAuthActiveDepuis,
+      codesSecoursRestants: u.doubleAuthActiveDepuis ? u.codesSecoursDoubleAuth.length : 0,
+      exigeePourLaConsole: u.estOperateurPlateforme,
+    };
+  }
+
+  /** Pose un secret NEUF, qui ne vaut rien tant qu'un premier code ne l'a pas confirmé. */
+  async initierDoubleAuth(userId: string) {
+    const u = await this.compteDoubleAuth(userId);
+    if (u.doubleAuthActiveDepuis) throw new BadRequestException('La double authentification est déjà active · désactivez-la d’abord.');
+    const secret = genererSecret();
+    await this.prisma.user.update({ where: { id: userId }, data: { secretDoubleAuth: secret } });
+    return { secret, uri: uriOtpauth(secret, u.email) };
+  }
+
+  /**
+   * Le premier code juste l'active · les codes de secours sont rendus UNE
+   * fois, ici, et seules leurs empreintes restent. Les autres sessions sont
+   * fermées : aucune n'a présenté de second facteur.
+   */
+  async activerDoubleAuth(userId: string, code: string, maintenant = new Date()) {
+    const u = await this.compteDoubleAuth(userId);
+    if (u.doubleAuthActiveDepuis) throw new BadRequestException('La double authentification est déjà active.');
+    if (!u.secretDoubleAuth) throw new BadRequestException('Affichez d’abord la clé à enregistrer dans l’application.');
+    const pas = verifierCodeTotp(u.secretDoubleAuth, code, maintenant.getTime(), null);
+    if (pas === null) {
+      throw new BadRequestException('Code invalide · vérifiez que l’heure du téléphone est à l’heure, puis saisissez le code affiché.');
+    }
+    const { codes, empreintes } = genererCodesSecours();
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { doubleAuthActiveDepuis: maintenant, dernierPasDoubleAuth: pas, codesSecoursDoubleAuth: empreintes, sessionsInvalidesAvant: maintenant },
+    });
+    return { codesSecours: codes, ...this.signToken(userId) };
+  }
+
+  /** Mot de passe ET second facteur · un poste laissé ouvert ne suffit pas à la retirer. */
+  async desactiverDoubleAuth(userId: string, motDePasse: string, code: string, maintenant = new Date()) {
+    const u = await this.compteDoubleAuth(userId);
+    if (!u.doubleAuthActiveDepuis) throw new BadRequestException('La double authentification n’est pas active.');
+    if (!(await bcrypt.compare(motDePasse, u.motDePasse))) throw new UnauthorizedException('Le mot de passe actuel est incorrect');
+    if (!secondFacteurAccepte(u, code, maintenant.getTime())) throw new UnauthorizedException('Code de vérification invalide');
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { secretDoubleAuth: null, doubleAuthActiveDepuis: null, dernierPasDoubleAuth: null, codesSecoursDoubleAuth: [], sessionsInvalidesAvant: maintenant },
+    });
+    return { desactivee: true, ...this.signToken(userId) };
+  }
+
+  /** De nouveaux codes de secours · les anciens cessent de valoir. */
+  async regenererCodesSecours(userId: string, code: string, maintenant = new Date()) {
+    const u = await this.compteDoubleAuth(userId);
+    if (!u.doubleAuthActiveDepuis) throw new BadRequestException('La double authentification n’est pas active.');
+    const r = secondFacteurAccepte(u, code, maintenant.getTime());
+    if (!r) throw new UnauthorizedException('Code de vérification invalide');
+    const { codes, empreintes } = genererCodesSecours();
+    await this.prisma.user.update({ where: { id: userId }, data: { ...r, codesSecoursDoubleAuth: empreintes } });
+    return { codesSecours: codes };
   }
 
   /**

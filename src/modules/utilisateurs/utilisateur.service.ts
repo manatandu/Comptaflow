@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { SANS_DOUBLE_AUTH } from '../auth/double-authentification';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../common/prisma.service';
 import { FonctionMetier, RoleUtilisateur } from '@prisma/client';
@@ -17,6 +18,7 @@ const SELECTION = {
   estActif: true,
   doitChangerMotDePasse: true,
   verrouilleJusqua: true,
+  doubleAuthActiveDepuis: true,
   createdAt: true,
   restreindreFonctions: true,
   fonctionsAutorisees: true,
@@ -163,6 +165,7 @@ export class UtilisateurService {
         sessionsInvalidesAvant: new Date(),
         tentativesEchouees: 0,
         verrouilleJusqua: null,
+        ...SANS_DOUBLE_AUTH,
       },
     });
     return { reinitialise: true, email: user.email };

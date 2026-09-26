@@ -77,6 +77,8 @@ export interface Utilisateur {
   doitChangerMotDePasse: boolean;
   /** Verrou de force brute en cours, ou null · voir auth/verrouillage.ts. */
   verrouilleJusqua: string | null;
+  /** Double authentification active depuis, ou null. */
+  doubleAuthActiveDepuis?: string | null;
   createdAt: string;
   /** Profil de fonctions (point 15) · faux = tout ce que le rôle permet. */
   restreindreFonctions?: boolean;

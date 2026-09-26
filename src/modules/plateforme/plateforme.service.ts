@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { SANS_DOUBLE_AUTH } from '../auth/double-authentification';
 import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
 import { Referentiel, RoleUtilisateur, StatutLicence, TypeLicence } from '@prisma/client';
@@ -428,6 +429,7 @@ export class PlateformeService implements OnModuleInit {
           sessionsInvalidesAvant: new Date(),
           tentativesEchouees: 0,
           verrouilleJusqua: null,
+          ...SANS_DOUBLE_AUTH,
         },
       }),
     );

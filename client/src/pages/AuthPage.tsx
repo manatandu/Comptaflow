@@ -92,6 +92,9 @@ export function AuthPage() {
   const [motDePasse, setMotDePasse] = useState('');
   const [surSite, setSurSite] = useState<EtatSurSite | null>(null);
   const [motDePasseVisible, setMotDePasseVisible] = useState(false);
+  // Le second facteur · demandé par le serveur, jamais supposé par l'écran.
+  const [codeRequis, setCodeRequis] = useState(false);
+  const [code, setCode] = useState('');
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
   const { seConnecter } = useAuth();
@@ -103,6 +106,8 @@ export function AuthPage() {
     setDossierVise(d);
     setEmail(d?.email ?? '');
     setMotDePasse('');
+    setCodeRequis(false);
+    setCode('');
   };
 
   const retirer = (email: string) => {
@@ -119,7 +124,15 @@ export function AuthPage() {
     setErreur(null);
     setEnvoi(true);
     try {
-      const res = await api.post<AuthResponse>('/auth/login', { email, motDePasse });
+      const res = await api.post<AuthResponse | { deuxiemeFacteurRequis: true }>('/auth/login', {
+        email,
+        motDePasse,
+        ...(codeRequis && code.trim() ? { code: code.trim() } : {}),
+      });
+      if ('deuxiemeFacteurRequis' in res) {
+        setCodeRequis(true);
+        return;
+      }
       // Le dossier est ajouté aux dossiers récents par `chargerUtilisateur`
       // (lib/auth.tsx), qui lit /auth/me · la réponse de /auth/login ne porte
       // que le jeton, elle ne connaît pas le nom du dossier.
@@ -264,6 +277,22 @@ export function AuthPage() {
               </button>
             </div>
           </label>
+
+          {codeRequis && (
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[11.5px] font-semibold text-text-dim">Code de vérification</span>
+              <input
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                required
+                autoFocus
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="Six chiffres, ou un code de secours"
+                className={champClasse}
+              />
+            </label>
+          )}
 
           {erreur && (
             <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 rounded-[4px] px-3 py-2">
