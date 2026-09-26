@@ -122,6 +122,7 @@ Un push sur `main` déclenche deux chaînes indépendantes :
 | `deploy-cloud-run.yml` | `src/**`, `prisma/**`, `Dockerfile`, `package*.json` | `prisma migrate deploy` PUIS déploiement Cloud Run, PUIS contrôle `/health` |
 | `firebase-hosting-merge.yml` | tout push sur main | Firebase Hosting, site `oomega` |
 | `sauvegarde-base.yml` | nocturne | `pg_dump` + restauration de contrôle |
+| `tests-navigateur.yml` | tout push sur main, et les PR | client construit contre le serveur réel et un Postgres jetable, Playwright (`e2e/`) |
 
 **DEUX chaînes de connexion, et elles ne s'échangent pas.**
 `API_DATABASE_URL` est l'endpoint DIRECT · migrations (`prisma migrate
@@ -5975,6 +5976,22 @@ classeur produit plutôt que d'affirmer qu'il est correct.
 
 Quand un bug est corrigé, le test qui l'aurait attrapé est écrit dans le même
 commit.
+
+**TESTS NAVIGATEUR (`e2e/`, 2026-09-26).** Les suites unitaires tournent sur
+des Prisma factices et ne montent aucun écran. `tests-navigateur.yml` construit
+le client, le sert contre le serveur réel et une base jetable, et Playwright
+ouvre CHAQUE commande de menu dans les deux référentiels (les chemins sont LUS
+dans `AppShell.tsx`, jamais recopiés), puis passe une écriture jusqu'à la
+balance et aux états financiers. Tombent · une fenêtre en limite d'erreur, une
+exception JavaScript, une réponse 5xx ; un 4xx est un refus, pas une panne.
+Chaque dossier naît par l'inscription, ouverte dans ce job seulement. Deux
+réinjections l'ont vu tomber, une fenêtre qui plante et une route à 500, et la
+première a exigé d'attendre la fenêtre RENDUE avant de lire l'écran, sans quoi
+la panne était imputée à la fenêtre suivante. En local : serveur sur 8080
+(`CORS_ORIGIN=http://localhost:4173`), client construit avec
+`VITE_API_URL=http://localhost:8080` et servi par `vite preview --port 4173`,
+puis `npx playwright test` dans `e2e/` (`PW_CHROMIUM` pour un Chromium déjà
+installé).
 
 **UN TEST DE SOURCE S'ANCRE SUR UNE STRUCTURE, JAMAIS SUR UNE DISTANCE.** Le
 2026-09-18, un test du journal gelait « appliquer AJOUTE à la pièce » par

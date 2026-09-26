@@ -8,3 +8,8 @@ dist/
 # Cache d'octets Python · engendré par scripts/engendrer-marque.py, jamais versionné.
 __pycache__/
 *.pyc
+
+# Tests navigateur · sorties de Playwright et client construit pour eux.
+e2e/test-results/
+e2e/playwright-report/
+client/dist-e2e/

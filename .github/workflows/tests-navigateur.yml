@@ -1,0 +1,128 @@
+name: Tests navigateur
+
+# LE CLIENT CONSTRUIT, SERVI, CONTRE LE SERVEUR RÉEL ET UNE BASE JETABLE.
+# Les tests unitaires tournent sur des Prisma factices et ne montent aucun
+# écran : une fenêtre qui plante au rendu, une route qui rend un 500 à la
+# première lecture ou un cookie de session qui ne voyage plus ne rougissent
+# nulle part ailleurs. Ce workflow ouvre chaque commande de menu dans les deux
+# référentiels, et passe une écriture jusqu'aux états financiers.
+#
+# Il tourne sur TOUT push de main, parce que Firebase déploie le client à
+# chaque push, quel que soit le fichier touché. Il ne bloque pas les
+# déploiements (workflows indépendants) : il les JUGE, et un rouge ici se lit
+# avant de pousser la suite.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: tests-navigateur-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  navigateur:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: omega
+          POSTGRES_PASSWORD: omega
+          POSTGRES_DB: omegae2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    # Valeurs de contrôle, jetables avec la base · ce job n'a aucun secret.
+    # L'inscription est ouverte ICI SEULEMENT : c'est par elle que chaque
+    # parcours crée son dossier (e2e/tests/outils.ts).
+    env:
+      DATABASE_URL: postgresql://omega:omega@127.0.0.1:5432/omegae2e
+      JWT_SECRET: tests-navigateur-jetable-0123456789abcdef
+      JWT_EXPIRES_IN: 8h
+      PORT: '8080'
+      NODE_ENV: production
+      INSCRIPTION_PUBLIQUE: 'true'
+      # Même hôte que le client · le cookie de session voyage entre deux
+      # ports de localhost comme entre oomega.web.app et Cloud Run.
+      CORS_ORIGIN: http://localhost:4173
+      OMEGAX_APP: http://localhost:4173
+      OMEGAX_API: http://localhost:8080
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Construire le serveur
+        run: |
+          npm ci
+          npm run build
+
+      - name: Migrer la base et démarrer le serveur
+        run: |
+          npx prisma migrate deploy
+          point=dist/main.js
+          [ -f "$point" ] || point=dist/src/main.js
+          nohup node "$point" > /tmp/serveur.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8080/health > /dev/null && exit 0
+            sleep 2
+          done
+          echo "::error::Le serveur n'a pas démarré"
+          tail -60 /tmp/serveur.log
+          exit 1
+
+      - name: Construire et servir le client
+        working-directory: client
+        env:
+          VITE_API_URL: http://localhost:8080
+        run: |
+          npm ci
+          npx vite build --outDir dist-e2e
+          nohup npx vite preview --outDir dist-e2e --port 4173 --strictPort > /tmp/client.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:4173/ > /dev/null && exit 0
+            sleep 1
+          done
+          echo "::error::Le client n'est pas servi"
+          tail -30 /tmp/client.log
+          exit 1
+
+      - name: Installer Playwright
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Typage des tests
+        working-directory: e2e
+        run: npx tsc --noEmit -p .
+
+      - name: Tests navigateur
+        working-directory: e2e
+        run: npx playwright test
+
+      - name: Journal du serveur
+        if: failure()
+        run: tail -120 /tmp/serveur.log
+
+      - name: Rapport et traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapport-playwright
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+          retention-days: 7
