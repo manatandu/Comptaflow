@@ -15,6 +15,8 @@ import { AccueilPage } from '../../pages/AccueilPage';
 import { LimiteErreur } from './LimiteErreur';
 import { AProposModale } from './AProposModale';
 import { fenetreOuverteAuRole } from '../../lib/roles-cantonnes';
+import { cheminAuMenu } from '../../lib/profil-dossier';
+import { filtrerParProfil } from './menu-groupes';
 
 /**
  * L'espace de travail, calqué sur la fenêtre principale de Sage 100 i7 :
@@ -131,7 +133,7 @@ export function AppShell() {
         // l'auto-inscription publique est fermée) · l'entrée n'existe que
         // pour l'opérateur de la plateforme, et mène à sa console.
         ...(utilisateur?.estOperateurPlateforme
-          ? [{ label: 'Nouveau fichier comptable…', onClick: () => navigate('/plateforme') }]
+          ? [{ label: 'Nouveau fichier comptable…', chemin: '/plateforme', onClick: () => navigate('/plateforme') }]
           : []),
         // Sage : Fichier > Ouvrir. Ouvrir un autre fichier ferme d'abord le
         // fichier courant · ici, refermer le dossier c'est se déconnecter, et
@@ -146,17 +148,17 @@ export function AppShell() {
         },
         // Sage : Fichier → Autorisations d'accès. La gestion des utilisateurs
         // est une commande du dossier, pas un « outil » à part.
-        ...(estAdmin ? [{ label: "Autorisations d'accès (utilisateurs)", onClick: () => navigate('/utilisateurs') }] : []),
+        ...(estAdmin ? [{ label: "Autorisations d'accès (utilisateurs)", chemin: '/utilisateurs', onClick: () => navigate('/utilisateurs') }] : []),
         // Sage : Fichier → Importer. C'est par là qu'une association arrive
         // avec son tableur ou l'export de son logiciel précédent.
-        ...(estAdmin ? [{ label: 'Importer des données…', separateurAvant: true, onClick: () => navigate('/import') }] : []),
+        ...(estAdmin ? [{ label: 'Importer des données…', separateurAvant: true, chemin: '/import', onClick: () => navigate('/import') }] : []),
         // La sortie, juste sous l'entrée · c'est par là que le dossier arrive
         // avec le tableur du logiciel précédent, et c'est par là qu'il repart.
         // Pas dans le menu État : une copie intégrale des tables n'est pas une
         // édition, et la ranger parmi les livres laisserait croire qu'elle en
         // tient lieu.
         ...(estAdmin
-          ? [{ label: 'Restituer le dossier complet…', onClick: () => navigate('/restitution') }]
+          ? [{ label: 'Restituer le dossier complet…', chemin: '/restitution', onClick: () => navigate('/restitution') }]
           : []),
         // LA FILE DES COURRIELS EST UN OUTIL DU DOSSIER, PAS UN ÉTAT.
         //
@@ -183,12 +185,12 @@ export function AppShell() {
         // Ouverte à TOUS les rôles, comme la route de lecture du serveur : le
         // comptable en lecture seule qui voit sa relance « gardée » doit
         // pouvoir en lire la raison.
-        { label: 'Courriers sortants', separateurAvant: !estAdmin, onClick: () => navigate('/courrier') },
+        { label: 'Courriers sortants', separateurAvant: !estAdmin, chemin: '/courrier', onClick: () => navigate('/courrier') },
         // Console de l'opérateur de la plateforme (le cabinet exploitant) ·
         // invisible pour tout utilisateur ordinaire, et de toute façon
         // inaccessible : le serveur relit le drapeau en base à chaque requête.
         ...(utilisateur?.estOperateurPlateforme
-          ? [{ label: 'Administration VMG Consulting', separateurAvant: true, onClick: () => navigate('/plateforme') }]
+          ? [{ label: 'Administration VMG Consulting', separateurAvant: true, chemin: '/plateforme', onClick: () => navigate('/plateforme') }]
           : []),
         // Sage : Fichier → Mise en page / Format d'impression. Ici, une seule
         // commande : la boîte du navigateur, où « Enregistrer au format PDF »
@@ -206,20 +208,20 @@ export function AppShell() {
       // « État » (menu-groupes.ts) : un groupe vide ne s'affiche pas, ce qui
       // garde les entrées conditionnelles telles qu'elles étaient.
       items: [
-        { label: 'Plan comptable', onClick: () => navigate('/comptes') },
-        { label: 'Plan des tiers', onClick: () => navigate('/tiers') },
+        { label: 'Plan comptable', chemin: '/comptes', onClick: () => navigate('/comptes') },
+        { label: 'Plan des tiers', chemin: '/tiers', onClick: () => navigate('/tiers') },
         // Chez une EBNL, l'axe analytique est celui des projets et des
         // bailleurs · voir docs/analytique-et-budget.md.
-        { label: 'Plans analytiques', onClick: () => navigate('/plans-analytiques') },
-        { label: 'Codes journaux', onClick: () => navigate('/journaux') },
+        { label: 'Plans analytiques', chemin: '/plans-analytiques', onClick: () => navigate('/plans-analytiques') },
+        { label: 'Codes journaux', chemin: '/journaux', onClick: () => navigate('/journaux') },
         {
           titre: 'Paramètres de saisie',
           items: [
             // Sage i7, Structure / Banque et Structure / Libellé (point 19).
-            { label: 'Banques', onClick: () => navigate('/banques') },
-            { label: 'Libellés', onClick: () => navigate('/libelles') },
-            { label: 'Taux de taxes', onClick: () => navigate('/taux-tva') },
-            { label: 'Modèles de saisie', onClick: () => navigate('/modeles-saisie') },
+            { label: 'Banques', chemin: '/banques', onClick: () => navigate('/banques') },
+            { label: 'Libellés', chemin: '/libelles', onClick: () => navigate('/libelles') },
+            { label: 'Taux de taxes', chemin: '/taux-tva', onClick: () => navigate('/taux-tva') },
+            { label: 'Modèles de saisie', chemin: '/modeles-saisie', onClick: () => navigate('/modeles-saisie') },
           ],
         },
         {
@@ -228,32 +230,32 @@ export function AppShell() {
           // dossier SYSCOHADA. Le serveur refuse pareil.
           items: estSycebnl
             ? [
-                { label: 'Bailleurs de fonds', onClick: () => navigate('/bailleurs') },
-                { label: 'Dossier de subvention', onClick: () => navigate('/conventions-financement') },
+                { label: 'Bailleurs de fonds', chemin: '/bailleurs', onClick: () => navigate('/bailleurs') },
+                { label: 'Dossier de subvention', chemin: '/conventions-financement', onClick: () => navigate('/conventions-financement') },
               ]
             : [],
         },
-        { label: 'Immobilisations', separateurAvant: true, onClick: () => navigate('/immobilisations') },
+        { label: 'Immobilisations', separateurAvant: true, chemin: '/immobilisations', onClick: () => navigate('/immobilisations') },
         // Le registre ne passe AUCUNE écriture · il tient l'état civil et les
         // engagements, comme le plan des tiers tient les tiers. Fermé à
         // l'aide-comptable · données nominatives (roles-cantonnes.ts).
         ...(utilisateur?.role === 'AIDE_COMPTABLE'
           ? []
-          : [{ label: 'Registre du personnel', onClick: () => navigate('/personnel') }]),
+          : [{ label: 'Registre du personnel', chemin: '/personnel', onClick: () => navigate('/personnel') }]),
         {
           titre: 'Dossier et entité',
           separateurAvant: true,
           items: [
             // Référentiel, jeu d'états, coordonnées · ce qui commande la liasse.
-            { label: 'Paramètres du dossier', onClick: () => navigate('/parametres-dossier') },
+            { label: 'Paramètres du dossier', chemin: '/parametres-dossier', onClick: () => navigate('/parametres-dossier') },
             // Le mandat est ce que l'ENTITÉ a fait devant son assemblée, pas
             // un registre de révision du cabinet · d'où sa place ici.
-            { label: 'Mandat du contrôleur des comptes', onClick: () => navigate('/mandat-auditeur') },
+            { label: 'Mandat du contrôleur des comptes', chemin: '/mandat-auditeur', onClick: () => navigate('/mandat-auditeur') },
             // Loi n° 004/2001, art. 37 · réservé aux dossiers SYCEBNL.
             ...(estSycebnl
               ? [
-                  { label: 'Accord-cadre (Ministère du Plan)', onClick: () => navigate('/accord-cadre') },
-                  { label: 'Checklist de constitution', onClick: () => navigate('/constitution') },
+                  { label: 'Accord-cadre (Ministère du Plan)', chemin: '/accord-cadre', onClick: () => navigate('/accord-cadre') },
+                  { label: 'Checklist de constitution', chemin: '/constitution', onClick: () => navigate('/constitution') },
                 ]
               : []),
           ],
@@ -264,19 +266,19 @@ export function AppShell() {
       titre: 'Traitement',
       // REGROUPÉ EN SOUS-MENUS le 2026-09-25 · dix-huit entrées d'un bloc.
       items: [
-        { label: 'Saisie des journaux', onClick: () => navigate('/saisie') },
+        { label: 'Saisie des journaux', chemin: '/saisie', onClick: () => navigate('/saisie') },
         // Juste sous la saisie, comme chez Sage · une OD corrige une
         // ventilation, elle ne passe aucune écriture au livre-journal.
-        { label: 'Saisie des OD analytiques', onClick: () => navigate('/od-analytiques') },
+        { label: 'Saisie des OD analytiques', chemin: '/od-analytiques', onClick: () => navigate('/od-analytiques') },
         {
           titre: 'Ventes',
           items: [
             // Le Livre 8 de l'AUDCG ne régit que la vente entre commerçants ·
             // une ASBL n'en est pas une, et l'entrée ne lui est pas servie.
-            ...(estSycebnl ? [] : [{ label: 'Devis et commande client', onClick: () => navigate('/devis') }]),
+            ...(estSycebnl ? [] : [{ label: 'Devis et commande client', chemin: '/devis', onClick: () => navigate('/devis') }]),
             // La facture PRÉCÈDE l'écriture (L.P.F. art. 23) · ouverte aux deux
             // référentiels, l'obligation vise des redevables d'impôts.
-            { label: 'Facturation', onClick: () => navigate('/facturation') },
+            { label: 'Facturation', chemin: '/facturation', onClick: () => navigate('/facturation') },
           ],
         },
         {
@@ -284,11 +286,11 @@ export function AppShell() {
           // Pas de trait · deux groupes consécutifs se délimitent d'eux-mêmes,
           // et le menu large n'en trace jamais entre eux (`entreDeuxGroupes`).
           items: [
-            { label: 'Interrogation et lettrage', onClick: () => navigate('/lettrage') },
+            { label: 'Interrogation et lettrage', chemin: '/lettrage', onClick: () => navigate('/lettrage') },
             // Le règlement suit le lettrage · il en pose un à chaque pièce.
-            { label: 'Règlement des tiers', onClick: () => navigate('/reglements') },
-            { label: 'Rapprochement bancaire', onClick: () => navigate('/rapprochement') },
-            { label: 'Rappel et relevé', onClick: () => navigate('/relances') },
+            { label: 'Règlement des tiers', chemin: '/reglements', onClick: () => navigate('/reglements') },
+            { label: 'Rapprochement bancaire', chemin: '/rapprochement', onClick: () => navigate('/rapprochement') },
+            { label: 'Rappel et relevé', chemin: '/relances', onClick: () => navigate('/relances') },
           ],
         },
         {
@@ -296,23 +298,23 @@ export function AppShell() {
           // Sous « Traitement » et non sous « Contrôle et révision » · chacune
           // de ces fenêtres PASSE UNE ÉCRITURE au livre-journal.
           items: [
-            { label: 'Variation des stocks', onClick: () => navigate('/variation-stocks') },
-            { label: 'Magasin et fiches de stock', onClick: () => navigate('/magasin') },
-            { label: "Consignation d'emballages", onClick: () => navigate('/emballages') },
+            { label: 'Variation des stocks', chemin: '/variation-stocks', onClick: () => navigate('/variation-stocks') },
+            { label: 'Magasin et fiches de stock', chemin: '/magasin', onClick: () => navigate('/magasin') },
+            { label: "Consignation d'emballages", chemin: '/emballages', onClick: () => navigate('/emballages') },
           ],
         },
         {
           titre: 'Clôture',
           items: [
-            { label: 'Régularisations et abonnements', onClick: () => navigate('/regularisations') },
-            { label: 'Devises et réévaluation', onClick: () => navigate('/devises') },
+            { label: 'Régularisations et abonnements', chemin: '/regularisations', onClick: () => navigate('/regularisations') },
+            { label: 'Devises et réévaluation', chemin: '/devises', onClick: () => navigate('/devises') },
             // Geste ANNUEL, décidé par un organe · ouvert aux deux référentiels.
-            { label: 'Affectation du résultat', onClick: () => navigate('/affectation-resultat') },
-            { label: "Fin d'exercice…", onClick: () => navigate('/exercice') },
+            { label: 'Affectation du résultat', chemin: '/affectation-resultat', onClick: () => navigate('/affectation-resultat') },
+            { label: "Fin d'exercice…", chemin: '/exercice', onClick: () => navigate('/exercice') },
           ],
         },
         ...(estSycebnl
-          ? [{ label: 'Registre des donateurs', separateurAvant: true, onClick: () => navigate('/registre-donateurs') }]
+          ? [{ label: 'Registre des donateurs', separateurAvant: true, chemin: '/registre-donateurs', onClick: () => navigate('/registre-donateurs') }]
           : []),
       ],
     },
@@ -340,7 +342,7 @@ export function AppShell() {
         // de gestion. Il était dans le menu Fenêtre, où rien ne le justifiait.
         // Il reste une entrée DIRECTE, en tête et hors de tout groupe : c'est
         // la vue qu'on ouvre en arrivant, elle ne se mérite pas d'un dépliage.
-        { label: 'Tableau de bord', onClick: () => navigate('/tableau-de-bord') },
+        { label: 'Tableau de bord', chemin: '/tableau-de-bord', onClick: () => navigate('/tableau-de-bord') },
         {
           // LE SEUL GROUPE QUI TIENNE D'UN TEXTE, et il faut le lire à la
           // lettre. AUDCIF art. 19 : « Les livres comptables et autres
@@ -382,10 +384,10 @@ export function AppShell() {
           titre: 'Livres comptables',
           separateurAvant: true,
           items: [
-            { label: 'Journal', onClick: () => navigate('/journal?onglet=journal') },
-            { label: 'Grand livre des comptes', onClick: () => navigate('/journal?onglet=grand-livre') },
-            { label: 'Balance des comptes', onClick: () => navigate('/journal?onglet=balance') },
-            { label: 'Brouillard', onClick: () => navigate('/brouillard') },
+            { label: 'Journal', chemin: '/journal?onglet=journal', onClick: () => navigate('/journal?onglet=journal') },
+            { label: 'Grand livre des comptes', chemin: '/journal?onglet=grand-livre', onClick: () => navigate('/journal?onglet=grand-livre') },
+            { label: 'Balance des comptes', chemin: '/journal?onglet=balance', onClick: () => navigate('/journal?onglet=balance') },
+            { label: 'Brouillard', chemin: '/brouillard', onClick: () => navigate('/brouillard') },
           ],
         },
         {
@@ -401,14 +403,14 @@ export function AppShell() {
           titre: 'Analyse des comptes',
           separateurAvant: true,
           items: [
-            { label: 'Balance âgée', onClick: () => navigate('/balance-agee') },
-            { label: 'Balance auxiliaire', onClick: () => navigate('/balance-auxiliaire') },
-            { label: 'Justificatif de solde', onClick: () => navigate('/justificatif-solde') },
-            { label: 'Évolution des soldes', onClick: () => navigate('/evolution-soldes') },
-            { label: 'Palmarès et analyse des journaux', onClick: () => navigate('/palmares-journaux') },
+            { label: 'Balance âgée', chemin: '/balance-agee', onClick: () => navigate('/balance-agee') },
+            { label: 'Balance auxiliaire', chemin: '/balance-auxiliaire', onClick: () => navigate('/balance-auxiliaire') },
+            { label: 'Justificatif de solde', chemin: '/justificatif-solde', onClick: () => navigate('/justificatif-solde') },
+            { label: 'Évolution des soldes', chemin: '/evolution-soldes', onClick: () => navigate('/evolution-soldes') },
+            { label: 'Palmarès et analyse des journaux', chemin: '/palmares-journaux', onClick: () => navigate('/palmares-journaux') },
             // Point 20 · rubriques libres sur un à cinq exercices, un état de
             // relecture comme le palmarès, pas un état financier.
-            { label: 'États personnalisés', onClick: () => navigate('/etats-personnalises') },
+            { label: 'États personnalisés', chemin: '/etats-personnalises', onClick: () => navigate('/etats-personnalises') },
           ],
         },
         {
@@ -419,17 +421,17 @@ export function AppShell() {
           titre: 'Suivi et prévision',
           separateurAvant: true,
           items: [
-            { label: 'Immobilisations et amortissements', onClick: () => navigate('/tableaux-immobilisations') },
-            { label: 'Échéancier de trésorerie', onClick: () => navigate('/echeancier') },
-            { label: 'États analytiques et budgétaires', onClick: () => navigate('/etats-analytiques') },
+            { label: 'Immobilisations et amortissements', chemin: '/tableaux-immobilisations', onClick: () => navigate('/tableaux-immobilisations') },
+            { label: 'Échéancier de trésorerie', chemin: '/echeancier', onClick: () => navigate('/echeancier') },
+            { label: 'États analytiques et budgétaires', chemin: '/etats-analytiques', onClick: () => navigate('/etats-analytiques') },
             // Priorité 6 · un prévu tiré d'un exercice de référence, comparé au
             // réalisé. Aucune écriture, seules les hypothèses sont gardées.
-            { label: 'Simulateur budgétaire', onClick: () => navigate('/simulations-budgetaires') },
+            { label: 'Simulateur budgétaire', chemin: '/simulations-budgetaires', onClick: () => navigate('/simulations-budgetaires') },
             // SYCEBNL seulement · la colonne Engagement qu'il alimente vient
             // du tableau d'exécution budgétaire du jeu « projets de
             // développement ». Le serveur refuse pareil.
             ...(estSycebnl
-              ? [{ label: 'Registre des engagements de dépense', onClick: () => navigate('/engagements') }]
+              ? [{ label: 'Registre des engagements de dépense', chemin: '/engagements', onClick: () => navigate('/engagements') }]
               : []),
           ],
         },
@@ -437,19 +439,19 @@ export function AppShell() {
           titre: 'Contrôle et révision',
           separateurAvant: true,
           items: [
-            { label: 'Analyse et contrôles', onClick: () => navigate('/controles') },
-            { label: 'Dossier de révision', onClick: () => navigate('/dossier-revision') },
+            { label: 'Analyse et contrôles', chemin: '/controles', onClick: () => navigate('/controles') },
+            { label: 'Dossier de révision', chemin: '/dossier-revision', onClick: () => navigate('/dossier-revision') },
             // L'inventaire extra-comptable, ses deux moitiés. Elles sont ici et
             // non sous « États financiers » : un comptage de magasin n'est pas
             // un état, c'est le travail de révision qui le précède (AUDCIF
             // art. 42, puis la checklist documentaire du CPCC).
-            { label: 'Inventaire physique', onClick: () => navigate('/inventaire') },
-            { label: 'Circularisation', onClick: () => navigate('/circularisation') },
+            { label: 'Inventaire physique', chemin: '/inventaire', onClick: () => navigate('/inventaire') },
+            { label: 'Circularisation', chemin: '/circularisation', onClick: () => navigate('/circularisation') },
             // Le registre des provisions est de la révision, pas un état :
             // c'est le tableau des mouvements que le CPCC demande à
             // l'auditeur d'obtenir, et la liste des risques que le bilan
             // ne porte pas (AUDCIF Titre VIII ch. 18 § 5.3).
-            { label: 'Provisions pour risques et charges', onClick: () => navigate('/provisions') },
+            { label: 'Provisions pour risques et charges', chemin: '/provisions', onClick: () => navigate('/provisions') },
             // « Faire le suivi des faiblesses relevées lors de l'audit
             // précédent » (CPCC), conduit selon la méthode de l'ISA 265. Deux
             // modes : les constats du cabinet au titre de sa révision, et les
@@ -458,20 +460,20 @@ export function AppShell() {
             // Les deux checklists du CPCC (§ VI physique, § VII documentaire),
             // reprises mot pour mot, et les cycles qu'il ne couvre pas,
             // ajoutés par le cabinet et marqués comme tels.
-            { label: 'Questionnaire de révision', onClick: () => navigate('/questionnaire-revision') },
+            { label: 'Questionnaire de révision', chemin: '/questionnaire-revision', onClick: () => navigate('/questionnaire-revision') },
             // Le second jeu · la balance convertie dans la monnaie où l'entité
             // vit réellement. Elle est ici et non sous « États financiers » :
             // les livres et les états déposés restent en francs congolais, et
             // cet état-là n'a aucune valeur légale.
-            { label: 'Balance en monnaie fonctionnelle', onClick: () => navigate('/balance-fonctionnelle') },
-            { label: 'Registre des faiblesses', onClick: () => navigate('/faiblesses') },
+            { label: 'Balance en monnaie fonctionnelle', chemin: '/balance-fonctionnelle', onClick: () => navigate('/balance-fonctionnelle') },
+            { label: 'Registre des faiblesses', chemin: '/faiblesses', onClick: () => navigate('/faiblesses') },
             // Dossier mère d'un groupe d'établissements (une église et ses
             // cellules, une société et ses succursales) · la balance agrégée
             // du groupe est une édition du siège, sous les deux référentiels
             // (cf. groupe.controller.ts). Un dossier sans cellule n'a rien à
             // agréger.
             ...((utilisateur?.tenant.nombreCellules ?? 0) > 0
-              ? [{ label: 'Balance agrégée du groupe', onClick: () => navigate('/groupe') }]
+              ? [{ label: 'Balance agrégée du groupe', chemin: '/groupe', onClick: () => navigate('/groupe') }]
               : []),
           ],
         },
@@ -498,37 +500,37 @@ export function AppShell() {
           titre: 'États financiers',
           separateurAvant: true,
           items: [
-            { label: 'États financiers', onClick: () => navigate('/etats-financiers') },
-            { label: 'Notes annexes', onClick: () => navigate('/notes-annexes') },
+            { label: 'États financiers', chemin: '/etats-financiers', onClick: () => navigate('/etats-financiers') },
+            { label: 'Notes annexes', chemin: '/notes-annexes', onClick: () => navigate('/notes-annexes') },
             // Les deux référentiels · AUDCIF art. 19 pour le livre d'inventaire,
             // AUSCGIE art. 138 (ou AUSCOOP art. 108) pour le rapport de gestion.
-            { label: 'Documents obligatoires', onClick: () => navigate('/documents-obligatoires') },
+            { label: 'Documents obligatoires', chemin: '/documents-obligatoires', onClick: () => navigate('/documents-obligatoires') },
             // La consolidation (AUDCIF Titre II) n'existe qu'au SYSCOHADA · l'art. 3
             // du SYCEBNL en écarte les art. 73 à 113. Une association et ses
             // cellules relèvent du groupe, qui n'est pas une consolidation.
-            ...(estSycebnl ? [] : [{ label: 'Périmètre de consolidation', onClick: () => navigate('/consolidation') }]),
-            ...(estSycebnl ? [] : [{ label: 'États IFRS', onClick: () => navigate('/ifrs') }]),
+            ...(estSycebnl ? [] : [{ label: 'Périmètre de consolidation', chemin: '/consolidation', onClick: () => navigate('/consolidation') }]),
+            ...(estSycebnl ? [] : [{ label: 'États IFRS', chemin: '/ifrs', onClick: () => navigate('/ifrs') }]),
           ],
         },
         {
           titre: 'Fiscalité',
           separateurAvant: true,
           items: [
-            { label: 'Déclaration de TVA', onClick: () => navigate('/declaration-tva') },
+            { label: 'Déclaration de TVA', chemin: '/declaration-tva', onClick: () => navigate('/declaration-tva') },
             // Une ASBL exonérée d'impôt sur les sociétés reste redevable de
             // tout ce qu'elle retient pour autrui, et de la déclaration même à
             // zéro · voir docs/fiscalite-asbl-rdc.md.
-            { label: 'Retenues et échéancier fiscal', onClick: () => navigate('/retenues') },
+            { label: 'Retenues et échéancier fiscal', chemin: '/retenues', onClick: () => navigate('/retenues') },
             // Le pendant SYSCOHADA : une entreprise commerciale paie l'impôt
             // sur ses bénéfices, une ASBL en est exemptée (loi n° 23/053,
             // art. 5).
             ...(estSycebnl
               ? []
-              : [{ label: 'Résultat fiscal et impôt sur les bénéfices', onClick: () => navigate('/fiscalite') }]),
+              : [{ label: 'Résultat fiscal et impôt sur les bénéfices', chemin: '/fiscalite', onClick: () => navigate('/fiscalite') }]),
             // Les facilités douanières de l'article 39 de la loi 004/2001 · un
             // arrêté prévisionnel périmé se découvre d'ordinaire au port.
             ...(estSycebnl
-              ? [{ label: 'Exonérations douanières et fiscales', onClick: () => navigate('/exonerations') }]
+              ? [{ label: 'Exonérations douanières et fiscales', chemin: '/exonerations', onClick: () => navigate('/exonerations') }]
               : []),
           ],
         },
@@ -583,7 +585,10 @@ export function AppShell() {
             ],
           },
         ]
-      : menusComplets;
+      : // PROFIL DU DOSSIER · un SMT ne voit pas ce qui n'a pas d'objet chez
+        // lui (docs/audit-modules-par-profil.md). Masquer n'est pas refuser :
+        // l'aiguillage plus haut ne lit pas ce filtre, la route reste ouverte.
+        filtrerParProfil(menusComplets, (chemin) => cheminAuMenu(chemin, utilisateur?.tenant));
 
   return (
     // `overflow-x-hidden` : garde-fou de dernier rang. Aucun élément du

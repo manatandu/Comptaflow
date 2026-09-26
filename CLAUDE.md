@@ -4789,6 +4789,28 @@ RÈGLEMENT RÈGLE (40 de détail, hors 408 et 409, même règle
 `estEcheanceAReglerSur`), une fois chacun ; ses lignes retiennent leur compte
 (RESTRICT), et le journal proposé est de trésorerie.
 
+**Menus et refus par profil de dossier (2026-09-26).** Audit
+`docs/audit-modules-par-profil.md`, cinq profils (associations, projets, SMT au
+SYCEBNL ; Système normal, SMT au SYSCOHADA), décidé par Manasse. QUATRE RÈGLES
+À NE PAS DÉFAIRE. (1) MASQUER N'EST PAS REFUSER · `client/src/lib/profil-dossier.ts`
+retire des menus et de l'accueil ce qui n'a pas d'objet au SMT, l'aiguillage
+d'AppShell ne le lit pas, la route reste ouverte et rien n'est supprimé. Chaque
+commande de menu porte son `chemin`, et `filtrerParProfil` l'applique. (2) LE
+SMT GARDE LES TIERS, LA FACTURATION, LE LETTRAGE ET LA VARIATION DE STOCKS ·
+ses états lisent les notes 2 et 3 et leurs lignes de variation dans ces
+comptes, les masquer les viderait sans qu'aucun total ne bouge. Et le registre
+des donateurs reste (SYCEBNL art. 17, « chaque entité »). (3) CE QUI EST
+CONTRAIRE SE REFUSE AU SERVEUR (`src/common/systeme-minimal.ts`) · la dotation
+d'une dépréciation d'immobilisation aux deux SMT (aucun poste dans leurs
+modèles), et au SMT SYSCOHADA seul les unités d'œuvre, l'option du dégressif et
+tout nouveau dérogatoire (Titre X, « linéaire »). Le SYCEBNL ne prescrit aucun
+mode à son SMT · ne pas transposer. Ce qui solde l'historique (reprise,
+solde du dérogatoire) reste ouvert. (4) LES 69 ET 85 RESTENT LUS EN F au SMT
+SYSCOHADA · c'est ce qui garde G égal au résultat du bilan ; la décision
+« ne pas publier une provision comme un amortissement » est tenue à la source,
+pas en retirant une lecture. Ce qui dépend d'un FAIT (personnel, TVA, ventes,
+ONG étrangère) ne se masque pas par profil.
+
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
 nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la

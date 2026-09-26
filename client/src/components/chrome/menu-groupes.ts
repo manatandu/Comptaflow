@@ -19,6 +19,8 @@ export interface MenuItemDef {
   disabled?: boolean;
   /** Trait horizontal AVANT cet item · regroupe les commandes par famille, comme chez Sage. */
   separateurAvant?: boolean;
+  /** La fenêtre qu'ouvre la commande · lue par le filtre de profil (`filtrerParProfil`). */
+  chemin?: string;
 }
 
 /**
@@ -102,4 +104,20 @@ export const LARGEUR_SOUS_MENU = 232;
  */
 export function coteSousMenu(bordDroitPanneau: number, largeurEcran: number, largeur = LARGEUR_SOUS_MENU): 'droite' | 'gauche' {
   return bordDroitPanneau + largeur + 8 <= largeurEcran ? 'droite' : 'gauche';
+}
+
+/**
+ * RETIRE DES MENUS CE QUE LE PROFIL DU DOSSIER N'UTILISE PAS · une commande
+ * dont la fenêtre n'est pas servie disparaît, un groupe qui se vide suit la
+ * règle commune (il ne s'affiche pas). La décision vit dans
+ * `lib/profil-dossier.ts` ; ceci ne fait que l'appliquer à l'arbre.
+ */
+export function filtrerParProfil(menus: MenuDef[], servi: (chemin: string) => boolean): MenuDef[] {
+  const garde = (i: MenuItemDef) => !i.chemin || servi(i.chemin);
+  return menus.map((m) => ({
+    ...m,
+    items: m.items
+      .map((e) => (estGroupe(e) ? { ...e, items: e.items.filter(garde) } : e))
+      .filter((e) => estGroupe(e) || garde(e)),
+  }));
 }

@@ -7,6 +7,7 @@ import { useExercice } from '../lib/exercice';
 import { AProposModale } from '../components/chrome/AProposModale';
 import type { PlanningCloture, RapportControles, Referentiel } from '../lib/types';
 import { fenetreDisponible } from '../lib/referentiel-fenetre';
+import { cheminAuMenu } from '../lib/profil-dossier';
 import {
   IconBalance,
   IconBanque,
@@ -242,7 +243,11 @@ export function AccueilPage() {
   const anneeExercice = exerciceCourant ? new Date(exerciceCourant.dateDebut).getFullYear() : null;
 
   const tuilesVisibles = (groupe: GroupeDef) =>
-    groupe.tuiles.filter((t) => !t.admin || estAdmin).filter((t) => fenetreDisponible(t, referentiel));
+    groupe.tuiles
+      .filter((t) => !t.admin || estAdmin)
+      .filter((t) => fenetreDisponible(t, referentiel))
+      // Même filtre de profil que la barre de menus (lib/profil-dossier.ts).
+      .filter((t) => cheminAuMenu(t.chemin, utilisateur?.tenant));
 
   const dateCourte = (iso: string) =>
     new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });

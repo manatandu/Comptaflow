@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { NatureDerogatoire } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
+import { motifRefusAmortissementNonLineaireSmt } from '../../common/systeme-minimal';
 import { FORMES_PERSONNES_PHYSIQUES } from '../retenues/correspondance-retenues';
 import { OptionDegressifDto, PasserDerogatoireDto } from './dto/immobilisation.dto';
 import {
@@ -100,8 +101,10 @@ export class DegressifService {
     if (immo.degressifFiscal) throw new ConflictException('Le dégressif fiscal est déjà retenu pour ce bien.');
     const tenant = await this.prisma.tenant.findUniqueOrThrow({
       where: { id: tenantId },
-      select: { referentiel: true, formeJuridiqueSyscohada: true },
+      select: { referentiel: true, formeJuridiqueSyscohada: true, systemeComptableSyscohada: true },
     });
+    const refusSmt = motifRefusAmortissementNonLineaireSmt(tenant, 'Le dégressif fiscal et son amortissement dérogatoire');
+    if (refusSmt) throw new BadRequestException(refusSmt);
     const refus = motifRefusOptionDegressif({
       referentiel: tenant.referentiel,
       personnePhysique: !!tenant.formeJuridiqueSyscohada && FORMES_PERSONNES_PHYSIQUES.includes(tenant.formeJuridiqueSyscohada),
@@ -135,6 +138,15 @@ export class DegressifService {
   async passer(tenantId: string, userId: string, id: string, dto: PasserDerogatoireDto) {
     const immo = await this.immo(tenantId, id);
     if (!immo.degressifFiscal) throw new BadRequestException("Ce bien n'a pas l'option du dégressif fiscal.");
+    // Une option prise avant le passage au SMT ne rouvre pas la porte · un
+    // nouveau dérogatoire serait publié en F comme un amortissement. Le solde
+    // (`solder`), lui, reste ouvert : il éteint l'historique.
+    const regime = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { referentiel: true, systemeComptableSyscohada: true },
+    });
+    const refusSmt = motifRefusAmortissementNonLineaireSmt(regime, 'Un nouvel amortissement dérogatoire');
+    if (refusSmt) throw new BadRequestException(refusSmt);
     const { plan } = await this.plan(tenantId, immo);
     const rang = plan.findIndex((l) => l.exerciceId === dto.exerciceId);
     if (rang < 0) throw new BadRequestException("Cet exercice n'est pas dans le plan fiscal du bien.");

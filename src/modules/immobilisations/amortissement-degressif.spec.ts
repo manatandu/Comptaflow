@@ -60,7 +60,7 @@ describe('le dérogatoire · écart entre annuité fiscale et dotation comptable
 });
 
 describe('DegressifService.passer', () => {
-  function monter(over: { dotations?: unknown[]; derogatoires?: unknown[] } = {}) {
+  function monter(over: { dotations?: unknown[]; derogatoires?: unknown[]; systeme?: string } = {}) {
     const creer = jest.fn(async () => ({ id: 'ecr' }));
     const create = jest.fn(async ({ data }: { data: unknown }) => data);
     const prisma = {
@@ -75,6 +75,9 @@ describe('DegressifService.passer', () => {
       exercice: { findMany: jest.fn(async () => exercices), findFirstOrThrow: jest.fn(async () => exercices[0]) },
       compte: { findUnique: jest.fn(async ({ where }: { where: { tenantId_numero: { numero: string } } }) => ({ id: where.tenantId_numero.numero })) },
       amortissementDerogatoire: { create },
+      tenant: {
+        findUniqueOrThrow: jest.fn(async () => ({ referentiel: 'SYSCOHADA', systemeComptableSyscohada: over.systeme ?? 'NORMAL' })),
+      },
     };
     return { s: new DegressifService(prisma as never, { creer } as never), creer, create };
   }
@@ -101,6 +104,12 @@ describe('DegressifService.passer', () => {
     await expect(s.passer('t', 'u', 'i', { exerciceId: 'e2027', journalId: 'od' })).rejects.toThrow(/dotation comptable/);
   });
 
+  it('refuse un nouveau dérogatoire au Système minimal de trésorerie (Titre X, linéaire)', async () => {
+    const { s, creer } = monter({ systeme: 'MINIMAL_TRESORERIE' });
+    await expect(s.passer('t', 'u', 'i', { exerciceId: 'e2026', journalId: 'od' })).rejects.toThrow(/Titre X ch\. 1 § 1/);
+    expect(creer).not.toHaveBeenCalled();
+  });
+
   it('la reprise passe 151/861', async () => {
     const { s, creer } = monter({
       dotations: [{ exerciceId: 'e2026', montant: 100_000 }, { exerciceId: 'e2027', montant: 400_000 }],
@@ -111,5 +120,30 @@ describe('DegressifService.passer', () => {
       { compteId: '15100000', debit: 80_000, credit: 0 },
       { compteId: '86100000', debit: 0, credit: 80_000 },
     ]);
+  });
+});
+
+describe('DegressifService.opter au Système minimal de trésorerie', () => {
+  it('refuse l’option, le Titre X ne connaissant que le linéaire', async () => {
+    const update = jest.fn();
+    const prisma = {
+      immobilisation: {
+        findFirst: jest.fn(async () => ({
+          id: 'i', degressifFiscal: false, amortissementAnterieur: 0, dotations: [], derogatoires: [],
+          compteImmobilisation: { numero: '24110000' },
+        })),
+        update,
+      },
+      tenant: {
+        findUniqueOrThrow: jest.fn(async () => ({
+          referentiel: 'SYSCOHADA', formeJuridiqueSyscohada: 'SARL', systemeComptableSyscohada: 'MINIMAL_TRESORERIE',
+        })),
+      },
+    };
+    const s = new DegressifService(prisma as never, {} as never);
+    await expect(
+      s.opter('t', 'i', { categorie: 'MATERIEL_INDUSTRIEL', bienNeuf: true, dureeFiscaleAns: 5 } as never),
+    ).rejects.toThrow(/Titre X ch\. 1 § 1/);
+    expect(update).not.toHaveBeenCalled();
   });
 });

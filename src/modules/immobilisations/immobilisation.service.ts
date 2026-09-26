@@ -11,6 +11,7 @@ import {
   TypeComposant,
 } from '@prisma/client';
 import { AMORTISSEMENT_SMT } from '../etats-financiers-syscohada/correspondance-smt-syscohada';
+import { motifRefusAmortissementNonLineaireSmt, motifRefusDepreciationSmt } from '../../common/systeme-minimal';
 import { FAMILLES_IMMOBILISATION_DEFAUT, FAMILLES_IMMOBILISATION_DEFAUT_SYSCOHADA } from './famille-immobilisation-seed';
 import {
   CreerFamilleDto,
@@ -379,7 +380,7 @@ export class ImmobilisationService {
   private async regimeComptable(tenantId: string) {
     return this.prisma.tenant.findUniqueOrThrow({
       where: { id: tenantId },
-      select: { referentiel: true, systemeComptableSyscohada: true },
+      select: { referentiel: true, systemeComptableSyscohada: true, jeuEtatsFinanciersSycebnl: true },
     });
   }
 
@@ -400,12 +401,10 @@ export class ImmobilisationService {
    * pour de bon, plutôt que réécrite.
    *
    * PORTÉE STRICTEMENT SYSCOHADA. Le SYCEBNL a lui aussi un Système minimal
-   * de trésorerie (Partie 4 ch. 4), mais son chapitre n'est PAS encodé dans
-   * le skill `sycebnl`, qui avertit en tête de la Partie 4 : « ne jamais
-   * reconstituer un modèle … par analogie avec le SYSCOHADA, demander les
-   * pages manquantes ». Rien n'autorise donc à lui étendre la règle : un
-   * dossier SYCEBNL garde le prorata, et le dira le jour où la source
-   * arrivera (CLAUDE.md §1 et §6).
+   * de trésorerie (Partie 4 ch. 4), désormais lu : il ne prescrit AUCUN mode
+   * d'amortissement, sa Note 1 ne demandant que la « durée d'utilité ». Rien
+   * n'autorise donc à lui étendre la règle de l'AUDCIF · un dossier SYCEBNL
+   * garde le prorata (CLAUDE.md §1 et §6, docs/audit-modules-par-profil.md).
    */
   private sansProrataTemporis(regime: {
     referentiel: Referentiel;
@@ -854,6 +853,15 @@ export class ImmobilisationService {
     const mode = dto.modeAmortissement ?? ModeAmortissement.LINEAIRE;
     const refus = ImmobilisationService.motifRefusUnitesOeuvre(mode, dto.unitesOeuvrePrevues, dto.uniteOeuvreLibelle);
     if (refus) throw new BadRequestException(refus);
+    // Le Titre X ne connaît que le linéaire · un bien aux unités d'œuvre
+    // sortirait du tableau d'amortissement que le SMT SYSCOHADA exige.
+    if (mode === ModeAmortissement.UNITES_DOEUVRE) {
+      const refusSmt = motifRefusAmortissementNonLineaireSmt(
+        await this.regimeComptable(tenantId),
+        "L'amortissement aux unités d'œuvre",
+      );
+      if (refusSmt) throw new BadRequestException(refusSmt);
+    }
 
     const immobilisation = await this.prisma.immobilisation.create({
       data: {
@@ -1669,6 +1677,12 @@ export class ImmobilisationService {
     const immo = await this.trouver(tenantId, id);
     if (immo.statut !== StatutImmobilisation.EN_SERVICE) {
       throw new BadRequestException("Cette immobilisation n'est plus en service · aucune dépréciation possible");
+    }
+    // Refus à la dotation seulement · la reprise d'une dépréciation posée
+    // avant le passage au SMT solde l'historique, elle n'en crée pas.
+    if (dto.sens === SensDepreciation.DOTATION) {
+      const refusSmt = motifRefusDepreciationSmt(await this.regimeComptable(tenantId));
+      if (refusSmt) throw new BadRequestException(refusSmt);
     }
     const exercice = await this.prisma.exercice.findFirst({ where: { id: dto.exerciceId, tenantId } });
     if (!exercice) throw new BadRequestException('Exercice introuvable pour ce tenant');

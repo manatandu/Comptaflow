@@ -52,7 +52,13 @@ type Ligne = { compteId: string; debit: number; credit: number };
 
 function harnais(
   b: Bien,
-  options: { compte29?: string; compteImmobilisation?: string; referentiel?: Referentiel } = {},
+  options: {
+    compte29?: string;
+    compteImmobilisation?: string;
+    referentiel?: Referentiel;
+    /** Système minimal de trésorerie, au référentiel choisi. */
+    smt?: boolean;
+  } = {},
 ) {
   const exercice = b.exercice ?? { dateDebut: '2026-01-01', dateFin: '2026-12-31' };
   const ecrituresPostees: Array<{ libelle: string; lignes: Ligne[] }> = [];
@@ -91,7 +97,15 @@ function harnais(
         referentiel: options.referentiel ?? Referentiel.SYSCOHADA,
         systemeComptableSyscohada:
           (options.referentiel ?? Referentiel.SYSCOHADA) === Referentiel.SYSCOHADA
-            ? SystemeComptableSyscohada.NORMAL
+            ? options.smt
+              ? SystemeComptableSyscohada.MINIMAL_TRESORERIE
+              : SystemeComptableSyscohada.NORMAL
+            : null,
+        jeuEtatsFinanciersSycebnl:
+          options.referentiel === Referentiel.SYCEBNL
+            ? options.smt
+              ? 'SYSTEME_MINIMAL_TRESORERIE'
+              : 'ASSOCIATIONS_ORDRES_PROFESSIONNELS'
             : null,
       }),
     },
@@ -415,5 +429,30 @@ describe('la sortie solde le compte 29 par une REPRISE, sans toucher au compte 8
     });
     expect(lignes.find((l) => l.compteId === 'n81800000')!.debit).toBe(2_800_000);
     expect(lignes.find((l) => l.compteId === 'n79520000')!.credit).toBe(1_600_000);
+  });
+});
+
+describe('le Système minimal de trésorerie n’a pas de poste de dépréciation', () => {
+  const bien = { valeurOrigine: 10_000_000, dureeAns: 5, dateMiseEnService: '2023-01-15', dotations: [6_000_000] };
+
+  it.each([Referentiel.SYSCOHADA, Referentiel.SYCEBNL])('%s · la dotation est refusée, rien n’est posté', async (referentiel) => {
+    const { svc, ecrituresPostees } = harnais(bien, { referentiel, smt: true });
+    await expect(svc.enregistrerDepreciation('t1', 'u1', 'i1', DEPRECIATION as never)).rejects.toThrow(
+      referentiel === Referentiel.SYCEBNL ? /Partie 4 ch\. 4/ : /Titre X ch\. 2/,
+    );
+    expect(ecrituresPostees).toHaveLength(0);
+  });
+
+  it('la reprise d’une dépréciation antérieure au passage au SMT reste ouverte', async () => {
+    const { svc, ecrituresPostees } = harnais(
+      { ...bien, depreciations: [{ sens: SensDepreciation.DOTATION, montant: 1_600_000, dateFin: '2025-12-31' }] },
+      { smt: true },
+    );
+    await svc.enregistrerDepreciation('t1', 'u1', 'i1', {
+      ...DEPRECIATION,
+      sens: SensDepreciation.REPRISE,
+      montant: 500_000,
+    } as never);
+    expect(ecrituresPostees).toHaveLength(1);
   });
 });

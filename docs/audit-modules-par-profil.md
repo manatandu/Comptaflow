@@ -25,8 +25,8 @@ chiffre faux sans rien dire.
   dans l'autre.
 - **S** · sans objet · retiré du menu, route laissée ouverte, données
   conservées.
-- **C** · contraire au système · retiré du menu ET refusé au serveur pour toute
-  création nouvelle ; lecture et historique conservés.
+- **C** · contraire au système · refusé au serveur pour toute création
+  nouvelle ; lecture et historique conservés.
 - **R** · déjà cloisonné par référentiel (§ 6 de CLAUDE.md), rien à changer.
 
 ## Ce que l'audit a trouvé avant le tableau
@@ -41,16 +41,18 @@ chiffre faux sans rien dire.
    Titre X ch. 1 § 1) ; OmegaX le tient dans les comptes. **Masquer les tiers,
    la facturation ou la variation de stocks à un SMT viderait sa Note 3 et ses
    lignes de variation sans qu'aucun total ne bouge.** Ils restent.
-2. **Deux défauts muets au SMT SYSCOHADA, aujourd'hui.**
-   - Le Titre X ch. 1 § 1 veut « un tableau d'amortissement basé sur le mode
-     LINÉAIRE SANS PRORATA TEMPORIS ». Le module des immobilisations applique la
-     règle du Système normal (prorata) à tout dossier : la ligne F est fausse la
-     première année de chaque bien.
-   - La ligne F s'intitule « DOTATIONS AMORTISSEMENTS » et OmegaX y range les
-     68, 69 et 85 (`COMPTES_DOTATIONS_SMT_SYSCOHADA`). Une provision ou un
-     amortissement dérogatoire y est donc publié comme un amortissement. Aucun
-     des deux modèles SMT ne porte de poste de provision, de dépréciation ni de
-     provision réglementée. Au SYCEBNL, JG ne lit que le 68.
+2. **Ligne F du SMT SYSCOHADA · ce que le code a corrigé dans l'audit.**
+   - Le prorata : l'audit l'annonçait faux. C'était inexact · le module des
+     immobilisations applique déjà le « linéaire sans prorata temporis » du
+     Titre X ch. 1 § 1 à un dossier SMT SYSCOHADA (`sansProrataTemporis`).
+     Rien à corriger.
+   - Les 69 et 85 lus en F : c'est VOULU, et les retirer aurait été un défaut.
+     `composantesEcartConcordance` s'en sert pour que G égale le résultat du
+     bilan ; retirés, une dotation déjà passée resterait sans ligne et G
+     divergerait. La décision 3 est donc tenue À LA SOURCE · OmegaX refuse
+     désormais de proposer une dépréciation ou un dérogatoire à un SMT (voir
+     « Ce qui a été codé »). Une écriture passée à la main sur un 69 ou un 85
+     reste lue en F, et c'est le bon comportement pour que l'état boucle.
 3. **Le mode d'amortissement du SMT SYCEBNL n'est écrit nulle part.** La Note 1
    ne demande que la « durée d'utilité ». La règle « sans prorata » est celle du
    Titre X de l'AUDCIF · la transposer serait le premier piège du dépôt. Non
@@ -79,10 +81,10 @@ chiffre faux sans rien dire.
 | Lots de virements, ordres de virement | U | U | S | U | S | Décision d'OmegaX, aucun texte |
 | Échéancier de trésorerie | U | U | S | U | S | Décision d'OmegaX |
 | Régularisations (CCA, CAP, PAR) et abonnements | U | U | **S** | U | **S** | Fait générateur à l'encaissement (SYCEBNL P4 ch. 1 § 1.3) ; créances et dettes en inventaire extra-comptable (Titre X). S et non C · voir question 1 |
-| Registre des provisions pour risques et charges | U | U | **C** | U | **C** | Aucun poste dans les deux modèles SMT ; ligne F / JG réservée aux amortissements (constat 2) |
-| Dépréciation des immobilisations | U | U | **C** | U | **C** | Même raison |
+| Registre des provisions pour risques et charges | U | U | S | U | S | Aucun poste dans les deux modèles SMT. Le registre ne passe aucune écriture · il se masque, il n'y a rien à refuser |
+| Dépréciation des immobilisations | U | U | **C** | U | **C** | Aucun poste de dépréciation dans les deux modèles SMT ; la dotation y serait lue comme un amortissement |
 | Immobilisations · registre et amortissement linéaire | U | U | U | U | U | Note 1 des deux SMT |
-| Prorata temporis | U | U | ? | U | **C** | Titre X ch. 1 § 1 · « sans prorata temporis ». Correction du CALCUL, pas un refus (question 2). Sb non tranché (constat 3) |
+| Prorata temporis | U | U | ? | U | déjà sans | Titre X ch. 1 § 1 · déjà appliqué par le module (constat 2). Sb non tranché (constat 3) |
 | Amortissement aux unités d'œuvre | U | U | ? | U | **C** | Titre X · mode linéaire seul |
 | Composants, révisions majeures | U | U | S | U | S | La Note 1 SMT ne connaît que le bien |
 | Dégressif fiscal et dérogatoire | R | R | R | U | **C** | Titre X linéaire ; aucun poste de provision réglementée ; le 85 entrerait en F |
@@ -111,31 +113,21 @@ chiffre faux sans rien dire.
 | Devises et réévaluation, monnaie fonctionnelle | F | U | S | F | S | Aucun écart de conversion dans les modèles SMT |
 | Journal d'audit, restitution, utilisateurs, paramètres | U | U | U | U | U | Socle |
 
-## Bilan du tableau
+## Ce qui a été codé (décision « Go » du 2026-09-26)
 
-- **Refus au serveur (C)** · cinq modules, tous au SMT : provisions,
-  dépréciation, prorata (correction de calcul), unités d'œuvre, dégressif et
-  dérogatoire. Deux d'entre eux faussent déjà un état publié (constat 2).
-- **Masques (S)** · une quinzaine d'entrées au SMT, dont tout le pilotage, la
-  révision et les moyens de paiement avancés. C'est là que le menu d'une
-  petite entité s'allège.
-- **Faits (F)** · la paie, la TVA, la facturation d'une ASBL, les
-  exonérations, le groupe. `Tenant.assujettiTva` et `Tenant.effectifPermanent`
-  existent ; « vend » et « ONG étrangère » sont à lire dans ce que le dossier
-  porte déjà (forme, accord-cadre) avant d'ajouter un champ.
-- **Aucune donnée supprimée.** Un dossier qui passe du SMT au Système normal
-  retrouve ses menus ; les refus ne portent que sur une création nouvelle.
-
-## Trois décisions à prendre avant de coder
-
-1. **Régularisations au SMT · masquer (S, recommandé) ou refuser (C) ?** Le
-   texte place le fait générateur à l'encaissement, donc une charge à payer y
-   est contraire à la lettre. Mais OmegaX tient déjà les factures à
-   l'engagement pour nourrir la Note 3 (constat 1) : refuser la CAP en
-   laissant passer la facture serait incohérent.
-2. **Amortissement du SMT SYSCOHADA sans prorata · corriger le calcul
-   (recommandé).** Les dotations déjà passées au journal ne sont pas touchées ;
-   seules les dotations à venir et l'état suivent le Titre X.
-3. **Ligne F / JG · retirer 69 et 85 de la ligne des amortissements** et
-   refuser les provisions au SMT (recommandé), plutôt que de publier une
-   provision sous le nom d'un amortissement.
+- **Refus au serveur** (`src/common/systeme-minimal.ts`) · la DOTATION d'une
+  dépréciation d'immobilisation aux deux SMT (sa reprise reste ouverte) ; au
+  SMT SYSCOHADA seul, la création d'un bien aux unités d'œuvre, l'option du
+  dégressif fiscal et tout nouveau dérogatoire (le solde du dérogatoire
+  antérieur reste ouvert).
+- **Masques** (`client/src/lib/profil-dossier.ts`) · les entrées « S » des
+  colonnes Sb et So, aux menus et aux tuiles de l'accueil. La route reste
+  ouverte ; rien n'est supprimé.
+- **Non codé, et pourquoi** · les colonnes « F » (selon un fait) ne masquent
+  rien : les masquer par profil serait faux. Les sous-fonctions « S » à
+  l'intérieur d'une fenêtre (lots de virements, composants) restent
+  visibles · leur fenêtre est utile, le reste est un raffinement.
+- **Une hypothèse de l'audit ne tient pas** · « un dossier qui passe du SMT au
+  Système normal retrouve ses menus » : le système comptable se verrouille
+  dès la première écriture (`TenantService`). Les masques restent réversibles
+  sur un dossier encore vide.

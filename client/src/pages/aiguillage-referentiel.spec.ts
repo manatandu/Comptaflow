@@ -110,8 +110,8 @@ describe('plus rien n\'est « en construction » côté SYSCOHADA', () => {
     // troisième fois, on le corrige sans le lire. La forme ci-dessous ne
     // retient que l'INTENTION · l'entrée existe et mène où il faut. Le
     // séparateur, lui, n'a jamais été le sujet.
-    expect(appShell).toContain("{ label: 'États financiers', onClick: () => navigate('/etats-financiers') }");
-    expect(appShell).toContain("{ label: 'Notes annexes', onClick:");
+    expect(appShell).toContain("{ label: 'États financiers', chemin: '/etats-financiers', onClick: () => navigate('/etats-financiers') }");
+    expect(appShell).toContain("{ label: 'Notes annexes', chemin: '/notes-annexes', onClick:");
     expect(appShell).not.toMatch(/estSycebnl[\s\S]{0,40}label: '(États financiers|Notes annexes)'/);
     expect(appShell).not.toContain('à venir');
     // DEPUIS LE 2026-09-02 · la fenêtre n'est plus réservée au SYCEBNL. Elle
@@ -121,7 +121,7 @@ describe('plus rien n\'est « en construction » côté SYSCOHADA', () => {
     // rapport de gestion à toute société commerciale. Chaque document est
     // désormais lu dans SON texte, aucun n'est transposé (voir
     // correspondance-inventaire-syscohada.ts côté serveur).
-    expect(appShell).toContain("{ label: 'Documents obligatoires', onClick:");
+    expect(appShell).toContain("{ label: 'Documents obligatoires', chemin: '/documents-obligatoires', onClick:");
     expect(appShell).not.toMatch(/estSycebnl[\s\S]{0,40}label: 'Documents obligatoires'/);
     const registre = lireClient('lib/registre-fenetres.tsx');
     const bloc = /motif: \/\^\\\/documents-obligatoires\$\/,[\s\S]*?\},/.exec(registre);
