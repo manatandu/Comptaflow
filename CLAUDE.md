@@ -2649,8 +2649,7 @@ D4C / IFRS NOMMÉS, JAMAIS CORRIGÉS EN SILENCE · l'écart d'acquisition amorti
 (IFRS 3 § 34) rendent le jeu non publiable tant qu'aucun retraitement ne touche
 leur rubrique ; les écarts de conversion portés en capitaux propres (IAS 21
 § 39 c et § 41, OCI avec la part des minoritaires) ne sont pas servis. NON
-SERVIS ET DITS sur le jeu (`MOTIFS_CONSOLIDES_NON_SERVIS`) · variation des
-capitaux propres avec sa colonne des minoritaires (§ 107 a),
+SERVIS ET DITS sur le jeu (`MOTIFS_CONSOLIDES_NON_SERVIS`) ·
 notes dont IFRS 12 (§ 113 b), première application consolidée (un ajustement de
 transition consolidé est refusé à la porte).
 
@@ -2676,6 +2675,24 @@ DÉCLARENT À PART (`ParametresIfrs.tresorerieGroupeEnDevises`), et l'effet de
 change consolidé porte `consolide` dans sa clé · jamais lu pour l'individuel.
 Une déclaration de trésorerie partielle ne remet pas les autres à null. Le
 comparatif exige une consolidation N-2.
+
+**États IFRS consolidés, tranche C3 · la variation des capitaux propres
+(2026-09-26).** `construireVariationCapitauxPropresConsolidee`. Source lue ·
+IFRS 18 § 107 a et c iii, IFRS 10 § B94. QUATRE RÈGLES À NE PAS DÉFAIRE. (1)
+LE MÊME MOTEUR QUE LES COMPTES INDIVIDUELS (`bloc`), avec une composante de
+plus · la colonne des participations ne donnant pas le contrôle, et le total
+des propriétaires de la société mère à côté du total (§ 107 a). (2) LES
+ATTRIBUTIONS SONT LUES, JAMAIS RECALCULÉES · résultat net par RN_PROPRIETAIRES
+et RN_PARTICIPATIONS…, autres éléments par la différence avec RG_… (§ 76,
+§ 87). (3) LES MOUVEMENTS DU GROUPE SE DÉCLARENT À PART (`consolide` sur
+`MouvementCapitauxPropresIfrs`), jamais lus pour le dossier ni l'inverse · un
+dividende versé aux minoritaires est une DISTRIBUTION sur leur composante, et
+une variation de parts d'intérêts sans perte du contrôle
+(`VARIATION_PARTS_INTERETS`) a sa ligne. Les deux sont refusés aux comptes
+individuels, à la porte et au calcul (`motifRefusMouvementCp(m, consolide)`).
+(4) DEUX BLOCS · le comparatif part de la clôture N-2 consolidée, et sans elle
+il n'est pas rendu, avec son motif. Les écarts de conversion (IAS 21 § 41,
+non servis) ressortent en « écart non expliqué ».
 
 **Tableau des flux SYSCOHADA · le compte trop agrégé, que « non ventilé »
 ne voyait pas (2026-09-25).** Trouvé en passant au moteur la balance d'un

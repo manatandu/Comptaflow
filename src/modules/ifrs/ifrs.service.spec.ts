@@ -115,7 +115,10 @@ function doublure(avecPrecedent = false, avecAvantPrecedent = false, balancesPro
       }),
     },
     mouvementCapitauxPropresIfrs: {
-      findMany: jest.fn(async ({ where }: any) => tables.mouvements.filter((m) => m.exerciceId === where.exerciceId && m.tenantId === where.tenantId)),
+      // La doublure HONORE `consolide` · un mouvement du groupe ne doit jamais se lire dans les comptes individuels.
+      findMany: jest.fn(async ({ where }: any) =>
+        tables.mouvements.filter((m) => m.exerciceId === where.exerciceId && m.tenantId === where.tenantId && (m.consolide ?? false) === where.consolide),
+      ),
       findFirst: jest.fn(async ({ where }: any) => tables.mouvements.find((m) => m.id === where.id && m.tenantId === where.tenantId) ?? null),
       create: jest.fn(async ({ data }: any) => {
         const m = { id: `m-${++seq}`, createdAt: new Date(), ...data, montant: new Prisma.Decimal(data.montant) };
@@ -942,6 +945,38 @@ describe('IfrsService · tableau des flux IFRS consolidé (tranche C2)', () => {
   it('un groupe déclaré sans devises refuse un effet de change consolidé', async () => {
     const d = await dossierFluxConsolide();
     await expect(d.service.declarerEffetChange(T, { exerciceId: EX, montant: 5, categorie: 'FINANCEMENT', justification: 'x', consolide: true })).rejects.toThrow(/du groupe est déclarée sans devises/);
+  });
+});
+
+describe('IfrsService · variation des capitaux propres consolidée (tranche C3)', () => {
+  it('le bloc N rapproche les deux consolidations, le résultat du groupe explique la variation', async () => {
+    const { service } = await dossierFluxConsolide();
+    const v = (await service.etatConsolide(T, EX)).variationCapitauxPropres!;
+    const L = (cle: string) => v.n!.lignes.find((l: { cle: string }) => l.cle === cle);
+    expect(L('OUVERTURE_RETRAITEE')).toMatchObject({ groupe: 1000, minoritaires: 0 });
+    expect(L('RESULTAT_NET')).toMatchObject({ groupe: 300, total: 300 });
+    expect(L('CLOTURE')).toMatchObject({ groupe: 1300, total: 1300 });
+    expect(L('ECART_NON_EXPLIQUE')).toBeUndefined();
+    expect(v.motifN1).toMatch(/^Le bloc comparatif part de la clôture N-2 · /);
+  });
+
+  it('un mouvement du groupe ne se lit jamais dans les comptes individuels, ni l’inverse', async () => {
+    const d = await dossierFluxConsolide();
+    const base = { exerciceId: EX, type: 'DISTRIBUTION' as const, composante: 'RESERVES' as const, montant: -50, justification: 'PV AGO' };
+    await d.service.ajouterMouvementCp(T, { ...base, libelle: 'Dividende du groupe', consolide: true });
+    await d.service.ajouterMouvementCp(T, { ...base, montant: -70, libelle: 'Dividende de la mère' });
+    const c = (await d.service.etatConsolide(T, EX)).variationCapitauxPropres!;
+    expect(c.mouvements.map((m: any) => m.libelle)).toEqual(['Dividende du groupe']);
+    expect(c.n!.lignes.find((l: { cle: string }) => l.cle === 'DISTRIBUTIONS')!.total).toBe(-50);
+    expect(d.tables.mouvements.map((m: any) => m.consolide)).toEqual([true, false]);
+  });
+
+  it('la porte refuse les minoritaires aux comptes individuels et les accepte au consolidé', async () => {
+    const d = await dossierFluxConsolide();
+    const m = { exerciceId: EX, type: 'DISTRIBUTION' as const, composante: 'MINORITAIRES' as const, montant: -15, libelle: 'Dividende aux minoritaires', justification: 'PV' };
+    await expect(d.service.ajouterMouvementCp(T, m)).rejects.toThrow(/n’existent que dans les comptes consolidés/);
+    await d.service.ajouterMouvementCp(T, { ...m, consolide: true });
+    expect(d.tables.mouvements).toHaveLength(1);
   });
 });
 

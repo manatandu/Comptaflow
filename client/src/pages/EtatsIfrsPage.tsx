@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { NotesIfrs, NotesIfrsServies } from '../components/NotesIfrs';
 import { EtatsIfrsConsolides } from '../components/EtatsIfrsConsolides';
+import { VariationCapitauxPropresIfrs, VariationServie } from '../components/VariationCapitauxPropresIfrs';
 import { DeclarationEffetChange, EffetChange, FluxServi, TableauFluxIfrs } from '../components/FluxTresorerieIfrs';
 import { Aide } from '../components/chrome/Aide';
 
@@ -40,17 +41,6 @@ import { Aide } from '../components/chrome/Aide';
  * pas le contrôle. Les deux vues ne partagent aucun retraitement.
  */
 type Rubrique = { code: string; libelle: string; ref: string; etat: 'SITUATION' | 'RESULTAT' | 'RESULTAT_GLOBAL'; section?: string; categorie?: string };
-type LigneVariation = { cle: string; libelle: string; ref?: string; nature: 'SOLDE' | 'MOUVEMENT' | 'TOTAL' | 'ECART'; capital: number; reserves: number; autres: number; total: number };
-type Variation = { lignes: LigneVariation[]; mentions: string[]; motifsNonPubliable: string[] };
-type TypeMouvement = 'CHANGEMENT_METHODE' | 'CORRECTION_ERREUR' | 'APPORT' | 'DISTRIBUTION' | 'TRANSFERT';
-type Composante = 'CAPITAL' | 'RESERVES' | 'AUTRES_COMPOSANTES';
-const TYPES_MOUVEMENT: Record<TypeMouvement, string> = {
-  APPORT: 'Apport des propriétaires (§ 107 c iii)',
-  DISTRIBUTION: 'Distribution aux propriétaires (§ 107 c iii)',
-  TRANSFERT: 'Transfert entre composantes',
-  CHANGEMENT_METHODE: 'Changement de méthode comptable (§ 107 b, IAS 8)',
-  CORRECTION_ERREUR: 'Correction d’erreur (§ 107 b, IAS 8)',
-};
 type Ligne = {
   cle: string;
   libelle: string;
@@ -108,14 +98,7 @@ type Etat = {
   n: Etats;
   n1: Etats | null;
   motifN1: string | null;
-  variationCapitauxPropres: {
-    composantes: Record<Composante, { libelle: string }>;
-    n: Variation | null;
-    motifN: string | null;
-    n1: Variation | null;
-    motifN1: string | null;
-    mouvements: { id: string; type: TypeMouvement; composante: Composante; montant: number; libelle: string; justification: string }[];
-  };
+  variationCapitauxPropres: VariationServie;
 };
 
 const champ = 'w-full border border-border px-1.5 py-1 text-[11.5px]';
@@ -155,7 +138,6 @@ function EtatsIfrsIndividuels() {
   const [etat, setEtat] = useState<Etat | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [regle, setRegle] = useState({ prefixe: '', rubrique: '' });
-  const [mvt, setMvt] = useState({ type: 'DISTRIBUTION' as TypeMouvement, composante: 'RESERVES' as Composante, montant: '', libelle: '', justification: '' });
   const retrVide = { libelle: '', fondement: '', aLaTransition: false, correctionErreur: false, lignes: [{ rubrique: '', montant: '' }, { rubrique: '', montant: '' }] };
   const [retr, setRetr] = useState(retrVide);
 
@@ -240,45 +222,6 @@ function EtatsIfrsIndividuels() {
   };
 
   const vcp = etat.variationCapitauxPropres;
-  const blocVariation = (titre: string, v: Variation | null, motif: string | null) => (
-    <div className="mb-2">
-      <p className="text-[11.5px] font-semibold mb-1">{titre}</p>
-      {!v ? (
-        <p className="text-[11.5px] text-warning">{motif}</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-[11.5px]">
-            <thead>
-              <tr className="text-left border-b border-border">
-                <th className="py-1 pr-2">Mouvement</th>
-                <th className="py-1 pr-2">IFRS 18</th>
-                <th className="py-1 pr-2 text-right">{vcp.composantes.CAPITAL.libelle}</th>
-                <th className="py-1 pr-2 text-right">{vcp.composantes.RESERVES.libelle}</th>
-                <th className="py-1 pr-2 text-right">{vcp.composantes.AUTRES_COMPOSANTES.libelle}</th>
-                <th className="py-1 text-right">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {v.lignes.map((l) => (
-                <tr
-                  key={l.cle}
-                  className={l.nature === 'ECART' ? 'text-danger font-semibold' : l.nature === 'MOUVEMENT' ? 'border-b border-border/40' : 'font-bold border-t border-border'}
-                >
-                  <td className="py-1 pr-2">{l.libelle}</td>
-                  <td className="py-1 pr-2 text-text-dim">{l.ref}</td>
-                  <td className="py-1 pr-2 text-right">{fc(l.capital)}</td>
-                  <td className="py-1 pr-2 text-right">{fc(l.reserves)}</td>
-                  <td className="py-1 pr-2 text-right">{fc(l.autres)}</td>
-                  <td className="py-1 text-right">{fc(l.total)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-
   const listeRetraitement = (x: Retraitement) => (
     <div key={x.id} className="border-b border-border/60 py-1 text-[11.5px]">
       <div className="flex justify-between gap-2">
@@ -543,56 +486,14 @@ function EtatsIfrsIndividuels() {
       {tableau('État présentant le résultat global', etat.n.resultatGlobal, etat.n1?.resultatGlobal ?? null)}
       {etat.motifN1 && <p className="text-[11.5px] text-text-dim mb-2">{etat.motifN1}</p>}
 
-      <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[11.5px] font-bold mb-1.5">État des variations des capitaux propres (IFRS 18 § 107 à 112)</h2>
-        {blocVariation('Exercice N', vcp.n, vcp.motifN)}
-        {blocVariation('Exercice N-1 (comparatif, § 10 f)', vcp.n1, vcp.motifN1)}
-        <p className="text-[11.5px] font-semibold mt-2 mb-1">Mouvements déclarés de l’exercice</p>
-        {peutEcrire && (
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_140px] gap-1.5 mb-1.5">
-            <select className={champ} value={mvt.type} onChange={(e) => setMvt({ ...mvt, type: e.target.value as TypeMouvement })}>
-              {(Object.keys(TYPES_MOUVEMENT) as TypeMouvement[]).map((t) => (
-                <option key={t} value={t}>{TYPES_MOUVEMENT[t]}</option>
-              ))}
-            </select>
-            <select className={champ} value={mvt.composante} onChange={(e) => setMvt({ ...mvt, composante: e.target.value as Composante })}>
-              {(Object.keys(vcp.composantes) as Composante[]).map((c) => (
-                <option key={c} value={c}>{vcp.composantes[c].libelle}</option>
-              ))}
-            </select>
-            <input className={champ} placeholder="Hausse + / baisse −" value={mvt.montant} onChange={(e) => setMvt({ ...mvt, montant: e.target.value })} />
-            <input className={champ} placeholder="Libellé" value={mvt.libelle} onChange={(e) => setMvt({ ...mvt, libelle: e.target.value })} />
-            <input className={champ} placeholder="Justification (procès-verbal, décision, note IAS 8)" value={mvt.justification} onChange={(e) => setMvt({ ...mvt, justification: e.target.value })} />
-            <button
-              className="border border-border px-2.5 py-1 text-[11.5px]"
-              onClick={() =>
-                void agir(async () => {
-                  await api.post('/ifrs/mouvements-capitaux-propres', { exerciceId, ...mvt, montant: nombre(mvt.montant) });
-                  setMvt({ ...mvt, montant: '', libelle: '', justification: '' });
-                })
-              }
-            >
-              Déclarer
-            </button>
-          </div>
-        )}
-        {vcp.mouvements.length === 0 ? (
-          <p className="text-[11.5px] text-text-dim">Aucun mouvement déclaré · la variation n’est expliquée que par le résultat global.</p>
-        ) : (
-          vcp.mouvements.map((m) => (
-            <div key={m.id} className="flex justify-between gap-2 border-b border-border/60 py-1 text-[11.5px]">
-              <span>
-                <strong>{m.libelle}</strong> · {TYPES_MOUVEMENT[m.type]} · {vcp.composantes[m.composante].libelle} · {fc(m.montant)} · {m.justification}
-              </span>
-              {peutEcrire && (
-                <button className="text-[11px] underline" onClick={() => void agir(() => api.delete(`/ifrs/mouvements-capitaux-propres/${m.id}`))}>
-                  Retirer
-                </button>
-              )}
-            </div>
-          ))
-        )}
-      </section>
+      <VariationCapitauxPropresIfrs
+        titre="État des variations des capitaux propres (IFRS 18 § 107 à 112)"
+        vcp={vcp}
+        consolide={false}
+        exerciceId={exerciceId}
+        peutEcrire={peutEcrire}
+        agir={agir}
+      />
 
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
         <h2 className="text-[11.5px] font-bold mb-1.5">État des flux de trésorerie (IAS 7, modifiée par IFRS 18)</h2>

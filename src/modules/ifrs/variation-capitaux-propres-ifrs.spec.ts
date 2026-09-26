@@ -1,6 +1,6 @@
 import { construireEtatsIfrs, LigneLegale, RefusIfrs, RegleCorrespondance, RetraitementDeclare } from './etats-ifrs';
 import { motifRefusRegle } from './rubriques-ifrs';
-import { construireVariationCapitauxPropres, motifRefusMouvementCp, MouvementCpDeclare } from './variation-capitaux-propres-ifrs';
+import { construireVariationCapitauxPropres, construireVariationCapitauxPropresConsolidee, motifRefusMouvementCp, MouvementCpDeclare } from './variation-capitaux-propres-ifrs';
 
 /**
  * TRANCHE 2 · état présentant le résultat global et état des variations des
@@ -139,5 +139,63 @@ describe('état des variations des capitaux propres · § 107 à 112', () => {
     expect(motifRefusMouvementCp(mvt({ type: 'DISTRIBUTION', montant: 10 }))).toMatch(/son montant est négatif/);
     expect(motifRefusMouvementCp(mvt({ justification: ' ' }))).toMatch(/sans justification/);
     expect(() => construireVariationCapitauxPropres(cloture, ouverture, [mvt({ montant: 0 })])).toThrow(/sans montant/);
+  });
+});
+
+describe('variation des capitaux propres consolidée · la colonne des minoritaires (§ 107 a, IFRS 10 § B94)', () => {
+  // États consolidés chiffrés à la main · les attributions sont LUES sur l'état
+  // du résultat global. Ouverture · capital 500, réserves 300, minoritaires 100.
+  // Clôture · résultat du groupe 200 et OCI 10, minoritaires 100 + 40 + 5 − 15.
+  const etatConso = (x: { reserves: number; resultat: number; oci: number; nci: number; rn?: [number, number]; rg?: [number, number] }) =>
+    ({
+      situation: [
+        { cle: 'SF_CAPITAL', ifrs: 500 }, { cle: 'SF_RESERVES', ifrs: x.reserves }, { cle: 'SF_RESULTAT', ifrs: x.resultat },
+        { cle: 'SF_OCI_EXERCICE', ifrs: x.oci }, { cle: 'SF_PARTICIPATIONS_NE_DONNANT_PAS_CONTROLE', ifrs: x.nci },
+      ],
+      resultat: [
+        { cle: 'RN_PROPRIETAIRES', ifrs: x.rn?.[0] ?? 0 }, { cle: 'RN_PARTICIPATIONS_NE_DONNANT_PAS_CONTROLE', ifrs: x.rn?.[1] ?? 0 },
+      ],
+      resultatGlobal: [
+        { cle: 'RG_PROPRIETAIRES', ifrs: x.rg?.[0] ?? 0 }, { cle: 'RG_PARTICIPATIONS_NE_DONNANT_PAS_CONTROLE', ifrs: x.rg?.[1] ?? 0 },
+      ],
+    }) as any;
+  const OUV = etatConso({ reserves: 300, resultat: 0, oci: 0, nci: 100 });
+  const CLO = etatConso({ reserves: 300, resultat: 200, oci: 10, nci: 130, rn: [200, 40], rg: [210, 45] });
+  const DIV_NCI: MouvementCpDeclare = { type: 'DISTRIBUTION', composante: 'MINORITAIRES', montant: -15, libelle: 'Dividende de la filiale aux minoritaires', justification: 'PV AGO filiale' };
+  const L = (v: ReturnType<typeof construireVariationCapitauxPropresConsolidee>, cle: string) => v.lignes.find((l) => l.cle === cle);
+
+  it('le résultat et les autres éléments se répartissent comme l’état du résultat global les attribue, la clôture boucle', () => {
+    const v = construireVariationCapitauxPropresConsolidee(CLO, OUV, [DIV_NCI]);
+    expect(L(v, 'RESULTAT_NET')).toMatchObject({ reserves: 200, groupe: 200, minoritaires: 40, total: 240 });
+    expect(L(v, 'OCI')).toMatchObject({ autres: 10, minoritaires: 5 });
+    expect(L(v, 'DISTRIBUTIONS')).toMatchObject({ groupe: 0, minoritaires: -15, total: -15 });
+    expect(L(v, 'CLOTURE')).toMatchObject({ groupe: 1010, minoritaires: 130, total: 1140 });
+    expect(L(v, 'ECART_NON_EXPLIQUE')).toBeUndefined();
+    expect(v.motifsNonPubliable).toEqual([]);
+  });
+
+  it('un dividende des minoritaires non déclaré reste un écart, dans leur colonne', () => {
+    const v = construireVariationCapitauxPropresConsolidee(CLO, OUV, []);
+    expect(L(v, 'ECART_NON_EXPLIQUE')).toMatchObject({ groupe: 0, minoritaires: -15 });
+    expect(v.motifsNonPubliable.join(' ')).toContain('participations ne donnant pas le contrôle -15');
+  });
+
+  it('§ 107 c iii · une variation de parts d’intérêts sans perte du contrôle a sa ligne', () => {
+    const achat: MouvementCpDeclare[] = [
+      { type: 'VARIATION_PARTS_INTERETS', composante: 'MINORITAIRES', montant: -20, libelle: 'Rachat de 5 % aux minoritaires', justification: 'Acte de cession' },
+      { type: 'VARIATION_PARTS_INTERETS', composante: 'RESERVES', montant: -4, libelle: 'Surcoût du rachat', justification: 'Acte de cession' },
+    ];
+    const clo = etatConso({ reserves: 296, resultat: 200, oci: 10, nci: 110, rn: [200, 40], rg: [210, 45] });
+    const v = construireVariationCapitauxPropresConsolidee(clo, OUV, [DIV_NCI, ...achat]);
+    expect(L(v, 'VARIATIONS_PARTS_INTERETS')).toMatchObject({ reserves: -4, minoritaires: -20, total: -24 });
+    expect(L(v, 'ECART_NON_EXPLIQUE')).toBeUndefined();
+  });
+
+  it('les comptes individuels n’ont ni minoritaires ni variation de parts d’intérêts, et n’en montrent pas la colonne', () => {
+    expect(motifRefusMouvementCp(DIV_NCI)).toMatch(/n’existent que dans les comptes consolidés/);
+    expect(motifRefusMouvementCp({ ...DIV_NCI, composante: 'RESERVES', type: 'VARIATION_PARTS_INTERETS', montant: -3 })).toMatch(/§ 107 c iii/);
+    expect(motifRefusMouvementCp(DIV_NCI, true)).toBeNull();
+    const ind = construireVariationCapitauxPropres(CLO, OUV, []);
+    expect(ind.lignes.some((l) => 'minoritaires' in l || l.cle === 'VARIATIONS_PARTS_INTERETS')).toBe(false);
   });
 });

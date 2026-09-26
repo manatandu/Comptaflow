@@ -7091,13 +7091,18 @@ enum TypeMouvementCpIfrs {
   APPORT
   DISTRIBUTION
   TRANSFERT
+  /// IFRS 18 § 107 c iii · comptes consolidés seulement.
+  VARIATION_PARTS_INTERETS
 }
 
-/// Les composantes du § 111 que le jeu d'OmegaX distingue.
+/// Les composantes du § 111 que le jeu d'OmegaX distingue, plus la colonne
+/// des participations ne donnant pas le contrôle des comptes consolidés
+/// (§ 107 a).
 enum ComposanteCpIfrs {
   CAPITAL
   RESERVES
   AUTRES_COMPOSANTES
+  MINORITAIRES
 }
 
 /// Un mouvement de capitaux propres DÉCLARÉ · jamais déduit d'une différence
@@ -7114,6 +7119,9 @@ model MouvementCapitauxPropresIfrs {
   montant       Decimal             @db.Decimal(18, 2)
   libelle       String
   justification String
+  /// Mouvement des capitaux propres CONSOLIDÉS · jamais lu pour les comptes
+  /// individuels, ni l'inverse, comme les retraitements.
+  consolide     Boolean             @default(false)
   createdAt     DateTime            @default(now())
 
   @@index([tenantId, exerciceId])

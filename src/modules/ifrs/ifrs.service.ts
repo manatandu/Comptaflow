@@ -37,7 +37,13 @@ import { CATEGORIES_FLUX, CategorieFlux, construireFluxTresorerieIfrs, EntreesFl
 import { RUBRIQUE_PAR_CODE } from './rubriques-ifrs';
 import { construirePremiereApplication, lignesOuverture, motifRefusAjustementTransition, PremiereApplication, RetraitementIfrs1 } from './premiere-application-ifrs';
 import { motifRefusRegle, RUBRIQUES_IFRS } from './rubriques-ifrs';
-import { COMPOSANTES_CP, construireVariationCapitauxPropres, motifRefusMouvementCp, VariationCapitauxPropres } from './variation-capitaux-propres-ifrs';
+import {
+  COMPOSANTES_CP,
+  construireVariationCapitauxPropres,
+  construireVariationCapitauxPropresConsolidee,
+  motifRefusMouvementCp,
+  VariationCapitauxPropres,
+} from './variation-capitaux-propres-ifrs';
 
 /**
  * ÉTATS IFRS EN SUS DU JEU LÉGAL · item 15, tranche 1. Le grand livre est lu
@@ -105,11 +111,10 @@ const versMoteurConsolide = (r: RetraitementLu): RetraitementDeclare => ({
 const nombreOuNull = (x: Prisma.Decimal | number | null | undefined) => (x == null ? null : Number(x));
 
 /**
- * Ce que les tranches C1 et C2 ne servent pas des comptes consolidés IFRS ·
+ * Ce que les tranches C1 à C3 ne servent pas des comptes consolidés IFRS ·
  * dit sur le jeu, jamais tu. Chaque motif nomme la norme qui l'exige.
  */
 export const MOTIFS_CONSOLIDES_NON_SERVIS = [
-  'État des variations des capitaux propres consolidé non servi par cette tranche · sa colonne des participations ne donnant pas le contrôle (IFRS 18 § 107 a) comprise.',
   'Notes des états consolidés non servies par cette tranche · dont les informations d’IFRS 12 sur les intérêts détenus dans d’autres entités (IFRS 18 § 113 b).',
   'Première application des IFRS aux comptes consolidés non servie par cette tranche (IFRS 1) · les ajustements de transition du groupe ne se déclarent pas encore.',
 ];
@@ -171,8 +176,9 @@ export class IfrsService {
     });
   }
 
-  private async mouvementsDe(tenantId: string, exerciceId: string) {
-    const ms = await this.prisma.mouvementCapitauxPropresIfrs.findMany({ where: { tenantId, exerciceId }, orderBy: { createdAt: 'asc' } });
+  /** Les mouvements déclarés d'un exercice · ceux du groupe (`consolide`) ou ceux du dossier, jamais les deux. */
+  private async mouvementsDe(tenantId: string, exerciceId: string, consolide = false) {
+    const ms = await this.prisma.mouvementCapitauxPropresIfrs.findMany({ where: { tenantId, exerciceId, consolide }, orderBy: { createdAt: 'asc' } });
     return ms.map((m) => ({ ...m, montant: Number(m.montant) }));
   }
 
@@ -519,7 +525,8 @@ export class IfrsService {
       premiereApplication,
       motifPremiereApplication,
       variationCapitauxPropres: {
-        composantes: COMPOSANTES_CP,
+        // Les minoritaires n'existent que dans les comptes consolidés.
+        composantes: { CAPITAL: COMPOSANTES_CP.CAPITAL, RESERVES: COMPOSANTES_CP.RESERVES, AUTRES_COMPOSANTES: COMPOSANTES_CP.AUTRES_COMPOSANTES },
         n: blocN.bloc,
         motifN: blocN.motif,
         n1: blocN1.bloc,
@@ -578,7 +585,7 @@ export class IfrsService {
       ({ etat: n, cumul: cumulN } = await jouer(ex, retraitements));
     } catch (e) {
       if (!(e instanceof BadRequestException)) throw e;
-      return { ...commun, n: null, motifN: e.message, n1: null, motifN1: null, fluxTresorerie: null };
+      return { ...commun, n: null, motifN: e.message, n1: null, motifN1: null, fluxTresorerie: null, variationCapitauxPropres: null };
     }
 
     const precedent = await this.precedent(tenantId, ex.dateDebut);
@@ -604,26 +611,70 @@ export class IfrsService {
         ? await this.fluxConsolideDe(tenantId, ex.id, precedent, n, cumulN, cumulN1, r, tresorerie, activite)
         : { tableau: null, motif: `Sans consolidation de l’exercice précédent, le tableau des flux consolidé ne s’établit pas · ${motifN1}` };
     let fluxN1: { tableau: TableauFluxIfrs | null; motif: string | null } = { tableau: null, motif: 'Sans comparatif consolidé, pas de tableau des flux comparatif.' };
+    // L'exercice N-2 consolidé · départ du tableau des flux comparatif et du
+    // bloc comparatif de la variation des capitaux propres.
+    let n2: EtatsIfrsConsolides | null = null;
+    let motifN2 = 'Aucun exercice avant l’exercice précédent dans le dossier.';
     if (precedent && n1 && cumulN1) {
       const avant = await this.precedent(tenantId, precedent.dateDebut);
       let cumulN2: ResultatCumul | null = null;
-      let motif = 'Aucun exercice avant l’exercice précédent · le tableau des flux comparatif ne s’établit pas.';
       if (avant) {
         try {
-          cumulN2 = await this.cumuls.cumul(tenantId, avant.id);
+          ({ etat: n2, cumul: cumulN2 } = await jouer(avant, await this.retraitementsDe(tenantId, avant.id, false, true)));
         } catch (e) {
           if (!(e instanceof BadRequestException)) throw e;
-          motif = `L’exercice N-2 ne se consolide pas · ${e.message}`;
+          motifN2 = `L’exercice N-2 ne se consolide pas · ${e.message}`;
         }
       }
-      fluxN1 = avant && cumulN2 ? await this.fluxConsolideDe(tenantId, precedent.id, avant, n1, cumulN1, cumulN2, r, tresorerie, activite) : { tableau: null, motif };
+      fluxN1 =
+        avant && cumulN2
+          ? await this.fluxConsolideDe(tenantId, precedent.id, avant, n1, cumulN1, cumulN2, r, tresorerie, activite)
+          : { tableau: null, motif: `Le tableau des flux comparatif ne s’établit pas · ${motifN2}` };
     }
+
+    // TRANCHE C3 · la variation des capitaux propres, avec la colonne des
+    // minoritaires (§ 107 a). Deux blocs, comme aux comptes individuels.
+    const blocConsolide = async (exerciceId: string, cloture: EtatsIfrsConsolides, ouverture: EtatsIfrsConsolides | null, motifSansOuverture: string) => {
+      if (!ouverture) return { bloc: null, motif: motifSansOuverture };
+      try {
+        return { bloc: construireVariationCapitauxPropresConsolidee(cloture, ouverture, await this.mouvementsDe(tenantId, exerciceId, true)), motif: null };
+      } catch (e) {
+        if (e instanceof RefusIfrs) return { bloc: null, motif: e.message };
+        throw e;
+      }
+    };
+    const variationN = await blocConsolide(ex.id, n, n1, `Sans consolidation de l’exercice précédent, le rapprochement ouverture → clôture ne s’établit pas · ${motifN1}`);
+    const variationN1 =
+      precedent && n1
+        ? await blocConsolide(precedent.id, n1, n2, `Le bloc comparatif part de la clôture N-2 · ${motifN2}`)
+        : { bloc: null, motif: 'Sans comparatif consolidé, pas de bloc comparatif.' };
+    if (variationN.bloc) n.motifsNonPubliable.push(...variationN.bloc.motifsNonPubliable);
+    else n.motifsNonPubliable.push(`État des variations des capitaux propres consolidé non établi (IFRS 18 § 107) · ${variationN.motif}`);
+    if (variationN.bloc && !variationN1.bloc) {
+      n.motifsNonPubliable.push(`Bloc comparatif de la variation des capitaux propres consolidée non établi (IFRS 18 § 10 f) · ${variationN1.motif}`);
+    }
+
     if (fluxN.tableau) n.motifsNonPubliable.push(...fluxN.tableau.motifsNonPubliable);
     else n.motifsNonPubliable.push(`Tableau des flux de trésorerie consolidé non établi (IAS 7, IFRS 18 § 10 d) · ${fluxN.motif}`);
     if (fluxN.tableau && !fluxN1.tableau) n.motifsNonPubliable.push(`Tableau des flux consolidé comparatif non établi (IFRS 18 § 10 f) · ${fluxN1.motif}`);
 
     n.motifsNonPubliable.push(...MOTIFS_CONSOLIDES_NON_SERVIS);
-    return { ...commun, n, motifN: null, n1, motifN1, fluxTresorerie: { n: fluxN.tableau, motifN: fluxN.motif, n1: fluxN1.tableau, motifN1: fluxN1.motif } };
+    return {
+      ...commun,
+      n,
+      motifN: null,
+      n1,
+      motifN1,
+      fluxTresorerie: { n: fluxN.tableau, motifN: fluxN.motif, n1: fluxN1.tableau, motifN1: fluxN1.motif },
+      variationCapitauxPropres: {
+        composantes: COMPOSANTES_CP,
+        n: variationN.bloc,
+        motifN: variationN.motif,
+        n1: variationN1.bloc,
+        motifN1: variationN1.motif,
+        mouvements: await this.mouvementsDe(tenantId, ex.id, true),
+      },
+    };
   }
 
   /**
@@ -904,12 +955,14 @@ export class IfrsService {
 
   async ajouterMouvementCp(tenantId: string, dto: MouvementCpIfrsDto) {
     const ex = await this.exercice(tenantId, dto.exerciceId);
-    const motif = motifRefusMouvementCp(dto);
+    const consolide = dto.consolide ?? false;
+    const motif = motifRefusMouvementCp(dto, consolide);
     if (motif) throw new BadRequestException(motif);
     return this.prisma.mouvementCapitauxPropresIfrs.create({
       data: {
         tenantId,
         exerciceId: ex.id,
+        consolide,
         type: dto.type,
         composante: dto.composante,
         montant: dto.montant,

@@ -3,6 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Aide } from './chrome/Aide';
 import { DeclarationEffetChange, EffetChange, FluxServi, TableauFluxIfrs } from './FluxTresorerieIfrs';
+import { VariationCapitauxPropresIfrs, VariationServie } from './VariationCapitauxPropresIfrs';
 
 /**
  * ÉTATS IFRS CONSOLIDÉS, tranche C1 · la balance consolidée du D4C (celle de la
@@ -19,6 +20,10 @@ import { DeclarationEffetChange, EffetChange, FluxServi, TableauFluxIfrs } from 
  * TRANCHE C2 · le tableau des flux consolidé (IAS 7), rendu par le même
  * composant que celui des comptes individuels. La trésorerie du GROUPE en
  * devises et son effet de change se déclarent ici, à part de ceux du dossier.
+ *
+ * TRANCHE C3 · la variation des capitaux propres, avec la colonne des
+ * minoritaires (§ 107 a), par le même composant que les comptes individuels.
+ * Ses mouvements sont ceux du GROUPE, jamais ceux du dossier.
  */
 type Rubrique = { code: string; libelle: string; ref: string; etat: 'SITUATION' | 'RESULTAT' | 'RESULTAT_GLOBAL'; section?: string };
 type Ligne = { cle: string; libelle: string; ref?: string; groupe?: string; nature: 'POSTE' | 'TOTAL' | 'NON_CLASSE'; legal: number; retraitements: number; ifrs: number };
@@ -52,6 +57,7 @@ type Consolide = {
   groupes: Record<string, string>;
   postesADeclarer: { poste: string; libelle: string }[];
   fluxTresorerie: FluxServi | null;
+  variationCapitauxPropres: VariationServie | null;
   decouvertsDansTresorerie: boolean | null;
   tresorerieGroupeEnDevises: boolean | null;
   effetChange: EffetChange | null;
@@ -153,7 +159,7 @@ export function EtatsIfrsConsolides({ exerciceId }: { exerciceId: string }) {
           États IFRS consolidés
           <Aide
             titre="États IFRS consolidés"
-            texte="La balance consolidée est celle de la fenêtre Consolidation, jamais recalculée ici. Ses comptes se rangent par les règles de correspondance des comptes individuels, uniformité des méthodes (IFRS 10 § 19) ; ses postes se rangent par IFRS 18 quand la norme nomme la ligne, et se déclarent sinon. Les participations ne donnant pas le contrôle sont présentées dans les capitaux propres, séparément (IFRS 10 § 22, IFRS 18 § 104 a), et le résultat net comme le résultat global se répartissent sous leur total (§ 76, § 87). Un retraitement consolidé déclare la part de chacun de ses effets qui revient aux minoritaires, zéro compris (IFRS 10 § B94). Le tableau des flux consolidé est servi ; la variation des capitaux propres, les notes et la première application consolidée ne le sont pas encore · le jeu le dit."
+            texte="La balance consolidée est celle de la fenêtre Consolidation, jamais recalculée ici. Ses comptes se rangent par les règles de correspondance des comptes individuels, uniformité des méthodes (IFRS 10 § 19) ; ses postes se rangent par IFRS 18 quand la norme nomme la ligne, et se déclarent sinon. Les participations ne donnant pas le contrôle sont présentées dans les capitaux propres, séparément (IFRS 10 § 22, IFRS 18 § 104 a), et le résultat net comme le résultat global se répartissent sous leur total (§ 76, § 87). Un retraitement consolidé déclare la part de chacun de ses effets qui revient aux minoritaires, zéro compris (IFRS 10 § B94). Le tableau des flux et la variation des capitaux propres consolidés sont servis ; les notes et la première application consolidée ne le sont pas encore · le jeu le dit."
             source="AUDCIF art. 74 à 98 · D4C ch. XII · IFRS 10 § 19, § 22, § B94 · IFRS 18 § 76, § 87, § 104 a · IAS 7"
           />
         </h2>
@@ -332,6 +338,17 @@ export function EtatsIfrsConsolides({ exerciceId }: { exerciceId: string }) {
           {tableau('Compte de résultat consolidé', etat.n.resultat, etat.n1?.resultat ?? null)}
           {tableau('État consolidé présentant le résultat global', etat.n.resultatGlobal, etat.n1?.resultatGlobal ?? null)}
           {etat.motifN1 && <p className="text-[11.5px] text-text-dim mb-2">{etat.motifN1}</p>}
+
+          {etat.variationCapitauxPropres && (
+            <VariationCapitauxPropresIfrs
+              titre="État consolidé des variations des capitaux propres (IFRS 18 § 107 à 112)"
+              vcp={etat.variationCapitauxPropres}
+              consolide
+              exerciceId={exerciceId}
+              peutEcrire={peutEcrire}
+              agir={agir}
+            />
+          )}
 
           {etat.fluxTresorerie && (
             <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">

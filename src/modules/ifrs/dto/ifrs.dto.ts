@@ -51,6 +51,8 @@ export class MouvementCpIfrsDto {
   @IsNumber({ maxDecimalPlaces: 2 }) montant!: number;
   @IsString() @MaxLength(300) libelle!: string;
   @IsString() @MaxLength(1000) justification!: string;
+  /** Mouvement des capitaux propres consolidés (IFRS 18 § 107). */
+  @IsOptional() @IsBoolean() consolide?: boolean;
 }
 
 export class TresorerieIfrsDto {
