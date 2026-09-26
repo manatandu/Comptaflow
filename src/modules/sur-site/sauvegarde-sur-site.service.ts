@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { execFile } from 'child_process';
-import { mkdirSync, readdirSync, statSync, unlinkSync } from 'fs';
-import { join } from 'path';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'fs';
+import { isAbsolute, join } from 'path';
 import { promisify } from 'util';
 import { estSurSite } from '../../common/mode-installation';
 
@@ -59,6 +59,22 @@ export function copiesARetirer(noms: string[], garder: number): string[] {
   return nos.slice(Math.max(1, garder));
 }
 
+/**
+ * LA COPIE HORS DU POSTE · les copies du dossier des sauvegardes sont sur le
+ * MÊME disque que la base, et une panne de ce disque (le cas ordinaire d'un
+ * PC de bureau) emporte la base ET ses copies. L'administrateur désigne un
+ * second dossier, hors du disque du poste (clé ou disque USB, partage
+ * réseau), et chaque sauvegarde y est recopiée. Une recopie qui échoue ne
+ * fait pas échouer la sauvegarde, qui a réussi · elle est ENREGISTRÉE et
+ * montrée, jamais tue.
+ */
+export interface EtatCopieExterne {
+  dossier: string | null;
+  derniere: string | null;
+  le: string | null;
+  erreur: string | null;
+}
+
 export interface CopieSauvegarde {
   nom: string;
   taille: number;
@@ -74,10 +90,12 @@ export class SauvegardeSurSiteService implements OnModuleInit, OnModuleDestroy {
   readonly dossier: string;
   private readonly garder: number;
   private readonly pgDump: string;
+  private readonly fichierCopieExterne: string;
 
   constructor(private readonly env: NodeJS.ProcessEnv = process.env) {
     this.surSite = estSurSite(env);
     const donnees = env.DOSSIER_DONNEES || join(process.cwd(), 'donnees');
+    this.fichierCopieExterne = join(donnees, 'sauvegarde-externe.json');
     this.dossier = env.DOSSIER_SAUVEGARDES || join(donnees, 'sauvegardes');
     const g = Number.parseInt(env.SAUVEGARDES_A_GARDER ?? '', 10);
     this.garder = Number.isInteger(g) && g > 0 ? g : 30;
@@ -163,8 +181,73 @@ export class SauvegardeSurSiteService implements OnModuleInit, OnModuleDestroy {
         this.log.warn(`Ancienne copie non retirée (${n}) · ${(e as Error).message}`);
       }
     }
+    this.recopier(nom);
     const s = statSync(chemin);
     this.log.log(`Sauvegarde écrite · ${nom} (${s.size} octets)`);
     return { nom, taille: s.size, date: s.mtime.toISOString() };
+  }
+
+  copieExterne(): EtatCopieExterne {
+    const vide: EtatCopieExterne = { dossier: null, derniere: null, le: null, erreur: null };
+    try {
+      return existsSync(this.fichierCopieExterne) ? { ...vide, ...JSON.parse(readFileSync(this.fichierCopieExterne, 'utf8')) } : vide;
+    } catch {
+      return { ...vide, erreur: 'Réglage de la copie externe illisible · désignez à nouveau le dossier.' };
+    }
+  }
+
+  private noterCopieExterne(e: EtatCopieExterne) {
+    mkdirSync(join(this.fichierCopieExterne, '..'), { recursive: true });
+    writeFileSync(this.fichierCopieExterne, JSON.stringify(e));
+  }
+
+  /**
+   * Désigne le dossier externe · vérifié en y ÉCRIVANT, un dossier visible
+   * mais protégé en écriture donnerait sinon une copie qui n'existe pas. La
+   * dernière copie locale y part aussitôt. `null` retire le réglage.
+   */
+  definirCopieExterne(dossier: string | null): EtatCopieExterne {
+    if (!this.surSite) throw new BadRequestException('Ce serveur n’est pas une installation sur site.');
+    if (dossier === null || !dossier.trim()) {
+      if (existsSync(this.fichierCopieExterne)) unlinkSync(this.fichierCopieExterne);
+      return this.copieExterne();
+    }
+    const d = dossier.trim();
+    if (!isAbsolute(d)) throw new BadRequestException('Indiquez un chemin complet (par exemple E:\\SauvegardesOmegaX ou \\\\SERVEUR\\partage).');
+    if (!existsSync(d) || !statSync(d).isDirectory()) throw new BadRequestException(`Le dossier ${d} est introuvable · branchez le disque ou vérifiez le partage.`);
+    if (d.replace(/[\\/]+$/, '').toLowerCase() === this.dossier.replace(/[\\/]+$/, '').toLowerCase()) {
+      throw new BadRequestException('C’est le dossier des sauvegardes locales · la copie externe doit être ailleurs.');
+    }
+    const essai = join(d, `.omegax-essai-${process.pid}`);
+    try {
+      writeFileSync(essai, 'essai');
+      unlinkSync(essai);
+    } catch (e) {
+      throw new BadRequestException(`Écriture impossible dans ${d} · ${(e as Error).message}`);
+    }
+    this.noterCopieExterne({ dossier: d, derniere: null, le: null, erreur: null });
+    const derniere = this.lister()[0];
+    if (derniere) this.recopier(derniere.nom);
+    return this.copieExterne();
+  }
+
+  /** Recopie une sauvegarde dans le dossier externe · n'échoue jamais, l'échec est noté. */
+  recopier(nom: string) {
+    const etat = this.copieExterne();
+    if (!etat.dossier) return;
+    try {
+      copyFileSync(join(this.dossier, nom), join(etat.dossier, nom));
+      for (const n of copiesARetirer(readdirSync(etat.dossier), this.garder)) {
+        try {
+          unlinkSync(join(etat.dossier, n));
+        } catch {
+          /* une ancienne copie restée ne coûte que de la place */
+        }
+      }
+      this.noterCopieExterne({ dossier: etat.dossier, derniere: nom, le: new Date().toISOString(), erreur: null });
+    } catch (e) {
+      this.log.error(`Copie externe échouée (${etat.dossier}) · ${(e as Error).message}`);
+      this.noterCopieExterne({ ...etat, erreur: `${new Date().toISOString().slice(0, 16).replace('T', ' ')} · ${(e as Error).message}` });
+    }
   }
 }

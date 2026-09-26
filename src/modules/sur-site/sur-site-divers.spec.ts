@@ -98,3 +98,68 @@ describe('sur site · la création d’un dossier passe par la licence de l’in
     expect((creerTenant.mock.calls[0] as unknown[])[0]).toMatchObject({ typeLicence: TypeLicence.PERPETUEL_ONPREMISE });
   });
 });
+
+describe('sur site · la copie des sauvegardes hors du poste', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const fs = require('fs') as typeof import('fs');
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { tmpdir } = require('os') as typeof import('os');
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { join } = require('path') as typeof import('path');
+
+  const monter = () => {
+    const racine = fs.mkdtempSync(join(tmpdir(), 'omegax-ext-'));
+    const donnees = join(racine, 'donnees');
+    const externe = join(racine, 'usb');
+    fs.mkdirSync(join(donnees, 'sauvegardes'), { recursive: true });
+    fs.mkdirSync(externe);
+    const s = new SauvegardeSurSiteService({ MODE_INSTALLATION: 'SUR_SITE', DOSSIER_DONNEES: donnees, SAUVEGARDES_A_GARDER: '2' } as NodeJS.ProcessEnv);
+    const poser = (nom: string) => fs.writeFileSync(join(donnees, 'sauvegardes', nom), nom);
+    return { s, externe, donnees, poser, racine };
+  };
+
+  it('désigner le dossier y recopie aussitôt la dernière sauvegarde, et chaque suivante', () => {
+    const m = monter();
+    m.poser('omegax-20260101-010101.dump');
+    const e = m.s.definirCopieExterne(m.externe);
+    expect(e).toMatchObject({ dossier: m.externe, derniere: 'omegax-20260101-010101.dump', erreur: null });
+    expect(fs.existsSync(join(m.externe, 'omegax-20260101-010101.dump'))).toBe(true);
+    for (const n of ['omegax-20260102-010101.dump', 'omegax-20260103-010101.dump']) {
+      m.poser(n);
+      m.s.recopier(n);
+    }
+    // Le même nombre de copies qu'en local · jamais une accumulation sans fin.
+    expect(fs.readdirSync(m.externe).sort()).toEqual(['omegax-20260102-010101.dump', 'omegax-20260103-010101.dump']);
+    fs.rmSync(m.racine, { recursive: true, force: true });
+  });
+
+  it('un dossier introuvable, relatif ou égal au dossier local est refusé', () => {
+    const m = monter();
+    expect(() => m.s.definirCopieExterne(join(m.racine, 'absent'))).toThrow(/introuvable/);
+    expect(() => m.s.definirCopieExterne('usb')).toThrow(/chemin complet/);
+    expect(() => m.s.definirCopieExterne(join(m.donnees, 'sauvegardes'))).toThrow(/ailleurs/);
+    fs.rmSync(m.racine, { recursive: true, force: true });
+  });
+
+  it('une recopie qui échoue est notée, jamais tue, et la sauvegarde locale reste', () => {
+    const m = monter();
+    m.poser('omegax-20260101-010101.dump');
+    m.s.definirCopieExterne(m.externe);
+    fs.rmSync(m.externe, { recursive: true, force: true });
+    m.poser('omegax-20260102-010101.dump');
+    expect(() => m.s.recopier('omegax-20260102-010101.dump')).not.toThrow();
+    const e = m.s.copieExterne();
+    expect(e.erreur).toMatch(/ENOENT|no such file/);
+    expect(e.derniere).toBe('omegax-20260101-010101.dump');
+    fs.rmSync(m.racine, { recursive: true, force: true });
+  });
+});
+
+describe('sur site · la sauvegarde appelle la recopie', () => {
+  it('chaque sauvegarde écrite est recopiée hors du poste', () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const src = require('fs').readFileSync(require('path').join(__dirname, 'sauvegarde-sur-site.service.ts'), 'utf8') as string;
+    const corps = src.slice(src.indexOf('private async executer('), src.indexOf('copieExterne(): EtatCopieExterne'));
+    expect(corps).toContain('this.recopier(nom);');
+  });
+});

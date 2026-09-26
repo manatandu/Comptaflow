@@ -1,12 +1,19 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { RoleUtilisateur } from '@prisma/client';
-import { IsString, MaxLength, MinLength } from 'class-validator';
+import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { LicenceSurSiteService } from './licence-sur-site.service';
 import { SauvegardeSurSiteService } from './sauvegarde-sur-site.service';
+
+export class CopieExterneDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  dossier?: string | null;
+}
 
 export class DeposerLicenceDto {
   @IsString()
@@ -62,7 +69,14 @@ export class SurSiteController {
   @Roles(RoleUtilisateur.ADMIN_CABINET)
   @Get('sauvegardes')
   lister() {
-    return { dossier: this.sauvegardes.dossier, copies: this.sauvegardes.lister() };
+    return { dossier: this.sauvegardes.dossier, copies: this.sauvegardes.lister(), copieExterne: this.sauvegardes.copieExterne() };
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
+  @Post('sauvegardes/copie-externe')
+  copieExterne(@Body() dto: CopieExterneDto) {
+    return this.sauvegardes.definirCopieExterne(dto.dossier ?? null);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

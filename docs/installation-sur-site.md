@@ -91,8 +91,11 @@ Changer de PC serveur demande une nouvelle licence pour la nouvelle empreinte.
 Une copie de la base par jour, tentée chaque heure tant que le poste est
 allumé, dans `C:\ProgramData\OmegaX\sauvegardes` (30 copies gardées). Une
 copie part aussi avant chaque mise à jour, avant les migrations. Ces copies
-sont SUR LE MÊME DISQUE · il faut en sortir une régulièrement (clé USB,
-disque externe, partage réseau), sans quoi une panne de disque emporte tout.
+sont SUR LE MÊME DISQUE · une panne de disque emporterait tout. D'où la
+**copie hors du poste** : dans Restitution, l'administrateur désigne un
+dossier sur un disque USB ou un partage réseau, et chaque sauvegarde y est
+recopiée (même nombre de copies gardées). L'écran alerte tant qu'aucune
+copie externe n'existe, qu'elle a échoué ou qu'elle est en retard.
 
 Restaurer une copie (poste serveur, invite de commandes administrateur) :
 

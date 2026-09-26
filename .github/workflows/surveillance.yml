@@ -1,0 +1,74 @@
+# SURVEILLANCE CONTINUE DE LA PRODUCTION · le contrôle /health du déploiement
+# ne vaut qu'à la seconde du déploiement ; une panne de la nuit (base
+# injoignable, service arrêté, site retiré) n'alertait personne.
+#
+# Toutes les quinze minutes (GitHub peut retarder une planification de
+# quelques minutes), le service et le site sont interrogés. Une panne n'est
+# retenue qu'après TROIS échecs espacés d'une minute · un seul raté réseau
+# ne doit pas réveiller quelqu'un. Panne retenue : une issue « Panne de
+# production » est ouverte (une seule à la fois), ce qui notifie par courriel
+# les personnes qui suivent le dépôt. Au retour, l'issue est refermée avec
+# l'heure du rétablissement.
+name: Surveillance de la production
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+
+concurrency:
+  group: surveillance
+  cancel-in-progress: false
+
+env:
+  URL_SANTE: https://comptaflow-api-968832127045.us-east1.run.app/health
+  URL_SITE: https://oomega.web.app/
+  ETIQUETTE: panne-production
+
+jobs:
+  sonder:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Interroger le service et le site
+        id: sonde
+        run: |
+          echec=""
+          for cible in "$URL_SANTE" "$URL_SITE"; do
+            ok=0
+            for essai in 1 2 3; do
+              # /health répond 503 quand la base est injoignable · -f en fait un échec.
+              if curl -sf --max-time 20 -o /dev/null "$cible"; then ok=1; break; fi
+              sleep 60
+            done
+            [ "$ok" = 1 ] || echec="$echec $cible"
+          done
+          echo "echec=$echec" >> "$GITHUB_OUTPUT"
+          if [ -n "$echec" ]; then echo "::error::Injoignable après trois essais :$echec"; fi
+
+      - name: Ouvrir ou refermer l'issue de panne
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ECHEC: ${{ steps.sonde.outputs.echec }}
+        run: |
+          gh label create "$ETIQUETTE" --repo "$GITHUB_REPOSITORY" --color B60205 --description "Ouverte par la surveillance de la production" 2>/dev/null || true
+          ouverte=$(gh issue list --repo "$GITHUB_REPOSITORY" --label "$ETIQUETTE" --state open --json number --jq '.[0].number')
+          maintenant=$(date -u '+%Y-%m-%d %H:%M UTC')
+          if [ -n "$ECHEC" ]; then
+            if [ -z "$ouverte" ]; then
+              gh issue create --repo "$GITHUB_REPOSITORY" --label "$ETIQUETTE" \
+                --title "Panne de production · $maintenant" \
+                --body "Injoignable après trois essais espacés d'une minute :$ECHEC
+
+          Relevé par la surveillance ($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID). L'issue se referme d'elle-même au retour du service."
+            else
+              gh issue comment "$ouverte" --repo "$GITHUB_REPOSITORY" --body "Toujours injoignable à $maintenant :$ECHEC"
+            fi
+            exit 1
+          elif [ -n "$ouverte" ]; then
+            gh issue close "$ouverte" --repo "$GITHUB_REPOSITORY" --comment "Service et site rétablis, constaté à $maintenant."
+          fi
