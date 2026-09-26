@@ -38,7 +38,7 @@ jobs:
             throw "La clé publique de VMG n'est pas posée dans cle-publique-editeur.ts · un paquet sans elle ne peut vérifier aucune licence (voir docs/installation-sur-site.md)."
           }
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
