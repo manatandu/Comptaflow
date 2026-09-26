@@ -49,7 +49,6 @@ jobs:
       JWT_SECRET: tests-navigateur-jetable-0123456789abcdef
       JWT_EXPIRES_IN: 8h
       PORT: '8080'
-      NODE_ENV: production
       INSCRIPTION_PUBLIQUE: 'true'
       # Même hôte que le client · le cookie de session voyage entre deux
       # ports de localhost comme entre oomega.web.app et Cloud Run.
@@ -70,6 +69,11 @@ jobs:
           npm run build
 
       - name: Migrer la base et démarrer le serveur
+        # NODE_ENV ICI SEULEMENT · posé au niveau du job, il fait sauter les
+        # dépendances de développement à `npm ci` (nest, vite, typescript),
+        # et le premier passage est tombé sur « nest: not found ».
+        env:
+          NODE_ENV: production
         run: |
           npx prisma migrate deploy
           point=dist/main.js
