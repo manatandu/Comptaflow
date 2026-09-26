@@ -41,6 +41,7 @@
  */
 
 import type { NatureElementPaie } from './assiettes-paie';
+import { compteDeLAvance, type CategoriePret, type TypeAvance } from './avances-salaire';
 
 export type Referentiel = 'SYSCOHADA' | 'SYCEBNL';
 
@@ -279,6 +280,17 @@ export type EntreePassation = {
   readonly abstentionsCotisations: readonly string[];
   readonly irppFc: number | null;
   readonly netAPayerFc: number | null;
+  /**
+   * Article 112, c) et f) · les retenues d'avance, d'acompte et de prêt du
+   * bulletin. Absent sur un bulletin émis avant ce chantier · il n'en
+   * portait aucune.
+   */
+  readonly retenuesAvances?: readonly {
+    type: TypeAvance;
+    categoriePret: CategoriePret | null;
+    libelle: string;
+    montantFc: number;
+  }[];
 };
 
 const ROLE_PAR_CLE_COTISATION: Readonly<Record<string, RoleComptePaie>> = {
@@ -414,6 +426,16 @@ export function passationPaie(entree: EntreePassation): VerdictPassation {
   const irppFc = Math.max(0, entree.irppFc ?? 0);
   let retenuesFc = irppFc;
   for (const m of ouvrieres.values()) retenuesFc += m;
+  // Article 112, c) et f) · regroupées par compte crédité (4211, 4212, 272x).
+  const avancesParCompte = new Map<string, { intitule: string; montantFc: number }>();
+  for (const a of entree.retenuesAvances ?? []) {
+    if (!(a.montantFc > 0)) continue;
+    const { compte, intitule } = compteDeLAvance(a.type, a.categoriePret);
+    const cumul = avancesParCompte.get(compte) ?? { intitule, montantFc: 0 };
+    cumul.montantFc += a.montantFc;
+    avancesParCompte.set(compte, cumul);
+    retenuesFc += a.montantFc;
+  }
   if (retenuesFc > 0) {
     lignes.push({
       bloc: 'RETENUES',
@@ -431,6 +453,17 @@ export function passationPaie(entree: EntreePassation): VerdictPassation {
         sens: 'CREDIT',
         montantFc,
         reserve: reserveRole(role),
+      });
+    }
+    for (const [compte, { intitule, montantFc }] of avancesParCompte) {
+      lignes.push({
+        bloc: 'RETENUES',
+        compte,
+        intitule,
+        sens: 'CREDIT',
+        montantFc,
+        reserve:
+          "RETENUE DE L'ARTICLE 112, c) OU f) · le 422 est viré vers le compte de l'avance (Guide d'application SYSCOHADA, Partie 1 ch. 3, § 4.3 et Application 10). Un prêt reste au 272 · les deux plans l'excluent du 42.",
       });
     }
     if (irppFc > 0) {

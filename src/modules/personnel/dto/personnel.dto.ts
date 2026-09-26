@@ -8,6 +8,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   MaxLength,
   Min,
@@ -320,6 +321,25 @@ export class ElementPaieDto {
   @IsOptional()
   @IsBoolean()
   conditionArticle69Attestee?: boolean;
+
+  /**
+   * La rubrique du cabinet dont l'élément est tiré. Présente, sa NATURE est
+   * relue au serveur et remplace celle que le client envoie · la rubrique
+   * nomme, la nature décide (rubriques-paie.ts).
+   */
+  @IsOptional()
+  @IsUUID('4')
+  rubriqueId?: string;
+}
+
+/** Article 112, c) et f) · une retenue sur une avance du registre. */
+export class RetenueAvanceDto {
+  @IsUUID('4')
+  avanceId!: string;
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  montantFc!: number;
 }
 
 export class SimulationPaieDto {
@@ -327,6 +347,13 @@ export class SimulationPaieDto {
   @IsString()
   @MaxLength(7)
   moisDePaie!: string;
+
+  /** Retenues d'avance, d'acompte et de prêt · le salarié doit être nommé. */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => RetenueAvanceDto)
+  retenuesAvances?: RetenueAvanceDto[];
 
   @IsArray()
   @ValidateNested({ each: true })
@@ -598,4 +625,42 @@ export class ComptabilisationPaieDto {
   @IsString()
   @MaxLength(200)
   libelle?: string;
+}
+
+export class RubriquePaieDto {
+  @IsString() @MinLength(1) @MaxLength(20) code!: string;
+  @IsString() @MinLength(1) @MaxLength(120) libelle!: string;
+  @IsString() nature!: string;
+  @IsString() @MinLength(1) @MaxLength(300) fondement!: string;
+}
+
+/** Le code et la nature ne changent pas · voir PersonnelService.modifierRubrique. */
+export class ModifierRubriquePaieDto {
+  @IsOptional() @IsString() @MinLength(1) @MaxLength(120) libelle?: string;
+  @IsOptional() @IsString() @MinLength(1) @MaxLength(300) fondement?: string;
+  @IsOptional() @IsBoolean() actif?: boolean;
+}
+
+export class AvanceSalaireDto {
+  @IsEnum(['AVANCE', 'ACOMPTE', 'PRET'])
+  type!: 'AVANCE' | 'ACOMPTE' | 'PRET';
+
+  @IsOptional()
+  @IsEnum(['IMMOBILIER', 'MOBILIER_ET_INSTALLATION', 'AUTRE'])
+  categoriePret?: 'IMMOBILIER' | 'MOBILIER_ET_INSTALLATION' | 'AUTRE';
+
+  @IsDateString()
+  dateOctroi!: string;
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  montantFc!: number;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  retenueMensuelleFc?: number;
+
+  @IsString() @MinLength(1) @MaxLength(200) objet!: string;
+  @IsString() @MinLength(1) @MaxLength(200) pieceJustificative!: string;
 }

@@ -123,6 +123,12 @@ export const MODELES_AUDITES = new Set<string>([
   // attribuer. Un bulletin annulé puis réémis sans trace est exactement ce
   // qu'un contentieux sur l'article 103 viendrait chercher.
   'BulletinPaie',
+  // Une rubrique désactivée ou un fondement réécrit changent ce que le
+  // bulletin suivant affichera · la trace dit qui et quand. Une avance
+  // inscrite ou retirée change le net de plusieurs mois ; son MONTANT est
+  // masqué comme la rémunération du contrat, la clé reste.
+  'RubriquePaie',
+  'AvanceSalaire',
 ]);
 
 /**
@@ -206,6 +212,7 @@ export const COLONNES_EXCLUES_PAR_MODELE: Readonly<Record<string, readonly strin
   ],
   EnfantACharge: ['nom', 'postNom', 'prenoms', 'dateNaissance'],
   ContratTravail: ['remunerationBase', 'avantagesConvenus'],
+  AvanceSalaire: ['montantFc', 'retenueMensuelleFc', 'objet'],
   // Le bulletin reste IDENTIFIABLE (numéro, mois, nom, statut, dates, motif
   // d'annulation) · ses MONTANTS et le détail du calcul ne le sont pas, pour
   // la même raison que la rémunération du contrat.

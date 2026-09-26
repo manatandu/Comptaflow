@@ -49,6 +49,7 @@ const LIBELLES: Record<string, string> = {
   'Relance.tiersId': 'relances',
   'Consignation.tiersId': 'consignations',
   'DocumentTiers.tiersId': 'documents attachés (volet Documents de la fiche)',
+  'AvanceSalaire.salarieId': 'avances et prêts au personnel',
   'RibTiers.tiersId': 'coordonnées bancaires (volet de la fiche)',
   'LigneOrdreVirement.tiersId': 'ordres de virement',
   'OrdreVirement.journalId': 'ordres de virement',

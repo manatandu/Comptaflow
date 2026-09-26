@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { Aide } from '../components/chrome/Aide';
 import { OngletBulletins } from './BulletinsPaie';
+import { OngletRubriquesAvances, type AvanceSalaire, type RubriquePaie } from '../components/RubriquesAvancesPaie';
 import { TITRE_BLOC_PAIE } from './PaieDuMois';
 import { BaremeMensuelIrpp, type DetailMensuelIrpp } from './BaremeMensuelIrpp';
 
@@ -190,6 +191,8 @@ interface Simulation {
     totalTravailleurFc: number;
     abstentions: string[];
   };
+  retenuesAvances?: { avanceId: string; littera: string; libelle: string; montantFc: number; soldeAvantFc: number }[];
+  reserveRetenuesAvances?: string | null;
   net: {
     totalVerseFc: number;
     quotePartOuvriereFc: number;
@@ -456,6 +459,8 @@ type LignePaie = {
   montantFc: string;
   attestee: '' | 'oui' | 'non';
   remboursement: boolean;
+  /** Rubrique du cabinet · sa nature est relue au serveur. */
+  rubriqueId?: string;
 };
 
 const LIGNE_VIERGE: LignePaie = {
@@ -484,8 +489,11 @@ export function PersonnelPage() {
   const [confrontation, setConfrontation] = useState<Confrontation | null>(null);
   const [effectif, setEffectif] = useState<Effectif | null>(null);
   const [onglet, setOnglet] = useState<
-    'registre' | 'confrontation' | 'effectif' | 'simulation' | 'bulletins' | 'decompte' | 'livre'
+    'registre' | 'confrontation' | 'effectif' | 'simulation' | 'bulletins' | 'rubriques' | 'decompte' | 'livre'
   >('registre');
+  const [rubriques, setRubriques] = useState<RubriquePaie[]>([]);
+  const [avancesSalarie, setAvancesSalarie] = useState<AvanceSalaire[]>([]);
+  const [retenuesAvances, setRetenuesAvances] = useState<Record<string, string>>({});
   const [tous, setTous] = useState(false);
   const [selection, setSelection] = useState<string>('');
   const [erreur, setErreur] = useState('');
@@ -544,6 +552,17 @@ export function PersonnelPage() {
 
   useEffect(charger, [charger]);
 
+  // Rubriques du cabinet et avances du salarié choisi, pour la simulation.
+  useEffect(() => {
+    if (onglet !== 'simulation') return;
+    api.get<{ rubriques: RubriquePaie[] }>('/personnel/rubriques').then((r) => setRubriques(r.rubriques), () => setRubriques([]));
+    if (!selection) {
+      setAvancesSalarie([]);
+      return;
+    }
+    api.get<AvanceSalaire[]>(`/personnel/avances?salarieId=${selection}`).then(setAvancesSalarie, () => setAvancesSalarie([]));
+  }, [onglet, selection]);
+
   useEffect(() => {
     if (onglet === 'confrontation') {
       api.get<Confrontation>('/personnel/confrontation').then(setConfrontation, (e: ApiError) =>
@@ -584,6 +603,7 @@ export function PersonnelPage() {
         .filter((l) => nombre(l.montantFc) !== undefined)
         .map((l) => ({
           nature: l.nature,
+          ...(l.rubriqueId ? { rubriqueId: l.rubriqueId } : {}),
           libelle:
             l.libelle.trim() ||
             (NATURES_PAIE.find((n) => n.valeur === l.nature)?.libelle ?? l.nature),
@@ -609,6 +629,15 @@ export function PersonnelPage() {
       classeProfessionnelle: nombre(classePro),
       ...(logementNature ? { logementFourniEnNature: true } : {}),
       ...(obligationAlimentaire ? { obligationAlimentaireLegale: true } : {}),
+      // ARTICLE 112, c) ET f) · le montant seul part ; le type et le compte
+      // sont relus au registre par le serveur.
+      ...(Object.entries(retenuesAvances).some(([, v]) => (nombre(v) ?? 0) > 0)
+        ? {
+            retenuesAvances: Object.entries(retenuesAvances)
+              .filter(([, v]) => (nombre(v) ?? 0) > 0)
+              .map(([avanceId, v]) => ({ avanceId, montantFc: nombre(v) as number })),
+          }
+        : {}),
     };
     return corps;
   };
@@ -884,7 +913,7 @@ export function PersonnelPage() {
 
       <div className="ecran-seul flex gap-1 mb-2 text-[11.5px]">
         {(
-          ['registre', 'confrontation', 'effectif', 'simulation', 'bulletins', 'decompte', 'livre'] as const
+          ['registre', 'confrontation', 'effectif', 'simulation', 'bulletins', 'rubriques', 'decompte', 'livre'] as const
         ).map((o) => (
           <button
             key={o}
@@ -904,6 +933,8 @@ export function PersonnelPage() {
                     ? 'Simulation'
                     : o === 'bulletins'
                       ? 'Bulletins'
+                      : o === 'rubriques'
+                      ? 'Rubriques et avances'
                       : o === 'decompte'
                       ? 'Décompte final'
                       : 'Livre de paie'}
@@ -1821,16 +1852,34 @@ export function PersonnelPage() {
                     <tr key={i} className="border-b border-border/40">
                       <td className="py-1 pr-2">
                         <select
-                          value={l.nature}
-                          onChange={(e) =>
+                          aria-label="Nature ou rubrique"
+                          value={l.rubriqueId ? `rubrique:${l.rubriqueId}` : l.nature}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            const r = v.startsWith('rubrique:') ? rubriques.find((x) => `rubrique:${x.id}` === v) : undefined;
                             setLignes(
                               lignes.map((x, j) =>
-                                j === i ? { ...x, nature: e.target.value } : x,
+                                j === i
+                                  ? r
+                                    ? { ...x, nature: r.nature, rubriqueId: r.id, libelle: x.libelle || r.libelle }
+                                    : { ...x, nature: v, rubriqueId: undefined }
+                                  : x,
                               ),
-                            )
-                          }
+                            );
+                          }}
                           className="border border-border bg-transparent px-1.5 py-0.5 w-[260px]"
                         >
+                          {rubriques.some((r) => r.actif) && (
+                            <optgroup label="Rubriques du cabinet">
+                              {rubriques
+                                .filter((r) => r.actif)
+                                .map((r) => (
+                                  <option key={r.id} value={`rubrique:${r.id}`}>
+                                    {r.code} · {r.libelle}
+                                  </option>
+                                ))}
+                            </optgroup>
+                          )}
                           <optgroup label="Dans la rémunération (art. 7, point 8)">
                             {NATURES_PAIE.filter((n) => n.dansLaRemuneration).map((n) => (
                               <option key={n.valeur} value={n.valeur}>
@@ -1936,6 +1985,43 @@ export function PersonnelPage() {
               </tbody>
             </table>
           </div>
+
+          {selection && avancesSalarie.some((a) => a.soldeFc > 0) && (
+            <div className="border border-border px-3 py-2 mt-2">
+              <div className={`${etiquette} mb-1 flex items-center gap-1.5`}>
+                Retenues d’avance et de prêt (art. 112, c et f)
+                <Aide
+                  titre="Retenues d’avance et de prêt"
+                  texte="Chaque avance, acompte ou prêt du registre dont un solde reste dû. La retenue saisie baisse le net et crédite le compte de l’avance (4211, 4212 ou 272) par le débit du 422. Elle ne peut dépasser le solde. Aucun plafond n’est opposé au nom de l’article 114, qui n’est visé par l’article 112 que pour son litera d) ; la quotité est montrée pour comparaison."
+                  source="Code du travail, art. 112 · fiche du compte 42 (AUDCIF, SYCEBNL) · Guide SYSCOHADA, Partie 1 ch. 3, § 4.3"
+                />
+              </div>
+              <table className="w-full">
+                <tbody>
+                  {avancesSalarie
+                    .filter((a) => a.soldeFc > 0)
+                    .map((a) => (
+                      <tr key={a.id} className="border-t border-border/40">
+                        <td className="py-1 pr-2">
+                          {a.type === 'PRET' ? 'Prêt' : a.type === 'ACOMPTE' ? 'Acompte' : 'Avance'} du {a.dateOctroi.slice(0, 10)} · {a.objet}
+                        </td>
+                        <td className="py-1 pr-2 text-text-dim">{a.compte.compte}</td>
+                        <td className="py-1 pr-2 text-right">solde {fc(a.soldeFc)} FC</td>
+                        <td className="py-1 text-right">
+                          <input
+                            aria-label={`Retenue sur ${a.objet}`}
+                            value={retenuesAvances[a.id] ?? ''}
+                            placeholder={a.retenueMensuelleFc ? fc(Math.min(a.retenueMensuelleFc, a.soldeFc)) : ''}
+                            onChange={(e) => setRetenuesAvances((r) => ({ ...r, [a.id]: e.target.value }))}
+                            className="border border-border bg-transparent px-1.5 py-0.5 w-[120px] text-right"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           <div className="flex gap-2 mt-2">
             <button
@@ -2164,6 +2250,16 @@ export function PersonnelPage() {
                     sortent de la rémunération, pas de ce que l’employeur paie.
                   </strong>
                 </div>
+                {simulation.retenuesAvances && simulation.retenuesAvances.length > 0 && (
+                  <ul className="mt-1.5 text-[11px]">
+                    {simulation.retenuesAvances.map((r) => (
+                      <li key={r.avanceId}>
+                        Retenue art. 112, {r.littera}) · {r.libelle} · {fc(r.montantFc)} FC (solde avant {fc(r.soldeAvantFc)} FC)
+                      </li>
+                    ))}
+                    {simulation.reserveRetenuesAvances && <li className="text-text-dim">{simulation.reserveRetenuesAvances}</li>}
+                  </ul>
+                )}
                 <ul className="mt-1.5 text-[11px] text-text-dim">
                   {simulation.net.reserves.map((r, i) => (
                     <li key={i} className="py-0.5 border-t border-border/40">
@@ -2438,6 +2534,8 @@ export function PersonnelPage() {
       {onglet === 'bulletins' && (
         <OngletBulletins moisInitial={moisDePaie} peutEcrire={peutEcrire} />
       )}
+
+      {onglet === 'rubriques' && <OngletRubriquesAvances salaries={salaries} peutEcrire={peutEcrire} />}
 
       {onglet === 'decompte' && (
         <div className="ecran-seul max-w-[1240px] text-[11.5px]">

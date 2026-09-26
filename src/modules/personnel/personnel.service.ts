@@ -13,6 +13,14 @@ import { assiettes, type ElementPaie, type NatureElementPaie } from './assiettes
 import { baremeApplicableAuMois, retenueMensuelle } from './bareme-irpp';
 import { cotisations, netAPayer, type NatureEmployeurInpp } from './cotisations-paie';
 import { passationPaie, type Referentiel } from './passation-paie';
+import {
+  LITTERA_ARTICLE_112,
+  RESERVE_QUOTITE_AVANCES,
+  motifRefusRetenue,
+  soldeAvance,
+  type CategoriePret,
+  type TypeAvance,
+} from './avances-salaire';
 import { quotiteSaisissable } from './quotite-saisissable';
 import {
   AVERTISSEMENT_ARTICLE_89,
@@ -564,12 +572,86 @@ export class PersonnelService {
     };
   }
 
+  /**
+   * LA SAISIE RELUE AU SERVEUR, avant tout calcul.
+   *
+   * (1) UNE RUBRIQUE DU CABINET IMPOSE SA NATURE · celle que le client envoie
+   * est remplacée par la nature enregistrée (rubriques-paie.ts). Sans cela,
+   * une prime conventionnelle renvoyée « INDEMNITE_DE_TRANSPORT » par un
+   * navigateur sortirait de l'assiette sociale. Le DTO rendu est celui que le
+   * bulletin fige, si bien que la passation de P9 relit la bonne nature.
+   *
+   * (2) UNE RETENUE D'AVANCE SE RELIT AU REGISTRE · elle doit viser une
+   * avance DE CE SALARIÉ, de ce dossier, et ne pas dépasser ce qui reste dû.
+   * Le type et la catégorie viennent du registre, jamais du client, parce
+   * qu'ils choisissent le compte crédité (4211, 4212 ou 272).
+   */
+  async resoudreSaisie(tenantId: string, salarieId: string | null, dto: SimulationPaieDto) {
+    const idsRubriques = [...new Set(dto.elements.map((e) => e.rubriqueId).filter((x): x is string => !!x))];
+    let elements = dto.elements;
+    if (idsRubriques.length) {
+      const rubriques = await this.prisma.rubriquePaie.findMany({ where: { tenantId, id: { in: idsRubriques } } });
+      elements = dto.elements.map((e) => {
+        if (!e.rubriqueId) return e;
+        const r = rubriques.find((x) => x.id === e.rubriqueId);
+        if (!r) throw new BadRequestException('Rubrique de paie introuvable dans ce dossier.');
+        if (!r.actif) throw new BadRequestException(`La rubrique ${r.code} est désactivée · réactivez-la ou retirez l'élément.`);
+        return { ...e, nature: r.nature, libelle: e.libelle?.trim() ? e.libelle : r.libelle };
+      });
+    }
+
+    const demandees = dto.retenuesAvances ?? [];
+    const retenuesAvances: {
+      avanceId: string;
+      type: TypeAvance;
+      categoriePret: CategoriePret | null;
+      littera: 'c' | 'f';
+      libelle: string;
+      montantFc: number;
+      soldeAvantFc: number;
+    }[] = [];
+    if (demandees.length) {
+      if (!salarieId) throw new BadRequestException("Une retenue d'avance se rapporte à un salarié · choisissez-le.");
+      const ids = demandees.map((r) => r.avanceId);
+      if (new Set(ids).size !== ids.length) throw new BadRequestException('Une même avance figure deux fois dans les retenues.');
+      const avances = await this.prisma.avanceSalaire.findMany({
+        where: { tenantId, id: { in: ids } },
+        include: { retenues: { select: { montantFc: true, bulletin: { select: { statut: true } } } } },
+      });
+      for (const r of demandees) {
+        const a = avances.find((x) => x.id === r.avanceId);
+        if (!a || a.salarieId !== salarieId) {
+          throw new BadRequestException("Avance introuvable pour ce salarié · une retenue ne vise que les avances du salarié payé.");
+        }
+        const solde = soldeAvance(
+          Number(a.montantFc),
+          a.retenues.map((x) => ({ montantFc: Number(x.montantFc), bulletinAnnule: x.bulletin.statut !== StatutBulletinPaie.EMIS })),
+        );
+        const libelle = `${a.type === 'PRET' ? 'Prêt' : a.type === 'ACOMPTE' ? 'Acompte' : 'Avance'} du ${a.dateOctroi.toISOString().slice(0, 10)} · ${a.objet}`;
+        const refus = motifRefusRetenue(r.montantFc, solde, libelle);
+        if (refus) throw new BadRequestException(refus);
+        retenuesAvances.push({
+          avanceId: a.id,
+          type: a.type as TypeAvance,
+          categoriePret: (a.categoriePret as CategoriePret | null) ?? null,
+          littera: LITTERA_ARTICLE_112[a.type as TypeAvance],
+          libelle,
+          montantFc: r.montantFc,
+          soldeAvantFc: solde,
+        });
+      }
+    }
+    return { dto: { ...dto, elements }, retenuesAvances };
+  }
+
   async simulerPaie(
     tenantId: string,
     salarieId: string | null,
-    dtoStipule: SimulationPaieDto,
+    dtoSaisi: SimulationPaieDto,
     maintenant: Date = new Date(),
   ) {
+    const { dto: dtoStipule, retenuesAvances } = await this.resoudreSaisie(tenantId, salarieId, dtoSaisi);
+    const retenuesAvancesFc = retenuesAvances.reduce((s, r) => s + r.montantFc, 0);
     const { dtoFc: dto, conversion } = await this.convertirEnFrancs(tenantId, dtoStipule, maintenant);
     const borne = baremeApplicableAuMois(dto.moisDePaie);
 
@@ -663,7 +745,16 @@ export class PersonnelService {
       totalVerseFc,
       lesCotisations.totalTravailleurFc,
       retenue ? retenue.retenueFc : null,
+      retenuesAvancesFc,
     );
+    // UN NET NÉGATIF N'EST PAS PAYABLE · les retenues d'avance dépasseraient
+    // ce qui est dû au travailleur ce mois-ci. Le ramener à zéro ferait
+    // mentir le 422 de la passation ; la retenue se réduit, elle ne se force pas.
+    if (net.netAPayerFc !== null && net.netAPayerFc < 0) {
+      throw new BadRequestException(
+        `Les retenues d'avance et de prêt (${retenuesAvancesFc.toFixed(2)} FC) dépassent ce qui reste dû au travailleur ce mois-ci · réduisez-les.`,
+      );
+    }
 
     // LA PASSATION LIT LE RÉFÉRENTIEL DU DOSSIER, et elle est la seule de ce
     // module à en dépendre · le Code du travail et la loi fiscale ne
@@ -687,6 +778,12 @@ export class PersonnelService {
       abstentionsCotisations: lesCotisations.abstentions,
       irppFc: retenue ? retenue.retenueFc : null,
       netAPayerFc: net.netAPayerFc,
+      retenuesAvances: retenuesAvances.map((r) => ({
+        type: r.type,
+        categoriePret: r.categoriePret,
+        libelle: r.libelle,
+        montantFc: r.montantFc,
+      })),
     });
 
     // ARTICLE 114 · LA QUOTITÉ SAISISSABLE S'ASSIED SUR LA RÉMUNÉRATION AU
@@ -717,6 +814,9 @@ export class PersonnelService {
       conversion,
       passation,
       quotite,
+      // ARTICLE 112, c) ET f) · figées avec le bulletin, relues par P9.
+      retenuesAvances,
+      reserveRetenuesAvances: retenuesAvances.length ? RESERVE_QUOTITE_AVANCES : null,
       // ARTICLE 112 · LA LISTE FERMÉE VOYAGE AVEC LA SIMULATION, parce
       // qu'une retenue illicite a exactement l'aspect d'une retenue licite
       // sur un bulletin, et qu'aucun contrôle ne la rattrape après coup.
@@ -940,7 +1040,11 @@ export class PersonnelService {
 
     // Un salaire en dollars se convertit au cours du JOUR D'ÉMISSION · le
     // bulletin fige ce cours (calcul.conversion), et ne se recalcule plus.
-    const simulation = await this.simulerPaie(tenantId, salarieId, dto, maintenant);
+    // Le bulletin FIGE la saisie RELUE · la nature des rubriques et les
+    // retenues d'avance telles que le registre les donne, jamais telles que
+    // le navigateur les a envoyées.
+    const { dto: saisie } = await this.resoudreSaisie(tenantId, salarieId, dto);
+    const simulation = await this.simulerPaie(tenantId, salarieId, saisie, maintenant);
     const motifs = motifsRefusEmission(simulation);
     if (motifs.length > 0) {
       throw new BadRequestException({
@@ -961,7 +1065,7 @@ export class PersonnelService {
           );
         }
         const dernier = await tx.bulletinPaie.aggregate({ where: { tenantId }, _max: { numero: true } });
-        return tx.bulletinPaie.create({
+        const cree = await tx.bulletinPaie.create({
           data: {
             tenantId,
             salarieId,
@@ -979,11 +1083,30 @@ export class PersonnelService {
             cotisationsEmployeurFc: simulation.cotisations.totalEmployeurFc,
             irppFc: simulation.retenue?.retenueFc ?? 0,
             netAPayerFc: simulation.net.netAPayerFc ?? 0,
-            entree: JSON.parse(JSON.stringify(dto)) as Prisma.InputJsonValue,
+            entree: JSON.parse(JSON.stringify(saisie)) as Prisma.InputJsonValue,
             calcul: JSON.parse(JSON.stringify(simulation)) as Prisma.InputJsonValue,
             emisPar: userId,
           },
         });
+        // Les retenues d'avance, RELUES DANS LA TRANSACTION · deux bulletins
+        // émis en même temps sur la même avance la solderaient deux fois.
+        for (const r of simulation.retenuesAvances) {
+          const lignes = await tx.retenueAvanceBulletin.findMany({
+            where: { tenantId, avanceId: r.avanceId },
+            select: { montantFc: true, bulletin: { select: { statut: true } } },
+          });
+          const avance = await tx.avanceSalaire.findFirstOrThrow({ where: { id: r.avanceId, tenantId }, select: { montantFc: true } });
+          const solde = soldeAvance(
+            Number(avance.montantFc),
+            lignes.map((x) => ({ montantFc: Number(x.montantFc), bulletinAnnule: x.bulletin.statut !== StatutBulletinPaie.EMIS })),
+          );
+          const refus = motifRefusRetenue(r.montantFc, solde, r.libelle);
+          if (refus) throw new BadRequestException(refus);
+          await tx.retenueAvanceBulletin.create({
+            data: { tenantId, avanceId: r.avanceId, bulletinId: cree.id, montantFc: r.montantFc },
+          });
+        }
+        return cree;
       });
 
     // DEUX ÉMISSIONS SIMULTANÉES prennent le même « dernier numéro ». L'index

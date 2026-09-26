@@ -118,6 +118,12 @@ export function entreeDuBulletin(b: BulletinAComptabiliser, referentiel: Referen
     abstentionsCotisations: Array.isArray(cotisations?.abstentions) ? (cotisations!.abstentions as string[]) : [],
     irppFc: nombreOuNull(retenue?.retenueFc),
     netAPayerFc: nombreOuNull(net?.netAPayerFc),
+    // Article 112, c) et f) · absentes d'un bulletin émis avant ce chantier,
+    // qui n'en portait aucune. Le type et la catégorie sont ceux que le
+    // registre a donnés à l'émission, figés avec le reste.
+    retenuesAvances: Array.isArray(calcul?.retenuesAvances)
+      ? (calcul!.retenuesAvances as EntreePassation['retenuesAvances'])
+      : [],
   };
 }
 

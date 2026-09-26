@@ -544,6 +544,9 @@ model Tenant {
   enfantsACharge  EnfantACharge[]
   contratsTravail ContratTravail[]
   bulletinsPaie   BulletinPaie[]
+  rubriquesPaie   RubriquePaie[]
+  avancesSalaire  AvanceSalaire[]
+  retenuesAvance  RetenueAvanceBulletin[]
 
   // GROUPE D'ÉTABLISSEMENTS · une même personne morale (une église et ses
   // cellules, un siège et ses antennes) tenue en plusieurs dossiers. Le lien
@@ -6108,6 +6111,7 @@ model Salarie {
   contrats  ContratTravail[]
   enfants   EnfantACharge[]
   bulletins BulletinPaie[]
+  avances   AvanceSalaire[]
 
   createdAt DateTime @default(now())
   createdBy String
@@ -6391,11 +6395,93 @@ model BulletinPaie {
   ecritureId String?
   ecriture   Ecriture? @relation(fields: [ecritureId], references: [id], onDelete: Restrict)
 
+  retenuesAvance RetenueAvanceBulletin[]
+
   @@unique([tenantId, numero])
   @@index([tenantId, ecritureId])
   @@index([tenantId, moisDePaie])
   @@index([tenantId, salarieId])
   @@map("bulletins_paie")
+}
+
+/// RUBRIQUE DE PAIE DU CABINET · une prime conventionnelle, une indemnité
+/// propre à l'entreprise. Elle NOMME un élément, elle ne décide pas de son
+/// traitement · sa nature est l'une des dix que l'article 7, point 8 du Code
+/// du travail range dans la rémunération, et c'est la nature qui commande les
+/// deux assiettes et l'imputation (voir personnel/rubriques-paie.ts).
+model RubriquePaie {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  code      String
+  libelle   String
+  nature    String
+  /// Convention collective, contrat, décision de l'employeur · d'où vient la
+  /// prime. Un réviseur la demandera avant le montant.
+  fondement String
+  actif     Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, code])
+  @@map("rubriques_paie")
+}
+
+enum TypeAvanceSalaire {
+  AVANCE
+  ACOMPTE
+  PRET
+}
+
+enum CategoriePretPersonnel {
+  IMMOBILIER
+  MOBILIER_ET_INSTALLATION
+  AUTRE
+}
+
+/// AVANCE, ACOMPTE OU PRÊT CONSENTI À UN SALARIÉ · Code du travail, art. 112,
+/// litera c) « retenues à titre d'avances » et f) « retenues à titre de
+/// prêt ». Le remboursement se fait par les retenues des bulletins émis, et le
+/// solde se CALCULE (montant moins retenues des bulletins non annulés), il ne
+/// se saisit pas.
+model AvanceSalaire {
+  id                 String                  @id @default(uuid())
+  tenantId           String
+  tenant             Tenant                  @relation(fields: [tenantId], references: [id])
+  salarieId          String
+  salarie            Salarie                 @relation(fields: [salarieId], references: [id], onDelete: Restrict)
+  type               TypeAvanceSalaire
+  categoriePret      CategoriePretPersonnel?
+  dateOctroi         DateTime                @db.Date
+  montantFc          Decimal                 @db.Decimal(18, 2)
+  /// Retenue proposée chaque mois · le bulletin peut en retenir moins.
+  retenueMensuelleFc Decimal?                @db.Decimal(18, 2)
+  objet              String
+  /// Reconnaissance de dette ou contrat de prêt · « éléments de contrôle » du
+  /// compte 42 dans les deux plans.
+  pieceJustificative String
+  creePar            String
+  createdAt          DateTime                @default(now())
+  retenues           RetenueAvanceBulletin[]
+
+  @@index([tenantId, salarieId])
+  @@map("avances_salaire")
+}
+
+/// Ce qu'un bulletin a retenu sur une avance. Figé avec le bulletin · un
+/// bulletin annulé cesse de compter dans le solde, la ligne reste.
+model RetenueAvanceBulletin {
+  id         String        @id @default(uuid())
+  tenantId   String
+  tenant     Tenant        @relation(fields: [tenantId], references: [id])
+  avanceId   String
+  avance     AvanceSalaire @relation(fields: [avanceId], references: [id], onDelete: Restrict)
+  bulletinId String
+  bulletin   BulletinPaie  @relation(fields: [bulletinId], references: [id], onDelete: Restrict)
+  montantFc  Decimal       @db.Decimal(18, 2)
+
+  @@index([tenantId, avanceId])
+  @@index([bulletinId])
+  @@map("retenues_avance_bulletin")
 }
 
 // ─── Consolidation SYSCOHADA, tranche 1 · le périmètre (AUDCIF art. 74 à 98) ───

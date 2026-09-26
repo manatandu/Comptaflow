@@ -166,14 +166,14 @@ méthode. D = la source décrit la fonction ; N = elle ne fait que la nommer.
 | Édition Pilotée | Simulateur de scénarios, cube de données | D | NON / ÉCARTÉ (plan de construction) |
 | Paie et RH | Fiche salarié, contrat, bulletins, passation | D | OUI (P1 à P9) |
 | Paie et RH | Moteur de constantes et barèmes paramétrables | D | NON · barèmes RDC codés avec leur article |
-| Paie et RH | Rubriques créées par l'utilisateur, bulletins modèles | D / N | NON · catalogue fermé d'éléments légaux |
-| Paie et RH | Avances et prêts sur salaire (événement, retenue, solde) | D | PARTIEL · nommés à l'art. 112, non gérés |
+| Paie et RH | Rubriques créées par l'utilisateur, bulletins modèles | D / N | PARTIEL (2026-09-26) · rubriques du cabinet qui nomment un élément et en prennent la nature, jamais les assiettes ; bulletins modèles non servis |
+| Paie et RH | Avances et prêts sur salaire (événement, retenue, solde) | D | OUI (2026-09-26) · registre, retenue sur le bulletin (4211, 4212, 272), solde calculé |
 | Sage X3 | Profils fonctions | N | OUI (point 15) |
 | Sage X3 | Habilitation par écran ou champ, filtrage des données par compte ou journal | N | NON · tenu en réserve au plan |
 
 Priorités proposées pour un cabinet congolais : (1) RIB des tiers et ordre de
 virement imprimable, servi le 2026-09-26 ; (2) avances et prêts sur salaire, rubriques de paie
-paramétrables ; (3) dégressif et dérogatoire pour le SYSCOHADA, après
+paramétrables, servis le 2026-09-26 ; (3) dégressif et dérogatoire pour le SYSCOHADA, après
 confrontation de l'arrêté ; (4) barèmes de paie en données datées ; (5)
 filtrage des données par rôle ; (6) simulateur budgétaire. Le reste n'est que
 nommé dans les sources et ne s'implémente pas sans meilleure source.

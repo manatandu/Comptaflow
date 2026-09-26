@@ -4618,6 +4618,32 @@ tant que l'ordre tient une pièce, elle ne se supprime pas
 pas, ses RIB partent avec lui. L'état ne bloque pas la validation de la pièce ·
 décision déclarée, la validation restant l'acte du comptable.
 
+**Rubriques de paie du cabinet, avances et prêts au personnel (2026-09-26).**
+Priorité 2 de la comparaison avec les autres produits Sage (Paie et RH).
+Onglet « Rubriques et avances » de la fenêtre Personnel
+(`personnel/rubriques-paie.ts`, `personnel/avances-salaire.ts`). CINQ RÈGLES À NE
+PAS DÉFAIRE. (1) UNE RUBRIQUE NOMME, LA NATURE DÉCIDE · Sage laisse la rubrique
+choisir ses assiettes, OmegaX non : la rubrique prend l'une des natures de la
+rémunération de l'art. 7, point 8 du Code du travail, et c'est la nature qui
+commande les deux assiettes et le compte. Les cinq exclusions sont REFUSÉES à
+une rubrique (une prime baptisée « transport » sortirait de l'assiette sociale
+sur son seul nom), la participation aux bénéfices aussi (sans imputation). Le
+fondement est obligatoire ; code et nature ne changent plus, une rubrique se
+désactive. (2) LA NATURE EST RELUE AU SERVEUR (`resoudreSaisie`) · celle que le
+client envoie avec un `rubriqueId` est remplacée, et le bulletin fige la saisie
+RELUE, si bien que P9 repasse la bonne nature. (3) AVANCE ET ACOMPTE AU 4211 ET
+4212, PRÊT AU 272 · fiche du compte 42 des deux plans, qui EXCLUT les prêts du
+42 ; mêmes numéros aux deux semis, un test les relit. La retenue du bulletin
+(art. 112, c et f) vire le 422 vers ce compte (Guide SYSCOHADA, Partie 1 ch. 3,
+§ 4.3 et Application 10) ; type et catégorie viennent du registre, jamais du
+client. Le versement de l'avance est une écriture de trésorerie que le cabinet
+passe. (4) LE SOLDE SE CALCULE · montant moins retenues des bulletins NON
+ANNULÉS, relu dans la transaction d'émission ; une retenue au-delà du solde est
+refusée, un net négatif aussi (le ramener à zéro ferait mentir le 422). Une
+avance qui porte une retenue ne se supprime plus. (5) AUCUN PLAFOND N'EST
+OPPOSÉ AU NOM DE L'ART. 114 · l'art. 112 n'y renvoie que pour son litera d) ;
+la quotité est montrée pour comparaison, et c'est dit.
+
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en
 nommant le compte tant que `confirmerComptesEnSommeil` n'est pas envoyé ; la

@@ -129,6 +129,8 @@ describe('la liste d’exclusion est fermée sur User', () => {
       'contrats',
       'enfants',
       'bulletins',
+      // Le lien vers ses avances · la relation, jamais un montant.
+      'avances',
       'createdAt',
       'createdBy',
       'updatedAt',
@@ -206,6 +208,25 @@ describe('la liste d’exclusion est fermée sur User', () => {
       // c'est le lien que le journal doit montrer quand il se pose ou se défait.
       'ecritureId',
       'ecriture',
+      // Les retenues d'avance portées par le bulletin · la relation seule.
+      'retenuesAvance',
+    ],
+    // L'AVANCE AU SALARIÉ · le journal dit qu'elle existe, de quel type, à
+    // quelle date et sur quelle pièce ; le montant et l'objet sont masqués,
+    // comme la rémunération du contrat.
+    AvanceSalaire: [
+      'id',
+      'tenantId',
+      'tenant',
+      'salarieId',
+      'salarie',
+      'type',
+      'categoriePret',
+      'dateOctroi',
+      'pieceJustificative',
+      'creePar',
+      'createdAt',
+      'retenues',
     ],
   };
 
