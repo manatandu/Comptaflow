@@ -137,7 +137,19 @@ export class PlateformeService implements OnModuleInit {
    * évaluée à chaque requête par LicenceService · « renouveler », c'est donc
    * poser une nouvelle échéance, le statut ACTIVE suffisant ensuite.
    */
-  async modifierLicence(tenantId: string, dto: ModifierLicenceDto) {
+  /**
+   * LA LICENCE EST CELLE D'UN AUTRE DOSSIER · l'opérateur est connecté au sien,
+   * et la garde de cloisonnement rendait la ligne cible INEXISTANTE : la
+   * console répondait « Cabinet introuvable ou sans licence » à toute
+   * modification de la licence d'un client. La sortie est déclarée, avec son
+   * motif, comme pour la création d'un dossier ou la réinitialisation de son
+   * administrateur.
+   */
+  modifierLicence(tenantId: string, dto: ModifierLicenceDto) {
+    return horsCloisonnement('console · licence d’un cabinet client', () => this.modifierLicenceSansGarde(tenantId, dto));
+  }
+
+  private async modifierLicenceSansGarde(tenantId: string, dto: ModifierLicenceDto) {
     // Avant toute lecture : un type non attribuable est un défaut de la
     // DEMANDE, il n'a pas à dépendre de l'existence de la cible, et surtout
     // il ne doit rien écrire · le PATCH cascade sur les cellules.
