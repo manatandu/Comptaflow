@@ -9,6 +9,10 @@
     ],
     "rewrites": [
       {
+        "source": "/api/**",
+        "run": { "serviceId": "comptaflow-api", "region": "us-east1" }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

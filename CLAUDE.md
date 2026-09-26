@@ -5953,9 +5953,15 @@ avant de l'écrire ; un spec (`compte-seed-syscohada.spec.ts`) le contrôle.
 
 ## 8. Sécurité
 
-- Session en **cookie httpOnly** `omegax_session` + jeton CSRF apparié rejoué
+- Session en **cookie httpOnly** `__session` + jeton CSRF apparié rejoué
   en en-tête `X-CSRF-Token`. Le jeton de session n'est jamais exposé au
-  JavaScript.
+  JavaScript. **L'API EST SERVIE SOUS L'ADRESSE DU SITE** (2026-09-26) ·
+  Firebase Hosting relaie `oomega.web.app/api/**` vers Cloud Run
+  (`client/firebase.json`), le serveur retire le préfixe
+  (`retirerPrefixeApi`). Sans cela le cookie était TIERS, et tous les
+  navigateurs de l'iPhone le jettent · la connexion « réussissait » et la
+  session était perdue aussitôt. Le nom `__session` est imposé par Firebase,
+  qui retire tout autre cookie des requêtes relayées · ne pas le renommer.
 - **Auto-inscription fermée** · `POST /auth/register` refuse sauf si
   `INSCRIPTION_PUBLIQUE=true`. Un dossier naît depuis la console VMG ou par le
   siège d'un groupe. `AuthService.register` reste le pipeline commun de toutes
