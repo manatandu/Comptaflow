@@ -161,7 +161,10 @@ export const COLONNE_CONTRE_VALEUR_LOGEMENT = 20;
 export const colonneDeLaClasse = (classe: number): number => classe + 1;
 
 export interface Annexe {
-  numero: 1 | 2;
+  /** 1 ou 2 pour les annexes du décret n° 25/22, null pour une version du cabinet. */
+  numero: 1 | 2 | null;
+  /** Le texte d'une version saisie par le cabinet (baremes-dossier.ts). */
+  reference?: string;
   /** Premier mois de paie couvert, AAAA-MM. */
   duMoisDePaie: string;
   /** Dernier mois de paie couvert, AAAA-MM, ou null si non borné. */
@@ -235,8 +238,49 @@ const REFUS_ANTERIEUR =
   "n° 25/22. Le décret n° 18/017 du 22 mai 2018 régissait alors ; il est abrogé par l'article 11 " +
   "et n'est PAS au corpus d'OmegaX · ses montants ne sont pas reconstitués ici.";
 
-/** L'annexe applicable à un mois de paie, ou le motif pour lequel il n'y en a pas. */
-export function annexeApplicable(moisDePaie: string): Applicable<Annexe> {
+/** Le nom d'une annexe dans un message · celle du décret, ou la version du cabinet. */
+export const nomAnnexe = (a: Annexe) =>
+  a.numero === null ? `la grille saisie par le cabinet (${a.reference ?? 'texte non précisé'})` : `l'annexe ${a.numero} du décret n° 25/22`;
+
+const arrondiAnnexe = (n: number) => Math.round(n * 10 ** DECIMALES_ANNEXE) / 10 ** DECIMALES_ANNEXE;
+
+/**
+ * UNE GRILLE DU CABINET · le décret n° 25/21 prévoit l'AJUSTEMENT du SMIG
+ * « à partir du mois de janvier de chaque année » (art. 11), par arrêté du
+ * Ministre (art. 10), et sa FIXATION par décret (art. 9). Le cabinet saisit
+ * le seul taux du manœuvre ordinaire et le texte qui le fonde ; la grille en
+ * découle, parce que « la tension salariale en vigueur est appliquée » (art. 6)
+ * et que les deux annexes du décret n° 25/22 sont exactement
+ * `tension × SMIG / 100` (test de clôture). Les colonnes 19 et 20 suivent les
+ * fractions des articles 5 et 6 du décret n° 25/22 (1/27e, puis 1/5e de
+ * l'allocation). C'est une LECTURE d'OmegaX, dite dans la réserve · un texte
+ * d'ajustement qui publierait sa propre annexe primerait, et une nouvelle
+ * tension salariale passe par une mise à jour d'OmegaX.
+ */
+export function annexeDuCabinet(v: { aPartirDu: string; reference: string; smigJournalierFc: number }): Annexe {
+  const smig = v.smigJournalierFc;
+  const allocation = arrondiAnnexe(smig / DIVISEUR_ALLOCATION_FAMILIALE);
+  return {
+    numero: null,
+    reference: v.reference,
+    duMoisDePaie: v.aPartirDu.slice(0, 7),
+    auMoisDePaie: null,
+    smigJournalierFc: smig,
+    tauxParClasse: TENSIONS.map((t) => arrondiAnnexe((t * smig) / 100)),
+    allocationFamilialeJournaliereFc: allocation,
+    contreValeurLogementJournaliereFc: arrondiAnnexe(allocation / DIVISEUR_CONTRE_VALEUR_LOGEMENT),
+  };
+}
+
+export const RESERVE_GRILLE_CABINET =
+  "GRILLE SAISIE PAR LE CABINET · OmegaX n'a pas lu ce texte. Le taux du manœuvre ordinaire est celui que le cabinet a déclaré ; les dix-sept classes en sont tirées par la tension salariale du décret n° 25/22 (décret n° 25/21, art. 6), l'allocation familiale et la contre-valeur du logement par les fractions de ses articles 5 et 6.";
+
+/**
+ * L'annexe applicable à un mois de paie, ou le motif pour lequel il n'y en a
+ * pas. Les grilles du cabinet s'ajoutent aux deux annexes · la plus récente
+ * dont le premier mois est atteint l'emporte.
+ */
+export function annexeApplicable(moisDePaie: string, annexesDossier: readonly Annexe[] = []): Applicable<Annexe> {
   if (!MOIS_VALIDE.test(moisDePaie)) {
     return {
       valeur: null,
@@ -245,20 +289,23 @@ export function annexeApplicable(moisDePaie: string): Applicable<Annexe> {
       explication: 'Le mois de paie doit être écrit AAAA-MM.',
     };
   }
-  const trouvee = ANNEXES.find(
-    (a) => moisDePaie >= a.duMoisDePaie && (a.auMoisDePaie === null || moisDePaie <= a.auMoisDePaie),
-  );
+  const trouvee = [...ANNEXES, ...annexesDossier]
+    .filter((a) => moisDePaie >= a.duMoisDePaie && (a.auMoisDePaie === null || moisDePaie <= a.auMoisDePaie))
+    .sort((a, b) => (a.duMoisDePaie < b.duMoisDePaie ? -1 : a.duMoisDePaie > b.duMoisDePaie ? 1 : 0))
+    .pop();
   if (!trouvee) {
     return { valeur: null, annexe: null, refus: 'ANTERIEUR_AU_DECRET', explication: REFUS_ANTERIEUR };
   }
+  const nom = nomAnnexe(trouvee);
   return {
     valeur: trouvee,
     annexe: trouvee,
     refus: null,
     explication:
-      `Annexe ${trouvee.numero} du décret n° 25/22, applicable à la paie de ${trouvee.duMoisDePaie}` +
+      `${nom.charAt(0).toUpperCase()}${nom.slice(1)}, applicable à la paie de ${trouvee.duMoisDePaie}` +
       `${trouvee.auMoisDePaie ? ` à ${trouvee.auMoisDePaie}` : ' et au-delà'}. Manœuvre ordinaire : ` +
-      `${trouvee.smigJournalierFc} FC par jour.`,
+      `${trouvee.smigJournalierFc} FC par jour.` +
+      (trouvee.numero === null ? ` ${RESERVE_GRILLE_CABINET}` : ''),
   };
 }
 
@@ -272,8 +319,9 @@ export function annexeApplicable(moisDePaie: string): Applicable<Annexe> {
 export function tauxJournalierDeLaClasse(
   classe: number,
   moisDePaie: string,
+  annexesDossier: readonly Annexe[] = [],
 ): Applicable<{ classe: number; tension: number; tauxFc: number; categorie: CategorieProfessionnelle; echelon: string | null; colonne: number }> {
-  const a = annexeApplicable(moisDePaie);
+  const a = annexeApplicable(moisDePaie, annexesDossier);
   if (!a.valeur) return { valeur: null, annexe: null, refus: a.refus, explication: a.explication };
   if (!Number.isInteger(classe) || classe < 1 || classe > TENSIONS.length) {
     return {
@@ -341,8 +389,9 @@ export function tauxJournalierDeLaClasse(
 export function allocationFamilialeJournaliere(
   moisDePaie: string,
   nombreEnfants = 1,
+  annexesDossier: readonly Annexe[] = [],
 ): Applicable<{ parEnfantFc: number; totalFc: number; colonne: number }> {
-  const a = annexeApplicable(moisDePaie);
+  const a = annexeApplicable(moisDePaie, annexesDossier);
   if (!a.valeur) return { valeur: null, annexe: null, refus: a.refus, explication: a.explication };
   const parEnfant = a.valeur.allocationFamilialeJournaliereFc;
   return {
@@ -354,7 +403,7 @@ export function allocationFamilialeJournaliere(
     annexe: a.valeur,
     refus: null,
     explication:
-      `Colonne ${COLONNE_ALLOCATIONS_FAMILIALES} de l'annexe ${a.valeur.numero} : ${parEnfant} FC ` +
+      `Colonne ${COLONNE_ALLOCATIONS_FAMILIALES} de ${nomAnnexe(a.valeur)} : ${parEnfant} FC ` +
       `par jour et PAR ENFANT à charge, soit 1/27e du taux du manœuvre ordinaire ` +
       `(${a.valeur.smigJournalierFc} FC) arrondi au centime. LES CONDITIONS DE SUSPENSION de ` +
       "l'allocation relèvent de l'arrêté ministériel n° 137/CAB/MINETAT/MTEPS/01/2018 que vise l'article 13 " +
@@ -380,8 +429,9 @@ export function allocationFamilialeJournaliere(
  */
 export function contreValeurLogementJournaliere(
   moisDePaie: string,
+  annexesDossier: readonly Annexe[] = [],
 ): Applicable<{ montantFc: number; colonne: number }> {
-  const a = annexeApplicable(moisDePaie);
+  const a = annexeApplicable(moisDePaie, annexesDossier);
   if (!a.valeur) return { valeur: null, annexe: null, refus: a.refus, explication: a.explication };
   return {
     valeur: {
@@ -391,7 +441,7 @@ export function contreValeurLogementJournaliere(
     annexe: a.valeur,
     refus: null,
     explication:
-      `Colonne ${COLONNE_CONTRE_VALEUR_LOGEMENT} de l'annexe ${a.valeur.numero} : ` +
+      `Colonne ${COLONNE_CONTRE_VALEUR_LOGEMENT} de ${nomAnnexe(a.valeur)} : ` +
       `${a.valeur.contreValeurLogementJournaliereFc} FC par jour, soit 1/5e de l'allocation ` +
       "familiale journalière. C'est une DÉFALCATION de l'indemnité de logement, et l'article 15 du " +
       "décret n° 25/21 ne l'ouvre que pour cause de MUTATION avec logement en nature.",

@@ -3,7 +3,9 @@ import { join } from 'path';
 import { BadRequestException } from '@nestjs/common';
 import { StatutBulletinPaie } from '@prisma/client';
 import { cotisations, RESERVE_BAREME_CABINET } from './cotisations-paie';
-import { DERNIERE_DATE_LIVREE, lireValeurs, moisCouverts, motifRefusVersion, versionsDuDossier } from './baremes-dossier';
+import { DERNIERE_DATE_LIVREE, annexesSmigDuDossier, lireValeurs, moisCouverts, motifRefusVersion, versionsDuDossier } from './baremes-dossier';
+import { ANNEXES, RESERVE_GRILLE_CABINET, allocationFamilialeJournaliere, annexeDuCabinet, tauxJournalierDeLaClasse } from './bareme-smig';
+import { mensuelMinimumDeLaClasse, quotiteSaisissable } from './quotite-saisissable';
 import { BaremesPaieService } from './baremes-paie.service';
 import { PrismaService } from '../../common/prisma.service';
 
@@ -23,12 +25,19 @@ describe('Une version de barème s’ajoute, elle ne remplace rien', () => {
     expect(motifRefusVersion({ ...ONEM_1, aPartirDu: '2027-02-01' }, ['2027-03-01'])).toMatch(/du 2027-03-01/);
   });
 
-  it('borne la CNSS à la date du décret n° 18/041', () => {
-    expect(motifRefusVersion({ bareme: 'CNSS', aPartirDu: '2018-11-24', reference: 'Décret n° 99/2027', valeurs: {} }, [])).toMatch(/2018-11-24/);
+  it('borne la CNSS au 1er janvier 2019, fin du régime transitoire (art. 10)', () => {
+    expect(DERNIERE_DATE_LIVREE.CNSS).toBe('2019-01-01');
+    expect(motifRefusVersion({ bareme: 'CNSS', aPartirDu: '2019-01-20', reference: 'Décret n° 99/2027', valeurs: {} }, [])).toMatch(/2019-01-01/);
   });
 
-  it('refuse le SMIG et l’IRPP, qui restent ceux des textes lus', () => {
-    expect(motifRefusVersion({ ...ONEM_1, bareme: 'IRPP' }, [])).toMatch(/SMIG et le barème de l'IRPP/);
+  it('refuse une seconde version dans le mois de la dernière', () => {
+    expect(motifRefusVersion({ ...ONEM_1, aPartirDu: '2027-03-20' }, ['2027-03-01'])).toMatch(/un mois après/);
+    expect(motifRefusVersion({ ...ONEM_1, aPartirDu: '2025-09-30' }, [])).toMatch(/un mois après/);
+    expect(motifRefusVersion({ ...ONEM_1, aPartirDu: '2025-10-01' }, [])).toBeNull();
+  });
+
+  it('refuse l’IRPP, qui reste celui de la loi lue', () => {
+    expect(motifRefusVersion({ ...ONEM_1, bareme: 'IRPP' }, [])).toMatch(/barème de l'IRPP/);
   });
 
   it('exige le texte qui fonde la version', () => {
@@ -94,6 +103,83 @@ describe('Le moteur prend la version du cabinet à partir de sa date, avec sa r�
     }
     expect(ligne('2027-04', 'onem').source).toBe('Arrêté n° 001/2027');
     expect(ligne('2027-04', 'cnss-pf').source).toContain('Décret n° 27/001');
+  });
+});
+
+describe('Le SMIG du cabinet · la grille tirée de la tension salariale', () => {
+  const SMIG_27 = { bareme: 'SMIG', aPartirDu: '2027-01-01', reference: 'Arrêté d’ajustement n° 001/2027', valeurs: { smigJournalierFc: 25_000 } };
+
+  it('accepte un SMIG après janvier 2026, jamais dans ce mois ni avant', () => {
+    expect(DERNIERE_DATE_LIVREE.SMIG).toBe('2026-01-01');
+    expect(motifRefusVersion(SMIG_27, [])).toBeNull();
+    expect(motifRefusVersion({ ...SMIG_27, aPartirDu: '2026-01-15' }, [])).toMatch(/un mois après/);
+  });
+
+  it('refuse un montant mensuel pris pour un journalier', () => {
+    expect(lireValeurs('SMIG', { smigJournalierFc: 21_500 * 26 }).ok).toBe(false);
+    expect(lireValeurs('SMIG', { smigJournalierFc: 215_000 }).ok).toBe(true);
+    expect(lireValeurs('SMIG', { smigJournalierFc: 0 }).ok).toBe(false);
+  });
+
+  it('refait les annexes du décret à l’identique à partir du seul SMIG', () => {
+    for (const a of ANNEXES) {
+      const refaite = annexeDuCabinet({ aPartirDu: `${a.duMoisDePaie}-01`, reference: 'x', smigJournalierFc: a.smigJournalierFc });
+      expect(refaite.tauxParClasse).toEqual(a.tauxParClasse);
+      expect(refaite.allocationFamilialeJournaliereFc).toBe(a.allocationFamilialeJournaliereFc);
+      expect(refaite.contreValeurLogementJournaliereFc).toBe(a.contreValeurLogementJournaliereFc);
+    }
+  });
+
+  it('prend la grille du cabinet dès son mois, et le dit', () => {
+    const annexes = annexesSmigDuDossier([SMIG_27, ONEM_1]);
+    expect(annexes).toHaveLength(1);
+    expect(tauxJournalierDeLaClasse(1, '2026-12', annexes).valeur!.tauxFc).toBe(21_500);
+    const c17 = tauxJournalierDeLaClasse(17, '2027-01', annexes);
+    expect(c17.valeur!.tauxFc).toBe(250_000);
+    expect(c17.explication).toContain(RESERVE_GRILLE_CABINET);
+    expect(c17.explication).toContain('Arrêté d’ajustement n° 001/2027');
+    expect(allocationFamilialeJournaliere('2027-02', 1, annexes).valeur!.parEnfantFc).toBe(925.93);
+  });
+
+  it('porte la grille jusqu’au minimum du contrat et à la quotité saisissable', () => {
+    const annexes = annexesSmigDuDossier([SMIG_27]);
+    expect(mensuelMinimumDeLaClasse('2027-01', 1, annexes)!.montantFc).toBe(25_000 * 26);
+    expect(mensuelMinimumDeLaClasse('2027-01', 1)!.montantFc).toBe(21_500 * 26);
+    const q = quotiteSaisissable({ moisDePaie: '2027-01', annexesSmig: annexes, remunerationFc: 2_000_000, classeProfessionnelle: 1 });
+    expect(q.mensuelMinimumFc).toBe(25_000 * 26);
+  });
+
+  it('retient la grille la plus récente, quel que soit l’ordre de lecture', () => {
+    const annexes = annexesSmigDuDossier([
+      { ...SMIG_27, aPartirDu: '2028-01-01', valeurs: { smigJournalierFc: 30_000 } },
+      SMIG_27,
+    ]);
+    expect(tauxJournalierDeLaClasse(1, '2028-03', annexes).valeur!.tauxFc).toBe(30_000);
+    expect(tauxJournalierDeLaClasse(1, '2027-06', annexes).valeur!.tauxFc).toBe(25_000);
+  });
+});
+
+describe('La CNSS datée par le décret n° 18/041', () => {
+  const ligne = (mois: string, cle: string) => cotisations(1_000_000, { moisDePaie: mois }).lignes.find((l) => l.cle === cle);
+
+  it('applique le régime transitoire de l’article 10 en novembre et décembre 2018', () => {
+    expect(ligne('2018-12', 'cnss-pension-travailleur')!.tauxPourCent).toBe(3.5);
+    expect(ligne('2018-11', 'cnss-pension-employeur')!.tauxPourCent).toBe(3.5);
+    expect(ligne('2018-12', 'cnss-rp')!.tauxPourCent).toBe(1.5);
+    expect(ligne('2018-12', 'cnss-pf')).toBeUndefined();
+    expect(cotisations(1_000_000, { moisDePaie: '2018-12' }).abstentions.join(' ')).toMatch(/ex-province du Katanga/);
+  });
+
+  it('applique les taux des articles 2 et 3 dès janvier 2019', () => {
+    expect(ligne('2019-01', 'cnss-pension-travailleur')!.tauxPourCent).toBe(5);
+    expect(ligne('2019-01', 'cnss-pf')!.tauxPourCent).toBe(6.5);
+    expect(ligne('2019-01', 'cnss-pf')!.source).toContain('articles 2 à 4 et 10');
+  });
+
+  it('s’abstient avant le 24 novembre 2018', () => {
+    const v = cotisations(1_000_000, { moisDePaie: '2018-10' });
+    expect(v.lignes.filter((l) => l.organisme === 'CNSS')).toHaveLength(0);
+    expect(v.abstentions.join(' ')).toMatch(/24 novembre 2018/);
   });
 });
 
@@ -180,5 +266,15 @@ describe('Le câblage', () => {
     const corps = source.slice(debut, source.indexOf('\n  }\n', debut));
     expect(corps).toMatch(/versionBaremePaie\.findMany\(\{\s*where: \{ tenantId \}/);
     expect(corps).toContain('versionsDossier: versionsDuDossier(versionsBaremes)');
+    expect(corps).toContain('this.tauxLegalAllocationsFamiliales(dto, annexesSmig)');
+    expect(corps).toMatch(/quotiteSaisissable\(\{\s*moisDePaie: dto\.moisDePaie,\s*annexesSmig,/);
+  });
+
+  it('confronter lit les grilles SMIG du dossier pour le minimum du contrat', () => {
+    const source = readFileSync(join(__dirname, 'personnel.service.ts'), 'utf8');
+    const debut = source.indexOf('async confronter(');
+    const corps = source.slice(debut, source.indexOf('\n  }\n', debut));
+    expect(corps).toMatch(/versionBaremePaie\.findMany\(\{\s*where: \{ tenantId, bareme: 'SMIG' \}/);
+    expect(corps).toContain('verdictRemunerationMinimale(contrat, moisDeReference, annexesSmig)');
   });
 });

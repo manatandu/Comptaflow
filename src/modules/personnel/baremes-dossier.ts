@@ -1,11 +1,12 @@
 import {
+  BAREMES_CNSS,
   BAREMES_INPP,
   BAREMES_ONEM,
-  TAUX_CNSS,
   type BaremeInpp,
   type VersionCnss,
   type VersionsDuDossier,
 } from './cotisations-paie';
+import { ANNEXES, annexeDuCabinet, type Annexe } from './bareme-smig';
 
 /**
  * BARÈMES DE PAIE EN DONNÉES DATÉES (priorité 4 de la comparaison avec les
@@ -16,17 +17,16 @@ import {
  * ci-dessous est celle d'OmegaX, et l'aide le dit.
  *
  * CE QUI EST SERVI · les TAUX de cotisation, CNSS (décret n° 18/041), INPP
- * (arrêtés de 2006 et de 2025) et ONEM (arrêtés de 2018 et de 2025). Ce sont
- * les barèmes que l'Administration change par un texte bref, un article, sans
- * toucher à la structure du calcul.
+ * (arrêtés de 2006 et de 2025) et ONEM (arrêtés de 2018 et de 2025), et le
+ * SMIG du manœuvre ordinaire, que le décret n° 25/21 fait AJUSTER « à partir
+ * du mois de janvier de chaque année » (art. 11) par arrêté du Ministre
+ * (art. 10). La grille des dix-sept classes en découle par la tension
+ * salariale en vigueur (art. 6), voir annexeDuCabinet.
  *
- * CE QUI NE L'EST PAS, ET POURQUOI · le SMIG et sa grille de dix-sept classes
- * (décret n° 25/22 et son annexe), parce que la grille distingue le taux PAYÉ
- * du taux FIXÉ et que son annexe se vérifie par une arithmétique close
- * (bareme-smig.ts) qu'une saisie ne porterait pas ; et les tranches de l'IRPP
- * (loi n° 23/053, art. 118), qui sont dans la loi et ne changent que par une
- * loi. Un barème faux sur ces deux-là fausse l'impôt ou le minimum légal de
- * tout le parc.
+ * CE QUI NE L'EST PAS, ET POURQUOI · les tranches de l'IRPP (loi n° 23/053,
+ * art. 118), qui sont dans la loi et ne changent que par une loi, et une
+ * nouvelle TENSION salariale · l'une et l'autre passent par une mise à jour
+ * d'OmegaX, qui relit le texte entier.
  *
  * TROIS RÈGLES.
  *  1. UNE VERSION S'AJOUTE, ELLE NE REMPLACE RIEN · les versions livrées dans
@@ -41,17 +41,14 @@ import {
  *     ligne de tous les bulletins sans que le net cesse d'être plausible.
  */
 
-export type NomBareme = 'CNSS' | 'INPP' | 'ONEM';
+export type NomBareme = 'CNSS' | 'INPP' | 'ONEM' | 'SMIG';
 
-export const BAREMES_SERVIS: readonly NomBareme[] = ['CNSS', 'INPP', 'ONEM'];
+export const BAREMES_SERVIS: readonly NomBareme[] = ['CNSS', 'INPP', 'ONEM', 'SMIG'];
 
-/**
- * La date du dernier texte livré, par barème. La CNSS n'a pas de date d'effet
- * lue (voir tauxCnss) · c'est la date du décret n° 18/041 lui-même qui sert de
- * borne, une version ne pouvant précéder le texte qu'elle remplace.
- */
+/** La date d'effet du dernier texte livré, par barème. */
 export const DERNIERE_DATE_LIVREE: Record<NomBareme, string> = {
-  CNSS: '2018-11-24',
+  CNSS: BAREMES_CNSS[BAREMES_CNSS.length - 1].aPartirDu,
+  SMIG: `${ANNEXES[ANNEXES.length - 1].duMoisDePaie}-01`,
   INPP: BAREMES_INPP[BAREMES_INPP.length - 1].aPartirDu,
   ONEM: BAREMES_ONEM[BAREMES_ONEM.length - 1].aPartirDu,
 };
@@ -82,6 +79,17 @@ export function lireValeurs(
     const cles = ['prestationsAuxFamilles', 'pensionsEmployeur', 'pensionsTravailleur', 'risquesProfessionnels'] as const;
     if (!cles.every((c) => tauxValide(v[c]))) return { ok: false, motif: `CNSS · les quatre taux sont obligatoires. ${refusTaux}` };
     return { ok: true, valeurs: Object.fromEntries(cles.map((c) => [c, v[c]])) };
+  }
+  if (bareme === 'SMIG') {
+    // Un taux JOURNALIER en francs (décret n° 25/22, art. 2) · un mensuel saisi
+    // par erreur donnerait une grille vingt-six fois trop haute, d'où la
+    // borne : au-delà de dix fois le SMIG livré, c'est une autre unité.
+    const x = v.smigJournalierFc;
+    const plafond = ANNEXES[ANNEXES.length - 1].smigJournalierFc * 10;
+    if (typeof x !== 'number' || !Number.isFinite(x) || x <= 0 || x > plafond) {
+      return { ok: false, motif: `SMIG · le taux JOURNALIER du manœuvre ordinaire, en francs, strictement positif et au plus ${plafond} FC · un montant mensuel se divise par 26 (décret n° 25/22, art. 7).` };
+    }
+    return { ok: true, valeurs: { smigJournalierFc: x } };
   }
   if (bareme === 'ONEM') {
     if (!tauxValide(v.tauxPourCent)) return { ok: false, motif: `ONEM · ${refusTaux}` };
@@ -128,11 +136,13 @@ export function motifRefusVersion(saisie: VersionSaisie, datesDuDossier: readonl
   if (!saisie.reference || saisie.reference.trim().length < 8) {
     return "Le texte qui fonde la version est obligatoire · numéro, date et article. Il est porté sur chaque bulletin calculé avec ce taux.";
   }
+  // LE MOIS, PAS LE JOUR · le moteur prend une version dès le premier jour de
+  // son mois. Deux versions dans le même mois se disputeraient la même paie.
   const dates = [DERNIERE_DATE_LIVREE[bareme], ...datesDuDossier].sort();
   const derniere = dates[dates.length - 1];
-  if (saisie.aPartirDu <= derniere) {
+  if (saisie.aPartirDu.slice(0, 7) <= derniere.slice(0, 7)) {
     return (
-      `Une version ${bareme} vient après la dernière connue, du ${derniere} · ` +
+      `Une version ${bareme} prend effet un mois après la dernière connue, du ${derniere} · ` +
       "insérer une version entre deux autres réécrirait en silence le taux d'une période déjà payée."
     );
   }
@@ -152,6 +162,13 @@ export function versionsDuDossier(lignes: readonly LigneVersion[]): VersionsDuDo
   };
 }
 
+/** Les grilles SMIG du cabinet, sous la forme que bareme-smig.ts lit. */
+export function annexesSmigDuDossier(lignes: readonly LigneVersion[]): Annexe[] {
+  return lignes
+    .filter((l) => l.bareme === 'SMIG')
+    .map((l) => annexeDuCabinet({ aPartirDu: l.aPartirDu, reference: l.reference, smigJournalierFc: (l.valeurs as { smigJournalierFc: number }).smigJournalierFc }));
+}
+
 /**
  * Les mois de paie couverts par une version · de son mois d'effet jusqu'au mois
  * qui précède la version suivante du même barème, sans fin s'il n'y en a pas.
@@ -165,18 +182,21 @@ export function moisCouverts(aPartirDu: string, suivante: string | null): { depu
 /** Les versions livrées, pour l'écran · jamais modifiables. */
 export function versionsLivrees() {
   return {
-    CNSS: [
-      {
-        aPartirDu: null as string | null,
-        reference: 'Décret n° 18/041 du 24 novembre 2018, articles 2 à 4',
-        valeurs: {
-          prestationsAuxFamilles: TAUX_CNSS.prestationsAuxFamilles.tauxPourCent,
-          pensionsEmployeur: TAUX_CNSS.pensionsEmployeur.tauxPourCent,
-          pensionsTravailleur: TAUX_CNSS.pensionsTravailleur.tauxPourCent,
-          risquesProfessionnels: TAUX_CNSS.risquesProfessionnels.tauxPourCent,
-        } as Record<string, unknown>,
-      },
-    ],
+    CNSS: BAREMES_CNSS.map((b) => ({
+      aPartirDu: b.aPartirDu as string | null,
+      reference: b.reference,
+      valeurs: {
+        prestationsAuxFamilles: b.prestationsAuxFamilles,
+        pensionsEmployeur: b.pensionsEmployeur,
+        pensionsTravailleur: b.pensionsTravailleur,
+        risquesProfessionnels: b.risquesProfessionnels,
+      } as Record<string, unknown>,
+    })),
+    SMIG: ANNEXES.map((a) => ({
+      aPartirDu: `${a.duMoisDePaie}-01` as string | null,
+      reference: `Décret n° 25/22 du 30 mai 2025, annexe ${a.numero}`,
+      valeurs: { smigJournalierFc: a.smigJournalierFc } as Record<string, unknown>,
+    })),
     INPP: BAREMES_INPP.map((b) => ({
       aPartirDu: b.aPartirDu as string | null,
       reference: b.reference,

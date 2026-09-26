@@ -196,22 +196,59 @@ export function tauxOnem(
 }
 
 /**
- * LES TAUX CNSS DU MOIS · ceux du décret n° 18/041 (livrés sans date d'effet
- * écrite, puisqu'aucune n'a été lue), sauf si le cabinet a déclaré une version
- * dont la date est atteinte.
+ * LES TAUX CNSS PAR DATE D'EFFET · décret n° 18/041 du 24 novembre 2018.
+ *
+ * CORRECTION DU 2026-09-26 · ce bloc écrivait que les taux étaient « livrés
+ * sans date d'effet écrite, puisqu'aucune n'a été lue ». Le décret EST au
+ * corpus, et il en porte DEUX. Art. 11 · il « entre en vigueur à la date de
+ * sa signature », le 24 novembre 2018. Art. 10 · « à l'exception du taux de
+ * la branche des risques professionnels, l'application des taux repris aux
+ * articles 2 et 3 du présent Décret est DIFFÉRÉE AU 1er JANVIER 2019 », et
+ * « en attendant, à titre transitoire », pensions 7 % (3,5 % employeur,
+ * 3,5 % travailleur) et, « dans l'ex-province du Katanga », prestations aux
+ * familles 4 % à charge de l'employeur. Lacune déclarée à tort, relevée par
+ * Manasse.
+ *
+ * LE RÉGIME TRANSITOIRE NE DIT RIEN DES PRESTATIONS AUX FAMILLES HORS DE
+ * L'EX-KATANGA · le taux antérieur relève de textes pris sous le décret-loi
+ * de 1961, qui ne sont pas au corpus, et OmegaX ne connaît pas la province du
+ * dossier. Pour novembre et décembre 2018, la ligne s'abstient (null). Avant
+ * le 24 novembre 2018, toute la CNSS s'abstient.
  */
+export type TauxCnssVersion = {
+  readonly aPartirDu: string;
+  readonly reference: string;
+  readonly prestationsAuxFamilles: number | null;
+  readonly pensionsEmployeur: number;
+  readonly pensionsTravailleur: number;
+  readonly risquesProfessionnels: number;
+};
+
+export const BAREMES_CNSS: readonly TauxCnssVersion[] = [
+  {
+    aPartirDu: '2018-11-24',
+    reference: 'Décret n° 18/041 du 24 novembre 2018, articles 4, 10 (régime transitoire) et 11',
+    prestationsAuxFamilles: null,
+    pensionsEmployeur: 3.5,
+    pensionsTravailleur: 3.5,
+    risquesProfessionnels: TAUX_CNSS.risquesProfessionnels.tauxPourCent,
+  },
+  {
+    aPartirDu: '2019-01-01',
+    reference: 'Décret n° 18/041 du 24 novembre 2018, articles 2 à 4 et 10',
+    prestationsAuxFamilles: TAUX_CNSS.prestationsAuxFamilles.tauxPourCent,
+    pensionsEmployeur: TAUX_CNSS.pensionsEmployeur.tauxPourCent,
+    pensionsTravailleur: TAUX_CNSS.pensionsTravailleur.tauxPourCent,
+    risquesProfessionnels: TAUX_CNSS.risquesProfessionnels.tauxPourCent,
+  },
+];
+
+export const ABSTENTION_CNSS_TRANSITOIRE =
+  "CNSS · prestations aux familles, novembre et décembre 2018 · le régime transitoire de l'article 10 du décret n° 18/041 ne fixe ce taux que pour l'ex-province du Katanga (4 % à charge de l'employeur) ; ailleurs le taux antérieur n'est pas au corpus, et OmegaX ne connaît pas la province du dossier.";
+
+/** Les taux CNSS du mois · versions livrées, puis celles du cabinet. */
 export function tauxCnss(moisDePaie: string, versionsDossier: readonly VersionCnss[] = []) {
-  const version = baremeDuMois([...versionsDossier].sort((a, b) => (a.aPartirDu < b.aPartirDu ? -1 : 1)), moisDePaie);
-  if (!version) {
-    return {
-      prestationsAuxFamilles: TAUX_CNSS.prestationsAuxFamilles.tauxPourCent,
-      pensionsEmployeur: TAUX_CNSS.pensionsEmployeur.tauxPourCent,
-      pensionsTravailleur: TAUX_CNSS.pensionsTravailleur.tauxPourCent,
-      risquesProfessionnels: TAUX_CNSS.risquesProfessionnels.tauxPourCent,
-      reference: null as string | null,
-    };
-  }
-  return { ...version, reference: version.reference as string | null };
+  return baremeDuMois(fusionner<TauxCnssVersion>(BAREMES_CNSS, versionsDossier), moisDePaie);
 }
 
 /**
@@ -280,7 +317,7 @@ export function cotisations(
   const abstentions: string[] = [];
   const assiette = Math.max(0, assietteSocialeFc);
   const sourceCnss =
-    "Décret n° 18/041 du 24 novembre 2018 ; assiette routée par l'article 13 de la loi n° 16/009 vers l'article 7, litera h du Code du travail, et recopiée à l'article 17, point 1 de l'arrêté n° 146/2018.";
+    "Assiette routée par l'article 13 de la loi n° 16/009 vers l'article 7, litera h du Code du travail, et recopiée à l'article 17, point 1 de l'arrêté n° 146/2018.";
 
   const poser = (
     cle: string,
@@ -306,27 +343,37 @@ export function cotisations(
 
   const v = parametres.versionsDossier;
   const cnss = tauxCnss(parametres.moisDePaie, v?.cnss);
-  // Une version saisie par le cabinet porte SA référence, et la réserve le dit.
-  const srcCnss = (article: string) => (cnss.reference ? `${cnss.reference} (saisi par le cabinet).` : `${sourceCnss} Taux : ${article}.`);
-  const reserveCnss = cnss.reference ? RESERVE_BAREME_CABINET : null;
-  poser('cnss-pf', 'CNSS · prestations aux familles', 'CNSS', 'EMPLOYEUR', cnss.prestationsAuxFamilles, srcCnss(TAUX_CNSS.prestationsAuxFamilles.article), reserveCnss);
-  poser('cnss-pension-employeur', 'CNSS · pensions, part employeur', 'CNSS', 'EMPLOYEUR', cnss.pensionsEmployeur, srcCnss(TAUX_CNSS.pensionsEmployeur.article), reserveCnss);
-  poser('cnss-pension-travailleur', 'CNSS · pensions, quote-part ouvrière', 'CNSS', 'TRAVAILLEUR', cnss.pensionsTravailleur, srcCnss(TAUX_CNSS.pensionsTravailleur.article), reserveCnss ?? "C'est la SEULE cotisation retenue sur la paie, et la seule que l'article 71 de la loi n° 23/053 laisse déduire du brut imposable.");
+  if (!cnss) {
+    abstentions.push(
+      `CNSS · aucun barème lu pour le mois ${parametres.moisDePaie} · le décret n° 18/041 est entré en vigueur le 24 novembre 2018 (art. 11), et le régime antérieur n'est pas au corpus.`,
+    );
+  } else {
+    // Une version saisie par le cabinet porte SA référence, et la réserve le dit.
+    const srcCnss = cnss.saisieCabinet ? `${cnss.reference} (saisi par le cabinet).` : `${cnss.reference}. ${sourceCnss}`;
+    const reserveCnss = cnss.saisieCabinet ? RESERVE_BAREME_CABINET : null;
+    if (cnss.prestationsAuxFamilles === null) {
+      abstentions.push(ABSTENTION_CNSS_TRANSITOIRE);
+    } else {
+      poser('cnss-pf', 'CNSS · prestations aux familles', 'CNSS', 'EMPLOYEUR', cnss.prestationsAuxFamilles, srcCnss, reserveCnss);
+    }
+    poser('cnss-pension-employeur', 'CNSS · pensions, part employeur', 'CNSS', 'EMPLOYEUR', cnss.pensionsEmployeur, srcCnss, reserveCnss);
+    poser('cnss-pension-travailleur', 'CNSS · pensions, quote-part ouvrière', 'CNSS', 'TRAVAILLEUR', cnss.pensionsTravailleur, srcCnss, reserveCnss ?? "C'est la SEULE cotisation retenue sur la paie, et la seule que l'article 71 de la loi n° 23/053 laisse déduire du brut imposable.");
 
-  const tauxRp =
-    cnss.risquesProfessionnels *
-    (parametres.majorationRisquesProfessionnels ? MAJORATION_RISQUES_PROFESSIONNELS_MAXIMUM : 1);
-  poser(
-    'cnss-rp',
-    'CNSS · risques professionnels',
-    'CNSS',
-    'EMPLOYEUR',
-    tauxRp,
-    srcCnss(TAUX_CNSS.risquesProfessionnels.article),
-    reserveCnss ?? (parametres.majorationRisquesProfessionnels
-      ? "Taux MAJORÉ au double par décision de la Caisse (article 5 du décret n° 18/041). La majoration se déclare, elle ne se déduit d'aucun manquement constaté par le logiciel."
-      : null),
-  );
+    const tauxRp =
+      cnss.risquesProfessionnels *
+      (parametres.majorationRisquesProfessionnels ? MAJORATION_RISQUES_PROFESSIONNELS_MAXIMUM : 1);
+    poser(
+      'cnss-rp',
+      'CNSS · risques professionnels',
+      'CNSS',
+      'EMPLOYEUR',
+      tauxRp,
+      srcCnss,
+      reserveCnss ?? (parametres.majorationRisquesProfessionnels
+        ? "Taux MAJORÉ au double par décision de la Caisse (article 5 du décret n° 18/041). La majoration se déclare, elle ne se déduit d'aucun manquement constaté par le logiciel."
+        : null),
+    );
+  }
 
   const nature = parametres.natureEmployeurInpp ?? null;
   if (nature === null) {

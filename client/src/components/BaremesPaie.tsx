@@ -2,7 +2,7 @@ import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { Aide } from './chrome/Aide';
 
-type NomBareme = 'CNSS' | 'INPP' | 'ONEM';
+type NomBareme = 'CNSS' | 'INPP' | 'ONEM' | 'SMIG';
 type Valeurs = Record<string, unknown>;
 type Version = { aPartirDu: string | null; reference: string; valeurs: Valeurs };
 type VersionDossier = Version & { id: string; bareme: NomBareme; saisiPar: string };
@@ -21,8 +21,12 @@ const champ = 'border border-border bg-transparent px-1.5 py-0.5';
 /** Les taux d'une version, en une ligne lisible. */
 export function resumeValeurs(bareme: NomBareme, v: Valeurs): string {
   if (bareme === 'ONEM') return pc(v.tauxPourCent);
+  if (bareme === 'SMIG') {
+    const smig = v.smigJournalierFc as number;
+    return `${smig.toLocaleString('fr-FR')} FC par jour (manœuvre) · ${(smig * 26).toLocaleString('fr-FR')} FC par mois`;
+  }
   if (bareme === 'CNSS') {
-    return `familles ${pc(v.prestationsAuxFamilles)} · pensions ${pc(v.pensionsEmployeur)} + ${pc(v.pensionsTravailleur)} · risques ${pc(v.risquesProfessionnels)}`;
+    return `familles ${v.prestationsAuxFamilles === null ? 'non fixé (hors ex-Katanga)' : pc(v.prestationsAuxFamilles)} · pensions ${pc(v.pensionsEmployeur)} + ${pc(v.pensionsTravailleur)} · risques ${pc(v.risquesProfessionnels)}`;
   }
   const tranches = (v.priveParTranche as { jusqua: number | null; tauxPourCent: number }[]) ?? [];
   return `public ${pc(v.publicPourCent)} · privé ${tranches
@@ -35,6 +39,7 @@ const VIDE = {
   aPartirDu: '',
   reference: '',
   onem: '',
+  smig: '',
   pf: '',
   pe: '',
   pt: '',
@@ -66,6 +71,7 @@ export function OngletBaremesPaie({ peutEcrire }: { peutEcrire: boolean }) {
 
   const valeurs = (): Valeurs => {
     if (f.bareme === 'ONEM') return { tauxPourCent: nombre(f.onem) };
+    if (f.bareme === 'SMIG') return { smigJournalierFc: nombre(f.smig) };
     if (f.bareme === 'CNSS') {
       return {
         prestationsAuxFamilles: nombre(f.pf),
@@ -137,11 +143,11 @@ export function OngletBaremesPaie({ peutEcrire }: { peutEcrire: boolean }) {
 
       <section>
         <div className="font-semibold mb-1 flex items-center gap-1.5">
-          Taux de cotisation par date d’effet
+          Taux de cotisation et SMIG par date d’effet
           <Aide
             titre="Barèmes de paie datés"
-            texte="Les taux CNSS, INPP et ONEM livrés par OmegaX viennent des textes lus et ne se modifient pas. Quand un arrêté change un taux, le cabinet ajoute une version datée avec le texte qui la fonde : elle s'applique aux paies à partir de son mois d'effet, et chaque ligne de bulletin calculée avec elle porte sa référence et la réserve qu'OmegaX n'a pas lu ce texte. Une version vient toujours après la dernière connue · en insérer une entre deux autres réécrirait le taux d'une période déjà payée. Le SMIG et le barème de l'IRPP restent ceux des textes lus. Une version ne se retire pas tant qu'un bulletin émis porte un mois qu'elle couvre."
-            source="Règle d'OmegaX (Sage Paie tient ses barèmes en table) · décret n° 18/041 · arrêtés INPP de 2006 et 2025 · arrêtés ONEM de 2018 et 2025"
+            texte="Les taux CNSS, INPP et ONEM et le SMIG livrés par OmegaX viennent des textes lus et ne se modifient pas. Quand un texte change un taux, ou quand l'arrêté d'ajustement annuel du SMIG paraît (décret n° 25/21, art. 10 et 11), le cabinet ajoute une version datée avec le texte qui la fonde : elle s'applique aux paies à partir de son mois d'effet, et chaque calcul fait avec elle porte sa référence et la réserve qu'OmegaX n'a pas lu ce texte. Pour le SMIG, seul le taux journalier du manœuvre ordinaire se saisit · les dix-sept classes en sont tirées par la tension salariale du décret n° 25/22 (décret n° 25/21, art. 6). Une version vient toujours un mois après la dernière connue · en insérer une entre deux autres réécrirait le taux d'une période déjà payée. Le barème de l'IRPP reste celui de la loi lue. Une version ne se retire pas tant qu'un bulletin émis porte un mois qu'elle couvre."
+            source="Règle d'OmegaX (Sage Paie tient ses barèmes en table) · décret n° 18/041, art. 10 et 11 · arrêtés INPP de 2006 et 2025 · arrêtés ONEM de 2018 et 2025 · décrets n° 25/21 et 25/22"
           />
         </div>
         <table className="w-full">
@@ -194,9 +200,11 @@ export function OngletBaremesPaie({ peutEcrire }: { peutEcrire: boolean }) {
               <option value="ONEM">ONEM</option>
               <option value="INPP">INPP</option>
               <option value="CNSS">CNSS</option>
+              <option value="SMIG">SMIG</option>
             </select>
             <input aria-label="Date d'effet" type="date" value={f.aPartirDu} onChange={(e) => setF({ ...f, aPartirDu: e.target.value })} className={champ} required />
             {f.bareme === 'ONEM' && saisie('onem', 'Taux %')}
+            {f.bareme === 'SMIG' && saisie('smig', 'SMIG journalier FC', 'w-[140px]')}
             {f.bareme === 'CNSS' && (
               <>
                 {saisie('pf', 'Familles %')}

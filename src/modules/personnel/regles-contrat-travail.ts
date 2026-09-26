@@ -30,6 +30,7 @@ import {
   MULTIPLICATEURS_ARTICLE_7,
   TENSIONS,
   tauxJournalierDeLaClasse,
+  type Annexe,
   type PeriodeSmig,
 } from './bareme-smig';
 
@@ -642,6 +643,7 @@ const MULTIPLICATEUR: Record<'JOUR' | PeriodeSmig, number> = {
 export function verdictRemunerationMinimale(
   contrat: ContratPourControle,
   moisDeReference: string,
+  annexesSmig: readonly Annexe[] = [],
 ): VerdictRemunerationMinimale {
   const abstention = (
     motif: MotifAbstentionMinimum,
@@ -681,7 +683,7 @@ export function verdictRemunerationMinimale(
     );
   }
 
-  const taux = tauxJournalierDeLaClasse(contrat.classeProfessionnelle, moisDeReference);
+  const taux = tauxJournalierDeLaClasse(contrat.classeProfessionnelle, moisDeReference, annexesSmig);
   if (!taux.valeur) return abstention('HORS_BAREME', taux.explication);
 
   const minimum = taux.valeur.tauxFc * MULTIPLICATEUR[contrat.periodiciteRemuneration];

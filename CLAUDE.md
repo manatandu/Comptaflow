@@ -4675,24 +4675,41 @@ par `verifierAucunModuleNeLaTient`.
 **Barèmes de paie en données datées (2026-09-26).** Priorité 4 de la
 comparaison avec les autres produits Sage (Sage Paie tient ses barèmes en
 table). Onglet « Barèmes » de la fenêtre Personnel
-(`personnel/baremes-dossier.ts`, table `VersionBaremePaie`). CINQ RÈGLES À NE
-PAS DÉFAIRE. (1) SEULS LES TAUX CNSS, INPP ET ONEM SE SAISISSENT · le SMIG
-(grille à dix-sept classes, taux payé et taux fixé, annexe vérifiée par son
-arithmétique) et les tranches de l'IRPP (loi n° 23/053, art. 118) restent ceux
-des textes lus. (2) UNE VERSION S'AJOUTE APRÈS LA DERNIÈRE CONNUE du même
-barème, livrée ou du cabinet · jamais insérée entre deux, qui réécrirait le
-taux d'une période payée ; la CNSS, livrée sans date d'effet lue, est bornée
-par la date du décret n° 18/041. Les versions livrées ne se modifient pas. (3)
-LE TEXTE EST OBLIGATOIRE ET VOYAGE AVEC LE BULLETIN · chaque ligne calculée sur
-une version du cabinet porte sa référence et `RESERVE_BAREME_CABINET` (OmegaX
-ne l'a pas lu). Le moteur la prend dès son MOIS d'effet, comme les versions
-livrées. (4) UN TAUX NUL EST REFUSÉ · supprimer une cotisation n'est pas
-changer un taux, et un zéro saisi par erreur retirerait la ligne de tous les
-bulletins. (5) L'AJOUT N'EST PAS REFUSÉ PAR UN BULLETIN DÉJÀ ÉMIS · un texte peut
-mordre à sa signature et être connu plus tard ; les bulletins de la période
-sont RENDUS pour que le cabinet décide de les annuler. LE RETRAIT, LUI, EST
-REFUSÉ tant qu'un bulletin émis porte un mois que la version couvre (jusqu'à
-la version suivante du même barème) · son taux ne se relirait plus nulle part.
+(`personnel/baremes-dossier.ts`, table `VersionBaremePaie`). SIX RÈGLES À NE
+PAS DÉFAIRE. (1) SE SAISISSENT LES TAUX CNSS, INPP, ONEM ET LE SMIG DU
+MANŒUVRE · le décret n° 25/21 fait AJUSTER le SMIG « à partir du mois de
+janvier de chaque année » (art. 11) par arrêté du Ministre (art. 10). Les
+tranches de l'IRPP (loi n° 23/053, art. 118) et une nouvelle TENSION salariale
+restent réservées à une mise à jour d'OmegaX. (2) LA GRILLE SMIG SE TIRE DU
+SEUL TAUX DU MANŒUVRE (`annexeDuCabinet`) · « la tension salariale en vigueur
+est appliquée » (décret n° 25/21, art. 6), colonnes 19 et 20 par les fractions
+des art. 5 et 6 du décret n° 25/22. Lecture d'OmegaX, et elle est PROUVÉE · un
+test refait les deux annexes du décret au centime depuis leur seul SMIG. La
+grille passe par le minimum du contrat (`verdictRemunerationMinimale`), la
+quotité saisissable et le taux légal des allocations familiales ; un montant
+mensuel pris pour un journalier est refusé. (3) UNE VERSION PREND EFFET UN MOIS
+APRÈS LA DERNIÈRE CONNUE du même barème, livrée ou du cabinet · le moteur lit
+par MOIS, deux versions dans un même mois se disputeraient la paie, et une
+version insérée entre deux réécrirait une période payée. Les versions livrées
+ne se modifient pas. (4) LE TEXTE EST OBLIGATOIRE ET VOYAGE AVEC LE CALCUL ·
+`RESERVE_BAREME_CABINET` ou `RESERVE_GRILLE_CABINET` (OmegaX ne l'a pas lu). (5)
+UN TAUX NUL EST REFUSÉ · supprimer une cotisation n'est pas changer un taux.
+(6) L'AJOUT N'EST PAS REFUSÉ PAR UN BULLETIN DÉJÀ ÉMIS (un texte mord à sa
+signature et se connaît plus tard) · les bulletins de la période sont RENDUS.
+LE RETRAIT EST REFUSÉ tant qu'un bulletin émis porte un mois que la version
+couvre.
+
+LA CNSS EST DATÉE, ET C'ÉTAIT UNE LACUNE DÉCLARÉE À TORT (relevée par Manasse
+le même jour). Le code écrivait « livrés sans date d'effet écrite, puisqu'aucune
+n'a été lue » : le décret n° 18/041 est au corpus, il entre en vigueur à sa
+signature, le 24 novembre 2018 (art. 11), et son art. 10 DIFFÈRE au 1er janvier
+2019 les taux des art. 2 et 3 · en attendant, pensions 3,5 % + 3,5 %, risques
+professionnels 1,5 %, et prestations aux familles 4 % dans la seule ex-province
+du Katanga. `BAREMES_CNSS` porte les deux versions ; les prestations aux
+familles de novembre et décembre 2018 s'ABSTIENNENT (province inconnue, taux
+antérieur hors corpus), et avant le 24 novembre 2018 toute la CNSS s'abstient.
+Septième lacune déclarée à tort, même cause que les autres · le texte était au
+corpus, personne ne l'avait relu pour sa date.
 
 **Compte en sommeil · la saisie se confirme (2026-09-25).** Règle de Sage
 (« confirmation requise en saisie »). POST et PATCH `/ecritures` refusent en

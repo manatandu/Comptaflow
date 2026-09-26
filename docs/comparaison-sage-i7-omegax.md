@@ -165,7 +165,7 @@ méthode. D = la source décrit la fonction ; N = elle ne fait que la nommer.
 | Édition Pilotée | Tableau de bord, vue sur 5 ans | D | OUI (tableau de bord, états personnalisés) |
 | Édition Pilotée | Simulateur de scénarios, cube de données | D | NON / ÉCARTÉ (plan de construction) |
 | Paie et RH | Fiche salarié, contrat, bulletins, passation | D | OUI (P1 à P9) |
-| Paie et RH | Moteur de constantes et barèmes paramétrables | D | PARTIEL (2026-09-26) · taux CNSS, INPP et ONEM en versions datées, ajoutées par le cabinet avec leur texte après les versions livrées ; SMIG et IRPP restent ceux des textes lus |
+| Paie et RH | Moteur de constantes et barèmes paramétrables | D | PARTIEL (2026-09-26) · taux CNSS, INPP et ONEM et SMIG du manœuvre en versions datées, ajoutées par le cabinet avec leur texte après les versions livrées, la grille SMIG tirée de la tension salariale ; l'IRPP reste celui de la loi lue |
 | Paie et RH | Rubriques créées par l'utilisateur, bulletins modèles | D / N | PARTIEL (2026-09-26) · rubriques du cabinet qui nomment un élément et en prennent la nature, jamais les assiettes ; bulletins modèles non servis |
 | Paie et RH | Avances et prêts sur salaire (événement, retenue, solde) | D | OUI (2026-09-26) · registre, retenue sur le bulletin (4211, 4212, 272), solde calculé |
 | Sage X3 | Profils fonctions | N | OUI (point 15) |
@@ -175,6 +175,6 @@ Priorités proposées pour un cabinet congolais : (1) RIB des tiers et ordre de
 virement imprimable, servi le 2026-09-26 ; (2) avances et prêts sur salaire, rubriques de paie
 paramétrables, servis le 2026-09-26 ; (3) dégressif et dérogatoire pour le SYSCOHADA, servis le
 2026-09-26 ; (4) barèmes de paie en données datées, servis le 2026-09-26 pour les taux de
-cotisation ; (5)
+cotisation et le SMIG ; (5)
 filtrage des données par rôle ; (6) simulateur budgétaire. Le reste n'est que
 nommé dans les sources et ne s'implémente pas sans meilleure source.

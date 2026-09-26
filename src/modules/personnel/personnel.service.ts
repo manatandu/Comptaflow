@@ -70,8 +70,8 @@ import {
   livreDePaie,
   type FormeDuDocument,
 } from './livre-de-paie';
-import { MULTIPLICATEURS_ARTICLE_7, allocationFamilialeJournaliere } from './bareme-smig';
-import { versionsDuDossier } from './baremes-dossier';
+import { MULTIPLICATEURS_ARTICLE_7, allocationFamilialeJournaliere, type Annexe } from './bareme-smig';
+import { annexesSmigDuDossier, versionsDuDossier } from './baremes-dossier';
 import {
   decompteFinal,
   type InitiativeRupture,
@@ -342,7 +342,7 @@ export class PersonnelService {
    * manque sur TOUS les contrats d'un coup.
    */
   async confronter(tenantId: string, aujourdhui = new Date()) {
-    const [tenant, salaries] = await Promise.all([
+    const [tenant, salaries, versionsBaremes] = await Promise.all([
       this.prisma.tenant.findUniqueOrThrow({
         where: { id: tenantId },
         select: { nom: true, numeroAffiliationCnssEmployeur: true },
@@ -352,7 +352,13 @@ export class PersonnelService {
         include: { enfants: true, contrats: { orderBy: { dateEntreeEnVigueur: 'asc' } } },
         orderBy: [{ nom: 'asc' }],
       }),
+      // Les grilles SMIG du cabinet · le minimum d'une classe se lit sur elles.
+      this.prisma.versionBaremePaie.findMany({
+        where: { tenantId, bareme: 'SMIG' },
+        select: { bareme: true, aPartirDu: true, reference: true, valeurs: true },
+      }),
     ]);
+    const annexesSmig = annexesSmigDuDossier(versionsBaremes);
 
     const employeur = {
       nom: tenant.nom,
@@ -445,7 +451,7 @@ export class PersonnelService {
           // part pour ne pas se confondre avec elles.
           visaOnemManquant: c.constateParEcrit && !c.viseParOnem,
           moisDeReference,
-          remunerationMinimale: verdictRemunerationMinimale(contrat, moisDeReference),
+          remunerationMinimale: verdictRemunerationMinimale(contrat, moisDeReference, annexesSmig),
         };
       });
     });
@@ -504,13 +510,13 @@ export class PersonnelService {
    * BÉNÉFICIAIRES. Rendre `null` n'est pas une panne : c'est ce qui déclenche
    * l'abstention en aval, et elle vaut mieux qu'un plafond inventé.
    */
-  private tauxLegalAllocationsFamiliales(dto: SimulationPaieDto): number | null {
+  private tauxLegalAllocationsFamiliales(dto: SimulationPaieDto, annexesSmig: readonly Annexe[] = []): number | null {
     if (typeof dto.tauxLegalAllocationsFamilialesFc === 'number') {
       return dto.tauxLegalAllocationsFamilialesFc;
     }
     const enfants = dto.enfantsBeneficiairesAllocations;
     if (typeof enfants !== 'number') return null;
-    const a = allocationFamilialeJournaliere(dto.moisDePaie, enfants);
+    const a = allocationFamilialeJournaliere(dto.moisDePaie, enfants, annexesSmig);
     if (!a.valeur) return null;
     return a.valeur.totalFc * MULTIPLICATEURS_ARTICLE_7.MOIS;
   }
@@ -655,6 +661,13 @@ export class PersonnelService {
     const retenuesAvancesFc = retenuesAvances.reduce((s, r) => s + r.montantFc, 0);
     const { dtoFc: dto, conversion } = await this.convertirEnFrancs(tenantId, dtoStipule, maintenant);
     const borne = baremeApplicableAuMois(dto.moisDePaie);
+    // Les versions de barème que le cabinet a ajoutées (baremes-dossier.ts) ·
+    // taux de cotisation et grilles SMIG, pris à partir de leur mois d'effet.
+    const versionsBaremes = await this.prisma.versionBaremePaie.findMany({
+      where: { tenantId },
+      select: { bareme: true, aPartirDu: true, reference: true, valeurs: true },
+    });
+    const annexesSmig = annexesSmigDuDossier(versionsBaremes);
 
     // Le salarié n'est lu QUE pour proposer un nombre de personnes à charge,
     // et il est borné au dossier de la session · un identifiant venu du client
@@ -701,16 +714,10 @@ export class PersonnelService {
     // nombre d'ENFANTS BÉNÉFICIAIRES, qui n'est pas le nombre de personnes à
     // charge de l'article 124. Un taux saisi PRIME, pour le mois qu'aucune
     // annexe ne couvre. Ni l'un ni l'autre, et l'assiette s'abstient.
-    const tauxLegalAllocationsFamilialesFc = this.tauxLegalAllocationsFamiliales(dto);
+    const tauxLegalAllocationsFamilialesFc = this.tauxLegalAllocationsFamiliales(dto, annexesSmig);
 
     const premierPassage = assiettes(elements, {
       tauxLegalAllocationsFamilialesFc,
-    });
-    // Les versions de barème que le cabinet a ajoutées (baremes-dossier.ts) ·
-    // le moteur ne les prend qu'à partir de leur date d'effet.
-    const versionsBaremes = await this.prisma.versionBaremePaie.findMany({
-      where: { tenantId },
-      select: { bareme: true, aPartirDu: true, reference: true, valeurs: true },
     });
     const lesCotisations = cotisations(premierPassage.assietteSocialeFc, {
       moisDePaie: dto.moisDePaie,
@@ -800,6 +807,7 @@ export class PersonnelService {
     // quand la classe manque ou qu'un logement est fourni en nature.
     const quotite = quotiteSaisissable({
       moisDePaie: dto.moisDePaie,
+      annexesSmig,
       remunerationFc: deuxAssiettes.assietteSocialeFc,
       classeProfessionnelle: dto.classeProfessionnelle ?? null,
       retenuesFiscalesFc: retenue ? retenue.retenueFc : 0,

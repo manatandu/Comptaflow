@@ -668,7 +668,7 @@ export class AvanceSalaireDto {
 
 /** Les valeurs se vérifient par barème dans baremes-dossier.ts (lireValeurs). */
 export class VersionBaremePaieDto {
-  @IsEnum(['CNSS', 'INPP', 'ONEM']) bareme!: 'CNSS' | 'INPP' | 'ONEM';
+  @IsEnum(['CNSS', 'INPP', 'ONEM', 'SMIG']) bareme!: 'CNSS' | 'INPP' | 'ONEM' | 'SMIG';
   @IsDateString() aPartirDu!: string;
   @IsString() @MinLength(8) @MaxLength(400) reference!: string;
   @IsObject() valeurs!: Record<string, unknown>;

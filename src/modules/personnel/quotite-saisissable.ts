@@ -130,6 +130,8 @@ export type MotifAbstentionQuotite = 'CLASSE_PROFESSIONNELLE_ABSENTE' | 'MOIS_HO
 export type EntreeQuotite = {
   /** AAAA-MM · il choisit l'annexe, donc le seuil. */
   readonly moisDePaie: string;
+  /** Les grilles SMIG saisies par le cabinet (bareme-smig.ts, annexeDuCabinet). */
+  readonly annexesSmig?: readonly Annexe[];
   /**
    * LA RÉMUNÉRATION AU SENS DE L'ARTICLE 7, litera h · c'est exactement ce
    * que rend `assietteSociale` du module des assiettes. Les cinq exclusions
@@ -284,8 +286,9 @@ export const RESERVE_FACULTE_DE_DEFALCATION =
 export function mensuelMinimumDeLaClasse(
   moisDePaie: string,
   classeProfessionnelle: number,
+  annexesDossier: readonly Annexe[] = [],
 ): { montantFc: number; annexe: Annexe; colonne: number } | null {
-  const a = annexeApplicable(moisDePaie);
+  const a = annexeApplicable(moisDePaie, annexesDossier);
   if (!a.valeur) return null;
   if (!Number.isInteger(classeProfessionnelle)) return null;
   if (classeProfessionnelle < 1 || classeProfessionnelle > a.valeur.tauxParClasse.length) return null;
@@ -329,7 +332,7 @@ export function quotiteSaisissable(entree: EntreeQuotite): VerdictQuotite {
   }
 
   const minimum =
-    classe === undefined || classe === null ? null : mensuelMinimumDeLaClasse(entree.moisDePaie, classe);
+    classe === undefined || classe === null ? null : mensuelMinimumDeLaClasse(entree.moisDePaie, classe, entree.annexesSmig);
 
   if (classe !== undefined && classe !== null && !minimum) {
     abstentions.push({
@@ -362,7 +365,7 @@ export function quotiteSaisissable(entree: EntreeQuotite): VerdictQuotite {
   // déduire ici la sortirait une seconde fois.
   let evaluationForfaitaireLogementFc = 0;
   if (entree.logementFourniEnNature && !entree.logementEnNatureDejaDefalque) {
-    const alloc = allocationFamilialeJournaliere(entree.moisDePaie, 1);
+    const alloc = allocationFamilialeJournaliere(entree.moisDePaie, 1, entree.annexesSmig);
     if (alloc.valeur) {
       evaluationForfaitaireLogementFc =
         (alloc.valeur.parEnfantFc / DIVISEUR_EVALUATION_FORFAITAIRE_LOGEMENT) * JOURS_DU_MOIS;
