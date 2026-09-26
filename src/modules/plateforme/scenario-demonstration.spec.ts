@@ -1,7 +1,17 @@
 import { Referentiel, TypeTiers } from '@prisma/client';
 import { scenarioDemonstration } from './scenario-demonstration';
-import { MODELES_SIMPLES_SYCEBNL, MODELES_SIMPLES_SYSCOHADA } from '../../../client/src/lib/modeles-saisie';
+import { join } from 'path';
 import { numeroCollectif } from '../tiers/collectifs-tiers';
+
+// Chargés par Jest, JAMAIS importés · un `import` statique vers client/ fait
+// compiler l'interface par `nest build`, qui range alors le serveur sous
+// dist/src/ (plus de dist/main.js), et l'image Docker, qui ne copie pas
+// client/, ne compile plus du tout. Panne du déploiement du 2026-09-26.
+type ModeleSimple = { lignes: { numero?: string; sens: string }[] };
+const { MODELES_SIMPLES_SYCEBNL, MODELES_SIMPLES_SYSCOHADA } = require(join(__dirname, '../../../client/src/lib/modeles-saisie')) as {
+  MODELES_SIMPLES_SYCEBNL: ModeleSimple[];
+  MODELES_SIMPLES_SYSCOHADA: ModeleSimple[];
+};
 
 /**
  * LE SCÉNARIO N'INVENTE AUCUN NUMÉRO · chaque compte de nature employé figure

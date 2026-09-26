@@ -1,6 +1,10 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+// `tsc -b` compile ce fichier sans les types de Node (client/tsconfig.node.json
+// n'en déclare pas) · sans cette déclaration, la construction du site tombe.
+declare const process: { env: Record<string, string | undefined> };
+
 export default defineConfig({
   plugins: [react()],
   server: {

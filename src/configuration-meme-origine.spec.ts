@@ -45,6 +45,13 @@ describe('l’API servie sous l’adresse du site', () => {
     // local du relais rendait la page d'accueil au lieu de l'API.
     expect(existsSync(join(RACINE, 'client/vite.config.js'))).toBe(false);
     expect(JSON.parse(lire('client/tsconfig.node.json')).compilerOptions.outDir).toMatch(/node_modules/);
+    // `tsc -b` compile vite.config.ts SANS les types de Node · le relais lit
+    // process.env, qui doit donc être déclaré dans le fichier, sans quoi la
+    // construction du site tombe (déploiement du 2026-09-26). Le cache de
+    // `tsc -b` le masquait en local.
+    const tsNode = JSON.parse(lire('client/tsconfig.node.json')).compilerOptions;
+    const typesNode = (tsNode.types ?? []).includes('node');
+    expect(typesNode || /declare const process:/.test(lire('client/vite.config.ts'))).toBe(true);
   });
 
   it('la surveillance interroge le chemin des clients, par le relais', () => {
