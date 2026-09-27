@@ -64,6 +64,7 @@
  */
 
 import { FormeJuridiqueEbnl, FormeJuridiqueSyscohada, Referentiel } from '@prisma/client';
+import { FORMES_PERSONNES_PHYSIQUES } from '../retenues/correspondance-retenues';
 
 /** Toutes les formes relevant de la loi 004/2001 sur les ASBL. */
 const FORMES_ASBL: FormeJuridiqueEbnl[] = [
@@ -102,10 +103,8 @@ const FORMES_SOCIETES_ASSEMBLEE: FormeJuridiqueSyscohada[] = [
  * Revenu des Personnes Physiques, et leur déclaration annuelle n'est pas la
  * même : art. 17 de la loi n° 004/2003 et non art. 12 et 13.
  */
-const FORMES_PERSONNES_PHYSIQUES: FormeJuridiqueSyscohada[] = [
-  FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE,
-  FormeJuridiqueSyscohada.ENTREPRENANT,
-];
+// Une seule liste au dépôt (audit du serveur du 2026-09-27, I6) · quatre
+// copies avaient déjà divergé une fois, l'une oubliant l'entreprenant.
 
 const FORMES_DEPOT_RCCM: FormeJuridiqueSyscohada[] = [
   FormeJuridiqueSyscohada.SOCIETE_ANONYME,

@@ -23,6 +23,7 @@ import { qualifierExemptionIs } from './exemption-is-ebnl';
 // modèle du ch. 4 (voir correspondance-compte-resultat-syscohada.ts). Une
 // liste officielle recopiée dans deux modules est une divergence en attente.
 import { PREFIXES_CHIFFRE_AFFAIRES_SYSCOHADA as PREFIXES_CHIFFRE_AFFAIRES } from '../etats-financiers-syscohada/correspondance-compte-resultat-syscohada';
+import { FORMES_PERSONNES_PHYSIQUES } from '../retenues/correspondance-retenues';
 
 /**
  * DÉTERMINATION DU RÉSULTAT FISCAL ET DE L'IMPÔT SUR LES BÉNÉFICES ·
@@ -1102,8 +1103,7 @@ export class FiscaliteService {
     chiffresAffairesAnterieurs: number[],
   ): { regime: RegimeImposition; observations: string[] } {
     const observations: string[] = [];
-    const physique =
-      forme === FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE || forme === FormeJuridiqueSyscohada.ENTREPRENANT;
+    const physique = forme !== null && FORMES_PERSONNES_PHYSIQUES.includes(forme);
     if (physique) {
       const p = IMPOT_REVENU_PERSONNES_PHYSIQUES;
       const suivi = this.regimePhysiqueSelonHistorique([...chiffresAffairesAnterieurs, chiffreAffaires]);
@@ -1310,8 +1310,7 @@ export class FiscaliteService {
     // relèvent, une personne morale étant à l'impôt sur les sociétés quel que
     // soit son chiffre d'affaires.
     const physique =
-      tenant.formeJuridiqueSyscohada === FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE ||
-      tenant.formeJuridiqueSyscohada === FormeJuridiqueSyscohada.ENTREPRENANT;
+      tenant.formeJuridiqueSyscohada !== null && FORMES_PERSONNES_PHYSIQUES.includes(tenant.formeJuridiqueSyscohada);
     const chiffresAffairesAnterieurs = physique ? await this.chiffresAffairesAnterieurs(tenantId, exercice) : [];
     const { regime, observations } = this.regimeSelonForme(
       tenant.formeJuridiqueSyscohada,
