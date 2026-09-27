@@ -4,6 +4,7 @@ import { DemonstrationConsole } from '../components/DemonstrationConsole';
 import { AbonnementsConsole } from '../components/AbonnementsConsole';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { actionDeConsole } from '../lib/action-console';
 import { Aide } from '../components/chrome/Aide';
 import type { JeuEtatsFinanciersSycebnl, SystemeComptableSyscohada } from '../lib/types';
 import { PortailModale } from '../components/PortailModale';
@@ -85,7 +86,7 @@ function dateCourte(iso: string | null): string {
   return iso ? new Date(iso).toLocaleDateString('fr-FR') : '·';
 }
 
-export function PlateformePage() {
+export function PlateformePage({ adresse }: { adresse?: string } = {}) {
   const { utilisateur } = useAuth();
   const [liste, setListe] = useState<CabinetClient[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -114,7 +115,12 @@ export function PlateformePage() {
   const [reinitErreur, setReinitErreur] = useState<string | null>(null);
   const [reinitFait, setReinitFait] = useState<string | null>(null);
 
-  const [nouveauOuvert, setNouveauOuvert] = useState(false);
+  const [nouveauOuvert, setNouveauOuvert] = useState(() => actionDeConsole(adresse) === 'nouveau-cabinet');
+  // La fenêtre n'est pas remontée quand le menu la redemande : l'adresse
+  // change, l'état reste. D'où la resynchronisation sur l'adresse.
+  useEffect(() => {
+    if (actionDeConsole(adresse) === 'nouveau-cabinet') setNouveauOuvert(true);
+  }, [adresse]);
   const [creationMereId, setCreationMereId] = useState('');
   const [nomEntite, setNomEntite] = useState('');
   const [emailAdmin, setEmailAdmin] = useState('');

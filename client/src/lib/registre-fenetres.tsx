@@ -494,7 +494,7 @@ export const FENETRES: DefinitionFenetre[] = [
     motif: /^\/plateforme$/,
     titre: 'VMG Consulting · administration de la plateforme',
     titreCourt: 'VMG Consulting',
-    rendre: () => <PlateformePage />,
+    rendre: ({ adresse }) => <PlateformePage adresse={adresse} />,
   },
   {
     // Fenêtre du dossier MÈRE d'un groupe d'établissements (une même

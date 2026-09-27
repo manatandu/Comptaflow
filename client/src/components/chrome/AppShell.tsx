@@ -133,7 +133,7 @@ export function AppShell() {
         // l'auto-inscription publique est fermée) · l'entrée n'existe que
         // pour l'opérateur de la plateforme, et mène à sa console.
         ...(utilisateur?.estOperateurPlateforme
-          ? [{ label: 'Nouveau fichier comptable…', chemin: '/plateforme', onClick: () => navigate('/plateforme') }]
+          ? [{ label: 'Nouveau fichier comptable…', chemin: '/plateforme?action=nouveau-cabinet', onClick: () => navigate('/plateforme?action=nouveau-cabinet') }]
           : []),
         // Sage : Fichier > Ouvrir. Ouvrir un autre fichier ferme d'abord le
         // fichier courant · ici, refermer le dossier c'est se déconnecter, et
