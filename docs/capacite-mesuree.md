@@ -132,8 +132,11 @@ aucun chiffre de ce document.
 
 ## Ce qui reste
 
-Plus aucun export ne construit son classeur entier en mémoire. Ce qui n'est
-pas mesuré, et qui le sera le jour où un dossier réel s'en approchera : le
+Deux exports d'UN compte construisent encore leur classeur en mémoire · le
+grand livre d'un compte et le justificatif de solde. Ils sont refusés au-delà
+de 50 000 lignes, la dernière mesure qu'un classeur en mémoire a tenue (audit
+final F101), et le refus renvoie au grand livre complet, écrit en flux. Ce qui
+n'est pas mesuré, et qui le sera le jour où un dossier réel s'en approchera : le
 comportement à plusieurs exports CONCURRENTS sur une même instance Cloud Run
 (`--concurrency 80`), le seul cas où le plafond ci-dessus peut être franchi
 sans que personne n'ait exporté 200 000 lignes.

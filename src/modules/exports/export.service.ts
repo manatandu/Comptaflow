@@ -318,6 +318,26 @@ export class ExportService {
    */
   private static readonly MAX_LIGNES_EXPORT = Number(process.env.EXPORT_MAX_LIGNES ?? 200_000);
 
+  /**
+   * DEUX EXPORTS D'UN COMPTE RESTENT EN MÉMOIRE (audit final F101) · le grand
+   * livre d'un compte et le justificatif de solde bâtissent leur classeur
+   * entier avant de l'envoyer, sans aucune borne · un compte de banque très
+   * mouvementé pouvait tuer le processus pour tous les cabinets. 50 000 est la
+   * dernière mesure qu'un classeur en mémoire a TENUE (12,1 s, 693 Mo) ; à
+   * 200 000 le tas a sauté (banc du 2026-09-12, docs/capacite-mesuree.md).
+   * Au-delà, un refus qui dit par où passer, jamais une troncature.
+   */
+  private static readonly MAX_LIGNES_CLASSEUR_EN_MEMOIRE = 50_000;
+
+  private refuserClasseurEnMemoire(nb: number, quoi: string, rechange: string): void {
+    if (nb > ExportService.MAX_LIGNES_CLASSEUR_EN_MEMOIRE) {
+      throw new PayloadTooLargeException(
+        `${quoi} : ${nb.toLocaleString('fr-FR')} lignes, au-delà de la limite de ` +
+          `${ExportService.MAX_LIGNES_CLASSEUR_EN_MEMOIRE.toLocaleString('fr-FR')} d'un classeur bâti en mémoire. ${rechange}`,
+      );
+    }
+  }
+
   private async verifierVolume(where: Prisma.LigneEcritureWhereInput, quoi: string) {
     const nb = await this.prisma.ligneEcriture.count({ where });
     if (nb > ExportService.MAX_LIGNES_EXPORT) {
@@ -724,6 +744,11 @@ export class ExportService {
    */
   async grandLivreExcel(tenantId: string, compteId: string, exerciceId?: string): Promise<ClasseurExporte> {
     const { compte, lignes, soldeFinal } = await this.ecritureService.grandLivre(tenantId, compteId, exerciceId);
+    this.refuserClasseurEnMemoire(
+      lignes.length,
+      `Grand livre du compte ${compte.numero}`,
+      "Le grand livre complet, écrit en flux, le porte · filtrez-y le compte.",
+    );
 
     const classeur = this.nouveauClasseur();
     const feuille = classeur.addWorksheet('Grand livre');
@@ -1364,6 +1389,11 @@ export class ExportService {
     params: { dateArret?: string; masquerLettrees?: boolean } = {},
   ): Promise<ClasseurExporte> {
     const j = await this.ecritureService.justificatifSolde(tenantId, { compteId, exerciceId, ...params });
+    this.refuserClasseurEnMemoire(
+      j.lignes.length,
+      `Justificatif du compte ${j.compte.numero}`,
+      "Masquez les lignes lettrées ou choisissez une date d'arrêt antérieure.",
+    );
     const identite = await this.identiteEtat(tenantId, { exerciceId });
 
     const classeur = this.nouveauClasseur();
@@ -2296,7 +2326,10 @@ export class ExportService {
    * qu'elle documente).
    */
   async noteBailleurExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
-    const note = await this.etatsFinanciersProjetService.noteBailleur(tenantId, exerciceId);
+    const [note, identite] = await Promise.all([
+      this.etatsFinanciersProjetService.noteBailleur(tenantId, exerciceId),
+      this.identiteEtat(tenantId, { exerciceId }),
+    ]);
 
     const classeur = this.nouveauClasseur();
     const feuille = classeur.addWorksheet('Note 9 · Fonds du bailleur');
@@ -2358,8 +2391,13 @@ export class ExportService {
       aConsomme: FORMAT_MONTANT,
       aSolde: FORMAT_MONTANT,
     });
-    styliserEntete(feuille.getRow(1));
-    feuille.views = [{ state: 'frozen', ySplit: 1 }];
+    // Remise au bailleur · elle se nomme elle-même (audit final F102). La
+    // coiffe passe AVANT toute fusion, que `spliceRows` ne décale pas.
+    this.piedDePageEtat(feuille, identite);
+    // Le filtre s'arrête avant la ligne des totaux, qu'un tri remonterait.
+    const derniereNote9 = ligneTotal.number - 1;
+    const enteteNote9 = this.coifferEtat(feuille, identite, 'NOTE 9 · FONDS DU BAILLEUR', 7);
+    this.finaliserTableau(feuille, 7, derniereNote9 + 3, enteteNote9);
 
     const note9 = feuille.addRow([
       'Montants CUMULÉS depuis l’origine du projet, toutes périodes confondues · la Note 9 suit le cycle de vie du ' +
@@ -2392,8 +2430,11 @@ export class ExportService {
   //
   // § 1.4, note officielle de la fiche récapitulative (identique dans les
   // deux jeux) : « les Notes non documentées ne doivent pas être jointes aux
-  // états financiers ». Une note NON applicable n'a donc PAS sa propre
-  // feuille · seulement une ligne « N/A » dans la fiche récapitulative.
+  // états financiers ». LE CLASSEUR S'EN ÉCARTE, PAR DÉCISION · toute note du
+  // jeu a sa feuille, la note non applicable portant la mention NEANT et
+  // cochée « N/A » dans la fiche récapitulative. L'écart et sa raison sont
+  // écrits dans `construireClasseurNotes` · ne pas « rétablir » le texte ici
+  // (audit final F103).
   // ==========================================================================
 
   /**
@@ -2683,15 +2724,18 @@ export class ExportService {
    * retiré les annulations se présenterait à la juridiction avec des trous.
    */
   async registreDonateursExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
-    const [lignes, rapport] = await Promise.all([
+    const [lignes, rapport, identite] = await Promise.all([
       this.donationService.lister(tenantId, { exerciceId }),
       this.donationService.rapportConformite(tenantId, exerciceId),
+      this.identiteEtat(tenantId, { exerciceId }),
     ]);
 
+    // Chaque feuille se nomme elle-même · entité, NIF, exercice, et le pied
+    // numéroté et daté de l'AUDCIF art. 22, 7° (audit final F102).
     const classeur = this.nouveauClasseur();
-    this.feuilleRegistre(classeur, lignes);
-    this.feuilleConformite(classeur, rapport);
-    this.feuilleRapprochementRegistre(classeur, rapport.rapprochement);
+    this.feuilleRegistre(classeur, lignes, identite);
+    this.feuilleConformite(classeur, rapport, identite);
+    this.feuilleRapprochementRegistre(classeur, rapport.rapprochement, identite);
 
     return {
       buffer: await this.versBuffer(classeur),
@@ -2699,7 +2743,7 @@ export class ExportService {
     };
   }
 
-  private feuilleRegistre(classeur: ExcelJS.Workbook, lignes: any[]) {
+  private feuilleRegistre(classeur: ExcelJS.Workbook, lignes: any[], identite: IdentiteEtat) {
     const feuille = classeur.addWorksheet('Registre des donateurs');
     // L'ordre des colonnes suit l'article 17 : numéro d'ordre, puis point 1
     // (date), puis nature, puis points 2 et 3 (identité selon le type de
@@ -2743,11 +2787,13 @@ export class ExportService {
     }
 
     this.appliquerFormats(feuille, { dateOperation: FORMAT_DATE, signeeLe: FORMAT_DATE, montant: FORMAT_MONTANT });
-    this.finaliserTableau(feuille, feuille.columns.length, lignes.length + 1);
+    this.piedDePageEtat(feuille, identite);
+    const entete = this.coifferEtat(feuille, identite, 'REGISTRE DES DONATEURS', feuille.columns.length);
+    this.finaliserTableau(feuille, feuille.columns.length, lignes.length + 1 + 3, entete);
   }
 
   /** Constatations de l'article 18, dans l'ordre où elles se lisent. */
-  private feuilleConformite(classeur: ExcelJS.Workbook, rapport: any) {
+  private feuilleConformite(classeur: ExcelJS.Workbook, rapport: any, identite: IdentiteEtat) {
     const feuille = classeur.addWorksheet('Conformité (art. 18)');
     feuille.columns = [
       { header: 'Constatation', key: 'constatation', width: 44 },
@@ -2799,7 +2845,9 @@ export class ExportService {
       rang.getCell('resultat').font = { bold: true, color: { argb: conforme ? 'FF1B7F3B' : 'FFB3261E' } };
       rang.getCell('detail').alignment = { wrapText: true, vertical: 'top' };
     }
-    this.finaliserTableau(feuille, 3, constats.length + 1);
+    this.piedDePageEtat(feuille, identite);
+    const entete = this.coifferEtat(feuille, identite, 'REGISTRE DES DONATEURS · CONFORMITÉ (ART. 18)', 3);
+    this.finaliserTableau(feuille, 3, constats.length + 1 + 3, entete);
 
     // L'article 18 laisse l'AVIS à l'auditeur (ou la déclaration aux
     // dirigeants) : le classeur s'arrête aux constatations et le dit.
@@ -2811,7 +2859,7 @@ export class ExportService {
   }
 
   /** Le rapprochement, avec les comptes frontière chiffrés mais jamais agrégés. */
-  private feuilleRapprochementRegistre(classeur: ExcelJS.Workbook, r: any) {
+  private feuilleRapprochementRegistre(classeur: ExcelJS.Workbook, r: any, identite: IdentiteEtat) {
     const feuille = classeur.addWorksheet('Rapprochement comptable');
     feuille.columns = [
       { header: 'Catégorie', key: 'categorie', width: 22 },
@@ -2835,7 +2883,9 @@ export class ExportService {
 
     const derniere = feuille.lastRow!.number;
     this.appliquerFormats(feuille, { montant: FORMAT_MONTANT });
-    this.finaliserTableau(feuille, 6, derniere);
+    this.piedDePageEtat(feuille, identite);
+    const entete = this.coifferEtat(feuille, identite, 'REGISTRE DES DONATEURS · RAPPROCHEMENT COMPTABLE', 6);
+    this.finaliserTableau(feuille, 6, derniere + 3, entete);
 
     feuille.addRow([]);
     const totaux: Array<[string, number | string]> = [
@@ -2988,13 +3038,14 @@ export class ExportService {
   }
 
   async livreInventaireExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
-    const [transcription, conformite] = await Promise.all([
+    const [transcription, conformite, identite] = await Promise.all([
       this.livreInventaire.courante(tenantId, exerciceId),
       this.livreInventaire.conformite(tenantId, exerciceId),
+      this.identiteEtat(tenantId, { exerciceId }),
     ]);
 
     const classeur = this.nouveauClasseur();
-    this.feuilleGardeInventaire(classeur, conformite, transcription);
+    this.feuilleGardeInventaire(classeur, conformite, transcription, identite);
 
     if (transcription) {
       const etats = transcription.etats as Record<string, any>;
@@ -3002,7 +3053,7 @@ export class ExportService {
       // lit dans l'ordre où le texte énumère les états.
       for (const e of conformite.etatsExiges) {
         const etat = etats[e.cle];
-        if (etat) this.feuilleEtatFige(classeur, e.libelle, etat);
+        if (etat) this.feuilleEtatFige(classeur, e.libelle, etat, identite);
       }
     }
 
@@ -3012,7 +3063,7 @@ export class ExportService {
     };
   }
 
-  private feuilleGardeInventaire(classeur: ExcelJS.Workbook, c: any, t: any) {
+  private feuilleGardeInventaire(classeur: ExcelJS.Workbook, c: any, t: any, identite: IdentiteEtat) {
     const feuille = classeur.addWorksheet("Livre d'inventaire");
     feuille.columns = [
       { header: 'Rubrique', key: 'rubrique', width: 44 },
@@ -3046,7 +3097,10 @@ export class ExportService {
       rang.getCell('etat').font = { bold: true, color: { argb: ok ? 'FF1B7F3B' : 'FFB3261E' } };
       rang.getCell('detail').alignment = { wrapText: true, vertical: 'top' };
     }
-    this.finaliserTableau(feuille, 3, lignes.length + 1);
+    // La coiffe passe AVANT les fusions du résumé et du pied (audit final F102).
+    this.piedDePageEtat(feuille, identite);
+    const entete = this.coifferEtat(feuille, identite, "LIVRE D'INVENTAIRE", 3);
+    this.finaliserTableau(feuille, 3, lignes.length + 1 + 3, entete);
 
     if (t?.resumeOperationInventaire) {
       feuille.addRow([]);
@@ -3086,7 +3140,7 @@ export class ExportService {
    * `bilanExcel`, `compteDeResultatExcel`… ; ici c'est la transcription qui
    * fait foi, pas la présentation.)
    */
-  private feuilleEtatFige(classeur: ExcelJS.Workbook, libelle: string, etat: any) {
+  private feuilleEtatFige(classeur: ExcelJS.Workbook, libelle: string, etat: any, identite: IdentiteEtat) {
     // 31 caractères est la limite Excel pour un nom de feuille.
     const feuille = classeur.addWorksheet(libelle.slice(0, 31));
     feuille.columns = [
@@ -3124,7 +3178,10 @@ export class ExportService {
     }
 
     this.appliquerFormats(feuille, { montant: FORMAT_MONTANT, montantN1: FORMAT_MONTANT });
-    this.finaliserTableau(feuille, 5, feuille.lastRow?.number ?? 1);
+    const derniereFigee = feuille.lastRow?.number ?? 1;
+    this.piedDePageEtat(feuille, identite);
+    const enteteFige = this.coifferEtat(feuille, identite, `LIVRE D'INVENTAIRE · ${libelle.toUpperCase()}`, 5);
+    this.finaliserTableau(feuille, 5, derniereFigee + 3, enteteFige);
 
     // Totaux, résultats et contrôles : ce sont eux qui font foi de ce qui a
     // été ARRÊTÉ (équilibre du bilan, bouclage du tableau des flux). Un livre
@@ -3183,11 +3240,12 @@ export class ExportService {
       where: { id: tenantId },
       select: { referentiel: true, formeJuridiqueSyscohada: true },
     });
-    const [rapport, conformite] = await Promise.all([
+    const [rapport, conformite, identite] = await Promise.all([
       this.rapportActivite.courant(tenantId, exerciceId),
       referentiel === Referentiel.SYSCOHADA
         ? this.rapportActivite.conformiteRapportGestion(tenantId, exerciceId)
         : this.rapportActivite.conformite(tenantId, exerciceId),
+      this.identiteEtat(tenantId, { exerciceId }),
     ]);
 
     // Les sections du dossier, jamais celles de l'autre référentiel. Un
@@ -3232,7 +3290,14 @@ export class ExportService {
       rang.getCell('etat').font = { bold: true, color: { argb: contenu ? 'FF1B7F3B' : 'FFB3261E' } };
       for (const cle of ['contenu', 'exigence']) rang.getCell(cle).alignment = { wrapText: true, vertical: 'top' };
     }
-    this.finaliserTableau(feuille, 4, sections.length + 1);
+    this.piedDePageEtat(feuille, identite);
+    const enteteRapport = this.coifferEtat(
+      feuille,
+      identite,
+      referentiel === Referentiel.SYSCOHADA ? 'RAPPORT DE GESTION' : "RAPPORT D'ACTIVITÉ",
+      4,
+    );
+    this.finaliserTableau(feuille, 4, sections.length + 1 + 3, enteteRapport);
 
     feuille.addRow([]);
     const f = conformite.fenetreEvenementsPosterieurs;

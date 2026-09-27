@@ -765,18 +765,21 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 6
 - **Constat :** un compte de banque très mouvementé peut tuer le processus pour tous les cabinets.
 - **Correction :** appeler `verifierVolume`, ou passer ces exports en flux.
+- **Fait le 2026-09-27 :** `refuserClasseurEnMemoire` borne les deux classeurs encore bâtis en mémoire à 50 000 lignes, dernière mesure tenue, avec leur chemin de rechange ; `docs/capacite-mesuree.md` le dit. Test : `classeur-en-memoire-borne.spec.ts`.
 
 **F102 · Documents remis à des tiers sans identification de l'entité ni de l'exercice** [exp-06]
 - **Emplacements :** src/modules/exports/export.service.ts:2212-2291, :2599-2614, :2904-2927, :3099-3200
 - **Condition :** 5
 - **Constat :** la Note 9, le registre des donateurs, le livre d'inventaire et le rapport sortent sans cartouche, contre la règle du service et l'AUDCIF art. 22, 7°.
 - **Correction :** `identiteLiasse`, `ecrireCartouche` et `numeroterPages`.
+- **Fait le 2026-09-27 :** chaque feuille de la Note 9, du registre des donateurs, du livre d'inventaire et du rapport porte la coiffe d'identification (`coifferEtat`, entité, NIF, exercice, devise) et le pied numéroté et daté (`piedDePageEtat`), posés avant toute fusion. La coiffe des états périodiques a été retenue plutôt que le cartouche de la liasse · ces feuilles sont des tableaux, pas des pages du modèle. Test : `identification-documents-remis.spec.ts`.
 
 **F103 · Deux commentaires contradictoires sur les notes non applicables** [exp-08]
 - **Emplacements :** src/modules/exports/export.service.ts:2305-2311, :2503-2525
 - **Condition :** 5
 - **Constat :** le bandeau décrit l'ancien comportement. Un relecteur le rétablirait.
 - **Correction :** réécrire le bandeau.
+- **Fait le 2026-09-27 :** le bandeau dit l'écart assumé et renvoie à `construireClasseurNotes` ; le comportement reste gelé par `liasse-etafi.spec.ts`.
 
 ### Paie
 

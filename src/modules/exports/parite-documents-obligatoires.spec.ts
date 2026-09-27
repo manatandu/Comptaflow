@@ -224,7 +224,10 @@ describe('les documents exportés citent le texte du dossier', () => {
         }),
       }),
     };
-    const prisma = { exercice: { findFirst: jest.fn().mockResolvedValue(null) } };
+    const prisma = {
+      exercice: { findFirst: jest.fn().mockResolvedValue(null) },
+      tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ nom: 'Dossier', numeroImpot: 'A1', devise: 'CDF' }) },
+    };
     return new ExportService(
       prisma as never,
       {} as never,
