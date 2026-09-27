@@ -1089,6 +1089,11 @@ function versCompteRan(c: {
     lettre: string | null;
     libelle: string | null;
     dateEcheance: Date | null;
+    // Exigés · un report qui oublierait la devise sortirait la position de
+    // la réévaluation de l'exercice suivant (audit final F55).
+    deviseId: string | null;
+    montantDevise: Prisma.Decimal | null;
+    coursApplique: Prisma.Decimal | null;
     ecriture: { libelle: string };
   }[];
 }): CompteRan {
@@ -1103,6 +1108,9 @@ function versCompteRan(c: {
       lettre: l.lettre,
       libelle: l.libelle ?? l.ecriture.libelle,
       dateEcheance: l.dateEcheance,
+      deviseId: l.deviseId,
+      montantDevise: l.montantDevise === null ? null : Number(l.montantDevise),
+      coursApplique: l.coursApplique === null ? null : Number(l.coursApplique),
     })),
   };
 }

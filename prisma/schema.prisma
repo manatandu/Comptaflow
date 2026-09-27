@@ -3109,7 +3109,9 @@ model Reevaluation {
   createdAt DateTime @default(now())
   createdBy String
 
-  @@index([tenantId, exerciceId])
+  // Une seule réévaluation passée par exercice (audit final F54) · une
+  // seconde repasserait l'écart entier. Posé en base contre deux clics.
+  @@unique([tenantId, exerciceId])
   @@map("reevaluations")
 }
 

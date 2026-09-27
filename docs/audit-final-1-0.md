@@ -430,12 +430,14 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** l'écart est passé sans devise, et le seul garde-fou porte sur la même date. Une seconde réévaluation repasse l'écart entier (effet latent tant que F49 n'est pas corrigé).
 - **Correction :** refuser une seconde réévaluation non extournée, ou intégrer les écarts déjà passés.
+- **Fait le 2026-09-27 :** une seule réévaluation passée par exercice, quelle que soit sa date · refus nommé au service, index unique en base (migration `20261126000000_une_reevaluation_par_exercice`). Le calcul, qui n'enregistre rien, reste ouvert pour une situation intermédiaire. Vérifié sur base réelle. Test : `reevaluation-f54-f55.spec.ts`.
 
 **F55 · Les positions en devise reportées à-nouveau échappent à la réévaluation** [saisie-10]
 - **Emplacements :** src/modules/devises/devises.service.ts:309 · src/modules/exercice/report-a-nouveau.ts:67
 - **Condition :** 1
 - **Constat :** le report ne recopie ni la devise ni le montant en devise, et le calcul ne lit que l'exercice. Une créance en dollars née en N-1 n'est jamais réévaluée.
 - **Correction :** reporter devise et montant en devise (DÉTAIL et SOLDE).
+- **Fait le 2026-09-27 :** en DÉTAIL chaque ligne reportée garde devise, montant et cours ; en SOLDE, une ligne par devise au cours moyen et le reste en francs (`exercice/report-a-nouveau.ts`, `versCompteRan`, clôture et report provisoire). Vérifié sur base réelle · une banque en dollars close en 2026 est réévaluée en 2027. Tests : `reevaluation-f54-f55.spec.ts`.
 
 **F56 · Règlement des tiers : le caractère lettrable du compte est vérifié après la première pièce** [saisie-11]
 - **Emplacements :** src/modules/reglements/reglements.service.ts:130-187 · lettrage.service.ts:104

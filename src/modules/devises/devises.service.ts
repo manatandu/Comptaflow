@@ -490,12 +490,23 @@ export class DevisesService {
     if (exercice.statut === StatutExercice.CLOTURE) {
       throw new BadRequestException("L'exercice est clôturé.");
     }
+    // UNE SEULE RÉÉVALUATION PASSÉE PAR EXERCICE (audit final F54) · ses
+    // écarts sont passés sans devise, si bien qu'une seconde, à une autre
+    // date, relisait les positions à leur valeur d'origine et repassait
+    // l'écart entier, provision comprise. Le garde-fou ne regardait que la
+    // même date. Une situation intermédiaire se lit par le calcul, qui
+    // n'enregistre rien ; la réévaluation se passe une fois, à l'arrêté. La
+    // base porte la même règle (index unique sur l'exercice), contre deux
+    // clics simultanés.
     const dejaFaite = await this.prisma.reevaluation.findFirst({
-      where: { tenantId, exerciceId: dto.exerciceId, dateReevaluation: new Date(rapport.dateReevaluation) },
+      where: { tenantId, exerciceId: dto.exerciceId },
+      select: { dateReevaluation: true },
     });
     if (dejaFaite) {
       throw new ConflictException(
-        `Une réévaluation a déjà été passée au ${rapport.dateReevaluation} sur cet exercice.`,
+        `Une réévaluation a déjà été passée au ${dejaFaite.dateReevaluation.toISOString().slice(0, 10)} sur cet exercice · ` +
+          "une seconde repasserait l'écart entier, ses écarts étant passés sans devise, et doublerait la provision. " +
+          "Pour une situation intermédiaire, utilisez le calcul sans enregistrement.",
       );
     }
 

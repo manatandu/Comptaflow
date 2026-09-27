@@ -636,6 +636,13 @@ l'accord des parties, que seul le comptable connaît, et l'écran ne fait que
 PROPOSER le dernier coté au plus tard à la date de la pièce.
 
 
+**La devise suit le report, et la réévaluation se passe une fois (2026-09-27,
+audit final F54, F55).** Le report à-nouveau recopie devise, montant et cours
+(DÉTAIL ligne à ligne ; SOLDE une ligne par devise au cours moyen, le reste en
+francs), sans quoi une position née en N-1 n'était jamais réévaluée. Et une
+seule réévaluation se passe par exercice (index unique) · ses écarts sont
+passés sans devise, une seconde repassait l'écart entier et la provision.
+
 **Procès-verbal de comptage par caisse · un PV par caisse, et la caisse qu'on
 oublie.** Le PV de la CAMPAGNE porte l'inventaire physique dans son ensemble
 (CPCC, étape 2 · « signatures de ceux qui ont inventorié ET assisté à cet
