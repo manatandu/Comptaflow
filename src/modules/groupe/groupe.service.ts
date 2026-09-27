@@ -547,6 +547,7 @@ export class GroupeService {
       id: string;
       nom: string;
       estMere: boolean;
+      exerciceId: string;
       totalDebit: number;
       totalCredit: number;
       solde58: number;
@@ -610,6 +611,9 @@ export class GroupeService {
         id: d.id,
         nom: d.nom,
         estMere: d.estMere,
+        // L'exercice RETENU pour ce dossier · la liasse y compte le brouillard
+        // restant (audit du serveur du 2026-09-27, F7).
+        exerciceId: d.exerciceId,
         totalDebit: balance.totaux.debit,
         totalCredit: balance.totaux.credit,
         solde58,
@@ -1685,6 +1689,54 @@ export class GroupeService {
     if (agregat.cellulesSansExercice.length > 0) {
       blocages.push(
         `cellule(s) sans exercice sur la période : ${agregat.cellulesSansExercice.map((c) => c.nom).join(', ')} · leurs chiffres manqueraient`,
+      );
+    }
+    // LE BROUILLARD NE DEVIENT PAS DU LIVRE-JOURNAL PAR LE DÉTOUR DU GROUPE ·
+    // audit du serveur du 2026-09-27, F7. La balance agrégée lit chaque
+    // dossier brouillard COMPRIS (c'est l'écran de travail du siège), et
+    // l'écriture de combinaison qui en naît est posée VALIDÉE plus bas : une
+    // pièce qu'aucun comptable de la cellule n'a encore validée entrait ainsi
+    // dans une liasse déposable, alors que ses propres états ne la lisent pas
+    // (AUDCIF art. 22, 2°, la validation fait entrer la pièce au livre-journal).
+    //
+    // REFUSER PLUTÔT QUE LIRE `balance(…, false)`, et c'est délibéré. Écarter
+    // le brouillard en silence produirait une liasse amputée d'opérations
+    // réelles, qui boucle et qu'on déposerait · le défaut du § 10 bis dans son
+    // autre sens. Et l'élimination des opérations réciproques lit elle aussi
+    // le brouillard : ne changer que la balance désaccorderait les deux. La
+    // supervision dit déjà qu'une cellule n'est « prête » qu'à zéro
+    // brouillard · la liasse s'aligne sur elle.
+    const brouillardParDossier = await Promise.all(
+      agregat.dossiers.map(async (d) => ({
+        nom: d.nom,
+        pieces: await this.prisma.ecriture.count({
+          where: { tenantId: d.id, exerciceId: d.exerciceId, statut: StatutEcriture.BROUILLARD },
+        }),
+        // L'à-nouveau provisoire reste au brouillard par construction et ne
+        // se valide jamais · il ne se règle qu'en clôturant l'exercice
+        // précédent, et le message doit le dire au lieu de « validez ».
+        provisoires: await this.prisma.ecriture.count({
+          where: {
+            tenantId: d.id,
+            exerciceId: d.exerciceId,
+            statut: StatutEcriture.BROUILLARD,
+            estANouveauProvisoire: true,
+          },
+        }),
+      })),
+    );
+    const enBrouillard = brouillardParDossier.filter((b) => b.pieces > 0);
+    if (enBrouillard.length > 0) {
+      const nommes = enBrouillard
+        .map((b) =>
+          b.provisoires > 0
+            ? `${b.nom} (${b.pieces} pièce(s), dont l'à-nouveau provisoire, qui ne se valide pas · clôturez l'exercice précédent)`
+            : `${b.nom} (${b.pieces} pièce(s))`,
+        )
+        .join(', ');
+      blocages.push(
+        `écritures encore au brouillard : ${nommes} · la liasse ne lit que le livre-journal, et une pièce non validée ` +
+          'ne peut pas y entrer par l’écriture de combinaison. Validez-les dans leur dossier',
       );
     }
     if (blocages.length > 0) {

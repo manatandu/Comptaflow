@@ -97,6 +97,8 @@ function service(
         findFirst: async ({ where }: { where: { id?: string; tenantId: string } }) =>
           where.id === 'ex-m' && where.tenantId === 'mere' ? EX : null,
       },
+      // Aucune pièce au brouillard · la liasse les compte (audit F7).
+      ecriture: { count: async () => 0 },
       tenant: {
         findUnique: async () => ({ id: 'mere', nom: 'Siège', dossierCombinaisonId: 't-comb' }),
         // Le dossier de combinaison déjà ouvert est réaligné sur le référentiel

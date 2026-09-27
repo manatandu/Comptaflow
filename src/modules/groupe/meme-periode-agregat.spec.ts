@@ -65,6 +65,8 @@ const service = (exercicesCellule: Array<{ id: string; dateDebut: Date; dateFin:
       // chiffres attendus plus bas sont donc EXACTEMENT ceux d'avant
       // l'élimination des opérations réciproques : ce fichier est le garde-fou
       // qui le vérifie.
+      // Aucune pièce au brouillard · la liasse les compte (audit F7).
+      ecriture: { count: async () => 0 },
       tiersCompte: { findMany: async () => [] },
       tenant: {
         findUnique: async () => ({ id: 'mere', nom: 'Église centrale', dossierCombinaisonId: 't-comb' }),

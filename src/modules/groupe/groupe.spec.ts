@@ -411,7 +411,10 @@ describe('GroupeService · canevas de trésorerie', () => {
 });
 
 describe('GroupeService · liasse du groupe en un clic', () => {
-  const prismaCombinaison = (journalDeAppels: Array<{ nom: string; args?: unknown }>) =>
+  const prismaCombinaison = (
+    journalDeAppels: Array<{ nom: string; args?: unknown }>,
+    brouillard: Record<string, number> = {},
+  ) =>
     ({
       exercice: {
         findFirst: async ({ where }: { where: { id?: string; tenantId: string } }) => {
@@ -451,6 +454,11 @@ describe('GroupeService · liasse du groupe en un clic', () => {
         },
       },
       ecriture: {
+        // Le brouillard restant, dossier par dossier · aucun par défaut.
+        count: async ({ where }: { where: { tenantId: string; estANouveauProvisoire?: boolean } }) => {
+          journalDeAppels.push({ nom: 'ecriture.count', args: where });
+          return where.estANouveauProvisoire ? 0 : (brouillard[where.tenantId] ?? 0);
+        },
         deleteMany: async () => {
           journalDeAppels.push({ nom: 'ecritures.deleteMany' });
           return { count: 0 };
@@ -541,5 +549,32 @@ describe('GroupeService · liasse du groupe en un clic', () => {
       } as never,
     );
     await expect(s.liasseGroupe('mere', 'ex-m', 'u')).rejects.toThrow(/58/);
+  });
+
+  it('refuse tant qu’une cellule a du brouillard · il ne devient pas livre-journal par l’écriture de combinaison (audit F7)', async () => {
+    // L'agrégat lit le brouillard, et l'écriture de combinaison est posée
+    // VALIDÉE · une pièce jamais validée dans sa cellule entrait ainsi dans
+    // une liasse déposable. Tout est équilibré, seul le brouillard bloque.
+    const appels: Array<{ nom: string; args?: unknown }> = [];
+    const s = new GroupeService(
+      prismaCombinaison(appels, { c1: 2 }),
+      { balance: async (tenantId: string) => (tenantId === 'mere' ? BALANCES.mere : BALANCES.c1) } as never,
+      undefined as never,
+      {
+        liasseCompleteExcel: async () => {
+          throw new Error('ne doit jamais être appelé');
+        },
+      } as never,
+    );
+    await expect(s.liasseGroupe('mere', 'ex-m', 'u')).rejects.toThrow(/brouillard : Cellule A \(2 pièce\(s\)\)/);
+    expect(appels.some((a) => a.nom === 'ecriture.create')).toBe(false);
+    // Compté dans l'exercice RETENU de chaque dossier, pas dans tout le dossier.
+    const comptages = appels
+      .filter((a) => a.nom === 'ecriture.count')
+      .map((a) => a.args as { tenantId: string; exerciceId: string; statut: string });
+    expect(comptages.filter((w) => w.tenantId === 'c1').map((w) => [w.exerciceId, w.statut])).toContainEqual([
+      'ex-c1',
+      'BROUILLARD',
+    ]);
   });
 });
