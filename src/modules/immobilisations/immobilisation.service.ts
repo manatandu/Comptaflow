@@ -43,6 +43,11 @@ export interface LigneTableauImmo {
   dateSortie: string | null;
 }
 
+/** Un bien SORTI à la date d'arrêté · présenté à part, hors des totaux (F31). */
+export interface LigneTableauImmoSortie extends LigneTableauImmo {
+  compte: string;
+}
+
 /** Une ligne du tableau des amortissements · douze colonnes mensuelles. */
 export interface LigneTableauAmortissement {
   id: string;
@@ -58,6 +63,8 @@ export interface LigneTableauAmortissement {
   valeurNette: number;
   /** Vraie quand la dotation est COMPTABILISÉE, fausse quand elle est calculée. */
   dotationPassee: boolean;
+  /** Sorti dans l'exercice · sa dotation est celle qui a été passée, rien de plus (F30). */
+  sortiLe: string | null;
 }
 
 /**
@@ -1416,6 +1423,15 @@ export class ImmobilisationService {
       string,
       { numero: string; intitule: string; lignes: LigneTableauImmo[]; brut: number; amortissements: number; net: number }
     >();
+    /*
+      UN BIEN SORTI N'EST PLUS AU BILAN (audit final F31). Ses comptes 2, 28
+      et 29 ont été soldés par la sortie · l'additionner aux sous-totaux
+      faisait tomber faux le recoupement avec la balance que ce tableau
+      existe pour permettre. Il est présenté À PART, hors des totaux · le taire
+      ferait chercher un bien qu'on croit encore détenu. Un bien sorti APRÈS
+      la date d'arrêté y était encore détenu, et reste dans son groupe.
+    */
+    const sortis: LigneTableauImmoSortie[] = [];
 
     for (const immo of immos) {
       // Les dotations POSTÉRIEURES à la date d'arrêté sont écartées · un
@@ -1437,7 +1453,7 @@ export class ImmobilisationService {
           net: 0,
         };
       const net = arrondir(brut - amortissements);
-      groupe.lignes.push({
+      const ligne: LigneTableauImmo = {
         id: immo.id,
         designation: immo.designation,
         numeroInventaire: immo.numeroInventaire ?? '',
@@ -1448,7 +1464,12 @@ export class ImmobilisationService {
         valeurNette: net,
         statut: immo.statut,
         dateSortie: immo.dateSortie ? immo.dateSortie.toISOString().slice(0, 10) : null,
-      });
+      };
+      if (immo.dateSortie && (!arret || immo.dateSortie <= arret)) {
+        sortis.push({ ...ligne, compte: immo.compteImmobilisation.numero });
+        continue;
+      }
+      groupe.lignes.push(ligne);
       groupe.brut = arrondir(groupe.brut + brut);
       groupe.amortissements = arrondir(groupe.amortissements + amortissements);
       groupe.net = arrondir(groupe.net + net);
@@ -1459,6 +1480,7 @@ export class ImmobilisationService {
     return {
       dateArret: arret ? arret.toISOString().slice(0, 10) : null,
       groupes: listeGroupes,
+      sortis,
       totaux: {
         brut: arrondir(listeGroupes.reduce((t, g) => t + g.brut, 0)),
         amortissements: arrondir(listeGroupes.reduce((t, g) => t + g.amortissements, 0)),
@@ -1500,7 +1522,14 @@ export class ImmobilisationService {
       select: { id: true, dateDebut: true, dateFin: true },
     });
     const immos = await this.prisma.immobilisation.findMany({
-      where: { tenantId, dateAcquisition: { lte: exercice.dateFin } },
+      where: {
+        tenantId,
+        dateAcquisition: { lte: exercice.dateFin },
+        // Un bien sorti AVANT l'exercice n'y a plus rien à amortir (audit
+        // final F30) · le tableau lui calculait une annuité que
+        // `passerDotation` aurait refusé de poster.
+        OR: [{ dateSortie: null }, { dateSortie: { gte: exercice.dateDebut } }],
+      },
       include: {
         compteImmobilisation: { select: { id: true, numero: true, intitule: true } },
         dotations: { select: { montant: true, exerciceId: true, exercice: { select: { dateFin: true } } } },
@@ -1560,9 +1589,15 @@ export class ImmobilisationService {
       // qui recalculerait ce qui est comptabilisé afficherait autre chose que
       // les comptes, et c'est le tableau qu'on croirait.
       const dejaPassee = immo.dotations.find((d) => d.exerciceId === exercice.id);
+      // SORTI DANS L'EXERCICE · sa dotation est celle que la sortie a passée
+      // (le complément arrêté à la date de sortie), jamais un calcul · sans
+      // dotation passée, il n'en porte aucune (F30).
+      const sortiDansLExercice = !!immo.dateSortie && immo.dateSortie <= exercice.dateFin;
       const dotation = dejaPassee
         ? Number(dejaPassee.montant)
-        : this.calculerDotation(
+        : sortiDansLExercice
+          ? 0
+          : this.calculerDotation(
             Number(immo.valeurOrigine),
             Number(immo.valeurResiduelle),
             immo.dureeAmortissementAns,
@@ -1645,7 +1680,9 @@ export class ImmobilisationService {
         cumulN1,
         cumulN,
         valeurNette: net,
-        dotationPassee: Boolean(dejaPassee),
+        // Rien n'est « à passer » sur un bien sorti · sa sortie a tout passé.
+        dotationPassee: Boolean(dejaPassee) || sortiDansLExercice,
+        sortiLe: sortiDansLExercice && immo.dateSortie ? immo.dateSortie.toISOString().slice(0, 10) : null,
       });
       parMois.forEach((m, i) => {
         groupe.parMois[i] = arrondir(groupe.parMois[i] + m);

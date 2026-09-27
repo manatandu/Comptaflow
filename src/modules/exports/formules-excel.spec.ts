@@ -234,6 +234,45 @@ describe('exports · les totaux sont des formules Excel', () => {
     expect((totalGeneral as ExcelJS.CellFormulaValue).formula).toBe('Q7');
   });
 
+  it('le tableau des immobilisations porte les biens sortis APRÈS le total, hors de lui (audit final F31)', async () => {
+    const ligne = (id: string, designation: string, brut: number) => ({
+      id,
+      designation,
+      numeroInventaire: '',
+      dateAcquisition: '2021-01-01',
+      dureeAns: 5,
+      valeurBrute: brut,
+      amortissements: 0,
+      valeurNette: brut,
+      statut: 'EN_SERVICE',
+      dateSortie: null,
+    });
+    const immos = {
+      tableauImmobilisations: jest.fn().mockResolvedValue({
+        dateArret: '2025-12-31',
+        groupes: [{ numero: '221499', intitule: 'Matériel', lignes: [ligne('a', 'Concasseur', 100_000)], brut: 100_000, amortissements: 0, net: 100_000 }],
+        sortis: [{ ...ligne('b', 'Camion cédé', 60_000), statut: 'CEDEE', dateSortie: '2025-06-30', compte: '245' }],
+        totaux: { brut: 100_000, amortissements: 0, net: 100_000 },
+      }),
+    } as unknown as ImmobilisationService;
+    const prisma = {
+      tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue(TENANT) },
+      exercice: { findFirst: jest.fn().mockResolvedValue(null) },
+    } as unknown as PrismaService;
+    const vide = {} as never;
+    const service = new ExportService(prisma, vide, vide, vide, vide, vide, vide, vide, vide, vide, undefined, undefined, immos);
+    const f = (await classeurDepuis((await service.tableauImmobilisationsExcel('tn', '2025-12-31')).buffer)).getWorksheet(
+      'Immobilisations',
+    )!;
+    // Coiffe 1-3, en-têtes 4, titre de groupe 5, le bien 6, S/TOTAL 7, total 8,
+    // ligne vide 9, titre des sortis 10, le bien sorti 11.
+    expect(f.getCell('A8').value).toBe('TOTAL GÉNÉRAL');
+    expect((cellule(f, 'D8') as ExcelJS.CellFormulaValue).formula).toBe('D7');
+    expect(f.getCell('A10').value).toBe('BIENS SORTIS À CETTE DATE · hors total');
+    expect(f.getCell('A11').value).toBe('(245) Camion cédé');
+    expect(f.getCell('G11').value).toBe('Sorti le 30/06/2025');
+  });
+
   it('joint toujours le résultat calculé · un lecteur sans moteur de calcul verrait une case vide', async () => {
     const prisma = {
       tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue(TENANT) },

@@ -1558,6 +1558,26 @@ export class ExportService {
     }
     total.font = ENTETE_FONT;
 
+    // LES BIENS SORTIS À LA DATE D'ARRÊTÉ · à part, APRÈS le total, et hors de
+    // lui (audit final F31) · leurs comptes ont été soldés par la sortie, et
+    // les additionner ferait tomber faux le recoupement avec la balance.
+    if (t.sortis.length > 0) {
+      feuille.addRow({});
+      const titreSortis = feuille.addRow({ libelle: 'BIENS SORTIS À CETTE DATE · hors total' });
+      titreSortis.font = { bold: true };
+      for (const l of t.sortis) {
+        feuille.addRow({
+          libelle: `(${l.compte}) ${l.designation}`,
+          date: new Date(l.dateAcquisition),
+          duree: l.dureeAns,
+          brut: l.valeurBrute || null,
+          amort: l.amortissements || null,
+          net: l.valeurNette || null,
+          obs: l.dateSortie ? `Sorti le ${new Date(l.dateSortie).toLocaleDateString('fr-FR')}` : '',
+        });
+      }
+    }
+
     this.appliquerFormats(feuille, {
       date: FORMAT_DATE,
       brut: FORMAT_MONTANT,
@@ -1688,7 +1708,11 @@ export class ExportService {
           cumulN1: l.cumulN1,
           cumulN: l.cumulN,
           net: l.valeurNette,
-          etat: l.dotationPassee ? 'Comptabilisée' : 'À passer',
+          etat: l.sortiLe
+            ? `Sorti le ${new Date(l.sortiLe).toLocaleDateString('fr-FR')}`
+            : l.dotationPassee
+              ? 'Comptabilisée'
+              : 'À passer',
         });
       }
       const st = feuille.addRow([]);

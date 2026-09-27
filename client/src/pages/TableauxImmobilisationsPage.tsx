@@ -46,6 +46,8 @@ interface GroupeImmo {
 interface TableauImmo {
   dateArret: string | null;
   groupes: GroupeImmo[];
+  /** Biens sortis à la date d'arrêté · à part, hors des totaux (audit F31). */
+  sortis: Array<LigneImmo & { compte: string }>;
   totaux: { brut: number; amortissements: number; net: number };
 }
 
@@ -62,6 +64,8 @@ interface LigneAmort {
   cumulN: number;
   valeurNette: number;
   dotationPassee: boolean;
+  /** Sorti dans l'exercice · sa dotation est celle que la sortie a passée (audit F30). */
+  sortiLe: string | null;
 }
 
 interface GroupeAmort {
@@ -268,6 +272,34 @@ export function TableauxImmobilisationsPage() {
               <span />
             </div>
           )}
+
+          {/* HORS TOTAL · leurs comptes ont été soldés par la sortie, et les
+              additionner ferait tomber faux le recoupement avec la balance. */}
+          {immo.sortis.length > 0 && (
+            <>
+              <div className="px-3.5 py-1 text-[11.5px] font-bold bg-surface-alt/60 border-y border-border/60">
+                Biens sortis à cette date · hors total
+              </div>
+              {immo.sortis.map((l) => (
+                <div
+                  key={l.id}
+                  className={`${grilleImmo} px-3.5 py-[4px] items-center border-b border-border/50 text-[11.5px] text-text-dim`}
+                >
+                  <span className="truncate" title={l.designation}>
+                    ({l.compte}) {l.designation}
+                  </span>
+                  <span className="font-mono">{new Date(l.dateAcquisition).toLocaleDateString('fr-FR')}</span>
+                  <span className="font-mono text-right">{l.dureeAns}</span>
+                  <span className="font-mono text-right">{montant(l.valeurBrute)}</span>
+                  <span className="font-mono text-right">{montant(l.amortissements)}</span>
+                  <span className="font-mono text-right">{montant(l.valeurNette)}</span>
+                  <span className="truncate">
+                    {l.dateSortie ? `Sorti le ${new Date(l.dateSortie).toLocaleDateString('fr-FR')}` : ''}
+                  </span>
+                </div>
+              ))}
+            </>
+          )}
         </div>
       )}
 
@@ -308,6 +340,9 @@ export function TableauxImmobilisationsPage() {
                 >
                   <span className="truncate" title={l.designation}>
                     {l.designation}
+                    {l.sortiLe && (
+                      <span className="text-text-dim italic"> · sorti le {new Date(l.sortiLe).toLocaleDateString('fr-FR')}</span>
+                    )}
                     {!l.dotationPassee && (
                       <span className="text-warning italic" title="Dotation calculée, pas encore comptabilisée">
                         {' '}

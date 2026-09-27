@@ -239,12 +239,14 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** le filtre ne porte que sur la date d'acquisition, sans statut. Un bien cédé en N-1 reçoit une annuité dans la dotation, le cumul et le net de N, que `passerDotation` refuserait de poster.
 - **Correction :** écarter les biens sortis avant l'exercice et, pour un bien sorti dans l'exercice, ne retenir que la dotation effectivement passée.
+- **Fait le 2026-09-27 :** la requête écarte les biens sortis avant l'exercice ; un bien sorti dans l'exercice porte la dotation passée par sa sortie et rien de plus, marquée « sorti le », jamais « à passer » (`tableauAmortissements`, écran et classeur). Tests : `tableaux-immobilisations.spec.ts`.
 
 **F31 · Le tableau des immobilisations additionne les biens sortis dans ses totaux** [immo-05]
 - **Emplacements :** src/modules/immobilisations/immobilisation.service.ts:1305-1360
 - **Condition :** 1
 - **Constat :** brut, amortissements et net des biens cédés entrent dans les sous-totaux et le total. Le recoupement avec la balance, que le commentaire annonce, tombe faux.
 - **Correction :** exclure ou présenter à part les biens sortis à la date d'arrêté.
+- **Fait le 2026-09-27 :** présentés à part (`sortis`), hors des sous-totaux et du total, à l'écran et après le total du classeur ; un bien sorti après la date d'arrêté reste dans son groupe. Tests : `tableaux-immobilisations.spec.ts`, `formules-excel.spec.ts` (six mutations tuées sur F30 et F31).
 
 **F32 · Un bien repris (avec amortissement antérieur) ne peut pas être créé** [immo-06]
 - **Emplacements :** src/modules/immobilisations/immobilisation.service.ts:889-898 · client/src/pages/ImmobilisationsPage.tsx:750

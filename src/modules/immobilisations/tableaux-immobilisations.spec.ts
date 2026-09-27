@@ -82,6 +82,39 @@ function service(biens: ReturnType<typeof bien>[]) {
   return new ImmobilisationService(prisma, {} as EcritureService);
 }
 
+describe('tableau des immobilisations · les biens sortis (audit final F31)', () => {
+  const PARC = [
+    bien({ id: 'a', designation: 'Concasseur', valeurOrigine: 100_000, dureeAns: 5, dateAcquisition: '2020-01-01' }),
+    bien({
+      id: 'b',
+      designation: 'Camion cédé',
+      valeurOrigine: 60_000,
+      dureeAns: 5,
+      dateAcquisition: '2021-01-01',
+      dateSortie: '2025-06-30',
+    }),
+  ];
+
+  it('un bien sorti à la date d’arrêté est présenté à part, HORS des totaux', async () => {
+    const t = await service(PARC).tableauImmobilisations('tn', { dateArret: '2025-12-31' });
+    expect(t.groupes.flatMap((g) => g.lignes.map((l) => l.id))).toEqual(['a']);
+    expect(t.totaux.brut).toBe(100_000);
+    expect(t.sortis.map((l) => [l.id, l.compte, l.dateSortie])).toEqual([['b', '221499', '2025-06-30']]);
+  });
+
+  it('un bien sorti APRÈS la date d’arrêté y était encore détenu · il reste dans son groupe', async () => {
+    const t = await service(PARC).tableauImmobilisations('tn', { dateArret: '2025-03-31' });
+    expect(t.totaux.brut).toBe(160_000);
+    expect(t.sortis).toEqual([]);
+  });
+
+  it('sans date d’arrêté, tout bien sorti est à part', async () => {
+    const t = await service(PARC).tableauImmobilisations('tn');
+    expect(t.totaux.brut).toBe(100_000);
+    expect(t.sortis.map((l) => l.id)).toEqual(['b']);
+  });
+});
+
 describe('tableau des immobilisations', () => {
   it('groupe par compte d’imputation, avec sous-total · c’est lui qui recoupe la balance', async () => {
     const s = service([
@@ -192,13 +225,59 @@ describe('tableau des amortissements · douze colonnes', () => {
         dureeAns: 5,
         dateAcquisition: '2022-01-01',
         dateSortie: '2025-09-20',
-        dotations: [{ montant: 2_400, exerciceId: 'ex2023', dateFin: '2023-12-31' }],
+        // La sortie a passé son complément, arrêté au mois de sortie (F27).
+        dotations: [
+          { montant: 2_400, exerciceId: 'ex2023', dateFin: '2023-12-31' },
+          { montant: 1_800, exerciceId: 'ex2025', dateFin: '2025-12-31' },
+        ],
       }),
     ]);
     const t = await s.tableauAmortissements('tn', 'ex2025');
     const l = t.groupes[0].lignes[0];
     expect(l.parMois.slice(9).every((m) => m === 0)).toBe(true);
     expect(l.parMois[8]).toBeGreaterThan(0);
+    expect(l.dotation).toBe(1_800);
+    expect(l.sortiLe).toBe('2025-09-20');
+  });
+
+  it('un bien sorti dans l’exercice ne porte que la dotation PASSÉE, jamais un calcul (audit final F30)', async () => {
+    // Sorti sans complément (rien à passer) · le tableau lui calculait une
+    // annuité que `passerDotation` refuse de poster sur un bien sorti.
+    const s = service([
+      bien({
+        id: 'a',
+        designation: 'Cédé sans complément',
+        valeurOrigine: 12_000,
+        dureeAns: 5,
+        dateAcquisition: '2022-01-01',
+        dateSortie: '2025-06-30',
+        dotations: [{ montant: 2_400, exerciceId: 'ex2024', dateFin: '2024-12-31' }],
+      }),
+    ]);
+    const t = await s.tableauAmortissements('tn', 'ex2025');
+    const l = t.groupes[0].lignes[0];
+    expect({ dotation: l.dotation, passee: l.dotationPassee, sortiLe: l.sortiLe }).toEqual({
+      dotation: 0,
+      passee: true,
+      sortiLe: '2025-06-30',
+    });
+  });
+
+  it('un bien sorti AVANT l’exercice n’est pas lu · la requête l’écarte (audit final F30)', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const s = new ImmobilisationService(
+      {
+        tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel: Referentiel.SYSCOHADA, systemeComptableSyscohada: SystemeComptableSyscohada.NORMAL }) },
+        immobilisation: { findMany },
+        exercice: { findFirstOrThrow: jest.fn().mockResolvedValue(EXERCICE) },
+      } as unknown as PrismaService,
+      {} as EcritureService,
+    );
+    await s.tableauAmortissements('tn', 'ex2025');
+    expect(findMany.mock.calls[0][0].where.OR).toEqual([
+      { dateSortie: null },
+      { dateSortie: { gte: EXERCICE.dateDebut } },
+    ]);
   });
 
   it('retient la dotation COMPTABILISÉE plutôt que de la recalculer', async () => {
