@@ -32,6 +32,15 @@ export function jourDeKinshasa(instant: Date): Date {
   return new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()));
 }
 
+/**
+ * Le même jour, écrit AAAA-MM-JJ · la forme d'une date enregistrée ou affichée
+ * (licence, encaissement). UNE seule définition, que les modules appellent au
+ * lieu de refaire le décalage à la main (audit final F113).
+ */
+export function jourDeKinshasaIso(instant: Date): string {
+  return jourDeKinshasa(instant).toISOString().slice(0, 10);
+}
+
 /** Le jour UTC d'une date · pour une date déjà à minuit UTC, elle-même. */
 export function jourUtc(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));

@@ -851,6 +851,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 5
 - **Constat :** entre 0 h et 1 h, une remise faite le jour même est refusée comme future.
 - **Correction :** un module commun, utilisé aussi par `motifRefusRemise`.
+- **Fait le 2026-09-27 :** `jourDeKinshasaIso` rejoint `common/echeance.ts` ; les licences sur site et les abonnements l'appellent au lieu de leur copie, et `motifRefusRemise` compare le jour déclaré au jour de Kinshasa de l'émission et de l'instant. Tests : `common/echeance.spec.ts`, `bulletin-paie.spec.ts` (remise déclarée à 0 h 30, heure de Kinshasa).
 
 ### Fiscalité, facturation et commerce
 
@@ -859,18 +860,21 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** le total imprimé est inférieur à ce que la pièce facture elle-même.
 - **Correction :** inclure ces taxes, ou renommer le total, et tester l'impression.
+- **Fait le 2026-09-27 :** `totauxFacture` rend `montantAutresImpotsEtTaxes` et le TTC les comprend ; la pièce imprimée porte leur ligne quand la facture en déclare. Tests : `facturation.spec.ts`, `facturation-audit-final.spec.ts` (écran).
 
 **F115 · Le registre des retenues range la retraite complémentaire (432) sous la CNSS** [ret-02]
 - **Emplacements :** src/modules/retenues/correspondance-retenues.ts:437-440, :479
 - **Condition :** 1
 - **Constat :** 43200000 (complémentaire) et 4322/4328 sont comptés et datés comme de la CNSS.
 - **Correction :** borner la CNSS à 431 et 4321, verser le reste aux autres organismes, et ajouter un test sur les semis.
+- **Fait le 2026-09-27 :** CNSS sur 431 et 4321, hors 4314 ; autres organismes sur 432, 433, 438 et 4314, hors 4321, 4334 et 4335 ; une seule règle (`compteRelevantDe`) sert le registre. Test : `cnss-comptes-semes.spec.ts`, qui relit les deux semis.
 
 **F116 · Facture passée au journal : compte de TVA non routé et ligne au taux zéro omise** [fact-04]
 - **Emplacements :** src/modules/facturation/comptabilisation-facture.service.ts:74 · ecriture-facture.ts:80, :189 · client/src/lib/tva-saisie.ts:139, :176
 - **Condition :** 5
 - **Constat :** la règle de `tva-saisie.ts` est réécrite autrement. L'exportation ne compte plus au prorata.
 - **Correction :** module commun de routage et du taux zéro, avec un test de parité.
+- **Fait le 2026-09-27 :** `tva/routage-tva.ts`, version serveur de la règle de la saisie, et `routage-tva-parite.spec.ts` exécute les deux versions sur tous les comptes 2, 6 et 7 des deux semis. Le compte de TVA suit la contrepartie parmi les subdivisions ouvertes, à défaut le compte du taux ; une ligne imposable au taux zéro pose sa ligne de TVA à zéro avec son taux, sans jamais se fondre dans celle à 16 %. Tests : `comptabilisation-facture.spec.ts`, `ecriture-facture.spec.ts`.
 
 **F117 · L'état détaillé de l'art. 134 garde les factures annulées par une note** [fact-05]
 - **Emplacements :** src/modules/facturation/facturation.service.ts:475-485

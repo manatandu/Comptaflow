@@ -1,3 +1,5 @@
+import { jourDeKinshasa, jourUtc } from '../../common/echeance';
+
 /**
  * P8 · LE BULLETIN DE PAIE ÉMIS.
  *
@@ -170,12 +172,15 @@ export function nomCompletMajuscules(s: { nom: string; postNom: string | null; p
 /**
  * La date de remise déclarée · ni avant l'émission (le décompte n'existait
  * pas), ni dans le futur (ce serait attester une remise qui n'a pas eu lieu).
- * Comparaison au JOUR : l'heure d'émission n'est pas celle du guichet.
+ * Comparaison au JOUR, et au JOUR DE KINSHASA pour les deux instants (audit
+ * final F113) · lus en UTC, entre minuit et une heure une remise faite le jour
+ * même était refusée comme future. La date déclarée est un jour saisi, à
+ * minuit UTC.
  */
 export function motifRefusRemise(remisLe: Date, emisLe: Date, maintenant: Date): string | null {
-  const jour = (d: Date) => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
   if (Number.isNaN(remisLe.getTime())) return 'Date de remise illisible.';
-  if (jour(remisLe) < jour(emisLe)) return "La remise ne peut pas précéder l'émission du bulletin.";
-  if (jour(remisLe) > jour(maintenant)) return "La remise ne se déclare pas à l'avance · elle atteste un fait.";
+  const remis = jourUtc(remisLe).getTime();
+  if (remis < jourDeKinshasa(emisLe).getTime()) return "La remise ne peut pas précéder l'émission du bulletin.";
+  if (remis > jourDeKinshasa(maintenant).getTime()) return "La remise ne se déclare pas à l'avance · elle atteste un fait.";
   return null;
 }

@@ -111,6 +111,15 @@ describe('les mentions recopiées et la remise', () => {
     expect(motifRefusRemise(d('2026-04-03'), emis, maintenant)).toMatch(/l'avance/);
     expect(motifRefusRemise(d('2026-03-31'), emis, maintenant)).toBeNull();
   });
+
+  // AUDIT FINAL F113 · entre minuit et une heure UTC, Kinshasa est déjà au
+  // lendemain · la remise faite ce jour-là n'est pas future.
+  it('lit « aujourd’hui » au jour de Kinshasa, pour la remise comme pour l’émission', () => {
+    const maintenant = new Date('2026-04-02T23:30:00Z'); // 3 avril à Kinshasa
+    expect(motifRefusRemise(d('2026-04-03'), new Date('2026-04-01T10:00:00Z'), maintenant)).toBeNull();
+    // Émis à 23 h 30 UTC le 2, c'est-à-dire le 3 à Kinshasa · une remise du 2 le précède.
+    expect(motifRefusRemise(d('2026-04-02'), new Date('2026-04-02T23:30:00Z'), maintenant)).toMatch(/précéder/);
+  });
 });
 
 // ────────────────────────────────────────────────────────────────────────

@@ -3,6 +3,7 @@ import { createPublicKey } from 'crypto';
 import { PrismaService } from '../../common/prisma.service';
 import { CLE_PUBLIQUE_EDITEUR } from '../sur-site/cle-publique-editeur';
 import { ContenuLicence, FORMAT_LICENCE, motifRefusContenu, signerLicence, verifierLicence } from '../sur-site/licence-signee';
+import { jourDeKinshasaIso } from '../../common/echeance';
 
 export interface DemandeLicence {
   titulaire: string;
@@ -12,9 +13,12 @@ export interface DemandeLicence {
   dossiersMax: number;
 }
 
-/** Le jour du calendrier de Kinshasa (UTC+1) · c'est la date que le client lira sur sa licence. */
+/**
+ * Le jour du calendrier de Kinshasa (UTC+1) · c'est la date que le client lira
+ * sur sa licence. La définition vit dans `common/echeance.ts` (audit final F113).
+ */
 export function jourKinshasa(d = new Date()): string {
-  return new Date(d.getTime() + 60 * 60 * 1000).toISOString().slice(0, 10);
+  return jourDeKinshasaIso(d);
 }
 
 /** Le numéro suivant de l'année · continu, jamais réutilisé, la contrainte d'unicité tranchant une course. */

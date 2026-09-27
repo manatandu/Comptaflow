@@ -13,6 +13,7 @@ import {
   SignalementDeductibilite,
   avertissementDeductibiliteArticle20,
   avertissementRegimeImpot,
+  compteRelevantDe,
   obligationsDeclarativesApplicables,
   reservePourReferentiel,
 } from './correspondance-retenues';
@@ -284,9 +285,7 @@ export class RetenuesService {
       orderBy: { ecriture: { date: 'asc' } },
     });
 
-    const correspond = (numero: string, nature: NatureRetenue) =>
-      nature.comptes.some((p) => numero.startsWith(p)) &&
-      !(nature.exclusions ?? []).some((e) => numero.startsWith(e));
+    const correspond = (numero: string, nature: NatureRetenue) => compteRelevantDe(numero, nature);
 
     /*
       LE SOLDE D'OUVERTURE EST UN MOIS « ANTÉRIEUR », IMPUTÉ LE PREMIER (audit

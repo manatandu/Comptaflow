@@ -190,6 +190,15 @@ export interface ObligationDeclarative {
  */
 export const DERNIERE_VERIFICATION = '2026-08-29';
 
+/**
+ * Un compte relève d'une nature s'il commence par l'une de ses racines et par
+ * aucune de ses exclusions · la règle UNE fois, lue par le service et par le
+ * spec qui la confronte aux deux plans semés (audit final F115).
+ */
+export function compteRelevantDe(numero: string, nature: Pick<NatureRetenue, 'comptes' | 'exclusions'>): boolean {
+  return nature.comptes.some((p) => numero.startsWith(p)) && !(nature.exclusions ?? []).some((e) => numero.startsWith(e));
+}
+
 export const NATURES_RETENUES: NatureRetenue[] = [
   {
     cle: 'irppSalaires',
@@ -436,8 +445,15 @@ export const NATURES_RETENUES: NatureRetenue[] = [
   {
     cle: 'cnss',
     libelle: 'Cotisations de sécurité sociale (CNSS)',
-    // 431 « Sécurité sociale » et 432 « Caisses de retraite ».
-    comptes: ['431', '432'],
+    // LA CNSS, ET ELLE SEULE (audit final F115) · 431 « Sécurité sociale » et
+    // la retraite OBLIGATOIRE, qui est au 4313 au SYSCOHADA (sous 431) et au
+    // 4321 au SYCEBNL (sous 432). Le reste du 432 n'est pas la CNSS · le
+    // 43200000 du SYSCOHADA est « Caisses de retraite complémentaire », les
+    // 4322 et 4328 du SYCEBNL « complémentaire » et « autres », et le 4314 du
+    // SYSCOHADA « Caisse de retraite facultative ». Compté ici, chacun était
+    // daté au quinze du mois comme une cotisation de la Caisse.
+    comptes: ['431', '4321'],
+    exclusions: ['4314'],
     beneficiaire: 'ORGANISME_SOCIAL',
     joursApresPeriode: 15,
     echeance: 'Dans les quinze jours suivant le mois civil, déclaration due même sans travailleur',
@@ -476,8 +492,10 @@ export const NATURES_RETENUES: NatureRetenue[] = [
   {
     cle: 'autresOrganismesSociaux',
     libelle: 'Autres organismes sociaux',
-    comptes: ['433', '438'],
-    exclusions: ['4334', '4335'],
+    // Les retraites complémentaires et facultatives y viennent (audit final
+    // F115) · le 432 hors la retraite obligatoire du SYCEBNL, et le 4314.
+    comptes: ['432', '433', '438', '4314'],
+    exclusions: ['4321', '4334', '4335'],
     beneficiaire: 'ORGANISME_SOCIAL',
     joursApresPeriode: 15,
     echeance: 'Selon les règles propres à chaque organisme',

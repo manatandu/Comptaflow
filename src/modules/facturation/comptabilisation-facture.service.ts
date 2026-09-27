@@ -3,6 +3,7 @@ import { SensFacture, TypeJournal } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ecritureDeFacture } from './ecriture-facture';
+import { compteTvaCollectee, compteTvaPourContrepartie, compteTvaRecuperable, estTauxZero } from '../tva/routage-tva';
 
 export interface DemandeComptabilisation {
   journalId: string;
@@ -29,7 +30,7 @@ export class ComptabilisationFactureService {
     const f = await this.prisma.facture.findFirst({
       where: { id: factureId, tenantId },
       include: {
-        lignes: { orderBy: { ordre: 'asc' }, include: { tauxTva: { select: { tenantId: true, compteCollecteId: true, compteDeductibleId: true } } } },
+        lignes: { orderBy: { ordre: 'asc' }, include: { tauxTva: { select: { tenantId: true, taux: true, compteCollecteId: true, compteDeductibleId: true } } } },
         tiers: { select: { comptesRattaches: { where: { estPrincipal: true }, select: { compteId: true }, take: 1 } } },
       },
     });
@@ -63,6 +64,33 @@ export class ComptabilisationFactureService {
       }
     }
 
+    // LE COMPTE DE TVA SE ROUTE COMME À LA SAISIE (audit final F116) · sur la
+    // contrepartie de chaque ligne, parmi les subdivisions que le dossier a
+    // ouvertes, à défaut le compte du taux. Même règle que la grille
+    // (`tva/routage-tva.ts`, parité gelée).
+    const { referentiel } = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { referentiel: true } });
+    const sensTva = f.sens === SensFacture.VENTE ? 'recette' : 'depense';
+    const numeroDe = new Map(comptes.map((c) => [c.id, c.numero]));
+    const candidats = [
+      ...new Set(
+        f.lignes
+          .map((l) => numeroDe.get(d.comptesParLigne?.[l.id] ?? d.compteGestionId ?? ''))
+          .filter((n): n is string => !!n)
+          .map((n) => (sensTva === 'recette' ? compteTvaCollectee(n) : compteTvaRecuperable(n)))
+          .filter((n): n is string => !!n),
+      ),
+    ];
+    const ouverts = candidats.length
+      ? await this.prisma.compte.findMany({ where: { tenantId, numero: { in: candidats } }, select: { id: true, numero: true } })
+      : [];
+    const idDuNumero = new Map(ouverts.map((c) => [c.numero, c.id]));
+    const numerosDuPlan = new Set(ouverts.map((c) => c.numero));
+    const compteTvaDe = (l: (typeof f.lignes)[number]): string | null => {
+      const gestion = numeroDe.get(d.comptesParLigne?.[l.id] ?? d.compteGestionId ?? '');
+      const route = gestion ? compteTvaPourContrepartie(referentiel, sensTva, gestion, numerosDuPlan) : null;
+      return (route ? idDuNumero.get(route) : undefined) ?? (f.sens === SensFacture.VENTE ? l.tauxTva?.compteCollecteId : l.tauxTva?.compteDeductibleId) ?? null;
+    };
+
     const p = ecritureDeFacture(
       {
         sens: f.sens,
@@ -76,7 +104,8 @@ export class ComptabilisationFactureService {
           montantHT: Number(l.montantHT),
           montantTva: Number(l.montantTva),
           tauxTvaId: l.tauxTvaId,
-          compteTvaId: (f.sens === SensFacture.VENTE ? l.tauxTva?.compteCollecteId : l.tauxTva?.compteDeductibleId) ?? null,
+          compteTvaId: compteTvaDe(l),
+          tauxZero: l.imposable && l.tauxTva !== null && estTauxZero(Number(l.tauxTva.taux)),
           compteGestionId: d.comptesParLigne?.[l.id] ?? null,
         })),
       },

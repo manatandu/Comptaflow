@@ -235,6 +235,17 @@ describe('Les totaux du pied de facture', () => {
     expect(t.montantTva).toBe(16_000);
     expect(t.montantTTC).toBe(156_000);
   });
+
+  // AUDIT FINAL F114 · « toutes taxes comprises » · la pièce imprimait les
+  // autres taxes sur leur ligne et un TTC qui les laissait dehors.
+  it('le TTC comprend les autres impôts et taxes de la pièce', () => {
+    const lignes = [ligne({ montantHT: 100_000, montantTva: 16_000 })];
+    const avec = totauxFacture({ ...facture({ lignes }), autresImpotsEtTaxes: 5_000 });
+    expect(avec.montantAutresImpotsEtTaxes).toBe(5_000);
+    expect(avec.montantTTC).toBe(121_000);
+    const sans = totauxFacture({ ...facture({ lignes }), autresImpotsEtTaxes: null });
+    expect(sans.montantTTC).toBe(116_000);
+  });
 });
 
 // ---------------------------------------------------------------------------

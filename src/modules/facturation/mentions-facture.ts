@@ -525,11 +525,24 @@ export interface Totaux {
   montantNonTaxable: number;
   montantImposable: number;
   montantTva: number;
+  /** Le montant des autres impôts et taxes de la pièce · zéro quand il n'est pas renseigné. */
+  montantAutresImpotsEtTaxes: number;
   montantTTC: number;
 }
 
-/** Les totaux que l'art. 100 demande de porter au pied de la facture. */
-export function totauxFacture(f: Pick<FactureVerifiable, 'lignes'>): Totaux {
+/**
+ * Les totaux que l'art. 100 demande de porter au pied de la facture.
+ *
+ * LE TTC COMPREND LES AUTRES IMPÔTS ET TAXES (audit final F114) · « toutes
+ * taxes comprises », et le décret n° 23/10, art. 26 les fait figurer sur la
+ * même pièce. La pièce imprimait les autres taxes sur leur ligne puis un
+ * « Montant TTC » qui les laissait dehors · le total lu était inférieur à ce
+ * que la facture réclame. Non renseignées (null), elles valent zéro ici ;
+ * l'omission, elle, est comptée par la mention j).
+ */
+export function totauxFacture(
+  f: Pick<FactureVerifiable, 'lignes'> & { autresImpotsEtTaxes?: number | null },
+): Totaux {
   let montantHT = 0;
   let montantNonTaxable = 0;
   let montantTva = 0;
@@ -539,12 +552,14 @@ export function totauxFacture(f: Pick<FactureVerifiable, 'lignes'>): Totaux {
     if (!l.imposable) montantNonTaxable += ht;
     montantTva += l.montantTva ?? 0;
   }
+  const montantAutresImpotsEtTaxes = f.autresImpotsEtTaxes ?? 0;
   return {
     montantHT,
     montantNonTaxable,
     montantImposable: montantHT - montantNonTaxable,
     montantTva,
-    montantTTC: montantHT + montantTva,
+    montantAutresImpotsEtTaxes,
+    montantTTC: montantHT + montantTva + montantAutresImpotsEtTaxes,
   };
 }
 

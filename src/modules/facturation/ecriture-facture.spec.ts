@@ -54,4 +54,23 @@ describe('écriture d’une facture', () => {
     expect(ecritureDeFacture(base({ lignes: [{ ...base().lignes[0], compteTvaId: null }] }), 'c706')).toMatchObject({ refus: expect.stringMatching(/sans taux/) });
     expect(ecritureDeFacture(base({ autresImpotsEtTaxes: 50 }), 'c706')).toMatchObject({ refus: expect.stringMatching(/autres impôts/) });
   });
+
+  it('F116 · une ligne au taux zéro garde sa propre ligne de TVA, jamais fondue dans celle à 16 % du même compte', () => {
+    const r = ecritureDeFacture(
+      base({
+        lignes: [
+          { designation: 'Local', montantHT: 1000, montantTva: 160, compteTvaId: 'c443', tauxTvaId: 't16' },
+          { designation: 'Export', montantHT: 500, montantTva: 0, compteTvaId: 'c443', tauxTvaId: 't0', tauxZero: true },
+        ],
+      }),
+      'c706',
+    );
+    if ('refus' in r) throw new Error(r.refus);
+    const tva = r.lignes.filter((l) => l.compteId === 'c443').map((l) => ({ taux: l.tauxTvaId, credit: l.credit }));
+    expect(tva).toEqual([
+      { taux: 't16', credit: 160 },
+      { taux: 't0', credit: 0 },
+    ]);
+  });
 });
+

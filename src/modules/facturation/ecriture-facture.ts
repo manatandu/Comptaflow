@@ -14,17 +14,27 @@
  *
  * RIEN N'EST DEVINÉ. Le compte de gestion est CHOISI par le comptable (un même
  * client achète un service ou une marchandise, et le numéro ne le dit pas), le
- * compte de TVA est celui du TAUX porté par la ligne, et le compte du tiers
- * est son compte PRINCIPAL. Il manque l'un des trois, et rien n'est proposé.
+ * compte de TVA est celui que la saisie routerait sur cette contrepartie, à
+ * défaut celui du TAUX (audit final F116), et le compte du tiers est son
+ * compte PRINCIPAL. Il manque l'un des trois, et rien n'est proposé.
  */
 
 export interface LigneFacturePourEcriture {
   designation: string;
   montantHT: number;
   montantTva: number;
-  /** Compte de TVA du taux de la ligne (collecte sur une vente, déductible sur un achat), ou null. */
+  /**
+   * Compte de TVA de la ligne, ROUTÉ selon sa contrepartie comme à la saisie
+   * (`tva/routage-tva.ts`), à défaut celui du taux · ou null.
+   */
   compteTvaId: string | null;
   tauxTvaId: string | null;
+  /**
+   * Le taux de la ligne est-il le taux ZÉRO ? Sa ligne de TVA, à zéro, est posée
+   * quand même · c'est elle qui met l'exportation au numérateur du prorata
+   * (O.-L. n° 10/001, art. 43 ; audit final F116).
+   */
+  tauxZero?: boolean;
   /** Compte de gestion choisi pour CETTE ligne, à défaut celui de la facture. */
   compteGestionId?: string | null;
 }
@@ -72,24 +82,27 @@ export function ecritureDeFacture(
   };
 
   const gestion = new Map<string, number>();
-  const tva = new Map<string, { montant: number; tauxTvaId: string }>();
+  // PAR COMPTE ET PAR TAUX · une ligne au taux zéro fondue dans une ligne à
+  // 16 % sur le même compte y perdrait sa qualification.
+  const tva = new Map<string, { compteId: string; montant: number; tauxTvaId: string }>();
   for (const l of f.lignes) {
     const compte = l.compteGestionId || compteGestionParDefaut;
     if (!compte) return { refus: `Aucun compte de ${f.sens === 'VENTE' ? 'produit' : 'charge'} choisi pour la ligne « ${l.designation} ».` };
     gestion.set(compte, (gestion.get(compte) ?? 0) + l.montantHT);
-    if (l.montantTva > 0) {
+    if (l.montantTva > 0 || (l.tauxZero && l.tauxTvaId)) {
       if (!l.compteTvaId || !l.tauxTvaId) {
         return { refus: `La ligne « ${l.designation} » porte de la TVA sans taux rattaché à un compte ${f.sens === 'VENTE' ? 'de TVA facturée' : 'de TVA récupérable'} · complétez le taux dans Taux de taxes.` };
       }
-      const t = tva.get(l.compteTvaId) ?? { montant: 0, tauxTvaId: l.tauxTvaId };
+      const cle = `${l.compteTvaId}|${l.tauxTvaId}`;
+      const t = tva.get(cle) ?? { compteId: l.compteTvaId, montant: 0, tauxTvaId: l.tauxTvaId };
       t.montant += l.montantTva;
-      tva.set(l.compteTvaId, t);
+      tva.set(cle, t);
     }
   }
 
   const lignes: LigneProposee[] = [];
   for (const [compte, m] of gestion) lignes.push(poser(compte, libelle, m));
-  for (const [compte, t] of tva) lignes.push(poser(compte, `TVA · ${libelle}`, t.montant, t.tauxTvaId));
+  for (const t of tva.values()) lignes.push(poser(t.compteId, `TVA · ${libelle}`, t.montant, t.tauxTvaId));
   // Le tiers reçoit la somme EXACTE des autres lignes · jamais un TTC
   // recalculé à part, qui pourrait différer d'un centime et déséquilibrer.
   const totalAutres = arrondi(lignes.reduce((s, l) => s + l.credit - l.debit, 0));

@@ -15,6 +15,7 @@ import {
   numeroFactureSuivant,
   verdictPeriode,
 } from './facturation-abonnements';
+import { jourDeKinshasaIso } from '../../../common/echeance';
 
 /**
  * Les formules de la grille décidée le 2026-09-26 · posées SANS PRIX, que
@@ -41,8 +42,8 @@ export interface DemandeAbonnement {
   tiersId: string;
 }
 
-/** Le jour du calendrier de Kinshasa (UTC+1). */
-const aujourdhuiKinshasa = () => new Date(Date.now() + 3_600_000).toISOString().slice(0, 10);
+/** Le jour du calendrier de Kinshasa (UTC+1) · définition commune (audit final F113). */
+const aujourdhuiKinshasa = () => jourDeKinshasaIso(new Date());
 const nombre = (d: Prisma.Decimal | null) => (d === null ? null : Number(d));
 const jour = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 
