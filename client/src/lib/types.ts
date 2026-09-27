@@ -3621,7 +3621,9 @@ export interface SyntheseCircularisation {
   /** ISA 505 § 12 · le seul chiffre qui invalide une campagne entière. */
   nonReponsesSansProcedure: number;
   tauxReponse: number;
+  /** Rapporté au total du cycle à la date d'arrêté, jamais au solde envoyé (audit final F70). */
   tauxCouverture: number;
+  totalCycle: number;
   soldeEnvoye: number;
   soldeConfirme: number;
   ecarts: number;

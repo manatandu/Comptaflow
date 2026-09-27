@@ -146,3 +146,53 @@ describe('circularisation · les gestes qui mènent à la clôture sont à l’�
     expect(new Set(proposees)).toEqual(valeurs);
   });
 });
+
+/**
+ * AUDIT FINAL F70 ET F71 · ce que l'écran propose suit ce que le serveur admet.
+ *
+ * F71 · une demande ne s'ajoute qu'en préparation, et celle qui n'est pas
+ * partie se retire · sans le bouton, le refus de clôture renvoyait à un geste
+ * impossible. F70 · le taux de couverture se lit sur le total du cycle, et le
+ * libellé qui l'accompagne doit nommer ce dénominateur-là.
+ */
+describe('circularisation · retenir, retirer, couvrir (F70, F71)', () => {
+  /**
+   * La dernière condition JSX ouverte avant l'appel reconnu par `appel` ·
+   * c'est elle qui décide si le bouton qui le porte s'affiche. Ancrée sur
+   * l'appel, pas sur une distance.
+   */
+  function conditionDuBouton(appel: RegExp, forme: RegExp): string {
+    const m = appel.exec(page);
+    expect(m).not.toBeNull();
+    const conditions = [...page.slice(0, (m as RegExpExecArray).index).matchAll(forme)].map((x) => x[1]);
+    expect(conditions.length).toBeGreaterThan(0);
+    return conditions[conditions.length - 1];
+  }
+
+  it('le contrôleur expose la route qui retire une demande, au comptable', () => {
+    const i = controleur.indexOf("@Delete('demandes/:demandeId')");
+    expect(i).toBeGreaterThan(0);
+    // Les décorateurs de la route sont entre la fin du handler précédent et elle.
+    const decorateurs = controleur.slice(controleur.lastIndexOf('}', i), i);
+    expect(decorateurs).toContain('@Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)');
+    expect(controleur.slice(i, controleur.indexOf(') {', i))).toContain('retirerDemande');
+  });
+
+  it('« Retirer » appelle cette route, et seulement sur une lettre qui n’est pas partie', () => {
+    const appel = /api\.delete\(`\/circularisation\/demandes\/\$\{d\.id\}`\)/;
+    expect(conditionDuBouton(appel, /\{([^{}]+?) && \(/g)).toBe("d.statut === 'A_ENVOYER'");
+  });
+
+  it('« Retenir » ne se propose qu’à une campagne en préparation', () => {
+    const appel = /api\.post\(`\/circularisation\/\$\{detail\.id\}\/demandes`/;
+    expect(conditionDuBouton(appel, /\) : ([^?:(){}]+?) \? \(/g)).toBe("peutEcrire && detail.statut === 'PREPARATION'");
+  });
+
+  it('le taux de couverture est dit sur le total du cycle, jamais sur le solde envoyé', () => {
+    const i = page.indexOf('Taux de couverture');
+    expect(i).toBeGreaterThan(0);
+    const ligne = page.slice(i, page.indexOf('<Aide', i));
+    expect(ligne).toContain('s.totalCycle');
+    expect(ligne).not.toContain('s.soldeEnvoye');
+  });
+});

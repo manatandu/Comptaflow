@@ -307,28 +307,164 @@ describe('échantillon proposé · une matière, pas une sélection', () => {
 });
 
 describe('synthèse · deux taux qui ne disent pas la même chose', () => {
-  it('sépare le taux de réponse du taux de couverture', async () => {
-    const demandes = [
-      { id: '1', statut: StatutDemandeConfirmation.REPONSE_RECUE, soldeAConfirmer: 80_000_000, ecart: 0, natureEcart: null, reponseIndirecte: false, proceduresAlternatives: null },
-      { id: '2', statut: StatutDemandeConfirmation.SANS_REPONSE, soldeAConfirmer: 5_000_000, ecart: null, natureEcart: null, reponseIndirecte: false, proceduresAlternatives: 'Encaissements postérieurs' },
-      { id: '3', statut: StatutDemandeConfirmation.SANS_REPONSE, soldeAConfirmer: 5_000_000, ecart: null, natureEcart: null, reponseIndirecte: false, proceduresAlternatives: null },
-      { id: '4', statut: StatutDemandeConfirmation.NON_DISTRIBUEE, soldeAConfirmer: 10_000_000, ecart: null, natureEcart: null, reponseIndirecte: false, proceduresAlternatives: null },
-    ];
+  // Le cycle des fournisseurs pèse 100 000 000 à la date d'arrêté.
+  const BALANCE_CYCLE = [
+    { compteId: 'f1', numero: '40110001', intitule: 'Fournisseur A', solde: -80_000_000 },
+    { compteId: 'f2', numero: '40110002', intitule: 'Fournisseur B', solde: -20_000_000 },
+    { compteId: 'b1', numero: '52110000', intitule: 'Banque', solde: 500_000_000 },
+  ];
+  function synthese(demandes: Record<string, unknown>[]) {
     const prisma = {
-      campagneCircularisation: { findFirst: jest.fn().mockResolvedValue({ id: 'camp1', demandes }) },
+      campagneCircularisation: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'camp1',
+          exerciceId: 'ex1',
+          cycle: CycleCircularisation.FOURNISSEURS,
+          dateArrete: new Date('2026-12-31'),
+          demandes,
+        }),
+      },
     } as unknown as PrismaService;
-    const svc = new CircularisationService(prisma, {} as unknown as EcritureService);
-    const { synthese } = await svc.consulter('t1', 'camp1');
-    // Une réponse sur quatre lettres, mais elle couvre 80 % du solde envoyé.
-    // C'est le second chiffre qui dit si la procédure a établi quelque chose.
-    expect(synthese).toMatchObject({
+    const balance = jest.fn().mockResolvedValue({ lignes: BALANCE_CYCLE, totaux: { debit: 0, credit: 0 } });
+    const svc = new CircularisationService(prisma, { balance } as unknown as EcritureService);
+    return { consulter: () => svc.consulter('t1', 'camp1'), balance };
+  }
+  const d = (id: string, statut: StatutDemandeConfirmation, solde: number, extra: Record<string, unknown> = {}) => ({
+    id,
+    statut,
+    soldeAConfirmer: solde,
+    ecart: statut === StatutDemandeConfirmation.REPONSE_RECUE ? 0 : null,
+    natureEcart: null,
+    reponseIndirecte: false,
+    proceduresAlternatives: null,
+    compte: { numero: '40110001', intitule: 'Fournisseur' },
+    ...extra,
+  });
+
+  it('sépare le taux de réponse du taux de couverture', async () => {
+    const { synthese: s } = await synthese([
+      d('1', StatutDemandeConfirmation.REPONSE_RECUE, 80_000_000),
+      d('2', StatutDemandeConfirmation.SANS_REPONSE, 5_000_000, { proceduresAlternatives: 'Encaissements postérieurs' }),
+      d('3', StatutDemandeConfirmation.SANS_REPONSE, 5_000_000),
+      d('4', StatutDemandeConfirmation.NON_DISTRIBUEE, 10_000_000),
+    ]).consulter();
+    // Une réponse sur quatre lettres, mais elle couvre 80 % du cycle.
+    expect(s).toMatchObject({
       envoyees: 4,
       reponses: 1,
       nonReponses: 3,
       nonReponsesSansProcedure: 2,
       tauxReponse: 25,
       tauxCouverture: 80,
+      totalCycle: 100_000_000,
     });
+  });
+
+  it('le dénominateur est le total du cycle, jamais le solde envoyé (audit final F70)', async () => {
+    // Deux petites lettres, toutes deux confirmées · 100 % de ce qui est
+    // parti, 2 % de ce que le cycle porte.
+    const { synthese: s } = await synthese([
+      d('1', StatutDemandeConfirmation.REPONSE_RECUE, 1_000_000),
+      d('2', StatutDemandeConfirmation.REPONSE_RECUE, 1_000_000),
+    ]).consulter();
+    expect([s.tauxReponse, s.tauxCouverture, s.soldeEnvoye]).toEqual([100, 2, 2_000_000]);
+  });
+
+  it('une lettre hors du cycle ne couvre rien du cycle', async () => {
+    const { synthese: s } = await synthese([
+      d('1', StatutDemandeConfirmation.REPONSE_RECUE, 50_000_000, { compte: { numero: '52110000', intitule: 'Banque' } }),
+    ]).consulter();
+    expect(s.tauxCouverture).toBe(0);
+  });
+
+  it('le total du cycle est lu à la date d’arrêté, sur le livre-journal (audit final F72)', async () => {
+    const { consulter, balance } = synthese([]);
+    await consulter();
+    expect(balance).toHaveBeenCalledWith('t1', 'ex1', false, new Date('2026-12-31'));
+  });
+});
+
+describe('les demandes · en préparation, une par compte, jamais oubliées (audit final F71)', () => {
+  it('refuse une demande ajoutée à une campagne envoyée', async () => {
+    const { svc, prisma } = service({ campagne: campagne(StatutCampagneCircularisation.ENVOYEE) });
+    await expect(svc.creerDemande('t1', 'camp1', { compteId: 'c1', destinataire: 'X' } as never)).rejects.toThrow(
+      /PREPARATION/,
+    );
+    expect(prisma.demandeConfirmation.create).not.toHaveBeenCalled();
+  });
+
+  it('refuse une seconde lettre sur le même compte, en nommant la première', async () => {
+    const { svc, prisma } = service({
+      campagne: campagne(StatutCampagneCircularisation.PREPARATION),
+      demandes: [{ destinataire: 'Fournisseur A' }],
+    });
+    await expect(svc.creerDemande('t1', 'camp1', { compteId: 'c1', destinataire: 'X' } as never)).rejects.toThrow(
+      /40110000 a déjà sa demande dans cette campagne \(Fournisseur A\)/,
+    );
+    expect(prisma.demandeConfirmation.create).not.toHaveBeenCalled();
+  });
+
+  it('la lettre fige le solde à la date d’arrêté', async () => {
+    const { svc, prisma } = service({
+      campagne: campagne(StatutCampagneCircularisation.PREPARATION, { dateArrete: new Date('2026-06-30') }),
+    });
+    const balance = jest.fn().mockResolvedValue({ lignes: [], totaux: { debit: 0, credit: 0 } });
+    Object.assign(svc as unknown as Record<string, unknown>, { ecritures: { balance } });
+    await svc.creerDemande('t1', 'camp1', { compteId: 'c1', destinataire: 'X' } as never);
+    expect(balance).toHaveBeenCalledWith('t1', 'ex1', false, new Date('2026-06-30'));
+    expect(prisma.demandeConfirmation.create).toHaveBeenCalled();
+  });
+
+  it('refuse de clore sur une demande jamais envoyée', async () => {
+    const { svc, majCampagne } = service({
+      campagne: campagne(StatutCampagneCircularisation.DEPOUILLEE),
+      demandes: [demande({ statut: StatutDemandeConfirmation.A_ENVOYER })],
+    });
+    await expect(svc.clore('t1', 'camp1', 'u1', {})).rejects.toThrow(/jamais envoyée/);
+    expect(majCampagne).not.toHaveBeenCalled();
+  });
+
+  it('retire une demande qui n’est pas partie, jamais une lettre partie', async () => {
+    const aRetirer = service({ demandes: [demande({ statut: StatutDemandeConfirmation.A_ENVOYER })] });
+    const supprimer = jest.fn().mockResolvedValue({});
+    Object.assign(aRetirer.prisma.demandeConfirmation, { delete: supprimer });
+    await aRetirer.svc.retirerDemande('t1', 'd1');
+    expect(supprimer).toHaveBeenCalledWith({ where: { id: 'd1' } });
+
+    const partie = service({ demandes: [demande({ statut: StatutDemandeConfirmation.ENVOYEE })] });
+    const pasSupprimer = jest.fn();
+    Object.assign(partie.prisma.demandeConfirmation, { delete: pasSupprimer });
+    await expect(partie.svc.retirerDemande('t1', 'd1')).rejects.toThrow(/elle se classe/);
+    expect(pasSupprimer).not.toHaveBeenCalled();
+  });
+
+  it('une campagne close ne se rouvre pas par le retrait, même d’une lettre restée à envoyer', async () => {
+    // Une campagne close avant la règle de F71 peut porter une demande jamais
+    // partie · la retirer réécrirait un dossier clos.
+    const close = service({
+      demandes: [
+        demande({
+          statut: StatutDemandeConfirmation.A_ENVOYER,
+          campagne: campagne(StatutCampagneCircularisation.CLOTUREE),
+        }),
+      ],
+    });
+    const supprimer = jest.fn();
+    Object.assign(close.prisma.demandeConfirmation, { delete: supprimer });
+    await expect(close.svc.retirerDemande('t1', 'd1')).rejects.toThrow(/campagne est close/);
+    expect(supprimer).not.toHaveBeenCalled();
+  });
+});
+
+describe('la date d’arrêté tombe dans l’exercice (audit final F72)', () => {
+  it('refuse une date hors de l’exercice', async () => {
+    const { svc, prisma } = service();
+    await expect(
+      svc.creer('t1', 'u1', { exerciceId: 'ex1', libelle: 'X', dateArrete: '2027-03-31', cycle: 'FOURNISSEURS' } as never),
+    ).rejects.toThrow(/doit tomber dans l'exercice/);
+    expect(prisma.campagneCircularisation.create).not.toHaveBeenCalled();
+    await svc.creer('t1', 'u1', { exerciceId: 'ex1', libelle: 'X', dateArrete: '2026-06-30', cycle: 'FOURNISSEURS' } as never);
+    expect(prisma.campagneCircularisation.create).toHaveBeenCalled();
   });
 });
 

@@ -179,6 +179,7 @@ function serviceControles(
   formeJuridiqueSyscohada: FormeJuridiqueSyscohada | null = null,
   effectifPermanent = 0,
   actif = 0,
+  referentiel: Referentiel = Referentiel.SYSCOHADA,
 ) {
   // Un actif de trésorerie, lu par le regroupement de la balance, pour
   // franchir le seuil du total du bilan quand le test le demande.
@@ -195,7 +196,7 @@ function serviceControles(
     tenant: {
       findUniqueOrThrow: jest
         .fn()
-        .mockResolvedValue({ id: 't', referentiel: Referentiel.SYSCOHADA, formeJuridiqueSyscohada, effectifPermanent }),
+        .mockResolvedValue({ id: 't', referentiel, formeJuridiqueSyscohada, effectifPermanent }),
     },
     ecriture: { findMany: jest.fn().mockResolvedValue([]) },
     compte: {
@@ -235,17 +236,56 @@ describe('Le contrôle du mandat · et le piège de l’article 22', () => {
     expect(await anomalie('MANDAT_AUDITEUR_PROROGE', couvrant)).toBeUndefined();
   });
 
-  it('un mandat ÉCHU n’est PAS un trou · il est prorogé de plein droit (art. 22)', async () => {
+  it('un mandat de SA échu l’an dernier n’est PAS un trou · AUSCGIE art. 709', async () => {
     // LE PIÈGE DU CHANTIER. Crier « mandat expiré » ici serait un signalement
     // faux : le texte dit que la mission CONTINUE. Le dire est utile, le
-    // reprocher est faux · d'où INFORMATION et jamais AVERTISSEMENT.
-    const echu = [{ id: 'm', nom: 'Cabinet X', premierExercice: 2024, nombreExercices: 3, refusDeProrogation: false }];
+    // reprocher est faux · d'où INFORMATION et jamais AVERTISSEMENT. Et le
+    // texte est celui de la SA, jamais l'art. 22 du SYCEBNL (audit final F69).
+    const echu = [{ id: 'm', nom: 'Cabinet X', premierExercice: 2026, nombreExercices: 3, refusDeProrogation: false }];
     expect(await anomalie('AUDITEUR_OBLIGATOIRE_SANS_MANDAT', echu)).toBeUndefined();
     const a = await anomalie('MANDAT_AUDITEUR_PROROGE', echu);
     expect(a).toBeDefined();
     expect(a!.gravite).toBe('INFORMATION');
-    expect(a!.consequence).toContain('art. 22');
-    expect(a!.consequence).toMatch(/PROROGÉE/);
+    expect(a!.consequence).toContain('AUSCGIE art. 709');
+    expect(a!.consequence).not.toContain('SYCEBNL');
+  });
+
+  it('une association lit l’art. 22 du SYCEBNL', async () => {
+    const echu = [{ id: 'm', nom: 'Cabinet X', premierExercice: 2026, nombreExercices: 3, refusDeProrogation: false }];
+    const rapport = await serviceControles(echu, null, 50, 0, Referentiel.SYCEBNL).analyser('t', 'ex');
+    const a = rapport.anomalies.find((x) => x.code === 'MANDAT_AUDITEUR_PROROGE');
+    expect(a?.consequence).toContain('SYCEBNL art. 22');
+    expect(a?.consequence).toMatch(/PROROGÉE/);
+  });
+
+  it('la prorogation ne couvre que l’exercice qui suit · échu depuis trois ans, plus de contrôleur (audit final F69)', async () => {
+    const ancien = [{ id: 'm', nom: 'Cabinet X', premierExercice: 2024, nombreExercices: 3, refusDeProrogation: false }];
+    expect(await anomalie('MANDAT_AUDITEUR_PROROGE', ancien)).toBeUndefined();
+    const a = await anomalie('AUDITEUR_OBLIGATOIRE_SANS_MANDAT', ancien);
+    expect(a!.occurrences[0].detail).toMatch(/échu avec l’exercice 2026 · la prorogation du AUSCGIE art. 709 ne couvrait que l’exercice suivant/);
+  });
+
+  it('une SARL n’a aucune prorogation servie · aucun texte lu ne la lui donne (audit final F69)', async () => {
+    const echu = [{ id: 'm', nom: 'Cabinet X', premierExercice: 2026, nombreExercices: 3, refusDeProrogation: false }];
+    const rapport = await serviceControles(echu, FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE, 500, 200_000_000).analyser(
+      't',
+      'ex',
+    );
+    expect(rapport.anomalies.some((x) => x.code === 'MANDAT_AUDITEUR_PROROGE')).toBe(false);
+    const a = rapport.anomalies.find((x) => x.code === 'AUDITEUR_OBLIGATOIRE_SANS_MANDAT');
+    expect(a!.occurrences[0].detail).toMatch(/aucun texte lu ne proroge le mandat pour cette forme/);
+  });
+
+  it('une SARL ne se voit pas opposer un refus de prorogation qu’aucun texte ne lui ouvre (audit final F69)', async () => {
+    // Le refus ne se lit que là où un texte proroge · lui citer l'art. 709
+    // appliquerait à une SARL la règle de la SA.
+    const refuse = [{ id: 'm', nom: 'Cabinet X', premierExercice: 2026, nombreExercices: 3, refusDeProrogation: true }];
+    const rapport = await serviceControles(refuse, FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE, 500, 200_000_000).analyser(
+      't',
+      'ex',
+    );
+    expect(rapport.anomalies.some((x) => x.code === 'MANDAT_AUDITEUR_SANS_PROROGATION')).toBe(false);
+    expect(rapport.anomalies.some((x) => x.code === 'AUDITEUR_OBLIGATOIRE_SANS_MANDAT')).toBe(true);
   });
 
   it('une SARL qui ne franchit qu’UN seuil sur trois n’est pas tenue de désigner (audit final F17)', async () => {
@@ -260,11 +300,12 @@ describe('Le contrôle du mandat · et le piège de l’article 22', () => {
     expect([await sarl(500, 0), await sarl(500, 200_000_000)]).toEqual([false, true]);
   });
 
-  it('SEUL le refus exprès rouvre le trou · l’unique fait que l’art. 22 oppose', async () => {
-    const refuse = [{ id: 'm', nom: 'Cabinet X', premierExercice: 2024, nombreExercices: 3, refusDeProrogation: true }];
+  it('SEUL le refus exprès rouvre le trou · l’unique fait que l’art. 709 oppose', async () => {
+    const refuse = [{ id: 'm', nom: 'Cabinet X', premierExercice: 2026, nombreExercices: 3, refusDeProrogation: true }];
     const a = await anomalie('MANDAT_AUDITEUR_SANS_PROROGATION', refuse);
     expect(a).toBeDefined();
     expect(a!.gravite).toBe('AVERTISSEMENT');
+    expect(a!.consequence).toContain('AUSCGIE art. 709');
     expect(await anomalie('MANDAT_AUDITEUR_PROROGE', refuse)).toBeUndefined();
   });
 });

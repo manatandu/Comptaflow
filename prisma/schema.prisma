@@ -4821,6 +4821,9 @@ model DemandeConfirmation {
 
   @@index([tenantId, campagneId])
   @@index([tenantId, compteId])
+  /// UN COMPTE, UNE LETTRE PAR CAMPAGNE (audit final F71) · deux lettres sur
+  /// le même solde compteraient deux fois la même confirmation.
+  @@unique([campagneId, compteId])
   @@map("demandes_confirmation")
 }
 

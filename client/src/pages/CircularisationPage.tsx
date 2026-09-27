@@ -418,7 +418,7 @@ export function CircularisationPage() {
                     <span>
                       <span className="text-text-dim">Taux de couverture </span>
                       <span className="font-semibold tabular-nums">{s.tauxCouverture} %</span>
-                      <span className="text-text-dim"> ({montant(s.soldeConfirme)} sur {montant(s.soldeEnvoye)})</span>{' '}
+                      <span className="text-text-dim"> ({montant(s.soldeConfirme)} sur {montant(s.totalCycle)}, total du cycle)</span>{' '}
                       <Aide
                         titre="Taux de réponse et taux de couverture"
                         texte="Les deux taux ne disent pas la même chose : le premier compte les lettres, le second pèse les montants. C’est le second qui dit si la procédure a établi quelque chose."
@@ -530,6 +530,16 @@ export function CircularisationPage() {
                                     className="border border-border rounded-[3px] px-2 py-[1px] text-[10.5px]"
                                   >
                                     Classer la réponse
+                                  </button>
+                                )}
+                                {/* Une lettre qui n'est pas partie se retire (audit final F71). */}
+                                {d.statut === 'A_ENVOYER' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => agir(() => api.delete(`/circularisation/demandes/${d.id}`))}
+                                    className="border border-border rounded-[3px] px-2 py-[1px] text-[10.5px]"
+                                  >
+                                    Retirer
                                   </button>
                                 )}
                               </td>
@@ -732,7 +742,7 @@ export function CircularisationPage() {
                           <td className="px-2.5 py-1 text-right">
                             {c.dejaRetenu ? (
                               <span className="text-[10.5px] text-text-dim">retenu</span>
-                            ) : peutEcrire ? (
+                            ) : peutEcrire && detail.statut === 'PREPARATION' ? (
                               <button
                                 type="button"
                                 onClick={() =>

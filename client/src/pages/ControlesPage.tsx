@@ -420,7 +420,9 @@ export function ControlesPage() {
                       <td className="px-3 py-1.5 text-text-dim">
                         {c.jamaisMouvemente
                           ? 'Jamais mouvementé'
-                          : new Date(c.dernierMouvement!).toLocaleDateString('fr-FR')}
+                          : c.dernierMouvement
+                            ? new Date(c.dernierMouvement).toLocaleDateString('fr-FR')
+                            : 'Aucun · solde reporté'}
                       </td>
                       <td className="text-right px-3 py-1.5 font-mono text-text-dim">{c.nombreEcritures}</td>
                       <td

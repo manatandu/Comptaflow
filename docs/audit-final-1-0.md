@@ -530,30 +530,35 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** toutes les lignes de tous les exercices sont sommées, reports compris. Le report du 1er janvier compte en plus comme un mouvement, et `Math.max(...dates)` lève au-delà d'un gros volume.
 - **Correction :** prendre le solde sur la balance du dernier exercice et le dernier mouvement hors clôture par `groupBy`.
+- **Fait le 2026-09-27 :** le solde se lit par agrégats, à la règle de `balanceCumulee` (mouvements hors clôture, ouverture du seul premier exercice, soldes des comptes de gestion) ; le dernier mouvement ne compte ni report ni provisoire, et n'est cherché que pour les comptes dormants, une ligne par compte. Un compte que seul un report a touché n'est pas « jamais mouvementé ». Tests : `comptes-dormants.spec.ts`, `comptes-dormants-a-lecran.spec.ts`.
 
 **F69 · Prorogation du SYCEBNL art. 22 servie aux sociétés, et sans limite de durée** [rev-08, mandat-02]
 - **Emplacements :** src/modules/controles/controles.service.ts:2917-2977 · client/src/pages/MandatAuditeurPage.tsx:292-299 · mandat-auditeur.service.ts:157-169
 - **Condition :** 1
 - **Constat :** le contrôle 28 et l'aide citent l'art. 22 sans regarder le référentiel, et `echu` prend tout mandat échu, même ancien. Une SA lit que son commissaire est prorogé par un texte qui ne la régit pas.
 - **Correction :** borner la prorogation au SYCEBNL et à l'exercice qui suit le dernier couvert.
+- **Fait le 2026-09-27 :** la prorogation est servie par le texte du dossier (`regleDeProrogation`) et pour le seul exercice qui suit le dernier couvert (`estDansLaProrogation`). ÉCART À LA CORRECTION, LU AU TEXTE · l'AUSCGIE art. 709 proroge aussi le commissaire d'une SA, « sauf refus exprès », jusqu'à la plus prochaine assemblée ordinaire annuelle · la SA la reçoit donc, avec son article. La SARL n'en reçoit aucune (art. 377 ne renvoie qu'au choix, art. 381 à un texte hors corpus), ni refus à lui opposer. Tests : `mandat-auditeur.spec.ts`.
 
 **F70 · Circularisation : taux de couverture calculé sur l'échantillon envoyé** [rev-09]
 - **Emplacements :** src/modules/circularisation/circularisation.service.ts:439-452 · client/src/pages/CircularisationPage.tsx:419-421
 - **Condition :** 1
 - **Constat :** le dénominateur est le solde envoyé, alors que CLAUDE.md dit le total du cycle. Deux petites lettres confirmées affichent 100 %.
 - **Correction :** prendre le total du cycle sur la balance comme dénominateur.
+- **Fait le 2026-09-27 :** le taux rapporte les soldes confirmés des comptes du cycle au total du cycle à la date d'arrêté (`soldesDuCycle`, une seule lecture pour l'échantillon, la lettre et le taux), et l'écran nomme ce dénominateur. Tests : `circularisation.spec.ts`, `circularisation-gestes-a-lecran.spec.ts`.
 
 **F71 · Demandes de confirmation ajoutées après l'envoi : jamais envoyées, oubliées à la clôture** [rev-10]
 - **Emplacements :** src/modules/circularisation/circularisation.service.ts:191-195, :223-240, :367-369
 - **Condition :** 3
 - **Constat :** une demande A_ENVOYER ajoutée à une campagne envoyée ne part jamais, et la clôture ne la voit pas. Il n'y a pas non plus d'unicité par compte.
 - **Correction :** refuser l'ajout hors préparation (ou envoyer les A_ENVOYER), bloquer la clôture sur A_ENVOYER, et poser l'unicité (campagneId, compteId).
+- **Fait le 2026-09-27 :** l'ajout est refusé hors préparation, un second compte dans la même campagne aussi (index unique, migration `20261128000000_une_demande_par_compte`), la clôture refuse une demande jamais envoyée, et une demande qui n'est pas partie se retire (`DELETE /circularisation/demandes/:id`, bouton « Retirer ») · sans quoi le refus renvoyait à un geste impossible. Une campagne close ne se touche plus. Tests : `circularisation.spec.ts`, `circularisation-gestes-a-lecran.spec.ts`.
 
 **F72 · Circularisation : solde lu à la fin de l'exercice, pas à la date d'arrêté** [rev-11]
 - **Emplacements :** src/modules/circularisation/circularisation.service.ts:162, :205
 - **Condition :** 1
 - **Constat :** `balance` est appelée sans `arreteAu`. Une campagne intermédiaire envoie le solde de fin d'exercice.
 - **Correction :** passer `dateArrete` et la borner à l'exercice.
+- **Fait le 2026-09-27 :** la balance est lue à la date d'arrêté, livre-journal seul, et une date hors de l'exercice est refusée à la création de la campagne. Tests : `circularisation.spec.ts`.
 
 **F73 · Faiblesses : escalade permise en mode « recommandation reçue »** [rev-13]
 - **Emplacements :** src/modules/faiblesses/faiblesses.service.ts:481-510

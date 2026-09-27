@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   CycleCircularisation,
   FormeConfirmation,
@@ -112,6 +112,16 @@ export class CircularisationService {
   async creer(tenantId: string, userId: string, dto: CreerCampagneCircularisationDto) {
     const exercice = await this.prisma.exercice.findFirst({ where: { id: dto.exerciceId, tenantId } });
     if (!exercice) throw new NotFoundException('Exercice introuvable.');
+    // LA DATE D'ARRÊTÉ EST CELLE DES SOLDES (audit final F72) · elle se lit
+    // dans l'exercice de la campagne, et hors de lui la balance de cet
+    // exercice ne dit rien du solde à cette date.
+    const dateArrete = new Date(dto.dateArrete);
+    if (Number.isNaN(dateArrete.getTime()) || dateArrete < exercice.dateDebut || dateArrete > exercice.dateFin) {
+      throw new BadRequestException(
+        `La date d'arrêté doit tomber dans l'exercice (du ${exercice.dateDebut.toISOString().slice(0, 10)} au ` +
+          `${exercice.dateFin.toISOString().slice(0, 10)}) · c'est à cette date que les soldes sont lus et confirmés.`,
+      );
+    }
 
     if (dto.forme === FormeConfirmation.NEGATIVE) {
       const declarees = new Set(dto.conditionsNegativeReunies ?? []);
@@ -130,7 +140,7 @@ export class CircularisationService {
         tenantId,
         exerciceId: dto.exerciceId,
         libelle: dto.libelle.trim(),
-        dateArrete: new Date(dto.dateArrete),
+        dateArrete,
         cycle: dto.cycle,
         forme: dto.forme ?? FormeConfirmation.POSITIVE,
         methodeSelection: dto.methodeSelection?.trim() || null,
@@ -138,6 +148,35 @@ export class CircularisationService {
         createdBy: userId,
       },
     });
+  }
+
+  /**
+   * LES SOLDES DU CYCLE À LA DATE D'ARRÊTÉ · une seule lecture, pour
+   * l'échantillon, la lettre et le taux de couverture (audit final F70 et
+   * F72). La balance était lue à la fin de l'exercice · une campagne
+   * intermédiaire, arrêtée au 30 juin, envoyait le solde de décembre, et le
+   * tiers « contestait » un écart que le logiciel avait fabriqué.
+   *
+   * LE LIVRE-JOURNAL SEUL (audit du serveur du 2026-09-27, F6) · le solde
+   * part figé chez un TIERS ; pris brouillard compris, il porterait une
+   * écriture que personne n'a validée (AUDCIF art. 22, 2°).
+   */
+  private async soldesDuCycle(
+    tenantId: string,
+    campagne: { exerciceId: string; dateArrete: Date; cycle: CycleCircularisation },
+  ) {
+    const racines = CircularisationService.racinesDuCycle(campagne.cycle);
+    const { lignes } = await this.ecritures.balance(tenantId, campagne.exerciceId, false, campagne.dateArrete);
+    const duCycle = lignes
+      .filter((l) => l.typeCompte !== 'TOTAL' && racines.some((r) => l.numero.startsWith(r)))
+      .map((l) => ({ compteId: l.compteId, numero: l.numero, intitule: l.intitule, solde: l.solde }));
+    const nonNuls = duCycle.filter((l) => Math.abs(l.solde) > 0.005);
+    return {
+      racines,
+      lignes,
+      candidats: nonNuls.sort((a, b) => Math.abs(b.solde) - Math.abs(a.solde)),
+      total: nonNuls.reduce((t, c) => t + Math.abs(c.solde), 0),
+    };
   }
 
   /**
@@ -155,19 +194,7 @@ export class CircularisationService {
    */
   async echantillonPropose(tenantId: string, campagneId: string) {
     const campagne = await this.campagne(tenantId, campagneId);
-    const racines = CircularisationService.racinesDuCycle(campagne.cycle);
-    // LE LIVRE-JOURNAL SEUL, comme `creerDemande` qui fige le solde de la
-    // lettre · l'échantillon et la lettre ne doivent pas lire deux balances
-    // différentes (audit du serveur du 2026-09-27, F6).
-    const { lignes } = await this.ecritures.balance(tenantId, campagne.exerciceId, false);
-
-    const candidats = lignes
-      .filter((l) => l.typeCompte !== 'TOTAL' && racines.some((r) => l.numero.startsWith(r)))
-      .map((l) => ({ compteId: l.compteId, numero: l.numero, intitule: l.intitule, solde: l.solde }))
-      .filter((l) => Math.abs(l.solde) > 0.005)
-      .sort((a, b) => Math.abs(b.solde) - Math.abs(a.solde));
-
-    const total = candidats.reduce((s, c) => s + Math.abs(c.solde), 0);
+    const { racines, candidats, total } = await this.soldesDuCycle(tenantId, campagne);
     const deja = await this.prisma.demandeConfirmation.findMany({
       where: { tenantId, campagneId },
       select: { compteId: true },
@@ -187,22 +214,32 @@ export class CircularisationService {
     };
   }
 
-  /** Le solde part figé · c'est le chiffre que la lettre porte. */
+  /**
+   * Le solde part figé · c'est le chiffre que la lettre porte.
+   *
+   * EN PRÉPARATION SEULEMENT (audit final F71) · une demande ajoutée à une
+   * campagne déjà envoyée restait « à envoyer » pour toujours · l'envoi
+   * suivant est une RELANCE, qui ne touche que les lettres parties, et la
+   * clôture ne la voyait pas. Une lettre tardive fait une nouvelle campagne.
+   * Et UN COMPTE, UNE LETTRE · deux lettres sur le même solde compteraient
+   * deux fois la même confirmation dans le taux de couverture.
+   */
   async creerDemande(tenantId: string, campagneId: string, dto: CreerDemandeDto) {
-    const campagne = await this.campagne(tenantId, campagneId, [
-      StatutCampagneCircularisation.PREPARATION,
-      StatutCampagneCircularisation.ENVOYEE,
-      StatutCampagneCircularisation.RELANCEE,
-    ]);
+    const campagne = await this.campagne(tenantId, campagneId, [StatutCampagneCircularisation.PREPARATION]);
     const compte = await this.prisma.compte.findFirst({ where: { id: dto.compteId, tenantId } });
     if (!compte) throw new NotFoundException('Compte introuvable.');
+    const deja = await this.prisma.demandeConfirmation.findFirst({
+      where: { tenantId, campagneId, compteId: dto.compteId },
+      select: { destinataire: true },
+    });
+    if (deja) {
+      throw new ConflictException(
+        `Le compte ${compte.numero} a déjà sa demande dans cette campagne (${deja.destinataire}) · une seconde lettre ` +
+          'sur le même solde compterait deux fois la même confirmation.',
+      );
+    }
 
-    // LE LIVRE-JOURNAL SEUL (audit du serveur du 2026-09-27, F6). Le solde
-    // part figé chez un TIERS, qui le confirmera ou le contestera : pris
-    // brouillard compris, il porterait une écriture que personne n'a validée
-    // et qui peut encore disparaître, et le désaccord du tiers serait alors
-    // un écart fabriqué par le logiciel (AUDCIF art. 22, 2°).
-    const { lignes } = await this.ecritures.balance(tenantId, campagne.exerciceId, false);
+    const { lignes } = await this.soldesDuCycle(tenantId, campagne);
     const ligne = lignes.find((l) => l.compteId === dto.compteId);
     const solde = dto.soldeAConfirmer ?? Number((ligne?.solde ?? 0).toFixed(2));
 
@@ -217,6 +254,31 @@ export class CircularisationService {
         soldeAConfirmer: solde,
       },
     });
+  }
+
+  /**
+   * RETIRER UNE DEMANDE QUI N'EST PAS PARTIE (audit final F71) · un compte
+   * retenu par erreur en préparation, ou une demande restée « à envoyer »
+   * d'avant la règle qui les borne à la préparation. Une lettre partie ne se
+   * retire jamais · le tiers l'a reçue, et elle se classe en réponse ou en
+   * non-réponse, ce que la clôture exige.
+   */
+  async retirerDemande(tenantId: string, demandeId: string) {
+    const demande = await this.prisma.demandeConfirmation.findFirst({
+      where: { id: demandeId, tenantId },
+      include: { campagne: { select: { statut: true } } },
+    });
+    if (!demande) throw new NotFoundException('Demande introuvable.');
+    if (demande.campagne.statut === StatutCampagneCircularisation.CLOTUREE) {
+      throw new ForbiddenException('La campagne est close · ses demandes ne se retirent plus.');
+    }
+    if (demande.statut !== StatutDemandeConfirmation.A_ENVOYER) {
+      throw new BadRequestException(
+        'Cette lettre est partie · elle ne se retire pas, elle se classe (réponse reçue, sans réponse ou non distribuée).',
+      );
+    }
+    await this.prisma.demandeConfirmation.delete({ where: { id: demande.id } });
+    return { retiree: true };
   }
 
   /** Envoi et relance · la campagne suit ses demandes, pas l'inverse. */
@@ -364,6 +426,15 @@ export class CircularisationService {
     ]);
     const demandes = await this.prisma.demandeConfirmation.findMany({ where: { tenantId, campagneId } });
 
+    // Une demande jamais envoyée n'est ni confirmée ni une non-réponse · elle
+    // n'a pas eu lieu (audit final F71).
+    const jamaisEnvoyees = demandes.filter((d) => d.statut === StatutDemandeConfirmation.A_ENVOYER);
+    if (jamaisEnvoyees.length > 0) {
+      throw new ForbiddenException(
+        `${jamaisEnvoyees.length} demande(s) jamais envoyée(s) · retirez-les de la campagne ou envoyez-les avant de ` +
+          'clore. Une lettre qui n’est pas partie n’a rien établi, et ne se classe pas en non-réponse.',
+      );
+    }
     const enAttente = demandes.filter(
       (d) => d.statut === StatutDemandeConfirmation.ENVOYEE || d.statut === StatutDemandeConfirmation.RELANCEE,
     );
@@ -430,6 +501,11 @@ export class CircularisationService {
     if (!campagne) throw new NotFoundException('Campagne de circularisation introuvable.');
 
     const d = campagne.demandes;
+    // LE DÉNOMINATEUR EST LE TOTAL DU CYCLE (audit final F70) · pris sur le
+    // solde ENVOYÉ, deux petites lettres confirmées affichaient 100 %, quand
+    // elles couvraient 3 % des soldes. Le taux dit alors combien de l'argent
+    // du cycle est établi, et c'est ce qu'il existe pour dire.
+    const { racines, total: totalCycle } = await this.soldesDuCycle(tenantId, campagne);
     const envoyees = d.filter((x) => x.statut !== StatutDemandeConfirmation.A_ENVOYER);
     const recues = d.filter((x) => x.statut === StatutDemandeConfirmation.REPONSE_RECUE);
     const nonReponses = d.filter(
@@ -437,7 +513,11 @@ export class CircularisationService {
     );
     const abs = (v: unknown) => Math.abs(Number(v ?? 0));
     const soldeEnvoye = envoyees.reduce((s, x) => s + abs(x.soldeAConfirmer), 0);
-    const soldeConfirme = recues.reduce((s, x) => s + abs(x.soldeAConfirmer), 0);
+    // Seules les lettres sur un compte du cycle entrent au numérateur · une
+    // lettre hors cycle ne couvre rien de ce total.
+    const soldeConfirme = recues
+      .filter((x) => racines.some((r) => x.compte.numero.startsWith(r)))
+      .reduce((s, x) => s + abs(x.soldeAConfirmer), 0);
     const ecarts = recues.filter((x) => Math.abs(Number(x.ecart ?? 0)) > 0.005);
 
     return {
@@ -449,7 +529,8 @@ export class CircularisationService {
         nonReponses: nonReponses.length,
         nonReponsesSansProcedure: nonReponses.filter((x) => !x.proceduresAlternatives?.trim()).length,
         tauxReponse: envoyees.length > 0 ? Number(((recues.length / envoyees.length) * 100).toFixed(1)) : 0,
-        tauxCouverture: soldeEnvoye > 0 ? Number(((soldeConfirme / soldeEnvoye) * 100).toFixed(1)) : 0,
+        tauxCouverture: totalCycle > 0 ? Number(((soldeConfirme / totalCycle) * 100).toFixed(1)) : 0,
+        totalCycle: Number(totalCycle.toFixed(2)),
         soldeEnvoye: Number(soldeEnvoye.toFixed(2)),
         soldeConfirme: Number(soldeConfirme.toFixed(2)),
         ecarts: ecarts.length,

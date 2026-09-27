@@ -300,8 +300,8 @@ export function MandatAuditeurPage() {
                       État
                       <Aide
                         titre="Prorogation du mandat"
-                        texte="Un mandat dont le dernier exercice est passé n'est pas un trou · la mission est prorogée de plein droit « sauf refus exprès » du contrôleur, jusqu'à la prochaine assemblée statuant sur les comptes. Seul ce refus laisse l'entité sans contrôleur, et c'est lui que la colonne « État » enregistre."
-                        source="SYCEBNL art. 22"
+                        texte="Pour une association et pour une société anonyme, un mandat dont le dernier exercice est passé n'est pas un trou · la mission est prorogée « sauf refus exprès » du contrôleur, jusqu'à la plus prochaine assemblée statuant sur les comptes, donc pour le seul exercice qui suit. Seul ce refus laisse l'entité sans contrôleur, et c'est lui que la colonne « État » enregistre. Aucun texte lu ne proroge le mandat des autres formes."
+                        source="SYCEBNL art. 22 · AUSCGIE art. 709 (SA)"
                       />
                     </span>
                   </th>

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RoleUtilisateur } from '@prisma/client';
@@ -69,6 +69,13 @@ export class CircularisationController {
     @Body() dto: DepouillerDto,
   ) {
     return this.circularisation.depouiller(user.tenantId, demandeId, dto);
+  }
+
+  /** Une lettre qui n'est pas partie se retire · une lettre partie se classe. */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Delete('demandes/:demandeId')
+  retirerDemande(@CurrentUser() user: AuthenticatedUser, @Param('demandeId') demandeId: string) {
+    return this.circularisation.retirerDemande(user.tenantId, demandeId);
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)

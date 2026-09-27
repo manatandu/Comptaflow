@@ -18,7 +18,7 @@ import { regleAuditeur, type RegleAuditeur } from './regles-auditeur';
 import { sourceManuel } from '../documents-obligatoires/manuel-procedures.service';
 import { PREFIXES_CHIFFRE_AFFAIRES_SYSCOHADA } from '../etats-financiers-syscohada/correspondance-compte-resultat-syscohada';
 import { evaluerComparabilite } from '../etats-financiers/comparabilite-exercices';
-import { dernierExerciceCouvert } from '../mandat-auditeur/duree-mandat';
+import { dernierExerciceCouvert, estDansLaProrogation, regleDeProrogation } from '../mandat-auditeur/duree-mandat';
 import {
   articleTrenteSeptApplicable,
   etatAccordCadre,
@@ -540,30 +540,103 @@ export class ControlesService {
    * LESQUELS le méritaient. Ce contrôle le dit.
    */
   async comptesDormants(tenantId: string, moisSansMouvement = 12) {
-    const comptes = await this.prisma.compte.findMany({
-      where: { tenantId, typeCompte: TypeCompteDetailTotal.DETAIL },
-      select: {
-        id: true,
-        numero: true,
-        intitule: true,
-        classe: true,
-        estActif: true,
-        lignesEcriture: {
-          select: { debit: true, credit: true, ecriture: { select: { date: true } } },
-        },
-      },
-      orderBy: { numero: 'asc' },
-    });
+    // LE SOLDE ET LE DERNIER MOUVEMENT SE LISENT PAR AGRÉGATS (audit final
+    // F68). La version d'avant sommait TOUTES les lignes de TOUS les
+    // exercices, reports à-nouveau compris · un compte reporté trois fois
+    // affichait trois fois son solde, et un compte à solde nul restait
+    // « soldé » même quand il ne l'était pas. Le report daté du 1er janvier
+    // comptait en plus comme un mouvement, si bien qu'un compte à solde ne
+    // devenait JAMAIS dormant. Et `Math.max(...dates)` levait au-delà de
+    // quelques centaines de milliers de lignes.
+    //
+    // Le solde est celui du grand livre CUMULÉ, par la règle de
+    // `balanceCumulee` · les mouvements de tous les exercices, plus
+    // l'ouverture du SEUL premier exercice (le bilan d'ouverture du
+    // dossier), plus l'écriture qui solde les classes 6 à 8 de chaque
+    // exercice clos, qui les remet à zéro et porte le résultat au 13. Les
+    // reports suivants rejouent un solde déjà compté, et le provisoire
+    // aussi.
+    const [comptes, premier] = await Promise.all([
+      this.prisma.compte.findMany({
+        where: { tenantId, typeCompte: TypeCompteDetailTotal.DETAIL },
+        select: { id: true, numero: true, intitule: true, classe: true, estActif: true },
+        orderBy: { numero: 'asc' },
+      }),
+      this.prisma.exercice.findFirst({ where: { tenantId }, orderBy: { dateDebut: 'asc' }, select: { id: true } }),
+    ]);
 
     // Borné à la fin du mois (audit final F8) · le 31 mars moins un mois
     // n'est pas le 3 mars.
     const seuil = ajouterMois(new Date(), -moisSansMouvement);
+    const horsCloture = { tenantId, estGenereeParCloture: false };
 
-    return comptes
+    const [mouvements, soldesDeGestion, ouverture, reports, recents] = await Promise.all([
+      this.prisma.ligneEcriture.groupBy({
+        by: ['compteId'],
+        where: { ecriture: horsCloture },
+        _sum: { debit: true, credit: true },
+        _count: { _all: true },
+      }),
+      this.prisma.ligneEcriture.groupBy({
+        by: ['compteId'],
+        where: { ecriture: { tenantId, estSoldeDesComptesDeGestion: true } },
+        _sum: { debit: true, credit: true },
+      }),
+      premier
+        ? this.prisma.ligneEcriture.groupBy({
+            by: ['compteId'],
+            where: {
+              ecriture: {
+                tenantId,
+                exerciceId: premier.id,
+                estGenereeParCloture: true,
+                estSoldeDesComptesDeGestion: false,
+                estANouveauProvisoire: false,
+              },
+            },
+            _sum: { debit: true, credit: true },
+          })
+        : Promise.resolve([]),
+      // Les comptes que seul un report a touchés · reportés mais jamais
+      // mouvementés, ils ne sont pas « jamais servis ».
+      this.prisma.ligneEcriture.groupBy({
+        by: ['compteId'],
+        where: { ecriture: { tenantId, estGenereeParCloture: true } },
+        _count: { _all: true },
+      }),
+      this.prisma.ligneEcriture.groupBy({
+        by: ['compteId'],
+        where: { ecriture: { ...horsCloture, date: { gte: seuil } } },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const solde = new Map<string, number>();
+    for (const g of [...mouvements, ...soldesDeGestion, ...ouverture]) {
+      solde.set(g.compteId, (solde.get(g.compteId) ?? 0) + Number(g._sum.debit ?? 0) - Number(g._sum.credit ?? 0));
+    }
+    const nombre = new Map(mouvements.map((g) => [g.compteId, g._count._all]));
+    const reporte = new Set(reports.map((g) => g.compteId));
+    const actifsRecents = new Set(recents.map((g) => g.compteId));
+
+    const dormants = comptes.filter((c) => c.estActif && !actifsRecents.has(c.id));
+    // Le dernier mouvement n'est cherché que pour les comptes dormants qui en
+    // ont un · une ligne par compte, la plus récente, hors clôture.
+    const aDater = dormants.filter((c) => nombre.has(c.id)).map((c) => c.id);
+    const derniers =
+      aDater.length > 0
+        ? await this.prisma.ligneEcriture.findMany({
+            where: { compteId: { in: aDater }, ecriture: horsCloture },
+            distinct: ['compteId'],
+            orderBy: [{ compteId: 'asc' }, { ecriture: { date: 'desc' } }],
+            select: { compteId: true, ecriture: { select: { date: true } } },
+          })
+        : [];
+    const dernierPar = new Map(derniers.map((l) => [l.compteId, l.ecriture.date]));
+
+    return dormants
       .map((c) => {
-        const dates = c.lignesEcriture.map((l) => l.ecriture.date.getTime());
-        const dernier = dates.length > 0 ? new Date(Math.max(...dates)) : null;
-        const solde = c.lignesEcriture.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
+        const dernier = dernierPar.get(c.id) ?? null;
         return {
           compteId: c.id,
           numero: c.numero,
@@ -571,15 +644,16 @@ export class ControlesService {
           classe: c.classe,
           estActif: c.estActif,
           dernierMouvement: dernier ? dernier.toISOString() : null,
-          nombreEcritures: c.lignesEcriture.length,
-          solde,
+          nombreEcritures: nombre.get(c.id) ?? 0,
+          solde: Math.round((solde.get(c.id) ?? 0) * 100) / 100,
           // Un compte jamais mouvementé n'est pas « dormant » : il n'a jamais
           // servi. Les deux cas appellent des décisions différentes, on les
           // distingue plutôt que de les confondre sous une même étiquette.
-          jamaisMouvemente: dernier === null,
+          // Un compte que seul un report a touché a servi · il porte un
+          // solde repris, sans mouvement depuis.
+          jamaisMouvemente: !nombre.has(c.id) && !reporte.has(c.id),
         };
       })
-      .filter((c) => c.estActif && (c.jamaisMouvemente || new Date(c.dernierMouvement!) < seuil))
       .sort((a, b) => {
         // Un compte dormant à solde non nul passe devant : c'est celui qui
         // pose une question comptable, pas seulement un problème de propreté.
@@ -2901,18 +2975,16 @@ export class ControlesService {
     // alors qu'aucune table ne le détenait. Elle existe désormais, et ce
     // contrôle est la moitié qui manquait.
     //
-    // LE PIÈGE EST L'ARTICLE 22, ET IL VA DANS LE SENS INVERSE DE L'INTUITION.
-    // Un mandat dont le dernier exercice est passé n'est PAS un trou : « si
-    // l'assemblée […] ne procède pas au renouvellement du mandat de l'auditeur
-    // ou à son remplacement à l'expiration de son mandat, la mission de
-    // l'auditeur est PROROGÉE, sauf refus exprès de sa part », et cette
-    // prorogation court « jusqu'à la plus prochaine assemblée générale […]
-    // statuant sur les comptes ». Crier « mandat expiré » sur cette situation
-    // serait un signalement faux (§ 10 bis) · l'entité a un contrôleur, et le
-    // cabinet corrigerait un manquement qui n'existe pas.
+    // LE PIÈGE EST LA PROROGATION, ET ELLE VA DANS LE SENS INVERSE DE
+    // L'INTUITION. Un mandat dont le dernier exercice est passé n'est PAS un
+    // trou quand un texte le proroge · SYCEBNL art. 22, AUSCGIE art. 709 pour
+    // la SA (`regleDeProrogation`). Crier « mandat expiré » serait alors un
+    // signalement faux (§ 10 bis). SEUL LE REFUS EXPRÈS OUVRE LE TROU, parce
+    // que c'est le seul fait que les deux articles opposent à la prorogation.
     //
-    // SEUL LE REFUS EXPRÈS OUVRE LE TROU, parce que c'est le seul fait que
-    // l'article oppose à la prorogation.
+    // ET ELLE A DEUX BORNES (audit final F69) · le texte du dossier, jamais
+    // l'art. 22 servi à une société, et l'exercice qui suit le dernier couvert,
+    // puisqu'elle court jusqu'à « la plus prochaine » assemblée.
     const mandats = await this.prisma.mandatAuditeur.findMany({
       where: { tenantId, finAnticipeeLe: null },
       orderBy: { premierExercice: 'desc' },
@@ -2922,30 +2994,16 @@ export class ControlesService {
     const couvrant = mandats.find(
       (m) => m.premierExercice <= anneeExercice && dernierExerciceCouvert(m.premierExercice, m.nombreExercices) >= anneeExercice,
     );
-    // Le plus récent mandat échu · candidat à la prorogation de l'art. 22.
+    // Le plus récent mandat échu · candidat à la prorogation.
     const echu = mandats.find((m) => dernierExerciceCouvert(m.premierExercice, m.nombreExercices) < anneeExercice);
+    const prorogation = regleDeProrogation(tenant.referentiel, tenant.formeJuridiqueSyscohada);
+    const dansLaProrogation =
+      !!echu && !!prorogation && estDansLaProrogation(echu.premierExercice, echu.nombreExercices, anneeExercice);
 
     // L'OBLIGATION DÉCLENCHÉE, PAS UN SEUIL FRANCHI (audit final F17) · deux sur
     // trois aux formes cumulatives, comme le contrôle 6 de la même classe.
     if (!couvrant && (seuils.obligationDeclenchee || seuils.obligationSansSeuil)) {
-      if (!echu) {
-        anomalies.push({
-          code: 'AUDITEUR_OBLIGATOIRE_SANS_MANDAT',
-          gravite: 'AVERTISSEMENT',
-          libelle: 'Aucun mandat de contrôleur des comptes enregistré',
-          consequence:
-            `${'source' in seuils.regle ? seuils.regle.source : 'Le texte applicable au dossier'} rend la ` +
-            'désignation obligatoire pour ce dossier, et aucun mandat n’est ' +
-            'enregistré dans OmegaX pour l’exercice. Le logiciel ne peut donc dire ni qui contrôle les comptes, ' +
-            'ni depuis quand, ni jusqu’à quel exercice.',
-          action:
-            'Enregistrez le mandat dans la fenêtre Mandat du contrôleur des comptes · nom, référence ' +
-            'd’inscription au tableau de l’ordre, organe qui a désigné, date et premier exercice couvert.',
-          occurrences: [
-            { reference: `Exercice ${anneeExercice}`, detail: 'Aucun mandat ne couvre cet exercice' },
-          ],
-        });
-      } else if (echu.refusDeProrogation) {
+      if (echu && prorogation && echu.refusDeProrogation) {
         // Le contrôleur a refusé de poursuivre · la prorogation de plein droit
         // ne joue pas, et l'entité est réellement sans contrôleur.
         anomalies.push({
@@ -2953,9 +3011,9 @@ export class ControlesService {
           gravite: 'AVERTISSEMENT',
           libelle: 'Mandat échu et prorogation refusée par le contrôleur',
           consequence:
-            'Le mandat est arrivé à son terme et le contrôleur a opposé le refus exprès que prévoit le ' +
-            'SYCEBNL art. 22. La prorogation de plein droit ne joue donc pas · l’entité est sans contrôleur ' +
-            'des comptes alors que le texte lui en impose un.',
+            `Le mandat est arrivé à son terme et le contrôleur a opposé le refus exprès que prévoit le ` +
+            `${prorogation.source}. La prorogation ne joue donc pas · l’entité est sans contrôleur des comptes ` +
+            'alors que le texte lui en impose un.',
           action: 'Faites désigner un contrôleur par l’assemblée, et enregistrez son mandat.',
           occurrences: [
             {
@@ -2964,20 +3022,16 @@ export class ControlesService {
             },
           ],
         });
-      } else {
+      } else if (echu && prorogation && dansLaProrogation) {
         // INFORMATION, jamais avertissement · aucun texte n'est enfreint. La
-        // mission CONTINUE de plein droit, et le dire est utile ; le reprocher
-        // serait faux.
+        // mission CONTINUE, et le dire est utile ; le reprocher serait faux.
         anomalies.push({
           code: 'MANDAT_AUDITEUR_PROROGE',
           gravite: 'INFORMATION',
-          libelle: 'Mandat échu, prorogé de plein droit',
+          libelle: 'Mandat échu, prorogé jusqu’à la prochaine assemblée',
           consequence:
-            'SYCEBNL art. 22 · « si l’assemblée […] ne procède pas au renouvellement du mandat de l’auditeur ' +
-            'ou à son remplacement à l’expiration de son mandat, la mission de l’auditeur est PROROGÉE, sauf ' +
-            'refus exprès de sa part », et cette prorogation court « jusqu’à la plus prochaine assemblée ' +
-            'générale […] statuant sur les comptes ». Le contrôleur est donc toujours en fonction · ce n’est ' +
-            'pas un manquement.',
+            `${prorogation.source} · ${prorogation.citation}. Le contrôleur est donc toujours en fonction pour ` +
+            'cet exercice · ce n’est pas un manquement.',
           action:
             'Portez à l’ordre du jour de la prochaine assemblée le renouvellement ou le remplacement, puis ' +
             'enregistrez le nouveau mandat.',
@@ -2987,6 +3041,29 @@ export class ControlesService {
               detail: `Mandat couvrant jusqu’à l’exercice ${dernierExerciceCouvert(echu.premierExercice, echu.nombreExercices)}`,
             },
           ],
+        });
+      } else {
+        // Aucun mandat, ou un mandat échu que rien ne proroge · pour cette
+        // forme, faute de texte, ou au-delà de l'exercice que la prorogation
+        // couvre.
+        const motifEchu = !echu
+          ? 'Aucun mandat ne couvre cet exercice'
+          : !prorogation
+            ? `Dernier mandat enregistré (${echu.nom}) échu avec l’exercice ${dernierExerciceCouvert(echu.premierExercice, echu.nombreExercices)} · aucun texte lu ne proroge le mandat pour cette forme`
+            : `Dernier mandat enregistré (${echu.nom}) échu avec l’exercice ${dernierExerciceCouvert(echu.premierExercice, echu.nombreExercices)} · la prorogation du ${prorogation.source} ne couvrait que l’exercice suivant`;
+        anomalies.push({
+          code: 'AUDITEUR_OBLIGATOIRE_SANS_MANDAT',
+          gravite: 'AVERTISSEMENT',
+          libelle: 'Aucun mandat de contrôleur des comptes ne couvre l’exercice',
+          consequence:
+            `${'source' in seuils.regle ? seuils.regle.source : 'Le texte applicable au dossier'} rend la ` +
+            'désignation obligatoire pour ce dossier, et aucun mandat enregistré dans OmegaX ne couvre ' +
+            'l’exercice. Le logiciel ne peut donc dire ni qui contrôle les comptes, ni depuis quand, ni ' +
+            'jusqu’à quel exercice.',
+          action:
+            'Enregistrez le mandat dans la fenêtre Mandat du contrôleur des comptes · nom, référence ' +
+            'd’inscription au tableau de l’ordre, organe qui a désigné, date et premier exercice couvert.',
+          occurrences: [{ reference: `Exercice ${anneeExercice}`, detail: motifEchu }],
         });
       }
     }

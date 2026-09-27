@@ -149,9 +149,10 @@ export class MandatAuditeurService {
   }
 
   /**
-   * REFUS EXPRÈS DE PROROGATION · SYCEBNL art. 22, le seul fait capable
-   * d'interrompre la prorogation de plein droit. Il vient du contrôleur
-   * lui-même, pas de l'entité : le module l'enregistre, il ne le décide pas.
+   * REFUS EXPRÈS DE PROROGATION · SYCEBNL art. 22, et AUSCGIE art. 709 pour
+   * la SA (`regleDeProrogation`), le seul fait capable d'interrompre la
+   * prorogation. Il vient du contrôleur lui-même, pas de l'entité : le module
+   * l'enregistre, il ne le décide pas.
    */
   async refuserProrogation(tenantId: string, id: string, refus: boolean) {
     const mandat = await this.prisma.mandatAuditeur.findFirst({ where: { id, tenantId } });

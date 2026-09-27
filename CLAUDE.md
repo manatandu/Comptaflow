@@ -411,6 +411,13 @@ petites réponses sur vingt-cinq lettres font 80 % de réponses et peuvent ne
 couvrir que 3 % des soldes. Afficher le premier sans le second laisse croire
 qu'un cycle est circularisé quand il ne l'est pas.
 
+LE TOTAL DU CYCLE EST LU À LA DATE D'ARRÊTÉ (2026-09-27, audit final F70 à
+F72), livre-journal seul, par une seule lecture (`soldesDuCycle`) qui sert
+l'échantillon, la lettre et le taux · une campagne au 30 juin envoyait le
+solde de décembre. Une demande ne s'ajoute qu'en PRÉPARATION, une par compte
+(index unique), celle qui n'est pas partie se RETIRE, et la clôture refuse une
+lettre jamais envoyée · elle n'est ni une réponse ni une non-réponse.
+
 TROIS REFUS, chacun contre un défaut qui laisse le dossier parfaitement
 présentable. UNE NON-RÉPONSE N'EST PAS UNE CONFIRMATION · ISA 505 § 12, « in
 the case of EACH non-response, the auditor shall perform alternative audit
@@ -3840,6 +3847,13 @@ un contrôleur, et le cabinet corrigerait un manquement inexistant. D'où
 `MANDAT_AUDITEUR_PROROGE` en gravité INFORMATION, et
 `MANDAT_AUDITEUR_SANS_PROROGATION` en AVERTISSEMENT sur le SEUL fait que
 l'article oppose à la prorogation · le refus exprès du contrôleur.
+
+DEUX TEXTES PROROGENT, ET POUR UN SEUL EXERCICE (2026-09-27, audit final
+F69). Le SYCEBNL art. 22 pour l'EBNL, l'AUSCGIE art. 709 pour la SA, qui
+écrit la même règle (`regleDeProrogation`) ; aucun pour les autres formes,
+la SARL comprise · ni prorogation ni refus à leur opposer. Et la mission ne
+court que jusqu'à « la plus prochaine » assemblée · un mandat échu depuis
+deux exercices ne proroge plus rien (`estDansLaProrogation`).
 
 L'INSCRIPTION AU TABLEAU DE L'ORDRE EST EXIGÉE ET JAMAIS VÉRIFIÉE. L'art. 20
 veut un expert-comptable « inscrit au tableau de l'ordre […] ou de l'organe qui

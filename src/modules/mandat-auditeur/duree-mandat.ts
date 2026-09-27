@@ -109,6 +109,62 @@ export function dernierExerciceCouvert(premierExercice: number, exercices: numbe
 }
 
 /**
+ * LA PROROGATION D'UN MANDAT ÉCHU · deux textes la portent, chacun pour les
+ * siens, et aucun autre texte lu (audit final F69). Le contrôle la servait à
+ * tout dossier en citant le SYCEBNL art. 22 · une société lisait que son
+ * commissaire était prorogé par un texte qui ne la régit pas.
+ *
+ *  · SYCEBNL art. 22 · la mission de l'auditeur « est PROROGÉE, sauf refus
+ *    exprès de sa part », jusqu'à la plus prochaine assemblée statuant sur
+ *    les comptes ;
+ *  · AUSCGIE art. 709, pour la SA · « Si l'assemblée omet de renouveler le
+ *    mandat d'un commissaire aux comptes ou de le remplacer à l'expiration de
+ *    son mandat et, sauf refus exprès du commissaire, sa mission est prorogée
+ *    jusqu'à la plus prochaine assemblée générale ordinaire annuelle. »
+ *
+ * La SARL n'y est pas · l'art. 377 ne renvoie aux art. 694 et suivants que
+ * pour le CHOIX du commissaire, et l'art. 381 renvoie ses fonctions à un
+ * texte particulier que le corpus ne porte pas. Aucune prorogation ne lui est
+ * donc servie, ni aux autres formes · une règle absente n'est jamais
+ * remplacée par la plus proche.
+ */
+export function regleDeProrogation(
+  referentiel: Referentiel,
+  formeJuridique: FormeJuridiqueSyscohada | null,
+): { source: string; citation: string } | null {
+  if (referentiel === Referentiel.SYCEBNL) {
+    return {
+      source: 'SYCEBNL art. 22',
+      citation:
+        '« si l’assemblée […] ne procède pas au renouvellement du mandat de l’auditeur ou à son remplacement à ' +
+        'l’expiration de son mandat, la mission de l’auditeur est PROROGÉE, sauf refus exprès de sa part », ' +
+        'jusqu’à « la plus prochaine assemblée générale […] statuant sur les comptes »',
+    };
+  }
+  if (formeJuridique === FormeJuridiqueSyscohada.SOCIETE_ANONYME) {
+    return {
+      source: 'AUSCGIE art. 709',
+      citation:
+        '« Si l’assemblée omet de renouveler le mandat d’un commissaire aux comptes ou de le remplacer à ' +
+        'l’expiration de son mandat et, sauf refus exprès du commissaire, sa mission est prorogée jusqu’à la ' +
+        'plus prochaine assemblée générale ordinaire annuelle. »',
+    };
+  }
+  return null;
+}
+
+/**
+ * LA PROROGATION NE COUVRE QU'UN EXERCICE · elle court jusqu'à la PLUS
+ * PROCHAINE assemblée qui statue sur les comptes. Le mandat couvrant jusqu'à
+ * l'exercice L expire à l'assemblée qui statue sur L ; prorogé, il tient
+ * jusqu'à celle qui statue sur L + 1, et c'est tout. Un mandat échu depuis
+ * trois ans ne proroge plus rien.
+ */
+export function estDansLaProrogation(premierExercice: number, exercices: number, anneeExercice: number): boolean {
+  return anneeExercice === dernierExerciceCouvert(premierExercice, exercices) + 1;
+}
+
+/**
  * DURÉE RAMENÉE À L'EXISTENCE DE L'ENTITÉ · SYCEBNL art. 21, seconde phrase, et
  * seulement là : « si l'entité a une existence inférieure à trois exercices,
  * son mandat est ramené à cette durée ». Aucun article de l'AUSCGIE lu ne
