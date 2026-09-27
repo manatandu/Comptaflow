@@ -782,7 +782,7 @@ export class ExerciceService {
       async (tx) => {
         const comptes = await tx.compte.findMany({
           where: { tenantId },
-          include: { lignesEcriture: { where: { ecriture: { tenantId, exerciceId } }, include: { ecriture: true } } },
+          include: { lignesEcriture: { where: { ecriture: { tenantId, exerciceId } }, select: SELECT_LIGNE_RAN } },
         });
         const solde = (c: (typeof comptes)[number]) =>
           c.lignesEcriture.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
@@ -993,7 +993,7 @@ export class ExerciceService {
           include: {
             lignesEcriture: {
               where: { ecriture: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE } },
-              include: { ecriture: true },
+              select: SELECT_LIGNE_RAN,
             },
           },
         });
@@ -1094,6 +1094,23 @@ export class ExerciceService {
   }
 }
 
+/**
+ * CE QUE LE REPORT LIT D'UNE LIGNE, ET RIEN DE PLUS (audit final F185) · la
+ * clôture chargeait chaque ligne avec son écriture ENTIÈRE, dans une
+ * transaction qui tient déjà tout l'exercice. Le calcul partagé ne lit que
+ * ces colonnes, et `versCompteRan` le vérifie au typage.
+ */
+const SELECT_LIGNE_RAN = {
+  debit: true,
+  credit: true,
+  lettre: true,
+  libelle: true,
+  dateEcheance: true,
+  deviseId: true,
+  montantDevise: true,
+  coursApplique: true,
+  ecriture: { select: { libelle: true } },
+} satisfies Prisma.LigneEcritureSelect;
 
 /** Un compte du plan, avec ses lignes de l'exercice, au format du calcul partagé. */
 function versCompteRan(c: {

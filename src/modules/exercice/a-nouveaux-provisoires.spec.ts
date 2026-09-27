@@ -66,6 +66,17 @@ describe('À-nouveaux provisoires', () => {
     expect(r.brouillardNonRepris).toBe(2);
   });
 
+  it('F185 · chaque ligne se lit par les seules colonnes du report, jamais avec son écriture entière', async () => {
+    const { s, tx } = service(null);
+    await s.genererANouveauxProvisoires('t', 'n', 'u');
+    const lecture = tx.compte.findMany.mock.calls[0][0].include.lignesEcriture;
+    expect(lecture.include).toBeUndefined();
+    expect(lecture.select.ecriture).toEqual({ select: { libelle: true } });
+    expect(Object.keys(lecture.select).sort()).toEqual(
+      ['coursApplique', 'credit', 'dateEcheance', 'debit', 'deviseId', 'ecriture', 'lettre', 'libelle', 'montantDevise'],
+    );
+  });
+
   it('la relance REMPLACE le report précédent et reprend son numéro de pièce', async () => {
     const { s, tx, journalService } = service({ id: 'p', numeroPiece: 3, lignes: [{ lettre: null, rapprochementId: null }] });
     await s.genererANouveauxProvisoires('t', 'n', 'u');

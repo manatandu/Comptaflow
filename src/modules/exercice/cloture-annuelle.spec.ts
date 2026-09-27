@@ -86,6 +86,15 @@ describe('Clôture annuelle', () => {
     expect({ statut: ran.statut, solde: ran.estSoldeDesComptesDeGestion }).toEqual({ statut: 'VALIDEE', solde: undefined });
   });
 
+  it('F185 · la clôture lit chaque ligne par les seules colonnes du report', async () => {
+    const { s, tx } = service(null);
+    await s.cloturer('t', 'n', 'u');
+    const lecture = tx.compte.findMany.mock.calls[0][0].include.lignesEcriture;
+    expect(lecture.include).toBeUndefined();
+    expect(lecture.select.ecriture).toEqual({ select: { libelle: true } });
+    expect(lecture.select.lettre).toBe(true);
+  });
+
   it('refuse de clôturer avant l’exercice précédent (audit final F6)', async () => {
     const { s, tx } = service(null);
     (s as any).prisma.exercice.findFirst.mockImplementation(({ where }: { where: Record<string, unknown> }) =>
