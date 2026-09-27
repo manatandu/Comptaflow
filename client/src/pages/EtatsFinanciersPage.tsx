@@ -998,7 +998,12 @@ function EtatsSystemeNormalPage() {
                 {executionBudget.lignes.map((l) => (
                   <div
                     key={l.code}
-                    className="grid grid-cols-[80px_1fr_120px_120px_120px_120px_120px_90px] gap-2 px-4 py-1 text-[11.5px]"
+                    // UNE RUBRIQUE EST UN SOUS-TOTAL et se lit comme tel (audit
+                    // final F86) · présentée comme une ligne de plus, la
+                    // colonne additionnée comptait chaque dépense deux fois.
+                    className={`grid grid-cols-[80px_1fr_120px_120px_120px_120px_120px_90px] gap-2 px-4 py-1 text-[11.5px] ${
+                      l.estRubrique ? 'font-bold bg-surface-alt border-y border-border' : ''
+                    }`}
                   >
                     <span className="font-mono text-[11.5px]">{l.code}</span>
                     <span className="truncate">{l.libelle}</span>

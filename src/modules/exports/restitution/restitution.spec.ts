@@ -278,7 +278,7 @@ describe('le manifeste dit ce que l’archive n’est pas', () => {
   it('nomme les tables dont le journal d’audit ne garde aucune trace', () => {
     // Chaque table non journalisée porte son MOTIF, lu dans la même table
     // que l'extension d'audit · jamais une copie qui divergerait.
-    expect(manifeste).toContain(`- SaisieNote · ${NON_AUDITES_MOTIVES.SaisieNote}`);
+    expect(manifeste).toContain(`- VentilationAnalytique · ${NON_AUDITES_MOTIVES.VentilationAnalytique}`);
     expect(manifeste).toContain(`- LigneEcriture · ${NON_AUDITES_MOTIVES.LigneEcriture}`);
   });
 

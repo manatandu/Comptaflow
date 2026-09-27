@@ -5,7 +5,7 @@ import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
 import { EtatsFinanciersService } from '../etats-financiers/etats-financiers.service';
 import { EtatsFinanciersProjetService } from '../etats-financiers/etats-financiers-projet.service';
-import { EtatsFinanciersProjetBudgetService } from '../etats-financiers/etats-financiers-projet-budget.service';
+import { AucunPlanABudgetsException, EtatsFinanciersProjetBudgetService } from '../etats-financiers/etats-financiers-projet-budget.service';
 import { EngagementService } from '../analytique/engagement.service';
 import { EtatsFinanciersSmtService } from '../etats-financiers/etats-financiers-smt.service';
 import { NoteAnnexeService } from '../notes-annexes/note-annexe.service';
@@ -410,6 +410,21 @@ describe('liasse complète · le classeur entier du modèle', () => {
 });
 
 describe('liasse complète · jeu projets de développement', () => {
+  it('une panne du tableau budgétaire fait tomber la liasse, sans grille vierge sous un motif faux (audit final F83)', async () => {
+    const exportService = fabriquerExport(JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT);
+    (exportService as unknown as { etatsFinanciersProjetBudgetService: { executionBudgetaire: jest.Mock } })
+      .etatsFinanciersProjetBudgetService.executionBudgetaire = jest
+      .fn()
+      // Les notes, lues les premières (Promise.all), trouvent le repli
+      // ordinaire · la panne ne frappe que la feuille de la liasse. Sans cela
+      // elle remonterait par les notes, et le repli de la feuille ne serait
+      // pas mis à l'épreuve (vu à la réinjection).
+      .mockRejectedValueOnce(new AucunPlanABudgetsException('Aucun plan analytique à budgets.'))
+      .mockRejectedValue(new Error('connexion perdue'));
+    await expect(exportService.liasseCompleteExcel('t1', 'e1')).rejects.toThrow('connexion perdue');
+  });
+
+
   it('reproduit le classeur du modèle projets, grille budgétaire vierge comprise', async () => {
     const exportService = fabriquerExport(JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT);
     const { buffer } = await exportService.liasseCompleteExcel('t1', 'e1');

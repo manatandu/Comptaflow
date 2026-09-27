@@ -280,6 +280,11 @@ postérieurs à la clôture, règles et méthodes comptables. Elles sont
 OBLIGATOIRES (SYCEBNL art. 15, AUDCIF art. 33) et aucune balance ne les porte.
 Depuis le 2026-09-03 elles sont stockées (`SaisieNote`, table
 `saisies_notes`), par exercice, et l'écran des notes les rend modifiables.
+Elles sont au JOURNAL D'AUDIT (audit final F87) et se retouchent par leur
+identifiant · un `deleteMany` ou un `upsert` sur la clé composée ne laissait au
+journal aucun état antérieur, et la note d'un exercice clos se réécrivait sans
+trace. Un rattachement, lui, n'est pas daté · il change la note de tous les
+exercices, clos compris.
 
 Trois règles à ne pas défaire. L'ancre est le couple (code de note, CLÉ de
 rubrique) et le RANG de la colonne, jamais un libellé ni un index de ligne ·
@@ -312,7 +317,10 @@ BUDGÉTAIRE, et il n'est plus saisi : `NoteAnnexeService`
 `EtatsFinanciersProjetBudgetService.executionBudgetaire()`, cellules
 verrouillées, quand le dossier a un plan analytique à budgets. Sans plan à
 budgets, le service lève et la note reste en saisie · repli VOULU, une entité
-qui ne suit aucun budget n'a rien à exécuter. Le SYSCOHADA n'a pas cette note :
+qui ne suit aucun budget n'a rien à exécuter. Seule
+`AucunPlanABudgetsException` est rattrapée, ici comme dans la liasse (audit
+final F83) · toute autre panne remonte, au lieu de sortir une grille vierge
+sous un motif faux. Le SYSCOHADA n'a pas cette note :
 l'AUDCIF ne demande aucun état budgétaire.
 
 **Cotisations · l'appel ou l'encaissement, et c'est le dossier qui répond.**

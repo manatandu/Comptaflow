@@ -1,8 +1,9 @@
-import { ClasseCompte, JeuNotesAnnexes, Referentiel, TypeCompteDetailTotal } from '@prisma/client';
+import { ClasseCompte, JeuNotesAnnexes, Prisma, Referentiel, TypeCompteDetailTotal } from '@prisma/client';
+import { MODELES_AUDITES } from '../../common/audit/champs-audites';
 import { NoteAnnexeService } from './note-annexe.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
-import { EtatsFinanciersProjetBudgetService } from '../etats-financiers/etats-financiers-projet-budget.service';
+import { AucunPlanABudgetsException, EtatsFinanciersProjetBudgetService } from '../etats-financiers/etats-financiers-projet-budget.service';
 import { EtatsFinanciersService } from '../etats-financiers/etats-financiers.service';
 
 /**
@@ -103,8 +104,20 @@ function prismaAvec(
       findMany: jest.fn().mockResolvedValue(
         saisies.map((s) => ({ valeurTexte: null, valeurNombre: null, ...s })),
       ),
-      upsert: jest.fn().mockImplementation(({ create }: any) => Promise.resolve({ id: 's1', ...create })),
-      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+      // Cellule retrouvée par ses champs · la doublure honore le filtre, pour
+      // que « déjà saisie » et « pas encore saisie » se distinguent.
+      findFirst: jest.fn().mockImplementation(({ where }: any) =>
+        Promise.resolve(
+          saisies.find((c) => c.codeNote === where.codeNote && c.cleRubrique === where.cleRubrique && c.colonne === where.colonne)
+            ? { id: `s-${where.codeNote}-${where.cleRubrique}-${where.colonne}` }
+            : null,
+        ),
+      ),
+      create: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 's1', ...data })),
+      update: jest.fn().mockImplementation(({ where, data }: any) => Promise.resolve({ id: where.id, ...data })),
+      delete: jest.fn().mockImplementation(({ where }: any) => Promise.resolve({ id: where.id })),
+      upsert: jest.fn(),
+      deleteMany: jest.fn(),
     },
     rattachementNote: {
       findMany: jest.fn().mockResolvedValue(rattachements),
@@ -145,7 +158,7 @@ function service(
   // note reste alors en saisie, et c'est le cas de tous les tests qui ne
   // s'intéressent pas au budget.
   budget: { executionBudgetaire: jest.Mock } = {
-    executionBudgetaire: jest.fn().mockRejectedValue(new Error('aucun plan à budgets')),
+    executionBudgetaire: jest.fn().mockRejectedValue(new AucunPlanABudgetsException('aucun plan à budgets')),
   },
   // Bilan, compte de résultat et tableau de flux · la note 33 les résume.
   // Par DÉFAUT ils sont vides : la fiche de synthèse sort alors à zéro, sans
@@ -1111,6 +1124,27 @@ describe('rattachement des comptes du dossier aux rubriques', () => {
     }
   });
 
+  it('un compte rattaché SANS SOLDE reste visible et détachable (audit final F84)', async () => {
+    // Le compte 60420000, rattaché aux combustibles, n'a aucun mouvement · la
+    // ligne était retirée au § 1.4 et l'écran bâtissait sur les comptes
+    // chiffrés la liste qu'on détache · le rattachement erroné ne se
+    // défaisait plus.
+    const s = service(
+      { e1: [ligne('60410000', ClasseCompte.CLASSE_6, 5000, 0)] },
+      [],
+      prismaAvec([
+        { codeNote: '24', cleRubrique: 'matieres-consommables', compte: { numero: '60410000' } },
+        { codeNote: '24', cleRubrique: 'matieres-combustibles', compte: { numero: '60420000' } },
+      ]),
+    );
+    const n24 = note(await s.notesAssociations('t', 'e1'), '24');
+    const l = ligneDe(n24, 'Matières combustibles');
+    expect(l.montantN).toBe(0);
+    expect(l.rattachementDuDossier).toBe(true);
+    expect(l.comptesRattaches).toEqual(['60420000']);
+    expect(ligneDe(n24, 'Matières consommables').comptesRattaches).toEqual(['60410000']);
+  });
+
   it('une fois le compte rattaché, la rubrique se chiffre et cesse d’être en attente', async () => {
     const s = service(
       { e1: [ligne('60410000', ClasseCompte.CLASSE_6, 5000, 0)] },
@@ -1331,11 +1365,75 @@ describe('rubriques en saisie · ce que le dossier écrit lui-même', () => {
   });
 
   it('une valeur vide EFFACE la cellule au lieu de l’enregistrer à blanc', async () => {
-    const prisma = prismaAvec();
+    const prisma = prismaAvec([], [], [], [], Referentiel.SYCEBNL, [
+      { codeNote: '2', cleRubrique: 'a-identite-organisation', colonne: 0, valeurTexte: 'ASBL VMG' },
+    ]);
     const s = service({ e1: [] }, [], prisma);
     expect(await s.enregistrerSaisie('t', 'u', 'e1', JEU_ASSO, '2', 'a-identite-organisation', 0, '   ')).toEqual({ efface: true });
-    expect((prisma as any).saisieNote.deleteMany).toHaveBeenCalled();
-    expect((prisma as any).saisieNote.upsert).not.toHaveBeenCalled();
+    expect((prisma as any).saisieNote.delete).toHaveBeenCalled();
+    expect((prisma as any).saisieNote.create).not.toHaveBeenCalled();
+    expect((prisma as any).saisieNote.update).not.toHaveBeenCalled();
+  });
+
+  describe('F87 · une cellule se retouche par son identifiant, pour que le journal d’audit garde la valeur remplacée', () => {
+    const CELLULE = { codeNote: '2', cleRubrique: 'a-identite-organisation', colonne: 0, valeurTexte: 'ASBL VMG' };
+
+    it('l’effacement vise LA cellule par son identifiant, jamais un deleteMany', async () => {
+      const prisma = prismaAvec([], [], [], [], Referentiel.SYCEBNL, [CELLULE]);
+      const s = service({ e1: [] }, [], prisma);
+      await s.enregistrerSaisie('t', 'u', 'e1', JEU_ASSO, '2', 'a-identite-organisation', 0, '');
+      expect((prisma as any).saisieNote.deleteMany).not.toHaveBeenCalled();
+      expect((prisma as any).saisieNote.delete).toHaveBeenCalledWith({ where: { id: 's-2-a-identite-organisation-0' } });
+    });
+
+    it('effacer une cellule jamais saisie ne supprime rien', async () => {
+      const prisma = prismaAvec();
+      const s = service({ e1: [] }, [], prisma);
+      expect(await s.enregistrerSaisie('t', 'u', 'e1', JEU_ASSO, '2', 'a-identite-organisation', 0, '')).toEqual({ efface: true });
+      expect((prisma as any).saisieNote.delete).not.toHaveBeenCalled();
+    });
+
+    it('une cellule déjà saisie se MODIFIE par son identifiant, jamais par un upsert sur la clé composée', async () => {
+      const prisma = prismaAvec([], [], [], [], Referentiel.SYCEBNL, [CELLULE]);
+      const s = service({ e1: [] }, [], prisma);
+      const r = await s.enregistrerSaisie('t', 'u2', 'e1', JEU_ASSO, '2', 'a-identite-organisation', 0, 'ASBL VMG Kinshasa');
+      expect((prisma as any).saisieNote.upsert).not.toHaveBeenCalled();
+      expect((prisma as any).saisieNote.create).not.toHaveBeenCalled();
+      expect((prisma as any).saisieNote.update).toHaveBeenCalledWith({
+        where: { id: 's-2-a-identite-organisation-0' },
+        data: { valeurTexte: 'ASBL VMG Kinshasa', valeurNombre: null, updatedBy: 'u2' },
+      });
+      expect(r).toMatchObject({ valeurTexte: 'ASBL VMG Kinshasa' });
+    });
+
+    it('la cellule est retrouvée dans SON exercice et SON dossier', async () => {
+      const prisma = prismaAvec();
+      const s = service({ e1: [] }, [], prisma);
+      await s.enregistrerSaisie('t', 'u', 'e1', JEU_ASSO, '2', 'a-identite-organisation', 0, 'x');
+      expect((prisma as any).saisieNote.findFirst.mock.calls[0][0].where).toEqual({
+        tenantId: 't', exerciceId: 'e1', jeu: JEU_ASSO, codeNote: '2', cleRubrique: 'a-identite-organisation', colonne: 0,
+      });
+    });
+
+    it('un second clic qui a créé la cellule entre-temps se rattrape en modification', async () => {
+      const prisma = prismaAvec();
+      const course = new Prisma.PrismaClientKnownRequestError('unique', { code: 'P2002', clientVersion: 'x' });
+      (prisma as any).saisieNote.create = jest.fn().mockRejectedValue(course);
+      (prisma as any).saisieNote.findFirst = jest
+        .fn()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ id: 's-course' });
+      const s = service({ e1: [] }, [], prisma);
+      await s.enregistrerSaisie('t', 'u', 'e1', JEU_ASSO, '2', 'a-identite-organisation', 0, 'x');
+      expect((prisma as any).saisieNote.update).toHaveBeenCalledWith({
+        where: { id: 's-course' },
+        data: { valeurTexte: 'x', valeurNombre: null, updatedBy: 'u' },
+      });
+    });
+
+    it('SaisieNote est au journal d’audit', () => {
+      expect(MODELES_AUDITES.has('SaisieNote')).toBe(true);
+    });
   });
 
   it('CLOISONNEMENT · un dossier SYSCOHADA ne saisit pas dans un jeu SYCEBNL', async () => {
@@ -1412,6 +1510,32 @@ describe('tableau d’exécution budgétaire · la note reprend l’état, elle 
       'TOTAL',
     ]);
     expect(n.lignes.every((l: any) => l.saisieVerrouillee)).toBe(false);
+  });
+
+  it('une RUBRIQUE sort en sous-total, ses feuilles en détail (audit final F86)', async () => {
+    const avecRubrique = {
+      executionBudgetaire: jest.fn().mockResolvedValue({
+        lignes: [
+          { code: 'A', libelle: 'Activités', estRubrique: true, budget: 40_000, decaissement: 10_000, engagement: 1_000, realisation: 11_000, creditDisponible: 29_000, executionPourcent: 27.5 },
+          { ...TABLEAU.lignes[0], estRubrique: false },
+          { ...TABLEAU.lignes[1], estRubrique: false },
+        ],
+        total: TABLEAU.total,
+      }),
+    };
+    const n = note(await service({ e1: [] }, [], prismaAvec(), avecRubrique).notesAssociations('t', 'e1'), '35');
+    expect(n.lignes.map((l: any) => [l.libelle, l.estTotal])).toEqual([
+      ['A · Activités', true],
+      ['A1 · Formation des animateurs', false],
+      ['A2 · Équipement', false],
+      ['TOTAL', true],
+    ]);
+  });
+
+  it('une AUTRE panne du calcul remonte, elle ne passe pas pour « aucun plan » (audit final F83)', async () => {
+    const enPanne = { executionBudgetaire: jest.fn().mockRejectedValue(new Error('connexion perdue')) };
+    const s = service({ e1: [] }, [], prismaAvec(), enPanne);
+    await expect(s.notesAssociations('t', 'e1')).rejects.toThrow('connexion perdue');
   });
 
   it('un tableau entièrement à zéro ne rend PAS la note applicable', async () => {

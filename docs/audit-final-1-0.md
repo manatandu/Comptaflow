@@ -630,18 +630,21 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** une réimpression de N inclut N+1, contrairement au tableau emplois ressources de la même liasse.
 - **Correction :** borner comme `balanceCumulee`.
+- **Fait le 2026-09-27 :** couvert par F12 · la note 9 lit le cumul du projet par `balanceCumulee`, bornée aux exercices qui commencent au plus tard avec celui demandé (`ecriture.service.ts`). Tests : `balance-cumulee.spec.ts` (« s'arrête à l'exercice demandé »), `etats-financiers-projet.service.spec.ts`.
 
 **F83 · Erreur avalée : toute panne du tableau budgétaire devient « aucun plan à budgets »** [notes-03, exp-02]
 - **Emplacements :** src/modules/notes-annexes/note-annexe.service.ts:1050-1055 · src/modules/exports/export.service.ts:4296-4308
 - **Condition :** 3
 - **Constat :** les deux `catch` nus remplacent toute erreur par le repli voulu. La note ou la grille vierge sort avec un motif faux.
 - **Correction :** n'attraper que `NotFoundException`.
+- **Fait le 2026-09-27 :** une exception propre, `AucunPlanABudgetsException`, et les deux `catch` ne rattrapent qu'elle · `NotFoundException` seul aurait aussi rattrapé un exercice introuvable. Tests : `note-annexe.service.spec.ts`, `liasse-etafi.spec.ts` (la panne ne frappe que la feuille, vu à la réinjection).
 
 **F84 · Un compte rattaché sans solde devient invisible et impossible à détacher** [notes-04]
 - **Emplacements :** src/modules/notes-annexes/note-annexe.service.ts:601, :660-683 · client/src/components/NotesAnnexesRendu.tsx:230, :298-323
 - **Condition :** 4
 - **Constat :** la ligne non chiffrée est retirée et le bouton ✕ se bâtit sur les comptes mouvementés. Un rattachement erroné ne se défait plus.
 - **Correction :** rendre les rattachements à part et bâtir la liste détachable dessus.
+- **Fait le 2026-09-27 :** la ligne porte `comptesRattaches`, la ligne rattachée n'est plus retirée, et le bouton de détachement parcourt ces numéros (`note-annexe.service.ts`, `NotesAnnexesRendu.tsx`). Tests : `note-annexe.service.spec.ts`, `notes-rattachements.spec.ts`.
 
 **F85 · Note 2 des SMT : « OmegaX ne tient pas d'inventaire physique », lacune déclarée à tort** [etats-06, efsy-02]
 - **Emplacements :** src/modules/etats-financiers/etats-financiers-smt.service.ts:627-652 · client/src/pages/EtatsSmtPage.tsx:521 · src/modules/etats-financiers-syscohada/etats-financiers-smt-syscohada.service.ts:1020, :1058 · client/src/pages/EtatsSmtSyscohadaPage.tsx:842
@@ -654,12 +657,14 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 5
 - **Constat :** `estTotal` est faux partout et `estRubrique` n'est pas lu : additionner la colonne compte chaque dépense deux fois.
 - **Correction :** `estTotal: l.estRubrique` et un rendu distinct.
+- **Fait le 2026-09-27 :** `estTotal: l.estRubrique` dans la note, et la ligne de rubrique en gras sur l'écran des états (`EtatsFinanciersPage.tsx`). Tests : `note-annexe.service.spec.ts`, `notes-rattachements.spec.ts`.
 
 **F87 · Notes d'un exercice clos : saisies réécrites ou effacées sans trace** [notes-06]
 - **Emplacements :** src/modules/notes-annexes/note-annexe.service.ts:912-957 · src/common/audit/champs-audites.ts:275 · note-annexe.controller.ts:94-97
 - **Condition :** 3
 - **Constat :** `deleteMany` ou `upsert` sans lecture du statut, et `SaisieNote` est exclu de l'audit. La valeur antérieure est perdue.
 - **Correction :** journaliser SaisieNote (ou refuser sur un exercice clos) et corriger le commentaire du rattachement.
+- **Fait le 2026-09-27 :** journalisée, sans refus · une note se complète après la clôture du logiciel. `SaisieNote` entre à `MODELES_AUDITES`, et la cellule se retouche par son IDENTIFIANT (lue, puis modifiée, créée ou effacée) · un `deleteMany` ou un `upsert` sur la clé composée ne laissaient au journal aucun état antérieur. Commentaire corrigé · un rattachement n'est pas daté, il change la note de tous les exercices, clos compris. Tests : `note-annexe.service.spec.ts`, `classement-modeles.spec.ts`, `restitution.spec.ts`.
 
 **F88 · Éligibilité SMT SYSCOHADA : verdict coloré qui compare des francs congolais à des F CFA** [efsy-03]
 - **Emplacements :** src/modules/etats-financiers-syscohada/etats-financiers-smt-syscohada.service.ts:1439 · client/src/pages/EtatsSmtSyscohadaPage.tsx:1028

@@ -51,6 +51,16 @@ export interface LigneExecutionBudgetaire {
  */
 const COMPTES_ENGAGEMENT = ['40', '481'];
 
+/**
+ * LE SEUL REFUS QUI APPELLE LE REPLI « EN SAISIE » (audit final F83) · le
+ * dossier n'a aucun plan analytique à budgets, et n'a donc rien à exécuter.
+ * La note 35 (24) et la liasse attrapaient TOUTE erreur pour se replier ·
+ * une panne du calcul sortait une note vierge, et une grille à remplir,
+ * sous le motif « aucun plan à budgets », qui était faux. Une classe
+ * nommée, pour qu'aucun autre 404 ne passe pour celui-là.
+ */
+export class AucunPlanABudgetsException extends NotFoundException {}
+
 @Injectable()
 export class EtatsFinanciersProjetBudgetService {
   constructor(
@@ -133,7 +143,7 @@ export class EtatsFinanciersProjetBudgetService {
           orderBy: { ordre: 'asc' },
         });
     if (!plan) {
-      throw new NotFoundException(
+      throw new AucunPlanABudgetsException(
         "Aucun plan analytique à budgets n'est défini pour ce dossier. Le tableau d'exécution budgétaire suit la nomenclature budgétaire du projet : créez un plan analytique et ses sections avant de l'établir.",
       );
     }

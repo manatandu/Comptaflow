@@ -98,10 +98,11 @@ export class NoteAnnexeController {
    * raison · le cloisonnement se fait dans le service, sur le couple
    * (référentiel du dossier, jeu demandé).
    *
-   * Le COMPTABLE y a accès, à la différence du rattachement : rattacher un
-   * compte à une rubrique engage la lecture du plan de comptes pour tous les
-   * exercices à venir, alors qu'écrire un effectif ou un engagement dans la
-   * note de l'exercice est un acte de tenue, comme passer une écriture.
+   * Le COMPTABLE y a accès, à la différence du rattachement : un rattachement
+   * n'est pas daté, il change la note de TOUS les exercices du dossier, clos
+   * compris, alors qu'écrire un effectif ou un engagement dans la note d'un
+   * exercice est un acte de tenue, comme passer une écriture. L'une et
+   * l'autre sont au journal d'audit, qui garde la valeur remplacée.
    */
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post('saisies')

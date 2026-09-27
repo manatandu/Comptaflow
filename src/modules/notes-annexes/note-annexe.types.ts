@@ -246,6 +246,13 @@ export interface LigneNoteCalculee {
   /** Comptes rattachés par le dossier (et non déduits du plan normalisé). */
   rattachementDuDossier?: boolean;
   /**
+   * LES NUMÉROS RATTACHÉS, soldés ou non (audit final F84) · `comptes` ne
+   * porte que les comptes que la balance chiffre. Un rattachement sur un
+   * compte sans solde n'y figurait pas, et l'écran bâtissait sur `comptes` la
+   * liste qu'on détache · un rattachement erroné ne se défaisait plus.
+   */
+  comptesRattaches?: string[];
+  /**
    * Valeurs des colonnes que les quatre champs ci-dessus ne portent pas ·
    * `OUVERTURE`, `AUGMENTATIONS`, `DIMINUTIONS`, `CLOTURE`. Renseignée
    * uniquement pour les colonnes que la note déclare.

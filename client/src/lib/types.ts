@@ -1007,6 +1007,8 @@ export interface LigneNoteCalculee {
   estTotal: boolean;
   enAttenteDeRattachement?: string;
   rattachementDuDossier?: boolean;
+  /** Numéros rattachés par le dossier, soldés ou non · la liste qu'on détache (audit final F84). */
+  comptesRattaches?: string[];
   valeurs?: Partial<Record<TypeColonneNote, number>>;
   ecartCloture?: number;
   echeanceNonVentilee?: number;
@@ -2149,6 +2151,8 @@ export interface TableauEmploisRessources {
 export interface LigneExecutionBudgetaire {
   code: string;
   libelle: string;
+  /** Vrai pour une RUBRIQUE · sous-total de ses feuilles, jamais une ligne de plus (audit final F86). */
+  estRubrique: boolean;
   budget: number;
   decaissement: number;
   /**

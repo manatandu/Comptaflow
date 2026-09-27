@@ -152,6 +152,12 @@ export const MODELES_AUDITES = new Set<string>([
   // Le rattachement d'un compte à une rubrique de note change ce que la Note
   // annexe publie, sans qu'aucune écriture ne bouge.
   'RattachementNote',
+  // Une cellule saisie d'une note annexe (engagements, effectifs, événements
+  // postérieurs) se réécrit ou s'efface, y compris sur un exercice clos dont
+  // la liasse est déposée · seul le journal garde la valeur remplacée (audit
+  // final F87). Le service la retouche par son identifiant pour que l'état
+  // antérieur soit lu.
+  'SaisieNote',
   // Les registres du bailleur · un montant accordé, une tranche déclarée
   // encaissée ou un rapport daté transmis après coup changent ce que le
   // bailleur lira, et rien d'autre n'en garde la trace. Idem de l'engagement
@@ -272,7 +278,6 @@ export const NON_AUDITES_MOTIVES: Readonly<Record<string, string>> = {
   LigneBalanceConsolidation: "Balance de filiale importée en masse · l'entité porte la date et le nom du fichier importé.",
   Relance:
     "Historique des rappels, émis par lots et figé à l'émission · chaque ligne est elle-même la trace (date, auteur, montant).",
-  SaisieNote: 'Cellules des notes saisies une à une, chacune portant son auteur et sa date de retouche.',
   CoursDevise:
     "Cours du jour saisi en série · toute conversion fige le cours qu'elle applique (ligne d'écriture, bulletin, facture d'abonnement).",
   // ── Calculé par le logiciel, avec une écriture journalisée qu'il retient

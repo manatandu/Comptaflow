@@ -299,16 +299,19 @@ export function BlocTableauNote({
             <div key={l.cle} className="mb-2 text-[11.5px]">
               <span className="font-semibold">{l.libelle}</span>
               <div className="flex flex-wrap gap-1.5 mt-1">
-                {l.comptes.map((c) => (
+                {/* Bâtie sur les RATTACHEMENTS, pas sur les comptes chiffrés ·
+                    un compte rattaché sans solde doit pouvoir se détacher
+                    (audit final F84). */}
+                {(l.comptesRattaches ?? []).map((numero) => (
                   <span
-                    key={c.numero}
+                    key={numero}
                     className="inline-flex items-center gap-1.5 border border-border bg-surface px-2 py-0.5 font-mono text-[11px]"
                   >
-                    {c.numero} · {c.intitule}
+                    {numero} · {compteParNumero.get(numero)?.intitule ?? ''}
                     {estAdmin && (
                       <button
                         onClick={() => {
-                          const compte = compteParNumero.get(c.numero);
+                          const compte = compteParNumero.get(numero);
                           if (compte) detacher(note.code, l.cle!, compte.id);
                         }}
                         disabled={enCours !== null}

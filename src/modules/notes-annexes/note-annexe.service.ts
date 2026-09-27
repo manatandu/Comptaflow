@@ -1,9 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { JeuNotesAnnexes, Referentiel, StatutEcriture } from '@prisma/client';
+import { JeuNotesAnnexes, Prisma, Referentiel, StatutEcriture } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
-import { EtatsFinanciersProjetBudgetService } from '../etats-financiers/etats-financiers-projet-budget.service';
+import { AucunPlanABudgetsException, EtatsFinanciersProjetBudgetService } from '../etats-financiers/etats-financiers-projet-budget.service';
 import { EtatsFinanciersService } from '../etats-financiers/etats-financiers.service';
 import {
   INDICATEURS_LAISSES_EN_SAISIE,
@@ -572,7 +572,8 @@ export class NoteAnnexeService {
 
       // Une rubrique en attente cesse de l'être dès qu'un compte du dossier
       // lui est rattaché : elle est alors chiffrée comme les autres.
-      const rattachee = (rattachements.get(`${spec.code}::${rubrique.cle}`) ?? []).length > 0;
+      const numerosRattaches = rattachements.get(`${spec.code}::${rubrique.cle}`) ?? [];
+      const rattachee = numerosRattaches.length > 0;
       // Les colonnes A/B/C/D ne sont calculées que si la note les déclare :
       // les 38 notes qui n'en ont pas ne portent pas de champ vide.
       const mouvements = aColonnesDeMouvement ? this.colonnesDeMouvement(spec, resN[i]) : undefined;
@@ -609,6 +610,7 @@ export class NoteAnnexeService {
         estTotal: rubrique.totalDeRubriques !== undefined,
         enAttenteDeRattachement: rattachee ? undefined : rubrique.subdivisionAttendue,
         rattachementDuDossier: rattachee || undefined,
+        comptesRattaches: rattachee ? numerosRattaches : undefined,
         valeurs:
           mouvements || echeances || variationAbsolue || ventilees
             ? { ...mouvements?.valeurs, ...echeances, ...variationAbsolue, ...ventilees }
@@ -635,7 +637,9 @@ export class NoteAnnexeService {
 
     // § 1.4 : les lignes non chiffrées ne sont pas présentées. Une ligne en
     // attente de rattachement est CONSERVÉE même à zéro : son absence de
-    // montant est une information à porter, pas un vide à masquer.
+    // montant est une information à porter, pas un vide à masquer. Une ligne
+    // RATTACHÉE par le dossier l'est aussi (audit final F84) · retirée, elle
+    // emportait le seul endroit d'où son rattachement se défait.
     // Une rubrique est « chiffrée » dès qu'UNE de ses colonnes l'est. Sans
     // cela, un poste entré et sorti dans l'exercice (ouverture 0, acquisition
     // 500, cession 500, clôture 0) disparaîtrait des notes 5A-5F alors que
@@ -670,7 +674,9 @@ export class NoteAnnexeService {
       ? enSaisie
       : spec.horsBalance
         ? toutes
-        : toutes.filter((l) => l.saisie !== undefined || chiffree(l) || l.estTotal || l.enAttenteDeRattachement);
+        : toutes.filter(
+            (l) => l.saisie !== undefined || chiffree(l) || l.estTotal || l.enAttenteDeRattachement || l.rattachementDuDossier,
+          );
 
     return {
       code: spec.code,
@@ -939,10 +945,14 @@ export class NoteAnnexeService {
     if (!exercice) throw new NotFoundException('Exercice introuvable pour ce dossier.');
     const { colonneSpec } = this.celluleSaisissable(jeu, codeNote, cleRubrique, colonne);
 
-    const ou = { tenantId_exerciceId_jeu_codeNote_cleRubrique_colonne: { tenantId, exerciceId, jeu, codeNote, cleRubrique, colonne } };
+    const cle = { tenantId, exerciceId, jeu, codeNote, cleRubrique, colonne };
     const vide = valeur === null || valeur === undefined || (typeof valeur === 'string' && valeur.trim() === '');
     if (vide) {
-      await this.prisma.saisieNote.deleteMany({ where: { tenantId, exerciceId, jeu, codeNote, cleRubrique, colonne } });
+      // Effacée PAR SON IDENTIFIANT, jamais en masse · le journal d'audit ne
+      // lit l'état antérieur que d'une opération qui désigne une ligne, et un
+      // `deleteMany` perdait la valeur effacée (audit final F87).
+      const existante = await this.prisma.saisieNote.findFirst({ where: cle, select: { id: true } });
+      if (existante) await this.prisma.saisieNote.delete({ where: { id: existante.id } });
       return { efface: true };
     }
 
@@ -957,18 +967,34 @@ export class NoteAnnexeService {
           `La colonne « ${colonneSpec.libelle} » de la note ${codeNote} attend un montant · « ${valeur} » n'en est pas un.`,
         );
       }
-      return this.prisma.saisieNote.upsert({
-        where: ou,
-        create: { tenantId, exerciceId, jeu, codeNote, cleRubrique, colonne, valeurNombre: nombre, updatedBy: userId },
-        update: { valeurNombre: nombre, valeurTexte: null, updatedBy: userId },
-      });
+      return this.ecrireCellule(cle, { valeurNombre: nombre, valeurTexte: null, updatedBy: userId });
     }
-    const texte = String(valeur);
-    return this.prisma.saisieNote.upsert({
-      where: ou,
-      create: { tenantId, exerciceId, jeu, codeNote, cleRubrique, colonne, valeurTexte: texte, updatedBy: userId },
-      update: { valeurTexte: texte, valeurNombre: null, updatedBy: userId },
-    });
+    return this.ecrireCellule(cle, { valeurTexte: String(valeur), valeurNombre: null, updatedBy: userId });
+  }
+
+  /**
+   * UNE CELLULE SE RÉÉCRIT PAR SON IDENTIFIANT (audit final F87). Un `upsert`
+   * sur la clé composée donnait au journal d'audit un filtre que sa lecture de
+   * l'état antérieur ne sait pas lire · la valeur remplacée était perdue, y
+   * compris sur la note d'un exercice clos, déjà déposée. Relue par ses
+   * champs, puis modifiée ou créée par son identifiant, elle laisse les deux
+   * états au journal. Un second clic qui crée la même cellule entre les deux
+   * se rattrape par la contrainte d'unicité, en modification.
+   */
+  private async ecrireCellule(
+    cle: { tenantId: string; exerciceId: string; jeu: JeuNotesAnnexes; codeNote: string; cleRubrique: string; colonne: number },
+    donnees: { valeurTexte: string | null; valeurNombre: number | null; updatedBy: string },
+  ) {
+    const existante = await this.prisma.saisieNote.findFirst({ where: cle, select: { id: true } });
+    if (existante) return this.prisma.saisieNote.update({ where: { id: existante.id }, data: donnees });
+    try {
+      return await this.prisma.saisieNote.create({ data: { ...cle, ...donnees } });
+    } catch (e) {
+      if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002')) throw e;
+      const creee = await this.prisma.saisieNote.findFirst({ where: cle, select: { id: true } });
+      if (!creee) throw e;
+      return this.prisma.saisieNote.update({ where: { id: creee.id }, data: donnees });
+    }
   }
 
   /**
@@ -1065,8 +1091,11 @@ export class NoteAnnexeService {
     let tableau: Awaited<ReturnType<EtatsFinanciersProjetBudgetService['executionBudgetaire']>>;
     try {
       tableau = await this.budgetService.executionBudgetaire(tenantId, exerciceId);
-    } catch {
-      return;
+    } catch (e) {
+      // Sans plan à budgets, la note reste en saisie · repli VOULU. Toute
+      // autre erreur remonte (audit final F83).
+      if (e instanceof AucunPlanABudgetsException) return;
+      throw e;
     }
 
     const cellules = (l: {
@@ -1092,7 +1121,10 @@ export class NoteAnnexeService {
     const lignes: LigneNoteCalculee[] = tableau.lignes.map((l) => ({
       libelle: `${l.code} · ${l.libelle}`,
       montantN: 0,
-      estTotal: false,
+      // Une RUBRIQUE est un sous-total de ses feuilles (audit final F86) ·
+      // marquée comme une ligne de détail, la note additionnée à la main, à
+      // l'écran ou dans la liasse, comptait chaque dépense deux fois.
+      estTotal: l.estRubrique,
       comptes: [],
       saisie: cellules(l),
       saisieVerrouillee: true,

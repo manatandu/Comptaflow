@@ -19,7 +19,7 @@ import { TestEcrituresJournalService } from '../controles/test-ecritures-journal
 import { EtatsFinanciersService, PosteCalcule } from '../etats-financiers/etats-financiers.service';
 import { EtatsFinanciersProjetService } from '../etats-financiers/etats-financiers-projet.service';
 import { EtatsFinanciersSmtService } from '../etats-financiers/etats-financiers-smt.service';
-import { EtatsFinanciersProjetBudgetService } from '../etats-financiers/etats-financiers-projet-budget.service';
+import { AucunPlanABudgetsException, EtatsFinanciersProjetBudgetService } from '../etats-financiers/etats-financiers-projet-budget.service';
 import { NoteAnnexeService } from '../notes-annexes/note-annexe.service';
 import { EtatsFinanciersSyscohadaService } from '../etats-financiers-syscohada/etats-financiers-syscohada.service';
 import { EtatsFinanciersSmtSyscohadaService } from '../etats-financiers-syscohada/etats-financiers-smt-syscohada.service';
@@ -4345,9 +4345,12 @@ export class ExportService {
     try {
       const eb = await this.etatsFinanciersProjetBudgetService.executionBudgetaire(tenantId, exerciceId);
       this.feuilleExecutionBudgetaireEtafi(classeur, eb, ident);
-    } catch {
+    } catch (e) {
       // Pas de plan analytique à budgets : la grille du modèle, à remplir ·
       // la liasse ne peut pas échouer pour un tableau à saisie manuelle.
+      // Toute AUTRE erreur remonte (audit final F83) · la grille vierge
+      // sortait sous un motif faux quand le calcul tombait.
+      if (!(e instanceof AucunPlanABudgetsException)) throw e;
       this.feuilleExecutionBudgetaireVierge(
         classeur,
         ident,
