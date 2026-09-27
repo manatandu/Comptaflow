@@ -493,6 +493,25 @@ export function ParametresDossierPage() {
     }
   };
 
+  /**
+   * Mode de tenue des stocks · la route existait, aucun écran ne la posait,
+   * si bien que la fenêtre Variation de stocks renvoyait à un réglage
+   * introuvable. Même parti que les cotisations : aucune valeur préposée.
+   */
+  const changerMethodeInventaireStocks = async (methodeInventaireStocks: 'PERMANENT' | 'INTERMITTENT') => {
+    setErreur(null);
+    setEnvoi(true);
+    try {
+      setParams(
+        await api.patch<ParametresDossier>('/dossier/methode-inventaire-stocks', { methodeInventaireStocks }),
+      );
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Enregistrement impossible');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
   const enregistrerCoordonnees = async (e: FormEvent) => {
     e.preventDefault();
     // Contrôle posé ici plutôt que laissé au DTO : le refus de
@@ -1256,6 +1275,31 @@ export function ParametresDossierPage() {
                     }}
                     className="mt-1 w-64 border border-border rounded-[4px] bg-bg px-2 py-1 text-[11.5px] focus:outline-none focus:border-sel"
                   />
+                </label>
+
+                {/* STOCKS · les deux référentiels posent le même choix. */}
+                <label className="block text-[11.5px]">
+                  Tenue des stocks{' '}
+                  <Aide
+                    titre="Tenue des stocks"
+                    texte="« La comptabilisation des stocks repose sur la tenue soit d’un inventaire permanent, soit d’un inventaire intermittent. » En intermittent, la variation de stocks se passe à la clôture ; en permanent, chaque entrée et chaque sortie passent déjà par le compte de variation, et la proposer à nouveau la compterait deux fois. Aucune valeur n’est présumée."
+                    source="AUDCIF Titre VII ch. 3, section 3 · SYCEBNL Partie 2 ch. 3, section 3"
+                  />
+                  <select
+                    value={params.methodeInventaireStocks ?? ''}
+                    disabled={!estAdmin || envoi}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === 'PERMANENT' || v === 'INTERMITTENT') changerMethodeInventaireStocks(v);
+                    }}
+                    className="mt-1 block w-full max-w-[420px] border border-border rounded-[4px] bg-bg px-2 py-1 text-[11.5px] focus:outline-none focus:border-sel"
+                  >
+                    <option value="" disabled>
+                      Non déclarée
+                    </option>
+                    <option value="PERMANENT">Inventaire permanent</option>
+                    <option value="INTERMITTENT">Inventaire intermittent</option>
+                  </select>
                 </label>
 
                 {/* COTISATIONS · propre au jeu associations et ordres

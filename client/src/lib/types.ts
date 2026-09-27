@@ -1441,6 +1441,12 @@ export interface ParametresDossier {
    * objet pour un projet de développement ou un dossier SYSCOHADA.
    */
   methodeCotisations: 'APPEL' | 'ENCAISSEMENT' | null;
+  /**
+   * Mode de tenue des stocks, les deux référentiels · `null` = pas encore
+   * déclaré. Aucun défaut : présumer l'intermittent ferait compter deux fois
+   * la variation d'un dossier qui tient le permanent.
+   */
+  methodeInventaireStocks: 'PERMANENT' | 'INTERMITTENT' | null;
   /** Au-delà de zéro, le jeu d'états financiers est verrouillé. */
   nombreEcritures: number;
   /**
