@@ -70,8 +70,15 @@ réservée sur le réseau du bureau, et un onduleur (une coupure pendant une
    se télécharge aussitôt, et reste retéléchargeable depuis la liste.
 5. Déposer le fichier depuis l'écran d'ouverture. Il est vérifié sur place,
    puis rangé dans `C:\ProgramData\OmegaX\licence.omegax`.
-6. Créer le premier dossier. Son administrateur crée ensuite les autres
-   utilisateurs depuis la fenêtre Utilisateurs.
+6. Créer le premier dossier depuis l'écran d'ouverture. C'est le **dossier
+   d'installation** · l'écran d'ouverture ne propose la création qu'au poste
+   sans dossier, et le serveur refuse ensuite l'inscription. Son
+   administrateur crée les autres utilisateurs (fenêtre Utilisateurs) et, si
+   la licence en couvre plusieurs, les dossiers suivants (fenêtre
+   Restitution, « Créer un dossier sur cette installation »). Les
+   sauvegardes lui sont réservées · une copie est la base de TOUS les
+   dossiers du poste, et l'administrateur d'un autre dossier n'a aucun droit
+   sur celles de ses voisins.
 
 ## 4. Ce que la licence contrôle
 
@@ -92,10 +99,25 @@ Une copie de la base par jour, tentée chaque heure tant que le poste est
 allumé, dans `C:\ProgramData\OmegaX\sauvegardes` (30 copies gardées). Une
 copie part aussi avant chaque mise à jour, avant les migrations. Ces copies
 sont SUR LE MÊME DISQUE · une panne de disque emporterait tout. D'où la
-**copie hors du poste** : dans Restitution, l'administrateur désigne un
-dossier sur un disque USB ou un partage réseau, et chaque sauvegarde y est
-recopiée (même nombre de copies gardées). L'écran alerte tant qu'aucune
-copie externe n'existe, qu'elle a échoué ou qu'elle est en retard.
+**copie hors du poste** : dans Restitution, l'administrateur du dossier
+d'installation désigne un dossier sur un disque USB ou un partage réseau et
+choisit une **phrase de chiffrement** (douze caractères au moins), et chaque
+sauvegarde y est recopiée CHIFFRÉE (`omegax-AAAAMMJJ-HHMMSS.dump.chiffre`,
+même nombre de copies gardées). La phrase n'est rangée nulle part en clair ·
+c'est elle seule qui relira la copie si le disque du poste lâche, et perdue,
+la copie externe est illisible. Les copies en clair qu'une version
+antérieure avait déposées dans ce dossier en sont retirées. L'écran alerte
+tant qu'aucune copie externe n'existe, qu'elle a échoué ou qu'elle est en
+retard.
+
+Remettre en clair une copie externe (sur le poste réinstallé) · la phrase est
+demandée au clavier :
+
+```bat
+"C:\Program Files\OmegaX\node\node.exe" "C:\Program Files\OmegaX\serveur\dechiffrer-sauvegarde.cjs" E:\SauvegardesOmegaX\omegax-AAAAMMJJ-HHMMSS.dump.chiffre
+```
+
+Le fichier `.dump` obtenu se restaure comme une copie locale.
 
 Restaurer une copie (poste serveur, invite de commandes administrateur) :
 

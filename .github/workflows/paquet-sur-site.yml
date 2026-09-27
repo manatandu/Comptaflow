@@ -75,6 +75,7 @@ jobs:
           Copy-Item package-lock.json $S
           Copy-Item -Recurse dist, prisma $S
           Copy-Item installation/demarrer.cjs $S
+          Copy-Item installation/dechiffrer-sauvegarde.cjs $S
           @{ date = '${{ steps.version.outputs.date }}'; commit = '${{ steps.version.outputs.commit }}' } | ConvertTo-Json | Set-Content "$S/version-sur-site.json" -Encoding utf8NoBOM
           Push-Location $S
           # Les scripts d'installation restent actifs · c'est eux qui déposent

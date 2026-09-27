@@ -3,6 +3,7 @@ import { AuthService } from '../auth/auth.service';
 import { OPTIONS_COOKIE_SESSION, optionsCookieSession } from '../auth/session.constants';
 import { entetesInterface, POLITIQUE_INTERFACE } from './interface-sur-site';
 import { copiesARetirer, nomSauvegarde, parametresConnexion, SauvegardeSurSiteService } from './sauvegarde-sur-site.service';
+import { dechiffrerFichier } from './chiffrement-sauvegarde';
 
 describe('sur site · le cookie de session change de régime', () => {
   it('en ligne, Secure et SameSite=None, inchangés', () => {
@@ -118,36 +119,91 @@ describe('sur site · la copie des sauvegardes hors du poste', () => {
     return { s, externe, donnees, poser, racine };
   };
 
-  it('désigner le dossier y recopie aussitôt la dernière sauvegarde, et chaque suivante', () => {
+  const PHRASE = 'une phrase assez longue';
+
+  it('désigner le dossier y recopie aussitôt la dernière sauvegarde, chiffrée, et chaque suivante', async () => {
     const m = monter();
     m.poser('omegax-20260101-010101.dump');
-    const e = m.s.definirCopieExterne(m.externe);
-    expect(e).toMatchObject({ dossier: m.externe, derniere: 'omegax-20260101-010101.dump', erreur: null });
-    expect(fs.existsSync(join(m.externe, 'omegax-20260101-010101.dump'))).toBe(true);
+    const e = await m.s.definirCopieExterne(m.externe, PHRASE);
+    expect(e).toMatchObject({ dossier: m.externe, derniere: 'omegax-20260101-010101.dump', erreur: null, chiffree: true });
+    expect(fs.existsSync(join(m.externe, 'omegax-20260101-010101.dump.chiffre'))).toBe(true);
     for (const n of ['omegax-20260102-010101.dump', 'omegax-20260103-010101.dump']) {
       m.poser(n);
-      m.s.recopier(n);
+      await m.s.recopier(n);
     }
     // Le même nombre de copies qu'en local · jamais une accumulation sans fin.
-    expect(fs.readdirSync(m.externe).sort()).toEqual(['omegax-20260102-010101.dump', 'omegax-20260103-010101.dump']);
+    expect(fs.readdirSync(m.externe).sort()).toEqual(['omegax-20260102-010101.dump.chiffre', 'omegax-20260103-010101.dump.chiffre']);
     fs.rmSync(m.racine, { recursive: true, force: true });
   });
 
-  it('un dossier introuvable, relatif ou égal au dossier local est refusé', () => {
+  it('la copie externe ne porte pas la base en clair, et la phrase la relit', async () => {
     const m = monter();
-    expect(() => m.s.definirCopieExterne(join(m.racine, 'absent'))).toThrow(/introuvable/);
-    expect(() => m.s.definirCopieExterne('usb')).toThrow(/chemin complet/);
-    expect(() => m.s.definirCopieExterne(join(m.donnees, 'sauvegardes'))).toThrow(/ailleurs/);
+    const contenu = 'PGDMP base entière · dossier Alpha, dossier Beta';
+    fs.writeFileSync(join(m.donnees, 'sauvegardes', 'omegax-20260101-010101.dump'), contenu);
+    await m.s.definirCopieExterne(m.externe, PHRASE);
+    const chiffre = fs.readFileSync(join(m.externe, 'omegax-20260101-010101.dump.chiffre'));
+    expect(chiffre.subarray(0, 8).toString('ascii')).toBe('OMXSAV01');
+    expect(chiffre.includes(Buffer.from('dossier Alpha'))).toBe(false);
+    const sortie = join(m.racine, 'relue.dump');
+    await dechiffrerFichier(join(m.externe, 'omegax-20260101-010101.dump.chiffre'), sortie, PHRASE);
+    expect(fs.readFileSync(sortie, 'utf8')).toBe(contenu);
+    await expect(dechiffrerFichier(join(m.externe, 'omegax-20260101-010101.dump.chiffre'), join(m.racine, 'x.dump'), 'une autre phrase longue')).rejects.toThrow(/fausse/);
+    expect(fs.existsSync(join(m.racine, 'x.dump'))).toBe(false);
+    expect(fs.existsSync(join(m.racine, 'x.dump.partiel'))).toBe(false);
     fs.rmSync(m.racine, { recursive: true, force: true });
   });
 
-  it('une recopie qui échoue est notée, jamais tue, et la sauvegarde locale reste', () => {
+  it('la clé dérivée ne sort jamais par l’état rendu aux écrans', async () => {
+    const m = monter();
+    await m.s.definirCopieExterne(m.externe, PHRASE);
+    const e = m.s.copieExterne() as unknown as Record<string, unknown>;
+    expect(Object.keys(e).sort()).toEqual(['chiffree', 'derniere', 'dossier', 'erreur', 'le']);
+    fs.rmSync(m.racine, { recursive: true, force: true });
+  });
+
+  it('sans phrase, ou avec une phrase trop courte, le dossier est refusé', async () => {
+    const m = monter();
+    await expect(m.s.definirCopieExterne(m.externe)).rejects.toThrow(/au moins 12/);
+    await expect(m.s.definirCopieExterne(m.externe, 'courte')).rejects.toThrow(/au moins 12/);
+    expect(m.s.copieExterne().dossier).toBeNull();
+    fs.rmSync(m.racine, { recursive: true, force: true });
+  });
+
+  it('un réglage d’avant le chiffrement n’envoie plus rien en clair, et le dit', async () => {
+    const m = monter();
+    fs.writeFileSync(join(m.donnees, 'sauvegarde-externe.json'), JSON.stringify({ dossier: m.externe, derniere: null, le: null, erreur: null }));
+    m.poser('omegax-20260101-010101.dump');
+    await m.s.recopier('omegax-20260101-010101.dump');
+    expect(fs.readdirSync(m.externe)).toEqual([]);
+    expect(m.s.copieExterne()).toMatchObject({ chiffree: false, erreur: expect.stringMatching(/non chiffrée refusée/) });
+    fs.rmSync(m.racine, { recursive: true, force: true });
+  });
+
+  it('les copies en clair déposées avant le chiffrement sont retirées du dossier externe', async () => {
+    const m = monter();
+    fs.writeFileSync(join(m.externe, 'omegax-20251231-010101.dump'), 'en clair');
+    fs.writeFileSync(join(m.externe, 'notes.txt'), 'pas à OmegaX');
+    m.poser('omegax-20260101-010101.dump');
+    await m.s.definirCopieExterne(m.externe, PHRASE);
+    expect(fs.readdirSync(m.externe).sort()).toEqual(['notes.txt', 'omegax-20260101-010101.dump.chiffre']);
+    fs.rmSync(m.racine, { recursive: true, force: true });
+  });
+
+  it('un dossier introuvable, relatif ou égal au dossier local est refusé', async () => {
+    const m = monter();
+    await expect(m.s.definirCopieExterne(join(m.racine, 'absent'), PHRASE)).rejects.toThrow(/introuvable/);
+    await expect(m.s.definirCopieExterne('usb', PHRASE)).rejects.toThrow(/chemin complet/);
+    await expect(m.s.definirCopieExterne(join(m.donnees, 'sauvegardes'), PHRASE)).rejects.toThrow(/ailleurs/);
+    fs.rmSync(m.racine, { recursive: true, force: true });
+  });
+
+  it('une recopie qui échoue est notée, jamais tue, et la sauvegarde locale reste', async () => {
     const m = monter();
     m.poser('omegax-20260101-010101.dump');
-    m.s.definirCopieExterne(m.externe);
+    await m.s.definirCopieExterne(m.externe, PHRASE);
     fs.rmSync(m.externe, { recursive: true, force: true });
     m.poser('omegax-20260102-010101.dump');
-    expect(() => m.s.recopier('omegax-20260102-010101.dump')).not.toThrow();
+    await expect(m.s.recopier('omegax-20260102-010101.dump')).resolves.toBeUndefined();
     const e = m.s.copieExterne();
     expect(e.erreur).toMatch(/ENOENT|no such file/);
     expect(e.derniere).toBe('omegax-20260101-010101.dump');
@@ -159,7 +215,7 @@ describe('sur site · la sauvegarde appelle la recopie', () => {
   it('chaque sauvegarde écrite est recopiée hors du poste', () => {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const src = require('fs').readFileSync(require('path').join(__dirname, 'sauvegarde-sur-site.service.ts'), 'utf8') as string;
-    const corps = src.slice(src.indexOf('private async executer('), src.indexOf('copieExterne(): EtatCopieExterne'));
-    expect(corps).toContain('this.recopier(nom);');
+    const corps = src.slice(src.indexOf('private async executer('), src.indexOf('  copieExterne(): EtatCopieExterne'));
+    expect(corps).toContain('await this.recopier(nom);');
   });
 });

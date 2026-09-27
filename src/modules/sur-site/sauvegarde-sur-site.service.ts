@@ -1,9 +1,10 @@
 import { BadRequestException, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { execFile } from 'child_process';
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'fs';
 import { isAbsolute, join } from 'path';
 import { promisify } from 'util';
 import { estSurSite } from '../../common/mode-installation';
+import { chiffrerFichier, deriverCle, motifRefusPhrase, nouveauSel } from './chiffrement-sauvegarde';
 
 const executer = promisify(execFile);
 
@@ -46,6 +47,8 @@ export function parametresConnexion(url: string | undefined): Record<string, str
 }
 
 const MOTIF_NOM = /^omegax-(\d{8}-\d{6})\.dump$/;
+/** Une copie externe · chiffrée, son nom le dit (audit final F44). */
+const MOTIF_NOM_CHIFFRE = /^omegax-(\d{8}-\d{6})\.dump\.chiffre$/;
 
 /** Le nom d'une copie · horodaté au calendrier du poste, triable comme une chaîne. */
 export function nomSauvegarde(d: Date): string {
@@ -54,9 +57,18 @@ export function nomSauvegarde(d: Date): string {
 }
 
 /** Les copies à retirer pour n'en garder que `garder`, les plus récentes · seules celles d'OmegaX sont touchées. */
-export function copiesARetirer(noms: string[], garder: number): string[] {
-  const nos = noms.filter((n) => MOTIF_NOM.test(n)).sort().reverse();
+export function copiesARetirer(noms: string[], garder: number, motif: RegExp = MOTIF_NOM): string[] {
+  const nos = noms.filter((n) => motif.test(n)).sort().reverse();
   return nos.slice(Math.max(1, garder));
+}
+
+/**
+ * Les copies EN CLAIR qu'OmegaX avait déposées dans le dossier externe avant
+ * le chiffrement · retirées dès qu'une copie chiffrée les remplace, sans quoi
+ * la clé USB porterait encore la base lisible de tous les dossiers.
+ */
+export function copiesEnClairARetirer(noms: string[]): string[] {
+  return noms.filter((n) => MOTIF_NOM.test(n));
 }
 
 /**
@@ -73,6 +85,14 @@ export interface EtatCopieExterne {
   derniere: string | null;
   le: string | null;
   erreur: string | null;
+  /** Vrai si une phrase de chiffrement est posée · sans elle, rien ne part. */
+  chiffree: boolean;
+}
+
+/** Le réglage tel qu'il est rangé sur le poste · la clé dérivée n'en sort jamais par une route. */
+interface ReglageCopieExterne extends Omit<EtatCopieExterne, 'chiffree'> {
+  sel?: string;
+  cle?: string;
 }
 
 export interface CopieSauvegarde {
@@ -181,14 +201,20 @@ export class SauvegardeSurSiteService implements OnModuleInit, OnModuleDestroy {
         this.log.warn(`Ancienne copie non retirée (${n}) · ${(e as Error).message}`);
       }
     }
-    this.recopier(nom);
+    await this.recopier(nom);
     const s = statSync(chemin);
     this.log.log(`Sauvegarde écrite · ${nom} (${s.size} octets)`);
     return { nom, taille: s.size, date: s.mtime.toISOString() };
   }
 
+  /** Ce qu'une route rend du réglage · jamais la clé ni le sel. */
   copieExterne(): EtatCopieExterne {
-    const vide: EtatCopieExterne = { dossier: null, derniere: null, le: null, erreur: null };
+    const { sel: _sel, cle, ...etat } = this.reglageExterne();
+    return { ...etat, chiffree: !!cle };
+  }
+
+  private reglageExterne(): ReglageCopieExterne {
+    const vide: ReglageCopieExterne = { dossier: null, derniere: null, le: null, erreur: null };
     try {
       return existsSync(this.fichierCopieExterne) ? { ...vide, ...JSON.parse(readFileSync(this.fichierCopieExterne, 'utf8')) } : vide;
     } catch {
@@ -196,7 +222,7 @@ export class SauvegardeSurSiteService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private noterCopieExterne(e: EtatCopieExterne) {
+  private noterCopieExterne(e: ReglageCopieExterne) {
     mkdirSync(join(this.fichierCopieExterne, '..'), { recursive: true });
     writeFileSync(this.fichierCopieExterne, JSON.stringify(e));
   }
@@ -205,13 +231,19 @@ export class SauvegardeSurSiteService implements OnModuleInit, OnModuleDestroy {
    * Désigne le dossier externe · vérifié en y ÉCRIVANT, un dossier visible
    * mais protégé en écriture donnerait sinon une copie qui n'existe pas. La
    * dernière copie locale y part aussitôt. `null` retire le réglage.
+   *
+   * La phrase de chiffrement est EXIGÉE (audit final F44) · une nouvelle
+   * phrase tire un nouveau sel, et les copies déjà chiffrées se relisent avec
+   * la phrase de leur jour.
    */
-  definirCopieExterne(dossier: string | null): EtatCopieExterne {
+  async definirCopieExterne(dossier: string | null, phrase?: string | null): Promise<EtatCopieExterne> {
     if (!this.surSite) throw new BadRequestException('Ce serveur n’est pas une installation sur site.');
     if (dossier === null || !dossier.trim()) {
       if (existsSync(this.fichierCopieExterne)) unlinkSync(this.fichierCopieExterne);
       return this.copieExterne();
     }
+    const refusPhrase = motifRefusPhrase(phrase);
+    if (refusPhrase) throw new BadRequestException(refusPhrase);
     const d = dossier.trim();
     if (!isAbsolute(d)) throw new BadRequestException('Indiquez un chemin complet (par exemple E:\\SauvegardesOmegaX ou \\\\SERVEUR\\partage).');
     if (!existsSync(d) || !statSync(d).isDirectory()) throw new BadRequestException(`Le dossier ${d} est introuvable · branchez le disque ou vérifiez le partage.`);
@@ -225,29 +257,44 @@ export class SauvegardeSurSiteService implements OnModuleInit, OnModuleDestroy {
     } catch (e) {
       throw new BadRequestException(`Écriture impossible dans ${d} · ${(e as Error).message}`);
     }
-    this.noterCopieExterne({ dossier: d, derniere: null, le: null, erreur: null });
+    const sel = nouveauSel();
+    const cle = deriverCle(phrase as string, sel);
+    this.noterCopieExterne({ dossier: d, derniere: null, le: null, erreur: null, sel: sel.toString('base64'), cle: cle.toString('base64') });
     const derniere = this.lister()[0];
-    if (derniere) this.recopier(derniere.nom);
+    if (derniere) await this.recopier(derniere.nom);
     return this.copieExterne();
   }
 
-  /** Recopie une sauvegarde dans le dossier externe · n'échoue jamais, l'échec est noté. */
-  recopier(nom: string) {
-    const etat = this.copieExterne();
+  /**
+   * Recopie une sauvegarde, CHIFFRÉE, dans le dossier externe · n'échoue
+   * jamais, l'échec est noté. Sans phrase posée (réglage d'avant le
+   * chiffrement), rien ne part en clair · l'échec le dit et l'écran alerte.
+   */
+  async recopier(nom: string): Promise<void> {
+    const etat = this.reglageExterne();
     if (!etat.dossier) return;
+    const horodatage = () => new Date().toISOString().slice(0, 16).replace('T', ' ');
+    if (!etat.cle || !etat.sel) {
+      this.noterCopieExterne({
+        ...etat,
+        erreur: `${horodatage()} · copie externe non chiffrée refusée · désignez à nouveau le dossier avec une phrase de chiffrement.`,
+      });
+      return;
+    }
     try {
-      copyFileSync(join(this.dossier, nom), join(etat.dossier, nom));
-      for (const n of copiesARetirer(readdirSync(etat.dossier), this.garder)) {
+      await chiffrerFichier(join(this.dossier, nom), join(etat.dossier, `${nom}.chiffre`), Buffer.from(etat.cle, 'base64'), Buffer.from(etat.sel, 'base64'));
+      const presents = readdirSync(etat.dossier);
+      for (const n of [...copiesARetirer(presents, this.garder, MOTIF_NOM_CHIFFRE), ...copiesEnClairARetirer(presents)]) {
         try {
           unlinkSync(join(etat.dossier, n));
         } catch {
           /* une ancienne copie restée ne coûte que de la place */
         }
       }
-      this.noterCopieExterne({ dossier: etat.dossier, derniere: nom, le: new Date().toISOString(), erreur: null });
+      this.noterCopieExterne({ ...etat, derniere: nom, le: new Date().toISOString(), erreur: null });
     } catch (e) {
       this.log.error(`Copie externe échouée (${etat.dossier}) · ${(e as Error).message}`);
-      this.noterCopieExterne({ ...etat, erreur: `${new Date().toISOString().slice(0, 16).replace('T', ' ')} · ${(e as Error).message}` });
+      this.noterCopieExterne({ ...etat, erreur: `${horodatage()} · ${(e as Error).message}` });
     }
   }
 }

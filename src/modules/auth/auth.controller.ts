@@ -51,7 +51,18 @@ export class AuthController {
     // pipeline de toutes les créations internes. INSCRIPTION_PUBLIQUE=true
     // rouvre la porte le jour où un canal libre-service (essai daté) sera
     // voulu · fermée à clé, pas démolie.
-    if (this.config.get<string>('INSCRIPTION_PUBLIQUE') !== 'true') {
+    //
+    // SUR SITE, LA PORTE NE SERT QU'AU PREMIER DOSSIER (audit final F44) ·
+    // ouverte à demeure, elle rendait à tout poste du réseau un administrateur
+    // de dossier. Les suivants se créent depuis le dossier d'installation
+    // (`POST /sur-site/dossiers`). `INSCRIPTION_PUBLIQUE` n'y est pas lue.
+    if (estSurSite()) {
+      if (!(await this.authService.premierDossierAttendu())) {
+        throw new ForbiddenException(
+          "Cette installation a déjà son premier dossier · les suivants se créent depuis le dossier d'installation, fenêtre Restitution.",
+        );
+      }
+    } else if (this.config.get<string>('INSCRIPTION_PUBLIQUE') !== 'true') {
       throw new ForbiddenException(
         "L'ouverture d'un dossier OmegaX se fait avec VMG Consulting · écrivez à admin@vmgconsulting.net pour démarrer.",
       );

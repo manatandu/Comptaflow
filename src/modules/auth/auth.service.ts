@@ -209,6 +209,34 @@ export class AuthService {
     };
   }
 
+  /**
+   * LE DOSSIER D'INSTALLATION (audit final F44) · sur site, le premier dossier
+   * créé sur le poste. Son administrateur tient ce qui vaut pour TOUTE
+   * l'installation · les sauvegardes, qui sont un `pg_dump` de la base
+   * entière, et la création des dossiers suivants. L'administrateur d'un
+   * autre dossier n'a aucun droit sur les données de ses voisins, et une
+   * sauvegarde les lui donnerait toutes. Aucune colonne ne le désigne · le
+   * premier dossier est un fait, lu à chaque demande, qu'aucun geste ne
+   * déplace.
+   */
+  async dossierDInstallation(): Promise<string | null> {
+    const t = await horsCloisonnement('installation sur site · le premier dossier du poste', () =>
+      this.prisma.tenant.findFirst({ orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], select: { id: true } }),
+    );
+    return t?.id ?? null;
+  }
+
+  /**
+   * L'inscription publique d'une installation sur site ne sert qu'au PREMIER
+   * dossier (audit final F44) · ouverte à demeure, elle rendait à tout poste
+   * du réseau un administrateur de dossier. Les suivants se créent depuis le
+   * dossier d'installation.
+   */
+  async premierDossierAttendu(): Promise<boolean> {
+    const ouverts = await horsCloisonnement('installation sur site · un dossier existe-t-il déjà', () => this.prisma.tenant.count());
+    return ouverts === 0;
+  }
+
   async login(dto: LoginDto) {
     // SORTIE DE CLOISONNEMENT · à la connexion, on ne sait pas encore de quel
     // dossier relève celui qui se présente. C'est cette requête qui l'apprend.

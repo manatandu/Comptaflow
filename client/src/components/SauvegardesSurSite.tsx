@@ -2,13 +2,19 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import type { EtatSurSite } from '../lib/sur-site';
+import { Aide } from './chrome/Aide';
+import { NouveauFichierWizard } from './NouveauFichierWizard';
 
 interface CopieExterne {
   dossier: string | null;
   derniere: string | null;
   le: string | null;
   erreur: string | null;
+  chiffree: boolean;
 }
+
+/** Douze caractères, la même borne que le serveur (chiffrement-sauvegarde.ts). */
+const LONGUEUR_PHRASE_MIN = 12;
 
 interface Copie {
   nom: string;
@@ -20,8 +26,11 @@ interface Copie {
  * LES SAUVEGARDES D'UNE INSTALLATION SUR SITE · en ligne, c'est la
  * plateforme qui sauvegarde et ce cadre ne s'affiche pas. Sur site, la copie
  * quotidienne part seule ; ce cadre montre les copies et en déclenche une,
- * avant une opération lourde par exemple. Réservé à l'administrateur, comme
- * la route.
+ * avant une opération lourde par exemple. Réservé à l'administrateur du
+ * DOSSIER D'INSTALLATION (audit final F44), comme la route · une sauvegarde
+ * est la base de tous les dossiers du poste. Un autre administrateur reçoit
+ * un refus, et le cadre ne s'affiche pas. C'est aussi d'ici que naissent les
+ * dossiers suivants de l'installation.
  */
 export function SauvegardesSurSite() {
   const { estAdmin } = useAuth();
@@ -30,6 +39,9 @@ export function SauvegardesSurSite() {
   const [copies, setCopies] = useState<Copie[]>([]);
   const [externe, setExterne] = useState<CopieExterne | null>(null);
   const [cheminExterne, setCheminExterne] = useState('');
+  const [phrase, setPhrase] = useState('');
+  const [confirmation, setConfirmation] = useState('');
+  const [creation, setCreation] = useState(false);
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 
@@ -49,7 +61,9 @@ export function SauvegardesSurSite() {
         setSurSite(e.surSite);
         if (e.surSite) return charger();
       })
-      .catch(() => undefined);
+      // Un refus (autre dossier que celui d'installation) laisse le cadre
+      // masqué · ce n'est pas une panne à montrer.
+      .catch(() => setSurSite(false));
   }, [estAdmin]);
 
   if (!estAdmin || !surSite) return null;
@@ -69,8 +83,21 @@ export function SauvegardesSurSite() {
 
   const definirExterne = async () => {
     setErreur(null);
+    const dossierExterne = cheminExterne.trim() || null;
+    if (dossierExterne) {
+      if (phrase.length < LONGUEUR_PHRASE_MIN) {
+        setErreur(`La phrase de chiffrement doit compter au moins ${LONGUEUR_PHRASE_MIN} caractères.`);
+        return;
+      }
+      if (phrase !== confirmation) {
+        setErreur('Les deux saisies de la phrase diffèrent.');
+        return;
+      }
+    }
     try {
-      await api.post('/sur-site/sauvegardes/copie-externe', { dossier: cheminExterne.trim() || null });
+      await api.post('/sur-site/sauvegardes/copie-externe', { dossier: dossierExterne, phrase: dossierExterne ? phrase : null });
+      setPhrase('');
+      setConfirmation('');
       await charger();
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Le dossier externe n’a pas pu être enregistré.');
@@ -103,9 +130,31 @@ export function SauvegardesSurSite() {
           onChange={(e) => setCheminExterne(e.target.value)}
           placeholder="E:\SauvegardesOmegaX ou \\SERVEUR\partage"
         />
+        <input
+          type="password"
+          className="border border-border px-2 py-1 bg-surface min-w-[160px]"
+          value={phrase}
+          onChange={(e) => setPhrase(e.target.value)}
+          placeholder="Phrase de chiffrement"
+          autoComplete="new-password"
+        />
+        <input
+          type="password"
+          className="border border-border px-2 py-1 bg-surface min-w-[160px]"
+          value={confirmation}
+          onChange={(e) => setConfirmation(e.target.value)}
+          placeholder="Confirmer la phrase"
+          autoComplete="new-password"
+        />
         <button type="button" className="underline" onClick={definirExterne}>
           Enregistrer
         </button>
+        <Aide
+          titre="Copie chiffrée"
+          texte="La copie hors du poste est chiffrée par cette phrase. Elle n'est rangée nulle part en clair, et c'est elle seule qui relira la copie si le disque de ce poste lâche · perdue, la copie externe est illisible. Pour la relire, l'outil dechiffrer-sauvegarde.cjs du dossier du programme."
+          source="Décision d'OmegaX · fiche d'installation sur site, § 5"
+        />
+        {externe?.chiffree && <span className="text-text-dim">chiffrée</span>}
         {externe?.le && <span className="text-text-dim">dernière copie le {new Date(externe.le).toLocaleString('fr-FR')}</span>}
       </div>
       {erreur && (
@@ -113,14 +162,20 @@ export function SauvegardesSurSite() {
           {erreur}
         </p>
       )}
-      <button
-        type="button"
-        onClick={sauvegarder}
-        disabled={enCours}
-        className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5 mb-2 disabled:opacity-50"
-      >
-        {enCours ? 'Sauvegarde en cours…' : 'Sauvegarder maintenant'}
-      </button>
+      <div className="flex flex-wrap items-center gap-2 mb-2">
+        <button
+          type="button"
+          onClick={sauvegarder}
+          disabled={enCours}
+          className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5 disabled:opacity-50"
+        >
+          {enCours ? 'Sauvegarde en cours…' : 'Sauvegarder maintenant'}
+        </button>
+        <button type="button" className="text-[11.5px] underline" onClick={() => setCreation(true)}>
+          Créer un dossier sur cette installation
+        </button>
+      </div>
+      {creation && <NouveauFichierWizard surInstallation onClose={() => setCreation(false)} />}
       {copies.length === 0 ? (
         <p className="text-[11.5px] text-danger">Aucune copie dans ce dossier.</p>
       ) : (

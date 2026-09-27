@@ -19,6 +19,8 @@ export interface EtatSurSite {
   empreinte?: string | null;
   dateVersion?: string | null;
   licence?: LicenceResumee | null;
+  /** Vrai tant qu'aucun dossier n'existe sur le poste · la seule fois où l'inscription publique est ouverte (audit final F44). */
+  premierDossierAttendu?: boolean;
 }
 
 /** La ligne qui résume une licence valide · la fin d'usage n'est jamais tue, même perpétuelle. */
@@ -34,4 +36,14 @@ export function resumeLicence(l: LicenceResumee): string {
  */
 export function licenceABloquer(e: EtatSurSite): boolean {
   return e.surSite && e.statut !== 'VALIDE';
+}
+
+/**
+ * L'écran d'ouverture ne propose la création qu'au poste NEUF (audit final
+ * F44) · le serveur refuse l'inscription publique dès qu'un dossier existe,
+ * et les dossiers suivants naissent dans la fenêtre Restitution du dossier
+ * d'installation. Un lien vers une porte fermée ne ferait qu'essuyer un refus.
+ */
+export function creationPremierDossierProposee(e: EtatSurSite): boolean {
+  return e.surSite && e.statut === 'VALIDE' && e.premierDossierAttendu === true;
 }

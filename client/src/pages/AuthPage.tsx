@@ -4,7 +4,7 @@ import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
 import { PanneauSurSite } from '../components/PanneauSurSite';
-import type { EtatSurSite } from '../lib/sur-site';
+import { creationPremierDossierProposee, type EtatSurSite } from '../lib/sur-site';
 import { LogotypeOmegaX, SymboleOmegaX } from '../components/chrome/Logo';
 import { DossierRecent, lireDossiersRecents, oublierDossier } from '../lib/dossiersRecents';
 import type { AuthResponse } from '../lib/types';
@@ -357,10 +357,10 @@ export function AuthPage() {
         {/* L'auto-inscription est fermée · la règle doit rester dite, mais une
             ligne y suffit : elle occupait un tiers de l'écran. */}
         {surSite?.surSite ? (
-          // Sur site, la création est ouverte (le serveur la borne par la
-          // licence, nombre de dossiers compris) · c'est la seule porte vers
-          // le premier dossier d'une installation neuve.
-          surSite.statut === 'VALIDE' && (
+          // Sur site, la création n'est ouverte qu'au poste neuf (audit final
+          // F44) · c'est la seule porte vers le premier dossier. Les suivants
+          // naissent dans la fenêtre Restitution du dossier d'installation.
+          creationPremierDossierProposee(surSite) && (
             <div className="mt-4 text-[11.5px]">
               <a href="#/inscription" className="underline">
                 Créer un dossier sur cette installation

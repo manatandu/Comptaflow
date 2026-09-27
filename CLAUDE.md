@@ -5025,7 +5025,17 @@ autre version AVANT toute copie, et `initialiser.ps1` le revérifie. Le
 cookie de session perd `secure` sur site (http sur le réseau local) ; mot de
 passe de la base et secret de session sont tirés au générateur
 cryptographique, et le compte Service réseau reçoit le droit sur la base qu'il
-fait tourner.
+fait tourner. LE DOSSIER D'INSTALLATION (2026-09-27, audit final F44) · le
+premier dossier du poste, lu à chaque demande (`dossierDInstallation`), et
+son administrateur seul tient les sauvegardes et crée les dossiers suivants
+(`AdministrateurInstallationGuard`, `POST /sur-site/dossiers`, sans session
+rendue) · une sauvegarde est la base de tous les dossiers. L'inscription
+publique ne sert qu'au poste sans dossier, `INSCRIPTION_PUBLIQUE` n'y est pas
+lue. La copie externe est CHIFFRÉE (AES-256-GCM, clé tirée par scrypt d'une
+phrase que l'administrateur choisit, `chiffrement-sauvegarde.ts`) · jamais un
+secret rangé sur le poste, qui mourrait avec le disque que la copie existe
+pour remplacer. Sans phrase, rien ne part, et `dechiffrer-sauvegarde.cjs`
+relit le format par le module du serveur, jamais par une seconde écriture.
 
 **Abonnements des cabinets et leur facturation (2026-09-26).** Grille décidée
 par Manasse · Essentiel, Standard, Cabinet, option Groupe, paie en option de

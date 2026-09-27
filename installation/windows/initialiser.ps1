@@ -73,7 +73,6 @@ try {
       'MODE_INSTALLATION=SUR_SITE',
       'NODE_ENV=production',
       'PORT=8080',
-      'INSCRIPTION_PUBLIQUE=true',
       "DOSSIER_DONNEES=$Donnees",
       "DOSSIER_INTERFACE=$(Join-Path $Racine 'client')",
       "PG_BIN=$PgBin"
@@ -93,7 +92,11 @@ try {
     }
     # Une mise à jour peut déplacer le programme · les chemins suivent, le
     # reste (mot de passe, secret) ne bouge jamais.
-    $lignes = Get-Content $FichierEnv | Where-Object { $_ -notmatch '^(DOSSIER_INTERFACE|PG_BIN)=' }
+    # INSCRIPTION_PUBLIQUE n'est plus lue sur site (audit final F44) · le
+    # serveur n'ouvre l'inscription qu'au poste sans dossier. La ligne des
+    # installations antérieures est retirée pour que personne ne la croie
+    # agissante.
+    $lignes = Get-Content $FichierEnv | Where-Object { $_ -notmatch '^(DOSSIER_INTERFACE|PG_BIN|INSCRIPTION_PUBLIQUE)=' }
     $lignes += "DOSSIER_INTERFACE=$(Join-Path $Racine 'client')"
     $lignes += "PG_BIN=$PgBin"
     $lignes | Set-Content -Path $FichierEnv -Encoding utf8

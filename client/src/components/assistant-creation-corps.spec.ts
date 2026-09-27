@@ -16,8 +16,11 @@ const assistant = readFileSync(join(__dirname, 'NouveauFichierWizard.tsx'), 'utf
 const dto = readFileSync(join(__dirname, '../../../src/modules/auth/dto/register.dto.ts'), 'utf8');
 const bootstrap = readFileSync(join(__dirname, '../../../src/bootstrap.ts'), 'utf8');
 
+// Le corps est un seul objet, envoyé à l'inscription comme à la création d'un
+// dossier suivant sur site (audit final F44) · les deux portes prennent
+// RegisterDto, et une seule liste de clés se vérifie ici.
 function clesDuCorps(): string[] {
-  const j = assistant.indexOf("('/auth/register', {");
+  const j = assistant.indexOf('const corps = {');
   expect(j).toBeGreaterThan(0);
   const debut = assistant.indexOf('{', j);
   let profondeur = 0;
@@ -44,6 +47,11 @@ describe("le corps de l'assistant de création", () => {
     const cles = clesDuCorps();
     expect(cles.length).toBeGreaterThan(5);
     expect(cles.filter((c) => !proprietes.has(c))).toEqual([]);
+  });
+
+  it('les deux portes reçoivent ce même corps', () => {
+    expect(assistant).toContain("api.post<AuthResponse>('/auth/register', corps)");
+    expect(assistant).toContain("api.post('/sur-site/dossiers', corps)");
   });
 
   it('la monnaie ne se choisit plus · le récapitulatif dit le franc', () => {

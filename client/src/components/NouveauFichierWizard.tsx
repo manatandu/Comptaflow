@@ -241,7 +241,21 @@ function SectionTitre({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => void; onTermine?: () => void }) {
+/**
+ * `surInstallation` · un dossier SUIVANT d'une installation sur site, créé
+ * depuis le dossier d'installation (audit final F44). Même assistant, autre
+ * porte (`/sur-site/dossiers`), et AUCUNE session · celui qui le crée reste
+ * dans son dossier, le nouvel administrateur ouvrira le sien.
+ */
+export function NouveauFichierWizard({
+  onClose,
+  onTermine,
+  surInstallation = false,
+}: {
+  onClose: () => void;
+  onTermine?: () => void;
+  surInstallation?: boolean;
+}) {
   const [etape, setEtape] = useState(0);
   const [form, setForm] = useState<Form>(formInitial());
   const [erreur, setErreur] = useState<string | null>(null);
@@ -277,7 +291,7 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
     setErreur(null);
     setEnvoi(true);
     try {
-      const res = await api.post<AuthResponse>('/auth/register', {
+      const corps = {
         nomEntite: form.nomEntite,
         referentiel: form.referentiel,
         // Le serveur n'en retient qu'un, selon le référentiel · les envoyer
@@ -293,7 +307,13 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
         telephone: form.telephone || undefined,
         dateDebutExercice: form.dateDebutExercice,
         dateFinExercice: form.dateFinExercice,
-      });
+      };
+      if (surInstallation) {
+        await api.post('/sur-site/dossiers', corps);
+        setSucces(true);
+        return;
+      }
+      const res = await api.post<AuthResponse>('/auth/register', corps);
       setSucces(true);
       // On connecte directement sur le dossier fraîchement créé · inutile de
       // faire ressaisir les identifiants qu'on vient de définir. C'est
@@ -339,12 +359,26 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                   ? `Les états financiers seront ceux ${LIBELLE_JEU[form.jeuEtatsFinanciersSycebnl]}.`
                   : `Le dossier est tenu selon le ${LIBELLE_SYSTEME[form.systemeComptableSyscohada]}.`}
               </p>
-              <button
-                onClick={() => (onTermine ? onTermine() : onClose())}
-                className="mt-2 bg-sel text-white text-[12px] font-semibold px-6 py-2 rounded-[3px] hover:brightness-110"
-              >
-                Compléter l'identification
-              </button>
+              {surInstallation ? (
+                <>
+                  <p className="text-[11.5px] text-text-dim max-w-[440px]">
+                    Son administrateur ouvre la session avec l'adresse {form.email.trim().toLowerCase()}.
+                  </p>
+                  <button
+                    onClick={onClose}
+                    className="mt-2 bg-sel text-white text-[12px] font-semibold px-6 py-2 rounded-[3px] hover:brightness-110"
+                  >
+                    Fermer
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => (onTermine ? onTermine() : onClose())}
+                  className="mt-2 bg-sel text-white text-[12px] font-semibold px-6 py-2 rounded-[3px] hover:brightness-110"
+                >
+                  Compléter l'identification
+                </button>
+              )}
             </div>
           ) : (
             <div className="flex flex-1 min-h-0">
