@@ -409,12 +409,14 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** le report est daté de `dateDebut` et la borne exclut cette date. Une facture de N-1 sans échéance tombe dans les tranches de l'exercice : le total est juste, l'ancienneté fausse.
 - **Correction :** ranger en ouverture les lignes de report, et tester un report sans échéance.
+- **Fait le 2026-09-27 :** une ligne de report à-nouveau sans échéance va dans la colonne d'ouverture ; avec une échéance, c'est elle qui range (`ecriture.service.ts`, `balanceAgee`). Test : `balance-agee-date-et-report.spec.ts`.
 
 **F52 · Balance âgée à une date passée : factures postérieures comptées, lettrages postérieurs ignorés** [saisie-07]
 - **Emplacements :** src/modules/comptabilite/ecriture.service.ts:2375, :2383 · client/src/pages/BalanceAgeePage.tsx:113
 - **Condition :** 1
 - **Constat :** l'écran laisse choisir la date, mais le service ne borne ni les écritures ni le lettrage à cette date. L'état « au 30/06 » ne décrit pas la situation au 30/06.
 - **Correction :** borner à `date <= ref` et ignorer les lettrages postérieurs, ou figer la référence.
+- **Fait le 2026-09-27 :** les écritures sont bornées à la date de référence, et une ligne est ouverte à cette date par la règle des notes par échéance (`ouverteALaCloture`) · un règlement postérieur ne la solde pas encore. Vérifié sur base réelle (facture de mars réglée en juillet : 1 000 au 30/06, 500 au 31/12 avec la facture d'août). Test : `balance-agee-date-et-report.spec.ts`.
 
 **F53 · Justificatif de solde faux sur les comptes de gestion et le 13 à partir du deuxième exercice clos** [saisie-08]
 - **Emplacements :** src/modules/comptabilite/ecriture.service.ts:2530

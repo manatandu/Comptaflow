@@ -23,6 +23,7 @@ import { AnalytiqueService } from '../analytique/analytique.service';
 import { avecRetrySerialisable } from '../../common/prisma-retry.util';
 import { coursDeLaLigne, motifRefusLigneEnDevise, porteUneDevise } from './ligne-en-devise';
 import { designationLettrage, estTenueParUnLettrage } from '../lettrage/ligne-lettree';
+import { ouverteALaCloture } from '../lettrage/ouverte-a-la-cloture';
 
 /**
  * Une ligne est au débit si son montant est porté du côté débit · quel que
@@ -2476,8 +2477,13 @@ export class EcritureService {
     const [lignes, rattachements] = await Promise.all([
       this.prisma.ligneEcriture.findMany({
         where: {
-          ecriture: { tenantId, exerciceId: params.exerciceId },
-          lettre: null,
+          // L'ÉTAT AU JOUR DIT (audit final F52) · une facture postérieure à
+          // la date de référence n'existait pas encore, et un règlement
+          // postérieur ne la soldait pas encore. La date qui compte est celle
+          // des écritures du groupe, jamais celle du lettrage · même règle
+          // que les notes par échéance (lettrage/ouverte-a-la-cloture.ts).
+          ecriture: { tenantId, exerciceId: params.exerciceId, date: { lte: ref } },
+          AND: [ouverteALaCloture(ref)],
           OR: racines.map((r) => ({ compte: { numero: { startsWith: r } } })),
           // LES EXCLUSIONS DU PÉRIMÈTRE · voir `PERIMETRES_BALANCE_AGEE`.
           ...(perimetre.exclusions.length > 0
@@ -2486,7 +2492,7 @@ export class EcritureService {
         },
         include: {
           compte: { select: { id: true, numero: true, intitule: true } },
-          ecriture: { select: { date: true } },
+          ecriture: { select: { date: true, estGenereeParCloture: true, estSoldeDesComptesDeGestion: true } },
         },
       }),
       this.prisma.tiersCompte.findMany({
@@ -2513,7 +2519,12 @@ export class EcritureService {
           montants: tranches.map(() => 0),
           solde: 0,
         } satisfies LigneAgee);
-      entree.montants[indexTranche(l.dateEcheance ?? l.ecriture.date)] += net;
+      // UNE LIGNE DE REPORT SANS ÉCHÉANCE EST ANTÉRIEURE À L'EXERCICE (audit
+      // final F51) · le report est daté du premier jour, et la borne de la
+      // colonne l'excluait · une facture de N-1 tombait dans les tranches de
+      // l'exercice. Avec une échéance, c'est elle qui range, comme ailleurs.
+      const estReport = l.ecriture.estGenereeParCloture && !l.ecriture.estSoldeDesComptesDeGestion;
+      entree.montants[estReport && !l.dateEcheance ? 0 : indexTranche(l.dateEcheance ?? l.ecriture.date)] += net;
       entree.solde += net;
       parCle.set(cle, entree);
     }
