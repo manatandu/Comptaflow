@@ -30,6 +30,13 @@ const GESTES: Array<{ route: string; controleur: string; decorateur: string; pag
     page: 'ExonerationsPage.tsx',
     appel: 'api.delete(`/exonerations/${dossier.id}`)',
   },
+  {
+    route: 'PATCH /commercial/devis/:id/revocation',
+    controleur: 'commercial/commercial.controller.ts',
+    decorateur: "@Patch(':id/revocation')",
+    page: 'DevisPage.tsx',
+    appel: "api.patch(`/commercial/devis/${id}/revocation`, { revoqueLe, motifRevocation: motifRevocation.trim() })",
+  },
 ];
 
 describe('routes d’écriture et leur geste', () => {

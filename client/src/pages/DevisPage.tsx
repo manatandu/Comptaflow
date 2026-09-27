@@ -138,6 +138,26 @@ export function DevisPage() {
     }
   }
 
+  /**
+   * Révoquer l'offre (audit de l'interface du 2026-09-27, I11) · la route
+   * existait, aucun geste ne l'appelait. Le serveur tranche la
+   * révocabilité (AUDCG art. 242) et refuse en citant l'article ; l'écran ne
+   * propose le geste qu'à une offre qu'il dit révocable.
+   */
+  async function revoquer(id: string) {
+    setErreur(null);
+    const motifRevocation = window.prompt('Motif de la révocation');
+    if (!motifRevocation?.trim()) return;
+    const revoqueLe = window.prompt('Date à laquelle la révocation est PARVENUE au destinataire (AAAA-MM-JJ)', etat?.dateReference ?? '');
+    if (!revoqueLe) return;
+    try {
+      await api.patch(`/commercial/devis/${id}/revocation`, { revoqueLe, motifRevocation: motifRevocation.trim() });
+      await recharger();
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : "La révocation n'a pas été enregistrée.");
+    }
+  }
+
   if (!etat) return <div className="p-3 text-[11.5px] text-text-dim">Chargement…</div>;
 
   return (
@@ -306,6 +326,11 @@ export function DevisPage() {
                           <button className="border border-border px-1.5 py-0.5 text-[11px]" onClick={() => void repondre(d.id, 'REFUS')}>
                             Refus reçu
                           </button>
+                          {d.revocabilite.revocable && (
+                            <button className="border border-border px-1.5 py-0.5 text-[11px]" onClick={() => void revoquer(d.id)}>
+                              Révoquer l’offre
+                            </button>
+                          )}
                         </div>
                       )}
                       {d.etat.etat === 'CADUC' && (
