@@ -62,7 +62,8 @@ export type RoleComptePaie =
   | 'INPP'
   | 'ONEM'
   | 'IRPP_RETENU'
-  | 'REMUNERATIONS_DUES';
+  | 'REMUNERATIONS_DUES'
+  | 'TRANSFERTS_DE_CHARGES';
 
 export type CompteDuRole = {
   readonly SYSCOHADA: string;
@@ -182,6 +183,15 @@ export const NOMENCLATURE_PAIE: Readonly<Record<RoleComptePaie, CompteDuRole>> =
     intitule: 'Personnel, rémunérations dues',
     divergent: false,
   },
+  // AVANTAGES EN NATURE · « débité par le crédit du compte 781 (Transferts de
+  // charges d'exploitation) pour les avantages en nature » (AUDCIF Titre VII,
+  // fiche du compte 66 ; SYCEBNL Partie 2 ch. 3, même fiche). Audit final F22.
+  TRANSFERTS_DE_CHARGES: {
+    SYSCOHADA: '78100000',
+    SYCEBNL: '78100000',
+    intitule: "Transferts de charges d'exploitation",
+    divergent: false,
+  },
 } as const;
 
 export const compteDuRole = (role: RoleComptePaie, referentiel: Referentiel): string =>
@@ -242,7 +252,19 @@ export type SensLigne = 'DEBIT' | 'CREDIT';
  *  · PATRONALES · « débit 6641/6642, crédit organismes 431-433 » (§ 4.2).
  * Le solde du 422 est alors le NET À PAYER, que le règlement solde ensuite.
  */
-export type BlocPaie = 'BRUT' | 'RETENUES' | 'PATRONALES';
+export type BlocPaie = 'BRUT' | 'RETENUES' | 'PATRONALES' | 'AVANTAGES_EN_NATURE';
+
+/**
+ * L'AVANTAGE EN NATURE N'EST PAS PAYÉ (audit final F22). Il entre dans les
+ * assiettes (loi n° 23/053 art. 68, « tous les avantages en argent et en
+ * nature »), mais le travailleur l'a reçu en nature · il n'est ni dans ce que
+ * l'employeur lui verse, ni au 422. Le compter dans le total versé faisait du
+ * salarié le créancier EN ESPÈCES d'un logement ou d'un véhicule qu'il avait
+ * déjà, sur une écriture équilibrée.
+ */
+export function estVerseEnEspeces(nature: NatureElementPaie): boolean {
+  return nature !== 'AVANTAGE_EN_NATURE';
+}
 
 export type LigneProposee = {
   readonly bloc: BlocPaie;
@@ -392,7 +414,7 @@ export function passationPaie(entree: EntreePassation): VerdictPassation {
   //     ni l'autre n'est une charge de l'employeur.
   let brutFc = 0;
   for (const [role, montantFc] of parRole) {
-    if (montantFc <= 0) continue;
+    if (montantFc <= 0 || role === 'AVANTAGES_EN_NATURE') continue;
     brutFc += montantFc;
     lignes.push({
       bloc: 'BRUT',
@@ -505,6 +527,31 @@ export function passationPaie(entree: EntreePassation): VerdictPassation {
     }
   }
 
+  // 4 · LES AVANTAGES EN NATURE · D/6617, C/781 (audit final F22). La
+  //     charge est déjà passée par nature, à la facture du bien ou du
+  //     service fourni ; le 781 la TRANSFÈRE dans les frais de personnel,
+  //     sans jamais toucher le 422 · le travailleur ne reçoit pas d'espèces.
+  const avantagesFc = parRole.get('AVANTAGES_EN_NATURE') ?? 0;
+  if (avantagesFc > 0) {
+    lignes.push({
+      bloc: 'AVANTAGES_EN_NATURE',
+      compte: compteDuRole('AVANTAGES_EN_NATURE', r),
+      intitule: NOMENCLATURE_PAIE.AVANTAGES_EN_NATURE.intitule,
+      sens: 'DEBIT',
+      montantFc: avantagesFc,
+      reserve: null,
+    });
+    lignes.push({
+      bloc: 'AVANTAGES_EN_NATURE',
+      compte: compteDuRole('TRANSFERTS_DE_CHARGES', r),
+      intitule: NOMENCLATURE_PAIE.TRANSFERTS_DE_CHARGES.intitule,
+      sens: 'CREDIT',
+      montantFc: avantagesFc,
+      reserve:
+        "TRANSFERT DE CHARGES · les deux textes font débiter le 66 « par le crédit du compte 781 (Transferts de charges d'exploitation) pour les avantages en nature » (AUDCIF Titre VII et SYCEBNL Partie 2 ch. 3, fiche du compte 66). Il suppose la charge DÉJÀ passée par nature, à la facture du loyer, du véhicule ou du service fourni · sans elle, le 781 transférerait une charge qui n'existe pas.",
+    });
+  }
+
   // LE SOLDE DU 422 DOIT ÊTRE LE NET DU BULLETIN · brut moins retenues. Un
   // écart dirait que le moteur et la passation ne parlent pas du même bulletin.
   if (Math.abs(brutFc - retenuesFc - (entree.netAPayerFc as number)) >= 0.005) {
@@ -544,7 +591,7 @@ export function passationPaie(entree: EntreePassation): VerdictPassation {
     "LE JOURNAL · le dossier est semé avec cinq journaux (achats, ventes, banque, caisse, opérations diverses). La paie se passe aux OPÉRATIONS DIVERSES tant que le cabinet n'a pas ouvert un journal de paie dédié, ce qu'OmegaX ne fait pas à sa place.",
   );
   reserves.push(
-    "LES AVANTAGES EN NATURE SONT ICI IMPUTÉS AU 66170000, ce qui SIMPLIFIE le Guide d'application SYSCOHADA (Partie 1 ch. 3, § 4.5) : il les enregistre « par nature (614 transports, 622 locations, 624 entretien, 628 télécom…) puis régularisation globale fin d'exercice : débit 6617/6627, crédit 781 ». Le total des charges est le même ; la ventilation par nature ne l'est pas. Un dossier qui suit le Guide passe l'avantage par nature et régularise à la clôture.",
+    "LES AVANTAGES EN NATURE sont transférés au 66170000 par le crédit du 78100000, comme le Guide d'application SYSCOHADA (Partie 1 ch. 3, § 4.5) : « par nature (614 transports, 622 locations, 624 entretien, 628 télécom…) puis régularisation globale fin d'exercice : débit 6617/6627, crédit 781 ». OmegaX le fait au mois de paie plutôt qu'à la clôture · le solde de l'exercice est le même. Ils ne passent ni par le 422 ni par le net à payer.",
   );
 
   return { referentiel: r, lignes, totalDebitFc, totalCreditFc, equilibree, refus, reserves };

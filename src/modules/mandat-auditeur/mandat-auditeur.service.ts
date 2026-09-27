@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { OrganeDesignationAuditeur, Referentiel } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { regleAuditeur } from '../controles/regles-auditeur';
-import { dernierExerciceCouvert, dureeMandat, dureeRamenee } from './duree-mandat';
+import { dernierExerciceCouvert, dureeMandat, motifRefusDuree } from './duree-mandat';
 
 /**
  * MANDAT DU CONTRÔLEUR DES COMPTES · auditeur au SYCEBNL (art. 19 à 22),
@@ -35,18 +35,13 @@ export class MandatAuditeurService {
    */
   async dureeProposee(tenantId: string, organe: OrganeDesignationAuditeur) {
     const t = await this.dossier(tenantId);
-    const nbExercices = await this.prisma.exercice.count({ where: { tenantId } });
     const brute = dureeMandat(t.referentiel, t.formeJuridiqueSyscohada, organe);
-    const exercices = dureeRamenee(t.referentiel, brute.exercices, nbExercices);
     return {
       ...brute,
-      exercices,
-      // SYCEBNL art. 21, seconde phrase · « si l'entité a une existence
-      // inférieure à trois exercices, son mandat est ramené à cette durée ».
-      // Dire POURQUOI la durée proposée n'est pas celle du texte, sinon le
-      // cabinet croira à un défaut du logiciel.
-      ramenee: brute.exercices !== null && exercices !== null && exercices < brute.exercices,
-      exercicesDeLEntite: nbExercices,
+      // SYCEBNL art. 21, seconde phrase · la durée se réduit si l'entité a une
+      // existence inférieure à trois exercices. OmegaX ne la mesure pas
+      // (`motifRefusDuree`), le cabinet saisit la durée ramenée.
+      reductionPossible: t.referentiel === Referentiel.SYCEBNL && brute.exercices !== null,
     };
   }
 
@@ -128,13 +123,12 @@ export class MandatAuditeurService {
     // l'est entièrement pour la SAS, la SNC, la commandite simple, le GIE, la
     // coopérative et l'entreprenant, dont aucun texte lu ne dit rien · d'où
     // `exercices: null`, et aucun refus.
-    const nbExercices = await this.prisma.exercice.count({ where: { tenantId } });
-    const attendue = dureeRamenee(t.referentiel, brute.exercices, nbExercices);
-    if (attendue !== null && dto.nombreExercices !== attendue) {
+    const refusDuree = motifRefusDuree(t.referentiel, brute.exercices, dto.nombreExercices);
+    if (refusDuree) {
       throw new BadRequestException(
-        `La durée du mandat est de ${attendue} exercice(s) pour ce dossier · ${brute.source}` +
-          (attendue !== brute.exercices
-            ? ', ramenée à la durée d’existence de l’entité (SYCEBNL art. 21, seconde phrase)'
+        `La durée du mandat est de ${refusDuree} pour ce dossier · ${brute.source}` +
+          (t.referentiel === Referentiel.SYCEBNL
+            ? ', ramenée à la durée d’existence de l’entité si elle est inférieure (SYCEBNL art. 21, seconde phrase)'
             : '') +
           `. Valeur reçue : ${dto.nombreExercices}.`,
       );

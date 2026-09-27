@@ -16,12 +16,15 @@ import type { Journal } from '../lib/types';
 /**
  * Les trois temps de l'écriture de paie, dans l'ordre du Guide d'application
  * SYSCOHADA (Partie 1 ch. 3 section 4, Application 10). L'impôt retenu est au
- * deuxième, jamais au troisième : c'est une retenue sur le salarié.
+ * deuxième, jamais au troisième : c'est une retenue sur le salarié. Un
+ * quatrième transfère les avantages en nature au 6617 par le 781 (§ 4.5),
+ * hors du 422 (audit final F22).
  */
 export const TITRE_BLOC_PAIE = {
   BRUT: '1 · Salaire brut dû au personnel',
   RETENUES: '2 · Retenues sur le salaire (cotisations ouvrières, impôt)',
   PATRONALES: '3 · Charges sociales patronales',
+  AVANTAGES_EN_NATURE: '4 · Avantages en nature transférés (781)',
 } as const;
 
 type Bloc = keyof typeof TITRE_BLOC_PAIE;

@@ -3,6 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { BaremeMensuelIrpp, type DetailMensuelIrpp } from './BaremeMensuelIrpp';
 import { PaieDuMois } from './PaieDuMois';
 import { Aide } from '../components/chrome/Aide';
+import { ecartDuDecompte, elementsDuBulletin, montantAffiche, retenuesDuBulletin } from '../lib/bulletin-affiche';
 
 /**
  * P8 · LES BULLETINS ÉMIS, onglet de la fenêtre Personnel.
@@ -46,12 +47,6 @@ interface ListeBulletins {
   textes: { numerotation: string; inalterabilite: string; article103: string };
 }
 
-interface ElementEntree {
-  nature: string;
-  libelle: string;
-  montantFc: number;
-}
-
 interface LigneCotisation {
   cle: string;
   libelle: string;
@@ -69,17 +64,20 @@ interface Bulletin extends LigneBulletin {
   cotisationsTravailleurFc: number;
   cotisationsEmployeurFc: number;
   motifAnnulation: string | null;
-  entree: { elements: ElementEntree[]; personnesACharge?: number };
+  // Relu par `elementsDuBulletin` · un bulletin en dollars n'a de francs que
+  // dans sa conversion (audit final F20).
+  entree: { elements: unknown[]; personnesACharge?: number };
   // `retenue.mensuel` n'existe que sur les bulletins émis depuis le 2026-09-24 ·
   // un bulletin est indélébile, les plus anciens se relisent sans ce détail.
   calcul: {
     cotisations: { lignes: LigneCotisation[] };
     retenue?: { mensuel?: DetailMensuelIrpp; revenuAnnualiseFc?: number } | null;
+    conversion?: { cours: number; dateCours: string } | null;
   };
   reserves: string[];
 }
 
-const fc = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fc = montantAffiche;
 const jour = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('fr-FR') : '·');
 const moisCourant = () => new Date().toISOString().slice(0, 7);
 
@@ -260,12 +258,22 @@ export function OngletBulletins({ moisInitial, peutEcrire }: { moisInitial: stri
             </div>
           </div>
 
+          {ouvert.calcul.conversion && (
+            <div className="text-text-dim mb-1">
+              Rémunération stipulée en USD · {fc(ouvert.calcul.conversion.cours)} FC pour 1 USD, cours du{' '}
+              {jour(ouvert.calcul.conversion.dateCours)}
+            </div>
+          )}
           <table className="w-full mb-3">
             <tbody>
-              {ouvert.entree.elements.map((e, i) => (
+              {elementsDuBulletin(ouvert.entree, ouvert.calcul).map((e, i) => (
                 <tr key={i} className="border-t border-border/60">
-                  <td className="py-1">{e.libelle}</td>
-                  <td className="py-1 text-right">{fc(e.montantFc)}</td>
+                  <td className="py-1">
+                    {e.libelle}
+                    {e.montantUsd !== null && <span className="text-text-dim"> · {fc(e.montantUsd)} USD</span>}
+                    {!e.verse && <span className="text-text-dim"> · en nature, non versé</span>}
+                  </td>
+                  <td className="py-1 text-right">{e.verse ? fc(e.montantFc) : `(${fc(e.montantFc)})`}</td>
                 </tr>
               ))}
               <tr className="border-t border-border font-semibold">
@@ -286,12 +294,27 @@ export function OngletBulletins({ moisInitial, peutEcrire }: { moisInitial: stri
                 <td className="py-1">Retenue IRPP (art. 119)</td>
                 <td className="py-1 text-right">− {fc(ouvert.irppFc)}</td>
               </tr>
+              {retenuesDuBulletin(ouvert.calcul).map((r, i) => (
+                <tr key={`avance-${i}`} className="border-t border-border/60">
+                  <td className="py-1">
+                    Retenue {r.libelle}
+                    {r.littera && ` (art. 112, ${r.littera})`}
+                  </td>
+                  <td className="py-1 text-right">− {fc(r.montantFc)}</td>
+                </tr>
+              ))}
               <tr className="border-t-2 border-border font-semibold text-[12px]">
                 <td className="py-1.5">Net à payer</td>
                 <td className="py-1.5 text-right">{fc(ouvert.netAPayerFc)}</td>
               </tr>
             </tbody>
           </table>
+
+          {ecartDuDecompte(ouvert) !== 0 && (
+            <div className="text-danger mb-3">
+              Le décompte ne se solde pas sur le net · écart de {fc(ecartDuDecompte(ouvert))} FC.
+            </div>
+          )}
 
           {ouvert.calcul.retenue?.mensuel && (
             <div className="mb-3">

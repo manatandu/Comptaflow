@@ -12,7 +12,7 @@ import {
 import { assiettes, type ElementPaie, type NatureElementPaie } from './assiettes-paie';
 import { baremeApplicableAuMois, retenueMensuelle } from './bareme-irpp';
 import { cotisations, netAPayer, type NatureEmployeurInpp } from './cotisations-paie';
-import { passationPaie, type Referentiel } from './passation-paie';
+import { estVerseEnEspeces, passationPaie, type Referentiel } from './passation-paie';
 import {
   LITTERA_ARTICLE_112,
   RESERVE_QUOTITE_AVANCES,
@@ -755,7 +755,11 @@ export class PersonnelService {
 
     // Le TOTAL VERSÉ n'est pas l'assiette · les cinq exclusions de l'article 7
     // sortent de la rémunération, pas de ce que l'employeur paie.
-    const totalVerseFc = elements.reduce((n, e) => n + Math.max(0, e.montantFc), 0);
+    // L'avantage en nature entre dans les assiettes, pas dans ce qui est
+    // versé (audit final F22, `estVerseEnEspeces`).
+    const totalVerseFc = elements
+      .filter((e) => estVerseEnEspeces(e.nature as NatureElementPaie))
+      .reduce((n, e) => n + Math.max(0, e.montantFc), 0);
     const net = netAPayer(
       totalVerseFc,
       lesCotisations.totalTravailleurFc,

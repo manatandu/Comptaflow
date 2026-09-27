@@ -2925,7 +2925,9 @@ export class ControlesService {
     // Le plus récent mandat échu · candidat à la prorogation de l'art. 22.
     const echu = mandats.find((m) => dernierExerciceCouvert(m.premierExercice, m.nombreExercices) < anneeExercice);
 
-    if (!couvrant && (seuils.franchis.length > 0 || seuils.obligationSansSeuil)) {
+    // L'OBLIGATION DÉCLENCHÉE, PAS UN SEUIL FRANCHI (audit final F17) · deux sur
+    // trois aux formes cumulatives, comme le contrôle 6 de la même classe.
+    if (!couvrant && (seuils.obligationDeclenchee || seuils.obligationSansSeuil)) {
       if (!echu) {
         anomalies.push({
           code: 'AUDITEUR_OBLIGATOIRE_SANS_MANDAT',

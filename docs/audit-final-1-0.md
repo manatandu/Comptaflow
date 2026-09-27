@@ -142,12 +142,14 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** `AUDITEUR_OBLIGATOIRE_SANS_MANDAT` teste `franchis.length > 0`, alors que la même classe calcule `obligationDeclenchee` avec deux critères pour les formes cumulatives. Une SARL qui ne franchit qu'un critère lit que la désignation est obligatoire, ce que le commentaire dit vouloir éviter.
 - **Correction :** remplacer la condition par `obligationDeclenchee || obligationSansSeuil`.
+- **Fait le 2026-09-27 :** le contrôle 28 lit `obligationDeclenchee || obligationSansSeuil` (`controles.service.ts`). Test : `mandat-auditeur.spec.ts`, une SARL à un seuil n'est pas signalée, à deux seuils elle l'est.
 
 **F18 · La durée du mandat SYCEBNL est ramenée au nombre d'exercices ouverts dans OmegaX, pas à l'existence de l'entité** [mandat-01]
 - **Emplacements :** src/modules/mandat-auditeur/mandat-auditeur.service.ts:38-40, :131-141 · duree-mandat.ts:117-125
 - **Condition :** 1
 - **Constat :** l'existence de l'entité est mesurée par `exercice.count` dans le logiciel. Une association ancienne qui entre avec un seul exercice ne peut enregistrer qu'un mandat d'un an : le mandat réel de trois ans est refusé, et le contrôle 28 le déclarera échu à tort.
 - **Correction :** mesurer l'existence depuis `dateActePersonnalite` ou une date déclarée. À défaut, ne rien ramener et ne rien refuser.
+- **Fait le 2026-09-27 :** OmegaX ne mesure plus l'existence de l'entité · l'art. 21 ne dit pas s'il vise l'existence écoulée ou prévue, et ni les exercices ouverts ni `dateActePersonnalite` ne tranchent. La durée ramenée se SAISIT : au SYCEBNL toute durée de un à trois exercices est admise, au-delà refusée ; ailleurs la durée du texte reste exigée (`motifRefusDuree`, `duree-mandat.ts`). L'écran ouvre la saisie et cite l'article. Test : `mandat-auditeur.spec.ts`.
 
 ### Paie
 
@@ -156,24 +158,28 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 4
 - **Constat :** `entree` est figée avant la conversion : ses éléments n'ont pas de `montantFc`, et la passation calcule `Math.max(0, undefined)`, soit NaN, ce qui donne ECRITURE_DESEQUILIBREE. Or un seul bulletin refusé arrête toute la paie du mois.
 - **Correction :** reconstituer les éléments en francs depuis `calcul.conversion.elements` (ou figer les éléments convertis) et ajouter un test P9 sur un bulletin en dollars.
+- **Fait le 2026-09-27 :** la passation du mois relit les francs de `calcul.conversion.elements`, par RANG, quand l'élément n'en porte pas ; un élément sans francs ni conversion rend le bulletin illisible (`comptabilisation-paie.ts`, `elementsEnFrancs`). Test : `comptabilisation-paie.spec.ts`, un bulletin en dollars passe avec les mêmes totaux qu'en francs.
 
 **F20 · Ouvrir un bulletin en dollars fait planter l'onglet Bulletins** [paie-02]
 - **Emplacements :** client/src/pages/BulletinsPaie.tsx:82, :268
 - **Condition :** 4
 - **Constat :** l'écran appelle `fc(e.montantFc)` sur des éléments qui ne portent que `montantUsd` : `toLocaleString` sur `undefined` lève une erreur. Le décompte de l'art. 103 devient illisible et impossible à imprimer.
 - **Correction :** afficher les éléments convertis (USD, cours, FC) et ne jamais formater une valeur non numérique.
+- **Fait le 2026-09-27 :** le bulletin affiche chaque élément en FC avec son montant en USD et le cours du jour, et ne formate jamais une valeur absente (`client/src/lib/bulletin-affiche.ts`). Test : `bulletin-affiche.spec.ts`.
 
 **F21 · Le bulletin imprimé omet les retenues d'avance et de prêt que son net déduit** [paie-03]
 - **Emplacements :** client/src/pages/BulletinsPaie.tsx:263-293 · src/modules/personnel/personnel.service.ts:760-765
 - **Condition :** 1
 - **Constat :** le net déduit `retenuesAvancesFc`, mais le tableau imprimé n'a aucune ligne pour ces retenues. Le décompte remis au travailleur ne se solde pas sur son net.
 - **Correction :** une ligne par retenue (libellé, littera, montant) avant le net, et un test d'écran qui vérifie le solde.
+- **Fait le 2026-09-27 :** une ligne par retenue d'avance ou de prêt, avec son littera de l'art. 112, avant le net ; l'écran calcule l'écart du décompte et le signale s'il n'est pas nul (`ecartDuDecompte`). Test : `bulletin-affiche.spec.ts`.
 
 **F22 · Un avantage en nature est payé en espèces : net à payer et 422 gonflés** [paie-04]
 - **Emplacements :** src/modules/personnel/personnel.service.ts:758 · passation-paie.ts:222, :547
 - **Condition :** 1
 - **Constat :** `totalVerseFc` additionne tous les éléments, avantage en nature compris, et le net part de ce total. La passation porte l'avantage au 6617 contre le 422. Le salarié devient donc créancier en espèces d'un avantage qu'il a reçu en nature.
 - **Correction :** sortir les avantages en nature du total payé (en les gardant dans les assiettes), ne pas les créditer au 422, proposer la contrepartie du Guide (D 6617 / C 781) ou refuser la nature, et corriger la réserve.
+- **Fait le 2026-09-27 :** l'avantage en nature reste dans les assiettes et sort du total versé (`estVerseEnEspeces`) ; la passation le porte en quatrième temps, D 66170000 / C 78100000, hors du 422, comme l'écrivent la fiche du compte 66 des deux textes et le Guide (Partie 1 ch. 3 § 4.5). 78100000 est ouvert aux deux semis, relu par le spec de la nomenclature ; la réserve dit le transfert et sa condition (la charge déjà passée par nature). Tests : `passation-paie.spec.ts`, `simulation-paie.spec.ts`, `comptabilisation-paie.spec.ts`, `bulletin-affiche.spec.ts`.
 
 ### Fiscalité et facturation
 

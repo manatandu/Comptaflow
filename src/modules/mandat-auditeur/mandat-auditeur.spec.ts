@@ -2,7 +2,7 @@ import { FormeJuridiqueSyscohada, OrganeDesignationAuditeur, Referentiel } from 
 import { MandatAuditeurService } from './mandat-auditeur.service';
 import { ControlesService } from '../controles/controles.service';
 import { PrismaService } from '../../common/prisma.service';
-import { dernierExerciceCouvert, dureeMandat, dureeRamenee } from './duree-mandat';
+import { dernierExerciceCouvert, dureeMandat, motifRefusDuree } from './duree-mandat';
 
 /**
  * LE CONTRÔLE 6 RÉCLAMAIT DE « VÉRIFIER QUE LE MANDAT EST EN COURS » et aucune
@@ -62,10 +62,13 @@ describe('Durée du mandat · trois textes, trois durées', () => {
   it('la réduction à l’existence de l’entité est PROPRE au SYCEBNL', () => {
     // Art. 21, seconde phrase. Aucun article lu de l'AUSCGIE ne la porte : la
     // transposer raccourcirait un mandat que le texte ne raccourcit pas.
-    expect(dureeRamenee(Referentiel.SYCEBNL, 3, 2)).toBe(2);
-    expect(dureeRamenee(Referentiel.SYSCOHADA, 3, 2)).toBe(3);
-    // Un dossier sans aucun exercice ne rend pas une durée nulle.
-    expect(dureeRamenee(Referentiel.SYCEBNL, 3, 0)).toBe(1);
+    expect([
+      motifRefusDuree(Referentiel.SYCEBNL, 3, 2),
+      motifRefusDuree(Referentiel.SYCEBNL, 3, 3),
+      motifRefusDuree(Referentiel.SYCEBNL, 3, 4),
+      motifRefusDuree(Referentiel.SYCEBNL, 3, 0),
+      motifRefusDuree(Referentiel.SYSCOHADA, 3, 2),
+    ]).toEqual([null, null, 'au plus 3 exercice(s)', 'au plus 3 exercice(s)', '3 exercice(s)']);
   });
 
   it('le dernier exercice couvert compte le PREMIER · pas un rang de plus', () => {
@@ -154,19 +157,32 @@ describe('Enregistrement du mandat · ce que les textes refusent', () => {
     await expect(sas.svc.enregistrer('t', { ...mandatValide, nombreExercices: 5 })).resolves.toBeDefined();
   });
 
-  it('ramène la durée à l’existence de l’entité, et le DIT', async () => {
-    // Deux exercices seulement au dossier · art. 21, seconde phrase.
-    const { svc } = service(Referentiel.SYCEBNL, null, 2);
+  it('ne mesure pas l’existence au nombre d’exercices du logiciel (audit final F18)', async () => {
+    // Une association ancienne qui entre avec UN exercice · le mandat de trois
+    // ans que son assemblée a voté s'enregistre, et une durée ramenée aussi.
+    const { svc, cree } = service(Referentiel.SYCEBNL, null, 1);
     const proposee = await svc.dureeProposee('t', OrganeDesignationAuditeur.ASSEMBLEE_GENERALE_ORDINAIRE);
-    expect(proposee.exercices).toBe(2);
-    expect(proposee.ramenee).toBe(true);
-    await expect(svc.enregistrer('t', mandatValide)).rejects.toThrow(/ramenée à la durée d’existence/);
+    await svc.enregistrer('t', mandatValide);
+    await svc.enregistrer('t', { ...mandatValide, rang: 2, nombreExercices: 2 });
+    await expect(svc.enregistrer('t', { ...mandatValide, nombreExercices: 4 })).rejects.toThrow(/au plus 3 exercice/);
+    expect({ proposee: [proposee.exercices, proposee.reductionPossible], enregistres: cree.map((m) => m.nombreExercices) }).toEqual({
+      proposee: [3, true],
+      enregistres: [3, 2],
+    });
   });
 });
 
 // ---------------------------------------------------------------------------
 
-function serviceControles(mandats: Faux[], formeJuridiqueSyscohada: FormeJuridiqueSyscohada | null = null) {
+function serviceControles(
+  mandats: Faux[],
+  formeJuridiqueSyscohada: FormeJuridiqueSyscohada | null = null,
+  effectifPermanent = 0,
+  actif = 0,
+) {
+  // Un actif de trésorerie, lu par le regroupement de la balance, pour
+  // franchir le seuil du total du bilan quand le test le demande.
+  const groupes = actif ? [{ compteId: 'c521', _sum: { debit: actif, credit: 0 } }] : [];
   const prisma = {
     exercice: {
       findFirst: jest.fn().mockResolvedValue({
@@ -179,11 +195,17 @@ function serviceControles(mandats: Faux[], formeJuridiqueSyscohada: FormeJuridiq
     tenant: {
       findUniqueOrThrow: jest
         .fn()
-        .mockResolvedValue({ id: 't', referentiel: Referentiel.SYSCOHADA, formeJuridiqueSyscohada }),
+        .mockResolvedValue({ id: 't', referentiel: Referentiel.SYSCOHADA, formeJuridiqueSyscohada, effectifPermanent }),
     },
     ecriture: { findMany: jest.fn().mockResolvedValue([]) },
-    compte: { findMany: jest.fn().mockResolvedValue([]) },
-    ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },
+    compte: {
+      findMany: jest.fn().mockImplementation(({ where }: { where?: { id?: { in?: string[] } } }) =>
+        Promise.resolve(
+          where?.id?.in?.includes('c521') ? [{ id: 'c521', numero: '52110000', classe: 'CLASSE_5', typeCompte: 'DETAIL' }] : [],
+        ),
+      ),
+    },
+    ligneEcriture: { findMany: jest.fn().mockResolvedValue([]), groupBy: jest.fn().mockResolvedValue(groupes) },
     exoneration: { findMany: jest.fn().mockResolvedValue([]) },
     manuelProcedures: { findFirst: jest.fn().mockResolvedValue(null) },
     conventionFinancement: { findMany: jest.fn().mockResolvedValue([]) },
@@ -224,6 +246,18 @@ describe('Le contrôle du mandat · et le piège de l’article 22', () => {
     expect(a!.gravite).toBe('INFORMATION');
     expect(a!.consequence).toContain('art. 22');
     expect(a!.consequence).toMatch(/PROROGÉE/);
+  });
+
+  it('une SARL qui ne franchit qu’UN seuil sur trois n’est pas tenue de désigner (audit final F17)', async () => {
+    // AUSCGIE art. 376 · deux des trois conditions. Le contrôle 28 comptait
+    // « un seuil franchi », quand le contrôle 6 de la même classe en exige
+    // deux : l'un disait obligatoire ce que l'autre disait facultatif.
+    const sarl = (effectif: number, actif: number) =>
+      serviceControles([], FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE, effectif, actif)
+        .analyser('t', 'ex')
+        .then((r) => r.anomalies.some((a) => a.code === 'AUDITEUR_OBLIGATOIRE_SANS_MANDAT'));
+    // Effectif seul · un seuil. Effectif et total du bilan · deux seuils.
+    expect([await sarl(500, 0), await sarl(500, 200_000_000)]).toEqual([false, true]);
   });
 
   it('SEUL le refus exprès rouvre le trou · l’unique fait que l’art. 22 oppose', async () => {

@@ -110,6 +110,69 @@ describe('ce qui ne se passe pas, ou pas deux fois', () => {
     expect(p.refus[0].motifs.join(' ')).toContain('IMPOT_INDETERMINE');
   });
 
+  it('passe un bulletin stipulé en dollars, sur les francs figés à la conversion (audit final F19)', () => {
+    const enDollars = bulletin(2, {
+      entree: {
+        deviseStipulation: 'USD',
+        elements: [
+          { nature: 'SALAIRE_OU_TRAITEMENT', libelle: 'Salaire', montantUsd: 400 },
+          { nature: 'LOGEMENT_OU_SON_INDEMNITE', libelle: 'Logement', montantUsd: 160 },
+        ],
+      },
+    });
+    (enDollars.calcul as Record<string, unknown>).conversion = {
+      devise: 'USD',
+      cours: 2500,
+      elements: [
+        { libelle: 'Salaire', montantUsd: 400, montantFc: 1_000_000 },
+        { libelle: 'Logement', montantUsd: 160, montantFc: 400_000 },
+      ],
+    };
+    const q = propositionPaieDuMois('2026-03', 'SYSCOHADA', [bulletin(1), enDollars]);
+    // Les mêmes francs que deux bulletins en francs · rang pour rang.
+    expect({ refus: q.refus, equilibree: q.equilibree, total: q.totalDebitFc, salaires: ligne(q, 'BRUT', '66110000', 'DEBIT')[0]?.montantFc }).toEqual({
+      refus: [],
+      equilibree: true,
+      total: 3_440_000,
+      salaires: 2_000_000,
+    });
+  });
+
+  it('passe l’avantage en nature au 6617 par le 781, en quatrième temps (audit final F22)', () => {
+    const avecVehicule = bulletin(2, {
+      entree: {
+        elements: [
+          { nature: 'SALAIRE_OU_TRAITEMENT', libelle: 'Salaire', montantFc: 1_000_000 },
+          { nature: 'LOGEMENT_OU_SON_INDEMNITE', libelle: 'Logement', montantFc: 400_000 },
+          { nature: 'AVANTAGE_EN_NATURE', libelle: 'Véhicule', montantFc: 300_000 },
+        ],
+      },
+    });
+    const q = propositionPaieDuMois('2026-03', 'SYSCOHADA', [avecVehicule]);
+    expect({
+      refus: q.refus,
+      equilibree: q.equilibree,
+      solde422: q.solde422Fc,
+      blocs: [...new Set(q.lignes.map((l) => l.bloc))],
+      transfert: [ligne(q, 'AVANTAGES_EN_NATURE', '66170000', 'DEBIT')[0]?.montantFc, ligne(q, 'AVANTAGES_EN_NATURE', '78100000', 'CREDIT')[0]?.montantFc],
+    }).toEqual({
+      refus: [],
+      equilibree: true,
+      solde422: 1_250_000,
+      blocs: ['BRUT', 'RETENUES', 'PATRONALES', 'AVANTAGES_EN_NATURE'],
+      transfert: [300_000, 300_000],
+    });
+  });
+
+  it('refuse un bulletin en dollars dont la conversion manque, au lieu d’additionner du vide', () => {
+    const sansConversion = bulletin(2, {
+      entree: { elements: [{ nature: 'SALAIRE_OU_TRAITEMENT', libelle: 'Salaire', montantUsd: 400 }] },
+    });
+    expect(propositionPaieDuMois('2026-03', 'SYSCOHADA', [sansConversion]).refus.map((r) => [r.numero, r.motifs[0]])).toEqual([
+      [2, 'Bulletin illisible · ses éléments ou ses cotisations manquent.'],
+    ]);
+  });
+
   it('refuse un bulletin illisible au lieu de le compléter', () => {
     const p = propositionPaieDuMois('2026-03', 'SYSCOHADA', [bulletin(1, { entree: {} })]);
     expect(p.refus[0].motifs.join(' ')).toContain('illisible');

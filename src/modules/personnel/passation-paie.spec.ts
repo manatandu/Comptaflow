@@ -5,6 +5,7 @@ import {
   NATURES_SANS_IMPUTATION,
   NOMENCLATURE_PAIE,
   compteDuRole,
+  estVerseEnEspeces,
   passationPaie,
   type EntreePassation,
   type RoleComptePaie,
@@ -44,9 +45,11 @@ describe('Chaque numéro de la nomenclature est RÉELLEMENT ouvert dans son semi
     }
   });
 
-  it("gèle le décompte · UN SEUL rôle diverge sur les dix-sept", () => {
+  it("gèle le décompte · UN SEUL rôle diverge sur les dix-huit", () => {
+    // Dix-sept jusqu'au 2026-09-27 · le transfert de charges des avantages en
+    // nature (781) est le dix-huitième (audit final F22), même numéro aux deux.
     const divergents = roles.filter((x) => NOMENCLATURE_PAIE[x].divergent);
-    expect(roles).toHaveLength(17);
+    expect(roles).toHaveLength(18);
     expect(divergents).toEqual(['CNSS_PENSIONS']);
   });
 
@@ -288,5 +291,36 @@ describe('Ce que la passation annonce', () => {
     expect(r).toContain('66170000');
     expect(r).toContain('§ 4.5');
     expect(r).toContain('781');
+  });
+
+  it("transfère l'avantage en nature au 6617 par le 781, sans toucher le 422 (audit final F22)", () => {
+    // Le net ne comprend pas l'avantage · reçu en nature, il ne se paie pas.
+    const v = passationPaie(
+      entree({
+        elements: [...entree().elements, { nature: 'AVANTAGE_EN_NATURE', libelle: 'Véhicule', montantFc: 300_000 }],
+      }),
+    );
+    const du = (compte: string, sens: string) => v.lignes.filter((l) => l.compte === compte && l.sens === sens).map((l) => [l.bloc, l.montantFc]);
+    expect({
+      refus: v.refus,
+      equilibree: v.equilibree,
+      c422: du('42200000', 'CREDIT'),
+      d6617: du('66170000', 'DEBIT'),
+      c781: du('78100000', 'CREDIT'),
+    }).toEqual({
+      refus: [],
+      equilibree: true,
+      c422: [['BRUT', 1_400_000]],
+      d6617: [['AVANTAGES_EN_NATURE', 300_000]],
+      c781: [['AVANTAGES_EN_NATURE', 300_000]],
+    });
+  });
+
+  it("l'avantage en nature n'est pas une somme versée, tout le reste l'est", () => {
+    expect([estVerseEnEspeces('AVANTAGE_EN_NATURE'), estVerseEnEspeces('SALAIRE_OU_TRAITEMENT'), estVerseEnEspeces('LOGEMENT_OU_SON_INDEMNITE')]).toEqual([
+      false,
+      true,
+      true,
+    ]);
   });
 });

@@ -35,8 +35,8 @@ type Duree = {
   exercices: number | null;
   mandatsMaximum: number | null;
   source: string;
-  ramenee: boolean;
-  exercicesDeLEntite: number;
+  /** SYCEBNL art. 21, seconde phrase · la durée se ramène, elle se saisit (audit final F18). */
+  reductionPossible: boolean;
 };
 
 const ORGANES: { valeur: string; libelle: string }[] = [
@@ -235,7 +235,9 @@ export function MandatAuditeurPage() {
                 className="w-full border border-border px-1.5 py-1 text-[11.5px]"
                 value={nombreExercices}
                 onChange={(e) => setNombreExercices(Number(e.target.value))}
-                disabled={duree?.exercices !== null && duree?.exercices !== undefined}
+                min={1}
+                max={duree?.reductionPossible ? (duree.exercices ?? undefined) : undefined}
+                disabled={duree?.exercices !== null && duree?.exercices !== undefined && !duree.reductionPossible}
               />
             </label>
           </div>
@@ -247,10 +249,14 @@ export function MandatAuditeurPage() {
               ) : (
                 <>
                   Durée : <strong>{duree.exercices} exercice(s)</strong> · {duree.source}.
-                  {duree.ramenee && (
+                  {duree.reductionPossible && (
                     <>
-                      {' '}Ramenée à la durée d'existence de l'entité ({duree.exercicesDeLEntite} exercice(s) au
-                      dossier) · SYCEBNL art. 21, seconde phrase.
+                      {' '}Moins si l'entité existe depuis moins longtemps{' '}
+                      <Aide
+                        titre="Durée ramenée"
+                        texte="« Si l'entité a une existence inférieure à trois exercices, son mandat est ramené à cette durée. » OmegaX ne mesure pas cette existence : les exercices ouverts dans le logiciel ne la disent pas. Saisissez la durée ramenée, jamais plus de trois."
+                        source="SYCEBNL art. 21, seconde phrase"
+                      />
                     </>
                   )}
                   {duree.mandatsMaximum !== null && (

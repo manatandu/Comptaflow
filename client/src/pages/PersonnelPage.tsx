@@ -207,7 +207,7 @@ interface Simulation {
   passation: {
     referentiel: string;
     lignes: {
-      bloc: 'BRUT' | 'RETENUES' | 'PATRONALES';
+      bloc: 'BRUT' | 'RETENUES' | 'PATRONALES' | 'AVANTAGES_EN_NATURE';
       compte: string;
       intitule: string;
       sens: 'DEBIT' | 'CREDIT';

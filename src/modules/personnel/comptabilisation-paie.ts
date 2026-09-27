@@ -81,13 +81,16 @@ export type PropositionPaieDuMois = {
   readonly reserves: readonly string[];
 };
 
-const ORDRE_DES_BLOCS: readonly BlocPaie[] = ['BRUT', 'RETENUES', 'PATRONALES'];
+const ORDRE_DES_BLOCS: readonly BlocPaie[] = ['BRUT', 'RETENUES', 'PATRONALES', 'AVANTAGES_EN_NATURE'];
 
 /** Le compte qui porte le TOTAL de chaque bloc, et son sens. */
-const TOTAL_DU_BLOC: Readonly<Record<BlocPaie, { role: 'REMUNERATIONS_DUES' | 'CHARGES_SOCIALES_PATRONALES'; sens: SensLigne }>> = {
+const TOTAL_DU_BLOC: Readonly<
+  Record<BlocPaie, { role: 'REMUNERATIONS_DUES' | 'CHARGES_SOCIALES_PATRONALES' | 'TRANSFERTS_DE_CHARGES'; sens: SensLigne }>
+> = {
   BRUT: { role: 'REMUNERATIONS_DUES', sens: 'CREDIT' },
   RETENUES: { role: 'REMUNERATIONS_DUES', sens: 'DEBIT' },
   PATRONALES: { role: 'CHARGES_SOCIALES_PATRONALES', sens: 'DEBIT' },
+  AVANTAGES_EN_NATURE: { role: 'TRANSFERTS_DE_CHARGES', sens: 'CREDIT' },
 };
 
 const enCentimes = (fc: number) => Math.round(fc * 100);
@@ -102,18 +105,41 @@ const nombreOuNull = (x: unknown): number | null => (typeof x === 'number' && Nu
  * quand le bulletin ne porte pas ce qu'il faut · un bulletin illisible se
  * refuse, il ne se complète pas.
  */
+/**
+ * LES ÉLÉMENTS EN FRANCS (audit final F19). Le bulletin stipulé en dollars
+ * garde la stipulation dans son entrée, et fige les montants convertis dans
+ * `calcul.conversion.elements`, au cours du jour du calcul, dans le même
+ * ordre. Les relire par leur RANG, jamais par leur libellé, que deux lignes
+ * peuvent partager. Sans eux la passation additionnait `undefined`, l'écriture
+ * sortait déséquilibrée, et le bulletin arrêtait la paie du mois entier.
+ * Un élément sans montant en francs, ni converti, rend le bulletin illisible.
+ */
+function elementsEnFrancs(elements: unknown, conversion: Json): EntreePassation['elements'] | null {
+  if (!Array.isArray(elements)) return null;
+  const convertis = Array.isArray(conversion?.elements) ? (conversion!.elements as unknown[]) : null;
+  const rendus: EntreePassation['elements'][number][] = [];
+  for (const [i, brut] of elements.entries()) {
+    const e = objet(brut);
+    if (!e) return null;
+    const montantFc = nombreOuNull(e.montantFc) ?? (convertis ? nombreOuNull(objet(convertis[i])?.montantFc) : null);
+    if (montantFc === null) return null;
+    rendus.push({ ...(e as unknown as EntreePassation['elements'][number]), montantFc });
+  }
+  return rendus;
+}
+
 export function entreeDuBulletin(b: BulletinAComptabiliser, referentiel: Referentiel): EntreePassation | null {
   const entree = objet(b.entree);
   const calcul = objet(b.calcul);
   const cotisations = objet(calcul?.cotisations);
   const retenue = objet(calcul?.retenue);
   const net = objet(calcul?.net);
-  const elements = entree?.elements;
   const lignes = cotisations?.lignes;
-  if (!Array.isArray(elements) || !Array.isArray(lignes)) return null;
+  const elements = elementsEnFrancs(entree?.elements, objet(calcul?.conversion));
+  if (!elements || !Array.isArray(lignes)) return null;
   return {
     referentiel,
-    elements: elements as EntreePassation['elements'],
+    elements,
     cotisations: lignes as EntreePassation['cotisations'],
     abstentionsCotisations: Array.isArray(cotisations?.abstentions) ? (cotisations!.abstentions as string[]) : [],
     irppFc: nombreOuNull(retenue?.retenueFc),

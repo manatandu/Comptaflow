@@ -1634,7 +1634,8 @@ SEMIS** (`docs/paie-p3-passation-comptable.md`).
 règle se pose, après les stocks, les emballages et la variation de stocks.
 
 **DIX-SEPT RÔLES, UN SEUL DIVERGE**, et c'est celui qui porte la ligne la plus
-lourde du bulletin. La cotisation de retraite OBLIGATOIRE est au **43130000**
+lourde du bulletin. (Dix-huit depuis le 2026-09-27 · le 78100000 des avantages
+en nature, même numéro aux deux semis, voir P9.) La cotisation de retraite OBLIGATOIRE est au **43130000**
 en SYSCOHADA (sous 431 Sécurité sociale) et au **43210000** en SYCEBNL (sous
 432). Tout le reste coïncide, numéro ET intitulé · 6611, 6612, 6613, 6615,
 6617, 6618, 6631, 6634, 6638, 6641, 4311, 4312, 4334, 4335, 4472, 4220.
@@ -2245,6 +2246,11 @@ l'onglet Bulletins tant qu'elle est au brouillard, jamais une fois validée
 (AUDCIF art. 22, 2°). Un bulletin passé au brouillard ne s'annule pas seul ;
 passé et validé, il s'annule et la proposition du mois le signale comme salaire
 encore au journal. Six défauts réinjectés dans la règle, six attrapés.
+AUDIT FINAL F19 ET F22 (2026-09-27) · un bulletin stipulé en dollars se passe sur
+les francs figés dans sa conversion, relus par RANG, jamais par libellé ; et
+l'avantage en nature n'est pas une somme versée · il reste dans les assiettes,
+sort du net et du 422, et se passe en QUATRIÈME temps, D 6617 / C 781, comme
+l'écrivent la fiche du compte 66 des deux textes et le Guide (§ 4.5).
 
 **Salaire stipulé en dollars · la règle est celle du cabinet, pas d'un texte
 (2026-09-24).** Aucun texte du corpus ne fixe le cours de conversion d'une

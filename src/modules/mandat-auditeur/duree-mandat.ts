@@ -110,16 +110,23 @@ export function dernierExerciceCouvert(premierExercice: number, exercices: numbe
 
 /**
  * DURÉE RAMENÉE À L'EXISTENCE DE L'ENTITÉ · SYCEBNL art. 21, seconde phrase, et
- * seulement là. Aucun article de l'AUSCGIE lu ne porte cette réduction : la
- * transposer à une SARL naissante raccourcirait un mandat que le texte ne
- * raccourcit pas.
+ * seulement là : « si l'entité a une existence inférieure à trois exercices,
+ * son mandat est ramené à cette durée ». Aucun article de l'AUSCGIE lu ne
+ * porte cette réduction · la transposer à une SARL naissante raccourcirait un
+ * mandat que le texte ne raccourcit pas.
+ *
+ * OMEGAX NE MESURE PAS CETTE EXISTENCE (audit final F18). Il la lisait dans le
+ * nombre d'exercices OUVERTS DANS LE LOGICIEL · une association de vingt ans
+ * qui entre avec un exercice ne pouvait enregistrer qu'un mandat d'un an, et le
+ * contrôle 28 déclarait échu, l'année suivante, un mandat de trois ans en
+ * cours. Le texte ne dit d'ailleurs pas s'il vise l'existence écoulée ou
+ * prévue (un projet a une durée). La réduction se SAISIT donc · une durée plus
+ * courte est admise au SYCEBNL, jamais une plus longue.
  */
-export function dureeRamenee(
-  referentiel: Referentiel,
-  duree: number | null,
-  exercicesDeLEntite: number,
-): number | null {
+export function motifRefusDuree(referentiel: Referentiel, duree: number | null, saisie: number): string | null {
   if (duree === null) return null;
-  if (referentiel !== Referentiel.SYCEBNL) return duree;
-  return Math.min(duree, Math.max(exercicesDeLEntite, 1));
+  if (referentiel === Referentiel.SYCEBNL) {
+    return Number.isInteger(saisie) && saisie >= 1 && saisie <= duree ? null : `au plus ${duree} exercice(s)`;
+  }
+  return saisie === duree ? null : `${duree} exercice(s)`;
 }

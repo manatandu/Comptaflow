@@ -323,6 +323,29 @@ describe("P2b · l'ordre de calcul, et le net qui ne part pas de l'assiette", ()
       });
   });
 
+  it("ne verse pas l'avantage en nature, qui reste dans les assiettes (audit final F22)", async () => {
+    const { svc } = service();
+    const avec = (avantage: number) =>
+      svc.simulerPaie(
+        't-1',
+        null,
+        dto({
+          elements: [
+            { nature: 'SALAIRE_OU_TRAITEMENT', libelle: 'Salaire', montantFc: 1_000_000 },
+            ...(avantage ? [{ nature: 'AVANTAGE_EN_NATURE', libelle: 'Véhicule', montantFc: avantage }] : []),
+          ],
+          natureEmployeurInpp: 'PRIVE',
+          effectif: 10,
+        } as Partial<SimulationPaieDto>),
+      );
+    const [sans, avecVehicule] = await Promise.all([avec(0), avec(300_000)]);
+    expect({
+      verse: avecVehicule.net.totalVerseFc,
+      assietteElargie: avecVehicule.assiettes.assietteSocialeFc > sans.assiettes.assietteSocialeFc,
+      passationEquilibree: avecVehicule.passation.equilibree,
+    }).toEqual({ verse: 1_000_000, assietteElargie: true, passationEquilibree: true });
+  });
+
   it("s'abstient sur l'INPP sans emporter la CNSS ni le net", () => {
     const { svc } = service();
     return svc.simulerPaie('t-1', null, dto()).then((res) => {
