@@ -331,6 +331,43 @@ describe('état du brouillard · retard de centralisation', () => {
     expect(r.totaux.enRetard).toBe(1);
   });
 
+  it('rend tout ce que la modification doit renvoyer · devise, cours et ventilation', async () => {
+    // Le PATCH remplace les lignes en bloc : un champ que la lecture ne rend
+    // pas, l'écran ne peut pas le renvoyer, et la correction d'un libellé
+    // l'effacerait.
+    const prisma = prismaAvec(new Date());
+    ((prisma as { ecriture: { findMany: jest.Mock } }).ecriture.findMany).mockResolvedValueOnce([
+      {
+        id: 'e1',
+        date: new Date('2026-05-10'),
+        createdAt: new Date(),
+        numeroPiece: 4,
+        libelle: 'Achat',
+        reference: null,
+        journal: { code: 'ACH', intitule: 'Achats' },
+        lignes: [
+          {
+            compteId: 'c1',
+            debit: 1000,
+            credit: 0,
+            libelle: null,
+            deviseId: 'usd',
+            montantDevise: 400,
+            coursApplique: 2.5,
+            ventilations: [{ sectionId: 's1', debit: 1000, credit: 0 }],
+            compte: { numero: '60410000', intitule: 'Achats' },
+          },
+        ],
+      },
+    ]);
+    const r = await service(prisma).brouillard('t1', { exerciceId: 'ex1' });
+    const l = r.lignes[0].lignes[0];
+    expect([l.compteId, l.deviseId, l.montantDevise, l.coursApplique]).toEqual(['c1', 'usd', 400, 2.5]);
+    expect(l.ventilations).toEqual([{ sectionId: 's1', debit: 1000, credit: 0 }]);
+    const requete = ((prisma as { ecriture: { findMany: jest.Mock } }).ecriture.findMany).mock.calls[0][0];
+    expect(requete.include.lignes.include.ventilations).toBeTruthy();
+  });
+
   it('ne signale rien en deçà de sept jours', async () => {
     const recente = new Date(Date.now() - 2 * 86_400_000);
     const r = await service(prismaAvec(recente)).brouillard('t1', { exerciceId: 'ex1' });

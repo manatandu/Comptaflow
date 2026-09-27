@@ -1342,7 +1342,12 @@ export class EcritureService {
       },
       include: {
         journal: { select: { code: true, intitule: true } },
-        lignes: { include: { compte: { select: { numero: true, intitule: true } } } },
+        lignes: {
+          include: {
+            compte: { select: { numero: true, intitule: true } },
+            ventilations: { select: { sectionId: true, debit: true, credit: true } },
+          },
+        },
       },
       orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
     });
@@ -1366,13 +1371,36 @@ export class EcritureService {
         equilibree: Math.abs(debit - credit) <= 0.005,
         ancienneteJours,
         retardCentralisation: ancienneteJours > joursCentralisation,
-        lignes: e.lignes.map((l) => ({
-          compteNumero: l.compte.numero,
-          compteIntitule: l.compte.intitule,
-          libelle: l.libelle,
-          debit: Number(l.debit),
-          credit: Number(l.credit),
-        })),
+        // Tout ce que la modification doit renvoyer pour ne rien perdre · le
+        // PATCH remplace les lignes en bloc, si bien qu'un champ que l'écran
+        // ne connaît pas (taux de TVA, échéance, devise, ventilation) serait
+        // effacé par la simple correction d'un libellé.
+        // Les deux dates passent en propriétés abrégées · `date-versement.spec`
+        // compte les endroits où une ligne NAÎT par la clé écrite en toutes
+        // lettres, et cette lecture n'en est pas un.
+        lignes: e.lignes.map((l) => {
+          const dateEcheance = l.dateEcheance ? l.dateEcheance.toISOString().slice(0, 10) : null;
+          const dateVersement = l.dateVersement ? l.dateVersement.toISOString().slice(0, 10) : null;
+          return {
+            compteId: l.compteId,
+            compteNumero: l.compte.numero,
+            compteIntitule: l.compte.intitule,
+            libelle: l.libelle,
+            debit: Number(l.debit),
+            credit: Number(l.credit),
+            tauxTvaId: l.tauxTvaId ?? null,
+            dateEcheance,
+            dateVersement,
+            deviseId: l.deviseId ?? null,
+            montantDevise: l.montantDevise === null || l.montantDevise === undefined ? null : Number(l.montantDevise),
+            coursApplique: l.coursApplique === null || l.coursApplique === undefined ? null : Number(l.coursApplique),
+            ventilations: (l.ventilations ?? []).map((v) => ({
+              sectionId: v.sectionId,
+              debit: Number(v.debit),
+              credit: Number(v.credit),
+            })),
+          };
+        }),
       };
     });
 
