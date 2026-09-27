@@ -1138,7 +1138,10 @@ describe('IfrsService · première application consolidée (tranche C5, IFRS 1)'
 });
 
 describe('les tables IFRS ne sont lues que par le module IFRS', () => {
-  it('les fichiers du serveur qui les nomment sont exactement le service IFRS et la liste du cloisonnement', () => {
+  // Le classement du journal d'audit nomme chaque modèle du schéma (un test
+  // l'y oblige) · c'est une liste, comme celle du cloisonnement, elle ne lit
+  // aucune ligne et ne peut pas mêler un retraitement à un état légal.
+  it('les fichiers du serveur qui les nomment sont exactement le service IFRS, la liste du cloisonnement et le classement du journal d’audit', () => {
     const racine = join(__dirname, '..', '..');
     const fichiers = (dossier: string): string[] =>
       readdirSync(dossier).flatMap((nom) => {
@@ -1149,6 +1152,10 @@ describe('les tables IFRS ne sont lues que par le module IFRS', () => {
       .filter((f) => /\b(retraitementIfrs|regleCorrespondanceIfrs|parametresIfrs|ligneRetraitementIfrs|RetraitementIfrs|RegleCorrespondanceIfrs|ParametresIfrs|LigneRetraitementIfrs|mouvementCapitauxPropresIfrs|MouvementCapitauxPropresIfrs|effetChangeTresorerieIfrs|EffetChangeTresorerieIfrs|notesIfrs|NotesIfrs|regleConsolidationIfrs|RegleConsolidationIfrs)\b/.test(readFileSync(f, 'utf8')))
       .map((f) => relative(racine, f))
       .sort();
-    expect(lecteurs).toEqual(['common/cloisonnement/modeles-cloisonnes.ts', 'modules/ifrs/ifrs.service.ts']);
+    expect(lecteurs).toEqual([
+      'common/audit/champs-audites.ts',
+      'common/cloisonnement/modeles-cloisonnes.ts',
+      'modules/ifrs/ifrs.service.ts',
+    ]);
   });
 });

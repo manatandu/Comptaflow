@@ -1,5 +1,5 @@
 import { TABLES_DE_L_ARCHIVE, fichierDeLaTable, ordreDuModele } from './tables-restitution';
-import { MODELES_AUDITES } from '../../../common/audit/champs-audites';
+import { MODELES_AUDITES, NON_AUDITES_MOTIVES } from '../../../common/audit/champs-audites';
 
 export interface EnTeteManifeste {
   dossier: { id: string; nom: string; referentiel: string };
@@ -92,7 +92,7 @@ ${TABLES_DE_L_ARCHIVE.length} laissent un maillon. Les ${nonAuditees.length}
 suivants n'en laissent aucun, et leur historique n'est donc pas dans cette
 archive :
 
-${nonAuditees.map((t) => `- ${t}`).join('\n')}
+${nonAuditees.map((t) => `- ${t} · ${NON_AUDITES_MOTIVES[t] ?? 'motif non classé'}`).join('\n')}
 
 ## Décisions d'OmegaX, et non règles de droit
 

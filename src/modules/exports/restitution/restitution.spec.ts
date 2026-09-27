@@ -2,7 +2,7 @@ import { Writable } from 'node:stream';
 import { RestitutionService } from './restitution.service';
 import { Prisma } from '@prisma/client';
 import { TABLES_RESTITUEES, colonnesDuModele, fichierDeLaTable, fichierDuDocument } from './tables-restitution';
-import { colonnesNonRestituables } from '../../../common/audit/champs-audites';
+import { NON_AUDITES_MOTIVES, colonnesNonRestituables } from '../../../common/audit/champs-audites';
 import { analyserCsv } from '../../import/lecture-fichier';
 import { ecrireManifeste } from './manifeste-restitution';
 
@@ -276,8 +276,10 @@ describe('le manifeste dit ce que l’archive n’est pas', () => {
   });
 
   it('nomme les tables dont le journal d’audit ne garde aucune trace', () => {
-    expect(manifeste).toContain('- SaisieNote');
-    expect(manifeste).toContain('- RattachementNote');
+    // Chaque table non journalisée porte son MOTIF, lu dans la même table
+    // que l'extension d'audit · jamais une copie qui divergerait.
+    expect(manifeste).toContain(`- SaisieNote · ${NON_AUDITES_MOTIVES.SaisieNote}`);
+    expect(manifeste).toContain(`- LigneEcriture · ${NON_AUDITES_MOTIVES.LigneEcriture}`);
   });
 
   it('présente le format et le rôle comme des décisions, pas comme du droit', () => {

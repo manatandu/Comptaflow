@@ -1,10 +1,17 @@
 /**
  * CE QUI EST JOURNALISÉ, ET CE QUI NE L'EST PAS.
  *
- * Journaliser les quarante-deux modèles reviendrait à doubler chaque écriture
- * de la base, y compris les lignes engendrées en masse (dotations
- * d'amortissement, échéances, ventilations analytiques), pour une trace que
- * personne ne lira · le détail est déjà reconstituable depuis la pièce mère.
+ * Journaliser tous les modèles reviendrait à doubler chaque écriture de la
+ * base, y compris les lignes engendrées en masse (lignes d'écriture,
+ * échéances, ventilations analytiques), pour une trace que personne ne lira ·
+ * le détail est déjà reconstituable depuis la pièce mère.
+ *
+ * CHAQUE MODÈLE DU SCHÉMA EST CLASSÉ, UN PAR UN · ici, ou dans
+ * `NON_AUDITES_MOTIVES` avec son motif, jamais les deux. Un test relit le
+ * schéma et tombe sur tout modèle nouveau tant que personne ne l'a tranché ·
+ * c'est ainsi que des tables de même nature que les auditées (dépréciation,
+ * facture, consignation, engagement, mandat de l'auditeur…) étaient restées
+ * hors du journal sans que personne l'ait décidé.
  *
  * La liste ci-dessous est celle des modèles qu'un réviseur demande : la
  * CONFIGURATION du dossier (qui a changé le plan de comptes, un journal, un
@@ -133,7 +140,163 @@ export const MODELES_AUDITES = new Set<string>([
   // bulletins à venir · la trace dit qui l'a posé, sur quel texte, et qui l'a
   // retiré.
   'VersionBaremePaie',
+
+  // ══ CLASSEMENT DU 2026-09-27 · tables de même nature que les précédentes,
+  // restées hors du journal sans décision (audit serveur, point I4). ══
+
+  // Rattacher un compte à un tiers ou un modèle de règlement à ses échéances
+  // change ce que le lettrage, les relances et le règlement liront ensuite ·
+  // de la configuration, au même titre que la fiche du tiers.
+  'TiersCompte',
+  'ModeleReglement',
+  // Le rattachement d'un compte à une rubrique de note change ce que la Note
+  // annexe publie, sans qu'aucune écriture ne bouge.
+  'RattachementNote',
+  // Les registres du bailleur · un montant accordé, une tranche déclarée
+  // encaissée ou un rapport daté transmis après coup changent ce que le
+  // bailleur lira, et rien d'autre n'en garde la trace. Idem de l'engagement
+  // de dépense, de sa clôture motivée et de son rattachement à une écriture.
+  'ConventionFinancement',
+  'TrancheFinancement',
+  'RapportBailleur',
+  'EngagementDepense',
+  'ExecutionEngagement',
+  // L'OD analytique déplace du réalisé entre sections sans passer par le
+  // journal · journalisée à la tête, comme l'écriture.
+  'OdAnalytique',
+  // Un modèle d'abonnement engendre des écritures chaque période, un niveau de
+  // relance commande chaque courrier · de la configuration.
+  'ModeleAbonnement',
+  'NiveauRelance',
+  // Les actes du registre des immobilisations qui portent un JUGEMENT du
+  // cabinet · le motif d'un reclassement, l'INDICE d'une perte de valeur
+  // (AUDCIF Titre VIII ch. 12 § 2.1), qui rend la dépréciation opposable. Les
+  // dotations et le dérogatoire, eux, sont CALCULÉS (voir plus bas).
+  'ReclassementImmobilisation',
+  'DepreciationImmobilisation',
+  // Les documents obligatoires versionnés, au même titre que le livre
+  // d'inventaire (manuel · AUDCIF art. 16 ; rapport · SYCEBNL art. 16-3,
+  // AUSCGIE art. 138, AUSCOOP art. 108).
+  'ManuelProcedures',
+  'RapportActivite',
+  // Qui a compté et qui a assisté · ce sont ces membres que le PV signe, et
+  // une commission recomposée après coup changerait la signature d'un PV.
+  'SousCommissionInventaire',
+  'MembreSousCommission',
+  // La tête du questionnaire · sa clôture et son motif, comme le registre des
+  // faiblesses.
+  'QuestionnaireRevision',
+  // Ce que l'entité a fait devant son assemblée ou devant le Ministère du
+  // Plan · un refus de prorogation (SYCEBNL art. 22) ou une dénonciation posé
+  // après coup changent un signalement, et rien d'autre n'en garde la trace.
+  'MandatAuditeur',
+  'AccordCadrePlan',
+  // Le facturier et l'offre · une pièce justificative (AUDCIF art. 17) et une
+  // offre dont la révocation ou la réponse forment ou non un contrat (AUDCG
+  // art. 242 à 245). La facture ne se modifie pas, elle s'annule par une note
+  // de crédit (décret n° 011/42, art. 127) · sa suppression doit se lire.
+  'Facture',
+  'Devis',
+  // Le magasin · l'article porte le compte de stock, et un mouvement retouché
+  // ou retiré ferait naître un MALI D'INVENTAIRE qui n'existe pas.
+  'ArticleStock',
+  'MouvementStock',
+  // La consignation · compte d'attente dont le DÉNOUEMENT (retour, vente,
+  // écart) décide du bilan.
+  'Consignation',
+  // Les déclarations de la consolidation et du jeu IFRS · rien ne s'y déduit,
+  // tout se déclare (coût des titres, pourcentages, taux, marges internes,
+  // retraitements, notes), exactement comme le retraitement fiscal déjà
+  // journalisé. Une déclaration retouchée change les états consolidés ou IFRS
+  // sans qu'aucune écriture du dossier ne bouge.
+  'EntitePerimetreConsolidation',
+  'LienParticipationConsolidation',
+  'FaitsConsolidationExercice',
+  'OperationReciproqueConsolidation',
+  'ProvisionChangeConsolidation',
+  'EcartEvaluationConsolidation',
+  'ResultatInterneConsolidation',
+  'ParametresIfrs',
+  'RegleCorrespondanceIfrs',
+  'RetraitementIfrs',
+  'RegleConsolidationIfrs',
+  'MouvementCapitauxPropresIfrs',
+  'EffetChangeTresorerieIfrs',
+  'NotesIfrs',
+  // Le dossier fiscal de l'exercice · acomptes versés, déficit saisi,
+  // suppléments de l'Administration. Aucun livre ne les porte et chacun
+  // change l'impôt ou la base des acomptes suivants (LPF art. 57 bis).
+  'DossierFiscalExercice',
+  // Un lot de virements récurrents retient des fournisseurs et un montant
+  // habituel · de la configuration de paiement, comme le RIB.
+  'LotVirement',
 ]);
+
+/**
+ * LES MODÈLES QUI NE LAISSENT AUCUN MAILLON, ET POURQUOI.
+ *
+ * Un motif par modèle, jamais une exclusion tacite. Le manifeste de
+ * restitution lit cette table pour dire au dossier, table par table, pourquoi
+ * l'historique n'est pas dans l'archive. Quatre familles de motifs, et une
+ * cinquième se discute avant de s'écrire : les lignes d'une tête journalisée,
+ * les lignes engendrées en masse (une boucle d'écritures ajouterait un verrou
+ * et un maillon par ligne), ce que le logiciel CALCULE et poste avec une
+ * écriture journalisée qu'il retient, et ce qui n'appartient pas à la
+ * comptabilité du dossier.
+ */
+const LIGNES_DE_LA_TETE =
+  "Lignes d'une tête journalisée, réécrites avec elle · l'événement de la tête date et attribue la retouche.";
+export const NON_AUDITES_MOTIVES: Readonly<Record<string, string>> = {
+  // ── Lignes d'une tête journalisée
+  LigneEcriture:
+    "Lignes de l'écriture, journalisée à la tête · la table la plus grosse du logiciel, la doubler n'ajouterait rien que la tête ne date déjà.",
+  LigneAffectation: LIGNES_DE_LA_TETE,
+  LigneOdAnalytique: LIGNES_DE_LA_TETE,
+  LigneModeleSaisie: LIGNES_DE_LA_TETE,
+  EcheanceReglement: LIGNES_DE_LA_TETE,
+  LigneRetraitementIfrs: LIGNES_DE_LA_TETE,
+  LigneLotVirement: LIGNES_DE_LA_TETE,
+  CoupureComptee: 'Ventilation par coupure du PV de comptage, journalisé · le total compté est sur le PV.',
+  LigneFacture: 'Lignes de la facture, journalisée, écrites avec elle et jamais retouchées seules.',
+  LigneDevis: 'Lignes du devis, journalisé, écrites avec lui et jamais retouchées seules.',
+  LigneOrdreVirement:
+    "Lignes de l'ordre de virement, journalisé, recopiées à la date de l'ordre et jamais modifiées.",
+  RetenueAvanceBulletin: "Retenue née avec le bulletin émis, journalisé · un bulletin ne se modifie pas, il s'annule.",
+  // ── Lignes engendrées en masse
+  LigneReleveBancaire:
+    'Relevé importé en masse · la pièce est le relevé de la banque, le pointage se lit sur le rapprochement journalisé.',
+  VentilationAnalytique: "Ventilations engendrées ligne à ligne avec les écritures · reconstituables depuis l'écriture.",
+  BudgetSection: "Budgets mensuels engendrés en série (dotation, report d'exercice) · la section est journalisée.",
+  EcheanceAbonnement: "Échéances engendrées par le modèle d'abonnement, journalisé · chacune pointe vers son écriture.",
+  FicheInventaire: "Fiches créées par centaines en une fois · l'écart qu'elles produisent, et sa décision, sont journalisés.",
+  LigneBalanceConsolidation: "Balance de filiale importée en masse · l'entité porte la date et le nom du fichier importé.",
+  Relance:
+    "Historique des rappels, émis par lots et figé à l'émission · chaque ligne est elle-même la trace (date, auteur, montant).",
+  SaisieNote: 'Cellules des notes saisies une à une, chacune portant son auteur et sa date de retouche.',
+  CoursDevise:
+    "Cours du jour saisi en série · toute conversion fige le cours qu'elle applique (ligne d'écriture, bulletin, facture d'abonnement).",
+  // ── Calculé par le logiciel, avec une écriture journalisée qu'il retient
+  DotationAmortissement:
+    "Calculée depuis le plan d'amortissement et postée avec son écriture, journalisée et retenue · aucune route ne la modifie.",
+  AmortissementDerogatoire:
+    'Calculé depuis le plan fiscal et posté avec son écriture, journalisée et retenue · aucune route ne le modifie.',
+  // ── Hors de la comptabilité du dossier
+  EvenementAudit: "Le journal lui-même · s'y journaliser serait récursif, sa chaîne d'empreintes le protège.",
+  Message: "File d'envoi des courriels · technique, sans effet sur les comptes.",
+  ModeleBulletin: 'Gabarit qui pré-remplit une simulation et ne décide rien · le bulletin émis est journalisé.',
+  EtatPersonnalise: "Définition d'un état de consultation · ni état financier ni document déposé, aucune écriture.",
+  SimulationBudgetaire: "Hypothèses de simulation · rien n'est passé au journal.",
+  LieuBien:
+    "Référentiel de localisation sans effet comptable · l'affectation d'un bien se lit sur l'immobilisation journalisée.",
+  LicenceSurSiteEmise:
+    "Registre d'émission de l'éditeur, hors dossier · chaque ligne porte son numéro, son émetteur et sa date.",
+  FormuleAbonnement: "Grille de l'éditeur, hors dossier.",
+  AbonnementCabinet:
+    "Abonnement tenu par l'éditeur, hors dossier · la licence qu'il pose chez le cabinet est journalisée.",
+  OptionAbonnement: "Options d'un abonnement de l'éditeur, hors dossier.",
+  FactureAbonnement:
+    "Lien de l'éditeur vers la facture émise, elle-même journalisée dans le dossier de l'éditeur.",
+};
 
 /**
  * CHAMPS QUE LE JOURNAL NE DOIT JAMAIS RECOPIER.
