@@ -49,6 +49,8 @@
  * laisse pas déduire. Il est montré à réintégrer, jamais posté.
  */
 
+import { moisEntre } from '../../common/mois-entre';
+
 /** Les dix catégories de l'art. 31, dans l'ordre et les mots du texte. */
 export const CATEGORIES_ARTICLE_31 = [
   { cle: 'MATERIEL_INDUSTRIEL', libelle: "Matériels et outillages utilisés pour des opérations industrielles de fabrication, de transformation, d'extraction ou de transport, à l'exclusion des véhicules de tourisme" },
@@ -110,9 +112,25 @@ export function motifRefusOptionDegressif(o: {
 
 const arrondi = (n: number) => Math.round(n * 100) / 100;
 
-/** Mois pleins entre le premier jour du mois de `debut` et `fin`, bornes comprises. */
-function moisDe(debut: Date, fin: Date): number {
-  return (fin.getUTCFullYear() - debut.getUTCFullYear()) * 12 + (fin.getUTCMonth() - debut.getUTCMonth()) + 1;
+/**
+ * LES PÉRIODES IMPOSABLES D'UN EXERCICE · l'année civile (loi n° 23/053,
+ * art. 12). Un premier exercice long, créé après le 30 juin et clos le
+ * 31 décembre de l'année suivante, en porte DEUX · « l'impôt est néanmoins
+ * établi sur les bénéfices réalisés au cours de la période allant du jour de
+ * la création de l'entreprise au 31 décembre de la même année ». L'art. 33
+ * compte ses annuités « pour chacune des périodes imposables » : un exercice
+ * de dix-huit mois reçoit donc deux annuités fiscales, et non une seule
+ * bornée à douze mois (audit final F34).
+ */
+function periodesImposables(e: { dateDebut: Date; dateFin: Date }): Array<{ dateDebut: Date; dateFin: Date }> {
+  const periodes: Array<{ dateDebut: Date; dateFin: Date }> = [];
+  let debut = e.dateDebut;
+  while (debut <= e.dateFin) {
+    const finAnnee = new Date(Date.UTC(debut.getUTCFullYear(), 11, 31));
+    periodes.push({ dateDebut: debut, dateFin: finAnnee < e.dateFin ? finAnnee : e.dateFin });
+    debut = new Date(Date.UTC(debut.getUTCFullYear() + 1, 0, 1));
+  }
+  return periodes;
 }
 
 export type LignePlanFiscal = {
@@ -139,31 +157,40 @@ export function planFiscalDegressif(p: {
   const mes = new Date(Date.UTC(p.dateMiseEnService.getUTCFullYear(), p.dateMiseEnService.getUTCMonth(), 1));
   const lignes: LignePlanFiscal[] = [];
   let vr = p.base;
+  let premiere = true;
   for (const e of [...p.exercices].sort((a, b) => a.dateDebut.getTime() - b.dateDebut.getTime())) {
     if (e.dateFin < mes) continue;
     if (vr <= 0.005) break;
-    let annuite: number;
+    const vrDebut = vr;
+    let annuiteExercice = 0;
     let mode: LignePlanFiscal['mode'] = 'DEGRESSIF';
-    if (lignes.length === 0) {
-      // Art. 34 · première annuité au prorata, à compter du premier jour du mois de mise en service.
-      const mois = Math.min(12, Math.max(0, moisDe(mes > e.dateDebut ? mes : e.dateDebut, e.dateFin)));
-      annuite = vr * taux * (mois / 12);
-    } else {
-      // Art. 35 · années restantes « à compter de l'ouverture dudit exercice ».
-      const ecoules = Math.max(0, moisDe(mes, e.dateDebut) - 1) / 12;
-      const restantes = p.dureeFiscaleAns - ecoules;
-      const degressive = vr * taux;
-      const lineaire = restantes <= 1 ? vr : vr / restantes;
-      if (degressive < lineaire) {
-        annuite = lineaire;
-        mode = 'LINEAIRE_ART_35';
+    for (const periode of periodesImposables(e)) {
+      if (periode.dateFin < mes || vr <= 0.005) continue;
+      let annuite: number;
+      if (premiere) {
+        // Art. 34 · première annuité au prorata, à compter du premier jour du mois de mise en service.
+        const mois = Math.max(0, moisEntre(mes > periode.dateDebut ? mes : periode.dateDebut, periode.dateFin));
+        annuite = vr * taux * (mois / 12);
+        premiere = false;
       } else {
-        annuite = degressive;
+        // Art. 35 · années restantes « à compter de l'ouverture dudit exercice ».
+        const ecoules = Math.max(0, moisEntre(mes, periode.dateDebut) - 1) / 12;
+        const restantes = p.dureeFiscaleAns - ecoules;
+        const degressive = vr * taux;
+        const lineaire = restantes <= 1 ? vr : vr / restantes;
+        if (degressive < lineaire) {
+          annuite = lineaire;
+          mode = 'LINEAIRE_ART_35';
+        } else {
+          annuite = degressive;
+          mode = 'DEGRESSIF';
+        }
       }
+      annuite = arrondi(Math.min(annuite, vr));
+      annuiteExercice = arrondi(annuiteExercice + annuite);
+      vr = arrondi(vr - annuite);
     }
-    annuite = arrondi(Math.min(annuite, vr));
-    lignes.push({ exerciceId: e.id, valeurResiduelleDebut: arrondi(vr), annuite, mode });
-    vr = arrondi(vr - annuite);
+    lignes.push({ exerciceId: e.id, valeurResiduelleDebut: arrondi(vrDebut), annuite: annuiteExercice, mode });
   }
   return lignes;
 }

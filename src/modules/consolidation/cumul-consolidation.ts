@@ -1,4 +1,5 @@
 import { estCompteDuResultatDeLExercice, estResultatEnInstanceDAffectation } from '../etats-financiers/resultat-de-l-exercice';
+import { moisEntre } from '../../common/mois-entre';
 /**
  * CUMUL ET ÉLIMINATIONS · tranche 2 de la consolidation SYSCOHADA (décision du
  * 2026-09-24). Moteur PUR : il reçoit les balances RETRAITÉES des entités
@@ -422,8 +423,7 @@ const estGestion = (n: string) => /^[678]/.test(n) || POSTES_DE_RESULTAT.has(n a
  * art. 34), reprise pour qu'un même logiciel n'amortisse pas de deux façons.
  */
 function moisEcoules(entree: Date, date: Date): number {
-  const m = (date.getUTCFullYear() - entree.getUTCFullYear()) * 12 + (date.getUTCMonth() - entree.getUTCMonth()) + 1;
-  return Math.max(0, m);
+  return Math.max(0, moisEntre(entree, date));
 }
 
 function planEcart(montantAbs: number, duree: number, entree: Date, date: Date): number {

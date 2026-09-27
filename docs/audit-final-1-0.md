@@ -267,6 +267,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** le logiciel admet un premier exercice de plus de douze mois (AUDCIF art. 7), mais la dotation prend `Math.min(12, …)` et une annuité d'un an. Un bien en service sur 18 mois reçoit 12/12, et le décompte des mois est écrit trois fois.
 - **Correction :** proratiser sur la durée réelle de l'exercice, un seul `moisEntre` partagé, et un spec sur un exercice de 18 mois.
+- **Fait le 2026-09-27 :** un seul décompte, `src/common/mois-entre.ts`, appelé par la première annuité, la dernière annuité de sortie, le plan fiscal, la comparabilité et la consolidation ; plus aucun plafond à douze mois. Un bien en service sur dix-huit mois reçoit dix-huit douzièmes, borné au reliquat ; le SMT SYSCOHADA garde une annuité par exercice (« sans prorata temporis », lecture dite). Le plan fiscal dégressif compte ses PÉRIODES IMPOSABLES (loi n° 23/053, art. 12 et 33) · un exercice de dix-huit mois en porte deux, donc deux annuités. Tests : `exercice-long-f34.spec.ts` (sept mutations tuées, dont une après ajout du test de la bascule de l'art. 35).
 
 **F35 · La régularisation de boni ou de mali n'inscrit aucun mouvement au magasin** [stk-01]
 - **Emplacements :** src/modules/stocks/magasin.service.ts:398-456 · client/src/pages/MagasinPage.tsx:288

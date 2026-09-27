@@ -5138,6 +5138,14 @@ antérieure à l'ouverture, et une telle acquisition non déclarée reprise est
 refusée avec les deux issues (l'exercice de l'acquisition, ou la reprise).
 L'amortissement déjà pratiqué n'est admis que sur un bien repris.
 
+**Premier exercice long · dix-huit douzièmes, deux périodes imposables
+(2026-09-27, audit final F34).** L'AUDCIF art. 7 admet un premier exercice de
+plus de douze mois ; la dotation ne dépasse plus douze mois par aucun
+plafond, et le décompte des mois vit UNE fois (`src/common/mois-entre.ts`).
+Au SMT SYSCOHADA, une annuité par exercice (« sans prorata temporis »). Le
+plan fiscal dégressif compte par période imposable, l'année civile (loi
+n° 23/053, art. 12) · deux annuités sur un exercice de dix-huit mois.
+
 ### Migrations écrites à la main
 
 Une migration écrite à la main peut DIVERGER du schéma sans que rien ne le

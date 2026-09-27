@@ -1,4 +1,5 @@
 import { Referentiel } from '@prisma/client';
+import { moisEntre } from '../../common/mois-entre';
 
 /**
  * COMPARABILITÉ DE LA COLONNE N-1 · le second alinéa que le logiciel servait
@@ -79,9 +80,7 @@ export interface BorneExercice {
  * lui-même, et aucune source lue ne dit comment l'arrondir.
  */
 export function moisCouverts(borne: BorneExercice): number {
-  const d = borne.dateDebut;
-  const f = borne.dateFin;
-  return (f.getUTCFullYear() - d.getUTCFullYear()) * 12 + (f.getUTCMonth() - d.getUTCMonth()) + 1;
+  return moisEntre(borne.dateDebut, borne.dateFin);
 }
 
 /**

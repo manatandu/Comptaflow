@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
+import { moisEntre } from '../../common/mois-entre';
 import {
   ModeAmortissement,
   Prisma,
@@ -1399,17 +1400,26 @@ export class ImmobilisationService {
     if (premiereAnnuite) {
       const premierJourMoisMES = new Date(Date.UTC(dateMiseEnService.getUTCFullYear(), dateMiseEnService.getUTCMonth(), 1));
       const debutProrata = premierJourMoisMES < exercice.dateDebut ? exercice.dateDebut : premierJourMoisMES;
-      const moisEcoules =
-        (exercice.dateFin.getUTCFullYear() - debutProrata.getUTCFullYear()) * 12 +
-        (exercice.dateFin.getUTCMonth() - debutProrata.getUTCMonth()) +
-        1;
-      const mois = Math.min(12, Math.max(0, moisEcoules));
+      /*
+        LA PÉRIODE EST CELLE DE L'EXERCICE, PAS UNE ANNÉE (audit final F34).
+
+        AUDCIF art. 7 · la durée « peut être supérieure à douze mois pour le
+        premier exercice commencé au cours du deuxième semestre de l'année ».
+        L'annuité est annuelle (loi n° 23/053, art. 30, « chaque année, une
+        annuité constante »), si bien qu'un bien en service sur dix-huit mois
+        reçoit dix-huit douzièmes. Le plafond à douze laissait six mois
+        d'usage sans dotation, reportés en silence sur la fin du plan. Le
+        reliquat reste la seule borne.
+      */
+      const mois = Math.max(0, moisEntre(debutProrata, exercice.dateFin));
       /*
         AU SMT, LA PREMIÈRE ANNÉE EST PLEINE.
 
         AUDCIF Titre X ch. 1 § 1 · « une année entière la première année,
         quelle que soit la date d'acquisition ». Le prorata reste appliqué
-        partout ailleurs (Système normal, art. 45).
+        partout ailleurs (Système normal, art. 45). Sur un premier exercice
+        long, le SMT garde UNE annuité · « sans prorata temporis » exclut la
+        fraction d'année dans les deux sens, lecture d'OmegaX.
 
         `mois` GARDE SON RÔLE DE GARDE-FOU même au SMT : il vaut 0 quand le
         bien entre en service APRÈS la clôture de l'exercice demandé, et il
@@ -1437,15 +1447,14 @@ export class ImmobilisationService {
         lecture d'OmegaX pour une sortie en cours de mois, aucun texte lu ne
         la tranchant.
 
-        Sur un exercice ordinaire, la période fait douze mois et rien ne
+        Sur un exercice civil, la période fait douze mois et rien ne
         change. Au SMT SYSCOHADA, « sans prorata temporis » (AUDCIF Titre X
         ch. 1 § 1) vaut aussi ici.
       */
-      const moisPeriode =
-        (exercice.dateFin.getUTCFullYear() - exercice.dateDebut.getUTCFullYear()) * 12 +
-        (exercice.dateFin.getUTCMonth() - exercice.dateDebut.getUTCMonth()) +
-        1;
-      montant = sansProrata ? annuitePleine : annuitePleine * (Math.min(12, Math.max(0, moisPeriode)) / 12);
+      // Sur un premier exercice long, la période en porte plus de douze
+      // (audit final F34, voir la première annuité).
+      const moisPeriode = Math.max(0, moisEntre(exercice.dateDebut, exercice.dateFin));
+      montant = sansProrata ? annuitePleine : annuitePleine * (moisPeriode / 12);
     }
     return Math.min(montant, reliquat);
   }
