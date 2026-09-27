@@ -198,6 +198,13 @@ const GESTES: Array<{ route: string; controleur: string; decorateur: string; pag
     page: 'BrouillardPage.tsx',
     appel: 'api.patch(`/ecritures/${edition.id}`, corps)',
   },
+  {
+    route: 'POST /plateforme/cabinets/:tenantId/dossier-editeur',
+    controleur: 'plateforme/plateforme.controller.ts',
+    decorateur: "@Post('cabinets/:tenantId/dossier-editeur')",
+    page: 'PlateformePage.tsx',
+    appel: 'api.post(`/plateforme/cabinets/${c.id}/dossier-editeur`, {})',
+  },
 ];
 
 describe('routes d’écriture et leur geste', () => {

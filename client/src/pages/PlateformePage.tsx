@@ -199,6 +199,37 @@ export function PlateformePage({ adresse }: { adresse?: string } = {}) {
     setLicErreur(null);
   };
 
+  /**
+   * Désigner le dossier de l'éditeur (audit de l'interface du 2026-09-27,
+   * I11) · la route existait sans geste, et le seul chemin restait une
+   * modification à la main dans la base. Le geste est NOMMÉ et à part de la
+   * liste des types : un dossier d'éditeur ne se coupe plus jamais, ni par une
+   * échéance ni par une suspension. D'où une confirmation forte · le nom du
+   * dossier se RETAPE, un clic de travers ne suffit pas. Le serveur refuse s'il
+   * existe déjà un dossier d'éditeur, et le dit.
+   */
+  const designerDossierEditeur = async (c: CabinetClient) => {
+    const saisi = window.prompt(
+      `Ce dossier deviendra celui de l'éditeur : sa licence ne pourra plus expirer ni être suspendue, et ce choix ne se défait pas depuis la console.\n\nPour confirmer, retapez son nom exact : ${c.nom}`,
+    );
+    if (saisi === null) return;
+    if (saisi.trim() !== c.nom) {
+      setLicErreur('Le nom retapé ne correspond pas · rien n’a été changé.');
+      return;
+    }
+    setLicEnvoi(true);
+    setLicErreur(null);
+    try {
+      await api.post(`/plateforme/cabinets/${c.id}/dossier-editeur`, {});
+      setLicenceEnCours(null);
+      await charger();
+    } catch (err) {
+      setLicErreur(err instanceof ApiError ? err.message : 'Désignation impossible');
+    } finally {
+      setLicEnvoi(false);
+    }
+  };
+
   const onEnregistrerLicence = async (e: FormEvent) => {
     e.preventDefault();
     if (!licenceEnCours) return;
@@ -526,6 +557,24 @@ export function PlateformePage({ adresse }: { adresse?: string } = {}) {
                   </label>
                   <input type="date" value={licExpiration} onChange={(e) => setLicExpiration(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
                 </div>
+                {licenceEnCours.licence?.type !== 'PROPRIETAIRE' &&
+                  !(liste ?? []).some((c) => c.licence?.type === 'PROPRIETAIRE') && (
+                    <div className="mt-3 flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        disabled={licEnvoi}
+                        onClick={() => void designerDossierEditeur(licenceEnCours)}
+                        className="border border-danger/40 text-danger px-3 py-1 text-[11.5px] hover:bg-danger-soft disabled:opacity-50"
+                      >
+                        Désigner comme dossier de l'éditeur…
+                      </button>
+                      <Aide
+                        titre="Dossier de l'éditeur"
+                        texte="Le dossier de VMG Consulting, propriétaire du logiciel. Sa licence ne se coupe jamais, parce que c'est depuis ce dossier que la console rouvre celle des autres. Il n'y en a qu'un, et il se désigne une fois."
+                        source="OmegaX"
+                      />
+                    </div>
+                  )}
                 {licErreur && <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mt-3">{licErreur}</div>}
                 <div className="flex justify-end gap-2 mt-4">
                   <button type="button" onClick={() => setLicenceEnCours(null)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11.5px]">
