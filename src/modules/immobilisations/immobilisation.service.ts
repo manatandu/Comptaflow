@@ -873,13 +873,71 @@ export class ImmobilisationService {
     const famille = await this.prisma.familleImmobilisation.findFirst({ where: { id: dto.familleId, tenantId } });
     if (!famille) throw new BadRequestException('Famille introuvable pour ce tenant');
 
-    const compteContrepartie = await this.prisma.compte.findFirst({ where: { id: dto.compteContrepartieId, tenantId } });
-    if (!compteContrepartie) throw new BadRequestException('Compte de contrepartie introuvable pour ce tenant');
-
     const dateAcquisition = new Date(dto.dateAcquisition);
     const dateMiseEnService = new Date(dto.dateMiseEnService);
     if (dateMiseEnService < dateAcquisition) {
       throw new BadRequestException("La date de mise en service ne peut pas précéder la date d'acquisition");
+    }
+
+    /*
+      BIEN REPRIS OU BIEN ACQUIS (audit final F32) · c'est la DATE qui
+      tranche, pas la case.
+
+      Un bien acquis AVANT l'ouverture de l'exercice est déjà au bilan
+      d'ouverture · son compte 2x y est porté par le report à-nouveau, son
+      compte 28 aussi. Lui poster une écriture d'acquisition doublerait sa
+      valeur brute au bilan, sur une écriture équilibrée. Le module exigeait
+      pourtant cette écriture, et l'écriture tombe hors de l'exercice : la
+      fiche d'un bien repris ne pouvait pas naître, et le champ
+      « Amortissement déjà pratiqué » n'était jamais atteignable.
+
+      La fiche d'un bien repris naît donc SANS écriture, et seulement pour un
+      bien acquis avant l'ouverture de l'exercice indiqué · la reprise ne sert
+      jamais à passer sous silence une acquisition de l'exercice, que le
+      journal doit porter. Réciproquement, un bien acquis avant l'ouverture et
+      non déclaré repris est refusé ici, avec les deux issues, plutôt que par
+      la règle générique des dates d'écriture.
+    */
+    const exercice = await this.prisma.exercice.findFirst({
+      where: { id: dto.exerciceId, tenantId },
+      select: { dateDebut: true },
+    });
+    if (!exercice) throw new BadRequestException('Exercice introuvable pour ce tenant');
+    const ouverture = exercice.dateDebut.toISOString().slice(0, 10);
+    const acquisAvantOuverture = dateAcquisition < exercice.dateDebut;
+    if (dto.repris) {
+      if (!acquisAvantOuverture) {
+        throw new BadRequestException(
+          `Un bien repris est un bien déjà porté au bilan d'ouverture, donc acquis avant le ${ouverture}. ` +
+            "Un bien acquis dans l'exercice s'enregistre avec son écriture d'acquisition.",
+        );
+      }
+    } else {
+      if (acquisAvantOuverture) {
+        throw new BadRequestException(
+          `Acquis le ${dto.dateAcquisition.slice(0, 10)}, avant l'ouverture de l'exercice (${ouverture}). ` +
+            "Choisissez l'exercice de l'acquisition, ou, si le bien est déjà au bilan d'ouverture, déclarez-le " +
+            "« bien repris » · une écriture d'acquisition doublerait sa valeur brute au bilan.",
+        );
+      }
+      // Un amortissement déjà pratiqué suppose un bien amorti AILLEURS avant
+      // son entrée · un bien acquis dans l'exercice n'en a pas, et le cumul
+      // saisi ne correspondrait à aucun solde du 28.
+      if ((dto.amortissementAnterieur ?? 0) > EPSILON) {
+        throw new BadRequestException(
+          "Un amortissement déjà pratiqué ne vaut que pour un bien repris, déjà au bilan d'ouverture. Un bien " +
+            "acquis dans l'exercice n'a encore été amorti nulle part.",
+        );
+      }
+      if (!dto.compteContrepartieId || !dto.journalId) {
+        throw new BadRequestException(
+          "Indiquez le financement (compte de contrepartie) et le journal de l'écriture d'acquisition.",
+        );
+      }
+      const compteContrepartie = await this.prisma.compte.findFirst({
+        where: { id: dto.compteContrepartieId, tenantId },
+      });
+      if (!compteContrepartie) throw new BadRequestException('Compte de contrepartie introuvable pour ce tenant');
     }
 
     // APPROCHE PAR COMPOSANTS · seulement si un principal est désigné. Sans
@@ -989,17 +1047,20 @@ export class ImmobilisationService {
 
     // L'ÉCRITURE VIENT APRÈS TOUS LES CONTRÔLES (audit final F29) · le mode,
     // le SMT et le lieu refusaient APRÈS l'écriture d'acquisition, qui
-    // restait au journal sans bien pour la porter.
-    const ecritureAcquisition = await this.ecritureService.creer(tenantId, userId, {
-      exerciceId: dto.exerciceId,
-      journalId: dto.journalId,
-      date: dto.dateAcquisition,
-      libelle: `Acquisition · ${dto.designation}`,
-      lignes: [
-        { compteId: famille.compteImmobilisationId, debit: dto.valeurOrigine, credit: 0 },
-        { compteId: dto.compteContrepartieId, debit: 0, credit: dto.valeurOrigine },
-      ],
-    });
+    // restait au journal sans bien pour la porter. Un bien repris n'en a
+    // aucune (F32) · il est déjà au bilan d'ouverture.
+    const ecritureAcquisition = dto.repris
+      ? null
+      : await this.ecritureService.creer(tenantId, userId, {
+          exerciceId: dto.exerciceId,
+          journalId: dto.journalId!,
+          date: dto.dateAcquisition,
+          libelle: `Acquisition · ${dto.designation}`,
+          lignes: [
+            { compteId: famille.compteImmobilisationId, debit: dto.valeurOrigine, credit: 0 },
+            { compteId: dto.compteContrepartieId!, debit: 0, credit: dto.valeurOrigine },
+          ],
+        });
 
     let immobilisation;
     try {
@@ -1023,7 +1084,7 @@ export class ImmobilisationService {
           unitesOeuvrePrevues: mode === ModeAmortissement.UNITES_DOEUVRE ? dto.unitesOeuvrePrevues : null,
           uniteOeuvreLibelle:
             mode === ModeAmortissement.UNITES_DOEUVRE ? (dto.uniteOeuvreLibelle?.trim() ?? null) : null,
-          ecritureAcquisitionId: ecritureAcquisition.id,
+          ecritureAcquisitionId: ecritureAcquisition?.id ?? null,
           createdBy: userId,
           // Rattachement au principal · null pour une structure. Le composant
           // garde son PROPRE plan d'amortissement, c'est tout l'objet du
@@ -1038,7 +1099,7 @@ export class ImmobilisationService {
       });
     } catch (err) {
       // Une fiche refusée ne laisse pas son écriture d'acquisition au journal.
-      await this.annulerEcritureOrpheline(ecritureAcquisition.id);
+      if (ecritureAcquisition) await this.annulerEcritureOrpheline(ecritureAcquisition.id);
       throw err;
     }
     return versImmobilisation(immobilisation);

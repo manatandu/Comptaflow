@@ -58,6 +58,15 @@ function harnais(options: { createEchoue?: boolean } = {}) {
       }),
     },
     compte: { findFirst: jest.fn().mockResolvedValue({ id: 'ctreso', numero: '52110000' }) },
+    // L'exercice où la fiche naît · la doublure honore l'identifiant ET le
+    // dossier, un bien ne se crée jamais sur l'exercice d'un voisin (F32).
+    exercice: {
+      findFirst: jest.fn().mockImplementation(({ where }: { where: { id: string; tenantId: string } }) =>
+        Promise.resolve(
+          where.id === 'exN' && where.tenantId === 't1' ? { dateDebut: new Date('2026-01-01') } : null,
+        ),
+      ),
+    },
     tenant: {
       findUniqueOrThrow: jest.fn().mockResolvedValue({
         referentiel: Referentiel.SYSCOHADA,

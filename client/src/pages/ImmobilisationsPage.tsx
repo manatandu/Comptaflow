@@ -74,6 +74,9 @@ export function ImmobilisationsPage() {
   // pour un bien acquis ici, ce qui est le cas courant · d'où le champ en
   // dernier et non en évidence.
   const [iAmortissementAnterieur, setIAmortissementAnterieur] = useState('0');
+  // Bien déjà au bilan d'ouverture (audit final F32) · sa fiche naît sans
+  // écriture d'acquisition, le report à-nouveau portant déjà son 2x et son 28.
+  const [iRepris, setIRepris] = useState(false);
   const [iCompteContrepartie, setICompteContrepartie] = useState('');
   const [iJournalId, setIJournalId] = useState('');
 
@@ -218,10 +221,11 @@ export function ImmobilisationsPage() {
         dateMiseEnService: iDateMiseEnService,
         valeurOrigine: Number(iValeurOrigine),
         valeurResiduelle: Number(iValeurResiduelle || 0),
-        amortissementAnterieur: Number(iAmortissementAnterieur || 0),
-        compteContrepartieId: iCompteContrepartie,
+        amortissementAnterieur: iRepris ? Number(iAmortissementAnterieur || 0) : 0,
+        repris: iRepris || undefined,
+        compteContrepartieId: iRepris ? undefined : iCompteContrepartie,
         exerciceId: exerciceCourant?.id,
-        journalId: iJournalId,
+        journalId: iRepris ? undefined : iJournalId,
         immobilisationPrincipaleId: iPrincipal || undefined,
         typeComposant: iPrincipal ? iTypeComposant : undefined,
         justificationDecomposition: iPrincipal ? iJustification : undefined,
@@ -233,6 +237,8 @@ export function ImmobilisationsPage() {
       setILieuId('');
       setIValeurOrigine('');
       setIValeurResiduelle('0');
+      setIRepris(false);
+      setIAmortissementAnterieur('0');
       setAfficherFormImmo(false);
       await charger();
     } catch (err) {
@@ -744,33 +750,45 @@ export function ImmobilisationsPage() {
               Valeur résiduelle
               <input type="number" step="0.01" min={0} value={iValeurResiduelle} onChange={(e) => setIValeurResiduelle(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono" />
             </label>
-            <label className="text-[11.5px] font-semibold text-text-dim">
-              <span className="flex items-center gap-1">
-                Amortissement déjà pratiqué
-                <Aide
-                  titre="Amortissement déjà pratiqué"
-                  texte="Pour un bien REPRIS, mis en service avant l'ouverture du dossier : le cumul déjà porté au compte 28 à la date de reprise. Sans lui, le bien s'amortirait sa durée entière une seconde fois. Zéro pour un bien acquis dans le logiciel."
-                  source="Immobilisations"
-                />
-              </span>
-              <input
-                type="number"
-                step="0.01"
-                min={0}
-                value={iAmortissementAnterieur}
-                onChange={(e) => setIAmortissementAnterieur(e.target.value)}
-                className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono"
+            <label className="text-[11.5px] font-semibold text-text-dim flex items-center gap-1.5 self-end pb-1.5">
+              <input type="checkbox" checked={iRepris} onChange={(e) => setIRepris(e.target.checked)} />
+              Bien repris (déjà au bilan d'ouverture)
+              <Aide
+                titre="Bien repris"
+                texte="Un bien acquis avant l'ouverture de l'exercice est déjà porté au bilan d'ouverture, compte 2x et compte 28 compris. Sa fiche est créée sans écriture d'acquisition, qui doublerait sa valeur brute. Un bien acquis dans l'exercice n'est pas repris : son écriture d'acquisition est passée à la création."
+                source="Immobilisations"
               />
             </label>
-            <label className="text-[11.5px] font-semibold text-text-dim">
-              Financement (contrepartie)
-              <select required value={iCompteContrepartie} onChange={(e) => setICompteContrepartie(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal">
-                <option value="" />
-                {comptesFinancement.map((c) => (
-                  <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
-                ))}
-              </select>
-            </label>
+            {iRepris ? (
+              <label className="text-[11.5px] font-semibold text-text-dim">
+                <span className="flex items-center gap-1">
+                  Amortissement déjà pratiqué
+                  <Aide
+                    titre="Amortissement déjà pratiqué"
+                    texte="Le cumul déjà porté au compte 28 pour ce bien à l'ouverture de l'exercice. Sans lui, le bien s'amortirait sa durée entière une seconde fois."
+                    source="Immobilisations"
+                  />
+                </span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  value={iAmortissementAnterieur}
+                  onChange={(e) => setIAmortissementAnterieur(e.target.value)}
+                  className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono"
+                />
+              </label>
+            ) : (
+              <label className="text-[11.5px] font-semibold text-text-dim">
+                Financement (contrepartie)
+                <select required value={iCompteContrepartie} onChange={(e) => setICompteContrepartie(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal">
+                  <option value="" />
+                  {comptesFinancement.map((c) => (
+                    <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
           {/* APPROCHE PAR COMPOSANTS · facultative. Laisser le principal vide crée
               une immobilisation ordinaire, c'est-à-dire une STRUCTURE au sens du

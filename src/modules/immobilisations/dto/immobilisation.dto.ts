@@ -127,19 +127,32 @@ export class CreerImmobilisationDto {
   @Min(0)
   amortissementAnterieur?: number;
 
+  /**
+   * BIEN REPRIS · déjà au bilan d'ouverture (audit final F32). Son compte 2x
+   * et son compte 28 y sont portés par le report à-nouveau · lui poster une
+   * écriture d'acquisition doublerait la valeur brute au bilan. La fiche naît
+   * donc SANS écriture, et seulement pour un bien acquis avant l'ouverture de
+   * l'exercice indiqué. Contrepartie et journal ne servent alors à rien.
+   */
+  @IsOptional()
+  @IsBoolean()
+  repris?: boolean;
+
   // Financement de l'acquisition · l'écriture générée débite le compte
   // d'immobilisation (valeurOrigine) et crédite ce compte de contrepartie
   // (trésorerie, fournisseur d'investissement, emprunt, capital par dotation,
   // ou fonds affectés en SYCEBNL · voir le commentaire de
-  // ImmobilisationService.creer).
+  // ImmobilisationService.creer). Exigés hors reprise, par le service.
+  @IsOptional()
   @IsUUID('4')
-  compteContrepartieId!: string;
+  compteContrepartieId?: string;
 
   @IsUUID('4')
   exerciceId!: string;
 
+  @IsOptional()
   @IsUUID('4')
-  journalId!: string;
+  journalId?: string;
 
   // --- Approche par composants · facultatif, voir RattachementComposantDto ---
   @IsOptional()

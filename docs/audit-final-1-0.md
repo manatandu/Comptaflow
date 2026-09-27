@@ -253,6 +253,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 4
 - **Constat :** `creer` poste toujours l'acquisition à la date d'acquisition, et une date hors de l'exercice est refusée. Le champ « Amortissement déjà pratiqué » n'est donc jamais atteignable. S'il l'était, le 2x repris au bilan d'ouverture serait doublé.
 - **Correction :** créer la fiche d'un bien repris sans écriture d'acquisition.
+- **Fait le 2026-09-27 :** `repris` au DTO et à l'écran (case « Bien repris », qui remplace la contrepartie par l'amortissement déjà pratiqué) ; la fiche naît sans écriture, `ecritureAcquisitionId` devenant nullable (migration `20261122000000_immobilisation_reprise`, `onDelete: Restrict` déclaré au schéma, aucune dérive). La reprise n'est admise que pour une acquisition antérieure à l'ouverture de l'exercice ; une telle acquisition non déclarée reprise est refusée avec ses deux issues, et un amortissement antérieur hors reprise aussi. Tests : `bien-repris-f32.spec.ts` (onze mutations tuées), `e2e/tests/immobilisations.e2e.ts` sur la base réelle.
 
 **F33 · La durée d'une révision majeure n'est contrôlée que si elle est envoyée** [immo-09]
 - **Emplacements :** src/modules/immobilisations/immobilisation.service.ts:766-769, :948 · client/src/pages/ImmobilisationsPage.tsx:210-228

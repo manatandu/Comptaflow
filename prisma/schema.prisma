@@ -3497,9 +3497,12 @@ model Immobilisation {
 
   // Écriture d'acquisition (débit du compte d'immobilisation, crédit
   // trésorerie/tiers/dotation selon le mode de financement choisi à la
-  // création).
-  ecritureAcquisitionId String                       @unique
-  ecritureAcquisition   Ecriture                     @relation("ImmoEcritureAcquisition", fields: [ecritureAcquisitionId], references: [id], onDelete: Restrict)
+  // création). NULL pour un bien REPRIS · acquis avant l'exercice, il est déjà
+  // porté par le bilan d'ouverture, et une écriture le doublerait (audit
+  // final F32). RESTRICT déclaré · sur une relation facultative Prisma
+  // poserait SET NULL, et l'écriture partirait sans que la fiche le dise.
+  ecritureAcquisitionId String?                      @unique
+  ecritureAcquisition   Ecriture?                    @relation("ImmoEcritureAcquisition", fields: [ecritureAcquisitionId], references: [id], onDelete: Restrict)
   // Écriture de sortie (solde des comptes 2/28, VCN sur 81) · null tant que
   // le bien est EN_SERVICE.
   ecritureSortieId      String?                      @unique

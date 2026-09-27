@@ -5129,6 +5129,15 @@ verrou qui pose le statut de sortie ; une écriture refusée après lui défait
 tout (`defaireSortie`) · un bien sorti sans écriture restait au bilan, et
 « déjà sortie » fermait toute reprise.
 
+**Bien repris · la date tranche, pas la case (2026-09-27, audit final F32).**
+Un bien acquis avant l'ouverture de l'exercice est déjà au bilan d'ouverture,
+2x et 28 compris · sa fiche naît SANS écriture d'acquisition
+(`ecritureAcquisitionId` nullable, `onDelete: Restrict` déclaré), qui
+doublerait sa valeur brute. `repris` n'est admis que pour une acquisition
+antérieure à l'ouverture, et une telle acquisition non déclarée reprise est
+refusée avec les deux issues (l'exercice de l'acquisition, ou la reprise).
+L'amortissement déjà pratiqué n'est admis que sur un bien repris.
+
 ### Migrations écrites à la main
 
 Une migration écrite à la main peut DIVERGER du schéma sans que rien ne le

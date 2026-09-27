@@ -67,6 +67,15 @@ describe('le câblage · un bien aux unités d’œuvre à la création', () => 
         }),
       },
       compte: { findFirst: jest.fn().mockResolvedValue({ id: 'ctreso', numero: '52110000' }) },
+      // L'exercice où la fiche naît (audit final F32) · la doublure honore
+      // l'identifiant et le dossier.
+      exercice: {
+        findFirst: jest.fn().mockImplementation(({ where }: { where: { id: string; tenantId: string } }) =>
+          Promise.resolve(
+            where.id === 'exN' && where.tenantId === 't1' ? { dateDebut: new Date('2026-01-01') } : null,
+          ),
+        ),
+      },
       tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue(regime) },
       immobilisation: {
         findFirst: jest.fn().mockResolvedValue(null),

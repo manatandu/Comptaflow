@@ -165,6 +165,15 @@ describe('une révision majeure s’amortit sur l’intervalle, jamais sur la st
         }),
       },
       tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel: 'SYSCOHADA' }) },
+      // L'exercice où la fiche naît · la doublure honore l'identifiant ET le
+      // dossier, un bien ne se crée jamais sur l'exercice d'un voisin (F32).
+      exercice: {
+        findFirst: jest.fn().mockImplementation(({ where }: { where: { id: string; tenantId: string } }) =>
+          Promise.resolve(
+            where.id === 'ex1' && where.tenantId === 't1' ? { dateDebut: new Date('2025-01-01') } : null,
+          ),
+        ),
+      },
       familleImmobilisation: {
         findFirst: jest.fn().mockResolvedValue({
           id: 'f1',
