@@ -9,9 +9,11 @@ import { useAuth } from '../lib/auth';
  * par taux) et la pose au brouillard. Rien n'est deviné à l'écran.
  */
 export function PasserEcritureFacture({ facture, onFait }: { facture: { id: string; sens: 'VENTE' | 'ACHAT' }; onFait: () => void }) {
-  // La route est réservée à l'administrateur et au comptable · les deux
-  // rôles de `peutValider`, jamais l'aide-comptable qui serait refusé.
-  const { peutValider } = useAuth();
+  // Passer l'écriture d'une facture la pose AU BROUILLARD, comme la saisie
+  // que l'aide-comptable fait déjà à la main · la route ne la lui refuse pas
+  // (`@Roles` sans `@ReserveAuComptable`), l'écran la lui ouvre donc aussi.
+  // L'ancien commentaire le disait « refusé » : c'était faux (audit I7).
+  const { peutEcrire } = useAuth();
   const [ouvert, setOuvert] = useState(false);
   const [journaux, setJournaux] = useState<Journal[]>([]);
   const [comptes, setComptes] = useState<Compte[]>([]);
@@ -47,7 +49,7 @@ export function PasserEcritureFacture({ facture, onFait }: { facture: { id: stri
     }
   };
 
-  if (!peutValider) return null;
+  if (!peutEcrire) return null;
   if (!ouvert) {
     return (
       <button className="mt-1 text-[11px] underline text-text-dim block" onClick={() => setOuvert(true)}>

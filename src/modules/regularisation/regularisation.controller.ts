@@ -10,6 +10,7 @@ import {
   CreerRegularisationDto,
   GenererAbonnementDto,
   ModifierAbonnementDto,
+  ReprendreRegularisationDto,
 } from './dto/regularisation.dto';
 import { RoleUtilisateur } from '@prisma/client';
 
@@ -46,7 +47,7 @@ export class RegularisationController {
   async reprendre(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
-    @Body() body: { exerciceCibleId: string },
+    @Body() body: ReprendreRegularisationDto,
   ) {
     return this.service.reprendre(user.tenantId, user.userId, id, body.exerciceCibleId);
   }

@@ -8,6 +8,7 @@ import { ExerciceService } from './exercice.service';
 import { CreerExerciceDto } from './dto/creer-exercice.dto';
 import { ClorePartielleDto, CloreTotaleDto, ClorePeriodeDto } from './dto/cloture.dto';
 import { ArreterComptesDto } from './dto/arrete-comptes.dto';
+import { ANouveauxProvisoiresDto } from './dto/a-nouveaux-provisoires.dto';
 import { RoleUtilisateur } from '@prisma/client';
 import { AccesRolesCantonnes } from '../../common/decorators/acces-roles-cantonnes.decorator';
 
@@ -40,7 +41,7 @@ export class ExerciceController {
   async aNouveauxProvisoires(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
-    @Body() body: { reporterBudgets?: boolean },
+    @Body() body: ANouveauxProvisoiresDto,
   ) {
     return this.exerciceService.genererANouveauxProvisoires(user.tenantId, id, user.userId, {
       reporterBudgets: body?.reporterBudgets === true,

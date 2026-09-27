@@ -5,7 +5,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { DevisesService } from './devises.service';
-import { CreerDeviseDto, ModifierDeviseDto, PoserCoursDto, ReevaluerDto } from './dto/devises.dto';
+import { CreerDeviseDto, ExtournerReevaluationDto, ModifierDeviseDto, PoserCoursDto, ReevaluerDto } from './dto/devises.dto';
 import { RoleUtilisateur } from '@prisma/client';
 
 @UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
@@ -67,7 +67,7 @@ export class DevisesController {
   async extourner(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
-    @Body() body: { exerciceSuivantId: string },
+    @Body() body: ExtournerReevaluationDto,
   ) {
     return this.devises.extourner(user.tenantId, user.userId, id, body.exerciceSuivantId);
   }

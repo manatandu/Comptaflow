@@ -56,7 +56,8 @@ describe('l’écran de restitution annonce ses réserves', () => {
 
 describe('qui peut extraire, et depuis où', () => {
   it('réserve le bouton à l’administrateur du cabinet', () => {
-    expect(page).toContain("utilisateur?.role === 'ADMIN_CABINET'");
+    // Lu dans le contexte de session, jamais recomposé (audit C9).
+    expect(page).toContain('const { estAdmin: peutExtraire } = useAuth();');
     // Et le dit à celui qui ne l'est pas, plutôt que de masquer sans motif.
     expect(page.replace(/\s+/g, ' ')).toContain(
       "Seul l'administrateur du cabinet peut extraire le dossier complet.",

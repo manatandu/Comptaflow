@@ -170,11 +170,10 @@ export function AppShell() {
         // Elle ne se range pas au menu « État » : rien n'y est édité, aucun
         // chiffre n'y est arrêté, elle ne dépend même pas de l'exercice · un
         // état comptable se dépose chez un tiers, une file d'envois se
-        // surveille. Le menu État vient par ailleurs d'être replié en six
-        // familles pour tenir sur un écran de 360 px (chrome-etroit.spec.ts en
-        // gèle les vingt-deux éditions) : y ajouter une vingt-troisième entrée
-        // qui n'est pas une édition rouvrirait ce défaut ET ferait mentir le
-        // repli.
+        // surveille. Le menu État est par ailleurs replié en familles pour
+        // tenir sur un écran de 360 px (chrome-etroit.spec.ts en gèle le
+        // décompte) : y ajouter une entrée qui n'est pas une édition
+        // rouvrirait ce défaut ET ferait mentir le repli.
         //
         // Elle ne se range pas non plus au menu « Traitement », qui porte les
         // gestes qui touchent aux comptes (saisie, lettrage, rapprochement,

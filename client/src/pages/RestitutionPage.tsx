@@ -20,8 +20,7 @@ import { Aide } from '../components/chrome/Aide';
  * décision d'OmegaX, comme le format et le périmètre.
  */
 export function RestitutionPage() {
-  const { utilisateur } = useAuth();
-  const peutExtraire = utilisateur?.role === 'ADMIN_CABINET';
+  const { estAdmin: peutExtraire } = useAuth();
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 

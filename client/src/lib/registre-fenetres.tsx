@@ -6,7 +6,8 @@ export { fenetreDisponible };
 
 /*
  * CHARGEMENT À LA DEMANDE · chaque page ne rejoint le navigateur qu'à
- * l'ouverture de sa première fenêtre. En eager, les 37 pages partaient
+ * l'ouverture de sa première fenêtre. En eager, les pages (37 à l'époque,
+ * bien davantage aujourd'hui) partaient
  * dans un seul bundle de 660 Ko : l'écran d'ouverture payait le poids des
  * états financiers. Le Suspense qui affiche « Chargement… » pendant le
  * transfert vit dans Fenetre.tsx, autour de rendreFenetre().
@@ -576,12 +577,6 @@ export const FENETRES: DefinitionFenetre[] = [
     rendre: () => <EtatsAnalytiquesPage />,
   },
   {
-    // SYCEBNL SEULEMENT · les deux termes non comptables de la colonne
-    // Engagement viennent du tableau d'exécution budgétaire du jeu « projets
-    // de développement ». Aucun état du SYSCOHADA ne porte cette colonne, et
-    // ouvrir le registre à une société commerciale lui ferait tenir un
-    // document qu'aucun texte ne lui demande. Le cloisonnement est posé aux
-    // DEUX bouts : ici, et par `@ReferentielsAutorises` sur chaque route.
     motif: /^\/conventions-financement$/,
     titre: 'Dossier de subvention',
     titreCourt: 'Subventions',
@@ -592,6 +587,12 @@ export const FENETRES: DefinitionFenetre[] = [
     rendre: () => <ConventionsFinancementPage />,
   },
   {
+    // SYCEBNL SEULEMENT · les deux termes non comptables de la colonne
+    // Engagement viennent du tableau d'exécution budgétaire du jeu « projets
+    // de développement ». Aucun état du SYSCOHADA ne porte cette colonne, et
+    // ouvrir le registre à une société commerciale lui ferait tenir un
+    // document qu'aucun texte ne lui demande. Le cloisonnement est posé aux
+    // DEUX bouts : ici, et par `@ReferentielsAutorises` sur chaque route.
     motif: /^\/engagements$/,
     titre: 'Registre des engagements de dépense',
     titreCourt: 'Engagements',
