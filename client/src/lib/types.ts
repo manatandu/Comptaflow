@@ -3586,6 +3586,7 @@ export type ProvisionRisqueCharge = {
   objet: string;
   nature: string;
   statut: string;
+  compteId: string | null;
   compte: { numero: string; intitule: string } | null;
   obligationExiste: boolean;
   resulteEvenementPasse: boolean;
