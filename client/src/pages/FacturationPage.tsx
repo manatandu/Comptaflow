@@ -193,6 +193,23 @@ export function FacturationPage() {
     }
   }
 
+  /**
+   * Supprimer une pièce saisie par erreur (audit de l'interface du
+   * 2026-09-27, I11). Seulement tant qu'aucune écriture ne la porte et
+   * qu'elle n'est pas barrée · une facture annulée se CONSERVE (décret
+   * n° 011/42, art. 127), et le serveur le refuse aussi, avec ce motif.
+   */
+  async function supprimer(factureId: string, numero: string) {
+    if (!window.confirm(`Supprimer la pièce « ${numero} » ?`)) return;
+    setErreur(null);
+    try {
+      await api.delete(`/facturation/${factureId}`);
+      await recharger();
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : "La pièce n'a pas pu être supprimée.");
+    }
+  }
+
   async function emettreNoteDeCredit(factureId: string) {
     setErreur(null);
     try {
@@ -506,6 +523,15 @@ export function FacturationPage() {
                       )}
                       {peutEcrire && !f.ecritureId && <PasserEcritureFacture facture={f} onFait={() => void recharger()} />}
                       {f.ecritureId && <p className="text-[11px] text-text-dim mt-1">Écriture passée</p>}
+                      {peutEcrire && !f.ecritureId && !f.barree && (
+                        <button
+                          type="button"
+                          className="mt-1 text-[11px] underline text-text-dim block"
+                          onClick={() => void supprimer(f.id, f.numeroSerie)}
+                        >
+                          Supprimer
+                        </button>
+                      )}
                       {peutEcrire && f.nature === 'FACTURE' && !f.barree && (
                         noteSur === f.id ? (
                           <div className="mt-1 flex flex-wrap gap-1 items-center">

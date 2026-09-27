@@ -66,7 +66,19 @@ export function ExonerationsPage() {
   const selection = registre?.dossiers.find((d) => d.id === selectionId) ?? null;
 
   // La barre d'outils agit sur la fenêtre active · « Ajouter » ouvre un
-  // dossier, « Supprimer » retire celui qui est sélectionné.
+  // dossier, « Supprimer » retire celui qui est sélectionné. Le second
+  // n'avait pas de bouton (audit de l'interface du 2026-09-27, I11).
+  const supprimer = async (dossier: DossierExoneration) => {
+    if (!window.confirm(`Supprimer le dossier « ${dossier.objet} » ?`)) return;
+    setErreur(null);
+    try {
+      await api.delete(`/exonerations/${dossier.id}`);
+      setSelectionId(null);
+      charger();
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Suppression impossible');
+    }
+  };
 
   const creer = async () => {
     if (!creation || !objet.trim()) return;
@@ -113,6 +125,15 @@ export function ExonerationsPage() {
               className="bg-sel text-white rounded-[3px] px-3 py-[3px] text-[11.5px] font-semibold hover:opacity-90"
             >
               Nouvelle demande
+            </button>
+          )}
+          {peutEcrire && selection && (
+            <button
+              type="button"
+              onClick={() => void supprimer(selection)}
+              className="border border-border rounded-[3px] px-3 py-[3px] text-[11.5px]"
+            >
+              Supprimer
             </button>
           )}
           <Aide
