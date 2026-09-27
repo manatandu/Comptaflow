@@ -69,6 +69,19 @@ describe('échéancier d’abonnement', () => {
     expect(dates[11].toISOString().slice(0, 10)).toBe('2026-12-15');
   });
 
+  /**
+   * AUDIT FINAL F8 · « plus un mois » depuis l'échéance précédente faisait
+   * passer le 31 janvier au 3 mars · février n'avait pas d'échéance, une
+   * charge manquait sur l'année, et le décalage se propageait.
+   */
+  it('mensuel né un 31 janvier : février a son échéance, et mars revient au 31', () => {
+    const dates = RegularisationService.echeancesDe(d('2026-01-31'), d('2026-12-31'), PeriodiciteAbonnement.MENSUELLE);
+    expect({ nombre: dates.length, premieres: dates.slice(0, 4).map((x) => x.toISOString().slice(0, 10)) }).toEqual({
+      nombre: 12,
+      premieres: ['2026-01-31', '2026-02-28', '2026-03-31', '2026-04-30'],
+    });
+  });
+
   it('trimestriel sur un an : quatre échéances', () => {
     const dates = RegularisationService.echeancesDe(
       d('2026-01-01'),

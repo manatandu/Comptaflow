@@ -537,15 +537,29 @@ export class ExerciceService {
     });
   }
 
+  /**
+   * CLÔTURE DE PÉRIODE · tous les journaux jusqu'à une date, DÉFINITIVE. Elle
+   * n'était bornée à rien (audit final F7) · une faute de frappe sur l'année
+   * figeait la saisie, le lettrage et la ventilation du dossier entier, sans
+   * retour possible. Même borne que la clôture totale : la date tombe dans
+   * l'exercice pour lequel on la pose.
+   */
   async clorePeriode(tenantId: string, exerciceId: string, userId: string, dto: ClorePeriodeDto) {
-    await this.trouverExercice(tenantId, exerciceId);
+    const exercice = await this.trouverExercice(tenantId, exerciceId);
+    const dateLimite = new Date(dto.dateLimite);
+    if (dateLimite < exercice.dateDebut || dateLimite > exercice.dateFin) {
+      throw new BadRequestException(
+        "La date de la clôture de période tombe hors de l'exercice. Elle est définitive et fige tous les journaux · " +
+          "posez-la depuis l'exercice qui contient cette date.",
+      );
+    }
     return this.prisma.cloture.create({
       data: {
         tenantId,
         exerciceId,
         granularite: GranulariteCloture.PERIODE,
         journalId: null,
-        dateLimite: new Date(dto.dateLimite),
+        dateLimite,
         annulable: false,
         createdBy: userId,
       },

@@ -1,4 +1,5 @@
 import { FormeJuridiqueEbnl } from '@prisma/client';
+import { ajouterMois } from '../../common/ajouter-mois';
 
 /**
  * LES QUATRE CONDITIONS DE L'ARTICLE 37, ET CE QUE LE LOGICIEL NE TENAIT PAS.
@@ -120,11 +121,9 @@ export function etatAccordCadre(params: {
 }): EtatAccordCadre {
   const { dateSignature, dureeAnnees, taciteReconduction, preavisMois, denonceLe, reference } = params;
 
-  const finDe = (rang: number) => {
-    const d = new Date(dateSignature);
-    d.setUTCFullYear(d.getUTCFullYear() + dureeAnnees * rang);
-    return d;
-  };
+  // En mois, bornés à la fin du mois (audit final F8) · un accord signé un
+  // 29 février ne finit pas le 1er mars.
+  const finDe = (rang: number) => ajouterMois(dateSignature, 12 * dureeAnnees * rang);
 
   let rang = 1;
   let fin = finDe(rang);
@@ -141,11 +140,7 @@ export function etatAccordCadre(params: {
   const dernierJourPourDenoncer =
     preavisMois === null
       ? null
-      : (() => {
-          const d = new Date(fin);
-          d.setUTCMonth(d.getUTCMonth() - preavisMois);
-          return d;
-        })();
+      : ajouterMois(fin, -preavisMois);
 
   return {
     finDePeriode: fin,

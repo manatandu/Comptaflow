@@ -154,6 +154,18 @@ describe('Création', () => {
     expect(data.dateFinValidite.toISOString().slice(0, 10)).toBe('2028-03-01');
   });
 
+  // AUDIT FINAL F8 · « plus vingt-quatre mois » depuis un 29 février
+  // débordait au 1er mars, un jour de validité inventé.
+  it('borne la fin de validité au dernier jour du mois', async () => {
+    const create = jest.fn().mockImplementation(({ data }) => Promise.resolve(data));
+    await service([], create).creer('t1', 'u1', {
+      type: 'PREVISIONNEL' as never,
+      objet: 'Importations récurrentes 2024',
+      dateDebutValidite: '2024-02-29',
+    });
+    expect(create.mock.calls[0][0].data.dateFinValidite.toISOString().slice(0, 10)).toBe('2026-02-28');
+  });
+
   it('un arrêté ponctuel n’a pas de fin de validité · il s’épuise avec son opération', async () => {
     const create = jest.fn().mockImplementation(({ data }) => Promise.resolve(data));
     await service([], create).creer('t1', 'u1', {

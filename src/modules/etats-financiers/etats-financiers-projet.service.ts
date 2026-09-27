@@ -362,10 +362,12 @@ export class EtatsFinanciersProjetService {
    *     créditeur cumulé du compte : les trois colonnes se réconcilient par
    *     construction, à tout moment de la vie du projet.
    *
-   * Les écritures de report à-nouveau (`Ecriture.estGenereeParCloture`)
-   * restent EXCLUES, et c'est indispensable ici : le report rejoue au crédit
-   * le solde de clôture de l'exercice précédent, qui compterait donc une
-   * deuxième fois le même décaissement dans un cumul multi-exercices.
+   * Les écritures de report à-nouveau restent EXCLUES, et c'est
+   * indispensable ici : le report rejoue au crédit le solde de clôture de
+   * l'exercice précédent, qui compterait donc une deuxième fois le même
+   * décaissement dans un cumul multi-exercices. SAUF celles du premier
+   * exercice, qui portent le bilan d'ouverture · c'est la règle de
+   * `balanceCumulee`, que la note lit.
    *
    * Les comptes 162-164/462-464 SANS bailleur rattaché ne sont jamais
    * absorbés en silence dans un total : ils ressortent sous `nonAffecte`
@@ -383,26 +385,25 @@ export class EtatsFinanciersProjetService {
     const comptesInvestissement = comptes.filter((c) => PREFIXES_INVESTISSEMENT.some((p) => c.numero.startsWith(p)));
     const comptesAdministration = comptes.filter((c) => PREFIXES_ADMINISTRATION.some((p) => c.numero.startsWith(p)));
 
-    const compteIds = [...comptesInvestissement, ...comptesAdministration].map((c) => c.id);
-    // PAS de filtre `exerciceId` : cumul depuis l'origine du projet (voir
-    // « Une note de PROJET, pas d'exercice » en tête de méthode).
-    const lignes = compteIds.length
-      ? await this.prisma.ligneEcriture.findMany({
-          // `VALIDEE` seulement : la note 9 est un état financier, elle ne
-          // lit pas le brouillard (voir StatutEcriture dans le schéma).
-          where: { compteId: { in: compteIds }, ecriture: { tenantId, statut: 'VALIDEE' } },
-          select: { compteId: true, debit: true, credit: true, ecriture: { select: { estGenereeParCloture: true } } },
-        })
-      : [];
-    const lignesReelles = lignes.filter((l) => !l.ecriture.estGenereeParCloture);
+    // LE CUMUL DU PROJET SE LIT PAR `balanceCumulee`, la règle unique que le
+    // tableau emplois-ressources de la même liasse lit aussi (audit final
+    // F12). La note écartait TOUT report à-nouveau, y compris le bilan
+    // d'ouverture du premier exercice, qui porte ce que le bailleur avait
+    // versé avant l'entrée du projet dans OmegaX · le décaissé et le solde
+    // restant divergeaient du tableau emplois-ressources. Elle bornait aussi
+    // mal : sans filtre d'exercice, un exercice postérieur y entrait.
+    // Livre-journal seul, comme tout état financier.
+    const cumul = await this.ecritureService.balanceCumulee(tenantId, exerciceId);
+    const cumulParCompte = new Map(cumul.lignes.map((l) => [l.compteId, l]));
 
     const mouvements = (comptesGroupe: typeof comptesInvestissement) => {
       const parCompte = new Map(comptesGroupe.map((c) => [c.id, { decaisse: 0, consomme: 0, soldeRestant: 0 }]));
-      for (const l of lignesReelles) {
-        const acc = parCompte.get(l.compteId);
-        if (!acc) continue;
-        acc.decaisse += Number(l.credit);
-        acc.consomme += Number(l.debit);
+      for (const c of comptesGroupe) {
+        const l = cumulParCompte.get(c.id);
+        if (!l) continue;
+        const acc = parCompte.get(c.id)!;
+        acc.decaisse += l.totalCredit;
+        acc.consomme += l.totalDebit;
       }
       // Solde restant = décaissé − consommé : c'est exactement le solde
       // créditeur cumulé du compte, et les trois colonnes se réconcilient

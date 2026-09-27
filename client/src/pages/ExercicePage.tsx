@@ -5,6 +5,7 @@ import { useExercice } from '../lib/exercice';
 import { IconLock, IconCheck } from '../components/chrome/icons';
 import type { Cloture, Compte, GranulariteCloture, Journal, PlanningCloture } from '../lib/types';
 import { Aide } from '../components/chrome/Aide';
+import { confirmationCloturePeriode } from '../lib/cloture-periode';
 
 const LIBELLE_GRANULARITE: Record<GranulariteCloture, string> = {
   PARTIELLE: 'Partielle',
@@ -205,6 +206,7 @@ export function ExercicePage() {
   const clorePeriode = async (e: FormEvent) => {
     e.preventDefault();
     if (!exerciceId) return;
+    if (!confirm(confirmationCloturePeriode(dateLimitePeriode))) return;
     setEnvoi(true);
     setErreur(null);
     setInfo(null);
@@ -664,6 +666,8 @@ export function ExercicePage() {
                 required
                 type="date"
                 value={dateLimitePeriode}
+                min={exercice?.dateDebut.slice(0, 10)}
+                max={exercice?.dateFin.slice(0, 10)}
                 onChange={(e) => setDateLimitePeriode(e.target.value)}
                 className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px] font-normal"
               />

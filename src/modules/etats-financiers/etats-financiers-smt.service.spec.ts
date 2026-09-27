@@ -46,6 +46,9 @@ function ligneTiers(
   montant: { debit?: number; credit?: number },
   echeance?: string,
   lettre: string | null = null,
+  // Lettrée par un règlement daté APRÈS la clôture · ouverte à la clôture
+  // (audit final F10).
+  regleApresCloture = false,
 ) {
   return {
     compteId: `id-${numero}`,
@@ -53,6 +56,7 @@ function ligneTiers(
     credit: montant.credit ?? 0,
     dateEcheance: echeance ? new Date(echeance) : null,
     lettre,
+    regleApresCloture,
   };
 }
 
@@ -126,9 +130,11 @@ function service(
     // `estGenereeParCloture` : sans quoi le test « une ligne lettrée est
     // soldée » ne testerait que la doublure.
     ligneEcriture: {
-      findMany: jest.fn().mockImplementation(({ where }: { where: { lettre?: string | null } }) =>
+      findMany: jest.fn().mockImplementation(({ where }: { where: { lettre?: string | null; OR?: unknown[] } }) =>
         Promise.resolve(
-          (options.lignesTiers ?? []).filter((l) => (where.lettre === null ? l.lettre === null : true)),
+          (options.lignesTiers ?? []).filter((l) =>
+            where.lettre === null ? l.lettre === null : where.OR ? l.lettre === null || l.regleApresCloture : true,
+          ),
         ),
       ),
     },
@@ -719,6 +725,22 @@ describe('Notes annexes S.M.T', () => {
     expect(note.totalCreancesNonEchues).toBe(0);
     expect(note.totalDettesNonEchues).toBe(0);
     expect(note.echeancesTenues).toBe(false);
+  });
+
+  // AUDIT FINAL F10 · réglée et lettrée APRÈS la clôture, elle était
+  // ouverte au 31 décembre.
+  it('Note 3 · une ligne soldée après la clôture reste dans la ventilation', async () => {
+    const s = service(
+      { e1: [ligne('41100000', ClasseCompte.CLASSE_4, 9000, 0)] },
+      {
+        lignesTiers: [
+          ligneTiers('41100000', { debit: 5000 }, '2027-02-28', 'A1', true),
+          ligneTiers('41100000', { debit: 4000 }, '2027-05-31'),
+        ],
+      },
+    );
+    const note = await s.note3CreancesDettes('t1', 'e1');
+    expect(note.creances[0].montantNonEchu).toBe(9000);
   });
 
   it('Note 3 · une ligne lettrée est soldée et sort de la ventilation', async () => {

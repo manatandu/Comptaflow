@@ -1,3 +1,5 @@
+import { ajouterMois } from '../../common/ajouter-mois';
+
 /**
  * PÉRIMÈTRE DE CONSOLIDATION · tranche 1 du plan (item 14, décision du
  * 2026-09-24). Moteur PUR : il reçoit les entités, leurs liens de
@@ -323,14 +325,7 @@ function justificationsEnNotes(methode: MethodeConsolidation, pct: number): stri
  * n'existe pas en septembre. Et le 30 novembre ne mène pas au 2 mars.
  */
 function ajouterTroisMois(d: Date): Date {
-  const an = d.getUTCFullYear();
-  const mois = d.getUTCMonth();
-  const jour = d.getUTCDate();
-  const dernierDu = (a: number, m: number) => new Date(Date.UTC(a, m + 1, 0)).getUTCDate();
-  const finDeMois = jour === dernierDu(an, mois);
-  const cible = new Date(Date.UTC(an, mois + 3, 1));
-  const dernierCible = dernierDu(cible.getUTCFullYear(), cible.getUTCMonth());
-  return new Date(Date.UTC(cible.getUTCFullYear(), cible.getUTCMonth(), finDeMois ? dernierCible : Math.min(jour, dernierCible)));
+  return ajouterMois(d, 3, { finDeMoisSuit: true });
 }
 
 export function verdictDateCloture(mere: Date, filiale: Date): DateClotureVerdict {

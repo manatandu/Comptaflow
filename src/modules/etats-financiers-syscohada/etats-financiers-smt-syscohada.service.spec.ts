@@ -85,7 +85,7 @@ const CLASSE_PAR_CHIFFRE: Record<string, ClasseCompte> = {
 function ligneTiers(
   numero: string,
   montant: { debit?: number; credit?: number },
-  options: { echeance?: string; lettre?: string } = {},
+  options: { echeance?: string; lettre?: string; regleApresCloture?: boolean } = {},
 ) {
   return {
     compteId: `id-${numero}`,
@@ -94,6 +94,7 @@ function ligneTiers(
     credit: montant.credit ?? 0,
     dateEcheance: options.echeance ? new Date(options.echeance) : null,
     lettre: options.lettre ?? null,
+    regleApresCloture: options.regleApresCloture ?? false,
   };
 }
 
@@ -167,11 +168,14 @@ function service(
           ({
             where,
           }: {
-            where: { lettre?: null; compteId?: { in: string[] }; compte?: { classe: ClasseCompte } };
+            where: { lettre?: null; OR?: unknown[]; compteId?: { in: string[] }; compte?: { classe: ClasseCompte } };
           }) =>
             Promise.resolve(
               (options.lignesTiers ?? []).filter((l) => {
                 if (where.lettre === null && l.lettre !== null) return false;
+                // Ouverte à la clôture (audit final F10) · non lettrée, ou
+                // soldée par un règlement postérieur.
+                if (where.OR && l.lettre !== null && !l.regleApresCloture) return false;
                 if (where.compteId && !where.compteId.in.includes(l.compteId)) return false;
                 if (where.compte && l.classe !== where.compte.classe) return false;
                 return true;
@@ -867,6 +871,22 @@ describe('Notes annexes S.M.T SYSCOHADA', () => {
     // Tout est daté : la ventilation est complète et la note peut le dire.
     expect(note.echeancesTenues).toBe(true);
     expect(note.motifEcheances).toBeNull();
+  });
+
+  // AUDIT FINAL F10 · réglée et lettrée APRÈS la clôture, elle était
+  // ouverte au 31 décembre.
+  it('NOTE 3 · une ligne soldée après la clôture reste dans la ventilation', async () => {
+    const s = service(
+      { e1: [ligne('41110000', ClasseCompte.CLASSE_4, 700_000, 0)] },
+      {
+        lignesTiers: [
+          ligneTiers('41110000', { debit: 200_000 }, { echeance: '2027-02-28' }),
+          ligneTiers('41110000', { debit: 500_000 }, { echeance: '2027-05-31', lettre: 'A', regleApresCloture: true }),
+        ],
+      },
+    );
+    const note = await s.note3CreancesDettes('t1', 'e1');
+    expect(note.creances[0].montantNonEchu).toBe(700_000);
   });
 
   it('NOTE 3 · une ligne lettrée est soldée et sort de la ventilation', async () => {

@@ -15,6 +15,7 @@ import {
   GenererAbonnementDto,
   ModifierAbonnementDto,
 } from './dto/regularisation.dto';
+import { ajouterMois } from '../../common/ajouter-mois';
 
 /** Un jour, en millisecondes. */
 const JOUR = 86_400_000;
@@ -626,27 +627,27 @@ export class RegularisationService {
   // Abonnement
   // ==========================================================================
 
-  private static prochaineDate(date: Date, periodicite: PeriodiciteAbonnement): Date {
-    const suivante = new Date(date);
+  /**
+   * Échéances d'un contrat, du début à la fin, à la périodicité retenue.
+   * CHAQUE ÉCHÉANCE SE CALCULE DEPUIS LE DÉBUT ET SON RANG, jamais depuis la
+   * précédente (audit final F8) · le 31 janvier plus un mois tombait au
+   * 3 mars, février n'avait pas d'échéance et le décalage se propageait à
+   * toute la suite.
+   */
+  static echeancesDe(dateDebut: Date, dateFin: Date, periodicite: PeriodiciteAbonnement): Date[] {
     const mois = {
       [PeriodiciteAbonnement.MENSUELLE]: 1,
       [PeriodiciteAbonnement.TRIMESTRIELLE]: 3,
       [PeriodiciteAbonnement.SEMESTRIELLE]: 6,
       [PeriodiciteAbonnement.ANNUELLE]: 12,
     }[periodicite];
-    suivante.setUTCMonth(suivante.getUTCMonth() + mois);
-    return suivante;
-  }
-
-  /** Échéances d'un contrat, du début à la fin, à la périodicité retenue. */
-  static echeancesDe(dateDebut: Date, dateFin: Date, periodicite: PeriodiciteAbonnement): Date[] {
     const dates: Date[] = [];
-    let curseur = new Date(dateDebut);
     // Garde-fou : un contrat mensuel de vingt ans ferait 240 échéances, ce qui
     // reste raisonnable ; au-delà de 600 c'est une erreur de saisie de dates.
-    while (curseur <= dateFin && dates.length < 600) {
-      dates.push(new Date(curseur));
-      curseur = RegularisationService.prochaineDate(curseur, periodicite);
+    for (let rang = 0; dates.length < 600; rang++) {
+      const echeance = ajouterMois(dateDebut, rang * mois);
+      if (echeance > dateFin) break;
+      dates.push(echeance);
     }
     return dates;
   }

@@ -34,7 +34,7 @@ function ligneBalance(numero: string, mouvement: { debit?: number; credit?: numb
 
 function ecriture(
   id: string,
-  lignes: Array<{ numero: string; debit?: number; credit?: number; lettre?: string | null; section?: string }>,
+  lignes: Array<{ numero: string; debit?: number; credit?: number; lettre?: string | null; section?: string; regleApresCloture?: boolean }>,
 ) {
   return {
     id,
@@ -45,6 +45,7 @@ function ecriture(
       debit: l.debit ?? 0,
       credit: l.credit ?? 0,
       lettre: l.lettre ?? null,
+      regleApresCloture: l.regleApresCloture ?? false,
       compte: { numero: l.numero, intitule: `Compte ${l.numero}` },
       ventilations: l.section
         ? [{ planId: 'p1', sectionId: l.section, debit: l.debit ?? 0, credit: l.credit ?? 0 }]
@@ -79,6 +80,24 @@ function service(options: {
     sectionAnalytique: { findMany: jest.fn().mockResolvedValue(options.sections ?? []) },
     budgetSection: { findMany: jest.fn().mockResolvedValue(options.budgets ?? []) },
     ecriture: { findMany: jest.fn().mockResolvedValue(options.ecritures ?? []) },
+    exercice: { findFirstOrThrow: jest.fn().mockResolvedValue({ dateFin: new Date('2026-12-31') }) },
+    // Les lignes fournisseurs ouvertes à la clôture, tirées des écritures du
+    // test · non lettrées, ou soldées par un règlement postérieur (F10).
+    ligneEcriture: {
+      // La doublure honore la PRÉSENCE de la règle · sans elle, toute ligne
+      // fournisseur passerait pour ouverte (la règle elle-même est gelée par
+      // ouverte-a-la-cloture.spec).
+      findMany: jest.fn().mockImplementation(({ where }: { where: { OR?: unknown[]; lettre?: null } }) =>
+        Promise.resolve(
+          (options.ecritures ?? []).flatMap((e) =>
+            e.lignes
+              .filter((l) => /^(40|481)/.test(l.compte.numero))
+              .filter((l) => (where.OR ? l.lettre === null || l.regleApresCloture : where.lettre === null ? l.lettre === null : true))
+              .map((l) => ({ id: l.id })),
+          ),
+        ),
+      ),
+    },
     // Le registre des engagements hors comptabilité · les deux termes NON
     // comptables de la colonne Engagement (guide, ch. 7, APPLICATION 22,
     // règle (d)).
@@ -152,6 +171,45 @@ describe("Tableau d'exécution budgétaire", () => {
     const l = (await apres.executionBudgetaire('t1', 'e1')).lignes[0];
     expect(l.engagement).toBe(0);
     expect(l.decaissement).toBe(400_000);
+  });
+
+  /**
+   * AUDIT FINAL F11 · sans trésorerie ni ligne 40 ou 481, une écriture restait
+   * « engagée » pour toujours · la paie, les dotations, les OD. Le guide
+   * (Application 22) fait de l'engagement le seul solde créditeur des 40 et
+   * 481, et du reste des débits des classes 2, 6 et 8 un décaissement.
+   */
+  it('la paie et la dotation sont des décaissements, jamais des engagements', async () => {
+    const s = service({
+      sections: SECTIONS,
+      budgets: [{ sectionId: 's1', montant: 1_000_000 }],
+      ecritures: [
+        ecriture('paie', [
+          { numero: '66110000', debit: 250_000, section: 's1' },
+          { numero: '42200000', credit: 250_000 },
+        ]),
+        ecriture('dotation', [
+          { numero: '68130000', debit: 50_000, section: 's1' },
+          { numero: '28130000', credit: 50_000 },
+        ]),
+      ],
+    });
+    const a1 = (await s.executionBudgetaire('t1', 'e1')).lignes.find((l) => l.code === 'A1')!;
+    expect({ decaissement: a1.decaissement, engagement: a1.engagement }).toEqual({ decaissement: 300_000, engagement: 0 });
+  });
+
+  it('une facture réglée APRÈS la clôture reste engagée dans le tableau de l’exercice', async () => {
+    const s = service({
+      sections: SECTIONS,
+      budgets: [{ sectionId: 's1', montant: 1_000_000 }],
+      ecritures: [
+        ecriture('f', [
+          { numero: '60100000', debit: 400_000, section: 's1' },
+          { numero: '40100000', credit: 400_000, lettre: 'A', regleApresCloture: true },
+        ]),
+      ],
+    });
+    expect((await s.executionBudgetaire('t1', 'e1')).lignes[0].engagement).toBe(400_000);
   });
 
   it('le pourcentage d’exécution est `null` sur un budget nul, jamais un infini', async () => {

@@ -68,12 +68,14 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 3
 - **Constat :** `clorePeriode` accepte n'importe quelle `dateLimite` et crée une clôture non annulable, alors que `cloreTotale` borne la date à l'exercice. Une faute de frappe sur l'année fige définitivement la saisie, le lettrage et la ventilation de tout le dossier, sans retour possible.
 - **Correction :** appliquer la même borne que la clôture totale et demander une confirmation qui nomme la date et le caractère définitif.
+- **Fait le 2026-09-27 :** la clôture de période est bornée à l'exercice au serveur (`exercice.service.ts`, `clorePeriode`), et l'écran demande une confirmation qui nomme la date et le caractère définitif (`client/src/lib/cloture-periode.ts`), la date limitée à l'exercice. Tests : `cloture-annuelle.spec.ts`, `cloture-periode.spec.ts`.
 
 **F8 · Les échéances d'abonnement sautent février (« ajouter N mois » réécrit quatre fois)** [transv-08]
 - **Emplacements :** src/modules/regularisation/regularisation.service.ts:629, :647 · src/modules/consolidation/perimetre-consolidation.ts:325 · src/modules/exonerations/exonerations.service.ts:138 · src/modules/accord-cadre/conditions-ong-etrangere.ts:146
 - **Condition :** 1
 - **Constat :** `prochaineDate` fait `setUTCMonth(+n)` sur l'échéance précédente sans borne de fin de mois. Un contrat mensuel qui commence le 31/01 passe au 03/03 : février n'a pas d'échéance et une charge manque sur l'année, sur des écritures équilibrées. La consolidation possède pourtant la bonne fonction.
 - **Correction :** une fonction commune `ajouterMois` bornée au dernier jour du mois, calculée à partir de la date de début et du rang. Ajouter un spec 31/01 → 28/02.
+- **Fait le 2026-09-27 :** `src/common/ajouter-mois.ts`, borné au dernier jour du mois, option fin de mois pour la consolidation. Les échéances d'abonnement se calculent depuis le début et le rang ; exonérations, accord-cadre (fin de période et dernier jour pour dénoncer), consolidation, seuil des comptes sans mouvement et bornes d'échéance des notes l'emploient. Tests : `ajouter-mois.spec.ts`, `regularisation.spec.ts`, `exonerations.spec.ts`, `accord-cadre.spec.ts`.
 
 ### États financiers, notes et documents obligatoires
 
@@ -82,24 +84,28 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** `chargerVentilationParNature` n'a pas de filtre de statut, alors que l'ouverture et la clôture de la même note viennent du livre-journal. Une dotation restée au brouillard entre dans la colonne B et pas dans la colonne D : l'égalité D = A + B − C ne tient plus.
 - **Correction :** ajouter `statut: VALIDEE` et un test qui montre qu'une dotation au brouillard ne change aucune colonne.
+- **Fait le 2026-09-27 :** la ventilation par nature de la note 30 ne lit que le livre-journal (`statut: VALIDEE`). Test : `note-annexe.service.spec.ts`, la doublure honorant désormais le statut.
 
 **F10 · Échéances des notes : une créance de clôture lettrée après la clôture disparaît** [notes-02]
 - **Emplacements :** src/modules/notes-annexes/note-annexe.service.ts:792-811 · src/modules/etats-financiers/etats-financiers-smt.service.ts:695-717
 - **Condition :** 1
 - **Constat :** les notes 6, 9, 10, 18A et 19 à 21 écartent toute ligne lettrée, sans regarder la date du lettrage, alors que le lettrage entre exercices est permis. Une facture ouverte au 31/12 et réglée en mars sort des colonnes d'échéance sans entrer dans le montant non ventilé.
 - **Correction :** tenir pour ouverte à la clôture toute ligne dont le groupe de lettrage contient une ligne postérieure à la fin de l'exercice, et calculer le non ventilé comme le reste du solde.
+- **Fait le 2026-09-27 :** règle commune `lettrage/ouverte-a-la-cloture.ts` (sans lettre, ou soldée par une écriture datée après la clôture) aux notes par échéance et aux deux SMT ; le non ventilé est le reste du solde. Tests : `ouverte-a-la-cloture.spec.ts`, `note-annexe.service.spec.ts`, les deux specs SMT.
 
 **F11 · Exécution budgétaire : la paie, les dotations et les OD restent « engagées » pour toujours** [etats-01]
 - **Emplacements :** src/modules/etats-financiers/etats-financiers-projet-budget.service.ts:160-176, :75-91 · client/src/pages/EtatsFinanciersPage.tsx:1030-1034
 - **Condition :** 1
 - **Constat :** sans trésorerie ni ligne 40 ou 481 dans l'écriture, `decaissee` vaut faux. Une paie 661/422, réglée ensuite par une écriture 422/52 non ventilée, reste donc en Engagement sur la note 24/35 remise au bailleur. C'est le contraire du commentaire et du libellé de l'écran.
 - **Correction :** n'aller en Engagement que sur une ligne 40 ou 481 non lettrée, et suivre aussi le lettrage des 42 et 43. Ajouter le test d'une paie réglée.
+- **Fait le 2026-09-27 :** l'engagement est le seul solde créditeur des 40 (sauf 409) et 481 à la clôture, lu par la règle de F10 ; tout le reste des débits est décaissement (`etats-financiers-projet-budget.service.ts`). ÉCART À LA CORRECTION PROPOSÉE, par la source : le Guide d'application (Application 22, (c) et (d)) ne fait entrer ni le 42 ni le 43 dans l'engagement, la paie est donc un décaissement par le débit du 66. Tests : `projet-budget.spec.ts`.
 
 **F12 · Note 9 (fonds du bailleur) : le bilan d'ouverture d'un projet repris est exclu** [etats-02]
 - **Emplacements :** src/modules/etats-financiers/etats-financiers-projet.service.ts:389-397 · src/modules/comptabilite/ecriture.service.ts:2990-3033
 - **Condition :** 1
 - **Constat :** `noteBailleur` écarte toutes les écritures de clôture, y compris celles du premier exercice, que `balanceCumulee` garde pour cette raison précise. Le décaissé et le solde restant de la Note 9 divergent du tableau emplois ressources de la même liasse.
 - **Correction :** appliquer la règle de `balanceCumulee`, ou lire la note depuis cette fonction.
+- **Fait le 2026-09-27 :** la note 9 lit le cumul du projet par `balanceCumulee` (bilan d'ouverture du premier exercice compris, borné à l'exercice demandé), comme le tableau emplois-ressources. Tests : `etats-financiers-projet.service.spec.ts`.
 
 **F13 · Paiements en instance (repère H) : la saisie de l'écran est perdue à l'export** [etats-04, exp-01]
 - **Emplacements :** client/src/pages/EtatsFinanciersPage.tsx:102-164, :171-178, :187-211 · src/modules/exports/export.controller.ts:268-294 · src/modules/exports/export.service.ts:6315

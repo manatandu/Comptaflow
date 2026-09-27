@@ -47,6 +47,18 @@ function serviceAvecExercices(
         },
       });
     }),
+    // Le cumul du projet · la note 9 le lit par `balanceCumulee` (audit final
+    // F12), dont les règles de lecture sont gelées par balance-cumulee.spec.
+    balanceCumulee: jest.fn().mockImplementation(() => {
+      const parCompte = new Map<string, { compteId: string; totalDebit: number; totalCredit: number }>();
+      for (const l of (prisma as unknown as { __cumul?: Array<{ compteId: string; debit: number; credit: number }> }).__cumul ?? []) {
+        const a = parCompte.get(l.compteId) ?? { compteId: l.compteId, totalDebit: 0, totalCredit: 0 };
+        a.totalDebit += l.debit;
+        a.totalCredit += l.credit;
+        parCompte.set(l.compteId, a);
+      }
+      return Promise.resolve({ lignes: [...parCompte.values()] });
+    }),
   } as unknown as EcritureService;
   const exerciceService = {
     lister: jest.fn().mockResolvedValue([...exercices].sort((a, b) => b.dateDebut.getTime() - a.dateDebut.getTime())),
@@ -261,14 +273,15 @@ describe('EtatsFinanciersProjetService', () => {
     function compte(id: string, numero: string, bailleur: typeof bailleurUE | null = null) {
       return { id, numero, bailleur };
     }
-    function ligneMouvement(compteId: string, debit: number, credit: number, estGenereeParCloture = false) {
-      return { compteId, debit, credit, ecriture: { estGenereeParCloture } };
+    /** Un mouvement tel que le cumul du projet le rend (balanceCumulee). */
+    function ligneMouvement(compteId: string, debit: number, credit: number) {
+      return { compteId, debit, credit };
     }
 
     function prisma(comptes: ReturnType<typeof compte>[], mouvements: ReturnType<typeof ligneMouvement>[]) {
       return {
         compte: { findMany: jest.fn().mockResolvedValue(comptes) },
-        ligneEcriture: { findMany: jest.fn().mockResolvedValue(mouvements) },
+        __cumul: mouvements,
       } as unknown as PrismaService;
     }
 
@@ -284,36 +297,36 @@ describe('EtatsFinanciersProjetService', () => {
       expect(ue.soldeRestant).toBe(550);
     });
 
-    it('cumule TOUTES les périodes : la note suit le projet, pas l’exercice (audit 2026-08-28)', async () => {
-      // Le mock ligneEcriture.findMany ignore le filtre : ce test vérifie que
-      // le service ne passe PLUS `exerciceId` dans sa clause where.
+    /**
+     * AUDIT FINAL F12 · la note écartait tout report à-nouveau, bilan
+     * d'ouverture du premier exercice compris, et divergeait du tableau
+     * emplois-ressources de la même liasse. Elle lit désormais le cumul du
+     * projet par la règle unique, jusqu'à l'exercice demandé.
+     */
+    it('lit le cumul du projet par balanceCumulee, borné à l’exercice demandé', async () => {
       const prismaMock = prisma([compte('id-16210000', '16210000', bailleurUE)], [ligneMouvement('id-16210000', 0, 100000)]);
       const service = serviceAvecExercices({ e1: [] }, [], prismaMock);
       await service.noteBailleur('t1', 'e1');
-      const where = (prismaMock.ligneEcriture.findMany as jest.Mock).mock.calls[0][0].where;
-      // Le filtre porte sur le dossier et sur le statut, jamais sur
-      // l'exercice · la note 9 cumule depuis l'origine du projet. Le statut
-      // VALIDEE s'y est ajouté avec le brouillard : la note 9 est un état
-      // financier, elle ne lit pas les écritures non encore validées.
-      expect(where.ecriture).toEqual({ tenantId: 't1', statut: 'VALIDEE' });
-      expect(where.ecriture.exerciceId).toBeUndefined();
+      expect((service as unknown as { ecritureService: { balanceCumulee: jest.Mock } }).ecritureService.balanceCumulee).toHaveBeenCalledWith('t1', 'e1');
     });
 
-    it('décaissé = crédits réels, consommé = débits réels · les écritures de clôture (RAN) sont exclues', async () => {
+    it('décaissé = crédits du cumul, bilan d’ouverture compris ; consommé = débits du cumul', async () => {
       const prismaMock = prisma(
         [compte('id-16210000', '16210000', bailleurUE)],
         [
+          ligneMouvement('id-16210000', 0, 5000), // bilan d'ouverture du premier exercice
           ligneMouvement('id-16210000', 0, 1000), // mise à disposition réelle
           ligneMouvement('id-16210000', 300, 0), // consommation réelle
-          ligneMouvement('id-16210000', 0, 5000, true), // report à-nouveau · doit être IGNORÉ
         ],
       );
       const service = serviceAvecExercices({ e1: [] }, [], prismaMock);
       const note = await service.noteBailleur('t1', 'e1');
       const ue = note.investissement.find((b) => b.bailleur.code === 'UE-01')!;
-      expect(ue.decaisse).toBe(1000); // PAS 1000+5000 : le report à-nouveau est exclu
-      expect(ue.consomme).toBe(300);
-      expect(ue.soldeRestant).toBe(700); // 1000 - 300, réconcilié par construction
+      expect({ decaisse: ue.decaisse, consomme: ue.consomme, reste: ue.soldeRestant }).toEqual({
+        decaisse: 6000,
+        consomme: 300,
+        reste: 5700,
+      });
     });
 
     it('sépare fonds d’investissement (162-164) et fonds d’administration (462-464) même pour le même bailleur', async () => {

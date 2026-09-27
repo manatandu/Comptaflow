@@ -7,6 +7,7 @@ import {
   JOURS_ALERTE_RENOUVELLEMENT,
   MODELES_DEMANDE,
 } from './correspondance-exonerations';
+import { ajouterMois } from '../../common/ajouter-mois';
 
 const MS_PAR_JOUR = 24 * 60 * 60 * 1000;
 
@@ -134,8 +135,9 @@ export class ExonerationsService {
     // ferait manquer le renouvellement.
     let dateFin = dto.dateFinValidite ? new Date(dto.dateFinValidite) : null;
     if (!dateFin && dto.dateDebutValidite && modele.validiteMois) {
-      dateFin = new Date(dto.dateDebutValidite);
-      dateFin.setMonth(dateFin.getMonth() + modele.validiteMois);
+      // Borné à la fin du mois (audit final F8) · un début au 31 décembre
+      // ne fait pas finir la validité au 1er mars suivant.
+      dateFin = ajouterMois(new Date(dto.dateDebutValidite), modele.validiteMois);
     }
     return this.prisma.exoneration.create({
       data: {

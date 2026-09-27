@@ -50,6 +50,7 @@ import {
   VENTILATION_RECETTES_SMT_SYSCOHADA,
   calculerResultatSmt,
 } from './correspondance-smt-syscohada';
+import { ouverteALaCloture } from '../lettrage/ouverte-a-la-cloture';
 
 /**
  * ÉTATS FINANCIERS DU SYSTÈME MINIMAL DE TRÉSORERIE · SYSCOHADA RÉVISÉ.
@@ -1127,7 +1128,8 @@ export class EtatsFinanciersSmtSyscohadaService {
       // livre-journal, jamais le brouillard (voir `chargerLignes`).
       where: {
         ecriture: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE },
-        lettre: null,
+        // Ouvertes à la clôture (audit final F10), voir la règle.
+        ...ouverteALaCloture(exercice.dateFin),
         compteId: { in: compteIds },
       },
       select: { compteId: true, debit: true, credit: true, dateEcheance: true },

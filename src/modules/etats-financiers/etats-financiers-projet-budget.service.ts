@@ -6,6 +6,7 @@ import { LigneBalancePourEtat, chargerLignes, correspond } from './etats-financi
 import { EngagementService } from '../analytique/engagement.service';
 import { totalDesFeuilles, valeurDeLaLigne } from '../analytique/rubriques-budgetaires';
 import { COMPTES_TRESORERIE_PROJET } from './correspondance-projet-emplois-ressources';
+import { ouverteALaCloture } from '../lettrage/ouverte-a-la-cloture';
 
 /**
  * TABLEAU D'EXÉCUTION BUDGÉTAIRE et TABLEAU DE RÉCONCILIATION DE TRÉSORERIE
@@ -43,6 +44,12 @@ export interface LigneExecutionBudgetaire {
   /** `null` quand le budget est nul · diviser par zéro n'a pas de sens. */
   executionPourcent: number | null;
 }
+
+/**
+ * Les comptes dont le solde créditeur fait l'engagement · « compte 40 » et
+ * « compte 481 », le 409 (avances et acomptes versés) écarté comme au (c).
+ */
+const COMPTES_ENGAGEMENT = ['40', '481'];
 
 @Injectable()
 export class EtatsFinanciersProjetBudgetService {
@@ -131,7 +138,8 @@ export class EtatsFinanciersProjetBudgetService {
       );
     }
 
-    const [sections, budgets, ecritures, resteEngageParSection, nombreOd] = await Promise.all([
+    const exercice = await this.prisma.exercice.findFirstOrThrow({ where: { id: exerciceId, tenantId }, select: { dateFin: true } });
+    const [sections, budgets, ecritures, resteEngageParSection, nombreOd, fournisseursOuverts] = await Promise.all([
       this.prisma.sectionAnalytique.findMany({
         where: { planId: plan.id, tenantId },
         orderBy: { code: 'asc' },
@@ -147,7 +155,19 @@ export class EtatsFinanciersProjetBudgetService {
       }),
       this.engagementService.resteParSection(tenantId, exerciceId),
       this.prisma.odAnalytique.count({ where: { tenantId, exerciceId, planId: plan.id } }),
+      // Les lignes fournisseurs ENCORE DUES À LA CLÔTURE · non lettrées, ou
+      // soldées par un règlement postérieur (règle de F10). C'est le « solde
+      // créditeur balance N » du guide, ligne par ligne.
+      this.prisma.ligneEcriture.findMany({
+        where: {
+          ecriture: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE },
+          compte: { OR: COMPTES_ENGAGEMENT.map((r) => ({ numero: { startsWith: r } })) },
+          ...ouverteALaCloture(exercice.dateFin),
+        },
+        select: { id: true },
+      }),
     ]);
+    const idsFournisseursOuverts = new Set(fournisseursOuverts.map((l) => l.id));
 
     const budgetParSection = new Map<string, number>();
     for (const b of budgets) {
@@ -159,11 +179,17 @@ export class EtatsFinanciersProjetBudgetService {
 
     for (const e of ecritures) {
       const toucheTresorerie = e.lignes.some((l) => correspond(l.compte.numero, COMPTES_TRESORERIE_PROJET));
-      // Lignes de tiers fournisseurs de cette écriture · leur lettrage dit si
-      // la dépense a fini par être payée.
-      const lignesFournisseurs = e.lignes.filter((l) => correspond(l.compte.numero, ['40', '481']));
-      const toutesLettrees = lignesFournisseurs.length > 0 && lignesFournisseurs.every((l) => l.lettre !== null);
-      const decaissee = toucheTresorerie || toutesLettrees;
+      // L'ENGAGEMENT EST LE SEUL « solde créditeur balance N des comptes
+      // fournisseurs d'exploitation (compte 40) et d'investissement (compte
+      // 481) » (SYCEBNL, Guide d'application, Application 22, (d)). Tout le
+      // reste des débits des classes 2, 6 et 8 est DÉCAISSEMENT, (c) · une
+      // paie 661/422, une dotation, une OD n'ont aucune ligne fournisseur et
+      // restaient « engagées » pour toujours (audit final F11). Les 42 et 43
+      // n'entrent pas dans l'engagement : le guide ne les y met pas.
+      const engagee =
+        !toucheTresorerie &&
+        e.lignes.some((l) => correspond(l.compte.numero, COMPTES_ENGAGEMENT, ['409']) && idsFournisseursOuverts.has(l.id));
+      const decaissee = !engagee;
 
       for (const l of e.lignes) {
         for (const v of l.ventilations) {

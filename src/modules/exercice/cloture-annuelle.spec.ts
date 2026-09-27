@@ -120,3 +120,28 @@ describe('Clôture annuelle', () => {
     await expect(s.cloturer('t', 'n', 'u')).rejects.toThrow(/brouillard/);
   });
 });
+
+/**
+ * AUDIT FINAL F7 · la clôture de période, définitive et valable pour tous
+ * les journaux, acceptait n'importe quelle date · une faute sur l'année
+ * figeait le dossier entier sans retour.
+ */
+describe('Clôture de période · bornée à l’exercice', () => {
+  const service = () => {
+    const create = jest.fn().mockResolvedValue({});
+    const prisma = { exercice: { findFirst: jest.fn().mockResolvedValue(N) }, cloture: { create } };
+    return { s: new ExerciceService(prisma as never, {} as never), create };
+  };
+
+  it('refuse une date hors de l’exercice, et ne crée rien', async () => {
+    const { s, create } = service();
+    await expect(s.clorePeriode('t', 'n', 'u', { dateLimite: '2062-03-31' })).rejects.toThrow(/hors de l'exercice/);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('accepte une date de l’exercice', async () => {
+    const { s, create } = service();
+    await s.clorePeriode('t', 'n', 'u', { dateLimite: '2026-03-31' });
+    expect(create.mock.calls[0][0].data.dateLimite).toEqual(new Date('2026-03-31'));
+  });
+});

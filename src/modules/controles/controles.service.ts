@@ -24,6 +24,7 @@ import {
   etatAccordCadre,
   PART_MAIN_OEUVRE_LOCALE_MINIMALE,
 } from '../accord-cadre/conditions-ong-etrangere';
+import { ajouterMois } from '../../common/ajouter-mois';
 
 /**
  * SEUILS DE DÉSIGNATION DU CONTRÔLEUR DES COMPTES · ils ne sont PLUS ici.
@@ -554,8 +555,9 @@ export class ControlesService {
       orderBy: { numero: 'asc' },
     });
 
-    const seuil = new Date();
-    seuil.setMonth(seuil.getMonth() - moisSansMouvement);
+    // Borné à la fin du mois (audit final F8) · le 31 mars moins un mois
+    // n'est pas le 3 mars.
+    const seuil = ajouterMois(new Date(), -moisSansMouvement);
 
     return comptes
       .map((c) => {

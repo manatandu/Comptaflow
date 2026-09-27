@@ -27,6 +27,7 @@ import {
   VENTILATION_DEPENSES,
   VENTILATION_RECETTES,
 } from './correspondance-smt';
+import { ouverteALaCloture } from '../lettrage/ouverte-a-la-cloture';
 
 /**
  * Ce qu'un compte de tiers porte de DATABLE : la part de son solde que des
@@ -698,7 +699,8 @@ export class EtatsFinanciersSmtService {
       // jamais le brouillard (voir `chargerLignes`).
       where: {
         ecriture: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE },
-        lettre: null,
+        // Ouvertes à la clôture (audit final F10), voir la règle.
+        ...ouverteALaCloture(exercice.dateFin),
         compte: { classe: ClasseCompte.CLASSE_4 },
       },
       select: { compteId: true, debit: true, credit: true, dateEcheance: true },

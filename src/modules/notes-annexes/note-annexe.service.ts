@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { JeuNotesAnnexes, Referentiel } from '@prisma/client';
+import { JeuNotesAnnexes, Referentiel, StatutEcriture } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
@@ -27,6 +27,8 @@ import {
   NOTES_SYSCOHADA,
   numeroDeTeteNoteSyscohada,
 } from '../etats-financiers-syscohada/correspondance-notes-syscohada';
+import { ajouterMois } from '../../common/ajouter-mois';
+import { ouverteALaCloture } from '../lettrage/ouverte-a-la-cloture';
 
 /**
  * Spécifications du jeu, indexées par `JeuNotesAnnexes` · un seul point
@@ -376,7 +378,8 @@ export class NoteAnnexeService {
     rubrique: RubriqueNote,
     lignes: LigneBalancePourEtat[],
     numerosRattaches: string[] = [],
-    echeancesParCompte: Map<string, Echeances> = new Map(),
+    // Absente pour N-1, que le texte ne ventile pas par échéance.
+    echeancesParCompte?: Map<string, Echeances>,
     ventilationParCompte: Map<string, VentilationNature> = new Map(),
   ): RubriqueResolue {
     // Les comptes rattachés par le dossier S'AJOUTENT aux préfixes officiels,
@@ -417,17 +420,22 @@ export class NoteAnnexeService {
       // Les échéances suivent le sens de lecture de la rubrique, comme le
       // montant : sur une rubrique créditrice (dettes), une dette de 700
       // s'affiche 700 et non -700.
-      echeances: matches.reduce((acc, l) => {
-        const e = echeancesParCompte.get(l.numero);
-        if (!e) return acc;
-        const signe = litAuCredit || rubrique.presenterEnNegatif ? -1 : 1;
-        return {
-          unAn: acc.unAn + signe * e.unAn,
-          deuxAns: acc.deuxAns + signe * e.deuxAns,
-          plusDeDeuxAns: acc.plusDeDeuxAns + signe * e.plusDeDeuxAns,
-          nonVentile: acc.nonVentile + signe * e.nonVentile,
-        };
-      }, { ...ECHEANCES_NULLES }),
+      // Le NON VENTILÉ EST LE RESTE DU SOLDE (audit final F10), jamais la
+      // somme des lignes sans échéance · les trois colonnes plus le non
+      // ventilé rendent le montant de la rubrique, et ce qu'aucune ligne
+      // ouverte n'explique (un report en solde, un lettrage) reste en vue.
+      echeances: !echeancesParCompte
+        ? { ...ECHEANCES_NULLES }
+        : matches.reduce((acc, l) => {
+            const e = echeancesParCompte.get(l.numero) ?? ECHEANCES_NULLES;
+            const signe = litAuCredit || rubrique.presenterEnNegatif ? -1 : 1;
+            return {
+              unAn: acc.unAn + signe * e.unAn,
+              deuxAns: acc.deuxAns + signe * e.deuxAns,
+              plusDeDeuxAns: acc.plusDeDeuxAns + signe * e.plusDeDeuxAns,
+              nonVentile: acc.nonVentile + signe * (l.solde - e.unAn - e.deuxAns - e.plusDeDeuxAns),
+            };
+          }, { ...ECHEANCES_NULLES }),
       ventilation: matches.reduce((acc, l) => {
         const v = ventilationParCompte.get(l.numero);
         if (!v) return acc;
@@ -479,7 +487,8 @@ export class NoteAnnexeService {
     spec: SpecificationNote,
     lignes: LigneBalancePourEtat[],
     rattachements: Map<string, string[]> = new Map(),
-    echeancesParCompte: Map<string, Echeances> = new Map(),
+    // Absente pour N-1, que le texte ne ventile pas par échéance.
+    echeancesParCompte?: Map<string, Echeances>,
     ventilationParCompte: Map<string, VentilationNature> = new Map(),
   ): RubriqueResolue[] {
     const resolues: RubriqueResolue[] = [];
@@ -714,7 +723,10 @@ export class NoteAnnexeService {
     await this.parLots(
       (curseur) =>
         this.prisma.ecriture.findMany({
-          where: { tenantId, exerciceId, estGenereeParCloture: false },
+          // LE LIVRE-JOURNAL SEUL (audit final F9) · l'ouverture et la
+          // clôture de la note en viennent, et une dotation au brouillard
+          // comptée ici entrait en B sans entrer en D.
+          where: { tenantId, exerciceId, estGenereeParCloture: false, statut: StatutEcriture.VALIDEE },
           select: { id: true, lignes: { select: { debit: true, credit: true, compte: { select: { numero: true } } } } },
           orderBy: { id: 'asc' },
           take: NoteAnnexeService.LOT_LECTURE,
@@ -778,10 +790,10 @@ export class NoteAnnexeService {
     const exercice = await this.prisma.exercice.findFirst({ where: { id: exerciceId, tenantId } });
     if (!exercice) return new Map();
 
-    const unAn = new Date(exercice.dateFin);
-    unAn.setUTCFullYear(unAn.getUTCFullYear() + 1);
-    const deuxAns = new Date(exercice.dateFin);
-    deuxAns.setUTCFullYear(deuxAns.getUTCFullYear() + 2);
+    // Bornés à la fin du mois (audit final F8) · un exercice clos un
+    // 29 février ne compte pas « à un an » jusqu'au 1er mars.
+    const unAn = ajouterMois(exercice.dateFin, 12);
+    const deuxAns = ajouterMois(exercice.dateFin, 24);
 
     const parCompte = new Map<string, Echeances>();
     // PAR LOTS · seconde source de l'étouffement mesuré le 2026-09-03. Sur un
@@ -793,7 +805,10 @@ export class NoteAnnexeService {
           // Comme la balance qui alimente les autres notes : les notes annexes
           // font partie intégrante des états financiers (art. 15) et ne lisent que
           // le livre-journal, pas le brouillard.
-          where: { ecriture: { tenantId, exerciceId, statut: 'VALIDEE' }, lettre: null },
+          // Ouvertes À LA CLÔTURE, pas seulement non lettrées (audit final
+          // F10) · un règlement postérieur lettré ensuite ne ferme pas la
+          // ligne dans la liasse de l'exercice.
+          where: { ecriture: { tenantId, exerciceId, statut: 'VALIDEE' }, ...ouverteALaCloture(exercice.dateFin) },
           select: { id: true, debit: true, credit: true, dateEcheance: true, compte: { select: { numero: true } } },
           orderBy: { id: 'asc' },
           take: NoteAnnexeService.LOT_LECTURE,

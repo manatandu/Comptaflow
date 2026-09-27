@@ -98,6 +98,30 @@ describe('État d’un accord · une période écoulée n’est pas une fin', ()
     expect(e.dernierJourPourDenoncer!.toISOString().slice(0, 10)).toBe('2025-09-01');
   });
 
+  // AUDIT FINAL F8 · le 31 mars moins un mois tombait au 3 mars.
+  it('borne la fin de période et le dernier jour pour dénoncer à la fin du mois', () => {
+    const e = etatAccordCadre({
+      dateSignature: new Date('2024-02-29'),
+      dureeAnnees: 2,
+      preavisMois: 1,
+      denonceLe: null,
+      taciteReconduction: false,
+      reference: new Date('2025-01-01'),
+    });
+    const f = etatAccordCadre({
+      dateSignature: new Date('2024-03-31'),
+      dureeAnnees: 2,
+      preavisMois: 1,
+      denonceLe: null,
+      taciteReconduction: false,
+      reference: new Date('2025-01-01'),
+    });
+    expect([e.finDePeriode, f.dernierJourPourDenoncer!].map((d) => d.toISOString().slice(0, 10))).toEqual([
+      '2026-02-28',
+      '2026-02-28',
+    ]);
+  });
+
   it('sans préavis stipulé, aucune date n’est inventée', () => {
     const e = etatAccordCadre({
       ...base,

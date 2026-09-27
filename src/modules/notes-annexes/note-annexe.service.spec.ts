@@ -70,10 +70,18 @@ function ligne(
 type Rattachement = { codeNote: string; cleRubrique: string; compte: { numero: string } };
 
 /** Une ligne d'écriture telle que la ventilation par échéance la lit. */
-type LigneEch = { numero: string; debit: number; credit: number; dateEcheance: Date | null; lettre?: string | null };
+type LigneEch = {
+  numero: string;
+  debit: number;
+  credit: number;
+  dateEcheance: Date | null;
+  lettre?: string | null;
+  // Lettrée par un règlement daté après la clôture (audit final F10).
+  regleApresCloture?: boolean;
+};
 
 /** Une écriture telle que la ventilation par nature la lit : n lignes, deux sens. */
-type EcritureFixture = { lignes: Array<{ compte: { numero: string }; debit: number; credit: number }> };
+type EcritureFixture = { statut?: 'BROUILLARD' | 'VALIDEE'; lignes: Array<{ compte: { numero: string }; debit: number; credit: number }> };
 const ecr = (...lignes: Array<[string, number, number]>): EcritureFixture => ({
   lignes: lignes.map(([numero, debit, credit]) => ({ compte: { numero }, debit, credit })),
 });
@@ -106,13 +114,21 @@ function prismaAvec(
     compte: { findFirst: jest.fn().mockImplementation(({ where }: any) => Promise.resolve(comptes.find((c) => c.id === where.id) ?? null)) },
     // Exercice clos au 31/12/2026 : les bornes d'échéance en découlent.
     exercice: { findFirst: jest.fn().mockResolvedValue({ id: 'e1', dateFin: new Date('2026-12-31T00:00:00Z') }) },
-    ecriture: { findMany: jest.fn().mockResolvedValue(ecritures) },
+    // La doublure honore le filtre de statut · une doublure qui ne filtre
+    // pas validerait un service qui lit le brouillard (audit final F9).
+    ecriture: {
+      findMany: jest.fn().mockImplementation(({ where }: any) =>
+        Promise.resolve(ecritures.filter((e) => !where?.statut || (e.statut ?? 'VALIDEE') === where.statut)),
+      ),
+    },
     ligneEcriture: {
       findMany: jest.fn().mockImplementation(({ where }: any) =>
         Promise.resolve(
           lignesEch
             // le service ne demande que les lignes NON lettrées
-            .filter((l) => (where?.lettre === null ? !l.lettre : true))
+            .filter((l) =>
+              where?.lettre === null ? !l.lettre : where?.OR ? !l.lettre || l.regleApresCloture === true : true,
+            )
             .map((l) => ({ debit: l.debit, credit: l.credit, dateEcheance: l.dateEcheance, compte: { numero: l.numero } })),
         ),
       ),
@@ -412,6 +428,24 @@ describe('note 30 · ventilation des mouvements par nature de contrepartie', () 
       DIMINUTIONS: 300,
       CLOTURE: 1350, // 0 + 1650 - 300
     });
+  });
+
+  /**
+   * AUDIT FINAL F9 · l'ouverture et la clôture de la note viennent du
+   * livre-journal, les colonnes de mouvements lisaient aussi le brouillard ·
+   * une dotation non validée entrait en B et pas en D, et D = A + B − C
+   * cessait de tenir.
+   */
+  it('une dotation restée au brouillard ne change aucune colonne', async () => {
+    const s = serviceVent(
+      [
+        ecr(['69110000', 1000, 0], ['19100000', 0, 1000]),
+        { statut: 'BROUILLARD', ...ecr(['69110000', 500, 0], ['19100000', 0, 500]) },
+      ],
+      [ligne('19100000', ClasseCompte.CLASSE_1, 0, 1000)],
+    );
+    const v = val(note(await s.notesAssociations('t', 'e1'), '30'), 'Provisions pour risques et charges');
+    expect({ b: v?.AUGMENTATION_EXPLOITATION, d: v?.CLOTURE }).toEqual({ b: 1000, d: 1000 });
   });
 
   it('la ventilation se recoupe TOUJOURS avec le mouvement brut', async () => {
@@ -858,6 +892,31 @@ describe('ventilation par échéance (notes 6, 9, 10, 18A, 19 à 21)', () => {
     );
     const l = ligneDe(note(await s.notesAssociations('t', 'e1'), '9'), 'Adhérents');
     expect(l.valeurs!.ECHEANCE_1AN).toBe(1000);
+  });
+
+  /**
+   * AUDIT FINAL F10 · une facture ouverte au 31 décembre, réglée et lettrée
+   * en mars, sortait des colonnes d'échéance de la liasse de décembre sans
+   * entrer nulle part, sur un solde qui la contenait.
+   */
+  it('une créance soldée APRÈS la clôture reste ventilée dans la liasse de l’exercice', async () => {
+    const s = serviceEch(
+      [ech('41100000', 1000, 0, '2027-06-30'), { ...ech('41100000', 3000, 0, '2027-02-28', 'A'), regleApresCloture: true }],
+      [ligne('41100000', ClasseCompte.CLASSE_4, 4000, 0)],
+    );
+    const l = ligneDe(note(await s.notesAssociations('t', 'e1'), '9'), 'Adhérents');
+    expect({ unAn: l.valeurs!.ECHEANCE_1AN, nonVentile: l.echeanceNonVentilee }).toEqual({ unAn: 4000, nonVentile: undefined });
+  });
+
+  it('le non ventilé est le RESTE DU SOLDE, et non la somme des lignes sans échéance', async () => {
+    // Un report en solde (aucune ligne ouverte détaillée) n'est explicable par
+    // aucune échéance · il doit rester en vue, pas disparaître.
+    const s = serviceEch(
+      [ech('41100000', 1000, 0, '2027-06-30')],
+      [ligne('41100000', ClasseCompte.CLASSE_4, 6000, 0)],
+    );
+    const l = ligneDe(note(await s.notesAssociations('t', 'e1'), '9'), 'Adhérents');
+    expect({ unAn: l.valeurs!.ECHEANCE_1AN, nonVentile: l.echeanceNonVentilee }).toEqual({ unAn: 1000, nonVentile: 5000 });
   });
 
   it('sur une rubrique créditrice, les échéances suivent le sens de lecture', async () => {
