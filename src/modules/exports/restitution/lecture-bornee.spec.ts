@@ -16,7 +16,7 @@ import {
  * CE QUE CES TESTS EMPÊCHENT.
  *
  * La garde de cloisonnement commence par
- * `if (!MODELES_CLOISONNES.has(model)) return query(args)`. Les quinze
+ * `if (!MODELES_CLOISONNES.has(model)) return query(args)`. Les
  * modèles portés par leur parent n'ont pas de `tenantId`, ne sont donc pas
  * dans cette liste, et LA GARDE NE LES REGARDE PAS. Un
  * `ligneEcriture.findMany({})` dans l'extracteur rendrait les lignes de tous
@@ -126,7 +126,7 @@ describe('l’inventaire couvre le schéma, sans trou ni surplus', () => {
 });
 
 describe('chaque borne est acceptée par la garde du moteur', () => {
-  it('borne les 54 tables au dossier, valeur comprise', () => {
+  it('borne toutes les tables au dossier, valeur comprise', () => {
     for (const modele of TABLES_RESTITUEES) {
       const where = borneDuModele(modele, DOSSIER);
       // `filtreBorne` vérifie l'ÉGALITÉ depuis G2a · une borne portant un

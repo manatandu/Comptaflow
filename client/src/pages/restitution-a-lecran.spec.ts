@@ -21,7 +21,9 @@ describe('l’écran de restitution annonce ses réserves', () => {
 
   it('dit qu’elle ne remplace pas la conservation, pièces justificatives comprises', () => {
     expect(deplie).toContain("Elle ne remplace pas la conservation.");
-    expect(deplie).toContain('aucune pièce justificative numérisée');
+    // Audit final F97 · les documents des tiers sont archivés, pas les pièces des écritures.
+    expect(deplie).toContain('OmegaX ne tient pas les pièces justificatives des écritures');
+    expect(deplie).toContain('seuls les documents attachés aux tiers sont archivés');
     expect(deplie).toContain('art. 24');
   });
 
@@ -32,9 +34,10 @@ describe('l’écran de restitution annonce ses réserves', () => {
     expect(deplie).toContain('§ 1.5.3 b');
   });
 
-  it('refuse d’annoncer une réversibilité et nomme les trois seuls imports', () => {
+  it('refuse d’annoncer une réversibilité et nomme les imports qui existent', () => {
     expect(deplie).toContain("Ce n'est pas une réversibilité.");
-    expect(deplie).toContain('plan de comptes, balance, écritures');
+    expect(deplie).toContain('L\'import général recharge un plan de comptes, une balance et des écritures');
+    expect(deplie).toContain('trois imports ciblés lisent un relevé bancaire');
   });
 
   it('dit que ce n’est pas un instantané, et où le lecteur le vérifie', () => {

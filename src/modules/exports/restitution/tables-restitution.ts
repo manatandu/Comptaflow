@@ -14,7 +14,7 @@ import { colonnesNonRestituables } from '../../../common/audit/champs-audites';
  *
  * LE DANGER QUE CE FICHIER EXISTE POUR ÉCARTER. La garde de cloisonnement
  * commence par `if (!MODELES_CLOISONNES.has(model)) return query(args)` · les
- * quinze modèles PORTÉS PAR LEUR PARENT n'ont pas de colonne `tenantId`, ils
+ * modèles PORTÉS PAR LEUR PARENT n'ont pas de colonne `tenantId`, ils
  * ne sont donc pas dans cette liste, et LA GARDE NE LES REGARDE PAS DU TOUT.
  * Un `ligneEcriture.findMany({})` écrit ici rapatrierait les lignes
  * d'écriture de TOUS les cabinets. Sans erreur, sans 403, sans trace :
@@ -22,7 +22,7 @@ import { colonnesNonRestituables } from '../../../common/audit/champs-audites';
  * comptabilité d'un autre client. C'est le pire défaut que ce chantier
  * puisse produire.
  *
- * CE QU'ON N'A PAS FAIT, ET POURQUOI. Ajouter les quinze modèles à la garde
+ * CE QU'ON N'A PAS FAIT, ET POURQUOI. Ajouter ces modèles à la garde
  * aurait obligé à borner par relation les centaines d'appels existants qui
  * filtrent par clé étrangère (`{ ecritureId }`, `{ lettrageId }`) · un
  * refactor massif pour un risque qui, aujourd'hui, ne se réalise nulle part.

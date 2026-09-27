@@ -3777,6 +3777,12 @@ plutôt que de la fermer proprement · Excel refuse le ZIP tronqué au lieu de
 l'ouvrir sur un livre incomplet. Le seul autre choix était de livrer un fichier
 qui s'ouvre et qui ment.
 
+LE GRAND LIVRE COMPLET PORTE SON SOMMAIRE ET LE STATUT DE CHAQUE LIGNE
+(2026-09-27, audit final F99) · une feuille « Sommaire » écrite après la
+dernière ligne, depuis l'agrégat qui choisit les comptes, et une colonne
+Statut · le brouillard y est compris et le dit. Ses deux routes exigent
+l'exercice (`EXERCICE_REQUIS`, F100).
+
 `MAX_LIGNES_EXPORT` passe de 50 000 à 200 000, mesuré (`docs/capacite-mesuree.md`,
 banc du 2026-09-12) · c'est la dernière valeur qui laisse la moitié du tas libre.
 Elle reste un REFUS, jamais une troncature.
@@ -6321,7 +6327,11 @@ avant de l'écrire ; un spec (`compte-seed-syscohada.spec.ts`) le contrôle.
   `borneDuModele`, et le spec vérifie chaque borne avec `filtreBorne`. Le
   manifeste écrit les cinq réserves plutôt que de les taire (voir
   docs/restitution-du-dossier.md) · une archive qui se présente pour plus
-  qu'elle ne vaut est plus dangereuse que pas d'archive.
+  qu'elle ne vaut est plus dangereuse que pas d'archive. UNE TABLE ILLISIBLE
+  ARRÊTE L'ARCHIVE (2026-09-27, audit final F96) · l'échec est consigné et la
+  sortie DÉTRUITE, jamais une restitution amputée qui se dirait complète ; une
+  PIÈCE illisible, elle, est nommée dans `controles.txt`. Les documents des
+  tiers sont archivés dans `documents-tiers/` et le manifeste le dit (F97).
 - **Journal d'audit** (`src/common/audit/`) · posé sur le client Prisma par
   une extension, pas par des appels dans les services : un contrôle qu'on peut
   oublier d'appeler n'est pas un contrôle. Il couvre les modèles de

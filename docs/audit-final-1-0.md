@@ -730,30 +730,35 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 6
 - **Constat :** `lignesCsv` et `ligneDuDossierCsv` n'ont pas de protection, alors que le fichier décrit cette forme d'erreur comme fatale au serveur.
 - **Correction :** envelopper les générateurs comme `contenuDocument`, consigner l'échec et détruire la sortie.
+- **Fait le 2026-09-27 :** `lignesCsv` et `ligneDuDossierCsv` consignent l'échec et appellent `interrompre`, qui abandonne l'archive et DÉTRUIT la sortie ; `produire` attend la fin ou l'arrêt, `finalize` ne se résolvant plus sur une archive abandonnée (`restitution.service.ts`). Test : `restitution.spec.ts`.
 
 **F97 · Manifeste et écran de restitution : « aucune pièce justificative numérisée », alors que les documents des tiers sont archivés** [restit-02, pages-05, doc-04]
 - **Emplacements :** src/modules/exports/restitution/manifeste-restitution.ts:46-60, :71-74 · client/src/pages/RestitutionPage.tsx:45-58 · restitution.service.ts:233-243 · tables-restitution.ts:139-141 · prisma/schema.prisma:7647 · docs/restitution-du-dossier.md:25-27
 - **Condition :** 5
 - **Constat :** `DocumentTiers.contenu` est stocké et écrit dans `documents-tiers/`. Le manifeste affirme pourtant l'inverse, écrit « aucune autre colonne n'est retirée », et ne compte que trois imports.
 - **Correction :** reformuler la réserve, nommer le dossier et la colonne sortis à part, corriger le décompte des imports et les specs.
+- **Fait le 2026-09-27 :** manifeste, écran et document disent que les documents des tiers sont archivés dans `documents-tiers/`, que `DocumentTiers.contenu` sort à côté du CSV (seule colonne binaire, relue dans le schéma par un test), et nomment l'import général et les trois imports ciblés. Tests : `restitution.spec.ts`, `restitution-a-lecran.spec.ts`.
 
 **F98 · Décompte « 54 tables » périmé** [restit-03, doc-04]
 - **Emplacements :** restitution.service.ts:247 · lecture-bornee.spec.ts:129 · restitution.spec.ts:103, :230 · docs/restitution-du-dossier.md:19, :43
 - **Condition :** 5
 - **Constat :** le spec fige 126 modèles, la liste compte 121 tables et 17 bornes portées. Le chiffre écrit se lit comme une garantie.
 - **Correction :** retirer les chiffres des commentaires, des titres de tests et du document.
+- **Fait le 2026-09-27 :** « 54 tables » et « quinze modèles » retirés des commentaires, des titres de tests et de `docs/restitution-du-dossier.md` ; seul le décompte du test, qui existe pour tomber, reste en dur.
 
 **F99 · Grand livre complet : la feuille Sommaire promise n'existe pas** [exp-03]
 - **Emplacements :** src/modules/exports/export.service.ts:152, :790-891
 - **Condition :** 5
 - **Constat :** une seule feuille, sans totaux, et le brouillard y est mêlé sans colonne Statut.
 - **Correction :** écrire le sommaire ou corriger la documentation, et ajouter Statut ou une mention.
+- **Fait le 2026-09-27 :** feuille « Sommaire » (une ligne par compte et les totaux, depuis l'agrégat qui choisit les comptes) et colonne Statut sur chaque ligne ; `ouvrirFeuilleEnFlux` pose une feuille suivante après la première (`classeur-en-flux.ts`). Test : `grand-livre-complet-en-flux.spec.ts`.
 
 **F100 · Exports du grand livre sans exerciceId obligatoire** [exp-04]
 - **Emplacements :** src/modules/exports/export.controller.ts:28-40, :145-165
 - **Condition :** 1
 - **Constat :** sur appel direct, tous les exercices sont agrégés, reports compris, contre la règle EXERCICE_REQUIS posée par le contrôleur lui-même.
 - **Correction :** poser EXERCICE_REQUIS.
+- **Fait le 2026-09-27 :** `EXERCICE_REQUIS` sur les deux routes du grand livre (`export.controller.ts`). Test : `grand-livre-complet-en-flux.spec.ts`.
 
 **F101 · Grand livre d'un compte et justificatif : classeur en mémoire sans plafond** [exp-05]
 - **Emplacements :** src/modules/exports/export.service.ts:725-790, :1298-1420

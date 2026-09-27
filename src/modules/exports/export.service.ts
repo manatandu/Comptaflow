@@ -798,6 +798,13 @@ export class ExportService {
    *  - « Sommaire » : une ligne par compte (totaux débit/crédit, solde
    *    final) · c'est là que vivent les sous-totaux, plutôt qu'en lignes de
    *    rupture au milieu des données qui fausseraient tout filtre.
+   *
+   * LE SOMMAIRE ÉTAIT PROMIS ET N'EXISTAIT PAS (audit final F99) · le
+   * classeur sortait d'une seule feuille, sans aucun total, et le brouillard y
+   * était mêlé sans que rien ne le dise. Le sommaire est écrit après la
+   * dernière ligne, depuis l'agrégat qui choisit déjà les comptes, et chaque
+   * ligne porte son STATUT · un grand livre qui mêle des pièces encore
+   * modifiables doit le dire ligne à ligne (AUDCIF art. 22, 2°).
    */
   async grandLivreCompletExcelEnFlux(
     tenantId: string,
@@ -822,9 +829,8 @@ export class ExportService {
       where: { ecriture: { ...perimetre, tenantId } },
       _sum: { debit: true, credit: true },
     });
-    const comptesMouvementes = new Set(
-      parCompte.filter((c) => Number(c._sum.debit ?? 0) !== 0 || Number(c._sum.credit ?? 0) !== 0).map((c) => c.compteId),
-    );
+    const mouvementes = parCompte.filter((c) => Number(c._sum.debit ?? 0) !== 0 || Number(c._sum.credit ?? 0) !== 0);
+    const comptesMouvementes = new Set(mouvementes.map((c) => c.compteId));
 
     const sortie = ouvrir(`grand-livre-complet${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`);
     const flux = ouvrirFeuilleEnFlux({
@@ -832,7 +838,7 @@ export class ExportService {
       nomFeuille: 'Grand livre',
       titre: 'GRAND LIVRE',
       identite,
-      colonnes: this.colonnesGrandLivre(true),
+      colonnes: [...this.colonnesGrandLivre(true), { header: 'Statut', key: 'statut', width: 12 }],
     });
 
     let compteCourant: string | null = null;
@@ -880,13 +886,60 @@ export class ExportService {
           credit: Number(l.credit) || null,
           solde: Math.round(solde * 100) / 100,
           lettre: l.lettre ?? '',
+          statut: l.ecriture.statut === 'VALIDEE' ? 'Validée' : 'Brouillard',
         });
       }
       if (lot.length < ExportService.LOT_EXPORT) break;
       curseur = lot[lot.length - 1].id;
     }
 
-    await flux.terminer();
+    // Une ligne par compte, quelques centaines au plus · lue en une fois.
+    const comptes = await this.prisma.compte.findMany({
+      where: { tenantId, id: { in: [...comptesMouvementes] } },
+      select: { id: true, numero: true, intitule: true },
+    });
+    const totaux = new Map(mouvementes.map((c) => [c.compteId, c._sum]));
+    const arrondi = (n: number) => Math.round(n * 100) / 100;
+    await flux.terminer(undefined, async (ajouterFeuille) => {
+      const sommaire = ajouterFeuille({
+        nomFeuille: 'Sommaire',
+        titre: 'GRAND LIVRE · SOMMAIRE PAR COMPTE',
+        identite,
+        colonnes: [
+          { header: 'Compte général', key: 'compteNumero', width: 14 },
+          { header: 'Intitulé compte', key: 'compteIntitule', width: 36 },
+          { header: 'Total débit', key: 'debit', width: 16, style: { numFmt: FORMAT_MONTANT } },
+          { header: 'Total crédit', key: 'credit', width: 16, style: { numFmt: FORMAT_MONTANT } },
+          { header: 'Solde', key: 'solde', width: 16, style: { numFmt: FORMAT_MONTANT } },
+        ],
+      });
+      let totalDebit = 0;
+      let totalCredit = 0;
+      for (const c of [...comptes].sort((a, b) => a.numero.localeCompare(b.numero))) {
+        const t = totaux.get(c.id)!;
+        const debit = Number(t.debit ?? 0);
+        const credit = Number(t.credit ?? 0);
+        totalDebit += debit;
+        totalCredit += credit;
+        await sommaire.ajouter({
+          compteNumero: c.numero,
+          compteIntitule: c.intitule,
+          debit: arrondi(debit),
+          credit: arrondi(credit),
+          solde: arrondi(debit - credit),
+        });
+      }
+      const derniere = sommaire.derniereLigneDonnees();
+      await sommaire.ajouter({
+        compteIntitule: 'TOTAUX',
+        debit: arrondi(totalDebit),
+        credit: arrondi(totalCredit),
+        solde: arrondi(totalDebit - totalCredit),
+      });
+      // Le filtre s'arrête avant la ligne des totaux, qu'un tri ferait sinon
+      // remonter au milieu des comptes.
+      sommaire.fermer(derniere);
+    });
     return { lignes: nbLignes };
   }
 

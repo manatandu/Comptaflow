@@ -146,12 +146,16 @@ export class ExportController {
     );
   }
 
-  /** Grand livre complet · tous les comptes mouvementés, un seul classeur. */
+  /**
+   * Grand livre complet · tous les comptes mouvementés, un seul classeur.
+   * L'exercice est REQUIS (audit final F100) · sans lui, l'appel direct
+   * agrégeait tous les exercices, reports compris, sous le titre d'un seul.
+   */
   @Get('grand-livre')
   async grandLivreComplet(
     @CurrentUser() user: AuthenticatedUser,
     @Res() res: Response,
-    @Query('exerciceId') exerciceId?: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
   ) {
     await envoyerXlsxEnFlux(res, (ouvrir) =>
       this.exportService.grandLivreCompletExcelEnFlux(user.tenantId, exerciceId, ouvrir),
@@ -163,7 +167,7 @@ export class ExportController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('compteId') compteId: string,
     @Res() res: Response,
-    @Query('exerciceId') exerciceId?: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
   ) {
     envoyerXlsx(res, await this.exportService.grandLivreExcel(user.tenantId, compteId, exerciceId));
   }

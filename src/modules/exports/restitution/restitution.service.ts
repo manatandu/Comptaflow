@@ -84,11 +84,24 @@ export class RestitutionService {
    * Lit une table par lots et rend son CSV, ligne à ligne.
    *
    * La borne vient de `borneDuModele` et JAMAIS d'un `where` écrit ici · les
-   * quinze modèles portés par leur parent échappent à la garde de
+   * modèles portés par leur parent échappent à la garde de
    * cloisonnement, et un filtre construit à la main les rendrait pour tous
    * les cabinets. Voir `tables-restitution.ts`.
    */
   private async *lignesCsv(
+    modele: string,
+    tenantId: string,
+    compteur: { ecrites: number },
+    interrompre: (e: Error) => void,
+  ): AsyncGenerator<string> {
+    try {
+      yield* this.lignesCsvBrutes(modele, tenantId, compteur);
+    } catch (e) {
+      interrompre(new Error(`table ${modele} non lue · ${e instanceof Error ? e.message : String(e)}`));
+    }
+  }
+
+  private async *lignesCsvBrutes(
     modele: string,
     tenantId: string,
     compteur: { ecrites: number },
@@ -133,15 +146,23 @@ export class RestitutionService {
    * par son identifiant, qui EST la borne · les colonnes et leur écriture sont
    * celles des autres tables, exclusions comprises.
    */
-  private async *ligneDuDossierCsv(tenantId: string, compteur: { ecrites: number }): AsyncGenerator<string> {
+  private async *ligneDuDossierCsv(
+    tenantId: string,
+    compteur: { ecrites: number },
+    interrompre: (e: Error) => void,
+  ): AsyncGenerator<string> {
     const colonnes = colonnesDuModele(TABLE_DU_DOSSIER);
     yield this.ligneCsv(colonnes, Object.fromEntries(colonnes.map((c) => [c, c])));
-    const dossier = await this.prisma.tenant.findUniqueOrThrow({
-      where: { id: tenantId },
-      select: Object.fromEntries(colonnes.map((c) => [c, true])),
-    });
-    yield this.ligneCsv(colonnes, dossier as Record<string, unknown>);
-    compteur.ecrites++;
+    try {
+      const dossier = await this.prisma.tenant.findUniqueOrThrow({
+        where: { id: tenantId },
+        select: Object.fromEntries(colonnes.map((c) => [c, true])),
+      });
+      yield this.ligneCsv(colonnes, dossier as Record<string, unknown>);
+      compteur.ecrites++;
+    } catch (e) {
+      interrompre(new Error(`table ${TABLE_DU_DOSSIER} non lue · ${e instanceof Error ? e.message : String(e)}`));
+    }
   }
 
   /** Le compte de chaque table, pris AVANT l'extraction · c'est l'inventaire
@@ -204,6 +225,29 @@ export class RestitutionService {
     });
     archive.pipe(sortie);
 
+    /**
+     * UNE TABLE ILLISIBLE ARRÊTE L'ARCHIVE (audit final F96). L'erreur d'une
+     * entrée est émise par son propre flux, qu'`archiver` n'écoute pas ·
+     * levée dans un générateur, elle sortait hors de toute promesse et
+     * arrêtait le serveur pour tous les cabinets, comme une pièce illisible
+     * avant sa correction. Mais une table n'est pas une pièce · l'archive
+     * sans elle serait une restitution amputée qui se dit complète. La sortie
+     * est donc DÉTRUITE, et le ZIP tronqué refusé par l'utilitaire d'archive.
+     * `finalize` ne se résout plus une fois l'archive abandonnée · on attend
+     * donc l'une ou l'autre fin, jamais une promesse qui ne viendra pas.
+     */
+    let interrompue = false;
+    let signalerArret: () => void = () => undefined;
+    const arret = new Promise<void>((resoudre) => (signalerArret = resoudre));
+    const interrompre = (e: Error) => {
+      if (interrompue) return;
+      interrompue = true;
+      this.journal.error(`Restitution interrompue · ${e.message}`);
+      archive.abort();
+      sortie.destroy(e);
+      signalerArret();
+    };
+
     archive.append(
       ecrireManifeste({
         dossier,
@@ -216,12 +260,12 @@ export class RestitutionService {
     );
 
     const ecrites: Record<string, { ecrites: number }> = { [TABLE_DU_DOSSIER]: { ecrites: 0 } };
-    archive.append(Readable.from(this.ligneDuDossierCsv(tenantId, ecrites[TABLE_DU_DOSSIER])), {
+    archive.append(Readable.from(this.ligneDuDossierCsv(tenantId, ecrites[TABLE_DU_DOSSIER], interrompre)), {
       name: fichierDeLaTable(TABLE_DU_DOSSIER),
     });
     for (const modele of TABLES_RESTITUEES) {
       ecrites[modele] = { ecrites: 0 };
-      archive.append(Readable.from(this.lignesCsv(modele, tenantId, ecrites[modele])), {
+      archive.append(Readable.from(this.lignesCsv(modele, tenantId, ecrites[modele], interrompre)), {
         name: fichierDeLaTable(modele),
       });
     }
@@ -243,15 +287,18 @@ export class RestitutionService {
     }
 
     // APPENDU EN DERNIER, ET LU EN DERNIER. `archiver` consomme ses entrées
-    // dans l'ordre : le corps de ce générateur ne s'exécute qu'une fois les
-    // 54 tables écrites, donc une fois les compteurs remplis. C'est ce qui
+    // dans l'ordre : le corps de ce générateur ne s'exécute qu'une fois
+    // toutes les tables écrites, donc une fois les compteurs remplis. C'est ce qui
     // permet de comparer l'inventaire annoncé à ce qui est réellement sorti,
     // sans rien garder en mémoire.
     archive.append(Readable.from(this.controles(lignesParTable, ecrites, pieces)), {
       name: 'controles.txt',
     });
 
-    await archive.finalize();
+    const fin = archive.finalize();
+    // Rejetée seulement sur une archive abandonnée · déjà consignée ci-dessus.
+    fin.catch(() => undefined);
+    await Promise.race([fin, arret]);
     const jour = horodatage.toISOString().slice(0, 10);
     return `restitution-${dossier.nom.replace(/[^\w-]+/g, '-').toLowerCase()}-${jour}.zip`;
   }

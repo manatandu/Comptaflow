@@ -16,19 +16,23 @@ la route ne porte donc aucun décorateur de référentiel.
 
 En revanche, **aucun texte lu n'impose la restitution d'un dossier complet à un
 successeur, n'en fixe le format, ne dit qui a qualité pour la demander, ni ce
-que doit contenir un manifeste.** Le ZIP, le périmètre des 54 tables, le rôle
+que doit contenir un manifeste.** Le ZIP, le périmètre des tables, le rôle
 ADMIN_CABINET et le contenu du manifeste sont des décisions d'OmegaX. Le
 manifeste les présente comme telles.
 
 ## Les cinq réserves, écrites à l'écran et dans le manifeste
 
-1. **Elle ne remplace pas la conservation** · aucune colonne du schéma ne
-   stocke de pièce justificative numérisée, alors que l'art. 17, 3° les veut
-   datées, conservées et classées, et que l'art. 24 les vise expressément.
+1. **Elle ne remplace pas la conservation** · OmegaX ne tient pas les pièces
+   justificatives des écritures, alors que l'art. 17, 3° les veut datées,
+   conservées et classées, et que l'art. 24 les vise expressément. Seuls les
+   documents attachés aux tiers (`DocumentTiers.contenu`, la seule colonne
+   binaire du schéma) sont archivés, à côté des CSV, dans `documents-tiers/`.
 2. **Elle n'a pas la valeur probante du papier en RDC** · CPCC, § 1.5.3 b),
    première phrase.
-3. **Ce n'est pas une réversibilité** · trois imports existent (plan de
-   comptes, balance, écritures), les autres tables se lisent sans se recharger.
+3. **Ce n'est pas une réversibilité** · l'import général recharge un plan de
+   comptes, une balance et des écritures, trois imports ciblés lisent un relevé
+   bancaire, la balance d'une entité consolidée et le canevas d'une cellule ;
+   les autres tables se lisent sans se recharger.
 4. **Ce n'est pas un instantané** · les tables sont lues l'une après l'autre,
    sans transaction commune. `controles.txt` compare, table par table,
    l'inventaire annoncé aux lignes réellement écrites.
@@ -42,7 +46,7 @@ Aucun délai de conservation n'est affiché · le CPCC constate expressément
 ## La borne de lecture, et pourquoi elle est le point dur
 
 La garde de cloisonnement commence par
-`if (!MODELES_CLOISONNES.has(model)) return query(args)`. Les quinze modèles
+`if (!MODELES_CLOISONNES.has(model)) return query(args)`. Les modèles
 portés par leur parent n'ont pas de `tenantId` : **la garde ne les regarde pas**.
 Un `ligneEcriture.findMany({})` écrit dans l'extracteur rendrait les lignes de
 tous les cabinets, sans erreur et sans trace, dans une archive parfaitement

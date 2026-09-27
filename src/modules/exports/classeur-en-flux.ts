@@ -77,29 +77,24 @@ export async function attendreLeTuyau(sortie: Writable): Promise<void> {
   if (sortie.writableNeedDrain) await once(sortie, 'drain');
 }
 
-/**
- * Ouvre une feuille en flux, coiffe et en-tête posés, prête à recevoir ses
- * lignes.
- *
- * `terminer()` doit être appelé, y compris quand rien n'a été écrit : c'est lui
- * qui ferme l'archive ZIP. Un classeur non terminé n'est pas un classeur
- * tronqué, c'est un fichier qu'Excel REFUSE d'ouvrir · et c'est la propriété
- * qu'on veut en cas d'échec en cours de route (voir le contrôleur).
- */
-export function ouvrirFeuilleEnFlux(params: {
-  sortie: Writable;
+/** Ce que décrit une feuille en flux · nom, titre de la coiffe, identité, colonnes. */
+export interface ParametresFeuilleEnFlux {
   nomFeuille: string;
   titre: string;
   identite: IdentiteEtat;
   colonnes: Partial<ExcelJS.Column>[];
-}) {
-  const classeur = new ExcelJS.stream.xlsx.WorkbookWriter({
-    stream: params.sortie,
-    ...OPTIONS_CLASSEUR_EN_FLUX,
-  });
-  classeur.creator = 'OmegaX';
-  classeur.created = new Date();
+}
 
+/**
+ * Pose une feuille dans un classeur en flux, coiffe et en-tête compris. Une
+ * feuille suivante ne s'ouvre qu'une fois la précédente FERMÉE · en flux, ses
+ * lignes sont déjà parties sur le réseau.
+ */
+function poserFeuille(
+  classeur: ExcelJS.stream.xlsx.WorkbookWriter,
+  sortie: Writable,
+  params: ParametresFeuilleEnFlux,
+) {
   const nbColonnes = params.colonnes.length;
   const feuille = classeur.addWorksheet(params.nomFeuille, {
     // Les vues et l'auto-filtre se posent À LA CRÉATION · une feuille en flux
@@ -143,7 +138,6 @@ export function ouvrirFeuilleEnFlux(params: {
   let derniereLigne = LIGNE_ENTETE;
 
   return {
-    classeur,
     feuille,
     nbColonnes,
     /** Ajoute une ligne et rend son numéro · le tuyau est respecté. */
@@ -151,17 +145,17 @@ export function ouvrirFeuilleEnFlux(params: {
       const ligne = feuille.addRow(valeurs);
       ligne.commit();
       derniereLigne = ligne.number;
-      await attendreLeTuyau(params.sortie);
+      await attendreLeTuyau(sortie);
       return ligne.number;
     },
     /** Le numéro de la dernière ligne de données écrite. */
     derniereLigneDonnees: () => derniereLigne,
     /**
-     * Ferme la feuille et l'archive. L'auto-filtre est posé ici : sa borne
-     * basse n'est connue qu'une fois la dernière ligne écrite, et une feuille
-     * en flux accepte encore cette propriété tant qu'elle n'est pas commise.
+     * Ferme la feuille. L'auto-filtre est posé ici : sa borne basse n'est
+     * connue qu'une fois la dernière ligne écrite, et une feuille en flux
+     * accepte encore cette propriété tant qu'elle n'est pas commise.
      */
-    async terminer(derniereLigneFiltrable = derniereLigne): Promise<void> {
+    fermer(derniereLigneFiltrable = derniereLigne): void {
       if (derniereLigneFiltrable > LIGNE_ENTETE) {
         feuille.autoFilter = {
           from: { row: LIGNE_ENTETE, column: 1 },
@@ -169,6 +163,47 @@ export function ouvrirFeuilleEnFlux(params: {
         };
       }
       feuille.commit();
+    },
+  };
+}
+
+/** Une feuille posée par `poserFeuille` · la première comme les suivantes. */
+export type FeuilleEnFlux = ReturnType<typeof poserFeuille>;
+
+/**
+ * Ouvre une feuille en flux, coiffe et en-tête posés, prête à recevoir ses
+ * lignes.
+ *
+ * `terminer()` doit être appelé, y compris quand rien n'a été écrit : c'est lui
+ * qui ferme l'archive ZIP. Un classeur non terminé n'est pas un classeur
+ * tronqué, c'est un fichier qu'Excel REFUSE d'ouvrir · et c'est la propriété
+ * qu'on veut en cas d'échec en cours de route (voir le contrôleur).
+ */
+export function ouvrirFeuilleEnFlux(params: ParametresFeuilleEnFlux & { sortie: Writable }) {
+  const classeur = new ExcelJS.stream.xlsx.WorkbookWriter({
+    stream: params.sortie,
+    ...OPTIONS_CLASSEUR_EN_FLUX,
+  });
+  classeur.creator = 'OmegaX';
+  classeur.created = new Date();
+  const premiere = poserFeuille(classeur, params.sortie, params);
+
+  return {
+    classeur,
+    feuille: premiere.feuille,
+    nbColonnes: premiere.nbColonnes,
+    ajouter: premiere.ajouter,
+    derniereLigneDonnees: premiere.derniereLigneDonnees,
+    /**
+     * Ferme la première feuille, écrit les suivantes s'il y en a (chacune
+     * posée par `ajouterFeuille`, avec sa coiffe), puis ferme l'archive.
+     */
+    async terminer(
+      derniereLigneFiltrable = premiere.derniereLigneDonnees(),
+      suivantes?: (ajouterFeuille: (p: ParametresFeuilleEnFlux) => FeuilleEnFlux) => Promise<void>,
+    ): Promise<void> {
+      premiere.fermer(derniereLigneFiltrable);
+      if (suivantes) await suivantes((p) => poserFeuille(classeur, params.sortie, p));
       await classeur.commit();
     },
   };

@@ -42,10 +42,11 @@ export function RestitutionPage() {
         <h2 className="text-[11.5px] font-bold mb-1.5">Ce que cette archive n'est pas</h2>
         <ul className="text-[11.5px] text-text-dim list-disc pl-4 space-y-1.5 leading-[1.6]">
           <li>
-            <strong>Elle ne remplace pas la conservation.</strong> OmegaX ne détient aucune pièce
-            justificative numérisée. L'AUDCIF art. 24 vise « les livres comptables ou les documents
-            qui en tiennent lieu, ainsi que les pièces justificatives » · les classeurs papier
-            restent la conservation.
+            <strong>Elle ne remplace pas la conservation.</strong> OmegaX ne tient pas les pièces
+            justificatives des écritures · seuls les documents attachés aux tiers sont archivés,
+            dans <code>documents-tiers/</code>. L'AUDCIF art. 24 vise « les livres comptables ou
+            les documents qui en tiennent lieu, ainsi que les pièces justificatives » · les
+            classeurs papier restent la conservation.
           </li>
           <li>
             <strong>Elle n'a pas la valeur probante du papier en RDC.</strong> Les écrits
@@ -53,9 +54,10 @@ export function RestitutionPage() {
             (notes d'organisation comptable du CPCC, § 1.5.3 b).
           </li>
           <li>
-            <strong>Ce n'est pas une réversibilité.</strong> Trois imports existent aujourd'hui ·
-            plan de comptes, balance, écritures. Les autres tables se lisent, elles ne se
-            rechargent pas.
+            <strong>Ce n'est pas une réversibilité.</strong> L'import général recharge un plan de
+            comptes, une balance et des écritures ; trois imports ciblés lisent un relevé bancaire,
+            la balance d'une entité consolidée et le canevas d'une cellule. Les autres tables se
+            lisent, elles ne se rechargent pas.
           </li>
           <li>
             <strong>Ce n'est pas un instantané.</strong> Les tables sont lues l'une après l'autre.

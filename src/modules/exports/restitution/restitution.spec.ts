@@ -11,7 +11,7 @@ import { ecrireManifeste } from './manifeste-restitution';
  *
  * Le danger de ce module n'est pas de produire un fichier illisible · c'est
  * de produire un fichier parfaitement lisible contenant la comptabilité d'un
- * AUTRE cabinet. Les quinze modèles portés par leur parent échappent à la
+ * AUTRE cabinet. Les modèles portés par leur parent échappent à la
  * garde de cloisonnement (voir lecture-bornee.spec.ts) : le premier test
  * ci-dessous regarde donc le `where` réellement envoyé à Prisma, et pas le
  * résultat rendu par un double complaisant.
@@ -73,6 +73,11 @@ function prismaFactice(lignes: Record<string, Record<string, unknown>[]> = {}) {
   return { client: client as any, filtres, maillons };
 }
 
+/** Un générateur lu à la main relance l'échec qu'il consigne en production. */
+const relancer = (e: Error) => {
+  throw e;
+};
+
 /** Ramasse le ZIP en mémoire · un test n'a pas de disque à salir. */
 function collecteur() {
   const morceaux: Buffer[] = [];
@@ -100,7 +105,7 @@ describe('la lecture est bornée au dossier, table par table', () => {
     expect(lignesEcriture[0].where).toEqual({ ecriture: { tenantId: DOSSIER } });
   });
 
-  it('interroge les 54 tables, et chacune avec une borne', async () => {
+  it('interroge toutes les tables, et chacune avec une borne', async () => {
     const { client, filtres } = prismaFactice();
     const service = new RestitutionService(client);
     const { flux } = collecteur();
@@ -134,7 +139,7 @@ describe('le CSV d’une table', () => {
     const { client } = prismaFactice({ Journal: JOURNAUX });
     const service = new RestitutionService(client);
     let csv = '';
-    for await (const bout of (service as any).lignesCsv('Journal', DOSSIER, { ecrites: 0 })) csv += bout;
+    for await (const bout of (service as any).lignesCsv('Journal', DOSSIER, { ecrites: 0 }, relancer)) csv += bout;
 
     const relu = analyserCsv(csv, ';');
     const iLibelle = relu[0].indexOf('intitule');
@@ -147,7 +152,7 @@ describe('le CSV d’une table', () => {
     const { client } = prismaFactice({ Journal: JOURNAUX });
     const service = new RestitutionService(client);
     const compteur = { ecrites: 0 };
-    for await (const _ of (service as any).lignesCsv('Journal', DOSSIER, compteur)) void _;
+    for await (const _ of (service as any).lignesCsv('Journal', DOSSIER, compteur, relancer)) void _;
     // L'en-tête n'est pas une ligne de données.
     expect(compteur.ecrites).toBe(2);
   });
@@ -166,7 +171,7 @@ describe('le CSV d’une table', () => {
     const { client, filtres } = prismaFactice({ Journal: beaucoup });
     const service = new RestitutionService(client);
     const compteur = { ecrites: 0 };
-    for await (const _ of (service as any).lignesCsv('Journal', DOSSIER, compteur)) void _;
+    for await (const _ of (service as any).lignesCsv('Journal', DOSSIER, compteur, relancer)) void _;
 
     const lectures = filtres.filter((f) => f.modele === 'Journal');
     expect(lectures).toHaveLength(2);
@@ -227,7 +232,7 @@ describe('le contrôle dit l’écart au lieu de le taire', () => {
 });
 
 describe('l’archive produite', () => {
-  it('est un ZIP portant le manifeste, les 54 tables et le contrôle', async () => {
+  it('est un ZIP portant le manifeste, toutes les tables et le contrôle', async () => {
     const { client } = prismaFactice({ Journal: [{ id: 'a', tenantId: DOSSIER, code: 'OD' }] });
     const service = new RestitutionService(client);
     const { flux, buffer } = collecteur();
@@ -270,9 +275,26 @@ describe('le manifeste dit ce que l’archive n’est pas', () => {
     expect(deplie).toContain("Elle ne satisfait pas à elle seule à l'obligation de conservation");
     expect(deplie).toContain("Ce n'est pas une réversibilité");
     expect(deplie).toContain("Ce n'est pas un instantané");
-    expect(deplie).toContain('AUCUNE pièce justificative numérisée');
+    // Audit final F97 · les documents des tiers SONT archivés ; ce que le
+    // logiciel ne tient pas, ce sont les pièces des écritures.
+    expect(deplie).toContain('OmegaX ne tient pas les pièces justificatives des écritures');
+    expect(deplie).toContain('restitués dans `documents-tiers/`');
+    expect(deplie).toContain("trois imports ciblés lisent un relevé bancaire, la balance d'une entité consolidée");
     // Aucun délai affiché · le CPCC constate l'absence de délai fixe unique.
     expect(manifeste).not.toMatch(/conserver cette archive pendant/i);
+  });
+
+  it('nomme la colonne binaire sortie à côté des CSV', () => {
+    const deplie = manifeste.replace(/\s+/g, ' ');
+    expect(deplie).toContain(
+      "La seule colonne binaire du schéma, `DocumentTiers.contenu`, n'entre pas dans le CSV · chaque document attaché à un tiers sort À CÔTÉ, un fichier par pièce, dans `documents-tiers/`",
+    );
+    // La prémisse relue dans le schéma · une seconde colonne binaire ferait
+    // mentir la phrase.
+    const binaires = Prisma.dmmf.datamodel.models.flatMap((m) =>
+      m.fields.filter((f) => f.type === 'Bytes').map((f) => `${m.name}.${f.name}`),
+    );
+    expect(binaires).toEqual(['DocumentTiers.contenu']);
   });
 
   it('nomme les tables dont le journal d’audit ne garde aucune trace', () => {
@@ -364,7 +386,7 @@ describe('la ligne du dossier (tables/tenant.csv)', () => {
     const service = new RestitutionService(client);
     const compteur = { ecrites: 0 };
     let csv = '';
-    for await (const bout of (service as any).ligneDuDossierCsv(DOSSIER, compteur)) csv += bout;
+    for await (const bout of (service as any).ligneDuDossierCsv(DOSSIER, compteur, relancer)) csv += bout;
     const [entete, ligne, ...reste] = analyserCsv(csv, ';');
 
     const exclues = colonnesNonRestituables('Tenant');
@@ -397,5 +419,31 @@ describe('la ligne du dossier (tables/tenant.csv)', () => {
     };
     await service.produire(DOSSIER, { id: 'u-1', email: 'chef@asbl.cd', adresseIp: null }, flux);
     expect(texte.join('')).toContain('Tenant;1;1;conforme');
+  });
+});
+
+/**
+ * AUDIT FINAL F96 · une table illisible levait dans son générateur, hors de
+ * toute promesse · l'erreur arrêtait le serveur pour tous les cabinets. Elle
+ * est consignée, et l'archive est DÉTRUITE plutôt que livrée amputée.
+ */
+describe('une table illisible arrête l’archive sans arrêter le serveur', () => {
+  it.each([
+    ['Journal', (client: any) => (client.journal.findMany = async () => Promise.reject(new Error('connexion perdue')))],
+    ['Tenant', (client: any) => {
+      const lire = client.tenant.findUniqueOrThrow;
+      let appels = 0;
+      // Le premier appel est celui de `produire`, le second celui de la ligne du dossier.
+      client.tenant.findUniqueOrThrow = async (a: any) => (++appels >= 2 ? Promise.reject(new Error('connexion perdue')) : lire(a));
+    }],
+  ])('%s · la sortie est détruite en nommant la table, et `produire` rend la main', async (table, casser) => {
+    const { client } = prismaFactice();
+    casser(client);
+    const service = new RestitutionService(client);
+    const { flux } = collecteur();
+    flux.on('error', () => undefined);
+    await service.produire(DOSSIER, { id: 'u-1', email: 'chef@asbl.cd', adresseIp: null }, flux);
+    expect(flux.destroyed).toBe(true);
+    expect(flux.errored?.message).toBe(`table ${table} non lue · connexion perdue`);
   });
 });

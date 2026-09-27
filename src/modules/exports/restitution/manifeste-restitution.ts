@@ -48,7 +48,10 @@ Les colonnes sont celles du schéma, moins cinq, retirées à dessein :
 \`User.estOperateurPlateforme\` (le drapeau qui désigne le compte de
 l'éditeur), et les trois colonnes du second facteur de connexion
 (\`User.secretDoubleAuth\`, \`User.dernierPasDoubleAuth\`,
-\`User.codesSecoursDoubleAuth\`). Aucune autre colonne n'est retirée.
+\`User.codesSecoursDoubleAuth\`). Aucune autre colonne n'est retirée. La
+seule colonne binaire du schéma, \`DocumentTiers.contenu\`, n'entre pas dans
+le CSV · chaque document attaché à un tiers sort À CÔTÉ, un fichier par pièce,
+dans \`documents-tiers/\`, sous l'identifiant du document.
 
 ## CE QUE CETTE ARCHIVE N'EST PAS
 
@@ -56,8 +59,10 @@ l'éditeur), et les trois colonnes du second facteur de connexion
 art. 24 veut que « les livres comptables ou les documents qui en tiennent lieu,
 ainsi que les pièces justificatives » soient conservés dix ans, et l'art. 17,
 3° veut les pièces « datées, conservées, classées dans un ordre défini dans le
-manuel ». OmegaX ne détient AUCUNE pièce justificative numérisée · aucune
-colonne du schéma n'en stocke. Les classeurs papier restent la conservation.
+manuel ». OmegaX ne tient pas les pièces justificatives des écritures · il ne
+garde que les documents attachés aux fiches des tiers, restitués dans
+\`documents-tiers/\`, et rien ne les rattache à une écriture. Les classeurs
+papier restent la conservation.
 
 **Elle n'a pas la valeur probante du papier en RDC.** Notes d'organisation
 comptable du CPCC, § 1.5.3 b), première phrase : « Les écrits électroniques ne
@@ -68,10 +73,11 @@ sont pas encore admis en preuve au même titre que l'écrit papier en RDC. »
 droit commercial, de un à quinze ans en droit fiscal. Afficher un délai sur
 cette archive reviendrait à choisir à la place du cabinet.
 
-**Ce n'est pas une réversibilité.** Trois types d'import existent aujourd'hui
-dans OmegaX · plan de comptes, balance, écritures. Les autres tables de cette
-archive n'ont AUCUN chemin de réimport. Elles se lisent, elles ne se
-rechargent pas.
+**Ce n'est pas une réversibilité.** L'import général d'OmegaX recharge un
+plan de comptes, une balance et des écritures ; trois imports ciblés lisent un
+relevé bancaire, la balance d'une entité consolidée et le canevas d'une
+cellule. Toute autre table de cette archive n'a AUCUN chemin de réimport ·
+elle se lit, elle ne se recharge pas.
 
 **Les CSV ne sont pas le livre-journal chronologique.** Chaque table est lue
 dans l'ordre de sa clé, qui est un identifiant aléatoire et non une date :
