@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
+import { useAuth } from '../lib/auth';
 import type { Journal } from '../lib/types';
 
 /**
@@ -47,15 +48,12 @@ const dernierJour = (mois: string) => {
   return new Date(Date.UTC(a, m, 0)).toISOString().slice(0, 10);
 };
 
-export function PaieDuMois({
-  mois,
-  peutEcrire,
-  apresChangement,
-}: {
-  mois: string;
-  peutEcrire: boolean;
-  apresChangement: () => void;
-}) {
+export function PaieDuMois({ mois, apresChangement }: { mois: string; apresChangement: () => void }) {
+  // Le droit se LIT ici, jamais reçu en prop · passé par l'écran parent sous
+  // le nom `peutEcrire`, il satisfaisait le contrôle des écrans qui écrivent
+  // sans que ce composant lise quoi que ce soit. Passer la paie au journal
+  // est réservé au comptable (`@ReserveAuComptable`), d'où `peutValider`.
+  const { peutValider } = useAuth();
   const { exerciceCourant } = useExercice();
   const [p, setP] = useState<PropositionPaieDuMois | null>(null);
   const [journaux, setJournaux] = useState<Journal[]>([]);
@@ -77,7 +75,7 @@ export function PaieDuMois({
   }, [charger, mois]);
 
   useEffect(() => {
-    if (!peutEcrire) return;
+    if (!peutValider) return;
     api.get<Journal[]>('/journaux').then(
       (js) => {
         const actifs = js.filter((j) => j.estActif);
@@ -89,7 +87,7 @@ export function PaieDuMois({
       },
       () => undefined,
     );
-  }, [peutEcrire]);
+  }, [peutValider]);
 
   const passer = () => {
     if (!exerciceCourant || !journalId) return;
@@ -152,7 +150,7 @@ export function PaieDuMois({
               Bulletins {n.join(', ')} passés dans la pièce n° {piece?.numeroPiece ?? '·'}
               {piece?.statut === 'VALIDEE' ? ' (validée)' : ' (au brouillard)'}.
             </span>
-            {peutEcrire && piece?.statut === 'BROUILLARD' && (
+            {peutValider && piece?.statut === 'BROUILLARD' && (
               <button type="button" disabled={enCours} onClick={() => defaire(id)} className="px-2.5 py-1 border border-border">
                 Annuler la comptabilisation
               </button>
@@ -235,7 +233,7 @@ export function PaieDuMois({
             Solde du 422 après l’écriture : {fc(p.solde422Fc)} FC, net à payer des bulletins : {fc(p.sommeDesNetsFc)} FC.
           </div>
 
-          {peutEcrire && (
+          {peutValider && (
             <div className="flex flex-wrap items-end gap-3 mt-2.5">
               <label className="flex flex-col gap-0.5">
                 Journal
