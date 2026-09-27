@@ -1,10 +1,20 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { IconCheck } from '../components/chrome/icons';
 import { Aide } from '../components/chrome/Aide';
 import type { DeclarationTva, ProrataDefinitifTva } from '../lib/types';
+
+/** Une liquidation déjà comptabilisée, telle que `GET /taux-tva/liquidations` la rend. */
+interface LiquidationTvaListee {
+  id: string;
+  dateDebut: string;
+  dateFin: string;
+  net: number;
+  prorataApplique: number;
+  ecriture: { id: string; libelle: string; date: string; numeroPiece: number | null } | null;
+}
 
 function premierJourDuMois(): string {
   const d = new Date();
@@ -23,6 +33,21 @@ export function DeclarationTvaPage() {
   const [comptabilisation, setComptabilisation] = useState(false);
   const [annee, setAnnee] = useState(new Date().getFullYear() - 1);
   const [definitif, setDefinitif] = useState<ProrataDefinitifTva | null>(null);
+  const [liquidations, setLiquidations] = useState<LiquidationTvaListee[] | null>(null);
+
+  /**
+   * Le registre des liquidations (audit de l'interface du 2026-09-27, I12) ·
+   * la route le servait et aucun écran ne le lisait. Une liquidation posée sur
+   * de mauvaises bornes ne se retrouvait qu'en recalculant EXACTEMENT sa
+   * période, alors que c'est justement la période qu'on ignore quand on s'est
+   * trompé. La liste les rend toutes, chacune annulable.
+   */
+  const chargerLiquidations = () =>
+    api.get<LiquidationTvaListee[]>('/taux-tva/liquidations').then(setLiquidations, () => setLiquidations(null));
+
+  useEffect(() => {
+    void chargerLiquidations();
+  }, []);
 
   const calculer = async (e?: FormEvent) => {
     e?.preventDefault();
@@ -60,6 +85,7 @@ export function DeclarationTvaPage() {
       });
       setInfo(`Liquidation comptabilisée (pièce n°${resultat.ecriture.numeroPiece ?? '·'}).`);
       await calculer();
+      await chargerLiquidations();
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Impossible de comptabiliser la liquidation');
     } finally {
@@ -67,11 +93,10 @@ export function DeclarationTvaPage() {
     }
   };
 
-  const annulerLiquidation = async () => {
-    if (!declaration?.liquidation.faite) return;
+  const annulerLiquidation = async (l: { id: string; dateDebut: string; dateFin: string }) => {
     if (
       !confirm(
-        `Annuler la liquidation du ${declaration.liquidation.dateDebut} au ${declaration.liquidation.dateFin} ?\n\n` +
+        `Annuler la liquidation du ${l.dateDebut} au ${l.dateFin} ?\n\n` +
           "Son écriture est supprimée, et la période redevient liquidable. C'est la marche arrière d'une " +
           "erreur de période · sans elle, une liquidation posée sur les mauvaises bornes bloquerait " +
           'définitivement les mois qu\'elle recouvre.',
@@ -83,9 +108,10 @@ export function DeclarationTvaPage() {
     setErreur(null);
     setInfo(null);
     try {
-      await api.delete(`/taux-tva/liquidations/${declaration.liquidation.id}`);
+      await api.delete(`/taux-tva/liquidations/${l.id}`);
       setInfo('Liquidation annulée · la période est de nouveau liquidable.');
-      await calculer();
+      await chargerLiquidations();
+      if (declaration) await calculer();
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : "Impossible d'annuler la liquidation");
     } finally {
@@ -355,7 +381,10 @@ export function DeclarationTvaPage() {
                   côté serveur · la lecture seule garde le calcul et l'avertissement. */}
               {peutEcrire && (
                 <button
-                  onClick={annulerLiquidation}
+                  onClick={() => {
+                    const l = declaration.liquidation;
+                    if (l.faite) void annulerLiquidation(l);
+                  }}
                   disabled={comptabilisation}
                   className="mt-2 border border-border-dark bg-surface px-3 py-1 text-[11.5px] font-semibold disabled:opacity-50"
                 >
@@ -478,6 +507,47 @@ export function DeclarationTvaPage() {
             )}
           </div>
         </>
+      )}
+
+      {liquidations && liquidations.length > 0 && (
+        <section className="mt-5 max-w-[780px]">
+          <div className="text-[11.5px] font-bold mb-1">Liquidations comptabilisées</div>
+          <table className="w-full text-[11.5px]">
+            <thead>
+              <tr>
+                <th className="text-left">Période</th>
+                <th className="text-left">Pièce</th>
+                <th className="text-right">Net</th>
+                <th className="text-right">Prorata</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {liquidations.map((l) => (
+                <tr key={l.id}>
+                  <td>
+                    du {l.dateDebut} au {l.dateFin}
+                  </td>
+                  <td>{l.ecriture ? `n° ${l.ecriture.numeroPiece ?? '·'} · ${l.ecriture.libelle}` : '·'}</td>
+                  <td className="text-right">{l.net.toLocaleString('fr-FR')} CDF</td>
+                  <td className="text-right">{l.prorataApplique.toLocaleString('fr-FR')} %</td>
+                  <td className="text-right">
+                    {peutEcrire && (
+                      <button
+                        type="button"
+                        disabled={comptabilisation}
+                        onClick={() => void annulerLiquidation(l)}
+                        className="text-danger/80 hover:text-danger disabled:opacity-50"
+                      >
+                        Annuler
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
       )}
     </div>
   );

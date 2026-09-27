@@ -40,6 +40,24 @@ const LIBELLE_STATUT: Record<string, string> = {
   SANS_OBJET: 'Sans objet',
 };
 
+/**
+ * Les indicateurs du § A7 · les CODES viennent du serveur (`GET
+ * /faiblesses/indicateurs`), qui les tient en liste fermée et refuse tout
+ * autre ; seul l'intitulé lisible vit ici. Un code que cette table ne connaît
+ * pas s'affiche tel quel plutôt que de disparaître.
+ */
+const LIBELLE_INDICATEUR_A7: Record<string, string> = {
+  ENVIRONNEMENT_DE_CONTROLE_INEFFICACE: 'Environnement de contrôle inefficace',
+  FRAUDE_DE_LA_DIRECTION_NON_PREVENUE: 'Fraude de la direction non prévenue',
+  REMEDIATION_ANTERIEURE_NON_MISE_EN_OEUVRE: 'Remédiation antérieure non mise en œuvre',
+  ABSENCE_DE_PROCESSUS_D_EVALUATION_DES_RISQUES: "Absence de processus d'évaluation des risques",
+  PROCESSUS_D_EVALUATION_DES_RISQUES_INEFFICACE: "Processus d'évaluation des risques inefficace",
+  REPONSE_INEFFICACE_A_UN_RISQUE_SIGNIFICATIF: 'Réponse inefficace à un risque significatif',
+  ANOMALIES_NON_DETECTEES_PAR_LE_CONTROLE_INTERNE: 'Anomalies non détectées par le contrôle interne',
+  RETRAITEMENT_D_ETATS_FINANCIERS_DEJA_PUBLIES: "Retraitement d'états financiers déjà publiés",
+  INCAPACITE_A_SUPERVISER_L_ETABLISSEMENT_DES_ETATS: "Incapacité à superviser l'établissement des états",
+};
+
 const jour = (d: string | null | undefined) => (d ? new Date(d).toLocaleDateString('fr-FR') : '·');
 
 export function FaiblessesPage() {
@@ -65,6 +83,8 @@ export function FaiblessesPage() {
   const [effetPotentiel, setEffetPotentiel] = useState('');
   const [recommandation, setRecommandation] = useState('');
   const [qualificationLettre, setQualificationLettre] = useState('NON_QUALIFIEE');
+  const [indicateursA7, setIndicateursA7] = useState<string[]>([]);
+  const [indicateursCoches, setIndicateursCoches] = useState<Set<string>>(new Set());
 
   const charger = () =>
     api.get<RegistreFaiblesses[]>('/faiblesses').then(setRegistres, (e: Error) => setErreur(e.message));
@@ -72,6 +92,14 @@ export function FaiblessesPage() {
   useEffect(() => {
     charger();
     api.get<Exercice[]>('/exercices').then(setExercices, () => undefined);
+    // Les indicateurs du § A7 (audit de l'interface du 2026-09-27, I12) · la
+    // route les servait et le service les acceptait à l'ajout, mais aucun
+    // écran ne les proposait : le champ restait vide sur chaque faiblesse. Ils
+    // sont proposés au jugement, cochés ou non, et n'en tirent aucune
+    // conséquence · « for example ».
+    api
+      .get<{ indicateursA7: string[] }>('/faiblesses/indicateurs')
+      .then((r) => setIndicateursA7(r.indicateursA7), () => setIndicateursA7([]));
   }, []);
 
   useEffect(() => {
@@ -125,6 +153,7 @@ export function FaiblessesPage() {
         description: description.trim(),
         effetPotentiel: effetPotentiel.trim(),
         recommandation: recommandation.trim() || undefined,
+        ...(!detailExterne && indicateursCoches.size > 0 ? { indicateursA7: [...indicateursCoches] } : {}),
         ...(detailExterne && qualificationLettre !== 'NON_QUALIFIEE' ? { qualification: qualificationLettre } : {}),
       });
       setAjout(false);
@@ -133,6 +162,7 @@ export function FaiblessesPage() {
       setDescription('');
       setEffetPotentiel('');
       setRecommandation('');
+      setIndicateursCoches(new Set());
     });
 
   const qualifier = (f: FaiblesseControleInterne, qualification: 'SIGNIFICATIVE' | 'AUTRE') => {
@@ -544,6 +574,35 @@ export function FaiblessesPage() {
                       className="block w-full border border-border bg-surface px-2 py-[3px] text-[11.5px]"
                     />
                   </label>
+                  {!detailExterne && indicateursA7.length > 0 && (
+                    <fieldset className="text-[11px] mb-1.5">
+                      <legend className="text-text-dim flex items-center gap-1.5">
+                        Indicateurs (§ A7)
+                        <Aide
+                          titre="Indicateurs du § A7"
+                          texte="La norme les donne « for example » comme indices d'une faiblesse significative. Les cocher n'emporte aucune qualification : celle-ci reste un acte de jugement motivé (§ 6 b)."
+                          source="ISA 265, § A7"
+                        />
+                      </legend>
+                      {indicateursA7.map((code) => (
+                        <label key={code} className="flex items-center gap-1.5">
+                          <input
+                            type="checkbox"
+                            checked={indicateursCoches.has(code)}
+                            onChange={(e) =>
+                              setIndicateursCoches((prev) => {
+                                const suivant = new Set(prev);
+                                if (e.target.checked) suivant.add(code);
+                                else suivant.delete(code);
+                                return suivant;
+                              })
+                            }
+                          />
+                          {LIBELLE_INDICATEUR_A7[code] ?? code}
+                        </label>
+                      ))}
+                    </fieldset>
+                  )}
                   <div className="flex gap-1.5">
                     <button
                       type="button"
@@ -582,6 +641,11 @@ export function FaiblessesPage() {
                       <div className="text-[11px] text-text-dim mt-0.5">Effet potentiel · {f.effetPotentiel}</div>
                       {f.recommandation && (
                         <div className="text-[11px] text-text-dim mt-0.5">Recommandation · {f.recommandation}</div>
+                      )}
+                      {(f.indicateursA7 ?? []).length > 0 && (
+                        <div className="text-[11px] text-text-dim mt-0.5">
+                          Indicateurs (§ A7) · {f.indicateursA7.map((c) => LIBELLE_INDICATEUR_A7[c] ?? c).join(' ; ')}
+                        </div>
                       )}
                       {f.verificationCabinet && (
                         <div className="text-[11px] text-text-dim mt-0.5">

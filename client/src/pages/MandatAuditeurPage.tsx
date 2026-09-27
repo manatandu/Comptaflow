@@ -47,6 +47,26 @@ const ORGANES: { valeur: string; libelle: string }[] = [
   { valeur: 'JURIDICTION', libelle: 'Juridiction compétente' },
 ];
 
+/**
+ * La règle que le serveur tient pour le dossier (`regles-auditeur.ts`) · le
+ * client ne la recalcule pas, il la montre. Un genre « aucune règle lue » est
+ * rendu avec son motif plutôt qu'un seuil emprunté à une autre forme.
+ */
+type Obligation =
+  | {
+      genre: 'ALTERNATIF' | 'DEUX_SUR_TROIS';
+      source: string;
+      seuilBilan: number;
+      seuilProduits: number;
+      libelleProduits: string;
+      seuilEffectif: number;
+    }
+  | { genre: 'TOUJOURS'; source: string; motif: string }
+  | { genre: 'AUCUNE_REGLE_LUE'; motif: string };
+
+// Les seuils sont libellés en FCFA dans les Actes uniformes, et le contrôle 6 les cite ainsi.
+const fc = (n: number) => `${n.toLocaleString('fr-FR')} FCFA`;
+
 export function MandatAuditeurPage() {
   // L'enregistrement est réservé (`@Roles` ADMIN_CABINET, COMPTABLE) · la
   // lecture seule, souvent l'auditeur lui-même, consulte les mandats sans
@@ -61,12 +81,17 @@ export function MandatAuditeurPage() {
   const [dateDesignation, setDateDesignation] = useState('');
   const [premierExercice, setPremierExercice] = useState(new Date().getFullYear());
   const [nombreExercices, setNombreExercices] = useState(3);
+  const [obligation, setObligation] = useState<Obligation | null>(null);
 
   const recharger = () =>
     api.get<{ mandats: Mandat[] }>('/mandat-auditeur').then((r) => setMandats(r.mandats));
 
   useEffect(() => {
     void recharger();
+    // L'obligation elle-même (audit de l'interface du 2026-09-27, I12) · la
+    // route la servait et aucun écran ne la lisait, si bien que la fenêtre
+    // tenait des mandats sans dire si le dossier était tenu d'en avoir un.
+    api.get<Obligation>('/mandat-auditeur/obligation').then(setObligation, () => setObligation(null));
   }, []);
 
   useEffect(() => {
@@ -134,6 +159,33 @@ export function MandatAuditeurPage() {
 
   return (
     <div className="p-2 max-w-[980px]">
+      {obligation && (
+        <section className="border border-border bg-surface px-3.5 py-2 mb-2.5 text-[11.5px]">
+          <span className="font-bold">Obligation de désigner · </span>
+          {obligation.genre === 'TOUJOURS' && <span>sans condition de taille</span>}
+          {(obligation.genre === 'ALTERNATIF' || obligation.genre === 'DEUX_SUR_TROIS') && (
+            <span>
+              {obligation.genre === 'ALTERNATIF' ? 'un seul critère suffit' : 'deux critères sur trois'} · total du
+              bilan au-delà de {fc(obligation.seuilBilan)}, {obligation.libelleProduits.toLowerCase()} au-delà de{' '}
+              {fc(obligation.seuilProduits)}, effectif au-delà de {obligation.seuilEffectif}
+            </span>
+          )}
+          {obligation.genre === 'AUCUNE_REGLE_LUE' && <span className="text-text-dim">{obligation.motif}</span>}
+          {obligation.genre !== 'AUCUNE_REGLE_LUE' && (
+            <span className="inline-flex ml-1.5 align-middle">
+              <Aide
+                titre="Obligation de désigner"
+                texte={
+                  obligation.genre === 'TOUJOURS'
+                    ? obligation.motif
+                    : 'Les seuils sont ceux du texte applicable au dossier. La sortie de l\'obligation (deux exercices consécutifs sous les seuils) n\'est pas mesurée ici.'
+                }
+                source={obligation.source}
+              />
+            </span>
+          )}
+        </section>
+      )}
       {peutEcrire && (
         <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
           <h2 className="text-[11.5px] font-bold mb-1.5">Enregistrer un mandat</h2>
