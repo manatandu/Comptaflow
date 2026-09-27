@@ -559,6 +559,16 @@ en a sa propre copie (`EtatsFinanciersSyscohadaPage.tsx:10`).
 **Correction.** Retirer les morts ; imprimer ou retirer chaque réserve ; servir
 les deux textes de la situation intermédiaire depuis le serveur.
 
+**Fait le 2026-09-27.** Les cinq exports morts sont retirés. Les quatre
+réserves de paie ne sont plus des constantes : ce qui en restait de vrai est
+en commentaire, et deux affirmations fausses sont tombées avec elles (l'arrêté
+de 2008 « non lu », lu depuis P6 ; la suspension des allocations familiales
+« hors corpus », lue depuis P5). Les deux textes de la situation intermédiaire
+restent au serveur, et c'est dit sur place · ils sont la référence contre
+laquelle le spec du client vérifie la copie de l'écran, qui évite un
+aller-retour de plus. Aucun test de réinjection · on ne réinjecte pas une
+suppression.
+
 ### C3 · `src/modules/abonnements/` sans module
 
 Services fournis par `PlateformeModule` (`plateforme.controller.ts:6-7`),
