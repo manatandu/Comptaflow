@@ -44,7 +44,35 @@ export interface EliminationReciproque {
   motif: string;
   debit: number;
   credit: number;
+  /**
+   * La part de l'élimination prise sur l'à-nouveau et sur l'écriture de
+   * clôture, le reste portant sur les mouvements de l'exercice (audit final
+   * F41) · absente, tout est mouvement. Voir `PartsHorsMouvement`.
+   */
+  horsMouvement?: PartsHorsMouvement;
 }
+
+/**
+ * CE QUI, DANS UN MONTANT DE LA BALANCE, N'EST PAS UN MOUVEMENT DE L'EXERCICE
+ * (audit final F41) · la balance le distingue en trois colonnes (report
+ * à-nouveau, mouvements, écriture de clôture, `EcritureService.balance`), et
+ * les états la lisent ainsi : le tableau des flux et les tableaux de variation
+ * prennent les MOUVEMENTS pour des flux de l'exercice. Le mouvement est le
+ * reste du total, jamais porté à part · une seule façon de le calculer.
+ */
+export interface PartsHorsMouvement {
+  reportDebit: number;
+  reportCredit: number;
+  clotureDebit: number;
+  clotureCredit: number;
+}
+
+const aucunePartHorsMouvement = (): PartsHorsMouvement => ({
+  reportDebit: 0,
+  reportCredit: 0,
+  clotureDebit: 0,
+  clotureCredit: 0,
+});
 
 /**
  * Une réciprocité QUI NE SE BOUCLE PAS · la créance chez l'un n'est pas la
@@ -176,6 +204,53 @@ export class GroupeService {
    *    comptabilité autonome ») · son système est celui de l'art. 11 de
    *    l'AUDCIF apprécié pour elle, et c'est le siège qui le porte.
    */
+  /**
+   * La part d'une ligne de balance qui n'est pas un mouvement de l'exercice
+   * (audit final F41) · lue sur les colonnes de `EcritureService.balance`,
+   * zéro quand une ligne ne les porte pas.
+   */
+  static partsHorsMouvement(l: Partial<PartsHorsMouvement>): PartsHorsMouvement {
+    return {
+      reportDebit: Number(l.reportDebit ?? 0),
+      reportCredit: Number(l.reportCredit ?? 0),
+      clotureDebit: Number(l.clotureDebit ?? 0),
+      clotureCredit: Number(l.clotureCredit ?? 0),
+    };
+  }
+
+  /**
+   * LES TROIS COLONNES DE LA BALANCE AGRÉGÉE, telles que la combinaison les
+   * poste (audit final F41) · l'à-nouveau et la clôture lus sur leurs parts,
+   * le mouvement pour le reste du total. Une part négative, née d'une
+   * élimination prise sur les mouvements quand l'ouverture ne se compensait
+   * pas, passe au côté opposé · le solde de la ligne ne change pas, et une
+   * ligne d'écriture ne porte pas de montant négatif.
+   */
+  static colonnesDeCombinaison(
+    lignes: Array<PartsHorsMouvement & { numero: string; totalDebit: number; totalCredit: number }>,
+  ): Record<'report' | 'mouvement' | 'cloture', Array<{ numero: string; debit: number; credit: number }>> {
+    const arrondi = (x: number) => Math.round(x * 100) / 100;
+    const ligne = (numero: string, debit: number, credit: number) => {
+      const d = arrondi(debit);
+      const c = arrondi(credit);
+      return { numero, debit: Math.max(d, 0) + Math.max(-c, 0), credit: Math.max(c, 0) + Math.max(-d, 0) };
+    };
+    const nonNulle = (l: { debit: number; credit: number }) => l.debit !== 0 || l.credit !== 0;
+    return {
+      report: lignes.map((l) => ligne(l.numero, l.reportDebit, l.reportCredit)).filter(nonNulle),
+      mouvement: lignes
+        .map((l) =>
+          ligne(
+            l.numero,
+            l.totalDebit - l.reportDebit - l.clotureDebit,
+            l.totalCredit - l.reportCredit - l.clotureCredit,
+          ),
+        )
+        .filter(nonNulle),
+      cloture: lignes.map((l) => ligne(l.numero, l.clotureDebit, l.clotureCredit)).filter(nonNulle),
+    };
+  }
+
   static caracteresCombinaison(mere: {
     referentiel: Referentiel;
     systemeComptableSyscohada: SystemeComptableSyscohada | null;
@@ -535,7 +610,7 @@ export class GroupeService {
     /** Solde de chaque compte réciproque, pour le contrôle de réciprocité. */
     const soldeReciproqueParCompte = new Map<string, number>();
 
-    interface LigneAgregee {
+    interface LigneAgregee extends PartsHorsMouvement {
       numero: string;
       intitule: string;
       totalDebit: number;
@@ -567,10 +642,15 @@ export class GroupeService {
         // Redondant par construction (la balance ne rend que du détail), gardé
         // contre le double comptage · voir EcritureService.balance.
         if (l.typeCompte === 'TOTAL') continue;
+        const horsMouvement = GroupeService.partsHorsMouvement(l);
         const existante = parNumero.get(l.numero);
         if (existante) {
           existante.totalDebit += l.totalDebit;
           existante.totalCredit += l.totalCredit;
+          existante.reportDebit += horsMouvement.reportDebit;
+          existante.reportCredit += horsMouvement.reportCredit;
+          existante.clotureDebit += horsMouvement.clotureDebit;
+          existante.clotureCredit += horsMouvement.clotureCredit;
           // L'intitulé de la mère fait foi · celui d'une cellule ne remplace
           // jamais un intitulé déjà retenu.
         } else {
@@ -579,6 +659,7 @@ export class GroupeService {
             intitule: l.intitule,
             totalDebit: l.totalDebit,
             totalCredit: l.totalCredit,
+            ...horsMouvement,
           });
         }
         if (l.numero.startsWith('58')) solde58 += l.solde;
@@ -592,6 +673,7 @@ export class GroupeService {
             motif: MOTIF_LIAISON_ETABLISSEMENTS,
             debit: l.totalDebit,
             credit: l.totalCredit,
+            horsMouvement,
           });
         }
         // La créance (ou la dette) de CE dossier envers un autre dossier du
@@ -660,15 +742,53 @@ export class GroupeService {
     // reste le cumul BRUT, dossier par dossier, pour que la soustraction se
     // refasse à la main : agrégat = détail par dossier − éliminations. Un
     // détail déjà net ne se rapprocherait plus des balances des dossiers.
+    //
+    // CHAQUE PART SORT DE SA COLONNE (audit final F41) · une créance interne
+    // reprise à l'à-nouveau s'élimine dans l'à-nouveau, sans quoi le tableau
+    // des flux du groupe lirait son élimination comme un encaissement de
+    // l'exercice. À UNE CONDITION · que les parts d'une colonne se
+    // compensent, faute de quoi l'écriture de cette colonne ne s'équilibrerait
+    // plus. C'est le cas d'une opération interne enregistrée d'un seul côté
+    // AVANT la clôture précédente, puis régularisée dans l'exercice : le total
+    // se confirme, l'ouverture non. Ces parts-là sont alors prises sur les
+    // mouvements, et l'avertissement ci-dessous le dit.
+    const arrondi2 = (x: number) => Math.round(x * 100) / 100;
+    const sommeParts = (cle: keyof PartsHorsMouvement) =>
+      arrondi2(reciproques.eliminations.reduce((s, e) => s + (e.horsMouvement?.[cle] ?? 0), 0));
+    const ecartOuverture = arrondi2(sommeParts('reportDebit') - sommeParts('reportCredit'));
+    const ecartCloture = arrondi2(sommeParts('clotureDebit') - sommeParts('clotureCredit'));
+    const ouvertureSeCompense = Math.abs(ecartOuverture) <= 0.005;
+    const clotureSeCompense = Math.abs(ecartCloture) <= 0.005;
     for (const e of reciproques.eliminations) {
       const ligne = parNumero.get(e.numero);
       if (!ligne) continue;
-      ligne.totalDebit = Math.round((ligne.totalDebit - e.debit) * 100) / 100;
-      ligne.totalCredit = Math.round((ligne.totalCredit - e.credit) * 100) / 100;
+      ligne.totalDebit = arrondi2(ligne.totalDebit - e.debit);
+      ligne.totalCredit = arrondi2(ligne.totalCredit - e.credit);
+      const parts = e.horsMouvement ?? aucunePartHorsMouvement();
+      if (ouvertureSeCompense) {
+        ligne.reportDebit = arrondi2(ligne.reportDebit - parts.reportDebit);
+        ligne.reportCredit = arrondi2(ligne.reportCredit - parts.reportCredit);
+      }
+      if (clotureSeCompense) {
+        ligne.clotureDebit = arrondi2(ligne.clotureDebit - parts.clotureDebit);
+        ligne.clotureCredit = arrondi2(ligne.clotureCredit - parts.clotureCredit);
+      }
     }
 
+    // UNE LIGNE SOLDÉE AU TOTAL PEUT PORTER UNE PART D'OUVERTURE · la créance
+    // interne d'ouverture éliminée sur les mouvements (voir plus haut) laisse
+    // un total nul, un à-nouveau et un mouvement opposé. La retirer ferait
+    // disparaître l'à-nouveau et déséquilibrerait sa colonne.
     const lignes = [...parNumero.values()]
-      .filter((l) => l.totalDebit !== 0 || l.totalCredit !== 0)
+      .filter(
+        (l) =>
+          l.totalDebit !== 0 ||
+          l.totalCredit !== 0 ||
+          l.reportDebit !== 0 ||
+          l.reportCredit !== 0 ||
+          l.clotureDebit !== 0 ||
+          l.clotureCredit !== 0,
+      )
       .sort((a, b) => a.numero.localeCompare(b.numero))
       .map((l) => ({ ...l, solde: l.totalDebit - l.totalCredit }));
     const totaux = {
@@ -690,6 +810,14 @@ export class GroupeService {
     // d'immobilisations vivent dans les dossiers (limite déjà assumée par
     // `liasseGroupe`). Calculer serait inventer ; on avertit.
     const avertissements: string[] = [];
+    if (!ouvertureSeCompense) {
+      avertissements.push(
+        `Soldes réciproques d'OUVERTURE non concordants (écart ${ecartOuverture.toFixed(2)}) · une opération entre ` +
+          "dossiers du groupe n'était enregistrée que d'un seul côté à la clôture précédente. Le total se confirme, " +
+          "l'ouverture non : l'élimination de ces soldes est donc prise sur les mouvements de l'exercice, et le " +
+          'tableau des flux du groupe lit leur variation comme un flux de l’exercice.',
+      );
+    }
     if (reciproques.comptesHao.length > 0) {
       avertissements.push(
         `Cession interne d'immobilisation NON neutralisée · une écriture interne au groupe porte un compte de la ` +
@@ -855,7 +983,9 @@ export class GroupeService {
         compteId: true,
         debit: true,
         credit: true,
-        ecriture: { select: { tenantId: true } },
+        // Les deux drapeaux qui rangent la ligne dans sa colonne de la balance
+        // (audit final F41) · voir `PartsHorsMouvement`.
+        ecriture: { select: { tenantId: true, estGenereeParCloture: true, estSoldeDesComptesDeGestion: true } },
         compte: { select: { numero: true, intitule: true } },
       },
     });
@@ -892,14 +1022,37 @@ export class GroupeService {
         motif,
         debit: 0,
         credit: 0,
+        horsMouvement: aucunePartHorsMouvement(),
       };
-      ligne.debit += Number(l.debit);
-      ligne.credit += Number(l.credit);
+      const debit = Number(l.debit);
+      const credit = Number(l.credit);
+      ligne.debit += debit;
+      ligne.credit += credit;
+      // Même partition que `EcritureService.balance` · l'écriture qui solde
+      // les comptes de gestion d'abord, puis le report à-nouveau.
+      const parts = ligne.horsMouvement!;
+      if (l.ecriture.estSoldeDesComptesDeGestion) {
+        parts.clotureDebit += debit;
+        parts.clotureCredit += credit;
+      } else if (l.ecriture.estGenereeParCloture) {
+        parts.reportDebit += debit;
+        parts.reportCredit += credit;
+      }
       cumul.set(cle, ligne);
     }
 
     const eliminations = [...cumul.values()]
-      .map((e) => ({ ...e, debit: arrondi(e.debit), credit: arrondi(e.credit) }))
+      .map((e) => ({
+        ...e,
+        debit: arrondi(e.debit),
+        credit: arrondi(e.credit),
+        horsMouvement: {
+          reportDebit: arrondi(e.horsMouvement!.reportDebit),
+          reportCredit: arrondi(e.horsMouvement!.reportCredit),
+          clotureDebit: arrondi(e.horsMouvement!.clotureDebit),
+          clotureCredit: arrondi(e.horsMouvement!.clotureCredit),
+        },
+      }))
       .filter((e) => e.debit !== 0 || e.credit !== 0)
       .sort(
         (a, b) =>
@@ -1806,66 +1959,117 @@ export class GroupeService {
       });
     }
 
-    // 5 · UNE écriture, la balance agrégée en brut (débits et crédits
-    // conservés, pas seulement les soldes) · équilibrée par construction
-    // puisque chaque dossier l'est (contrôlé ci-dessus).
+    // 5 · TROIS ÉCRITURES ET NON UNE (audit final F41) · l'à-nouveau, les
+    // mouvements de l'exercice, et l'écriture qui solde les comptes de
+    // gestion, chacune avec les drapeaux de celles des dossiers. Posée d'un
+    // bloc et sans drapeau, la balance agrégée tombait entière dans la colonne
+    // des mouvements · le tableau des flux et les tableaux de variation du
+    // dossier de combinaison lisaient alors tout le parc historique comme des
+    // acquisitions de l'exercice, et le compte de résultat d'un groupe clos
+    // lisait des comptes de gestion soldés. Débits et crédits restent bruts,
+    // colonne par colonne.
     // Le dossier de combinaison est un dossier comme les autres · son journal
-    // OD est déclaré à numérotation continue, et sa pièce doit la porter.
-    const numeroPiece = await prochainNumeroPiece(
-      this.prisma,
-      combinaisonId,
-      journal,
-      exercice.id,
-      agregat.exercice.dateDebut,
-    );
-    await this.prisma.ecriture.create({
-      data: {
-        tenantId: combinaisonId,
-        exerciceId: exercice.id,
-        journalId: journal.id,
-        numeroPiece,
+    // OD est déclaré à numérotation continue, et chaque pièce doit la porter.
+    const arrondi2 = (x: number) => Math.round(x * 100) / 100;
+    const colonnes = GroupeService.colonnesDeCombinaison(agregat.lignes);
+    const pieces: Array<{
+      cle: 'report' | 'mouvement' | 'cloture';
+      libelle: string;
+      date: Date;
+      estGenereeParCloture: boolean;
+      estSoldeDesComptesDeGestion: boolean;
+    }> = [
+      {
+        cle: 'report',
+        libelle: 'Report à-nouveau',
         date: agregat.exercice.dateDebut,
-        libelle: `Combinaison du groupe · ${agregat.dossiers.length} dossiers`,
-        reference: 'GROUPE',
-        createdBy,
-        // LE DOUBLE REGARD EST SANS OBJET ICI, et l'exclusion est ÉCRITE plutôt
-        // qu'omise · une règle posée à un seul endroit se contourne ailleurs
-        // sans que personne ne l'ait décidé, et c'est exactement le défaut que
-        // le chantier du double regard corrige.
-        //
-        // Le dossier de combinaison est TECHNIQUE : il est intégralement
-        // régénéré à chaque appel (voir la purge plus haut), aucun utilisateur
-        // n'y vit et personne n'y saisit. Il n'y a donc pas de saisie à faire
-        // relire par un second regard.
-        //
-        // ET UNE LIMITE À NE PAS ÉTENDRE À TOUT LE MODULE. Le siège fait aussi
-        // naître des écritures dans le dossier d'une CELLULE, en portant le
-        // `createdBy` d'un utilisateur du siège. Là, le double regard n'est pas
-        // sans objet : il est satisfait PAR CONSTRUCTION, puisque le comptable
-        // de la cellule qui les valide n'est jamais celui du siège qui les a
-        // créées. L'identité diffère, et personne dans la cellule n'a relu.
-        // C'est une limite du contrôle d'identité, pas un défaut d'ici.
-        statut: StatutEcriture.VALIDEE,
-        // LA PISTE MENTAIT PAR SILENCE. L'export du journal résout `valideeBy`
-        // en courriel ; nul, il imprimait une colonne « Validée par » VIDE sur
-        // une écriture pourtant VALIDÉE. L'AUDCIF art. 22, 1° demande que les
-        // données « puissent être restituées sur papier ou sous une forme
-        // directement intelligible » · une colonne vide en face d'un statut
-        // validé n'est ni l'un ni l'autre.
-        //
-        // `createdBy` est ici l'utilisateur qui a DÉCLENCHÉ la combinaison, pas
-        // un valideur au sens du double regard.
-        valideeBy: createdBy,
-        valideeAt: new Date(),
-        lignes: {
-          create: agregat.lignes.map((l) => ({
-            compteId: compteParNumero.get(l.numero)!,
-            debit: l.totalDebit,
-            credit: l.totalCredit,
-          })),
-        },
+        estGenereeParCloture: true,
+        estSoldeDesComptesDeGestion: false,
       },
-    });
+      {
+        cle: 'mouvement',
+        libelle: 'Mouvements de l’exercice',
+        date: agregat.exercice.dateDebut,
+        estGenereeParCloture: false,
+        estSoldeDesComptesDeGestion: false,
+      },
+      {
+        cle: 'cloture',
+        libelle: 'Solde des comptes de gestion',
+        date: agregat.exercice.dateFin,
+        estGenereeParCloture: true,
+        estSoldeDesComptesDeGestion: true,
+      },
+    ];
+    // Tout se vérifie avant la première pièce · chaque colonne s'équilibre
+    // par construction (les dossiers le sont, les éliminations de chaque
+    // colonne se compensent, voir `balanceAgregee`), et une colonne qui ne
+    // le ferait pas est un défaut du moteur, jamais un arrondi à rattraper.
+    for (const piece of pieces) {
+      const lignes = colonnes[piece.cle];
+      const ecart = arrondi2(lignes.reduce((s, l) => s + l.debit - l.credit, 0));
+      if (Math.abs(ecart) > 0.01) {
+        throw new BadRequestException(
+          `La colonne « ${piece.libelle} » de la balance agrégée ne s'équilibre pas (écart ${ecart.toFixed(2)}) · ` +
+            "la liasse du groupe n'est pas produite.",
+        );
+      }
+    }
+    for (const piece of pieces) {
+      const lignes = colonnes[piece.cle];
+      if (lignes.length === 0) continue;
+      const numeroPiece = await prochainNumeroPiece(this.prisma, combinaisonId, journal, exercice.id, piece.date);
+      await this.prisma.ecriture.create({
+        data: {
+          tenantId: combinaisonId,
+          exerciceId: exercice.id,
+          journalId: journal.id,
+          numeroPiece,
+          date: piece.date,
+          libelle: `Combinaison du groupe · ${piece.libelle} · ${agregat.dossiers.length} dossiers`,
+          reference: 'GROUPE',
+          createdBy,
+          estGenereeParCloture: piece.estGenereeParCloture,
+          estSoldeDesComptesDeGestion: piece.estSoldeDesComptesDeGestion,
+          // LE DOUBLE REGARD EST SANS OBJET ICI, et l'exclusion est ÉCRITE plutôt
+          // qu'omise · une règle posée à un seul endroit se contourne ailleurs
+          // sans que personne ne l'ait décidé, et c'est exactement le défaut que
+          // le chantier du double regard corrige.
+          //
+          // Le dossier de combinaison est TECHNIQUE : il est intégralement
+          // régénéré à chaque appel (voir la purge plus haut), aucun utilisateur
+          // n'y vit et personne n'y saisit. Il n'y a donc pas de saisie à faire
+          // relire par un second regard.
+          //
+          // ET UNE LIMITE À NE PAS ÉTENDRE À TOUT LE MODULE. Le siège fait aussi
+          // naître des écritures dans le dossier d'une CELLULE, en portant le
+          // `createdBy` d'un utilisateur du siège. Là, le double regard n'est pas
+          // sans objet : il est satisfait PAR CONSTRUCTION, puisque le comptable
+          // de la cellule qui les valide n'est jamais celui du siège qui les a
+          // créées. L'identité diffère, et personne dans la cellule n'a relu.
+          // C'est une limite du contrôle d'identité, pas un défaut d'ici.
+          statut: StatutEcriture.VALIDEE,
+          // LA PISTE MENTAIT PAR SILENCE. L'export du journal résout `valideeBy`
+          // en courriel ; nul, il imprimait une colonne « Validée par » VIDE sur
+          // une écriture pourtant VALIDÉE. L'AUDCIF art. 22, 1° demande que les
+          // données « puissent être restituées sur papier ou sous une forme
+          // directement intelligible » · une colonne vide en face d'un statut
+          // validé n'est ni l'un ni l'autre.
+          //
+          // `createdBy` est ici l'utilisateur qui a DÉCLENCHÉ la combinaison, pas
+          // un valideur au sens du double regard.
+          valideeBy: createdBy,
+          valideeAt: new Date(),
+          lignes: {
+            create: lignes.map((l) => ({
+              compteId: compteParNumero.get(l.numero)!,
+              debit: l.debit,
+              credit: l.credit,
+            })),
+          },
+        },
+      });
+    }
 
     // 6 · Les moteurs existants produisent le classeur.
     const classeur = await this.exportService.liasseCompleteExcel(combinaisonId, exercice.id);

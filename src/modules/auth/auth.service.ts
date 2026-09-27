@@ -4,7 +4,7 @@ import { LicenceSurSiteService } from '../sur-site/licence-sur-site.service';
 import { identiteSociete, mentionsArticle17 } from '../tenant/mentions-societe';
 import { articleTrenteSeptApplicable } from '../accord-cadre/conditions-ong-etrangere';
 import { JwtService } from '@nestjs/jwt';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { siSycebnl } from '../../common/reponse-referentiel';
 import { PrismaService } from '../../common/prisma.service';
@@ -86,6 +86,7 @@ export class AuthService {
     }
 
     const motDePasseHache = await bcrypt.hash(dto.motDePasse, SALT_ROUNDS);
+    const idDossier = randomUUID();
 
     // `timeout` généreux et assumé : le semis enchaîne environ quatre-vingts
     // allers-retours vers Neon (1401 comptes en une passe, puis journaux,
@@ -97,7 +98,19 @@ export class AuthService {
       // LE JOURNAL D'AUDIT S'ÉCRIT DANS CETTE TRANSACTION · écrit à part, il
       // désignait un dossier que sa connexion ne voyait pas encore, et la clé
       // étrangère refusait chaque maillon de la création (contexte-audit.ts).
-      (tx) => journaliserDansTransaction(tx, async () => {
+      (tx) => journaliserDansTransaction(tx, () =>
+        // LE DOSSIER QUI NAÎT EST LE DOSSIER DE L'ACTE, DÈS SA CRÉATION · depuis
+        // la console ou le siège, la session porte un AUTRE dossier, et la
+        // garde de cloisonnement tenait chaque écriture du semis pour une
+        // écriture chez un voisin. La CRÉATION du dossier elle-même y tombait
+        // encore : son maillon d'audit ouvre la chaîne du nouveau dossier, et
+        // il était refusé comme une écriture chez un voisin (création d'une
+        // cellule par le siège en 500, vu sur une base réelle le 2026-09-27).
+        // L'identifiant est donc tiré AVANT, et tout ce qui suit s'exécute au
+        // nom du dossier créé, l'acteur restant celui qui crée (journal
+        // d'audit). L'inscription publique, sans session, n'y voit aucune
+        // différence.
+        dansContexteAudit({ ...(acteurCourant() ?? { acteurEmail: ACTEUR_SYSTEME }), tenantId: idDossier }, async () => {
         // Les DEUX référentiels se sèment désormais (SYCEBNL depuis l'origine,
         // SYSCOHADA depuis compte-seed-syscohada.ts) · le refus historique du
         // SYSCOHADA est levé. Un dossier SYSCOHADA se TIENT et s'IMPRIME
@@ -110,6 +123,7 @@ export class AuthService {
         // poste, aucun compte, aucun libellé. Restent propres au SYCEBNL les
         // documents obligatoires et les fenêtres bâties sur ses textes.
         const tenant = await this.tenantService.creerTenant({
+          id: idDossier,
           nom: dto.nomEntite,
           referentiel: dto.referentiel,
           typeLicence: dto.typeLicence ?? TypeLicence.ABONNEMENT,
@@ -131,13 +145,7 @@ export class AuthService {
           telephone: dto.telephone,
         }, tx);
 
-        // LE DOSSIER QUI NAÎT EST LE DOSSIER DE L'ACTE · depuis la console ou
-        // le siège, la session porte un AUTRE dossier, et la garde de
-        // cloisonnement tenait chaque écriture du semis pour une écriture chez
-        // un voisin (la pose des journaux tombait sur son upsert). Ce qui suit
-        // s'exécute donc au nom du dossier créé, l'acteur restant celui qui
-        // crée (journal d'audit).
-        return dansContexteAudit({ ...(acteurCourant() ?? { acteurEmail: ACTEUR_SYSTEME }), tenantId: tenant.id }, async () => {
+        {
 
           const user = await tx.user.create({
             data: {
@@ -178,8 +186,8 @@ export class AuthService {
               : await this.exerciceService.creerExerciceCourant(tenant.id, tx);
 
           return { tenant, user, exercice };
-        });
-      }),
+        }
+      })),
       { maxWait: 10_000, timeout: 30_000 },
     );
 

@@ -32,6 +32,8 @@ export class TenantService {
    * `this.prisma` et rien ne change pour les autres appelants.
    */
   async creerTenant(params: {
+    /** Tiré par l'appelant qui doit agir au nom du dossier AVANT sa création · voir AuthService.register. */
+    id?: string;
     nom: string;
     referentiel: Referentiel;
     typeLicence: TypeLicence;
@@ -46,6 +48,7 @@ export class TenantService {
   }, client: Prisma.TransactionClient = this.prisma) {
     return client.tenant.create({
       data: {
+        ...(params.id ? { id: params.id } : {}),
         nom: params.nom,
         referentiel: params.referentiel,
         jeuEtatsFinanciersSycebnl: params.jeuEtatsFinanciersSycebnl,

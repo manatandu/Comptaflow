@@ -5162,6 +5162,20 @@ jamais par la clé composée à `mois` nul. L'index unique est NULLS NOT
 DISTINCT. Sur un exercice de plus de douze mois, le mois revient deux fois ·
 la dotation y reste annuelle, sans retouche ni état au mois.
 
+**Liasse du groupe · trois écritures, chacune dans sa colonne (2026-09-27,
+audit final F41).** La combinaison reversait la balance agrégée en UNE
+écriture ordinaire · le tableau des flux et les notes de variation du dossier
+de combinaison lisaient tout le parc historique comme des acquisitions de
+l'exercice. Elle pose désormais l'à-nouveau, les mouvements et le solde des
+comptes de gestion avec les drapeaux de ceux des dossiers
+(`colonnesDeCombinaison`), et chaque élimination sort de la colonne d'où vient
+sa ligne. Une ouverture réciproque qui ne se compense pas (opération passée
+d'un seul côté avant la clôture précédente) est prise sur les mouvements, et
+l'avertissement le dit. Et une naissance de dossier s'exécute ENTIÈRE au nom
+du dossier qui naît, identifiant tiré avant la création (F271) · sans quoi le
+maillon d'audit de la création était refusé et une cellule créée par le siège
+tombait en 500.
+
 **La classe d'un compte se lit dans son numéro (2026-09-27, audit final
 F40).** La création laissait la classe libre et l'écran partait de la
 classe 1 · un 6xxx créé sans toucher la liste restait en classe 1, que le

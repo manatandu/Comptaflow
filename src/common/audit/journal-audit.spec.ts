@@ -565,17 +565,26 @@ describe('la création d’un dossier se journalise DANS sa transaction', () => 
     expect(maillons[0]).toMatchObject({ tenantId: 'nouveau', entite: 'Tenant', entiteId: 'nouveau' });
   });
 
-  it('le semis s’exécute au nom du dossier qui naît, pas de celui de la session', () => {
+  it('la création ET le semis s’exécutent au nom du dossier qui naît, pas de celui de la session', () => {
     // Depuis la console, la session porte le dossier de l'éditeur · la garde
     // de cloisonnement tenait le semis pour une écriture chez un voisin, et la
     // création d'un cabinet échouait sur l'upsert des journaux (vu le
-    // 2026-09-26, reproduit sur une base réelle avant correction).
+    // 2026-09-26, reproduit sur une base réelle avant correction). La
+    // CRÉATION du dossier y tombait encore, son maillon ouvrant la chaîne du
+    // nouveau dossier · une cellule créée par le siège rendait 500 (vu sur une
+    // base réelle le 2026-09-27). La bascule précède donc la création, sur un
+    // identifiant tiré avant elle, que la création reçoit.
     const source = readFileSync(join(__dirname, '../../modules/auth/auth.service.ts'), 'utf8');
     const corps = source.slice(source.indexOf('async register('), source.indexOf('async login('));
-    const bascule = corps.indexOf('return dansContexteAudit({ ...(acteurCourant()');
-    expect(bascule).toBeGreaterThan(corps.indexOf('this.tenantService.creerTenant('));
-    expect(corps.slice(bascule, bascule + 140)).toMatch(/tenantId: tenant\.id \}/);
-    for (const semis of ['seedPlan(', 'user.create(']) expect(corps.indexOf(semis)).toBeGreaterThan(bascule);
+    const tirage = corps.indexOf('const idDossier = randomUUID();');
+    const bascule = corps.indexOf('dansContexteAudit({ ...(acteurCourant()');
+    const creation = corps.indexOf('this.tenantService.creerTenant(');
+    expect(tirage).toBeGreaterThan(-1);
+    expect(bascule).toBeGreaterThan(tirage);
+    expect(corps.slice(bascule, bascule + 140)).toMatch(/tenantId: idDossier \}/);
+    expect(creation).toBeGreaterThan(bascule);
+    expect(corps.slice(creation, creation + 80)).toMatch(/id: idDossier,/);
+    for (const semis of ['seedPlan(', 'user.create(']) expect(corps.indexOf(semis)).toBeGreaterThan(creation);
   });
 
   it('l’inscription pose la transaction au contexte du journal', () => {

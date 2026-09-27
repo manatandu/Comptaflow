@@ -1,5 +1,6 @@
 import { Referentiel } from '@prisma/client';
 import { AuthService } from './auth.service';
+import { acteurCourant, dansContexteAudit } from '../../common/audit/contexte-audit';
 
 /**
  * UNE INSCRIPTION EST TOUT OU RIEN.
@@ -21,7 +22,7 @@ import { AuthService } from './auth.service';
  * comportement ne bronche : la création marcherait toujours. C'est le
  * défaut qu'on attrape ici.
  */
-type Appel = { nom: string; recuTx: boolean };
+type Appel = { nom: string; recuTx: boolean; dossierDeLActe?: string };
 
 function service(options?: { echoueSur?: string }) {
   const appels: Appel[] = [];
@@ -33,7 +34,7 @@ function service(options?: { echoueSur?: string }) {
   const tx = { __estLaTransaction: true, user: { create: async () => ({ id: 'u1' }) } };
   const recevoir = (nom: string) => async (...args: unknown[]) => {
     const dernier = args[args.length - 1] as { __estLaTransaction?: boolean } | undefined;
-    appels.push({ nom, recuTx: dernier?.__estLaTransaction === true });
+    appels.push({ nom, recuTx: dernier?.__estLaTransaction === true, dossierDeLActe: acteurCourant()?.tenantId });
     if (options?.echoueSur === nom) throw new Error(`échec simulé du semis ${nom}`);
     return undefined;
   };
@@ -56,15 +57,15 @@ function service(options?: { echoueSur?: string }) {
     } as never,
     { sign: () => 'jeton' } as never,
     {
-      creerTenant: async (_p: unknown, client?: { __estLaTransaction?: boolean }) => {
-        appels.push({ nom: 'creerTenant', recuTx: client?.__estLaTransaction === true });
-        return { id: 't1', nom: 'X', referentiel: Referentiel.SYCEBNL };
+      creerTenant: async (p: { id?: string }, client?: { __estLaTransaction?: boolean }) => {
+        appels.push({ nom: 'creerTenant', recuTx: client?.__estLaTransaction === true, dossierDeLActe: acteurCourant()?.tenantId });
+        return { id: p.id ?? 't1', nom: 'X', referentiel: Referentiel.SYCEBNL };
       },
     } as never,
     { seedPlan: recevoir('seedPlan') } as never,
     {
       creerExerciceCourant: async (_t: string, client?: { __estLaTransaction?: boolean }) => {
-        appels.push({ nom: 'creerExerciceCourant', recuTx: client?.__estLaTransaction === true });
+        appels.push({ nom: 'creerExerciceCourant', recuTx: client?.__estLaTransaction === true, dossierDeLActe: acteurCourant()?.tenantId });
         return { id: 'ex1' };
       },
     } as never,
@@ -123,5 +124,17 @@ describe('AuthService.register · tout ou rien', () => {
     // transaction est défaite et le dossier n'a jamais existé.
     expect(appels.map((a) => a.nom)).not.toContain('seedTauxDefaut');
     expect(appels.map((a) => a.nom)).not.toContain('creerExerciceCourant');
+  });
+});
+
+describe('AuthService.register · au nom du dossier qui naît, dès sa création', () => {
+  it('depuis la session d’un autre dossier (siège, console), la création elle-même est l’acte du dossier créé', async () => {
+    // Le maillon d'audit de la création ouvre la chaîne du NOUVEAU dossier ·
+    // exécuté au nom du siège, la garde de cloisonnement le refusait et la
+    // création d'une cellule tombait en 500 (vu sur une base réelle).
+    const { s, appels } = service();
+    const r = await dansContexteAudit({ acteurEmail: 'siege@exemple.cd', tenantId: 'siege' }, () => s.register(DTO as never));
+    expect(r.tenant.id).not.toBe('t1');
+    expect(appels.map((a) => a.dossierDeLActe)).toEqual(appels.map(() => r.tenant.id));
   });
 });

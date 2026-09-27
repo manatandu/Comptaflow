@@ -1,10 +1,10 @@
 # Audit final · liste fermée de la 1.0
 
-**Décompte :** 269 lignes, obtenues à partir de 298 constats confirmés, dont 29 doublons fusionnés.
+**Décompte :** 270 lignes (dont F271, trouvée en corrigeant F41), obtenues à partir de 298 constats confirmés, dont 29 doublons fusionnés.
 
 | Gravité | Lignes | Numéros |
 |---|---|---|
-| BLOQUANT | 48 | F1 à F48 |
+| BLOQUANT | 49 | F1 à F48, F271 |
 | AVANT_1_0 | 157 | F49 à F204, F270 |
 | APRES_1_0 | 65 | F205 à F269 |
 
@@ -320,6 +320,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** `totalDebit`/`totalCredit` cumulent report et mouvements, puis sont postés sans le drapeau de clôture. Le TFT et les tableaux de variation du dossier de combinaison lisent alors tout le parc historique comme des acquisitions de l'exercice.
 - **Correction :** une écriture d'ouverture marquée pour les reports puis une écriture pour les mouvements. Ajouter un test sur le TFT et une note de variation.
+- **Fait le 2026-09-27 :** trois écritures au lieu d'une · l'à-nouveau (drapeau de clôture), les mouvements, et le solde des comptes de gestion (drapeau de solde, daté de la clôture), chacune avec les colonnes de la balance des dossiers ; chaque élimination réciproque et chaque liaison 184 à 187 sort de la colonne d'où vient sa ligne, et une ouverture qui ne se compense pas est prise sur les mouvements avec un avertissement ; chaque colonne est vérifiée avant la première pièce (`groupe.service.ts`, `colonnesDeCombinaison`, `partsHorsMouvement`). Vérifié sur PostgreSQL local, en base : pièces marquées et datées comme celles d'un dossier ordinaire. Test : `liasse-groupe-colonnes-f41.spec.ts` (douze mutations tuées). Le tableau des flux et les notes de variation lisent déjà ces colonnes (F4 à F6, `cloture.e2e.ts`).
 
 **F42 · Le second jeu en monnaie fonctionnelle convertit l'à-nouveau et la clôture au cours de leur date** [mf-01]
 - **Emplacements :** src/modules/monnaie-fonctionnelle/balance-fonctionnelle.service.ts:21, :162 · src/modules/exercice/exercice.service.ts:790, :855
@@ -366,6 +367,15 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 6
 - **Constat :** l'étape 4 ne fait changer que `API_DATABASE_URL`, alors que le service reçoit `API_DATABASE_URL_POOLED`, qui est posé. Suivie à la lettre, la procédure migre la base restaurée pendant que le service écrit dans l'ancienne.
 - **Correction :** mettre à jour les deux secrets et vérifier dans le run la ligne « endpoint POOLÉ ».
+
+### Trouvé en corrigeant F41
+
+**F271 · Le siège ne peut pas créer de cellule, ni la console de cabinet : 500** [2026-09-27]
+- **Emplacements :** src/modules/auth/auth.service.ts (`register`) · src/common/audit/extension-audit.ts · src/common/cloisonnement/extension-cloisonnement.ts
+- **Condition :** 4
+- **Constat :** la création du dossier s'exécutait encore au nom du dossier de la session. Son maillon d'audit ouvre la chaîne du nouveau dossier, la garde de cloisonnement le refusait comme une écriture chez un voisin, et la transaction tombait entière. Seule l'inscription publique, sans session, passait. Vu sur une base réelle.
+- **Correction :** tirer l'identifiant du dossier avant sa création et exécuter toute la naissance à son nom.
+- **Fait le 2026-09-27 :** `register` tire `idDossier`, bascule le contexte avant `creerTenant`, qui reçoit l'identifiant. Vérifié sur PostgreSQL local (cellule créée par le siège). Tests : `inscription-transaction.spec.ts`, `creation-dossier-identifiant.spec.ts`, `journal-audit.spec.ts` (mutations tuées).
 
 ---
 
