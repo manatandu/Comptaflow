@@ -39,6 +39,12 @@ import { PrismaService } from '../../common/prisma.service';
  */
 export const NUMEROTATION_DU_FICHIER = NumerotationPiece.CONTINUE_FICHIER;
 
+/**
+ * Le mode d'un journal créé sans choix (audit final F59) · en MANUELLE aucune
+ * pièce ne reçoit de numéro, la saisie n'en portant aucun.
+ */
+export const NUMEROTATION_PAR_DEFAUT = NumerotationPiece.CONTINUE_JOURNAL;
+
 /** Les journaux qui portent la séquence du fichier. */
 export function journauxDeLaSequenceDuFichier<J extends { numerotation: NumerotationPiece }>(journaux: J[]): J[] {
   return journaux.filter((j) => j.numerotation === NUMEROTATION_DU_FICHIER);

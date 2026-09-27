@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/prisma.service';
 import {
   MotifImputationOuverture,
   Compte,
+  NumerotationPiece,
   Prisma,
   Referentiel,
   StatutEcriture,
@@ -973,25 +974,44 @@ export class EcritureService {
       lignes: dto.lignes,
     });
 
-    return this.prisma.$transaction(async (tx) => {
-      if (dto.lignes) {
-        // Les ventilations analytiques suivent leurs lignes (onDelete: Cascade
-        // sur VentilationAnalytique.ligne) : remplacer les lignes remplace
-        // aussi l'ANCIENNE ventilation, et la nouvelle vient avec les lignes
-        // reçues, par le même constructeur que la création.
-        await tx.ligneEcriture.deleteMany({ where: { ecritureId } });
-      }
-      return tx.ecriture.update({
-        where: { id: ecritureId },
-        data: {
-          date,
-          libelle: dto.libelle ?? undefined,
-          reference: dto.reference ?? undefined,
-          ...(dto.lignes ? { lignes: { create: dto.lignes.map((l) => donneesLigneSaisie(l, sectionsParId)) } } : {}),
-        },
-        include: { lignes: { include: { compte: true } }, journal: true },
-      });
-    });
+    // UN JOURNAL MENSUEL NUMÉROTE PAR MOIS (audit final F58) · une pièce
+    // déplacée dans un autre mois gardait le numéro de son mois d'origine ·
+    // un doublon dans le mois d'arrivée, que l'analyse des journaux ne
+    // pouvait pas distinguer. Elle reçoit le numéro suivant du mois
+    // d'arrivée, dans la transaction sérialisable qui la déplace, comme à la
+    // création. Le trou laissé dans le mois d'origine est celui d'une pièce
+    // retirée, et l'analyse des journaux le montre.
+    const changeDeMois =
+      ecriture.journal.numerotation === NumerotationPiece.MENSUELLE &&
+      (date.getUTCFullYear() !== ecriture.date.getUTCFullYear() || date.getUTCMonth() !== ecriture.date.getUTCMonth());
+
+    return avecRetrySerialisable(
+      this.prisma,
+      async (tx) => {
+        if (dto.lignes) {
+          // Les ventilations analytiques suivent leurs lignes (onDelete: Cascade
+          // sur VentilationAnalytique.ligne) : remplacer les lignes remplace
+          // aussi l'ANCIENNE ventilation, et la nouvelle vient avec les lignes
+          // reçues, par le même constructeur que la création.
+          await tx.ligneEcriture.deleteMany({ where: { ecritureId } });
+        }
+        const numeroPiece = changeDeMois
+          ? await this.journalService.prochainNumeroPiece(tenantId, ecriture.journal, ecriture.exerciceId, date, tx)
+          : undefined;
+        return tx.ecriture.update({
+          where: { id: ecritureId },
+          data: {
+            date,
+            ...(numeroPiece !== undefined ? { numeroPiece } : {}),
+            libelle: dto.libelle ?? undefined,
+            reference: dto.reference ?? undefined,
+            ...(dto.lignes ? { lignes: { create: dto.lignes.map((l) => donneesLigneSaisie(l, sectionsParId)) } } : {}),
+          },
+          include: { lignes: { include: { compte: true } }, journal: true },
+        });
+      },
+      "Trop d'opérations simultanées sur ce journal · veuillez réessayer.",
+    );
   }
 
   /**
@@ -1929,7 +1949,7 @@ export class EcritureService {
           "écriture pour l'enregistrement exact (« l'enregistrement exact est ensuite opéré »).",
       );
     }
-    // LA CONVENTION A DEUX EXCEPTIONS, ET LE MESSAGE CI-DESSOUS NE LES DIT PAS.
+    // LA CONVENTION A DEUX EXCEPTIONS, ET LE REFUS LES NOMME.
     //
     // Le refus est juste : une écriture de clôture ne se retouche pas à la
     // main. Mais la règle citée n'est pas absolue. Le cadre conceptuel des
@@ -1943,16 +1963,20 @@ export class EcritureService {
     //  2. la correction d'une erreur SIGNIFICATIVE commise au cours d'un
     //     exercice antérieur.
     //
-    // Aucune des deux n'a de chemin dans le logiciel aujourd'hui · relevé le
-    // 2026-09-03, voir docs/releve-de-manques-referentiels.md. Ce commentaire
-    // est là pour que le prochain lecteur ne conclue pas de ce refus que la
-    // convention ne souffre aucune exception, et ne referme pas le sujet.
+    // Les deux ont leur chemin depuis le 2026-09-03 ·
+    // `imputerAuxCapitauxPropresDOuverture`, fenêtre Exercices. Ce
+    // commentaire et le refus disaient qu'aucune n'en avait (audit final F64),
+    // et le message renvoyait à « annuler la clôture », qu'aucune route ne
+    // fait pour un exercice · il nommait une démarche impossible et taisait
+    // la seule qui existe.
     if (e.estGenereeParCloture) {
       throw new BadRequestException(
         "Cette écriture a été générée par la clôture (solde des classes 6/7, report à-nouveau). La corriger à la main " +
           "désaccorderait le report à-nouveau du bilan d'ouverture, alors que le bilan d'ouverture d'un exercice doit " +
-          "correspondre au bilan de clôture de l'exercice précédent (SYCEBNL art. 16, 4 ; AUDCIF art. 34). Annulez " +
-          'la clôture pour la refaire.',
+          "correspondre au bilan de clôture de l'exercice précédent (SYCEBNL art. 16, 4 ; AUDCIF art. 34). Seules deux " +
+          "exceptions rompent cette correspondance, un changement de méthode à impact fort significatif et la " +
+          "correction d'une erreur significative d'un exercice antérieur · elles passent par l'imputation déclarée " +
+          "aux capitaux propres d'ouverture (fenêtre Exercices).",
       );
     }
     if (e.immobilisationAcquisition || e.immobilisationSortie) {
@@ -2013,6 +2037,13 @@ export class EcritureService {
        * lenteur relevé à l'audit. Absent = comportement historique (tout).
        */
       limite?: number;
+      /**
+       * Les plus récentes d'abord, sous le même plafond (audit final F61) ·
+       * la saisie montre la dernière pièce, celle qu'on vient d'enregistrer.
+       * Lue dans l'ordre chronologique, une fenêtre de plus de deux mille
+       * pièces en perdait justement la fin.
+       */
+      plusRecentesDAbord?: boolean;
     },
   ) {
     const where = perimetreJournal(tenantId, filtres);
@@ -2038,7 +2069,7 @@ export class EcritureService {
       // Départage explicite : à date égale, l'ordre de sortie serait sinon
       // laissé au plan d'exécution PostgreSQL et pourrait changer d'un export
       // à l'autre (voir TRI_GRAND_LIVRE).
-      orderBy: filtres.limite
+      orderBy: filtres.limite || filtres.plusRecentesDAbord
         ? [{ date: 'desc' }, { numeroPiece: 'desc' }, { id: 'desc' }]
         : [{ date: 'asc' }, { numeroPiece: 'asc' }, { id: 'asc' }],
     });

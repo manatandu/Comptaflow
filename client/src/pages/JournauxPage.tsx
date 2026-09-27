@@ -35,7 +35,9 @@ export function JournauxPage() {
   const [intitule, setIntitule] = useState('');
   const [type, setType] = useState<TypeJournal>('GENERAL');
   const [compteTresorerieId, setCompteTresorerieId] = useState('');
-  const [numerotation, setNumerotation] = useState<NumerotationPiece>('MANUELLE');
+  // Continue par journal à défaut, comme au serveur (audit final F59) · en
+  // manuelle aucune pièce ne reçoit de numéro, la saisie n'en portant aucun.
+  const [numerotation, setNumerotation] = useState<NumerotationPiece>('CONTINUE_JOURNAL');
   const [erreurForm, setErreurForm] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
 
@@ -81,7 +83,7 @@ export function JournauxPage() {
       setIntitule('');
       setType('GENERAL');
       setCompteTresorerieId('');
-      setNumerotation('MANUELLE');
+      setNumerotation('CONTINUE_JOURNAL');
       setNouveauOuvert(false);
       await charger();
     } catch (err) {
@@ -261,6 +263,12 @@ export function JournauxPage() {
                       </option>
                     ))}
                   </select>
+                  {numerotation === 'MANUELLE' && (
+                    <>
+                      <span />
+                      <span className="text-[11px] text-warning">Les pièces de ce journal resteront sans numéro.</span>
+                    </>
+                  )}
                   {type === 'TRESORERIE' && (
                     <>
                       <label className="text-[11.5px] text-right">Compte de trésorerie :</label>

@@ -458,42 +458,49 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 5
 - **Constat :** aucune renumérotation au changement de mois. Il en résulte un trou dans le mois d'origine et un doublon possible dans le mois d'arrivée.
 - **Correction :** refuser le changement de mois, ou renuméroter dans la même transaction.
+- **Fait le 2026-09-27 :** une pièce d'un journal mensuel déplacée dans un autre mois reçoit le numéro suivant de ce mois, dans la transaction sérialisable qui la déplace (`EcritureService.modifier`). Tests : `modifier-change-de-mois.spec.ts` ; vérifié sur base réelle.
 
 **F59 · Un nouveau journal naît en numérotation MANUELLE, sans moyen de saisir un numéro** [saisie-14]
 - **Emplacements :** client/src/pages/JournauxPage.tsx:38 · src/modules/journaux/journal.service.ts:80 · dto/creer-ecriture.dto.ts:116
 - **Condition :** 3
 - **Constat :** en MANUELLE, le numéro vaut null et aucun DTO ne porte de numéro. Toutes les pièces restent sans numéro (AUDCIF art. 17, 3°).
 - **Correction :** défaut en continue par journal, ou choix obligatoire, avec la mention à l'écran.
+- **Fait le 2026-09-27 :** défaut en continue par journal au serveur (`NUMEROTATION_PAR_DEFAUT`), à la base (migration `20261127000000_journal_numerotation_continue`) et à l'écran ; la manuelle choisie, l'écran dit que les pièces resteront sans numéro. Tests : `journal-creation.spec.ts`, `journaux-numerotation.spec.ts`.
 
 **F60 · Le compte de trésorerie d'un journal n'est vérifié ni pour le dossier ni pour sa nature** [saisie-15]
 - **Emplacements :** src/modules/journaux/journal.service.ts:49-53, :72-82, :114
 - **Condition :** 2
 - **Constat :** l'identifiant est écrit tel qu'il est reçu : un compte d'un autre dossier (rendu ensuite par `include`), de classe 6 ou Total, est accepté.
 - **Correction :** lire le compte borné au dossier, en classe 5 et de type DETAIL.
+- **Fait le 2026-09-27 :** `verifierCompteTresorerie` à la création et à la modification · compte du dossier, numéro en 5, compte de détail. Tests : `journal-creation.spec.ts`.
 
 **F61 · La saisie ignore la troncature du journal chargé** [saisie-18]
 - **Emplacements :** client/src/pages/SaisiePage.tsx:381-390, :877-887 · ecriture.service.ts:1926
 - **Condition :** 3
 - **Constat :** au-delà de 2 000 pièces, la dernière pièce affichée et les totaux sont faux, sans un mot. La fenêtre Journal, elle, le dit.
 - **Correction :** lire `tronque` et `total`, et charger par ordre décroissant ou par pages.
+- **Fait le 2026-09-27 :** la saisie demande les pièces les plus récentes d'abord (`plusRecentes=1`), prend les totaux du serveur et dit la tranche (`client/src/lib/journal-de-saisie.ts`). Tests : `journal-de-saisie.spec.ts`, `plafonds-de-fenetre.spec.ts`.
 
 **F62 · Relevé bancaire : une écriture visée par deux lignes est donnée à la première (passe par référence)** [saisie-20]
 - **Emplacements :** src/modules/rapprochement/releve-bancaire.ts:236-249
 - **Condition :** 5
 - **Constat :** la passe 1 ne compte pas les demandes par écriture, contrairement au commentaire et à CLAUDE.md. La fenêtre de dates n'y est pas non plus appliquée.
 - **Correction :** compter les demandes comme en passe 2.
+- **Fait le 2026-09-27 :** les deux passes partagent une même fonction · fenêtre de dates et unicité dans les deux sens. Tests : `releve-bancaire.spec.ts`.
 
 **F63 · En-tête du lettrage : « aucun contrôle de clôture ici », alors que le service fige par la clôture** [saisie-21]
 - **Emplacements :** src/modules/lettrage/lettrage.service.ts:75-90
 - **Condition :** 5
 - **Constat :** le commentaire dit le contraire du code, qui appelle `refuserSiLignesFigees`.
 - **Correction :** réécrire l'en-tête et renvoyer à gel-cloture.ts.
+- **Fait le 2026-09-27 :** en-tête réécrit, avec la lecture du cours CPCC (le lettrage se fait sur le report à-nouveau). Test : `gel-cloture.spec.ts`.
 
 **F64 · Correction : « aucune des deux exceptions n'a de chemin », alors que la route existe** [saisie-22]
 - **Emplacements :** src/modules/comptabilite/ecriture.service.ts:1850-1853, :435
 - **Condition :** 5
 - **Constat :** `imputerAuxCapitauxPropresDOuverture` existe. Le commentaire et le message de refus déclarent la lacune à tort.
 - **Correction :** renvoyer à cette route dans le commentaire et dans le refus.
+- **Fait le 2026-09-27 :** commentaire et refus renvoient à l'imputation déclarée aux capitaux propres d'ouverture (fenêtre Exercices), le renvoi à « annuler la clôture » étant retiré. Test : `correction-negatif-service.spec.ts`.
 
 **F65 · `modifier` dit refuser l'écriture d'une facture et la laisse modifier** [saisie-23]
 - **Emplacements :** src/modules/comptabilite/ecriture.service.ts:895-898 · detenteurs-ecriture.ts:55

@@ -73,6 +73,23 @@ describe('plafond de la fenêtre Journal', () => {
     expect(r.totaux).toEqual({ debit: 987654, credit: 987654 });
   });
 
+  it('les plus récentes d’abord, sous le même plafond (audit final F61)', async () => {
+    // La saisie montre la dernière pièce · lue dans l'ordre chronologique, une
+    // fenêtre plafonnée en perdait justement la fin.
+    const { svc, prisma } = serviceListe(500000, PLAFOND_ECRITURES_PAR_FENETRE);
+    await svc.lister('t-1', { plusRecentesDAbord: true });
+    const appel = (prisma as any).ecriture.findMany.mock.calls[0][0];
+    expect(appel.take).toBe(PLAFOND_ECRITURES_PAR_FENETRE);
+    expect(appel.orderBy).toEqual([{ date: 'desc' }, { numeroPiece: 'desc' }, { id: 'desc' }]);
+    await svc.lister('t-1', {});
+    expect((prisma as any).ecriture.findMany.mock.calls[1][0].orderBy[0]).toEqual({ date: 'asc' });
+  });
+
+  it('la route transmet la demande de la saisie', () => {
+    const controleur = require('fs').readFileSync(require('path').join(__dirname, 'ecriture.controller.ts'), 'utf8');
+    expect(controleur).toContain("...(plusRecentes === '1' ? { plusRecentesDAbord: true } : {})");
+  });
+
   it('une limite explicite garde la sienne · le tableau de bord ne veut que huit lignes', async () => {
     const { svc, prisma } = serviceListe(500000, 8);
     await svc.lister('t-1', { limite: 8 });

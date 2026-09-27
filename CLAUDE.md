@@ -4353,7 +4353,9 @@ deux montants voisins ne sont pas la même opération, et l'écart se
 COMPTABILISE, il ne se rapproche pas (le refus du serveur le dit en ces mots).
 (3) AUCUNE DEVINETTE · plusieurs écritures candidates, ou une écriture
 convoitée par deux lignes du relevé, et RIEN n'est proposé ; « le plus proche »
-se tromperait sans le dire. La référence départage, y compris par ses chiffres
+se tromperait sans le dire. La passe par référence y est soumise comme celle
+par montant, fenêtre de dates comprise (audit final F62) · une référence
+récurrente (« LOYER ») n'est pas un identifiant. La référence départage, y compris par ses chiffres
 à trois chiffres au moins (« CHQ 0042 » = « 0042 »). La fenêtre de dates est
 une convention d'OmegaX, réglable à l'écran. (4) PROPOSER N'EST PAS POINTER ·
 la proposition n'est pas stockée, les cases arrivent décochées, et la

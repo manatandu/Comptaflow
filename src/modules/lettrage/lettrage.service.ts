@@ -72,21 +72,24 @@ function lettreVersIndex(lettre: string): number {
  * un rapprochement par numéro de pièce s'appuie sur une donnée saisie par un
  * humain, un rapprochement par montant est une présomption du logiciel.
  *
- * AUCUN CONTRÔLE DE CLÔTURE ICI, ET C'EST VOULU. Ce service ne consulte
- * jamais le statut de l'exercice, là où EcritureService refuse toute création,
- * modification ou suppression sur un exercice CLOTURE. Le même cours l'écrit
- * noir sur blanc (§ 2.3, clôture informatique) :
+ * LA CLÔTURE FIGE LE LETTRAGE, SAUF LA PARTIELLE (audit final F63 · cet
+ * en-tête disait le contraire du code). Lettrer, compléter, délettrer et
+ * confirmer un pré-lettrage passent tous par `refuserSiLignesFigees`, et le
+ * lettrage automatique n'apparie pas une ligne figée. La règle vit UNE fois,
+ * dans `exercice/gel-cloture.ts` · une ligne est figée quand son exercice est
+ * clôturé, quand une clôture TOTALE de son journal la couvre, ou quand une
+ * clôture de PÉRIODE couvre sa date ; la PARTIELLE ne fige rien. C'est la
+ * lecture du manuel Sage i7 (« Partielle : [...] le lettrage et la
+ * ventilation analytique par exemple pourront tout de même être
+ * effectués »), qui n'ouvre cette exception qu'à la partielle.
  *
- *   « La clôture interdit : l'ajout d'écriture, la modification de tous les
- *   composants des écritures comptables, la suppression d'une écriture
- *   comptable. La clôture AUTORISE : le lettrage et le pointage, la
- *   consultation et l'édition. »
- *
- * Lettrer ne modifie aucun montant, aucune date, aucune imputation : cela
- * rattache des lignes entre elles. Un règlement de mars qui solde une facture
- * de décembre doit pouvoir être lettré même si l'exercice précédent est clos,
- * sans quoi le compte de tiers ne se justifie plus jamais. Voir
- * docs/organisation-comptable-cpcc.md § 3.
+ * Le cours CPCC (§ 2.3, clôture informatique) écrit que « la clôture
+ * AUTORISE : le lettrage et le pointage » · son souci est le compte de tiers
+ * qui ne se justifierait plus. Il est tenu autrement · un règlement de mars
+ * qui solde une facture de décembre se lettre contre la ligne de REPORT
+ * À-NOUVEAU de l'exercice ouvert (mode Détail des comptes de tiers), jamais
+ * contre la ligne de l'exercice clos. Voir docs/organisation-comptable-cpcc.md
+ * § 3.
  */
 /** Une ligne du groupe a été lettrée par un autre geste entre le calcul et l'écriture. */
 function lignesPrisesEntreTemps() {

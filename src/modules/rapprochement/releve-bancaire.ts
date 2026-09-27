@@ -215,11 +215,21 @@ const JOUR_MS = 86_400_000;
  * PROPOSE des correspondances une ligne du relevé pour une ligne du compte.
  *
  *  1. RÉFÉRENCE · même référence non vide ET même montant vu du compte.
- *  2. MONTANT ET DATE · même montant, et UNE SEULE écriture candidate dans la
- *     fenêtre. Deux candidates ou plus = AUCUNE proposition : trois loyers
- *     identiques ne se départagent pas par le logiciel, et choisir « le plus
- *     proche » se tromperait sans le dire. De même, une écriture convoitée
- *     par deux lignes du relevé n'est proposée à aucune.
+ *  2. MONTANT ET DATE · même montant, sans la référence.
+ *
+ * Aux DEUX passes, la fenêtre de dates s'applique et l'unicité joue dans les
+ * deux sens · une seule écriture candidate pour la ligne du relevé, et une
+ * écriture convoitée par deux lignes n'est proposée à aucune. Deux
+ * candidates ou plus = AUCUNE proposition : trois loyers identiques ne se
+ * départagent pas par le logiciel, et choisir « le plus proche » se
+ * tromperait sans le dire.
+ *
+ * LA PASSE PAR RÉFÉRENCE NE LE FAISAIT PAS (audit final F62). Elle donnait
+ * l'écriture à la PREMIÈRE ligne du relevé qui la visait, et sans fenêtre ·
+ * deux prélèvements « LOYER » du même montant, l'un d'avril et l'autre de
+ * mai, prenaient l'écriture d'avril pour le relevé de mai dès que celle de
+ * mai n'était pas encore saisie. Une référence récurrente n'est pas un
+ * identifiant.
  *
  * Chaque ligne n'est prise qu'une fois. Les lignes déjà rapprochées ne sont
  * pas passées ici.
@@ -233,45 +243,40 @@ export function proposerCorrespondances(
   const prisesCompte = new Set<string>();
   const prisesReleve = new Set<string>();
   const vuDuCompte = (l: LigneCompte) => arrondi(l.debit - l.credit);
-  // Passe 1 · référence
-  for (const r of releve) {
-    if (!r.reference) continue;
-    const m = montantVuDuCompte(r);
-    const candidates = compte.filter(
-      (c) => !prisesCompte.has(c.id) && memeReference(r.reference, c.reference) && vuDuCompte(c) === m,
-    );
-    if (candidates.length === 1) {
-      propositions.push({ ligneReleveId: r.id, ligneEcritureIds: [candidates[0].id], motif: 'REFERENCE' });
-      prisesCompte.add(candidates[0].id);
+  const dansLaFenetre = (c: LigneCompte, r: LigneReleveLue) =>
+    Math.abs(c.date.getTime() - r.date.getTime()) <= fenetreJours * JOUR_MS;
+
+  // Une passe · les candidates de chaque ligne du relevé encore libre, puis
+  // l'unicité dans les DEUX sens. Les deux passes la partagent, pour qu'elles
+  // ne puissent plus diverger.
+  const passe = (
+    critere: (r: LigneReleveLue & { id: string }, c: LigneCompte) => boolean,
+    motif: Proposition['motif'],
+  ) => {
+    const candidatsDe = new Map<string, string[]>();
+    for (const r of releve) {
+      if (prisesReleve.has(r.id)) continue;
+      const m = montantVuDuCompte(r);
+      const ids = compte
+        .filter((c) => !prisesCompte.has(c.id) && vuDuCompte(c) === m && dansLaFenetre(c, r) && critere(r, c))
+        .map((c) => c.id);
+      if (ids.length > 0) candidatsDe.set(r.id, ids);
+    }
+    const demandes = new Map<string, number>();
+    for (const ids of candidatsDe.values()) for (const id of ids) demandes.set(id, (demandes.get(id) ?? 0) + 1);
+    for (const r of releve) {
+      const ids = candidatsDe.get(r.id);
+      if (!ids || ids.length !== 1) continue;
+      if (demandes.get(ids[0]) !== 1) continue;
+      propositions.push({ ligneReleveId: r.id, ligneEcritureIds: ids, motif });
+      prisesCompte.add(ids[0]);
       prisesReleve.add(r.id);
     }
-  }
+  };
 
-  // Passe 2 · montant et fenêtre de dates, unicité dans les DEUX sens
-  const candidatsDe = new Map<string, string[]>();
-  for (const r of releve) {
-    if (prisesReleve.has(r.id)) continue;
-    const m = montantVuDuCompte(r);
-    candidatsDe.set(
-      r.id,
-      compte
-        .filter(
-          (c) =>
-            !prisesCompte.has(c.id) &&
-            vuDuCompte(c) === m &&
-            Math.abs(c.date.getTime() - r.date.getTime()) <= fenetreJours * JOUR_MS,
-        )
-        .map((c) => c.id),
-    );
-  }
-  const demandes = new Map<string, number>();
-  for (const ids of candidatsDe.values()) for (const id of ids) demandes.set(id, (demandes.get(id) ?? 0) + 1);
-  for (const r of releve) {
-    const ids = candidatsDe.get(r.id);
-    if (!ids || ids.length !== 1) continue;
-    if (demandes.get(ids[0]) !== 1) continue;
-    propositions.push({ ligneReleveId: r.id, ligneEcritureIds: ids, motif: 'MONTANT_DATE' });
-    prisesCompte.add(ids[0]);
-  }
+  // Passe 1 · référence
+  passe((r, c) => !!r.reference && memeReference(r.reference, c.reference), 'REFERENCE');
+  // Passe 2 · montant et fenêtre de dates
+  passe(() => true, 'MONTANT_DATE');
   return propositions;
 }

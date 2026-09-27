@@ -11,7 +11,7 @@ import { EcritureService } from './ecriture.service';
  */
 const D = (x: number) => new Prisma.Decimal(x);
 
-function service() {
+function service(surcharge: Record<string, unknown> = {}) {
   const origine = {
     id: 'e1',
     tenantId: 't1',
@@ -61,6 +61,7 @@ function service() {
         ventilations: [],
       },
     ],
+    ...surcharge,
   };
   const tx = { ecriture: { create: jest.fn().mockResolvedValue({}) } };
   // Tout modèle détenteur d'écriture répond « aucune » · la liste vit dans
@@ -99,5 +100,20 @@ describe('Correction par inscription en négatif · le service', () => {
       cours: Number(l.coursApplique),
       credit: Number(l.credit),
     }).toEqual({ devise: 'usd', montant: 1000, cours: 2800, credit: -2_800_000 });
+  });
+});
+
+describe('une écriture de la clôture · le refus nomme le chemin qui existe (audit final F64)', () => {
+  it('renvoie à l’imputation déclarée aux capitaux propres d’ouverture, et ne passe rien', async () => {
+    const { s, tx } = service({ estGenereeParCloture: true });
+    const refus = s.corrigerParInscriptionEnNegatif('t1', 'u1', 'e1', { motifCorrection: 'x', date: '2026-06-30' } as never);
+    await expect(refus).rejects.toThrow(/imputation déclarée aux capitaux propres d'ouverture \(fenêtre Exercices\)/);
+    expect(tx.ecriture.create).not.toHaveBeenCalled();
+  });
+
+  it('le service porte bien cette route', () => {
+    expect(typeof (EcritureService.prototype as unknown as Record<string, unknown>).imputerAuxCapitauxPropresDOuverture).toBe(
+      'function',
+    );
   });
 });

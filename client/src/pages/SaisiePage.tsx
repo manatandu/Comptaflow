@@ -13,6 +13,7 @@ import { deroulerModele, lignesASaisir } from '../lib/derouler-modele';
 import { dateDeLaPiece, fenetreDeSaisie, rangBorne } from '../lib/saisie-par-piece';
 import { ETATS_JOURNAL, bulleCase, moisCourt, sigleCase, type LigneGrilleSaisie } from '../lib/etat-journal-saisie';
 import { contrevaleur, coursPropose, devisesEtrangeres, motifLigneEnDevise, type DeviseDuDossier } from '../lib/ligne-en-devise';
+import { lireJournalDeSaisie, urlJournalDeSaisie, type ReponseJournal } from '../lib/journal-de-saisie';
 
 /**
  * SAISIE DES JOURNAUX · l'écran central du logiciel, calqué sur
@@ -203,6 +204,10 @@ export function SaisiePage() {
 
   // Journal ouvert (étape 2)
   const [ecritures, setEcritures] = useState<Ecriture[]>([]);
+  // Totaux et troncature du journal, pris par le serveur sur la période
+  // entière (audit final F61) · jamais la somme de la tranche rendue.
+  const [totauxJournal, setTotauxJournal] = useState({ debit: 0, credit: 0 });
+  const [troncature, setTroncature] = useState<{ montrees: number; total: number } | null>(null);
   const [rechargement, setRechargement] = useState(0);
   const [plans, setPlans] = useState<PlanAnalytique[]>([]);
   const [sectionsParPlan, setSectionsParPlan] = useState<Record<string, SectionAnalytique[]>>({});
@@ -451,15 +456,16 @@ export function SaisiePage() {
     let annule = false;
     const { debut, fin } = fenetre;
     api
-      .get<{ ecritures: Ecriture[] }>(
-        `/ecritures?exerciceId=${exerciceCourant.id}&journalId=${journal.id}&dateDebut=${debut}&dateFin=${fin}`,
-      )
+      .get<ReponseJournal>(urlJournalDeSaisie({ exerciceId: exerciceCourant.id, journalId: journal.id, debut, fin }))
       .then((r) => {
         if (annule) return;
-        setEcritures(r.ecritures);
+        const lu = lireJournalDeSaisie(r);
+        setEcritures(lu.ecritures);
+        setTotauxJournal(lu.totaux);
+        setTroncature(lu.troncature);
         // Par pièce, la dernière pièce s'affiche · celle qu'on vient
         // d'enregistrer, ou la plus récente à l'ouverture.
-        setRangPiece(r.ecritures.length - 1);
+        setRangPiece(lu.ecritures.length - 1);
       });
     return () => {
       annule = true;
@@ -982,18 +988,6 @@ export function SaisiePage() {
     }
   };
 
-  // Totaux du journal (écritures existantes de la période) · mémoïsés : le
-  // double reduce parcourait toutes les lignes à CHAQUE frappe dans la grille.
-  const { totalDebitJournal, totalCreditJournal } = useMemo(() => {
-    let d = 0;
-    let c = 0;
-    for (const e of ecritures)
-      for (const l of e.lignes) {
-        d += Number(l.debit);
-        c += Number(l.credit);
-      }
-    return { totalDebitJournal: d, totalCreditJournal: c };
-  }, [ecritures]);
 
   // Par pièce, la grille ne montre qu'UNE pièce à la fois, que [Précédent] et
   // [Suivant] font défiler · le manuel i7 décrit exactement cette navigation.
@@ -1344,6 +1338,12 @@ export function SaisiePage() {
               </div>
             ));
           })}
+          {troncature && (
+            <div className="px-3 py-1 text-[11px] text-warning border-t border-border">
+              Les {troncature.montrees.toLocaleString('fr-FR')} pièces les plus récentes sur{' '}
+              {troncature.total.toLocaleString('fr-FR')} · les totaux portent sur toutes.
+            </div>
+          )}
           {ecritures.length === 0 && (
             <div className="px-3 py-2.5 text-[11.5px] text-text-dim italic">
               Aucune écriture sur ce journal pour {parPiece ? "l'exercice" : periode?.libelle}.
@@ -1378,8 +1378,8 @@ export function SaisiePage() {
         <div style={grilleStyle} className={`${grille} px-3 py-1.5 bg-surface-alt border-t border-border-dark text-[11.5px] font-bold`}>
           <span style={{ gridColumn: `span ${4 + axesGrille.length}` }} />
           <span className="text-right text-[11px] text-text-dim self-center">Totaux journal</span>
-          <span className="font-mono text-right">{totalDebitJournal.toLocaleString('fr-FR')}</span>
-          <span className="font-mono text-right">{totalCreditJournal.toLocaleString('fr-FR')}</span>
+          <span className="font-mono text-right">{totauxJournal.debit.toLocaleString('fr-FR')}</span>
+          <span className="font-mono text-right">{totauxJournal.credit.toLocaleString('fr-FR')}</span>
           <span />
         </div>
       </div>

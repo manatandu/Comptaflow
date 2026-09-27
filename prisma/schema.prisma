@@ -1122,7 +1122,7 @@ model Journal {
   compteTresorerieId String?
   compteTresorerie   Compte? @relation(fields: [compteTresorerieId], references: [id])
 
-  numerotation NumerotationPiece @default(MANUELLE)
+  numerotation NumerotationPiece @default(CONTINUE_JOURNAL)
   estActif     Boolean           @default(true) // "mise en sommeil" réversible
 
   // « Générer une contrepartie à chaque ligne » · option des journaux de

@@ -68,10 +68,43 @@ describe('aucune tolérance, aucune devinette', () => {
 describe('la référence départage ce que le montant ne départage pas', () => {
   it('trois chèques de même montant · le numéro désigne le bon', () => {
     const p = proposerCorrespondances(
-      [releve('r', '2026-03-20', 250, 0, 'CHQ 0042')],
+      [releve('r', '2026-03-12', 250, 0, 'CHQ 0042')],
       [compte('a', '2026-03-01', 0, 250, '0041'), compte('b', '2026-03-02', 0, 250, 'chq0042'), compte('c', '2026-03-03', 0, 250, '0043')],
     );
     expect(p).toEqual([{ ligneReleveId: 'r', ligneEcritureIds: ['b'], motif: 'REFERENCE' }]);
+  });
+
+  it('une référence visée par deux lignes du relevé n’est donnée à aucune (audit final F62)', () => {
+    // Elle allait à la PREMIÈRE ligne lue · deux prélèvements « LOYER »
+    // du même montant, et l'écriture partait au hasard de l'ordre du fichier.
+    const p = proposerCorrespondances(
+      [releve('r1', '2026-03-05', 500, 0, 'LOYER 2026'), releve('r2', '2026-03-06', 500, 0, 'LOYER 2026')],
+      [compte('a', '2026-03-05', 0, 500, 'LOYER 2026')],
+    );
+    expect(p).toEqual([]);
+  });
+
+  it('la référence ne franchit pas la fenêtre de dates (audit final F62)', () => {
+    // Le loyer de mai au relevé, seul celui d'avril saisi · même référence,
+    // même montant, un mois d'écart. Sans fenêtre, avril était donné à mai.
+    const releveMai = [releve('r', '2026-05-05', 500, 0, 'LOYER 2026')];
+    const avril = [compte('a', '2026-04-05', 0, 500, 'LOYER 2026')];
+    expect(proposerCorrespondances(releveMai, avril, 15)).toEqual([]);
+    // Élargie à l'écran, la fenêtre la laisse passer · c'est un réglage, pas un refus.
+    expect(proposerCorrespondances(releveMai, avril, 45)).toEqual([
+      { ligneReleveId: 'r', ligneEcritureIds: ['a'], motif: 'REFERENCE' },
+    ]);
+  });
+
+  it('une ligne donnée par sa référence n’est plus reprise par le montant', () => {
+    const p = proposerCorrespondances(
+      [releve('r1', '2026-03-05', 300, 0, 'CHQ 0101'), releve('r2', '2026-03-06', 300, 0)],
+      [compte('a', '2026-03-05', 0, 300, '0101'), compte('b', '2026-03-06', 0, 300)],
+    );
+    expect(p).toEqual([
+      { ligneReleveId: 'r1', ligneEcritureIds: ['a'], motif: 'REFERENCE' },
+      { ligneReleveId: 'r2', ligneEcritureIds: ['b'], motif: 'MONTANT_DATE' },
+    ]);
   });
 
   it('le numéro du chèque fait foi · « CHQ 0042 » désigne la pièce « 0042 »', () => {

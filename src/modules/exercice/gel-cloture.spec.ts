@@ -85,3 +85,17 @@ describe('OD analytique · seule la clôture de période l’atteint', () => {
     expect(prisma.odAnalytique.delete).toHaveBeenCalled();
   });
 });
+
+describe('l’en-tête du lettrage dit ce que le service fait (audit final F63)', () => {
+  // Il affirmait « aucun contrôle de clôture ici » quand chaque geste appelle
+  // la règle de ce fichier · un relecteur l'aurait cru et retiré les appels.
+  const source: string = require('fs').readFileSync(require('path').join(__dirname, '../lettrage/lettrage.service.ts'), 'utf8');
+  const entete = source.slice(0, source.indexOf('@Injectable()'));
+
+  it('renvoie à la règle unique, et les quatre gestes l’appellent', () => {
+    expect(entete).toContain('`exercice/gel-cloture.ts`');
+    for (const geste of ["'lettrer'", "'compléter ce lettrage'", "'délettrer'"]) {
+      expect([geste, source.includes(`refuserSiLignesFigees(`) && source.includes(geste)]).toEqual([geste, true]);
+    }
+  });
+});

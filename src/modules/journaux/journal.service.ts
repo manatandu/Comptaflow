@@ -1,10 +1,10 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { referencesVers, refuserSiReferences } from '../../common/suppression/references';
 import { PrismaService } from '../../common/prisma.service';
-import { NumerotationPiece, Prisma, Referentiel, TypeJournal } from '@prisma/client';
+import { NumerotationPiece, Prisma, Referentiel, TypeCompteDetailTotal, TypeJournal } from '@prisma/client';
 import { journauxDefaut } from './journal-seed';
 import { CreerJournalDto, ModifierJournalDto } from './dto/journal.dto';
-import { prochainNumeroPiece } from './numerotation-piece';
+import { NUMEROTATION_PAR_DEFAUT, prochainNumeroPiece } from './numerotation-piece';
 
 @Injectable()
 export class JournalService {
@@ -69,6 +69,7 @@ export class JournalService {
     if (existant) {
       throw new ConflictException(`Le journal ${dto.code} existe déjà pour ce tenant`);
     }
+    if (dto.compteTresorerieId) await this.verifierCompteTresorerie(tenantId, dto.compteTresorerieId);
     return this.prisma.journal.create({
       data: {
         tenantId,
@@ -76,10 +77,41 @@ export class JournalService {
         intitule: dto.intitule,
         type: dto.type,
         compteTresorerieId: dto.compteTresorerieId,
-        numerotation: dto.numerotation ?? NumerotationPiece.MANUELLE,
+        // CONTINUE PAR JOURNAL À DÉFAUT (audit final F59) · en MANUELLE
+        // OmegaX n'attribue aucun numéro, et aucune saisie n'en porte · un
+        // journal créé sans choix recevait donc des pièces sans numéro, alors
+        // que la pièce se cite par sa référence (AUDCIF art. 17, 3° ; CPCC
+        // § 3.2). La manuelle reste un choix, jamais un défaut.
+        numerotation: dto.numerotation ?? NUMEROTATION_PAR_DEFAUT,
         contrepartieChaqueLigne: dto.type === TypeJournal.TRESORERIE && dto.contrepartieChaqueLigne === true,
       },
     });
+  }
+
+  /**
+   * LE COMPTE DE TRÉSORERIE D'UN JOURNAL (audit final F60) · l'identifiant
+   * était écrit tel qu'il arrivait. Un compte d'un autre dossier était
+   * accepté puis rendu par l'`include` de la liste ; un compte de classe 6
+   * ou un compte Total recevait la contrepartie de chaque ligne. Il est lu
+   * borné au dossier, de trésorerie (classe 5, lue dans le numéro comme
+   * partout) et d'imputation · un compte Total ne reçoit jamais d'écriture.
+   */
+  private async verifierCompteTresorerie(tenantId: string, compteId: string) {
+    const compte = await this.prisma.compte.findFirst({
+      where: { id: compteId, tenantId },
+      select: { numero: true, typeCompte: true },
+    });
+    if (!compte) throw new BadRequestException('Compte de trésorerie introuvable pour ce dossier.');
+    if (!compte.numero.startsWith('5')) {
+      throw new BadRequestException(
+        `Le compte ${compte.numero} n'est pas un compte de trésorerie · un journal de trésorerie porte un compte de classe 5.`,
+      );
+    }
+    if (compte.typeCompte !== TypeCompteDetailTotal.DETAIL) {
+      throw new BadRequestException(
+        `Le compte ${compte.numero} est un compte Total · il ne reçoit aucune écriture, choisissez un compte de détail.`,
+      );
+    }
   }
 
   /** SUPPRESSION D'UN JOURNAL · refusée s'il porte une écriture ou sert ailleurs (references.ts). */
@@ -102,6 +134,7 @@ export class JournalService {
     if (journal.type === TypeJournal.TRESORERIE && dto.compteTresorerieId === null) {
       throw new BadRequestException('Un journal de type Trésorerie doit avoir un compte de trésorerie associé');
     }
+    if (dto.compteTresorerieId) await this.verifierCompteTresorerie(tenantId, dto.compteTresorerieId);
 
     // Une contrepartie de trésorerie n'a de sens que sur un journal de
     // trésorerie · cochée sur un journal d'achats, elle solderait chaque charge
