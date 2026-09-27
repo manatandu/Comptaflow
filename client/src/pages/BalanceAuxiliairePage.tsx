@@ -89,9 +89,10 @@ export function BalanceAuxiliairePage() {
 
   const exporter = () => {
     if (!exerciceCourant) return;
-    void api.telecharger(
+    void api.telechargerOuSignaler(
       `/exports/balance-auxiliaire?exerciceId=${exerciceCourant.id}&type=${type}`,
       `balance-auxiliaire-${type.toLowerCase()}.xlsx`,
+      setErreur,
     );
   };
 

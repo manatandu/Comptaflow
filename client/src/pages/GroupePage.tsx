@@ -258,7 +258,7 @@ export function GroupePage() {
           <button
             type="button"
             disabled={!exerciceActif}
-            onClick={() => exerciceActif && api.telecharger(`/groupe/balance-agregee/excel?exerciceId=${exerciceActif}`, 'balance-agregee.xlsx')}
+            onClick={() => exerciceActif && void api.telechargerOuSignaler(`/groupe/balance-agregee/excel?exerciceId=${exerciceActif}`, 'balance-agregee.xlsx', setErreur)}
             className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3.5 py-1 text-[11.5px] font-semibold"
           >
             Balance (Excel)
@@ -387,7 +387,7 @@ export function GroupePage() {
                     Balance
                   </button>
                   {!syscohada && (
-                    <button type="button" onClick={() => api.telecharger(`/groupe/cellules/${l.id}/canevas`, 'canevas.xlsx')} className="text-sel">
+                    <button type="button" onClick={() => void api.telechargerOuSignaler(`/groupe/cellules/${l.id}/canevas`, 'canevas.xlsx', setErreur)} className="text-sel">
                       Canevas
                     </button>
                   )}

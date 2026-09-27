@@ -103,6 +103,27 @@ async function telecharger(path: string, nomParDefaut: string): Promise<void> {
 }
 
 /**
+ * Un export qui échoue DOIT le dire. `api.telecharger` rejette sur 403
+ * (licence expirée), 400 ou 500 ; appelé en `void` depuis un bouton, la
+ * promesse partait dans le vide · aucun fichier, aucun message, et
+ * l'utilisateur recliquait sans comprendre (audit du 2026-09-27, I9). Ce
+ * point d'entrée ne rejette jamais : il efface le message au départ et
+ * signale l'échec à l'écran appelant.
+ */
+async function telechargerOuSignaler(
+  path: string,
+  nomParDefaut: string,
+  signaler: (message: string | null) => void,
+): Promise<void> {
+  signaler(null);
+  try {
+    await telecharger(path, nomParDefaut);
+  } catch (e) {
+    signaler(e instanceof Error ? e.message : "Échec de l'export");
+  }
+}
+
+/**
  * Envoie un fichier en `multipart/form-data` · SANS `Content-Type`, que le
  * navigateur pose lui-même avec la frontière du corps (le poser à la main,
  * ou laisser `application/json`, rend le corps illisible au serveur). Le
@@ -194,5 +215,6 @@ export const api = {
     return request<T>(path, { method: 'DELETE', body: body ? JSON.stringify(body) : undefined });
   },
   telecharger,
+  telechargerOuSignaler,
   envoyerFichier,
 };

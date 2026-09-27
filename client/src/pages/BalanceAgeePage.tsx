@@ -123,9 +123,10 @@ export function BalanceAgeePage() {
 
   const exporter = () => {
     if (!exerciceCourant) return;
-    void api.telecharger(
+    void api.telechargerOuSignaler(
       `/exports/balance-agee?exerciceId=${exerciceCourant.id}&dateReference=${dateReference}&type=${type}`,
       'balance-agee.xlsx',
+      setErreur,
     );
   };
 

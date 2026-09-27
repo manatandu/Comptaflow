@@ -125,14 +125,16 @@ export function TableauxImmobilisationsPage() {
 
   const exporter = () => {
     if (onglet === 'immobilisations') {
-      void api.telecharger(
+      void api.telechargerOuSignaler(
         `/exports/tableau-immobilisations${dateArret ? `?dateArret=${dateArret}` : ''}`,
         'tableau-immobilisations.xlsx',
+        setErreur,
       );
     } else if (exerciceCourant) {
-      void api.telecharger(
+      void api.telechargerOuSignaler(
         `/exports/tableau-amortissements?exerciceId=${exerciceCourant.id}`,
         'tableau-amortissements.xlsx',
+        setErreur,
       );
     }
   };

@@ -65,7 +65,7 @@ export function EvolutionSoldesPage() {
   }, [nbExercices]);
 
   const exporter = () => {
-    void api.telecharger(`/exports/evolution-soldes?nbExercices=${nbExercices}`, 'evolution-soldes.xlsx');
+    void api.telechargerOuSignaler(`/exports/evolution-soldes?nbExercices=${nbExercices}`, 'evolution-soldes.xlsx', setErreur);
   };
 
   const lignes = (donnees?.lignes ?? []).filter((l) => !racine || l.numero.startsWith(racine));

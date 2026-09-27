@@ -106,7 +106,7 @@ export function JustificatifSoldePage() {
     const q = new URLSearchParams({ exerciceId: exerciceCourant.id });
     if (dateArret) q.set('dateArret', dateArret);
     if (masquerLettrees) q.set('masquerLettrees', 'true');
-    void api.telecharger(`/exports/justificatif-solde/${compteId}?${q}`, 'justificatif.xlsx');
+    void api.telechargerOuSignaler(`/exports/justificatif-solde/${compteId}?${q}`, 'justificatif.xlsx', setErreur);
   };
 
   const options = useMemo(
