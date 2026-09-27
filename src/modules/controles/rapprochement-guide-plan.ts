@@ -26,6 +26,10 @@
  * NE JAMAIS « corriger » le semis pour faire taire ce fichier. Ajouter au
  * plan un compte que le texte officiel ne porte pas, c'est exactement la
  * faute que CLAUDE.md §1 interdit.
+ *
+ * LU PAR LE SEUL `schemas-guides.spec.ts` (audit du serveur, C1) · comme les
+ * deux tables de schémas qu'il rapproche, il attend le contrôle qui les
+ * branchera, et il est gelé dans `common/fichiers-sans-appelant.spec.ts`.
  */
 
 /**

@@ -10,6 +10,10 @@ import type { SpecificationNote } from './note-annexe.types';
  * les contenus. Les mettre ici évite qu'un garde-fou existe d'un côté et
  * s'oublie de l'autre, ce qui est exactement l'écart que la phase C corrige
  * entre le SYCEBNL et le SYSCOHADA.
+ *
+ * OUTIL DE TEST, PAS CODE DE PRODUCTION (audit du serveur, C1) · seuls les
+ * balayages de notes l'importent, et il est gelé à ce titre dans
+ * `common/fichiers-sans-appelant.spec.ts`.
  */
 
 const NUMEROS_SEMES = PLAN_COMPTES_SYCEBNL.map((c) => c.numero);

@@ -536,6 +536,11 @@ aucun écran, soit des tables de référence : à dire en tête de fichier.
 **Test.** Lecture de source · tout fichier non-spec de `src/` est importé par
 un fichier non-spec, sauf une liste gelée et motivée.
 
+**Fait le 2026-09-27.** `common/fichiers-sans-appelant.spec.ts` relève le graphe
+et gèle cinq exceptions motivées (les quatre ci-dessus et la table de décision
+`comptabilite/detenteurs-ecriture.ts`, née de I1) ; chacune le dit dans son
+en-tête, le générateur des schémas compris. Deux réinjections, deux attrapées.
+
 ### C2 · Exports inutilisés, dont des réserves jamais imprimées
 
 Morts : `formeCommercante` (`commercial/vente-commerciale.ts:474`),

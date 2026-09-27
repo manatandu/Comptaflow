@@ -13,6 +13,10 @@
  * Deux listes, et `detenteurs-ecriture.spec.ts` relit `schema.prisma` · toute
  * relation vers `Ecriture` doit figurer dans l'une ou l'autre, jamais dans les
  * deux, et chaque détenteur doit être compté par `detenteursDe`.
+ *
+ * TABLE DE DÉCISION, LUE PAR SON SEUL SPEC · le service ne l'importe pas, le
+ * spec confronte ce qu'il fait à ce qui est décidé ici. Gelée à ce titre dans
+ * `common/fichiers-sans-appelant.spec.ts` (audit du serveur, C1).
  */
 
 /** Colonnes (« Modèle.colonne ») dont le module RETIENT l'écriture. */

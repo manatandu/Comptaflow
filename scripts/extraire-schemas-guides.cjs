@@ -178,6 +178,11 @@ function ecrire(chemin, nomConstante, referentiel, schemas) {
  * Les numéros sont ceux du guide, à leur profondeur d'origine (parfois 2
  * chiffres, parfois 4) · les rallonger inventerait une subdivision. Le
  * rapprochement avec le plan du dossier se fait par PRÉFIXE.
+ *
+ * LUE PAR SON SEUL SPEC D'EXTRACTION (audit du serveur, C1) · aucun contrôle
+ * ni aucun écran ne consulte encore cette table. Elle est tenue prête pour le
+ * contrôle de cohérence des schémas d'écriture, et gelée dans
+ * `common/fichiers-sans-appelant.spec.ts` jusqu'à ce qu'il la branche.
  */
 export interface SchemaAtteste {
   /** Le guide et son numéro d'application · la preuve. */
