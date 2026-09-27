@@ -8,6 +8,7 @@ import { actionDeConsole } from '../lib/action-console';
 import { Aide } from '../components/chrome/Aide';
 import type { JeuEtatsFinanciersSycebnl, SystemeComptableSyscohada } from '../lib/types';
 import { PortailModale } from '../components/PortailModale';
+import { meresPossibles } from '../lib/meres-possibles';
 
 /**
  * CONSOLE DE L'OPÉRATEUR DE PLATEFORME · vue transversale des cabinets
@@ -253,9 +254,8 @@ export function PlateformePage({ adresse }: { adresse?: string } = {}) {
     }
   };
 
-  // Mères possibles pour un rattachement : un dossier qui n'est pas déjà une
-  // cellule (un groupe n'a qu'un niveau · même règle que le serveur).
-  const meresPossibles = (saufId?: string) => (liste ?? []).filter((c) => !c.dossierMere && c.id !== saufId);
+  // Mères possibles pour un rattachement · même règle que le serveur, qui
+  // refuse désormais AVANT de créer quoi que ce soit (audit final F47).
 
   const ouvrirGroupe = (c: CabinetClient) => {
     setGroupeEnCours(c);
@@ -303,8 +303,11 @@ export function PlateformePage({ adresse }: { adresse?: string } = {}) {
         ...(referentielChoisi === 'SYCEBNL'
           ? { jeuEtatsFinanciersSycebnl: jeu }
           : { systemeComptableSyscohada: systemeChoisi }),
-        typeLicence,
-        ...(typeLicence === 'ABONNEMENT' && dateExpiration ? { dateExpiration } : {}),
+        // Une cellule prend la licence de sa mère (audit final F46) · le
+        // serveur refuse un type ou une échéance envoyés avec une mère.
+        ...(creationMereId
+          ? {}
+          : { typeLicence, ...(typeLicence === 'ABONNEMENT' && dateExpiration ? { dateExpiration } : {}) }),
         ...(ville ? { ville } : {}),
         ...(pays ? { pays } : {}),
         ...(creationMereId ? { dossierMereId: creationMereId } : {}),
@@ -619,7 +622,11 @@ export function PlateformePage({ adresse }: { adresse?: string } = {}) {
                       </label>
                       <select value={groupeMereId} onChange={(e) => setGroupeMereId(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
                         <option value="">Aucun (dossier indépendant)</option>
-                        {meresPossibles(groupeEnCours.id).map((m) => (
+                        {meresPossibles(liste ?? [], {
+                          saufId: groupeEnCours.id,
+                          referentiel: groupeEnCours.referentiel,
+                          systemeComptableSyscohada: groupeEnCours.systemeComptableSyscohada,
+                        }).map((m) => (
                           <option key={m.id} value={m.id}>{m.nom}</option>
                         ))}
                       </select>
@@ -662,7 +669,11 @@ export function PlateformePage({ adresse }: { adresse?: string } = {}) {
                   <label className="text-[11.5px] text-right">Référentiel :</label>
                   <select
                     value={referentielChoisi}
-                    onChange={(e) => setReferentielChoisi(e.target.value as 'SYCEBNL' | 'SYSCOHADA')}
+                    onChange={(e) => {
+                      setReferentielChoisi(e.target.value as 'SYCEBNL' | 'SYSCOHADA');
+                      // La mère choisie relevait de l'ancien référentiel.
+                      setCreationMereId('');
+                    }}
                     className="border border-border-dark px-2.5 py-1.5 text-[11.5px]"
                   >
                     <option value="SYCEBNL">SYCEBNL · entité à but non lucratif</option>
@@ -686,7 +697,10 @@ export function PlateformePage({ adresse }: { adresse?: string } = {}) {
                       <label className="text-[11.5px] text-right">Système comptable :</label>
                       <select
                         value={systemeChoisi}
-                        onChange={(e) => setSystemeChoisi(e.target.value as SystemeComptableSyscohada)}
+                        onChange={(e) => {
+                          setSystemeChoisi(e.target.value as SystemeComptableSyscohada);
+                          setCreationMereId('');
+                        }}
                         className="border border-border-dark px-2.5 py-1.5 text-[11.5px]"
                       >
                         <option value="NORMAL">Système normal</option>
@@ -694,26 +708,37 @@ export function PlateformePage({ adresse }: { adresse?: string } = {}) {
                       </select>
                     </>
                   )}
-                  <label className="text-[11.5px] text-right">Licence :</label>
-                  {/* MÊME FERMETURE QU'À LA MODALE « Licence » · ici il n'y a rien
-                      à afficher, aucun dossier n'existe encore, donc l'option
-                      disparaît entièrement. PlateformeService.creerCabinet refuse
-                      ce type AVANT register() : la console y gagnait un cabinet
-                      complet (tenant, licence, admin, plan de comptes, exercice)
-                      et inaccessible dès la seconde suivante. */}
-                  <select value={typeLicence} onChange={(e) => setTypeLicence(e.target.value as TypeLicence)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
-                    <option value="ABONNEMENT">Abonnement</option>
-                    <option value="PERPETUEL_SAAS">Perpétuelle (SaaS)</option>
-                  </select>
-                  <p className="col-start-2 text-[11.5px] text-text-dim -mt-1">
-                    « {LIBELLE_LICENCE.PERPETUEL_ONPREMISE} » n'est plus proposée : l'installation sur site relève de la
-                    phase 4, et rien n'émet encore la vérification en ligne qu'elle exige · le dossier serait refusé dès
-                    sa première requête. Pour une licence sans échéance, choisir « {LIBELLE_LICENCE.PERPETUEL_SAAS} ».
-                  </p>
-                  {typeLicence === 'ABONNEMENT' && (
+                  {/* Une cellule prend la licence de sa mère (audit final F46) · les
+                      champs disparaissent, et le serveur refuse qu'on les envoie. */}
+                  {creationMereId ? (
                     <>
-                      <label className="text-[11.5px] text-right">Échéance :</label>
-                      <input type="date" value={dateExpiration} onChange={(e) => setDateExpiration(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
+                      <label className="text-[11.5px] text-right">Licence :</label>
+                      <span className="text-[11.5px] text-text-dim self-center">celle du dossier mère</span>
+                    </>
+                  ) : (
+                    <>
+                      <label className="text-[11.5px] text-right">Licence :</label>
+                      {/* MÊME FERMETURE QU'À LA MODALE « Licence » · ici il n'y a rien
+                          à afficher, aucun dossier n'existe encore, donc l'option
+                          disparaît entièrement. PlateformeService.creerCabinet refuse
+                          ce type AVANT register() : la console y gagnait un cabinet
+                          complet (tenant, licence, admin, plan de comptes, exercice)
+                          et inaccessible dès la seconde suivante. */}
+                      <select value={typeLicence} onChange={(e) => setTypeLicence(e.target.value as TypeLicence)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
+                        <option value="ABONNEMENT">Abonnement</option>
+                        <option value="PERPETUEL_SAAS">Perpétuelle (SaaS)</option>
+                      </select>
+                      <p className="col-start-2 text-[11.5px] text-text-dim -mt-1">
+                        « {LIBELLE_LICENCE.PERPETUEL_ONPREMISE} » n'est plus proposée : l'installation sur site relève de la
+                        phase 4, et rien n'émet encore la vérification en ligne qu'elle exige · le dossier serait refusé dès
+                        sa première requête. Pour une licence sans échéance, choisir « {LIBELLE_LICENCE.PERPETUEL_SAAS} ».
+                      </p>
+                      {typeLicence === 'ABONNEMENT' && (
+                        <>
+                          <label className="text-[11.5px] text-right">Échéance :</label>
+                          <input type="date" value={dateExpiration} onChange={(e) => setDateExpiration(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
+                        </>
+                      )}
                     </>
                   )}
                   <label className="text-[11.5px] text-right">Ville :</label>
@@ -723,7 +748,10 @@ export function PlateformePage({ adresse }: { adresse?: string } = {}) {
                   <label className="text-[11.5px] text-right">Dossier mère :</label>
                   <select value={creationMereId} onChange={(e) => setCreationMereId(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
                     <option value="">Aucun (dossier indépendant)</option>
-                    {meresPossibles().map((m) => (
+                    {meresPossibles(liste ?? [], {
+                      referentiel: referentielChoisi,
+                      systemeComptableSyscohada: referentielChoisi === 'SYSCOHADA' ? systemeChoisi : null,
+                    }).map((m) => (
                       <option key={m.id} value={m.id}>{m.nom}</option>
                     ))}
                   </select>

@@ -364,6 +364,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 3
 - **Constat :** `register` crée tout, puis `modifierGroupe` lève : le mot de passe n'est pas rendu et une nouvelle tentative échoue sur l'adresse. La seule reprise (F45) est cassée, et l'écran ne filtre pas les mères par référentiel.
 - **Correction :** valider la mère avant `register` et filtrer `meresPossibles`.
+- **Fait le 2026-09-27 :** `PlateformeService.verifierMere` (existence, un seul niveau, même référentiel, sous le SYSCOHADA le même système comptable, jamais le dossier de l'éditeur) est appelée par le rattachement ET par la création, avant `register` ; une cellule créée par la console naît avec le type de licence de sa mère, et un type ou une échéance envoyés avec une mère sont refusés plutôt qu'écrasés (F46). Le rattachement exige désormais aussi le système du siège, que `creerCellule` imposait déjà. Écran · `lib/meres-possibles.ts` applique la même règle aux deux listes de la console, remet la mère à vide quand le référentiel ou le système change, et masque les champs de licence d'une cellule. Tests : `creation-cellule-f47.spec.ts` (sept mutations tuées), `meres-possibles.spec.ts` (quatre) ; création d'une cellule par le siège vérifiée sur PostgreSQL local.
 
 ### Exploitation
 

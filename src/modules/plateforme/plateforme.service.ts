@@ -12,7 +12,7 @@ import { AuthService } from '../auth/auth.service';
 import { CreerCabinetDto, ModifierGroupeDto, ModifierLicenceDto } from './dto/plateforme.dto';
 import { horsCloisonnement } from '../../common/cloisonnement/contexte-cloisonnement';
 import * as bcrypt from 'bcryptjs';
-import { licenceDeCellule, refuserCelluleEditeur } from '../licence/licence-de-cellule';
+import { licenceDeCellule, LicenceReflet, refuserCelluleEditeur } from '../licence/licence-de-cellule';
 
 /**
  * Console de l'opérateur de plateforme : vue transversale des cabinets
@@ -292,7 +292,13 @@ export class PlateformeService implements OnModuleInit {
   async modifierGroupe(tenantId: string, dto: ModifierGroupeDto) {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
-      select: { id: true, referentiel: true, licence: { select: { type: true } }, _count: { select: { cellules: true } } },
+      select: {
+        id: true,
+        referentiel: true,
+        systemeComptableSyscohada: true,
+        licence: { select: { type: true } },
+        _count: { select: { cellules: true } },
+      },
     });
     if (!tenant) {
       throw new NotFoundException('Cabinet introuvable');
@@ -316,44 +322,11 @@ export class PlateformeService implements OnModuleInit {
       if (tenant._count.cellules > 0) {
         throw new BadRequestException('Ce dossier a des cellules · il ne peut pas devenir lui-même une cellule');
       }
-      const mere = await this.prisma.tenant.findUnique({
-        where: { id: dossierMereId },
-        select: {
-          id: true,
-          dossierMereId: true,
-          referentiel: true,
-          licence: { select: { type: true, statut: true, dateExpiration: true } },
-        },
-      });
-      if (!mere) {
-        throw new NotFoundException('Dossier mère introuvable');
-      }
-      if (mere.dossierMereId !== null) {
-        throw new BadRequestException('Le dossier mère désigné est lui-même une cellule · un groupe n’a qu’un niveau');
-      }
-      // MÊME RÈGLE DE RÉFÉRENTIEL QUE `GroupeService.creerCellule`, et pour la
-      // même raison. Il y a DEUX portes vers l'état « ce dossier est une
-      // cellule » : le siège qui crée sa cellule, et l'opérateur qui rattache
-      // ici un dossier existant. Les deux exigent désormais la même chose ·
-      // la cellule relève du référentiel de sa mère.
-      //
-      // Ce que le mélange produirait : la balance agrégée additionne par
-      // NUMÉRO des comptes de deux plans qui ne coïncident pas (le 18 est une
-      // dette financière au SYCEBNL, un compte de liaison des succursales au
-      // SYSCOHADA), et la liasse combinée sort au référentiel du siège sur
-      // des chiffres qui n'en relèvent pas. Aucun total ne cesserait de
-      // boucler, aucun message ne le dirait.
-      if (mere.referentiel !== tenant.referentiel) {
-        throw new BadRequestException(
-          `La cellule et son dossier mère doivent relever du même référentiel · la mère est ${mere.referentiel}, ` +
-            `ce dossier est ${tenant.referentiel}.`,
-        );
-      }
       // LA LICENCE SUIT LE RATTACHEMENT (audit final F46) · un dossier rattaché
       // gardait la sienne, et une cellule ouverte par la console sans échéance
       // ne se coupait jamais. Vérifié avant toute écriture.
       refuserCelluleEditeur(tenant.licence?.type);
-      const licence = licenceDeCellule(mere.licence);
+      const licence = await this.verifierMere(dossierMereId, tenant);
       await this.prisma.tenant.update({ where: { id: tenantId }, data: { dossierMereId } });
       if (licence) {
         // SORTIE DE CLOISONNEMENT · la licence est celle d'un AUTRE dossier que
@@ -366,6 +339,68 @@ export class PlateformeService implements OnModuleInit {
     }
     await this.prisma.tenant.update({ where: { id: tenantId }, data: { dossierMereId } });
     return { id: tenantId, dossierMereId };
+  }
+
+  /**
+   * LA MÈRE DÉSIGNÉE, VÉRIFIÉE SANS RIEN ÉCRIRE · appelée au rattachement ET à
+   * la création d'un cabinet, AVANT `register` (audit final F47) · la
+   * création semait tout puis levait au rattachement, laissant un dossier
+   * complet dont le mot de passe n'avait pas été rendu et dont l'adresse
+   * bloquait toute nouvelle tentative.
+   *
+   * Un seul niveau de groupe, le même référentiel, et sous le SYSCOHADA le
+   * même système comptable · la cellule est un établissement de la même
+   * entité (fiche du COMPTE 18), et `GroupeService.creerCellule` impose déjà
+   * le système du siège. Rend la licence que la cellule reflétera.
+   */
+  private async verifierMere(
+    dossierMereId: string,
+    fille: { referentiel: Referentiel; systemeComptableSyscohada: SystemeComptableSyscohada | null | undefined },
+  ): Promise<LicenceReflet | null> {
+    const mere = await this.prisma.tenant.findUnique({
+      where: { id: dossierMereId },
+      select: {
+        id: true,
+        dossierMereId: true,
+        referentiel: true,
+        systemeComptableSyscohada: true,
+        licence: { select: { type: true, statut: true, dateExpiration: true } },
+      },
+    });
+    if (!mere) {
+      throw new NotFoundException('Dossier mère introuvable');
+    }
+    if (mere.dossierMereId !== null) {
+      throw new BadRequestException('Le dossier mère désigné est lui-même une cellule · un groupe n’a qu’un niveau');
+    }
+    // MÊME RÈGLE DE RÉFÉRENTIEL QUE `GroupeService.creerCellule`, et pour la
+    // même raison. Il y a DEUX portes vers l'état « ce dossier est une
+    // cellule » : le siège qui crée sa cellule, et l'opérateur qui rattache
+    // ici un dossier existant. Les deux exigent désormais la même chose ·
+    // la cellule relève du référentiel de sa mère.
+    //
+    // Ce que le mélange produirait : la balance agrégée additionne par
+    // NUMÉRO des comptes de deux plans qui ne coïncident pas (le 18 est une
+    // dette financière au SYCEBNL, un compte de liaison des succursales au
+    // SYSCOHADA), et la liasse combinée sort au référentiel du siège sur
+    // des chiffres qui n'en relèvent pas. Aucun total ne cesserait de
+    // boucler, aucun message ne le dirait.
+    if (mere.referentiel !== fille.referentiel) {
+      throw new BadRequestException(
+        `La cellule et son dossier mère doivent relever du même référentiel · la mère est ${mere.referentiel}, ` +
+          `ce dossier est ${fille.referentiel}.`,
+      );
+    }
+    if (mere.referentiel === Referentiel.SYSCOHADA) {
+      const systemeMere = mere.systemeComptableSyscohada ?? SystemeComptableSyscohada.NORMAL;
+      const systemeFille = fille.systemeComptableSyscohada ?? SystemeComptableSyscohada.NORMAL;
+      if (systemeMere !== systemeFille) {
+        throw new BadRequestException(
+          `La cellule tient le système comptable de son siège · la mère est au système ${systemeMere}, ce dossier au système ${systemeFille}.`,
+        );
+      }
+    }
+    return licenceDeCellule(mere.licence);
   }
 
   /**
@@ -382,18 +417,34 @@ export class PlateformeService implements OnModuleInit {
     // et exercice d'un seul tenant · refuser après aurait laissé un dossier
     // complet et inaccessible derrière l'erreur.
     this.refuserAttributionSurSite(dto.typeLicence);
+    // LA MÈRE SE VÉRIFIE AVANT register() AUSSI (audit final F47) · refusée
+    // après, elle laissait un dossier complet, inaccessible, dont l'adresse
+    // bloquait toute nouvelle tentative. Et une cellule prend la licence de
+    // sa mère (F46) · un type ou une échéance choisis à côté seraient écrasés
+    // sans que l'opérateur le voie, d'où le refus plutôt que l'oubli.
+    const referentiel = dto.referentiel ?? Referentiel.SYCEBNL;
+    let licenceMere: LicenceReflet | null = null;
+    if (dto.dossierMereId) {
+      if (dto.typeLicence !== undefined || dto.dateExpiration !== undefined) {
+        throw new BadRequestException('Une cellule prend la licence de son dossier mère · type et échéance ne se choisissent pas.');
+      }
+      licenceMere = await this.verifierMere(dto.dossierMereId, {
+        referentiel,
+        systemeComptableSyscohada: referentiel === Referentiel.SYSCOHADA ? dto.systemeComptableSyscohada : null,
+      });
+    }
     // 16 caractères base64url · large au-delà du minimum de 10 du RegisterDto.
     const motDePasseTemporaire = randomBytes(12).toString('base64url');
     const resultat = await this.authService.register({
       nomEntite: dto.nomEntite,
       // SYCEBNL par défaut (clientèle associative) · l'opérateur choisit
       // SYSCOHADA pour un client commercial, register() sème le bon plan.
-      referentiel: dto.referentiel ?? Referentiel.SYCEBNL,
+      referentiel,
       email: dto.emailAdmin,
       motDePasse: motDePasseTemporaire,
       jeuEtatsFinanciersSycebnl: dto.jeuEtatsFinanciersSycebnl,
       systemeComptableSyscohada: dto.systemeComptableSyscohada,
-      typeLicence: dto.typeLicence ?? TypeLicence.ABONNEMENT,
+      typeLicence: licenceMere?.type ?? dto.typeLicence ?? TypeLicence.ABONNEMENT,
       activite: dto.activite,
       adresse: dto.adresse,
       ville: dto.ville,
