@@ -1,4 +1,4 @@
-import { ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
+import { ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { RoleUtilisateur } from '@prisma/client';
 import { AuthGuard } from '@nestjs/passport';
@@ -10,6 +10,21 @@ import {
 import { MotDePasseAChangerGuard } from '../../common/guards/mot-de-passe-a-changer.guard';
 import { ROLES_CANTONNES, routeOuverteAuRoleCantonne } from '../../common/guards/roles-cantonnes';
 import { fonctionDeRoute, motifRefusFonction } from '../../common/fonctions/fonctions-metier';
+
+/**
+ * LA SESSION PERDUE SE DIT, EN FRANÇAIS, ET SE RECONNAÎT (audit final F164).
+ * Sans jeton, ou avec un jeton expiré, passport levait « Unauthorized »,
+ * que l'écran recopiait tel quel sur chaque fenêtre ouverte. Le corps porte
+ * désormais `session: 'perdue'` · c'est à ce drapeau, et non au seul statut
+ * 401, que l'interface ferme la session · un mot de passe actuel faux rend
+ * aussi un 401, et ne doit déconnecter personne.
+ */
+export const MOTIF_SESSION_ABSENTE = 'Session absente ou expirée · reconnectez-vous.';
+export const SIGNAL_SESSION_PERDUE = 'perdue';
+
+export function refusDeSession(message: string = MOTIF_SESSION_ABSENTE): UnauthorizedException {
+  return new UnauthorizedException({ statusCode: 401, error: 'Unauthorized', message, session: SIGNAL_SESSION_PERDUE });
+}
 
 /**
  * Vérifie le JWT et peuple `request.user` (voir JwtStrategy.validate), PUIS
@@ -29,6 +44,19 @@ import { fonctionDeRoute, motifRefusFonction } from '../../common/fonctions/fonc
 export class JwtAuthGuard extends AuthGuard('jwt') {
   constructor(private readonly reflector: Reflector) {
     super();
+  }
+
+  /**
+   * Un refus de la stratégie (compte désactivé, session close) garde son
+   * motif, déjà en français ; l'absence de jeton reçoit le sien. Une autre
+   * panne (base injoignable pendant la relecture du compte) n'est PAS une
+   * session perdue · la faire passer pour telle déconnecterait tout le monde
+   * au premier incident.
+   */
+  handleRequest<T>(err: unknown, user: T): T {
+    if (!err && user) return user;
+    if (err && !(err instanceof UnauthorizedException)) throw err;
+    throw refusDeSession(err instanceof UnauthorizedException ? err.message : MOTIF_SESSION_ABSENTE);
   }
 
   async canActivate(contexte: ExecutionContext): Promise<boolean> {

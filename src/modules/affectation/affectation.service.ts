@@ -11,6 +11,7 @@ import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { EnregistrerAffectationDto } from './dto/affectation.dto';
 import { REGLES, dotationReserveLegale, racineCapital } from './regles-affectation';
+import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 
 const EPSILON = 0.005;
 
@@ -325,7 +326,7 @@ export class AffectationService {
           'supprimer la décision.',
       );
     }
-    await this.prisma.$transaction(async (tx) => {
+    await transactionJournalisee(this.prisma, async (tx) => {
       await tx.affectationResultat.delete({ where: { id } });
       if (affectation.ecriture) {
         await tx.ligneEcriture.deleteMany({ where: { ecritureId: affectation.ecriture.id } });

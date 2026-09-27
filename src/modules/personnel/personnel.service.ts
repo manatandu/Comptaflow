@@ -28,6 +28,7 @@ import {
   messageCoursManquant,
   usdEnFc,
 } from './conversion-usd';
+import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 
 /** La trace d'une conversion USD vers FC · figée avec le bulletin émis. */
 export interface ConversionUsd {
@@ -181,7 +182,7 @@ export class PersonnelService {
     if (!existant) throw new NotFoundException('Salarié introuvable dans ce dossier.');
     await this.verifierMatriculeLibre(tenantId, dto.matricule, salarieId);
 
-    return this.prisma.$transaction(async (tx) => {
+    return transactionJournalisee(this.prisma, async (tx) => {
       if (dto.enfants) {
         // Les enfants sont remplacés en bloc · la fiche les rend tous, et
         // une mise à jour partielle laisserait un enfant supprimé à l'écran
@@ -1040,7 +1041,7 @@ export class PersonnelService {
     }
 
     const creer = () =>
-      this.prisma.$transaction(async (tx) => {
+      transactionJournalisee(this.prisma, async (tx) => {
         const actif = await tx.bulletinPaie.findFirst({
           where: { tenantId, salarieId, moisDePaie: dto.moisDePaie, statut: StatutBulletinPaie.EMIS },
           select: { numero: true },

@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { LotVirementDto } from './lots-virement.dto';
 import { motifRefusLot } from './lots-virement';
+import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 
 /** Lots de virements récurrents · règles dans lots-virement.ts. */
 @Injectable()
@@ -79,7 +80,7 @@ export class LotsVirementService {
     if (!lot) throw new NotFoundException('Lot introuvable dans ce dossier.');
     await this.verifier(tenantId, dto);
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      return await transactionJournalisee(this.prisma, async (tx) => {
         await tx.ligneLotVirement.deleteMany({ where: { tenantId, lotId: lot.id } });
         return tx.lotVirement.update({
           where: { id: lot.id },

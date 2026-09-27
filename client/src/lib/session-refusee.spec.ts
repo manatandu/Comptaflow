@@ -24,12 +24,12 @@ describe('une session refusée juste après la connexion se DIT', () => {
     expect(auth).toMatch(/if \(exigeante\)[\s\S]{0,80}throw new Error\(/);
   });
 
-  it('elle nomme la cause la plus courante · le cookie tiers bloqué', () => {
-    // Interface sur Firebase Hosting, API sur Cloud Run : le cookie de
-    // session est un cookie TIERS, que Chrome jette par défaut en navigation
-    // privée. Le logiciel paraît alors cassé alors qu'il obéit au navigateur.
-    expect(auth).toContain('cookies tiers');
-    expect(auth).toContain('privée');
+  it('elle nomme ce qui jette encore le cookie · un blocage des cookies du site (audit final F165)', () => {
+    // Depuis le relais `/api` de Firebase Hosting (2026-09-26), le cookie de
+    // session est de PREMIÈRE partie. Le message accusait les cookies tiers,
+    // et un utilisateur qui les autorisait n'y trouvait rien.
+    expect(auth).toContain("le navigateur n'a pas gardé le cookie de session. ");
+    expect(auth).toContain('Vérifiez que les cookies ne sont pas bloqués pour ce site, puis réessayez.');
   });
 
   it('l’écran de connexion affiche bien ce que la connexion a levé', () => {

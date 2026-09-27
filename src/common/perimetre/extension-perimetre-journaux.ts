@@ -54,14 +54,76 @@ function journalDeLaDonnee(data: unknown): string | null | undefined {
   return d.journal?.connect?.id;
 }
 
+/**
+ * LES CHAMPS D'UNE LIGNE QUI NE SONT PAS LA SAISIE · lettrage et pointage, qui
+ * restent ouverts (voir plus haut). Toute autre donnée écrite sur une ligne
+ * (compte, montants, libellé, taxe, devise, écriture de rattachement) EST la
+ * saisie, et passe par le périmètre.
+ */
+const CHAMPS_HORS_SAISIE = new Set(['lettre', 'lettrageId', 'lettrage', 'rapprochementId', 'rapprochement', 'ligneReleveId', 'ligneReleve']);
+
+function toucheLaSaisie(data: unknown): boolean {
+  if (!data || typeof data !== 'object') return false;
+  return Object.keys(data).some((k) => !CHAMPS_HORS_SAISIE.has(k));
+}
+
+/** L'écriture qu'une donnée de ligne désigne, s'il y en a une. */
+function ecritureDeLaDonnee(data: unknown): string | undefined {
+  const d = data as { ecritureId?: string; ecriture?: { connect?: { id?: string } } } | undefined;
+  return d?.ecritureId ?? d?.ecriture?.connect?.id;
+}
+
+/**
+ * LES LIGNES D'ÉCRITURE (audit final F156) · la garde ne regardait que
+ * `Ecriture`, si bien que la réimputation au brouillard, qui change le compte
+ * d'une ligne en place (`ligneEcriture.updateMany`), sortait du périmètre sans
+ * rien toucher à l'écriture. Toute écriture sur une ligne qui touche la saisie
+ * relit le journal de son écriture ; le lettrage et le pointage passent.
+ */
+async function garderLignes(
+  base: PrismaClient,
+  operation: string,
+  a: { data?: unknown; where?: unknown; create?: unknown; update?: unknown },
+  autorises: readonly string[],
+): Promise<void> {
+  const verifierEcritures = async (ids: (string | undefined)[]) => {
+    const connus = ids.filter((x): x is string => !!x);
+    if (connus.length === 0) return;
+    const e = (await base.ecriture.findMany({ where: { id: { in: connus } }, select: { journalId: true } })) as EcritureCiblee[];
+    if (e.some((x) => journalHorsPerimetre(x.journalId, autorises))) throw new ForbiddenException(MESSAGE_HORS_PERIMETRE);
+  };
+  if (CREATIONS.includes(operation)) {
+    const donnees = Array.isArray(a.data) ? a.data : [a.data];
+    await verifierEcritures(donnees.map(ecritureDeLaDonnee));
+    return;
+  }
+  if (!MODIFICATIONS.includes(operation)) return;
+  const donnee = operation === 'upsert' ? a.update : a.data;
+  const suppression = operation === 'delete' || operation === 'deleteMany';
+  if (!suppression && !toucheLaSaisie(donnee) && !(operation === 'upsert' && a.create)) return;
+  // Une ligne déplacée vers une autre écriture · la cible aussi.
+  await verifierEcritures([ecritureDeLaDonnee(donnee), operation === 'upsert' ? ecritureDeLaDonnee(a.create) : undefined]);
+  const visees = (await base.ligneEcriture.findMany({
+    where: a.where as Prisma.LigneEcritureWhereInput,
+    select: { ecriture: { select: { journalId: true } } },
+  })) as { ecriture: EcritureCiblee }[];
+  if (visees.some((l) => journalHorsPerimetre(l.ecriture.journalId, autorises))) {
+    throw new ForbiddenException(MESSAGE_HORS_PERIMETRE);
+  }
+}
+
 export async function garderPerimetreJournaux(
   base: PrismaClient,
   contexte: { model: string; operation: string; args: unknown; query: (args: unknown) => Promise<unknown> },
 ): Promise<unknown> {
   const { model, operation, args, query } = contexte;
-  if (model !== 'Ecriture') return query(args);
+  if (model !== 'Ecriture' && model !== 'LigneEcriture') return query(args);
   const autorises = acteurCourant()?.journauxAutorises;
   if (!autorises) return query(args);
+  if (model === 'LigneEcriture') {
+    await garderLignes(base, operation, args as { data?: unknown; where?: unknown; create?: unknown; update?: unknown }, autorises);
+    return query(args);
+  }
   const a = args as { data?: unknown; where?: unknown; create?: unknown; update?: unknown };
 
   if (CREATIONS.includes(operation)) {

@@ -1249,6 +1249,27 @@ export function signeConformeAuModeleFlux(p: PosteFluxTresorerieSyscohada, monta
   return p.signeAttendu === 'POSITIF' ? montant > 0 : montant < 0;
 }
 
+/**
+ * Les postes qui lisent ce compte en MOUVEMENT (débit ou crédit de l'exercice),
+ * exclusions de chaque terme comprises · la consolidation s'en sert pour dire
+ * qu'une opération réciproque éliminée sur le SOLDE laisse ses mouvements
+ * bruts dans le tableau des flux (audit final F152). Un préfixe se lit sur le
+ * numéro sans ses zéros de complément, comme le reste de la table.
+ */
+export function postesLisantEnMouvement(numero: string): string[] {
+  const refs = new Set<string>();
+  for (const p of TOUS_LES_POSTES_FLUX_SYSCOHADA) {
+    for (const t of p.termes) {
+      const c = t.comptes;
+      if (!c || (c.lecture !== 'MOUVEMENT_DEBIT' && c.lecture !== 'MOUVEMENT_CREDIT')) continue;
+      if (!c.prefixes.some((x) => numero.startsWith(x))) continue;
+      if ((c.exclusions ?? []).some((x) => numero.startsWith(x))) continue;
+      refs.add(p.ref);
+    }
+  }
+  return [...refs].sort();
+}
+
 /** Tous les préfixes de comptes cités par les termes et les non-déterminables · pour le spec d'existence au plan. */
 export function comptesCitesParLeTftSyscohada(): { ref: string; prefixe: string }[] {
   const cites: { ref: string; prefixe: string }[] = [];

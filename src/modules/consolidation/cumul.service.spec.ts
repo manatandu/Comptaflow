@@ -68,7 +68,8 @@ function doublure(balanceDossier: [string, number][]) {
     ecartEvaluationConsolidation: table('ecarts'),
     provisionChangeConsolidation: table('provisionsChange'),
     faitsConsolidationExercice: table('faits'),
-    $transaction: jest.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)),
+    // Une transaction exécute sa fonction sur la doublure même (transactionJournalisee, audit final F159).
+    $transaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma)),
   };
   const ecritures: any = {
     balance: jest.fn(async () => ({ lignes: balanceDossier.map(([numero, solde]) => ({ numero, intitule: numero, solde })) })),
@@ -185,6 +186,10 @@ describe('CumulService · le cumul de bout en bout', () => {
     expect(r.capitauxPropres).toMatchObject({ reservesGroupe: 1044, interetsMinoritairesHorsResultat: 320, resultatGroupe: 812 });
     expect(r.equilibre).toBe(0);
     expect(r.reserves.join(' ')).toContain('art. 86, 4°');
+    // AUDIT FINAL F151 · la première réserve ne dit plus le contraire de la
+    // quatrième · les éliminations de nature fiscale sont jouées.
+    expect(r.reserves[0]).toContain('Les éliminations de nature fiscale, elles, sont jouées ici');
+    expect(r.reserves.join(' ')).toContain('Éliminations de nature fiscale (art. 86, 3°');
   });
 
   it('la consolidante est lue au livre-journal seul, comme ses états individuels', async () => {

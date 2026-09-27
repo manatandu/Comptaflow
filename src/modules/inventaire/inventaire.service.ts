@@ -22,6 +22,7 @@ import {
   SaisirComptageDto,
 } from './dto/inventaire.dto';
 import { decrireLigne, lignesManquantes, type LigneAttendue } from '../comptabilite/rattachement-ecriture';
+import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 
 /**
  * INVENTAIRE PHYSIQUE · l'obligation qu'OmegaX ne portait pas.
@@ -542,16 +543,16 @@ export class InventaireService {
     }
 
     const maintenant = new Date();
-    await this.prisma.$transaction([
-      this.prisma.ecartInventaire.deleteMany({ where: { tenantId, campagneId } }),
-      ...[...parCompte.entries()].map(([compteId, { valeur, nombre }]) => {
+    await transactionJournalisee(this.prisma, async (tx) => {
+      await tx.ecartInventaire.deleteMany({ where: { tenantId, campagneId } });
+      for (const [compteId, { valeur, nombre }] of parCompte.entries()) {
         // Un compte d'actif a un solde débiteur ; la balance le rend positif.
         // Un compte de passif (dettes comptées à l'inventaire documentaire)
         // le rend négatif. On compare donc la valeur d'inventaire à la
         // VALEUR ABSOLUE du solde, et l'écart garde le sens « inventaire
         // moins comptabilité » que le CPCC lui donne.
         const solde = Math.abs(soldeParCompte.get(compteId) ?? 0);
-        return this.prisma.ecartInventaire.create({
+        await tx.ecartInventaire.create({
           data: {
             tenantId,
             campagneId,
@@ -563,12 +564,12 @@ export class InventaireService {
             rapprocheLe: maintenant,
           },
         });
-      }),
-      this.prisma.campagneInventaire.update({
+      }
+      await tx.campagneInventaire.update({
         where: { id: campagneId },
         data: { statut: StatutCampagneInventaire.ARBITRAGE },
-      }),
-    ]);
+      });
+    });
     return this.consulter(tenantId, campagneId);
   }
 

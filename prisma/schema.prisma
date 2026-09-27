@@ -451,7 +451,7 @@ model Tenant {
   // laisser de la place à des sous-comptes analytiques créés à la main sans
   // buter sur la longueur du compte racine du plan SYCEBNL (ex. racine à 6
   // chiffres "411000" + 2 chiffres de sous-compte adhérent). Modifiable
-  // après coup (TenantService.modifierParametres) mais jamais en dessous de
+  // après coup (TenantService.modifierLongueurCompte) mais jamais en dessous de
   // la longueur du plus long numéro de compte déjà créé pour ce tenant ·
   // sinon des comptes existants deviendraient invalides rétroactivement.
   longueurCompte Int @default(8)

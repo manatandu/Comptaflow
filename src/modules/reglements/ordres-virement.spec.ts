@@ -79,10 +79,11 @@ describe("créer, imprimer, annuler", () => {
     const ordre = { id: 'o1', statut, lignes: [], journal: { code: 'BQ', intitule: 'Banque' } };
     const update = jest.fn(async () => ordre);
     const lignesUpdate = jest.fn(async () => ({ count: 2 }));
-    const prisma = {
+    const prisma: Record<string, unknown> = {
       ordreVirement: { findFirst: jest.fn(async () => ordre), update },
       ligneOrdreVirement: { updateMany: lignesUpdate },
-      $transaction: jest.fn(async (ops: unknown[]) => ops),
+      // La transaction exécute sa fonction sur la doublure (audit final F159).
+      $transaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma)),
     };
     return { service: new OrdresVirementService(prisma as never), update, lignesUpdate };
   }

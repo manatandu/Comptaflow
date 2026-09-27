@@ -5,6 +5,7 @@ import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../common/prisma.service';
 import { FonctionMetier, RoleUtilisateur } from '@prisma/client';
 import { CreerUtilisateurDto, ModifierUtilisateurDto } from './dto/utilisateur.dto';
+import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 
 const SALT_ROUNDS = 12;
 
@@ -27,6 +28,22 @@ const SELECTION = {
   journauxAutorises: true,
 } as const;
 
+/** Ne dit pas à qui l'adresse appartient · même phrase à la lecture et à la base. */
+export const MOTIF_ADRESSE_PRISE = 'Un compte existe déjà avec cet email';
+
+export const MOTIF_DERNIER_ADMINISTRATEUR =
+  "C'est le dernier administrateur actif du dossier · nommez d'abord un autre administrateur, sans quoi plus personne ne " +
+  'pourrait gérer les comptes ni les paramètres du dossier.';
+
+/** Le geste retire-t-il à ce compte, ACTIF et ADMINISTRATEUR, l'une des deux qualités ? */
+export function retireUnAdministrateur(
+  user: { role: RoleUtilisateur; estActif: boolean },
+  dto: { role?: RoleUtilisateur; estActif?: boolean },
+): boolean {
+  if (user.role !== RoleUtilisateur.ADMIN_CABINET || !user.estActif) return false;
+  return (dto.role !== undefined && dto.role !== RoleUtilisateur.ADMIN_CABINET) || dto.estActif === false;
+}
+
 @Injectable()
 export class UtilisateurService {
   constructor(private readonly prisma: PrismaService) {}
@@ -39,17 +56,27 @@ export class UtilisateurService {
     dto = { ...dto, email: normaliserCourriel(dto.email) };
     const existant = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existant) {
-      throw new ConflictException('Un compte existe déjà avec cet email');
+      throw new ConflictException(MOTIF_ADRESSE_PRISE);
     }
     const motDePasseHache = await bcrypt.hash(dto.motDePasse, SALT_ROUNDS);
-    return this.prisma.user.create({
-      // doitChangerMotDePasse : le mot de passe a été choisi par l'ADMIN du
-      // dossier, pas par le titulaire · celui-ci le remplace à sa première
-      // connexion, ce qui clôt la période où l'admin pouvait ouvrir le
-      // dossier à sa place (voir schema.prisma, User).
-      data: { tenantId, email: dto.email, motDePasse: motDePasseHache, role: dto.role, doitChangerMotDePasse: true },
-      select: SELECTION,
-    });
+    try {
+      return await this.prisma.user.create({
+        // doitChangerMotDePasse : le mot de passe a été choisi par l'ADMIN du
+        // dossier, pas par le titulaire · celui-ci le remplace à sa première
+        // connexion, ce qui clôt la période où l'admin pouvait ouvrir le
+        // dossier à sa place (voir schema.prisma, User).
+        data: { tenantId, email: dto.email, motDePasse: motDePasseHache, role: dto.role, doitChangerMotDePasse: true },
+        select: SELECTION,
+      });
+    } catch (e) {
+      // L'ADRESSE D'UN AUTRE DOSSIER N'EST PAS VUE PAR LA LECTURE CI-DESSUS
+      // (audit final F158) · la garde de cloisonnement rend « inexistant » le
+      // compte d'un voisin, et la contrainte d'unicité de la base remontait
+      // en 500. Même rattrapage que `AuthService.changerAdresse`, et même
+      // message · il ne dit pas à qui l'adresse appartient.
+      if ((e as { code?: string })?.code === 'P2002') throw new ConflictException(MOTIF_ADRESSE_PRISE);
+      throw e;
+    }
   }
 
   /**
@@ -119,17 +146,36 @@ export class UtilisateurService {
     if (userId === utilisateurCourantId && dto.estActif === false) {
       throw new BadRequestException('Impossible de désactiver son propre compte');
     }
-    return this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        ...dto,
-        // DÉSACTIVER, C'EST METTRE DEHORS TOUT DE SUITE. JwtStrategy relit
-        // déjà `estActif` à chaque requête, mais un changement de RÔLE, lui,
-        // ne fermait rien : rétrograder un ADMIN_CABINET le laissait agir en
-        // administrateur jusqu'à l'expiration de son jeton, soit huit heures.
-        ...(dto.estActif === false || dto.role !== undefined ? { sessionsInvalidesAvant: new Date() } : {}),
-      },
-      select: SELECTION,
+    const ecrire = (client: Pick<PrismaService, 'user'>) =>
+      client.user.update({
+        where: { id: userId },
+        data: {
+          ...dto,
+          // DÉSACTIVER, C'EST METTRE DEHORS TOUT DE SUITE. JwtStrategy relit
+          // déjà `estActif` à chaque requête, mais un changement de RÔLE, lui,
+          // ne fermait rien : rétrograder un ADMIN_CABINET le laissait agir en
+          // administrateur jusqu'à l'expiration de son jeton, soit huit heures.
+          ...(dto.estActif === false || dto.role !== undefined ? { sessionsInvalidesAvant: new Date() } : {}),
+        },
+        select: SELECTION,
+      });
+    if (!retireUnAdministrateur(user, dto)) return ecrire(this.prisma);
+
+    // LE DERNIER ADMINISTRATEUR ACTIF NE SE RETIRE PAS (audit final F157).
+    // Rétrogradé ou désactivé, il laissait un dossier que plus personne ne
+    // peut administrer · la console ne rattrape pas ce cas, sa
+    // réinitialisation ne visant que les administrateurs, et il ne se
+    // réglait plus que par SQL en production. Le décompte et l'écriture se
+    // font sous un verrou PAR DOSSIER, pris dans la transaction · deux
+    // administrateurs qui se rétrogradent l'un l'autre au même instant
+    // compteraient chacun l'autre, et les deux gestes passeraient.
+    return transactionJournalisee(this.prisma, async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`administrateurs:${tenantId}`}))`;
+      const autres = await tx.user.count({
+        where: { tenantId, role: RoleUtilisateur.ADMIN_CABINET, estActif: true, id: { not: userId } },
+      });
+      if (autres === 0) throw new BadRequestException(MOTIF_DERNIER_ADMINISTRATEUR);
+      return ecrire(tx);
     });
   }
 

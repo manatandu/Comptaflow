@@ -339,7 +339,17 @@ export function PerimetreConsolidationPage() {
                   </button>
                   <button
                     className="border border-border px-2.5 py-1 text-[11.5px]"
-                    onClick={() => void agir(() => api.delete(`/consolidation/entites/${e.id}`))}
+                    onClick={() => {
+                      // Audit final F150 · la suppression emporte tout ce que
+                      // l'entité porte (cascade au schéma) · elle se confirme.
+                      if (
+                        !window.confirm(
+                          `Retirer « ${e.nom} » du périmètre ? Ses participations, détenues comme détentrices, leurs acquisitions et écarts d'évaluation, sa balance importée, ses opérations réciproques et ses résultats internes sont effacés avec elle.`,
+                        )
+                      )
+                        return;
+                      void agir(() => api.delete(`/consolidation/entites/${e.id}`));
+                    }}
                   >
                     Retirer l’entité
                   </button>
@@ -434,9 +444,41 @@ export function PerimetreConsolidationPage() {
                   <td className="py-1 pr-2 text-right">{l.pctCapital.toFixed(2)}</td>
                   <td className="py-1 text-right">
                     {peutEcrire && (
-                      <button className="text-[11px] underline" onClick={() => void agir(() => api.delete(`/consolidation/liens/${l.id}`))}>
-                        Retirer
-                      </button>
+                      <span className="inline-flex gap-2">
+                        <button
+                          className="text-[11px] underline"
+                          onClick={() => {
+                            // Audit final F150 · modifier sans retirer, l'analyse du
+                            // périmètre rejouée au serveur ; l'acquisition reste.
+                            const vote = window.prompt('Droits de vote, en % (0 à 100)', String(l.pctDroitsVote));
+                            if (vote === null) return;
+                            const capital = window.prompt('Capital détenu, en % (0 à 100)', String(l.pctCapital));
+                            if (capital === null) return;
+                            void agir(() =>
+                              api.patch(`/consolidation/liens/${l.id}`, {
+                                pctDroitsVote: Number(vote.replace(',', '.')),
+                                pctCapital: Number(capital.replace(',', '.')),
+                              }),
+                            );
+                          }}
+                        >
+                          Modifier
+                        </button>
+                        <button
+                          className="text-[11px] underline"
+                          onClick={() => {
+                            if (
+                              !window.confirm(
+                                `Retirer la participation de ${nomDe(l.detentriceId)} dans ${nomDe(l.detenueId)} ? Son acquisition déclarée et ses écarts d'évaluation sont effacés avec elle.`,
+                              )
+                            )
+                              return;
+                            void agir(() => api.delete(`/consolidation/liens/${l.id}`));
+                          }}
+                        >
+                          Retirer
+                        </button>
+                      </span>
                     )}
                   </td>
                 </tr>

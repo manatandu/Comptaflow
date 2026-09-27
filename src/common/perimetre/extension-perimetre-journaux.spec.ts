@@ -133,3 +133,51 @@ describe('la définition des journaux autorisés', () => {
     expect((update.mock.calls[0][0] as { data: Record<string, unknown> }).data).toMatchObject({ restreindreJournaux: false, journauxAutorises: [] });
   });
 });
+
+describe('F156 · les lignes d’écriture passent aussi par le périmètre', () => {
+  /** La doublure rend le journal des lignes et des écritures VISÉES, comme la base. */
+  function faireLignes(journalDesLignes: string[], journalDesEcritures: Record<string, string> = {}) {
+    const lignesFindMany = jest.fn().mockResolvedValue(journalDesLignes.map((journalId) => ({ ecriture: { journalId } })));
+    const ecrituresFindMany = jest.fn(async ({ where }: { where: { id: { in: string[] } } }) =>
+      where.id.in.map((id) => ({ journalId: journalDesEcritures[id] ?? null })),
+    );
+    const base = { ecriture: { findMany: ecrituresFindMany }, ligneEcriture: { findMany: lignesFindMany } } as never;
+    const query = jest.fn().mockResolvedValue('fait');
+    const appeler = (autorises: string[] | null, operation: string, args: unknown) =>
+      dansContexteAudit({ ...ACTEUR, journauxAutorises: autorises }, () =>
+        garderPerimetreJournaux(base, { model: 'LigneEcriture', operation, args, query }),
+      );
+    return { appeler, query, lignesFindMany };
+  }
+
+  it('la réimputation au brouillard d’une ligne d’un autre journal est refusée', async () => {
+    const { appeler, query } = faireLignes(['j2']);
+    await expect(appeler(['j1'], 'updateMany', { where: { id: { in: ['l1'] } }, data: { compteId: 'c9' } })).rejects.toThrow(MESSAGE_HORS_PERIMETRE);
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('dans son journal, elle passe', async () => {
+    const { appeler } = faireLignes(['j1']);
+    await expect(appeler(['j1'], 'updateMany', { where: { id: { in: ['l1'] } }, data: { compteId: 'c9' } })).resolves.toBe('fait');
+  });
+
+  it('le lettrage et le pointage restent ouverts, sans relire les lignes', async () => {
+    const { appeler, lignesFindMany } = faireLignes(['j2']);
+    await expect(appeler(['j1'], 'updateMany', { where: { id: { in: ['l1'] } }, data: { lettrageId: 'g1', lettre: 'AA' } })).resolves.toBe('fait');
+    await expect(appeler(['j1'], 'updateMany', { where: { id: { in: ['l1'] } }, data: { rapprochementId: 'r1' } })).resolves.toBe('fait');
+    expect(lignesFindMany).not.toHaveBeenCalled();
+  });
+
+  it('une ligne créée dans une écriture d’un autre journal est refusée, et la suppression aussi', async () => {
+    const { appeler } = faireLignes(['j2'], { e2: 'j2', e1: 'j1' });
+    await expect(appeler(['j1'], 'createMany', { data: [{ ecritureId: 'e1' }, { ecritureId: 'e2' }] })).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(appeler(['j1'], 'deleteMany', { where: { ecritureId: 'e2' } })).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(appeler(['j1'], 'create', { data: { ecritureId: 'e1' } })).resolves.toBe('fait');
+  });
+
+  it('sans restriction, rien n’est relu', async () => {
+    const { appeler, lignesFindMany } = faireLignes(['j2']);
+    await expect(appeler(null, 'updateMany', { where: {}, data: { compteId: 'c9' } })).resolves.toBe('fait');
+    expect(lignesFindMany).not.toHaveBeenCalled();
+  });
+});

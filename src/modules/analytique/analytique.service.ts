@@ -16,6 +16,7 @@ import { moisEntre } from '../../common/mois-entre';
 import { motifRefusClasseVentilee, motifRefusMontantAnalytique } from './od-analytique';
 import { refuserSiExerciceBudgetaireClos } from './exercice-budgetaire-clos';
 import { libelleReference, referencesVers, type Reference } from '../../common/suppression/references';
+import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 
 /** Chiffre de classe d'un compte : CLASSE_6 donne 6. */
 function chiffreClasse(classe: ClasseCompte): string {
@@ -166,7 +167,7 @@ export class AnalytiqueService {
       : 0;
     this.refuserSuppressionAnalytique(`Le plan ${plan.code} ne peut plus être supprimé`, refs, budgetsClos, 'Mettez-le en sommeil.');
     // Les budgets partent avec leurs sections (onDelete: Cascade) · tout ou rien.
-    await this.prisma.$transaction(async (tx) => {
+    await transactionJournalisee(this.prisma, async (tx) => {
       await tx.sectionAnalytique.deleteMany({ where: { planId, tenantId } });
       await tx.planAnalytique.delete({ where: { id: planId } });
     });
@@ -269,7 +270,7 @@ export class AnalytiqueService {
       where: { sectionId, exercice: { statut: StatutExercice.CLOTURE } },
     });
     this.refuserSuppressionAnalytique(`La section ${section.code} ne peut plus être supprimée`, refs, budgetsClos, 'Mettez-la en sommeil.');
-    await this.prisma.$transaction(async (tx) => {
+    await transactionJournalisee(this.prisma, async (tx) => {
       await tx.budgetSection.deleteMany({ where: { sectionId } });
       await tx.sectionAnalytique.delete({ where: { id: sectionId } });
     });
@@ -344,7 +345,7 @@ export class AnalytiqueService {
     const part = Math.trunc(centimes / mois.length);
     const reliquat = centimes - part * mois.length;
 
-    await this.prisma.$transaction(async (tx) => {
+    await transactionJournalisee(this.prisma, async (tx) => {
       await tx.budgetSection.deleteMany({ where: { sectionId, exerciceId: dto.exerciceId } });
       await tx.budgetSection.create({
         data: { sectionId, exerciceId: dto.exerciceId, mois: null, montant: new Prisma.Decimal(dto.montantAnnuel) },
@@ -385,7 +386,7 @@ export class AnalytiqueService {
         `La convention de cette section ne couvre pas le mois ${dto.mois} de l'exercice · il n'a rien à recevoir.`,
       );
     }
-    await this.prisma.$transaction(async (tx) => {
+    await transactionJournalisee(this.prisma, async (tx) => {
       await tx.budgetSection.upsert({
         where: { sectionId_exerciceId_mois: { sectionId, exerciceId: dto.exerciceId, mois: dto.mois } },
         create: {
@@ -525,7 +526,7 @@ export class AnalytiqueService {
     }
 
     const plansTouches = [...parPlan.keys()];
-    await this.prisma.$transaction(async (tx) => {
+    await transactionJournalisee(this.prisma, async (tx) => {
       // On n'efface que les plans touchés : ventiler l'axe Projet ne doit pas
       // effacer l'axe Bailleur posé auparavant.
       await tx.ventilationAnalytique.deleteMany({

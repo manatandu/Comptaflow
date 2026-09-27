@@ -64,6 +64,11 @@ function doublure() {
         liens.push(l);
         return l;
       }),
+      update: jest.fn(async ({ where, data }: any) => {
+        const l = liens.find((x) => x.id === where.id);
+        for (const [k, v] of Object.entries(data)) if (v !== undefined) l[k] = v;
+        return l;
+      }),
       delete: jest.fn(),
     },
     operationReciproqueConsolidation: { findMany: jest.fn(async () => []) },
@@ -199,5 +204,41 @@ describe('ConsolidationController · les deux moitiés du cloisonnement', () => 
     for (const m of ['creerEntite', 'modifierEntite', 'supprimerEntite', 'ajouterLien', 'supprimerLien', 'enregistrerFaits']) {
       expect(Reflect.getMetadata(ROLES_KEY, proto[m])).toEqual([RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE]);
     }
+  });
+});
+
+describe('F150 · une participation se modifie, rejouée par l’analyse', () => {
+  it('le pourcentage change et l’analyse suit, l’acquisition déclarée reste', async () => {
+    const { service, liens } = doublure();
+    const a = await entite(service, 'A');
+    const l = await service.ajouterLien(T, { exerciceId: EX, detenueId: a.id, pctDroitsVote: 80, pctCapital: 70 });
+    (liens[0] as any).coutAcquisition = 800;
+    await service.modifierLien(T, l.id, { pctCapital: 60 });
+    expect(liens[0]).toMatchObject({ pctDroitsVote: 80, pctCapital: 60, coutAcquisition: 800 });
+    const r = (await service.etat(T, EX)).resultats.find((x) => x.id === a.id)!;
+    expect(r).toMatchObject({ pctControle: 80, pctInteret: 60 });
+  });
+
+  it('une modification qui porterait une détenue au-delà de 100 % est refusée, et rien n’est écrit', async () => {
+    const { service, liens, prisma } = doublure();
+    const a = await entite(service, 'A');
+    const b = await entite(service, 'B');
+    await service.ajouterLien(T, { exerciceId: EX, detenueId: b.id, pctDroitsVote: 60, pctCapital: 60 });
+    await service.ajouterLien(T, { exerciceId: EX, detenueId: a.id, pctDroitsVote: 90, pctCapital: 90 });
+    const l = await service.ajouterLien(T, { exerciceId: EX, detentriceId: a.id, detenueId: b.id, pctDroitsVote: 30, pctCapital: 30 });
+    await expect(service.modifierLien(T, l.id, { pctDroitsVote: 50 })).rejects.toThrow(/dépassent 100 %/);
+    expect(prisma.lienParticipationConsolidation.update).not.toHaveBeenCalled();
+    expect(liens.find((x) => x.id === l.id)).toMatchObject({ pctDroitsVote: 30 });
+  });
+
+  it('une participation d’un autre dossier est introuvable', async () => {
+    const { service } = doublure();
+    await expect(service.modifierLien('autre', 'l-inconnu', { pctCapital: 10 })).rejects.toThrow(/introuvable/);
+  });
+
+  it('la route est ouverte au comptable, au SYSCOHADA seul comme le reste du contrôleur', () => {
+    const roles = Reflect.getMetadata(ROLES_KEY, ConsolidationController.prototype.modifierLien);
+    expect(roles).toEqual([RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE]);
+    expect(Reflect.getMetadata(REFERENTIELS_KEY, ConsolidationController)).toEqual([Referentiel.SYSCOHADA]);
   });
 });

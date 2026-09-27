@@ -217,8 +217,10 @@ export type ReponseFait = (typeof REPONSES_FAIT)[number];
 /**
  * ASSUJETTISSEMENT À LA TVA et EFFECTIF PERMANENT · deux données que le
  * logiciel ne détenait pas et sans lesquelles il ne pouvait appliquer ni les
- * règles de TVA (une ASBL n'est pas assujettie de plein droit) ni le troisième
- * critère de désignation de l'auditeur (SYCEBNL, art. 19).
+ * règles de TVA (l'assujettissement suit le chiffre d'affaires, décret
+ * n° 011/42 art. 42, pour une association comme pour une société · ce qui
+ * lui est propre tient aux exonérations, et seul le dossier le sait) ni le
+ * troisième critère de désignation de l'auditeur (SYCEBNL, art. 19).
  */
 export class ModifierRegimeDto {
   @IsOptional()

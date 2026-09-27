@@ -16,6 +16,7 @@ import {
   EnvoyerDto,
   ProceduresAlternativesDto,
 } from './dto/circularisation.dto';
+import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 
 /**
  * CIRCULARISATION · l'autre moitié de l'inventaire extra-comptable.
@@ -293,8 +294,8 @@ export class CircularisationService {
     const quand = dto.date ? new Date(dto.date) : new Date();
     const relance = campagne.statut === StatutCampagneCircularisation.ENVOYEE;
 
-    await this.prisma.$transaction([
-      this.prisma.demandeConfirmation.updateMany({
+    await transactionJournalisee(this.prisma, async (tx) => {
+      await tx.demandeConfirmation.updateMany({
         where: {
           tenantId,
           campagneId,
@@ -303,14 +304,14 @@ export class CircularisationService {
         data: relance
           ? { statut: StatutDemandeConfirmation.RELANCEE, relanceeLe: quand }
           : { statut: StatutDemandeConfirmation.ENVOYEE, envoyeeLe: quand },
-      }),
-      this.prisma.campagneCircularisation.update({
+      });
+      await tx.campagneCircularisation.update({
         where: { id: campagneId },
         data: relance
           ? { statut: StatutCampagneCircularisation.RELANCEE, relanceeLe: quand }
           : { statut: StatutCampagneCircularisation.ENVOYEE, envoyeeLe: quand },
-      }),
-    ]);
+      });
+    });
     return this.consulter(tenantId, campagneId);
   }
 

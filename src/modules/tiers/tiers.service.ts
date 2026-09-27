@@ -11,6 +11,7 @@ import {
   CreerEcheanceReglementDto,
   CalculerEcheancesDto,
 } from './dto/modele-reglement.dto';
+import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 
 /**
  * Tiers (cf. docs/plan-de-construction.md §3.2) : Client/Fournisseur/Salarié/
@@ -89,7 +90,7 @@ export class TiersService {
     // Le compte naît dans la même transaction que le tiers · un tiers créé
     // sans le compte qu'on lui annonce serait une fiche qui ne recevrait
     // aucune écriture, et personne ne s'en apercevrait avant la relance.
-    return this.prisma.$transaction(async (tx) => {
+    return transactionJournalisee(this.prisma, async (tx) => {
       const tiers = await tx.tiers.create({ data: { ...donnees, tenantId } });
       const compteIndividuel =
         creerCompteIndividuel === false ? null : await this.poserCompteIndividuel(tx, tenantId, tiers, { silencieux: true });
@@ -104,7 +105,7 @@ export class TiersService {
    */
   async creerCompteIndividuel(tenantId: string, tiersId: string) {
     const tiers = await this.trouver(tenantId, tiersId);
-    return this.prisma.$transaction((tx) => this.poserCompteIndividuel(tx, tenantId, tiers, { silencieux: false }));
+    return transactionJournalisee(this.prisma, (tx) => this.poserCompteIndividuel(tx, tenantId, tiers, { silencieux: false }));
   }
 
   /**
@@ -225,11 +226,11 @@ export class TiersService {
     // Ses RIB lui appartiennent comme ses rattachements · un ordre de virement
     // qui en a recopié un, lui, RETIENT le tiers (LigneOrdreVirement, compté
     // par references.ts), et la copie sur l'ordre ne dépend pas du RIB.
-    await this.prisma.$transaction([
-      this.prisma.ribTiers.deleteMany({ where: { tenantId, tiersId: tiers.id } }),
-      this.prisma.tiersCompte.deleteMany({ where: { tiersId: tiers.id } }),
-      this.prisma.tiers.delete({ where: { id: tiers.id } }),
-    ]);
+    await transactionJournalisee(this.prisma, async (tx) => {
+      await tx.ribTiers.deleteMany({ where: { tenantId, tiersId: tiers.id } });
+      await tx.tiersCompte.deleteMany({ where: { tiersId: tiers.id } });
+      await tx.tiers.delete({ where: { id: tiers.id } });
+    });
     return { supprime: true };
   }
 
@@ -250,7 +251,7 @@ export class TiersService {
     const refus = motifRefusFusionTiers(source, cible);
     if (refus) throw new BadRequestException(refus);
 
-    const reportees = await this.prisma.$transaction(async (tx) => {
+    const reportees = await transactionJournalisee(this.prisma, async (tx) => {
       // Un seul compte principal par tiers · ceux du doublon arrivent
       // secondaires si la fiche conservée a déjà le sien.
       if (cible.comptesRattaches.some((r) => r.estPrincipal)) {
@@ -325,7 +326,7 @@ export class TiersService {
       throw new ConflictException('Ce compte est déjà rattaché à ce tiers');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    return transactionJournalisee(this.prisma, async (tx) => {
       if (dto.estPrincipal) {
         await tx.tiersCompte.updateMany({ where: { tiersId }, data: { estPrincipal: false } });
       }
@@ -341,7 +342,7 @@ export class TiersService {
     if (!rattachement) {
       throw new NotFoundException("Ce compte n'est pas rattaché à ce tiers");
     }
-    return this.prisma.$transaction(async (tx) => {
+    return transactionJournalisee(this.prisma, async (tx) => {
       await tx.tiersCompte.updateMany({ where: { tiersId }, data: { estPrincipal: false } });
       return tx.tiersCompte.update({ where: { id: rattachement.id }, data: { estPrincipal: true } });
     });

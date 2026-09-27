@@ -1118,36 +1118,42 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 3
 - **Constat :** le refus invite à « modifier » sans route pour le faire, et « Retirer » emporte l'acquisition et les écarts d'évaluation sans confirmation.
 - **Correction :** route de modification rejouée par l'analyse, et confirmation des suppressions.
+- **Fait le 2026-09-27 :** une participation se modifie (`PATCH /consolidation/liens/:id`, droits de vote et capital) et le périmètre est REJOUÉ par le moteur avant l'écriture · une participation croisée ou un total au-delà de 100 % est refusé ; les deux boutons Retirer demandent confirmation. Tests : `perimetre.service.spec.ts` (quatre cas), `perimetre-participation-f150.spec.ts`.
 
 **F151 · Réserves du cumul contradictoires sur les éliminations fiscales** [conso-02]
 - **Emplacements :** src/modules/consolidation/cumul.service.ts:613, :616 · client/src/pages/CumulConsolidation.tsx:706
 - **Condition :** 5
 - **Constat :** deux réserves affichées ensemble se contredisent.
 - **Correction :** réécrire la première.
+- **Fait le 2026-09-27 :** la première réserve du cumul dit que les balances des filiales sont réputées retraitées aux règles du groupe (D4C ch. XII-3) et que les éliminations fiscales, elles, sont jouées ; l'en-tête du moteur est réécrit. Test : `cumul.service.spec.ts`.
 
 **F152 · TFT consolidé : mouvements bruts sans élimination des réciproques** [conso-04]
 - **Emplacements :** src/modules/consolidation/flux-capitaux-consolides.ts:17 · cumul-consolidation.ts:1180, :1231
 - **Condition :** 1
 - **Constat :** un prêt intragroupe reste lu en investissement et en financement, alors que ZG est juste.
 - **Correction :** refuser le tableau sur les comptes concernés, ou déclarer la part des mouvements à éliminer.
+- **Fait le 2026-09-27 :** une opération réciproque portée sur un compte que le tableau des flux lit en MOUVEMENTS (`postesLisantEnMouvement`, table du ch. 5 lue, exclusions comprises) est nommée parmi les obstacles du tableau · l'élimination ne porte que sur le solde. Une créance ou une dette d'exploitation, lue en variation, n'est pas visée. Tests : `cumul-consolidation.spec.ts`, `correspondance-tft-syscohada.spec.ts`.
 
 **F153 · Un siège « projets de développement » reçoit une liasse de groupe au modèle des associations** [groupe-02]
 - **Emplacements :** src/modules/groupe/groupe.service.ts:179, :188-193
 - **Condition :** 4
 - **Constat :** le jeu du siège n'est pas lu, contrairement à CLAUDE.md § 6.
 - **Correction :** reprendre le jeu du siège et ne remplacer que le SMT.
+- **Fait le 2026-09-27 :** la combinaison reprend le jeu d'états du siège · seul le SMT est remplacé par les associations. Tests : `liaison-etablissements-syscohada.spec.ts` (câblage compris, doublure qui honore le `select`).
 
 **F154 · Provisions et balance fonctionnelle choisissent d'office l'exercice le plus récent** [mf-04, pages-10]
 - **Emplacements :** client/src/pages/BalanceFonctionnellePage.tsx:24-35 · client/src/pages/ProvisionsPage.tsx:209-212
 - **Condition :** 5
 - **Constat :** `useExercice` n'est pas lu, contrairement à la règle de `resoudreExercice`.
 - **Correction :** initialiser sur l'exercice du contexte.
+- **Fait le 2026-09-27 :** les deux fenêtres partent de l'exercice du contexte et ne retombent sur la liste qu'à défaut. Test : `exercice-du-contexte-f154.spec.ts`.
 
 **F155 · Monnaie fonctionnelle : le cours « de SA date » est en fait le dernier cours connu** [doc-10]
 - **Emplacements :** src/modules/monnaie-fonctionnelle/balance-fonctionnelle.service.ts:47-70, :105-111 · CLAUDE.md:605-610
 - **Condition :** 5
 - **Constat :** CLAUDE.md et le commentaire exigent l'arrêt de l'état sur une date sans cours. La mention imprimée dit « au cours de SA date ».
 - **Correction :** une seule règle aux trois endroits.
+- **Fait le 2026-09-27 :** le commentaire, la mention imprimée et le refus disent la même règle · le cours EN VIGUEUR à la date de l'écriture (le dernier saisi à cette date ou avant, jamais un postérieur). Test : `balance-fonctionnelle.spec.ts`.
 
 ### Sécurité, rôles et sessions
 
@@ -1156,60 +1162,70 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 2
 - **Constat :** l'extension ne regarde que `Ecriture`, alors que la réimputation écrit sur `LigneEcriture`.
 - **Correction :** vérifier le périmètre dans `reimputer`, ou étendre l'extension.
+- **Fait le 2026-09-27 :** l'extension du périmètre de saisie garde aussi `LigneEcriture` · une écriture sur une ligne qui touche la saisie relit le journal de son écriture (création, modification, suppression, upsert), le lettrage et le pointage passant. Tests : `extension-perimetre-journaux.spec.ts` (cinq mutations tuées).
 
 **F157 · Un administrateur peut se rétrograder et laisser le dossier sans administrateur** [socle-04]
 - **Emplacements :** src/modules/utilisateurs/utilisateur.service.ts:117 · plateforme.service.ts:422
 - **Condition :** 4
 - **Constat :** la console ne peut pas rattraper ce cas, qui ne se règle alors que par SQL.
 - **Correction :** refuser tout changement qui laisse le dossier sans administrateur actif.
+- **Fait le 2026-09-27 :** un geste qui retire au dernier administrateur ACTIF son rôle ou son activité est refusé, décompte et écriture sous un verrou par dossier dans la transaction · deux administrateurs qui se rétrogradent l'un l'autre au même instant ne passent pas tous les deux. Tests : `dernier-administrateur.spec.ts` (neuf mutations tuées).
 
 **F158 · Créer un utilisateur dont l'adresse existe ailleurs rend 500** [socle-05]
 - **Emplacements :** src/modules/utilisateurs/utilisateur.service.ts:38-43
 - **Condition :** 4
 - **Constat :** la garde rend null, puis P2002 remonte faute de filtre.
 - **Correction :** rattraper P2002 comme `changerAdresse`.
+- **Fait le 2026-09-27 :** la contrainte d'unicité est rattrapée en 409, même message qu'à la lecture, sans dire à qui l'adresse appartient ; une autre panne remonte telle quelle. Test : `dernier-administrateur.spec.ts`.
 
 **F159 · Hors de deux transactions, le journal d'audit atteste des actes annulés** [socle-06]
 - **Emplacements :** src/common/audit/extension-audit.ts:277-288 · contexte-audit.ts:31 · src/modules/import/import.service.ts:564
 - **Condition :** 3
 - **Constat :** le maillon est écrit sur une connexion à part et survit à l'annulation. Chaque écriture prend en outre une seconde connexion.
 - **Correction :** utilitaire unique autour de `journaliserDansTransaction`, test de source, et mise à jour du commentaire.
+- **Fait le 2026-09-27 :** toute transaction du serveur passe par `transactionJournalisee` (common/audit/transaction-journalisee.ts), qui pose `journaliserDansTransaction` · vingt-quatre transactions et les huit formes TABLEAU converties, `avecRetrySerialisable`, l'inscription et l'import compris. Un test de source, commentaires retirés, refuse un `$transaction(` écrit ailleurs ; le commentaire de `contexte-audit.ts` est réécrit. Tests : `transaction-journalisee.spec.ts` (cinq mutations tuées), doublures des huit services converties.
 
 **F160 · L'adresse IP hachée dans le journal d'audit est choisie par le client** [socle-07]
 - **Emplacements :** src/common/audit/audit-contexte.interceptor.ts:30-33
 - **Condition :** 3
 - **Constat :** la première entrée de X-Forwarded-For se forge.
 - **Correction :** utiliser `requete.ip` avec le bon nombre de sauts de confiance.
+- **Fait le 2026-09-27 :** `requete.ip` seul, et le nombre de relais de confiance vient d'une règle (`common/sauts-de-confiance.ts`) · deux en ligne (Firebase Hosting puis Cloud Run), aucun sur site, `SAUTS_PROXY_CONFIANCE` prime et une valeur illisible arrête le démarrage. Avec un seul relais, le journal et la limitation de débit voyaient l'adresse du relais Firebase. Reste un appel direct à l'adresse `*.run.app`, qui se ferme dans l'infrastructure. Tests : `sauts-de-confiance.spec.ts` (Express réel, six mutations tuées).
 
 **F161 · Le type « Éditeur » s'attribue encore à la création d'un cabinet et se transmet aux cellules** [socle-08]
 - **Emplacements :** src/modules/plateforme/plateforme.service.ts:129-135, :342, :354 · dto/plateforme.dto.ts:38 · src/modules/groupe/groupe.service.ts:294 · src/modules/auth/dto/register.dto.ts:52
 - **Condition :** 2
 - **Constat :** contraire au geste nommé unique que prévoit CLAUDE.md.
 - **Correction :** refuser PROPRIETAIRE à ces portes, et faire naître la cellule sous une licence ordinaire.
+- **Fait le 2026-09-27 :** `AuthService.register`, pipeline commun de toutes les créations, refuse la licence de l'éditeur AVANT toute écriture ; la cellule ne pouvait déjà pas naître d'un siège éditeur (F46). Test : `inscription-transaction.spec.ts`.
 
 **F162 · La console renvoie la double authentification à la fenêtre Utilisateurs** [socle-10, plateforme-07, doc-16]
 - **Emplacements :** src/modules/plateforme/operateur-plateforme.guard.ts:31-33 · client/src/pages/UtilisateursPage.tsx:236 · client/src/components/ModaleMonCompte.tsx:78
 - **Condition :** 5
 - **Constat :** l'activation se fait dans Fichier > Mon compte…
 - **Correction :** corriger le message.
+- **Fait le 2026-09-27 :** le refus dit « activez-la dans Fichier > Mon compte… ». Test : `plateforme.spec.ts`.
 
 **F163 · Commentaires du socle qui contredisent le code ou CLAUDE.md** [socle-11]
 - **Emplacements :** src/common/guards/mot-de-passe-a-changer.guard.ts:20 · src/modules/auth/auth.service.ts:110 · src/modules/tenant/dto/parametres-dossier.dto.ts:220 · prisma/schema.prisma:454 · src/modules/licence/licence.guard.ts:5
 - **Condition :** 5
 - **Constat :** « GLOBAL, à dessein » (contre § 8), documents obligatoires « propres au SYCEBNL », phrase ASBL fausse, méthode inexistante, « Phase 1 ».
 - **Correction :** réécrire les cinq commentaires.
+- **Fait le 2026-09-27 :** les cinq commentaires disent le code · garde appelée par `JwtAuthGuard`, documents obligatoires communs, assujettissement à la TVA par le chiffre d'affaires (décret n° 011/42 art. 42), `modifierLongueurCompte`, et la garde de licence sans « Phase 1 ».
 
 **F164 · Session expirée en cours de travail : aucune reprise, « Unauthorized » partout** [chrome-02]
 - **Emplacements :** client/src/lib/api.ts:40-60 · client/src/App.tsx:11-21
 - **Condition :** 4
 - **Constat :** aucun traitement global du 401, et un message anglais.
 - **Correction :** vider la session, renvoyer à la connexion, et message français côté serveur.
+- **Fait le 2026-09-27 :** `JwtAuthGuard.handleRequest` rend un 401 en français marqué `session: 'perdue'` (une autre panne remonte telle quelle) ; le client lit ce drapeau à ses trois appels (`refus`), ferme la session qu'il tenait ouverte et l'écran de connexion affiche le motif. Un 401 sans drapeau (mot de passe actuel faux) ne déconnecte personne. Tests : `session-perdue.spec.ts` serveur et client (six mutations tuées).
 
 **F165 · Le message de session perdue accuse les cookies tiers** [chrome-03]
 - **Emplacements :** client/src/lib/auth.tsx:92-97, :125 · client/src/lib/api.ts:43-45 · client/src/lib/session-refusee.spec.ts:27-33
 - **Condition :** 5
 - **Constat :** depuis le relais `/api`, le cookie est de première partie. Le diagnostic est faux et le spec le fige.
 - **Correction :** message exact, commentaires et spec corrigés.
+- **Fait le 2026-09-27 :** le message dit que le navigateur n'a pas gardé le cookie de session et invite à vérifier les cookies du site ; commentaires et spec corrigés. Test : `session-refusee.spec.ts`.
 
 ### Plateforme, sur site, relances
 

@@ -17,8 +17,13 @@ import type { AuthenticatedUser } from '../decorators/current-user.decorator';
  * exactement le « masquer sans refuser » que CLAUDE.md §4 interdit, et il
  * vivait ici depuis la phase 1a.
  *
- * GLOBAL, à dessein · un contrôle posé contrôleur par contrôleur serait oublié
- * au prochain module ajouté, et l'oubli ne se verrait pas.
+ * APPELÉE PAR `JwtAuthGuard`, JAMAIS EN GARDE GLOBALE (CLAUDE.md § 8, audit
+ * final F163) · Nest exécute les gardes globales AVANT celles du contrôleur,
+ * donc avant que `JwtAuthGuard` ne pose `request.user`. Posée en `APP_GUARD`,
+ * elle lisait un utilisateur absent et ne refusait rien. Appelée par la garde
+ * d'authentification, elle garde la propriété qu'on attendait d'une garde
+ * globale · aucune route authentifiée ne l'évite, et aucun contrôleur n'a à
+ * y penser.
  */
 @Injectable()
 export class MotDePasseAChangerGuard implements CanActivate {

@@ -3,6 +3,7 @@ import { json, urlencoded } from 'express';
 import helmet from 'helmet';
 import * as compression from 'compression';
 import * as cookieParser from 'cookie-parser';
+import { sautsDeConfiance } from './common/sauts-de-confiance';
 
 /**
  * Configuration commune de l'application (CORS, taille du corps,
@@ -37,11 +38,11 @@ export function configurerApplication(app: INestApplication) {
   //   tout : si une réponse de l'API se retrouvait interprétée comme du HTML
   //   (réflexion d'une erreur, mauvais Content-Type forcé), rien ne pourrait
   //   s'y exécuter.
-  // - `trust proxy` : derrière Cloud Run, l'adresse du client arrive dans
-  //   X-Forwarded-For. Sans ce réglage, toute limitation par adresse (le
-  //   ThrottlerGuard) compterait l'adresse du proxy Google, donc UNE seule
-  //   adresse pour tous les utilisateurs · le premier arrivé épuiserait le
-  //   quota du monde entier.
+  // - `trust proxy` : derrière Firebase Hosting et Cloud Run, l'adresse du
+  //   client arrive dans X-Forwarded-For. Sans le bon nombre de relais, toute
+  //   limitation par adresse (le ThrottlerGuard) compterait l'adresse d'un
+  //   relais Google, donc une poignée d'adresses pour tous les utilisateurs ·
+  //   voir sauts-de-confiance.ts.
   // - compression : les réponses JSON d'un dossier réel (plan de comptes,
   //   balance, grand livre) pèsent des centaines de Ko · les compresser
   //   change la vitesse perçue sur une connexion congolaise typique.
@@ -51,7 +52,9 @@ export function configurerApplication(app: INestApplication) {
       crossOriginResourcePolicy: { policy: 'cross-origin' },
     }),
   );
-  app.getHttpAdapter().getInstance().set('trust proxy', 1);
+  // Le nombre de relais de confiance vient d'une seule règle (sauts-de-confiance.ts) ·
+  // zéro vaut `false`, jamais « tout croire ».
+  app.getHttpAdapter().getInstance().set('trust proxy', sautsDeConfiance() || false);
   app.use(compression());
   // 12 Mo : l'import de balance et d'écritures envoie le fichier encodé en
   // base64 dans le corps JSON (voir ImportService), ce qui déborde largement

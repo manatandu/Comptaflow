@@ -29,15 +29,17 @@ const stockage = new AsyncLocalStorage<ActeurAudit>();
 
 /**
  * LA TRANSACTION DANS LAQUELLE L'ACTE SE FAIT, quand il naît dans l'une ·
- * aujourd'hui la seule création d'un dossier (`AuthService.register`).
+ * TOUTE transaction du serveur, qui passe par `transactionJournalisee`
+ * (transaction-journalisee.ts, audit final F159), la seule qui appelle ceci.
  *
  * Le journal s'écrit d'ordinaire par une connexion À PART (le client non
- * étendu). Pendant l'inscription, c'est faux deux fois : le dossier n'existe
- * pas encore pour cette connexion, si bien que chaque maillon qui le désigne
- * est refusé par la clé étrangère (`evenements_audit_tenantId_fkey`) et que
- * la création du dossier n'est JAMAIS journalisée ; et un maillon écrit à
- * part survit à une transaction annulée, décrivant un dossier qui n'a pas
- * existé. Écrit DANS la transaction, il naît et meurt avec l'acte.
+ * étendu). Dans une transaction, c'est faux · un maillon écrit à part survit
+ * à l'annulation, décrivant un acte qui n'a pas eu lieu, et chaque écriture
+ * auditée prend une seconde connexion pendant que la transaction tient la
+ * première. Pendant l'inscription, c'est faux une fois de plus : le dossier
+ * n'existe pas encore pour la connexion à part, et la clé étrangère
+ * (`evenements_audit_tenantId_fkey`) refusait chaque maillon de sa création.
+ * Écrit DANS la transaction, il naît et meurt avec l'acte.
  */
 export type ClientTransactionAudit = unknown;
 const transactions = new AsyncLocalStorage<ClientTransactionAudit>();

@@ -20,6 +20,7 @@ import {
   POSTES_INVESTISSEMENT_SYSCOHADA,
   POSTES_OPERATIONNELS_SYSCOHADA,
   POSTE_TRESORERIE_OUVERTURE_SYSCOHADA,
+  postesLisantEnMouvement,
   TOTAUX_FLUX_SYSCOHADA,
   TOUS_LES_POSTES_FLUX_SYSCOHADA,
   TermeFluxTresorerie,
@@ -697,5 +698,17 @@ describe('correspondance tableau des flux de trésorerie SYSCOHADA (AUDCIF Titre
         }
       }
     });
+  });
+});
+
+describe('postesLisantEnMouvement · ce que la consolidation lit de la table (audit final F152)', () => {
+  it('un prêt et un emprunt sont lus en mouvements', () => {
+    expect(postesLisantEnMouvement('27410000')).toEqual(['FH', 'FJ']);
+    expect(postesLisantEnMouvement('16200000')).toEqual(['FO', 'FQ']);
+  });
+
+  it('un compte lu en VARIATION de solde seulement ne l’est pas · son élimination corrige déjà la variation', () => {
+    expect(postesLisantEnMouvement('48500000')).toEqual([]);
+    expect(postesLisantEnMouvement('41400000')).toEqual([]);
   });
 });

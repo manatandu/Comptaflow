@@ -26,6 +26,7 @@ import { coursDeLaLigne, motifRefusLigneEnDevise, porteUneDevise } from './ligne
 import { designationLettrage, estTenueParUnLettrage } from '../lettrage/ligne-lettree';
 import { ouverteALaCloture } from '../lettrage/ouverte-a-la-cloture';
 import { ancienneteJours, brouillardInvalidable, enRetardDeCentralisation, JOURS_CENTRALISATION } from './centralisation-brouillard';
+import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 
 /**
  * Une ligne est au débit si son montant est porté du côté débit · quel que
@@ -1059,7 +1060,7 @@ export class EcritureService {
   async supprimer(tenantId: string, ecritureId: string, pourLeModule?: SuppressionPourLeModule) {
     await this.trouverEnBrouillard(tenantId, ecritureId);
     await this.verifierAucunModuleNeLaTient(tenantId, [ecritureId], 'se supprime', pourLeModule?.detenteur);
-    await this.prisma.$transaction(async (tx) => {
+    await transactionJournalisee(this.prisma, async (tx) => {
       // Le module libère son marqueur DANS la même transaction · jamais
       // avant (un échec laisserait l'écriture sans son opération), jamais
       // après (l'écriture partie, le marqueur interdirait encore la période).
@@ -1094,7 +1095,7 @@ export class EcritureService {
     ecritureId: string,
     liberer?: (tx: Prisma.TransactionClient) => Promise<unknown>,
   ) {
-    await this.prisma.$transaction(async (tx) => {
+    await transactionJournalisee(this.prisma, async (tx) => {
       const ecriture = await tx.ecriture.findFirst({ where: { id: ecritureId, tenantId }, select: { id: true } });
       if (!ecriture) return;
       if (liberer) await liberer(tx);

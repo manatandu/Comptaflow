@@ -88,7 +88,7 @@ function service(etat: Etat = {}) {
       create: jest.fn().mockImplementation((a: { data: Record<string, unknown> }) => Promise.resolve({ id: 'pv1', ...a.data })),
     },
     sousCommissionInventaire: { findFirst: jest.fn().mockResolvedValue(etat.sousCommission ?? null) },
-    $transaction: jest.fn().mockImplementation((ops: unknown[]) => Promise.all(ops)),
+    $transaction: jest.fn().mockImplementation((fn: (tx: unknown) => Promise<unknown>) => fn(prisma)),
   } as unknown as PrismaService;
   const ecritures = {
     balance: jest.fn().mockResolvedValue({ lignes: etat.balance ?? [], totaux: { debit: 0, credit: 0 } }),

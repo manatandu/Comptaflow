@@ -245,7 +245,8 @@ ligne à ligne ; sinon rien ne sort et la liasse est refusée. Les 181 à 183 et
 188 visent d'AUTRES personnes (entités liées) et ne sont pas des liaisons. Le
 même numéro ne veut rien dire en SYCEBNL (185 = dépôts reçus) : le contrôle
 n'existe que sous le SYSCOHADA. Cellule et combinaison prennent le référentiel
-(et, en SYSCOHADA, le système comptable) du siège, imposé aux deux portes
+(et, en SYSCOHADA, le système comptable ; en SYCEBNL, le jeu d'états, le SMT
+seul étant remplacé par les associations, audit final F153) du siège, imposé aux deux portes
 (`creerCellule`, `modifierGroupe`), et vérifié AVANT `register` quand la
 console crée une cellule (`verifierMere`, audit final F47) · refusée après, la
 mère laissait un dossier complet et inaccessible. Le canevas de trésorerie,
@@ -654,10 +655,12 @@ faite.
 
 DEUX REFUS DE MÉTHODE. Jamais un cours POSTÉRIEUR à la date de l'opération · ce
 serait convertir avec une information que personne n'avait alors, et le second
-jeu cesserait d'être historique pour devenir rétrospectif. Et une date SANS
-COURS arrête l'état, avec la liste des dates manquantes · prendre le cours le
-plus proche ou celui de la clôture produirait une balance plausible et fausse,
-que personne ne vérifie. Deux refus de contexte s'y ajoutent : aucune monnaie
+jeu cesserait d'être historique pour devenir rétrospectif. Le cours d'une
+écriture est donc celui EN VIGUEUR à sa date · le dernier saisi à cette date
+ou avant (`coursApplicable`), la mention imprimée le dit (audit final F155). Et
+une écriture ANTÉRIEURE à tout cours saisi arrête l'état, avec la liste de ses
+dates · prendre un cours postérieur ou celui de la clôture produirait une
+balance plausible et fausse, que personne ne vérifie. Deux refus de contexte s'y ajoutent : aucune monnaie
 fonctionnelle nommée, et une monnaie fonctionnelle égale à la monnaie de tenue,
 où le second jeu n'aurait rien à convertir.
 
@@ -5022,6 +5025,10 @@ saisies. (2) POSÉE SUR LE CLIENT PRISMA, entre le cloisonnement et l'audit ·
 huit fichiers écrivent des écritures (saisie, imports, clôture, affectation,
 immobilisations, paie, TVA, groupe) et aucun ne peut l'oublier. Une
 modification relit le journal des écritures visées, le filtre ne le porte pas.
+LES LIGNES AUSSI (audit final F156) · la réimputation au brouillard change le
+compte d'une ligne en place, sans toucher l'écriture · toute écriture sur une
+ligne qui touche la saisie relit le journal de son écriture, le lettrage et le
+pointage passant.
 (3) L'ADMINISTRATEUR N'EST JAMAIS RESTREINT, ni à la définition ni au contrôle
 (l'intercepteur d'audit pose `journauxAutorises` à null pour lui). (4) UNE LISTE
 VIDE FERME TOUTE SAISIE · un utilisateur qui consulte sans saisir, et c'est dit.
@@ -6310,6 +6317,18 @@ avant de l'écrire ; un spec (`compte-seed-syscohada.spec.ts`) le contrôle.
   navigateurs de l'iPhone le jettent · la connexion « réussissait » et la
   session était perdue aussitôt. Le nom `__session` est imposé par Firebase,
   qui retire tout autre cookie des requêtes relayées · ne pas le renommer.
+  **UNE SESSION PERDUE SE RECONNAÎT** (audit final F164) · `JwtAuthGuard`
+  rend un 401 en français marqué `session: 'perdue'`, que l'interface lit
+  (`lib/session-perdue.ts`) pour fermer la session et ramener à la connexion
+  avec le motif. Un 401 sans ce drapeau (mot de passe actuel faux) ne
+  déconnecte personne.
+- **L'ADRESSE DU CLIENT EST `requete.ip`, ET RIEN D'AUTRE** (audit final
+  F160). La tête de `X-Forwarded-For` s'écrit par le client. Le nombre de
+  relais de confiance vient de `common/sauts-de-confiance.ts` · DEUX en ligne
+  (Firebase Hosting, puis Cloud Run), AUCUN sur site, `SAUTS_PROXY_CONFIANCE`
+  prime. Avec un seul, le journal d'audit et la limitation de débit voyaient
+  l'adresse du relais Firebase pour tout le monde. Un appel direct à
+  `*.run.app` reste possible, et se ferme dans l'infrastructure.
 - **Auto-inscription fermée** · `POST /auth/register` refuse sauf si
   `INSCRIPTION_PUBLIQUE=true`. Un dossier naît depuis la console VMG ou par le
   siège d'un groupe. `AuthService.register` reste le pipeline commun de toutes
@@ -6373,6 +6392,11 @@ avant de l'écrire ; un spec (`compte-seed-syscohada.spec.ts`) le contrôle.
   déjà l'entrée, et un téléphone perdu avec ses codes fermerait le compte pour
   de bon. Secret, pas et empreintes n'entrent ni au journal d'audit ni à la
   restitution ; la date d'activation, si.
+- **Le dernier administrateur actif ne se retire pas** (audit final F157) ·
+  rétrogradé ou désactivé, il laissait un dossier que personne ne gère, et
+  la console, qui ne réinitialise que les administrateurs, ne le rattrapait
+  pas. Décompte et écriture se font sous un verrou par dossier, dans la
+  transaction.
 - **Verrouillage par compte** temporaire et croissant (`src/modules/auth/
   verrouillage.ts`), vérifié AVANT bcrypt. Jamais définitif : un verrou
   définitif se retourne en refus de service.
@@ -6445,7 +6469,13 @@ avant de l'écrire ; un spec (`compte-seed-syscohada.spec.ts`) le contrôle.
   création en est le rang 1), et `register` sème AU NOM du dossier qui naît ·
   depuis la console, la garde de cloisonnement tenait sinon le semis pour une
   écriture chez un voisin, et la création d'un cabinet échouait (reproduit sur
-  une base réelle avant correction).
+  une base réelle avant correction). **TOUTE TRANSACTION PASSE PAR
+  `transactionJournalisee`** (`common/audit/transaction-journalisee.ts`, audit
+  final F159) · écrit par la connexion à part, le maillon d'un acte annulé
+  survivait, et chaque écriture auditée prenait une seconde connexion pendant
+  que la transaction tenait la première. Un test de source refuse un
+  `$transaction(` écrit ailleurs, forme TABLEAU comprise (elle n'a pas de
+  contexte asynchrone).
 
 - **Le dossier de l'éditeur ne se coupe jamais** · `TypeLicence.PROPRIETAIRE`.
   C'est un verrou de sûreté avant d'être une formule commerciale : VMG
@@ -6462,7 +6492,9 @@ avant de l'écrire ; un spec (`compte-seed-syscohada.spec.ts`) le contrôle.
   geste que le court-circuit ne peut pas absorber, puisqu'il le retire. Et le
   type se pose par un geste NOMMÉ (`designerDossierEditeur`), une fois, tous
   cabinets confondus · pas par un choix dans une liste déroulante à côté
-  d'« Abonnement ».
+  d'« Abonnement ». Aucune porte de création ne le donne · `register`, pipeline
+  commun de la console, du siège et de l'inscription, le refuse avant toute
+  écriture (audit final F161).
 
 ## 8 bis. Volumes et plafonds de fenêtre
 

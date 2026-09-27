@@ -3,6 +3,7 @@ import { PrismaService } from '../../common/prisma.service';
 import { normaliserIban } from '../banques/banques';
 import { motifRefusRibTiers } from './ribs-tiers';
 import { RibTiersDto } from './dto/ribs-tiers.dto';
+import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 
 const nul = (v: string | undefined) => (v === undefined || v.trim() === '' ? null : v.trim());
 
@@ -67,7 +68,7 @@ export class RibsTiersService {
     const donnees = this.donnees(dto);
     const existants = await this.prisma.ribTiers.count({ where: { tenantId, tiersId } });
     const principal = existants === 0 || dto.estPrincipal === true;
-    return this.prisma.$transaction(async (tx) => {
+    return transactionJournalisee(this.prisma, async (tx) => {
       if (principal) await tx.ribTiers.updateMany({ where: { tenantId, tiersId }, data: { estPrincipal: false } });
       return tx.ribTiers.create({ data: { ...donnees, tenantId, tiersId, estPrincipal: principal } });
     });
@@ -76,7 +77,7 @@ export class RibsTiersService {
   async modifier(tenantId: string, id: string, dto: RibTiersDto) {
     const rib = await this.trouver(tenantId, id);
     const donnees = this.donnees(dto);
-    return this.prisma.$transaction(async (tx) => {
+    return transactionJournalisee(this.prisma, async (tx) => {
       if (dto.estPrincipal === true && !rib.estPrincipal) {
         await tx.ribTiers.updateMany({ where: { tenantId, tiersId: rib.tiersId }, data: { estPrincipal: false } });
       }

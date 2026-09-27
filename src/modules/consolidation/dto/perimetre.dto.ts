@@ -106,6 +106,25 @@ export class LienParticipationDto {
   pctCapital!: number;
 }
 
+/**
+ * Modifier les pourcentages d'une participation (audit final F150) · le refus
+ * d'un doublon invitait à « modifier » sans route pour le faire, et retirer
+ * puis ressaisir emportait l'acquisition et les écarts d'évaluation.
+ */
+export class ModifierLienParticipationDto {
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
+  @Max(100)
+  pctDroitsVote?: number;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
+  @Max(100)
+  pctCapital?: number;
+}
+
 export class FaitsConsolidationDto {
   @IsUUID()
   exerciceId!: string;

@@ -327,6 +327,32 @@ export class PerimetreService {
     });
   }
 
+  /**
+   * MODIFIER UNE PARTICIPATION (audit final F150) · rejouée par l'analyse du
+   * périmètre, comme l'ajout · un total au-delà de 100 % ou une participation
+   * croisée serait sinon accepté en base et ferait tomber la lecture du
+   * périmètre entier. L'acquisition et les écarts d'évaluation, portés par la
+   * participation, restent · les ressaisir après un retrait les perdait.
+   */
+  async modifierLien(tenantId: string, id: string, dto: { pctDroitsVote?: number; pctCapital?: number }) {
+    const actuel = await this.prisma.lienParticipationConsolidation.findFirst({ where: { id, tenantId } });
+    if (!actuel) throw new NotFoundException('Participation introuvable dans ce dossier.');
+    const { tenant, ex, entites, liens } = await this.charger(tenantId, actuel.exerciceId);
+    const rejoues: LienStocke[] = liens.map((l) =>
+      l.id === id
+        ? { ...l, pctDroitsVote: dto.pctDroitsVote ?? l.pctDroitsVote, pctCapital: dto.pctCapital ?? l.pctCapital }
+        : l,
+    );
+    const moteur = this.versMoteur(tenant, ex.dateFin, entites, rejoues);
+    const nomDe = (x: string) => moteur.entites.find((e) => e.id === x)?.nom ?? x;
+    this.verifierTotaux(moteur.liens, nomDe);
+    this.jouer(moteur.entites, moteur.liens);
+    return this.prisma.lienParticipationConsolidation.update({
+      where: { id },
+      data: { pctDroitsVote: dto.pctDroitsVote, pctCapital: dto.pctCapital },
+    });
+  }
+
   async supprimerLien(tenantId: string, id: string) {
     const l = await this.prisma.lienParticipationConsolidation.findFirst({ where: { id, tenantId }, select: { id: true } });
     if (!l) throw new NotFoundException('Participation introuvable dans ce dossier.');

@@ -30,6 +30,7 @@ import {
   TRESORERIES_CANEVAS,
 } from './canevas-tresorerie';
 import { licenceDeCellule } from '../licence/licence-de-cellule';
+import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 
 /**
  * Une ligne RETIRÉE de l'agrégat parce qu'elle est interne au groupe · le
@@ -174,7 +175,7 @@ export class GroupeService {
   private async assurerDossierCombinaison(tenantId: string): Promise<string> {
     const mere = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
-      select: { nom: true, dossierCombinaisonId: true, referentiel: true, systemeComptableSyscohada: true },
+      select: { nom: true, dossierCombinaisonId: true, referentiel: true, systemeComptableSyscohada: true, jeuEtatsFinanciersSycebnl: true },
     });
     // LE DOSSIER DE COMBINAISON PORTE LE RÉFÉRENTIEL DU SIÈGE · c'est lui que
     // `ExportService.liasseCompleteExcel` lit pour choisir ses moteurs. Un
@@ -199,8 +200,11 @@ export class GroupeService {
 
   /**
    * Référentiel et système du dossier de combinaison, tirés du siège.
-   *  · SYCEBNL · Système normal, jeu ASSOCIATIONS (art. 6 SYCEBNL · le seuil
-   *    s'apprécie par entité), quel que soit le jeu des cellules ;
+   *  · SYCEBNL · le JEU DU SIÈGE (audit final F153) · un siège « projets de
+   *    développement » recevait une liasse au modèle des associations, que son
+   *    bailleur ne lit pas. Seul le Système minimal de trésorerie est remplacé
+   *    par le Système normal des associations · le seuil de l'art. 6 s'apprécie
+   *    pour l'ENTITÉ, cellules comprises, et le groupe réuni le dépasse ;
    *  · SYSCOHADA · le système du siège. Siège et succursales sont UNE entité
    *    (fiche du COMPTE 18 : « toute division de l'entité disposant d'une
    *    comptabilité autonome ») · son système est celui de l'art. 11 de
@@ -256,6 +260,7 @@ export class GroupeService {
   static caracteresCombinaison(mere: {
     referentiel: Referentiel;
     systemeComptableSyscohada: SystemeComptableSyscohada | null;
+    jeuEtatsFinanciersSycebnl?: JeuEtatsFinanciersSycebnl | null;
   }) {
     if (mere.referentiel === Referentiel.SYSCOHADA) {
       return {
@@ -265,7 +270,10 @@ export class GroupeService {
     }
     return {
       referentiel: Referentiel.SYCEBNL,
-      jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS,
+      jeuEtatsFinanciersSycebnl:
+        mere.jeuEtatsFinanciersSycebnl === JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT
+          ? JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT
+          : JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS,
       systemeComptableSyscohada: null,
     };
   }
@@ -1707,7 +1715,7 @@ export class GroupeService {
       });
     }
 
-    await this.prisma.$transaction(async (tx) => {
+    await transactionJournalisee(this.prisma, async (tx) => {
       for (const { l, lignes } of piecesCanevas) {
         // Le canevas alimente les journaux de trésorerie de la cellule · ses
         // pièces se numérotent comme celles saisies à la main dans ces mêmes

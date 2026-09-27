@@ -16,6 +16,7 @@ import {
   ModifierDonationDto,
   SignerDonationDto,
 } from './dto/donation.dto';
+import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 
 /** Tolérance de comparaison sur des montants en centimes (Decimal(18,2)). */
 const EPSILON = 0.005;
@@ -133,7 +134,7 @@ export class DonationService {
     const TENTATIVES = 5;
     for (let essai = 1; essai <= TENTATIVES; essai++) {
       try {
-        const cree = await this.prisma.$transaction(async (tx) => {
+        const cree = await transactionJournalisee(this.prisma, async (tx) => {
           const dernier = await tx.donation.findFirst({
             where: { tenantId },
             orderBy: { numero: 'desc' },

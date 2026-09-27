@@ -29,7 +29,7 @@ function monter() {
       findMany: jest.fn(async ({ where }: { where: { id: { in: string[] } } }) => lignes.filter((l) => where.id.in.includes(l.id))),
       updateMany,
     },
-    $transaction: jest.fn(async (ops: unknown[]) => ops),
+    $transaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma)),
   } as unknown as PrismaService;
   return { service: new RapprochementService(prisma), updateMany, releve, lignes };
 }

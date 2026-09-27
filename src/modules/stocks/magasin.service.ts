@@ -26,6 +26,7 @@ import {
   EnregistrerMouvementStockDto,
   EnregistrerRegularisationInventaireDto,
 } from './dto/magasin.dto';
+import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 
 /**
  * LE MAGASIN · la fiche de stock, article par article, et la confrontation au
@@ -608,7 +609,7 @@ export class MagasinService {
       ensemble ou pas du tout.
     */
     try {
-      await this.prisma.$transaction(async (tx) => {
+      await transactionJournalisee(this.prisma, async (tx) => {
         for (const d of etat.confrontation!.differences) {
           const dernier = await tx.mouvementStock.aggregate({
             where: { tenantId, articleId: d.articleId },

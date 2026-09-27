@@ -44,9 +44,15 @@ import { MONNAIE_DE_TENUE } from '../../common/monnaie-de-tenue';
  * un fait : les deux côtés de l'opération n'ont pas la même origine. L'écart
  * est porté sur sa propre ligne, nommé, jamais absorbé dans un compte.
  *
- * ET LE MODULE REFUSE PLUTÔT QUE D'INVENTER UN COURS. Une date sans cours
- * connu arrête l'état et la liste des dates manquantes est rendue. Prendre le
- * cours le plus proche, ou celui de la clôture, produirait une balance
+ * LE COURS D'UNE ÉCRITURE EST CELUI EN VIGUEUR À SA DATE · le dernier saisi à
+ * cette date ou avant (`coursApplicable`), jamais un postérieur. Une règle,
+ * trois endroits qui la disent pareil (audit final F155) · ce commentaire, la
+ * mention imprimée et CLAUDE.md, qui parlaient l'un de « SA date », l'autre
+ * d'une « date sans cours » qui arrête l'état.
+ *
+ * ET LE MODULE REFUSE PLUTÔT QUE D'INVENTER UN COURS. Une écriture ANTÉRIEURE
+ * à tout cours saisi arrête l'état, et la liste de ses dates est rendue.
+ * Prendre un cours postérieur, ou celui de la clôture, produirait une balance
  * plausible et fausse · exactement le défaut que le § 10 bis interdit.
  */
 /**
@@ -155,7 +161,7 @@ export class BalanceFonctionnelleService {
   static readonly MENTION_SANS_VALEUR_LEGALE =
     "Document de gestion · SANS VALEUR LÉGALE. La comptabilité de ce dossier est tenue et arrêtée en " +
     `${MONNAIE_DE_TENUE} (loi n° 23/053, art. 141, 1° ; AUDCIF, art. 17, 1°), et c'est la balance en ` +
-    `${MONNAIE_DE_TENUE} qui fait foi. Cet état convertit chaque écriture de l'exercice au cours de SA date pour ` +
+    `${MONNAIE_DE_TENUE} qui fait foi. Cet état convertit chaque écriture de l'exercice au cours en vigueur à sa date (le dernier saisi à cette date ou avant, jamais un postérieur) pour ` +
     "rendre compte dans la monnaie où l'entité vit réellement, et reprend à l'ouverture la clôture du même jeu " +
     "pour l'exercice précédent. Aucun texte lu ne régit ce second jeu.";
 
@@ -335,7 +341,7 @@ export class BalanceFonctionnelleService {
       throw new BadRequestException(
         `Aucun cours ${fonctionnelle} connu à ${distinctes.length} date(s) d'écriture ` +
           `(${distinctes.slice(0, 10).join(', ')}${distinctes.length > 10 ? '…' : ''}). ` +
-          "L'état s'arrête ici plutôt que de prendre le cours le plus proche ou celui de la clôture · une " +
+          "Le cours retenu est le dernier saisi à la date de l'écriture ou avant · l'état s'arrête ici plutôt que de prendre un cours postérieur ou celui de la clôture · une " +
           'balance convertie avec un cours inventé est plausible et fausse, et personne ne la vérifie.',
       );
     }

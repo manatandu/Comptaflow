@@ -28,6 +28,7 @@ import {
   ProvisionChangeDto,
   ResultatInterneDto,
 } from './dto/perimetre.dto';
+import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 
 const n = (v: unknown) => (v == null ? null : Number(v));
 const diff = (d: number | null, c: number | null) => (d === null || c === null ? null : d - c);
@@ -159,9 +160,9 @@ export class CumulService {
     if (Math.abs(ecart) > 0.005) {
       throw new BadRequestException(`La balance n’est pas équilibrée (écart de ${ecart}) · rien n’est enregistré.`);
     }
-    await this.prisma.$transaction([
-      this.prisma.ligneBalanceConsolidation.deleteMany({ where: { tenantId, entiteId } }),
-      this.prisma.ligneBalanceConsolidation.createMany({
+    await transactionJournalisee(this.prisma, async (tx) => {
+      await tx.ligneBalanceConsolidation.deleteMany({ where: { tenantId, entiteId } });
+      await tx.ligneBalanceConsolidation.createMany({
         data: [...soldes.entries()].map(([numero, l]) => ({
           tenantId,
           entiteId,
@@ -171,12 +172,12 @@ export class CumulService {
           mouvementDebit: l.mouvementDebit,
           mouvementCredit: l.mouvementCredit,
         })),
-      }),
-      this.prisma.entitePerimetreConsolidation.update({
+      });
+      await tx.entitePerimetreConsolidation.update({
         where: { id: entiteId },
         data: { balanceImporteeLe: new Date(), fichierBalance: dto.nomFichier },
-      }),
-    ]);
+      });
+    });
     return { lignes: soldes.size, avecMouvements };
   }
 
@@ -610,7 +611,7 @@ export class CumulService {
           { presentation, entites: monnaies },
         ),
         reserves: [
-          'Les balances des filiales sont réputées RETRAITÉES aux règles du groupe (D4C, ch. XII-3) · OmegaX ne fait ni l’homogénéisation ni les éliminations de nature fiscale.',
+          'Les balances des filiales sont réputées RETRAITÉES aux règles d’évaluation et de présentation du groupe (D4C, ch. XII-3) · OmegaX ne fait pas l’homogénéisation. Les éliminations de nature fiscale, elles, sont jouées ici (ci-dessous).',
           'Écarts d’évaluation (art. 82, ch. XII-6) · DÉCLARÉS élément par élément, ils passent en priorité et l’écart d’acquisition n’est que le reste. Chacun porte son impôt différé, au taux déclaré de la détenue · jamais l’écart d’acquisition (ch. XII-3 § 3).',
           'Impôts différés (art. 92) · écarts d’évaluation, marges internes éliminées (au taux de la vendeuse) et impôts différés DÉCLARÉS des comptes individuels. Actif et passif ne sont pas compensés, le D4C n’en disant rien, et aucune actualisation n’est faite (ch. XII-3 § 3).',
           'Éliminations de nature fiscale (art. 86, 3°, D4C ch. XII-3 § 2) · provisions réglementées (15) contre-passées, l’exercice au résultat (851 et 861) et l’antérieur aux réserves, avec leur impôt différé passif. Écarts de conversion individuels (478, 479) retraités sur DÉCLARATION de la position N-1 et de la provision pour pertes de change · leur impôt différé éventuel se déclare avec ceux de l’entité. Les subventions d’investissement restent sur leur ligne, hors capitaux propres (ch. XII-8 § 2).',

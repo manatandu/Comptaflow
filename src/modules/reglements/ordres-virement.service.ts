@@ -7,6 +7,7 @@ import {
   motifRefusDeviseDonneur,
   motifRefusImpression,
 } from '../tiers/ribs-tiers';
+import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 
 /** Ce que l'ordre recopie · le donneur (le RIB du journal) et un bénéficiaire par compte réglé. */
 export interface PreparationOrdre {
@@ -105,7 +106,7 @@ export class OrdresVirementService {
   async creer(tenantId: string, email: string, journalId: string, date: string, preparation: PreparationOrdre, lignes: LigneAOrdonner[]) {
     const total = round2(lignes.reduce((s, l) => s + l.montant, 0));
     const creer = () =>
-      this.prisma.$transaction(async (tx) => {
+      transactionJournalisee(this.prisma, async (tx) => {
         const dernier = await tx.ordreVirement.aggregate({ where: { tenantId }, _max: { numero: true } });
         return tx.ordreVirement.create({
           data: {
@@ -201,13 +202,13 @@ export class OrdresVirementService {
     const ordre = await this.detail(tenantId, id);
     const refus = motifRefusAnnulation(ordre.statut, motif);
     if (refus) throw new BadRequestException(refus);
-    await this.prisma.$transaction([
-      this.prisma.ligneOrdreVirement.updateMany({ where: { tenantId, ordreId: ordre.id }, data: { ecritureId: null } }),
-      this.prisma.ordreVirement.update({
+    await transactionJournalisee(this.prisma, async (tx) => {
+      await tx.ligneOrdreVirement.updateMany({ where: { tenantId, ordreId: ordre.id }, data: { ecritureId: null } });
+      await tx.ordreVirement.update({
         where: { id: ordre.id },
         data: { statut: StatutOrdreVirement.ANNULE, annuleLe: new Date(), annulePar: email, motifAnnulation: motif.trim() },
-      }),
-    ]);
+      });
+    });
     return this.detail(tenantId, id);
   }
 }

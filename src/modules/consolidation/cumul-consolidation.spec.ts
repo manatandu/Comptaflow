@@ -153,6 +153,22 @@ describe('comptes réciproques (art. 86, 6°)', () => {
     expect(ligne(avec, '70100000')).toBe(ligne(sans, '70100000') + 300);
   });
 
+  it('F152 · un prêt intragroupe refuse le tableau des flux · ses mouvements bruts y resteraient', () => {
+    const Mp = ent('M', 'IG', 100, b([['26100000', 800], ['27410000', 100], ['24100000', 1100], ['10100000', -1000], ['11800000', -500], ['70100000', -700], ['60100000', 200]]), true);
+    const Fp = ent('F', 'IG', 80, b([['24500000', 2100], ['16200000', -100], ['10100000', -1000], ['11800000', -600], ['70100000', -1000], ['60100000', 600]]));
+    const pret: OperationReciproque = { entiteAId: 'M', compteA: '27410000', entiteBId: 'F', compteB: '16200000', montant: 100, libelle: 'Prêt M à F' };
+    const r = cumulerConsolidation(EX, [Mp, Fp], [acq('M', 'F', 80, 800, 900)], [pret]);
+    expect(ligne(r, '27410000')).toBe(0);
+    const obstacles = r.obstaclesFlux.join(' ');
+    expect(obstacles).toContain('« Prêt M à F » sur le compte 27410000 · le tableau des flux le lit en mouvements (FH, FJ)');
+    expect(obstacles).toContain('sur le compte 16200000 · le tableau des flux le lit en mouvements (FO, FQ)');
+  });
+
+  it('F152 · une créance commerciale réciproque ne refuse rien · le tableau lit sa variation, que le solde éliminé corrige', () => {
+    const r = cumulerConsolidation(EX, [Mr, Fr], [acq('M', 'F', 80, 800, 900)], [recip]);
+    expect(r.obstaclesFlux.join(' ')).not.toContain('Créance M sur F');
+  });
+
   it('deux comptes de même sens, ou un montant qui excède un solde, sont refusés', () => {
     expect(() => cumulerConsolidation(EX, [Mr, Fr], [acq('M', 'F', 80, 800, 900)], [{ ...recip, compteB: '24500000' }])).toThrow(/sens contraire/);
     expect(() => cumulerConsolidation(EX, [Mr, Fr], [acq('M', 'F', 80, 800, 900)], [{ ...recip, montant: 150 }])).toThrow(/confirmation de solde/);

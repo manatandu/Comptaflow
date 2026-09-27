@@ -1,5 +1,8 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 
+export const MOTIF_CONSOLE_SANS_DOUBLE_AUTH =
+  'La console exige la double authentification · activez-la dans Fichier > Mon compte…, puis revenez.';
+
 /**
  * Réservé à l'OPÉRATEUR DE PLATEFORME : l'exploitant du logiciel (le
  * cabinet), qui gère les cabinets clients et leurs licences depuis la
@@ -29,9 +32,11 @@ export class OperateurPlateformeGuard implements CanActivate {
     // compte qui l'active a fermé ses autres sessions en le faisant : toute
     // session vivante a donc présenté le second facteur à la connexion.
     if (request.user?.doubleAuthentificationActive !== true) {
-      throw new ForbiddenException(
-        'La console exige la double authentification · activez-la sur votre ligne dans la fenêtre Utilisateurs, puis revenez.',
-      );
+      // L'activation vit dans Fichier > Mon compte…, ouvert à tous les rôles
+      // (audit de l'interface F3). La fenêtre Utilisateurs n'en montre que
+      // l'état, et l'opérateur qui y cherchait le bouton ne le trouvait pas
+      // (audit final F162).
+      throw new ForbiddenException(MOTIF_CONSOLE_SANS_DOUBLE_AUTH);
     }
     return true;
   }

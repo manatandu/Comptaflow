@@ -21,11 +21,16 @@ import { LoginDto } from './dto/login.dto';
 import { Referentiel, RoleUtilisateur, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
 import { horsCloisonnement } from '../../common/cloisonnement/contexte-cloisonnement';
 import { normaliserCourriel } from '../../common/courriel';
-import { journaliserDansTransaction, dansContexteAudit, acteurCourant, ACTEUR_SYSTEME } from '../../common/audit/contexte-audit';
+import { dansContexteAudit, acteurCourant, ACTEUR_SYSTEME } from '../../common/audit/contexte-audit';
+import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 import { instantDeverrouillage, messageVerrou } from './verrouillage';
 import { genererCodesSecours, genererSecret, secondFacteurAccepte, uriOtpauth, verifierCodeTotp } from './double-authentification';
 
 const SALT_ROUNDS = 12;
+
+export const MOTIF_LICENCE_EDITEUR_A_LA_CREATION =
+  "La licence de l'éditeur ne s'attribue pas à la création d'un dossier · elle se pose une seule fois, par le geste " +
+  "« Désigner comme dossier de l'éditeur… » de la console.";
 
 @Injectable()
 export class AuthService {
@@ -64,6 +69,16 @@ export class AuthService {
    * ouverte pendant ce temps ne servirait à rien.
    */
   async register(dto: RegisterDto) {
+    // LA LICENCE DE L'ÉDITEUR NE NAÎT À AUCUNE PORTE DE CRÉATION (audit final
+    // F161) · elle se pose par un geste nommé, une fois, sur un dossier qui
+    // existe (`PlateformeService.designerDossierEditeur`). Acceptée ici, la
+    // console, l'inscription publique ou le siège feraient naître un second
+    // dossier incoupable, que plus rien ne retire ensuite, puisque la console
+    // refuse de toucher à cette licence. Refusée AVANT toute écriture · le
+    // dossier ne naît pas.
+    if (dto.typeLicence === TypeLicence.PROPRIETAIRE) {
+      throw new BadRequestException(MOTIF_LICENCE_EDITEUR_A_LA_CREATION);
+    }
     // Normalisée ici aussi, et pas seulement au DTO · le siège et la console
     // appellent `register` sans passer par la porte HTTP (audit final F43).
     dto = { ...dto, email: normaliserCourriel(dto.email) };
@@ -98,11 +113,12 @@ export class AuthService {
     // secondes par défaut de Prisma. Une inscription est un geste rare : la
     // tenir trente secondes ne coûte rien, et échouer à mi-chemin coûterait
     // un dossier inutilisable.
-    const { tenant, user, exercice } = await this.prisma.$transaction(
+    const { tenant, user, exercice } = await transactionJournalisee(
+      this.prisma,
       // LE JOURNAL D'AUDIT S'ÉCRIT DANS CETTE TRANSACTION · écrit à part, il
       // désignait un dossier que sa connexion ne voyait pas encore, et la clé
       // étrangère refusait chaque maillon de la création (contexte-audit.ts).
-      (tx) => journaliserDansTransaction(tx, () =>
+      (tx) =>
         // LE DOSSIER QUI NAÎT EST LE DOSSIER DE L'ACTE, DÈS SA CRÉATION · depuis
         // la console ou le siège, la session porte un AUTRE dossier, et la
         // garde de cloisonnement tenait chaque écriture du semis pour une
@@ -124,8 +140,9 @@ export class AuthService {
         // annexes du Titre IX ch. 6, servis par leur PROPRE contrôleur
         // (etats-financiers-syscohada). Chaque jeu reste cloisonné sur son
         // référentiel par @ReferentielsAutorises : les deux ne partagent aucun
-        // poste, aucun compte, aucun libellé. Restent propres au SYCEBNL les
-        // documents obligatoires et les fenêtres bâties sur ses textes.
+        // poste, aucun compte, aucun libellé. Les documents obligatoires sont
+        // COMMUNS, chacun lu dans son texte (CLAUDE.md § 6) ; restent propres
+        // au SYCEBNL les fenêtres bâties sur ses seuls textes.
         const tenant = await this.tenantService.creerTenant({
           id: idDossier,
           nom: dto.nomEntite,
@@ -191,7 +208,7 @@ export class AuthService {
 
           return { tenant, user, exercice };
         }
-      })),
+      }),
       { maxWait: 10_000, timeout: 30_000 },
     );
 

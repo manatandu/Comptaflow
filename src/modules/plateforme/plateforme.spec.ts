@@ -3,7 +3,7 @@ import { ExecutionContext } from '@nestjs/common';
 import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { Referentiel, StatutLicence, TypeLicence } from '@prisma/client';
-import { OperateurPlateformeGuard } from './operateur-plateforme.guard';
+import { MOTIF_CONSOLE_SANS_DOUBLE_AUTH, OperateurPlateformeGuard } from './operateur-plateforme.guard';
 import { PlateformeService } from './plateforme.service';
 import { ModifierLicenceDto } from './dto/plateforme.dto';
 
@@ -42,7 +42,9 @@ describe('OperateurPlateformeGuard', () => {
   });
 
   it('refuse l’opérateur sans double authentification, et le dit', () => {
-    expect(() => garde.canActivate(contexte({ userId: 'u1', estOperateurPlateforme: true }))).toThrow(/double authentification/);
+    // Le message renvoie là où l'activation se fait (audit final F162).
+    expect(() => garde.canActivate(contexte({ userId: 'u1', estOperateurPlateforme: true }))).toThrow(MOTIF_CONSOLE_SANS_DOUBLE_AUTH);
+    expect(MOTIF_CONSOLE_SANS_DOUBLE_AUTH).toContain('Fichier > Mon compte…');
     expect(() => garde.canActivate(contexte({ userId: 'u1', estOperateurPlateforme: true, doubleAuthentificationActive: false }))).toThrow(ForbiddenException);
   });
 });

@@ -68,8 +68,8 @@ import { SurSiteModule } from './modules/sur-site/sur-site.module';
   imports: [
     JournalAuditModule,
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
-    // LIMITATION DE DÉBIT · par adresse (X-Forwarded-For, voir `trust proxy`
-    // dans bootstrap.ts). 300 requêtes/min laissent passer n'importe quel
+    // LIMITATION DE DÉBIT · par adresse (`requete.ip`, réglée par le nombre de
+    // relais de confiance, voir common/sauts-de-confiance.ts). 300 requêtes/min laissent passer n'importe quel
     // usage réel du logiciel (l'ouverture d'un dossier en déclenche une
     // vingtaine), et coupent un script qui martèle l'API. Les routes
     // d'identification portent en plus leur propre limite serrée

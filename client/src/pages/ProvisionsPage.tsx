@@ -5,6 +5,7 @@ import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { Aide } from '../components/chrome/Aide';
 import { PortailModale } from '../components/PortailModale';
 import type { Compte, Exercice, ProvisionRisqueCharge, TableauVariationProvisions } from '../lib/types';
+import { useExercice } from '../lib/exercice';
 
 /**
  * REGISTRE DES PROVISIONS POUR RISQUES ET CHARGES.
@@ -205,10 +206,18 @@ export function ProvisionsPage() {
   const [statutCible, setStatutCible] = useState<{ ligne: ProvisionRisqueCharge; statut: string; motif: string } | null>(null);
   const [erreurStatut, setErreurStatut] = useState<string | null>(null);
 
+  // L'EXERCICE DU CONTEXTE (audit final F154) · le plus récent n'est qu'un
+  // repli, voir `resoudreExercice`.
+  const { exerciceCourant } = useExercice();
+
+  useEffect(() => {
+    if (exerciceCourant) setExerciceId(exerciceCourant.id);
+  }, [exerciceCourant?.id]);
+
   useEffect(() => {
     api.get<Exercice[]>('/exercices').then((l) => {
       setExercices(l);
-      if (l.length > 0) setExerciceId(l[0].id);
+      if (l.length > 0) setExerciceId((choisi) => choisi || l[0].id);
     }, (e: Error) => setErreur(e.message));
   }, []);
 

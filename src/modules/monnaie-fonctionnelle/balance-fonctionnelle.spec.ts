@@ -48,6 +48,14 @@ describe('le cours applicable · le dernier connu à la date ou avant', () => {
   it('rend null quand aucun cours n’est connu', () => {
     expect(BalanceFonctionnelleService.coursApplicable([], j('2026-06-01'))).toBeNull();
   });
+
+  it('F155 · la mention imprimée dit la même règle que le calcul', () => {
+    // « au cours de SA date » laissait croire à un cours du jour exact, quand
+    // le calcul retient le dernier saisi à la date ou avant.
+    expect(BalanceFonctionnelleService.MENTION_SANS_VALEUR_LEGALE).toContain(
+      'au cours en vigueur à sa date (le dernier saisi à cette date ou avant, jamais un postérieur)',
+    );
+  });
 });
 
 describe('la conversion d’une ligne', () => {

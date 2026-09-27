@@ -98,7 +98,7 @@ export function AuthPage() {
   const [code, setCode] = useState('');
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
-  const { seConnecter } = useAuth();
+  const { seConnecter, motifDeconnexion } = useAuth();
   const navigate = useNavigate();
 
   /** Choisir un dossier récent · cela ne change plus d'écran, cela remplit. */
@@ -295,6 +295,11 @@ export function AuthPage() {
             </label>
           )}
 
+          {!erreur && motifDeconnexion && (
+            <div role="status" className="text-[11.5px] text-text bg-sel-soft border border-sel/30 rounded-[4px] px-3 py-2">
+              {motifDeconnexion}
+            </div>
+          )}
           {erreur && (
             <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 rounded-[4px] px-3 py-2">
               {erreur}

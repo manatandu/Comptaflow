@@ -1,9 +1,10 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { api, ApiError, setCsrf } from './api';
 import { memoriserDossier } from './dossiersRecents';
 import type { Exercice, JeuEtatsFinanciersSycebnl, SystemeComptableSyscohada, Referentiel, RoleUtilisateur } from './types';
 import { oublierPrechargement, prechargerExercices } from './prechargement';
 import { peutEcrirePourRole, peutValiderPourRole } from './roles-cantonnes';
+import { surSessionPerdue } from './session-perdue';
 
 interface MeResponse {
   id: string;
@@ -76,6 +77,13 @@ interface AuthContextValue {
   /** Relit /auth/me · à appeler après avoir changé un paramètre du dossier. */
   rafraichir: () => Promise<void>;
   seDeconnecter: () => void;
+  /**
+   * Pourquoi la session s'est fermée d'elle-même (expirée, close ailleurs,
+   * compte désactivé) · l'écran de connexion l'affiche, pour que le retour à
+   * la porte ne passe pas pour une panne (audit final F164). Nul après une
+   * déconnexion voulue ou une connexion réussie.
+   */
+  motifDeconnexion: string | null;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -83,6 +91,31 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [utilisateur, setUtilisateur] = useState<MeResponse | null>(null);
   const [chargement, setChargement] = useState(true);
+  const [motifDeconnexion, setMotifDeconnexion] = useState<string | null>(null);
+  // Lu par l'écouteur de session perdue, abonné une fois · l'état React vu
+  // depuis sa fermeture serait celui du premier rendu.
+  const ouverte = useRef(false);
+  useEffect(() => {
+    ouverte.current = utilisateur !== null;
+  }, [utilisateur]);
+
+  // UNE SESSION PERDUE EN COURS DE TRAVAIL FERME LA SESSION (audit final
+  // F164) · vidée ici, l'espace de travail rend la main à la connexion
+  // (ZoneProtegee), avec le motif. Sans session ouverte, le même refus n'est
+  // pas une perte · la page vient de s'ouvrir, ou la connexion vérifie la
+  // sienne et dira elle-même ce qui ne va pas.
+  useEffect(
+    () =>
+      surSessionPerdue((motif) => {
+        if (!ouverte.current) return;
+        ouverte.current = false;
+        oublierPrechargement();
+        setCsrf(null);
+        setUtilisateur(null);
+        setMotifDeconnexion(motif);
+      }),
+    [],
+  );
 
   /**
    * `exigeante` · la session VIENT d'être ouverte, /auth/me doit donc
@@ -91,12 +124,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * connexion pourtant acceptée par le serveur renvoyait à la porte sans un
    * mot, et où il a fallu lire le code pour comprendre.
    *
-   * Le cas le plus courant n'est même pas une panne : le cookie de session
-   * vient d'un autre site que l'interface (Cloud Run contre Firebase
-   * Hosting), c'est donc un COOKIE TIERS, et un navigateur qui les bloque
-   * (Chrome en navigation privée, par défaut) le jette aussitôt posé. La
-   * connexion réussit, la requête suivante n'est plus authentifiée. Il faut
-   * le DIRE, sinon le logiciel paraît cassé alors qu'il obéit au navigateur.
+   * DEPUIS LE 2026-09-26, LE COOKIE EST DE PREMIÈRE PARTIE (audit final
+   * F165) · l'API est servie sous l'adresse du site (`/api`, relais de
+   * Firebase Hosting), et un navigateur qui bloque les cookies TIERS le garde.
+   * Le message accusait pourtant les cookies tiers, et un utilisateur qui les
+   * autorisait n'y trouvait rien. Ce qui jette encore le cookie aussitôt posé
+   * est un blocage de TOUS les cookies du site · c'est ce que le message dit,
+   * sans supposer davantage.
    */
   const chargerUtilisateur = async (exigeante = false) => {
     try {
@@ -124,8 +158,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error(
           erreur instanceof ApiError && erreur.status !== 401
             ? `Session refusée · ${erreur.message}`
-            : 'Session ouverte mais aussitôt perdue · votre navigateur bloque probablement les cookies tiers. ' +
-              'Essayez une fenêtre normale plutôt que privée, ou autorisez les cookies pour ce site.',
+            : "Session ouverte mais aussitôt perdue · le navigateur n'a pas gardé le cookie de session. " +
+              'Vérifiez que les cookies ne sont pas bloqués pour ce site, puis réessayez.',
         );
       }
     } finally {
@@ -142,6 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const seConnecter = async (csrfToken: string) => {
+    setMotifDeconnexion(null);
     setCsrf(csrfToken);
     // Ne PAS repasser `chargement` à true ici : ZoneProtegee (App.tsx) affiche
     // un plein écran « Chargement… » à la place de ses enfants tant que
@@ -164,8 +199,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // tout de suite, et un échec réseau laisse au pire un cookie qui
     // expirera de lui-même (8 h).
     api.post('/auth/logout').catch(() => undefined);
+    ouverte.current = false;
     setCsrf(null);
     setUtilisateur(null);
+    setMotifDeconnexion(null);
   };
 
   return (
@@ -180,6 +217,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         seConnecter,
         rafraichir,
         seDeconnecter,
+        motifDeconnexion,
       }}
     >
       {children}

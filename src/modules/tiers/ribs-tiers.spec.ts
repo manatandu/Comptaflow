@@ -101,7 +101,10 @@ describe('RibsTiersService · un seul principal par tiers', () => {
 
 describe('suppression du tiers · ses RIB partent avec lui, un ordre de virement le retient', () => {
   function monter(comptes: Record<string, number>) {
-    const deleteMany = jest.fn(() => 'rib-supprimes');
+    // Chaque retrait note s'il est fait DANS la transaction · la forme tableau
+    // a disparu (audit final F159), c'est la fonction qui s'y exécute.
+    let dansTransaction = false;
+    const deleteMany = jest.fn(() => ({ dansTransaction }));
     const delegue = (nom: string) => ({
       count: jest.fn(async () => comptes[nom] ?? 0),
       deleteMany: nom === 'ribTiers' ? deleteMany : jest.fn(() => nom),
@@ -109,8 +112,15 @@ describe('suppression du tiers · ses RIB partent avec lui, un ordre de virement
     });
     const prisma: Record<string, unknown> = new Proxy(
       {
-        tiers: { findFirst: jest.fn(async () => ({ id: 'ti', code: 'F001', comptesRattaches: [] })), delete: jest.fn(() => 'tiers') },
-        $transaction: jest.fn(async (ops: unknown[]) => ops),
+        tiers: { findFirst: jest.fn(async () => ({ id: 'ti', code: 'F001', comptesRattaches: [] })), delete: jest.fn(() => ({ dansTransaction })) },
+        $transaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) => {
+          dansTransaction = true;
+          try {
+            return await fn(prisma);
+          } finally {
+            dansTransaction = false;
+          }
+        }),
       } as Record<string, unknown>,
       { get: (cible, nom: string) => (nom in cible ? cible[nom] : (cible[nom] = delegue(nom))) },
     );
@@ -123,8 +133,11 @@ describe('suppression du tiers · ses RIB partent avec lui, un ordre de virement
     const { service, deleteMany, prisma } = monter({ ribTiers: 2 });
     await expect(service.supprimer('t', 'ti')).resolves.toEqual({ supprime: true });
     expect(deleteMany).toHaveBeenCalledWith({ where: { tenantId: 't', tiersId: 'ti' } });
-    const ops = ((prisma.$transaction as jest.Mock).mock.calls[0] as unknown[][])[0];
-    expect(ops[0]).toBe('rib-supprimes');
+    // Les RIB d'abord, dans la même transaction que le tiers.
+    expect(deleteMany.mock.results[0].value).toEqual({ dansTransaction: true });
+    const supprimerTiers = (prisma.tiers as { delete: jest.Mock }).delete;
+    expect(supprimerTiers.mock.results[0].value).toEqual({ dansTransaction: true });
+    expect(deleteMany.mock.invocationCallOrder[0]).toBeLessThan(supprimerTiers.mock.invocationCallOrder[0]);
   });
 
   it("un tiers payé par un ordre de virement ne se supprime pas", async () => {

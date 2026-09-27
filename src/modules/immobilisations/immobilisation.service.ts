@@ -27,6 +27,7 @@ import {
   SortirImmobilisationDto,
   TypeSortie,
 } from './dto/immobilisation.dto';
+import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 
 const EPSILON = 0.005;
 
@@ -2437,8 +2438,8 @@ export class ImmobilisationService {
     // Les trois comptes du bien suivent, et les lignes de dépréciation aussi ·
     // sans cette dernière mise à jour, la sortie ultérieure solderait l'ancien
     // 29 et laisserait le nouveau créditeur pour un bien qui n'existe plus.
-    const [immobilisation] = await this.prisma.$transaction([
-      this.prisma.immobilisation.update({
+    const immobilisation = await transactionJournalisee(this.prisma, async (tx) => {
+      const miseAJour = await tx.immobilisation.update({
         where: { id },
         data: {
           familleId: nouvelleFamille.id,
@@ -2447,16 +2448,14 @@ export class ImmobilisationService {
           compteDotationId: nouvelleFamille.compteDotationId,
         },
         include: { compteImmobilisation: true, compteAmortissement: true, compteDotation: true },
-      }),
-      ...(nouveauCompteDepreciation
-        ? [
-            this.prisma.depreciationImmobilisation.updateMany({
-              where: { immobilisationId: id },
-              data: { compteDepreciationId: nouveauCompteDepreciation.id },
-            }),
-          ]
-        : []),
-      this.prisma.reclassementImmobilisation.create({
+      });
+      if (nouveauCompteDepreciation) {
+        await tx.depreciationImmobilisation.updateMany({
+          where: { immobilisationId: id },
+          data: { compteDepreciationId: nouveauCompteDepreciation.id },
+        });
+      }
+      await tx.reclassementImmobilisation.create({
         data: {
           immobilisationId: id,
           exerciceId: dto.exerciceId,
@@ -2467,8 +2466,9 @@ export class ImmobilisationService {
           ecritureId: ecriture.id,
           createdBy: userId,
         },
-      }),
-    ]);
+      });
+      return miseAJour;
+    });
 
     return {
       immobilisation,

@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/prisma.service';
 import { CreerModeleSaisieDto, LigneModeleSaisieDto, ModifierModeleSaisieDto } from './dto/modele-saisie.dto';
 import { diagnostiquerTiers } from './diagnostic-tiers';
 import { motifRefusFonctions } from './fonctions-modele';
+import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 
 /**
  * MODÈLES DE SAISIE · les « opérations courantes » d'un journal.
@@ -121,7 +122,7 @@ export class ModeleSaisieService {
     // Les lignes sont REMPLACÉES en bloc, dans une transaction · les
     // modifier une à une laisserait, entre deux requêtes, un modèle
     // déséquilibré qu'un autre utilisateur pourrait appliquer.
-    const modifie = await this.prisma.$transaction(async (tx) => {
+    const modifie = await transactionJournalisee(this.prisma, async (tx) => {
       if (dto.lignes) {
         await tx.ligneModeleSaisie.deleteMany({ where: { modeleId } });
         await tx.ligneModeleSaisie.createMany({

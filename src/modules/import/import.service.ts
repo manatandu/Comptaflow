@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { randomUUID } from 'node:crypto';
-import { journaliserDansTransaction } from '../../common/audit/contexte-audit';
+import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 import { numeroteurDeLot, prochainNumeroPiece } from '../journaux/numerotation-piece';
 import { EcritureService, type MemoireControles, motifDateHorsExercice } from '../comptabilite/ecriture.service';
 import { ClasseCompte, ModeReportANouveau, Prisma, Referentiel, StatutExercice, TypeCompteDetailTotal } from '@prisma/client';
@@ -593,7 +593,7 @@ export class ImportService {
       // Même délai que l'import d'écritures, et les lignes en UNE insertion
       // (audit final F2) · une balance de mille comptes faisait mille
       // allers-retours dans une transaction bornée à cinq secondes.
-      await this.prisma.$transaction((tx) => journaliserDansTransaction(tx, async () => {
+      await transactionJournalisee(this.prisma, async (tx) => {
         if (comptesACreer.length > 0) {
           await tx.compte.createMany({ data: comptesACreer, skipDuplicates: true });
         }
@@ -648,7 +648,7 @@ export class ImportService {
           },
         });
         ecrituresCreees = 1;
-      }), { maxWait: 10_000, timeout: DELAI_IMPORT_MS });
+      }, { maxWait: 10_000, timeout: DELAI_IMPORT_MS });
     }
 
     return {
@@ -871,50 +871,50 @@ export class ImportService {
       // quelques dizaines de pièces · l'import échouait entier. Le nombre de
       // requêtes ne dépend plus du nombre de pièces : une lecture par série
       // de numérotation, puis des tranches. L'import reste tout ou rien.
-      await this.prisma.$transaction(
-        (tx) =>
-          journaliserDansTransaction(tx, async () => {
-            const numeroter = numeroteurDeLot(tx, tenantId, exercice.id);
-            const pieces: Array<(typeof valides)[number] & { id: string; numeroPiece: number | null }> = [];
-            for (const piece of valides) {
-              // Dans l'ordre du fichier : les numéros se suivent comme la
-              // saisie les aurait donnés, pièce après pièce.
-              const numeroPiece = await numeroter(journauxParId.get(piece.journalId)!, piece.date);
-              pieces.push({ ...piece, id: randomUUID(), numeroPiece });
-            }
-            for (const lot of tranches(pieces, TAILLE_TRANCHE_ECRITURES)) {
-              await tx.ecriture.createMany({
-                data: lot.map((p) => ({
-                  id: p.id,
-                  tenantId,
-                  exerciceId: exercice.id,
-                  journalId: p.journalId,
-                  numeroPiece: p.numeroPiece,
-                  date: p.date,
-                  libelle: p.libelle,
-                  reference: p.reference,
-                  createdBy,
-                })),
-              });
-            }
-            const lignes = pieces.flatMap((p) =>
-              p.lignes.map((l) => ({
-                ecritureId: p.id,
-                compteId: l.compteId,
-                libelle: l.libelle || undefined,
-                debit: l.debit,
-                credit: l.credit,
-                deviseId: l.deviseId,
-                montantDevise: l.montantDevise,
-                coursApplique: coursDeLaLigne(l),
+      await transactionJournalisee(
+        this.prisma,
+        async (tx) => {
+          const numeroter = numeroteurDeLot(tx, tenantId, exercice.id);
+          const pieces: Array<(typeof valides)[number] & { id: string; numeroPiece: number | null }> = [];
+          for (const piece of valides) {
+            // Dans l'ordre du fichier : les numéros se suivent comme la
+            // saisie les aurait donnés, pièce après pièce.
+            const numeroPiece = await numeroter(journauxParId.get(piece.journalId)!, piece.date);
+            pieces.push({ ...piece, id: randomUUID(), numeroPiece });
+          }
+          for (const lot of tranches(pieces, TAILLE_TRANCHE_ECRITURES)) {
+            await tx.ecriture.createMany({
+              data: lot.map((p) => ({
+                id: p.id,
+                tenantId,
+                exerciceId: exercice.id,
+                journalId: p.journalId,
+                numeroPiece: p.numeroPiece,
+                date: p.date,
+                libelle: p.libelle,
+                reference: p.reference,
+                createdBy,
               })),
-            );
-            for (const lot of tranches(lignes, TAILLE_TRANCHE_LIGNES)) {
-              await tx.ligneEcriture.createMany({ data: lot });
-            }
-            ecrituresCreees = pieces.length;
-            lignesCreees = lignes.length;
-          }),
+            });
+          }
+          const lignes = pieces.flatMap((p) =>
+            p.lignes.map((l) => ({
+              ecritureId: p.id,
+              compteId: l.compteId,
+              libelle: l.libelle || undefined,
+              debit: l.debit,
+              credit: l.credit,
+              deviseId: l.deviseId,
+              montantDevise: l.montantDevise,
+              coursApplique: coursDeLaLigne(l),
+            })),
+          );
+          for (const lot of tranches(lignes, TAILLE_TRANCHE_LIGNES)) {
+            await tx.ligneEcriture.createMany({ data: lot });
+          }
+          ecrituresCreees = pieces.length;
+          lignesCreees = lignes.length;
+        },
         { maxWait: 10_000, timeout: DELAI_IMPORT_MS },
       );
     }

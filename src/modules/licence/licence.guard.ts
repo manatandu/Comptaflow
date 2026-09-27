@@ -2,9 +2,11 @@ import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@
 import { LicenceService } from './licence.service';
 
 /**
- * À poser sur toute route métier (comptabilité, facturation, etc.) une fois
- * l'authentification branchée (Phase 1) : `@UseGuards(AuthGuard, LicenceGuard)`.
- * Le tenantId est attendu sur `request.user.tenantId` une fois l'auth en place.
+ * À poser sur toute route métier (comptabilité, facturation, etc.), APRÈS la
+ * garde d'authentification · `@UseGuards(JwtAuthGuard, LicenceGuard)`. Le
+ * dossier se lit sur `request.user.tenantId`, que `JwtAuthGuard` pose.
+ * Restent hors d'elle, à dessein · la console de l'opérateur, la restitution
+ * du dossier et les sauvegardes sur site (CLAUDE.md § 8).
  */
 @Injectable()
 export class LicenceGuard implements CanActivate {

@@ -208,4 +208,33 @@ describe('caracteresCombinaison · le dossier de combinaison porte le référent
       systemeComptableSyscohada: null,
     });
   });
+
+  it('F153 · un siège « projets de développement » garde son jeu, seul le SMT est remplacé', () => {
+    const jeu = (j: string | null) =>
+      (GroupeService.caracteresCombinaison({ referentiel: 'SYCEBNL', systemeComptableSyscohada: null, jeuEtatsFinanciersSycebnl: j } as never) as { jeuEtatsFinanciersSycebnl: string })
+        .jeuEtatsFinanciersSycebnl;
+    expect(jeu('PROJETS_DEVELOPPEMENT')).toBe('PROJETS_DEVELOPPEMENT');
+    expect(jeu('ASSOCIATIONS_ORDRES_PROFESSIONNELS')).toBe('ASSOCIATIONS_ORDRES_PROFESSIONNELS');
+    expect(jeu('SYSTEME_MINIMAL_TRESORERIE')).toBe('ASSOCIATIONS_ORDRES_PROFESSIONNELS');
+  });
+});
+
+describe('F153 · le câblage · le dossier de combinaison lit le jeu du siège', () => {
+  it('un siège « projets » ouvre sa combinaison au jeu des projets', async () => {
+    const siege = { nom: 'Projet X', dossierCombinaisonId: null, referentiel: 'SYCEBNL', systemeComptableSyscohada: null, jeuEtatsFinanciersSycebnl: 'PROJETS_DEVELOPPEMENT' };
+    const cree = jest.fn(async (_a: unknown) => ({ id: 'comb' }));
+    const prisma = {
+      tenant: {
+        // La doublure HONORE le `select` · un jeu non demandé n'est pas rendu, comme en base.
+        findUnique: jest.fn(async ({ select }: { select: Record<string, boolean> }) =>
+          Object.fromEntries(Object.entries(siege).filter(([k]) => select[k])),
+        ),
+        create: cree,
+        update: jest.fn(async () => ({})),
+      },
+    };
+    const s = new GroupeService(prisma as never, {} as never, {} as never, {} as never);
+    await (s as unknown as { assurerDossierCombinaison: (t: string) => Promise<string> }).assurerDossierCombinaison('siege');
+    expect((cree.mock.calls[0][0] as { data: { jeuEtatsFinanciersSycebnl: string } }).data.jeuEtatsFinanciersSycebnl).toBe('PROJETS_DEVELOPPEMENT');
+  });
 });

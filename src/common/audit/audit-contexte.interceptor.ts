@@ -25,12 +25,11 @@ export class AuditContexteInterceptor implements NestInterceptor {
       acteurId: utilisateur.userId,
       acteurEmail: utilisateur.email,
       tenantId: utilisateur.tenantId,
-      // `ip` d'Express, ou l'en-tête de tête de proxy · Cloud Run place le
-      // client réel en première position de X-Forwarded-For.
-      adresseIp:
-        (typeof requete.headers?.['x-forwarded-for'] === 'string'
-          ? requete.headers['x-forwarded-for'].split(',')[0].trim()
-          : undefined) || requete.ip,
+      // `ip` d'Express SEUL, réglé par le nombre de relais de confiance
+      // (sauts-de-confiance.ts, audit final F160). La première entrée de
+      // X-Forwarded-For, prise jusque-là, est celle que le client écrit
+      // lui-même · l'adresse notée au journal était la sienne, au choix.
+      adresseIp: requete.ip,
       // L'administrateur n'est jamais restreint · c'est lui qui lève la
       // restriction (voir extension-perimetre-journaux.ts).
       journauxAutorises:

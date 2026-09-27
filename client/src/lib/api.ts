@@ -1,6 +1,7 @@
 import { entetesRequete } from './entetes-requete';
 import { nomDeDisposition } from './disposition';
 import { adresseApi } from './adresse-api';
+import { motifDeSessionPerdue, signalerSessionPerdue } from './session-perdue';
 
 const API_URL = adresseApi(import.meta.env.VITE_API_URL);
 
@@ -37,26 +38,38 @@ export function setCsrf(token: string | null) {
   cacheReferentiels.clear();
 }
 
+/**
+ * Lit le refus d'une réponse · son message, et le SIGNAL d'une session perdue
+ * (session-perdue.ts, audit final F164), que l'écran de connexion reprend.
+ * Une seule lecture pour les appels et les téléchargements · deux auraient
+ * divergé, et un export refusé pour session expirée n'aurait ramené personne
+ * à la connexion.
+ */
+async function refus(res: Response): Promise<ApiError> {
+  let message = res.statusText;
+  try {
+    const body = await res.json();
+    message = Array.isArray(body.message) ? body.message.join(', ') : body.message ?? message;
+    const motif = motifDeSessionPerdue(res.status, body);
+    if (motif) signalerSessionPerdue(motif);
+  } catch {
+    // corps non-JSON (erreur réseau, 502, etc.) · on garde statusText
+  }
+  return new ApiError(res.status, message);
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
-    // Le cookie de session voyage avec chaque appel (origines croisées :
-    // oomega.web.app vers Cloud Run) · le serveur n'admet cela que pour les
-    // origines de sa liste CORS.
+    // Le cookie de session voyage avec chaque appel. En ligne, l'API est
+    // servie sous l'adresse du site (`/api`, relais de Firebase Hosting) ·
+    // le cookie est de PREMIÈRE partie. `include` reste nécessaire au
+    // développement local, où l'interface et l'API ont deux ports.
     credentials: 'include',
     headers: entetesRequete(options.method, getCsrf(), options.headers),
   });
 
-  if (!res.ok) {
-    let message = res.statusText;
-    try {
-      const body = await res.json();
-      message = Array.isArray(body.message) ? body.message.join(', ') : body.message ?? message;
-    } catch {
-      // corps non-JSON (erreur réseau, 502, etc.) · on garde statusText
-    }
-    throw new ApiError(res.status, message);
-  }
+  if (!res.ok) throw await refus(res);
 
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
@@ -78,16 +91,7 @@ async function telecharger(path: string, nomParDefaut: string): Promise<void> {
   const res = await fetch(`${API_URL}${path}`, {
     credentials: 'include',
   });
-  if (!res.ok) {
-    let message = res.statusText;
-    try {
-      const body = await res.json();
-      message = Array.isArray(body.message) ? body.message.join(', ') : body.message ?? message;
-    } catch {
-      // corps non-JSON
-    }
-    throw new ApiError(res.status, message);
-  }
+  if (!res.ok) throw await refus(res);
 
   const nomServeur = nomDeDisposition(res.headers.get('Content-Disposition'));
 
@@ -137,16 +141,7 @@ async function envoyerFichier<T>(path: string, corps: FormData): Promise<T> {
     headers: csrf ? { 'X-CSRF-Token': csrf } : {},
     body: corps,
   });
-  if (!res.ok) {
-    let message = res.statusText;
-    try {
-      const body = await res.json();
-      message = Array.isArray(body.message) ? body.message.join(', ') : body.message ?? message;
-    } catch {
-      // corps non-JSON
-    }
-    throw new ApiError(res.status, message);
-  }
+  if (!res.ok) throw await refus(res);
   return res.json() as Promise<T>;
 }
 

@@ -3,6 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { Aide } from '../components/chrome/Aide';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import type { BalanceFonctionnelle, Exercice } from '../lib/types';
+import { useExercice } from '../lib/exercice';
 
 /**
  * LA BALANCE EN MONNAIE FONCTIONNELLE · le second jeu, et il dit ce qu'il
@@ -26,12 +27,20 @@ export function BalanceFonctionnellePage() {
   const [exerciceId, setExerciceId] = useState('');
   const [balance, setBalance] = useState<BalanceFonctionnelle | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
+  // L'EXERCICE DU CONTEXTE (audit final F154) · le plus récent de la liste
+  // n'est qu'un repli · un cabinet qui arrête décembre en janvier voyait sinon
+  // l'exercice suivant, sans que rien ne le dise (`resoudreExercice`).
+  const { exerciceCourant } = useExercice();
+
+  useEffect(() => {
+    if (exerciceCourant) setExerciceId(exerciceCourant.id);
+  }, [exerciceCourant?.id]);
 
   useEffect(() => {
     api.get<Exercice[]>('/exercices').then(
       (x) => {
         setExercices(x);
-        if (x.length > 0) setExerciceId(x[0].id);
+        if (x.length > 0) setExerciceId((choisi) => choisi || x[0].id);
       },
       () => undefined,
     );

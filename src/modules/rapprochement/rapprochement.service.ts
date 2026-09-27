@@ -13,6 +13,7 @@ import {
   type ChampReleve,
 } from './releve-bancaire';
 import { avecRetrySerialisable } from '../../common/prisma-retry.util';
+import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 
 const EPSILON = 0.005;
 
@@ -322,9 +323,9 @@ export class RapprochementService {
         'Des lignes du relevé actuel sont déjà rapprochées · dissociez-les avant de réimporter le relevé.',
       );
     }
-    await this.prisma.$transaction([
-      this.prisma.ligneReleveBancaire.deleteMany({ where: { tenantId, rapprochementId: id } }),
-      this.prisma.ligneReleveBancaire.createMany({
+    await transactionJournalisee(this.prisma, async (tx) => {
+      await tx.ligneReleveBancaire.deleteMany({ where: { tenantId, rapprochementId: id } });
+      await tx.ligneReleveBancaire.createMany({
         data: lignes.map((l) => ({
           tenantId,
           rapprochementId: id,
@@ -335,8 +336,8 @@ export class RapprochementService {
           debit: l.debit,
           credit: l.credit,
         })),
-      }),
-    ]);
+      });
+    });
     return { nombreLignes: lignes.length };
   }
 
@@ -446,14 +447,14 @@ export class RapprochementService {
         );
       }
     }
-    await this.prisma.$transaction(
-      dto.correspondances.map((c) =>
-        this.prisma.ligneEcriture.updateMany({
+    await transactionJournalisee(this.prisma, async (tx) => {
+      for (const c of dto.correspondances) {
+        await tx.ligneEcriture.updateMany({
           where: { id: { in: c.ligneEcritureIds }, ecriture: { tenantId }, ligneReleveId: null },
           data: { rapprochementId: id, ligneReleveId: c.ligneReleveId },
-        }),
-      ),
-    );
+        });
+      }
+    });
     return { nombreCorrespondances: dto.correspondances.length };
   }
 

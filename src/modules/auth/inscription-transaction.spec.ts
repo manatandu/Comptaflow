@@ -1,5 +1,5 @@
 import { Referentiel } from '@prisma/client';
-import { AuthService } from './auth.service';
+import { AuthService, MOTIF_LICENCE_EDITEUR_A_LA_CREATION } from './auth.service';
 import { acteurCourant, dansContexteAudit } from '../../common/audit/contexte-audit';
 
 /**
@@ -136,5 +136,21 @@ describe('AuthService.register · au nom du dossier qui naît, dès sa création
     const r = await dansContexteAudit({ acteurEmail: 'siege@exemple.cd', tenantId: 'siege' }, () => s.register(DTO as never));
     expect(r.tenant.id).not.toBe('t1');
     expect(appels.map((a) => a.dossierDeLActe)).toEqual(appels.map(() => r.tenant.id));
+  });
+});
+
+describe('F161 · la licence de l’éditeur ne naît à aucune porte de création', () => {
+  it('refusée AVANT toute écriture · ni transaction, ni dossier', async () => {
+    const { s, appels, surPrisma, options } = service();
+    await expect(s.register({ ...DTO, typeLicence: 'PROPRIETAIRE' } as never)).rejects.toThrow(MOTIF_LICENCE_EDITEUR_A_LA_CREATION);
+    expect(appels).toEqual([]);
+    expect(surPrisma).toEqual([]);
+    expect(options()).toBeUndefined();
+  });
+
+  it('les autres types passent · la règle ne vise que l’éditeur', async () => {
+    const { s, appels } = service();
+    await s.register({ ...DTO, typeLicence: 'PERPETUEL_SAAS' } as never);
+    expect(appels.map((a) => a.nom)).toContain('creerTenant');
   });
 });

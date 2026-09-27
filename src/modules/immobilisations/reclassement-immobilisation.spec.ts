@@ -145,8 +145,8 @@ function service(options: {
       }),
     },
     // Le service passe ses trois écritures de suivi dans une transaction · le
-    // faux les exécute simplement, l'ordre étant ce que le test vérifie.
-    $transaction: jest.fn().mockImplementation((operations: Promise<unknown>[]) => Promise.all(operations)),
+    // faux l'exécute sur lui-même, l'ordre étant ce que le test vérifie.
+    $transaction: jest.fn().mockImplementation((fn: (tx: unknown) => Promise<unknown>) => fn(prisma)),
   } as Faux;
 
   const ecritures = {

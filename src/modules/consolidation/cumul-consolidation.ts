@@ -1,5 +1,6 @@
 import { estCompteDuResultatDeLExercice, estResultatEnInstanceDAffectation } from '../etats-financiers/resultat-de-l-exercice';
 import { moisEntre } from '../../common/mois-entre';
+import { postesLisantEnMouvement } from '../etats-financiers-syscohada/correspondance-tft-syscohada';
 /**
  * CUMUL ET ÉLIMINATIONS · tranche 2 de la consolidation SYSCOHADA (décision du
  * 2026-09-24). Moteur PUR : il reçoit les balances RETRAITÉES des entités
@@ -12,16 +13,16 @@ import { moisEntre } from '../../common/mois-entre';
  * ch. XII-2 § 3, XII-3 § 2, XII-5 § 2 à 7, XII-6 (`titre-12-13-d4c-*`).
  *
  * CE QUE LE MOTEUR NE FAIT PAS, et qui est dit plutôt que tu :
- * - les RETRAITEMENTS d'homogénéisation et les éliminations de nature fiscale
- *   (ch. XII-3) · les balances reçues sont réputées retraitées, et un solde
- *   aux comptes 14 ou 15 d'une filiale est signalé ;
+ * - les RETRAITEMENTS d'homogénéisation (ch. XII-3) · les balances reçues sont
+ *   réputées retraitées aux règles du groupe. Les éliminations de NATURE
+ *   FISCALE, elles, sont jouées depuis la tranche 4b (provisions réglementées,
+ *   478 et 479), et les RÉSULTATS INTERNES (art. 86, 4°) sur déclaration de
+ *   la marge · l'ancienne liste les disait absents, et la réserve servie à
+ *   l'écran les contredisait (audit final F151) ;
  * - la méthode TEMPORELLE et le retraitement d'une monnaie hyperinflationniste
  *   (ch. XII-4 § 2 et § 4) · la balance d'une filiale est reçue dans sa
  *   monnaie fonctionnelle, et seule la méthode du cours de clôture (§ 3) est
  *   jouée ici (tranche 4c) ;
- * - l'élimination des RÉSULTATS INTERNES inclus dans les stocks et les
- *   immobilisations (art. 86, 4°) · le texte veut une élimination totale sans
- *   dire qui du groupe ou des minoritaires du vendeur la supporte ;
  * - les variations de pourcentage (ch. XII-7) et l'entrée en cours d'exercice.
  */
 
@@ -1157,6 +1158,21 @@ export function cumulerConsolidation(
       if (!integree(id)) {
         throw new RefusConsolidation(
           `Opération réciproque « ${o.libelle} » avec « ${e.nom} », mise en équivalence · ses comptes ne sont pas cumulés, il n’y a rien à éliminer (art. 86, 6°).`,
+        );
+      }
+    }
+    // UNE RÉCIPROQUE S'ÉLIMINE SUR LE SOLDE, PAS SUR LES MOUVEMENTS (audit final
+    // F152). Un prêt intragroupe accordé dans l'exercice reste lu en
+    // investissement chez le prêteur et en financement chez l'emprunteur · ZG
+    // est juste, les deux lignes sont gonflées du même montant. La part des
+    // mouvements à éliminer ne se lit dans aucune balance · le tableau des flux
+    // est refusé en nommant la réciproque et les postes touchés.
+    for (const compte of [o.compteA, o.compteB]) {
+      const postes = postesLisantEnMouvement(compte);
+      if (postes.length) {
+        obstaclesFlux.push(
+          `Opération réciproque « ${o.libelle} » sur le compte ${compte} · le tableau des flux le lit en mouvements (${postes.join(', ')}), ` +
+            'et l’élimination ne porte que sur le solde · ses flux intragroupe de l’exercice y resteraient.',
         );
       }
     }

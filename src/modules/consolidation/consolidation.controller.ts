@@ -22,6 +22,7 @@ import {
   EntitePerimetreDto,
   FaitsConsolidationDto,
   LienParticipationDto,
+  ModifierLienParticipationDto,
   ModifierEntitePerimetreDto,
 } from './dto/perimetre.dto';
 
@@ -68,6 +69,12 @@ export class ConsolidationController {
   @Post('liens')
   ajouterLien(@CurrentUser() user: AuthenticatedUser, @Body() dto: LienParticipationDto) {
     return this.perimetre.ajouterLien(user.tenantId, dto);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Patch('liens/:id')
+  modifierLien(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: ModifierLienParticipationDto) {
+    return this.perimetre.modifierLien(user.tenantId, id, dto);
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)

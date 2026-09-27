@@ -588,11 +588,12 @@ describe('la création d’un dossier se journalise DANS sa transaction', () => 
   });
 
   it('l’inscription pose la transaction au contexte du journal', () => {
-    // Structure, pas distance · le premier argument de la transaction de
-    // register est la fonction qui pose le contexte.
+    // Structure, pas distance · la transaction de register passe par la
+    // seule porte qui pose le contexte (transaction-journalisee.ts, audit
+    // final F159).
     const source = readFileSync(join(__dirname, '../../modules/auth/auth.service.ts'), 'utf8');
     const corps = source.slice(source.indexOf('async register('), source.indexOf('async login('));
-    expect(corps).toMatch(/this\.prisma\.\$transaction\(\s*(?:\/\/[^\n]*\n\s*)*\(tx\) => journaliserDansTransaction\(tx,/);
+    expect(corps).toMatch(/await transactionJournalisee\(\s*this\.prisma,/);
   });
 });
 
