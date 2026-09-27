@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
-import type { CampagneCircularisation, EchantillonCircularisation, Exercice } from '../lib/types';
+import type { CampagneCircularisation, DemandeConfirmation, EchantillonCircularisation, Exercice } from '../lib/types';
 
 /**
  * CIRCULARISATION · l'inventaire DOCUMENTAIRE du CPCC.
@@ -43,6 +43,45 @@ const LIBELLE_NATURE: Record<string, string> = {
   ANOMALIE_POTENTIELLE: 'Anomalie potentielle',
 };
 
+/**
+ * Les trois issues qu'un dépouillement peut donner à une lettre partie. Les
+ * clés sont celles de `StatutDemandeConfirmation` côté serveur : une réponse
+ * reçue, et les deux formes de non-réponse que l'ISA 505 § 6 d) distingue
+ * (absence de réponse, lettre revenue non distribuée). « Envoyée » et
+ * « relancée » ne se choisissent pas ici · ce sont les états que le classement
+ * existe pour faire sortir, faute de quoi la campagne ne se clôt jamais.
+ */
+const ISSUES_CLASSEMENT: { statut: 'REPONSE_RECUE' | 'SANS_REPONSE' | 'NON_DISTRIBUEE'; libelle: string }[] = [
+  { statut: 'REPONSE_RECUE', libelle: 'Réponse reçue' },
+  { statut: 'SANS_REPONSE', libelle: 'Sans réponse' },
+  { statut: 'NON_DISTRIBUEE', libelle: 'Non distribuée' },
+];
+
+interface ClassementEnCours {
+  demandeId: string;
+  soldeAConfirmer: number;
+  statut: 'REPONSE_RECUE' | 'SANS_REPONSE' | 'NON_DISTRIBUEE';
+  date: string;
+  solde: string;
+  nature: string;
+  investigation: string;
+  indirecte: boolean;
+  doute: string;
+}
+
+/**
+ * Lecture d'un montant saisi à la française. Une case VIDE rend null et non
+ * zéro : le serveur exige un solde confirmé sur une réponse reçue, et « zéro »
+ * y est une réponse (« je ne vous dois rien ») quand l'absence n'en est pas
+ * une. Confondre les deux ferait confirmer à zéro un solde que personne n'a lu.
+ */
+const lireMontant = (v: string): number | null => {
+  const t = v.replace(/[\s\u00a0\u202f]/g, '').replace(',', '.');
+  if (t === '') return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+};
+
 const montant = (v: unknown) => Number(v ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 });
 const jour = (d: string | null | undefined) => (d ? new Date(d).toLocaleDateString('fr-FR') : '·');
 
@@ -61,6 +100,9 @@ export function CircularisationPage() {
   const [exerciceId, setExerciceId] = useState('');
   const [cycle, setCycle] = useState('FOURNISSEURS');
   const [erreur, setErreur] = useState<string | null>(null);
+  const [classement, setClassement] = useState<ClassementEnCours | null>(null);
+  const [procedures, setProcedures] = useState<Record<string, string>>({});
+  const [refusDirection, setRefusDirection] = useState('');
 
   const charger = () =>
     api.get<CampagneCircularisation[]>('/circularisation').then(setCampagnes, (e: Error) => setErreur(e.message));
@@ -106,6 +148,75 @@ export function CircularisationPage() {
       setCreation(false);
       setLibelle('');
       setDateArrete('');
+    });
+
+  const ouvrirClassement = (d: DemandeConfirmation) =>
+    setClassement({
+      demandeId: d.id,
+      soldeAConfirmer: Number(d.soldeAConfirmer),
+      statut: d.statut === 'SANS_REPONSE' || d.statut === 'NON_DISTRIBUEE' ? d.statut : 'REPONSE_RECUE',
+      date: '',
+      solde: d.soldeConfirme === null ? '' : String(Number(d.soldeConfirme)),
+      nature: d.natureEcart ?? '',
+      investigation: d.investigation ?? '',
+      indirecte: d.reponseIndirecte,
+      doute: d.doutefiabilite ?? '',
+    });
+
+  // L'écart affiché avant l'envoi est celui que le serveur recalculera (solde
+  // confirmé moins solde de la lettre). Il ne sert qu'à ouvrir la nature et
+  // l'investigation · c'est le serveur qui tranche, et son refus s'affiche tel
+  // quel (ISA 505 § 14 : un écart se qualifie, il ne se solde pas).
+  const soldeClasse = classement ? lireMontant(classement.solde) : null;
+  const ecartClasse =
+    classement && classement.statut === 'REPONSE_RECUE' && soldeClasse !== null
+      ? Number((soldeClasse - classement.soldeAConfirmer).toFixed(2))
+      : null;
+  const ecartAQualifier = ecartClasse !== null && Math.abs(ecartClasse) > 0.005;
+
+  const classer = () =>
+    agir(async () => {
+      if (!classement) return;
+      const recue = classement.statut === 'REPONSE_RECUE';
+      if (recue && soldeClasse === null) {
+        throw new ApiError(400, 'Une réponse reçue porte un solde confirmé · zéro est une réponse, une case vide n’en est pas une.');
+      }
+      // Les clés sont celles de `DepouillerDto`, et d'elles seules : le serveur
+      // refuse tout champ en trop. Les valeurs `undefined` ne partent pas.
+      await api.patch(`/circularisation/demandes/${classement.demandeId}`, {
+        statut: classement.statut,
+        date: classement.date || undefined,
+        soldeConfirme: recue ? (soldeClasse ?? undefined) : undefined,
+        natureEcart: recue && ecartAQualifier && classement.nature ? classement.nature : undefined,
+        investigation: recue && ecartAQualifier && classement.investigation.trim() ? classement.investigation.trim() : undefined,
+        reponseIndirecte: recue ? classement.indirecte : undefined,
+        doutefiabilite: recue && classement.indirecte && classement.doute.trim() ? classement.doute.trim() : undefined,
+      });
+      setClassement(null);
+    });
+
+  // ISA 505 § 12 · ce que le cabinet a fait À LA PLACE de la réponse. Texte
+  // libre, parce que le § A18 n'en donne que des exemples.
+  const consignerProcedures = (demandeId: string) =>
+    agir(async () => {
+      await api.patch(`/circularisation/demandes/${demandeId}/procedures-alternatives`, {
+        proceduresAlternatives: (procedures[demandeId] ?? '').trim(),
+      });
+      setProcedures((p) => {
+        const suite = { ...p };
+        delete suite[demandeId];
+        return suite;
+      });
+    });
+
+  // ISA 505 § 8 · le refus de la direction se consigne à la clôture, s'il y en
+  // a eu un. Vide, rien ne part et le serveur ne touche pas au champ.
+  const clore = (campagneId: string) =>
+    agir(async () => {
+      await api.post(`/circularisation/${campagneId}/clore`, {
+        refusDirectionMotif: refusDirection.trim() || undefined,
+      });
+      setRefusDirection('');
     });
 
   const s = detail?.synthese;
@@ -258,7 +369,7 @@ export function CircularisationPage() {
                       {detail.forme === 'NEGATIVE' ? 'demande négative' : 'demande positive'}
                     </div>
                   </div>
-                  <div className="flex gap-1.5">
+                  <div className="flex gap-1.5 items-center flex-wrap">
                     {peutEcrire && detail.statut !== 'CLOTUREE' && (
                       <>
                         <button
@@ -268,9 +379,21 @@ export function CircularisationPage() {
                         >
                           {detail.statut === 'PREPARATION' ? 'Marquer envoyées' : 'Relancer'}
                         </button>
+                        <input
+                          value={refusDirection}
+                          onChange={(e) => setRefusDirection(e.target.value)}
+                          placeholder="Refus de la direction (facultatif)"
+                          aria-label="Refus de la direction"
+                          className="border border-border bg-surface px-2 py-[3px] text-[11.5px] min-w-[220px]"
+                        />
+                        <Aide
+                          titre="Refus de la direction"
+                          texte="Si la direction a refusé qu’une demande soit envoyée, son motif se consigne ici à la clôture : l’ISA 505 § 8 demande d’en recueillir le motif, d’en apprécier les implications et de conduire des procédures alternatives."
+                          source="ISA 505 § 8"
+                        />
                         <button
                           type="button"
-                          onClick={() => agir(() => api.post(`/circularisation/${detail.id}/clore`, {}))}
+                          onClick={() => clore(detail.id)}
                           className="bg-sel text-white rounded-[3px] px-2.5 py-[3px] text-[11.5px] font-semibold"
                         >
                           Clore
@@ -351,13 +474,17 @@ export function CircularisationPage() {
                         <th className="text-right px-2.5 py-1 font-normal">Confirmé</th>
                         <th className="text-right px-2.5 py-1 font-normal">Écart</th>
                         <th className="text-left px-2.5 py-1 font-normal">État</th>
+                        {peutEcrire && detail.statut !== 'CLOTUREE' && <th className="px-2.5 py-1" />}
                       </tr>
                     </thead>
                     <tbody>
                       {detail.demandes?.map((d) => {
                         const nonReponse = d.statut === 'SANS_REPONSE' || d.statut === 'NON_DISTRIBUEE';
+                        const modifiable = peutEcrire && detail.statut !== 'CLOTUREE';
+                        const enClassement = classement?.demandeId === d.id;
                         return (
-                          <tr key={d.id} className="border-b border-border/40">
+                          <Fragment key={d.id}>
+                          <tr className="border-b border-border/40">
                             <td className="px-2.5 py-1">
                               {d.destinataire}
                               {d.reponseIndirecte && (
@@ -390,8 +517,178 @@ export function CircularisationPage() {
                               {nonReponse && !d.proceduresAlternatives && (
                                 <span className="text-danger text-[10px]"> · sans procédure alternative</span>
                               )}
+                              {nonReponse && d.proceduresAlternatives && (
+                                <div className="text-[10.5px] text-text-dim">{d.proceduresAlternatives}</div>
+                              )}
                             </td>
+                            {modifiable && (
+                              <td className="px-2.5 py-1 text-right whitespace-nowrap">
+                                {d.statut !== 'A_ENVOYER' && !enClassement && (
+                                  <button
+                                    type="button"
+                                    onClick={() => ouvrirClassement(d)}
+                                    className="border border-border rounded-[3px] px-2 py-[1px] text-[10.5px]"
+                                  >
+                                    Classer la réponse
+                                  </button>
+                                )}
+                              </td>
+                            )}
                           </tr>
+                          {modifiable && nonReponse && !enClassement && (
+                            <tr className="border-b border-border/40">
+                              <td colSpan={7} className="px-2.5 py-1">
+                                <div className="flex items-start gap-1.5">
+                                  <label className="text-[11px] text-text-dim flex-1">
+                                    Procédures alternatives
+                                    <textarea
+                                      value={procedures[d.id] ?? d.proceduresAlternatives ?? ''}
+                                      onChange={(e) => setProcedures((p) => ({ ...p, [d.id]: e.target.value }))}
+                                      rows={2}
+                                      className="block w-full border border-border bg-surface px-2 py-[3px] text-[11.5px]"
+                                    />
+                                  </label>
+                                  <Aide
+                                    titre="Procédures alternatives"
+                                    texte="Une non-réponse n’est pas une confirmation. ISA 505 § 12 : « in the case of each non-response, the auditor shall perform alternative audit procedures ». Le § A18 en donne des exemples : encaissements ou décaissements postérieurs, documents d’expédition, correspondance du tiers, bons de réception."
+                                    source="ISA 505 § 12 et § A18"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => consignerProcedures(d.id)}
+                                    disabled={!(procedures[d.id] ?? '').trim()}
+                                    className="border border-border rounded-[3px] px-2 py-[2px] text-[10.5px] mt-3.5 disabled:opacity-40"
+                                  >
+                                    Enregistrer
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          {modifiable && enClassement && classement && (
+                            <tr className="border-b border-border/40 bg-chrome/40">
+                              <td colSpan={7} className="px-2.5 py-1.5">
+                                <div className="flex flex-wrap gap-2 items-end">
+                                  <label className="text-[11px] text-text-dim">
+                                    Issue
+                                    <select
+                                      value={classement.statut}
+                                      onChange={(e) =>
+                                        setClassement({ ...classement, statut: e.target.value as ClassementEnCours['statut'] })
+                                      }
+                                      className="block border border-border bg-surface px-2 py-[3px] text-[11.5px]"
+                                    >
+                                      {ISSUES_CLASSEMENT.map((i) => (
+                                        <option key={i.statut} value={i.statut}>
+                                          {i.libelle}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                  {classement.statut === 'REPONSE_RECUE' && (
+                                    <>
+                                      <label className="text-[11px] text-text-dim">
+                                        Reçue le
+                                        <input
+                                          type="date"
+                                          value={classement.date}
+                                          onChange={(e) => setClassement({ ...classement, date: e.target.value })}
+                                          className="block border border-border bg-surface px-2 py-[3px] text-[11.5px]"
+                                        />
+                                      </label>
+                                      <label className="text-[11px] text-text-dim">
+                                        Solde confirmé
+                                        <input
+                                          value={classement.solde}
+                                          onChange={(e) => setClassement({ ...classement, solde: e.target.value })}
+                                          inputMode="decimal"
+                                          className="block border border-border bg-surface px-2 py-[3px] text-[11.5px] text-right w-[140px]"
+                                        />
+                                      </label>
+                                      {ecartClasse !== null && (
+                                        <span className="text-[11px] pb-1">
+                                          <span className="text-text-dim">Écart </span>
+                                          <span className={ecartAQualifier ? 'text-warning font-semibold' : 'text-text-dim'}>
+                                            {montant(ecartClasse)}
+                                          </span>
+                                        </span>
+                                      )}
+                                      {ecartAQualifier && (
+                                        <>
+                                          <label className="text-[11px] text-text-dim">
+                                            Nature de l’écart
+                                            <select
+                                              value={classement.nature}
+                                              onChange={(e) => setClassement({ ...classement, nature: e.target.value })}
+                                              className="block border border-border bg-surface px-2 py-[3px] text-[11.5px]"
+                                            >
+                                              <option value="">Choisir…</option>
+                                              {Object.entries(LIBELLE_NATURE).map(([k, v]) => (
+                                                <option key={k} value={k}>
+                                                  {v}
+                                                </option>
+                                              ))}
+                                            </select>
+                                          </label>
+                                          <label className="text-[11px] text-text-dim flex-1 min-w-[220px]">
+                                            Investigation
+                                            <input
+                                              value={classement.investigation}
+                                              onChange={(e) => setClassement({ ...classement, investigation: e.target.value })}
+                                              className="block w-full border border-border bg-surface px-2 py-[3px] text-[11.5px]"
+                                            />
+                                          </label>
+                                          <Aide
+                                            titre="Écart de confirmation"
+                                            texte="Un écart se qualifie, il ne se solde pas. ISA 505 § 14 : « the auditor shall investigate exceptions to determine whether or not they are indicative of misstatements ». Le § A22 rappelle qu’un écart peut tenir à un délai, à une mesure ou à une erreur matérielle."
+                                            source="ISA 505 § 14 et § A22"
+                                          />
+                                        </>
+                                      )}
+                                      <label className="text-[11px] text-text-dim flex items-center gap-1 pb-1">
+                                        <input
+                                          type="checkbox"
+                                          checked={classement.indirecte}
+                                          onChange={(e) => setClassement({ ...classement, indirecte: e.target.checked })}
+                                        />
+                                        Parvenue par l’entité
+                                        <Aide
+                                          titre="Réponse indirecte"
+                                          texte="L’ISA 505 § 7 c) veut la réponse revenue directement au demandeur. Une réponse relayée par l’entité, ou renvoyée depuis une adresse qu’elle a fournie, est marquée au dossier et sa fiabilité est à corroborer (§ 10) · elle n’est pas rejetée."
+                                          source="ISA 505 § 7 c) et § 10"
+                                        />
+                                      </label>
+                                      {classement.indirecte && (
+                                        <label className="text-[11px] text-text-dim flex-1 min-w-[220px]">
+                                          Doute sur la fiabilité
+                                          <input
+                                            value={classement.doute}
+                                            onChange={(e) => setClassement({ ...classement, doute: e.target.value })}
+                                            className="block w-full border border-border bg-surface px-2 py-[3px] text-[11.5px]"
+                                          />
+                                        </label>
+                                      )}
+                                    </>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={classer}
+                                    className="bg-sel text-white rounded-[3px] px-2.5 py-[3px] text-[11.5px] font-semibold"
+                                  >
+                                    Enregistrer
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setClassement(null)}
+                                    className="border border-border rounded-[3px] px-2.5 py-[3px] text-[11.5px]"
+                                  >
+                                    Annuler
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          </Fragment>
                         );
                       })}
                     </tbody>

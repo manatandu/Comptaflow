@@ -3565,6 +3565,7 @@ export interface DemandeConfirmation {
   investigation: string | null;
   proceduresAlternatives: string | null;
   reponseIndirecte: boolean;
+  doutefiabilite?: string | null;
   compte: { numero: string; intitule: string };
   tiers: { code: string; nom: string } | null;
 }
@@ -3594,6 +3595,7 @@ export interface CampagneCircularisation {
   forme: 'POSITIVE' | 'NEGATIVE';
   statut: 'PREPARATION' | 'ENVOYEE' | 'RELANCEE' | 'DEPOUILLEE' | 'CLOTUREE';
   methodeSelection: string | null;
+  refusDirectionMotif?: string | null;
   demandes?: DemandeConfirmation[];
   synthese?: SyntheseCircularisation;
 }
