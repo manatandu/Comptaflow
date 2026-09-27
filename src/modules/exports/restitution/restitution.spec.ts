@@ -1,6 +1,8 @@
 import { Writable } from 'node:stream';
 import { RestitutionService } from './restitution.service';
+import { Prisma } from '@prisma/client';
 import { TABLES_RESTITUEES, colonnesDuModele, fichierDeLaTable, fichierDuDocument } from './tables-restitution';
+import { colonnesNonRestituables } from '../../../common/audit/champs-audites';
 import { analyserCsv } from '../../import/lecture-fichier';
 import { ecrireManifeste } from './manifeste-restitution';
 
@@ -16,14 +18,25 @@ import { ecrireManifeste } from './manifeste-restitution';
  */
 
 const DOSSIER = 'd-1';
+const LIGNE_DOSSIER: Record<string, unknown> = {
+  id: DOSSIER,
+  nom: 'ASBL Espoir',
+  referentiel: 'SYCEBNL',
+  numeroImpot: 'A1234567B',
+  doubleRegardValidation: true,
+};
 
 /** Un client Prisma factice · on n'a besoin que de ce que l'extraction touche. */
 function prismaFactice(lignes: Record<string, Record<string, unknown>[]> = {}) {
   const filtres: Array<{ modele: string; where: unknown; orderBy: unknown }> = [];
   const maillons: Record<string, unknown>[] = [];
+  // La doublure HONORE `select` · la ligne du dossier (F9) se lit avec la
+  // liste des colonnes, et une doublure qui rendait toujours trois champs
+  // aurait validé un CSV réduit à trois colonnes.
   const client: Record<string, unknown> = {
     tenant: {
-      findUniqueOrThrow: async () => ({ id: DOSSIER, nom: 'ASBL Espoir', referentiel: 'SYCEBNL' }),
+      findUniqueOrThrow: async ({ select }: any = {}) =>
+        select ? Object.fromEntries(Object.keys(select).map((c) => [c, LIGNE_DOSSIER[c] ?? null])) : LIGNE_DOSSIER,
     },
   };
   for (const modele of TABLES_RESTITUEES) {
@@ -327,5 +340,60 @@ describe('les documents attachés aux tiers (point 21)', () => {
     expect(lu).toContain('2 annoncé(s), 0 écrit(s)');
     expect(lu).toContain('PIECE NON RESTITUEE;doc-1 · illisible (délai dépassé)');
     expect(lu).toContain("PIECE NON RESTITUEE;doc-2 · retirée pendant l'extraction");
+  });
+});
+
+/**
+ * LA LIGNE DU DOSSIER · audit du serveur du 2026-09-27, F9. Le manifeste
+ * promettait un CSV par table et aucune colonne retirée hors de la liste
+ * d'exclusion, et le dossier ne sortait que par trois champs du manifeste.
+ */
+describe('la ligne du dossier (tables/tenant.csv)', () => {
+  it('l’archive la contient', async () => {
+    const { client } = prismaFactice();
+    const service = new RestitutionService(client);
+    const { flux, buffer } = collecteur();
+    await service.produire(DOSSIER, { id: 'u-1', email: 'chef@asbl.cd', adresseIp: null }, flux);
+    expect(buffer().toString('latin1')).toContain('tables/tenant.csv');
+  });
+
+  it('porte toute colonne scalaire du schéma, hors la liste d’exclusion', async () => {
+    const { client } = prismaFactice();
+    const service = new RestitutionService(client);
+    const compteur = { ecrites: 0 };
+    let csv = '';
+    for await (const bout of (service as any).ligneDuDossierCsv(DOSSIER, compteur)) csv += bout;
+    const [entete, ligne, ...reste] = analyserCsv(csv, ';');
+
+    const exclues = colonnesNonRestituables('Tenant');
+    const scalaires = Prisma.dmmf.datamodel.models
+      .find((m) => m.name === 'Tenant')!
+      .fields.filter((f) => (f.kind === 'scalar' && f.type !== 'Bytes') || f.kind === 'enum')
+      .map((f) => f.name);
+    const manquantes = scalaires.filter((c) => !entete.includes(c) && !exclues.has(c.toLowerCase()));
+    expect(['colonnes manquantes', manquantes]).toEqual(['colonnes manquantes', []]);
+    expect(['colonnes', entete]).toEqual(['colonnes', colonnesDuModele('Tenant')]);
+    // Une ligne, et ses valeurs · le numéro impôt et l'option de validation
+    // ne sortaient nulle part.
+    expect(reste.filter((r) => r.some((c) => c !== ''))).toHaveLength(0);
+    expect(ligne[entete.indexOf('numeroImpot')]).toBe('A1234567B');
+    expect(ligne[entete.indexOf('doubleRegardValidation')]).toBe('true');
+    expect(compteur.ecrites).toBe(1);
+  });
+
+  it('le contrôle de l’extraction la confronte comme les autres tables', async () => {
+    const { client } = prismaFactice();
+    const service = new RestitutionService(client);
+    const { flux } = collecteur();
+    const texte: string[] = [];
+    const controles = (service as any).controles.bind(service);
+    (service as any).controles = async function* (...a: any[]) {
+      for await (const x of controles(...a)) {
+        texte.push(x);
+        yield x;
+      }
+    };
+    await service.produire(DOSSIER, { id: 'u-1', email: 'chef@asbl.cd', adresseIp: null }, flux);
+    expect(texte.join('')).toContain('Tenant;1;1;conforme');
   });
 });

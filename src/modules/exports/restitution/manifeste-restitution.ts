@@ -1,4 +1,4 @@
-import { TABLES_RESTITUEES, fichierDeLaTable, ordreDuModele } from './tables-restitution';
+import { TABLES_DE_L_ARCHIVE, fichierDeLaTable, ordreDuModele } from './tables-restitution';
 import { MODELES_AUDITES } from '../../../common/audit/champs-audites';
 
 export interface EnTeteManifeste {
@@ -20,7 +20,7 @@ export interface EnTeteManifeste {
  */
 export function ecrireManifeste(e: EnTeteManifeste): string {
   const auditees = [...MODELES_AUDITES].sort();
-  const nonAuditees = TABLES_RESTITUEES.filter((t) => !MODELES_AUDITES.has(t)).sort();
+  const nonAuditees = TABLES_DE_L_ARCHIVE.filter((t) => !MODELES_AUDITES.has(t)).sort();
   const total = Object.values(e.lignesParTable).reduce((a, b) => a + b, 0);
   return `# Restitution du dossier · ${e.dossier.nom}
 
@@ -29,7 +29,7 @@ Référentiel     : ${e.dossier.referentiel}
 Demandée par    : ${e.demandeePar}
 Produite le     : ${e.horodatage}
 Maillon d'audit : rang ${e.maillon.rang}, empreinte ${e.maillon.empreinte}
-Contenu         : ${TABLES_RESTITUEES.length} tables, ${total.toLocaleString('fr-FR')} lignes
+Contenu         : ${TABLES_DE_L_ARCHIVE.length} tables, ${total.toLocaleString('fr-FR')} lignes
 
 Le maillon ci-dessus est inscrit dans la chaîne d'audit du dossier. Il
 rattache cette copie à l'acte qui l'a produite, et il n'est pas retouchable
@@ -39,7 +39,9 @@ sans que la vérification de la chaîne le voie.
 
 Un fichier CSV par table, séparateur point-virgule, encodage UTF-8, guillemets
 selon la RFC 4180 · un champ contenant un point-virgule, un guillemet ou un
-retour à la ligne est protégé, et un guillemet interne est doublé.
+retour à la ligne est protégé, et un guillemet interne est doublé. Le dossier
+lui-même (paramètres, identifiants légaux, forme juridique, options) est une
+table d'une ligne, \`${fichierDeLaTable('Tenant')}\`.
 
 Les colonnes sont celles du schéma, moins cinq, retirées à dessein :
 \`User.motDePasse\` (l'empreinte du mot de passe),
@@ -86,7 +88,7 @@ exactement. Extraire un dossier au repos, ou suspendu, est la seule façon
 d'obtenir un ensemble cohérent au centime.
 
 **Le journal d'audit ne couvre pas tout.** ${auditees.length} modèles sur
-${TABLES_RESTITUEES.length + 1} laissent un maillon. Les ${nonAuditees.length}
+${TABLES_DE_L_ARCHIVE.length} laissent un maillon. Les ${nonAuditees.length}
 suivants n'en laissent aucun, et leur historique n'est donc pas dans cette
 archive :
 
@@ -108,7 +110,7 @@ pour les deux référentiels.
 
 ## Inventaire
 
-${TABLES_RESTITUEES.map(
+${TABLES_DE_L_ARCHIVE.map(
   (t) =>
     `- ${fichierDeLaTable(t)} · ${(e.lignesParTable[t] ?? 0).toLocaleString('fr-FR')} lignes, ordre ${ordreDuModele(t)}`,
 ).join('\n')}

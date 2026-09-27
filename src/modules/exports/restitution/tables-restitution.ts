@@ -144,15 +144,35 @@ export function colonnesDuModele(modele: string): string[] {
 }
 
 /**
- * Les tables à restituer, dans un ordre stable · les cloisonnées d'abord,
- * puis les portées. `Tenant` n'y est PAS : le dossier lui-même est une ligne
- * unique, servie par le manifeste, et le lire comme une collection
- * demanderait une borne `{ id }` que `filtreBorne` ne reconnaîtrait pas.
+ * Les tables à restituer PAR COLLECTION, dans un ordre stable · les
+ * cloisonnées d'abord, puis les portées. `Tenant` n'y est PAS : le dossier
+ * lui-même est une ligne unique, et le lire comme une collection demanderait
+ * une borne `{ id }` que `filtreBorne` ne reconnaîtrait pas. Il sort à part,
+ * voir `TABLE_DU_DOSSIER`.
  */
 export const TABLES_RESTITUEES: readonly string[] = [
   ...[...MODELES_CLOISONNES].sort(),
   ...[...MODELES_PORTES_PAR_LEUR_PARENT].sort(),
 ];
+
+/**
+ * LA LIGNE DU DOSSIER · `tables/tenant.csv`, une ligne, lue par son
+ * identifiant et non par une borne de collection.
+ *
+ * Audit du serveur du 2026-09-27, F9 · le manifeste promettait « un fichier
+ * CSV par table » et « aucune autre colonne n'est retirée », alors que le
+ * dossier ne sortait que par son nom, son identifiant et son référentiel.
+ * Paramètres, identifiants légaux, forme juridique, options (double regard,
+ * système comptable, assujettissement) ne sortaient nulle part, et l'archive
+ * se disait complète. Ses colonnes viennent de `colonnesDuModele`, avec la
+ * MÊME liste d'exclusion que les autres tables · une seconde règle de
+ * colonnes aurait divergé de la première au premier correctif.
+ */
+export const TABLE_DU_DOSSIER = 'Tenant';
+
+/** Toutes les tables de l'archive, le dossier en tête · ce que le manifeste
+ *  annonce et ce que `controles.txt` confronte. */
+export const TABLES_DE_L_ARCHIVE: readonly string[] = [TABLE_DU_DOSSIER, ...TABLES_RESTITUEES];
 
 /** Le nom de fichier d'une table dans l'archive · stable et sans surprise. */
 export function fichierDeLaTable(modele: string): string {

@@ -16,7 +16,9 @@ import { PrismaService } from '../../../common/prisma.service';
 import { ajouterMaillon } from '../../../common/audit/extension-audit';
 import { ecrireCelluleCsv } from '../../import/lecture-fichier';
 import {
+  TABLES_DE_L_ARCHIVE,
   TABLES_RESTITUEES,
+  TABLE_DU_DOSSIER,
   borneDuModele,
   colonnesDuModele,
   fichierDeLaTable,
@@ -98,7 +100,7 @@ export class RestitutionService {
       findMany: (a: unknown) => Promise<Record<string, unknown>[]>;
     }>)[modele.charAt(0).toLowerCase() + modele.slice(1)];
 
-    yield `${colonnes.map((c) => ecrireCelluleCsv(c, SEPARATEUR)).join(SEPARATEUR)}\r\n`;
+    yield this.ligneCsv(colonnes, Object.fromEntries(colonnes.map((c) => [c, c])));
 
     let dernier: unknown = null;
     for (;;) {
@@ -113,7 +115,7 @@ export class RestitutionService {
       });
       if (lot.length === 0) return;
       for (const ligne of lot) {
-        yield `${colonnes.map((c) => ecrireCelluleCsv(this.enTexte(ligne[c]), SEPARATEUR)).join(SEPARATEUR)}\r\n`;
+        yield this.ligneCsv(colonnes, ligne);
         compteur.ecrites++;
       }
       dernier = lot[lot.length - 1][cle];
@@ -121,10 +123,32 @@ export class RestitutionService {
     }
   }
 
+  /** Une ligne de CSV, dans l'ordre des colonnes · la même pour toutes les tables. */
+  private ligneCsv(colonnes: string[], ligne: Record<string, unknown>): string {
+    return `${colonnes.map((c) => ecrireCelluleCsv(this.enTexte(ligne[c]), SEPARATEUR)).join(SEPARATEUR)}\r\n`;
+  }
+
+  /**
+   * `tables/tenant.csv` · la ligne du dossier (audit du 2026-09-27, F9). Lue
+   * par son identifiant, qui EST la borne · les colonnes et leur écriture sont
+   * celles des autres tables, exclusions comprises.
+   */
+  private async *ligneDuDossierCsv(tenantId: string, compteur: { ecrites: number }): AsyncGenerator<string> {
+    const colonnes = colonnesDuModele(TABLE_DU_DOSSIER);
+    yield this.ligneCsv(colonnes, Object.fromEntries(colonnes.map((c) => [c, c])));
+    const dossier = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: Object.fromEntries(colonnes.map((c) => [c, true])),
+    });
+    yield this.ligneCsv(colonnes, dossier as Record<string, unknown>);
+    compteur.ecrites++;
+  }
+
   /** Le compte de chaque table, pris AVANT l'extraction · c'est l'inventaire
    *  annoncé par le manifeste, et `controles.txt` dira s'il a tenu. */
   private async inventaire(tenantId: string): Promise<Record<string, number>> {
-    const comptes: Record<string, number> = {};
+    // Le dossier existe, sa ligne est unique · `findUniqueOrThrow` l'a lue.
+    const comptes: Record<string, number> = { [TABLE_DU_DOSSIER]: 1 };
     for (const modele of TABLES_RESTITUEES) {
       const delegue = (this.prisma as unknown as Record<string, { count: (a: unknown) => Promise<number> }>)[
         modele.charAt(0).toLowerCase() + modele.slice(1)
@@ -165,7 +189,7 @@ export class RestitutionService {
       entite: 'Tenant',
       entiteId: tenantId,
       avant: null,
-      apres: { tables: TABLES_RESTITUEES.length, lignes: lignesParTable } as Prisma.InputJsonValue,
+      apres: { tables: TABLES_DE_L_ARCHIVE.length, lignes: lignesParTable } as Prisma.InputJsonValue,
     });
 
     const archive = archiver('zip', { zlib: { level: 6 } });
@@ -191,7 +215,10 @@ export class RestitutionService {
       { name: 'MANIFESTE.md' },
     );
 
-    const ecrites: Record<string, { ecrites: number }> = {};
+    const ecrites: Record<string, { ecrites: number }> = { [TABLE_DU_DOSSIER]: { ecrites: 0 } };
+    archive.append(Readable.from(this.ligneDuDossierCsv(tenantId, ecrites[TABLE_DU_DOSSIER])), {
+      name: fichierDeLaTable(TABLE_DU_DOSSIER),
+    });
     for (const modele of TABLES_RESTITUEES) {
       ecrites[modele] = { ecrites: 0 };
       archive.append(Readable.from(this.lignesCsv(modele, tenantId, ecrites[modele])), {
@@ -263,7 +290,7 @@ export class RestitutionService {
     yield "transaction commune, et un dossier en cours d'usage bouge pendant l'extraction.\r\n";
     yield "Il est écrit ici plutôt que tu, pour que le lecteur sache ce qu'il tient.\r\n\r\n";
     let ecarts = 0;
-    for (const modele of TABLES_RESTITUEES) {
+    for (const modele of TABLES_DE_L_ARCHIVE) {
       const a = annonce[modele] ?? 0;
       const e = ecrites[modele]?.ecrites ?? 0;
       if (a !== e) ecarts++;
