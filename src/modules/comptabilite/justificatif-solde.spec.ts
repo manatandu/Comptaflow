@@ -22,7 +22,12 @@ import { PrismaService } from '../../common/prisma.service';
 const service = readFileSync(join(__dirname, 'ecriture.service.ts'), 'utf8');
 
 let n = 0;
-function ligne(date: string, debit: number, credit: number, options: Partial<{ aNouveau: boolean; lettre: string }> = {}) {
+function ligne(
+  date: string,
+  debit: number,
+  credit: number,
+  options: Partial<{ aNouveau: boolean; soldeDeGestion: boolean; lettre: string }> = {},
+) {
   n += 1;
   return {
     id: `l${n}`,
@@ -37,7 +42,8 @@ function ligne(date: string, debit: number, credit: number, options: Partial<{ a
       libelle: `Écriture ${n}`,
       reference: `PJ-${n}`,
       numeroPiece: n,
-      estGenereeParCloture: options.aNouveau ?? false,
+      estGenereeParCloture: (options.aNouveau || options.soldeDeGestion) ?? false,
+      estSoldeDesComptesDeGestion: options.soldeDeGestion ?? false,
       journal: { code: 'OD' },
     },
   };
@@ -79,10 +85,26 @@ describe('justificatif de solde', () => {
     await svc.justificatifSolde('t', AU_31_12);
     const where = findMany.mock.calls[0][0].where;
     expect(where.ecriture.NOT).toEqual({
-      AND: [{ estGenereeParCloture: true }, { exerciceId: { not: 'ex2020' } }],
+      AND: [{ estGenereeParCloture: true }, { estSoldeDesComptesDeGestion: false }, { exerciceId: { not: 'ex2020' } }],
     });
     // Et rien qui borne l'historique à l'exercice demandé.
     expect(where.ecriture.exerciceId).toBeUndefined();
+  });
+
+  /**
+   * AUDIT FINAL F53 · l'écriture qui solde les classes 6 à 8 portait le même
+   * drapeau que l'à-nouveau. Elle était écartée comme lui, si bien qu'un
+   * compte de charge cumulait toutes ses années closes, et quand elle passait
+   * elle s'affichait « à-nouveau ». Elle reste, et comme une opération.
+   */
+  it('garde l’écriture de solde des comptes de gestion, et ne la dit pas à-nouveau', async () => {
+    const { service: svc } = harnais([
+      ligne('2024-05-10', 1000, 0),
+      ligne('2024-12-31', 0, 1000, { soldeDeGestion: true }),
+      ligne('2025-03-02', 500, 0),
+    ]);
+    const r = await svc.justificatifSolde('t', AU_31_12);
+    expect({ solde: r.totaux.solde, aNouveau: r.lignes[1].estANouveau }).toEqual({ solde: 500, aNouveau: false });
   });
 
   it('totalise débit, crédit et solde sur les lignes retenues', async () => {

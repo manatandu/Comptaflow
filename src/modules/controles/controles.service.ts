@@ -411,7 +411,7 @@ export class ControlesService {
         debit: true,
         credit: true,
         compte: { select: { id: true, numero: true, intitule: true, classe: true, typeCompte: true } },
-        ecriture: { select: { date: true, estGenereeParCloture: true } },
+        ecriture: { select: { date: true, estGenereeParCloture: true, estSoldeDesComptesDeGestion: true } },
       },
     });
 
@@ -459,6 +459,12 @@ export class ControlesService {
         };
         parCompte.set(l.compte.id, e);
       }
+      // L'écriture qui solde les classes 6 à 8 n'est ni une ouverture ni une
+      // activité du mois de clôture (audit final F78) · rangée en ouverture,
+      // elle affichait l'inverse du total de l'année sur chaque charge. Le
+      // solde d'une charge se lit donc AVANT clôture, celui que les mois
+      // additionnent.
+      if (l.ecriture.estSoldeDesComptesDeGestion) continue;
       if (l.ecriture.estGenereeParCloture) {
         e.report += net;
         continue;

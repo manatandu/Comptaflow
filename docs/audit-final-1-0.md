@@ -44,18 +44,21 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1 et 4
 - **Constat :** l'écriture de clôture est créée au brouillard et marquée `estGenereeParCloture`. Or `soldesDuBilan` lit le 131/139 en mouvement sur une balance qui ne retient que les écritures validées, et `balance()` range ce drapeau en report. Le résultat lu vaut 0 : l'affectation est refusée (« aucun résultat à affecter ») sur tout exercice clos par OmegaX, et l'exercice suivant propose même d'imputer une perte fictive. Le spec masque le défaut avec une doublure.
 - **Correction :** lire le résultat par la règle unique (`resultat-de-l-exercice.ts`) sur une balance qui inclut l'écriture de clôture, ou distinguer les deux sens du drapeau. Ajouter un test d'intégration « clôturer puis affecter » sans doublure de `balance`.
+- **Fait le 2026-09-27 :** nouvelle colonne `Ecriture.estSoldeDesComptesDeGestion` (migration `20261121000000_solde_des_comptes_de_gestion`, qui rattrape les écritures déjà passées) ; les deux écritures de la clôture entrent VALIDÉES (`exercice.service.ts`, `validationParLaCloture`) ; l'affectation lit le résultat dans la colonne de clôture de la balance, sur les 131 à 139 (`affectation.service.ts`, `soldesDuBilan`). Test sans doublure : `e2e/tests/cloture.e2e.ts`, vu tomber (montant 0) défaut réinjecté.
 
 **F5 · Sur un exercice clos, la balance présente l'écriture de clôture comme solde d'ouverture** [pages-01, transv-02]
 - **Emplacements :** client/src/pages/JournalPage.tsx:874, :820 · src/modules/comptabilite/ecriture.service.ts:2888 · src/modules/exercice/exercice.service.ts:792 · src/modules/exports/export.service.ts:895, :939
 - **Condition :** 1
 - **Constat :** `balance()` range en report toute écriture marquée `estGenereeParCloture` de l'exercice, y compris l'écriture qui solde les classes 6 à 8 et qui est datée de la fin de l'exercice clos. L'écran (« Solde d'ouverture ») et le classeur (« Solde avant période ») affichent donc une ouverture fictive sur toute la classe 6 à 8 et sur le 13. Le commentaire de la page dit le contraire.
 - **Correction :** distinguer l'à-nouveau de l'écriture de clôture de l'exercice (par la date ou par un marqueur) et ne ranger que le premier en ouverture. Ajouter un spec sur un exercice clôturé.
+- **Fait le 2026-09-27 :** `balance()` rend trois colonnes, report, mouvement et clôture (`clotureDebit`, `clotureCredit`) ; l'écran (`client/src/lib/mouvements-du-journal.ts`), le classeur de la balance et la feuille BALANCE de la liasse (`export.service.ts`) lisent la clôture avec les mouvements. Tests : `balance.spec.ts`, `formules-excel.spec.ts`, `liasse-syscohada.spec.ts`, `mouvements-du-journal.spec.ts`, `cloture.e2e.ts`.
 
 **F6 · La clôture annuelle n'exige pas que l'exercice précédent soit clos** [rev-04]
 - **Emplacements :** src/modules/exercice/exercice.service.ts:687-712, :805-829
 - **Condition :** 1
 - **Constat :** on peut clôturer 2026 avant 2025. Le report vers 2027 est alors calculé sans les soldes de 2025, puis la clôture de 2025 écrit son report dans 2026 déjà clos par `tx.ecriture.create`, sans contrôle. Enfin, le message « validez-les ou supprimez-les » vise un report provisoire que ni `valider` ni `supprimer` n'acceptent.
 - **Correction :** refuser la clôture tant qu'un exercice antérieur est ouvert, refuser tout exercice suivant déjà clos, et adapter le message.
+- **Fait le 2026-09-27 :** `cloturer` refuse tant qu'un exercice antérieur est ouvert, et quand un exercice postérieur est déjà clos (`exercice.service.ts`). Le report provisoire resté dans l'exercice ne peut plus se présenter · la clôture de l'exercice précédent, désormais obligatoire d'abord, le remplace. Tests : `cloture-annuelle.spec.ts`, `cloture.e2e.ts`.
 
 **F7 · Une clôture de période définitive peut être posée sans borne de date ni confirmation** [rev-05]
 - **Emplacements :** src/modules/exercice/exercice.service.ts:522-535 · client/src/pages/ExercicePage.tsx:205-220, :660-670
@@ -362,6 +365,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** le filtre retire toute écriture de clôture hors premier exercice, y compris celle qui soldait les 6/7. Le solde listé cumule plusieurs années et le recoupement signale un écart inexistant.
 - **Correction :** distinguer report et clôture (même racine que F5), ou restreindre le justificatif au bilan.
+- **Fait le 2026-09-27 :** le justificatif garde l'écriture de solde des comptes de gestion et ne la dit plus « à-nouveau » (`ecriture.service.ts`, `justificatifSolde`). Test : `justificatif-solde.spec.ts`.
 
 **F54 · Deux réévaluations dans le même exercice comptent l'écart deux fois** [saisie-09]
 - **Emplacements :** src/modules/devises/devises.service.ts:307, :491, :547
@@ -514,6 +518,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** même racine que F5 : les classes 6 et 7 affichent en ouverture l'inverse du total de l'année.
 - **Correction :** ne ranger en ouverture que le report daté du premier jour.
+- **Fait le 2026-09-27 :** l'évolution mensuelle écarte l'écriture de solde des comptes de gestion, ni ouverture ni décembre (`controles.service.ts`). Test : `evolution-mensuelle.spec.ts`.
 
 **F79 · Reprise de régularisation acceptée sur un exercice antérieur, en un seul clic** [rev-20]
 - **Emplacements :** src/modules/regularisation/regularisation.service.ts:571 · client/src/pages/RegularisationPage.tsx:535-546
@@ -1330,6 +1335,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 5
 - **Constat :** le commentaire est contredit par le filtre. Aucun chiffre faux sur les consommateurs actuels.
 - **Correction :** restreindre au report daté de l'ouverture.
+- **Fait le 2026-09-27 :** l'ouverture de la balance cumulée exclut l'écriture de solde des comptes de gestion du premier exercice (`ecriture.service.ts`, `balanceCumulee`). Test : `balance-cumulee.spec.ts`.
 
 **F207 · Liste des ordres de virement coupée à 500 sans le dire** [saisie-25]
 - **Emplacements :** src/modules/reglements/ordres-virement.service.ts:152-158

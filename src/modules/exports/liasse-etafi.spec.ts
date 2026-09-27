@@ -40,6 +40,8 @@ interface LigneBalanceStub {
   reportCredit: number;
   mouvementDebit: number;
   mouvementCredit: number;
+  clotureDebit: number;
+  clotureCredit: number;
   totalDebit: number;
   totalCredit: number;
   solde: number;
@@ -63,6 +65,8 @@ function ligne(
     reportCredit,
     mouvementDebit,
     mouvementCredit,
+    clotureDebit: 0,
+    clotureCredit: 0,
     totalDebit: reportDebit + mouvementDebit,
     totalCredit: reportCredit + mouvementCredit,
     solde: reportDebit + mouvementDebit - reportCredit - mouvementCredit,

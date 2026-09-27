@@ -2527,7 +2527,16 @@ export class EcritureService {
           date: { lte: arret },
           // Les à-nouveaux de clôture sont exclus · voir le piège ci-dessus.
           // Ceux du premier exercice portent le bilan d'ouverture et restent.
-          NOT: { AND: [{ estGenereeParCloture: true }, { exerciceId: { not: premierExercice.id } }] },
+          // L'écriture qui SOLDE les classes 6 à 8 reste toujours (audit
+          // final F53) · sans elle, un compte de charge cumulait ses années
+          // closes et le recoupement annonçait un écart inexistant.
+          NOT: {
+            AND: [
+              { estGenereeParCloture: true },
+              { estSoldeDesComptesDeGestion: false },
+              { exerciceId: { not: premierExercice.id } },
+            ],
+          },
         },
       },
       include: {
@@ -2539,6 +2548,7 @@ export class EcritureService {
             reference: true,
             numeroPiece: true,
             estGenereeParCloture: true,
+            estSoldeDesComptesDeGestion: true,
             journal: { select: { code: true } },
           },
         },
@@ -2561,7 +2571,7 @@ export class EcritureService {
       deviseTransaction: l.devise?.code ?? '',
       montantDevise: l.montantDevise === null ? null : Number(l.montantDevise),
       lettre: l.lettre ?? '',
-      estANouveau: l.ecriture.estGenereeParCloture,
+      estANouveau: l.ecriture.estGenereeParCloture && !l.ecriture.estSoldeDesComptesDeGestion,
     }));
 
     const totalDebit = arrondir(detail.reduce((t, l) => t + l.debit, 0));
@@ -2803,11 +2813,12 @@ export class EcritureService {
    * mouvements du texte officiel (Partie 4, ch. 2, notes 5A-5F et 30) exigent
    * précisément cette distinction.
    *
-   * Réserve, à connaître avant de lire `report*` sur un compte de gestion :
-   * pour un exercice CLÔTURÉ, l'écriture de solde des classes 6 et 7 porte le
-   * même drapeau. Sur une classe 6 ou 7, `report*` est donc la contrepassation
-   * de clôture, pas une ouverture · les charges et les produits ne se
-   * reportent pas. `mouvement*` reste, lui, juste dans tous les cas.
+   * - `clotureDebit` / `clotureCredit` · l'écriture qui, sur un exercice
+   *   CLÔTURÉ, solde les classes 6 à 8 sur le 13
+   *   (`estSoldeDesComptesDeGestion`). Elle n'est ni une ouverture ni une
+   *   activité de l'exercice ; elle rangeait jusqu'au 2026-09-27 en `report*`,
+   *   si bien qu'une classe 6 ou 7 affichait en ouverture l'inverse de son
+   *   total de l'année (audit final F5).
    */
   /**
    * Balance générale.
@@ -2881,11 +2892,18 @@ export class EcritureService {
       ...(inclureBrouillard ? {} : { statut: StatutEcriture.VALIDEE }),
       ...(arreteAu ? { date: { lte: arreteAu } } : {}),
     };
-    const [comptes, reports, mouvements] = await Promise.all([
+    // TROIS COLONNES ET NON DEUX (audit final F4, F5). L'écriture qui solde
+    // les classes 6 à 8 sur le 13, datée de la FIN de l'exercice clos, portait
+    // le même drapeau que le report à-nouveau et tombait avec lui en
+    // « ouverture » · l'écran et le classeur présentaient alors en solde
+    // d'ouverture l'inverse de toute l'activité de l'année. Elle a désormais
+    // sa colonne, `cloture*` : ni une ouverture, ni un mouvement de
+    // l'exercice (les lectures « mouvements, clôture exclue » restent justes).
+    const [comptes, reports, mouvements, clotures] = await Promise.all([
       this.prisma.compte.findMany({ where: { tenantId }, orderBy: { numero: 'asc' } }),
       this.prisma.ligneEcriture.groupBy({
         by: ['compteId'],
-        where: { ecriture: { ...filtreEcriture, estGenereeParCloture: true } },
+        where: { ecriture: { ...filtreEcriture, estGenereeParCloture: true, estSoldeDesComptesDeGestion: false } },
         _sum: { debit: true, credit: true },
       }),
       this.prisma.ligneEcriture.groupBy({
@@ -2893,10 +2911,24 @@ export class EcritureService {
         where: { ecriture: { ...filtreEcriture, estGenereeParCloture: false } },
         _sum: { debit: true, credit: true },
       }),
+      this.prisma.ligneEcriture.groupBy({
+        by: ['compteId'],
+        where: { ecriture: { ...filtreEcriture, estSoldeDesComptesDeGestion: true } },
+        _sum: { debit: true, credit: true },
+      }),
     ]);
 
-    /** Les six agrégats d'une ligne, résolus pareillement pour Détail et Total. */
-    const CHAMPS = ['totalDebit', 'totalCredit', 'reportDebit', 'reportCredit', 'mouvementDebit', 'mouvementCredit'] as const;
+    /** Les huit agrégats d'une ligne, résolus pareillement pour Détail et Total. */
+    const CHAMPS = [
+      'totalDebit',
+      'totalCredit',
+      'reportDebit',
+      'reportCredit',
+      'mouvementDebit',
+      'mouvementCredit',
+      'clotureDebit',
+      'clotureCredit',
+    ] as const;
     type Agregats = Record<(typeof CHAMPS)[number], number>;
     const zero = (): Agregats => ({
       totalDebit: 0,
@@ -2905,13 +2937,15 @@ export class EcritureService {
       reportCredit: 0,
       mouvementDebit: 0,
       mouvementCredit: 0,
+      clotureDebit: 0,
+      clotureCredit: 0,
     });
 
     const soldeDirectParCompte = new Map<string, Agregats>();
     const accumuler = (
       groupes: Array<{ compteId: string; _sum: { debit: unknown; credit: unknown } }>,
-      champDebit: 'reportDebit' | 'mouvementDebit',
-      champCredit: 'reportCredit' | 'mouvementCredit',
+      champDebit: 'reportDebit' | 'mouvementDebit' | 'clotureDebit',
+      champCredit: 'reportCredit' | 'mouvementCredit' | 'clotureCredit',
     ) => {
       for (const g of groupes) {
         const a = soldeDirectParCompte.get(g.compteId) ?? zero();
@@ -2926,6 +2960,7 @@ export class EcritureService {
     };
     accumuler(reports, 'reportDebit', 'reportCredit');
     accumuler(mouvements, 'mouvementDebit', 'mouvementCredit');
+    accumuler(clotures, 'clotureDebit', 'clotureCredit');
 
     // Les comptes Total sont écartés d'emblée · ils ne reçoivent jamais
     // d'écriture (un numéro à deux ou trois chiffres est structurellement
@@ -3028,8 +3063,12 @@ export class EcritureService {
       this.prisma.compte.findMany({ where: { tenantId }, orderBy: { numero: 'asc' } }),
       this.prisma.ligneEcriture.groupBy({
         by: ['compteId'],
-        // Le bilan d'ouverture du dossier, et lui seul (règle 2 ci-dessus).
-        where: { ecriture: { ...filtreEcriture, exerciceId: premierExerciceId, estGenereeParCloture: true } },
+        // Le bilan d'ouverture du dossier, et lui seul (règle 2 ci-dessus) ·
+        // jamais l'écriture qui solde les classes 6 à 8 du premier exercice
+        // quand il est clos, qui n'ouvre rien (audit final F206).
+        where: {
+          ecriture: { ...filtreEcriture, exerciceId: premierExerciceId, estGenereeParCloture: true, estSoldeDesComptesDeGestion: false },
+        },
         _sum: { debit: true, credit: true },
       }),
       this.prisma.ligneEcriture.groupBy({

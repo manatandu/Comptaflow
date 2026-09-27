@@ -31,6 +31,9 @@ interface LigneBalance {
   numero: string;
   mouvementDebit: number;
   mouvementCredit: number;
+  /** L'écriture de clôture, qui porte le résultat propre de l'exercice. */
+  clotureDebit?: number;
+  clotureCredit?: number;
   solde: number;
 }
 
@@ -111,42 +114,48 @@ function service(o: Options = {}) {
     },
   } as unknown as PrismaService;
   const ecritures = {
-    balance: jest.fn().mockResolvedValue({ lignes: o.balance ?? [], totaux: { debit: 0, credit: 0 } }),
+    balance: jest.fn().mockResolvedValue({
+      lignes: (o.balance ?? []).map((l) => ({ clotureDebit: 0, clotureCredit: 0, ...l })),
+      totaux: { debit: 0, credit: 0 },
+    }),
     creer: creerEcriture,
   } as unknown as EcritureService;
   return { svc: new AffectationService(prisma, ecritures), creerEcriture, creerAffectation };
 }
 
-/** Un bénéfice de `montant` porté par le MOUVEMENT du 131. */
+/** Un bénéfice de `montant` posé sur le 131 par l'écriture de clôture. */
 const benefice = (montant: number, extra: LigneBalance[] = []): LigneBalance[] => [
-  { numero: '13100000', mouvementDebit: 0, mouvementCredit: montant, solde: -montant },
+  { numero: '13100000', mouvementDebit: 0, mouvementCredit: 0, clotureCredit: montant, solde: -montant },
   ...extra,
 ];
 
-/** Une perte de `montant` portée par le MOUVEMENT du 139. */
+/** Une perte de `montant` posée sur le 139 par l'écriture de clôture. */
 const perte = (montant: number, extra: LigneBalance[] = []): LigneBalance[] => [
-  { numero: '13900000', mouvementDebit: montant, mouvementCredit: 0, solde: montant },
+  { numero: '13900000', mouvementDebit: 0, mouvementCredit: 0, clotureDebit: montant, solde: montant },
   ...extra,
 ];
 
 const DECISION = { dateDecision: '2027-06-30', organe: 'Assemblée générale ordinaire', reference: 'PV-2027-01' };
 
 describe('Affectation · le montant à affecter', () => {
-  it('lit le MOUVEMENT du compte 13, pas son solde', async () => {
+  it('lit le résultat que la clôture a posé sur le 13, ni son mouvement ni son solde (audit final F4)', async () => {
     // Le 131 porte 5 000 000 de solde, dont 3 000 000 reportés de l'exercice
-    // précédent jamais affecté. Seuls 2 000 000 sont le résultat de CET
-    // exercice · affecter 5 000 000 affecterait deux fois celui d'avant.
+    // précédent jamais affecté. Son MOUVEMENT porte l'affectation de ce
+    // précédent, passée dans cet exercice (1 000 000 au débit). Seuls les
+    // 2 000 000 que la clôture a crédités sont le résultat de CET exercice.
     const { svc } = service({
-      balance: [{ numero: '13100000', mouvementDebit: 0, mouvementCredit: 2_000_000, solde: -5_000_000 }],
+      balance: [
+        { numero: '13100000', mouvementDebit: 1_000_000, mouvementCredit: 0, clotureCredit: 2_000_000, solde: -5_000_000 },
+      ],
     });
     const p = await svc.preparer('t1', 'ex2026');
     expect(p.montant).toBe(2_000_000);
     expect(p.estBenefice).toBe(true);
   });
 
-  it('reconnaît une perte au mouvement du 139', async () => {
+  it('reconnaît une perte posée sur le 139 par la clôture', async () => {
     const { svc } = service({
-      balance: [{ numero: '13900000', mouvementDebit: 800_000, mouvementCredit: 0, solde: 800_000 }],
+      balance: [{ numero: '13900000', mouvementDebit: 0, mouvementCredit: 0, clotureDebit: 800_000, solde: 800_000 }],
     });
     const p = await svc.preparer('t1', 'ex2026');
     expect(p.montant).toBe(800_000);
@@ -204,7 +213,7 @@ describe('Affectation · l’écriture qui solde le 13', () => {
 
   it('CRÉDITE le 139 et débite les destinations, pour une perte', async () => {
     const { svc, creerEcriture } = service({
-      balance: [{ numero: '13900000', mouvementDebit: 500_000, mouvementCredit: 0, solde: 500_000 }],
+      balance: [{ numero: '13900000', mouvementDebit: 0, mouvementCredit: 0, clotureDebit: 500_000, solde: 500_000 }],
     });
     await svc.enregistrer('t1', 'u1', {
       ...DECISION,
@@ -370,7 +379,7 @@ describe('Affectation · la réserve légale bloque, elle n’avertit pas', () =
   it('ne l’exige pas sur une perte', async () => {
     const { svc, creerEcriture } = service({
       balance: [
-        { numero: '13900000', mouvementDebit: 400_000, mouvementCredit: 0, solde: 400_000 },
+        { numero: '13900000', mouvementDebit: 0, mouvementCredit: 0, clotureDebit: 400_000, solde: 400_000 },
         { numero: '10110000', mouvementDebit: 0, mouvementCredit: 0, solde: -10_000_000 },
       ],
     });

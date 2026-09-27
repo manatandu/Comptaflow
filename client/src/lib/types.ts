@@ -425,6 +425,13 @@ export interface LigneBalance {
   reportCredit: number;
   mouvementDebit: number;
   mouvementCredit: number;
+  /**
+   * L'écriture qui solde les classes 6 à 8 d'un exercice CLÔTURÉ · ni une
+   * ouverture ni une activité de l'exercice (audit final F5). La balance à
+   * six colonnes l'additionne aux mouvements, qui sont ceux du journal.
+   */
+  clotureDebit?: number;
+  clotureCredit?: number;
   totalDebit: number;
   totalCredit: number;
   solde: number;

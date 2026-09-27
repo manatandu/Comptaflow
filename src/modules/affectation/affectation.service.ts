@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { estCompteDuResultatDeLExercice } from '../etats-financiers/resultat-de-l-exercice';
 import {
   FormeJuridiqueSyscohada,
   Prisma,
@@ -381,17 +382,24 @@ export class AffectationService {
     const parRacine = (racine: string) =>
       balance.lignes.filter((l) => l.numero.startsWith(racine));
 
-    const mouvement = (racine: string) =>
-      parRacine(racine).reduce((s, l) => s + l.mouvementDebit - l.mouvementCredit, 0);
     const solde = (racine: string) => parRacine(racine).reduce((s, l) => s + l.solde, 0);
 
     const racine = racineCapital(referentiel, forme);
 
-    // 131 bénéfice (créditeur) · 139 perte (débiteur). Les deux numéros sont les
-    // mêmes dans les deux plans, seuls les intitulés diffèrent.
-    const beneficeMouvement = Math.round(-mouvement('131') * 100) / 100;
-    const perteMouvement = Math.round(mouvement('139') * 100) / 100;
-    const net = Math.round((beneficeMouvement - perteMouvement) * 100) / 100;
+    // LE RÉSULTAT PROPRE DE L'EXERCICE EST CELUI QUE LA CLÔTURE A POSÉ SUR LE
+    // 13 (audit final F4). Lu en MOUVEMENT, il valait zéro · l'écriture de
+    // solde des classes 6 à 8 n'est pas un mouvement de l'exercice, et elle
+    // restait de surcroît au brouillard, hors du livre-journal. Le mouvement
+    // du 13, lui, mêle l'affectation de l'exercice PRÉCÉDENT, passée dans
+    // celui-ci. Seule la colonne de clôture porte le résultat de l'exercice,
+    // et sur les comptes que la règle commune reconnaît (131 à 139, jamais
+    // le 130, `resultat-de-l-exercice.ts`).
+    const net =
+      Math.round(
+        -balance.lignes
+          .filter((l) => estCompteDuResultatDeLExercice(l.numero))
+          .reduce((s, l) => s + l.clotureDebit - l.clotureCredit, 0) * 100,
+      ) / 100;
 
     return {
       montant: Math.abs(net),

@@ -892,7 +892,7 @@ export class ExportService {
 
   /** Balance générale · la présentation des dossiers de révision réels. */
   async balanceExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
-    const { lignes } = await this.ecritureService.balance(tenantId, exerciceId);
+    const { lignes: balanceBrute } = await this.ecritureService.balance(tenantId, exerciceId);
     const identiteBalance = await this.identiteEtat(tenantId, { exerciceId });
 
     const classeur = this.nouveauClasseur();
@@ -946,6 +946,15 @@ export class ExportService {
       { header: 'Société', key: 'societe', width: 18 },
     ];
 
+    // L'écriture qui solde les classes 6 à 8 d'un exercice clos est un
+    // mouvement DU JOURNAL de l'exercice, pas une ouverture (audit final F5) ·
+    // elle se lit avec les mouvements, et « avant période + débit = cumulé »
+    // reste vrai ligne à ligne.
+    const lignes = balanceBrute.map((l) => ({
+      ...l,
+      mouvementDebit: l.mouvementDebit + l.clotureDebit,
+      mouvementCredit: l.mouvementCredit + l.clotureCredit,
+    }));
     for (const l of lignes) {
       feuille.addRow({
         numero: l.numero,
@@ -4218,8 +4227,11 @@ export class ExportService {
           libelle: l.intitule,
           ouvertureDebit: Math.max(ouverture, 0),
           ouvertureCredit: Math.max(-ouverture, 0),
-          mouvementDebit: l.mouvementDebit,
-          mouvementCredit: l.mouvementCredit,
+          // L'écriture qui solde les classes 6 à 8 d'un exercice clos se lit
+          // avec les mouvements (audit final F5) · sans elle, l'identité
+          // tomberait sur chaque charge et chaque produit d'un exercice clos.
+          mouvementDebit: l.mouvementDebit + l.clotureDebit,
+          mouvementCredit: l.mouvementCredit + l.clotureCredit,
           clotureDebit: Math.max(l.solde, 0),
           clotureCredit: Math.max(-l.solde, 0),
         };

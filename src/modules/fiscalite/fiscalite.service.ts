@@ -401,8 +401,8 @@ export class FiscaliteService {
     // `solde = débit - crédit` de la balance · d'où le signe.
     //
     // LU SUR LES MOUVEMENTS, JAMAIS SUR LE SOLDE. L'écriture de clôture solde
-    // les classes 6 et 7 de l'exercice clos (`estGenereeParCloture`, rangée
-    // par la balance avec les reports). Lu au solde, le chiffre d'affaires
+    // les classes 6 et 7 de l'exercice clos (`estSoldeDesComptesDeGestion`,
+    // rangée par la balance dans ses colonnes de clôture). Lu au solde, le chiffre d'affaires
     // d'un exercice clos vaudrait zéro dès que cette écriture compte, et
     // `chiffresAffairesAnterieurs`, qui ne lit QUE des exercices clos, rendrait
     // à l'art. 113 un historique de zéros · le régime d'une personne physique

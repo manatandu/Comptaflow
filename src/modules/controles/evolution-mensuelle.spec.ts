@@ -10,7 +10,7 @@ import { PrismaService } from '../../common/prisma.service';
  * effectivement voir.
  */
 
-function ligne(numero: string, date: string, montant: number, report = false) {
+function ligne(numero: string, date: string, montant: number, report = false, soldeDeGestion = false) {
   return {
     debit: montant > 0 ? montant : 0,
     credit: montant < 0 ? -montant : 0,
@@ -21,7 +21,11 @@ function ligne(numero: string, date: string, montant: number, report = false) {
       classe: ClasseCompte.CLASSE_6,
       typeCompte: TypeCompteDetailTotal.DETAIL as TypeCompteDetailTotal,
     },
-    ecriture: { date: new Date(date), estGenereeParCloture: report },
+    ecriture: {
+      date: new Date(date),
+      estGenereeParCloture: report || soldeDeGestion,
+      estSoldeDesComptesDeGestion: soldeDeGestion,
+    },
   };
 }
 
@@ -71,6 +75,25 @@ describe('évolution mensuelle par compte', () => {
     expect(c.valeurs[0]).toBe(1_000);
     expect(c.cumul).toBe(1_000);
     expect(c.soldeFinal).toBe(901_000);
+  });
+
+  /**
+   * AUDIT FINAL F78 · l'écriture qui solde les classes 6 à 8 portait le même
+   * drapeau que l'à-nouveau et partait en ouverture · chaque charge d'un
+   * exercice clos affichait l'inverse de son total en « Ouverture ».
+   */
+  it('ne range l’écriture de solde des comptes de gestion ni en ouverture ni en décembre', async () => {
+    const s = service(
+      [ligne('601000', '2026-03-10', 3_000), ligne('601000', '2026-12-31', -3_000, false, true)],
+      ANNEE_CIVILE,
+    );
+    const c = (await s.evolutionMensuelle('t', 'ex')).comptes[0];
+    expect({ report: c.report, mars: c.valeurs[2], decembre: c.valeurs[11], solde: c.soldeFinal }).toEqual({
+      report: 0,
+      mars: 3_000,
+      decembre: 0,
+      solde: 3_000,
+    });
   });
 
   it('somme les mouvements du même mois et signe le net', async () => {

@@ -42,6 +42,8 @@ interface LigneBalanceStub {
   reportCredit: number;
   mouvementDebit: number;
   mouvementCredit: number;
+  clotureDebit: number;
+  clotureCredit: number;
   totalDebit: number;
   totalCredit: number;
   solde: number;
@@ -66,6 +68,8 @@ function ligne(
     reportCredit,
     mouvementDebit,
     mouvementCredit,
+    clotureDebit: 0,
+    clotureCredit: 0,
     totalDebit: reportDebit + mouvementDebit,
     totalCredit: reportCredit + mouvementCredit,
     solde: reportDebit + mouvementDebit - reportCredit - mouvementCredit,
@@ -615,5 +619,33 @@ describe('liasse complète · Système minimal de trésorerie SYSCOHADA', () => 
     const ctlSmt = texteFeuille(wb, 'CONTROLES');
     expect(ctlSmt.some((t) => t.includes('Entités de négoce'))).toBe(true);
     expect(ctlSmt.some((t) => t.includes("ou l'équivalent dans l'unité monétaire"))).toBe(true);
+  });
+});
+
+/**
+ * AUDIT FINAL F5 · la feuille BALANCE de la liasse vérifie, compte par compte,
+ * « ouverture + mouvements = clôture ». Sur un exercice clos, l'écriture qui
+ * solde les classes 6 à 8 n'est ni une ouverture ni un solde avant période ·
+ * oubliée des mouvements, l'identité tombait sur chaque charge.
+ */
+describe('feuille BALANCE de la liasse · exercice clos', () => {
+  it('lit l’écriture de solde des comptes de gestion avec les mouvements', async () => {
+    const charge = {
+      ...ligne('60110000', 'Achats', ClasseCompte.CLASSE_6, 0, 0, 3000, 0),
+      clotureCredit: 3000,
+      totalCredit: 3000,
+      solde: 0,
+    };
+    const service = fabriquerExport();
+    (service as unknown as { ecritureService: { balance: jest.Mock } }).ecritureService.balance = jest
+      .fn()
+      .mockResolvedValue({ lignes: [charge] });
+    const [l] = await (
+      service as unknown as { lignesBalanceLiasse: (t: string, e: string) => Promise<Record<string, number>[]> }
+    ).lignesBalanceLiasse('t', 'e1');
+    expect(l.ouvertureDebit + l.ouvertureCredit + l.mouvementDebit - l.mouvementCredit).toBe(
+      l.clotureDebit - l.clotureCredit,
+    );
+    expect({ ouverture: l.ouvertureCredit, credit: l.mouvementCredit }).toEqual({ ouverture: 0, credit: 3000 });
   });
 });

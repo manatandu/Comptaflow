@@ -29,6 +29,24 @@ const AIDE_REPORT_ART_22 =
 const EPSILON = 0.005;
 
 /**
+ * Les écritures que la clôture annuelle engendre entrent au livre-journal
+ * VALIDÉES, au nom de celui qui clôture (audit final F4). Elles ne sont
+ * saisies par personne : la clôture les calcule sur des soldes déjà validés.
+ */
+function validationParLaCloture(userId: string) {
+  return { statut: StatutEcriture.VALIDEE, valideeAt: new Date(), valideeBy: userId };
+}
+
+/** « 2025 » pour un exercice civil, « 01/07/2025 au 31/12/2026 » sinon. */
+function periodeLisible(e: { dateDebut: Date; dateFin: Date }): string {
+  const d = e.dateDebut.toISOString().slice(0, 10);
+  const f = e.dateFin.toISOString().slice(0, 10);
+  if (d.slice(5) === '01-01' && f.slice(5) === '12-31' && d.slice(0, 4) === f.slice(0, 4)) return d.slice(0, 4);
+  const fr = (x: string) => `${x.slice(8, 10)}/${x.slice(5, 7)}/${x.slice(0, 4)}`;
+  return `du ${fr(d)} au ${fr(f)}`;
+}
+
+/**
  * Cycle de vie complet de l'exercice (docs/plan-de-construction.md §3.1) :
  * - 3 granularités de clôture (Partielle/Totale/Période), qui verrouillent la
  *   saisie sans rien générer · voir clorePartielle/cloreTotale/clorePeriode
@@ -698,6 +716,34 @@ export class ExerciceService {
       throw new ForbiddenException('Cet exercice est déjà clôturé');
     }
 
+    // LES EXERCICES SE CLÔTURENT DANS L'ORDRE (audit final F6). Clore 2026
+    // avant 2025 calculait le report vers 2027 sans les soldes de 2025, puis
+    // la clôture de 2025 écrivait son report dans un 2026 déjà clos, que plus
+    // rien ne rouvrait · correspondance bilan de clôture / bilan d'ouverture
+    // rompue (AUDCIF art. 34, SYCEBNL art. 16, 4), balance bouclée partout.
+    const [precedentOuvert, suivantClos] = await Promise.all([
+      this.prisma.exercice.findFirst({
+        where: { tenantId, dateFin: { lt: exercice.dateDebut }, statut: { not: StatutExercice.CLOTURE } },
+        orderBy: { dateDebut: 'asc' },
+        select: { dateDebut: true, dateFin: true },
+      }),
+      this.prisma.exercice.findFirst({
+        where: { tenantId, dateDebut: { gt: exercice.dateFin }, statut: StatutExercice.CLOTURE },
+        select: { dateDebut: true },
+      }),
+    ]);
+    if (precedentOuvert) {
+      throw new BadRequestException(
+        `L'exercice ${periodeLisible(precedentOuvert)} n'est pas clôturé. Les exercices se clôturent dans l'ordre : ` +
+          'son report à-nouveau fait le bilan d’ouverture de celui-ci.',
+      );
+    }
+    if (suivantClos) {
+      throw new BadRequestException(
+        "Un exercice postérieur est déjà clôturé : le report à-nouveau de celui-ci ne pourrait plus y entrer.",
+      );
+    }
+
     // Rien ne doit rester en brouillard au moment de clôturer : la clôture
     // solde les comptes de gestion et génère le report à-nouveau à partir des
     // soldes du livre-journal. Une écriture restée en brouillard n'y figure
@@ -796,6 +842,14 @@ export class ExerciceService {
               libelle: `Clôture des charges/produits · exercice ${exercice.dateDebut.getUTCFullYear()}`,
               createdBy: userId,
               estGenereeParCloture: true,
+              estSoldeDesComptesDeGestion: true,
+              // ENTRE VALIDÉE (audit final F4). Calculée sur le seul
+              // livre-journal, la clôture ayant refusé tout brouillard, elle
+              // ne pouvait plus l'être ensuite : `valider` refuse un exercice
+              // clos. Restée au brouillard, elle manquait au livre-journal,
+              // et l'affectation, qui ne lit que lui, ne trouvait aucun
+              // résultat à affecter.
+              ...validationParLaCloture(userId),
               lignes: { create: lignesCloture },
             },
           });
@@ -860,6 +914,10 @@ export class ExerciceService {
               libelle: `Report à-nouveau · ouverture exercice ${exerciceSuivant.dateDebut.getUTCFullYear()}`,
               createdBy: userId,
               estGenereeParCloture: true,
+              // Validé comme l'écriture de solde, et pour la même raison · il
+              // se calcule sur des soldes validés, et resté au brouillard il
+              // manquerait au bilan d'ouverture de tous les états légaux.
+              ...validationParLaCloture(userId),
               lignes: { create: lignesRan },
             },
           });

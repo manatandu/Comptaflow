@@ -8,6 +8,7 @@ import { ModaleReimputation } from '../components/ModaleReimputation';
 import type { Ecriture, Journal, LigneBalance, LigneGrandLivre } from '../lib/types';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { Aide } from '../components/chrome/Aide';
+import { mouvementsDuJournal } from '../lib/mouvements-du-journal';
 
 type Onglet = 'journal' | 'grand-livre' | 'balance';
 
@@ -877,8 +878,8 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
                   <>
                     <Montant valeur={ouverture > 0 ? ouverture : 0} />
                     <Montant valeur={ouverture < 0 ? -ouverture : 0} />
-                    <Montant valeur={l.mouvementDebit} />
-                    <Montant valeur={l.mouvementCredit} />
+                    <Montant valeur={mouvementsDuJournal(l).debit} />
+                    <Montant valeur={mouvementsDuJournal(l).credit} />
                     <Montant valeur={cloture > 0 ? cloture : 0} />
                     <Montant valeur={cloture < 0 ? -cloture : 0} />
                   </>
@@ -898,8 +899,8 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
                 <span className="text-right text-[11px] text-text-dim self-center">Totaux généraux</span>
                 <Montant valeur={cumul((l) => Math.max(ouv(l), 0))} />
                 <Montant valeur={cumul((l) => Math.max(-ouv(l), 0))} />
-                <Montant valeur={cumul((l) => l.mouvementDebit)} />
-                <Montant valeur={cumul((l) => l.mouvementCredit)} />
+                <Montant valeur={cumul((l) => mouvementsDuJournal(l).debit)} />
+                <Montant valeur={cumul((l) => mouvementsDuJournal(l).credit)} />
                 <Montant valeur={cumul((l) => Math.max(l.solde, 0))} />
                 <Montant valeur={cumul((l) => Math.max(-l.solde, 0))} />
               </div>

@@ -34,16 +34,29 @@ function comptes() {
     { id: 'c52', numero: '52', intitule: 'Banques', classe: 'CLASSE_5', typeCompte: 'TOTAL' },
     { id: 'c521', numero: '52100000', intitule: 'Banque locale', classe: 'CLASSE_5', typeCompte: 'DETAIL' },
     { id: 'c60', numero: '60', intitule: 'Achats', classe: 'CLASSE_6', typeCompte: 'TOTAL' },
+    { id: 'c601', numero: '60100000', intitule: 'Achats de marchandises', classe: 'CLASSE_6', typeCompte: 'DETAIL' },
+    { id: 'c131', numero: '13100000', intitule: 'Résultat net : bénéfice', classe: 'CLASSE_1', typeCompte: 'DETAIL' },
   ];
 }
 
 function service(
   reports: Array<{ compteId: string; debit: number; credit: number }>,
   mouvements: Array<{ compteId: string; debit: number; credit: number }>,
+  clotures: Array<{ compteId: string; debit: number; credit: number }> = [],
 ) {
   const groupe = (l: typeof reports) => l.map((x) => ({ compteId: x.compteId, _sum: { debit: x.debit, credit: x.credit } }));
+  // La doublure route comme la base filtrerait · l'écriture de solde des
+  // classes 6 à 8 d'abord, puis l'à-nouveau, puis le reste.
   const groupBy = jest.fn().mockImplementation(({ where }) =>
-    Promise.resolve(groupe(where.ecriture.estGenereeParCloture ? reports : mouvements)),
+    Promise.resolve(
+      groupe(
+        where.ecriture.estSoldeDesComptesDeGestion === true
+          ? clotures
+          : where.ecriture.estGenereeParCloture
+            ? reports
+            : mouvements,
+      ),
+    ),
   );
   const prisma = {
     compte: { findMany: jest.fn().mockResolvedValue(comptes()) },
@@ -66,6 +79,8 @@ interface LigneBalance {
   reportCredit: number;
   mouvementDebit: number;
   mouvementCredit: number;
+  clotureDebit: number;
+  clotureCredit: number;
   solde: number;
   typeCompte: string;
 }
@@ -186,12 +201,46 @@ describe('Balance générale', () => {
     expect(ligne(r, '60')).toBeUndefined();
   });
 
-  it('ne rapatrie pas les lignes · deux agrégations en base, pas une par compte', async () => {
-    // Le point de la réécriture : la somme se fait DANS Postgres. Deux appels
-    // et deux seulement, quel que soit le nombre de comptes ou d'écritures.
+  it('ne rapatrie pas les lignes · trois agrégations en base, pas une par compte', async () => {
+    // Le point de la réécriture : la somme se fait DANS Postgres. Trois appels
+    // et trois seulement (ouverture, mouvements, solde de gestion), quel que
+    // soit le nombre de comptes ou d'écritures.
     const { svc, groupBy } = service([], [{ compteId: 'c521', debit: 10, credit: 0 }]);
     await svc.balance('t1', 'e1');
-    expect(groupBy).toHaveBeenCalledTimes(2);
+    expect(groupBy).toHaveBeenCalledTimes(3);
+  });
+
+  /**
+   * AUDIT FINAL F5 · sur un exercice CLOS, l'écriture qui solde les classes 6
+   * à 8 portait le drapeau de l'à-nouveau et tombait en « ouverture » · une
+   * charge affichait en solde d'ouverture l'inverse de son total de l'année.
+   */
+  it('range l’écriture de solde des classes 6 à 8 à part, ni en ouverture ni en mouvement', async () => {
+    const { svc, groupBy } = service(
+      [{ compteId: 'c521', debit: 50_000, credit: 0 }],
+      [
+        { compteId: 'c601', debit: 30_000, credit: 0 },
+        { compteId: 'c521', debit: 0, credit: 30_000 },
+      ],
+      [
+        { compteId: 'c601', debit: 0, credit: 30_000 },
+        { compteId: 'c131', debit: 30_000, credit: 0 },
+      ],
+    );
+    const r = await svc.balance('t1', 'e1');
+    const achats = ligne(r, '60100000');
+    expect({ ouverture: achats.reportDebit - achats.reportCredit, mouvement: achats.mouvementDebit, cloture: achats.clotureCredit, solde: achats.solde }).toEqual({
+      ouverture: 0,
+      mouvement: 30_000,
+      cloture: 30_000,
+      solde: 0,
+    });
+    // Et l'ouverture exclut bien cette écriture dans la requête elle-même.
+    const filtreOuverture = groupBy.mock.calls.map((c) => c[0].where.ecriture).find((e) => e.estGenereeParCloture === true);
+    expect(filtreOuverture.estSoldeDesComptesDeGestion).toBe(false);
+    for (const l of lignes(r)) {
+      expect(l.reportDebit - l.reportCredit + l.mouvementDebit - l.mouvementCredit + l.clotureDebit - l.clotureCredit).toBe(l.solde);
+    }
   });
 
   it('exclut le brouillard quand on le demande', async () => {

@@ -3041,6 +3041,26 @@ est indiscernable d'une erreur d'imputation. D'où le contrôle
 `IMPUTATION_REPORT_A_NOUVEAU_NON_DECLAREE`, qui liste ce qui a touché le 12
 hors clôture et hors exception déclarée, en citant l'article du dossier.
 
+**Clôture annuelle · un drapeau, deux sens, et ce qui les sépare
+(2026-09-27, audit final F4, F5, F6).** `estGenereeParCloture` marquait à la
+fois l'écriture qui solde les classes 6 à 8 et le report à-nouveau. La balance
+rangeait donc le solde en « ouverture » sur tout exercice clos, et
+l'affectation, qui lisait le 13 en mouvement, trouvait un résultat nul.
+`Ecriture.estSoldeDesComptesDeGestion` porte désormais le premier sens. QUATRE
+RÈGLES À NE PAS DÉFAIRE. (1) LA BALANCE A TROIS COLONNES · report
+(à-nouveau), mouvement (activité), clôture (`clotureDebit`, `clotureCredit`),
+et solde = les trois ; tout écran ou classeur qui écrit « ouverture +
+mouvements = clôture » ajoute la clôture aux mouvements. (2) LES DEUX
+ÉCRITURES DE LA CLÔTURE ENTRENT VALIDÉES · calculées sur le seul
+livre-journal, elles ne pouvaient plus l'être ensuite, l'exercice étant clos
+(AUDCIF art. 22, 2°). (3) L'AFFECTATION LIT LE RÉSULTAT DANS LA COLONNE DE
+CLÔTURE, sur les 131 à 139 (`resultat-de-l-exercice.ts`), jamais en
+mouvement, qui mêle l'affectation de l'exercice précédent. (4) LES EXERCICES
+SE CLÔTURENT DANS L'ORDRE · refus tant qu'un antérieur est ouvert ou qu'un
+postérieur est déjà clos. `e2e/tests/cloture.e2e.ts` le prouve sur la base
+réelle, parce que F4 avait passé tous les tests unitaires sous une doublure de
+la balance.
+
 Trois refus, chacun sourcé : la destination doit être un 12 (seul compte de
 report à nouveau des deux plans) ; la contrepartie doit être un poste de BILAN,
 une contrepartie de gestion ferait transiter l'impact par le résultat et

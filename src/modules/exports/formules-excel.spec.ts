@@ -55,6 +55,8 @@ describe('exports · les totaux sont des formules Excel', () => {
         reportCredit: 1000,
         mouvementDebit: 0,
         mouvementCredit: 0,
+        clotureDebit: 0,
+        clotureCredit: 0,
         totalDebit: 0,
         totalCredit: 1000,
       },
@@ -66,6 +68,8 @@ describe('exports · les totaux sont des formules Excel', () => {
         reportCredit: 0,
         mouvementDebit: 600,
         mouvementCredit: 0,
+        clotureDebit: 0,
+        clotureCredit: 0,
         totalDebit: 1000,
         totalCredit: 0,
       },
@@ -107,6 +111,39 @@ describe('exports · les totaux sont des formules Excel', () => {
       expect(estFormule(v)).toBe(true);
       expect((v as ExcelJS.CellFormulaValue).formula).toBe(`SUM(${col}5:${col}6)`);
     }
+  });
+
+  /**
+   * AUDIT FINAL F5 · sur un exercice clos, l'écriture qui solde une charge
+   * partait en « solde avant période » · la balance exportée affichait en
+   * ouverture l'inverse du total de l'année. Elle se lit avec les mouvements.
+   */
+  it('range l’écriture de solde des comptes de gestion avec les mouvements, jamais avant la période', async () => {
+    const lignes = [
+      {
+        compteId: 'c601',
+        numero: '60110000',
+        intitule: 'Achats',
+        reportDebit: 0,
+        reportCredit: 0,
+        mouvementDebit: 3000,
+        mouvementCredit: 0,
+        clotureDebit: 0,
+        clotureCredit: 3000,
+        totalDebit: 3000,
+        totalCredit: 3000,
+        solde: 0,
+      },
+    ];
+    const prisma = {
+      tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue(TENANT) },
+      exercice: { findFirst: jest.fn().mockResolvedValue(null) },
+    } as unknown as PrismaService;
+    const ecriture = { balance: jest.fn().mockResolvedValue({ lignes }) } as unknown as EcritureService;
+    const vide = {} as never;
+    const service = new ExportService(prisma, ecriture, vide, vide, vide, vide, vide, vide, vide, vide);
+    const f = (await classeurDepuis((await service.balanceExcel('tn', 'ex')).buffer)).getWorksheet('Balance')!;
+    expect(['C5', 'D5', 'E5', 'F5'].map((a) => f.getCell(a).value)).toEqual([null, null, 3000, 3000]);
   });
 
   it('le tableau des amortissements lie dotation, cumul et valeur nette', async () => {

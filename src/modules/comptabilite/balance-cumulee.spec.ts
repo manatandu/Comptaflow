@@ -22,7 +22,12 @@ import { PrismaService } from '../../common/prisma.service';
  *    OmegaX. Le montant manquant est exactement celui que le cabinet cherche.
  */
 
-type Ecriture = { exerciceId: string; estGenereeParCloture: boolean; statut?: string };
+type Ecriture = {
+  exerciceId: string;
+  estGenereeParCloture: boolean;
+  estSoldeDesComptesDeGestion?: boolean;
+  statut?: string;
+};
 
 function service(
   exercices: Array<{ id: string; annee: number }>,
@@ -31,6 +36,12 @@ function service(
   const correspond = (e: Ecriture, where: any) => {
     const f = where.ecriture;
     if (f.estGenereeParCloture !== undefined && e.estGenereeParCloture !== f.estGenereeParCloture) return false;
+    if (
+      f.estSoldeDesComptesDeGestion !== undefined &&
+      (e.estSoldeDesComptesDeGestion ?? false) !== f.estSoldeDesComptesDeGestion
+    ) {
+      return false;
+    }
     if (f.statut !== undefined && (e.statut ?? 'VALIDEE') !== f.statut) return false;
     // `exerciceId` arrive soit en `{ in: [...] }` (la fenêtre), soit en valeur
     // simple (le premier exercice). Le faux doit honorer les DEUX, sans quoi
@@ -115,6 +126,31 @@ describe('Balance cumulée depuis l’origine', () => {
     // emplois-ressources lit comme « fonds disponible en début » sur la
     // colonne cumulée, et c'est ce qui fait tenir le contrôle VII.
     expect(lignes[0].reportCredit).toBe(1_000_000);
+  });
+
+  /**
+   * AUDIT FINAL F206 · l'écriture qui solde les classes 6 à 8 du premier
+   * exercice, quand il est clos, portait le drapeau de l'à-nouveau · elle
+   * entrait dans le bilan d'ouverture et retranchait du cumul les charges de
+   * la première année.
+   */
+  it('NE PREND PAS l’écriture de solde des comptes de gestion du premier exercice pour une ouverture', async () => {
+    const s = service(EXERCICES, [
+      { exerciceId: 'e2024', estGenereeParCloture: false, compteId: 'c-462', debit: 0, credit: 400_000 },
+      {
+        exerciceId: 'e2024',
+        estGenereeParCloture: true,
+        estSoldeDesComptesDeGestion: true,
+        compteId: 'c-462',
+        debit: 400_000,
+        credit: 0,
+      },
+    ]);
+    const { lignes } = await s.balanceCumulee('t1', 'e2025');
+    expect({ total: lignes[0].totalCredit - lignes[0].totalDebit, ouverture: lignes[0].reportDebit }).toEqual({
+      total: 400_000,
+      ouverture: 0,
+    });
   });
 
   it('S’ARRÊTE À L’EXERCICE DEMANDÉ · la colonne « cumul début » ne voit pas l’exercice en cours', async () => {
