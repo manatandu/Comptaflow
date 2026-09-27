@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { RoleUtilisateur } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
@@ -6,7 +6,11 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { EmballagesService } from './emballages.service';
-import { CreerConsignationDto, DenouerConsignationDto } from './dto/consignation.dto';
+import {
+  CreerConsignationDto,
+  DenouerConsignationDto,
+  RattacherEcritureConsignationDto,
+} from './dto/consignation.dto';
 import type { ModeDenouement } from './consignation';
 
 /**
@@ -68,5 +72,35 @@ export class EmballagesController {
     @Body() dto: DenouerConsignationDto,
   ) {
     return this.emballages.denouer(user.tenantId, id, dto);
+  }
+
+  /**
+   * LE LIEN VERS L'ÉCRITURE PASSÉE · `:role` vaut « ouverture » ou
+   * « denouement ». Le module propose et le comptable passe la pièce au
+   * journal : ces trois routes sont le seul chemin qui écrive
+   * `ecritureConsignationId` et `ecritureDenouementId` (audit du serveur de
+   * 2026-09, I2).
+   */
+  @Get('consignations/:id/ecritures/:role/candidates')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE, RoleUtilisateur.LECTURE_SEULE)
+  async candidates(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Param('role') role: string) {
+    return this.emballages.ecrituresCandidates(user.tenantId, id, role);
+  }
+
+  @Post('consignations/:id/ecritures/:role')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  async rattacher(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('role') role: string,
+    @Body() dto: RattacherEcritureConsignationDto,
+  ) {
+    return this.emballages.rattacherEcriture(user.tenantId, id, role, dto.ecritureId);
+  }
+
+  @Delete('consignations/:id/ecritures/:role')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  async detacher(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Param('role') role: string) {
+    return this.emballages.detacherEcriture(user.tenantId, id, role);
   }
 }

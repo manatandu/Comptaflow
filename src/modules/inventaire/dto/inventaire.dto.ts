@@ -140,6 +140,12 @@ export class ArbitrerEcartDto {
   explication?: string;
 }
 
+/** L'écriture de redressement déjà passée au journal, que l'écart désigne. */
+export class RattacherEcritureEcartDto {
+  @IsUUID()
+  ecritureId!: string;
+}
+
 export class EtablirProcesVerbalDto {
   @IsOptional()
   @IsDateString()

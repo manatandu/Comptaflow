@@ -36,6 +36,16 @@ interface ConsignationVue {
   etat: Etat;
   dateDenouement: string | null;
   prixDeReprise: number | null;
+  ecritureConsignationId: string | null;
+  ecritureDenouementId: string | null;
+}
+
+interface EcritureCandidate {
+  id: string;
+  date: string;
+  numeroPiece: number | null;
+  libelle: string;
+  statut: string;
 }
 
 interface Registre {
@@ -86,6 +96,7 @@ export function EmballagesPage() {
   });
 
   const [selection, setSelection] = useState<ConsignationVue | null>(null);
+  const [lienOuvert, setLienOuvert] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>('RESTITUTION');
   const [prixDeReprise, setPrixDeReprise] = useState('');
   const [dateDenouement, setDateDenouement] = useState('');
@@ -315,10 +326,12 @@ export function EmballagesPage() {
             <tr
               key={c.id}
               onClick={() => {
+                setLienOuvert(c.id);
                 if (c.etat === 'EN_COURS') setSelection(c);
+                else setSelection(null);
               }}
-              className={`${c.etat === 'EN_COURS' ? 'cursor-pointer' : 'text-text-dim'} ${
-                selection?.id === c.id ? 'bg-accent/10' : ''
+              className={`cursor-pointer ${c.etat === 'EN_COURS' ? '' : 'text-text-dim'} ${
+                lienOuvert === c.id ? 'bg-accent/10' : ''
               }`}
             >
               <td className={`${cell} font-mono`}>{c.dateConsignation}</td>
@@ -341,6 +354,41 @@ export function EmballagesPage() {
           )}
         </tbody>
       </table>
+
+      {registre?.consignations
+        .filter((c) => c.id === lienOuvert)
+        .map((c) => (
+          <div key={c.id} className="ecran-seul border border-border bg-surface-2 px-3 py-2.5 mb-2.5 max-w-[1240px]">
+            <div className="text-[11.5px] font-semibold mb-1.5 flex items-center gap-2">
+              Écritures passées · {c.designation}
+              <Aide
+                titre="Écritures passées"
+                texte="Le registre propose les lignes et ne les passe pas. Une fois la pièce saisie au journal, on la désigne ici : elle doit porter chaque ligne proposée. Rattachée, elle ne se supprime ni ne se modifie plus au journal ; le lien se défait tant qu'elle est au brouillard."
+                source="Fiches des comptes 40 et 41"
+              />
+            </div>
+            <LienEcriture
+              consignationId={c.id}
+              role="ouverture"
+              titre="Ouverture"
+              ecritureId={c.ecritureConsignationId}
+              ouvert
+              peutEcrire={peutEcrire}
+              apres={charger}
+              signaler={setErreur}
+            />
+            <LienEcriture
+              consignationId={c.id}
+              role="denouement"
+              titre="Dénouement"
+              ecritureId={c.ecritureDenouementId}
+              ouvert={c.etat !== 'EN_COURS'}
+              peutEcrire={peutEcrire}
+              apres={charger}
+              signaler={setErreur}
+            />
+          </div>
+        ))}
 
       {selection && (
         <div className="ecran-seul border border-border bg-surface-2 px-3 py-2.5 max-w-[1240px]">
@@ -434,6 +482,120 @@ export function EmballagesPage() {
             </>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * UNE ÉCRITURE DE LA CONSIGNATION, ET SON LIEN · audit du serveur de
+ * 2026-09, I2. Le registre propose et ne poste pas : c'est ici que la pièce
+ * passée au journal est désignée. Le sélecteur ne liste que les écritures
+ * que le serveur accepterait (il lit la même règle), et le serveur rejoue
+ * tout de toute façon.
+ */
+function LienEcriture({
+  consignationId,
+  role,
+  titre,
+  ecritureId,
+  ouvert,
+  peutEcrire,
+  apres,
+  signaler,
+}: {
+  consignationId: string;
+  role: 'ouverture' | 'denouement';
+  titre: string;
+  ecritureId: string | null;
+  ouvert: boolean;
+  peutEcrire: boolean;
+  apres: () => void;
+  signaler: (m: string) => void;
+}) {
+  const [candidates, setCandidates] = useState<EcritureCandidate[] | null>(null);
+  const [choix, setChoix] = useState('');
+  const [enCours, setEnCours] = useState(false);
+
+  useEffect(() => {
+    setCandidates(null);
+    setChoix('');
+    if (!ouvert || ecritureId || !peutEcrire) return;
+    api
+      .get<EcritureCandidate[]>(`/emballages/consignations/${consignationId}/ecritures/${role}/candidates`)
+      .then(setCandidates, (e: ApiError) => signaler(e.message));
+  }, [consignationId, role, ouvert, ecritureId, peutEcrire, signaler]);
+
+  const agir = async (geste: () => Promise<unknown>) => {
+    signaler('');
+    setEnCours(true);
+    try {
+      await geste();
+      apres();
+    } catch (e) {
+      signaler(e instanceof ApiError ? e.message : 'Opération impossible');
+    } finally {
+      setEnCours(false);
+    }
+  };
+
+  const bouton = 'px-3 py-1 text-[11.5px] border border-accent bg-accent/10 disabled:opacity-40';
+  return (
+    <div className="flex items-center gap-2 text-[11.5px] mb-1">
+      <span className="w-[90px] font-semibold">{titre}</span>
+      {!ouvert && <span className="text-text-dim">Consignation non dénouée au registre.</span>}
+      {ouvert && ecritureId && (
+        <>
+          <span>Écriture rattachée.</span>
+          {peutEcrire && (
+            <button
+              type="button"
+              disabled={enCours}
+              className={bouton}
+              onClick={() =>
+                agir(() => api.delete(`/emballages/consignations/${consignationId}/ecritures/${role}`))
+              }
+            >
+              Détacher
+            </button>
+          )}
+        </>
+      )}
+      {ouvert && !ecritureId && !peutEcrire && <span className="text-text-dim">Aucune écriture rattachée.</span>}
+      {ouvert && !ecritureId && peutEcrire && (
+        <>
+          <select
+            className="border border-border bg-surface px-1.5 py-1 text-[11.5px] min-w-[320px]"
+            value={choix}
+            onChange={(e) => setChoix(e.target.value)}
+          >
+            <option value="">
+              {candidates === null
+                ? 'Recherche…'
+                : candidates.length === 0
+                  ? 'Aucune écriture du journal ne porte les lignes proposées'
+                  : 'Écriture passée au journal…'}
+            </option>
+            {candidates?.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.date} · {e.numeroPiece ?? 's.n.'} · {e.libelle}
+                {e.statut === 'BROUILLARD' ? ' (brouillard)' : ''}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            disabled={enCours || !choix}
+            className={bouton}
+            onClick={() =>
+              agir(() =>
+                api.post(`/emballages/consignations/${consignationId}/ecritures/${role}`, { ecritureId: choix }),
+              )
+            }
+          >
+            Rattacher
+          </button>
+        </>
       )}
     </div>
   );

@@ -3507,6 +3507,8 @@ export interface EcartInventaire {
   decision: 'A_REDRESSER' | 'EXPLIQUE' | 'EXCEDENT_NON_COMPTABILISE' | 'RENVOYE_COMMISSION_PRINCIPALE' | null;
   responsable: string | null;
   explication: string | null;
+  /** L'écriture de redressement rattachée (audit du serveur, I2). */
+  ecritureId: string | null;
   compte: { numero: string; intitule: string };
 }
 

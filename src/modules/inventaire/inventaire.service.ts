@@ -21,6 +21,7 @@ import {
   ModifierCampagneDto,
   SaisirComptageDto,
 } from './dto/inventaire.dto';
+import { decrireLigne, lignesManquantes, type LigneAttendue } from '../comptabilite/rattachement-ecriture';
 
 /**
  * INVENTAIRE PHYSIQUE · l'obligation qu'OmegaX ne portait pas.
@@ -635,6 +636,171 @@ export class InventaireService {
       ],
       responsable: ecart.responsable,
     };
+  }
+
+  /**
+   * ÉTAPE 6, SECONDE MOITIÉ · l'écriture de redressement une fois passée.
+   *
+   * Audit du serveur de 2026-09, I2 · `EcartInventaire.ecritureId` n'était
+   * écrit nulle part. Le module ne POSTE jamais le redressement (la
+   * contrepartie est la décision de la sous-commission, et aucun texte ne la
+   * nomme) : le comptable le passe au journal, et le lien ne peut naître que
+   * de ce geste-ci, qui désigne la pièce après coup. Sans lui, le registre ne
+   * pouvait pas dire quels manquants étaient passés, et la pièce se
+   * supprimait au journal sans que rien ne la retienne.
+   *
+   * CE QUI EST VÉRIFIÉ, ET CE QUI NE L'EST PAS. L'écart doit être arbitré
+   * « à redresser » (un manquant, donc) et l'écriture, de ce dossier et de
+   * l'exercice de la campagne, doit CRÉDITER le compte inventorié du montant
+   * manquant · la seule ligne que le module propose. Sa contrepartie n'est
+   * PAS contrôlée, le module l'ayant laissée vide à dessein : le logiciel qui
+   * refuserait une contrepartie refuserait une décision qu'il ne connaît pas.
+   */
+  private async ecartARattacher(tenantId: string, ecartId: string) {
+    const ecart = await this.prisma.ecartInventaire.findFirst({
+      where: { id: ecartId, tenantId },
+      include: {
+        campagne: { select: { exerciceId: true } },
+        compte: { select: { numero: true } },
+      },
+    });
+    if (!ecart) throw new NotFoundException('Écart introuvable.');
+    if (ecart.decision !== DecisionEcartInventaire.A_REDRESSER) {
+      throw new BadRequestException(
+        "Seul un écart arbitré « à redresser » porte une écriture de redressement · l'arbitrage de la " +
+          'sous-commission précède la comptabilisation (CPCC, étape 6), et un excédent ne se comptabilise ' +
+          "pas d'office (AUDCIF art. 43).",
+      );
+    }
+    const attendue: LigneAttendue = { compte: ecart.compte.numero, sens: 'CREDIT', montant: Math.abs(Number(ecart.ecart)) };
+    return { ecart, attendue };
+  }
+
+  /** Les écritures de l'exercice qui créditent le compte du montant manquant. */
+  async ecrituresCandidatesRedressement(tenantId: string, ecartId: string) {
+    const { ecart, attendue } = await this.ecartARattacher(tenantId, ecartId);
+    const lignes = await this.prisma.ligneEcriture.findMany({
+      where: {
+        ecriture: { tenantId, exerciceId: ecart.campagne.exerciceId, estGenereeParCloture: false },
+        // Même lecture du compte que `lignesManquantes` (le compte ou ses
+        // subdivisions) · le sélecteur ne propose que ce que le rattachement
+        // accepte.
+        compte: { numero: { startsWith: attendue.compte } },
+        credit: attendue.montant,
+      },
+      select: { ecritureId: true },
+      take: 200,
+    });
+    const ids = [...new Set(lignes.map((l) => l.ecritureId))];
+    if (ids.length === 0) return [];
+    const [ecritures, prises] = await Promise.all([
+      this.prisma.ecriture.findMany({
+        where: { tenantId, id: { in: ids } },
+        orderBy: [{ date: 'desc' }],
+        select: { id: true, date: true, numeroPiece: true, libelle: true, statut: true },
+      }),
+      this.prisma.ecartInventaire.findMany({
+        where: { tenantId, compteId: ecart.compteId, ecritureId: { in: ids } },
+        select: { ecritureId: true },
+      }),
+    ]);
+    const dejaPrises = new Set(prises.map((p) => p.ecritureId));
+    return ecritures
+      .filter((e) => !dejaPrises.has(e.id))
+      .map((e) => ({ ...e, date: e.date.toISOString().slice(0, 10) }));
+  }
+
+  /**
+   * Pose le lien, sur une colonne encore libre (`updateMany` conditionné à
+   * null, comme les marqueurs posés après `creer`). Aucune compensation · le
+   * geste ne crée aucune écriture, il en désigne une qui reste au journal.
+   *
+   * UNE PIÈCE PEUT REDRESSER PLUSIEURS COMPTES d'une même campagne (tous les
+   * manquants en une écriture), mais pas deux fois le MÊME compte · sa ligne
+   * de crédit ne justifie qu'un seul manquant.
+   */
+  async rattacherEcritureRedressement(tenantId: string, ecartId: string, ecritureId: string) {
+    const { ecart, attendue } = await this.ecartARattacher(tenantId, ecartId);
+    if (ecart.ecritureId !== null) {
+      throw new BadRequestException(
+        "Une écriture de redressement est déjà rattachée à cet écart · détachez-la d'abord.",
+      );
+    }
+    const ecriture = await this.prisma.ecriture.findFirst({
+      where: { id: ecritureId, tenantId },
+      select: {
+        exerciceId: true,
+        estGenereeParCloture: true,
+        lignes: { select: { debit: true, credit: true, compte: { select: { numero: true } } } },
+      },
+    });
+    if (!ecriture) throw new NotFoundException("L'écriture indiquée n'existe pas dans ce dossier.");
+    if (ecriture.exerciceId !== ecart.campagne.exerciceId || ecriture.estGenereeParCloture) {
+      throw new BadRequestException(
+        "L'écriture de redressement appartient à l'exercice inventorié, et ce n'est pas une écriture de " +
+          'clôture · le manquant constaté à la clôture grève le résultat de cet exercice-là (AUDCIF art. 42).',
+      );
+    }
+    const manquantes = lignesManquantes(
+      [attendue],
+      ecriture.lignes.map((l) => ({ numero: l.compte.numero, debit: Number(l.debit), credit: Number(l.credit) })),
+    );
+    if (manquantes.length > 0) {
+      throw new BadRequestException(
+        `Cette écriture ne redresse pas le manquant · il lui manque ${manquantes.map(decrireLigne).join(', ')}. ` +
+          'Rattachée quand même, le registre dirait le manquant passé sur une pièce qui passe autre chose.',
+      );
+    }
+    const autre = await this.prisma.ecartInventaire.count({
+      where: { tenantId, compteId: ecart.compteId, ecritureId },
+    });
+    if (autre > 0) {
+      throw new BadRequestException(
+        `Cette écriture redresse déjà un autre écart du compte ${ecart.compte.numero} · sa ligne de crédit ` +
+          'ne justifie pas deux manquants.',
+      );
+    }
+    const { count } = await this.prisma.ecartInventaire.updateMany({
+      where: { id: ecartId, tenantId, ecritureId: null },
+      data: { ecritureId },
+    });
+    if (count === 0) {
+      throw new BadRequestException("Une écriture vient d'être rattachée à cet écart par une autre demande.");
+    }
+    return { rattache: true, ecritureId };
+  }
+
+  /**
+   * Détacher, TANT QUE L'ÉCRITURE EST AU BROUILLARD · une pièce rattachée par
+   * erreur resterait sinon bloquée au journal. Validée, elle est entrée au
+   * livre-journal (AUDCIF art. 22, 2°) et le lien est la trace du
+   * redressement.
+   */
+  async detacherEcritureRedressement(tenantId: string, ecartId: string) {
+    const ecart = await this.prisma.ecartInventaire.findFirst({
+      where: { id: ecartId, tenantId },
+      select: { ecritureId: true },
+    });
+    if (!ecart) throw new NotFoundException('Écart introuvable.');
+    if (ecart.ecritureId === null) {
+      throw new BadRequestException("Aucune écriture de redressement n'est rattachée à cet écart.");
+    }
+    const ecriture = await this.prisma.ecriture.findFirst({
+      where: { id: ecart.ecritureId, tenantId },
+      select: { statut: true },
+    });
+    if (ecriture && ecriture.statut !== StatutEcriture.BROUILLARD) {
+      throw new BadRequestException(
+        "L'écriture de redressement est validée · elle est entrée au livre-journal (AUDCIF art. 22, 2°), " +
+          'et son lien est la trace du redressement. Il ne se défait plus.',
+      );
+    }
+    const { count } = await this.prisma.ecartInventaire.updateMany({
+      where: { id: ecartId, tenantId, ecritureId: ecart.ecritureId },
+      data: { ecritureId: null },
+    });
+    if (count === 0) throw new BadRequestException("Le lien a changé entre-temps · rechargez la campagne.");
+    return { detache: true };
   }
 
   /**

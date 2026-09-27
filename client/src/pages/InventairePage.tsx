@@ -387,6 +387,7 @@ export function InventairePage() {
                           key={e.id}
                           ecart={e}
                           arbitrable={peutEcrire && detail.statut === 'ARBITRAGE'}
+                          peutEcrire={peutEcrire}
                           agir={agir}
                         />
                       ))}
@@ -771,7 +772,17 @@ function LigneFiche({ fiche, saisissable, agir }: { fiche: FicheInventaire; sais
  * bilan. Le serveur exige en plus le responsable d'un écart à redresser et
  * l'explication de tout écart non redressé · son refus est affiché tel quel.
  */
-function LigneEcart({ ecart, arbitrable, agir }: { ecart: EcartInventaire; arbitrable: boolean; agir: Agir }) {
+function LigneEcart({
+  ecart,
+  arbitrable,
+  peutEcrire,
+  agir,
+}: {
+  ecart: EcartInventaire;
+  arbitrable: boolean;
+  peutEcrire: boolean;
+  agir: Agir;
+}) {
   const [edition, setEdition] = useState(false);
   const [decision, setDecision] = useState<string>(ecart.decision ?? '');
   const [responsable, setResponsable] = useState(ecart.responsable ?? '');
@@ -858,6 +869,7 @@ function LigneEcart({ ecart, arbitrable, agir }: { ecart: EcartInventaire; arbit
                 </tbody>
               </table>
             )}
+            {proposition?.proposable && <LienRedressement ecart={ecart} peutEcrire={peutEcrire} agir={agir} />}
             <button
               type="button"
               onClick={() => {
@@ -909,6 +921,75 @@ function LigneEcart({ ecart, arbitrable, agir }: { ecart: EcartInventaire; arbit
         </tr>
       )}
     </Fragment>
+  );
+}
+
+/**
+ * L'ÉCRITURE DE REDRESSEMENT PASSÉE · audit du serveur de 2026-09, I2. Le
+ * module propose le redressement et ne le passe pas ; une fois la pièce saisie
+ * au journal, elle se désigne ici. Le sélecteur ne liste que les écritures qui
+ * créditent le compte du montant manquant, et le serveur rejoue la règle.
+ */
+function LienRedressement({ ecart, peutEcrire, agir }: { ecart: EcartInventaire; peutEcrire: boolean; agir: Agir }) {
+  const [candidates, setCandidates] = useState<
+    { id: string; date: string; numeroPiece: number | null; libelle: string; statut: string }[] | null
+  >(null);
+  const [choix, setChoix] = useState('');
+
+  useEffect(() => {
+    setCandidates(null);
+    setChoix('');
+    if (ecart.ecritureId || !peutEcrire) return;
+    api
+      .get<{ id: string; date: string; numeroPiece: number | null; libelle: string; statut: string }[]>(
+        `/inventaire/ecarts/${ecart.id}/ecritures-candidates`,
+      )
+      .then(setCandidates, () => setCandidates([]));
+  }, [ecart.id, ecart.ecritureId, peutEcrire]);
+
+  if (ecart.ecritureId) {
+    return (
+      <div className="mt-1 flex items-center gap-2">
+        <span>Écriture de redressement rattachée.</span>
+        {peutEcrire && (
+          <button
+            type="button"
+            className={BOUTON}
+            onClick={() => agir(() => api.delete(`/inventaire/ecarts/${ecart.id}/ecriture`))}
+          >
+            Détacher
+          </button>
+        )}
+      </div>
+    );
+  }
+  if (!peutEcrire) return <div className="mt-1 text-text-dim">Aucune écriture de redressement rattachée.</div>;
+  return (
+    <div className="mt-1 flex items-center gap-2">
+      <select value={choix} onChange={(e) => setChoix(e.target.value)} className={CHAMP}>
+        <option value="">
+          {candidates === null
+            ? 'Recherche…'
+            : candidates.length === 0
+              ? 'Aucune écriture du journal ne crédite ce compte du manquant'
+              : 'Écriture passée au journal…'}
+        </option>
+        {candidates?.map((e) => (
+          <option key={e.id} value={e.id}>
+            {e.date.slice(0, 10)} · {e.numeroPiece ?? 's.n.'} · {e.libelle}
+            {e.statut === 'BROUILLARD' ? ' (brouillard)' : ''}
+          </option>
+        ))}
+      </select>
+      <button
+        type="button"
+        disabled={!choix}
+        className={BOUTON}
+        onClick={() => agir(() => api.post(`/inventaire/ecarts/${ecart.id}/ecriture`, { ecritureId: choix }))}
+      >
+        Rattacher
+      </button>
+    </div>
   );
 }
 

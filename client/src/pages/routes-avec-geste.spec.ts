@@ -219,6 +219,36 @@ const GESTES: Array<{ route: string; controleur: string; decorateur: string; pag
     page: 'EtatsAnalytiquesPage.tsx',
     appel: 'api.delete(`/analytique/lignes/${ligneEcritureId}/ventilations`)',
   },
+  // Audit du serveur de 2026-09, I2 · le lien d'une consignation et d'un écart
+  // d'inventaire à l'écriture passée au journal n'avait aucun chemin.
+  {
+    route: 'POST /emballages/consignations/:id/ecritures/:role',
+    controleur: 'emballages/emballages.controller.ts',
+    decorateur: "@Post('consignations/:id/ecritures/:role')",
+    page: 'EmballagesPage.tsx',
+    appel: 'api.post(`/emballages/consignations/${consignationId}/ecritures/${role}`, { ecritureId: choix })',
+  },
+  {
+    route: 'DELETE /emballages/consignations/:id/ecritures/:role',
+    controleur: 'emballages/emballages.controller.ts',
+    decorateur: "@Delete('consignations/:id/ecritures/:role')",
+    page: 'EmballagesPage.tsx',
+    appel: 'api.delete(`/emballages/consignations/${consignationId}/ecritures/${role}`)',
+  },
+  {
+    route: 'POST /inventaire/ecarts/:ecartId/ecriture',
+    controleur: 'inventaire/inventaire.controller.ts',
+    decorateur: "@Post('ecarts/:ecartId/ecriture')",
+    page: 'InventairePage.tsx',
+    appel: 'api.post(`/inventaire/ecarts/${ecart.id}/ecriture`, { ecritureId: choix })',
+  },
+  {
+    route: 'DELETE /inventaire/ecarts/:ecartId/ecriture',
+    controleur: 'inventaire/inventaire.controller.ts',
+    decorateur: "@Delete('ecarts/:ecartId/ecriture')",
+    page: 'InventairePage.tsx',
+    appel: 'api.delete(`/inventaire/ecarts/${ecart.id}/ecriture`)',
+  },
 ];
 
 describe('routes d’écriture et leur geste', () => {

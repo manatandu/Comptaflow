@@ -84,6 +84,7 @@ function serviceEcriture(detenteurs: Record<string, number> = {}, statut = 'BROU
     executionEngagement: { count: compteur('executionEngagement') },
     mouvementStock: { count: compteur('mouvementStock') },
     consignation: { count: compteur('consignation') },
+    ecartInventaire: { count: compteur('ecartInventaire') },
     bulletinPaie: { count: compteur('bulletinPaie') },
     ligneOrdreVirement: { count: compteur('ligneOrdreVirement') },
     amortissementDerogatoire: { count: compteur('amortissementDerogatoire') },
@@ -260,6 +261,14 @@ describe('3 · une écriture qu’un module tient ne se supprime pas', () => {
     ).rejects.toThrow(/consignation d'emballages/i);
   });
 
+  it("refuse aussi quand l'écriture redresse un écart d'inventaire", async () => {
+    // Audit I2 · le lien est désormais posé au rattachement. Supprimée seule,
+    // la pièce laisserait la campagne dire le manquant passé.
+    await expect(
+      serviceEcriture({ ecartInventaire: 1 }).supprimer('t1', 'e1'),
+    ).rejects.toThrow(/écart d'inventaire/i);
+  });
+
   it("refuse aussi quand l'écriture passe la paie du mois", async () => {
     // P9 · supprimée seule, elle laisserait les bulletins se dire passés
     // sans écriture · la passation se défait depuis la fenêtre Personnel.
@@ -302,6 +311,7 @@ describe('3 bis · une écriture qu’un module tient ne se retouche pas non plu
     'immobilisation', 'dotationAmortissement', 'depreciationImmobilisation', 'reclassementImmobilisation', 'reevaluation', 'regularisation',
     'echeanceAbonnement', 'liquidationTva', 'donation', 'affectationResultat', 'executionEngagement',
     'mouvementStock', 'bulletinPaie', 'amortissementDerogatoire', 'ligneOrdreVirement', 'consignation',
+    'ecartInventaire',
   ];
   const gestes: Array<[string, string, (s: EcritureService) => Promise<unknown>]> = [
     ['supprimer', 'BROUILLARD', (s) => s.supprimer('t1', 'e1')],

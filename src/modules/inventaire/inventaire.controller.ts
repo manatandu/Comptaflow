@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RoleUtilisateur } from '@prisma/client';
@@ -15,6 +15,7 @@ import {
   EtablirProcesVerbalDto,
   EtablirPvCaisseDto,
   ModifierCampagneDto,
+  RattacherEcritureEcartDto,
   SaisirComptageDto,
 } from './dto/inventaire.dto';
 
@@ -124,6 +125,32 @@ export class InventaireController {
   @Get('ecarts/:ecartId/proposition')
   proposition(@CurrentUser() user: AuthenticatedUser, @Param('ecartId') ecartId: string) {
     return this.inventaire.propositionRedressement(user.tenantId, ecartId);
+  }
+
+  /**
+   * L'ÉCRITURE DE REDRESSEMENT PASSÉE · le seul chemin qui écrive
+   * `EcartInventaire.ecritureId` (audit du serveur de 2026-09, I2). Le module
+   * propose, le comptable passe la pièce au journal, puis la désigne ici.
+   */
+  @Get('ecarts/:ecartId/ecritures-candidates')
+  candidatesRedressement(@CurrentUser() user: AuthenticatedUser, @Param('ecartId') ecartId: string) {
+    return this.inventaire.ecrituresCandidatesRedressement(user.tenantId, ecartId);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post('ecarts/:ecartId/ecriture')
+  rattacherRedressement(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('ecartId') ecartId: string,
+    @Body() dto: RattacherEcritureEcartDto,
+  ) {
+    return this.inventaire.rattacherEcritureRedressement(user.tenantId, ecartId, dto.ecritureId);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Delete('ecarts/:ecartId/ecriture')
+  detacherRedressement(@CurrentUser() user: AuthenticatedUser, @Param('ecartId') ecartId: string) {
+    return this.inventaire.detacherEcritureRedressement(user.tenantId, ecartId);
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)

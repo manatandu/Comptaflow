@@ -63,3 +63,9 @@ export class DenouerConsignationDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   prixDeReprise?: number;
 }
+
+/** L'écriture déjà passée au journal, que le registre désigne. */
+export class RattacherEcritureConsignationDto {
+  @IsUUID()
+  ecritureId!: string;
+}

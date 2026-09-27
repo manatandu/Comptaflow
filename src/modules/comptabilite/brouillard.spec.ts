@@ -39,6 +39,7 @@ const MODELES_DETENTEURS = [
   'immobilisation', 'dotationAmortissement', 'depreciationImmobilisation', 'reclassementImmobilisation', 'reevaluation', 'regularisation',
   'echeanceAbonnement', 'liquidationTva', 'donation', 'affectationResultat', 'executionEngagement',
   'mouvementStock', 'bulletinPaie', 'amortissementDerogatoire', 'ligneOrdreVirement', 'consignation',
+  'ecartInventaire',
 ];
 function detenteurs(tenus: Record<string, number> = {}): Faux {
   return Object.fromEntries(MODELES_DETENTEURS.map((m) => [m, { count: jest.fn().mockResolvedValue(tenus[m] ?? 0) }]));

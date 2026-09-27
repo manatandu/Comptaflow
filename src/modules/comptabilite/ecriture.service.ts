@@ -1046,11 +1046,11 @@ export class EcritureService {
       // remonterait à la clôture sous la forme d'un MALI D'INVENTAIRE qui
       // n'existe pas, mis à la charge de l'entité.
       ['un mouvement de magasin', this.prisma.mouvementStock.count({ where: { tenantId, ecritureId } })],
-      // La consignation d'emballages, par l'une OU l'autre de ses deux
-      // écritures. Le lien dénoué en silence laisserait le registre annoncer
-      // une consignation ouverte ou dénouée sans l'écriture qui l'a faite · et
-      // c'est précisément ce registre qui existe pour montrer ce qui reste à
-      // qualifier au 4094 et au 4194.
+      // L'écart d'inventaire redressé (audit du serveur de 2026-09, I2 · le
+      // lien n'était écrit nulle part, il l'est au rattachement). Sans ce
+      // refus, le lien se dénouerait en silence et la campagne dirait le
+      // manquant passé sur une pièce disparue du journal.
+      ["un écart d'inventaire (redressement)", this.prisma.ecartInventaire.count({ where: { tenantId, ecritureId } })],
       // La paie du mois (P9). Sans ce refus, la clé RESTRICT renverrait une
       // erreur brute ; sans la clé, les bulletins se diraient passés sans
       // écriture, ou repartiraient en silence dans la paie suivante. La
@@ -1065,6 +1065,12 @@ export class EcritureService {
       // le plan fiscal se dire passé, et le cumul du 151 faux.
       ['un amortissement dérogatoire', this.prisma.amortissementDerogatoire.count({ where: { tenantId, ecritureId } })],
       ['un ordre de virement', this.prisma.ligneOrdreVirement.count({ where: { tenantId, ecritureId } })],
+      // La consignation d'emballages, par l'une OU l'autre de ses deux
+      // écritures (posées au rattachement, audit I2). Le lien dénoué en
+      // silence laisserait le registre annoncer une consignation ouverte ou
+      // dénouée sans l'écriture qui l'a faite · et c'est précisément ce
+      // registre qui existe pour montrer ce qui reste à qualifier au 4094 et
+      // au 4194.
       ["une consignation d'emballages", this.prisma.consignation.count({
         where: { tenantId, OR: [{ ecritureConsignationId: ecritureId }, { ecritureDenouementId: ecritureId }] },
       })],
