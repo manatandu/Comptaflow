@@ -274,6 +274,27 @@ describe('Lettrage automatique', () => {
     expect(groupes[0].origine).toBe('AUTOMATIQUE_MONTANT');
   });
 
+  /**
+   * AUDIT FINAL F2 · chaque groupe relisait tous les codes du compte pour
+   * trouver la lettre suivante, dans une transaction bornée à cinq secondes ·
+   * un lettrage automatique de milliers de groupes échouait entier.
+   */
+  it('lit la lettre suivante UNE fois pour le lot, et pose un délai à la mesure du lot', async () => {
+    const { service: s, groupes, prisma } = service([
+      ligne('a', 100, 0), ligne('b', 0, 100),
+      ligne('c', 200, 0), ligne('d', 0, 200),
+      ligne('e', 300, 0), ligne('f', 0, 300),
+    ]);
+    const transaction = jest.fn(prisma.$transaction);
+    prisma.$transaction = transaction as typeof prisma.$transaction;
+    await s.lettrageAutomatique('t1', 'c1', 'u1');
+    expect({
+      lectures: prisma.lettrage.findMany.mock.calls.length,
+      codes: groupes.map((g) => g.code).sort(),
+      delai: (transaction.mock.calls[0] as unknown[])[1] as { timeout?: number },
+    }).toEqual({ lectures: 1, codes: ['A', 'B', 'C'], delai: expect.objectContaining({ timeout: 10_150 }) });
+  });
+
   it('ne réapparie pas une ligne déjà rattachée à un groupe partiel', async () => {
     const { service: s, groupes } = service([ligne('a', 1000, 0), ligne('b', 0, 600), ligne('c', 0, 400)]);
     await s.lettrerManuel('t1', 'c1', ['a', 'b'], 'u1', { autoriserPartiel: true });

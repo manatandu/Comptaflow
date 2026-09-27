@@ -52,7 +52,7 @@ function service(
   options: { tenus?: Record<string, number>; verrou?: (journalId: string, date: Date) => void } = {},
 ) {
   const tx = {
-    ligneEcriture: { update: jest.fn().mockResolvedValue({}) },
+    ligneEcriture: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
     ecriture: { create: jest.fn().mockResolvedValue({ numeroPiece: 7 }) },
   };
   const prisma = {
@@ -79,8 +79,8 @@ describe('Réimputation · le service', () => {
   it('change le compte au brouillard, et passe négatif + exact pour une ligne validée, analytique comprise', async () => {
     const { s, tx } = service([ligne('b', StatutEcriture.BROUILLARD), ligne('v', StatutEcriture.VALIDEE)]);
     const r = await s.reimputer('t', 'u', { ligneIds: ['b', 'v'], compteCibleId: 'c604', date: '2026-06-30', motif: 'Mauvais compte' });
-    expect(tx.ligneEcriture.update).toHaveBeenCalledWith({ where: { id: 'b' }, data: { compteId: 'c604' } });
-    expect(tx.ligneEcriture.update).toHaveBeenCalledTimes(1);
+    expect(tx.ligneEcriture.updateMany).toHaveBeenCalledWith({ where: { id: { in: ['b'] } }, data: { compteId: 'c604' } });
+    expect(tx.ligneEcriture.updateMany).toHaveBeenCalledTimes(1);
     const data = tx.ecriture.create.mock.calls[0][0].data;
     expect(data.motifCorrection).toBe('Mauvais compte');
     expect(data.journalId).toBe('j');
@@ -92,10 +92,34 @@ describe('Réimputation · le service', () => {
     expect(r).toEqual({ auBrouillard: 1, validees: 1, ecrituresPassees: [{ numeroPiece: 7, journal: 'ACH' }] });
   });
 
+  // AUDIT FINAL F1 · la devise suit la ligne, sans signe, sur les deux
+  // inscriptions · sans elle, la position en devise gardait la ligne
+  // déplacée sur le compte erroné et l'ignorait sur le bon.
+  it('recopie la devise sur l’inscription en négatif et sur l’enregistrement exact', async () => {
+    const { s, tx } = service([
+      ligne('v', StatutEcriture.VALIDEE, { deviseId: 'usd', montantDevise: 1000, coursApplique: 2800 }),
+    ]);
+    await s.reimputer('t', 'u', { ligneIds: ['v'], compteCibleId: 'c604', date: '2026-06-30', motif: 'Mauvais compte' });
+    const [neg, exact] = tx.ecriture.create.mock.calls[0][0].data.lignes.create;
+    expect([neg, exact].map((l) => [l.deviseId, l.montantDevise, l.coursApplique])).toEqual([
+      ['usd', 1000, 2800],
+      ['usd', 1000, 2800],
+    ]);
+  });
+
+  // AUDIT FINAL F2 · la fusion d'un compte chargé passe par ici, et la
+  // transaction bornée à cinq secondes par défaut tombait entière.
+  it('pose un délai de transaction à la mesure des lignes réimputées', async () => {
+    const { s, prisma } = service([ligne('v', StatutEcriture.VALIDEE), ligne('w', StatutEcriture.VALIDEE)]);
+    await s.reimputer('t', 'u', { ligneIds: ['v', 'w'], compteCibleId: 'c604', date: '2026-06-30', motif: 'Mauvais compte' });
+    const options = (prisma.$transaction.mock.calls[0] as unknown[])[1] as { timeout?: number } | undefined;
+    expect(options?.timeout ?? 0).toBeGreaterThan(5_000);
+  });
+
   it("n'écrit RIEN si une seule ligne est refusée", async () => {
     const { s, tx } = service([ligne('b', StatutEcriture.BROUILLARD), ligne('v', StatutEcriture.VALIDEE, { lettre: 'AA' })]);
     await expect(s.reimputer('t', 'u', { ligneIds: ['b', 'v'], compteCibleId: 'c604', motif: 'x' })).rejects.toThrow(/lettrée/);
-    expect(tx.ligneEcriture.update).not.toHaveBeenCalled();
+    expect(tx.ligneEcriture.updateMany).not.toHaveBeenCalled();
     expect(tx.ecriture.create).not.toHaveBeenCalled();
   });
 
@@ -110,7 +134,7 @@ describe('Réimputation · le service', () => {
       await expect(
         s.reimputer('t', 'u', { ligneIds: ['x'], compteCibleId: 'c604', date: '2026-06-30', motif: 'x' }),
       ).rejects.toThrow(/liquidation de TVA · elle ne se réimpute pas/);
-      expect(tx.ligneEcriture.update).not.toHaveBeenCalled();
+      expect(tx.ligneEcriture.updateMany).not.toHaveBeenCalled();
       expect(tx.ecriture.create).not.toHaveBeenCalled();
       // La requête vise bien l'écriture de la ligne, et le dossier.
       expect((prisma as unknown as Record<string, { count: jest.Mock }>).liquidationTva.count).toHaveBeenCalledWith({
@@ -132,6 +156,6 @@ describe('Réimputation · le service', () => {
       s.reimputer('t', 'u', { ligneIds: ['b'], compteCibleId: 'c604', motif: 'x' }),
     ).rejects.toThrow(/période close/);
     expect(exercice.verifierEcritureAutorisee).toHaveBeenCalledWith('t', 'j', new Date('2026-03-15'));
-    expect(tx.ligneEcriture.update).not.toHaveBeenCalled();
+    expect(tx.ligneEcriture.updateMany).not.toHaveBeenCalled();
   });
 });

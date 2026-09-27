@@ -86,10 +86,12 @@ export class BalanceFonctionnelleService {
     if (ligne.deviseCode === monnaieFonctionnelle && ligne.montantDevise !== null) {
       // Le montant d'origine porte la valeur absolue de l'opération · c'est le
       // sens de la ligne en monnaie de tenue qui dit de quel côté il tombe.
+      // Une ligne INSCRITE EN NÉGATIF garde son côté et son signe · la
+      // porter de l'autre côté en positif en ferait une contre-passation, qui
+      // gonflerait les deux cumuls (AUDCIF art. 20).
       const montant = Math.abs(ligne.montantDevise);
-      return ligne.debit > ligne.credit
-        ? { debit: montant, credit: 0, exacte: true }
-        : { debit: 0, credit: montant, exacte: true };
+      if (ligne.debit !== 0) return { debit: Math.sign(ligne.debit) * montant, credit: 0, exacte: true };
+      return { debit: 0, credit: Math.sign(ligne.credit) * montant, exacte: true };
     }
     return {
       debit: ligne.debit / coursDeLEcriture,

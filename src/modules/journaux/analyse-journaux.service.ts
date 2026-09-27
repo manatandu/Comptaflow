@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { NumerotationPiece, StatutEcriture, StatutExercice, TypeCompteDetailTotal } from '@prisma/client';
 import { ClotureActive } from '../exercice/gel-cloture';
 import { grilleJournauxSaisie, moisDeLExercice } from './etat-journaux-saisie';
+import { journauxDeLaSequenceDuFichier } from './numerotation-piece';
 import { PrismaService } from '../../common/prisma.service';
 import {
   EXPLICATION_PERIMETRE,
@@ -279,7 +280,7 @@ export class AnalyseJournauxService {
     // CES journaux seulement · y mêler celles d'un journal à numérotation
     // mensuelle ferait entrer des numéros repartis de 1 et rendrait la
     // séquence du dossier illisible.
-    const journauxFichier = journaux.filter((j) => j.numerotation === NumerotationPiece.CONTINUE_FICHIER);
+    const journauxFichier = journauxDeLaSequenceDuFichier(journaux);
     const numerosDossier = ecritures
       .filter((e) => journauxFichier.some((j) => j.id === e.journalId))
       .map((e) => e.numeroPiece)

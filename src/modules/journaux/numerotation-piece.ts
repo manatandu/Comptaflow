@@ -32,6 +32,18 @@ import { PrismaService } from '../../common/prisma.service';
  * `avecRetrySerialisable`), ce qui fait échouer et rejouer l'une des deux
  * plutôt que de leur donner le même numéro.
  */
+/**
+ * Le mode dont les journaux partagent UNE séquence, tous journaux confondus ·
+ * la numérotation et l'analyse des journaux le lisent au même endroit, pour
+ * qu'elles ne comptent jamais deux séquences différentes.
+ */
+export const NUMEROTATION_DU_FICHIER = NumerotationPiece.CONTINUE_FICHIER;
+
+/** Les journaux qui portent la séquence du fichier. */
+export function journauxDeLaSequenceDuFichier<J extends { numerotation: NumerotationPiece }>(journaux: J[]): J[] {
+  return journaux.filter((j) => j.numerotation === NUMEROTATION_DU_FICHIER);
+}
+
 export async function prochainNumeroPiece(
   tx: Prisma.TransactionClient | PrismaService,
   tenantId: string,
@@ -52,8 +64,13 @@ export async function prochainNumeroPiece(
     }
 
     case NumerotationPiece.CONTINUE_FICHIER: {
+      // LA SÉQUENCE DU FICHIER NE COMPTE QUE SES JOURNAUX (audit final F3).
+      // Le maximum pris sur TOUTES les écritures de l'exercice faisait sauter
+      // chaque OD au-dessus des achats et des ventes, numérotés à part,
+      // pendant que l'analyse des journaux ne relisait que les journaux du
+      // fichier · elle annonçait des trous que personne n'avait creusés.
       const max = await tx.ecriture.aggregate({
-        where: { tenantId, exerciceId },
+        where: { tenantId, exerciceId, journal: { numerotation: NUMEROTATION_DU_FICHIER } },
         _max: { numeroPiece: true },
       });
       return (max._max.numeroPiece ?? 0) + 1;
@@ -68,5 +85,45 @@ export async function prochainNumeroPiece(
       });
       return (max._max.numeroPiece ?? 0) + 1;
     }
+  }
+}
+
+/**
+ * UN NUMÉROTEUR POUR UN LOT DE PIÈCES (audit final F2). L'import crée des
+ * milliers de pièces dans une seule transaction, et relire le maximum à
+ * chaque pièce coûtait un aller-retour par pièce · la transaction dépassait
+ * son délai et l'import échouait entier. Le numéroteur lit le maximum UNE
+ * fois par série, par `prochainNumeroPiece` lui-même, puis incrémente. C'est
+ * juste parce que la transaction sérialisable écarte toute autre écriture
+ * entre-temps, et parce que les séries ne se recoupent pas : chaque mode ne
+ * compte que les siennes.
+ */
+export function numeroteurDeLot(
+  tx: Prisma.TransactionClient | PrismaService,
+  tenantId: string,
+  exerciceId: string,
+): (journal: { id: string; numerotation: NumerotationPiece }, date: Date) => Promise<number | null> {
+  const prochains = new Map<string, number>();
+  return async (journal, date) => {
+    const cle = serieDeNumerotation(journal, date);
+    if (cle === null) return null;
+    const numero = prochains.get(cle) ?? (await prochainNumeroPiece(tx, tenantId, journal, exerciceId, date));
+    if (numero === null) return null;
+    prochains.set(cle, numero + 1);
+    return numero;
+  };
+}
+
+/** La série à laquelle une pièce appartient, selon le mode de son journal. */
+function serieDeNumerotation(journal: { id: string; numerotation: NumerotationPiece }, date: Date): string | null {
+  switch (journal.numerotation) {
+    case NumerotationPiece.MANUELLE:
+      return null;
+    case NumerotationPiece.CONTINUE_JOURNAL:
+      return `journal:${journal.id}`;
+    case NumerotationPiece.CONTINUE_FICHIER:
+      return 'fichier';
+    case NumerotationPiece.MENSUELLE:
+      return `mois:${journal.id}:${date.getUTCFullYear()}-${date.getUTCMonth() + 1}`;
   }
 }

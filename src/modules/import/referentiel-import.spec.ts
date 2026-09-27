@@ -251,7 +251,7 @@ describe('import d’une BALANCE venue de l’autre référentiel', () => {
     expect(refus).toMatch(/13100000/);
     expect(refus).toMatch(/SYCEBNL art\. 16, 1°/);
     const ecriture = creerEcriture.mock.calls[0]?.[0]?.data;
-    expect(ecriture.lignes.create).toHaveLength(3);
+    expect(ecriture.lignes.createMany.data).toHaveLength(3);
     expect(rapport.ecrituresCreees).toBe(1);
   });
 
@@ -267,6 +267,6 @@ describe('import d’une BALANCE venue de l’autre référentiel', () => {
       mapping: { numero: 'numero', debit: 'debit', credit: 'credit' },
     });
     expect(rapport.anomalies).toEqual([]);
-    expect(creerEcriture.mock.calls[0][0].data.lignes.create).toHaveLength(2);
+    expect(creerEcriture.mock.calls[0][0].data.lignes.createMany.data).toHaveLength(2);
   });
 });

@@ -341,8 +341,10 @@ export class DevisesService {
           provisionnable: 0,
         } satisfies PositionDevise);
       // Le montant en devise est stocké sans signe : c'est le sens de la ligne
-      // (débit ou crédit) qui le donne.
-      const sens = Number(l.debit) > 0 ? 1 : -1;
+      // (débit moins crédit) qui le donne. « Débit positif » ne suffisait pas ·
+      // une ligne de crédit inscrite en négatif (correction, réimputation)
+      // aurait compté une seconde fois l'opération qu'elle annule.
+      const sens = Number(l.debit) - Number(l.credit) >= 0 ? 1 : -1;
       acc.montantDevise += sens * Number(l.montantDevise ?? 0);
       acc.valeurComptable += Number(l.debit) - Number(l.credit);
       positions.set(cle, acc);

@@ -238,6 +238,18 @@ export class LettrageService {
   }
 
   /**
+   * LES LETTRES D'UN LOT DE GROUPES (audit final F2). Relire tous les codes du
+   * compte à chaque groupe coûtait un aller-retour et une liste qui grandit
+   * par groupe · un lettrage automatique de milliers de groupes dépassait le
+   * délai de sa transaction. Le code suivant est lu UNE fois, puis
+   * incrémenté · juste dans la transaction sérialisable qui pose le lot.
+   */
+  private async lettresDuLot(tx: Prisma.TransactionClient, tenantId: string, compteId: string): Promise<() => string> {
+    let index = lettreVersIndex(await this.prochaineLettre(tx, tenantId, compteId));
+    return () => indexVersLettre(index++);
+  }
+
+  /**
    * ÉCART DE CHANGE RÉALISÉ · « le lettrage facilite, pour les opérations en
    * monnaies étrangères dénouées, le calcul des différences de change
    * réalisées » (CPCC, ch. 6).
@@ -288,6 +300,7 @@ export class LettrageService {
   private async creerGroupe(
     tx: Prisma.TransactionClient,
     params: { tenantId: string; compteId: string; ligneIds: string[]; origine: OrigineLettrage; userId: string },
+    prochaineLettre?: () => string,
   ) {
     const lignes = await tx.ligneEcriture.findMany({
       where: { id: { in: params.ligneIds } },
@@ -296,7 +309,7 @@ export class LettrageService {
     const solde = lignes.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
     const soldeNul = Math.abs(solde) <= EPSILON;
     const statut = soldeNul ? StatutLettrage.SOLDE : StatutLettrage.PARTIEL;
-    const code = await this.prochaineLettre(tx, params.tenantId, params.compteId);
+    const code = prochaineLettre ? prochaineLettre() : await this.prochaineLettre(tx, params.tenantId, params.compteId);
 
     const groupe = await tx.lettrage.create({
       data: {
@@ -915,6 +928,7 @@ export class LettrageService {
       this.prisma,
       async (tx) => {
         const lettres: string[] = [];
+        const prochaine = await this.lettresDuLot(tx, tenantId, compteId);
         for (const g of groupes) {
           const lignes = await tx.ligneEcriture.findMany({
             where: { id: { in: g.ligneIds } },
@@ -936,12 +950,13 @@ export class LettrageService {
             ligneIds: g.ligneIds,
             origine: g.origine,
             userId,
-          });
+          }, prochaine);
           lettres.push(groupe.code);
         }
         return { groupes: groupes.length, lettres };
       },
       'Trop de lettrages effectués au même instant sur ce compte · veuillez réessayer.',
+      { operations: groupes.length },
     );
   }
 
@@ -959,6 +974,7 @@ export class LettrageService {
       this.prisma,
       async (tx) => {
         const lettres: string[] = [];
+        const prochaine = await this.lettresDuLot(tx, tenantId, compteId);
         // L'origine est tracée par passe : un groupe issu de la référence de
         // pièce n'a pas la même valeur probante qu'un groupe issu d'une
         // coïncidence de montants, et un auditeur doit pouvoir les
@@ -968,7 +984,7 @@ export class LettrageService {
           [OrigineLettrage.AUTOMATIQUE_MONTANT, groupes],
         ] as const) {
           for (const ligneIds of lots) {
-            const groupe = await this.creerGroupe(tx, { tenantId, compteId, ligneIds, origine, userId });
+            const groupe = await this.creerGroupe(tx, { tenantId, compteId, ligneIds, origine, userId }, prochaine);
             lettres.push(groupe.code);
           }
         }
@@ -980,6 +996,7 @@ export class LettrageService {
         };
       },
       'Trop de lettrages effectués au même instant sur ce compte · veuillez réessayer.',
+      { operations: parPieceGroupes.length + groupes.length },
     );
   }
 }

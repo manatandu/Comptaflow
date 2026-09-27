@@ -127,6 +127,23 @@ describe('réévaluation · créances et dettes contre disponibilités', () => {
     expect(r.positions[0].ecart).toBe(-150_000);
   });
 
+  /**
+   * AUDIT FINAL F1 · une dette en devise corrigée par inscription en
+   * négatif porte un CRÉDIT négatif, montant en devise sans signe. Lire le
+   * sens sur « débit positif » comptait la correction dans le sens de
+   * l'erreur, et la dette annulée apparaissait deux fois.
+   */
+  it('une ligne de crédit inscrite en négatif annule la position qu’elle corrige', async () => {
+    const r = await service(
+      [
+        { compteNumero: '40100000', deviseCode: 'USD', debit: 0, credit: 2_800_000, montantDevise: 1000 },
+        { compteNumero: '40100000', deviseCode: 'USD', debit: 0, credit: -2_800_000, montantDevise: 1000 },
+      ],
+      2500,
+    ).calculer('t1', { exerciceId: 'ex1' });
+    expect(r.positions).toHaveLength(0);
+  });
+
   it('signale la devise sans cours coté plutôt que de réévaluer à l’aveugle', async () => {
     const r = await service(
       [{ compteNumero: '41200000', deviseCode: 'EUR', debit: 3_000_000, credit: 0, montantDevise: 1000 }],

@@ -595,31 +595,18 @@ export class ExerciceService {
   }
 
   async verifierEcritureAutorisee(tenantId: string, journalId: string, date: Date) {
-    const clotures = await this.prisma.cloture.findMany({
+    refuserSiPeriodeClose(await this.cloturesApplicables(tenantId, journalId), journalId, date);
+  }
+
+  /**
+   * Les clôtures qui peuvent verrouiller une saisie sur ce journal · les
+   * siennes et celles de période, jamais les annulées. Lues UNE fois par
+   * journal quand un lot de pièces se contrôle (import, audit final F2).
+   */
+  cloturesApplicables(tenantId: string, journalId: string) {
+    return this.prisma.cloture.findMany({
       where: { tenantId, annuleeAt: null, OR: [{ journalId }, { journalId: null }] },
     });
-    for (const c of clotures) {
-      // Bornée à sa date limite · une clôture totale de janvier (ou de 2026)
-      // ne ferme pas février (ou 2027) du même journal.
-      if (c.granularite === GranulariteCloture.TOTALE && c.journalId === journalId && date <= c.dateLimite) {
-        throw new ForbiddenException(
-          `Ce journal est clôturé totalement jusqu'au ${c.dateLimite.toISOString().slice(0, 10)} · aucune écriture n'y est plus possible à cette date. ` +
-            AIDE_REPORT_ART_22,
-        );
-      }
-      if (c.granularite === GranulariteCloture.PARTIELLE && c.journalId === journalId && date <= c.dateLimite) {
-        throw new ForbiddenException(
-          `Ce journal est clôturé partiellement jusqu'au ${c.dateLimite.toISOString().slice(0, 10)} · aucune écriture ne peut plus y être datée à cette période ou avant. ` +
-            AIDE_REPORT_ART_22,
-        );
-      }
-      if (c.granularite === GranulariteCloture.PERIODE && date <= c.dateLimite) {
-        throw new ForbiddenException(
-          `La période jusqu'au ${c.dateLimite.toISOString().slice(0, 10)} est clôturée pour tous les journaux. ` +
-            AIDE_REPORT_ART_22,
-        );
-      }
-    }
   }
 
   /**
@@ -1129,4 +1116,38 @@ async function retirerANouveauProvisoire(
   await tx.ligneEcriture.deleteMany({ where: { ecritureId: provisoire.id } });
   await tx.ecriture.delete({ where: { id: provisoire.id } });
   return provisoire.numeroPiece;
+}
+
+/**
+ * LE VERROU DE SAISIE · une écriture datée d'une période close ne passe pas.
+ * Règle pure, pour que la saisie à l'unité et le contrôle d'un lot (import,
+ * audit final F2) la jouent à l'identique.
+ */
+export function refuserSiPeriodeClose(
+  clotures: Array<{ granularite: GranulariteCloture; journalId: string | null; dateLimite: Date }>,
+  journalId: string,
+  date: Date,
+) {
+  for (const c of clotures) {
+    // Bornée à sa date limite · une clôture totale de janvier (ou de 2026)
+    // ne ferme pas février (ou 2027) du même journal.
+    if (c.granularite === GranulariteCloture.TOTALE && c.journalId === journalId && date <= c.dateLimite) {
+      throw new ForbiddenException(
+        `Ce journal est clôturé totalement jusqu'au ${c.dateLimite.toISOString().slice(0, 10)} · aucune écriture n'y est plus possible à cette date. ` +
+          AIDE_REPORT_ART_22,
+      );
+    }
+    if (c.granularite === GranulariteCloture.PARTIELLE && c.journalId === journalId && date <= c.dateLimite) {
+      throw new ForbiddenException(
+        `Ce journal est clôturé partiellement jusqu'au ${c.dateLimite.toISOString().slice(0, 10)} · aucune écriture ne peut plus y être datée à cette période ou avant. ` +
+          AIDE_REPORT_ART_22,
+      );
+    }
+    if (c.granularite === GranulariteCloture.PERIODE && date <= c.dateLimite) {
+      throw new ForbiddenException(
+        `La période jusqu'au ${c.dateLimite.toISOString().slice(0, 10)} est clôturée pour tous les journaux. ` +
+          AIDE_REPORT_ART_22,
+      );
+    }
+  }
 }

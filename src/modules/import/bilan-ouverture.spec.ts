@@ -126,7 +126,7 @@ describe('Import d’un bilan d’ouverture', () => {
     expect(refuses).toMatch(/compte de gestion/i);
     // Le bilan lui-même passe, et reste équilibré : les deux lignes écartées
     // se compensaient, l'import n'est donc pas arrêté pour déséquilibre.
-    expect(ecriture.lignes.create).toHaveLength(3);
+    expect(ecriture.lignes.createMany.data).toHaveLength(3);
   });
 
   it('accepte les comptes de gestion pour une reprise EN COURS d’exercice', async () => {
@@ -137,7 +137,7 @@ describe('Import d’un bilan d’ouverture', () => {
       false,
     );
     expect(rapport.anomalies).toEqual([]);
-    expect(ecriture.lignes.create).toHaveLength(5);
+    expect(ecriture.lignes.createMany.data).toHaveLength(5);
     expect(ecriture.estGenereeParCloture).toBe(false);
     expect(ecriture.libelle).toMatch(/Reprise de balance/);
   });

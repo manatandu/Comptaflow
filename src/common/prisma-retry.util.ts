@@ -27,10 +27,29 @@ function attendre(ms: number) {
  * `messageConflit` est utilisé pour le message renvoyé à l'utilisateur si
  * toutes les tentatives échouent (jamais un 500 brut).
  */
+/**
+ * LE DÉLAI D'UNE TRANSACTION DONT LE TRAVAIL CROÎT AVEC LE VOLUME (audit final
+ * F2). Le défaut de Prisma, cinq secondes, est celui d'un geste unitaire ; un
+ * lettrage automatique de deux mille groupes ou la fusion d'un compte chargé
+ * le dépassaient, et l'opération échouait entière. Le délai croît avec le
+ * nombre d'opérations annoncé, plafonné sous la limite de requête de Cloud Run
+ * (300 s) · au-delà, la réponse partirait de toute façon sans le résultat.
+ * Convention d'OmegaX : dix secondes de base, et cinquante millisecondes par
+ * opération, soit plusieurs allers-retours de marge chacune.
+ */
+export const DELAI_BASE_MS = 10_000;
+export const DELAI_PAR_OPERATION_MS = 50;
+export const DELAI_MAX_MS = 240_000;
+
+export function delaiSelonVolume(operations: number): number {
+  return Math.min(DELAI_MAX_MS, DELAI_BASE_MS + Math.max(0, operations) * DELAI_PAR_OPERATION_MS);
+}
+
 export async function avecRetrySerialisable<T>(
   prisma: { $transaction: <R>(fn: (tx: Prisma.TransactionClient) => Promise<R>, opts?: any) => Promise<R> },
   fn: (tx: Prisma.TransactionClient) => Promise<T>,
   messageConflit: string,
+  options: { operations?: number } = {},
 ): Promise<T> {
   for (let tentative = 1; tentative <= TENTATIVES_MAX; tentative++) {
     try {
@@ -42,6 +61,7 @@ export async function avecRetrySerialisable<T>(
       // porte le maillon : il naît et meurt avec l'acte.
       return await prisma.$transaction((tx) => journaliserDansTransaction(tx, () => fn(tx)), {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        ...(options.operations === undefined ? {} : { maxWait: 10_000, timeout: delaiSelonVolume(options.operations) }),
       });
     } catch (err) {
       const estConflit = err instanceof Prisma.PrismaClientKnownRequestError && err.code === CODE_CONFLIT_TRANSACTION;

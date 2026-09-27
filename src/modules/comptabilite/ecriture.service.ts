@@ -3,6 +3,7 @@ import { regrouperSurCollectifs } from '../tiers/collectifs-tiers';
 import { PrismaService } from '../../common/prisma.service';
 import {
   MotifImputationOuverture,
+  Compte,
   Prisma,
   Referentiel,
   StatutEcriture,
@@ -17,7 +18,7 @@ import { dateDansExercice, lignesDeReimputation, motifRefusFusionComptes, motifR
 import { libelleReference, referencesVers } from '../../common/suppression/references';
 import { ModifierEcritureDto, ValiderJusquaDto } from './dto/brouillard.dto';
 import { JournalService } from '../journaux/journal.service';
-import { ExerciceService } from '../exercice/exercice.service';
+import { ExerciceService, refuserSiPeriodeClose } from '../exercice/exercice.service';
 import { AnalytiqueService } from '../analytique/analytique.service';
 import { avecRetrySerialisable } from '../../common/prisma-retry.util';
 
@@ -388,6 +389,36 @@ export function donneesLigneSaisie(
   };
 }
 
+/** La mémoire partagée par les contrôles d'un lot de pièces (audit final F2). */
+export type MemoireControles = Map<string, Promise<unknown>>;
+
+/** Lit une fois par clé quand une mémoire est fournie, à chaque appel sinon. */
+function memoriser<T>(memoire: MemoireControles | undefined, cle: string, lire: () => Promise<T>): Promise<T> {
+  if (!memoire) return lire();
+  if (!memoire.has(cle)) memoire.set(cle, lire());
+  return memoire.get(cle) as Promise<T>;
+}
+
+/**
+ * Les comptes d'une pièce, bornés au dossier · avec une mémoire, seuls les
+ * comptes jamais vus sont lus, en une requête pour la pièce.
+ */
+async function comptesDeLaPiece(
+  db: Prisma.TransactionClient | PrismaService,
+  tenantId: string,
+  compteIds: string[],
+  memoire?: MemoireControles,
+) {
+  if (!memoire) return db.compte.findMany({ where: { id: { in: compteIds }, tenantId } });
+  const manquants = compteIds.filter((id) => !memoire.has(`compte:${id}`));
+  if (manquants.length) {
+    const lus = db.compte.findMany({ where: { id: { in: manquants }, tenantId } });
+    for (const id of manquants) memoire.set(`compte:${id}`, lus.then((liste) => liste.find((c) => c.id === id) ?? null));
+  }
+  const comptes = await Promise.all(compteIds.map((id) => memoire.get(`compte:${id}`) as Promise<Compte | null>));
+  return comptes.filter((c): c is Compte => c !== null);
+}
+
 @Injectable()
 export class EcritureService {
   constructor(
@@ -570,10 +601,15 @@ export class EcritureService {
     tenantId: string,
     piece: PieceEntree,
     db: Prisma.TransactionClient | PrismaService = this.prisma,
+    // LA MÉMOIRE D'UN LOT (audit final F2) · un import contrôle des milliers de
+    // pièces sur le même exercice, les mêmes journaux et les mêmes comptes.
+    // Relus à chaque pièce, ils coûtaient quatre requêtes par pièce. Les
+    // RÈGLES ne changent pas · seule la lecture est partagée.
+    memoire?: MemoireControles,
   ) {
-    const exercice = await db.exercice.findFirst({
-      where: { id: piece.exerciceId, tenantId },
-    });
+    const exercice = await memoriser(memoire, `exercice:${piece.exerciceId}`, () =>
+      db.exercice.findFirst({ where: { id: piece.exerciceId, tenantId } }),
+    );
     if (!exercice) {
       throw new BadRequestException('Exercice introuvable pour ce tenant');
     }
@@ -599,7 +635,9 @@ export class EcritureService {
     const horsExercice = motifDateHorsExercice(date, exercice);
     if (horsExercice) throw new BadRequestException(horsExercice);
 
-    const journal = await this.journalService.trouver(tenantId, piece.journalId);
+    const journal = await memoriser(memoire, `journal:${piece.journalId}`, () =>
+      this.journalService.trouver(tenantId, piece.journalId),
+    );
     if (!journal.estActif) {
       throw new BadRequestException(`Le journal ${journal.code} est en sommeil`);
     }
@@ -634,7 +672,7 @@ export class EcritureService {
       // mapping futur (§3.5) qui suppose que seuls les comptes Détail portent
       // des mouvements réels.
       const compteIds = [...new Set(piece.lignes.map((l) => l.compteId))];
-      const comptes = await db.compte.findMany({ where: { id: { in: compteIds }, tenantId } });
+      const comptes = await comptesDeLaPiece(db, tenantId, compteIds, memoire);
       if (comptes.length !== compteIds.length) {
         throw new BadRequestException('Un ou plusieurs comptes sont introuvables pour ce tenant');
       }
@@ -672,7 +710,14 @@ export class EcritureService {
     // Clôtures Partielle/Totale (par journal) et Période (tous journaux) :
     // verrouillage de saisie indépendant du statut CLOTURE de l'exercice ·
     // voir ExerciceService.verifierEcritureAutorisee.
-    await this.exerciceService.verifierEcritureAutorisee(tenantId, piece.journalId, date);
+    if (memoire) {
+      const clotures = await memoriser(memoire, `clotures:${piece.journalId}`, () =>
+        this.exerciceService.cloturesApplicables(tenantId, piece.journalId),
+      );
+      refuserSiPeriodeClose(clotures, piece.journalId, date);
+    } else {
+      await this.exerciceService.verifierEcritureAutorisee(tenantId, piece.journalId, date);
+    }
 
     if (piece.lignes) {
       // Ventilation analytique · seuls les plans marqués « ventilation
@@ -1540,8 +1585,10 @@ export class EcritureService {
     return avecRetrySerialisable(
       this.prisma,
       async (tx) => {
-        for (const l of auBrouillard) {
-          await tx.ligneEcriture.update({ where: { id: l.id }, data: { compteId: cible.id } });
+        // Une requête pour tout le brouillard, jamais une par ligne (audit
+        // final F2) · la fusion d'un compte chargé en faisait des milliers.
+        if (auBrouillard.length) {
+          await tx.ligneEcriture.updateMany({ where: { id: { in: auBrouillard.map((l) => l.id) } }, data: { compteId: cible.id } });
         }
         const passees: { numeroPiece: number | null; journal: string }[] = [];
         for (const groupe of parEcriture.values()) {
@@ -1574,6 +1621,12 @@ export class EcritureService {
                       credit: p.credit,
                       dateEcheance: l.dateEcheance,
                       dateVersement: l.dateVersement,
+                      // La devise suit la ligne, sans signe, comme à la
+                      // correction (audit final F1) · le sens de la ligne dit
+                      // de quel côté elle tombe.
+                      deviseId: l.deviseId,
+                      montantDevise: l.montantDevise,
+                      coursApplique: l.coursApplique,
                       ventilations: {
                         create: l.ventilations.map((v) => ({
                           sectionId: v.sectionId,
@@ -1594,6 +1647,9 @@ export class EcritureService {
         return { auBrouillard: auBrouillard.length, validees: validees.length, ecrituresPassees: passees };
       },
       "Trop d'écritures enregistrées au même instant · veuillez réessayer.",
+      // Chaque pièce passée coûte son numéro et sa tête, chaque ligne validée
+      // deux inscriptions, chacune avec ses ventilations.
+      { operations: 1 + parEcriture.size * 2 + validees.reduce((t, l) => t + 2 * (1 + l.ventilations.length), 0) },
     );
   }
 
@@ -1699,7 +1755,7 @@ export class EcritureService {
     const origine = await this.prisma.ecriture.findFirst({
       where: { id: ecritureId, tenantId },
       include: {
-        lignes: true,
+        lignes: { include: { ventilations: true } },
         journal: true,
         exercice: true,
         correction: { select: { id: true, numeroPiece: true } },
@@ -1789,6 +1845,24 @@ export class EcritureService {
                 // par le MÊME mois qu'elle y est entrée, sans quoi elle
                 // creuserait un mois et en gonflerait un autre.
                 dateVersement: l.dateVersement,
+                // LA DEVISE ET L'ANALYTIQUE SUIVENT (audit final F1). Sans
+                // elles, le grand livre revenait à zéro pendant que le réalisé
+                // par section et la position en devise gardaient l'opération
+                // annulée. Le montant en devise se recopie SANS SIGNE, comme
+                // il est stocké : c'est le sens de la ligne qui le donne
+                // (lettrage, réévaluation). Les ventilations, elles, portent
+                // leur propre débit et crédit, et passent en négatif.
+                deviseId: l.deviseId,
+                montantDevise: l.montantDevise,
+                coursApplique: l.coursApplique,
+                ventilations: {
+                  create: l.ventilations.map((v) => ({
+                    sectionId: v.sectionId,
+                    planId: v.planId,
+                    debit: v.debit.negated(),
+                    credit: v.credit.negated(),
+                  })),
+                },
               })),
             },
           },

@@ -1,12 +1,35 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { prochainNumeroPiece } from '../journaux/numerotation-piece';
-import { EcritureService, motifDateHorsExercice } from '../comptabilite/ecriture.service';
+import { randomUUID } from 'node:crypto';
+import { journaliserDansTransaction } from '../../common/audit/contexte-audit';
+import { numeroteurDeLot, prochainNumeroPiece } from '../journaux/numerotation-piece';
+import { EcritureService, type MemoireControles, motifDateHorsExercice } from '../comptabilite/ecriture.service';
 import { ClasseCompte, ModeReportANouveau, Prisma, Referentiel, StatutExercice, TypeCompteDetailTotal } from '@prisma/client';
 import { PLAN_COMPTES_SYCEBNL } from '../comptes/compte-seed';
 import { PLAN_COMPTES_SYSCOHADA } from '../comptes/compte-seed-syscohada';
 import { AnalyserImportDto, ExecuterImportDto, TypeImport } from './dto/import.dto';
 import { lireDate, lireFichier, lireMontant, type Tableau } from './lecture-fichier';
+
+/**
+ * Tranches des insertions groupées de l'import · une requête PostgreSQL porte
+ * au plus 65 535 paramètres, soit, à dix colonnes par écriture et cinq par
+ * ligne, des tranches loin sous le plafond.
+ */
+const TAILLE_TRANCHE_ECRITURES = 1000;
+const TAILLE_TRANCHE_LIGNES = 5000;
+/**
+ * Délai de la transaction d'import · le nombre de requêtes ne dépend plus du
+ * volume, mais l'insertion de dizaines de milliers de lignes prend son temps,
+ * et le délai par défaut de Prisma (cinq secondes) est celui d'un geste
+ * unitaire. Sous le plafond de requête de Cloud Run (300 s).
+ */
+const DELAI_IMPORT_MS = 120_000;
+
+function tranches<T>(elements: T[], taille: number): T[][] {
+  const sortie: T[][] = [];
+  for (let i = 0; i < elements.length; i += taille) sortie.push(elements.slice(i, i + taille));
+  return sortie;
+}
 
 /** Un champ attendu par un type d'import, et les en-têtes qui le trahissent. */
 interface ChampAttendu {
@@ -561,7 +584,10 @@ export class ImportService {
 
     if (peutEcrire) {
       const date = dateReprise;
-      await this.prisma.$transaction(async (tx) => {
+      // Même délai que l'import d'écritures, et les lignes en UNE insertion
+      // (audit final F2) · une balance de mille comptes faisait mille
+      // allers-retours dans une transaction bornée à cinq secondes.
+      await this.prisma.$transaction((tx) => journaliserDansTransaction(tx, async () => {
         if (comptesACreer.length > 0) {
           await tx.compte.createMany({ data: comptesACreer, skipDuplicates: true });
         }
@@ -605,16 +631,18 @@ export class ImportService {
             // à-nouveau n'est pas une opération de l'année.
             estGenereeParCloture: bilanDOuverture,
             lignes: {
-              create: lignes.map((l) => ({
-                compteId: parNumero.get(l.numero)!,
-                debit: l.debit,
-                credit: l.credit,
-              })),
+              createMany: {
+                data: lignes.map((l) => ({
+                  compteId: parNumero.get(l.numero)!,
+                  debit: l.debit,
+                  credit: l.credit,
+                })),
+              },
             },
           },
         });
         ecrituresCreees = 1;
-      });
+      }), { maxWait: 10_000, timeout: DELAI_IMPORT_MS });
     }
 
     return {
@@ -732,6 +760,9 @@ export class ImportService {
       }
     });
 
+    // Une lecture par exercice, journal, compte et série de clôtures pour
+    // tout le lot · les règles restent celles de la saisie (audit final F2).
+    const memoire: MemoireControles = new Map();
     const valides: Piece[] = [];
     for (const piece of pieces.values()) {
       const d = piece.lignes.reduce((s, l) => s + l.debit, 0);
@@ -751,13 +782,18 @@ export class ImportService {
       // emporter les autres, comme une pièce déséquilibrée. Joué aussi en
       // simulation, pour que l'aperçu dise ce que l'import refusera.
       try {
-        await this.ecritureService.controlesDEntree(tenantId, {
-          exerciceId: exercice.id,
-          journalId: piece.journalId,
-          date: piece.date,
-          lignes: piece.lignes,
-          exigerVentilationObligatoire: false,
-        });
+        await this.ecritureService.controlesDEntree(
+          tenantId,
+          {
+            exerciceId: exercice.id,
+            journalId: piece.journalId,
+            date: piece.date,
+            lignes: piece.lignes,
+            exigerVentilationObligatoire: false,
+          },
+          undefined,
+          memoire,
+        );
       } catch (e) {
         anomalies.push({
           ligne: piece.premiereLigne,
@@ -771,37 +807,55 @@ export class ImportService {
     let ecrituresCreees = 0;
     let lignesCreees = 0;
     if (!dto.simulation && valides.length > 0) {
-      await this.prisma.$transaction(async (tx) => {
-        for (const piece of valides) {
-          // Une pièce à la fois, dans l'ordre : chaque agrégat voit les
-          // écritures déjà insérées dans CETTE transaction, donc les numéros
-          // se suivent au lieu de se répéter.
-          const jal = journauxParId.get(piece.journalId)!;
-          const numeroPiece = await prochainNumeroPiece(tx, tenantId, jal, exercice.id, piece.date);
-          await tx.ecriture.create({
-            data: {
-              tenantId,
-              exerciceId: exercice.id,
-              journalId: piece.journalId,
-              numeroPiece,
-              date: piece.date,
-              libelle: piece.libelle,
-              reference: piece.reference,
-              createdBy,
-              lignes: {
-                create: piece.lignes.map((l) => ({
-                  compteId: l.compteId,
-                  libelle: l.libelle || undefined,
-                  debit: l.debit,
-                  credit: l.credit,
+      // EN INSERTIONS GROUPÉES, ET D'UN SEUL TENANT (audit final F2). Une
+      // pièce à la fois coûtait trois allers-retours ou plus par pièce, et
+      // la transaction, bornée à cinq secondes par défaut, tombait dès
+      // quelques dizaines de pièces · l'import échouait entier. Le nombre de
+      // requêtes ne dépend plus du nombre de pièces : une lecture par série
+      // de numérotation, puis des tranches. L'import reste tout ou rien.
+      await this.prisma.$transaction(
+        (tx) =>
+          journaliserDansTransaction(tx, async () => {
+            const numeroter = numeroteurDeLot(tx, tenantId, exercice.id);
+            const pieces: Array<(typeof valides)[number] & { id: string; numeroPiece: number | null }> = [];
+            for (const piece of valides) {
+              // Dans l'ordre du fichier : les numéros se suivent comme la
+              // saisie les aurait donnés, pièce après pièce.
+              const numeroPiece = await numeroter(journauxParId.get(piece.journalId)!, piece.date);
+              pieces.push({ ...piece, id: randomUUID(), numeroPiece });
+            }
+            for (const lot of tranches(pieces, TAILLE_TRANCHE_ECRITURES)) {
+              await tx.ecriture.createMany({
+                data: lot.map((p) => ({
+                  id: p.id,
+                  tenantId,
+                  exerciceId: exercice.id,
+                  journalId: p.journalId,
+                  numeroPiece: p.numeroPiece,
+                  date: p.date,
+                  libelle: p.libelle,
+                  reference: p.reference,
+                  createdBy,
                 })),
-              },
-            },
-          });
-          ecrituresCreees++;
-          lignesCreees += piece.lignes.length;
-        }
-      });
+              });
+            }
+            const lignes = pieces.flatMap((p) =>
+              p.lignes.map((l) => ({
+                ecritureId: p.id,
+                compteId: l.compteId,
+                libelle: l.libelle || undefined,
+                debit: l.debit,
+                credit: l.credit,
+              })),
+            );
+            for (const lot of tranches(lignes, TAILLE_TRANCHE_LIGNES)) {
+              await tx.ligneEcriture.createMany({ data: lot });
+            }
+            ecrituresCreees = pieces.length;
+            lignesCreees = lignes.length;
+          }),
+        { maxWait: 10_000, timeout: DELAI_IMPORT_MS },
+      );
     }
 
     return {

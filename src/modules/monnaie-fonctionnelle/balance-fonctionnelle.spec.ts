@@ -85,6 +85,15 @@ describe('la conversion d’une ligne', () => {
     expect(r).toEqual({ debit: 0, credit: 10_000, exacte: true });
   });
 
+  it('garde à une ligne inscrite en négatif son côté et son signe · jamais une contre-passation (AUDCIF art. 20)', () => {
+    const r = BalanceFonctionnelleService.convertirLigne(
+      ligne({ credit: -28_000_000, deviseCode: 'USD', montantDevise: 10_000 }),
+      'USD',
+      2800,
+    );
+    expect(r).toEqual({ debit: 0, credit: -10_000, exacte: true });
+  });
+
   it('convertit une ligne libellée dans une AUTRE devise · seule la fonctionnelle est exacte', () => {
     const r = BalanceFonctionnelleService.convertirLigne(
       ligne({ debit: 2_800_000, deviseCode: 'EUR', montantDevise: 900 }),

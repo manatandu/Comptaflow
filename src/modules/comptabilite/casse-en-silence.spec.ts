@@ -1,8 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
-import { NumerotationPiece } from '@prisma/client';
+import { NumerotationPiece, Referentiel } from '@prisma/client';
 import { EcritureService } from './ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
-import { prochainNumeroPiece } from '../journaux/numerotation-piece';
+import { journauxDeLaSequenceDuFichier, numeroteurDeLot, prochainNumeroPiece } from '../journaux/numerotation-piece';
+import { journauxDefaut } from '../journaux/journal-seed';
 import { PrismaService } from '../../common/prisma.service';
 import { ImportService } from '../import/import.service';
 import { TypeImport } from '../import/dto/import.dto';
@@ -166,6 +167,38 @@ describe('2 · toute écriture reçoit le numéro que son journal impose', () =>
     expect(n).toBe(1);
   });
 
+  /**
+   * AUDIT FINAL F3 · la séquence du fichier prenait le maximum de TOUTES les
+   * écritures de l'exercice. Sur le semis, OD est seul en continu sur le
+   * fichier · chaque OD sautait au-dessus des achats et des ventes, et
+   * l'analyse des journaux, qui ne relit que les journaux du fichier,
+   * annonçait des trous que personne n'avait creusés.
+   */
+  it('la séquence du fichier ne compte que ses journaux, ceux que l’analyse relit (semis réel)', async () => {
+    const t = tx(3);
+    await prochainNumeroPiece(t, 't1', { id: 'j-od', numerotation: NumerotationPiece.CONTINUE_FICHIER }, 'ex', new Date());
+    const where = (t.ecriture.aggregate as jest.Mock).mock.calls[0][0].where;
+    const fichier = journauxDeLaSequenceDuFichier(
+      journauxDefaut(Referentiel.SYSCOHADA),
+    ).map((j) => j.code);
+    expect({ filtre: where.journal, fichier }).toEqual({
+      filtre: { numerotation: NumerotationPiece.CONTINUE_FICHIER },
+      fichier: ['OD'],
+    });
+  });
+
+  it('le numéroteur d’un lot relit une fois par série, et chaque mois repart de son propre maximum', async () => {
+    const t = tx(0);
+    const numeroter = numeroteurDeLot(t, 't1', 'ex');
+    const bq = { id: 'j-bq', numerotation: NumerotationPiece.MENSUELLE };
+    const n = [
+      await numeroter(bq, new Date('2026-03-02')),
+      await numeroter(bq, new Date('2026-03-20')),
+      await numeroter(bq, new Date('2026-04-01')),
+    ];
+    expect({ n, lectures: (t.ecriture.aggregate as jest.Mock).mock.calls.length }).toEqual({ n: [1, 2, 1], lectures: 2 });
+  });
+
   it('les quatre chemins qui l’ignoraient l’appellent désormais', () => {
     // Gelé par lecture de la source : l'import (reprise de balance et import
     // d'écritures) et le Groupe (canevas de trésorerie et combinaison)
@@ -188,7 +221,9 @@ describe('2 · toute écriture reçoit le numéro que son journal impose', () =>
         if (entree.isDirectory()) parcourir(chemin);
         else if (entree.name.endsWith('.ts') && !entree.name.endsWith('.spec.ts')) {
           const source = readFileSync(chemin, 'utf-8');
-          for (const m of source.matchAll(/ecriture\.create\(/g)) {
+          // L'insertion groupée de l'import compte aussi (audit final F2) ·
+          // chaque ligne qu'elle insère porte son numéro dans SON argument.
+          for (const m of source.matchAll(/ecriture\.create(?:Many)?\(/g)) {
             const ouvrante = (m.index ?? 0) + m[0].length - 1;
             let profondeur = 0;
             let fin = ouvrante;
