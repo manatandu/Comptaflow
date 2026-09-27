@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { StatutExoneration, TypeDemandeExoneration } from '@prisma/client';
 import {
@@ -10,6 +10,30 @@ import {
 import { ajouterMois } from '../../common/ajouter-mois';
 
 const MS_PAR_JOUR = 24 * 60 * 60 * 1000;
+
+/**
+ * UN ARRÊTÉ ACCORDÉ SE DIT PAR SA RÉFÉRENCE ET SES DATES (audit final F123).
+ * L'arrêté est le seul titre (loi n° 004/2001, art. 39), et un dossier porté
+ * « accordé » sans référence ni date ne se présente pas au port. Pour un
+ * arrêté à durée (prévisionnel, renouvellement), le début de validité est
+ * exigé aussi · c'est de lui que la fin se déduit, et sans fin l'alerte de
+ * renouvellement ne s'arme jamais.
+ */
+export function motifRefusAccorde(d: {
+  referenceArrete: string | null;
+  dateArrete: Date | null;
+  dateDebutValidite: Date | null;
+  validiteMois: number | null;
+}): string | null {
+  const manques = [
+    !d.referenceArrete?.trim() ? 'la référence de l’arrêté' : null,
+    !d.dateArrete ? 'la date de l’arrêté' : null,
+    d.validiteMois && !d.dateDebutValidite ? 'le début de validité' : null,
+  ].filter((m): m is string => m !== null);
+  return manques.length === 0
+    ? null
+    : `Un dossier ACCORDÉ se dit par son arrêté · il manque ${manques.join(', ')} (loi n° 004/2001, art. 39).`;
+}
 
 /**
  * REGISTRE DES EXONÉRATIONS · ce que le logiciel surveille ici, et pourquoi.
@@ -139,6 +163,15 @@ export class ExonerationsService {
       // ne fait pas finir la validité au 1er mars suivant.
       dateFin = ajouterMois(new Date(dto.dateDebutValidite), modele.validiteMois);
     }
+    if (dto.statut === StatutExoneration.ACCORDE) {
+      const refus = motifRefusAccorde({
+        referenceArrete: dto.referenceArrete ?? null,
+        dateArrete: dto.dateArrete ? new Date(dto.dateArrete) : null,
+        dateDebutValidite: dto.dateDebutValidite ? new Date(dto.dateDebutValidite) : null,
+        validiteMois: modele.validiteMois,
+      });
+      if (refus) throw new BadRequestException(refus);
+    }
     return this.prisma.exoneration.create({
       data: {
         tenantId,
@@ -167,6 +200,26 @@ export class ExonerationsService {
     for (const [cle, valeur] of Object.entries(dto)) {
       if (valeur === undefined) continue;
       data[cle] = dates.includes(cle as (typeof dates)[number]) && valeur ? new Date(valeur as string) : valeur;
+    }
+    const modele = MODELES_DEMANDE.find((m) => m.type === existant.type)!;
+    const apres = { ...existant, ...data } as typeof existant;
+    // LA FIN SE DÉDUIT AUSSI À LA MODIFICATION (audit final F123) · un début
+    // posé au passage à ACCORDÉ ne l'armait jamais, et l'alerte de
+    // renouvellement restait muette. Une fin saisie à la main prime.
+    if (modele.validiteMois && apres.dateDebutValidite && data.dateFinValidite === undefined && (data.dateDebutValidite !== undefined || !existant.dateFinValidite)) {
+      data.dateFinValidite = ajouterMois(apres.dateDebutValidite, modele.validiteMois);
+    }
+    // Contrôlé au passage à ACCORDÉ et quand l'arrêté d'un dossier accordé se
+    // retouche · jamais sur une simple pièce cochée, qui ne dit rien du titre.
+    const toucheLArrete = ['referenceArrete', 'dateArrete', 'dateDebutValidite'].some((c) => c in data);
+    if (data.statut === StatutExoneration.ACCORDE || (apres.statut === StatutExoneration.ACCORDE && toucheLArrete)) {
+      const refus = motifRefusAccorde({
+        referenceArrete: apres.referenceArrete,
+        dateArrete: apres.dateArrete,
+        dateDebutValidite: apres.dateDebutValidite,
+        validiteMois: modele.validiteMois,
+      });
+      if (refus) throw new BadRequestException(refus);
     }
     return this.prisma.exoneration.update({ where: { id }, data });
   }

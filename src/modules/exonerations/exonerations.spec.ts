@@ -176,3 +176,38 @@ describe('Création', () => {
     expect(create.mock.calls[0][0].data.dateFinValidite).toBeNull();
   });
 });
+
+describe('F123 · un arrêté accordé se dit par sa référence et ses dates', () => {
+  it('refuse le passage à ACCORDÉ sans référence, sans date d’arrêté ou, à durée, sans début de validité', async () => {
+    const s = service([dossier({ type: 'PREVISIONNEL' })]);
+    await expect(s.modifier('t1', 'd-PREVISIONNEL', { statut: 'ACCORDE' })).rejects.toThrow(/référence de l’arrêté.*date de l’arrêté.*début de validité/);
+    await expect(
+      s.modifier('t1', 'd-PREVISIONNEL', { statut: 'ACCORDE', referenceArrete: 'n° 12/2026', dateArrete: '2026-03-01' }),
+    ).rejects.toThrow(/début de validité/);
+  });
+
+  it('au passage à ACCORDÉ, la fin de validité se déduit du début · l’alerte de renouvellement s’arme', async () => {
+    const update = jest.fn().mockImplementation(({ data }) => Promise.resolve(data));
+    const s = service([dossier({ type: 'PREVISIONNEL' })]);
+    ((s as unknown as { prisma: { exoneration: { update: jest.Mock } } }).prisma.exoneration.update = update);
+    await s.modifier('t1', 'd-PREVISIONNEL', {
+      statut: 'ACCORDE',
+      referenceArrete: 'n° 12/2026',
+      dateArrete: '2026-03-01',
+      dateDebutValidite: '2026-03-01',
+    });
+    expect(update.mock.calls[0][0].data.dateFinValidite.toISOString().slice(0, 10)).toBe('2028-03-01');
+  });
+
+  it('un arrêté ponctuel s’accorde sans début de validité, et une pièce cochée sur un dossier accordé n’est pas refusée', async () => {
+    const s = service([dossier({ type: 'PONCTUEL' })]);
+    await expect(s.modifier('t1', 'd-PONCTUEL', { statut: 'ACCORDE', referenceArrete: 'n° 3/2026', dateArrete: '2026-03-01' })).resolves.toBeDefined();
+    const accorde = service([dossier({ type: 'PREVISIONNEL', statut: 'ACCORDE' })]);
+    await expect(accorde.modifier('t1', 'd-PREVISIONNEL', { piecesFournies: ['requete'] })).resolves.toBeDefined();
+  });
+
+  it('à la création aussi, un dossier ne naît pas ACCORDÉ sans son arrêté', async () => {
+    await expect(service([]).creer('t1', 'u1', { type: 'PONCTUEL' as never, objet: 'x', statut: 'ACCORDE' as never })).rejects.toThrow(/référence de l’arrêté/);
+  });
+});
+

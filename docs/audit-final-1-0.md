@@ -909,30 +909,35 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 3
 - **Constat :** la base hors taxes est reconstituée avec le taux courant.
 - **Correction :** refuser la modification d'un taux référencé.
+- **Fait le 2026-09-27 :** `modifier` refuse de changer le pourcentage d'un taux porté par une ligne d'écriture ou de facture (nouveau taux, ancien en sommeil) ; intitulé et comptes restent libres. Test : `taux-tva-modification.spec.ts`.
 
 **F122 · Les comptes d'un taux de TVA ne se complètent pas depuis l'écran** [tva-03]
 - **Emplacements :** client/src/pages/TauxTvaPage.tsx:100-102 · ecriture-facture.ts:191 · tva-saisie.ts:155 · taux-tva.service.ts:2394
 - **Condition :** 4
 - **Constat :** deux messages renvoient à un geste inexistant, et la liquidation saute ces lignes.
 - **Correction :** rendre les comptes modifiables, dans la limite de F121.
+- **Fait le 2026-09-27 :** « Modifier » dans Taux de taxes (intitulé, pourcentage si le serveur l'admet, deux comptes). Et le défaut trouvé en passant, plus large : la liquidation soldait le compte du TAUX, si bien qu'une TVA routée au 4432 laissait le 4431 débiteur et le 4432 créditeur, et qu'une ligne sur un taux sans compte déséquilibrait l'écriture. La déclaration cumule désormais aussi compte par compte (`parCompte`), la liquidation solde chaque compte réellement mouvementé, et la déduction admise se répartit au centime (`repartirAuCentime`, un écart au-delà de l'arrondi est un défaut qui lève). Tests : `declaration-familles-tva.spec.ts`, `taux-tva-modification.spec.ts`, `taux-tva-audit-final.spec.ts`.
 
 **F123 · Exonérations : arrêté accordé sans référence ni dates, fin de validité jamais déduite** [exo-01]
 - **Emplacements :** client/src/pages/ExonerationsPage.tsx:84-110 · src/modules/exonerations/exonerations.service.ts:135-169
 - **Condition :** 4
 - **Constat :** l'alerte de renouvellement ne s'arme jamais.
 - **Correction :** saisie au passage à ACCORDÉ, et déduction de la fin dans `modifier`.
+- **Fait le 2026-09-27 :** passer à ACCORDÉ (à la création comme à la modification) exige la référence et la date de l'arrêté et, pour un arrêté à durée, le début de validité (`motifRefusAccorde`) ; la fin se déduit aussi dans `modifier`. L'écran ouvre la saisie de l'arrêté au choix du statut. Une pièce cochée sur un dossier accordé n'est pas refusée. Tests : `exonerations.spec.ts`, `exonerations-audit-final.spec.ts`.
 
 **F124 · La contre-proposition n'a aucun geste à l'écran** [com-02]
 - **Emplacements :** client/src/pages/DevisPage.tsx:99-114 · src/modules/commercial/commercial.service.ts:159-178
 - **Condition :** 4
 - **Constat :** `contrePropositionDeId` n'est jamais envoyé : la négociation s'arrête et aucune offre d'un client ne s'enregistre.
 - **Correction :** bouton « Enregistrer la contre-proposition ».
+- **Fait le 2026-09-27 :** un devis rejeté substantiellement et sans suite propose « Enregistrer la contre-proposition », qui préremplit le formulaire (client, nature, objet) et envoie `contrePropositionDeId` ; le serveur inverse l'émetteur. Test : `devis-audit-final.spec.ts`.
 
 **F125 · Réserves INPP et ONEM : promesse de rappel non tenue, liquidation niée, date fausse** [ret-03]
 - **Emplacements :** src/modules/retenues/correspondance-retenues.ts:461-474 · retenues.service.ts:190-194
 - **Condition :** 5
 - **Constat :** l'effectif n'est jamais lu, « le logiciel ne liquide rien » contredit la paie, et « la veille » devrait être « le lendemain ».
 - **Correction :** réécrire les réserves.
+- **Fait le 2026-09-27 :** les deux réserves renvoient le calcul à la paie (fenêtre Personnel), l'INPP s'y abstenant sans nature ni effectif, et disent que le registre recense sans recalculer ; « la veille » devient « le lendemain ». Test : `reserves-inpp-onem.spec.ts`.
 
 ### Immobilisations, stocks, inventaire et provisions
 

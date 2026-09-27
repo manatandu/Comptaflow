@@ -53,6 +53,13 @@ export function ExonerationsPage() {
   const [objet, setObjet] = useState('');
   const [debutValidite, setDebutValidite] = useState('');
   const [erreur, setErreur] = useState<string | null>(null);
+  // LE PASSAGE À « ACCORDÉ » DEMANDE L'ARRÊTÉ (audit final F123) · sa
+  // référence, sa date et, à durée, son début de validité, dont le serveur
+  // déduit la fin et arme l'alerte de renouvellement.
+  const [accordPour, setAccordPour] = useState<string | null>(null);
+  const [refArrete, setRefArrete] = useState('');
+  const [dateArrete, setDateArrete] = useState('');
+  const [debutArrete, setDebutArrete] = useState('');
 
   const charger = () => {
     api.get<RegistreExonerations>('/exonerations').then(setRegistre, (e: Error) => setErreur(e.message));
@@ -107,8 +114,36 @@ export function ExonerationsPage() {
   };
 
   const changerStatut = async (dossier: DossierExoneration, statut: StatutExoneration) => {
-    await api.patch(`/exonerations/${dossier.id}`, { statut });
-    charger();
+    if (statut === 'ACCORDE') {
+      setAccordPour(dossier.id);
+      setRefArrete(dossier.referenceArrete ?? '');
+      setDateArrete(dossier.dateArrete?.slice(0, 10) ?? '');
+      setDebutArrete(dossier.dateDebutValidite?.slice(0, 10) ?? '');
+      return;
+    }
+    setErreur(null);
+    try {
+      await api.patch(`/exonerations/${dossier.id}`, { statut });
+      charger();
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Modification impossible');
+    }
+  };
+
+  const enregistrerAccord = async (dossier: DossierExoneration) => {
+    setErreur(null);
+    try {
+      await api.patch(`/exonerations/${dossier.id}`, {
+        statut: 'ACCORDE',
+        referenceArrete: refArrete.trim(),
+        dateArrete: dateArrete || undefined,
+        ...(dossier.modele.validiteMois && debutArrete ? { dateDebutValidite: debutArrete } : {}),
+      });
+      setAccordPour(null);
+      charger();
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Enregistrement impossible');
+    }
   };
 
   const jour = (d: string | null) => (d ? new Date(d).toLocaleDateString('fr-FR') : '·');
@@ -279,7 +314,7 @@ export function ExonerationsPage() {
                   >
                     {LIBELLE_STATUT[selection.statut].toUpperCase()}
                   </span>
-                  {selection.statut !== 'ACCORDE' && (
+                  {selection.statut !== 'ACCORDE' && accordPour !== selection.id && (
                     <Aide
                       titre="Arrêté non accordé"
                       texte="Tant que l’arrêté n’est pas accordé, il n’existe aucun titre : une importation faite « en attendant » est une importation taxable."
@@ -288,6 +323,36 @@ export function ExonerationsPage() {
                   )}
                 </span>
               </label>
+
+              {peutEcrire && accordPour === selection.id && (
+                <div className="border border-border px-2 py-1.5 space-y-1.5">
+                  <div className="text-[11px] font-bold text-text-dim">ARRÊTÉ ACCORDÉ</div>
+                  <input
+                    value={refArrete}
+                    onChange={(e) => setRefArrete(e.target.value)}
+                    placeholder="Référence de l’arrêté"
+                    className="block w-full border border-border-dark bg-bg px-2 py-1 text-[11.5px]"
+                  />
+                  <label className="block text-[11px]">
+                    Date de l’arrêté
+                    <input type="date" value={dateArrete} onChange={(e) => setDateArrete(e.target.value)} className="mt-0.5 block w-full border border-border-dark bg-bg px-2 py-1 text-[11.5px]" />
+                  </label>
+                  {selection.modele.validiteMois && (
+                    <label className="block text-[11px]">
+                      Début de validité ({selection.modele.validiteMois} mois)
+                      <input type="date" value={debutArrete} onChange={(e) => setDebutArrete(e.target.value)} className="mt-0.5 block w-full border border-border-dark bg-bg px-2 py-1 text-[11.5px]" />
+                    </label>
+                  )}
+                  <div className="flex gap-1.5">
+                    <button type="button" onClick={() => void enregistrerAccord(selection)} className="bg-sel text-white px-2.5 py-[3px] text-[11.5px] font-semibold">
+                      Enregistrer l’accord
+                    </button>
+                    <button type="button" onClick={() => setAccordPour(null)} className="border border-border-dark px-2.5 py-[3px] text-[11.5px]">
+                      Annuler
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div className="border-t border-border pt-2.5">
                 <div className="text-[11px] font-bold text-text-dim mb-1.5">

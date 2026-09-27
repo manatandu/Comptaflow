@@ -279,6 +279,11 @@ describe('Comptabilisation · la récupération solde le 443 et l’écriture re
           compteDeductibleId: 'c-445',
           totalDeductible,
           recuperationArt52: recuperation,
+
+          parCompte: [
+            { compteId: 'c-443', collecte, deductible: 0, recuperation },
+            { compteId: 'c-445', collecte: 0, deductible: totalDeductible, recuperation: 0 },
+          ],
         },
       ],
     } as never);

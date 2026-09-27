@@ -626,6 +626,32 @@ const EXCLUSIONS_ART_41_A_VERIFIER: ReadonlyArray<readonly [string, string]> = [
  *    l'écriture de récupération au débit du 443 avec son taux, elle sera
  *    reprise comme une annulation, mais le logiciel ne la déclenche pas.
  */
+/**
+ * Répartit `total` entre les comptes, au prorata de leur montant brut × `ratio`,
+ * au centime, et donne le reste d'arrondi au compte le plus lourd · la somme
+ * rendue vaut `total` exactement.
+ */
+export function repartirAuCentime(total: number, bruts: ReadonlyMap<string, number>, ratio: number): Map<string, number> {
+  const rendu = new Map<string, number>();
+  let somme = 0;
+  let plusLourd: string | null = null;
+  for (const [compteId, brut] of bruts) {
+    const part = Math.round(brut * ratio * 100) / 100;
+    rendu.set(compteId, part);
+    somme += part;
+    if (plusLourd === null || Math.abs(brut) > Math.abs(bruts.get(plusLourd)!)) plusLourd = compteId;
+  }
+  const reste = Math.round((total - somme) * 100) / 100;
+  // Le reste n'est qu'une poussière d'arrondi, un demi-centime par compte au
+  // plus. Au-delà, le total et les comptes ne disent pas la même chose · c'est
+  // un défaut du moteur, jamais un écart à loger en silence sur un compte.
+  if (Math.abs(reste) > 0.01 * (bruts.size + 1)) {
+    throw new Error(`Répartition de la TVA déductible incohérente · ${reste} d'écart entre la déclaration et ses comptes.`);
+  }
+  if (plusLourd !== null && Math.abs(reste) > 0) rendu.set(plusLourd, Math.round((rendu.get(plusLourd)! + reste) * 100) / 100);
+  return rendu;
+}
+
 @Injectable()
 export class TauxTvaService {
   constructor(
@@ -711,8 +737,31 @@ export class TauxTvaService {
     return { supprime: true };
   }
 
+  /**
+   * LE TAUX D'UN TAUX MOUVEMENTÉ NE CHANGE PLUS (audit final F121). Le
+   * prorata reconstitue la base hors taxes des ventes en divisant la taxe par
+   * le taux COURANT de la ligne · passer un 16 % à 18 % réécrirait les prorata
+   * des périodes déjà déclarées, et une facture recopiée garderait un taux que
+   * sa pièce ne porte plus. Un nouveau taux se crée ; l'ancien se met en
+   * sommeil. L'intitulé et les COMPTES, eux, se complètent librement · ils ne
+   * récrivent rien, les lignes portant leur propre compte et la liquidation
+   * soldant le compte de chaque ligne (F122).
+   */
   async modifier(tenantId: string, id: string, dto: ModifierTauxTvaDto) {
-    await this.trouver(tenantId, id);
+    const actuel = await this.trouver(tenantId, id);
+    if (dto.taux !== undefined && Number(dto.taux) !== Number(actuel.taux)) {
+      const [lignesEcriture, lignesFacture] = await Promise.all([
+        this.prisma.ligneEcriture.count({ where: { tauxTvaId: id, ecriture: { tenantId } } }),
+        this.prisma.ligneFacture.count({ where: { tauxTvaId: id, facture: { tenantId } } }),
+      ]);
+      if (lignesEcriture + lignesFacture > 0) {
+        throw new ConflictException(
+          `Le taux ${actuel.code} porte déjà ${lignesEcriture} ligne(s) d'écriture et ${lignesFacture} ligne(s) de facture · ` +
+            'changer son pourcentage réécrirait les prorata et les pièces des périodes passées. Créez un nouveau taux et ' +
+            'mettez celui-ci en sommeil.',
+        );
+      }
+    }
     await this.verifierComptes(tenantId, dto);
     return this.prisma.tauxTva.update({ where: { id }, data: dto });
   }
@@ -1814,6 +1863,23 @@ export class TauxTvaService {
     };
     const parTaux = new Map<string, Cumul>();
     for (const t of taux) parTaux.set(t.id, { collecte: 0, deductible: 0, attente: 0, avoir: 0, recuperation: 0 });
+    // LE MÊME CUMUL, COMPTE PAR COMPTE. La saisie et la facture passée au
+    // journal ROUTENT la taxe sur la subdivision que la contrepartie appelle
+    // (4432 pour une prestation vendue, 4453 pour un transport déduit), quand
+    // le taux ne porte qu'un compte. La liquidation soldait le compte du TAUX ·
+    // le 4431 finissait débiteur et le 4432 créditeur, du même montant, sur une
+    // écriture équilibrée. Elle solde désormais chaque compte réellement
+    // mouvementé, et une ligne portée par un taux sans compte n'est plus
+    // perdue pour elle.
+    type ParCompte = { collecte: number; deductible: number; recuperation: number };
+    const parTauxCompte = new Map<string, Map<string, ParCompte>>();
+    const suivi = (tauxId: string, compteId: string): ParCompte => {
+      let m = parTauxCompte.get(tauxId);
+      if (!m) parTauxCompte.set(tauxId, (m = new Map()));
+      let v = m.get(compteId);
+      if (!v) m.set(compteId, (v = { collecte: 0, deductible: 0, recuperation: 0 }));
+      return v;
+    };
     // Ce qui a été daté sur quelle base · sert à composer une mention qui dit
     // au lecteur d'où sort son chiffre, et à annoncer le repli quand il joue.
     let montantIndetermine = 0;
@@ -1880,7 +1946,11 @@ export class TauxTvaService {
       if (avoir > EPSILON) {
         if (!estCollecte) {
           // Reprise de la déduction, à la constatation (décret art. 127).
-          if (dansLaPeriode) cumul.deductible = TauxTvaService.c(cumul.deductible - avoir);
+          if (dansLaPeriode) {
+            cumul.deductible = TauxTvaService.c(cumul.deductible - avoir);
+            const v = suivi(l.tauxTvaId!, l.compteId);
+            v.deductible = TauxTvaService.c(v.deductible - avoir);
+          }
           continue;
         }
         /*
@@ -1907,6 +1977,8 @@ export class TauxTvaService {
             avoirsCollecteNonImputes = TauxTvaService.c(avoirsCollecteNonImputes + avoir);
           } else if (dateEcriture >= debutReportAvoirs) {
             cumul.recuperation = TauxTvaService.c(cumul.recuperation + avoir);
+            const v = suivi(l.tauxTvaId!, l.compteId);
+            v.recuperation = TauxTvaService.c(v.recuperation + avoir);
           }
           // Plus ancien que la dernière période liquidée : la déclaration qui a
           // suivi sa constatation l'a déjà imputé, par cette même règle. Le
@@ -1985,6 +2057,8 @@ export class TauxTvaService {
       const exigible = TauxTvaService.c(montant * fraction);
       if (estCollecte) {
         cumul.collecte = TauxTvaService.c(cumul.collecte + exigible);
+        const v = suivi(l.tauxTvaId!, l.compteId);
+        v.collecte = TauxTvaService.c(v.collecte + exigible);
         continue;
       }
       // ARTICLE 41 · ce que la loi retire du droit à déduction, avant tout
@@ -1997,6 +2071,8 @@ export class TauxTvaService {
       }
       if (!part.lisible) tvaNatureDepenseIllisible = TauxTvaService.c(tvaNatureDepenseIllisible + exigible);
       cumul.deductible = TauxTvaService.c(cumul.deductible + exigible - exclu);
+      const v = suivi(l.tauxTvaId!, l.compteId);
+      v.deductible = TauxTvaService.c(v.deductible + exigible - exclu);
     }
 
     const lignes = [];
@@ -2028,6 +2104,13 @@ export class TauxTvaService {
         /** Avoirs antérieurs inscrits en déduction ici (art. 52). */
         recuperationArt52: cumul.recuperation,
         net: TauxTvaService.c(cumul.collecte - cumul.deductible - cumul.recuperation),
+        /** Le cumul compte par compte · c'est lui que la liquidation solde. */
+        parCompte: [...(parTauxCompte.get(t.id) ?? new Map<string, ParCompte>())].map(([compteId, v]) => ({
+          compteId,
+          collecte: v.collecte,
+          deductible: v.deductible,
+          recuperation: v.recuperation,
+        })),
       });
     }
 
@@ -2456,25 +2539,29 @@ export class TauxTvaService {
     // du montant de l'avoir, indéfiniment, et l'écriture ne s'équilibrerait
     // pas puisque le net du 444 tient déjà compte de la récupération.
     const parCompteRecuperation = new Map<string, number>();
+    // CHAQUE COMPTE RÉELLEMENT MOUVEMENTÉ, jamais le compte du taux (voir
+    // `declaration`, `parCompte`) · le 4432 d'une prestation vendue se solde
+    // sur lui-même, et une ligne dont le taux n'a pas de compte n'est plus
+    // omise (elle aurait déséquilibré l'écriture).
+    const deductiblesBruts = new Map<string, number>();
     for (const l of decl.lignes) {
-      if (l.compteCollecteId && l.totalCollecte > 0) {
-        parCompteCollecte.set(l.compteCollecteId, (parCompteCollecte.get(l.compteCollecteId) ?? 0) + l.totalCollecte);
+      for (const pc of l.parCompte) {
+        if (pc.collecte > EPSILON) parCompteCollecte.set(pc.compteId, TauxTvaService.c((parCompteCollecte.get(pc.compteId) ?? 0) + pc.collecte));
+        if (pc.recuperation > EPSILON) {
+          parCompteRecuperation.set(pc.compteId, TauxTvaService.c((parCompteRecuperation.get(pc.compteId) ?? 0) + pc.recuperation));
+        }
+        // Le déductible d'un compte peut être NÉGATIF · un avoir fournisseur
+        // reprend une déduction (décret art. 127), et la reprise peut dépasser
+        // la déduction du mois. La ligne bascule alors au débit du 445.
+        if (Math.abs(pc.deductible) > EPSILON) deductiblesBruts.set(pc.compteId, (deductiblesBruts.get(pc.compteId) ?? 0) + pc.deductible);
       }
-      if (l.compteCollecteId && l.recuperationArt52 > 0) {
-        parCompteRecuperation.set(
-          l.compteCollecteId,
-          (parCompteRecuperation.get(l.compteCollecteId) ?? 0) + l.recuperationArt52,
-        );
-      }
-      // Le total déductible d'un taux peut être NÉGATIF · un avoir fournisseur
-      // reprend une déduction (décret art. 127), et la reprise peut dépasser
-      // la déduction du mois. La ligne bascule alors au débit du 445, et la
-      // condition « > 0 » qui tenait ici l'aurait purement et simplement
-      // omise, laissant l'écriture déséquilibrée.
-      if (l.compteDeductibleId && Math.abs(l.totalDeductible) > EPSILON) {
-        const admise = Math.round(l.totalDeductible * ratio * 100) / 100;
-        parCompteDeductible.set(l.compteDeductibleId, (parCompteDeductible.get(l.compteDeductibleId) ?? 0) + admise);
-      }
+    }
+    // LA DÉDUCTION ADMISE EST RÉPARTIE, PAS RECALCULÉE COMPTE PAR COMPTE · le
+    // 444 reçoit le net de la déclaration, arrondi une fois ; des arrondis au
+    // centime pris compte par compte s'en écarteraient et l'écriture ne
+    // s'équilibrerait plus. Le reste d'arrondi va au compte le plus lourd.
+    for (const [compteId, montant] of repartirAuCentime(decl.totalDeductibleAdmise, deductiblesBruts, ratio)) {
+      parCompteDeductible.set(compteId, montant);
     }
 
     // Le compte d'arrivée de la liquidation DÉPEND DU SENS du solde, et le

@@ -29,6 +29,14 @@ export function TauxTvaPage() {
   const [compteCollecteId, setCompteCollecteId] = useState('');
   const [compteDeductibleId, setCompteDeductibleId] = useState('');
   const [envoi, setEnvoi] = useState(false);
+  // MODIFIER UN TAUX (audit final F122) · les comptes et l'intitulé se
+  // complètent toujours ; le pourcentage d'un taux déjà porté par des lignes
+  // est refusé par le serveur (F121), qui dit pourquoi.
+  const [edition, setEdition] = useState<TauxTva | null>(null);
+  const [edIntitule, setEdIntitule] = useState('');
+  const [edTaux, setEdTaux] = useState('');
+  const [edCollecte, setEdCollecte] = useState('');
+  const [edDeductible, setEdDeductible] = useState('');
 
   const charger = async () => {
     try {
@@ -97,6 +105,37 @@ export function TauxTvaPage() {
     }
   };
 
+  const ouvrirEdition = (t: TauxTva) => {
+    setEdition(t);
+    setEdIntitule(t.intitule);
+    setEdTaux(String(Number(t.taux)));
+    setEdCollecte(t.compteCollecteId ?? '');
+    setEdDeductible(t.compteDeductibleId ?? '');
+  };
+
+  const onModifier = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!edition) return;
+    setErreur(null);
+    setEnvoi(true);
+    try {
+      await api.patch(`/taux-tva/${edition.id}`, {
+        intitule: edIntitule,
+        // Le pourcentage n'est envoyé que s'il change · un taux mouvementé
+        // garde le sien, et renvoyer la même valeur ne demande rien.
+        ...(Number(edTaux) !== Number(edition.taux) ? { taux: Number(edTaux) } : {}),
+        compteCollecteId: edCollecte || null,
+        compteDeductibleId: edDeductible || null,
+      });
+      setEdition(null);
+      await charger();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Impossible de modifier ce taux de TVA');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
   const basculerActif = async (t: TauxTva) => {
     try {
       await api.patch(`/taux-tva/${t.id}`, { estActif: !t.estActif });
@@ -137,7 +176,7 @@ export function TauxTvaPage() {
         // qui emportait alors titre, onglets et boutons hors de l'écran.
         className="border border-border bg-surface shadow-posee overflow-x-auto"
       >
-        <div className="entete-colonnes grid grid-cols-[80px_1fr_78px_210px_210px_80px_70px] min-w-[960px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[11px] font-bold text-text-dim">
+        <div className="entete-colonnes grid grid-cols-[80px_1fr_78px_210px_210px_80px_70px_70px] min-w-[1040px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[11px] font-bold text-text-dim">
           <span>Code</span>
           <span>Intitulé</span>
           <span className="text-right">Taux</span>
@@ -145,12 +184,13 @@ export function TauxTvaPage() {
           <span>Déductible (445 · achats)</span>
           <span>État</span>
           <span />
+          <span />
         </div>
         {!liste && <div className="px-3.5 py-3 text-[11.5px] text-text-dim">Chargement…</div>}
         {liste?.map((t) => (
           <div
             key={t.id}
-            className={`grid grid-cols-[80px_1fr_78px_210px_210px_80px_70px] min-w-[960px] gap-2.5 items-center px-3.5 py-[4px] border-b border-border/50 last:border-b-0 text-[11.5px] hover:bg-sel-soft ${
+            className={`grid grid-cols-[80px_1fr_78px_210px_210px_80px_70px_70px] min-w-[1040px] gap-2.5 items-center px-3.5 py-[4px] border-b border-border/50 last:border-b-0 text-[11.5px] hover:bg-sel-soft ${
               !t.estActif ? 'opacity-55' : ''
             }`}
           >
@@ -168,6 +208,9 @@ export function TauxTvaPage() {
               className={`text-[11px] text-left ${t.estActif ? 'text-positive hover:underline' : 'text-warning hover:underline'}`}
             >
               {t.estActif ? 'Actif' : 'Inactif'}
+            </button>
+            <button onClick={() => ouvrirEdition(t)} className="text-[11px] text-left text-sel hover:underline">
+              Modifier
             </button>
             <button onClick={() => supprimer(t.id, `le taux ${t.code}`)} className="text-[11px] text-left text-danger hover:underline">
               Supprimer
@@ -221,6 +264,62 @@ export function TauxTvaPage() {
                   </button>
                   <button type="submit" disabled={envoi} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold disabled:opacity-50">
                     {envoi ? 'Création…' : 'Créer le taux'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </PortailModale>
+      )}
+
+      {edition && (
+        <PortailModale>
+          <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+            <form onSubmit={onModifier} className="anim-modale w-full max-w-[480px] bg-surface border border-border-dark shadow-flottante modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto">
+              <div className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]">
+                <span>Modifier le taux {edition.code}</span>
+                <button type="button" onClick={() => setEdition(null)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">
+                  ✕
+                </button>
+              </div>
+              <div className="p-4">
+                <div className="grid grid-cols-[150px_1fr] items-center gap-x-3 gap-y-2.5">
+                  <label className="text-[11.5px] text-right">Intitulé :</label>
+                  <input required value={edIntitule} onChange={(e) => setEdIntitule(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
+                  <label className="text-[11.5px] text-right">Taux (%) :</label>
+                  <span className="flex items-center gap-1.5">
+                    <input required type="number" min={0} max={100} step="0.01" value={edTaux} onChange={(e) => setEdTaux(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px] font-mono text-right w-[110px]" />
+                    <Aide
+                      titre="Pourcentage d'un taux utilisé"
+                      texte="Le pourcentage d'un taux déjà porté par des écritures ou des factures ne change plus : il réécrirait les prorata et les pièces des périodes passées. Créez un nouveau taux et mettez celui-ci en sommeil."
+                      source="Règle d'OmegaX · le prorata reconstitue la base au taux de la ligne (O.-L. n° 10/001, art. 43)"
+                    />
+                  </span>
+                  <label className="text-[11.5px] text-right">Collectée (443) :</label>
+                  <select value={edCollecte} onChange={(e) => setEdCollecte(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
+                    <option value="">Aucun</option>
+                    {comptesClasse4.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.numero} · {c.intitule}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="text-[11.5px] text-right">Déductible (445) :</label>
+                  <select value={edDeductible} onChange={(e) => setEdDeductible(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[11.5px]">
+                    <option value="">Aucun</option>
+                    {comptesClasse4.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.numero} · {c.intitule}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex justify-end gap-2 mt-4">
+                  <button type="button" onClick={() => setEdition(null)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11.5px]">
+                    Annuler
+                  </button>
+                  <button type="submit" disabled={envoi} className="bg-sel text-white px-4 py-1.5 text-[11.5px] font-semibold disabled:opacity-50">
+                    {envoi ? 'Enregistrement…' : 'Enregistrer'}
                   </button>
                 </div>
               </div>

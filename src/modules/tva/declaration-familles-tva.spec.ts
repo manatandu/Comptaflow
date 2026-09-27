@@ -43,6 +43,8 @@ interface LigneTva {
   numero: string;
   debit: number;
   credit: number;
+  /** Compte de charge de la même écriture, pour l'art. 41. */
+  charge?: string;
 }
 
 const TAUX = {
@@ -83,19 +85,34 @@ function service(lignes: LigneTva[]) {
             .filter((l) => racines.some((r) => l.numero.startsWith(r)))
             .map((l) => ({
               id: `l-${l.numero}`,
+              compteId: `c${l.numero.slice(0, 4)}`,
               tauxTvaId: TAUX.id,
               compte: { numero: l.numero },
               debit: l.debit,
               credit: l.credit,
-              ecriture: { date: new Date('2026-03-15'), lignes: [] },
+              ecriture: {
+                date: new Date('2026-03-15'),
+                lignes: l.charge ? [{ debit: l.debit * 6.25, credit: 0, compte: { numero: l.charge, classe: 'CLASSE_6' } }] : [],
+              },
             })),
         );
       }),
       aggregate: jest.fn().mockResolvedValue({ _sum: { credit: 0, debit: 0 } }),
     },
     liquidationTva: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}) },
+    compte: {
+      findFirst: jest.fn(({ where }: { where: { numero: string } }) => Promise.resolve({ id: `c${where.numero.slice(0, 4)}`, numero: where.numero })),
+    },
+    journal: { findFirst: jest.fn().mockResolvedValue({ id: 'j-od', code: 'OD' }) },
   } as unknown as PrismaService;
-  return { svc: new TauxTvaService(prisma, {} as EcritureService), requetesLignes };
+  const ecrites: { compteId: string; debit?: number; credit?: number }[][] = [];
+  const ecritureService = {
+    creer: jest.fn((_t: string, _u: string, dto: { lignes: { compteId: string; debit?: number; credit?: number }[] }) => {
+      ecrites.push(dto.lignes);
+      return Promise.resolve({ id: 'e1' });
+    }),
+  } as unknown as EcritureService;
+  return { svc: new TauxTvaService(prisma, ecritureService), requetesLignes, ecrites };
 }
 
 const DEBUT = new Date('2026-03-01');
@@ -160,4 +177,36 @@ describe('Déclaration de TVA · sélection par famille de compte', () => {
     expect(d.totalCollecte).toBe(32_000);
     expect(d.totalDeductible).toBe(8_000);
   });
+
+  it('la LIQUIDATION solde chaque compte réellement mouvementé, jamais le compte du taux', async () => {
+    // Le taux pointe sur 4431 et 4452 ; la TVA est sur 4432 et 4454. Soldée au
+    // compte du taux, la liquidation laissait le 4431 débiteur et le 4432
+    // créditeur du même montant, sur une écriture équilibrée.
+    const { svc, ecrites } = service([
+      { numero: '44320000', debit: 0, credit: 60_000 },
+      { numero: '44310000', debit: 0, credit: 100_000 },
+      { numero: '44540000', debit: 25_000, credit: 0 },
+    ]);
+    await svc.comptabiliserLiquidation('t1', 'u1', { exerciceId: 'ex1', dateDebut: '2026-03-01', dateFin: '2026-03-31' });
+    const solde = (compteId: string) =>
+      ecrites[0].filter((l) => l.compteId === compteId).reduce((x, l) => x + (l.debit ?? 0) - (l.credit ?? 0), 0);
+    expect(solde('c4432')).toBe(60_000);
+    expect(solde('c4431')).toBe(100_000);
+    expect(solde('c4454')).toBe(-25_000);
+    expect(solde('c4452')).toBe(0);
+    expect(solde('c4441')).toBe(-135_000);
+  });
+
+  it('la LIQUIDATION ne solde du 445 que la déduction admise · la TVA exclue par l’art. 41 n’y est pas comptée', async () => {
+    const { svc, ecrites } = service([
+      { numero: '44310000', debit: 0, credit: 100_000 },
+      { numero: '44540000', debit: 16_000, credit: 0, charge: '63830000' },
+    ]);
+    await svc.comptabiliserLiquidation('t1', 'u1', { exerciceId: 'ex1', dateDebut: '2026-03-01', dateFin: '2026-03-31' });
+    const solde = (compteId: string) =>
+      ecrites[0].filter((l) => l.compteId === compteId).reduce((x, l) => x + (l.debit ?? 0) - (l.credit ?? 0), 0);
+    expect(solde('c4454')).toBe(0);
+    expect(solde('c4441')).toBe(-100_000);
+  });
 });
+

@@ -4431,6 +4431,9 @@ l'offre « acceptée dans le délai stipulé », et l'AUDCG, qui ne règle pas
 l'acceptation tardive, ne lui donne aucun effet. Le fait reçu est gardé, sans
 en faire ni un contrat ni un refus ; sans délai stipulé, rien n'est tranché.
 
+LA CONTRE-PROPOSITION SE SAISIT (audit final F124) · depuis le devis rejeté
+substantiellement, dans le formulaire d'émission, rattachée à son origine.
+
 ENFIN LE DEVIS N'EST PAS OBLIGATOIRE, à la différence de la facture. Art. 240 ·
 « le contrat de vente commerciale peut être écrit ou verbal ; il n'est soumis à
 aucune condition de forme. Il est prouvé par tous moyens. » La fenêtre le dit,
@@ -5448,6 +5451,17 @@ fournisseur, « prix de revient » à l'art. 31 et seulement auprès de
 non-assujettis) ; la TVA COLLECTÉE sur les cessions d'éléments d'actifs
 (art. 6), question antérieure aux régularisations des art. 50 et 51 déjà
 déclarées ; le fait générateur des promoteurs immobiliers (art. 24, 6° et 7°).
+
+**LA LIQUIDATION SOLDE LE COMPTE DE CHAQUE LIGNE, JAMAIS CELUI DU TAUX
+(2026-09-27, audit final F121, F122).** La saisie et la facture passée au
+journal routent la taxe sur la subdivision que la contrepartie appelle (4432,
+4453, 4454) ; le taux ne porte qu'un compte. La liquidation soldait ce
+dernier · le 4431 finissait débiteur, le 4432 créditeur, sur une écriture
+équilibrée. La déclaration cumule donc aussi compte par compte (`parCompte`),
+et la déduction admise se répartit au centime (`repartirAuCentime`), un écart
+plus grand qu'un arrondi levant au lieu de se loger quelque part. Et le
+POURCENTAGE d'un taux porté par des lignes ne change plus · le prorata
+reconstitue la base au taux de la ligne, le changer réécrirait le passé.
 
 **PASSE F2b · la seconde moitié de l'ordonnance-loi n° 10/001, chapitres V à X
 (2026-09-13).** Déductions, obligations des redevables, liquidation,

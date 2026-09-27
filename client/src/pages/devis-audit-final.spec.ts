@@ -26,3 +26,17 @@ describe('F118 · une réponse tardive s’enregistre, et l’offre reste caduqu
     expect(cellule).toContain("d.etat.etat === 'CADUC' && d.natureReponse ? 'Caduc · réponse tardive'");
   });
 });
+
+describe('F124 · la contre-proposition a son geste', () => {
+  it('un devis rejeté substantiellement, sans suite encore, propose de l’enregistrer', () => {
+    const garde = bloc("d.etat.etat === 'CONTRE_PROPOSITION' &&", 'Enregistrer la contre-proposition');
+    expect(garde).toContain('!etat.devis.some((x) => x.contrePropositionDeId === d.id)');
+    expect(garde).toContain('onClick={() => preparerContreProposition(d)}');
+  });
+
+  it('l’émission rattache l’offre nouvelle à son origine', () => {
+    const envoi = bloc('async function emettre()', 'lignes: [');
+    expect(envoi).toContain('...(contrePropositionDe ? { contrePropositionDeId: contrePropositionDe.id } : {})');
+  });
+});
+

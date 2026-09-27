@@ -87,6 +87,18 @@ export function DevisPage() {
   const [quantite, setQuantite] = useState<number | ''>('');
   const [prixUnitaire, setPrixUnitaire] = useState<number | ''>('');
   const [montantHT, setMontantHT] = useState<number | ''>('');
+  // LA CONTRE-PROPOSITION (audit final F124) · l'offre nouvelle née d'une
+  // réponse qui modifiait substantiellement le devis (AUDCG art. 245). Elle
+  // se saisit dans le même formulaire, rattachée à son origine ; le serveur
+  // inverse l'émetteur, l'offre venant de celui qui a rejeté.
+  const [contrePropositionDe, setContrePropositionDe] = useState<UnDevis | null>(null);
+  const preparerContreProposition = (d: UnDevis) => {
+    setContrePropositionDe(d);
+    setClientNom(d.clientNom);
+    setNature(d.nature);
+    setObjet(d.objet ?? '');
+    window.scrollTo({ top: 0 });
+  };
 
   const recharger = () => api.get<Etat>('/commercial/devis').then(setEtat);
   useEffect(() => {
@@ -104,6 +116,7 @@ export function DevisPage() {
         objet: objet || undefined,
         delaiJours: delaiJours === '' ? undefined : Number(delaiJours),
         declareeIrrevocable: irrevocable,
+        ...(contrePropositionDe ? { contrePropositionDeId: contrePropositionDe.id } : {}),
         lignes: [
           {
             designation,
@@ -115,6 +128,7 @@ export function DevisPage() {
       });
       setNumero('');
       setDesignation('');
+      setContrePropositionDe(null);
       await recharger();
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : "L'émission n'a pas abouti.");
@@ -167,7 +181,19 @@ export function DevisPage() {
           serveur · la lecture seule garde l'état de chaque offre et son motif. */}
       {peutEcrire && (
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[11.5px] font-bold mb-1.5">Émettre un devis</h2>
+        <h2 className="text-[11.5px] font-bold mb-1.5">
+          {contrePropositionDe ? `Contre-proposition au devis ${contrePropositionDe.numero}` : 'Émettre un devis'}
+        </h2>
+        {contrePropositionDe && (
+          <p className="text-[11.5px] mb-1.5 flex items-center gap-2">
+            <span>
+              Offre {contrePropositionDe.emetteur === 'DOSSIER' ? 'du client' : 'du dossier'} · {contrePropositionDe.detailReponse}
+            </span>
+            <button type="button" className="underline text-text-dim" onClick={() => setContrePropositionDe(null)}>
+              Abandonner
+            </button>
+          </p>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <label className="text-[11.5px]">
             Numéro
@@ -228,7 +254,7 @@ export function DevisPage() {
 
         {erreur && <p className="text-[11.5px] text-danger mt-2">{erreur}</p>}
         <button className="mt-2 border border-border px-2.5 py-1 text-[11.5px]" onClick={() => void emettre()}>
-          Émettre
+          {contrePropositionDe ? 'Enregistrer la contre-proposition' : 'Émettre'}
         </button>
       </section>
       )}
@@ -339,6 +365,17 @@ export function DevisPage() {
                           )}
                         </div>
                       )}
+                      {peutEcrire &&
+                        d.etat.etat === 'CONTRE_PROPOSITION' &&
+                        !etat.devis.some((x) => x.contrePropositionDeId === d.id) && (
+                          <button
+                            type="button"
+                            className="mt-1 border border-border px-1.5 py-0.5 text-[11px]"
+                            onClick={() => preparerContreProposition(d)}
+                          >
+                            Enregistrer la contre-proposition
+                          </button>
+                        )}
                       {d.etat.etat === 'CADUC' && (
                         <div className="mt-1">
                           <Aide

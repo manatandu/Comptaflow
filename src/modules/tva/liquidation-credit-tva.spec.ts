@@ -95,6 +95,13 @@ function service(net: number, referentiel: 'SYCEBNL' | 'SYSCOHADA', creditAnteri
         compteDeductibleId: 'c-445',
         totalDeductible: deductibleAdmise,
         recuperationArt52: 0,
+
+        // La liquidation solde les comptes réellement mouvementés (voir
+        // `declaration`), servis ici comme la déclaration les rend.
+        parCompte: [
+          { compteId: 'c-443', collecte, deductible: 0, recuperation: 0 },
+          { compteId: 'c-445', collecte: 0, deductible: deductibleAdmise, recuperation: 0 },
+        ],
       },
     ],
   } as never);
