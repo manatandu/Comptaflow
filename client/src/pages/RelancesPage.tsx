@@ -62,6 +62,24 @@ function PositionsRelances() {
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
+  // RELEVÉ DE COMPTE (audit de l'interface du 2026-09-27, I12) · la fenêtre
+  // s'intitule « Rappel et relevé » et la route du relevé n'était appelée
+  // par rien. Rendu dans la fenêtre, pour que « Imprimer la fenêtre » le
+  // sorte avec l'en-tête du dossier.
+  const [releve, setReleve] = useState<(PositionRelance & { entite: string }) | null>(null);
+  const ouvrirReleve = async (compteId: string) => {
+    if (!exerciceCourant) return;
+    setErreur(null);
+    try {
+      setReleve(
+        await api.get<PositionRelance & { entite: string }>(
+          `/relances/releve/${compteId}?exerciceId=${exerciceCourant.id}`,
+        ),
+      );
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Relevé indisponible');
+    }
+  };
   // Le motif saisi pour l'exclusion en cours, par compte · un seul champ
   // partagé mêlerait le motif d'un tiers à celui d'un autre.
   const [motifs, setMotifs] = useState<Record<string, string>>({});
@@ -353,6 +371,48 @@ function PositionsRelances() {
                 un tri d'affichage, et elle demande d'avoir lu ce que le tiers
                 doit avant de renoncer à le lui rappeler.
                 ---------------------------------------------------------------- */}
+            {deplie.has(p.compteId) && (
+              <div className="px-3 py-1.5 border-b border-border/30">
+                <button
+                  type="button"
+                  onClick={() => (releve?.compteId === p.compteId ? setReleve(null) : void ouvrirReleve(p.compteId))}
+                  className="border border-border-dark bg-chrome hover:bg-surface px-2 py-1 text-[11.5px]"
+                >
+                  {releve?.compteId === p.compteId ? 'Fermer le relevé' : 'Relevé de compte'}
+                </button>
+                {releve?.compteId === p.compteId && (
+                  <table className="mt-2 w-full max-w-[640px] text-[11.5px] border-collapse">
+                    <caption className="text-left font-semibold pb-1">
+                      Relevé · {releve.tiersNom ?? releve.intitule} ({releve.numero})
+                    </caption>
+                    <thead>
+                      <tr>
+                        <th className="text-left px-2 py-1">Date</th>
+                        <th className="text-left px-2 py-1">Échéance</th>
+                        <th className="text-left px-2 py-1">Libellé</th>
+                        <th className="text-right px-2 py-1">Montant</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {releve.lignes.map((l, i) => (
+                        <tr key={i}>
+                          <td className="px-2 py-1">{l.date}</td>
+                          <td className="px-2 py-1">{l.echeance ?? ''}</td>
+                          <td className="px-2 py-1">{l.libelle}</td>
+                          <td className="px-2 py-1 text-right">{montant(l.montant)}</td>
+                        </tr>
+                      ))}
+                      <tr className="font-bold">
+                        <td className="px-2 py-1" colSpan={3}>
+                          Total dû
+                        </td>
+                        <td className="px-2 py-1 text-right">{montant(releve.montantDu)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            )}
             {deplie.has(p.compteId) && peutEcrire && p.tiersId && (
               <div className="px-3 py-2 bg-chrome-alt/50 border-b border-border/30 flex items-center gap-2 flex-wrap">
                 {p.horsRelance ? (
