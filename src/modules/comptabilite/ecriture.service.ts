@@ -741,6 +741,29 @@ export class EcritureService {
     if (ecriture.exercice.statut === StatutExercice.CLOTURE) {
       throw new ForbiddenException("L'exercice de cette écriture est clôturé.");
     }
+    // LE REPORT À-NOUVEAU NE SE RETOUCHE PAS DEPUIS LE JOURNAL · audit du
+    // serveur du 2026-09-27, B3. Né au brouillard dans un exercice ouvert, il
+    // passait toutes les gardes ci-dessus : un DELETE retirait le bilan
+    // d'ouverture entier, un PATCH en changeait les montants, la balance
+    // bouclait, et l'exercice clos ne se rouvre pas pour relancer le report.
+    // Le bilan d'ouverture cessait de correspondre au bilan de clôture
+    // (SYCEBNL art. 16, 4) · AUDCIF art. 34) sans que rien ne le voie.
+    // Seul reste retouchable celui du PREMIER exercice : il porte le bilan
+    // d'ouverture saisi à la reprise du dossier, pas un report calculé.
+    if (ecriture.estGenereeParCloture) {
+      const premier = await this.prisma.exercice.findFirst({
+        where: { tenantId },
+        orderBy: { dateDebut: 'asc' },
+        select: { id: true },
+      });
+      if (premier?.id !== ecriture.exerciceId) {
+        throw new ForbiddenException(
+          "Cette écriture est un report à-nouveau calculé à la clôture · elle ne se modifie ni ne se supprime " +
+            "depuis le journal. Un report provisoire se relance depuis la fenêtre Exercices ; une erreur d'un " +
+            "exercice clôturé passe par l'imputation déclarée aux capitaux propres d'ouverture.",
+        );
+      }
+    }
     const lettree = ecriture.lignes.find((l) => l.lettre);
     if (lettree) {
       throw new BadRequestException(
