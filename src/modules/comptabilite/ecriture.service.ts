@@ -10,7 +10,7 @@ import {
   TypeCompteDetailTotal,
 } from '@prisma/client';
 import { CriteresRecherche, filtreRecherche } from './recherche-ecritures';
-import { CreerEcritureDto, ImputationOuvertureDto } from './dto/creer-ecriture.dto';
+import { CreerEcritureDto, ImputationOuvertureDto, LigneEcritureDto } from './dto/creer-ecriture.dto';
 import { CorrigerEcritureDto } from './dto/corriger-ecriture.dto';
 import { ReimputerDto } from './dto/reimputer.dto';
 import { dateDansExercice, lignesDeReimputation, motifRefusFusionComptes, motifRefusLigne } from './reimputation';
@@ -295,6 +295,99 @@ export interface SuppressionPourLeModule {
   liberer: (tx: Prisma.TransactionClient) => Promise<unknown>;
 }
 
+/** Une ligne telle que les contrôles d'entrée la lisent · saisie, import ou canevas. */
+export interface LigneEntree {
+  compteId: string;
+  debit?: number;
+  credit?: number;
+  tauxTvaId?: string | null;
+  ventilations?: { sectionId: string; debit?: number; credit?: number }[];
+}
+
+/** Une pièce soumise aux contrôles d'entrée · voir `EcritureService.controlesDEntree`. */
+export interface PieceEntree {
+  exerciceId: string;
+  journalId: string;
+  date: string | Date;
+  lignes?: LigneEntree[];
+  reporterAuPremierJourOuvert?: boolean;
+  /**
+   * Faux pour les seuls chemins qui NE PEUVENT PAS porter de ventilation · les
+   * deux imports et le canevas du groupe, dont aucun fichier n'a de colonne de
+   * section. Exiger la ventilation obligatoire y rendrait l'import impossible
+   * à tout dossier qui l'a posée, sans rien lui offrir ; les lignes entrent au
+   * brouillard et se ventilent ensuite, et l'état de contrôle des cumuls
+   * signale celles qui restent sans répartition. Tous les AUTRES contrôles
+   * restent joués.
+   */
+  exigerVentilationObligatoire?: boolean;
+}
+
+/**
+ * Le refus d'une date hors de l'exercice, ou null · une règle, un message.
+ * Exporté parce que la reprise de balance doit le poser AVANT toute lecture
+ * de son fichier (audit du serveur du 2026-09-27, F3) : elle prenait
+ * `dateOperation` telle quelle, et un bilan d'ouverture daté de l'année
+ * d'avant entrait dans l'exercice courant sans qu'aucun total ne bouge.
+ */
+export function motifDateHorsExercice(date: Date, exercice: { dateDebut: Date; dateFin: Date }): string | null {
+  if (Number.isNaN(date.getTime())) return "La date de l'écriture est illisible.";
+  if (date >= exercice.dateDebut && date <= exercice.dateFin) return null;
+  return (
+    `La date ${date.toISOString().slice(0, 10)} sort de l'exercice sélectionné ` +
+    `(${exercice.dateDebut.toISOString().slice(0, 10)} au ${exercice.dateFin.toISOString().slice(0, 10)}) · ` +
+    "une écriture est rattachée à l'exercice qu'elle concerne."
+  );
+}
+
+/**
+ * Les données d'UNE ligne saisie, telles qu'elles s'écrivent en base · un seul
+ * constructeur pour `creer` et `modifier` (audit du serveur du 2026-09-27, F4).
+ *
+ * `modifier` recréait ses lignes à la main et en oubliait quatre champs : le
+ * montant en devise, le cours appliqué, la devise et la ventilation
+ * analytique. Toute retouche d'un brouillard en devise sortait donc l'écriture
+ * de la réévaluation de clôture (qui lit `montantDevise` et `coursApplique`),
+ * et toute retouche d'une pièce ventilée la sortait du réalisé du bailleur ·
+ * sans un message, l'écriture restant équilibrée. Deux listes de champs
+ * écrites séparément divergent au premier ajout ; celle-ci est la seule.
+ */
+export function donneesLigneSaisie(
+  l: LigneEcritureDto,
+  sectionsParId: Map<string, { planId: string }>,
+) {
+  return {
+    compteId: l.compteId,
+    libelle: l.libelle,
+    debit: l.debit ?? 0,
+    credit: l.credit ?? 0,
+    tauxTvaId: l.tauxTvaId,
+    dateEcheance: l.dateEcheance ? new Date(l.dateEcheance) : undefined,
+    // DATE DU VERSEMENT · elle ne se déduit d'aucune autre. Sans
+    // cette ligne, le DTO l'accepte, l'écran l'envoie, et Prisma la
+    // laisse tomber en silence : la colonne resterait NULL et le
+    // registre des retenues continuerait de dater l'échéance sur
+    // l'écriture, ce que les art. 18 et suivants de la loi
+    // n° 004/2003 ne veulent pas. Voir le commentaire du schéma.
+    dateVersement: l.dateVersement ? new Date(l.dateVersement) : undefined,
+    deviseId: l.deviseId,
+    montantDevise: l.montantDevise,
+    coursApplique: l.coursApplique,
+    ...(l.ventilations && l.ventilations.length > 0
+      ? {
+          ventilations: {
+            create: l.ventilations.map((v) => ({
+              sectionId: v.sectionId,
+              planId: sectionsParId.get(v.sectionId)!.planId,
+              debit: v.debit ?? 0,
+              credit: v.credit ?? 0,
+            })),
+          },
+        }
+      : {}),
+  };
+}
+
 @Injectable()
 export class EcritureService {
   constructor(
@@ -450,9 +543,36 @@ export class EcritureService {
     );
   }
 
-  async creer(tenantId: string, createdBy: string, dto: CreerEcritureDto) {
-    const exercice = await this.prisma.exercice.findFirst({
-      where: { id: dto.exerciceId, tenantId },
+  /**
+   * LES CONTRÔLES D'ENTRÉE D'UNE PIÈCE, SANS LA NUMÉROTER NI LA CRÉER · audit
+   * du serveur du 2026-09-27, F3.
+   *
+   * `creer` portait seul la liste · exercice ouvert, date dans l'exercice,
+   * journal actif, équilibre et deux lignes, taux de TVA et comptes du
+   * dossier, comptes Détail, verrou de période, ventilation. Trois autres
+   * chemins écrivent au journal (la reprise de balance, l'import d'écritures,
+   * le canevas du groupe) et en recopiaient chacun une partie · la reprise de
+   * balance prenait une date hors de l'exercice, l'import passait par-dessus
+   * une période close, le canevas écrivait dans un journal en sommeil. Chaque
+   * écriture ainsi née s'équilibre et la balance boucle : rien en aval ne
+   * voit le défaut, et c'est exactement le § 10 bis. La liste vit donc UNE
+   * fois, ici, et les quatre chemins l'appellent.
+   *
+   * `db` sert aux LECTURES qui doivent voir la transaction de l'appelant · la
+   * reprise de balance crée ses comptes manquants dans la même transaction
+   * que l'écriture, et une lecture hors d'elle ne les trouverait pas. Rien
+   * n'est écrit ici.
+   *
+   * `lignes` absent ne contrôle que l'en-tête · c'est le cas d'une
+   * modification qui ne touche qu'au libellé ou à la date.
+   */
+  async controlesDEntree(
+    tenantId: string,
+    piece: PieceEntree,
+    db: Prisma.TransactionClient | PrismaService = this.prisma,
+  ) {
+    const exercice = await db.exercice.findFirst({
+      where: { id: piece.exerciceId, tenantId },
     });
     if (!exercice) {
       throw new BadRequestException('Exercice introuvable pour ce tenant');
@@ -475,61 +595,58 @@ export class EcritureService {
     // Le postulat de la SPÉCIALISATION DES EXERCICES l'interdit des deux
     // côtés · SYCEBNL cadre conceptuel § 3.3.1.2.3 et AUDCIF, Titre I : les
     // charges et les produits sont rattachés à l'exercice qui les concerne.
-    const dateEcriture = new Date(dto.date);
-    if (dateEcriture < exercice.dateDebut || dateEcriture > exercice.dateFin) {
-      throw new BadRequestException(
-        `La date ${dto.date.slice(0, 10)} sort de l'exercice sélectionné ` +
-          `(${exercice.dateDebut.toISOString().slice(0, 10)} au ${exercice.dateFin.toISOString().slice(0, 10)}) · ` +
-          "une écriture est rattachée à l'exercice qu'elle concerne.",
-      );
-    }
+    let date = new Date(piece.date);
+    const horsExercice = motifDateHorsExercice(date, exercice);
+    if (horsExercice) throw new BadRequestException(horsExercice);
 
-    const journal = await this.journalService.trouver(tenantId, dto.journalId);
+    const journal = await this.journalService.trouver(tenantId, piece.journalId);
     if (!journal.estActif) {
       throw new BadRequestException(`Le journal ${journal.code} est en sommeil`);
     }
 
-    const totalDebit = dto.lignes.reduce((s, l) => s + (l.debit ?? 0), 0);
-    const totalCredit = dto.lignes.reduce((s, l) => s + (l.credit ?? 0), 0);
-    if (dto.lignes.length < 2 || Math.abs(totalDebit - totalCredit) > 0.005) {
-      throw new BadRequestException(
-        `Écriture déséquilibrée : débit=${totalDebit} crédit=${totalCredit}`,
-      );
-    }
+    let sectionsParId = new Map<string, { planId: string; code: string; planCode: string }>();
+    if (piece.lignes) {
+      const totalDebit = piece.lignes.reduce((s, l) => s + (l.debit ?? 0), 0);
+      const totalCredit = piece.lignes.reduce((s, l) => s + (l.credit ?? 0), 0);
+      if (piece.lignes.length < 2 || Math.abs(totalDebit - totalCredit) > 0.005) {
+        throw new BadRequestException(
+          `Écriture déséquilibrée : débit=${totalDebit} crédit=${totalCredit}`,
+        );
+      }
 
-    // Les tauxTvaId ne participent pas à l'équilibre (informatifs, posés sur
-    // la ligne de TVA par la saisie guidée "Achat/Vente avec TVA") mais
-    // doivent rester scopés au tenant · sans ce contrôle, un appel API direct
-    // pourrait rattacher une ligne au taux d'un autre tenant (la FK Prisma ne
-    // vérifie que l'existence de l'id, pas son tenant).
-    const tauxTvaIds = [...new Set(dto.lignes.map((l) => l.tauxTvaId).filter((id): id is string => !!id))];
-    if (tauxTvaIds.length > 0) {
-      const tauxTrouves = await this.prisma.tauxTva.findMany({ where: { id: { in: tauxTvaIds }, tenantId } });
-      if (tauxTrouves.length !== tauxTvaIds.length) {
-        throw new BadRequestException('Un ou plusieurs taux de TVA sont introuvables pour ce tenant');
+      // Les tauxTvaId ne participent pas à l'équilibre (informatifs, posés sur
+      // la ligne de TVA par la saisie guidée "Achat/Vente avec TVA") mais
+      // doivent rester scopés au tenant · sans ce contrôle, un appel API direct
+      // pourrait rattacher une ligne au taux d'un autre tenant (la FK Prisma ne
+      // vérifie que l'existence de l'id, pas son tenant).
+      const tauxTvaIds = [...new Set(piece.lignes.map((l) => l.tauxTvaId).filter((id): id is string => !!id))];
+      if (tauxTvaIds.length > 0) {
+        const tauxTrouves = await db.tauxTva.findMany({ where: { id: { in: tauxTvaIds }, tenantId } });
+        if (tauxTrouves.length !== tauxTvaIds.length) {
+          throw new BadRequestException('Un ou plusieurs taux de TVA sont introuvables pour ce tenant');
+        }
+      }
+
+      // Comptes Total (regroupement par racine, §3.1) : jamais mouvementables
+      // directement · leur solde n'est qu'une agrégation des comptes Détail de
+      // même préfixe numérique (voir balance() plus bas). Un appel API direct
+      // pourrait sinon y poster une écriture, brisant l'invariant du moteur de
+      // mapping futur (§3.5) qui suppose que seuls les comptes Détail portent
+      // des mouvements réels.
+      const compteIds = [...new Set(piece.lignes.map((l) => l.compteId))];
+      const comptes = await db.compte.findMany({ where: { id: { in: compteIds }, tenantId } });
+      if (comptes.length !== compteIds.length) {
+        throw new BadRequestException('Un ou plusieurs comptes sont introuvables pour ce tenant');
+      }
+      const comptesTotal = comptes.filter((c) => c.typeCompte === TypeCompteDetailTotal.TOTAL);
+      if (comptesTotal.length > 0) {
+        throw new BadRequestException(
+          `Impossible de saisir sur un compte Total (${comptesTotal.map((c) => c.numero).join(', ')}) · ` +
+            'ce sont des comptes de regroupement, saisissez sur le compte Détail concerné',
+        );
       }
     }
 
-    // Comptes Total (regroupement par racine, §3.1) : jamais mouvementables
-    // directement · leur solde n'est qu'une agrégation des comptes Détail de
-    // même préfixe numérique (voir balance() plus bas). Un appel API direct
-    // pourrait sinon y poster une écriture, brisant l'invariant du moteur de
-    // mapping futur (§3.5) qui suppose que seuls les comptes Détail portent
-    // des mouvements réels.
-    const compteIds = [...new Set(dto.lignes.map((l) => l.compteId))];
-    const comptes = await this.prisma.compte.findMany({ where: { id: { in: compteIds }, tenantId } });
-    if (comptes.length !== compteIds.length) {
-      throw new BadRequestException('Un ou plusieurs comptes sont introuvables pour ce tenant');
-    }
-    const comptesTotal = comptes.filter((c) => c.typeCompte === TypeCompteDetailTotal.TOTAL);
-    if (comptesTotal.length > 0) {
-      throw new BadRequestException(
-        `Impossible de saisir sur un compte Total (${comptesTotal.map((c) => c.numero).join(', ')}) · ` +
-          'ce sont des comptes de regroupement, saisissez sur le compte Détail concerné',
-      );
-    }
-
-    let date = new Date(dto.date);
     let dateValeur: Date | null = null;
 
     // AUDCIF ART. 22, 4° · sur demande expresse, l'opération datée d'une
@@ -537,8 +654,8 @@ export class EcritureService {
     // sa date réelle gardée comme date de valeur. Jamais au-delà de
     // l'exercice : la charge ou le produit changerait d'exercice, contre le
     // postulat de spécialisation. Voir exercice/report-periode-close.ts.
-    if (dto.reporterAuPremierJourOuvert) {
-      const premier = await this.exerciceService.premierJourOuvert(tenantId, dto.journalId, date);
+    if (piece.reporterAuPremierJourOuvert) {
+      const premier = await this.exerciceService.premierJourOuvert(tenantId, piece.journalId, date);
       if (premier.getTime() !== date.getTime()) {
         if (premier > exercice.dateFin) {
           throw new BadRequestException(
@@ -555,13 +672,23 @@ export class EcritureService {
     // Clôtures Partielle/Totale (par journal) et Période (tous journaux) :
     // verrouillage de saisie indépendant du statut CLOTURE de l'exercice ·
     // voir ExerciceService.verifierEcritureAutorisee.
-    await this.exerciceService.verifierEcritureAutorisee(tenantId, dto.journalId, date);
+    await this.exerciceService.verifierEcritureAutorisee(tenantId, piece.journalId, date);
 
-    // Ventilation analytique · seuls les plans marqués « ventilation
-    // obligatoire » bloquent ici. Les autres laissent passer, et l'état de
-    // contrôle des cumuls signale les lignes restées sans répartition.
-    await this.analytiqueService.verifierVentilationObligatoire(tenantId, dto.lignes);
-    const sectionsParId = await this.verifierSectionsVentilees(tenantId, dto);
+    if (piece.lignes) {
+      // Ventilation analytique · seuls les plans marqués « ventilation
+      // obligatoire » bloquent ici. Les autres laissent passer, et l'état de
+      // contrôle des cumuls signale les lignes restées sans répartition.
+      if (piece.exigerVentilationObligatoire !== false) {
+        await this.analytiqueService.verifierVentilationObligatoire(tenantId, piece.lignes);
+      }
+      sectionsParId = await this.verifierSectionsVentilees(tenantId, piece.lignes, db);
+    }
+
+    return { exercice, journal, date, dateValeur, sectionsParId };
+  }
+
+  async creer(tenantId: string, createdBy: string, dto: CreerEcritureDto) {
+    const { journal, date, dateValeur, sectionsParId } = await this.controlesDEntree(tenantId, dto);
 
     // Le calcul du numéro de pièce (lire le max actuel, l'incrémenter) et la
     // création de l'écriture doivent former une seule opération atomique :
@@ -585,38 +712,7 @@ export class EcritureService {
             libelle: dto.libelle,
             reference: dto.reference,
             createdBy,
-            lignes: {
-              create: dto.lignes.map((l) => ({
-                compteId: l.compteId,
-                libelle: l.libelle,
-                debit: l.debit ?? 0,
-                credit: l.credit ?? 0,
-                tauxTvaId: l.tauxTvaId,
-                dateEcheance: l.dateEcheance ? new Date(l.dateEcheance) : undefined,
-                // DATE DU VERSEMENT · elle ne se déduit d'aucune autre. Sans
-                // cette ligne, le DTO l'accepte, l'écran l'envoie, et Prisma la
-                // laisse tomber en silence : la colonne resterait NULL et le
-                // registre des retenues continuerait de dater l'échéance sur
-                // l'écriture, ce que les art. 18 et suivants de la loi
-                // n° 004/2003 ne veulent pas. Voir le commentaire du schéma.
-                dateVersement: l.dateVersement ? new Date(l.dateVersement) : undefined,
-                deviseId: l.deviseId,
-                montantDevise: l.montantDevise,
-                coursApplique: l.coursApplique,
-                ...(l.ventilations && l.ventilations.length > 0
-                  ? {
-                      ventilations: {
-                        create: l.ventilations.map((v) => ({
-                          sectionId: v.sectionId,
-                          planId: sectionsParId.get(v.sectionId)!.planId,
-                          debit: v.debit ?? 0,
-                          credit: v.credit ?? 0,
-                        })),
-                      },
-                    }
-                  : {}),
-              })),
-            },
+            lignes: { create: dto.lignes.map((l) => donneesLigneSaisie(l, sectionsParId)) },
           },
           include: { lignes: true, journal: true },
         });
@@ -637,14 +733,18 @@ export class EcritureService {
    * Retourne les sections indexées par id, pour que la création de l'écriture
    * puisse dénormaliser le planId sur chaque ventilation sans requête de plus.
    */
-  private async verifierSectionsVentilees(tenantId: string, dto: CreerEcritureDto) {
+  private async verifierSectionsVentilees(
+    tenantId: string,
+    lignes: LigneEntree[],
+    db: Prisma.TransactionClient | PrismaService = this.prisma,
+  ) {
     const sectionIds = [
-      ...new Set(dto.lignes.flatMap((l) => (l.ventilations ?? []).map((v) => v.sectionId))),
+      ...new Set(lignes.flatMap((l) => (l.ventilations ?? []).map((v) => v.sectionId))),
     ];
     const sectionsParId = new Map<string, { planId: string; code: string; planCode: string }>();
     if (sectionIds.length === 0) return sectionsParId;
 
-    const sections = await this.prisma.sectionAnalytique.findMany({
+    const sections = await db.sectionAnalytique.findMany({
       where: { id: { in: sectionIds }, tenantId },
       include: { plan: { select: { code: true } } },
     });
@@ -665,7 +765,7 @@ export class EcritureService {
       sectionsParId.set(s.id, { planId: s.planId, code: s.code, planCode: s.plan.code });
     }
 
-    for (const [index, ligne] of dto.lignes.entries()) {
+    for (const [index, ligne] of lignes.entries()) {
       if (!ligne.ventilations || ligne.ventilations.length === 0) continue;
       const parPlan = new Map<string, { debit: number; credit: number; planCode: string }>();
       for (const v of ligne.ventilations) {
@@ -783,57 +883,37 @@ export class EcritureService {
    * Modifie une écriture en brouillard. Les lignes sont remplacées en bloc :
    * une écriture est un tout équilibré, et retoucher une ligne isolément
    * ouvrirait une fenêtre où elle ne l'est plus.
+   *
+   * MÊMES CONTRÔLES ET MÊMES CHAMPS QUE `creer` · audit du serveur du
+   * 2026-09-27, F4. `modifier` refaisait à la main une partie des contrôles
+   * (ni le taux de TVA du dossier, ni les sections ventilées, ni le journal
+   * en sommeil) et recréait ses lignes sans la devise ni la ventilation.
+   * Un brouillard retouché pouvait donc se rattacher au taux d'un autre
+   * dossier, défaut que `creer` dit fermer, ou perdre son montant en devise
+   * sans un mot. Les deux passent désormais par `controlesDEntree` et
+   * `donneesLigneSaisie`.
+   *
+   * Et UNE ÉCRITURE QU'UN MODULE TIENT NE SE MODIFIE PAS D'ICI (F2) · la
+   * liquidation, la facture, le bulletin, l'affectation affirment un montant
+   * que l'écriture ne porterait plus.
    */
   async modifier(tenantId: string, ecritureId: string, dto: ModifierEcritureDto) {
     const ecriture = await this.trouverEnBrouillard(tenantId, ecritureId);
-    const date = dto.date ? new Date(dto.date) : ecriture.date;
-
-    if (date < ecriture.exercice.dateDebut || date > ecriture.exercice.dateFin) {
-      throw new BadRequestException("La date sort de l'exercice de l'écriture.");
-    }
-    await this.exerciceService.verifierEcritureAutorisee(tenantId, ecriture.journalId, date);
-
-    if (dto.lignes) {
-      const totalDebit = dto.lignes.reduce((s, l) => s + (l.debit ?? 0), 0);
-      const totalCredit = dto.lignes.reduce((s, l) => s + (l.credit ?? 0), 0);
-      if (Math.abs(totalDebit - totalCredit) > 0.005) {
-        throw new BadRequestException(`Écriture déséquilibrée : débit=${totalDebit} crédit=${totalCredit}`);
-      }
-      const compteIds = [...new Set(dto.lignes.map((l) => l.compteId))];
-      const comptes = await this.prisma.compte.findMany({ where: { id: { in: compteIds }, tenantId } });
-      if (comptes.length !== compteIds.length) {
-        throw new BadRequestException('Un ou plusieurs comptes sont introuvables pour ce tenant');
-      }
-      const comptesTotal = comptes.filter((c) => c.typeCompte === TypeCompteDetailTotal.TOTAL);
-      if (comptesTotal.length > 0) {
-        throw new BadRequestException(
-          `Impossible de saisir sur un compte Total (${comptesTotal.map((c) => c.numero).join(', ')})`,
-        );
-      }
-      await this.analytiqueService.verifierVentilationObligatoire(tenantId, dto.lignes);
-    }
+    await this.verifierAucunModuleNeLaTient(tenantId, [ecritureId], 'se modifie');
+    const { date, sectionsParId } = await this.controlesDEntree(tenantId, {
+      exerciceId: ecriture.exerciceId,
+      journalId: ecriture.journalId,
+      date: dto.date ? new Date(dto.date) : ecriture.date,
+      lignes: dto.lignes,
+    });
 
     return this.prisma.$transaction(async (tx) => {
       if (dto.lignes) {
         // Les ventilations analytiques suivent leurs lignes (onDelete: Cascade
         // sur VentilationAnalytique.ligne) : remplacer les lignes remplace
-        // aussi la ventilation, ce qui est le comportement attendu · on ne
-        // garde pas l'imputation projet d'une ligne qui n'existe plus.
+        // aussi l'ANCIENNE ventilation, et la nouvelle vient avec les lignes
+        // reçues, par le même constructeur que la création.
         await tx.ligneEcriture.deleteMany({ where: { ecritureId } });
-        await tx.ligneEcriture.createMany({
-          data: dto.lignes.map((l) => ({
-            ecritureId,
-            compteId: l.compteId,
-            libelle: l.libelle,
-            debit: l.debit ?? 0,
-            credit: l.credit ?? 0,
-            tauxTvaId: l.tauxTvaId,
-            dateEcheance: l.dateEcheance ? new Date(l.dateEcheance) : undefined,
-            // Même raison qu'à la création · le brouillard remplace ses lignes
-            // en bloc, une date perdue ici l'est définitivement.
-            dateVersement: l.dateVersement ? new Date(l.dateVersement) : undefined,
-          })),
-        });
       }
       return tx.ecriture.update({
         where: { id: ecritureId },
@@ -841,6 +921,7 @@ export class EcritureService {
           date,
           libelle: dto.libelle ?? undefined,
           reference: dto.reference ?? undefined,
+          ...(dto.lignes ? { lignes: { create: dto.lignes.map((l) => donneesLigneSaisie(l, sectionsParId)) } } : {}),
         },
         include: { lignes: { include: { compte: true } }, journal: true },
       });
@@ -875,7 +956,7 @@ export class EcritureService {
    */
   async supprimer(tenantId: string, ecritureId: string, pourLeModule?: SuppressionPourLeModule) {
     await this.trouverEnBrouillard(tenantId, ecritureId);
-    await this.verifierAucunModuleNeLaTient(tenantId, ecritureId, pourLeModule?.detenteur);
+    await this.verifierAucunModuleNeLaTient(tenantId, [ecritureId], 'se supprime', pourLeModule?.detenteur);
     await this.prisma.$transaction(async (tx) => {
       // Le module libère son marqueur DANS la même transaction · jamais
       // avant (un échec laisserait l'écriture sans son opération), jamais
@@ -909,7 +990,22 @@ export class EcritureService {
     });
   }
 
-  private async verifierAucunModuleNeLaTient(tenantId: string, ecritureId: string, detenteurLibere?: DetenteurEcriture) {
+  /**
+   * LES MODULES QUI TIENNENT CES ÉCRITURES · la liste, UNE fois, et les quatre
+   * gestes qui retouchent une écriture la lisent (audit du serveur du
+   * 2026-09-27, F2). Seule la suppression la consultait : `modifier`
+   * remplaçait les lignes d'une liquidation de TVA ou d'une affectation,
+   * `reimputer` ne connaissait que les trois détenteurs immobilisation, et la
+   * correction par inscription en négatif annulait au journal une liquidation
+   * dont le marqueur disait encore la période liquidée. Chaque fois
+   * l'écriture restait équilibrée, et c'est le module qui mentait.
+   *
+   * La liste reste ÉCRITE À LA MAIN, jamais déduite du schéma (§ 10 bis) ·
+   * une relation nouvelle doit obliger quelqu'un à décider si son module
+   * retient l'écriture ou la laisse partir.
+   */
+  private async detenteursDe(tenantId: string, ecritureIds: string[]): Promise<DetenteurEcriture[]> {
+    const ecritureId = { in: [...new Set(ecritureIds)] };
     // Le `tenantId` accompagne l'id de l'écriture partout, alors même que cet
     // id est déjà unique · le cloisonnement se pose aux DEUX bouts, et un
     // comptage qui ne le porte pas est un comptage qui traverserait les
@@ -970,19 +1066,30 @@ export class EcritureService {
       })],
     ];
     const resultats = await Promise.all(detenteursPossibles.map(([, p]) => p));
+    return detenteursPossibles.filter((_, i) => resultats[i] > 0).map(([nom]) => nom);
+  }
+
+  /**
+   * Le refus nommé · `geste` dit ce qui est refusé (« se supprime », « se
+   * modifie », « se réimpute », « se corrige »), et le message renvoie au
+   * module, seul à savoir défaire ou reprendre son opération.
+   */
+  private async verifierAucunModuleNeLaTient(
+    tenantId: string,
+    ecritureIds: string[],
+    geste: string,
+    detenteurLibere?: DetenteurEcriture,
+  ) {
     // Le SEUL détenteur que l'appelant libère lui-même est écarté · tous les
     // autres refusent encore. Une écriture tenue par deux modules ne sort pas
     // parce que l'un des deux la lâche.
-    const detenteurs = detenteursPossibles
-      .filter((_, i) => resultats[i] > 0)
-      .map(([nom]) => nom)
-      .filter((nom) => nom !== detenteurLibere);
+    const detenteurs = (await this.detenteursDe(tenantId, ecritureIds)).filter((nom) => nom !== detenteurLibere);
     if (detenteurs.length > 0) {
       throw new BadRequestException(
         `Cette écriture est la contrepartie comptable de ${detenteurs.join(' et ')} · ` +
-          "elle ne se supprime pas d'ici. Défaites l'opération dans son module : " +
-          "supprimée seule, elle laisserait l'opération enregistrée sans son écriture, " +
-          'et rien ne le signalerait.',
+          `elle ne ${geste} pas d'ici. Reprenez l'opération dans son module : ` +
+          "retouchée seule, elle laisserait le module affirmer un montant ou une opération que " +
+          "l'écriture ne porte plus, et rien ne le signalerait.",
       );
     }
   }
@@ -1353,7 +1460,24 @@ export class EcritureService {
       .filter((m): m is string => m !== null);
     if (refus.length) throw new BadRequestException([...new Set(refus)].join(' '));
 
+    // TOUS LES DÉTENTEURS, PAS SEULEMENT LES TROIS DE L'IMMOBILISATION · audit
+    // du serveur du 2026-09-27, F2. Au brouillard la ligne change de compte en
+    // place ; validée, la réimputation passe une inscription en négatif. Dans
+    // les deux cas le module qui tient l'écriture (liquidation, bulletin,
+    // affectation…) affirmerait ensuite une imputation qui n'est plus la sienne.
+    await this.verifierAucunModuleNeLaTient(tenantId, lignes.map((l) => l.ecritureId), 'se réimpute');
+
     const auBrouillard = lignes.filter((l) => l.ecriture.statut === StatutEcriture.BROUILLARD);
+    // LE VERROU DE PÉRIODE VAUT AUSSI AU BROUILLARD (F3). Il n'était vérifié
+    // que pour les lignes validées · une ligne au brouillard d'une période
+    // close changeait de compte alors que `modifier` l'aurait refusé. La ligne
+    // garde sa date : c'est à SA date, dans SON journal, que le verrou se lit.
+    const brouillardsVus = new Set<string>();
+    for (const l of auBrouillard) {
+      if (brouillardsVus.has(l.ecritureId)) continue;
+      brouillardsVus.add(l.ecritureId);
+      await this.exerciceService.verifierEcritureAutorisee(tenantId, l.ecriture.journalId, l.ecriture.date);
+    }
     const validees = lignes.filter((l) => l.ecriture.statut === StatutEcriture.VALIDEE);
 
     const exercice = lignes[0].ecriture.exercice;
@@ -1557,6 +1681,12 @@ export class EcritureService {
     }
 
     this.verifierCorrigeable(origine);
+    // Les refus nommés ci-dessus disent l'immobilisation avec sa désignation ;
+    // tous les AUTRES détenteurs refusent ici (audit du serveur du 2026-09-27,
+    // F2). Corriger l'écriture d'une liquidation de TVA l'annulerait au journal
+    // pendant que le marqueur dit encore la période liquidée, et celle d'une
+    // affectation laisserait le résultat « affecté » sans mouvement du 12.
+    await this.verifierAucunModuleNeLaTient(tenantId, [origine.id], 'se corrige');
 
     const date = dto.date ? new Date(dto.date) : new Date();
 

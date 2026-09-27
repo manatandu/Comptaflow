@@ -1,4 +1,5 @@
 import { ImportService } from './import.service';
+import { EcritureService } from '../comptabilite/ecriture.service';
 import { PrismaService } from '../../common/prisma.service';
 import { TypeImport } from './dto/import.dto';
 
@@ -62,7 +63,10 @@ function service() {
     compte: { findMany: jest.fn().mockResolvedValue(COMPTES) },
     $transaction: jest.fn().mockImplementation((f: (t: unknown) => unknown) => f(tx)),
   } as unknown as PrismaService;
-  return { svc: new ImportService(prisma), creerEcriture };
+  // Les contrôles d'entrée de la saisie ont leur propre spec
+  // (casse-en-silence.spec.ts, section 5) · ici ils laissent passer.
+  const ecritureService = { controlesDEntree: jest.fn().mockResolvedValue({}) } as unknown as EcritureService;
+  return { svc: new ImportService(prisma, ecritureService), creerEcriture };
 }
 
 /** Un CSV de balance, en base64 comme l'API le reçoit. */

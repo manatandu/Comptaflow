@@ -295,6 +295,15 @@ describe('GroupeService · canevas de trésorerie', () => {
         }),
     }) as never;
 
+  // Les contrôles d'entrée de la saisie · ils laissent passer par défaut, et
+  // le test « journal en sommeil » plus bas les fait refuser.
+  const ecritureCanevas = (refus?: Error) => ({
+    controlesDEntree: jest.fn().mockImplementation(async () => {
+      if (refus) throw refus;
+      return {};
+    }),
+  });
+
   const remplir = async (
     buffer: Buffer,
     lignes: Array<[string, string, string, number | '', number | '', string]>,
@@ -317,7 +326,7 @@ describe('GroupeService · canevas de trésorerie', () => {
 
   it('aller-retour complet : le canevas généré, rempli, s’importe en écritures équilibrées de brouillard', async () => {
     const creees: Array<{ data: { libelle: string; reference: string; journalId: string; lignes: { create: Array<{ debit: number; credit: number }> } } }> = [];
-    const s = new GroupeService(prismaCanevas(creees), undefined as never, undefined as never, undefined as never);
+    const s = new GroupeService(prismaCanevas(creees), ecritureCanevas() as never, undefined as never, undefined as never);
 
     const canevas = await s.canevas('mere', 'c1');
     expect(canevas.nomFichier).toBe('canevas-cellule-a-2026.xlsx');
@@ -350,7 +359,7 @@ describe('GroupeService · canevas de trésorerie', () => {
 
   it('tout ou rien : une seule ligne fausse fait tout refuser, anomalies nommées ligne par ligne', async () => {
     const creees: unknown[] = [];
-    const s = new GroupeService(prismaCanevas(creees), undefined as never, undefined as never, undefined as never);
+    const s = new GroupeService(prismaCanevas(creees), ecritureCanevas() as never, undefined as never, undefined as never);
     const canevas = await s.canevas('mere', 'c1');
     const rempli = await remplir(canevas.buffer, [
       ['2026-03-01', 'Bonne ligne', 'Dons et offrandes', 100, '', 'Caisse'],
@@ -368,8 +377,29 @@ describe('GroupeService · canevas de trésorerie', () => {
     expect(rapport.anomalies.map((a) => a.ligne)).toEqual([7, 8]);
   });
 
+  it('les contrôles de la saisie sont joués AVANT la première pièce · un refus n’en laisse passer aucune (audit F3)', async () => {
+    // Journal BQ de la cellule en sommeil · le refus vient de
+    // EcritureService.controlesDEntree, la même liste que la saisie.
+    const creees: unknown[] = [];
+    const ecriture = ecritureCanevas(new BadRequestException('Le journal BQ est en sommeil'));
+    const s = new GroupeService(prismaCanevas(creees), ecriture as never, undefined as never, undefined as never);
+    const canevas = await s.canevas('mere', 'c1');
+    const rempli = await remplir(canevas.buffer, [
+      ['2026-03-01', 'Quête', 'Dîmes, quêtes et assimilées', 500, '', 'Caisse'],
+      ['2026-03-10', '', 'Transfert reçu du siège ou d’une cellule', 200, '', 'Banque'],
+    ]);
+    await expect(
+      s.importerCanevas('mere', 'c1', 'u', { nomFichier: 'c.xlsx', contenuBase64: rempli.toString('base64') }),
+    ).rejects.toThrow(/en sommeil/);
+    expect(creees).toHaveLength(0);
+    // Appelé dans le dossier de la CELLULE, avec son exercice et une pièce
+    // équilibrée sur deux lignes.
+    const [dossier, piece] = ecriture.controlesDEntree.mock.calls[0];
+    expect([dossier, piece.exerciceId, piece.lignes.length]).toEqual(['c1', 'ex-c', 2]);
+  });
+
   it('un fichier qui n’est pas le canevas officiel est refusé net', async () => {
-    const s = new GroupeService(prismaCanevas([]), undefined as never, undefined as never, undefined as never);
+    const s = new GroupeService(prismaCanevas([]), ecritureCanevas() as never, undefined as never, undefined as never);
     const { Workbook } = await import('exceljs');
     const wb = new Workbook();
     wb.addWorksheet('Feuille1').getCell('A1').value = 'bonjour';

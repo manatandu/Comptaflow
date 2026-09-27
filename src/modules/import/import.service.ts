@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { prochainNumeroPiece } from '../journaux/numerotation-piece';
+import { EcritureService, motifDateHorsExercice } from '../comptabilite/ecriture.service';
 import { ClasseCompte, ModeReportANouveau, Prisma, Referentiel, StatutExercice, TypeCompteDetailTotal } from '@prisma/client';
 import { PLAN_COMPTES_SYCEBNL } from '../comptes/compte-seed';
 import { PLAN_COMPTES_SYSCOHADA } from '../comptes/compte-seed-syscohada';
@@ -244,7 +245,13 @@ export function modeReportPourClasse(classe: ClasseCompte): ModeReportANouveau {
 
 @Injectable()
 export class ImportService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // Les contrôles d'entrée d'une pièce · audit du serveur du 2026-09-27, F3.
+    // L'import les recopiait en partie (ni journal actif, ni verrou de période,
+    // ni taux ou section du dossier) ; il appelle désormais la liste unique.
+    private readonly ecritureService: EcritureService,
+  ) {}
 
   /** Lit le fichier, propose une correspondance de colonnes, montre un aperçu. */
   async analyser(dto: AnalyserImportDto) {
@@ -433,6 +440,16 @@ export class ImportService {
   ): Promise<RapportImport> {
     const { exercice, journal, comptes, tenant } = await this.contexte(tenantId, dto);
 
+    // LA DATE D'ABORD, ET BORNÉE À L'EXERCICE · audit du serveur du
+    // 2026-09-27, F3. `dateOperation` était prise telle quelle : une reprise
+    // datée de l'année d'avant entrait dans l'exercice courant, s'équilibrait,
+    // et la balance bouclait · la faute de janvier que le § 10 bis a fermée
+    // dans `creer` restait ouverte ici. Posée avant toute lecture du fichier,
+    // pour qu'une simulation la dise aussi.
+    const dateReprise = dto.dateOperation ? new Date(dto.dateOperation) : exercice.dateDebut;
+    const horsExercice = motifDateHorsExercice(dateReprise, exercice);
+    if (horsExercice) throw new BadRequestException(horsExercice);
+
     const iNumero = this.indexDe(tableau, dto.mapping, 'numero');
     const iIntitule = this.indexDe(tableau, dto.mapping, 'intitule');
     const iDebit = this.indexDe(tableau, dto.mapping, 'debit');
@@ -543,13 +560,28 @@ export class ImportService {
     let ecrituresCreees = 0;
 
     if (peutEcrire) {
-      const date = dto.dateOperation ? new Date(dto.dateOperation) : exercice.dateDebut;
+      const date = dateReprise;
       await this.prisma.$transaction(async (tx) => {
         if (comptesACreer.length > 0) {
           await tx.compte.createMany({ data: comptesACreer, skipDuplicates: true });
         }
         const tous = await tx.compte.findMany({ where: { tenantId }, select: { id: true, numero: true } });
         const parNumero = new Map(tous.map((c) => [c.numero, c.id]));
+        // Les contrôles de `creer`, lus DANS la transaction · les comptes
+        // manquants viennent d'y naître, et une lecture hors d'elle ne les
+        // verrait pas. Journal en sommeil, période close, compte Total : un
+        // refus ici annule aussi la création des comptes.
+        await this.ecritureService.controlesDEntree(
+          tenantId,
+          {
+            exerciceId: exercice.id,
+            journalId: journal.id,
+            date,
+            lignes: lignes.map((l) => ({ compteId: parNumero.get(l.numero)!, debit: l.debit, credit: l.credit })),
+            exigerVentilationObligatoire: false,
+          },
+          tx,
+        );
         // Le journal a un mode de numérotation, et la reprise doit s'y plier
         // comme la saisie · sans ça la toute première pièce d'un dossier
         // repris entre au livre-journal sans numéro.
@@ -710,6 +742,26 @@ export class ImportService {
           message:
             `Pièce déséquilibrée ou incomplète (débit ${d.toFixed(2)}, crédit ${c.toFixed(2)}, ` +
             `${piece.lignes.length} ligne(s)) : elle n'a pas été créée.`,
+        });
+        continue;
+      }
+      // LES CONTRÔLES DE `creer`, PIÈCE PAR PIÈCE · audit du serveur du
+      // 2026-09-27, F3. L'import passait par-dessus un journal en sommeil et
+      // une période close ; une pièce refusée ici l'est nommément, sans
+      // emporter les autres, comme une pièce déséquilibrée. Joué aussi en
+      // simulation, pour que l'aperçu dise ce que l'import refusera.
+      try {
+        await this.ecritureService.controlesDEntree(tenantId, {
+          exerciceId: exercice.id,
+          journalId: piece.journalId,
+          date: piece.date,
+          lignes: piece.lignes,
+          exigerVentilationObligatoire: false,
+        });
+      } catch (e) {
+        anomalies.push({
+          ligne: piece.premiereLigne,
+          message: `${e instanceof Error ? e.message : String(e)} · la pièce n'a pas été créée.`,
         });
         continue;
       }

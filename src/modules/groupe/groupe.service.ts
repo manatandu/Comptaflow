@@ -1508,8 +1508,42 @@ export class GroupeService {
       throw new BadRequestException('Journaux de trésorerie CA/BQ absents du dossier de la cellule');
     }
 
+    // LES CONTRÔLES DE `creer`, AVANT LA PREMIÈRE PIÈCE · audit du serveur du
+    // 2026-09-27, F3. Le canevas passait par-dessus un journal CA ou BQ en
+    // sommeil, une période close de la cellule et une rubrique ouverte sur un
+    // compte Total. Tout ou rien, comme le reste de cet import · un refus sur
+    // la dixième ligne ne doit pas laisser neuf pièces passées. La cellule
+    // est lue ici dans le périmètre du groupe (dansLeGroupe).
+    const piecesCanevas = lignesValides.map((l) => {
+      const tresorerie = compteParNumero.get(l.compteTresorerie)!;
+      const rubriqueId = compteParNumero.get(l.compteRubrique)!;
+      return {
+        l,
+        lignes:
+          l.sens === 'recette'
+            ? [
+                { compteId: tresorerie, debit: l.montant, credit: 0 },
+                { compteId: rubriqueId, debit: 0, credit: l.montant },
+              ]
+            : [
+                { compteId: rubriqueId, debit: l.montant, credit: 0 },
+                { compteId: tresorerie, debit: 0, credit: l.montant },
+              ],
+      };
+    });
+    for (const p of piecesCanevas) {
+      await this.ecritureService.controlesDEntree(celluleId, {
+        exerciceId: exercice.id,
+        journalId: journalParCode.get(p.l.journal)!.id,
+        date: p.l.date,
+        lignes: p.lignes,
+        // Le canevas n'a aucune colonne de section · voir PieceEntree.
+        exigerVentilationObligatoire: false,
+      });
+    }
+
     await this.prisma.$transaction(async (tx) => {
-      for (const l of lignesValides) {
+      for (const { l, lignes } of piecesCanevas) {
         // Le canevas alimente les journaux de trésorerie de la cellule · ses
         // pièces se numérotent comme celles saisies à la main dans ces mêmes
         // journaux, sans quoi le livre-journal de la cellule mélange des
@@ -1526,18 +1560,7 @@ export class GroupeService {
             libelle: l.libelle,
             reference,
             createdBy,
-            lignes: {
-              create:
-                l.sens === 'recette'
-                  ? [
-                      { compteId: compteParNumero.get(l.compteTresorerie)!, debit: l.montant, credit: 0 },
-                      { compteId: compteParNumero.get(l.compteRubrique)!, debit: 0, credit: l.montant },
-                    ]
-                  : [
-                      { compteId: compteParNumero.get(l.compteRubrique)!, debit: l.montant, credit: 0 },
-                      { compteId: compteParNumero.get(l.compteTresorerie)!, debit: 0, credit: l.montant },
-                    ],
-            },
+            lignes: { create: lignes },
           },
         });
       }

@@ -24,6 +24,7 @@ function ligne(id: string, statut: StatutEcriture, extra: Record<string, unknown
       exerciceId: 'ex',
       journalId: 'j',
       journal: { code: 'ACH' },
+      date: new Date('2026-03-15'),
       libelle: 'Facture FA-1',
       reference: 'FA-1',
       estGenereeParCloture: false,
@@ -36,7 +37,19 @@ function ligne(id: string, statut: StatutEcriture, extra: Record<string, unknown
   };
 }
 
-function service(lignes: ReturnType<typeof ligne>[]) {
+// Les quinze modèles qui peuvent tenir une écriture · voir
+// `EcritureService.detenteursDe`. Une doublure muette sur ces comptages
+// validerait un service qui ne les lit pas.
+const MODELES_DETENTEURS = [
+  'immobilisation', 'dotationAmortissement', 'depreciationImmobilisation', 'reevaluation', 'regularisation',
+  'echeanceAbonnement', 'liquidationTva', 'donation', 'affectationResultat', 'executionEngagement',
+  'mouvementStock', 'bulletinPaie', 'amortissementDerogatoire', 'ligneOrdreVirement', 'consignation',
+];
+
+function service(
+  lignes: ReturnType<typeof ligne>[],
+  options: { tenus?: Record<string, number>; verrou?: (journalId: string, date: Date) => void } = {},
+) {
   const tx = {
     ligneEcriture: { update: jest.fn().mockResolvedValue({}) },
     ecriture: { create: jest.fn().mockResolvedValue({ numeroPiece: 7 }) },
@@ -47,11 +60,18 @@ function service(lignes: ReturnType<typeof ligne>[]) {
     },
     ligneEcriture: { findMany: jest.fn().mockResolvedValue(lignes) },
     $transaction: jest.fn((fn: (t: typeof tx) => unknown) => fn(tx)),
+    ...Object.fromEntries(
+      MODELES_DETENTEURS.map((m) => [m, { count: jest.fn().mockResolvedValue(options.tenus?.[m] ?? 0) }]),
+    ),
   };
   const journal = { prochainNumeroPiece: jest.fn().mockResolvedValue(7) };
-  const exercice = { verifierEcritureAutorisee: jest.fn().mockResolvedValue(undefined) };
+  const exercice = {
+    verifierEcritureAutorisee: jest.fn().mockImplementation(async (_t: string, journalId: string, date: Date) =>
+      options.verrou?.(journalId, date),
+    ),
+  };
   const s = new EcritureService(prisma as never, journal as never, exercice as never, {} as never);
-  return { s, tx };
+  return { s, tx, prisma, exercice };
 }
 
 describe('Réimputation · le service', () => {
@@ -76,5 +96,41 @@ describe('Réimputation · le service', () => {
     await expect(s.reimputer('t', 'u', { ligneIds: ['b', 'v'], compteCibleId: 'c604', motif: 'x' })).rejects.toThrow(/lettrée/);
     expect(tx.ligneEcriture.update).not.toHaveBeenCalled();
     expect(tx.ecriture.create).not.toHaveBeenCalled();
+  });
+
+  // AUDIT DU SERVEUR DU 2026-09-27, F2 · seuls les trois détenteurs de
+  // l'immobilisation refusaient. Une ligne de la liquidation de TVA, au
+  // brouillard comme validée, se réimputait, et le marqueur de la liquidation
+  // affirmait ensuite une imputation que l'écriture ne portait plus.
+  it.each([StatutEcriture.BROUILLARD, StatutEcriture.VALIDEE])(
+    "refuse une ligne %s dont l'écriture est tenue par un module, et n'écrit rien",
+    async (statut) => {
+      const { s, tx, prisma } = service([ligne('x', statut)], { tenus: { liquidationTva: 1 } });
+      await expect(
+        s.reimputer('t', 'u', { ligneIds: ['x'], compteCibleId: 'c604', date: '2026-06-30', motif: 'x' }),
+      ).rejects.toThrow(/liquidation de TVA · elle ne se réimpute pas/);
+      expect(tx.ligneEcriture.update).not.toHaveBeenCalled();
+      expect(tx.ecriture.create).not.toHaveBeenCalled();
+      // La requête vise bien l'écriture de la ligne, et le dossier.
+      expect((prisma as unknown as Record<string, { count: jest.Mock }>).liquidationTva.count).toHaveBeenCalledWith({
+        where: { tenantId: 't', ecritureId: { in: ['e-x'] } },
+      });
+    },
+  );
+
+  // F3 · le verrou de période n'était lu que pour les lignes VALIDÉES. Une
+  // ligne au brouillard d'une période close changeait de compte, là où
+  // `modifier` l'aurait refusée. Le verrou se lit à la date de SA pièce.
+  it('refuse une ligne au brouillard datée dans une période close, et n\'écrit rien', async () => {
+    const { s, tx, exercice } = service([ligne('b', StatutEcriture.BROUILLARD)], {
+      verrou: (_j, date) => {
+        if (date <= new Date('2026-03-31')) throw new Error('période close');
+      },
+    });
+    await expect(
+      s.reimputer('t', 'u', { ligneIds: ['b'], compteCibleId: 'c604', motif: 'x' }),
+    ).rejects.toThrow(/période close/);
+    expect(exercice.verifierEcritureAutorisee).toHaveBeenCalledWith('t', 'j', new Date('2026-03-15'));
+    expect(tx.ligneEcriture.update).not.toHaveBeenCalled();
   });
 });

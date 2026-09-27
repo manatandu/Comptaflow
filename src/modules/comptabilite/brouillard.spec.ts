@@ -25,10 +25,23 @@ type Faux = Record<string, unknown>;
 function service(prisma: Faux, exerciceService: Faux = {}) {
   return new EcritureService(
     prisma as unknown as PrismaService,
-    {} as JournalService,
+    { trouver: jest.fn().mockResolvedValue({ id: 'j1', code: 'ACH', estActif: true }) } as unknown as JournalService,
     exerciceService as unknown as ExerciceService,
-    {} as AnalytiqueService,
+    { verifierVentilationObligatoire: jest.fn().mockResolvedValue(undefined) } as unknown as AnalytiqueService,
   );
+}
+
+// Les quinze modèles qui peuvent tenir une écriture · voir
+// `EcritureService.detenteursDe`. `modifier` les lit désormais (audit du
+// 2026-09-27, F2), et une doublure muette validerait un service qui ne les
+// lit pas.
+const MODELES_DETENTEURS = [
+  'immobilisation', 'dotationAmortissement', 'depreciationImmobilisation', 'reevaluation', 'regularisation',
+  'echeanceAbonnement', 'liquidationTva', 'donation', 'affectationResultat', 'executionEngagement',
+  'mouvementStock', 'bulletinPaie', 'amortissementDerogatoire', 'ligneOrdreVirement', 'consignation',
+];
+function detenteurs(tenus: Record<string, number> = {}): Faux {
+  return Object.fromEntries(MODELES_DETENTEURS.map((m) => [m, { count: jest.fn().mockResolvedValue(tenus[m] ?? 0) }]));
 }
 
 const exerciceOuvert = { statut: 'OUVERT', dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') };
@@ -87,7 +100,9 @@ describe('brouillard · ce qui se modifie et ce qui ne se modifie plus', () => {
   it('refuse une modification qui déséquilibrerait l’écriture', async () => {
     const prisma = {
       ecriture: { findFirst: jest.fn().mockResolvedValue(ecriture()) },
+      exercice: { findFirst: jest.fn().mockResolvedValue(exerciceOuvert) },
       compte: { findMany: jest.fn().mockResolvedValue([{ id: 'c1', typeCompte: 'DETAIL' }]) },
+      ...detenteurs(),
     } as Faux;
     const exercices = { verifierEcritureAutorisee: jest.fn().mockResolvedValue(undefined) };
     await expect(
@@ -98,6 +113,92 @@ describe('brouillard · ce qui se modifie et ce qui ne se modifie plus', () => {
         ],
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
+/**
+ * AUDIT DU SERVEUR DU 2026-09-27 · F2 et F4. `modifier` recréait ses lignes sans
+ * la devise ni la ventilation, ne contrôlait pas le taux de TVA du dossier, et
+ * remplaçait les lignes d'une écriture qu'un module tient.
+ */
+describe('modifier · les mêmes contrôles et les mêmes champs que creer', () => {
+  function monde(tenus: Record<string, number> = {}) {
+    const update = jest.fn().mockResolvedValue({ id: 'e1' });
+    const deleteMany = jest.fn().mockResolvedValue({});
+    const tx = { ligneEcriture: { deleteMany }, ecriture: { update } };
+    const tauxTva = { findMany: jest.fn().mockImplementation(({ where }: { where: { tenantId: string } }) =>
+      Promise.resolve(where.tenantId === 't1' ? [] : [{ id: 'tva-voisin' }])) };
+    const prisma = {
+      ecriture: { findFirst: jest.fn().mockResolvedValue(ecriture()) },
+      exercice: { findFirst: jest.fn().mockResolvedValue(exerciceOuvert) },
+      compte: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'c1', typeCompte: 'DETAIL' },
+          { id: 'c2', typeCompte: 'DETAIL' },
+        ]),
+      },
+      tauxTva,
+      sectionAnalytique: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 's1', planId: 'p1', code: 'PRJ', type: 'DETAIL', estActive: true, plan: { code: 'PROJETS' } },
+        ]),
+      },
+      ...detenteurs(tenus),
+      $transaction: jest.fn().mockImplementation((f: (t: unknown) => unknown) => f(tx)),
+    } as Faux;
+    const exercices = { verifierEcritureAutorisee: jest.fn().mockResolvedValue(undefined) };
+    return { svc: service(prisma, exercices), update, deleteMany, tauxTva };
+  }
+
+  const LIGNES = [
+    {
+      compteId: 'c1',
+      debit: 655_000,
+      deviseId: 'usd',
+      montantDevise: 250,
+      coursApplique: 2620,
+      ventilations: [{ sectionId: 's1', debit: 655_000 }],
+    },
+    { compteId: 'c2', credit: 655_000 },
+  ];
+
+  it('recrée les lignes AVEC la devise, le cours et la ventilation', async () => {
+    const { svc, update, deleteMany } = monde();
+    await svc.modifier('t1', 'e1', { lignes: LIGNES });
+    expect(deleteMany).toHaveBeenCalledWith({ where: { ecritureId: 'e1' } });
+    const cree = update.mock.calls[0][0].data.lignes.create;
+    expect(['ligne en devise', cree[0]]).toEqual([
+      'ligne en devise',
+      expect.objectContaining({
+        deviseId: 'usd',
+        montantDevise: 250,
+        coursApplique: 2620,
+        ventilations: { create: [{ sectionId: 's1', planId: 'p1', debit: 655_000, credit: 0 }] },
+      }),
+    ]);
+  });
+
+  it("refuse un taux de TVA d'un autre dossier, comme creer", async () => {
+    const { svc, update, tauxTva } = monde();
+    await expect(
+      svc.modifier('t1', 'e1', {
+        lignes: [
+          { compteId: 'c1', debit: 100, tauxTvaId: 'tva-voisin' },
+          { compteId: 'c2', credit: 100 },
+        ],
+      }),
+    ).rejects.toThrow(/taux de TVA sont introuvables/);
+    expect(tauxTva.findMany).toHaveBeenCalledWith({ where: { id: { in: ['tva-voisin'] }, tenantId: 't1' } });
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("refuse de modifier l'écriture qu'un module tient, et nomme le module", async () => {
+    const { svc, update, deleteMany } = monde({ liquidationTva: 1 });
+    await expect(svc.modifier('t1', 'e1', { libelle: 'x' })).rejects.toThrow(
+      /liquidation de TVA · elle ne se modifie pas/,
+    );
+    expect(deleteMany).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
   });
 });
 

@@ -2,6 +2,7 @@ import { Referentiel } from '@prisma/client';
 import { ImportService, intituleDUnAutreReferentiel } from './import.service';
 import { PrismaService } from '../../common/prisma.service';
 import { TypeImport } from './dto/import.dto';
+import { EcritureService } from '../comptabilite/ecriture.service';
 import { PLAN_COMPTES_SYCEBNL } from '../comptes/compte-seed';
 import { PLAN_COMPTES_SYSCOHADA } from '../comptes/compte-seed-syscohada';
 
@@ -161,7 +162,8 @@ function service(referentiel: Referentiel = Referentiel.SYCEBNL) {
     compte: { findMany: jest.fn().mockResolvedValue(COMPTES), createMany: creerComptes },
     $transaction: jest.fn().mockImplementation((f: (t: unknown) => unknown) => f(tx)),
   } as unknown as PrismaService;
-  return { svc: new ImportService(prisma), creerEcriture, creerComptes };
+  const ecritureService = { controlesDEntree: jest.fn().mockResolvedValue({}) } as unknown as EcritureService;
+  return { svc: new ImportService(prisma, ecritureService), creerEcriture, creerComptes };
 }
 
 function csv(entete: string, lignes: string[][]) {

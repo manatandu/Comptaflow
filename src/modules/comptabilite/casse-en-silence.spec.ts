@@ -4,6 +4,10 @@ import { EcritureService } from './ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
 import { prochainNumeroPiece } from '../journaux/numerotation-piece';
 import { PrismaService } from '../../common/prisma.service';
+import { ImportService } from '../import/import.service';
+import { TypeImport } from '../import/dto/import.dto';
+import { readdirSync, readFileSync } from 'fs';
+import { join, relative } from 'path';
 
 /**
  * CE QUI CASSERAIT EN SILENCE · quatre défauts qui laissent l'écriture
@@ -31,19 +35,42 @@ const EXERCICE = {
   statut: 'OUVERT',
 };
 
-function serviceEcriture(detenteurs: Record<string, number> = {}) {
+function serviceEcriture(detenteurs: Record<string, number> = {}, statut = 'BROUILLARD') {
   const compte = (id: string) => ({ id, numero: '60100000', intitule: 'Achats', typeCompte: 'DETAIL', tenantId: 't1' });
   const compteur = (modele: string) => jest.fn().mockResolvedValue(detenteurs[modele] ?? 0);
   const prisma = {
     exercice: { findFirst: jest.fn().mockResolvedValue(EXERCICE) },
-    compte: { findMany: jest.fn().mockImplementation(({ where }: { where: { id: { in: string[] } } }) =>
-      Promise.resolve(where.id.in.map(compte)) ) },
+    compte: {
+      findMany: jest.fn().mockImplementation(({ where }: { where: { id: { in: string[] } } }) =>
+        Promise.resolve(where.id.in.map(compte))),
+      findFirst: jest.fn().mockResolvedValue({ ...compte('c2'), estActif: true }),
+    },
     tauxTva: { findMany: jest.fn().mockResolvedValue([]) },
     ecriture: {
-      findFirst: jest.fn().mockResolvedValue({ id: 'e1', statut: 'BROUILLARD', exercice: EXERCICE, tenantId: 't1', lignes: [], journalId: 'j1', date: new Date('2026-03-04') }),
+      findFirst: jest.fn().mockResolvedValue({
+        id: 'e1', statut, exercice: EXERCICE, exerciceId: 'ex', tenantId: 't1', lignes: [], journalId: 'j1',
+        journal: { id: 'j1', code: 'OD' }, date: new Date('2026-03-04'), libelle: 'Pièce', correction: null,
+        corrigeEcritureId: null, estGenereeParCloture: false, immobilisationAcquisition: null,
+        immobilisationSortie: null, dotationAmortissement: null,
+      }),
       delete: jest.fn().mockResolvedValue({}),
     },
-    ligneEcriture: { deleteMany: jest.fn().mockResolvedValue({}) },
+    ligneEcriture: {
+      deleteMany: jest.fn().mockResolvedValue({}),
+      // La ligne que la réimputation déplace · son écriture est « e1 », celle
+      // que les comptages de détenteurs visent.
+      findMany: jest.fn().mockResolvedValue([
+        {
+          id: 'l1', ecritureId: 'e1', compteId: 'c1', compte: { numero: '60100000' }, debit: 100, credit: 0,
+          lettre: null, rapprochementId: null, tauxTvaId: null, ventilations: [],
+          ecriture: {
+            id: 'e1', statut, exerciceId: 'ex', journalId: 'j1', date: new Date('2026-03-04'),
+            estGenereeParCloture: false, exercice: EXERCICE, journal: { code: 'OD' },
+            immobilisationAcquisition: null, immobilisationSortie: null, dotationAmortissement: null,
+          },
+        },
+      ]),
+    },
     immobilisation: { count: compteur('immobilisation') },
     dotationAmortissement: { count: compteur('dotationAmortissement') },
     depreciationImmobilisation: { count: compteur('depreciationImmobilisation') },
@@ -230,6 +257,40 @@ describe('3 · une écriture qu’un module tient ne se supprime pas', () => {
   });
 });
 
+/**
+ * AUDIT DU SERVEUR DU 2026-09-27, F2 · la suppression était le SEUL geste
+ * gardé. `modifier` remplaçait les lignes d'une liquidation ou d'une
+ * affectation, `reimputer` ne connaissait que l'immobilisation, et la
+ * correction par inscription en négatif annulait au journal l'écriture d'un
+ * module dont le marqueur affirmait encore l'opération. Chaque détenteur de
+ * la liste est confronté aux QUATRE gestes, et chacun refuse comme la
+ * suppression · une liste de détenteurs lue par un seul geste est une liste
+ * que les trois autres contournent.
+ */
+describe('3 bis · une écriture qu’un module tient ne se retouche pas non plus', () => {
+  const DETENTEURS = [
+    'immobilisation', 'dotationAmortissement', 'depreciationImmobilisation', 'reevaluation', 'regularisation',
+    'echeanceAbonnement', 'liquidationTva', 'donation', 'affectationResultat', 'executionEngagement',
+    'mouvementStock', 'bulletinPaie', 'amortissementDerogatoire', 'ligneOrdreVirement', 'consignation',
+  ];
+  const gestes: Array<[string, string, (s: EcritureService) => Promise<unknown>]> = [
+    ['supprimer', 'BROUILLARD', (s) => s.supprimer('t1', 'e1')],
+    ['modifier', 'BROUILLARD', (s) => s.modifier('t1', 'e1', { libelle: 'autre' })],
+    ['réimputer au brouillard', 'BROUILLARD', (s) =>
+      s.reimputer('t1', 'u1', { ligneIds: ['l1'], compteCibleId: 'c2', motif: 'x' })],
+    ['réimputer une ligne validée', 'VALIDEE', (s) =>
+      s.reimputer('t1', 'u1', { ligneIds: ['l1'], compteCibleId: 'c2', date: '2026-06-30', motif: 'x' })],
+    ['corriger en négatif', 'VALIDEE', (s) =>
+      s.corrigerParInscriptionEnNegatif('t1', 'u1', 'e1', { motifCorrection: 'x', date: '2026-06-30' } as never)],
+  ];
+
+  for (const [geste, statut, faire] of gestes) {
+    it.each(DETENTEURS)(`${geste} · refuse quand %s tient l'écriture`, async (modele) => {
+      await expect(faire(serviceEcriture({ [modele]: 1 }, statut))).rejects.toThrow(/contrepartie comptable de/);
+    });
+  }
+});
+
 describe('4 · une période n’est couverte que par un seul exercice', () => {
   const service = (existant: { dateDebut: Date; dateFin: Date } | null) =>
     new ExerciceService(
@@ -260,5 +321,185 @@ describe('4 · une période n’est couverte que par un seul exercice', () => {
     await expect(
       service(null).creer('t1', { dateDebut: '2027-01-01', dateFin: '2027-12-31' } as never),
     ).resolves.toBeDefined();
+  });
+});
+
+/**
+ * 5 · LES CHEMINS QUI ÉCRIVENT PASSENT PAR LES CONTRÔLES DE LA SAISIE · audit
+ * du serveur du 2026-09-27, F3. La reprise de balance, l'import d'écritures et
+ * le canevas du groupe recopiaient EN PARTIE les contrôles de `creer` : ni
+ * journal en sommeil, ni période close, et la reprise prenait sa date telle
+ * quelle. Chacun appelle désormais `EcritureService.controlesDEntree`, la
+ * liste unique ; le canevas a son test dans groupe.spec.ts.
+ */
+describe('5 · les imports passent par les contrôles d’entrée de la saisie', () => {
+  const COMPTES_IMPORT = [
+    { id: 'c52', numero: '52110000', typeCompte: 'DETAIL' },
+    { id: 'c10', numero: '10110000', typeCompte: 'DETAIL' },
+  ];
+
+  function serviceImport(refus?: Error) {
+    const creerEcriture = jest.fn().mockResolvedValue({ id: 'e-imp' });
+    const tx = {
+      compte: {
+        createMany: jest.fn(),
+        findMany: jest.fn().mockResolvedValue(COMPTES_IMPORT.map((c) => ({ id: c.id, numero: c.numero }))),
+      },
+      ecriture: { create: creerEcriture, findFirst: jest.fn().mockResolvedValue(null) },
+    };
+    const prisma = {
+      tenant: { findUnique: jest.fn().mockResolvedValue({ id: 't', longueurCompte: 8, referentiel: 'SYCEBNL' }) },
+      exercice: { findFirst: jest.fn().mockResolvedValue(EXERCICE) },
+      journal: {
+        findMany: jest.fn().mockResolvedValue([{ id: 'j-od', code: 'OD', type: 'GENERAL', numerotation: 'MANUELLE' }]),
+      },
+      compte: { findMany: jest.fn().mockResolvedValue(COMPTES_IMPORT) },
+      $transaction: jest.fn().mockImplementation((f: (t: unknown) => unknown) => f(tx)),
+    };
+    const controlesDEntree = jest.fn().mockImplementation(async () => {
+      if (refus) throw refus;
+      return {};
+    });
+    const svc = new ImportService(prisma as never, { controlesDEntree } as never);
+    return { svc, creerEcriture, controlesDEntree, tx };
+  }
+
+  const csv = (entete: string, lignes: string[]) =>
+    Buffer.from([entete, ...lignes].join('\n'), 'utf8').toString('base64');
+
+  const BALANCE = csv('numero;intitule;debit;credit', ['52110000;Banque;500;0', '10110000;Dotation;0;500']);
+  const MAPPING_BALANCE = { numero: 'numero', intitule: 'intitule', debit: 'debit', credit: 'credit' };
+
+  it('une reprise de balance datée HORS de l’exercice est refusée, avant toute écriture', async () => {
+    // La faute de janvier, que le § 10 bis a fermée dans `creer` · la reprise
+    // prenait `dateOperation` telle quelle.
+    const { svc, creerEcriture, controlesDEntree } = serviceImport();
+    await expect(
+      svc.executer('t', 'u', {
+        type: TypeImport.BALANCE,
+        nomFichier: 'b.csv',
+        contenuBase64: BALANCE,
+        mapping: MAPPING_BALANCE,
+        dateOperation: '2025-12-31',
+      } as never),
+    ).rejects.toThrow(/sort de l'exercice/);
+    expect(creerEcriture).not.toHaveBeenCalled();
+    expect(controlesDEntree).not.toHaveBeenCalled();
+  });
+
+  it('une reprise de balance joue les contrôles de la saisie DANS la transaction, et un refus n’écrit rien', async () => {
+    const refus = new BadRequestException('Le journal OD est en sommeil');
+    const { svc, creerEcriture, controlesDEntree, tx } = serviceImport(refus);
+    await expect(
+      svc.executer('t', 'u', {
+        type: TypeImport.BALANCE,
+        nomFichier: 'b.csv',
+        contenuBase64: BALANCE,
+        mapping: MAPPING_BALANCE,
+        dateOperation: '2026-01-01',
+      } as never),
+    ).rejects.toThrow(/en sommeil/);
+    expect(creerEcriture).not.toHaveBeenCalled();
+    // Lu avec le client de la transaction · les comptes créés par la reprise
+    // n'existent que là.
+    const [dossier, piece, client] = controlesDEntree.mock.calls[0];
+    expect([dossier, piece.journalId, piece.lignes.length, client === tx]).toEqual(['t', 'j-od', 2, true]);
+  });
+
+  it('une pièce importée que la saisie refuserait est une anomalie nommée, et n’est pas créée', async () => {
+    const refus = new BadRequestException('Période close jusqu’au 31/03/2026');
+    const { svc, creerEcriture, controlesDEntree } = serviceImport(refus);
+    const rapport = await svc.executer('t', 'u', {
+      type: TypeImport.ECRITURES,
+      nomFichier: 'e.csv',
+      contenuBase64: csv('date;piece;numero;libelle;debit;credit', [
+        '2026-03-04;P1;52110000;Apport;500;0',
+        '2026-03-04;P1;10110000;Apport;0;500',
+      ]),
+      mapping: { date: 'date', piece: 'piece', numero: 'numero', libelle: 'libelle', debit: 'debit', credit: 'credit' },
+    } as never);
+    expect(controlesDEntree).toHaveBeenCalledTimes(1);
+    expect(creerEcriture).not.toHaveBeenCalled();
+    expect(rapport.anomalies.map((a: { message: string }) => a.message)).toEqual([
+      "Période close jusqu’au 31/03/2026 · la pièce n'a pas été créée.",
+    ]);
+  });
+
+  it('la ventilation obligatoire n’est levée que pour les chemins sans colonne de section, et nommément', async () => {
+    // Un import ne porte aucune section · exiger la ventilation le rendrait
+    // impossible au dossier qui l'a posée. Tous les autres contrôles restent.
+    const analytique = { verifierVentilationObligatoire: jest.fn().mockResolvedValue(undefined) };
+    const prisma = {
+      exercice: { findFirst: jest.fn().mockResolvedValue(EXERCICE) },
+      compte: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'c1', numero: '60100000', typeCompte: 'DETAIL' },
+          { id: 'c2', numero: '52110000', typeCompte: 'DETAIL' },
+        ]),
+      },
+      sectionAnalytique: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const svc = new EcritureService(
+      prisma as never,
+      { trouver: jest.fn().mockResolvedValue({ id: 'j1', code: 'OD', estActif: true }) } as never,
+      { verifierEcritureAutorisee: jest.fn().mockResolvedValue(undefined) } as never,
+      analytique as never,
+    );
+    const piece = { exerciceId: 'ex', journalId: 'j1', date: '2026-03-04', lignes: ECRITURE.lignes };
+    await svc.controlesDEntree('t1', { ...piece, exigerVentilationObligatoire: false });
+    expect(analytique.verifierVentilationObligatoire).not.toHaveBeenCalled();
+    await svc.controlesDEntree('t1', piece);
+    expect(analytique.verifierVentilationObligatoire).toHaveBeenCalledTimes(1);
+  });
+
+  it('la reprise de balance la lève', async () => {
+    const { svc, controlesDEntree } = serviceImport();
+    await svc.executer('t', 'u', {
+      type: TypeImport.BALANCE,
+      nomFichier: 'b.csv',
+      contenuBase64: BALANCE,
+      mapping: MAPPING_BALANCE,
+      dateOperation: '2026-01-01',
+    } as never);
+    expect(controlesDEntree.mock.calls[0][1].exigerVentilationObligatoire).toBe(false);
+  });
+
+  it('chaque fichier qui crée une écriture hors de la saisie appelle les contrôles d’entrée, ou dit pourquoi', () => {
+    // Lecture de la source, parce qu'aucun jeu d'essai ne montre l'ABSENCE
+    // d'un appel dans un chemin qu'on n'a pas pensé à tester. La liste des
+    // fichiers est GELÉE · un nouveau chemin d'écriture fait tomber le test
+    // tant que quelqu'un n'a pas décidé s'il passe par les contrôles.
+    const racine = join(__dirname, '..', '..');
+    const fichiers: string[] = [];
+    const parcourir = (dossier: string) => {
+      for (const e of readdirSync(dossier, { withFileTypes: true })) {
+        const p = join(dossier, e.name);
+        if (e.isDirectory()) parcourir(p);
+        else if (p.endsWith('.ts') && !p.endsWith('.spec.ts')) {
+          if (/ecriture\.create\(/.test(readFileSync(p, 'utf-8'))) fichiers.push(relative(racine, p));
+        }
+      }
+    };
+    parcourir(racine);
+    // EXEMPTÉS, ET POURQUOI · la saisie elle-même, et la clôture
+    // (exercice.service.ts), qui pose le report à-nouveau calculé sur des
+    // soldes déjà validés · ExerciceService ne peut d'ailleurs pas dépendre
+    // d'EcritureService, qui dépend de lui.
+    const EXEMPTES = new Set([
+      join('modules', 'comptabilite', 'ecriture.service.ts'),
+      join('modules', 'exercice', 'exercice.service.ts'),
+    ]);
+    expect(fichiers.sort()).toEqual(
+      [
+        join('modules', 'comptabilite', 'ecriture.service.ts'),
+        join('modules', 'exercice', 'exercice.service.ts'),
+        join('modules', 'groupe', 'groupe.service.ts'),
+        join('modules', 'import', 'import.service.ts'),
+      ].sort(),
+    );
+    for (const f of fichiers.filter((x) => !EXEMPTES.has(x))) {
+      const source = readFileSync(join(racine, f), 'utf-8');
+      expect([f, /\.controlesDEntree\(/.test(source)]).toEqual([f, true]);
+    }
   });
 });
