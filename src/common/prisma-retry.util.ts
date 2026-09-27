@@ -1,5 +1,6 @@
 import { ConflictException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { journaliserDansTransaction } from './audit/contexte-audit';
 
 // Code Prisma d'un échec de sérialisation (conflit d'écriture concurrente).
 const CODE_CONFLIT_TRANSACTION = 'P2034';
@@ -33,7 +34,15 @@ export async function avecRetrySerialisable<T>(
 ): Promise<T> {
   for (let tentative = 1; tentative <= TENTATIVES_MAX; tentative++) {
     try {
-      return await prisma.$transaction(fn, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      // LE JOURNAL D'AUDIT S'ÉCRIT DANS CETTE TRANSACTION (audit du serveur
+      // du 2026-09-27, F11). Écrit par une connexion à part, un maillon
+      // survivait à l'annulation de l'acte, et chaque reprise après un
+      // conflit en ajoutait un de plus · la chaîne attestait des créations
+      // d'écritures qui n'ont jamais existé. Déclarée ici, la transaction
+      // porte le maillon : il naît et meurt avec l'acte.
+      return await prisma.$transaction((tx) => journaliserDansTransaction(tx, () => fn(tx)), {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      });
     } catch (err) {
       const estConflit = err instanceof Prisma.PrismaClientKnownRequestError && err.code === CODE_CONFLIT_TRANSACTION;
       if (!estConflit) throw err;
