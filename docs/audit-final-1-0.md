@@ -881,18 +881,21 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** l'état recense une TVA dont la déduction a été reprise.
 - **Correction :** écarter ou montrer à part les factures barrées.
+- **Fait le 2026-09-27 :** l'état lit la note qui barre chaque facture. Barrée par une note du mois, la facture sort des lignes et des totaux ; barrée par une note postérieure, elle reste (déductible quand la déclaration est partie) et la reprise est dite au mois de la note. Les deux sont montrées à part, avec leur motif (décret n° 011/42, art. 127). Lecture d'OmegaX, le texte ne réglant pas l'état d'une facture barrée. Tests : `facturation.spec.ts`, `facturation-audit-final.spec.ts`.
 
 **F118 · Une acceptation arrivée après le délai forme le contrat** [com-01]
 - **Emplacements :** src/modules/commercial/commercial.service.ts:227-238 · vente-commerciale.ts:245, :273-282
 - **Condition :** 1
 - **Constat :** aucun contrôle de la date limite : le logiciel inscrit un contrat sur une offre qu'il déclare lui-même inacceptable (AUDCG art. 243).
 - **Correction :** refuser ou qualifier distinctement l'acceptation tardive, et tester.
+- **Fait le 2026-09-27 :** une acceptation (ou modification non substantielle) parvenue après la date limite laisse l'offre CADUQUE et ne forme aucun contrat (art. 243 et 244) · l'AUDCG ne réglant pas l'acceptation tardive, OmegaX garde le fait sans en faire un contrat ni un refus. Sans délai stipulé, rien n'est tranché. Le refus et la contre-proposition gardent leur sens. À l'écran, une offre caduque sans réponse reçoit encore une réponse (pas la révocation), et l'étiquette dit « réponse tardive ». Tests : `commercial.spec.ts`, `devis-audit-final.spec.ts`.
 
 **F119 · La suppression d'une facture portée par une écriture n'est pas refusée au serveur** [fact-06]
 - **Emplacements :** src/modules/facturation/facturation.service.ts:431-455 · client/src/pages/FacturationPage.tsx:198-203
 - **Condition :** 3
 - **Constat :** contrairement au commentaire, une note de crédit se supprime aussi et débarre la facture qu'elle annulait.
 - **Correction :** refuser la suppression si `ecritureId` est posé ou si la pièce est une note de crédit.
+- **Fait le 2026-09-27 :** `supprimer` refuse une pièce passée au journal (l'écriture se retire d'abord, au brouillard) et une note de crédit, qui débarrerait la facture qu'elle annule ; l'écran ne propose plus « Supprimer » sur une note. Tests : `note-de-credit.spec.ts`, `facturation-audit-final.spec.ts`.
 
 **F120 · Taux de TVA d'une ligne de facture non vérifié comme appartenant au dossier** [fact-07, transv-16]
 - **Emplacements :** src/modules/facturation/facturation.service.ts:218, :237, :293, :414 · comptabilisation-facture.service.ts:32, :74

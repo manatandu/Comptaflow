@@ -443,9 +443,36 @@ export class FacturationService {
   async supprimer(tenantId: string, id: string) {
     const facture = await this.prisma.facture.findFirst({
       where: { id, tenantId },
-      select: { id: true, noteDeCredit: { select: { numeroSerie: true } }, factureAbonnement: { select: { periode: true } } },
+      select: {
+        id: true,
+        nature: true,
+        numeroSerie: true,
+        ecritureId: true,
+        factureAnnulee: { select: { numeroSerie: true } },
+        noteDeCredit: { select: { numeroSerie: true } },
+        factureAbonnement: { select: { periode: true } },
+      },
     });
     if (!facture) throw new NotFoundException('Facture introuvable dans ce dossier.');
+    // UNE PIÈCE PASSÉE AU JOURNAL NE SE SUPPRIME PAS (audit final F119) · le
+    // lien est facultatif et la base le DÉNOUERAIT, laissant au journal une
+    // écriture sans sa pièce. L'écriture se retire d'abord, au brouillard ;
+    // validée, la pièce se conserve et s'annule par une note de crédit.
+    if (facture.ecritureId) {
+      throw new BadRequestException(
+        `La pièce « ${facture.numeroSerie} » est passée au journal · retirez d’abord son écriture tant qu’elle est au ` +
+          'brouillard ; validée, la pièce se conserve et s’annule par une note de crédit.',
+      );
+    }
+    // UNE NOTE DE CRÉDIT EST UNE PIÈCE, ET ELLE BARRE UNE FACTURE (art. 127) ·
+    // la supprimer débarrerait la facture et rendrait la taxe qu'elle a
+    // reprise, sans qu'aucune trace ne dise pourquoi.
+    if (facture.nature === NatureFacture.NOTE_DE_CREDIT) {
+      throw new BadRequestException(
+        `La note de crédit « ${facture.numeroSerie} » annule la facture « ${facture.factureAnnulee?.numeroSerie ?? '·'} » ` +
+          '(décret n° 011/42, art. 127) · elle se conserve et ne se supprime pas.',
+      );
+    }
     // Une facture d'abonnement est tenue par la console de l'éditeur, qui y
     // lit ce qui a été facturé · la supprimer ici ferait refacturer la période.
     if (facture.factureAbonnement) {
@@ -495,13 +522,19 @@ export class FacturationService {
         nature: NatureFacture.FACTURE,
         dateFacture: { gte: debut, lt: finExclue },
       },
-      include: { lignes: { orderBy: { ordre: 'asc' } } },
+      include: {
+        lignes: { orderBy: { ordre: 'asc' } },
+        // La note qui barre la facture (art. 127) · sans elle, l'état
+        // justifiait une déduction reprise (audit final F117).
+        noteDeCredit: { select: { numeroSerie: true, dateFacture: true } },
+      },
       orderBy: [{ dateFacture: 'asc' }, { numeroSerie: 'asc' }],
     });
 
     const source: FactureAchatSource[] = factures.map((f) => ({
       numeroSerie: f.numeroSerie,
       dateFacture: f.dateFacture,
+      annuleePar: f.noteDeCredit ? { numeroSerie: f.noteDeCredit.numeroSerie, dateFacture: f.noteDeCredit.dateFacture } : null,
       // SUR UN ACHAT, LE FOURNISSEUR EST L'ÉMETTEUR · c'est lui que l'art. 134
       // nomme, et non la contrepartie, qui est le dossier lui-même.
       fournisseurNom: f.emetteurNom,

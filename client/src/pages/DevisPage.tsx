@@ -296,7 +296,11 @@ export function DevisPage() {
                     <td className="py-1 pr-2">{d.clientNom}</td>
                     <td className="py-1 pr-2 text-right">{somme(d.totalHT)}</td>
                     <td className="py-1 pr-2">{jour(d.etat.dateLimite)}</td>
-                    <td className="py-1 pr-2">{LIBELLE_ETAT[d.etat.etat] ?? d.etat.etat}</td>
+                    <td className="py-1 pr-2">
+                      {/* Une acceptation parvenue après le délai laisse l'offre caduque
+                          (audit final F118) · « sans réponse » y serait faux. */}
+                      {d.etat.etat === 'CADUC' && d.natureReponse ? 'Caduc · réponse tardive' : (LIBELLE_ETAT[d.etat.etat] ?? d.etat.etat)}
+                    </td>
                     <td className="py-1">
                       <p className="text-[11px] text-text-dim leading-[1.6]">
                         {d.etat.explication} ({d.etat.article})
@@ -312,7 +316,9 @@ export function DevisPage() {
                       {!d.qualification.estUneOffre && (
                         <p className="text-[11px] text-danger leading-[1.6] mt-1">{d.qualification.requalification}</p>
                       )}
-                      {peutEcrire && d.etat.etat === 'EN_ATTENTE' && (
+                      {/* Une offre caduque SANS réponse l'enregistre encore · c'est un
+                          fait, et l'état dira qu'elle ne forme rien (audit final F118). */}
+                      {peutEcrire && (d.etat.etat === 'EN_ATTENTE' || (d.etat.etat === 'CADUC' && !d.natureReponse)) && (
                         <div className="mt-1 flex flex-wrap gap-1">
                           <button className="border border-border px-1.5 py-0.5 text-[11px]" onClick={() => void repondre(d.id, 'ACCEPTATION')}>
                             Acceptation reçue
@@ -326,7 +332,7 @@ export function DevisPage() {
                           <button className="border border-border px-1.5 py-0.5 text-[11px]" onClick={() => void repondre(d.id, 'REFUS')}>
                             Refus reçu
                           </button>
-                          {d.revocabilite.revocable && (
+                          {d.etat.etat === 'EN_ATTENTE' && d.revocabilite.revocable && (
                             <button className="border border-border px-1.5 py-0.5 text-[11px]" onClick={() => void revoquer(d.id)}>
                               Révoquer l’offre
                             </button>

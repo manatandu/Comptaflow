@@ -173,6 +173,20 @@ describe('La facture annulée est BARRÉE et CONSERVÉE · décret art. 127', ()
     expect((prisma.facture as Faux).delete as jest.Mock).toHaveBeenCalledWith({ where: { id: 'fv1' } });
   });
 
+  it('F119 · refuse de supprimer une pièce passée au journal · la base dénouerait le lien en silence', async () => {
+    const { svc, prisma } = service({ initiale: { id: 'fv1', nature: NatureFacture.FACTURE, numeroSerie: 'FV-0001', ecritureId: 'e1', noteDeCredit: null } });
+    await expect(svc.supprimer('t', 'fv1')).rejects.toThrow(/passée au journal/);
+    expect((prisma.facture as Faux).delete as jest.Mock).not.toHaveBeenCalled();
+  });
+
+  it('F119 · refuse de supprimer une note de crédit · elle débarrerait la facture qu’elle annule', async () => {
+    const { svc, prisma } = service({
+      initiale: { id: 'nc1', nature: NatureFacture.NOTE_DE_CREDIT, numeroSerie: 'NC-0001', ecritureId: null, factureAnnulee: { numeroSerie: 'FV-0001' }, noteDeCredit: null },
+    });
+    await expect(svc.supprimer('t', 'nc1')).rejects.toThrow(/NC-0001.*FV-0001.*ne se supprime pas/);
+    expect((prisma.facture as Faux).delete as jest.Mock).not.toHaveBeenCalled();
+  });
+
   it('la liste marque la facture BARRÉE, et le calcule de l’existence de la note', async () => {
     const { svc, prisma } = service();
     ((prisma.facture as Faux).findMany as jest.Mock).mockResolvedValue([

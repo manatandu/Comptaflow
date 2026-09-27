@@ -56,6 +56,38 @@ export interface FactureAchatSource {
   fournisseurNom: string | null;
   fournisseurNumeroImpot: string | null;
   lignes: readonly LigneAchatFacturee[];
+  /** La note de crédit qui annule la facture (décret n° 011/42, art. 127), s'il y en a une. */
+  annuleePar?: { numeroSerie: string; dateFacture: Date } | null;
+}
+
+/**
+ * UNE FACTURE BARRÉE N'EST PAS UNE FACTURE COMME LES AUTRES (audit final F117).
+ * Décret n° 011/42, art. 127 · la récupération de la taxe d'une opération
+ * annulée est « subordonnée à l'envoi au client d'une facture nouvelle ou note
+ * de crédit annulant et remplaçant la facture initiale (barrée, conservée dans
+ * l'ordre chronologique) ». L'état recensait la facture barrée comme les
+ * autres, et justifiait une déduction que la note avait reprise.
+ *
+ * DEUX CAS, ET LA DATE DE LA NOTE LES SÉPARE · c'est une lecture d'OmegaX,
+ * le texte ne réglant pas l'état détaillé d'une facture barrée. Annulée par une
+ * note datée DANS le mois (ou avant sa fin), la facture n'ouvre aucune
+ * déduction pour ce mois · elle sort des lignes et des totaux et se montre à
+ * part. Annulée par une note POSTÉRIEURE, elle était déductible quand la
+ * déclaration du mois est partie · elle reste sur l'état tel qu'il a été
+ * produit, et la reprise se déclare au mois de la note, ce que la ligne à
+ * part dit. Ni l'un ni l'autre ne disparaît sans mot.
+ */
+export interface FactureAnnuleeEtat {
+  numeroFacture: string;
+  dateFacture: string;
+  fournisseurNom: string | null;
+  noteDeCredit: string;
+  dateNote: string;
+  montantHT: number;
+  tvaFacturee: number;
+  /** Vrai quand la note tombe dans le mois · la facture est alors hors des lignes et des totaux. */
+  ecarteeDesTotaux: boolean;
+  motif: string;
 }
 
 export interface LigneEtatDetaille {
@@ -79,6 +111,8 @@ export interface EtatDetailleTva {
   totalHT: number;
   totalTva: number;
   totalTTC: number;
+  /** Les factures barrées par une note de crédit, montrées à part (audit final F117). */
+  facturesAnnulees: FactureAnnuleeEtat[];
   /** Une entrée par ligne incomplète, repérée par son numéro de facture. */
   incompletudes: { numeroFacture: string; designation: string; manques: ManqueLigne[] }[];
   /** Vrai quand rien ne manque au premier volet de l'art. 134. */
@@ -101,8 +135,32 @@ export function construireEtatDetaille(periode: string, factures: readonly Factu
 
   const lignes: LigneEtatDetaille[] = [];
   const incompletudes: EtatDetailleTva['incompletudes'] = [];
+  const facturesAnnulees: FactureAnnuleeEtat[] = [];
+  const [annee, mois] = periode.split('-').map(Number);
+  const finExclue = Date.UTC(annee, mois, 1);
+  const jour = (d: Date) => d.toISOString().slice(0, 10);
 
   for (const f of factures) {
+    if (f.annuleePar) {
+      const dansLeMois = f.annuleePar.dateFacture.getTime() < finExclue;
+      facturesAnnulees.push({
+        numeroFacture: f.numeroSerie,
+        dateFacture: jour(f.dateFacture),
+        fournisseurNom: f.fournisseurNom,
+        noteDeCredit: f.annuleePar.numeroSerie,
+        dateNote: jour(f.annuleePar.dateFacture),
+        montantHT: f.lignes.reduce((s, l) => s + l.prixHT, 0),
+        tvaFacturee: f.lignes.reduce((s, l) => s + l.montantTva, 0),
+        ecarteeDesTotaux: dansLeMois,
+        motif: dansLeMois
+          ? `Barrée par la note de crédit « ${f.annuleePar.numeroSerie} » du ${jour(f.annuleePar.dateFacture)}, dans le mois · ` +
+            'elle n’ouvre aucune déduction pour cette période et sort des totaux (décret n° 011/42, art. 127).'
+          : `Barrée par la note de crédit « ${f.annuleePar.numeroSerie} » du ${jour(f.annuleePar.dateFacture)}, après le mois · ` +
+            'elle reste sur l’état, déductible quand la déclaration est partie ; la reprise se déclare au mois de la note ' +
+            '(décret n° 011/42, art. 127).',
+      });
+      if (dansLeMois) continue;
+    }
     for (const l of f.lignes) {
       const montantTTC = l.prixHT + l.montantTva;
       lignes.push({
@@ -136,6 +194,7 @@ export function construireEtatDetaille(periode: string, factures: readonly Factu
     totalHT,
     totalTva,
     totalTTC: totalHT + totalTva,
+    facturesAnnulees,
     incompletudes,
     complet: incompletudes.length === 0,
     voletImportations: {

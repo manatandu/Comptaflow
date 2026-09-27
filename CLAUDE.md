@@ -4186,6 +4186,12 @@ nul : une opération exonérée et une opération au taux zéro (art. 24,
 exportations) sont deux choses différentes, et l'art. 100 exige justement de
 les distinguer.
 
+UNE FACTURE BARRÉE SE LIT À PART (2026-09-27, audit final F117, F119). Sur
+l'état détaillé, barrée par une note du mois, elle sort des totaux ; barrée
+plus tard, elle reste, la reprise se déclarant au mois de la note (art. 127,
+lecture d'OmegaX). Et ni une pièce passée au journal ni une note de crédit ne
+se suppriment · la base dénouerait le lien, et la note débarrerait la facture.
+
 AUCUNE COMPTABILITÉ PARALLÈLE · règle de revue de la § 7 du plan de
 construction. La facture ne porte aucun montant au grand livre : elle POINTE
 vers l'écriture passée par `EcritureService`, un pour un, et c'est l'écriture
@@ -4418,6 +4424,12 @@ est présumé convenu hors taxes ». Et les deux délais de dénonciation : un d
 apparent le jour de la prise de livraison se dénonce DANS LE MOIS sous peine de
 DÉCHÉANCE (art. 258), un défaut caché se prescrit par UN AN du jour où il a été
 constaté ou aurait dû l'être (art. 259).
+
+L'ACCEPTATION TARDIVE NE FORME RIEN (2026-09-27, audit final F118). Parvenue
+après la date limite, une acceptation laisse l'offre CADUQUE · l'art. 243 veut
+l'offre « acceptée dans le délai stipulé », et l'AUDCG, qui ne règle pas
+l'acceptation tardive, ne lui donne aucun effet. Le fait reçu est gardé, sans
+en faire ni un contrat ni un refus ; sans délai stipulé, rien n'est tranché.
 
 ENFIN LE DEVIS N'EST PAS OBLIGATOIRE, à la différence de la facture. Art. 240 ·
 « le contrat de vente commerciale peut être écrit ou verbal ; il n'est soumis à

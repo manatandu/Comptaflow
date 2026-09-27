@@ -111,6 +111,17 @@ type EtatDetaille = {
   totalHT: number;
   totalTva: number;
   totalTTC: number;
+  /** Factures barrées par une note de crédit (audit final F117), montrées à part. */
+  facturesAnnulees?: {
+    numeroFacture: string;
+    dateFacture: string;
+    fournisseurNom: string | null;
+    noteDeCredit: string;
+    dateNote: string;
+    tvaFacturee: number;
+    ecarteeDesTotaux: boolean;
+    motif: string;
+  }[];
   incompletudes: { numeroFacture: string; designation: string; manques: string[] }[];
   complet: boolean;
   voletImportations: { couvert: boolean; motif: string };
@@ -217,9 +228,10 @@ export function FacturationPage() {
 
   /**
    * Supprimer une pièce saisie par erreur (audit de l'interface du
-   * 2026-09-27, I11). Seulement tant qu'aucune écriture ne la porte et
-   * qu'elle n'est pas barrée · une facture annulée se CONSERVE (décret
-   * n° 011/42, art. 127), et le serveur le refuse aussi, avec ce motif.
+   * 2026-09-27, I11). Seulement tant qu'aucune écriture ne la porte, qu'elle
+   * n'est pas barrée et qu'elle n'est pas une note de crédit · une facture
+   * annulée et la note qui l'annule se CONSERVENT (décret n° 011/42,
+   * art. 127), et le serveur le refuse aussi, avec ce motif (audit final F119).
    */
   async function supprimer(factureId: string, numero: string) {
     if (!window.confirm(`Supprimer la pièce « ${numero} » ?`)) return;
@@ -516,6 +528,20 @@ export function FacturationPage() {
               </table>
             </div>
 
+            {(detaille.facturesAnnulees ?? []).length > 0 && (
+              <div className="mt-2 border border-border px-2.5 py-1.5">
+                <p className="text-[11.5px] font-bold">Factures barrées par une note de crédit</p>
+                <ul className="text-[11.5px] text-text-dim mt-1">
+                  {(detaille.facturesAnnulees ?? []).map((a) => (
+                    <li key={a.numeroFacture}>
+                      Facture {a.numeroFacture} du {a.dateFacture} · TVA {somme(a.tvaFacturee)} ·{' '}
+                      {a.ecarteeDesTotaux ? 'hors des totaux' : 'comprise dans les totaux'} · {a.motif}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {detaille.incompletudes.length > 0 && (
               <div className="mt-2 border border-border px-2.5 py-1.5">
                 <p className="text-[11.5px] font-bold">Lignes incomplètes au regard de l'art. 134</p>
@@ -590,7 +616,9 @@ export function FacturationPage() {
                       )}
                       {peutEcrire && !f.ecritureId && <PasserEcritureFacture facture={f} onFait={() => void recharger()} />}
                       {f.ecritureId && <p className="text-[11px] text-text-dim mt-1">Écriture passée</p>}
-                      {peutEcrire && !f.ecritureId && !f.barree && (
+                      {/* Ni une pièce passée au journal, ni une facture barrée, ni une note de
+                          crédit, qui débarrerait la facture qu'elle annule (audit final F119). */}
+                      {peutEcrire && !f.ecritureId && !f.barree && f.nature === 'FACTURE' && (
                         <button
                           type="button"
                           className="mt-1 text-[11px] underline text-text-dim block"

@@ -425,6 +425,46 @@ describe('Le service · qui est l’émetteur, et qui est la contrepartie', () =
   });
 });
 
+describe('F117 · une facture barrée par une note de crédit ne se lit pas comme les autres (décret n° 011/42, art. 127)', () => {
+  const note = (date: string) => ({ numeroSerie: 'NC-3', dateFacture: new Date(date) });
+
+  it('barrée par une note DU MOIS · hors des lignes et des totaux, montrée à part', () => {
+    const e = construireEtatDetaille('2026-09', [achat(), achat({ numeroSerie: 'FA-002', annuleePar: note('2026-09-30') })]);
+    expect(e.lignes.map((l) => l.numeroFacture)).toEqual(['FA-001']);
+    expect(e.totalTva).toBe(8_000);
+    expect(e.facturesAnnulees).toEqual([
+      expect.objectContaining({ numeroFacture: 'FA-002', noteDeCredit: 'NC-3', dateNote: '2026-09-30', tvaFacturee: 8_000, ecarteeDesTotaux: true }),
+    ]);
+  });
+
+  it('barrée par une note POSTÉRIEURE · reste sur l’état tel qu’il est parti, et la reprise est dite', () => {
+    const e = construireEtatDetaille('2026-09', [achat({ annuleePar: note('2026-10-01') })]);
+    expect(e.lignes).toHaveLength(1);
+    expect(e.totalTva).toBe(8_000);
+    expect(e.facturesAnnulees[0]).toMatchObject({ ecarteeDesTotaux: false, dateNote: '2026-10-01' });
+    expect(e.facturesAnnulees[0].motif).toMatch(/au mois de la note/);
+  });
+
+  it('le service lit la note qui barre la facture, et la porte au moteur', async () => {
+    const { svc, prisma } = service([
+      {
+        numeroSerie: 'FA-9',
+        dateFacture: new Date('2026-09-04'),
+        emetteurNom: 'Fournisseur SARL',
+        emetteurNumeroImpot: 'C1111111Z',
+        noteDeCredit: { numeroSerie: 'NC-1', dateFacture: new Date('2026-09-20') },
+        lignes: [{ designation: 'Papier', quantite: new Prisma.Decimal(1), montantHT: new Prisma.Decimal(100), montantTva: new Prisma.Decimal(16), imposable: true }],
+      },
+    ]);
+    const e = await svc.etatDetaille('t', '2026-09');
+    // La doublure rend ce qu'on lui donne · la requête doit donc DEMANDER la note.
+    const arg = ((prisma.facture as Faux).findMany as jest.Mock).mock.calls[0][0];
+    expect(arg.include.noteDeCredit).toEqual({ select: { numeroSerie: true, dateFacture: true } });
+    expect(e.lignes).toHaveLength(0);
+    expect(e.facturesAnnulees).toEqual([expect.objectContaining({ numeroFacture: 'FA-9', noteDeCredit: 'NC-1', ecarteeDesTotaux: true })]);
+  });
+});
+
 describe('L’état détaillé ne lit QUE les factures d’achat', () => {
   it('borne sa requête au sens ACHAT et au mois demandé', async () => {
     const { svc, prisma } = service([]);

@@ -180,6 +180,24 @@ describe('L’état du devis · le silence ne vaut RIEN', () => {
     expect(e.etat).toBe('ACCEPTE');
   });
 
+  it('F118 · une acceptation parvenue APRÈS le délai stipulé ne forme aucun contrat (art. 243)', () => {
+    // Délai de 30 jours depuis le 1er septembre · limite au 1er octobre.
+    for (const nature of [NatureReponseDevis.ACCEPTATION, NatureReponseDevis.MODIFICATION_NON_SUBSTANTIELLE]) {
+      const e = etatDevis({ ...base, natureReponse: nature, dateReponse: new Date('2026-10-02T00:00:00Z'), reference: new Date('2026-10-05T00:00:00Z') });
+      expect(e.etat).toBe('CADUC');
+      expect(e.explication).toMatch(/aucun contrat n’est formé/);
+    }
+    // Le dernier jour du délai reste dans le délai.
+    const aLaLimite = etatDevis({ ...base, natureReponse: NatureReponseDevis.ACCEPTATION, dateReponse: new Date('2026-10-01T00:00:00Z'), reference: new Date('2026-10-05T00:00:00Z') });
+    expect(aLaLimite.etat).toBe('ACCEPTE');
+    // Sans délai stipulé, le délai raisonnable ne se chiffre pas · rien n'est tranché à la place du cabinet.
+    const sansDelai = etatDevis({ ...base, delaiJours: null, natureReponse: NatureReponseDevis.ACCEPTATION, dateReponse: new Date('2027-01-02T00:00:00Z'), reference: new Date('2027-01-05T00:00:00Z') });
+    expect(sansDelai.etat).toBe('ACCEPTE');
+    // Une contre-proposition tardive reste une offre nouvelle, et un refus reste un refus.
+    expect(etatDevis({ ...base, natureReponse: NatureReponseDevis.MODIFICATION_SUBSTANTIELLE, dateReponse: new Date('2026-10-02T00:00:00Z'), reference: new Date('2026-10-05T00:00:00Z') }).etat).toBe('CONTRE_PROPOSITION');
+    expect(etatDevis({ ...base, natureReponse: NatureReponseDevis.REFUS, dateReponse: new Date('2026-10-02T00:00:00Z'), reference: new Date('2026-10-05T00:00:00Z') }).etat).toBe('REFUSE');
+  });
+
   it('une révocation antérieure à la référence rend l’offre révoquée', () => {
     const e = etatDevis({ ...base, revoqueLe: new Date('2026-09-05T00:00:00Z'), reference: new Date('2026-09-10T00:00:00Z') });
     expect(e.etat).toBe('REVOQUE');

@@ -273,6 +273,28 @@ export function etatDevis(s: SituationDevis): EtatCalcule {
   // « au moment où l'expression de l'acquiescement PARVIENT à l'auteur de
   // l'offre ». Une révocation postérieure n'y peut plus rien (art. 242).
   if (s.natureReponse && s.dateReponse) {
+    // UNE ACCEPTATION PARVENUE APRÈS LE DÉLAI STIPULÉ NE FORME RIEN (audit
+    // final F118). Art. 243 · l'offre « DOIT ÊTRE ACCEPTÉE DANS LE DÉLAI
+    // stipulé » ; passé ce délai elle est caduque, et l'art. 244 ne donne
+    // effet qu'à l'acceptation d'une offre. L'AUDCG ne dit pas ce que devient
+    // une acceptation tardive · OmegaX n'en fait ni un contrat ni un refus,
+    // il la garde comme un fait reçu et le dit. Le refus et la
+    // contre-proposition, eux, gardent leur sens · la seconde est une offre
+    // nouvelle, que la caducité de la première n'atteint pas.
+    const tardive =
+      dateLimite !== null &&
+      s.dateReponse.getTime() > dateLimite.getTime() &&
+      (s.natureReponse === 'ACCEPTATION' || s.natureReponse === 'MODIFICATION_NON_SUBSTANTIELLE');
+    if (tardive) {
+      return {
+        etat: 'CADUC',
+        dateLimite,
+        article: 'AUDCG art. 243 et 244',
+        explication:
+          'L’acceptation est parvenue après le délai stipulé : l’offre était caduque et aucun contrat n’est formé. ' +
+          'Pour conclure, une offre nouvelle est à émettre ou à recevoir.',
+      };
+    }
     switch (s.natureReponse) {
       case 'ACCEPTATION':
         return {
