@@ -191,6 +191,13 @@ const GESTES: Array<{ route: string; controleur: string; decorateur: string; pag
     page: 'TiersPage.tsx',
     appel: 'api.patch(`/modeles-reglement/${m.id}`, corps)',
   },
+  {
+    route: 'PATCH /ecritures/:id',
+    controleur: 'comptabilite/ecriture.controller.ts',
+    decorateur: "@Patch(':id')",
+    page: 'BrouillardPage.tsx',
+    appel: 'api.patch(`/ecritures/${edition.id}`, corps)',
+  },
 ];
 
 describe('routes d’écriture et leur geste', () => {

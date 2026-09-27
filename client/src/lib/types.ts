@@ -1595,11 +1595,19 @@ export interface LigneBrouillard {
   /** Au-delà du délai de centralisation hebdomadaire du SYCEBNL. */
   retardCentralisation: boolean;
   lignes: {
+    compteId: string;
     compteNumero: string;
     compteIntitule: string;
     libelle: string | null;
     debit: number;
     credit: number;
+    tauxTvaId: string | null;
+    dateEcheance: string | null;
+    dateVersement: string | null;
+    deviseId: string | null;
+    montantDevise: number | null;
+    coursApplique: number | null;
+    ventilations: { sectionId: string; debit: number; credit: number }[];
   }[];
 }
 

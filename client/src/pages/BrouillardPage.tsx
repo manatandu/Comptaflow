@@ -3,8 +3,9 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { Aide } from '../components/chrome/Aide';
-import type { EtatBrouillard, Journal, ResultatValidation } from '../lib/types';
+import type { Compte, EtatBrouillard, Journal, LigneBrouillard, ResultatValidation } from '../lib/types';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
+import { PortailModale } from '../components/PortailModale';
 
 /**
  * BROUILLARD · État → Brouillard de Sage 100 i7 : « un document qui permet de
@@ -30,6 +31,73 @@ import { EnteteImpression } from '../components/chrome/EnteteImpression';
  * clôturé. C'est moins exigeant, et sans rapport avec un délai.
  */
 
+type LigneOrigine = LigneBrouillard['lignes'][number];
+
+/** Une ligne en cours de modification · l'origine garde tout ce que l'écran ne montre pas. */
+interface LigneEditee {
+  origine: LigneOrigine | null;
+  compteId: string;
+  numero: string;
+  libelle: string;
+  debit: string;
+  credit: string;
+}
+
+interface EcritureEditee {
+  id: string;
+  numeroPiece: number | null;
+  journal: string;
+  date: string;
+  libelle: string;
+  reference: string;
+  lignes: LigneEditee[];
+}
+
+function lireMontant(s: string): number {
+  const n = Number(s.replace(/\s/g, '').replace(',', '.'));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/**
+ * Le corps du PATCH, avec les MÊMES clés que la saisie. Le serveur remplace
+ * les lignes en bloc : tout ce que la ligne portait (taux de TVA, échéance,
+ * date de versement, devise, ventilation) est renvoyé tel quel, sans quoi la
+ * correction d'un libellé effacerait une facture en dollars ou sortirait une
+ * dépense de son projet. Une ventilation qui couvrait la ligne entière suit le
+ * nouveau montant, comme à la saisie (une section par axe) ; une ventilation
+ * partielle reste telle quelle, et le serveur refuse si elle ne boucle plus.
+ */
+function corpsModification(e: EcritureEditee) {
+  return {
+    date: e.date,
+    libelle: e.libelle,
+    reference: e.reference,
+    lignes: e.lignes.map((l) => {
+      const debit = lireMontant(l.debit);
+      const credit = lireMontant(l.credit);
+      const o = l.origine;
+      const ventilations = (o?.ventilations ?? []).map((v) =>
+        v.debit === o!.debit && v.credit === o!.credit
+          ? { sectionId: v.sectionId, debit: debit || undefined, credit: credit || undefined }
+          : { sectionId: v.sectionId, debit: v.debit || undefined, credit: v.credit || undefined },
+      );
+      return {
+        compteId: l.compteId,
+        libelle: l.libelle || undefined,
+        debit: debit || undefined,
+        credit: credit || undefined,
+        tauxTvaId: o?.tauxTvaId ?? undefined,
+        dateEcheance: o?.dateEcheance ?? undefined,
+        dateVersement: o?.dateVersement ?? undefined,
+        deviseId: o?.deviseId ?? undefined,
+        montantDevise: o?.montantDevise ?? undefined,
+        coursApplique: o?.coursApplique ?? undefined,
+        ...(ventilations.length > 0 ? { ventilations } : {}),
+      };
+    }),
+  };
+}
+
 function montant(n: number): string {
   return n !== 0 ? n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
 }
@@ -47,6 +115,9 @@ export function BrouillardPage() {
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
+  const [edition, setEdition] = useState<EcritureEditee | null>(null);
+  const [erreurEdition, setErreurEdition] = useState<string | null>(null);
+  const [comptes, setComptes] = useState<Compte[] | null>(null);
 
   const charger = async () => {
     if (!exerciceCourant) return;
@@ -143,6 +214,77 @@ export function BrouillardPage() {
       await charger();
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Validation impossible');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  /**
+   * « Modifier » une écriture du brouillard (audit de l'interface du
+   * 2026-09-27, I11) · la route existait sans geste, si bien qu'une erreur de
+   * compte ou de montant imposait de supprimer la pièce et de la ressaisir, en
+   * perdant son numéro. Seul le brouillard se modifie ; une écriture validée
+   * passe par la correction (AUDCIF art. 20), et le serveur refuse une pièce
+   * lettrée, pointée ou tenue par un module.
+   */
+  const ouvrirEdition = (l: LigneBrouillard) => {
+    setErreurEdition(null);
+    if (!comptes) api.get<Compte[]>('/comptes?typeCompte=DETAIL').then(setComptes, () => setComptes([]));
+    setEdition({
+      id: l.id,
+      numeroPiece: l.numeroPiece,
+      journal: l.journal,
+      date: l.date,
+      libelle: l.libelle,
+      reference: l.reference ?? '',
+      lignes: l.lignes.map((li) => ({
+        origine: li,
+        compteId: li.compteId,
+        numero: li.compteNumero,
+        libelle: li.libelle ?? '',
+        debit: li.debit ? String(li.debit) : '',
+        credit: li.credit ? String(li.credit) : '',
+      })),
+    });
+  };
+
+  const changerLigne = (i: number, champ: 'numero' | 'libelle' | 'debit' | 'credit', valeur: string) =>
+    setEdition((e) => {
+      if (!e) return e;
+      const lignes = e.lignes.map((l, k) => {
+        if (k !== i) return l;
+        if (champ !== 'numero') return { ...l, [champ]: valeur };
+        const trouve = (comptes ?? []).find((c) => c.numero === valeur.trim());
+        return { ...l, numero: valeur, compteId: trouve?.id ?? '' };
+      });
+      return { ...e, lignes };
+    });
+
+  const totalEdition = (e: EcritureEditee) => ({
+    debit: e.lignes.reduce((s, l) => s + lireMontant(l.debit), 0),
+    credit: e.lignes.reduce((s, l) => s + lireMontant(l.credit), 0),
+  });
+
+  const enregistrerEdition = async (confirmerComptesEnSommeil = false) => {
+    if (!edition) return;
+    const inconnue = edition.lignes.findIndex((l) => !l.compteId);
+    if (inconnue >= 0) {
+      setErreurEdition(`Ligne ${inconnue + 1} : compte ${edition.lignes[inconnue].numero || 'vide'} introuvable au plan.`);
+      return;
+    }
+    setEnvoi(true);
+    setErreurEdition(null);
+    try {
+      const corps = {
+        ...corpsModification(edition),
+        ...(confirmerComptesEnSommeil ? { confirmerComptesEnSommeil: true } : {}),
+      };
+      await api.patch(`/ecritures/${edition.id}`, corps);
+      setEdition(null);
+      setInfo('Écriture du brouillard modifiée.');
+      await charger();
+    } catch (e) {
+      setErreurEdition(e instanceof ApiError ? e.message : 'Modification impossible');
     } finally {
       setEnvoi(false);
     }
@@ -331,7 +473,16 @@ export function BrouillardPage() {
               >
                 {l.ancienneteJours} j
               </span>
-              <span className="text-right">
+              <span className="text-right whitespace-nowrap">
+                {peutEcrire && (
+                  <button
+                    onClick={() => ouvrirEdition(l)}
+                    title="Modifier la pièce au brouillard"
+                    className="text-[11.5px] text-sel hover:underline mr-2"
+                  >
+                    Modifier
+                  </button>
+                )}
                 {peutEcrire && (
                   <button
                     onClick={() => supprimer(l.id)}
@@ -384,6 +535,167 @@ export function BrouillardPage() {
         )}
       </div>
 
+      {edition && (
+        <PortailModale>
+          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 anim-voile">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void enregistrerEdition();
+              }}
+              className="w-full max-w-[760px] bg-surface border border-border rounded-[4px] overflow-hidden shadow-flottante anim-modale modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto"
+            >
+              <div className="h-[32px] flex items-center justify-between px-3 bg-surface text-text border-b border-border text-[11.5px]">
+                <span>
+                  Modifier la pièce {edition.journal} {edition.numeroPiece ?? ''}
+                </span>
+                <Aide
+                  titre="Modifier au brouillard"
+                  texte="Tant qu'elle n'est pas validée, une pièce se modifie : date, libellé, référence, comptes et montants. Le taux de TVA, l'échéance, la devise et la ventilation de chaque ligne sont conservés. Une pièce lettrée ou pointée se délettre ou se dépointe d'abord ; une pièce validée se corrige par inscription en négatif."
+                  source="AUDCIF, art. 20 et 22"
+                />
+              </div>
+              <div className="p-3 flex flex-col gap-2.5 text-[11.5px]">
+                <div className="grid grid-cols-[140px_1fr_160px] gap-2">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[11px] font-bold text-text-dim">Date</span>
+                    <input
+                      type="date"
+                      required
+                      value={edition.date}
+                      onChange={(e) => setEdition({ ...edition, date: e.target.value })}
+                      className="border border-border px-2 py-1"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[11px] font-bold text-text-dim">Libellé</span>
+                    <input
+                      required
+                      value={edition.libelle}
+                      onChange={(e) => setEdition({ ...edition, libelle: e.target.value })}
+                      className="border border-border px-2 py-1"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[11px] font-bold text-text-dim">Référence</span>
+                    <input
+                      value={edition.reference}
+                      onChange={(e) => setEdition({ ...edition, reference: e.target.value })}
+                      className="border border-border px-2 py-1"
+                    />
+                  </label>
+                </div>
+                <table className="w-full">
+                  <thead>
+                    <tr>
+                      <th className="text-left w-[110px]">Compte</th>
+                      <th className="text-left">Libellé</th>
+                      <th className="text-right w-[110px]">Débit</th>
+                      <th className="text-right w-[110px]">Crédit</th>
+                      <th className="w-[70px]" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {edition.lignes.map((l, i) => (
+                      <tr key={i}>
+                        <td>
+                          <input
+                            value={l.numero}
+                            onChange={(e) => changerLigne(i, 'numero', e.target.value)}
+                            title={
+                              (comptes ?? []).find((c) => c.id === l.compteId)?.intitule ??
+                              l.origine?.compteIntitule ??
+                              ''
+                            }
+                            className={`w-full border px-1.5 py-0.5 ${l.compteId ? 'border-border' : 'border-danger'}`}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            value={l.libelle}
+                            onChange={(e) => changerLigne(i, 'libelle', e.target.value)}
+                            className="w-full border border-border px-1.5 py-0.5"
+                          />
+                        </td>
+                        <td>
+                          <input
+                            value={l.debit}
+                            onChange={(e) => changerLigne(i, 'debit', e.target.value)}
+                            className="w-full border border-border px-1.5 py-0.5 text-right"
+                          />
+                        </td>
+                        <td>
+                          <input
+                            value={l.credit}
+                            onChange={(e) => changerLigne(i, 'credit', e.target.value)}
+                            className="w-full border border-border px-1.5 py-0.5 text-right"
+                          />
+                        </td>
+                        <td className="text-right">
+                          {edition.lignes.length > 2 && (
+                            <button
+                              type="button"
+                              onClick={() => setEdition({ ...edition, lignes: edition.lignes.filter((_, k) => k !== i) })}
+                              className="text-danger/70 hover:text-danger"
+                            >
+                              Retirer
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr>
+                      <td colSpan={2}>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEdition({
+                              ...edition,
+                              lignes: [
+                                ...edition.lignes,
+                                { origine: null, compteId: '', numero: '', libelle: '', debit: '', credit: '' },
+                              ],
+                            })
+                          }
+                          className="text-sel hover:underline"
+                        >
+                          Ajouter une ligne
+                        </button>
+                      </td>
+                      <td className="text-right font-mono font-bold">{montant(totalEdition(edition).debit)}</td>
+                      <td className="text-right font-mono font-bold">{montant(totalEdition(edition).credit)}</td>
+                      <td />
+                    </tr>
+                  </tbody>
+                </table>
+                {erreurEdition && (
+                  <div className="text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5">
+                    {erreurEdition}
+                    {erreurEdition.startsWith('Compte en sommeil') && (
+                      <button
+                        type="button"
+                        disabled={envoi}
+                        onClick={() => void enregistrerEdition(true)}
+                        className="ml-2 px-2 py-0.5 border border-border bg-surface text-text"
+                      >
+                        Confirmer la saisie sur le compte en sommeil
+                      </button>
+                    )}
+                  </div>
+                )}
+                <div className="flex justify-end gap-2">
+                  <button type="button" onClick={() => setEdition(null)} className="border border-border px-3 py-1">
+                    Abandonner
+                  </button>
+                  <button type="submit" disabled={envoi} className="bg-sel text-white font-semibold px-3.5 py-1 disabled:opacity-50">
+                    Enregistrer
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </PortailModale>
+      )}
     </div>
   );
 }
