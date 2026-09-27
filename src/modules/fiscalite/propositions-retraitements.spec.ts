@@ -55,7 +55,10 @@ function service(options: {
   const ecritures = {
     balance: jest.fn().mockResolvedValue({
       lignes: [
-        { numero: '70110000', intitule: 'Ventes', typeCompte: 'DETAIL', solde: -(options.chiffreAffaires ?? 0) },
+        {
+          numero: '70110000', intitule: 'Ventes', typeCompte: 'DETAIL',
+          solde: -(options.chiffreAffaires ?? 0), mouvementDebit: 0, mouvementCredit: options.chiffreAffaires ?? 0,
+        },
         ...(options.chargesComptables
           ? [{ numero: '60110000', intitule: 'Achats', typeCompte: 'DETAIL', solde: options.chargesComptables }]
           : []),

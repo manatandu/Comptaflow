@@ -38,6 +38,8 @@ type Etat = {
   ecarts?: Record<string, unknown>[];
   membres?: { role: RoleMembreInventaire }[];
   balance?: { compteId: string; solde: number }[];
+  /** Lignes au brouillard sur les comptes inventoriés, au rapprochement. */
+  lignesAuBrouillard?: number;
   exercice?: Record<string, unknown>;
   /** Les lignes des comptes 57 · ce que la couverture des caisses regarde. */
   lignesCaisse?: { debit: number; credit: number; compte: { id: string; numero: string; intitule: string } }[];
@@ -76,7 +78,10 @@ function service(etat: Etat = {}) {
     // Le PV de comptage par caisse · la clôture vérifie désormais que chaque
     // caisse à solde non nul a le sien. Sans ces deux faux, elle croirait la
     // table absente plutôt que la couverture complète.
-    ligneEcriture: { findMany: jest.fn().mockResolvedValue(etat.lignesCaisse ?? []) },
+    ligneEcriture: {
+      findMany: jest.fn().mockResolvedValue(etat.lignesCaisse ?? []),
+      count: jest.fn().mockResolvedValue(etat.lignesAuBrouillard ?? 0),
+    },
     procesVerbalComptageCaisse: {
       findMany: jest.fn().mockResolvedValue(etat.pvCaisse ?? []),
       create: jest.fn().mockImplementation((a: { data: Record<string, unknown> }) => Promise.resolve({ id: 'pv1', ...a.data })),
@@ -167,7 +172,7 @@ describe('rapprochement · étape 4, la comparaison avec la balance provisoire',
     await expect(svc.rapprocher('t1', 'camp1')).rejects.toThrow(/sans valeur d'inventaire/);
   });
 
-  it('prend la balance BROUILLARD COMPRIS · c’est celle que le comptable a sous les yeux', async () => {
+  it('prend la balance du LIVRE-JOURNAL · un solde figé ne se prend pas sur du provisoire (F6)', async () => {
     const ecritures = {
       balance: jest.fn().mockResolvedValue({ lignes: [{ compteId: 'c1', solde: 100 }], totaux: { debit: 0, credit: 0 } }),
     } as unknown as EcritureService;
@@ -178,9 +183,36 @@ describe('rapprochement · étape 4, la comparaison avec la balance provisoire',
     });
     Object.assign(svc as unknown as Record<string, unknown>, { ecritures });
     await svc.rapprocher('t1', 'camp1');
-    // Exclure le brouillard fabriquerait des écarts que la validation du
-    // lendemain effacerait · le troisième argument doit rester `true`.
-    expect((ecritures.balance as jest.Mock).mock.calls[0]).toEqual(['t1', 'ex1', true]);
+    // Le solde est figé et fonde un mali · il se lit sur le livre-journal,
+    // le troisième argument est `false` (audit du 2026-09-27, F6).
+    expect((ecritures.balance as jest.Mock).mock.calls[0]).toEqual(['t1', 'ex1', false]);
+  });
+
+  it('REFUSE de rapprocher tant qu’une ligne des comptes inventoriés est au brouillard', async () => {
+    const { svc, creerEcart } = service({
+      campagne: campagne(StatutCampagneInventaire.RECENSEMENT),
+      fiches: [fiche('c1', 100)],
+      balance: [{ compteId: 'c1', solde: 100 }],
+      lignesAuBrouillard: 2,
+    });
+    // Lu hors brouillard sans ce refus, l'écart porterait sur un solde qu'une
+    // validation du lendemain déplacerait · figé, il resterait faux.
+    await expect(svc.rapprocher('t1', 'camp1')).rejects.toThrow(/2 ligne\(s\) au brouillard/);
+    expect(creerEcart).not.toHaveBeenCalled();
+  });
+
+  it('le décompte du brouillard est borné aux comptes inventoriés et à l’exercice de la campagne', async () => {
+    const { svc, prisma } = service({
+      campagne: campagne(StatutCampagneInventaire.RECENSEMENT),
+      fiches: [fiche('c1', 100), fiche('c2', 50), fiche('c1', 10)],
+      balance: [{ compteId: 'c1', solde: 110 }, { compteId: 'c2', solde: 50 }],
+    });
+    await svc.rapprocher('t1', 'camp1');
+    const where = (prisma.ligneEcriture.count as jest.Mock).mock.calls[0][0].where;
+    expect(where).toEqual({
+      compteId: { in: ['c1', 'c2'] },
+      ecriture: { tenantId: 't1', exerciceId: 'ex1', statut: 'BROUILLARD' },
+    });
   });
 
   it('compare à la VALEUR ABSOLUE du solde · un compte de passif est créditeur', async () => {

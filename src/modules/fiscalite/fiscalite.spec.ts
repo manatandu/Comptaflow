@@ -23,6 +23,10 @@ function service(options: {
   referentiel?: Referentiel;
   forme?: FormeJuridiqueSyscohada | null;
   balances: Record<string, Ligne[]>;
+  /** Écritures ordinaires restées au BROUILLARD, par exercice. */
+  brouillards?: Record<string, Ligne[]>;
+  /** Écriture de CLÔTURE (au brouillard, `estGenereeParCloture`), par exercice. */
+  clotures?: Record<string, Ligne[]>;
   exercices?: { id: string; dateDebut: Date; dateFin: Date }[];
   retraitements?: Record<string, { sens: SensRetraitementFiscal; montant: number }[]>;
   dossier?: {
@@ -86,11 +90,40 @@ function service(options: {
           : null,
     },
   };
+  // LA DOUBLURE HONORE LE BROUILLARD ET SÉPARE LES REPORTS DES MOUVEMENTS,
+  // comme `EcritureService.balance` · une doublure qui rendait la même balance
+  // quel que soit le troisième argument validait un service qui lisait le
+  // provisoire (audit du 2026-09-27, F6). L'écriture de clôture, comme en
+  // production, compte dans les reports et jamais dans les mouvements.
   const ecritures = {
-    balance: async (_t: string, exerciceId: string) => ({
-      lignes: (options.balances[exerciceId] ?? []).map((l) => ({ ...l, typeCompte: l.typeCompte ?? D })),
-      totaux: { debit: 0, credit: 0 },
-    }),
+    balance: async (_t: string, exerciceId: string, inclureBrouillard = true) => {
+      const parNumero = new Map<string, Ligne & { reportDebit: number; reportCredit: number; mouvementDebit: number; mouvementCredit: number }>();
+      const verser = (lignes: Ligne[] | undefined, estCloture: boolean) => {
+        for (const l of lignes ?? []) {
+          const a = parNumero.get(l.numero) ?? {
+            numero: l.numero, solde: 0, typeCompte: l.typeCompte ?? D,
+            reportDebit: 0, reportCredit: 0, mouvementDebit: 0, mouvementCredit: 0,
+          };
+          a.solde += l.solde;
+          const debit = Math.max(l.solde, 0);
+          const credit = Math.max(-l.solde, 0);
+          if (estCloture) {
+            a.reportDebit += debit;
+            a.reportCredit += credit;
+          } else {
+            a.mouvementDebit += debit;
+            a.mouvementCredit += credit;
+          }
+          parNumero.set(l.numero, a);
+        }
+      };
+      verser(options.balances[exerciceId], false);
+      if (inclureBrouillard) {
+        verser(options.brouillards?.[exerciceId], false);
+        verser(options.clotures?.[exerciceId], true);
+      }
+      return { lignes: [...parNumero.values()], totaux: { debit: 0, credit: 0 } };
+    },
   };
   return { s: new FiscaliteService(prisma as never, ecritures as never), crees };
 }
@@ -1269,5 +1302,60 @@ describe('Passe F13 · la simulation d’avant 2026 ne fonde pas les acomptes', 
     expect(t2025).toContain("N'EST PAS la base légale");
     expect(t2025).not.toContain('La base servie ci-dessous est la première branche');
     expect(t2026).toContain('La base servie ci-dessous est la première branche');
+  });
+});
+
+/**
+ * LE LIVRE-JOURNAL SEUL, ET SANS L'ÉCRITURE DE CLÔTURE · audit du serveur du
+ * 2026-09-27, F6.
+ *
+ * La balance lue brouillard compris faisait entrer dans l'impôt une écriture
+ * provisoire, et l'écriture de clôture (au brouillard, par construction) y
+ * soldait la classe 7 de tout exercice clos : son chiffre d'affaires valait
+ * zéro, et l'historique de l'art. 113 n'était fait que de zéros.
+ */
+describe('Lecture du livre-journal · brouillard et écriture de clôture (F6)', () => {
+  const ex = (id: string, annee: number) => ({
+    id,
+    dateDebut: new Date(Date.UTC(annee, 0, 1)),
+    dateFin: new Date(Date.UTC(annee, 11, 31)),
+  });
+
+  it('un exercice clos rend son chiffre d’affaires du livre-journal, clôture au brouillard comprise', async () => {
+    const { s } = service({
+      balances: { N: [ligne('70110000', -1000), ligne('60110000', 400)] },
+      // L'écriture de clôture solde 70 et 60 sur le 13.
+      clotures: { N: [ligne('70110000', 1000), ligne('60110000', -400), ligne('13100000', -600)] },
+    });
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(['chiffreAffaires', r.chiffreAffaires]).toEqual(['chiffreAffaires', 1000]);
+    expect(['resultatComptable', r.resultatComptable]).toEqual(['resultatComptable', 600]);
+  });
+
+  it('une écriture au brouillard ne change pas l’impôt', async () => {
+    const lignesN = [ligne('70110000', -1_000_000), ligne('60110000', 200_000)];
+    const sans = await service({ balances: { N: lignesN } }).s.resultatFiscal('t1', 'N');
+    const avec = await service({
+      balances: { N: lignesN },
+      brouillards: { N: [ligne('70110000', -5_000_000)] },
+    }).s.resultatFiscal('t1', 'N');
+    expect(['impotDu', avec.impotDu]).toEqual(['impotDu', sans.impotDu]);
+    expect(['chiffreAffaires', avec.chiffreAffaires]).toEqual(['chiffreAffaires', 1_000_000]);
+  });
+
+  it('l’historique de l’art. 113 lit les chiffres d’affaires RÉELS des exercices clos', async () => {
+    // 400 000 000 en 2025, exercice clos dont la clôture solde la classe 7 ;
+    // 100 000 000 en 2026. Un seul exercice sous le seuil · le régime réel
+    // est maintenu. Lu à zéro, 2025 ferait descendre le dossier sur une
+    // activité fictive.
+    const { s } = service({
+      forme: FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE,
+      exercices: [ex('N-1', 2025), ex('N', 2026)],
+      balances: { 'N-1': [ligne('70110000', -400_000_000)], N: [ligne('70110000', -100_000_000)] },
+      clotures: { 'N-1': [ligne('70110000', 400_000_000), ligne('13100000', -400_000_000)] },
+      dossier: { natureActivite: 'VENTE' },
+    });
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(['regime', r.regime]).toEqual(['regime', 'IRPP_REGIME_REEL']);
   });
 });

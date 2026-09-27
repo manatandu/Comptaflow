@@ -331,3 +331,39 @@ describe('synthèse · deux taux qui ne disent pas la même chose', () => {
     });
   });
 });
+
+/**
+ * LE SOLDE QUI PART CHEZ LE TIERS EST CELUI DU LIVRE-JOURNAL · audit du
+ * serveur du 2026-09-27, F6. Pris brouillard compris, la lettre figeait une
+ * écriture que personne n'a validée, et le désaccord du tiers devenait un
+ * écart fabriqué par le logiciel.
+ */
+describe('livre-journal seul · échantillon et lettre (F6)', () => {
+  // La doublure rend deux balances selon le troisième argument, comme
+  // `EcritureService.balance` · une doublure qui l'ignore validerait un
+  // service qui lit le provisoire.
+  const avecBrouillard = (svc: CircularisationService) => {
+    const balance = jest.fn().mockImplementation((_t: string, _ex: string, inclureBrouillard = true) =>
+      Promise.resolve({
+        lignes: [{ compteId: 'c1', numero: '40110000', intitule: 'Fournisseur', solde: inclureBrouillard ? -1_500 : -1_000 }],
+        totaux: { debit: 0, credit: 0 },
+      }),
+    );
+    Object.assign(svc as unknown as Record<string, unknown>, { ecritures: { balance } });
+  };
+
+  it('la lettre fige le solde du livre-journal, pas celui du brouillard', async () => {
+    const { svc, prisma } = service({ campagne: campagne(StatutCampagneCircularisation.PREPARATION) });
+    avecBrouillard(svc);
+    await svc.creerDemande('t1', 'camp1', { compteId: 'c1', destinataire: 'Fournisseur' } as never);
+    const cree = (prisma.demandeConfirmation.create as jest.Mock).mock.calls[0][0].data;
+    expect(['soldeAConfirmer', cree.soldeAConfirmer]).toEqual(['soldeAConfirmer', -1_000]);
+  });
+
+  it('l’échantillon lit la même balance que la lettre', async () => {
+    const { svc } = service({ campagne: campagne(StatutCampagneCircularisation.PREPARATION) });
+    avecBrouillard(svc);
+    const r = await svc.echantillonPropose('t1', 'camp1');
+    expect(['totalCycle', r.totalCycle]).toEqual(['totalCycle', 1_000]);
+  });
+});

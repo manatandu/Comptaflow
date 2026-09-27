@@ -366,7 +366,13 @@ export class FiscaliteService {
   }
 
   private async lireBalance(tenantId: string, exerciceId: string) {
-    const balance = await this.ecritureService.balance(tenantId, exerciceId);
+    // LE LIVRE-JOURNAL SEUL (audit du serveur du 2026-09-27, F6). Un résultat
+    // fiscal, un impôt et un minimum de perception engagent le dossier devant
+    // l'Administration · ils ne se calculent pas sur une écriture restée au
+    // brouillard, qui n'est pas entrée en comptabilité (AUDCIF art. 22, 2°).
+    // `propositionsRetraitements` lit déjà ainsi, et les deux lectures d'un
+    // même exercice ne doivent pas rendre deux chiffres d'affaires.
+    const balance = await this.ecritureService.balance(tenantId, exerciceId, false);
     // GARDE-FOU CONSERVÉ, ET REDONDANT PAR CONSTRUCTION · la balance ne rend
     // plus que des comptes de détail depuis qu'elle a cessé de sous-totaliser
     // par compte principal. Le filtre reste parce qu'un agrégat compté en plus
@@ -396,9 +402,19 @@ export class FiscaliteService {
     const avantCloture = Math.abs(resultatClasses678) > 0.005;
     // Un produit est un solde créditeur, donc négatif dans la convention
     // `solde = débit - crédit` de la balance · d'où le signe.
+    //
+    // LU SUR LES MOUVEMENTS, JAMAIS SUR LE SOLDE. L'écriture de clôture solde
+    // les classes 6 et 7 de l'exercice clos (`estGenereeParCloture`, rangée
+    // par la balance avec les reports). Lu au solde, le chiffre d'affaires
+    // d'un exercice clos vaudrait zéro dès que cette écriture compte, et
+    // `chiffresAffairesAnterieurs`, qui ne lit QUE des exercices clos, rendrait
+    // à l'art. 113 un historique de zéros · le régime d'une personne physique
+    // serait déduit d'une activité fictive. Les mouvements excluent les
+    // écritures de clôture, comme `balanceCumulee` ; une classe 7 n'a pas de
+    // report à-nouveau, rien d'autre n'en sort.
     const chiffreAffaires = details
       .filter((l) => PREFIXES_CHIFFRE_AFFAIRES.some((p) => l.numero.startsWith(p)))
-      .reduce((s, l) => s - l.solde, 0);
+      .reduce((s, l) => s + l.mouvementCredit - l.mouvementDebit, 0);
     // LE 4492, PRIS DANS LA MÊME BALANCE · « État, avances et acomptes versés
     // sur impôts » (AUDCIF Titre VII, compte 449 : 4491 obligations
     // cautionnées, 4492 avances et acomptes versés sur impôts, 4493 fonds de

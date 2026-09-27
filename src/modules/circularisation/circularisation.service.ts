@@ -156,7 +156,10 @@ export class CircularisationService {
   async echantillonPropose(tenantId: string, campagneId: string) {
     const campagne = await this.campagne(tenantId, campagneId);
     const racines = CircularisationService.racinesDuCycle(campagne.cycle);
-    const { lignes } = await this.ecritures.balance(tenantId, campagne.exerciceId, true);
+    // LE LIVRE-JOURNAL SEUL, comme `creerDemande` qui fige le solde de la
+    // lettre · l'échantillon et la lettre ne doivent pas lire deux balances
+    // différentes (audit du serveur du 2026-09-27, F6).
+    const { lignes } = await this.ecritures.balance(tenantId, campagne.exerciceId, false);
 
     const candidats = lignes
       .filter((l) => l.typeCompte !== 'TOTAL' && racines.some((r) => l.numero.startsWith(r)))
@@ -194,7 +197,12 @@ export class CircularisationService {
     const compte = await this.prisma.compte.findFirst({ where: { id: dto.compteId, tenantId } });
     if (!compte) throw new NotFoundException('Compte introuvable.');
 
-    const { lignes } = await this.ecritures.balance(tenantId, campagne.exerciceId, true);
+    // LE LIVRE-JOURNAL SEUL (audit du serveur du 2026-09-27, F6). Le solde
+    // part figé chez un TIERS, qui le confirmera ou le contestera : pris
+    // brouillard compris, il porterait une écriture que personne n'a validée
+    // et qui peut encore disparaître, et le désaccord du tiers serait alors
+    // un écart fabriqué par le logiciel (AUDCIF art. 22, 2°).
+    const { lignes } = await this.ecritures.balance(tenantId, campagne.exerciceId, false);
     const ligne = lignes.find((l) => l.compteId === dto.compteId);
     const solde = dto.soldeAConfirmer ?? Number((ligne?.solde ?? 0).toFixed(2));
 

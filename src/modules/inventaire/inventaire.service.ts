@@ -5,6 +5,7 @@ import {
   Referentiel,
   RoleMembreInventaire,
   StatutCampagneInventaire,
+  StatutEcriture,
   StatutImmobilisation,
 } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
@@ -420,10 +421,18 @@ export class InventaireService {
    *     redressement passée après le rapprochement déplacerait la cible :
    *     l'écart se refermerait tout seul et l'arbitrage porterait sur un
    *     chiffre que personne n'a jamais vu.
-   *  2. LA BALANCE EST PRISE BROUILLARD COMPRIS. C'est la balance de
-   *     vérification que le comptable a sous les yeux au moment de compter,
-   *     pas la seule partie validée · exclure le brouillard fabriquerait des
-   *     écarts que la validation du lendemain effacerait.
+   *  2. LA BALANCE EST CELLE DU LIVRE-JOURNAL, ET LE BROUILLARD DES COMPTES
+   *     COMPTÉS BLOQUE. « Provisoire », chez le CPCC, veut dire AVANT les
+   *     écritures d'inventaire, pas « brouillard compris ». Le solde est figé
+   *     (choix 1) et l'écart fonde un mali passé en écriture : pris sur une
+   *     écriture au brouillard que personne n'a validée, et qui peut encore
+   *     être modifiée ou supprimée, il ferait constater un manquant contre un
+   *     chiffre qui n'est jamais entré en comptabilité (AUDCIF art. 22, 2° ·
+   *     audit du serveur du 2026-09-27, F6). L'ancienne lecture « brouillard
+   *     compris » répondait à un vrai risque, un écart fabriqué que la
+   *     validation du lendemain aurait effacé ; il est tenu ici par un REFUS
+   *     nommé plutôt que par une lecture du provisoire · on valide, puis on
+   *     rapproche.
    *  3. UNE FICHE NON VALORISÉE BLOQUE. Traiter une valeur d'inventaire
    *     absente comme un zéro transformerait « pas encore compté » en
    *     « manquant total », et le manquant serait à la charge de
@@ -448,7 +457,20 @@ export class InventaireService {
       );
     }
 
-    const { lignes } = await this.ecritures.balance(tenantId, campagne.exerciceId, true);
+    const lignesAuBrouillard = await this.prisma.ligneEcriture.count({
+      where: {
+        compteId: { in: [...new Set(fiches.map((f) => f.compteId))] },
+        ecriture: { tenantId, exerciceId: campagne.exerciceId, statut: StatutEcriture.BROUILLARD },
+      },
+    });
+    if (lignesAuBrouillard > 0) {
+      throw new BadRequestException(
+        `${lignesAuBrouillard} ligne(s) au brouillard sur les comptes inventoriés · les valider ou les supprimer avant de rapprocher. ` +
+          "L'écart se mesure contre le livre-journal, et un solde figé sur du provisoire ferait constater un écart que personne n'a enregistré.",
+      );
+    }
+
+    const { lignes } = await this.ecritures.balance(tenantId, campagne.exerciceId, false);
     const soldeParCompte = new Map(lignes.map((l) => [l.compteId, l.solde]));
 
     const parCompte = new Map<string, { valeur: number; nombre: number }>();
