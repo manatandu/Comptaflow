@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { ReserveAuComptable } from '../../common/decorators/acces-roles-cantonnes.decorator';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SimulationsService } from './simulations.service';
 import { SimulationBudgetaireDto } from './dto/simulation.dto';
@@ -29,19 +30,26 @@ export class SimulationsController {
     return this.service.calculer(user.tenantId, id, { arreteAu: arreteAu || undefined, inclureBrouillard: inclureBrouillard !== 'false' });
   }
 
+  // Les définitions des simulations sont réservées à l'administrateur et au
+  // comptable, à l'écran (`peutValider`) comme ici · sans ce décorateur,
+  // l'aide-comptable, qui se lit comme le comptable sous `@Roles`, passait
+  // par un appel direct ce que la fenêtre lui masquait.
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @ReserveAuComptable()
   @Post()
   creer(@CurrentUser() user: AuthenticatedUser, @Body() dto: SimulationBudgetaireDto) {
     return this.service.creer(user.tenantId, user.email, dto);
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @ReserveAuComptable()
   @Patch(':id')
   modifier(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: SimulationBudgetaireDto) {
     return this.service.modifier(user.tenantId, user.email, id, dto);
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @ReserveAuComptable()
   @Delete(':id')
   supprimer(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.service.supprimer(user.tenantId, id);
