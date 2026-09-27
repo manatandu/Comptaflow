@@ -8,9 +8,7 @@ import {
   DECRET_SMIG,
   DIVISEUR_ALLOCATION_FAMILIALE,
   DIVISEUR_CONTRE_VALEUR_LOGEMENT,
-  LACUNES_DECLAREES,
   MULTIPLICATEURS_ARTICLE_7,
-  RESERVE_SMIG_HORAIRE,
   SMIG_JOURNALIER_FC,
   TENSIONS,
   allocationFamilialeJournaliere,
@@ -213,8 +211,6 @@ describe('article 7 · les trois multiplicateurs sont dans le texte', () => {
   });
 
   it('NE DONNE AUCUN TAUX HORAIRE, et le dépôt ne le divise pas', () => {
-    expect(RESERVE_SMIG_HORAIRE).toContain('AUCUN taux horaire');
-    expect(RESERVE_SMIG_HORAIRE).toContain('durée légale du travail');
     expect(Object.values(MULTIPLICATEURS_ARTICLE_7).every((m) => m > 1)).toBe(true);
   });
 });
@@ -239,28 +235,10 @@ describe('le décret compagnon n° 25/21, et ce qui manque encore', () => {
     expect(DECRET_SMIG.publieAu).toContain('28 octobre 2025');
   });
 
-  it('nomme quatre lacunes, chacune avec son article et sa conséquence', () => {
-    expect(LACUNES_DECLAREES).toHaveLength(4);
-    for (const l of LACUNES_DECLAREES) {
-      expect(l.article).toMatch(/art\. \d/);
-      expect(l.consequence.length).toBeGreaterThan(60);
-    }
-    const objets = LACUNES_DECLAREES.map((l) => l.objet).join(' | ');
-    expect(objets).toContain('137/CAB/MINETAT');
-    expect(objets).toContain('18/017');
-    expect(objets).toContain('AGRO-INDUSTRIELS');
-    expect(objets).toContain("AJUSTEMENT");
-    // L'ANNEXE et le décret n° 25/21 ne sont PLUS des lacunes · ils sont lus.
-    expect(objets).not.toContain('25/21');
-  });
-
   it('AVERTIT QUE LES ANNEXES ONT UNE FIN · un ajustement se prend chaque janvier', () => {
     // La seconde annexe n'est pas bornée dans le texte, mais l'article 11 du
     // décret n° 25/21 programme un ajustement annuel. La servir comme
     // définitive ferait liquider 2027 sur le barème de 2026.
     expect(ANNEXES[1].auMoisDePaie).toBeNull();
-    const ajustement = LACUNES_DECLAREES.find((l) => l.objet.includes('AJUSTEMENT'))!;
-    expect(ajustement.consequence).toContain('JANVIER');
-    expect(ajustement.consequence).toContain("qu'aucun ajustement n'est intervenu");
   });
 });

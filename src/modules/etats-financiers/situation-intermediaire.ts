@@ -23,7 +23,14 @@
  * document faux.
  */
 
-/** La déclaration du § 2.1.1, premier tiret · reprise mot pour mot du texte. */
+/**
+ * La déclaration du § 2.1.1, premier tiret · reprise mot pour mot du texte.
+ *
+ * TEXTE DE RÉFÉRENCE, PAS CODE MORT (audit du serveur, C2) · l'écran porte sa
+ * propre copie de ces deux mentions pour ne pas payer un aller-retour de plus,
+ * et `client/src/pages/situation-intermediaire-a-lecran.spec.ts` relit ce
+ * fichier pour vérifier qu'elle n'a pas divergé.
+ */
 export const DECLARATION_METHODES_IDENTIQUES =
   'Les méthodes comptables et les modalités de calcul adoptées sont identiques à celles utilisées dans les ' +
   "comptes de l'exercice les plus récents (AUDCIF, Titre VIII ch. 39 § 2.1.1). Si elles ont changé, la nature de " +

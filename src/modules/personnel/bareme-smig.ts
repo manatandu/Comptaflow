@@ -466,60 +466,28 @@ export function valeurPeriodique(montantJournalierFc: number, periode: PeriodeSm
   return montantJournalierFc * MULTIPLICATEURS_ARTICLE_7[periode];
 }
 
-/**
- * LE SMIG HORAIRE N'EXISTE PAS DANS CES TEXTES.
- *
- * L'article 7 donne trois MULTIPLICATEURS et aucun DIVISEUR. Le Guide
- * d'application SYCEBNL évalue pourtant le bénévolat « sur la base du SMIG
- * horaire ». Passer du journalier à l'horaire suppose une durée légale du
- * travail, qui relève du Titre VI du Code du travail et non d'ici.
- */
-export const RESERVE_SMIG_HORAIRE =
-  "Le décret n° 25/22 fixe un taux JOURNALIER et donne, à son article 7, trois multiplicateurs " +
-  '(6, 26, 312) vers la semaine, le mois et l’année. Il ne donne AUCUN taux horaire et aucun ' +
-  'diviseur. Déduire un SMIG horaire suppose une durée légale du travail, qui relève du Titre VI ' +
-  "du Code du travail et non de ce décret · OmegaX ne fait pas cette division, et le taux horaire " +
-  'de valorisation reste une donnée du dossier, à justifier.';
-
-/**
- * CE QUE LES TEXTES DISENT ET QUE LE LOGICIEL NE PORTE PAS ENCORE.
- *
- * Nommé plutôt que tu · une lacune TUE se lit comme une absence de règle.
- */
-export const LACUNES_DECLAREES: readonly { objet: string; article: string; consequence: string }[] =
-  [
-    {
-      objet: "L'ARRÊTÉ MINISTÉRIEL n° 137/CAB/MINETAT/MTEPS/01/2018 du 8 novembre 2018",
-      article: 'décret n° 25/21, art. 13',
-      consequence:
-        "Il détermine « le montant, les modalités de paiement des allocations familiales et LES " +
-        'CONDITIONS DE SUSPENSION ». Le montant est repris par la colonne 19 des annexes, mais les ' +
-        "conditions de suspension ne le sont pas : OmegaX ne sait pas QUAND l'allocation cesse " +
-        "d'être due, et il ne le devine pas.",
-    },
-    {
-      objet: 'Le DÉCRET N° 18/017 du 22 mai 2018',
-      article: 'décret n° 25/22, art. 11',
-      consequence:
-        "Il régit les mois de paie antérieurs à mai 2025. Ses montants ne sont pas au corpus · un " +
-        'exercice clos avant mai 2025 ne se liquide donc pas ici.',
-    },
-    {
-      objet: "Les SECTEURS AGRO-INDUSTRIELS ET PASTORAUX",
-      article: 'décret n° 25/22, art. 10',
-      consequence:
-        "« Des dispositions spécifiques peuvent être prises pour alléger les difficultés » de ces " +
-        "secteurs dans l'application de l'article 3, sous l'article 91 du Code du travail. Ces " +
-        "dispositions sont des textes propres au secteur · OmegaX ne les devine pas et applique le " +
-        "barème commun tant qu'un dossier ne déclare pas le contraire.",
-    },
-    {
-      objet: "L'ARRÊTÉ ANNUEL D'AJUSTEMENT",
-      article: 'décret n° 25/21, art. 10 et 11',
-      consequence:
-        "L'ajustement se prend par arrêté du Ministre ayant le travail dans ses attributions, « à " +
-        'partir du mois de JANVIER de chaque année », sur les travaux de la commission tripartite. ' +
-        "Les annexes ci-dessus ne valent donc que jusqu'au prochain arrêté : un dossier qui arrête " +
-        'un exercice postérieur doit vérifier qu\'aucun ajustement n\'est intervenu.',
-    },
-  ];
+// LE SMIG HORAIRE N'EXISTE PAS DANS CES TEXTES. L'article 7 donne trois
+// MULTIPLICATEURS (6, 26, 312) et aucun DIVISEUR. Le Guide d'application
+// SYCEBNL évalue pourtant le bénévolat « sur la base du SMIG horaire » ;
+// passer du journalier à l'horaire suppose une durée légale du travail, qui
+// relève du Titre VI du Code du travail et non d'ici. OmegaX ne fait pas
+// cette division, et le taux horaire de valorisation reste une donnée du
+// dossier, à justifier.
+//
+// CE QUE LES TEXTES DISENT ET QUE CE BARÈME NE PORTE PAS.
+//  · Le DÉCRET n° 18/017 du 22 mai 2018 (décret n° 25/22, art. 11) régit les
+//    mois de paie antérieurs à mai 2025 · ses montants ne sont pas au corpus,
+//    et aucune annexe ci-dessus ne remonte avant mai 2025.
+//  · Les SECTEURS AGRO-INDUSTRIELS ET PASTORAUX (décret n° 25/22, art. 10) ·
+//    « des dispositions spécifiques peuvent être prises », par des textes
+//    propres au secteur ; le barème commun s'applique tant qu'un dossier ne
+//    déclare pas le contraire.
+//  · L'ARRÊTÉ ANNUEL D'AJUSTEMENT (décret n° 25/21, art. 10 et 11), « à
+//    partir du mois de JANVIER de chaque année » · la seconde annexe ne vaut
+//    que jusqu'à lui. Le cabinet saisit le nouveau SMIG dans l'onglet
+//    Barèmes (`baremes-dossier.ts`), avec son texte.
+//
+// Ces trois lignes et la réserve horaire étaient des constantes que seuls
+// les tests lisaient (audit du serveur, C2). Une quatrième lacune y figurait,
+// fausse depuis P5 · les conditions de suspension des allocations familiales
+// sont aux art. 5, 6 et 8 de l'arrêté n° 137/2018, qui est au corpus.

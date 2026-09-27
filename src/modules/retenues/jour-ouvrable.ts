@@ -238,14 +238,6 @@ export function reporterAuJourOuvrable(echeance: Date): Date {
 }
 
 /**
- * L'échéance a-t-elle été déplacée par le report ? Sert à l'affichage · une
- * date reportée doit pouvoir dire POURQUOI elle ne tombe pas le 15.
- */
-export function echeanceReportee(echeanceLegale: Date): boolean {
-  return !estJourOuvrable(echeanceLegale);
-}
-
-/**
  * Réserve rendue avec tout état qui oppose une échéance au redevable.
  *
  * Elle porte les deux moitiés que le logiciel ne calcule pas · les jours fériés

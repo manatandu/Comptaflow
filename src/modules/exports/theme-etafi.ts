@@ -81,7 +81,6 @@ export const AL_DROITE: Partial<ExcelJS.Alignment> = { horizontal: 'right', vert
 
 /** Format comptable du modèle : milliers en espaces, zéro affiché « - ». */
 export const FMT_MONTANT = '_-* #,##0\\ _€_-;\\-* #,##0\\ _€_-;_-* "-"\\ _€_-;_-@_-';
-export const FMT_PCT = '0.0%';
 
 /** Noms normalisés des feuilles de balance dans les classeurs produits. */
 export const NOM_BALANCE = 'BALANCE N';

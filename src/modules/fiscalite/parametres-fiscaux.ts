@@ -103,9 +103,6 @@ export const IMPOT_REVENU_PERSONNES_PHYSIQUES = {
   echeanceDeclaration: '30 avril',
 } as const;
 
-/** Prélèvement exceptionnel sur le personnel expatrié · art. 145 à 149, non déductible (art. 50, 2°). */
-export const TAUX_PRELEVEMENT_EXPATRIES = 0.25;
-
 /**
  * MODALITÉS DE PAIEMENT DE L'IRPP AU RÉGIME DES PETITES ENTREPRISES ·
  * art. 57, al. 3 et art. 57 quater de la loi de procédures fiscales.

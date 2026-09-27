@@ -139,11 +139,6 @@ export function compteDuRole(role: RoleCompteEmballage, referentiel: Referentiel
  * numéro générique, une autre subdivision peut convenir selon la nature du
  * matériel, et c'est au cabinet de trancher.
  */
-export const DESCENTES_DEPUIS_UN_EN_TETE: Readonly<Record<string, string>> = {
-  '24': '243',
-  '82': '822',
-};
-
 export const RESERVE_DESCENTE =
   "Les fiches des comptes 40 et 41 écrivent « le compte 24 » et « le compte 82 », qui sont des " +
   "EN-TÊTES DE DIVISION dans les deux plans et ne reçoivent jamais d'écriture. Le module propose " +

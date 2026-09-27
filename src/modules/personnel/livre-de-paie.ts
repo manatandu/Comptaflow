@@ -198,15 +198,13 @@ export const MENTIONS_ARTICLE_25: readonly MentionFeuilleDePaie[] = [
   { rang: 30, libelle: 'observations' },
 ] as const;
 
-export const RESERVE_NOTAMMENT =
-  "ARTICLE 25 · « La feuille de paie doit comporter NOTAMMENT les mentions ci-après ». La liste n'est pas " +
-  "fermée. Les porter toutes ne rend donc pas un document complet, cela le rend seulement non fautif sur ces trente points.";
-
-export const RESERVE_MODELE_NON_LU =
-  "CES TRENTE MENTIONS NE SONT PAS LE MODÈLE DE L'ARTICLE 215. Elles viennent de l'arrêté n° 146/2018, qui " +
-  "règle la sécurité sociale. Le modèle du livre de paie est fixé par l'arrêté ministériel " +
-  "n° 12/CAB.MIN/ETPS/042 du 8 août 2008, identifié mais NON LU par OmegaX. Aucune conformité au modèle " +
-  "n'est donc certifiée ici, et la couverture rendue ne vaut pas conformité.";
+// Deux réserves vivaient ici, lues par les seuls tests (audit du serveur, C2).
+// « NOTAMMENT » rappelait que la liste de l'art. 25 n'est pas fermée ; la
+// seconde disait l'arrêté de 2008 « identifié mais NON LU », ce qui est faux
+// depuis P6 · ses trente-trois énonciations sont juste en dessous. Ce qui en
+// reste de vrai tient en une phrase : la liste ci-dessus est celle de la
+// SÉCURITÉ SOCIALE (arrêté n° 146/2018), gardée pour qu'on ne la confonde
+// jamais avec le modèle du livre de paie · aucun calcul ne la sert.
 
 /**
  * LES TRENTE-TROIS ÉNONCIATIONS DE L'ARTICLE 1er DE L'ARRÊTÉ DE 2008,

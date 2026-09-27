@@ -12,8 +12,6 @@
  * conséquences que personne ne peut choisir.
  */
 
-import { FormeJuridiqueSyscohada } from '@prisma/client';
-
 // ---------------------------------------------------------------------------
 // 1 · LE PÉRIMÈTRE, QUI EST LE PREMIER REFUS
 // ---------------------------------------------------------------------------
@@ -469,8 +467,3 @@ export const DELAIS_DE_CONFORMITE = [
     article: 'AUDCG art. 259',
   },
 ] as const;
-
-/** Vrai pour les formes SYSCOHADA · le cloisonnement se justifie ailleurs. */
-export function formeCommercante(forme: FormeJuridiqueSyscohada | null): boolean {
-  return forme !== null;
-}

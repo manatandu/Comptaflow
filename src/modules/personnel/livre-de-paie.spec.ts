@@ -12,8 +12,6 @@ import {
   RESERVE_ARTICLE_104,
   RESERVE_CONTRADICTION_DE_SEUIL,
   RESERVE_MISE_EN_FORME,
-  RESERVE_MODELE_NON_LU,
-  RESERVE_NOTAMMENT,
   SANCTION_ARTICLE_103,
   SANCTION_ARTICLE_328,
   livreDePaie,
@@ -89,8 +87,6 @@ describe("L'arrêté du modèle · AU CORPUS depuis le 19/09/2026", () => {
     // sécurité sociale, trente-trois pour le livre de paie du Code.
     expect(MENTIONS_ARTICLE_25).toHaveLength(30);
     expect(MENTIONS_MODELE_2008).toHaveLength(33);
-    expect(RESERVE_NOTAMMENT).toMatch(/NOTAMMENT/);
-    expect(RESERVE_MODELE_NON_LU).toContain('146/2018');
   });
 });
 
