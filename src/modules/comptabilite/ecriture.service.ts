@@ -275,6 +275,26 @@ export const PERIMETRES_BALANCE_AGEE: Record<
 };
 
 
+/**
+ * Nom d'un module qui retient une écriture, tel que le refus le cite.
+ * Exporté pour qu'un module qui défait sa propre opération se nomme par la
+ * même chaîne que le refus, jamais par une copie qui divergerait.
+ */
+export type DetenteurEcriture = string;
+export const DETENTEUR_LIQUIDATION_TVA: DetenteurEcriture = 'une liquidation de TVA';
+
+/**
+ * Suppression demandée PAR le module qui tient l'écriture · audit du serveur
+ * du 2026-09-27, B1. `annulerLiquidation` appelait `supprimer`, qui refusait
+ * parce qu'une liquidation tenait l'écriture · le module qui défait
+ * l'opération était précisément celui que le refus renvoyait vers lui-même,
+ * et le verrou anti-double-liquidation n'avait plus de marche arrière.
+ */
+export interface SuppressionPourLeModule {
+  detenteur: DetenteurEcriture;
+  liberer: (tx: Prisma.TransactionClient) => Promise<unknown>;
+}
+
 @Injectable()
 export class EcritureService {
   constructor(
@@ -830,17 +850,21 @@ export class EcritureService {
    * que l'opération se défait, jamais par la suppression de sa contrepartie
    * comptable.
    */
-  async supprimer(tenantId: string, ecritureId: string) {
+  async supprimer(tenantId: string, ecritureId: string, pourLeModule?: SuppressionPourLeModule) {
     await this.trouverEnBrouillard(tenantId, ecritureId);
-    await this.verifierAucunModuleNeLaTient(tenantId, ecritureId);
+    await this.verifierAucunModuleNeLaTient(tenantId, ecritureId, pourLeModule?.detenteur);
     await this.prisma.$transaction(async (tx) => {
+      // Le module libère son marqueur DANS la même transaction · jamais
+      // avant (un échec laisserait l'écriture sans son opération), jamais
+      // après (l'écriture partie, le marqueur interdirait encore la période).
+      if (pourLeModule) await pourLeModule.liberer(tx);
       await tx.ligneEcriture.deleteMany({ where: { ecritureId } });
       await tx.ecriture.delete({ where: { id: ecritureId } });
     });
     return { supprime: true };
   }
 
-  private async verifierAucunModuleNeLaTient(tenantId: string, ecritureId: string) {
+  private async verifierAucunModuleNeLaTient(tenantId: string, ecritureId: string, detenteurLibere?: DetenteurEcriture) {
     // Le `tenantId` accompagne l'id de l'écriture partout, alors même que cet
     // id est déjà unique · le cloisonnement se pose aux DEUX bouts, et un
     // comptage qui ne le porte pas est un comptage qui traverserait les
@@ -861,7 +885,7 @@ export class EcritureService {
         where: { tenantId, OR: [{ ecritureConstatationId: ecritureId }, { ecritureRepriseId: ecritureId }] },
       })],
       ["une échéance d'abonnement", this.prisma.echeanceAbonnement.count({ where: parLEcriture })],
-      ['une liquidation de TVA', this.prisma.liquidationTva.count({ where: { tenantId, ecritureId } })],
+      [DETENTEUR_LIQUIDATION_TVA, this.prisma.liquidationTva.count({ where: { tenantId, ecritureId } })],
       ['une donation', this.prisma.donation.count({ where: { tenantId, ecritureId } })],
       ['une affectation du résultat', this.prisma.affectationResultat.count({ where: { tenantId, ecritureId } })],
       // Le rattachement à un engagement de dépense. Sans ce refus nommé, la
@@ -901,7 +925,13 @@ export class EcritureService {
       })],
     ];
     const resultats = await Promise.all(detenteursPossibles.map(([, p]) => p));
-    const detenteurs = detenteursPossibles.filter((_, i) => resultats[i] > 0).map(([nom]) => nom);
+    // Le SEUL détenteur que l'appelant libère lui-même est écarté · tous les
+    // autres refusent encore. Une écriture tenue par deux modules ne sort pas
+    // parce que l'un des deux la lâche.
+    const detenteurs = detenteursPossibles
+      .filter((_, i) => resultats[i] > 0)
+      .map(([nom]) => nom)
+      .filter((nom) => nom !== detenteurLibere);
     if (detenteurs.length > 0) {
       throw new BadRequestException(
         `Cette écriture est la contrepartie comptable de ${detenteurs.join(' et ')} · ` +

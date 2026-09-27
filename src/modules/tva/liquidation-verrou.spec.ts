@@ -215,7 +215,14 @@ describe('verrou anti-double-liquidation de la TVA', () => {
       ecritureId: 'ecr1',
     });
     const r = await service.annulerLiquidation('t1', 'liq1');
-    expect(ecritureService.supprimer).toHaveBeenCalledWith('t1', 'ecr1');
+    // Le module se nomme détenteur libéré · sans quoi `supprimer` le
+    // renvoyait vers lui-même (voir annulation-liquidation.spec.ts, qui
+    // monte le vrai EcritureService).
+    expect(ecritureService.supprimer).toHaveBeenCalledWith(
+      't1',
+      'ecr1',
+      expect.objectContaining({ detenteur: 'une liquidation de TVA' }),
+    );
     expect(r.supprime).toBe(true);
   });
 });

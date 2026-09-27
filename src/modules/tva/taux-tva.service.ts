@@ -4,7 +4,7 @@ import { PrismaService } from '../../common/prisma.service';
 import { CreerTauxTvaDto, ModifierTauxTvaDto } from './dto/taux-tva.dto';
 import { tauxTvaDefaut } from './taux-tva-seed';
 import { Prisma, ClasseCompte, Referentiel, TypeJournal, NatureFacture } from '@prisma/client';
-import { EcritureService } from '../comptabilite/ecriture.service';
+import { DETENTEUR_LIQUIDATION_TVA, EcritureService } from '../comptabilite/ecriture.service';
 
 const EPSILON = 0.005;
 
@@ -2603,10 +2603,15 @@ export class TauxTvaService {
     if (!liquidation) {
       throw new BadRequestException('Liquidation introuvable pour ce dossier.');
     }
-    // L'écriture d'abord · la contrainte ON DELETE CASCADE emporte le marqueur,
-    // si bien qu'aucun état intermédiaire ne laisse un marqueur orphelin
-    // interdisant une période dont l'écriture n'existe plus.
-    await this.ecritureService.supprimer(tenantId, liquidation.ecritureId);
+    // Le marqueur et l'écriture partent dans UNE transaction, par
+    // `EcritureService` et ses contrôles (brouillard, exercice ouvert,
+    // lettrage, pointage). Le module se nomme comme détenteur libéré · appelé
+    // sans cela, `supprimer` refusait en renvoyant « défaites l'opération
+    // dans son module » au module lui-même (audit du 2026-09-27, B1).
+    await this.ecritureService.supprimer(tenantId, liquidation.ecritureId, {
+      detenteur: DETENTEUR_LIQUIDATION_TVA,
+      liberer: (tx) => tx.liquidationTva.delete({ where: { id: liquidation.id } }),
+    });
     return { supprime: true, ecritureId: liquidation.ecritureId };
   }
 }
