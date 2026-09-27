@@ -373,6 +373,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 6
 - **Constat :** l'étape 4 ne fait changer que `API_DATABASE_URL`, alors que le service reçoit `API_DATABASE_URL_POOLED`, qui est posé. Suivie à la lettre, la procédure migre la base restaurée pendant que le service écrit dans l'ancienne.
 - **Correction :** mettre à jour les deux secrets et vérifier dans le run la ligne « endpoint POOLÉ ».
+- **Fait le 2026-09-27 :** l'étape 4 nomme les deux secrets et leur usage, dit pourquoi un seul ne suffit pas et exige qu'ils désignent la même base (hôte direct et hôte `-pooler`) ; une étape 5 fait vérifier la bascule sans afficher de chaîne · la ligne « Base · endpoint POOLÉ » du run, puis la preuve que le SERVICE écrit dans la base restaurée (un essai de mot de passe faux fait passer `tentativesEchouees` à 1, requête essayée sur PostgreSQL local). La liste des actions du propriétaire y renvoie. Test : `restauration-deux-secrets.spec.ts` (trois mutations tuées), qui gèle aussi la ligne que le workflow écrit et l'ordre des deux secrets donné au service.
 
 ### Trouvé en corrigeant F41
 

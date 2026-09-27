@@ -195,7 +195,9 @@ position de l'ONEC sur les outils informatiques, son site étant bloqué.
   sauvegarde nocturne du 2026-09-03 est verte de bout en bout.
 - **Endpoint Neon poolé** (`API_DATABASE_URL_POOLED`) · posé. Le déploiement
   du 2026-09-03 affiche « Base · endpoint POOLÉ, plafond de connexions 10 par
-  instance ».
+  instance ». Conséquence pour une restauration · c'est LUI que le service
+  lit, et une bascule change les DEUX secrets, jamais le seul
+  `API_DATABASE_URL` (`docs/sauvegardes-et-restauration.md`, étapes 4 et 5).
 - **Limitation de débit par instance** · le compteur reste par conteneur,
   mais `--max-instances 4` borne désormais le dépassement à un facteur connu
   au lieu d'un facteur inconnu. Redis n'est plus une urgence.

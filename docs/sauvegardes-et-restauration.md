@@ -187,13 +187,42 @@ chaîne de connexion dans un fichier, un commit ou un chat.**
 
    Le second résultat doit être 0 (ou < 0.01).
 
-4. Basculer l'application : mettre à jour le secret GitHub
-   `API_DATABASE_URL` (et l'équivalent local si besoin) vers la base
-   restaurée, puis relancer le workflow « Déployer le serveur sur Cloud
-   Run » (Actions → Re-run). La bascule est un simple changement de chaîne ·
-   aucune modification de code.
+4. Basculer l'application · **LES DEUX SECRETS, JAMAIS UN SEUL** (audit
+   final F48). Le déploiement lit deux chaînes qui ne s'échangent pas
+   (`docs/connexions-et-plafonds.md`) :
 
-5. Une fois la situation stabilisée, décider du sort de l'ancienne base
+   - `API_DATABASE_URL`, la chaîne DIRECTE · les migrations (`prisma migrate
+     deploy`) et la sauvegarde nocturne ;
+   - `API_DATABASE_URL_POOLED`, la chaîne POOLÉE (hôte suffixé `-pooler`) ·
+     c'est ELLE que le service reçoit.
+
+   Ne changer que la première ferait migrer la base restaurée pendant que le
+   service continue d'écrire dans l'ancienne · le déploiement serait vert, et
+   rien à l'écran ne le dirait. Les deux chaînes doivent désigner la MÊME
+   base : même projet, même nom de base en fin de chaîne, l'une sur l'hôte
+   direct, l'autre sur l'hôte `-pooler` (Neon les donne toutes deux, case
+   « Connection pooling »). Mettre à jour les deux secrets, puis relancer le
+   workflow « Déployer le serveur sur Cloud Run » (Actions → Re-run), et
+   l'équivalent local si besoin. Aucune modification de code.
+
+5. Vérifier la bascule, sans jamais afficher une chaîne :
+
+   - dans le run du déploiement, l'étape de préparation des variables doit
+     porter la ligne `Base · endpoint POOLÉ, plafond de connexions …` et la
+     note « Le service recevra l'endpoint POOLÉ ». Un avertissement
+     « endpoint DIRECT » veut dire que le secret poolé manque ou n'a pas
+     d'hôte `-pooler` · à corriger avant d'aller plus loin ;
+   - que le SERVICE écrit bien dans la base restaurée · depuis l'écran de
+     connexion, un essai avec un mot de passe volontairement faux sur votre
+     propre compte, puis :
+
+         psql "CHAINE_DIRECTE_VERS_LA_BASE_RESTAUREE" \
+           -c "SELECT \"tentativesEchouees\" FROM users WHERE email = 'votre-adresse'"
+
+     doit rendre 1 (une connexion réussie le remet ensuite à zéro). Un 0
+     veut dire que le service écrit encore ailleurs.
+
+6. Une fois la situation stabilisée, décider du sort de l'ancienne base
    (conservation pour analyse, puis suppression).
 
 ## Ce que ça garantit, et ce que ça ne garantit pas
