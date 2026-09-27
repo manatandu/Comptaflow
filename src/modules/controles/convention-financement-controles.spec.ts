@@ -76,8 +76,10 @@ describe('convention arrivée à terme et toujours en cours', () => {
     expect(a).toBeDefined();
     expect(a!.gravite).toBe('AVERTISSEMENT');
     expect(a!.occurrences[0].reference).toContain('UE-2026-001');
-    // Le message doit dire ce qui est en jeu au-delà de la comptabilité.
-    expect(a!.consequence).toContain('art. 37');
+    // Ce qui est en jeu est le reste à recevoir · une convention de bailleur
+    // n'est pas l'accord-cadre de l'art. 37, qui a son propre contrôle
+    // (audit final F76). Le message ne vise donc que le bailleur.
+    expect(a!.consequence).toMatch(/^Ces conventions portent une date de fin dépassée[\s\S]*rien ne le fonde plus\.$/);
     expect(a!.action).toContain('avenant de prorogation');
   });
 

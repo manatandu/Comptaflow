@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { Aide } from '../components/chrome/Aide';
 import type { Exercice, FaiblesseControleInterne, RegistreFaiblesses } from '../lib/types';
+import { ciblesDeReport } from '../lib/faiblesses-report';
 
 /**
  * REGISTRE DES FAIBLESSES DU CONTRÔLE INTERNE · ISA 265.
@@ -234,9 +235,10 @@ export function FaiblessesPage() {
   };
 
   const reporter = (f: FaiblesseControleInterne) => {
-    const cibles = (registres ?? []).filter((r) => r.id !== detail?.id && r.statut === 'OUVERT');
+    if (!detail) return;
+    const cibles = ciblesDeReport(registres ?? [], detail, exercices);
     if (cibles.length === 0) {
-      setErreur('Aucun registre ouvert sur un autre exercice · en ouvrir un avant de reporter.');
+      setErreur('Aucun registre ouvert de même origine sur un exercice postérieur · en ouvrir un avant de reporter.');
       return;
     }
     const choix = window.prompt(

@@ -28,6 +28,11 @@ import { PrismaService } from '../../common/prisma.service';
  */
 
 const EXERCICE = { id: 'ex1', tenantId: 't1' };
+const EXERCICES = [
+  { id: 'ex0', tenantId: 't1', dateDebut: new Date('2025-01-01') },
+  { id: 'ex1', tenantId: 't1', dateDebut: new Date('2026-01-01') },
+  { id: 'ex2', tenantId: 't1', dateDebut: new Date('2027-01-01') },
+];
 
 type Etat = {
   registre?: Record<string, unknown> | null;
@@ -39,7 +44,14 @@ function service(etat: Etat = {}) {
   const majFaiblesse = jest.fn().mockImplementation((a) => Promise.resolve({ id: a.where.id, ...a.data }));
   const majRegistre = jest.fn().mockImplementation((a) => Promise.resolve({ id: a.where.id, ...a.data }));
   const prisma = {
-    exercice: { findFirst: jest.fn().mockResolvedValue(EXERCICE) },
+    exercice: {
+      findFirst: jest.fn().mockResolvedValue(EXERCICE),
+      // La doublure honore le filtre `id in` · une doublure qui rendrait tout
+      // validerait un report qui ne lit pas les dates des deux exercices.
+      findMany: jest.fn().mockImplementation(({ where }: { where: { tenantId: string; id: { in: string[] } } }) =>
+        Promise.resolve(EXERCICES.filter((e) => e.tenantId === where.tenantId && where.id.in.includes(e.id))),
+      ),
+    },
     registreFaiblesses: {
       findFirst: jest.fn().mockResolvedValue(etat.registre ?? null),
       findMany: jest.fn().mockResolvedValue([]),
@@ -333,6 +345,18 @@ describe('l’escalade du § A24 est un acte, pas un effet du calendrier', () =>
     await expect(svc.escalader('t1', 'f1', 'u1', { motif: 'x' })).rejects.toThrow(/rien à escalader/);
   });
 
+  it('ne requalifie pas la lettre d’un tiers, comme `qualifier` (audit final F73)', async () => {
+    const { svc, majFaiblesse } = service({
+      faiblesse: faiblesse({
+        qualification: QualificationFaiblesse.AUTRE,
+        statut: StatutFaiblesse.OUVERTE,
+        registre: registre(OrigineFaiblesse.RECOMMANDATION_EXTERNE),
+      }),
+    });
+    await expect(svc.escalader('t1', 'f1', 'u1', { motif: 'Deux exercices sans action.' })).rejects.toThrow(/porte-documents/);
+    expect(majFaiblesse).not.toHaveBeenCalled();
+  });
+
   it('remet l’écrit du § 9 à faire · le destinataire n’est plus le même', async () => {
     const { svc, majFaiblesse } = service({
       faiblesse: faiblesse({
@@ -355,7 +379,7 @@ describe('le report, de bout en bout', () => {
   it('refuse le report muet d’une significative non remédiée', async () => {
     const { svc } = service({
       faiblesse: faiblesse({ qualification: QualificationFaiblesse.SIGNIFICATIVE, reconduction: null }),
-      registre: registre(OrigineFaiblesse.REVISION_INTERNE, StatutRegistreFaiblesses.OUVERT, { id: 'reg2' }),
+      registre: registre(OrigineFaiblesse.REVISION_INTERNE, StatutRegistreFaiblesses.OUVERT, { id: 'reg2', exerciceId: 'ex2' }),
     });
     await expect(svc.reporter('t1', 'f1', { registreCibleId: 'reg2' })).rejects.toThrow(/A17/);
   });
@@ -363,7 +387,7 @@ describe('le report, de bout en bout', () => {
   it('reporte une AUTRE faiblesse sans rien réclamer', async () => {
     const { svc } = service({
       faiblesse: faiblesse({ qualification: QualificationFaiblesse.AUTRE, reconduction: null }),
-      registre: registre(OrigineFaiblesse.REVISION_INTERNE, StatutRegistreFaiblesses.OUVERT, { id: 'reg2' }),
+      registre: registre(OrigineFaiblesse.REVISION_INTERNE, StatutRegistreFaiblesses.OUVERT, { id: 'reg2', exerciceId: 'ex2' }),
     });
     const nouvelle = await svc.reporter('t1', 'f1', { registreCibleId: 'reg2' });
     expect(nouvelle.faiblesseAnterieureId).toBe('f1');
@@ -377,7 +401,7 @@ describe('le report, de bout en bout', () => {
         qualification: QualificationFaiblesse.AUTRE,
         reconduction: { id: 'f2', reference: 'F-01' },
       }),
-      registre: registre(OrigineFaiblesse.REVISION_INTERNE, StatutRegistreFaiblesses.OUVERT, { id: 'reg2' }),
+      registre: registre(OrigineFaiblesse.REVISION_INTERNE, StatutRegistreFaiblesses.OUVERT, { id: 'reg2', exerciceId: 'ex2' }),
     });
     await expect(svc.reporter('t1', 'f1', { registreCibleId: 'reg2' })).rejects.toThrow(/déjà reportée/);
   });
@@ -388,6 +412,27 @@ describe('le report, de bout en bout', () => {
       registre: registre(OrigineFaiblesse.REVISION_INTERNE, StatutRegistreFaiblesses.OUVERT, { id: 'reg1' }),
     });
     await expect(svc.reporter('t1', 'f1', { registreCibleId: 'reg1' })).rejects.toThrow(/registre d’origine|registre cible/i);
+  });
+
+  it('refuse un report vers un registre d’une autre origine (audit final F74)', async () => {
+    // La qualification et son auteur voyagent avec la faiblesse · reportée
+    // dans une lettre reçue, le jugement du cabinet s'y lirait comme celui
+    // d'un tiers.
+    const { svc } = service({
+      faiblesse: faiblesse({ qualification: QualificationFaiblesse.AUTRE, reconduction: null }),
+      registre: registre(OrigineFaiblesse.RECOMMANDATION_EXTERNE, StatutRegistreFaiblesses.OUVERT, { id: 'reg2', exerciceId: 'ex2' }),
+    });
+    await expect(svc.reporter('t1', 'f1', { registreCibleId: 'reg2' })).rejects.toThrow(/même origine/);
+  });
+
+  it('refuse un report vers un exercice antérieur ou le même (audit final F74)', async () => {
+    for (const exerciceId of ['ex0', 'ex1']) {
+      const { svc } = service({
+        faiblesse: faiblesse({ qualification: QualificationFaiblesse.AUTRE, reconduction: null }),
+        registre: registre(OrigineFaiblesse.REVISION_INTERNE, StatutRegistreFaiblesses.OUVERT, { id: 'reg2', exerciceId }),
+      });
+      await expect(svc.reporter('t1', 'f1', { registreCibleId: 'reg2' })).rejects.toThrow(/exercice postérieur/);
+    }
   });
 });
 

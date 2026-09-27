@@ -515,8 +515,11 @@ décrit, il qualifie, il recommande. En RECOMMANDATION_EXTERNE, une lettre est
 arrivée d'un réviseur, d'un commissaire aux comptes ou d'un bailleur, et
 OmegaX est le PORTE-DOCUMENTS de la direction : il range, il suit les
 échéances, il ne requalifie rien. La qualification portée dans la lettre est
-recopiée telle quelle · `qualifier()` est refusé dans ce mode, et la clôture
-n'y réclame ni qualification ni écrit, qui sont le travail d'un autre.
+recopiée telle quelle · `qualifier()` et `escalader()` sont refusés dans ce
+mode (`refuserSiLettreRecue`, audit final F73), et la clôture n'y réclame ni
+qualification ni écrit, qui sont le travail d'un autre. Un REPORT reste dans
+son origine et va vers un exercice postérieur (`motifRefusReport`, F74) · la
+qualification et son auteur voyagent avec la faiblesse.
 
 LE DOUBLE RÉGIME DE REPORT est le cœur du module, et il tient à deux
 paragraphes qui disent le contraire l'un de l'autre · ils ont raison tous les

@@ -98,6 +98,21 @@ export class QuestionnaireService {
   }
 
   /**
+   * LES RÉPONSES QUI COMPTENT · celles d'un item retenu ET ouvert (audit final
+   * F75). Une réponse reste en base quand le parent de son item change de
+   * réponse · elle ne se voit plus, ne se corrige plus, et comptée en
+   * exception sans commentaire elle bloquait la clôture pour toujours.
+   */
+  static reponsesDesItemsOuverts<R extends { code: string; reponse: ReponseItem | null }>(
+    items: ItemQuestionnaire[],
+    reponses: R[],
+  ): R[] {
+    const reponsesFermees = new Map(reponses.map((r) => [r.code, r.reponse]));
+    const ouverts = new Set(items.filter((i) => QuestionnaireService.estOuvert(i, reponsesFermees)).map((i) => i.code));
+    return reponses.filter((r) => ouverts.has(r.code));
+  }
+
+  /**
    * CE QUI EMPÊCHE DE CLORE · deux motifs seulement, et aucun n'est un seuil.
    */
   static motifsRefusCloture(
@@ -123,7 +138,9 @@ export class QuestionnaireService {
       );
     }
 
-    const exceptionsNues = reponses.filter((r) => r.estException && !r.commentaire?.trim());
+    const exceptionsNues = QuestionnaireService.reponsesDesItemsOuverts(items, reponses).filter(
+      (r) => r.estException && !r.commentaire?.trim(),
+    );
     if (exceptionsNues.length > 0) {
       motifs.push(
         `${exceptionsNues.length} exception(s) sans commentaire (${exceptionsNues.map((r) => r.code).join(', ')}) · ` +
@@ -295,7 +312,7 @@ export class QuestionnaireService {
     const repondues = questions.filter((l) => l.reponse && (l.reponse.reponse !== null || l.reponse.valeur));
     const travaux = lignes.filter((l) => l.forme === 'TRAVAIL' && l.ouvert);
     const travauxFaits = travaux.filter((l) => l.reponse?.renvoiTravaux);
-    const exceptions = q.reponses.filter((r) => r.estException);
+    const exceptions = QuestionnaireService.reponsesDesItemsOuverts(items, q.reponses).filter((r) => r.estException);
 
     return {
       ...q,

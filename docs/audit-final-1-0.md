@@ -565,24 +565,28 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** `escalader` requalifie la lettre d'un tiers, que `qualifier` refuse de toucher.
 - **Correction :** poser le même refus.
+- **Fait le 2026-09-27 :** `qualifier` et `escalader` passent par le même refus (`refuserSiLettreRecue`). Test : `faiblesses.spec.ts`.
 
 **F74 · Faiblesses : report vers un registre d'une autre origine ou d'un exercice antérieur** [rev-14]
 - **Emplacements :** src/modules/faiblesses/faiblesses.service.ts:418-470
 - **Condition :** 1
 - **Constat :** qualification, auteur et constat sont recopiés quelle que soit l'origine du registre cible, et un exercice antérieur est accepté.
 - **Correction :** exiger la même origine et un exercice postérieur.
+- **Fait le 2026-09-27 :** `motifRefusReport` exige la même origine et un exercice qui commence après celui de la source, lu dans les deux exercices ; l'écran ne propose que ces cibles (`client/src/lib/faiblesses-report.ts`). Tests : `faiblesses.spec.ts`, `faiblesses-report.spec.ts`.
 
 **F75 · Questionnaire : réponse orpheline d'un item refermé, clôture bloquée** [rev-15]
 - **Emplacements :** src/modules/questionnaire/questionnaire.service.ts:126, :298
 - **Condition :** 3
 - **Constat :** les exceptions sont comptées sur tous les items, y compris les items fermés, que l'utilisateur ne peut plus corriger.
 - **Correction :** ne compter que les items ouverts, ou purger la réponse enfant au changement du parent.
+- **Fait le 2026-09-27 :** les exceptions ne se comptent que sur les réponses d'items retenus et ouverts (`reponsesDesItemsOuverts`), à la clôture comme dans la synthèse ; la réponse refermée reste en base, rien n'est purgé. Test : `questionnaire.spec.ts`.
 
 **F76 · Contrôle des conventions : confusion entre convention de bailleur et accord-cadre** [rev-16]
 - **Emplacements :** src/modules/controles/controles.service.ts:2280-2292
 - **Condition :** 1
 - **Constat :** une association congolaise dont une subvention est échue lit qu'elle exerce « sans titre » au nom de l'art. 37.
 - **Correction :** retirer la phrase sur l'art. 37.
+- **Fait le 2026-09-27 :** le message ne vise plus que le reste à recevoir du bailleur ; l'accord-cadre garde son contrôle (29). Test : `convention-financement-controles.spec.ts`, qui gelait la phrase fausse.
 
 **F77 · Brouillards invalidables comptés en retard par le planning et l'état du brouillard (correction F12 à moitié appliquée)** [rev-17, transv-12]
 - **Emplacements :** src/modules/exercice/exercice.service.ts:316, :333-339 · src/modules/comptabilite/ecriture.service.ts:824, :1338-1383 · src/modules/controles/controles.service.ts:281, :863

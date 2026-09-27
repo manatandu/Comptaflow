@@ -183,6 +183,48 @@ export class FaiblessesService {
     return motifs;
   }
 
+  /**
+   * LA QUALIFICATION D'UNE LETTRE REÇUE NE SE REFAIT PAS · ni par
+   * `qualifier`, ni par `escalader` (audit final F73), qui requalifiait en
+   * significative une faiblesse qu'un réviseur, un commissaire ou un bailleur
+   * avait jugée « autre ». Les deux chemins écrivent la qualification, les
+   * deux passent par ce refus.
+   */
+  static refuserSiLettreRecue(origine: OrigineFaiblesse): void {
+    if (origine === OrigineFaiblesse.RECOMMANDATION_EXTERNE) {
+      throw new ForbiddenException(
+        "OmegaX est ici le porte-documents de la direction · la qualification appartient à celui qui a écrit la lettre, et le cabinet ne la refait pas. " +
+          'Pour porter un jugement propre au cabinet, ouvrir un registre de révision interne.',
+      );
+    }
+  }
+
+  /**
+   * UN REPORT RESTE DANS SON REGISTRE ET VA VERS L'AVANT (audit final F74).
+   * La qualification, son auteur et le constat voyagent avec la faiblesse ·
+   * reportée d'une lettre reçue vers la révision interne, la qualification
+   * d'un tiers deviendrait un jugement du cabinet, et l'inverse rangerait le
+   * travail du cabinet dans la lettre d'un autre. Et « faire le suivi des
+   * faiblesses relevées lors de l'audit précédent » se fait sur l'exercice
+   * qui SUIT · un report vers un exercice antérieur écrirait une faiblesse
+   * dans un passé qui ne l'avait pas constatée.
+   */
+  static motifRefusReport(
+    source: { origine: OrigineFaiblesse; debutExercice: Date },
+    cible: { origine: OrigineFaiblesse; debutExercice: Date },
+  ): string | null {
+    if (source.origine !== cible.origine) {
+      return (
+        'Le registre cible n’est pas de la même origine · une faiblesse reportée garde sa qualification et son ' +
+        'auteur, et la lettre d’un tiers ne devient pas un constat du cabinet (ni l’inverse).'
+      );
+    }
+    if (cible.debutExercice <= source.debutExercice) {
+      return 'Le registre cible ne porte pas sur un exercice postérieur · un report va vers l’exercice qui suit.';
+    }
+    return null;
+  }
+
   private async registre(tenantId: string, id: string, statutsAdmis?: StatutRegistreFaiblesses[]) {
     const r = await this.prisma.registreFaiblesses.findFirst({ where: { id, tenantId } });
     if (!r) throw new NotFoundException('Registre des faiblesses introuvable.');
@@ -298,12 +340,7 @@ export class FaiblessesService {
    */
   async qualifier(tenantId: string, faiblesseId: string, userId: string, dto: QualifierDto) {
     const f = await this.faiblesse(tenantId, faiblesseId);
-    if (f.registre.origine === OrigineFaiblesse.RECOMMANDATION_EXTERNE) {
-      throw new ForbiddenException(
-        "OmegaX est ici le porte-documents de la direction · la qualification appartient à celui qui a écrit la lettre, et le cabinet ne la refait pas. " +
-          'Pour porter un jugement propre au cabinet, ouvrir un registre de révision interne.',
-      );
-    }
+    FaiblessesService.refuserSiLettreRecue(f.registre.origine);
     if (dto.qualification === QualificationFaiblesse.NON_QUALIFIEE) {
       throw new BadRequestException(
         "« Non qualifiée » est l'état de départ, pas une décision · on ne dé-qualifie pas une faiblesse déjà jugée.",
@@ -431,6 +468,19 @@ export class FaiblessesService {
     if (cible.id === source.registreId) {
       throw new BadRequestException("Le registre cible est celui d'origine · un report va vers l'exercice suivant.");
     }
+    const exercices = await this.prisma.exercice.findMany({
+      where: { tenantId, id: { in: [source.registre.exerciceId, cible.exerciceId] } },
+      select: { id: true, dateDebut: true },
+    });
+    const debut = new Map(exercices.map((e) => [e.id, e.dateDebut]));
+    const debutSource = debut.get(source.registre.exerciceId);
+    const debutCible = debut.get(cible.exerciceId);
+    if (!debutSource || !debutCible) throw new NotFoundException('Exercice du registre introuvable.');
+    const refus = FaiblessesService.motifRefusReport(
+      { origine: source.registre.origine, debutExercice: debutSource },
+      { origine: cible.origine, debutExercice: debutCible },
+    );
+    if (refus) throw new BadRequestException(refus);
 
     const manques = FaiblessesService.manquesDuReport(source, dto);
     if (manques.length > 0) {
@@ -480,6 +530,7 @@ export class FaiblessesService {
    */
   async escalader(tenantId: string, faiblesseId: string, userId: string, dto: EscaladerDto) {
     const f = await this.faiblesse(tenantId, faiblesseId);
+    FaiblessesService.refuserSiLettreRecue(f.registre.origine);
     if (f.qualification !== QualificationFaiblesse.AUTRE) {
       throw new BadRequestException(
         "L'escalade du § A24 ne concerne que les AUTRES faiblesses non remédiées · une significative l'est déjà, une non qualifiée se qualifie.",

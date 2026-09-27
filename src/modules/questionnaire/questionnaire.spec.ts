@@ -300,6 +300,31 @@ describe('ce qui empêche de clore', () => {
     expect(motifs.some((m) => m.includes('sans commentaire') && m.includes('CPCC-CAI-4'))).toBe(true);
   });
 
+  // Une réponse reste en base quand le parent de son item change de réponse ·
+  // CPCC-CAI-2 a été répondu NON (exception), puis CPCC-CAI-1 est passé à
+  // NON et l'a refermé. Elle ne s'affiche plus et ne se corrige plus.
+  const refermee = () =>
+    items.map((i) =>
+      i.code === 'CPCC-CAI-1'
+        ? rep(i.code, { reponse: ReponseItem.NON, estException: true, commentaire: 'Aucun comptage tenu.' })
+        : i.code === 'CPCC-CAI-2'
+          ? rep(i.code, { reponse: ReponseItem.NON, estException: true })
+          : rep(i.code, { reponse: ReponseItem.OUI }),
+    );
+
+  it('ne compte pas l’exception d’un item que son parent a refermé (audit final F75)', () => {
+    expect(QuestionnaireService.motifsRefusCloture(items, refermee())).toEqual([]);
+  });
+
+  it('la synthèse ne la compte pas non plus (audit final F75)', async () => {
+    const { svc } = service({
+      questionnaire: questionnaire({ cycles: [CycleQuestionnaire.CAISSES], reponses: refermee() }),
+    });
+    const r = await svc.consulter('t1', 'q1');
+    expect(r.synthese.exceptions).toBe(1);
+    expect(r.synthese.exceptionsSansCommentaire).toBe(0);
+  });
+
   it('laisse clore un questionnaire complet dont les exceptions sont commentées', () => {
     const complet = items.map((i) =>
       rep(i.code, {

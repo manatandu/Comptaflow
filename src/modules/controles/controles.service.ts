@@ -2334,10 +2334,13 @@ export class ControlesService {
     // 24 · CONVENTION DE FINANCEMENT EXPIRÉE, RAPPORT AU BAILLEUR EN RETARD
     // -----------------------------------------------------------------------
     //
-    // Le jalon 11 du planning de clôture demande de vérifier « à chaque
-    // exercice que l'accord-cadre est en cours de validité » (loi n° 004/2001
-    // du 20 juillet 2001, art. 37). Il le demandait sur une donnée que RIEN ne
-    // détenait : le dossier de subvention la porte depuis le 2026-09-05.
+    // LA CONVENTION D'UN BAILLEUR N'EST PAS L'ACCORD-CADRE (audit final F76).
+    // L'accord-cadre avec le Ministère du Plan conditionne l'existence en RDC
+    // d'une ONG ÉTRANGÈRE (loi n° 004/2001, art. 37) et se contrôle dans son
+    // module (contrôle 29). Une convention de financement est un contrat
+    // avec un bailleur · échue, elle pose la question du reste à recevoir, et
+    // d'aucune autre chose. Le message citait l'art. 37 à toute association,
+    // congolaise comprise, et lui disait qu'elle exerçait « sans titre ».
     //
     // SYCEBNL SEULEMENT · la convention de financement suit le bailleur, qui
     // est une notion de la division 46 du SYCEBNL.
@@ -2365,10 +2368,7 @@ export class ControlesService {
           libelle: 'Convention de financement arrivée à terme et toujours en cours',
           consequence:
             'Ces conventions portent une date de fin dépassée et restent marquées EN COURS. Leur reste à recevoir ' +
-            'continue donc d’être présenté comme attendu, alors que rien ne le fonde plus. La loi n° 004/2001 ' +
-            'du 20 juillet 2001, art. 37, fait par ailleurs de la validité de l’accord-cadre la condition même de ' +
-            'l’exercice d’une ONG étrangère : une convention expirée n’est pas seulement une créance douteuse, ' +
-            'c’est une activité sans titre.',
+            'continue donc d’être présenté comme attendu, alors que rien ne le fonde plus.',
           action:
             'Faites constater l’avenant de prorogation s’il existe, et reportez sa date de fin sur la convention. ' +
             'À défaut, clôturez la convention, ou résiliez-la avec son motif si le solde ne sera pas versé · la ' +
