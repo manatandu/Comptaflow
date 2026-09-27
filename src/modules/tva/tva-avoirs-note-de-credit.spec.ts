@@ -30,6 +30,9 @@ function service(lignes: LigneFausse[], derniere: { dateDebut: Date; dateFin: Da
   const prisma = {
     tenant: { findUnique: jest.fn().mockResolvedValue({ id: 't1', regimeExigibiliteTva: 'LIVRAISONS', referentiel: 'SYSCOHADA' }) },
     tauxTva: { findMany: jest.fn().mockResolvedValue([TAUX]) },
+    // F25 · la déclaration compte les écritures restées au brouillard ; ce jeu
+    // d'essai n'en porte aucune.
+    ecriture: { count: jest.fn().mockResolvedValue(0) },
     ligneEcriture: {
       findMany: jest.fn().mockImplementation(({ where, include }: { where: Record<string, unknown>; include?: any }) => {
         const compte = where.compte as { OR?: unknown } | undefined;

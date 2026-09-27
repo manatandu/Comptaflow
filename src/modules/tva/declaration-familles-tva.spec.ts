@@ -66,6 +66,9 @@ function service(lignes: LigneTva[]) {
         .mockResolvedValue({ regimeExigibiliteTva: 'DEBITS', referentiel: 'SYSCOHADA', dateAutorisationDebitsTva: null }),
     },
     tauxTva: { findMany: jest.fn().mockResolvedValue([TAUX]) },
+    // F25 · la déclaration compte les écritures restées au brouillard ; ce jeu
+    // d'essai n'en porte aucune.
+    ecriture: { count: jest.fn().mockResolvedValue(0) },
     ligneEcriture: {
       findMany: jest.fn().mockImplementation(({ where }: { where: Record<string, unknown> }) => {
         // Le prorata interroge lui aussi `findMany`, sur d'autres critères ·

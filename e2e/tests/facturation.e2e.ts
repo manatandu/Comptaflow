@@ -49,5 +49,23 @@ test('SYSCOHADA · une vente saisie à l’écran, avec son tiers et son taux, s
   const { ecritures } = await appelApi<{ ecritures: Ecriture[] }>(page, 'GET', `/ecritures?exerciceId=${exercice.id}`);
   const passee = ecritures.find((e) => e.reference === 'FV-E2E-1');
   expect({ statut: passee?.statut, lignes: passee?.lignes.length }).toEqual({ statut: 'BROUILLARD', lignes: 3 });
+
+  // AUDIT FINAL F25 · la même pièce, restée au brouillard, n'entre pas dans la
+  // déclaration de TVA, qui la nomme, et la période ne se liquide pas.
+  const mois = date.slice(0, 7);
+  const fin = new Date(Date.UTC(Number(mois.slice(0, 4)), Number(mois.slice(5, 7)), 0)).toISOString().slice(0, 10);
+  const decl = await appelApi<{ totalCollecte: number; tvaAuBrouillard: { collecte: number; ecritures: number } }>(
+    page,
+    'GET',
+    `/taux-tva/declaration?dateDebut=${mois}-01&dateFin=${fin}`,
+  );
+  expect(decl).toMatchObject({ totalCollecte: 0, tvaAuBrouillard: { collecte: 100000 * Number(taux.taux) / 100, ecritures: 1 } });
+  await expect(
+    appelApi(page, 'POST', '/taux-tva/declaration/comptabiliser', {
+      exerciceId: exercice.id,
+      dateDebut: `${mois}-01`,
+      dateFin: fin,
+    }),
+  ).rejects.toThrow(/400 · .*au brouillard/);
   expect(pannes).toEqual([]);
 });

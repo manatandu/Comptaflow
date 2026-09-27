@@ -89,7 +89,14 @@ function harnais(options: { liquidationExistante?: { dateDebut: string; dateFin:
       findMany: jest
         .fn()
         .mockResolvedValue([ligneTva('2026-01-15', 160_000), ligneTva('2026-02-10', 96_000)]),
-      aggregate: jest.fn().mockResolvedValue({ _sum: { credit: 160_000, debit: 0 } }),
+      // La doublure honore le statut (F25) · rien n'est au brouillard ici.
+      aggregate: jest.fn().mockImplementation(({ where }: { where: { ecriture?: { statut?: string } } }) =>
+        Promise.resolve(
+          where.ecriture?.statut === 'BROUILLARD'
+            ? { _sum: { credit: 0, debit: 0 } }
+            : { _sum: { credit: 160_000, debit: 0 } },
+        ),
+      ),
       groupBy: jest
         .fn()
         .mockResolvedValue([{ compteId: 'c443', _sum: { debit: 0, credit: 160_000 } }]),
@@ -104,7 +111,7 @@ function harnais(options: { liquidationExistante?: { dateDebut: string; dateFin:
     },
     journal: { findFirst: jest.fn().mockResolvedValue({ id: 'j-od', code: 'OD' }) },
     liquidationTva: { findFirst, create, findMany: jest.fn().mockResolvedValue([]) },
-    ecriture: { delete: jest.fn().mockResolvedValue({}) },
+    ecriture: { delete: jest.fn().mockResolvedValue({}), count: jest.fn().mockResolvedValue(0) },
   } as unknown as PrismaService;
 
   const ecritureService = {

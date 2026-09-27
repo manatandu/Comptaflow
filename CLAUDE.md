@@ -5100,6 +5100,16 @@ taxes sur la facture refusent aussi, leur compte dépendant de leur nature.
 puis la facture est liée, sur une facture encore libre · un second clic
 retire l'écriture qu'il vient de créer.
 
+**Déclaration de TVA · le livre-journal seul (2026-09-27, audit final F25).**
+Déclaration, prorata et liquidation lisaient le brouillard. Ils ne lisent plus
+que les écritures VALIDÉES, comme le résultat fiscal et le registre des
+retenues · un acte devant l'Administration ne repose pas sur une pièce encore
+modifiable (AUDCIF art. 22, 2°). Filtrer seul aurait fait disparaître une
+facture oubliée au brouillard sans rien dire · la déclaration compte donc et
+NOMME la TVA restée au brouillard (`tvaAuBrouillard`), et la LIQUIDATION d'une
+telle période est REFUSÉE, parce qu'une ligne validée ensuite garderait son
+exigibilité dans une période close et ne serait reprise par aucune déclaration.
+
 ### Migrations écrites à la main
 
 Une migration écrite à la main peut DIVERGER du schéma sans que rien ne le

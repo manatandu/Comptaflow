@@ -3,7 +3,7 @@ import { referencesVers, refuserSiReferences } from '../../common/suppression/re
 import { PrismaService } from '../../common/prisma.service';
 import { CreerTauxTvaDto, ModifierTauxTvaDto } from './dto/taux-tva.dto';
 import { tauxTvaDefaut } from './taux-tva-seed';
-import { Prisma, ClasseCompte, Referentiel, TypeJournal, NatureFacture } from '@prisma/client';
+import { Prisma, ClasseCompte, Referentiel, TypeJournal, NatureFacture, StatutEcriture } from '@prisma/client';
 import { DETENTEUR_LIQUIDATION_TVA, EcritureService } from '../comptabilite/ecriture.service';
 
 const EPSILON = 0.005;
@@ -796,7 +796,7 @@ export class TauxTvaService {
       where: {
         tauxTvaId: { not: null },
         compte: { numero: { startsWith: RACINE_COLLECTEE } },
-        ecriture: { tenantId, date: { gte: dateDebut, lte: dateFin } },
+        ecriture: { tenantId, statut: StatutEcriture.VALIDEE, date: { gte: dateDebut, lte: dateFin } },
       },
       select: {
         credit: true,
@@ -854,7 +854,7 @@ export class TauxTvaService {
       this.prisma.ligneEcriture.aggregate({
         where: {
           compte: { tenantId, classe: ClasseCompte.CLASSE_7 },
-          ecriture: { tenantId, date: { gte: dateDebut, lte: dateFin } },
+          ecriture: { tenantId, statut: StatutEcriture.VALIDEE, date: { gte: dateDebut, lte: dateFin } },
         },
         _sum: { credit: true },
       }),
@@ -863,7 +863,7 @@ export class TauxTvaService {
         : this.prisma.ligneEcriture.aggregate({
             where: {
               compte: { tenantId, classe: ClasseCompte.CLASSE_7, OR: filtreExclusions },
-              ecriture: { tenantId, date: { gte: dateDebut, lte: dateFin } },
+              ecriture: { tenantId, statut: StatutEcriture.VALIDEE, date: { gte: dateDebut, lte: dateFin } },
             },
             _sum: { credit: true },
           }),
@@ -876,6 +876,7 @@ export class TauxTvaService {
           },
           ecriture: {
             tenantId,
+            statut: StatutEcriture.VALIDEE,
             date: { gte: dateDebut, lte: dateFin },
             lignes: { none: { tauxTvaId: { not: null }, compte: { numero: { startsWith: RACINE_COLLECTEE } } } },
           },
@@ -1137,11 +1138,40 @@ export class TauxTvaService {
     const agg = await this.prisma.ligneEcriture.aggregate({
       where: {
         compteId: { in: comptes },
-        ecriture: { tenantId, date: { gte: dateDebut, lte: dateFin } },
+        ecriture: { tenantId, statut: StatutEcriture.VALIDEE, date: { gte: dateDebut, lte: dateFin } },
       },
       _sum: { debit: true, credit: true },
     });
     return TauxTvaService.c(Number(agg._sum.debit ?? 0) - Number(agg._sum.credit ?? 0));
+  }
+
+  /** La TVA d'écritures au brouillard datées de la période (audit final F25). */
+  private async tvaAuBrouillard(tenantId: string, idsTaux: string[], dateDebut: Date, dateFin: Date) {
+    if (idsTaux.length === 0) return { collecte: 0, deductible: 0, ecritures: 0 };
+    const auBrouillard = { tenantId, statut: StatutEcriture.BROUILLARD, date: { gte: dateDebut, lte: dateFin } };
+    const [collecte, deductible, ecritures] = await Promise.all([
+      this.prisma.ligneEcriture.aggregate({
+        where: { tauxTvaId: { in: idsTaux }, compte: { numero: { startsWith: RACINE_COLLECTEE } }, ecriture: auBrouillard },
+        _sum: { debit: true, credit: true },
+      }),
+      this.prisma.ligneEcriture.aggregate({
+        where: { tauxTvaId: { in: idsTaux }, compte: { numero: { startsWith: RACINE_RECUPERABLE } }, ecriture: auBrouillard },
+        _sum: { debit: true, credit: true },
+      }),
+      this.prisma.ecriture.count({
+        where: {
+          tenantId,
+          statut: StatutEcriture.BROUILLARD,
+          date: { gte: dateDebut, lte: dateFin },
+          lignes: { some: { tauxTvaId: { in: idsTaux } } },
+        },
+      }),
+    ]);
+    return {
+      collecte: TauxTvaService.c(Number(collecte._sum.credit ?? 0) - Number(collecte._sum.debit ?? 0)),
+      deductible: TauxTvaService.c(Number(deductible._sum.debit ?? 0) - Number(deductible._sum.credit ?? 0)),
+      ecritures,
+    };
   }
 
   /**
@@ -1695,7 +1725,10 @@ export class TauxTvaService {
               compte: {
                 OR: [{ numero: { startsWith: RACINE_COLLECTEE } }, { numero: { startsWith: RACINE_RECUPERABLE } }],
               },
-              ecriture: { tenantId, date: { lte: dateFin } },
+              // LE LIVRE-JOURNAL SEUL (audit final F25) · une déclaration est
+              // un acte devant l'Administration, comme le résultat fiscal et
+              // le registre des retenues, qui ne lisent pas le brouillard.
+              ecriture: { tenantId, statut: StatutEcriture.VALIDEE, date: { lte: dateFin } },
             },
             include: {
               compte: { select: { numero: true } },
@@ -1764,6 +1797,11 @@ export class TauxTvaService {
               },
             },
           });
+
+    // CE QUI RESTE AU BROUILLARD N'EST PAS DÉCLARÉ, ET LA DÉCLARATION LE DIT
+    // (audit final F25) · un oubli de validation minorerait la taxe sans que
+    // rien à l'écran ne le montre.
+    const tvaAuBrouillard = await this.tvaAuBrouillard(tenantId, taux.map((t) => t.id), dateDebut, dateFin);
 
     type Cumul = {
       collecte: number;
@@ -2034,7 +2072,10 @@ export class TauxTvaService {
         tvaNatureDepenseIllisible,
         tvaDeductibleDechue,
         recettesNonQualifiees: prorata.recettesNonQualifiees,
+        tvaAuBrouillard,
       }),
+      /** TVA d'écritures au brouillard datées de la période · hors déclaration. */
+      tvaAuBrouillard,
       // TVA facturée sur la période mais pas encore encaissée, donc pas encore
       // due. Zéro quand aucune ligne n'est datée à l'encaissement.
       tvaEnAttenteEncaissement: enAttente,
@@ -2122,10 +2163,20 @@ export class TauxTvaService {
     tvaNatureDepenseIllisible: number;
     tvaDeductibleDechue: number;
     recettesNonQualifiees: number;
+    tvaAuBrouillard?: { collecte: number; deductible: number; ecritures: number };
   }) {
     const { regime, referentiel } = e;
     const fc = (n: number) => n.toLocaleString('fr-FR');
+    const brouillard = e.tvaAuBrouillard;
     const phrases: string[] = [
+      ...(brouillard && brouillard.ecritures > 0
+        ? [
+            `TVA RESTÉE AU BROUILLARD, HORS DE CETTE DÉCLARATION · ${brouillard.ecritures} écriture(s) datée(s) de la ` +
+              `période portent ${fc(brouillard.collecte)} CDF de TVA facturée et ${fc(brouillard.deductible)} CDF de ` +
+              'TVA récupérable. Une écriture au brouillard n’est pas entrée au livre-journal (AUDCIF art. 22, 2°) · ' +
+              'validez-la avant de déclarer, ou la taxe de la période sera fausse de ce montant.',
+          ]
+        : []),
       "Exigibilité datée OPÉRATION PAR OPÉRATION (article 25 de l'ordonnance-loi n° 10/001) : les LIVRAISONS DE " +
         'BIENS au fait générateur (art. 25, 1°), les PRESTATIONS DE SERVICES et TRAVAUX IMMOBILIERS à ' +
         "l'encaissement du prix, des acomptes ou avances (art. 25, 2°). La nature est lue à la CONTREPARTIE de " +
@@ -2372,6 +2423,21 @@ export class TauxTvaService {
     }
 
     const decl = await this.declaration(tenantId, dateDebut, dateFin);
+
+    // UNE PÉRIODE LIQUIDÉE NE SE REDÉCLARE PAS (audit final F25) · une ligne
+    // de TVA validée APRÈS la liquidation garderait sa date d'exigibilité dans
+    // la période close, et aucune déclaration ne la reprendrait jamais. La
+    // taxe serait perdue sur une écriture équilibrée. D'où le refus, tant que
+    // la période porte de la TVA au brouillard.
+    if (decl.tvaAuBrouillard.ecritures > 0) {
+      const b = decl.tvaAuBrouillard;
+      throw new BadRequestException(
+        `${b.ecritures} écriture(s) de la période portent encore de la TVA au brouillard ` +
+          `(${b.collecte.toLocaleString('fr-FR')} CDF facturée, ${b.deductible.toLocaleString('fr-FR')} CDF ` +
+          'récupérable). Validez-les ou supprimez-les avant de liquider · une fois la période liquidée, une ' +
+          'ligne validée ensuite ne serait reprise par aucune déclaration (AUDCIF art. 22, 2°).',
+      );
+    }
 
     const recuperationArt52 = decl.recuperationArt52;
     if (

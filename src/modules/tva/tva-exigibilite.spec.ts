@@ -136,6 +136,9 @@ function service(
   const prisma = {
     tenant: { findUnique: jest.fn().mockResolvedValue({ id: 't1', regimeExigibiliteTva: regime, referentiel }) },
     tauxTva: { findMany: jest.fn().mockResolvedValue([TAUX]) },
+    // F25 · la déclaration compte les écritures restées au brouillard ; ce jeu
+    // d'essai n'en porte aucune.
+    ecriture: { count: jest.fn().mockResolvedValue(0) },
     ligneEcriture: {
       findMany: jest.fn().mockResolvedValue(lignesTva),
       // Utilisé par le prorata seulement · la déclaration lit ligne à ligne.

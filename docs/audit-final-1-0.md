@@ -202,6 +202,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** aucun filtre de statut dans ce module : le brouillard entre dans la collecte, la déduction, le prorata et l'écriture posée au 444. Le résultat fiscal, lui, lit le livre-journal seul pour un acte devant l'Administration, et le registre des retenues filtre sur VALIDEE : même question, deux réponses.
 - **Correction :** filtrer `statut = VALIDEE` et signaler dans la déclaration la TVA restée au brouillard.
+- **Fait le 2026-09-27 :** la déclaration, le prorata et le prorata définitif ne lisent plus que le livre-journal (`taux-tva.service.ts`) ; la TVA des écritures au brouillard de la période est comptée et nommée (`tvaAuBrouillard`, alerte à l'écran), et la liquidation d'une telle période est refusée · une ligne validée après coup garderait son exigibilité dans une période close et ne serait plus jamais déclarée. Tests : `tva-brouillard-f25.spec.ts` (huit mutations tuées), e2e `facturation.e2e.ts` sur base réelle.
 
 **F26 · Registre des retenues : le reversement d'une retenue de N-1 est imputé sur janvier et masque un retard réel** [ret-01]
 - **Emplacements :** src/modules/retenues/retenues.service.ts:199, :282, :318 · correspondance-retenues.ts:1188 · src/modules/exercice/exercice.service.ts:853

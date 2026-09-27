@@ -725,6 +725,8 @@ export interface DeclarationTva {
   mentionExigibilite: string;
   /** TVA facturée sur la période mais pas encore encaissée, donc pas due. */
   tvaEnAttenteEncaissement: number;
+  /** TVA d'écritures au brouillard datées de la période · hors déclaration (audit F25). */
+  tvaAuBrouillard: { collecte: number; deductible: number; ecritures: number };
   lignes: LigneDeclarationTva[];
   prorata: ProrataTva;
   totalCollecte: number;

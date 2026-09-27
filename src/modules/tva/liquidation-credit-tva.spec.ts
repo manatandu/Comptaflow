@@ -85,6 +85,8 @@ function service(net: number, referentiel: 'SYCEBNL' | 'SYSCOHADA', creditAnteri
     // pour que le faux reste conforme à ce que la déclaration rend vraiment.
     recuperationArt52: 0,
     net: net - creditAnterieur,
+    // Rien au brouillard · sinon la liquidation est refusée (F25).
+    tvaAuBrouillard: { collecte: 0, deductible: 0, ecritures: 0 },
     prorata: { pourcentage: 100 },
     lignes: [
       {
@@ -213,6 +215,9 @@ function declarant(precedente: { dateDebut: string; dateFin: string; net: number
       findUnique: jest.fn().mockResolvedValue({ regimeExigibiliteTva: 'LIVRAISONS', referentiel: 'SYSCOHADA' }),
     },
     tauxTva: { findMany: jest.fn().mockResolvedValue([TAUX]) },
+    // F25 · la déclaration compte les écritures restées au brouillard ; ce jeu
+    // d'essai n'en porte aucune.
+    ecriture: { count: jest.fn().mockResolvedValue(0) },
     ligneEcriture: {
       findMany: jest.fn().mockResolvedValue([
         {

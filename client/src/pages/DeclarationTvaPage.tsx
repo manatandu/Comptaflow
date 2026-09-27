@@ -168,6 +168,17 @@ export function DeclarationTvaPage() {
 
       {declaration && (
         <>
+          {/* LE BROUILLARD N'EST PAS DÉCLARÉ (audit F25) · une facture oubliée
+              au brouillard sortirait de la taxe sans rien dire. L'alerte porte
+              sur une donnée du dossier, elle reste donc à l'écran. */}
+          {declaration.tvaAuBrouillard?.ecritures > 0 && (
+            <div className="text-[11.5px] text-warning bg-warning-soft border border-warning/30 px-2.5 py-1.5 mb-3 max-w-[780px]">
+              TVA au brouillard, hors de cette déclaration · {declaration.tvaAuBrouillard.ecritures} écriture(s),{' '}
+              {declaration.tvaAuBrouillard.collecte.toLocaleString('fr-FR')} CDF facturée,{' '}
+              {declaration.tvaAuBrouillard.deductible.toLocaleString('fr-FR')} CDF récupérable. Validez-les avant de
+              déclarer.
+            </div>
+          )}
           {/* RÉGIME D'EXIGIBILITÉ · un total de TVA ne se vérifie pas sans lui.
               Le même chiffre d'affaires donne deux déclarations différentes
               selon que la taxe est due à la facture ou au règlement. */}

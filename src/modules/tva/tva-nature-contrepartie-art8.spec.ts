@@ -121,6 +121,9 @@ function service(regime: 'LIVRAISONS' | 'ENCAISSEMENTS' | 'DEBITS', lignesTva: u
       findUnique: jest.fn().mockResolvedValue({ id: 't1', regimeExigibiliteTva: regime, referentiel: 'SYSCOHADA' }),
     },
     tauxTva: { findMany: jest.fn().mockResolvedValue([TAUX]) },
+    // F25 · la déclaration compte les écritures restées au brouillard ; ce jeu
+    // d'essai n'en porte aucune.
+    ecriture: { count: jest.fn().mockResolvedValue(0) },
     ligneEcriture: {
       findMany: jest.fn().mockResolvedValue(lignesTva),
       aggregate: jest.fn().mockResolvedValue({ _sum: { credit: 0, debit: 0 } }),
