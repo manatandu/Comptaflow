@@ -1,9 +1,19 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { Aide } from '../components/chrome/Aide';
-import type { CampagneInventaire, Exercice } from '../lib/types';
+import type {
+  CaisseNonComptee,
+  CampagneInventaire,
+  Compte,
+  EcartInventaire,
+  Exercice,
+  FicheInventaire,
+  PropositionRedressement,
+  RoleMembreInventaire,
+  SousCommissionInventaire,
+} from '../lib/types';
 
 /**
  * INVENTAIRE PHYSIQUE · les six étapes du CPCC, dans l'ordre où elles se font.
@@ -40,6 +50,37 @@ const LIBELLE_DECISION: Record<string, string> = {
   RENVOYE_COMMISSION_PRINCIPALE: 'Renvoyé à la commission principale',
 };
 
+/** Les deux valeurs de l'enum `RoleMembreInventaire` du schéma. */
+const LIBELLE_ROLE: Record<RoleMembreInventaire, string> = {
+  INVENTORIANT: 'Inventoriant',
+  TEMOIN: 'Témoin',
+};
+
+/**
+ * LES STATUTS QUE LE SERVICE ADMET POUR CHAQUE GESTE, relus dans
+ * `inventaire.service.ts` · l'écran ne propose pas un geste que le serveur
+ * refuserait au statut courant (même parti que les boutons de l'en-tête).
+ */
+const PEUT_PREPARER = ['PREPARATION', 'RECENSEMENT']; // sous-commissions, fiches, comptage
+const PEUT_ETABLIR_PV = ['RECENSEMENT', 'ARBITRAGE']; // PV de comptage d'une caisse
+
+/**
+ * Un champ numérique vide n'est PAS zéro · il n'est pas envoyé. `null` signale
+ * une saisie illisible, et le bouton reste fermé plutôt que d'envoyer un NaN
+ * que le serveur refuserait sans dire quel champ.
+ */
+const lireNombre = (texte: string): number | undefined | null => {
+  const t = texte.replace(/\s/g, '').replace(',', '.');
+  if (t === '') return undefined;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+};
+
+const CHAMP = 'block border border-border bg-surface px-2 py-[3px] text-[11.5px]';
+const BOUTON = 'border border-border rounded-[3px] px-2.5 py-[3px] text-[11.5px] disabled:opacity-40';
+const BOUTON_PRINCIPAL =
+  'bg-sel text-white rounded-[3px] px-2.5 py-[3px] text-[11.5px] font-semibold disabled:opacity-40';
+
 const montant = (v: unknown) => Number(v ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 });
 const jour = (d: string | null | undefined) => (d ? new Date(d).toLocaleDateString('fr-FR') : '·');
 
@@ -54,6 +95,8 @@ export function InventairePage() {
   const [dateInventaire, setDateInventaire] = useState('');
   const [exerciceId, setExerciceId] = useState('');
   const [erreur, setErreur] = useState<string | null>(null);
+  const [caisses, setCaisses] = useState<CaisseNonComptee[]>([]);
+  const [comptes, setComptes] = useState<Compte[]>([]);
 
   const charger = () => {
     api.get<CampagneInventaire[]>('/inventaire').then(setCampagnes, (e: Error) => setErreur(e.message));
@@ -64,17 +107,30 @@ export function InventairePage() {
     api.get<Exercice[]>('/exercices').then(setExercices, () => undefined);
   }, []);
 
+  // Le plan ne sert qu'à ouvrir une fiche · inutile à qui ne peut pas écrire.
+  useEffect(() => {
+    if (peutEcrire) api.get<Compte[]>('/comptes').then(setComptes, () => undefined);
+  }, [peutEcrire]);
+
+  const chargerCaisses = (id: string) =>
+    api.get<CaisseNonComptee[]>(`/inventaire/${id}/caisses-non-comptees`).then(setCaisses, () => setCaisses([]));
+
   useEffect(() => {
     if (!selectionId) {
       setDetail(null);
+      setCaisses([]);
       return;
     }
     api.get<CampagneInventaire>(`/inventaire/${selectionId}`).then(setDetail, (e: Error) => setErreur(e.message));
+    chargerCaisses(selectionId);
   }, [selectionId]);
 
   const rafraichir = () => {
     charger();
-    if (selectionId) api.get<CampagneInventaire>(`/inventaire/${selectionId}`).then(setDetail, () => undefined);
+    if (selectionId) {
+      api.get<CampagneInventaire>(`/inventaire/${selectionId}`).then(setDetail, () => undefined);
+      chargerCaisses(selectionId);
+    }
   };
 
   const agir = async (action: () => Promise<unknown>) => {
@@ -84,7 +140,10 @@ export function InventairePage() {
       rafraichir();
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Opération impossible');
+      // Le formulaire reste ouvert sur un refus · la saisie n'est pas perdue.
+      return false;
     }
+    return true;
   };
 
   const creer = () =>
@@ -286,6 +345,9 @@ export function InventairePage() {
                 </div>
               )}
 
+              {/* --- Sous-commissions ------------------------------------- */}
+              <BlocSousCommissions campagne={detail} peutEcrire={peutEcrire} agir={agir} />
+
               {/* --- Écarts ------------------------------------------------ */}
               {ecarts.length > 0 && (
                 <div className="border border-border bg-surface mb-2">
@@ -314,40 +376,18 @@ export function InventairePage() {
                         <th className="text-right px-2.5 py-1 font-normal">Écart</th>
                         <th className="text-left px-2.5 py-1 font-normal">Décision</th>
                         <th className="text-left px-2.5 py-1 font-normal">Responsable</th>
+                        <th className="px-2.5 py-1" />
                       </tr>
                     </thead>
                     <tbody>
-                      {ecarts.map((e) => {
-                        const v = Number(e.ecart);
-                        return (
-                          <tr key={e.id} className="border-b border-border/40">
-                            <td className="px-2.5 py-1">
-                              <span className="font-mono">{e.compte.numero}</span>{' '}
-                              <span className="text-text-dim">{e.compte.intitule}</span>
-                              {e.nombreFiches > 1 && (
-                                <span className="text-[10px] text-text-dim"> · {e.nombreFiches} fiches</span>
-                              )}
-                            </td>
-                            <td className="px-2.5 py-1 text-right tabular-nums">{montant(e.valeurInventaire)}</td>
-                            <td className="px-2.5 py-1 text-right tabular-nums">{montant(e.soldeComptable)}</td>
-                            <td
-                              className={`px-2.5 py-1 text-right tabular-nums font-semibold ${
-                                v < 0 ? 'text-danger' : v > 0 ? 'text-warning' : 'text-text-dim'
-                              }`}
-                            >
-                              {montant(e.ecart)}
-                            </td>
-                            <td className="px-2.5 py-1">
-                              {e.decision ? (
-                                LIBELLE_DECISION[e.decision]
-                              ) : (
-                                <span className="text-text-dim">à trancher</span>
-                              )}
-                            </td>
-                            <td className="px-2.5 py-1 text-text-dim">{e.responsable ?? '·'}</td>
-                          </tr>
-                        );
-                      })}
+                      {ecarts.map((e) => (
+                        <LigneEcart
+                          key={e.id}
+                          ecart={e}
+                          arbitrable={peutEcrire && detail.statut === 'ARBITRAGE'}
+                          agir={agir}
+                        />
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -358,6 +398,9 @@ export function InventairePage() {
                 <div className="px-2.5 py-1.5 border-b border-border text-[11px] font-mono text-text-dim">
                   FICHES DE COMPTAGE · {detail.fiches?.length ?? 0}
                 </div>
+                {peutEcrire && PEUT_PREPARER.includes(detail.statut) && (
+                  <AjoutFiche campagne={detail} comptes={comptes} agir={agir} />
+                )}
                 {(detail.fiches?.length ?? 0) === 0 && (
                   <div className="px-2.5 py-3 text-[11.5px] text-text-dim">Aucune fiche.</div>
                 )}
@@ -370,37 +413,701 @@ export function InventairePage() {
                         <th className="text-right px-2.5 py-1 font-normal">Quantité</th>
                         <th className="text-right px-2.5 py-1 font-normal">Valeur d’inventaire</th>
                         <th className="text-left px-2.5 py-1 font-normal">Pièce</th>
+                        <th className="px-2.5 py-1" />
                       </tr>
                     </thead>
                     <tbody>
                       {detail.fiches?.map((f) => (
-                        <tr key={f.id} className="border-b border-border/40">
-                          <td className="px-2.5 py-1">{f.designation}</td>
-                          <td className="px-2.5 py-1 font-mono text-text-dim">{f.compte.numero}</td>
-                          <td className="px-2.5 py-1 text-right tabular-nums">
-                            {f.quantiteComptee === null ? (
-                              <span className="text-text-dim">non compté</span>
-                            ) : (
-                              Number(f.quantiteComptee).toLocaleString('fr-FR')
-                            )}
-                          </td>
-                          <td className="px-2.5 py-1 text-right tabular-nums">
-                            {f.valeurInventaire === null ? (
-                              <span className="text-warning">non valorisée</span>
-                            ) : (
-                              montant(f.valeurInventaire)
-                            )}
-                          </td>
-                          <td className="px-2.5 py-1 text-text-dim">{f.referencePiece ?? '·'}</td>
-                        </tr>
+                        <LigneFiche
+                          key={f.id}
+                          fiche={f}
+                          saisissable={peutEcrire && PEUT_PREPARER.includes(detail.statut)}
+                          agir={agir}
+                        />
                       ))}
                     </tbody>
                   </table>
                 )}
               </div>
+
+              {/* --- Caisses ----------------------------------------------- */}
+              {detail.statut !== 'CLOTUREE' && (
+                <BlocCaisses campagne={detail} caisses={caisses} peutEcrire={peutEcrire} agir={agir} />
+              )}
             </>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+type Agir = (action: () => Promise<unknown>) => Promise<boolean>;
+
+/**
+ * SOUS-COMMISSIONS · le PV de campagne comme celui d'une caisse se signent
+ * « par ceux qui ont inventorié ET assisté » (CPCC, étape 2), et le serveur
+ * refuse l'un et l'autre tant qu'il manque un inventoriant ou un témoin.
+ * Sans ce bloc, aucun PV n'était établissable depuis l'écran.
+ */
+function BlocSousCommissions({
+  campagne,
+  peutEcrire,
+  agir,
+}: {
+  campagne: CampagneInventaire;
+  peutEcrire: boolean;
+  agir: Agir;
+}) {
+  const [nom, setNom] = useState('');
+  const [perimetre, setPerimetre] = useState('');
+  const liste = campagne.sousCommissions ?? [];
+  const creable = peutEcrire && PEUT_PREPARER.includes(campagne.statut);
+  const cloturee = campagne.statut === 'CLOTUREE';
+
+  const creer = async () => {
+    const ok = await agir(() =>
+      api.post(`/inventaire/${campagne.id}/sous-commissions`, {
+        nom: nom.trim(),
+        perimetre: perimetre.trim() || undefined,
+      }),
+    );
+    if (ok) {
+      setNom('');
+      setPerimetre('');
+    }
+  };
+
+  return (
+    <div className="border border-border bg-surface mb-2">
+      <div className="px-2.5 py-1.5 border-b border-border text-[11px] text-text-dim flex items-center gap-1">
+        Sous-commissions · {liste.length}
+        <Aide
+          titre="Sous-commissions"
+          texte="« L’établissement du PV d’inventaire physique est nécessaire avec signatures de ceux qui ont inventorié et assisté à cet inventaire. » Le PV de la campagne exige au moins un inventoriant et un témoin ; le PV de comptage d’une caisse se signe par les membres de la sous-commission qui l’a comptée."
+          source="CPCC, étape 2"
+        />
+      </div>
+      {liste.length === 0 && <div className="px-2.5 py-2 text-[11.5px] text-text-dim">Aucune sous-commission.</div>}
+      {liste.map((sc) => (
+        <div key={sc.id} className="px-2.5 py-1.5 border-b border-border/40">
+          <div className="text-[11.5px] font-semibold">
+            {sc.nom}
+            {sc.perimetre && <span className="font-normal text-text-dim"> · {sc.perimetre}</span>}
+          </div>
+          {sc.membres.length === 0 ? (
+            <div className="text-[11px] text-text-dim">Aucun membre.</div>
+          ) : (
+            <ul className="text-[11px]">
+              {sc.membres.map((m) => (
+                <li key={m.id}>
+                  {m.nom}
+                  {m.fonction && <span className="text-text-dim"> ({m.fonction})</span>} · {LIBELLE_ROLE[m.role]}
+                </li>
+              ))}
+            </ul>
+          )}
+          {peutEcrire && !cloturee && <AjoutMembre sousCommission={sc} agir={agir} />}
+        </div>
+      ))}
+      {creable && (
+        <div className="px-2.5 py-1.5 flex flex-wrap gap-2 items-end">
+          <label className="text-[11px] text-text-dim">
+            Nom
+            <input value={nom} onChange={(e) => setNom(e.target.value)} className={CHAMP} />
+          </label>
+          <label className="text-[11px] text-text-dim flex-1 min-w-[200px]">
+            Périmètre
+            <input value={perimetre} onChange={(e) => setPerimetre(e.target.value)} className={`${CHAMP} w-full`} />
+          </label>
+          <button type="button" onClick={creer} disabled={!nom.trim()} className={BOUTON_PRINCIPAL}>
+            Créer la sous-commission
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AjoutMembre({ sousCommission, agir }: { sousCommission: SousCommissionInventaire; agir: Agir }) {
+  const [nom, setNom] = useState('');
+  const [fonction, setFonction] = useState('');
+  const [role, setRole] = useState<RoleMembreInventaire>('INVENTORIANT');
+
+  const ajouter = async () => {
+    const ok = await agir(() =>
+      api.post(`/inventaire/sous-commissions/${sousCommission.id}/membres`, {
+        nom: nom.trim(),
+        fonction: fonction.trim() || undefined,
+        role,
+      }),
+    );
+    if (ok) {
+      setNom('');
+      setFonction('');
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap gap-2 items-end mt-1">
+      <label className="text-[11px] text-text-dim">
+        Membre
+        <input value={nom} onChange={(e) => setNom(e.target.value)} className={CHAMP} />
+      </label>
+      <label className="text-[11px] text-text-dim">
+        Fonction
+        <input value={fonction} onChange={(e) => setFonction(e.target.value)} className={CHAMP} />
+      </label>
+      <label className="text-[11px] text-text-dim">
+        Qualité
+        <select value={role} onChange={(e) => setRole(e.target.value as RoleMembreInventaire)} className={CHAMP}>
+          {(Object.keys(LIBELLE_ROLE) as RoleMembreInventaire[]).map((r) => (
+            <option key={r} value={r}>
+              {LIBELLE_ROLE[r]}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button type="button" onClick={ajouter} disabled={!nom.trim()} className={BOUTON}>
+        Ajouter
+      </button>
+    </div>
+  );
+}
+
+/**
+ * UNE FICHE HORS DU PARC IMMOBILISÉ · stocks, caisses, tout ce que le
+ * logiciel ne tient pas déjà. Le compte se choisit par son NUMÉRO, parmi les
+ * comptes de détail : un compte Total n'a pas de solde propre, et le serveur
+ * le refuse (`creerFiche`).
+ */
+function AjoutFiche({ campagne, comptes, agir }: { campagne: CampagneInventaire; comptes: Compte[]; agir: Agir }) {
+  const [ouvert, setOuvert] = useState(false);
+  const [numero, setNumero] = useState('');
+  const [designation, setDesignation] = useState('');
+  const [emplacement, setEmplacement] = useState('');
+  const [uniteMesure, setUniteMesure] = useState('');
+  const [sousCommissionId, setSousCommissionId] = useState('');
+  const comptesDetail = comptes.filter((c) => c.typeCompte === 'DETAIL');
+  const compte = comptesDetail.find((c) => c.numero === numero.trim());
+
+  const ajouter = async () => {
+    if (!compte) return;
+    const ok = await agir(() =>
+      api.post(`/inventaire/${campagne.id}/fiches`, {
+        compteId: compte.id,
+        designation: designation.trim(),
+        emplacement: emplacement.trim() || undefined,
+        uniteMesure: uniteMesure.trim() || undefined,
+        sousCommissionId: sousCommissionId || undefined,
+      }),
+    );
+    if (ok) {
+      setDesignation('');
+      setEmplacement('');
+    }
+  };
+
+  if (!ouvert) {
+    return (
+      <div className="px-2.5 py-1.5 border-b border-border/60">
+        <button type="button" onClick={() => setOuvert(true)} className={BOUTON}>
+          Ajouter une fiche
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="px-2.5 py-1.5 border-b border-border/60 flex flex-wrap gap-2 items-end">
+      <label className="text-[11px] text-text-dim">
+        Compte
+        <input
+          value={numero}
+          onChange={(e) => setNumero(e.target.value)}
+          list="inventaire-comptes"
+          className={`${CHAMP} w-[120px]`}
+        />
+        <datalist id="inventaire-comptes">
+          {comptesDetail.map((c) => (
+            <option key={c.id} value={c.numero}>
+              {c.intitule}
+            </option>
+          ))}
+        </datalist>
+      </label>
+      <label className="text-[11px] text-text-dim flex-1 min-w-[200px]">
+        Désignation
+        <input value={designation} onChange={(e) => setDesignation(e.target.value)} className={`${CHAMP} w-full`} />
+      </label>
+      <label className="text-[11px] text-text-dim">
+        Emplacement
+        <input value={emplacement} onChange={(e) => setEmplacement(e.target.value)} className={CHAMP} />
+      </label>
+      <label className="text-[11px] text-text-dim">
+        Unité
+        <input value={uniteMesure} onChange={(e) => setUniteMesure(e.target.value)} className={`${CHAMP} w-[80px]`} />
+      </label>
+      <label className="text-[11px] text-text-dim">
+        Sous-commission
+        <select value={sousCommissionId} onChange={(e) => setSousCommissionId(e.target.value)} className={CHAMP}>
+          <option value="">·</option>
+          {(campagne.sousCommissions ?? []).map((sc) => (
+            <option key={sc.id} value={sc.id}>
+              {sc.nom}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button type="button" onClick={ajouter} disabled={!compte || !designation.trim()} className={BOUTON_PRINCIPAL}>
+        Ajouter
+      </button>
+      <button type="button" onClick={() => setOuvert(false)} className={BOUTON}>
+        Fermer
+      </button>
+      {numero.trim() !== '' && !compte && <span className="text-[11px] text-warning">Compte de détail introuvable.</span>}
+    </div>
+  );
+}
+
+/**
+ * ÉTAPES 2 ET 3 · la quantité comptée et la valeur d'inventaire. Le
+ * rapprochement refuse toute fiche non valorisée : c'est ici qu'elle se
+ * valorise. Un champ laissé vide n'est pas envoyé, il ne vaut pas zéro.
+ */
+function LigneFiche({ fiche, saisissable, agir }: { fiche: FicheInventaire; saisissable: boolean; agir: Agir }) {
+  const [edition, setEdition] = useState(false);
+  const [quantite, setQuantite] = useState(fiche.quantiteComptee ?? '');
+  const [valeur, setValeur] = useState(fiche.valeurInventaire ?? '');
+  const [piece, setPiece] = useState(fiche.referencePiece ?? '');
+  const q = lireNombre(quantite);
+  const v = lireNombre(valeur);
+  // Le DTO pose `@Min(0)` sur les deux · on compte ce qu'on trouve.
+  const lisible = q !== null && v !== null && (q === undefined || q >= 0) && (v === undefined || v >= 0);
+
+  const enregistrer = async () => {
+    const ok = await agir(() =>
+      api.patch(`/inventaire/fiches/${fiche.id}`, {
+        quantiteComptee: lireNombre(quantite) ?? undefined,
+        valeurInventaire: lireNombre(valeur) ?? undefined,
+        referencePiece: piece.trim() || undefined,
+      }),
+    );
+    if (ok) setEdition(false);
+  };
+
+  return (
+    <Fragment>
+      <tr className="border-b border-border/40">
+        <td className="px-2.5 py-1">{fiche.designation}</td>
+        <td className="px-2.5 py-1 font-mono text-text-dim">{fiche.compte.numero}</td>
+        <td className="px-2.5 py-1 text-right tabular-nums">
+          {fiche.quantiteComptee === null ? (
+            <span className="text-text-dim">non compté</span>
+          ) : (
+            Number(fiche.quantiteComptee).toLocaleString('fr-FR')
+          )}
+        </td>
+        <td className="px-2.5 py-1 text-right tabular-nums">
+          {fiche.valeurInventaire === null ? (
+            <span className="text-warning">non valorisée</span>
+          ) : (
+            montant(fiche.valeurInventaire)
+          )}
+        </td>
+        <td className="px-2.5 py-1 text-text-dim">{fiche.referencePiece ?? '·'}</td>
+        <td className="px-2.5 py-1 text-right">
+          {saisissable && !edition && (
+            <button type="button" onClick={() => setEdition(true)} className={BOUTON}>
+              Saisir le comptage
+            </button>
+          )}
+        </td>
+      </tr>
+      {edition && (
+        <tr className="border-b border-border/40 bg-chrome/40">
+          <td colSpan={6} className="px-2.5 py-1.5">
+            <div className="flex flex-wrap gap-2 items-end">
+              <label className="text-[11px] text-text-dim">
+                Quantité comptée{fiche.uniteMesure ? ` (${fiche.uniteMesure})` : ''}
+                <input
+                  value={quantite}
+                  onChange={(e) => setQuantite(e.target.value)}
+                  className={`${CHAMP} w-[120px] text-right`}
+                />
+              </label>
+              <label className="text-[11px] text-text-dim">
+                Valeur d’inventaire
+                <input
+                  value={valeur}
+                  onChange={(e) => setValeur(e.target.value)}
+                  className={`${CHAMP} w-[140px] text-right`}
+                />
+              </label>
+              <label className="text-[11px] text-text-dim">
+                Pièce
+                <input value={piece} onChange={(e) => setPiece(e.target.value)} className={CHAMP} />
+              </label>
+              <button type="button" onClick={enregistrer} disabled={!lisible} className={BOUTON_PRINCIPAL}>
+                Enregistrer
+              </button>
+              <button type="button" onClick={() => setEdition(false)} className={BOUTON}>
+                Annuler
+              </button>
+            </div>
+          </td>
+        </tr>
+      )}
+    </Fragment>
+  );
+}
+
+/**
+ * ÉTAPES 5 ET 6 · l'arbitrage et la proposition de redressement.
+ *
+ * Les décisions offertes suivent les deux refus du service (`arbitrer`) : un
+ * EXCÉDENT ne se redresse pas, un MANQUANT n'est pas un excédent laissé au
+ * bilan. Le serveur exige en plus le responsable d'un écart à redresser et
+ * l'explication de tout écart non redressé · son refus est affiché tel quel.
+ */
+function LigneEcart({ ecart, arbitrable, agir }: { ecart: EcartInventaire; arbitrable: boolean; agir: Agir }) {
+  const [edition, setEdition] = useState(false);
+  const [decision, setDecision] = useState<string>(ecart.decision ?? '');
+  const [responsable, setResponsable] = useState(ecart.responsable ?? '');
+  const [explication, setExplication] = useState(ecart.explication ?? '');
+  const [proposition, setProposition] = useState<PropositionRedressement | null>(null);
+  const [erreurProposition, setErreurProposition] = useState<string | null>(null);
+  const v = Number(ecart.ecart);
+  const decisions = Object.keys(LIBELLE_DECISION).filter(
+    (d) => !(d === 'A_REDRESSER' && v > 0) && !(d === 'EXCEDENT_NON_COMPTABILISE' && v < 0),
+  );
+
+  const voirProposition = () => {
+    setErreurProposition(null);
+    api
+      .get<PropositionRedressement>(`/inventaire/ecarts/${ecart.id}/proposition`)
+      .then(setProposition, (e: unknown) =>
+        setErreurProposition(e instanceof ApiError ? e.message : 'Proposition indisponible'),
+      );
+  };
+
+  const arbitrer = async () => {
+    const ok = await agir(() =>
+      api.patch(`/inventaire/ecarts/${ecart.id}`, {
+        decision,
+        responsable: responsable.trim() || undefined,
+        explication: explication.trim() || undefined,
+      }),
+    );
+    if (ok) {
+      setEdition(false);
+      setProposition(null);
+    }
+  };
+
+  return (
+    <Fragment>
+      <tr className="border-b border-border/40">
+        <td className="px-2.5 py-1">
+          <span className="font-mono">{ecart.compte.numero}</span>{' '}
+          <span className="text-text-dim">{ecart.compte.intitule}</span>
+          {ecart.nombreFiches > 1 && <span className="text-[10px] text-text-dim"> · {ecart.nombreFiches} fiches</span>}
+        </td>
+        <td className="px-2.5 py-1 text-right tabular-nums">{montant(ecart.valeurInventaire)}</td>
+        <td className="px-2.5 py-1 text-right tabular-nums">{montant(ecart.soldeComptable)}</td>
+        <td
+          className={`px-2.5 py-1 text-right tabular-nums font-semibold ${
+            v < 0 ? 'text-danger' : v > 0 ? 'text-warning' : 'text-text-dim'
+          }`}
+        >
+          {montant(ecart.ecart)}
+        </td>
+        <td className="px-2.5 py-1">
+          {ecart.decision ? LIBELLE_DECISION[ecart.decision] : <span className="text-text-dim">à trancher</span>}
+        </td>
+        <td className="px-2.5 py-1 text-text-dim">{ecart.responsable ?? '·'}</td>
+        <td className="px-2.5 py-1 text-right whitespace-nowrap">
+          <button type="button" onClick={voirProposition} className={BOUTON}>
+            Proposition
+          </button>{' '}
+          {arbitrable && !edition && (
+            <button type="button" onClick={() => setEdition(true)} className={BOUTON}>
+              Arbitrer
+            </button>
+          )}
+        </td>
+      </tr>
+      {(proposition || erreurProposition) && (
+        <tr className="border-b border-border/40 bg-chrome/40">
+          <td colSpan={7} className="px-2.5 py-1.5 text-[11px]">
+            {erreurProposition && <div className="text-danger">{erreurProposition}</div>}
+            {proposition && !proposition.proposable && <div className="text-text-dim">{proposition.motif}</div>}
+            {proposition?.proposable && (
+              <table className="w-full">
+                <tbody>
+                  {proposition.lignes.map((l, i) => (
+                    <tr key={i}>
+                      <td className="pr-2">{l.compte ?? <span className="text-warning">contrepartie à choisir</span>}</td>
+                      <td className="pr-2">{l.libelle}</td>
+                      <td className="pr-2 text-right tabular-nums">{l.sens === 'DEBIT' ? montant(l.montant) : ''}</td>
+                      <td className="pr-2 text-right tabular-nums">{l.sens === 'CREDIT' ? montant(l.montant) : ''}</td>
+                      <td className="text-text-dim">{l.note ?? ''}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setProposition(null);
+                setErreurProposition(null);
+              }}
+              className={`${BOUTON} mt-1`}
+            >
+              Fermer
+            </button>
+          </td>
+        </tr>
+      )}
+      {edition && (
+        <tr className="border-b border-border/40 bg-chrome/40">
+          <td colSpan={7} className="px-2.5 py-1.5">
+            <div className="flex flex-wrap gap-2 items-end">
+              <label className="text-[11px] text-text-dim">
+                Décision
+                <select value={decision} onChange={(e) => setDecision(e.target.value)} className={CHAMP}>
+                  <option value="">Choisir…</option>
+                  {decisions.map((d) => (
+                    <option key={d} value={d}>
+                      {LIBELLE_DECISION[d]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-[11px] text-text-dim">
+                Responsable
+                <input value={responsable} onChange={(e) => setResponsable(e.target.value)} className={CHAMP} />
+              </label>
+              <label className="text-[11px] text-text-dim flex-1 min-w-[220px]">
+                Motif
+                <input
+                  value={explication}
+                  onChange={(e) => setExplication(e.target.value)}
+                  className={`${CHAMP} w-full`}
+                />
+              </label>
+              <button type="button" onClick={arbitrer} disabled={!decision} className={BOUTON_PRINCIPAL}>
+                Enregistrer
+              </button>
+              <button type="button" onClick={() => setEdition(false)} className={BOUTON}>
+                Annuler
+              </button>
+            </div>
+          </td>
+        </tr>
+      )}
+    </Fragment>
+  );
+}
+
+/**
+ * CAISSES · la question composite du CPCC (« a-t-on tenu compte de la caisse
+ * siège, de la caisse agence, de la caisse de secours ? ») rendue caisse par
+ * caisse. La clôture est refusée tant qu'une caisse à solde non nul n'a pas
+ * son PV de comptage, et aucun écran ne permettait de l'établir.
+ */
+function BlocCaisses({
+  campagne,
+  caisses,
+  peutEcrire,
+  agir,
+}: {
+  campagne: CampagneInventaire;
+  caisses: CaisseNonComptee[];
+  peutEcrire: boolean;
+  agir: Agir;
+}) {
+  const [ouverte, setOuverte] = useState<string | null>(null);
+  const etablissable = peutEcrire && PEUT_ETABLIR_PV.includes(campagne.statut);
+
+  return (
+    <div className="border border-border bg-surface mt-2">
+      <div className="px-2.5 py-1.5 border-b border-border text-[11px] text-text-dim flex items-center gap-1">
+        Caisses sans procès-verbal de comptage · {caisses.length}
+        <Aide
+          titre="Comptage des caisses"
+          texte="« A-t-on tenu compte de la caisse siège, de la caisse agence, de la caisse de secours ? » Un procès-verbal par caisse, signé par les membres de la sous-commission qui l’a comptée, inventoriant et témoin. La campagne ne se clôt pas tant qu’une caisse à solde non nul n’a pas le sien ; une caisse à solde nul n’est pas réclamée. La ventilation par coupure est facultative, et doit égaler le montant compté."
+          source="CPCC, § VI et étape 2"
+        />
+      </div>
+      {caisses.length === 0 && (
+        <div className="px-2.5 py-2 text-[11.5px] text-text-dim">Aucune caisse à solde non nul sans procès-verbal.</div>
+      )}
+      {caisses.map((c) => (
+        <div key={c.compteId} className="px-2.5 py-1.5 border-b border-border/40">
+          <div className="flex items-center justify-between gap-2 text-[11.5px]">
+            <span>
+              <span className="font-mono">{c.numero}</span> <span className="text-text-dim">{c.intitule}</span>
+              <span className="tabular-nums"> · solde {montant(c.solde)}</span>
+            </span>
+            {etablissable && ouverte !== c.compteId && (
+              <button type="button" onClick={() => setOuverte(c.compteId)} className={BOUTON}>
+                Établir le PV de comptage
+              </button>
+            )}
+          </div>
+          {ouverte === c.compteId && (
+            <FormulairePvCaisse campagne={campagne} caisse={c} agir={agir} fermer={() => setOuverte(null)} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FormulairePvCaisse({
+  campagne,
+  caisse,
+  agir,
+  fermer,
+}: {
+  campagne: CampagneInventaire;
+  caisse: CaisseNonComptee;
+  agir: Agir;
+  fermer: () => void;
+}) {
+  const [sousCommissionId, setSousCommissionId] = useState('');
+  const [dateComptage, setDateComptage] = useState(campagne.dateInventaire.slice(0, 10));
+  const [heure, setHeure] = useState('');
+  // Le solde proposé est celui de la balance à l'instant · il se corrige s'il
+  // a bougé depuis le comptage, puisque c'est lui qui est FIGÉ sur le PV.
+  const [solde, setSolde] = useState(String(caisse.solde));
+  const [especes, setEspeces] = useState('');
+  const [coupures, setCoupures] = useState<{ valeur: string; nombre: string }[]>([]);
+  const [attestationLe, setAttestationLe] = useState('');
+  const [attestationPar, setAttestationPar] = useState('');
+  const [observations, setObservations] = useState('');
+
+  const s = lireNombre(solde);
+  const e = lireNombre(especes);
+  // `CoupureDto` · valeur faciale positive, nombre entier positif.
+  const coupuresLisibles = coupures.every((c) => {
+    const v = lireNombre(c.valeur);
+    const n = lireNombre(c.nombre);
+    return typeof v === 'number' && v > 0 && typeof n === 'number' && Number.isInteger(n) && n > 0;
+  });
+  const totalCoupures = coupures.reduce((t, c) => t + (lireNombre(c.valeur) ?? 0) * (lireNombre(c.nombre) ?? 0), 0);
+  const pret =
+    !!sousCommissionId && !!dateComptage && typeof s === 'number' && typeof e === 'number' && e >= 0 && coupuresLisibles;
+
+  const etablir = async () => {
+    const ok = await agir(() =>
+      api.post(`/inventaire/${campagne.id}/pv-caisse`, {
+        compteId: caisse.compteId,
+        sousCommissionId,
+        dateComptage,
+        heureComptage: heure.trim() || undefined,
+        soldeComptable: lireNombre(solde),
+        especesComptees: lireNombre(especes),
+        coupures:
+          coupures.length > 0
+            ? coupures.map((c) => ({ valeurUnitaire: lireNombre(c.valeur), nombre: lireNombre(c.nombre) }))
+            : undefined,
+        attestationEtablieLe: attestationLe || undefined,
+        attestationPar: attestationPar.trim() || undefined,
+        observations: observations.trim() || undefined,
+      }),
+    );
+    if (ok) fermer();
+  };
+
+  return (
+    <div className="mt-1.5 flex flex-col gap-1.5">
+      <div className="flex flex-wrap gap-2 items-end">
+        <label className="text-[11px] text-text-dim">
+          Sous-commission
+          <select value={sousCommissionId} onChange={(ev) => setSousCommissionId(ev.target.value)} className={CHAMP}>
+            <option value="">Choisir…</option>
+            {(campagne.sousCommissions ?? []).map((sc) => (
+              <option key={sc.id} value={sc.id}>
+                {sc.nom}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-[11px] text-text-dim">
+          Date du comptage
+          <input type="date" value={dateComptage} onChange={(ev) => setDateComptage(ev.target.value)} className={CHAMP} />
+        </label>
+        <label className="text-[11px] text-text-dim">
+          Heure
+          <input type="time" value={heure} onChange={(ev) => setHeure(ev.target.value)} className={CHAMP} />
+        </label>
+        <label className="text-[11px] text-text-dim">
+          Solde comptable
+          <input value={solde} onChange={(ev) => setSolde(ev.target.value)} className={`${CHAMP} w-[140px] text-right`} />
+        </label>
+        <label className="text-[11px] text-text-dim">
+          Espèces comptées
+          <input
+            value={especes}
+            onChange={(ev) => setEspeces(ev.target.value)}
+            className={`${CHAMP} w-[140px] text-right`}
+          />
+        </label>
+      </div>
+      <div className="text-[11px] text-text-dim">
+        Ventilation par coupure
+        {coupures.map((c, i) => (
+          <div key={i} className="flex gap-2 items-center mt-1">
+            <input
+              value={c.valeur}
+              onChange={(ev) => setCoupures(coupures.map((x, j) => (j === i ? { ...x, valeur: ev.target.value } : x)))}
+              placeholder="Valeur faciale"
+              className={`${CHAMP} w-[120px] text-right`}
+            />
+            <span>×</span>
+            <input
+              value={c.nombre}
+              onChange={(ev) => setCoupures(coupures.map((x, j) => (j === i ? { ...x, nombre: ev.target.value } : x)))}
+              placeholder="Nombre"
+              className={`${CHAMP} w-[90px] text-right`}
+            />
+            <button type="button" onClick={() => setCoupures(coupures.filter((_, j) => j !== i))} className={BOUTON}>
+              Retirer
+            </button>
+          </div>
+        ))}
+        <div className="flex items-center gap-2 mt-1">
+          <button type="button" onClick={() => setCoupures([...coupures, { valeur: '', nombre: '' }])} className={BOUTON}>
+            Ajouter une coupure
+          </button>
+          {coupures.length > 0 && <span className="tabular-nums">Total {montant(totalCoupures)}</span>}
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2 items-end">
+        <label className="text-[11px] text-text-dim">
+          Attestation établie le
+          <input type="date" value={attestationLe} onChange={(ev) => setAttestationLe(ev.target.value)} className={CHAMP} />
+        </label>
+        <label className="text-[11px] text-text-dim">
+          Signataire de l’attestation
+          <input value={attestationPar} onChange={(ev) => setAttestationPar(ev.target.value)} className={CHAMP} />
+        </label>
+        <label className="text-[11px] text-text-dim flex-1 min-w-[220px]">
+          Observations
+          <input
+            value={observations}
+            onChange={(ev) => setObservations(ev.target.value)}
+            className={`${CHAMP} w-full`}
+          />
+        </label>
+        <button type="button" onClick={etablir} disabled={!pret} className={BOUTON_PRINCIPAL}>
+          Établir le PV
+        </button>
+        <button type="button" onClick={fermer} className={BOUTON}>
+          Annuler
+        </button>
       </div>
     </div>
   );

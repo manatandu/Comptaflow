@@ -3499,6 +3499,40 @@ export interface EcartInventaire {
   compte: { numero: string; intitule: string };
 }
 
+/** Rôle d'un membre · enum `RoleMembreInventaire` du schéma. */
+export type RoleMembreInventaire = 'INVENTORIANT' | 'TEMOIN';
+
+export interface MembreSousCommission {
+  id: string;
+  nom: string;
+  fonction: string | null;
+  role: RoleMembreInventaire;
+}
+
+export interface SousCommissionInventaire {
+  id: string;
+  nom: string;
+  perimetre: string | null;
+  membres: MembreSousCommission[];
+}
+
+/** GET /inventaire/:id/caisses-non-comptees · caisses (57) à solde non nul sans PV. */
+export interface CaisseNonComptee {
+  compteId: string;
+  numero: string;
+  intitule: string;
+  solde: number;
+}
+
+/** GET /inventaire/ecarts/:id/proposition · la contrepartie d'un manquant reste vide. */
+export type PropositionRedressement =
+  | { proposable: false; motif: string }
+  | {
+      proposable: true;
+      lignes: { compte: string | null; libelle: string; sens: 'DEBIT' | 'CREDIT'; montant: number; note?: string }[];
+      responsable: string | null;
+    };
+
 export interface CampagneInventaire {
   id: string;
   exerciceId: string;
@@ -3510,6 +3544,7 @@ export interface CampagneInventaire {
   clotureeLe: string | null;
   fiches?: FicheInventaire[];
   ecarts?: EcartInventaire[];
+  sousCommissions?: SousCommissionInventaire[];
   /** Le texte que le dossier encourt · AUDCIF art. 111 ou SYCEBNL art. 24. */
   sanction?: { texte: string; article: string };
 }
