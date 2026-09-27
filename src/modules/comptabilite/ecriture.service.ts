@@ -1010,7 +1010,7 @@ export class EcritureService {
     // id est déjà unique · le cloisonnement se pose aux DEUX bouts, et un
     // comptage qui ne le porte pas est un comptage qui traverserait les
     // dossiers si l'id venait d'ailleurs que de la ligne du dessus.
-    // Trois de ces tables n'ont PAS de `tenantId` · elles sont portées par
+    // Plusieurs de ces tables n'ont PAS de `tenantId` · elles sont portées par
     // leur parent (voir MODELES_PORTES_PAR_LEUR_PARENT), et c'est l'écriture
     // elle-même, déjà vérifiée pour ce dossier, qui les cloisonne.
     const parLEcriture = { ecritureId };
@@ -1019,6 +1019,10 @@ export class EcritureService {
       ['une immobilisation (sortie)', this.prisma.immobilisation.count({ where: { tenantId, ecritureSortieId: ecritureId } })],
       ["une dotation aux amortissements", this.prisma.dotationAmortissement.count({ where: parLEcriture })],
       ["une dépréciation d'immobilisation", this.prisma.depreciationImmobilisation.count({ where: parLEcriture })],
+      // Le reclassement d'un bien · la clé est RESTRICT, et sans ce refus nommé
+      // la base levait une erreur brute après que la garde avait laissé passer
+      // (audit du serveur I1, voir detenteurs-ecriture.ts).
+      ["un reclassement d'immobilisation", this.prisma.reclassementImmobilisation.count({ where: parLEcriture })],
       ['une réévaluation de devise', this.prisma.reevaluation.count({
         where: { tenantId, OR: [{ ecritureEcartsId: ecritureId }, { ecritureProvisionId: ecritureId }, { ecritureExtourneId: ecritureId }] },
       })],

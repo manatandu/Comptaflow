@@ -37,6 +37,7 @@ function monter(options: { autreDetenteur?: boolean } = {}) {
     immobilisation: zero(),
     dotationAmortissement: zero(),
     depreciationImmobilisation: zero(),
+    reclassementImmobilisation: zero(),
     reevaluation: zero(),
     regularisation: zero(),
     echeanceAbonnement: zero(),

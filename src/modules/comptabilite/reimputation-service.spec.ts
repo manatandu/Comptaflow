@@ -41,7 +41,7 @@ function ligne(id: string, statut: StatutEcriture, extra: Record<string, unknown
 // `EcritureService.detenteursDe`. Une doublure muette sur ces comptages
 // validerait un service qui ne les lit pas.
 const MODELES_DETENTEURS = [
-  'immobilisation', 'dotationAmortissement', 'depreciationImmobilisation', 'reevaluation', 'regularisation',
+  'immobilisation', 'dotationAmortissement', 'depreciationImmobilisation', 'reclassementImmobilisation', 'reevaluation', 'regularisation',
   'echeanceAbonnement', 'liquidationTva', 'donation', 'affectationResultat', 'executionEngagement',
   'mouvementStock', 'bulletinPaie', 'amortissementDerogatoire', 'ligneOrdreVirement', 'consignation',
 ];

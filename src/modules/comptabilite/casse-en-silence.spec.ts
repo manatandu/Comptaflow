@@ -74,6 +74,7 @@ function serviceEcriture(detenteurs: Record<string, number> = {}, statut = 'BROU
     immobilisation: { count: compteur('immobilisation') },
     dotationAmortissement: { count: compteur('dotationAmortissement') },
     depreciationImmobilisation: { count: compteur('depreciationImmobilisation') },
+    reclassementImmobilisation: { count: compteur('reclassementImmobilisation') },
     reevaluation: { count: compteur('reevaluation') },
     regularisation: { count: compteur('regularisation') },
     echeanceAbonnement: { count: compteur('echeanceAbonnement') },
@@ -269,7 +270,7 @@ describe('3 · une écriture qu’un module tient ne se supprime pas', () => {
  */
 describe('3 bis · une écriture qu’un module tient ne se retouche pas non plus', () => {
   const DETENTEURS = [
-    'immobilisation', 'dotationAmortissement', 'depreciationImmobilisation', 'reevaluation', 'regularisation',
+    'immobilisation', 'dotationAmortissement', 'depreciationImmobilisation', 'reclassementImmobilisation', 'reevaluation', 'regularisation',
     'echeanceAbonnement', 'liquidationTva', 'donation', 'affectationResultat', 'executionEngagement',
     'mouvementStock', 'bulletinPaie', 'amortissementDerogatoire', 'ligneOrdreVirement', 'consignation',
   ];

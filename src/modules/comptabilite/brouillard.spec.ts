@@ -36,7 +36,7 @@ function service(prisma: Faux, exerciceService: Faux = {}) {
 // 2026-09-27, F2), et une doublure muette validerait un service qui ne les
 // lit pas.
 const MODELES_DETENTEURS = [
-  'immobilisation', 'dotationAmortissement', 'depreciationImmobilisation', 'reevaluation', 'regularisation',
+  'immobilisation', 'dotationAmortissement', 'depreciationImmobilisation', 'reclassementImmobilisation', 'reevaluation', 'regularisation',
   'echeanceAbonnement', 'liquidationTva', 'donation', 'affectationResultat', 'executionEngagement',
   'mouvementStock', 'bulletinPaie', 'amortissementDerogatoire', 'ligneOrdreVirement', 'consignation',
 ];
