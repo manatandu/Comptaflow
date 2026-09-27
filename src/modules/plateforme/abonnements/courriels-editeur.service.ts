@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../common/prisma.service';
-import { CourrierService, ORIGINE_FACTURE_ABONNEMENT, ORIGINE_LICENCE_SUR_SITE, ResultatMiseEnFile } from '../courrier/courrier.service';
-import { totauxFacture } from '../facturation/mentions-facture';
-import type { MentionsRecopiees } from '../tenant/mentions-societe';
+import { PrismaService } from '../../../common/prisma.service';
+import { CourrierService, ORIGINE_FACTURE_ABONNEMENT, ORIGINE_LICENCE_SUR_SITE, ResultatMiseEnFile } from '../../courrier/courrier.service';
+import { totauxFacture } from '../../facturation/mentions-facture';
+import type { MentionsRecopiees } from '../../tenant/mentions-societe';
 import { courrielFactureAbonnement, courrielLicenceSurSite } from './courriels-editeur';
 
 export interface Expediteur {

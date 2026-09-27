@@ -575,6 +575,11 @@ Services fournis par `PlateformeModule` (`plateforme.controller.ts:6-7`),
 dossier sans `*.module.ts`. Le ranger sous `plateforme/` ou lui donner son
 module.
 
+**Fait le 2026-09-27.** Rangé sous `plateforme/abonnements/` · un module propre
+aurait été circulaire, `AbonnementsService` injectant `PlateformeService`.
+`common/dossiers-de-modules.spec.ts` exige un `*.module.ts` dans chaque dossier
+de premier niveau de `src/modules/` ; réinjection faite, attrapée.
+
 ### C4 · Specs mal rangées
 
 `comptabilite/correction-inscription-negatif.spec.ts` n'importe que

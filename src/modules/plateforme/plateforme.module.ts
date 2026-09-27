@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { FacturationModule } from '../facturation/facturation.module';
-import { AbonnementsService } from '../abonnements/abonnements.service';
+import { AbonnementsService } from './abonnements/abonnements.service';
 import { PlateformeService } from './plateforme.service';
 import { PlateformeController } from './plateforme.controller';
 import { OperateurPlateformeGuard } from './operateur-plateforme.guard';
@@ -11,7 +11,7 @@ import { CourrierModule } from '../courrier/courrier.module';
 import { TiersModule } from '../tiers/tiers.module';
 import { ComptabiliteModule } from '../comptabilite/comptabilite.module';
 import { GarnissageDemonstrationService } from './garnissage-demonstration.service';
-import { CourrielsEditeurService } from '../abonnements/courriels-editeur.service';
+import { CourrielsEditeurService } from './abonnements/courriels-editeur.service';
 
 @Module({
   // AuthModule pour AuthService : la création d'un cabinet client réutilise

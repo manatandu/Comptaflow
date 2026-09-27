@@ -1,9 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PeriodiciteFacturationEditeur, Prisma, SensFacture, TypeFormuleAbonnement, TypeLicence } from '@prisma/client';
-import { PrismaService } from '../../common/prisma.service';
-import { FacturationService } from '../facturation/facturation.service';
-import { PlateformeService } from '../plateforme/plateforme.service';
-import { jourLisible, usdEnFc } from '../personnel/conversion-usd';
+import { PrismaService } from '../../../common/prisma.service';
+import { FacturationService } from '../../facturation/facturation.service';
+import { PlateformeService } from '../plateforme.service';
+import { jourLisible, usdEnFc } from '../../personnel/conversion-usd';
 import { CourrielsEditeurService } from './courriels-editeur.service';
 import {
   AbonnementAFacturer,

@@ -155,7 +155,7 @@ export class PlateformeService implements OnModuleInit {
 
   /**
    * L'ÉCHÉANCE DE LA LICENCE D'UN CLIENT ABONNÉ · posée par la souscription,
-   * prolongée par chaque paiement déclaré (src/modules/abonnements). Jamais
+   * prolongée par chaque paiement déclaré (plateforme/abonnements). Jamais
    * reculée, jamais levée d'une suspension posée à la main, et refusée sur une
    * licence perpétuelle ou sur celle de l'éditeur, qu'un abonnement ne
    * gouverne pas.

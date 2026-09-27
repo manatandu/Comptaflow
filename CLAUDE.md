@@ -4994,7 +4994,7 @@ fait tourner.
 
 **Abonnements des cabinets et leur facturation (2026-09-26).** Grille décidée
 par Manasse · Essentiel, Standard, Cabinet, option Groupe, paie en option de
-l'Essentiel, mensuel ou annuel, trente jours d'essai (`src/modules/abonnements/`,
+l'Essentiel, mensuel ou annuel, trente jours d'essai (`src/modules/plateforme/abonnements/`,
 cadre « Abonnements » de la console). QUATRE RÈGLES À NE PAS DÉFAIRE. (1) LES
 FACTURES NAISSENT DANS LE DOSSIER DE VMG (licence PROPRIETAIRE), par
 `FacturationService.enregistrer`, jamais par un second circuit · mêmes

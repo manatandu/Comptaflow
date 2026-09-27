@@ -3,8 +3,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OperateurPlateformeGuard } from './operateur-plateforme.guard';
 import { PlateformeService } from './plateforme.service';
 import { LicencesSurSiteService } from './licences-sur-site.service';
-import { AbonnementsService } from '../abonnements/abonnements.service';
-import { CourrielsEditeurService } from '../abonnements/courriels-editeur.service';
+import { AbonnementsService } from './abonnements/abonnements.service';
+import { CourrielsEditeurService } from './abonnements/courriels-editeur.service';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import {
   CreerCabinetDto,
