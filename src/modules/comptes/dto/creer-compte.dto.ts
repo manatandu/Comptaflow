@@ -12,8 +12,14 @@ export class CreerCompteDto {
   @IsString()
   intitule!: string;
 
+  /**
+   * DÉDUITE DU NUMÉRO par le serveur (audit final F40, `classeDuNumero`).
+   * Facultative ; envoyée, elle doit être celle du numéro, sans quoi la
+   * création est refusée plutôt que de ranger le compte ailleurs.
+   */
+  @IsOptional()
   @IsEnum(ClasseCompte)
-  classe!: ClasseCompte;
+  classe?: ClasseCompte;
 
   // Par défaut SOLDE (voir Compte.modeReportANouveau côté schéma) ; un compte
   // de charge/produit créé à la main doit explicitement passer AUCUN.

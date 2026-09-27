@@ -9,6 +9,7 @@ import { PLAN_COMPTES_SYCEBNL } from '../comptes/compte-seed';
 import { PLAN_COMPTES_SYSCOHADA } from '../comptes/compte-seed-syscohada';
 import { AnalyserImportDto, ExecuterImportDto, TypeImport } from './dto/import.dto';
 import { lireDate, lireFichier, lireMontant, type Tableau } from './lecture-fichier';
+import { classeDuNumero } from '../comptes/classe-du-numero';
 
 /**
  * Tranches des insertions groupées de l'import · une requête PostgreSQL porte
@@ -325,9 +326,7 @@ export class ImportService {
   }
 
   private classeDe(numero: string): ClasseCompte | null {
-    const chiffre = numero.trim()[0];
-    if (!/[1-9]/.test(chiffre)) return null;
-    return `CLASSE_${chiffre}` as ClasseCompte;
+    return classeDuNumero(numero);
   }
 
   async executer(tenantId: string, createdBy: string, dto: ExecuterImportDto): Promise<RapportImport> {

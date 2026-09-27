@@ -9,6 +9,7 @@ import { EditionStructure } from '../components/EditionStructure';
 import { editionPlan, perimetreEdition } from '../lib/editions-structures';
 import { Aide } from '../components/chrome/Aide';
 import { PortailModale } from '../components/PortailModale';
+import { classeDuNumero } from '../lib/classe-du-numero';
 
 /**
  * PLAN COMPTABLE · la fenêtre Structure → Plan comptable de Sage 100 i7 :
@@ -104,7 +105,8 @@ export function PlanComptesPage() {
   // Champs du formulaire « Nouveau compte »
   const [numero, setNumero] = useState('');
   const [intitule, setIntitule] = useState('');
-  const [classe, setClasse] = useState<ClasseCompte>('CLASSE_1');
+  // La classe n'est plus choisie · elle se lit dans le numéro (audit final F40).
+  const classe = classeDuNumero(numero);
   const [typeCompte, setTypeCompte] = useState<TypeCompteDetailTotal>('DETAIL');
 
   // Fiche : intitulé éditable
@@ -170,7 +172,7 @@ export function PlanComptesPage() {
     setErreur(null);
     setEnvoi(true);
     try {
-      await api.post('/comptes', { numero, intitule, classe, typeCompte });
+      await api.post('/comptes', { numero, intitule, typeCompte });
       setNumero('');
       setIntitule('');
       setTypeCompte('DETAIL');
@@ -638,17 +640,9 @@ export function PlanComptesPage() {
                     className="border border-border-dark px-2.5 py-1.5 text-[12px]"
                   />
                   <label className="text-[11.5px] text-right">Classe :</label>
-                  <select
-                    value={classe}
-                    onChange={(e) => setClasse(e.target.value as ClasseCompte)}
-                    className="border border-border-dark px-2.5 py-1.5 text-[11.5px]"
-                  >
-                    {(Object.keys(libelleClasse) as ClasseCompte[]).map((cl) => (
-                      <option key={cl} value={cl}>
-                        {cl.replace('CLASSE_', 'Classe ')} · {libelleClasse[cl]}
-                      </option>
-                    ))}
-                  </select>
+                  <span className="px-2.5 py-1.5 text-[11.5px] text-text-dim">
+                    {classe ? `${classe.replace('CLASSE_', 'Classe ')} · ${libelleClasse[classe]}` : 'Premier chiffre du numéro'}
+                  </span>
                   <label className="text-[11.5px] text-right">Type :</label>
                   <select
                     value={typeCompte}

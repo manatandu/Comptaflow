@@ -9,6 +9,7 @@ import { PLAN_COMPTES_SYSCOHADA } from './compte-seed-syscohada';
 import { CreerCompteDto, ModifierCompteDto } from './dto/creer-compte.dto';
 import { naturesDuDossier } from './natures-compte.service';
 import { LIBELLES_NATURE, natureDe } from './natures-compte';
+import { classeDuNumero } from './classe-du-numero';
 
 /**
  * Comptes ouverts au lettrage à la création d'un dossier.
@@ -107,6 +108,21 @@ export class CompteService {
       );
     }
     this.verifierCodeRetraitement(dto.codeRetraitementFiscal);
+    // LA CLASSE SE LIT DANS LE NUMÉRO (audit final F40) · jamais celle que
+    // l'écran propose par défaut.
+    const classe = classeDuNumero(dto.numero);
+    if (!classe) {
+      throw new BadRequestException(
+        `Le compte ${dto.numero} ne commence pas par un chiffre de classe (1 à 9) · la classe d'un compte est le ` +
+          'premier chiffre de son numéro.',
+      );
+    }
+    if (dto.classe && dto.classe !== classe) {
+      throw new BadRequestException(
+        `Le compte ${dto.numero} est de la classe ${classe.slice(-1)}, que donne son premier chiffre · la classe ` +
+          `${dto.classe.slice(-1)} indiquée le rangerait ailleurs dans les états.`,
+      );
+    }
     const existant = await this.prisma.compte.findUnique({
       where: { tenantId_numero: { tenantId, numero: dto.numero } },
     });
@@ -121,6 +137,7 @@ export class CompteService {
     return this.prisma.compte.create({
       data: {
         ...dto,
+        classe,
         tenantId,
         lettrable: dto.lettrable ?? nature?.lettrable ?? estLettrableParDefaut(dto.numero),
         ...(dto.modeReportANouveau ?? nature?.modeReportANouveau

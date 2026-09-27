@@ -5162,6 +5162,14 @@ jamais par la clé composée à `mois` nul. L'index unique est NULLS NOT
 DISTINCT. Sur un exercice de plus de douze mois, le mois revient deux fois ·
 la dotation y reste annuelle, sans retouche ni état au mois.
 
+**La classe d'un compte se lit dans son numéro (2026-09-27, audit final
+F40).** La création laissait la classe libre et l'écran partait de la
+classe 1 · un 6xxx créé sans toucher la liste restait en classe 1, que le
+bilan lit, quand le compte de résultat lit le numéro. `classeDuNumero` est la
+seule règle (serveur et écran), une classe envoyée qui la contredit est
+refusée, et la migration du même jour a remis les comptes déjà créés dans la
+classe de leur numéro.
+
 ### Migrations écrites à la main
 
 Une migration écrite à la main peut DIVERGER du schéma sans que rien ne le

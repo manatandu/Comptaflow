@@ -311,6 +311,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** le formulaire part de CLASSE_1 et le serveur ne compare pas la classe au premier chiffre du numéro. Un 6xxx créé sans toucher la liste sort du résultat CH du bilan pendant que le compte de résultat le compte : les deux états divergent.
 - **Correction :** déduire la classe du numéro au serveur et l'afficher calculée à l'écran.
+- **Fait le 2026-09-27 :** la classe se lit dans le numéro (`comptes/classe-du-numero.ts`, écran `lib/classe-du-numero.ts`), une classe envoyée qui le contredit est refusée, l'import emprunte la même règle ; migration `20261124000000_classe_du_numero` qui remet les comptes déjà créés dans la classe de leur numéro (aucune dérive). Test : `classe-du-numero-f40.spec.ts` (dix mutations tuées), qui vérifie aussi les deux plans semés.
 
 ### Groupe et monnaie fonctionnelle
 
