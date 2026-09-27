@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { NatureEngagement, StatutEngagement, StatutEcriture } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { CloreEngagementDto, CreerEngagementDto, RattacherExecutionDto } from './dto/engagement.dto';
+import { refuserSiExerciceBudgetaireClos } from './exercice-budgetaire-clos';
 
 /** En dessous, deux montants sont le même montant · les arrondis de Decimal. */
 const EPSILON = 0.005;
@@ -32,6 +33,9 @@ const EPSILON = 0.005;
  * faux, en moins. Le rattachement à l'écriture qui exécute est donc la
  * mécanique centrale de ce module, pas un agrément.
  */
+/** Ce que le sélecteur de rattachement montre à la fois · le reste se cherche. */
+const PLAFOND_RATTACHABLES = 200;
+
 @Injectable()
 export class EngagementService {
   constructor(private readonly prisma: PrismaService) {}
@@ -123,6 +127,7 @@ export class EngagementService {
       select: { id: true, dateDebut: true, dateFin: true, statut: true },
     });
     if (!exercice) throw new NotFoundException("Exercice introuvable dans ce dossier.");
+    refuserSiExerciceBudgetaireClos(exercice.statut);
 
     // La section doit appartenir au dossier ET porter des budgets · engager
     // une ligne d'un plan qui ne budgète pas ferait peser un engagement sur un
@@ -189,9 +194,10 @@ export class EngagementService {
   async rattacherExecution(tenantId: string, userId: string, engagementId: string, dto: RattacherExecutionDto) {
     const engagement = await this.prisma.engagementDepense.findFirst({
       where: { id: engagementId, tenantId },
-      include: { executions: { select: { montant: true, ecritureId: true } } },
+      include: { executions: { select: { montant: true, ecritureId: true } }, exercice: { select: { statut: true } } },
     });
     if (!engagement) throw new NotFoundException('Engagement introuvable dans ce dossier.');
+    refuserSiExerciceBudgetaireClos(engagement.exercice.statut);
     if (engagement.statut === StatutEngagement.CLOS) {
       throw new BadRequestException(
         "Cet engagement est clos : il ne pèse plus sur le budget et ne peut plus recevoir d'exécution. Rouvrez-le d'abord.",
@@ -203,6 +209,15 @@ export class EngagementService {
       select: { id: true, exerciceId: true, statut: true, numeroPiece: true },
     });
     if (!ecriture) throw new NotFoundException('Écriture introuvable dans ce dossier.');
+    // SEULE UNE ÉCRITURE VALIDÉE EXÉCUTE (audit final F140) · le sélecteur ne
+    // proposait qu'elles, mais la route acceptait un brouillard, que le
+    // tableau d'exécution ne lit pas : l'engagement baissait sans que la
+    // dépense apparaisse nulle part, et la pièce pouvait encore disparaître.
+    if (ecriture.statut !== StatutEcriture.VALIDEE) {
+      throw new BadRequestException(
+        "Seule une écriture VALIDÉE exécute un engagement · le tableau d'exécution budgétaire ne lit que le livre-journal.",
+      );
+    }
     // Le tableau d'un exercice ne lit que les écritures de cet exercice : une
     // écriture d'un autre exercice ferait baisser un reste à exécuter sans
     // qu'aucun décaissement ne vienne le remplacer dans la même colonne.
@@ -233,6 +248,27 @@ export class EngagementService {
       );
     }
 
+    // UNE MÊME PIÈCE NE S'EXÉCUTE PAS AU-DELÀ D'ELLE-MÊME (audit final F140) ·
+    // une facture peut solder deux commandes, jamais davantage qu'elle ne
+    // porte. Le cumul de ses rattachements, tous engagements confondus, est
+    // borné au total de ses débits · sinon la même dépense ferait baisser
+    // plusieurs restes à exécuter, et le crédit disponible gonflerait d'autant.
+    const [dejaSurLaPiece, piece] = await Promise.all([
+      this.prisma.executionEngagement.aggregate({
+        where: { ecritureId: dto.ecritureId, engagement: { tenantId } },
+        _sum: { montant: true },
+      }),
+      this.prisma.ligneEcriture.aggregate({ where: { ecritureId: dto.ecritureId }, _sum: { debit: true } }),
+    ]);
+    const rattache = Number(dejaSurLaPiece._sum.montant ?? 0);
+    const totalPiece = Number(piece._sum.debit ?? 0);
+    if (rattache + dto.montant - totalPiece > EPSILON) {
+      throw new BadRequestException(
+        `La pièce ${ecriture.numeroPiece ?? ''} porte ${totalPiece.toFixed(2)} et en exécute déjà ${rattache.toFixed(2)} ` +
+          `sur d'autres engagements · rattacher ${dto.montant.toFixed(2)} de plus la ferait servir au-delà d'elle-même.`,
+      );
+    }
+
     return this.prisma.executionEngagement.create({
       data: { engagementId, ecritureId: dto.ecritureId, montant: dto.montant, createdBy: userId },
     });
@@ -242,9 +278,10 @@ export class EngagementService {
   async detacherExecution(tenantId: string, engagementId: string, executionId: string) {
     const execution = await this.prisma.executionEngagement.findFirst({
       where: { id: executionId, engagementId, engagement: { tenantId } },
-      select: { id: true },
+      select: { id: true, engagement: { select: { exercice: { select: { statut: true } } } } },
     });
     if (!execution) throw new NotFoundException("Rattachement introuvable sur cet engagement.");
+    refuserSiExerciceBudgetaireClos(execution.engagement.exercice.statut);
     await this.prisma.executionEngagement.delete({ where: { id: executionId } });
     return { detache: true };
   }
@@ -258,9 +295,10 @@ export class EngagementService {
   async clore(tenantId: string, engagementId: string, dto: CloreEngagementDto) {
     const engagement = await this.prisma.engagementDepense.findFirst({
       where: { id: engagementId, tenantId },
-      select: { id: true, statut: true },
+      select: { id: true, statut: true, exercice: { select: { statut: true } } },
     });
     if (!engagement) throw new NotFoundException('Engagement introuvable dans ce dossier.');
+    refuserSiExerciceBudgetaireClos(engagement.exercice.statut);
     if (engagement.statut === StatutEngagement.CLOS) {
       throw new BadRequestException('Cet engagement est déjà clos.');
     }
@@ -279,9 +317,10 @@ export class EngagementService {
   async rouvrir(tenantId: string, engagementId: string) {
     const engagement = await this.prisma.engagementDepense.findFirst({
       where: { id: engagementId, tenantId },
-      select: { id: true, statut: true },
+      select: { id: true, statut: true, exercice: { select: { statut: true } } },
     });
     if (!engagement) throw new NotFoundException('Engagement introuvable dans ce dossier.');
+    refuserSiExerciceBudgetaireClos(engagement.exercice.statut);
     if (engagement.statut !== StatutEngagement.CLOS) {
       throw new BadRequestException("Cet engagement n'est pas clos.");
     }
@@ -299,9 +338,10 @@ export class EngagementService {
   async supprimer(tenantId: string, engagementId: string) {
     const engagement = await this.prisma.engagementDepense.findFirst({
       where: { id: engagementId, tenantId },
-      select: { id: true, _count: { select: { executions: true } } },
+      select: { id: true, _count: { select: { executions: true } }, exercice: { select: { statut: true } } },
     });
     if (!engagement) throw new NotFoundException('Engagement introuvable dans ce dossier.');
+    refuserSiExerciceBudgetaireClos(engagement.exercice.statut);
     if (engagement._count.executions > 0) {
       throw new BadRequestException(
         "Cet engagement porte des écritures d'exécution : il ne s'efface pas. Clôturez-le avec son motif, ou détachez d'abord ses exécutions.",
@@ -317,12 +357,36 @@ export class EngagementService {
    * validé, et rattacher un brouillard ferait baisser l'engagement sans que le
    * décaissement correspondant apparaisse nulle part.
    */
-  async ecrituresRattachables(tenantId: string, exerciceId: string) {
-    return this.prisma.ecriture.findMany({
-      where: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE, estGenereeParCloture: false },
-      orderBy: [{ date: 'desc' }],
-      take: 200,
-      select: { id: true, date: true, numeroPiece: true, libelle: true, reference: true },
-    });
+  async ecrituresRattachables(tenantId: string, exerciceId: string, recherche?: string) {
+    // LA TRANCHE SE DIT, ET LA RECHERCHE SE FAIT AU SERVEUR (audit final
+    // F139) · au-delà de deux cents écritures, la facture à rattacher était
+    // introuvable sans que rien ne le dise, et la dépense restait en colonne
+    // Engagement. Le libellé, la référence ou le numéro de pièce la retrouvent.
+    const texte = recherche?.trim();
+    const numero = texte && /^\d+$/.test(texte) ? Number(texte) : null;
+    const filtre = {
+      exerciceId,
+      statut: StatutEcriture.VALIDEE,
+      estGenereeParCloture: false,
+      ...(texte
+        ? {
+            OR: [
+              { libelle: { contains: texte, mode: 'insensitive' as const } },
+              { reference: { contains: texte, mode: 'insensitive' as const } },
+              ...(numero !== null && Number.isSafeInteger(numero) && numero <= 2_147_483_647 ? [{ numeroPiece: numero }] : []),
+            ],
+          }
+        : {}),
+    };
+    const [ecritures, total] = await Promise.all([
+      this.prisma.ecriture.findMany({
+        where: { tenantId, ...filtre },
+        orderBy: [{ date: 'desc' }],
+        take: PLAFOND_RATTACHABLES,
+        select: { id: true, date: true, numeroPiece: true, libelle: true, reference: true },
+      }),
+      this.prisma.ecriture.count({ where: { tenantId, ...filtre } }),
+    ]);
+    return { ecritures, total, tronque: total > ecritures.length };
   }
 }

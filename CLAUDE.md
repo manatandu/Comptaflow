@@ -184,8 +184,9 @@ comptes, ni états financiers, ni vocabulaire.
 - **SYCEBNL** · complet. Trois jeux d'états (`jeuEtatsFinanciersSycebnl`) :
   associations et ordres professionnels (45 notes), projets de développement
   (26 notes), Système minimal de trésorerie (5 notes).
-- **SYSCOHADA** · complet lui aussi. Tenue : plan de comptes (1401 lignes
-  semées), journaux, taxes, immobilisations, éditions comptables. États
+- **SYSCOHADA** · complet lui aussi. Tenue : plan de comptes (semé en
+  entier, son décompte tenu par `compte-seed-syscohada.spec.ts` et nulle part
+  ailleurs), journaux, taxes, immobilisations, éditions comptables. États
   financiers : deux systèmes (`systemeComptableSyscohada`), AUDCIF art. 11 et
   13, l'art. 12 (Système allégé) étant abrogé depuis la révision de 2017.
   **Système normal** · bilan, compte de résultat et tableau des flux de
@@ -412,6 +413,13 @@ L'ÉCART EST PAR COMPTE, PAS PAR FICHE. Le CPCC compare « le solde de CHAQUE
 COMPTE sur la balance provisoire » : un magasin compté sur quarante fiches se
 rapproche d'un seul solde. D'où deux tables et non une · `FicheInventaire`
 porte le comptage, `EcartInventaire` porte la comparaison et la décision.
+
+LE RECENSEMENT S'OUVRE AU PREMIER COMPTAGE (2026-09-27, audit final F134 à
+F136) · une quantité ou une valeur saisie, ou le PV d'une caisse, fait passer
+la campagne de la préparation au recensement, où le PV se signe AVANT le
+rapprochement. Une fiche se RETIRE tant que rien n'est figé (la valoriser à
+zéro fabriquerait un manquant), et sa sous-commission est celle de SA
+campagne.
 
 Le module PROPOSE l'écriture de redressement d'un manquant, contrepartie
 LAISSÉE VIDE : aucun texte ne dit quel compte de charge reçoit un manquant
@@ -1190,6 +1198,17 @@ qu'elles n'entrent dans l'archive de restitution. Et les commentaires du même
 fichier annonçaient « 55 tables » quand il y en avait 76 : un décompte périmé
 dans un commentaire se lit comme une garantie, il est retiré, et le seul chiffre
 en dur reste celui du test, dont la fonction est de TOMBER.
+
+LE MAGASIN NE DESCEND JAMAIS SOUS ZÉRO, ET UN MOUVEMENT FAUX S'ANNULE
+(2026-09-27, audit final F133). La saisie est refusée dès qu'elle rend une
+sortie impossible, la sienne comme une sortie déjà enregistrée après une
+sortie antidatée (`sortiesAuDelaDuStock`, rejeu en QUANTITÉS sur la
+chronologie de la valorisation) ; une fiche déjà fausse ne bloque pas ce qui
+la corrige. Un mouvement ne se modifie ni ne se supprime · il s'ANNULE avec
+son motif, jamais dans un exercice clôturé ni s'il servait une sortie.
+Annulé, il reste sur la fiche, sort de la valorisation, de la confrontation
+et des détenteurs de son écriture, qui se corrige alors au journal et que la
+fiche nomme tant qu'elle y est.
 
 UN MOUVEMENT DE MAGASIN RETIENT SON ÉCRITURE · ajouté à la liste de
 `verifierAucunModuleNeLaTient`. Sur une relation facultative, Prisma dénoue en
@@ -4039,11 +4058,14 @@ est le DERNIER JOUR POUR DÉNONCER (fin moins le préavis) · la seule date enco
 utilisable, et celle que l'accord ne calcule pas lui-même. Sans préavis
 stipulé, aucune date n'est inventée.
 
-LA PART DE MAIN-D'ŒUVRE LOCALE EST SAISIE, JAMAIS CALCULÉE. OmegaX n'a pas de
-module de paie : aucun effectif, aucune nationalité, aucun contrat, et un
-pourcentage déduit d'un compte 66 serait une invention. La SOURCE est exigée
-avec le nombre, comme pour les relevés d'unités d'œuvre · c'est elle qu'un
-contrôleur demandera. Et le contrôle ne s'allume que sur une part DÉCLARÉE sous
+LA PART DE MAIN-D'ŒUVRE LOCALE EST DÉCLARÉE, JAMAIS SUBSTITUÉE. Le registre
+du personnel la PROPOSE (`effectif-registre.ts`, la même lecture que la
+fenêtre Personnel), nulle dès qu'une nationalité manque, et le cabinet la
+confirme · un pourcentage déduit d'un compte 66 serait une invention. La
+phrase « OmegaX n'a pas de module de paie » a vécu ici jusqu'au 2026-09-27
+(audit final F146), alors que le registre existait · une garantie négative
+vieillit. La SOURCE est exigée avec le nombre, comme pour les relevés
+d'unités d'œuvre · c'est elle qu'un contrôleur demandera. Et le contrôle ne s'allume que sur une part DÉCLARÉE sous
 le seuil : une part absente n'est pas une part insuffisante, et la traiter comme
 telle accuserait tout dossier qui n'a rien saisi.
 
@@ -4503,8 +4525,9 @@ relation FACULTATIVE, Prisma pose SET NULL et la suppression DÉNOUE le lien en
 silence ; supprimer un taux sortirait ses lignes de la déclaration de TVA sans
 erreur. `common/suppression/references.ts` compte donc toutes les références
 avant de supprimer. (2) LA LISTE DES RELATIONS SE LIT DANS LE SCHÉMA (DMMF),
-jamais à la main · trente et une relations pointent vers un compte, et une
-table ajoutée demain sera comptée sans que personne y pense. C'est l'inverse
+jamais à la main · toutes les relations qui pointent vers un compte sont
+comptées, et une table ajoutée demain le sera sans que personne y pense (le
+nombre n'est écrit nulle part, il se périmait, audit final F145). C'est l'inverse
 voulu de la liste écrite à la main des modules qui retiennent une écriture
 (§ 10 bis) : ici tout lien retient, sans décision à prendre. Chaque comptage
 sur une table cloisonnée porte la borne du dossier. (3) DEUX CAS PROPRES · un
@@ -5021,7 +5044,8 @@ zéro. (3) LES PRODUITS SUIVENT LA CROISSANCE DU CHIFFRE D'AFFAIRES, LES CHARGES
 RESTENT AU RÉALISÉ tant qu'aucun taux ne leur est donné · une charge variable se
 déclare, elle ne se devine pas. Un taux illisible est refusé à l'écran, jamais
 ignoré. (4) LE PRÉVU À DATE EST AU PRORATA DES JOURS DE CALENDRIER, convention
-de lecture dite à l'écran, 1 sur un exercice clos · des jours, pas une durée
+de lecture dite à l'écran, lu à la DATE D'ARRÊTÉ même sur un exercice clos
+(audit final F148), 1 à sa date de fin · des jours, pas une durée
 arrondie, l'arrêté posé à 23 h 59 en gagnait un. Une référence d'une autre
 durée que la cible est signalée, jamais corrigée. (5) SEULS LES SEUILS DE LA
 SIMULATION COLORENT, et seul l'écart DÉFAVORABLE (produit en retard, charge en

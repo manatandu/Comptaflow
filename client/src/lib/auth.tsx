@@ -46,6 +46,8 @@ interface MeResponse {
     /** Faits déclarés · `null` = pas encore dit (`lib/profil-dossier.ts`). */
     assujettissementTva?: boolean | null;
     venteBiensServices?: boolean | null;
+    /** Longueur maximale d'un numéro de compte ouvert par le cabinet (3 à 13). */
+    longueurCompte?: number;
   };
 }
 

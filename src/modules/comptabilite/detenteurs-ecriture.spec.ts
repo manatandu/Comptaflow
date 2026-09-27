@@ -74,6 +74,10 @@ describe('détenteurs d’une écriture · la décision est prise pour chaque re
     expect(absentes).toEqual([]);
   });
 
+  it('un mouvement de magasin ANNULÉ ne tient plus son écriture (audit final F133)', () => {
+    expect(corpsDetenteursDe()).toContain('this.prisma.mouvementStock.count({ where: { tenantId, ecritureId, annuleLe: null } })');
+  });
+
   it('toute relation vers une écriture déclare son onDelete (audit du serveur I3)', () => {
     // Seize colonnes facultatives reposaient sur le défaut implicite de
     // Prisma, SET NULL, et les obligatoires sur RESTRICT · c'est ce silence

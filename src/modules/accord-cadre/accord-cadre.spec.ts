@@ -344,3 +344,41 @@ describe('Le contrôle de l’article 37', () => {
     expect(a!.consequence).toMatch(/ne calcule pas ce chiffre/);
   });
 });
+
+describe('F146 · le registre du personnel PROPOSE la part, il ne la substitue pas', () => {
+  function avecRegistre(contrats: Faux[]) {
+    const { svc, ecrit } = service(FormeJuridiqueEbnl.ORGANISATION_NON_GOUVERNEMENTALE, true, [
+      { id: 'a1', tenantId: 't', dateSignature: new Date('2026-03-01'), dureeAnnees: 10, taciteReconduction: true, preavisMois: 6, denonceLe: null, partMainOeuvreLocale: 55 },
+    ]);
+    const prisma = (svc as unknown as { prisma: Faux }).prisma;
+    prisma.contratTravail = {
+      // La doublure honore la borne du dossier · un registre d'un autre dossier ne propose rien ici.
+      findMany: jest.fn(({ where }: { where: { tenantId: string } }) => Promise.resolve(where.tenantId === 't' ? contrats : [])),
+    };
+    return { svc, ecrit };
+  }
+  const salarie = (id: string, nationalite: string | null) => ({
+    salarieId: id,
+    type: 'DUREE_INDETERMINEE',
+    salarie: { sexe: 'MASCULIN', nationalite },
+  });
+
+  it('l’état porte la part du registre, sa source, et laisse la part déclarée intacte', async () => {
+    const { svc } = avecRegistre([salarie('s1', 'Congolaise'), salarie('s2', 'Congolaise'), salarie('s3', 'Belge'), salarie('s4', 'RDC')]);
+    const etat = await svc.etat('t', { dateReference: '2026-12-31' });
+    expect(etat.propositionMainOeuvre).toMatchObject({ part: 75, effectif: 4, nationaux: 3, source: 'Registre du personnel au 2026-12-31' });
+    expect(etat.accords[0].partMainOeuvreLocale).toBe(55);
+  });
+
+  it('une nationalité manquante ne propose rien, et le dit', async () => {
+    const { svc } = avecRegistre([salarie('s1', 'Congolaise'), salarie('s2', null)]);
+    const etat = await svc.etat('t', { dateReference: '2026-12-31' });
+    expect(etat.propositionMainOeuvre?.part).toBeNull();
+    expect(etat.propositionMainOeuvre?.reserve).toMatch(/1 salarié\(s\) de l'effectif n'ont pas de nationalité/);
+  });
+
+  it('un dossier hors périmètre ne lit pas le registre', async () => {
+    const { svc } = service(FormeJuridiqueEbnl.ASSOCIATION, false);
+    expect((await svc.etat('t')).propositionMainOeuvre).toBeNull();
+  });
+});

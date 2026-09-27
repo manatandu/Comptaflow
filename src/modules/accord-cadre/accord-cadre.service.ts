@@ -6,6 +6,7 @@ import {
   MODELE_KAHASHA,
   PART_MAIN_OEUVRE_LOCALE_MINIMALE,
 } from './conditions-ong-etrangere';
+import { effectifDuRegistre } from '../personnel/effectif-registre';
 
 /**
  * ACCORD-CADRE AVEC LE MINISTÈRE DU PLAN · le manque que le logiciel déclarait
@@ -54,6 +55,11 @@ export class AccordCadreService {
     const accords = applicable
       ? await this.prisma.accordCadrePlan.findMany({ where: { tenantId }, orderBy: { dateSignature: 'desc' } })
       : [];
+    // LA PART QUE LE REGISTRE DU PERSONNEL PROPOSE (audit final F146) · à la
+    // date de référence, avec sa source et sa réserve. PROPOSÉE, JAMAIS
+    // SUBSTITUÉE · la part déclarée reste celle que le cabinet a saisie, et un
+    // registre incomplet rend une part nulle plutôt qu'un chiffre faux.
+    const registre = applicable ? await effectifDuRegistre(this.prisma, tenantId, reference) : null;
 
     return {
       applicable,
@@ -72,6 +78,15 @@ export class AccordCadreService {
           reference,
         }),
       })),
+      propositionMainOeuvre: registre
+        ? {
+            part: registre.partMainOeuvreNationale,
+            effectif: registre.effectif,
+            nationaux: registre.nationaux,
+            source: registre.source,
+            reserve: registre.reserve,
+          }
+        : null,
       dateReference: reference.toISOString().slice(0, 10),
     };
   }
@@ -116,10 +131,12 @@ export class AccordCadreService {
   }
 
   /**
-   * PART DE MAIN-D'ŒUVRE LOCALE · saisie, jamais calculée, et jamais sans sa
-   * source. OmegaX n'a pas de module de paie : aucun effectif, aucune
-   * nationalité, aucun contrat. Un pourcentage déduit d'un compte 66 serait une
-   * invention, et c'est la source qu'un contrôleur demandera.
+   * PART DE MAIN-D'ŒUVRE LOCALE · DÉCLARÉE, jamais sans sa source. Le registre
+   * du personnel la PROPOSE (`etat`, `propositionMainOeuvre`), il ne la
+   * substitue pas · un registre incomplet donnerait une part fausse
+   * d'apparence calculée. La phrase « OmegaX n'a pas de module de paie »
+   * était vraie à la création du champ et a cessé de l'être avec le registre
+   * (audit final F146) · une garantie négative vieillit.
    */
   async declarerMainOeuvre(
     tenantId: string,
@@ -131,9 +148,9 @@ export class AccordCadreService {
     if (!accord) throw new NotFoundException('Accord-cadre introuvable');
     if (!dto.source.trim()) {
       throw new BadRequestException(
-        'La source du relevé est exigée · registre du personnel, états de paie, déclaration ONEM. OmegaX ne ' +
-          'détient aucun effectif et ne calcule pas cette part : c’est la source qu’un contrôleur demandera, ' +
-          'pas le pourcentage.',
+        'La source du relevé est exigée · registre du personnel, états de paie, déclaration ONEM. Le registre ' +
+          'd’OmegaX propose cette part sans la substituer : c’est la source qu’un contrôleur demandera, pas le ' +
+          'pourcentage.',
       );
     }
     if (dto.part < 0 || dto.part > 100) {

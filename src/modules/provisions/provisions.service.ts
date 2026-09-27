@@ -216,6 +216,31 @@ export class ProvisionsService {
     );
   }
 
+  /**
+   * LE COMPTE D'UNE PROVISION EST CELUI QUE SA NATURE APPELLE, DANS CE DOSSIER
+   * (audit final F138). Seul l'écran filtrait · un appel direct posait le
+   * compte d'un autre dossier, ou un 191 sur une provision pour impôts, et le
+   * rapprochement du tableau de variation se faisait alors contre un solde
+   * étranger au risque, sur une Note annexe qui le publiait. La racine est
+   * celle de `naturesDuReferentiel`, la même que l'écran lit · une nature
+   * interdite n'en a aucune, elle ne se comptabilise pas.
+   */
+  private async verifierCompte(tenantId: string, nature: NatureProvision, compteId: string | null | undefined) {
+    if (!compteId) return;
+    const compte = await this.prisma.compte.findFirst({ where: { id: compteId, tenantId }, select: { numero: true } });
+    if (!compte) throw new NotFoundException('Compte introuvable dans ce dossier.');
+    const servie = ProvisionsService.naturesDuReferentiel(await this.referentielDu(tenantId)).find((n) => n.nature === nature);
+    if (!servie) {
+      throw new BadRequestException(`La nature ${nature} n'a aucun compte dans le plan de ce dossier · elle ne se comptabilise pas.`);
+    }
+    if (!compte.numero.startsWith(servie.compte)) {
+      throw new BadRequestException(
+        `Le compte ${compte.numero} n'est pas un ${servie.compte} (${servie.intitule}) · une provision se porte ` +
+          'au compte que sa nature appelle, sans quoi son rapprochement se ferait contre le solde d’un autre risque.',
+      );
+    }
+  }
+
   private async referentielDu(tenantId: string): Promise<Referentiel> {
     const tenant = await this.prisma.tenant.findFirst({ where: { id: tenantId }, select: { referentiel: true } });
     if (!tenant) throw new NotFoundException('Dossier introuvable.');
@@ -328,6 +353,7 @@ export class ProvisionsService {
       sortieProbable: false,
       estimationFiable: false,
     });
+    await this.verifierCompte(tenantId, dto.nature, dto.compteId);
 
     return this.prisma.provisionRisqueCharge.create({
       data: {
@@ -366,6 +392,12 @@ export class ProvisionsService {
       tenantId,
       { ...dto, nature: dto.nature ?? existante.nature, statut: dto.statut ?? existante.statut },
       existante,
+    );
+    // La nature ou le compte peut changer seul · le couple est revérifié.
+    await this.verifierCompte(
+      tenantId,
+      dto.nature ?? existante.nature,
+      dto.compteId !== undefined ? dto.compteId : existante.compteId,
     );
 
     return this.prisma.provisionRisqueCharge.update({

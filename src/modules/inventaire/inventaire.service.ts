@@ -369,6 +369,7 @@ export class InventaireService {
         `Le compte ${compte.numero} est un compte Total · il n'a pas de solde propre à rapprocher. Choisir un compte d'imputation.`,
       );
     }
+    if (dto.sousCommissionId) await this.sousCommissionDeLaCampagne(tenantId, campagneId, dto.sousCommissionId);
     return this.prisma.ficheInventaire.create({
       data: {
         tenantId,
@@ -380,6 +381,21 @@ export class InventaireService {
         uniteMesure: dto.uniteMesure?.trim() || null,
       },
     });
+  }
+
+  /**
+   * LA SOUS-COMMISSION D'UNE FICHE EST CELLE DE SA CAMPAGNE (audit final F136)
+   * · reçue du client et seulement validée comme identifiant, elle pouvait
+   * désigner celle d'une autre campagne, voire d'un autre dossier. Le PV de
+   * caisse lit les signataires de SA sous-commission · une fiche rattachée
+   * ailleurs serait comptée par des gens qui n'ont pas signé cet inventaire.
+   */
+  private async sousCommissionDeLaCampagne(tenantId: string, campagneId: string, sousCommissionId: string) {
+    const sc = await this.prisma.sousCommissionInventaire.findFirst({
+      where: { id: sousCommissionId, tenantId, campagneId },
+      select: { id: true },
+    });
+    if (!sc) throw new BadRequestException("Cette sous-commission n'appartient pas à la campagne de la fiche.");
   }
 
   /** Étapes 2 et 3 · le comptage, puis la valorisation avec sa pièce. */
@@ -397,7 +413,8 @@ export class InventaireService {
         "Les écarts de cette campagne sont déjà figés · rouvrir le comptage après le rapprochement ferait porter l'arbitrage sur un chiffre périmé.",
       );
     }
-    return this.prisma.ficheInventaire.update({
+    if (dto.sousCommissionId) await this.sousCommissionDeLaCampagne(tenantId, fiche.campagneId, dto.sousCommissionId);
+    const miseAJour = await this.prisma.ficheInventaire.update({
       where: { id: ficheId },
       data: {
         ...(dto.quantiteComptee !== undefined ? { quantiteComptee: dto.quantiteComptee } : {}),
@@ -407,6 +424,48 @@ export class InventaireService {
         ...(dto.sousCommissionId !== undefined ? { sousCommissionId: dto.sousCommissionId } : {}),
       },
     });
+    // UN COMPTAGE SAISI OUVRE LE RECENSEMENT (audit final F134) · le statut
+    // n'était jamais atteint, et le PV, qui se signe après le comptage et
+    // avant le rapprochement, ne pouvait s'établir qu'une fois les écarts
+    // figés. Seul un chiffre compté ou valorisé le fait · un emplacement ou
+    // une pièce corrigés ne sont pas un comptage.
+    if (dto.quantiteComptee !== undefined || dto.valeurInventaire !== undefined) {
+      await this.entrerEnRecensement(tenantId, fiche.campagneId);
+    }
+    return miseAJour;
+  }
+
+  /** PRÉPARATION → RECENSEMENT, une fois, sur la seule campagne encore en préparation. */
+  private async entrerEnRecensement(tenantId: string, campagneId: string) {
+    await this.prisma.campagneInventaire.updateMany({
+      where: { id: campagneId, tenantId, statut: StatutCampagneInventaire.PREPARATION },
+      data: { statut: StatutCampagneInventaire.RECENSEMENT },
+    });
+  }
+
+  /**
+   * RETIRER UNE FICHE (audit final F135) · le refus de rapprocher dit « les
+   * valoriser ou les supprimer », et aucune route ne supprimait. La valoriser
+   * à zéro pour passer aurait FABRIQUÉ un manquant. Elle se retire tant que
+   * rien n'est figé · après le rapprochement, l'écart par compte porte son
+   * nombre de fiches, et la retirer le ferait mentir.
+   */
+  async supprimerFiche(tenantId: string, ficheId: string) {
+    const fiche = await this.prisma.ficheInventaire.findFirst({
+      where: { id: ficheId, tenantId },
+      include: { campagne: { select: { statut: true } } },
+    });
+    if (!fiche) throw new NotFoundException('Fiche introuvable.');
+    if (
+      fiche.campagne.statut !== StatutCampagneInventaire.PREPARATION &&
+      fiche.campagne.statut !== StatutCampagneInventaire.RECENSEMENT
+    ) {
+      throw new ForbiddenException(
+        "Les écarts de cette campagne sont déjà figés · retirer une fiche après le rapprochement ferait mentir l'écart du compte, qui en porte le nombre.",
+      );
+    }
+    await this.prisma.ficheInventaire.deleteMany({ where: { id: fiche.id, tenantId } });
+    return { supprimee: true };
   }
 
   /**
@@ -453,7 +512,7 @@ export class InventaireService {
     const nonValorisees = fiches.filter((f) => f.valeurInventaire === null);
     if (nonValorisees.length > 0) {
       throw new BadRequestException(
-        `${nonValorisees.length} fiche(s) sans valeur d'inventaire · les valoriser ou les supprimer avant de rapprocher. ` +
+        `${nonValorisees.length} fiche(s) sans valeur d'inventaire · les valoriser, ou retirer celles qui n'ont pas lieu d'être, avant de rapprocher. ` +
           "Une fiche non valorisée comptée pour zéro produirait un manquant que personne n'a constaté.",
       );
     }
@@ -870,7 +929,11 @@ export class InventaireService {
    * l'être.
    */
   async etablirPvCaisse(tenantId: string, campagneId: string, userId: string, dto: EtablirPvCaisseDto) {
+    // Compter une caisse EST recenser (audit final F134) · une campagne qui ne
+    // porte que des caisses n'a aucune fiche dont le comptage l'aurait
+    // ouverte. Admise en préparation, elle passe au recensement ci-dessous.
     const campagne = await this.campagneOuverte(tenantId, campagneId, [
+      StatutCampagneInventaire.PREPARATION,
       StatutCampagneInventaire.RECENSEMENT,
       StatutCampagneInventaire.ARBITRAGE,
     ]);
@@ -917,7 +980,7 @@ export class InventaireService {
     }
 
     const ecart = Number((dto.especesComptees - dto.soldeComptable).toFixed(2));
-    return this.prisma.procesVerbalComptageCaisse.create({
+    const pv = await this.prisma.procesVerbalComptageCaisse.create({
       data: {
         tenantId,
         campagneId: campagne.id,
@@ -942,6 +1005,8 @@ export class InventaireService {
       },
       include: { coupures: true, compte: { select: { numero: true, intitule: true } } },
     });
+    await this.entrerEnRecensement(tenantId, campagne.id);
+    return pv;
   }
 
   /**

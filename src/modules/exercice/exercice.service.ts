@@ -15,6 +15,7 @@ import { JournalService } from '../journaux/journal.service';
 import { avecRetrySerialisable } from '../../common/prisma-retry.util';
 import { DERNIERE_VERIFICATION, dateJalon, jalonsApplicables } from './planning-cloture';
 import { filtreBrouillardAValider } from '../comptabilite/centralisation-brouillard';
+import { refuserSiExerciceBudgetaireClos } from '../analytique/exercice-budgetaire-clos';
 import { echeanceDepassee, jourDeKinshasa } from '../../common/echeance';
 import { reporterAuJourOuvrable } from '../retenues/jour-ouvrable';
 import { premierJourNonCloture } from './report-periode-close';
@@ -1071,6 +1072,8 @@ export class ExerciceService {
       orderBy: { dateDebut: 'asc' },
     });
     if (!suivant) throw new BadRequestException("L'exercice suivant n'existe pas encore · ouvrez-le avant d'y reporter les budgets.");
+    // Un budget ne se dépose pas sur un exercice clôturé (audit final F143).
+    refuserSiExerciceBudgetaireClos(suivant.statut);
     const [budgets, dejaDotes, sections] = await Promise.all([
       this.prisma.budgetSection.findMany({ where: { exerciceId, section: { tenantId } } }),
       this.prisma.budgetSection.findMany({ where: { exerciceId: suivant.id, section: { tenantId } } }),

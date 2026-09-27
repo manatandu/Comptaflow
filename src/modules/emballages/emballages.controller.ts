@@ -36,6 +36,13 @@ export class EmballagesController {
     return this.emballages.creer(user.tenantId, user.userId, dto);
   }
 
+  /** Retirer une consignation ni dénouée ni rattachée (audit final F137). */
+  @Delete('consignations/:id')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  async supprimer(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.emballages.supprimer(user.tenantId, id);
+  }
+
   // Aucun écran ne la lit (audit de l'interface, I12) · la fenêtre Emballages
   // lit le registre des consignations puis la proposition de dénouement.
   @Get('consignations/:id/ouverture')

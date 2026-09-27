@@ -33,13 +33,35 @@ const SECTION = {
 
 type Faux = Record<string, unknown>;
 
+type Rattachable = { id: string; libelle: string; reference: string | null; numeroPiece: number | null };
+function filtrerRattachables(liste: Rattachable[], where: { OR?: Record<string, unknown>[] }): Rattachable[] {
+  if (!where.OR) return liste;
+  return liste.filter((e) =>
+    where.OR!.some((c) => {
+      const lib = c.libelle as { contains: string } | undefined;
+      const ref = c.reference as { contains: string } | undefined;
+      if (lib) return e.libelle.toLowerCase().includes(lib.contains.toLowerCase());
+      if (ref) return (e.reference ?? '').toLowerCase().includes(ref.contains.toLowerCase());
+      return 'numeroPiece' in c && e.numeroPiece === c.numeroPiece;
+    }),
+  );
+}
+
 function service(options: {
   exercice?: unknown;
   section?: unknown;
   doublon?: unknown;
   engagement?: unknown;
+  /** Statut de l'exercice de l'engagement relu. */
+  statutExercice?: string;
+  /** Le rattachement relu par `detacherExecution`. */
+  execution?: unknown;
   engagements?: unknown[];
   ecriture?: unknown;
+  /** Ce que la pièce porte (total des débits) et ce qu'elle exécute déjà, tous engagements confondus. */
+  totalPiece?: number;
+  dejaSurLaPiece?: number;
+  rattachables?: { id: string; libelle: string; reference: string | null; numeroPiece: number | null }[];
 } = {}) {
   const prisma = {
     exercice: {
@@ -52,17 +74,34 @@ function service(options: {
       findFirst: jest.fn().mockImplementation(({ where }: { where: Record<string, unknown> }) =>
         // Deux lectures passent par findFirst : la recherche de doublon (qui
         // porte une `reference`) et la relecture d'un engagement par son id.
-        Promise.resolve('reference' in where ? (options.doublon ?? null) : (options.engagement ?? null)),
+        // La relecture porte le statut de SON exercice (audit final F143) ·
+        // ouvert par défaut, clôturé quand le test le demande.
+        Promise.resolve(
+          'reference' in where
+            ? (options.doublon ?? null)
+            : options.engagement
+              ? { exercice: { statut: options.statutExercice ?? 'OUVERT' }, ...(options.engagement as object) }
+              : null,
+        ),
       ),
       findMany: jest.fn().mockResolvedValue(options.engagements ?? []),
       create: jest.fn().mockImplementation(({ data }: { data: unknown }) => Promise.resolve({ id: 'e1', ...(data as object) })),
       update: jest.fn().mockImplementation(({ data }: { data: unknown }) => Promise.resolve({ id: 'e1', ...(data as object) })),
       delete: jest.fn().mockResolvedValue({}),
     },
-    ecriture: { findFirst: jest.fn().mockResolvedValue(options.ecriture === undefined ? null : options.ecriture) },
+    ecriture: {
+      findFirst: jest.fn().mockResolvedValue(options.ecriture === undefined ? null : options.ecriture),
+      // Le sélecteur · la doublure HONORE la recherche (libellé, référence, numéro).
+      findMany: jest.fn(async ({ where, take }: { where: { OR?: Record<string, unknown>[] }; take: number }) =>
+        filtrerRattachables(options.rattachables ?? [], where).slice(0, take),
+      ),
+      count: jest.fn(async ({ where }: { where: { OR?: Record<string, unknown>[] } }) => filtrerRattachables(options.rattachables ?? [], where).length),
+    },
+    ligneEcriture: { aggregate: jest.fn().mockResolvedValue({ _sum: { debit: options.totalPiece ?? 10_000_000 } }) },
     executionEngagement: {
+      aggregate: jest.fn().mockResolvedValue({ _sum: { montant: options.dejaSurLaPiece ?? 0 } }),
       create: jest.fn().mockImplementation(({ data }: { data: unknown }) => Promise.resolve({ id: 'x1', ...(data as object) })),
-      findFirst: jest.fn().mockResolvedValue(null),
+      findFirst: jest.fn().mockResolvedValue(options.execution ?? null),
       delete: jest.fn().mockResolvedValue({}),
     },
   } as Faux;
@@ -291,5 +330,95 @@ describe("la suppression d'un engagement", () => {
   it('laisse partir un engagement saisi par erreur', async () => {
     const { service: s } = service({ engagement: { id: 'e1', _count: { executions: 0 } } });
     await expect(s.supprimer('t1', 'e1')).resolves.toEqual({ supprime: true });
+  });
+});
+
+describe('F140 · une écriture n’exécute qu’au livre-journal, et jamais au-delà d’elle-même', () => {
+  const ENGAGEMENT = { id: 'e1', exerciceId: 'ex1', statut: 'OUVERT', montant: 4_800_000, executions: [] };
+  const ECRITURE = { id: 'ec1', exerciceId: 'ex1', statut: 'VALIDEE', numeroPiece: 12 };
+
+  it('refuse une écriture au brouillard', async () => {
+    const { service: s, prisma } = service({ engagement: ENGAGEMENT, ecriture: { ...ECRITURE, statut: 'BROUILLARD' } });
+    await expect(s.rattacherExecution('t1', 'u1', 'e1', { ecritureId: 'ec1', montant: 100 })).rejects.toThrow(/VALIDÉE/);
+    expect((prisma.executionEngagement as { create: jest.Mock }).create).not.toHaveBeenCalled();
+  });
+
+  it('refuse de faire servir la pièce au-delà de son total, tous engagements confondus', async () => {
+    const { service: s, prisma } = service({ engagement: ENGAGEMENT, ecriture: ECRITURE, totalPiece: 1_160_000, dejaSurLaPiece: 1_000_000 });
+    await expect(s.rattacherExecution('t1', 'u1', 'e1', { ecritureId: 'ec1', montant: 200_000 })).rejects.toThrow(
+      /au-delà d'elle-même/,
+    );
+    // Le cumul se lit sur TOUS les engagements du dossier, pas sur celui-ci.
+    expect((prisma.executionEngagement as { aggregate: jest.Mock }).aggregate).toHaveBeenCalledWith({
+      where: { ecritureId: 'ec1', engagement: { tenantId: 't1' } },
+      _sum: { montant: true },
+    });
+  });
+
+  it('accepte le reste exact de la pièce', async () => {
+    const { service: s } = service({ engagement: ENGAGEMENT, ecriture: ECRITURE, totalPiece: 1_160_000, dejaSurLaPiece: 1_000_000 });
+    await expect(s.rattacherExecution('t1', 'u1', 'e1', { ecritureId: 'ec1', montant: 160_000 })).resolves.toBeDefined();
+  });
+});
+
+describe('F139 · le sélecteur dit sa tranche, et la recherche va au serveur', () => {
+  const beaucoup = Array.from({ length: 250 }, (_, i) => ({
+    id: `ec${i}`,
+    libelle: i === 240 ? 'Facture Ets Kabila Fournitures' : `Pièce ${i}`,
+    reference: i === 241 ? 'FA-2026-77' : null,
+    numeroPiece: i + 1,
+  }));
+
+  it('au-delà de deux cents, la réponse dit le total et qu’elle est tronquée', async () => {
+    const { service: s } = service({ rattachables: beaucoup });
+    const r = await s.ecrituresRattachables('t1', 'ex1');
+    expect({ n: r.ecritures.length, total: r.total, tronque: r.tronque }).toEqual({ n: 200, total: 250, tronque: true });
+  });
+
+  it('la recherche retrouve la facture hors de la tranche, par libellé, référence ou numéro', async () => {
+    const { service: s } = service({ rattachables: beaucoup });
+    expect((await s.ecrituresRattachables('t1', 'ex1', 'kabila')).ecritures.map((e) => e.id)).toEqual(['ec240']);
+    expect((await s.ecrituresRattachables('t1', 'ex1', 'FA-2026')).ecritures.map((e) => e.id)).toEqual(['ec241']);
+    const parNumero = await s.ecrituresRattachables('t1', 'ex1', '243');
+    // La pièce n° 243 (ec242), et le libellé « Pièce 243 » (ec243) qui le porte aussi.
+    expect({ ids: parNumero.ecritures.map((e) => e.id).sort(), tronque: parNumero.tronque }).toEqual({
+      ids: ['ec242', 'ec243'],
+      tronque: false,
+    });
+  });
+});
+
+describe('F143 · un exercice clôturé ne change plus d’engagements', () => {
+  const ENGAGEMENT = { id: 'e1', exerciceId: 'ex1', statut: 'OUVERT', montant: 4_800_000, executions: [], _count: { executions: 0 } };
+  const ECRITURE = { id: 'ec1', exerciceId: 'ex1', statut: 'VALIDEE', numeroPiece: 12 };
+  const CLOS = /exercice est clôturé/;
+
+  it('la création est refusée', async () => {
+    const { service: s, prisma } = service({ exercice: { ...EXERCICE, statut: 'CLOTURE' } });
+    await expect(s.creer('t1', 'u1', DTO)).rejects.toThrow(CLOS);
+    expect((prisma.engagementDepense as { create: jest.Mock }).create).not.toHaveBeenCalled();
+  });
+
+  it('rattacher, clore, rouvrir et supprimer aussi', async () => {
+    const { service: s, prisma } = service({ engagement: ENGAGEMENT, ecriture: ECRITURE, statutExercice: 'CLOTURE' });
+    await expect(s.rattacherExecution('t1', 'u1', 'e1', { ecritureId: 'ec1', montant: 100 })).rejects.toThrow(CLOS);
+    await expect(s.clore('t1', 'e1', { motif: 'Commande annulée' })).rejects.toThrow(CLOS);
+    const { service: s2 } = service({ engagement: { ...ENGAGEMENT, statut: 'CLOS' }, statutExercice: 'CLOTURE' });
+    await expect(s2.rouvrir('t1', 'e1')).rejects.toThrow(CLOS);
+    await expect(s.supprimer('t1', 'e1')).rejects.toThrow(CLOS);
+    expect((prisma.executionEngagement as { create: jest.Mock }).create).not.toHaveBeenCalled();
+    expect((prisma.engagementDepense as { update: jest.Mock }).update).not.toHaveBeenCalled();
+    expect((prisma.engagementDepense as { delete: jest.Mock }).delete).not.toHaveBeenCalled();
+  });
+
+  it('détacher une exécution aussi', async () => {
+    const { service: s, prisma } = service({ execution: { id: 'x1', engagement: { exercice: { statut: 'CLOTURE' } } } });
+    await expect(s.detacherExecution('t1', 'e1', 'x1')).rejects.toThrow(CLOS);
+    expect((prisma.executionEngagement as { delete: jest.Mock }).delete).not.toHaveBeenCalled();
+  });
+
+  it('sur un exercice ouvert, rien ne change', async () => {
+    const { service: s } = service({ execution: { id: 'x1', engagement: { exercice: { statut: 'OUVERT' } } } });
+    await expect(s.detacherExecution('t1', 'e1', 'x1')).resolves.toEqual({ detache: true });
   });
 });

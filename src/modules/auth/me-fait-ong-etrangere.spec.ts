@@ -52,3 +52,10 @@ describe('/auth/me · assujettissement à la TVA et ventes, trois valeurs', () =
     expect((await me({ ...base, assujettiTva: true, assujettissementTvaRepondu: true })).tenant.assujettissementTva).toBe(true);
   });
 });
+
+describe('/auth/me · la longueur des numéros de compte (audit final F144)', () => {
+  it('porte la borne du dossier, que la saisie du plan de comptes impose', async () => {
+    const t = (await me({ referentiel: 'SYSCOHADA', systemeComptableSyscohada: 'NORMAL', longueurCompte: 12 })).tenant;
+    expect(t.longueurCompte).toBe(12);
+  });
+});

@@ -18,6 +18,14 @@ type Etat = {
   modele: { dureeAnnees: number; preavisMois: number; source: string };
   partMinimaleMainOeuvreLocale: number;
   dateReference: string;
+  /** Ce que le registre du personnel propose · jamais substitué à la part déclarée. */
+  propositionMainOeuvre: {
+    part: number | null;
+    effectif: number;
+    nationaux: number;
+    source: string;
+    reserve: string | null;
+  } | null;
   accords: {
     id: string;
     reference: string;
@@ -86,11 +94,24 @@ export function AccordCadrePage() {
    */
   async function declarerMainOeuvre(id: string) {
     setErreur(null);
-    const part = window.prompt("Part de main-d'œuvre locale, en % (0 à 100)");
+    // LE REGISTRE PROPOSE, LE CABINET DÉCLARE (audit final F146) · la part,
+    // sa source et sa date sont pré-remplies depuis le registre du personnel
+    // quand il la rend, et restent modifiables. Un registre incomplet ne
+    // propose rien, et le dit.
+    const p = etat?.propositionMainOeuvre ?? null;
+    const proposee = p?.part != null ? p.part.toFixed(1) : '';
+    const invite =
+      p?.part != null
+        ? `Part de main-d'œuvre locale, en % (0 à 100) · le registre propose ${proposee} % (${p.nationaux} sur ${p.effectif})`
+        : `Part de main-d'œuvre locale, en % (0 à 100)${p?.reserve ? ` · ${p.reserve}` : ''}`;
+    const part = window.prompt(invite, proposee);
     if (part === null || part.trim() === '') return;
-    const source = window.prompt('Source de ce chiffre (registre du personnel, déclaration, rapport…)');
+    const source = window.prompt(
+      'Source de ce chiffre (registre du personnel, déclaration, rapport…)',
+      p?.part != null && part.trim() === proposee ? p.source : '',
+    );
     if (!source?.trim()) return;
-    const date = window.prompt('Date à laquelle la part est constatée (AAAA-MM-JJ)');
+    const date = window.prompt('Date à laquelle la part est constatée (AAAA-MM-JJ)', etat?.dateReference ?? '');
     if (!date) return;
     try {
       await api.patch(`/accord-cadre/${id}/main-oeuvre`, { part: Number(part.replace(',', '.')), source: source.trim(), date });
@@ -199,7 +220,7 @@ export function AccordCadrePage() {
           Accords enregistrés
           <Aide
             titre="Période et main-d'œuvre locale"
-            texte="Une période écoulée n'est pas une fin quand l'accord se reconduit tacitement · il repart pour une période identique tant qu'aucune partie ne l'a dénoncé. La part de main-d'œuvre locale est saisie, jamais calculée : OmegaX ne détient aucun effectif, et c'est la source du relevé qu'un contrôleur demandera."
+            texte="Une période écoulée n'est pas une fin quand l'accord se reconduit tacitement · il repart pour une période identique tant qu'aucune partie ne l'a dénoncé. La part de main-d'œuvre locale est déclarée avec sa source : le registre du personnel la propose sans la substituer, et c'est la source du relevé qu'un contrôleur demandera."
             source="Loi n° 004/2001, art. 37"
           />
         </h2>

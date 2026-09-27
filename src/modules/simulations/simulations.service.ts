@@ -125,7 +125,11 @@ export class SimulationsService {
         select: { numero: true, intitule: true },
       }),
     ]);
-    const prorata = avantDebut ? 0 : cible.statut === 'CLOTURE' ? 1 : prorataTemporis(cible.dateDebut, cible.dateFin, arrete);
+    // LE PRORATA SE LIT À LA DATE D'ARRÊTÉ, clos ou non (audit final F148) ·
+    // un exercice clos arrêté au 30 juin comparait un réalisé de six mois à un
+    // prévu de douze. Sans date, l'arrêté est borné à la fin de l'exercice, et
+    // le prorata vaut 1 par le calcul, pas par le statut.
+    const prorata = avantDebut ? 0 : prorataTemporis(cible.dateDebut, cible.dateFin, arrete);
     const resultat = simuler({
       reference: montantsParRacine(balRef.lignes),
       realise: balCible ? montantsParRacine(balCible.lignes) : null,

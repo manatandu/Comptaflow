@@ -13,7 +13,8 @@ function monter(ecritureDuDossier: boolean) {
   const prisma = {
     articleStock: { findFirst: jest.fn().mockResolvedValue({ id: 'a1', actif: true, code: 'ART1' }) },
     ecriture: { findFirst: findFirstEcriture },
-    mouvementStock: { aggregate: jest.fn().mockResolvedValue({ _max: { ordre: 3 } }), create },
+    // Magasin vide · aucune sortie à servir, l'entrée passe (audit final F133).
+    mouvementStock: { aggregate: jest.fn().mockResolvedValue({ _max: { ordre: 3 } }), findMany: jest.fn().mockResolvedValue([]), create },
   };
   const service = new MagasinService(prisma as unknown as PrismaService, {} as never);
   return { service, create, findFirstEcriture };

@@ -7,6 +7,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { MagasinService } from './magasin.service';
 import {
+  AnnulerMouvementStockDto,
   ConfronterInventaireDto,
   CreerArticleStockDto,
   EnregistrerMouvementStockDto,
@@ -61,6 +62,17 @@ export class MagasinController {
     @Body() dto: EnregistrerMouvementStockDto,
   ) {
     return this.magasin.enregistrerMouvement(user.tenantId, user.userId, articleId, dto);
+  }
+
+  @Post('articles/:articleId/mouvements/:mouvementId/annulation')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  async annulerMouvement(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('articleId') articleId: string,
+    @Param('mouvementId') mouvementId: string,
+    @Body() dto: AnnulerMouvementStockDto,
+  ) {
+    return this.magasin.annulerMouvement(user.tenantId, user.userId, articleId, mouvementId, dto);
   }
 
   @Post('inventaire/confrontation')

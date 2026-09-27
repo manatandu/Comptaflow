@@ -41,6 +41,11 @@ function service(etat: Etat = {}) {
     campagneInventaire: {
       findFirst: jest.fn().mockResolvedValue(etat.campagne ?? null),
       update: jest.fn().mockImplementation((a: { data: unknown }) => Promise.resolve({ id: 'camp1', ...(a.data as object) })),
+      // Le PV d'une caisse ouvre le recensement d'une campagne en préparation
+      // (audit final F134) · le faux honore le statut du filtre.
+      updateMany: jest.fn().mockImplementation((a: { where: { statut?: string } }) =>
+        Promise.resolve({ count: etat.campagne && a.where.statut === etat.campagne.statut ? 1 : 0 }),
+      ),
     },
     sousCommissionInventaire: {
       // Le faux HONORE `where.id` · sans cela, un service qui cesserait de

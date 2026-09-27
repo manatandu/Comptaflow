@@ -44,7 +44,7 @@ export class DeclarerMainOeuvreDto {
   @Max(100)
   part!: number;
 
-  /** Exigée · voir le service. OmegaX ne calcule pas cette part. */
+  /** Exigée · voir le service. Le registre du personnel propose la part, il ne la substitue pas. */
   @IsString()
   @MaxLength(300)
   source!: string;

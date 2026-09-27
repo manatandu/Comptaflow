@@ -106,6 +106,13 @@ export class InventaireController {
     return this.inventaire.saisirComptage(user.tenantId, ficheId, dto);
   }
 
+  /** Retirer une fiche avant le rapprochement (audit final F135). */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Delete('fiches/:ficheId')
+  supprimerFiche(@CurrentUser() user: AuthenticatedUser, @Param('ficheId') ficheId: string) {
+    return this.inventaire.supprimerFiche(user.tenantId, ficheId);
+  }
+
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post(':id/rapprocher')
   rapprocher(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {

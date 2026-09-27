@@ -80,6 +80,14 @@ export class EnregistrerMouvementStockDto {
   ecritureId?: string;
 }
 
+/** L'annulation d'un mouvement porte son motif (audit final F133). */
+export class AnnulerMouvementStockDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(300)
+  motif!: string;
+}
+
 export class ComptagePhysiqueDto {
   @IsUUID()
   articleId!: string;

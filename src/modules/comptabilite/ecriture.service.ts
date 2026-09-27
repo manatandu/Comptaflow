@@ -1159,7 +1159,9 @@ export class EcritureService {
       // et le compte divergeraient alors du montant du mouvement, et l'écart
       // remonterait à la clôture sous la forme d'un MALI D'INVENTAIRE qui
       // n'existe pas, mis à la charge de l'entité.
-      ['un mouvement de magasin', this.prisma.mouvementStock.count({ where: { tenantId, ecritureId } })],
+      // Un mouvement ANNULÉ ne tient plus son écriture (audit final F133) · elle
+      // se corrige alors au journal, et la fiche la nomme.
+      ['un mouvement de magasin', this.prisma.mouvementStock.count({ where: { tenantId, ecritureId, annuleLe: null } })],
       // L'écart d'inventaire redressé (audit du serveur de 2026-09, I2 · le
       // lien n'était écrit nulle part, il l'est au rattachement). Sans ce
       // refus, le lien se dénouerait en silence et la campagne dirait le

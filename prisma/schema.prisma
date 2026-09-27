@@ -6125,6 +6125,15 @@ model MouvementStock {
   createdAt DateTime @default(now())
   createdBy String
 
+  /// L'ANNULATION MOTIVÉE (audit final F133). Un mouvement faux ne se modifie
+  /// ni ne se supprime · il s'annule, avec son motif, et la ligne reste sur la
+  /// fiche comme piste. Annulé, il sort de la valorisation, de la
+  /// confrontation et des détenteurs de son écriture, qui se corrige alors au
+  /// journal : la fiche la nomme tant qu'elle y est.
+  annuleLe        DateTime?
+  annulePar       String?
+  motifAnnulation String?
+
   @@unique([articleId, ordre])
   @@index([tenantId, articleId, date])
   @@map("mouvements_stock")

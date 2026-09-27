@@ -90,6 +90,9 @@ export function PlanComptesPage() {
   const [catalogueFiscal, setCatalogueFiscal] = useState<Array<{ code: string; libelle: string; source: string }>>([]);
   const navigate = useNavigate();
   const { estAdmin, utilisateur } = useAuth();
+  // La borne du dossier (audit final F144) · le serveur refuse au-delà, avec
+  // le même chiffre. Huit est la valeur par défaut du schéma.
+  const longueurMax = utilisateur?.tenant?.longueurCompte ?? 8;
   const libelleClasse =
     utilisateur?.tenant.referentiel === 'SYSCOHADA' ? LIBELLE_CLASSE_SYSCOHADA : LIBELLE_CLASSE_SYCEBNL;
   const [comptes, setComptes] = useState<Compte[] | null>(null);
@@ -626,8 +629,8 @@ export function PlanComptesPage() {
                   <input
                     required
                     autoFocus
-                    pattern="\d{3,8}"
-                    title="3 à 8 chiffres"
+                    pattern={`\\d{3,${longueurMax}}`}
+                    title={`3 à ${longueurMax} chiffres`}
                     value={numero}
                     onChange={(e) => setNumero(e.target.value)}
                     className="border border-border-dark px-2.5 py-1.5 text-[12px] font-mono"

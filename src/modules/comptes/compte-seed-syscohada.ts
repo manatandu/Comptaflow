@@ -61,8 +61,12 @@ import { ClasseCompte, ModeReportANouveau, TypeCompteDetailTotal } from '@prisma
  * régénération devrait reproduire les règles décrites ci-dessus, pas écraser
  * ce bloc. Le reste du fichier reste généré et ne se retouche pas à la main.
  *
- * Contenu : 295 comptes TOTAL (2-3 chiffres) + 1106 comptes
- * d'imputation (8 chiffres) = 1401 lignes.
+ * Contenu : les comptes TOTAL (2 et 3 chiffres, en-têtes de division) et les
+ * comptes d'imputation (8 chiffres). Leur NOMBRE n'est écrit qu'à un endroit,
+ * `compte-seed-syscohada.spec.ts`, dont la fonction est de tomber quand il
+ * change · un décompte recopié en commentaire se périme sans que rien ne le
+ * dise, et celui-ci annonçait 1401 lignes quand le semis en porte davantage
+ * (audit final F145).
  */
 
 const SOLDE = ModeReportANouveau.SOLDE;

@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
@@ -45,10 +45,22 @@ function jour(iso: string): string {
 export function EngagementsPage() {
   const { peutEcrire } = useAuth();
   const { exerciceCourant } = useExercice();
+  // Un exercice clôturé ne change plus d'engagements (audit final F143) · le
+  // serveur le refuse, l'écran ne propose donc pas le geste.
+  const exerciceClos = exerciceCourant?.statut === 'CLOTURE';
+  const modifiable = peutEcrire && !exerciceClos;
 
   const [engagements, setEngagements] = useState<EngagementDepense[] | null>(null);
   const [sections, setSections] = useState<SectionAnalytique[]>([]);
   const [ecritures, setEcritures] = useState<EcritureRattachable[]>([]);
+  // LA TRANCHE SE DIT (audit final F139) · deux cents écritures au plus, et la
+  // recherche va au serveur pour trouver celle qui n'y est pas.
+  const [ecrituresTronquees, setEcrituresTronquees] = useState<{ total: number } | null>(null);
+  const [recherche, setRecherche] = useState('');
+  // Lue par `charger` au moment du clic · la mettre dans ses dépendances
+  // relancerait la lecture à chaque frappe.
+  const rechercheCourante = useRef('');
+  rechercheCourante.current = recherche;
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
@@ -73,10 +85,14 @@ export function EngagementsPage() {
     try {
       const [liste, ecrs] = await Promise.all([
         api.get<EngagementDepense[]>(`/analytique/engagements?exerciceId=${exerciceId}`),
-        api.get<EcritureRattachable[]>(`/analytique/engagements/ecritures-rattachables?exerciceId=${exerciceId}`),
+        api.get<{ ecritures: EcritureRattachable[]; total: number; tronque: boolean }>(
+          `/analytique/engagements/ecritures-rattachables?exerciceId=${exerciceId}` +
+            (rechercheCourante.current.trim() ? `&recherche=${encodeURIComponent(rechercheCourante.current.trim())}` : ''),
+        ),
       ]);
       setEngagements(liste);
-      setEcritures(ecrs);
+      setEcritures(ecrs.ecritures);
+      setEcrituresTronquees(ecrs.tronque ? { total: ecrs.total } : null);
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Chargement impossible.');
     }
@@ -222,7 +238,7 @@ export function EngagementsPage() {
       {erreur && <div className="ecran-seul border border-danger bg-danger/10 px-3 py-1.5 text-[11.5px]">{erreur}</div>}
       {info && <div className="ecran-seul border border-border bg-surface-alt px-3 py-1.5 text-[11.5px]">{info}</div>}
 
-      {peutEcrire && (
+      {modifiable && (
         <form
           onSubmit={onCreer}
           className="ecran-seul flex flex-wrap items-end gap-2 border border-border bg-surface px-3 py-2"
@@ -353,7 +369,7 @@ export function EngagementsPage() {
                   {montant(e.resteAExecuter)}
                 </span>
                 <span className="ecran-seul flex gap-1.5 text-[11px]">
-                  {peutEcrire && e.statut === 'OUVERT' && (
+                  {modifiable && e.statut === 'OUVERT' && (
                     <button
                       type="button"
                       onClick={() => setRattachementPour(rattachementPour === e.id ? null : e.id)}
@@ -362,17 +378,17 @@ export function EngagementsPage() {
                       Rattacher
                     </button>
                   )}
-                  {peutEcrire && e.statut === 'OUVERT' && (
+                  {modifiable && e.statut === 'OUVERT' && (
                     <button type="button" onClick={() => void onClore(e.id)} className="border border-border-dark px-1.5 py-0.5">
                       Clore
                     </button>
                   )}
-                  {peutEcrire && e.statut === 'CLOS' && (
+                  {modifiable && e.statut === 'CLOS' && (
                     <button type="button" onClick={() => void onRouvrir(e.id)} className="border border-border-dark px-1.5 py-0.5">
                       Rouvrir
                     </button>
                   )}
-                  {peutEcrire && e.executions.length === 0 && (
+                  {modifiable && e.executions.length === 0 && (
                     <button type="button" onClick={() => void onSupprimer(e.id)} className="border border-border-dark px-1.5 py-0.5">
                       Supprimer
                     </button>
@@ -392,7 +408,7 @@ export function EngagementsPage() {
                         {jour(x.ecriture.date)} · pièce {x.ecriture.numeroPiece ?? '·'} · {x.ecriture.libelle}
                       </span>
                       <span className="font-mono">{montant(x.montant)}</span>
-                      {peutEcrire && (
+                      {modifiable && (
                         <button
                           type="button"
                           onClick={() => void onDetacher(e.id, x.id)}
@@ -415,6 +431,21 @@ export function EngagementsPage() {
                     >
                       Écriture qui exécute
                     </span>
+                    <span className="flex gap-1.5">
+                      <input
+                        value={recherche}
+                        onChange={(ev) => setRecherche(ev.target.value)}
+                        placeholder="Libellé, référence ou n° de pièce"
+                        className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] w-[220px]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void charger()}
+                        className="border border-border-dark bg-surface px-2 py-1 text-[11.5px]"
+                      >
+                        Chercher
+                      </button>
+                    </span>
                     <select
                       value={rEcritureId}
                       onChange={(ev) => setREcritureId(ev.target.value)}
@@ -428,6 +459,11 @@ export function EngagementsPage() {
                         </option>
                       ))}
                     </select>
+                    {ecrituresTronquees && (
+                      <span className="text-[11px] text-warning">
+                        {ecritures.length} écritures affichées sur {ecrituresTronquees.total} · affinez la recherche.
+                      </span>
+                    )}
                   </label>
                   <label className="flex flex-col gap-1">
                     <span

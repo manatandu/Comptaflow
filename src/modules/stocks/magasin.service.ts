@@ -1,8 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   ClasseCompte,
   MethodeInventaireStocks,
   SensMouvementStock,
+  StatutExercice,
   TypeCompteDetailTotal,
 } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
@@ -14,11 +15,13 @@ import {
 } from './boni-mali-inventaire';
 import {
   methodeCompatible,
+  sortiesAuDelaDuStock,
   valoriser,
   type MethodeValorisation,
   type MouvementAValoriser,
 } from './valorisation-stocks';
 import {
+  AnnulerMouvementStockDto,
   CreerArticleStockDto,
   EnregistrerMouvementStockDto,
   EnregistrerRegularisationInventaireDto,
@@ -56,7 +59,10 @@ export class MagasinService {
     const [articles, dossier] = await Promise.all([
       this.prisma.articleStock.findMany({
         where: { tenantId },
-        include: { compte: { select: { numero: true, intitule: true } }, _count: { select: { mouvements: true } } },
+        include: {
+          compte: { select: { numero: true, intitule: true } },
+          _count: { select: { mouvements: { where: { annuleLe: null } } } },
+        },
         orderBy: { code: 'asc' },
       }),
       this.modeDuDossier(tenantId),
@@ -175,10 +181,16 @@ export class MagasinService {
         piece: true,
         libelle: true,
         ecritureId: true,
+        annuleLe: true,
+        motifAnnulation: true,
       },
     });
 
-    const bruts: MouvementAValoriser[] = mouvements.map((m) => ({
+    // UN MOUVEMENT ANNULÉ RESTE SUR LA FICHE ET SORT DU CALCUL (audit final
+    // F133) · montré, avec son motif, parce qu'il est la piste ; valorisé, il
+    // ferait mentir chaque ligne qui le suit.
+    const actifs = mouvements.filter((m) => m.annuleLe === null);
+    const bruts: MouvementAValoriser[] = actifs.map((m) => ({
       ordre: m.ordre,
       date: m.date.toISOString().slice(0, 10),
       sens: m.sens === SensMouvementStock.ENTREE ? 'ENTREE' : 'SORTIE',
@@ -221,8 +233,14 @@ export class MagasinService {
           // il est DIT plutôt que tu : la fiche et le compte divergeraient, et
           // l'écart remonterait à la clôture sous la forme d'un faux mali.
           ecritureManquante:
+            m.annuleLe === null &&
             dossier.methodeInventaireStocks === MethodeInventaireStocks.PERMANENT &&
             m.ecritureId === null,
+          annuleLe: m.annuleLe ? m.annuleLe.toISOString().slice(0, 10) : null,
+          motifAnnulation: m.motifAnnulation,
+          // L'écriture d'un mouvement annulé reste au journal tant que
+          // personne ne l'a corrigée · la fiche le dit au lieu de le taire.
+          ecritureACorriger: m.annuleLe !== null && m.ecritureId !== null,
         };
       }),
       totaux: {
@@ -299,12 +317,32 @@ export class MagasinService {
       where: { tenantId, articleId },
       _max: { ordre: true },
     });
+    const ordre = (dernier._max.ordre ?? 0) + 1;
+    // LE MAGASIN NE DESCEND JAMAIS SOUS ZÉRO (audit final F133) · la
+    // valorisation écartait la sortie en silence, et la fiche ne se valorisait
+    // plus. Une sortie antidatée peut aussi rendre impossible une sortie DÉJÀ
+    // enregistrée après elle · les deux se refusent ici, en la nommant.
+    const refus = await this.nouvellesSortiesImpossibles(tenantId, articleId, (existants) => [
+      ...existants,
+      {
+        ordre,
+        date: dto.date.slice(0, 10),
+        sens: dto.sens === SensMouvementStock.ENTREE ? 'ENTREE' : 'SORTIE',
+        quantite: dto.quantite,
+        cout: dto.sens === SensMouvementStock.ENTREE ? Number(dto.cout) : null,
+      },
+    ]);
+    if (refus) {
+      throw new BadRequestException(
+        refus.ordre === ordre ? refus.explication : `Ce mouvement rendrait impossible ${refus.designation} · ${refus.explication}`,
+      );
+    }
     return this.prisma.mouvementStock.create({
       data: {
         tenantId,
         articleId,
         date: new Date(dto.date),
-        ordre: (dernier._max.ordre ?? 0) + 1,
+        ordre,
         sens: dto.sens,
         quantite: dto.quantite,
         cout: dto.sens === SensMouvementStock.ENTREE ? dto.cout : null,
@@ -314,6 +352,99 @@ export class MagasinService {
         createdBy: userId,
       },
     });
+  }
+
+  /**
+   * La première sortie qu'un changement rendrait impossible et qui ne l'était
+   * pas avant · une fiche déjà fausse (données antérieures au refus) ne
+   * bloque donc pas la saisie de ce qui la corrige.
+   */
+  private async nouvellesSortiesImpossibles(
+    tenantId: string,
+    articleId: string,
+    changer: (existants: MouvementAValoriser[]) => MouvementAValoriser[],
+  ): Promise<{ ordre: number | null; explication: string; designation: string } | null> {
+    const existants = await this.prisma.mouvementStock.findMany({
+      where: { tenantId, articleId, annuleLe: null },
+      select: { ordre: true, date: true, sens: true, quantite: true, cout: true, piece: true },
+    });
+    const bruts: MouvementAValoriser[] = existants.map((m) => ({
+      ordre: m.ordre,
+      date: m.date.toISOString().slice(0, 10),
+      sens: m.sens === SensMouvementStock.ENTREE ? 'ENTREE' : 'SORTIE',
+      quantite: Number(m.quantite),
+      cout: m.cout === null ? null : Number(m.cout),
+    }));
+    const avant = new Set(sortiesAuDelaDuStock(bruts).map((r) => r.ordre));
+    const nouveau = sortiesAuDelaDuStock(changer(bruts)).find((r) => !avant.has(r.ordre));
+    if (!nouveau) return null;
+    const visee = existants.find((m) => m.ordre === nouveau.ordre);
+    return {
+      ordre: nouveau.ordre,
+      explication: nouveau.explication,
+      designation: visee
+        ? `la sortie du ${visee.date.toISOString().slice(0, 10)} (pièce ${visee.piece})`
+        : 'une sortie déjà enregistrée',
+    };
+  }
+
+  /**
+   * L'ANNULATION MOTIVÉE D'UN MOUVEMENT (audit final F133). Un mouvement faux
+   * ne se modifie ni ne se supprime · il s'annule, la ligne restant sur la
+   * fiche avec son motif, son auteur et sa date. Trois refus.
+   *
+   * - UN MOUVEMENT DATÉ DANS UN EXERCICE CLÔTURÉ ne s'annule pas · la fiche est
+   *   continue, et l'annuler revaloriserait les sorties d'un exercice arrêté.
+   * - Une annulation qui rendrait impossible une sortie enregistrée après
+   *   elle (une entrée qui la servait) est refusée, en la nommant.
+   * - Un mouvement déjà annulé ne se réannule pas.
+   *
+   * L'ÉCRITURE QUE LE MOUVEMENT PORTAIT N'EST PAS TOUCHÉE · rien ne dit si
+   * elle était fausse avec lui (une quantité mal saisie sur la fiche seule) ou
+   * si elle l'était aussi. Elle cesse d'être tenue par lui, se corrige au
+   * journal, et la fiche la nomme tant qu'elle y est (lecture d'OmegaX).
+   */
+  async annulerMouvement(
+    tenantId: string,
+    userId: string,
+    articleId: string,
+    mouvementId: string,
+    dto: AnnulerMouvementStockDto,
+  ) {
+    const motif = dto.motif?.trim();
+    if (!motif) throw new BadRequestException("L'annulation d'un mouvement porte son motif.");
+    const m = await this.prisma.mouvementStock.findFirst({
+      where: { id: mouvementId, tenantId, articleId },
+      select: { id: true, ordre: true, date: true, annuleLe: true, ecritureId: true },
+    });
+    if (!m) throw new NotFoundException('Mouvement introuvable dans ce dossier.');
+    if (m.annuleLe) throw new ConflictException('Ce mouvement est déjà annulé.');
+    const cloture = await this.prisma.exercice.findFirst({
+      where: { tenantId, statut: StatutExercice.CLOTURE, dateDebut: { lte: m.date }, dateFin: { gte: m.date } },
+      select: { dateFin: true },
+    });
+    if (cloture) {
+      throw new BadRequestException(
+        `Ce mouvement est daté dans un exercice clôturé (au ${cloture.dateFin.toISOString().slice(0, 10)}) · ` +
+          "l'annuler revaloriserait les sorties d'un exercice arrêté. La correction se passe sur l'exercice ouvert.",
+      );
+    }
+    const refus = await this.nouvellesSortiesImpossibles(tenantId, articleId, (existants) =>
+      existants.filter((e) => e.ordre !== m.ordre),
+    );
+    if (refus) {
+      throw new BadRequestException(`Annuler ce mouvement rendrait impossible ${refus.designation} · ${refus.explication}`);
+    }
+    const { count } = await this.prisma.mouvementStock.updateMany({
+      where: { id: m.id, tenantId, annuleLe: null },
+      data: { annuleLe: new Date(), annulePar: userId, motifAnnulation: motif },
+    });
+    if (count === 0) throw new ConflictException('Ce mouvement vient d’être annulé.');
+    return {
+      id: m.id,
+      annule: true,
+      ecritureACorriger: m.ecritureId !== null,
+    };
   }
 
   /**
@@ -351,7 +482,8 @@ export class MagasinService {
         // après le comptage n'était pas dans le magasin compté. Le rejouer
         // aurait porté son montant au boni ou au mali.
         mouvements: {
-          where: { date: { lte: new Date(dateComptage) } },
+          // Un mouvement annulé n'est pas dans le magasin (audit final F133).
+          where: { date: { lte: new Date(dateComptage) }, annuleLe: null },
           orderBy: [{ date: 'asc' }, { ordre: 'asc' }],
         },
       },

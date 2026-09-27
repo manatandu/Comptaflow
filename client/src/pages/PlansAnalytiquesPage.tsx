@@ -48,6 +48,9 @@ export function PlansAnalytiquesPage() {
   const motPeriode = estSyscohada ? 'période de validité' : 'convention';
   const grilleSections = estSyscohada ? 'grid-cols-[100px_1fr_90px]' : 'grid-cols-[100px_1fr_130px_90px]';
   const { exerciceCourant } = useExercice();
+  // Le budget d'un exercice clôturé ne se retouche plus (audit final F143) ·
+  // le serveur le refuse, l'écran le montre en lecture.
+  const budgetModifiable = estAdmin && exerciceCourant?.statut !== 'CLOTURE';
 
   const [plans, setPlans] = useState<PlanAnalytique[] | null>(null);
   const [planId, setPlanId] = useState<string | null>(null);
@@ -477,7 +480,7 @@ export function PlansAnalytiquesPage() {
                     Dotation budgétaire
                     <Aide sujet="budget" />
                   </div>
-                  {estAdmin && (
+                  {budgetModifiable && (
                     <div className="flex gap-1.5 mb-2">
                       <input
                         value={dotation}
@@ -511,7 +514,7 @@ export function PlansAnalytiquesPage() {
                         {budget.mensuel.map((m) => (
                           <div key={m.mois} className="flex items-center justify-between text-[11.5px]">
                             <span className="text-text-dim">{MOIS[m.mois - 1]}</span>
-                            {estAdmin ? (
+                            {budgetModifiable ? (
                               <input
                                 defaultValue={m.montant}
                                 onBlur={(e) => modifierMois(m.mois, e.target.value)}

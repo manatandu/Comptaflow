@@ -91,9 +91,34 @@ export class EmballagesService {
   async creer(tenantId: string, userId: string, dto: CreerConsignationDto) {
     const tiers = await this.prisma.tiers.findFirst({
       where: { id: dto.tiersId, tenantId },
-      select: { id: true },
+      select: {
+        id: true,
+        nom: true,
+        comptesRattaches: { select: { estPrincipal: true, compte: { select: { numero: true, intitule: true } } } },
+      },
     });
     if (!tiers) throw new NotFoundException('Tiers introuvable dans ce dossier.');
+
+    // LA PROPOSITION SE CALCULE AVANT L'ENREGISTREMENT (audit final F137) ·
+    // un tiers sans compte levait APRÈS la création, et chaque nouvel essai
+    // laissait une consignation EN COURS de plus dans les totaux en attente.
+    const principal = this.comptePrincipal(tiers);
+    const { referentiel } = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { referentiel: true },
+    });
+    const avant = lignesDeLaConsignation(
+      {
+        sens: dto.sens === SensConsignation.EMISE ? 'EMISE' : 'RECUE',
+        nature: dto.nature === 'EMBALLAGE' ? 'EMBALLAGE' : 'MATERIEL',
+        compteTiers: principal.compte.numero,
+        intituleTiers: principal.compte.intitule,
+        montant: Number(dto.montant),
+        designation: dto.designation.trim(),
+      },
+      referentiel,
+    );
+    if (avant.refus) throw new BadRequestException(avant.refus.explication);
 
     const consignation = await this.prisma.consignation.create({
       data: {
@@ -109,6 +134,32 @@ export class EmballagesService {
       },
     });
     return { consignation, proposition: await this.propositionOuverture(tenantId, consignation.id) };
+  }
+
+  /**
+   * RETIRER UNE CONSIGNATION (audit final F137) · aucune route ne le
+   * permettait, et une saisie fausse restait dans les totaux en attente. Elle
+   * se retire tant qu'elle n'est ni dénouée ni rattachée à une écriture · au
+   * delà, c'est le journal qui porte l'opération, et la retirer du registre
+   * laisserait son 4094 ou son 4194 sans rien qui le justifie.
+   */
+  async supprimer(tenantId: string, consignationId: string) {
+    const c = await this.prisma.consignation.findFirst({
+      where: { id: consignationId, tenantId },
+      select: { id: true, etat: true, ecritureConsignationId: true, ecritureDenouementId: true },
+    });
+    if (!c) throw new NotFoundException('Consignation introuvable dans ce dossier.');
+    if (c.etat !== EtatConsignation.EN_COURS) {
+      throw new BadRequestException('Cette consignation est dénouée · elle reste au registre avec son dénouement.');
+    }
+    if (c.ecritureConsignationId || c.ecritureDenouementId) {
+      throw new BadRequestException(
+        "Cette consignation est rattachée à une écriture · détachez-la d'abord, sans quoi le compte d'attente " +
+          "garderait une écriture que plus rien ne justifie au registre.",
+      );
+    }
+    await this.prisma.consignation.delete({ where: { id: c.id } });
+    return { supprimee: true };
   }
 
   /** Les lignes de l'écriture d'ouverture du compte d'attente. */
@@ -175,6 +226,22 @@ export class EmballagesService {
    * sache sur quel 401 ou 411 ce tiers est tenu · un littéral ici enverrait
    * toutes les consignations sur le même compte collectif.
    */
+  private comptePrincipal(tiers: {
+    nom: string;
+    comptesRattaches: { estPrincipal: boolean; compte: { numero: string; intitule: string } }[];
+  }) {
+    const rattaches = tiers.comptesRattaches;
+    const principal = rattaches.find((r) => r.estPrincipal) ?? rattaches[0];
+    if (!principal) {
+      throw new BadRequestException(
+        `Le tiers « ${tiers.nom} » n'a aucun compte rattaché. Une consignation s'ouvre CONTRE ` +
+          "un tiers : sans son compte, il n'y a pas d'écriture à proposer. Rattachez-lui un " +
+          'compte au plan des tiers.',
+      );
+    }
+    return principal;
+  }
+
   private async chargerPourCalcul(tenantId: string, consignationId: string) {
     const c = await this.prisma.consignation.findFirst({
       where: { id: consignationId, tenantId },
@@ -191,15 +258,7 @@ export class EmballagesService {
     });
     if (!c) throw new NotFoundException('Consignation introuvable dans ce dossier.');
 
-    const rattaches = c.tiers.comptesRattaches;
-    const principal = rattaches.find((r) => r.estPrincipal) ?? rattaches[0];
-    if (!principal) {
-      throw new BadRequestException(
-        `Le tiers « ${c.tiers.nom} » n'a aucun compte rattaché. Une consignation s'ouvre CONTRE ` +
-          "un tiers : sans son compte, il n'y a pas d'écriture à proposer. Rattachez-lui un " +
-          'compte au plan des tiers.',
-      );
-    }
+    const principal = this.comptePrincipal(c.tiers);
 
     const { referentiel } = await this.prisma.tenant.findUniqueOrThrow({
       where: { id: tenantId },

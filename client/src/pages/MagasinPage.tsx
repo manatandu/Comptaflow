@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { Aide } from '../components/chrome/Aide';
@@ -57,6 +57,11 @@ interface LigneFiche {
   valeurApres: number | null;
   ecritureId: string | null;
   ecritureManquante: boolean;
+  /** Annulé avec son motif · la ligne reste, hors du calcul (audit final F133). */
+  annuleLe: string | null;
+  motifAnnulation: string | null;
+  /** Son écriture est encore au journal, à corriger là. */
+  ecritureACorriger: boolean;
 }
 
 interface Fiche {
@@ -221,6 +226,34 @@ export function MagasinPage() {
       setSelection(cree.id);
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Création impossible');
+    } finally {
+      setEnCours(false);
+    }
+  };
+
+  // L'ANNULATION MOTIVÉE (audit final F133) · un mouvement faux ne se
+  // modifie ni ne se supprime, il s'annule et la ligne reste.
+  const [aAnnuler, setAAnnuler] = useState<{ id: string; motif: string } | null>(null);
+  const annulerMouvement = async () => {
+    if (!selection || !aAnnuler) return;
+    setErreur('');
+    setSucces('');
+    setEnCours(true);
+    try {
+      const r = await api.post<{ ecritureACorriger: boolean }>(
+        `/magasin/articles/${selection}/mouvements/${aAnnuler.id}/annulation`,
+        { motif: aAnnuler.motif.trim() },
+      );
+      setSucces(
+        r.ecritureACorriger
+          ? 'Mouvement annulé. Son écriture reste au journal · corrigez-la là.'
+          : 'Mouvement annulé.',
+      );
+      setAAnnuler(null);
+      chargerFiche(selection);
+      chargerListe();
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Annulation impossible');
     } finally {
       setEnCours(false);
     }
@@ -544,7 +577,8 @@ export function MagasinPage() {
                 </thead>
                 <tbody>
                   {fiche.lignes.map((l) => (
-                    <tr key={l.id}>
+                    <Fragment key={l.id}>
+                    <tr className={l.annuleLe ? 'line-through text-text-dim' : undefined}>
                       <td className={`${cell} font-mono`}>{l.date}</td>
                       <td className={cell}>
                         {l.piece}
@@ -553,6 +587,24 @@ export function MagasinPage() {
                           <span className="ml-1 text-warning" title="Inventaire permanent · aucune écriture ne porte ce mouvement">
                             (sans écriture)
                           </span>
+                        )}
+                        {l.annuleLe && (
+                          <span className="ml-1 inline-block" title={l.motifAnnulation ?? ''}>
+                            (annulé le {l.annuleLe}
+                            {l.motifAnnulation ? ` · ${l.motifAnnulation}` : ''})
+                          </span>
+                        )}
+                        {l.ecritureACorriger && (
+                          <span className="ml-1 text-warning inline-block">(écriture encore au journal, à corriger)</span>
+                        )}
+                        {peutEcrire && !l.annuleLe && aAnnuler?.id !== l.id && (
+                          <button
+                            type="button"
+                            className="ecran-seul ml-1.5 text-[10.5px] text-sel hover:underline"
+                            onClick={() => setAAnnuler({ id: l.id, motif: '' })}
+                          >
+                            Annuler
+                          </button>
                         )}
                       </td>
                       <td className={`${cell} text-right font-mono`}>
@@ -581,6 +633,33 @@ export function MagasinPage() {
                       </td>
                       <td className={`${cell} text-right font-mono`}>{mt(l.valeurApres)}</td>
                     </tr>
+                    {aAnnuler?.id === l.id && (
+                      <tr className="ecran-seul">
+                        <td className={cell} colSpan={11}>
+                          <div className="flex items-center gap-2">
+                            <input
+                              className="flex-1 border border-border px-2 py-1 text-[11.5px]"
+                              placeholder="Motif de l'annulation"
+                              maxLength={300}
+                              value={aAnnuler.motif}
+                              onChange={(e) => setAAnnuler({ id: l.id, motif: e.target.value })}
+                            />
+                            <button
+                              type="button"
+                              className="bg-sel text-white rounded-full px-3 py-1 text-[11px] disabled:opacity-50"
+                              disabled={enCours || !aAnnuler.motif.trim()}
+                              onClick={annulerMouvement}
+                            >
+                              Annuler le mouvement
+                            </button>
+                            <button type="button" className="text-[11px] text-text-dim" onClick={() => setAAnnuler(null)}>
+                              Garder
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   ))}
                   <tr className="bg-surface-2 font-semibold">
                     <td className={cell} colSpan={2}>

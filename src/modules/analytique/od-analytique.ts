@@ -33,6 +33,28 @@ export interface SectionConnue {
 
 const centimes = (n: number) => Math.round(n * 100);
 
+/**
+ * LA RÈGLE COMMUNE À LA VENTILATION ET À L'OD (audit final F141) · même objet,
+ * la répartition d'un montant général entre des sections, et la ventilation
+ * d'une ligne d'écriture acceptait ce que l'OD refusait. Un montant négatif y
+ * passait l'équilibre par plan (1 500 sur une section et −500 sur l'autre font
+ * bien 1 000) en portant sur une section une dépense qu'elle n'a pas.
+ */
+export function motifRefusClasseVentilee(classeCompte: string, classesVentilees: string): string | null {
+  const classes = classesVentilees.split(',').map((c) => c.trim());
+  if (classes.includes(classeCompte)) return null;
+  return (
+    `Le plan ne ventile pas la classe ${classeCompte} (classes ventilées : ${classes.join(', ')}) · ` +
+    "une ventilation ne se pose pas sur un compte que le plan ne suit pas."
+  );
+}
+
+export function motifRefusMontantAnalytique(rang: number, debit: number, credit: number): string | null {
+  if (debit < 0 || credit < 0) return `Ligne ${rang} · un montant ne peut pas être négatif.`;
+  if ((debit > 0) === (credit > 0)) return `Ligne ${rang} · porter un montant au débit OU au crédit.`;
+  return null;
+}
+
 export function motifRefusOd(params: {
   planId: string;
   lignes: LigneOd[];
@@ -43,13 +65,8 @@ export function motifRefusOd(params: {
   classesVentilees: string;
 }): string | null {
   const { planId, lignes, sections, classeCompte, classesVentilees } = params;
-  const classes = classesVentilees.split(',').map((c) => c.trim());
-  if (!classes.includes(classeCompte)) {
-    return (
-      `Le plan ne ventile pas la classe ${classeCompte} (classes ventilées : ${classes.join(', ')}) · ` +
-      "une OD analytique corrige une ventilation, elle n'en crée pas sur un compte que le plan ne suit pas."
-    );
-  }
+  const refusClasse = motifRefusClasseVentilee(classeCompte, classesVentilees);
+  if (refusClasse) return refusClasse;
   if (lignes.length < 2) {
     return 'Une OD analytique a au moins deux lignes · ce qui sort d’une section entre dans une autre.';
   }
@@ -58,8 +75,8 @@ export function motifRefusOd(params: {
   for (const [i, l] of lignes.entries()) {
     const d = l.debit ?? 0;
     const c = l.credit ?? 0;
-    if (d < 0 || c < 0) return `Ligne ${i + 1} · un montant ne peut pas être négatif.`;
-    if ((d > 0) === (c > 0)) return `Ligne ${i + 1} · porter un montant au débit OU au crédit.`;
+    const refusMontant = motifRefusMontantAnalytique(i + 1, d, c);
+    if (refusMontant) return refusMontant;
     const s = sections.find((x) => x.id === l.sectionId);
     if (!s || s.planId !== planId) return `Ligne ${i + 1} · la section n'appartient pas au plan de l'OD.`;
     if (s.estTotal) {

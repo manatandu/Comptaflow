@@ -264,8 +264,12 @@ export class AnalytiqueController {
 
   @Get('engagements/ecritures-rattachables')
   @ReferentielsAutorises(Referentiel.SYCEBNL)
-  async ecrituresRattachables(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
-    return this.engagements.ecrituresRattachables(user.tenantId, exerciceId);
+  async ecrituresRattachables(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('exerciceId') exerciceId: string,
+    @Query('recherche') recherche?: string,
+  ) {
+    return this.engagements.ecrituresRattachables(user.tenantId, exerciceId, recherche);
   }
 
   @Post('engagements')

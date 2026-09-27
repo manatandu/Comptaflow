@@ -110,7 +110,7 @@ describe('AuthService.register · tout ou rien', () => {
   it('laisse au semis le temps qu’il prend · les cinq secondes par défaut de Prisma ne suffisent pas', async () => {
     const { s, options } = service();
     await s.register(DTO as never);
-    // 1401 comptes puis journaux, taxes et familles compte par compte : le
+    // Le plan entier puis journaux, taxes et familles compte par compte : le
     // semis enchaîne environ quatre-vingts allers-retours vers Neon. Un
     // dépassement de délai laisserait exactement l'état que ce spec combat.
     expect(options()?.timeout).toBeGreaterThanOrEqual(30_000);

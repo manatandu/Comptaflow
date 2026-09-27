@@ -236,6 +236,27 @@ const GESTES: Array<{ route: string; controleur: string; decorateur: string; pag
     appel: 'api.delete(`/emballages/consignations/${consignationId}/ecritures/${role}`)',
   },
   {
+    route: 'DELETE /emballages/consignations/:id',
+    controleur: 'emballages/emballages.controller.ts',
+    decorateur: "@Delete('consignations/:id')",
+    page: 'EmballagesPage.tsx',
+    appel: 'api.delete(`/emballages/consignations/${c.id}`)',
+  },
+  {
+    route: 'POST /magasin/articles/:articleId/mouvements/:mouvementId/annulation',
+    controleur: 'stocks/magasin.controller.ts',
+    decorateur: "@Post('articles/:articleId/mouvements/:mouvementId/annulation')",
+    page: 'MagasinPage.tsx',
+    appel: '`/magasin/articles/${selection}/mouvements/${aAnnuler.id}/annulation`',
+  },
+  {
+    route: 'DELETE /inventaire/fiches/:ficheId',
+    controleur: 'inventaire/inventaire.controller.ts',
+    decorateur: "@Delete('fiches/:ficheId')",
+    page: 'InventairePage.tsx',
+    appel: 'api.delete(`/inventaire/fiches/${fiche.id}`)',
+  },
+  {
     route: 'POST /inventaire/ecarts/:ecartId/ecriture',
     controleur: 'inventaire/inventaire.controller.ts',
     decorateur: "@Post('ecarts/:ecartId/ecriture')",

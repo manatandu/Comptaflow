@@ -995,36 +995,42 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 4
 - **Constat :** la fiche ne se valorise plus et aucune route ne corrige un mouvement.
 - **Correction :** refuser au serveur, et ouvrir une annulation motivée.
+- **Fait le 2026-09-27 :** toute saisie qui rendrait une sortie impossible est refusée, la sienne comme une sortie déjà enregistrée après une sortie antidatée, en la nommant (`sortiesAuDelaDuStock`, rejeu en quantités sur la chronologie de la valorisation) ; une fiche déjà fausse ne bloque pas ce qui la corrige. Un mouvement s'annule avec son motif (`annuleLe`, `annulePar`, `motifAnnulation`, migration `20261130000000`, dérive nulle), refusé dans un exercice clôturé ou s'il servait une sortie ; annulé, il reste sur la fiche, sort de la valorisation, de la confrontation et des détenteurs de son écriture, que la fiche nomme tant qu'elle est au journal. Tests : `magasin-annulation-f133.spec.ts`, `magasin-audit-final.spec.ts`, `detenteurs-ecriture.spec.ts` (dix mutations tuées).
 
 **F134 · Le statut RECENSEMENT n'est jamais atteint** [inv-01]
 - **Emplacements :** src/modules/inventaire/inventaire.service.ts:817, :874 · client/src/pages/InventairePage.tsx:322
 - **Condition :** 5
 - **Constat :** les PV ne s'établissent qu'après le rapprochement, qu'ils devraient précéder.
 - **Correction :** ajouter la transition, ou admettre PREPARATION.
+- **Fait le 2026-09-27 :** le premier comptage saisi (quantité ou valeur) fait passer la campagne au recensement, et le PV d'une caisse s'établit dès la préparation, qu'il fait aussi passer au recensement ; une pièce ou un emplacement corrigés ne sont pas un comptage. Tests : `inventaire-audit-final.spec.ts` (serveur et écran).
 
 **F135 · Le refus de rapprocher renvoie à une suppression de fiche qui n'existe pas** [inv-02]
 - **Emplacements :** src/modules/inventaire/inventaire.service.ts:456 · inventaire.controller.ts:86
 - **Condition :** 4
 - **Constat :** la valoriser à zéro fabrique un manquant.
 - **Correction :** ouvrir la suppression en préparation, ou corriger le message.
+- **Fait le 2026-09-27 :** `DELETE /inventaire/fiches/:id`, en préparation et au recensement seulement, et le bouton « Retirer » à l'écran ; le refus de rapprocher dit « retirer celles qui n'ont pas lieu d'être ». Tests : `inventaire-audit-final.spec.ts`, `routes-avec-geste.spec.ts`.
 
 **F136 · La sous-commission d'une fiche n'est pas vérifiée** [inv-03]
 - **Emplacements :** src/modules/inventaire/inventaire.service.ts:377, :407
 - **Condition :** 2
 - **Constat :** une sous-commission d'une autre campagne ou d'un autre dossier est acceptée.
 - **Correction :** lecture bornée par dossier et par campagne.
+- **Fait le 2026-09-27 :** à la création comme au comptage, la sous-commission est lue bornée au dossier ET à la campagne de la fiche (`sousCommissionDeLaCampagne`). Tests : `inventaire-audit-final.spec.ts` (quatre mutations tuées).
 
 **F137 · Une consignation est enregistrée même quand sa proposition d'écriture échoue** [emb-01]
 - **Emplacements :** src/modules/emballages/emballages.service.ts:98, :111 · emballages.controller.ts:33
 - **Condition :** 3
 - **Constat :** des doublons EN_COURS s'accumulent dans les totaux, et aucune route ne les supprime.
 - **Correction :** vérifier le compte du tiers avant la création, et ouvrir la suppression.
+- **Fait le 2026-09-27 :** la proposition d'ouverture se calcule avant la création (compte du tiers, montant) et son refus empêche l'enregistrement ; `DELETE /emballages/consignations/:id` retire une consignation en cours et non rattachée, avec son bouton à l'écran. Tests : `consignation-audit-final.spec.ts`, `routes-avec-geste.spec.ts` (quatre mutations tuées).
 
 **F138 · Le compte d'une provision n'est contrôlé ni contre le dossier ni contre sa nature** [prv-01]
 - **Emplacements :** src/modules/provisions/provisions.service.ts:332-376 · client/src/pages/ProvisionsPage.tsx:257
 - **Condition :** 2
 - **Constat :** seul l'écran filtre. Le rapprochement publié peut viser un compte étranger à la nature de la provision.
 - **Correction :** lecture bornée au dossier et racine exigée par `naturesDuReferentiel`.
+- **Fait le 2026-09-27 :** `verifierCompte` lit le compte borné au dossier et exige la racine que `naturesDuReferentiel` donne à la nature, à la création comme à la modification (nature ou compte changé seul). Tests : `provisions.spec.ts` (quatre mutations tuées).
 
 ### Analytique, plan comptable et EBNL
 
@@ -1033,66 +1039,77 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 3
 - **Constat :** au-delà de 200 écritures, la facture est introuvable et le reste reste en Engagement.
 - **Correction :** recherche côté serveur, ou `tronque` et `total`.
+- **Fait le 2026-09-27 :** la route rend `{ ecritures, total, tronque }` et cherche au serveur (libellé, référence, numéro de pièce) ; l'écran porte la recherche et dit la tranche. Tests : `engagement-de-depense.spec.ts`, `engagements-audit-final.spec.ts`.
 
 **F140 · Une écriture au brouillard se rattache à un engagement** [analytique-05]
 - **Emplacements :** src/modules/analytique/engagement.service.ts:201-213, :314-319
 - **Condition :** 1
 - **Constat :** contraire au commentaire. Une même écriture peut aussi servir à plusieurs engagements.
 - **Correction :** refuser le non-validé et borner le cumul rattaché.
+- **Fait le 2026-09-27 :** une écriture au brouillard est refusée, et le cumul des rattachements d'une pièce, tous engagements du dossier confondus, est borné au total de ses débits. Tests : `engagement-de-depense.spec.ts` (six mutations tuées avec F139).
 
 **F141 · Ventilation et OD analytique : même objet, deux règles** [analytique-06]
 - **Emplacements :** src/modules/analytique/analytique.service.ts:399-447 · od-analytique.ts:46-62
 - **Condition :** 5
 - **Constat :** la ventilation accepte une classe non ventilée et des montants négatifs.
 - **Correction :** fonction commune de refus.
+- **Fait le 2026-09-27 :** `ventilerLigne` appelle les deux refus de l'OD (`motifRefusClasseVentilee`, `motifRefusMontantAnalytique`) · classe suivie par chaque plan touché, aucun montant négatif ni porté des deux côtés. Tests : `analytique.service.spec.ts` (trois mutations tuées).
 
 **F142 · Suppression d'une section engagée : erreur technique, budget perdu** [analytique-07]
 - **Emplacements :** src/modules/analytique/analytique.service.ts:149-161, :234-249 · prisma/schema.prisma:2467
 - **Condition :** 5
 - **Constat :** les engagements ne sont pas comptés, et `budgetSection.deleteMany` passe avant l'échec.
 - **Correction :** `referencesVers` et un refus nommé.
+- **Fait le 2026-09-27 :** section et plan se jugent par `referencesVers` (lu dans le schéma, liste d'identifiants admise pour les sections d'un plan), budgets seuls exclus, et le refus nomme chaque usage ; les suppressions passent en une transaction. Tests : `suppression-et-exercice-clos.spec.ts` (cinq mutations tuées).
 
 **F143 · Budgets et engagements modifiables sur un exercice clos** [analytique-08]
 - **Emplacements :** src/modules/analytique/engagement.service.ts:120-125, :189-239 · analytique.service.ts:285 · od-analytique.service.ts:140-142
 - **Condition :** 5
 - **Constat :** l'OD, elle, le refuse. La note budgétaire d'un exercice déposé change.
 - **Correction :** même refus sur CLOTURE.
+- **Fait le 2026-09-27 :** une seule règle (`exercice-budgetaire-clos.ts`) appelée par la dotation, la retouche d'un mois, le report des budgets, les six gestes sur un engagement, et la suppression d'une section ou d'un plan dotés sur un exercice clôturé ; l'écran masque ces gestes. Tests : `suppression-et-exercice-clos.spec.ts`, `engagement-de-depense.spec.ts`, `budgets-engagements-exercice-clos.spec.ts` (dix mutations tuées).
 
 **F144 · Le plan comptable refuse les numéros de plus de 8 chiffres** [comptes-02]
 - **Emplacements :** client/src/pages/PlanComptesPage.tsx:627-628
 - **Condition :** 4
 - **Constat :** l'écran impose `\d{3,8}` alors que la longueur est paramétrable jusqu'à 13.
 - **Correction :** borner par `longueurCompte`.
+- **Fait le 2026-09-27 :** `/auth/me` porte `longueurCompte`, le champ Numéro s'y borne, et changer la longueur relit la session. Tests : `me-fait-ong-etrangere.spec.ts`, `plan-comptes-longueur.spec.ts`.
 
 **F145 · Décomptes périmés : plan SYSCOHADA à « 1401 » et « trente et une relations »** [comptes-03, doc-13]
 - **Emplacements :** src/modules/comptes/compte-seed-syscohada.ts:64-65 · CLAUDE.md:187, :4337 · src/modules/auth/auth.service.ts:91 · inscription-transaction.spec.ts:112
 - **Condition :** 5
 - **Constat :** le spec fige 1443 comptes, et le schéma porte 34 relations.
 - **Correction :** écrire la règle, pas un nombre.
+- **Fait le 2026-09-27 :** les commentaires du semis, de l'inscription et de ce fichier ne portent plus de décompte · le seul chiffre reste celui de `compte-seed-syscohada.spec.ts`, dont la fonction est de tomber.
 
 **F146 · « OmegaX ne détient aucun effectif » : garantie négative périmée affichée à l'utilisateur** [accord-01, doc-03]
 - **Emplacements :** src/modules/accord-cadre/accord-cadre.service.ts:118-137 · client/src/pages/AccordCadrePage.tsx:202 · dto/accord-cadre.dto.ts:48 · CLAUDE.md:3890-3892 · personnel.service.ts:946-1003
 - **Condition :** 5
 - **Constat :** le registre du personnel calcule la part nationale expressément pour cet engagement.
 - **Correction :** proposer la part (sans la substituer) et corriger les quatre phrases.
+- **Fait le 2026-09-27 :** une seule lecture du registre (`personnel/effectif-registre.ts`) sert la fenêtre Personnel et l'état de l'accord-cadre (`propositionMainOeuvre`), la déclaration est pré-remplie et reste modifiable ; les phrases du service, du DTO, du contrôle, de l'aide et de ce fichier disent la règle en vigueur. Tests : `accord-cadre.spec.ts` (quatre mutations tuées), `accord-cadre-proposition.spec.ts`.
 
 **F147 · Montant accordé d'une convention inférieur au total des tranches** [bailleurs-01]
 - **Emplacements :** src/modules/bailleurs/convention-financement.service.ts:258-293, :327-336
 - **Condition :** 1
 - **Constat :** `modifier` ne relit pas les tranches, et le reste à recevoir est borné à zéro.
 - **Correction :** refuser comme `ajouterTranche`.
+- **Fait le 2026-09-27 :** `modifier` charge les tranches et refuse un montant accordé inférieur à leur total, avec le chiffre. Tests : `convention-de-financement.spec.ts` (doublure qui honore l'`include`, mutations tuées).
 
 **F148 · Simulateur : prévu annuel face à un réalisé arrêté en cours d'année** [simulations-01]
 - **Emplacements :** src/modules/simulations/simulations.service.ts:114-128 · client/src/pages/SimulationsBudgetairesPage.tsx:213
 - **Condition :** 1
 - **Constat :** sur un exercice clos, le prorata vaut 1 quelle que soit la date d'arrêté.
 - **Correction :** calculer le prorata sur la date d'arrêté.
+- **Fait le 2026-09-27 :** le prorata suit la date d'arrêté quel que soit le statut ; sans date, l'arrêté borné à la fin de l'exercice rend 1 par le calcul. Tests : `simulateur-budgetaire.spec.ts` (l'ancien code réinjecté tombe).
 
 **F149 · Modèle de règlement : échéance négative possible, paramètre sans effet** [tiers-02]
 - **Emplacements :** src/modules/tiers/tiers.service.ts:482-520, :544-593
 - **Condition :** 1
 - **Constat :** un Équilibre qui n'est pas en dernier rend une échéance négative. Le modèle n'est lu par aucune saisie, et le commentaire est périmé.
 - **Correction :** placer l'Équilibre en dernier, et le dire à l'écran.
+- **Fait le 2026-09-27 :** l'Équilibre est refusé ailleurs qu'en dernier et rien ne s'ajoute après lui ; le calcul le joue en dernier (modèles anciens) et borne pourcentage et montant au reste ; la bulle du simulateur dit la règle et que le modèle n'est appliqué par aucune saisie ; le commentaire périmé est réécrit. Tests : `modele-reglement-f149.spec.ts` (quatre mutations tuées), `modele-reglement-aide.spec.ts`.
 
 ### Groupe, consolidation et monnaie fonctionnelle
 

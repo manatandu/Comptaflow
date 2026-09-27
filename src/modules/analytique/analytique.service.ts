@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { PrismaService } from '../../common/prisma.service';
 import { refuserBailleurHorsSycebnl } from '../../common/bailleur-referentiel';
 import { refuserSiLignesFigees } from '../exercice/gel-cloture';
-import { ClasseCompte, Prisma, Referentiel, TypeCompteDetailTotal } from '@prisma/client';
+import { ClasseCompte, Prisma, Referentiel, StatutExercice, TypeCompteDetailTotal } from '@prisma/client';
 import {
   CreerPlanAnalytiqueDto,
   CreerSectionDto,
@@ -13,6 +13,9 @@ import {
   ModifierSectionDto,
 } from './dto/analytique.dto';
 import { moisEntre } from '../../common/mois-entre';
+import { motifRefusClasseVentilee, motifRefusMontantAnalytique } from './od-analytique';
+import { refuserSiExerciceBudgetaireClos } from './exercice-budgetaire-clos';
+import { libelleReference, referencesVers, type Reference } from '../../common/suppression/references';
 
 /** Chiffre de classe d'un compte : CLASSE_6 donne 6. */
 function chiffreClasse(classe: ClasseCompte): string {
@@ -148,18 +151,41 @@ export class AnalytiqueService {
   }
 
   async supprimerPlan(tenantId: string, planId: string) {
-    await this.trouverPlan(tenantId, planId);
-    const ventilations =
-      (await this.prisma.ventilationAnalytique.count({ where: { planId } })) +
-      (await this.prisma.odAnalytique.count({ where: { tenantId, planId } }));
-    if (ventilations > 0) {
-      throw new BadRequestException(
-        `Ce plan porte ${ventilations} ventilation(s) : il ne peut plus être supprimé. Mettez-le en sommeil.`,
-      );
-    }
-    await this.prisma.sectionAnalytique.deleteMany({ where: { planId, tenantId } });
-    await this.prisma.planAnalytique.delete({ where: { id: planId } });
+    const plan = await this.trouverPlan(tenantId, planId);
+    // Le plan se juge sur lui-même ET sur toutes ses sections (audit final
+    // F142) · un engagement sur l'une d'elles faisait tomber la suppression
+    // sur une erreur de clé étrangère, sans nom.
+    const sections = await this.prisma.sectionAnalytique.findMany({ where: { planId, tenantId }, select: { id: true } });
+    const ids = sections.map((x) => x.id);
+    const refs = [
+      ...(await referencesVers(this.prisma, 'PlanAnalytique', planId, tenantId, ['SectionAnalytique.planId'])),
+      ...(ids.length ? await referencesVers(this.prisma, 'SectionAnalytique', ids, tenantId, ['BudgetSection.sectionId']) : []),
+    ];
+    const budgetsClos = ids.length
+      ? await this.prisma.budgetSection.count({ where: { sectionId: { in: ids }, exercice: { statut: StatutExercice.CLOTURE } } })
+      : 0;
+    this.refuserSuppressionAnalytique(`Le plan ${plan.code} ne peut plus être supprimé`, refs, budgetsClos, 'Mettez-le en sommeil.');
+    // Les budgets partent avec leurs sections (onDelete: Cascade) · tout ou rien.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.sectionAnalytique.deleteMany({ where: { planId, tenantId } });
+      await tx.planAnalytique.delete({ where: { id: planId } });
+    });
     return { supprime: true };
+  }
+
+  /**
+   * UN REFUS NOMMÉ, ET UN SEUL (audit final F142, F143). Les usages viennent
+   * du schéma (`referencesVers`), jamais d'une liste écrite à la main · une
+   * table ajoutée demain qui pointe vers une section sera comptée sans que
+   * personne y pense. Les budgets, eux, décrivent la section et partent avec
+   * elle, SAUF ceux d'un exercice clôturé · leur note d'exécution budgétaire
+   * est arrêtée, et l'effacer la changerait après coup.
+   */
+  private refuserSuppressionAnalytique(objet: string, refs: Reference[], budgetsClos: number, issue: string) {
+    const usages = refs.map(libelleReference);
+    if (budgetsClos > 0) usages.push(`budgets d'un exercice clôturé (${budgetsClos})`);
+    if (usages.length === 0) return;
+    throw new BadRequestException(`${objet} · usages : ${usages.join(', ')}. ${issue}`);
   }
 
   private async trouverPlan(tenantId: string, planId: string) {
@@ -233,19 +259,20 @@ export class AnalytiqueService {
   }
 
   async supprimerSection(tenantId: string, sectionId: string) {
-    await this.trouverSection(tenantId, sectionId);
-    // Les lignes d'OD retiennent la section comme les ventilations · la clé
-    // étrangère refuserait sinon avec une erreur technique, sans nom.
-    const ventilations =
-      (await this.prisma.ventilationAnalytique.count({ where: { sectionId } })) +
-      (await this.prisma.ligneOdAnalytique.count({ where: { tenantId, sectionId } }));
-    if (ventilations > 0) {
-      throw new BadRequestException(
-        `Cette section porte ${ventilations} ventilation(s) : elle ne peut plus être supprimée. Mettez-la en sommeil.`,
-      );
-    }
-    await this.prisma.budgetSection.deleteMany({ where: { sectionId } });
-    await this.prisma.sectionAnalytique.delete({ where: { id: sectionId } });
+    const section = await this.trouverSection(tenantId, sectionId);
+    // TOUT CE QUI SE RÉFÈRE À LA SECTION RETIENT (audit final F142) · les
+    // engagements n'étaient pas comptés, la clé étrangère refusait alors avec
+    // une erreur technique, et les budgets étaient déjà effacés, hors
+    // transaction · la section restait, sans son budget.
+    const refs = await referencesVers(this.prisma, 'SectionAnalytique', sectionId, tenantId, ['BudgetSection.sectionId']);
+    const budgetsClos = await this.prisma.budgetSection.count({
+      where: { sectionId, exercice: { statut: StatutExercice.CLOTURE } },
+    });
+    this.refuserSuppressionAnalytique(`La section ${section.code} ne peut plus être supprimée`, refs, budgetsClos, 'Mettez-la en sommeil.');
+    await this.prisma.$transaction(async (tx) => {
+      await tx.budgetSection.deleteMany({ where: { sectionId } });
+      await tx.sectionAnalytique.delete({ where: { id: sectionId } });
+    });
     return { supprime: true };
   }
 
@@ -291,6 +318,7 @@ export class AnalytiqueService {
     }
     const exercice = await this.prisma.exercice.findFirst({ where: { id: exerciceId, tenantId } });
     if (!exercice) throw new BadRequestException('Exercice introuvable pour ce dossier');
+    refuserSiExerciceBudgetaireClos(exercice.statut);
     const mois = this.moisCouverts(exercice.dateDebut, exercice.dateFin, section.dateDebut, section.dateFin);
     if (mois.length === 0) {
       throw new BadRequestException(
@@ -461,6 +489,18 @@ export class AnalytiqueService {
     const inactive = sections.find((s) => !s.estActive);
     if (inactive) {
       throw new BadRequestException(`La section ${inactive.code} est en sommeil`);
+    }
+    // LES MÊMES REFUS QUE L'OD ANALYTIQUE (audit final F141) · la classe du
+    // compte doit être suivie par chaque plan touché, et aucun montant n'est
+    // négatif ni porté des deux côtés.
+    const classeCompte = ligne.compte.classe.replace('CLASSE_', '');
+    for (const plan of new Map(sections.map((s) => [s.planId, s.plan])).values()) {
+      const refusClasse = motifRefusClasseVentilee(classeCompte, plan.classesVentilees);
+      if (refusClasse) throw new BadRequestException(`Plan ${plan.code} · ${refusClasse}`);
+    }
+    for (const [i, v] of ventilations.entries()) {
+      const refusMontant = motifRefusMontantAnalytique(i + 1, v.debit ?? 0, v.credit ?? 0);
+      if (refusMontant) throw new BadRequestException(refusMontant);
     }
 
     // Équilibre par plan.

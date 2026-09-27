@@ -1163,7 +1163,15 @@ export function TiersPage() {
                       </button>
                     </form>
   
-                    <div className="font-mono text-[11px] font-semibold text-text-dim mb-2">Simulateur d'échéancier</div>
+                    <div className="font-mono text-[11px] font-semibold text-text-dim mb-2 flex items-center gap-1.5">
+                      Simulateur d'échéancier
+                      {/* Audit final F149 · l'Équilibre en dernier, et le modèle simulé, pas appliqué. */}
+                      <Aide
+                        titre="Échéancier du modèle"
+                        texte="L'échéance Équilibre reçoit le reste : elle se place en dernier, et aucune échéance ne peut la suivre. Aucune échéance n'est négative, un pourcentage ou un montant étant borné au reste. Le modèle se simule ici ; aucune saisie ne l'applique encore à une facture."
+                        source="OmegaX"
+                      />
+                    </div>
                     <form onSubmit={onCalculer} className="flex items-end gap-2 mb-3">
                       <label className="text-[11px] font-semibold text-text-dim">
                         Date facture

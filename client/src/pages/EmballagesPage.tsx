@@ -387,6 +387,27 @@ export function EmballagesPage() {
               apres={charger}
               signaler={setErreur}
             />
+            {/* RETIRER UNE SAISIE FAUSSE (audit final F137) · tant qu'elle
+                n'est ni dénouée ni rattachée, le journal ne porte rien d'elle. */}
+            {peutEcrire && c.etat === 'EN_COURS' && !c.ecritureConsignationId && !c.ecritureDenouementId && (
+              <button
+                type="button"
+                className="mt-1.5 text-[11px] text-danger hover:underline"
+                onClick={async () => {
+                  setErreur('');
+                  try {
+                    await api.delete(`/emballages/consignations/${c.id}`);
+                    setLienOuvert(null);
+                    setSelection(null);
+                    charger();
+                  } catch (e) {
+                    setErreur(e instanceof ApiError ? e.message : 'Retrait impossible');
+                  }
+                }}
+              >
+                Retirer du registre
+              </button>
+            )}
           </div>
         ))}
 

@@ -26,9 +26,16 @@ function service(options: { bailleur?: unknown; convention?: unknown; convention
   const prisma = {
     bailleur: { findFirst: jest.fn().mockResolvedValue(options.bailleur === undefined ? BAILLEUR : options.bailleur) },
     conventionFinancement: {
-      findFirst: jest.fn().mockImplementation(({ where }: { where: Record<string, unknown> }) =>
-        Promise.resolve('reference' in where ? (options.doublon ?? null) : (options.convention ?? null)),
-      ),
+      // La doublure HONORE l'`include` des tranches (audit final F147) · une
+      // convention relue sans le demander ne les porte pas, comme en base.
+      findFirst: jest.fn().mockImplementation(({ where, include }: { where: Record<string, unknown>; include?: Record<string, unknown> }) => {
+        if ('reference' in where) return Promise.resolve(options.doublon ?? null);
+        const c = options.convention as Record<string, unknown> | undefined;
+        if (!c) return Promise.resolve(null);
+        if (include?.tranches || !('tranches' in c)) return Promise.resolve(c);
+        const { tranches: _t, ...sans } = c;
+        return Promise.resolve(sans);
+      }),
       findMany: jest.fn().mockResolvedValue(options.conventions ?? []),
       create: jest.fn().mockImplementation(({ data }: { data: unknown }) => Promise.resolve({ id: 'c1', ...(data as object) })),
       update: jest.fn().mockImplementation(({ data }: { data: unknown }) => Promise.resolve({ id: 'c1', ...(data as object) })),
@@ -371,5 +378,30 @@ describe('la validité, que le jalon 11 du planning demandait sans donnée', () 
     // Résiliée, donc plus « en cours » : l'avertissement d'expiration ne
     // s'ajoute pas à une convention déjà sortie.
     expect(c.expiree).toBe(false);
+  });
+});
+
+describe('F147 · le montant accordé ne descend pas sous le total des tranches', () => {
+  const CONVENTION_TRANCHEE = {
+    id: 'c1',
+    caractere: 'FERME_INCONDITIONNEL',
+    conditions: null,
+    ecritSigne: true,
+    signataire: 'Chef de délégation',
+    montantAccorde: 500_000,
+    dateDebut: new Date('2026-01-01'),
+    dateFin: new Date('2028-12-31'),
+    tranches: [{ montant: 300_000 }, { montant: 150_000 }],
+  };
+
+  it('refuse un accordé inférieur aux tranches prévues', async () => {
+    const { service: s } = service({ convention: CONVENTION_TRANCHEE });
+    await expect(s.modifier('t1', 'c1', { montantAccorde: 400_000 })).rejects.toThrow(/inférieur au total des tranches \(450000\.00\)/);
+  });
+
+  it('accepte l’accordé égal aux tranches, et une modification qui ne le touche pas', async () => {
+    const { service: s } = service({ convention: CONVENTION_TRANCHEE });
+    await expect(s.modifier('t1', 'c1', { montantAccorde: 450_000 })).resolves.toBeDefined();
+    await expect(s.modifier('t1', 'c1', { objet: 'Renforcement' } as never)).resolves.toBeDefined();
   });
 });

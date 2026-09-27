@@ -308,6 +308,9 @@ export function ParametresDossierPage() {
     setErreur(null);
     try {
       setParams(await api.patch<ParametresDossier>('/dossier/longueur-compte', { longueurCompte: longueur }));
+      // La session porte la borne que le plan de comptes impose à la saisie
+      // (audit final F144) · la relire, sans quoi l'écran garde l'ancienne.
+      await rafraichir();
       setInfo(
         `Longueur des numéros de compte portée à ${longueur} chiffres · les comptes déjà ouverts ne changent pas.`,
       );

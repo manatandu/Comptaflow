@@ -129,9 +129,9 @@ describe('ventilation · équilibre par plan', () => {
     compte: { numero: '60410000', classe: 'CLASSE_6' },
   };
   const sections = [
-    { id: 'sA', planId: 'p1', code: 'EAU', type: 'DETAIL', estActive: true, plan: { code: 'PROJ' } },
-    { id: 'sB', planId: 'p1', code: 'SANTE', type: 'DETAIL', estActive: true, plan: { code: 'PROJ' } },
-    { id: 'sC', planId: 'p2', code: 'UE', type: 'DETAIL', estActive: true, plan: { code: 'BAIL' } },
+    { id: 'sA', planId: 'p1', code: 'EAU', type: 'DETAIL', estActive: true, plan: { code: 'PROJ', classesVentilees: '2,6,7' } },
+    { id: 'sB', planId: 'p1', code: 'SANTE', type: 'DETAIL', estActive: true, plan: { code: 'PROJ', classesVentilees: '2,6,7' } },
+    { id: 'sC', planId: 'p2', code: 'UE', type: 'DETAIL', estActive: true, plan: { code: 'BAIL', classesVentilees: '2,6,7' } },
   ];
 
   const ecritureDeLigne = { date: new Date('2026-03-01'), journalId: 'jACH', journal: { code: 'ACH' }, exercice: { statut: 'OUVERT' } };
@@ -213,6 +213,33 @@ describe('ventilation · équilibre par plan', () => {
     const dormantes = [{ ...sections[0], estActive: false }];
     await expect(
       service(prisma(dormantes)).ventilerLigne('t1', 'l1', [{ sectionId: 'sA', debit: 1000 }]),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  // AUDIT FINAL F141 · la ventilation et l'OD analytique portent le même
+  // objet, et elles appliquent désormais les mêmes refus
+  // (`motifRefusClasseVentilee`, `motifRefusMontantAnalytique`).
+  it('F141 · refuse une ligne dont la classe n’est pas ventilée par le plan', async () => {
+    const plansDeCharges = sections.map((s) => ({ ...s, plan: { ...s.plan, classesVentilees: '6,7' } }));
+    const p = prisma(plansDeCharges) as { ligneEcriture: { findFirst: jest.Mock } };
+    p.ligneEcriture.findFirst.mockResolvedValue({ ...ligne, compte: { numero: '24410000', classe: 'CLASSE_2' } });
+    await expect(
+      service(p as Faux).ventilerLigne('t1', 'l1', [{ sectionId: 'sA', debit: 1000 }]),
+    ).rejects.toThrow(/Plan PROJ/);
+  });
+
+  it('F141 · refuse un montant négatif, même quand la somme équilibre', async () => {
+    await expect(
+      service(prisma()).ventilerLigne('t1', 'l1', [
+        { sectionId: 'sA', debit: 1500 },
+        { sectionId: 'sB', debit: -500 },
+      ]),
+    ).rejects.toThrow(/négatif/);
+  });
+
+  it('F141 · refuse une ventilation portée au débit ET au crédit', async () => {
+    await expect(
+      service(prisma()).ventilerLigne('t1', 'l1', [{ sectionId: 'sA', debit: 1000, credit: 1000 }]),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

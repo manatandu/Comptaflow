@@ -64,6 +64,10 @@ const LIBELLES: Record<string, string> = {
   'Devis.tiersId': 'devis',
   'Cloture.journalId': 'clôtures de journal',
   'RibBanque.journalId': 'RIB bancaire rattaché (Structure > Banques)',
+  'VentilationAnalytique.sectionId': 'ventilations analytiques',
+  'LigneOdAnalytique.sectionId': "lignes d'OD analytique",
+  'EngagementDepense.sectionId': 'engagements de dépense',
+  'OdAnalytique.planId': 'OD analytiques',
 };
 
 function relationsVers(cible: string, exclure: string[]) {
@@ -81,11 +85,16 @@ function relationsVers(cible: string, exclure: string[]) {
   return liens;
 }
 
-/** Compte, relation par relation, ce qui se réfère à `id`. Seules les relations non nulles sont rendues. */
+/**
+ * Compte, relation par relation, ce qui se réfère à `id`. Seules les relations
+ * non nulles sont rendues. Une LISTE d'identifiants compte d'un coup ce qui se
+ * réfère à l'un d'eux · un plan analytique se juge sur toutes ses sections
+ * sans une requête par section.
+ */
 export async function referencesVers(
   prisma: unknown,
   cible: string,
-  id: string,
+  id: string | string[],
   tenantId: string,
   exclure: string[] = [],
 ): Promise<Reference[]> {
@@ -95,7 +104,7 @@ export async function referencesVers(
     const delegue = client[lien.modele.charAt(0).toLowerCase() + lien.modele.slice(1)];
     // Borne du dossier sur toute table cloisonnée · la garde de cloisonnement
     // refuse une collection qui ne la porte pas, et elle aurait raison.
-    const where: Record<string, unknown> = { [lien.champ]: id };
+    const where: Record<string, unknown> = { [lien.champ]: Array.isArray(id) ? { in: id } : id };
     if (lien.cloisonne) where.tenantId = tenantId;
     const nombre = await delegue.count({ where });
     if (nombre > 0) refs.push({ modele: lien.modele, champ: lien.champ, nombre });

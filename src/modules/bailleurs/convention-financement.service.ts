@@ -258,8 +258,22 @@ export class ConventionFinancementService {
   async modifier(tenantId: string, conventionId: string, dto: ModifierConventionDto) {
     const convention = await this.prisma.conventionFinancement.findFirst({
       where: { id: conventionId, tenantId },
+      include: { tranches: { select: { montant: true } } },
     });
     if (!convention) throw new NotFoundException('Convention introuvable dans ce dossier.');
+    // LE MONTANT ACCORDÉ NE DESCEND PAS SOUS LE TOTAL DES TRANCHES (audit final
+    // F147), même règle que `ajouterTranche` · abaissé en dessous, le reste à
+    // recevoir serait négatif et `resteARecevoir` le ramènerait à zéro en
+    // silence, une tranche annoncée au bailleur n'étant plus fondée par rien.
+    if (dto.montantAccorde !== undefined) {
+      const prevu = (convention.tranches ?? []).reduce((s, t) => s + Number(t.montant), 0);
+      if (prevu - dto.montantAccorde > EPSILON) {
+        throw new BadRequestException(
+          `Le montant accordé (${dto.montantAccorde.toFixed(2)}) serait inférieur au total des tranches ` +
+            `(${prevu.toFixed(2)}). Retirez ou réduisez d'abord les tranches qu'il ne fonde plus.`,
+        );
+      }
+    }
 
     const fusion = {
       caractere: dto.caractere ?? convention.caractere,

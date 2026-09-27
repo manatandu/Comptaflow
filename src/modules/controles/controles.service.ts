@@ -3115,8 +3115,8 @@ export class ControlesService {
         }
       }
 
-      // LA PART DE MAIN-D'ŒUVRE LOCALE N'EST JAMAIS CALCULÉE · OmegaX n'a pas
-      // de module de paie. Le contrôle ne s'allume que sur une part DÉCLARÉE
+      // LA PART DE MAIN-D'ŒUVRE LOCALE EST DÉCLARÉE · le registre du personnel
+      // la propose sans la substituer. Le contrôle ne s'allume que sur une part DÉCLARÉE
       // sous le seuil : une part absente n'est pas une part insuffisante, et la
       // traiter comme telle accuserait tout dossier qui n'a rien saisi.
       if (

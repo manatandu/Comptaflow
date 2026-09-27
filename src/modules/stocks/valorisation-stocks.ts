@@ -325,3 +325,20 @@ export function methodeCompatible(
     ? METHODES_INVENTAIRE_PERMANENT.includes(methode)
     : METHODES_INVENTAIRE_INTERMITTENT.includes(methode);
 }
+
+/**
+ * LES SORTIES QUE LE MAGASIN NE PEUT PAS SERVIR (audit final F133) · la
+ * valorisation les ÉCARTE sans lever, et une fiche qui en porte une cesse de
+ * dire son stock. Le service les refuse donc à la SAISIE, et c'est ici que le
+ * refus se calcule, sur la même chronologie que la valorisation.
+ *
+ * LA QUANTITÉ SE REJOUE PAREIL QUELLE QUE SOIT LA MÉTHODE · c'est le coût qui
+ * en dépend, pas le nombre d'unités détenues. Le rejeu se fait donc en
+ * P.E.P.S., coûts neutralisés, pour ne rendre QUE ce motif-là.
+ */
+export function sortiesAuDelaDuStock(mouvements: MouvementAValoriser[]): RefusValorisation[] {
+  const quantites = mouvements.map((m) =>
+    m.sens === 'SORTIE' ? { ...m, cout: null } : { ...m, cout: Math.max(0, m.cout ?? 0) },
+  );
+  return valoriser(quantites, 'PEPS').refus.filter((r) => r.motif === 'SORTIE_SUPERIEURE_AU_STOCK');
+}

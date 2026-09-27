@@ -27,7 +27,8 @@
  *     charge « variable » se déclare, elle ne se devine pas.
  *  4. LE PRÉVU À DATE EST LE PRÉVU ANNUEL AU PRORATA DES JOURS ÉCOULÉS · c'est
  *     une convention de lecture (activité supposée régulière), dite à l'écran.
- *     Sur un exercice clos, ou arrêté à sa date de fin, le prorata vaut 1.
+ *     Arrêté à sa date de fin (ce qu'un exercice clos sans date donne), le
+ *     prorata vaut 1 · il suit la date d'arrêté, jamais le statut.
  *  5. LES SEUILS DE LA JAUGE SONT CEUX DE LA SIMULATION, jamais écrits en dur
  *     comme une norme · aucun texte n'en fixe. Seul l'écart DÉFAVORABLE
  *     colore : un produit en retard, une charge en dépassement. Un écart

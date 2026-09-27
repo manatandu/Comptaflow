@@ -506,6 +506,20 @@ export class TiersService {
     if (dejaCetOrdre) {
       throw new ConflictException(`Une échéance à l'ordre ${dto.ordre} existe déjà pour ce modèle`);
     }
+    // L'ÉQUILIBRE SE PLACE EN DERNIER (audit final F149) · il reçoit le reste,
+    // et une échéance qui le suivrait se calculerait sur un reste déjà épuisé ·
+    // l'échéancier sortait une échéance NÉGATIVE.
+    const equilibre = existantes.find((e) => e.type === TypeEcheance.EQUILIBRE);
+    if (dto.type === TypeEcheance.EQUILIBRE && existantes.some((e) => e.ordre > dto.ordre)) {
+      throw new BadRequestException(
+        "L'échéance Équilibre reçoit le reste · elle se place en dernier, après toutes les autres échéances du modèle.",
+      );
+    }
+    if (equilibre && dto.type !== TypeEcheance.EQUILIBRE && dto.ordre > equilibre.ordre) {
+      throw new BadRequestException(
+        `L'échéance Équilibre (ordre ${equilibre.ordre}) reçoit le reste et reste la dernière · placez celle-ci avant elle.`,
+      );
+    }
 
     return this.prisma.echeanceReglement.create({
       data: {
@@ -545,8 +559,14 @@ export class TiersService {
    * Calcule l'échéancier d'un modèle pour une facture donnée : une seule
    * échéance (100 % à delaiJours/echeance du modèle) si aucune ligne
    * `EcheanceReglement` n'existe, sinon le détail par échéance dans l'ordre.
-   * Pure fonction de simulation · ne persiste rien, aucune facture réelle
-   * n'existe encore dans le modèle de données pour rattacher un échéancier.
+   * SIMULATION · ne persiste rien, et aucune saisie n'applique encore le
+   * modèle à une facture · la fenêtre le dit (audit final F149 ; l'ancien
+   * commentaire affirmait qu'aucune facture n'existait au modèle de données,
+   * ce qui a cessé d'être vrai avec la facturation).
+   *
+   * AUCUNE ÉCHÉANCE N'EST NÉGATIVE · l'Équilibre se calcule en DERNIER quel
+   * que soit son rang (un modèle ancien peut le porter ailleurs), et un
+   * pourcentage comme un montant sont bornés au reste.
    */
   async calculerEcheances(tenantId: string, modeleId: string, dto: CalculerEcheancesDto) {
     const modele = await this.trouverModeleReglement(tenantId, modeleId);
@@ -567,28 +587,32 @@ export class TiersService {
       ];
     }
 
+    const equilibre = echeances.find((e) => e.type === TypeEcheance.EQUILIBRE);
+    const ordreDeCalcul = equilibre ? [...echeances.filter((e) => e !== equilibre), equilibre] : echeances;
+    const montants = new Map<string, number>();
     let reste = dto.montantTotal;
-    const resultat = echeances.map((e, i) => {
+    ordreDeCalcul.forEach((e, i) => {
+      const resteArrondi = Math.round(reste * 100) / 100;
       let montant: number;
-      if (e.type === TypeEcheance.EQUILIBRE || i === echeances.length - 1) {
+      if (e.type === TypeEcheance.EQUILIBRE || i === ordreDeCalcul.length - 1) {
         // La dernière échéance absorbe toujours le reste, même si elle
         // n'est pas explicitement de type EQUILIBRE · évite qu'un écart
         // d'arrondi sur les pourcentages laisse un centime non réparti.
-        montant = Math.round(reste * 100) / 100;
+        montant = resteArrondi;
       } else if (e.type === TypeEcheance.POURCENTAGE) {
-        montant = Math.round(dto.montantTotal * (Number(e.valeur) / 100) * 100) / 100;
+        montant = Math.min(Math.round(dto.montantTotal * (Number(e.valeur) / 100) * 100) / 100, resteArrondi);
       } else {
-        montant = Math.min(Number(e.valeur), Math.round(reste * 100) / 100);
+        montant = Math.min(Number(e.valeur), resteArrondi);
       }
       reste = Math.round((reste - montant) * 100) / 100;
-      return {
-        ordre: e.ordre,
-        type: e.type,
-        montant,
-        dateEcheance: this.calculerDateEcheance(dateFacture, e.delaiJours, e.echeance),
-      };
+      montants.set(e.id, montant);
     });
 
-    return resultat;
+    return echeances.map((e) => ({
+      ordre: e.ordre,
+      type: e.type,
+      montant: montants.get(e.id) ?? 0,
+      dateEcheance: this.calculerDateEcheance(dateFacture, e.delaiJours, e.echeance),
+    }));
   }
 }

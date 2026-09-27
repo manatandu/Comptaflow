@@ -170,6 +170,19 @@ describe('le service', () => {
     expect(borne.prorata).toBe(1);
   });
 
+  it('F148 · sur une cible close, le prorata suit la date d’arrêté, pas le statut', async () => {
+    const { svc } = faire();
+    const prisma = (svc as unknown as { prisma: { simulationBudgetaire: { findFirst: jest.Mock } } }).prisma;
+    const cibleClose = ex('e27', '2027-01-01', '2027-12-31', 'CLOTURE');
+    prisma.simulationBudgetaire.findFirst.mockResolvedValue({
+      id: 's', nom: 'Base', exerciceReferenceId: 'e26', exerciceCibleId: 'e27',
+      exerciceReference: ex('e26', '2026-01-01', '2026-12-31', 'CLOTURE'), exerciceCible: cibleClose,
+      hypotheses: { croissanceProduitsPct: 10, variations: {} }, seuilOrangePct: 5, seuilRougePct: 10,
+    });
+    expect((await svc.calculer('t1', 's', { arreteAu: '2027-07-02' })).prorata).toBeCloseTo(183 / 365);
+    expect((await svc.calculer('t1', 's', { arreteAu: '2029-01-01' })).prorata).toBe(1);
+  });
+
   it('ne lit pas la cible avant son ouverture, et le dit par un prévu à date nul', async () => {
     const { svc, balance } = faire();
     const r = await svc.calculer('t1', 's', { arreteAu: '2026-06-30' });

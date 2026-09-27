@@ -62,7 +62,10 @@ const LIBELLE_ROLE: Record<RoleMembreInventaire, string> = {
  * refuserait au statut courant (même parti que les boutons de l'en-tête).
  */
 const PEUT_PREPARER = ['PREPARATION', 'RECENSEMENT']; // sous-commissions, fiches, comptage
-const PEUT_ETABLIR_PV = ['RECENSEMENT', 'ARBITRAGE']; // PV de comptage d'une caisse
+// PV de comptage d'une caisse · dès la préparation, compter une caisse étant
+// recenser (audit final F134) ; le serveur fait alors passer la campagne au
+// recensement.
+const PEUT_ETABLIR_PV = ['PREPARATION', 'RECENSEMENT', 'ARBITRAGE'];
 
 /**
  * Un champ numérique vide n'est PAS zéro · il n'est pas envoyé. `null` signale
@@ -720,9 +723,20 @@ function LigneFiche({ fiche, saisissable, agir }: { fiche: FicheInventaire; sais
         <td className="px-2.5 py-1 text-text-dim">{fiche.referencePiece ?? '·'}</td>
         <td className="px-2.5 py-1 text-right">
           {saisissable && !edition && (
-            <button type="button" onClick={() => setEdition(true)} className={BOUTON}>
-              Saisir le comptage
-            </button>
+            <>
+              <button type="button" onClick={() => setEdition(true)} className={BOUTON}>
+                Saisir le comptage
+              </button>
+              {/* RETIRER, AVANT LE RAPPROCHEMENT (audit final F135) · la
+                  valoriser à zéro pour passer fabriquerait un manquant. */}
+              <button
+                type="button"
+                onClick={() => agir(() => api.delete(`/inventaire/fiches/${fiche.id}`))}
+                className={`${BOUTON} ml-1.5`}
+              >
+                Retirer
+              </button>
+            </>
           )}
         </td>
       </tr>

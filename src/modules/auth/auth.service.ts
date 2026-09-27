@@ -93,7 +93,7 @@ export class AuthService {
     const idDossier = randomUUID();
 
     // `timeout` généreux et assumé : le semis enchaîne environ quatre-vingts
-    // allers-retours vers Neon (1401 comptes en une passe, puis journaux,
+    // allers-retours vers Neon (le plan entier en une passe, puis journaux,
     // taxes et familles compte par compte), ce qui dépasse largement les cinq
     // secondes par défaut de Prisma. Une inscription est un geste rare : la
     // tenir trente secondes ne coûte rien, et échouer à mi-chemin coûterait
@@ -535,6 +535,10 @@ export class AuthService {
         // masque sur lui (`tenant/faits-declares.ts`).
         assujettissementTva: faitAssujettissementTva(user.tenant),
         venteBiensServices: user.tenant.venteBiensServices,
+        // Longueur MAXIMALE des numéros que le cabinet ouvre (audit final
+        // F144) · l'écran du plan de comptes l'imposait à huit, alors que le
+        // dossier la porte jusqu'à treize (`CompteService.creer` la relit).
+        longueurCompte: user.tenant.longueurCompte,
       },
     };
   }

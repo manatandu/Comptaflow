@@ -60,6 +60,7 @@ function service(etat: Etat = {}) {
       findFirst: jest.fn().mockResolvedValue(etat.campagne ?? null),
       create: jest.fn().mockImplementation((a) => Promise.resolve({ id: 'camp1', ...a.data })),
       update: maj,
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
     ficheInventaire: {
       findMany: jest.fn().mockResolvedValue(etat.fiches ?? []),

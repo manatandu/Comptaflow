@@ -28,6 +28,8 @@ type Etat = {
   referentiel?: Referentiel;
   lignes?: Record<string, unknown>[];
   balance?: { numero: string; solde: number }[];
+  /** Le plan · la doublure honore dossier et identifiant (audit final F138). */
+  comptes?: { id: string; tenantId: string; numero: string }[];
 };
 
 function service(etat: Etat = {}) {
@@ -35,6 +37,11 @@ function service(etat: Etat = {}) {
   const prisma = {
     tenant: {
       findFirst: jest.fn().mockResolvedValue({ referentiel: etat.referentiel ?? Referentiel.SYSCOHADA }),
+    },
+    compte: {
+      findFirst: jest.fn(async ({ where }: { where: { id: string; tenantId: string } }) =>
+        (etat.comptes ?? []).find((c) => c.id === where.id && c.tenantId === where.tenantId) ?? null,
+      ),
     },
     provisionRisqueCharge: {
       findFirst: jest.fn().mockResolvedValue(etat.lignes?.[0] ?? null),
@@ -478,5 +485,34 @@ describe('Registre des provisions · le report à l’ouverture', () => {
       .mockResolvedValueOnce([{ objet: 'Litige', nature: NatureProvision.LITIGE }]);
     const r = await svc.reporterALOuverture('t1', 'ex1', 'ex2', 'a@b.cd');
     expect(r.reportees).toBe(0);
+  });
+});
+
+describe('F138 · le compte d’une provision est celui que sa nature appelle, dans ce dossier', () => {
+  const COMPTES = [
+    { id: 'c191', tenantId: 't1', numero: '19100000' },
+    { id: 'c195', tenantId: 't1', numero: '19500000' },
+    { id: 'cVoisin', tenantId: 't2', numero: '19100000' },
+  ];
+
+  it('accepte le 191 d’un litige', async () => {
+    const { svc } = service({ comptes: COMPTES });
+    await expect(svc.creer('t1', 'ex1', { ...BASE, compteId: 'c191' }, 'a@b.cd')).resolves.toBeDefined();
+  });
+
+  it('refuse le compte d’une autre nature, et celui d’un autre dossier', async () => {
+    const { svc, creees } = service({ comptes: COMPTES });
+    await expect(svc.creer('t1', 'ex1', { ...BASE, compteId: 'c195' }, 'a@b.cd')).rejects.toThrow(/n'est pas un 191/);
+    await expect(svc.creer('t1', 'ex1', { ...BASE, compteId: 'cVoisin' }, 'a@b.cd')).rejects.toThrow(/introuvable/);
+    expect(creees).toEqual([]);
+  });
+
+  it('à la modification, la nature changée seule est revérifiée contre le compte en place', async () => {
+    const { svc } = service({
+      comptes: COMPTES,
+      lignes: [{ id: 'p1', tenantId: 't1', ...BASE, compteId: 'c191', statut: 'EN_EXAMEN' }],
+    });
+    await expect(svc.modifier('t1', 'p1', { nature: NatureProvision.IMPOTS })).rejects.toThrow(/n'est pas un 195/);
+    await expect(svc.modifier('t1', 'p1', { nature: NatureProvision.IMPOTS, compteId: 'c195' })).resolves.toBeDefined();
   });
 });
