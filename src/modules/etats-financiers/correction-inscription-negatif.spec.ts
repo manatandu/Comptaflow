@@ -1,6 +1,6 @@
 import { ClasseCompte, TypeCompteDetailTotal } from '@prisma/client';
-import { correspond } from '../etats-financiers/etats-financiers.communs';
-import { TOUS_LES_POSTES_FLUX } from '../etats-financiers/correspondance-tft';
+import { correspond } from './etats-financiers.communs';
+import { TOUS_LES_POSTES_FLUX } from './correspondance-tft';
 
 /**
  * CORRECTION D'ERREUR PAR INSCRIPTION EN NÉGATIF · art. 20 de l'AUDCIF,

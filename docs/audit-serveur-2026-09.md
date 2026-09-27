@@ -586,6 +586,10 @@ de premier niveau de `src/modules/` ; réinjection faite, attrapée.
 `etats-financiers/` ; `fiscalite/perimetre-loi-23-053.spec.ts` teste
 `retenues/correspondance-retenues`.
 
+**Fait le 2026-09-27.** Les deux specs rejoignent le module qu'elles testent
+(`etats-financiers/`, `retenues/`). Pas de garde automatique · « le module
+qu'un spec teste » ne se lit pas mécaniquement dans ses imports.
+
 ### C5 · `ReferentielGuard` sans effet
 
 `documents-obligatoires.controller.ts:49` le pose sans aucun

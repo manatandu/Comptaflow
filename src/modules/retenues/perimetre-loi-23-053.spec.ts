@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { avertissementRegimeImpot } from '../retenues/correspondance-retenues';
+import { avertissementRegimeImpot } from './correspondance-retenues';
 
 /**
  * CE QUE LA PASSE F4a A CORRIGÉ · loi n° 23/053 du 30 novembre 2023, Titre 2.
@@ -96,7 +96,7 @@ describe('Titre Ier, art. 2 · l’exemption dispense de la DÉCLARATION comme d
   Ce spec lit donc le service lui-même.
 */
 describe('le service passe bien la forme juridique à l’avertissement', () => {
-  const service = readFileSync(join(__dirname, '..', 'retenues', 'retenues.service.ts'), 'utf8');
+  const service = readFileSync(join(__dirname, 'retenues.service.ts'), 'utf8');
 
   it('la requête du dossier ramène la forme juridique', () => {
     expect(service).toContain('formeJuridiqueSyscohada: true');

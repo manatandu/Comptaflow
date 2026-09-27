@@ -287,7 +287,7 @@ d'architecture d'OmegaX, pas un texte), **Nouveau**.
   message « elle est entrée au livre-journal et ne se modifie plus » ;
   commentaire de `valider`) ; `Ecriture.corrigeEcritureId` et
   `motifCorrection` dans `prisma/schema.prisma` ; test
-  `src/modules/comptabilite/correction-inscription-negatif.spec.ts`.
+  `src/modules/etats-financiers/correction-inscription-negatif.spec.ts`.
 - **Textes relus** : AUDCIF **art. 20** (« Toute correction d'erreur commise
   et découverte sur l'exercice en cours s'effectue exclusivement par
   inscription en négatif des éléments erronés ») et **art. 22, 2°**
