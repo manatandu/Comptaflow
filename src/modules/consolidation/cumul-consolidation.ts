@@ -1,3 +1,4 @@
+import { estCompteDuResultatDeLExercice, estResultatEnInstanceDAffectation } from '../etats-financiers/resultat-de-l-exercice';
 /**
  * CUMUL ET ÉLIMINATIONS · tranche 2 de la consolidation SYSCOHADA (décision du
  * 2026-09-24). Moteur PUR : il reçoit les balances RETRAITÉES des entités
@@ -193,7 +194,8 @@ export interface ConversionIndividuelle {
  * `null` · pas déclarée, et l'état consolidé n'est pas publiable.
  *
  * `capitauxPropresHistoriques` · les capitaux propres hors résultat de
- * l'exercice (10 à 12), au COURS HISTORIQUE, en monnaie de présentation, en
+ * l'exercice (10 à 12, et le 130 en instance d'affectation), au COURS
+ * HISTORIQUE, en monnaie de présentation, en
  * solde créditeur positif · « capital, réserves : cours historique » (§ 3).
  * Aucune balance ne les porte · ils sont la somme de ce que chaque exercice
  * passé y a versé à son propre cours.
@@ -402,9 +404,15 @@ export class RefusConsolidation extends Error {}
 
 // `|| 0` · jamais de zéro négatif, qui se lirait « -0,00 » sur un état.
 const r2 = (x: number) => Math.round(x * 100) / 100 || 0;
+// LE 130 EST DES CAPITAUX PROPRES HORS RÉSULTAT · il porte le résultat de
+// l'exercice PRÉCÉDENT en instance d'affectation (AUDCIF Titre VII, COMPTE
+// 13). Lu comme résultat, il était partagé une seconde fois entre groupe et
+// minoritaires, et le résultat consolidé portait celui de l'an dernier ·
+// règle commune de `resultat-de-l-exercice.ts`.
 const PREFIXES_CP_HORS_RESULTAT = ['10', '11', '12'];
-const estCpHorsResultat = (n: string) => n === AJUSTEMENT_RESERVES || PREFIXES_CP_HORS_RESULTAT.some((p) => n.startsWith(p));
-const estResultat13 = (n: string) => n.startsWith('13');
+const estCpHorsResultat = (n: string) =>
+  n === AJUSTEMENT_RESERVES || PREFIXES_CP_HORS_RESULTAT.some((p) => n.startsWith(p)) || estResultatEnInstanceDAffectation(n);
+const estResultat13 = (n: string) => estCompteDuResultatDeLExercice(n);
 const estGestion = (n: string) => /^[678]/.test(n) || POSTES_DE_RESULTAT.has(n as PosteConsolidation);
 
 /**
@@ -509,8 +517,11 @@ export function cumulerConsolidation(
       }
       cours.set(e.id, { cloture: C, pc: M, entree: d!.coursEntree != null && d!.coursEntree > 0 ? d!.coursEntree : null });
       if (!e.balance) return e;
-      const estCp = (n: string) => /^1[0-2]/.test(n);
-      const auCoursPc = (n: string) => /^13/.test(n) || /^[678]/.test(n);
+      // Le 130 est des capitaux propres (résultat N-1 en instance
+      // d'affectation) · il suit le cours historique, pas celui des charges
+      // et produits de l'exercice.
+      const estCp = (n: string) => /^1[0-2]/.test(n) || estResultatEnInstanceDAffectation(n);
+      const auCoursPc = (n: string) => estResultat13(n) || /^[678]/.test(n);
       const conv = (v: number | null | undefined, k: number) => (v == null ? v : r2(v * k));
       const lignes: LigneBalanceEntree[] = e.balance.map((l) => {
         const k = auCoursPc(l.numero) ? M : C;
@@ -611,7 +622,7 @@ export function cumulerConsolidation(
     if (sansMouvements) {
       obstaclesFlux.push(`La balance de « ${e.nom} » ne porte pas les mouvements de l’exercice · importez-la à six colonnes (report, mouvements, solde).`);
     }
-    if (e.balance!.some((l) => l.numero.startsWith('13') && Math.abs(l.solde) > 0.005)) {
+    if (e.balance!.some((l) => estResultat13(l.numero) && Math.abs(l.solde) > 0.005)) {
       obstaclesFlux.push(`La balance de « ${e.nom} » est arrêtée APRÈS clôture (résultat au compte 13) · la capacité d’autofinancement ne se calcule pas sans ses charges et produits.`);
     }
   }

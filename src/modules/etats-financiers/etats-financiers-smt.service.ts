@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
 import { CompteDuPoste, LigneBalancePourEtat, chargerLignes, correspond, trouverExerciceN1 } from './etats-financiers.communs';
+import { estCompteDuResultatDeLExercice } from './resultat-de-l-exercice';
 import { PosteCalcule } from './etats-financiers.service';
 import {
   CATEGORIES_RESSOURCES_ART6,
@@ -153,7 +154,7 @@ export class EtatsFinanciersSmtService {
         l.classe === ClasseCompte.CLASSE_6 || l.classe === ClasseCompte.CLASSE_7 || l.classe === ClasseCompte.CLASSE_8,
     );
     const resultat678 = lignes678.reduce((s, l) => s - l.solde, 0);
-    const lignes13 = lignes.filter((l) => l.numero.startsWith('13'));
+    const lignes13 = lignes.filter((l) => estCompteDuResultatDeLExercice(l.numero));
     const resultat13 = lignes13.reduce((s, l) => s - l.solde, 0);
 
     const avantCloture = Math.abs(resultat678) > 0.005;

@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
 import { CompteDuPoste, LigneBalancePourEtat, chargerLignes, chargerLignesCumulees, correspond, trouverExerciceN1 } from './etats-financiers.communs';
+import { estCompteDuResultatDeLExercice } from './resultat-de-l-exercice';
 import { PosteCalcule } from './etats-financiers.service';
 import { POSTES_CHARGES, POSTES_REVENUS, PosteCompteExploitation, posteDuCompte } from './correspondance-projet-compte-exploitation';
 import {
@@ -122,7 +123,7 @@ export class EtatsFinanciersProjetService {
    * résultat net au sens associatif).
    */
   private calculerCC(lignes: LigneBalancePourEtat[]): PosteCalcule {
-    const lignes13 = lignes.filter((l) => l.numero.startsWith('13'));
+    const lignes13 = lignes.filter((l) => estCompteDuResultatDeLExercice(l.numero));
     const montant = lignes13.reduce((s, l) => s - l.solde, 0);
     const comptes = lignes13
       .filter((l) => Math.abs(l.solde) > 0.005)
@@ -184,7 +185,7 @@ export class EtatsFinanciersProjetService {
       }
     }
     for (const l of lignesN) {
-      if (correspond(l.numero, COMPTES_TRESORERIE_PASSIF_SI_CREDITEUR) || l.numero.startsWith('13')) {
+      if (correspond(l.numero, COMPTES_TRESORERIE_PASSIF_SI_CREDITEUR) || estCompteDuResultatDeLExercice(l.numero)) {
         comptesRattaches.add(l.compteId);
       }
     }

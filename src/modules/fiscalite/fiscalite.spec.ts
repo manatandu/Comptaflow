@@ -157,10 +157,10 @@ describe('Résultat fiscal · lecture de la balance', () => {
   /**
    * LE COMPTE 13 N'EST PAS ENTIÈREMENT LE RÉSULTAT, EN SYSCOHADA.
    *
-   * Le compte 13 du SYCEBNL n'a que deux subdivisions, 131 bénéfice et 139
-   * perte : y sommer tout ce qui commence par « 13 » y est exact. Le plan
-   * SYSCOHADA en porte neuf de plus, et deux familles font des dégâts
-   * opposés · les tests qui suivent figent chacune.
+   * Le plan SYSCOHADA ouvre sous le 13 le 130 (résultat de l'exercice
+   * PRÉCÉDENT en instance d'affectation) et les soldes intermédiaires 132 à
+   * 138. Le premier est exclu, les seconds comptent · règle commune de
+   * `resultat-de-l-exercice.ts`, la même que celle du bilan.
    */
   it('IGNORE le résultat en instance d’affectation (130) · sinon l’impôt est payé deux fois', async () => {
     const { s } = service({
@@ -175,24 +175,19 @@ describe('Résultat fiscal · lecture de la balance', () => {
     expect(r.resultatComptable).toBe(800);
   });
 
-  it('IGNORE les soldes intermédiaires de gestion (132 à 138) · ce sont des étapes du même résultat', async () => {
+  it('LIT une cascade de soldes intermédiaires arrêtée en chemin (Titre VIII ch. 19 § 2.4)', async () => {
+    // Marge 12 000 virée à la valeur ajoutée, et ainsi de suite jusqu'au
+    // résultat des activités ordinaires, 1 700 · le virement vers le 131
+    // n'a pas encore été passé, et le hors activités ordinaires (-900) est
+    // resté au 138. Chaque virement solde le compte précédent : ne restent
+    // que le 137 et le 138. Lire le 131 et le 139 seuls rendait ZÉRO.
     const { s } = service({
       balances: {
-        N: [
-          ligne('13100000', -800), // résultat net
-          ligne('13200000', -12_000), // marge commerciale
-          ligne('13300000', -9_000), // valeur ajoutée
-          ligne('13400000', -5_000), // excédent brut d'exploitation
-          ligne('13500000', -2_000), // résultat d'exploitation
-          ligne('13600000', -300), // résultat financier
-          ligne('13700000', -1_700), // résultat des activités ordinaires
-          ligne('13800000', 900), // résultat hors activités ordinaires
-        ],
+        N: [ligne('13200000', 0), ligne('13300000', 0), ligne('13700000', -1_700), ligne('13800000', 900)],
       },
     });
     const r = await s.resultatFiscal('t1', 'N');
-    // Sommer les neuf donnerait 29 900 au lieu de 800 · un impôt trente-sept
-    // fois trop élevé, au terme d'un calcul qui a l'air parfaitement normal.
+    expect(r.sourceResultat).toBe('COMPTE_13');
     expect(r.resultatComptable).toBe(800);
   });
 

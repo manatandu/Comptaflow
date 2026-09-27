@@ -1,3 +1,4 @@
+import { COMPTES_RESULTAT_DE_L_EXERCICE } from '../etats-financiers/resultat-de-l-exercice';
 import { PREFIXES_CHIFFRE_AFFAIRES_SYSCOHADA } from './correspondance-compte-resultat-syscohada';
 /**
  * Maquettes officielles du SYSTÈME MINIMAL DE TRÉSORERIE (S.M.T) du
@@ -636,10 +637,17 @@ export const POSTES_BILAN_PASSIF_SMT_SYSCOHADA: PosteBilanSmtSyscohada[] = [
  * l'exercice EN COURS et ne remet pas en cause l'arbitrage ci-dessous.] Le
  * service prend l'une OU l'autre source, jamais les deux, et expose
  * `resultatClasses678` / `resultatCompte13` / `doubleComptageProbable`.
+ *
+ * 131 À 139, PLUS « TOUT LE 13 » (2026-09-27) · la règle est celle de tout
+ * le logiciel (`resultat-de-l-exercice.ts`). Le 130 porte le résultat de
+ * l'exercice PRÉCÉDENT en instance d'affectation : lu ici, il présentait le
+ * résultat N-1 comme résultat N, là où le Système normal l'écartait déjà
+ * (anomalie n° 7 de `correspondance-bilan-syscohada.ts`). Il reste sans
+ * poste, et un résidu à la clôture est signalé comme compte non rattaché.
  */
 export const REF_RESULTAT_SMT_SYSCOHADA = 'SP2';
 export const LIBELLE_RESULTAT_SMT_SYSCOHADA = 'Résultat exercice';
-export const COMPTES_RESULTAT_SMT_SYSCOHADA = ['13'];
+export const COMPTES_RESULTAT_SMT_SYSCOHADA: string[] = [...COMPTES_RESULTAT_DE_L_EXERCICE];
 
 export interface TotalSmtSyscohada {
   ref: string;

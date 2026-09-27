@@ -476,6 +476,18 @@ après lecture de la compétence `syscohada` (poste CJ), et les cinq appelants.
 **Test.** Une même balance (classe 6/7 soldée, 131 et 134 mouvementés) rend le
 même résultat par les états et par la fiscalité.
 
+**Fait le 2026-09-27.** La proposition de lire « tout le 13 » était fausse, et
+la relecture l'a dit avant le code · AUDCIF Titre VII, COMPTE 13 : le 130 est
+ouvert « à la réouverture des comptes de l'exercice suivant » et porte le
+résultat de l'exercice PRÉCÉDENT. Titre VIII ch. 19 § 2.4 : les 132 à 138 sont
+virés l'un dans l'autre, leur somme avec le 131 et le 139 vaut le résultat.
+Règle unique `etats-financiers/resultat-de-l-exercice.ts` · 131 à 139, jamais
+le 130. Trois lecteurs changent de chiffre : la fiscalité (rendait zéro sur une
+cascade arrêtée en chemin), le Système minimal SYSCOHADA et la consolidation
+(comptaient le 130 comme résultat de l'année ; en consolidation il rejoint les
+capitaux propres hors résultat, au cours historique). Quatre réinjections, quatre
+attrapées.
+
 ### I6 · `FORMES_PERSONNES_PHYSIQUES` écrite quatre fois
 
 `retenues/correspondance-retenues.ts:547` (exportée), `exercice/planning-cloture.ts:105`

@@ -1,3 +1,4 @@
+import { COMPTES_RESULTAT_DE_L_EXERCICE } from '../etats-financiers/resultat-de-l-exercice';
 /**
  * Tableau de correspondance officiel « poste → comptes » du BILAN SYSCOHADA
  * révisé · Système normal (AUDCIF art. 11), actif ET passif.
@@ -580,7 +581,7 @@ export const REF_TRESORERIE_PASSIF_SYSCOHADA = 'DR';
  */
 export const REF_RESULTAT_SYSCOHADA = 'CJ';
 export const LIBELLE_RESULTAT_SYSCOHADA = "Résultat net de l'exercice (bénéfice + ou perte -)";
-export const COMPTES_RESULTAT_SYSCOHADA = ['131', '132', '133', '134', '135', '136', '137', '138', '139'];
+export const COMPTES_RESULTAT_SYSCOHADA: string[] = [...COMPTES_RESULTAT_DE_L_EXERCICE];
 
 /**
  * Comptes de bilan (classes 1 à 5) du plan semé qu'AUCUN poste ne capte,

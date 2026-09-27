@@ -9,6 +9,7 @@ import {
   correspond,
   trouverExerciceN1,
 } from './etats-financiers.communs';
+import { estCompteDuResultatDeLExercice } from './resultat-de-l-exercice';
 import {
   POSTES_CHARGES,
   POSTES_HAO,
@@ -192,7 +193,7 @@ export class EtatsFinanciersService {
     );
     const resultatClasses678 = lignes678.reduce((s, l) => s - l.solde, 0);
 
-    const lignes13 = lignes.filter((l) => l.numero.startsWith('13'));
+    const lignes13 = lignes.filter((l) => estCompteDuResultatDeLExercice(l.numero));
     const resultatCompte13 = lignes13.reduce((s, l) => s - l.solde, 0);
 
     const avantCloture = Math.abs(resultatClasses678) > 0.005;
@@ -298,7 +299,7 @@ export class EtatsFinanciersService {
       }
     }
     for (const l of lignesN) {
-      if (correspond(l.numero, COMPTES_TRESORERIE_PASSIF_SI_CREDITEUR) || l.numero.startsWith('13')) {
+      if (correspond(l.numero, COMPTES_TRESORERIE_PASSIF_SI_CREDITEUR) || estCompteDuResultatDeLExercice(l.numero)) {
         comptesRattaches.add(l.compteId);
       }
     }

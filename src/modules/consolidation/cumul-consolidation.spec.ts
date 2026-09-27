@@ -246,6 +246,16 @@ describe('balances déjà clôturées', () => {
     expect(ligne(r, 'RESULTAT_DEJA_CONSTATE')).toBe(-400);
     expect(r.equilibre).toBe(0);
   });
+
+  it('le 130 (résultat N-1 en instance d’affectation) est des réserves, jamais du résultat de l’exercice', () => {
+    // Mêmes 600 de capitaux propres hors résultat, dont 200 encore au 130 ·
+    // le partage doit rendre exactement celui du cas précédent.
+    const Fc = ent('F', 'IG', 80, b([['24500000', 2000], ['10100000', -1000], ['11800000', -400], ['13010000', -200], ['13100000', -400]]));
+    const r = cumulerConsolidation(EX, [M, Fc], [acq('M', 'F', 80, 800, 900)], []);
+    expect(r.capitauxPropres).toMatchObject({ reservesGroupe: 1044, resultatGroupe: 812, resultatMinoritaires: 80 });
+    expect(ligne(r, 'RESULTAT_DEJA_CONSTATE')).toBe(-400);
+    expect(r.equilibre).toBe(0);
+  });
 });
 
 /**

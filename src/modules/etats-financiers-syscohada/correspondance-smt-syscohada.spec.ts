@@ -179,10 +179,11 @@ describe('correspondance SMT SYSCOHADA (AUDCIF Titre X)', () => {
     );
   });
 
-  it('SP2 (résultat) est hors POSTES_PASSIF et ne vaut que le 13 · le 13 n’est réclamé par aucun poste de passif', () => {
+  it('SP2 (résultat) est hors POSTES_PASSIF et ne vaut que 131 à 139, jamais le 130 · le 13 n’est réclamé par aucun poste de passif', () => {
     expect(REF_RESULTAT_SMT_SYSCOHADA).toBe('SP2');
     expect(trouvePosteBilanSmtSyscohada('SP2')).toBeUndefined();
-    expect(COMPTES_RESULTAT_SMT_SYSCOHADA).toEqual(['13']);
+    expect(COMPTES_RESULTAT_SMT_SYSCOHADA).toEqual(['131', '132', '133', '134', '135', '136', '137', '138', '139']);
+    expect(correspond('13010000', COMPTES_RESULTAT_SMT_SYSCOHADA)).toBe(false);
     for (const c of FEUILLES_BILAN.filter((c) => c.numero.startsWith('13'))) {
       expect(postesReclamant(c.numero)).toEqual([]);
     }
@@ -198,11 +199,14 @@ describe('correspondance SMT SYSCOHADA (AUDCIF Titre X)', () => {
     for (const { prefixe } of prefixesBilanCites()) expect(prefixe).toMatch(/^[1-5]/);
   });
 
-  it('aucun compte de bilan du semis n’est orphelin : chaque feuille des classes 1 à 5 est captée par un poste ou par le résultat', () => {
+  it('aucun compte de bilan du semis n’est orphelin, sauf le 130 : chaque feuille des classes 1 à 5 est captée par un poste ou par le résultat', () => {
     const orphelins = FEUILLES_BILAN.filter(
       (c) => postesReclamant(c.numero).length === 0 && !correspond(c.numero, COMPTES_RESULTAT_SMT_SYSCOHADA),
     ).map((c) => c.numero);
-    expect(orphelins).toEqual([]);
+    // Le 130 porte le résultat de l'exercice PRÉCÉDENT en instance
+    // d'affectation, et doit être soldé au 31 décembre (AUDCIF Titre VII,
+    // COMPTE 13) · un résidu se signale, il ne s'additionne à rien.
+    expect(orphelins.sort()).toEqual(['13010000', '13090000']);
   });
 
   it('aucun compte n’est réclamé deux fois, sauf les tiers partagés entre SA3 et SP4 par le sens de leur solde', () => {
