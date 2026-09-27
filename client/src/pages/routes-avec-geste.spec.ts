@@ -37,6 +37,13 @@ const GESTES: Array<{ route: string; controleur: string; decorateur: string; pag
     page: 'DevisPage.tsx',
     appel: "api.patch(`/commercial/devis/${id}/revocation`, { revoqueLe, motifRevocation: motifRevocation.trim() })",
   },
+  {
+    route: 'PATCH /faiblesses/faiblesses/:id/reponse-direction',
+    controleur: 'faiblesses/faiblesses.controller.ts',
+    decorateur: "@Patch('faiblesses/:faiblesseId/reponse-direction')",
+    page: 'FaiblessesPage.tsx',
+    appel: 'api.patch(`/faiblesses/faiblesses/${f.id}/reponse-direction`, {',
+  },
 ];
 
 describe('routes d’écriture et leur geste', () => {

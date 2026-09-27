@@ -175,6 +175,25 @@ export function FaiblessesPage() {
     );
   };
 
+  /**
+   * La réponse de la direction (audit de l'interface du 2026-09-27, I11) ·
+   * la route existait sans geste. Elle se range du côté de « management »
+   * (ISA 265 § A28) : le serveur refuse qu'elle soit signée par l'auteur du
+   * constat, d'où le signataire demandé.
+   */
+  const repondreDirection = (f: FaiblesseControleInterne) => {
+    const reponseDirection = window.prompt('Réponse de la direction', f.reponseDirection ?? '');
+    if (!reponseDirection?.trim()) return;
+    const signataire = window.prompt('Signée par (nom et fonction au sein de la direction)', f.reponseDirectionPar ?? '');
+    if (!signataire?.trim()) return;
+    agir(() =>
+      api.patch(`/faiblesses/faiblesses/${f.id}/reponse-direction`, {
+        reponseDirection: reponseDirection.trim(),
+        reponseDirectionPar: signataire.trim(),
+      }),
+    );
+  };
+
   const escalader = (f: FaiblesseControleInterne) => {
     const motif = window.prompt(
       'ISA 265 § A24 · « the failure of management to remedy other deficiencies […] MAY BECOME a significant deficiency ».\n\n' +
@@ -609,6 +628,13 @@ export function FaiblessesPage() {
                             Communiquer
                           </button>
                         )}
+                        <button
+                          type="button"
+                          onClick={() => repondreDirection(f)}
+                          className="border border-border rounded-[3px] px-2 py-[2px] text-[11px]"
+                        >
+                          {f.reponseDirection ? 'Modifier la réponse de la direction' : 'Réponse de la direction'}
+                        </button>
                         {f.statut !== 'REMEDIEE' && f.statut !== 'SANS_OBJET' && (
                           <button
                             type="button"
