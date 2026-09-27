@@ -168,6 +168,22 @@ export function DevisesPage() {
     }
   };
 
+  /**
+   * Renommer ou mettre en sommeil une devise (audit de l'interface du
+   * 2026-09-27, I11) · la route existait sans geste, réservée à
+   * l'administrateur comme la création. Le code ne se change pas, la route ne
+   * le porte pas.
+   */
+  const modifierDevise = async (id: string, corps: { intitule?: string; estActive?: boolean }) => {
+    setErreur(null);
+    try {
+      await api.patch(`/devises/${id}`, corps);
+      await charger();
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Modification impossible');
+    }
+  };
+
   const champ = 'mt-1 w-full border border-border rounded-[3px] px-2.5 py-1.5 text-[11.5px] font-normal';
 
   return (
@@ -294,8 +310,32 @@ export function DevisesPage() {
             </div>
             {devises.map((d) => (
               <div key={d.id} className="px-3 py-2 border-b border-border/40">
-                <div className="text-[11.5px] font-semibold">
-                  <span className="font-mono">{d.code}</span> {d.intitule}
+                <div className="text-[11.5px] font-semibold flex items-baseline gap-2">
+                  <span>
+                    <span className="font-mono">{d.code}</span> {d.intitule}
+                    {!d.estActive && <span className="text-text-dim font-normal"> · en sommeil</span>}
+                  </span>
+                  {estAdmin && (
+                    <span className="ml-auto flex gap-2 font-normal text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nouveau = window.prompt('Intitulé de la devise', d.intitule);
+                          if (nouveau?.trim() && nouveau.trim() !== d.intitule) void modifierDevise(d.id, { intitule: nouveau.trim() });
+                        }}
+                        className="text-sel hover:underline"
+                      >
+                        Renommer
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void modifierDevise(d.id, { estActive: !d.estActive })}
+                        className="hover:underline"
+                      >
+                        {d.estActive ? 'Mettre en sommeil' : 'Réactiver'}
+                      </button>
+                    </span>
+                  )}
                 </div>
                 {d.cours.length > 0 ? (
                   <div className="text-[11.5px] text-text-dim mt-0.5 font-mono">

@@ -205,6 +205,33 @@ export function FiscalitePage() {
     }
   };
 
+  /**
+   * Modifier le montant ou le commentaire d'un retraitement (audit de
+   * l'interface du 2026-09-27, I11) · seuls l'ajout et le retrait avaient un
+   * geste. La route ne porte que ces deux champs : le code et le sens se
+   * changent en retirant la ligne et en la ressaisissant.
+   */
+  const modifierRetraitement = async (r: { id: string; montant: number; commentaire: string | null }) => {
+    const saisi = window.prompt('Montant du retraitement', String(r.montant));
+    if (saisi === null) return;
+    const montant = Number(saisi.replace(/\s/g, '').replace(',', '.'));
+    if (!Number.isFinite(montant) || montant <= 0) {
+      setErreur('Montant illisible ou nul · le sens donne la direction, le montant est toujours positif.');
+      return;
+    }
+    const commentaire = window.prompt('Commentaire', r.commentaire ?? '');
+    if (commentaire === null) return;
+    setEnvoi(true);
+    setErreur(null);
+    try {
+      setResultat(await api.patch<ResultatFiscal>(`/fiscalite/retraitements/${r.id}`, { montant, commentaire }));
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Modification impossible');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
   const supprimer = async (id: string) => {
     setEnvoi(true);
     try {
@@ -461,6 +488,16 @@ export function FiscalitePage() {
                       <td className="py-1 pr-2 text-right font-mono whitespace-nowrap">{nombre(r.montant)}</td>
                       <td className="py-1 pr-2 text-text-dim hidden sm:table-cell">{r.source ?? '·'}</td>
                       <td className="py-1 text-right">
+                        {peutEcrire && (
+                          <button
+                            type="button"
+                            disabled={envoi}
+                            onClick={() => void modifierRetraitement(r)}
+                            className="text-sel hover:underline mr-2"
+                          >
+                            Modifier
+                          </button>
+                        )}
                         {peutEcrire && (
                           <button
                             type="button"

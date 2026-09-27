@@ -443,6 +443,38 @@ export function TiersPage() {
 
   const modeleSelectionne = modeles.find((m) => m.id === modeleSelectionneId) ?? null;
 
+  /**
+   * Modifier un modèle de règlement (audit de l'interface du 2026-09-27, I11) ·
+   * la route existait sans geste. Elle porte l'intitulé, le délai, la condition
+   * d'échéance et la mise en sommeil ; les échéances fractionnées gardent leurs
+   * propres gestes. Réservé à l'administrateur, comme toute la structure.
+   */
+  const modifierModele = async (
+    m: ModeleReglement,
+    corps: { intitule?: string; delaiJours?: number; estActif?: boolean },
+  ) => {
+    setErreur(null);
+    try {
+      await api.patch(`/modeles-reglement/${m.id}`, corps);
+      await rechargerModeles();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Impossible de modifier ce modèle de règlement');
+    }
+  };
+
+  const renommerModele = (m: ModeleReglement) => {
+    const intitule = window.prompt('Intitulé du modèle', m.intitule);
+    if (intitule === null) return;
+    const delai = window.prompt('Délai (jours)', String(m.delaiJours));
+    if (delai === null) return;
+    const jours = Number(delai);
+    if (!Number.isInteger(jours) || jours < 0) {
+      setErreur('Délai illisible · un nombre entier de jours est attendu.');
+      return;
+    }
+    void modifierModele(m, { intitule: intitule.trim() || m.intitule, delaiJours: jours });
+  };
+
   const onAjouterEcheance = async (e: FormEvent) => {
     e.preventDefault();
     if (!modeleSelectionneId) return;
@@ -1050,8 +1082,25 @@ export function TiersPage() {
   
                 {modeleSelectionne && (
                   <div className="border border-border mb-3 p-3 bg-surface-alt">
-                    <div className="font-mono text-[11px] font-semibold text-text-dim mb-2">
-                      ÉCHÉANCES · {modeleSelectionne.intitule}
+                    <div className="font-mono text-[11px] font-semibold text-text-dim mb-2 flex items-baseline gap-2">
+                      <span>
+                        ÉCHÉANCES · {modeleSelectionne.intitule}
+                        {!modeleSelectionne.estActif && ' · en sommeil'}
+                      </span>
+                      {estAdmin && (
+                        <span className="ml-auto flex gap-2 font-sans font-normal">
+                          <button type="button" onClick={() => renommerModele(modeleSelectionne)} className="text-sel hover:underline">
+                            Modifier
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void modifierModele(modeleSelectionne, { estActif: !modeleSelectionne.estActif })}
+                            className="hover:underline"
+                          >
+                            {modeleSelectionne.estActif ? 'Mettre en sommeil' : 'Réactiver'}
+                          </button>
+                        </span>
+                      )}
                     </div>
                     {modeleSelectionne.echeances.length === 0 && (
                       <div className="text-[11.5px] text-text-dim mb-2">

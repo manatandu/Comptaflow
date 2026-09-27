@@ -174,6 +174,36 @@ export function ImmobilisationsPage() {
     }
   };
 
+  /**
+   * Modifier une famille (audit de l'interface du 2026-09-27, I11) · la route
+   * existait sans geste, réservée à l'administrateur comme la création. Elle
+   * ne porte que l'intitulé, la durée par défaut et la mise en sommeil : les
+   * comptes d'une famille ne se changent pas, un bien déjà porté changeant de
+   * famille par le reclassement.
+   */
+  const modifierFamille = async (f: FamilleImmobilisation, corps: { intitule?: string; dureeAmortissementAns?: number; estActif?: boolean }) => {
+    setErreur(null);
+    try {
+      await api.patch(`/immobilisations/familles/${f.id}`, corps);
+      await charger();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Impossible de modifier cette famille');
+    }
+  };
+
+  const renommerFamille = (f: FamilleImmobilisation) => {
+    const intitule = window.prompt('Intitulé de la famille', f.intitule);
+    if (intitule === null) return;
+    const duree = window.prompt("Durée d'amortissement par défaut (années)", String(f.dureeAmortissementAns));
+    if (duree === null) return;
+    const ans = Number(duree);
+    if (!Number.isFinite(ans) || ans <= 0) {
+      setErreur("Durée d'amortissement illisible ou nulle.");
+      return;
+    }
+    void modifierFamille(f, { intitule: intitule.trim() || f.intitule, dureeAmortissementAns: ans });
+  };
+
   const onCreerImmo = async (e: FormEvent) => {
     e.preventDefault();
     setErreur(null);
@@ -624,6 +654,40 @@ export function ImmobilisationsPage() {
             <button type="submit" disabled={envoi} className="bg-sel text-white text-[11.5px] font-semibold px-4 py-1.5 disabled:opacity-50">{envoi ? 'Création…' : 'Ajouter'}</button>
             <button type="button" onClick={() => setAfficherFormFamille(false)} className="text-[11.5px] font-semibold text-text-dim px-4 py-1.5">Annuler</button>
           </div>
+          {(familles ?? []).length > 0 && (
+            <table className="w-full text-[11.5px] mt-4">
+              <thead>
+                <tr>
+                  <th className="text-left">Code</th>
+                  <th className="text-left">Intitulé</th>
+                  <th className="text-left">Compte</th>
+                  <th className="text-right">Durée</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {(familles ?? []).map((f) => (
+                  <tr key={f.id} className={f.estActif ? '' : 'text-text-dim'}>
+                    <td>{f.code}</td>
+                    <td>
+                      {f.intitule}
+                      {!f.estActif && ' · en sommeil'}
+                    </td>
+                    <td>{f.compteImmobilisation?.numero ?? ''}</td>
+                    <td className="text-right">{f.dureeAmortissementAns} ans</td>
+                    <td className="text-right whitespace-nowrap">
+                      <button type="button" onClick={() => renommerFamille(f)} className="text-sel hover:underline mr-2">
+                        Modifier
+                      </button>
+                      <button type="button" onClick={() => void modifierFamille(f, { estActif: !f.estActif })} className="hover:underline">
+                        {f.estActif ? 'Mettre en sommeil' : 'Réactiver'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </form>
       )}
 

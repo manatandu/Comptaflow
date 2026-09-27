@@ -156,6 +156,41 @@ const GESTES: Array<{ route: string; controleur: string; decorateur: string; pag
     page: 'PlansAnalytiquesPage.tsx',
     appel: 'api.delete(`/analytique/sections/${section.id}`)',
   },
+  {
+    route: 'PATCH /fiscalite/retraitements/:id',
+    controleur: 'fiscalite/fiscalite.controller.ts',
+    decorateur: "@Patch('retraitements/:id')",
+    page: 'FiscalitePage.tsx',
+    appel: 'api.patch<ResultatFiscal>(`/fiscalite/retraitements/${r.id}`, { montant, commentaire })',
+  },
+  {
+    route: 'PATCH /devises/:id',
+    controleur: 'devises/devises.controller.ts',
+    decorateur: "@Patch(':id')",
+    page: 'DevisesPage.tsx',
+    appel: 'api.patch(`/devises/${id}`, corps)',
+  },
+  {
+    route: 'PATCH /ribs-banque/:id',
+    controleur: 'banques/banques.controller.ts',
+    decorateur: "@Patch('ribs-banque/:id')",
+    page: 'BanquesPage.tsx',
+    appel: 'api.patch(`/ribs-banque/${id}`, rib)',
+  },
+  {
+    route: 'PATCH /immobilisations/familles/:id',
+    controleur: 'immobilisations/immobilisation.controller.ts',
+    decorateur: "@Patch('familles/:id')",
+    page: 'ImmobilisationsPage.tsx',
+    appel: 'api.patch(`/immobilisations/familles/${f.id}`, corps)',
+  },
+  {
+    route: 'PATCH /modeles-reglement/:id',
+    controleur: 'tiers/tiers.controller.ts',
+    decorateur: "@Patch(':id')",
+    page: 'TiersPage.tsx',
+    appel: 'api.patch(`/modeles-reglement/${m.id}`, corps)',
+  },
 ];
 
 describe('routes d’écriture et leur geste', () => {

@@ -67,6 +67,9 @@ export function BanquesPage() {
   const [choisie, setChoisie] = useState<string | null>(null);
   const [fiche, setFiche] = useState<Record<string, string>>({});
   const [rib, setRib] = useState<Record<string, string>>({});
+  // RIB en cours de modification · le même formulaire sert à l'ajout et à la
+  // modification, pour qu'un champ ne soit jamais saisi de deux façons.
+  const [ribModifie, setRibModifie] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
@@ -89,6 +92,7 @@ export function BanquesPage() {
   useEffect(() => {
     setFiche(banque ? Object.fromEntries(CHAMPS_BANQUE.map(([k]) => [k, (banque[k] as string | null) ?? ''])) : {});
     setRib({});
+    setRibModifie(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [choisie, banques]);
 
@@ -118,9 +122,34 @@ export function BanquesPage() {
     void agir(() => api.patch(`/banques/${banque.id}`, fiche), 'Fiche enregistrée.');
   };
 
+  /**
+   * « Modifier » sur un RIB (audit de l'interface du 2026-09-27, I11) · seule
+   * la suppression avait un geste, si bien qu'un IBAN corrigé imposait de
+   * supprimer le RIB, et avec lui son rattachement au journal. Les règles
+   * (IBAN, journal de trésorerie hors caisse, un RIB par journal) restent au
+   * serveur, qui refuse et le dit. Une chaîne vide efface le champ, et détache
+   * le journal.
+   */
+  const ouvrirModifRib = (r: Rib) => {
+    setRibModifie(r.id);
+    setRib({
+      ...Object.fromEntries(CHAMPS_RIB.map(([k]) => [k, (r as unknown as Record<string, string | null>)[k] ?? ''])),
+      journalId: r.journal?.id ?? '',
+    });
+  };
+
   const ajouterRib = (e: FormEvent) => {
     e.preventDefault();
     if (!banque) return;
+    if (ribModifie) {
+      const id = ribModifie;
+      void agir(async () => {
+        await api.patch(`/ribs-banque/${id}`, rib);
+        setRibModifie(null);
+        setRib({});
+      }, 'RIB modifié.');
+      return;
+    }
     void agir(() => api.post(`/banques/${banque.id}/ribs`, rib), 'RIB ajouté.');
   };
 
@@ -230,6 +259,11 @@ export function BanquesPage() {
                       <td>{r.journal ? `${r.journal.code} · ${r.journal.intitule}` : ''}</td>
                       <td>
                         {estAdmin && (
+                          <button type="button" onClick={() => ouvrirModifRib(r)} className="text-sel hover:underline mr-2">
+                            Modifier
+                          </button>
+                        )}
+                        {estAdmin && (
                           <button
                             type="button"
                             onClick={() => void agir(() => api.delete(`/ribs-banque/${r.id}`), 'RIB supprimé.')}
@@ -275,8 +309,20 @@ export function BanquesPage() {
                   </select>
                 </label>
                 <button type="submit" className="bg-sel text-white px-3.5 py-1 text-[11.5px] font-semibold">
-                  Ajouter le RIB
+                  {ribModifie ? 'Enregistrer le RIB' : 'Ajouter le RIB'}
                 </button>
+                {ribModifie && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRibModifie(null);
+                      setRib({});
+                    }}
+                    className="border border-border px-3 py-1 text-[11.5px]"
+                  >
+                    Abandonner
+                  </button>
+                )}
               </form>
             )}
           </div>
