@@ -38,6 +38,10 @@ export const COLONNES_QUI_RETIENNENT: readonly string[] = [
   'LigneOrdreVirement.ecritureId',
   'Consignation.ecritureConsignationId',
   'Consignation.ecritureDenouementId',
+  // L'écart d'inventaire arbitré « à redresser », depuis que l'écriture de
+  // redressement s'y RATTACHE (audit du serveur I2) · retirée seule, elle
+  // laisserait l'écart se dire redressé sans l'écriture qui l'a fait.
+  'EcartInventaire.ecritureId',
 ];
 
 /** Colonnes dont l'écriture peut partir, avec le motif de la décision. */
@@ -50,7 +54,4 @@ export const ECRITURE_LAISSEE_PARTIR: Readonly<Record<string, string>> = {
   'Facture.ecritureId':
     "la facture est la pièce, l'écriture son enregistrement · retirer au brouillard une écriture passée depuis une facture " +
     "rend la facture « à comptabiliser », ce qui est exactement l'état qu'elle retrouve, et elle se repasse depuis la fenêtre Facturation",
-  'EcartInventaire.ecritureId':
-    "le module d'inventaire PROPOSE l'écriture de redressement sans la poster (CLAUDE.md § 6, inventaire physique) · " +
-    "l'écart arbitré reste la décision de la sous-commission, et une écriture retirée au brouillard le laisse à régulariser",
 };
