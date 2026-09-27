@@ -77,6 +77,10 @@ export function ImmobilisationsPage() {
   // Bien déjà au bilan d'ouverture (audit final F32) · sa fiche naît sans
   // écriture d'acquisition, le report à-nouveau portant déjà son 2x et son 28.
   const [iRepris, setIRepris] = useState(false);
+  // Durée propre du bien (audit final F33) · vide, celle de la famille. Une
+  // révision majeure s'amortit sur l'intervalle entre deux révisions, et
+  // l'écran n'avait aucun moyen de le dire.
+  const [iDuree, setIDuree] = useState('');
   const [iCompteContrepartie, setICompteContrepartie] = useState('');
   const [iJournalId, setIJournalId] = useState('');
 
@@ -221,6 +225,7 @@ export function ImmobilisationsPage() {
         dateMiseEnService: iDateMiseEnService,
         valeurOrigine: Number(iValeurOrigine),
         valeurResiduelle: Number(iValeurResiduelle || 0),
+        dureeAmortissementAns: iDuree ? Number(iDuree) : undefined,
         amortissementAnterieur: iRepris ? Number(iAmortissementAnterieur || 0) : 0,
         repris: iRepris || undefined,
         compteContrepartieId: iRepris ? undefined : iCompteContrepartie,
@@ -239,6 +244,7 @@ export function ImmobilisationsPage() {
       setIValeurResiduelle('0');
       setIRepris(false);
       setIAmortissementAnterieur('0');
+      setIDuree('');
       setAfficherFormImmo(false);
       await charger();
     } catch (err) {
@@ -749,6 +755,27 @@ export function ImmobilisationsPage() {
             <label className="text-[11.5px] font-semibold text-text-dim">
               Valeur résiduelle
               <input type="number" step="0.01" min={0} value={iValeurResiduelle} onChange={(e) => setIValeurResiduelle(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono" />
+            </label>
+            <label className="text-[11.5px] font-semibold text-text-dim">
+              <span className="flex items-center gap-1">
+                Durée d'amortissement (années)
+                <Aide
+                  titre="Durée propre"
+                  texte="Vide, le bien prend la durée de sa famille. Une révision majeure s'amortit sur l'intervalle qui sépare deux révisions, plus court que la durée du bien principal."
+                  source="AUDCIF Titre VIII ch. 5 § 1"
+                />
+              </span>
+              <input
+                type="number"
+                min={1}
+                value={iDuree}
+                onChange={(e) => setIDuree(e.target.value)}
+                placeholder={(() => {
+                  const f = (familles ?? []).find((x) => x.id === iFamilleId);
+                  return f ? `${f.dureeAmortissementAns} (famille)` : '';
+                })()}
+                className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono"
+              />
             </label>
             <label className="text-[11.5px] font-semibold text-text-dim flex items-center gap-1.5 self-end pb-1.5">
               <input type="checkbox" checked={iRepris} onChange={(e) => setIRepris(e.target.checked)} />

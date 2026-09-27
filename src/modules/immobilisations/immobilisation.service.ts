@@ -779,7 +779,8 @@ export class ImmobilisationService {
       dernierRenouvellement?: boolean;
       dateMiseEnService: string;
       dateAcquisition?: string;
-      dureeAmortissementAns?: number;
+      /** La durée EFFECTIVE · celle saisie, sinon celle de la famille. */
+      dureeAmortissementAns: number;
     },
     principal: { dateAcquisition: Date; dureeAmortissementAns: number },
     /** Le composant en REMPLACE un autre · voir la pièce de sécurité plus bas. */
@@ -802,10 +803,14 @@ export class ImmobilisationService {
       composant « révisions majeures » qui porterait la durée de la structure
       n'en serait pas un : ce serait un morceau de la structure, et l'entité
       aurait décomposé pour rien.
+
+      LA DURÉE CONTRÔLÉE EST CELLE QUI SERA AMORTIE (audit final F33).
+      Le contrôle ne jouait que sur une durée ENVOYÉE, et l'écran n'en
+      envoyait aucune : le composant prenait la durée de sa famille, souvent
+      celle de la structure, et le refus ne jouait jamais.
     */
     if (
       dto.typeComposant === TypeComposant.REVISION_MAJEURE &&
-      dto.dureeAmortissementAns !== undefined &&
       dto.dureeAmortissementAns >= principal.dureeAmortissementAns
     ) {
       throw new BadRequestException(
@@ -965,7 +970,7 @@ export class ImmobilisationService {
       });
       this.verifierDecomposition(principal, referentiel);
       this.verifierComposant(
-        { ...dto, dureeAmortissementAns: dto.dureeAmortissementAns },
+        { ...dto, dureeAmortissementAns: dto.dureeAmortissementAns ?? famille.dureeAmortissementAns },
         principal,
         !!interne.composantRemplaceId,
       );

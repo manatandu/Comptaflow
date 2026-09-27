@@ -260,6 +260,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** l'écran n'envoie aucune durée : le composant prend la durée de la famille et le refus du ch. 5 § 1 ne joue jamais. Une révision majeure s'amortit alors sur la durée de la structure.
 - **Correction :** contrôler la durée effective et permettre de saisir la durée propre du composant.
+- **Fait le 2026-09-27 :** le refus du ch. 5 § 1 porte sur la durée EFFECTIVE, celle saisie ou à défaut celle de la famille (`verifierComposant`, avant toute écriture) ; l'écran porte un champ « Durée d'amortissement », vide pour la durée de la famille. Tests : `revision-majeure-duree-f33.spec.ts` (quatre mutations tuées), `e2e/tests/immobilisations.e2e.ts`.
 
 **F34 · L'amortissement est plafonné à douze mois alors que l'exercice peut en durer davantage** [transv-07]
 - **Emplacements :** src/modules/immobilisations/immobilisation.service.ts:1258-1280 · amortissement-degressif.ts:149 · src/modules/exercice/exercice.service.ts:271

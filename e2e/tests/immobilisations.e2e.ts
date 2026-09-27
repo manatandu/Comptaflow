@@ -64,3 +64,54 @@ test('SYSCOHADA · un bien repris naît sans écriture et ne dote que son reliqu
 
   expect(pannes).toEqual([]);
 });
+
+test('SYSCOHADA · une révision majeure sans durée prend celle de sa famille, et le refus du ch. 5 § 1 joue', async ({ page }) => {
+  const pannes = surveiller(page);
+  const dossier = await creerDossier(page, { referentiel: 'SYSCOHADA', nom: 'Révision majeure e2e', montant: 10_000 });
+  await seConnecter(page, dossier.email);
+
+  const [exercice] = (await appelApi<Exercice[]>(page, 'GET', '/exercices')).filter((e) => e.id === dossier.exerciceId);
+  const famille = (await appelApi<Famille[]>(page, 'GET', '/immobilisations/familles')).find((f) => f.estActif);
+  if (!famille) throw new Error('Aucune famille d’immobilisations semée');
+  const comptes = await appelApi<Array<{ id: string; numero: string; typeCompte: string }>>(
+    page,
+    'GET',
+    '/comptes?typeCompte=DETAIL',
+  );
+  const banque = comptes.find((c) => c.numero.startsWith('52'));
+  const journaux = await appelApi<Array<{ id: string; code: string }>>(page, 'GET', '/journaux');
+  const od = journaux.find((j) => j.code === 'OD') ?? journaux[0];
+  const date = exercice.dateDebut.slice(0, 10);
+  const acquisition = { exerciceId: exercice.id, journalId: od.id, compteContrepartieId: banque!.id };
+
+  const principal = await appelApi<Immobilisation>(page, 'POST', '/immobilisations', {
+    ...acquisition,
+    familleId: famille.id,
+    designation: 'Machine e2e',
+    dateAcquisition: date,
+    dateMiseEnService: date,
+    valeurOrigine: 180_000_000,
+  });
+  const revision = {
+    ...acquisition,
+    familleId: famille.id,
+    designation: 'Révision majeure e2e',
+    dateAcquisition: date,
+    dateMiseEnService: date,
+    valeurOrigine: 10_000_000,
+    immobilisationPrincipaleId: principal.id,
+    typeComposant: 'REVISION_MAJEURE',
+    justificationDecomposition: 'Révision tous les deux ans',
+  };
+  // Même famille, donc même durée que la structure · refusé sans durée saisie.
+  await expect(appelApi(page, 'POST', '/immobilisations', revision)).rejects.toThrow(/400 · .*intervalle/);
+  if (famille.dureeAmortissementAns > 1) {
+    const cree = await appelApi<{ dureeAmortissementAns: number }>(page, 'POST', '/immobilisations', {
+      ...revision,
+      dureeAmortissementAns: 1,
+    });
+    expect(cree.dureeAmortissementAns).toBe(1);
+  }
+
+  expect(pannes).toEqual([]);
+});
