@@ -119,7 +119,9 @@ export class ReglementsService {
     const lignes = await this.prisma.ligneEcriture.findMany({
       where: { id: { in: toutesLignes }, ecriture: { tenantId } },
       include: {
-        compte: { select: { numero: true, intitule: true, tiersCompte: { select: { tiers: { select: { nom: true } } } } } },
+        compte: {
+          select: { numero: true, intitule: true, lettrable: true, tiersCompte: { select: { tiers: { select: { nom: true } } } } },
+        },
         ecriture: { select: { exerciceId: true } },
       },
     });
@@ -138,6 +140,15 @@ export class ReglementsService {
         }
         if (l.lettrageId) {
           throw new BadRequestException(`Une facture du compte ${l.compte.numero} est déjà lettrée · elle n'est plus due.`);
+        }
+        // LE LETTRAGE SE VÉRIFIE AVEC LE RESTE (audit final F56) · refusé
+        // après la pièce, il laissait un règlement passé et des factures
+        // encore dues, qu'un second clic payait deux fois.
+        if (!l.compte.lettrable) {
+          throw new BadRequestException(
+            `Le compte ${l.compte.numero} n'est pas déclaré lettrable · le règlement lettre ses factures. ` +
+              'Ouvrez-le au lettrage depuis le plan comptable avant de régler.',
+          );
         }
         if (l.ecriture.exerciceId !== dto.exerciceId) {
           throw new BadRequestException('Les factures réglées doivent appartenir à l\'exercice du règlement.');
@@ -184,9 +195,18 @@ export class ReglementsService {
       });
       const ligneTiers = ecriture.lignes.find((l) => l.compteId === r.compteId)!;
       const partiel = Math.round(montant * 100) < Math.round(du * 100);
-      const lettre = await this.lettrage.lettrerManuel(tenantId, r.compteId, [...r.ligneIds, ligneTiers.id], userId, {
-        autoriserPartiel: partiel,
-      });
+      // Un lettrage refusé malgré tout (une facture lettrée entre-temps par un
+      // autre clic) retire la pièce qu'il devait accompagner · jamais un
+      // règlement sans le lettrage qui dit ce qu'il a payé (audit final F56).
+      let lettre: Awaited<ReturnType<LettrageService['lettrerManuel']>>;
+      try {
+        lettre = await this.lettrage.lettrerManuel(tenantId, r.compteId, [...r.ligneIds, ligneTiers.id], userId, {
+          autoriserPartiel: partiel,
+        });
+      } catch (e) {
+        await this.ecritures.retirerCompensation(tenantId, ecriture.id);
+        throw e;
+      }
       resultats.push({ compte: compte.numero, ecritureId: ecriture.id, montant, partiel, lettre: lettre.lettre });
       aOrdonner.push({
         compteId: r.compteId,

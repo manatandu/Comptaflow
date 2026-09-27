@@ -60,10 +60,10 @@ describe('l’écriture du règlement', () => {
 
 function monter(clotures: { granularite: string; journalId: string | null; dateLimite: Date }[] = []) {
   const lignes = [
-    { id: 'f1', compteId: 'c401', debit: 0, credit: 600, lettrageId: null, compte: { numero: '40110000', intitule: 'Fournisseur A' }, ecriture: { exerciceId: 'ex', date: new Date('2026-03-01'), journalId: 'jACH', journal: { code: 'ACH' }, exercice: { statut: 'OUVERT' } } },
-    { id: 'f2', compteId: 'c401', debit: 0, credit: 400, lettrageId: null, compte: { numero: '40110000', intitule: 'Fournisseur A' }, ecriture: { exerciceId: 'ex', date: new Date('2026-03-01'), journalId: 'jACH', journal: { code: 'ACH' }, exercice: { statut: 'OUVERT' } } },
-    { id: 'k1', compteId: 'c411', debit: 500, credit: 0, lettrageId: null, compte: { numero: '41110000', intitule: 'Client K' }, ecriture: { exerciceId: 'ex', date: new Date('2026-03-01'), journalId: 'jVEN', journal: { code: 'VEN' }, exercice: { statut: 'OUVERT' } } },
-    { id: 'g1', compteId: 'c402', debit: 0, credit: 300, lettrageId: null, compte: { numero: '40120000', intitule: 'Fournisseur B' }, ecriture: { exerciceId: 'ex', date: new Date('2026-03-01'), journalId: 'jACH', journal: { code: 'ACH' }, exercice: { statut: 'OUVERT' } } },
+    { id: 'f1', compteId: 'c401', debit: 0, credit: 600, lettrageId: null, compte: { numero: '40110000', intitule: 'Fournisseur A', lettrable: true }, ecriture: { exerciceId: 'ex', date: new Date('2026-03-01'), journalId: 'jACH', journal: { code: 'ACH' }, exercice: { statut: 'OUVERT' } } },
+    { id: 'f2', compteId: 'c401', debit: 0, credit: 400, lettrageId: null, compte: { numero: '40110000', intitule: 'Fournisseur A', lettrable: true }, ecriture: { exerciceId: 'ex', date: new Date('2026-03-01'), journalId: 'jACH', journal: { code: 'ACH' }, exercice: { statut: 'OUVERT' } } },
+    { id: 'k1', compteId: 'c411', debit: 500, credit: 0, lettrageId: null, compte: { numero: '41110000', intitule: 'Client K', lettrable: true }, ecriture: { exerciceId: 'ex', date: new Date('2026-03-01'), journalId: 'jVEN', journal: { code: 'VEN' }, exercice: { statut: 'OUVERT' } } },
+    { id: 'g1', compteId: 'c402', debit: 0, credit: 300, lettrageId: null, compte: { numero: '40120000', intitule: 'Fournisseur B', lettrable: true }, ecriture: { exerciceId: 'ex', date: new Date('2026-03-01'), journalId: 'jACH', journal: { code: 'ACH' }, exercice: { statut: 'OUVERT' } } },
   ];
   const prisma = {
     journal: { findFirst: jest.fn(async () => ({ id: 'bq', code: 'BQ', type: 'TRESORERIE', compteTresorerieId: 'c521' })) },
@@ -92,13 +92,14 @@ function monter(clotures: { granularite: string; journalId: string | null; dateL
     n += 1;
     return { id: 'e' + n, lignes: dto.lignes.map((l, i) => ({ ...l, id: `p${n}-${i}` })) };
   });
+  const retirerCompensation = jest.fn(async () => undefined);
   const service = new ReglementsService(
     prisma,
-    { creer } as unknown as EcritureService,
+    { creer, retirerCompensation } as unknown as EcritureService,
     { lettrerManuel } as unknown as LettrageService,
     ordres as unknown as OrdresVirementService,
   );
-  return { service, creer, lettrerManuel, lignes, ordres, ordre };
+  return { service, creer, lettrerManuel, lignes, ordres, ordre, retirerCompensation };
 }
 
 const base = { sens: 'FOURNISSEUR' as const, exerciceId: 'ex', journalId: 'bq', date: '2026-09-25' };
@@ -119,6 +120,27 @@ describe('enregistrer', () => {
     const { service, lettrerManuel } = monter();
     await service.enregistrer('t', 'u', { ...base, reglements: [{ compteId: 'c401', ligneIds: ['f1'], montant: 250 }] });
     expect(lettrerManuel).toHaveBeenCalledWith('t', 'c401', ['f1', 'p1-0'], 'u', { autoriserPartiel: true });
+  });
+
+  // AUDIT FINAL F56 · le caractère lettrable n'était lu que par le lettrage,
+  // APRÈS la pièce · un règlement passait sans lettrage, les factures
+  // restaient dues, et un second clic payait deux fois.
+  it('refuse un compte non lettrable AVANT toute pièce', async () => {
+    const { service, creer, lignes } = monter();
+    lignes.filter((l) => l.compteId === 'c402').forEach((l) => (l.compte.lettrable = false));
+    await expect(
+      service.enregistrer('t', 'u', { ...base, reglements: [{ compteId: 'c401', ligneIds: ['f1'] }, { compteId: 'c402', ligneIds: ['g1'] }] }),
+    ).rejects.toThrow(/40120000 n'est pas déclaré lettrable/);
+    expect(creer).not.toHaveBeenCalled();
+  });
+
+  it('un lettrage refusé malgré tout retire la pièce qu’il devait accompagner', async () => {
+    const { service, lettrerManuel, retirerCompensation } = monter();
+    lettrerManuel.mockRejectedValueOnce(new Error('Une des lignes a été lettrée entre-temps'));
+    await expect(service.enregistrer('t', 'u', { ...base, reglements: [{ compteId: 'c401', ligneIds: ['f1'] }] })).rejects.toThrow(
+      /entre-temps/,
+    );
+    expect(retirerCompensation).toHaveBeenCalledWith('t', 'e1');
   });
 
   it('un seul refus arrête le lot AVANT toute écriture', async () => {

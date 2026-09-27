@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { OrigineLettrage, Prisma, StatutLettrage } from '@prisma/client';
 import { avecRetrySerialisable } from '../../common/prisma-retry.util';
@@ -88,6 +88,13 @@ function lettreVersIndex(lettre: string): number {
  * sans quoi le compte de tiers ne se justifie plus jamais. Voir
  * docs/organisation-comptable-cpcc.md § 3.
  */
+/** Une ligne du groupe a été lettrée par un autre geste entre le calcul et l'écriture. */
+function lignesPrisesEntreTemps() {
+  return new ConflictException(
+    "Une des lignes a été lettrée entre-temps par un autre utilisateur · rien n'a été lettré. Rechargez et recommencez.",
+  );
+}
+
 @Injectable()
 export class LettrageService {
   constructor(private readonly prisma: PrismaService) {}
@@ -302,10 +309,15 @@ export class LettrageService {
     params: { tenantId: string; compteId: string; ligneIds: string[]; origine: OrigineLettrage; userId: string },
     prochaineLettre?: () => string,
   ) {
+    // RELUES LIBRES, DANS LA TRANSACTION (audit final F57) · les passes
+    // automatiques calculent leurs groupes hors transaction, et un lettrage
+    // concurrent pouvait prendre une ligne entre-temps · elle changeait de
+    // groupe en silence, et le solde stocké du premier devenait faux.
     const lignes = await tx.ligneEcriture.findMany({
-      where: { id: { in: params.ligneIds } },
+      where: { id: { in: params.ligneIds }, compteId: params.compteId, lettrageId: null },
       select: { id: true, debit: true, credit: true, deviseId: true, montantDevise: true },
     });
+    if (lignes.length !== new Set(params.ligneIds).size) throw lignesPrisesEntreTemps();
     const solde = lignes.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
     const soldeNul = Math.abs(solde) <= EPSILON;
     const statut = soldeNul ? StatutLettrage.SOLDE : StatutLettrage.PARTIEL;
@@ -324,12 +336,15 @@ export class LettrageService {
         ecartChange: soldeNul ? this.ecartChangeRealise(lignes) : null,
       },
     });
-    await tx.ligneEcriture.updateMany({
-      where: { id: { in: params.ligneIds } },
+    const { count } = await tx.ligneEcriture.updateMany({
+      // Encore libres AU MOMENT D'ÉCRIRE · un lettrage qui a pris la ligne
+      // entre la lecture et l'écriture la sort du filtre, et tout est défait.
+      where: { id: { in: params.ligneIds }, lettrageId: null },
       // `lettre` n'est servie QUE si le groupe est soldé · voir le
       // commentaire de LigneEcriture.lettre dans le schéma.
       data: { lettrageId: groupe.id, lettre: soldeNul ? code : null },
     });
+    if (count !== lignes.length) throw lignesPrisesEntreTemps();
     return groupe;
   }
 

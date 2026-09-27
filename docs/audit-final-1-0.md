@@ -444,12 +444,14 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 3
 - **Constat :** `lettrerManuel` lève après `ecritures.creer`, contrairement à la règle 4 de CLAUDE.md. Une pièce passe sans lettrage, le lot s'arrête, et un second clic règle deux fois.
 - **Correction :** lire `lettrable` dans la phase de vérification, idéalement dans une transaction unique.
+- **Fait le 2026-09-27 :** le caractère lettrable se vérifie avec le reste, avant la première pièce ; un lettrage refusé malgré tout (ligne prise entre-temps) retire la pièce qu'il accompagnait (`reglements.service.ts`). Test : `reglements.spec.ts`.
 
 **F57 · Le lettrage automatique pose des groupes calculés hors transaction** [saisie-12]
 - **Emplacements :** src/modules/lettrage/lettrage.service.ts:283-310, :948
 - **Condition :** 3
 - **Constat :** `creerGroupe` réaffecte les lignes sans vérifier qu'elles sont encore libres. Un lettrage concurrent perd des lignes et son solde stocké devient faux.
 - **Correction :** relire les lignes avec `lettrageId: null` dans la transaction.
+- **Fait le 2026-09-27 :** `creerGroupe` relit les lignes libres du compte dans la transaction et n'écrit que sur des lignes encore libres ; un écart de compte refuse tout (`lettrage.service.ts`). Tests : `lettrage.service.spec.ts` (ligne prise avant la transaction, et entre lecture et écriture).
 
 **F58 · Changer la date d'un brouillard en journal mensuel garde son numéro de pièce** [saisie-13]
 - **Emplacements :** src/modules/comptabilite/ecriture.service.ts:910-925

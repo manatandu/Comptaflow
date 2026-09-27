@@ -266,6 +266,32 @@ describe('Lettrage automatique', () => {
     expect(r.parPiece).toBe(0);
   });
 
+  // AUDIT FINAL F57 · les groupes sont calculés HORS transaction, et
+  // `creerGroupe` réaffectait les lignes sans vérifier qu'elles étaient
+  // encore libres · un lettrage concurrent perdait des lignes, et son solde
+  // stocké devenait faux.
+  it('refuse, sans rien lettrer, une ligne prise par un autre lettrage entre le calcul et la transaction', async () => {
+    const { service: s, lignes, groupes, prisma } = service([ligne('a', 750, 0), ligne('b', 0, 750)]);
+    const transaction = prisma.$transaction;
+    prisma.$transaction = (<R>(fn: (tx: unknown) => Promise<R>) => {
+      lignes[1].lettrageId = 'autre';
+      return transaction(fn);
+    }) as typeof prisma.$transaction;
+    await expect(s.lettrageAutomatique('t1', 'c1', 'u1')).rejects.toThrow(/lettrée entre-temps/);
+    expect(groupes).toHaveLength(0);
+    expect(lignes[0].lettrageId).toBeNull();
+  });
+
+  it('refuse une ligne prise entre la lecture et l’écriture du groupe', async () => {
+    const { service: s, lignes, prisma } = service([ligne('a', 750, 0), ligne('b', 0, 750)]);
+    const creer = prisma.lettrage.create.getMockImplementation()!;
+    prisma.lettrage.create.mockImplementation((args: unknown) => {
+      lignes[1].lettrageId = 'autre';
+      return creer(args);
+    });
+    await expect(s.lettrageAutomatique('t1', 'c1', 'u1')).rejects.toThrow(/lettrée entre-temps/);
+  });
+
   it('retombe sur l’appariement par montant quand aucune référence ne concorde', async () => {
     const { service: s, groupes } = service([ligne('a', 750, 0), ligne('b', 0, 750)]);
     const r = await s.lettrageAutomatique('t1', 'c1', 'u1');
