@@ -2952,6 +2952,12 @@ Une facture à établir rangée au 4181 dans une association devient une créanc
 cotisations sur des adhérents qui ne doivent rien : le compte existe, la balance
 boucle, et la Note annexe le publie.
 
+LA REPRISE EST L'INVERSE EXACT DE LA CONSTATATION, lue sur la même règle
+(`debiteLeCompteDeGestion`) · le produit à recevoir se reprenait dans le sens
+de sa constatation et doublait la créance (audit final F66). Et l'écran sert
+les cinq types, la nature du tiers et une simulation sans prorata pour le
+rattachement (F67) · jusque-là, le serveur seul les connaissait.
+
 **Balance âgée · l'antériorité ne veut pas dire la même chose partout.** Le
 tableau était borné au crédit commercial (40 et 41), où une ligne ancienne est
 un délai de règlement dépassé : le crédit est accordé pour un temps, et l'état

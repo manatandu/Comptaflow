@@ -42,7 +42,16 @@ const MODELES_DETENTEURS = [
   'ecartInventaire',
 ];
 function detenteurs(tenus: Record<string, number> = {}): Faux {
-  return Object.fromEntries(MODELES_DETENTEURS.map((m) => [m, { count: jest.fn().mockResolvedValue(tenus[m] ?? 0) }]));
+  return {
+    ...Object.fromEntries(MODELES_DETENTEURS.map((m) => [m, { count: jest.fn().mockResolvedValue(tenus[m] ?? 0) }])),
+    // La facture laisse partir son écriture mais ne la laisse pas se
+    // retoucher (audit final F65) · la doublure honore dossier et écriture.
+    facture: {
+      findFirst: jest.fn().mockImplementation(({ where }: { where: { tenantId: string; ecritureId: string } }) =>
+        Promise.resolve(tenus.facture && where.tenantId === 't1' && where.ecritureId === 'e1' ? { numeroSerie: 'FV-0007' } : null),
+      ),
+    },
+  };
 }
 
 const exerciceOuvert = { statut: 'OUVERT', dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') };
@@ -198,6 +207,21 @@ describe('modifier · les mêmes contrôles et les mêmes champs que creer', () 
     ).rejects.toThrow(/taux de TVA sont introuvables/);
     expect(tauxTva.findMany).toHaveBeenCalledWith({ where: { id: { in: ['tva-voisin'] }, tenantId: 't1' } });
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it("refuse de modifier l'écriture d'une facture, et dit le chemin (audit final F65)", async () => {
+    const { svc, update, deleteMany } = monde({ facture: 1 });
+    await expect(svc.modifier('t1', 'e1', { lignes: LIGNES })).rejects.toThrow(
+      /enregistre la facture FV-0007 · elle ne se modifie pas d'ici.*Supprimez-la au brouillard/,
+    );
+    expect(deleteMany).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("une écriture sans facture se modifie", async () => {
+    const { svc, update } = monde();
+    await svc.modifier('t1', 'e1', { libelle: 'autre' });
+    expect(update).toHaveBeenCalled();
   });
 
   it("refuse de modifier l'écriture qu'un module tient, et nomme le module", async () => {

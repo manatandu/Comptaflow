@@ -507,6 +507,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 5
 - **Constat :** la facture est rangée dans ECRITURE_LAISSEE_PARTIR. L'écriture se modifie donc pendant que la facture la désigne toujours.
 - **Correction :** compter la facture comme détentrice pour `modifier`, ou corriger le commentaire.
+- **Fait le 2026-09-27 :** `modifier` refuse l'écriture qu'une facture désigne, en nommant la facture et le chemin (suppression au brouillard, la facture redevient à comptabiliser) ; la suppression reste permise. Tests : `brouillard.spec.ts`.
 
 ### Exercice, clôture, contrôles et révision
 
@@ -515,12 +516,14 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** le sens de la reprise est choisi par `estCharge`. Pour PRODUIT_A_RECEVOIR, la reprise reproduit l'écriture de constatation (D 418 / C 7x), et aucun test ne porte sur `reprendre`.
 - **Correction :** prendre l'inverse exact de `debiteLeCompteDeGestion`, et tester chaque type.
+- **Fait le 2026-09-27 :** la reprise lit la même règle que la constatation et en prend l'inverse. Test : `regularisation.spec.ts`, constatation plus reprise soldant chaque compte pour les cinq types ; vérifié sur base réelle (produit à recevoir).
 
 **F67 · Charges à payer et produits à recevoir : servis par le serveur, absents de l'écran** [rev-03]
 - **Emplacements :** client/src/pages/RegularisationPage.tsx:49-73, :160-168 · client/src/lib/types.ts:1703 · regularisation.service.ts:344-360
 - **Condition :** 4
 - **Constat :** l'écran ne connaît que trois types et n'envoie jamais `natureTiers`, et `simuler` applique le prorata au rattachement. Le rattachement, décrit comme livré, ne s'accomplit pas.
 - **Correction :** exposer les deux types et la nature du tiers, faire rendre le montant entier par `simuler`, après correction de F66.
+- **Fait le 2026-09-27 :** l'écran porte les cinq types et la nature du tiers que la table du serveur ouvre (`client/src/lib/regularisation-types.ts`) ; `simuler` rend le montant entier et le compte de tiers d'un rattachement ; la reprise affiche la date rendue par le serveur. Tests : `regularisation.spec.ts`, `regularisation-types.spec.ts`.
 
 **F68 · Comptes dormants : solde multiplié par les reports, et comptes dormants à solde jamais signalés** [rev-06]
 - **Emplacements :** src/modules/controles/controles.service.ts:535-590

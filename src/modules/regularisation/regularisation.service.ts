@@ -376,7 +376,16 @@ export class RegularisationService {
     return Math.round(montantTotal * 100) / 100;
   }
 
-  /** Calcule le prorata sans rien enregistrer · alimente l'aperçu de l'écran. */
+  /**
+   * Calcule sans rien enregistrer · alimente l'aperçu de l'écran.
+   *
+   * LE MÊME CALCUL QUE `creer` (audit final F67) · la simulation appliquait le
+   * prorata à tout type, rattachement compris. Une charge à payer du dernier
+   * trimestre s'y affichait « différée » pour zéro, le bouton restait
+   * désactivé, et le rattachement décrit comme livré ne s'accomplissait pas.
+   * Le rattachement rend le montant ENTIER, avec le compte de tiers que le
+   * serveur retiendra.
+   */
   async simuler(tenantId: string, dto: CreerRegularisationDto) {
     const exercice = await this.prisma.exercice.findFirst({ where: { id: dto.exerciceId, tenantId } });
     if (!exercice) throw new BadRequestException('Exercice introuvable pour ce dossier');
@@ -385,17 +394,40 @@ export class RegularisationService {
     if (periodeFin < periodeDebut) {
       throw new BadRequestException('La fin de la période précède son début.');
     }
-    const montantDiffere =
-      dto.montantDiffere ??
-      RegularisationService.prorataDiffere(dto.montantTotal, periodeDebut, periodeFin, exercice.dateFin);
-    return {
+    const commun = {
       montantTotal: dto.montantTotal,
-      montantDiffere,
-      montantExercice: Math.round((dto.montantTotal - montantDiffere) * 100) / 100,
       finExercice: exercice.dateFin.toISOString().slice(0, 10),
       joursTotal: Math.round((periodeFin.getTime() - periodeDebut.getTime()) / JOUR) + 1,
       joursApresCloture: Math.max(0, Math.round((periodeFin.getTime() - exercice.dateFin.getTime()) / JOUR)),
     };
+    if (RegularisationService.estRattachement(dto.type)) {
+      const compte = await this.trouverCompteRattachement(tenantId, dto);
+      const montant = RegularisationService.montantRattache(dto.type, dto.montantTotal);
+      return {
+        ...commun,
+        rattachement: true,
+        // Le montant passé est la charge entière · rien ne déborde, rien
+        // n'est différé au sens du 476/477.
+        montantDiffere: montant,
+        montantExercice: montant,
+        compteRattachement: { numero: compte.numero, intitule: compte.intitule },
+      };
+    }
+    const montantDiffere =
+      dto.montantDiffere ??
+      RegularisationService.prorataDiffere(dto.montantTotal, periodeDebut, periodeFin, exercice.dateFin);
+    return {
+      ...commun,
+      rattachement: false,
+      montantDiffere,
+      montantExercice: Math.round((dto.montantTotal - montantDiffere) * 100) / 100,
+      compteRattachement: null,
+    };
+  }
+
+  /** Charge à payer ou produit à recevoir · la règle que `simuler` et `creer` lisent. */
+  static estRattachement(type: TypeRegularisation): boolean {
+    return type === TypeRegularisation.CHARGE_A_PAYER || type === TypeRegularisation.PRODUIT_A_RECEVOIR;
   }
 
   /**
@@ -414,8 +446,7 @@ export class RegularisationService {
     });
     if (!compteChargeProduit) throw new BadRequestException('Compte de charge ou de produit introuvable');
 
-    const estRattachement =
-      dto.type === TypeRegularisation.CHARGE_A_PAYER || dto.type === TypeRegularisation.PRODUIT_A_RECEVOIR;
+    const estRattachement = RegularisationService.estRattachement(dto.type);
     const estCharge =
       dto.type === TypeRegularisation.CHARGE_CONSTATEE_AVANCE || dto.type === TypeRegularisation.CHARGE_A_PAYER;
     const classeAttendue = estCharge ? ClasseCompte.CLASSE_6 : ClasseCompte.CLASSE_7;
@@ -576,19 +607,24 @@ export class RegularisationService {
     }
 
     const journal = await this.journalAccueil(tenantId);
-    const estCharge = regul.type === TypeRegularisation.CHARGE_CONSTATEE_AVANCE;
     const montant = Number(regul.montantDiffere);
 
-    // Sens inverse de la constatation : la charge ou le produit revient sur
-    // l'exercice qu'il concerne.
-    const lignes = estCharge
+    // L'INVERSE EXACT DE LA CONSTATATION, lu sur la MÊME règle
+    // (`debiteLeCompteDeGestion`), jamais sur un test à part (audit final
+    // F66). Le sens se choisissait sur « est-ce une charge constatée
+    // d'avance » · le produit à recevoir tombait dans l'autre branche, et sa
+    // reprise REPRODUISAIT la constatation (D 418 / C 7x) au lieu de
+    // l'extourner. La créance doublait, le produit était compté deux fois sur
+    // deux exercices, et chaque écriture s'équilibrait.
+    const constatationDebiteLaGestion = RegularisationService.debiteLeCompteDeGestion(regul.type);
+    const lignes = constatationDebiteLaGestion
       ? [
-          { compteId: regul.compteChargeProduitId, debit: montant, libelle: regul.libelle },
-          { compteId: regul.compteDifferId, credit: montant, libelle: regul.libelle },
-        ]
-      : [
           { compteId: regul.compteDifferId, debit: montant, libelle: regul.libelle },
           { compteId: regul.compteChargeProduitId, credit: montant, libelle: regul.libelle },
+        ]
+      : [
+          { compteId: regul.compteChargeProduitId, debit: montant, libelle: regul.libelle },
+          { compteId: regul.compteDifferId, credit: montant, libelle: regul.libelle },
         ];
 
     const ecriture = await this.ecritureService.creer(tenantId, createdBy, {

@@ -325,3 +325,145 @@ describe('Rattachement · le sens s’inverse entre l’étalement et le rattach
     for (const type of tous) expect(typeof RegularisationService.debiteLeCompteDeGestion(type)).toBe('boolean');
   });
 });
+
+/**
+ * AUDIT FINAL F66 · la reprise est l'INVERSE EXACT de la constatation, pour
+ * les cinq types. Le produit à recevoir se reprenait dans le même sens que sa
+ * constatation (D 418 / C 7x) · la créance doublait, et rien ne se
+ * déséquilibrait. Le test passe les DEUX écritures par le service et exige,
+ * compte par compte, un solde nul · aucune autre forme ne le garantit.
+ */
+describe('Reprise · l’inverse exact de la constatation, pour chaque type', () => {
+  const CLASSE_GESTION: Record<TypeRegularisation, 'CLASSE_6' | 'CLASSE_7'> = {
+    CHARGE_CONSTATEE_AVANCE: 'CLASSE_6',
+    CHARGE_A_PAYER: 'CLASSE_6',
+    PRODUIT_CONSTATE_AVANCE: 'CLASSE_7',
+    PRODUIT_A_RECEVOIR: 'CLASSE_7',
+    SUBVENTION_PLURIANNUELLE: 'CLASSE_7',
+  };
+  const RATTACHEMENT = new Set<TypeRegularisation>([TypeRegularisation.CHARGE_A_PAYER, TypeRegularisation.PRODUIT_A_RECEVOIR]);
+
+  function monde(type: TypeRegularisation) {
+    const exercices: Record<string, unknown> = {
+      n: { id: 'n', statut: 'OUVERT', dateDebut: d('2026-01-01'), dateFin: d('2026-12-31') },
+      n1: { id: 'n1', statut: 'OUVERT', dateDebut: d('2027-01-01'), dateFin: d('2027-12-31') },
+    };
+    let enregistree: Record<string, unknown> | null = null;
+    const ecritures: Array<{ lignes: Array<{ compteId: string; debit?: number; credit?: number }> }> = [];
+    const prisma = {
+      exercice: { findFirst: jest.fn(({ where }: { where: { id: string } }) => Promise.resolve(exercices[where.id] ?? null)) },
+      compte: {
+        findFirst: jest.fn(({ where }: { where: { id?: string; numero?: unknown } }) =>
+          Promise.resolve(
+            where.id === 'gestion'
+              ? { id: 'gestion', numero: CLASSE_GESTION[type] === 'CLASSE_6' ? '60500000' : '70100000', classe: CLASSE_GESTION[type] }
+              : { id: 'contrepartie', numero: '47600000', classe: 'CLASSE_4' },
+          ),
+        ),
+      },
+      tenant: {
+        findFirst: jest.fn().mockResolvedValue({ referentiel: 'SYSCOHADA' }),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel: 'SYSCOHADA' }),
+      },
+      journal: { findMany: jest.fn().mockResolvedValue([{ id: 'od', code: 'OD', type: 'GENERAL' }]) },
+      regularisation: {
+        create: jest.fn(({ data }: { data: Record<string, unknown> }) => {
+          enregistree = { id: 'r1', ecritureRepriseId: null, ...data };
+          return Promise.resolve(enregistree);
+        }),
+        findFirst: jest.fn(() => Promise.resolve(enregistree)),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findFirstOrThrow: jest.fn().mockResolvedValue({}),
+      },
+    };
+    const ecritureService = {
+      creer: jest.fn((_t: string, _u: string, dto: { lignes: Array<{ compteId: string; debit?: number; credit?: number }> }) => {
+        ecritures.push(dto);
+        return Promise.resolve({ id: `e${ecritures.length}` });
+      }),
+    };
+    return { svc: new RegularisationService(prisma as never, ecritureService as never), ecritures };
+  }
+
+  it.each(Object.values(TypeRegularisation))('%s · constatation plus reprise soldent chaque compte', async (type) => {
+    const { svc, ecritures } = monde(type);
+    await svc.creer('t1', 'u1', {
+      exerciceId: 'n',
+      type,
+      libelle: 'Loyer',
+      compteChargeProduitId: 'gestion',
+      montantTotal: 1_200,
+      periodeDebut: RATTACHEMENT.has(type) ? '2026-10-01' : '2026-07-01',
+      periodeFin: RATTACHEMENT.has(type) ? '2026-12-31' : '2027-06-30',
+      ...(RATTACHEMENT.has(type) ? { natureTiers: type === TypeRegularisation.CHARGE_A_PAYER ? 'FOURNISSEURS' : 'CLIENTS' } : {}),
+    } as never);
+    await svc.reprendre('t1', 'u1', 'r1', 'n1');
+    expect(ecritures).toHaveLength(2);
+    const solde: Record<string, number> = {};
+    for (const e of ecritures) for (const l of e.lignes) solde[l.compteId] = (solde[l.compteId] ?? 0) + (l.debit ?? 0) - (l.credit ?? 0);
+    // Un montant non nul à la constatation, sinon un solde nul ne prouverait rien.
+    expect(ecritures[0].lignes.some((l) => (l.debit ?? 0) > 0)).toBe(true);
+    expect(solde).toEqual({ gestion: 0, contrepartie: 0 });
+  });
+});
+
+/**
+ * AUDIT FINAL F67 · la simulation appliquait le prorata au rattachement ·
+ * une charge à payer du dernier trimestre s'y affichait différée pour zéro.
+ */
+describe('Simulation · le rattachement rend le montant entier et son compte', () => {
+  function service() {
+    const prisma = {
+      exercice: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'n', dateDebut: d('2026-01-01'), dateFin: d('2026-12-31') }),
+      },
+      tenant: { findFirst: jest.fn().mockResolvedValue({ referentiel: 'SYSCOHADA' }) },
+      compte: {
+        findFirst: jest.fn(({ where }: { where: { tenantId: string; numero: { startsWith: string } } }) =>
+          Promise.resolve(
+            where.tenantId === 't1' && where.numero.startsWith === '4081'
+              ? { id: 'c408', numero: '40810000', intitule: 'Fournisseurs, factures non parvenues' }
+              : null,
+          ),
+        ),
+      },
+    };
+    return new RegularisationService(prisma as never, {} as never);
+  }
+  const base = { exerciceId: 'n', libelle: 'Honoraires', compteChargeProduitId: 'c6', montantTotal: 900 };
+
+  it('une charge à payer du dernier trimestre · 900 rattachés, sur le 4081', async () => {
+    const r = await service().simuler('t1', {
+      ...base,
+      type: TypeRegularisation.CHARGE_A_PAYER,
+      periodeDebut: '2026-10-01',
+      periodeFin: '2026-12-31',
+      natureTiers: 'FOURNISSEURS',
+    } as never);
+    expect(r).toMatchObject({
+      rattachement: true,
+      montantDiffere: 900,
+      montantExercice: 900,
+      compteRattachement: { numero: '40810000' },
+    });
+  });
+
+  it('sans nature du tiers, la simulation le demande comme la création', async () => {
+    await expect(
+      service().simuler('t1', { ...base, type: TypeRegularisation.CHARGE_A_PAYER, periodeDebut: '2026-10-01', periodeFin: '2026-12-31' } as never),
+    ).rejects.toThrow(/nature du tiers est obligatoire/);
+  });
+
+  it('une charge constatée d’avance garde son prorata', async () => {
+    const r = await service().simuler('t1', {
+      ...base,
+      type: TypeRegularisation.CHARGE_CONSTATEE_AVANCE,
+      periodeDebut: '2026-07-01',
+      periodeFin: '2027-06-30',
+    } as never);
+    expect(r.rattachement).toBe(false);
+    expect(r.montantDiffere).toBeGreaterThan(0);
+    expect(r.montantDiffere).toBeLessThan(900);
+    expect(r.compteRattachement).toBeNull();
+  });
+});

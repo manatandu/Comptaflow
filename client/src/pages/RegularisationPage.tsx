@@ -13,6 +13,13 @@ import type {
   SimulationRegularisation,
   TypeRegularisation,
 } from '../lib/types';
+import {
+  LIBELLE_NATURE_TIERS,
+  estRattachement,
+  naturesTiersProposees,
+  porteUneCharge,
+  type NatureTiers,
+} from '../lib/regularisation-types';
 
 /**
  * RÉGULARISATIONS ET ABONNEMENTS · Traitement → Écritures de régularisation
@@ -46,7 +53,7 @@ import type {
  * référentiel à l'autre. Le mécanisme, lui, est commun · seuls les cas
  * concrets qui l'illustrent ne se rencontrent pas dans les deux mondes.
  */
-const TYPES: { valeur: TypeRegularisation; titre: string; aide: string; aideSyscohada?: string }[] = [
+const TYPES: { valeur: TypeRegularisation; titre: string; aide: string; aideSyscohada?: string; source?: string }[] = [
   {
     valeur: 'CHARGE_CONSTATEE_AVANCE',
     titre: "Charge constatée d'avance (476)",
@@ -69,6 +76,21 @@ const TYPES: { valeur: TypeRegularisation; titre: string; aide: string; aideSysc
     // traite nommément est propre au SYCEBNL, et elle est citée plus bas, où
     // le référentiel du dossier est connu.
     aide: "Une convention accordée pour toute la durée d'un projet à cheval sur plusieurs exercices.",
+  },
+  // LE RATTACHEMENT (audit final F67) · servi par le serveur, absent de
+  // l'écran. Rien ne se proratise : le service est fait, seule la pièce
+  // manque, et le montant entier appartient à cet exercice.
+  {
+    valeur: 'CHARGE_A_PAYER',
+    titre: 'Charge à payer (facture non parvenue)',
+    aide: "Un service reçu sur cet exercice dont la facture n'est pas encore parvenue. La charge entière est rattachée à cet exercice, sur le compte du tiers, et contre-passée à l'ouverture du suivant.",
+    source: 'Fiche du compte 40, les deux plans',
+  },
+  {
+    valeur: 'PRODUIT_A_RECEVOIR',
+    titre: 'Produit à recevoir (facture à établir)',
+    aide: "Un produit acquis sur cet exercice dont la facture n'est pas encore établie. Le produit entier est rattaché à cet exercice, sur le compte du tiers, et contre-passé à l'ouverture du suivant.",
+    source: 'Fiche du compte 41, les deux plans',
   },
 ];
 
@@ -102,6 +124,7 @@ export function RegularisationPage() {
   const [type, setType] = useState<TypeRegularisation>('SUBVENTION_PLURIANNUELLE');
   const [libelle, setLibelle] = useState('');
   const [compteId, setCompteId] = useState('');
+  const [natureTiers, setNatureTiers] = useState<NatureTiers | ''>('');
   const [montantTotal, setMontantTotal] = useState('');
   const [periodeDebut, setPeriodeDebut] = useState('');
   const [periodeFin, setPeriodeFin] = useState('');
@@ -166,6 +189,7 @@ export function RegularisationPage() {
     montantTotal: Number(montantTotal || 0),
     periodeDebut,
     periodeFin,
+    ...(estRattachement(type) && natureTiers ? { natureTiers } : {}),
   });
 
   const simuler = async () => {
@@ -201,12 +225,10 @@ export function RegularisationPage() {
   const reprendre = async (id: string, exerciceCibleId: string) => {
     setErreur(null);
     try {
-      await api.post(`/regularisations/${id}/reprise`, { exerciceCibleId });
-      setInfo(
-        utilisateur?.tenant.referentiel === 'SYSCOHADA'
-          ? "Reprise passée à l'ouverture de l'exercice concerné."
-          : "Reprise passée à la clôture de l'exercice concerné.",
-      );
+      // La date vient du serveur · elle dépend du référentiel ET du type (un
+      // rattachement se contre-passe à l'ouverture des deux côtés).
+      const r = await api.post<Regularisation>(`/regularisations/${id}/reprise`, { exerciceCibleId });
+      setInfo(r.ecritureReprise ? `Reprise passée le ${jour(r.ecritureReprise.date)}.` : 'Reprise passée.');
       await chargerRegularisations();
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Reprise impossible');
@@ -356,7 +378,9 @@ export function RegularisationPage() {
                         className="mt-0.5"
                         checked={type === t.valeur}
                         onChange={() => {
+                          if (porteUneCharge(t.valeur) !== porteUneCharge(type)) setCompteId('');
                           setType(t.valeur);
+                          setNatureTiers('');
                           setSimulation(null);
                         }}
                       />
@@ -365,11 +389,12 @@ export function RegularisationPage() {
                         titre={t.titre}
                         texte={estSycebnl ? t.aide : (t.aideSyscohada ?? t.aide)}
                         source={
-                          estSycebnl
+                          t.source ??
+                          (estSycebnl
                             ? t.valeur === 'SUBVENTION_PLURIANNUELLE'
                               ? 'SYCEBNL, Partie 3 ch. 6, section 1'
                               : 'SYCEBNL, postulat de spécialisation des exercices'
-                            : 'AUDCIF art. 59'
+                            : 'AUDCIF art. 59')
                         }
                       />
                     </label>
@@ -382,13 +407,11 @@ export function RegularisationPage() {
                 </label>
 
                 <label className="text-[11.5px] font-semibold text-text-dim">
-                  Compte de {type === 'CHARGE_CONSTATEE_AVANCE' ? 'charge (classe 6)' : 'produit (classe 7)'}
+                  Compte de {porteUneCharge(type) ? 'charge (classe 6)' : 'produit (classe 7)'}
                   <select required value={compteId} onChange={(e) => setCompteId(e.target.value)} className={champ}>
                     <option value="">Choisir…</option>
                     {comptes
-                      .filter((c) =>
-                        type === 'CHARGE_CONSTATEE_AVANCE' ? c.numero.startsWith('6') : c.numero.startsWith('7'),
-                      )
+                      .filter((c) => (porteUneCharge(type) ? c.numero.startsWith('6') : c.numero.startsWith('7')))
                       .map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.numero} · {c.intitule}
@@ -397,8 +420,30 @@ export function RegularisationPage() {
                   </select>
                 </label>
 
+                {estRattachement(type) && (
+                  <label className="text-[11.5px] font-semibold text-text-dim">
+                    Nature du tiers
+                    <select
+                      required
+                      value={natureTiers}
+                      onChange={(e) => {
+                        setNatureTiers(e.target.value as NatureTiers);
+                        setSimulation(null);
+                      }}
+                      className={champ}
+                    >
+                      <option value="">Choisir…</option>
+                      {naturesTiersProposees(type).map((n) => (
+                        <option key={n} value={n}>
+                          {LIBELLE_NATURE_TIERS[n]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+
                 <label className="text-[11.5px] font-semibold text-text-dim">
-                  Montant total comptabilisé
+                  {estRattachement(type) ? 'Montant de la charge ou du produit' : 'Montant total comptabilisé'}
                   <input
                     required
                     value={montantTotal}
@@ -444,10 +489,23 @@ export function RegularisationPage() {
                   onClick={simuler}
                   className="border border-border rounded-[3px] py-1.5 text-[11.5px] font-semibold hover:bg-chrome-alt"
                 >
-                  Calculer le prorata
+                  {estRattachement(type) ? 'Calculer' : 'Calculer le prorata'}
                 </button>
 
-                {simulation && (
+                {simulation?.rattachement && (
+                  <div className="border border-sel/30 bg-sel-soft rounded-[3px] p-2.5 text-[11.5px]">
+                    <div className="flex justify-between">
+                      <span>Rattaché entièrement à cet exercice</span>
+                      <span className="font-mono font-bold">{montant(simulation.montantExercice)}</span>
+                    </div>
+                    {simulation.compteRattachement && (
+                      <div className="text-[11px] text-text-dim mt-1">
+                        Compte du tiers : {simulation.compteRattachement.numero} · {simulation.compteRattachement.intitule}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {simulation && !simulation.rattachement && (
                   <div className="border border-sel/30 bg-sel-soft rounded-[3px] p-2.5 text-[11.5px]">
                     <div className="flex justify-between">
                       <span>Rattaché à cet exercice</span>
@@ -489,7 +547,7 @@ export function RegularisationPage() {
             <div className="grid grid-cols-[1fr_120px_120px_150px_150px] min-w-[750px] gap-2 px-3 py-1.5 bg-chrome-alt border-b border-border text-[11px] font-bold text-text-dim">
               <span>Libellé</span>
               <span className="text-right">TOTAL</span>
-              <span className="text-right">Différé</span>
+              <span className="text-right">Passé</span>
               <span>Période</span>
               <span className="flex items-center gap-1.5">
                 Reprise

@@ -1719,7 +1719,9 @@ export interface ControleCaisse {
 export type TypeRegularisation =
   | 'CHARGE_CONSTATEE_AVANCE'
   | 'PRODUIT_CONSTATE_AVANCE'
-  | 'SUBVENTION_PLURIANNUELLE';
+  | 'SUBVENTION_PLURIANNUELLE'
+  | 'CHARGE_A_PAYER'
+  | 'PRODUIT_A_RECEVOIR';
 
 export type PeriodiciteAbonnement = 'MENSUELLE' | 'TRIMESTRIELLE' | 'SEMESTRIELLE' | 'ANNUELLE';
 
@@ -1746,6 +1748,9 @@ export interface SimulationRegularisation {
   finExercice: string;
   joursTotal: number;
   joursApresCloture: number;
+  /** Charge à payer ou produit à recevoir · montant entier, sans prorata. */
+  rattachement: boolean;
+  compteRattachement: { numero: string; intitule: string } | null;
 }
 
 export interface EcheanceAbonnement {

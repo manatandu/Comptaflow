@@ -963,10 +963,29 @@ export class EcritureService {
    * Et UNE ÉCRITURE QU'UN MODULE TIENT NE SE MODIFIE PAS D'ICI (F2) · la
    * liquidation, la facture, le bulletin, l'affectation affirment un montant
    * que l'écriture ne porterait plus.
+   *
+   * LA FACTURE, À PART (audit final F65) · elle LAISSE PARTIR son écriture
+   * (`detenteurs-ecriture.ts` · supprimée au brouillard, la facture redevient
+   * « à comptabiliser » et se repasse), mais elle ne la laisse pas se
+   * RETOUCHER. Modifiée ici, l'écriture changeait de montants pendant que la
+   * facture la désignait toujours comme son enregistrement · la pièce disait
+   * un total, le journal un autre, et rien ne le signalait. Ce refus était
+   * écrit dans ce commentaire sans qu'une ligne l'exécute.
    */
   async modifier(tenantId: string, ecritureId: string, dto: ModifierEcritureDto) {
     const ecriture = await this.trouverEnBrouillard(tenantId, ecritureId);
     await this.verifierAucunModuleNeLaTient(tenantId, [ecritureId], 'se modifie');
+    const facture = await this.prisma.facture.findFirst({
+      where: { tenantId, ecritureId },
+      select: { numeroSerie: true },
+    });
+    if (facture) {
+      throw new BadRequestException(
+        `Cette écriture enregistre la facture ${facture.numeroSerie} · elle ne se modifie pas d'ici, la facture ` +
+          "dirait un montant et le journal un autre. Supprimez-la au brouillard : la facture redevient « à " +
+          "comptabiliser » et se repasse depuis la fenêtre Facturation.",
+      );
+    }
     const { date, sectionsParId } = await this.controlesDEntree(tenantId, {
       exerciceId: ecriture.exerciceId,
       journalId: ecriture.journalId,

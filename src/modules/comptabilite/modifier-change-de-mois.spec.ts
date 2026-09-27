@@ -43,6 +43,7 @@ function monde(numerotation: string, exercice = exerciceOuvert) {
     },
     exercice: { findFirst: jest.fn().mockResolvedValue(exercice) },
     ...Object.fromEntries(DETENTEURS.map((m) => [m, { count: jest.fn().mockResolvedValue(0) }])),
+    facture: { findFirst: jest.fn().mockResolvedValue(null) },
     $transaction: jest.fn().mockImplementation((f: (t: unknown) => unknown) => f(tx)),
   } as Faux;
   const journaux = {
