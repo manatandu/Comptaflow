@@ -42,7 +42,7 @@ export interface LigneBalancePourEtat {
  * préfixes du poste ET par aucun de ses préfixes exclus (§ convention de
  * lecture, `correspondance-bilan.ts` / `correspondance-projet-bilan.ts`).
  */
-export function correspond(numero: string, prefixes: string[], exclusions: string[] = []): boolean {
+export function correspond(numero: string, prefixes: readonly string[], exclusions: readonly string[] = []): boolean {
   return prefixes.some((p) => numero.startsWith(p)) && !exclusions.some((e) => numero.startsWith(e));
 }
 
