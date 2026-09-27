@@ -31,7 +31,7 @@ function service(prisma: Faux, exerciceService: Faux = {}) {
   );
 }
 
-// Les quinze modèles qui peuvent tenir une écriture · voir
+// Les modèles qui peuvent tenir une écriture · voir
 // `EcritureService.detenteursDe`. `modifier` les lit désormais (audit du
 // 2026-09-27, F2), et une doublure muette validerait un service qui ne les
 // lit pas.

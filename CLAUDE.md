@@ -51,10 +51,10 @@ passport-jwt, bcryptjs. Node 22.
 Racine = serveur. `client/` = interface. Un seul dépôt.
 
 ```
-src/modules/     30 modules métier (auth, comptes, ecritures, etats-financiers,
+src/modules/     modules métier (auth, comptes, ecritures, etats-financiers,
                  notes-annexes, exports, groupe, plateforme, licence…)
 src/common/      gardes, décorateurs, Prisma, journal d'audit, /health
-prisma/          schema.prisma + 60 migrations SQL écrites à la main
+prisma/          schema.prisma + migrations SQL écrites à la main
 client/src/      pages/, components/chrome/, lib/
 docs/            plan de construction, audits, guides pilote, notes de droit
 .github/workflows/  déploiement et sauvegardes
@@ -6079,7 +6079,7 @@ avant de l'écrire ; un spec (`compte-seed-syscohada.spec.ts`) le contrôle.
 - **Restitution du dossier** (`src/modules/exports/restitution/`) · une
   archive ZIP d'un CSV par table, sur son PROPRE contrôleur, sans
   `LicenceGuard` : derrière lui elle serait indisponible dans le seul cas où
-  elle sert. L'extracteur ne construit jamais son `where` · les quinze modèles
+  elle sert. L'extracteur ne construit jamais son `where` · les modèles
   portés par leur parent échappent à la garde de cloisonnement, et un filtre
   écrit à la main les rendrait pour tous les cabinets. Il le demande à
   `borneDuModele`, et le spec vérifie chaque borne avec `filtreBorne`. Le
@@ -6276,10 +6276,11 @@ par `casse-en-silence.spec.ts` :
   de création n'appelaient pas la numérotation · les deux imports et les deux
   écritures du module Groupe. Le calcul vit maintenant dans
   `journaux/numerotation-piece.ts`, appelable sans injecter le service, et le
-  spec compte les `ecriture.create(` contre les `numeroPiece,` de chaque
-  fichier.
+  spec découpe chaque `ecriture.create(` de tout `src/` et exige `numeroPiece`
+  dans SON argument (audit du serveur C10).
 - **Une écriture qu'un module tient ne se supprime pas depuis le journal.**
-  Dix tables la référencent, et sur un lien FACULTATIF Prisma pose
+  Des tables la référencent (liste dans `detenteurs-ecriture.ts`), et sur un
+  lien FACULTATIF Prisma pose
   `ON DELETE SET NULL` · le lien se dénoue sans erreur. La pire est
   l'affectation du résultat : elle resterait enregistrée sans son écriture, le
   report à nouveau n'aurait jamais bougé, et le contrôle 22 ne peut rien y

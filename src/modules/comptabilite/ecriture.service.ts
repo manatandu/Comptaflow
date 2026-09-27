@@ -932,7 +932,7 @@ export class EcritureService {
    * Supprime une écriture en brouillard. Une écriture validée ne se supprime
    * pas · et une écriture qu'un AUTRE MODULE tient ne se supprime pas non plus.
    *
-   * CE QUE RIEN NE VOYAIT. Onze tables portent un lien facultatif vers une
+   * CE QUE RIEN NE VOYAIT. Des tables portent un lien facultatif vers une
    * écriture · l'immobilisation vers son écriture de sortie, la réévaluation
    * vers ses écarts, sa provision et son extourne, la régularisation vers sa
    * constatation et sa reprise, l'échéance d'abonnement, la donation, et

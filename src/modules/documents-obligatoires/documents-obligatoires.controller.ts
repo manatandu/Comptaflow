@@ -3,8 +3,6 @@ import { Referentiel, RoleUtilisateur } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
-import { ReferentielGuard } from '../../common/guards/referentiel.guard';
-import { ReferentielsAutorises } from '../../common/decorators/referentiels.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { LivreInventaireService } from './livre-inventaire.service';
@@ -45,8 +43,13 @@ const EXERCICE_REQUIS = new ParseUUIDPipe({
  * mais parce qu'elle était montée sur les seuls articles du SYCEBNL. Chaque
  * table est désormais lue dans SON texte · voir
  * correspondance-inventaire-syscohada.ts.
+ *
+ * Aucune `ReferentielGuard` ici, et c'est voulu · aucune route n'est
+ * réservée à un référentiel, et la garde posée sans décorateur ne filtrait
+ * rien (audit du serveur C5). `referentiel-apparie.spec.ts` exige qu'elle
+ * revienne avec le premier `@ReferentielsAutorises`.
  */
-@UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard, ReferentielGuard)
+@UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
 @Controller('documents-obligatoires')
 export class DocumentsObligatoiresController {
   constructor(

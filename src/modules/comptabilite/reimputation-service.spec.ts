@@ -37,7 +37,7 @@ function ligne(id: string, statut: StatutEcriture, extra: Record<string, unknown
   };
 }
 
-// Les quinze modèles qui peuvent tenir une écriture · voir
+// Les modèles qui peuvent tenir une écriture · voir
 // `EcritureService.detenteursDe`. Une doublure muette sur ces comptages
 // validerait un service qui ne les lit pas.
 const MODELES_DETENTEURS = [

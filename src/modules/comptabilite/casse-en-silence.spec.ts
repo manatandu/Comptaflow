@@ -173,13 +173,42 @@ describe('2 · toute écriture reçoit le numéro que son journal impose', () =>
     // sans numéro, entremêlées par date avec les pièces numérotées de la
     // saisie · rien ne le signale, et c'est l'import qui reprend l'existant
     // d'un dossier.
-    const fs = require('fs') as typeof import('fs');
-    for (const f of ['src/modules/import/import.service.ts', 'src/modules/groupe/groupe.service.ts']) {
-      const source = fs.readFileSync(f, 'utf-8');
-      const creations = (source.match(/ecriture\.create\(/g) ?? []).length;
-      const numeros = (source.match(/numeroPiece,/g) ?? []).length;
-      expect(numeros).toBe(creations);
-    }
+    //
+    // La règle vaut pour TOUT `src/`, pas pour deux fichiers nommés (audit du
+    // serveur C10) · la clôture, le report à-nouveau et la saisie créent aussi
+    // des écritures. Chaque appel est découpé par équilibrage des parenthèses,
+    // et c'est SON argument qui doit porter `numeroPiece`, jamais un décompte
+    // global du fichier, qu'une lecture ailleurs suffirait à satisfaire.
+    const sansNumero: string[] = [];
+    let appels = 0;
+    const parcourir = (dossier: string) => {
+      for (const entree of readdirSync(dossier, { withFileTypes: true })) {
+        const chemin = join(dossier, entree.name);
+        if (entree.isDirectory()) parcourir(chemin);
+        else if (entree.name.endsWith('.ts') && !entree.name.endsWith('.spec.ts')) {
+          const source = readFileSync(chemin, 'utf-8');
+          for (const m of source.matchAll(/ecriture\.create\(/g)) {
+            const ouvrante = (m.index ?? 0) + m[0].length - 1;
+            let profondeur = 0;
+            let fin = ouvrante;
+            for (let i = ouvrante; i < source.length; i++) {
+              if (source[i] === '(') profondeur++;
+              else if (source[i] === ')' && --profondeur === 0) {
+                fin = i;
+                break;
+              }
+            }
+            appels++;
+            if (!source.slice(ouvrante, fin + 1).includes('numeroPiece')) {
+              sansNumero.push(`${relative(process.cwd(), chemin)}:${source.slice(0, ouvrante).split('\n').length}`);
+            }
+          }
+        }
+      }
+    };
+    parcourir(join(__dirname, '../..'));
+    expect(appels).toBeGreaterThanOrEqual(10);
+    expect(sansNumero).toEqual([]);
   });
 });
 
