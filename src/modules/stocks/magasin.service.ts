@@ -278,6 +278,20 @@ export class MagasinService {
       );
     }
 
+    // L'ÉCRITURE LIÉE EST CHERCHÉE DANS CE DOSSIER · audit du serveur du
+    // 2026-09-27, F5. Reçue du client et seulement validée comme UUID, elle
+    // pouvait désigner l'écriture d'un autre dossier : la clé étrangère
+    // servait d'oracle d'existence, et le voisin, qui ne voit pas ce
+    // détenteur, supprimait son écriture en dénouant le lien en silence.
+    if (dto.ecritureId) {
+      const ecriture = await this.prisma.ecriture.findFirst({
+        where: { id: dto.ecritureId, tenantId },
+        select: { id: true },
+      });
+      if (!ecriture) {
+        throw new BadRequestException("L'écriture indiquée n'existe pas dans ce dossier.");
+      }
+    }
     // L'ORDRE EST POSÉ PAR LE SERVEUR, JAMAIS REÇU DU CLIENT · c'est lui qui
     // départage deux mouvements du même jour, et les deux méthodes ne les
     // valorisent pas pareil selon l'ordre.
