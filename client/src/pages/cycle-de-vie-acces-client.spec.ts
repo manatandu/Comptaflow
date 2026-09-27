@@ -11,8 +11,12 @@ describe('cycle de vie des accès · côté client', () => {
     // repose une session neuve · le jeton CSRF apparié change donc lui aussi.
     // Sans ce rafraîchissement, la mutation suivante partait avec l'ancien et
     // se faisait refuser en 403, juste après un changement réussi.
-    const page = lire('pages/ChangerMotDePassePage.tsx');
-    expect(page).toContain('setCsrf(csrfToken)');
+    // L'envoi vit une fois (lib/mot-de-passe.ts), partagé par l'écran de
+    // première connexion et par « Mon compte… » · on gèle le rafraîchissement
+    // là où il est, et l'appel des deux portes.
+    expect(lire('lib/mot-de-passe.ts')).toContain('setCsrf(csrfToken)');
+    expect(lire('pages/ChangerMotDePassePage.tsx')).toContain('await changerMonMotDePasse(actuel, nouveau)');
+    expect(lire('components/ModaleMonCompte.tsx')).toContain('await changerMonMotDePasse(actuel, nouveau)');
   });
 
   it('l’administrateur peut réinitialiser et déverrouiller depuis l’écran', () => {

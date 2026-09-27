@@ -1,5 +1,6 @@
 import { FormEvent, useState } from 'react';
-import { api, ApiError, setCsrf } from '../lib/api';
+import { ApiError } from '../lib/api';
+import { changerMonMotDePasse, refusNouveauMotDePasse } from '../lib/mot-de-passe';
 import { useAuth } from '../lib/auth';
 
 /**
@@ -20,26 +21,16 @@ export function ChangerMotDePassePage() {
   const onChanger = async (e: FormEvent) => {
     e.preventDefault();
     setErreur(null);
-    if (nouveau !== confirmation) {
-      setErreur('La confirmation ne correspond pas au nouveau mot de passe.');
-      return;
-    }
-    if (nouveau === actuel) {
-      setErreur("Le nouveau mot de passe doit être différent de l'actuel.");
+    const refus = refusNouveauMotDePasse(actuel, nouveau, confirmation);
+    if (refus) {
+      setErreur(refus);
       return;
     }
     setEnvoi(true);
     try {
-      // Le serveur RÉVOQUE toutes les sessions du compte au changement (un mot
-      // de passe change souvent parce qu'il a fuité) et repose aussitôt une
-      // session neuve. Le jeton CSRF apparié change donc lui aussi · sans
-      // cette ligne, la mutation suivante partirait avec l'ancien et se
-      // ferait refuser.
-      const { csrfToken } = await api.post<{ change: boolean; csrfToken: string }>(
-        '/auth/changer-mot-de-passe',
-        { motDePasseActuel: actuel, nouveauMotDePasse: nouveau },
-      );
-      setCsrf(csrfToken);
+      // Règle et envoi partagés avec « Mon compte… » (lib/mot-de-passe.ts),
+      // jeton CSRF renouvelé compris.
+      await changerMonMotDePasse(actuel, nouveau);
       // /auth/me relu · le drapeau est tombé, ZoneProtegee laisse entrer.
       await rafraichir();
     } catch (err) {

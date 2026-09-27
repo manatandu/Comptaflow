@@ -14,6 +14,7 @@ import { Fenetre } from './Fenetre';
 import { AccueilPage } from '../../pages/AccueilPage';
 import { LimiteErreur } from './LimiteErreur';
 import { AProposModale } from './AProposModale';
+import { ModaleMonCompte } from '../ModaleMonCompte';
 import { fenetreOuverteAuRole } from '../../lib/roles-cantonnes';
 import { cheminAuMenu } from '../../lib/profil-dossier';
 import { filtrerParProfil } from './menu-groupes';
@@ -62,6 +63,7 @@ export function AppShell() {
   const location = useLocation();
   const { fenetres, cleActive, ouvrir, fermerTout, reorganiser, actualiser } = useFenetres();
   const [aProposOuvert, setAProposOuvert] = useState(false);
+  const [monCompteOuvert, setMonCompteOuvert] = useState(false);
 
   const anneeExercice = exerciceCourant ? new Date(exerciceCourant.dateDebut).getFullYear() : null;
 
@@ -201,7 +203,12 @@ export function AppShell() {
         // s'imprime est exactement ce qui est à l'écran · aucun second moteur
         // de rendu, donc aucune divergence possible entre les deux.
         { label: 'Imprimer la fenêtre…', separateurAvant: true, onClick: () => window.print() },
-        { label: 'Fermer le dossier (déconnexion)', separateurAvant: true, onClick: seDeconnecter },
+        // Les réglages de SON PROPRE compte (mot de passe, double
+        // authentification, adresse, sessions) · SANS garde de rôle, comme
+        // leurs routes. Ils ne vivaient que dans la fenêtre des utilisateurs,
+        // réservée à l'administrateur (audit de l'interface, F3).
+        { label: 'Mon compte…', separateurAvant: true, onClick: () => setMonCompteOuvert(true) },
+        { label: 'Fermer le dossier (déconnexion)', onClick: seDeconnecter },
       ],
     },
     {
@@ -595,7 +602,8 @@ export function AppShell() {
             titre: 'Fichier',
             items: [
               { label: 'Registre du personnel', onClick: () => navigate('/personnel') },
-              { label: 'Fermer le dossier (déconnexion)', separateurAvant: true, onClick: seDeconnecter },
+              { label: 'Mon compte…', separateurAvant: true, onClick: () => setMonCompteOuvert(true) },
+              { label: 'Fermer le dossier (déconnexion)', onClick: seDeconnecter },
             ],
           },
         ]
@@ -693,6 +701,7 @@ export function AppShell() {
         <StatusBar />
       </div>
       {aProposOuvert && <AProposModale onFermer={() => setAProposOuvert(false)} />}
+      {monCompteOuvert && <ModaleMonCompte onFermer={() => setMonCompteOuvert(false)} />}
     </div>
   );
 }

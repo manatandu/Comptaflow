@@ -5,8 +5,6 @@ import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
 import { ModaleFonctions } from '../components/ModaleFonctions';
 import { ModaleJournaux } from '../components/ModaleJournaux';
-import { ModaleMonAdresse } from '../components/ModaleMonAdresse';
-import { ModaleDoubleAuth } from '../components/ModaleDoubleAuth';
 import type { AvisAcces, RoleUtilisateur, Utilisateur } from '../lib/types';
 import { PortailModale } from '../components/PortailModale';
 
@@ -35,8 +33,6 @@ export function UtilisateursPage() {
   // le titulaire devra remplacer avant de travailler. Sans cette fenêtre, un
   // oubli de mot de passe se réglait par un UPDATE SQL en production.
   // Changer SA propre adresse de connexion.
-  const [adresseOuverte, setAdresseOuverte] = useState(false);
-  const [doubleAuthOuverte, setDoubleAuthOuverte] = useState(false);
   // Profil de fonctions (point 15).
   const [fonctionsCible, setFonctionsCible] = useState<Utilisateur | null>(null);
   const [journauxCible, setJournauxCible] = useState<Utilisateur | null>(null);
@@ -237,18 +233,6 @@ export function UtilisateursPage() {
               >
                 Réinitialiser
               </button>
-              {/* Dans la colonne des actions, pas dans la cellule de l'adresse ·
-                  une adresse longue, tronquée, recouvrait le bouton. */}
-              {u.id === utilisateur?.id && (
-                <button type="button" onClick={() => setAdresseOuverte(true)} className="text-[11.5px] text-sel">
-                  Changer mon adresse
-                </button>
-              )}
-              {u.id === utilisateur?.id && (
-                <button type="button" onClick={() => setDoubleAuthOuverte(true)} className="text-[11.5px] text-sel">
-                  Double authentification
-                </button>
-              )}
               {u.doubleAuthActiveDepuis && (
                 <span className="font-mono text-[10.5px] font-bold px-1.5 py-0.5 text-positive bg-positive-soft" title="Double authentification active">
                   2FA
@@ -268,17 +252,6 @@ export function UtilisateursPage() {
           </div>
         ))}
       </div>
-
-      {doubleAuthOuverte && <ModaleDoubleAuth onFermer={() => setDoubleAuthOuverte(false)} />}
-      {adresseOuverte && utilisateur && (
-        <ModaleMonAdresse
-          adresseActuelle={utilisateur.email}
-          onFermer={() => {
-            setAdresseOuverte(false);
-            void charger();
-          }}
-        />
-      )}
 
       {fonctionsCible && (
         <ModaleFonctions

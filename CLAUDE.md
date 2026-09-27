@@ -4567,7 +4567,8 @@ changement de rôle, et les deux colonnes sont ADMISES au journal d'audit.
 **Changer sa propre adresse de connexion (2026-09-25).** Demandé par Manasse
 (admin@vmgconsulting.cd devient .net) · aucun écran ne le permettait, et le
 seul chemin restait une modification à la main dans la base de production.
-`POST /auth/changer-adresse`, fenêtre Utilisateurs, ligne « (vous »). Le mot de
+`POST /auth/changer-adresse`, Fichier > Mon compte… (ouvert à tous les rôles
+depuis le 2026-09-27, audit de l'interface F3). Le mot de
 passe actuel est exigé ; l'unicité est tenue par la contrainte de la base, sans
 lecture hors cloisonnement, et une adresse prise est refusée sans dire à qui
 elle appartient ; les sessions sont fermées puis une neuve reposée. Ce n'est
