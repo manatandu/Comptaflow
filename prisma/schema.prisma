@@ -211,7 +211,7 @@ enum StatutMessage {
 enum TypeLicence {
   ABONNEMENT // coupure automatique à échéance
   PERPETUEL_SAAS // payé une fois, hébergé chez nous, sans expiration
-  PERPETUEL_ONPREMISE // payé une fois, installé chez le client (Phase 4)
+  PERPETUEL_ONPREMISE // hérité · une installation sur site tient sa licence d'un fichier signé, jamais de cette table (audit final F171)
   // L'ÉDITEUR LUI-MÊME · le dossier de VMG Consulting, propriétaire du
   // logiciel. Il n'est pas un client : il ne paie rien, n'expire jamais, et
   // NE SE COUPE JAMAIS, pas même par une suspension.
@@ -3150,8 +3150,9 @@ model NiveauRelance {
   // Nombre de jours après l'échéance à partir duquel ce niveau s'applique.
   // Négatif pour une relance préventive (ex. -7 = une semaine avant).
   joursApresEcheance Int
-  // Corps de la lettre. Les jetons {tiers}, {montant}, {date}, {entite} et
-  // {detail} sont remplacés à la génération.
+  // Corps de la lettre. Les jetons {tiers}, {montant}, {date} (le jour du
+  // courrier), {echeance} (l'échéance la plus ancienne des lignes réclamées),
+  // {entite} et {detail} sont remplacés à la génération.
   modeleTexte        String
   estActif           Boolean     @default(true)
 

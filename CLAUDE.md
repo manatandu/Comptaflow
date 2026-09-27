@@ -249,7 +249,9 @@ n'existe que sous le SYSCOHADA. Cellule et combinaison prennent le référentiel
 seul étant remplacé par les associations, audit final F153) du siège, imposé aux deux portes
 (`creerCellule`, `modifierGroupe`), et vérifié AVANT `register` quand la
 console crée une cellule (`verifierMere`, audit final F47) · refusée après, la
-mère laissait un dossier complet et inaccessible. Le canevas de trésorerie,
+mère laissait un dossier complet et inaccessible. Le système ne se change plus
+ensuite ni sur une cellule ni sur un siège qui en a (`modifierSystemeSyscohada`,
+F172). Le canevas de trésorerie,
 bâti sur les comptes du plan SYCEBNL, reste au seul SYCEBNL (filtre de route).
 
 Les **documents obligatoires** sont COMMUNS depuis le 2026-09-02, chacun lu
@@ -3539,6 +3541,17 @@ d'émission le dit, y compris quand la sélection ne portait que des exclus · u
 « Aucun courrier préparé. » tout seul se lirait comme « il n'y avait rien à
 réclamer ».
 
+**Relances · chaque état ses niveaux, ses dates et ses relances (2026-09-27,
+audit final F166 à F169).** `{date}` est le jour du COURRIER, `{echeance}`
+l'échéance la plus ancienne des lignes réclamées · l'avis préventif annonçait
+un terme au jour même où la lettre partait. Un état ne suggère que SES niveaux,
+et un compte désigné sans rien à réclamer dans cet état revient en `sansObjet`,
+jamais sauté en silence. Le retard préventif part de -Infinity, sans quoi
+toute échéance future atteignait le seuil de -7 jours. Et seules comptent les
+relances postérieures à la plus ancienne PIÈCE encore ouverte du compte (pas à
+son échéance · un avis préventif part avant elle, et serait resuggéré chaque
+jour), lues sur les seuls comptes retenus.
+
 **Une ligne lettrée l'est aussi dans un groupe PARTIEL (2026-09-27, audit
 final F50).** `lettre` n'est servie qu'au groupe soldé ; toute garde qui
 refuse de toucher une ligne lettrée passe par `estTenueParUnLettrage`
@@ -5178,7 +5191,10 @@ disent pas la même chose · `finMaintenance` borne les VERSIONS (date du paquet
 pour une perpétuelle. L'horloge reculée de plus d'un jour sous la date la plus
 tardive vue suspend la licence. (3) SUR SITE, LE FICHIER REMPLACE LA LICENCE
 PAR DOSSIER (`LicenceService.evaluerLicence`), le plafond de dossiers se vérifie
-à la création, et le dépôt refuse une émission ANTÉRIEURE à celle en place.
+à la création, le dossier de combinaison d'un groupe n'y comptant pas (audit
+final F170), et le dépôt refuse une émission ANTÉRIEURE à celle en place. En
+ligne, le type PERPETUEL_ONPREMISE ne s'attribue à aucun dossier hébergé, et le
+refus dit la voie du fichier signé (F171).
 L'état et le dépôt sont PUBLICS, aucun compte n'existant à la première
 installation · un fichier ne vaut que signé et pour ce poste. (4) LES
 SAUVEGARDES NE PASSENT PAS PAR `LicenceGuard` · une licence expirée n'empêche
@@ -5225,7 +5241,9 @@ prorata. L'annuel revient tous les douze mois. (4) UNE PÉRIODE NE SE FACTURE
 QU'UNE FOIS · unicité (abonnement, période), la pièce d'un second clic est
 retirée, et une facture d'abonnement ne se supprime pas du facturier (note de
 crédit). Les quatre tables sont HORS DOSSIER (`MODELES_HORS_DOSSIER`,
-`cabinetId` et non `tenantId`).
+`cabinetId` et non `tenantId`). Le dossier de l'éditeur se lit par
+`PlateformeService.dossierEditeurId`, hors cloisonnement (audit final F173) ·
+lu dans la session, il était introuvable depuis tout autre dossier.
 
 **La licence suit l'abonnement (2026-09-26).** Un abonnement enregistré pose
 la licence ABONNEMENT du cabinet, et c'est l'ENCAISSEMENT déclaré d'une facture
@@ -5272,7 +5290,11 @@ journal BQ. (2) LE SCÉNARIO EST JOUÉ PAR LES CHEMINS ORDINAIRES
 `EcritureService.creer`, puis `valider`), jamais écrit en base à la main, dans
 une sortie de cloisonnement déclarée. (3) LES ÉCRITURES SONT VALIDÉES, les états
 ne lisant que le livre-journal, et des factures restent OUVERTES à dessein pour
-la balance âgée et les relances. Tout y est fictif, et le nom le dit.
+la balance âgée et les relances. Tout y est fictif, et le nom le dit. (4) UNE
+VITRINE INTERROMPUE SE COMPLÈTE (audit final F174) · la validation vient en
+dernier, si bien qu'une vitrine sans écriture validée est un garnissage qui
+n'a pas abouti · « Ouvrir » la complète, le garnissage retrouvant tiers et
+écritures déjà là au lieu de les recréer.
 
 **Écriture passée depuis une facture (2026-09-26).** `facturation/ecriture-facture.ts`
 (moteur pur) et `ComptabilisationFactureService`, bouton « Passer l'écriture »

@@ -24,14 +24,19 @@ export function DemonstrationConsole() {
     setMessage(null);
     setEnvoi(true);
     try {
-      const r = await api.post<{ nom: string; email: string; garni: { tiers: number; ecritures: number } | null }>('/plateforme/dossier-demonstration', {
-        referentiel,
-        email: email.trim(),
-        motDePasse,
-      });
-      setMessage(
-        `« ${r.nom} » ouvert pour ${r.email}` + (r.garni ? ` · ${r.garni.tiers} tiers et ${r.garni.ecritures} écritures validées.` : '.'),
+      const r = await api.post<{ nom: string; email: string; repris: boolean; rappel: string; garni: { tiers: number; ecritures: number } | null }>(
+        '/plateforme/dossier-demonstration',
+        {
+          referentiel,
+          email: email.trim(),
+          motDePasse,
+        },
       );
+      const garni = r.garni ? ` · ${r.garni.tiers} tiers et ${r.garni.ecritures} écritures validées.` : '.';
+      // UNE VITRINE INTERROMPUE EST COMPLÉTÉE, PAS OUVERTE (audit final F174) ·
+      // son adresse reste la sienne, et le dire évite de chercher la vitrine
+      // sous l'adresse qu'on vient de saisir.
+      setMessage(r.repris ? `« ${r.nom} » (${r.email}) complété${garni} ${r.rappel}` : `« ${r.nom} » ouvert pour ${r.email}${garni}`);
       setMotDePasse('');
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'L’ouverture a échoué.');

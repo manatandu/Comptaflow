@@ -115,6 +115,15 @@ function PositionsRelances() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [type, exerciceCourant?.id]);
 
+  // LE NIVEAU SUIT L'ÉTAT AFFICHÉ (audit final F167) · un niveau préventif
+  // choisi sur l'écran des rappels faisait recalculer l'émission sur l'état
+  // préventif, où les comptes échus n'ont rien à réclamer.
+  const niveauxDeLEtat = niveaux.filter((n) => n.type === type && n.estActif);
+  useEffect(() => {
+    setNiveauId((id) => (niveauxDeLEtat.some((n) => n.id === id) ? id : niveauxDeLEtat[0]?.id ?? ''));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [type, niveaux]);
+
   const basculer = (id: string) =>
     setSelection((prev) => {
       const s = new Set(prev);
@@ -188,7 +197,7 @@ function PositionsRelances() {
                 onChange={(e) => setNiveauId(e.target.value)}
                 className="border border-border rounded-[3px] bg-surface px-2 py-1 text-[11.5px] min-w-[200px]"
               >
-                {niveaux.map((n) => (
+                {niveauxDeLEtat.map((n) => (
                   <option key={n.id} value={n.id}>
                     {n.niveau}. {n.libelle}
                   </option>
@@ -532,6 +541,16 @@ function PositionsRelances() {
 }
 
 /**
+ * Les jetons que `RelancesService.composer` remplace · une seule liste, dite
+ * dans la bulle du formulaire. `{date}` est le jour du courrier, `{echeance}`
+ * l'échéance (audit final F166) · les confondre annonçait à un tiers une
+ * échéance au jour même où la lettre partait.
+ */
+const AIDE_JETONS =
+  '{tiers} le destinataire · {montant} le total réclamé · {date} le jour du courrier · ' +
+  "{echeance} l'échéance la plus ancienne des lignes réclamées · {detail} les lignes, une par ligne · {entite} le nom du dossier.";
+
+/**
  * NIVEAUX DE RELANCE (audit de l'interface du 2026-09-27, I11) · la page lisait
  * les niveaux semés sans pouvoir en créer ni en modifier, alors que les deux
  * routes existent, réservées à l'administrateur. Le numéro et le type ne se
@@ -735,7 +754,10 @@ function NiveauxRelance() {
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] font-bold text-text-dim">Modèle de lettre</span>
+            <span className="text-[11px] font-bold text-text-dim flex items-center gap-1">
+              Modèle de lettre
+              <Aide titre="Jetons du modèle" texte={AIDE_JETONS} source="OmegaX" />
+            </span>
             <textarea
               value={nouveau.modeleTexte}
               onChange={(e) => setNouveau((v) => ({ ...v, modeleTexte: e.target.value }))}

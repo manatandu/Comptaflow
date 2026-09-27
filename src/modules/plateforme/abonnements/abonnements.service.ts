@@ -97,11 +97,14 @@ export class AbonnementsService {
     return this.formules();
   }
 
-  /** Le dossier de l'éditeur · celui qui porte la licence PROPRIETAIRE, et lui seul. */
+  /**
+   * Le dossier de l'éditeur · celui qui porte la licence PROPRIETAIRE, et lui
+   * seul. Lu par la console, hors du dossier de la session (audit final F173).
+   */
   private async dossierEditeur() {
-    const l = await this.prisma.licence.findFirst({ where: { type: TypeLicence.PROPRIETAIRE }, select: { tenantId: true } });
-    if (!l) throw new BadRequestException('Aucun dossier n’est désigné comme dossier de l’éditeur · les factures d’abonnement n’ont nulle part où naître.');
-    return l.tenantId;
+    const id = await this.plateforme.dossierEditeurId();
+    if (!id) throw new BadRequestException('Aucun dossier n’est désigné comme dossier de l’éditeur · les factures d’abonnement n’ont nulle part où naître.');
+    return id;
   }
 
   async lister() {

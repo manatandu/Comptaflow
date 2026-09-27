@@ -1234,66 +1234,77 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** `{date}` vaut la date du courrier.
 - **Correction :** un jeton dédié à l'échéance dans les modèles préventifs.
+- **Fait le 2026-09-27 :** jeton `{echeance}` (échéance la plus ancienne des lignes réclamées), porté par les deux avis préventifs livrés ; une migration réécrit les modèles restés exactement ceux livrés, jamais un texte retouché. Les jetons sont dits dans une bulle du formulaire. Tests : `etats-de-relance.spec.ts`, `niveaux-relance-referentiel.spec.ts`, `remise-a-lecran.spec.ts`.
 
 **F167 · Relance émise avec un niveau d'un autre état : comptes écartés sans un mot** [relances-02]
 - **Emplacements :** src/modules/relances/relances.service.ts:449, :540 · client/src/pages/RelancesPage.tsx:105, :188
 - **Condition :** 3
 - **Constat :** les niveaux ne sont pas filtrés par type, et `continue` est muet.
 - **Correction :** filtrer les niveaux, et rendre les exclus dans le bilan.
+- **Fait le 2026-09-27 :** niveaux filtrés par l'état demandé, au serveur comme au sélecteur de l'écran ; un compte désigné sans rien à réclamer revient dans `sansObjet` avec son numéro et le motif de l'état, et la phrase d'émission le dit. Tests : `etats-de-relance.spec.ts`, `remise-a-lecran.spec.ts`.
 
 **F168 · Préventive : retard toujours nul, niveau « -7 jours » proposé pour toute échéance future** [relances-03]
 - **Emplacements :** src/modules/relances/relances.service.ts:423
 - **Condition :** 1
 - **Constat :** l'accumulateur part de 0.
 - **Correction :** l'initialiser à -Infinity.
+- **Fait le 2026-09-27 :** accumulateur à -Infinity. Test : `etats-de-relance.spec.ts`.
 
 **F169 · Dernier niveau ancien qui bloque toute suggestion, historique chargé en entier** [relances-04]
 - **Emplacements :** src/modules/relances/relances.service.ts:372, :438, :455
 - **Condition :** 3
 - **Constat :** « tout sélectionner » omet un client relancé il y a un an.
 - **Correction :** ne retenir que les relances postérieures à l'échéance ouverte la plus ancienne, et borner la lecture.
+- **Fait le 2026-09-27 :** seules comptent les relances postérieures à la plus ancienne PIÈCE encore ouverte du compte, et la lecture est bornée aux comptes retenus et à cette date. Écart voulu avec la correction proposée · borné à l'échéance, un avis préventif (parti avant elle) serait resuggéré chaque jour. Test : `etats-de-relance.spec.ts`.
 
 **F170 · Le dossier de combinaison consomme le plafond de dossiers sur site** [surSite-02]
 - **Emplacements :** src/modules/auth/auth.service.ts:83 · src/modules/groupe/groupe.service.ts:159
 - **Condition :** 4
 - **Constat :** `tenant.count()` n'a pas de filtre.
 - **Correction :** `where: { combinaisonPour: null }`.
+- **Fait le 2026-09-27 :** `where: { combinaisonPour: null }`. Test : `sur-site-divers.spec.ts`, doublure qui honore le filtre.
 
 **F171 · « L'installation sur site relève de la phase 4 » : refus et paragraphes périmés** [plateforme-05, pages-06]
 - **Emplacements :** src/modules/plateforme/plateforme.service.ts:112, :132 · client/src/pages/PlateformePage.tsx:544-546, :709 · src/modules/licence/licence.service.ts:17
 - **Condition :** 5
 - **Constat :** le sur site est livré par fichier signé, et le texte oriente vers une licence SaaS.
 - **Correction :** nouveau motif, et explication déplacée dans `Aide`.
+- **Fait le 2026-09-27 :** motif `MOTIF_SUR_SITE_NON_ATTRIBUABLE` (la licence sur site est un fichier signé, émis dans « Licences sur site ») ; une ligne sous chaque sélecteur, l'explication dans une bulle ; commentaires du service, de la licence et du schéma corrigés. Tests : `plateforme.spec.ts`, `licence-sur-site-non-attribuable.spec.ts`.
 
 **F172 · Rattachement par la console sans le système comptable du siège** [plateforme-06]
 - **Emplacements :** src/modules/plateforme/plateforme.service.ts:296-323 · src/modules/tenant/tenant.service.ts:202-224
 - **Condition :** 5
 - **Constat :** contraire à CLAUDE.md § 6 (« imposé aux deux portes »).
 - **Correction :** comparer le système, et refuser sa modification sur une cellule ou une mère.
+- **Fait le 2026-09-27 :** la console comparait déjà le système au rattachement (F47, `creation-cellule-f47.spec.ts`) ; `modifierSystemeSyscohada` refuse désormais sur une cellule et sur un siège qui a des cellules. Test : `coordonnees-dossier.spec.ts`.
 
 **F173 · Abonnements hors du dossier de l'éditeur : « aucun dossier d'éditeur désigné »** [plateforme-08]
 - **Emplacements :** src/modules/plateforme/abonnements/abonnements.service.ts:101, :226
 - **Condition :** 5
 - **Constat :** la lecture est cloisonnée, et le vrai refus n'est jamais atteint.
 - **Correction :** lecture dans une sortie déclarée.
+- **Fait le 2026-09-27 :** `PlateformeService.dossierEditeurId`, dans une sortie de cloisonnement déclarée (la liste des sorties reste inchangée). Tests : `plateforme.spec.ts`, `abonnements.service.spec.ts`.
 
 **F174 · Garnissage de vitrine en échec : vitrine partielle impossible à refaire** [plateforme-09]
 - **Emplacements :** src/modules/plateforme/plateforme.service.ts:547-601
 - **Condition :** 3
 - **Constat :** le dossier est marqué avant le garnissage.
 - **Correction :** garnir avant de marquer, ou « regarnir » idempotent.
+- **Fait le 2026-09-27 :** le garnissage se reprend sans rien recréer (tiers par son code, écriture par journal, date et libellé) ; une vitrine sans aucune écriture validée est complétée au lieu d'être refusée, et l'écran le dit avec l'adresse de la vitrine. Tests : `garnissage-demonstration.spec.ts`, `dossier-demonstration.spec.ts`, `demonstration-console.spec.ts`.
 
 **F175 · Fenêtre Utilisateurs : deux actions avalent le refus du serveur** [utilisateurs-01]
 - **Emplacements :** client/src/pages/UtilisateursPage.tsx:75, :118
 - **Condition :** 3
 - **Constat :** ni déverrouiller ni changer de rôle n'affichent l'erreur.
 - **Correction :** try/catch comme `basculerActif`.
+- **Fait le 2026-09-27 :** try/catch sur déverrouiller et changer de rôle, comme `basculerActif`. Test : `utilisateurs-refus.spec.ts`.
 
 **F176 · Politique de confidentialité inexacte : destinataires tus, cloisonnement « au niveau de la base »** [confidentialite-01, pages-07]
 - **Emplacements :** client/src/pages/ConfidentialitePage.tsx:81, :116, :123-125
 - **Condition :** 5
 - **Constat :** la messagerie SMTP et l'archive GitHub ne sont pas nommées, rien n'est prévu pour le sur site, et aucune RLS n'existe.
 - **Correction :** nommer les prestataires, ajouter une variante sur site, et écrire « au niveau de chaque requête du serveur ».
+- **Fait le 2026-09-27 :** GitHub et la messagerie nommés (le nom du prestataire SMTP reste à arrêter par VMG, et la page le dit) ; variante sur site lue sur `/sur-site/etat` ; « au niveau de chaque requête du serveur ». Test : `confidentialite-code-numerique.spec.ts`.
 
 ### Interface
 

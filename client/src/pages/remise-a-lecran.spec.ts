@@ -74,6 +74,31 @@ describe("Le compte rendu d'émission des relances", () => {
     expect(melange).toContain('2 tiers de la sélection sont hors du circuit');
   });
 
+  it('dit les comptes SANS OBJET dans cet état, nommés quand il n’y en a qu’un (audit final F167)', () => {
+    // Un rappel demandé pour un compte dont l'échéance est à venir n'a rien à
+    // réclamer · écarté en silence, il se lisait comme un envoi.
+    const seul = phraseEmission({ emises: 0, misesEnFile: 0, nonRemises: 0, sansObjet: [{ compte: '41100002 · Client B' }] });
+    expect(seul).toContain('Aucun courrier préparé.');
+    expect(seul).toContain("1 compte de la sélection n'avait rien à réclamer dans cet état (41100002 · Client B)");
+
+    const plusieurs = phraseEmission({
+      emises: 2,
+      misesEnFile: 2,
+      nonRemises: 0,
+      sansObjet: [{ compte: 'A' }, { compte: 'B' }, { compte: 'C' }],
+    });
+    expect(plusieurs).toContain('2 courriers préparés · tous mis en file de départ.');
+    expect(plusieurs).toContain("3 comptes de la sélection n'avaient rien à réclamer dans cet état");
+  });
+
+  it('le choix du niveau suit l’état affiché, et les jetons sont dits dans la bulle (audit final F166, F167)', () => {
+    expect(relances).toContain('const niveauxDeLEtat = niveaux.filter((n) => n.type === type && n.estActif);');
+    expect(relances).toContain('{niveauxDeLEtat.map((n) => (');
+    expect(relances).toContain('<Aide titre="Jetons du modèle" texte={AIDE_JETONS}');
+    expect(relances).toContain('{date} le jour du courrier');
+    expect(relances).toContain("{echeance} l'échéance la plus ancienne des lignes réclamées");
+  });
+
   it("est bien la phrase que l'écran affiche, et non un texte oublié dans un module", () => {
     expect(relances).toContain('phraseEmission(r)');
     expect(relances).not.toContain('courrier(s) préparé(s)');

@@ -17,8 +17,9 @@ import { join } from 'node:path';
  * `LicenceService.evaluerLicence` refuse une licence PERPETUEL_ONPREMISE dont
  * le `dernierHeartbeatAt` est nul, et `grep -rn "enregistrerHeartbeat" src/`
  * ne rend que sa propre définition · ni route, ni tâche planifiée, ni client
- * sur site. Le mode sur site est une phase 4 (prisma/schema.prisma, enum
- * TypeLicence : « payé une fois, installé chez le client (Phase 4) »).
+ * sur site. Une installation sur site tient sa licence d'un fichier signé,
+ * émis dans le cadre « Licences sur site » (audit final F171), jamais d'une
+ * ligne de cette table.
  *
  * Le défaut ne lève aucune erreur de type et ne casse aucun rendu : il se voit
  * seulement à l'usage, et TARD · le cabinet naissait complet (tenant, licence,
@@ -94,17 +95,21 @@ describe('console de plateforme · le retrait n’est pas silencieux', () => {
       const note = noteSous(setteur);
       // Le libellé exact qu'il cherchait · c'est à ça qu'il reconnaît sa ligne.
       expect(note).toContain('{LIBELLE_LICENCE.PERPETUEL_ONPREMISE}');
-      // Un chantier daté, pas une suppression : le type reviendra.
-      expect(note).toContain('phase 4');
-      // La cause, telle que le serveur la constate.
-      expect(note).toContain("rien n'émet encore la vérification en ligne");
-      // Et la conséquence, qui justifie de fermer plutôt que de laisser faire.
-      expect(note).toContain('refusé dès sa première requête');
-      // Sans le repli nommé, l'opérateur qui voulait une licence sans échéance
-      // repart sans solution.
-      expect(note).toContain('{LIBELLE_LICENCE.PERPETUEL_SAAS}');
+      // La voie qui existe, pas un chantier qui n'en est plus un (audit final
+      // F171) · « phase 4 » orientait vers une licence SaaS un client qui
+      // voulait une installation, livrée depuis.
+      expect(note).toContain('se délivre par fichier signé, dans « Licences sur site »');
+      // Le pourquoi et le repli vivent dans la bulle, pas en paragraphe.
+      expect(note).toContain('<Aide titre="Licence sur site" texte={AIDE_LICENCE_SUR_SITE}');
     });
   }
+
+  it('la bulle dit la cause, la conséquence et le repli', () => {
+    const aide = source.slice(source.indexOf('const AIDE_LICENCE_SUR_SITE'), source.indexOf(';', source.indexOf('const AIDE_LICENCE_SUR_SITE')));
+    expect(aide).toContain('fichier signé par VMG');
+    expect(aide).toContain('hors service dès sa première requête');
+    expect(aide).toContain('« Perpétuelle (SaaS) »');
+  });
 
   it('un dossier qui porte DÉJÀ ce type s’entend dire comment en sortir', () => {
     // Le serveur refuse tout PATCH portant ce type, y compris sur un dossier
@@ -127,8 +132,8 @@ describe('console de plateforme · le type reste LISIBLE, c’est le choix qu’
   });
 
   it('l’énumération TypeScript suit l’énumération Prisma, type pour type', () => {
-    // La donnée existe peut-être déjà en base, et la règle du heartbeat sera
-    // juste en phase 4 : on ferme une porte, on ne démolit pas le type. Le
+    // La donnée existe peut-être déjà en base, et c'est par elle qu'on en
+    // sort : on ferme une porte, on ne démolit pas le type. Le
     // quatrième, PROPRIETAIRE, obéit à la MÊME discipline pour une raison
     // différente · il est lisible mais non attribuable depuis cette liste,
     // parce qu'un dossier incoupable ne se clique pas à côté d'« Abonnement ».

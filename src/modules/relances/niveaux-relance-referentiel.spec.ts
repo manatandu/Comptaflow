@@ -42,9 +42,12 @@ describe('Niveaux de relance semés à la création du dossier', () => {
       expect(d.map((n) => n.niveau)).toEqual([1, 2, 3]);
       expect(d.every((n) => n.modeleTexte.includes('{tiers}') || n.modeleTexte.includes('Madame'))).toBe(true);
       // Les quatre marqueurs que la fusion remplace doivent être présents,
-      // sinon la lettre part avec un trou.
+      // sinon la lettre part avec un trou. L'avis préventif (niveau 1) porte
+      // l'ÉCHÉANCE à la place de la date du courrier (audit final F166) · il
+      // annonce un terme à venir, pas un solde constaté à la date de la lettre.
       for (const n of d) {
-        for (const marqueur of ['{montant}', '{date}', '{detail}', '{entite}']) {
+        const date = n.niveau === 1 ? '{echeance}' : '{date}';
+        for (const marqueur of ['{montant}', date, '{detail}', '{entite}']) {
           expect(n.modeleTexte).toContain(marqueur);
         }
       }

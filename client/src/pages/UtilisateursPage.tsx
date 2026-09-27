@@ -72,9 +72,16 @@ export function UtilisateursPage() {
     );
   }
 
+  // LE REFUS DU SERVEUR SE DIT (audit final F175) · sans try, un refus (le
+  // dernier administrateur qu'on rétrograde, F157) partait en promesse rejetée
+  // que personne ne lisait, et l'écran restait muet.
   const deverrouiller = async (u: Utilisateur) => {
-    await api.post(`/utilisateurs/${u.id}/deverrouiller`, {});
-    await charger();
+    try {
+      await api.post(`/utilisateurs/${u.id}/deverrouiller`, {});
+      await charger();
+    } catch (err) {
+      setErreurChargement(err instanceof ApiError ? err.message : 'Déverrouillage impossible');
+    }
   };
 
   const onReinitialiser = async (e: FormEvent) => {
@@ -116,8 +123,12 @@ export function UtilisateursPage() {
   };
 
   const changerRole = async (id: string, nouveauRole: RoleUtilisateur) => {
-    await api.patch(`/utilisateurs/${id}`, { role: nouveauRole });
-    await charger();
+    try {
+      await api.patch(`/utilisateurs/${id}`, { role: nouveauRole });
+      await charger();
+    } catch (err) {
+      setErreurChargement(err instanceof ApiError ? err.message : 'Changement de rôle impossible');
+    }
   };
 
   const basculerActif = async (u: Utilisateur) => {

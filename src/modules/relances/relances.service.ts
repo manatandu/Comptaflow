@@ -29,6 +29,13 @@ export function qualiteDuCompte(numero: string, referentiel: Referentiel): strin
   return 'Tiers';
 }
 
+/** Pourquoi un compte désigné ne reçoit rien dans l'état du niveau choisi (audit final F167). */
+export function motifRienAReclamer(type: TypeRelance): string {
+  if (type === TypeRelance.PREVENTIVE) return "Rien à prévenir à cette date · aucune échéance à venir n'est ouverte sur ce compte.";
+  if (type === TypeRelance.RAPPEL) return "Rien à rappeler à cette date · aucune échéance passée n'est ouverte sur ce compte.";
+  return "Rien de dû à cette date sur ce compte.";
+}
+
 /**
  * L'ASSIETTE DES RAPPELS · quelles subdivisions du 41 se relancent.
  *
@@ -90,7 +97,7 @@ const NIVEAUX_SYCEBNL: Omit<CreerNiveauDto, never>[] = [
     type: TypeRelance.PREVENTIVE,
     joursApresEcheance: -7,
     modeleTexte:
-      "Cher {tiers},\n\nNous vous rappelons amicalement que votre échéance de {montant} arrive à terme le {date}.\n\n{detail}\n\nNous vous remercions par avance de votre règlement, qui permet à notre entité de poursuivre ses activités.\n\n{entite}",
+      "Cher {tiers},\n\nNous vous rappelons amicalement que votre échéance de {montant} arrive à terme le {echeance}.\n\n{detail}\n\nNous vous remercions par avance de votre règlement, qui permet à notre entité de poursuivre ses activités.\n\n{entite}",
   },
   {
     niveau: 2,
@@ -117,7 +124,7 @@ const NIVEAUX_SYSCOHADA: Omit<CreerNiveauDto, never>[] = [
     type: TypeRelance.PREVENTIVE,
     joursApresEcheance: -7,
     modeleTexte:
-      "Madame, Monsieur,\n\nNous vous informons que la somme de {montant} viendra à échéance le {date}.\n\n{detail}\n\nNous vous remercions de bien vouloir procéder au règlement à cette date.\n\n{entite}",
+      "Madame, Monsieur,\n\nNous vous informons que la somme de {montant} viendra à échéance le {echeance}.\n\n{detail}\n\nNous vous remercions de bien vouloir procéder au règlement à cette date.\n\n{entite}",
   },
   {
     niveau: 2,
@@ -365,15 +372,17 @@ export class RelancesService {
       },
     });
 
+    // LES NIVEAUX DE L'ÉTAT DEMANDÉ, ET D'AUCUN AUTRE (audit final F167) · un
+    // rappel échu de cinq jours se voyait suggérer l'avis préventif (seuil
+    // -7, atteint), que l'émission recalcule sur l'état PRÉVENTIF, où ce
+    // compte n'a rien à réclamer · il était écarté sans un mot.
     const niveaux = await this.prisma.niveauRelance.findMany({
-      where: { tenantId, estActif: true },
+      where: { tenantId, estActif: true, type },
       orderBy: { joursApresEcheance: 'desc' },
     });
-    const dernieres = await this.prisma.relance.findMany({
-      where: { tenantId },
-      orderBy: { dateRelance: 'desc' },
-      include: { niveauRelance: { select: { niveau: true } } },
-    });
+    // La date de la plus ancienne pièce retenue, compte par compte · c'est
+    // elle qui borne les relances qui comptent (plus bas, audit final F169).
+    const piecePlusAncienne = new Map<string, Date>();
 
     const parCompte = new Map<string, PositionRelance>();
     for (const l of lignes) {
@@ -405,7 +414,12 @@ export class RelancesService {
           motifHorsRelance: tiers?.motifHorsRelance ?? null,
           horsRelanceDepuis: tiers?.horsRelanceDepuis?.toISOString().slice(0, 10) ?? null,
           montantDu: 0,
-          retardMaxJours: 0,
+          // -Infinity et NON zéro (audit final F168) · en préventive tous les
+          // retards sont négatifs, et un maximum parti de zéro restait à zéro ·
+          // le seuil « -7 jours » était atteint par toute échéance future, même
+          // à deux mois. La première ligne le pose, et un compte n'existe ici
+          // qu'avec une ligne.
+          retardMaxJours: Number.NEGATIVE_INFINITY,
           echeancePlusAncienne: null,
           niveauSuggere: null,
           derniereRelance: null,
@@ -413,6 +427,8 @@ export class RelancesService {
         } satisfies PositionRelance);
 
       acc.montantDu += net;
+      const vue = piecePlusAncienne.get(l.compte.id);
+      if (!vue || l.ecriture.date < vue) piecePlusAncienne.set(l.compte.id, l.ecriture.date);
       acc.lignes.push({
         date: l.ecriture.date.toISOString().slice(0, 10),
         echeance: l.dateEcheance?.toISOString().slice(0, 10) ?? null,
@@ -427,6 +443,27 @@ export class RelancesService {
       parCompte.set(l.compte.id, acc);
     }
 
+    // LES RELANCES QUI COMPTENT SONT CELLES DE LA DETTE OUVERTE (audit final
+    // F169) · la dernière relance d'un compte, même vieille d'un an et d'une
+    // dette depuis soldée, bloquait toute suggestion de niveau égal ou
+    // inférieur, et « tout sélectionner » oubliait ce client. Seules comptent
+    // les relances postérieures à la plus ancienne pièce encore ouverte · et
+    // non à son ÉCHÉANCE, que l'audit proposait · un avis préventif part AVANT
+    // l'échéance, et lu ainsi il serait resuggéré chaque jour. La lecture est
+    // bornée aux comptes retenus et à cette date, au lieu de tout l'historique
+    // du dossier.
+    const comptesRetenus = [...parCompte.keys()];
+    const depuis = comptesRetenus.length
+      ? new Date(Math.min(...comptesRetenus.map((id) => piecePlusAncienne.get(id)!.getTime())))
+      : null;
+    const dernieres = depuis
+      ? await this.prisma.relance.findMany({
+          where: { tenantId, compteId: { in: comptesRetenus }, dateRelance: { gte: depuis } },
+          orderBy: { dateRelance: 'desc' },
+          include: { niveauRelance: { select: { niveau: true } } },
+        })
+      : [];
+
     const resultat: PositionRelance[] = [];
     for (const p of parCompte.values()) {
       // Un compte de tiers créditeur n'a rien à devoir : c'est une avance ou
@@ -436,7 +473,8 @@ export class RelancesService {
       p.montantDu = Math.round(p.montantDu * 100) / 100;
       p.lignes.sort((a, b) => b.retardJours - a.retardJours);
 
-      const derniere = dernieres.find((r) => r.compteId === p.compteId);
+      const ouverteDepuis = piecePlusAncienne.get(p.compteId)!;
+      const derniere = dernieres.find((r) => r.compteId === p.compteId && r.dateRelance >= ouverteDepuis);
       if (derniere) {
         p.derniereRelance = {
           niveau: derniere.niveauRelance.niveau,
@@ -481,7 +519,14 @@ export class RelancesService {
    */
   private composer(
     modele: string,
-    donnees: { tiers: string; montant: number; date: Date; entite: string; lignes: PositionRelance['lignes'] },
+    donnees: {
+      tiers: string;
+      montant: number;
+      date: Date;
+      echeance: string | null;
+      entite: string;
+      lignes: PositionRelance['lignes'];
+    },
   ): string {
     const detail = donnees.lignes
       .map(
@@ -495,6 +540,12 @@ export class RelancesService {
       .replace(/\{tiers\}/g, donnees.tiers)
       .replace(/\{montant\}/g, donnees.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 }))
       .replace(/\{date\}/g, donnees.date.toLocaleDateString('fr-FR'))
+      // L'ÉCHÉANCE N'EST PAS LA DATE DU COURRIER (audit final F166) · la
+      // relance préventive annonçait « arrive à terme le {date} », c'est-à-dire
+      // le jour même où la lettre partait, à un tiers qui avait encore une
+      // semaine. `{echeance}` est l'échéance la plus ancienne des lignes
+      // réclamées, lue sur les lignes et non sur le calendrier.
+      .replace(/\{echeance\}/g, donnees.echeance ? new Date(`${donnees.echeance}T00:00:00Z`).toLocaleDateString('fr-FR', { timeZone: 'UTC' }) : '')
       .replace(/\{entite\}/g, donnees.entite)
       .replace(/\{detail\}/g, detail);
   }
@@ -535,9 +586,28 @@ export class RelancesService {
       remise: RemiseLettre;
     }[] = [];
     const exclues: { compteId: string; tiers: string; motif: string }[] = [];
+    const sansObjet: { compteId: string; compte: string; motif: string }[] = [];
+    const sansPosition = dto.compteIds.filter((id) => !positions.some((p) => p.compteId === id));
+    const numerosSansPosition = new Map(
+      sansPosition.length
+        ? (
+            await this.prisma.compte.findMany({
+              where: { tenantId, id: { in: sansPosition } },
+              select: { id: true, numero: true, intitule: true },
+            })
+          ).map((c) => [c.id, `${c.numero} · ${c.intitule}`] as const)
+        : [],
+    );
     for (const compteId of dto.compteIds) {
       const position = positions.find((p) => p.compteId === compteId);
-      if (!position) continue;
+      // UN COMPTE SANS RIEN À RÉCLAMER DANS CET ÉTAT EST DIT, jamais sauté en
+      // silence (audit final F167) · une échéance future ne se rappelle pas,
+      // une échéance passée ne se prévient plus, et un compte soldé entre
+      // l'affichage et l'envoi n'a plus rien de dû.
+      if (!position) {
+        sansObjet.push({ compteId, compte: numerosSansPosition.get(compteId) ?? 'compte inconnu', motif: motifRienAReclamer(niveau.type) });
+        continue;
+      }
       // UN TIERS HORS CIRCUIT NE REÇOIT RIEN, MÊME DÉSIGNÉ EXPRESSÉMENT.
       //
       // Le refus est ici et pas seulement à l'écran · la route reste ouverte à
@@ -562,6 +632,7 @@ export class RelancesService {
         tiers,
         montant: position.montantDu,
         date,
+        echeance: position.echeancePlusAncienne,
         entite,
         lignes: position.lignes,
       });
@@ -602,6 +673,9 @@ export class RelancesService {
       // Ceux qui étaient dans la sélection et n'ont rien reçu parce que le
       // dossier les a sortis du circuit · les taire ferait croire à un envoi.
       exclues,
+      // Ceux qui n'avaient rien à réclamer dans l'état du niveau choisi
+      // (audit final F167) · ni hors circuit ni oubliés, sans objet.
+      sansObjet,
       lettres,
     };
   }

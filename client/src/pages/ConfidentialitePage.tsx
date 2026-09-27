@@ -1,3 +1,7 @@
+import { useEffect, useState } from 'react';
+import { api } from '../lib/api';
+import { EtatSurSite } from '../lib/sur-site';
+
 /**
  * POLITIQUE DE CONFIDENTIALITÉ · atteignable SANS CONNEXION.
  *
@@ -18,7 +22,7 @@
  * dirigerait les demandes vers le vide.
  */
 
-const DATE_DE_MISE_A_JOUR = '5 septembre 2026';
+const DATE_DE_MISE_A_JOUR = '27 septembre 2026';
 
 function Titre({ children }: { children: React.ReactNode }) {
   return <h2 className="text-[12px] font-bold mt-4 mb-1.5">{children}</h2>;
@@ -29,6 +33,22 @@ function P({ children }: { children: React.ReactNode }) {
 }
 
 export function ConfidentialitePage() {
+  // DEUX INSTALLATIONS, DEUX RÉPONSES (audit final F176) · sur le poste d'un
+  // client, aucune donnée ne part chez Neon, Cloud Run ni Firebase, et la page
+  // servie par ce poste le disait pourtant. `GET /sur-site/etat` est public ·
+  // en ligne il répond `surSite: false`, et une panne laisse le texte en ligne.
+  const [surSite, setSurSite] = useState(false);
+  useEffect(() => {
+    let vivant = true;
+    api
+      .get<EtatSurSite>('/sur-site/etat')
+      .then((e) => vivant && setSurSite(e.surSite))
+      .catch(() => undefined);
+    return () => {
+      vivant = false;
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-bg py-6 px-4">
       <div className="mx-auto max-w-[760px] bg-surface border border-border px-6 py-5">
@@ -77,52 +97,97 @@ export function ConfidentialitePage() {
         </P>
 
         <Titre>3. Où vos données sont hébergées</Titre>
-        <P>
-          Trois hébergeurs interviennent, chacun pour une part précise :
-        </P>
-        <ul className="text-[11.5px] leading-relaxed mb-2 list-disc pl-5">
-          <li>
-            <strong>Neon</strong> héberge la base de données PostgreSQL qui contient vos dossiers comptables.
-          </li>
-          <li>
-            <strong>Google Cloud Run</strong>, dans la région <strong>us-east1</strong> (Caroline du Sud, États-Unis
-            d’Amérique), exécute le serveur d’application qui lit et écrit dans cette base.
-          </li>
-          <li>
-            <strong>Firebase Hosting</strong> sert l’interface, c’est à dire les pages et les scripts que votre
-            navigateur affiche. Aucune donnée comptable n’y est stockée.
-          </li>
-        </ul>
-        <P>
-          Vos données sont donc <strong>hébergées hors de la République démocratique du Congo</strong>. Ce point est
-          énoncé ici parce qu’il vous appartient de le connaître et, le cas échéant, de vérifier qu’il est compatible
-          avec les engagements pris envers vos propres bailleurs de fonds.
-        </P>
-        <P>
-          Le Code du numérique congolais (ordonnance-loi n° 23/10 du 13 mars 2023) pose à son article 201 que les
-          données personnelles sont stockées ou hébergées en République démocratique du Congo, et prévoit à son
-          article 202 les cas où un transfert vers un État tiers reste possible. Le transfert opéré ici est
-          <strong> nécessaire à l’exécution du contrat</strong> qui nous lie à vous, au sens du 2° de cet article :
-          sans hébergement, il n’y a pas de service.
-        </P>
+        {surSite ? (
+          <>
+            <P>
+              Cette installation d’OmegaX est <strong>installée sur un ordinateur de votre entité</strong>. La base de
+              données, le serveur d’application et l’interface y tournent tous les trois : vos dossiers comptables
+              restent sur cet ordinateur et ne sont confiés à aucun hébergeur. VMG Consulting n’y a pas accès.
+            </P>
+            <P>
+              Un courriel ne part du logiciel (relance, avis d’accès) que si votre entité a configuré une messagerie
+              sur ce poste · le prestataire qu’elle a choisi reçoit alors l’adresse du destinataire et le texte du
+              courrier.
+            </P>
+          </>
+        ) : (
+          <>
+            <P>
+              Cinq prestataires interviennent, chacun pour une part précise :
+            </P>
+            <ul className="text-[11.5px] leading-relaxed mb-2 list-disc pl-5">
+              <li>
+                <strong>Neon</strong> héberge la base de données PostgreSQL qui contient vos dossiers comptables.
+              </li>
+              <li>
+                <strong>Google Cloud Run</strong>, dans la région <strong>us-east1</strong> (Caroline du Sud, États-Unis
+                d’Amérique), exécute le serveur d’application qui lit et écrit dans cette base.
+              </li>
+              <li>
+                <strong>Firebase Hosting</strong> sert l’interface, c’est à dire les pages et les scripts que votre
+                navigateur affiche, et relaie vos requêtes vers le serveur. Aucune donnée comptable n’y est stockée.
+              </li>
+              <li>
+                <strong>GitHub</strong> (service GitHub Actions) produit chaque nuit la sauvegarde de la base et la
+                conserve, chiffrée (section 4). Une copie de ce fichier chiffré peut être déposée dans{' '}
+                <strong>Google Cloud Storage</strong>.
+              </li>
+              <li>
+                <strong>Le prestataire de messagerie</strong> (SMTP) retenu par VMG Consulting reçoit l’adresse du
+                destinataire et le texte des courriers que le logiciel envoie à votre demande · relances, factures,
+                licences, avis d’accès. <em>Son nom doit être arrêté par VMG Consulting et porté ici avant toute
+                publication de cette page sur un magasin d’applications.</em>
+              </li>
+            </ul>
+            <P>
+              Vos données sont donc <strong>hébergées hors de la République démocratique du Congo</strong>. Ce point
+              est énoncé ici parce qu’il vous appartient de le connaître et, le cas échéant, de vérifier qu’il est
+              compatible avec les engagements pris envers vos propres bailleurs de fonds.
+            </P>
+            <P>
+              Le Code du numérique congolais (ordonnance-loi n° 23/10 du 13 mars 2023) pose à son article 201 que les
+              données personnelles sont stockées ou hébergées en République démocratique du Congo, et prévoit à son
+              article 202 les cas où un transfert vers un État tiers reste possible. Le transfert opéré ici est
+              <strong> nécessaire à l’exécution du contrat</strong> qui nous lie à vous, au sens du 2° de cet
+              article : sans hébergement, il n’y a pas de service.
+            </P>
+          </>
+        )}
 
         <Titre>4. Combien de temps elles sont conservées</Titre>
-        <P>
-          Vos dossiers comptables sont conservés pendant toute la durée de votre abonnement, puis pendant la durée
-          légale de conservation des documents comptables. Ce n’est pas un choix commercial : les états financiers et
-          les pièces qui les justifient doivent rester présentables après la clôture.
-        </P>
-        <P>
-          Une <strong>sauvegarde chiffrée</strong> de la base est produite chaque nuit et conservée quatre-vingt-dix
-          jours. Elle est chiffrée avant de quitter le serveur qui la produit, et VMG Consulting est seul à détenir la
-          clé qui permet de la lire.
-        </P>
+        {surSite ? (
+          <P>
+            Vos dossiers comptables restent sur cet ordinateur aussi longtemps que votre entité les y garde, et la
+            durée légale de conservation des documents comptables s’impose à elle : les états financiers et les
+            pièces qui les justifient doivent rester présentables après la clôture.
+          </P>
+        ) : (
+          <P>
+            Vos dossiers comptables sont conservés pendant toute la durée de votre abonnement, puis pendant la durée
+            légale de conservation des documents comptables. Ce n’est pas un choix commercial : les états financiers
+            et les pièces qui les justifient doivent rester présentables après la clôture.
+          </P>
+        )}
+        {surSite ? (
+          <P>
+            Une <strong>sauvegarde</strong> de la base est produite chaque jour sur cet ordinateur, et les trente plus
+            récentes sont gardées, sauf réglage différent de votre installation. Une copie peut en être déposée hors
+            du poste, <strong>chiffrée</strong> par une phrase secrète que choisit l’administrateur de l’installation ·
+            sans elle, la copie ne se relit pas, et VMG Consulting ne la détient pas.
+          </P>
+        ) : (
+          <P>
+            Une <strong>sauvegarde chiffrée</strong> de la base est produite chaque nuit et conservée quatre-vingt-dix
+            jours. Elle est chiffrée avant de quitter le serveur qui la produit, et VMG Consulting est seul à détenir
+            la clé qui permet de la lire.
+          </P>
+        )}
 
         <Titre>5. Comment elles sont protégées</Titre>
         <P>
           Les échanges entre votre navigateur et le serveur sont chiffrés de bout en bout. Chaque dossier est cloisonné
-          des autres au niveau de la base elle-même : une requête qui ne porte pas la borne de votre dossier est
-          refusée par le logiciel, elle n’est pas corrigée en silence. Les mots de passe ne sont jamais stockés en
+          des autres au niveau de chaque requête du serveur : une requête qui ne porte pas la borne de votre dossier
+          est refusée par le logiciel, elle n’est pas corrigée en silence. Les mots de passe ne sont jamais stockés en
           clair. Les tentatives de connexion répétées sont ralenties, et une session est révoquée dès qu’un mot de
           passe change, qu’un accès est retiré ou qu’un rôle est modifié.
         </P>

@@ -97,9 +97,14 @@ export class AuthService {
     // SUR SITE · un dossier de plus n'ouvre que si la licence de
     // l'installation le couvre, et il naît sous la licence de l'installation,
     // quoi qu'en dise l'appelant · une cellule de groupe créée par le siège
-    // est un dossier comme un autre, et compte.
+    // est un dossier comme un autre, et compte. LE DOSSIER DE COMBINAISON NE
+    // COMPTE PAS (audit final F170) · technique, régénéré à chaque liasse du
+    // groupe, personne n'y travaille, et il prenait la place d'un dossier
+    // vendu dès la première liasse.
     if (this.surSite?.surSite) {
-      const ouverts = await horsCloisonnement('installation sur site · plafond de dossiers de la licence', () => this.prisma.tenant.count());
+      const ouverts = await horsCloisonnement('installation sur site · plafond de dossiers de la licence', () =>
+        this.prisma.tenant.count({ where: { combinaisonPour: null } }),
+      );
       this.surSite.verifierPlafondDossiers(ouverts);
       dto = { ...dto, typeLicence: TypeLicence.PERPETUEL_ONPREMISE };
     }

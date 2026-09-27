@@ -4,8 +4,9 @@ import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { Referentiel, StatutLicence, TypeLicence } from '@prisma/client';
 import { MOTIF_CONSOLE_SANS_DOUBLE_AUTH, OperateurPlateformeGuard } from './operateur-plateforme.guard';
-import { PlateformeService } from './plateforme.service';
+import { MOTIF_SUR_SITE_NON_ATTRIBUABLE, PlateformeService } from './plateforme.service';
 import { ModifierLicenceDto } from './dto/plateforme.dto';
+import { raisonHorsCloisonnement } from '../../common/cloisonnement/contexte-cloisonnement';
 
 /**
  * CONSOLE DE L'OPÉRATEUR DE PLATEFORME · trois garanties se jouent ici.
@@ -349,17 +350,17 @@ describe('PlateformeService · cascade de licence sur les cellules', () => {
  * route, ni tâche planifiée, ni client sur site.
  *
  * Le dossier à qui la console attribuait ce type naissait donc avec un
- * heartbeat nul et se voyait refuser sa PREMIÈRE requête. Le mode sur site est
- * un chantier de phase 4 (voir `TypeLicence` dans schema.prisma) : ce n'est ni
- * l'énumération ni la règle du heartbeat qui sont fautives, elles sont en
- * avance · c'est l'ATTRIBUTION, fermée ici aux deux portes qui la posent.
+ * heartbeat nul et se voyait refuser sa PREMIÈRE requête. Une installation sur
+ * site tient sa licence d'un fichier signé (audit final F171), jamais de cette
+ * table · c'est l'ATTRIBUTION à un dossier hébergé qui est fermée ici, aux deux
+ * portes qui la posent.
  *
  * Ce que la disparition de ces assertions ferait revenir : un cabinet créé
  * complet (tenant, licence, admin, plan de comptes, exercice) et inaccessible
  * dès la seconde suivante, ou un dossier en production basculé hors service
  * par un simple PATCH, cascade sur ses cellules comprise.
  */
-describe('PlateformeService · le mode sur site n’est pas attribuable (phase 4)', () => {
+describe('PlateformeService · le mode sur site n’est pas attribuable à un dossier hébergé', () => {
   it('creerCabinet refuse PERPETUEL_ONPREMISE AVANT register · aucun dossier n’est semé derrière l’erreur', async () => {
     const registres: unknown[] = [];
     const authService = {
@@ -427,7 +428,7 @@ describe('PlateformeService · le mode sur site n’est pas attribuable (phase 4
     expect(appels).toEqual([]);
   });
 
-  it('le message dit POURQUOI · le heartbeat n’a aucun émetteur, et il nomme le repli', async () => {
+  it('le message dit POURQUOI · la licence sur site est un fichier signé, et il nomme le repli (audit final F171)', async () => {
     const s = new PlateformeService(
       { licence: { findUnique: async () => ({ tenantId: 't1' }) } } as never,
       { get: () => undefined } as never,
@@ -438,9 +439,11 @@ describe('PlateformeService · le mode sur site n’est pas attribuable (phase 4
       .catch((e: Error) => e);
     const message = (erreur as BadRequestException).message;
     // « Type de licence invalide » n'apprendrait rien à l'opérateur : le type
-    // EXISTE, il n'est simplement pas encore livrable.
-    expect(message).toContain('heartbeat');
-    expect(message).toContain('phase 4');
+    // EXISTE, il se délivre par une autre voie. « Phase 4 » l'orientait vers une
+    // licence SaaS alors que l'installation sur site est livrée.
+    expect(message).toBe(MOTIF_SUR_SITE_NON_ATTRIBUABLE);
+    expect(message).toContain('fichier signé');
+    expect(message).toContain('« Licences sur site »');
     // Le libellé de la console (LIBELLE_LICENCE, PlateformePage) · l'opérateur
     // doit reconnaître la ligne qu'il vient de choisir.
     expect(message).toContain('Perpétuelle (sur site)');
@@ -495,10 +498,30 @@ describe('PlateformeService · le mode sur site n’est pas attribuable (phase 4
   });
 
   it('le DTO connaît toujours le type · c’est le service qui refuse, pas la validation', async () => {
-    // L'énumération Prisma porte peut-être déjà des données, et la règle du
-    // heartbeat sera juste en phase 4 : on ferme la porte, on ne démolit ni
+    // L'énumération Prisma porte peut-être déjà des données, et c'est par ce
+    // PATCH qu'on les en sort : on ferme la porte, on ne démolit ni
     // l'énumération ni le DTO.
     const demande = plainToInstance(ModifierLicenceDto, { type: 'PERPETUEL_ONPREMISE' });
     expect(await validate(demande)).toHaveLength(0);
+  });
+});
+
+describe('PlateformeService · le dossier de l’éditeur se lit hors du dossier de la session (audit final F173)', () => {
+  it('la lecture sort du cloisonnement, avec son motif · sinon elle est vide depuis tout autre dossier', async () => {
+    let raison: string | undefined;
+    const s = new PlateformeService(
+      {
+        licence: {
+          findFirst: async ({ where }: { where: { type: TypeLicence } }) => {
+            raison = raisonHorsCloisonnement();
+            return where.type === TypeLicence.PROPRIETAIRE ? { tenantId: 'vmg' } : null;
+          },
+        },
+      } as never,
+      { get: () => undefined } as never,
+      undefined as never,
+    );
+    expect(await s.dossierEditeurId()).toBe('vmg');
+    expect(raison).toContain("le dossier de l'éditeur");
   });
 });

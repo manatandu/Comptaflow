@@ -69,3 +69,23 @@ describe('la politique cite le Code du numérique', () => {
     expect(numeros).toEqual([...Array(numeros.length).keys()].map((i) => i + 1));
   });
 });
+
+describe('la politique nomme tous ceux qui reçoivent des données, et dit l’installation sur site (audit final F176)', () => {
+  it('nomme l’archive des sauvegardes et la messagerie, sans inventer le nom du prestataire SMTP', () => {
+    expect(deplie).toContain('<strong>GitHub</strong> (service GitHub Actions) produit chaque nuit la sauvegarde');
+    expect(deplie).toContain('<strong>Le prestataire de messagerie</strong> (SMTP)');
+    expect(deplie).toContain('Son nom doit être arrêté par VMG Consulting et porté ici avant toute publication');
+  });
+
+  it('écrit le cloisonnement là où il vit · aucune règle de la base ne le porte', () => {
+    expect(deplie).toContain('cloisonné des autres au niveau de chaque requête du serveur');
+  });
+
+  it('sur site, dit que rien ne part chez un hébergeur, d’après l’état public du poste', () => {
+    expect(page).toContain(".get<EtatSurSite>('/sur-site/etat')");
+    expect(deplie).toContain('{surSite ? (');
+    expect(deplie).toContain('installée sur un ordinateur de votre entité');
+    expect(deplie).toContain('ne sont confiés à aucun hébergeur');
+    expect(deplie).toContain('chiffrée</strong> par une phrase secrète que choisit l’administrateur');
+  });
+});

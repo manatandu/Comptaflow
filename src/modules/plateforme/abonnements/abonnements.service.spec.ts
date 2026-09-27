@@ -9,7 +9,6 @@ function monde(o: { assujetti?: boolean; cours?: number | null; dejaFacture?: bo
   const factures: Record<string, unknown>[] = [];
   const liens: Record<string, unknown>[] = [];
   const prisma = {
-    licence: { findFirst: jest.fn(async () => ({ tenantId: EDITEUR })) },
     tenant: { findUniqueOrThrow: jest.fn(async () => ({ assujettiTva: o.assujetti ?? false })) },
     tauxTva: { findFirst: jest.fn(async ({ where }: { where: { id: string } }) => (where.id === 't16' ? { id: 't16', taux: 16 } : null)) },
     coursDevise: { findFirst: jest.fn(async () => (o.cours === null ? null : { cours: o.cours ?? 2800 })) },
@@ -37,7 +36,9 @@ function monde(o: { assujetti?: boolean; cours?: number | null; dejaFacture?: bo
     }),
     supprimer: jest.fn(),
   };
-  return { s: new AbonnementsService(prisma as never, facturation as never, {} as never, o.courriels as never), factures, liens, facturation };
+  // Le dossier de l'éditeur se lit par la console, hors cloisonnement (audit final F173).
+  const plateforme = { dossierEditeurId: jest.fn(async () => EDITEUR) };
+  return { s: new AbonnementsService(prisma as never, facturation as never, plateforme as never, o.courriels as never), factures, liens, facturation };
 }
 
 describe('facturation des abonnements · service', () => {
@@ -128,13 +129,13 @@ describe('le paiement ne se note que sur une facture encore impayée', () => {
 describe('enregistrer un abonnement pose d’abord la licence', () => {
   const monte = (refus = false) => {
     const plateforme = {
+      dossierEditeurId: jest.fn(async () => 'editeur'),
       echeanceAbonnement: jest.fn(async () => {
         if (refus) throw new Error('Ce dossier a une licence perpétuelle');
         return 'x';
       }),
     };
     const prisma = {
-      licence: { findFirst: jest.fn(async () => ({ tenantId: 'editeur' })) },
       tenant: { findUnique: jest.fn(async () => ({ id: 'c1' })) },
       tiers: { findFirst: jest.fn(async () => ({ id: 't1' })) },
       formuleAbonnement: {
@@ -188,5 +189,19 @@ describe('facturer puis envoyer', () => {
     const r = await monde({ courriels }).s.facturer(EDITEUR, '2026-10', '2026-10-31', null);
     expect(courriels.envoyerFacture).not.toHaveBeenCalled();
     expect(r.resultats[0]).not.toHaveProperty('courriel');
+  });
+});
+
+describe('F173 · le dossier de l’éditeur se lit depuis la console', () => {
+  it('hors de ce dossier, le refus est « connectez-vous au dossier de l’éditeur », pas « aucun dossier désigné »', async () => {
+    const plateforme = { dossierEditeurId: jest.fn(async () => 'vmg') };
+    const s = new AbonnementsService({} as never, {} as never, plateforme as never);
+    await expect(s.facturer('autre-dossier', '2026-10', '2026-10-01', null)).rejects.toThrow(/Connectez-vous au dossier de l’éditeur/);
+  });
+
+  it('sans dossier désigné, le refus le dit', async () => {
+    const plateforme = { dossierEditeurId: jest.fn(async () => null) };
+    const s = new AbonnementsService({} as never, {} as never, plateforme as never);
+    await expect(s.facturer('autre-dossier', '2026-10', '2026-10-01', null)).rejects.toThrow(/Aucun dossier n’est désigné/);
   });
 });

@@ -70,6 +70,14 @@ const LIBELLE_LICENCE: Record<TypeLicence, string> = {
   PROPRIETAIRE: 'Éditeur (VMG Consulting)',
 };
 
+/**
+ * Pourquoi « Perpétuelle (sur site) » ne se choisit pas ici (audit final F171) ·
+ * la ligne sous chaque sélecteur le nomme, la bulle l'explique.
+ */
+const AIDE_LICENCE_SUR_SITE =
+  "Une installation sur site tient sa licence d'un fichier signé par VMG, vérifié sans internet et lié au poste · il s'émet dans le cadre « Licences sur site » de cette console. " +
+  "Attribué à un dossier hébergé, ce type le mettrait hors service dès sa première requête, et le serveur le refuse. Pour une licence sans échéance en ligne, choisir « Perpétuelle (SaaS) ».";
+
 const JOUR_MS = 24 * 60 * 60 * 1000;
 
 /** État réel de la licence, échéance comprise · miroir de l'évaluation
@@ -506,17 +514,15 @@ export function PlateformePage({ adresse }: { adresse?: string } = {}) {
               <div className="p-4">
                 <div className="grid grid-cols-[130px_1fr] items-center gap-x-3 gap-y-2.5">
                   <label className="text-[11.5px] text-right">Type :</label>
-                  {/* LE MODE SUR SITE N'EST PAS UN CHOIX · l'énumération le porte
-                      en « Phase 4 » (prisma/schema.prisma, enum TypeLicence), et
-                      la phase n'est pas livrée : LicenceService.evaluerLicence
-                      refuse une licence de ce type dont le heartbeat est NUL, et
-                      enregistrerHeartbeat n'a aucun émetteur dans le produit (ni
-                      route, ni tâche planifiée, ni client sur site). L'attribuer
-                      faisait donc basculer le dossier hors service dès sa
-                      première requête, et PlateformeService.modifierLicence le
-                      refuse désormais avant même de lire la licence : la console
-                      proposait une ligne qui ne peut que finir en erreur.
-  
+                  {/* LE MODE SUR SITE N'EST PAS UN CHOIX (audit final F171) · une
+                      installation sur site tient sa licence d'un fichier signé,
+                      émis dans le cadre « Licences sur site » plus bas, jamais
+                      d'une ligne de cette table. Attribué à un dossier hébergé,
+                      le type le mettait hors service dès sa première requête
+                      (LicenceService.evaluerLicence exige un heartbeat que rien
+                      n'émet en ligne), et PlateformeService.modifierLicence le
+                      refuse avant même de lire la licence.
+
                       Ce qui reste ici n'est PLUS un choix mais un AFFICHAGE ·
                       l'option n'existe que pour un dossier qui porte déjà ce
                       type, faute de quoi le sélecteur s'ouvrirait VIDE sur une
@@ -544,9 +550,8 @@ export function PlateformePage({ adresse }: { adresse?: string } = {}) {
                     )}
                   </select>
                   <p className="col-start-2 text-[11.5px] text-text-dim -mt-1">
-                    « {LIBELLE_LICENCE.PERPETUEL_ONPREMISE} » n'est plus proposée : l'installation sur site relève de la
-                    phase 4, et rien n'émet encore la vérification en ligne qu'elle exige · le dossier serait refusé dès
-                    sa première requête. Pour une licence sans échéance, choisir « {LIBELLE_LICENCE.PERPETUEL_SAAS} ».
+                    « {LIBELLE_LICENCE.PERPETUEL_ONPREMISE} » se délivre par fichier signé, dans « Licences sur site ».{' '}
+                    <Aide titre="Licence sur site" texte={AIDE_LICENCE_SUR_SITE} source="OmegaX" />
                     {licenceEnCours.licence?.type === 'PERPETUEL_ONPREMISE' &&
                       " Ce dossier la porte encore : choisissez un autre type pour l'en sortir, l'enregistrer telle quelle serait refusé."}
                   </p>
@@ -729,9 +734,8 @@ export function PlateformePage({ adresse }: { adresse?: string } = {}) {
                         <option value="PERPETUEL_SAAS">Perpétuelle (SaaS)</option>
                       </select>
                       <p className="col-start-2 text-[11.5px] text-text-dim -mt-1">
-                        « {LIBELLE_LICENCE.PERPETUEL_ONPREMISE} » n'est plus proposée : l'installation sur site relève de la
-                        phase 4, et rien n'émet encore la vérification en ligne qu'elle exige · le dossier serait refusé dès
-                        sa première requête. Pour une licence sans échéance, choisir « {LIBELLE_LICENCE.PERPETUEL_SAAS} ».
+                        « {LIBELLE_LICENCE.PERPETUEL_ONPREMISE} » se délivre par fichier signé, dans « Licences sur site ».{' '}
+                        <Aide titre="Licence sur site" texte={AIDE_LICENCE_SUR_SITE} source="OmegaX" />
                       </p>
                       {typeLicence === 'ABONNEMENT' && (
                         <>

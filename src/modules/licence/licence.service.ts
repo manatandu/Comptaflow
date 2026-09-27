@@ -8,11 +8,10 @@ import { LicenceSurSiteService } from '../sur-site/licence-sur-site.service';
  *
  * - ABONNEMENT            → coupure automatique si `dateExpiration` est dépassée.
  * - PERPETUEL_SAAS        → jamais de coupure (payé une fois, hébergé chez nous).
- * - PERPETUEL_ONPREMISE   → jamais de coupure sur la date, MAIS un heartbeat
- *   périodique vers LICENCE_CHECK_URL est exigé (anti-piratage) ; au-delà de
- *   `joursGraceHorsLigne` sans heartbeat réussi, l'accès est aussi coupé.
- *   C'est ce qui distingue "perpétuel installé chez le client" d'un simple
- *   logiciel copiable sans contrôle.
+ * - PERPETUEL_ONPREMISE   → la règle d'origine exigeait un heartbeat
+ *   périodique vers LICENCE_CHECK_URL, et coupait au-delà de
+ *   `joursGraceHorsLigne`. Elle ne vaut plus que pour une ligne de cette
+ *   table, qu'aucune porte ne pose (audit final F171).
  *
  * LE HEARTBEAT N'A PAS ÉTÉ RETENU (2026-09-26) · Manasse a choisi une
  * licence qui marche SANS INTERNET, la connexion d'un bureau congolais

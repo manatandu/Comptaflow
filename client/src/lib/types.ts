@@ -1931,6 +1931,8 @@ export interface BilanEmissionRelances {
   nonRemises: number;
   /** Désignés dans la sélection, sortis du circuit, donc rien reçu. */
   exclues: { compteId: string; tiers: string; motif: string }[];
+  /** Désignés, sans rien à réclamer dans l'état du niveau choisi (audit final F167). */
+  sansObjet: { compteId: string; compte: string; motif: string }[];
   lettres: LettreRelance[];
 }
 

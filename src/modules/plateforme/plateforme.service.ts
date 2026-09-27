@@ -3,7 +3,7 @@ import { normaliserCourriel } from '../../common/courriel';
 import { SANS_DOUBLE_AUTH } from '../auth/double-authentification';
 import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
-import { FormeJuridiqueSyscohada, Referentiel, RoleUtilisateur, StatutLicence, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
+import { FormeJuridiqueSyscohada, Referentiel, RoleUtilisateur, StatutEcriture, StatutLicence, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
 import { GarnissageDemonstrationService } from './garnissage-demonstration.service';
 import { scenarioDemonstration } from './scenario-demonstration';
 import { siSycebnl } from '../../common/reponse-referentiel';
@@ -13,6 +13,12 @@ import { CreerCabinetDto, ModifierGroupeDto, ModifierLicenceDto } from './dto/pl
 import { horsCloisonnement } from '../../common/cloisonnement/contexte-cloisonnement';
 import * as bcrypt from 'bcryptjs';
 import { licenceDeCellule, LicenceReflet, refuserCelluleEditeur } from '../licence/licence-de-cellule';
+
+/** Le refus d'attribuer « Perpétuelle (sur site) » à un dossier hébergé (audit final F171). */
+export const MOTIF_SUR_SITE_NON_ATTRIBUABLE =
+  'Licence « Perpétuelle (sur site) » non attribuable à un dossier hébergé · une installation sur site ' +
+  'tient sa licence d’un fichier signé, émis dans le cadre « Licences sur site » de la console. Pour une ' +
+  'licence sans échéance en ligne, choisir « Perpétuelle (SaaS) ».';
 
 /**
  * Console de l'opérateur de plateforme : vue transversale des cabinets
@@ -117,30 +123,24 @@ export class PlateformeService implements OnModuleInit {
   }
 
   /**
-   * LE MODE SUR SITE N'EST PAS ENCORE LIVRABLE · phase 4.
+   * UNE INSTALLATION SUR SITE NE TIENT PAS SA LICENCE D'UNE LIGNE DE CETTE
+   * TABLE (audit final F171). Elle lit un fichier signé par VMG
+   * (`sur-site/licence-signee.ts`), émis dans le cadre « Licences sur site »
+   * de la console, et vérifié sans internet · le heartbeat que ce type
+   * supposait n'a pas été retenu (2026-09-26).
    *
-   * `LicenceService.evaluerLicence` coupe l'accès d'une licence
-   * PERPETUEL_ONPREMISE dont le `dernierHeartbeatAt` est trop ancien OU NUL,
-   * et `LicenceService.enregistrerHeartbeat` n'a AUCUN émetteur dans le
-   * produit : ni route, ni tâche planifiée, ni client sur site. Le dossier à
-   * qui la console attribuait ce type naissait donc avec un heartbeat nul et
-   * se voyait refuser sa PREMIÈRE requête · la console vendait le seul type
-   * qui met le dossier hors service le jour de sa livraison.
-   *
-   * Rien n'est faux ni dans l'énumération Prisma ni dans la règle du
-   * heartbeat : les deux sont EN AVANCE, et se rebranchent le jour où une
-   * installation sur site émettra. C'est l'ATTRIBUTION qu'on ferme, ici, aux
-   * DEUX portes qui la posent : la création d'un cabinet et le changement de
-   * type. Une licence qui porterait déjà ce type reste modifiable · c'est
-   * même par ce PATCH qu'on l'en sort.
+   * Attribué à un dossier HÉBERGÉ, le type le mettait hors service dès sa
+   * première requête · `LicenceService.evaluerLicence` refuse une licence
+   * PERPETUEL_ONPREMISE sans heartbeat, et rien n'en émet en ligne.
+   * L'attribution reste donc fermée aux DEUX portes qui la posent · la
+   * création d'un cabinet et le changement de type. Une licence qui porterait
+   * déjà ce type reste modifiable · c'est par ce PATCH qu'on l'en sort. Le
+   * motif disait « phase 4 » jusqu'au 2026-09-27 · il orientait vers une
+   * licence SaaS un client qui voulait une installation, livrée depuis.
    */
   private refuserAttributionSurSite(type: TypeLicence | undefined) {
     if (type !== TypeLicence.PERPETUEL_ONPREMISE) return;
-    throw new BadRequestException(
-      'Licence « Perpétuelle (sur site) » non attribuable · l’installation sur site relève de la phase 4 : ' +
-        'aucun composant n’émet aujourd’hui le heartbeat que ce type exige, et le dossier serait refusé dès sa ' +
-        'première requête. Pour une licence sans échéance, choisir « Perpétuelle (SaaS) ».',
-    );
+    throw new BadRequestException(MOTIF_SUR_SITE_NON_ATTRIBUABLE);
   }
 
   /**
@@ -637,6 +637,21 @@ export class PlateformeService implements OnModuleInit {
     });
   }
 
+  /**
+   * LE DOSSIER DE L'ÉDITEUR, LU DEPUIS N'IMPORTE QUEL DOSSIER (audit final
+   * F173) · les abonnements le cherchaient par une lecture cloisonnée, que la
+   * garde rendait vide dès que l'opérateur n'était pas dans ce dossier. La
+   * console répondait « aucun dossier d'éditeur désigné » là où le vrai refus
+   * était « connectez-vous au dossier de l'éditeur ». `null` quand aucun n'est
+   * désigné.
+   */
+  async dossierEditeurId(): Promise<string | null> {
+    const l = await horsCloisonnement("console · le dossier de l'éditeur, où naissent les factures d'abonnement", () =>
+      this.prisma.licence.findFirst({ where: { type: TypeLicence.PROPRIETAIRE }, select: { tenantId: true } }),
+    );
+    return l?.tenantId ?? null;
+  }
+
   async preparerDossierDemonstration(dto: {
     nomEntite?: string;
     email: string;
@@ -652,6 +667,25 @@ export class PlateformeService implements OnModuleInit {
         }),
     );
     if (existant) {
+      // UNE VITRINE INTERROMPUE SE COMPLÈTE (audit final F174) · le garnissage
+      // valide en dernier, si bien qu'une vitrine sans aucune écriture validée
+      // est une vitrine dont le garnissage n'a pas abouti. Elle était marquée,
+      // donc introuvable à côté et impossible à refaire · on reprend son
+      // garnissage, qui ne recrée rien de ce qui existe.
+      const repris = await this.reprendreGarnissage(existant.id);
+      if (repris) {
+        this.logger.log(`Garnissage du dossier de démonstration repris · ${existant.nom}`);
+        return {
+          tenantId: existant.id,
+          garni: { tiers: repris.tiers, ecritures: repris.ecritures },
+          repris: true,
+          nom: existant.nom,
+          email: existant.users[0]?.email ?? '',
+          rappel:
+            "Garnissage d'une vitrine interrompue repris et achevé · son adresse et son mot de passe restent ceux de sa création, " +
+            'ceux saisis maintenant ne sont pas repris.',
+        };
+      }
       throw new BadRequestException(
         `Un dossier de démonstration existe déjà · « ${existant.nom} » (${existant.users[0]?.email ?? 'sans utilisateur'}). ` +
           "Servez-vous de celui-là plutôt que d'en ouvrir un second : deux vitrines divergent, et c'est toujours la " +
@@ -696,7 +730,8 @@ export class PlateformeService implements OnModuleInit {
       const garnissage = this.garnissage;
       garni = await horsCloisonnement('console · garnissage du dossier de démonstration', async () => {
         const auteur = await this.prisma.user.findFirstOrThrow({ where: { tenantId: resultat.tenant.id }, select: { id: true } });
-        return garnissage.garnir(resultat.tenant.id, auteur.id);
+        const r = await garnissage.garnir(resultat.tenant.id, auteur.id);
+        return { tiers: r.tiers, ecritures: r.ecritures };
       });
     }
 
@@ -704,6 +739,7 @@ export class PlateformeService implements OnModuleInit {
     return {
       tenantId: resultat.tenant.id,
       garni,
+      repris: false,
       nom: resultat.tenant.nom,
       email: dto.email,
       // Le mot de passe n'est PAS renvoyé · l'opérateur vient de le choisir, il
@@ -713,5 +749,22 @@ export class PlateformeService implements OnModuleInit {
         "Ce dossier est une vitrine : ses écritures doivent rester fictives, et son adresse comme son mot de passe " +
         'sont destinés à figurer dans un formulaire de soumission public.',
     };
+  }
+
+  /**
+   * Reprend le garnissage d'une vitrine qui n'a aucune écriture validée ·
+   * `null` quand elle en a (elle est garnie, le refus d'une seconde vitrine
+   * vaut) ou quand aucun garnissage n'est branché.
+   */
+  private async reprendreGarnissage(tenantId: string): Promise<{ tiers: number; ecritures: number } | null> {
+    if (!this.garnissage) return null;
+    const garnissage = this.garnissage;
+    return horsCloisonnement('console · reprise du garnissage du dossier de démonstration', async () => {
+      const validees = await this.prisma.ecriture.count({ where: { tenantId, statut: StatutEcriture.VALIDEE } });
+      if (validees > 0) return null;
+      const auteur = await this.prisma.user.findFirstOrThrow({ where: { tenantId }, select: { id: true } });
+      const r = await garnissage.garnir(tenantId, auteur.id);
+      return { tiers: r.tiers, ecritures: r.ecritures };
+    });
   }
 }

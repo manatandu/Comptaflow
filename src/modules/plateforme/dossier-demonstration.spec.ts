@@ -18,13 +18,18 @@ import { ConfigService } from '@nestjs/config';
 
 type Faux = Record<string, unknown>;
 
-function service(options: { existant?: unknown; garnissage?: unknown } = {}) {
+function service(options: { existant?: unknown; garnissage?: unknown; valideesExistant?: number } = {}) {
   const tenantUpdate = jest.fn().mockResolvedValue({});
   const userUpdateMany = jest.fn().mockResolvedValue({});
   const prisma = {
     tenant: {
       findFirst: jest.fn().mockResolvedValue(options.existant ?? null),
       update: tenantUpdate,
+    },
+    // Les écritures VALIDÉES de la vitrine existante · la doublure honore le
+    // statut demandé, sans quoi un comptage de tout le brouillard passerait.
+    ecriture: {
+      count: jest.fn(async ({ where }: { where: { statut?: string } }) => (where.statut === 'VALIDEE' ? (options.valideesExistant ?? 0) : 99)),
     },
     user: { updateMany: userUpdateMany, findFirstOrThrow: jest.fn().mockResolvedValue({ id: 'u-demo' }) },
   } as Faux;
@@ -112,5 +117,30 @@ describe("l'ouverture du dossier de démonstration", () => {
     const { service: s } = service();
     const r = await s.preparerDossierDemonstration(DTO);
     expect(JSON.stringify(r)).not.toContain('DemoOmegaX2026');
+  });
+
+  it('une vitrine interrompue (aucune écriture validée) se complète au lieu de bloquer (audit final F174)', async () => {
+    const garnissage = { garnir: jest.fn().mockResolvedValue({ tiers: 4, ecritures: 9, crees: 7 }) };
+    const { service: s, authService } = service({
+      existant: { id: 't1', nom: 'Démo OmegaX', users: [{ email: 'demo@vmgconsulting.cd' }] },
+      garnissage,
+      valideesExistant: 0,
+    });
+    const r = await s.preparerDossierDemonstration(DTO);
+    expect(garnissage.garnir).toHaveBeenCalledWith('t1', 'u-demo');
+    expect(authService.register).not.toHaveBeenCalled();
+    expect(r).toMatchObject({ tenantId: 't1', repris: true, email: 'demo@vmgconsulting.cd', garni: { tiers: 4, ecritures: 9 } });
+    expect(r.rappel).toContain('ceux saisis maintenant ne sont pas repris');
+  });
+
+  it('une vitrine garnie (écritures validées) n’est pas regarnie · la seconde reste refusée', async () => {
+    const garnissage = { garnir: jest.fn() };
+    const { service: s } = service({
+      existant: { id: 't1', nom: 'Démo OmegaX', users: [{ email: 'demo@vmgconsulting.cd' }] },
+      garnissage,
+      valideesExistant: 9,
+    });
+    await expect(s.preparerDossierDemonstration(DTO)).rejects.toThrow(/existe déjà/i);
+    expect(garnissage.garnir).not.toHaveBeenCalled();
   });
 });

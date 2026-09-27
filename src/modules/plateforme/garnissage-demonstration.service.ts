@@ -20,6 +20,12 @@ import { LigneDemo, scenarioDemonstration } from './scenario-demonstration';
  * Appelé par la console, dans une sortie de cloisonnement déclarée
  * (`PlateformeService.preparerDossierDemonstration`) · le dossier garni n'est
  * pas celui de la session de l'opérateur.
+ *
+ * IL SE REPREND (audit final F174) · un garnissage interrompu laissait une
+ * vitrine marquée, à moitié garnie, que la console refusait ensuite de
+ * refaire (« un seul dossier de démonstration »). Rejoué, il retrouve ce qui
+ * existe · le tiers par son code, l'écriture par son journal, sa date et son
+ * libellé · et ne crée que le reste. `crees` dit ce qui a été ajouté.
  */
 @Injectable()
 export class GarnissageDemonstrationService {
@@ -50,11 +56,23 @@ export class GarnissageDemonstrationService {
 
     const numeros = [...new Set(scenario.operations.flatMap((o) => o.lignes.flatMap((l) => ('nature' in l ? [l.nature] : []))))];
     const comptes = await this.prisma.compte.findMany({ where: { tenantId, numero: { in: numeros } }, select: { id: true, numero: true } });
+    let crees = 0;
     const compteTiers = new Map<string, string>();
     for (const t of scenario.tiers) {
+      const deja = await this.prisma.tiers.findUnique({
+        where: { tenantId_code: { tenantId, code: t.code } },
+        select: { comptesRattaches: { where: { estPrincipal: true }, select: { compteId: true } } },
+      });
+      if (deja) {
+        const principal = deja.comptesRattaches[0]?.compteId;
+        if (!principal) throw new BadRequestException(`Le tiers ${t.code} existe sans compte principal · la vitrine ne se complète pas.`);
+        compteTiers.set(t.code, principal);
+        continue;
+      }
       const cree = await this.tiers.creer(tenantId, { code: t.code, nom: t.nom, type: t.type });
       if (!cree.compteIndividuel) throw new BadRequestException(`Le tiers ${t.code} n’a pas reçu de compte individuel.`);
       compteTiers.set(t.code, cree.compteIndividuel.id);
+      crees++;
     }
     const compteDe = (l: LigneDemo): string => {
       if ('tresorerie' in l) return banque;
@@ -66,10 +84,19 @@ export class GarnissageDemonstrationService {
 
     const ids: string[] = [];
     for (const op of scenario.operations) {
+      const date = `${annee}-${op.jour}`;
+      const deja = await this.prisma.ecriture.findFirst({
+        where: { tenantId, exerciceId: exercice.id, journalId: journal(op.journal).id, date: new Date(`${date}T00:00:00Z`), libelle: op.libelle },
+        select: { id: true },
+      });
+      if (deja) {
+        ids.push(deja.id);
+        continue;
+      }
       const e = await this.ecritures.creer(tenantId, auteurId, {
         exerciceId: exercice.id,
         journalId: journal(op.journal).id,
-        date: `${annee}-${op.jour}`,
+        date,
         libelle: op.libelle,
         reference: op.reference,
         lignes: op.lignes.map((l) => ({
@@ -80,8 +107,9 @@ export class GarnissageDemonstrationService {
         })),
       });
       ids.push(e.id);
+      crees++;
     }
     await this.ecritures.valider(tenantId, auteurId, ids);
-    return { tiers: scenario.tiers.length, ecritures: ids.length };
+    return { tiers: scenario.tiers.length, ecritures: ids.length, crees };
   }
 }

@@ -62,12 +62,17 @@ describe('sur site · les sauvegardes', () => {
 });
 
 describe('sur site · la création d’un dossier passe par la licence de l’installation', () => {
-  function auth(plafond: (n: number) => void, dossiersOuverts: number) {
+  // La doublure HONORE le filtre du décompte · une doublure qui rendrait un
+  // nombre quel que soit le `where` validerait le décompte d'avant F170.
+  function auth(plafond: (n: number) => void, dossiersOuverts: number | { combinaisonPour: string | null }[]) {
+    const dossiers = typeof dossiersOuverts === 'number' ? Array.from({ length: dossiersOuverts }, () => ({ combinaisonPour: null })) : dossiersOuverts;
+    const compter = async (args?: { where?: { combinaisonPour?: null } }) =>
+      dossiers.filter((d) => !(args?.where && 'combinaisonPour' in args.where) || d.combinaisonPour === null).length;
     const creerTenant = jest.fn(async () => ({ id: 't1', nom: 'X', referentiel: Referentiel.SYCEBNL }));
     const tx = { user: { create: async () => ({ id: 'u1' }) } };
     const rien = async () => undefined;
     const s = new AuthService(
-      { user: { findUnique: async () => null }, tenant: { count: async () => dossiersOuverts }, $transaction: async (fn: (t: unknown) => unknown) => fn(tx) } as never,
+      { user: { findUnique: async () => null }, tenant: { count: compter }, $transaction: async (fn: (t: unknown) => unknown) => fn(tx) } as never,
       { sign: () => 'jeton' } as never,
       { creerTenant } as never,
       { seedPlan: rien } as never,
@@ -97,6 +102,15 @@ describe('sur site · la création d’un dossier passe par la licence de l’in
     await s.register(DTO as never);
     expect(vus).toEqual([1]);
     expect((creerTenant.mock.calls[0] as unknown[])[0]).toMatchObject({ typeLicence: TypeLicence.PERPETUEL_ONPREMISE });
+  });
+
+  it('le dossier de combinaison d’un groupe ne compte pas au plafond (audit final F170)', async () => {
+    // Technique, régénéré à chaque liasse du groupe · compté, il prenait la
+    // place d'un dossier vendu dès la première liasse.
+    const vus: number[] = [];
+    const { s } = auth((n) => void vus.push(n), [{ combinaisonPour: null }, { combinaisonPour: 'siege' }]);
+    await s.register(DTO as never);
+    expect(vus).toEqual([1]);
   });
 });
 

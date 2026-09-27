@@ -203,7 +203,10 @@ export class TenantService {
    * rejouerait les mêmes soldes dans une autre forme.
    */
   async modifierSystemeSyscohada(tenantId: string, systeme: SystemeComptableSyscohada) {
-    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      include: { _count: { select: { cellules: true } } },
+    });
     if (!tenant) {
       throw new NotFoundException('Dossier introuvable');
     }
@@ -213,6 +216,23 @@ export class TenantService {
       );
     }
     if (tenant.systemeComptableSyscohada !== systeme) {
+      // LE SYSTÈME D'UN GROUPE SE TIENT AU SIÈGE (audit final F172) · la
+      // cellule est un établissement de la même entité (AUDCIF, fiche du
+      // COMPTE 18), et le système lui est imposé à ses deux portes
+      // (`creerCellule`, `PlateformeService.verifierMere`). Changé ici, il
+      // désaccordait après coup un siège et ses cellules, et la liasse du
+      // groupe sortait sous le système du siège sur des cellules tenues dans
+      // l'autre.
+      if (tenant.dossierMereId !== null) {
+        throw new BadRequestException(
+          'Ce dossier est une cellule · il tient le système comptable de son siège. Détachez-le du groupe pour en changer.',
+        );
+      }
+      if (tenant._count.cellules > 0) {
+        throw new BadRequestException(
+          `Ce dossier est le siège de ${tenant._count.cellules} cellule(s) · elles tiennent son système comptable, le changer les désaccorderait. Détachez-les d'abord.`,
+        );
+      }
       const nombreEcritures = await this.prisma.ecriture.count({ where: { tenantId } });
       if (nombreEcritures > 0) {
         throw new BadRequestException(

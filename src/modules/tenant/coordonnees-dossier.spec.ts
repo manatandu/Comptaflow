@@ -30,7 +30,9 @@ describe('Coordonnées du dossier', () => {
   ) =>
     new TenantService({
       tenant: {
-        findUnique: async () => tenant,
+        // `_count` des cellules, que la modification du système lit (audit
+        // final F172) · zéro sauf quand le jeu d'essai en pose.
+        findUnique: async () => ({ dossierMereId: null, _count: { cellules: 0 }, ...tenant }),
         update: async ({ data }: { data: Record<string, unknown> }) => {
           capture.data = data;
           return tenant;
@@ -151,6 +153,23 @@ describe('Coordonnées du dossier', () => {
     });
     await vierge.modifierSystemeSyscohada('t3', SystemeComptableSyscohada.MINIMAL_TRESORERIE);
     expect(capture.data!.systemeComptableSyscohada).toBe(SystemeComptableSyscohada.MINIMAL_TRESORERIE);
+  });
+
+  it('le système d’une cellule ou d’un siège ne change pas · il est celui du groupe (audit final F172)', async () => {
+    const base = { referentiel: Referentiel.SYSCOHADA, systemeComptableSyscohada: SystemeComptableSyscohada.NORMAL };
+    const capture: { data?: Record<string, unknown> } = {};
+    const cellule = service(capture, { id: 't4', ...base, dossierMereId: 'siege' });
+    await expect(cellule.modifierSystemeSyscohada('t4', SystemeComptableSyscohada.MINIMAL_TRESORERIE)).rejects.toThrow(
+      /cellule · il tient le système comptable de son siège/,
+    );
+    const siege = service(capture, { id: 't5', ...base, _count: { cellules: 2 } });
+    await expect(siege.modifierSystemeSyscohada('t5', SystemeComptableSyscohada.MINIMAL_TRESORERIE)).rejects.toThrow(
+      /siège de 2 cellule\(s\)/,
+    );
+    expect(capture.data).toBeUndefined();
+    // Le même système se réenregistre sans refus · rien ne change.
+    await cellule.modifierSystemeSyscohada('t4', SystemeComptableSyscohada.NORMAL);
+    expect(capture.data!.systemeComptableSyscohada).toBe(SystemeComptableSyscohada.NORMAL);
   });
 
   /*
