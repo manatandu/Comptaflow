@@ -46,7 +46,7 @@ const ROUTES: { methode: Methode; chemin: string }[] = [
 function methodeDuControleur(methode: Methode, chemin: string): string {
   const decorateur = `@${methode}('${chemin}')`;
   const i = controleur.indexOf(decorateur);
-  expect(i, `${decorateur} absent du contrôleur`).toBeGreaterThan(0);
+  expect([`${decorateur} absent du contrôleur`, i > 0]).toEqual([`${decorateur} absent du contrôleur`, true]);
   const suite = controleur.slice(i + decorateur.length);
   const prochain = suite.search(/\n\s*@(Get|Post|Patch|Put|Delete|Roles)\(/);
   return prochain === -1 ? suite : suite.slice(0, prochain);
@@ -60,7 +60,7 @@ function dtoDeLaRoute(methode: Methode, chemin: string): string | null {
 /** Propriétés d'une classe du fichier de DTO, découpée par équilibrage d'accolades. */
 function proprietesDuDto(nom: string): Set<string> {
   const debutClasse = dtos.indexOf(`export class ${nom} {`);
-  expect(debutClasse, `classe ${nom} introuvable`).toBeGreaterThanOrEqual(0);
+  expect([`classe ${nom} introuvable`, debutClasse >= 0]).toEqual([`classe ${nom} introuvable`, true]);
   const debut = dtos.indexOf('{', debutClasse);
   const corps = dtos.slice(debut + 1, finDuBloc(dtos, debut));
   return new Set([...corps.matchAll(/^\s{2}([a-zA-Z]+)[?!]:/gm)].map((m) => m[1]));
@@ -161,7 +161,7 @@ describe('inventaire physique · chaque geste du serveur a son geste à l’écr
   it.each(ROUTES)('$methode /inventaire/$chemin est appelée par la page', ({ methode, chemin }) => {
     methodeDuControleur(methode, chemin);
     const appels = appelsDeLaPage(chemin);
-    expect(appels.length, `aucun appel à /inventaire/${chemin}`).toBeGreaterThan(0);
+    expect([`aucun appel à /inventaire/${chemin}`, appels.length > 0]).toEqual([`aucun appel à /inventaire/${chemin}`, true]);
     for (const a of appels) expect(a.methode).toBe(methode.toLowerCase());
   });
 
@@ -169,13 +169,13 @@ describe('inventaire physique · chaque geste du serveur a son geste à l’écr
     'le corps de $methode /inventaire/$chemin ne porte que des propriétés de son DTO',
     ({ methode, chemin }) => {
       const dto = dtoDeLaRoute(methode, chemin);
-      expect(dto, `aucun @Body sur ${chemin}`).not.toBeNull();
+      expect([`aucun @Body sur ${chemin}`, dto === null]).toEqual([`aucun @Body sur ${chemin}`, false]);
       const proprietes = proprietesDuDto(dto as string);
       const appels = appelsDeLaPage(chemin);
       // Sans appel, la boucle ne vérifierait rien et passerait.
       expect(appels.length).toBeGreaterThan(0);
       for (const { corps } of appels) {
-        expect(corps, `appel à /inventaire/${chemin} sans corps littéral`).not.toBeNull();
+        expect([`appel à /inventaire/${chemin} sans corps littéral`, corps === null]).toEqual([`appel à /inventaire/${chemin} sans corps littéral`, false]);
         const cles = segmentsDePremierNiveau(corps as string).map(cleDuSegment);
         expect(cles.length).toBeGreaterThan(0);
         expect(cles.filter((c) => !proprietes.has(c))).toEqual([]);
@@ -187,7 +187,7 @@ describe('inventaire physique · chaque geste du serveur a son geste à l’écr
     const proprietes = proprietesDuDto('CoupureDto');
     const [appel] = appelsDeLaPage(':id/pv-caisse');
     const segment = segmentsDePremierNiveau(appel.corps as string).find((x) => x.startsWith('coupures'));
-    expect(segment, 'le PV de caisse doit pouvoir porter sa ventilation par coupure').toBeDefined();
+    expect(['ventilation par coupure du PV de caisse', segment !== undefined]).toEqual(['ventilation par coupure du PV de caisse', true]);
     const litteraux = [...(segment as string).matchAll(/\(\{/g)].map((m) => {
       const debut = (m.index ?? 0) + 1;
       return (segment as string).slice(debut + 1, finDuBloc(segment as string, debut));

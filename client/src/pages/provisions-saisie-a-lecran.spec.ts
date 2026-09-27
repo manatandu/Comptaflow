@@ -46,7 +46,7 @@ function blocEquilibre(source: string, debut: number): string {
 function corpsDe(methode: 'post' | 'patch', chemin: string): string {
   const appel = new RegExp(`api\\.${methode}<[^>]*>\\(${chemin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*,\\s*\\{`);
   const m = appel.exec(page);
-  expect(m, `appel ${methode} ${chemin} introuvable`).not.toBeNull();
+  expect([`appel ${methode} ${chemin} introuvable`, m === null]).toEqual([`appel ${methode} ${chemin} introuvable`, false]);
   const ouvrante = (m as RegExpExecArray).index + (m as RegExpExecArray)[0].length - 1;
   return blocEquilibre(page, ouvrante);
 }
@@ -58,7 +58,7 @@ function clesDu(corps: string): string[] {
 /** Les propriétés d'une classe du DTO, lues dans le corps de la classe elle-même. */
 function proprietesDe(classe: string): Set<string> {
   const debut = dto.indexOf(`export class ${classe} {`);
-  expect(debut, `classe ${classe} introuvable`).toBeGreaterThanOrEqual(0);
+  expect([`classe ${classe} introuvable`, debut >= 0]).toEqual([`classe ${classe} introuvable`, true]);
   const corps = blocEquilibre(dto, dto.indexOf('{', debut));
   return new Set([...corps.matchAll(/(\w+)[?!]:/g)].map((m) => m[1]));
 }
