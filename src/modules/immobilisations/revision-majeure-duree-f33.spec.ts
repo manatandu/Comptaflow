@@ -40,6 +40,7 @@ function harnais(dureeFamille: number) {
     familleImmobilisation: {
       findFirst: jest.fn().mockResolvedValue({
         id: 'f1',
+        estActif: true,
         compteImmobilisationId: 'ci',
         compteAmortissementId: 'ca',
         compteDotationId: 'cd',

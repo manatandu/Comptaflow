@@ -9,6 +9,8 @@ import {
   planFiscalDegressif,
 } from './amortissement-degressif';
 import { DegressifService } from './degressif.service';
+import { ConflictException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 const d = (s: string) => new Date(`${s}T00:00:00.000Z`);
 const exercices = [2026, 2027, 2028, 2029, 2030, 2031, 2032].map((a) => ({ id: `e${a}`, dateDebut: d(`${a}-01-01`), dateFin: d(`${a}-12-31`) }));
@@ -60,9 +62,15 @@ describe('le dérogatoire · écart entre annuité fiscale et dotation comptable
 });
 
 describe('DegressifService.passer', () => {
-  function monter(over: { dotations?: unknown[]; derogatoires?: unknown[]; systeme?: string } = {}) {
+  function monter(over: { dotations?: unknown[]; derogatoires?: unknown[]; systeme?: string; doublon?: boolean } = {}) {
     const creer = jest.fn(async () => ({ id: 'ecr' }));
-    const create = jest.fn(async ({ data }: { data: unknown }) => data);
+    const retirerCompensation = jest.fn(async () => undefined);
+    // Un second clic passé entre la lecture et l'enregistrement · l'index
+    // unique (bien, exercice, nature) refuse la seconde fiche.
+    const create = jest.fn(async ({ data }: { data: unknown }) => {
+      if (over.doublon) throw new Prisma.PrismaClientKnownRequestError('Unique', { code: 'P2002', clientVersion: 'test' });
+      return data;
+    });
     const prisma = {
       immobilisation: {
         findFirst: jest.fn(async () => ({
@@ -79,8 +87,33 @@ describe('DegressifService.passer', () => {
         findUniqueOrThrow: jest.fn(async () => ({ referentiel: 'SYSCOHADA', systemeComptableSyscohada: over.systeme ?? 'NORMAL' })),
       },
     };
-    return { s: new DegressifService(prisma as never, { creer } as never), creer, create };
+    return { s: new DegressifService(prisma as never, { creer, retirerCompensation } as never), creer, create, retirerCompensation };
   }
+
+  it('un double envoi retire la seconde écriture 851/151 et répond 409 (audit final F132)', async () => {
+    const { s, retirerCompensation } = monter({ doublon: true });
+    const refus = s.passer('t', 'u', 'i', { exerciceId: 'e2026', journalId: 'od' });
+    await expect(refus).rejects.toBeInstanceOf(ConflictException);
+    await expect(refus).rejects.toThrow(/déjà passé/);
+    expect(retirerCompensation).toHaveBeenCalledWith('t', 'ecr');
+  });
+
+  it('le solde d’un bien, doublé, retire aussi sa seconde écriture (audit final F132)', async () => {
+    const { s, retirerCompensation } = monter({
+      doublon: true,
+      derogatoires: [{ exerciceId: 'e2026', nature: 'EXERCICE', dotation: 100_000, reprise: 0 }],
+    });
+    (s as unknown as { prisma: { exercice: { findFirst: jest.Mock } } }).prisma.exercice.findFirst = jest.fn(async () => exercices[0]);
+    await expect(s.solder('t', 'u', 'i', { exerciceId: 'e2026', journalId: 'od' })).rejects.toBeInstanceOf(ConflictException);
+    expect(retirerCompensation).toHaveBeenCalledWith('t', 'ecr');
+  });
+
+  it('une autre panne retire l’écriture aussi, et remonte telle quelle', async () => {
+    const { s, create, retirerCompensation } = monter();
+    create.mockRejectedValueOnce(new Error('coupure'));
+    await expect(s.passer('t', 'u', 'i', { exerciceId: 'e2026', journalId: 'od' })).rejects.toThrow('coupure');
+    expect(retirerCompensation).toHaveBeenCalledWith('t', 'ecr');
+  });
 
   it('passe la dotation 851/151 de l’écart, et la consigne', async () => {
     const { s, creer, create } = monter();

@@ -29,6 +29,7 @@ function harnais() {
     familleImmobilisation: {
       findFirst: jest.fn().mockResolvedValue({
         id: 'f1',
+        estActif: true,
         compteImmobilisationId: 'cimmo',
         compteAmortissementId: 'camort',
         compteDotationId: 'cdot',

@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { NatureDerogatoire } from '@prisma/client';
+import { NatureDerogatoire, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { motifRefusAmortissementNonLineaireSmt } from '../../common/systeme-minimal';
@@ -123,6 +123,24 @@ export class DegressifService {
     });
   }
 
+  /**
+   * L'ENREGISTREMENT QUI SUIT L'ÉCRITURE, ET CE QU'IL DÉFAIT S'IL EST REFUSÉ
+   * (audit final F132). Deux clics passent les mêmes contrôles et posent chacun
+   * leur écriture 851/151 · l'index unique (bien, exercice, nature) ne refuse
+   * que la SECONDE fiche, et son écriture restait au journal sans rien qui la
+   * tienne, doublant le dérogatoire au bilan. Elle est retirée par la
+   * compensation commune, et le refus se dit en 409, comme `passerDotation`.
+   */
+  private async enregistrer<T>(tenantId: string, ecritureId: string | null, creer: () => Promise<T>, dejaPasse: string): Promise<T> {
+    try {
+      return await creer();
+    } catch (err) {
+      if (ecritureId) await this.ecritures.retirerCompensation(tenantId, ecritureId);
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') throw new ConflictException(dejaPasse);
+      throw err;
+    }
+  }
+
   private async compte(tenantId: string, numero: string) {
     const c = await this.prisma.compte.findUnique({ where: { tenantId_numero: { tenantId, numero } }, select: { id: true } });
     if (!c) throw new BadRequestException(`Compte ${numero} introuvable dans le plan du dossier.`);
@@ -189,20 +207,26 @@ export class DegressifService {
       });
       ecritureId = ecriture.id;
     }
-    return this.prisma.amortissementDerogatoire.create({
-      data: {
-        tenantId,
-        immobilisationId: immo.id,
-        exerciceId: dto.exerciceId,
-        nature: NatureDerogatoire.EXERCICE,
-        annuiteFiscale: annuite,
-        dotationComptable: n(comptable.montant),
-        dotation: d.dotation,
-        reprise: d.reprise,
-        excedentAReintegrer: d.excedentAReintegrer,
-        ecritureId,
-      },
-    });
+    return this.enregistrer(
+      tenantId,
+      ecritureId,
+      () =>
+        this.prisma.amortissementDerogatoire.create({
+          data: {
+            tenantId,
+            immobilisationId: immo.id,
+            exerciceId: dto.exerciceId,
+            nature: NatureDerogatoire.EXERCICE,
+            annuiteFiscale: annuite,
+            dotationComptable: n(comptable.montant),
+            dotation: d.dotation,
+            reprise: d.reprise,
+            excedentAReintegrer: d.excedentAReintegrer,
+            ecritureId,
+          },
+        }),
+      'Le dérogatoire de cet exercice est déjà passé.',
+    );
   }
 
   /**
@@ -227,20 +251,26 @@ export class DegressifService {
         { compteId: await this.compte(tenantId, COMPTES_DEROGATOIRE.reprisesHao), debit: 0, credit: cumul },
       ],
     });
-    return this.prisma.amortissementDerogatoire.create({
-      data: {
-        tenantId,
-        immobilisationId: immo.id,
-        exerciceId: dto.exerciceId,
-        nature: NatureDerogatoire.SOLDE_SORTIE,
-        annuiteFiscale: 0,
-        dotationComptable: 0,
-        dotation: 0,
-        reprise: cumul,
-        excedentAReintegrer: 0,
-        ecritureId: ecriture.id,
-      },
-    });
+    return this.enregistrer(
+      tenantId,
+      ecriture.id,
+      () =>
+        this.prisma.amortissementDerogatoire.create({
+          data: {
+            tenantId,
+            immobilisationId: immo.id,
+            exerciceId: dto.exerciceId,
+            nature: NatureDerogatoire.SOLDE_SORTIE,
+            annuiteFiscale: 0,
+            dotationComptable: 0,
+            dotation: 0,
+            reprise: cumul,
+            excedentAReintegrer: 0,
+            ecritureId: ecriture.id,
+          },
+        }),
+      'Le solde du dérogatoire de ce bien est déjà repris sur cet exercice.',
+    );
   }
 }
 

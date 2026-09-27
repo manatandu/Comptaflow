@@ -167,7 +167,8 @@ describe('exports · les totaux sont des formules Excel', () => {
                 dotation: 2_400,
                 cumulN1: 4_800,
                 cumulN: 7_200,
-                valeurNette: 4_800,
+                depreciations: 1_000,
+                valeurNette: 3_800,
                 dotationPassee: true,
               },
             ],
@@ -175,7 +176,8 @@ describe('exports · les totaux sont des formules Excel', () => {
             dotation: 2_400,
             cumulN1: 4_800,
             cumulN: 7_200,
-            net: 4_800,
+            depreciations: 1_000,
+            net: 3_800,
           },
         ],
         totaux: {
@@ -183,7 +185,8 @@ describe('exports · les totaux sont des formules Excel', () => {
           dotation: 2_400,
           cumulN1: 4_800,
           cumulN: 7_200,
-          net: 4_800,
+          depreciations: 1_000,
+          net: 3_800,
         },
       }),
     } as unknown as ImmobilisationService;
@@ -214,7 +217,7 @@ describe('exports · les totaux sont des formules Excel', () => {
     expect(f.getCell('A6').value).toBe('Concasseur');
 
     // Colonnes : A libellé, B date, C brut, D taux, E→P les douze mois,
-    // Q dotation, R cumul N-1, S cumul N, T valeur nette.
+    // Q dotation, R cumul N-1, S cumul N, T dépréciations, U valeur nette.
     const dotation = cellule(f, 'Q6');
     expect(estFormule(dotation)).toBe(true);
     expect((dotation as ExcelJS.CellFormulaValue).formula).toBe('SUM(E6:P6)');
@@ -222,8 +225,13 @@ describe('exports · les totaux sont des formules Excel', () => {
     const cumulN = cellule(f, 'S6');
     expect((cumulN as ExcelJS.CellFormulaValue).formula).toBe('R6+Q6');
 
-    const net = cellule(f, 'T6');
-    expect((net as ExcelJS.CellFormulaValue).formula).toBe('C6-S6');
+    // La valeur nette retranche les 29 (audit final F131).
+    expect(f.getCell('T4').value).toBe('Dépréciations');
+    expect(f.getCell('T6').value).toBe(1_000);
+    const net = cellule(f, 'U6');
+    expect((net as ExcelJS.CellFormulaValue).formula).toBe('C6-S6-T6');
+    expect((net as ExcelJS.CellFormulaValue).result).toBe(3_800);
+    expect((cellule(f, 'T7') as ExcelJS.CellFormulaValue).formula).toBe('SUM(T6:T6)');
 
     // Le S/TOTAL somme les lignes du groupe…
     const sousTotal = cellule(f, 'Q7');
@@ -243,6 +251,7 @@ describe('exports · les totaux sont des formules Excel', () => {
       dureeAns: 5,
       valeurBrute: brut,
       amortissements: 0,
+      depreciations: 0,
       valeurNette: brut,
       statut: 'EN_SERVICE',
       dateSortie: null,
@@ -250,9 +259,19 @@ describe('exports · les totaux sont des formules Excel', () => {
     const immos = {
       tableauImmobilisations: jest.fn().mockResolvedValue({
         dateArret: '2025-12-31',
-        groupes: [{ numero: '221499', intitule: 'Matériel', lignes: [ligne('a', 'Concasseur', 100_000)], brut: 100_000, amortissements: 0, net: 100_000 }],
+        groupes: [
+          {
+            numero: '221499',
+            intitule: 'Matériel',
+            lignes: [{ ...ligne('a', 'Concasseur', 100_000), depreciations: 7_000, valeurNette: 93_000 }],
+            brut: 100_000,
+            amortissements: 0,
+            depreciations: 7_000,
+            net: 93_000,
+          },
+        ],
         sortis: [{ ...ligne('b', 'Camion cédé', 60_000), statut: 'CEDEE', dateSortie: '2025-06-30', compte: '245' }],
-        totaux: { brut: 100_000, amortissements: 0, net: 100_000 },
+        totaux: { brut: 100_000, amortissements: 0, depreciations: 7_000, net: 93_000 },
       }),
     } as unknown as ImmobilisationService;
     const prisma = {
@@ -270,7 +289,12 @@ describe('exports · les totaux sont des formules Excel', () => {
     expect((cellule(f, 'D8') as ExcelJS.CellFormulaValue).formula).toBe('D7');
     expect(f.getCell('A10').value).toBe('BIENS SORTIS À CETTE DATE · hors total');
     expect(f.getCell('A11').value).toBe('(245) Camion cédé');
-    expect(f.getCell('G11').value).toBe('Sorti le 30/06/2025');
+    expect(f.getCell('H11').value).toBe('Sorti le 30/06/2025');
+    // La valeur nette retranche les 29 (audit final F131).
+    expect(f.getCell('F4').value).toBe('Dépréciations');
+    const net = cellule(f, 'G6') as ExcelJS.CellFormulaValue;
+    expect({ formule: net.formula, resultat: net.result }).toEqual({ formule: 'D6-E6-F6', resultat: 93_000 });
+    expect((cellule(f, 'F8') as ExcelJS.CellFormulaValue).formula).toBe('F7');
   });
 
   it('joint toujours le résultat calculé · un lecteur sans moteur de calcul verrait une case vide', async () => {

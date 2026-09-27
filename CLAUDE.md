@@ -4942,7 +4942,9 @@ dérogatoire mais une charge à réintégrer (art. 28), MONTRÉE, jamais postée
 (5) UN BIEN NE SORT PAS AVEC SON DÉROGATOIRE · la sortie est refusée tant que
 le 151 porte un solde pour lui, et « Reprendre le solde » le passe au 861
 (lecture d'OmegaX, aucun texte lu ne règle ce moment). L'écriture est retenue
-par `verifierAucunModuleNeLaTient`.
+par `verifierAucunModuleNeLaTient`. Un DOUBLE ENVOI ne double rien (audit final F132) ·
+la fiche refusée par l'index unique retire son écriture, et le refus est un
+409.
 
 **Barèmes de paie en données datées (2026-09-26).** Priorité 4 de la
 comparaison avec les autres produits Sage (Sage Paie tient ses barèmes en
@@ -5283,7 +5285,19 @@ mois de la sortie compris, comme le Guide la chiffre (« 180 × 9/12 ») · le
 SMT SYSCOHADA reste sans prorata. Et tout ce qui peut refuser se fait AVANT le
 verrou qui pose le statut de sortie ; une écriture refusée après lui défait
 tout (`defaireSortie`) · un bien sorti sans écriture restait au bilan, et
-« déjà sortie » fermait toute reprise.
+« déjà sortie » fermait toute reprise. UN PRINCIPAL NE SORT PAS AVEC SES
+COMPOSANTS EN SERVICE (F127) · refusé en les nommant, le sort de chacun étant
+une décision. L'ÉCRITURE DU PRODUIT DE CESSION EST RETENUE (F130) ·
+`ecritureProduitCessionId`, RESTRICT, dans `COLONNES_QUI_RETIENNENT` · sans
+quoi elle se supprimait du journal pendant que la fiche gardait le prix.
+
+**La famille donne ses défauts, jamais une contrainte (2026-09-27, audit
+final F128, F129).** Un bien qui ne déclare pas de mode prend celui de sa
+famille, avec ses préalables (le total d'unités prévues aux unités d'œuvre) ;
+une famille EN SOMMEIL ne reçoit plus de bien, au serveur comme au sélecteur.
+Et LES DEUX TABLEAUX RETRANCHENT LES 29 (F131) · une colonne « Dépréciations »,
+cumul à la date d'arrêté ou à la clôture, et une valeur nette qui recoupe
+enfin la balance d'un bien déprécié.
 
 **Bien repris · la date tranche, pas la case (2026-09-27, audit final F32).**
 Un bien acquis avant l'ouverture de l'exercice est déjà au bilan d'ouverture,

@@ -43,7 +43,7 @@ const PIECE = {
   justificationDecomposition: 'Moteur de secours tenu en réserve · durée distincte de la machine',
 };
 
-function harnais(options: { createEchoue?: boolean } = {}) {
+function harnais(options: { createEchoue?: boolean; modeFamille?: string } = {}) {
   const ecrituresSupprimees: string[] = [];
   const ecrituresPostees: string[] = [];
   const deleteMany = jest.fn().mockResolvedValue({ count: 1 });
@@ -51,10 +51,12 @@ function harnais(options: { createEchoue?: boolean } = {}) {
     familleImmobilisation: {
       findFirst: jest.fn().mockResolvedValue({
         id: 'f1',
+        estActif: true,
         compteImmobilisationId: 'cimmo',
         compteAmortissementId: 'camort',
         compteDotationId: 'cdot',
         dureeAmortissementAns: 10,
+        modeAmortissement: options.modeFamille ?? 'LINEAIRE',
       }),
     },
     compte: { findFirst: jest.fn().mockResolvedValue({ id: 'ctreso', numero: '52110000' }) },
@@ -200,3 +202,30 @@ describe('F29 · la création d’un bien ne laisse jamais une écriture sans fi
     expect(ecrituresSupprimees).toEqual(['eAcq']);
   });
 });
+
+describe('F128 · le bien hérite du mode de sa famille', () => {
+  it('une famille aux unités d’œuvre impose son mode, et ses préalables, au bien qui n’en déclare pas', async () => {
+    const { svc, ecrituresPostees } = harnais({ modeFamille: 'UNITES_DOEUVRE' });
+    const { immobilisationPrincipaleId: _p, typeComposant: _t, justificationDecomposition: _j, ...structure } = PIECE;
+    await expect(svc.creer('t1', 'u1', structure as never)).rejects.toThrow(/TOTAL D'UNITÉS PRÉVUES/);
+    expect(ecrituresPostees).toEqual([]);
+  });
+
+  it('le bien peut déclarer un autre mode que sa famille', async () => {
+    const { svc } = harnais({ modeFamille: 'UNITES_DOEUVRE' });
+    const { immobilisationPrincipaleId: _p, typeComposant: _t, justificationDecomposition: _j, ...structure } = PIECE;
+    await expect(svc.creer('t1', 'u1', { ...structure, modeAmortissement: 'LINEAIRE' } as never)).resolves.toBeDefined();
+  });
+});
+
+describe('F129 · une famille en sommeil ne reçoit plus de bien', () => {
+  it('la création est refusée avant toute écriture', async () => {
+    const { svc, ecrituresPostees } = harnais();
+    const familles = (svc as unknown as { prisma: { familleImmobilisation: { findFirst: jest.Mock } } }).prisma.familleImmobilisation;
+    familles.findFirst.mockResolvedValueOnce({ id: 'f1', intitule: 'Mobilier', estActif: false, dureeAmortissementAns: 10, modeAmortissement: 'LINEAIRE' });
+    const { immobilisationPrincipaleId: _p, typeComposant: _t, justificationDecomposition: _j, ...structure } = PIECE;
+    await expect(svc.creer('t1', 'u1', structure as never)).rejects.toThrow(/Mobilier.*en sommeil/);
+    expect(ecrituresPostees).toEqual([]);
+  });
+});
+

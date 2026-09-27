@@ -49,6 +49,7 @@ function harnais(options: { referentiel?: Referentiel; principal?: typeof IMMEUB
     familleImmobilisation: {
       findFirst: jest.fn().mockResolvedValue({
         id: 'f1',
+        estActif: true,
         compteImmobilisationId: 'cimmo',
         compteAmortissementId: 'camort',
         compteDotationId: 'cdot',

@@ -29,6 +29,8 @@ function harnais(
     comptesAbsents?: string[];
     /** Rang (1, 2…) de l'appel à `creer` qui échoue. */
     echecCreation?: number;
+    /** Composants rattachés au bien (audit final F127). */
+    composants?: { designation: string; immobilisationPrincipaleId: string; statut: string }[];
   } = {},
 ) {
   const ecrituresPostees: Array<{ id: string; libelle: string; lignes: Ligne[] }> = [];
@@ -62,6 +64,14 @@ function harnais(
     },
     immobilisation: {
       findFirst: jest.fn().mockResolvedValue(immo),
+      // La doublure HONORE le filtre · principal et statut.
+      findMany: jest.fn(({ where }: { where: { immobilisationPrincipaleId?: string; statut?: string } }) =>
+        Promise.resolve(
+          (options.composants ?? []).filter(
+            (c) => c.immobilisationPrincipaleId === where.immobilisationPrincipaleId && (!where.statut || c.statut === where.statut),
+          ),
+        ),
+      ),
       updateMany,
       update: jest.fn().mockResolvedValue({ ...immo, dotations: immo.dotations }),
     },
@@ -97,6 +107,7 @@ function harnais(
     }),
   } as unknown as EcritureService;
   return {
+    prisma,
     svc: new ImmobilisationService(prisma as unknown as PrismaService, ecritures),
     ecrituresPostees,
     updateMany,
@@ -175,7 +186,7 @@ describe('F28 · un refus ne laisse jamais le bien sorti sans écriture', () => 
     expect(supprimees).toEqual(['e1']);
     expect(updateMany).toHaveBeenLastCalledWith({
       where: { id: 'i1', tenantId: 't1' },
-      data: { statut: 'EN_SERVICE', dateSortie: null, prixCession: null, ecritureSortieId: null },
+      data: { statut: 'EN_SERVICE', dateSortie: null, prixCession: null, ecritureSortieId: null, ecritureProduitCessionId: null },
     });
   });
 
@@ -185,3 +196,47 @@ describe('F28 · un refus ne laisse jamais le bien sorti sans écriture', () => 
     expect(supprimees).toEqual(['e2', 'e1']);
   });
 });
+
+describe('F127 · un bien principal ne sort pas avec ses composants en service', () => {
+  it('refuse, en nommant les composants, avant tout verrou et toute écriture', async () => {
+    const { svc, updateMany, ecrituresPostees } = harnais({
+      composants: [
+        { designation: 'Pneus', immobilisationPrincipaleId: 'i1', statut: 'EN_SERVICE' },
+        { designation: 'Ancien moteur', immobilisationPrincipaleId: 'i1', statut: 'MIS_HORS_SERVICE' },
+        { designation: 'Autre bien', immobilisationPrincipaleId: 'i9', statut: 'EN_SERVICE' },
+      ],
+    });
+    await expect(svc.sortir('t1', 'u1', 'i1', sortie('2026-09-30') as never)).rejects.toThrow(/1 composant\(s\) en service \(Pneus\)/);
+    expect(updateMany).not.toHaveBeenCalled();
+    expect(ecrituresPostees).toEqual([]);
+  });
+
+  it('des composants déjà sortis ne retiennent pas le principal', async () => {
+    const { svc, ecrituresPostees } = harnais({
+      composants: [{ designation: 'Ancien moteur', immobilisationPrincipaleId: 'i1', statut: 'MIS_HORS_SERVICE' }],
+    });
+    await svc.sortir('t1', 'u1', 'i1', sortie('2026-09-30') as never);
+    expect(ecrituresPostees.length).toBeGreaterThan(0);
+  });
+});
+
+describe('F130 · l’écriture du produit de cession est retenue par la fiche', () => {
+  it('la cession lie à la fiche l’écriture du produit, à côté de celle de sortie', async () => {
+    const { svc, prisma, ecrituresPostees } = harnais();
+    await svc.sortir('t1', 'u1', 'i1', sortie('2026-09-30', 'CESSION') as never);
+    const produit = ecrituresPostees.find((e) => e.libelle.startsWith('Produit de cession'))!;
+    const sortieE = ecrituresPostees.find((e) => e.libelle.startsWith('Cession'))!;
+    expect(prisma.immobilisation.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({ data: { ecritureSortieId: sortieE.id, ecritureProduitCessionId: produit.id } }),
+    );
+  });
+
+  it('une mise hors service n’a pas d’écriture de produit · la colonne reste vide', async () => {
+    const { svc, prisma } = harnais();
+    await svc.sortir('t1', 'u1', 'i1', sortie('2026-09-30') as never);
+    expect(prisma.immobilisation.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ ecritureProduitCessionId: null }) }),
+    );
+  });
+});
+

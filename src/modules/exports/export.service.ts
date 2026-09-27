@@ -1575,6 +1575,9 @@ export class ExportService {
       { header: 'Durée', key: 'duree', width: 8 },
       { header: `Val. brute (${identite.devise})`, key: 'brut', width: 18 },
       { header: 'Amort. cumulés', key: 'amort', width: 18 },
+      // Les 29 (audit final F131) · sans eux, la valeur nette d'un bien
+      // déprécié ne se recoupait pas avec la balance.
+      { header: 'Dépréciations', key: 'dep', width: 18 },
       { header: 'Val. nette', key: 'net', width: 18 },
       { header: 'Observations', key: 'obs', width: 44 },
     ];
@@ -1586,6 +1589,7 @@ export class ExportService {
 
     const colBrut = this.colonne(feuille, 'brut');
     const colAmort = this.colonne(feuille, 'amort');
+    const colDep = this.colonne(feuille, 'dep');
     const colNet = this.colonne(feuille, 'net');
     // Les lignes de S/TOTAL, retenues pour que le total général les additionne
     // ELLES plutôt que de refaire la somme des biens · c'est ainsi que leur
@@ -1603,14 +1607,19 @@ export class ExportService {
           duree: l.dureeAns,
           brut: l.valeurBrute || null,
           amort: l.amortissements || null,
+          dep: l.depreciations || null,
           // Un bien SORTI reste au tableau à sa date d'arrêté s'il y était · le
           // taire ferait chercher un bien qu'on croit encore détenu.
           obs: l.dateSortie ? `Sorti le ${new Date(l.dateSortie).toLocaleDateString('fr-FR')}` : '',
         });
-        // Valeur nette = brut − amortissements. C'est une soustraction, pas un
-        // troisième chiffre : l'écrire en formule interdit qu'ils divergent.
+        // Valeur nette = brut − amortissements − dépréciations. C'est une
+        // soustraction, pas un chiffre de plus : l'écrire en formule interdit
+        // qu'ils divergent.
         const ligne = r.number + 3;
-        r.getCell('net').value = this.formule(`${colBrut}${ligne}-${colAmort}${ligne}`, l.valeurNette);
+        r.getCell('net').value = this.formule(
+          `${colBrut}${ligne}-${colAmort}${ligne}-${colDep}${ligne}`,
+          l.valeurNette,
+        );
       }
       const sousTotal = feuille.addRow({ libelle: 'S/TOTAL' });
       const de = this.ligneCoiffee(premiere);
@@ -1618,6 +1627,7 @@ export class ExportService {
       for (const [cle, col, valeur] of [
         ['brut', colBrut, g.brut],
         ['amort', colAmort, g.amortissements],
+        ['dep', colDep, g.depreciations],
         ['net', colNet, g.net],
       ] as const) {
         sousTotal.getCell(cle).value = g.lignes.length
@@ -1633,6 +1643,7 @@ export class ExportService {
     for (const [cle, col, valeur] of [
       ['brut', colBrut, t.totaux.brut],
       ['amort', colAmort, t.totaux.amortissements],
+      ['dep', colDep, t.totaux.depreciations],
       ['net', colNet, t.totaux.net],
     ] as const) {
       total.getCell(cle).value = lignesSousTotal.length
@@ -1655,6 +1666,7 @@ export class ExportService {
           duree: l.dureeAns,
           brut: l.valeurBrute || null,
           amort: l.amortissements || null,
+          dep: l.depreciations || null,
           net: l.valeurNette || null,
           obs: l.dateSortie ? `Sorti le ${new Date(l.dateSortie).toLocaleDateString('fr-FR')}` : '',
         });
@@ -1665,6 +1677,7 @@ export class ExportService {
       date: FORMAT_DATE,
       brut: FORMAT_MONTANT,
       amort: FORMAT_MONTANT,
+      dep: FORMAT_MONTANT,
       net: FORMAT_MONTANT,
     });
     this.piedDePageEtat(feuille, identite);
@@ -1705,6 +1718,8 @@ export class ExportService {
       "Dotations de l'exercice",
       'Amort. cum. N-1',
       'Amort. cum. N',
+      // Les 29 à la clôture (audit final F131).
+      'Dépréciations',
       'Val. nette',
       'Dotation',
     ];
@@ -1723,7 +1738,8 @@ export class ExportService {
     const colDotation = lettre(COL_DOTATION);
     const colCumulN1 = lettre(COL_DOTATION + 1);
     const colCumulN = lettre(COL_DOTATION + 2);
-    const colNet = lettre(COL_DOTATION + 3);
+    const colDep = lettre(COL_DOTATION + 3);
+    const colNet = lettre(COL_DOTATION + 4);
 
     /**
      * Une ligne du tableau. Les quatre dernières colonnes sont des FORMULES,
@@ -1731,7 +1747,7 @@ export class ExportService {
      *
      *   dotation N   = somme des douze mois
      *   cumul N      = cumul N-1 + dotation N
-     *   valeur nette = valeur brute − cumul N
+     *   valeur nette = valeur brute − cumul N − dépréciations
      *
      * Les écrire en dur laisserait quatre chiffres pouvoir se contredire dans
      * le même fichier ; en formule, une correction d'un mois se propage.
@@ -1746,6 +1762,7 @@ export class ExportService {
         dotation: number;
         cumulN1: number;
         cumulN: number;
+        depreciations: number;
         net: number;
         etat?: string;
       },
@@ -1767,11 +1784,12 @@ export class ExportService {
         `${colCumulN1}${n}+${colDotation}${n}`,
         valeurs.cumulN,
       );
-      r.getCell(COL_DOTATION + 3).value =
+      r.getCell(COL_DOTATION + 3).value = valeurs.depreciations || null;
+      r.getCell(COL_DOTATION + 4).value =
         valeurs.brut !== undefined && valeurs.brut !== null
-          ? this.formule(`${colBrut}${n}-${colCumulN}${n}`, valeurs.net)
+          ? this.formule(`${colBrut}${n}-${colCumulN}${n}-${colDep}${n}`, valeurs.net)
           : valeurs.net || null;
-      if (valeurs.etat) r.getCell(COL_DOTATION + 4).value = valeurs.etat;
+      if (valeurs.etat) r.getCell(COL_DOTATION + 5).value = valeurs.etat;
       return r;
     };
 
@@ -1790,6 +1808,7 @@ export class ExportService {
           dotation: l.dotation,
           cumulN1: l.cumulN1,
           cumulN: l.cumulN,
+          depreciations: l.depreciations,
           net: l.valeurNette,
           etat: l.sortiLe
             ? `Sorti le ${new Date(l.sortiLe).toLocaleDateString('fr-FR')}`
@@ -1811,7 +1830,8 @@ export class ExportService {
       sommeColonne(COL_DOTATION, g.dotation);
       sommeColonne(COL_DOTATION + 1, g.cumulN1);
       sommeColonne(COL_DOTATION + 2, g.cumulN);
-      sommeColonne(COL_DOTATION + 3, g.net);
+      sommeColonne(COL_DOTATION + 3, g.depreciations);
+      sommeColonne(COL_DOTATION + 4, g.net);
       st.font = ENTETE_FONT;
       lignesSousTotal.push(this.ligneCoiffee(st.number));
     }
@@ -1832,7 +1852,8 @@ export class ExportService {
     totalColonne(COL_DOTATION, t.totaux.dotation);
     totalColonne(COL_DOTATION + 1, t.totaux.cumulN1);
     totalColonne(COL_DOTATION + 2, t.totaux.cumulN);
-    totalColonne(COL_DOTATION + 3, t.totaux.net);
+    totalColonne(COL_DOTATION + 3, t.totaux.depreciations);
+    totalColonne(COL_DOTATION + 4, t.totaux.net);
     total.font = ENTETE_FONT;
 
     /*
@@ -1884,7 +1905,7 @@ export class ExportService {
     feuille.getColumn(2).numFmt = FORMAT_DATE;
     feuille.getColumn(3).numFmt = FORMAT_MONTANT;
     feuille.getColumn(4).numFmt = '0.00%';
-    for (let i = PREMIER_MOIS; i <= COL_DOTATION + 3; i++) feuille.getColumn(i).numFmt = FORMAT_MONTANT;
+    for (let i = PREMIER_MOIS; i <= COL_DOTATION + 4; i++) feuille.getColumn(i).numFmt = FORMAT_MONTANT;
     this.piedDePageEtat(feuille, identite);
     const enteteAmort = this.coifferEtat(feuille, identite, 'TABLEAU DES AMORTISSEMENTS', entetes.length);
     this.finaliserTableau(feuille, entetes.length, derniereLigneDonnees + 3, enteteAmort);

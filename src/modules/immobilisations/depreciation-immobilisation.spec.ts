@@ -111,6 +111,8 @@ function harnais(
     },
     immobilisation: {
       findFirst: jest.fn().mockResolvedValue(immo),
+      // Composants du bien (audit final F127) · ce jeu d'essai n'en porte aucun.
+      findMany: jest.fn().mockResolvedValue([]),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       update: jest.fn().mockResolvedValue({ ...immo, dotations: immo.dotations }),
     },

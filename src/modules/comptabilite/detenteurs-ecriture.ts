@@ -23,6 +23,7 @@
 export const COLONNES_QUI_RETIENNENT: readonly string[] = [
   'Immobilisation.ecritureAcquisitionId',
   'Immobilisation.ecritureSortieId',
+  'Immobilisation.ecritureProduitCessionId',
   'DotationAmortissement.ecritureId',
   'DepreciationImmobilisation.ecritureId',
   'ReclassementImmobilisation.ecritureId',

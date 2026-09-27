@@ -326,3 +326,53 @@ describe('tableau des amortissements · douze colonnes', () => {
     expect(t.totaux.dotation).toBe(36_000);
   });
 });
+
+describe('les deux tableaux retranchent les dépréciations de la valeur nette (audit final F131)', () => {
+  // Un bien de 100 000 sur cinq ans, doté d'une annuité, déprécié de 10 000 en
+  // 2024 puis repris de 3 000 en 2025 · le 29 porte 7 000 à la fin de 2025.
+  const DEPRECIE = () =>
+    bien({
+      id: 'a',
+      designation: 'Concasseur déprécié',
+      valeurOrigine: 100_000,
+      dureeAns: 5,
+      dateAcquisition: '2024-01-01',
+      dotations: [
+        { montant: 20_000, exerciceId: 'ex2024', dateFin: '2024-12-31' },
+        { montant: 17_500, exerciceId: 'ex2025', dateFin: '2025-12-31' },
+      ],
+      depreciations: [
+        { sens: SensDepreciation.DOTATION, montant: 10_000, dateFin: '2024-12-31' },
+        { sens: SensDepreciation.REPRISE, montant: 3_000, dateFin: '2025-12-31' },
+      ],
+    });
+
+  it('tableau des immobilisations · brut − amortissements − dépréciations, comme la balance', async () => {
+    const t = await service([DEPRECIE()]).tableauImmobilisations('tn', { dateArret: '2025-12-31' });
+    const l = t.groupes[0].lignes[0];
+    expect({ dep: l.depreciations, net: l.valeurNette }).toEqual({ dep: 7_000, net: 55_500 });
+    expect(t.groupes[0].depreciations).toBe(7_000);
+    expect(t.totaux).toMatchObject({ depreciations: 7_000, net: 55_500 });
+  });
+
+  it('tableau des immobilisations · une reprise postérieure à la date d’arrêté n’y est pas encore', async () => {
+    const t = await service([DEPRECIE()]).tableauImmobilisations('tn', { dateArret: '2024-12-31' });
+    const l = t.groupes[0].lignes[0];
+    expect({ amort: l.amortissements, dep: l.depreciations, net: l.valeurNette }).toEqual({
+      amort: 20_000,
+      dep: 10_000,
+      net: 70_000,
+    });
+  });
+
+  it('tableau des amortissements · la valeur nette de clôture retranche les 29 de l’exercice compris', async () => {
+    const t = await service([DEPRECIE()]).tableauAmortissements('tn', 'ex2025');
+    const l = t.groupes[0].lignes[0];
+    expect({ cumulN: l.cumulN, dep: l.depreciations, net: l.valeurNette }).toEqual({
+      cumulN: 37_500,
+      dep: 7_000,
+      net: 55_500,
+    });
+    expect(t.totaux).toMatchObject({ depreciations: 7_000, net: 55_500 });
+  });
+});

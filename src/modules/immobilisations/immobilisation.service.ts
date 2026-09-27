@@ -30,7 +30,7 @@ import {
 
 const EPSILON = 0.005;
 
-/** Une ligne du tableau des immobilisations · six colonnes, comme le modèle. */
+/** Une ligne du tableau des immobilisations · les colonnes du modèle, plus les dépréciations. */
 export interface LigneTableauImmo {
   id: string;
   designation: string;
@@ -39,6 +39,11 @@ export interface LigneTableauImmo {
   dureeAns: number;
   valeurBrute: number;
   amortissements: number;
+  /**
+   * Cumul des dépréciations (29) à la date d'arrêté · dotations moins reprises
+   * (audit final F131). La valeur nette les retranche, comme la balance.
+   */
+  depreciations: number;
   valeurNette: number;
   statut: StatutImmobilisation;
   dateSortie: string | null;
@@ -61,6 +66,8 @@ export interface LigneTableauAmortissement {
   dotation: number;
   cumulN1: number;
   cumulN: number;
+  /** Cumul des dépréciations (29) à la clôture de l'exercice (audit final F131). */
+  depreciations: number;
   valeurNette: number;
   /** Vraie quand la dotation est COMPTABILISÉE, fausse quand elle est calculée. */
   dotationPassee: boolean;
@@ -628,7 +635,13 @@ export class ImmobilisationService {
       for (const ecritureId of [...ecritures].reverse()) await this.annulerEcritureOrpheline(ecritureId);
       await this.prisma.immobilisation.updateMany({
         where: { id, tenantId },
-        data: { statut: StatutImmobilisation.EN_SERVICE, dateSortie: null, prixCession: null, ecritureSortieId: null },
+        data: {
+          statut: StatutImmobilisation.EN_SERVICE,
+          dateSortie: null,
+          prixCession: null,
+          ecritureSortieId: null,
+          ecritureProduitCessionId: null,
+        },
       });
     } catch {
       throw new InternalServerErrorException(
@@ -878,6 +891,14 @@ export class ImmobilisationService {
   ) {
     const famille = await this.prisma.familleImmobilisation.findFirst({ where: { id: dto.familleId, tenantId } });
     if (!famille) throw new BadRequestException('Famille introuvable pour ce tenant');
+    // UNE FAMILLE EN SOMMEIL NE REÇOIT PLUS DE BIEN (audit final F129) · la
+    // mise en sommeil n'avait aucun effet, la famille restait proposée et
+    // acceptée. Ses biens existants, eux, gardent leur famille et leur plan.
+    if (!famille.estActif) {
+      throw new BadRequestException(
+        `La famille « ${famille.intitule} » est en sommeil · elle ne reçoit plus de bien. Réactivez-la, ou choisissez une autre famille.`,
+      );
+    }
 
     const dateAcquisition = new Date(dto.dateAcquisition);
     const dateMiseEnService = new Date(dto.dateMiseEnService);
@@ -1036,7 +1057,10 @@ export class ImmobilisationService {
       sur l'entité · c'est à elle de tenir le relevé, et c'est pour cela que
       chaque consommation porte sa source.
     */
-    const mode = dto.modeAmortissement ?? ModeAmortissement.LINEAIRE;
+    // LE MODE DE LA FAMILLE EST HÉRITÉ (audit final F128) · la famille est le
+    // gabarit du bien, et un mode posé sur elle qu'aucune création ne lisait
+    // était une promesse sans effet. Le bien peut toujours en déclarer un autre.
+    const mode = dto.modeAmortissement ?? famille.modeAmortissement ?? ModeAmortissement.LINEAIRE;
     const refus = ImmobilisationService.motifRefusUnitesOeuvre(mode, dto.unitesOeuvrePrevues, dto.uniteOeuvreLibelle);
     if (refus) throw new BadRequestException(refus);
     // Le Titre X ne connaît que le linéaire · un bien aux unités d'œuvre
@@ -1471,7 +1495,9 @@ export class ImmobilisationService {
    * qu'une liste à plat ne permet pas.
    *
    * Six colonnes : libellé, date d'acquisition, durée, valeur brute,
-   * amortissements cumulés, valeur nette.
+   * amortissements cumulés, valeur nette · et une septième, les dépréciations
+   * (29), sans laquelle la valeur nette d'un bien déprécié ne se recoupait
+   * pas avec la balance (audit final F131).
    *
    * L'AMORTISSEMENT ANTÉRIEUR ENTRE DANS LE CUMUL. Un bien repris d'un dossier
    * antérieur porte un cumul que nos dotations ne contiennent pas ; l'omettre
@@ -1489,6 +1515,12 @@ export class ImmobilisationService {
         dotations: {
           select: { montant: true, exercice: { select: { dateFin: true } } },
         },
+        // LA VALEUR NETTE RETRANCHE LES 29 (audit final F131) · sans eux, elle
+        // contredisait la balance de tout bien déprécié, alors que ce tableau
+        // existe pour s'y recouper.
+        depreciations: {
+          select: { sens: true, montant: true, exercice: { select: { dateFin: true } } },
+        },
       },
       orderBy: [{ compteImmobilisation: { numero: 'asc' } }, { dateAcquisition: 'asc' }],
     });
@@ -1496,7 +1528,15 @@ export class ImmobilisationService {
     const arrondir = (x: number) => Math.round(x * 100) / 100;
     const groupes = new Map<
       string,
-      { numero: string; intitule: string; lignes: LigneTableauImmo[]; brut: number; amortissements: number; net: number }
+      {
+        numero: string;
+        intitule: string;
+        lignes: LigneTableauImmo[];
+        brut: number;
+        amortissements: number;
+        depreciations: number;
+        net: number;
+      }
     >();
     /*
       UN BIEN SORTI N'EST PLUS AU BILAN (audit final F31). Ses comptes 2, 28
@@ -1515,6 +1555,15 @@ export class ImmobilisationService {
         .filter((d) => !arret || d.exercice.dateFin <= arret)
         .reduce((t, d) => t + Number(d.montant), 0);
       const amortissements = arrondir(cumulDotations + Math.max(0, Number(immo.amortissementAnterieur ?? 0)));
+      // Même borne que les dotations · une dépréciation de décembre n'est pas
+      // au tableau du 30/09.
+      const depreciations = arrondir(
+        this.cumulDepreciation(
+          immo.depreciations
+            .filter((d) => !arret || d.exercice.dateFin <= arret)
+            .map((d) => ({ sens: d.sens, montant: Number(d.montant) })),
+        ),
+      );
       const brut = Number(immo.valeurOrigine);
       const cle = immo.compteImmobilisation.id;
       const groupe =
@@ -1525,9 +1574,10 @@ export class ImmobilisationService {
           lignes: [] as LigneTableauImmo[],
           brut: 0,
           amortissements: 0,
+          depreciations: 0,
           net: 0,
         };
-      const net = arrondir(brut - amortissements);
+      const net = arrondir(brut - amortissements - depreciations);
       const ligne: LigneTableauImmo = {
         id: immo.id,
         designation: immo.designation,
@@ -1536,6 +1586,7 @@ export class ImmobilisationService {
         dureeAns: immo.dureeAmortissementAns,
         valeurBrute: brut,
         amortissements,
+        depreciations,
         valeurNette: net,
         statut: immo.statut,
         dateSortie: immo.dateSortie ? immo.dateSortie.toISOString().slice(0, 10) : null,
@@ -1547,6 +1598,7 @@ export class ImmobilisationService {
       groupe.lignes.push(ligne);
       groupe.brut = arrondir(groupe.brut + brut);
       groupe.amortissements = arrondir(groupe.amortissements + amortissements);
+      groupe.depreciations = arrondir(groupe.depreciations + depreciations);
       groupe.net = arrondir(groupe.net + net);
       groupes.set(cle, groupe);
     }
@@ -1559,6 +1611,7 @@ export class ImmobilisationService {
       totaux: {
         brut: arrondir(listeGroupes.reduce((t, g) => t + g.brut, 0)),
         amortissements: arrondir(listeGroupes.reduce((t, g) => t + g.amortissements, 0)),
+        depreciations: arrondir(listeGroupes.reduce((t, g) => t + g.depreciations, 0)),
         net: arrondir(listeGroupes.reduce((t, g) => t + g.net, 0)),
       },
     };
@@ -1637,7 +1690,17 @@ export class ImmobilisationService {
 
     const groupes = new Map<
       string,
-      { numero: string; intitule: string; lignes: LigneTableauAmortissement[]; parMois: number[]; dotation: number; cumulN1: number; cumulN: number; net: number }
+      {
+        numero: string;
+        intitule: string;
+        lignes: LigneTableauAmortissement[];
+        parMois: number[];
+        dotation: number;
+        cumulN1: number;
+        cumulN: number;
+        depreciations: number;
+        net: number;
+      }
     >();
 
     const unitesParImmo = new Map<string, { prevues: number; consommees: number; consommeesAnterieures: number }>();
@@ -1725,7 +1788,15 @@ export class ImmobilisationService {
       }
 
       const cumulN = arrondir(cumulN1 + dotation);
-      const net = arrondir(Number(immo.valeurOrigine) - cumulN);
+      // Les 29 à la clôture de l'exercice, celui-ci compris (audit final F131).
+      const depreciations = arrondir(
+        this.cumulDepreciation(
+          immo.depreciations
+            .filter((d) => d.exercice.dateFin <= exercice.dateFin)
+            .map((d) => ({ sens: d.sens, montant: Number(d.montant) })),
+        ),
+      );
+      const net = arrondir(Number(immo.valeurOrigine) - cumulN - depreciations);
       const base = this.baseAmortissable(Number(immo.valeurOrigine), Number(immo.valeurResiduelle));
 
       const cle = immo.compteImmobilisation.id;
@@ -1739,6 +1810,7 @@ export class ImmobilisationService {
           dotation: 0,
           cumulN1: 0,
           cumulN: 0,
+          depreciations: 0,
           net: 0,
         };
       groupe.lignes.push({
@@ -1754,6 +1826,7 @@ export class ImmobilisationService {
         dotation: arrondir(dotation),
         cumulN1,
         cumulN,
+        depreciations,
         valeurNette: net,
         // Rien n'est « à passer » sur un bien sorti · sa sortie a tout passé.
         dotationPassee: Boolean(dejaPassee) || sortiDansLExercice,
@@ -1765,6 +1838,7 @@ export class ImmobilisationService {
       groupe.dotation = arrondir(groupe.dotation + dotation);
       groupe.cumulN1 = arrondir(groupe.cumulN1 + cumulN1);
       groupe.cumulN = arrondir(groupe.cumulN + cumulN);
+      groupe.depreciations = arrondir(groupe.depreciations + depreciations);
       groupe.net = arrondir(groupe.net + net);
       groupes.set(cle, groupe);
     }
@@ -1783,6 +1857,7 @@ export class ImmobilisationService {
         dotation: arrondir(listeGroupes.reduce((t, g) => t + g.dotation, 0)),
         cumulN1: arrondir(listeGroupes.reduce((t, g) => t + g.cumulN1, 0)),
         cumulN: arrondir(listeGroupes.reduce((t, g) => t + g.cumulN, 0)),
+        depreciations: arrondir(listeGroupes.reduce((t, g) => t + g.depreciations, 0)),
         net: arrondir(listeGroupes.reduce((t, g) => t + g.net, 0)),
       },
     };
@@ -2429,6 +2504,23 @@ export class ImmobilisationService {
     if (dateSortie < immo.dateMiseEnService) {
       throw new BadRequestException('La date de sortie ne peut pas précéder la date de mise en service');
     }
+    // UN PRINCIPAL NE SORT PAS AVEC SES COMPOSANTS EN SERVICE (audit final
+    // F127) · l'ascenseur resterait au bilan, amorti sur son plan propre,
+    // sans l'immeuble auquel il se rapporte · exactement ce que le RESTRICT du
+    // schéma sur `immobilisationPrincipaleId` existe pour empêcher. Chaque
+    // composant a sa propre valeur nette et son propre sort (AUDCIF Titre VIII
+    // ch. 4), il se sort d'abord, un par un.
+    const composantsEnService = await this.prisma.immobilisation.findMany({
+      where: { tenantId, immobilisationPrincipaleId: id, statut: StatutImmobilisation.EN_SERVICE },
+      select: { designation: true },
+    });
+    if (composantsEnService.length > 0) {
+      throw new BadRequestException(
+        `Ce bien porte encore ${composantsEnService.length} composant(s) en service (` +
+          `${composantsEnService.map((c) => c.designation).join(', ')}) · sortez-les d'abord, chacun avec sa ` +
+          'valeur nette, puis le bien principal.',
+      );
+    }
     // UN BIEN SORTI NE GARDE PAS SA PROVISION RÉGLEMENTÉE · tant que le 151
     // porte un dérogatoire pour lui, la sortie est refusée et nomme la reprise
     // à passer (degressif.service.ts, `solder`).
@@ -2650,6 +2742,7 @@ export class ImmobilisationService {
       });
       ecrituresPosees.push(ecritureSortie.id);
 
+      let ecritureProduitId: string | null = null;
       if (compteProduit && dto.prixCession && dto.compteContrepartieId) {
         const ecritureProduit = await this.ecritureService.creer(tenantId, userId, {
           exerciceId: dto.exerciceId,
@@ -2662,13 +2755,17 @@ export class ImmobilisationService {
           ],
         });
         ecrituresPosees.push(ecritureProduit.id);
+        ecritureProduitId = ecritureProduit.id;
       }
 
       // statut/dateSortie/prixCession déjà posés par le verrou ci-dessus ;
       // il ne reste que l'écriture de sortie, connue seulement une fois postée.
       const immobilisation = await this.prisma.immobilisation.update({
         where: { id },
-        data: { ecritureSortieId: ecritureSortie.id },
+        // L'écriture du produit de cession est RETENUE par la fiche (audit
+        // final F130) · supprimée depuis le journal, elle laissait le bien
+        // porter un prix que rien ne justifiait plus.
+        data: { ecritureSortieId: ecritureSortie.id, ecritureProduitCessionId: ecritureProduitId },
         include: { dotations: true },
       });
       return versImmobilisation(immobilisation);

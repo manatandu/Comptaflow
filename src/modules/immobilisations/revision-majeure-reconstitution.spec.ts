@@ -177,6 +177,7 @@ describe('une révision majeure s’amortit sur l’intervalle, jamais sur la st
       familleImmobilisation: {
         findFirst: jest.fn().mockResolvedValue({
           id: 'f1',
+          estActif: true,
           compteImmobilisationId: 'ci',
           compteAmortissementId: 'ca',
           compteDotationId: 'cd',

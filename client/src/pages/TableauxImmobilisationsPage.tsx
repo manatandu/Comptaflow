@@ -29,6 +29,8 @@ interface LigneImmo {
   dureeAns: number;
   valeurBrute: number;
   amortissements: number;
+  /** Cumul des 29 à la date d'arrêté · la valeur nette les retranche (audit F131). */
+  depreciations: number;
   valeurNette: number;
   statut: string;
   dateSortie: string | null;
@@ -40,6 +42,7 @@ interface GroupeImmo {
   lignes: LigneImmo[];
   brut: number;
   amortissements: number;
+  depreciations: number;
   net: number;
 }
 
@@ -48,7 +51,7 @@ interface TableauImmo {
   groupes: GroupeImmo[];
   /** Biens sortis à la date d'arrêté · à part, hors des totaux (audit F31). */
   sortis: Array<LigneImmo & { compte: string }>;
-  totaux: { brut: number; amortissements: number; net: number };
+  totaux: { brut: number; amortissements: number; depreciations: number; net: number };
 }
 
 interface LigneAmort {
@@ -62,6 +65,8 @@ interface LigneAmort {
   dotation: number;
   cumulN1: number;
   cumulN: number;
+  /** Cumul des 29 à la clôture (audit F131). */
+  depreciations: number;
   valeurNette: number;
   dotationPassee: boolean;
   /** Sorti dans l'exercice · sa dotation est celle que la sortie a passée (audit F30). */
@@ -76,6 +81,7 @@ interface GroupeAmort {
   dotation: number;
   cumulN1: number;
   cumulN: number;
+  depreciations: number;
   net: number;
 }
 
@@ -83,7 +89,7 @@ interface TableauAmort {
   exercice: { dateDebut: string; dateFin: string };
   mois: Array<{ cle: string; libelle: string }>;
   groupes: GroupeAmort[];
-  totaux: { parMois: number[]; dotation: number; cumulN1: number; cumulN: number; net: number };
+  totaux: { parMois: number[]; dotation: number; cumulN1: number; cumulN: number; depreciations: number; net: number };
 }
 
 function montant(n: number): string {
@@ -143,11 +149,11 @@ export function TableauxImmobilisationsPage() {
     }
   };
 
-  const grilleImmo = 'grid grid-cols-[1fr_112px_64px_130px_130px_130px_150px] gap-2.5';
+  const grilleImmo = 'grid grid-cols-[1fr_112px_64px_130px_130px_130px_130px_150px] gap-2.5';
   const nbMois = amort?.mois.length ?? 12;
   const grilleAmort = {
     display: 'grid',
-    gridTemplateColumns: `minmax(220px,1fr) 100px 96px repeat(${nbMois}, 92px) 116px 116px 116px 116px`,
+    gridTemplateColumns: `minmax(220px,1fr) 100px 96px repeat(${nbMois}, 92px) 116px 116px 116px 116px 116px`,
     gap: '8px',
   } as const;
 
@@ -216,6 +222,7 @@ export function TableauxImmobilisationsPage() {
             <span className="text-right">Durée</span>
             <span className="text-right">Val. brute</span>
             <span className="text-right">Amort. cumulés</span>
+            <span className="text-right">Dépréciations</span>
             <span className="text-right">Val. nette</span>
             <span>Observations</span>
           </div>
@@ -241,6 +248,7 @@ export function TableauxImmobilisationsPage() {
                   <span className="font-mono text-right">{l.dureeAns}</span>
                   <span className="font-mono text-right">{montant(l.valeurBrute)}</span>
                   <span className="font-mono text-right">{montant(l.amortissements)}</span>
+                  <span className="font-mono text-right">{montant(l.depreciations)}</span>
                   <span className="font-mono text-right font-semibold">{montant(l.valeurNette)}</span>
                   <span className="text-text-dim truncate">
                     {l.dateSortie ? `Sorti le ${new Date(l.dateSortie).toLocaleDateString('fr-FR')}` : ''}
@@ -253,6 +261,7 @@ export function TableauxImmobilisationsPage() {
                 <span />
                 <span className="font-mono text-right">{montant(g.brut)}</span>
                 <span className="font-mono text-right">{montant(g.amortissements)}</span>
+                <span className="font-mono text-right">{montant(g.depreciations)}</span>
                 <span className="font-mono text-right">{montant(g.net)}</span>
                 <span />
               </div>
@@ -268,6 +277,7 @@ export function TableauxImmobilisationsPage() {
               <span />
               <span className="font-mono text-right">{montant(immo.totaux.brut)}</span>
               <span className="font-mono text-right">{montant(immo.totaux.amortissements)}</span>
+              <span className="font-mono text-right">{montant(immo.totaux.depreciations)}</span>
               <span className="font-mono text-right">{montant(immo.totaux.net)}</span>
               <span />
             </div>
@@ -292,6 +302,7 @@ export function TableauxImmobilisationsPage() {
                   <span className="font-mono text-right">{l.dureeAns}</span>
                   <span className="font-mono text-right">{montant(l.valeurBrute)}</span>
                   <span className="font-mono text-right">{montant(l.amortissements)}</span>
+                  <span className="font-mono text-right">{montant(l.depreciations)}</span>
                   <span className="font-mono text-right">{montant(l.valeurNette)}</span>
                   <span className="truncate">
                     {l.dateSortie ? `Sorti le ${new Date(l.dateSortie).toLocaleDateString('fr-FR')}` : ''}
@@ -320,6 +331,7 @@ export function TableauxImmobilisationsPage() {
             <span className="text-right">Dotation N</span>
             <span className="text-right">Cum. N-1</span>
             <span className="text-right">Cum. N</span>
+            <span className="text-right">Dépréc.</span>
             <span className="text-right">Val. nette</span>
           </div>
 
@@ -360,6 +372,7 @@ export function TableauxImmobilisationsPage() {
                   <span className="font-mono text-right font-semibold">{montant(l.dotation)}</span>
                   <span className="font-mono text-right text-text-dim">{montant(l.cumulN1)}</span>
                   <span className="font-mono text-right">{montant(l.cumulN)}</span>
+                  <span className="font-mono text-right">{montant(l.depreciations)}</span>
                   <span className="font-mono text-right font-semibold">{montant(l.valeurNette)}</span>
                 </div>
               ))}
@@ -375,6 +388,7 @@ export function TableauxImmobilisationsPage() {
                 <span className="font-mono text-right">{montant(g.dotation)}</span>
                 <span className="font-mono text-right">{montant(g.cumulN1)}</span>
                 <span className="font-mono text-right">{montant(g.cumulN)}</span>
+                <span className="font-mono text-right">{montant(g.depreciations)}</span>
                 <span className="font-mono text-right">{montant(g.net)}</span>
               </div>
             </div>
@@ -396,6 +410,7 @@ export function TableauxImmobilisationsPage() {
               <span className="font-mono text-right">{montant(amort.totaux.dotation)}</span>
               <span className="font-mono text-right">{montant(amort.totaux.cumulN1)}</span>
               <span className="font-mono text-right">{montant(amort.totaux.cumulN)}</span>
+              <span className="font-mono text-right">{montant(amort.totaux.depreciations)}</span>
               <span className="font-mono text-right">{montant(amort.totaux.net)}</span>
             </div>
           )}

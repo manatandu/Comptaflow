@@ -946,42 +946,49 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 3
 - **Constat :** l'écriture reste orpheline au brouillard, et une nouvelle tentative double le 2x.
 - **Correction :** déplacer les contrôles avant l'écriture.
+- **Fait le 2026-09-27 :** résolu avec F29 · `creer` joue tous ses contrôles (unités d'œuvre, SMT, lieu, composant) avant l'écriture d'acquisition, et la retire si la fiche est refusée par la base. Tests : `renouvellement-f29.spec.ts`, « F29 · la création d'un bien ne laisse jamais une écriture sans fiche ».
 
 **F127 · La sortie d'un bien principal laisse ses composants en service** [immo-08]
 - **Emplacements :** src/modules/immobilisations/immobilisation.service.ts:2176-2415
 - **Condition :** 3
 - **Constat :** c'est le défaut que le schéma dit vouloir empêcher.
 - **Correction :** refuser tant qu'un composant est en service, ou le sortir avec le principal.
+- **Fait le 2026-09-27 :** `sortir` refuse un principal qui porte encore un composant en service, en les nommant, avant tout geste · la sortie de chaque composant est une décision (cession, mise au rebut, renouvellement) qui ne se prend pas d'office. Tests : `sortie-f27-f28.spec.ts`.
 
 **F128 · Mode aux unités d'œuvre et durée propre inaccessibles depuis l'écran, mode de la famille ignoré** [immo-10]
 - **Emplacements :** client/src/pages/ImmobilisationsPage.tsx:210, :922 · immobilisation.service.ts:920 · dto/immobilisation.dto.ts:37
 - **Condition :** 4
 - **Constat :** le formulaire n'envoie ni le mode, ni les unités, ni la durée, et `famille.modeAmortissement` n'est pas lu.
 - **Correction :** champs au formulaire et héritage du mode de la famille.
+- **Fait le 2026-09-27 :** le bien hérite du mode de sa famille quand il n'en déclare pas (`creer`), avec les préalables de ce mode ; le formulaire propose le mode, le total d'unités prévues et l'unité, sauf au SMT SYSCOHADA (Titre X, linéaire). La durée propre était déjà envoyée. Tests : `renouvellement-f29.spec.ts`, `immobilisations-audit-final.spec.ts`.
 
 **F129 · La mise en sommeil d'une famille n'a aucun effet** [immo-11]
 - **Emplacements :** src/modules/immobilisations/immobilisation.service.ts:557, :813 · client/src/pages/ImmobilisationsPage.tsx:725
 - **Condition :** 5
 - **Constat :** la création accepte une famille inactive, qui reste listée.
 - **Correction :** refuser au serveur et filtrer le sélecteur.
+- **Fait le 2026-09-27 :** `creer` refuse une famille en sommeil avant toute écriture, et le formulaire ne propose que les familles actives. Les biens déjà portés par la famille ne bougent pas. Tests : `renouvellement-f29.spec.ts`, `immobilisations-audit-final.spec.ts`.
 
 **F130 · L'écriture du produit de cession n'est rattachée à rien** [immo-12]
 - **Emplacements :** src/modules/immobilisations/immobilisation.service.ts:2394-2403 · src/modules/comptabilite/detenteurs-ecriture.ts:23
 - **Condition :** 3
 - **Constat :** elle se supprime depuis le journal pendant que la fiche garde le prix de cession.
 - **Correction :** colonne `ecritureProduitCessionId` en RESTRICT, inscrite dans `COLONNES_QUI_RETIENNENT`.
+- **Fait le 2026-09-27 :** `Immobilisation.ecritureProduitCessionId` (unique, `onDelete: Restrict` déclaré au schéma, migration `20261129000000`, dérive vérifiée nulle sur une base jetable), posée par `sortir` et remise à nul par `defaireSortie`, inscrite dans `COLONNES_QUI_RETIENNENT` et comptée par `detenteursDe`. Tests : `sortie-f27-f28.spec.ts`.
 
 **F131 · Les deux tableaux calculent la valeur nette sans les dépréciations** [immo-13]
 - **Emplacements :** src/modules/immobilisations/immobilisation.service.ts:1344, :1523
 - **Condition :** 1
 - **Constat :** le fichier dit lui-même qu'une valeur nette sans 29 contredit la balance.
 - **Correction :** charger et retrancher les dépréciations, ou ajouter la colonne.
+- **Fait le 2026-09-27 :** les deux tableaux portent une colonne « Dépréciations » (cumul des 29, dotations moins reprises, à la date d'arrêté ou à la clôture de l'exercice) et la valeur nette la retranche, à l'écran comme dans le classeur, où la formule devient brut − amortissements − dépréciations. Tests : `tableaux-immobilisations.spec.ts`, `formules-excel.spec.ts`, `immobilisations-audit-final.spec.ts` (sept mutations tuées).
 
 **F132 · Dérogatoire non protégé contre le double envoi** [immo-14]
 - **Emplacements :** src/modules/immobilisations/degressif.service.ts:138, :192, :230
 - **Condition :** 3
 - **Constat :** en cas de P2002, l'écriture 851/151 reste orpheline.
 - **Correction :** compensation comme dans `passerDotation`, et réponse 409.
+- **Fait le 2026-09-27 :** `passer` et `solder` enregistrent la fiche par `enregistrer` · si elle est refusée, l'écriture 851/151 (ou 151/861) est retirée par la compensation commune (`retirerCompensation`), et un doublon répond 409. Tests : `amortissement-degressif.spec.ts` (trois mutations tuées).
 
 **F133 · Mouvement de magasin : sortie supérieure au stock acceptée, sans correction possible** [stk-03]
 - **Emplacements :** src/modules/stocks/magasin.service.ts:248, :302 · magasin.controller.ts:56

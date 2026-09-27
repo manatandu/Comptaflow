@@ -81,6 +81,12 @@ export function ImmobilisationsPage() {
   // révision majeure s'amortit sur l'intervalle entre deux révisions, et
   // l'écran n'avait aucun moyen de le dire.
   const [iDuree, setIDuree] = useState('');
+  // MODE ET UNITÉS D'ŒUVRE (audit final F128) · vide, le bien prend le mode
+  // de sa famille. Le SMT SYSCOHADA ne connaît que le linéaire (Titre X) · le
+  // choix n'y est pas proposé, et le serveur le refuse aussi.
+  const [iMode, setIMode] = useState<'' | 'LINEAIRE' | 'UNITES_DOEUVRE'>('');
+  const [iUnites, setIUnites] = useState('');
+  const [iUniteLibelle, setIUniteLibelle] = useState('');
   const [iCompteContrepartie, setICompteContrepartie] = useState('');
   const [iJournalId, setIJournalId] = useState('');
 
@@ -211,6 +217,10 @@ export function ImmobilisationsPage() {
     void modifierFamille(f, { intitule: intitule.trim() || f.intitule, dureeAmortissementAns: ans });
   };
 
+  const familleChoisie = (familles ?? []).find((x) => x.id === iFamilleId);
+  const modeRetenu = iMode || familleChoisie?.modeAmortissement || 'LINEAIRE';
+  const unitesServies = !(utilisateur?.tenant?.referentiel === 'SYSCOHADA' && utilisateur?.tenant?.systemeComptableSyscohada === 'MINIMAL_TRESORERIE');
+
   const onCreerImmo = async (e: FormEvent) => {
     e.preventDefault();
     setErreur(null);
@@ -226,6 +236,8 @@ export function ImmobilisationsPage() {
         valeurOrigine: Number(iValeurOrigine),
         valeurResiduelle: Number(iValeurResiduelle || 0),
         dureeAmortissementAns: iDuree ? Number(iDuree) : undefined,
+        ...(iMode ? { modeAmortissement: iMode } : {}),
+        ...(modeRetenu === 'UNITES_DOEUVRE' ? { unitesOeuvrePrevues: Number(iUnites), uniteOeuvreLibelle: iUniteLibelle } : {}),
         amortissementAnterieur: iRepris ? Number(iAmortissementAnterieur || 0) : 0,
         repris: iRepris || undefined,
         compteContrepartieId: iRepris ? undefined : iCompteContrepartie,
@@ -245,6 +257,9 @@ export function ImmobilisationsPage() {
       setIRepris(false);
       setIAmortissementAnterieur('0');
       setIDuree('');
+      setIMode('');
+      setIUnites('');
+      setIUniteLibelle('');
       setAfficherFormImmo(false);
       await charger();
     } catch (err) {
@@ -735,7 +750,8 @@ export function ImmobilisationsPage() {
               Famille
               <select required value={iFamilleId} onChange={(e) => setIFamilleId(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal">
                 <option value="" />
-                {(familles ?? []).map((f) => (
+                {/* Une famille en sommeil ne reçoit plus de bien (audit final F129). */}
+                {(familles ?? []).filter((f) => f.estActif).map((f) => (
                   <option key={f.id} value={f.id}>{f.intitule} ({f.dureeAmortissementAns} ans)</option>
                 ))}
               </select>
@@ -777,6 +793,35 @@ export function ImmobilisationsPage() {
                 className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono"
               />
             </label>
+            {unitesServies && (
+              <label className="text-[11.5px] font-semibold text-text-dim">
+                <span className="flex items-center gap-1">
+                  Mode d'amortissement
+                  <Aide
+                    titre="Mode d'amortissement"
+                    texte="Vide, le bien prend le mode de sa famille. Aux unités d'œuvre, la dotation suit l'usage : base amortissable × unités consommées / total d'unités prévues, sans prorata temporis."
+                    source="AUDCIF art. 45 et Titre VI"
+                  />
+                </span>
+                <select value={iMode} onChange={(e) => setIMode(e.target.value as typeof iMode)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal">
+                  <option value="">{familleChoisie ? `Celui de la famille (${familleChoisie.modeAmortissement === 'UNITES_DOEUVRE' ? "unités d'œuvre" : 'linéaire'})` : 'Celui de la famille'}</option>
+                  <option value="LINEAIRE">Linéaire</option>
+                  <option value="UNITES_DOEUVRE">Unités d'œuvre</option>
+                </select>
+              </label>
+            )}
+            {unitesServies && modeRetenu === 'UNITES_DOEUVRE' && (
+              <>
+                <label className="text-[11.5px] font-semibold text-text-dim">
+                  Total d'unités prévues
+                  <input required type="number" min={1} value={iUnites} onChange={(e) => setIUnites(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono" />
+                </label>
+                <label className="text-[11.5px] font-semibold text-text-dim">
+                  Unité (km, heures, pièces…)
+                  <input required value={iUniteLibelle} onChange={(e) => setIUniteLibelle(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal" />
+                </label>
+              </>
+            )}
             <label className="text-[11.5px] font-semibold text-text-dim flex items-center gap-1.5 self-end pb-1.5">
               <input type="checkbox" checked={iRepris} onChange={(e) => setIRepris(e.target.checked)} />
               Bien repris (déjà au bilan d'ouverture)
