@@ -380,7 +380,9 @@ describe('menus « Structure » et « Traitement » regroupés', () => {
     // 2026-09-27 · le registre des donateurs entre dans le groupe
     // « Déclarations et registres » (repos inchangé), qui reçoit aussi la
     // déclaration de TVA, les engagements et les exonérations venus d'État.
-    ['Traitement', "titre: 'Traitement',", "titre: 'État',", 7, 19],
+    // Puis « Paie du mois » sous « Clôture » · la passation mensuelle de la
+    // paie, qu'on n'atteignait que par la Structure (audit I10).
+    ['Traitement', "titre: 'Traitement',", "titre: 'État',", 7, 20],
   ] as const) {
     it(`${menu} · ${auRepos} lignes au repos, les ${total} commandes toujours atteignables`, () => {
       const entrees = entreesDe(debut, fin);

@@ -356,7 +356,7 @@ export const FENETRES: DefinitionFenetre[] = [
     motif: /^\/personnel$/,
     titre: 'Registre du personnel',
     titreCourt: 'Personnel',
-    rendre: () => <PersonnelPage />,
+    rendre: ({ adresse }) => <PersonnelPage adresse={adresse} />,
   },
   {
     // AUCUN `referentielsApplicables`, pour la même raison que la variation de

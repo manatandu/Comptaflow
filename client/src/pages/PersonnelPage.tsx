@@ -9,6 +9,7 @@ import { OngletRubriquesAvances, type AvanceSalaire, type RubriquePaie } from '.
 import { TITRE_BLOC_PAIE } from './PaieDuMois';
 import { BaremeMensuelIrpp, type DetailMensuelIrpp } from './BaremeMensuelIrpp';
 import { lignesDepuisModele, lignesVersModele, type ModeleBulletin } from '../lib/modeles-bulletin';
+import { ONGLETS_PERSONNEL, ongletPersonnelDe, type OngletPersonnel } from '../lib/onglets-personnel';
 
 /**
  * LE REGISTRE DU PERSONNEL · l'état civil, les engagements, et ce que
@@ -481,7 +482,7 @@ const fc = (n: number | null | undefined) =>
 const nomComplet = (s: Salarie) => [s.nom, s.postNom, s.prenoms].filter(Boolean).join(' ');
 const jour = (d: string | null) => (d ? d.slice(0, 10) : '');
 
-export function PersonnelPage() {
+export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
   // Inscrire un salarié, le mettre à jour, lui ouvrir un contrat : réservé
   // (`@Roles` ADMIN_CABINET, COMPTABLE). Simulation, décompte final et livre
   // de paie restent ouverts à la lecture seule · le serveur les lui ouvre,
@@ -490,9 +491,16 @@ export function PersonnelPage() {
   const [salaries, setSalaries] = useState<Salarie[]>([]);
   const [confrontation, setConfrontation] = useState<Confrontation | null>(null);
   const [effectif, setEffectif] = useState<Effectif | null>(null);
-  const [onglet, setOnglet] = useState<
-    'registre' | 'confrontation' | 'effectif' | 'simulation' | 'bulletins' | 'rubriques' | 'baremes' | 'decompte' | 'livre'
-  >('registre');
+  const [onglet, setOnglet] = useState<OngletPersonnel>(() => ongletPersonnelDe(adresse));
+  // La fenêtre n'est pas remontée quand un menu la redemande sur un autre
+  // onglet · l'adresse change, l'état reste. D'où la resynchronisation.
+  useEffect(() => {
+    setOnglet(ongletPersonnelDe(adresse));
+  }, [adresse]);
+  // Fin de contrat (audit de l'interface du 2026-09-27, F2) · la route
+  // existait et aucun geste ne l'appelait : un salarié parti restait sous
+  // contrat en cours, et l'effectif comme la confrontation le comptaient.
+  const [finContrat, setFinContrat] = useState<{ contratId: string; dateFin: string; motifFin: string } | null>(null);
   const [rubriques, setRubriques] = useState<RubriquePaie[]>([]);
   // Bulletins modèles · ils pré-remplissent la saisie, rien de plus.
   const [modeles, setModeles] = useState<ModeleBulletin[]>([]);
@@ -892,6 +900,26 @@ export function PersonnelPage() {
     }
   };
 
+  const terminerContrat = async () => {
+    if (!finContrat) return;
+    setErreur('');
+    setSucces('');
+    setEnCours(true);
+    try {
+      await api.post(`/personnel/contrats/${finContrat.contratId}/fin`, {
+        dateFin: finContrat.dateFin,
+        motifFin: finContrat.motifFin.trim() || undefined,
+      });
+      setSucces('Fin de contrat enregistrée · le décompte final se calcule dans l’onglet Décompte final.');
+      setFinContrat(null);
+      charger();
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Enregistrement impossible');
+    } finally {
+      setEnCours(false);
+    }
+  };
+
   const champ =
     'border border-border bg-surface px-1.5 py-1 text-[11.5px] w-full focus:outline-none focus:border-accent';
   const cell = 'px-2 py-1 border border-border';
@@ -920,7 +948,7 @@ export function PersonnelPage() {
 
       <div className="ecran-seul flex gap-1 mb-2 text-[11.5px]">
         {(
-          ['registre', 'confrontation', 'effectif', 'simulation', 'bulletins', 'rubriques', 'baremes', 'decompte', 'livre'] as const
+          ONGLETS_PERSONNEL
         ).map((o) => (
           <button
             key={o}
@@ -1259,6 +1287,7 @@ export function PersonnelPage() {
                       <th className={`${cell} text-left`}>Entrée en vigueur</th>
                       <th className={`${cell} text-left`}>Terme prévu</th>
                       <th className={`${cell} text-left`}>Fin réelle</th>
+                      {peutEcrire && <th className={cell} />}
                     </tr>
                   </thead>
                   <tbody>
@@ -1268,6 +1297,49 @@ export function PersonnelPage() {
                         <td className={cell}>{jour(c.dateEntreeEnVigueur)}</td>
                         <td className={cell}>{jour(c.dateFinPrevue)}</td>
                         <td className={cell}>{jour(c.dateFin)}</td>
+                        {peutEcrire && (
+                          <td className={cell}>
+                            {!c.dateFin && finContrat?.contratId !== c.id && (
+                              <button
+                                type="button"
+                                className="underline text-[11px]"
+                                onClick={() => setFinContrat({ contratId: c.id, dateFin: '', motifFin: '' })}
+                              >
+                                Mettre fin au contrat
+                              </button>
+                            )}
+                            {finContrat?.contratId === c.id && (
+                              <div className="flex flex-wrap gap-1 items-center">
+                                <input
+                                  type="date"
+                                  aria-label="Date de fin"
+                                  className={champ}
+                                  value={finContrat.dateFin}
+                                  onChange={(e) => setFinContrat({ ...finContrat, dateFin: e.target.value })}
+                                />
+                                <input
+                                  aria-label="Motif de fin"
+                                  placeholder="Motif"
+                                  maxLength={300}
+                                  className={champ}
+                                  value={finContrat.motifFin}
+                                  onChange={(e) => setFinContrat({ ...finContrat, motifFin: e.target.value })}
+                                />
+                                <button
+                                  type="button"
+                                  disabled={!finContrat.dateFin || enCours}
+                                  onClick={() => void terminerContrat()}
+                                  className="border border-border px-2 py-0.5 text-[11px] disabled:opacity-50"
+                                >
+                                  Enregistrer
+                                </button>
+                                <button type="button" className="text-[11px] underline" onClick={() => setFinContrat(null)}>
+                                  Annuler
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>

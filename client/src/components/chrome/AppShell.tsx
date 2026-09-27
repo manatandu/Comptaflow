@@ -53,7 +53,7 @@ import { filtrerParProfil } from './menu-groupes';
  * raccourcis s'affichait sous la barre d'outils qui la répétait.
  */
 export function AppShell() {
-  const { utilisateur, estAdmin, seDeconnecter } = useAuth();
+  const { utilisateur, estAdmin, peutValider, seDeconnecter } = useAuth();
   // DIVISION SYCEBNL / SYSCOHADA · voir docs/plan-de-construction.md §8.
   // Absent tant que le dossier n'est pas chargé : rien de propre à un
   // référentiel ne s'affiche avant qu'on le connaisse.
@@ -246,9 +246,10 @@ export function AppShell() {
             : [],
         },
         { label: 'Immobilisations', separateurAvant: true, chemin: '/immobilisations', onClick: () => navigate('/immobilisations') },
-        // Le registre ne passe AUCUNE écriture · il tient l'état civil et les
-        // engagements, comme le plan des tiers tient les tiers. Fermé à
-        // l'aide-comptable · données nominatives (roles-cantonnes.ts).
+        // Le registre tient l'état civil et les engagements, comme le plan des
+        // tiers tient les tiers. Son onglet Bulletins passe la paie du mois au
+        // journal · ce geste-là est AUSSI au menu Traitement (« Paie du mois »).
+        // Fermé à l'aide-comptable · données nominatives (roles-cantonnes.ts).
         ...(utilisateur?.role === 'AIDE_COMPTABLE'
           ? []
           : [{ label: 'Registre du personnel', chemin: '/personnel', onClick: () => navigate('/personnel') }]),
@@ -321,6 +322,10 @@ export function AppShell() {
             // Geste ANNUEL, décidé par un organe · ouvert aux deux référentiels.
             { label: 'Affectation du résultat', chemin: '/affectation-resultat', onClick: () => navigate('/affectation-resultat') },
             { label: "Fin d'exercice…", chemin: '/exercice', onClick: () => navigate('/exercice') },
+            // La paie du mois passe une écriture au journal · un geste de
+            // traitement, que seul « Structure > Registre du personnel »
+            // atteignait. Réservée comme sa route (`@ReserveAuComptable`).
+            ...(peutValider ? [{ label: 'Paie du mois', chemin: '/personnel?onglet=bulletins', onClick: () => navigate('/personnel?onglet=bulletins') }] : []),
           ],
         },
         {
