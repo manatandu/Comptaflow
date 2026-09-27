@@ -88,7 +88,7 @@ function jour(iso: string): string {
 }
 
 export function RegularisationPage() {
-  const { peutEcrire, utilisateur } = useAuth();
+  const { estAdmin, peutEcrire, utilisateur } = useAuth();
   const { exerciceCourant } = useExercice();
   const [onglet, setOnglet] = useState<'regularisation' | 'abonnement'>('regularisation');
   const [erreur, setErreur] = useState<string | null>(null);
@@ -238,6 +238,47 @@ export function RegularisationPage() {
       setErreur(err instanceof ApiError ? err.message : 'Création impossible');
     } finally {
       setEnvoi(false);
+    }
+  };
+
+  /**
+   * Renommer et supprimer un abonnement (audit de l'interface du
+   * 2026-09-27, I11) · les routes existaient sans geste. La suppression est
+   * réservée à l'administrateur, comme sa route ; le serveur refuse celle
+   * d'un abonnement dont une échéance est déjà passée, et le dit.
+   */
+  const renommerAbonnement = async (id: string, intitule: string) => {
+    const nouveau = window.prompt("Intitulé de l'abonnement", intitule);
+    if (!nouveau?.trim() || nouveau.trim() === intitule) return;
+    setErreur(null);
+    try {
+      await api.patch(`/regularisations/abonnements/${id}`, { intitule: nouveau.trim() });
+      await chargerAbonnements();
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Modification impossible');
+    }
+  };
+
+  // Le refus de suppression d'un abonnement déjà passé renvoie à la mise en
+  // sommeil · elle doit donc exister à l'écran.
+  const basculerSommeil = async (id: string, estActif: boolean) => {
+    setErreur(null);
+    try {
+      await api.patch(`/regularisations/abonnements/${id}`, { estActif: !estActif });
+      await chargerAbonnements();
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Modification impossible');
+    }
+  };
+
+  const supprimerAbonnement = async (id: string, intitule: string) => {
+    if (!window.confirm(`Supprimer l'abonnement « ${intitule} » ?`)) return;
+    setErreur(null);
+    try {
+      await api.delete(`/regularisations/abonnements/${id}`);
+      await chargerAbonnements();
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Suppression impossible');
     }
   };
 
@@ -667,6 +708,21 @@ export function RegularisationPage() {
                           className="bg-sel text-white text-[11.5px] font-bold px-2.5 py-1 rounded-[3px] hover:brightness-110"
                         >
                           Générer les échues
+                        </button>
+                      )}
+                      {peutEcrire && (
+                        <button onClick={() => void renommerAbonnement(a.id, a.intitule)} className="text-[11px] underline">
+                          Renommer
+                        </button>
+                      )}
+                      {peutEcrire && (
+                        <button onClick={() => void basculerSommeil(a.id, a.estActif)} className="text-[11px] underline">
+                          {a.estActif ? 'Mettre en sommeil' : 'Réactiver'}
+                        </button>
+                      )}
+                      {estAdmin && (
+                        <button onClick={() => void supprimerAbonnement(a.id, a.intitule)} className="text-[11px] underline">
+                          Supprimer
                         </button>
                       )}
                     </span>

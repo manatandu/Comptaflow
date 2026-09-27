@@ -72,6 +72,20 @@ const GESTES: Array<{ route: string; controleur: string; decorateur: string; pag
     page: 'AccordCadrePage.tsx',
     appel: 'api.patch(`/accord-cadre/${id}/denonciation`, { denonceLe, motif: motif.trim() })',
   },
+  {
+    route: 'PATCH /regularisations/abonnements/:id',
+    controleur: 'regularisation/regularisation.controller.ts',
+    decorateur: "@Patch('abonnements/:id')",
+    page: 'RegularisationPage.tsx',
+    appel: 'api.patch(`/regularisations/abonnements/${id}`, { intitule: nouveau.trim() })',
+  },
+  {
+    route: 'DELETE /regularisations/abonnements/:id',
+    controleur: 'regularisation/regularisation.controller.ts',
+    decorateur: "@Delete('abonnements/:id')",
+    page: 'RegularisationPage.tsx',
+    appel: 'api.delete(`/regularisations/abonnements/${id}`)',
+  },
 ];
 
 describe('routes d’écriture et leur geste', () => {
