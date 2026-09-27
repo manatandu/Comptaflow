@@ -533,6 +533,13 @@ export function BrouillardPage() {
             <span />
           </div>
         )}
+        {/* Une tranche se dit (audit final F185) · les totaux ci-dessus portent
+            tout le brouillard, la liste seulement ses premières écritures. */}
+        {etat?.tronque && (
+          <div className="px-3 py-1 text-[11px] text-text-dim">
+            {etat.lignes.length} premières écritures sur {etat.totaux.nombre} · restreignez au journal pour les voir toutes.
+          </div>
+        )}
       </div>
 
       {edition && (

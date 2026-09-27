@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { LOT_LECTURE, lireParLots } from '../../common/lecture-par-lots';
 import { JeuNotesAnnexes, Prisma, Referentiel, StatutEcriture } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
@@ -29,6 +30,8 @@ import {
 } from '../etats-financiers-syscohada/correspondance-notes-syscohada';
 import { ajouterMois } from '../../common/ajouter-mois';
 import { ouverteALaCloture } from '../lettrage/ouverte-a-la-cloture';
+// Sortis au socle (audit final F185), réexportés pour les appelants d'avant.
+export { LOT_LECTURE, lireParLots } from '../../common/lecture-par-lots';
 
 /**
  * Spécifications du jeu, indexées par `JeuNotesAnnexes` · un seul point
@@ -206,43 +209,6 @@ interface RubriqueResolue {
  *   colonne N-1 systématique, `undefined` jamais 0 s'il n'y a pas
  *   d'exercice antérieur.
  */
-/**
- * Taille d'un lot de lecture. Cinq mille éléments pèsent quelques mégaoctets
- * et tiennent dans n'importe quel conteneur · l'intérêt n'est pas la vitesse,
- * c'est que la mémoire ne dépende PLUS de la taille du dossier.
- */
-export const LOT_LECTURE = 5000;
-
-/**
- * Parcourt une collection par tranches, curseur sur l'identifiant · sortie au
- * niveau du module pour être éprouvée telle quelle, comme l'interception du
- * journal d'audit. Un parcours qu'on ne peut pas tester est un parcours qu'on
- * croit juste.
- *
- * DEUX PIÈGES, et chacun donne une note annexe FAUSSE sans lever d'erreur :
- *
- *  · sans `skip: 1` chez l'appelant, Prisma rend de nouveau la ligne du
- *    curseur à chaque tranche · son montant est compté deux fois ;
- *  · s'arrêter sur un lot VIDE plutôt que sur un lot INCOMPLET fait une
- *    requête de plus à chaque appel, pour rien.
- *
- * L'arrêt se fait donc sur un lot plus court que la taille demandée, et le
- * curseur avance sur le DERNIER élément rendu.
- */
-export async function lireParLots<T extends { id: string }>(
-  charger: (curseur: string | undefined) => Promise<T[]>,
-  traiter: (element: T) => void,
-  taille = LOT_LECTURE,
-): Promise<void> {
-  let curseur: string | undefined;
-  for (;;) {
-    const lot = await charger(curseur);
-    for (const element of lot) traiter(element);
-    if (lot.length < taille) return;
-    curseur = lot[lot.length - 1].id;
-  }
-}
-
 @Injectable()
 export class NoteAnnexeService {
   constructor(

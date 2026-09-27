@@ -98,6 +98,12 @@ function lignesPrisesEntreTemps() {
   );
 }
 
+/**
+ * Plafond des lignes qu'une fenêtre de lettrage montre (audit final F185) ·
+ * au-delà, la tranche se dit et les totaux restent ceux du compte entier.
+ */
+export const PLAFOND_LIGNES_LETTRAGE = 5000;
+
 @Injectable()
 export class LettrageService {
   constructor(private readonly prisma: PrismaService) {}
@@ -132,20 +138,48 @@ export class LettrageService {
    */
   async lister(tenantId: string, compteId: string, nonLettreesSeulement?: boolean) {
     const compte = await this.trouverCompte(tenantId, compteId);
-    const [lignes, lettrages] = await Promise.all([
+    const where: Prisma.LigneEcritureWhereInput = {
+      compteId,
+      ecriture: { tenantId },
+      ...(nonLettreesSeulement ? { lettre: null } : {}),
+    };
+    // UNE FENÊTRE DE TRAVAIL MONTRE UNE TRANCHE, ET LE DIT (audit final F185)
+    // · une caisse tenue depuis des années passait tout entière en mémoire.
+    // Les totaux se prennent sur le périmètre entier, jamais sur la tranche.
+    const [lignes, total, agregat] = await Promise.all([
       this.prisma.ligneEcriture.findMany({
-        where: {
-          compteId,
-          ecriture: { tenantId },
-          ...(nonLettreesSeulement ? { lettre: null } : {}),
-        },
+        where,
         include: { ecriture: { include: { journal: true } }, lettrage: true, devise: true },
-        orderBy: { ecriture: { date: 'asc' } },
+        orderBy: [{ ecriture: { date: 'asc' } }, { id: 'asc' }],
+        take: PLAFOND_LIGNES_LETTRAGE,
       }),
-      this.prisma.lettrage.findMany({ where: { compteId, tenantId }, orderBy: { createdAt: 'asc' } }),
+      this.prisma.ligneEcriture.count({ where }),
+      this.prisma.ligneEcriture.aggregate({ where, _sum: { debit: true, credit: true } }),
     ]);
+    const tronque = total > lignes.length;
+    // Tranche montrée · les groupes se restreignent à ceux de ses lignes, plus
+    // les PARTIELS, qui restent à compléter où qu'ils soient.
+    const lettrages = await this.prisma.lettrage.findMany({
+      where: {
+        compteId,
+        tenantId,
+        ...(tronque
+          ? {
+              OR: [
+                { statut: StatutLettrage.PARTIEL },
+                { id: { in: [...new Set(lignes.map((l) => l.lettrageId).filter((id): id is string => id !== null))] } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: { createdAt: 'asc' },
+    });
 
     return {
+      tronque,
+      total,
+      plafond: PLAFOND_LIGNES_LETTRAGE,
+      totaux: { debit: Number(agregat._sum.debit ?? 0), credit: Number(agregat._sum.credit ?? 0) },
       compte: { id: compte.id, numero: compte.numero, intitule: compte.intitule, lettrable: compte.lettrable },
       lignes: lignes.map((l) => ({
         id: l.id,

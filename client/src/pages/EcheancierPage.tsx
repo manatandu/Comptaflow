@@ -167,6 +167,14 @@ export function EcheancierPage() {
               Aucune échéance en cours : tous les comptes de tiers sont soldés ou lettrés.
             </p>
           )}
+          {/* Une tranche se dit (audit final F185) · les montants des tranches
+              portent tout, le détail seulement les échéances les plus proches. */}
+          {etat.tronque && etat.nombreDetails !== undefined && (
+            <p className="text-[11px] text-text-dim">
+              Détail limité aux {etat.details.length} échéances les plus proches sur {etat.nombreDetails} · les montants
+              des tranches les comptent toutes.
+            </p>
+          )}
           {etat.lignesSansEcheance > 0 && (
             <p className="text-[11px] text-text-dim">
               {etat.lignesSansEcheance} ligne(s) sans date d'échéance saisie : la date de l'écriture leur tient lieu

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { EcritureService } from './ecriture.service';
+import { EcritureService, PLAFOND_LIGNES_GRAND_LIVRE } from './ecriture.service';
 import { PrismaService } from '../../common/prisma.service';
 
 /**
@@ -64,6 +64,9 @@ function harnais(lignes: ReturnType<typeof ligne>[], soldeBalance = { debit: 0, 
     },
     ligneEcriture: {
       findMany,
+      // Le justificatif compte avant de lire (audit final F185) · la doublure
+      // rend le nombre des lignes qu'elle servirait.
+      count: jest.fn().mockResolvedValue(lignes.length),
       aggregate: jest.fn().mockResolvedValue({ _sum: { debit: soldeBalance.debit, credit: soldeBalance.credit } }),
     },
   } as unknown as PrismaService;
@@ -162,5 +165,23 @@ describe('justificatif de solde', () => {
     const r = await svc.justificatifSolde('t', AU_31_12);
     expect(r.lignes[0].libelle).toBe(l.libelle);
     expect(r.lignes[1].libelle).toBe(sansLibelle.ecriture.libelle);
+  });
+});
+
+describe('justificatif de solde · il ne se tronque pas (audit final F185)', () => {
+  it('au-delà du plafond d’une fenêtre, il se refuse et dit par où passer', async () => {
+    const { service: svc } = harnais([]);
+    const prisma = (svc as unknown as { prisma: { ligneEcriture: { count: jest.Mock } } }).prisma;
+    prisma.ligneEcriture.count.mockResolvedValue(PLAFOND_LIGNES_GRAND_LIVRE + 1);
+    await expect(svc.justificatifSolde('t', { compteId: 'c1', exerciceId: 'ex2025' })).rejects.toThrow(
+      /Le justificatif du compte 469150 porte .* Masquez les lignes lettrées, ou avancez la date d'arrêt\./,
+    );
+  });
+
+  it('compte sur le MÊME périmètre que celui qu’il lit', async () => {
+    const { service: svc, findMany } = harnais([ligne('2025-03-01', 10, 0)]);
+    await svc.justificatifSolde('t', { compteId: 'c1', exerciceId: 'ex2025', masquerLettrees: true });
+    const prisma = (svc as unknown as { prisma: { ligneEcriture: { count: jest.Mock } } }).prisma;
+    expect(prisma.ligneEcriture.count.mock.calls[0][0].where).toEqual(findMany.mock.calls[0][0].where);
   });
 });

@@ -6554,6 +6554,14 @@ différence est comptable, pas technique :
   il se refuse, avec le chemin de rechange. Un livre amputé en silence est un
   document faux (AUDCIF art. 22, 6°).
 
+**CE QUI PARCOURT TOUT UN EXERCICE LE LIT PAR TRANCHES** (2026-09-27, audit
+final F185) · `common/lecture-par-lots.ts`, une seule écriture de la
+pagination (`pageApres`, par identifiant, `skip: 1` sans quoi la ligne du
+curseur est lue deux fois). Une somme se demande à la base (`aggregate`,
+`groupBy`), jamais à une boucle sur des lignes rapatriées. Une liste
+d'anomalies bornée dit son total (`Collecte`, `nombreSiTronque`), et un test
+de structure exige le total de toute collecte servie.
+
 ## 9. Style de code
 
 Le code de ce dépôt est commenté **en français**, et les commentaires

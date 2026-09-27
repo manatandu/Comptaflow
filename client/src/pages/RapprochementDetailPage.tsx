@@ -283,6 +283,14 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
             {detail.lignes.length === 0 && (
               <div className="p-3 text-[11.5px] text-text-dim">Aucun mouvement pointable sur ce compte.</div>
             )}
+            {/* Une tranche se dit (audit final F185) · les soldes ci-dessus
+                portent tout le compte, la liste seulement ses premières lignes. */}
+            {detail.tronque && detail.totalLignes !== undefined && (
+              <div className="px-3 py-1 text-[11px] text-text-dim">
+                {detail.lignes.length} premières lignes sur {detail.totalLignes.toLocaleString('fr-FR')} · les soldes
+                portent tout le compte.
+              </div>
+            )}
           </div>
 
           {peutEcrire && enCours && (

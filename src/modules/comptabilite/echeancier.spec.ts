@@ -1,4 +1,4 @@
-import { EcritureService } from './ecriture.service';
+import { EcritureService, PLAFOND_ECRITURES_PAR_FENETRE } from './ecriture.service';
 import { PrismaService } from '../../common/prisma.service';
 
 /**
@@ -36,11 +36,20 @@ function tresorerie(numero: string, debit: number, credit = 0) {
 function service(tiers: ReturnType<typeof ligne>[], treso: ReturnType<typeof tresorerie>[]) {
   const prisma = {
     ligneEcriture: {
-      findMany: jest.fn().mockImplementation(({ where }: any) =>
-        // La requête de trésorerie filtre sur `compte.numero.startsWith`,
-        // celle des tiers sur un OR de racines : c'est ce qui les distingue.
-        Promise.resolve(where.compte?.numero?.startsWith === '5' ? treso : tiers),
-      ),
+      findMany: jest.fn().mockResolvedValue(tiers),
+      // La trésorerie est un AGRÉGAT (audit final F185) · la doublure HONORE
+      // le filtre, racine 5 et exclusion du 59, pour que ce test la juge.
+      aggregate: jest.fn().mockImplementation(({ where }: any) => {
+        const racine: string = where.compte.numero.startsWith;
+        const exclue: string | undefined = where.compte.NOT?.numero?.startsWith;
+        const retenues = treso.filter((l) => l.compte.numero.startsWith(racine) && !(exclue && l.compte.numero.startsWith(exclue)));
+        return Promise.resolve({
+          _sum: {
+            debit: retenues.reduce((t, l) => t + l.debit, 0),
+            credit: retenues.reduce((t, l) => t + l.credit, 0),
+          },
+        });
+      }),
     },
   } as unknown as PrismaService;
   return new EcritureService(
@@ -147,5 +156,24 @@ describe('Échéancier de trésorerie', () => {
     const t = e.tranches.find((x) => x.cle === 'j8a30')!;
     expect(t.net).toBe(0);
     expect(e.alerte).toBeNull();
+  });
+});
+
+describe('Échéancier · tranches entières, détail borné (audit final F185)', () => {
+  it('au-delà du plafond, le détail garde les échéances les plus proches, et les tranches comptent tout', async () => {
+    const n = PLAFOND_ECRITURES_PAR_FENETRE + 5;
+    // Les lignes arrivent de la plus lointaine à la plus proche · le tri doit
+    // garder la tête de l'ordre des dates, pas celle de l'arrivée.
+    const lignes = Array.from({ length: n }, (_, i) => {
+      const jour = new Date(Date.UTC(2026, 6, 1) + (n - i) * 86_400_000).toISOString().slice(0, 10);
+      return ligne(`l${i}`, '41100000', { debit: 100 }, { echeance: jour });
+    });
+    const e = await service(lignes, []).echeancier('t1', { exerciceId: 'e1', dateReference: REF });
+    expect(e.details).toHaveLength(PLAFOND_ECRITURES_PAR_FENETRE);
+    expect(e.tronque).toBe(true);
+    expect(e.nombreDetails).toBe(n);
+    expect(e.details[0].ligneId).toBe(`l${n - 1}`);
+    const totalEncaisse = e.tranches.reduce((t, x) => t + x.encaissements, 0);
+    expect(totalEncaisse).toBe(100 * n);
   });
 });

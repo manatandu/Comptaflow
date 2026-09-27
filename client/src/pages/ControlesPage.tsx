@@ -136,7 +136,7 @@ export function ControlesPage() {
                         <span className="text-[12px] font-semibold truncate">{a.libelle}</span>
                       </span>
                       <span className="flex items-center gap-2 shrink-0">
-                        <span className={`text-[11.5px] font-mono font-bold ${c.texte}`}>{a.occurrences.length}</span>
+                        <span className={`text-[11.5px] font-mono font-bold ${c.texte}`}>{a.nombre ?? a.occurrences.length}</span>
                         <span className="text-[11px] text-text-dim">{ouvert ? '▲' : '▼'}</span>
                       </span>
                     </button>
@@ -167,6 +167,13 @@ export function ControlesPage() {
                             </span>
                           </div>
                         ))}
+                        {/* Une liste bornée dit son total (audit final F185) · « 200 »
+                            ne se lit pas comme le nombre trouvé. */}
+                        {a.nombre !== undefined && a.nombre > a.occurrences.length && (
+                          <div className="px-4 py-1 text-[11px] text-text-dim">
+                            {a.occurrences.length} premières sur {a.nombre.toLocaleString('fr-FR')} · les autres se lisent au journal.
+                          </div>
+                        )}
                       </div>
                     )}
                   </section>

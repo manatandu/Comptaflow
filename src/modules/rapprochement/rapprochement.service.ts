@@ -17,6 +17,15 @@ import { transactionJournalisee } from '../../common/audit/transaction-journalis
 
 const EPSILON = 0.005;
 
+const JOUR_MS = 86_400_000;
+
+/**
+ * Plafond des lignes qu'une fenêtre de rapprochement montre (audit final
+ * F185) · au-delà, la tranche se dit, et soldes et correspondances restent
+ * pris sur le compte entier.
+ */
+export const PLAFOND_LIGNES_RAPPROCHEMENT = 5000;
+
 /**
  * Rapprochement bancaire manuel (§3.4 · cf. docs/plan-de-construction.md) :
  * pointage écriture par écriture d'un compte de trésorerie face à un relevé
@@ -131,26 +140,44 @@ export class RapprochementService {
   async obtenir(tenantId: string, id: string) {
     const rapprochement = await this.trouverRapprochement(tenantId, id);
 
-    const lignes = await this.prisma.ligneEcriture.findMany({
-      where: {
-        compteId: rapprochement.compteId,
-        ecriture: { tenantId },
-        OR: [{ rapprochementId: id }, { rapprochementId: null }],
-      },
-      include: { ecriture: { include: { journal: true } } },
-      orderBy: { ecriture: { date: 'asc' } },
-    });
+    // UNE TRANCHE QUI SE DIT, DES SOLDES ENTIERS (audit final F185) · un
+    // compte jamais rapproché portait toutes ses lignes non pointées, tous
+    // exercices confondus, en une seule lecture. Le solde pointé se prend
+    // par agrégat, et les correspondances du relevé par leurs propres liens.
+    const whereLignes: Prisma.LigneEcritureWhereInput = {
+      compteId: rapprochement.compteId,
+      ecriture: { tenantId },
+      OR: [{ rapprochementId: id }, { rapprochementId: null }],
+    };
+    const [lignes, total, pointe] = await Promise.all([
+      this.prisma.ligneEcriture.findMany({
+        where: whereLignes,
+        include: { ecriture: { include: { journal: true } } },
+        orderBy: [{ ecriture: { date: 'asc' } }, { id: 'asc' }],
+        take: PLAFOND_LIGNES_RAPPROCHEMENT,
+      }),
+      this.prisma.ligneEcriture.count({ where: whereLignes }),
+      this.prisma.ligneEcriture.aggregate({
+        where: { compteId: rapprochement.compteId, ecriture: { tenantId }, rapprochementId: id },
+        _sum: { debit: true, credit: true },
+      }),
+    ]);
 
     const soldeDepart = await this.soldeDepart(tenantId, rapprochement.compteId, rapprochement.clotureAt ?? new Date());
-    const lignesPointees = lignes.filter((l) => l.rapprochementId === id);
-    const soldePointe =
-      soldeDepart + lignesPointees.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
+    const soldePointe = soldeDepart + Number(pointe._sum.debit ?? 0) - Number(pointe._sum.credit ?? 0);
     const ecart = soldePointe - Number(rapprochement.soldeReleve);
 
     const releve = await this.prisma.ligneReleveBancaire.findMany({
       where: { tenantId, rapprochementId: id },
       orderBy: { rang: 'asc' },
     });
+    const correspondances =
+      releve.length === 0
+        ? []
+        : await this.prisma.ligneEcriture.findMany({
+            where: { ecriture: { tenantId }, ligneReleveId: { in: releve.map((r) => r.id) } },
+            select: { id: true, ligneReleveId: true },
+          });
     // CONTRÔLE DU RELEVÉ LUI-MÊME · solde de départ plus ses mouvements doit
     // donner le solde imprimé. Un écart dit que le fichier ne couvre pas toute
     // la période (lignes manquantes, export tronqué) ou que le solde de départ
@@ -180,8 +207,11 @@ export class RapprochementService {
         reference: r.reference,
         debit: Number(r.debit),
         credit: Number(r.credit),
-        ligneEcritureIds: lignes.filter((l) => l.ligneReleveId === r.id).map((l) => l.id),
+        ligneEcritureIds: correspondances.filter((l) => l.ligneReleveId === r.id).map((l) => l.id),
       })),
+      /** Vrai quand la liste ne montre qu'une tranche des lignes · les soldes restent entiers. */
+      tronque: total > lignes.length,
+      totalLignes: total,
       lignes: lignes.map((l) => ({
         id: l.id,
         date: l.ecriture.date,
@@ -364,10 +394,30 @@ export class RapprochementService {
       where: { tenantId, rapprochementId: id, lignesEcriture: { none: {} } },
       orderBy: { rang: 'asc' },
     });
-    const compte = await this.prisma.ligneEcriture.findMany({
-      where: { compteId: rapprochement.compteId, ecriture: { tenantId }, rapprochementId: null, ligneReleveId: null },
-      include: { ecriture: { select: { date: true, reference: true } } },
-    });
+    // BORNÉES PAR LA FENÊTRE DE DATES (audit final F185) · les deux passes de
+    // `proposerCorrespondances` l'exigent de toute candidate, si bien qu'une
+    // ligne hors de [première date du relevé − fenêtre, dernière + fenêtre]
+    // ne peut rien proposer. Lire tout le compte libre ne changeait rien au
+    // résultat, et chargeait des années de lignes jamais rapprochées.
+    const instants = releve.map((r) => r.date.getTime());
+    const compte =
+      releve.length === 0
+        ? []
+        : await this.prisma.ligneEcriture.findMany({
+            where: {
+              compteId: rapprochement.compteId,
+              ecriture: {
+                tenantId,
+                date: {
+                  gte: new Date(instants.reduce((a, b) => Math.min(a, b)) - fenetreJours * JOUR_MS),
+                  lte: new Date(instants.reduce((a, b) => Math.max(a, b)) + fenetreJours * JOUR_MS),
+                },
+              },
+              rapprochementId: null,
+              ligneReleveId: null,
+            },
+            include: { ecriture: { select: { date: true, reference: true } } },
+          });
     const propositions = proposerCorrespondances(
       releve.map((r) => ({
         id: r.id,

@@ -1,9 +1,11 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
+import { Collecte, LOT_ECRITURES, LOT_LECTURE, lireParLots, pageApres } from '../../common/lecture-par-lots';
 import { qualifierExemptionIs } from '../fiscalite/exemption-is-ebnl';
 import {
   ClasseCompte,
   FormeJuridiqueSyscohada,
+  Prisma,
   JeuEtatsFinanciersSycebnl,
   Referentiel,
   SensDepreciation,
@@ -80,6 +82,12 @@ export interface AnomalieControle {
     montant?: number;
     date?: string;
   }[];
+  /**
+   * Le nombre d'occurrences TROUVÉES, quand la liste n'en montre qu'une
+   * partie (audit final F185) · « 200 » ne doit pas se lire comme le total.
+   * Absent quand la liste est complète.
+   */
+  nombre?: number;
 }
 
 export interface RapportControles {
@@ -267,6 +275,53 @@ const STOCK_PROVENANT_D_IMMOBILISATIONS_PAR_REFERENTIEL: Record<Referentiel, str
  */
 const IMMOBILISATIONS_DE_LA_PRODUCTION = ['21', '23', '24'];
 
+/**
+ * CE QUE LA BATTERIE LIT D'UNE ÉCRITURE · une seule lecture, par tranches,
+ * pour tous les contrôles qui parcourent les écritures de l'exercice.
+ */
+const SELECT_ECRITURE_CONTROLEE = {
+  id: true,
+  date: true,
+  libelle: true,
+  reference: true,
+  numeroPiece: true,
+  statut: true,
+  createdAt: true,
+  // Le double regard compare ces trois-là · ils sont pris dans la même
+  // lecture que le reste plutôt que dans une seconde requête.
+  createdBy: true,
+  valideeBy: true,
+  secondRegardNom: true,
+  estGenereeParCloture: true,
+  estANouveauProvisoire: true,
+  journal: { select: { code: true } },
+  lignes: { select: { debit: true, credit: true, lettre: true, compte: { select: { numero: true } } } },
+} satisfies Prisma.EcritureSelect;
+
+type EcritureControlee = Prisma.EcritureGetPayload<{ select: typeof SELECT_ECRITURE_CONTROLEE }>;
+
+/** Plafond des occurrences montrées par contrôle · le nombre trouvé est dit à côté. */
+const PLAFOND_OCCURRENCES = 200;
+
+/** Les racines que les modèles du Système minimal n'ouvrent pas (contrôle 6 ter). */
+const RACINES_SANS_POSTE_SMT = ['15', '19', '29'];
+
+/** Le dossier tient-il le Système minimal de trésorerie, dans l'un ou l'autre texte ? */
+function estAuSystemeMinimal(tenant: {
+  referentiel: Referentiel;
+  systemeComptableSyscohada: SystemeComptableSyscohada | null;
+  jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl;
+}): boolean {
+  return tenant.referentiel === Referentiel.SYSCOHADA
+    ? tenant.systemeComptableSyscohada === SystemeComptableSyscohada.MINIMAL_TRESORERIE
+    : tenant.jeuEtatsFinanciersSycebnl === JeuEtatsFinanciersSycebnl.SYSTEME_MINIMAL_TRESORERIE;
+}
+
+/** Le nombre trouvé, porté seulement quand la liste montrée en a laissé. */
+function nombreSiTronque(collecte: Collecte<unknown>): { nombre?: number } {
+  return collecte.tronquee ? { nombre: collecte.nombre } : {};
+}
+
 @Injectable()
 export class ControlesService {
   /** Au-delà, une créance ou une dette non lettrée mérite qu'on la regarde. */
@@ -307,24 +362,33 @@ export class ControlesService {
     );
     if (comptesCaisse.length === 0) return [];
 
-    const lignes = await this.prisma.ligneEcriture.findMany({
-      where: {
-        compteId: { in: comptesCaisse.map((c) => c.id) },
-        ecriture: { tenantId, exerciceId },
-      },
-      select: { compteId: true, debit: true, credit: true, ecriture: { select: { date: true } } },
-    });
-
-    return comptesCaisse.map((compte) => {
-      const parJour = new Map<string, { debit: number; credit: number }>();
-      for (const l of lignes) {
-        if (l.compteId !== compte.id) continue;
+    // PAR TRANCHES, CUMULÉ PAR JOUR (audit final F185) · une caisse
+    // d'agence mouvementée chaque jour ne tient plus toutes ses lignes en
+    // mémoire, seulement ses journées.
+    const parCompteJour = new Map<string, Map<string, { debit: number; credit: number }>>();
+    await lireParLots(
+      (curseur) =>
+        this.prisma.ligneEcriture.findMany({
+          where: {
+            compteId: { in: comptesCaisse.map((c) => c.id) },
+            ecriture: { tenantId, exerciceId },
+          },
+          select: { id: true, compteId: true, debit: true, credit: true, ecriture: { select: { date: true } } },
+          ...pageApres(curseur, LOT_LECTURE),
+        }),
+      (l) => {
+        const parJour = parCompteJour.get(l.compteId) ?? new Map<string, { debit: number; credit: number }>();
+        parCompteJour.set(l.compteId, parJour);
         const jour = l.ecriture.date.toISOString().slice(0, 10);
         const acc = parJour.get(jour) ?? { debit: 0, credit: 0 };
         acc.debit += Number(l.debit);
         acc.credit += Number(l.credit);
         parJour.set(jour, acc);
-      }
+      },
+    );
+
+    return comptesCaisse.map((compte) => {
+      const parJour = parCompteJour.get(compte.id) ?? new Map<string, { debit: number; credit: number }>();
 
       let cumul = 0;
       const journees: JourneeCaisse[] = [...parJour.entries()]
@@ -386,7 +450,9 @@ export class ControlesService {
   ) {
     const ex = await this.exercice(tenantId, exerciceId);
 
-    const lignes = await this.prisma.ligneEcriture.findMany({
+    // PAR TRANCHES (audit final F185) · toutes les lignes de l'exercice
+    // passaient d'un bloc en mémoire, pour n'en garder que des cumuls.
+    const lire = (curseur: string | undefined) => this.prisma.ligneEcriture.findMany({
       where: {
         compte: { tenantId, ...(options.classe ? { classe: options.classe } : {}) },
         ecriture: {
@@ -396,11 +462,13 @@ export class ControlesService {
         },
       },
       select: {
+        id: true,
         debit: true,
         credit: true,
         compte: { select: { id: true, numero: true, intitule: true, classe: true, typeCompte: true } },
         ecriture: { select: { date: true, estGenereeParCloture: true, estSoldeDesComptesDeGestion: true } },
       },
+      ...pageApres(curseur, LOT_LECTURE),
     });
 
     // Les mois de l'exercice, dans l'ordre, bornes comprises. Un exercice
@@ -429,11 +497,11 @@ export class ControlesService {
       }
     >();
 
-    for (const l of lignes) {
+    await lireParLots(lire, (l) => {
       // Un compte TOTAL ne porte jamais d'écriture directe (voir
       // EcritureService.creer) ; s'il en portait, l'inclure doublerait les
       // montants de sa racine.
-      if (l.compte.typeCompte === TypeCompteDetailTotal.TOTAL) continue;
+      if (l.compte.typeCompte === TypeCompteDetailTotal.TOTAL) return;
       const net = Number(l.debit) - Number(l.credit);
       let e = parCompte.get(l.compte.id);
       if (!e) {
@@ -452,15 +520,15 @@ export class ControlesService {
       // elle affichait l'inverse du total de l'année sur chaque charge. Le
       // solde d'une charge se lit donc AVANT clôture, celui que les mois
       // additionnent.
-      if (l.ecriture.estSoldeDesComptesDeGestion) continue;
+      if (l.ecriture.estSoldeDesComptesDeGestion) return;
       if (l.ecriture.estGenereeParCloture) {
         e.report += net;
-        continue;
+        return;
       }
       const d = l.ecriture.date;
       const cle = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
       e.parMois.set(cle, (e.parMois.get(cle) ?? 0) + net);
-    }
+    });
 
     const comptes = [...parCompte.values()]
       .map((e) => {
@@ -825,6 +893,150 @@ export class ControlesService {
     };
   }
 
+  /**
+   * LE PARCOURS DES ÉCRITURES DE L'EXERCICE, PAR TRANCHES (audit final F185).
+   *
+   * Chaque prédicat est celui que le contrôle appliquait à la liste entière ·
+   * seul le chemin de lecture a changé. Une collecte garde ses deux cents
+   * premières écritures et compte les autres ; les soldes de tiers et les
+   * comptes de classe 9 se cumulent au passage. La mémoire ne dépend plus du
+   * nombre d'écritures, seulement de ce que les contrôles rendent.
+   */
+  private async parcourirEcrituresControlees(
+    tenantId: string,
+    exerciceId: string,
+    ex: { statut: StatutExercice; dateFin: Date },
+    tenant: {
+      referentiel: Referentiel;
+      systemeComptableSyscohada: SystemeComptableSyscohada | null;
+      jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl;
+      methodeCotisations: unknown;
+    },
+    maintenant: number,
+  ) {
+    const desequilibrees = new Collecte<EcritureControlee>(PLAFOND_OCCURRENCES);
+    const sansReference = new Collecte<EcritureControlee>(PLAFOND_OCCURRENCES);
+    const brouillardEnRetard = new Collecte<EcritureControlee>(PLAFOND_OCCURRENCES);
+    const anciennes = new Collecte<EcritureControlee>(PLAFOND_OCCURRENCES);
+    const chargesDirectes = new Collecte<EcritureControlee>(PLAFOND_OCCURRENCES);
+    const horsModele = new Collecte<EcritureControlee>(PLAFOND_OCCURRENCES);
+    const cotisationsMouvementees = new Collecte<EcritureControlee>(PLAFOND_OCCURRENCES);
+    const validesParLeurAuteur = new Collecte<EcritureControlee>(PLAFOND_OCCURRENCES);
+    const soldesTiers = new Map<string, number>();
+    const comptesClasse9 = new Set<string>();
+
+    const seuilAnciennete = new Date(ex.dateFin);
+    seuilAnciennete.setDate(seuilAnciennete.getDate() - ControlesService.JOURS_ANCIENNETE_TIERS);
+    const auSystemeMinimal = estAuSystemeMinimal(tenant);
+    const cotisationsAPreciser =
+      tenant.referentiel === Referentiel.SYCEBNL &&
+      tenant.jeuEtatsFinanciersSycebnl === JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS &&
+      !tenant.methodeCotisations;
+
+    await lireParLots(
+      (curseur) =>
+        this.prisma.ecriture.findMany({
+          where: { tenantId, exerciceId },
+          select: SELECT_ECRITURE_CONTROLEE,
+          ...pageApres(curseur, LOT_ECRITURES),
+        }),
+      (e) => {
+        let debit = 0;
+        let credit = 0;
+        for (const l of e.lignes) {
+          debit += Number(l.debit);
+          credit += Number(l.credit);
+          const n = l.compte.numero;
+          if (n.startsWith('40') || n.startsWith('41')) {
+            soldesTiers.set(n, (soldesTiers.get(n) ?? 0) + Number(l.debit) - Number(l.credit));
+          }
+          if (n.startsWith('9')) comptesClasse9.add(n);
+        }
+        if (Math.abs(debit - credit) > 0.005) desequilibrees.ajouter(e);
+
+        if (!e.reference?.trim() && !['AN', 'OD'].includes(e.journal.code) && e.lignes.length > 0) {
+          sansReference.ajouter(e);
+        }
+
+        if (e.statut === StatutEcriture.BROUILLARD && enRetardDeCentralisation(e, ex.statut, tenant.referentiel, maintenant)) {
+          brouillardEnRetard.ajouter(e);
+        }
+
+        if (
+          e.date < seuilAnciennete &&
+          e.lignes.some(
+            (l) =>
+              !l.lettre &&
+              (l.compte.numero.startsWith('40') || l.compte.numero.startsWith('41')) &&
+              Math.abs(Number(l.debit) - Number(l.credit)) > 0.005,
+          )
+        ) {
+          anciennes.ajouter(e);
+        }
+
+        if (!auSystemeMinimal) {
+          const aUneCharge = e.lignes.some(
+            (l) =>
+              (l.compte.numero.startsWith('6') || l.compte.numero.startsWith('8')) &&
+              Number(l.debit) - Number(l.credit) > 0.005,
+          );
+          const aUneTresorerieCreditee = e.lignes.some(
+            (l) =>
+              l.compte.numero.startsWith('5') &&
+              !l.compte.numero.startsWith('59') &&
+              Number(l.credit) - Number(l.debit) > 0.005,
+          );
+          // La présence d'un tiers dans la MÊME écriture suffit à l'absoudre :
+          // c'est le cas d'une écriture composée (facture + règlement partiel)
+          // ou d'une retenue à la source, où le tiers est bien nommé.
+          const aUnTiers = e.lignes.some((l) => l.compte.numero.startsWith('4'));
+          if (aUneCharge && aUneTresorerieCreditee && !aUnTiers) chargesDirectes.ajouter(e);
+        } else if (
+          !e.estGenereeParCloture &&
+          e.lignes.some((l) => RACINES_SANS_POSTE_SMT.some((r) => l.compte.numero.startsWith(r)))
+        ) {
+          horsModele.ajouter(e);
+        }
+
+        if (
+          cotisationsAPreciser &&
+          e.lignes.some((l) => l.compte.numero.startsWith('701') || l.compte.numero.startsWith('103'))
+        ) {
+          cotisationsMouvementees.ajouter(e);
+        }
+
+        if (
+          e.statut === StatutEcriture.VALIDEE &&
+          e.valideeBy !== null &&
+          e.createdBy === e.valideeBy &&
+          // Personne ne « saisit » un report à nouveau calculé à partir de soldes
+          // déjà validés · les textes raisonnent sur des données « entrée[s] »
+          // par une personne (art. 22, 1°).
+          !e.estGenereeParCloture &&
+          // Un second regard nominatif a été porté hors logiciel : la coïncidence
+          // d'identité est alors expliquée, et la signaler serait du bruit.
+          e.secondRegardNom === null
+        ) {
+          validesParLeurAuteur.ajouter(e);
+        }
+      },
+      LOT_ECRITURES,
+    );
+
+    return {
+      desequilibrees,
+      sansReference,
+      brouillardEnRetard,
+      anciennes,
+      chargesDirectes,
+      horsModele,
+      cotisationsMouvementees,
+      validesParLeurAuteur,
+      soldesTiers,
+      comptesClasse9,
+    };
+  }
+
   async analyser(tenantId: string, exerciceId: string): Promise<RapportControles> {
     const ex = await this.exercice(tenantId, exerciceId);
     // Le jeu d'états commande un contrôle : le S.M.T est une comptabilité de
@@ -854,34 +1066,13 @@ export class ControlesService {
     }
 
     // --- 2. Écritures déséquilibrées ----------------------------------------
-    const ecritures = await this.prisma.ecriture.findMany({
-      where: { tenantId, exerciceId },
-      select: {
-        id: true,
-        date: true,
-        libelle: true,
-        reference: true,
-        numeroPiece: true,
-        statut: true,
-        createdAt: true,
-        // Le double regard compare ces trois-là · ils sont pris dans la même
-        // lecture que le reste plutôt que dans une seconde requête, la
-        // collection étant déjà bornée à l'exercice.
-        createdBy: true,
-        valideeBy: true,
-        secondRegardNom: true,
-        estGenereeParCloture: true,
-        estANouveauProvisoire: true,
-        journal: { select: { code: true } },
-        lignes: { select: { debit: true, credit: true, lettre: true, compte: { select: { numero: true } } } },
-      },
-    });
-
-    const desequilibrees = ecritures.filter((e) => {
-      const d = e.lignes.reduce((s, l) => s + Number(l.debit), 0);
-      const c = e.lignes.reduce((s, l) => s + Number(l.credit), 0);
-      return Math.abs(d - c) > 0.005;
-    });
+    // UNE SEULE LECTURE, PAR TRANCHES (audit final F185) · la batterie
+    // chargeait toutes les écritures de l'exercice avec leurs lignes, ce que
+    // le banc d'un million de lignes a montré mortel. Chaque contrôle qui les
+    // lisait reçoit désormais sa collecte, remplie au passage.
+    const maintenant = Date.now();
+    const parcours = await this.parcourirEcrituresControlees(tenantId, exerciceId, ex, tenant, maintenant);
+    const desequilibrees = parcours.desequilibrees.elements;
     if (desequilibrees.length > 0) {
       anomalies.push({
         code: 'ECRITURE_DESEQUILIBREE',
@@ -896,13 +1087,12 @@ export class ControlesService {
           montant:
             e.lignes.reduce((s, l) => s + Number(l.debit), 0) - e.lignes.reduce((s, l) => s + Number(l.credit), 0),
         })),
+        ...nombreSiTronque(parcours.desequilibrees),
       });
     }
 
     // --- 3. Écritures sans pièce justificative -------------------------------
-    const sansReference = ecritures.filter(
-      (e) => !e.reference?.trim() && !['AN', 'OD'].includes(e.journal.code) && e.lignes.length > 0,
-    );
+    const sansReference = parcours.sansReference.elements;
     if (sansReference.length > 0) {
       anomalies.push({
         code: 'SANS_PIECE',
@@ -911,25 +1101,21 @@ export class ControlesService {
         consequence:
           "Un auditeur remonte de l'écriture à sa pièce par cette référence. Sans elle, la justification repose sur la mémoire.",
         action: 'Renseignez le numéro de facture, de reçu ou de chèque sur la pièce.',
-        occurrences: sansReference.slice(0, 200).map((e) => ({
+        occurrences: sansReference.map((e) => ({
           reference: `${e.journal.code} n° ${e.numeroPiece ?? '·'}`,
           detail: e.libelle,
           date: e.date.toISOString().slice(0, 10),
         })),
+        ...nombreSiTronque(parcours.sansReference),
       });
     }
 
     // --- 4. Brouillard en retard de centralisation ---------------------------
-    const maintenant = Date.now();
     // UN CONTRÔLE QUI PRESCRIT UNE ACTION IMPOSSIBLE FABRIQUE UNE ANOMALIE
     // (§ 10 bis, audit du serveur F12) · le brouillard que personne ne peut
     // valider n'est pas réclamé. La règle vit dans centralisation-brouillard.ts,
     // que l'état du brouillard et le planning appellent aussi (audit final F77).
-    const brouillardEnRetard = ecritures.filter(
-      (e) =>
-        e.statut === StatutEcriture.BROUILLARD &&
-        enRetardDeCentralisation(e, ex.statut, tenant.referentiel, maintenant),
-    );
+    const brouillardEnRetard = parcours.brouillardEnRetard.elements;
     if (brouillardEnRetard.length > 0) {
       const estSycebnlCentralisation = tenant.referentiel === Referentiel.SYCEBNL;
       anomalies.push({
@@ -942,11 +1128,12 @@ export class ControlesService {
           ? "Le SYCEBNL veut les journaux auxiliaires centralisés au moins chaque semaine dans le journal ou le grand-livre (Partie 2, ch. 2). Au-delà, ce n'est plus un document de travail."
           : "L'AUDCIF veut les journaux auxiliaires centralisés au moins une fois par mois (art. 19). Au-delà, ce n'est plus un document de travail.",
         action: 'Relisez ces écritures dans État → Brouillard et validez-les.',
-        occurrences: brouillardEnRetard.slice(0, 200).map((e) => ({
+        occurrences: brouillardEnRetard.map((e) => ({
           reference: `${e.journal.code} n° ${e.numeroPiece ?? '·'}`,
           detail: `${e.libelle} · saisie il y a ${ancienneteJours(e.createdAt, maintenant)} jours`,
           date: e.date.toISOString().slice(0, 10),
         })),
+        ...nombreSiTronque(parcours.brouillardEnRetard),
       });
     }
 
@@ -956,14 +1143,7 @@ export class ControlesService {
     // (SYCEBNL, Partie 2 ch. 3, COMPTE 41).
     const qualite41 = tenant.referentiel === Referentiel.SYCEBNL ? 'adhérent ou client-usager' : 'client';
     const qualite41Capitale = tenant.referentiel === Referentiel.SYCEBNL ? 'Adhérent / client-usager' : 'Client';
-    const soldesTiers = new Map<string, number>();
-    for (const e of ecritures) {
-      for (const l of e.lignes) {
-        const n = l.compte.numero;
-        if (!n.startsWith('40') && !n.startsWith('41')) continue;
-        soldesTiers.set(n, (soldesTiers.get(n) ?? 0) + Number(l.debit) - Number(l.credit));
-      }
-    }
+    const soldesTiers = parcours.soldesTiers;
     // 409 « Fournisseurs débiteurs » et 419 « Clients créditeurs » (« Adhérents,
     // clients-usagers créditeurs » au SYCEBNL) portent des AVANCES : leur sens
     // est inversé par construction, dans les deux plans, et toutes leurs
@@ -1023,18 +1203,7 @@ export class ControlesService {
     }
 
     // --- 6. Créances et dettes anciennes non lettrées ------------------------
-    const seuil = new Date(ex.dateFin);
-    seuil.setDate(seuil.getDate() - ControlesService.JOURS_ANCIENNETE_TIERS);
-    const anciennes = ecritures.filter(
-      (e) =>
-        e.date < seuil &&
-        e.lignes.some(
-          (l) =>
-            !l.lettre &&
-            (l.compte.numero.startsWith('40') || l.compte.numero.startsWith('41')) &&
-            Math.abs(Number(l.debit) - Number(l.credit)) > 0.005,
-        ),
-    );
+    const anciennes = parcours.anciennes.elements;
     if (anciennes.length > 0) {
       anomalies.push({
         code: 'TIERS_ANCIEN_NON_LETTRE',
@@ -1049,11 +1218,12 @@ export class ControlesService {
           // d'un référentiel à l'autre.
           "Une créance ancienne non lettrée est soit déjà réglée sans que le rapprochement ait été fait, soit douteuse · dans le second cas elle se reclasse au 416 (créances litigieuses ou douteuses) et appelle une dépréciation au 491 (note annexe).",
         action: 'Lettrez ce qui est réglé ; pour le reste, appréciez le risque et dépréciez si nécessaire.',
-        occurrences: anciennes.slice(0, 200).map((e) => ({
+        occurrences: anciennes.map((e) => ({
           reference: `${e.journal.code} n° ${e.numeroPiece ?? '·'}`,
           detail: e.libelle,
           date: e.date.toISOString().slice(0, 10),
         })),
+        ...nombreSiTronque(parcours.anciennes),
       });
     }
 
@@ -1116,31 +1286,9 @@ export class ControlesService {
     // signification pour lui) : il passait donc le test et subissait un
     // contrôle que l'AUDCIF Titre X écarte, puisque le SMT est une
     // comptabilité de trésorerie par construction.
-    const auSystemeMinimal =
-      tenant.referentiel === Referentiel.SYSCOHADA
-        ? tenant.systemeComptableSyscohada === SystemeComptableSyscohada.MINIMAL_TRESORERIE
-        : tenant.jeuEtatsFinanciersSycebnl === JeuEtatsFinanciersSycebnl.SYSTEME_MINIMAL_TRESORERIE;
+    const auSystemeMinimal = estAuSystemeMinimal(tenant);
     if (!auSystemeMinimal) {
-      const chargesDirectes = ecritures.filter((e) => {
-        const aUneCharge = e.lignes.some(
-          (l) =>
-            (l.compte.numero.startsWith('6') || l.compte.numero.startsWith('8')) &&
-            Number(l.debit) - Number(l.credit) > 0.005,
-        );
-        if (!aUneCharge) return false;
-        const aUneTresorerieCreditee = e.lignes.some(
-          (l) =>
-            l.compte.numero.startsWith('5') &&
-            !l.compte.numero.startsWith('59') &&
-            Number(l.credit) - Number(l.debit) > 0.005,
-        );
-        if (!aUneTresorerieCreditee) return false;
-        // La présence d'un tiers dans la MÊME écriture suffit à l'absoudre :
-        // c'est le cas d'une écriture composée (facture + règlement partiel)
-        // ou d'une retenue à la source, où le tiers est bien nommé.
-        const aUnTiers = e.lignes.some((l) => l.compte.numero.startsWith('4'));
-        return !aUnTiers;
-      });
+      const chargesDirectes = parcours.chargesDirectes.elements;
 
       if (chargesDirectes.length > 0) {
         anomalies.push({
@@ -1159,7 +1307,8 @@ export class ControlesService {
           action:
             'Passez deux écritures : la charge par le crédit du tiers (compte 40 fournisseur, 42 personnel, 43 organismes sociaux, 44 État selon le cas), puis le règlement par le débit de ce tiers et le crédit de la trésorerie.' +
             (tenant.referentiel === Referentiel.SYCEBNL ? ' C’est le schéma des § 2.2 et 2.4 de la Partie 3, ch. 3.' : ''),
-          occurrences: chargesDirectes.slice(0, 200).map((e) => ({
+          ...nombreSiTronque(parcours.chargesDirectes),
+          occurrences: chargesDirectes.map((e) => ({
             reference: `${e.journal.code} n° ${e.numeroPiece ?? '·'}`,
             detail: `${e.libelle} · ${e.lignes
               .filter((l) => l.compte.numero.startsWith('6') || l.compte.numero.startsWith('8'))
@@ -1184,12 +1333,7 @@ export class ControlesService {
     // que CHARGE_SANS_TIERS. Les écritures de clôture sont hors champ, elles
     // reportent un solde et n'en créent pas.
     if (auSystemeMinimal) {
-      const RACINES_SANS_POSTE_SMT = ['15', '19', '29'];
-      const horsModele = ecritures.filter(
-        (e) =>
-          !e.estGenereeParCloture &&
-          e.lignes.some((l) => RACINES_SANS_POSTE_SMT.some((r) => l.compte.numero.startsWith(r))),
-      );
+      const horsModele = parcours.horsModele.elements;
       if (horsModele.length > 0) {
         anomalies.push({
           code: 'SMT_COMPTE_SANS_POSTE',
@@ -1204,7 +1348,8 @@ export class ControlesService {
             ' Le montant sera présenté sous un poste qui n’est pas le sien.',
           action:
             'Vérifiez que le dossier relève bien du Système minimal de trésorerie. Si oui, contre-passez ces écritures ; sinon, le dossier doit tenir le Système normal.',
-          occurrences: horsModele.slice(0, 200).map((e) => {
+          ...nombreSiTronque(parcours.horsModele),
+          occurrences: horsModele.map((e) => {
             const lignes = e.lignes.filter((l) => RACINES_SANS_POSTE_SMT.some((r) => l.compte.numero.startsWith(r)));
             return {
               reference: `${e.journal.code} n° ${e.numeroPiece ?? '·'}`,
@@ -1232,9 +1377,7 @@ export class ControlesService {
       tenant.jeuEtatsFinanciersSycebnl === JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS &&
       !tenant.methodeCotisations
     ) {
-      const mouvementees = ecritures.filter((e) =>
-        e.lignes.some((l) => l.compte.numero.startsWith('701') || l.compte.numero.startsWith('103')),
-      );
+      const mouvementees = parcours.cotisationsMouvementees.elements;
       if (mouvementees.length > 0) {
         anomalies.push({
           code: 'METHODE_COTISATIONS_NON_PRECISEE',
@@ -1249,7 +1392,8 @@ export class ControlesService {
             'Lire les statuts : ouvrent-ils une voie de recouvrement de la cotisation en cas de défaillance ? ' +
             'Porter la réponse dans Structure > Paramètres du dossier, puis la reprendre dans la note ' +
             '« Règles et méthodes comptables ».',
-          occurrences: mouvementees.slice(0, 200).map((e) => ({
+          ...nombreSiTronque(parcours.cotisationsMouvementees),
+          occurrences: mouvementees.map((e) => ({
             reference: `${e.journal.code} n° ${e.numeroPiece ?? '·'}`,
             detail: `${e.libelle} · cotisations ou droit d'entrée mouvementés`,
             date: e.date.toISOString().slice(0, 10),
@@ -1295,9 +1439,7 @@ export class ControlesService {
     // « contributions volontaires en nature » à une entreprise qui vient
     // d'enregistrer une caution, et la renvoyer à une note annexe absente de
     // sa liasse, était faux deux fois.
-    const classe9 = [...new Set(ecritures.flatMap((e) => e.lignes.map((l) => l.compte.numero)))].filter((n) =>
-      n.startsWith('9'),
-    );
+    const classe9 = [...parcours.comptesClasse9];
     if (classe9.length > 0) {
       const estSycebnlClasse9 = tenant.referentiel === Referentiel.SYCEBNL;
       anomalies.push({
@@ -2505,19 +2647,7 @@ export class ControlesService {
     // à la racine couvre déjà les autres) et à l'historique antérieur à son
     // activation, que rien ne dévalide · l'art. 22, 2° pose l'irréversibilité
     // des traitements.
-    const validesParLeurAuteur = ecritures.filter(
-      (e) =>
-        e.statut === StatutEcriture.VALIDEE &&
-        e.valideeBy !== null &&
-        e.createdBy === e.valideeBy &&
-        // Personne ne « saisit » un report à nouveau calculé à partir de soldes
-        // déjà validés · les textes raisonnent sur des données « entrée[s] »
-        // par une personne (art. 22, 1°).
-        !e.estGenereeParCloture &&
-        // Un second regard nominatif a été porté hors logiciel : la coïncidence
-        // d'identité est alors expliquée, et la signaler serait du bruit.
-        e.secondRegardNom === null,
-    );
+    const validesParLeurAuteur = parcours.validesParLeurAuteur.elements;
     if (validesParLeurAuteur.length > 0) {
       anomalies.push({
         code: 'VALIDATION_PAR_SON_AUTEUR',
@@ -2541,7 +2671,8 @@ export class ControlesService {
           'le nom du second regard exercé hors logiciel et son motif, qui s’impriment alors au journal. Rien ' +
           'n’est dévalidé rétroactivement : l’art. 22, 2° interdit « toute suppression, addition ou modification ' +
           'ultérieure ».',
-        occurrences: validesParLeurAuteur.slice(0, 200).map((e) => ({
+        ...nombreSiTronque(parcours.validesParLeurAuteur),
+        occurrences: validesParLeurAuteur.map((e) => ({
           reference: `${e.journal.code} n° ${e.numeroPiece ?? ''}`,
           detail: e.libelle,
           date: e.date.toISOString().slice(0, 10),

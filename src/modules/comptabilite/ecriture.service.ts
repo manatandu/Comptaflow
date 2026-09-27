@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { LOT_ECRITURES, LOT_LECTURE, PremiersSelon, lireParLots, pageApres } from '../../common/lecture-par-lots';
 import { regrouperSurCollectifs } from '../tiers/collectifs-tiers';
 import { PrismaService } from '../../common/prisma.service';
 import {
@@ -1458,21 +1459,55 @@ export class EcritureService {
       select: { statut: true },
     });
     if (!exercice) throw new NotFoundException('Exercice introuvable pour ce dossier.');
-    const ecritures = await this.prisma.ecriture.findMany({
-      where: {
-        tenantId,
-        exerciceId: params.exerciceId,
-        statut: StatutEcriture.BROUILLARD,
-        ...(params.journalId ? { journalId: params.journalId } : {}),
-        ...(params.dateDebut || params.dateFin
-          ? {
-              date: {
-                ...(params.dateDebut ? { gte: new Date(params.dateDebut) } : {}),
-                ...(params.dateFin ? { lte: new Date(params.dateFin) } : {}),
-              },
-            }
-          : {}),
+    const where: Prisma.EcritureWhereInput = {
+      tenantId,
+      exerciceId: params.exerciceId,
+      statut: StatutEcriture.BROUILLARD,
+      ...(params.journalId ? { journalId: params.journalId } : {}),
+      ...(params.dateDebut || params.dateFin
+        ? {
+            date: {
+              ...(params.dateDebut ? { gte: new Date(params.dateDebut) } : {}),
+              ...(params.dateFin ? { lte: new Date(params.dateFin) } : {}),
+            },
+          }
+        : {}),
+    };
+    const maintenant = Date.now();
+
+    // LES TOTAUX SONT CEUX DU BROUILLARD ENTIER, LA LISTE UNE TRANCHE (audit
+    // final F185) · même parti que le journal. Les totaux se prennent sur un
+    // parcours par lots, qui ne garde que des compteurs ; la liste s'arrête au
+    // plafond d'une fenêtre, et le dit.
+    const totaux = { nombre: 0, debit: 0, credit: 0, desequilibrees: 0, enRetard: 0 };
+    await lireParLots(
+      (curseur) =>
+        this.prisma.ecriture.findMany({
+          where: { ...where, tenantId },
+          select: {
+            id: true,
+            createdAt: true,
+            estANouveauProvisoire: true,
+            estGenereeParCloture: true,
+            lignes: { select: { debit: true, credit: true } },
+          },
+          ...pageApres(curseur, LOT_ECRITURES),
+        }),
+      (e) => {
+        const debit = e.lignes.reduce((t, l) => t + Number(l.debit), 0);
+        const credit = e.lignes.reduce((t, l) => t + Number(l.credit), 0);
+        totaux.nombre++;
+        totaux.debit += debit;
+        totaux.credit += credit;
+        if (Math.abs(debit - credit) > 0.005) totaux.desequilibrees++;
+        if (enRetardDeCentralisation(e, exercice.statut, tenant.referentiel, maintenant)) totaux.enRetard++;
       },
+      LOT_ECRITURES,
+    );
+
+    const ecritures = await this.prisma.ecriture.findMany({
+      where: { ...where, tenantId },
+      take: PLAFOND_ECRITURES_PAR_FENETRE,
       include: {
         journal: { select: { code: true, intitule: true } },
         lignes: {
@@ -1482,10 +1517,9 @@ export class EcritureService {
           },
         },
       },
-      orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
+      orderBy: [{ date: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
     });
 
-    const maintenant = Date.now();
     const lignes = ecritures.map((e) => {
       const anciennete = ancienneteJours(e.createdAt, maintenant);
       const invalidable = brouillardInvalidable(e, exercice.statut);
@@ -1543,13 +1577,10 @@ export class EcritureService {
 
     return {
       lignes,
-      totaux: {
-        nombre: lignes.length,
-        debit: lignes.reduce((s, l) => s + l.debit, 0),
-        credit: lignes.reduce((s, l) => s + l.credit, 0),
-        desequilibrees: lignes.filter((l) => !l.equilibree).length,
-        enRetard: lignes.filter((l) => l.retardCentralisation).length,
-      },
+      totaux,
+      /** Vrai quand la liste ne montre pas tout le brouillard · l'écran le dit. */
+      tronque: totaux.nombre > lignes.length,
+      plafond: PLAFOND_ECRITURES_PAR_FENETRE,
       delaiCentralisationJours: joursCentralisation,
     };
   }
@@ -2312,39 +2343,18 @@ export class EcritureService {
     // l'heure d'ouverture de l'écran.
     ref.setHours(0, 0, 0, 0);
 
-    const [lignes, tresorerie] = await Promise.all([
-      this.prisma.ligneEcriture.findMany({
-        where: {
-          ecriture: { tenantId, exerciceId: params.exerciceId },
-          lettre: null,
-          OR: ['40', '41', '42', '43', '44'].map((r) => ({ compte: { numero: { startsWith: r } } })),
-        },
-        include: {
-          compte: {
-            select: {
-              id: true,
-              numero: true,
-              intitule: true,
-              tiersCompte: { select: { tiers: { select: { nom: true } } } },
-            },
-          },
-          ecriture: { select: { date: true, libelle: true, reference: true } },
-        },
-      }),
-      // Trésorerie disponible au sens du plan SYCEBNL : classe 5 hors 59
-      // (dépréciations, qui ne sont pas des liquidités).
-      this.prisma.ligneEcriture.findMany({
-        where: {
-          ecriture: { tenantId, exerciceId: params.exerciceId },
-          compte: { numero: { startsWith: '5' } },
-        },
-        select: { debit: true, credit: true, compte: { select: { numero: true } } },
-      }),
-    ]);
-
-    const tresorerieActuelle = tresorerie
-      .filter((l) => !l.compte.numero.startsWith('59'))
-      .reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
+    // Trésorerie disponible au sens du plan SYCEBNL : classe 5 hors 59
+    // (dépréciations, qui ne sont pas des liquidités). PAR AGRÉGAT (audit
+    // final F185) · toutes les lignes de trésorerie passaient en mémoire pour
+    // n'en garder qu'une somme.
+    const tresorerie = await this.prisma.ligneEcriture.aggregate({
+      where: {
+        ecriture: { tenantId, exerciceId: params.exerciceId },
+        compte: { numero: { startsWith: '5' }, NOT: { numero: { startsWith: '59' } } },
+      },
+      _sum: { debit: true, credit: true },
+    });
+    const tresorerieActuelle = Number(tresorerie._sum.debit ?? 0) - Number(tresorerie._sum.credit ?? 0);
 
     const TRANCHES: Array<{ cle: string; libelle: string; deJours: number | null; aJours: number | null }> = [
       { cle: 'echu', libelle: 'Échu, non réglé', deJours: null, aJours: -1 },
@@ -2365,31 +2375,65 @@ export class EcritureService {
       return 'plus90';
     };
 
-    const details: EcheanceDetail[] = [];
-    for (const l of lignes) {
-      const net = Number(l.debit) - Number(l.credit);
-      if (Math.abs(net) < 0.005) continue;
-      const date = l.dateEcheance ?? l.ecriture.date;
-      details.push({
-        ligneId: l.id,
-        date,
-        tranche: trancheDe(date),
-        compteNumero: l.compte.numero,
-        compteIntitule: l.compte.intitule,
-        tiers: l.compte.tiersCompte?.tiers.nom ?? null,
-        libelle: l.libelle ?? l.ecriture.libelle,
-        reference: l.ecriture.reference,
-        montant: Math.abs(net),
-        sens: net > 0 ? 'ENCAISSEMENT' : 'DECAISSEMENT',
-      });
-    }
-    details.sort((a, b) => a.date.getTime() - b.date.getTime());
+    // PAR TRANCHES (audit final F185) · les tranches cumulent TOUTES les
+    // échéances ; la liste détaillée garde les plus proches, jusqu'au plafond
+    // d'une fenêtre, et le dit.
+    const cumuls = new Map<string, { encaissements: number; decaissements: number }>();
+    const plusProches = new PremiersSelon<EcheanceDetail>(
+      PLAFOND_ECRITURES_PAR_FENETRE,
+      (a, b) => a.date.getTime() - b.date.getTime(),
+    );
+    let lignesSansEcheance = 0;
+    await lireParLots(
+      (curseur) =>
+        this.prisma.ligneEcriture.findMany({
+          where: {
+            ecriture: { tenantId, exerciceId: params.exerciceId },
+            lettre: null,
+            OR: ['40', '41', '42', '43', '44'].map((r) => ({ compte: { numero: { startsWith: r } } })),
+          },
+          include: {
+            compte: {
+              select: {
+                id: true,
+                numero: true,
+                intitule: true,
+                tiersCompte: { select: { tiers: { select: { nom: true } } } },
+              },
+            },
+            ecriture: { select: { date: true, libelle: true, reference: true } },
+          },
+          ...pageApres(curseur, LOT_LECTURE),
+        }),
+      (l) => {
+        if (l.dateEcheance === null) lignesSansEcheance++;
+        const net = Number(l.debit) - Number(l.credit);
+        if (Math.abs(net) < 0.005) return;
+        const date = l.dateEcheance ?? l.ecriture.date;
+        const tranche = trancheDe(date);
+        const c = cumuls.get(tranche) ?? { encaissements: 0, decaissements: 0 };
+        if (net > 0) c.encaissements += net;
+        else c.decaissements -= net;
+        cumuls.set(tranche, c);
+        plusProches.ajouter({
+          ligneId: l.id,
+          date,
+          tranche: trancheDe(date),
+          compteNumero: l.compte.numero,
+          compteIntitule: l.compte.intitule,
+          tiers: l.compte.tiersCompte?.tiers.nom ?? null,
+          libelle: l.libelle ?? l.ecriture.libelle,
+          reference: l.ecriture.reference,
+          montant: Math.abs(net),
+          sens: net > 0 ? 'ENCAISSEMENT' : 'DECAISSEMENT',
+        });
+      },
+    );
+    const details = plusProches.elements();
 
     let cumul = tresorerieActuelle;
     const tranches: TrancheEcheancier[] = TRANCHES.map((t) => {
-      const dedans = details.filter((d) => d.tranche === t.cle);
-      const encaissements = dedans.filter((d) => d.sens === 'ENCAISSEMENT').reduce((s, d) => s + d.montant, 0);
-      const decaissements = dedans.filter((d) => d.sens === 'DECAISSEMENT').reduce((s, d) => s + d.montant, 0);
+      const { encaissements, decaissements } = cumuls.get(t.cle) ?? { encaissements: 0, decaissements: 0 };
       const net = encaissements - decaissements;
       cumul += net;
       return {
@@ -2411,6 +2455,9 @@ export class EcritureService {
       tresorerieActuelle: Math.round(tresorerieActuelle * 100) / 100,
       tranches,
       details,
+      /** Vrai quand la liste détaillée ne montre que les plus proches · les tranches restent entières. */
+      tronque: plusProches.tronquee,
+      nombreDetails: plusProches.nombre,
       alerte: premiereTrancheNegative
         ? {
             tranche: premiereTrancheNegative.cle,
@@ -2425,7 +2472,7 @@ export class EcritureService {
       // Les échéances non renseignées prennent la date de l'écriture : c'est
       // la règle, mais elle fausse la projection si beaucoup de lignes en
       // relèvent. Le compte est donné pour que le lecteur en juge.
-      lignesSansEcheance: lignes.filter((l) => l.dateEcheance === null).length,
+      lignesSansEcheance,
     };
   }
 
@@ -2696,27 +2743,39 @@ export class EcritureService {
     const demande = params.dateArret ? new Date(params.dateArret) : exercice.dateFin;
     const arret = demande > exercice.dateFin ? exercice.dateFin : demande;
 
-    const lignes = await this.prisma.ligneEcriture.findMany({
-      where: {
-        compteId: compte.id,
-        ...(params.masquerLettrees ? { lettre: null } : {}),
-        ecriture: {
-          tenantId,
-          date: { lte: arret },
-          // Les à-nouveaux de clôture sont exclus · voir le piège ci-dessus.
-          // Ceux du premier exercice portent le bilan d'ouverture et restent.
-          // L'écriture qui SOLDE les classes 6 à 8 reste toujours (audit
-          // final F53) · sans elle, un compte de charge cumulait ses années
-          // closes et le recoupement annonçait un écart inexistant.
-          NOT: {
-            AND: [
-              { estGenereeParCloture: true },
-              { estSoldeDesComptesDeGestion: false },
-              { exerciceId: { not: premierExercice.id } },
-            ],
-          },
+    const whereJustificatif: Prisma.LigneEcritureWhereInput = {
+      compteId: compte.id,
+      ...(params.masquerLettrees ? { lettre: null } : {}),
+      ecriture: {
+        tenantId,
+        date: { lte: arret },
+        // Les à-nouveaux de clôture sont exclus · voir le piège ci-dessus.
+        // Ceux du premier exercice portent le bilan d'ouverture et restent.
+        // L'écriture qui SOLDE les classes 6 à 8 reste toujours (audit
+        // final F53) · sans elle, un compte de charge cumulait ses années
+        // closes et le recoupement annonçait un écart inexistant.
+        NOT: {
+          AND: [
+            { estGenereeParCloture: true },
+            { estSoldeDesComptesDeGestion: false },
+            { exerciceId: { not: premierExercice.id } },
+          ],
         },
       },
+    };
+    // UN JUSTIFICATIF NE SE TRONQUE PAS (audit final F185) · c'est la pièce
+    // qui justifie un solde, et amputée elle en justifierait un autre. Au-delà
+    // du plafond d'une fenêtre il se refuse, en disant par où passer.
+    const nombreLignes = await this.prisma.ligneEcriture.count({ where: whereJustificatif });
+    if (nombreLignes > PLAFOND_LIGNES_GRAND_LIVRE) {
+      throw new BadRequestException(
+        `Le justificatif du compte ${compte.numero} porte ${nombreLignes.toLocaleString('fr-FR')} lignes, au-delà ` +
+          `de ce qu'une fenêtre peut afficher (${PLAFOND_LIGNES_GRAND_LIVRE.toLocaleString('fr-FR')}). Masquez ` +
+          `les lignes lettrées, ou avancez la date d'arrêt.`,
+      );
+    }
+    const lignes = await this.prisma.ligneEcriture.findMany({
+      where: whereJustificatif,
       include: {
         devise: { select: { code: true } },
         ecriture: {

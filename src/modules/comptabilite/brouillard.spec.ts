@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import { EcritureService } from './ecriture.service';
+import { EcritureService, PLAFOND_ECRITURES_PAR_FENETRE } from './ecriture.service';
 import { PrismaService } from '../../common/prisma.service';
 import { JournalService } from '../journaux/journal.service';
 import { ExerciceService } from '../exercice/exercice.service';
@@ -377,20 +377,20 @@ describe('état du brouillard · retard de centralisation', () => {
     const clos = prismaAvec(vieille, 'SYCEBNL', 'CLOTURE');
     const ecr = (clos as { ecriture: { findMany: jest.Mock } }).ecriture.findMany;
     const [modele] = await ecr();
-    ecr.mockResolvedValueOnce([{ ...modele, estGenereeParCloture: true, estANouveauProvisoire: false }]);
+    ecr.mockResolvedValue([{ ...modele, estGenereeParCloture: true, estANouveauProvisoire: false }]);
     const r = await service(clos).brouillard('t1', { exerciceId: 'ex1' });
     expect(r.lignes[0]).toMatchObject({ invalidable: true, retardCentralisation: false });
     expect(r.totaux.enRetard).toBe(0);
 
     const ouvert = prismaAvec(vieille);
     const ecr2 = (ouvert as { ecriture: { findMany: jest.Mock } }).ecriture.findMany;
-    ecr2.mockResolvedValueOnce([{ ...modele, estGenereeParCloture: true, estANouveauProvisoire: true }]);
+    ecr2.mockResolvedValue([{ ...modele, estGenereeParCloture: true, estANouveauProvisoire: true }]);
     const r2 = await service(ouvert).brouillard('t1', { exerciceId: 'ex1' });
     expect(r2.lignes[0]).toMatchObject({ invalidable: true, retardCentralisation: false });
 
     // La clôture d'un exercice encore OUVERT se valide · elle reste réclamée.
     const ecr3 = (ouvert as { ecriture: { findMany: jest.Mock } }).ecriture.findMany;
-    ecr3.mockResolvedValueOnce([{ ...modele, estGenereeParCloture: true, estANouveauProvisoire: false }]);
+    ecr3.mockResolvedValue([{ ...modele, estGenereeParCloture: true, estANouveauProvisoire: false }]);
     const r3 = await service(ouvert).brouillard('t1', { exerciceId: 'ex1' });
     expect(r3.lignes[0]).toMatchObject({ invalidable: false, retardCentralisation: true });
   });
@@ -400,7 +400,7 @@ describe('état du brouillard · retard de centralisation', () => {
     // pas, l'écran ne peut pas le renvoyer, et la correction d'un libellé
     // l'effacerait.
     const prisma = prismaAvec(new Date());
-    ((prisma as { ecriture: { findMany: jest.Mock } }).ecriture.findMany).mockResolvedValueOnce([
+    ((prisma as { ecriture: { findMany: jest.Mock } }).ecriture.findMany).mockResolvedValue([
       {
         id: 'e1',
         date: new Date('2026-05-10'),
@@ -428,7 +428,10 @@ describe('état du brouillard · retard de centralisation', () => {
     const l = r.lignes[0].lignes[0];
     expect([l.compteId, l.deviseId, l.montantDevise, l.coursApplique]).toEqual(['c1', 'usd', 400, 2.5]);
     expect(l.ventilations).toEqual([{ sectionId: 's1', debit: 1000, credit: 0 }]);
-    const requete = ((prisma as { ecriture: { findMany: jest.Mock } }).ecriture.findMany).mock.calls[0][0];
+    // Deux lectures (audit final F185) · les totaux par lots, puis la tranche
+    // affichée, qui seule porte les lignes détaillées.
+    const appels = ((prisma as { ecriture: { findMany: jest.Mock } }).ecriture.findMany).mock.calls.map((c) => c[0]);
+    const requete = appels.find((a) => a.include);
     expect(requete.include.lignes.include.ventilations).toBeTruthy();
   });
 
@@ -477,6 +480,45 @@ describe('état du brouillard · retard de centralisation', () => {
     } as Faux;
     const r = await service(prisma).brouillard('t1', { exerciceId: 'ex1' });
     expect(r.lignes[0].equilibree).toBe(false);
+    expect(r.totaux.desequilibrees).toBe(1);
+  });
+});
+
+describe('état du brouillard · une tranche qui se dit, des totaux entiers (audit final F185)', () => {
+  it('au-delà du plafond, la liste s’arrête, les totaux portent tout le brouillard, et tronque le dit', async () => {
+    const n = PLAFOND_ECRITURES_PAR_FENETRE + 3;
+    const ecritures = Array.from({ length: n }, (_, i) => ({
+      id: `e-${String(i).padStart(6, '0')}`,
+      date: new Date('2026-05-10'),
+      createdAt: new Date(),
+      numeroPiece: i + 1,
+      libelle: 'Achat',
+      reference: 'F',
+      estGenereeParCloture: false,
+      estANouveauProvisoire: false,
+      journal: { code: 'ACH', intitule: 'Achats' },
+      lignes: [
+        { debit: 10, credit: 0, libelle: null, compte: { numero: '60410000', intitule: 'Achats' } },
+        // La dernière écriture est déséquilibrée · elle est HORS de la tranche.
+        { debit: 0, credit: i === n - 1 ? 7 : 10, libelle: null, compte: { numero: '40110000', intitule: 'F' } },
+      ],
+    }));
+    // Une doublure qui se comporte comme Prisma · ordre, take, curseur, skip.
+    const findMany = jest.fn(async (args: { take?: number; cursor?: { id: string }; skip?: number }) => {
+      let debut = 0;
+      if (args.cursor) debut = ecritures.findIndex((e) => e.id === args.cursor!.id) + (args.skip ?? 0);
+      return ecritures.slice(debut, args.take === undefined ? undefined : debut + args.take);
+    });
+    const prisma = {
+      tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel: 'SYCEBNL' }) },
+      exercice: { findFirst: jest.fn().mockResolvedValue({ statut: 'OUVERT' }) },
+      ecriture: { findMany },
+    };
+    const r = await service(prisma).brouillard('t1', { exerciceId: 'ex1' });
+    expect(r.lignes).toHaveLength(PLAFOND_ECRITURES_PAR_FENETRE);
+    expect(r.tronque).toBe(true);
+    expect(r.totaux.nombre).toBe(n);
+    expect(r.totaux.debit).toBe(10 * n);
     expect(r.totaux.desequilibrees).toBe(1);
   });
 });

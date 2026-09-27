@@ -2963,7 +2963,15 @@ export class ExportService {
    * SÉLECTIONNER.
    */
   async testEcrituresJournalExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
-    const r = await this.testIsa240.selection(tenantId, exerciceId);
+    const r = await this.testIsa240.selection(tenantId, exerciceId, ExportService.MAX_LIGNES_CLASSEUR_EN_MEMOIRE);
+    // UNE SÉLECTION AMPUTÉE NE SE REMET PAS (audit final F185) · le classeur
+    // est bâti en mémoire, et au-delà de son plafond il se refuse plutôt que
+    // de sortir sans les écritures qui ne tenaient pas.
+    this.refuserClasseurEnMemoire(
+      r.totalRetenues,
+      "Test des écritures de journal (ISA 240)",
+      "Une sélection de cette taille ne se lit plus comme un échantillon · le journal complet s'exporte en flux depuis la fenêtre Journal.",
+    );
     const identite = await this.identiteEtat(tenantId, { exerciceId });
     const classeur = this.nouveauClasseur();
 

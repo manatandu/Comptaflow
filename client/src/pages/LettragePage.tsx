@@ -93,6 +93,9 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
   // est demandé.
   const [retenus, setRetenus] = useState<Set<number>>(new Set());
   const selecteurCompteRef = useRef<HTMLSelectElement>(null);
+  // Le filtre que la route servait et qu'aucun écran ne posait · il resserre
+  // une liste tronquée aux seules lignes encore ouvertes (audit final F185).
+  const [nonLettreesSeulement, setNonLettreesSeulement] = useState(false);
 
   const charger = async () => {
     // Sans compte choisi (fenêtre ouverte depuis le menu Traitement), la
@@ -101,7 +104,9 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
     try {
       const [tousComptes, resultat, groupesDuDossier] = await Promise.all([
         api.get<Compte[]>('/comptes'),
-        compteId ? api.get<EtatLettrage>(`/comptes/${compteId}/lettrage`) : Promise.resolve(null),
+        compteId
+          ? api.get<EtatLettrage>(`/comptes/${compteId}/lettrage${nonLettreesSeulement ? '?nonLettreesSeulement=true' : ''}`)
+          : Promise.resolve(null),
         api.get<GroupeLettrageDossier[]>('/lettrage'),
       ]);
       setComptes(tousComptes.filter((c) => c.typeCompte === 'DETAIL' && c.estActif));
@@ -120,9 +125,13 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
     setRetenus(new Set());
     charger();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [compteId]);
+  }, [compteId, nonLettreesSeulement]);
 
   const lignes = etat?.lignes ?? null;
+  // Les totaux du SERVEUR, pris sur le compte entier · additionner la tranche
+  // rendrait un solde juste pour l'écran et faux pour le compte.
+  const totalDebit = etat?.totaux?.debit ?? (lignes ?? []).reduce((t, l) => t + l.debit, 0);
+  const totalCredit = etat?.totaux?.credit ?? (lignes ?? []).reduce((t, l) => t + l.credit, 0);
   const compte = etat?.compte ?? null;
   const groupes = etat?.lettrages ?? [];
   const partiels = groupes.filter((g) => g.statut === 'PARTIEL');
@@ -270,6 +279,14 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
                 </option>
               ))}
             </select>
+          </label>
+          <label className="flex items-center gap-1.5 text-[11.5px] mb-1">
+            <input
+              type="checkbox"
+              checked={nonLettreesSeulement}
+              onChange={(e) => setNonLettreesSeulement(e.target.checked)}
+            />
+            Non lettrées seulement
           </label>
           {/* Le pré-lettrage ne lit rien d'autre que ce qu'il propose de
               lettrer : sans droit de confirmer, ses cases ne mèneraient nulle
@@ -538,10 +555,18 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
             <div className={`${GRILLE} px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[11.5px] font-bold`}>
               <span className="col-span-3" />
               <span className="text-right text-[11px] text-text-dim self-center">Total mouvements · solde</span>
-              <span className="font-mono text-right">{montant(lignes.reduce((t, l) => t + l.debit, 0))}</span>
-              <span className="font-mono text-right">{montant(lignes.reduce((t, l) => t + l.credit, 0))}</span>
-              <span className="font-mono text-right">{montant(lignes.reduce((t, l) => t + l.debit - l.credit, 0))}</span>
+              <span className="font-mono text-right">{montant(totalDebit)}</span>
+              <span className="font-mono text-right">{montant(totalCredit)}</span>
+              <span className="font-mono text-right">{montant(totalDebit - totalCredit)}</span>
               <span />
+            </div>
+          )}
+          {/* Une tranche se dit (audit final F185) · les totaux ci-dessus sont
+              ceux du compte entier, la liste seulement ses premières lignes. */}
+          {etat?.tronque && etat.total !== undefined && (
+            <div className="px-3.5 py-1 text-[11px] text-text-dim">
+              {lignes?.length ?? 0} premières lignes sur {etat.total.toLocaleString('fr-FR')} · « Non lettrées seulement »
+              resserre la liste.
             </div>
           )}
         </div>

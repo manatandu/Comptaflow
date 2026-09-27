@@ -312,6 +312,10 @@ export interface EtatLettrage {
   compte: { id: string; numero: string; intitule: string; lettrable: boolean };
   lignes: LigneLettrage[];
   lettrages: GroupeLettrage[];
+  /** Tranche montrée (audit final F185) · les totaux restent ceux du compte entier. */
+  tronque?: boolean;
+  total?: number;
+  totaux?: { debit: number; credit: number };
 }
 
 /**
@@ -400,6 +404,9 @@ export interface DetailRapprochement {
   ecartReleve: number | null;
   releve: LigneReleve[];
   lignes: LignePointage[];
+  /** Tranche montrée (audit final F185) · soldes et correspondances restent entiers. */
+  tronque?: boolean;
+  totalLignes?: number;
 }
 
 export interface LigneBalance {
@@ -1650,6 +1657,9 @@ export interface EtatBrouillard {
     desequilibrees: number;
     enRetard: number;
   };
+  /** Vrai quand la liste ne montre qu'une tranche · les totaux restent entiers (audit final F185). */
+  tronque?: boolean;
+  plafond?: number;
   delaiCentralisationJours: number;
 }
 
@@ -1695,6 +1705,8 @@ export interface AnomalieControle {
   consequence: string;
   action: string;
   occurrences: { reference: string; detail: string; montant?: number; date?: string }[];
+  /** Le nombre trouvé, quand la liste n'en montre qu'une partie (audit final F185). */
+  nombre?: number;
 }
 
 export interface RapportControles {
@@ -2232,6 +2244,9 @@ export interface Echeancier {
   tresorerieActuelle: number;
   tranches: TrancheEcheancier[];
   details: EcheanceDetail[];
+  /** Vrai quand le détail ne garde que les échéances les plus proches · les tranches restent entières (audit final F185). */
+  tronque?: boolean;
+  nombreDetails?: number;
   alerte: { tranche: string; libelle: string; tresorerieProjetee: number; message: string } | null;
   lignesSansEcheance: number;
 }

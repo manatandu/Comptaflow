@@ -1,10 +1,23 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
+import { LOT_ECRITURES, lireParLots, pageApres } from '../../common/lecture-par-lots';
 import {
   CRITERES_ISA_240,
   ROLES_NON_SAISISSEURS,
   SEUILS_ISA_240,
 } from './test-ecritures-journal';
+
+type EcritureLue = Prisma.EcritureGetPayload<{
+  include: { lignes: { include: { compte: { select: { numero: true; intitule: true } } } }; journal: true };
+}>;
+
+/**
+ * PLAFOND DE LA SÉLECTION GARDÉE (audit final F185) · celui d'un classeur bâti
+ * en mémoire. Au-delà, la sélection se DIT tronquée, et le classeur la refuse
+ * plutôt que de remettre à l'auditeur une liste amputée.
+ */
+export const PLAFOND_SELECTION_ISA_240 = 50_000;
 
 /**
  * LE REGARD DU RÉVISEUR · ce qu'un auditeur demande le premier jour.
@@ -28,15 +41,9 @@ import {
 export class TestEcrituresJournalService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async selection(tenantId: string, exerciceId: string) {
+  async selection(tenantId: string, exerciceId: string, plafond = PLAFOND_SELECTION_ISA_240) {
     const exercice = await this.prisma.exercice.findFirst({ where: { id: exerciceId, tenantId } });
     if (!exercice) throw new NotFoundException('Exercice introuvable pour ce dossier.');
-
-    const ecritures = await this.prisma.ecriture.findMany({
-      where: { tenantId, exerciceId },
-      include: { lignes: { include: { compte: { select: { numero: true, intitule: true } } } }, journal: true },
-      orderBy: [{ date: 'asc' }, { numeroPiece: 'asc' }],
-    });
 
     // L'auteur est un identifiant en base · un auditeur ne lit pas un uuid.
     // Le courriel et le rôle sont résolus ici, une fois, plutôt qu'écriture
@@ -48,19 +55,33 @@ export class TestEcrituresJournalService {
     const parId = new Map(auteurs.map((u) => [u.id, u]));
 
     // Combien de fois chaque compte a bougé · sert le critère « rarement
-    // utilisés » (§ A44 a)).
+    // utilisés » (§ A44 a)). PAR AGRÉGAT (audit final F185) · le décompte se
+    // faisait sur toutes les lignes chargées en mémoire.
+    const [comptes, mouvements] = await Promise.all([
+      this.prisma.compte.findMany({ where: { tenantId }, select: { id: true, numero: true } }),
+      this.prisma.ligneEcriture.groupBy({
+        by: ['compteId'],
+        where: { ecriture: { tenantId, exerciceId } },
+        _count: { _all: true },
+      }),
+    ]);
+    const numeroDe = new Map(comptes.map((c) => [c.id, c.numero]));
     const mouvementsParCompte = new Map<string, number>();
-    for (const e of ecritures) {
-      for (const l of e.lignes) {
-        const n = l.compte.numero;
-        mouvementsParCompte.set(n, (mouvementsParCompte.get(n) ?? 0) + 1);
-      }
+    for (const g of mouvements) {
+      const n = numeroDe.get(g.compteId);
+      if (n !== undefined) mouvementsParCompte.set(n, g._count._all);
     }
 
     const debutFinDePeriode = new Date(exercice.dateFin);
     debutFinDePeriode.setUTCDate(debutFinDePeriode.getUTCDate() - (SEUILS_ISA_240.joursFinDePeriode - 1));
 
-    const retenues = ecritures.map((e) => {
+    // PAR TRANCHES (audit final F185) · seules les écritures RETENUES sont
+    // gardées, jusqu'au plafond ; les autres ne sont que comptées.
+    let totalEcritures = 0;
+    let totalRetenues = 0;
+    const parCritere = new Map<string, number>();
+    const selection: ReturnType<typeof retenir>[] = [];
+    const retenir = (e: EcritureLue) => {
       const montant = e.lignes.reduce((s, l) => s + Number(l.debit), 0);
       const auteur = parId.get(e.createdBy);
       const comptesRares = e.lignes
@@ -107,20 +128,45 @@ export class TestEcrituresJournalService {
         comptesRares,
         criteres,
       };
-    });
+    };
 
-    const selection = retenues.filter((e) => e.criteres.length > 0);
+    await lireParLots(
+      (curseur) =>
+        this.prisma.ecriture.findMany({
+          where: { tenantId, exerciceId },
+          include: { lignes: { include: { compte: { select: { numero: true, intitule: true } } } }, journal: true },
+          ...pageApres(curseur, LOT_ECRITURES),
+        }),
+      (e) => {
+        totalEcritures++;
+        const r = retenir(e);
+        if (r.criteres.length === 0) return;
+        totalRetenues++;
+        for (const c of r.criteres) parCritere.set(c, (parCritere.get(c) ?? 0) + 1);
+        if (selection.length < plafond) selection.push(r);
+      },
+      LOT_ECRITURES,
+    );
+    // L'ordre du journal · lu par identifiant, rendu par date et numéro de pièce.
+    selection.sort(
+      (a, b) => a.date.getTime() - b.date.getTime() || (a.numeroPiece ?? Number.MAX_SAFE_INTEGER) - (b.numeroPiece ?? Number.MAX_SAFE_INTEGER),
+    );
+
     return {
       exercice: { dateDebut: exercice.dateDebut, dateFin: exercice.dateFin, dateArreteComptes: exercice.dateArreteComptes },
       criteres: CRITERES_ISA_240,
       seuils: SEUILS_ISA_240,
-      totalEcritures: ecritures.length,
+      totalEcritures,
+      // TRONQUÉE SE DIT (audit final F185) · le classeur refuse alors, la
+      // sélection remise à un auditeur ne s'ampute pas en silence.
+      totalRetenues,
+      tronque: totalRetenues > selection.length,
       // Le dénombrement par critère · une sélection qui retiendrait TOUT le
       // journal n'aide personne, et c'est ce chiffre qui le dit.
       parCritere: CRITERES_ISA_240.map((c) => ({
         cle: c.cle,
         titre: c.titre,
-        nombre: selection.filter((e) => e.criteres.includes(c.cle)).length,
+        nombre: parCritere.get(c.cle) ?? 0,
       })),
       selection,
     };

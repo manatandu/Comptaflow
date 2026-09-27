@@ -3,6 +3,7 @@ import { PrismaService } from '../../common/prisma.service';
 import { Prisma, Referentiel, StatutMessage, TypeRelance } from '@prisma/client';
 import { CourrierService, ORIGINE_RELANCE } from '../courrier/courrier.service';
 import { CreerNiveauDto, EmettreRelancesDto, ModifierNiveauDto } from './dto/relances.dto';
+import { LOT_LECTURE, lireParLots, pageApres } from '../../common/lecture-par-lots';
 
 const JOUR = 86_400_000;
 
@@ -339,7 +340,11 @@ export class RelancesService {
     // réclamer · voir RACINES_RELANCABLES.
     const racines = params.racine ? [params.racine] : RACINES_RELANCABLES[referentiel];
 
-    const lignes = await this.prisma.ligneEcriture.findMany({
+    // LUES PAR TRANCHES (audit final F185) · une seule requête rapatriait
+    // toutes les lignes ouvertes du 41 d'un coup. Le détail par compte reste
+    // tenu, c'est lui que la lettre imprime.
+    const lire = (curseur?: string) => this.prisma.ligneEcriture.findMany({
+      ...pageApres(curseur, LOT_LECTURE),
       where: {
         ecriture: { tenantId, exerciceId: params.exerciceId },
         lettre: null,
@@ -385,15 +390,15 @@ export class RelancesService {
     const piecePlusAncienne = new Map<string, Date>();
 
     const parCompte = new Map<string, PositionRelance>();
-    for (const l of lignes) {
+    await lireParLots(lire, (l) => {
       const net = Number(l.debit) - Number(l.credit);
-      if (Math.abs(net) < 0.005) continue;
+      if (Math.abs(net) < 0.005) return;
       const echeance = l.dateEcheance ?? l.ecriture.date;
       const retard = Math.floor((ref.getTime() - echeance.getTime()) / JOUR);
 
       // Sélection selon l'état demandé.
-      if (type === TypeRelance.PREVENTIVE && retard >= 0) continue;
-      if (type === TypeRelance.RAPPEL && retard < 0) continue;
+      if (type === TypeRelance.PREVENTIVE && retard >= 0) return;
+      if (type === TypeRelance.RAPPEL && retard < 0) return;
 
       const tiers = l.compte.tiersCompte?.tiers ?? null;
       const acc =
@@ -441,7 +446,7 @@ export class RelancesService {
         acc.echeancePlusAncienne = echeance.toISOString().slice(0, 10);
       }
       parCompte.set(l.compte.id, acc);
-    }
+    });
 
     // LES RELANCES QUI COMPTENT SONT CELLES DE LA DETTE OUVERTE (audit final
     // F169) · la dernière relance d'un compte, même vieille d'un an et d'une

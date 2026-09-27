@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { LOT_ECRITURES, lireParLots, pageApres } from '../../common/lecture-par-lots';
 import { NumerotationPiece, StatutEcriture, StatutExercice, TypeCompteDetailTotal } from '@prisma/client';
 import { ClotureActive } from '../exercice/gel-cloture';
 import { grilleJournauxSaisie, moisDeLExercice } from './etat-journaux-saisie';
@@ -202,33 +203,80 @@ export class AnalyseJournauxService {
       trous: Array<{ de: number; a: number }>;
     };
   }> {
-    const [journaux, ecritures] = await Promise.all([
-      this.prisma.journal.findMany({ where: { tenantId }, orderBy: { code: 'asc' } }),
-      this.prisma.ecriture.findMany({
-        where: { tenantId, exerciceId: params.exerciceId },
-        select: {
-          id: true,
-          journalId: true,
-          date: true,
-          numeroPiece: true,
-          statut: true,
-          estGenereeParCloture: true,
-          _count: { select: { lignes: true } },
-          lignes: { select: { debit: true, credit: true } },
-        },
-        orderBy: { date: 'asc' },
-      }),
-    ]);
+    const journaux = await this.prisma.journal.findMany({ where: { tenantId }, orderBy: { code: 'asc' } });
 
-    const parJournal = new Map<string, typeof ecritures>();
-    for (const e of ecritures) {
-      const liste = parJournal.get(e.journalId) ?? [];
-      liste.push(e);
-      parJournal.set(e.journalId, liste);
-    }
+    // PAR TRANCHES (audit final F185) · toutes les écritures de l'exercice,
+    // avec leurs lignes, passaient d'un bloc en mémoire. Chaque journal ne
+    // garde plus que ses cumuls et ses numéros de pièce, seule matière de la
+    // séquence.
+    type Cumul = {
+      nombre: number;
+      lignes: number;
+      debit: number;
+      credit: number;
+      enBrouillard: number;
+      deCloture: number;
+      premiere: Date | null;
+      derniere: Date | null;
+      numeros: number[];
+      numerosParMois: Map<string, number[]>;
+    };
+    const parJournal = new Map<string, Cumul>();
+    await lireParLots(
+      (curseur) =>
+        this.prisma.ecriture.findMany({
+          where: { tenantId, exerciceId: params.exerciceId },
+          select: {
+            id: true,
+            journalId: true,
+            date: true,
+            numeroPiece: true,
+            statut: true,
+            estGenereeParCloture: true,
+            lignes: { select: { debit: true, credit: true } },
+          },
+          ...pageApres(curseur, LOT_ECRITURES),
+        }),
+      (e) => {
+        let c = parJournal.get(e.journalId);
+        if (!c) {
+          c = {
+            nombre: 0,
+            lignes: 0,
+            debit: 0,
+            credit: 0,
+            enBrouillard: 0,
+            deCloture: 0,
+            premiere: null,
+            derniere: null,
+            numeros: [],
+            numerosParMois: new Map(),
+          };
+          parJournal.set(e.journalId, c);
+        }
+        c.nombre++;
+        c.lignes += e.lignes.length;
+        for (const l of e.lignes) {
+          c.debit += Number(l.debit);
+          c.credit += Number(l.credit);
+        }
+        if (e.statut !== StatutEcriture.VALIDEE) c.enBrouillard++;
+        if (e.estGenereeParCloture) c.deCloture++;
+        if (!c.premiere || e.date < c.premiere) c.premiere = e.date;
+        if (!c.derniere || e.date > c.derniere) c.derniere = e.date;
+        if (e.numeroPiece !== null) {
+          c.numeros.push(e.numeroPiece);
+          const cle = `${e.date.getUTCFullYear()}-${e.date.getUTCMonth()}`;
+          const duMois = c.numerosParMois.get(cle) ?? [];
+          duMois.push(e.numeroPiece);
+          c.numerosParMois.set(cle, duMois);
+        }
+      },
+      LOT_ECRITURES,
+    );
 
     const lignes: LigneAnalyseJournal[] = journaux.map((j) => {
-      const siennes = parJournal.get(j.id) ?? [];
+      const c = parJournal.get(j.id);
       const perimetre = perimetreDeLaSequence(j.numerotation);
 
       // La séquence n'est cherchée QUE sur le périmètre où elle est continue.
@@ -237,25 +285,20 @@ export class AnalyseJournauxService {
       let trous: Array<{ de: number; a: number }> = [];
       let manquants: number | null = null;
       if (perimetre === 'JOURNAL_EXERCICE') {
-        trous = trousDeLaSequence(siennes.map((e) => e.numeroPiece).filter((n): n is number => n !== null));
+        trous = trousDeLaSequence(c?.numeros ?? []);
         manquants = compterManquants(trous);
       } else if (perimetre === 'JOURNAL_MOIS') {
         // Mois par mois, et jamais sur l'exercice · la séquence repart de 1 à
         // chaque mois civil, si bien que les numéros d'un mois BOUCHERAIENT les
         // manques d'un autre. Lue à l'année, elle ne crie pas à tort · elle se
         // tait à tort, et c'est le sens d'erreur qu'aucun écran ne rattrape.
-        const parMois = new Map<string, number[]>();
-        for (const e of siennes) {
-          if (e.numeroPiece === null) continue;
-          const cle = `${e.date.getUTCFullYear()}-${e.date.getUTCMonth()}`;
-          parMois.set(cle, [...(parMois.get(cle) ?? []), e.numeroPiece]);
+        for (const numeros of (c?.numerosParMois ?? new Map<string, number[]>()).values()) {
+          trous.push(...trousDeLaSequence(numeros));
         }
-        for (const numeros of parMois.values()) trous.push(...trousDeLaSequence(numeros));
         manquants = compterManquants(trous);
       }
 
-      const dates = siennes.map((e) => e.date).sort((a, b) => a.getTime() - b.getTime());
-      const jour = (d: Date | undefined) => (d ? d.toISOString().slice(0, 10) : null);
+      const jour = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : null);
 
       return {
         journalId: j.id,
@@ -263,14 +306,14 @@ export class AnalyseJournauxService {
         intitule: j.intitule,
         type: String(j.type),
         numerotation: j.numerotation,
-        nombreEcritures: siennes.length,
-        nombreLignes: siennes.reduce((t, e) => t + e._count.lignes, 0),
-        debit: siennes.reduce((t, e) => t + e.lignes.reduce((s, l) => s + Number(l.debit), 0), 0),
-        credit: siennes.reduce((t, e) => t + e.lignes.reduce((s, l) => s + Number(l.credit), 0), 0),
-        enBrouillard: siennes.filter((e) => e.statut !== StatutEcriture.VALIDEE).length,
-        deCloture: siennes.filter((e) => e.estGenereeParCloture).length,
-        premiereDate: jour(dates[0]),
-        derniereDate: jour(dates[dates.length - 1]),
+        nombreEcritures: c?.nombre ?? 0,
+        nombreLignes: c?.lignes ?? 0,
+        debit: c?.debit ?? 0,
+        credit: c?.credit ?? 0,
+        enBrouillard: c?.enBrouillard ?? 0,
+        deCloture: c?.deCloture ?? 0,
+        premiereDate: jour(c?.premiere),
+        derniereDate: jour(c?.derniere),
         sequence: { perimetre, explication: EXPLICATION_PERIMETRE[perimetre], manquants, trous },
       };
     });
@@ -281,10 +324,7 @@ export class AnalyseJournauxService {
     // mensuelle ferait entrer des numéros repartis de 1 et rendrait la
     // séquence du dossier illisible.
     const journauxFichier = journauxDeLaSequenceDuFichier(journaux);
-    const numerosDossier = ecritures
-      .filter((e) => journauxFichier.some((j) => j.id === e.journalId))
-      .map((e) => e.numeroPiece)
-      .filter((n): n is number => n !== null);
+    const numerosDossier = journauxFichier.flatMap((j) => parJournal.get(j.id)?.numeros ?? []);
     const trousDossier = journauxFichier.length > 0 ? trousDeLaSequence(numerosDossier) : [];
 
     return {

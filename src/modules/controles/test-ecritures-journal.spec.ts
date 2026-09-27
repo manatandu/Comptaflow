@@ -60,10 +60,20 @@ const ORDINAIRE = {
 };
 
 function service(ecritures: Faux[]) {
+  // Le décompte par compte est un AGRÉGAT (audit final F185) · la doublure le
+  // calcule sur les lignes de la même liste, le numéro servant d'identifiant.
+  const lignes = ecritures.flatMap((e) => (e.lignes as Array<{ compte: { numero: string } }>) ?? []);
+  const numeros = [...new Set(lignes.map((l) => l.compte.numero))];
   const prisma = {
     exercice: { findFirst: jest.fn().mockResolvedValue(EXERCICE) },
     ecriture: { findMany: jest.fn().mockResolvedValue(ecritures) },
     user: { findMany: jest.fn().mockResolvedValue([COMPTABLE, ADMIN]) },
+    compte: { findMany: jest.fn().mockResolvedValue(numeros.map((n) => ({ id: n, numero: n }))) },
+    ligneEcriture: {
+      groupBy: jest.fn().mockResolvedValue(
+        numeros.map((n) => ({ compteId: n, _count: { _all: lignes.filter((l) => l.compte.numero === n).length } })),
+      ),
+    },
   } as Faux;
   return new TestEcrituresJournalService(prisma as unknown as PrismaService);
 }
@@ -228,5 +238,31 @@ describe('la piste d’audit, restituée · AUDCIF art. 22, 1°', () => {
     const tout = JSON.stringify(feuille.getRow(5).values);
     expect(tout).toContain(COMPTABLE.email);
     expect(tout).not.toContain(COMPTABLE.id);
+  });
+});
+
+describe('la sélection ISA 240 se lit par tranches et se dit tronquée (audit final F185)', () => {
+  it('au-delà du plafond, la sélection garde sa tête et compte tout le reste', async () => {
+    const sansPiece = Array.from({ length: 7 }, (_, i) => ({ ...ORDINAIRE, id: `s${i}`, reference: null }));
+    const remplissage = Array.from({ length: 5 }, (_, i) => ({ ...ORDINAIRE, id: `r${i}` }));
+    const r = await service([...remplissage, ...sansPiece]).selection('t1', 'ex', 3);
+    expect(r.selection).toHaveLength(3);
+    expect(r.totalRetenues).toBe(7);
+    expect(r.tronque).toBe(true);
+    expect(r.totalEcritures).toBe(12);
+    // Le dénombrement par critère porte sur TOUT le journal, pas sur la tête gardée.
+    expect(r.parCritere.find((c) => c.cle === 'SANS_JUSTIFICATION')?.nombre).toBe(7);
+  });
+
+  it('le classeur remis à l’auditeur refuse une sélection plus grande qu’un classeur en mémoire', async () => {
+    const svc = new ExportService(
+      {} as unknown as PrismaService,
+      {} as never,
+      {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never,
+    );
+    (svc as unknown as { testEcrituresJournal: unknown }).testEcrituresJournal = {
+      selection: jest.fn().mockResolvedValue({ totalRetenues: 50_001, selection: [], tronque: true }),
+    };
+    await expect(svc.testEcrituresJournalExcel('t1', 'ex')).rejects.toThrow(/Test des écritures de journal \(ISA 240\) : 50[\s ]001 lignes/);
   });
 });

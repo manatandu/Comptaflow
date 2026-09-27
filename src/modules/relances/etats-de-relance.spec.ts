@@ -2,6 +2,7 @@ import { Referentiel, StatutMessage, TypeRelance } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { CourrierService } from '../courrier/courrier.service';
 import { motifRienAReclamer, RelancesService } from './relances.service';
+import { LOT_LECTURE } from '../../common/lecture-par-lots';
 
 /**
  * AUDIT FINAL F166 À F169 · CHAQUE ÉTAT DE RELANCE LIT SES PROPRES NIVEAUX,
@@ -264,5 +265,27 @@ describe('F169 · seules comptent les relances de la dette encore ouverte', () =
     const { svc, relanceFindMany } = service([], [RAPPEL]);
     expect(await svc.positions(DOSSIER, { exerciceId: 'ex-1', type: TypeRelance.RAPPEL, dateReference: REF })).toEqual([]);
     expect(relanceFindMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('F185 · les positions se lisent par tranches, et aucune ligne ne se perd entre deux', () => {
+  it('la requête pagine par identifiant, et le montant dû porte les lignes de toutes les tranches', async () => {
+    // Un lot entier plus deux lignes · la troisième tranche n'existe que si
+    // le curseur avance. Une lecture d'un seul tenant ne ferait qu'un appel.
+    const toutes = Array.from({ length: LOT_LECTURE + 2 }, (_, i) => ({
+      ...ligne('41100001', '2026-09-01', '2026-09-15'),
+      id: `l-${String(i).padStart(6, '0')}`,
+    }));
+    const { svc } = service([], [PREVENTIF]);
+    const findMany = jest.fn(async (args: { take: number; cursor?: { id: string }; skip?: number }) => {
+      const debut = args.cursor ? toutes.findIndex((l) => l.id === args.cursor!.id) + (args.skip ?? 0) : 0;
+      return toutes.slice(debut, debut + args.take);
+    });
+    (svc as unknown as { prisma: { ligneEcriture: { findMany: unknown } } }).prisma.ligneEcriture.findMany = findMany;
+    const [p] = await svc.positions(DOSSIER, { exerciceId: 'ex-1', type: TypeRelance.RELEVE, dateReference: REF });
+    expect(findMany).toHaveBeenCalledTimes(2);
+    expect(findMany.mock.calls[0][0]).toMatchObject({ orderBy: { id: 'asc' }, take: LOT_LECTURE });
+    expect(p.lignes).toHaveLength(LOT_LECTURE + 2);
+    expect(p.montantDu).toBe((LOT_LECTURE + 2) * 100_000);
   });
 });
