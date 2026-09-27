@@ -14,6 +14,7 @@ import type {
   SectionManuel,
   TranscriptionInventaire,
 } from '../lib/types';
+import { corpsSectionsRapport, textesDuRapport } from '../lib/rapport-sections';
 
 /**
  * DOCUMENTS OBLIGATOIRES DE CLÔTURE · livre d'inventaire (art. 14) et rapport
@@ -28,7 +29,7 @@ import type {
  */
 export function DocumentsObligatoiresPage() {
   const { exerciceCourant } = useExercice();
-  const { peutEcrire } = useAuth();
+  const { peutEcrire, utilisateur } = useAuth();
 
   const [onglet, setOnglet] = useState<'inventaire' | 'rapport' | 'manuel'>('inventaire');
 
@@ -57,13 +58,15 @@ export function DocumentsObligatoiresPage() {
   const [rapport, setRapport] = useState<RapportActivite | null>(null);
   const [form, setForm] = useState({
     etabliLe: '',
-    situationExerciceEcoule: '',
-    perspectivesDeveloppement: '',
-    evolutionTresorerie: '',
-    evenementsPosterieurs: '',
     entiteAvecAuditeur: false,
     declarationDirigeants: '',
   });
+  // LE TEXTE DE CHAQUE SECTION SOUS SA CLÉ, jamais sous son rang (audit final
+  // F16) · les six sections du rapport de gestion AUSCGIE s'écrivaient dans
+  // les quatre champs du rapport d'activité SYCEBNL, et n'étaient jamais
+  // envoyées.
+  const [textes, setTextes] = useState<Record<string, string>>({});
+  const rapportDeGestion = utilisateur?.tenant.referentiel === 'SYSCOHADA';
 
   /**
    * Enregistre une NOUVELLE VERSION · jamais une mise à jour de la précédente.
@@ -124,13 +127,10 @@ export function DocumentsObligatoiresPage() {
         // d'activité se reprend, il ne se réécrit pas de zéro chaque année.
         setForm({
           etabliLe: dernier.etabliLe.slice(0, 10),
-          situationExerciceEcoule: dernier.situationExerciceEcoule ?? '',
-          perspectivesDeveloppement: dernier.perspectivesDeveloppement ?? '',
-          evolutionTresorerie: dernier.evolutionTresorerie ?? '',
-          evenementsPosterieurs: dernier.evenementsPosterieurs ?? '',
           entiteAvecAuditeur: dernier.entiteAvecAuditeur,
           declarationDirigeants: dernier.declarationDirigeants ?? '',
         });
+        setTextes(textesDuRapport(dernier));
       }
     }, () => {});
   };
@@ -192,10 +192,7 @@ export function DocumentsObligatoiresPage() {
       await api.post('/documents-obligatoires/rapport-activite', {
         exerciceId: exerciceCourant.id,
         etabliLe: form.etabliLe,
-        situationExerciceEcoule: form.situationExerciceEcoule || undefined,
-        perspectivesDeveloppement: form.perspectivesDeveloppement || undefined,
-        evolutionTresorerie: form.evolutionTresorerie || undefined,
-        evenementsPosterieurs: form.evenementsPosterieurs || undefined,
+        ...corpsSectionsRapport(textes, rapportDeGestion),
         entiteAvecAuditeur: form.entiteAvecAuditeur,
         declarationDirigeants: form.declarationDirigeants || undefined,
       });
@@ -216,20 +213,20 @@ export function DocumentsObligatoiresPage() {
   const zone = (
     titre: string,
     exigence: string,
-    cle: keyof typeof form,
+    cle: string,
     renseignee: boolean | undefined,
   ) => (
     <div key={cle} className="border border-border bg-surface mb-2 px-3.5 py-2.5">
       <div className="flex items-baseline justify-between gap-3 mb-1">
         <span className="text-[11.5px] font-bold flex items-center gap-1.5">
           {titre}
-          <Aide titre={titre} texte={exigence} source="Rapport d’activité · art. 16-3" />
+          <Aide titre={titre} texte={exigence} source={rapportDeGestion ? 'Rapport de gestion' : 'Rapport d’activité · art. 16-3'} />
         </span>
         {renseignee !== undefined && pastille(renseignee, 'RENSEIGNÉE', 'VIDE')}
       </div>
       <textarea
-        value={form[cle] as string}
-        onChange={(e) => setForm((f) => ({ ...f, [cle]: e.target.value }))}
+        value={textes[cle] ?? ''}
+        onChange={(e) => setTextes((t) => ({ ...t, [cle]: e.target.value }))}
         disabled={!peutEcrire}
         rows={3}
         className="w-full border border-border-dark px-2 py-1 text-[11.5px] disabled:bg-surface-alt"
@@ -267,7 +264,7 @@ export function DocumentsObligatoiresPage() {
         {(
           [
             ['inventaire', "LIVRE D'INVENTAIRE (ART. 14)", confInv?.complete],
-            ['rapport', "RAPPORT D'ACTIVITÉ (ART. 16-3)", confRap?.complet],
+            ['rapport', rapportDeGestion ? 'RAPPORT DE GESTION' : "RAPPORT D'ACTIVITÉ (ART. 16-3)", confRap?.complet],
             ['manuel', 'MANUEL DES PROCÉDURES (AUDCIF ART. 16)', confManuel?.existe],
           ] as const
         ).map(([cle, libelle, complet]) => (
@@ -446,28 +443,26 @@ export function DocumentsObligatoiresPage() {
             </div>
           )}
 
-          {confRap.sections.map((s, i) =>
-            zone(
-              s.titre,
-              s.exigence,
-              (['situationExerciceEcoule', 'perspectivesDeveloppement', 'evolutionTresorerie', 'evenementsPosterieurs'] as const)[i],
-              confRap.etabli ? s.renseignee : undefined,
-            ),
+          {confRap.regleLue === false && confRap.motif && (
+            <div className="border border-border bg-surface mb-2 px-3.5 py-2.5 text-[11.5px]">{confRap.motif}</div>
           )}
 
+          {confRap.sections.map((s) => zone(s.titre, s.exigence, s.cle, confRap.etabli ? s.renseignee : undefined))}
+
+          {confRap.declarationRegistreDonateurs && (
           <div className="border border-border bg-surface px-3.5 py-2.5">
             <div className="flex items-baseline justify-between gap-3 mb-1">
               <span className="text-[11.5px] font-bold flex items-center gap-1.5">
                 Déclaration des dirigeants · registre des donateurs
                 <Aide
                   titre="Déclaration des dirigeants"
-                  texte={`${confRap.declarationRegistreDonateurs.exigence} ${confRap.declarationRegistreDonateurs.remarque}`}
+                  texte={`${confRap.declarationRegistreDonateurs!.exigence} ${confRap.declarationRegistreDonateurs!.remarque}`}
                   source="Rapport d’activité"
                 />
               </span>
               {confRap.etabli &&
-                (confRap.declarationRegistreDonateurs.attendue
-                  ? pastille(confRap.declarationRegistreDonateurs.renseignee, 'ANNEXÉE', 'ATTENDUE')
+                (confRap.declarationRegistreDonateurs!.attendue
+                  ? pastille(confRap.declarationRegistreDonateurs!.renseignee, 'ANNEXÉE', 'ATTENDUE')
                   : pastille(true, 'NON ATTENDUE', ''))}
             </div>
             <label className="flex items-center gap-1.5 text-[11.5px] mb-1.5">
@@ -488,7 +483,7 @@ export function DocumentsObligatoiresPage() {
                   rows={3}
                   className="w-full border border-border-dark px-2 py-1 text-[11.5px] disabled:bg-surface-alt"
                 />
-                {confRap.etabli && !confRap.declarationRegistreDonateurs.registreConforme && (
+                {confRap.etabli && !confRap.declarationRegistreDonateurs!.registreConforme && (
                   <div className="text-[11px] text-danger mt-1.5">
                     ⚠ Le rapport de conformité du{' '}
                     <a href="#/registre-donateurs" className="underline">
@@ -505,6 +500,7 @@ export function DocumentsObligatoiresPage() {
               </>
             )}
           </div>
+          )}
 
           {rapport && (
             <div className="text-[11px] text-text-dim italic mt-2.5">

@@ -44,7 +44,7 @@ const RAPPORT = {
   declarationDirigeants: null,
 };
 
-function service(referentiel: Referentiel, forme: FormeJuridiqueSyscohada | null) {
+function service(referentiel: Referentiel, forme: FormeJuridiqueSyscohada | null, rapport: Faux = RAPPORT) {
   const prisma = {
     tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel, formeJuridiqueSyscohada: forme }) },
     exercice: {
@@ -52,7 +52,7 @@ function service(referentiel: Referentiel, forme: FormeJuridiqueSyscohada | null
     },
   } as Faux;
   const rapportActivite = {
-    courant: jest.fn().mockResolvedValue(RAPPORT),
+    courant: jest.fn().mockResolvedValue(rapport),
     // La conformité aiguille DÉJÀ sur le référentiel depuis le 2026-09-02 ·
     // c'est l'export qui ne le faisait pas.
     conformite: jest.fn().mockResolvedValue({
@@ -95,6 +95,31 @@ async function feuilleDuRapport(referentiel: Referentiel, forme: FormeJuridiqueS
   });
   return { nom: feuille.name, titres, exigences: exigences.join(' ') };
 }
+
+/**
+ * AUDIT FINAL F16 · le rapport de gestion range ses sections en JSON, sous
+ * leur clé ; l'export lisait les colonnes du rapport d'activité SYCEBNL, et
+ * rendait VIDE tout rapport de gestion établi.
+ */
+describe('le rapport de gestion exporté lit SES sections', () => {
+  it('le contenu vient de `sections`, jamais des colonnes du rapport SYCEBNL', async () => {
+    const [premiere, seconde] = SECTIONS_RAPPORT_GESTION_AUSCGIE;
+    const { buffer } = await service(Referentiel.SYSCOHADA, FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE, {
+      ...RAPPORT,
+      sections: { [premiere.cle]: 'Activité de la société au cours de l’exercice.' },
+    }).rapportActiviteExcel('t1', 'ex');
+    const classeur = new ExcelJS.Workbook();
+    await classeur.xlsx.load(buffer as never);
+    const lignes: Record<string, [string, string]> = {};
+    classeur.worksheets[0].eachRow((r, i) => {
+      if (i > 1) lignes[String(r.getCell(1).value)] = [String(r.getCell(2).value ?? ''), String(r.getCell(3).value ?? '')];
+    });
+    expect([lignes[premiere.titre], lignes[seconde.titre]]).toEqual([
+      ['RENSEIGNÉE', 'Activité de la société au cours de l’exercice.'],
+      ['VIDE', ''],
+    ]);
+  });
+});
 
 describe('le rapport exporté porte les sections de SON texte', () => {
   it('un dossier SYCEBNL reçoit les quatre sections de l’art. 16-3', async () => {

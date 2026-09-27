@@ -286,6 +286,8 @@ export interface TableauFluxTresorerieSyscohada {
    */
   comptesTropAgreges: CompteTropAgrege[];
   postesNonCalculables: PosteNonCalculable[];
+  /** Ceux de la colonne N-1, laissés vides pour la même raison (audit final F14). */
+  postesNonCalculablesN1: PosteNonCalculable[];
   controle: {
     tresorerieOuverture: number;
     variation: number;
@@ -1205,6 +1207,8 @@ export class EtatsFinanciersSyscohadaService {
   ): {
     parRef: Map<string, { libelle: string; montant: number; comptes: CompteDuPoste[] }>;
     postesNonCalculables: PosteNonCalculable[];
+    /** Postes laissés vides, et les totaux qui en dépendent (audit final F14). */
+    nonCalcules: Set<string>;
     ctx: ContexteFlux;
   } {
     const soldesAnterieurs = new Map<string, number>();
@@ -1226,6 +1230,7 @@ export class EtatsFinanciersSyscohadaService {
 
     const parRef = new Map<string, { libelle: string; montant: number; comptes: CompteDuPoste[] }>();
     const postesNonCalculables: PosteNonCalculable[] = [];
+    const nonCalcules = new Set<string>();
 
     for (const poste of TOUS_LES_POSTES_FLUX_SYSCOHADA) {
       if (!exerciceAnterieurDisponible && this.exigeExerciceAnterieur(poste)) {
@@ -1238,6 +1243,7 @@ export class EtatsFinanciersSyscohadaService {
         // n'est un équivalent que pour une variation de COMPTES, pas pour une
         // variation de POSTE (voir `besoinsDuPoste`).
         parRef.set(poste.ref, { libelle: poste.libelle, montant: 0, comptes: [] });
+        nonCalcules.add(poste.ref);
         postesNonCalculables.push({
           ref: poste.ref,
           raison:
@@ -1271,9 +1277,12 @@ export class EtatsFinanciersSyscohadaService {
         montant: total.deRefs.reduce((s, ref) => s + (parRef.get(ref)?.montant ?? 0), 0),
         comptes: [],
       });
+      // Un total d'un poste laissé vide est vide lui aussi · l'additionner
+      // comme zéro rendrait un total plausible et faux.
+      if (total.deRefs.some((ref) => nonCalcules.has(ref))) nonCalcules.add(total.ref);
     }
 
-    return { parRef, postesNonCalculables, ctx };
+    return { parRef, postesNonCalculables, nonCalcules, ctx };
   }
 
   async tableauFluxTresorerie(
@@ -1313,7 +1322,10 @@ export class EtatsFinanciersSyscohadaService {
         ref: entree.ref,
         libelle: ligne.libelle,
         montant: ligne.montant,
-        montantN1: resN1?.parRef.get(entree.ref)?.montant,
+        // JAMAIS UN FAUX ZÉRO EN N-1 (audit final F14) · sans N-2, les postes
+        // qui exigent l'exercice antérieur et leurs totaux restent vides, et
+        // leurs motifs sont rendus (`postesNonCalculablesN1`).
+        montantN1: resN1 && !resN1.nonCalcules.has(entree.ref) ? resN1.parRef.get(entree.ref)?.montant : undefined,
         comptes: ligne.comptes,
         estTotal: total !== undefined,
         // ZA porte la clé A sans être un total : elle est portée par le poste
@@ -1349,6 +1361,7 @@ export class EtatsFinanciersSyscohadaService {
         .map((l) => ({ numero: l.numero, intitule: l.intitule, montant: l.solde, subdivisions: subdivisionsLuesParLeTft(l.numero) }))
         .filter((c) => c.subdivisions.length > 0),
       postesNonCalculables: resN.postesNonCalculables,
+      postesNonCalculablesN1: resN1?.postesNonCalculables ?? [],
       controle: {
         tresorerieOuverture: resN.parRef.get('ZA')!.montant,
         variation: resN.parRef.get('ZG')!.montant,

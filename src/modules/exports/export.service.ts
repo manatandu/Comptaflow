@@ -3140,8 +3140,16 @@ export class ExportService {
       { header: 'Exigence (texte officiel)', key: 'exigence', width: 96 },
     ];
 
+    // Le rapport de gestion range ses sections en JSON, sous leur clé ; le
+    // rapport d'activité, en colonnes. L'export lisait les colonnes des deux
+    // côtés, et rendait VIDE tout rapport de gestion (audit final F16).
+    const contenus: Record<string, unknown> =
+      referentiel === Referentiel.SYSCOHADA
+        ? (((rapport as { sections?: unknown } | null)?.sections ?? {}) as Record<string, unknown>)
+        : ((rapport ?? {}) as Record<string, unknown>);
     for (const s of sections) {
-      const contenu = ((rapport as Record<string, unknown> | null)?.[s.cle] as string | null) ?? null;
+      const brut = contenus[s.cle];
+      const contenu = typeof brut === 'string' && brut.trim() ? brut : null;
       const rang = feuille.addRow({
         titre: s.titre,
         etat: contenu ? 'RENSEIGNÉE' : 'VIDE',
@@ -3489,7 +3497,8 @@ export class ExportService {
       rangs.set(l.rep, r);
       ws.getCell(r, 1).value = l.libelle;
       ws.getCell(r, 2).value = l.rep;
-      ws.getCell(r, 3).value = l.montant;
+      // Non renseigné n'est pas zéro (audit final F13) · la cellule le dit.
+      ws.getCell(r, 3).value = l.montant ?? 'non renseigné';
       styleLigne(ws, r, 1, 3, NIVEAUX_RECONCILIATION[l.rep] ?? 'normal', [3], 2);
       ws.getRow(r).height = 22;
     }
@@ -3507,7 +3516,10 @@ export class ExportService {
         formula: `C${rangs.get('A')}+C${rangs.get('B')}+C${rangs.get('C')}+C${rangs.get('D')}-C${rangs.get('E')}-C${rangs.get('F')}`,
       };
     }
-    if (rangs.has('I')) {
+    // I ne se calcule que sur un H renseigné · une cellule vide vaudrait zéro
+    // dans la formule, et le fichier porterait un I que personne n'a établi.
+    const hRenseigne = recon.lignes.some((l) => l.rep === 'H' && l.montant !== null);
+    if (rangs.has('I') && hRenseigne) {
       ws.getCell(rangs.get('I')!, 3).value = { formula: `C${rangs.get('G')}-C${rangs.get('H')}` };
     }
     cadre(ws, 8, 1, r, 3, MOYEN);
@@ -3532,7 +3544,7 @@ export class ExportService {
   async reconciliationTresorerieExcel(
     tenantId: string,
     exerciceId: string,
-    paiementsEnInstance = 0,
+    paiementsEnInstance: number | null = null,
   ): Promise<ClasseurExporte> {
     const [recon, ident] = await Promise.all([
       this.etatsFinanciersProjetBudgetService.reconciliationTresorerie(tenantId, exerciceId, paiementsEnInstance),
@@ -4263,7 +4275,7 @@ export class ExportService {
   private async liasseProjetsEtafi(
     tenantId: string,
     exerciceId: string,
-    paiementsEnInstance: number,
+    paiementsEnInstance: number | null,
   ): Promise<ExcelJS.Workbook> {
     const [ident, tenant, bilan, ce, er, recon, notes, exerciceN1Id] = await Promise.all([
       this.identiteLiasse(tenantId, exerciceId),
@@ -5107,10 +5119,16 @@ export class ExportService {
           ['E', 5],
         ]
       : [['D', 4]];
+    // Un total N-1 qui dépend d'un poste laissé vide reste vide lui aussi
+    // (audit final F14) · la formule additionnerait la cellule vide comme zéro.
+    const montantsN1 = new Map(
+      tft.lignes.filter((l): l is Extract<typeof l, { montant: number }> => !('section' in l)).map((l) => [l.ref ?? '', l.montantN1]),
+    );
     for (const total of TOTAUX_FLUX_SYSCOHADA) {
       const rang = total.ref ? rangs.get(total.ref) : rangVariationBf;
       if (!rang) continue;
       for (const [lettre, col] of colonnes) {
+        if (col === 5 && montantsN1.get(total.ref ?? '') === undefined) continue;
         const termes = total.deRefs.map((ref) => (rangs.has(ref) ? `${lettre}${rangs.get(ref)}` : '0'));
         ws.getCell(rang, col).value = { formula: termes.join('+') };
       }
@@ -6072,6 +6090,9 @@ export class ExportService {
     for (const p of tft.postesNonCalculables) {
       anomalies.push(['INFO', p.ref, 'Tableau des flux de trésorerie', p.raison, 'Aucune action : la donnée manque, elle n’est pas approximée.']);
     }
+    for (const p of tft.postesNonCalculablesN1 ?? []) {
+      anomalies.push(['INFO', p.ref, 'Tableau des flux · colonne N-1', p.raison, 'Aucune action : la cellule N-1 reste vide, elle n’est pas un zéro.']);
+    }
     if (anomalies.length === 0) anomalies.push(['INFO', '·', '·', 'Aucune anomalie détectée sur cet exercice.', '·']);
     let ra = 1;
     for (const ligne of anomalies) {
@@ -6324,7 +6345,7 @@ export class ExportService {
   async liasseCompleteExcel(
     tenantId: string,
     exerciceId: string,
-    paiementsEnInstance = 0,
+    paiementsEnInstance: number | null = null,
   ): Promise<ClasseurExporte> {
     const tenant = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } });
     // LE RÉFÉRENTIEL D'ABORD · `jeuEtatsFinanciersSycebnl` n'a de sens que

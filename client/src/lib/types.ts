@@ -1199,6 +1199,8 @@ export interface RapportActivite {
   evenementsPosterieurs: string | null;
   entiteAvecAuditeur: boolean;
   declarationDirigeants: string | null;
+  /** Rapport de gestion SYSCOHADA · les sections sous leur clé (AUSCGIE art. 138, AUSCOOP art. 108). */
+  sections?: Record<string, string> | null;
   tresorerie: TresorerieDuRapport | null;
 }
 
@@ -1240,7 +1242,11 @@ export interface ConformiteManuel {
 
 export interface ConformiteRapportActivite {
   exercice: { id: string; dateDebut: string; dateFin: string };
-  exigence: string;
+  /** `null` quand aucune règle lue ne régit la forme juridique (SYSCOHADA). */
+  exigence: string | null;
+  /** Rapport de gestion SYSCOHADA seulement · la forme juridique a-t-elle une règle lue. */
+  regleLue?: boolean;
+  motif?: string | null;
   etabli: boolean;
   version: number | null;
   etabliLe: string | null;
@@ -1248,7 +1254,8 @@ export interface ConformiteRapportActivite {
   /** Définie par la clôture et la date d'établissement · voir art. 16-3. */
   fenetreEvenementsPosterieurs: { du: string; au: string } | null;
   tresorerie: TresorerieDuRapport | null;
-  declarationRegistreDonateurs: {
+  /** SYCEBNL art. 18 seulement · absente du rapport de gestion SYSCOHADA (audit final F16). */
+  declarationRegistreDonateurs?: {
     exigence: string;
     remarque: string;
     entiteAvecAuditeur: boolean;
@@ -2160,7 +2167,8 @@ export interface TableauExecutionBudgetaire {
 }
 
 export interface TableauReconciliationTresorerie {
-  lignes: { rep: string; libelle: string; montant: number }[];
+  /** `null` sur H non renseigné, et donc sur I (audit final F13). */
+  lignes: { rep: string; libelle: string; montant: number | null }[];
   controle: { tresorerieBalance: number; ecart: number; boucle: boolean };
   avertissements: string[];
 }
@@ -2732,6 +2740,8 @@ export interface TableauFluxTresorerieSyscohada {
   /** Comptes tenus plus haut que ce que le tableau distingue (481 pour 4811 et 4812, 81 pour 812…). */
   comptesTropAgreges?: (CompteDuPosteSyscohada & { subdivisions: string[] })[];
   postesNonCalculables: PosteNonCalculableSyscohada[];
+  /** Ceux de la colonne N-1, laissés vides (audit final F14). */
+  postesNonCalculablesN1?: PosteNonCalculableSyscohada[];
   controle: {
     tresorerieOuverture: number;
     variation: number;

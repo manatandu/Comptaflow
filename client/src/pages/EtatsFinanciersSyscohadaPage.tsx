@@ -792,6 +792,16 @@ function EtatsSyscohadaSystemeNormal() {
                   ))}
                 </div>
               )}
+              {(tft.postesNonCalculablesN1 ?? []).length > 0 && (
+                <div className="border border-warning/40 bg-warning-soft mt-2 px-3.5 py-2.5">
+                  <div className="text-[11.5px] font-bold mb-1.5">Colonne N-1 · postes laissés vides, ce ne sont pas des zéros</div>
+                  {(tft.postesNonCalculablesN1 ?? []).map((p) => (
+                    <p key={p.ref} className="text-[11.5px] mb-1 last:mb-0">
+                      <span className="font-mono">{p.ref}</span> · {p.raison}
+                    </p>
+                  ))}
+                </div>
+              )}
 
               {/* Un compte tenu plus haut que ce que le tableau distingue ·
                   un 481 quand les formules lisent 4811 et 4812. Son montant

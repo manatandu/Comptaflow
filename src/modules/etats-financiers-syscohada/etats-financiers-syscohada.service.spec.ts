@@ -573,8 +573,13 @@ describe('EtatsFinanciersSyscohadaService', () => {
       const tft = await serviceDeReference().tableauFluxTresorerie('t1', 'e2');
       expect(tft.exerciceN1Disponible).toBe(true);
       // e1 n'a lui-même aucun exercice antérieur : sa colonne se réduit à ses
-      // postes calculables, ce qui est le comportement voulu, pas un zéro.
-      expect(montant(tft, 'ZA').montantN1).toBe(0);
+      // postes calculables. Ce test figeait un ZÉRO pour ZA, qui exige N-2
+      // (audit final F14) · le poste est désormais VIDE, et dit pourquoi.
+      expect({
+        za: montant(tft, 'ZA').montantN1,
+        motifZa: tft.postesNonCalculablesN1.some((p) => p.ref === 'ZA'),
+        zh: montant(tft, 'ZH').montantN1,
+      }).toEqual({ za: undefined, motifZa: true, zh: undefined });
     });
 
     it('liste les comptes de bilan mouvementés qu’aucun poste ne ventile', async () => {

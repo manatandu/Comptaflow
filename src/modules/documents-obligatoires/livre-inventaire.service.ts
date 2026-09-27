@@ -295,11 +295,11 @@ export class LivreInventaireService {
         return this.etatsFinanciersProjetBudget.executionBudgetaire(tenantId, exerciceId);
       case 'tableauReconciliationTresorerie':
         // Les paiements en instance (repère H) sont extra-comptables : la
-        // transcription au livre d'inventaire les fige à zéro, faute d'une
-        // saisie possible à cet instant. L'état imprimé depuis l'écran, lui,
-        // les porte. La différence est assumée : le livre d'inventaire fige
-        // ce que la comptabilité établit.
-        return this.etatsFinanciersProjetBudget.reconciliationTresorerie(tenantId, exerciceId, 0);
+        // transcription au livre d'inventaire les fige NON RENSEIGNÉS, faute
+        // d'une saisie possible à cet instant, jamais à zéro (audit final
+        // F13). L'état imprimé depuis l'écran, lui, les porte. Le livre
+        // d'inventaire fige ce que la comptabilité établit.
+        return this.etatsFinanciersProjetBudget.reconciliationTresorerie(tenantId, exerciceId, null);
       default:
         // Les trois états du point 2 non encore construits ne passent jamais
         // ici : `transcrire` les écarte sur `disponible: false`.

@@ -467,8 +467,11 @@ export const CATEGORIES_RESSOURCES_ART6: CategorieRessourceSmt[] = [
   // 1) subventions
   { cle: 'subventions', libelle: 'Subventions', comptes: ['71', '88'] },
   // 2) cotisations et autres revenus · compte 70 hors la générosité (704),
-  //    que le point 3 traite séparément.
-  { cle: 'cotisationsRevenus', libelle: 'Cotisations et autres revenus', comptes: ['70'], exclusions: ['704'] },
+  //    que le point 3 traite séparément, et hors le fonds d'administration
+  //    (702), que le point 4 traite · compté ici aussi, il gonflait la
+  //    catégorie comparée au seuil et comptait deux fois dans le total
+  //    (audit final F15).
+  { cle: 'cotisationsRevenus', libelle: 'Cotisations et autres revenus', comptes: ['70'], exclusions: ['702', '704'] },
   // 3) dons et/ou legs · 704 Générosité du public (dons, legs, denier du
   //    culte, zakat, dîme, mécénat, parrainage), voir Partie 3, ch. 4.
   { cle: 'donsLegs', libelle: 'Dons et legs', comptes: ['704'] },

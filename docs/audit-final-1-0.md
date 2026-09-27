@@ -112,24 +112,28 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1 et 3
 - **Constat :** « Liasse complète » et l'export de réconciliation n'envoient pas `paiementsEnInstance`, que le serveur remplace alors par 0. Le fichier déposé ou envoyé au bailleur porte H = 0 et un I différent de l'écran. De plus, l'état de réconciliation n'est pas remis à zéro quand on change d'exercice.
 - **Correction :** transmettre la valeur aux deux exports, distinguer « non renseigné » de 0, et réinitialiser l'état au changement d'exercice.
+- **Fait le 2026-09-27 :** `lirePaiementsEnInstance` (absent ou vide vaut non renseigné, illisible refusé) aux trois portes ; H `null` rend I `null` au service, et le classeur écrit « non renseigné » sans formule pour I (`export.service.ts`). L'écran envoie sa saisie à l'état, à l'export du tableau et à la liasse complète (`client/src/lib/paiements-en-instance.ts`), et la remet à vide au changement d'exercice. Tests : `paiements-en-instance.spec.ts`, `paiements-en-instance-cablage.spec.ts`, `projet-budget.spec.ts`, `liasse-etafi.spec.ts`, et côté client `paiements-en-instance.spec.ts`.
 
 **F14 · TFT SYSCOHADA : la colonne N-1 est remplie de faux zéros quand N-2 n'existe pas** [efsy-01]
 - **Emplacements :** src/modules/etats-financiers-syscohada/etats-financiers-syscohada.service.ts:1240, :1305, :1316, :1351 · client/src/pages/EtatsFinanciersSyscohadaPage.tsx:713
 - **Condition :** 1
 - **Constat :** sans N-2, les postes qui exigent un exercice antérieur (ZA, FB à FG) sont posés à 0 et servis comme montant N-1. Leurs motifs de non-calcul sont jetés, alors que la table dit « jamais un faux zéro ». Tout dossier dans sa deuxième année est touché, export compris, et le spec l.577 fige l'erreur.
 - **Correction :** rendre `undefined` pour ces postes et les totaux qui en dépendent, rendre et afficher les postes non calculables de N-1, et corriger le spec.
+- **Fait le 2026-09-27 :** les postes non calculables et les totaux qui en dépendent (`nonCalcules`) rendent `montantN1` indéfini, leurs motifs sortent en `postesNonCalculablesN1` et s'affichent sous le tableau ; le classeur laisse la cellule N-1 vide, sans formule de total, et porte les motifs à la feuille ANOMALIES. Spec l.577 corrigé. Tests : `etats-financiers-syscohada.service.spec.ts`, `liasse-syscohada.spec.ts`.
 
 **F15 · Éligibilité au SMT SYCEBNL : le 702 est compté dans deux catégories** [transv-04]
 - **Emplacements :** src/modules/etats-financiers/correspondance-smt.ts:470, :476 · etats-financiers-smt.service.ts:915, :961
 - **Condition :** 1
 - **Constat :** la catégorie 2 lit `70` en n'excluant que le 704, et la catégorie 4 lit `702`. Le 702 gonfle la catégorie comparée au seuil et est compté deux fois dans le total des ressources et dans le cumul biennal.
 - **Correction :** exclure `702` de la catégorie 2 et ajouter un spec qui vérifie que chaque compte appartient à une catégorie au plus.
+- **Fait le 2026-09-27 :** la catégorie 2 exclut `702` et `704` (`correspondance-smt.ts`). Test sur le semis réel : chaque compte appartient à une catégorie au plus (`correspondance-smt.spec.ts`).
 
 **F16 · Rapport de gestion SYSCOHADA : l'onglet plante, les sections ne s'enregistrent pas, l'export lit les mauvais champs** [docob-01]
 - **Emplacements :** client/src/pages/DocumentsObligatoiresPage.tsx:192-201, :449-456, :464 · src/modules/documents-obligatoires/rapport-activite.service.ts:193-197 · src/modules/exports/export.service.ts:3135
 - **Condition :** 4
 - **Constat :** l'onglet lit `confRap.declarationRegistreDonateurs.exigence`, champ absent en SYSCOHADA, ce qui lève une TypeError. L'écran associe les six sections AUSCGIE aux quatre champs SYCEBNL par leur rang, n'envoie jamais `sections`, et l'export lit le premier niveau. Une société ne peut donc pas établir son rapport de gestion (AUSCGIE art. 138).
 - **Correction :** formulaire indexé par `s.cle` qui envoie `sections`, déclaration de l'art. 18 réservée au SYCEBNL, export sur `rapport.sections`, correction du spec et test qui monte l'onglet en SYSCOHADA.
+- **Fait le 2026-09-27 :** l'écran tient ses textes sous la clé de chaque section et envoie `sections` en SYSCOHADA, ses colonnes en SYCEBNL (`client/src/lib/rapport-sections.ts`) ; la déclaration des dirigeants ne s'affiche que là où le serveur la rend, et l'onglet s'intitule « RAPPORT DE GESTION » ; l'export lit `rapport.sections` en SYSCOHADA. Tests : `parite-documents-obligatoires.spec.ts`, côté client `rapport-sections.spec.ts`, et `e2e/tests/documents-obligatoires.e2e.ts`, qui monte l'onglet d'une SARL, établit le rapport par l'écran et le relit · vu tomber sur les deux défauts réinjectés (garde retirée, sections rangées dans les colonnes).
 
 ### Contrôles et mandat
 

@@ -10,6 +10,7 @@ import { EtatsFinanciersService } from './etats-financiers.service';
 import { EtatsFinanciersProjetService } from './etats-financiers-projet.service';
 import { EtatsFinanciersSmtService } from './etats-financiers-smt.service';
 import { EtatsFinanciersProjetBudgetService } from './etats-financiers-projet-budget.service';
+import { lirePaiementsEnInstance } from './paiements-en-instance';
 
 /**
  * Même raison qu'au contrôleur d'export : un `@Query` scalaire échappe au
@@ -130,14 +131,10 @@ export class EtatsFinanciersController {
     @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
     @Query('paiementsEnInstance') paiementsEnInstance?: string,
   ) {
-    // `Number('')` vaut 0 et `Number(undefined)` vaut NaN : le garde-fou
-    // évite qu'un paramètre absent ou mal formé fasse ressortir NaN sur un
-    // état imprimé.
-    const montant = Number(paiementsEnInstance);
     return this.etatsFinanciersProjetBudgetService.reconciliationTresorerie(
       user.tenantId,
       exerciceId,
-      Number.isFinite(montant) ? montant : 0,
+      lirePaiementsEnInstance(paiementsEnInstance),
     );
   }
 

@@ -31,6 +31,7 @@ import type {
   TableauFluxTresorerie,
   TableauReconciliationTresorerie,
 } from '../lib/types';
+import { parametrePaiementsEnInstance } from '../lib/paiements-en-instance';
 
 /**
  * Onglets du jeu « associations et ordres professionnels » (Partie 4, ch. 2)
@@ -100,8 +101,9 @@ function EtatsSystemeNormalPage() {
   const [executionBudget, setExecutionBudget] = useState<TableauExecutionBudgetaire | null>(null);
   const [erreurBudget, setErreurBudget] = useState<string | null>(null);
   const [reconciliation, setReconciliation] = useState<TableauReconciliationTresorerie | null>(null);
-  // Repère H du tableau de réconciliation · extra-comptable, saisi ici.
-  const [paiementsEnInstance, setPaiementsEnInstance] = useState('0');
+  // Repère H du tableau de réconciliation · extra-comptable, saisi ici. Vide
+  // tant qu'il n'est pas renseigné, jamais zéro d'office (audit final F13).
+  const [paiementsEnInstance, setPaiementsEnInstance] = useState('');
 
   const [erreur, setErreur] = useState<string | null>(null);
   const [exportEnCours, setExportEnCours] = useState(false);
@@ -117,6 +119,10 @@ function EtatsSystemeNormalPage() {
     // l'œil. Corrigé à l'audit du 2026-08-28.
     if (!exerciceCourant || !utilisateur) return;
     let annule = false;
+    // Le tableau de réconciliation et sa saisie appartiennent à l'exercice ·
+    // ils ne survivent pas au changement (audit final F13).
+    setReconciliation(null);
+    setPaiementsEnInstance('');
     if (jeuProjet) {
       api.get<BilanProjet>(`/etats-financiers/projet/bilan?exerciceId=${exerciceCourant.id}`).then(
         (r) => !annule && setBilanProjet(r),
@@ -174,7 +180,7 @@ function EtatsSystemeNormalPage() {
     setExportEnCours(true);
     try {
       await api.telecharger(
-        `/exports/etats-financiers/liasse-complete?exerciceId=${exerciceCourant.id}`,
+        `/exports/etats-financiers/liasse-complete?exerciceId=${exerciceCourant.id}${jeuProjet ? parametrePaiementsEnInstance(paiementsEnInstance) : ''}`,
         `liasse-complete-${new Date(exerciceCourant.dateDebut).getFullYear()}.xlsx`,
       );
     } catch (e) {
@@ -208,7 +214,8 @@ function EtatsSystemeNormalPage() {
     setErreur(null);
     setExportEnCours(true);
     try {
-      await api.telecharger(`/exports/etats-financiers/${chemin}?exerciceId=${exerciceCourant.id}`, `${nomFichier}.xlsx`);
+      const h = onglet === 'reconciliation-tresorerie' ? parametrePaiementsEnInstance(paiementsEnInstance) : '';
+      await api.telecharger(`/exports/etats-financiers/${chemin}?exerciceId=${exerciceCourant.id}${h}`, `${nomFichier}.xlsx`);
     } catch (e) {
       setErreur(e instanceof Error ? e.message : "Échec de l'export");
     } finally {
@@ -1064,7 +1071,7 @@ function EtatsSystemeNormalPage() {
                 if (!exerciceCourant) return;
                 api
                   .get<TableauReconciliationTresorerie>(
-                    `/etats-financiers/projet/reconciliation-tresorerie?exerciceId=${exerciceCourant.id}&paiementsEnInstance=${Number(paiementsEnInstance) || 0}`,
+                    `/etats-financiers/projet/reconciliation-tresorerie?exerciceId=${exerciceCourant.id}${parametrePaiementsEnInstance(paiementsEnInstance)}`,
                   )
                   .then(setReconciliation, (e) => setErreur(e.message));
               }}
@@ -1096,7 +1103,9 @@ function EtatsSystemeNormalPage() {
                   >
                     <span>{l.libelle}</span>
                     <span className="font-mono text-[11px] text-text-dim text-center">{l.rep}</span>
-                    <span className="font-mono text-right">{montant(l.montant)}</span>
+                    <span className="font-mono text-right">
+                      {l.montant === null ? <span className="text-text-dim font-normal">non renseigné</span> : montant(l.montant)}
+                    </span>
                   </div>
                 ))}
               </div>

@@ -410,6 +410,11 @@ describe('exports SYSCOHADA individuels · charte ETAFI, état seul en valeurs',
     );
     expect(formuleDe(ws.getCell(r.get('ZF')!, 4))).toBe(`D${r.get('ZD')}+D${r.get('ZE')}`);
     expect(formuleDe(ws.getCell(r.get('ZH')!, 4))).toBe(`D${r.get('ZG')}+D${r.get('ZA')}`);
+    // AUDIT FINAL F14 · e0 n'a pas d'exercice antérieur : ZA et les totaux
+    // qui en dépendent restent VIDES en N-1, ni zéro ni formule qui lirait
+    // la cellule vide comme zéro. FA, calculable, garde sa valeur.
+    expect([ws.getCell(r.get('ZA')!, 5).value, ws.getCell(r.get('ZH')!, 5).value]).toEqual([null, null]);
+    expect(typeof ws.getCell(r.get('FA')!, 5).value).toBe('number');
     // Lignes clefs (ouverture, variation, clôture) sur le bleu 003366.
     expect(fondDe(ws.getCell(r.get('ZH')!, 2))).toBe('FF003366');
     // Intitulés de rubrique intercalés, sur bande grise et sans code REF.
@@ -528,6 +533,11 @@ describe('liasse complète · Système normal SYSCOHADA', () => {
     expect(gravites).not.toContain('BLOQUANT');
     expect(gravites).not.toContain('A_TRAITER');
     expect(gravites).toContain('INFO');
+    // AUDIT FINAL F14 · les cellules N-1 du TFT laissées vides y ont leur
+    // motif, sous l'état et la colonne qui les portent.
+    const etats: string[] = [];
+    wb.getWorksheet('ANOMALIES')!.eachRow((row) => etats.push(String(row.getCell(3).value ?? '')));
+    expect(etats).toContain('Tableau des flux · colonne N-1');
 
     // Pages porteuses de cartouche numérotées en continu.
     expect(fiche1.getCell('A1').value).toMatch(/^- \d+ -$/);

@@ -483,6 +483,19 @@ describe('liasse complète · jeu projets de développement', () => {
       if (row.getCell(2).value === 'B') rangB = n;
     });
     expect((recon.getCell(rangB, 3).value as { formula?: string }).formula).toContain("'Emplois-Ressources'!D");
+    // AUDIT FINAL F13 · sans saisie du repère H, la cellule le dit et I n'est
+    // pas une formule qui lirait la cellule vide comme zéro.
+    const rangDe = (rep: string) => {
+      let n0 = 0;
+      recon.eachRow((row, n) => {
+        if (row.getCell(2).value === rep) n0 = n;
+      });
+      return n0;
+    };
+    expect([recon.getCell(rangDe('H'), 3).value, typeof recon.getCell(rangDe('I'), 3).value === 'object']).toEqual([
+      'non renseigné',
+      false,
+    ]);
 
     // Exécution budgétaire vierge · les formules du modèle sont posées.
     const eb = wb.getWorksheet('Execution budgetaire')!;

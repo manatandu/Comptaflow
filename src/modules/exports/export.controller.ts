@@ -10,6 +10,7 @@ import { ReferentielGuard } from '../../common/guards/referentiel.guard';
 import { ReferentielsAutorises } from '../../common/decorators/referentiels.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { ClasseurExporte, ExportService } from './export.service';
+import { lirePaiementsEnInstance } from '../etats-financiers/paiements-en-instance';
 
 /**
  * Cloisonnement par ROUTE, pas par contrôleur : journal, grand livre et
@@ -272,15 +273,9 @@ export class ExportController {
     @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
     @Query('paiementsEnInstance') paiementsEnInstance?: string,
   ) {
-    const montant = Number(paiementsEnInstance);
-    envoyerXlsx(
-      res,
-      await this.exportService.liasseCompleteExcel(
-        user.tenantId,
-        exerciceId,
-        Number.isFinite(montant) ? montant : 0,
-      ),
-    );
+    // Lu AVANT la réponse · une réponse commencée ne devient plus un 400.
+    const paiements = lirePaiementsEnInstance(paiementsEnInstance);
+    envoyerXlsx(res, await this.exportService.liasseCompleteExcel(user.tenantId, exerciceId, paiements));
   }
 
   @ReferentielsAutorises(Referentiel.SYCEBNL)
@@ -375,14 +370,10 @@ export class ExportController {
     @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
     @Query('paiementsEnInstance') paiementsEnInstance?: string,
   ) {
-    const montant = Number(paiementsEnInstance);
+    const paiements = lirePaiementsEnInstance(paiementsEnInstance);
     envoyerXlsx(
       res,
-      await this.exportService.reconciliationTresorerieExcel(
-        user.tenantId,
-        exerciceId,
-        Number.isFinite(montant) ? montant : 0,
-      ),
+      await this.exportService.reconciliationTresorerieExcel(user.tenantId, exerciceId, paiements),
     );
   }
 

@@ -437,6 +437,13 @@ describe('Tableau de réconciliation de trésorerie', () => {
     expect(t.lignes.find((l) => l.rep === 'I')!.montant).toBe(380_000);
     expect(t.avertissements.some((a) => a.includes('extra-comptables'))).toBe(true);
   });
+
+  // AUDIT FINAL F13 · absent n'est pas zéro · H le dit, I n'est pas calculé.
+  it('non renseignés, les paiements en instance rendent H et I nuls, jamais zéro', async () => {
+    const s = service({ balance: [ligneBalance('52110000', {}, { debit: 500_000 })] });
+    const t = await s.reconciliationTresorerie('t1', 'e1');
+    expect([t.lignes.find((l) => l.rep === 'H')!.montant, t.lignes.find((l) => l.rep === 'I')!.montant]).toEqual([null, null]);
+  });
 });
 
 describe("Tableau d'exécution budgétaire · les OD analytiques", () => {

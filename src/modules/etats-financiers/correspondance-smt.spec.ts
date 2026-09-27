@@ -15,6 +15,7 @@ import {
   VENTILATION_RECETTES,
 } from './correspondance-smt';
 import { PLAN_COMPTES_SYCEBNL } from '../comptes/compte-seed';
+import { correspond } from './etats-financiers.communs';
 
 /**
  * SYSTÈME MINIMAL DE TRÉSORERIE · 480 lignes que rien ne vérifiait, et le
@@ -118,6 +119,20 @@ describe('correspondance SMT · conformité à la maquette officielle', () => {
       ['VC', -1],
       ['JG', -1],
     ]);
+  });
+
+  /**
+   * AUDIT FINAL F15 · la catégorie 2 lisait tout le 70 hors 704, et la
+   * catégorie 4 lisait le 702 · le fonds d'administration gonflait la
+   * catégorie comparée au seuil et comptait deux fois dans le total et dans
+   * le cumul biennal. Sur le plan semé, un compte appartient à UNE catégorie
+   * au plus.
+   */
+  it('chaque compte de détail du plan semé appartient à une catégorie de l’art. 6 au plus', () => {
+    const doubles = PLAN_COMPTES_SYCEBNL.filter((c) => c.typeCompte !== 'TOTAL')
+      .map((c) => ({ numero: c.numero, categories: CATEGORIES_RESSOURCES_ART6.filter((k) => correspond(c.numero, k.comptes, k.exclusions)).map((k) => k.cle) }))
+      .filter((c) => c.categories.length > 1);
+    expect(doubles).toEqual([]);
   });
 
   it('porte les cinq notes du SMT et le seuil de l’art. 6', () => {

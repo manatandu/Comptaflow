@@ -331,7 +331,7 @@ export class EtatsFinanciersProjetBudgetService {
    *    paramètre de l'état, à saisir par l'entité, et il est repris tel quel
    *    sur l'impression.
    */
-  async reconciliationTresorerie(tenantId: string, exerciceId: string, paiementsEnInstance = 0) {
+  async reconciliationTresorerie(tenantId: string, exerciceId: string, paiementsEnInstance: number | null = null) {
     const [lignes, ecritures] = await Promise.all([
       this.chargerLignes(tenantId, exerciceId),
       this.prisma.ecriture.findMany({
@@ -378,7 +378,9 @@ export class EtatsFinanciersProjetBudgetService {
     }
 
     const g = tresorerieDebut + fondsBailleurs + interets + autresFonds - 0 - depenses;
-    const repere = (rep: string, libelle: string, montant: number) => ({ rep, libelle, montant });
+    // `null` pour H non renseigné, et donc pour I (audit final F13) · jamais
+    // un zéro qui ressemblerait à une réponse.
+    const repere = (rep: string, libelle: string, montant: number | null) => ({ rep, libelle, montant });
 
     return {
       lignes: [
@@ -390,7 +392,7 @@ export class EtatsFinanciersProjetBudgetService {
         repere('F', "DEPENSES DE L'EXERCICE N", depenses),
         repere('G', "TRESORERIE EN FIN D'EXERCICE N (A+B+C+D-E-F)", g),
         repere('H', 'PAIEMENTS EN INSTANCE', paiementsEnInstance),
-        repere('I', 'TRESORERIE NET DES PAIEMENTS EN INSTANCE (G-H)', g - paiementsEnInstance),
+        repere('I', 'TRESORERIE NET DES PAIEMENTS EN INSTANCE (G-H)', paiementsEnInstance === null ? null : g - paiementsEnInstance),
       ],
       controle: {
         // G, reconstitué depuis les flux, doit égaler la trésorerie de
