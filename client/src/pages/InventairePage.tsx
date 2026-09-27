@@ -319,7 +319,9 @@ export function InventairePage() {
                           Clore la campagne
                         </button>
                       )}
-                      {detail.statut !== 'CLOTUREE' && !detail.procesVerbalEtabliLe && (
+                      {/* Mêmes statuts que `etablirProcesVerbal` · en préparation
+                          le bouton promettait un PV que le serveur refuse. */}
+                      {(detail.statut === 'RECENSEMENT' || detail.statut === 'ARBITRAGE') && !detail.procesVerbalEtabliLe && (
                         <button
                           type="button"
                           onClick={() => agir(() => api.post(`/inventaire/${detail.id}/proces-verbal`, {}))}

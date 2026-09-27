@@ -202,4 +202,17 @@ describe('inventaire physique · chaque geste du serveur a son geste à l’écr
   it('les gestes d’écriture sont lus sous `peutEcrire`', () => {
     expect(page).toMatch(/const \{ peutEcrire \} = useAuth\(\)/);
   });
+
+  it('le PV de campagne n’est proposé qu’aux statuts que le service accepte', () => {
+    const service = readFileSync(join(__dirname, '../../../src/modules/inventaire/inventaire.service.ts'), 'utf8');
+    const corps = service.slice(service.indexOf('async etablirProcesVerbal('), service.indexOf('const membres', service.indexOf('async etablirProcesVerbal(')));
+    expect(corps).toContain('StatutCampagneInventaire.RECENSEMENT');
+    expect(corps).toContain('StatutCampagneInventaire.ARBITRAGE');
+    const appel = page.indexOf('/proces-verbal`');
+    // La condition est la ligne qui ouvre le bloc JSX du bouton (`… && (`).
+    const bouton = page.lastIndexOf('<button', appel);
+    const ouverture = page.lastIndexOf('&& (', bouton);
+    const garde = page.slice(page.lastIndexOf('\n', ouverture), ouverture);
+    expect(garde).toContain("(detail.statut === 'RECENSEMENT' || detail.statut === 'ARBITRAGE')");
+  });
 });
