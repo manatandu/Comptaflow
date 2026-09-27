@@ -1,4 +1,4 @@
-import type { TypeRegularisation } from './types';
+import type { Exercice, TypeRegularisation } from './types';
 
 /**
  * LES CINQ RÉGULARISATIONS À L'ÉCRAN (audit final F67). Le serveur servait la
@@ -37,4 +37,20 @@ export function naturesTiersProposees(type: TypeRegularisation): NatureTiers[] {
   if (type === 'CHARGE_A_PAYER') return ['FOURNISSEURS', 'PERSONNEL', 'ORGANISMES_SOCIAUX', 'ETAT'];
   if (type === 'PRODUIT_A_RECEVOIR') return ['CLIENTS', 'PERSONNEL', 'ORGANISMES_SOCIAUX', 'ETAT'];
   return [];
+}
+
+/**
+ * LES EXERCICES OÙ UNE RÉGULARISATION SE REPREND · ouverts et POSTÉRIEURS à
+ * celui de la constatation (audit final F79), la règle que le serveur oppose
+ * (`RegularisationService.exercicePosterieur`). La liste proposait tout autre
+ * exercice ouvert, antérieur compris.
+ */
+export function exercicesDeReprise<E extends Pick<Exercice, 'id' | 'dateDebut' | 'statut'>>(
+  exercices: E[],
+  exerciceConstatationId: string,
+): E[] {
+  const constatation = exercices.find((e) => e.id === exerciceConstatationId);
+  if (!constatation) return [];
+  const debut = new Date(constatation.dateDebut).getTime();
+  return exercices.filter((e) => e.statut === 'OUVERT' && new Date(e.dateDebut).getTime() > debut);
 }

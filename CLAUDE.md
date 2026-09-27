@@ -5801,6 +5801,17 @@ recours restent ouvertes après un rejet gracieux, et le recours gracieux suppos
 justement de RENONCER aux autres. Rien ne se code là-dessus tant que le fichier
 n'est pas complété.
 
+**UNE ÉCHÉANCE SE LIT AU JOUR, AU JOUR DE KINSHASA (2026-09-27, audit final
+F81).** `common/echeance.ts` · un jour est une date à minuit UTC, jamais une
+date locale (sur un poste réglé à Kinshasa, minuit local est 23 h UTC la
+veille, et le jour affiché reculait) ; « aujourd'hui » est `jourDeKinshasa`,
+et une échéance n'est dépassée qu'au LENDEMAIN (`echeanceDepassee`). Le
+registre des retenues, `jour-ouvrable.ts` et le planning de clôture suivent
+cette convention, et le planning ne reporte que ses échéances FISCALES
+(`echeanceFiscale`) · aucun texte ne reporte les autres. Le fuseau d'un
+processus se fixe à son démarrage · un test qui le fait varier lance un
+processus fils.
+
 **LE JOUR OUVRABLE, CORRIGÉ DEUX FOIS EN VINGT-QUATRE HEURES (2026-09-18).**
 La passe F10 avait posé le report de l'art. 110 bis, al. 2 avec deux limites
 déclarées. Manasse a fermé les deux le lendemain, et la seconde n'était pas une

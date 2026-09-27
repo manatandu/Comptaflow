@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { estRattachement, naturesTiersProposees, porteUneCharge } from './regularisation-types';
+import { estRattachement, exercicesDeReprise, naturesTiersProposees, porteUneCharge } from './regularisation-types';
 
 /**
  * AUDIT FINAL F67 · l'écran des régularisations sert les cinq types du
@@ -44,5 +44,23 @@ describe('F67 · les régularisations à l’écran', () => {
   it('la nature du tiers part avec la demande, et l’aperçu d’un rattachement n’est pas un prorata', () => {
     expect(page).toContain('...(estRattachement(type) && natureTiers ? { natureTiers } : {})');
     expect(page).toMatch(/simulation\?\.rattachement && \([\s\S]*?Rattaché entièrement à cet exercice/);
+  });
+});
+
+describe('F79 · les exercices de reprise', () => {
+  const ex = (id: string, debut: string, statut: 'OUVERT' | 'CLOTURE' = 'OUVERT') => ({ id, dateDebut: debut, statut });
+  const exercices = [ex('n0', '2025-01-01'), ex('n', '2026-01-01'), ex('n1', '2027-01-01'), ex('n2', '2028-01-01', 'CLOTURE')];
+
+  it('ne propose que les exercices ouverts postérieurs à la constatation', () => {
+    expect(exercicesDeReprise(exercices, 'n').map((e) => e.id)).toEqual(['n1']);
+  });
+
+  it('la fenêtre propose ces exercices-là, et confirme avant de passer la reprise', () => {
+    const i = page.indexOf('Reprendre sur…');
+    expect(i).toBeGreaterThan(0);
+    const select = page.slice(page.lastIndexOf('<select', i), page.indexOf('</select>', i));
+    expect(select).toContain('exercicesDeReprise(exercices, r.exerciceId)');
+    // Le choix ne passe l'écriture qu'à travers la confirmation.
+    expect(select).toMatch(/window\.confirm\([\s\S]*\)\s*\) \{\s*reprendre\(r\.id, cible\.id\);/);
   });
 });

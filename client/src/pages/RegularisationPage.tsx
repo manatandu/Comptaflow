@@ -16,6 +16,7 @@ import type {
 import {
   LIBELLE_NATURE_TIERS,
   estRattachement,
+  exercicesDeReprise,
   naturesTiersProposees,
   porteUneCharge,
   type NatureTiers,
@@ -589,13 +590,24 @@ export function RegularisationPage() {
                     </span>
                   ) : peutEcrire ? (
                     <select
-                      defaultValue=""
-                      onChange={(e) => e.target.value && reprendre(r.id, e.target.value)}
+                      value=""
+                      onChange={(e) => {
+                        // UNE ÉCRITURE NE PART PAS D'UN SIMPLE CHOIX DANS UNE LISTE
+                        // (audit final F79) · elle se confirme.
+                        const cible = exercices.find((ex) => ex.id === e.target.value);
+                        if (
+                          cible &&
+                          window.confirm(
+                            `Passer la reprise de « ${r.libelle} » sur l’exercice ${new Date(cible.dateDebut).getFullYear()} ?`,
+                          )
+                        ) {
+                          reprendre(r.id, cible.id);
+                        }
+                      }}
                       className="w-full border border-border rounded-[4px] px-1 py-0.5 text-[11.5px]"
                     >
                       <option value="">Reprendre sur…</option>
-                      {exercices
-                        .filter((ex) => ex.id !== r.exerciceId && ex.statut === 'OUVERT')
+                      {exercicesDeReprise(exercices, r.exerciceId)
                         .map((ex) => (
                           <option key={ex.id} value={ex.id}>
                             Exercice {new Date(ex.dateDebut).getFullYear()}

@@ -150,6 +150,12 @@ export interface DefinitionJalon {
   echeance: Decalage;
   source: string;
   /**
+   * L'échéance est un délai prescrit par la LÉGISLATION FISCALE · tombant un
+   * jour non ouvrable, elle est reportée au premier jour ouvrable qui suit
+   * (LPF art. 110 bis, al. 2). Absent = aucun texte ne la reporte.
+   */
+  echeanceFiscale?: true;
+  /**
    * Formes juridiques concernées · absent = toutes. C'est ce champ qui évite
    * de servir à une ONG le circuit d'une entreprise commerciale, et
    * réciproquement.
@@ -517,6 +523,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     echeance: { moisApres: 4, jour: 'FIN' },
     source:
       'CENCO, Vade Mecum du gestionnaire (obligations fiscales de l’ASBL) ; loi n° 23/053, art. 140 et art. 141, 2° (mention du comptable) ; à confirmer sur texte primaire',
+    echeanceFiscale: true,
     referentiels: [Referentiel.SYCEBNL],
   },
   {
@@ -542,6 +549,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     echeance: { moisApres: 4, jour: 'FIN' },
     source:
       'Loi n° 004/2003 portant réforme des procédures fiscales, art. 12 (échéance), 13 (états joints), 14 (certification ONEC) et 15 (déclaration en cas de perte), modifiés par la loi n° 23/052 ; art. 57 bis LPF tel que modifié par la loi de finances n° 25/060 du 29 décembre 2025 ; loi n° 23/053, art. 141, 2° (mention du comptable)',
+    echeanceFiscale: true,
     referentiels: [Referentiel.SYSCOHADA],
     formesSyscohadaExclues: FORMES_PERSONNES_PHYSIQUES,
   },
@@ -586,6 +594,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     echeance: { moisApres: 4, jour: 'FIN' },
     source:
       'Loi n° 004/2003 portant réforme des procédures fiscales, art. 17 (déclaration des personnes physiques, modifié par la loi n° 23/052 et par la loi de finances n° 25/060), art. 13 (annexes) et art. 57, al. 2 et 3, et 57 bis ; loi n° 23/053, art. 141, 2° (mention du comptable)',
+    echeanceFiscale: true,
     referentiels: [Referentiel.SYSCOHADA],
     formesSyscohada: FORMES_PERSONNES_PHYSIQUES,
   },
@@ -1030,9 +1039,10 @@ export function jalonsApplicables(contexte: {
 }
 
 /**
- * Applique un décalage à la date de clôture de l'exercice. Calculs en UTC,
- * comme partout ailleurs dans le logiciel : une date d'échéance ne doit pas
- * changer de jour selon le fuseau du poste qui l'affiche.
+ * Applique un décalage à la date de clôture de l'exercice. Le résultat est un
+ * JOUR à minuit UTC, la convention de `common/echeance.ts`, que le registre
+ * des retenues suit aussi depuis l'audit final F81 · une date d'échéance ne
+ * doit pas changer de jour selon le fuseau du poste qui l'affiche.
  */
 export function dateJalon(dateFinExercice: Date, decalage: Decalage): Date {
   const annee = dateFinExercice.getUTCFullYear();

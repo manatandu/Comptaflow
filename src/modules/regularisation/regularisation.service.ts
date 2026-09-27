@@ -577,6 +577,11 @@ export class RegularisationService {
    * qui la traite nommément, et le § 5.5 du SYSCOHADA tolère expressément
    * cette date. Les deux référentiels restent donc dans leur texte.
    */
+  /** Un exercice commence après celui de la constatation · la règle de la reprise. */
+  static exercicePosterieur(cible: { dateDebut: Date }, constatation: { dateDebut: Date }): boolean {
+    return cible.dateDebut.getTime() > constatation.dateDebut.getTime();
+  }
+
   async reprendre(tenantId: string, createdBy: string, regularisationId: string, exerciceCibleId: string) {
     const regul = await this.prisma.regularisation.findFirst({
       where: { id: regularisationId, tenantId },
@@ -600,9 +605,18 @@ export class RegularisationService {
     if (cible.statut === StatutExercice.CLOTURE) {
       throw new BadRequestException("L'exercice de reprise est clôturé.");
     }
-    if (cible.dateDebut <= regul.periodeDebut && cible.id === regul.exerciceId) {
+    // UN EXERCICE POSTÉRIEUR, jamais seulement « un autre » (audit final F79) ·
+    // seul l'exercice de la constatation était refusé, et une reprise sur un
+    // exercice ANTÉRIEUR encore ouvert s'y passait · la charge sortait d'un
+    // exercice qui ne l'avait jamais portée, chaque écriture équilibrée.
+    const constatation = await this.prisma.exercice.findFirst({
+      where: { id: regul.exerciceId, tenantId },
+      select: { dateDebut: true },
+    });
+    if (!constatation) throw new NotFoundException('Exercice de la constatation introuvable.');
+    if (!RegularisationService.exercicePosterieur(cible, constatation)) {
       throw new BadRequestException(
-        "La reprise se fait sur un exercice ULTÉRIEUR à celui de la constatation, pas sur le même.",
+        "La reprise se fait sur un exercice ULTÉRIEUR à celui de la constatation, jamais sur le même ni sur un antérieur.",
       );
     }
 

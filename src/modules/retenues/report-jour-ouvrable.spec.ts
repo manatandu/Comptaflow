@@ -9,6 +9,7 @@ import {
   RESERVE_JOUR_OUVRABLE,
 } from './jour-ouvrable';
 import { readFileSync } from 'fs';
+import { execFileSync } from 'child_process';
 import { join } from 'path';
 
 /**
@@ -201,6 +202,52 @@ describe('Report au premier jour ouvrable · art. 110 bis, alinéa 2', () => {
     });
   });
 
+  describe('le même jour quel que soit le fuseau du poste (audit final F81)', () => {
+    // Les échéances se construisaient en heure LOCALE · sur un PC installé à
+    // Kinshasa, minuit local est 23 h UTC la veille, et le jour affiché
+    // reculait. Elles sont désormais des jours à minuit UTC
+    // (`common/echeance.ts`). Le fuseau se fixe au DÉMARRAGE d'un processus ·
+    // jest ne le change pas en cours de route, d'où un processus fils par
+    // fuseau. Bogota (UTC-5) aurait lu la veille par les accesseurs locaux,
+    // Kinshasa (UTC+1) aurait daté la veille à l'affichage.
+    const SCRIPT = [
+      "const j = require('./src/modules/retenues/jour-ouvrable');",
+      'const r = {',
+      '  lundi: j.estJourOuvrable(new Date(Date.UTC(2026, 1, 16))),',
+      '  dimanche: j.estJourOuvrable(new Date(Date.UTC(2026, 1, 15))),',
+      '  noel: j.jourFerie(new Date(Date.UTC(2026, 11, 25))),',
+      '  reporte: j.reporterAuJourOuvrable(new Date(Date.UTC(2026, 1, 15))).toISOString(),',
+      // Le passage à l'heure d'été (Paris, 29 mars 2026) fait durer 23 h un
+      // jour local · un report compté en jours locaux quitterait minuit UTC.
+      '  heureEte: j.reporterAuJourOuvrable(new Date(Date.UTC(2026, 2, 29))).toISOString(),',
+      '  janvier: j.echeanceDeReversement(15, 2026, 0).toISOString(),',
+      // Une échéance qui ne se reporte pas · le 15 avril 2026 est un mercredi,
+      // et le report ne peut plus rattraper le jour perdu par l'heure locale.
+      '  mars: j.echeanceDeReversement(15, 2026, 2).toISOString(),',
+      '};',
+      'process.stdout.write(JSON.stringify(r));',
+    ].join('\n');
+
+    for (const tz of ['Africa/Kinshasa', 'America/Bogota', 'Europe/Paris']) {
+      it(`${tz} · le lundi 16 février 2026 est ouvrable, et l'échéance de janvier y tombe`, () => {
+        const sortie = execFileSync(
+          join(__dirname, '../../../node_modules/.bin/ts-node'),
+          ['-T', '-O', '{"module":"commonjs"}', '-e', SCRIPT],
+          { cwd: join(__dirname, '../../..'), env: { ...process.env, TZ: tz }, encoding: 'utf8' },
+        );
+        expect(JSON.parse(sortie)).toEqual({
+          lundi: true,
+          dimanche: false,
+          noel: 'Noël',
+          reporte: '2026-02-16T00:00:00.000Z',
+          heureEte: '2026-03-30T00:00:00.000Z',
+          janvier: '2026-02-16T00:00:00.000Z',
+          mars: '2026-04-15T00:00:00.000Z',
+        });
+      }, 60_000);
+    }
+  });
+
   describe("ce qui n'est PAS calculé, et qui doit être dit", () => {
     it('la réserve est servie avec le registre et porte ses trois sources datées', () => {
       expect(AVERTISSEMENT_REGISTRE).toContain(RESERVE_JOUR_OUVRABLE);
@@ -245,9 +292,11 @@ describe('Report au premier jour ouvrable · art. 110 bis, alinéa 2', () => {
       // aucun ne refait le test du jour. C'est la leçon de
       // `calculerPropositions`.
       const source = readFileSync(join(__dirname, 'retenues.service.ts'), 'utf8');
-      expect(source).toContain("import { reporterAuJourOuvrable } from './jour-ouvrable'");
+      // L'échéance du mois passe par `echeanceDeReversement`, qui reporte
+      // elle-même (audit final F81).
+      expect(source).toContain("import { echeanceDeReversement, reporterAuJourOuvrable } from './jour-ouvrable'");
       expect(source).not.toMatch(/getDay\(\)/);
-      expect((source.match(/reporterAuJourOuvrable\(/g) ?? []).length).toBeGreaterThanOrEqual(5);
+      expect((source.match(/(?:reporterAuJourOuvrable|echeanceDeReversement)\(/g) ?? []).length).toBeGreaterThanOrEqual(5);
     });
   });
 });

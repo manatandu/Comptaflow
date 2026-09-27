@@ -331,9 +331,15 @@ describe('validation', () => {
 });
 
 describe('état du brouillard · retard de centralisation', () => {
-  function prismaAvec(createdAt: Date, referentiel = 'SYCEBNL') {
+  function prismaAvec(createdAt: Date, referentiel = 'SYCEBNL', statutExercice = 'OUVERT') {
     return {
       tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel }) },
+      // La doublure honore le dossier et l'exercice demandés.
+      exercice: {
+        findFirst: jest.fn().mockImplementation(({ where }: { where: { id: string; tenantId: string } }) =>
+          Promise.resolve(where.id === 'ex1' && where.tenantId === 't1' ? { statut: statutExercice } : null),
+        ),
+      },
       ecriture: {
         findMany: jest.fn().mockResolvedValue([
           {
@@ -361,6 +367,32 @@ describe('état du brouillard · retard de centralisation', () => {
     expect(r.lignes[0].ancienneteJours).toBe(9);
     expect(r.lignes[0].retardCentralisation).toBe(true);
     expect(r.totaux.enRetard).toBe(1);
+  });
+
+  it('ne réclame pas le brouillard que personne ne peut valider (audit final F77)', async () => {
+    // L'écriture de clôture d'un exercice clos et le report à-nouveau
+    // provisoire restent au brouillard par construction · les dire « en
+    // retard » réclamerait une validation que `valider` refuse.
+    const vieille = new Date(Date.now() - 90 * 86_400_000);
+    const clos = prismaAvec(vieille, 'SYCEBNL', 'CLOTURE');
+    const ecr = (clos as { ecriture: { findMany: jest.Mock } }).ecriture.findMany;
+    const [modele] = await ecr();
+    ecr.mockResolvedValueOnce([{ ...modele, estGenereeParCloture: true, estANouveauProvisoire: false }]);
+    const r = await service(clos).brouillard('t1', { exerciceId: 'ex1' });
+    expect(r.lignes[0]).toMatchObject({ invalidable: true, retardCentralisation: false });
+    expect(r.totaux.enRetard).toBe(0);
+
+    const ouvert = prismaAvec(vieille);
+    const ecr2 = (ouvert as { ecriture: { findMany: jest.Mock } }).ecriture.findMany;
+    ecr2.mockResolvedValueOnce([{ ...modele, estGenereeParCloture: true, estANouveauProvisoire: true }]);
+    const r2 = await service(ouvert).brouillard('t1', { exerciceId: 'ex1' });
+    expect(r2.lignes[0]).toMatchObject({ invalidable: true, retardCentralisation: false });
+
+    // La clôture d'un exercice encore OUVERT se valide · elle reste réclamée.
+    const ecr3 = (ouvert as { ecriture: { findMany: jest.Mock } }).ecriture.findMany;
+    ecr3.mockResolvedValueOnce([{ ...modele, estGenereeParCloture: true, estANouveauProvisoire: false }]);
+    const r3 = await service(ouvert).brouillard('t1', { exerciceId: 'ex1' });
+    expect(r3.lignes[0]).toMatchObject({ invalidable: false, retardCentralisation: true });
   });
 
   it('rend tout ce que la modification doit renvoyer · devise, cours et ventilation', async () => {
@@ -427,6 +459,7 @@ describe('état du brouillard · retard de centralisation', () => {
   it('compte les écritures déséquilibrées du brouillard', async () => {
     const prisma = {
       tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel: 'SYCEBNL' }) },
+      exercice: { findFirst: jest.fn().mockResolvedValue({ statut: 'OUVERT' }) },
       ecriture: {
         findMany: jest.fn().mockResolvedValue([
           {

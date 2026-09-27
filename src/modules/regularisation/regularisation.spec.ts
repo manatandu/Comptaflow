@@ -347,6 +347,7 @@ describe('Reprise · l’inverse exact de la constatation, pour chaque type', ()
     const exercices: Record<string, unknown> = {
       n: { id: 'n', statut: 'OUVERT', dateDebut: d('2026-01-01'), dateFin: d('2026-12-31') },
       n1: { id: 'n1', statut: 'OUVERT', dateDebut: d('2027-01-01'), dateFin: d('2027-12-31') },
+      n0: { id: 'n0', statut: 'OUVERT', dateDebut: d('2025-01-01'), dateFin: d('2025-12-31') },
     };
     let enregistree: Record<string, unknown> | null = null;
     const ecritures: Array<{ lignes: Array<{ compteId: string; debit?: number; credit?: number }> }> = [];
@@ -404,6 +405,24 @@ describe('Reprise · l’inverse exact de la constatation, pour chaque type', ()
     // Un montant non nul à la constatation, sinon un solde nul ne prouverait rien.
     expect(ecritures[0].lignes.some((l) => (l.debit ?? 0) > 0)).toBe(true);
     expect(solde).toEqual({ gestion: 0, contrepartie: 0 });
+  });
+
+  it('refuse la reprise sur le même exercice ou sur un exercice antérieur encore ouvert (audit final F79)', async () => {
+    const { svc, ecritures } = monde(TypeRegularisation.CHARGE_CONSTATEE_AVANCE);
+    await svc.creer('t1', 'u1', {
+      exerciceId: 'n',
+      type: TypeRegularisation.CHARGE_CONSTATEE_AVANCE,
+      libelle: 'Loyer',
+      compteChargeProduitId: 'gestion',
+      montantTotal: 1_200,
+      periodeDebut: '2026-07-01',
+      periodeFin: '2027-06-30',
+    } as never);
+    for (const cible of ['n0', 'n']) {
+      await expect(svc.reprendre('t1', 'u1', 'r1', cible)).rejects.toThrow(/exercice ULTÉRIEUR/);
+    }
+    // Seule la constatation est passée.
+    expect(ecritures).toHaveLength(1);
   });
 });
 

@@ -16,7 +16,8 @@ import {
   obligationsDeclarativesApplicables,
   reservePourReferentiel,
 } from './correspondance-retenues';
-import { reporterAuJourOuvrable } from './jour-ouvrable';
+import { echeanceDeReversement, reporterAuJourOuvrable } from './jour-ouvrable';
+import { echeanceDepassee, jourDeKinshasa, jourUtc } from '../../common/echeance';
 
 /**
  * Le report à-nouveau · une écriture de clôture qui n'est pas celle qui solde
@@ -160,7 +161,7 @@ export class RetenuesService {
     // retard » dès le lundi 16 à un redevable qui avait la journée entière
     // pour verser. Voir jour-ouvrable.ts pour ce qui est calculé et ce qui ne
     // l'est pas.
-    return reporterAuJourOuvrable(new Date(annee, moisZeroBase + 1, nature.joursApresPeriode));
+    return echeanceDeReversement(nature.joursApresPeriode, annee, moisZeroBase);
   }
 
   /**
@@ -169,8 +170,8 @@ export class RetenuesService {
    * celle du mois suivant.
    */
   private prochaineEcheance(nature: NatureRetenue, reference: Date): Date {
-    const echeance = new Date(reference.getFullYear(), reference.getMonth(), nature.joursApresPeriode);
-    if (echeance < reference) echeance.setMonth(echeance.getMonth() + 1);
+    const echeance = new Date(Date.UTC(reference.getUTCFullYear(), reference.getUTCMonth(), nature.joursApresPeriode));
+    if (echeanceDepassee(echeance, reference)) echeance.setUTCMonth(echeance.getUTCMonth() + 1);
     // Art. 110 bis, al. 2 · même report que sur l'échéance mensuelle. Il est
     // appliqué APRÈS le choix du mois : reporter d'abord ferait comparer une
     // date déjà déplacée à la référence et sauterait un mois entier quand le
@@ -196,15 +197,15 @@ export class RetenuesService {
       // déclaration en cours présentée comme déjà réglée.
       const jours = obligation.joursApresPeriode ?? 10;
       for (let m = -1; m < 2; m++) {
-        const finDeMois = new Date(reference.getFullYear(), reference.getMonth() + m + 1, 0);
+        const finDeMois = new Date(Date.UTC(reference.getUTCFullYear(), reference.getUTCMonth() + m + 1, 0));
         const echeance = reporterAuJourOuvrable(
           (() => {
             const d = new Date(finDeMois);
-            d.setDate(d.getDate() + jours);
+            d.setUTCDate(d.getUTCDate() + jours);
             return d;
           })(),
         );
-        if (echeance >= reference) return echeance;
+        if (!echeanceDepassee(echeance, reference)) return echeance;
       }
     }
     if (obligation.periodicite === 'TRIMESTRIELLE') {
@@ -213,26 +214,26 @@ export class RetenuesService {
       // passée · même raison qu'au mensuel : le 5 juillet, le relevé du
       // deuxième trimestre est encore dû (le 10 juillet). Les trimestres
       // civils finissent en mars, juin, sept., déc.
-      for (let t = Math.floor(reference.getMonth() / 3) - 1; t < 8; t++) {
+      for (let t = Math.floor(reference.getUTCMonth() / 3) - 1; t < 8; t++) {
         // Le mois est laissé DÉBORDER volontairement (0 ou > 11) : Date le
         // reporte sur l'année voisine · un calcul en modulo 4 se trompait
         // d'un an sur le trimestre précédent quand il est celui de l'année
         // écoulée (JS rend -1 pour -1 % 4).
-        const finTrimestre = new Date(reference.getFullYear(), (t + 1) * 3, 0);
+        const finTrimestre = new Date(Date.UTC(reference.getUTCFullYear(), (t + 1) * 3, 0));
         const echeance = reporterAuJourOuvrable(
           (() => {
             const d = new Date(finTrimestre);
-            d.setDate(d.getDate() + jours);
+            d.setUTCDate(d.getUTCDate() + jours);
             return d;
           })(),
         );
-        if (echeance >= reference) return echeance;
+        if (!echeanceDepassee(echeance, reference)) return echeance;
       }
     }
     const mois = (obligation.moisEcheance ?? 3) - 1;
     const jour = obligation.jourEcheance ?? 31;
-    const echeance = new Date(reference.getFullYear(), mois, jour);
-    if (echeance < reference) echeance.setFullYear(echeance.getFullYear() + 1);
+    const echeance = new Date(Date.UTC(reference.getUTCFullYear(), mois, jour));
+    if (echeanceDepassee(echeance, reference)) echeance.setUTCFullYear(echeance.getUTCFullYear() + 1);
     // Art. 110 bis, al. 2, comme sur les deux périodicités précédentes. Le
     // report vient APRÈS le choix de l'année, pour la même raison qu'au
     // mensuel : il peut franchir le 31 décembre.
@@ -248,8 +249,9 @@ export class RetenuesService {
    * retard. C'est le mois qui est l'unité de l'obligation.
    */
   async registre(tenantId: string, params: { exerciceId: string; dateReference?: string }) {
-    const reference = params.dateReference ? new Date(params.dateReference) : new Date();
-    reference.setHours(0, 0, 0, 0);
+    // LE JOUR, PAS L'INSTANT (audit final F81) · au jour de Kinshasa, à minuit
+    // UTC, comme toutes les échéances qu'on lui compare.
+    const reference = params.dateReference ? jourUtc(new Date(params.dateReference)) : jourDeKinshasa(new Date());
 
     // LE RÉGIME D'IMPÔT DU DOSSIER COMMANDE CE QUI EST ÉCRIT EN TÊTE DE CET
     // ÉTAT. Une société est redevable de l'IS, une ASBL en est exemptée : le
@@ -306,7 +308,7 @@ export class RetenuesService {
     // anciens, déjà en retard avant elle : l'état ne signale donc jamais trop
     // tôt, au prix de signaler parfois trop tard.
     const moisAnterieur = exercice
-      ? { annee: exercice.dateDebut.getFullYear(), mois: exercice.dateDebut.getMonth() - 1 }
+      ? { annee: exercice.dateDebut.getUTCFullYear(), mois: exercice.dateDebut.getUTCMonth() - 1 }
       : null;
 
     const natures = NATURES_RETENUES.map((nature) => {
@@ -321,7 +323,7 @@ export class RetenuesService {
         // « antérieur », jamais dans janvier.
         if (estReportANouveau(l.ecriture)) continue;
         const rattachement = this.dateDeRattachement(l);
-        const mois = `${rattachement.getFullYear()}-${String(rattachement.getMonth() + 1).padStart(2, '0')}`;
+        const mois = `${rattachement.getUTCFullYear()}-${String(rattachement.getUTCMonth() + 1).padStart(2, '0')}`;
         // Crédit = retenue constituée (dette envers l'État) ;
         // débit = reversement effectué.
         const retenu = Number(l.credit);
@@ -446,7 +448,7 @@ export class RetenuesService {
             echeance,
             // Un solde encore dû après l'échéance est un retard de
             // reversement · c'est ce que l'état doit crier, et seulement là.
-            enRetard: solde > 0.005 && echeance < reference,
+            enRetard: solde > 0.005 && echeanceDepassee(echeance, reference),
           };
         });
 
@@ -480,7 +482,7 @@ export class RetenuesService {
         est pas : ce dernier mois peut donc ressortir non reversé alors qu'il
         a été payé. La réserve est portée dans le message.
       */
-      const moisEchus = mois.filter((m) => m.echeance < reference);
+      const moisEchus = mois.filter((m) => echeanceDepassee(m.echeance, reference));
       const retenuEchuNonReverse = moisEchus.reduce((s, m) => s + m.solde, 0);
       const echeancesEchues = moisEchus.map((m) => m.echeance);
       return {

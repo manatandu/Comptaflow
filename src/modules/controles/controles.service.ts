@@ -18,6 +18,7 @@ import { regleAuditeur, type RegleAuditeur } from './regles-auditeur';
 import { sourceManuel } from '../documents-obligatoires/manuel-procedures.service';
 import { PREFIXES_CHIFFRE_AFFAIRES_SYSCOHADA } from '../etats-financiers-syscohada/correspondance-compte-resultat-syscohada';
 import { evaluerComparabilite } from '../etats-financiers/comparabilite-exercices';
+import { ancienneteJours, enRetardDeCentralisation } from '../comptabilite/centralisation-brouillard';
 import { dernierExerciceCouvert, estDansLaProrogation, regleDeProrogation } from '../mandat-auditeur/duree-mandat';
 import {
   articleTrenteSeptApplicable,
@@ -270,20 +271,6 @@ const IMMOBILISATIONS_DE_LA_PRODUCTION = ['21', '23', '24'];
 export class ControlesService {
   /** Au-delà, une créance ou une dette non lettrée mérite qu'on la regarde. */
   private static readonly JOURS_ANCIENNETE_TIERS = 180;
-  /**
-   * Délai de centralisation du brouillard · il DIFFÈRE selon le référentiel,
-   * et servir le plus strict des deux à tout le monde n'est pas prudent, c'est
-   * faux : on reprochait à une entreprise un retard que sa loi n'a jamais
-   * exigé, en citant un texte qui n'est pas le sien.
-   *
-   *  · SYCEBNL, Partie 2 ch. 2 · centralisation au moins CHAQUE SEMAINE ;
-   *  · AUDCIF, art. 19 · centralisation au moins une fois par MOIS.
-   */
-  private static readonly JOURS_CENTRALISATION: Record<Referentiel, number> = {
-    [Referentiel.SYCEBNL]: 7,
-    [Referentiel.SYSCOHADA]: 30,
-  };
-
   constructor(private readonly prisma: PrismaService) {}
 
   private async exercice(tenantId: string, exerciceId: string) {
@@ -934,22 +921,14 @@ export class ControlesService {
 
     // --- 4. Brouillard en retard de centralisation ---------------------------
     const maintenant = Date.now();
-    const joursCentralisation = ControlesService.JOURS_CENTRALISATION[tenant.referentiel];
-    // DEUX BROUILLARDS QUE PERSONNE NE PEUT VALIDER, et que ce contrôle
-    // réclamait quand même (audit du serveur du 2026-09-27, F12) · un
-    // contrôle qui prescrit une action impossible fabrique une anomalie
-    // (§ 10 bis). L'écriture de CLÔTURE d'un exercice clôturé : `valider`
-    // refuse tout exercice clos, et la valider solderait ses classes 6 et 7
-    // dans les états qui lisent le livre-journal. Et le report à-nouveau
-    // PROVISOIRE, qui reste au brouillard par construction pour pouvoir être
-    // relancé.
-    const invalidable = (e: (typeof ecritures)[number]) =>
-      e.estANouveauProvisoire || (e.estGenereeParCloture && ex.statut === StatutExercice.CLOTURE);
+    // UN CONTRÔLE QUI PRESCRIT UNE ACTION IMPOSSIBLE FABRIQUE UNE ANOMALIE
+    // (§ 10 bis, audit du serveur F12) · le brouillard que personne ne peut
+    // valider n'est pas réclamé. La règle vit dans centralisation-brouillard.ts,
+    // que l'état du brouillard et le planning appellent aussi (audit final F77).
     const brouillardEnRetard = ecritures.filter(
       (e) =>
         e.statut === StatutEcriture.BROUILLARD &&
-        !invalidable(e) &&
-        (maintenant - e.createdAt.getTime()) / 86_400_000 > joursCentralisation,
+        enRetardDeCentralisation(e, ex.statut, tenant.referentiel, maintenant),
     );
     if (brouillardEnRetard.length > 0) {
       const estSycebnlCentralisation = tenant.referentiel === Referentiel.SYCEBNL;
@@ -965,7 +944,7 @@ export class ControlesService {
         action: 'Relisez ces écritures dans État → Brouillard et validez-les.',
         occurrences: brouillardEnRetard.slice(0, 200).map((e) => ({
           reference: `${e.journal.code} n° ${e.numeroPiece ?? '·'}`,
-          detail: `${e.libelle} · saisie il y a ${Math.floor((maintenant - e.createdAt.getTime()) / 86_400_000)} jours`,
+          detail: `${e.libelle} · saisie il y a ${ancienneteJours(e.createdAt, maintenant)} jours`,
           date: e.date.toISOString().slice(0, 10),
         })),
       });

@@ -14,6 +14,9 @@ import { ArreterComptesDto } from './dto/arrete-comptes.dto';
 import { JournalService } from '../journaux/journal.service';
 import { avecRetrySerialisable } from '../../common/prisma-retry.util';
 import { DERNIERE_VERIFICATION, dateJalon, jalonsApplicables } from './planning-cloture';
+import { filtreBrouillardAValider } from '../comptabilite/centralisation-brouillard';
+import { echeanceDepassee, jourDeKinshasa } from '../../common/echeance';
+import { reporterAuJourOuvrable } from '../retenues/jour-ouvrable';
 import { premierJourNonCloture } from './report-periode-close';
 import { budgetsAReporter, CompteRan, lignesReportANouveau, resultatDesComptesDeGestion } from './report-a-nouveau';
 import { estTenueParUnLettrage } from '../lettrage/ligne-lettree';
@@ -332,7 +335,12 @@ export class ExerciceService {
     const tenant = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } });
 
     const [enBrouillard, transcriptions, rapports, donations] = await Promise.all([
-      this.prisma.ecriture.count({ where: { tenantId, exerciceId, statut: StatutEcriture.BROUILLARD } }),
+      // Le brouillard VALIDABLE · ni le report à-nouveau provisoire ni la
+      // clôture d'un exercice clos, que personne ne peut valider (audit final
+      // F77, règle de centralisation-brouillard.ts).
+      this.prisma.ecriture.count({
+        where: { tenantId, exerciceId, statut: StatutEcriture.BROUILLARD, ...filtreBrouillardAValider(exercice.statut) },
+      }),
       this.prisma.transcriptionInventaire.count({ where: { tenantId, exerciceId } }),
       this.prisma.rapportActivite.count({ where: { tenantId, exerciceId } }),
       this.prisma.donation.findMany({
@@ -384,7 +392,9 @@ export class ExerciceService {
       },
     };
 
-    const aujourdHui = new Date();
+    // LE JOUR DE KINSHASA, PAS L'INSTANT (audit final F81) · un jalon n'est en
+    // retard qu'au lendemain de son échéance.
+    const aujourdHui = jourDeKinshasa(new Date());
     return {
       exerciceId: exercice.id,
       dateDebut: exercice.dateDebut,
@@ -402,7 +412,12 @@ export class ExerciceService {
         formeJuridiqueSyscohada: tenant.formeJuridiqueSyscohada,
         droitEtranger: tenant.droitEtranger,
       }).map((j) => {
-        const echeance = dateJalon(exercice.dateFin, j.echeance);
+        // Une échéance FISCALE tombant un jour non ouvrable est reportée au
+        // premier jour ouvrable qui suit (LPF art. 110 bis, al. 2), comme au
+        // registre des retenues · les autres jalons n'ont aucun texte qui les
+        // reporte (audit final F81).
+        const brute = dateJalon(exercice.dateFin, j.echeance);
+        const echeance = j.echeanceFiscale ? reporterAuJourOuvrable(brute) : brute;
         const observation = j.observation ? observations[j.observation] : undefined;
         return {
           etape: j.etape,
@@ -418,7 +433,7 @@ export class ExerciceService {
           echeance,
           // « En retard » n'a de sens que pour un jalon non satisfait : une
           // étape faite reste faite, même après la date.
-          enRetard: echeance < aujourdHui && !(observation?.satisfait ?? false),
+          enRetard: echeanceDepassee(echeance, aujourdHui) && !(observation?.satisfait ?? false),
           observation,
         };
       }),

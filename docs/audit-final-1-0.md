@@ -593,6 +593,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1 et 5
 - **Constat :** le contrôle 4 exclut l'à-nouveau provisoire et la clôture d'un exercice clos, mais pas le planning ni `brouillard()`. Un exercice clos garde à vie « écritures au brouillard, à valider », et `JOURS_CENTRALISATION` est déclaré deux fois.
 - **Correction :** un module commun (délai, prédicat `brouillardInvalidable`, ancienneté) appelé par les trois.
+- **Fait le 2026-09-27 :** `comptabilite/centralisation-brouillard.ts` porte le délai, `brouillardInvalidable`, son filtre de requête et l'ancienneté ; le contrôle 4, l'état du brouillard (qui rend désormais `invalidable`) et le planning l'appellent, et la constante n'est plus déclarée qu'une fois. Tests : `brouillard.spec.ts`, `planning-echeances.spec.ts`.
 
 **F78 · Évolution mensuelle : la contrepassation de clôture présentée comme « Ouverture »** [rev-18]
 - **Emplacements :** src/modules/controles/controles.service.ts:476-479 · client/src/pages/ControlesPage.tsx:310-331
@@ -606,18 +607,21 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** seul l'exercice de constatation est refusé, et l'écran passe l'écriture dès le `onChange`.
 - **Correction :** exiger un exercice postérieur, filtrer l'écran pareil, et confirmer.
+- **Fait le 2026-09-27 :** la reprise exige un exercice qui commence après celui de la constatation (`exercicePosterieur`) ; l'écran ne propose que ceux-là (`exercicesDeReprise`) et demande confirmation avant de passer l'écriture. Tests : `regularisation.spec.ts`, `regularisation-types.spec.ts`.
 
 **F80 · Aucun écran ne crée un exercice autre que le suivant** [chrome-07]
 - **Emplacements :** src/modules/exercice/exercice.controller.ts:28-31 · client/src/pages/ExercicePage.tsx:246
 - **Condition :** 4
 - **Constat :** `POST /exercices` n'a aucun appel client. Un exercice antérieur (reprise), non contigu ou de liquidation ne peut pas être créé.
 - **Correction :** ajouter un bloc « Créer un exercice » réservé à l'administrateur.
+- **Fait le 2026-09-27 :** bloc replié « Créer un exercice » (début, fin, liquidation) dans la fenêtre Exercices, administrateur seul ; les règles de l'art. 7 restent celles du serveur. Test : `creer-exercice-a-lecran.spec.ts`.
 
 **F81 · Planning de clôture : ni report de l'art. 110 bis, ni troncature du jour** [transv-09]
 - **Emplacements :** src/modules/exercice/planning-cloture.ts:1033 · exercice.service.ts:368, :402 · retenues.service.ts:97, :187
 - **Condition :** 1
 - **Constat :** un jalon passe « en retard » dès minuit UTC du jour limite, et aussi un week-end ou un jour férié que le registre des retenues reporte. Le commentaire « UTC partout » est faux.
 - **Correction :** une fonction d'échéance unique, avec report et comparaison au jour, dans une seule convention de fuseau.
+- **Fait le 2026-09-27 :** `common/echeance.ts` · un jour est une date à minuit UTC, « aujourd'hui » le jour de Kinshasa, et une échéance n'est dépassée qu'au lendemain (`echeanceDepassee`). Le registre des retenues et `jour-ouvrable.ts` passent aux accesseurs UTC ; le planning reporte ses seules échéances fiscales (jalons 15, `echeanceFiscale`). Tests : `planning-echeances.spec.ts`, `report-jour-ouvrable.spec.ts` (trois fuseaux, en processus fils, heure d'été comprise).
 
 ### États financiers et notes
 

@@ -148,7 +148,11 @@
  * connaître : il est nommé dans la réserve, jamais calculé.
  */
 
-/** Dimanche et samedi, au sens de `Date.prototype.getDay()`. */
+/**
+ * Dimanche et samedi, au sens de `Date.prototype.getUTCDay()`. Les jours sont
+ * des dates à minuit UTC (`common/echeance.ts`) · lus en heure locale, un poste
+ * dont le fuseau est à l'ouest de Greenwich les aurait pris pour la veille.
+ */
 const DIMANCHE = 0;
 const SAMEDI = 6;
 
@@ -157,14 +161,14 @@ const SAMEDI = 6;
  * de sa signature », le 17 février 2024. C'est lui qui ferme le samedi dans les
  * services publics. Avant, le texte applicable n'est pas au corpus.
  */
-const ENTREE_EN_VIGUEUR_DECRET_24_09 = new Date(2024, 1, 17);
+const ENTREE_EN_VIGUEUR_DECRET_24_09 = new Date(Date.UTC(2024, 1, 17));
 
 /**
  * Entrée en vigueur de l'ordonnance n° 23-042, art. 4 · « sort ses effets à la
  * date de sa signature », le 30 mars 2023. Avant, l'ordonnance 14-010 du
  * 14 mai 2014 s'appliquait et n'est pas au corpus.
  */
-const ENTREE_EN_VIGUEUR_ORDONNANCE_23_042 = new Date(2023, 2, 30);
+const ENTREE_EN_VIGUEUR_ORDONNANCE_23_042 = new Date(Date.UTC(2023, 2, 30));
 
 /**
  * LES DIX JOURS FÉRIÉS LÉGAUX, art. 1er de l'ordonnance n° 23-042 du 30 mars
@@ -197,7 +201,7 @@ export const JOURS_FERIES: ReadonlyArray<{ mois: number; jour: number; nom: stri
  */
 export function jourFerie(date: Date): string | null {
   if (date.getTime() < ENTREE_EN_VIGUEUR_ORDONNANCE_23_042.getTime()) return null;
-  const trouve = JOURS_FERIES.find((f) => f.mois === date.getMonth() + 1 && f.jour === date.getDate());
+  const trouve = JOURS_FERIES.find((f) => f.mois === date.getUTCMonth() + 1 && f.jour === date.getUTCDate());
   return trouve ? trouve.nom : null;
 }
 
@@ -217,8 +221,8 @@ export function jourFerie(date: Date): string | null {
  * deuxième piège du dépôt.
  */
 export function estJourOuvrable(date: Date): boolean {
-  if (date.getDay() === DIMANCHE) return false;
-  if (date.getDay() === SAMEDI && date.getTime() >= ENTREE_EN_VIGUEUR_DECRET_24_09.getTime()) return false;
+  if (date.getUTCDay() === DIMANCHE) return false;
+  if (date.getUTCDay() === SAMEDI && date.getTime() >= ENTREE_EN_VIGUEUR_DECRET_24_09.getTime()) return false;
   return jourFerie(date) === null;
 }
 
@@ -232,9 +236,20 @@ export function estJourOuvrable(date: Date): boolean {
 export function reporterAuJourOuvrable(echeance: Date): Date {
   const reportee = new Date(echeance.getTime());
   while (!estJourOuvrable(reportee)) {
-    reportee.setDate(reportee.getDate() + 1);
+    reportee.setUTCDate(reportee.getUTCDate() + 1);
   }
   return reportee;
+}
+
+/**
+ * L'échéance de reversement de la retenue d'un mois · `jours` jours après la
+ * fin du mois (le mois suivant s'écrit `moisZeroBase + 1`, que `Date.UTC`
+ * reporte de lui-même sur janvier), puis le report de l'art. 110 bis, al. 2.
+ * Un JOUR à minuit UTC, jamais une date locale (audit final F81) · sur un
+ * poste réglé à l'heure de Kinshasa, minuit local est 23 h UTC la veille.
+ */
+export function echeanceDeReversement(jours: number, annee: number, moisZeroBase: number): Date {
+  return reporterAuJourOuvrable(new Date(Date.UTC(annee, moisZeroBase + 1, jours)));
 }
 
 /**

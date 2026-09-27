@@ -235,6 +235,38 @@ export function ExercicePage() {
     }
   };
 
+  // CRÉER UN EXERCICE (audit final F80) · la route existait sans aucun appel
+  // de l'écran. Seul l'exercice SUIVANT naissait, par la clôture ou les
+  // reports provisoires · une reprise (exercice antérieur), un exercice non
+  // contigu ou l'exercice de liquidation (AUDCIF art. 7 al. 4) n'avaient
+  // aucun chemin. Les règles de l'art. 7 sont celles du serveur, qui refuse.
+  const [creationOuverte, setCreationOuverte] = useState(false);
+  const [nDebut, setNDebut] = useState('');
+  const [nFin, setNFin] = useState('');
+  const [nLiquidation, setNLiquidation] = useState(false);
+  const creerExercice = async (e: FormEvent) => {
+    e.preventDefault();
+    setEnvoi(true);
+    setErreur(null);
+    setInfo(null);
+    try {
+      await api.post('/exercices', {
+        dateDebut: nDebut,
+        dateFin: nFin,
+        ...(nLiquidation ? { liquidation: true } : {}),
+      });
+      setInfo(`Exercice du ${new Date(nDebut).toLocaleDateString('fr-FR')} au ${new Date(nFin).toLocaleDateString('fr-FR')} créé.`);
+      setNDebut('');
+      setNFin('');
+      setNLiquidation(false);
+      await rechargerExercices();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Création de l’exercice impossible');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
   // NOUVEL EXERCICE AVEC REPORTS PROVISOIRES (Sage i7) · relançable à
   // volonté, remplacé par le report définitif à la clôture.
   const [reporterBudgetsAussi, setReporterBudgetsAussi] = useState(true);
@@ -309,6 +341,60 @@ export function ExercicePage() {
         {chargementExercices && <span className="text-[11.5px] text-text-dim">Chargement…</span>}
         <Aide sujet="exerciceClos" />
       </div>
+
+      {estAdmin && (
+        <div className="mb-4 border border-border bg-surface max-w-[720px]">
+          <div className="flex items-center pr-3 hover:bg-surface-alt">
+            <button
+              type="button"
+              onClick={() => setCreationOuverte((v) => !v)}
+              className="flex-1 text-left px-4 py-2 font-mono text-[11.5px] font-semibold text-text-dim"
+            >
+              {creationOuverte ? '▾' : '▸'} Créer un exercice
+            </button>
+            <Aide
+              titre="Créer un exercice"
+              texte="Pour un exercice antérieur (reprise d’un dossier), un exercice qui ne suit pas le dernier, ou l’exercice de liquidation. L’exercice suivant naît aussi de la clôture ou des reports provisoires. L’exercice coïncide avec l’année civile ; le premier peut être plus court ou, commencé au second semestre, plus long ; seule la liquidation échappe à l’année civile."
+              source="AUDCIF art. 7 · SYCEBNL, Partie 1 ch. 1 (EXERCICE)"
+            />
+          </div>
+          {creationOuverte && (
+            <form onSubmit={creerExercice} className="px-4 pb-3 flex items-end gap-2 flex-wrap">
+              <label className="text-[11.5px] font-semibold text-text-dim">
+                Début
+                <input
+                  type="date"
+                  required
+                  value={nDebut}
+                  onChange={(e) => setNDebut(e.target.value)}
+                  className="mt-1 block border border-border-dark px-2 py-1 text-[11.5px]"
+                />
+              </label>
+              <label className="text-[11.5px] font-semibold text-text-dim">
+                Fin
+                <input
+                  type="date"
+                  required
+                  value={nFin}
+                  onChange={(e) => setNFin(e.target.value)}
+                  className="mt-1 block border border-border-dark px-2 py-1 text-[11.5px]"
+                />
+              </label>
+              <label className="text-[11.5px] flex items-center gap-1.5">
+                <input type="checkbox" checked={nLiquidation} onChange={(e) => setNLiquidation(e.target.checked)} />
+                Exercice de liquidation
+              </label>
+              <button
+                type="submit"
+                disabled={envoi || !nDebut || !nFin}
+                className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5 disabled:opacity-50"
+              >
+                {envoi ? '…' : 'Créer'}
+              </button>
+            </form>
+          )}
+        </div>
+      )}
 
       {/*
         DATE D'ARRÊTÉ DES COMPTES · la quatrième mention obligatoire de chaque

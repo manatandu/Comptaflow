@@ -29,19 +29,13 @@ export const AVERTISSEMENT_ARTICLE_89 =
   'Démocratique du Congo. » Ce salaire est stipulé en dollars américains · il est converti en francs congolais au ' +
   'cours du jour saisi au dossier, règle retenue par le cabinet faute de texte qui fixe ce cours pour la paie.';
 
-/** Décalage de Kinshasa sur le temps universel (UTC+1, sans heure d'été). */
-const DECALAGE_KINSHASA_MS = 60 * 60 * 1000;
-
 /**
  * Le JOUR de Kinshasa d'un instant, à minuit UTC · c'est la forme sous
  * laquelle un cours est enregistré (`PoserCoursDto.date`, AAAA-MM-JJ lu en
- * UTC). Entre minuit et une heure du matin UTC, Kinshasa est déjà au
- * lendemain · prendre le jour UTC ferait chercher le cours de la veille.
+ * UTC). La définition vit dans `common/echeance.ts`, qui la partage avec
+ * toutes les échéances du dépôt (audit final F81).
  */
-export function jourDeKinshasa(instant: Date): Date {
-  const local = new Date(instant.getTime() + DECALAGE_KINSHASA_MS);
-  return new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()));
-}
+export { jourDeKinshasa } from '../../common/echeance';
 
 /** JJ/MM/AAAA d'un jour à minuit UTC. */
 export function jourLisible(jour: Date): string {

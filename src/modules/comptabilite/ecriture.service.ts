@@ -25,6 +25,7 @@ import { avecRetrySerialisable } from '../../common/prisma-retry.util';
 import { coursDeLaLigne, motifRefusLigneEnDevise, porteUneDevise } from './ligne-en-devise';
 import { designationLettrage, estTenueParUnLettrage } from '../lettrage/ligne-lettree';
 import { ouverteALaCloture } from '../lettrage/ouverte-a-la-cloture';
+import { ancienneteJours, brouillardInvalidable, enRetardDeCentralisation, JOURS_CENTRALISATION } from './centralisation-brouillard';
 
 /**
  * Une ligne est au débit si son montant est porté du côté débit · quel que
@@ -887,11 +888,6 @@ export class EcritureService {
   // signale nommément, et ControlesService applique le même barème.
   // ==========================================================================
 
-  private static readonly JOURS_CENTRALISATION: Record<Referentiel, number> = {
-    [Referentiel.SYCEBNL]: 7,
-    [Referentiel.SYSCOHADA]: 30,
-  };
-
   private async trouverEnBrouillard(tenantId: string, ecritureId: string) {
     const ecriture = await this.prisma.ecriture.findFirst({
       where: { id: ecritureId, tenantId },
@@ -1439,7 +1435,13 @@ export class EcritureService {
       where: { id: tenantId },
       select: { referentiel: true },
     });
-    const joursCentralisation = EcritureService.JOURS_CENTRALISATION[tenant.referentiel];
+    const joursCentralisation = JOURS_CENTRALISATION[tenant.referentiel];
+    // Le statut de l'exercice décide de ce qui est validable (audit final F77).
+    const exercice = await this.prisma.exercice.findFirst({
+      where: { id: params.exerciceId, tenantId },
+      select: { statut: true },
+    });
+    if (!exercice) throw new NotFoundException('Exercice introuvable pour ce dossier.');
     const ecritures = await this.prisma.ecriture.findMany({
       where: {
         tenantId,
@@ -1469,7 +1471,8 @@ export class EcritureService {
 
     const maintenant = Date.now();
     const lignes = ecritures.map((e) => {
-      const ancienneteJours = Math.floor((maintenant - e.createdAt.getTime()) / 86_400_000);
+      const anciennete = ancienneteJours(e.createdAt, maintenant);
+      const invalidable = brouillardInvalidable(e, exercice.statut);
       const debit = e.lignes.reduce((s, l) => s + Number(l.debit), 0);
       const credit = e.lignes.reduce((s, l) => s + Number(l.credit), 0);
       return {
@@ -1484,8 +1487,11 @@ export class EcritureService {
         debit,
         credit,
         equilibree: Math.abs(debit - credit) <= 0.005,
-        ancienneteJours,
-        retardCentralisation: ancienneteJours > joursCentralisation,
+        ancienneteJours: anciennete,
+        // Un brouillard que personne ne peut valider n'est pas en retard · il
+        // reste au brouillard par construction, et l'écran le dit.
+        invalidable,
+        retardCentralisation: enRetardDeCentralisation(e, exercice.statut, tenant.referentiel, maintenant),
         // Tout ce que la modification doit renvoyer pour ne rien perdre · le
         // PATCH remplace les lignes en bloc, si bien qu'un champ que l'écran
         // ne connaît pas (taux de TVA, échéance, devise, ventilation) serait
