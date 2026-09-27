@@ -10,6 +10,7 @@ import { PLAN_COMPTES_SYSCOHADA } from '../comptes/compte-seed-syscohada';
 import { AnalyserImportDto, ExecuterImportDto, TypeImport } from './dto/import.dto';
 import { lireDate, lireFichier, lireMontant, type Tableau } from './lecture-fichier';
 import { classeDuNumero } from '../comptes/classe-du-numero';
+import { coursDeLaLigne } from '../comptabilite/ligne-en-devise';
 
 /**
  * Tranches des insertions groupées de l'import · une requête PostgreSQL porte
@@ -62,6 +63,12 @@ const CHAMPS: Record<TypeImport, ChampAttendu[]> = {
     { cle: 'libelle', libelle: 'Libellé', obligatoire: true, indices: ['libelle', 'intitule', 'designation'] },
     { cle: 'debit', libelle: 'Débit', obligatoire: true, indices: ['debit'] },
     { cle: 'credit', libelle: 'Crédit', obligatoire: true, indices: ['credit'] },
+    // LIGNES EN DEVISE (audit final F49) · facultatives. Le montant en devise
+    // passe AVANT le code, pour qu'une colonne « Montant en devise » ne soit
+    // pas prise pour la devise elle-même.
+    { cle: 'montantDevise', libelle: 'Montant en devise', obligatoire: false, indices: ['montant en devise', 'montant devise'] },
+    { cle: 'devise', libelle: 'Devise (code ISO)', obligatoire: false, indices: ['devise', 'monnaie'] },
+    { cle: 'cours', libelle: 'Cours appliqué', obligatoire: false, indices: ['cours', 'taux de change'] },
   ],
 };
 
@@ -683,19 +690,42 @@ export class ImportService {
     const iLibelle = this.indexDe(tableau, dto.mapping, 'libelle');
     const iDebit = this.indexDe(tableau, dto.mapping, 'debit');
     const iCredit = this.indexDe(tableau, dto.mapping, 'credit');
+    const iDevise = this.indexDe(tableau, dto.mapping, 'devise');
+    const iMontantDevise = this.indexDe(tableau, dto.mapping, 'montantDevise');
+    const iCours = this.indexDe(tableau, dto.mapping, 'cours');
 
     const comptesParNumero = new Map(comptes.map((c) => [c.numero, c]));
     const journauxParCode = new Map(journaux.map((j) => [j.code.toUpperCase(), j]));
     const journauxParId = new Map(journaux.map((j) => [j.id, j]));
+    // Les devises du dossier, par code · lues une fois, et seulement si le
+    // fichier porte une colonne de devise.
+    const devisesParCode =
+      iDevise >= 0
+        ? new Map(
+            (await this.prisma.devise.findMany({ where: { tenantId }, select: { id: true, code: true } })).map((d) => [
+              d.code.toUpperCase(),
+              d,
+            ]),
+          )
+        : new Map<string, { id: string; code: string }>();
     const anomalies: AnomalieImport[] = [];
 
+    interface LigneImportee {
+      compteId: string;
+      libelle: string;
+      debit: number;
+      credit: number;
+      deviseId?: string;
+      montantDevise?: number;
+      coursApplique?: number;
+    }
     interface Piece {
       cle: string;
       date: Date;
       journalId: string;
       reference: string | null;
       libelle: string;
-      lignes: { compteId: string; libelle: string; debit: number; credit: number }[];
+      lignes: LigneImportee[];
       premiereLigne: number;
     }
     const pieces = new Map<string, Piece>();
@@ -740,12 +770,41 @@ export class ImportService {
       }
       if (Math.abs(debit) < 0.005 && Math.abs(credit) < 0.005) return;
 
+      // Une devise nommée par son code, et son montant · la règle (devise du
+      // dossier, contrevaleur au cours) est celle de la saisie, jouée plus bas
+      // par les contrôles d'entrée.
+      const enDevise: Pick<LigneImportee, 'deviseId' | 'montantDevise' | 'coursApplique'> = {};
+      const codeDevise = this.valeur(ligne, iDevise).toUpperCase();
+      const texteMontantDevise = this.valeur(ligne, iMontantDevise);
+      const texteCours = this.valeur(ligne, iCours);
+      if (codeDevise || texteMontantDevise || texteCours) {
+        const devise = devisesParCode.get(codeDevise);
+        if (!devise) {
+          anomalies.push({
+            ligne: numeroLigne,
+            message: codeDevise
+              ? `Devise « ${codeDevise} » inconnue du dossier · créez-la dans la fenêtre Devises.`
+              : `Montant en devise ou cours sans devise sur le compte ${numero}.`,
+          });
+          return;
+        }
+        const montantDevise = lireMontant(texteMontantDevise);
+        const cours = texteCours ? lireMontant(texteCours) : null;
+        if (montantDevise === null || (texteCours && cours === null)) {
+          anomalies.push({ ligne: numeroLigne, message: `Montant en devise ou cours illisible sur le compte ${numero}.` });
+          return;
+        }
+        enDevise.deviseId = devise.id;
+        enDevise.montantDevise = montantDevise;
+        if (cours !== null) enDevise.coursApplique = cours;
+      }
+
       const piece = this.valeur(ligne, iPiece);
       const libelle = this.valeur(ligne, iLibelle);
       const cle = `${date.toISOString().slice(0, 10)}|${jal.id}|${piece}`;
       const existante = pieces.get(cle);
       if (existante) {
-        existante.lignes.push({ compteId: compte.id, libelle, debit, credit });
+        existante.lignes.push({ compteId: compte.id, libelle, debit, credit, ...enDevise });
       } else {
         pieces.set(cle, {
           cle,
@@ -753,7 +812,7 @@ export class ImportService {
           journalId: jal.id,
           reference: this.valeur(ligne, iReference) || null,
           libelle: libelle || `Import ${dto.nomFichier}`,
-          lignes: [{ compteId: compte.id, libelle, debit, credit }],
+          lignes: [{ compteId: compte.id, libelle, debit, credit, ...enDevise }],
           premiereLigne: numeroLigne,
         });
       }
@@ -845,6 +904,9 @@ export class ImportService {
                 libelle: l.libelle || undefined,
                 debit: l.debit,
                 credit: l.credit,
+                deviseId: l.deviseId,
+                montantDevise: l.montantDevise,
+                coursApplique: coursDeLaLigne(l),
               })),
             );
             for (const lot of tranches(lignes, TAILLE_TRANCHE_LIGNES)) {

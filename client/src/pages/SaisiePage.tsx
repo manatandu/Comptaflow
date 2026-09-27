@@ -6,11 +6,13 @@ import { Calculette } from '../components/Calculette';
 import { ordonnerLignes } from '../lib/ordre-ecriture';
 import type { Compte, Ecriture, Journal, PlanAnalytique, SectionAnalytique, TauxTva } from '../lib/types';
 import { useAuth } from '../lib/auth';
+import { Aide } from '../components/chrome/Aide';
 import { construireLigneTva, modeCalculTva, montantTva, netAPayer, sensDeLaLigne } from '../lib/tva-saisie';
 import { contrepartieDeLigne } from '../lib/contrepartie-tresorerie';
 import { deroulerModele, lignesASaisir } from '../lib/derouler-modele';
 import { dateDeLaPiece, fenetreDeSaisie, rangBorne } from '../lib/saisie-par-piece';
 import { ETATS_JOURNAL, bulleCase, moisCourt, sigleCase, type LigneGrilleSaisie } from '../lib/etat-journal-saisie';
+import { contrevaleur, coursPropose, devisesEtrangeres, motifLigneEnDevise, type DeviseDuDossier } from '../lib/ligne-en-devise';
 
 /**
  * SAISIE DES JOURNAUX · l'écran central du logiciel, calqué sur
@@ -58,6 +60,16 @@ interface LignePiece {
    * même ligne reste possible par l'écran des états analytiques.
    */
   sections?: Record<string, string>;
+  /**
+   * L'opération d'origine d'une ligne en devise (audit final F49) · le
+   * montant de la ligne reste en francs, ces trois champs gardent la devise,
+   * son montant et le cours appliqué. Sans eux, la réévaluation de clôture et
+   * l'écart de change du lettrage ne voyaient aucune position.
+   */
+  deviseId?: string;
+  deviseCode?: string;
+  montantDevise?: number;
+  coursApplique?: number;
 }
 
 /** Une fiche du référentiel, servie par /controles/regles-comptes. */
@@ -156,6 +168,13 @@ function sensConseille(typeJournal: Journal['type'], numero: string): 'debit' | 
   }
 }
 
+/**
+ * Une ligne dupliquée sans son montant perd aussi son opération en devise ·
+ * gardée, elle porterait un montant en devise sur une ligne à zéro franc, que
+ * le serveur refuse (audit final F49).
+ */
+const SANS_DEVISE = { deviseId: undefined, deviseCode: undefined, montantDevise: undefined, coursApplique: undefined };
+
 const LIBELLE_TYPE_JOURNAL: Record<Journal['type'], string> = {
   ACHATS: 'Achats',
   VENTES: 'Ventes',
@@ -201,6 +220,11 @@ export function SaisiePage() {
   const [libelleLigne, setLibelleLigne] = useState('');
   const [echeance, setEcheance] = useState('');
   const [versement, setVersement] = useState('');
+  // OPÉRATION EN DEVISE · une exception de la ligne, comme la date de versement.
+  const [devises, setDevises] = useState<DeviseDuDossier[]>([]);
+  const [deviseSaisie, setDeviseSaisie] = useState('');
+  const [montantDeviseSaisie, setMontantDeviseSaisie] = useState('');
+  const [coursSaisie, setCoursSaisie] = useState('');
   const [debitSaisie, setDebitSaisie] = useState('');
   const [creditSaisie, setCreditSaisie] = useState('');
   const [pickerOuvert, setPickerOuvert] = useState(false);
@@ -253,6 +277,10 @@ export function SaisiePage() {
       if (premierActif) setJournalId((prev) => prev || premierActif.id);
     });
     api.get<Compte[]>('/comptes?actifsSeuls=true&typeCompte=DETAIL').then(setComptes);
+    api.get<DeviseDuDossier[]>('/devises').then(
+      (ds) => setDevises(devisesEtrangeres(ds)),
+      () => setDevises([]),
+    );
     // Axes analytiques et leurs sections · chargés une fois, la grille en fait
     // une colonne par axe (voir docs/analytique-et-budget.md).
     api.get<PlanAnalytique[]>('/analytique/plans').then(
@@ -315,7 +343,7 @@ export function SaisiePage() {
         setLignes((prev) => {
           if (prev.length === 0) return prev;
           const derniere = prev[prev.length - 1];
-          return [...prev, { ...derniere, debit: 0, credit: 0, sections: { ...(derniere.sections ?? {}) } }];
+          return [...prev, { ...derniere, ...SANS_DEVISE, debit: 0, credit: 0, sections: { ...(derniere.sections ?? {}) } }];
         });
       } else if (touche === 'k') {
         e.preventDefault();
@@ -370,6 +398,50 @@ export function SaisiePage() {
     : periode
       ? `${periode.annee}-${String(periode.mois + 1).padStart(2, '0')}`
       : null;
+
+  // LE COURS PROPOSÉ d'une ligne en devise · le dernier coté au plus tard à
+  // la date de la pièce (lib/ligne-en-devise.ts), jamais un postérieur.
+  const datePourCours = (() => {
+    if (!exerciceCourant) return '';
+    const r = dateDeLaPiece({ parPiece, datePiece, periode, jour, exercice: exerciceCourant });
+    return 'date' in r ? r.date : '';
+  })();
+  const deviseChoisie = devises.find((d) => d.id === deviseSaisie);
+  const coursDuJour = coursPropose(deviseChoisie, datePourCours);
+
+  /**
+   * Montant en devise × cours donne le montant de la ligne, porté du côté
+   * déjà rempli, sinon du côté que le journal conseille pour ce compte.
+   */
+  const porterContrevaleur = (montantTexte: string, coursTexte: string) => {
+    const m = Number(montantTexte);
+    const c = Number(coursTexte);
+    if (!(m > 0) || !(c > 0)) return;
+    const francs = String(contrevaleur(m, c));
+    const auCredit =
+      (creditSaisie && !debitSaisie) ||
+      (!debitSaisie && !!journal && !!compteChoisi && sensConseille(journal.type, compteChoisi.numero) === 'credit');
+    if (auCredit) {
+      setCreditSaisie(francs);
+      setDebitSaisie('');
+    } else {
+      setDebitSaisie(francs);
+      setCreditSaisie('');
+    }
+  };
+
+  const choisirDevise = (id: string) => {
+    setDeviseSaisie(id);
+    const propose = coursPropose(
+      devises.find((d) => d.id === id),
+      datePourCours,
+    );
+    // Une autre devise, un autre cours · celui de la précédente ne la suit pas.
+    const cours = id && propose ? String(propose.cours) : '';
+    setCoursSaisie(cours);
+    if (!id) setMontantDeviseSaisie('');
+    else porterContrevaleur(montantDeviseSaisie, cours);
+  };
 
   // Chargement des écritures du journal ouvert, sur la période.
   useEffect(() => {
@@ -454,6 +526,21 @@ export function SaisiePage() {
       setErreur('Une ligne porte un montant au débit OU au crédit, pas les deux.');
       return;
     }
+    const devise = devises.find((x) => x.id === deviseSaisie);
+    const enDevise: Pick<LignePiece, 'deviseId' | 'deviseCode' | 'montantDevise' | 'coursApplique'> = {};
+    if (devise) {
+      const montantDevise = Number(montantDeviseSaisie) || 0;
+      const cours = coursSaisie.trim() ? Number(coursSaisie) : null;
+      const motif = motifLigneEnDevise({ francs: d || c, montantDevise, cours, code: devise.code });
+      if (motif) {
+        setErreur(motif);
+        return;
+      }
+      enDevise.deviseId = devise.id;
+      enDevise.deviseCode = devise.code;
+      enDevise.montantDevise = montantDevise;
+      if (cours !== null) enDevise.coursApplique = cours;
+    }
     setLignes((prev) => [
       ...prev,
       {
@@ -465,6 +552,7 @@ export function SaisiePage() {
         credit: c,
         dateEcheance: echeance || undefined,
         dateVersement: versement || undefined,
+        ...enDevise,
         // On ne retient que les axes qui ventilent la classe du compte : une
         // section restée sélectionnée d'une ligne précédente ne doit pas
         // suivre sur une ligne de trésorerie.
@@ -555,6 +643,9 @@ export function SaisiePage() {
     setCreditSaisie('');
     setEcheance('');
     setVersement('');
+    setDeviseSaisie('');
+    setMontantDeviseSaisie('');
+    setCoursSaisie('');
     compteRef.current?.focus();
   };
 
@@ -575,7 +666,7 @@ export function SaisiePage() {
       const source = prev[i];
       if (!source) return prev;
       const copie = [...prev];
-      copie.splice(i + 1, 0, { ...source, debit: 0, credit: 0, sections: { ...(source.sections ?? {}) } });
+      copie.splice(i + 1, 0, { ...source, ...SANS_DEVISE, debit: 0, credit: 0, sections: { ...(source.sections ?? {}) } });
       return copie;
     });
   };
@@ -863,6 +954,9 @@ export function SaisiePage() {
           tauxTvaId: l.tauxTvaId,
           dateEcheance: l.dateEcheance,
           dateVersement: l.dateVersement,
+          deviseId: l.deviseId,
+          montantDevise: l.montantDevise,
+          coursApplique: l.coursApplique,
           // Une section par axe, imputée pour la totalité de la ligne · le
           // serveur vérifie cet équilibre axe par axe.
           ventilations: Object.values(l.sections ?? {})
@@ -1379,6 +1473,12 @@ export function SaisiePage() {
                     versé le {l.dateVersement.split('-').reverse().join('/')}
                   </span>
                 )}
+                {l.deviseCode && l.montantDevise !== undefined && (
+                  <span className="ml-1 text-[10.5px] text-text-dim" title="Opération en devise · le montant de la ligne est sa contrevaleur en francs">
+                    {l.montantDevise.toLocaleString('fr-FR')} {l.deviseCode}
+                    {l.coursApplique !== undefined ? ` à ${l.coursApplique.toLocaleString('fr-FR')}` : ''}
+                  </span>
+                )}
               </span>
               <span className="font-mono text-right">{l.debit ? l.debit.toLocaleString('fr-FR') : ''}</span>
               <span className="font-mono text-right">{l.credit ? l.credit.toLocaleString('fr-FR') : ''}</span>
@@ -1616,6 +1716,75 @@ export function SaisiePage() {
                 : 'À ne remplir que si le versement, ou la mise à disposition, tombe dans un autre mois que l’écriture · l’échéance de la retenue se compte sur le mois du versement (loi n° 004/2003, art. 18).'}
             </span>
           </div>
+
+          {/*
+            OPÉRATION EN DEVISE · une exception de la ligne, comme la date de
+            versement (audit final F49). Le montant de la ligne reste en francs ;
+            la devise, son montant et le cours appliqué voyagent avec elle, et
+            c'est eux que la réévaluation de clôture et le lettrage lisent.
+          */}
+          {devises.length > 0 && (
+            <div className="px-3 py-1.5 border-b border-border bg-surface-alt/60 flex items-center gap-2 flex-wrap text-[11.5px]">
+              <span className="text-text-dim">Opération en devise (exception) :</span>
+              <select
+                value={deviseSaisie}
+                onChange={(e) => choisirDevise(e.target.value)}
+                aria-label="Devise de l'opération"
+                className="border border-border-dark px-1.5 py-0.5 text-[11.5px]"
+              >
+                <option value="">En francs</option>
+                {devises.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.code}
+                  </option>
+                ))}
+              </select>
+              {deviseChoisie && (
+                <>
+                  <label className="flex items-center gap-1">
+                    <span className="text-text-dim">Montant en {deviseChoisie.code}</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={montantDeviseSaisie}
+                      onChange={(e) => {
+                        setMontantDeviseSaisie(e.target.value);
+                        porterContrevaleur(e.target.value, coursSaisie);
+                      }}
+                      className="w-28 border border-border-dark px-1.5 py-0.5 text-right text-[11.5px]"
+                    />
+                  </label>
+                  <label className="flex items-center gap-1">
+                    <span className="text-text-dim">Cours</span>
+                    <input
+                      type="number"
+                      step="0.000001"
+                      min="0"
+                      value={coursSaisie}
+                      onChange={(e) => {
+                        setCoursSaisie(e.target.value);
+                        porterContrevaleur(montantDeviseSaisie, e.target.value);
+                      }}
+                      className="w-24 border border-border-dark px-1.5 py-0.5 text-right text-[11.5px]"
+                    />
+                  </label>
+                  <span className="text-[11px] text-text-dim">
+                    {coursDuJour
+                      ? coursDuJour.date === datePourCours
+                        ? 'cours coté du jour'
+                        : `dernier cours coté le ${coursDuJour.date.split('-').reverse().join('/')}`
+                      : 'aucun cours coté à cette date'}
+                  </span>
+                  <Aide
+                    titre="Opération en devise"
+                    texte="La ligne garde son montant en francs, monnaie de tenue. La devise, son montant et le cours appliqué sont conservés à côté · la réévaluation de clôture et l'écart de change du lettrage les lisent. Le cours proposé est le dernier coté au plus tard à la date de la pièce ; il se corrige s'il n'est pas celui de l'accord des parties ou de la mise à disposition des devises."
+                    source="AUDCIF art. 17, 1° et art. 52 · loi n° 23/053, art. 141, 1°"
+                  />
+                </>
+              )}
+            </div>
+          )}
 
           {/* Pied de la pièce : totaux, équilibre, boutons de bas d'écran Sage */}
           <div style={grilleStyle} className={`${grille} px-3 py-1.5 bg-surface-alt text-[11.5px] font-bold border-b border-border`}>

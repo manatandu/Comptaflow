@@ -622,6 +622,19 @@ que personne ne vérifie. Deux refus de contexte s'y ajoutent : aucune monnaie
 fonctionnelle nommée, et une monnaie fonctionnelle égale à la monnaie de tenue,
 où le second jeu n'aurait rien à convertir.
 
+**Une ligne en devise se SAISIT (2026-09-27, audit final F49).** Ni la grille
+ni l'import n'écrivaient la devise d'une ligne · la réévaluation de clôture
+ne trouvait aucune position et le lettrage aucun écart de change. La ligne
+garde son montant en francs et porte à côté la devise, son montant et le cours
+appliqué (`comptabilite/ligne-en-devise.ts`, joué par `controlesDEntree`, donc
+à la saisie, à la modification et à l'import). TROIS REFUS · la monnaie de
+tenue n'est pas une devise ; une devise d'un autre dossier n'existe pas ; le
+montant de la ligne est la contrevaleur du montant en devise au cours saisi,
+au centime plus la part d'arrondi d'un cours gardé à six décimales. Sans
+cours, il se DÉDUIT des deux montants · AUDCIF art. 52 veut le cours de
+l'accord des parties, que seul le comptable connaît, et l'écran ne fait que
+PROPOSER le dernier coté au plus tard à la date de la pièce.
+
 
 **Procès-verbal de comptage par caisse · un PV par caisse, et la caisse qu'on
 oublie.** Le PV de la CAMPAGNE porte l'inventaire physique dans son ensemble

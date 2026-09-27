@@ -139,6 +139,13 @@ describe('modifier · les mêmes contrôles et les mêmes champs que creer', () 
         ]),
       },
       tauxTva,
+      // La devise d'une ligne est vérifiée comme à la création (audit final
+      // F49) · la doublure honore le dossier demandé.
+      devise: {
+        findMany: jest.fn().mockImplementation(({ where }: { where: { tenantId: string } }) =>
+          Promise.resolve(where.tenantId === 't1' ? [{ id: 'usd', code: 'USD' }] : []),
+        ),
+      },
       sectionAnalytique: {
         findMany: jest.fn().mockResolvedValue([
           { id: 's1', planId: 'p1', code: 'PRJ', type: 'DETAIL', estActive: true, plan: { code: 'PROJETS' } },

@@ -21,6 +21,7 @@ import { JournalService } from '../journaux/journal.service';
 import { ExerciceService, refuserSiPeriodeClose } from '../exercice/exercice.service';
 import { AnalytiqueService } from '../analytique/analytique.service';
 import { avecRetrySerialisable } from '../../common/prisma-retry.util';
+import { coursDeLaLigne, motifRefusLigneEnDevise, porteUneDevise } from './ligne-en-devise';
 
 /**
  * Une ligne est au débit si son montant est porté du côté débit · quel que
@@ -303,6 +304,9 @@ export interface LigneEntree {
   credit?: number;
   tauxTvaId?: string | null;
   ventilations?: { sectionId: string; debit?: number; credit?: number }[];
+  deviseId?: string | null;
+  montantDevise?: number | null;
+  coursApplique?: number | null;
 }
 
 /** Une pièce soumise aux contrôles d'entrée · voir `EcritureService.controlesDEntree`. */
@@ -373,7 +377,8 @@ export function donneesLigneSaisie(
     dateVersement: l.dateVersement ? new Date(l.dateVersement) : undefined,
     deviseId: l.deviseId,
     montantDevise: l.montantDevise,
-    coursApplique: l.coursApplique,
+    // Saisi, ou déduit des deux montants (audit final F49, ligne-en-devise.ts).
+    coursApplique: coursDeLaLigne(l),
     ...(l.ventilations && l.ventilations.length > 0
       ? {
           ventilations: {
@@ -727,6 +732,19 @@ export class EcritureService {
         await this.analytiqueService.verifierVentilationObligatoire(tenantId, piece.lignes);
       }
       sectionsParId = await this.verifierSectionsVentilees(tenantId, piece.lignes, db);
+      // LIGNES EN DEVISE (audit final F49) · la devise est celle du dossier,
+      // jamais la monnaie de tenue, et le montant de la ligne est la
+      // contrevaleur du montant en devise au cours appliqué.
+      if (piece.lignes.some(porteUneDevise)) {
+        const devises = await memoriser(memoire, 'devises', () =>
+          db.devise.findMany({ where: { tenantId }, select: { id: true, code: true } }),
+        );
+        const parId = new Map(devises.map((d) => [d.id, d]));
+        for (const [i, l] of piece.lignes.entries()) {
+          const motif = motifRefusLigneEnDevise(l, l.deviseId ? parId.get(l.deviseId) : undefined);
+          if (motif) throw new BadRequestException(`Ligne ${i + 1} · ${motif}`);
+        }
+      }
     }
 
     return { exercice, journal, date, dateValeur, sectionsParId };

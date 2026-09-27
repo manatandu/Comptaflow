@@ -395,6 +395,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 4
 - **Constat :** la saisie et l'import n'écrivent jamais `deviseId` ni `montantDevise`. La fenêtre Devises rend toujours « Aucune position » et l'écart de change réalisé du lettrage n'est jamais calculé.
 - **Correction :** ajouter devise, montant en devise et cours à la grille et à l'import, ou retirer la réévaluation en le disant.
+- **Fait le 2026-09-27 :** la grille porte une exception « Opération en devise » (devise du dossier, montant, cours proposé au plus tard à la date de la pièce) et l'import trois colonnes facultatives ; le serveur refuse la monnaie de tenue, une devise d'un autre dossier et un montant qui n'est pas la contrevaleur au cours appliqué, et déduit le cours s'il manque (`comptabilite/ligne-en-devise.ts`, `controlesDEntree`, `import.service.ts`, `client/src/lib/ligne-en-devise.ts`). Vérifié sur base réelle · la réévaluation trouve les positions. Tests : `ligne-en-devise.spec.ts` (serveur et écran), `saisie-en-devise.spec.ts`, `brouillard.spec.ts`.
 
 **F50 · Un lettrage partiel ne protège pas ses lignes** [saisie-03]
 - **Emplacements :** src/modules/comptabilite/ecriture.service.ts:867, :1876 · reimputation.ts:53
