@@ -591,16 +591,25 @@ export class DevisesService {
       }
     }
 
-    const reevaluation = await this.prisma.reevaluation.create({
-      data: {
-        tenantId,
-        exerciceId: dto.exerciceId,
-        dateReevaluation: new Date(rapport.dateReevaluation),
-        ecritureEcartsId: ecritureEcarts.id,
-        ecritureProvisionId: ecritureProvision?.id,
-        createdBy,
-      },
-    });
+    // Un échec du marqueur laissait deux écritures sans détenteur au journal
+    // (audit F10) · elles sont retirées, lignes puis tête, et l'erreur remonte.
+    let reevaluation: { id: string };
+    try {
+      reevaluation = await this.prisma.reevaluation.create({
+        data: {
+          tenantId,
+          exerciceId: dto.exerciceId,
+          dateReevaluation: new Date(rapport.dateReevaluation),
+          ecritureEcartsId: ecritureEcarts.id,
+          ecritureProvisionId: ecritureProvision?.id,
+          createdBy,
+        },
+      });
+    } catch (e) {
+      await this.ecritureService.retirerCompensation(tenantId, ecritureEcarts.id);
+      if (ecritureProvision) await this.ecritureService.retirerCompensation(tenantId, ecritureProvision.id);
+      throw e;
+    }
 
     return {
       rapport,
@@ -647,10 +656,18 @@ export class DevisesService {
       })),
     });
 
-    return this.prisma.reevaluation.update({
-      where: { id: reevaluationId },
+    // Lien posé sur une réévaluation encore libre (audit F10) · deux
+    // extournes simultanées passaient toutes deux le test du dessus, et la
+    // première restait au journal sans détenteur.
+    const { count } = await this.prisma.reevaluation.updateMany({
+      where: { id: reevaluationId, tenantId, ecritureExtourneId: null },
       data: { ecritureExtourneId: ecriture.id },
     });
+    if (count === 0) {
+      await this.ecritureService.retirerCompensation(tenantId, ecriture.id);
+      throw new ConflictException('Cette réévaluation a déjà été extournée.');
+    }
+    return this.prisma.reevaluation.findFirstOrThrow({ where: { id: reevaluationId, tenantId } });
   }
 
   async listerReevaluations(tenantId: string, exerciceId: string) {

@@ -599,9 +599,21 @@ export class RegularisationService {
       lignes,
     });
 
-    return this.prisma.regularisation.update({
-      where: { id: regularisationId },
+    // LE LIEN SE POSE SUR UNE RÉGULARISATION ENCORE LIBRE (audit du serveur
+    // du 2026-09-27, F10) · deux clics simultanés passaient tous deux le
+    // test ci-dessus ; le second écrasait le lien et la première reprise
+    // restait au journal, orpheline. Le perdant retire l'écriture qu'il
+    // vient de créer, lignes puis tête.
+    const { count } = await this.prisma.regularisation.updateMany({
+      where: { id: regularisationId, tenantId, ecritureRepriseId: null },
       data: { ecritureRepriseId: ecriture.id },
+    });
+    if (count === 0) {
+      await this.ecritureService.retirerCompensation(tenantId, ecriture.id);
+      throw new BadRequestException('Cette régularisation vient d’être reprise par une autre demande · rien n’a été passé.');
+    }
+    return this.prisma.regularisation.findFirstOrThrow({
+      where: { id: regularisationId, tenantId },
       include: {
         compteChargeProduit: { select: { numero: true, intitule: true } },
         compteDiffere: { select: { numero: true, intitule: true } },
@@ -796,10 +808,18 @@ export class RegularisationService {
           { compteId: abonnement.compteCreditId, credit: montant, libelle: abonnement.intitule },
         ],
       });
-      await this.prisma.echeanceAbonnement.update({
-        where: { id: echeance.id },
+      // Lien posé sur une échéance encore libre (audit F10) · une génération
+      // concurrente la prenait entre-temps, et la contrainte d'unicité
+      // tombait APRÈS que l'écriture était commise. La génération étant
+      // idempotente, le perdant retire son écriture et passe à la suivante.
+      const { count } = await this.prisma.echeanceAbonnement.updateMany({
+        where: { id: echeance.id, ecritureId: null },
         data: { ecritureId: ecriture.id },
       });
+      if (count === 0) {
+        await this.ecritureService.retirerCompensation(tenantId, ecriture.id);
+        continue;
+      }
       generees.push({
         echeanceId: echeance.id,
         ecritureId: ecriture.id,
