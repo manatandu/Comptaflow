@@ -274,12 +274,14 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** l'écriture est postée, mais la fiche garde la quantité théorique. Une nouvelle confrontation repropose le même écart, qui peut être passé deux fois, et la fiche n'égale plus jamais le compte.
 - **Correction :** enregistrer dans la même opération la sortie (mali) ou l'entrée (boni), liée à l'écriture.
+- **Fait le 2026-09-27 :** chaque différence régularisée entre au magasin à la date du comptage, liée à l'écriture · mali en sortie valorisée par la méthode, boni en entrée au coût total porté au compte ; une inscription refusée retire l'écriture. Une seconde confrontation au même comptage ne trouve plus rien. Tests : `magasin-regularisation-f35-f36.spec.ts`, `e2e/tests/magasin.e2e.ts`.
 
 **F36 · La confrontation magasin / comptage ignore la date de l'inventaire** [stk-02]
 - **Emplacements :** src/modules/stocks/magasin.service.ts:327, :346
 - **Condition :** 1
 - **Constat :** tous les mouvements sont rejoués, y compris ceux postérieurs au comptage. Le boni ou le mali est faux du montant des mouvements saisis après le comptage.
 - **Correction :** recevoir la date du comptage et ne rejouer que les mouvements antérieurs ou égaux à cette date.
+- **Fait le 2026-09-27 :** `dateComptage` exigée par la confrontation et la régularisation (écran : « Date du comptage ») ; la requête ne rejoue que les mouvements datés au plus tard de ce jour. Tests : même spec (dix mutations tuées sur F35 et F36), même parcours navigateur.
 
 ### Analytique et plan comptable
 

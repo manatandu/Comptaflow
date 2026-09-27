@@ -69,7 +69,7 @@ export class MagasinController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: ConfronterInventaireDto,
   ) {
-    return this.magasin.confronter(user.tenantId, dto.comptages);
+    return this.magasin.confronter(user.tenantId, dto.comptages, dto.dateComptage);
   }
 
   @Post('inventaire/regularisation')

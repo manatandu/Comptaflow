@@ -110,6 +110,15 @@ export class ComptagePhysiqueDto {
 }
 
 export class ConfronterInventaireDto {
+  /**
+   * LA DATE DU COMPTAGE (audit final F36). Le magasin se confronte au comptage
+   * tel qu'il était CE JOUR-LÀ · rejouer aussi les mouvements saisis après
+   * fausserait le boni ou le mali de leur montant. Les mouvements du jour même
+   * sont compris, faute qu'une heure les départage.
+   */
+  @IsDateString()
+  dateComptage!: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ComptagePhysiqueDto)

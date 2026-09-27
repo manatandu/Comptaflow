@@ -163,6 +163,9 @@ export function MagasinPage() {
   const [coutsBoni, setCoutsBoni] = useState<Record<string, { cout: string; source: string }>>({});
   const [confrontation, setConfrontation] = useState<Confrontation | null>(null);
   const [regul, setRegul] = useState({ journalId: '', date: '', reference: '' });
+  // Le jour du comptage (audit final F36) · le magasin se confronte tel qu'il
+  // était ce jour-là, et la différence y entre à cette date.
+  const [dateComptage, setDateComptage] = useState('');
 
   const chargerListe = useCallback(() => {
     api.get<ListeArticles>('/magasin/articles').then(setListe, (e: ApiError) => setErreur(e.message));
@@ -184,8 +187,9 @@ export function MagasinPage() {
     if (exerciceCourant) {
       if (!mvt.date) setMvt((m) => ({ ...m, date: exerciceCourant.dateFin.slice(0, 10) }));
       if (!regul.date) setRegul((r) => ({ ...r, date: exerciceCourant.dateFin.slice(0, 10) }));
+      if (!dateComptage) setDateComptage(exerciceCourant.dateFin.slice(0, 10));
     }
-  }, [exerciceCourant, mvt.date, regul.date]);
+  }, [exerciceCourant, mvt.date, regul.date, dateComptage]);
 
   const chargerFiche = useCallback((articleId: string) => {
     if (!articleId) {
@@ -275,6 +279,7 @@ export function MagasinPage() {
     try {
       setConfrontation(
         await api.post<Confrontation>('/magasin/inventaire/confrontation', {
+          dateComptage,
           comptages: corpsComptages,
         }),
       );
@@ -292,6 +297,7 @@ export function MagasinPage() {
     setEnCours(true);
     try {
       const ecriture = await api.post<{ numeroPiece: string }>('/magasin/inventaire/regularisation', {
+        dateComptage,
         comptages: corpsComptages,
         exerciceId: exerciceCourant.id,
         journalId: regul.journalId,
@@ -682,6 +688,23 @@ export function MagasinPage() {
 
       {onglet === 'inventaire' && (
         <div className="max-w-[1240px]">
+          <label className="flex items-center gap-2 text-[11.5px] mb-2.5">
+            Date du comptage
+            <input
+              type="date"
+              className="border border-border bg-surface px-1.5 py-1 text-[11.5px]"
+              value={dateComptage}
+              onChange={(e) => {
+                setDateComptage(e.target.value);
+                setConfrontation(null);
+              }}
+            />
+            <Aide
+              titre="Date du comptage"
+              texte="Le magasin est confronté tel qu'il était ce jour-là, mouvements du jour compris. La différence retenue y entre à cette date, liée à l'écriture de régularisation."
+              source="Magasin"
+            />
+          </label>
 
           <table className="w-full border-collapse text-[11.5px] mb-2.5">
             <thead>
@@ -755,7 +778,7 @@ export function MagasinPage() {
 
           <button
             type="button"
-            disabled={enCours || corpsComptages.length === 0}
+            disabled={enCours || corpsComptages.length === 0 || !dateComptage}
             onClick={confronter}
             className="px-3 py-1 text-[11.5px] border border-accent bg-accent/10 disabled:opacity-40 mb-2.5"
           >

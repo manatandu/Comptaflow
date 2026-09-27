@@ -324,7 +324,11 @@ export class MagasinService {
    * variation ou qu'un relevé d'unités d'œuvre. Tout le reste (les
    * mouvements, la méthode, le compte, la contrepartie) est relu du dossier.
    */
-  async confronter(tenantId: string, comptages: EnregistrerRegularisationInventaireDto['comptages']) {
+  async confronter(
+    tenantId: string,
+    comptages: EnregistrerRegularisationInventaireDto['comptages'],
+    dateComptage: string,
+  ) {
     const dossier = await this.modeDuDossier(tenantId);
     if (dossier.methodeInventaireStocks === null) {
       return {
@@ -343,7 +347,13 @@ export class MagasinService {
       where: { tenantId, actif: true, id: { in: [...parArticle.keys()] } },
       include: {
         compte: { select: { numero: true, intitule: true } },
-        mouvements: { orderBy: [{ date: 'asc' }, { ordre: 'asc' }] },
+        // LE MAGASIN AU JOUR DU COMPTAGE (audit final F36) · un mouvement saisi
+        // après le comptage n'était pas dans le magasin compté. Le rejouer
+        // aurait porté son montant au boni ou au mali.
+        mouvements: {
+          where: { date: { lte: new Date(dateComptage) } },
+          orderBy: [{ date: 'asc' }, { ordre: 'asc' }],
+        },
       },
     });
 
@@ -400,7 +410,7 @@ export class MagasinService {
     userId: string,
     dto: EnregistrerRegularisationInventaireDto,
   ) {
-    const etat = await this.confronter(tenantId, dto.comptages);
+    const etat = await this.confronter(tenantId, dto.comptages, dto.dateComptage);
     if (!etat.confrontation) {
       throw new BadRequestException(etat.reserve ?? 'Aucune régularisation à enregistrer.');
     }
@@ -437,7 +447,7 @@ export class MagasinService {
       );
     }
 
-    return this.ecritureService.creer(tenantId, userId, {
+    const ecriture = await this.ecritureService.creer(tenantId, userId, {
       exerciceId: dto.exerciceId,
       journalId: dto.journalId,
       date: dto.date,
@@ -452,5 +462,48 @@ export class MagasinService {
         };
       }),
     });
+
+    /*
+      LE MAGASIN SUIT L'ÉCRITURE (audit final F35).
+
+      L'écriture seule mettait le compte au comptage et laissait la fiche à la
+      quantité théorique. Une nouvelle confrontation reproposait le même écart,
+      qui pouvait être passé deux fois, et la fiche n'égalait plus jamais le
+      compte. Chaque différence entre donc au magasin, à la date du comptage et
+      liée à l'écriture · un MALI en SORTIE, que la méthode valorise comme la
+      confrontation l'a fait ; un BONI en ENTRÉE, au coût total qui a été porté
+      au compte. Une inscription refusée retire l'écriture · les deux vont
+      ensemble ou pas du tout.
+    */
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        for (const d of etat.confrontation!.differences) {
+          const dernier = await tx.mouvementStock.aggregate({
+            where: { tenantId, articleId: d.articleId },
+            _max: { ordre: true },
+          });
+          await tx.mouvementStock.create({
+            data: {
+              tenantId,
+              articleId: d.articleId,
+              date: new Date(dto.dateComptage),
+              ordre: (dernier._max.ordre ?? 0) + 1,
+              sens: d.sens === 'BONI' ? SensMouvementStock.ENTREE : SensMouvementStock.SORTIE,
+              quantite: Math.abs(d.ecartQuantite),
+              cout: d.sens === 'BONI' ? d.montant : null,
+              piece: dto.reference?.trim() || `Inventaire du ${dto.dateComptage.slice(0, 10)}`,
+              libelle: `${d.sens === 'BONI' ? 'Boni' : 'Mali'} d'inventaire`,
+              ecritureId: ecriture.id,
+              createdBy: userId,
+            },
+          });
+        }
+      });
+    } catch (err) {
+      await this.prisma.ligneEcriture.deleteMany({ where: { ecritureId: ecriture.id } });
+      await this.prisma.ecriture.delete({ where: { id: ecriture.id } });
+      throw err;
+    }
+    return ecriture;
   }
 }

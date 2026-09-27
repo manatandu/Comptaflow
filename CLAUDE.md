@@ -5146,6 +5146,14 @@ Au SMT SYSCOHADA, une annuité par exercice (« sans prorata temporis »). Le
 plan fiscal dégressif compte par période imposable, l'année civile (loi
 n° 23/053, art. 12) · deux annuités sur un exercice de dix-huit mois.
 
+**Boni et mali · le magasin suit l'écriture, au jour du comptage (2026-09-27,
+audit final F35, F36).** La confrontation reçoit la DATE DU COMPTAGE et ne
+rejoue que les mouvements datés au plus tard de ce jour · un mouvement saisi
+après n'était pas dans le magasin compté. La régularisation inscrit chaque
+différence au magasin, à cette date et liée à l'écriture (mali en sortie, boni
+en entrée au coût porté au compte), sans quoi le même écart se reproposait et
+se passait deux fois. Une inscription refusée retire l'écriture.
+
 ### Migrations écrites à la main
 
 Une migration écrite à la main peut DIVERGER du schéma sans que rien ne le
