@@ -245,8 +245,10 @@ ligne à ligne ; sinon rien ne sort et la liasse est refusée. Les 181 à 183 et
 même numéro ne veut rien dire en SYCEBNL (185 = dépôts reçus) : le contrôle
 n'existe que sous le SYSCOHADA. Cellule et combinaison prennent le référentiel
 (et, en SYSCOHADA, le système comptable) du siège, imposé aux deux portes
-(`creerCellule`, `modifierGroupe`). Le canevas de trésorerie, bâti sur les
-comptes du plan SYCEBNL, reste au seul SYCEBNL (filtre de route).
+(`creerCellule`, `modifierGroupe`), et vérifié AVANT `register` quand la
+console crée une cellule (`verifierMere`, audit final F47) · refusée après, la
+mère laissait un dossier complet et inaccessible. Le canevas de trésorerie,
+bâti sur les comptes du plan SYCEBNL, reste au seul SYCEBNL (filtre de route).
 
 Les **documents obligatoires** sont COMMUNS depuis le 2026-09-02, chacun lu
 dans son texte et jamais transposé : livre d'inventaire (SYCEBNL art. 14 selon
