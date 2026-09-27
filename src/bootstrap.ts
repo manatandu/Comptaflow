@@ -5,13 +5,12 @@ import * as compression from 'compression';
 import * as cookieParser from 'cookie-parser';
 
 /**
- * Configuration commune de l'application, partagée entre le serveur classique
- * (`main.ts`, `app.listen()` · développement local, Cloud Run) et le point
- * d'entrée serverless (`api/index.ts`, `app.init()` sans écoute de port ·
- * Vercel). Les deux doivent rester STRICTEMENT identiques : une divergence
- * entre eux (une limite de taille, une règle CORS) serait un comportement
- * qui change selon la cible de déploiement, invisible à la relecture du code
- * métier.
+ * Configuration commune de l'application (CORS, taille du corps,
+ * validation), appelée par `main.ts`. Elle vivait à part pour être partagée
+ * avec un point d'entrée Vercel, retiré le 2026-09-27 (audit du serveur,
+ * C11) · le déploiement est Cloud Run seul, et le script `vercel-build`
+ * aurait appliqué les migrations par une seconde chaîne si un projet Vercel
+ * était resté relié au dépôt.
  */
 /**
  * L'API SOUS L'ADRESSE DU SITE · Firebase Hosting relaie oomega.web.app/api/**

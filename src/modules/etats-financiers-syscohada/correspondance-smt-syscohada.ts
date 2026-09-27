@@ -1,3 +1,4 @@
+import { PREFIXES_CHIFFRE_AFFAIRES_SYSCOHADA } from './correspondance-compte-resultat-syscohada';
 /**
  * Maquettes officielles du SYSTÈME MINIMAL DE TRÉSORERIE (S.M.T) du
  * SYSCOHADA révisé et rattachement DÉRIVÉ des comptes.
@@ -1356,4 +1357,7 @@ export const CLAUSE_EQUIVALENT_ART13 = "ou l'équivalent dans l'unité monétair
  * pas d'autre. Lu en solde de la classe 7 (montant facturé), pas en
  * encaissements : l'art. 13 parle de chiffre d'affaires, pas de recettes.
  */
-export const COMPTES_CHIFFRE_AFFAIRES_ART13 = ['70'];
+// DÉRIVÉ, jamais recopié (audit du serveur du 2026-09-27, C8) · la copie
+// « 70 entier » coïncidait avec XB tant qu'aucun 708 ou 709 n'était ouvert au
+// dossier, et divergeait en silence ensuite.
+export const COMPTES_CHIFFRE_AFFAIRES_ART13: readonly string[] = PREFIXES_CHIFFRE_AFFAIRES_SYSCOHADA;

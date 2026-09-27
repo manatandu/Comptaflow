@@ -1,3 +1,4 @@
+import { PREFIXES_CHIFFRE_AFFAIRES_SYSCOHADA } from './correspondance-compte-resultat-syscohada';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { PLAN_COMPTES_SYSCOHADA } from '../comptes/compte-seed-syscohada';
@@ -575,7 +576,8 @@ describe('correspondance SMT SYSCOHADA (AUDCIF Titre X)', () => {
       ['services', 30_000_000],
     ]);
     expect(CLAUSE_EQUIVALENT_ART13).toBe("ou l'équivalent dans l'unité monétaire ayant cours légal dans l'État partie");
-    expect(COMPTES_CHIFFRE_AFFAIRES_ART13).toEqual(['70']);
+    // Le chiffre d'affaires de l'art. 13 EST celui du poste XB, dérivé du modèle.
+    expect(COMPTES_CHIFFRE_AFFAIRES_ART13).toBe(PREFIXES_CHIFFRE_AFFAIRES_SYSCOHADA);
   });
 
   // -------------------------------------------------------------------------

@@ -14,8 +14,7 @@
     "lint": "eslint \"src/**/*.ts\"",
     "test": "jest",
     "test:watch": "jest --watch",
-    "postinstall": "prisma generate",
-    "vercel-build": "prisma generate && prisma migrate deploy"
+    "postinstall": "prisma generate"
   },
   "jest": {
     "moduleFileExtensions": [

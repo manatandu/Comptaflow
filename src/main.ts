@@ -7,11 +7,9 @@ import { estSurSite } from './common/mode-installation';
 import { servirInterfaceSurSite } from './modules/sur-site/interface-sur-site';
 
 /**
- * Serveur classique · développement local et toute cible qui héberge un
- * processus long (Cloud Run, un conteneur, le poste d'un client sur site).
- * Écoute sur `process.env.PORT`. Le point d'entrée Vercel (`api/index.ts`)
- * réutilise `configurerApplication` mais n'écoute jamais de port : Vercel
- * invoque la fonction requête par requête.
+ * Serveur · développement local et toute cible qui héberge un processus long
+ * (Cloud Run, un conteneur, le poste d'un client sur site). Écoute sur
+ * `process.env.PORT`.
  */
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
