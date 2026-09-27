@@ -1494,7 +1494,9 @@ export class GroupeService {
     const manquants = numeros.filter((n) => !compteParNumero.has(n));
     if (manquants.length > 0) {
       throw new BadRequestException(
-        `Comptes absents du plan de la cellule : ${manquants.join(', ')} · le dossier n'a pas le plan SYCEBNL semé`,
+        // Le message ne présume plus un plan non semé · c'est le canevas qui
+        // visait des en-têtes de division, alors que le plan l'était bien.
+        `Comptes absents du plan de la cellule : ${manquants.join(', ')} · rétablissez-les dans le plan de comptes de la cellule avant l'import`,
       );
     }
     const journaux = await this.prisma.journal.findMany({
