@@ -11,7 +11,13 @@ const COMPTES = [
   { id: '131', numero: '13100000', intitule: 'Excédent', modeReportANouveau: 'SOLDE', lignesEcriture: [] },
 ];
 
-function service(provisoire: { id: string; numeroPiece: number; lignes: { lettre: string | null; rapprochementId: string | null }[] } | null) {
+function service(
+  provisoire: {
+    id: string;
+    numeroPiece: number;
+    lignes: { lettre: string | null; lettrageId?: string | null; rapprochementId: string | null }[];
+  } | null,
+) {
   const tx = {
     compte: {
       findMany: jest.fn().mockResolvedValue(COMPTES),
@@ -35,6 +41,15 @@ function service(provisoire: { id: string; numeroPiece: number; lignes: { lettre
   const journalService = { prochainNumeroPiece: jest.fn().mockResolvedValue(99) };
   return { s: new ExerciceService(prisma as never, journalService as never), tx, journalService };
 }
+
+describe('À-nouveaux provisoires · lettrage partiel (audit final F50)', () => {
+  it('refuse de remplacer un report dont une ligne est dans un groupe PARTIEL, et lit le groupe', async () => {
+    const { s, tx } = service({ id: 'p', numeroPiece: 3, lignes: [{ lettre: null, lettrageId: 'g1', rapprochementId: null }] });
+    await expect(s.genererANouveauxProvisoires('t', 'n', 'u')).rejects.toThrow(/lettrées ou pointées/);
+    expect(tx.ecriture.findFirst.mock.calls[0][0].include.lignes.select).toMatchObject({ lettre: true, lettrageId: true });
+    expect(tx.ecriture.delete).not.toHaveBeenCalled();
+  });
+});
 
 describe('À-nouveaux provisoires', () => {
   it('passe au brouillard, marqué provisoire, le report du livre-journal avec le résultat sur le 13 · équilibré', async () => {

@@ -116,6 +116,16 @@ describe('Réimputation · le service', () => {
     expect(options?.timeout ?? 0).toBeGreaterThan(5_000);
   });
 
+  // AUDIT FINAL F50 · une ligne d'un groupe PARTIEL n'a pas de lettre, et
+  // passait la garde · le service lit le groupe, pas seulement la lettre.
+  it('refuse une ligne d’un lettrage partiel, et n’écrit rien', async () => {
+    const { s, tx } = service([ligne('v', StatutEcriture.VALIDEE, { lettrageId: 'g1' })]);
+    await expect(s.reimputer('t', 'u', { ligneIds: ['v'], compteCibleId: 'c604', motif: 'x' })).rejects.toThrow(
+      /lettrée \(lettrage partiel\)/,
+    );
+    expect(tx.ecriture.create).not.toHaveBeenCalled();
+  });
+
   it("n'écrit RIEN si une seule ligne est refusée", async () => {
     const { s, tx } = service([ligne('b', StatutEcriture.BROUILLARD), ligne('v', StatutEcriture.VALIDEE, { lettre: 'AA' })]);
     await expect(s.reimputer('t', 'u', { ligneIds: ['b', 'v'], compteCibleId: 'c604', motif: 'x' })).rejects.toThrow(/lettrée/);

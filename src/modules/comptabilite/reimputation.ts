@@ -1,3 +1,5 @@
+import { designationLettrage, estTenueParUnLettrage } from '../lettrage/ligne-lettree';
+
 /**
  * RÉIMPUTATION D'ÉCRITURES · règles pures, sans Prisma.
  *
@@ -28,6 +30,8 @@ export interface LigneAReimputer {
   debit: number;
   credit: number;
   lettre: string | null;
+  /** Le groupe de lettrage, soldé ou partiel (audit final F50). */
+  lettrageId: string | null;
   rapprochementId: string | null;
   tauxTvaId: string | null;
   statut: 'BROUILLARD' | 'VALIDEE';
@@ -50,7 +54,7 @@ export function motifRefusLigne(l: LigneAReimputer, compteCibleId: string): stri
   if (l.tenueParImmobilisation) {
     return `${q} porte une immobilisation · la réimputer laisserait la fiche et son plan d'amortissement sans écriture en face. Passez par le module Immobilisations.`;
   }
-  if (l.lettre) return `${q} est lettrée (${l.lettre}) · délettrez-la d'abord.`;
+  if (estTenueParUnLettrage(l)) return `${q} est lettrée (${designationLettrage(l)}) · délettrez-la d'abord.`;
   if (l.rapprochementId) return `${q} est pointée dans un rapprochement bancaire · dépointez-la d'abord.`;
   if (l.tauxTvaId) {
     return `${q} porte un taux de TVA · la déplacer changerait la déclaration. Corrigez la pièce entière (inscription en négatif).`;

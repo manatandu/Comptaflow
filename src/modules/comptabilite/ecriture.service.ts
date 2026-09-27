@@ -22,6 +22,7 @@ import { ExerciceService, refuserSiPeriodeClose } from '../exercice/exercice.ser
 import { AnalytiqueService } from '../analytique/analytique.service';
 import { avecRetrySerialisable } from '../../common/prisma-retry.util';
 import { coursDeLaLigne, motifRefusLigneEnDevise, porteUneDevise } from './ligne-en-devise';
+import { designationLettrage, estTenueParUnLettrage } from '../lettrage/ligne-lettree';
 
 /**
  * Une ligne est au débit si son montant est porté du côté débit · quel que
@@ -927,10 +928,11 @@ export class EcritureService {
         );
       }
     }
-    const lettree = ecriture.lignes.find((l) => l.lettre);
+    // Soldé OU partiel (audit final F50, lettrage/ligne-lettree.ts).
+    const lettree = ecriture.lignes.find(estTenueParUnLettrage);
     if (lettree) {
       throw new BadRequestException(
-        `Une ligne de cette écriture est lettrée (${lettree.lettre}) : délettrez-la avant de modifier l'écriture.`,
+        `Une ligne de cette écriture est lettrée (${designationLettrage(lettree)}) : délettrez-la avant de modifier l'écriture.`,
       );
     }
     const pointee = ecriture.lignes.find((l) => l.rapprochementId);
@@ -1544,6 +1546,7 @@ export class EcritureService {
             debit: Number(l.debit),
             credit: Number(l.credit),
             lettre: l.lettre,
+            lettrageId: l.lettrageId,
             rapprochementId: l.rapprochementId,
             tauxTvaId: l.tauxTvaId,
             statut: l.ecriture.statut,
@@ -1902,7 +1905,7 @@ export class EcritureService {
     corrigeEcritureId: string | null;
     correction: { numeroPiece: number | null } | null;
     exercice: { statut: StatutExercice };
-    lignes: { lettre: string | null; rapprochementId: string | null }[];
+    lignes: { lettre: string | null; lettrageId: string | null; rapprochementId: string | null }[];
     immobilisationAcquisition: { designation: string } | null;
     immobilisationSortie: { designation: string } | null;
     dotationAmortissement: { id: string } | null;
@@ -1965,10 +1968,10 @@ export class EcritureService {
           'sur la fiche d’immobilisation sans contrepartie comptable : passez par le module Immobilisations.',
       );
     }
-    const lettrees = e.lignes.filter((l) => l.lettre);
+    const lettrees = e.lignes.filter(estTenueParUnLettrage);
     if (lettrees.length > 0) {
       throw new BadRequestException(
-        `${lettrees.length} ligne(s) de cette écriture sont lettrées (${[...new Set(lettrees.map((l) => l.lettre))].join(', ')}). ` +
+        `${lettrees.length} ligne(s) de cette écriture sont lettrées (${[...new Set(lettrees.map(designationLettrage))].join(', ')}). ` +
           'Le lettrage affirme que ces lignes sont soldées entre elles ; corriger sans délettrer laisserait cette ' +
           'affirmation en place, devenue fausse. Délettrez-les d’abord.',
       );

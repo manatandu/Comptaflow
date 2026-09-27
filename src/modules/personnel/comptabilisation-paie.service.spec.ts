@@ -145,6 +145,16 @@ describe('défaire la passation', () => {
     expect(tx.ecriture.deleteMany).not.toHaveBeenCalled();
   });
 
+  // AUDIT FINAL F50 · une ligne d'un groupe PARTIEL n'a pas de lettre.
+  it('refuse une écriture dont une ligne est dans un lettrage partiel, et lit le groupe', async () => {
+    const { service, tx, prisma } = monter({
+      ecriture: { id: 'e1', statut: 'BROUILLARD', numeroPiece: 12, exercice: { statut: 'OUVERT' }, lignes: [{ lettre: null, lettrageId: 'g1' }] },
+    });
+    await expect(service.annulerComptabilisation('t1', 'e1')).rejects.toThrow(/lettrée/);
+    expect(prisma.ecriture.findFirst.mock.calls[0][0].select.lignes.select).toMatchObject({ lettre: true, lettrageId: true });
+    expect(tx.ecriture.deleteMany).not.toHaveBeenCalled();
+  });
+
   it("refuse une écriture qui ne passe aucun bulletin · ce chemin n'efface pas le journal", async () => {
     const { service, tx } = monter({ porte: 0 });
     await expect(service.annulerComptabilisation('t1', 'e1')).rejects.toThrow(/aucun bulletin/);

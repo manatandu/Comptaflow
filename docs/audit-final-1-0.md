@@ -402,6 +402,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 3
 - **Constat :** les gardes testent `lettre`, qui est null dans un groupe partiel. Modifier, supprimer, corriger ou réimputer dénoue le groupe en silence : solde stocké faux, groupe à cheval sur deux comptes.
 - **Correction :** tester `lettre || lettrageId` dans les quatre gardes, avec un test par geste.
+- **Fait le 2026-09-27 :** une seule règle (`lettrage/ligne-lettree.ts`, `estTenueParUnLettrage`), dont le type exige les deux champs, appliquée aux quatre gardes et à leurs deux jumeaux · le remplacement du report provisoire et le retrait de la passation de paie. Tests : `ligne-lettree.spec.ts` (un par geste), `reimputation-service.spec.ts`, `a-nouveaux-provisoires.spec.ts`, `comptabilisation-paie.service.spec.ts`.
 
 **F51 · Balance âgée : la colonne « Antérieur à l'exercice » reste vide pour les reports** [saisie-06]
 - **Emplacements :** src/modules/comptabilite/ecriture.service.ts:2341, :2373 · exercice.service.ts:859

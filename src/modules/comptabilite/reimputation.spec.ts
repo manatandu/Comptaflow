@@ -7,6 +7,7 @@ const base: LigneAReimputer = {
   debit: 1000,
   credit: 0,
   lettre: null,
+  lettrageId: null,
   rapprochementId: null,
   tauxTvaId: null,
   statut: 'VALIDEE',

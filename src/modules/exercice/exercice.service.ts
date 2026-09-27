@@ -16,6 +16,7 @@ import { avecRetrySerialisable } from '../../common/prisma-retry.util';
 import { DERNIERE_VERIFICATION, dateJalon, jalonsApplicables } from './planning-cloture';
 import { premierJourNonCloture } from './report-periode-close';
 import { budgetsAReporter, CompteRan, lignesReportANouveau, resultatDesComptesDeGestion } from './report-a-nouveau';
+import { estTenueParUnLettrage } from '../lettrage/ligne-lettree';
 
 /**
  * Ce que le refus dit de la voie que le texte ouvre · AUDCIF art. 22, 4°. Le
@@ -1118,10 +1119,11 @@ async function retirerANouveauProvisoire(
 ): Promise<number | null> {
   const provisoire = await tx.ecriture.findFirst({
     where: { tenantId, exerciceId, estANouveauProvisoire: true },
-    include: { lignes: { select: { lettre: true, rapprochementId: true } } },
+    include: { lignes: { select: { lettre: true, lettrageId: true, rapprochementId: true } } },
   });
   if (!provisoire) return null;
-  if (provisoire.lignes.some((l) => l.lettre || l.rapprochementId)) {
+  // Soldé OU partiel (audit final F50, lettrage/ligne-lettree.ts).
+  if (provisoire.lignes.some((l) => estTenueParUnLettrage(l) || l.rapprochementId)) {
     throw new BadRequestException(
       "Des lignes du report à-nouveau provisoire ont été lettrées ou pointées sur le nouvel exercice · délettrez-les " +
         "(ou dépointez-les) avant de relancer le report. Le remplacer effacerait ce travail sans le dire.",

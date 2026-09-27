@@ -3436,6 +3436,14 @@ d'émission le dit, y compris quand la sélection ne portait que des exclus · u
 « Aucun courrier préparé. » tout seul se lirait comme « il n'y avait rien à
 réclamer ».
 
+**Une ligne lettrée l'est aussi dans un groupe PARTIEL (2026-09-27, audit
+final F50).** `lettre` n'est servie qu'au groupe soldé ; toute garde qui
+refuse de toucher une ligne lettrée passe par `estTenueParUnLettrage`
+(`lettrage/ligne-lettree.ts`), qui lit aussi `lettrageId`, et dont le type
+exige les deux champs · une garde sur la seule lettre laissait modifier,
+supprimer, corriger ou réimputer une facture payée à moitié, et le groupe se
+dénouait en silence.
+
 **Pré-lettrage · « l'une propose, l'autre confirme ».** Le lettrage automatique
 écrivait directement, et le schéma disait pourtant lui-même ce que valent ses
 trouvailles : « un rapprochement par montant est une PRÉSOMPTION DU LOGICIEL »

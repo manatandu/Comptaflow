@@ -6,6 +6,7 @@ import { moisValide } from './bulletin-paie';
 import { propositionPaieDuMois, type BulletinAComptabiliser } from './comptabilisation-paie';
 import type { Referentiel } from './passation-paie';
 import { ComptabilisationPaieDto } from './dto/personnel.dto';
+import { estTenueParUnLettrage } from '../lettrage/ligne-lettree';
 
 /**
  * P9 · passer la paie du mois au journal, et défaire ce passage tant que
@@ -157,7 +158,7 @@ export class ComptabilisationPaieService {
         statut: true,
         numeroPiece: true,
         exercice: { select: { statut: true } },
-        lignes: { select: { lettre: true } },
+        lignes: { select: { lettre: true, lettrageId: true } },
       },
     });
     if (!ecriture) throw new NotFoundException('Écriture introuvable dans ce dossier.');
@@ -172,7 +173,8 @@ export class ComptabilisationPaieService {
     if (ecriture.exercice.statut === StatutExercice.CLOTURE) {
       throw new BadRequestException("L'exercice de cette écriture est clôturé.");
     }
-    if (ecriture.lignes.some((l) => l.lettre)) {
+    // Soldé OU partiel (audit final F50, lettrage/ligne-lettree.ts).
+    if (ecriture.lignes.some(estTenueParUnLettrage)) {
       throw new BadRequestException("Une ligne de cette écriture est lettrée · délettrez-la d'abord.");
     }
     await this.prisma.$transaction(async (tx) => {
