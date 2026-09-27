@@ -532,13 +532,238 @@ function PositionsRelances() {
 }
 
 /**
+ * NIVEAUX DE RELANCE (audit de l'interface du 2026-09-27, I11) · la page lisait
+ * les niveaux semés sans pouvoir en créer ni en modifier, alors que les deux
+ * routes existent, réservées à l'administrateur. Le numéro et le type ne se
+ * changent pas après création (ModifierNiveauDto ne les porte pas) ; un niveau
+ * se met en sommeil plutôt qu'il ne se supprime, aucune route ne supprimant.
+ */
+function NiveauxRelance() {
+  const { estAdmin } = useAuth();
+  const [niveaux, setNiveaux] = useState<NiveauRelance[] | null>(null);
+  const [erreur, setErreur] = useState<string | null>(null);
+  const [edition, setEdition] = useState<string | null>(null);
+  const [brouillon, setBrouillon] = useState({ libelle: '', joursApresEcheance: '', modeleTexte: '' });
+  const [nouveau, setNouveau] = useState({
+    niveau: '',
+    libelle: '',
+    type: 'RAPPEL' as TypeRelance,
+    joursApresEcheance: '',
+    modeleTexte: '',
+  });
+
+  const charger = async () => {
+    try {
+      setNiveaux(await api.get<NiveauRelance[]>('/relances/niveaux'));
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Chargement impossible');
+    }
+  };
+  useEffect(() => {
+    void charger();
+  }, []);
+
+  const creer = async () => {
+    setErreur(null);
+    try {
+      await api.post('/relances/niveaux', {
+        niveau: Number(nouveau.niveau),
+        libelle: nouveau.libelle.trim(),
+        type: nouveau.type,
+        joursApresEcheance: Number(nouveau.joursApresEcheance),
+        modeleTexte: nouveau.modeleTexte,
+      });
+      setNouveau({ niveau: '', libelle: '', type: 'RAPPEL', joursApresEcheance: '', modeleTexte: '' });
+      await charger();
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Création impossible');
+    }
+  };
+
+  const modifier = async (id: string, corps: Record<string, unknown>) => {
+    setErreur(null);
+    try {
+      await api.patch(`/relances/niveaux/${id}`, corps);
+      setEdition(null);
+      await charger();
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Modification impossible');
+    }
+  };
+
+  const champ = 'border border-border rounded-[3px] bg-surface px-2 py-1 text-[11.5px]';
+  return (
+    <div className="p-2 flex flex-col gap-2">
+      {erreur && (
+        <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 rounded-[3px] px-2.5 py-1.5">{erreur}</div>
+      )}
+      <table className="w-full text-[11.5px]">
+        <thead>
+          <tr>
+            <th className="text-left">N°</th>
+            <th className="text-left">Libellé</th>
+            <th className="text-left">Type</th>
+            <th className="text-right">Jours après échéance</th>
+            <th className="text-left">État</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {niveaux?.map((n) => (
+            <tr key={n.id} className={n.estActif ? '' : 'text-text-dim'}>
+              <td>{n.niveau}</td>
+              <td>
+                {edition === n.id ? (
+                  <div className="flex flex-col gap-1">
+                    <input
+                      value={brouillon.libelle}
+                      onChange={(e) => setBrouillon((b) => ({ ...b, libelle: e.target.value }))}
+                      className={champ}
+                    />
+                    <textarea
+                      value={brouillon.modeleTexte}
+                      onChange={(e) => setBrouillon((b) => ({ ...b, modeleTexte: e.target.value }))}
+                      rows={4}
+                      className={champ}
+                    />
+                  </div>
+                ) : (
+                  n.libelle
+                )}
+              </td>
+              <td>{ETATS.find((e) => e.valeur === n.type)?.titre ?? n.type}</td>
+              <td className="text-right">
+                {edition === n.id ? (
+                  <input
+                    type="number"
+                    value={brouillon.joursApresEcheance}
+                    onChange={(e) => setBrouillon((b) => ({ ...b, joursApresEcheance: e.target.value }))}
+                    className={`${champ} w-[80px] text-right`}
+                  />
+                ) : (
+                  n.joursApresEcheance
+                )}
+              </td>
+              <td>{n.estActif ? 'Actif' : 'En sommeil'}</td>
+              <td className="text-right whitespace-nowrap">
+                {estAdmin && edition === n.id && (
+                  <>
+                    <button
+                      onClick={() =>
+                        void modifier(n.id, {
+                          libelle: brouillon.libelle.trim(),
+                          joursApresEcheance: Number(brouillon.joursApresEcheance),
+                          modeleTexte: brouillon.modeleTexte,
+                        })
+                      }
+                      className="text-sel text-[11px] font-semibold hover:underline mr-2"
+                    >
+                      Enregistrer
+                    </button>
+                    <button onClick={() => setEdition(null)} className="text-[11px] hover:underline">
+                      Annuler
+                    </button>
+                  </>
+                )}
+                {estAdmin && edition !== n.id && (
+                  <>
+                    <button
+                      onClick={() => {
+                        setEdition(n.id);
+                        setBrouillon({
+                          libelle: n.libelle,
+                          joursApresEcheance: String(n.joursApresEcheance),
+                          modeleTexte: n.modeleTexte,
+                        });
+                      }}
+                      className="text-sel text-[11px] hover:underline mr-2"
+                    >
+                      Modifier
+                    </button>
+                    <button onClick={() => void modifier(n.id, { estActif: !n.estActif })} className="text-[11px] hover:underline">
+                      {n.estActif ? 'Mettre en sommeil' : 'Réactiver'}
+                    </button>
+                  </>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {estAdmin && (
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-bold text-text-dim">N°</span>
+            <input
+              type="number"
+              value={nouveau.niveau}
+              onChange={(e) => setNouveau((v) => ({ ...v, niveau: e.target.value }))}
+              className={`${champ} w-[60px]`}
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-bold text-text-dim">Libellé</span>
+            <input
+              value={nouveau.libelle}
+              onChange={(e) => setNouveau((v) => ({ ...v, libelle: e.target.value }))}
+              className={`${champ} w-[200px]`}
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-bold text-text-dim">Type</span>
+            <select
+              value={nouveau.type}
+              onChange={(e) => setNouveau((v) => ({ ...v, type: e.target.value as TypeRelance }))}
+              className={champ}
+            >
+              {ETATS.map((e) => (
+                <option key={e.valeur} value={e.valeur}>
+                  {e.titre}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-bold text-text-dim" title="Négatif pour une relance préventive">
+              Jours après échéance
+            </span>
+            <input
+              type="number"
+              value={nouveau.joursApresEcheance}
+              onChange={(e) => setNouveau((v) => ({ ...v, joursApresEcheance: e.target.value }))}
+              className={`${champ} w-[90px]`}
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-bold text-text-dim">Modèle de lettre</span>
+            <textarea
+              value={nouveau.modeleTexte}
+              onChange={(e) => setNouveau((v) => ({ ...v, modeleTexte: e.target.value }))}
+              rows={2}
+              className={`${champ} w-[320px]`}
+            />
+          </label>
+          <button
+            onClick={() => void creer()}
+            disabled={!nouveau.niveau || !nouveau.libelle.trim() || nouveau.joursApresEcheance === '' || !nouveau.modeleTexte.trim()}
+            className="bg-sel text-white text-[11.5px] font-bold px-3.5 py-1.5 rounded-[3px] hover:brightness-110 disabled:opacity-50"
+          >
+            Ajouter le niveau
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * DEUX VUES, UNE FENÊTRE · les positions à relancer, et l'historique de ce
  * qui a été émis (Sage, Historique des rappels · point 17). L'historique vit
  * ici plutôt qu'en entrée de menu propre : c'est la même matière, et le menu
  * Traitement est tenu sous son plafond à 360 px (chrome-etroit.spec.ts).
  */
 export function RelancesPage() {
-  const [vue, setVue] = useState<'positions' | 'historique'>('positions');
+  const [vue, setVue] = useState<'positions' | 'historique' | 'niveaux'>('positions');
   return (
     <div>
       <div className="ecran-seul flex gap-1 px-2 pt-2" role="tablist">
@@ -546,6 +771,7 @@ export function RelancesPage() {
           [
             ['positions', 'À relancer'],
             ['historique', 'Historique des rappels'],
+            ['niveaux', 'Niveaux de relance'],
           ] as const
         ).map(([cle, libelle]) => (
           <button
@@ -560,7 +786,9 @@ export function RelancesPage() {
           </button>
         ))}
       </div>
-      {vue === 'positions' ? <PositionsRelances /> : <div className="p-2"><HistoriqueRappels /></div>}
+      {vue === 'positions' && <PositionsRelances />}
+      {vue === 'historique' && <div className="p-2"><HistoriqueRappels /></div>}
+      {vue === 'niveaux' && <NiveauxRelance />}
     </div>
   );
 }

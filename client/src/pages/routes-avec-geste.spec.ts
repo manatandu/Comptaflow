@@ -114,6 +114,48 @@ const GESTES: Array<{ route: string; controleur: string; decorateur: string; pag
     page: 'RegistreDonateursPage.tsx',
     appel: 'api.patch(`/registre-donateurs/${modif.id}`, corps)',
   },
+  {
+    route: 'POST /relances/niveaux',
+    controleur: 'relances/relances.controller.ts',
+    decorateur: "@Post('niveaux')",
+    page: 'RelancesPage.tsx',
+    appel: "api.post('/relances/niveaux', {",
+  },
+  {
+    route: 'PATCH /relances/niveaux/:id',
+    controleur: 'relances/relances.controller.ts',
+    decorateur: "@Patch('niveaux/:id')",
+    page: 'RelancesPage.tsx',
+    appel: 'api.patch(`/relances/niveaux/${id}`, corps)',
+  },
+  {
+    route: 'POST /analytique/plans',
+    controleur: 'analytique/analytique.controller.ts',
+    decorateur: "@Post('plans')",
+    page: 'PlansAnalytiquesPage.tsx',
+    appel: "api.post<PlanAnalytique>('/analytique/plans', { code: axe.code.trim(), ...reglages })",
+  },
+  {
+    route: 'PATCH /analytique/plans/:planId',
+    controleur: 'analytique/analytique.controller.ts',
+    decorateur: "@Patch('plans/:planId')",
+    page: 'PlansAnalytiquesPage.tsx',
+    appel: 'api.patch(`/analytique/plans/${axe.id}`, reglages)',
+  },
+  {
+    route: 'DELETE /analytique/plans/:planId',
+    controleur: 'analytique/analytique.controller.ts',
+    decorateur: "@Delete('plans/:planId')",
+    page: 'PlansAnalytiquesPage.tsx',
+    appel: 'api.delete(`/analytique/plans/${plan.id}`)',
+  },
+  {
+    route: 'DELETE /analytique/sections/:sectionId',
+    controleur: 'analytique/analytique.controller.ts',
+    decorateur: "@Delete('sections/:sectionId')",
+    page: 'PlansAnalytiquesPage.tsx',
+    appel: 'api.delete(`/analytique/sections/${section.id}`)',
+  },
 ];
 
 describe('routes d’écriture et leur geste', () => {

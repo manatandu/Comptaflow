@@ -70,6 +70,18 @@ export function PlansAnalytiquesPage() {
 
   const [dotation, setDotation] = useState('');
 
+  // Fiche de l'AXE (plan analytique), en création ou en modification · le
+  // code ne se change plus après création, ModifierPlanAnalytiqueDto ne le
+  // portant pas.
+  const [axe, setAxe] = useState<{
+    id: string | null;
+    code: string;
+    intitule: string;
+    classesVentilees: string;
+    ventilationObligatoire: boolean;
+    gererBudgets: boolean;
+  } | null>(null);
+
   const plan = plans?.find((p) => p.id === planId) ?? null;
   const section = sections.find((s) => s.id === sectionId) ?? null;
 
@@ -184,6 +196,80 @@ export function PlansAnalytiquesPage() {
     }
   };
 
+  /**
+   * Créer, modifier, mettre en sommeil et supprimer un axe, supprimer une
+   * section (audit de l'interface du 2026-09-27, I11) · les routes existaient,
+   * réservées à l'administrateur, et seules les sections se créaient. Le
+   * serveur refuse la suppression d'un axe ou d'une section qui porte des
+   * ventilations et renvoie à la mise en sommeil ; son refus est affiché tel
+   * quel.
+   */
+  const rechargerPlans = async (choisir?: string | null) => {
+    const r = await api.get<PlanAnalytique[]>('/analytique/plans');
+    setPlans(r);
+    setPlanId((id) => (choisir !== undefined ? choisir : r.some((p) => p.id === id) ? id : (r[0]?.id ?? null)));
+  };
+
+  const enregistrerAxe = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!axe) return;
+    setErreur(null);
+    const reglages = {
+      intitule: axe.intitule.trim(),
+      classesVentilees: axe.classesVentilees.replace(/\s/g, ''),
+      ventilationObligatoire: axe.ventilationObligatoire,
+      gererBudgets: axe.gererBudgets,
+    };
+    try {
+      if (axe.id) {
+        await api.patch(`/analytique/plans/${axe.id}`, reglages);
+        await rechargerPlans(axe.id);
+      } else {
+        const cree = await api.post<PlanAnalytique>('/analytique/plans', { code: axe.code.trim(), ...reglages });
+        await rechargerPlans(cree.id);
+      }
+      setAxe(null);
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Enregistrement impossible');
+    }
+  };
+
+  const basculerSommeilAxe = async () => {
+    if (!plan) return;
+    setErreur(null);
+    try {
+      await api.patch(`/analytique/plans/${plan.id}`, { estActif: !plan.estActif });
+      await rechargerPlans(plan.id);
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Modification impossible');
+    }
+  };
+
+  const supprimerAxe = async () => {
+    if (!plan || !window.confirm(`Supprimer l'axe « ${plan.intitule} » et ses sections ?`)) return;
+    setErreur(null);
+    try {
+      await api.delete(`/analytique/plans/${plan.id}`);
+      await rechargerPlans(null);
+      setSections([]);
+      setSectionId(null);
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Suppression impossible');
+    }
+  };
+
+  const supprimerSection = async () => {
+    if (!section || !window.confirm(`Supprimer la section ${section.code} ?`)) return;
+    setErreur(null);
+    try {
+      await api.delete(`/analytique/sections/${section.id}`);
+      if (planId) await chargerSections(planId);
+      setSectionId(null);
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Suppression impossible');
+    }
+  };
+
   const basculerSommeil = async () => {
     if (!section) return;
     try {
@@ -271,6 +357,44 @@ export function PlansAnalytiquesPage() {
               <span className="font-mono">{plan.classesVentilees.split(',').join(', ')}</span>
               {plan.ventilationObligatoire ? ' · obligatoire en saisie' : ' · signalée, non bloquante'}
               {plan.gererBudgets && ' · porte le budget'}
+              {!plan.estActif && ' · en sommeil'}
+            </div>
+          )}
+          {estAdmin && (
+            <div className="px-3 py-2 border-t border-border flex flex-wrap gap-x-2 gap-y-1 text-[11px]">
+              <button
+                onClick={() =>
+                  setAxe({ id: null, code: '', intitule: '', classesVentilees: '6,7', ventilationObligatoire: false, gererBudgets: false })
+                }
+                className="text-sel hover:underline"
+              >
+                Nouvel axe
+              </button>
+              {plan && (
+                <>
+                  <button
+                    onClick={() =>
+                      setAxe({
+                        id: plan.id,
+                        code: plan.code,
+                        intitule: plan.intitule,
+                        classesVentilees: plan.classesVentilees,
+                        ventilationObligatoire: plan.ventilationObligatoire,
+                        gererBudgets: plan.gererBudgets,
+                      })
+                    }
+                    className="text-sel hover:underline"
+                  >
+                    Modifier
+                  </button>
+                  <button onClick={() => void basculerSommeilAxe()} className="hover:underline">
+                    {plan.estActif ? 'Mettre en sommeil' : 'Réactiver'}
+                  </button>
+                  <button onClick={() => void supprimerAxe()} className="text-danger hover:underline">
+                    Supprimer
+                  </button>
+                </>
+              )}
             </div>
           )}
         </aside>
@@ -414,6 +538,12 @@ export function PlansAnalytiquesPage() {
                   >
                     {section.estActive ? 'Mettre en sommeil' : 'Réactiver'}
                   </button>
+                  <button
+                    onClick={() => void supprimerSection()}
+                    className="w-full mt-1.5 border border-danger/40 text-danger rounded-[3px] px-3 py-1.5 text-[11.5px] hover:bg-danger-soft"
+                  >
+                    Supprimer la section
+                  </button>
                 </div>
               )}
             </div>
@@ -526,6 +656,82 @@ export function PlansAnalytiquesPage() {
                   className="px-5 py-1.5 bg-sel text-white text-[11.5px] font-semibold rounded-[3px] hover:brightness-110 disabled:opacity-50"
                 >
                   {envoi ? 'Création…' : 'Créer'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </PortailModale>
+      )}
+      {axe && (
+        <PortailModale>
+          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 anim-voile">
+            <form
+              onSubmit={enregistrerAxe}
+              className="w-full max-w-[460px] bg-surface border border-border rounded-[4px] overflow-hidden shadow-flottante anim-modale modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto"
+            >
+              <div className="h-[32px] flex items-center px-3 bg-surface text-text border-b border-border text-[11.5px]">
+                {axe.id ? `Axe ${axe.code}` : 'Nouvel axe analytique'}
+              </div>
+              <div className="p-4 grid grid-cols-2 gap-3">
+                <label className="text-[11.5px] font-semibold text-text-dim">
+                  Code
+                  <input
+                    required
+                    disabled={axe.id !== null}
+                    value={axe.code}
+                    onChange={(e) => setAxe((a) => (a ? { ...a, code: e.target.value.toUpperCase() } : a))}
+                    className="mt-1 w-full border border-border rounded-[3px] px-2.5 py-1.5 text-[12px] font-mono font-normal disabled:opacity-60"
+                  />
+                </label>
+                <label className="text-[11.5px] font-semibold text-text-dim">
+                  Classes ventilées
+                  <input
+                    required
+                    value={axe.classesVentilees}
+                    onChange={(e) => setAxe((a) => (a ? { ...a, classesVentilees: e.target.value } : a))}
+                    placeholder="2,6,7,9"
+                    className="mt-1 w-full border border-border rounded-[3px] px-2.5 py-1.5 text-[12px] font-mono font-normal"
+                  />
+                </label>
+                <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
+                  Intitulé
+                  <input
+                    required
+                    value={axe.intitule}
+                    onChange={(e) => setAxe((a) => (a ? { ...a, intitule: e.target.value } : a))}
+                    className="mt-1 w-full border border-border rounded-[3px] px-2.5 py-1.5 text-[12px] font-normal"
+                  />
+                </label>
+                <label className="text-[11.5px] col-span-2 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={axe.ventilationObligatoire}
+                    onChange={(e) => setAxe((a) => (a ? { ...a, ventilationObligatoire: e.target.checked } : a))}
+                  />
+                  Ventilation obligatoire en saisie
+                </label>
+                <label className="text-[11.5px] col-span-2 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={axe.gererBudgets}
+                    onChange={(e) => setAxe((a) => (a ? { ...a, gererBudgets: e.target.checked } : a))}
+                  />
+                  Porte le budget
+                </label>
+              </div>
+              <div className="flex justify-end gap-2 px-4 py-3 border-t border-border bg-chrome">
+                <button
+                  type="button"
+                  onClick={() => setAxe(null)}
+                  className="px-4 py-1.5 border border-border rounded-[3px] bg-surface text-[11.5px] hover:bg-chrome-alt"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-1.5 bg-sel text-white text-[11.5px] font-semibold rounded-[3px] hover:brightness-110"
+                >
+                  Enregistrer
                 </button>
               </div>
             </form>
