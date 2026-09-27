@@ -149,6 +149,9 @@ export function AppShell() {
         // Sage : Fichier → Autorisations d'accès. La gestion des utilisateurs
         // est une commande du dossier, pas un « outil » à part.
         ...(estAdmin ? [{ label: "Autorisations d'accès (utilisateurs)", chemin: '/utilisateurs', onClick: () => navigate('/utilisateurs') }] : []),
+        // Le journal d'audit n'avait qu'une tuile d'accueil · or la barre de
+        // menus est la carte complète du logiciel. Réservé comme sa route.
+        ...(estAdmin ? [{ label: "Journal d'audit", chemin: '/journal-audit', onClick: () => navigate('/journal-audit') }] : []),
         // Sage : Fichier → Importer. C'est par là qu'une association arrive
         // avec son tableur ou l'export de son logiciel précédent.
         ...(estAdmin ? [{ label: 'Importer des données…', separateurAvant: true, chemin: '/import', onClick: () => navigate('/import') }] : []),
@@ -313,9 +316,31 @@ export function AppShell() {
             { label: "Fin d'exercice…", chemin: '/exercice', onClick: () => navigate('/exercice') },
           ],
         },
-        ...(estSycebnl
-          ? [{ label: 'Registre des donateurs', separateurAvant: true, chemin: '/registre-donateurs', onClick: () => navigate('/registre-donateurs') }]
-          : []),
+        {
+          // DÉCLARATIONS ET REGISTRES · des fenêtres qu'on ALIMENTE ou qui
+          // passent une écriture, rangées jusqu'ici parmi les éditions du
+          // menu État. La déclaration de TVA passe (et annule) l'écriture de
+          // liquidation ; les trois registres SYCEBNL se tiennent pièce par
+          // pièce, comme le registre des donateurs y était déjà.
+          titre: 'Déclarations et registres',
+          separateurAvant: true,
+          items: [
+            { label: 'Déclaration de TVA', chemin: '/declaration-tva', onClick: () => navigate('/declaration-tva') },
+            ...(estSycebnl
+              ? [{ label: 'Registre des donateurs', chemin: '/registre-donateurs', onClick: () => navigate('/registre-donateurs') }]
+              : []),
+            // La colonne Engagement du tableau d'exécution budgétaire (jeu
+            // « projets de développement »). Le serveur refuse pareil.
+            ...(estSycebnl
+              ? [{ label: 'Registre des engagements de dépense', chemin: '/engagements', onClick: () => navigate('/engagements') }]
+              : []),
+            // Les facilités douanières de l'article 39 de la loi 004/2001 · un
+            // arrêté prévisionnel périmé se découvre d'ordinaire au port.
+            ...(estSycebnl
+              ? [{ label: 'Exonérations douanières et fiscales', chemin: '/exonerations', onClick: () => navigate('/exonerations') }]
+              : []),
+          ],
+        },
       ],
     },
     {
@@ -405,6 +430,11 @@ export function AppShell() {
           items: [
             { label: 'Balance âgée', chemin: '/balance-agee', onClick: () => navigate('/balance-agee') },
             { label: 'Balance auxiliaire', chemin: '/balance-auxiliaire', onClick: () => navigate('/balance-auxiliaire') },
+            // Le second jeu · la balance convertie dans la monnaie où l'entité
+            // vit réellement. Une édition, pas un registre de révision ; et
+            // hors « États financiers », les livres et les états déposés
+            // restant en francs congolais, sans valeur légale pour celle-ci.
+            { label: 'Balance en monnaie fonctionnelle', chemin: '/balance-fonctionnelle', onClick: () => navigate('/balance-fonctionnelle') },
             { label: 'Justificatif de solde', chemin: '/justificatif-solde', onClick: () => navigate('/justificatif-solde') },
             { label: 'Évolution des soldes', chemin: '/evolution-soldes', onClick: () => navigate('/evolution-soldes') },
             { label: 'Palmarès et analyse des journaux', chemin: '/palmares-journaux', onClick: () => navigate('/palmares-journaux') },
@@ -427,12 +457,6 @@ export function AppShell() {
             // Priorité 6 · un prévu tiré d'un exercice de référence, comparé au
             // réalisé. Aucune écriture, seules les hypothèses sont gardées.
             { label: 'Simulateur budgétaire', chemin: '/simulations-budgetaires', onClick: () => navigate('/simulations-budgetaires') },
-            // SYCEBNL seulement · la colonne Engagement qu'il alimente vient
-            // du tableau d'exécution budgétaire du jeu « projets de
-            // développement ». Le serveur refuse pareil.
-            ...(estSycebnl
-              ? [{ label: 'Registre des engagements de dépense', chemin: '/engagements', onClick: () => navigate('/engagements') }]
-              : []),
           ],
         },
         {
@@ -461,18 +485,14 @@ export function AppShell() {
             // reprises mot pour mot, et les cycles qu'il ne couvre pas,
             // ajoutés par le cabinet et marqués comme tels.
             { label: 'Questionnaire de révision', chemin: '/questionnaire-revision', onClick: () => navigate('/questionnaire-revision') },
-            // Le second jeu · la balance convertie dans la monnaie où l'entité
-            // vit réellement. Elle est ici et non sous « États financiers » :
-            // les livres et les états déposés restent en francs congolais, et
-            // cet état-là n'a aucune valeur légale.
-            { label: 'Balance en monnaie fonctionnelle', chemin: '/balance-fonctionnelle', onClick: () => navigate('/balance-fonctionnelle') },
             { label: 'Registre des faiblesses', chemin: '/faiblesses', onClick: () => navigate('/faiblesses') },
             // Dossier mère d'un groupe d'établissements (une église et ses
             // cellules, une société et ses succursales) · la balance agrégée
             // du groupe est une édition du siège, sous les deux référentiels
             // (cf. groupe.controller.ts). Un dossier sans cellule n'a rien à
-            // agréger.
-            ...((utilisateur?.tenant.nombreCellules ?? 0) > 0
+            // agréger, SAUF le siège à plafond posé qui n'a pas encore créé la
+            // première · la fenêtre du groupe est aussi celle qui les crée.
+            ...((utilisateur?.tenant.nombreCellules ?? 0) > 0 || (estAdmin && utilisateur?.tenant.peutCreerCellules)
               ? [{ label: 'Balance agrégée du groupe', chemin: '/groupe', onClick: () => navigate('/groupe') }]
               : []),
           ],
@@ -516,7 +536,6 @@ export function AppShell() {
           titre: 'Fiscalité',
           separateurAvant: true,
           items: [
-            { label: 'Déclaration de TVA', chemin: '/declaration-tva', onClick: () => navigate('/declaration-tva') },
             // Une ASBL exonérée d'impôt sur les sociétés reste redevable de
             // tout ce qu'elle retient pour autrui, et de la déclaration même à
             // zéro · voir docs/fiscalite-asbl-rdc.md.
@@ -527,11 +546,6 @@ export function AppShell() {
             ...(estSycebnl
               ? []
               : [{ label: 'Résultat fiscal et impôt sur les bénéfices', chemin: '/fiscalite', onClick: () => navigate('/fiscalite') }]),
-            // Les facilités douanières de l'article 39 de la loi 004/2001 · un
-            // arrêté prévisionnel périmé se découvre d'ordinaire au port.
-            ...(estSycebnl
-              ? [{ label: 'Exonérations douanières et fiscales', chemin: '/exonerations', onClick: () => navigate('/exonerations') }]
-              : []),
           ],
         },
       ],
@@ -645,7 +659,10 @@ export function AppShell() {
           avant={<NavigationChrome />}
           apres={
             <>
-              <ClocheChrome />
+              {/* La cloche interroge /courrier chaque minute · pour un rôle à
+                  qui la fenêtre est fermée (gestionnaire de paie), c'était un
+                  403 par minute et un clic renvoyé ailleurs. */}
+              {fenetreOuverteAuRole('/courrier', utilisateur?.role) && <ClocheChrome />}
               <CalculetteChrome />
             </>
           }

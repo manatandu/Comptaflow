@@ -38,6 +38,9 @@ interface MeResponse {
     /** > 0 = dossier mère d'un groupe d'établissements · ouvre le menu
      *  « Balance agrégée du groupe ». */
     nombreCellules: number;
+    /** Siège à plafond posé par la console · peut créer sa première cellule
+     *  depuis la fenêtre du groupe (`GroupeService.creerCellule`). */
+    peutCreerCellules?: boolean;
     /** ONG de droit étranger (loi n° 004/2001, art. 37) · null hors SYCEBNL. */
     ongEtrangere?: boolean | null;
     /** Faits déclarés · `null` = pas encore dit (`lib/profil-dossier.ts`). */

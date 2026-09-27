@@ -227,7 +227,12 @@ describe('menu « État » à 360 px', () => {
     // Le 2026-09-26, le simulateur budgétaire est entré sous « Suivi et
     // prévision », à côté des états budgétaires · un prévu comparé à son
     // réalisé. Les bornes tiennent encore.
-    expect(tous).toHaveLength(34);
+    // Le 2026-09-27, TROIS entrées sont PARTIES sous « Traitement »
+    // (déclaration de TVA, engagements de dépense, exonérations) · elles
+    // écrivent ou s'alimentent, ce ne sont pas des éditions. Et la balance en
+    // monnaie fonctionnelle est passée de « Contrôle et révision » à
+    // « Analyse des comptes », sans changer le total.
+    expect(tous).toHaveLength(31);
     expect([...vues].sort()).toEqual([...tous].sort());
     // DEUX BORNES, et plus un chiffre relevé d'un cran à chaque ajout · c'est
     // la troisième fois en une journée qu'une édition nouvelle faisait tomber
@@ -265,8 +270,10 @@ describe('menu « État » à 360 px', () => {
     // Le regroupement ne doit pas avoir emporté la condition · un dossier
     // sans cellule n'a pas de groupe à agréger (cf. groupe.service.ts). Le
     // module sert les deux référentiels depuis le 2026-09-24.
+    // Depuis le 2026-09-27, le siège à plafond posé l'ouvre AUSSI avant sa
+    // première cellule · la fenêtre du groupe est celle qui les crée.
     expect(source).toMatch(
-      /\.\.\.\(\(utilisateur\?\.tenant\.nombreCellules \?\? 0\) > 0\n\s+\? \[\{ label: 'Balance agrégée du groupe'/,
+      /\.\.\.\(\(utilisateur\?\.tenant\.nombreCellules \?\? 0\) > 0 \|\| \(estAdmin && utilisateur\?\.tenant\.peutCreerCellules\)\n\s+\? \[\{ label: 'Balance agrégée du groupe'/,
     );
   });
 
@@ -370,7 +377,10 @@ describe('menus « Structure » et « Traitement » regroupés', () => {
 
   for (const [menu, debut, fin, auRepos, total] of [
     ['Structure', "titre: 'Structure',", "titre: 'Traitement',", 9, 16],
-    ['Traitement', "titre: 'Traitement',", "titre: 'État',", 7, 16],
+    // 2026-09-27 · le registre des donateurs entre dans le groupe
+    // « Déclarations et registres » (repos inchangé), qui reçoit aussi la
+    // déclaration de TVA, les engagements et les exonérations venus d'État.
+    ['Traitement', "titre: 'Traitement',", "titre: 'État',", 7, 19],
   ] as const) {
     it(`${menu} · ${auRepos} lignes au repos, les ${total} commandes toujours atteignables`, () => {
       const entrees = entreesDe(debut, fin);

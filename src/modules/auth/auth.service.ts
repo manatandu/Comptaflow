@@ -478,6 +478,12 @@ export class AuthService {
         // « Balance agrégée du groupe » (le serveur re-vérifie de toute façon
         // le lien à chaque appel /groupe).
         nombreCellules: user.tenant._count.cellules,
+        // Le siège qui n'a encore AUCUNE cellule doit pouvoir ouvrir la
+        // fenêtre du groupe, qui est aussi celle qui les crée · sans ce
+        // drapeau, un plafond posé par la console restait sans porte.
+        // Mêmes conditions que `GroupeService.creerCellule` : un plafond
+        // posé, et pas soi-même cellule d'un autre dossier.
+        peutCreerCellules: user.tenant.plafondCellules !== null && user.tenant.dossierMereId === null,
         // FAIT DÉCLARÉ qui commande un menu · l'accord-cadre (loi n° 004/2001,
         // art. 37) ne vise que l'ONG de droit étranger. `null` hors SYCEBNL,
         // où la question ne se pose pas. Même règle que le module.
