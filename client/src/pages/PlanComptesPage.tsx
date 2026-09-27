@@ -129,12 +129,20 @@ export function PlanComptesPage() {
 
   // Taux de TVA du dossier · alimentent le sélecteur « code taxe par défaut »
   // de la fiche compte. Chargés une fois, ils changent rarement.
+  // Le catalogue des retraitements relève du résultat fiscal, que le serveur
+  // réserve au SYSCOHADA (une EBNL est exemptée d'IS, loi n° 23/053 art. 5) ·
+  // l'appeler sous le SYCEBNL rendait un 403 à chaque ouverture du plan.
+  const referentiel = utilisateur?.tenant.referentiel;
   useEffect(() => {
     api.get<TauxTva[]>('/taux-tva?actifsSeuls=true').then(setTauxTva).catch(() => setTauxTva([]));
+    if (referentiel !== 'SYSCOHADA') {
+      setCatalogueFiscal([]);
+      return;
+    }
     api
       .get<{ retraitements: Array<{ code: string; libelle: string; source: string }> }>('/fiscalite/catalogue')
       .then((r) => setCatalogueFiscal(r.retraitements), () => setCatalogueFiscal([]));
-  }, []);
+  }, [referentiel]);
 
   // Une recherche en cours affiche ses résultats toutes classes confondues ·
   // le classement par classe ne s'applique qu'en navigation libre, sans recherche.
