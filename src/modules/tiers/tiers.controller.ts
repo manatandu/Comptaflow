@@ -143,6 +143,8 @@ export class ModeleReglementController {
   }
 
   /** Fractionnement en plusieurs échéances · voir TiersService.ajouterEcheance(). */
+  // Aucun écran ne la lit (audit de l'interface, I12) · la fenêtre Plan des
+  // tiers reçoit les échéances de chaque modèle avec la liste /modeles-reglement.
   @Get(':id/echeances')
   async listerEcheances(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.tiersService.listerEcheances(user.tenantId, id);

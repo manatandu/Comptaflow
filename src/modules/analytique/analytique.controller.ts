@@ -164,6 +164,8 @@ export class AnalytiqueController {
 
   // --- Ventilation ---------------------------------------------------------
 
+  // Aucun écran ne la lit (audit de l'interface, I12) · les états analytiques
+  // (grand livre analytique, lignes sans répartition) rendent la ventilation ligne à ligne.
   @Get('lignes/:ligneId/ventilations')
   async ventilations(@CurrentUser() user: AuthenticatedUser, @Param('ligneId') ligneId: string) {
     return this.analytique.ventilationsDeLigne(user.tenantId, ligneId);

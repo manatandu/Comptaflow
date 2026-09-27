@@ -49,6 +49,8 @@ export class ConventionFinancementController {
   }
 
   /** Ce qui peut être porté en créance à recevoir · rendu pour être VU. */
+  // Aucun écran ne la lit encore (audit de l'interface, I12) · la fenêtre
+  // Bailleurs lit les conventions elles-mêmes, et la route reste pour un appel direct.
   @Get('creances-a-recevoir')
   async creances(@CurrentUser() user: AuthenticatedUser) {
     return this.conventions.creancesARecevoir(user.tenantId);

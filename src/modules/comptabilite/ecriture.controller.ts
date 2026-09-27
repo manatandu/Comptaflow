@@ -300,6 +300,8 @@ export class EcritureController {
     return this.ecritureService.grandLivreComplet(user.tenantId, exerciceId);
   }
 
+  // Aucun écran ne la lit (audit de l'interface, I12) · le grand livre d'un
+  // compte s'ouvre par la route complète et s'exporte par /exports/grand-livre/:compteId.
   @Get('grand-livre/:compteId')
   async grandLivre(
     @CurrentUser() user: AuthenticatedUser,

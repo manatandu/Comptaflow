@@ -32,6 +32,8 @@ export class EmballagesController {
     return this.emballages.creer(user.tenantId, user.userId, dto);
   }
 
+  // Aucun écran ne la lit (audit de l'interface, I12) · la fenêtre Emballages
+  // lit le registre des consignations puis la proposition de dénouement.
   @Get('consignations/:id/ouverture')
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE, RoleUtilisateur.LECTURE_SEULE)
   async ouverture(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {

@@ -25,6 +25,8 @@ export class QuestionnaireController {
   }
 
   /** Le catalogue entier · chaque item avec son origine, sa forme et sa source. */
+  // Aucun écran ne la lit (audit de l'interface, I12) · la fenêtre du
+  // questionnaire reçoit les items avec les réponses, par la route du questionnaire.
   @Get('catalogue')
   catalogue() {
     return {
