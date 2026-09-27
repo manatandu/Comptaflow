@@ -1,4 +1,5 @@
 import { createPortal } from 'react-dom';
+import { ATTRIBUT_MODALE } from '../lib/echap';
 
 /**
  * UNE MODALE SE POSE SUR L'ÉCRAN, PAS DANS LA BARRE QUI L'A OUVERTE.
@@ -30,5 +31,14 @@ import { createPortal } from 'react-dom';
  * et n'a pas à en porter · c'est la racine de la page.
  */
 export function PortailModale({ children }: { children: React.ReactNode }) {
-  return createPortal(children, document.body);
+  // LE MARQUEUR DIT QU'UNE MODALE EST OUVERTE (audit final F177) · Échap ne
+  // ferme plus la fenêtre qui est dessous, même quand la modale ne gère pas la
+  // touche elle-même. `contents` · l'enveloppe n'a aucune boîte, le voile garde
+  // sa mise en page.
+  return createPortal(
+    <div {...{ [ATTRIBUT_MODALE]: '' }} style={{ display: 'contents' }}>
+      {children}
+    </div>,
+    document.body,
+  );
 }

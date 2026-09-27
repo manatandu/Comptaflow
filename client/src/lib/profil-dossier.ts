@@ -27,7 +27,9 @@ export const CHEMINS_SANS_OBJET_SMT: readonly string[] = [
   // Clôture · le fait générateur est l'encaissement ; les créances et dettes
   // s'établissent en inventaire extra-comptable.
   '/regularisations',
-  '/devises',
+  // PAS '/devises' (audit final F178) · la fenêtre porte aussi les COURS, que
+  // la paie stipulée en dollars exige au jour du calcul et dont elle nomme la
+  // fenêtre dans son refus. Seule la réévaluation y est masquée (sous-fonction).
   '/balance-fonctionnelle',
   // Aucun poste de provision dans les deux modèles SMT · le registre ne passe
   // aucune écriture, il se masque, et la dépréciation se refuse au serveur.
@@ -132,13 +134,16 @@ export function versReponse(v: boolean | null | undefined): ReponseFait {
  *  - composants et reconstitution d'une révision majeure · la Note 1 des deux
  *    SMT ne connaît que le bien, avec sa date et sa durée.
  */
-export type SousFonction = 'lots-virement' | 'ordre-virement' | 'composants' | 'revision-majeure';
+export type SousFonction = 'lots-virement' | 'ordre-virement' | 'composants' | 'revision-majeure' | 'reevaluation';
 
 export const SOUS_FONCTIONS_SANS_OBJET_SMT: readonly SousFonction[] = [
   'lots-virement',
   'ordre-virement',
   'composants',
   'revision-majeure',
+  // La réévaluation de clôture est une écriture d'engagement (478, 479) · la
+  // fenêtre Devises reste pour ses cours (audit final F178).
+  'reevaluation',
 ];
 
 export function sousFonctionServie(cle: SousFonction, t: RegimeDossierClient | null | undefined): boolean {

@@ -36,7 +36,10 @@ export function SauvegardesSurSite() {
   const { estAdmin } = useAuth();
   const [surSite, setSurSite] = useState(false);
   const [dossier, setDossier] = useState('');
-  const [copies, setCopies] = useState<Copie[]>([]);
+  // `null` tant que la liste n'a pas été LUE (audit final F179) · une liste
+  // vide est un constat, une lecture échouée n'en est pas un.
+  const [copies, setCopies] = useState<Copie[] | null>(null);
+  const [erreurLecture, setErreurLecture] = useState<string | null>(null);
   const [externe, setExterne] = useState<CopieExterne | null>(null);
   const [cheminExterne, setCheminExterne] = useState('');
   const [phrase, setPhrase] = useState('');
@@ -51,19 +54,32 @@ export function SauvegardesSurSite() {
       setCopies(r.copies);
       setExterne(r.copieExterne);
       setCheminExterne(r.copieExterne.dossier ?? '');
+      setErreurLecture(null);
     });
+
+  /** Relit la liste · un refus de lecture se DIT, il ne devient pas « aucune copie ». */
+  const relire = () =>
+    charger().catch((e) => setErreurLecture(e instanceof ApiError ? e.message : 'La liste des sauvegardes n’a pas pu être lue.'));
 
   useEffect(() => {
     if (!estAdmin) return;
     api
       .get<EtatSurSite>('/sur-site/etat')
       .then((e) => {
-        setSurSite(e.surSite);
-        if (e.surSite) return charger();
+        if (!e.surSite) return;
+        return charger().then(
+          () => setSurSite(true),
+          (err) => {
+            // Un REFUS (autre dossier que celui d'installation) laisse le cadre
+            // masqué · ce n'est pas une panne. Toute autre erreur s'affiche.
+            if (err instanceof ApiError && err.status === 403) return;
+            setSurSite(true);
+            setErreurLecture(err instanceof ApiError ? err.message : 'La liste des sauvegardes n’a pas pu être lue.');
+          },
+        );
       })
-      // Un refus (autre dossier que celui d'installation) laisse le cadre
-      // masqué · ce n'est pas une panne à montrer.
-      .catch(() => setSurSite(false));
+      // En ligne, un serveur d'avant cette route répond 404 · rien à montrer.
+      .catch(() => undefined);
   }, [estAdmin]);
 
   if (!estAdmin || !surSite) return null;
@@ -73,12 +89,14 @@ export function SauvegardesSurSite() {
     setErreur(null);
     try {
       await api.post('/sur-site/sauvegardes');
-      await charger();
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'La sauvegarde n’a pas abouti.');
-    } finally {
       setEnCours(false);
+      return;
     }
+    // La sauvegarde est faite · un échec de relecture n'en fait pas un échec.
+    await relire();
+    setEnCours(false);
   };
 
   const definirExterne = async () => {
@@ -98,16 +116,19 @@ export function SauvegardesSurSite() {
       await api.post('/sur-site/sauvegardes/copie-externe', { dossier: dossierExterne, phrase: dossierExterne ? phrase : null });
       setPhrase('');
       setConfirmation('');
-      await charger();
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Le dossier externe n’a pas pu être enregistré.');
+      return;
     }
+    await relire();
   };
 
   // Aucune copie hors du poste, ou une copie en échec, ou plus vieille que la
   // dernière sauvegarde locale · le disque du poste reste alors le seul
   // endroit où vit la comptabilité, et l'écran le dit.
-  const externeEnRetard = !externe?.dossier || !!externe.erreur || (copies[0] && externe.derniere !== copies[0].nom);
+  // Rien ne s'en conclut tant que la liste n'a pas été lue (audit final F179).
+  const externeEnRetard =
+    copies !== null && (!externe?.dossier || !!externe.erreur || (copies[0] && externe.derniere !== copies[0].nom));
 
   return (
     <section className="border border-border bg-surface px-3.5 py-2.5 mt-2.5">
@@ -176,7 +197,14 @@ export function SauvegardesSurSite() {
         </button>
       </div>
       {creation && <NouveauFichierWizard surInstallation onClose={() => setCreation(false)} />}
-      {copies.length === 0 ? (
+      {erreurLecture && (
+        <p role="alert" className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2 text-[11.5px]">
+          Liste des sauvegardes illisible · {erreurLecture}
+        </p>
+      )}
+      {copies === null ? (
+        !erreurLecture && <p className="text-[11.5px] text-text-dim">Lecture des sauvegardes…</p>
+      ) : copies.length === 0 ? (
         <p className="text-[11.5px] text-danger">Aucune copie dans ce dossier.</p>
       ) : (
         <table className="w-full text-[11.5px]">

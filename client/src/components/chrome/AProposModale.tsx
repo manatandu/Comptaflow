@@ -1,4 +1,8 @@
+import { useEffect, useState } from 'react';
 import { useAuth } from '../../lib/auth';
+import { api } from '../../lib/api';
+import type { EtatSurSite } from '../../lib/sur-site';
+import { identiteConstruction, ligneVersion } from '../../lib/version';
 import { BlocMarqueOmegaX } from './Logo';
 import { PortailModale } from '../PortailModale';
 
@@ -16,6 +20,18 @@ const LIBELLE_REFERENTIEL: Record<string, string> = {
 export function AProposModale({ onFermer }: { onFermer: () => void }) {
   const { utilisateur } = useAuth();
   const referentiel = utilisateur?.tenant.referentiel;
+  // La date du paquet, que seul un poste sur site connaît (audit final F180).
+  const [datePaquet, setDatePaquet] = useState<string | null>(null);
+  useEffect(() => {
+    let vivant = true;
+    api
+      .get<EtatSurSite>('/sur-site/etat')
+      .then((e) => vivant && e.surSite && setDatePaquet(e.dateVersion ?? null))
+      .catch(() => undefined);
+    return () => {
+      vivant = false;
+    };
+  }, []);
   return (
     <PortailModale>
       <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center" onClick={onFermer}>
@@ -43,7 +59,7 @@ export function AProposModale({ onFermer }: { onFermer: () => void }) {
               Logiciel de comptabilité OHADA
               {referentiel && LIBELLE_REFERENTIEL[referentiel] ? ` · ${LIBELLE_REFERENTIEL[referentiel]}` : ''}.
             </p>
-            <p className="text-text-dim">Version de développement.</p>
+            <p className="text-text-dim">{ligneVersion(identiteConstruction(), datePaquet)}</p>
           </div>
           <div className="border-t border-border px-3 py-2 flex justify-end">
             <button onClick={onFermer} className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1">

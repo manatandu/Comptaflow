@@ -6,6 +6,7 @@ import { Roles } from '../decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../decorators/current-user.decorator';
 import { RoleUtilisateur } from '@prisma/client';
 import { JournalAuditService } from './journal-audit.service';
+import { objetsAudites } from './libelles-objets-audites';
 
 /**
  * Le journal se lit, il ne s'écrit pas · aucune route POST, PATCH ou DELETE
@@ -40,6 +41,12 @@ export class JournalAuditController {
       page: page ? Number(page) : undefined,
       taille: taille ? Number(taille) : undefined,
     });
+  }
+
+  /** Les objets que le filtre propose · tous ceux que le journal couvre (audit final F182). */
+  @Get('objets')
+  objets() {
+    return objetsAudites();
   }
 
   /** Le contrôle d'intégrité · AUDCIF art. 22, 5° et 6°. */

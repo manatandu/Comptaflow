@@ -120,7 +120,9 @@ describe('Toute modale reste dans l’écran', () => {
     expect(calculette).toContain('<PortailModale>');
     expect(calculette).toContain("from './PortailModale'");
     const portail = readFileSync(join(__dirname, 'PortailModale.tsx'), 'utf8');
-    expect(portail).toContain('createPortal(children, document.body)');
+    // La cible est le <body>, quel que soit ce que le portail enveloppe · il
+    // porte depuis l'audit final F177 le marqueur des modales ouvertes.
+    expect(portail).toMatch(/createPortal\([\s\S]*\{children\}[\s\S]*,\s*document\.body,?\s*\)/);
   });
 
   it('LA BORNE A DEUX DÉTENTES · `dvh` seul disparaît en silence sur un vieux navigateur', () => {

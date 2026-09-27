@@ -28,6 +28,11 @@ export function DashboardPage() {
   const [ecritures, setEcritures] = useState<Ecriture[] | null>(null);
   const [balance, setBalance] = useState<LigneBalance[] | null>(null);
   const [echeancier, setEcheancier] = useState<EcheancierFiscal | null>(null);
+  // UN ÉCHEC SE DIT (audit final F181) · sans lui, une lecture refusée
+  // laissait « Chargement… » et des indicateurs « … » pour toujours, et
+  // rien ne disait qu'il n'y avait plus rien à attendre.
+  const [erreurEcritures, setErreurEcritures] = useState<string | null>(null);
+  const [erreurBalance, setErreurBalance] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -36,12 +41,26 @@ export function DashboardPage() {
     // limite=8 : le serveur renvoie les 8 plus récentes, au lieu de faire
     // télécharger (puis jeter) l'exercice entier · premier poste de lenteur
     // du tableau de bord relevé à l'audit.
-    api.get<{ ecritures: Ecriture[] }>(`/ecritures?exerciceId=${exerciceCourant.id}&limite=8`).then((r) => {
-      if (!annule) setEcritures(r.ecritures);
-    });
-    api.get<{ lignes: LigneBalance[] }>(`/ecritures/balance?exerciceId=${exerciceCourant.id}`).then((r) => {
-      if (!annule) setBalance(r.lignes);
-    });
+    setEcritures(null);
+    setBalance(null);
+    setErreurEcritures(null);
+    setErreurBalance(null);
+    api.get<{ ecritures: Ecriture[] }>(`/ecritures?exerciceId=${exerciceCourant.id}&limite=8`).then(
+      (r) => {
+        if (!annule) setEcritures(r.ecritures);
+      },
+      (e) => {
+        if (!annule) setErreurEcritures(e instanceof Error ? e.message : 'Les dernières écritures n’ont pas pu être lues.');
+      },
+    );
+    api.get<{ lignes: LigneBalance[] }>(`/ecritures/balance?exerciceId=${exerciceCourant.id}`).then(
+      (r) => {
+        if (!annule) setBalance(r.lignes);
+      },
+      (e) => {
+        if (!annule) setErreurBalance(e instanceof Error ? e.message : 'La balance n’a pas pu être lue.');
+      },
+    );
     // L'ÉCHÉANCIER VIENT DU SERVEUR, DATE DE RÉFÉRENCE COMPRISE · les dates
     // sont calculées là-bas, et deux postes mal réglés afficheraient sinon
     // deux calendriers différents pour le même dossier. L'échec est absorbé :
@@ -89,6 +108,12 @@ export function DashboardPage() {
         </button>
       </div>
 
+      {erreurBalance && (
+        <div className="mb-2.5 text-[11.5px] text-danger bg-danger-soft border border-danger/30 rounded-[3px] px-2.5 py-1.5">
+          Indicateurs indisponibles · {erreurBalance}
+        </div>
+      )}
+
       {/* Indicateurs · calculés depuis la balance, seule source de vérité. */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 mb-2.5">
         {indicateurs.map((ind) => {
@@ -98,7 +123,7 @@ export function DashboardPage() {
             <div key={ind.label} className="bg-surface border border-border shadow-posee px-3.5 py-2.5">
               <div className="text-[11px] font-bold text-text-dim tracking-wide">{ind.label}</div>
               <div className={`font-mono text-[14px] font-bold leading-tight mt-0.5 ${teinte}`}>
-                {balance ? ind.valeur.toLocaleString('fr-FR') : '…'}
+                {balance ? ind.valeur.toLocaleString('fr-FR') : erreurBalance ? '·' : '…'}
                 <span className="text-[11px] font-normal text-text-dim ml-1">CDF</span>
               </div>
               <div className="text-[11px] text-text-dim mt-0.5">{ind.note}</div>
@@ -192,7 +217,11 @@ export function DashboardPage() {
             Ouvrir le journal
           </a>
         </div>
-        {!ecritures && <div className="p-3 text-[11.5px] text-text-dim">Chargement…</div>}
+        {erreurEcritures ? (
+          <div className="p-3 text-[11.5px] text-danger">Dernières écritures illisibles · {erreurEcritures}</div>
+        ) : (
+          !ecritures && <div className="p-3 text-[11.5px] text-text-dim">Chargement…</div>
+        )}
         {ecritures?.length === 0 && (
           <div className="p-3 text-[11.5px] text-text-dim">
             Aucune écriture sur cet exercice.

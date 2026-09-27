@@ -14,6 +14,7 @@ import { dateDeLaPiece, fenetreDeSaisie, rangBorne } from '../lib/saisie-par-pie
 import { ETATS_JOURNAL, bulleCase, moisCourt, sigleCase, type LigneGrilleSaisie } from '../lib/etat-journal-saisie';
 import { contrevaleur, coursPropose, devisesEtrangeres, motifLigneEnDevise, type DeviseDuDossier } from '../lib/ligne-en-devise';
 import { lireJournalDeSaisie, urlJournalDeSaisie, type ReponseJournal } from '../lib/journal-de-saisie';
+import { useGardeFermeture } from '../lib/fenetres';
 
 /**
  * SAISIE DES JOURNAUX · l'écran central du logiciel, calqué sur
@@ -218,6 +219,14 @@ export function SaisiePage() {
   const [reference, setReference] = useState('');
   const [libellePiece, setLibellePiece] = useState('');
   const [lignes, setLignes] = useState<LignePiece[]>([]);
+  // LA PIÈCE N'A PAS DE BROUILLON (audit final F177) · composée et non
+  // enregistrée, elle partait sur un Échap ou un clic sur la croix. La
+  // fermeture de la fenêtre le demande désormais.
+  useGardeFermeture(
+    lignes.length > 0
+      ? `La pièce en cours (${lignes.length} ligne${lignes.length > 1 ? 's' : ''}) n'est pas enregistrée · fermer la fenêtre la perd.`
+      : null,
+  );
 
   // Ligne en cours de saisie
   const [compteSaisie, setCompteSaisie] = useState('');

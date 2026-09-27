@@ -60,6 +60,8 @@ describe('ce qu’un SMT ne voit pas, et ce qu’il garde', () => {
       '/rapprochement',
       '/personnel',
       '/declaration-tva',
+      // Les cours du jour, que la paie en dollars exige (audit final F178).
+      '/devises',
     ]) {
       expect(cheminAuMenu(chemin, SMT_SYCEBNL)).toBe(true);
       expect(cheminAuMenu(chemin, SMT_SYSCOHADA)).toBe(true);
@@ -148,8 +150,8 @@ describe('l’accueil applique le même filtre', () => {
 });
 
 describe('les sous-fonctions d’une fenêtre utile', () => {
-  it('lots, ordres, composants et révision majeure sont masqués au SMT, et seulement là', () => {
-    for (const cle of ['lots-virement', 'ordre-virement', 'composants', 'revision-majeure'] as const) {
+  it('lots, ordres, composants, révision majeure et réévaluation sont masqués au SMT, et seulement là', () => {
+    for (const cle of ['lots-virement', 'ordre-virement', 'composants', 'revision-majeure', 'reevaluation'] as const) {
       expect(sousFonctionServie(cle, SMT_SYCEBNL)).toBe(false);
       expect(sousFonctionServie(cle, SMT_SYSCOHADA)).toBe(false);
       for (const t of [ASSOCIATIONS, PROJETS, NORMAL]) expect(sousFonctionServie(cle, t)).toBe(true);
@@ -165,6 +167,15 @@ describe('les sous-fonctions d’une fenêtre utile', () => {
     expect(src).toContain("{sens === 'FOURNISSEUR' && lotsServis && (lots.length > 0 || peutEcrire) && (");
     // Une case cochée avant le chargement du dossier ne doit pas émettre d'ordre.
     expect(src).toContain("const ordreVirement = avecOrdre && ordresServis && sens === 'FOURNISSEUR';");
+  });
+
+  it('Devises enveloppe la réévaluation, qui reste lisible si elle a déjà servi (audit final F178)', () => {
+    const src = page('DevisesPage.tsx');
+    const bloc = src.indexOf('Réévaluation à la clôture');
+    const garde = src.lastIndexOf('{(reevaluationServie || reevaluations.length > 0) && (', bloc);
+    expect(garde).toBeGreaterThan(0);
+    expect(src.slice(garde, bloc)).not.toContain('</section>');
+    expect(src).toContain("const reevaluationServie = sousFonctionServie('reevaluation', utilisateur?.tenant);");
   });
 
   it('Immobilisations enveloppe le bloc des composants et le bouton Révision', () => {

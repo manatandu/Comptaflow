@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { createPortal } from 'react-dom';
 import { entreeLexique, type CleLexique, type EntreeLexique } from '../../lib/lexique';
 import { useAuth } from '../../lib/auth';
+import { ecouterEchap } from '../../lib/echap';
 
 /**
  * BULLE D'AIDE « ? ». Un petit rond posé à côté d'une notion comptable ;
@@ -75,11 +76,12 @@ export function Aide(
 
   useEffect(() => {
     if (!ouvert) return;
-    const surTouche = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
+    // Échap referme la bulle, et la bulle seule (audit final F177).
+    const cesserEchap = ecouterEchap(() => {
       setOuvert(false);
       setEpinglee(false);
-    };
+      return true;
+    });
     const surClic = (e: MouseEvent) => {
       if (!ancre.current?.contains(e.target as Node) && !bulle.current?.contains(e.target as Node)) {
         setOuvert(false);
@@ -92,11 +94,11 @@ export function Aide(
       setOuvert(false);
       setEpinglee(false);
     };
-    document.addEventListener('keydown', surTouche);
+
     document.addEventListener('mousedown', surClic);
     window.addEventListener('scroll', surDefilement, true);
     return () => {
-      document.removeEventListener('keydown', surTouche);
+      cesserEchap();
       document.removeEventListener('mousedown', surClic);
       window.removeEventListener('scroll', surDefilement, true);
     };

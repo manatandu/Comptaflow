@@ -50,4 +50,13 @@ describe('Fenêtre Journal d’audit', () => {
     expect(page).not.toContain('api.patch');
     expect(page).not.toContain('api.delete');
   });
+
+  it('le filtre propose les objets que le SERVEUR sert, et les lignes les nomment par eux (audit final F182)', () => {
+    const page = lire('pages/JournalAuditPage.tsx');
+    expect(page).toContain("api.get<ObjetAudite[]>('/journal-audit/objets')");
+    expect(page).toContain('{(objets ?? []).map((o) => (');
+    expect(page).toContain('<div>{libelleObjet(e.entite)}</div>');
+    const controleur = lireServeur('common/audit/journal-audit.controller.ts');
+    expect(controleur).toContain("@Get('objets')");
+  });
 });

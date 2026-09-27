@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { evaluerExpression } from '../lib/calcul';
 import { PortailModale } from './PortailModale';
 import { Aide } from './chrome/Aide';
+import { ecouterEchap } from '../lib/echap';
 
 /**
  * CALCULETTE · Édition → Calculette Sage.
@@ -54,9 +55,11 @@ export function Calculette({
     // haut. Le champ est déjà au centre de l'écran : il n'y a rien à faire
     // défiler pour l'atteindre.
     champ.current?.focus({ preventScroll: true });
-    const surTouche = (e: KeyboardEvent) => e.key === 'Escape' && onFermer();
-    document.addEventListener('keydown', surTouche);
-    return () => document.removeEventListener('keydown', surTouche);
+    // Échap ferme la modale, et elle seule (audit final F177).
+    return ecouterEchap(() => {
+      onFermer();
+      return true;
+    });
   }, [onFermer]);
 
   return (

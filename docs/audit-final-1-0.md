@@ -1313,48 +1313,56 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 3
 - **Constat :** quatre écouteurs réagissent sans `preventDefault`, et la saisie n'a pas de brouillon.
 - **Correction :** respecter `defaultPrevented`, et demander confirmation si la pièce n'est pas enregistrée.
+- **Fait le 2026-09-27 :** `lib/echap.ts` · une couche (menu, bulle, calculette, modale de correction) écoute en capture et consomme la touche quand elle agit ; la fenêtre ne se ferme que sur une touche libre et jamais sous une modale (`PortailModale` pose `data-modale`). La fermeture consulte les gardes (`useGardeFermeture`), et la saisie déclare sa pièce non enregistrée. Test : `echap.spec.ts`, `modales-dans-l-ecran.spec.ts`.
 
 **F178 · Profil SMT : Devises masquée alors que la paie en dollars exige le cours du jour** [chrome-05]
 - **Emplacements :** client/src/lib/profil-dossier.ts:28-30 · src/modules/personnel/conversion-usd.ts:61
 - **Condition :** 4
 - **Constat :** le message renvoie à une fenêtre invisible pour ce profil.
 - **Correction :** retirer `/devises` de la liste, en masquant seulement la réévaluation.
+- **Fait le 2026-09-27 :** `/devises` reste au SMT ; la réévaluation devient une sous-fonction (`sousFonctionServie('reevaluation')`), masquée dans Devises sauf si le dossier en porte déjà. Test : `profil-dossier.spec.ts`.
 
 **F179 · Sauvegardes sur site : un échec de lecture s'affiche « Aucune copie »** [chrome-08]
 - **Emplacements :** client/src/components/SauvegardesSurSite.tsx:44-52, :88-93, :124-125
 - **Condition :** 3
 - **Constat :** l'erreur est avalée et affichée comme un constat.
 - **Correction :** afficher l'erreur, et distinguer « lu » de « vide ».
+- **Fait le 2026-09-27 :** la liste part de null, un 403 masque le cadre, toute autre erreur s'affiche ; « Aucune copie » ne se dit que sur une liste lue, et une relecture échouée ne fait plus dire la sauvegarde ratée. Test : `sauvegardes-sur-site.spec.ts`.
 
 **F180 · « À propos » annonce une « Version de développement »** [chrome-09]
 - **Emplacements :** client/src/components/chrome/AProposModale.tsx:46 · package.json:3 · client/package.json:3
 - **Condition :** 5
 - **Constat :** aucun identifiant n'est affiché, alors que `finMaintenance` borne les versions sur site.
 - **Correction :** injecter version et commit, avec la date du paquet sur site.
+- **Fait le 2026-09-27 :** `vite.config.ts` pose version, révision (commit de la construction) et date ; `lib/version.ts` compose la ligne, ce qui manque se dit, et la date du paquet s'ajoute sur site. Test : `version.spec.ts`.
 
 **F181 · Tableau de bord : un échec laisse « Chargement… » indéfiniment** [pages-03]
 - **Emplacements :** client/src/pages/DashboardPage.tsx:38-43, :208
 - **Condition :** 4
 - **Constat :** aucun rejet géré.
 - **Correction :** un état d'erreur affiché.
+- **Fait le 2026-09-27 :** les deux lectures ont leur second argument ; « Indicateurs indisponibles » et « Dernières écritures illisibles » avec le motif, avant tout « Chargement… ». Test : `echecs-de-lecture-dits.spec.ts`.
 
 **F182 · Journal d'audit : le filtre ne propose que 26 des 92 modèles** [pages-04]
 - **Emplacements :** client/src/pages/JournalAuditPage.tsx:42, :151, :240 · src/common/audit/champs-audites.ts:22
 - **Condition :** 5
 - **Constat :** RIB, ordres de virement et bulletins ne sont pas filtrables.
 - **Correction :** liste servie par le serveur, gelée par un test.
+- **Fait le 2026-09-27 :** `GET /journal-audit/objets` (`libelles-objets-audites.ts`), un libellé par modèle de `MODELES_AUDITES`, ni plus ni moins ; l'écran ne tient plus de table. Tests : `libelles-objets-audites.spec.ts`, `journal-audit-fenetre.spec.ts`.
 
 **F183 · Inventaire : un échec de lecture des caisses s'affiche « Aucune caisse sans PV »** [pages-08]
 - **Emplacements :** client/src/pages/InventairePage.tsx:116, :1026
 - **Condition :** 3
 - **Constat :** l'erreur se lit comme une réponse favorable.
 - **Correction :** un état null distinct, avec l'erreur affichée.
+- **Fait le 2026-09-27 :** les caisses partent de null, un échec les remet à null avec son motif, et « Aucune caisse » ne se dit que sur une liste lue. Test : `echecs-de-lecture-dits.spec.ts`.
 
 **F184 · Mandat : un échec s'affiche « Aucun mandat enregistré »** [pages-09]
 - **Emplacements :** client/src/pages/MandatAuditeurPage.tsx:75-90, :280
 - **Condition :** 3
 - **Constat :** un échec de lecture passe pour une absence de mandat.
 - **Correction :** initialiser à null et afficher l'erreur.
+- **Fait le 2026-09-27 :** les mandats partent de null, la relecture pose l'erreur sans lever, et l'enregistrement refuse de compter le rang sur une liste non lue. Test : `echecs-de-lecture-dits.spec.ts`.
 
 ### Performance
 

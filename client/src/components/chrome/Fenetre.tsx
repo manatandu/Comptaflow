@@ -1,6 +1,7 @@
 import { Suspense, memo, useCallback, useEffect, useRef } from 'react';
 import type { FenetreOuverte } from '../../lib/fenetres';
-import { useFenetresActions } from '../../lib/fenetres';
+import { FenetreCourante, useFenetresActions } from '../../lib/fenetres';
+import { echapPourLaFenetre } from '../../lib/echap';
 import { rendreFenetre } from '../../lib/registre-fenetres';
 import { LimiteErreur } from './LimiteErreur';
 
@@ -105,7 +106,9 @@ function FenetreInterne({ fenetre, active }: { fenetre: FenetreOuverte; active: 
   );
 
   // Échap ferme la fenêtre ACTIVE · réflexe Windows, et seule façon de
-  // refermer au clavier une fenêtre ouverte par mégarde.
+  // refermer au clavier une fenêtre ouverte par mégarde. Seulement une touche
+  // que ni un menu, ni une bulle, ni une modale n'a prise (audit final F177) ·
+  // voir `lib/echap.ts`. La fermeture passe par la garde de la fenêtre.
   useEffect(() => {
     if (!active) return;
     const onTouche = (e: KeyboardEvent) => {
@@ -114,7 +117,7 @@ function FenetreInterne({ fenetre, active }: { fenetre: FenetreOuverte; active: 
       const dansUnChamp =
         cible instanceof HTMLElement &&
         (cible.tagName === 'INPUT' || cible.tagName === 'TEXTAREA' || cible.tagName === 'SELECT' || cible.isContentEditable);
-      if (e.key === 'Escape' && !dansUnChamp) fermer(fenetre.cle);
+      if (echapPourLaFenetre(e) && !dansUnChamp) fermer(fenetre.cle);
     };
     document.addEventListener('keydown', onTouche);
     return () => document.removeEventListener('keydown', onTouche);
@@ -222,9 +225,11 @@ function FenetreInterne({ fenetre, active }: { fenetre: FenetreOuverte; active: 
               Les pages sont chargées à la demande (registre-fenetres, lazy) :
               le temps du transfert de son module, la fenêtre affiche le même
               « Chargement… » que ses données · rien ne clignote deux fois. */}
-          <Suspense key={fenetre.version} fallback={<div className="p-3 text-[11.5px] text-text-dim">Chargement…</div>}>
-            {rendreFenetre(fenetre.adresse)}
-          </Suspense>
+          <FenetreCourante.Provider value={fenetre.cle}>
+            <Suspense key={fenetre.version} fallback={<div className="p-3 text-[11.5px] text-text-dim">Chargement…</div>}>
+              {rendreFenetre(fenetre.adresse)}
+            </Suspense>
+          </FenetreCourante.Provider>
         </LimiteErreur>
       </div>
 

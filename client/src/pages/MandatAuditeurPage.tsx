@@ -72,7 +72,11 @@ export function MandatAuditeurPage() {
   // lecture seule, souvent l'auditeur lui-même, consulte les mandats sans
   // voir un formulaire que le serveur lui refuserait.
   const { peutEcrire } = useAuth();
-  const [mandats, setMandats] = useState<Mandat[]>([]);
+  // NULL N'EST PAS VIDE (audit final F184) · un échec de lecture s'affichait
+  // « Aucun mandat enregistré », et le cabinet pouvait en désigner un second
+  // par-dessus celui qu'il ne voyait pas.
+  const [mandats, setMandats] = useState<Mandat[] | null>(null);
+  const [erreurLecture, setErreurLecture] = useState<string | null>(null);
   const [duree, setDuree] = useState<Duree | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [organe, setOrgane] = useState(ORGANES[0].valeur);
@@ -83,8 +87,16 @@ export function MandatAuditeurPage() {
   const [nombreExercices, setNombreExercices] = useState(3);
   const [obligation, setObligation] = useState<Obligation | null>(null);
 
+  // La relecture ne lève jamais · un mandat enregistré n'est pas dit refusé
+  // parce que la liste n'a pas pu être relue ensuite.
   const recharger = () =>
-    api.get<{ mandats: Mandat[] }>('/mandat-auditeur').then((r) => setMandats(r.mandats));
+    api.get<{ mandats: Mandat[] }>('/mandat-auditeur').then(
+      (r) => {
+        setMandats(r.mandats);
+        setErreurLecture(null);
+      },
+      (e) => setErreurLecture(e instanceof ApiError ? e.message : 'La liste des mandats n’a pas pu être lue.'),
+    );
 
   useEffect(() => {
     void recharger();
@@ -109,6 +121,12 @@ export function MandatAuditeurPage() {
 
   async function enregistrer() {
     setErreur(null);
+    // Le rang se compte sur la liste LUE · sans elle, un renouvellement
+    // partirait au rang 1.
+    if (mandats === null) {
+      setErreur('La liste des mandats n’a pas pu être lue · le rang du mandat ne se compte pas sans elle.');
+      return;
+    }
     try {
       await api.post('/mandat-auditeur', {
         nom,
@@ -283,7 +301,11 @@ export function MandatAuditeurPage() {
             source="SYCEBNL art. 19 à 22 · AUSCGIE art. 379, 703 à 705"
           />
         </h2>
-        {mandats.length === 0 ? (
+        {erreurLecture ? (
+          <p className="text-[11.5px] text-danger">Liste des mandats illisible · {erreurLecture}</p>
+        ) : mandats === null ? (
+          <p className="text-[11.5px] text-text-dim">Lecture des mandats…</p>
+        ) : mandats.length === 0 ? (
           <p className="text-[11.5px] text-text-dim">Aucun mandat enregistré.</p>
         ) : (
           <div className="overflow-x-auto">

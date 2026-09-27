@@ -5,6 +5,7 @@ import { useExercice } from '../lib/exercice';
 import { Aide } from '../components/chrome/Aide';
 import type { Devise, Exercice, RapportReevaluation, Reevaluation } from '../lib/types';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
+import { sousFonctionServie } from '../lib/profil-dossier';
 
 /**
  * DEVISES ET RÉÉVALUATION · Structure → devises et Traitement → Réévaluation
@@ -32,6 +33,9 @@ function jour(iso: string): string {
 
 export function DevisesPage() {
   const { estAdmin, peutEcrire, utilisateur } = useAuth();
+  // Au SMT, la réévaluation se masque, les cours restent (audit final F178) ·
+  // une réévaluation déjà passée reste lisible et contre-passable.
+  const reevaluationServie = sousFonctionServie('reevaluation', utilisateur?.tenant);
   const { exerciceCourant } = useExercice();
   const [devises, setDevises] = useState<Devise[]>([]);
   const [exercices, setExercices] = useState<Exercice[]>([]);
@@ -354,200 +358,202 @@ export function DevisesPage() {
           </section>
         </div>
 
-        <section
-          // `overflow-x-auto` ici, `min-w` sur les lignes · les 830 px de colonnes
-          // incompressibles du tableau ne tiennent pas dans les ~326 px utiles d'une
-          // fenêtre à 360 px. Le panneau ROGNAIT (`overflow-hidden`) : la page ne
-          // partait pas de côté, mais « ÉCART » était simplement invisible, sans
-          // barre de défilement pour aller la chercher.
-          className="bg-surface border border-border rounded-[4px] shadow-posee overflow-x-auto"
-        >
-          <div className="px-3 py-2 bg-chrome-alt border-b border-border flex items-center justify-between">
-            <span className="text-[11.5px] font-bold flex items-center gap-1.5">
-              Réévaluation à la clôture
-              <Aide
-                titre="Réévaluation à la clôture"
-                texte={`Le calcul reprend chaque position non lettrée portant une devise, la convertit au cours de la date retenue, et sépare ce que ${
-                  utilisateur?.tenant.referentiel === 'SYSCOHADA'
-                    ? "l'AUDCIF sépare (art. 54 et 57)"
-                    : 'le SYCEBNL sépare'
-                } : l'écart d'une créance ou d'une dette est LATENT et va au 478 ou au 479, celui d'une disponibilité est RÉALISÉ et va droit au résultat en 676 ou 776.`}
-                source={utilisateur?.tenant.referentiel === 'SYSCOHADA' ? 'AUDCIF, art. 54 et 57' : 'SYCEBNL'}
-              />
-            </span>
-            <span className="flex items-center gap-2">
-              <input
-                type="date"
-                value={dateReeval}
-                onChange={(e) => {
-                  setDateReeval(e.target.value);
-                  setRapport(null);
-                }}
-                className="border border-border rounded-[3px] px-2 py-1 text-[11.5px] font-mono"
-              />
-              <label
-                className="flex items-center gap-1.5 text-[11.5px]"
-                title="AUDCIF art. 58 · la dotation est limitée à l'excédent des pertes probables sur les gains latents, devise par devise. Le texte la subordonne à une justification par l'entité, et elle ne vaut qu'entre éléments dont l'échéance tombe dans le même exercice."
-              >
+        {(reevaluationServie || reevaluations.length > 0) && (
+          <section
+            // `overflow-x-auto` ici, `min-w` sur les lignes · les 830 px de colonnes
+            // incompressibles du tableau ne tiennent pas dans les ~326 px utiles d'une
+            // fenêtre à 360 px. Le panneau ROGNAIT (`overflow-hidden`) : la page ne
+            // partait pas de côté, mais « ÉCART » était simplement invisible, sans
+            // barre de défilement pour aller la chercher.
+            className="bg-surface border border-border rounded-[4px] shadow-posee overflow-x-auto"
+          >
+            <div className="px-3 py-2 bg-chrome-alt border-b border-border flex items-center justify-between">
+              <span className="text-[11.5px] font-bold flex items-center gap-1.5">
+                Réévaluation à la clôture
+                <Aide
+                  titre="Réévaluation à la clôture"
+                  texte={`Le calcul reprend chaque position non lettrée portant une devise, la convertit au cours de la date retenue, et sépare ce que ${
+                    utilisateur?.tenant.referentiel === 'SYSCOHADA'
+                      ? "l'AUDCIF sépare (art. 54 et 57)"
+                      : 'le SYCEBNL sépare'
+                  } : l'écart d'une créance ou d'une dette est LATENT et va au 478 ou au 479, celui d'une disponibilité est RÉALISÉ et va droit au résultat en 676 ou 776.`}
+                  source={utilisateur?.tenant.referentiel === 'SYSCOHADA' ? 'AUDCIF, art. 54 et 57' : 'SYCEBNL'}
+                />
+              </span>
+              <span className="flex items-center gap-2">
                 <input
-                  type="checkbox"
-                  checked={positionGlobale}
+                  type="date"
+                  value={dateReeval}
                   onChange={(e) => {
-                    setPositionGlobale(e.target.checked);
+                    setDateReeval(e.target.value);
                     setRapport(null);
                   }}
+                  className="border border-border rounded-[3px] px-2 py-1 text-[11.5px] font-mono"
                 />
-                Position globale de change
-              </label>
-              <button
-                onClick={calculer}
-                className="border border-border rounded-[3px] bg-surface px-3 py-1 text-[11.5px] font-semibold hover:bg-chrome"
-              >
-                Calculer
-              </button>
-              {peutEcrire && rapport && rapport.positions.length > 0 && (
-                <button
-                  onClick={reevaluer}
-                  disabled={envoi}
-                  className="bg-sel text-white text-[11.5px] font-bold px-3 py-1 rounded-[3px] hover:brightness-110 disabled:opacity-50"
+                <label
+                  className="flex items-center gap-1.5 text-[11.5px]"
+                  title="AUDCIF art. 58 · la dotation est limitée à l'excédent des pertes probables sur les gains latents, devise par devise. Le texte la subordonne à une justification par l'entité, et elle ne vaut qu'entre éléments dont l'échéance tombe dans le même exercice."
                 >
-                  Passer les écritures
+                  <input
+                    type="checkbox"
+                    checked={positionGlobale}
+                    onChange={(e) => {
+                      setPositionGlobale(e.target.checked);
+                      setRapport(null);
+                    }}
+                  />
+                  Position globale de change
+                </label>
+                <button
+                  onClick={calculer}
+                  className="border border-border rounded-[3px] bg-surface px-3 py-1 text-[11.5px] font-semibold hover:bg-chrome"
+                >
+                  Calculer
                 </button>
-              )}
-            </span>
-          </div>
+                {peutEcrire && rapport && rapport.positions.length > 0 && (
+                  <button
+                    onClick={reevaluer}
+                    disabled={envoi}
+                    className="bg-sel text-white text-[11.5px] font-bold px-3 py-1 rounded-[3px] hover:brightness-110 disabled:opacity-50"
+                  >
+                    Passer les écritures
+                  </button>
+                )}
+              </span>
+            </div>
 
-          {rapport && (
-            <>
-              {rapport.avertissements.length > 0 && (
-                <div className="mx-3 mt-3 text-[11.5px] text-warning bg-warning-soft border border-warning/30 rounded-[3px] px-2.5 py-2 leading-[1.55]">
-                  <strong>Étalement à décider · AUDCIF art. 56.</strong>
-                  <ul className="mt-1 list-disc pl-4 flex flex-col gap-1">
-                    {rapport.avertissements.map((a) => (
-                      <li key={a}>{a}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+            {rapport && (
+              <>
+                {rapport.avertissements.length > 0 && (
+                  <div className="mx-3 mt-3 text-[11.5px] text-warning bg-warning-soft border border-warning/30 rounded-[3px] px-2.5 py-2 leading-[1.55]">
+                    <strong>Étalement à décider · AUDCIF art. 56.</strong>
+                    <ul className="mt-1 list-disc pl-4 flex flex-col gap-1">
+                      {rapport.avertissements.map((a) => (
+                        <li key={a}>{a}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
-              {rapport.positionGlobaleRetenue && rapport.provisionSansPositionGlobale > rapport.provision && (
-                <div className="mx-3 mt-3 text-[11.5px] text-text-dim bg-chrome-alt border border-border rounded-[3px] px-2.5 py-1.5 leading-[1.55]">
-                  Position globale de change retenue (AUDCIF art. 58) · sans elle, la dotation serait de{' '}
-                  {montant(rapport.provisionSansPositionGlobale)}.
-                </div>
-              )}
+                {rapport.positionGlobaleRetenue && rapport.provisionSansPositionGlobale > rapport.provision && (
+                  <div className="mx-3 mt-3 text-[11.5px] text-text-dim bg-chrome-alt border border-border rounded-[3px] px-2.5 py-1.5 leading-[1.55]">
+                    Position globale de change retenue (AUDCIF art. 58) · sans elle, la dotation serait de{' '}
+                    {montant(rapport.provisionSansPositionGlobale)}.
+                  </div>
+                )}
 
-              {rapport.coursManquants.length > 0 && (
-                <div className="mx-3 mt-3 text-[11.5px] text-warning bg-warning-soft border border-warning/30 rounded-[3px] px-2.5 py-1.5">
-                  Aucun cours coté au {jour(rapport.dateReevaluation)} ou avant pour :{' '}
-                  {rapport.coursManquants.join(', ')}. Ces positions ne sont pas réévaluées.
-                </div>
-              )}
+                {rapport.coursManquants.length > 0 && (
+                  <div className="mx-3 mt-3 text-[11.5px] text-warning bg-warning-soft border border-warning/30 rounded-[3px] px-2.5 py-1.5">
+                    Aucun cours coté au {jour(rapport.dateReevaluation)} ou avant pour :{' '}
+                    {rapport.coursManquants.join(', ')}. Ces positions ne sont pas réévaluées.
+                  </div>
+                )}
 
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-3 p-3 border-b border-border">
-                {[
-                  ['Perte latente (478)', rapport.perteLatente, 'text-danger'],
-                  ['Gain latent (479)', rapport.gainLatent, 'text-positive'],
-                  ['Perte réalisée (676)', rapport.perteRealisee, 'text-danger'],
-                  ['Gain réalisé (776)', rapport.gainRealise, 'text-positive'],
-                  ['Provision (194)', rapport.provision, 'text-warning'],
-                ].map(([libelle, valeur, couleur]) => (
-                  <div key={libelle as string}>
-                    <div className="text-[11px] text-text-dim">{libelle}</div>
-                    <div className={`text-[13px] font-bold font-mono ${valeur ? (couleur as string) : 'text-text-dim'}`}>
-                      {montant(valeur as number)}
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3 p-3 border-b border-border">
+                  {[
+                    ['Perte latente (478)', rapport.perteLatente, 'text-danger'],
+                    ['Gain latent (479)', rapport.gainLatent, 'text-positive'],
+                    ['Perte réalisée (676)', rapport.perteRealisee, 'text-danger'],
+                    ['Gain réalisé (776)', rapport.gainRealise, 'text-positive'],
+                    ['Provision (194)', rapport.provision, 'text-warning'],
+                  ].map(([libelle, valeur, couleur]) => (
+                    <div key={libelle as string}>
+                      <div className="text-[11px] text-text-dim">{libelle}</div>
+                      <div className={`text-[13px] font-bold font-mono ${valeur ? (couleur as string) : 'text-text-dim'}`}>
+                        {montant(valeur as number)}
+                      </div>
                     </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-[110px_1fr_60px_110px_90px_130px_130px_120px] min-w-[980px] gap-2 px-3 py-1.5 bg-chrome-alt border-b border-border text-[11px] font-bold text-text-dim">
+                  <span>COMPTE</span>
+                  <span>Intitulé</span>
+                  <span>Dev.</span>
+                  <span className="text-right">En devise</span>
+                  <span className="text-right">COURS</span>
+                  <span className="text-right">Comptabilisé</span>
+                  <span className="text-right">Réévalué</span>
+                  <span className="text-right">Écart</span>
+                </div>
+                {rapport.positions.map((p) => (
+                  <div
+                    key={`${p.compteId}-${p.deviseId}`}
+                    className="grid grid-cols-[110px_1fr_60px_110px_90px_130px_130px_120px] min-w-[980px] gap-2 px-3 py-1 text-[11.5px] border-b border-border/40"
+                  >
+                    <span className="font-mono">{p.numero}</span>
+                    <span className="truncate">
+                      {p.intitule}
+                      <span className="ml-1.5 text-[11px] font-bold text-text-dim">
+                        {p.estTresorerie ? 'RÉALISÉ' : 'LATENT'}
+                      </span>
+                    </span>
+                    <span className="font-mono">{p.deviseCode}</span>
+                    <span className="text-right font-mono">{montant(p.montantDevise)}</span>
+                    <span className="text-right font-mono">{montant(p.coursCloture)}</span>
+                    <span className="text-right font-mono">{montant(p.valeurComptable)}</span>
+                    <span className="text-right font-mono">{montant(p.valeurReevaluee)}</span>
+                    <span className={`text-right font-mono font-bold ${p.ecart < 0 ? 'text-danger' : 'text-positive'}`}>
+                      {montant(p.ecart)}
+                    </span>
+                  </div>
+                ))}
+                {rapport.positions.length === 0 && (
+                  <div className="px-3 py-4 text-[11.5px] text-text-dim italic">
+                    Aucune position en devise à réévaluer à cette date.
+                  </div>
+                )}
+              </>
+            )}
+
+            {reevaluations.length > 0 && (
+              <div className="border-t border-border">
+                <div className="px-3 py-1.5 bg-chrome text-[11px] font-bold text-text-dim flex items-center gap-1.5">
+                  Réévaluations passées sur cet exercice
+                  <Aide
+                    titre="Contre-passation"
+                    texte="Les écarts de conversion se contre-passent à l'OUVERTURE de l'exercice suivant : ils décrivent une situation à une date d'arrêté, pas une charge rattachée à une période. C'est l'inverse de la reprise d'une régularisation, qui se fait à la fin de l'exercice concerné."
+                    source="Écarts de conversion · comptes 478 et 479"
+                  />
+                </div>
+                {reevaluations.map((r) => (
+                  <div
+                    key={r.id}
+                    className="grid grid-cols-[130px_1fr_200px] min-w-[520px] gap-2 px-3 py-1.5 text-[11.5px] items-center border-b border-border/40"
+                  >
+                    <span className="font-mono">{jour(r.dateReevaluation)}</span>
+                    <span className="text-text-dim">
+                      Écarts pièce {r.ecritureEcarts?.numeroPiece ?? '·'}
+                      {r.ecritureProvision && ` · provision pièce ${r.ecritureProvision.numeroPiece ?? '·'}`}
+                    </span>
+                    <span>
+                      {r.ecritureExtourne ? (
+                        <span className="text-[11.5px] text-positive font-semibold">
+                          Contre-passée le {jour(r.ecritureExtourne.date)}
+                        </span>
+                      ) : peutEcrire ? (
+                        <select
+                          defaultValue=""
+                          onChange={(e) => e.target.value && extourner(r.id, e.target.value)}
+                          className="w-full border border-border rounded-[4px] px-1 py-0.5 text-[11.5px]"
+                        >
+                          <option value="">Contre-passer sur…</option>
+                          {exercices
+                            .filter((ex) => ex.statut === 'OUVERT' && ex.id !== exerciceCourant?.id)
+                            .map((ex) => (
+                              <option key={ex.id} value={ex.id}>
+                                Exercice {new Date(ex.dateDebut).getFullYear()}
+                              </option>
+                            ))}
+                        </select>
+                      ) : null}
+                    </span>
                   </div>
                 ))}
               </div>
-
-              <div className="grid grid-cols-[110px_1fr_60px_110px_90px_130px_130px_120px] min-w-[980px] gap-2 px-3 py-1.5 bg-chrome-alt border-b border-border text-[11px] font-bold text-text-dim">
-                <span>COMPTE</span>
-                <span>Intitulé</span>
-                <span>Dev.</span>
-                <span className="text-right">En devise</span>
-                <span className="text-right">COURS</span>
-                <span className="text-right">Comptabilisé</span>
-                <span className="text-right">Réévalué</span>
-                <span className="text-right">Écart</span>
-              </div>
-              {rapport.positions.map((p) => (
-                <div
-                  key={`${p.compteId}-${p.deviseId}`}
-                  className="grid grid-cols-[110px_1fr_60px_110px_90px_130px_130px_120px] min-w-[980px] gap-2 px-3 py-1 text-[11.5px] border-b border-border/40"
-                >
-                  <span className="font-mono">{p.numero}</span>
-                  <span className="truncate">
-                    {p.intitule}
-                    <span className="ml-1.5 text-[11px] font-bold text-text-dim">
-                      {p.estTresorerie ? 'RÉALISÉ' : 'LATENT'}
-                    </span>
-                  </span>
-                  <span className="font-mono">{p.deviseCode}</span>
-                  <span className="text-right font-mono">{montant(p.montantDevise)}</span>
-                  <span className="text-right font-mono">{montant(p.coursCloture)}</span>
-                  <span className="text-right font-mono">{montant(p.valeurComptable)}</span>
-                  <span className="text-right font-mono">{montant(p.valeurReevaluee)}</span>
-                  <span className={`text-right font-mono font-bold ${p.ecart < 0 ? 'text-danger' : 'text-positive'}`}>
-                    {montant(p.ecart)}
-                  </span>
-                </div>
-              ))}
-              {rapport.positions.length === 0 && (
-                <div className="px-3 py-4 text-[11.5px] text-text-dim italic">
-                  Aucune position en devise à réévaluer à cette date.
-                </div>
-              )}
-            </>
-          )}
-
-          {reevaluations.length > 0 && (
-            <div className="border-t border-border">
-              <div className="px-3 py-1.5 bg-chrome text-[11px] font-bold text-text-dim flex items-center gap-1.5">
-                Réévaluations passées sur cet exercice
-                <Aide
-                  titre="Contre-passation"
-                  texte="Les écarts de conversion se contre-passent à l'OUVERTURE de l'exercice suivant : ils décrivent une situation à une date d'arrêté, pas une charge rattachée à une période. C'est l'inverse de la reprise d'une régularisation, qui se fait à la fin de l'exercice concerné."
-                  source="Écarts de conversion · comptes 478 et 479"
-                />
-              </div>
-              {reevaluations.map((r) => (
-                <div
-                  key={r.id}
-                  className="grid grid-cols-[130px_1fr_200px] min-w-[520px] gap-2 px-3 py-1.5 text-[11.5px] items-center border-b border-border/40"
-                >
-                  <span className="font-mono">{jour(r.dateReevaluation)}</span>
-                  <span className="text-text-dim">
-                    Écarts pièce {r.ecritureEcarts?.numeroPiece ?? '·'}
-                    {r.ecritureProvision && ` · provision pièce ${r.ecritureProvision.numeroPiece ?? '·'}`}
-                  </span>
-                  <span>
-                    {r.ecritureExtourne ? (
-                      <span className="text-[11.5px] text-positive font-semibold">
-                        Contre-passée le {jour(r.ecritureExtourne.date)}
-                      </span>
-                    ) : peutEcrire ? (
-                      <select
-                        defaultValue=""
-                        onChange={(e) => e.target.value && extourner(r.id, e.target.value)}
-                        className="w-full border border-border rounded-[4px] px-1 py-0.5 text-[11.5px]"
-                      >
-                        <option value="">Contre-passer sur…</option>
-                        {exercices
-                          .filter((ex) => ex.statut === 'OUVERT' && ex.id !== exerciceCourant?.id)
-                          .map((ex) => (
-                            <option key={ex.id} value={ex.id}>
-                              Exercice {new Date(ex.dateDebut).getFullYear()}
-                            </option>
-                          ))}
-                      </select>
-                    ) : null}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
+            )}
+          </section>
+        )}
       </div>
     </div>
   );

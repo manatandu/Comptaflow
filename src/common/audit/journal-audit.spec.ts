@@ -6,7 +6,8 @@ import { intercepterEcriture } from './extension-audit';
 import { dansContexteAudit, ACTEUR_SYSTEME, journaliserDansTransaction } from './contexte-audit';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { Logger } from '@nestjs/common';
+import { Logger, RequestMethod } from '@nestjs/common';
+import { METHOD_METADATA } from '@nestjs/common/constants';
 
 /**
  * AUDCIF art. 22, 6° · « l'organisation garantisse toutes les possibilités de
@@ -270,7 +271,13 @@ describe('le journal se lit, il ne s’écrit pas', () => {
     // Une route qui modifierait le journal viderait la garantie de son sens.
     // On relit le prototype plutôt que le fichier : c'est ce qui est monté.
     const methodes = Object.getOwnPropertyNames(JournalAuditController.prototype).filter((m) => m !== 'constructor');
-    expect(methodes.sort()).toEqual(['lister', 'verifier']);
+    // `objets` rend les libellés du filtre (audit final F182) · une lecture,
+    // comme les deux autres, et c'est la méthode HTTP qui le prouve.
+    expect(methodes.sort()).toEqual(['lister', 'objets', 'verifier']);
+    const prototype = JournalAuditController.prototype as unknown as Record<string, object>;
+    for (const m of methodes) {
+      expect([m, Reflect.getMetadata(METHOD_METADATA, prototype[m])]).toEqual([m, RequestMethod.GET]);
+    }
   });
 });
 

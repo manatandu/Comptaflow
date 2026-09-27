@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { viderCacheReferentiels } from './api';
 
 /**
@@ -90,6 +90,25 @@ interface ContexteFenetres {
   reorganiser: () => void;
   /** Menu Fenêtre → Actualiser · remonte le contenu de la fenêtre (rechargement des données). */
   actualiser: (cle: string) => void;
+  /**
+   * Pose (ou retire, `null`) la garde de fermeture d'une fenêtre · voir
+   * `useGardeFermeture`.
+   */
+  poserGarde: (cle: string, garde: GardeFermeture | null) => void;
+}
+
+/**
+ * CE QUE LA FERMETURE PERDRAIT (audit final F177) · une garde rend le motif
+ * à confirmer, ou `null` quand rien n'est en cours. La saisie n'a pas de
+ * brouillon · une pièce composée et non enregistrée disparaissait sur un Échap
+ * ou un clic sur la croix.
+ */
+export type GardeFermeture = () => string | null;
+
+/** Confirme ce que perdraient ces fenêtres · vrai s'il n'y a rien ou si l'utilisateur accepte. */
+function confirmerPerte(motifs: string[]): boolean {
+  if (motifs.length === 0) return true;
+  return window.confirm(`${motifs.join('\n')}\n\nFermer quand même ?`);
 }
 
 const Contexte = createContext<ContexteFenetres | null>(null);
@@ -160,11 +179,26 @@ export function FenetresProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const gardes = useRef(new Map<string, GardeFermeture>());
+
+  const poserGarde = useCallback((cle: string, garde: GardeFermeture | null) => {
+    if (garde) gardes.current.set(cle, garde);
+    else gardes.current.delete(cle);
+  }, []);
+
   const fermer = useCallback((cle: string) => {
+    const motif = gardes.current.get(cle)?.();
+    if (!confirmerPerte(motif ? [motif] : [])) return;
+    gardes.current.delete(cle);
     setFenetres((a) => a.filter((f) => f.cle !== cle));
   }, []);
 
-  const fermerTout = useCallback(() => setFenetres([]), []);
+  const fermerTout = useCallback(() => {
+    const motifs = [...gardes.current.values()].map((g) => g()).filter((m): m is string => m !== null);
+    if (!confirmerPerte(motifs)) return;
+    gardes.current.clear();
+    setFenetres([]);
+  }, []);
 
   const activer = useCallback((cle: string) => {
     const ordre = ++compteurOrdre.current;
@@ -246,13 +280,14 @@ export function FenetresProvider({ children }: { children: React.ReactNode }) {
       deplacer,
       reorganiser,
       actualiser,
+      poserGarde,
     }),
-    [fenetres, cleActive, ouvrir, fermer, fermerTout, activer, reduire, basculerAgrandissement, deplacer, reorganiser, actualiser],
+    [fenetres, cleActive, ouvrir, fermer, fermerTout, activer, reduire, basculerAgrandissement, deplacer, reorganiser, actualiser, poserGarde],
   );
 
   const actions = useMemo(
-    () => ({ ouvrir, fermer, fermerTout, activer, reduire, basculerAgrandissement, deplacer, reorganiser, actualiser }),
-    [ouvrir, fermer, fermerTout, activer, reduire, basculerAgrandissement, deplacer, reorganiser, actualiser],
+    () => ({ ouvrir, fermer, fermerTout, activer, reduire, basculerAgrandissement, deplacer, reorganiser, actualiser, poserGarde }),
+    [ouvrir, fermer, fermerTout, activer, reduire, basculerAgrandissement, deplacer, reorganiser, actualiser, poserGarde],
   );
 
   return (
@@ -273,4 +308,24 @@ export function useFenetresActions() {
   const c = useContext(ContexteActions);
   if (!c) throw new Error('useFenetresActions doit être utilisé dans un FenetresProvider');
   return c;
+}
+
+/** La clé de la fenêtre qui rend ce contenu · posée par `Fenetre`, `null` hors fenêtre. */
+export const FenetreCourante = createContext<string | null>(null);
+
+/**
+ * Déclare ce que la fermeture de SA fenêtre perdrait · `motif` non nul tant
+ * qu'un travail n'est pas enregistré. La fermeture (Échap, croix, Accueil)
+ * demande alors confirmation. Hors fenêtre, sans effet.
+ */
+export function useGardeFermeture(motif: string | null) {
+  const cle = useContext(FenetreCourante);
+  const actions = useContext(ContexteActions);
+  const courant = useRef(motif);
+  courant.current = motif;
+  useEffect(() => {
+    if (!cle || !actions) return;
+    actions.poserGarde(cle, () => courant.current);
+    return () => actions.poserGarde(cle, null);
+  }, [cle, actions]);
 }

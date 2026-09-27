@@ -98,7 +98,11 @@ export function InventairePage() {
   const [dateInventaire, setDateInventaire] = useState('');
   const [exerciceId, setExerciceId] = useState('');
   const [erreur, setErreur] = useState<string | null>(null);
-  const [caisses, setCaisses] = useState<CaisseNonComptee[]>([]);
+  // NULL N'EST PAS VIDE (audit final F183) · une lecture refusée s'affichait
+  // « Aucune caisse sans procès-verbal », c'est-à-dire la réponse favorable,
+  // sur la seule question que la clôture de la campagne pose.
+  const [caisses, setCaisses] = useState<CaisseNonComptee[] | null>(null);
+  const [erreurCaisses, setErreurCaisses] = useState<string | null>(null);
   const [comptes, setComptes] = useState<Compte[]>([]);
 
   const charger = () => {
@@ -115,13 +119,19 @@ export function InventairePage() {
     if (peutEcrire) api.get<Compte[]>('/comptes').then(setComptes, () => undefined);
   }, [peutEcrire]);
 
-  const chargerCaisses = (id: string) =>
-    api.get<CaisseNonComptee[]>(`/inventaire/${id}/caisses-non-comptees`).then(setCaisses, () => setCaisses([]));
+  const chargerCaisses = (id: string) => {
+    setErreurCaisses(null);
+    return api.get<CaisseNonComptee[]>(`/inventaire/${id}/caisses-non-comptees`).then(setCaisses, (e: Error) => {
+      setCaisses(null);
+      setErreurCaisses(e.message || 'La liste des caisses n’a pas pu être lue.');
+    });
+  };
 
   useEffect(() => {
     if (!selectionId) {
       setDetail(null);
-      setCaisses([]);
+      setCaisses(null);
+      setErreurCaisses(null);
       return;
     }
     api.get<CampagneInventaire>(`/inventaire/${selectionId}`).then(setDetail, (e: Error) => setErreur(e.message));
@@ -438,7 +448,7 @@ export function InventairePage() {
 
               {/* --- Caisses ----------------------------------------------- */}
               {detail.statut !== 'CLOTUREE' && (
-                <BlocCaisses campagne={detail} caisses={caisses} peutEcrire={peutEcrire} agir={agir} />
+                <BlocCaisses campagne={detail} caisses={caisses} erreur={erreurCaisses} peutEcrire={peutEcrire} agir={agir} />
               )}
             </>
           )}
@@ -1016,11 +1026,13 @@ function LienRedressement({ ecart, peutEcrire, agir }: { ecart: EcartInventaire;
 function BlocCaisses({
   campagne,
   caisses,
+  erreur,
   peutEcrire,
   agir,
 }: {
   campagne: CampagneInventaire;
-  caisses: CaisseNonComptee[];
+  caisses: CaisseNonComptee[] | null;
+  erreur: string | null;
   peutEcrire: boolean;
   agir: Agir;
 }) {
@@ -1030,17 +1042,23 @@ function BlocCaisses({
   return (
     <div className="border border-border bg-surface mt-2">
       <div className="px-2.5 py-1.5 border-b border-border text-[11px] text-text-dim flex items-center gap-1">
-        Caisses sans procès-verbal de comptage · {caisses.length}
+        Caisses sans procès-verbal de comptage · {caisses === null ? '·' : caisses.length}
         <Aide
           titre="Comptage des caisses"
           texte="« A-t-on tenu compte de la caisse siège, de la caisse agence, de la caisse de secours ? » Un procès-verbal par caisse, signé par les membres de la sous-commission qui l’a comptée, inventoriant et témoin. La campagne ne se clôt pas tant qu’une caisse à solde non nul n’a pas le sien ; une caisse à solde nul n’est pas réclamée. La ventilation par coupure est facultative, et doit égaler le montant compté."
           source="CPCC, § VI et étape 2"
         />
       </div>
-      {caisses.length === 0 && (
-        <div className="px-2.5 py-2 text-[11.5px] text-text-dim">Aucune caisse à solde non nul sans procès-verbal.</div>
+      {erreur ? (
+        <div className="px-2.5 py-2 text-[11.5px] text-danger">Liste des caisses illisible · {erreur}</div>
+      ) : caisses === null ? (
+        <div className="px-2.5 py-2 text-[11.5px] text-text-dim">Lecture des caisses…</div>
+      ) : (
+        caisses.length === 0 && (
+          <div className="px-2.5 py-2 text-[11.5px] text-text-dim">Aucune caisse à solde non nul sans procès-verbal.</div>
+        )
       )}
-      {caisses.map((c) => (
+      {(caisses ?? []).map((c) => (
         <div key={c.compteId} className="px-2.5 py-1.5 border-b border-border/40">
           <div className="flex items-center justify-between gap-2 text-[11.5px]">
             <span>

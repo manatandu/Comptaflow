@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Aide } from './chrome/Aide';
 import { PortailModale } from './PortailModale';
+import { ecouterEchap } from '../lib/echap';
 
 /**
  * MOTIF DE CORRECTION · la boîte qui remplace le `window.prompt` d'avant.
@@ -87,9 +88,11 @@ export function ModaleCorrection({
   const [precision, setPrecision] = useState('');
 
   useEffect(() => {
-    const onEchap = (e: KeyboardEvent) => e.key === 'Escape' && onFermer();
-    document.addEventListener('keydown', onEchap);
-    return () => document.removeEventListener('keydown', onEchap);
+    // Échap ferme la modale, et elle seule (audit final F177).
+    return ecouterEchap(() => {
+      onFermer();
+      return true;
+    });
   }, [onFermer]);
 
   const motif = useMemo(

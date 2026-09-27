@@ -8,6 +8,7 @@ import {
   type MenuGroupeDef,
   type MenuItemDef,
 } from './menu-groupes';
+import { ecouterEchap } from '../../lib/echap';
 
 // Les types du menu vivent dans `menu-groupes.ts` (un module sans JSX, donc
 // exécutable par le jest de la racine) · ils continuent de s'importer d'ici,
@@ -125,6 +126,9 @@ export function MenuBar({
   apres?: React.ReactNode;
 }) {
   const [ouvert, setOuvert] = useState<string | null>(null);
+  // Lu par l'écouteur d'Échap, posé une fois pour toute la vie de la barre.
+  const ouvertRef = useRef<string | null>(null);
+  ouvertRef.current = ouvert;
   // UN SEUL groupe ouvert à la fois, en sous-menu comme en repli · voir
   // `lignesDuMenu`. Un état qui porterait une collection laisserait rouvrir
   // les six groupes du menu « État » d'un coup.
@@ -165,14 +169,17 @@ export function MenuBar({
     const onClicDehors = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) fermer();
     };
-    const onEchap = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') fermer();
-    };
+    // Échap ne se prend que menu OUVERT (audit final F177) · consommé, il ne
+    // ferme plus aussi la fenêtre derrière. Menu fermé, il la laisse passer.
+    const cesserEchap = ecouterEchap(() => {
+      if (ouvertRef.current === null) return false;
+      fermer();
+      return true;
+    });
     document.addEventListener('mousedown', onClicDehors);
-    document.addEventListener('keydown', onEchap);
     return () => {
       document.removeEventListener('mousedown', onClicDehors);
-      document.removeEventListener('keydown', onEchap);
+      cesserEchap();
       annuler();
       annulerSous();
     };

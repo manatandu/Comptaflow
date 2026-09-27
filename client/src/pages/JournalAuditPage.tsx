@@ -38,35 +38,17 @@ interface Verdict {
   ruptures: Array<{ rang: number; id: string; motif: string }>;
 }
 
-/** Les libellés que lit un comptable, pas les noms de tables. */
-const LIBELLES_ENTITE: Record<string, string> = {
-  Tenant: 'Dossier',
-  User: 'Utilisateur',
-  Licence: 'Licence',
-  Compte: 'Compte du plan',
-  Journal: 'Code journal',
-  TauxTva: 'Taux de taxe',
-  Devise: 'Devise',
-  PlanAnalytique: 'Plan analytique',
-  SectionAnalytique: 'Section analytique',
-  FamilleImmobilisation: "Famille d'immobilisation",
-  Tiers: 'Tiers',
-  Bailleur: 'Bailleur',
-  Exercice: 'Exercice',
-  Cloture: 'Clôture',
-  AffectationResultat: 'Affectation du résultat',
-  Ecriture: 'Écriture',
-  Lettrage: 'Lettrage',
-  Regularisation: 'Régularisation',
-  Reevaluation: 'Réévaluation',
-  RapprochementBancaire: 'Rapprochement bancaire',
-  Immobilisation: 'Immobilisation',
-  Donation: 'Donation',
-  TranscriptionInventaire: "Livre d'inventaire",
-  Exoneration: 'Exonération',
-  LiquidationTva: 'Liquidation de TVA',
-  RetraitementFiscal: 'Retraitement fiscal',
-};
+/**
+ * LES OBJETS DU FILTRE VIENNENT DU SERVEUR (audit final F182) · l'écran tenait
+ * sa propre table de vingt-six libellés quand le journal en couvre bien plus,
+ * et les RIB, les ordres de virement ou les bulletins de paie étaient
+ * journalisés sans pouvoir être filtrés. La table vit à côté de la liste
+ * qu'elle filtre (`libelles-objets-audites.ts`), et un test l'y tient exacte.
+ */
+interface ObjetAudite {
+  cle: string;
+  libelle: string;
+}
 
 const COULEUR_ACTION: Record<string, string> = {
   CREATION: 'text-success',
@@ -102,6 +84,19 @@ export function JournalAuditPage() {
   const [verdict, setVerdict] = useState<Verdict | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [ouvert, setOuvert] = useState<string | null>(null);
+  const [objets, setObjets] = useState<ObjetAudite[] | null>(null);
+
+  useEffect(() => {
+    let annule = false;
+    api.get<ObjetAudite[]>('/journal-audit/objets').then(
+      (r) => !annule && setObjets(r),
+      (e) => !annule && setErreur(e instanceof ApiError ? e.message : 'Liste des objets illisible'),
+    );
+    return () => {
+      annule = true;
+    };
+  }, []);
+  const libelleObjet = (cle: string) => objets?.find((o) => o.cle === cle)?.libelle ?? cle;
 
   useEffect(() => {
     let annule = false;
@@ -148,9 +143,9 @@ export function JournalAuditPage() {
               className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] min-w-[190px]"
             >
               <option value="">Tous les objets</option>
-              {Object.entries(LIBELLES_ENTITE).map(([cle, texte]) => (
-                <option key={cle} value={cle}>
-                  {texte}
+              {(objets ?? []).map((o) => (
+                <option key={o.cle} value={o.cle}>
+                  {o.libelle}
                 </option>
               ))}
             </select>
@@ -237,7 +232,7 @@ export function JournalAuditPage() {
               <div className="font-mono">{horodatage(e.horodatage)}</div>
               <div className="truncate">{e.acteurEmail}</div>
               <div className={`font-semibold ${COULEUR_ACTION[e.action] ?? ''}`}>{e.action.toLowerCase()}</div>
-              <div>{LIBELLES_ENTITE[e.entite] ?? e.entite}</div>
+              <div>{libelleObjet(e.entite)}</div>
               <div className="truncate text-text-dim">{differences(e.avant, e.apres)}</div>
             </button>
             {ouvert === e.id && (

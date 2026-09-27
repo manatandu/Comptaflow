@@ -1140,7 +1140,9 @@ describe('IfrsService · première application consolidée (tranche C5, IFRS 1)'
 describe('les tables IFRS ne sont lues que par le module IFRS', () => {
   // Le classement du journal d'audit nomme chaque modèle du schéma (un test
   // l'y oblige) · c'est une liste, comme celle du cloisonnement, elle ne lit
-  // aucune ligne et ne peut pas mêler un retraitement à un état légal.
+  // aucune ligne et ne peut pas mêler un retraitement à un état légal. Les
+  // libellés du filtre du journal (audit final F182) sont du même ordre · un
+  // nom lisible par modèle journalisé, aucune lecture.
   it('les fichiers du serveur qui les nomment sont exactement le service IFRS, la liste du cloisonnement et le classement du journal d’audit', () => {
     const racine = join(__dirname, '..', '..');
     const fichiers = (dossier: string): string[] =>
@@ -1154,6 +1156,7 @@ describe('les tables IFRS ne sont lues que par le module IFRS', () => {
       .sort();
     expect(lecteurs).toEqual([
       'common/audit/champs-audites.ts',
+      'common/audit/libelles-objets-audites.ts',
       'common/cloisonnement/modeles-cloisonnes.ts',
       'modules/ifrs/ifrs.service.ts',
     ]);

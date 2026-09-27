@@ -5115,8 +5115,11 @@ retire des menus et de l'accueil ce qui n'a pas d'objet au SMT, l'aiguillage
 d'AppShell ne le lit pas, la route reste ouverte et rien n'est supprimé. Chaque
 commande de menu porte son `chemin`, et `filtrerParProfil` l'applique. Un
 cran plus bas, `sousFonctionServie` masque dans leur fenêtre les lots et
-ordres de virement, les composants et la reconstitution d'une révision
-majeure ; ce qui existe déjà (composant porté, ordre émis) reste accessible. (2) LE
+ordres de virement, les composants, la reconstitution d'une révision
+majeure et la réévaluation des positions en devises ; ce qui existe déjà
+(composant porté, ordre émis, réévaluation passée) reste accessible. LA
+FENÊTRE DEVISES RESTE AU SMT (audit final F178) · la paie stipulée en
+dollars exige le cours du jour, et le refus renvoyait à une fenêtre masquée. (2) LE
 SMT GARDE LES TIERS, LA FACTURATION, LE LETTRAGE ET LA VARIATION DE STOCKS ·
 ses états lisent les notes 2 et 3 et leurs lignes de variation dans ces
 comptes, les masquer les viderait sans qu'aucun total ne bouge. Et le registre
@@ -6286,6 +6289,16 @@ pose en haut au lieu de sortir par le haut. Et la mise au point du champ passe
 navigateur fait défiler la page pour amener le champ dans la fenêtre visible,
 et une modale `fixed` s'en trouve décalée.
 
+**Échap se donne à la couche la plus haute, et la fermeture se garde
+(2026-09-27, audit final F177).** Échap sur un menu ouvert fermait le menu ET
+la fenêtre derrière, pièce en cours comprise. `lib/echap.ts` · une couche
+(menu, bulle, calculette, modale) écoute en CAPTURE par `ecouterEchap` et
+consomme la touche quand elle agit ; la fenêtre ne se ferme que sur une touche
+libre (`echapPourLaFenetre`) et jamais sous une modale, que `PortailModale`
+marque (`data-modale`). Toute fermeture, croix, Échap ou « tout fermer »,
+consulte les gardes (`useGardeFermeture`) · un écran qui tient un travail non
+enregistré en déclare le motif, et la fermeture le demande.
+
 ## 7. Conventions du plan de comptes semé
 
 Valables pour les deux référentiels (`compte-seed.ts`,
@@ -6475,7 +6488,10 @@ avant de l'écrire ; un spec (`compte-seed-syscohada.spec.ts`) le contrôle.
   lignes engendrées en masse. Chaque événement porte l'empreinte du précédent
   (chaîne par dossier) · c'est ce qui rend une retouche visible, AUDCIF
   art. 22, 5° et 6°. Deux règles à ne pas défaire : aucune route d'écriture
-  sur `/journal-audit`, et aucun champ sensible recopié. Le masquage a DEUX
+  sur `/journal-audit`, et aucun champ sensible recopié. Le filtre de l'écran
+  est SERVI (`GET /journal-audit/objets`, `libelles-objets-audites.ts`), un
+  libellé par modèle de `MODELES_AUDITES` et un test qui l'y tient exact
+  (audit final F182) · la table recopiée à l'écran en couvrait vingt-six. Le masquage a DEUX
   moitiés · une heuristique sur le NOM (`FRAGMENTS_SENSIBLES`), qui n'attrape
   que ce qui s'annonce, et une liste FERMÉE par colonne
   (`COLONNES_EXCLUES_PAR_MODELE`) pour ce qui ne s'annonce pas. La seconde est
@@ -6606,6 +6622,14 @@ OmegaX, JAMAIS le vert de Sage.
   Restent à l'écran : erreurs, refus, résultats, avertissements portant sur
   une DONNÉE du dossier, et les mentions qu'un test gèle, raccourcies à une
   ligne. Numéros et codes en police d'interface, pas en chasse fixe.
+- **Un échec de lecture se dit, et null n'est pas vide** (audit final F179,
+  F181, F183, F184). Une liste part de `null`, un refus s'affiche avec son
+  motif, et « aucun » ne se dit que sur une liste LUE · « Aucune caisse sans
+  procès-verbal » ou « Aucun mandat » sur un échec sont la réponse favorable à
+  la question que l'écran pose.
+- **« À propos » dit ce qui est installé** (F180) · version, révision et date
+  de construction posées par `vite.config.ts`, et la date du paquet sur site ;
+  ce qui manque se dit, rien n'est inventé.
 - **L'accueil est la fenêtre principale de Sage i7**, lue dans ses manuels
   (« Ergonomie et fonctions communes i7 ») · une BARRE VERTICALE à gauche,
   groupes thématiques dont un seul est ouvert (« cliquez sur son intitulé »),
