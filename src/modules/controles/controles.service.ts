@@ -8,6 +8,7 @@ import {
   Referentiel,
   SensDepreciation,
   StatutEcriture,
+  StatutExercice,
   StatutExoneration,
   SystemeComptableSyscohada,
   TypeCompteDetailTotal,
@@ -765,6 +766,7 @@ export class ControlesService {
         valideeBy: true,
         secondRegardNom: true,
         estGenereeParCloture: true,
+        estANouveauProvisoire: true,
         journal: { select: { code: true } },
         lignes: { select: { debit: true, credit: true, lettre: true, compte: { select: { numero: true } } } },
       },
@@ -815,9 +817,20 @@ export class ControlesService {
     // --- 4. Brouillard en retard de centralisation ---------------------------
     const maintenant = Date.now();
     const joursCentralisation = ControlesService.JOURS_CENTRALISATION[tenant.referentiel];
+    // DEUX BROUILLARDS QUE PERSONNE NE PEUT VALIDER, et que ce contrôle
+    // réclamait quand même (audit du serveur du 2026-09-27, F12) · un
+    // contrôle qui prescrit une action impossible fabrique une anomalie
+    // (§ 10 bis). L'écriture de CLÔTURE d'un exercice clôturé : `valider`
+    // refuse tout exercice clos, et la valider solderait ses classes 6 et 7
+    // dans les états qui lisent le livre-journal. Et le report à-nouveau
+    // PROVISOIRE, qui reste au brouillard par construction pour pouvoir être
+    // relancé.
+    const invalidable = (e: (typeof ecritures)[number]) =>
+      e.estANouveauProvisoire || (e.estGenereeParCloture && ex.statut === StatutExercice.CLOTURE);
     const brouillardEnRetard = ecritures.filter(
       (e) =>
         e.statut === StatutEcriture.BROUILLARD &&
+        !invalidable(e) &&
         (maintenant - e.createdAt.getTime()) / 86_400_000 > joursCentralisation,
     );
     if (brouillardEnRetard.length > 0) {
