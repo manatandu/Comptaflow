@@ -310,3 +310,69 @@ describe('balayage du code · toute collection porte sa borne', () => {
     expect(utilisatrices.sort()).toEqual(['src/modules/exports/restitution/restitution.service.ts']);
   });
 });
+
+/**
+ * Audit du serveur du 2026-09-27, I7 · deux trous de la garde.
+ */
+describe('la garde · lecture sélective et création', () => {
+  const dansDossier = <T,>(tenantId: string, f: () => Promise<T>) =>
+    dansContexteAudit({ acteurEmail: 'x@y.cd', tenantId }, f);
+
+  it('A · une lecture dont le select omet tenantId est vérifiée quand même', async () => {
+    const query = jest.fn(async (args: { select: Record<string, boolean> }) =>
+      args.select.tenantId ? { id: 'c-9', montant: 5, tenantId: 'd-2' } : { id: 'c-9', montant: 5 },
+    );
+    const r = await dansDossier('d-1', () =>
+      garderCloisonnement({} as never, {
+        model: 'Compte',
+        operation: 'findFirst',
+        args: { where: { id: 'c-9' }, select: { id: true, montant: true } },
+        query: query as never,
+      }),
+    );
+    expect(r).toBeNull();
+  });
+
+  it('A · la colonne ajoutée pour vérifier est retirée du résultat rendu', async () => {
+    const query = jest.fn(async () => ({ id: 'c-1', tenantId: 'd-1' }));
+    const r = await dansDossier('d-1', () =>
+      garderCloisonnement({} as never, {
+        model: 'Compte',
+        operation: 'findFirst',
+        args: { where: { id: 'c-1' }, select: { id: true } },
+        query: query as never,
+      }),
+    );
+    expect(r).toEqual({ id: 'c-1' });
+  });
+
+  it('D · une création dans un autre dossier lève, sous ses deux formes', async () => {
+    const query = jest.fn(async () => ({}));
+    for (const data of [{ tenantId: 'd-2', numero: '1' }, { tenant: { connect: { id: 'd-2' } }, numero: '1' }]) {
+      await expect(
+        dansDossier('d-1', () =>
+          garderCloisonnement({} as never, { model: 'Compte', operation: 'create', args: { data }, query }),
+        ),
+      ).rejects.toThrow(CloisonnementViole);
+    }
+    await expect(
+      dansDossier('d-1', () =>
+        garderCloisonnement({} as never, {
+          model: 'Compte',
+          operation: 'createMany',
+          args: { data: [{ tenantId: 'd-1' }, { tenantId: 'd-2' }] },
+          query,
+        }),
+      ),
+    ).rejects.toThrow(CloisonnementViole);
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('D · une création dans le dossier de la session passe', async () => {
+    const query = jest.fn(async () => ({ id: 'c-1' }));
+    await dansDossier('d-1', () =>
+      garderCloisonnement({} as never, { model: 'Compte', operation: 'create', args: { data: { tenantId: 'd-1' } }, query }),
+    );
+    expect(query).toHaveBeenCalled();
+  });
+});

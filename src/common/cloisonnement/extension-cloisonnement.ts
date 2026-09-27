@@ -45,6 +45,23 @@ import {
 const LECTURES_UNITAIRES = ['findUnique', 'findUniqueOrThrow', 'findFirst', 'findFirstOrThrow'];
 const ECRITURES_UNITAIRES = ['update', 'delete', 'upsert'];
 const COLLECTIONS = ['findMany', 'updateMany', 'deleteMany', 'count', 'aggregate', 'groupBy'];
+/**
+ * D · CRÉATION · le `tenantId` posé dans `data` doit être celui de la session
+ * (ou d'un dossier du périmètre déclaré). Audit du serveur du 2026-09-27, I7 ·
+ * les créations n'étaient dans aucune liste : rien ne confrontait le dossier
+ * d'une ligne créée à celui de la session. Aucun coût · la valeur est dans
+ * la requête elle-même.
+ */
+const CREATIONS = ['create', 'createMany', 'createManyAndReturn'];
+
+/** Le dossier que `data` fait porter à la ligne créée, sous ses deux formes. */
+function dossierCree(data: unknown): string | undefined {
+  if (!data || typeof data !== 'object') return undefined;
+  const d = data as { tenantId?: unknown; tenant?: { connect?: { id?: unknown } } };
+  if (typeof d.tenantId === 'string') return d.tenantId;
+  const connecte = d.tenant?.connect?.id;
+  return typeof connecte === 'string' ? connecte : undefined;
+}
 
 /**
  * LES CLÉS QUI NE BORNENT PAS, MÊME QUAND ELLES PORTENT UN `tenantId`.
@@ -168,6 +185,23 @@ export async function garderCloisonnement(
   const dossierAutorise = (proprietaire: string | null) =>
     proprietaire === dossier || (proprietaire !== null && perimetre?.has(proprietaire) === true);
 
+  if (CREATIONS.includes(operation) || operation === 'upsert') {
+    const donnees = operation === 'upsert' ? (args as { create?: unknown })?.create : (args as { data?: unknown })?.data;
+    const lignes = Array.isArray(donnees) ? donnees : [donnees];
+    if (dossier) {
+      for (const ligne of lignes) {
+        const cible = dossierCree(ligne);
+        if (cible !== undefined && !dossierAutorise(cible)) {
+          throw new CloisonnementViole(
+            `Création refusée · ${model}.${operation} dans un autre dossier que celui de la session. ` +
+              'Déclarer le périmètre par perimetreDeGroupe(...) ou la sortie par horsCloisonnement("raison", ...).',
+          );
+        }
+      }
+    }
+    if (operation !== 'upsert') return query(args);
+  }
+
   if (COLLECTIONS.includes(operation)) {
     if (!filtreBorne(a?.where, dossier, perimetre)) {
       throw new CloisonnementViole(
@@ -206,13 +240,20 @@ export async function garderCloisonnement(
   }
 
   if (LECTURES_UNITAIRES.includes(operation)) {
-    const resultat = await query(args);
-    if (!dossier || filtreBorne(a?.where, dossier, perimetre)) return resultat;
+    if (!dossier || filtreBorne(a?.where, dossier, perimetre)) return query(args);
+    // Un `select` qui ne demande pas `tenantId` rendait une ligne que la
+    // règle A ne pouvait pas vérifier · elle passait telle quelle, d'où
+    // qu'elle vienne (audit I7). La colonne est ajoutée à la demande, puis
+    // retirée du résultat pour que l'appelant reçoive ce qu'il a demandé.
+    const select = (args as { select?: Record<string, unknown> })?.select;
+    const ajoute = !!select && select.tenantId !== true;
+    const resultat = await query(ajoute ? { ...(args as object), select: { ...select, tenantId: true } } : args);
     const proprietaire = dossierDeLaLigne(resultat);
     // Une ligne d'un autre dossier est traitée comme INEXISTANTE · le code
     // appelant sait déjà traiter l'absence, et une erreur distincte
     // apprendrait que l'identifiant existe ailleurs.
     if (proprietaire !== undefined && !dossierAutorise(proprietaire)) return null;
+    if (ajoute && resultat && typeof resultat === 'object') delete (resultat as { tenantId?: unknown }).tenantId;
     return resultat;
   }
 
