@@ -771,9 +771,12 @@ export class ImmobilisationService {
       valeurResiduelle?: number;
       dernierRenouvellement?: boolean;
       dateMiseEnService: string;
+      dateAcquisition?: string;
       dureeAmortissementAns?: number;
     },
     principal: { dateAcquisition: Date; dureeAmortissementAns: number },
+    /** Le composant en REMPLACE un autre · voir la pièce de sécurité plus bas. */
+    renouvellement = false,
   ) {
     /*
       UNE RÉVISION MAJEURE S'AMORTIT SUR L'INTERVALLE, JAMAIS SUR LA STRUCTURE.
@@ -814,7 +817,28 @@ export class ImmobilisationService {
           'DERNIER renouvellement avant la fin d’utilisation du bien principal, indiquez-le explicitement.',
       );
     }
-    if (dto.typeComposant === TypeComposant.PIECE_DE_SECURITE) {
+    /*
+      LA PIÈCE DE SÉCURITÉ QUI EN REMPLACE UNE AUTRE (audit final F29).
+
+      Le texte ne vise que le stock constitué avec le bien principal · « dès
+      l'acquisition de l'immobilisation principale ». Une pièce achetée des
+      années plus tard pour remplacer la première ne peut pas s'amortir avant
+      d'exister. OmegaX lit la règle par sa raison · une pièce de sécurité
+      s'amortit dès qu'elle est détenue, qu'elle serve ou non, et non à son
+      intégration comme la pièce de rechange. Le remplaçant démarre donc à SA
+      propre acquisition. Lecture d'OmegaX, aucun texte lu ne réglant le
+      renouvellement ; exiger la date du principal refusait tout
+      renouvellement, APRÈS que l'ancienne pièce était sortie.
+    */
+    if (dto.typeComposant === TypeComposant.PIECE_DE_SECURITE && renouvellement) {
+      if (dto.dateAcquisition && new Date(dto.dateMiseEnService).getTime() !== new Date(dto.dateAcquisition).getTime()) {
+        throw new BadRequestException(
+          "Une pièce de sécurité qui en remplace une autre s'amortit dès son acquisition, qu'elle serve ou non · " +
+            "sa date de mise en service est sa date d'acquisition. Une pièce qui ne s'amortit qu'à son " +
+            'intégration est une pièce de RECHANGE.',
+        );
+      }
+    } else if (dto.typeComposant === TypeComposant.PIECE_DE_SECURITE) {
       const debut = new Date(dto.dateMiseEnService);
       if (debut.getTime() !== principal.dateAcquisition.getTime()) {
         throw new BadRequestException(
@@ -875,7 +899,11 @@ export class ImmobilisationService {
         select: { referentiel: true },
       });
       this.verifierDecomposition(principal, referentiel);
-      this.verifierComposant({ ...dto, dureeAmortissementAns: dto.dureeAmortissementAns }, principal);
+      this.verifierComposant(
+        { ...dto, dureeAmortissementAns: dto.dureeAmortissementAns },
+        principal,
+        !!interne.composantRemplaceId,
+      );
       if (!dto.justificationDecomposition?.trim()) {
         throw new BadRequestException(
           'Indiquez pourquoi ce bien est décomposable : durées d’utilité distinctes, caractère significatif du ' +
@@ -916,16 +944,6 @@ export class ImmobilisationService {
       );
     }
 
-    const ecritureAcquisition = await this.ecritureService.creer(tenantId, userId, {
-      exerciceId: dto.exerciceId,
-      journalId: dto.journalId,
-      date: dto.dateAcquisition,
-      libelle: `Acquisition · ${dto.designation}`,
-      lignes: [
-        { compteId: famille.compteImmobilisationId, debit: dto.valeurOrigine, credit: 0 },
-        { compteId: dto.compteContrepartieId, debit: 0, credit: dto.valeurOrigine },
-      ],
-    });
 
     /*
       LE MODE AUX UNITÉS D'ŒUVRE NE S'OUVRE PAS À MOITIÉ.
@@ -962,39 +980,60 @@ export class ImmobilisationService {
 
     if (dto.lieuId) await this.lieuDuDossier(tenantId, dto.lieuId);
 
-    const immobilisation = await this.prisma.immobilisation.create({
-      data: {
-        tenantId,
-        familleId: famille.id,
-        designation: dto.designation,
-        numeroInventaire: dto.numeroInventaire,
-        lieuId: dto.lieuId ?? null,
-        compteImmobilisationId: famille.compteImmobilisationId,
-        compteAmortissementId: famille.compteAmortissementId,
-        compteDotationId: famille.compteDotationId,
-        dateAcquisition,
-        dateMiseEnService,
-        valeurOrigine: dto.valeurOrigine,
-        valeurResiduelle: dto.valeurResiduelle ?? 0,
-        dureeAmortissementAns: dto.dureeAmortissementAns ?? famille.dureeAmortissementAns,
-        amortissementAnterieur: dto.amortissementAnterieur ?? 0,
-        modeAmortissement: mode,
-        unitesOeuvrePrevues: mode === ModeAmortissement.UNITES_DOEUVRE ? dto.unitesOeuvrePrevues : null,
-        uniteOeuvreLibelle:
-          mode === ModeAmortissement.UNITES_DOEUVRE ? (dto.uniteOeuvreLibelle?.trim() ?? null) : null,
-        ecritureAcquisitionId: ecritureAcquisition.id,
-        createdBy: userId,
-        // Rattachement au principal · null pour une structure. Le composant
-        // garde son PROPRE plan d'amortissement, c'est tout l'objet du
-        // chapitre 4 : « un plan d'amortissement propre à chacun de ces
-        // éléments est retenu ».
-        immobilisationPrincipaleId: principal?.id ?? null,
-        typeComposant: principal ? (dto.typeComposant ?? TypeComposant.COMPOSANT) : null,
-        justificationDecomposition: principal ? (dto.justificationDecomposition ?? null) : null,
-        composantRemplaceId: interne.composantRemplaceId ?? null,
-      },
-      include: { dotations: true },
+    // L'ÉCRITURE VIENT APRÈS TOUS LES CONTRÔLES (audit final F29) · le mode,
+    // le SMT et le lieu refusaient APRÈS l'écriture d'acquisition, qui
+    // restait au journal sans bien pour la porter.
+    const ecritureAcquisition = await this.ecritureService.creer(tenantId, userId, {
+      exerciceId: dto.exerciceId,
+      journalId: dto.journalId,
+      date: dto.dateAcquisition,
+      libelle: `Acquisition · ${dto.designation}`,
+      lignes: [
+        { compteId: famille.compteImmobilisationId, debit: dto.valeurOrigine, credit: 0 },
+        { compteId: dto.compteContrepartieId, debit: 0, credit: dto.valeurOrigine },
+      ],
     });
+
+    let immobilisation;
+    try {
+      immobilisation = await this.prisma.immobilisation.create({
+        data: {
+          tenantId,
+          familleId: famille.id,
+          designation: dto.designation,
+          numeroInventaire: dto.numeroInventaire,
+          lieuId: dto.lieuId ?? null,
+          compteImmobilisationId: famille.compteImmobilisationId,
+          compteAmortissementId: famille.compteAmortissementId,
+          compteDotationId: famille.compteDotationId,
+          dateAcquisition,
+          dateMiseEnService,
+          valeurOrigine: dto.valeurOrigine,
+          valeurResiduelle: dto.valeurResiduelle ?? 0,
+          dureeAmortissementAns: dto.dureeAmortissementAns ?? famille.dureeAmortissementAns,
+          amortissementAnterieur: dto.amortissementAnterieur ?? 0,
+          modeAmortissement: mode,
+          unitesOeuvrePrevues: mode === ModeAmortissement.UNITES_DOEUVRE ? dto.unitesOeuvrePrevues : null,
+          uniteOeuvreLibelle:
+            mode === ModeAmortissement.UNITES_DOEUVRE ? (dto.uniteOeuvreLibelle?.trim() ?? null) : null,
+          ecritureAcquisitionId: ecritureAcquisition.id,
+          createdBy: userId,
+          // Rattachement au principal · null pour une structure. Le composant
+          // garde son PROPRE plan d'amortissement, c'est tout l'objet du
+          // chapitre 4 : « un plan d'amortissement propre à chacun de ces
+          // éléments est retenu ».
+          immobilisationPrincipaleId: principal?.id ?? null,
+          typeComposant: principal ? (dto.typeComposant ?? TypeComposant.COMPOSANT) : null,
+          justificationDecomposition: principal ? (dto.justificationDecomposition ?? null) : null,
+          composantRemplaceId: interne.composantRemplaceId ?? null,
+        },
+        include: { dotations: true },
+      });
+    } catch (err) {
+      // Une fiche refusée ne laisse pas son écriture d'acquisition au journal.
+      await this.annulerEcritureOrpheline(ecritureAcquisition.id);
+      throw err;
+    }
     return versImmobilisation(immobilisation);
   }
 
@@ -1986,20 +2025,24 @@ export class ImmobilisationService {
       );
     }
 
-    // 1. La sortie de l'ancien · elle porte déjà la dotation complémentaire de
-    //    l'exercice, le solde du 28, celui du 29 et le calcul de la VCN.
-    await this.sortir(tenantId, userId, composantId, {
-      dateSortie: dto.dateRenouvellement,
-      type: TypeSortie.MISE_HORS_SERVICE,
-      exerciceId: dto.exerciceId,
-      journalId: dto.journalId,
-      cessionCourante: dto.cessionCourante,
-    } as SortirImmobilisationDto);
+    if (ancien.statut !== StatutImmobilisation.EN_SERVICE) {
+      throw new BadRequestException('Ce composant est déjà sorti · il ne se renouvelle plus.');
+    }
 
-    // 2. Le remplaçant, rattaché au MÊME principal et à la même famille · le
-    //    texte dit « dans un sous-compte de l'immobilisation principale », donc
-    //    au même compte d'imputation que celui qu'il remplace.
-    return this.creer(
+    /*
+      LE REMPLAÇANT D'ABORD, LA SORTIE ENSUITE (audit final F29).
+
+      L'ordre inverse sortait l'ancien composant, puis le remplaçant pouvait
+      être refusé (la pièce de sécurité l'était toujours) · l'ancien était
+      sorti, aucun remplaçant n'existait, et « déjà sortie » fermait toute
+      reprise. Désormais le remplaçant est créé, avec tous ses contrôles, puis
+      l'ancien est sorti ; si la sortie échoue, elle se défait seule (F28) et
+      le remplaçant est retiré avec son écriture d'acquisition.
+    */
+    // Le remplaçant, rattaché au MÊME principal et à la même famille · le
+    // texte dit « dans un sous-compte de l'immobilisation principale », donc
+    // au même compte d'imputation que celui qu'il remplace.
+    const remplacant = await this.creer(
       tenantId,
       userId,
       {
@@ -2024,6 +2067,39 @@ export class ImmobilisationService {
       } as CreerImmobilisationDto,
       { composantRemplaceId: composantId },
     );
+
+    // La sortie de l'ancien · elle porte déjà la dotation complémentaire de
+    // l'exercice, le solde du 28, celui du 29 et le calcul de la VCN.
+    try {
+      await this.sortir(tenantId, userId, composantId, {
+        dateSortie: dto.dateRenouvellement,
+        type: TypeSortie.MISE_HORS_SERVICE,
+        exerciceId: dto.exerciceId,
+        journalId: dto.journalId,
+        cessionCourante: dto.cessionCourante,
+      } as SortirImmobilisationDto);
+    } catch (err) {
+      await this.retirerRemplacant(tenantId, remplacant.id, dto.designation);
+      throw err;
+    }
+    return remplacant;
+  }
+
+  /** Retire un remplaçant dont l'ancien n'a pas pu sortir, écriture comprise (F29). */
+  private async retirerRemplacant(tenantId: string, id: string, designation: string) {
+    try {
+      const cree = await this.prisma.immobilisation.findFirst({
+        where: { id, tenantId },
+        select: { ecritureAcquisitionId: true },
+      });
+      await this.prisma.immobilisation.deleteMany({ where: { id, tenantId } });
+      if (cree?.ecritureAcquisitionId) await this.annulerEcritureOrpheline(cree.ecritureAcquisitionId);
+    } catch {
+      throw new InternalServerErrorException(
+        `Le renouvellement a échoué et le remplaçant « ${designation} » n'a pas pu être retiré · vérifiez la ` +
+          'fiche et son écriture d’acquisition avant toute nouvelle tentative.',
+      );
+    }
   }
 
   /**

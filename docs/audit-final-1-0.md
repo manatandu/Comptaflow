@@ -232,6 +232,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 3
 - **Constat :** `renouveler` appelle `sortir` puis `creer`, sans transaction. Pour une pièce de sécurité, la date transmise contredit la règle de `verifierComposant`, ce qui donne un refus systématique après la sortie : ancien composant sorti, aucun remplaçant, aucune reprise possible.
 - **Correction :** valider le remplaçant avant `sortir` et trancher au texte la date de la pièce de sécurité.
+- **Fait le 2026-09-27 :** le remplaçant est créé d'abord, avec tous ses contrôles, puis l'ancien sorti ; une sortie refusée se défait (F28) et le remplaçant est retiré avec son écriture d'acquisition (`retirerRemplacant`). Le texte (« dès l'acquisition de l'immobilisation principale ») ne vise que le stock constitué avec le bien : la pièce de sécurité qui en remplace une autre s'amortit dès sa propre acquisition, lecture d'OmegaX dite dans le code. Au passage, `creer` fait tous ses contrôles avant l'écriture d'acquisition et la retire si la fiche est refusée. Tests : `renouvellement-f29.spec.ts` (huit mutations tuées).
 
 **F30 · Le tableau des amortissements calcule une dotation pour des biens sortis les années précédentes** [immo-04]
 - **Emplacements :** src/modules/immobilisations/immobilisation.service.ts:1408, :1469-1523
