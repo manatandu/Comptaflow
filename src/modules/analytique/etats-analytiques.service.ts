@@ -5,6 +5,7 @@ import type { LigneBalanceAnalytique, LigneEtatBudgetaire } from './analytique.s
 import { totalDesFeuilles, valeurDeLaLigne } from './rubriques-budgetaires';
 import { fusionnerCumuls } from './od-analytique';
 import { OdAnalytiqueService } from './od-analytique.service';
+import { moisEntre } from '../../common/mois-entre';
 
 /** Une ligne du grand livre analytique : le détail d'une section. */
 export interface LigneGrandLivreAnalytique {
@@ -346,6 +347,15 @@ export class EtatsAnalytiquesService {
     let debut = du;
     let fin = au;
     if (params.mois) {
+      // Sur un exercice de plus de douze mois, le même mois revient deux
+      // fois et la dotation n'est qu'annuelle (audit final F39) · un mois
+      // choisi ne dirait pas lequel des deux il vise.
+      if (moisEntre(exercice.dateDebut, exercice.dateFin) > 12) {
+        throw new BadRequestException(
+          "Sur un exercice de plus de douze mois, un même mois revient deux fois : choisissez une période par " +
+            'ses dates. La dotation y est annuelle.',
+        );
+      }
       const annee = exercice.dateDebut.getFullYear() + (params.mois < exercice.dateDebut.getMonth() + 1 ? 1 : 0);
       debut = new Date(annee, params.mois - 1, 1);
       fin = new Date(annee, params.mois, 0, 23, 59, 59);

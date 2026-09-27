@@ -12,6 +12,7 @@ import {
   ModifierPlanAnalytiqueDto,
   ModifierSectionDto,
 } from './dto/analytique.dto';
+import { moisEntre } from '../../common/mois-entre';
 
 /** Chiffre de classe d'un compte : CLASSE_6 donne 6. */
 function chiffreClasse(classe: ClasseCompte): string {
@@ -270,7 +271,13 @@ export class AnalytiqueService {
    * Le reliquat de l'arrondi tombe sur le dernier mois, pour que la somme des
    * dotations mensuelles égale exactement la dotation annuelle.
    */
-  async doterBudget(tenantId: string, sectionId: string, dto: DoterBudgetDto) {
+  /**
+   * CE QUI SE DOTE, ET SUR QUEL EXERCICE · une seule règle pour la dotation
+   * annuelle et la retouche d'un mois (audit final F38). La retouche n'en
+   * portait aucune : une section Total, un plan sans budgets ou un exercice
+   * d'un autre dossier y passaient.
+   */
+  private async sectionEtExerciceDotables(tenantId: string, sectionId: string, exerciceId: string) {
     const section = await this.trouverSection(tenantId, sectionId);
     if (section.type === TypeCompteDetailTotal.TOTAL) {
       throw new BadRequestException(
@@ -282,15 +289,28 @@ export class AnalytiqueService {
         `Le plan ${section.plan.code} ne gère pas les budgets. Activez « Gérer les budgets » sur le plan.`,
       );
     }
-    const exercice = await this.prisma.exercice.findFirst({ where: { id: dto.exerciceId, tenantId } });
+    const exercice = await this.prisma.exercice.findFirst({ where: { id: exerciceId, tenantId } });
     if (!exercice) throw new BadRequestException('Exercice introuvable pour ce dossier');
-
     const mois = this.moisCouverts(exercice.dateDebut, exercice.dateFin, section.dateDebut, section.dateFin);
     if (mois.length === 0) {
       throw new BadRequestException(
         "La convention de cette section ne recouvre aucun mois de l'exercice : il n'y a rien à doter.",
       );
     }
+    /*
+      UN EXERCICE DE PLUS DE DOUZE MOIS SE DOTE À L'ANNÉE (audit final F39).
+      L'AUDCIF art. 7 admet un premier exercice de dix-huit mois · le mois
+      d'une dotation (1 à 12) y revient deux fois, et la répartition violait
+      l'unicité : aucune dotation n'était possible. Le mois ne dit plus lequel
+      des deux il vise, si bien que la dotation reste ANNUELLE, sans
+      répartition mensuelle, et que la retouche d'un mois y est refusée.
+    */
+    const exerciceLong = moisEntre(exercice.dateDebut, exercice.dateFin) > 12;
+    return { section, exercice, mois, exerciceLong };
+  }
+
+  async doterBudget(tenantId: string, sectionId: string, dto: DoterBudgetDto) {
+    const { mois, exerciceLong } = await this.sectionEtExerciceDotables(tenantId, sectionId, dto.exerciceId);
 
     const centimes = Math.round(dto.montantAnnuel * 100);
     const part = Math.trunc(centimes / mois.length);
@@ -301,6 +321,7 @@ export class AnalytiqueService {
       await tx.budgetSection.create({
         data: { sectionId, exerciceId: dto.exerciceId, mois: null, montant: new Prisma.Decimal(dto.montantAnnuel) },
       });
+      if (exerciceLong) return;
       await tx.budgetSection.createMany({
         data: mois.map((m, i) => ({
           sectionId,
@@ -314,37 +335,54 @@ export class AnalytiqueService {
     return this.budget(tenantId, sectionId, dto.exerciceId);
   }
 
-  /** Retouche d'un mois. La dotation annuelle suit, pour rester cohérente. */
+  /**
+   * Retouche d'un mois. La dotation annuelle suit, pour rester cohérente.
+   *
+   * UNE SEULE TRANSACTION, ET L'ANNUELLE CHERCHÉE PUIS ÉCRITE (audit final
+   * F38). La seconde écriture passait par la clé composée avec `mois` nul,
+   * qu'aucune clé unique ne sert · elle échouait, le mois étant déjà écrit
+   * hors transaction, et l'annuelle cessait d'égaler la somme des mois. Les
+   * refus sont ceux de la dotation, plus le mois hors convention.
+   */
   async modifierBudgetMois(tenantId: string, sectionId: string, dto: ModifierBudgetMoisDto) {
-    await this.trouverSection(tenantId, sectionId);
-    await this.prisma.budgetSection.upsert({
-      where: { sectionId_exerciceId_mois: { sectionId, exerciceId: dto.exerciceId, mois: dto.mois } },
-      create: {
-        sectionId,
-        exerciceId: dto.exerciceId,
-        mois: dto.mois,
-        montant: new Prisma.Decimal(dto.montant),
-      },
-      update: { montant: new Prisma.Decimal(dto.montant) },
-    });
-    const mensuels = await this.prisma.budgetSection.findMany({
-      where: { sectionId, exerciceId: dto.exerciceId, mois: { not: null } },
-    });
-    const total = mensuels.reduce((s, b) => s + Number(b.montant), 0);
-    await this.prisma.budgetSection.upsert({
-      // Prisma type la clé composée avec un `mois: number` : la ligne
-      // annuelle porte pourtant `mois = null`, ce que la contrainte unique
-      // accepte. On force le type ici plutôt que d'ajouter une colonne
-      // sentinelle qui polluerait le modèle.
-      where: {
-        sectionId_exerciceId_mois: {
+    const { mois, exerciceLong } = await this.sectionEtExerciceDotables(tenantId, sectionId, dto.exerciceId);
+    if (exerciceLong) {
+      throw new BadRequestException(
+        "Sur un exercice de plus de douze mois, un même mois revient deux fois : la dotation reste annuelle et " +
+          'ne se retouche pas au mois (AUDCIF art. 7).',
+      );
+    }
+    if (!mois.includes(dto.mois)) {
+      throw new BadRequestException(
+        `La convention de cette section ne couvre pas le mois ${dto.mois} de l'exercice · il n'a rien à recevoir.`,
+      );
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await tx.budgetSection.upsert({
+        where: { sectionId_exerciceId_mois: { sectionId, exerciceId: dto.exerciceId, mois: dto.mois } },
+        create: {
           sectionId,
           exerciceId: dto.exerciceId,
-          mois: null as unknown as number,
+          mois: dto.mois,
+          montant: new Prisma.Decimal(dto.montant),
         },
-      },
-      create: { sectionId, exerciceId: dto.exerciceId, mois: null, montant: new Prisma.Decimal(total) },
-      update: { montant: new Prisma.Decimal(total) },
+        update: { montant: new Prisma.Decimal(dto.montant) },
+      });
+      const mensuels = await tx.budgetSection.findMany({
+        where: { sectionId, exerciceId: dto.exerciceId, mois: { not: null } },
+      });
+      const total = mensuels.reduce((s, b) => s + Number(b.montant), 0);
+      const annuelle = await tx.budgetSection.findFirst({
+        where: { sectionId, exerciceId: dto.exerciceId, mois: null },
+        select: { id: true },
+      });
+      if (annuelle) {
+        await tx.budgetSection.update({ where: { id: annuelle.id }, data: { montant: new Prisma.Decimal(total) } });
+      } else {
+        await tx.budgetSection.create({
+          data: { sectionId, exerciceId: dto.exerciceId, mois: null, montant: new Prisma.Decimal(total) },
+        });
+      }
     });
     return this.budget(tenantId, sectionId, dto.exerciceId);
   }

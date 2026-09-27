@@ -290,18 +290,21 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** `doterBudget` écrit une ligne annuelle et les lignes mensuelles, et `executionBudgetaire` additionne le tout sans filtre sur le mois. Le budget des notes 35/24 vaut le double de la dotation.
 - **Correction :** lire `mois: null` seulement, et donner au spec le jeu de budgets réel.
+- **Fait le 2026-09-27 :** le tableau ne lit que la dotation annuelle (`mois: null`) ; la doublure du spec rend le jeu réel de `doterBudget`, annuelle et mensuelles, et honore `mois` · cinq tests tombent sans le filtre. Tests : `projet-budget.spec.ts`.
 
 **F38 · La retouche d'un budget mensuel ne peut pas aboutir et désaligne l'annuel** [analytique-02]
 - **Emplacements :** src/modules/analytique/analytique.service.ts:318-349 · migration 20260829085054:67
 - **Condition :** 3
 - **Constat :** le second upsert porte sur une clé composée avec `mois: null`, qu'aucun index NULLS NOT DISTINCT ne couvre. Le mois est déjà écrit hors transaction quand la suite échoue. Les sections Total et les plans sans budget ne sont pas refusés, contrairement à `doterBudget`.
 - **Correction :** une transaction, un `findFirst` de l'annuelle puis un update ou un create, les mêmes refus que `doterBudget`, et une migration NULLS NOT DISTINCT.
+- **Fait le 2026-09-27 :** une transaction, l'annuelle cherchée puis mise à jour ou créée ; les refus de la dotation (section Total, plan sans budgets, exercice d'un autre dossier) et le mois hors convention ; migration `20261123000000_budget_annuel_unique` (doublons retirés, annuelle recalée sur la somme des mois, index NULLS NOT DISTINCT, aucune dérive). Tests : `budget-mois-f38-f39.spec.ts`, `e2e/tests/budget.e2e.ts`, vu tomber en 500 sur l'ancien service.
 
 **F39 · Aucune dotation possible sur un exercice de plus de douze mois** [analytique-03]
 - **Emplacements :** src/modules/analytique/analytique.service.ts:304-311, :370-386 · prisma/schema.prisma:2413-2416
 - **Condition :** 4
 - **Constat :** `moisCouverts` rend les numéros de mois 1 à 12, qui se répètent sur 18 mois, et le `createMany` viole l'unicité. Un projet qui démarre au second semestre n'a pas de budget sur son premier exercice.
 - **Correction :** refuser nommément la dotation mensuelle sur un exercice long (en ne posant que l'annuel), ou ajouter l'année à la clé.
+- **Fait le 2026-09-27 :** première voie · sur un exercice de plus de douze mois, la dotation ne pose que l'annuelle, et la retouche d'un mois comme l'état budgétaire d'un mois sont refusés nommément. Tests : même spec (huit mutations tuées sur F38 et F39).
 
 **F40 · La classe d'un compte créé est libre, par défaut la classe 1** [comptes-01]
 - **Emplacements :** src/modules/comptes/compte.service.ts:98-131 · dto/creer-compte.dto.ts:15-16 · client/src/pages/PlanComptesPage.tsx:107, :173, :640-650 · src/modules/etats-financiers/etats-financiers.service.ts:191-192

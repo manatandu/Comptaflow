@@ -144,7 +144,11 @@ export class EtatsFinanciersProjetBudgetService {
         where: { planId: plan.id, tenantId },
         orderBy: { code: 'asc' },
       }),
-      this.prisma.budgetSection.findMany({ where: { exerciceId, section: { planId: plan.id } } }),
+      // LA DOTATION ANNUELLE SEULE (audit final F37) · `doterBudget` écrit
+      // une ligne annuelle ET une ligne par mois, dont la somme refait
+      // l'annuel. Les additionner sans filtre doublait le budget des notes
+      // 35 et 24, et le crédit disponible avec lui.
+      this.prisma.budgetSection.findMany({ where: { exerciceId, mois: null, section: { planId: plan.id } } }),
       this.prisma.ecriture.findMany({
         where: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE, estGenereeParCloture: false },
         include: {

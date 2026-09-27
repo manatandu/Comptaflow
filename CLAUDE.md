@@ -5154,6 +5154,14 @@ différence au magasin, à cette date et liée à l'écriture (mali en sortie, b
 en entrée au coût porté au compte), sans quoi le même écart se reproposait et
 se passait deux fois. Une inscription refusée retire l'écriture.
 
+**Budgets · la ligne annuelle, unique et seule lue (2026-09-27, audit final
+F37 à F39).** `doterBudget` écrit une ligne ANNUELLE (`mois` nul) ET une
+ligne par mois · le tableau d'exécution budgétaire ne lit que l'annuelle, et
+la retouche d'un mois l'atteint par `findFirst` dans la même transaction,
+jamais par la clé composée à `mois` nul. L'index unique est NULLS NOT
+DISTINCT. Sur un exercice de plus de douze mois, le mois revient deux fois ·
+la dotation y reste annuelle, sans retouche ni état au mois.
+
 ### Migrations écrites à la main
 
 Une migration écrite à la main peut DIVERGER du schéma sans que rien ne le

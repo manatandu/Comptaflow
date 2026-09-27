@@ -78,7 +78,22 @@ function service(options: {
       ),
     },
     sectionAnalytique: { findMany: jest.fn().mockResolvedValue(options.sections ?? []) },
-    budgetSection: { findMany: jest.fn().mockResolvedValue(options.budgets ?? []) },
+    // LE JEU RÉEL DE `doterBudget` (audit final F37) · une ligne ANNUELLE
+    // (`mois` nul) ET une ligne par mois couvert, dont la somme refait
+    // l'annuel. La doublure rendait l'annuelle seule, si bien que le tableau
+    // additionnait sans filtre et paraissait juste ; elle honore `mois`.
+    budgetSection: {
+      findMany: jest.fn().mockImplementation(({ where }: { where: { mois?: number | null } }) =>
+        Promise.resolve(
+          (options.budgets ?? [])
+            .flatMap((b) => [
+              { sectionId: b.sectionId, mois: null as number | null, montant: b.montant },
+              ...Array.from({ length: 12 }, (_, i) => ({ sectionId: b.sectionId, mois: i + 1, montant: b.montant / 12 })),
+            ])
+            .filter((b) => !('mois' in where) || b.mois === where.mois),
+        ),
+      ),
+    },
     ecriture: { findMany: jest.fn().mockResolvedValue(options.ecritures ?? []) },
     exercice: { findFirstOrThrow: jest.fn().mockResolvedValue({ dateFin: new Date('2026-12-31') }) },
     // Les lignes fournisseurs ouvertes à la clôture, tirées des écritures du
