@@ -209,6 +209,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** le report à-nouveau, créé au brouillard, est exclu du registre. Le débit de janvier qui reverse décembre N-1 s'impute donc sur la retenue de janvier. Un mois réellement impayé n'est pas signalé, contrairement à ce qu'affirment le commentaire et l'avertissement.
 - **Correction :** lire le solde d'ouverture des comptes de retenue comme un mois « antérieur » en tête de l'imputation. Tester le scénario décrit.
+- **Fait le 2026-09-27 :** le solde d'ouverture de chaque nature est une ligne « antérieur » imputée la première, à l'échéance du dernier mois avant l'exercice (`retenues.service.ts`, `soldesDOuverture`) · lu sur le report à-nouveau validé, ou reconstitué sur le livre-journal depuis le dernier report quand l'exercice précédent est encore ouvert ; le report n'entre plus comme une retenue de janvier. Tests : `retenues-ouverture-f26.spec.ts` (neuf mutations tuées), e2e `retenues.e2e.ts` sur base réelle, exercice précédent ouvert puis clôturé.
 
 ### Immobilisations et stocks
 

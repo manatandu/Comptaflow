@@ -1186,9 +1186,9 @@ export const AVERTISSEMENT_REVERSEMENT_EXERCICE_SUIVANT =
  * aurait tout l'air.
  */
 export const AVERTISSEMENT_REVERSEMENT_ANTERIEUR =
-  'REVERSEMENT NON IMPUTÉ · une part de ce qui a été reversé sur cet exercice n’éteint aucune retenue de l’exercice ' +
-  'lui-même : elle acquitte vraisemblablement une retenue d’un exercice antérieur, ou un versement excédentaire. ' +
-  'Elle figure dans le total reversé de la nature, mais dans aucun de ses mois.';
+  'REVERSEMENT NON IMPUTÉ · une part de ce qui a été reversé sur cet exercice n’éteint aucune retenue connue, ni de ' +
+  'l’exercice ni de son solde d’ouverture : un versement excédentaire, ou une retenue d’une période que le dossier ' +
+  'ne porte pas. Elle figure dans le total reversé de la nature, mais dans aucun de ses mois.';
 
 /**
  * Une nature dont la retenue est ÉCHUE et toujours pas reversée, avec la

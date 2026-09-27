@@ -53,6 +53,10 @@ function service(lignes: ReturnType<typeof ligne>[], referentiel = 'SYCEBNL') {
     // les réserves de chaque nature et la liste des obligations déclaratives.
     tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel }) },
     ligneEcriture: { findMany: jest.fn().mockResolvedValue(lignes) },
+    // Sans exercice connu, aucun solde d'ouverture (audit final F26) · il est
+    // éprouvé par `retenues-ouverture-f26.spec.ts`, dont la doublure honore
+    // les dates.
+    exercice: { findFirst: jest.fn().mockResolvedValue(null) },
   } as unknown as PrismaService;
   return new RetenuesService(prisma);
 }

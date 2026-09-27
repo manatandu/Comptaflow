@@ -260,7 +260,7 @@ export function RetenuesPage() {
                           m.enRetard ? 'text-danger font-semibold' : ''
                         }`}
                       >
-                        <span>{moisLong(m.mois)}</span>
+                        <span>{m.anterieur ? 'Solde d’ouverture' : moisLong(m.mois)}</span>
                         <span className="font-mono text-[11px]">{jour(m.echeance)}</span>
                         <span className="font-mono text-right">{montant(m.retenu)}</span>
                         <span className="font-mono text-right">{montant(m.reverse)}</span>
@@ -273,7 +273,7 @@ export function RetenuesPage() {
                         {montant(n.reverseNonImpute)} de reversements qu’aucune retenue de cet exercice n’absorbe.
                         <Aide
                           titre="Reversement non imputé"
-                          texte="Le registre ne lit que les écritures de l’exercice, et le reversement de la retenue de décembre passé en janvier suivant n’y figure pas."
+                          texte="Aucune retenue connue ne l’absorbe, ni de l’exercice ni de son solde d’ouverture : un versement excédentaire, ou une retenue d’une période que le dossier ne porte pas."
                           source="OmegaX"
                         />
                       </div>

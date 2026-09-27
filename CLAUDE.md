@@ -5110,6 +5110,16 @@ NOMME la TVA restée au brouillard (`tvaAuBrouillard`), et la LIQUIDATION d'une
 telle période est REFUSÉE, parce qu'une ligne validée ensuite garderait son
 exigibilité dans une période close et ne serait reprise par aucune déclaration.
 
+**Registre des retenues · l'ouverture est un mois « antérieur » (2026-09-27,
+audit final F26).** Le reversement de la retenue de décembre N-1 se passe en
+janvier N · sans le solde d'ouverture, il s'imputait sur janvier, et un
+janvier impayé n'était jamais signalé. `soldesDOuverture` lit le report
+à-nouveau VALIDÉ de l'exercice, ou, exercice précédent encore ouvert, le
+reconstitue sur le livre-journal depuis le dernier report validé. La ligne
+antérieure est imputée la première, à l'échéance du dernier mois avant
+l'exercice · la plus tardive possible, donc jamais un retard fabriqué. Le
+report à-nouveau ne compte plus comme une retenue de janvier.
+
 ### Migrations écrites à la main
 
 Une migration écrite à la main peut DIVERGER du schéma sans que rien ne le

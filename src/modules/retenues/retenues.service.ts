@@ -19,6 +19,14 @@ import {
 import { reporterAuJourOuvrable } from './jour-ouvrable';
 
 /**
+ * Le report à-nouveau · une écriture de clôture qui n'est pas celle qui solde
+ * les comptes de gestion (voir le schéma, audit final F4 et F5).
+ */
+function estReportANouveau(e: { estGenereeParCloture: boolean; estSoldeDesComptesDeGestion: boolean }) {
+  return e.estGenereeParCloture && !e.estSoldeDesComptesDeGestion;
+}
+
+/**
  * REGISTRE DES RETENUES À LA SOURCE et ÉCHÉANCIER FISCAL ET SOCIAL.
  *
  * Le registre se lit comme un compte de tiers : ce qui a été RETENU (crédité
@@ -71,6 +79,64 @@ export class RetenuesService {
    */
   private dateDeRattachement(ligne: { dateVersement: Date | null; ecriture: { date: Date } }): Date {
     return ligne.dateVersement ?? ligne.ecriture.date;
+  }
+
+  /**
+   * SOLDE D'OUVERTURE des comptes 43 et 44, par numéro, en crédit moins débit
+   * (audit final F26).
+   *
+   * Le report à-nouveau VALIDÉ de l'exercice le porte, quand la clôture de
+   * l'exercice précédent l'a passé. Sinon (exercice précédent encore ouvert,
+   * ce qui est l'ordinaire de janvier à avril, ou à-nouveau seulement
+   * provisoire, au brouillard), il se reconstitue sur le livre-journal ·
+   * depuis le dernier report à-nouveau validé, qui porte le solde de son
+   * ouverture, jusqu'à la veille de l'exercice. Sans aucun report, depuis la
+   * première écriture du dossier.
+   */
+  private async soldesDOuverture(
+    tenantId: string,
+    exerciceId: string,
+    dateDebut: Date,
+    lignesExercice: Array<{
+      debit: unknown;
+      credit: unknown;
+      compte: { numero: string };
+      ecriture: { estGenereeParCloture: boolean; estSoldeDesComptesDeGestion: boolean };
+    }>,
+  ): Promise<Map<string, number>> {
+    const cumuler = (lignes: Array<{ debit: unknown; credit: unknown; compte: { numero: string } }>) => {
+      const soldes = new Map<string, number>();
+      for (const l of lignes) {
+        soldes.set(l.compte.numero, (soldes.get(l.compte.numero) ?? 0) + Number(l.credit) - Number(l.debit));
+      }
+      return soldes;
+    };
+    const ancre = await this.prisma.ecriture.findFirst({
+      where: {
+        tenantId,
+        statut: StatutEcriture.VALIDEE,
+        estGenereeParCloture: true,
+        estSoldeDesComptesDeGestion: false,
+        date: { lte: dateDebut },
+      },
+      orderBy: { date: 'desc' },
+      select: { date: true, exerciceId: true },
+    });
+    if (ancre?.exerciceId === exerciceId) {
+      return cumuler(lignesExercice.filter((l) => estReportANouveau(l.ecriture)));
+    }
+    const anterieures = await this.prisma.ligneEcriture.findMany({
+      where: {
+        ecriture: {
+          tenantId,
+          statut: StatutEcriture.VALIDEE,
+          date: { ...(ancre ? { gte: ancre.date } : {}), lt: dateDebut },
+        },
+        compte: { OR: [{ numero: { startsWith: '44' } }, { numero: { startsWith: '43' } }] },
+      },
+      select: { debit: true, credit: true, compte: { select: { numero: true } } },
+    });
+    return cumuler(anterieures);
   }
 
   /**
@@ -203,7 +269,15 @@ export class RetenuesService {
       },
       include: {
         compte: { select: { numero: true, intitule: true } },
-        ecriture: { select: { date: true, libelle: true, reference: true } },
+        ecriture: {
+          select: {
+            date: true,
+            libelle: true,
+            reference: true,
+            estGenereeParCloture: true,
+            estSoldeDesComptesDeGestion: true,
+          },
+        },
       },
       orderBy: { ecriture: { date: 'asc' } },
     });
@@ -211,6 +285,29 @@ export class RetenuesService {
     const correspond = (numero: string, nature: NatureRetenue) =>
       nature.comptes.some((p) => numero.startsWith(p)) &&
       !(nature.exclusions ?? []).some((e) => numero.startsWith(e));
+
+    /*
+      LE SOLDE D'OUVERTURE EST UN MOIS « ANTÉRIEUR », IMPUTÉ LE PREMIER (audit
+      final F26). Le reversement de la retenue de décembre N-1 se passe en
+      janvier N. Sans le solde d'ouverture, il s'imputait sur la retenue de
+      janvier, qui paraissait acquittée · et un janvier réellement impayé
+      n'était jamais signalé. Le report à-nouveau, lui, entrait comme une
+      retenue de janvier, avec l'échéance de février.
+    */
+    const exercice = await this.prisma.exercice.findFirst({
+      where: { id: params.exerciceId, tenantId },
+      select: { dateDebut: true },
+    });
+    const ouverture = exercice
+      ? await this.soldesDOuverture(tenantId, params.exerciceId, exercice.dateDebut, lignes)
+      : new Map<string, number>();
+    // L'échéance du dernier mois AVANT l'exercice · la plus tardive que le
+    // solde d'ouverture puisse porter. Le solde peut contenir des mois plus
+    // anciens, déjà en retard avant elle : l'état ne signale donc jamais trop
+    // tôt, au prix de signaler parfois trop tard.
+    const moisAnterieur = exercice
+      ? { annee: exercice.dateDebut.getFullYear(), mois: exercice.dateDebut.getMonth() - 1 }
+      : null;
 
     const natures = NATURES_RETENUES.map((nature) => {
       const siennes = lignes.filter((l) => correspond(l.compte.numero, nature));
@@ -220,6 +317,9 @@ export class RetenuesService {
       const parMois = new Map<string, { retenu: number; reverseEcritures: number }>();
       const parCompte = new Map<string, { numero: string; intitule: string; retenu: number; reverse: number }>();
       for (const l of siennes) {
+        // Le report à-nouveau est le solde d'ouverture · il vit dans la ligne
+        // « antérieur », jamais dans janvier.
+        if (estReportANouveau(l.ecriture)) continue;
         const rattachement = this.dateDeRattachement(l);
         const mois = `${rattachement.getFullYear()}-${String(rattachement.getMonth() + 1).padStart(2, '0')}`;
         // Crédit = retenue constituée (dette envers l'État) ;
@@ -288,19 +388,52 @@ export class RetenuesService {
         acquitter · savoir QUAND il a été payé ne dit pas QUOI il payait. Le
         retard PASSÉ reste hors de portée de cet état.
       */
-      let aImputer = reverse;
-      const mois = [...parMois.entries()]
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([cle, m]) => {
-          const [annee, numeroMois] = cle.split('-').map(Number);
-          // Reversement dû `joursApresPeriode` jours après la fin du mois de
-          // la retenue · voir echeanceDuMois.
-          const echeance = this.echeanceDuMois(nature, annee, numeroMois - 1);
+      // Solde d'ouverture des comptes de la nature · crédit = retenue d'un
+      // exercice antérieur encore due ; débit = reversement d'avance, qui
+      // s'ajoute à ce qui reste à imputer.
+      const soldeOuverture =
+        Math.round(
+          [...ouverture.entries()].filter(([numero]) => correspond(numero, nature)).reduce((s, [, v]) => s + v, 0) *
+            100,
+        ) / 100;
+      let aImputer = reverse + Math.max(0, -soldeOuverture);
+      const aImputerDans: Array<{ cle: string; anterieur: boolean; retenu: number; reverseEcritures: number; echeance: Date }> = [
+        ...(soldeOuverture > 0.005 && moisAnterieur
+          ? [
+              {
+                cle: 'ANTERIEUR',
+                anterieur: true,
+                retenu: soldeOuverture,
+                reverseEcritures: 0,
+                echeance: this.echeanceDuMois(nature, moisAnterieur.annee, moisAnterieur.mois),
+              },
+            ]
+          : []),
+        ...[...parMois.entries()]
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([cle, m]) => {
+            const [annee, numeroMois] = cle.split('-').map(Number);
+            return {
+              cle,
+              anterieur: false,
+              retenu: m.retenu,
+              reverseEcritures: m.reverseEcritures,
+              // Reversement dû `joursApresPeriode` jours après la fin du mois
+              // de la retenue · voir echeanceDuMois.
+              echeance: this.echeanceDuMois(nature, annee, numeroMois - 1),
+            };
+          }),
+      ];
+      const mois = aImputerDans.map((m) => {
+          const echeance = m.echeance;
           const impute = Math.max(0, Math.min(aImputer, m.retenu));
           aImputer -= impute;
           const solde = Math.round((m.retenu - impute) * 100) / 100;
           return {
-            mois: cle,
+            mois: m.cle,
+            // Le solde d'ouverture · retenues des exercices antérieurs encore
+            // dues à l'ouverture, imputées avant celles de l'exercice.
+            anterieur: m.anterieur,
             retenu: Math.round(m.retenu * 100) / 100,
             // Ce qui a été reversé AU TITRE de ce mois · pas ce qui a été
             // débité pendant ce mois-là, qui acquitte le mois d'avant.
@@ -318,8 +451,10 @@ export class RetenuesService {
         });
 
       /*
-        CE QU'AUCUN MOIS DE L'EXERCICE N'A ABSORBÉ · un reversement qui éteint
-        la retenue d'un exercice ANTÉRIEUR, ou un versement excédentaire.
+        CE QU'AUCUN MOIS N'A ABSORBÉ, NI L'OUVERTURE NI L'EXERCICE · un
+        versement excédentaire, ou la retenue d'une période que le dossier ne
+        porte pas (reprise en cours de route sans solde d'ouverture). Depuis
+        F26, la retenue antérieure CONNUE est imputée sur la ligne antérieure.
 
         Il reste compté dans `reverse`, qui est l'arithmétique du compte, mais
         il ne s'impute sur aucun mois affiché · la colonne des mois totalise
@@ -361,7 +496,9 @@ export class RetenuesService {
         mois,
         retenu: Math.round(retenu * 100) / 100,
         reverse: Math.round(reverse * 100) / 100,
-        solde: Math.round((retenu - reverse) * 100) / 100,
+        soldeOuverture,
+        // Le solde du compte · ouverture comprise.
+        solde: Math.round((soldeOuverture + retenu - reverse) * 100) / 100,
         moisEnRetard: mois.filter((m) => m.enRetard).length,
         retenuEchuNonReverse: Math.round(retenuEchuNonReverse * 100) / 100,
         reverseNonImpute,

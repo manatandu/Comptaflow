@@ -2220,7 +2220,10 @@ export interface Echeancier {
 // --------------------------------------------------------------------------
 
 export interface MoisRetenue {
+  /** « AAAA-MM », ou « ANTERIEUR » pour le solde d'ouverture (audit F26). */
   mois: string;
+  /** Solde d'ouverture · retenues antérieures encore dues, imputées en premier. */
+  anterieur?: boolean;
   retenu: number;
   /**
    * Reversé AU TITRE de ce mois · le reversement s'impute désormais du mois le
@@ -2250,6 +2253,9 @@ export interface NatureRetenueCalculee {
   mois: MoisRetenue[];
   retenu: number;
   reverse: number;
+  /** Solde d'ouverture des comptes de la nature, crédit moins débit (audit F26). */
+  soldeOuverture?: number;
+  /** Solde du compte, ouverture comprise. */
   solde: number;
   moisEnRetard: number;
   /**

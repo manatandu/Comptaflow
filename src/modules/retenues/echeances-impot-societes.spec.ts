@@ -41,6 +41,9 @@ function service(referentiel: 'SYCEBNL' | 'SYSCOHADA') {
     },
     tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel }) },
     ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },
+    // Aucun report à-nouveau · le solde d'ouverture (audit final F26) se lit
+    // alors sur le livre-journal, vide ici.
+    ecriture: { findFirst: jest.fn().mockResolvedValue(null) },
     compte: { findMany: jest.fn().mockResolvedValue([]) },
   } as unknown as PrismaService;
   return new RetenuesService(prisma);
