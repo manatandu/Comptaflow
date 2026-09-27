@@ -51,6 +51,7 @@ import {
   calculerResultatSmt,
 } from './correspondance-smt-syscohada';
 import { ouverteALaCloture } from '../lettrage/ouverte-a-la-cloture';
+import { chargerCampagneStocks, lignesNoteStocks, motifQuantitesNote2 } from '../etats-financiers/stocks-depuis-inventaire';
 
 /**
  * ÉTATS FINANCIERS DU SYSTÈME MINIMAL DE TRÉSORERIE · SYSCOHADA RÉVISÉ.
@@ -1018,12 +1019,11 @@ export class EtatsFinanciersSmtSyscohadaService {
    * stocks N / N-1 portée au compte de résultat » (ch. 3), d'où le
    * rapprochement avec la ligne SV1 exposé ici.
    *
-   * LACUNE ASSUMÉE : OmegaX ne tient pas d'inventaire physique · il n'a ni
-   * quantité ni prix unitaire à porter. Les colonnes correspondantes sont
-   * renvoyées à `null` et l'état le déclare, plutôt que d'afficher une
-   * quantité de 1 qui laisserait croire à un inventaire tenu. Référence et
-   * Désignation sont servies par le numéro et l'intitulé du compte de
-   * stock, Montant par son solde.
+   * Référence et Désignation sont servies par le compte de stock, Montant
+   * par son solde. QUANTITÉ ET PRIX UNITAIRE viennent de la dernière
+   * campagne d'inventaire de l'exercice, compte par compte, quand ses fiches
+   * reconstituent le montant au centime (`stocks-depuis-inventaire.ts`,
+   * audit final F85) · jamais un « 1 » qui laisserait croire à un comptage.
    *
    * Le périmètre est celui du POSTE SA2 du bilan (classe 3 entière,
    * dépréciations 39 comprises, donc en valeur nette), pas une définition
@@ -1039,14 +1039,13 @@ export class EtatsFinanciersSmtSyscohadaService {
     const valeurStockFinal = cloture.get('SA2')!.montant;
     const valeurStockInitial = ouverture.get('SA2')!.montant;
 
+    const note = lignesNoteStocks(
+      comptes.map((c) => ({ numero: c.numero, intitule: c.intitule, montant: c.montant })),
+      await chargerCampagneStocks(this.prisma, tenantId, exerciceId),
+    );
+
     return {
-      lignes: comptes.map((c) => ({
-        reference: c.numero,
-        designation: c.intitule,
-        quantite: null,
-        prixUnitaire: null,
-        montant: c.montant,
-      })),
+      lignes: note.lignes,
       lignesSynthese: LIGNES_SYNTHESE_NOTE_2_SMT_SYSCOHADA,
       valeurStockFinal,
       valeurStockInitial,
@@ -1054,9 +1053,12 @@ export class EtatsFinanciersSmtSyscohadaService {
       // n° 2 de la table. Le montant imprimé au compte de résultat est
       // exactement celui-ci.
       variationSv1: valeurStockInitial - valeurStockFinal,
-      quantitesTenues: false,
-      motifQuantites:
-        "OmegaX ne tient pas d'inventaire physique : les colonnes Quantité et Prix unitaire de la maquette officielle ne peuvent pas être servies depuis la comptabilité et doivent être complétées à la main sur l'état imprimé, à partir de l'inventaire extra-comptable que le Titre X ch. 1 § 1 impose au responsable de l'entité.",
+      quantitesTenues: note.quantitesTenues,
+      sourceQuantites: note.source,
+      motifQuantites: motifQuantitesNote2(
+        note,
+        ", à partir de l'inventaire extra-comptable que le Titre X ch. 1 § 1 impose au responsable de l'entité",
+      ),
     };
   }
 
@@ -1431,15 +1433,13 @@ export class EtatsFinanciersSmtSyscohadaService {
       deviseDossier: tenant.devise,
       systemeActuel: tenant.systemeComptableSyscohada,
       conversionAppliquee: false,
-      seuils: SEUILS_SMT_ART13_FCFA.map((s) => ({
-        ...s,
-        clause: CLAUSE_EQUIVALENT_ART13,
-        // Comparaison brute, monnaie de tenue contre F CFA : elle n'a de
-        // sens que si le dossier est tenu en F CFA. `conversionAppliquee:
-        // false` et l'avertissement disent pourquoi elle n'est pas une
-        // conclusion.
-        souSeuilSiMemeMonnaie: chiffreAffaires < s.montantFcfa,
-      })),
+      // AUCUN VERDICT PAR SEUIL (audit final F88) · la tenue est en francs
+      // congolais (loi n° 23/053 art. 141, 1°) et les seuils sont en F CFA.
+      // La « comparaison brute » opposait donc toujours deux monnaies, et
+      // colorait trois verdicts qui n'avaient jamais d'objet. Sans cours
+      // déclaré, OmegaX montre le chiffre d'affaires et les seuils, et
+      // laisse la conversion à l'entité.
+      seuils: SEUILS_SMT_ART13_FCFA.map((s) => ({ ...s, clause: CLAUSE_EQUIVALENT_ART13 })),
       qualificationParLEntite:
         "L'article 13 fixe trois seuils selon que l'entité relève du négoce, de l'artisanat ou des services. OmegaX ne qualifie pas l'activité du dossier à la place de l'entité : comparez le chiffre d'affaires au seuil de VOTRE catégorie.",
       rappelArticle11:

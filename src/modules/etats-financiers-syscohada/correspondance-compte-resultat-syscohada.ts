@@ -232,9 +232,9 @@
  *       26 ne descend pas sous le 652, la note 21 ne descend pas sous le 752.
  *    c) AFFICHAGE · « Dès lors que l'entité réalise de telles opérations »
  *       (section 7.2) : les deux lignes ne sont à imprimer que si l'entité en
- *       fait. `REFS_POSTES_SUPPLEMENTAIRES` existe pour qu'un consommateur
- *       puisse les masquer quand elles sont nulles en N et en N-1 ; le
- *       service les sert aujourd'hui comme toutes les autres lignes.
+ *       fait. Le service les retire du compte de résultat quand elles sont
+ *       nulles en N, en N-1 et sur la même période, et la liasse laisse leur
+ *       colonne REF vide quand elles y sont (audit final F89).
  */
 
 export type SensPosteSyscohada = 'PRODUIT' | 'CHARGE';

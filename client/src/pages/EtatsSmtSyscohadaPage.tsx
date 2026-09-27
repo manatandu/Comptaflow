@@ -183,6 +183,9 @@ export function EtatsSmtSyscohadaPage() {
 
   const montant = (v: number | null | undefined) =>
     v === null || v === undefined ? '·' : v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // Une quantité se compte en kilogrammes comme en pièces · jamais arrondie
+  // au centime comme un montant.
+  const quantite = (v: number | null) => (v === null ? '·' : v.toLocaleString('fr-FR', { maximumFractionDigits: 3 }));
   const jour = (d: string | null) => (d ? new Date(d).toLocaleDateString('fr-FR') : '·');
   /** Infobulle de traçabilité · quels comptes composent le montant affiché. */
   const infoComptes = (comptes: CompteDuPoste[]) =>
@@ -808,14 +811,15 @@ export function EtatsSmtSyscohadaPage() {
               {notes.note2.lignes.length === 0 && (
                 <div className="px-3 py-2 text-[11.5px] text-text-dim">Aucun compte de stock mouvementé.</div>
               )}
-              {notes.note2.lignes.map((l) => (
+              {/* Un compte compté porte une ligne PAR FICHE · la clé est le rang. */}
+              {notes.note2.lignes.map((l, i) => (
                 <div
-                  key={l.reference}
+                  key={`${l.reference}-${i}`}
                   className="grid grid-cols-[110px_minmax(140px,1fr)_86px_96px_110px] min-w-[540px] gap-2 px-3 py-1 text-[11.5px]"
                 >
                   <span className="font-mono text-[11.5px]">{l.reference}</span>
                   <span className="break-words">{l.designation}</span>
-                  <span className="text-right text-text-dim">{montant(l.quantite)}</span>
+                  <span className="text-right text-text-dim">{quantite(l.quantite)}</span>
                   <span className="text-right text-text-dim">{montant(l.prixUnitaire)}</span>
                   <span className="font-mono text-right">{montant(l.montant)}</span>
                 </div>
@@ -839,6 +843,7 @@ export function EtatsSmtSyscohadaPage() {
               </div>
               <p className="px-3 py-2 text-[11px] text-text-dim border-t border-border">
                 Variation portée au compte de résultat : {montant(notes.note2.variationSv1)}.
+                {notes.note2.sourceQuantites && ` ${notes.note2.sourceQuantites}`}
                 {!notes.note2.quantitesTenues && ` ${notes.note2.motifQuantites}`}
               </p>
             </div>,
@@ -1012,29 +1017,28 @@ export function EtatsSmtSyscohadaPage() {
           {bloc(
             "LES TROIS SEUILS DE L'ARTICLE 13",
             <>
-              <div className="grid grid-cols-[minmax(150px,1fr)_130px_120px] min-w-[440px] gap-2 px-3 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim">
+              {/* AUCUN VERDICT (audit final F88) · le chiffre d'affaires est en
+                  francs congolais, les seuils en F CFA, et aucun cours ne les
+                  rapproche ici. */}
+              <div className="grid grid-cols-[minmax(150px,1fr)_130px] min-w-[320px] gap-2 px-3 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim">
                 <span>CATÉGORIE D'ACTIVITÉ</span>
                 <span className="text-right">SEUIL (F CFA)</span>
-                <span className="text-right">COMPARAISON BRUTE</span>
               </div>
               {eligibilite.seuils.map((s) => (
                 <div
                   key={s.cle}
                   title={s.clause}
-                  className="grid grid-cols-[minmax(150px,1fr)_130px_120px] min-w-[440px] gap-2 px-3 py-1 text-[11.5px]"
+                  className="grid grid-cols-[minmax(150px,1fr)_130px] min-w-[320px] gap-2 px-3 py-1 text-[11.5px]"
                 >
                   <span className="break-words">{s.categorie}</span>
                   <span className="font-mono text-right">{s.montantFcfa.toLocaleString('fr-FR')}</span>
-                  <span className={`text-right text-[11.5px] ${s.souSeuilSiMemeMonnaie ? 'text-positive' : 'text-warning'}`}>
-                    {s.souSeuilSiMemeMonnaie ? 'sous le seuil' : 'au-dessus du seuil'}
-                  </span>
                 </div>
               ))}
               <p className="flex flex-wrap items-center gap-1.5 px-3 py-2 text-[11px] text-text-dim border-t border-border">
-                Comparaison brute, sans conversion · jamais une conclusion.
+                Seuils en F CFA, chiffre d'affaires en francs congolais · à comparer au cours que retient l'entité.
                 <Aide
-                  titre="Comparaison brute"
-                  texte={`${eligibilite.seuils[0]?.clause ?? ''}. La colonne « comparaison brute » oppose le chiffre d'affaires du dossier au montant en F CFA sans aucune conversion : elle n'a de sens que si le dossier est tenu en F CFA. ${eligibilite.avertissementConversion}`}
+                  titre="Conversion"
+                  texte={`${eligibilite.seuils[0]?.clause ?? ''}. ${eligibilite.avertissementConversion}`}
                   source="AUDCIF art. 13"
                 />
                 <Aide titre="Catégorie d'activité" texte={eligibilite.qualificationParLEntite} source="AUDCIF art. 13" />

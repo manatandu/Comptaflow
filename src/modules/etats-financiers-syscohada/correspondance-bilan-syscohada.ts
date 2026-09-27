@@ -258,8 +258,9 @@ import { COMPTES_RESULTAT_DE_L_EXERCICE } from '../etats-financiers/resultat-de-
  *    met et qu'une balance intermédiaire (avant l'écriture de clôture) le
  *    porte légitimement, en plus ou en moins de CA selon son sens (la
  *    convention de signe suffit, aucun qualificatif) ; il est listé dans
- *    `COMPTES_BILAN_A_SOLDER_A_LA_CLOTURE` pour que le service le signale
- *    sur un arrêté définitif.
+ *    `COMPTES_BILAN_A_SOLDER_A_LA_CLOTURE`, que le bilan lit et signale sur
+ *    l'exercice entier, jamais sur une situation intermédiaire (audit final
+ *    F92).
  *
  * 11. **4726 « Versements restant à effectuer sur titres de placement non
  *    libérés »** · la consigne demandait s'il fallait l'exclure. Non :
@@ -606,9 +607,10 @@ export const COMPTES_BILAN_SANS_POSTE_JUSTIFIES: { prefixe: string; anomalie: nu
  * l'exercice · un solde non nul sur un arrêté définitif est une erreur de
  * clôture, pas un cas de présentation. Distinct de la liste des orphelins :
  * 104 a un poste (CA) et n'est donc jamais « non rattaché », mais mérite le
- * même signalement. Le service décide du niveau (avertissement sur un
- * bilan intermédiaire, où 104 et 130 sont légitimes ; anomalie sur un
- * bilan de clôture). Chaque entrée cite sa fiche.
+ * même signalement. Le bilan de l'exercice les rend
+ * (`comptesASolderALaCloture`, hors ceux déjà non rattachés) ; une situation
+ * intermédiaire ne les rend pas, 104 et 130 y étant légitimes. Chaque entrée
+ * cite sa fiche.
  */
 export const COMPTES_BILAN_A_SOLDER_A_LA_CLOTURE: { prefixe: string; anomalie: number; source: string }[] = [
   { prefixe: '104', anomalie: 10, source: 'Titre VII COMPTE 104 : « systématiquement soldé à la clôture de l’exercice » par le 103' },

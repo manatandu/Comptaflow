@@ -22,8 +22,10 @@ import {
  * méthodes, et le § 2.1 une liste de mentions qu'aucun solde ne porte.
  */
 
-const EXERCICE_2026 = { dateDebut: new Date('2026-01-01T00:00:00Z'), dateFin: new Date('2026-12-31T23:59:59Z') };
-const EXERCICE_2025 = { dateDebut: new Date('2025-01-01T00:00:00Z'), dateFin: new Date('2025-12-31T23:59:59Z') };
+// Les clôtures sont à MINUIT, comme en base · à 23:59:59, le jeu d'essai
+// masquait le refus de la situation au 31 décembre (audit final F90).
+const EXERCICE_2026 = { dateDebut: new Date('2026-01-01T00:00:00Z'), dateFin: new Date('2026-12-31T00:00:00Z') };
+const EXERCICE_2025 = { dateDebut: new Date('2025-01-01T00:00:00Z'), dateFin: new Date('2025-12-31T00:00:00Z') };
 
 describe('la date d’arrêté d’une situation intermédiaire', () => {
   it('accepte une date à l’intérieur de l’exercice', () => {
@@ -39,6 +41,10 @@ describe('la date d’arrêté d’une situation intermédiaire', () => {
     const motif = motifRefusDateArrete(new Date('2025-12-31T23:59:59Z'), EXERCICE_2026);
     expect(motif).toContain('report à-nouveau');
     expect(motif).toContain('2026-01-01');
+  });
+
+  it('accepte le DERNIER jour de l’exercice, lu à la fin de sa journée (audit final F90)', () => {
+    expect(motifRefusDateArrete(finDeJournee(new Date('2026-12-31T00:00:00Z')), EXERCICE_2026)).toBeNull();
   });
 
   it('refuse une date postérieure à la clôture, et dit pourquoi', () => {

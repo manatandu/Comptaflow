@@ -212,6 +212,8 @@ function fabriquerExport(jeu: JeuEtatsFinanciersSycebnl = TENANT.jeuEtatsFinanci
     // grille VIERGE du modèle, jamais échouer.
     planAnalytique: { findFirst: jest.fn().mockResolvedValue(null) },
     immobilisation: { findMany: jest.fn().mockResolvedValue([]) },
+    // Aucune campagne d'inventaire · la note 2 du SMT garde ses quantités vides.
+    campagneInventaire: { findFirst: jest.fn().mockResolvedValue(null) },
     tiersCompte: { findMany: jest.fn().mockResolvedValue([]) },
     // Registre des engagements hors comptabilité · vide ici, la liasse ne le
     // teste pas. Sans ce double, `resteParSection` tomberait sur undefined.
@@ -556,6 +558,34 @@ describe('liasse complète · jeu projets de développement', () => {
 });
 
 describe('liasse complète · Système minimal de trésorerie', () => {
+  it('NOTE 2 · quantité et prix unitaire lus sur la campagne sont écrits, avec la source (audit final F85)', async () => {
+    const exportService = fabriquerExport(JeuEtatsFinanciersSycebnl.SYSTEME_MINIMAL_TRESORERIE);
+    (exportService as unknown as { etatsFinanciersSmtService: { note2Stocks: jest.Mock } }).etatsFinanciersSmtService.note2Stocks =
+      jest.fn().mockResolvedValue({
+        lignes: [{ reference: '31100000', designation: 'Riz (kg)', quantite: 12.5, prixUnitaire: 160, montant: 2000 }],
+        valeurStockFinal: 2000,
+        valeurStockInitial: 0,
+        quantitesTenues: true,
+        sourceQuantites: "Quantités et prix unitaires lus sur la campagne d'inventaire « Clôture » du 31/12/2026.",
+        motifQuantites: '',
+      });
+    const wb = await ouvrir((await exportService.liasseCompleteExcel('t1', 'e1')).buffer);
+    const ws = wb.getWorksheet('NOTE 2 STOCKS')!;
+    let rang = 0;
+    ws.eachRow((row, n) => {
+      if (row.getCell(2).value === 'Riz (kg)') rang = n;
+    });
+    expect(rang).toBeGreaterThan(0);
+    expect(ws.getCell(rang, 3).value).toBe(12.5);
+    // Une quantité garde ses décimales · le format des montants l'arrondirait.
+    expect(ws.getCell(rang, 3).numFmt).toBe('#,##0.###');
+    expect(ws.getCell(rang, 4).value).toBe(160);
+    expect(ws.getCell(rang, 5).value).toBe(2000);
+    const textes: string[] = [];
+    ws.eachRow((row) => row.eachCell((c) => typeof c.value === 'string' && textes.push(c.value)));
+    expect(textes.join(' ')).toContain('« Clôture » du 31/12/2026');
+  });
+
   it('reproduit le classeur du modèle SMT, notes 1 à 5 comprises', async () => {
     const exportService = fabriquerExport(JeuEtatsFinanciersSycebnl.SYSTEME_MINIMAL_TRESORERIE);
     const { buffer } = await exportService.liasseCompleteExcel('t1', 'e1');

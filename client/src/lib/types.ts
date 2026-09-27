@@ -2026,10 +2026,13 @@ export interface NotesSmt {
     total: number;
   };
   note2: {
-    lignes: { reference: string; designation: string; quantite: null; prixUnitaire: null; montant: number }[];
+    /** Quantité et prix unitaire lus sur la campagne d'inventaire, null sinon (audit final F85). */
+    lignes: { reference: string; designation: string; quantite: number | null; prixUnitaire: number | null; montant: number }[];
     valeurStockFinal: number;
     valeurStockInitial: number;
     quantitesTenues: boolean;
+    /** La campagne lue, nommée et datée · null sans campagne. */
+    sourceQuantites: string | null;
     motifQuantites: string;
   };
   /**
@@ -2667,6 +2670,8 @@ export interface BilanSyscohada {
   exerciceN1Disponible: boolean;
   equilibre: boolean;
   comptesNonRattaches: CompteDuPosteSyscohada[];
+  /** Comptes que le Titre VII fait solder à la clôture et qui portent un solde (audit final F92). */
+  comptesASolderALaCloture: Array<CompteDuPosteSyscohada & { source: string }>;
   controle: {
     resultatClasses678: number;
     resultatCompte13: number;
@@ -2692,6 +2697,8 @@ export interface LigneCompteResultatSyscohada {
   montantN1?: number;
   comptes: CompteDuPosteSyscohada[];
   estSolde?: boolean;
+  /** Poste du ch. 33 (RQP, TQP) · sans code REF déposé, sa clé ne s'affiche pas. */
+  supplementaire?: true;
   formuleOfficielle?: string;
   /** Renvois de la colonne NOTE du ch. 4, non développés (« 27 » reste « 27 »). */
   notes: string[];
@@ -3007,7 +3014,7 @@ export interface LigneNote1SmtSyscohada {
 export interface LigneNote2SmtSyscohada {
   reference: string;
   designation: string;
-  /** Colonnes de la maquette qu'aucune donnée comptable ne sert · inventaire extra-comptable. */
+  /** Lues sur la campagne d'inventaire quand ses fiches reconstituent le compte, null sinon (audit final F85). */
   quantite: number | null;
   prixUnitaire: number | null;
   montant: number;
@@ -3065,6 +3072,8 @@ export interface NotesSmtSyscohada {
     /** Ce que la note verse à la ligne de variation des stocks du compte de résultat. */
     variationSv1: number;
     quantitesTenues: boolean;
+    /** La campagne lue, nommée et datée · null sans campagne. */
+    sourceQuantites: string | null;
     motifQuantites: string;
   };
   note3: {
@@ -3095,8 +3104,6 @@ export interface SeuilSmtSyscohada {
   categorie: string;
   montantFcfa: number;
   clause: string;
-  /** Comparaison brute, monnaie de tenue contre F CFA · n'est une conclusion que si le dossier est tenu en F CFA. */
-  souSeuilSiMemeMonnaie: boolean;
 }
 
 /**

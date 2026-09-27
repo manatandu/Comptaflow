@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
 import { CompteDuPoste, LigneBalancePourEtat, chargerLignes, correspond, trouverExerciceN1 } from './etats-financiers.communs';
+import { chargerCampagneStocks, lignesNoteStocks, motifQuantitesNote2 } from './stocks-depuis-inventaire';
 import { estCompteDuResultatDeLExercice } from './resultat-de-l-exercice';
 import { PosteCalcule } from './etats-financiers.service';
 import {
@@ -625,31 +626,28 @@ export class EtatsFinanciersSmtService {
    * Désignation, Quantité, Prix unitaire, Montant ; lignes de synthèse
    * VALEUR DU STOCK FINAL et VALEUR DU STOCK INITIAL.
    *
-   * LACUNE ASSUMÉE : OmegaX ne tient pas d'inventaire physique · il n'a ni
-   * quantité ni prix unitaire à porter. Les colonnes correspondantes sont
-   * renvoyées à `null` et l'état le déclare, plutôt que d'afficher une
-   * quantité de 1 qui laisserait croire à un inventaire tenu. Référence et
-   * Désignation sont servies par le numéro et l'intitulé du compte de stock,
-   * Montant par son solde.
+   * Référence et Désignation sont servies par le compte de stock, Montant par
+   * son solde. QUANTITÉ ET PRIX UNITAIRE viennent de la dernière campagne
+   * d'inventaire de l'exercice, compte par compte, quand ses fiches
+   * reconstituent le solde au centime (`stocks-depuis-inventaire.ts`, audit
+   * final F85) · jamais un « 1 » qui laisserait croire à un comptage.
    */
   async note2Stocks(tenantId: string, exerciceId: string) {
     const lignes = await this.chargerLignes(tenantId, exerciceId);
     const stocks = lignes
       .filter((l) => l.classe === ClasseCompte.CLASSE_3)
       .sort((a, b) => a.numero.localeCompare(b.numero));
+    const note = lignesNoteStocks(
+      stocks.map((l) => ({ numero: l.numero, intitule: l.intitule, montant: l.solde })),
+      await chargerCampagneStocks(this.prisma, tenantId, exerciceId),
+    );
     return {
-      lignes: stocks.map((l) => ({
-        reference: l.numero,
-        designation: l.intitule,
-        quantite: null,
-        prixUnitaire: null,
-        montant: l.solde,
-      })),
+      lignes: note.lignes,
       valeurStockFinal: stocks.reduce((s, l) => s + l.solde, 0),
       valeurStockInitial: stocks.reduce((s, l) => s + (l.reportDebit - l.reportCredit), 0),
-      quantitesTenues: false,
-      motifQuantites:
-        "OmegaX ne tient pas d'inventaire physique : les colonnes Quantité et Prix unitaire de la maquette officielle ne peuvent pas être servies depuis la comptabilité et doivent être complétées à la main sur l'état imprimé.",
+      quantitesTenues: note.quantitesTenues,
+      sourceQuantites: note.source,
+      motifQuantites: motifQuantitesNote2(note, ''),
     };
   }
 

@@ -175,7 +175,7 @@ function EtatsSyscohadaSystemeNormal() {
    * retravailler un état.
    */
   const exporterLiasse = async () => {
-    if (!exerciceCourant) return;
+    if (!exerciceCourant || arreteAu) return;
     setErreur(null);
     setExportEnCours(true);
     try {
@@ -191,7 +191,7 @@ function EtatsSyscohadaSystemeNormal() {
   };
 
   const exporter = async () => {
-    if (!exerciceCourant) return;
+    if (!exerciceCourant || arreteAu) return;
     setErreur(null);
     setExportEnCours(true);
     try {
@@ -314,7 +314,9 @@ function EtatsSyscohadaSystemeNormal() {
             deplie ? 'bg-surface-alt' : ''
           }`}
         >
-          <span className="font-mono text-[11.5px] text-text-dim">{l.ref}</span>
+          {/* Un poste du ch. 33 n'a aucun code REF déposé · sa clé interne ne
+              s'affiche pas (audit final F89). */}
+          <span className="font-mono text-[11.5px] text-text-dim">{l.supplementaire ? '' : l.ref}</span>
           <span>
             {l.libelle}
             {/* Formule telle qu'imprimée au modèle · c'est elle qui justifie
@@ -425,9 +427,16 @@ function EtatsSyscohadaSystemeNormal() {
               Exercice {new Date(exerciceCourant.dateDebut).getFullYear()}
             </span>
           )}
+          {/* LES EXPORTS PORTENT L'EXERCICE ENTIER (audit final F91) · lancés
+              depuis une situation intermédiaire, ils rendaient un fichier qui
+              ne correspondait pas à l'écran d'où il partait. Ils se ferment
+              donc tant qu'une date d'arrêté est posée, et le disent. */}
+          {arreteAu && (
+            <span className="text-[11px] text-text-dim">Exports : exercice entier seulement · videz « Arrêté au ».</span>
+          )}
           <button
             onClick={exporterLiasse}
-            disabled={exportEnCours}
+            disabled={exportEnCours || Boolean(arreteAu)}
             title="Tous les états du Système normal dans un seul classeur · les états financiers forment un tout indissociable (AUDCIF art. 8)"
             className="flex items-center gap-1.5 border border-sel bg-sel text-white px-3 py-1.5 text-[11.5px] font-bold hover:brightness-110 disabled:opacity-50 disabled:cursor-wait"
           >
@@ -436,7 +445,7 @@ function EtatsSyscohadaSystemeNormal() {
           </button>
           <button
             onClick={exporter}
-            disabled={exportEnCours}
+            disabled={exportEnCours || Boolean(arreteAu)}
             title="Seulement l’état affiché dans cet onglet"
             className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[11.5px] font-bold hover:bg-surface-alt disabled:opacity-50 disabled:cursor-wait"
           >
@@ -593,6 +602,27 @@ function EtatsSyscohadaSystemeNormal() {
                     {montant(bilan.controle.resultatCompte13)}) sont tous deux mouvementés · risque de double comptage
                     du résultat. Fournir une balance avant OU après clôture, pas un état intermédiaire.
                   </span>
+                </div>
+              )}
+
+              {bilan.comptesASolderALaCloture.length > 0 && (
+                <div className="border border-warning/30 bg-warning-soft mt-2 px-3.5 py-2.5">
+                  <div className="text-[11.5px] font-bold mb-1.5 flex items-center gap-1.5">
+                    Comptes à solder à la clôture
+                    <Aide
+                      titre="Comptes à solder à la clôture"
+                      texte={`Le Titre VII fait solder ces comptes à la clôture de l'exercice · un solde sur le bilan de l'exercice est une erreur de clôture, pas un cas de présentation. ${bilan.comptesASolderALaCloture.map((c) => c.source).join(' ; ')}.`}
+                      source="AUDCIF, Titre VII"
+                    />
+                  </div>
+                  {bilan.comptesASolderALaCloture.map((c) => (
+                    <div key={c.numero} className="flex justify-between gap-3 text-[11.5px] font-mono">
+                      <span className="min-w-0 break-words">
+                        {c.numero} · {c.intitule}
+                      </span>
+                      <span className="shrink-0">{montant(c.montant)}</span>
+                    </div>
+                  ))}
                 </div>
               )}
 

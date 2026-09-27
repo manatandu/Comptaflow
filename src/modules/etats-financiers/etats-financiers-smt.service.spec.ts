@@ -93,6 +93,8 @@ function service(
     tiersComptes?: Array<{ compteId: string; tiers: { nom: string } }>;
     lignesTiers?: ReturnType<typeof ligneTiers>[];
     devise?: string;
+    campagne?: unknown;
+    campagneExerciceId?: string;
     exercicePrecedent?: { id: string; dateDebut: Date; dateFin: Date } | null;
   } = {},
 ) {
@@ -123,6 +125,18 @@ function service(
       ),
     },
     immobilisation: { findMany: jest.fn().mockResolvedValue(options.immobilisations ?? []) },
+    // La campagne d'inventaire lue par la note 2 · la doublure honore le
+    // dossier et l'exercice, et l'exigence d'un stock compté (audit final F85).
+    campagneInventaire: {
+      findFirst: jest.fn().mockImplementation(({ where }: any) =>
+        Promise.resolve(
+          options.campagne && where.tenantId === 't1' && where.exerciceId === (options.campagneExerciceId ?? 'e1') &&
+            where.fiches?.some?.compte?.classe === 'CLASSE_3'
+            ? options.campagne
+            : null,
+        ),
+      ),
+    },
     tiersCompte: { findMany: jest.fn().mockResolvedValue(options.tiersComptes ?? []) },
     // Lignes de tiers de la ventilation par échéance de la Note 3. Vide par
     // défaut : c'est l'état d'un dossier qui n'a jamais saisi d'échéance.
@@ -595,14 +609,74 @@ describe('Note 4 · journal unique de trésorerie', () => {
 // ---------------------------------------------------------------------------
 
 describe('Notes annexes S.M.T', () => {
-  it('Note 2 · déclare que les quantités ne sont pas tenues au lieu d’en inventer', async () => {
+  it('Note 2 · sans campagne d’inventaire, laisse les quantités vides et dit où les servir', async () => {
     const s = service({ e1: [ligne('31100000', ClasseCompte.CLASSE_3, 4000, 1000, { debit: 1000 })] });
     const note = await s.note2Stocks('t1', 'e1');
     expect(note.lignes[0].quantite).toBeNull();
     expect(note.lignes[0].prixUnitaire).toBeNull();
     expect(note.quantitesTenues).toBe(false);
+    expect(note.sourceQuantites).toBeNull();
+    expect(note.motifQuantites).toContain("Aucune campagne d'inventaire n'est enregistrée pour cet exercice");
     expect(note.valeurStockFinal).toBe(3000);
     expect(note.valeurStockInitial).toBe(1000);
+  });
+
+  it('Note 2 · sert quantité et prix unitaire depuis la campagne quand ses fiches font le solde (audit final F85)', async () => {
+    const s = service(
+      { e1: [ligne('31100000', ClasseCompte.CLASSE_3, 4000, 1000, { debit: 1000 })] },
+      {
+        campagne: {
+          libelle: 'Inventaire de clôture',
+          dateInventaire: new Date('2026-12-31T00:00:00Z'),
+          fiches: [
+            { designation: 'Riz', uniteMesure: 'kg', quantiteComptee: 200, valeurInventaire: 2000, compte: { numero: '31100000' } },
+            { designation: 'Huile', uniteMesure: null, quantiteComptee: 40, valeurInventaire: 1000, compte: { numero: '31100000' } },
+          ],
+        },
+      },
+    );
+    const note = await s.note2Stocks('t1', 'e1');
+    expect(note.lignes).toEqual([
+      { reference: '31100000', designation: 'Riz (kg)', quantite: 200, prixUnitaire: 10, montant: 2000 },
+      { reference: '31100000', designation: 'Huile', quantite: 40, prixUnitaire: 25, montant: 1000 },
+    ]);
+    expect(note.quantitesTenues).toBe(true);
+    expect(note.sourceQuantites).toContain('« Inventaire de clôture » du 31/12/2026');
+    // Le total reste celui du bilan · les lignes le reconstituent.
+    expect(note.lignes.reduce((t, l) => t + l.montant, 0)).toBe(note.valeurStockFinal);
+  });
+
+  it('Note 2 · un écart non régularisé garde la ligne du compte et le dit', async () => {
+    const s = service(
+      { e1: [ligne('31100000', ClasseCompte.CLASSE_3, 4000, 1000, { debit: 1000 })] },
+      {
+        campagne: {
+          libelle: 'Inventaire',
+          dateInventaire: new Date('2026-12-31T00:00:00Z'),
+          fiches: [{ designation: 'Riz', uniteMesure: 'kg', quantiteComptee: 200, valeurInventaire: 2500, compte: { numero: '31100000' } }],
+        },
+      },
+    );
+    const note = await s.note2Stocks('t1', 'e1');
+    expect(note.lignes).toEqual([
+      { reference: '31100000', designation: expect.any(String), quantite: null, prixUnitaire: null, montant: 3000 },
+    ]);
+    expect(note.quantitesTenues).toBe(false);
+    expect(note.motifQuantites).toContain('31100000, fiches à 2');
+    expect(note.motifQuantites).toContain('écart non régularisé');
+  });
+
+  it('Note 2 · la campagne est cherchée dans CET exercice et parmi celles qui ont compté un stock', async () => {
+    const campagne = {
+      libelle: 'Inventaire',
+      dateInventaire: new Date('2026-12-31T00:00:00Z'),
+      fiches: [{ designation: 'Riz', uniteMesure: null, quantiteComptee: 1, valeurInventaire: 3000, compte: { numero: '31100000' } }],
+    };
+    const ailleurs = service(
+      { e1: [ligne('31100000', ClasseCompte.CLASSE_3, 4000, 1000, { debit: 1000 })] },
+      { campagne, campagneExerciceId: 'e0' },
+    );
+    expect((await ailleurs.note2Stocks('t1', 'e1')).sourceQuantites).toBeNull();
   });
 
   it('Note 3 · « Montant au 1er janvier N » est le report à nouveau, pas le solde de N-1', async () => {

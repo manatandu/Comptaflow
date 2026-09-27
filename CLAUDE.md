@@ -395,6 +395,12 @@ l'entité. Et il FIGE LE SOLDE au rapprochement plutôt que de le relire ·
 sinon la première écriture de redressement referme l'écart toute seule et
 l'arbitrage porte sur un chiffre que personne n'a vu.
 
+LA NOTE 2 DU SMT LIT LA DERNIÈRE CAMPAGNE (2026-09-27, audit final F85) ·
+quantité et prix unitaire par fiche, quand les fiches d'un compte le
+reconstituent au centime (`stocks-depuis-inventaire.ts`) ; sinon la ligne du
+compte reste, sans quantité, et la raison est dite. Le total de la note reste
+celui du bilan.
+
 L'ÉCART EST PAR COMPTE, PAS PAR FICHE. Le CPCC compare « le solde de CHAQUE
 COMPTE sur la balance provisoire » : un magasin compté sur quarante fiches se
 rapproche d'un seul solde. D'où deux tables et non une · `FicheInventaire`
@@ -2823,6 +2829,16 @@ comparaison), à l'écran et dans le contrôle du classeur. Le logiciel NOMME,
 il ne ventile pas · répartir un 481 entre 4811 et 4812 est une question de
 nature d'opération que seul le cabinet connaît.
 
+**Compte de résultat SYSCOHADA · RQP, TQP et la formule de XE (2026-09-27,
+audit final F89).** Les deux postes du ch. 33 ne s'impriment que non nuls (N,
+N-1 ou même période) et sans code REF · leur clé ne noue que les formules. Une
+RÉFÉRENCE DE FORMULE EST UN MOT ENTIER (`etat-etafi.ts`) · lue sur deux lettres,
+« RQP » devenait la cellule de RQ suivie d'un « P », et XE sortait illisible
+sur toute liasse. Le bilan nomme les comptes que le Titre VII fait solder à
+la clôture (`comptesASolderALaCloture`, F92), jamais sur une situation
+intermédiaire, où ils sont légitimes ; et la situation au dernier jour de
+l'exercice n'est plus refusée (F90).
+
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de
 l'inventaire physique » (immobilisations, stocks, caisses) et § VII
@@ -3118,7 +3134,8 @@ livre-journal, elles ne pouvaient plus l'être ensuite, l'exercice étant clos
 CLÔTURE, sur les 131 à 139 (`resultat-de-l-exercice.ts`), jamais en
 mouvement, qui mêle l'affectation de l'exercice précédent. (4) LES EXERCICES
 SE CLÔTURENT DANS L'ORDRE · refus tant qu'un antérieur est ouvert ou qu'un
-postérieur est déjà clos. `e2e/tests/cloture.e2e.ts` le prouve sur la base
+postérieur est déjà clos. Le tableau de bord lit lui aussi les comptes de
+gestion hors clôture (F93). `e2e/tests/cloture.e2e.ts` le prouve sur la base
 réelle, parce que F4 avait passé tous les tests unitaires sous une doublure de
 la balance.
 

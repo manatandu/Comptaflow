@@ -651,6 +651,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 5
 - **Constat :** `FicheInventaire`, `ArticleStock` et `MouvementStock` portent quantités et valeurs, et l'inventaire n'est pas masqué au SMT. Le cabinet ressaisit à la main ce que le dossier contient.
 - **Correction :** servir quantité et valeur depuis la dernière campagne, sinon reformuler le motif.
+- **Fait le 2026-09-27 :** servies depuis la dernière campagne de l'exercice qui a compté un stock (`stocks-depuis-inventaire.ts`), une ligne par fiche, quand les fiches d'un compte le reconstituent au centime ; sinon la ligne du compte reste et la raison est dite. Le total reste celui du bilan. Les deux SMT, leurs écrans et leurs liasses. Tests : `stocks-depuis-inventaire.spec.ts`, les deux specs de service SMT, `liasse-etafi.spec.ts`, `etats-a-lecran-f85-f92.spec.ts`.
 
 **F86 · Exécution budgétaire : sous-totaux présentés comme des lignes de détail** [notes-05]
 - **Emplacements :** src/modules/notes-annexes/note-annexe.service.ts:1077-1084 · client/src/pages/EtatsFinanciersPage.tsx:991-1009
@@ -671,36 +672,42 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** la tenue est toujours en CDF, donc la comparaison n'a jamais d'objet, et pourtant elle colore trois verdicts.
 - **Correction :** retirer le verdict tant qu'aucun cours n'est déclaré.
+- **Fait le 2026-09-27 :** verdict retiré du service, du type et de l'écran · aucun cours n'est déclarable, la tenue étant toujours en francs. Test : `etats-financiers-smt-syscohada.service.spec.ts` (forme du seuil gelée).
 
 **F89 · Postes internes RQP et TQP imprimés sur tout compte de résultat** [efsy-05]
 - **Emplacements :** correspondance-compte-resultat-syscohada.ts:233, :439, :612 · src/modules/exports/export.service.ts:4982
 - **Condition :** 5
 - **Constat :** `REFS_POSTES_SUPPLEMENTAIRES` n'est lu par personne. Des clés internes partent en colonne REF de la liasse.
 - **Correction :** filtrer RQP et TQP quand ils sont nuls, à l'écran et à l'export.
+- **Fait le 2026-09-27 :** retirés du compte de résultat quand ils sont nuls en N, en N-1 et sur la même période ; servis, leur colonne REF reste vide (écran et liasse). Trouvé au passage · la formule de XE lisait « RQP » en « RQ » suivi de « P » et sortait illisible sur toute liasse SYSCOHADA ; une référence de formule est désormais un mot entier (`etat-etafi.ts`). Tests : `etats-financiers-syscohada.service.spec.ts`, `liasse-syscohada.spec.ts`.
 
 **F90 · Situation intermédiaire au 31 décembre refusée à tort** [efsy-07]
 - **Emplacements :** src/modules/etats-financiers-syscohada/etats-financiers-syscohada.service.ts:404 · client/src/pages/EtatsFinanciersSyscohadaPage.tsx:405
 - **Condition :** 4
 - **Constat :** `dateFin` est à minuit et l'arrêté à 23:59:59. On obtient un 400 « après la clôture », et le spec masque le cas.
 - **Correction :** comparer à `finDeJournee(dateFin)` et aligner le spec.
+- **Fait le 2026-09-27 :** `motifRefusDateArrete` compare à la fin de la journée de clôture ; les exercices du spec sont à minuit, comme en base. Tests : `situation-intermediaire.spec.ts`, `etats-financiers-syscohada.service.spec.ts`.
 
 **F91 · Exports lancés depuis une situation intermédiaire : l'exercice entier est rendu** [efsy-08]
 - **Emplacements :** client/src/pages/EtatsFinanciersSyscohadaPage.tsx:183, :199 · src/modules/exports/export.controller.ts:572
 - **Condition :** 3
 - **Constat :** `arreteAu` n'est pas transmis. Le fichier ne correspond pas à l'écran d'où il part.
 - **Correction :** transmettre la date, ou désactiver les exports en le disant.
+- **Fait le 2026-09-27 :** les deux exports se ferment tant qu'une date d'arrêté est posée, et l'écran le dit · une liasse est l'exercice entier. Test : `etats-a-lecran-f85-f92.spec.ts`.
 
 **F92 · Comptes à solder à la clôture (104…) : constante jamais lue** [efsy-09]
 - **Emplacements :** correspondance-bilan-syscohada.ts:261, :613
 - **Condition :** 5
 - **Constat :** les commentaires annoncent un signalement qui n'existe pas. Un 104 non soldé passe sans avertissement.
 - **Correction :** lire la constante dans `bilan`, ou corriger les commentaires.
+- **Fait le 2026-09-27 :** le bilan rend `comptesASolderALaCloture` (hors non rattachés, jamais sur une situation intermédiaire), l'écran et le contrôle du classeur les nomment avec leur fiche. Tests : `etats-financiers-syscohada.service.spec.ts`, `liasse-syscohada.spec.ts`.
 
 **F93 · Tableau de bord d'un exercice clos : produits, charges et résultat à zéro** [pages-02]
 - **Emplacements :** client/src/pages/DashboardPage.tsx:63-81
 - **Condition :** 1
 - **Constat :** le calcul se fait sur `solde`, que la clôture remet à zéro.
 - **Correction :** calculer sur les mouvements hors clôture.
+- **Fait le 2026-09-27 :** `indicateurs-tableau-de-bord.ts` lit les comptes de gestion hors colonne de clôture. Test : `indicateurs-tableau-de-bord.spec.ts`.
 
 ### Exports, documents obligatoires et restitution
 

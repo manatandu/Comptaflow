@@ -132,6 +132,9 @@ export function EtatsSmtPage() {
 
   const montant = (v: number | null | undefined) =>
     v === null || v === undefined ? '·' : v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // Une quantité se compte en kilogrammes comme en pièces · jamais arrondie
+  // au centime comme un montant.
+  const quantite = (v: number | null) => (v === null ? '·' : v.toLocaleString('fr-FR', { maximumFractionDigits: 3 }));
   const jour = (d: string | null) => (d ? new Date(d).toLocaleDateString('fr-FR') : '·');
 
   // --- Bilan : REF | Libellé | Note | Montant (N) | Montant (N-1) ---
@@ -495,12 +498,13 @@ export function EtatsSmtPage() {
               <span className="text-right">PRIX UNITAIRE</span>
               <span className="text-right">MONTANT</span>
             </div>
-            {notes.note2.lignes.map((l) => (
-              <div key={l.reference} className="grid grid-cols-[120px_1fr_90px_100px_120px] gap-2 px-4 py-1 text-[11.5px]">
+            {/* Un compte compté porte une ligne PAR FICHE · la clé est le rang. */}
+            {notes.note2.lignes.map((l, i) => (
+              <div key={`${l.reference}-${i}`} className="grid grid-cols-[120px_1fr_90px_100px_120px] gap-2 px-4 py-1 text-[11.5px]">
                 <span className="font-mono text-[11.5px]">{l.reference}</span>
                 <span>{l.designation}</span>
-                <span className="text-right text-text-dim">·</span>
-                <span className="text-right text-text-dim">·</span>
+                <span className="text-right text-text-dim">{quantite(l.quantite)}</span>
+                <span className="text-right text-text-dim">{montant(l.prixUnitaire)}</span>
                 <span className="font-mono text-right">{montant(l.montant)}</span>
               </div>
             ))}
@@ -518,8 +522,12 @@ export function EtatsSmtPage() {
               <span />
               <span className="font-mono text-right">{montant(notes.note2.valeurStockInitial)}</span>
             </div>
-            {!notes.note2.quantitesTenues && (
-              <p className="px-4 py-2 text-[11px] text-text-dim border-t border-border">{notes.note2.motifQuantites}</p>
+            {(notes.note2.sourceQuantites || !notes.note2.quantitesTenues) && (
+              <p className="px-4 py-2 text-[11px] text-text-dim border-t border-border">
+                {[notes.note2.sourceQuantites, notes.note2.quantitesTenues ? '' : notes.note2.motifQuantites]
+                  .filter(Boolean)
+                  .join(' ')}
+              </p>
             )}
           </div>
 

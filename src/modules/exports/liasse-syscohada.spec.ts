@@ -234,6 +234,8 @@ function fabriquerExport(systeme: SystemeComptableSyscohada = SystemeComptableSy
     ecriture: { findMany: jest.fn().mockResolvedValue(smt ? ECRITURES_SMT : []) },
     ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },
     immobilisation: { findMany: jest.fn().mockResolvedValue([]) },
+    // Aucune campagne d'inventaire · la note 2 du SMT garde ses quantités vides.
+    campagneInventaire: { findFirst: jest.fn().mockResolvedValue(null) },
     tiersCompte: { findMany: jest.fn().mockResolvedValue([]) },
   } as unknown as PrismaService;
 
@@ -370,6 +372,10 @@ describe('exports SYSCOHADA individuels · charte ETAFI, état seul en valeurs',
     // XA = Somme TA à RB, jamais TA - RA - RB.
     expect(formuleDe(ws.getCell(r.get('XA')!, 4))).toBe(`D${r.get('TA')}+D${r.get('RA')}+D${r.get('RB')}`);
     expect(formuleDe(ws.getCell(r.get('XD')!, 4))).toBe(`D${r.get('XC')}+D${r.get('RK')}`);
+    // XE nomme RQP et TQP (ch. 33) · absents de ce dossier, ils valent 0.
+    // Lus sur deux lettres, « RQP » donnait la cellule de RQ suivie d'un
+    // « P », et la formule était illisible (audit final F89).
+    expect(formuleDe(ws.getCell(r.get('XE')!, 4))).toBe(`D${r.get('XD')}+D${r.get('TJ')}+D${r.get('RL')}+0+0`);
     expect(formuleDe(ws.getCell(r.get('XI')!, 4))).toBe(
       `D${r.get('XG')}+D${r.get('XH')}+D${r.get('RQ')}+D${r.get('RS')}`,
     );
@@ -383,6 +389,45 @@ describe('exports SYSCOHADA individuels · charte ETAFI, état seul en valeurs',
     expect(ws.getCell(r.get('RL')!, 3).value).toBe('3C et 28');
     // RÉSULTAT NET sur bleu nuit.
     expect(fondDe(ws.getCell(r.get('XI')!, 2))).toBe('FF000080');
+  });
+
+  it('le contrôle sous le bilan nomme un compte à solder à la clôture, avec sa fiche (audit final F92)', async () => {
+    const exportService = fabriquerExport();
+    type Bilan = { comptesASolderALaCloture: Array<{ numero: string; intitule: string; montant: number; source: string }> };
+    const syscohada = (exportService as unknown as { syscohada: { bilan: (t: string, e: string) => Promise<Bilan> } }).syscohada;
+    const reel = syscohada.bilan.bind(syscohada);
+    syscohada.bilan = async (t, e) => ({
+      ...(await reel(t, e)),
+      comptesASolderALaCloture: [{ numero: '10410000', intitule: 'Apports temporaires', montant: 300, source: 'Titre VII COMPTE 104' }],
+    });
+    const wb = await ouvrir((await exportService.bilanSyscohadaExcel('t1', 'e1')).buffer);
+    expect(texteFeuille(wb, 'Bilan-Actif').join(' ')).toContain(
+      'Comptes à solder à la clôture portant un solde : 10410000 (Titre VII COMPTE 104).',
+    );
+  });
+
+  it('RQP, quand il est servi, garde sa colonne REF vide et entre dans XE (audit final F89)', async () => {
+    const exportService = fabriquerExport();
+    type Cr = { lignes: Array<{ ref: string; libelle: string; montant: number; comptes: unknown[]; notes: string[] }> };
+    const syscohada = (exportService as unknown as { syscohada: { compteDeResultat: (t: string, e: string) => Promise<Cr> } })
+      .syscohada;
+    const reel = syscohada.compteDeResultat.bind(syscohada);
+    syscohada.compteDeResultat = async (t, e) => {
+      const cr = await reel(t, e);
+      const i = cr.lignes.findIndex((l) => l.ref === 'XE');
+      cr.lignes.splice(i, 0, { ref: 'RQP', libelle: 'Quote-part de résultat partagé', montant: -400, comptes: [], notes: [] });
+      return cr;
+    };
+    const ws = (await ouvrir((await exportService.compteDeResultatSyscohadaExcel('t1', 'e1')).buffer)).getWorksheet('Résultat')!;
+    let rangRqp = 0;
+    ws.eachRow((row, n) => {
+      if (row.getCell(2).value === 'Quote-part de résultat partagé') rangRqp = n;
+    });
+    expect(rangRqp).toBeGreaterThan(0);
+    // Aucune clé interne en colonne REF · le ch. 33 ne donne aucun code.
+    expect(ws.getCell(rangRqp, 1).value ?? '').toBe('');
+    const r = rangsParRef(ws);
+    expect(formuleDe(ws.getCell(r.get('XE')!, 4))).toBe(`D${r.get('XD')}+D${r.get('TJ')}+D${r.get('RL')}+D${rangRqp}+0`);
   });
 
   it('le TFT porte les clés A à H du modèle, ses bandes de sections et ses totaux en formules', async () => {

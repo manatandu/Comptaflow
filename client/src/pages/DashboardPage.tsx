@@ -7,6 +7,7 @@ import { IconNew } from '../components/chrome/icons';
 import { Aide } from '../components/chrome/Aide';
 import type { EcheancierFiscal, Ecriture, LigneBalance } from '../lib/types';
 import { echeancesAVenir } from '../lib/echeances-a-venir';
+import { indicateursTableauDeBord } from '../lib/indicateurs-tableau-de-bord';
 
 /**
  * TABLEAU DE BORD · l'esprit « Édition pilotée » de Sage : quelques
@@ -58,23 +59,9 @@ export function DashboardPage() {
     };
   }, [exerciceCourant?.id]);
 
-  // Une seule passe sur la balance, mémoïsée : les quatre agrégats se
-  // recalculaient à chaque rendu, chacun refiltrant toute la liste.
-  const { tresorerie, produits, charges, resultat } = useMemo(() => {
-    let tres = 0;
-    let prod = 0;
-    let chg = 0;
-    let res = 0;
-    for (const l of balance ?? []) {
-      if (l.typeCompte === 'TOTAL') continue;
-      const c = l.numero[0];
-      if (c === '5' && !l.numero.startsWith('59')) tres += l.solde;
-      if (c === '7') prod -= l.solde;
-      if (c === '6') chg += l.solde;
-      if (c === '6' || c === '7' || c === '8') res -= l.solde;
-    }
-    return { tresorerie: tres, produits: prod, charges: chg, resultat: res };
-  }, [balance]);
+  // Une seule passe sur la balance, mémoïsée, et hors clôture pour les
+  // comptes de gestion (audit final F93, `indicateurs-tableau-de-bord.ts`).
+  const { tresorerie, produits, charges, resultat } = useMemo(() => indicateursTableauDeBord(balance ?? []), [balance]);
 
   const aVenir = useMemo(() => (echeancier ? echeancesAVenir(echeancier) : null), [echeancier]);
 

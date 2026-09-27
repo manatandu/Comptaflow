@@ -16,6 +16,7 @@ import {
   motifRefusDateArrete,
 } from '../etats-financiers/situation-intermediaire';
 import {
+  COMPTES_BILAN_A_SOLDER_A_LA_CLOTURE,
   COMPTES_RESULTAT_SYSCOHADA,
   COMPTES_TRESORERIE_PASSIF_SI_CREDITEUR_SYSCOHADA,
   LIBELLE_RESULTAT_SYSCOHADA,
@@ -33,6 +34,7 @@ import {
 import {
   ORDRE_AFFICHAGE_COMPTE_RESULTAT,
   POSTES_COMPTE_RESULTAT_SYSCOHADA,
+  REFS_POSTES_SUPPLEMENTAIRES,
   SOLDES_INTERMEDIAIRES,
   calculerSoldesIntermediaires,
   montantSigne,
@@ -138,6 +140,25 @@ export interface LigneBilanSyscohada {
   renvoi?: string;
 }
 
+/**
+ * LES COMPTES À SOLDER À LA CLÔTURE (audit final F92) · la table du Titre VII
+ * était écrite et lue par personne. Le 104 « systématiquement soldé à la
+ * clôture de l'exercice » par le 103 a un poste (CA), si bien qu'un 104 oublié
+ * passait dans les capitaux propres sans que rien ne le dise. Les comptes déjà
+ * nommés parmi les non rattachés (130, 585, 588) n'y sont pas répétés.
+ */
+function comptesASolderALaCloture(
+  lignes: LigneBalancePourEtat[],
+  nonRattaches: CompteDuPoste[],
+): Array<CompteDuPoste & { source: string }> {
+  const dejaNommes = new Set(nonRattaches.map((c) => c.numero));
+  return lignes.flatMap((l) => {
+    if (Math.abs(l.solde) < EPSILON || dejaNommes.has(l.numero)) return [];
+    const regle = COMPTES_BILAN_A_SOLDER_A_LA_CLOTURE.find((c) => l.numero.startsWith(c.prefixe));
+    return regle ? [{ numero: l.numero, intitule: l.intitule, montant: l.solde, source: regle.source }] : [];
+  });
+}
+
 export interface BilanSyscohada {
   actif: LigneBilanSyscohada[];
   passif: LigneBilanSyscohada[];
@@ -148,6 +169,12 @@ export interface BilanSyscohada {
   exerciceN1Disponible: boolean;
   equilibre: boolean;
   comptesNonRattaches: CompteDuPoste[];
+  /**
+   * Comptes que le Titre VII impose de solder à la clôture et qui portent un
+   * solde, hors ceux déjà nommés parmi les non rattachés · vide sur une
+   * situation intermédiaire, où ils sont légitimes (audit final F92).
+   */
+  comptesASolderALaCloture: Array<CompteDuPoste & { source: string }>;
   controle: {
     resultatClasses678: number;
     resultatCompte13: number;
@@ -174,6 +201,11 @@ export interface LigneCompteResultatSyscohada {
   montantMemePeriodeN1?: number;
   comptes: CompteDuPoste[];
   estSolde?: boolean;
+  /**
+   * Poste ajouté au modèle par le ch. 33 (RQP, TQP) · sans code REF déposé,
+   * sa clé ne s'imprime pas (audit final F89).
+   */
+  supplementaire?: true;
   formuleOfficielle?: string;
   /** Renvois de la colonne NOTE du ch. 4, non développés (« 27 » reste « 27 »). */
   notes: string[];
@@ -758,6 +790,7 @@ export class EtatsFinanciersSyscohadaService {
 
     const totalActif = resolutionN.parRef.get('BZ')!.montant;
     const totalPassif = resolutionN.parRef.get('DZ')!.montant;
+    const comptesNonRattaches = this.comptesNonRattachesDuBilan(lignesN);
 
     return {
       actif,
@@ -770,7 +803,8 @@ export class EtatsFinanciersSyscohadaService {
       // Tolérance d'arrondi ; un écart réel signale un compte non rattaché ou
       // un défaut du moteur d'écritures, pas un défaut de cette répartition.
       equilibre: Math.abs(totalActif - totalPassif) < 0.01,
-      comptesNonRattaches: this.comptesNonRattachesDuBilan(lignesN),
+      comptesNonRattaches,
+      comptesASolderALaCloture: borneN ? [] : comptesASolderALaCloture(lignesN, comptesNonRattaches),
       controle: {
         resultatClasses678: resolutionN.resultatClasses678,
         resultatCompte13: resolutionN.resultatCompte13,
@@ -893,7 +927,7 @@ export class EtatsFinanciersSyscohadaService {
     const resN1 = this.resoudreTousLesPostesCR(lignesN1);
     const resMemePeriodeN1 = lignesMemePeriodeN1 ? this.resoudreTousLesPostesCR(lignesMemePeriodeN1) : null;
 
-    const lignes: LigneCompteResultatSyscohada[] = ORDRE_AFFICHAGE_COMPTE_RESULTAT.map((ref) => {
+    const lignesDuModele: LigneCompteResultatSyscohada[] = ORDRE_AFFICHAGE_COMPTE_RESULTAT.map((ref) => {
       const solde = trouveSoldeIntermediaire(ref);
       const poste = solde ? undefined : trouvePosteCompteResultat(ref);
       return {
@@ -909,10 +943,27 @@ export class EtatsFinanciersSyscohadaService {
         montantMemePeriodeN1: resMemePeriodeN1 ? (resMemePeriodeN1.montantsParRef[ref] ?? 0) : undefined,
         comptes: resN.comptesParRef.get(ref) ?? [],
         estSolde: solde ? true : undefined,
+        supplementaire: poste?.supplementaire ? true : undefined,
         formuleOfficielle: solde?.formuleOfficielle,
         notes: solde?.notes ?? poste!.notes,
       };
     });
+
+    // LES DEUX POSTES DU CH. 33 NE S'IMPRIMENT QUE « DÈS LORS QUE L'ENTITÉ
+    // RÉALISE DE TELLES OPÉRATIONS » (section 7.2, audit final F89) · nuls en
+    // N, en N-1 et sur la même période, ils sortent de l'état, à l'écran
+    // comme dans la liasse, où leur clé interne partait en colonne REF. Ils
+    // restent dans les soldes · masquer une ligne ne retranche aucun montant.
+    const nul = (m: number | undefined) => m === undefined || Math.abs(m) < 0.005;
+    const lignes = lignesDuModele.filter(
+      (l) =>
+        !(
+          REFS_POSTES_SUPPLEMENTAIRES.includes(l.ref) &&
+          nul(l.montant) &&
+          nul(l.montantN1) &&
+          nul(l.montantMemePeriodeN1)
+        ),
+    );
 
     // Contrôle croisé : le résultat net obtenu en additionnant les postes du
     // modèle (XI) doit être identique au résultat obtenu en soldant TOUS les

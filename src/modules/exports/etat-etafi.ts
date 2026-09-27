@@ -284,9 +284,12 @@ export function construireFeuilleEtat(wb: ExcelJS.Workbook, options: OptionsFeui
     if (!rang) continue;
     for (const col of colsMontant) {
       const lettre = LETTRES[col - 1];
-      // [A-Z]{2}\d? · les clés TJ2/TK2 du compte d'exploitation des projets
-      // portent un chiffre : sans lui, « TJ2 » se lirait « TJ » suivi d'un 2.
-      const formule = expression.replace(/[A-Z]{2}[0-9]?/g, (composante) => {
+      // UNE RÉFÉRENCE EST UN MOT ENTIER, lettres et chiffres · les clés TJ2
+      // et TK2 du compte d'exploitation des projets portent un chiffre, et
+      // RQP et TQP (ch. 33) trois lettres. Lues sur deux lettres, « RQP »
+      // devenait la cellule de RQ suivie d'un « P », et la formule de XE,
+      // illisible, sortait sur toute liasse SYSCOHADA (audit final F89).
+      const formule = expression.replace(/[A-Z][A-Z0-9]*/g, (composante) => {
         const rr = refVersRang.get(composante);
         return rr ? `${lettre}${rr}` : '0';
       });

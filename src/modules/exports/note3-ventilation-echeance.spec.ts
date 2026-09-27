@@ -169,6 +169,8 @@ function fabriquerExport(lignesTiers: LigneTiersStub[]): ExportService {
     bailleur: { findMany: jest.fn().mockResolvedValue([]) },
     planAnalytique: { findFirst: jest.fn().mockResolvedValue(null) },
     immobilisation: { findMany: jest.fn().mockResolvedValue([]) },
+    // Aucune campagne d'inventaire · la note 2 du SMT garde ses quantités vides.
+    campagneInventaire: { findFirst: jest.fn().mockResolvedValue(null) },
     tiersCompte: { findMany: jest.fn().mockResolvedValue([]) },
     // Registre des engagements hors comptabilité · vide ici, ce parcours ne le
     // teste pas. Sans ce double, `resteParSection` tomberait sur undefined.
@@ -407,6 +409,8 @@ function fabriquerExportSyscohada(lignesTiers: LigneTiersStub[]): ExportService 
     ecriture: { findMany: jest.fn().mockResolvedValue([]) },
     ligneEcriture: { findMany: jest.fn().mockResolvedValue(lignesTiers) },
     immobilisation: { findMany: jest.fn().mockResolvedValue([]) },
+    // Aucune campagne d'inventaire · la note 2 du SMT garde ses quantités vides.
+    campagneInventaire: { findFirst: jest.fn().mockResolvedValue(null) },
     tiersCompte: { findMany: jest.fn().mockResolvedValue([]) },
   } as unknown as PrismaService;
 

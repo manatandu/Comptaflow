@@ -23,7 +23,7 @@ import { AucunPlanABudgetsException, EtatsFinanciersProjetBudgetService } from '
 import { NoteAnnexeService } from '../notes-annexes/note-annexe.service';
 import { EtatsFinanciersSyscohadaService } from '../etats-financiers-syscohada/etats-financiers-syscohada.service';
 import { EtatsFinanciersSmtSyscohadaService } from '../etats-financiers-syscohada/etats-financiers-smt-syscohada.service';
-import { CODES_NOTES_CH6 } from '../etats-financiers-syscohada/correspondance-compte-resultat-syscohada';
+import { CODES_NOTES_CH6, REFS_POSTES_SUPPLEMENTAIRES } from '../etats-financiers-syscohada/correspondance-compte-resultat-syscohada';
 import { LETTRES_D_E_SMT_SYSCOHADA } from '../etats-financiers-syscohada/correspondance-smt-syscohada';
 import {
   RENVOI_1_TFT_SYSCOHADA,
@@ -3980,8 +3980,13 @@ export class ExportService {
         r += 1;
         ws.getCell(r, 1).value = l.reference;
         ws.getCell(r, 2).value = l.designation;
+        // Lues sur la campagne d'inventaire quand ses fiches reconstituent le
+        // compte (audit final F85), vides sinon · jamais un « 1 ».
+        if (l.quantite !== null) ws.getCell(r, 3).value = l.quantite;
+        if (l.prixUnitaire !== null) ws.getCell(r, 4).value = l.prixUnitaire;
         ws.getCell(r, 5).value = l.montant;
-        styleLigne(ws, r, 1, 5, 'normal', [4, 5]);
+        styleLigne(ws, r, 1, 5, 'normal', [5]);
+        formaterQuantiteEtPrix(ws, r);
       }
       r += 1;
       ws.getCell(r, 2).value = 'VALEUR DU STOCK FINAL';
@@ -3992,7 +3997,8 @@ export class ExportService {
       ws.getCell(r, 5).value = note2.valeurStockInitial;
       styleLigne(ws, r, 1, 5, 'inter', [5]);
       cadre(ws, 8, 1, r, 5, MOYEN);
-      ligneControleSousEtat(ws, r + 2, note2.motifQuantites);
+      const mentionQuantites = [note2.sourceQuantites, note2.motifQuantites].filter(Boolean).join(' ');
+      if (mentionQuantites) ligneControleSousEtat(ws, r + 2, mentionQuantites);
       largeurs(ws, { A: 12, B: 46, C: 12, D: 14, E: 16 });
     }
 
@@ -4978,10 +4984,18 @@ export class ExportService {
           (bilan.comptesNonRattaches.length > 6 ? '…' : '') +
           '.'
         : '';
+    // Le 104 et les autres comptes que le Titre VII fait solder à la clôture
+    // (audit final F92) · leur fiche est citée, le solde reste au poste.
+    const aSolder =
+      bilan.comptesASolderALaCloture.length > 0
+        ? ' Comptes à solder à la clôture portant un solde : ' +
+          bilan.comptesASolderALaCloture.map((c) => `${c.numero} (${c.source})`).join(' ; ') +
+          '.'
+        : '';
     const doubleComptage = bilan.controle.doubleComptageProbable
       ? ` DOUBLE COMPTAGE PROBABLE du résultat : les classes 6/7/8 portent ${bilan.controle.resultatClasses678.toLocaleString('fr-FR')} et le compte 13 ${bilan.controle.resultatCompte13.toLocaleString('fr-FR')} · le CJ du bilan ne peut pas venir des deux à la fois.`
       : '';
-    return equilibre + nonRattaches + doubleComptage;
+    return equilibre + nonRattaches + aSolder + doubleComptage;
   }
 
   /** Bilan SYSCOHADA · export individuel, charte ETAFI, valeurs seules. */
@@ -5031,7 +5045,11 @@ export class ExportService {
     ident: IdentiteLiasse,
   ): Map<string, number> {
     const lignes: LigneEtatEtafi[] = cr.lignes.map((l) => ({
-      ref: l.ref,
+      // RQP et TQP n'ont aucun code REF déposé (ch. 33, ch. 4 fermant sa
+      // série) · la colonne REF reste vide et la clé ne noue que les
+      // formules (audit final F89).
+      ref: REFS_POSTES_SUPPLEMENTAIRES.includes(l.ref) ? '' : l.ref,
+      cle: l.ref,
       libelle: l.estSolde && l.formuleOfficielle ? `${l.libelle} (${l.formuleOfficielle})` : l.libelle,
       note: NOTE_PAR_REF_SYSCOHADA[l.ref] ?? '',
       niveau: NIVEAUX_ETAT_SYSCOHADA[l.ref] ?? 'normal',
@@ -5674,10 +5692,13 @@ export class ExportService {
         r += 1;
         ws.getCell(r, 1).value = l.reference;
         ws.getCell(r, 2).value = l.designation;
-        // Quantité et prix unitaire restent VIDES : OmegaX ne tient pas
-        // d'inventaire physique, et un « 1 » laisserait croire le contraire.
+        // Lues sur la campagne d'inventaire quand ses fiches reconstituent le
+        // compte (audit final F85), vides sinon · jamais un « 1 ».
+        if (l.quantite !== null) ws.getCell(r, 3).value = l.quantite;
+        if (l.prixUnitaire !== null) ws.getCell(r, 4).value = l.prixUnitaire;
         ws.getCell(r, 5).value = l.montant;
-        styleLigne(ws, r, 1, NB, 'normal', [4, 5]);
+        styleLigne(ws, r, 1, NB, 'normal', [5]);
+        formaterQuantiteEtPrix(ws, r);
       }
       for (const [libelle, montant] of [
         [note2.lignesSynthese[0], note2.valeurStockFinal],
@@ -5692,7 +5713,13 @@ export class ExportService {
       ligneControleSousEtat(
         ws,
         r + 2,
-        `Variation portée au compte de résultat (ligne « Variation des stocks N / N-1 ») : ${note2.variationSv1.toLocaleString('fr-FR')}, sens (N-1) - N. ${note2.motifQuantites}`,
+        [
+          `Variation portée au compte de résultat (ligne « Variation des stocks N / N-1 ») : ${note2.variationSv1.toLocaleString('fr-FR')}, sens (N-1) - N.`,
+          note2.sourceQuantites,
+          note2.motifQuantites,
+        ]
+          .filter(Boolean)
+          .join(' '),
       );
       largeurs(ws, { A: 14, B: 48, C: 12, D: 15, E: 17 });
     }
@@ -6425,4 +6452,18 @@ function styliserEntete(ligne: ExcelJS.Row) {
 function enMots(cle: string): string {
   const espace = cle.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/([A-Z])([A-Z][a-z])/g, '$1 $2');
   return espace.charAt(0).toUpperCase() + espace.slice(1).toLowerCase();
+}
+
+/**
+ * Quantité et prix unitaire de la NOTE 2 du SMT · une quantité se compte en
+ * kilogrammes comme en pièces, et un prix unitaire tient des centimes · le
+ * format des montants, arrondi à l'unité, les fausserait tous les deux.
+ */
+function formaterQuantiteEtPrix(ws: ExcelJS.Worksheet, r: number) {
+  const quantite = ws.getCell(r, 3);
+  quantite.numFmt = '#,##0.###';
+  quantite.alignment = { horizontal: 'right', vertical: 'middle' };
+  const prix = ws.getCell(r, 4);
+  prix.numFmt = '#,##0.00';
+  prix.alignment = { horizontal: 'right', vertical: 'middle' };
 }

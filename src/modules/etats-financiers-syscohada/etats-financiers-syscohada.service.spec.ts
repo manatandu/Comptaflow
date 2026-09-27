@@ -165,6 +165,30 @@ describe('EtatsFinanciersSyscohadaService', () => {
     const poste = (bilan: Awaited<ReturnType<EtatsFinanciersSyscohadaService['bilan']>>, ref: string) =>
       [...bilan.actif, ...bilan.passif].find((p) => p.ref === ref);
 
+    it('nomme un 104 non soldé, avec sa fiche, sans répéter les non rattachés (audit final F92)', async () => {
+      const bilan = await serviceAvecBalance([
+        ligne('10410000', C1, 300, 0),
+        // Un 104 bien soldé dans l'exercice ne se signale pas.
+        ligne('10420000', C1, 200, 200),
+        ligne('58500000', C5, 50, 0),
+        ligne('10130000', C1, 0, 350),
+      ]).bilan('t1', 'e1');
+      expect(bilan.comptesASolderALaCloture.map((c) => c.numero)).toEqual(['10410000']);
+      expect(bilan.comptesASolderALaCloture[0].source).toContain('COMPTE 104');
+      expect(bilan.comptesASolderALaCloture[0].montant).toBe(300);
+      // Le 585 n'a aucun poste · il est déjà nommé parmi les non rattachés.
+      expect(bilan.comptesNonRattaches.map((c) => c.numero)).toContain('58500000');
+    });
+
+    it('ne les signale pas sur une situation intermédiaire, où ils sont légitimes', async () => {
+      const service = serviceAvecExercices({ e1: [ligne('10410000', C1, 300, 0), ligne('10130000', C1, 0, 300)] }, [
+        { id: 'e1', dateDebut: new Date('2026-01-01T00:00:00Z'), dateFin: new Date('2026-12-31T00:00:00Z') } as never,
+      ]);
+      expect((await service.bilan('t1', 'e1', '2026-06-30')).comptesASolderALaCloture).toEqual([]);
+      // Et la situation au DERNIER jour de l'exercice n'est plus refusée (audit final F90).
+      await expect(service.bilan('t1', 'e1', '2026-12-31')).resolves.toBeDefined();
+    });
+
     it('équilibre le dossier de référence et loge chaque compte au poste du ch. 7', async () => {
       const bilan = await serviceDeReference().bilan('t1', 'e2');
 
@@ -360,7 +384,10 @@ describe('EtatsFinanciersSyscohadaService', () => {
   describe('compteDeResultat', () => {
     it('rend la maquette complète du ch. 4, dans l’ordre du modèle', async () => {
       const cr = await serviceDeReference().compteDeResultat('t1', 'e2');
-      expect(cr.lignes.map((l) => l.ref)).toEqual(ORDRE_AFFICHAGE_COMPTE_RESULTAT);
+      // Sauf RQP et TQP · le dossier de référence ne fait aucune opération en
+      // commun, et le ch. 33 ne les imprime que « dès lors que l'entité
+      // réalise de telles opérations » (audit final F89).
+      expect(cr.lignes.map((l) => l.ref)).toEqual(ORDRE_AFFICHAGE_COMPTE_RESULTAT.filter((r) => r !== 'RQP' && r !== 'TQP'));
       const xa = cr.lignes.find((l) => l.ref === 'XA');
       expect(xa?.estSolde).toBe(true);
       expect(xa?.formuleOfficielle).toBe('Somme TA à RB');
@@ -443,6 +470,20 @@ describe('EtatsFinanciersSyscohadaService', () => {
      * quote-part sans que rien ne le signale. Le bilan, lui, doit continuer
      * de boucler avec le compte de résultat · c'est la moitié du test.
      */
+    it('garde RQP quand seul N-1 en porte · la colonne comparative doit pouvoir se lire (audit final F89)', async () => {
+      const service = serviceAvecExercices(
+        {
+          e1: [ligne('52110000', C5, 1000, 0), ligne('65250000', C6, 400, 0), ligne('70110000', C7, 0, 1400)],
+          e2: [ligne('52110000', C5, 500, 0), ligne('70110000', C7, 0, 500)],
+        },
+        EXERCICES,
+      );
+      const cr = await service.compteDeResultat('t1', 'e2');
+      const rqp = cr.lignes.find((l) => l.ref === 'RQP');
+      expect(rqp?.montant).toBe(0);
+      expect(rqp?.montantN1).toBe(-400);
+    });
+
     it('sort la quote-part de résultat partagé de la valeur ajoutée et de l’EBE, sans rompre le bouclage (ch. 33)', async () => {
       // Coparticipant NON GÉRANT : 1 000 de ventes encaissées, et le gérant
       // lui impute 400 de perte (débit 6525 par crédit 463, ch. 33 § 6.3).
@@ -457,6 +498,9 @@ describe('EtatsFinanciersSyscohadaService', () => {
       const montantDe = (ref: string) => cr.lignes.find((l) => l.ref === ref)!.montant;
 
       expect(montantDe('RQP')).toBe(-400);
+      expect(cr.lignes.find((l) => l.ref === 'RQP')?.supplementaire).toBe(true);
+      // TQP, nul en N et sans N-1, n'est pas imprimé (audit final F89).
+      expect(cr.lignes.some((l) => l.ref === 'TQP')).toBe(false);
       expect(montantDe('RJ')).toBe(0); // le 652 n'est plus absorbé par « Autres charges »
       expect(cr.soldes.valeurAjoutee).toBe(1000);
       expect(cr.soldes.excedentBrutExploitation).toBe(1000);

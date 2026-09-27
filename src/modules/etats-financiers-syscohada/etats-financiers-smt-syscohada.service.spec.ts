@@ -131,6 +131,8 @@ function service(
     tiersComptes?: Array<{ compteId: string; tiers: { nom: string } }>;
     lignesTiers?: ReturnType<typeof ligneTiers>[];
     devise?: string;
+    campagne?: unknown;
+    campagneExerciceId?: string;
   } = {},
 ) {
   const ecritureService = {
@@ -184,6 +186,18 @@ function service(
         ),
     },
     immobilisation: { findMany: jest.fn().mockResolvedValue(options.immobilisations ?? []) },
+    // La campagne d'inventaire lue par la note 2 · la doublure honore le
+    // dossier et l'exercice, et l'exigence d'un stock compté (audit final F85).
+    campagneInventaire: {
+      findFirst: jest.fn().mockImplementation(({ where }: any) =>
+        Promise.resolve(
+          options.campagne && where.tenantId === 't1' && where.exerciceId === (options.campagneExerciceId ?? 'e1') &&
+            where.fiches?.some?.compte?.classe === 'CLASSE_3'
+            ? options.campagne
+            : null,
+        ),
+      ),
+    },
     tiersCompte: { findMany: jest.fn().mockResolvedValue(options.tiersComptes ?? []) },
     tenant: {
       findUniqueOrThrow: jest
@@ -786,9 +800,35 @@ describe('Notes annexes S.M.T SYSCOHADA', () => {
     expect(note.valeurStockFinal).toBe(120_000);
     expect(note.valeurStockInitial).toBe(0);
     expect(note.variationSv1).toBe(ligneCr(cr, 'SV1').montant);
-    // Aucun inventaire physique dans OmegaX : déclaré, pas simulé.
+    // Sans campagne d'inventaire : les quantités restent vides, jamais un « 1 ».
     expect(note.lignes[0].quantite).toBeNull();
     expect(note.quantitesTenues).toBe(false);
+    expect(note.motifQuantites).toContain("Aucune campagne d'inventaire n'est enregistrée pour cet exercice");
+    expect(note.motifQuantites).toContain('Titre X ch. 1 § 1');
+  });
+
+  it('NOTE 2 · sert quantité et prix unitaire depuis la campagne, sans toucher au total SV1 (audit final F85)', async () => {
+    const s = service(
+      { e2026: BALANCE_NEGOCE },
+      {
+        ecritures: ECRITURES_NEGOCE,
+        campagneExerciceId: 'e2026',
+        campagne: {
+          libelle: 'Inventaire magasin',
+          dateInventaire: new Date('2026-12-31T00:00:00Z'),
+          fiches: [
+            { designation: 'Ciment', uniteMesure: 'sac', quantiteComptee: 12, valeurInventaire: 120_000, compte: { numero: '31110000' } },
+          ],
+        },
+      },
+    );
+    const [note, cr] = await Promise.all([s.note2Stocks('t1', 'e2026'), s.compteDeResultat('t1', 'e2026')]);
+    expect(note.lignes).toEqual([
+      { reference: '31110000', designation: 'Ciment (sac)', quantite: 12, prixUnitaire: 10_000, montant: 120_000 },
+    ]);
+    expect(note.quantitesTenues).toBe(true);
+    expect(note.sourceQuantites).toContain('« Inventaire magasin »');
+    expect(note.variationSv1).toBe(ligneCr(cr, 'SV1').montant);
   });
 
   it('NOTE 3 · deux tableaux, dont les variations SONT les lignes SV2 et SV3', async () => {
@@ -1004,6 +1044,10 @@ describe('Éligibilité au S.M.T · art. 11 et 13', () => {
     }
     // Aucun champ « éligible » : le contrôle ne conclut pas.
     expect(e).not.toHaveProperty('eligible');
+    // Ni verdict par seuil (audit final F88) · francs congolais contre F CFA,
+    // la comparaison n'a jamais d'objet sans cours. La forme d'un seuil est
+    // gelée entière.
+    for (const s of e.seuils) expect(Object.keys(s).sort()).toEqual(['categorie', 'clause', 'cle', 'montantFcfa']);
     expect(e.qualificationParLEntite).toContain('négoce');
   });
 

@@ -73,7 +73,10 @@ export function motifRefusDateArrete(arreteAu: Date, exercice: BornesExercice): 
       'total ne le signale.'
     );
   }
-  if (arreteAu > exercice.dateFin) {
+  // La clôture est enregistrée à MINUIT et l'arrêté lu à la fin de sa
+  // journée · comparer les deux tels quels refusait la situation au 31
+  // décembre, dernier jour de l'exercice (audit final F90).
+  if (arreteAu > finDeJournee(exercice.dateFin)) {
     return (
       `Une situation ne s’arrête pas après la clôture de l’exercice (${jour(exercice.dateFin)}) · au-delà, la ` +
       'borne ne retient rien de plus que l’exercice entier, et la mention « arrêté au » du document serait fausse.'
