@@ -31,7 +31,6 @@ type CleEtape =
   | 'raisonSociale'
   | 'coordonnees'
   | 'exercice'
-  | 'monnaie'
   | 'reprise'
   | 'connexion';
 
@@ -50,7 +49,6 @@ const LIBELLE_ETAPE: Record<CleEtape, string> = {
   raisonSociale: 'Dénomination',
   coordonnees: 'Coordonnées',
   exercice: 'Exercice',
-  monnaie: 'Monnaie',
   reprise: 'Reprise des éléments',
   connexion: 'Connexion au dossier',
 };
@@ -61,7 +59,6 @@ const ETAPES: CleEtape[] = [
   'raisonSociale',
   'coordonnees',
   'exercice',
-  'monnaie',
   'reprise',
   'connexion',
 ];
@@ -168,8 +165,6 @@ interface Form {
   telephone: string;
   dateDebutExercice: string;
   dateFinExercice: string;
-  /** Code ISO 4217 · les deux monnaies proposées, ou celle saisie librement. */
-  devise: string;
   email: string;
   motDePasse: string;
 }
@@ -197,7 +192,6 @@ function formInitial(): Form {
     telephone: '',
     dateDebutExercice: `${anneeCourante}-01-01`,
     dateFinExercice: `${anneeCourante}-12-31`,
-    devise: 'CDF',
     email: '',
     motDePasse: '',
   };
@@ -253,10 +247,6 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
   const [succes, setSucces] = useState(false);
-  // « Autre, à préciser » · la case reste cochée pendant que l'utilisateur
-  // tape son code, y compris quand le champ est encore vide (l'état ne peut
-  // donc pas se déduire de `form.devise` seul).
-  const [autreDevise, setAutreDevise] = useState(false);
   const { seConnecter } = useAuth();
 
   const majer = <K extends keyof Form>(cle: K, valeur: Form[K]) => setForm((f) => ({ ...f, [cle]: valeur }));
@@ -301,7 +291,6 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
         ville: form.ville || undefined,
         pays: form.pays || undefined,
         telephone: form.telephone || undefined,
-        devise: form.devise,
         dateDebutExercice: form.dateDebutExercice,
         dateFinExercice: form.dateFinExercice,
       });
@@ -666,74 +655,6 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                     </>
                   )}
   
-                  {cle === 'monnaie' && (
-                    <>
-                      <h2 className="text-[13px] font-bold mb-1.5 flex items-center gap-1.5">
-                        Identifiez la monnaie de tenue des comptes
-                        <Aide
-                          titre="Code de la monnaie"
-                          texte="Le code sur trois lettres est celui qui s'imprimera en tête des états financiers. Il ne se change plus une fois des écritures saisies."
-                          source="Norme ISO 4217"
-                        />
-                      </h2>
-                      <p className="text-[11.5px] text-text-dim leading-[1.6] mb-4">Vous tenez votre comptabilité en :</p>
-  
-                      <div className="flex flex-col gap-2.5">
-                        <label className="flex items-center gap-2.5 text-[12px] cursor-pointer">
-                          <input
-                            type="radio"
-                            name="devise"
-                            checked={!autreDevise && form.devise === 'CDF'}
-                            onChange={() => {
-                              setAutreDevise(false);
-                              majer('devise', 'CDF');
-                            }}
-                          />
-                          Franc congolais (CDF)
-                        </label>
-                        <label className="flex items-center gap-2.5 text-[12px] cursor-pointer">
-                          <input
-                            type="radio"
-                            name="devise"
-                            checked={!autreDevise && form.devise === 'USD'}
-                            onChange={() => {
-                              setAutreDevise(false);
-                              majer('devise', 'USD');
-                            }}
-                          />
-                          Dollar américain (USD)
-                        </label>
-  
-                        {/* « Autre, à préciser » + champ adjacent, désactivé tant
-                            que l'option n'est pas retenue · exactement le motif
-                            de l'écran monnaie de Sage. */}
-                        <div className="flex items-center gap-2.5">
-                          <label className="flex items-center gap-2.5 text-[12px] cursor-pointer whitespace-nowrap">
-                            <input
-                              type="radio"
-                              name="devise"
-                              checked={autreDevise}
-                              onChange={() => {
-                                setAutreDevise(true);
-                                majer('devise', '');
-                              }}
-                            />
-                            Autre, à préciser
-                          </label>
-                          <input
-                            value={autreDevise ? form.devise : ''}
-                            disabled={!autreDevise}
-                            onChange={(e) => majer('devise', e.target.value.toUpperCase().slice(0, 3))}
-                            placeholder="EUR"
-                            aria-label="Code de la monnaie"
-                            className={`${champ} w-[110px] font-mono uppercase disabled:bg-chrome disabled:text-text-dim`}
-                          />
-                        </div>
-                      </div>
-  
-                    </>
-                  )}
-  
                   {cle === 'reprise' && (
                     <>
                       <h2 className="text-[13px] font-bold mb-3 flex items-center gap-1.5">
@@ -761,27 +682,6 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                           <span>
                             Oui, le dossier sera prêt à l'emploi : plan de comptes {form.referentiel} standard et
                             exercice généré automatiquement
-                            <span className="block text-[11.5px] text-text-dim">
-                              (recommandé · c'est la seule option disponible pour l'instant)
-                            </span>
-                          </span>
-                        </label>
-                        <label className="flex items-start gap-2 text-[12px] text-text-dim opacity-60">
-                          <input type="radio" disabled className="mt-0.5" />
-                          <span>
-                            Oui, mais avec une sélection partielle des données
-                            <span className="inline-flex items-center gap-1 ml-2 text-[11px] font-semibold text-warning">
-                              bientôt
-                            </span>
-                          </span>
-                        </label>
-                        <label className="flex items-start gap-2 text-[12px] text-text-dim opacity-60">
-                          <input type="radio" disabled className="mt-0.5" />
-                          <span>
-                            Non, paramétrage manuel
-                            <span className="inline-flex items-center gap-1 ml-2 text-[11px] font-semibold text-warning">
-                              bientôt
-                            </span>
                           </span>
                         </label>
                       </div>
@@ -802,7 +702,7 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                           ? `, selon les états ${LIBELLE_JEU[form.jeuEtatsFinanciersSycebnl]}`
                           : `, selon le ${LIBELLE_SYSTEME[form.systemeComptableSyscohada]}`}
                         , en{' '}
-                        {form.devise || 'monnaie non précisée'}, sur l'exercice du{' '}
+                        francs congolais (CDF), sur l'exercice du{' '}
                         {form.dateDebutExercice.split('-').reverse().join('/')} au{' '}
                         {form.dateFinExercice.split('-').reverse().join('/')}.
                       </p>

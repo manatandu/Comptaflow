@@ -1,4 +1,6 @@
 import { Writable } from 'stream';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import * as ExcelJS from 'exceljs';
 import { ExportService } from './export.service';
 import { PrismaService } from '../../common/prisma.service';
@@ -57,7 +59,7 @@ const ecriture = (i: number) => ({
  */
 function service(nbEcritures: number) {
   const toutes = Array.from({ length: nbEcritures }, (_, i) => ecriture(i + 1));
-  const findMany = jest.fn(async ({ take, cursor, skip }: { take: number; cursor?: { id: string }; skip?: number }) => {
+  const findMany = jest.fn(async ({ take, cursor, skip }: { take: number; cursor?: { id: string }; skip?: number; where?: { statut?: string } }) => {
     const depart = cursor ? toutes.findIndex((e) => e.id === cursor.id) + (skip ?? 0) : 0;
     return toutes.slice(depart, depart + take);
   });
@@ -76,7 +78,7 @@ function service(nbEcritures: number) {
 }
 
 /** Exécute l'export et relit le classeur produit. */
-async function exporter(nbEcritures: number) {
+async function exporter(nbEcritures: number, filtres: Record<string, unknown> = { exerciceId: 'ex' }) {
   const { svc, findMany } = service(nbEcritures);
   const morceaux: Buffer[] = [];
   const sortie = new Writable({
@@ -86,7 +88,7 @@ async function exporter(nbEcritures: number) {
     },
   });
   let nomFichier = '';
-  await svc.journalExcelEnFlux('t1', { exerciceId: 'ex' }, (nom) => {
+  await svc.journalExcelEnFlux('t1', filtres, (nom) => {
     nomFichier = nom;
     return sortie;
   });
@@ -218,5 +220,29 @@ describe('Journal exporté en flux', () => {
         },
       ],
     });
+  });
+
+  /**
+   * Audit du 2026-09-26, F1 · la fenêtre du journal envoie
+   * `inclureBrouillard=false` quand la case est décochée, et la route
+   * d'export ne lisait pas ce paramètre. L'écran montrait le livre-journal,
+   * le fichier rendait le brouillard avec : deux journaux pour un filtre.
+   */
+  it('brouillard décoché · l’export ne lit que les écritures VALIDÉES', async () => {
+    const { findMany } = await exporter(3, { exerciceId: 'ex', inclureBrouillard: false });
+    expect(findMany.mock.calls[0][0].where?.statut).toBe('VALIDEE');
+  });
+
+  it('sans le paramètre · le brouillard reste inclus, comme à l’écran', async () => {
+    const { findMany } = await exporter(3);
+    expect(findMany.mock.calls[0][0].where?.statut).toBeUndefined();
+  });
+
+  it('la route d’export lit le paramètre et le transmet', () => {
+    const source = readFileSync(join(__dirname, 'export.controller.ts'), 'utf8');
+    const debut = source.indexOf("@Get('journal')");
+    const corps = source.slice(debut, source.indexOf('@Get(', debut + 1));
+    expect(corps).toContain("@Query('inclureBrouillard')");
+    expect(corps).toMatch(/inclureBrouillard:\s*inclureBrouillard !== 'false'/);
   });
 });

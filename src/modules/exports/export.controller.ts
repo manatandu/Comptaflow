@@ -121,13 +121,25 @@ export class ExportController {
     @Query('montantMax') montantMax?: string,
     @Query('numeroPiece') numeroPiece?: string,
     @Query('reference') reference?: string,
+    // La fenêtre du journal l'envoie quand la case « brouillard » est décochée.
+    // Ignoré ici, l'export rendait le brouillard que l'écran venait d'écarter :
+    // deux journaux différents pour les mêmes critères.
+    @Query('inclureBrouillard') inclureBrouillard?: string,
   ) {
     // Refusé AVANT le flux · une réponse commencée ne peut plus devenir un 400.
     const criteres = criteresOuRefus({ compte, montant, montantMax, numeroPiece, reference });
     await envoyerXlsxEnFlux(res, (ouvrir) =>
       this.exportService.journalExcelEnFlux(
         user.tenantId,
-        { exerciceId, journalId, dateDebut, dateFin, recherche, ...criteres },
+        {
+          exerciceId,
+          journalId,
+          dateDebut,
+          dateFin,
+          recherche,
+          inclureBrouillard: inclureBrouillard !== 'false',
+          ...criteres,
+        },
         ouvrir,
       ),
     );

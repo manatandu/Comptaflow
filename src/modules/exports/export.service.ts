@@ -543,7 +543,13 @@ export class ExportService {
    */
   async journalExcelEnFlux(
     tenantId: string,
-    filtres: { exerciceId?: string; journalId?: string; dateDebut?: string; dateFin?: string } & CriteresRecherche,
+    filtres: {
+      exerciceId?: string;
+      journalId?: string;
+      dateDebut?: string;
+      dateFin?: string;
+      inclureBrouillard?: boolean;
+    } & CriteresRecherche,
     ouvrir: (nomFichier: string) => Writable,
   ): Promise<{ lignes: number }> {
     const where = perimetreJournal(tenantId, filtres);
