@@ -113,7 +113,22 @@ describe('le câblage d’AppShell', () => {
   });
 
   it('les menus servis passent par le filtre de profil', () => {
-    expect(source).toMatch(/filtrerParProfil\(menusComplets, \(chemin\) => cheminAuMenu\(chemin, utilisateur\?\.tenant\)\)/);
+    // Corps de l'appel découpé par équilibrage des parenthèses · le filtre
+    // lit aussi le référentiel depuis l'audit C8, et une ancre sur la ligne
+    // exacte tombait sur cet ajout sans que la règle du profil ait bougé.
+    const debut = source.indexOf('filtrerParProfil(menusComplets');
+    expect(debut).toBeGreaterThan(-1);
+    let profondeur = 0;
+    let fin = debut;
+    for (let i = source.indexOf('(', debut); i < source.length; i++) {
+      if (source[i] === '(') profondeur++;
+      else if (source[i] === ')') profondeur--;
+      if (profondeur === 0) {
+        fin = i;
+        break;
+      }
+    }
+    expect(source.slice(debut, fin + 1)).toContain('cheminAuMenu(chemin, utilisateur?.tenant)');
   });
 
   it('masquer n’est pas refuser · l’aiguillage des fenêtres ne lit pas le profil', () => {

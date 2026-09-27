@@ -95,4 +95,29 @@ describe('Ouverture d’une fenêtre réservée à un référentiel', () => {
     });
     expect(fautives).toEqual([]);
   });
+
+  it('le filtre du menu consulte le registre · un référentiel pas encore chargé ne montre rien de réservé (audit C8)', () => {
+    // `estSycebnl` vaut faux tant que le dossier n'est pas chargé, et les
+    // entrées écrites `estSycebnl ? [] : [...]` montraient alors les fenêtres
+    // SYSCOHADA. Le corps de l'appel à `filtrerParProfil` est découpé par
+    // équilibrage des parenthèses, jamais par distance.
+    const source = lire('components/chrome/AppShell.tsx');
+    const debut = source.indexOf('filtrerParProfil(menusComplets');
+    expect(debut).toBeGreaterThan(-1);
+    let profondeur = 0;
+    let fin = debut;
+    for (let i = source.indexOf('(', debut); i < source.length; i++) {
+      if (source[i] === '(') profondeur++;
+      else if (source[i] === ')') profondeur--;
+      if (profondeur === 0) {
+        fin = i;
+        break;
+      }
+    }
+    const appel = source.slice(debut, fin + 1);
+    expect(appel).toContain('fenetreDisponible(');
+    expect(appel).toContain('definitionPour(');
+    // Et la règle elle-même refuse une fenêtre réservée à un référentiel inconnu.
+    expect(fenetreDisponible({ referentielsApplicables: ['SYSCOHADA'] }, undefined)).toBe(false);
+  });
 });

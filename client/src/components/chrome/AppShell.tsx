@@ -614,7 +614,16 @@ export function AppShell() {
       : // PROFIL DU DOSSIER · un SMT ne voit pas ce qui n'a pas d'objet chez
         // lui (docs/audit-modules-par-profil.md). Masquer n'est pas refuser :
         // l'aiguillage plus haut ne lit pas ce filtre, la route reste ouverte.
-        filtrerParProfil(menusComplets, (chemin) => cheminAuMenu(chemin, utilisateur?.tenant));
+        // Le RÉFÉRENTIEL passe par la même règle que l'aiguillage
+        // (`fenetreDisponible`, audit de l'interface C8) · le menu écrivait
+        // `estSycebnl ? [] : [...]`, qui vaut faux pour un référentiel pas
+        // encore chargé, et montrait des fenêtres SYSCOHADA que l'aiguillage
+        // refusait ensuite.
+        filtrerParProfil(menusComplets, (chemin) => {
+          const def = definitionPour(chemin);
+          if (def && !fenetreDisponible(def, utilisateur?.tenant.referentiel)) return false;
+          return cheminAuMenu(chemin, utilisateur?.tenant);
+        });
 
   return (
     // `overflow-x-hidden` : garde-fou de dernier rang. Aucun élément du
