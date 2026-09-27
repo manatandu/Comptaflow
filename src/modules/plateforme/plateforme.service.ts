@@ -12,6 +12,7 @@ import { AuthService } from '../auth/auth.service';
 import { CreerCabinetDto, ModifierGroupeDto, ModifierLicenceDto } from './dto/plateforme.dto';
 import { horsCloisonnement } from '../../common/cloisonnement/contexte-cloisonnement';
 import * as bcrypt from 'bcryptjs';
+import { licenceDeCellule, refuserCelluleEditeur } from '../licence/licence-de-cellule';
 
 /**
  * Console de l'opérateur de plateforme : vue transversale des cabinets
@@ -169,23 +170,38 @@ export class PlateformeService implements OnModuleInit {
    */
   echeanceAbonnement(cabinetId: string, echeance: string) {
     return horsCloisonnement('console · échéance de la licence d’un cabinet abonné', async () => {
-      const l = await this.prisma.licence.findUnique({ where: { tenantId: cabinetId }, select: { type: true, dateExpiration: true } });
-      const date = new Date(`${echeance}T23:59:59Z`);
-      if (!l) {
-        await this.prisma.licence.create({ data: { tenantId: cabinetId, type: TypeLicence.ABONNEMENT, statut: StatutLicence.ACTIVE, dateExpiration: date } });
-        return echeance;
-      }
-      if (l.type !== TypeLicence.ABONNEMENT) {
-        throw new BadRequestException(
-          l.type === TypeLicence.PROPRIETAIRE
-            ? 'Le dossier de l’éditeur n’a pas d’abonnement.'
-            : 'Ce dossier a une licence perpétuelle · un abonnement ne la gouverne pas. Changez d’abord le type de licence.',
-        );
-      }
-      if (l.dateExpiration && l.dateExpiration >= date) return l.dateExpiration.toISOString().slice(0, 10);
-      await this.prisma.licence.update({ where: { tenantId: cabinetId }, data: { dateExpiration: date } });
-      return echeance;
+      const retenue = await this.echeanceDeLaMere(cabinetId, echeance);
+      // CASCADE DE GROUPE (audit final F46) · la cellule reflète la licence de
+      // sa mère, et c'est le paiement de la MÈRE qui la prolonge · sans elle,
+      // toutes les cellules expiraient au premier encaissement. Le reflet est
+      // exact, jamais « au plus tard » : la cellule n'a pas d'abonnement à
+      // elle. Le statut ne bouge pas, comme celui de la mère.
+      await this.prisma.licence.updateMany({
+        where: { tenant: { dossierMereId: cabinetId }, type: { not: TypeLicence.PROPRIETAIRE } },
+        data: { type: TypeLicence.ABONNEMENT, dateExpiration: new Date(`${retenue}T23:59:59Z`) },
+      });
+      return retenue;
     });
+  }
+
+  /** L'échéance de la mère, jamais reculée · rend celle qui vaut après l'appel. */
+  private async echeanceDeLaMere(cabinetId: string, echeance: string): Promise<string> {
+    const l = await this.prisma.licence.findUnique({ where: { tenantId: cabinetId }, select: { type: true, dateExpiration: true } });
+    const date = new Date(`${echeance}T23:59:59Z`);
+    if (!l) {
+      await this.prisma.licence.create({ data: { tenantId: cabinetId, type: TypeLicence.ABONNEMENT, statut: StatutLicence.ACTIVE, dateExpiration: date } });
+      return echeance;
+    }
+    if (l.type !== TypeLicence.ABONNEMENT) {
+      throw new BadRequestException(
+        l.type === TypeLicence.PROPRIETAIRE
+          ? 'Le dossier de l’éditeur n’a pas d’abonnement.'
+          : 'Ce dossier a une licence perpétuelle · un abonnement ne la gouverne pas. Changez d’abord le type de licence.',
+      );
+    }
+    if (l.dateExpiration && l.dateExpiration >= date) return l.dateExpiration.toISOString().slice(0, 10);
+    await this.prisma.licence.update({ where: { tenantId: cabinetId }, data: { dateExpiration: date } });
+    return echeance;
   }
 
   private async modifierLicenceSansGarde(tenantId: string, dto: ModifierLicenceDto) {
@@ -276,7 +292,7 @@ export class PlateformeService implements OnModuleInit {
   async modifierGroupe(tenantId: string, dto: ModifierGroupeDto) {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
-      select: { id: true, referentiel: true, _count: { select: { cellules: true } } },
+      select: { id: true, referentiel: true, licence: { select: { type: true } }, _count: { select: { cellules: true } } },
     });
     if (!tenant) {
       throw new NotFoundException('Cabinet introuvable');
@@ -302,7 +318,12 @@ export class PlateformeService implements OnModuleInit {
       }
       const mere = await this.prisma.tenant.findUnique({
         where: { id: dossierMereId },
-        select: { id: true, dossierMereId: true, referentiel: true },
+        select: {
+          id: true,
+          dossierMereId: true,
+          referentiel: true,
+          licence: { select: { type: true, statut: true, dateExpiration: true } },
+        },
       });
       if (!mere) {
         throw new NotFoundException('Dossier mère introuvable');
@@ -328,6 +349,20 @@ export class PlateformeService implements OnModuleInit {
             `ce dossier est ${tenant.referentiel}.`,
         );
       }
+      // LA LICENCE SUIT LE RATTACHEMENT (audit final F46) · un dossier rattaché
+      // gardait la sienne, et une cellule ouverte par la console sans échéance
+      // ne se coupait jamais. Vérifié avant toute écriture.
+      refuserCelluleEditeur(tenant.licence?.type);
+      const licence = licenceDeCellule(mere.licence);
+      await this.prisma.tenant.update({ where: { id: tenantId }, data: { dossierMereId } });
+      if (licence) {
+        // SORTIE DE CLOISONNEMENT · la licence est celle d'un AUTRE dossier que
+        // celui de l'opérateur, comme dans `modifierLicence`.
+        await horsCloisonnement('console · licence d’une cellule alignée sur sa mère', () =>
+          this.prisma.licence.update({ where: { tenantId }, data: licence }),
+        );
+      }
+      return { id: tenantId, dossierMereId };
     }
     await this.prisma.tenant.update({ where: { id: tenantId }, data: { dossierMereId } });
     return { id: tenantId, dossierMereId };
@@ -454,7 +489,7 @@ export class PlateformeService implements OnModuleInit {
         },
       }),
     );
-    this.logger.log(`Mot de passe administrateur réinitialisé · ${dto.email}`);
+    this.logger.log(`Mot de passe administrateur réinitialisé · ${admin.email}`);
     return { reinitialise: true, email: admin.email };
   }
 

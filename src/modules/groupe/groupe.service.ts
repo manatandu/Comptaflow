@@ -29,6 +29,7 @@ import {
   RUBRIQUES_CANEVAS,
   TRESORERIES_CANEVAS,
 } from './canevas-tresorerie';
+import { licenceDeCellule } from '../licence/licence-de-cellule';
 
 /**
  * Une ligne RETIRÉE de l'agrégat parce qu'elle est interne au groupe · le
@@ -331,13 +332,17 @@ export class GroupeService {
         plafondCellules: true,
         referentiel: true,
         systemeComptableSyscohada: true,
-        licence: { select: { type: true, dateExpiration: true } },
+        licence: { select: { type: true, statut: true, dateExpiration: true } },
         _count: { select: { cellules: true } },
       },
     });
     if (!mere || mere.dossierMereId !== null) {
       throw new BadRequestException('Seul un dossier mère peut créer des cellules');
     }
+    // La licence de la cellule, calculée AVANT toute création · un refus
+    // (siège qui porte la licence de l'éditeur) ne laisse aucun dossier
+    // derrière lui (audit final F46).
+    const licence = licenceDeCellule(mere.licence);
     // LA CELLULE NAÎT DANS LE RÉFÉRENTIEL DU SIÈGE, jamais un autre · la
     // balance agrégée réunit les comptes par NUMÉRO, et deux plans qui ne
     // coïncident pas s'additionneraient sans qu'aucun total cesse de boucler.
@@ -367,7 +372,7 @@ export class GroupeService {
         mere.referentiel === Referentiel.SYSCOHADA
           ? (mere.systemeComptableSyscohada ?? SystemeComptableSyscohada.NORMAL)
           : undefined,
-      typeLicence: mere.licence?.type,
+      typeLicence: licence?.type,
     });
     await this.prisma.tenant.update({
       where: { id: resultat.tenant.id },
@@ -384,17 +389,19 @@ export class GroupeService {
         data: { doitChangerMotDePasse: true },
       }),
     );
-    // Licence héritée · l'échéance de la mère devient celle de la cellule,
-    // et la cascade de la console plateforme (voir PlateformeService.
-    // modifierLicence) entretient ensuite l'alignement.
-    if (mere.licence?.dateExpiration) {
+    // Licence héritée · le statut et l'échéance de la mère deviennent ceux de
+    // la cellule, échéance NULLE comprise (audit final F46 · seule une
+    // échéance non nulle était recopiée, et jamais le statut). La console
+    // (`modifierLicence`) et le paiement d'un abonnement
+    // (`echeanceAbonnement`) entretiennent ensuite l'alignement.
+    if (licence) {
       // Le périmètre porte la cellule QUI VIENT D'ÊTRE CRÉÉE · aucune liste
       // calculée avant l'appel ne pouvait la contenir. Son rattachement au
       // siège a été vérifié plus haut, c'est ce qui autorise à la nommer ici.
       await perimetreDeGroupe([resultat.tenant.id], () =>
         this.prisma.licence.update({
           where: { tenantId: resultat.tenant.id },
-          data: { dateExpiration: mere.licence!.dateExpiration },
+          data: { statut: licence.statut, dateExpiration: licence.dateExpiration },
         }),
       );
     }

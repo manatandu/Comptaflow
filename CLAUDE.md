@@ -5071,7 +5071,10 @@ jours. (2) L'ÉCHÉANCE NE RECULE JAMAIS · un paiement tardif d'une vieille
 période ne raccourcit rien, et le paiement ne se note que sur une facture
 encore impayée (deux clics ne prolongent pas deux fois). (3) LA LICENCE PASSE
 AVANT L'ÉCRITURE · une licence perpétuelle ou celle de l'éditeur refuse, et
-aucun abonnement n'est alors écrit. La console lit la licence d'un autre
+aucun abonnement n'est alors écrit. (4) LES CELLULES REFLÈTENT LA MÈRE
+(2026-09-27, audit final F46) · `licenceDeCellule` à la création par le
+siège, au rattachement par la console et au paiement de la mère, qui prolonge
+chaque cellule ; le dossier de l'éditeur n'entre dans aucun groupe. La console lit la licence d'un autre
 dossier HORS CLOISONNEMENT (`modifierLicence` aussi, qui rendait 404 sous la
 garde).
 

@@ -357,6 +357,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 3
 - **Constat :** `echeanceAbonnement` ne met à jour que la mère : après le premier paiement, les cellules expirent. Une cellule née sans échéance ne se coupe jamais, et seul `modifierLicence` cascade.
 - **Correction :** appliquer la cascade dans `echeanceAbonnement` et poser l'échéance de la mère à la création de la cellule.
+- **Fait le 2026-09-27 :** une seule règle, `licenceDeCellule` (type, statut et échéance de la mère recopiés tels quels, échéance nulle comprise), aux trois portes · la création par le siège (statut compris, calculée avant toute création), le rattachement par la console (`modifierGroupe`, qui laissait au dossier rattaché sa propre licence), et le paiement de l'abonnement (`echeanceAbonnement` reflète l'échéance retenue de la mère sur chaque cellule, sans toucher leur statut). Le dossier de l'éditeur n'entre dans aucun groupe, ni comme mère ni comme cellule · refléter sa licence ferait des cellules incoupables. Tests : `licence-cellules-f46.spec.ts`, doublure au filtre de la cascade (onze mutations tuées) ; la cascade est déclarée dans la liste des sorties de `cloisonnement.spec.ts`. Au passage, le journal de la réinitialisation (F45) écrit l'adresse normalisée.
 
 **F47 · La création d'un cabinet rattaché à une mère d'un autre référentiel laisse un dossier inaccessible** [plateforme-04]
 - **Emplacements :** src/modules/plateforme/plateforme.service.ts:345, :377, :384 · client/src/pages/PlateformePage.tsx:251

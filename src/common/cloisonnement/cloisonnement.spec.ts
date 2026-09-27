@@ -233,7 +233,12 @@ describe('balayage du code · toute collection porte sa borne', () => {
   ]);
 
   /** Sorties de cloisonnement déclarées · voir contexte-cloisonnement.ts. */
-  const SORTIES_DECLAREES = new Set(['src/modules/plateforme/plateforme.service.ts:User.updateMany']);
+  const SORTIES_DECLAREES = new Set([
+    'src/modules/plateforme/plateforme.service.ts:User.updateMany',
+    // La cascade de l'échéance d'une mère sur ses cellules (audit final F46),
+    // dans `horsCloisonnement`, bornée par `dossierMereId`.
+    'src/modules/plateforme/plateforme.service.ts:Licence.updateMany',
+  ]);
 
   function fichiers(dossier: string): string[] {
     const sortie: string[] = [];

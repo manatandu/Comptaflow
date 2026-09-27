@@ -37,6 +37,7 @@ describe('console · échéance de la licence d’un abonné', () => {
         findUnique: jest.fn(async () => licence),
         create: jest.fn(async () => ({})),
         update: jest.fn(async () => ({})),
+        updateMany: jest.fn(async () => ({ count: 0 })),
       },
     };
     return { s: new PlateformeService(prisma as never, { get: () => undefined } as never, undefined as never), prisma };
