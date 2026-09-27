@@ -308,7 +308,7 @@ describe('la fenêtre', () => {
     // tous : le comptable en lecture seule doit pouvoir lire pourquoi sa
     // relance n'est pas partie.
     const page = lire('pages/CourrierPage.tsx');
-    expect(page).toMatch(/peutEcrire = estAdmin \|\| utilisateur\?\.role === 'COMPTABLE'/);
+    expect(page).toMatch(/const \{ peutEcrire \} = useAuth\(\);/);
     expect(page).toMatch(/\{peutEcrire && \(\s*\n\s*<button\s*\n\s*onClick=\{relancer\}/);
 
     const controleur = lireServeur('modules/courrier/courrier.controller.ts');

@@ -118,9 +118,8 @@ const somme = (n: number | null | undefined) =>
   typeof n === 'number' ? n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '·';
 
 export function FacturationPage() {
-  const { estAdmin, utilisateur } = useAuth();
+  const { peutEcrire, utilisateur } = useAuth();
   // Le serveur refuse l'écriture à la lecture seule ; l'écran ne la propose pas.
-  const peutEcrire = estAdmin || utilisateur?.role === 'COMPTABLE';
   const [noteSur, setNoteSur] = useState<string | null>(null);
   const [noteNumero, setNoteNumero] = useState('');
   const [noteDate, setNoteDate] = useState('');

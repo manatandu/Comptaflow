@@ -31,7 +31,7 @@ function jour(iso: string): string {
 }
 
 export function DevisesPage() {
-  const { estAdmin, utilisateur } = useAuth();
+  const { estAdmin, peutEcrire, utilisateur } = useAuth();
   const { exerciceCourant } = useExercice();
   const [devises, setDevises] = useState<Devise[]>([]);
   const [exercices, setExercices] = useState<Exercice[]>([]);
@@ -52,7 +52,6 @@ export function DevisesPage() {
   const [valeurCours, setValeurCours] = useState('');
   const [dateReeval, setDateReeval] = useState('');
 
-  const peutEcrire = estAdmin || utilisateur?.role === 'COMPTABLE';
 
   const charger = async () => {
     try {

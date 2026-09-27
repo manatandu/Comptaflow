@@ -141,7 +141,7 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
   const soldeNul = Math.abs(soldeSelection) < 0.005;
   // Compléter un groupe : une seule ligne suffit. Créer un groupe : deux au
   // moins, et le solde doit être nul sauf si le partiel est demandé.
-  const peutValider = completerId
+  const selectionLettrable = completerId
     ? lignesSelectionnees.length >= 1
     : lignesSelectionnees.length >= 2 && (soldeNul || autoriserPartiel);
 
@@ -584,7 +584,7 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
 
             <button
               onClick={valider}
-              disabled={!peutValider || envoi}
+              disabled={!selectionLettrable || envoi}
               className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5 disabled:opacity-40"
             >
               {envoi ? 'Lettrage…' : completerId ? 'Compléter le lettrage' : 'Lettrer la sélection'}

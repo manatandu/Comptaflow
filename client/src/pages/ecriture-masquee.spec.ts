@@ -102,4 +102,20 @@ describe('la lecture seule ne voit pas de bouton qui écrit', () => {
     for (const nom of [...Object.keys(EXEMPTS), ...Object.keys(ADMIN_SEULEMENT)])
       expect([nom, noms.has(nom)]).toEqual([nom, true]);
   });
+
+  /**
+   * Audit du 2026-09-26 · six écrans recalculaient le droit sur place
+   * (`estAdmin || role === 'COMPTABLE'`). Le test ci-dessus passait, le mot
+   * `peutEcrire` y figurant, et l'aide-comptable ne voyait aucun bouton que
+   * le serveur lui ouvrait. Un droit se LIT dans le contexte de session,
+   * il ne se réécrit pas.
+   */
+  it('aucun écran ne déclare son propre droit', () => {
+    const tous = [...fichiers(join(RACINE, 'pages')), ...fichiers(join(RACINE, 'components'))].map((f) => ({
+      nom: relative(RACINE, f).replace(/\\/g, '/'),
+      source: readFileSync(f, 'utf8'),
+    }));
+    const fautifs = tous.filter((e) => /\bconst (peutEcrire|peutValider|estAdmin)\s*=/.test(e.source)).map((e) => e.nom);
+    expect(fautifs).toEqual([]);
+  });
 });

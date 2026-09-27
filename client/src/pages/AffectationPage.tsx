@@ -33,8 +33,7 @@ interface LigneSaisie {
 }
 
 export function AffectationPage() {
-  const { estAdmin, utilisateur } = useAuth();
-  const peutEcrire = estAdmin || utilisateur?.role === 'COMPTABLE';
+  const { peutValider } = useAuth();
 
   const [exercices, setExercices] = useState<Exercice[]>([]);
   const [exerciceId, setExerciceId] = useState('');
@@ -233,7 +232,7 @@ export function AffectationPage() {
                   Décidée le {jour(prep.existante.dateDecision)} · {prep.existante.organe}
                   {prep.existante.reference ? ` · ${prep.existante.reference}` : ''}
                 </span>
-                {peutEcrire && (
+                {peutValider && (
                   <button
                     onClick={() => supprimer(prep.existante!.id)}
                     className="text-[11px] text-danger hover:underline no-impression"
@@ -356,7 +355,7 @@ export function AffectationPage() {
                 </span>
                 <button
                   type="submit"
-                  disabled={envoi || !peutEcrire || Math.abs(reste) >= 0.005}
+                  disabled={envoi || !peutValider || Math.abs(reste) >= 0.005}
                   className="bg-sel text-white text-[11.5px] font-bold px-3 py-1 rounded-[3px] hover:brightness-110 disabled:opacity-50"
                 >
                   Enregistrer et passer l'écriture

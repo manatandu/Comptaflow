@@ -88,7 +88,7 @@ function jour(iso: string): string {
 }
 
 export function RegularisationPage() {
-  const { estAdmin, utilisateur } = useAuth();
+  const { peutEcrire, utilisateur } = useAuth();
   const { exerciceCourant } = useExercice();
   const [onglet, setOnglet] = useState<'regularisation' | 'abonnement'>('regularisation');
   const [erreur, setErreur] = useState<string | null>(null);
@@ -119,7 +119,6 @@ export function RegularisationPage() {
   const [aboMontant, setAboMontant] = useState('');
   const [envoi, setEnvoi] = useState(false);
 
-  const peutEcrire = estAdmin || utilisateur?.role === 'COMPTABLE';
   const estSycebnl = utilisateur?.tenant.referentiel !== 'SYSCOHADA';
 
   useEffect(() => {

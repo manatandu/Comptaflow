@@ -50,7 +50,7 @@ function montant(n: number): string {
 }
 
 function PositionsRelances() {
-  const { estAdmin, utilisateur } = useAuth();
+  const { peutEcrire, utilisateur } = useAuth();
   const { exerciceCourant } = useExercice();
   const [type, setType] = useState<TypeRelance>('RAPPEL');
   const [positions, setPositions] = useState<PositionRelance[] | null>(null);
@@ -66,7 +66,6 @@ function PositionsRelances() {
   // partagé mêlerait le motif d'un tiers à celui d'un autre.
   const [motifs, setMotifs] = useState<Record<string, string>>({});
 
-  const peutEcrire = estAdmin || utilisateur?.role === 'COMPTABLE';
 
   const charger = async () => {
     if (!exerciceCourant) return;

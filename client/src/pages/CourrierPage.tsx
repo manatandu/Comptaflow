@@ -76,7 +76,7 @@ function Pastille({ statut }: { statut: StatutMessage }) {
 }
 
 export function CourrierPage() {
-  const { estAdmin, utilisateur } = useAuth();
+  const { peutEcrire } = useAuth();
   const [transport, setTransport] = useState<EtatTransportCourriel | null>(null);
   const [compteurs, setCompteurs] = useState<CompteursCourrier | null>(null);
   const [file, setFile] = useState<FileMessages | null>(null);
@@ -86,7 +86,6 @@ export function CourrierPage() {
   const [erreur, setErreur] = useState<string | null>(null);
   const [reprise, setReprise] = useState(false);
 
-  const peutEcrire = estAdmin || utilisateur?.role === 'COMPTABLE';
 
   const chargerEntete = async () => {
     try {
