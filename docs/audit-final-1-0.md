@@ -218,12 +218,14 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** hors première annuité, `calculerDotation` rend l'annuité pleine sans lire la date de sortie. Un bien cédé le 30 juin reçoit douze mois de dotation, contrairement à l'AUDCIF (« la période écoulée entre l'ouverture de l'exercice et la date de cession »), et le spec fige l'erreur. La charge 68, le 28 soldé et la VCN portée au 81 sont faux.
 - **Correction :** proratiser la dernière annuité à la date de sortie et corriger les deux specs.
+- **Fait le 2026-09-27 :** hors première annuité, `calculerDotation` proratise sur la période qu'on lui passe, en mois, le mois de sortie compris (Guide, Partie 1 ch. 5, Application 16, « 180 × 9/12 ») ; un exercice ordinaire garde ses douze mois, le SMT SYSCOHADA reste sans prorata. Le spec qui figeait l'annuité pleine est corrigé. Tests : `sortie-f27-f28.spec.ts`, `depreciation-immobilisation.spec.ts`.
 
 **F28 · La sortie pose le statut CÉDÉ avant ses contrôles : un échec laisse le bien sorti sans écriture** [immo-02]
 - **Emplacements :** src/modules/immobilisations/immobilisation.service.ts:2250, :2284, :2377, :2398
 - **Condition :** 3
 - **Constat :** le verrou change le statut avant `unitesOeuvreDe`, `compteDeSortie` et les écritures, dont chacun peut lever. Le bien reste au bilan sans écriture de sortie, et toute nouvelle tentative bute sur « déjà sortie ».
 - **Correction :** faire tous les contrôles avant le verrou, ou remettre EN_SERVICE en cas d'échec.
+- **Fait le 2026-09-27 :** les deux · le relevé d'unités d'œuvre, le complément et les comptes de classe 8, de reprise et de produit sont résolus avant le verrou ; une écriture refusée après lui défait la dotation, les écritures posées dans l'ordre inverse, et remet le bien EN SERVICE (`defaireSortie`). Tests : `sortie-f27-f28.spec.ts` (neuf mutations tuées sur F27 et F28).
 
 **F29 · Le renouvellement sort l'ancien composant puis échoue à créer le remplaçant (pièce de sécurité)** [immo-03]
 - **Emplacements :** src/modules/immobilisations/immobilisation.service.ts:789, :1935-1966

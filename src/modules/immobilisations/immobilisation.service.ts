@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import {
@@ -598,6 +598,36 @@ export class ImmobilisationService {
   private async annulerEcritureOrpheline(ecritureId: string) {
     await this.prisma.ligneEcriture.deleteMany({ where: { ecritureId } });
     await this.prisma.ecriture.delete({ where: { id: ecritureId } });
+  }
+
+  /**
+   * UNE SORTIE QUI ÉCHOUE APRÈS LE VERROU SE DÉFAIT EN ENTIER (audit final
+   * F28) · la dotation posée, les écritures posées dans l'ordre inverse, puis
+   * le bien remis EN SERVICE sans date ni prix de sortie. Sans cela le bien
+   * restait sorti sans écriture, et « déjà sortie » fermait toute reprise.
+   * Si la restauration elle-même échoue, le refus le DIT, le bien nommé ·
+   * l'erreur d'origine ne doit pas cacher un état à reprendre à la main.
+   */
+  private async defaireSortie(
+    tenantId: string,
+    id: string,
+    designation: string,
+    ecritures: string[],
+    dotationId: string | null,
+  ) {
+    try {
+      if (dotationId) await this.prisma.dotationAmortissement.delete({ where: { id: dotationId } });
+      for (const ecritureId of [...ecritures].reverse()) await this.annulerEcritureOrpheline(ecritureId);
+      await this.prisma.immobilisation.updateMany({
+        where: { id, tenantId },
+        data: { statut: StatutImmobilisation.EN_SERVICE, dateSortie: null, prixCession: null, ecritureSortieId: null },
+      });
+    } catch {
+      throw new InternalServerErrorException(
+        `La sortie de « ${designation} » a échoué et n'a pas pu être entièrement défaite · vérifiez au journal ` +
+          'les écritures de sortie de ce bien et son statut avant toute nouvelle tentative.',
+      );
+    }
   }
 
   private async trouver(tenantId: string, id: string) {
@@ -1277,7 +1307,33 @@ export class ImmobilisationService {
       */
       montant = mois <= 0 ? 0 : sansProrata ? annuitePleine : annuitePleine * (mois / 12);
     } else {
-      montant = annuitePleine;
+      /*
+        LA DERNIÈRE ANNUITÉ S'ARRÊTE À LA SORTIE (audit final F27).
+
+        La sortie d'une immobilisation donne lieu à la « constatation de
+        l'amortissement complémentaire pour la période écoulée entre
+        l'ouverture de l'exercice et la date de cession du bien » (SYCEBNL et
+        AUDCIF, fiche du COMPTE 81, en termes identiques). `sortir` appelle ce
+        calcul avec la date de sortie pour fin de période · l'annuité pleine
+        dotait jusqu'au 31 décembre un bien cédé le 30 juin, et le 28 soldé
+        comme la VCN portée au 81 en étaient faux.
+
+        LE COMPTE SE FAIT EN MOIS, comme le Guide d'application le chiffre
+        (Partie 1 ch. 5, Application 16 · cession au 30/09, « 180 × 9/12 »),
+        le mois de la sortie compris · miroir du mois de mise en service,
+        compté dès son premier jour (loi n° 23/053, art. 34). C'est une
+        lecture d'OmegaX pour une sortie en cours de mois, aucun texte lu ne
+        la tranchant.
+
+        Sur un exercice ordinaire, la période fait douze mois et rien ne
+        change. Au SMT SYSCOHADA, « sans prorata temporis » (AUDCIF Titre X
+        ch. 1 § 1) vaut aussi ici.
+      */
+      const moisPeriode =
+        (exercice.dateFin.getUTCFullYear() - exercice.dateDebut.getUTCFullYear()) * 12 +
+        (exercice.dateFin.getUTCMonth() - exercice.dateDebut.getUTCMonth()) +
+        1;
+      montant = sansProrata ? annuitePleine : annuitePleine * (Math.min(12, Math.max(0, moisPeriode)) / 12);
     }
     return Math.min(montant, reliquat);
   }
@@ -2236,25 +2292,17 @@ export class ImmobilisationService {
       comptes = courants;
     }
 
-    // Verrou par écriture conditionnelle AVANT tout effet de bord (même
-    // risque de course que passerDotation, trouvé en l'approfondissant ·
-    // deux sorties simultanées sur le même bien liraient toutes deux
-    // EN_SERVICE et posteraient chacune leurs écritures). Un UPDATE Postgres
-    // filtré sur le statut prend un verrou de ligne : seule une requête à la
-    // fois peut faire passer `statut` de EN_SERVICE à sa valeur finale ; la
-    // perdante voit `count: 0` et s'arrête avant d'avoir rien posté au grand
-    // livre · pas de compensation nécessaire ici, contrairement à
-    // passerDotation (où la première écriture existe déjà avant que la
-    // contrainte d'unicité ne puisse être testée).
-    const statutFinal = dto.type === TypeSortie.CESSION ? StatutImmobilisation.CEDEE : StatutImmobilisation.MISE_HORS_SERVICE;
-    const verrou = await this.prisma.immobilisation.updateMany({
-      where: { id, tenantId, statut: StatutImmobilisation.EN_SERVICE },
-      data: { statut: statutFinal, dateSortie, prixCession: dto.prixCession },
-    });
-    if (verrou.count === 0) {
-      throw new ConflictException('Cette immobilisation vient déjà d\'être sortie par une autre opération');
-    }
+    /*
+      TOUT CE QUI PEUT REFUSER SE FAIT AVANT LE VERROU (audit final F28).
 
+      Le verrou posait CÉDÉE ou MISE HORS SERVICE avant le relevé d'unités
+      d'œuvre, la résolution des comptes de classe 8 et de reprise, et les
+      écritures · chacun peut lever. Le bien restait alors sorti sans aucune
+      écriture, toujours au bilan, et toute nouvelle tentative butait sur
+      « déjà sortie ». Désormais le calcul et les comptes sont résolus
+      d'abord ; seules les écritures viennent après le verrou, et leur échec
+      défait ce qui a été posé (`defaireSortie`).
+    */
     // Dotation complémentaire de l'exercice de sortie (skill sycebnl, COMPTE
     // 28 : "la dotation complémentaire en cas de cession"), seulement si
     // aucune dotation n'a déjà été passée sur cet exercice pour ce bien ·
@@ -2266,52 +2314,25 @@ export class ImmobilisationService {
     let cumulAmorti =
       immo.dotations.reduce((s, d) => s + Number(d.montant), 0) + Number(immo.amortissementAnterieur ?? 0);
     const dejaDoteCetExercice = immo.dotations.some((d) => d.exerciceId === dto.exerciceId);
-    if (!dejaDoteCetExercice) {
-      const montantComplement = this.calculerDotation(
-        Number(immo.valeurOrigine),
-        Number(immo.valeurResiduelle),
-        immo.dureeAmortissementAns,
-        immo.dateMiseEnService,
-        immo.dotations.map((d) => ({ montant: Number(d.montant) })),
-        { dateDebut: exercice.dateDebut, dateFin: dateSortie },
-        Number(immo.amortissementAnterieur ?? 0),
-        this.cumulDepreciation(
-          immo.depreciations
-            .filter((d) => d.exercice.dateFin < exercice.dateFin)
-            .map((d) => ({ sens: d.sens, montant: Number(d.montant) })),
-        ),
-        this.sansProrataTemporis(regime),
-        await this.unitesOeuvreDe(tenantId, immo, dto.exerciceId, dateSortie),
-      );
-      if (montantComplement > EPSILON) {
-        const ecritureComplement = await this.ecritureService.creer(tenantId, userId, {
-          exerciceId: dto.exerciceId,
-          journalId: dto.journalId,
-          date: dto.dateSortie,
-          libelle: `Dotation complémentaire (sortie) · ${immo.designation}`,
-          lignes: [
-            { compteId: immo.compteDotationId, debit: montantComplement, credit: 0 },
-            { compteId: immo.compteAmortissementId, debit: 0, credit: montantComplement },
-          ],
-        });
-        // Conflit théorique seulement ici : le verrou ci-dessus garantit déjà
-        // qu'aucune autre sortie ne peut être en cours sur ce bien, mais
-        // passerDotation() reste appelable en parallèle sur le même
-        // exercice · même compensation par cohérence, au cas où.
-        try {
-          await this.prisma.dotationAmortissement.create({
-            data: { immobilisationId: id, exerciceId: dto.exerciceId, montant: montantComplement, ecritureId: ecritureComplement.id },
-          });
-        } catch (err) {
-          if (estConflitUnicite(err)) {
-            await this.annulerEcritureOrpheline(ecritureComplement.id);
-            throw new ConflictException('Une dotation a été passée entre-temps pour cette immobilisation sur cet exercice · réessayez la sortie');
-          }
-          throw err;
-        }
-        cumulAmorti += montantComplement;
-      }
-    }
+    const montantComplement = dejaDoteCetExercice
+      ? 0
+      : this.calculerDotation(
+          Number(immo.valeurOrigine),
+          Number(immo.valeurResiduelle),
+          immo.dureeAmortissementAns,
+          immo.dateMiseEnService,
+          immo.dotations.map((d) => ({ montant: Number(d.montant) })),
+          { dateDebut: exercice.dateDebut, dateFin: dateSortie },
+          Number(immo.amortissementAnterieur ?? 0),
+          this.cumulDepreciation(
+            immo.depreciations
+              .filter((d) => d.exercice.dateFin < exercice.dateFin)
+              .map((d) => ({ sens: d.sens, montant: Number(d.montant) })),
+          ),
+          this.sansProrataTemporis(regime),
+          await this.unitesOeuvreDe(tenantId, immo, dto.exerciceId, dateSortie),
+        );
+    if (montantComplement > EPSILON) cumulAmorti += montantComplement;
 
     /*
       LA DÉPRÉCIATION SORT AVEC LE BIEN · MAIS PAS EN MOINS DU COMPTE 81.
@@ -2377,39 +2398,95 @@ export class ImmobilisationService {
       const compteVNC = await this.compteDeSortie(tenantId, comptes.valeurComptable);
       lignesSortie.push({ compteId: compteVNC.id, debit: valeurComptableNette, credit: 0 });
     }
-
-    const ecritureSortie = await this.ecritureService.creer(tenantId, userId, {
-      exerciceId: dto.exerciceId,
-      journalId: dto.journalId,
-      date: dto.dateSortie,
-      libelle: `${dto.type === TypeSortie.CESSION ? 'Cession' : 'Mise hors service'} · ${immo.designation}`,
-      lignes: lignesSortie,
-    });
-
     // Produit de cession · écriture séparée, jamais mélangée à la sortie de
     // l'actif (skill sycebnl distingue clairement 81 "valeur comptable" et
-    // 82 "produit de cession").
-    if (dto.type === TypeSortie.CESSION && dto.prixCession && dto.compteContrepartieId) {
-      const compteProduit = await this.compteDeSortie(tenantId, comptes.produitCession);
-      await this.ecritureService.creer(tenantId, userId, {
+    // 82 "produit de cession"). Son compte est résolu ici, avant le verrou.
+    const compteProduit =
+      dto.type === TypeSortie.CESSION && dto.prixCession && dto.compteContrepartieId
+        ? await this.compteDeSortie(tenantId, comptes.produitCession)
+        : null;
+
+    // Verrou par écriture conditionnelle (même risque de course que
+    // passerDotation, trouvé en l'approfondissant · deux sorties simultanées
+    // sur le même bien liraient toutes deux EN_SERVICE et posteraient
+    // chacune leurs écritures). Un UPDATE Postgres filtré sur le statut prend
+    // un verrou de ligne : seule une requête à la fois peut faire passer
+    // `statut` de EN_SERVICE à sa valeur finale ; la perdante voit
+    // `count: 0` et s'arrête avant d'avoir rien posté au grand livre.
+    const statutFinal = dto.type === TypeSortie.CESSION ? StatutImmobilisation.CEDEE : StatutImmobilisation.MISE_HORS_SERVICE;
+    const verrou = await this.prisma.immobilisation.updateMany({
+      where: { id, tenantId, statut: StatutImmobilisation.EN_SERVICE },
+      data: { statut: statutFinal, dateSortie, prixCession: dto.prixCession },
+    });
+    if (verrou.count === 0) {
+      throw new ConflictException('Cette immobilisation vient déjà d\'être sortie par une autre opération');
+    }
+
+    const ecrituresPosees: string[] = [];
+    let dotationPoseeId: string | null = null;
+    try {
+      if (montantComplement > EPSILON) {
+        const ecritureComplement = await this.ecritureService.creer(tenantId, userId, {
+          exerciceId: dto.exerciceId,
+          journalId: dto.journalId,
+          date: dto.dateSortie,
+          libelle: `Dotation complémentaire (sortie) · ${immo.designation}`,
+          lignes: [
+            { compteId: immo.compteDotationId, debit: montantComplement, credit: 0 },
+            { compteId: immo.compteAmortissementId, debit: 0, credit: montantComplement },
+          ],
+        });
+        ecrituresPosees.push(ecritureComplement.id);
+        // Conflit théorique seulement ici : le verrou ci-dessus garantit déjà
+        // qu'aucune autre sortie ne peut être en cours sur ce bien, mais
+        // passerDotation() reste appelable en parallèle sur le même exercice.
+        try {
+          const dotation = await this.prisma.dotationAmortissement.create({
+            data: { immobilisationId: id, exerciceId: dto.exerciceId, montant: montantComplement, ecritureId: ecritureComplement.id },
+          });
+          dotationPoseeId = dotation.id;
+        } catch (err) {
+          if (estConflitUnicite(err)) {
+            throw new ConflictException('Une dotation a été passée entre-temps pour cette immobilisation sur cet exercice · réessayez la sortie');
+          }
+          throw err;
+        }
+      }
+
+      const ecritureSortie = await this.ecritureService.creer(tenantId, userId, {
         exerciceId: dto.exerciceId,
         journalId: dto.journalId,
         date: dto.dateSortie,
-        libelle: `Produit de cession · ${immo.designation}`,
-        lignes: [
-          { compteId: dto.compteContrepartieId, debit: dto.prixCession, credit: 0 },
-          { compteId: compteProduit.id, debit: 0, credit: dto.prixCession },
-        ],
+        libelle: `${dto.type === TypeSortie.CESSION ? 'Cession' : 'Mise hors service'} · ${immo.designation}`,
+        lignes: lignesSortie,
       });
-    }
+      ecrituresPosees.push(ecritureSortie.id);
 
-    // statut/dateSortie/prixCession déjà posés par le verrou ci-dessus ;
-    // il ne reste que l'écriture de sortie, connue seulement une fois postée.
-    const immobilisation = await this.prisma.immobilisation.update({
-      where: { id },
-      data: { ecritureSortieId: ecritureSortie.id },
-      include: { dotations: true },
-    });
-    return versImmobilisation(immobilisation);
+      if (compteProduit && dto.prixCession && dto.compteContrepartieId) {
+        const ecritureProduit = await this.ecritureService.creer(tenantId, userId, {
+          exerciceId: dto.exerciceId,
+          journalId: dto.journalId,
+          date: dto.dateSortie,
+          libelle: `Produit de cession · ${immo.designation}`,
+          lignes: [
+            { compteId: dto.compteContrepartieId, debit: dto.prixCession, credit: 0 },
+            { compteId: compteProduit.id, debit: 0, credit: dto.prixCession },
+          ],
+        });
+        ecrituresPosees.push(ecritureProduit.id);
+      }
+
+      // statut/dateSortie/prixCession déjà posés par le verrou ci-dessus ;
+      // il ne reste que l'écriture de sortie, connue seulement une fois postée.
+      const immobilisation = await this.prisma.immobilisation.update({
+        where: { id },
+        data: { ecritureSortieId: ecritureSortie.id },
+        include: { dotations: true },
+      });
+      return versImmobilisation(immobilisation);
+    } catch (err) {
+      await this.defaireSortie(tenantId, id, immo.designation, ecrituresPosees, dotationPoseeId);
+      throw err;
+    }
   }
 }

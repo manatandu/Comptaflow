@@ -334,11 +334,12 @@ describe('la sortie solde le compte 29 par une REPRISE, sans toucher au compte 8
   /*
     Brut 10 000 000, trois annuités passées (6 000 000) et une dépréciation de
     1 600 000. La sortie passe d'abord la DOTATION COMPLÉMENTAIRE, calculée
-    sur le plan ré-étalé : 1 200 000 (et non 2 000 000). Le cumul amorti
-    devient 7 200 000.
+    sur le plan ré-étalé (1 200 000 l'an, et non 2 000 000) et arrêtée à la
+    date de sortie, le 30 juin · 6 mois, soit 600 000 (audit final F27, fiche
+    du COMPTE 81). Le cumul amorti devient 6 600 000.
 
-    Le compte 81 porte donc 10 000 000 - 7 200 000 = 2 800 000, et NON
-    1 200 000. Les 1 600 000 sortent par leurs deux lignes propres : le 29 au
+    Le compte 81 porte donc 10 000 000 - 6 600 000 = 3 400 000, et NON
+    1 800 000. Les 1 600 000 sortent par leurs deux lignes propres : le 29 au
     débit pour solde, le 7914 au crédit pour la reprise.
   */
   const BIEN_DEPRECIE = {
@@ -357,10 +358,10 @@ describe('la sortie solde le compte 29 par une REPRISE, sans toucher au compte 8
 
   it('porte au 81 la valeur d’entrée diminuée des SEULS amortissements', async () => {
     const lignes = await lignesDeSortie(BIEN_DEPRECIE);
-    // C'est LA valeur que le défaut minorait : 1 200 000 au lieu de 2 800 000.
+    // C'est LA valeur que le défaut minorait : 1 800 000 au lieu de 3 400 000.
     expect(lignes.find((l) => l.compteId === 'n81200000')).toEqual({
       compteId: 'n81200000',
-      debit: 2_800_000,
+      debit: 3_400_000,
       credit: 0,
     });
   });
@@ -393,8 +394,9 @@ describe('la sortie solde le compte 29 par une REPRISE, sans toucher au compte 8
     });
     expect(lignes.some((l) => l.compteId === 'c29')).toBe(false);
     expect(lignes.some((l) => l.compteId.startsWith('n79'))).toBe(false);
-    // Brut 10 000 000, cumul 8 000 000 (2 000 000 de complément) · VCN 2 000 000.
-    expect(lignes.find((l) => l.compteId === 'n81200000')!.debit).toBe(2_000_000);
+    // Brut 10 000 000, cumul 7 000 000 (1 000 000 de complément, six mois sur
+    // douze, audit final F27) · VCN 3 000 000.
+    expect(lignes.find((l) => l.compteId === 'n81200000')!.debit).toBe(3_000_000);
   });
 
   it('une dépréciation dotée en H.A.O. se reprend en 863, pas en 79', async () => {
@@ -427,7 +429,7 @@ describe('la sortie solde le compte 29 par une REPRISE, sans toucher au compte 8
       compteImmobilisation: '20300000',
       referentiel: Referentiel.SYCEBNL,
     });
-    expect(lignes.find((l) => l.compteId === 'n81800000')!.debit).toBe(2_800_000);
+    expect(lignes.find((l) => l.compteId === 'n81800000')!.debit).toBe(3_400_000);
     expect(lignes.find((l) => l.compteId === 'n79520000')!.credit).toBe(1_600_000);
   });
 });

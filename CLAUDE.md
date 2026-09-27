@@ -5120,6 +5120,15 @@ antérieure est imputée la première, à l'échéance du dernier mois avant
 l'exercice · la plus tardive possible, donc jamais un retard fabriqué. Le
 report à-nouveau ne compte plus comme une retenue de janvier.
 
+**Sortie d'immobilisation · la dernière annuité et l'ordre des gestes
+(2026-09-27, audit final F27 et F28).** La dotation complémentaire s'arrête à
+la date de sortie (fiche du COMPTE 81 des deux textes), comptée en mois, le
+mois de la sortie compris, comme le Guide la chiffre (« 180 × 9/12 ») · le
+SMT SYSCOHADA reste sans prorata. Et tout ce qui peut refuser se fait AVANT le
+verrou qui pose le statut de sortie ; une écriture refusée après lui défait
+tout (`defaireSortie`) · un bien sorti sans écriture restait au bilan, et
+« déjà sortie » fermait toute reprise.
+
 ### Migrations écrites à la main
 
 Une migration écrite à la main peut DIVERGER du schéma sans que rien ne le
