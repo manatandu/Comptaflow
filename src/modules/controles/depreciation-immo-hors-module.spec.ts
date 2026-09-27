@@ -49,7 +49,7 @@ function service(
     tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 't', referentiel }) },
     ecriture: { findMany: jest.fn().mockResolvedValue([]) },
     compte: { findMany: jest.fn().mockResolvedValue([]) },
-    ligneEcriture: { findMany: jest.fn().mockResolvedValue(lignes) },
+    ligneEcriture: { findMany: jest.fn().mockResolvedValue(lignes), groupBy: jest.fn().mockResolvedValue([]) },
     exoneration: { findMany: jest.fn().mockResolvedValue([]) },
     // Le contrôle 21 lit le manuel des procédures (AUDCIF art. 16 al. 1) ·
     // sans ce faux, il croirait la table absente plutôt que le manuel.

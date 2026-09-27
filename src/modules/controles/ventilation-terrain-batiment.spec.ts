@@ -60,7 +60,7 @@ function service(biens: Bien[], referentiel: Referentiel = Referentiel.SYSCOHADA
     tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 't', nom: 'Dossier', referentiel }) },
     ecriture: { findMany: jest.fn().mockResolvedValue([]) },
     compte: { findMany: jest.fn().mockResolvedValue([]) },
-    ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },
+    ligneEcriture: { findMany: jest.fn().mockResolvedValue([]), groupBy: jest.fn().mockResolvedValue([]) },
     exoneration: { findMany: jest.fn().mockResolvedValue([]) },
     manuelProcedures: { findFirst: jest.fn().mockResolvedValue(null) },
     // Dossiers de subvention · vides ici, ces specs ne les testent pas. Sans

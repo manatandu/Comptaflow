@@ -36,11 +36,16 @@ function ligne(
     [ClasseCompte.CLASSE_5]: '52100000',
     [ClasseCompte.CLASSE_7]: '70110000',
   };
+  const n = numero ?? parDefaut[classe] ?? '60000000';
   return {
     debit: montant.debit ?? 0,
     credit: montant.credit ?? 0,
+    // Une ligne portée par l'écriture de clôture · voir `cloture()`.
+    estGenereeParCloture: false,
     compte: {
-      numero: numero ?? parDefaut[classe] ?? '60000000',
+      // Un compte Total a son propre identifiant, même numéro ou non.
+      id: `${n}${total ? '-T' : ''}`,
+      numero: n,
       classe,
       typeCompte: total ? TypeCompteDetailTotal.TOTAL : TypeCompteDetailTotal.DETAIL,
     },
@@ -51,8 +56,26 @@ function service(
   lignes: ReturnType<typeof ligne>[],
   dossier: { referentiel?: Referentiel; formeJuridiqueSyscohada?: FormeJuridiqueSyscohada | null } = {},
 ) {
+  // LA DOUBLURE AGRÈGE COMME LA BASE · une ligne par compte, sommes des
+  // débits et des crédits, écritures de clôture écartées quand le filtre le
+  // demande. Une doublure qui rendait les lignes une à une validait la
+  // boucle ligne à ligne que l'audit du 2026-09-27 (F8) a relevée.
+  type Filtre = { where: { ecriture: { estGenereeParCloture?: boolean } } };
+  const groupBy = jest.fn().mockImplementation(({ where }: Filtre) => {
+    const parCompte = new Map<string, { compteId: string; _sum: { debit: number; credit: number } }>();
+    for (const l of lignes) {
+      if (where.ecriture.estGenereeParCloture === false && l.estGenereeParCloture) continue;
+      const g = parCompte.get(l.compte.id) ?? { compteId: l.compte.id, _sum: { debit: 0, credit: 0 } };
+      g._sum.debit += l.debit;
+      g._sum.credit += l.credit;
+      parCompte.set(l.compte.id, g);
+    }
+    return Promise.resolve([...parCompte.values()]);
+  });
+  const comptes = [...new Map(lignes.map((l) => [l.compte.id, l.compte])).values()];
   const prisma = {
-    ligneEcriture: { findMany: jest.fn().mockResolvedValue(lignes) },
+    ligneEcriture: { groupBy },
+    compte: { findMany: jest.fn().mockResolvedValue(comptes) },
     tenant: {
       findUniqueOrThrow: jest.fn().mockResolvedValue({
         referentiel: dossier.referentiel ?? Referentiel.SYCEBNL,
@@ -110,6 +133,34 @@ describe("Seuils de désignation de l'auditeur (SYCEBNL, art. 19)", () => {
     const r = await service([]).seuilsAuditeur('t1', 'e1', 0);
     expect(r.conversionAppliquee).toBe(false);
     expect(r.source).toContain('article 19');
+  });
+
+  it('additionne les SOLDES par compte, pas les débits ligne à ligne (F8)', async () => {
+    // Une caisse débitée de 100 et créditée de 90, dix fois · solde 100.
+    const caisse = Array.from({ length: 10 }, () => [
+      ligne(ClasseCompte.CLASSE_5, { debit: 100 }, false, '57110000'),
+      ligne(ClasseCompte.CLASSE_5, { credit: 90 }, false, '57110000'),
+    ]).flat();
+    const r = await service(caisse).seuilsAuditeur('t1', 'e1', 0);
+    expect(['Total du bilan', r.criteres.find((c) => c.critere === 'Total du bilan')!.valeur]).toEqual(['Total du bilan', 100]);
+  });
+
+  it('les ressources d’un exercice clos se lisent hors écriture de clôture (F8)', async () => {
+    const produit = ligne(ClasseCompte.CLASSE_7, { credit: SEUIL_RESSOURCES_AUDITEUR + 1 });
+    const cloture = { ...ligne(ClasseCompte.CLASSE_7, { debit: SEUIL_RESSOURCES_AUDITEUR + 1 }), estGenereeParCloture: true };
+    const r = await service([produit, cloture]).seuilsAuditeur('t1', 'e1', 0);
+    expect(['franchis', r.franchis.map((f) => f.critere)]).toEqual(['franchis', ['Ressources annuelles']]);
+  });
+
+  it('la lecture est bornée au livre-journal de l’exercice et au dossier', async () => {
+    const svc = service([ligne(ClasseCompte.CLASSE_2, { debit: 10 })]);
+    await svc.seuilsAuditeur('t1', 'e1', 0);
+    const prisma = (svc as unknown as { prisma: { ligneEcriture: { groupBy: jest.Mock }; compte: { findMany: jest.Mock } } }).prisma;
+    expect(prisma.ligneEcriture.groupBy.mock.calls.map((c) => c[0].where)).toEqual([
+      { ecriture: { tenantId: 't1', exerciceId: 'e1', statut: 'VALIDEE' } },
+      { ecriture: { tenantId: 't1', exerciceId: 'e1', statut: 'VALIDEE', estGenereeParCloture: false } },
+    ]);
+    expect(prisma.compte.findMany.mock.calls[0][0].where).toEqual({ tenantId: 't1', id: { in: ['21000000'] } });
   });
 
   it('ignore les comptes de TOTAL · ils agrègent leurs enfants', async () => {

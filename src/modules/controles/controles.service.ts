@@ -638,24 +638,60 @@ export class ControlesService {
       };
     }
 
-    const lignes = await this.prisma.ligneEcriture.findMany({
-      where: { ecriture: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE } },
-      select: { debit: true, credit: true, compte: { select: { numero: true, classe: true, typeCompte: true } } },
-    });
+    // LA BALANCE AGRÉGÉE PAR LA BASE, COMPTE PAR COMPTE (audit du serveur du
+    // 2026-09-27, F8). La boucle portait sur les LIGNES d'écriture et ajoutait
+    // chaque solde de ligne positif : c'était la somme des DÉBITS des classes
+    // 1 à 5, pas l'actif. Une caisse qui encaisse et décaisse cent fois
+    // comptait cent débits, et le seuil était déclaré franchi par une entité
+    // qui ne l'a pas atteint · un signalement faux, le cinquième défaut du
+    // § 10 bis. La requête rapatriait en outre toutes les lignes de
+    // l'exercice, sans borne (§ 8 bis) ; le regroupement rend une ligne par
+    // compte.
+    //
+    // Livre-journal seul · une écriture au brouillard n'est pas entrée en
+    // comptabilité. Le total du bilan lit le SOLDE (report à-nouveau compris,
+    // c'est une situation à la clôture) ; les produits lisent les MOUVEMENTS,
+    // écritures de clôture exclues, comme `balanceCumulee` · l'écriture de
+    // clôture solde la classe 7 d'un exercice clos.
+    const filtre = { tenantId, exerciceId, statut: StatutEcriture.VALIDEE };
+    const [soldesGroupes, mouvementsGroupes] = await Promise.all([
+      this.prisma.ligneEcriture.groupBy({
+        by: ['compteId'],
+        where: { ecriture: filtre },
+        _sum: { debit: true, credit: true },
+      }),
+      this.prisma.ligneEcriture.groupBy({
+        by: ['compteId'],
+        where: { ecriture: { ...filtre, estGenereeParCloture: false } },
+        _sum: { debit: true, credit: true },
+      }),
+    ]);
+    const net = (g: { _sum: { debit: unknown; credit: unknown } }) => Number(g._sum.debit ?? 0) - Number(g._sum.credit ?? 0);
+    const idsComptes = [...new Set([...soldesGroupes, ...mouvementsGroupes].map((g) => g.compteId))];
+    const comptes = idsComptes.length
+      ? await this.prisma.compte.findMany({
+          where: { tenantId, id: { in: idsComptes } },
+          select: { id: true, numero: true, classe: true, typeCompte: true },
+        })
+      : [];
+    const compteDe = new Map(comptes.map((c) => [c.id, c]));
 
     const estSyscohada = tenant.referentiel === Referentiel.SYSCOHADA;
     let totalBilan = 0;
     let produits = 0;
-    for (const l of lignes) {
+    for (const g of soldesGroupes) {
+      const compte = compteDe.get(g.compteId);
       // Les comptes de TOTAL agrègent leurs enfants : les compter reviendrait
       // à compter deux fois les mêmes montants.
-      if (l.compte.typeCompte === TypeCompteDetailTotal.TOTAL) continue;
-      const solde = Number(l.debit) - Number(l.credit);
-      if (CLASSES_BILAN.includes(l.compte.classe)) {
-        // Total du bilan = somme des soldes DÉBITEURS des classes 1 à 5,
-        // c'est-à-dire l'actif · approximation assumée et annoncée.
-        if (solde > 0) totalBilan += solde;
-      }
+      if (!compte || compte.typeCompte === TypeCompteDetailTotal.TOTAL) continue;
+      // Total du bilan = somme des soldes DÉBITEURS des comptes des classes 1
+      // à 5, c'est-à-dire l'actif · approximation assumée et annoncée.
+      const solde = net(g);
+      if (CLASSES_BILAN.includes(compte.classe) && solde > 0) totalBilan += solde;
+    }
+    for (const g of mouvementsGroupes) {
+      const compte = compteDe.get(g.compteId);
+      if (!compte || compte.typeCompte === TypeCompteDetailTotal.TOTAL) continue;
       // LA MESURE DES PRODUITS DIFFÈRE, et c'est le fond de l'affaire.
       // Le SYCEBNL parle de RESSOURCES annuelles, qui embrassent toute la
       // classe 7 (cotisations, dons, subventions, produits financiers).
@@ -665,9 +701,9 @@ export class ControlesService {
       // son chiffre d'affaires de ses produits financiers et de ses reprises,
       // et la déclarerait au-dessus d'un seuil qu'elle n'a pas franchi.
       if (estSyscohada) {
-        if (PREFIXES_CHIFFRE_AFFAIRES_SYSCOHADA.some((p) => l.compte.numero.startsWith(p))) produits += -solde;
-      } else if (l.compte.classe === ClasseCompte.CLASSE_7) {
-        produits += -solde;
+        if (PREFIXES_CHIFFRE_AFFAIRES_SYSCOHADA.some((p) => compte.numero.startsWith(p))) produits -= net(g);
+      } else if (compte.classe === ClasseCompte.CLASSE_7) {
+        produits -= net(g);
       }
     }
     totalBilan = Math.round(totalBilan * 100) / 100;
