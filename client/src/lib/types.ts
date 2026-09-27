@@ -3863,14 +3863,33 @@ export interface BalanceFonctionnelle {
   monnaieTenue: string;
   exercice: { dateDebut: string; dateFin: string };
   mention: string;
-  lignes: { compteId: string; numero: string; intitule: string; debit: number; credit: number; solde: number }[];
+  lignes: {
+    compteId: string;
+    numero: string;
+    intitule: string;
+    /** La part d'ouverture, comprise dans débit et crédit (audit final F42). */
+    ouvertureDebit: number;
+    ouvertureCredit: number;
+    debit: number;
+    credit: number;
+    solde: number;
+  }[];
   totaux: {
     debit: number;
     credit: number;
     /** Montré, jamais absorbé dans un compte de bouclage. */
     ecartDeConversion: number;
+    /** La part de l'écart reprise à l'ouverture, née des exercices précédents. */
+    dontOuverture: number;
   };
-  origine: { lignes: number; lignesExactes: number; lignesConverties: number; ecritures: number };
+  origine: {
+    lignes: number;
+    lignesExactes: number;
+    lignesConverties: number;
+    ecritures: number;
+    /** D'où vient l'ouverture du jeu (audit final F42). */
+    ouverture: 'AUCUNE' | 'EXERCICE_PRECEDENT' | 'CONVERTIE_A_SA_DATE';
+  };
 }
 
 /** Lieu d'un bien · Sage Immobilisations, « Lieux des biens ». */

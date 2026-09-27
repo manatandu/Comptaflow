@@ -96,10 +96,28 @@ export function BalanceFonctionnellePage() {
                 <span className="font-semibold tabular-nums">{balance.origine.lignesExactes}</span>
                 <span className="text-text-dim"> sur {balance.origine.lignes}</span>
               </span>
+              {balance.origine.ouverture !== 'AUCUNE' && (
+                <span className="flex items-center gap-1.5">
+                  <span className="text-text-dim">Ouverture </span>
+                  <span className="font-semibold">
+                    {balance.origine.ouverture === 'EXERCICE_PRECEDENT'
+                      ? 'clôture de l’exercice précédent, dans ce jeu'
+                      : 'à-nouveau converti au cours de sa date'}
+                  </span>
+                  <Aide
+                    titre="Ouverture du second jeu"
+                    texte="L’à-nouveau et l’écriture qui solde les comptes de gestion ne sont pas convertis : l’ouverture reprend la clôture de ce même jeu pour l’exercice précédent, chaque compte à son cours historique, et le résultat converti va au compte 13 que la clôture a mouvementé. Sans exercice précédent dans le dossier (reprise), l’à-nouveau est converti au cours de sa date, faute d’un autre cours historique."
+                    source="Balance en monnaie fonctionnelle"
+                  />
+                </span>
+              )}
             </div>
             {balance.totaux.ecartDeConversion !== 0 && (
               <div className="text-[11px] text-warning mt-1 flex items-center gap-1.5">
                 Écart de conversion · {montant(balance.totaux.ecartDeConversion)} {balance.monnaie}
+                {balance.totaux.dontOuverture !== 0 && (
+                  <span> · dont {montant(balance.totaux.dontOuverture)} repris à l’ouverture</span>
+                )}
                 <Aide
                   titre="Écart de conversion"
                   texte="Il naît des lignes prises à leur montant d’origine face à des lignes converties : les deux côtés d’une même opération n’ont pas la même origine. Il est montré et non logé dans un compte de bouclage, qui ferait équilibrer l’état et disparaître l’information."

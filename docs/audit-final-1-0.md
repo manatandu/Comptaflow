@@ -327,6 +327,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** aucune écriture de clôture n'est écartée. L'à-nouveau est converti au cours du premier jour, ce que l'en-tête déclare faux, et l'écriture qui solde les 6/7 laisse un reliquat.
 - **Correction :** écarter ces écritures, partir du solde fonctionnel de N-1 (ou refuser l'état au-delà du premier exercice), et tester les deux cas.
+- **Fait le 2026-09-27 :** première voie · l'à-nouveau et le solde des comptes de gestion ne sont plus convertis ; l'ouverture est la clôture du même jeu pour l'exercice précédent (comptes 1 à 5 reportés, résultat converti au compte 13 de la clôture en francs, sur sa propre ligne si l'exercice précédent n'est pas clos) ; une reprise sans exercice précédent convertit son à-nouveau au cours de sa date, et l'état dit d'où vient son ouverture (`balance-fonctionnelle.service.ts`, `jeuFonctionnel`). Test : `balance-fonctionnelle-ouverture-f42.spec.ts` (huit mutations tuées), doublure du spec existant mise au filtre.
 
 ### Sécurité, plateforme et sur site
 

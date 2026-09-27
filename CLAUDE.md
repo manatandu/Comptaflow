@@ -602,6 +602,15 @@ deux côtés de l'opération n'ont pas la même origine. L'écart est porté sur
 propre ligne, nommé, et jamais logé dans un compte de bouclage, qui ferait
 équilibrer l'état et disparaître l'information.
 
+L'À-NOUVEAU ET LA CLÔTURE NE SE CONVERTISSENT PAS (2026-09-27, audit final
+F42). Convertis, l'un prenait le cours du 1er janvier pour un bien acquis
+l'an dernier, l'autre laissait un reliquat sur des charges converties chacune
+à sa date. L'ouverture est la clôture du MÊME jeu pour l'exercice précédent
+(`jeuFonctionnel`, récursif), le résultat converti allant au compte 13 que la
+clôture en francs a mouvementé ; une reprise sans exercice précédent convertit
+son à-nouveau au cours de sa date, et l'état dit laquelle des deux il a
+faite.
+
 DEUX REFUS DE MÉTHODE. Jamais un cours POSTÉRIEUR à la date de l'opération · ce
 serait convertir avec une information que personne n'avait alors, et le second
 jeu cesserait d'être historique pour devenir rétrospectif. Et une date SANS

@@ -138,7 +138,14 @@ describe('la balance du second jeu', () => {
             etat.deviseExiste === false ? null : { id: 'd1', code: 'USD', cours: etat.cours ?? [{ date: j('2026-01-01'), cours: 2500 }] },
           ),
       },
-      ligneEcriture: { findMany: jest.fn().mockResolvedValue(etat.lignes ?? []) },
+      // La doublure HONORE le filtre des écritures de clôture · ces lignes
+      // sont toutes des mouvements, aucune n'est un à-nouveau (audit final
+      // F42, voir balance-fonctionnelle-ouverture-f42.spec.ts).
+      ligneEcriture: {
+        findMany: jest.fn(({ where }: { where: { ecriture: { estGenereeParCloture: boolean } } }) =>
+          Promise.resolve(where.ecriture.estGenereeParCloture ? [] : (etat.lignes ?? [])),
+        ),
+      },
     } as unknown as PrismaService;
     return new BalanceFonctionnelleService(prisma);
   }
@@ -230,7 +237,7 @@ describe('la balance du second jeu', () => {
         ligne('41100000', 0, 2_500_000, 'e1', j('2026-03-01')),
       ],
     }).balance('t1', 'ex1');
-    expect(r.origine).toEqual({ lignes: 2, lignesExactes: 1, lignesConverties: 1, ecritures: 1 });
+    expect(r.origine).toEqual({ lignes: 2, lignesExactes: 1, lignesConverties: 1, ecritures: 1, ouverture: 'AUCUNE' });
   });
 
   it('porte la mention qui dit ce que l’état n’est pas', async () => {
