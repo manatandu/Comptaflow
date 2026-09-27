@@ -102,6 +102,36 @@ export function MandatAuditeurPage() {
     }
   }
 
+  /**
+   * Les deux gestes d'un mandat en cours (audit de l'interface du
+   * 2026-09-27, I11) · les routes existaient sans geste. Le refus de
+   * prorogation est le SEUL fait que l'art. 22 du SYCEBNL oppose à la
+   * prorogation de plein droit ; la fin anticipée porte sa date et son motif.
+   */
+  async function basculerRefusProrogation(m: Mandat) {
+    setErreur(null);
+    try {
+      await api.patch(`/mandat-auditeur/${m.id}/prorogation`, { refus: !m.refusDeProrogation });
+      await recharger();
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : "L'enregistrement n'a pas abouti.");
+    }
+  }
+
+  async function clore(m: Mandat) {
+    setErreur(null);
+    const finAnticipeeLe = window.prompt('Date de fin du mandat (AAAA-MM-JJ)');
+    if (!finAnticipeeLe) return;
+    const motifFin = window.prompt('Motif de la fin du mandat');
+    if (!motifFin?.trim()) return;
+    try {
+      await api.patch(`/mandat-auditeur/${m.id}/fin`, { finAnticipeeLe, motifFin: motifFin.trim() });
+      await recharger();
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : "L'enregistrement n'a pas abouti.");
+    }
+  }
+
   return (
     <div className="p-2 max-w-[980px]">
       {peutEcrire && (
@@ -235,6 +265,20 @@ export function MandatAuditeurPage() {
                         : m.refusDeProrogation
                           ? 'Prorogation refusée'
                           : 'En cours'}
+                      {peutEcrire && !m.finAnticipeeLe && (
+                        <span className="ml-2 inline-flex gap-1">
+                          <button
+                            type="button"
+                            className="border border-border px-1.5 py-0.5 text-[11px]"
+                            onClick={() => void basculerRefusProrogation(m)}
+                          >
+                            {m.refusDeProrogation ? 'Lever le refus de prorogation' : 'Refus de prorogation'}
+                          </button>
+                          <button type="button" className="border border-border px-1.5 py-0.5 text-[11px]" onClick={() => void clore(m)}>
+                            Mettre fin au mandat
+                          </button>
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}

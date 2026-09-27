@@ -44,6 +44,20 @@ const GESTES: Array<{ route: string; controleur: string; decorateur: string; pag
     page: 'FaiblessesPage.tsx',
     appel: 'api.patch(`/faiblesses/faiblesses/${f.id}/reponse-direction`, {',
   },
+  {
+    route: 'PATCH /mandat-auditeur/:id/prorogation',
+    controleur: 'mandat-auditeur/mandat-auditeur.controller.ts',
+    decorateur: "@Patch(':id/prorogation')",
+    page: 'MandatAuditeurPage.tsx',
+    appel: 'api.patch(`/mandat-auditeur/${m.id}/prorogation`, { refus: !m.refusDeProrogation })',
+  },
+  {
+    route: 'PATCH /mandat-auditeur/:id/fin',
+    controleur: 'mandat-auditeur/mandat-auditeur.controller.ts',
+    decorateur: "@Patch(':id/fin')",
+    page: 'MandatAuditeurPage.tsx',
+    appel: 'api.patch(`/mandat-auditeur/${m.id}/fin`, { finAnticipeeLe, motifFin: motifFin.trim() })',
+  },
 ];
 
 describe('routes d’écriture et leur geste', () => {
