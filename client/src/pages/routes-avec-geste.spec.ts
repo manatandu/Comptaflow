@@ -58,6 +58,20 @@ const GESTES: Array<{ route: string; controleur: string; decorateur: string; pag
     page: 'MandatAuditeurPage.tsx',
     appel: 'api.patch(`/mandat-auditeur/${m.id}/fin`, { finAnticipeeLe, motifFin: motifFin.trim() })',
   },
+  {
+    route: 'PATCH /accord-cadre/:id/main-oeuvre',
+    controleur: 'accord-cadre/accord-cadre.controller.ts',
+    decorateur: "@Patch(':id/main-oeuvre')",
+    page: 'AccordCadrePage.tsx',
+    appel: "api.patch(`/accord-cadre/${id}/main-oeuvre`, { part: Number(part.replace(',', '.')), source: source.trim(), date })",
+  },
+  {
+    route: 'PATCH /accord-cadre/:id/denonciation',
+    controleur: 'accord-cadre/accord-cadre.controller.ts',
+    decorateur: "@Patch(':id/denonciation')",
+    page: 'AccordCadrePage.tsx',
+    appel: 'api.patch(`/accord-cadre/${id}/denonciation`, { denonceLe, motif: motif.trim() })',
+  },
 ];
 
 describe('routes d’écriture et leur geste', () => {

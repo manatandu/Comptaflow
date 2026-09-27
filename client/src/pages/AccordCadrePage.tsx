@@ -77,6 +77,43 @@ export function AccordCadrePage() {
     }
   }
 
+  /**
+   * Les deux gestes d'un accord (audit de l'interface du 2026-09-27, I11) ·
+   * les routes existaient sans geste. La part de main-d'œuvre locale est
+   * SAISIE avec sa source, jamais calculée (loi n° 004/2001, art. 37) ; la
+   * dénonciation est le seul fait qui arrête un accord en tacite
+   * reconduction.
+   */
+  async function declarerMainOeuvre(id: string) {
+    setErreur(null);
+    const part = window.prompt("Part de main-d'œuvre locale, en % (0 à 100)");
+    if (part === null || part.trim() === '') return;
+    const source = window.prompt('Source de ce chiffre (registre du personnel, déclaration, rapport…)');
+    if (!source?.trim()) return;
+    const date = window.prompt('Date à laquelle la part est constatée (AAAA-MM-JJ)');
+    if (!date) return;
+    try {
+      await api.patch(`/accord-cadre/${id}/main-oeuvre`, { part: Number(part.replace(',', '.')), source: source.trim(), date });
+      await recharger();
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : "L'enregistrement n'a pas abouti.");
+    }
+  }
+
+  async function denoncer(id: string) {
+    setErreur(null);
+    const denonceLe = window.prompt('Date de la dénonciation (AAAA-MM-JJ)');
+    if (!denonceLe) return;
+    const motif = window.prompt('Motif de la dénonciation');
+    if (!motif?.trim()) return;
+    try {
+      await api.patch(`/accord-cadre/${id}/denonciation`, { denonceLe, motif: motif.trim() });
+      await recharger();
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : "L'enregistrement n'a pas abouti.");
+    }
+  }
+
   if (!etat) return <div className="p-3 text-[11.5px] text-text-dim">Chargement…</div>;
 
   if (!etat.applicable) {
@@ -205,6 +242,16 @@ export function AccordCadrePage() {
                           : a.etat.periodeEcoulee
                             ? 'Période close'
                             : 'En cours'}
+                      {peutEcrire && !a.denonceLe && (
+                        <span className="ml-2 inline-flex gap-1">
+                          <button type="button" className="border border-border px-1.5 py-0.5 text-[11px]" onClick={() => void declarerMainOeuvre(a.id)}>
+                            Main-d’œuvre locale
+                          </button>
+                          <button type="button" className="border border-border px-1.5 py-0.5 text-[11px]" onClick={() => void denoncer(a.id)}>
+                            Dénoncer
+                          </button>
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}
