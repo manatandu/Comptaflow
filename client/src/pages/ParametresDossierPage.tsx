@@ -6,7 +6,7 @@ import { Aide } from '../components/chrome/Aide';
 import { NaturesCompte } from '../components/NaturesCompte';
 import { Ligne, OngletsVerticaux, SectionTitre, champSage } from '../components/FormulaireSage';
 import { SYSTEMES_SYSCOHADA } from '../lib/systemes-syscohada';
-import { FORMES_SYSCOHADA } from '../lib/formes-juridiques-syscohada';
+import { FORMES_PERSONNES_PHYSIQUES, FORMES_SYSCOHADA } from '../lib/formes-juridiques-syscohada';
 import { BoutonImprimer, EnteteImpression } from '../components/chrome/EnteteImpression';
 import { EditionStructure } from '../components/EditionStructure';
 import { editionParametres } from '../lib/editions-structures';
@@ -175,8 +175,7 @@ export function ParametresDossierPage() {
   // personne physique n'ont de capital social.
   const peutPorterCapital =
     params?.referentiel === 'SYSCOHADA' &&
-    params.formeJuridiqueSyscohada !== 'ENTREPRISE_INDIVIDUELLE' &&
-    params.formeJuridiqueSyscohada !== 'ENTREPRENANT';
+    !(params.formeJuridiqueSyscohada && FORMES_PERSONNES_PHYSIQUES.includes(params.formeJuridiqueSyscohada));
 
   const charger = async () => {
     try {

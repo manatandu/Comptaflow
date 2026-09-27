@@ -107,3 +107,16 @@ export const FORMES_SYSCOHADA: {
       "Toute autre entité produisant des biens ou des services marchands ou non marchands, dans un but lucratif ou non, à titre principal ou accessoire, sur la base d'actes répétitifs (AUDCIF art. 2).",
   },
 ];
+
+/**
+ * PERSONNES PHYSIQUES · miroir de `FORMES_PERSONNES_PHYSIQUES` du serveur
+ * (`src/modules/retenues/correspondance-retenues.ts`), seule liste qui fasse
+ * foi. L'écran l'écrivait à la main, forme par forme, et une forme ajoutée au
+ * serveur aurait laissé l'écran proposer un capital social qu'il refuse
+ * (audit du serveur I6). `formes-personnes-physiques.spec.ts` relit les deux
+ * listes et exige qu'elles coïncident.
+ */
+export const FORMES_PERSONNES_PHYSIQUES: readonly FormeJuridiqueSyscohada[] = [
+  'ENTREPRISE_INDIVIDUELLE',
+  'ENTREPRENANT',
+];
