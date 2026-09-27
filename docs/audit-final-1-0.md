@@ -349,6 +349,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 4
 - **Constat :** la lecture de l'administrateur se fait hors de toute sortie de cloisonnement, si bien que la garde rend null pour un autre dossier. La route de dernier recours ne marche que pour le propre dossier de l'opérateur.
 - **Correction :** envelopper la lecture dans `horsCloisonnement` et ajouter un test à travers la vraie garde.
+- **Fait le 2026-09-27 :** la lecture de l'administrateur sort du cloisonnement comme l'écriture, sur l'adresse normalisée (F43), le filtre gardant le dossier désigné et le rôle d'administrateur. Test : `licence-client-cloisonnement.spec.ts`, à travers la vraie garde, doublure au filtre complet (trois mutations tuées).
 
 **F46 · Les cellules d'un groupe ne suivent pas l'échéance ni le paiement de la mère** [plateforme-02, socle-09]
 - **Emplacements :** src/modules/plateforme/plateforme.service.ts:162-181, :211-218 · src/modules/groupe/groupe.service.ts:294, :311

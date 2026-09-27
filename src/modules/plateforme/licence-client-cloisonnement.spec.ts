@@ -59,3 +59,56 @@ describe('console · échéance de la licence d’un abonné', () => {
     await expect(monte({ type: 'PROPRIETAIRE' }).s.echeanceAbonnement('c', '2026-12-15')).rejects.toThrow(/éditeur/);
   });
 });
+
+/**
+ * AUDIT FINAL F45 · la réinitialisation de l'administrateur d'un cabinet
+ * CLIENT, à travers la vraie garde. La lecture se faisait dans le contexte de
+ * l'opérateur · la garde rendait le compte inexistant, et la route de dernier
+ * recours répondait 404 pour tout autre dossier que celui de l'éditeur.
+ */
+describe('console · réinitialisation de l’administrateur d’un cabinet client, à travers la garde', () => {
+  const admin = { id: 'adm', tenantId: 'CLIENT', email: 'admin@client.cd', role: 'ADMIN_CABINET' };
+  const comptable = { id: 'cpt', tenantId: 'CLIENT', email: 'compta@client.cd', role: 'COMPTABLE' };
+  // La doublure honore les trois termes du filtre · dossier, adresse et rôle.
+  const brut = {
+    user: {
+      findFirst: jest.fn(
+        async ({ where }: { where: { tenantId: string; email: string; role?: string } }) =>
+          [admin, comptable].find(
+            (u) => u.tenantId === where.tenantId && u.email === where.email && (where.role === undefined || u.role === where.role),
+          ) ?? null,
+      ),
+      findUnique: async () => admin,
+      update: jest.fn(async () => ({ ...admin })),
+      updateMany: async () => ({ count: 1 }),
+    },
+  };
+  const garde = (op: keyof typeof brut.user) => (args: unknown) =>
+    garderCloisonnement(brut as never, { model: 'User', operation: op, args, query: () => (brut.user[op] as (a: unknown) => Promise<unknown>)(args) });
+  const prisma = { user: { findFirst: garde('findFirst'), update: garde('update') } };
+  const service = () => new PlateformeService(prisma as never, { get: () => undefined } as never, undefined as never);
+
+  it('l’opérateur, connecté au dossier de l’éditeur, réinitialise l’administrateur du client', async () => {
+    const r = await dansContexteAudit({ acteurId: 'op', acteurEmail: 'op@vmg', tenantId: 'EDITEUR' } as never, () =>
+      service().reinitialiserAdmin('CLIENT', { email: ' Admin@Client.CD ', motDePasseProvisoire: 'provisoire-1234' }),
+    );
+    expect(r).toEqual({ reinitialise: true, email: 'admin@client.cd' });
+    expect(brut.user.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('l’opérateur ne réinitialise que l’administrateur, jamais un autre compte du dossier', async () => {
+    await expect(
+      dansContexteAudit({ acteurId: 'op', acteurEmail: 'op@vmg', tenantId: 'EDITEUR' } as never, () =>
+        service().reinitialiserAdmin('CLIENT', { email: 'compta@client.cd', motDePasseProvisoire: 'provisoire-1234' }),
+      ),
+    ).rejects.toThrow(/Aucun administrateur/);
+  });
+
+  it('un compte qui n’est pas l’administrateur de CE dossier reste introuvable', async () => {
+    await expect(
+      dansContexteAudit({ acteurId: 'op', acteurEmail: 'op@vmg', tenantId: 'EDITEUR' } as never, () =>
+        service().reinitialiserAdmin('AUTRE', { email: 'admin@client.cd', motDePasseProvisoire: 'provisoire-1234' }),
+      ),
+    ).rejects.toThrow(/Aucun administrateur/);
+  });
+});

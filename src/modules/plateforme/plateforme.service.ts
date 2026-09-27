@@ -425,9 +425,15 @@ export class PlateformeService implements OnModuleInit {
    * tous les cabinets.
    */
   async reinitialiserAdmin(tenantId: string, dto: { email: string; motDePasseProvisoire: string }) {
-    const admin = await this.prisma.user.findFirst({
-      where: { tenantId, email: dto.email, role: RoleUtilisateur.ADMIN_CABINET },
-    });
+    // LA LECTURE SORT DU CLOISONNEMENT ELLE AUSSI (audit final F45) · faite
+    // dans le contexte de l'opérateur, la garde rendait « inexistant » le
+    // compte d'un autre dossier, et la route de dernier recours répondait 404
+    // pour tout cabinet client. Le filtre garde le dossier désigné et le rôle.
+    const admin = await horsCloisonnement('console · lecture de l’administrateur d’un cabinet client', () =>
+      this.prisma.user.findFirst({
+        where: { tenantId, email: normaliserCourriel(dto.email), role: RoleUtilisateur.ADMIN_CABINET },
+      }),
+    );
     if (!admin) {
       throw new NotFoundException(
         "Aucun administrateur avec cette adresse dans ce dossier · l'opérateur ne réinitialise que les administrateurs.",
