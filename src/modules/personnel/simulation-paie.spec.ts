@@ -741,3 +741,20 @@ describe('F105 · le régime salarial est lu, et son absence est dite', () => {
     expect(res.regimeSalarial.motif ?? '').not.toContain('RÉGIME NON DÉCLARÉ');
   });
 });
+
+/** AUDIT FINAL F112 · le câblage · jours payés et grille du dossier arrivent au plancher. */
+describe('F112 · la simulation passe les jours payés au plancher de la CNSS', () => {
+  it('un mois incomplet de dix jours cotise sur 215 000 FC', async () => {
+    const { svc } = service();
+    const res = await svc.simulerPaie(
+      't-1',
+      null,
+      dto({
+        joursPayes: 10,
+        elements: [{ nature: 'SALAIRE_OU_TRAITEMENT', libelle: 'Salaire', montantFc: 100_000 }],
+      } as Partial<SimulationPaieDto>),
+    );
+    const qp = res.cotisations.lignes.find((l) => l.cle === 'cnss-pension-travailleur');
+    expect(qp?.assietteFc).toBe(215_000);
+  });
+});

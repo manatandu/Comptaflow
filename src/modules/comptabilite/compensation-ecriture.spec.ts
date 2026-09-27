@@ -43,6 +43,17 @@ describe('compensation d’une écriture', () => {
     expect(m.ordre).toEqual(['lignes', 'tete']);
   });
 
+  // AUDIT FINAL F107 · le module qui a posé son lien le dénoue dans la même
+  // transaction, AVANT les lignes · la paie lie ses bulletins après la
+  // création, et une clé RESTRICT refuserait sinon la tête.
+  it('le lien du module appelant se dénoue en premier, dans la transaction', async () => {
+    const m = monter();
+    await m.service.retirerCompensation('t1', 'e1', async () => {
+      m.ordre.push('liberer');
+    });
+    expect(m.ordre).toEqual(['liberer', 'lignes', 'tete']);
+  });
+
   it('un échec remonte, il ne se tait jamais', async () => {
     const m = monter({ echecLignes: true });
     await expect(m.service.retirerCompensation('t1', 'e1')).rejects.toThrow('base indisponible');

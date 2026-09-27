@@ -15,6 +15,7 @@ import {
   regimeApplicable,
   retenueMensuelle,
 } from './bareme-irpp';
+import { arrondirImpotArt150 } from '../fiscalite/arrondi-article-150';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -190,7 +191,8 @@ describe("La retenue mensuelle de l'article 119", () => {
     const verdict = retenueMensuelle('2026-03', 1_000_000);
     expect(verdict.revenuAnnualiseFc).toBe(12_000_000);
     expect(verdict.annuel.assietteArrondieFc).toBe(12_000_000);
-    expect(verdict.retenueFc).toBeCloseTo(verdict.annuel.impotDuFc / MOIS_PAR_AN, 6);
+    // Ramené au mois, puis arrondi selon l'art. 150 (audit final F111).
+    expect(verdict.retenueFc).toBe(arrondirImpotArt150(verdict.annuel.impotDuFc / MOIS_PAR_AN));
   });
 
   it("ARRONDIT LE REVENU ANNUALISÉ, jamais le mois", () => {
@@ -260,14 +262,31 @@ describe('Le barème lu au mois · ce que montrent l’écran et le bulletin', (
     ]);
   });
 
-  it('rend, pour 1 000 000 FC par mois, les 130 560 FC du barème mensuel', () => {
+  it('rend, pour 1 000 000 FC par mois, les 130 560 FC du barème mensuel, retenus 130 600 FC', () => {
     const v = retenueMensuelle('2026-03', 1_000_000);
     expect(v.mensuel.parTranche.map((t) => [t.tauxPourCent, t.baseFc, t.impotFc])).toEqual([
       [3, 162_000, 4_860],
       [15, 838_000, 125_700],
     ]);
     expect(v.mensuel.impotDuBaremeFc).toBeCloseTo(130_560, 6);
-    expect(v.mensuel.retenueFc).toBeCloseTo(130_560, 6);
+    expect(v.mensuel.retenueAvantArrondiFc).toBeCloseTo(130_560, 6);
+    // ART. 150 · la tranche de 60 FC, supérieure à 50, monte à la centaine.
+    expect(v.mensuel.arrondiArticle150Fc).toBeCloseTo(40, 6);
+    expect(v.mensuel.retenueFc).toBe(130_600);
+    expect(v.retenueFc).toBe(130_600);
+  });
+
+  it("arrondit à la centaine INFÉRIEURE sous 50 FC · art. 150, alinéa 3", () => {
+    // 163 000 FC par mois · 162 000 à 3 % (4 860) et 1 000 à 15 % (150),
+    // soit 5 010 FC · le reste sous la centaine, 10, est inférieur à 50.
+    const v = retenueMensuelle('2026-03', 163_000);
+    expect(v.mensuel.retenueAvantArrondiFc).toBeCloseTo(5_010, 6);
+    expect(v.retenueFc).toBe(5_000);
+    expect(v.mensuel.arrondiArticle150Fc).toBeCloseTo(-10, 6);
+  });
+
+  it("n'écrit pas l'arrondi deux fois · la paie appelle le porteur du module fiscal", () => {
+    expect(SOURCE).toContain("import { arrondirImpotArt150 } from '../fiscalite/arrondi-article-150';");
   });
 
   it.each([
@@ -281,8 +300,11 @@ describe('Le barème lu au mois · ce que montrent l’écran et le bulletin', (
     const m = v.mensuel;
     const somme = m.parTranche.reduce((n, t) => n + t.impotFc, 0);
     expect(somme).toBeCloseTo(m.impotDuBaremeFc, 6);
-    expect(m.impotArticle118Fc - m.reductionFc).toBeCloseTo(v.retenueFc, 6);
-    expect(m.retenueFc).toBeCloseTo(v.retenueFc, 6);
+    expect(m.impotArticle118Fc - m.reductionFc).toBeCloseTo(m.retenueAvantArrondiFc, 6);
+    // L'arrondi de l'art. 150 est une ligne à part, sous cent francs.
+    expect(m.retenueAvantArrondiFc + m.arrondiArticle150Fc).toBeCloseTo(v.retenueFc, 6);
+    expect(Math.abs(m.arrondiArticle150Fc)).toBeLessThan(100);
+    expect(m.retenueFc).toBe(v.retenueFc);
   });
 
   it('montre le plafond au mois quand il mord', () => {

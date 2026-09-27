@@ -1,12 +1,11 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { StatutEcriture, StatutExercice, TypeCompteDetailTotal } from '@prisma/client';
+import { TypeCompteDetailTotal } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
-import { EcritureService } from '../comptabilite/ecriture.service';
+import { DETENTEUR_PAIE_DU_MOIS, EcritureService } from '../comptabilite/ecriture.service';
 import { moisValide } from './bulletin-paie';
 import { propositionPaieDuMois, type BulletinAComptabiliser } from './comptabilisation-paie';
 import type { Referentiel } from './passation-paie';
 import { ComptabilisationPaieDto } from './dto/personnel.dto';
-import { estTenueParUnLettrage } from '../lettrage/ligne-lettree';
 
 /**
  * P9 · passer la paie du mois au journal, et défaire ce passage tant que
@@ -132,11 +131,12 @@ export class ComptabilisationPaieService {
       data: { ecritureId: ecriture.id },
     });
     if (lies.count !== ids.length) {
-      await this.prisma.$transaction(async (tx) => {
-        await tx.bulletinPaie.updateMany({ where: { tenantId, ecritureId: ecriture.id }, data: { ecritureId: null } });
-        await tx.ligneEcriture.deleteMany({ where: { ecritureId: ecriture.id } });
-        await tx.ecriture.deleteMany({ where: { tenantId, id: ecriture.id } });
-      });
+      // PAR LA COMPENSATION DU JOURNAL, jamais réécrite ici (audit final
+      // F107) · les bulletins que ce clic a liés se délient dans la même
+      // transaction que l'écriture part.
+      await this.ecritures.retirerCompensation(tenantId, ecriture.id, (tx) =>
+        tx.bulletinPaie.updateMany({ where: { tenantId, ecritureId: ecriture.id }, data: { ecritureId: null } }),
+      );
       throw new ConflictException(
         `La paie de ${mois} a changé pendant la passation (un bulletin passé ou annulé entre-temps). ` +
           "Rien n'est enregistré · relisez la proposition et recommencez.",
@@ -151,36 +151,18 @@ export class ComptabilisationPaieService {
    * seule une écriture en négatif la corrige (art. 20).
    */
   async annulerComptabilisation(tenantId: string, ecritureId: string) {
-    const ecriture = await this.prisma.ecriture.findFirst({
-      where: { id: ecritureId, tenantId },
-      select: {
-        id: true,
-        statut: true,
-        numeroPiece: true,
-        exercice: { select: { statut: true } },
-        lignes: { select: { lettre: true, lettrageId: true } },
-      },
-    });
+    const ecriture = await this.prisma.ecriture.findFirst({ where: { id: ecritureId, tenantId }, select: { id: true } });
     if (!ecriture) throw new NotFoundException('Écriture introuvable dans ce dossier.');
     const porte = await this.prisma.bulletinPaie.count({ where: { tenantId, ecritureId } });
     if (porte === 0) throw new BadRequestException("Cette écriture ne passe aucun bulletin de paie.");
-    if (ecriture.statut === StatutEcriture.VALIDEE) {
-      throw new BadRequestException(
-        `L'écriture n° ${ecriture.numeroPiece ?? ''} est validée · elle est entrée au livre-journal et ne se retire plus ` +
-          '(AUDCIF art. 22, 2°). Une erreur se corrige par une écriture en négatif (art. 20).',
-      );
-    }
-    if (ecriture.exercice.statut === StatutExercice.CLOTURE) {
-      throw new BadRequestException("L'exercice de cette écriture est clôturé.");
-    }
-    // Soldé OU partiel (audit final F50, lettrage/ligne-lettree.ts).
-    if (ecriture.lignes.some(estTenueParUnLettrage)) {
-      throw new BadRequestException("Une ligne de cette écriture est lettrée · délettrez-la d'abord.");
-    }
-    await this.prisma.$transaction(async (tx) => {
-      await tx.bulletinPaie.updateMany({ where: { tenantId, ecritureId }, data: { ecritureId: null } });
-      await tx.ligneEcriture.deleteMany({ where: { ecritureId } });
-      await tx.ecriture.deleteMany({ where: { tenantId, id: ecritureId } });
+    // LES GARDES SONT CELLES DU JOURNAL, et une seule fois (audit final
+    // F107) · brouillard, exercice ouvert, report à-nouveau, lettrage soldé
+    // ou partiel, pointage, autres détenteurs. Recopiées ici, elles avaient
+    // déjà oublié le pointage. La paie se nomme comme détenteur libéré, et
+    // les bulletins se délient dans la transaction qui retire l'écriture.
+    await this.ecritures.supprimer(tenantId, ecritureId, {
+      detenteur: DETENTEUR_PAIE_DU_MOIS,
+      liberer: (tx) => tx.bulletinPaie.updateMany({ where: { tenantId, ecritureId }, data: { ecritureId: null } }),
     });
     return { annule: true, bulletinsLiberes: porte };
   }

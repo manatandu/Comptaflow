@@ -1,4 +1,5 @@
 import { HORS_REMUNERATION_ARTICLE_7, type NatureElementPaie } from './assiettes-paie';
+import { nombreDeDecimales } from '../../common/decimales';
 
 /**
  * BULLETINS MODÈLES · Sage Paie les décrit comme des « gabarits de rubriques
@@ -73,7 +74,7 @@ export function motifRefusModele(
     }
     if (l.montant !== undefined && l.montant !== null) {
       if (!Number.isFinite(l.montant) || l.montant < 0) return `Élément ${n} · le montant est positif ou nul.`;
-      if (Math.round(l.montant * 100) !== l.montant * 100) return `Élément ${n} · deux décimales au plus.`;
+      if (nombreDeDecimales(l.montant) > 2) return `Élément ${n} · deux décimales au plus.`;
     }
   }
   return null;

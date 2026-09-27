@@ -18,6 +18,12 @@ export type DetailMensuelIrpp = {
   impotArticle118Fc: number;
   quotitePourCent: number;
   reductionFc: number;
+  /**
+   * L'arrondi de l'art. 150 (audit final F111). Absent d'un bulletin émis
+   * avant, qui se relit sans lui · un bulletin ne se modifie pas.
+   */
+  retenueAvantArrondiFc?: number;
+  arrondiArticle150Fc?: number;
   retenueFc: number;
 };
 
@@ -76,6 +82,17 @@ export function BaremeMensuelIrpp({
               <td className="py-1 text-right font-mono">− {fc(mensuel.reductionFc)}</td>
             </tr>
           )}
+          {mensuel.arrondiArticle150Fc !== undefined && Math.abs(mensuel.arrondiArticle150Fc) > 0.005 && (
+            <tr className="border-b border-border/40">
+              <td className="py-1" colSpan={3}>
+                Arrondi à la centaine (art. 150)
+              </td>
+              <td className="py-1 text-right font-mono">
+                {mensuel.arrondiArticle150Fc > 0 ? '+ ' : '− '}
+                {fc(Math.abs(mensuel.arrondiArticle150Fc))}
+              </td>
+            </tr>
+          )}
           <tr className="font-semibold">
             <td className="py-1" colSpan={3}>
               Retenue du mois
@@ -92,8 +109,8 @@ export function BaremeMensuelIrpp({
         </span>
         <Aide
           titre="Barème mensuel de l’IRPP"
-          texte="L’impôt est calculé sur l’année, revenu arrondi au millier inférieur comme l’écrit l’art. 118, puis relu avec les tranches de l’article 118 divisées par douze."
-          source="Art. 118"
+          texte="L’impôt est calculé sur l’année, revenu arrondi au millier inférieur comme l’écrit l’art. 118, puis relu avec les tranches de l’article 118 divisées par douze. La retenue du mois est arrondie à la centaine de francs selon l’art. 150, supérieure dès 50 FC."
+          source="Art. 118, 119 et 150"
         />
       </div>
     </div>

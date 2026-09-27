@@ -385,9 +385,9 @@ export class SimulationPaieDto {
   personnesACharge?: number;
 
   /**
-   * Article 71 · les versements déductibles du brut, quote-part ouvrière de
-   * la CNSS en tête. Ils sont SAISIS · les taux vivent au registre des
-   * retenues avec leur date d'effet, et ce module ne les recopie pas.
+   * Article 71 · les AUTRES versements déductibles du brut. La quote-part
+   * ouvrière de la CNSS est calculée par la simulation et s'y ajoute d'office ·
+   * la saisir ici la déduirait deux fois (audit final F109).
    */
   @IsOptional()
   @IsNumber()
@@ -435,6 +435,17 @@ export class SimulationPaieDto {
   @IsOptional()
   @IsEnum(['BAREME_ARTICLE_118', 'FORFAIT_PERSONNEL_DOMESTIQUE', 'FORFAIT_SALARIE_DE_MICRO_ENTREPRISE'])
   regimeSalarial?: RegimeSalarial;
+
+  /**
+   * Jours payés d'un mois INCOMPLET, en jours ouvrables, le mois entier en
+   * comptant 26 (décret n° 25/22, art. 7). Sert au seul plancher de la CNSS
+   * (décret n° 18/041, art. 8) · absent, le mois est entier (audit final F112).
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(26)
+  joursPayes?: number;
 
   /** Effectif · il commande la tranche INPP du secteur PRIVÉ seulement. */
   @IsOptional()

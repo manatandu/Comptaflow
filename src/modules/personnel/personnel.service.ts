@@ -88,13 +88,17 @@ import {
 } from './regles-contrat-travail';
 
 /**
- * LE REGISTRE DU PERSONNEL · P1 de la paie.
+ * LE PERSONNEL · le registre (P1), puis la paie qui s'appuie sur lui.
  *
- * CE QU'IL FAIT : il tient l'état civil et les engagements, et il CONFRONTE
- * chaque contrat à l'article 212 et aux requalifications des articles 40 à
- * 45. CE QU'IL NE FAIT PAS : aucun bulletin, aucune assiette, aucun montant.
- * P0 a établi que le moteur bute sur des textes absents du corpus, et le
- * registre ne les contourne pas.
+ * LE REGISTRE tient l'état civil et les engagements, et CONFRONTE chaque
+ * contrat à l'article 212 et aux requalifications des articles 40 à 45. LA
+ * PAIE est venue ensuite, passe par passe · simulation d'un mois (assiettes,
+ * cotisations des deux côtés, retenue de l'art. 119, net, quotité de
+ * l'art. 114), décompte final, livre de paie, bulletin émis et proposition
+ * d'écriture. Chaque règle vit dans son fichier (`assiettes-paie.ts`,
+ * `cotisations-paie.ts`, `bareme-irpp.ts`, `quotite-saisissable.ts`,
+ * `bulletin-paie.ts`, `passation-paie.ts`) · ce service lit le dossier et les
+ * appelle, il ne réécrit aucune règle (audit final F109).
  *
  * IL EST COMMUN AUX DEUX RÉFÉRENTIELS, et ce n'est pas un oubli du
  * cloisonnement (CLAUDE.md § 6). Le Code du travail ne connaît ni le SYCEBNL
@@ -476,12 +480,15 @@ export class PersonnelService {
 
 
   /**
-   * LA SIMULATION DE PAIE · P2a. DEUX ASSIETTES ET UNE RETENUE, RIEN DE PLUS.
+   * LA SIMULATION DE PAIE D'UN MOIS · les deux assiettes, les cotisations des
+   * deux côtés, la retenue de l'art. 119, le net, la quotité de l'art. 114 et
+   * la proposition d'écriture.
    *
-   * CE QU'ELLE N'EST PAS, ET L'ÉCRAN LE DIT AVANT LES CHIFFRES. Ce n'est pas
-   * un bulletin de paie · rien n'est stocké, aucune écriture n'est proposée,
-   * aucune cotisation patronale n'est liquidée. Le bulletin, le livre de paie
-   * des articles 213 à 215 et la passation comptable sont de P2b et de P3.
+   * CE QU'ELLE N'EST PAS · un bulletin. Rien n'est stocké et rien n'est passé
+   * au journal ; c'est l'ÉMISSION du bulletin qui fige ce calcul (art. 103),
+   * et la paie du mois qui le passe (audit final F109 · cet en-tête disait
+   * encore qu'aucune cotisation patronale n'était liquidée ni aucune écriture
+   * proposée).
    *
    * POURQUOI ELLE EXISTE QUAND MÊME. Les deux assiettes d'un bulletin
    * congolais ne coïncident pas, et c'est l'erreur la plus coûteuse du
@@ -725,6 +732,10 @@ export class PersonnelService {
       natureEmployeurInpp: (dto.natureEmployeurInpp as NatureEmployeurInpp | undefined) ?? null,
       effectif: dto.effectif ?? null,
       majorationRisquesProfessionnels: dto.majorationRisquesProfessionnels,
+      // Le plancher de la CNSS (audit final F112) · la grille SMIG du dossier
+      // et les jours payés d'un mois incomplet.
+      joursPayes: dto.joursPayes ?? null,
+      annexesSmig,
     });
 
     // Le champ saisi porte les AUTRES versements de l'article 71 (une caisse
@@ -900,10 +911,11 @@ export class PersonnelService {
    * LE LIVRE DE PAIE · PUREMENT DÉCLARATIF, RIEN N'EST LU NI ÉCRIT.
    *
    * OmegaX ne tient pas le livre de paie et ne prétend pas en tenir lieu.
-   * Il dit ce que les articles 213 à 215 exigent, il compte les mentions de
-   * l'article 25 de l'arrêté n° 146/2018 qu'un document couvre, et il REFUSE
-   * toujours de certifier la conformité au modèle : l'arrêté de 2008 qui fixe
-   * ce modèle est identifié mais pas lu.
+   * Il dit ce que les articles 213 à 215 exigent, il compte les trente-trois
+   * énonciations de l'article 1er de l'arrêté n° 12/CAB.MIN/ETPS/042 du
+   * 8 août 2008 qu'un document couvre, et il REFUSE toujours de certifier la
+   * conformité AU MODÈLE ANNEXÉ, qui est une mise en forme et non une liste
+   * (`RESERVE_MISE_EN_FORME`).
    */
   livreDePaie(_tenantId: string, dto: LivreDePaieDto) {
     return {

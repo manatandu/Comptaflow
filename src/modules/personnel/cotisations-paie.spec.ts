@@ -1,10 +1,14 @@
+import { NATURES_RETENUES } from '../retenues/correspondance-retenues';
+import { annexeDuCabinet } from './bareme-smig';
 import {
+  BAREMES_CNSS,
   BAREMES_INPP,
   BAREMES_ONEM,
   MAJORATION_RISQUES_PROFESSIONNELS_MAXIMUM,
   TAUX_CNSS,
   cotisations,
   netAPayer,
+  plancherCnss,
   tauxInpp,
   tauxOnem,
 } from './cotisations-paie';
@@ -164,5 +168,118 @@ describe("Le net à payer part du TOTAL VERSÉ, jamais de l'assiette", () => {
     expect(r).toContain('décret n° 25/22');
     expect(r).toContain('arrêté n° 12/CAB.MIN/TPS/110/2005, art. 10');
     expect(r).toContain("n'est retenue sur aucun bulletin");
+  });
+});
+
+/**
+ * AUDIT FINAL F109 · LES TAUX VIVENT DEUX FOIS, ET ILS SONT CONFRONTÉS. Ce
+ * fichier les chiffre pour le calcul ; le registre des retenues les CITE pour
+ * la déclaration. L'en-tête prétendait qu'ils se lisaient au même endroit ·
+ * ce test fait de la double écriture une double vérification. La phrase qui
+ * nomme l'arrêté d'une version doit porter ses taux.
+ */
+describe('F109 · chaque taux calculé est celui que le registre des retenues cite', () => {
+  const texte = (cle: string) => {
+    const n = NATURES_RETENUES.find((x) => x.cle === cle);
+    expect(n).toBeDefined();
+    return `${n!.baseLegale} ${n!.reserve ?? ''}`;
+  };
+  /** La phrase qui contient `repere` · une fin de phrase suivie d'une majuscule. */
+  const phrase = (t: string, repere: string) => {
+    const p = t.split(/\.\s+(?=[A-ZÉÀ«])/).find((x) => x.includes(repere));
+    expect(p).toBeDefined();
+    return p!;
+  };
+  const pc = (x: number) => `${String(x).replace('.', ',')} %`;
+  const numeroDe = (reference: string) => reference.match(/n° \S+/)![0].replace(/,$/, '');
+
+  it('INPP · chaque version, public et tranches du privé', () => {
+    const t = texte('inpp');
+    for (const v of BAREMES_INPP) {
+      const p = phrase(t, numeroDe(v.reference));
+      expect(p).toContain(pc(v.publicPourCent));
+      const [t1, t2, t3] = v.priveParTranche.map((x) => x.tauxPourCent);
+      expect(p).toContain(`${pc(t1)} de 1 à 50`);
+      expect(p).toContain(`${pc(t2)} de 51 à 300`);
+      expect(p).toContain(`${pc(t3)} au-delà de 300`);
+    }
+  });
+
+  it('ONEM · chaque version', () => {
+    const t = texte('onem');
+    for (const v of BAREMES_ONEM) expect(phrase(t, numeroDe(v.reference))).toContain(pc(v.tauxPourCent));
+  });
+
+  it('CNSS · la version en vigueur', () => {
+    const v = BAREMES_CNSS[BAREMES_CNSS.length - 1];
+    const p = phrase(texte('cnss'), 'décret n° 18/041');
+    expect(p).toContain(`prestations aux familles ${pc(v.prestationsAuxFamilles!)}`);
+    expect(p).toContain(`${pc(v.pensionsEmployeur)} employeur, ${pc(v.pensionsTravailleur)} travailleur`);
+    expect(p).toContain(`risques professionnels ${pc(v.risquesProfessionnels)}`);
+  });
+});
+
+/**
+ * AUDIT FINAL F112 · LE PLANCHER DE LA CNSS. Décret n° 18/041, art. 8 · loi
+ * n° 16/009, art. 13 · « en aucun cas » la base ne descend sous le SMIG. Le
+ * SMIG est JOURNALIER (décret n° 25/22, art. 2), le mois en compte 26 (art. 7).
+ */
+describe('F112 · le plancher de la CNSS', () => {
+  it('hors corpus (avant mai 2025), rien n’est vérifié et c’est dit', () => {
+    const p = plancherCnss('2025-03', 100_000);
+    expect(p.baseFc).toBe(100_000);
+    expect(p.message).toContain('PLANCHER NON VÉRIFIÉ');
+  });
+
+  it('au-dessus du SMIG d’un mois entier (21 500 × 26 = 559 000), rien ne change', () => {
+    const p = plancherCnss('2026-03', 600_000);
+    expect(p).toMatchObject({ baseFc: 600_000, applique: false, message: null, plancherFc: 559_000 });
+  });
+
+  it('sous le plancher sans jours payés déclarés, la CNSS s’abstient et demande les jours', () => {
+    const p = plancherCnss('2026-03', 300_000);
+    expect(p.baseFc).toBeNull();
+    expect(p.message).toContain('déclarez les jours payés');
+  });
+
+  it('un mois incomplet se mesure au SMIG de ses jours · 10 jours, 215 000 FC', () => {
+    expect(plancherCnss('2026-03', 300_000, 10)).toMatchObject({ baseFc: 300_000, applique: false });
+    const p = plancherCnss('2026-03', 100_000, 10);
+    expect(p).toMatchObject({ baseFc: 215_000, applique: true, plancherFc: 215_000 });
+    expect(p.message).toContain('PLANCHER APPLIQUÉ');
+  });
+
+  it('mai à décembre 2025 · deux lectures (payé 14 500, fixé 21 500), non tranchées', () => {
+    // 400 000 est au-dessus de 14 500 × 26 = 377 000 et sous 559 000.
+    const p = plancherCnss('2025-10', 400_000);
+    expect(p.baseFc).toBeNull();
+    expect(p.message).toContain('PLANCHER NON TRANCHÉ');
+    expect(plancherCnss('2025-10', 600_000).baseFc).toBe(600_000);
+  });
+
+  it('une grille du cabinet porte un seul taux, et il fait le plancher', () => {
+    const grille = annexeDuCabinet({ aPartirDu: '2027-01-01', reference: 'Arrêté de test', smigJournalierFc: 25_000 });
+    expect(plancherCnss('2027-02', 600_000, null, [grille]).baseFc).toBeNull();
+    expect(plancherCnss('2027-02', 600_000, 26, [grille])).toMatchObject({ baseFc: 650_000, applique: true });
+  });
+
+  it('les cotisations CNSS se calculent sur le plancher, l’INPP et l’ONEM sur l’assiette', () => {
+    const v = cotisations(100_000, { ...M, joursPayes: 10, natureEmployeurInpp: 'PRIVE', effectif: 10 });
+    const par = (cle: string) => v.lignes.find((l) => l.cle === cle)!;
+    // Les QUATRE lignes de la CNSS, patronales comprises.
+    for (const cle of ['cnss-pf', 'cnss-pension-employeur', 'cnss-pension-travailleur', 'cnss-rp']) {
+      expect(par(cle).assietteFc).toBe(215_000);
+    }
+    expect(par('cnss-pension-travailleur').montantFc).toBeCloseTo(10_750, 6);
+    expect(par('inpp').assietteFc).toBe(100_000);
+    expect(par('onem').assietteFc).toBe(100_000);
+    expect(v.reserves?.join(' ')).toContain('PLANCHER APPLIQUÉ');
+  });
+
+  it('une CNSS en abstention ne pose aucune ligne CNSS, et garde l’INPP et l’ONEM', () => {
+    const v = cotisations(100_000, { ...M, natureEmployeurInpp: 'PRIVE', effectif: 10 });
+    expect(v.lignes.some((l) => l.organisme === 'CNSS')).toBe(false);
+    expect(v.abstentions.join(' ')).toContain('ASSIETTE SOUS LE PLANCHER');
+    expect(v.lignes.map((l) => l.cle)).toEqual(expect.arrayContaining(['inpp', 'onem']));
   });
 });

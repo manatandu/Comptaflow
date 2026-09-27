@@ -32,6 +32,16 @@ describe('motifRefusModele', () => {
     expect(motifRefusModele(m as never, RUBRIQUES)).toMatch(motif);
   });
 
+  // AUDIT FINAL F108 · `Math.round(x * 100) !== x * 100` refusait ces montants,
+  // le produit flottant n'étant pas entier (19.99 * 100 = 1998.9999999999998).
+  it.each([19.99, 1.1, 1234.1, 0.07, 1_000_000.01, 5e21])('accepte %p, qui a deux décimales au plus', (montant) => {
+    expect(motifRefusModele({ nom: 'X', deviseStipulation: 'USD', lignes: [ligne({ montant })] }, RUBRIQUES)).toBeNull();
+  });
+
+  it.each([0.001, 19.999, 1e-7])('refuse %p, qui en a plus de deux', (montant) => {
+    expect(motifRefusModele({ nom: 'X', deviseStipulation: 'USD', lignes: [ligne({ montant })] }, RUBRIQUES)).toMatch(/deux décimales/);
+  });
+
   it('borne le nombre d’éléments', () => {
     const lignes = Array.from({ length: MAX_LIGNES_MODELE + 1 }, () => ligne());
     expect(motifRefusModele({ nom: 'X', deviseStipulation: 'CDF', lignes }, RUBRIQUES)).toMatch(/au plus/);

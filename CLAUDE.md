@@ -1495,16 +1495,16 @@ maximale de remboursement** de l'art. 139 a). Un décret du Premier ministre
 n'est pas un arrêté du Ministre du Travail pris après avis du Conseil National
 du Travail, et le second objet n'est pas le premier. Le manque de l'art. 139
 est RÉEL, il est rétabli, et c'est sa radiation qui était l'erreur. Le décret
-n° 25/22 reste à verser AVEC SON ANNEXE de tension salariale pour le reste. Et le manque
-INPP cachait un DÉFAUT : le dépôt datait le nouveau barème du 24 septembre
-2025, qui est la date de SIGNATURE · l'entrée en vigueur est au 1er janvier
-2026, un exercice 2025 relevant du barème de 2006 (3 %, 2 %, 1 %, arrêté
-n° 12/MTPS/123 et n° 007/CAB/MIN/FINANCES/2006). Corrigé, avec deux tests vus
-tomber. **VINGTIÈME OCCURRENCE D'UNE FAMILLE VOISINE** de « un même numéro,
-deux sens » : ici un même texte, DEUX DATES · celle qu'il porte et celle où il
-mord. Le même fichier portait déjà la doctrine inverse trois fiches plus haut,
-pour le prélèvement expatrié (art. 152 et 153). Une règle exacte, datée de la
-mauvaise date, est une règle fausse sur tout un exercice.
+n° 25/22 et son annexe de tension salariale sont au corpus depuis le même
+jour. ~~Et le manque INPP cachait un DÉFAUT : le dépôt datait le nouveau barème
+du 24 septembre 2025, qui est la date de SIGNATURE · l'entrée en vigueur est au
+1er janvier 2026~~ **CETTE CORRECTION-LÀ EST FAUSSE, ET ELLE A ÉTÉ DÉFAITE LE
+JOUR MÊME** (audit final F110) · l'article 3 de l'arrêté le fait entrer en
+vigueur « à la date de sa signature », le 24 septembre 2025, et c'est la date
+du code (`BAREMES_INPP`). Le 1er janvier 2026 était celle de la PUBLICATION,
+lue sur le web · voir « LES TEXTES ONT ÉTÉ REÇUS LE JOUR MÊME, ET ILS M'ONT
+DONNÉ TORT ». La famille qu'elle nommait reste juste, prise à l'endroit · un
+même texte, DEUX DATES, et c'est le texte qui dit laquelle mord.
 
 
 **P2a · LES DEUX ASSIETTES, ET LA DÉCOUVERTE QU'ELLES SE RESSEMBLENT**
@@ -1686,7 +1686,21 @@ le bulletin émis affichent ce détail par un seul composant
 l'art. 118 reste pris sur l'année, et la somme des tranches, plafond et
 quotité compris, rend la retenue au centime · un test le vérifie sur cinq
 salaires. Un bulletin émis avant ce jour se relit sans le détail, puisqu'un
-bulletin ne se modifie pas.
+bulletin ne se modifie pas. **LA RETENUE EST ARRONDIE SELON L'ART. 150
+(2026-09-27, audit final F111)** · l'article nomme l'IRPP, et l'art. 119 appelle
+IRPP ce que l'employeur retient chaque mois. L'arrondi se prend sur la retenue
+du mois, jamais sur l'impôt annuel de la mensualisation, et s'affiche sur sa
+ligne · la somme des tranches rend la retenue AVANT lui. Un seul porteur,
+`fiscalite/arrondi-article-150.ts`, que le module fiscal et la paie appellent.
+**LE PLANCHER DE LA CNSS EST POSÉ (2026-09-27, audit final F112).** Décret
+n° 18/041, art. 8 et loi n° 16/009, art. 13 · « en aucun cas » la base sous le
+SMIG. Le SMIG est un taux JOURNALIER du manœuvre ordinaire (décret n° 25/22,
+art. 2), le mois en compte 26 (art. 7) · la base est relevée au SMIG des jours
+payés (`plancherCnss`, champ `joursPayes`). Trois abstentions plutôt qu'une
+supposition · sous le plancher sans jours déclarés (mois incomplet ou salaire
+sous le minimum, le logiciel ne sait pas lequel), de mai à décembre 2025 entre
+le SMIG payé et le SMIG fixé, et un mois hors corpus où rien n'est vérifié.
+L'INPP et l'ONEM n'ont pas de plancher et restent sur l'assiette.
 
 **LE RÉGIME DE LA RETENUE SE DÉCLARE, ET UN IMPÔT NON CHIFFRÉ N'EST PAS ZÉRO
 (2026-09-27, audit final F104 à F106).** `regimeSalarial` porte le régime de
@@ -2315,7 +2329,9 @@ pas deux fois, la liaison se pose sur les seuls bulletins encore libres et
 l'écriture est retirée si un autre clic les a pris entre-temps. L'écriture est
 ajoutée à `verifierAucunModuleNeLaTient` ; la passation se DÉFAIT depuis
 l'onglet Bulletins tant qu'elle est au brouillard, jamais une fois validée
-(AUDCIF art. 22, 2°). Un bulletin passé au brouillard ne s'annule pas seul ;
+(AUDCIF art. 22, 2°), PAR `EcritureService.supprimer`, la paie se nommant
+détenteur (audit final F107) · ses gardes recopiées avaient oublié le
+pointage. Un bulletin passé au brouillard ne s'annule pas seul ;
 passé et validé, il s'annule et la proposition du mois le signale comme salaire
 encore au journal. Six défauts réinjectés dans la règle, six attrapés.
 AUDIT FINAL F19 ET F22 (2026-09-27) · un bulletin stipulé en dollars se passe sur

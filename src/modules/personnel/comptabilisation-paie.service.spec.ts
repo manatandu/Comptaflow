@@ -1,3 +1,4 @@
+import { DETENTEUR_PAIE_DU_MOIS, EcritureService } from '../comptabilite/ecriture.service';
 import { ComptabilisationPaieService } from './comptabilisation-paie.service';
 
 /**
@@ -67,7 +68,18 @@ function monter(opts: { bulletins?: unknown[]; lies?: number; ecriture?: Record<
     },
     $transaction: jest.fn(async (f: (t: typeof tx) => Promise<unknown>) => f(tx)),
   };
-  const ecritures = { creer: jest.fn().mockResolvedValue({ id: 'e-paie', numeroPiece: 7 }) };
+  // Les deux gestes du journal que la paie appelle (audit final F107) · la
+  // doublure joue `liberer` dans la transaction, comme le service réel.
+  const ecritures = {
+    creer: jest.fn().mockResolvedValue({ id: 'e-paie', numeroPiece: 7 }),
+    supprimer: jest.fn(async (_t: string, _id: string, pour: { liberer: (x: typeof tx) => Promise<unknown> }) => {
+      await pour.liberer(tx);
+      return { supprime: true };
+    }),
+    retirerCompensation: jest.fn(async (_t: string, _id: string, liberer?: (x: typeof tx) => Promise<unknown>) => {
+      if (liberer) await liberer(tx);
+    }),
+  };
   const service = new ComptabilisationPaieService(prisma as never, ecritures as never);
   return { service, prisma, ecritures, tx };
 }
@@ -99,9 +111,10 @@ describe('passer la paie du mois', () => {
   });
 
   it("retire son écriture quand un autre clic a lié les bulletins entre-temps", async () => {
-    const { service, tx } = monter({ lies: 1 });
+    const { service, tx, ecritures } = monter({ lies: 1 });
     await expect(service.comptabiliser('t1', 'u1', '2026-03', dto)).rejects.toThrow(/a changé pendant la passation/);
-    expect(tx.ecriture.deleteMany).toHaveBeenCalledWith({ where: { tenantId: 't1', id: 'e-paie' } });
+    // Par la compensation du journal, jamais réécrite ici (audit final F107).
+    expect(ecritures.retirerCompensation).toHaveBeenCalledWith('t1', 'e-paie', expect.any(Function));
     expect(tx.bulletinPaie.updateMany).toHaveBeenCalledWith({
       where: { tenantId: 't1', ecritureId: 'e-paie' },
       data: { ecritureId: null },
@@ -130,34 +143,45 @@ describe('passer la paie du mois', () => {
 });
 
 describe('défaire la passation', () => {
-  it("libère les bulletins et retire l'écriture au brouillard, dans une transaction", async () => {
-    const { service, tx } = monter();
+  it("passe par la suppression du journal, en se nommant détenteur, et délie les bulletins dans sa transaction", async () => {
+    const { service, tx, ecritures } = monter();
     await expect(service.annulerComptabilisation('t1', 'e1')).resolves.toEqual({ annule: true, bulletinsLiberes: 2 });
+    expect(ecritures.supprimer).toHaveBeenCalledWith('t1', 'e1', expect.objectContaining({ detenteur: DETENTEUR_PAIE_DU_MOIS }));
     expect(tx.bulletinPaie.updateMany).toHaveBeenCalledWith({ where: { tenantId: 't1', ecritureId: 'e1' }, data: { ecritureId: null } });
-    expect(tx.ecriture.deleteMany).toHaveBeenCalledWith({ where: { tenantId: 't1', id: 'e1' } });
   });
 
-  it('refuse une écriture VALIDÉE · elle ne se retire plus (AUDCIF art. 22)', async () => {
-    const { service, tx } = monter({
-      ecriture: { id: 'e1', statut: 'VALIDEE', numeroPiece: 12, exercice: { statut: 'OUVERT' }, lignes: [] },
-    });
+  it('un refus du journal remonte, et aucun bulletin n’est délié', async () => {
+    const { service, tx, ecritures } = monter();
+    ecritures.supprimer.mockRejectedValueOnce(new Error("L'écriture n° 12 est validée"));
     await expect(service.annulerComptabilisation('t1', 'e1')).rejects.toThrow(/validée/);
-    expect(tx.ecriture.deleteMany).not.toHaveBeenCalled();
+    expect(tx.bulletinPaie.updateMany).not.toHaveBeenCalled();
   });
 
-  // AUDIT FINAL F50 · une ligne d'un groupe PARTIEL n'a pas de lettre.
-  it('refuse une écriture dont une ligne est dans un lettrage partiel, et lit le groupe', async () => {
-    const { service, tx, prisma } = monter({
-      ecriture: { id: 'e1', statut: 'BROUILLARD', numeroPiece: 12, exercice: { statut: 'OUVERT' }, lignes: [{ lettre: null, lettrageId: 'g1' }] },
+  // AUDIT FINAL F107 · les gardes recopiées à la main avaient oublié le
+  // POINTAGE. Avec le vrai service du journal, une ligne pointée refuse.
+  it('une ligne pointée refuse, par les gardes du journal lui-même', async () => {
+    const { prisma, tx } = monter({
+      ecriture: {
+        id: 'e1',
+        tenantId: 't1',
+        statut: 'BROUILLARD',
+        numeroPiece: 12,
+        exerciceId: 'ex1',
+        estGenereeParCloture: false,
+        exercice: { statut: 'OUVERT' },
+        lignes: [{ lettre: null, lettrageId: null, rapprochementId: 'r1' }],
+      },
     });
-    await expect(service.annulerComptabilisation('t1', 'e1')).rejects.toThrow(/lettrée/);
-    expect(prisma.ecriture.findFirst.mock.calls[0][0].select.lignes.select).toMatchObject({ lettre: true, lettrageId: true });
+    const journal = new EcritureService(prisma as never, {} as never, {} as never, {} as never);
+    const service = new ComptabilisationPaieService(prisma as never, journal);
+    await expect(service.annulerComptabilisation('t1', 'e1')).rejects.toThrow(/pointée/);
+    expect(tx.bulletinPaie.updateMany).not.toHaveBeenCalled();
     expect(tx.ecriture.deleteMany).not.toHaveBeenCalled();
   });
 
   it("refuse une écriture qui ne passe aucun bulletin · ce chemin n'efface pas le journal", async () => {
-    const { service, tx } = monter({ porte: 0 });
+    const { service, ecritures } = monter({ porte: 0 });
     await expect(service.annulerComptabilisation('t1', 'e1')).rejects.toThrow(/aucun bulletin/);
-    expect(tx.ecriture.deleteMany).not.toHaveBeenCalled();
+    expect(ecritures.supprimer).not.toHaveBeenCalled();
   });
 });

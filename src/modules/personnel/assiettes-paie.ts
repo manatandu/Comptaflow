@@ -48,8 +48,9 @@
  * qu'elle changerait, plutôt que de trancher en silence.
  *
  * CE FICHIER NE CALCULE AUCUN IMPÔT · le barème est dans `bareme-irpp.ts`.
- * Il ne calcule aucune cotisation non plus · les taux sont au registre des
- * retenues, avec leur date d'effet.
+ * Il ne calcule aucune cotisation non plus · les taux et leurs dates d'effet
+ * sont dans `cotisations-paie.ts`, qui s'assied sur l'assiette sociale rendue
+ * ici.
  */
 
 /**

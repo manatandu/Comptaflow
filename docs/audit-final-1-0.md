@@ -809,36 +809,42 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 5
 - **Constat :** les gardes de `EcritureService.supprimer` et `retirerCompensation` sont en partie dupliquées : la même règle est écrite deux fois.
 - **Correction :** appeler ces méthodes.
+- **Fait le 2026-09-27 :** défaire la passation appelle `EcritureService.supprimer` en se nommant détenteur (`DETENTEUR_PAIE_DU_MOIS`), et la compensation d'un second clic `retirerCompensation`, qui délie désormais les bulletins dans sa propre transaction (`liberer`). Les gardes recopiées avaient oublié le pointage. Tests : `comptabilisation-paie.service.spec.ts`, `compensation-ecriture.spec.ts`.
 
 **F108 · Montants de bulletin modèle à deux décimales refusés** [paie-11]
 - **Emplacements :** src/modules/personnel/modeles-bulletin.ts:76
 - **Condition :** 4
 - **Constat :** la comparaison flottante refuse 19,99, 1,1 et 1234,1.
 - **Correction :** tolérance, ou calcul en centimes.
+- **Fait le 2026-09-27 :** les décimales se comptent sur l'écriture du nombre (`common/decimales.ts`, comme `maxDecimalPlaces`), pour les bulletins modèles ET pour les lots de virements, qui portaient le même défaut. Tests : `decimales.spec.ts`, `modeles-bulletin.spec.ts`, `lots-virement.spec.ts`.
 
 **F109 · En-têtes et docstrings de paie qui nient ce que le module fait** [paie-13]
 - **Emplacements :** src/modules/personnel/personnel.service.ts:95, :479-485, :885-889 · client/src/pages/PersonnelPage.tsx:18-20 · livre-de-paie.ts:118-119, :138 · assiettes-paie.ts:51-52 · cotisations-paie.ts:5-8
 - **Condition :** 5
 - **Constat :** « aucun bulletin », « aucune cotisation patronale », « arrêté pas lu » (alors que `lu: true`), « 1 à 30 » (au lieu de 33), et taux renvoyés à un fichier qui dit n'en porter aucun.
 - **Correction :** réécrire selon l'état actuel.
+- **Fait le 2026-09-27 :** en-têtes du service, de l'écran, du livre de paie (33 énonciations, `lu: true`), des assiettes et des cotisations réécrits ; la docstring du DTO et la bulle de la saisie demandaient d'y porter la quote-part CNSS, que la simulation déduit déjà · corrigées, libellé « Autres retenues art. 71 ». Les taux chiffrés dans `cotisations-paie.ts` sont confrontés aux citations du registre des retenues. Tests : `cotisations-paie.spec.ts`, `personnel-audit-final.spec.ts`.
 
 **F110 · Date d'effet INPP : CLAUDE.md et un document affirment le 1er janvier 2026, le code la signature** [paie-14, transv-17, doc-02]
 - **Emplacements :** CLAUDE.md:1316-1330, :1428-1442 · docs/paie-recherche-textes-2026-09-19.md:112-123, :144, :192 · src/modules/personnel/cotisations-paie.ts:104-148 · correspondance-retenues.ts:457-460
 - **Condition :** 5
 - **Constat :** le paragraphe « ILS NE SONT PLUS QUATRE » garde une correction déclarée fausse ailleurs dans le même fichier et annonce l'annexe du décret n° 25/22 à verser. Le docblock de `baremeDuMois` contredit sa comparaison au mois.
 - **Correction :** barrer le paragraphe, poser un bandeau sur le document de recherche, aligner le docblock.
+- **Fait le 2026-09-27 :** date relue à l'arrêté (art. 3, « à la date de sa signature », 24 septembre 2025), paragraphe barré dans CLAUDE.md, bandeau sur le document de recherche (INPP et art. 139), docblock de `baremeDuMois` aligné sur sa comparaison au mois. Comportement déjà gelé par `cotisations-paie.spec.ts`.
 
 **F111 · Arrondi de l'art. 150 : appliqué à l'IRPP par la fiscalité, refusé par la paie** [transv-05]
 - **Emplacements :** src/modules/personnel/bareme-irpp.ts:100 · src/modules/fiscalite/fiscalite.service.ts:73, :105 · CLAUDE.md:1237
 - **Condition :** 1
 - **Constat :** deux modules lisent la même loi et donnent deux réponses sur la retenue.
 - **Correction :** trancher par écrit, appliquer ou corriger CLAUDE.md, et n'avoir qu'un seul porteur de l'arrondi.
+- **Fait le 2026-09-27 :** tranché par le texte · l'art. 150 nomme l'IRPP, et l'art. 119 appelle IRPP la retenue mensuelle. La retenue du mois est arrondie (jamais l'impôt annuel de la mensualisation), l'écart s'affiche sur sa ligne, et `fiscalite/arrondi-article-150.ts` est le seul porteur. Tests : `bareme-irpp.spec.ts`, `personnel-audit-final.spec.ts`.
 
 **F112 · Plancher d'assiette CNSS au SMIG affirmé par le registre, absent du moteur** [transv-06]
 - **Emplacements :** src/modules/personnel/cotisations-paie.ts:312-320 · src/modules/retenues/correspondance-retenues.ts:447 · CLAUDE.md:1213
 - **Condition :** 1
 - **Constat :** décret n° 18/041 art. 8 et loi n° 16/009 art. 13 lus. Le moteur ne pose ni plancher ni réserve.
 - **Correction :** appliquer le plancher ou s'abstenir avec motif.
+- **Fait le 2026-09-27 :** `plancherCnss` · base CNSS relevée au SMIG journalier du manœuvre × jours payés (26 à défaut) ; sous le plancher sans jours déclarés, la CNSS s'abstient et les demande ; mai à décembre 2025 (payé 14 500, fixé 21 500) non tranché, abstention ; avant mai 2025, non vérifié et dit. L'INPP et l'ONEM restent sur l'assiette. Champ « Jours payés » à l'écran. Tests : `cotisations-paie.spec.ts`, `simulation-paie.spec.ts`, `personnel-audit-final.spec.ts`.
 
 **F113 · « Jour de Kinshasa » écrit trois fois, ignoré par la remise du bulletin** [transv-11]
 - **Emplacements :** src/modules/personnel/conversion-usd.ts:41 · plateforme/licences-sur-site.service.ts:16 · abonnements/abonnements.service.ts:45 · personnel/bulletin-paie.ts:175-181

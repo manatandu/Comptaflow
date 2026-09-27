@@ -56,3 +56,50 @@ describe('F106 · la bulle de l’article 114 dit ce que le serveur fait', () =>
     expect(bulle).toContain('quote-part ouvrière');
   });
 });
+
+/**
+ * AUDIT FINAL F109 · la bulle de la saisie demandait d'y porter la quote-part
+ * ouvrière de la CNSS, que la simulation calcule et déduit déjà · suivie, elle
+ * la faisait déduire deux fois de l'assiette fiscale.
+ */
+describe('F109 · le champ de l’article 71 ne reçoit que les autres versements', () => {
+  it('la bulle dit que la CNSS est déduite d’office', () => {
+    const bulle = bloc(page, 'La quote-part ouvrière de la CNSS est calculée', '"');
+    expect(bulle).toContain('déduite d’office');
+    expect(bulle).toContain('AUTRES versements');
+  });
+
+  it('le libellé du champ le dit aussi', () => {
+    expect(page).toContain('Autres retenues art. 71 (FC)');
+  });
+});
+
+/**
+ * AUDIT FINAL F111 · la retenue est arrondie selon l'art. 150 au serveur, et
+ * l'écart se montre sur sa propre ligne · sans elle, la somme des lignes du
+ * tableau ne rendrait plus la retenue affichée.
+ */
+describe('F111 · le tableau mensuel montre l’arrondi de l’art. 150', () => {
+  const tableau = readFileSync(join(__dirname, 'BaremeMensuelIrpp.tsx'), 'utf8');
+  it('une ligne porte l’écart, lu au serveur, avant la retenue', () => {
+    const ligne = bloc(tableau, 'mensuel.arrondiArticle150Fc !== undefined', 'Retenue du mois');
+    expect(ligne).toContain('Arrondi à la centaine (art. 150)');
+    expect(ligne).toContain('fc(Math.abs(mensuel.arrondiArticle150Fc))');
+  });
+});
+
+/**
+ * AUDIT FINAL F112 · le plancher de la CNSS se mesure au SMIG des jours payés
+ * d'un mois incomplet · le champ part au serveur, et la réserve revient.
+ */
+describe('F112 · les jours payés partent au serveur, la réserve du plancher s’affiche', () => {
+  it('le corps de la simulation porte les jours payés', () => {
+    expect(bloc(page, 'effectif: nombre(effectifInpp),', '\n      //')).toContain('joursPayes: nombre(joursPayes)');
+  });
+
+  it('les réserves des cotisations sont affichées', () => {
+    expect(bloc(page, '(simulation.cotisations.reserves ?? []).length > 0', '</ul>')).toContain(
+      '(simulation.cotisations.reserves ?? []).map',
+    );
+  });
+});

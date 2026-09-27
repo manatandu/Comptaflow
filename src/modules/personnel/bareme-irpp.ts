@@ -1,3 +1,5 @@
+import { arrondirImpotArt150 } from '../fiscalite/arrondi-article-150';
+
 /**
  * LE BARÈME DE L'IMPÔT SUR LE REVENU DES PERSONNES PHYSIQUES, ET CE QU'IL
  * FAUT LUI AJOUTER POUR QU'IL SERVE UN BULLETIN.
@@ -101,8 +103,16 @@ export const MAXIMUM_PERSONNES_A_CHARGE = 9;
 
 /**
  * Article 118 · « sur le revenu net global ARRONDI AU MILLIER DE FRANCS
- * CONGOLAIS INFÉRIEUR ». L'arrondi porte sur l'ASSIETTE, jamais sur l'impôt ·
- * arrondir l'impôt serait un second arrondi que le texte n'écrit pas.
+ * CONGOLAIS INFÉRIEUR ». Cet arrondi porte sur l'ASSIETTE.
+ *
+ * L'IMPÔT A LE SIEN, ET C'EST UN AUTRE ARTICLE (audit final F111). Ce
+ * commentaire écrivait qu'arrondir l'impôt « serait un second arrondi que le
+ * texte n'écrit pas » · l'art. 150 l'écrit, et il nomme « l'Impôt sur le
+ * Revenu des Personnes Physiques ». Il joue sur le montant RETENU du mois
+ * (`retenueMensuelle`), que l'art. 119 appelle lui-même « l'Impôt sur le
+ * Revenu des Personnes Physiques […] retenu mensuellement ». `impotAnnuel`
+ * reste au centime · c'est un intermédiaire de la mensualisation, aucun
+ * bulletin ne le déclare.
  */
 export const PAS_D_ARRONDI_ASSIETTE_FC = 1_000;
 
@@ -324,11 +334,18 @@ export type DetailMensuel = {
   readonly impotArticle118Fc: number;
   readonly quotitePourCent: number;
   readonly reductionFc: number;
+  /** L'impôt du mois avant l'arrondi de l'art. 150 · la somme des lignes au-dessus. */
+  readonly retenueAvantArrondiFc: number;
+  /** L'écart de l'arrondi de l'art. 150, positif ou négatif, moins de cent francs. */
+  readonly arrondiArticle150Fc: number;
+  /** La retenue du mois, arrondie selon l'art. 150. */
   readonly retenueFc: number;
 };
 
 export function detailMensuel(annuel: VerdictIrpp): DetailMensuel {
   const m = (x: number) => x / MOIS_PAR_AN;
+  const avantArrondi = m(annuel.impotDuFc);
+  const retenue = arrondirImpotArt150(avantArrondi);
   return {
     revenuRetenuFc: m(annuel.assietteArrondieFc),
     parTranche: annuel.parTranche.map((t) => {
@@ -341,7 +358,9 @@ export function detailMensuel(annuel: VerdictIrpp): DetailMensuel {
     impotArticle118Fc: m(annuel.impotArticle118Fc),
     quotitePourCent: annuel.quotitePourCent,
     reductionFc: m(annuel.reductionFc),
-    retenueFc: m(annuel.impotDuFc),
+    retenueAvantArrondiFc: avantArrondi,
+    arrondiArticle150Fc: retenue - avantArrondi,
+    retenueFc: retenue,
   };
 }
 
@@ -353,7 +372,7 @@ export type VerdictRetenueMensuelle = {
   readonly annuel: VerdictIrpp;
   /** Le même verdict, lu au mois · c'est lui que l'écran et le bulletin montrent. */
   readonly mensuel: DetailMensuel;
-  /** L'impôt annuel ramené au mois. */
+  /** L'impôt annuel ramené au mois, puis arrondi selon l'art. 150. */
   readonly retenueFc: number;
   readonly reserves: readonly string[];
 };
@@ -403,6 +422,9 @@ export function retenueMensuelle(
   const revenuAnnualiseFc = Math.max(0, revenuImposableDuMoisFc) * MOIS_PAR_AN;
   const annuel = impotAnnuel(revenuAnnualiseFc, personnesACharge);
 
+  // UN SEUL CALCUL DE L'ARRONDI · la retenue EST celle du détail, sans quoi
+  // l'écran et le bulletin pourraient montrer deux montants.
+  const mensuel = detailMensuel(annuel);
   const reserves = [
     "MENSUALISATION · l'article 119 impose une retenue mensuelle et renvoie au barème annuel de " +
       "l'article 118, sans dire comment passer de l'un à l'autre. OmegaX porte le revenu du mois à " +
@@ -411,6 +433,9 @@ export function retenueMensuelle(
       "comme l'article 118 l'écrit. La convention est de l'éditeur.",
     "ACOMPTE · l'article 116 assied l'IRPP sur le revenu net global annuel et l'article 121 y impute " +
       "les retenues de l'exercice. Cette ligne est une retenue à la source, jamais l'impôt définitif du salarié.",
+    "ARRONDI · la retenue du mois est arrondie selon l'article 150 (à l'unité, puis à la centaine de francs, " +
+      "supérieure dès 50 FC), qui nomme l'IRPP · c'est le montant retenu (art. 119) qui est arrondi, jamais " +
+      "l'impôt annuel dont la mensualisation le tire. La lecture est de l'éditeur.",
     ...annuel.reserves,
   ];
 
@@ -419,8 +444,8 @@ export function retenueMensuelle(
     revenuImposableDuMoisFc,
     revenuAnnualiseFc,
     annuel,
-    mensuel: detailMensuel(annuel),
-    retenueFc: annuel.impotDuFc / MOIS_PAR_AN,
+    mensuel,
+    retenueFc: mensuel.retenueFc,
     reserves,
   };
 }

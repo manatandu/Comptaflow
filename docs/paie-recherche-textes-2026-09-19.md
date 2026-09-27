@@ -1,5 +1,25 @@
 # Paie · recherche des quatre textes manquants (2026-09-19)
 
+> **BANDEAU DU 2026-09-27 (audit final F110) · DEUX CONCLUSIONS DE CE DOCUMENT
+> SONT FAUSSES, ET LE DÉPÔT NE LES APPLIQUE PAS.** Il est gardé tel quel parce
+> qu'effacer une erreur en efface aussi la leçon.
+>
+> 1. **La date d'effet de l'INPP (§ b et tableau final).** L'arrêté
+>    interministériel du 24 septembre 2025 entre en vigueur « à la date de sa
+>    signature » (son article 3, lu au corpus, compétence
+>    `droit-travail-congolais`). Le 1er janvier 2026 que quatre sources web
+>    donnaient est la date de PUBLICATION. Le code applique le 24 septembre 2025
+>    (`BAREMES_INPP`, `cotisations-paie.ts`), et la « correction » décrite ici a
+>    été défaite le jour même · voir CLAUDE.md, « LES TEXTES ONT ÉTÉ REÇUS LE
+>    JOUR MÊME, ET ILS M'ONT DONNÉ TORT ». Une correction fondée sur une
+>    corroboration est une règle inventée.
+> 2. **L'arrêté de l'art. 139 (tableau final).** Il existe · arrêté
+>    n° 12/CAB.MIN/TPS/110/2005 du 26 octobre 2005, versé au corpus en P6. La
+>    contre-valeur du logement du décret SMIG n'était pas lui.
+>
+> Le décret n° 25/22 et son annexe de tension salariale sont au corpus depuis
+> le même jour.
+
 ## 0. Statut de ce document, et pourquoi il ne comble rien
 
 La passe P0 a nommé **quatre manques** (§ 3 et § 8 de

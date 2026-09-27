@@ -12,12 +12,12 @@ import { lignesDepuisModele, lignesVersModele, type ModeleBulletin } from '../li
 import { ONGLETS_PERSONNEL, ongletPersonnelDe, type OngletPersonnel } from '../lib/onglets-personnel';
 
 /**
- * LE REGISTRE DU PERSONNEL · l'état civil, les engagements, et ce que
- * l'article 212 du Code du travail réclame de chaque contrat.
- *
- * CE QUE CET ÉCRAN NE FAIT PAS, ET LE DIT : aucun bulletin, aucune assiette,
- * aucun montant de paie. P0 a établi que le moteur bute sur des textes qui ne
- * sont pas au corpus, et l'écran ne promet pas ce qui n'est pas là.
+ * LE PERSONNEL · le registre (l'état civil, les engagements, et ce que
+ * l'article 212 du Code du travail réclame de chaque contrat), puis la paie ·
+ * simulation, bulletins émis, décompte final, livre de paie, barèmes et
+ * rubriques. Tous les montants viennent du serveur · l'écran n'en calcule
+ * aucun (audit final F109 · cet en-tête disait encore « aucun bulletin,
+ * aucune assiette, aucun montant de paie »).
  *
  * LA CONFRONTATION EST L'OBJET DE LA FENÊTRE, pas un accessoire. Un registre
  * qui liste sans confronter se lit comme « tout va bien » ; c'est le manque
@@ -195,6 +195,8 @@ interface Simulation {
     totalEmployeurFc: number;
     totalTravailleurFc: number;
     abstentions: string[];
+    /** Le plancher de la CNSS, appliqué ou non vérifié (audit final F112). */
+    reserves?: string[];
   };
   retenuesAvances?: { avanceId: string; littera: string; libelle: string; montantFc: number; soldeAvantFc: number }[];
   reserveRetenuesAvances?: string | null;
@@ -557,6 +559,9 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
   const [mentionsPortees, setMentionsPortees] = useState<number[]>([]);
   const [natureInpp, setNatureInpp] = useState<'' | 'PUBLIC' | 'PRIVE'>('');
   const [effectifInpp, setEffectifInpp] = useState('');
+  // DÉCRET n° 18/041, ART. 8 · le plancher de la CNSS se mesure au SMIG des
+  // jours payés. Vide = mois entier (26 jours).
+  const [joursPayes, setJoursPayes] = useState('');
   const [majorationRp, setMajorationRp] = useState(false);
   // ARTICLE 121, ALINÉA 2 · vide = non déclaré, le serveur retient le droit
   // commun ET le dit ; un forfait abstient la retenue (audit final F105).
@@ -641,6 +646,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
       // champ ABSENT, ce qui vaut abstention au serveur.
       ...(natureInpp === '' ? {} : { natureEmployeurInpp: natureInpp }),
       effectif: nombre(effectifInpp),
+      joursPayes: nombre(joursPayes),
       ...(majorationRp ? { majorationRisquesProfessionnels: true } : {}),
       ...(regimeSalarial === '' ? {} : { regimeSalarial }),
       // ARTICLE 69, 1 · le nombre d'enfants BÉNÉFICIAIRES, dont le serveur
@@ -711,9 +717,9 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
   };
 
   /**
-   * LE LIVRE DE PAIE EST DEMANDÉ AU SERVEUR, et les trente mentions en
-   * REVIENNENT · les recopier ici en ferait une deuxième liste, qui aurait
-   * divergé au premier correctif de l'arrêté n° 146/2018.
+   * LE LIVRE DE PAIE EST DEMANDÉ AU SERVEUR, et les trente-trois énonciations
+   * de l'arrêté de 2008 en REVIENNENT · les recopier ici en ferait une
+   * deuxième liste, qui divergerait au premier correctif.
    */
   const verifierLivre = () => {
     setErreur('');
@@ -1804,7 +1810,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                 </select>
               </label>
               <label className="flex flex-col gap-0.5">
-                <span className={etiquette}>Retenues art. 71 (FC)</span>
+                <span className={etiquette}>Autres retenues art. 71 (FC)</span>
                 <input
                   value={retenues71}
                   onChange={(e) => setRetenues71(e.target.value)}
@@ -1900,6 +1906,15 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                   className="border border-border bg-transparent px-2 py-1 w-[120px] text-right"
                 />
               </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Jours payés (mois incomplet)</span>
+                <input
+                  value={joursPayes}
+                  onChange={(e) => setJoursPayes(e.target.value)}
+                  placeholder="26"
+                  className="border border-border bg-transparent px-2 py-1 w-[120px] text-right"
+                />
+              </label>
             </div>
 
             <div className="text-[11px] text-text-dim mb-2">
@@ -1907,7 +1922,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
               8 100 FC de l’arrêté n° 137/2018, prestation servie directement par la Caisse.{' '}
               <Aide
                 titre="Champs de la simulation"
-                texte="Les retenues de l’article 71 sont saisies, quote-part ouvrière de la CNSS en tête : leurs taux vivent au registre des retenues avec leur date d’effet, et ce module ne les recopie pas. Le taux légal des allocations familiales est calculé à partir du nombre d’enfants bénéficiaires, mensualisé ; l’employeur n’accorde pas la prestation de l’arrêté ministériel n° 137/2018. Le champ de saisie ne sert plus qu’au mois qu’aucune annexe ne couvre. La classe place le seuil de l’article 114 ; sans elle, ou tant que l’impôt ou la quote-part ouvrière du mois ne sont pas chiffrés, la quotité ne l’est pas. Un logement fourni en nature est défalqué pour « 1/5 du taux journalier des allocations familiales » (arrêté n° 12/CAB.MIN/TPS/110/2005, art. 10), sauf s’il l’a déjà été."
+                texte="La quote-part ouvrière de la CNSS est calculée et déduite d’office ; le champ de l’article 71 ne reçoit que les AUTRES versements déductibles · y porter la CNSS la déduirait deux fois. Le taux légal des allocations familiales est calculé à partir du nombre d’enfants bénéficiaires, mensualisé ; l’employeur n’accorde pas la prestation de l’arrêté ministériel n° 137/2018. Le champ de saisie ne sert plus qu’au mois qu’aucune annexe ne couvre. La classe place le seuil de l’article 114 ; sans elle, ou tant que l’impôt ou la quote-part ouvrière du mois ne sont pas chiffrés, la quotité ne l’est pas. Un logement fourni en nature est défalqué pour « 1/5 du taux journalier des allocations familiales » (arrêté n° 12/CAB.MIN/TPS/110/2005, art. 10), sauf s’il l’a déjà été."
                 source="Loi n° 23/053, art. 71 · décret n° 25/22 · Code du travail, art. 114"
               />
             </div>
@@ -2419,6 +2434,16 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                   </tbody>
                 </table>
               </div>
+
+              {(simulation.cotisations.reserves ?? []).length > 0 && (
+                <ul className="text-[11px] text-text-dim mt-1.5">
+                  {(simulation.cotisations.reserves ?? []).map((r, i) => (
+                    <li key={i} className="py-0.5">
+                      {r}
+                    </li>
+                  ))}
+                </ul>
+              )}
 
               {simulation.cotisations.abstentions.length > 0 && (
                 <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mt-2.5">
@@ -2956,8 +2981,8 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
           {/*
             CE QUE CETTE FENÊTRE NE FAIT PAS, ET ELLE LE DIT AVANT TOUT LE
             RESTE. OmegaX ne tient pas le livre de paie et ne certifie aucune
-            conformité au modèle · l'arrêté de 2008 qui le fixe est identifié
-            mais pas lu. Ce qui est rendu est une COUVERTURE des mentions.
+            conformité au modèle annexé à l'arrêté de 2008, qui est une mise
+            en forme. Ce qui est rendu est une COUVERTURE des énonciations.
           */}
           <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mb-2.5">
             <strong>OmegaX ne tient pas votre livre de paie.</strong> Les trente-trois énonciations de

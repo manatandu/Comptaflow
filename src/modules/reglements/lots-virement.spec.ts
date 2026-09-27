@@ -29,6 +29,11 @@ describe('Lot de virements · la règle', () => {
     expect(motifRefusLot('X', [{ compteId: 'f1', montant: 1.005 }], comptes)).toMatch(/décimales/);
   });
 
+  // AUDIT FINAL F108 · le produit flottant refusait ces montants habituels.
+  it.each([19.99, 1.1, 1234.1, 0.07])('accepte %p, qui a deux décimales', (montant) => {
+    expect(motifRefusLot('X', [{ compteId: 'f1', montant }], comptes)).toBeNull();
+  });
+
   it('refuse un lot sans nom, sans ligne, ou un compte d’un autre dossier', () => {
     expect(motifRefusLot(' ', [{ compteId: 'f1', montant: 1 }], comptes)).toMatch(/nom/);
     expect(motifRefusLot('X', [], comptes)).toMatch(/au moins/);

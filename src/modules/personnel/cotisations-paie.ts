@@ -1,11 +1,16 @@
+import { MULTIPLICATEURS_ARTICLE_7, SMIG_JOURNALIER_FC, annexeApplicable, type Annexe } from './bareme-smig';
+
 /**
  * LES COTISATIONS D'UN BULLETIN, ET LE NET À PAYER.
  *
  * Trois organismes, trois textes, et des dates d'effet qui ne coïncident pas.
- * Chaque taux porte ici SA source et SA borne · le registre des retenues les
- * porte déjà pour la DÉCLARATION, ce fichier les porte pour le CALCUL, et les
- * deux se lisent au même endroit (`correspondance-retenues.ts`) pour qu'aucun
- * taux ne vive en double.
+ * Chaque taux porte ici SA source et SA borne, et c'est le SEUL endroit où il
+ * est chiffré pour le CALCUL. Le registre des retenues
+ * (`correspondance-retenues.ts`) les CITE en texte pour la DÉCLARATION et n'en
+ * applique aucun · les deux disent donc la même chose deux fois, et
+ * `cotisations-paie.spec.ts` confronte chaque version ici à la citation
+ * là-bas (audit final F109 · cet en-tête prétendait qu'ils se lisaient au même
+ * endroit, dans un fichier qui écrit n'en porter aucun).
  *
  * ────────────────────────────────────────────────────────────────────────
  * TROIS ASSIETTES POSSIBLES, ET LE TEXTE N'EN NOMME EXPRESSÉMENT QU'UNE.
@@ -136,16 +141,20 @@ export const BAREMES_ONEM: readonly { aPartirDu: string; tauxPourCent: number; r
 const RESERVE_ASSIETTE_EMPRUNTEE =
   "LECTURE · ce texte dit « rémunération » sans renvoyer à l'article 7 du Code du travail. OmegaX retient la même assiette que la CNSS, le mot étant DÉFINI par le Code dont cet arrêté relève. Lue comme le brut versé, l'assiette serait plus large de tout le logement et le transport.";
 
-/** Le dernier barème dont la date d'effet est atteinte au premier jour du mois. */
+/**
+ * Le dernier barème dont la date d'effet tombe AU PLUS TARD DANS le mois de
+ * paie · la comparaison se fait au MOIS, jamais au jour (audit final F110 ·
+ * ce docblock disait « au premier jour du mois », ce que la comparaison ne
+ * fait pas). Convention d'OmegaX, et elle est dite · un arrêté signé le 24
+ * mord sur la paie de ce mois-là, qui se verse en fin de mois ; comparer au
+ * premier jour ferait manquer le premier mois de chaque changement de taux.
+ * `cotisations-paie.spec.ts` la fige sur août et septembre 2025.
+ */
 const baremeDuMois = <T extends { aPartirDu: string }>(
   baremes: readonly T[],
   moisDePaie: string,
 ): T | null => {
-  // Le mois de paie est comparé à son PREMIER jour · un arrêté signé le 24 du
-  // mois mord sur la paie de ce mois-là, et le borner au dernier jour ferait
-  // manquer le premier mois de chaque changement de taux.
-  const premierJour = `${moisDePaie}-01`;
-  const applicables = baremes.filter((b) => b.aPartirDu.slice(0, 7) <= premierJour.slice(0, 7));
+  const applicables = baremes.filter((b) => b.aPartirDu.slice(0, 7) <= moisDePaie.slice(0, 7));
   return applicables.length === 0 ? null : applicables[applicables.length - 1];
 };
 
@@ -283,6 +292,14 @@ const fusionner = <T extends { aPartirDu: string }>(livrees: readonly T[], dossi
 
 export type ParametresCotisations = {
   readonly moisDePaie: string;
+  /**
+   * Jours payés d'un mois INCOMPLET (entrée ou sortie en cours de mois), en
+   * jours ouvrables, le mois entier en comptant 26 (décret n° 25/22, art. 7).
+   * Sert au seul plancher de la CNSS · voir `plancherCnss`.
+   */
+  readonly joursPayes?: number | null;
+  /** Grilles SMIG saisies par le cabinet (baremes-dossier.ts). */
+  readonly annexesSmig?: readonly Annexe[];
   /** Versions de barème ajoutées par le cabinet (baremes-dossier.ts). */
   readonly versionsDossier?: VersionsDuDossier;
   readonly natureEmployeurInpp?: NatureEmployeurInpp | null;
@@ -298,7 +315,105 @@ export type VerdictCotisations = {
   /** Ce que l'employeur supporte en plus du brut. */
   readonly coutEmployeurSupplementaireFc: number;
   readonly abstentions: readonly string[];
+  /** Le plancher de la CNSS, appliqué, vérifié ou non (audit final F112). */
+  readonly plancherCnss?: PlancherCnss;
+  readonly reserves?: readonly string[];
 };
+
+/**
+ * LE PLANCHER DE LA CNSS · audit final F112.
+ *
+ * Deux textes le posent dans les mêmes mots · « En aucun cas, le montant des
+ * rémunérations servant de base de calcul des cotisations ne peut être
+ * inférieur au salaire minimum interprofessionnel garanti » (décret
+ * n° 18/041, art. 8), « … au salaire minimum légal » (loi n° 16/009,
+ * art. 13 in fine). Le registre des retenues l'annonçait, le moteur ne le
+ * posait pas · une paie sous le SMIG cotisait sur moins que la loi.
+ *
+ * LE SMIG EST UN TAUX JOURNALIER, celui du manœuvre ordinaire (décret
+ * n° 25/22, art. 2), et le mois en compte VINGT-SIX (art. 7). D'où la
+ * règle, et chacune de ses branches refuse une supposition :
+ *  · SMIG du mois hors corpus (avant mai 2025) · rien n'est vérifié, et c'est
+ *    dit ; la CNSS se calcule sur l'assiette ;
+ *  · les deux lectures de l'annexe 1 (mai à décembre 2025 · 14 500 FC PAYÉS,
+ *    21 500 FC FIXÉS par l'art. 2) · au-dessus des deux planchers, rien ne
+ *    change ; en dessous du plus haut, la CNSS S'ABSTIENT, OmegaX ne tranchant
+ *    pas ce que le registre dit ouvert ;
+ *  · une assiette sous le plancher d'un mois ENTIER sans jours payés déclarés
+ *    · mois incomplet ou rémunération sous le minimum, le logiciel ne sait
+ *    pas lequel, et la CNSS S'ABSTIENT en demandant les jours ;
+ *  · sinon, la base est le plus grand de l'assiette et du SMIG journalier
+ *    multiplié par les jours payés (26 à défaut), et le relèvement est dit.
+ */
+export type PlancherCnss = {
+  /** La base de la CNSS · `null` quand elle s'abstient. */
+  readonly baseFc: number | null;
+  readonly plancherFc: number | null;
+  readonly applique: boolean;
+  /** La réserve (plancher appliqué ou non vérifié) ou le motif d'abstention. */
+  readonly message: string | null;
+};
+
+const SOURCES_PLANCHER =
+  'décret n° 18/041, art. 8 · loi n° 16/009, art. 13 · SMIG journalier du manœuvre ordinaire, décret n° 25/22, art. 2 et 7';
+
+export function plancherCnss(
+  moisDePaie: string,
+  assietteSocialeFc: number,
+  joursPayes?: number | null,
+  annexesSmig: readonly Annexe[] = [],
+): PlancherCnss {
+  const assiette = Math.max(0, assietteSocialeFc);
+  const annexe = annexeApplicable(moisDePaie, annexesSmig).annexe;
+  if (!annexe) {
+    return {
+      baseFc: assiette,
+      plancherFc: null,
+      applique: false,
+      message: `PLANCHER NON VÉRIFIÉ · le SMIG de ${moisDePaie} n'est pas au corpus d'OmegaX (${SOURCES_PLANCHER}).`,
+    };
+  }
+  const jours = joursPayes ?? MULTIPLICATEURS_ARTICLE_7.MOIS;
+  const plancher = annexe.smigJournalierFc * jours;
+  // L'annexe du décret dont le taux PAYÉ n'est pas le SMIG FIXÉ par l'art. 2.
+  const autreLecture =
+    annexe.numero !== null && annexe.smigJournalierFc !== SMIG_JOURNALIER_FC ? SMIG_JOURNALIER_FC * jours : null;
+  const plancherHaut = Math.max(plancher, autreLecture ?? 0);
+  if (assiette >= plancherHaut) {
+    return { baseFc: assiette, plancherFc: plancherHaut, applique: false, message: null };
+  }
+  if (autreLecture !== null) {
+    return {
+      baseFc: null,
+      plancherFc: null,
+      applique: false,
+      message:
+        `PLANCHER NON TRANCHÉ · l'assiette (${assiette} FC) est sous le SMIG de ${jours} jours au taux FIXÉ ` +
+        `par l'art. 2 (${autreLecture} FC), et le décret n° 25/22 échelonne son PAIEMENT à ` +
+        `${annexe.smigJournalierFc} FC par jour jusqu'en décembre 2025 (${plancher} FC) · aucun texte lu ne dit ` +
+        `lequel des deux fait le plancher (${SOURCES_PLANCHER}).`,
+    };
+  }
+  if (joursPayes === undefined || joursPayes === null) {
+    return {
+      baseFc: null,
+      plancherFc: null,
+      applique: false,
+      message:
+        `ASSIETTE SOUS LE PLANCHER · ${assiette} FC contre ${plancher} FC pour un mois entier. Mois incomplet ` +
+        `ou rémunération sous le minimum : déclarez les jours payés du mois, et le plancher sera celui de ces ` +
+        `jours (${SOURCES_PLANCHER}).`,
+    };
+  }
+  return {
+    baseFc: plancher,
+    plancherFc: plancher,
+    applique: true,
+    message:
+      `PLANCHER APPLIQUÉ · la base de la CNSS est relevée de ${assiette} FC au SMIG de ${jours} jour(s) payé(s), ` +
+      `${plancher} FC (${SOURCES_PLANCHER}). Le relèvement porte sur la base, les taux restent ceux du décret.`,
+  };
+}
 
 /**
  * Les cotisations d'un mois, sur l'assiette SOCIALE et sur elle seule.
@@ -315,7 +430,11 @@ export function cotisations(
 ): VerdictCotisations {
   const lignes: LigneCotisation[] = [];
   const abstentions: string[] = [];
+  const reserves: string[] = [];
   const assiette = Math.max(0, assietteSocialeFc);
+  // LE PLANCHER NE VAUT QUE POUR LA CNSS · ni l'INPP ni l'ONEM n'en portent
+  // (audit final F112). La base de la CNSS peut donc différer de l'assiette.
+  const plancher = plancherCnss(parametres.moisDePaie, assiette, parametres.joursPayes, parametres.annexesSmig);
   const sourceCnss =
     "Assiette routée par l'article 13 de la loi n° 16/009 vers l'article 7, litera h du Code du travail, et recopiée à l'article 17, point 1 de l'arrêté n° 146/2018.";
 
@@ -327,6 +446,7 @@ export function cotisations(
     tauxPourCent: number,
     source: string,
     reserve: string | null,
+    base: number = assiette,
   ) => {
     lignes.push({
       cle,
@@ -334,8 +454,8 @@ export function cotisations(
       organisme,
       charge,
       tauxPourCent,
-      assietteFc: assiette,
-      montantFc: (assiette * tauxPourCent) / 100,
+      assietteFc: base,
+      montantFc: (base * tauxPourCent) / 100,
       source,
       reserve,
     });
@@ -343,7 +463,11 @@ export function cotisations(
 
   const v = parametres.versionsDossier;
   const cnss = tauxCnss(parametres.moisDePaie, v?.cnss);
-  if (!cnss) {
+  if (cnss && plancher.baseFc === null) {
+    // Le plancher ne se tranche pas · la CNSS s'abstient entière plutôt que de
+    // cotiser sur une base que personne n'a décidée.
+    abstentions.push(`CNSS · ${plancher.message}`);
+  } else if (!cnss) {
     abstentions.push(
       `CNSS · aucun barème lu pour le mois ${parametres.moisDePaie} · OmegaX n'en tient aucun avant le 24 novembre 2018 (décret n° 18/041, art. 11).`,
     );
@@ -351,13 +475,15 @@ export function cotisations(
     // Une version saisie par le cabinet porte SA référence, et la réserve le dit.
     const srcCnss = cnss.saisieCabinet ? `${cnss.reference} (saisi par le cabinet).` : `${cnss.reference}. ${sourceCnss}`;
     const reserveCnss = cnss.saisieCabinet ? RESERVE_BAREME_CABINET : null;
+    const baseCnss = plancher.baseFc as number;
+    if (plancher.message) reserves.push(`CNSS · ${plancher.message}`);
     if (cnss.prestationsAuxFamilles === null) {
       abstentions.push(ABSTENTION_CNSS_TRANSITOIRE);
     } else {
-      poser('cnss-pf', 'CNSS · prestations aux familles', 'CNSS', 'EMPLOYEUR', cnss.prestationsAuxFamilles, srcCnss, reserveCnss);
+      poser('cnss-pf', 'CNSS · prestations aux familles', 'CNSS', 'EMPLOYEUR', cnss.prestationsAuxFamilles, srcCnss, reserveCnss, baseCnss);
     }
-    poser('cnss-pension-employeur', 'CNSS · pensions, part employeur', 'CNSS', 'EMPLOYEUR', cnss.pensionsEmployeur, srcCnss, reserveCnss);
-    poser('cnss-pension-travailleur', 'CNSS · pensions, quote-part ouvrière', 'CNSS', 'TRAVAILLEUR', cnss.pensionsTravailleur, srcCnss, reserveCnss ?? "C'est la SEULE cotisation retenue sur la paie, et la seule que l'article 71 de la loi n° 23/053 laisse déduire du brut imposable.");
+    poser('cnss-pension-employeur', 'CNSS · pensions, part employeur', 'CNSS', 'EMPLOYEUR', cnss.pensionsEmployeur, srcCnss, reserveCnss, baseCnss);
+    poser('cnss-pension-travailleur', 'CNSS · pensions, quote-part ouvrière', 'CNSS', 'TRAVAILLEUR', cnss.pensionsTravailleur, srcCnss, reserveCnss ?? "C'est la SEULE cotisation retenue sur la paie, et la seule que l'article 71 de la loi n° 23/053 laisse déduire du brut imposable.", baseCnss);
 
     const tauxRp =
       cnss.risquesProfessionnels *
@@ -372,6 +498,7 @@ export function cotisations(
       reserveCnss ?? (parametres.majorationRisquesProfessionnels
         ? "Taux MAJORÉ au double par décision de la Caisse (article 5 du décret n° 18/041). La majoration se déclare, elle ne se déduit d'aucun manquement constaté par le logiciel."
         : null),
+      baseCnss,
     );
   }
 
@@ -409,6 +536,8 @@ export function cotisations(
     totalTravailleurFc,
     coutEmployeurSupplementaireFc: totalEmployeurFc,
     abstentions,
+    plancherCnss: plancher,
+    reserves,
   };
 }
 

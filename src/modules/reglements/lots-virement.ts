@@ -1,4 +1,5 @@
 import { estEcheanceAReglerSur } from './reglement-tiers';
+import { nombreDeDecimales } from '../../common/decimales';
 
 /**
  * LOTS DE VIREMENTS RÉCURRENTS · Moyens de Paiement de Sage : « lots
@@ -31,7 +32,8 @@ export function motifRefusLot(nom: string, lignes: LigneLot[], comptes: CompteLu
   for (const l of lignes) {
     if (vus.has(l.compteId)) return 'Un fournisseur ne figure qu’une fois dans un lot · son montant se règle à chaque rappel.';
     vus.add(l.compteId);
-    if (!(l.montant > 0) || Math.round(l.montant * 100) !== l.montant * 100) {
+    // Deux décimales comptées sur l'écriture du nombre (audit final F108).
+    if (!(l.montant > 0) || nombreDeDecimales(l.montant) > 2) {
       return 'Le montant habituel est positif, à deux décimales au plus.';
     }
     const c = comptes.find((x) => x.id === l.compteId);

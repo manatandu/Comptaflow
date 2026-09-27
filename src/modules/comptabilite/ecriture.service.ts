@@ -288,6 +288,7 @@ export const PERIMETRES_BALANCE_AGEE: Record<
  */
 export type DetenteurEcriture = string;
 export const DETENTEUR_LIQUIDATION_TVA: DetenteurEcriture = 'une liquidation de TVA';
+export const DETENTEUR_PAIE_DU_MOIS: DetenteurEcriture = 'la paie du mois (bulletins de paie)';
 
 /**
  * Suppression demandée PAR le module qui tient l'écriture · audit du serveur
@@ -1081,11 +1082,22 @@ export class EcritureService {
    * et l'erreur REMONTE : une compensation qui échoue ne se tait jamais.
    * Aucune garde de statut ni de détenteur · l'écriture vient de naître au
    * brouillard dans la même requête, rien d'autre ne la tient encore.
+   *
+   * SAUF LE MODULE APPELANT, qui a pu poser son lien entre-temps (la paie lie
+   * ses bulletins APRÈS la création). `liberer` le dénoue dans la MÊME
+   * transaction, avant les lignes · deux transactions laisseraient, sur un
+   * échec de la seconde, une écriture libre que rien ne tient plus (audit
+   * final F107).
    */
-  async retirerCompensation(tenantId: string, ecritureId: string) {
+  async retirerCompensation(
+    tenantId: string,
+    ecritureId: string,
+    liberer?: (tx: Prisma.TransactionClient) => Promise<unknown>,
+  ) {
     await this.prisma.$transaction(async (tx) => {
       const ecriture = await tx.ecriture.findFirst({ where: { id: ecritureId, tenantId }, select: { id: true } });
       if (!ecriture) return;
+      if (liberer) await liberer(tx);
       await tx.ligneEcriture.deleteMany({ where: { ecritureId } });
       await tx.ecriture.delete({ where: { id: ecritureId } });
     });
@@ -1157,7 +1169,7 @@ export class EcritureService {
       // écriture, ou repartiraient en silence dans la paie suivante. La
       // passation se défait depuis la fenêtre Personnel, qui libère les
       // bulletins dans le même geste.
-      ['la paie du mois (bulletins de paie)', this.prisma.bulletinPaie.count({ where: { tenantId, ecritureId } })],
+      [DETENTEUR_PAIE_DU_MOIS, this.prisma.bulletinPaie.count({ where: { tenantId, ecritureId } })],
       // L'ordre de virement non annulé. Sans ce refus, la pièce de règlement
       // disparaîtrait sous un ordre que la banque exécute quand même · la
       // dette serait rouverte au 40 pendant que le fournisseur est payé.

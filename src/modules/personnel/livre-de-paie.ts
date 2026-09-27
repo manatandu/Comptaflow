@@ -115,8 +115,8 @@ export const RESERVE_CONTRADICTION_DE_SEUIL =
 export const DOUBLES_DETACHABLES_MINIMUM = 2;
 
 /**
- * L'ARRÊTÉ DU MODÈLE · sa référence, et l'aveu qu'il n'est pas lu. Le champ
- * `lu` ne passera à `true` que le jour où le texte sera au corpus.
+ * L'ARRÊTÉ DU MODÈLE · sa référence, et ce qu'OmegaX en tire. Il est au
+ * corpus depuis P6 (`lu: true`) ; `pourquoi` dit ce qui reste non certifié.
  */
 export const ARRETE_DU_MODELE = {
   reference: "Arrêté ministériel n° 12/CAB.MIN/ETPS/042 du 8 août 2008",
@@ -135,7 +135,10 @@ export const ARRETE_DU_MODELE = {
 } as const;
 
 export type MentionFeuilleDePaie = {
-  /** Le rang de la mention dans l'article 25, de 1 à 30. */
+  /**
+   * Le rang de la mention dans SA liste · de 1 à 30 à l'article 25 de l'arrêté
+   * n° 146/2018, de 1 à 33 à l'article 1er de l'arrêté de 2008.
+   */
   readonly rang: number;
   /** Le libellé du texte, recopié. */
   readonly libelle: string;
