@@ -365,7 +365,7 @@ export const FENETRES: DefinitionFenetre[] = [
     // le même choix entre inventaire permanent et intermittent. Ce qui les
     // sépare est la NOMENCLATURE, tranchée compte par compte côté serveur.
     motif: /^\/magasin$/,
-    titre: 'Magasin · fiches de stock',
+    titre: 'Magasin et fiches de stock',
     titreCourt: 'Magasin',
     rendre: () => <MagasinPage />,
   },
@@ -470,7 +470,7 @@ export const FENETRES: DefinitionFenetre[] = [
     // l'AUDCIF art. 22, que l'art. 3 du SYCEBNL n'écarte PAS. Poser un
     // référentiel ici fabriquerait une différence que le texte ne fait pas.
     motif: /^\/restitution$/,
-    titre: 'Restitution du dossier',
+    titre: 'Restituer le dossier complet',
     titreCourt: 'Restitution',
     rendre: () => <RestitutionPage />,
   },
@@ -493,7 +493,7 @@ export const FENETRES: DefinitionFenetre[] = [
     // estOperateurPlateforme (AppShell), la page se re-verrouille elle-même,
     // et le serveur relit le drapeau à chaque requête (OperateurPlateformeGuard).
     motif: /^\/plateforme$/,
-    titre: 'VMG Consulting · administration de la plateforme',
+    titre: 'Administration VMG Consulting',
     titreCourt: 'VMG Consulting',
     rendre: ({ adresse }) => <PlateformePage adresse={adresse} />,
   },
@@ -502,7 +502,7 @@ export const FENETRES: DefinitionFenetre[] = [
     // personne morale en plusieurs dossiers) · le menu État ne la montre
     // qu'aux dossiers qui ont des cellules, le serveur re-vérifie le lien.
     motif: /^\/groupe$/,
-    titre: 'Groupe · balance agrégée',
+    titre: 'Balance agrégée du groupe',
     titreCourt: 'Groupe',
     rendre: () => <GroupePage />,
     // FENÊTRE COMMUNE AUX DEUX RÉFÉRENTIELS depuis le 2026-09-24 · une

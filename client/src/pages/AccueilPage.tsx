@@ -104,7 +104,7 @@ const GROUPES: GroupeDef[] = [
       { label: 'Saisie des journaux', chemin: '/saisie', Icon: IconGrille },
       { label: 'Journal', chemin: '/journal?onglet=journal', Icon: IconJournal },
       { label: 'Balance des comptes', chemin: '/journal?onglet=balance', Icon: IconBalance },
-      { label: 'Grand livre', chemin: '/journal?onglet=grand-livre', Icon: IconBook },
+      { label: 'Grand livre des comptes', chemin: '/journal?onglet=grand-livre', Icon: IconBook },
       { label: 'Rapprochement bancaire', chemin: '/rapprochement', Icon: IconBanque },
     ],
   },
@@ -126,8 +126,8 @@ const GROUPES: GroupeDef[] = [
       { label: 'Plan comptable', chemin: '/comptes', Icon: IconComptes },
       { label: 'Évolution des soldes', chemin: '/evolution-soldes', Icon: IconSearch },
       { label: 'Immobilisations', chemin: '/immobilisations', Icon: IconImmo },
-      { label: 'Tableaux des immobilisations', chemin: '/tableaux-immobilisations', Icon: IconImmo },
-      { label: 'Régularisations', chemin: '/regularisations', Icon: IconRefresh },
+      { label: 'Immobilisations et amortissements', chemin: '/tableaux-immobilisations', Icon: IconImmo },
+      { label: 'Régularisations et abonnements', chemin: '/regularisations', Icon: IconRefresh },
     ],
   },
   {
@@ -154,8 +154,8 @@ const GROUPES: GroupeDef[] = [
     tuiles: [
       { label: 'Registre des donateurs', chemin: '/registre-donateurs', Icon: IconBook, referentielsApplicables: ['SYCEBNL'] },
       { label: 'Bailleurs de fonds', chemin: '/bailleurs', Icon: IconUsers, referentielsApplicables: ['SYCEBNL'] },
-      { label: 'États analytiques', chemin: '/etats-analytiques', Icon: IconDashboard },
-      { label: 'Retenues et fiscal', chemin: '/retenues', Icon: IconPrint },
+      { label: 'États analytiques et budgétaires', chemin: '/etats-analytiques', Icon: IconDashboard },
+      { label: 'Retenues et échéancier fiscal', chemin: '/retenues', Icon: IconPrint },
     ],
   },
 ];

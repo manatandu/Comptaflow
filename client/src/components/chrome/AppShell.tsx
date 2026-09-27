@@ -150,7 +150,7 @@ export function AppShell() {
         },
         // Sage : Fichier → Autorisations d'accès. La gestion des utilisateurs
         // est une commande du dossier, pas un « outil » à part.
-        ...(estAdmin ? [{ label: "Autorisations d'accès (utilisateurs)", chemin: '/utilisateurs', onClick: () => navigate('/utilisateurs') }] : []),
+        ...(estAdmin ? [{ label: "Autorisations d'accès", chemin: '/utilisateurs', onClick: () => navigate('/utilisateurs') }] : []),
         // Le journal d'audit n'avait qu'une tuile d'accueil · or la barre de
         // menus est la carte complète du logiciel. Réservé comme sa route.
         ...(estAdmin ? [{ label: "Journal d'audit", chemin: '/journal-audit', onClick: () => navigate('/journal-audit') }] : []),
@@ -486,7 +486,7 @@ export function AppShell() {
             // c'est le tableau des mouvements que le CPCC demande à
             // l'auditeur d'obtenir, et la liste des risques que le bilan
             // ne porte pas (AUDCIF Titre VIII ch. 18 § 5.3).
-            { label: 'Provisions pour risques et charges', chemin: '/provisions', onClick: () => navigate('/provisions') },
+            { label: 'Registre des provisions pour risques et charges', chemin: '/provisions', onClick: () => navigate('/provisions') },
             // « Faire le suivi des faiblesses relevées lors de l'audit
             // précédent » (CPCC), conduit selon la méthode de l'ISA 265. Deux
             // modes : les constats du cabinet au titre de sa révision, et les

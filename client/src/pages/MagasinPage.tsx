@@ -316,7 +316,7 @@ export function MagasinPage() {
 
   return (
     <div className="p-2">
-      <EnteteImpression titre="Magasin · fiches de stock" />
+      <EnteteImpression titre="Magasin et fiches de stock" />
       <div className="ecran-seul mb-1.5 max-w-[1240px] flex items-center gap-1.5 text-[11px] font-semibold text-text-dim">
         {/* Le mode de tenue est une donnée du dossier, pas un titre · il reste à l'écran. */}
         {liste?.modeInventaire === 'PERMANENT'
