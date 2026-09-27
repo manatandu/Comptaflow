@@ -125,7 +125,11 @@ export const FRACTION_OBLIGATION_ALIMENTAIRE = { numerateur: 2, denominateur: 5 
 /** Le mois de l'article 7 du décret n° 25/22 · vingt-six jours. */
 export const JOURS_DU_MOIS = MULTIPLICATEURS_ARTICLE_7.MOIS;
 
-export type MotifAbstentionQuotite = 'CLASSE_PROFESSIONNELLE_ABSENTE' | 'MOIS_HORS_ANNEXE';
+export type MotifAbstentionQuotite =
+  | 'CLASSE_PROFESSIONNELLE_ABSENTE'
+  | 'MOIS_HORS_ANNEXE'
+  | 'IMPOT_NON_CHIFFRE'
+  | 'COTISATION_NON_CHIFFREE';
 
 export type EntreeQuotite = {
   /** AAAA-MM · il choisit l'annexe, donc le seuil. */
@@ -140,10 +144,13 @@ export type EntreeQuotite = {
   readonly remunerationFc: number;
   /** La classe de la tension salariale, 1 à 17. Absente, on s'abstient. */
   readonly classeProfessionnelle?: number | null;
-  /** Alinéa 4 · la retenue de l'article 119, telle que liquidée. */
-  readonly retenuesFiscalesFc?: number;
-  /** Alinéa 4 · la quote-part ouvrière de la CNSS, et elle seule ici. */
-  readonly retenuesSocialesFc?: number;
+  /**
+   * Alinéa 4 · la retenue de l'article 119, telle que liquidée. `null` quand
+   * la paie ne l'a pas chiffrée · ce n'est PAS zéro (audit final F104).
+   */
+  readonly retenuesFiscalesFc?: number | null;
+  /** Alinéa 4 · la quote-part ouvrière de la CNSS, et elle seule ici. `null` non chiffrée. */
+  readonly retenuesSocialesFc?: number | null;
   /**
    * Alinéa 4 · un logement est-il FOURNI EN NATURE ? Répondu oui, OmegaX
    * déduit l'évaluation forfaitaire de l'article 10 de l'arrêté
@@ -340,6 +347,27 @@ export function quotiteSaisissable(entree: EntreeQuotite): VerdictQuotite {
       explication:
         `Aucune annexe du décret n° 25/22 ne couvre le mois de paie ${entree.moisDePaie}, ou la classe ` +
         `${classe} n'est pas une des dix-sept classes de la tension salariale. Le seuil de l'alinéa 1er ne se place pas.`,
+    });
+  }
+
+  // ALINÉA 4 · LA BASE EST NETTE DES RETENUES FISCALES ET SOCIALES. Une retenue
+  // que la paie n'a pas chiffrée lue comme zéro gonflerait la base, donc la
+  // part saisissable, au détriment de celui que l'article protège (audit
+  // final F104) · on s'abstient.
+  if (entree.retenuesFiscalesFc === null) {
+    abstentions.push({
+      motif: 'IMPOT_NON_CHIFFRE',
+      explication:
+        "ALINÉA 4 · la base se prend « déduction faite des retenues fiscales ». La retenue de l'article 119 n'est pas " +
+        "chiffrée pour ce mois · la lire comme zéro gonflerait la part saisissable.",
+    });
+  }
+  if (entree.retenuesSocialesFc === null) {
+    abstentions.push({
+      motif: 'COTISATION_NON_CHIFFREE',
+      explication:
+        "ALINÉA 4 · la base se prend « déduction faite des retenues […] sociales ». La quote-part ouvrière de la CNSS " +
+        "n'est pas chiffrée pour ce mois · la lire comme zéro gonflerait la part saisissable.",
     });
   }
 

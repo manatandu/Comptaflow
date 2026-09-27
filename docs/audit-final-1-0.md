@@ -788,18 +788,21 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** un impôt non chiffré est lu comme zéro dans la base de l'art. 114, sans abstention.
 - **Correction :** passer null et s'abstenir (IMPOT_NON_CHIFFRE), de même pour la CNSS.
+- **Fait le 2026-09-27 :** la simulation passe `null` à la quotité quand l'IRPP s'abstient, et quand aucune ligne de cotisation n'est à la charge du travailleur ; la quotité s'abstient alors (IMPOT_NON_CHIFFRE, COTISATION_NON_CHIFFREE) au lieu de lire zéro. Tests : `quotite-saisissable.spec.ts`, `simulation-paie.spec.ts`.
 
 **F105 · Régime libératoire présumé au droit commun** [paie-06]
 - **Emplacements :** src/modules/personnel/bareme-irpp.ts:49, :449-461 · personnel.service.ts:737-746
 - **Condition :** 1
 - **Constat :** `regimeApplicable` n'est appelé nulle part. Un employé de maison reçoit le barème progressif, contre le commentaire et CLAUDE.md.
 - **Correction :** régime dans le DTO, abstention pour les régimes forfaitaires, ou retrait de la promesse.
+- **Fait le 2026-09-27 :** `regimeSalarial` au DTO et à l'écran (« Régime de la retenue »), lu par `regimeApplicable` · un forfait de l'art. 121, alinéa 2 abstient la retenue, et un régime non déclaré garde le barème de l'art. 118 en le disant (`RESERVE_REGIME_NON_DECLARE`). Tests : `simulation-paie.spec.ts`, `personnel-regime-f105.spec.ts`.
 
 **F106 · Réserve affichée « la quotité de l'art. 114 n'est pas calculée » sous une quotité calculée** [paie-07]
 - **Emplacements :** src/modules/personnel/cotisations-paie.ts:451 · client/src/pages/PersonnelPage.tsx:2441
 - **Condition :** 5
 - **Constat :** garantie négative périmée, figée dans chaque bulletin.
 - **Correction :** remplacer la réserve et geler la bonne par un test.
+- **Fait le 2026-09-27 :** la réserve dit que la quotité est calculée à part, sur le minimum de la classe et après la défalcation du logement en nature ; la bulle de la saisie, qui disait encore qu'un logement en nature empêche le calcul, est corrigée du même geste. Tests : `cotisations-paie.spec.ts`, `personnel-regime-f105.spec.ts`.
 
 **F107 · La suppression de l'écriture de paie est réécrite à la main** [paie-10]
 - **Emplacements :** src/modules/personnel/comptabilisation-paie.service.ts:134-138, :152-183

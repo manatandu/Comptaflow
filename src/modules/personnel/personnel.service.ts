@@ -10,7 +10,7 @@ import {
   TerminerContratDto,
 } from './dto/personnel.dto';
 import { assiettes, type ElementPaie, type NatureElementPaie } from './assiettes-paie';
-import { baremeApplicableAuMois, retenueMensuelle } from './bareme-irpp';
+import { RESERVE_REGIME_NON_DECLARE, baremeApplicableAuMois, regimeApplicable, retenueMensuelle } from './bareme-irpp';
 import { cotisations, netAPayer, type NatureEmployeurInpp } from './cotisations-paie';
 import { estVerseEnEspeces, passationPaie, type Referentiel } from './passation-paie';
 import {
@@ -744,8 +744,11 @@ export class PersonnelService {
     // un nombre de personnes à charge absent vaut ZÉRO réduction, ce qui est
     // le sens défavorable au contribuable et donc celui qu'on ne suppose pas
     // en sa faveur.
+    // ARTICLE 121, ALINÉA 2 · un forfait libératoire n'est pas le barème. Il
+    // s'abstient plutôt que de retenir l'article 118 (audit final F105).
+    const regime = regimeApplicable(dto.regimeSalarial ?? 'BAREME_ARTICLE_118');
     const retenue =
-      borne.applicable && deuxAssiettes.assietteFiscaleNetteFc !== null
+      borne.applicable && regime.calculable && deuxAssiettes.assietteFiscaleNetteFc !== null
         ? retenueMensuelle(
             dto.moisDePaie,
             deuxAssiettes.assietteFiscaleNetteFc,
@@ -814,8 +817,12 @@ export class PersonnelService {
       annexesSmig,
       remunerationFc: deuxAssiettes.assietteSocialeFc,
       classeProfessionnelle: dto.classeProfessionnelle ?? null,
-      retenuesFiscalesFc: retenue ? retenue.retenueFc : 0,
-      retenuesSocialesFc: lesCotisations.totalTravailleurFc,
+      // Non chiffrées, elles valent null et la quotité s'abstient · lues
+      // comme zéro, elles gonflaient la part saisissable (audit final F104).
+      retenuesFiscalesFc: retenue ? retenue.retenueFc : null,
+      retenuesSocialesFc: lesCotisations.lignes.some((l) => l.charge === 'TRAVAILLEUR')
+        ? lesCotisations.totalTravailleurFc
+        : null,
       logementFourniEnNature: dto.logementFourniEnNature,
       logementEnNatureDejaDefalque: dto.logementEnNatureDejaDefalque,
       // ARTICLE 138 · fournir et indemniser sont ALTERNATIFS. Les deux
@@ -852,6 +859,12 @@ export class PersonnelService {
       net,
       baremeApplicable: borne.applicable,
       motifBaremeInapplicable: borne.motif,
+      regimeSalarial: {
+        regime: dto.regimeSalarial ?? 'BAREME_ARTICLE_118',
+        declare: dto.regimeSalarial !== undefined,
+        calculable: regime.calculable,
+        motif: dto.regimeSalarial === undefined ? RESERVE_REGIME_NON_DECLARE : regime.motif,
+      },
       assiettes: deuxAssiettes,
       personnesAChargeRetenues: dto.personnesACharge ?? 0,
       propositionPersonnesACharge,

@@ -448,7 +448,10 @@ export function netAPayer(
     retenuesAvancesFc > 0
       ? "NET APRÈS LES RETENUES D'AVANCE ET DE PRÊT (article 112, c et f), tirées du registre des avances. Restent hors du net les indemnités compensatoires de l'article 52, le cautionnement et la saisie-arrêt, qui supposent chacun un acte que le registre ne porte pas."
       : "NET AVANT LES RETENUES DE L'ARTICLE 112 · aucune avance ni aucun prêt n'est retenu sur ce bulletin. Les indemnités compensatoires de l'article 52, le cautionnement et la saisie-arrêt supposent chacun un acte que le registre ne porte pas.",
-    "LA QUOTITÉ SAISISSABLE DE L'ARTICLE 114 N'EST PAS CALCULÉE · elle se mesure « sur la partie n'excédant pas cinq fois le salaire mensuel minimum interprofessionnel de SA CATÉGORIE », qui vient de la convention collective du dossier, absente du corpus ; et elle se prend après déduction de « l'évaluation forfaitaire du logement, tel que défini à l'article 139 », dont l'arrêté n'existe pas.",
+    // UNE GARANTIE NÉGATIVE VIEILLIT · cette réserve disait la quotité « non
+    // calculée » depuis P2b, alors qu'elle l'est depuis P5 et P6, et chaque
+    // bulletin émis la figeait (audit final F106).
+    "LA QUOTITÉ SAISISSABLE DE L'ARTICLE 114 EST CALCULÉE À PART · sur le minimum de la classe (décret n° 25/22) et après la défalcation du logement fourni en nature (arrêté n° 12/CAB.MIN/TPS/110/2005, art. 10). Elle dit ce qu'une saisie-arrêt ou une cession pourrait atteindre, et n'est retenue sur aucun bulletin.",
   ];
   // Pas de plancher à zéro · un net négatif est REFUSÉ par l'appelant (les
   // retenues d'avance dépasseraient ce qui est dû), jamais ramené à zéro, ce

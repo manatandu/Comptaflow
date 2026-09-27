@@ -350,3 +350,31 @@ describe("P7 · ce que la doctrine apporte, et ce qu'elle n'apporte pas", () => 
     }
   });
 });
+
+/**
+ * AUDIT FINAL F104 · un impôt ou une cotisation que la paie n'a pas chiffrés
+ * étaient lus comme ZÉRO dans la base de l'alinéa 4 · la base, donc la part
+ * saisissable, en sortait gonflée, au détriment du travailleur que l'article
+ * protège. `null` n'est pas zéro · la quotité s'abstient.
+ */
+describe('F104 · une retenue non chiffrée n’est pas zéro', () => {
+  const base = { moisDePaie: '2026-03', remunerationFc: 800_000, classeProfessionnelle: 5 };
+
+  it('un IRPP non chiffré abstient la quotité', () => {
+    const v = quotiteSaisissable({ ...base, retenuesFiscalesFc: null, retenuesSocialesFc: 40_000 });
+    expect(v.quotiteOrdinaireFc).toBeNull();
+    expect(v.abstentions.map((a) => a.motif)).toEqual(['IMPOT_NON_CHIFFRE']);
+  });
+
+  it('une quote-part CNSS non chiffrée abstient la quotité', () => {
+    const v = quotiteSaisissable({ ...base, retenuesFiscalesFc: 10_000, retenuesSocialesFc: null });
+    expect(v.baseFc).toBeNull();
+    expect(v.abstentions.map((a) => a.motif)).toEqual(['COTISATION_NON_CHIFFREE']);
+  });
+
+  it('zéro chiffré reste une réponse · la quotité se calcule', () => {
+    const v = quotiteSaisissable({ ...base, retenuesFiscalesFc: 0, retenuesSocialesFc: 0 });
+    expect(v.abstentions).toEqual([]);
+    expect(v.baseFc).toBe(800_000);
+  });
+});

@@ -659,3 +659,85 @@ describe("P7 · le service guette la BONNE nature pour le cumul de l'article 138
     expect(res.quotite.reserves.some((r) => r.includes('Lukoo Musubao'))).toBe(false);
   });
 });
+
+/**
+ * AUDIT FINAL F104 · LE CÂBLAGE. La fonction pure s'abstient sur `null` ; le
+ * service lui passait ZÉRO quand l'IRPP s'abstenait, et la base de l'alinéa 4
+ * sortait gonflée de l'impôt que personne n'avait chiffré.
+ */
+describe('F104 · la simulation passe à la quotité les retenues qu’elle n’a pas chiffrées', () => {
+  it('un IRPP en abstention abstient la quotité, au lieu de la gonfler', async () => {
+    const { svc } = service();
+    const res = await svc.simulerPaie(
+      't-1',
+      null,
+      dto({
+        classeProfessionnelle: 5,
+        natureEmployeurInpp: 'PRIVE',
+        effectif: 10,
+        elements: [
+          { nature: 'SALAIRE_OU_TRAITEMENT', libelle: 'Salaire', montantFc: 1_000_000 },
+          // Transport sans attestation de sa réalité · art. 69, 8, b · l'assiette
+          // fiscale s'abstient, la retenue aussi.
+          { nature: 'INDEMNITE_DE_TRANSPORT', libelle: 'Transport', montantFc: 90_000 },
+        ],
+      } as Partial<SimulationPaieDto>),
+    );
+    expect(res.retenue).toBeNull();
+    expect(res.quotite.quotiteOrdinaireFc).toBeNull();
+    expect(res.quotite.abstentions.map((a) => a.motif)).toContain('IMPOT_NON_CHIFFRE');
+  });
+
+  it('une paie antérieure à tout barème CNSS abstient la quotité sur la quote-part', async () => {
+    const { svc } = service();
+    const res = await svc.simulerPaie(
+      't-1',
+      null,
+      dto({ moisDePaie: '2018-06', classeProfessionnelle: 5, natureEmployeurInpp: 'PRIVE', effectif: 10 } as Partial<SimulationPaieDto>),
+    );
+    expect(res.quotite.abstentions.map((a) => a.motif)).toContain('COTISATION_NON_CHIFFREE');
+  });
+});
+
+/**
+ * AUDIT FINAL F105 · LE RÉGIME DE LA RETENUE SE DÉCLARE. `regimeApplicable`
+ * existait et nommait les deux forfaits libératoires de l'art. 121, alinéa 2,
+ * mais la simulation l'appelait toujours sur le barème de l'art. 118 · un
+ * personnel domestique recevait la retenue de droit commun, sur un bulletin
+ * d'apparence juste. Non déclaré, le droit commun est retenu ET dit.
+ */
+describe('F105 · le régime salarial est lu, et son absence est dite', () => {
+  it('un forfait déclaré abstient la retenue du barème', async () => {
+    const { svc } = service();
+    const res = await svc.simulerPaie(
+      't-1',
+      null,
+      dto({ regimeSalarial: 'FORFAIT_PERSONNEL_DOMESTIQUE' } as Partial<SimulationPaieDto>),
+    );
+    expect(res.retenue).toBeNull();
+    expect(res.regimeSalarial.calculable).toBe(false);
+    expect(res.regimeSalarial.declare).toBe(true);
+    expect(res.regimeSalarial.regime).toBe('FORFAIT_PERSONNEL_DOMESTIQUE');
+  });
+
+  it('un régime non déclaré garde le barème de droit commun et le dit', async () => {
+    const { svc } = service();
+    const res = await svc.simulerPaie('t-1', null, dto());
+    expect(res.retenue).not.toBeNull();
+    expect(res.regimeSalarial.declare).toBe(false);
+    expect(res.regimeSalarial.calculable).toBe(true);
+    expect(res.regimeSalarial.motif).toContain('RÉGIME NON DÉCLARÉ');
+  });
+
+  it('le barème déclaré se dit déclaré, sans réserve de régime', async () => {
+    const { svc } = service();
+    const res = await svc.simulerPaie(
+      't-1',
+      null,
+      dto({ regimeSalarial: 'BAREME_ARTICLE_118' } as Partial<SimulationPaieDto>),
+    );
+    expect(res.retenue).not.toBeNull();
+    expect(res.regimeSalarial.declare).toBe(true);
+    expect(res.regimeSalarial.motif ?? '').not.toContain('RÉGIME NON DÉCLARÉ');
+  });
+});

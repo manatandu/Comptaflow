@@ -1,3 +1,4 @@
+import type { RegimeSalarial } from '../bareme-irpp';
 import { Type } from 'class-transformer';
 import {
   IsArray,
@@ -423,6 +424,17 @@ export class SimulationPaieDto {
   @IsOptional()
   @IsEnum(['PUBLIC', 'PRIVE'])
   natureEmployeurInpp?: string;
+
+  /**
+   * Article 121, alinéa 2 · le régime de la retenue. Le personnel domestique
+   * et les salariés de micro-entreprises relèvent d'un forfait LIBÉRATOIRE
+   * (arrêté n° 019/2025, non lu) que OmegaX ne chiffre pas · la retenue
+   * s'abstient. Non déclaré, le droit commun est retenu ET dit (audit final
+   * F105) · il ne se déduit ni d'un montant ni d'une forme juridique.
+   */
+  @IsOptional()
+  @IsEnum(['BAREME_ARTICLE_118', 'FORFAIT_PERSONNEL_DOMESTIQUE', 'FORFAIT_SALARIE_DE_MICRO_ENTREPRISE'])
+  regimeSalarial?: RegimeSalarial;
 
   /** Effectif · il commande la tranche INPP du secteur PRIVÉ seulement. */
   @IsOptional()

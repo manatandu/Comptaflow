@@ -46,7 +46,8 @@
  *     et salariés relevant des Micro-entreprises) N'EST PAS SERVIE. Elle suit
  *     des taux FORFAITAIRES fixés par l'arrêté n° 019/2025, qui n'est pas lu
  *     ici, et elle est LIBÉRATOIRE · ce n'est pas le barème, c'est un autre
- *     régime. `regimeApplicable` le nomme plutôt que de l'ignorer.
+ *     régime. `regimeApplicable` le nomme, et la simulation l'appelle sur le
+ *     régime DÉCLARÉ · un forfait s'abstient (audit final F105).
  */
 
 /** Article 118 · l'année à laquelle la loi n° 23/053 commence à mordre. */
@@ -448,9 +449,12 @@ export const REGIMES_SALARIAUX: Readonly<Record<RegimeSalarial, string>> = {
 
 /**
  * Le régime n'est JAMAIS déduit d'un montant ni d'une forme juridique · il se
- * déclare. Présumer le droit commun ferait retenir le barème sur un personnel
- * domestique, dont la retenue est libératoire à un tout autre taux.
+ * déclare. Retenir le barème sur un personnel domestique, dont la retenue est
+ * libératoire à un tout autre taux, serait faux · un forfait s'abstient.
  */
+export const RESERVE_REGIME_NON_DECLARE =
+  "RÉGIME NON DÉCLARÉ · le barème de droit commun de l'article 118 est retenu. Un personnel domestique ou un salarié de micro-entreprise relève d'une retenue forfaitaire libératoire (art. 121, alinéa 2), que OmegaX ne chiffre pas · le déclarer abstient la retenue.";
+
 export function regimeApplicable(regime: RegimeSalarial): {
   calculable: boolean;
   motif: string;

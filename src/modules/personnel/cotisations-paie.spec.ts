@@ -158,7 +158,11 @@ describe("Le net à payer part du TOTAL VERSÉ, jamais de l'assiette", () => {
     const r = netAPayer(1_000_000, 50_000, 30_000).reserves.join(' ');
     expect(r).toMatch(/article 112/i);
     expect(r).toMatch(/article 114/i);
-    expect(r).toContain('article 139');
-    expect(r).toContain('convention collective');
+    // CE TEST GELAIT LA GARANTIE PÉRIMÉE « quotité non calculée » (audit final
+    // F106) · il gèle désormais la réserve vraie, et d'où la quotité se tire.
+    expect(r).toContain("LA QUOTITÉ SAISISSABLE DE L'ARTICLE 114 EST CALCULÉE À PART");
+    expect(r).toContain('décret n° 25/22');
+    expect(r).toContain('arrêté n° 12/CAB.MIN/TPS/110/2005, art. 10');
+    expect(r).toContain("n'est retenue sur aucun bulletin");
   });
 });

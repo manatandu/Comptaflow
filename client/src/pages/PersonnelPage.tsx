@@ -163,6 +163,8 @@ interface Simulation {
   } | null;
   baremeApplicable: boolean;
   motifBaremeInapplicable: string | null;
+  /** Article 121, alinéa 2 · le régime déclaré, et s'il se calcule (audit final F105). */
+  regimeSalarial?: { regime: string; declare: boolean; calculable: boolean; motif: string };
   assiettes: {
     assietteSocialeFc: number;
     horsRemuneration: { libelle: string; montantFc: number; motif: string }[];
@@ -556,6 +558,9 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
   const [natureInpp, setNatureInpp] = useState<'' | 'PUBLIC' | 'PRIVE'>('');
   const [effectifInpp, setEffectifInpp] = useState('');
   const [majorationRp, setMajorationRp] = useState(false);
+  // ARTICLE 121, ALINÉA 2 · vide = non déclaré, le serveur retient le droit
+  // commun ET le dit ; un forfait abstient la retenue (audit final F105).
+  const [regimeSalarial, setRegimeSalarial] = useState('');
 
   const charger = useCallback(() => {
     api.get<Salarie[]>(`/personnel/salaries${tous ? '?tous=true' : ''}`).then(
@@ -637,6 +642,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
       ...(natureInpp === '' ? {} : { natureEmployeurInpp: natureInpp }),
       effectif: nombre(effectifInpp),
       ...(majorationRp ? { majorationRisquesProfessionnels: true } : {}),
+      ...(regimeSalarial === '' ? {} : { regimeSalarial }),
       // ARTICLE 69, 1 · le nombre d'enfants BÉNÉFICIAIRES, dont le serveur
       // tire le taux légal. Absent, il s'abstient · il ne suppose pas un.
       enfantsBeneficiairesAllocations: nombre(enfantsAllocations),
@@ -1874,6 +1880,19 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                 <span className="text-[11px]">Risques prof. majorés</span>
               </label>
               <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Régime de la retenue</span>
+                <select
+                  value={regimeSalarial}
+                  onChange={(e) => setRegimeSalarial(e.target.value)}
+                  className="border border-border bg-transparent px-2 py-1"
+                >
+                  <option value="">Non déclaré</option>
+                  <option value="BAREME_ARTICLE_118">Barème de l'art. 118</option>
+                  <option value="FORFAIT_PERSONNEL_DOMESTIQUE">Personnel domestique (forfait)</option>
+                  <option value="FORFAIT_SALARIE_DE_MICRO_ENTREPRISE">Salarié de micro-entreprise (forfait)</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-0.5">
                 <span className={etiquette}>Personnes à charge</span>
                 <input
                   value={personnesACharge}
@@ -1888,7 +1907,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
               8 100 FC de l’arrêté n° 137/2018, prestation servie directement par la Caisse.{' '}
               <Aide
                 titre="Champs de la simulation"
-                texte="Les retenues de l’article 71 sont saisies, quote-part ouvrière de la CNSS en tête : leurs taux vivent au registre des retenues avec leur date d’effet, et ce module ne les recopie pas. Le taux légal des allocations familiales est calculé à partir du nombre d’enfants bénéficiaires, mensualisé ; l’employeur n’accorde pas la prestation de l’arrêté ministériel n° 137/2018. Le champ de saisie ne sert plus qu’au mois qu’aucune annexe ne couvre. La classe place le seuil de l’article 114 ; sans elle, ou dès qu’un logement est fourni en nature, la quotité n’est pas chiffrée."
+                texte="Les retenues de l’article 71 sont saisies, quote-part ouvrière de la CNSS en tête : leurs taux vivent au registre des retenues avec leur date d’effet, et ce module ne les recopie pas. Le taux légal des allocations familiales est calculé à partir du nombre d’enfants bénéficiaires, mensualisé ; l’employeur n’accorde pas la prestation de l’arrêté ministériel n° 137/2018. Le champ de saisie ne sert plus qu’au mois qu’aucune annexe ne couvre. La classe place le seuil de l’article 114 ; sans elle, ou tant que l’impôt ou la quote-part ouvrière du mois ne sont pas chiffrés, la quotité ne l’est pas. Un logement fourni en nature est défalqué pour « 1/5 du taux journalier des allocations familiales » (arrêté n° 12/CAB.MIN/TPS/110/2005, art. 10), sauf s’il l’a déjà été."
                 source="Loi n° 23/053, art. 71 · décret n° 25/22 · Code du travail, art. 114"
               />
             </div>
@@ -2238,6 +2257,11 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
               {!simulation.baremeApplicable && simulation.motifBaremeInapplicable && (
                 <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mb-2.5">
                   {simulation.motifBaremeInapplicable}
+                </div>
+              )}
+              {simulation.regimeSalarial && (!simulation.regimeSalarial.declare || !simulation.regimeSalarial.calculable) && (
+                <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mb-2.5">
+                  {simulation.regimeSalarial.motif}
                 </div>
               )}
 

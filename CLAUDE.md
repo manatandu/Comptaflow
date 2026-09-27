@@ -1688,6 +1688,16 @@ quotité compris, rend la retenue au centime · un test le vérifie sur cinq
 salaires. Un bulletin émis avant ce jour se relit sans le détail, puisqu'un
 bulletin ne se modifie pas.
 
+**LE RÉGIME DE LA RETENUE SE DÉCLARE, ET UN IMPÔT NON CHIFFRÉ N'EST PAS ZÉRO
+(2026-09-27, audit final F104 à F106).** `regimeSalarial` porte le régime de
+l'art. 121 · un forfait libératoire (personnel domestique, salarié de
+micro-entreprise) abstient la retenue, et un régime non déclaré garde le
+barème de l'art. 118 EN LE DISANT (`RESERVE_REGIME_NON_DECLARE`). Et la
+quotité de l'art. 114 reçoit `null`, jamais zéro, pour l'impôt ou la
+quote-part ouvrière que la simulation n'a pas chiffrés · lue comme zéro, la
+base sortait gonflée de ce que personne n'avait calculé, et la saisie mordait
+sur la part protégée.
+
 **P3 · LA PASSATION COMPTABLE, ET LE DIX-NEUVIÈME PIÈGE ENFIN CONFRONTÉ AU
 SEMIS** (`docs/paie-p3-passation-comptable.md`).
 
