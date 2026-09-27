@@ -110,6 +110,7 @@ function harnais(options: { liquidationExistante?: { dateDebut: string; dateFin:
   const ecritureService = {
     creer: jest.fn().mockResolvedValue({ id: 'ecr-new', numeroPiece: 12 }),
     supprimer: jest.fn().mockResolvedValue({}),
+    retirerCompensation: jest.fn().mockResolvedValue(undefined),
   } as unknown as EcritureService;
 
   return { service: new TauxTvaService(prisma, ecritureService), prisma, create, ecritureService };
@@ -176,12 +177,15 @@ describe('verrou anti-double-liquidation de la TVA', () => {
   it('reprend l’écriture si la trace échoue · sinon le trou se rouvre en silence', async () => {
     // `EcritureService.creer` ne participe pas à une transaction : une écriture
     // de liquidation sans marqueur laisserait la période liquidable de nouveau.
-    const { service, prisma, create } = harnais();
+    const { service, create, ecritureService } = harnais();
     create.mockRejectedValueOnce(new Error('contrainte'));
     await expect(
       service.comptabiliserLiquidation('t1', 'u1', { exerciceId: 'ex', ...JANVIER }),
     ).rejects.toThrow('contrainte');
-    expect((prisma.ecriture.delete as jest.Mock)).toHaveBeenCalledWith({ where: { id: 'ecr-new' } });
+    // Par la compensation commune, lignes puis tête (voir
+    // compensation-ecriture.spec.ts) · la tête seule levait sur la
+    // contrainte RESTRICT, et l'échec était avalé.
+    expect(ecritureService.retirerCompensation).toHaveBeenCalledWith('t1', 'ecr-new');
   });
 
   it('annonce l’état de liquidation DANS la déclaration', async () => {

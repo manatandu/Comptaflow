@@ -887,6 +887,28 @@ export class EcritureService {
     return { supprime: true };
   }
 
+  /**
+   * COMPENSATION · retire une écriture que l'appelant vient de créer, quand
+   * l'opération qui devait l'accompagner n'a pas pu s'écrire.
+   *
+   * Audit du serveur du 2026-09-27, F1 · deux sites supprimaient la TÊTE
+   * seule. Les lignes sont en ON DELETE RESTRICT : la suppression levait, et
+   * l'un des sites AVALAIT l'erreur, laissant au journal une liquidation de
+   * TVA sans marqueur · la période redevenait liquidable et la seconde
+   * liquidation doublait la TVA due. Lignes puis tête, dans une transaction,
+   * et l'erreur REMONTE : une compensation qui échoue ne se tait jamais.
+   * Aucune garde de statut ni de détenteur · l'écriture vient de naître au
+   * brouillard dans la même requête, rien d'autre ne la tient encore.
+   */
+  async retirerCompensation(tenantId: string, ecritureId: string) {
+    await this.prisma.$transaction(async (tx) => {
+      const ecriture = await tx.ecriture.findFirst({ where: { id: ecritureId, tenantId }, select: { id: true } });
+      if (!ecriture) return;
+      await tx.ligneEcriture.deleteMany({ where: { ecritureId } });
+      await tx.ecriture.delete({ where: { id: ecritureId } });
+    });
+  }
+
   private async verifierAucunModuleNeLaTient(tenantId: string, ecritureId: string, detenteurLibere?: DetenteurEcriture) {
     // Le `tenantId` accompagne l'id de l'écriture partout, alors même que cet
     // id est déjà unique · le cloisonnement se pose aux DEUX bouts, et un

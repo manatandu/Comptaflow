@@ -99,7 +99,9 @@ export class ComptabilisationFactureService {
     // lecture et ici retire l'écriture qu'il vient de créer.
     const { count } = await this.prisma.facture.updateMany({ where: { id: f.id, tenantId, ecritureId: null }, data: { ecritureId: e.id } });
     if (count === 0) {
-      await this.prisma.ecriture.delete({ where: { id: e.id } });
+      // Lignes puis tête (F1) · la tête seule levait P2003, un 500 brut, et
+      // laissait l'écriture du second clic orpheline au journal.
+      await this.ecritures.retirerCompensation(tenantId, e.id);
       throw new BadRequestException('Cette facture vient d’être liée à une autre écriture · rien n’a été passé.');
     }
     return { ecritureId: e.id, lignes: p.lignes.length };

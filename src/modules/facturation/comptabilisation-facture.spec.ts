@@ -19,7 +19,10 @@ function monde(o: { lie?: boolean; journal?: string; numero?: string; libreAuLie
     exercice: { findFirst: jest.fn(async () => ({ id: 'ex' })) },
     ecriture: { delete: jest.fn() },
   };
-  const ecritures = { creer: jest.fn(async (_t: string, _u: string, dto: Record<string, unknown>) => (creees.push(dto), { id: 'e1' })) };
+  const ecritures = {
+    creer: jest.fn(async (_t: string, _u: string, dto: Record<string, unknown>) => (creees.push(dto), { id: 'e1' })),
+    retirerCompensation: jest.fn(async () => undefined),
+  };
   return { s: new ComptabilisationFactureService(prisma as never, ecritures as never), prisma, ecritures, creees };
 }
 
@@ -40,6 +43,7 @@ describe('passer l’écriture d’une facture · service', () => {
   it('un second clic qui a lié la facture entre-temps retire l’écriture créée', async () => {
     const m = monde({ libreAuLien: false });
     await expect(m.s.comptabiliser('t', 'u', 'f1', { journalId: 'j', compteGestionId: 'c706' })).rejects.toThrow(/vient d’être liée/);
-    expect(m.prisma.ecriture.delete).toHaveBeenCalledWith({ where: { id: 'e1' } });
+    // Lignes puis tête, par la compensation commune (F1).
+    expect(m.ecritures.retirerCompensation).toHaveBeenCalledWith('t', 'e1');
   });
 });

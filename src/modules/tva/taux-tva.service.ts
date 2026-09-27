@@ -2547,7 +2547,9 @@ export class TauxTvaService {
         },
       });
     } catch (e) {
-      await this.prisma.ecriture.delete({ where: { id: ecriture.id } }).catch(() => undefined);
+      // Lignes puis tête, et un échec de la compensation remonte (F1) ·
+      // avalé, il laissait une liquidation sans marqueur au journal.
+      await this.ecritureService.retirerCompensation(tenantId, ecriture.id);
       throw e;
     }
 
