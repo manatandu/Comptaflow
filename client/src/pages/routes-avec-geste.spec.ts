@@ -205,6 +205,20 @@ const GESTES: Array<{ route: string; controleur: string; decorateur: string; pag
     page: 'PlateformePage.tsx',
     appel: 'api.post(`/plateforme/cabinets/${c.id}/dossier-editeur`, {})',
   },
+  {
+    route: 'POST /analytique/lignes/:ligneId/ventilations',
+    controleur: 'analytique/analytique.controller.ts',
+    decorateur: "@Post('lignes/:ligneId/ventilations')",
+    page: 'EtatsAnalytiquesPage.tsx',
+    appel: 'api.post(`/analytique/lignes/${aVentiler.ligneId}/ventilations`, {',
+  },
+  {
+    route: 'DELETE /analytique/lignes/:ligneId/ventilations',
+    controleur: 'analytique/analytique.controller.ts',
+    decorateur: "@Delete('lignes/:ligneId/ventilations')",
+    page: 'EtatsAnalytiquesPage.tsx',
+    appel: 'api.delete(`/analytique/lignes/${ligneEcritureId}/ventilations`)',
+  },
 ];
 
 describe('routes d’écriture et leur geste', () => {

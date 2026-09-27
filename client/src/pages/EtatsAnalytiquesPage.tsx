@@ -40,7 +40,7 @@ export function EtatsAnalytiquesPage() {
   // Bailleur, financeur et convention sont du vocabulaire d'EBNL · une
   // entreprise SYSCOHADA n'en a aucun. Le mot « projet », lui, reste : le
   // semis SYSCOHADA nomme lui-même son axe « Projets et programmes ».
-  const { utilisateur } = useAuth();
+  const { utilisateur, peutEcrire } = useAuth();
   const estSyscohada = utilisateur?.tenant.referentiel === 'SYSCOHADA';
   const navigate = useNavigate();
   const [onglet, setOnglet] = useState<Onglet>('balance');
@@ -57,6 +57,64 @@ export function EtatsAnalytiquesPage() {
   const [budgetaire, setBudgetaire] = useState<EtatBudgetaire | null>(null);
 
   const plan = plans.find((p) => p.id === planId) ?? null;
+
+  // Ventilation d'une ligne restée sans répartition, depuis le contrôle des
+  // cumuls · la ligne, l'axe et les sections Détail de cet axe.
+  const [aVentiler, setAVentiler] = useState<{ ligneId: string; planId: string; debit: number; credit: number } | null>(
+    null,
+  );
+  const [sectionsAVentiler, setSectionsAVentiler] = useState<SectionAnalytique[]>([]);
+  const [sectionChoisie, setSectionChoisie] = useState('');
+  const [rechargement, setRechargement] = useState(0);
+
+  /**
+   * Ventiler après coup (audit de l'interface du 2026-09-27, I11) · les deux
+   * routes existaient sans geste. Le contrôle des cumuls listait les lignes à
+   * ventiler et renvoyait au journal, où rien ne ventile une pièce passée :
+   * l'écart restait à l'écran sans moyen de le fermer. La ligne est ventilée
+   * en totalité sur UNE section de l'axe, comme à la saisie ; un partage entre
+   * plusieurs sections se fait à la saisie ou par une OD analytique. Le serveur
+   * refuse une ligne figée par une clôture, et le dit.
+   */
+  const ouvrirVentilation = (planIdLigne: string, l: { ligneId: string; debit: number; credit: number }) => {
+    setAVentiler({ ligneId: l.ligneId, planId: planIdLigne, debit: l.debit, credit: l.credit });
+    setSectionChoisie('');
+    api.get<SectionAnalytique[]>(`/analytique/plans/${planIdLigne}/sections`).then(
+      (r) => setSectionsAVentiler(r.filter((s) => s.type === 'DETAIL' && s.estActive)),
+      () => setSectionsAVentiler([]),
+    );
+  };
+
+  const ventiler = async () => {
+    if (!aVentiler || !sectionChoisie) return;
+    setErreur(null);
+    try {
+      await api.post(`/analytique/lignes/${aVentiler.ligneId}/ventilations`, {
+        ventilations: [
+          { sectionId: sectionChoisie, debit: aVentiler.debit || undefined, credit: aVentiler.credit || undefined },
+        ],
+      });
+      setAVentiler(null);
+      setRechargement((n) => n + 1);
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Ventilation impossible');
+    }
+  };
+
+  // L'effacement porte sur TOUS les axes de la ligne · c'est ce que fait la
+  // route, et la confirmation le dit plutôt que de laisser croire qu'on ne
+  // retire que cette section.
+  const effacerVentilation = async (ligneEcritureId: string) => {
+    if (!window.confirm('Effacer la ventilation de cette ligne, sur tous les axes ? Elle reviendra au contrôle des cumuls.'))
+      return;
+    setErreur(null);
+    try {
+      await api.delete(`/analytique/lignes/${ligneEcritureId}/ventilations`);
+      setRechargement((n) => n + 1);
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Effacement impossible');
+    }
+  };
 
   useEffect(() => {
     api.get<PlanAnalytique[]>('/analytique/plans').then(
@@ -97,7 +155,7 @@ export function EtatsAnalytiquesPage() {
         )
         .then(setBudgetaire, echec);
     }
-  }, [onglet, planId, sectionId, mois, exerciceCourant?.id]);
+  }, [onglet, planId, sectionId, mois, exerciceCourant?.id, rechargement]);
 
   const ongletClasse = (o: Onglet) =>
     `px-4 py-1.5 text-[11.5px] font-bold ${onglet === o ? 'bg-surface border-x border-border' : 'text-text-dim'}`;
@@ -246,7 +304,7 @@ export function EtatsAnalytiquesPage() {
               )}
             </div>
           )}
-          <div className="grid grid-cols-[90px_60px_70px_110px_1fr_120px_120px_130px] min-w-[940px] gap-2 px-4 py-1.5 bg-chrome-alt border-b border-border text-[11px] font-bold text-text-dim">
+          <div className="grid grid-cols-[90px_60px_70px_110px_1fr_120px_120px_130px_60px] min-w-[1000px] gap-2 px-4 py-1.5 bg-chrome-alt border-b border-border text-[11px] font-bold text-text-dim">
             <span>DATE</span>
             <span>JAL</span>
             <span>Pièce</span>
@@ -255,12 +313,13 @@ export function EtatsAnalytiquesPage() {
             <span className="text-right">Débit</span>
             <span className="text-right">Crédit</span>
             <span className="text-right">SOLDE</span>
+            <span />
           </div>
           {!grandLivre && <div className="px-4 py-4 text-[11.5px] text-text-dim">Chargement…</div>}
           {grandLivre?.lignes.map((l, i) => (
             <div
               key={i}
-              className="grid grid-cols-[90px_60px_70px_110px_1fr_120px_120px_130px] min-w-[940px] gap-2 px-4 py-1 text-[11.5px] border-b border-border/40"
+              className="grid grid-cols-[90px_60px_70px_110px_1fr_120px_120px_130px_60px] min-w-[1000px] gap-2 px-4 py-1 text-[11.5px] border-b border-border/40"
             >
               <span className="font-mono">{l.date}</span>
               <span className="font-mono">{l.journal}</span>
@@ -270,6 +329,17 @@ export function EtatsAnalytiquesPage() {
               <span className="text-right font-mono">{montant(l.debit)}</span>
               <span className="text-right font-mono">{montant(l.credit)}</span>
               <span className="text-right font-mono text-text-dim">{montant(l.soldeProgressif)}</span>
+              <span className="text-right">
+                {peutEcrire && l.ligneEcritureId && (
+                  <button
+                    type="button"
+                    onClick={() => void effacerVentilation(l.ligneEcritureId!)}
+                    className="text-danger/70 hover:text-danger"
+                  >
+                    Effacer
+                  </button>
+                )}
+              </span>
             </div>
           ))}
           {grandLivre && grandLivre.lignes.length === 0 && (
@@ -327,18 +397,57 @@ export function EtatsAnalytiquesPage() {
                     </div>
                     <div className="max-h-[240px] overflow-y-auto">
                       {c.lignesSansRepartition.map((l, i) => (
-                        <button
-                          key={i}
-                          onClick={() => navigate('/journal')}
-                          className="w-full grid grid-cols-[90px_60px_110px_1fr_110px_110px] gap-2 px-3 py-1 text-[11.5px] text-left border-b border-border/40 hover:bg-chrome-alt"
-                        >
-                          <span className="font-mono">{l.date}</span>
-                          <span className="font-mono">{l.journal}</span>
-                          <span className="font-mono">{l.compteNumero}</span>
-                          <span className="truncate">{l.libelle}</span>
-                          <span className="text-right font-mono">{montant(l.debit)}</span>
-                          <span className="text-right font-mono">{montant(l.credit)}</span>
-                        </button>
+                        <div key={i} className="border-b border-border/40">
+                          <div className="flex items-center">
+                            <button
+                              onClick={() => navigate('/journal')}
+                              className="flex-1 grid grid-cols-[90px_60px_110px_1fr_110px_110px] gap-2 px-3 py-1 text-[11.5px] text-left hover:bg-chrome-alt"
+                            >
+                              <span className="font-mono">{l.date}</span>
+                              <span className="font-mono">{l.journal}</span>
+                              <span className="font-mono">{l.compteNumero}</span>
+                              <span className="truncate">{l.libelle}</span>
+                              <span className="text-right font-mono">{montant(l.debit)}</span>
+                              <span className="text-right font-mono">{montant(l.credit)}</span>
+                            </button>
+                            {peutEcrire && (
+                              <button
+                                type="button"
+                                onClick={() => ouvrirVentilation(c.planId, l)}
+                                className="px-3 text-[11.5px] text-sel hover:underline"
+                              >
+                                Ventiler
+                              </button>
+                            )}
+                          </div>
+                          {aVentiler?.ligneId === l.ligneId && aVentiler.planId === c.planId && (
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-chrome-alt text-[11.5px]">
+                              <select
+                                value={sectionChoisie}
+                                onChange={(e) => setSectionChoisie(e.target.value)}
+                                className="border border-border bg-surface px-2 py-0.5 min-w-[220px]"
+                              >
+                                <option value="">Section…</option>
+                                {sectionsAVentiler.map((s) => (
+                                  <option key={s.id} value={s.id}>
+                                    {s.code} · {s.intitule}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                type="button"
+                                disabled={!sectionChoisie}
+                                onClick={() => void ventiler()}
+                                className="bg-sel text-white font-semibold px-3 py-0.5 disabled:opacity-50"
+                              >
+                                Ventiler la ligne
+                              </button>
+                              <button type="button" onClick={() => setAVentiler(null)} className="border border-border px-2.5 py-0.5">
+                                Abandonner
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       ))}
                     </div>
                   </div>

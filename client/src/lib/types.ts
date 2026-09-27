@@ -1509,6 +1509,8 @@ export interface BalanceAnalytique {
 }
 
 export interface LigneGrandLivreAnalytique {
+  /** Null sur une ligne d'OD analytique, qui n'a pas de ligne d'écriture. */
+  ligneEcritureId: string | null;
   date: string;
   journal: string;
   numeroPiece: number | null;
@@ -1544,6 +1546,7 @@ export interface ControleCumuls {
   ecartDebit: number;
   ecartCredit: number;
   lignesSansRepartition: {
+    ligneId: string;
     ecritureId: string;
     date: string;
     journal: string;

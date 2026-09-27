@@ -8,6 +8,12 @@ import { OdAnalytiqueService } from './od-analytique.service';
 
 /** Une ligne du grand livre analytique : le détail d'une section. */
 export interface LigneGrandLivreAnalytique {
+  /**
+   * La ligne d'écriture ventilée, pour que l'écran puisse en effacer la
+   * ventilation · null sur une ligne d'OD analytique, qui n'a pas de ligne
+   * d'écriture et se retire depuis sa propre fenêtre.
+   */
+  ligneEcritureId: string | null;
   date: string;
   journal: string;
   numeroPiece: number | null;
@@ -32,6 +38,8 @@ export interface LigneControleCumuls {
   ecartCredit: number;
   /** Lignes qui auraient dû être ventilées et ne le sont pas. */
   lignesSansRepartition: {
+    /** La ligne à ventiler · c'est elle, pas l'écriture, que la route de ventilation attend. */
+    ligneId: string;
     ecritureId: string;
     date: string;
     journal: string;
@@ -179,6 +187,7 @@ export class EtatsAnalytiquesService {
     });
     const brutes = [
       ...ventilations.map((v) => ({
+        ligneEcritureId: v.ligne.id as string | null,
         date: v.ligne.ecriture.date,
         journal: v.ligne.ecriture.journal.code,
         numeroPiece: v.ligne.ecriture.numeroPiece,
@@ -189,6 +198,7 @@ export class EtatsAnalytiquesService {
         credit: Number(v.credit),
       })),
       ...lignesOd.map((l) => ({
+        ligneEcritureId: null,
         date: l.od.date,
         journal: 'OD ANA',
         numeroPiece: null,
@@ -279,6 +289,7 @@ export class EtatsAnalytiquesService {
         }
         if (l.ventilations.length === 0 && (Number(l.debit) !== 0 || Number(l.credit) !== 0)) {
           sansRepartition.push({
+            ligneId: l.id,
             ecritureId: l.ecriture.id,
             date: l.ecriture.date.toISOString().slice(0, 10),
             journal: l.ecriture.journal.code,
