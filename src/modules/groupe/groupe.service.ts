@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { normaliserCourriel } from '../../common/courriel';
 import { Workbook } from 'exceljs';
 import { createHash, randomBytes } from 'crypto';
 import {
@@ -379,7 +380,7 @@ export class GroupeService {
     // contexte. Le rattachement au siège a été vérifié juste au-dessus.
     await horsCloisonnement('siège · cellule ouverte à l’instant', () =>
       this.prisma.user.update({
-        where: { email: dto.emailAdmin },
+        where: { email: normaliserCourriel(dto.emailAdmin) },
         data: { doitChangerMotDePasse: true },
       }),
     );

@@ -1,4 +1,5 @@
 import { IsEmail, MinLength } from 'class-validator';
+import { CourrielNormalise } from '../../../common/courriel';
 
 /**
  * Changement de sa PROPRE adresse de connexion · exige le mot de passe
@@ -9,6 +10,7 @@ export class ChangerAdresseDto {
   @MinLength(1, { message: 'Le mot de passe actuel est requis' })
   motDePasseActuel!: string;
 
+  @CourrielNormalise()
   @IsEmail({}, { message: "L'adresse n'est pas une adresse électronique valide" })
   nouvelleAdresse!: string;
 }

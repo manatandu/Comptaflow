@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { normaliserCourriel } from '../../common/courriel';
 import { SANS_DOUBLE_AUTH } from '../auth/double-authentification';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../common/prisma.service';
@@ -35,6 +36,7 @@ export class UtilisateurService {
   }
 
   async creer(tenantId: string, dto: CreerUtilisateurDto) {
+    dto = { ...dto, email: normaliserCourriel(dto.email) };
     const existant = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existant) {
       throw new ConflictException('Un compte existe déjà avec cet email');

@@ -1,4 +1,5 @@
 import { IsBase64, IsEmail, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { CourrielNormalise } from '../../../common/courriel';
 import { JeuEtatsFinanciersSycebnl } from '@prisma/client';
 
 /**
@@ -17,6 +18,7 @@ export class CreerCelluleDto {
    * cellule est autonome, un alias du comptable du siège si elle est opérée
    * par lui (cellules « dépôt Excel »).
    */
+  @CourrielNormalise()
   @IsEmail()
   emailAdmin!: string;
 

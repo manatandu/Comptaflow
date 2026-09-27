@@ -63,13 +63,14 @@ describe('PlateformeService · bootstrap des opérateurs', () => {
     await service.onModuleInit();
 
     expect(appels).toHaveLength(2);
-    // Insensible à la casse · l'adresse d'inscription peut différer de celle
-    // de la variable d'environnement.
+    // PAR ÉGALITÉ EXACTE, sur l'adresse normalisée (audit final F43) · la
+    // recherche insensible à la casse promouvait tout compte « ADMIN@… » de
+    // n'importe quel dossier.
     expect(appels[0]).toEqual({
-      where: { email: { equals: 'cabinet@exemple.cd', mode: 'insensitive' }, estOperateurPlateforme: false },
+      where: { email: 'cabinet@exemple.cd', estOperateurPlateforme: false },
       data: { estOperateurPlateforme: true },
     });
-    expect((appels[1] as { where: { email: { equals: string } } }).where.email.equals).toBe('Associe@Exemple.CD');
+    expect((appels[1] as { where: { email: string } }).where.email).toBe('associe@exemple.cd');
     // ACCORD SEULEMENT : aucun appel ne pose false.
     for (const a of appels) {
       expect((a as { data: Record<string, unknown> }).data).toEqual({ estOperateurPlateforme: true });

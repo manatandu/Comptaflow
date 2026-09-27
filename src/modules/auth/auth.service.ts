@@ -20,6 +20,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { Referentiel, RoleUtilisateur, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
 import { horsCloisonnement } from '../../common/cloisonnement/contexte-cloisonnement';
+import { normaliserCourriel } from '../../common/courriel';
 import { journaliserDansTransaction, dansContexteAudit, acteurCourant, ACTEUR_SYSTEME } from '../../common/audit/contexte-audit';
 import { instantDeverrouillage, messageVerrou } from './verrouillage';
 import { genererCodesSecours, genererSecret, secondFacteurAccepte, uriOtpauth, verifierCodeTotp } from './double-authentification';
@@ -63,6 +64,9 @@ export class AuthService {
    * ouverte pendant ce temps ne servirait à rien.
    */
   async register(dto: RegisterDto) {
+    // Normalisée ici aussi, et pas seulement au DTO · le siège et la console
+    // appellent `register` sans passer par la porte HTTP (audit final F43).
+    dto = { ...dto, email: normaliserCourriel(dto.email) };
     // SORTIE DE CLOISONNEMENT · la recherche se fait par COURRIEL, qui est
     // unique sur toute la plateforme et ne relève encore d'aucun dossier. Sans
     // cette déclaration, une création lancée depuis la console de l'opérateur
@@ -209,7 +213,7 @@ export class AuthService {
     // SORTIE DE CLOISONNEMENT · à la connexion, on ne sait pas encore de quel
     // dossier relève celui qui se présente. C'est cette requête qui l'apprend.
     const user = await horsCloisonnement('connexion · le dossier n’est pas encore connu', () =>
-      this.prisma.user.findUnique({ where: { email: dto.email } }),
+      this.prisma.user.findUnique({ where: { email: normaliserCourriel(dto.email) } }),
     );
     if (!user) {
       throw new UnauthorizedException('Identifiants invalides');
@@ -414,7 +418,7 @@ export class AuthService {
     if (!(await bcrypt.compare(motDePasseActuel, user.motDePasse))) {
       throw new UnauthorizedException('Le mot de passe actuel est incorrect');
     }
-    const adresse = nouvelleAdresse.trim();
+    const adresse = normaliserCourriel(nouvelleAdresse);
     if (adresse === user.email) throw new BadRequestException("C'est déjà votre adresse de connexion.");
     try {
       await this.prisma.user.update({ where: { id: userId }, data: { email: adresse, sessionsInvalidesAvant: new Date() } });

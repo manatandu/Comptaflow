@@ -1,6 +1,8 @@
 import { IsEmail, IsOptional, IsString, MaxLength } from 'class-validator';
+import { CourrielNormalise } from '../../../common/courriel';
 
 export class LoginDto {
+  @CourrielNormalise()
   @IsEmail()
   email!: string;
 

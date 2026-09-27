@@ -1,4 +1,5 @@
 import { IsDateString, IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
+import { CourrielNormalise } from '../../../common/courriel';
 import { JeuEtatsFinanciersSycebnl, Referentiel, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
 
 /**
@@ -20,6 +21,7 @@ export class RegisterDto {
   @IsEnum(Referentiel)
   referentiel!: Referentiel;
 
+  @CourrielNormalise()
   @IsEmail()
   email!: string;
 

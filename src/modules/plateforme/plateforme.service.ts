@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit, Optional } from '@nestjs/common';
+import { normaliserCourriel } from '../../common/courriel';
 import { SANS_DOUBLE_AUTH } from '../auth/double-authentification';
 import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
@@ -43,17 +44,23 @@ export class PlateformeService implements OnModuleInit {
     if (!brut) return;
     const emails = brut
       .split(',')
-      .map((e) => e.trim())
+      .map((e) => normaliserCourriel(e))
       .filter((e) => e.length > 0);
     for (const email of emails) {
+      // PAR ÉGALITÉ EXACTE, JAMAIS PAR LA CASSE (audit final F43). La
+      // recherche insensible à la casse promouvait n'importe quel compte
+      // « ADMIN@… » créé dans n'importe quel dossier, alors que l'unicité des
+      // adresses est sensible à la casse · un administrateur de dossier
+      // obtenait la console au déploiement suivant. Les adresses sont
+      // désormais normalisées à chaque porte, et l'unicité en fait UN compte
+      // au plus par adresse.
+      //
       // SORTIE DE CLOISONNEMENT · la promotion court au DÉMARRAGE, hors de
       // toute requête et donc hors de tout dossier, et vise une adresse sur
       // l'ensemble de la plateforme.
       const { count } = await horsCloisonnement('démarrage · promotion des opérateurs de la plateforme', () =>
         this.prisma.user.updateMany({
-        // insensitive : l'adresse saisie à l'inscription peut différer en
-        // casse de celle de la variable d'environnement.
-          where: { email: { equals: email, mode: 'insensitive' }, estOperateurPlateforme: false },
+          where: { email, estOperateurPlateforme: false },
           data: { estOperateurPlateforme: true },
         }),
       );
@@ -383,7 +390,7 @@ export class PlateformeService implements OnModuleInit {
     // D'ÊTRE CRÉÉ, pas celui de l'opérateur dont la session porte le contexte.
     await horsCloisonnement('console · dossier créé par l’opérateur', () =>
       this.prisma.user.update({
-        where: { email: dto.emailAdmin },
+        where: { email: normaliserCourriel(dto.emailAdmin) },
         data: { doitChangerMotDePasse: true },
       }),
     );

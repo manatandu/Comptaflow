@@ -1,7 +1,9 @@
 import { IsArray, IsBoolean, IsEmail, IsEnum, IsOptional, IsUUID, MinLength } from 'class-validator';
+import { CourrielNormalise } from '../../../common/courriel';
 import { FonctionMetier, RoleUtilisateur } from '@prisma/client';
 
 export class CreerUtilisateurDto {
+  @CourrielNormalise()
   @IsEmail()
   email!: string;
 

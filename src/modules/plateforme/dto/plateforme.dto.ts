@@ -1,4 +1,5 @@
 import { IsArray, IsBoolean, IsDateString, IsEmail, IsEnum, IsIn, IsInt, IsNumber, IsOptional, IsString, IsUUID, Matches, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
+import { CourrielNormalise } from '../../../common/courriel';
 import { JeuEtatsFinanciersSycebnl, Referentiel, StatutLicence, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
 
 /**
@@ -13,6 +14,7 @@ export class CreerCabinetDto {
   nomEntite!: string;
 
   /** Adresse de l'ADMIN_CABINET du client · c'est lui qui ouvrira le dossier. */
+  @CourrielNormalise()
   @IsEmail()
   emailAdmin!: string;
 
@@ -132,6 +134,7 @@ export class ModifierGroupeDto {
 }
 
 export class ReinitialiserAdminDto {
+  @CourrielNormalise()
   @IsEmail()
   email!: string;
 
@@ -151,6 +154,7 @@ export class PreparerDemonstrationDto {
   @IsString()
   nomEntite?: string;
 
+  @CourrielNormalise()
   @IsEmail()
   email!: string;
 

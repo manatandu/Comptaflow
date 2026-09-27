@@ -6110,6 +6110,12 @@ avant de l'écrire ; un spec (`compte-seed-syscohada.spec.ts`) le contrôle.
 - `estOperateurPlateforme` n'apparaît dans **aucun** DTO. Il s'accorde au
   démarrage depuis `OPERATEURS_PLATEFORME`, en accord seulement, jamais en
   retrait.
+  **Par égalité EXACTE** sur l'adresse normalisée (2026-09-27, audit final
+  F43) · la recherche insensible à la casse promouvait tout compte
+  « ADMIN@… » de n'importe quel dossier. Toute adresse de COMPTE est
+  normalisée à la porte (`@CourrielNormalise`) et dans les services
+  (`normaliserCourriel`), et la base refuse le reste (contrainte
+  `users_email_normalise`).
 - Mot de passe transmis par un tiers (console, siège, admin du dossier) :
   `doitChangerMotDePasse` force le changement à la première connexion, et
   `MotDePasseAChangerGuard` FERME le serveur jusque-là · trois routes de
