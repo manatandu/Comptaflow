@@ -17,10 +17,11 @@ import type {
 import { corpsSectionsRapport, textesDuRapport } from '../lib/rapport-sections';
 
 /**
- * DOCUMENTS OBLIGATOIRES DE CLÔTURE · livre d'inventaire (art. 14) et rapport
- * d'activité (art. 16-3). L'article 24 sanctionne PÉNALEMENT les dirigeants
- * « qui n'ont pas, pour un exercice, dressé l'inventaire et établi les états
- * financiers annuels, ainsi que le rapport d'activité ».
+ * DOCUMENTS OBLIGATOIRES DE CLÔTURE · livre d'inventaire (SYCEBNL art. 14 ·
+ * AUDCIF art. 19) et rapport (SYCEBNL art. 16-3 · AUSCGIE art. 138 · AUSCOOP
+ * art. 108). Leur absence est sanctionnée PÉNALEMENT, par l'art. 24 du SYCEBNL
+ * ou l'art. 111 de l'AUDCIF · l'article de chaque dossier vient du serveur
+ * (`fondement`), jamais écrit ici (audit final F95).
  *
  * L'écran ne rédige à la place de personne : les contenus narratifs relèvent
  * des organes de direction, et le résumé de l'opération d'inventaire n'est
@@ -239,11 +240,13 @@ export function DocumentsObligatoiresPage() {
       <EnteteImpression titre="Documents obligatoires" />
       <div className="flex items-center justify-end gap-2 mb-1.5">
         <Aide sujet="livreInventaire" />
-        <Aide
-          titre="Sanction pénale"
-          texte="Encourent une sanction pénale les dirigeants qui « n’ont pas, pour un exercice, dressé l’inventaire et établi les états financiers annuels, ainsi que le rapport d’activité »."
-          source="Article 24"
-        />
+        {confInv && (
+          <Aide
+            titre="Sanction pénale"
+            texte={`Encourent une sanction pénale les dirigeants visés par ${confInv.fondement.sanction}.`}
+            source={confInv.fondement.sanction.split(' · ')[0]}
+          />
+        )}
         {exerciceCourant && (
           <span className="font-mono text-[11.5px] border border-border bg-surface px-2.5 py-1.5">
             Exercice {new Date(exerciceCourant.dateDebut).getFullYear()}
@@ -263,7 +266,11 @@ export function DocumentsObligatoiresPage() {
       <div className="flex gap-0 mb-2.5 border-b border-border">
         {(
           [
-            ['inventaire', "LIVRE D'INVENTAIRE (ART. 14)", confInv?.complete],
+            [
+              'inventaire',
+              confInv ? `LIVRE D'INVENTAIRE (${confInv.fondement.article.toUpperCase()})` : "LIVRE D'INVENTAIRE",
+              confInv?.complete,
+            ],
             ['rapport', rapportDeGestion ? 'RAPPORT DE GESTION' : "RAPPORT D'ACTIVITÉ (ART. 16-3)", confRap?.complet],
             ['manuel', 'MANUEL DES PROCÉDURES (AUDCIF ART. 16)', confManuel?.existe],
           ] as const
@@ -309,23 +316,21 @@ export function DocumentsObligatoiresPage() {
             )}
             <Aide
               titre="États transcrits"
-              texte="Les états transcrits sont figés : ils sont relus tels quels, jamais recalculés · c’est le sens du mot « transcrits » de l’article 14. Un exercice rouvert et corrigé se re-transcrit en version suivante, sans effacer ce qui avait été arrêté."
-              source="Article 14"
+              texte={`Les états transcrits sont figés : ils sont relus tels quels, jamais recalculés · c’est le sens du mot « transcrits » (${confInv.fondement.article}). Un exercice rouvert et corrigé se re-transcrit en version suivante, sans effacer ce qui avait été arrêté.`}
+              source={confInv.fondement.article}
             />
           </div>
 
           <div className="border border-border bg-surface px-3.5 py-3 mb-2.5">
             <div className="text-[11px] font-bold text-text-dim mb-1.5 flex items-center gap-1.5 flex-wrap">
-              ÉTATS EXIGÉS ·{' '}
-              {confInv.jeu === 'PROJETS_DEVELOPPEMENT'
-                ? 'article 14, point 2'
-                : confInv.jeu === 'SYSTEME_MINIMAL_TRESORERIE'
-                  ? // L'article 14 n'énumère que deux cas et ne nomme pas le
-                    // Système minimal de trésorerie · le dire, plutôt que de
-                    // ranger d'office ce dossier sous le point 1.
-                    "article 14, point 1 · lecture, le texte ne nomme pas le Système minimal de trésorerie"
-                  : 'article 14, point 1'}
-              <Aide titre="États exigés" texte={confInv.exigence} source="Article 14" />
+              {/* L'article du DOSSIER · le périmètre (dont la lecture du SMT, que
+                  l'art. 14 ne nomme pas) va dans la bulle. */}
+              ÉTATS EXIGÉS · {confInv.fondement.article}
+              <Aide
+                titre="États exigés"
+                texte={`${confInv.exigence} ${confInv.fondement.perimetre}`}
+                source={confInv.fondement.article}
+              />
             </div>
             {confInv.etatsExiges.map((e) => (
               <div key={e.cle} className="grid grid-cols-[1fr_110px] gap-2 py-1 border-b border-border last:border-b-0">
@@ -347,7 +352,7 @@ export function DocumentsObligatoiresPage() {
                 <Aide
                   titre="Résumé de l’opération d’inventaire"
                   texte={`${confInv.resume.exigence} ${confInv.resume.remarque}`}
-                  source="Article 14"
+                  source={confInv.fondement.article}
                 />
               </span>
               {pastille(confInv.resume.renseigne, 'RENSEIGNÉ', 'MANQUANT')}
@@ -413,7 +418,7 @@ export function DocumentsObligatoiresPage() {
               <strong>
                 du {date(confRap.fenetreEvenementsPosterieurs.du)} au {date(confRap.fenetreEvenementsPosterieurs.au)}
               </strong>{' '}
-              · c’est la date d’établissement qui la ferme (art. 16-3).
+              · c’est la date d’établissement qui la ferme ({confRap.fenetreEvenementsPosterieurs.article}).
             </div>
           )}
 

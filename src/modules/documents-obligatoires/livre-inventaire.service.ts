@@ -10,6 +10,7 @@ import { etatsExigesParSysteme } from './correspondance-inventaire-syscohada';
 import { EtatsFinanciersSyscohadaService } from '../etats-financiers-syscohada/etats-financiers-syscohada.service';
 import { EtatsFinanciersSmtSyscohadaService } from '../etats-financiers-syscohada/etats-financiers-smt-syscohada.service';
 import { ResumeInventaireDto, TranscrireInventaireDto } from './dto/documents-obligatoires.dto';
+import { InventaireService } from '../inventaire/inventaire.service';
 
 /** Un état exigé par l'art. 14 que la transcription ne porte pas, et pourquoi. */
 export interface DocumentManquant {
@@ -46,6 +47,49 @@ export interface DocumentManquant {
  *    exigence que le texte ne formule pas (règle §2.6). Il est donc laissé au
  *    dossier, et son absence est signalée, jamais suppléée.
  */
+/**
+ * LE FONDEMENT DU LIVRE, LU DANS LE TEXTE DU DOSSIER (audit final F95) · le
+ * classeur imprimait « Art. 14, point 1 » et l'article 24 à une société, la
+ * transposition que le dépôt s'interdit. Chaque texte a son article et sa
+ * sanction · SYCEBNL art. 14 et 24, AUDCIF art. 19 et 111
+ * (`InventaireService.sanctionApplicable`, la même lecture).
+ */
+export function fondementInventaire(tenant: {
+  referentiel: Referentiel;
+  jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl;
+  systemeComptableSyscohada: SystemeComptableSyscohada | null;
+}): { article: string; perimetre: string; sanction: string } {
+  const sanction = InventaireService.sanctionApplicable(tenant.referentiel);
+  const sanctionTexte = `${sanction.texte}, ${sanction.article}`;
+  if (tenant.referentiel === Referentiel.SYSCOHADA) {
+    return {
+      article: 'AUDCIF art. 19',
+      perimetre:
+        tenant.systemeComptableSyscohada === SystemeComptableSyscohada.MINIMAL_TRESORERIE
+          ? 'Système minimal de trésorerie.'
+          : 'Système normal.',
+      sanction: sanctionTexte,
+    };
+  }
+  switch (tenant.jeuEtatsFinanciersSycebnl) {
+    case JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT:
+      return {
+        article: 'Art. 14, point 2',
+        perimetre: 'Entités ayant pour objet la gestion ou l’administration de projets de développement.',
+        sanction: sanctionTexte,
+      };
+    case JeuEtatsFinanciersSycebnl.SYSTEME_MINIMAL_TRESORERIE:
+      return {
+        article: 'Art. 14, point 1',
+        perimetre:
+          "Système minimal de trésorerie · l'article ne le nomme pas ; le point 1 restreint au bilan et au compte de résultat (lecture d'OmegaX).",
+        sanction: sanctionTexte,
+      };
+    default:
+      return { article: 'Art. 14, point 1', perimetre: 'Associations et ordres professionnels.', sanction: sanctionTexte };
+  }
+}
+
 @Injectable()
 export class LivreInventaireService {
   constructor(
@@ -82,6 +126,7 @@ export class LivreInventaireService {
       exigence: syscohada
         ? "AUDCIF art. 19 : « le livre d'inventaire, sur lequel sont transcrits le Bilan, le Compte de résultat et le Tableau des flux de trésorerie de chaque exercice, ainsi que le résumé de l'opération d'inventaire. »"
         : "Art. 14 : « Le livre d'inventaire est un document obligatoire sur lequel sont transcrits [les états financiers] de chaque exercice ainsi que le résumé de l'opération d'inventaire. »",
+      fondement: fondementInventaire(tenant),
     };
   }
 
@@ -183,6 +228,13 @@ export class LivreInventaireService {
       jeu: regime.jeu,
       systemeSyscohada: regime.systeme,
       exigence: regime.exigence,
+      /**
+       * L'article qui fonde le livre de CE dossier, son périmètre, et
+       * l'article qui sanctionne son absence · portés par le service pour
+       * que l'écran et le classeur n'impriment jamais l'article de l'autre
+       * référentiel (audit final F95).
+       */
+      fondement: regime.fondement,
       /** L'exercice a-t-il été transcrit, ne serait-ce qu'une fois ? */
       transcrit: courante !== null,
       version: courante?.version ?? null,

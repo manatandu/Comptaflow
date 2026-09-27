@@ -257,6 +257,13 @@ quatre sections · AUSCGIE art. 138, six · AUSCOOP art. 108, six autres dont
 l'état de promotion des coopérateurs). Les écarts entre les trois sont
 verrouillés par `documents-obligatoires-syscohada.spec.ts` : c'est la
 transposition, pas l'absence, qui est le risque de cette fenêtre.
+L'ARTICLE ET LE TABLEAU VIENNENT DU DOSSIER (2026-09-27, audit final F94,
+F95) · `fondementInventaire` porte l'article, le périmètre et la sanction du
+livre (AUDCIF art. 19 et 111 contre SYCEBNL art. 14 et 24), la fenêtre des
+événements postérieurs porte son article, et la trésorerie du rapport vient
+du tableau des flux du dossier ou d'aucun (`tableauTresorerieDuDossier` · ni
+les projets ni les deux SMT n'en ont). Une trésorerie figée sans `tableau` a
+été tirée du TFT des associations, et ne se relit que chez elles.
 
 Propres au SYSCOHADA : résultat fiscal et impôt sur les bénéfices (une entité
 à but non lucratif en est exemptée, loi n° 23/053 art. 5).

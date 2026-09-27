@@ -2969,13 +2969,9 @@ export class ExportService {
 
     const lignes: Array<[string, string, string]> = [
       ["Transcription de l'exercice", t ? `VERSION ${t.version}` : 'ABSENTE', c.exigence],
-      [
-        'Jeu applicable',
-        c.jeu === 'PROJETS_DEVELOPPEMENT' ? 'Art. 14, point 2' : 'Art. 14, point 1',
-        c.jeu === 'PROJETS_DEVELOPPEMENT'
-          ? 'Entités ayant pour objet la gestion ou l’administration de projets de développement.'
-          : 'Associations et ordres professionnels.',
-      ],
+      // Le texte du DOSSIER, porté par le service · le classeur imprimait
+      // l'art. 14 du SYCEBNL à une société (audit final F95).
+      ['Texte applicable', c.fondement.article, c.fondement.perimetre],
       ...c.etatsExiges.map(
         (e: any) =>
           [
@@ -2993,7 +2989,7 @@ export class ExportService {
 
     for (const [rubrique, etat, detail] of lignes) {
       const rang = feuille.addRow({ rubrique, etat, detail });
-      const ok = ['TRANSCRIT', 'RENSEIGNÉ'].includes(etat) || etat.startsWith('VERSION') || etat.startsWith('Art.');
+      const ok = ['TRANSCRIT', 'RENSEIGNÉ'].includes(etat) || etat.startsWith('VERSION') || etat === c.fondement.article;
       rang.getCell('etat').font = { bold: true, color: { argb: ok ? 'FF1B7F3B' : 'FFB3261E' } };
       rang.getCell('detail').alignment = { wrapText: true, vertical: 'top' };
     }
@@ -3010,8 +3006,8 @@ export class ExportService {
 
     const pied = feuille.addRow([
       t
-        ? `Transcrit le ${new Date(t.transcritLe).toLocaleDateString('fr-FR')}. Les états des feuilles suivantes sont FIGÉS à cette date : ils sont relus tels quels, jamais recalculés · c'est le sens du mot « transcrits » de l'article 14.`
-        : "Aucune transcription pour cet exercice. L'article 24 sanctionne pénalement les dirigeants « qui n'ont pas, pour un exercice, dressé l'inventaire et établi les états financiers annuels ».",
+        ? `Transcrit le ${new Date(t.transcritLe).toLocaleDateString('fr-FR')}. Les états des feuilles suivantes sont FIGÉS à cette date : ils sont relus tels quels, jamais recalculés · c'est le sens du mot « transcrits » (${c.fondement.article}).`
+        : `Aucune transcription pour cet exercice. Sanction pénale : ${c.fondement.sanction}.`,
     ]);
     pied.font = { italic: true, color: { argb: 'FF555555' } };
     pied.alignment = { wrapText: true, vertical: 'top' };
@@ -3192,7 +3188,7 @@ export class ExportService {
       [
         'Fenêtre des événements postérieurs',
         f
-          ? `du ${new Date(f.du).toLocaleDateString('fr-FR')} au ${new Date(f.au).toLocaleDateString('fr-FR')} · c'est la date d'établissement qui la ferme (art. 16-3).`
+          ? `du ${new Date(f.du).toLocaleDateString('fr-FR')} au ${new Date(f.au).toLocaleDateString('fr-FR')} · c'est la date d'établissement qui la ferme (${f.article}).`
           : '·',
       ],
       [

@@ -1174,8 +1174,15 @@ export interface TranscriptionInventaire {
 
 export interface ConformiteInventaire {
   exercice: { id: string; dateDebut: string; dateFin: string };
-  jeu: JeuEtatsFinanciersSycebnl;
+  /** `null` au SYSCOHADA, dont le livre ne dépend d'aucun jeu SYCEBNL. */
+  jeu: JeuEtatsFinanciersSycebnl | null;
   exigence: string;
+  /**
+   * L'article qui fonde le livre de CE dossier, son périmètre et la sanction
+   * de son absence · SYCEBNL art. 14 et 24, AUDCIF art. 19 et 111. L'écran
+   * n'écrit jamais l'article de l'autre référentiel (audit final F95).
+   */
+  fondement: { article: string; perimetre: string; sanction: string };
   transcrit: boolean;
   version: number | null;
   transcritLe: string | null;
@@ -1186,6 +1193,8 @@ export interface ConformiteInventaire {
 }
 
 export interface TresorerieDuRapport {
+  /** Le tableau des flux d'où elle vient (audit final F94) · absent sur un rapport plus ancien. */
+  tableau?: 'TFT_ASSOCIATIONS' | 'TFT_SYSCOHADA_NORMAL';
   ouverture: number;
   variation: number;
   cloture: number;
@@ -1255,8 +1264,8 @@ export interface ConformiteRapportActivite {
   version: number | null;
   etabliLe: string | null;
   sections: { cle: string; titre: string; exigence: string; renseignee: boolean }[];
-  /** Définie par la clôture et la date d'établissement · voir art. 16-3. */
-  fenetreEvenementsPosterieurs: { du: string; au: string } | null;
+  /** Définie par la clôture et la date d'établissement, avec l'article du dossier qui la pose. */
+  fenetreEvenementsPosterieurs: { du: string; au: string; article: string } | null;
   tresorerie: TresorerieDuRapport | null;
   /** SYCEBNL art. 18 seulement · absente du rapport de gestion SYSCOHADA (audit final F16). */
   declarationRegistreDonateurs?: {

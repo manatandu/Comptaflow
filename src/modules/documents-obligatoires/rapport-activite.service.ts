@@ -1,7 +1,14 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, RapportActivite, Referentiel } from '@prisma/client';
+import {
+  JeuEtatsFinanciersSycebnl,
+  Prisma,
+  RapportActivite,
+  Referentiel,
+  SystemeComptableSyscohada,
+} from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { EtatsFinanciersService } from '../etats-financiers/etats-financiers.service';
+import { EtatsFinanciersSyscohadaService } from '../etats-financiers-syscohada/etats-financiers-syscohada.service';
 import { DonationService } from '../registre-donateurs/donation.service';
 import { SECTIONS_RAPPORT_ACTIVITE } from './correspondance-inventaire';
 import { regleRapportGestion } from './correspondance-inventaire-syscohada';
@@ -13,11 +20,54 @@ import { EtablirRapportActiviteDto } from './dto/documents-obligatoires.dto';
  * trésorerie » qu'exige l'art. 16-3.
  */
 export interface TresorerieDuRapport {
+  /**
+   * Le tableau d'où les chiffres sont tirés (audit final F94). Absent sur un
+   * rapport établi avant, où il était TOUJOURS celui des associations ·
+   * juste pour elles, faux pour tout autre dossier.
+   */
+  tableau?: TableauTresorerieRapport;
   ouverture: number;
   variation: number;
   cloture: number;
   /** `true` si les deux égalités de contrôle du TFT concordent (Partie 4 ch. 1 §4). */
   boucle: boolean;
+}
+
+/** « AUSCGIE, article 138 (transmission…) » se cite « AUSCGIE, article 138 ». */
+function articleDeLaRegle(source: string): string {
+  return source.split(' (')[0];
+}
+
+/** Les deux tableaux des flux dont un rapport peut reprendre la trésorerie. */
+export type TableauTresorerieRapport = 'TFT_ASSOCIATIONS' | 'TFT_SYSCOHADA_NORMAL';
+
+/**
+ * Le tableau des flux du dossier, ou aucun · le jeu des projets et les deux
+ * Systèmes minimaux n'en portent pas. Le Système normal SYSCOHADA est celui
+ * d'un dossier qui n'a pas déclaré le minimal, comme l'aiguillage des états.
+ */
+export function tableauTresorerieDuDossier(tenant: {
+  referentiel: Referentiel;
+  jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl;
+  systemeComptableSyscohada: SystemeComptableSyscohada | null;
+}): TableauTresorerieRapport | null {
+  if (tenant.referentiel === Referentiel.SYSCOHADA) {
+    return tenant.systemeComptableSyscohada === SystemeComptableSyscohada.MINIMAL_TRESORERIE ? null : 'TFT_SYSCOHADA_NORMAL';
+  }
+  return tenant.jeuEtatsFinanciersSycebnl === JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS
+    ? 'TFT_ASSOCIATIONS'
+    : null;
+}
+
+/**
+ * La trésorerie figée d'un rapport, si elle vient du tableau du dossier · un
+ * rapport établi avant l'audit final F94 porte celle des associations, que
+ * seul un dossier d'association peut lire.
+ */
+export function tresorerieFigee(stockee: unknown, attendu: TableauTresorerieRapport | null): TresorerieDuRapport | null {
+  if (!stockee || attendu === null) return null;
+  const t = stockee as TresorerieDuRapport;
+  return (t.tableau ?? 'TFT_ASSOCIATIONS') === attendu ? t : null;
 }
 
 /**
@@ -57,6 +107,7 @@ export class RapportActiviteService {
     private readonly prisma: PrismaService,
     private readonly etatsFinanciers: EtatsFinanciersService,
     private readonly donationService: DonationService,
+    private readonly etatsSyscohada: EtatsFinanciersSyscohadaService,
   ) {}
 
   async lister(tenantId: string, exerciceId: string) {
@@ -102,13 +153,20 @@ export class RapportActiviteService {
     // construction et la quatrième section n'aurait littéralement rien à
     // mentionner. Ce n'est pas une préférence de saisie, c'est la définition
     // même du contenu exigé.
+    const regime = await this.regimeRapport(tenantId);
     if (etabliLe < exercice.dateFin) {
+      // Le texte du DOSSIER, jamais l'art. 16-3 servi à une société (audit
+      // final F95).
+      const texte = regime.syscohada
+        ? regime.regle!.genre === 'EXIGE'
+          ? articleDeLaRegle(regime.regle!.source)
+          : 'Le rapport'
+        : "L'article 16-3";
       throw new BadRequestException(
-        `La date d'établissement (${etabliLe.toLocaleDateString('fr-FR')}) est antérieure à la clôture de l'exercice (${exercice.dateFin.toLocaleDateString('fr-FR')}). L'article 16-3 définit les événements à mentionner comme ceux « survenus entre la date de clôture de l'exercice et la date à laquelle il est établi » : cette période serait vide.`,
+        `La date d'établissement (${etabliLe.toLocaleDateString('fr-FR')}) est antérieure à la clôture de l'exercice (${exercice.dateFin.toLocaleDateString('fr-FR')}). ${texte} rend compte de l'exercice écoulé : il s'établit après sa clôture, et les événements postérieurs se comptent à partir d'elle.`,
       );
     }
 
-    const regime = await this.regimeRapport(tenantId);
     if (regime.syscohada && regime.regle!.genre === 'AUCUNE_REGLE_LUE') {
       // Une règle absente est déclarée absente, jamais remplacée par la plus
       // proche · même discipline que regles-auditeur.ts. Établir ici un
@@ -142,7 +200,7 @@ export class RapportActiviteService {
         // juridique, le rapport déjà arrêté garde le sien.
         sections: regime.syscohada ? ((dto.sections ?? {}) as Prisma.InputJsonValue) : Prisma.DbNull,
         sourceRegle: regime.syscohada && regime.regle!.genre === 'EXIGE' ? regime.regle!.source : null,
-        tresorerie: tresorerie as unknown as Prisma.InputJsonValue,
+        tresorerie: tresorerie ? (tresorerie as unknown as Prisma.InputJsonValue) : Prisma.DbNull,
       },
     });
   }
@@ -184,7 +242,7 @@ export class RapportActiviteService {
         version: null as number | null,
         etabliLe: null as Date | null,
         sections: [] as Array<{ cle: string; titre: string; exigence: string; renseignee: boolean }>,
-        fenetreEvenementsPosterieurs: null as { du: Date; au: Date } | null,
+        fenetreEvenementsPosterieurs: null as { du: Date; au: Date; article: string } | null,
         tresorerie: null as TresorerieDuRapport | null,
         complet: false,
       };
@@ -209,9 +267,9 @@ export class RapportActiviteService {
       // postérieurs · l'AUSCOOP art. 108 ne les demande pas.
       fenetreEvenementsPosterieurs:
         courant && regle.sections.some((s) => s.cle === 'evenementsPosterieurs')
-          ? { du: exercice.dateFin, au: courant.etabliLe }
+          ? { du: exercice.dateFin, au: courant.etabliLe, article: articleDeLaRegle(regle.source) }
           : null,
-      tresorerie: (courant?.tresorerie ?? null) as TresorerieDuRapport | null,
+      tresorerie: tresorerieFigee(courant?.tresorerie, await this.tableauDuDossier(tenantId)),
       complet: courant !== null && sections.every((s) => s.renseignee),
     };
   }
@@ -244,9 +302,9 @@ export class RapportActiviteService {
        * elle, « les événements importants » ne désigne rien de précis.
        */
       fenetreEvenementsPosterieurs: courant
-        ? { du: exercice.dateFin, au: courant.etabliLe }
+        ? { du: exercice.dateFin, au: courant.etabliLe, article: 'art. 16-3' }
         : null,
-      tresorerie: (courant?.tresorerie ?? null) as TresorerieDuRapport | null,
+      tresorerie: tresorerieFigee(courant?.tresorerie, await this.tableauDuDossier(tenantId)),
       /**
        * Art. 18 · la déclaration des dirigeants n'est attendue QUE faute
        * d'auditeur. La réclamer à une entité qui en a un inventerait une
@@ -285,15 +343,37 @@ export class RapportActiviteService {
    * ne boucle pas, `boucle: false` est FIGÉ avec les chiffres : un rapport
    * d'activité qui exposerait une trésorerie non bouclée sans le dire serait
    * précisément l'état « non fidèle » du deuxième tiret de l'article 24.
+   *
+   * LE TABLEAU EST CELUI DU DOSSIER, OU AUCUN (audit final F94) · le rapport
+   * lisait le TFT du jeu associations pour tout dossier, et une société, un
+   * projet ou un Système minimal recevait l'indicateur « bouclé » d'un
+   * tableau qui n'était pas le sien. Le jeu des projets et les deux Systèmes
+   * minimaux ne portent pas de tableau des flux · null, et la section se
+   * rédige sans chiffres repris.
    */
-  private async tresorerieDuTft(tenantId: string, exerciceId: string): Promise<TresorerieDuRapport> {
-    const tft = await this.etatsFinanciers.tableauFluxTresorerie(tenantId, exerciceId);
+  private async tresorerieDuTft(tenantId: string, exerciceId: string): Promise<TresorerieDuRapport | null> {
+    const tableau = await this.tableauDuDossier(tenantId);
+    if (tableau === null) return null;
+    const tft =
+      tableau === 'TFT_SYSCOHADA_NORMAL'
+        ? await this.etatsSyscohada.tableauFluxTresorerie(tenantId, exerciceId)
+        : await this.etatsFinanciers.tableauFluxTresorerie(tenantId, exerciceId);
     return {
+      tableau,
       ouverture: tft.controle.tresorerieOuverture,
       variation: tft.controle.variation,
       cloture: tft.controle.tresorerieClotureParBilan,
       boucle: tft.controle.coherent,
     };
+  }
+
+  private async tableauDuDossier(tenantId: string): Promise<TableauTresorerieRapport | null> {
+    return tableauTresorerieDuDossier(
+      await this.prisma.tenant.findUniqueOrThrow({
+        where: { id: tenantId },
+        select: { referentiel: true, jeuEtatsFinanciersSycebnl: true, systemeComptableSyscohada: true },
+      }),
+    );
   }
 
   private async exercice(tenantId: string, exerciceId: string) {

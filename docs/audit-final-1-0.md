@@ -716,12 +716,14 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** une société SYSCOHADA, un projet ou un SMT reçoit l'indicateur « bouclé » d'un tableau qui n'est pas le sien.
 - **Correction :** aiguiller la source selon le référentiel et le jeu, et rendre null sans TFT.
+- **Fait le 2026-09-27 :** `tableauTresorerieDuDossier` choisit le TFT des associations, celui du Système normal SYSCOHADA, ou aucun (projets, deux SMT) ; la trésorerie figée porte son `tableau`, et une trésorerie plus ancienne ne se relit que chez une association (`tresorerieFigee`, `rapport-activite.service.ts`). Tests : `documents-obligatoires.spec.ts`.
 
 **F95 · Livre d'inventaire et rapport SYSCOHADA : l'export et l'écran citent les articles SYCEBNL** [docob-03]
 - **Emplacements :** src/modules/exports/export.service.ts:2941-2945, :2980, :3154 · rapport-activite.service.ts:105-108 · client/src/pages/DocumentsObligatoiresPage.tsx:226, :245-249, :323-331
 - **Condition :** 1
 - **Constat :** « Art. 14, point 1 », « article 24 » et « 16-3 » s'impriment pour une société, c'est-à-dire la transposition que CLAUDE.md interdit.
 - **Correction :** faire porter par les services le libellé et l'article de sanction, et ajouter un test qui relit le classeur SYSCOHADA.
+- **Fait le 2026-09-27 :** `fondementInventaire` (article, périmètre, sanction par `InventaireService.sanctionApplicable`) porté par la conformité du livre ; la fenêtre des événements postérieurs porte son article, et le refus d'une date antérieure cite le texte du dossier. Classeur et écran les lisent. Tests : `documents-obligatoires.spec.ts`, `parite-documents-obligatoires.spec.ts`, `documents-obligatoires-f95.spec.ts`.
 
 **F96 · Restitution : une erreur de lecture d'une table n'est pas captée** [restit-01]
 - **Emplacements :** src/modules/exports/restitution/restitution.service.ts:91-145, :259-281

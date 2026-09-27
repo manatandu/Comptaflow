@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import * as ExcelJS from 'exceljs';
-import { FormeJuridiqueSyscohada, Referentiel } from '@prisma/client';
+import { FormeJuridiqueSyscohada, JeuEtatsFinanciersSycebnl, Referentiel, SystemeComptableSyscohada } from '@prisma/client';
+import { fondementInventaire } from '../documents-obligatoires/livre-inventaire.service';
 import { REFERENTIELS_KEY } from '../../common/decorators/referentiels.decorator';
 import { ExportService } from './export.service';
 import { ExportController } from './export.controller';
@@ -192,5 +193,71 @@ describe('les portes des documents communs restent ouvertes aux deux', () => {
     // deux services rendent d'ailleurs des formes différentes · un export
     // commun servirait le seuil d'un texte à l'entité de l'autre.
     expect(metadonnee('eligibiliteSmt')).toEqual([Referentiel.SYCEBNL]);
+  });
+});
+
+/**
+ * AUDIT FINAL F95 · le classeur du livre imprimait « Art. 14, point 1 » et la
+ * sanction de l'art. 24 du SYCEBNL à une société, et le rapport de gestion
+ * fermait sa fenêtre des événements postérieurs sur « (art. 16-3) ».
+ */
+describe('les documents exportés citent le texte du dossier', () => {
+  async function lignesDu(buffer: unknown) {
+    const classeur = new ExcelJS.Workbook();
+    await classeur.xlsx.load(buffer as never);
+    const lignes: string[] = [];
+    classeur.worksheets[0].eachRow((r) => lignes.push((r.values as unknown[]).map((v) => String(v ?? '')).join(' | ')));
+    return lignes.join('\n');
+  }
+
+  function exportLivre(referentiel: Referentiel, systeme: SystemeComptableSyscohada | null) {
+    const livre = {
+      courante: jest.fn().mockResolvedValue(null),
+      conformite: jest.fn().mockResolvedValue({
+        exigence: 'exigence du texte',
+        etatsExiges: [],
+        resume: { renseigne: false, exigence: '', remarque: '' },
+        fondement: fondementInventaire({
+          referentiel,
+          jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS,
+          systemeComptableSyscohada: systeme,
+        }),
+      }),
+    };
+    const prisma = { exercice: { findFirst: jest.fn().mockResolvedValue(null) } };
+    return new ExportService(
+      prisma as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      livre as never,
+      {} as never,
+    ).livreInventaireExcel('t1', 'ex');
+  }
+
+  it('le livre d’une société cite l’AUDCIF art. 19 et sa sanction de l’art. 111', async () => {
+    const texte = await lignesDu((await exportLivre(Referentiel.SYSCOHADA, SystemeComptableSyscohada.NORMAL)).buffer);
+    expect(texte).toContain('Texte applicable | AUDCIF art. 19 | Système normal.');
+    expect(texte).toContain('Sanction pénale : AUDCIF, art. 111');
+  });
+
+  it('le livre d’une association garde l’art. 14 et l’art. 24 du SYCEBNL', async () => {
+    const texte = await lignesDu((await exportLivre(Referentiel.SYCEBNL, null)).buffer);
+    expect(texte).toContain('Texte applicable | Art. 14, point 1 | Associations et ordres professionnels.');
+    expect(texte).toContain('Sanction pénale : Acte uniforme SYCEBNL, art. 24');
+  });
+
+  it('la fenêtre des événements postérieurs d’une société cite l’AUSCGIE', async () => {
+    const s = service(Referentiel.SYSCOHADA, FormeJuridiqueSyscohada.SOCIETE_ANONYME);
+    ((s as any).rapportActivite.conformiteRapportGestion as jest.Mock).mockResolvedValue({
+      fenetreEvenementsPosterieurs: { du: new Date('2026-12-31'), au: new Date('2027-03-15'), article: 'AUSCGIE, article 138' },
+      tresorerie: null,
+    });
+    const texte = await lignesDu((await s.rapportActiviteExcel('t1', 'ex')).buffer);
+    expect(texte).toContain("c'est la date d'établissement qui la ferme (AUSCGIE, article 138).");
   });
 });

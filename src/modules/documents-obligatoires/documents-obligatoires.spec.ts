@@ -1,7 +1,13 @@
 import { BadRequestException } from '@nestjs/common';
-import { JeuEtatsFinanciersSycebnl } from '@prisma/client';
-import { LivreInventaireService } from './livre-inventaire.service';
-import { RapportActiviteService } from './rapport-activite.service';
+import {
+  FormeJuridiqueSyscohada,
+  JeuEtatsFinanciersSycebnl,
+  Prisma,
+  Referentiel,
+  SystemeComptableSyscohada,
+} from '@prisma/client';
+import { LivreInventaireService, fondementInventaire } from './livre-inventaire.service';
+import { RapportActiviteService, tableauTresorerieDuDossier, tresorerieFigee } from './rapport-activite.service';
 import {
   ETATS_INVENTAIRE_ASSOCIATIONS,
   ETATS_INVENTAIRE_PROJETS,
@@ -107,7 +113,7 @@ function services(
     inventaire: new LivreInventaireService(prisma, ef, efp, efs, efb, esc, escSmt),
     esc,
     escSmt,
-    rapport: new RapportActiviteService(prisma, ef, donations),
+    rapport: new RapportActiviteService(prisma, ef, donations, esc),
     prisma,
     ef,
     efp,
@@ -328,7 +334,7 @@ describe('Rapport d’activité · établissement', () => {
   it('fige la trésorerie du TFT au moment de l’établissement', async () => {
     const { rapport } = services();
     const r = await rapport.etablir('t1', 'u1', RAPPORT_COMPLET);
-    expect(r.tresorerie).toEqual({ ouverture: 1200, variation: 300, cloture: 1500, boucle: true });
+    expect(r.tresorerie).toEqual({ tableau: 'TFT_ASSOCIATIONS', ouverture: 1200, variation: 300, cloture: 1500, boucle: true });
   });
 
   /**
@@ -377,7 +383,7 @@ describe('Rapport d’activité · conformité', () => {
     const { rapport } = services();
     await rapport.etablir('t1', 'u1', RAPPORT_COMPLET);
     const c = await rapport.conformite('t1', 'ex1');
-    expect(c.fenetreEvenementsPosterieurs).toEqual({ du: EXERCICE.dateFin, au: new Date('2027-03-15') });
+    expect(c.fenetreEvenementsPosterieurs).toEqual({ du: EXERCICE.dateFin, au: new Date('2027-03-15'), article: 'art. 16-3' });
   });
 
   /**
@@ -423,5 +429,156 @@ describe('Rapport d’activité · conformité', () => {
     const c = await nonConforme.rapport.conformite('t1', 'ex1');
     expect(c.declarationRegistreDonateurs.renseignee).toBe(true);
     expect(c.declarationRegistreDonateurs.registreConforme).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Audit final F94 et F95 · chaque dossier son tableau, chaque dossier son texte
+// ---------------------------------------------------------------------------
+
+/** Un dossier SYSCOHADA garde le jeu SYCEBNL par défaut du schéma · c'est ce
+ * défaut qui faisait lire le tableau des associations à une société. */
+function enSyscohada(
+  prisma: any,
+  systeme: SystemeComptableSyscohada | null,
+  forme: FormeJuridiqueSyscohada = FormeJuridiqueSyscohada.SOCIETE_ANONYME,
+) {
+  prisma.tenant.findUniqueOrThrow = jest.fn().mockResolvedValue({
+    referentiel: Referentiel.SYSCOHADA,
+    jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS,
+    systemeComptableSyscohada: systeme,
+    formeJuridiqueSyscohada: forme,
+  });
+  return prisma;
+}
+
+const RAPPORT_GESTION = { exerciceId: 'ex1', etabliLe: '2027-03-15', sections: { situationExerciceEcoule: 'Exercice.' } } as any;
+
+describe('Rapport · la trésorerie vient du tableau du DOSSIER, ou d’aucun (F94)', () => {
+  it('le tableau se choisit par le référentiel, le jeu et le système', () => {
+    const t = (referentiel: Referentiel, jeu: JeuEtatsFinanciersSycebnl, systeme: SystemeComptableSyscohada | null) =>
+      tableauTresorerieDuDossier({ referentiel, jeuEtatsFinanciersSycebnl: jeu, systemeComptableSyscohada: systeme });
+    const J = JeuEtatsFinanciersSycebnl;
+    expect(t(Referentiel.SYCEBNL, J.ASSOCIATIONS_ORDRES_PROFESSIONNELS, null)).toBe('TFT_ASSOCIATIONS');
+    expect(t(Referentiel.SYCEBNL, J.PROJETS_DEVELOPPEMENT, null)).toBeNull();
+    expect(t(Referentiel.SYCEBNL, J.SYSTEME_MINIMAL_TRESORERIE, null)).toBeNull();
+    expect(t(Referentiel.SYSCOHADA, J.ASSOCIATIONS_ORDRES_PROFESSIONNELS, SystemeComptableSyscohada.NORMAL)).toBe(
+      'TFT_SYSCOHADA_NORMAL',
+    );
+    expect(t(Referentiel.SYSCOHADA, J.ASSOCIATIONS_ORDRES_PROFESSIONNELS, null)).toBe('TFT_SYSCOHADA_NORMAL');
+    expect(t(Referentiel.SYSCOHADA, J.ASSOCIATIONS_ORDRES_PROFESSIONNELS, SystemeComptableSyscohada.MINIMAL_TRESORERIE)).toBeNull();
+  });
+
+  it.each([JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT, JeuEtatsFinanciersSycebnl.SYSTEME_MINIMAL_TRESORERIE])(
+    'le jeu %s n’a pas de tableau des flux · rien n’est figé, rien n’est lu',
+    async (jeu) => {
+      const { rapport, prisma, ef } = services(jeu);
+      await rapport.etablir('t1', 'u1', RAPPORT_COMPLET);
+      expect((ef as any).tableauFluxTresorerie).not.toHaveBeenCalled();
+      expect((prisma as any).rapportActivite.create.mock.calls[0][0].data.tresorerie).toBe(Prisma.DbNull);
+      expect((await rapport.conformite('t1', 'ex1')).tresorerie).toBeNull();
+    },
+  );
+
+  it('une société au Système normal fige SON tableau, jamais celui des associations', async () => {
+    const prisma = enSyscohada(prismaAvec(JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS), SystemeComptableSyscohada.NORMAL);
+    const { rapport, ef, esc } = services(undefined, prisma);
+    (esc as any).tableauFluxTresorerie.mockResolvedValue({
+      controle: { tresorerieOuverture: 10, variation: 5, tresorerieClotureParBilan: 15, coherent: true },
+    });
+    const r = await rapport.etablir('t1', 'u1', RAPPORT_GESTION);
+    expect(r.tresorerie).toEqual({ tableau: 'TFT_SYSCOHADA_NORMAL', ouverture: 10, variation: 5, cloture: 15, boucle: true });
+    expect((ef as any).tableauFluxTresorerie).not.toHaveBeenCalled();
+    expect((await rapport.conformiteRapportGestion('t1', 'ex1')).tresorerie).toMatchObject({ cloture: 15 });
+  });
+
+  it('une société au Système minimal n’a pas de tableau · aucun n’est lu', async () => {
+    const prisma = enSyscohada(prismaAvec(JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS), SystemeComptableSyscohada.MINIMAL_TRESORERIE);
+    const { rapport, ef, esc } = services(undefined, prisma);
+    await rapport.etablir('t1', 'u1', RAPPORT_GESTION);
+    expect((ef as any).tableauFluxTresorerie).not.toHaveBeenCalled();
+    expect((esc as any).tableauFluxTresorerie).not.toHaveBeenCalled();
+    expect((prisma as any).rapportActivite.create.mock.calls[0][0].data.tresorerie).toBe(Prisma.DbNull);
+  });
+
+  /**
+   * Un rapport établi avant la correction porte, sans le dire, la trésorerie
+   * du tableau des associations · juste pour une association, fausse pour
+   * tout autre dossier.
+   */
+  it('une trésorerie figée avant la correction ne se relit que chez une association', async () => {
+    const ancienne = { ouverture: 1, variation: 2, cloture: 3, boucle: true };
+    expect(tresorerieFigee(ancienne, 'TFT_ASSOCIATIONS')).toBe(ancienne);
+    expect(tresorerieFigee(ancienne, 'TFT_SYSCOHADA_NORMAL')).toBeNull();
+    expect(tresorerieFigee(ancienne, null)).toBeNull();
+    expect(tresorerieFigee({ ...ancienne, tableau: 'TFT_SYSCOHADA_NORMAL' }, 'TFT_SYSCOHADA_NORMAL')).toMatchObject({ cloture: 3 });
+
+    const stocke = [{ id: 'r1', exerciceId: 'ex1', version: 1, etabliLe: new Date('2027-03-15'), sections: {}, tresorerie: ancienne }];
+    const societe = enSyscohada(
+      prismaAvec(JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS, [], stocke),
+      SystemeComptableSyscohada.NORMAL,
+    );
+    expect((await services(undefined, societe).rapport.conformiteRapportGestion('t1', 'ex1')).tresorerie).toBeNull();
+    const association = prismaAvec(JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS, [], [...stocke]);
+    (association as any).tenant.findUniqueOrThrow = jest.fn().mockResolvedValue({
+      referentiel: Referentiel.SYCEBNL,
+      jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS,
+      systemeComptableSyscohada: null,
+    });
+    expect((await services(undefined, association).rapport.conformite('t1', 'ex1')).tresorerie).toBe(ancienne);
+  });
+});
+
+describe('Rapport · le texte cité est celui du dossier (F95)', () => {
+  it('la fenêtre des événements postérieurs d’une société cite l’AUSCGIE', async () => {
+    const prisma = enSyscohada(prismaAvec(JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS), SystemeComptableSyscohada.NORMAL);
+    const { rapport, esc } = services(undefined, prisma);
+    (esc as any).tableauFluxTresorerie.mockResolvedValue({
+      controle: { tresorerieOuverture: 0, variation: 0, tresorerieClotureParBilan: 0, coherent: true },
+    });
+    await rapport.etablir('t1', 'u1', RAPPORT_GESTION);
+    const c = await rapport.conformiteRapportGestion('t1', 'ex1');
+    expect(c.fenetreEvenementsPosterieurs?.article).toBe('AUSCGIE, article 138');
+  });
+
+  it('le refus d’une date antérieure à la clôture cite le texte du dossier', async () => {
+    const prisma = enSyscohada(prismaAvec(JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS), SystemeComptableSyscohada.NORMAL);
+    const societe = services(undefined, prisma).rapport.etablir('t1', 'u1', { ...RAPPORT_GESTION, etabliLe: '2026-06-30' });
+    await expect(societe).rejects.toThrow('AUSCGIE, article 138 rend compte');
+    await expect(services(undefined, prisma).rapport.etablir('t1', 'u1', { ...RAPPORT_GESTION, etabliLe: '2026-06-30' })).rejects.not.toThrow('16-3');
+    await expect(services().rapport.etablir('t1', 'u1', { ...RAPPORT_COMPLET, etabliLe: '2026-06-30' })).rejects.toThrow(
+      "L'article 16-3 rend compte",
+    );
+  });
+});
+
+describe('Livre d’inventaire · le fondement du dossier (F95)', () => {
+  const f = (referentiel: Referentiel, jeu: JeuEtatsFinanciersSycebnl, systeme: SystemeComptableSyscohada | null) =>
+    fondementInventaire({ referentiel, jeuEtatsFinanciersSycebnl: jeu, systemeComptableSyscohada: systeme });
+  const J = JeuEtatsFinanciersSycebnl;
+
+  it('une société relève de l’AUDCIF art. 19, et de l’art. 111 pour la sanction', () => {
+    const n = f(Referentiel.SYSCOHADA, J.ASSOCIATIONS_ORDRES_PROFESSIONNELS, SystemeComptableSyscohada.NORMAL);
+    expect(n).toMatchObject({ article: 'AUDCIF art. 19', perimetre: 'Système normal.' });
+    expect(n.sanction).toContain('AUDCIF, art. 111');
+    expect(f(Referentiel.SYSCOHADA, J.ASSOCIATIONS_ORDRES_PROFESSIONNELS, SystemeComptableSyscohada.MINIMAL_TRESORERIE).perimetre).toBe(
+      'Système minimal de trésorerie.',
+    );
+  });
+
+  it('une EBNL relève de l’art. 14 selon son jeu, et de l’art. 24 pour la sanction', () => {
+    expect(f(Referentiel.SYCEBNL, J.ASSOCIATIONS_ORDRES_PROFESSIONNELS, null)).toMatchObject({
+      article: 'Art. 14, point 1',
+      perimetre: 'Associations et ordres professionnels.',
+    });
+    expect(f(Referentiel.SYCEBNL, J.PROJETS_DEVELOPPEMENT, null).article).toBe('Art. 14, point 2');
+    expect(f(Referentiel.SYCEBNL, J.SYSTEME_MINIMAL_TRESORERIE, null).perimetre).toContain('Système minimal de trésorerie');
+    expect(f(Referentiel.SYCEBNL, J.PROJETS_DEVELOPPEMENT, null).sanction).toContain('Acte uniforme SYCEBNL, art. 24');
+  });
+
+  it('la conformité d’une société porte l’article de l’AUDCIF', async () => {
+    const prisma = enSyscohada(prismaAvec(JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS), SystemeComptableSyscohada.NORMAL);
+    const c = await services(undefined, prisma).inventaire.conformite('t1', 'ex1');
+    expect(c.fondement.article).toBe('AUDCIF art. 19');
   });
 });
