@@ -1,5 +1,4 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
-import { IsString, MaxLength, MinLength } from 'class-validator';
 import { RoleUtilisateur } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
@@ -7,10 +6,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { OrdresVirementService } from './ordres-virement.service';
-
-export class AnnulerOrdreDto {
-  @IsString() @MinLength(1) @MaxLength(200) motif!: string;
-}
+import { AnnulerOrdreDto } from './ordres-virement.dto';
 
 /**
  * Les ordres de virement, onglet de la fenêtre Règlement des tiers. Lus par

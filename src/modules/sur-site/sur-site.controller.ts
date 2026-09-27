@@ -1,26 +1,12 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { RoleUtilisateur } from '@prisma/client';
-import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { LicenceSurSiteService } from './licence-sur-site.service';
 import { SauvegardeSurSiteService } from './sauvegarde-sur-site.service';
-
-export class CopieExterneDto {
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  dossier?: string | null;
-}
-
-export class DeposerLicenceDto {
-  @IsString()
-  @MinLength(2)
-  @MaxLength(20_000)
-  contenu!: string;
-}
+import { CopieExterneDto, DeposerLicenceDto } from './sur-site.dto';
 
 /**
  * L'INSTALLATION SUR SITE · deux routes publiques et deux réservées.

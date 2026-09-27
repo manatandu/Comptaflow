@@ -604,6 +604,13 @@ dans des fichiers de contrôleur (`natures-compte.controller.ts`,
 `sur-site.controller.ts` ×2, `ordres-virement.controller.ts`,
 `documents-tiers.controller.ts`), hors des dossiers `dto/`.
 
+**Fait le 2026-09-27.** Cinq DTO sortis, chacun selon la convention de son
+module (`comptes/dto/`, `sur-site.dto.ts`, `ordres-virement.dto.ts`). Le
+sixième relevé n'en était pas un · `documents-tiers.controller.ts` déclare un
+filtre d'exception, qui reste où il sert. `common/dto-hors-controleurs.spec.ts`
+refuse tout `*Dto` et tout import de `class-validator` dans un contrôleur ;
+réinjection faite, attrapée.
+
 ### C7 · Décomptes périmés en commentaire
 
 - CLAUDE.md l. 54 « 30 modules métier » · 57 dossiers sous `src/modules/` ;
