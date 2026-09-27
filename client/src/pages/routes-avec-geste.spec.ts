@@ -86,6 +86,34 @@ const GESTES: Array<{ route: string; controleur: string; decorateur: string; pag
     page: 'RegularisationPage.tsx',
     appel: 'api.delete(`/regularisations/abonnements/${id}`)',
   },
+  {
+    route: 'PATCH /conventions-financement/:id',
+    controleur: 'bailleurs/convention-financement.controller.ts',
+    decorateur: "@Patch(':id')",
+    page: 'ConventionsFinancementPage.tsx',
+    appel: 'api.patch(`/conventions-financement/${c.id}`, {',
+  },
+  {
+    route: 'DELETE /conventions-financement/:id/tranches/:trancheId',
+    controleur: 'bailleurs/convention-financement.controller.ts',
+    decorateur: "@Delete(':id/tranches/:trancheId')",
+    page: 'ConventionsFinancementPage.tsx',
+    appel: 'api.delete(`/conventions-financement/${conventionId}/tranches/${trancheId}`)',
+  },
+  {
+    route: 'DELETE /conventions-financement/:id/rapports/:rapportId',
+    controleur: 'bailleurs/convention-financement.controller.ts',
+    decorateur: "@Delete(':id/rapports/:rapportId')",
+    page: 'ConventionsFinancementPage.tsx',
+    appel: 'api.delete(`/conventions-financement/${conventionId}/rapports/${rapportId}`)',
+  },
+  {
+    route: 'PATCH /registre-donateurs/:id',
+    controleur: 'registre-donateurs/donation.controller.ts',
+    decorateur: "@Patch(':id')",
+    page: 'RegistreDonateursPage.tsx',
+    appel: 'api.patch(`/registre-donateurs/${modif.id}`, corps)',
+  },
 ];
 
 describe('routes d’écriture et leur geste', () => {

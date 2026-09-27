@@ -104,6 +104,11 @@ export function RegistreDonateursPage() {
   const [formOuvert, setFormOuvert] = useState(false);
   const [enCours, setEnCours] = useState(false);
   const [exportEnCours, setExportEnCours] = useState(false);
+  // Ligne en cours de modification et ses champs d'identité. Seule l'identité
+  // du donateur se corrige : date, nature, montant et mode de libération ne
+  // sont pas dans la route (ModifierDonationDto), une erreur sur eux passe par
+  // l'annulation et la réinscription.
+  const [modif, setModif] = useState<{ id: string; champs: Record<string, string> } | null>(null);
 
   const charger = () => {
     if (!exerciceCourant) return;
@@ -183,6 +188,43 @@ export function RegistreDonateursPage() {
       charger();
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Impossible d’annuler cette ligne');
+    }
+  };
+
+  /**
+   * Modifier une ligne NON SIGNÉE (audit de l'interface du 2026-09-27, I11) ·
+   * la route existait sans geste. Le serveur refuse une ligne signée ou
+   * annulée (art. 17, une écriture signée ne se corrige pas sans annulation) ;
+   * le bouton n'est donc proposé que sur une ligne libre, et le refus éventuel
+   * est affiché tel quel. Seuls les champs du TYPE de donateur sont envoyés,
+   * le serveur refusant un champ de l'autre type (art. 17, points 2 et 3).
+   */
+  const ouvrirModif = (d: Donation) => {
+    const valeurs: Record<string, string> =
+      d.typeDonateur === 'PERSONNE_PHYSIQUE'
+        ? { nom: d.nom ?? '', prenoms: d.prenoms ?? '', domicile: d.domicile ?? '' }
+        : {
+            denomination: d.denomination ?? '',
+            numeroImmatriculation: d.numeroImmatriculation ?? '',
+            numeroIdentificationFiscale: d.numeroIdentificationFiscale ?? '',
+            adresseSiegeSocial: d.adresseSiegeSocial ?? '',
+          };
+    setModif({
+      id: d.id,
+      champs: { ...valeurs, adresseElectronique: d.adresseElectronique ?? '', designationNature: d.designationNature ?? '' },
+    });
+  };
+
+  const enregistrerModif = async () => {
+    if (!modif) return;
+    setErreur(null);
+    const corps = Object.fromEntries(Object.entries(modif.champs).map(([k, v]) => [k, v.trim()]));
+    try {
+      await api.patch(`/registre-donateurs/${modif.id}`, corps);
+      setModif(null);
+      charger();
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Impossible de modifier cette ligne');
     }
   };
 
@@ -455,12 +497,37 @@ export function RegistreDonateursPage() {
                         Signer
                       </button>
                     )}
+                    {peutEcrire && !d.annulee && !d.signeePar && (
+                      <button onClick={() => ouvrirModif(d)} className="text-sel text-[11px] hover:underline">
+                        Modifier
+                      </button>
+                    )}
                     {peutEcrire && !d.annulee && (
                       <button onClick={() => annuler(d)} className="text-danger text-[11px] hover:underline">
                         Annuler
                       </button>
                     )}
                   </span>
+                  {modif?.id === d.id && (
+                    <div className="col-span-full flex flex-wrap items-end gap-1.5 bg-surface-alt px-2 py-1.5 no-underline">
+                      {Object.keys(modif.champs).map((champ) => (
+                        <label key={champ} className="flex flex-col gap-0.5">
+                          <span className="text-[11px] font-bold text-text-dim">{LIBELLE_CHAMP[champ] ?? 'désignation des biens en nature'}</span>
+                          <input
+                            value={modif.champs[champ]}
+                            onChange={(e) => setModif((m) => (m ? { ...m, champs: { ...m.champs, [champ]: e.target.value } } : m))}
+                            className="border border-border-dark bg-surface px-1.5 py-0.5 text-[11.5px] w-[170px]"
+                          />
+                        </label>
+                      ))}
+                      <button onClick={() => void enregistrerModif()} className="border border-border-dark bg-surface px-2 py-0.5 text-[11.5px]">
+                        Enregistrer
+                      </button>
+                      <button onClick={() => setModif(null)} className="border border-border px-2 py-0.5 text-[11.5px]">
+                        Fermer
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}

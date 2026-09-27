@@ -56,6 +56,7 @@ export function ConventionsFinancementPage() {
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [detailPour, setDetailPour] = useState<string | null>(null);
+  const [modifPour, setModifPour] = useState<string | null>(null);
 
   const [bailleurId, setBailleurId] = useState('');
   const [reference, setReference] = useState('');
@@ -187,6 +188,63 @@ export function ConventionsFinancementPage() {
       await charger();
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Transmission impossible.');
+    }
+  }
+
+  /**
+   * Modifier la convention, supprimer une tranche ou un rapport (audit de
+   * l'interface du 2026-09-27, I11) · les routes existaient sans geste. La
+   * cohérence (conditionnel sans conditions, dates) est vérifiée au serveur
+   * sur la FUSION avec l'enregistré, et son refus est affiché tel quel. Une
+   * tranche encaissée ne s'efface pas (le serveur le refuse) ; le rapport
+   * transmis garde sa trace, d'où le geste réservé aux rapports non transmis.
+   */
+  async function onModifier(e: FormEvent, c: ConventionFinancement) {
+    e.preventDefault();
+    const d = new FormData(e.target as HTMLFormElement);
+    const car = String(d.get('caractere')) as CaractereEngagement;
+    const signe = d.get('ecritSigne') === 'on';
+    setErreur(null);
+    setInfo(null);
+    try {
+      await api.patch(`/conventions-financement/${c.id}`, {
+        objet: String(d.get('objet')).trim(),
+        caractere: car,
+        conditions: String(d.get('conditions') ?? '').trim() || undefined,
+        ecritSigne: signe,
+        signataire: String(d.get('signataire') ?? '').trim() || undefined,
+        dateSignature: String(d.get('dateSignature') ?? '') || undefined,
+        dateDebut: String(d.get('dateDebut')),
+        dateFin: String(d.get('dateFin')),
+        montantAccorde: Number(d.get('montantAccorde')),
+      });
+      setModifPour(null);
+      setInfo('Convention modifiée.');
+      await charger();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Modification impossible.');
+    }
+  }
+
+  async function onSupprimerTranche(conventionId: string, trancheId: string, libelle: string) {
+    if (!window.confirm(`Supprimer la tranche « ${libelle} » ?`)) return;
+    setErreur(null);
+    try {
+      await api.delete(`/conventions-financement/${conventionId}/tranches/${trancheId}`);
+      await charger();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Suppression impossible.');
+    }
+  }
+
+  async function onSupprimerRapport(conventionId: string, rapportId: string, intitule: string) {
+    if (!window.confirm(`Supprimer le rapport « ${intitule} » ?`)) return;
+    setErreur(null);
+    try {
+      await api.delete(`/conventions-financement/${conventionId}/rapports/${rapportId}`);
+      await charger();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Suppression impossible.');
     }
   }
 
@@ -352,11 +410,57 @@ export function ConventionsFinancementPage() {
                 </button>
                 {estAdmin && c.statut === 'EN_COURS' && (
                   <>
+                    <button type="button" onClick={() => setModifPour(modifPour === c.id ? null : c.id)} className="border border-border-dark px-1.5 py-0.5">Modifier</button>
                     <button type="button" onClick={() => void onClore(c.id, 'CLOTUREE')} className="border border-border-dark px-1.5 py-0.5">Clôturer</button>
                     <button type="button" onClick={() => void onClore(c.id, 'RESILIEE')} className="border border-border-dark px-1.5 py-0.5">Résilier</button>
                   </>
                 )}
               </div>
+
+              {estAdmin && modifPour === c.id && (
+                <form onSubmit={(e) => void onModifier(e, c)} className="ecran-seul flex flex-wrap items-end gap-1.5 bg-surface-alt px-3 py-2 text-[11.5px]">
+                  <label className="flex flex-col gap-0.5">
+                    <span className="text-[11px] font-bold text-text-dim">Objet</span>
+                    <input name="objet" defaultValue={c.objet} required className="border border-border-dark bg-surface px-1.5 py-0.5 w-[220px]" />
+                  </label>
+                  <label className="flex flex-col gap-0.5">
+                    <span className="text-[11px] font-bold text-text-dim">Caractère</span>
+                    <select name="caractere" defaultValue={c.caractere} className="border border-border-dark bg-surface px-1.5 py-0.5 w-[170px]">
+                      {CARACTERES.map((k) => (<option key={k.valeur} value={k.valeur}>{k.libelle}</option>))}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-0.5">
+                    <span className="text-[11px] font-bold text-text-dim">Conditions</span>
+                    <input name="conditions" defaultValue={c.conditions ?? ''} className="border border-border-dark bg-surface px-1.5 py-0.5 w-[220px]" />
+                  </label>
+                  <label className="flex items-center gap-1 pb-0.5">
+                    <input name="ecritSigne" type="checkbox" defaultChecked={c.ecritSigne} />
+                    <span className="text-[11px] font-bold text-text-dim">Écrit signé</span>
+                  </label>
+                  <label className="flex flex-col gap-0.5">
+                    <span className="text-[11px] font-bold text-text-dim">Signataire</span>
+                    <input name="signataire" defaultValue={c.signataire ?? ''} className="border border-border-dark bg-surface px-1.5 py-0.5 w-[160px]" />
+                  </label>
+                  <label className="flex flex-col gap-0.5">
+                    <span className="text-[11px] font-bold text-text-dim">Date de signature</span>
+                    <input name="dateSignature" type="date" defaultValue={c.dateSignature?.slice(0, 10) ?? ''} className="border border-border-dark bg-surface px-1.5 py-0.5 w-[140px]" />
+                  </label>
+                  <label className="flex flex-col gap-0.5">
+                    <span className="text-[11px] font-bold text-text-dim">Début</span>
+                    <input name="dateDebut" type="date" defaultValue={c.dateDebut.slice(0, 10)} required className="border border-border-dark bg-surface px-1.5 py-0.5 w-[140px]" />
+                  </label>
+                  <label className="flex flex-col gap-0.5">
+                    <span className="text-[11px] font-bold text-text-dim">Fin</span>
+                    <input name="dateFin" type="date" defaultValue={c.dateFin.slice(0, 10)} required className="border border-border-dark bg-surface px-1.5 py-0.5 w-[140px]" />
+                  </label>
+                  <label className="flex flex-col gap-0.5">
+                    <span className="text-[11px] font-bold text-text-dim">Montant accordé</span>
+                    <input name="montantAccorde" type="number" step="0.01" defaultValue={c.montantAccorde} required className="border border-border-dark bg-surface px-1.5 py-0.5 font-mono text-right w-[140px]" />
+                  </label>
+                  <button type="submit" className="border border-border-dark bg-surface px-2 py-0.5">Enregistrer</button>
+                  <button type="button" onClick={() => setModifPour(null)} className="border border-border px-2 py-0.5">Annuler</button>
+                </form>
+              )}
 
               {detailPour === c.id && (
                 <div className="bg-surface-alt px-3 py-2 flex flex-col gap-2">
@@ -376,6 +480,11 @@ export function ConventionsFinancementPage() {
                         {peutEcrire && !t.dateEncaissement && (
                           <button type="button" onClick={() => void onEncaisser(c.id, t.id, t.montant)} className="ecran-seul border border-border px-1">
                             Encaisser
+                          </button>
+                        )}
+                        {peutEcrire && !t.dateEncaissement && (
+                          <button type="button" onClick={() => void onSupprimerTranche(c.id, t.id, t.libelle)} className="ecran-seul border border-border px-1">
+                            Supprimer
                           </button>
                         )}
                       </div>
@@ -409,6 +518,11 @@ export function ConventionsFinancementPage() {
                         {peutEcrire && !r.dateTransmission && (
                           <button type="button" onClick={() => void onTransmettre(c.id, r.id)} className="ecran-seul border border-border px-1">
                             Transmis
+                          </button>
+                        )}
+                        {peutEcrire && !r.dateTransmission && (
+                          <button type="button" onClick={() => void onSupprimerRapport(c.id, r.id, r.intitule)} className="ecran-seul border border-border px-1">
+                            Supprimer
                           </button>
                         )}
                       </div>
