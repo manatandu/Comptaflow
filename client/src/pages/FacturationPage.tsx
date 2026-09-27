@@ -4,7 +4,8 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
 import { BlocEmetteur, montantImprime, TableauLignes } from '../components/PieceImprimable';
-import { avertissementArticle17, type MentionsRecopiees } from '../lib/mentions-piece';
+import { avertissementArticle17, manquesDeLaPiece, mentionDebitsProposee, type MentionsRecopiees } from '../lib/mentions-piece';
+import type { TauxTva, Tiers } from '../lib/types';
 
 /**
  * FACTURATION · la pièce que la loi exige pour chaque transaction.
@@ -66,6 +67,8 @@ type Facture = {
     conforme: boolean;
     texteApplicable: { texte: string; source: string };
     manquantes: Mention[];
+    mentionDebitsManquante?: boolean;
+    mentionDebits?: { texte: string; article: string; reserveSanction: string };
     horsDePortee: Mention[];
     amendeUnitaire: number;
     reserveAmende: string;
@@ -88,6 +91,7 @@ type Etat = {
     supportsDeDeduction: { cas: string; support: string; tenuParOmegaX: boolean }[];
     reserveSupports: string;
   };
+  regimeExigibiliteTva?: string | null;
   factures: Facture[];
 };
 
@@ -139,6 +143,15 @@ export function FacturationPage() {
   const [tauxApplique, setTauxApplique] = useState<number | ''>('');
   const [montantTva, setMontantTva] = useState<number | ''>('');
   const [autresImpots, setAutresImpots] = useState<number | ''>('');
+  // LE TIERS ET LE TAUX SE CHOISISSENT (audit final F23) · sans eux la
+  // passation n'a ni compte de tiers ni compte de TVA, et « Passer
+  // l'écriture » refusait toute pièce saisie ici.
+  const [tiersId, setTiersId] = useState('');
+  const [tauxTvaId, setTauxTvaId] = useState('');
+  const [tiersListe, setTiersListe] = useState<Tiers[]>([]);
+  const [tauxListe, setTauxListe] = useState<TauxTva[]>([]);
+  // `null` tant que personne n'a touché la case · elle suit alors le régime.
+  const [mentionDebits, setMentionDebits] = useState<boolean | null>(null);
   const [periode, setPeriode] = useState('');
   const [detaille, setDetaille] = useState<EtatDetaille | null>(null);
   // La pièce remise au client · seule imprimée tant qu'elle est ouverte.
@@ -158,7 +171,11 @@ export function FacturationPage() {
   const recharger = () => api.get<Etat>('/facturation').then(setEtat);
   useEffect(() => {
     void recharger().catch(() => setEtat(null));
+    api.get<Tiers[]>('/tiers?actifsSeuls=true').then(setTiersListe, () => setTiersListe([]));
+    api.get<TauxTva[]>('/taux-tva?actifsSeuls=true').then(setTauxListe, () => setTauxListe([]));
   }, []);
+  const tiersDuSens = tiersListe.filter((t) => (sens === 'VENTE' ? t.type === 'CLIENT' || t.type === 'ADHERENT' : t.type === 'FOURNISSEUR'));
+  const mentionDebitsCochee = mentionDebits ?? mentionDebitsProposee(sens, etat?.regimeExigibiliteTva);
 
   async function enregistrer() {
     setErreur(null);
@@ -167,6 +184,9 @@ export function FacturationPage() {
         sens,
         numeroSerie,
         dateFacture,
+        tiersId: tiersId || undefined,
+        // Décret n° 011/42, art. 60 · due par celui qui DÉLIVRE, donc sur une vente.
+        ...(sens === 'VENTE' ? { mentionTvaDebits: mentionDebitsCochee } : {}),
         // « Le cas échéant » veut dire « s'il y en a », pas « si vous voulez » ·
         // laisser vide n'est pas répondre, et la mention manque.
         autresImpotsEtTaxes: autresImpots === '' ? undefined : Number(autresImpots),
@@ -180,6 +200,7 @@ export function FacturationPage() {
             prixUnitaire: Number(prixUnitaire),
             montantHT: Number(montantHT),
             imposable,
+            tauxTvaId: tauxTvaId || undefined,
             tauxApplique: tauxApplique === '' ? undefined : Number(tauxApplique),
             montantTva: montantTva === '' ? undefined : Number(montantTva),
           },
@@ -187,6 +208,7 @@ export function FacturationPage() {
       });
       setNumeroSerie('');
       setDesignation('');
+      setMentionDebits(null);
       await recharger();
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : "L'enregistrement n'a pas abouti.");
@@ -299,10 +321,25 @@ export function FacturationPage() {
             <select
               className="w-full border border-border px-1.5 py-1 text-[11.5px]"
               value={sens}
-              onChange={(e) => setSens(e.target.value as 'VENTE' | 'ACHAT')}
+              onChange={(e) => {
+                setSens(e.target.value as 'VENTE' | 'ACHAT');
+                setTiersId('');
+                setMentionDebits(null);
+              }}
             >
               <option value="VENTE">Vente (facture émise)</option>
               <option value="ACHAT">Achat (facture reçue)</option>
+            </select>
+          </label>
+          <label className="text-[11.5px]">
+            Tiers au plan
+            <select className="w-full border border-border px-1.5 py-1 text-[11.5px]" value={tiersId} onChange={(e) => setTiersId(e.target.value)}>
+              <option value="">Aucun · saisir l’identité</option>
+              {tiersDuSens.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.code} · {t.nom}
+                </option>
+              ))}
             </select>
           </label>
           <label className="text-[11.5px]">
@@ -342,6 +379,25 @@ export function FacturationPage() {
             <input type="number" className="w-full border border-border px-1.5 py-1 text-[11.5px]" value={montantHT} onChange={(e) => setMontantHT(e.target.value === '' ? '' : Number(e.target.value))} />
           </label>
           <label className="text-[11.5px]">
+            Taux de taxe
+            <select
+              className="w-full border border-border px-1.5 py-1 text-[11.5px]"
+              value={tauxTvaId}
+              onChange={(e) => {
+                setTauxTvaId(e.target.value);
+                const t = tauxListe.find((x) => x.id === e.target.value);
+                if (t) setTauxApplique(Number(t.taux));
+              }}
+            >
+              <option value="">Aucun</option>
+              {tauxListe.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.code} · {t.intitule}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-[11.5px]">
             Taux de TVA (%)
             <input type="number" className="w-full border border-border px-1.5 py-1 text-[11.5px]" value={tauxApplique} onChange={(e) => setTauxApplique(e.target.value === '' ? '' : Number(e.target.value))} />
           </label>
@@ -349,6 +405,17 @@ export function FacturationPage() {
             Montant de TVA
             <input type="number" className="w-full border border-border px-1.5 py-1 text-[11.5px]" value={montantTva} onChange={(e) => setMontantTva(e.target.value === '' ? '' : Number(e.target.value))} />
           </label>
+          {sens === 'VENTE' && (
+            <label className="text-[11.5px] flex items-center gap-1.5 mt-4">
+              <input type="checkbox" checked={mentionDebitsCochee} onChange={(e) => setMentionDebits(e.target.checked)} />
+              Autorisation d’acquitter la TVA d’après les débits
+              <Aide
+                titre="Mention de l’art. 60"
+                texte="La mention « Autorisation d’acquitter la TVA d’après les débits » doit figurer sur toutes les factures délivrées par le prestataire de services ou l’entrepreneur de travaux autorisé. Elle est proposée cochée quand le dossier est au régime des débits."
+                source="Décret n° 011/42, art. 60"
+              />
+            </label>
+          )}
           <label className="text-[11.5px] flex items-center gap-1.5 mt-4">
             <input type="checkbox" checked={imposable} onChange={(e) => setImposable(e.target.checked)} />
             Ligne imposable
@@ -573,15 +640,25 @@ export function FacturationPage() {
                         <span>Tous les groupes exigibles sont servis.</span>
                       ) : (
                         <>
-                          <span className="text-danger">Manque : {f.mentions.manquantes.map((m) => m.libelle).join(' · ')}</span>
+                          <span className="text-danger">Manque : {manquesDeLaPiece(f.mentions).join(' · ')}</span>
                           {/* LE TOTAL ENCOURU NE SE CALCULE PAS · l'art. 97 bis
                               sanctionne « par omission » sans définir l'unité
                               de l'omission. Multiplier serait inventer un
                               barème. */}
-                          <p className="text-[11px] text-text-dim mt-0.5 flex items-center gap-1.5">
-                            Amende de {f.mentions.amendeUnitaire.toLocaleString('fr-FR')} FC par omission.
-                            <Aide titre="Amende par omission" texte={f.mentions.reserveAmende} source={f.mentions.source} />
-                          </p>
+                          {f.mentions.manquantes.length > 0 && (
+                            <p className="text-[11px] text-text-dim mt-0.5 flex items-center gap-1.5">
+                              Amende de {f.mentions.amendeUnitaire.toLocaleString('fr-FR')} FC par omission.
+                              <Aide titre="Amende par omission" texte={f.mentions.reserveAmende} source={f.mentions.source} />
+                            </p>
+                          )}
+                          {/* ART. 60 · aucune amende n'est chiffrée, et le silence
+                              n'est pas une dispense : la réserve le dit. */}
+                          {f.mentions.mentionDebitsManquante && f.mentions.mentionDebits && (
+                            <p className="text-[11px] text-text-dim mt-0.5 flex items-center gap-1.5">
+                              Sanction non chiffrée.
+                              <Aide titre="Mention de l’art. 60" texte={f.mentions.mentionDebits.reserveSanction} source={f.mentions.mentionDebits.article} />
+                            </p>
+                          )}
                         </>
                       )}
                       {/* LES DEUX MENTIONS HORS DE PORTÉE SONT NOMMÉES, sur

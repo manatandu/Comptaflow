@@ -188,12 +188,14 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 4
 - **Constat :** le formulaire n'envoie ni `tiersId` ni `tauxTvaId`, alors que la passation exige le compte du tiers et le taux. Aucune route ne permet de compléter la facture ensuite : le bouton ne peut jamais aboutir.
 - **Correction :** choisir le tiers et le taux dans le formulaire, ou accepter le compte du tiers dans `ComptabiliserFactureDto`. Ajouter un test navigateur.
+- **Fait le 2026-09-27 :** le formulaire choisit le tiers au plan (clients et adhérents sur une vente, fournisseurs sur un achat) et le taux de taxe de la ligne, qui propose son pourcentage, et envoie les deux. Test navigateur : `e2e/tests/facturation.e2e.ts`, une vente saisie à l'écran se passe au brouillard en trois lignes · vu tomber sans l'envoi du tiers. Câblage gelé côté client (`mentions-piece.spec.ts`).
 
 **F24 · La mention « TVA d'après les débits » (art. 60) est exigée mais impossible à poser** [fact-02]
 - **Emplacements :** client/src/pages/FacturationPage.tsx:166, :572 · src/modules/facturation/mentions-facture.ts:659-667
 - **Condition :** 4
 - **Constat :** toute vente d'un dossier au régime des débits est déclarée non conforme tant que `mentionTvaDebits` est faux, et le formulaire n'a pas de case pour ce champ. L'écran affiche « Manque : » suivi d'une liste vide, et la pièce n'imprime jamais la mention.
 - **Correction :** une case, proposée cochée pour une vente d'un dossier aux débits, et l'affichage de `mentionDebitsManquante` avec l'art. 60.
+- **Fait le 2026-09-27 :** case « Autorisation d'acquitter la TVA d'après les débits » sur une vente, proposée cochée au régime des débits (`mentionDebitsProposee`, régime rendu par `/facturation`) ; le manque se nomme avec l'art. 60 (`manquesDeLaPiece`), et l'amende par omission ne s'affiche que pour les groupes de l'art. 26, la sanction de l'art. 60 restant non chiffrée avec sa réserve. Tests : `mentions-piece.spec.ts`.
 
 **F25 · Déclaration de TVA, prorata et liquidation lisent le brouillard** [tva-01]
 - **Emplacements :** src/modules/tva/taux-tva.service.ts:798, :1697, :2374 · src/modules/fiscalite/fiscalite.service.ts:371
@@ -798,6 +800,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 2
 - **Constat :** tiers et écriture sont vérifiés, le taux non. `LigneFacture` n'a pas de `tenantId`, donc la garde ne voit pas le lien.
 - **Correction :** `tauxTva.findMany({ id: { in }, tenantId })`, refus de tout identifiant absent.
+- **Fait le 2026-09-27 :** l'enregistrement refuse un taux absent du dossier ; la passation relit le dossier du taux de chaque ligne et refuse avant toute écriture (`facturation.service.ts`, `comptabilisation-facture.service.ts`). Tests : `facturation.spec.ts`, `comptabilisation-facture.spec.ts`.
 
 **F121 · Le taux d'un taux de TVA mouvementé se modifie et réécrit les prorata passés** [tva-02]
 - **Emplacements :** src/modules/tva/dto/taux-tva.dto.ts:25-45 · taux-tva.service.ts:714-718, :813-818

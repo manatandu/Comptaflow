@@ -29,12 +29,17 @@ export class ComptabilisationFactureService {
     const f = await this.prisma.facture.findFirst({
       where: { id: factureId, tenantId },
       include: {
-        lignes: { orderBy: { ordre: 'asc' }, include: { tauxTva: { select: { compteCollecteId: true, compteDeductibleId: true } } } },
+        lignes: { orderBy: { ordre: 'asc' }, include: { tauxTva: { select: { tenantId: true, compteCollecteId: true, compteDeductibleId: true } } } },
         tiers: { select: { comptesRattaches: { where: { estPrincipal: true }, select: { compteId: true }, take: 1 } } },
       },
     });
     if (!f) throw new NotFoundException('Facture introuvable dans ce dossier.');
     if (f.ecritureId) throw new BadRequestException('Cette facture est déjà liée à une écriture · elle ne se passe pas deux fois.');
+    // Le taux d'une ligne se relit à son dossier (audit final F120) · une pièce
+    // enregistrée avant la vérification ne passerait pas le compte d'un voisin.
+    if (f.lignes.some((l) => l.tauxTva && l.tauxTva.tenantId !== tenantId)) {
+      throw new NotFoundException('Taux de taxe introuvable dans ce dossier.');
+    }
 
     const journal = await this.prisma.journal.findFirst({ where: { id: d.journalId, tenantId }, select: { type: true } });
     const typeAttendu = f.sens === SensFacture.VENTE ? TypeJournal.VENTES : TypeJournal.ACHATS;

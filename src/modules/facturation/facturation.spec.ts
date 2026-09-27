@@ -326,6 +326,12 @@ function service(factures: Faux[] = [], doublon: Faux | null = null) {
       }),
     },
     tiers: { findFirst: jest.fn().mockResolvedValue(null) },
+    // Le taux « t16 » est au dossier « t », tout autre identifiant est ailleurs.
+    tauxTva: {
+      findMany: jest.fn().mockImplementation(({ where }: { where: { id: { in: string[] }; tenantId: string } }) =>
+        Promise.resolve(where.tenantId === 't' ? where.id.in.filter((id) => id === 't16').map((id) => ({ id })) : []),
+      ),
+    },
     ecriture: { findFirst: jest.fn().mockResolvedValue({ id: 'e1' }) },
     facture: {
       findMany: jest.fn().mockResolvedValue(factures),
@@ -389,6 +395,15 @@ describe('Le service · qui est l’émetteur, et qui est la contrepartie', () =
   it('refuse un n° de série déjà porté par une facture du MÊME sens', async () => {
     const { svc } = service([], { id: 'deja' });
     await expect(svc.enregistrer('t', dto() as never)).rejects.toThrow(/déjà porté/);
+  });
+
+  it('refuse un taux de taxe d’un autre dossier, et garde celui du dossier (audit final F120)', async () => {
+    const ligne = (tauxTvaId: string) => [{ designation: 'Conseil', quantite: 1, prixUnitaire: 100_000, montantHT: 100_000, tauxTvaId, tauxApplique: 16, montantTva: 16_000 }];
+    const { svc, create } = service();
+    await expect(svc.enregistrer('t', dto({ lignes: ligne('voisin') }) as never)).rejects.toThrow(/Taux de taxe introuvable/);
+    await svc.enregistrer('t', dto({ lignes: ligne('t16') }) as never);
+    const lignes = (((create.mock.calls[0][0] as Faux).data as Faux).lignes as Faux).create as Faux[];
+    expect([create.mock.calls.length, lignes[0].tauxTvaId]).toEqual([1, 't16']);
   });
 
   it('l’unicité du n° de série est bornée au SENS · la numérotation reçue est celle du fournisseur', async () => {

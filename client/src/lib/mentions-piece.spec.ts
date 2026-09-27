@@ -1,4 +1,6 @@
-import { avertissementArticle17, PIECE_ANTERIEURE } from './mentions-piece';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { avertissementArticle17, manquesDeLaPiece, mentionDebitsProposee, PIECE_ANTERIEURE } from './mentions-piece';
 
 describe('AUSCGIE art. 17 sur la pièce imprimée', () => {
   it('une pièce complète ne signale rien', () => {
@@ -18,5 +20,38 @@ describe('AUSCGIE art. 17 sur la pièce imprimée', () => {
   it('une pièce antérieure à la recopie le DIT, chez une société seulement', () => {
     expect(avertissementArticle17(null, true)).toBe(PIECE_ANTERIEURE);
     expect(avertissementArticle17(null, false)).toBeNull();
+  });
+});
+
+describe('Décret n° 011/42, art. 60 · la mention des débits (audit final F24)', () => {
+  const debits = { texte: "Autorisation d'acquitter la TVA d'après les débits", article: 'décret n° 011/42, art. 60' };
+
+  it('le manque de l’art. 60 est nommé, jamais une liste vide', () => {
+    expect([
+      manquesDeLaPiece({ manquantes: [], mentionDebitsManquante: true, mentionDebits: debits }),
+      manquesDeLaPiece({ manquantes: [{ libelle: 'Adresse exacte' }], mentionDebitsManquante: false, mentionDebits: debits }),
+    ]).toEqual([["« Autorisation d'acquitter la TVA d'après les débits » (décret n° 011/42, art. 60)"], ['Adresse exacte']]);
+  });
+
+  it('la case se propose cochée sur une vente au régime des débits, jamais sur un achat', () => {
+    expect([
+      mentionDebitsProposee('VENTE', 'DEBITS'),
+      mentionDebitsProposee('VENTE', 'ENCAISSEMENTS'),
+      mentionDebitsProposee('ACHAT', 'DEBITS'),
+      mentionDebitsProposee('VENTE', null),
+    ]).toEqual([true, false, false, false]);
+  });
+});
+
+describe('Facturation · la pièce saisie se passe au journal (audit final F23)', () => {
+  it('le formulaire envoie le tiers, le taux de chaque ligne et la mention de l’art. 60', () => {
+    const page = readFileSync(join(__dirname, '..', 'pages', 'FacturationPage.tsx'), 'utf8');
+    const envoi = page.slice(page.indexOf("await api.post('/facturation', {"), page.indexOf('setNumeroSerie(\'\');'));
+    expect([
+      envoi.includes('tiersId: tiersId || undefined'),
+      envoi.includes('tauxTvaId: tauxTvaId || undefined'),
+      envoi.includes('mentionTvaDebits: mentionDebitsCochee'),
+      page.includes('manquesDeLaPiece(f.mentions)'),
+    ]).toEqual([true, true, true, true]);
   });
 });

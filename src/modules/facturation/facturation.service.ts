@@ -155,6 +155,9 @@ export class FacturationService {
     return {
       homologation: HOMOLOGATION,
       obligationDAcceptation: OBLIGATION_DACCEPTATION,
+      // Décret n° 011/42, art. 60 · l'écran propose la mention cochée sur une
+      // vente d'un dossier autorisé aux débits (audit final F24).
+      regimeExigibiliteTva: t.regimeExigibiliteTva,
       factures: factures.map((f) => {
         const v = this.verifiable(f);
         return {
@@ -232,6 +235,15 @@ export class FacturationService {
         'L’identité de la contrepartie est la deuxième mention de l’art. 100 du décret n° 011/42 · ' +
           'renseignez un tiers ou saisissez le nom.',
       );
+    }
+
+    // UN TAUX D'UN AUTRE DOSSIER N'EXISTE PAS (audit final F120) · la ligne
+    // de facture ne porte pas de `tenantId`, la garde de cloisonnement ne
+    // voit donc pas le lien, et le compte de TVA d'un voisin serait passé.
+    const idsTaux = [...new Set(dto.lignes.map((l) => l.tauxTvaId).filter((x): x is string => !!x))];
+    if (idsTaux.length) {
+      const trouves = await this.prisma.tauxTva.findMany({ where: { id: { in: idsTaux }, tenantId }, select: { id: true } });
+      if (trouves.length !== idsTaux.length) throw new NotFoundException('Taux de taxe introuvable dans ce dossier.');
     }
 
     if (dto.ecritureId) {

@@ -2,7 +2,7 @@ import { ComptabilisationFactureService } from './comptabilisation-facture.servi
 
 const D = (n: number) => ({ toString: () => String(n), valueOf: () => n });
 
-function monde(o: { lie?: boolean; journal?: string; numero?: string; libreAuLien?: boolean } = {}) {
+function monde(o: { lie?: boolean; journal?: string; numero?: string; libreAuLien?: boolean; dossierDuTaux?: string } = {}) {
   const creees: Record<string, unknown>[] = [];
   const prisma = {
     facture: {
@@ -10,7 +10,7 @@ function monde(o: { lie?: boolean; journal?: string; numero?: string; libreAuLie
         id: 'f1', sens: 'VENTE', nature: 'FACTURE', numeroSerie: 'F-7', contrepartieNom: 'ASBL', autresImpotsEtTaxes: null,
         ecritureId: o.lie ? 'e0' : null, dateFacture: new Date('2026-10-15T00:00:00Z'),
         tiers: { comptesRattaches: [{ compteId: 'c411' }] },
-        lignes: [{ id: 'l1', designation: 'Service', montantHT: D(1000), montantTva: D(160), tauxTvaId: 't16', tauxTva: { compteCollecteId: 'c443', compteDeductibleId: 'c445' } }],
+        lignes: [{ id: 'l1', designation: 'Service', montantHT: D(1000), montantTva: D(160), tauxTvaId: 't16', tauxTva: { tenantId: o.dossierDuTaux ?? 't', compteCollecteId: 'c443', compteDeductibleId: 'c445' } }],
       })),
       updateMany: jest.fn(async () => ({ count: o.libreAuLien === false ? 0 : 1 })),
     },
@@ -38,6 +38,12 @@ describe('passer l’écriture d’une facture · service', () => {
     await expect(monde({ lie: true }).s.comptabiliser('t', 'u', 'f1', { journalId: 'j', compteGestionId: 'c706' })).rejects.toThrow(/déjà liée/);
     await expect(monde({ journal: 'ACHATS' }).s.comptabiliser('t', 'u', 'f1', { journalId: 'j', compteGestionId: 'c706' })).rejects.toThrow(/journal de ventes/);
     await expect(monde({ numero: '60100000' }).s.comptabiliser('t', 'u', 'f1', { journalId: 'j', compteGestionId: 'c706' })).rejects.toThrow(/classe 7/);
+  });
+
+  it('refuse le taux d’un autre dossier porté par une pièce ancienne (audit final F120)', async () => {
+    const m = monde({ dossierDuTaux: 'voisin' });
+    await expect(m.s.comptabiliser('t', 'u', 'f1', { journalId: 'jv', compteGestionId: 'c706' })).rejects.toThrow(/Taux de taxe introuvable/);
+    expect(m.ecritures.creer).not.toHaveBeenCalled();
   });
 
   it('un second clic qui a lié la facture entre-temps retire l’écriture créée', async () => {

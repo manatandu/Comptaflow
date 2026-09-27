@@ -21,3 +21,28 @@ export function avertissementArticle17(
   return `AUSCGIE art. 17 · manquait au dossier à l'établissement de la pièce : ${m.manquantes.join(', ')}. Complétez Paramètres du dossier pour les pièces suivantes.`;
 }
 
+
+/**
+ * CE QUI MANQUE À LA PIÈCE, tel que l'écran le dit (audit final F24). La
+ * mention de l'art. 60 du décret n° 011/42 rend la pièce non conforme sans
+ * être un groupe de l'art. 26 · l'écran affichait « Manque : » suivi d'une
+ * liste vide. Elle est nommée avec son article.
+ */
+export function manquesDeLaPiece(m: {
+  manquantes: { libelle: string }[];
+  mentionDebitsManquante?: boolean;
+  mentionDebits?: { texte: string; article: string };
+}): string[] {
+  const manques = m.manquantes.map((x) => x.libelle);
+  if (m.mentionDebitsManquante && m.mentionDebits) manques.push(`« ${m.mentionDebits.texte} » (${m.mentionDebits.article})`);
+  return manques;
+}
+
+/**
+ * La case de l'art. 60 se PROPOSE cochée sur une vente d'un dossier autorisé
+ * aux débits · elle ne se pose jamais d'office sur un achat, dont la mention
+ * appartient au fournisseur.
+ */
+export function mentionDebitsProposee(sens: 'VENTE' | 'ACHAT', regimeExigibiliteTva: string | null | undefined): boolean {
+  return sens === 'VENTE' && regimeExigibiliteTva === 'DEBITS';
+}
