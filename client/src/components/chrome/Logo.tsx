@@ -1,10 +1,8 @@
 import {
   BLOC,
   BLOC_BOITE,
-  ENCRE,
   LOGOTYPE,
   LOGOTYPE_BOITE,
-  RAYON_ICONE,
   SIGNE,
   SIGNE_BOITE,
 } from './marque-geometrie';
@@ -76,40 +74,6 @@ export function SymboleOmegaX({
       <path d={SIGNE} fill="currentColor" fillRule="nonzero" />
     </svg>
   );
-}
-
-/** Le signe en réserve sur son carré d'encre · l'icône, à l'écran. */
-export function IconeOmegaX({ taille = 32, className }: { taille?: number; className?: string }) {
-  return (
-    <svg
-      width={taille}
-      height={taille}
-      viewBox="0 0 1000 1000"
-      className={className}
-      role="img"
-      aria-label="OmegaX"
-    >
-      <rect width="1000" height="1000" rx={RAYON_ICONE * 1000} fill={ENCRE} />
-      <g transform={carreDuSigne()}>
-        <path d={SIGNE} fill="#ffffff" fillRule="nonzero" />
-      </g>
-    </svg>
-  );
-}
-
-/**
- * Le placement du signe dans le carré de l'icône.
- *
- * Il est recalculé ICI plutôt que servi par le fichier engendré, pour que
- * l'icône à l'écran et l'icône en fichier partent des mêmes deux constantes
- * (la boîte du signe, la marge). Deux placements écrits séparément divergent,
- * et l'écart ne se voit qu'une fois l'application installée.
- */
-function carreDuSigne(): string {
-  const [x, y, l, h] = SIGNE_BOITE.split(' ').map(Number);
-  const MARGE = 0.155;
-  const k = (1000 * (1 - 2 * MARGE)) / Math.max(l, h);
-  return `translate(${(1000 - l * k) / 2 - x * k} ${(1000 - h * k) / 2 - y * k}) scale(${k})`;
 }
 
 /**
