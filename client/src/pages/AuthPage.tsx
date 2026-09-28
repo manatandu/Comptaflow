@@ -182,7 +182,10 @@ export function AuthPage() {
     // grille dense, sans colonne à chasse fixe · rien n'y déborde si la
     // chasse change d'un pour cent. L'établi, lui, garde la police du système
     // (voir « Typographie » dans docs/charte-omegax.md).
-    <div className="relative min-h-screen overflow-x-clip flex flex-col items-center justify-center bg-bg px-4 py-8 font-marque">
+    // `porte-fond` (index.css) · le bureau du logiciel avec deux halos très
+    // larges à la couleur de la marque, pour que la première seconde d'une
+    // démonstration ne soit pas un aplat gris.
+    <div className="porte-fond relative min-h-screen overflow-x-clip flex flex-col items-center justify-center px-4 py-8 font-marque">
       <div aria-hidden className="absolute inset-0 overflow-hidden pointer-events-none">
         <CerclesDecoratifs />
       </div>
@@ -194,7 +197,9 @@ export function AuthPage() {
           ouvre porte exactement le même cadre : la première seconde
           d'utilisation dit déjà « logiciel installé », pas « site ».
           ------------------------------------------------------------------ */}
-      <div className="relative z-10 w-full max-w-[620px] bg-surface border border-border rounded-[4px] overflow-hidden shadow-flottante anim-modale">
+      {/* 8 px · la règle d'arrondi des SURFACES (index.css) ; l'ombre dominante
+          de l'échelle, parce que c'est la seule fenêtre de l'écran. */}
+      <div className="relative z-10 w-full max-w-[620px] bg-surface border border-border rounded-[8px] overflow-hidden shadow-dominante anim-modale">
         {/* Barre de titre CLAIRE, comme toute fenêtre de Windows 11 : le
             signe porte la couleur, la barre ne la porte plus. */}
         <div className="h-[32px] flex items-center gap-2 px-3 bg-surface text-text text-[11.5px] border-b border-border">
@@ -210,9 +215,16 @@ export function AuthPage() {
           simple bandeau et le formulaire reprend toute la largeur.
         */}
         <div className="flex flex-col sm:flex-row">
-          {/* Panneau de marque · le pendant du bandeau vert de Sage. */}
+          {/*
+            Panneau de marque · le pendant du bandeau de Sage, À L'ENCRE de la
+            marque et jamais au vert de Sage (CLAUDE.md § 9 ter). La marque y
+            passe en BLANC EN RÉSERVE, l'un des quatre rendus de la charte
+            (§ 7.2), sur l'encre qui lui donne 12,74:1 (§ 7.3). Les deux
+            lignes de texte sont en `--chrome-text-dim` · MESURÉ à 5,78:1 sur
+            l'encre, au-dessus du plancher AA de 4,5:1.
+          */}
           <div
-            className="w-full sm:w-[168px] sm:flex-shrink-0 p-4 flex flex-row sm:flex-col items-center sm:items-stretch gap-3 sm:gap-0 justify-between bg-chrome border-b sm:border-b-0 sm:border-r border-border"
+            className="porte-marque w-full sm:w-[168px] sm:flex-shrink-0 p-4 flex flex-row sm:flex-col items-center sm:items-stretch gap-3 sm:gap-0 justify-between"
           >
             <div className="min-w-0">
               <div className="w-[38px] h-[38px] rounded-[4px] bg-sel flex items-center justify-center text-white">
@@ -224,7 +236,7 @@ export function AuthPage() {
                 un logotype qui changerait de police d'un poste à l'autre n'en
                 serait plus un. Le tracé porte son propre libellé accessible.
               */}
-              <LogotypeOmegaX hauteur={21} className="mt-2.5 text-[var(--a-900)]" />
+              <LogotypeOmegaX hauteur={21} className="mt-2.5 text-white" />
               {/*
                 Aucun dossier n'est ouvert à cet écran : le référentiel est
                 donc INCONNU, et annoncer « entités à but non lucratif ·
@@ -233,11 +245,17 @@ export function AuthPage() {
                 réclamer d'un seul. Les deux référentiels relèvent de
                 l'OHADA, c'est le seul dénominateur exact.
               */}
-              <div className="mt-1 text-[11px] text-text-dim leading-[1.5]">
+              <div className="mt-1 text-[11px] text-[var(--chrome-text-dim)] leading-[1.5]">
                 Comptabilité OHADA · SYCEBNL et SYSCOHADA
               </div>
             </div>
-            <div className="text-[11px] text-text-dim">© 2026</div>
+            <div className="sm:flex sm:flex-col sm:gap-3">
+              {/* Le filet de clôture, seul élément graphique dérivé de la marque
+                  (charte § 9) · il clôt le panneau comme un trait sous une
+                  colonne, et jamais un filigrane du logo. */}
+              <hr aria-hidden className="filet-cloture hidden sm:block text-white" />
+              <div className="text-[11px] text-[var(--chrome-text-dim)]">© 2026</div>
+            </div>
           </div>
 
           <div className="flex-1 min-w-0 p-5">
@@ -266,7 +284,9 @@ export function AuthPage() {
         )}
 
         <PanneauSurSite onEtat={setSurSite} />
-        <form onSubmit={onSubmit} className="flex flex-col gap-3">
+        {/* Les rangées du formulaire arrivent l'une après l'autre
+            (`anim-cascade`, index.css) · 22 ms d'écart, rien de plus. */}
+        <form onSubmit={onSubmit} className="anim-cascade flex flex-col gap-3">
           <label className="flex flex-col gap-1.5">
             <span className="text-[11.5px] font-semibold text-text-dim">Adresse e-mail</span>
             <input
@@ -334,12 +354,12 @@ export function AuthPage() {
           </div>
 
           {!erreur && motifDeconnexion && (
-            <div role="status" className="text-[11.5px] text-text bg-sel-soft border border-sel/30 rounded-[4px] px-3 py-2">
+            <div role="status" className="anim-alerte text-[11.5px] text-text bg-sel-soft border border-sel/30 rounded-[4px] px-3 py-2">
               {motifDeconnexion}
             </div>
           )}
           {erreur && (
-            <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 rounded-[4px] px-3 py-2">
+            <div role="alert" className="anim-alerte text-[11.5px] text-danger bg-danger-soft border border-danger/30 rounded-[4px] px-3 py-2">
               {erreur}
             </div>
           )}
@@ -350,11 +370,16 @@ export function AuthPage() {
           )}
 
           <div className="mt-2 pt-3 border-t border-border flex items-center justify-end">
+            {/* Bouton principal en PILULE, comme le « + Créer » de Sage Active
+                (CLAUDE.md § 9 ter) · blanc sur `--sel`, 6,37:1. L'anneau
+                d'attente accompagne le libellé, il ne le remplace pas. */}
             <button
               type="submit"
               disabled={envoi}
-              className="px-4 py-1.5 rounded-[4px] bg-sel text-white text-[11.5px] font-semibold hover:brightness-110 disabled:opacity-50"
+              aria-busy={envoi}
+              className="inline-flex items-center gap-2 px-5 py-1.5 rounded-full bg-sel text-white text-[11.5px] font-semibold shadow-plate hover:brightness-110 disabled:opacity-60"
             >
+              {envoi && <span aria-hidden className="anneau-attente" />}
               {envoi ? 'Un instant…' : avisSession ? 'Continuer' : 'Ouvrir le dossier'}
             </button>
           </div>

@@ -267,6 +267,33 @@
   --titlebar-from: #1d2a3f;
   --titlebar-to: #16202f;
 
+  /* CANAUX des couleurs de la charte, pour l'opacité des utilitaires
+     (`border-danger/30`, `bg-warning/5`) · voir tailwind.config.js. Écrits en
+     chiffres, parce qu'une variable ne se décompose pas ; chacun est tenu égal
+     à sa couleur par `canaux-couleurs.spec.ts`, qui tombe si l'une bouge sans
+     l'autre. */
+  --chrome-rgb: 245 247 250;
+  --mica-rgb: 232 237 244;
+  --chrome-alt-rgb: 236 239 244;
+  --chrome-border-rgb: 211 218 228;
+  --chrome-text-rgb: 234 239 247;
+  --chrome-text-dim-rgb: 159 176 201;
+  --bg-rgb: 238 242 248;
+  --surface-rgb: 255 255 255;
+  --surface-alt-rgb: 245 247 250;
+  --border-rgb: 226 231 238;
+  --border-dark-rgb: 180 189 203;
+  --text-rgb: 21 26 34;
+  --text-dim-rgb: 90 99 115;
+  --sel-rgb: 35 89 196;
+  --sel-soft-rgb: 238 244 255;
+  --positive-rgb: 14 112 73;
+  --positive-soft-rgb: 228 246 237;
+  --warning-rgb: 142 84 6;
+  --warning-soft-rgb: 253 240 218;
+  --danger-rgb: 181 46 38;
+  --danger-soft-rgb: 253 233 231;
+
   /* ---------------------------------------------------------------- */
   /* Élévation · trois niveaux, jamais plus. Chaque ombre combine un   */
   /* filet coloré (le contact) et une diffusion (la hauteur).          */
@@ -881,6 +908,144 @@ tbody tr {
 .anim-cascade > *:nth-child(11) { animation-delay: 220ms; }
 .anim-cascade > *:nth-child(n + 12) { animation-delay: 240ms; }
 
+/*
+ * FINITION DU 2026-09-28 · « on quitte le stade d'expérimentation ».
+ *
+ * Même doctrine que ci-dessus, et quatre règles de plus, parce qu'une
+ * démonstration se juge sur ce qui bouge sans raison autant que sur ce qui
+ * ne bouge pas :
+ *  · 120 à 280 ms, jamais plus pour une entrée · au-delà, on attend
+ *    l'interface au lieu de la lire ;
+ *  · seuls `transform` et `opacity` s'animent · le navigateur les confie à la
+ *    carte graphique, alors qu'une ombre ou une hauteur animée recalcule la
+ *    page à chaque image ;
+ *  · un chiffre n'est jamais animé à sa place : le compteur du tableau de bord
+ *    (lib/compteur.ts) écrit chaque étape par `montant()` et finit sur la
+ *    valeur exacte ;
+ *  · tout se coupe sous `prefers-reduced-motion` par la règle universelle
+ *    plus bas, et `mouvement-reduit.spec.ts` le vérifie pour chaque
+ *    `@keyframes` de ce fichier.
+ */
+
+/* « Qu'est-ce qui a changé ? » · le contenu d'un onglet qu'on vient de choisir. */
+@keyframes panneau-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 4px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.anim-panneau {
+  animation: panneau-in 0.18s var(--t-sortie) both;
+}
+
+/* « Qu'est-ce qui s'est ouvert ? » · les fonctions d'un groupe de la barre
+   verticale descendent de son intitulé, comme un sous-menu. */
+@keyframes deplie-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -4px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.anim-deplie {
+  animation: deplie-in 0.16s var(--t-sortie) both;
+}
+
+/* Le trait d'un onglet actif hors de la classe `.onglet` · même geste,
+   même courbe que `.onglet-actif::after`. Le parent porte `relative`. */
+.trait-actif {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--sel);
+  transform-origin: center;
+  animation: trait-onglet 0.24s var(--t-sortie) both;
+  pointer-events: none;
+}
+
+/*
+ * CARTE D'INDICATEUR · elle se soulève d'un pixel au survol. L'ombre n'est
+ * pas ANIMÉE : elle est posée d'avance sur un pseudo-élément, dont seule
+ * l'opacité change · même rendu, sans recalcul de la page à chaque image.
+ */
+.carte-indicateur {
+  position: relative;
+  border-radius: 8px;
+  transition: transform 0.18s var(--t-sortie);
+}
+.carte-indicateur::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: var(--ombre-flottante);
+  opacity: 0;
+  transition: opacity 0.18s var(--t-sortie);
+  pointer-events: none;
+}
+.carte-indicateur:hover {
+  transform: translate3d(0, -1px, 0);
+}
+.carte-indicateur:hover::after {
+  opacity: 1;
+}
+
+/* « Ma demande est-elle partie ? » · un anneau qui tourne dans le bouton qui
+   l'a envoyée, à côté du libellé qui le dit déjà. Sous mouvement réduit il
+   s'arrête, et le libellé suffit. */
+@keyframes tourne {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.anneau-attente {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 1.6px solid currentColor;
+  border-right-color: transparent;
+  animation: tourne 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+/*
+ * ÉCRAN D'OUVERTURE · le fond du bureau, et le panneau de marque à l'encre.
+ * Deux halos très larges à la couleur de la marque, comme `body::before` ;
+ * aucun dégradé ne touche la MARQUE elle-même (charte § 7.2 et § 11, 2°),
+ * qui est posée à plat, en blanc sur l'encre (§ 7.3 · 12,74:1).
+ */
+.porte-fond {
+  background:
+    radial-gradient(900px 520px at 85% -10%, rgba(35, 89, 196, 0.1), transparent 64%),
+    radial-gradient(700px 460px at 0% 110%, rgba(20, 47, 107, 0.08), transparent 62%),
+    var(--bg);
+}
+.porte-marque {
+  background: var(--bandeau);
+  color: #ffffff;
+}
+
+/* Ligne cliquable d'une grille (indicateurs de l'accueil) · atteignable au
+   clavier, et le focus s'y voit comme sur un bouton. */
+tr[tabindex]:focus-visible,
+[role='tab']:focus-visible,
+[role='button']:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+}
+
 /* Squelette de chargement · prend la forme du contenu attendu. */
 .squelette {
   background: linear-gradient(
@@ -905,7 +1070,11 @@ tbody tr {
   .anim-alerte,
   .anim-cascade > *,
   .squelette,
-  .onglet-actif::after {
+  .onglet-actif::after,
+  .anim-panneau,
+  .anim-deplie,
+  .trait-actif,
+  .anneau-attente {
     animation: none !important;
   }
   button,
@@ -918,6 +1087,25 @@ tbody tr {
     transition: none !important;
   }
   button:active:not(:disabled) {
+    transform: none;
+  }
+  /*
+   * LA RÈGLE UNIVERSELLE · la liste ci-dessus nomme les classes une à une, et
+   * une classe ajoutée demain qu'on oublierait d'y écrire bougerait encore.
+   * Celle-ci ne dépend d'aucun nom : `!important` l'emporte sur toute classe
+   * et sur tout style en ligne non marqué, pseudo-éléments compris (le trait
+   * d'un onglet, l'ombre d'une carte). Les animations d'entrée sont toutes en
+   * `both` et finissent sur l'état naturel de l'élément · les couper ne cache
+   * donc rien. `mouvement-reduit.spec.ts` la tient.
+   */
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+  .carte-indicateur:hover {
     transform: none;
   }
 }

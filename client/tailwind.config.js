@@ -1,3 +1,31 @@
+/**
+ * Les couleurs de la charte que les écrans emploient en utilitaires. Chacune
+ * a sa variable `--x` et son canal `--x-rgb` dans index.css.
+ */
+const COULEURS_CHARTE = [
+  'chrome',
+  'mica',
+  'chrome-alt',
+  'chrome-border',
+  'chrome-text',
+  'chrome-text-dim',
+  'bg',
+  'surface',
+  'surface-alt',
+  'border',
+  'border-dark',
+  'text',
+  'text-dim',
+  'sel',
+  'sel-soft',
+  'positive',
+  'positive-soft',
+  'warning',
+  'warning-soft',
+  'danger',
+  'danger-soft',
+];
+
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: ['class'],
@@ -51,29 +79,28 @@ export default {
           'sans-serif',
         ],
       },
-      colors: {
-        chrome: 'var(--chrome)',
-        mica: 'var(--mica)',
-        'chrome-alt': 'var(--chrome-alt)',
-        'chrome-border': 'var(--chrome-border)',
-        'chrome-text': 'var(--chrome-text)',
-        'chrome-text-dim': 'var(--chrome-text-dim)',
-        bg: 'var(--bg)',
-        surface: 'var(--surface)',
-        'surface-alt': 'var(--surface-alt)',
-        border: 'var(--border)',
-        'border-dark': 'var(--border-dark)',
-        text: 'var(--text)',
-        'text-dim': 'var(--text-dim)',
-        sel: 'var(--sel)',
-        'sel-soft': 'var(--sel-soft)',
-        positive: 'var(--positive)',
-        'positive-soft': 'var(--positive-soft)',
-        warning: 'var(--warning)',
-        'warning-soft': 'var(--warning-soft)',
-        danger: 'var(--danger)',
-        'danger-soft': 'var(--danger-soft)',
-      },
+      /*
+       * LES COULEURS DE LA CHARTE ACCEPTENT UNE OPACITÉ (2026-09-28).
+       *
+       * Écrites `var(--sel)`, elles ne l'acceptaient pas : Tailwind ne sait pas
+       * décomposer une variable, et `border-danger/30`, `bg-warning/5`,
+       * `border-border/40` ne produisaient AUCUNE règle. Silencieusement · plus
+       * de cinq cents emplois dans les écrans, et les encadrés d'erreur
+       * tombaient sur le gris par défaut de Tailwind au lieu de leur filet
+       * rouge. Rien ne l'a jamais signalé, la page restait lisible.
+       *
+       * D'où les CANAUX `--x-rgb` posés dans index.css, lus en
+       * `rgb(var(--x-rgb) / <alpha-value>)` · la syntaxe à barre oblique est
+       * comprise depuis Chrome 65 et Safari 12.1, bien avant `color-mix`, dont
+       * l'absence sur une vieille vue web aurait éteint TOUS les fonds d'un
+       * coup. `canaux-couleurs.spec.ts` tient chaque canal égal à sa variable.
+       *
+       * LE TEXTE GARDE LA VARIABLE PLEINE (`textColor` plus bas) · une encre
+       * adoucie par une opacité tomberait sous le plancher de contraste AA
+       * mesuré au § 7.4 de la charte, sans que personne l'ait mesurée.
+       */
+      colors: Object.fromEntries(COULEURS_CHARTE.map((n) => [n, `rgb(var(--${n}-rgb) / <alpha-value>)`])),
+      textColor: Object.fromEntries(COULEURS_CHARTE.map((n) => [n, `var(--${n})`])),
       borderRadius: {
         DEFAULT: '3px',
       },

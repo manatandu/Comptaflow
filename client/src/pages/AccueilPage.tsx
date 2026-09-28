@@ -29,6 +29,7 @@ import {
   IconUsers,
 } from '../components/chrome/icons';
 import type { SVGProps } from 'react';
+import { LignesSquelette } from '../components/chrome/Squelette';
 
 /**
  * ACCUEIL · le FOND de l'espace de travail, jamais une fenêtre. Les fenêtres
@@ -299,7 +300,9 @@ export function AccueilPage() {
                 <span className="truncate">{groupe.titre}</span>
               </button>
               {ouvert && (
-                <ul className="bg-[var(--bandeau-survol)] pb-1">
+                /* Les fonctions descendent de leur intitulé (`anim-deplie`) ·
+                   « qu'est-ce qui s'est ouvert ? », sans rien faire glisser d'autre. */
+                <ul className="anim-deplie bg-[var(--bandeau-survol)] pb-1">
                   {tuiles.map((t) => (
                     <li key={t.chemin} className="group flex items-center">
                       <button
@@ -331,17 +334,21 @@ export function AccueilPage() {
                 role="tab"
                 aria-selected={onglet === o}
                 onClick={() => choisirOnglet(o)}
-                className={`px-3 h-[32px] text-[12px] -mb-px border-b-2 ${
-                  onglet === o ? 'border-b-sel text-sel font-semibold' : 'border-b-transparent text-text-dim hover:text-text'
+                // Le trait de l'onglet actif est un élément à part (`trait-actif`),
+                // animé comme celui de `.onglet` · une bordure ne s'anime pas
+                // en `transform`, elle ne ferait que sauter d'un onglet à l'autre.
+                className={`relative px-3 h-[32px] text-[12px] -mb-px border-b-2 border-b-transparent ${
+                  onglet === o ? 'text-sel font-semibold' : 'text-text-dim hover:text-text'
                 }`}
               >
                 {o}
+                {onglet === o && <span aria-hidden className="trait-actif" />}
               </button>
             ))}
           </div>
 
           {onglet === 'Accueil' && (
-            <div className="p-3">
+            <div className="anim-panneau p-3">
               <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-0.5 text-[11.5px]">
                 <dt className="text-text-dim">Dossier</dt>
                 <dd className="font-semibold">{utilisateur?.tenant.nom}</dd>
@@ -393,7 +400,7 @@ export function AccueilPage() {
           )}
 
           {onglet === 'Favoris' && (
-            <div className="p-1">
+            <div className="anim-panneau p-1">
               {tuilesFavorites.length === 0 ? (
                 <p className="p-2 text-[11.5px] text-text-dim">
                   Aucun favori · cliquez sur l’étoile d’une fonction de la barre verticale.
@@ -407,7 +414,7 @@ export function AccueilPage() {
                         onClick={() => navigate(t.chemin)}
                         className="flex-1 min-w-0 flex items-center gap-2 px-2 h-[24px] text-left text-[11.5px] hover:bg-sel-soft"
                       >
-                        <t.Icon width={13} height={13} className="shrink-0 text-[var(--a-200)]" />
+                        <t.Icon width={13} height={13} className="shrink-0 text-sel" />
                         <span className="truncate">{t.label}</span>
                       </button>
                       <BoutonFavori actif onClick={() => basculerFavori(t.chemin)} />
@@ -419,12 +426,15 @@ export function AccueilPage() {
           )}
 
           {onglet === 'Indicateurs' && (
-            <div>
+            <div className="anim-panneau">
               {chargement ? (
-                <p className="p-3 text-[11.5px] text-text-dim">Chargement…</p>
+                <div className="p-3" aria-busy="true">
+                  <LignesSquelette lignes={4} />
+                  <p className="sr-only">Chargement…</p>
+                </div>
               ) : (
                 <table className="w-full text-[11.5px]">
-                  <tbody>
+                  <tbody className="anim-cascade">
                     <LigneEtat
                       titre="Écritures au brouillard"
                       valeur={brouillard ? brouillard.libelle : 'Non déterminé'}
@@ -564,7 +574,19 @@ function LigneEtat({
   navigate: (c: string) => void;
 }) {
   return (
-    <tr onClick={() => navigate(chemin)} className="cursor-pointer hover:bg-sel-soft">
+    <tr
+      onClick={() => navigate(chemin)}
+      // Une ligne qui mène quelque part se prend aussi au clavier · le focus
+      // s'y voit comme sur un bouton (`tr[tabindex]:focus-visible`, index.css).
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          navigate(chemin);
+        }
+      }}
+      className="cursor-pointer hover:bg-sel-soft"
+    >
       <td className="px-2 py-1 w-[14px]">
         <span className={`block h-2 w-2 rounded-full ${bon ? 'bg-positive' : 'bg-warning'}`} aria-hidden />
       </td>

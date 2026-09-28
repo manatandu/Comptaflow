@@ -4,6 +4,7 @@ import { FenetreCourante, useFenetresActions } from '../../lib/fenetres';
 import { echapPourLaFenetre } from '../../lib/echap';
 import { rendreFenetre } from '../../lib/registre-fenetres';
 import { LimiteErreur } from './LimiteErreur';
+import { LignesSquelette } from './Squelette';
 
 /**
  * CADRE DE FENÊTRE · la fenêtre MDI de Sage 100 i7 : une barre de titre
@@ -178,7 +179,7 @@ function FenetreInterne({ fenetre, active }: { fenetre: FenetreOuverte; active: 
           pleine, ceux des autres fenêtres s'éteignent, et son ombre est plus
           profonde. La distinction demeure, elle change seulement de forme.
         */
-        className={`shrink-0 flex items-center justify-between gap-2 pl-3.5 select-none border-b border-border ${
+        className={`shrink-0 flex items-center justify-between gap-2 pl-3.5 select-none border-b border-border transition-colors duration-150 ${
           agrandie ? '' : 'cursor-move'
         } ${active ? 'bg-[var(--bandeau)] text-white' : 'bg-chrome text-text-dim'}`}
       >
@@ -223,10 +224,19 @@ function FenetreInterne({ fenetre, active }: { fenetre: FenetreOuverte; active: 
           {/* La clé porte le compteur d'Actualiser : l'incrémenter remonte le
               contenu, qui recharge ses données · le F5 de Sage.
               Les pages sont chargées à la demande (registre-fenetres, lazy) :
-              le temps du transfert de son module, la fenêtre affiche le même
-              « Chargement… » que ses données · rien ne clignote deux fois. */}
+              le temps du transfert de son module, la fenêtre montre la forme
+              des lignes à venir (squelette) et dit « Chargement… » au lecteur
+              d'écran seul · un mot gris au milieu du vide ne dit pas quoi. */}
           <FenetreCourante.Provider value={fenetre.cle}>
-            <Suspense key={fenetre.version} fallback={<div className="p-3 text-[11.5px] text-text-dim">Chargement…</div>}>
+            <Suspense
+              key={fenetre.version}
+              fallback={
+                <div className="p-3" aria-busy="true">
+                  <LignesSquelette lignes={4} />
+                  <div className="sr-only">Chargement…</div>
+                </div>
+              }
+            >
               {rendreFenetre(fenetre.adresse)}
             </Suspense>
           </FenetreCourante.Provider>

@@ -9,6 +9,8 @@ import type { EcheancierFiscal, Ecriture, LigneBalance } from '../lib/types';
 import { echeancesAVenir } from '../lib/echeances-a-venir';
 import { indicateursTableauDeBord } from '../lib/indicateurs-tableau-de-bord';
 import { montant } from '../lib/montants';
+import { useCompteur } from '../lib/compteur';
+import { LignesSquelette } from '../components/chrome/Squelette';
 
 /**
  * TABLEAU DE BORD · l'esprit « Édition pilotée » de Sage : quelques
@@ -110,21 +112,23 @@ export function DashboardPage() {
       </div>
 
       {erreurBalance && (
-        <div className="mb-2.5 text-[11.5px] text-danger bg-danger-soft border border-danger/30 rounded-[3px] px-2.5 py-1.5">
+        <div className="anim-alerte mb-2.5 text-[11.5px] text-danger bg-danger-soft border border-danger/30 rounded-[3px] px-2.5 py-1.5">
           Indicateurs indisponibles · {erreurBalance}
         </div>
       )}
 
       {/* Indicateurs · calculés depuis la balance, seule source de vérité. */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 mb-2.5">
+      {/* Les quatre cartes arrivent l'une après l'autre (`anim-cascade`) et se
+          soulèvent au survol (`carte-indicateur`) · voir index.css. */}
+      <div className="anim-cascade grid grid-cols-2 lg:grid-cols-4 gap-2.5 mb-2.5">
         {indicateurs.map((ind) => {
           const teinte =
             ind.teinte === 'auto' ? (ind.valeur >= 0 ? 'text-positive' : 'text-danger') : 'text-text';
           return (
-            <div key={ind.label} className="bg-surface border border-border shadow-posee px-3.5 py-2.5">
+            <div key={ind.label} className="carte-indicateur bg-surface border border-border px-3.5 py-2.5">
               <div className="text-[11px] font-bold text-text-dim tracking-wide">{ind.label}</div>
               <div className={`font-mono text-[14px] font-bold leading-tight mt-0.5 ${teinte}`}>
-                {balance ? montant(ind.valeur) : erreurBalance ? '·' : '…'}
+                {balance ? <ValeurIndicateur valeur={ind.valeur} /> : erreurBalance ? '·' : '…'}
                 <span className="text-[11px] font-normal text-text-dim ml-1">CDF</span>
               </div>
               <div className="text-[11px] text-text-dim mt-0.5">{ind.note}</div>
@@ -221,31 +225,49 @@ export function DashboardPage() {
         {erreurEcritures ? (
           <div className="p-3 text-[11.5px] text-danger">Dernières écritures illisibles · {erreurEcritures}</div>
         ) : (
-          !ecritures && <div className="p-3 text-[11.5px] text-text-dim">Chargement…</div>
+          !ecritures && (
+            <div className="p-3" aria-busy="true">
+              <LignesSquelette lignes={4} />
+              <div className="sr-only">Chargement…</div>
+            </div>
+          )
         )}
         {ecritures?.length === 0 && (
           <div className="p-3 text-[11.5px] text-text-dim">
             Aucune écriture sur cet exercice.
           </div>
         )}
-        {ecritures?.map((e) => {
-          const totalDebit = e.lignes.reduce((s, l) => s + Number(l.debit), 0);
-          return (
-            <div
-              key={e.id}
-              className="grid grid-cols-[76px_52px_56px_1fr_130px] min-w-[540px] gap-2.5 items-center px-3.5 py-[4px] border-b border-border/50 last:border-b-0 text-[11.5px]"
-            >
-              <span className="font-mono text-[11px] text-text-dim">
-                {new Date(e.date).toLocaleDateString('fr-FR')}
-              </span>
-              <span className="font-mono text-text-dim">{e.journal?.code ?? ''}</span>
-              <span className="font-mono text-[11px] text-text-dim text-right">{e.numeroPiece ?? '·'}</span>
-              <span className="truncate">{e.libelle}</span>
-              <span className="font-mono font-semibold text-right">{montant(totalDebit)}</span>
-            </div>
-          );
-        })}
+        <div className="anim-cascade">
+          {ecritures?.map((e) => {
+            const totalDebit = e.lignes.reduce((s, l) => s + Number(l.debit), 0);
+            return (
+              <div
+                key={e.id}
+                className="grid grid-cols-[76px_52px_56px_1fr_130px] min-w-[540px] gap-2.5 items-center px-3.5 py-[4px] border-b border-border/50 last:border-b-0 text-[11.5px]"
+              >
+                <span className="font-mono text-[11px] text-text-dim">
+                  {new Date(e.date).toLocaleDateString('fr-FR')}
+                </span>
+                <span className="font-mono text-text-dim">{e.journal?.code ?? ''}</span>
+                <span className="font-mono text-[11px] text-text-dim text-right">{e.numeroPiece ?? '·'}</span>
+                <span className="truncate">{e.libelle}</span>
+                <span className="font-mono font-semibold text-right">{montant(totalDebit)}</span>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
+}
+
+/**
+ * Le montant d'un indicateur, qui monte à son arrivée. Chaque étape passe par
+ * `montant()` et la dernière est la valeur exacte (lib/compteur.ts) · la
+ * COULEUR, elle, est décidée par l'appelant sur la valeur finale, si bien
+ * qu'un résultat négatif ne passe jamais par le vert en montant.
+ */
+function ValeurIndicateur({ valeur }: { valeur: number }) {
+  const affiche = useCompteur(valeur);
+  return <>{montant(affiche)}</>;
 }
