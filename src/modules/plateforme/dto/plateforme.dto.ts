@@ -1,5 +1,6 @@
 import { IsArray, IsBoolean, IsDateString, IsEmail, IsEnum, IsIn, IsInt, IsNumber, IsOptional, IsString, IsUUID, Matches, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
 import { CourrielNormalise } from '../../../common/courriel';
+import { FacultatifNonNul } from '../../../common/facultatif-non-nul';
 import { JeuEtatsFinanciersSycebnl, Referentiel, StatutLicence, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
 
 /**
@@ -96,17 +97,30 @@ export class CreerCabinetDto {
  * voir LicenceService.evaluerLicence), pas un statut qu'on décrète.
  */
 export class ModifierLicenceDto {
-  @IsOptional()
+  @FacultatifNonNul('Le type de licence ne s’efface pas · omettez le champ pour le laisser inchangé.')
   @IsEnum(TypeLicence)
   type?: TypeLicence;
 
-  @IsOptional()
+  @FacultatifNonNul('Le statut de la licence est ACTIVE ou SUSPENDUE, jamais null · omettez le champ pour le laisser inchangé.')
   @IsIn([StatutLicence.ACTIVE, StatutLicence.SUSPENDUE])
   statut?: StatutLicence;
 
-  /** '' efface l'échéance (licence perpétuelle) · même convention que les
-   *  dates des paramètres du dossier (voir parametres-dossier.dto.ts). */
-  @IsOptional()
+  /**
+   * '' efface l'échéance (licence perpétuelle) · même convention que les
+   * dates des paramètres du dossier (voir parametres-dossier.dto.ts).
+   *
+   * `null` EST REFUSÉ, alors que les dates du dossier le lisent comme un
+   * effacement (2026-09-28). `@IsOptional` le laissait passer, et
+   * `new Date(null)` posait le 1er janvier 1970 · la licence expirait sur le
+   * champ, cellules comprises par la cascade de groupe, sans que la console
+   * dise rien. Le lire comme un effacement serait l'erreur inverse, aussi
+   * muette · lever l'échéance fait passer un client en perpétuel, geste
+   * commercial qui a son écriture propre, la chaîne vide, et qu'un champ
+   * sérialisé à null par mégarde ne doit pas accomplir.
+   */
+  @FacultatifNonNul(
+    'L’échéance de la licence ne s’efface pas par null · envoyez une date AAAA-MM-JJ, ou une chaîne vide pour lever l’échéance (licence perpétuelle).',
+  )
   @ValidateIf((o) => o.dateExpiration !== '')
   @IsDateString()
   dateExpiration?: string;

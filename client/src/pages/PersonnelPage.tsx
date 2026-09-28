@@ -11,6 +11,7 @@ import { TITRE_BLOC_PAIE } from './PaieDuMois';
 import { BaremeMensuelIrpp, type DetailMensuelIrpp } from './BaremeMensuelIrpp';
 import { lignesDepuisModele, lignesVersModele, type ModeleBulletin } from '../lib/modeles-bulletin';
 import { ONGLETS_PERSONNEL, ongletPersonnelDe, type OngletPersonnel } from '../lib/onglets-personnel';
+import { montant } from '../lib/montants';
 
 /**
  * LE PERSONNEL · le registre (l'état civil, les engagements, et ce que
@@ -487,10 +488,7 @@ const LIGNE_VIERGE: LignePaie = {
   remboursement: false,
 };
 
-const fc = (n: number | null | undefined) =>
-  n === null || n === undefined
-    ? '' 
-    : n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fc = (n: number | null | undefined) => montant(n, '');
 
 const nomComplet = (s: Salarie) => [s.nom, s.postNom, s.prenoms].filter(Boolean).join(' ');
 const jour = (d: string | null) => (d ? d.slice(0, 10) : '');
@@ -1796,7 +1794,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                   <div>{f.remunerationMinimale.explication}</div>
                   {f.remunerationMinimale.manqueFc !== null && (
                     <div>
-                      Manque : <strong>{f.remunerationMinimale.manqueFc.toLocaleString('fr-FR')} FC</strong>.
+                      Manque : <strong>{fc(f.remunerationMinimale.manqueFc)} FC</strong>.
                     </div>
                   )}
                 </div>
@@ -2414,7 +2412,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                   </div>
                   {simulation.conversion.elements.map((e) => (
                     <div key={e.libelle} className="text-text-dim">
-                      {e.libelle} : {e.montantUsd.toLocaleString('fr-FR')} USD = {fc(e.montantFc)}
+                      {e.libelle} : {fc(e.montantUsd)} USD = {fc(e.montantFc)}
                     </div>
                   ))}
                   <div className="mt-1">{simulation.conversion.avertissement}</div>

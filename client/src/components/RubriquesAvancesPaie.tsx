@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { Aide } from './chrome/Aide';
 import { libelleListeBornee } from '../lib/liste-bornee-personnel';
+import { montant as fc } from '../lib/montants';
 
 export interface RubriquePaie {
   id: string;
@@ -46,7 +47,6 @@ const LIBELLE_NATURE: Record<string, string> = {
 };
 
 const TYPE: Record<AvanceSalaire['type'], string> = { AVANCE: 'Avance', ACOMPTE: 'Acompte', PRET: 'Prêt' };
-const fc = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const nombre = (v: string) => Number(v.replace(/\s/g, '').replace(',', '.'));
 const champ = 'border border-border bg-transparent px-1.5 py-0.5';
 

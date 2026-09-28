@@ -5,6 +5,7 @@ import { Aide } from '../components/chrome/Aide';
 import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
 import type { Journal } from '../lib/types';
+import { montant } from '../lib/montants';
 
 /**
  * LE MAGASIN · la fiche de stock, article par article, et la confrontation au
@@ -116,8 +117,7 @@ interface CompteStock {
   typeCompte: string;
 }
 
-const mt = (n: number | null) =>
-  n === null ? '' : n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const mt = (n: number | null) => montant(n, '');
 const qt = (n: number | null) =>
   n === null ? '' : n.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
 

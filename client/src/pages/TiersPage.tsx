@@ -23,6 +23,7 @@ import type {
   TypeTiers,
 } from '../lib/types';
 import { PortailModale } from '../components/PortailModale';
+import { montant } from '../lib/montants';
 
 /**
  * PLAN DES TIERS · la fenêtre Structure → Plan tiers de Sage 100 i7 :
@@ -927,7 +928,7 @@ export function TiersPage() {
                     <div className="text-[11px] text-text-dim truncate">{tc.compte.intitule}</div>
                     <div className="flex items-center justify-between mt-1">
                       <span className="font-mono text-[11px]">
-                        Solde : {tc.compteId in soldes ? soldes[tc.compteId].toLocaleString('fr-FR') : '·'}
+                        Solde : {tc.compteId in soldes ? montant(soldes[tc.compteId]) : '·'}
                       </span>
                       <span className="flex gap-2.5">
                         <button
@@ -1190,7 +1191,7 @@ export function TiersPage() {
                         {resultatCalc.map((r) => (
                           <div key={r.ordre} className="grid grid-cols-3 gap-2 px-2.5 py-1 border-b border-border last:border-b-0 text-[11.5px] font-mono">
                             <span>#{r.ordre}</span>
-                            <span className="text-right">{r.montant.toLocaleString('fr-FR')}</span>
+                            <span className="text-right">{montant(r.montant)}</span>
                             <span className="text-text-dim">{new Date(r.dateEcheance).toLocaleDateString('fr-FR')}</span>
                           </div>
                         ))}

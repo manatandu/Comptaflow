@@ -6,6 +6,7 @@ import { Aide } from '../components/chrome/Aide';
 import type { Compte, EtatBrouillard, Journal, LigneBrouillard, ResultatValidation } from '../lib/types';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { PortailModale } from '../components/PortailModale';
+import { montantOuVide as montant } from '../lib/montants';
 
 /**
  * BROUILLARD · État → Brouillard de Sage 100 i7 : « un document qui permet de
@@ -96,10 +97,6 @@ function corpsModification(e: EcritureEditee) {
       };
     }),
   };
-}
-
-function montant(n: number): string {
-  return n !== 0 ? n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
 }
 
 export function BrouillardPage() {

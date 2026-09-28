@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { montant } from '../lib/montants';
 
 /**
  * ÉTATS CONSOLIDÉS · tranches 3a et 3b, sous le cumul. Bilan et compte de
@@ -81,8 +82,7 @@ type Etats = {
   reserves: string[];
 };
 
-const fc = (v: number | null | undefined) =>
-  v == null ? '' : v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fc = (v: number | null | undefined) => montant(v, '');
 const pct = (v: number | null) => (v == null ? '' : v.toFixed(2));
 const classeLigne = (l: Ligne) =>
   l.nature === 'TOTAL' ? 'font-bold border-t border-border' : l.nature === 'A_RETRAITER' ? 'text-warning' : l.nature === 'DETAIL' ? 'text-text-dim' : '';

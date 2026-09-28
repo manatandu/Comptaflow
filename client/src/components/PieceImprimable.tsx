@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { MentionsRecopiees } from '../lib/mentions-piece';
+import { montant } from '../lib/montants';
 
 /**
  * LA PIÈCE REMISE AU CLIENT · facture de vente et devis émis par le dossier.
@@ -30,8 +31,7 @@ export function BlocEmetteur({
   );
 }
 
-const fmt = (n: number | null | undefined) =>
-  typeof n === 'number' ? n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
+const fmt = (n: number | null | undefined) => montant(n, '');
 
 export type LigneImprimee = {
   designation: string;

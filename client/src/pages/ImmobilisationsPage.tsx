@@ -6,6 +6,7 @@ import { useExercice } from '../lib/exercice';
 import { Aide } from '../components/chrome/Aide';
 import { PlanFiscalDegressif } from '../components/PlanFiscalDegressif';
 import type { Compte, FamilleImmobilisation, Immobilisation, Journal, LieuBien, TypeComposant } from '../lib/types';
+import { montant } from '../lib/montants';
 
 /**
  * Immobilisations (§3.3) : familles (gabarits, comptes + durée par défaut ·
@@ -279,7 +280,7 @@ export function ImmobilisationsPage() {
         exerciceId: exerciceCourant.id,
         journalId: od?.id ?? journaux[0]?.id,
       });
-      setInfo(`Dotation de ${resultat.montant.toLocaleString('fr-FR')} passée pour l'exercice ${new Date(exerciceCourant.dateDebut).getFullYear()}.`);
+      setInfo(`Dotation de ${montant(resultat.montant)} passée pour l'exercice ${new Date(exerciceCourant.dateDebut).getFullYear()}.`);
       await charger();
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Impossible de passer la dotation');
@@ -580,10 +581,10 @@ export function ImmobilisationsPage() {
             <div className="mt-1">
               Valeur nette estimée{' '}
               <span className="font-mono font-semibold">
-                {(reconstitution.valeurNetteEstimee ?? 0).toLocaleString('fr-FR')}
+                {montant(reconstitution.valeurNetteEstimee)}
               </span>{' '}
               · amortissement fictif déjà couru{' '}
-              <span className="font-mono">{(reconstitution.amortissementEstime ?? 0).toLocaleString('fr-FR')}</span>
+              <span className="font-mono">{montant(reconstitution.amortissementEstime)}</span>
             </div>
           ) : (
             <div className="mt-1 text-warning">{reconstitution.motif}</div>
@@ -976,9 +977,9 @@ export function ImmobilisationsPage() {
                   )}
                 </span>
                 <span className="font-mono text-[11px] text-text-dim">{new Date(immo.dateMiseEnService).toLocaleDateString('fr-FR')}</span>
-                <span className="font-mono text-right">{immo.valeurOrigine.toLocaleString('fr-FR')}</span>
-                <span className="font-mono text-right">{cumulAmorti(immo).toLocaleString('fr-FR')}</span>
-                <span className="font-mono text-right font-semibold">{vcn(immo).toLocaleString('fr-FR')}</span>
+                <span className="font-mono text-right">{montant(immo.valeurOrigine)}</span>
+                <span className="font-mono text-right">{montant(cumulAmorti(immo))}</span>
+                <span className="font-mono text-right font-semibold">{montant(vcn(immo))}</span>
                 <span className="font-mono text-[11px] text-text-dim">
                   {immo.modeAmortissement === 'UNITES_DOEUVRE'
                     ? `${(immo.unitesOeuvrePrevues ?? 0).toLocaleString('fr-FR')} ${immo.uniteOeuvreLibelle ?? ''}`

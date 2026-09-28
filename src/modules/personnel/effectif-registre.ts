@@ -19,40 +19,56 @@ import { PrismaService } from '../../common/prisma.service';
  * et l'accord-cadre, qui la PROPOSE pour l'engagement de l'art. 37, point 4.
  * Deux calculs écrits à part auraient rendu deux parts plausibles et
  * différentes pour le même registre.
+ *
+ * DES NOMBRES, DONC DES AGRÉGATS DE LA BASE (audit final F259, reste ; § 8
+ * bis). La lecture rapatriait chaque contrat en vigueur avec son salarié pour
+ * ne rendre que des comptes · la mémoire dépendait de l'effectif. La base
+ * compte désormais les SALARIÉS qui ont au moins un contrat en vigueur,
+ * regroupés par sexe et par nationalité telle qu'écrite (une ligne par
+ * couple distinct, jamais une par contrat), et la nationalité se lit ensuite
+ * avec la même tolérance d'écriture qu'avant. UN SALARIÉ, PAS UN CONTRAT ·
+ * deux contrats simultanés pour la même personne ne font pas deux personnes
+ * à l'effectif, et c'est la base qui le garantit (`some`).
+ *
+ * PERMANENT · un salarié qui tient au moins un contrat à durée indéterminée
+ * en vigueur. La lecture précédente prenait le type du premier contrat que la
+ * base rendait, sans ordre · le même registre pouvait compter une personne
+ * titulaire d'un CDD et d'un CDI simultanés tantôt permanente, tantôt non.
+ * C'est une convention d'OmegaX, et elle est écrite ici.
  */
 export async function effectifDuRegistre(prisma: PrismaService, tenantId: string, ala: Date) {
-  const contrats = await prisma.contratTravail.findMany({
-    where: {
-      tenantId,
-      dateEntreeEnVigueur: { lte: ala },
-      OR: [{ dateFin: null }, { dateFin: { gte: ala } }],
-    },
-    select: {
-      salarieId: true,
-      type: true,
-      salarie: { select: { sexe: true, nationalite: true } },
-    },
-  });
-
-  // UN SALARIÉ, PAS UN CONTRAT. Deux contrats simultanés pour la même
-  // personne (rare, mais possible) ne font pas deux personnes à l'effectif.
-  const parSalarie = new Map<string, (typeof contrats)[number]>();
-  for (const c of contrats) if (!parSalarie.has(c.salarieId)) parSalarie.set(c.salarieId, c);
-  const uniques = [...parSalarie.values()];
+  const enVigueur = {
+    tenantId,
+    dateEntreeEnVigueur: { lte: ala },
+    OR: [{ dateFin: null }, { dateFin: { gte: ala } }],
+  };
+  const [groupes, permanents] = await Promise.all([
+    prisma.salarie.groupBy({
+      by: ['sexe', 'nationalite'],
+      where: { tenantId, contrats: { some: enVigueur } },
+      _count: { _all: true },
+    }),
+    prisma.salarie.count({
+      where: { tenantId, contrats: { some: { ...enVigueur, type: TypeContratTravail.DUREE_INDETERMINEE } } },
+    }),
+  ]);
 
   const nationalite = (n: string | null) => (n ?? '').trim().toLowerCase();
   const estCongolaise = (n: string | null) =>
     ['congolaise', 'congolais', 'rdc', 'rd congo'].includes(nationalite(n));
+  const somme = (garder: (g: (typeof groupes)[number]) => boolean) =>
+    groupes.filter(garder).reduce((total, g) => total + g._count._all, 0);
 
-  const nationaux = uniques.filter((c) => estCongolaise(c.salarie.nationalite)).length;
-  const sansNationalite = uniques.filter((c) => nationalite(c.salarie.nationalite) === '').length;
+  const effectif = somme(() => true);
+  const nationaux = somme((g) => estCongolaise(g.nationalite));
+  const sansNationalite = somme((g) => nationalite(g.nationalite) === '');
 
   return {
     ala,
-    effectif: uniques.length,
-    hommes: uniques.filter((c) => c.salarie.sexe === 'MASCULIN').length,
-    femmes: uniques.filter((c) => c.salarie.sexe === 'FEMININ').length,
-    permanents: uniques.filter((c) => c.type === TypeContratTravail.DUREE_INDETERMINEE).length,
+    effectif,
+    hommes: somme((g) => g.sexe === 'MASCULIN'),
+    femmes: somme((g) => g.sexe === 'FEMININ'),
+    permanents,
     nationaux,
     sansNationalite,
     /**
@@ -62,7 +78,7 @@ export async function effectifDuRegistre(prisma: PrismaService, tenantId: string
      * (60 % de main-d'œuvre locale) qu'elle servirait.
      */
     partMainOeuvreNationale:
-      uniques.length === 0 || sansNationalite > 0 ? null : (nationaux / uniques.length) * 100,
+      effectif === 0 || sansNationalite > 0 ? null : (nationaux / effectif) * 100,
     source: `Registre du personnel au ${ala.toISOString().slice(0, 10)}`,
     reserve:
       sansNationalite > 0

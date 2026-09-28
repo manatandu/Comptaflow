@@ -1,3 +1,5 @@
+import { montant } from './montants';
+
 /**
  * LE BULLETIN ÉMIS TEL QU'IL SE LIT (audit final F20, F21, F22).
  *
@@ -75,7 +77,5 @@ export function ecartDuDecompte(b: {
 
 /** Un montant, jamais `undefined` formaté · « · » quand il manque. */
 export function montantAffiche(n: number | null | undefined): string {
-  return typeof n === 'number' && Number.isFinite(n)
-    ? n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : '·';
+  return montant(n);
 }

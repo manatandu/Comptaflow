@@ -271,10 +271,19 @@ describe('Le câblage', () => {
   });
 
   it('confronter lit les grilles SMIG du dossier pour le minimum du contrat', () => {
+    // Audit final F259, reste · la lecture des grilles vit dans sa propre
+    // méthode, bornée, et la confrontation passe au contrôle les grilles lues
+    // ET l'intervalle de celles qu'elle n'a pas lues. La borne elle-même est
+    // éprouvée sur doublure par `registre-borne-et-devise.spec.ts`.
     const source = readFileSync(join(__dirname, 'personnel.service.ts'), 'utf8');
     const debut = source.indexOf('async confronter(');
     const corps = source.slice(debut, source.indexOf('\n  }\n', debut));
-    expect(corps).toMatch(/versionBaremePaie\.findMany\(\{\s*where: \{ tenantId, bareme: 'SMIG' \}/);
-    expect(corps).toContain('verdictRemunerationMinimale(contrat, moisDeReference, annexesSmig)');
+    expect(corps).toContain('this.grillesSmigDeLaConfrontation(tenantId, aujourdhui)');
+    expect(corps).toContain('verdictRemunerationMinimale(contrat, moisDeReference, grilles.annexes, grilles.nonLues)');
+    const debutGrilles = source.indexOf('private async grillesSmigDeLaConfrontation(');
+    const grilles = source.slice(debutGrilles, source.indexOf('\n  }\n', debutGrilles));
+    // La lecture des grilles porte la borne du dossier ET le barème, dans le
+    // corps même de l'appel (le balayage du cloisonnement la lit là).
+    expect(grilles).toMatch(/versionBaremePaie\.findMany\(\{\s*where: \{ tenantId, bareme: 'SMIG'/);
   });
 });

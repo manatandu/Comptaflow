@@ -8,6 +8,7 @@ import {
   SystemeComptableSyscohada,
   MethodeInventaireStocks,
 } from '@prisma/client';
+import { FacultatifNonNul } from '../../../common/facultatif-non-nul';
 
 export class ModifierJeuEtatsDto {
   @IsEnum(JeuEtatsFinanciersSycebnl)
@@ -31,11 +32,16 @@ export class ModifierSystemeSyscohadaDto {
  * documents qu'il signe.
  *
  * Chaîne vide reçue = effacement du champ (`null` en base), même convention
- * que les identifiants légaux.
+ * que les identifiants légaux. `null` vaut effacement lui aussi sur les champs
+ * dont la colonne l'admet · le service le traduit, là où `.trim()` sur `null`
+ * rendait un 500. La raison sociale et le capital variable, dont la colonne
+ * n'admet pas `null`, le refusent en 400 nommé (`FacultatifNonNul`).
  */
 export class ModifierCoordonneesDto {
   /** Raison sociale · imprimée en tête de liasse, elle ne peut pas être vide. */
-  @IsOptional()
+  @FacultatifNonNul(
+    "La raison sociale ne s'efface pas : elle est imprimée en tête de chaque état. Omettez le champ pour la laisser inchangée.",
+  )
   @IsString()
   @MinLength(1)
   @MaxLength(200)
@@ -44,39 +50,39 @@ export class ModifierCoordonneesDto {
   @IsOptional()
   @IsString()
   @MaxLength(200)
-  activite?: string;
+  activite?: string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(200)
-  adresse?: string;
+  adresse?: string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(100)
-  ville?: string;
+  ville?: string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(100)
-  pays?: string;
+  pays?: string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(50)
-  telephone?: string;
+  telephone?: string | null;
 
   /** Chaîne vide = effacement · seule une adresse non vide est contrôlée. */
   @IsOptional()
   @ValidateIf((_, v) => v !== '')
   @IsEmail({}, { message: "Le courriel de l'entité n'est pas une adresse valide." })
   @MaxLength(200)
-  email?: string;
+  email?: string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(200)
-  siteWeb?: string;
+  siteWeb?: string | null;
 
   /**
    * Capital social · AUSCGIE art. 17. `null` l'efface. Refusé par le service
@@ -89,7 +95,9 @@ export class ModifierCoordonneesDto {
   capitalSocial?: number | null;
 
   /** AUSCGIE art. 269-2 · « à capital variable » ajouté à la forme sociale. */
-  @IsOptional()
+  @FacultatifNonNul(
+    '« À capital variable » se répond par true ou false, jamais par null. Le retrait s’écrit false ; omettez le champ pour le laisser inchangé.',
+  )
   @IsBoolean()
   capitalVariable?: boolean;
 
@@ -110,7 +118,7 @@ export class ModifierCoordonneesDto {
   @IsOptional()
   @IsString()
   @MaxLength(10)
-  deviseFonctionnelle?: string;
+  deviseFonctionnelle?: string | null;
 }
 
 /**
@@ -190,7 +198,10 @@ export class ModifierFormeJuridiqueDto {
   @IsEnum(FormeJuridiqueEbnl)
   formeJuridique!: FormeJuridiqueEbnl;
 
-  @IsOptional()
+  /** Même défaut que le régime · la colonne n'admet pas `null`, et `false` dit « de droit congolais ». */
+  @FacultatifNonNul(
+    'Le droit étranger se répond par true ou false, jamais par null. Omettez le champ pour le laisser inchangé.',
+  )
   @IsBoolean()
   droitEtranger?: boolean;
 }
@@ -223,7 +234,9 @@ export type ReponseFait = (typeof REPONSES_FAIT)[number];
  * troisième critère de désignation de l'auditeur (SYCEBNL, art. 19).
  */
 export class ModifierRegimeDto {
-  @IsOptional()
+  @FacultatifNonNul(
+    "L'assujettissement à la TVA se répond par true ou false · « pas encore dit » s'écrit reponseAssujettissementTva = PAS_ENCORE_DIT, jamais null.",
+  )
   @IsBoolean()
   assujettiTva?: boolean;
 
@@ -233,12 +246,21 @@ export class ModifierRegimeDto {
    * une réponse donnée (`client/src/lib/profil-dossier.ts`). `assujettiTva`
    * seul reste accepté et vaut réponse.
    */
-  @IsOptional()
+  @FacultatifNonNul(
+    'Une réponse déclarée s’écrit OUI, NON ou PAS_ENCORE_DIT · null ne dit pas laquelle des trois.',
+  )
   @IsIn(REPONSES_FAIT)
   reponseAssujettissementTva?: ReponseFait;
 
-  /** L'entité vend-elle des biens ou des services ? Même trois valeurs. */
-  @IsOptional()
+  /**
+   * L'entité vend-elle des biens ou des services ? Même trois valeurs. `null`
+   * se lisait « pas encore dit » ici et s'ignorait sur la réponse TVA · deux
+   * sens pour un même null, voisins dans le même formulaire. Les deux le
+   * refusent désormais, la troisième réponse ayant son nom.
+   */
+  @FacultatifNonNul(
+    'Une réponse déclarée s’écrit OUI, NON ou PAS_ENCORE_DIT · null ne dit pas laquelle des trois.',
+  )
   @IsIn(REPONSES_FAIT)
   venteBiensServices?: ReponseFait;
 
@@ -251,7 +273,14 @@ export class ModifierRegimeDto {
   @IsDateString()
   dateOptionTva?: string;
 
-  @IsOptional()
+  /**
+   * La colonne n'admet pas `null` · zéro est une valeur, pas une absence de
+   * réponse, et un effectif inconnu ne s'écrit pas en effaçant l'effectif
+   * connu.
+   */
+  @FacultatifNonNul(
+    "L'effectif permanent est un nombre entier, zéro compris · null n'en est pas un. Omettez le champ pour le laisser inchangé.",
+  )
   @IsInt()
   @Min(0)
   effectifPermanent?: number;
@@ -266,7 +295,7 @@ export class ModifierRegimeDto {
   @IsOptional()
   @IsString()
   @MaxLength(60)
-  numeroAffiliationCnssEmployeur?: string;
+  numeroAffiliationCnssEmployeur?: string | null;
 
   /**
    * Régime d'exigibilité de la TVA · O.-L. n° 10/001, art. 25 et 26. Il
@@ -274,7 +303,9 @@ export class ModifierRegimeDto {
    * livraison, à l'encaissement (droit commun des prestations de services),
    * ou aux débits sur autorisation.
    */
-  @IsOptional()
+  @FacultatifNonNul(
+    "Le régime d'exigibilité de la TVA se choisit parmi ses valeurs · null n'en est pas une. Omettez le champ pour le laisser inchangé.",
+  )
   @IsEnum(RegimeExigibiliteTva)
   regimeExigibiliteTva?: RegimeExigibiliteTva;
 

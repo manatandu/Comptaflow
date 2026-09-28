@@ -5,6 +5,7 @@ import { useExercice } from '../lib/exercice';
 import { IconCheck } from '../components/chrome/icons';
 import { Aide } from '../components/chrome/Aide';
 import type { DeclarationTva, ProrataDefinitifTva } from '../lib/types';
+import { montant } from '../lib/montants';
 
 /** Une liquidation déjà comptabilisée, telle que `GET /taux-tva/liquidations` la rend. */
 interface LiquidationTvaListee {
@@ -68,7 +69,7 @@ export function DeclarationTvaPage() {
     if (
       !confirm(
         `Comptabiliser la liquidation TVA du ${dateDebut} au ${dateFin} ?\n\nPose une écriture qui solde la TVA collectée et déductible admise sur le compte 444 (${
-          declaration.sens === 'A_PAYER' ? `TVA due : ${declaration.net.toLocaleString('fr-FR')} CDF` : `crédit de TVA à reporter : ${Math.abs(declaration.net).toLocaleString('fr-FR')} CDF`
+          declaration.sens === 'A_PAYER' ? `TVA due : ${montant(declaration.net)} CDF` : `crédit de TVA à reporter : ${montant(Math.abs(declaration.net))} CDF`
         }). Action irréversible comme n'importe quelle écriture comptabilisée.`,
       )
     ) {
@@ -174,8 +175,8 @@ export function DeclarationTvaPage() {
           {declaration.tvaAuBrouillard?.ecritures > 0 && (
             <div className="text-[11.5px] text-warning bg-warning-soft border border-warning/30 px-2.5 py-1.5 mb-3 max-w-[780px]">
               TVA au brouillard, hors de cette déclaration · {declaration.tvaAuBrouillard.ecritures} écriture(s),{' '}
-              {declaration.tvaAuBrouillard.collecte.toLocaleString('fr-FR')} CDF facturée,{' '}
-              {declaration.tvaAuBrouillard.deductible.toLocaleString('fr-FR')} CDF récupérable. Validez-les avant de
+              {montant(declaration.tvaAuBrouillard.collecte)} CDF facturée,{' '}
+              {montant(declaration.tvaAuBrouillard.deductible)} CDF récupérable. Validez-les avant de
               déclarer.
             </div>
           )}
@@ -204,7 +205,7 @@ export function DeclarationTvaPage() {
               <div className="mt-2 pt-2 border-t border-border font-mono text-[11.5px]">
                 TVA facturée sur la période et pas encore encaissée :{' '}
                 <span className="font-semibold text-warning">
-                  {declaration.tvaEnAttenteEncaissement.toLocaleString('fr-FR')} CDF
+                  {montant(declaration.tvaEnAttenteEncaissement)} CDF
                 </span>{' '}
                 <Aide
                   titre="TVA pas encore encaissée"
@@ -238,9 +239,9 @@ export function DeclarationTvaPage() {
                 <span className="font-semibold">{l.code}</span>
                 <span className="truncate">{l.intitule}</span>
                 <span className="text-right">{l.taux} %</span>
-                <span className="text-right">{l.totalCollecte.toLocaleString('fr-FR')}</span>
-                <span className="text-right">{l.totalDeductible.toLocaleString('fr-FR')}</span>
-                <span className="text-right">{l.net.toLocaleString('fr-FR')}</span>
+                <span className="text-right">{montant(l.totalCollecte)}</span>
+                <span className="text-right">{montant(l.totalDeductible)}</span>
+                <span className="text-right">{montant(l.net)}</span>
               </div>
             ))}
           </div>
@@ -250,11 +251,11 @@ export function DeclarationTvaPage() {
             <div className="grid grid-cols-3 gap-3 font-mono text-[11.5px]">
               <div>
                 Recettes taxables (numérateur)
-                <div className="font-semibold text-[12px]">{declaration.prorata.numerateur.toLocaleString('fr-FR')} CDF</div>
+                <div className="font-semibold text-[12px]">{montant(declaration.prorata.numerateur)} CDF</div>
               </div>
               <div>
                 Recettes totales (dénominateur)
-                <div className="font-semibold text-[12px]">{declaration.prorata.denominateur.toLocaleString('fr-FR')} CDF</div>
+                <div className="font-semibold text-[12px]">{montant(declaration.prorata.denominateur)} CDF</div>
               </div>
               <div>
                 Prorata (arrondi ↑)
@@ -262,8 +263,8 @@ export function DeclarationTvaPage() {
               </div>
             </div>
             <div className="mt-2 font-mono text-[11.5px] text-text-dim">
-              TVA déductible brute {declaration.totalDeductible.toLocaleString('fr-FR')} × {declaration.prorata.pourcentage} % ={' '}
-              <span className="font-semibold text-text">TVA déductible admise {declaration.totalDeductibleAdmise.toLocaleString('fr-FR')} CDF</span>
+              TVA déductible brute {montant(declaration.totalDeductible)} × {declaration.prorata.pourcentage} % ={' '}
+              <span className="font-semibold text-text">TVA déductible admise {montant(declaration.totalDeductibleAdmise)} CDF</span>
             </div>
           </div>
 
@@ -276,8 +277,8 @@ export function DeclarationTvaPage() {
                 crédit existe : une déclaration ordinaire garde ses deux
                 lignes d'origine. */}
             <div className="font-mono text-[11.5px] text-text-dim">
-              <div>Total TVA collectée : <span className="font-semibold text-text">{declaration.totalCollecte.toLocaleString('fr-FR')} CDF</span></div>
-              <div>Total TVA déductible admise : <span className="font-semibold text-text">{declaration.totalDeductibleAdmise.toLocaleString('fr-FR')} CDF</span></div>
+              <div>Total TVA collectée : <span className="font-semibold text-text">{montant(declaration.totalCollecte)} CDF</span></div>
+              <div>Total TVA déductible admise : <span className="font-semibold text-text">{montant(declaration.totalDeductibleAdmise)} CDF</span></div>
               {/* CE QUI MODIFIE LE NET, LIGNE À LIGNE · trois de ces montants
                   entrent dans le calcul et n'étaient lisibles que noyés dans le
                   paragraphe d'exigibilité. Un net qu'on ne peut pas recomposer
@@ -286,7 +287,7 @@ export function DeclarationTvaPage() {
                 <div>
                   Avoirs antérieurs récupérés (art. 52) :{' '}
                   <span className="font-semibold text-positive">
-                    {declaration.recuperationArt52.toLocaleString('fr-FR')} CDF
+                    {montant(declaration.recuperationArt52)} CDF
                   </span>
                 </div>
               )}
@@ -294,7 +295,7 @@ export function DeclarationTvaPage() {
                 <div>
                   Avoirs sur ventes constatés ce mois :{' '}
                   <span className="font-semibold text-text">
-                    {declaration.avoirsCollecteConstates.toLocaleString('fr-FR')} CDF
+                    {montant(declaration.avoirsCollecteConstates)} CDF
                   </span>
                   <span className="text-text-dim"> · imputables sur la déclaration suivante (décret art. 126)</span>
                 </div>
@@ -302,14 +303,14 @@ export function DeclarationTvaPage() {
               {declaration.avoirsCollecteNonImputes > 0 && (
                 <div className="text-warning">
                   Avoirs qu’aucune liquidation ne permet de situer :{' '}
-                  {declaration.avoirsCollecteNonImputes.toLocaleString('fr-FR')} CDF
+                  {montant(declaration.avoirsCollecteNonImputes)} CDF
                 </div>
               )}
               {declaration.tvaExclueArt41 > 0 && (
                 <div>
                   TVA écartée par l’article 41 :{' '}
                   <span className="font-semibold text-danger">
-                    {declaration.tvaExclueArt41.toLocaleString('fr-FR')} CDF
+                    {montant(declaration.tvaExclueArt41)} CDF
                   </span>
                   <span className="text-text-dim"> · jamais déductible</span>
                 </div>
@@ -317,19 +318,19 @@ export function DeclarationTvaPage() {
               {declaration.tvaAVerifierArt41 > 0 && (
                 <div className="text-warning">
                   TVA sur des postes que l’article 41 vise SOUS CONDITION, à vérifier :{' '}
-                  {declaration.tvaAVerifierArt41.toLocaleString('fr-FR')} CDF
+                  {montant(declaration.tvaAVerifierArt41)} CDF
                 </div>
               )}
               {declaration.tvaDeductibleDechue > 0 && (
                 <div className="text-danger">
                   TVA dont le délai de déduction est expiré (art. 37, al. 2) :{' '}
-                  {declaration.tvaDeductibleDechue.toLocaleString('fr-FR')} CDF
+                  {montant(declaration.tvaDeductibleDechue)} CDF
                 </div>
               )}
               {declaration.tvaNatureDepenseIllisible > 0 && (
                 <div className="text-warning">
                   TVA dont l’écriture ne porte aucune charge lisible :{' '}
-                  {declaration.tvaNatureDepenseIllisible.toLocaleString('fr-FR')} CDF
+                  {montant(declaration.tvaNatureDepenseIllisible)} CDF
                 </div>
               )}
               {declaration.creditAnterieur > 0 && (
@@ -337,13 +338,13 @@ export function DeclarationTvaPage() {
                   <div className="mt-1 pt-1 border-t border-border">
                     Taxe de la période, avant report :{' '}
                     <span className="font-semibold text-text">
-                      {declaration.netAvantImputation.toLocaleString('fr-FR')} CDF
+                      {montant(declaration.netAvantImputation)} CDF
                     </span>
                   </div>
                   <div>
                     Crédit de TVA reporté (art. 63) :{' '}
                     <span className="font-semibold text-text">
-                      {declaration.creditAnterieur.toLocaleString('fr-FR')} CDF
+                      {montant(declaration.creditAnterieur)} CDF
                     </span>
                     {declaration.creditAnterieurOrigine && (
                       <span className="text-text-dim">
@@ -355,7 +356,7 @@ export function DeclarationTvaPage() {
                   <div>
                     Imputé sur la taxe de la période :{' '}
                     <span className="font-semibold text-positive">
-                      {declaration.creditImpute.toLocaleString('fr-FR')} CDF
+                      {montant(declaration.creditImpute)} CDF
                     </span>
                   </div>
                 </>
@@ -366,7 +367,7 @@ export function DeclarationTvaPage() {
                 {declaration.sens === 'A_PAYER' ? 'TVA NETTE À DÉCAISSER' : 'CRÉDIT DE TVA À REPORTER'}
               </div>
               <div className={`text-[14px] font-bold ${declaration.sens === 'A_PAYER' ? 'text-danger' : 'text-positive'}`}>
-                {Math.abs(declaration.net).toLocaleString('fr-FR')} CDF
+                {montant(Math.abs(declaration.net))} CDF
               </div>
             </div>
           </div>
@@ -476,9 +477,9 @@ export function DeclarationTvaPage() {
                   provisoire appliqué : <span className="font-semibold text-text">{definitif.pourcentageApplique} %</span>
                 </div>
                 <div>
-                  TVA déductible brute : {definitif.tvaDeductibleBrute.toLocaleString('fr-FR')} CDF · admise au
-                  définitif : {definitif.admiseDefinitive.toLocaleString('fr-FR')} CDF · déjà déduite :{' '}
-                  {definitif.admiseAppliquee.toLocaleString('fr-FR')} CDF
+                  TVA déductible brute : {montant(definitif.tvaDeductibleBrute)} CDF · admise au
+                  définitif : {montant(definitif.admiseDefinitive)} CDF · déjà déduite :{' '}
+                  {montant(definitif.admiseAppliquee)} CDF
                 </div>
                 {/* « AUCUNE RÉGULARISATION » NE VEUT PAS DIRE LA MÊME CHOSE
                     DANS LES DEUX CAS. Quand une déduction a été opérée et que
@@ -495,12 +496,12 @@ export function DeclarationTvaPage() {
                     : definitif.sens === 'AUCUNE'
                       ? 'Aucune régularisation · le définitif rejoint le provisoire.'
                       : definitif.sens === 'DEDUCTION_COMPLEMENTAIRE'
-                        ? `Déduction complémentaire de ${Math.abs(definitif.regularisation).toLocaleString('fr-FR')} CDF.`
-                        : `Reversement de ${Math.abs(definitif.regularisation).toLocaleString('fr-FR')} CDF.`}
+                        ? `Déduction complémentaire de ${montant(Math.abs(definitif.regularisation))} CDF.`
+                        : `Reversement de ${montant(Math.abs(definitif.regularisation))} CDF.`}
                 </div>
                 {definitif.tvaDeductibleNonLiquidee > 0 && (
                   <div className="text-warning">
-                    {definitif.tvaDeductibleNonLiquidee.toLocaleString('fr-FR')} CDF de TVA d’amont de l’année ne
+                    {montant(definitif.tvaDeductibleNonLiquidee)} CDF de TVA d’amont de l’année ne
                     sont couverts par aucune liquidation et restent hors de cette régularisation.
                   </div>
                 )}
@@ -540,7 +541,7 @@ export function DeclarationTvaPage() {
                     du {l.dateDebut} au {l.dateFin}
                   </td>
                   <td>{l.ecriture ? `n° ${l.ecriture.numeroPiece ?? '·'} · ${l.ecriture.libelle}` : '·'}</td>
-                  <td className="text-right">{l.net.toLocaleString('fr-FR')} CDF</td>
+                  <td className="text-right">{montant(l.net)} CDF</td>
                   <td className="text-right">{l.prorataApplique.toLocaleString('fr-FR')} %</td>
                   <td className="text-right">
                     {peutEcrire && (

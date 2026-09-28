@@ -1,3 +1,4 @@
+import { montant } from './montants';
 import type { BalanceAgregeeGroupe } from './types';
 
 /**
@@ -30,8 +31,13 @@ export interface ControleAgregat {
   detail: string | null;
 }
 
-/** Deux décimales fixes · un montant de contrôle se lit au centime, pas arrondi à l'écran. */
-const somme = (n: number) => n.toFixed(2);
+/**
+ * Deux décimales fixes · un montant de contrôle se lit au centime, pas arrondi
+ * à l'écran. Par le formateur commun (audit final F256) · la copie locale
+ * écrivait « 1250.50 », sans groupement ni virgule, à côté d'écrans qui
+ * écrivent « 1 250,50 ».
+ */
+const somme = (n: number) => montant(n);
 
 /**
  * JJ/MM/AAAA depuis une date ISO, par découpage de la chaîne · passer par

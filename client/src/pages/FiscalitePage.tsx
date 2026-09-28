@@ -12,6 +12,7 @@ import type {
   ResultatFiscal,
   SensRetraitementFiscal,
 } from '../lib/types';
+import { montant as nombre } from '../lib/montants';
 
 /**
  * RÉSULTAT FISCAL ET IMPÔT SUR LES BÉNÉFICES · fenêtre SYSCOHADA.
@@ -25,9 +26,6 @@ import type {
  * officiel de déclaration, dont le modèle n'est pas en main. Il produit le
  * calcul et sa justification, qui se recopient dessus.
  */
-
-const nombre = (n: number | null | undefined) =>
-  n === null || n === undefined ? '·' : n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const LIBELLE_REGIME: Record<ResultatFiscal['regime'], string> = {
   IMPOT_SOCIETES: 'Impôt sur les sociétés',
@@ -398,13 +396,13 @@ export function FiscalitePage() {
                         <span className="text-text-dim"> · {p.source}</span>
                         {p.plafondEnonce && (
                           <span className="block text-[11px] text-text-dim">
-                            Mouvement {p.mouvement.toLocaleString('fr-FR')} · admis{' '}
-                            {(p.montantAdmis ?? 0).toLocaleString('fr-FR')} ({p.plafondEnonce})
+                            Mouvement {nombre(p.mouvement)} · admis{' '}
+                            {nombre(p.montantAdmis)} ({p.plafondEnonce})
                           </span>
                         )}
                       </td>
                       <td className="py-1 font-mono text-right whitespace-nowrap pr-2">
-                        {p.montant.toLocaleString('fr-FR')}
+                        {nombre(p.montant)}
                       </td>
                       <td className="py-1 text-right">
                         {peutEcrire && (
@@ -450,7 +448,7 @@ export function FiscalitePage() {
                         <span className="block text-[11px] text-text-dim leading-[1.5] mt-0.5">{a.motif}</span>
                       </td>
                       <td className="py-1 font-mono text-right whitespace-nowrap text-text-dim">
-                        mouvement {a.mouvement.toLocaleString('fr-FR')}
+                        mouvement {nombre(a.mouvement)}
                       </td>
                     </tr>
                   ))}

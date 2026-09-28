@@ -8,6 +8,7 @@ import { Aide } from '../components/chrome/Aide';
 import type { EcheancierFiscal, Ecriture, LigneBalance } from '../lib/types';
 import { echeancesAVenir } from '../lib/echeances-a-venir';
 import { indicateursTableauDeBord } from '../lib/indicateurs-tableau-de-bord';
+import { montant } from '../lib/montants';
 
 /**
  * TABLEAU DE BORD · l'esprit « Édition pilotée » de Sage : quelques
@@ -123,7 +124,7 @@ export function DashboardPage() {
             <div key={ind.label} className="bg-surface border border-border shadow-posee px-3.5 py-2.5">
               <div className="text-[11px] font-bold text-text-dim tracking-wide">{ind.label}</div>
               <div className={`font-mono text-[14px] font-bold leading-tight mt-0.5 ${teinte}`}>
-                {balance ? ind.valeur.toLocaleString('fr-FR') : erreurBalance ? '·' : '…'}
+                {balance ? montant(ind.valeur) : erreurBalance ? '·' : '…'}
                 <span className="text-[11px] font-normal text-text-dim ml-1">CDF</span>
               </div>
               <div className="text-[11px] text-text-dim mt-0.5">{ind.note}</div>
@@ -190,7 +191,7 @@ export function DashboardPage() {
                   {e.genre === 'DECLARATION' ? (
                     <span className="text-[11px] font-normal text-text-dim">sans montant</span>
                   ) : (
-                    `${e.montantDu.toLocaleString('fr-FR')} CDF`
+                    `${montant(e.montantDu)} CDF`
                   )}
                 </span>
               </div>
@@ -240,7 +241,7 @@ export function DashboardPage() {
               <span className="font-mono text-text-dim">{e.journal?.code ?? ''}</span>
               <span className="font-mono text-[11px] text-text-dim text-right">{e.numeroPiece ?? '·'}</span>
               <span className="truncate">{e.libelle}</span>
-              <span className="font-mono font-semibold text-right">{totalDebit.toLocaleString('fr-FR')}</span>
+              <span className="font-mono font-semibold text-right">{montant(totalDebit)}</span>
             </div>
           );
         })}

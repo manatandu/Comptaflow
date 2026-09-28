@@ -4,6 +4,7 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
 import type { Compte, RapprochementBancaire } from '../lib/types';
+import { montant } from '../lib/montants';
 
 /**
  * Écran d'entrée du rapprochement bancaire (§3.4, manuel d'abord) : ouvrir
@@ -152,7 +153,7 @@ export function RapprochementPage() {
             >
               <span className="font-mono text-[11px]">{new Date(r.dateReleve).toLocaleDateString('fr-FR')}</span>
               <span>{r.compte ? `${r.compte.numero} · ${r.compte.intitule}` : r.compteId}</span>
-              <span className="font-mono text-right">{r.soldeReleve.toLocaleString('fr-FR')}</span>
+              <span className="font-mono text-right">{montant(r.soldeReleve)}</span>
               <span className="font-mono text-[11px] text-text-dim">{new Date(r.createdAt).toLocaleDateString('fr-FR')}</span>
               <span
                 className={`font-mono text-[11px] font-bold px-1.5 py-0.5 w-fit ${

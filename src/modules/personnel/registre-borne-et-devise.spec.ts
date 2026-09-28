@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -10,47 +10,160 @@ import {
 } from './personnel.service';
 import { AvancesRubriquesService, PLAFOND_LISTES_PAIE } from './avances-rubriques.service';
 import { BAREMES_SERVIS, MOTIF_BAREME_NON_SAISISSABLE, motifRefusVersion } from './baremes-dossier';
-import { ContratTravailDto, DeviseRemunerationDto, MOTIF_MONNAIE_REMUNERATION, VersionBaremePaieDto } from './dto/personnel.dto';
+import { PLAFOND_CONTRATS_PAR_FICHE, PLAFOND_ENFANTS_PAR_FICHE, PLAFOND_GRILLES_SMIG } from './bornes-registre';
+import {
+  ContratTravailDto,
+  DeviseRemunerationDto,
+  MOTIF_MONNAIE_REMUNERATION,
+  SalarieDto,
+  VersionBaremePaieDto,
+} from './dto/personnel.dto';
+import { effectifDuRegistre } from './effectif-registre';
 
 /**
  * AUDIT FINAL F226, F227 ET F259 · la monnaie du contrat, le refus de barème
  * qui excluait le SMIG, et les listes du registre sans borne.
  *
- * LES DOUBLURES HONORENT LES FILTRES · `where` (égalité, null compris),
- * `orderBy`, `cursor`, `skip` et `take`. Une doublure qui rend tout ce qu'on
- * lui donne validerait une liste non bornée et une borne mal posée.
+ * LES DOUBLURES HONORENT LES FILTRES · `where` (égalité, null et dates
+ * compris, `lt`, `lte`, `gt`, `gte`, `not`, `in`, `OR`, `AND`, `NOT`, et les
+ * filtres de relation `some`, `every`, `none`), `orderBy` (sens et place des
+ * nuls, ceux de PostgreSQL par défaut), `cursor`, `skip`, `take`, et les
+ * `include` · tranche et `_count`, filtré compris, calculé sur la collection
+ * ENTIÈRE. Un filtre qu'elles ne savent pas lire les fait tomber plutôt que
+ * de l'ignorer · une doublure qui rend tout ce qu'on lui donne validerait une
+ * liste non bornée et une borne mal posée.
  */
 
 type Ligne = Record<string, unknown>;
 
-function correspond(l: Ligne, where: Record<string, unknown> = {}): boolean {
-  return Object.entries(where).every(([k, v]) => v === undefined || l[k] === v);
+const estNul = (v: unknown) => v === null || v === undefined;
+
+function comparer(x: unknown, y: unknown): number {
+  const a = x instanceof Date ? x.getTime() : (x as string | number);
+  const b = y instanceof Date ? y.getTime() : (y as string | number);
+  return a < b ? -1 : a > b ? 1 : 0;
 }
 
+/** Une valeur de colonne contre un filtre de colonne. */
+function vaut(v: unknown, filtre: unknown): boolean {
+  if (filtre === undefined) return true;
+  if (filtre === null) return estNul(v);
+  if (filtre instanceof Date) return v instanceof Date && v.getTime() === filtre.getTime();
+  if (typeof filtre !== 'object') return v === filtre;
+  return Object.entries(filtre as Ligne).every(([op, x]) => {
+    if (x === undefined) return true;
+    switch (op) {
+      case 'equals':
+        return vaut(v, x);
+      case 'not':
+        return !vaut(v, x);
+      case 'in':
+        return (x as unknown[]).some((y) => vaut(v, y));
+      case 'lt':
+        return !estNul(v) && comparer(v, x) < 0;
+      case 'lte':
+        return !estNul(v) && comparer(v, x) <= 0;
+      case 'gt':
+        return !estNul(v) && comparer(v, x) > 0;
+      case 'gte':
+        return !estNul(v) && comparer(v, x) >= 0;
+      default:
+        throw new Error(`Filtre de colonne que la doublure ne sait pas honorer : ${op}`);
+    }
+  });
+}
+
+function correspond(l: Ligne, where: Ligne = {}): boolean {
+  return Object.entries(where).every(([k, v]) => {
+    if (v === undefined) return true;
+    if (k === 'OR') return (v as Ligne[]).some((w) => correspond(l, w));
+    if (k === 'AND') return (Array.isArray(v) ? v : [v]).every((w: Ligne) => correspond(l, w));
+    if (k === 'NOT') return !(Array.isArray(v) ? v : [v]).some((w: Ligne) => correspond(l, w));
+    const val = l[k];
+    // Un filtre de relation · la colonne est une collection embarquée.
+    if (Array.isArray(val)) {
+      return Object.entries(v as Record<string, Ligne>).every(([op, w]) => {
+        if (op === 'some') return val.some((e: Ligne) => correspond(e, w));
+        if (op === 'every') return val.every((e: Ligne) => correspond(e, w));
+        if (op === 'none') return !val.some((e: Ligne) => correspond(e, w));
+        throw new Error(`Filtre de relation que la doublure ne sait pas honorer : ${op}`);
+      });
+    }
+    return vaut(val, v);
+  });
+}
+
+/** Tri de PostgreSQL · les nuls en dernier en montant, en premier en descendant, sauf `nulls` dit. */
 function trier(lignes: Ligne[], orderBy: unknown): Ligne[] {
-  const cles = (Array.isArray(orderBy) ? orderBy : orderBy ? [orderBy] : []) as Record<string, 'asc' | 'desc'>[];
+  const cles = (Array.isArray(orderBy) ? orderBy : orderBy ? [orderBy] : []) as Ligne[];
   return [...lignes].sort((a, b) => {
     for (const o of cles) {
-      const [k, sens] = Object.entries(o)[0];
-      const x = a[k] as string | number | Date;
-      const y = b[k] as string | number | Date;
-      if (x < y) return sens === 'asc' ? -1 : 1;
-      if (x > y) return sens === 'asc' ? 1 : -1;
+      const [k, spec] = Object.entries(o)[0];
+      const sens = typeof spec === 'string' ? spec : (spec as { sort: string }).sort;
+      const nuls =
+        typeof spec === 'object' && (spec as { nulls?: string }).nulls
+          ? (spec as { nulls: string }).nulls
+          : sens === 'asc'
+            ? 'last'
+            : 'first';
+      const x = a[k];
+      const y = b[k];
+      if (estNul(x) && estNul(y)) continue;
+      if (estNul(x)) return nuls === 'first' ? -1 : 1;
+      if (estNul(y)) return nuls === 'first' ? 1 : -1;
+      const c = comparer(x, y);
+      if (c !== 0) return sens === 'asc' ? c : -c;
     }
     return 0;
   });
 }
 
 type ArgsLecture = {
-  where?: Record<string, unknown>;
+  where?: Ligne;
   orderBy?: unknown;
   take?: number;
   skip?: number;
   cursor?: { id: string };
+  include?: Ligne;
 };
 
-function lecture(table: Ligne[]) {
+/**
+ * Une ligne telle que Prisma la rend avec son `include` · chaque collection
+ * incluse est filtrée, triée et tranchée comme la requête le demande, et
+ * `_count` compte la collection ENTIÈRE, sous son propre filtre.
+ */
+function projeter(ligne: Ligne, include?: Ligne): Ligne {
+  if (!include) return { ...ligne };
+  const rendu: Ligne = { ...ligne };
+  for (const [k, spec] of Object.entries(include)) {
+    if (k === '_count') {
+      const select = (spec as { select: Ligne }).select;
+      rendu._count = Object.fromEntries(
+        Object.entries(select).map(([rel, s]) => {
+          const tous = (ligne[rel] as Ligne[] | undefined) ?? [];
+          const where = typeof s === 'object' && s !== null ? (s as { where?: Ligne }).where : undefined;
+          return [rel, tous.filter((e) => correspond(e, where)).length];
+        }),
+      );
+      continue;
+    }
+    const valeur = ligne[k];
+    if (!Array.isArray(valeur) || spec === true) continue;
+    const s = spec as ArgsLecture;
+    let r = trier(
+      valeur.filter((e: Ligne) => correspond(e, s.where)),
+      s.orderBy,
+    );
+    if (s.skip) r = r.slice(s.skip);
+    if (s.take !== undefined) r = r.slice(0, s.take);
+    rendu[k] = r;
+  }
+  return rendu;
+}
+
+function lecture(source: Ligne[] | (() => Ligne[])) {
   return jest.fn(async (args: ArgsLecture = {}) => {
+    const table = typeof source === 'function' ? source() : source;
     let r = trier(
       table.filter((l) => correspond(l, args.where)),
       args.orderBy,
@@ -58,13 +171,16 @@ function lecture(table: Ligne[]) {
     if (args.cursor) r = r.slice(r.findIndex((l) => l.id === args.cursor!.id));
     if (args.skip) r = r.slice(args.skip);
     if (args.take !== undefined) r = r.slice(0, args.take);
-    return r;
+    return r.map((l) => projeter(l, args.include));
   });
 }
 
 function compte(table: Ligne[]) {
-  return jest.fn(async (args: { where?: Record<string, unknown> } = {}) => table.filter((l) => correspond(l, args.where)).length);
+  return jest.fn(async (args: { where?: Ligne } = {}) => table.filter((l) => correspond(l, args.where)).length);
 }
+
+const pasTrouvee = () =>
+  new Prisma.PrismaClientKnownRequestError('Record to update not found.', { code: 'P2025', clientVersion: '5' });
 
 const pad = (n: number, l: number) => String(n).padStart(l, '0');
 
@@ -103,6 +219,19 @@ function contrat(over: Ligne = {}): Ligne {
   };
 }
 
+function enfant(over: Ligne = {}): Ligne {
+  return {
+    id: 'e-1',
+    tenantId: 't1',
+    salarieId: 's-1',
+    nom: 'Mukendi',
+    postNom: null,
+    prenoms: 'Grâce',
+    dateNaissance: new Date('2015-06-01T00:00:00Z'),
+    ...over,
+  };
+}
+
 function salarie(over: Ligne = {}): Ligne {
   return {
     id: 's-1',
@@ -129,9 +258,17 @@ function salarie(over: Ligne = {}): Ligne {
   };
 }
 
-function monterPersonnel(salaries: Ligne[], contrats: Ligne[] = []) {
+/**
+ * Le dossier · les salariés portent leurs enfants et leurs contrats, que les
+ * tables `enfantACharge` et `contratTravail` relisent à plat. Les contrats
+ * passés à part sont ceux qu'aucune fiche ne porte (écritures unitaires).
+ */
+function monterPersonnel(salaries: Ligne[], contrats: Ligne[] = [], versions: Ligne[] = []) {
   const salarieFindMany = lecture(salaries);
   const salarieCount = compte(salaries);
+  const enfantsAPlat = () => salaries.flatMap((s) => (s.enfants as Ligne[] | undefined) ?? []);
+  const contratsAPlat = () => [...salaries.flatMap((s) => (s.contrats as Ligne[] | undefined) ?? []), ...contrats];
+
   const create = jest.fn(async (args: { data: Ligne }) => ({ id: 'c-neuf', ...args.data }));
   const updateMany = jest.fn(async (args: { where: Ligne; data: Ligne }) => {
     const touches = contrats.filter((c) => correspond(c, args.where));
@@ -142,33 +279,124 @@ function monterPersonnel(salaries: Ligne[], contrats: Ligne[] = []) {
   // comprise, et rend l'erreur de Prisma quand rien n'y répond.
   const update = jest.fn(async (args: { where: Ligne; data: Ligne }) => {
     const c = contrats.find((x) => correspond(x, args.where));
-    if (!c) {
-      throw new Prisma.PrismaClientKnownRequestError('Record to update not found.', { code: 'P2025', clientVersion: '5' });
-    }
+    if (!c) throw pasTrouvee();
     Object.assign(c, args.data);
     return { ...c };
   });
-  const prisma = {
+
+  const salarieUpdate = jest.fn(async (args: { where: Ligne; data: Ligne; include?: Ligne }) => {
+    const s = salaries.find((x) => correspond(x, args.where));
+    if (!s) throw pasTrouvee();
+    Object.assign(s, args.data);
+    return projeter(s, args.include);
+  });
+  const salarieUpdateMany = jest.fn(async (args: { where: Ligne; data: Ligne }) => {
+    const touches = salaries.filter((s) => correspond(s, args.where));
+    for (const s of touches) Object.assign(s, args.data);
+    return { count: touches.length };
+  });
+  const salarieGroupBy = jest.fn(async (args: { by: string[]; where: Ligne; _count: { _all: true } }) => {
+    const groupes = new Map<string, Ligne & { _count: { _all: number } }>();
+    for (const s of salaries.filter((x) => correspond(x, args.where))) {
+      const cle = Object.fromEntries(args.by.map((k) => [k, s[k] ?? null]));
+      const g = groupes.get(JSON.stringify(cle)) ?? { ...cle, _count: { _all: 0 } };
+      g._count._all += 1;
+      groupes.set(JSON.stringify(cle), g);
+    }
+    return [...groupes.values()];
+  });
+
+  const enfantDelete = jest.fn(async (args: { where: Ligne }) => {
+    for (const s of salaries) {
+      const liste = (s.enfants as Ligne[] | undefined) ?? [];
+      const i = liste.findIndex((e) => correspond(e, args.where));
+      if (i >= 0) return liste.splice(i, 1)[0];
+    }
+    throw pasTrouvee();
+  });
+  let neufs = 0;
+  const enfantCreate = jest.fn(async (args: { data: Ligne }) => {
+    const s = salaries.find((x) => x.id === args.data.salarieId && x.tenantId === args.data.tenantId);
+    if (!s) throw new Error('Salarié introuvable pour cet enfant.');
+    neufs += 1;
+    const e = { id: `e-neuf-${pad(neufs, 3)}`, ...args.data };
+    (s.enfants as Ligne[]).push(e);
+    return e;
+  });
+  const enfantDeleteMany = jest.fn(async (args: { where: Ligne }) => {
+    let n = 0;
+    for (const s of salaries) {
+      const garde = ((s.enfants as Ligne[] | undefined) ?? []).filter((e) => !correspond(e, args.where));
+      n += ((s.enfants as Ligne[] | undefined) ?? []).length - garde.length;
+      s.enfants = garde;
+    }
+    return { count: n };
+  });
+
+  const versionAggregate = jest.fn(async (args: { where: Ligne }) => {
+    const retenues = versions.filter((v) => correspond(v, args.where));
+    const debuts = retenues.map((v) => v.aPartirDu as string).sort();
+    return { _count: { _all: retenues.length }, _min: { aPartirDu: debuts[0] ?? null } };
+  });
+  const contratAggregate = jest.fn(async (args: { where: Ligne }) => {
+    const fins = contratsAPlat()
+      .filter((c) => correspond(c, args.where))
+      .map((c) => c.dateFin)
+      .filter((d): d is Date => d instanceof Date);
+    return { _max: { dateFin: fins.length ? new Date(Math.max(...fins.map((d) => d.getTime()))) : null } };
+  });
+
+  const prisma: Ligne & { $transaction: jest.Mock } = {
     tenant: {
       findUniqueOrThrow: jest.fn(async () => ({ nom: 'ASBL Bomoko', numeroAffiliationCnssEmployeur: 'CNSS-EMP-4471' })),
     },
-    versionBaremePaie: { findMany: jest.fn(async () => []) },
+    versionBaremePaie: { findMany: lecture(versions), aggregate: versionAggregate },
     salarie: {
       findMany: salarieFindMany,
       count: salarieCount,
       findFirst: jest.fn(async (args: { where: Ligne }) => salaries.find((s) => correspond(s, args.where)) ?? null),
+      update: salarieUpdate,
+      updateMany: salarieUpdateMany,
+      groupBy: salarieGroupBy,
+    },
+    enfantACharge: {
+      findMany: lecture(enfantsAPlat),
+      delete: enfantDelete,
+      create: enfantCreate,
+      deleteMany: enfantDeleteMany,
     },
     contratTravail: {
       findFirst: jest.fn(async (args: { where: Ligne }) => {
         const c = contrats.find((x) => correspond(x, args.where));
         return c ? { ...c } : null;
       }),
+      aggregate: contratAggregate,
       updateMany,
       update,
       create,
     },
+    $transaction: jest.fn(),
   };
-  return { svc: new PersonnelService(prisma as never), salarieFindMany, salarieCount, create, updateMany, update, prisma };
+  prisma.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => fn(prisma));
+  return {
+    svc: new PersonnelService(prisma as never),
+    salarieFindMany,
+    salarieCount,
+    create,
+    updateMany,
+    update,
+    salarieUpdate,
+    salarieUpdateMany,
+    enfantDelete,
+    enfantCreate,
+    enfantDeleteMany,
+    versionFindMany: (prisma.versionBaremePaie as { findMany: jest.Mock }).findMany,
+    prisma: prisma as never as {
+      contratTravail: { findFirst: jest.Mock };
+      enfantACharge: { findMany: jest.Mock };
+    },
+    brut: prisma as never,
+  };
 }
 
 const AUJOURDHUI = new Date('2026-03-15T10:00:00Z');
@@ -410,6 +638,316 @@ describe('F259 · le registre du personnel, une liste de travail bornée', () =>
       expect(r.totalFiches).toBe(1);
       expect(r.tronque).toBe(false);
     });
+  });
+});
+
+type Confrontation = Awaited<ReturnType<PersonnelService['confronter']>>;
+
+describe('F259, reste · les collections imbriquées d’une fiche, bornées et comptées', () => {
+  // Cent vingt contrats terminés, un par mois de 2001 à 2010, et le contrat
+  // EN COURS entré en 2000 · le plus ANCIEN des cent vingt et un. Une tranche
+  // prise par entrée en vigueur décroissante le perdrait, et la liste
+  // afficherait « aucun contrat en cours » en face d'un salarié en poste.
+  const contrats = () => [
+    contrat({ id: 'c-en-cours', dateEntreeEnVigueur: new Date(Date.UTC(2000, 0, 3)), dateFin: null }),
+    ...Array.from({ length: 120 }, (_, i) =>
+      contrat({
+        id: `c-${pad(i, 4)}`,
+        dateEntreeEnVigueur: new Date(Date.UTC(2001 + Math.floor(i / 12), i % 12, 1)),
+        dateFin: new Date(Date.UTC(2001 + Math.floor(i / 12), i % 12, 28)),
+      }),
+    ),
+  ];
+  const enfants = (n: number) =>
+    Array.from({ length: n }, (_, i) =>
+      enfant({ id: `e-${pad(i, 3)}`, prenoms: `E${pad(i, 3)}`, dateNaissance: new Date(Date.UTC(2000, 0, 1 + i)) }),
+    );
+
+  it('les contrats · une tranche qui garde le contrat en cours, et le nombre compté par la base', async () => {
+    const { svc } = monterPersonnel([salarie({ contrats: contrats() })]);
+    const f = (await svc.lister('t1')).salaries[0];
+    expect(f.contrats).toHaveLength(PLAFOND_CONTRATS_PAR_FICHE);
+    expect(f.contratEnCours).toMatchObject({ id: 'c-en-cours' });
+    expect(f.nombreContrats).toBe(121);
+    expect(f.contratsTronques).toBe(true);
+    // Les terminés retenus sont les plus récents · le 21e plus ancien reste,
+    // le 20e ne tient plus dans la tranche.
+    const ids = f.contrats.map((c) => c.id);
+    expect(ids).toContain('c-0021');
+    expect(ids).not.toContain('c-0020');
+    // Et la fiche les montre dans l'ordre qu'elle a toujours eu · par entrée
+    // en vigueur décroissante, le contrat en cours en dernier ici.
+    expect(ids[0]).toBe('c-0119');
+    expect(ids[ids.length - 1]).toBe('c-en-cours');
+  });
+
+  it('les enfants · une tranche, et le nombre compté par la base', async () => {
+    const { svc } = monterPersonnel([salarie({ enfants: enfants(60) })]);
+    const f = (await svc.lister('t1')).salaries[0];
+    expect(f.enfants).toHaveLength(PLAFOND_ENFANTS_PAR_FICHE);
+    expect(f.nombreEnfants).toBe(60);
+    expect(f.enfantsTronques).toBe(true);
+    // Les aînés d'abord, dans l'ordre des dates de naissance.
+    expect(f.enfants[0].id).toBe('e-000');
+    expect(f.enfants.map((e) => e.id)).not.toContain('e-059');
+  });
+
+  it('sous la borne, rien ne change · tout est rendu, rien n’est dit tronqué', async () => {
+    const deux = [
+      contrat({ id: 'c-a', dateEntreeEnVigueur: new Date(Date.UTC(2024, 0, 1)), dateFin: new Date(Date.UTC(2025, 11, 31)) }),
+      contrat({ id: 'c-b', dateEntreeEnVigueur: new Date(Date.UTC(2026, 0, 5)), dateFin: null }),
+    ];
+    const { svc } = monterPersonnel([salarie({ contrats: deux, enfants: enfants(3) })]);
+    const f = (await svc.lister('t1')).salaries[0];
+    expect(f.contrats.map((c) => c.id)).toEqual(['c-b', 'c-a']);
+    expect(f.contratEnCours).toMatchObject({ id: 'c-b' });
+    expect(f.nombreContrats).toBe(2);
+    expect(f.contratsTronques).toBe(false);
+    expect(f.enfants).toHaveLength(3);
+    expect(f.nombreEnfants).toBe(3);
+    expect(f.enfantsTronques).toBe(false);
+  });
+});
+
+describe('F259, reste · la fiche se modifie par son identifiant, bornée au dossier', () => {
+  const dto = (over: Ligne = {}) => ({ nom: 'Mukendi', sexe: 'MASCULIN', nationalite: 'Belge', ...over }) as never;
+
+  it('écrit par une opération UNITAIRE, jamais par `updateMany`', async () => {
+    const lignes = [salarie({ enfants: [enfant()] })];
+    const { svc, salarieUpdate, salarieUpdateMany, enfantDeleteMany } = monterPersonnel(lignes);
+    const f = await svc.modifierSalarie('t1', 's-1', dto());
+    expect(salarieUpdateMany).not.toHaveBeenCalled();
+    expect(enfantDeleteMany).not.toHaveBeenCalled();
+    expect(salarieUpdate).toHaveBeenCalledTimes(1);
+    expect(salarieUpdate.mock.calls[0][0].where).toEqual({ id: 's-1', tenantId: 't1' });
+    expect(lignes[0].nationalite).toBe('Belge');
+    expect(f).toMatchObject({ id: 's-1', nationalite: 'Belge', nombreContrats: 1, nombreEnfants: 1 });
+  });
+
+  it('un salarié d’un autre dossier n’existe pas, et rien n’est écrit', async () => {
+    const lignes = [salarie({ tenantId: 't2', enfants: [enfant({ tenantId: 't2' })] })];
+    const { svc, salarieUpdate, salarieUpdateMany, enfantDelete, enfantCreate } = monterPersonnel(lignes);
+    await expect(
+      svc.modifierSalarie('t1', 's-1', dto({ enfants: [{ nom: 'Autre' }] })),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(salarieUpdate).not.toHaveBeenCalled();
+    expect(salarieUpdateMany).not.toHaveBeenCalled();
+    expect(enfantDelete).not.toHaveBeenCalled();
+    expect(enfantCreate).not.toHaveBeenCalled();
+    expect(lignes[0].nationalite).toBe('Congolaise');
+  });
+
+  it('des enfants inchangés ne se réécrivent pas', async () => {
+    const lignes = [salarie({ enfants: [enfant()] })];
+    const { svc, enfantDelete, enfantCreate } = monterPersonnel(lignes);
+    await svc.modifierSalarie('t1', 's-1', dto({ enfants: [{ nom: 'Mukendi', prenoms: 'Grâce', dateNaissance: '2015-06-01' }] }));
+    expect(enfantDelete).not.toHaveBeenCalled();
+    expect(enfantCreate).not.toHaveBeenCalled();
+    expect((lignes[0].enfants as Ligne[]).map((e) => e.id)).toEqual(['e-1']);
+  });
+
+  it('des enfants changés se remplacent un par un, chacun par son identifiant', async () => {
+    const lignes = [salarie({ enfants: [enfant(), enfant({ id: 'e-2', prenoms: 'Paul' })] })];
+    const { svc, enfantDelete, enfantCreate, enfantDeleteMany } = monterPersonnel(lignes);
+    const f = await svc.modifierSalarie(
+      't1',
+      's-1',
+      dto({ enfants: [{ nom: 'Mukendi', prenoms: 'Grâce', dateNaissance: '2015-06-01' }, { nom: 'Mukendi', prenoms: 'Ruth' }] }),
+    );
+    expect(enfantDeleteMany).not.toHaveBeenCalled();
+    expect(enfantDelete.mock.calls.map(([a]) => a.where)).toEqual([
+      { id: 'e-1', tenantId: 't1' },
+      { id: 'e-2', tenantId: 't1' },
+    ]);
+    expect(enfantCreate.mock.calls.map(([a]) => a.data)).toEqual([
+      { tenantId: 't1', salarieId: 's-1', nom: 'Mukendi', postNom: null, prenoms: 'Grâce', dateNaissance: new Date('2015-06-01') },
+      { tenantId: 't1', salarieId: 's-1', nom: 'Mukendi', postNom: null, prenoms: 'Ruth', dateNaissance: null },
+    ]);
+    expect(f.nombreEnfants).toBe(2);
+    expect(f.enfants.map((e) => e.prenoms).sort()).toEqual(['Grâce', 'Ruth']);
+  });
+
+  it('une fiche qui porte plus d’enfants que l’écran n’en montre ne se remplace pas', async () => {
+    const lignes = [salarie({ enfants: Array.from({ length: PLAFOND_ENFANTS_PAR_FICHE + 1 }, (_, i) => enfant({ id: `e-${pad(i, 3)}` })) })];
+    const { svc, enfantDelete, enfantCreate, salarieUpdate } = monterPersonnel(lignes);
+    await expect(svc.modifierSalarie('t1', 's-1', dto({ enfants: [{ nom: 'Seul' }] }))).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(enfantDelete).not.toHaveBeenCalled();
+    expect(enfantCreate).not.toHaveBeenCalled();
+    expect(salarieUpdate).not.toHaveBeenCalled();
+    expect(lignes[0].enfants).toHaveLength(PLAFOND_ENFANTS_PAR_FICHE + 1);
+  });
+
+  it('sans enfants dans la demande, les enfants ne sont pas même relus', async () => {
+    const { svc, prisma } = monterPersonnel([salarie({ enfants: [enfant()] })]);
+    await svc.modifierSalarie('t1', 's-1', dto());
+    expect(prisma.enfantACharge.findMany).not.toHaveBeenCalled();
+  });
+
+  it('le corps de la requête ne porte pas plus d’enfants que la fiche n’en montre', async () => {
+    const corps = (n: number) =>
+      plainToInstance(SalarieDto, {
+        nom: 'Mukendi',
+        sexe: 'MASCULIN',
+        enfants: Array.from({ length: n }, (_, i) => ({ nom: `E${i}` })),
+      });
+    const trop = (await validate(corps(PLAFOND_ENFANTS_PAR_FICHE + 1))).find((e) => e.property === 'enfants');
+    expect(trop?.constraints?.arrayMaxSize).toContain(String(PLAFOND_ENFANTS_PAR_FICHE));
+    expect((await validate(corps(PLAFOND_ENFANTS_PAR_FICHE))).find((e) => e.property === 'enfants')).toBeUndefined();
+  });
+});
+
+describe('F259, reste · la confrontation lit les grilles SMIG par une borne déclarée', () => {
+  // Deux cent quarante-cinq grilles mensuelles de février 2026 à juin 2046,
+  // chacune à un taux qui lui est propre · une grille lue se reconnaît à son
+  // taux. Plus une grille postérieure au dernier mois qu'un contrat puisse
+  // viser, une version ONEM, et une grille d'un autre dossier.
+  const AU = new Date('2046-06-15T10:00:00Z');
+  const moisDe = (i: number) => {
+    const d = new Date(Date.UTC(2026, 1 + i, 1));
+    return d.toISOString().slice(0, 10);
+  };
+  const grille = (aPartirDu: string, smig: number, over: Ligne = {}): Ligne => ({
+    id: `v-${aPartirDu}`,
+    tenantId: 't1',
+    bareme: 'SMIG',
+    aPartirDu,
+    reference: `Arrêté ${aPartirDu}`,
+    valeurs: { smigJournalierFc: smig },
+    ...over,
+  });
+  const versions = () => [
+    ...Array.from({ length: 245 }, (_, i) => grille(moisDe(i), 30_000 + i * 10)),
+    grille('2046-09-01', 99_999),
+    { id: 'v-onem', tenantId: 't1', bareme: 'ONEM', aPartirDu: '2026-03-01', reference: 'ONEM', valeurs: { taux: 0.01 } },
+    grille('2030-01-01', 1, { id: 'v-autre', tenantId: 't2' }),
+  ];
+  const enFrancs = (over: Ligne) =>
+    contrat({ deviseRemuneration: 'CDF', periodiciteRemuneration: 'MOIS', classeProfessionnelle: 1, remunerationBase: 1000, ...over });
+  const contratsDuSalarie = () => [
+    enFrancs({ id: 'c-janvier', dateEntreeEnVigueur: new Date(Date.UTC(2025, 6, 1)), dateFin: new Date(Date.UTC(2026, 0, 31)) }),
+    enFrancs({ id: 'c-avril', dateEntreeEnVigueur: new Date(Date.UTC(2026, 1, 1)), dateFin: new Date(Date.UTC(2026, 3, 30)) }),
+    enFrancs({ id: 'c-aout', dateEntreeEnVigueur: new Date(Date.UTC(2026, 4, 1)), dateFin: new Date(Date.UTC(2026, 7, 31)) }),
+    enFrancs({ id: 'c-en-cours', dateEntreeEnVigueur: new Date(Date.UTC(2026, 8, 1)), dateFin: null }),
+  ];
+  const verdictDe = (r: Confrontation, id: string) => r.fiches.find((f) => f.contratId === id)!.remunerationMinimale;
+
+  it('au-delà de la borne, s’abstient sur les seuls contrats qu’une grille non lue régirait', async () => {
+    const { svc } = monterPersonnel([salarie({ contrats: contratsDuSalarie() })], [], versions());
+    const r = await svc.confronter('t1', AU);
+
+    // Avril 2026 · sa grille est parmi les cinq plus anciennes, non lues.
+    const avril = verdictDe(r, 'c-avril');
+    expect(avril.abstention).toBe('GRILLES_SMIG_NON_LUES');
+    expect(avril.conforme).toBeNull();
+    expect(avril.explication).toContain('2026-02');
+    expect(avril.explication).toContain('2026-07');
+    // Janvier 2026 · avant toute grille du cabinet, l'annexe du décret.
+    expect(verdictDe(r, 'c-janvier').minimumFc).toBe(21_500 * 26);
+    // Août 2026 · la plus ancienne des grilles lues à s'appliquer.
+    expect(verdictDe(r, 'c-aout').minimumFc).toBe((30_000 + 6 * 10) * 26);
+    // Le contrat en cours · la grille du mois courant, jamais la postérieure.
+    expect(verdictDe(r, 'c-en-cours').minimumFc).toBe((30_000 + 244 * 10) * 26);
+
+    expect(r.grillesSmig).toEqual({ lues: PLAFOND_GRILLES_SMIG, total: 245, plafond: PLAFOND_GRILLES_SMIG, tronque: true });
+  });
+
+  it('la requête est bornée, au dossier, au SMIG et au dernier mois qu’un contrat vise', async () => {
+    const { svc, versionFindMany } = monterPersonnel([salarie({ contrats: contratsDuSalarie() })], [], versions());
+    await svc.confronter('t1', AU);
+    expect(versionFindMany).toHaveBeenCalledTimes(1);
+    const args = versionFindMany.mock.calls[0][0];
+    expect(args.take).toBe(PLAFOND_GRILLES_SMIG);
+    expect(args.where).toEqual({ tenantId: 't1', bareme: 'SMIG', aPartirDu: { lt: '2046-07-01' } });
+    expect(args.orderBy).toEqual({ aPartirDu: 'desc' });
+  });
+
+  it('un contrat terminé APRÈS le mois courant recule la borne jusqu’à lui', async () => {
+    const tardif = [enFrancs({ id: 'c-tardif', dateEntreeEnVigueur: new Date(Date.UTC(2046, 0, 1)), dateFin: new Date(Date.UTC(2046, 9, 31)) })];
+    const { svc, versionFindMany } = monterPersonnel([salarie({ contrats: tardif })], [], versions());
+    const r = await svc.confronter('t1', AU);
+    expect(versionFindMany.mock.calls[0][0].where.aPartirDu).toEqual({ lt: '2046-11-01' });
+    // La grille de septembre 2046 régit ce contrat · elle est lue.
+    expect(verdictDe(r, 'c-tardif').minimumFc).toBe(99_999 * 26);
+  });
+
+  it('sous la borne, rien ne change · tout est lu, rien n’est dit tronqué', async () => {
+    const trois = [grille('2026-02-01', 22_000), grille('2026-03-01', 23_000), grille('2026-04-01', 24_000)];
+    const { svc } = monterPersonnel([salarie({ contrats: [enFrancs({ id: 'c-avril', dateFin: new Date(Date.UTC(2026, 3, 30)) })] })], [], trois);
+    const r = await svc.confronter('t1', AU);
+    expect(verdictDe(r, 'c-avril').minimumFc).toBe(24_000 * 26);
+    expect(verdictDe(r, 'c-avril').abstention).toBeNull();
+    expect(r.grillesSmig).toEqual({ lues: 3, total: 3, plafond: PLAFOND_GRILLES_SMIG, tronque: false });
+  });
+});
+
+describe('F259, reste · les enfants sans date de naissance, comptés par la base', () => {
+  const situation = (r: Confrontation) =>
+    r.fiches[0].mentionsManquantes.find((m) => m.point === 'SITUATION_FAMILIALE');
+
+  it('tous datés · aucun manque au point 7', async () => {
+    const { svc } = monterPersonnel([salarie({ enfants: [enfant(), enfant({ id: 'e-2' }), enfant({ id: 'e-3' })] })]);
+    expect(situation(await svc.confronter('t1', AUJOURDHUI))).toBeUndefined();
+  });
+
+  it('un seul sans date · le manque le compte, lui et lui seul', async () => {
+    const { svc } = monterPersonnel([
+      salarie({ enfants: [enfant(), enfant({ id: 'e-2', dateNaissance: null }), enfant({ id: 'e-3' })] }),
+    ]);
+    const m = situation(await svc.confronter('t1', AUJOURDHUI));
+    expect(m?.motif.startsWith('1 enfant(s)')).toBe(true);
+  });
+});
+
+describe('F259, reste · l’effectif, compté par la base', () => {
+  const ALA = new Date('2026-06-30T00:00:00Z');
+  const c = (id: string, over: Ligne) => contrat({ id, dateEntreeEnVigueur: new Date('2026-01-05T00:00:00Z'), dateFin: null, ...over });
+  const registre = () => [
+    // Deux CDD simultanés · une personne, pas deux.
+    salarie({
+      id: 's-a',
+      nationalite: 'Congolaise',
+      sexe: 'MASCULIN',
+      contrats: [c('a-1', { type: 'DUREE_DETERMINEE' }), c('a-2', { type: 'DUREE_DETERMINEE' })],
+    }),
+    // Un CDD terminé et un CDI en vigueur · permanente par le CDI.
+    salarie({
+      id: 's-b',
+      nationalite: 'RDC ',
+      sexe: 'FEMININ',
+      contrats: [
+        c('b-1', { type: 'DUREE_DETERMINEE', dateEntreeEnVigueur: new Date('2025-01-06T00:00:00Z'), dateFin: new Date('2025-12-31T00:00:00Z') }),
+        c('b-2', { type: 'DUREE_INDETERMINEE' }),
+      ],
+    }),
+    // Parti avant la date · hors de l'effectif.
+    salarie({ id: 's-c', nationalite: 'Belge', contrats: [c('c-1', { dateFin: new Date('2026-03-31T00:00:00Z') })] }),
+    // Pas encore entré à la date.
+    salarie({ id: 's-d', contrats: [c('d-1', { dateEntreeEnVigueur: new Date('2026-09-01T00:00:00Z') })] }),
+    // Un autre dossier.
+    salarie({ id: 's-e', tenantId: 't2', contrats: [c('e-1', { tenantId: 't2' })] }),
+    // Termine le jour même · encore à l'effectif.
+    salarie({ id: 's-f', nationalite: ' congolaise', sexe: 'MASCULIN', contrats: [c('f-1', { dateFin: ALA })] }),
+    salarie({ id: 's-g', nationalite: 'Belge', sexe: 'FEMININ', contrats: [c('g-1', {})] }),
+  ];
+
+  it('une personne par salarié en vigueur, et les permanents par leur CDI', async () => {
+    const { brut } = monterPersonnel(registre());
+    const e = await effectifDuRegistre(brut, 't1', ALA);
+    expect(e).toMatchObject({ effectif: 4, hommes: 2, femmes: 2, permanents: 3, nationaux: 3, sansNationalite: 0 });
+    expect(e.partMainOeuvreNationale).toBe(75);
+    expect(e.reserve).toBeNull();
+  });
+
+  it('une nationalité manquante rend la part nulle, et le dit', async () => {
+    const lignes = [...registre(), salarie({ id: 's-h', nationalite: null, contrats: [c('h-1', {})] })];
+    const { brut } = monterPersonnel(lignes);
+    const e = await effectifDuRegistre(brut, 't1', ALA);
+    expect(e.effectif).toBe(5);
+    expect(e.sansNationalite).toBe(1);
+    expect(e.partMainOeuvreNationale).toBeNull();
+    expect(e.reserve).toContain('1 salarié(s)');
   });
 });
 

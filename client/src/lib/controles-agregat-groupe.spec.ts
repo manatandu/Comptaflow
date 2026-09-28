@@ -1,4 +1,8 @@
 import { controlesDeLAgregat, controlesEnEchec } from './controles-agregat-groupe';
+// Les montants attendus sortent du formateur commun (audit final F256) · le
+// test fige la PRÉSENCE de sa sortie, pas une copie de son format, qui
+// divergerait au premier correctif.
+import { montant } from './montants';
 import type { BalanceAgregeeGroupe } from './types';
 
 // Pas d'import de « vitest » · convention du dépôt (voir calcul.spec.ts).
@@ -91,8 +95,8 @@ describe('controlesDeLAgregat · ce que chaque échec doit nommer', () => {
     );
     expect(c.ok).toBe(false);
     expect(c.detail).toContain('Antenne Nord');
-    expect(c.detail).toContain('500.00');
-    expect(c.detail).toContain('460.00');
+    expect(c.detail).toContain(montant(500));
+    expect(c.detail).toContain(montant(460));
     // Le siège est équilibré · il n'a rien à faire dans le message.
     expect(c.detail).not.toContain('Siège');
   });
@@ -119,7 +123,7 @@ describe('controlesDeLAgregat · ce que chaque échec doit nommer', () => {
   it('chiffre l’écart des virements internes (58)', () => {
     const c = parCle(agregat({ controles: { ...VERT.controles, liaisonNeutralisee: false, ecartLiaison: -1250.5 } }), 'liaison');
     expect(c.ok).toBe(false);
-    expect(c.detail).toContain('-1250.50');
+    expect(c.detail).toContain(montant(-1250.5));
     expect(c.detail).toContain('un seul côté');
   });
 
@@ -155,7 +159,7 @@ describe('controlesDeLAgregat · ce que chaque échec doit nommer', () => {
     expect(c.ok).toBe(false);
     expect(c.detail).toContain('Antenne Nord');
     expect(c.detail).toContain('Siège');
-    expect(c.detail).toContain('50.00');
+    expect(c.detail).toContain(montant(50));
     expect(c.detail).toContain('deux montants différents');
   });
 
@@ -168,9 +172,9 @@ describe('controlesDeLAgregat · ce que chaque échec doit nommer', () => {
       'eliminations',
     );
     expect(c.ok).toBe(false);
-    expect(c.detail).toContain('50.00');
-    expect(c.detail).toContain('900.00');
-    expect(c.detail).toContain('850.00');
+    expect(c.detail).toContain(`Écart de ${montant(50)}`);
+    expect(c.detail).toContain(montant(900));
+    expect(c.detail).toContain(montant(850));
   });
 });
 
@@ -203,7 +207,9 @@ describe('controlesDeLAgregat · siège et succursales SYSCOHADA (comptes 184 à
   it('en échec, chiffre l’écart et nomme le solde de chaque dossier', () => {
     const c = parCle(SYSCOHADA(false), 'liaison18');
     expect(c.ok).toBe(false);
-    expect(c.detail).toContain('Écart de 500.00 (Siège Kinshasa 500.00 · Succursale Lubumbashi 0.00)');
+    expect(c.detail).toContain(
+      `Écart de ${montant(500)} (Siège Kinshasa ${montant(500)} · Succursale Lubumbashi ${montant(0)})`,
+    );
     expect(c.detail).toContain('Rien n’a été retiré de l’agrégat');
   });
 

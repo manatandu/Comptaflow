@@ -6,6 +6,7 @@ import { controlesDeLAgregat } from '../lib/controles-agregat-groupe';
 import { Aide } from '../components/chrome/Aide';
 import type { BalanceAgregeeGroupe, JeuEtatsFinanciersSycebnl } from '../lib/types';
 import { PortailModale } from '../components/PortailModale';
+import * as montants from '../lib/montants';
 
 /**
  * GROUPE D'ÉTABLISSEMENTS · fenêtre du dossier MÈRE (le siège). Une même
@@ -73,7 +74,7 @@ const LIBELLE_JEU: Record<JeuEtatsFinanciersSycebnl, string> = {
 };
 
 function montant(n: number): string {
-  return n === 0 ? '·' : n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return n === 0 ? '·' : montants.montant(n);
 }
 
 function dateCourte(iso: string | null): string {

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api } from '../lib/api';
+import { montant } from '../lib/montants';
 
 /**
  * LE TABLEAU DES FLUX IFRS (IAS 7 modifiée par IFRS 18) et la déclaration de
@@ -24,7 +25,7 @@ export const CATEGORIES_CHANGE: Record<CategorieChange, string> = {
 };
 
 const champ = 'w-full border border-border px-1.5 py-1 text-[11.5px]';
-const fc = (v: number | null | undefined) => (v == null ? '' : v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+const fc = (v: number | null | undefined) => montant(v, '');
 const nombre = (v: string) => (v.trim() === '' ? NaN : Number(v.replace(/\s/g, '').replace(',', '.')));
 
 /** IAS 7 § 28 · l'effet de change de l'exercice, individuel ou du groupe (`consolide`). */

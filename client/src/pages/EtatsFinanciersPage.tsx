@@ -32,6 +32,7 @@ import type {
   TableauReconciliationTresorerie,
 } from '../lib/types';
 import { parametrePaiementsEnInstance } from '../lib/paiements-en-instance';
+import { montant } from '../lib/montants';
 
 /**
  * Onglets du jeu « associations et ordres professionnels » (Partie 4, ch. 2)
@@ -222,9 +223,6 @@ function EtatsSystemeNormalPage() {
       setExportEnCours(false);
     }
   };
-
-  const montant = (v: number | undefined) =>
-    v === undefined ? '·' : v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   // --- Compte de résultat : REF | Libellé | Montant (N) | Montant (N-1) ---
   // `cle` : par défaut `p.ref`, mais explicite côté compte d'exploitation

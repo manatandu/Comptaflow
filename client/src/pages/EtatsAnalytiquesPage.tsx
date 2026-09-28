@@ -13,6 +13,7 @@ import type {
   PlanAnalytique,
   SectionAnalytique,
 } from '../lib/types';
+import { montantOuVide as montant } from '../lib/montants';
 
 /**
  * ÉTATS ANALYTIQUES ET BUDGÉTAIRES · État → États analytiques et État →
@@ -30,10 +31,6 @@ import type {
 type Onglet = 'balance' | 'grand-livre' | 'controle' | 'budgetaire';
 
 const MOIS = ['Tous', 'janv.', 'févr.', 'mars', 'avril', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
-
-function montant(n: number): string {
-  return n !== 0 ? n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
-}
 
 export function EtatsAnalytiquesPage() {
   const { exerciceCourant } = useExercice();

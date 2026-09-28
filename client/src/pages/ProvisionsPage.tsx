@@ -6,6 +6,7 @@ import { Aide } from '../components/chrome/Aide';
 import { PortailModale } from '../components/PortailModale';
 import type { Compte, Exercice, ProvisionRisqueCharge, TableauVariationProvisions } from '../lib/types';
 import { useExercice } from '../lib/exercice';
+import { montant } from '../lib/montants';
 
 /**
  * REGISTRE DES PROVISIONS POUR RISQUES ET CHARGES.
@@ -178,7 +179,6 @@ const nombre = (v: string): number | undefined => (v.trim() === '' ? undefined :
  */
 const nombreOuZero = (v: string): number => nombre(v) ?? 0;
 
-const montant = (v: number) => Number(v ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 });
 const jour = (d: string | null | undefined) => (d ? new Date(d).toLocaleDateString('fr-FR') : '·');
 const messageDe = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : String(e));
 

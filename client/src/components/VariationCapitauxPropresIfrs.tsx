@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api } from '../lib/api';
+import { montant } from '../lib/montants';
 
 /**
  * L'ÉTAT DES VARIATIONS DES CAPITAUX PROPRES (IFRS 18 § 107 à 112) et la
@@ -43,7 +44,7 @@ const TYPES_MOUVEMENT: Record<TypeMouvement, string> = {
 };
 
 const champ = 'w-full border border-border px-1.5 py-1 text-[11.5px]';
-const fc = (v: number | null | undefined) => (v == null ? '' : v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+const fc = (v: number | null | undefined) => montant(v, '');
 const nombre = (v: string) => (v.trim() === '' ? NaN : Number(v.replace(/\s/g, '').replace(',', '.')));
 
 export function VariationCapitauxPropresIfrs({

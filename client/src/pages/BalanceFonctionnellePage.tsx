@@ -4,6 +4,7 @@ import { Aide } from '../components/chrome/Aide';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import type { BalanceFonctionnelle, Exercice } from '../lib/types';
 import { useExercice } from '../lib/exercice';
+import { montant } from '../lib/montants';
 
 /**
  * LA BALANCE EN MONNAIE FONCTIONNELLE · le second jeu, et il dit ce qu'il
@@ -19,7 +20,6 @@ import { useExercice } from '../lib/exercice';
  * équilibrer l'état et disparaître l'information.
  */
 
-const montant = (v: number) => v.toLocaleString('fr-FR', { minimumFractionDigits: 2 });
 const jour = (d: string | null | undefined) => (d ? new Date(d).toLocaleDateString('fr-FR') : '·');
 
 export function BalanceFonctionnellePage() {

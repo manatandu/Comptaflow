@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth';
 import { Aide } from './chrome/Aide';
 import type { Compte, Ecriture } from '../lib/types';
 import { PortailModale } from './PortailModale';
+import { montantOuVide as fmt } from '../lib/montants';
 
 /**
  * RÉIMPUTATION · déplacer des lignes vers un autre compte, depuis le résultat
@@ -27,8 +28,6 @@ interface LigneProposee {
   credit: number;
   validee: boolean;
 }
-
-const fmt = (n: number) => (n ? n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '');
 
 export function ModaleReimputation({
   ecritures,

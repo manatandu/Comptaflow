@@ -15,6 +15,7 @@ import type {
   PosteBilanSmt,
   PosteCalcule,
 } from '../lib/types';
+import { montant } from '../lib/montants';
 
 /**
  * États financiers du SYSTÈME MINIMAL DE TRÉSORERIE · troisième jeu SYCEBNL
@@ -130,8 +131,6 @@ export function EtatsSmtPage() {
     }
   };
 
-  const montant = (v: number | null | undefined) =>
-    v === null || v === undefined ? '·' : v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   // Une quantité se compte en kilogrammes comme en pièces · jamais arrondie
   // au centime comme un montant.
   const quantite = (v: number | null) => (v === null ? '·' : v.toLocaleString('fr-FR', { maximumFractionDigits: 3 }));

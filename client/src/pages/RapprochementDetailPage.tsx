@@ -5,6 +5,7 @@ import { useAuth } from '../lib/auth';
 import type { DetailRapprochement, PropositionsRapprochement } from '../lib/types';
 import { Aide } from '../components/chrome/Aide';
 import { mentionANouveauxEcartes } from '../lib/rapprochement-a-nouveau';
+import { montant as fmt, montantOuVide } from '../lib/montants';
 
 /**
  * Pointage écriture par écriture d'un rapprochement bancaire (§3.4) : chaque
@@ -175,7 +176,7 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
           </h1>
           <div className="text-[11.5px] text-text-dim mb-3">
             Relevé du {new Date(detail.rapprochement.dateReleve).toLocaleDateString('fr-FR')} · solde{' '}
-            <span className="font-mono font-semibold">{detail.rapprochement.soldeReleve.toLocaleString('fr-FR')}</span>{' '}
+            <span className="font-mono font-semibold">{fmt(detail.rapprochement.soldeReleve)}</span>{' '}
             {detail.rapprochement.statut === 'CLOTURE' && <span className="font-mono font-bold text-text-dim">(Clôturé)</span>}
           </div>
 
@@ -184,20 +185,20 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
           <div className="flex items-center gap-5 mb-3 max-w-[900px] bg-surface border border-border px-4 py-2.5">
             <div>
               <div className="text-[11px] text-text-dim font-semibold">Solde de départ</div>
-              <div className="font-mono text-[12px]">{detail.soldeDepart.toLocaleString('fr-FR')}</div>
+              <div className="font-mono text-[12px]">{fmt(detail.soldeDepart)}</div>
             </div>
             <div>
               <div className="text-[11px] text-text-dim font-semibold">Solde pointé</div>
-              <div className="font-mono text-[12px]">{detail.soldePointe.toLocaleString('fr-FR')}</div>
+              <div className="font-mono text-[12px]">{fmt(detail.soldePointe)}</div>
             </div>
             <div>
               <div className="text-[11px] text-text-dim font-semibold">Solde du relevé</div>
-              <div className="font-mono text-[12px]">{detail.rapprochement.soldeReleve.toLocaleString('fr-FR')}</div>
+              <div className="font-mono text-[12px]">{fmt(detail.rapprochement.soldeReleve)}</div>
             </div>
             <div>
               <div className="text-[11px] text-text-dim font-semibold">Écart</div>
               <div className={`font-mono text-[12px] font-bold ${detail.equilibre ? 'text-positive' : 'text-danger'}`}>
-                {detail.ecart.toLocaleString('fr-FR')}
+                {fmt(detail.ecart)}
               </div>
             </div>
           </div>
@@ -278,8 +279,8 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
                 <span className="font-mono text-[11px] text-text-dim">{new Date(l.date).toLocaleDateString('fr-FR')}</span>
                 <span className="font-mono text-text-dim">{l.journalCode}</span>
                 <span className="truncate">{l.libelle}</span>
-                <span className="font-mono text-right">{l.debit ? l.debit.toLocaleString('fr-FR') : ''}</span>
-                <span className="font-mono text-right">{l.credit ? l.credit.toLocaleString('fr-FR') : ''}</span>
+                <span className="font-mono text-right">{montantOuVide(l.debit)}</span>
+                <span className="font-mono text-right">{montantOuVide(l.credit)}</span>
               </div>
             ))}
             {detail.lignes.length === 0 && (
@@ -328,8 +329,6 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
     </div>
   );
 }
-
-const fmt = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /**
  * LE RELEVÉ IMPORTÉ · chaque ligne dit son état : rapprochée, proposée, ou À

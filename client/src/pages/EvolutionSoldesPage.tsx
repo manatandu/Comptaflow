@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { Aide } from '../components/chrome/Aide';
+import { montant } from '../lib/montants';
 
 /**
  * ÉVOLUTION PLURIANNUELLE DES SOLDES · le même compte sur plusieurs
@@ -37,11 +38,6 @@ interface LigneEvolution {
 interface Evolution {
   exercices: ColonneExercice[];
   lignes: LigneEvolution[];
-}
-
-function montant(n: number | null): string {
-  if (n === null) return '';
-  return n === 0 ? '0,00' : n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 export function EvolutionSoldesPage() {
@@ -163,7 +159,7 @@ export function EvolutionSoldesPage() {
                 className={`font-mono text-right ${s === null ? 'text-text-dim' : ''}`}
                 title={s === null ? 'Compte non mouvementé sur cet exercice' : undefined}
               >
-                {montant(s)}
+                {montant(s, '')}
               </span>
             ))}
           </div>

@@ -7,6 +7,7 @@ import type { Journal } from '../lib/types';
 import { Aide } from '../components/chrome/Aide';
 import { OrdresVirement } from '../components/OrdresVirement';
 import { lignesDepuisSelection, rappelerLot, type LotVirement } from '../lib/lots-virement';
+import { montant as fmt } from '../lib/montants';
 
 type Sens = 'FOURNISSEUR' | 'CLIENT';
 
@@ -29,7 +30,6 @@ interface GroupeTiers {
   lignes: LigneEcheance[];
 }
 
-const fmt = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const aujourdhui = () => new Date().toISOString().slice(0, 10);
 
 /**

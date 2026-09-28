@@ -15,6 +15,7 @@ import type {
   TranscriptionInventaire,
 } from '../lib/types';
 import { corpsSectionsRapport, textesDuRapport } from '../lib/rapport-sections';
+import { montant } from '../lib/montants';
 
 /**
  * DOCUMENTS OBLIGATOIRES DE CLÔTURE · livre d'inventaire (SYCEBNL art. 14 ·
@@ -139,7 +140,6 @@ export function DocumentsObligatoiresPage() {
   useEffect(charger, [exerciceCourant?.id]);
 
   const date = (v: string) => new Date(v).toLocaleDateString('fr-FR');
-  const montant = (v: number) => v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const exporter = async (chemin: string, fichier: string) => {
     if (!exerciceCourant) return;

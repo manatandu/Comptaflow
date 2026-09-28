@@ -12,6 +12,7 @@ import type {
   RapportConformiteRegistre,
   TypeDonateur,
 } from '../lib/types';
+import { montant } from '../lib/montants';
 
 /**
  * REGISTRE DES DONATEURS · articles 17, 18 et 24 de l'Acte uniforme SYCEBNL.
@@ -122,7 +123,6 @@ export function RegistreDonateursPage() {
 
   useEffect(charger, [exerciceCourant?.id]);
 
-  const montant = (v: number) => v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const date = (v: string) => new Date(v).toLocaleDateString('fr-FR');
 
   const physique = form.typeDonateur === 'PERSONNE_PHYSIQUE';

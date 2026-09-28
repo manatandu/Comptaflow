@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { Aide } from '../components/chrome/Aide';
 import type { AnalyseImport, RapportImport, TypeImport } from '../lib/types';
+import { montant } from '../lib/montants';
 
 /**
  * IMPORT · Fichier → Importer chez Sage. Aucun des manuels du Drive ne décrit
@@ -39,10 +40,6 @@ const TYPES: { valeur: TypeImport; titre: string; description: string }[] = [
       'Regroupe les lignes en pièces par date, journal et numéro de pièce. Chaque pièce doit être équilibrée.',
   },
 ];
-
-function montant(n: number): string {
-  return n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 
 export function ImportPage() {
   const { estAdmin } = useAuth();

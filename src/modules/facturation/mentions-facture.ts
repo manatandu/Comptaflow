@@ -512,6 +512,14 @@ export interface TexteApplicable {
   mentions: readonly Mention[];
   texte: string;
   source: string;
+  /** L'article tel qu'un refus le cite, sans sa date ni son décompte. */
+  article: string;
+  /**
+   * Comment le texte numérote ses mentions · l'art. 26 par lettres (a à l),
+   * l'art. 100 par tirets. Un refus qui renvoie à une mention la désigne comme
+   * son texte la désigne (`renvoiALaMention`).
+   */
+  numerotation: 'LETTRES' | 'TIRETS';
 }
 
 /** Le texte en vigueur À LA DATE DE LA PIÈCE, jamais celui d'aujourd'hui. */
@@ -524,6 +532,8 @@ export function texteApplicable(dateFacture: Date | null): TexteApplicable {
   return anterieure
     ? {
         mentions: MENTIONS_ARTICLE_100,
+        article: 'art. 100 du décret n° 011/42',
+        numerotation: 'TIRETS',
         texte: 'Décret n° 011/42 du 22 novembre 2011, art. 100 · neuf groupes',
         source:
           'Pièce antérieure au 3 mars 2023 : le décret n° 23/10 « entre en vigueur à la date de sa signature » ' +
@@ -534,9 +544,38 @@ export function texteApplicable(dateFacture: Date | null): TexteApplicable {
       }
     : {
         mentions: MENTIONS_DOCUMENT_EN_TENANT_LIEU,
+        article: 'art. 26 du décret n° 23/10',
+        numerotation: 'LETTRES',
         texte: 'Décret n° 23/10 du 3 mars 2023, art. 26 · dix groupes pour un document en tenant lieu',
         source: 'Le décret est entré en vigueur le 3 mars 2023, date de sa signature (art. 29).',
       };
+}
+
+const TIRETS = ['premier', 'deuxième', 'troisième', 'quatrième', 'cinquième', 'sixième', 'septième', 'huitième', 'neuvième'];
+
+/**
+ * OÙ UNE MENTION SE LIT, DANS LE TEXTE EN VIGUEUR À LA DATE DE LA PIÈCE ·
+ * « point b) de l'art. 26 du décret n° 23/10 », ou « deuxième tiret de
+ * l'art. 100 du décret n° 011/42 ».
+ *
+ * Audit final F229 · deux refus du service nommaient l'art. 100 en dur, si
+ * bien qu'une pièce de 2026 se voyait opposer un article que le décret
+ * n° 23/10 a remplacé pour elle. Le renvoi passe donc par `texteApplicable`,
+ * la fonction qui choisit la liste vérifiée, et jamais par une seconde règle
+ * de date écrite à côté · deux bornes auraient divergé au premier correctif.
+ * Le rang se lit dans la liste du texte lui-même · les lettres dans les douze
+ * points de l'art. 26, les tirets dans les neuf de l'art. 100.
+ */
+export function renvoiALaMention(dateFacture: Date | null, cle: CleMention): string {
+  const t = texteApplicable(dateFacture);
+  const liste = t.numerotation === 'LETTRES' ? MENTIONS_ARTICLE_26 : t.mentions;
+  const rang = liste.findIndex((m) => m.cle === cle);
+  // Une mention que le texte n'écrit pas n'a pas de renvoi · la désigner
+  // quand même citerait un point qui n'existe pas.
+  if (rang < 0) throw new Error(`La mention ${cle} n'est pas écrite à l’${t.article}.`);
+  return t.numerotation === 'LETTRES'
+    ? `point ${'abcdefghijkl'[rang]}) de l’${t.article}`
+    : `${TIRETS[rang]} tiret de l’${t.article}`;
 }
 
 export interface Totaux {

@@ -7,6 +7,7 @@ import { DeclarationEffetChange, EffetChange, FluxServi, TableauFluxIfrs } from 
 import { VariationCapitauxPropresIfrs, VariationServie } from './VariationCapitauxPropresIfrs';
 import { NotesIfrs, NotesIfrsServies } from './NotesIfrs';
 import { DeclarationsIfrs12, DeclarationsIfrs12Form, EntiteIfrs12 } from './DeclarationsIfrs12';
+import { montant } from '../lib/montants';
 
 /**
  * ÉTATS IFRS CONSOLIDÉS, tranche C1 · la balance consolidée du D4C (celle de la
@@ -89,7 +90,7 @@ type Consolide = {
 };
 
 const champ = 'w-full border border-border px-1.5 py-1 text-[11.5px]';
-const fc = (v: number | null | undefined) => (v == null ? '' : v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+const fc = (v: number | null | undefined) => montant(v, '');
 const nombre = (v: string) => (v.trim() === '' ? NaN : Number(v.replace(/\s/g, '').replace(',', '.')));
 /** Un champ de part vide vaut `null` · « personne n'a répondu », jamais zéro. */
 const part = (v: string) => (v.trim() === '' ? null : nombre(v));

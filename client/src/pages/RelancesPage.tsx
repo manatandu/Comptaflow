@@ -8,6 +8,7 @@ import { libelleRemise, phraseEmission, tonRemise } from '../lib/remise-courriel
 import { EVENEMENT_FILE_COURRIER, SUITE_REPRISE_HORS_FILE, cumulerReprises, reprendreEncore, resumeReprise } from '../lib/courrier-file';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { HistoriqueRappels } from '../components/HistoriqueRappels';
+import { montant } from '../lib/montants';
 
 /**
  * RAPPEL ET RELEVÉ · Traitement → Rappel/relevé chez Sage 100 i7, qui
@@ -49,10 +50,6 @@ const ETATS: { valeur: TypeRelance; titre: string; description: string }[] = [
     description: "Tout ce qui est dû, échu ou non, sans gradation.",
   },
 ];
-
-function montant(n: number): string {
-  return n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 
 function PositionsRelances() {
   const { peutEcrire, utilisateur } = useAuth();

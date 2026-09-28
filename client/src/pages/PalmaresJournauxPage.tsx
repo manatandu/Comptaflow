@@ -3,6 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { Aide } from '../components/chrome/Aide';
 import { useExercice } from '../lib/exercice';
+import { montant } from '../lib/montants';
 
 /**
  * PALMARÈS DES COMPTES ET ANALYSE DES JOURNAUX · deux états de relecture
@@ -67,8 +68,6 @@ interface Analyse {
   };
 }
 
-const montant = (n: number) =>
-  n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const pourcent = (n: number) => `${n.toFixed(1)} %`;
 const listerTrous = (trous: Array<{ de: number; a: number }>) =>
   trous.map((t) => (t.de === t.a ? `${t.de}` : `${t.de} à ${t.a}`)).join(', ');

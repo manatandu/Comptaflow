@@ -3,6 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { Aide } from './chrome/Aide';
 import { EnteteImpression, BoutonImprimer } from './chrome/EnteteImpression';
 import type { Compte } from '../lib/types';
+import { montant } from '../lib/montants';
 
 /**
  * HISTORIQUE DES RAPPELS (point 17 de la comparaison Sage i7) · État / États
@@ -30,8 +31,6 @@ interface ReponseHistorique {
   tronque: boolean;
   montantTotal: number;
 }
-
-const montant = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export function HistoriqueRappels() {
   const [comptes, setComptes] = useState<Compte[]>([]);

@@ -3,6 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { Aide } from '../components/chrome/Aide';
+import { montantOuVide as montant } from '../lib/montants';
 
 /**
  * LES DEUX TABLEAUX DU CYCLE IMMOBILISATIONS · le tableau des immobilisations
@@ -90,10 +91,6 @@ interface TableauAmort {
   mois: Array<{ cle: string; libelle: string }>;
   groupes: GroupeAmort[];
   totaux: { parMois: number[]; dotation: number; cumulN1: number; cumulN: number; depreciations: number; net: number };
-}
-
-function montant(n: number): string {
-  return n !== 0 ? n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
 }
 
 export function TableauxImmobilisationsPage() {

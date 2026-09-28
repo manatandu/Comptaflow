@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { Aide } from '../components/chrome/Aide';
+import { montant as fc } from '../lib/montants';
 
 /**
  * CUMUL ET ÉLIMINATIONS · tranche 2 de la consolidation SYSCOHADA, sous le
@@ -82,7 +83,6 @@ type Resultat = {
 };
 
 const champ = 'w-full border border-border px-1.5 py-1 text-[11.5px]';
-const fc = (v: number) => v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const nombre = (v: string) => (v.trim() === '' ? null : Number(v.replace(/\s/g, '').replace(',', '.')));
 
 function lireBase64(fichier: File): Promise<string> {

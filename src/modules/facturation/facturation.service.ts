@@ -6,6 +6,7 @@ import {
   FactureVerifiable,
   HOMOLOGATION,
   OBLIGATION_DACCEPTATION,
+  renvoiALaMention,
   totauxFacture,
   verifierMentions,
 } from './mentions-facture';
@@ -21,7 +22,8 @@ const nombre = (d: Prisma.Decimal | number | null): number | null =>
  * LA FACTURE, TENUE COMME PIÈCE ET NON COMME COMPTABILITÉ.
  *
  * Le service n'écrit aucun montant au grand livre et n'en lit aucun : il
- * enregistre un document, le confronte à l'art. 100, et le rattache à
+ * enregistre un document, le confronte aux mentions du texte en vigueur à sa
+ * date (`texteApplicable`), et le rattache à
  * l'écriture passée par `EcritureService`. La règle de revue de la §7 du plan
  * de construction est explicite là-dessus · jamais de plan de facturation
  * parallèle à la comptabilité.
@@ -246,6 +248,11 @@ export class FacturationService {
 
   async enregistrer(tenantId: string, dto: EnregistrerFactureDto) {
     const t = await this.dossier(tenantId);
+    // LES REFUS NOMMENT LE TEXTE EN VIGUEUR À LA DATE DE LA PIÈCE (audit final
+    // F229) · une pièce de 2022 se juge sur l'art. 100 du décret n° 011/42, une
+    // pièce de 2026 sur l'art. 26 du décret n° 23/10, et le renvoi passe par la
+    // fonction qui choisit la liste vérifiée.
+    const dateFacture = new Date(dto.dateFacture);
 
     // L'IDENTITÉ DE LA CONTREPARTIE VIENT DU TIERS QUAND IL EST DONNÉ, ET DE LA
     // SAISIE SINON · une facture reçue d'un fournisseur non ouvert au plan des
@@ -266,8 +273,13 @@ export class FacturationService {
       contrepartieAdresse = contrepartieAdresse ?? ([tiers.adresse, tiers.ville].filter(Boolean).join(', ') || null);
     }
     if (!contrepartieNom) {
+      // La contrepartie est le CLIENT sur une vente et le VENDEUR sur un achat,
+      // comme l'émetteur est posé plus bas · les deux textes les écrivent sous
+      // deux mentions distinctes.
+      const vente = dto.sens === SensFacture.VENTE;
       throw new BadRequestException(
-        'L’identité de la contrepartie est la deuxième mention de l’art. 100 du décret n° 011/42 · ' +
+        `L’identité ${vente ? 'du client' : 'du vendeur ou prestataire'} est exigée au ` +
+          `${renvoiALaMention(dateFacture, vente ? 'IDENTITE_CLIENT' : 'IDENTITE_VENDEUR')} · ` +
           'renseignez un tiers ou saisissez le nom.',
       );
     }
@@ -296,7 +308,8 @@ export class FacturationService {
     if (doublon) {
       throw new BadRequestException(
         `Le numéro de série « ${dto.numeroSerie.trim()} » est déjà porté par une facture de ce sens dans ce ` +
-          'dossier. Le n° de série est la troisième mention de l’art. 100 : deux pièces ne peuvent pas le partager.',
+          `dossier. Le n° de série est exigé au ${renvoiALaMention(dateFacture, 'DATE_ET_NUMERO')} : deux pièces ` +
+          'ne peuvent pas le partager.',
       );
     }
 
@@ -309,11 +322,11 @@ export class FacturationService {
         tenantId,
         sens: dto.sens,
         numeroSerie: dto.numeroSerie.trim(),
-        dateFacture: new Date(dto.dateFacture),
+        dateFacture,
         tiersId: dto.tiersId ?? null,
         // L'ÉMETTEUR EST LE DOSSIER SUR UNE VENTE, LA CONTREPARTIE SUR UN ACHAT.
-        // L'art. 100 demande le vendeur ou prestataire · sur une facture reçue,
-        // ce n'est pas nous.
+        // L'art. 26 a), comme l'art. 100 avant lui, demande le vendeur ou
+        // prestataire · sur une facture reçue, ce n'est pas nous.
         emetteurNom: dto.sens === SensFacture.VENTE ? t.nom : contrepartieNom,
         emetteurAdresse: dto.sens === SensFacture.VENTE ? adresseDossier : contrepartieAdresse,
         emetteurNumeroImpot: dto.sens === SensFacture.VENTE ? t.numeroImpot : contrepartieNumeroImpot,

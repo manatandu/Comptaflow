@@ -9,6 +9,7 @@ import type { Ecriture, Journal, LigneBalance, LigneGrandLivre } from '../lib/ty
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { Aide } from '../components/chrome/Aide';
 import { mouvementsDuJournal } from '../lib/mouvements-du-journal';
+import { montant, montantOuVide } from '../lib/montants';
 
 type Onglet = 'journal' | 'grand-livre' | 'balance';
 
@@ -49,7 +50,7 @@ interface SectionGrandLivre {
 
 /** Une cellule de montant · le zéro reste VIDE, comme sur une balance imprimée. */
 function Montant({ valeur }: { valeur: number }) {
-  return <span className="font-mono text-right">{valeur ? valeur.toLocaleString('fr-FR') : ''}</span>;
+  return <span className="font-mono text-right">{montantOuVide(valeur)}</span>;
 }
 
 function estOnglet(v: string | null): v is Onglet {
@@ -687,8 +688,8 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
               <span className="truncate" title={`${l.compte} · ${l.libelleLigne}`}>
                 {l.libelleLigne}
               </span>
-              <span className="font-mono text-right">{l.debit ? l.debit.toLocaleString('fr-FR') : ''}</span>
-              <span className="font-mono text-right">{l.credit ? l.credit.toLocaleString('fr-FR') : ''}</span>
+              <span className="font-mono text-right">{montantOuVide(l.debit)}</span>
+              <span className="font-mono text-right">{montantOuVide(l.credit)}</span>
               <span className="text-[11px] no-underline flex items-center gap-1.5 justify-end">
                 {l.premiereLigne && l.enBrouillard && (
                   <span
@@ -705,8 +706,8 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
           <div className="grid grid-cols-[68px_46px_52px_92px_120px_1fr_108px_108px_128px] min-w-[980px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[11.5px] font-bold">
             <span className="col-span-5" />
             <span className="text-right text-[11px] text-text-dim self-center">Totaux de la période</span>
-            <span className="font-mono text-right">{totaux.debit.toLocaleString('fr-FR')}</span>
-            <span className="font-mono text-right">{totaux.credit.toLocaleString('fr-FR')}</span>
+            <span className="font-mono text-right">{montant(totaux.debit)}</span>
+            <span className="font-mono text-right">{montant(totaux.credit)}</span>
             <span />
           </div>
         </div>
@@ -790,7 +791,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
                   </span>
                   <Montant valeur={l.debit} />
                   <Montant valeur={l.credit} />
-                  <span className="font-mono text-right font-semibold">{l.soldeProgressif.toLocaleString('fr-FR')}</span>
+                  <span className="font-mono text-right font-semibold">{montant(l.soldeProgressif)}</span>
                   <span className="font-mono text-text-dim">{l.lettre ?? ''}</span>
                   <span className="font-mono text-[11px] text-text-dim truncate">
                     {l.contrepartie.length > 0 ? l.contrepartie.join(' + ') : '·'}
@@ -802,7 +803,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
                 <span className="text-right text-[11px] text-text-dim self-center">Total mouvements · solde final</span>
                 <Montant valeur={section.totalDebit} />
                 <Montant valeur={section.totalCredit} />
-                <span className="font-mono text-right">{section.soldeFinal.toLocaleString('fr-FR')}</span>
+                <span className="font-mono text-right">{montant(section.soldeFinal)}</span>
                 <span />
                 <span />
               </div>

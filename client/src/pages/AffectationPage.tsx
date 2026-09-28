@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import type { AffectationResultat, Exercice, PreparationAffectation } from '../lib/types';
+import { montant } from '../lib/montants';
 
 /**
  * AFFECTATION DU RÉSULTAT · Traitement → Affectation du résultat.
@@ -19,9 +20,6 @@ import type { AffectationResultat, Exercice, PreparationAffectation } from '../l
  * juste (voir AffectationService).
  */
 
-function montant(n: number | string): string {
-  return Number(n).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 function jour(iso: string): string {
   return new Date(iso).toLocaleDateString('fr-FR');
 }

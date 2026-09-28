@@ -9,6 +9,7 @@ import type {
   ConventionFinancement,
   NatureRapportBailleur,
 } from '../lib/types';
+import { montant } from '../lib/montants';
 
 /**
  * DOSSIER DE SUBVENTION · les conventions de financement.
@@ -38,10 +39,6 @@ const NATURES_RAPPORT: { valeur: NatureRapportBailleur; libelle: string }[] = [
   { valeur: 'NARRATIF', libelle: 'Narratif' },
   { valeur: 'AUDIT', libelle: 'Audit' },
 ];
-
-function montant(n: number): string {
-  return n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 
 function jour(iso: string | null): string {
   return iso ? new Date(iso).toLocaleDateString('fr-FR') : '·';

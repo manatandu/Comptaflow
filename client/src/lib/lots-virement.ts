@@ -1,3 +1,5 @@
+import { montant as fmt } from './montants';
+
 /**
  * RAPPEL D'UN LOT DE VIREMENTS · ce que le lot PRÉSÉLECTIONNE dans Règlement
  * des tiers. Rien n'est passé ici · le comptable ajuste, puis le règlement
@@ -24,7 +26,6 @@ export interface RappelLot {
 }
 
 const arrondi = (n: number) => Math.round(n * 100) / 100;
-const fmt = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /**
  * Les factures les plus ANCIENNES d'abord, jusqu'à couvrir le montant habituel ·

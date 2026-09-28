@@ -25,6 +25,7 @@ import {
   type MomentReprise,
   type NatureTiers,
 } from '../lib/regularisation-types';
+import { montant } from '../lib/montants';
 
 /**
  * RÉGULARISATIONS ET ABONNEMENTS · Traitement → Écritures de régularisation
@@ -128,10 +129,6 @@ const PERIODICITES: { valeur: PeriodiciteAbonnement; libelle: string }[] = [
   { valeur: 'SEMESTRIELLE', libelle: 'Semestrielle' },
   { valeur: 'ANNUELLE', libelle: 'Annuelle' },
 ];
-
-function montant(n: number | string): string {
-  return Number(n).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 
 function jour(iso: string): string {
   return new Date(iso).toLocaleDateString('fr-FR');

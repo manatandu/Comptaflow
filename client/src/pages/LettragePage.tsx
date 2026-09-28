@@ -10,6 +10,7 @@ import type {
 } from '../lib/types';
 import { Aide } from '../components/chrome/Aide';
 import { useAuth } from '../lib/auth';
+import { montant } from '../lib/montants';
 
 /**
  * Interrogation et lettrage · modèle du chapitre 6 des Notes de cours
@@ -179,18 +180,18 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
         );
         return r.statut === 'SOLDE'
           ? `Lettrage ${r.lettre} soldé · ${r.nombreLignes} ligne(s).`
-          : `Lettrage ${r.lettre} complété, il reste ${r.solde.toLocaleString('fr-FR')} à solder.`;
+          : `Lettrage ${r.lettre} complété, il reste ${montant(r.solde)} à solder.`;
       }
       const r = await api.post<{ lettre: string; statut: string; solde: number; ecartChange: number | null; nombreLignes: number }>(
         `/comptes/${compteId}/lettrage`,
         { ligneIds: [...selection], autoriserPartiel },
       );
       const change = r.ecartChange !== null && r.ecartChange !== 0
-        ? ` Écart de change réalisé : ${r.ecartChange.toLocaleString('fr-FR')}.`
+        ? ` Écart de change réalisé : ${montant(r.ecartChange)}.`
         : '';
       return r.statut === 'SOLDE'
         ? `${r.nombreLignes} ligne(s) lettrées (${r.lettre}).${change}`
-        : `Lettrage partiel ${r.lettre} créé · il reste ${r.solde.toLocaleString('fr-FR')} à solder.`;
+        : `Lettrage partiel ${r.lettre} créé · il reste ${montant(r.solde)} à solder.`;
     });
 
   const delettrer = (code: string) =>
@@ -247,8 +248,6 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
         `${r.parMontant} par montant (${r.lettres.join(', ')}).`
       );
     });
-
-  const montant = (v: number) => v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
     <div className="p-2">
@@ -526,7 +525,7 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
                     {l.libelle}
                     {l.devise && (
                       <span className="ml-1.5 text-[11px] text-text-dim font-mono">
-                        {l.montantDevise?.toLocaleString('fr-FR')} {l.devise}
+                        {montant(l.montantDevise, '')} {l.devise}
                       </span>
                     )}
                   </span>

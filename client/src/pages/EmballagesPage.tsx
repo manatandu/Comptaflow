@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { Aide } from '../components/chrome/Aide';
 import type { Tiers } from '../lib/types';
+import { montant as mt } from '../lib/montants';
 
 /**
  * CONSIGNATION D'EMBALLAGES · le compte d'attente qu'il faut dénouer.
@@ -66,9 +67,6 @@ interface Proposition {
   refus: { motif: string; explication: string } | null;
   reserves: string[];
 }
-
-const mt = (n: number) =>
-  n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const LIBELLE_ETAT: Record<Etat, string> = {
   EN_COURS: 'En cours',

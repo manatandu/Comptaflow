@@ -3,6 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { Aide } from '../components/chrome/Aide';
+import { montantOuVide as montant } from '../lib/montants';
 
 /**
  * JUSTIFICATIF DE SOLDE · le détail qui compose le solde d'un compte à une
@@ -48,10 +49,6 @@ interface LigneBalance {
   compteId: string;
   numero: string;
   intitule: string;
-}
-
-function montant(n: number | null): string {
-  return n !== null && n !== 0 ? n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
 }
 
 export function JustificatifSoldePage() {

@@ -3,6 +3,7 @@ import { evaluerExpression } from '../lib/calcul';
 import { PortailModale } from './PortailModale';
 import { Aide } from './chrome/Aide';
 import { ecouterEchap } from '../lib/echap';
+import { montant } from '../lib/montants';
 
 /**
  * CALCULETTE · Édition → Calculette Sage.
@@ -126,7 +127,7 @@ export function Calculette({
             }`}
           >
             {resultat !== null
-              ? resultat.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+              ? montant(resultat)
               : expression
                 ? 'expression incomplète'
                 : ''}

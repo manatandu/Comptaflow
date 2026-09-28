@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { montant } from '../lib/montants';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import {
@@ -72,7 +73,6 @@ const LIBELLE_ETAT: Record<string, string> = {
   CADUC: 'Caduc · sans réponse',
 };
 
-const somme = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const jour = (d: string | null) => (d ? d.slice(0, 10) : '·');
 
 type UnDevis = Etat['devis'][number];
@@ -120,7 +120,7 @@ export function DevisPage() {
   // LA LISTE SE LIT SUR UNE PÉRIODE (audit final F188) · l'exercice courant
   // du sélecteur par défaut, les douze derniers mois sans exercice, et l'écran
   // dit laquelle. Un échec de lecture se dit, il ne laisse pas « Chargement… ».
-  const { exerciceCourant, chargement: chargementExercice } = useExercice();
+  const { exerciceCourant, chargement: chargementExercice, erreur: erreurExercices } = useExercice();
   const [periodeChoisie, setPeriodeChoisie] = useState<PeriodeListe | null>(null);
   const periodeDefaut = useMemo(() => periodeParDefaut(exerciceCourant, new Date()), [exerciceCourant]);
   const periodeListe: PeriodeListe = periodeChoisie ?? periodeDefaut;
@@ -361,6 +361,15 @@ export function DevisPage() {
             />
           </label>
           <span className="text-text-dim">{libellePeriode(periodeListe, originePeriode)}</span>
+          {/* LA PÉRIODE PAR DÉFAUT VIENT DES EXERCICES, ET LEUR ÉCHEC SE DIT ICI (audit
+              final F248) · sans exercice lu, elle retombe sur les douze derniers mois
+              comme sur un dossier qui n'en a aucun ; relue sans succès, elle garde
+              l'exercice d'avant. Même geste que la barre d'état. */}
+          {!chargementExercice && erreurExercices && (
+            <span className="text-danger">
+              {exerciceCourant ? 'Exercices non relus' : 'Exercices illisibles'} · {erreurExercices}
+            </span>
+          )}
         </div>
         {erreurListe && <p className="text-[11.5px] text-danger mb-1.5">{erreurListe}</p>}
         {avisListe && <p className="text-[11.5px] text-warning mb-1.5">{avisListe}</p>}
@@ -410,7 +419,7 @@ export function DevisPage() {
                     </td>
                     <td className="py-1 pr-2">{jour(d.dateEmission)}</td>
                     <td className="py-1 pr-2">{d.clientNom}</td>
-                    <td className="py-1 pr-2 text-right">{somme(d.totalHT)}</td>
+                    <td className="py-1 pr-2 text-right">{montant(d.totalHT)}</td>
                     <td className="py-1 pr-2">{jour(d.etat.dateLimite)}</td>
                     <td className="py-1 pr-2">
                       {/* Une acceptation parvenue après le délai laisse l'offre caduque

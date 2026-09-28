@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import type { CampagneCircularisation, DemandeConfirmation, EchantillonCircularisation, Exercice } from '../lib/types';
+import { montant } from '../lib/montants';
 
 /**
  * CIRCULARISATION · l'inventaire DOCUMENTAIRE du CPCC.
@@ -99,7 +100,6 @@ const lireMontant = (v: string): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
-const montant = (v: unknown) => Number(v ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 });
 const jour = (d: string | null | undefined) => (d ? new Date(d).toLocaleDateString('fr-FR') : '·');
 
 export function CircularisationPage() {

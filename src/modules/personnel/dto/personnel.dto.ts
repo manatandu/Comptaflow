@@ -1,7 +1,9 @@
 import type { RegimeSalarial } from '../bareme-irpp';
 import { BAREMES_SERVIS, MOTIF_BAREME_NON_SAISISSABLE } from '../baremes-dossier';
+import { PLAFOND_ENFANTS_PAR_FICHE } from '../bornes-registre';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   IsArray,
   IsBoolean,
   IsDateString,
@@ -124,8 +126,17 @@ export class SalarieDto {
   @IsBoolean()
   actif?: boolean;
 
+  /**
+   * Bornée à ce que la fiche montre (audit final F259) · la fiche REMPLACE
+   * ses enfants en bloc, et un tableau plus long que la tranche affichée
+   * ferait naître des enfants que l'écran ne rendrait plus, donc qu'un
+   * enregistrement suivant effacerait.
+   */
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(PLAFOND_ENFANTS_PAR_FICHE, {
+    message: `Une fiche porte au plus ${PLAFOND_ENFANTS_PAR_FICHE} enfants à charge, ce que l'écran du registre peut montrer.`,
+  })
   @ValidateNested({ each: true })
   @Type(() => EnfantAChargeDto)
   enfants?: EnfantAChargeDto[];

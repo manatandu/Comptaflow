@@ -1702,6 +1702,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Constat :** un montant en dollars est comparé à un minimum en francs.
 - **Correction :** unité à l'écran ou devise au contrat, et abstention hors franc.
 - **Fait le 2026-09-28 :** le contrat porte la monnaie de sa rémunération (`ContratTravail.deviseRemuneration`, nullable, sans défaut ni rétro-remplissage, migration `20261205000000_contrat_devise_remuneration`) · le contrôle du minimum s'abstient sans elle (`DEVISE_NON_RENSEIGNEE`) et hors franc (`REMUNERATION_HORS_FRANC`), sans rien convertir (décret n° 25/22, art. 2 ; Code du travail, art. 89). Elle se complète une fois (`POST /personnel/contrats/:contratId/devise-remuneration`, 409 sur un changement), et elle comme la fin du contrat s'écrivent par une opération UNITAIRE, un `updateMany` ne laissant au journal d'audit que son filtre. Tests : `regles-contrat-travail.spec.ts`, `registre-borne-et-devise.spec.ts`, `personnel-audit-final.spec.ts`.
+- **Complété le 2026-09-28 :** la modification d'un salarié s'écrit aussi par opérations UNITAIRES · la fiche lue avec la borne du dossier (404 nommé sinon), puis `update` par son identifiant dans `transactionJournalisee`, et les enfants remplacés un à un par `delete` et `create` seulement quand la liste change (au-delà de 50 enfants, le remplacement est refusé, l'écran n'en montrant que 50). Test : `registre-borne-et-devise.spec.ts`.
 
 **F227 · Message de refus de barème qui exclut le SMIG** [paie-12]
 - **Emplacements :** src/modules/personnel/baremes-dossier.ts:131-132
@@ -1725,6 +1726,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Constat :** douze groupes, dont dix dus, et une colonne « art. 100 ».
 - **Correction :** réécrire, et intituler la colonne « Mentions obligatoires ».
 - **Fait le 2026-09-28 :** aucune règle ne change · les commentaires et messages de `mentions-facture.ts` disent les douze points de l'art. 26 du décret n° 23/10, dont dix dus, et les neuf tirets de l'art. 100 du décret n° 011/42, adresse exacte comprise, selon la date de la pièce (`texteApplicable`) ; la colonne s'intitule « Mentions obligatoires ». Tests : `mentions-facture-f229.spec.ts`, `facturation-audit-final.spec.ts`. **Reste :** deux refus de `facturation.service.ts` nomment l'art. 100 quelle que soit la date.
+- **Complété le 2026-09-28 :** les deux refus du service de facturation (identité de la contrepartie manquante, n° de série déjà porté) ne nomment plus l'art. 100 en dur · ils renvoient à la mention du texte en vigueur à la date de la pièce par `renvoiALaMention`, qui passe par `texteApplicable` (point c) de l'art. 26 du décret n° 23/10, troisième tiret de l'art. 100 du décret n° 011/42), et nomment le client sur une vente, le vendeur sur un achat. Une mention que le texte n'écrit pas n'a pas de renvoi. Tests : `facturation.spec.ts`.
 
 ### Analytique et EBNL
 
@@ -1868,6 +1870,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Constat :** ni try ni finally.
 - **Correction :** try/finally, et erreur affichée.
 - **Fait le 2026-09-28 :** `lireLesExercices` ne lève jamais et rend le motif d'un échec (`lecture-exercices.ts`) · le contexte referme son chargement et expose l'erreur, que la barre d'état et la fenêtre Exercices affichent, et l'accueil ne reste plus sur « Chargement… » sans exercice (`exercice.tsx`, `SelecteurExercice.tsx`, `ExercicePage.tsx`, `AccueilPage.tsx`). Tests : `lecture-exercices.spec.ts`, `prechargement.spec.ts`. **Reste :** les devis et la facturation ne disent pas encore que les exercices sont illisibles.
+- **Complété le 2026-09-28 :** les devis et la facturation, dont la période par défaut vient de l'exercice courant, disent l'échec de lecture des exercices dans leur barre de période (« Exercices illisibles » ou « non relus »), au lieu de retomber sans un mot sur les douze derniers mois. Test : `lecture-exercices.spec.ts`.
 
 **F249 · Cache des comptes non vidé après un tiers ou une fusion** [chrome-11, pages-13]
 - **Emplacements :** client/src/lib/api.ts:163-178 · client/src/pages/TiersPage.tsx:268, :322
@@ -1915,12 +1918,14 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Constat :** une erreur devient « Aucun… ».
 - **Correction :** afficher l'erreur.
 - **Fait le 2026-09-28 :** les journaux, le plan et les écritures de la saisie, les comptes de `PasserEcritureFacture.tsx`, les libellés, les simulations et les états personnalisés partent de null et affichent leur échec au lieu d'une liste vide ou de totaux à zéro. Test : `echecs-de-lecture-dits.spec.ts`. **Reste :** dans la saisie, l'état des journaux par mois, les devises, les plans analytiques et les modèles avalent encore leur échec.
+- **Complété le 2026-09-28 :** la saisie des journaux lit aussi à null l'état par mois, les devises, les axes analytiques, les modèles, les fiches du référentiel, les taux de TVA et les libellés, chacun avec son motif affiché avant ce que la liste lue montrerait · un refus des taux, lu comme une liste vide, faisait taire la TVA posée d'office. Même règle pour les taux de la boîte « Achat / Vente avec TVA » (`ModelesSaisie.tsx`) et pour les tiers et les taux de la facturation. Tests : `echecs-de-lecture-dits.spec.ts`, `saisie-en-devise.spec.ts`.
 
 **F256 · Formatage des montants dispersé en une trentaine de copies** [pages-16]
 - **Emplacements :** client/src/pages/DashboardPage.tsx:114, :227 · RapprochementDetailPage.tsx:175 · InventairePage.tsx:84 · CircularisationPage.tsx:85 · ProvisionsPage.tsx:180 · BalanceFonctionnellePage.tsx:21
 - **Condition :** 5
 - **Constat :** options divergentes.
 - **Correction :** formateur unique.
+- **Fait le 2026-09-28 :** les montants s'écrivent par un seul formateur, `client/src/lib/montants.ts`. `montant(v, absent = '·')` écrit deux décimales fixes, arrondit au centime avec le demi-centime loin de zéro des deux côtés, ramène un zéro négatif à zéro et ne lit jamais une absence comme un nombre ; `montantOuVide` tait le zéro et l'absence. Les copies locales de 71 écrans et modules sont remplacées, chacune garde son traitement de l'absence et du zéro ; une quantité (quatre décimales de sa colonne) et un cours (six) ne passent pas par lui. `montants.spec.ts` refuse toute option `minimumFractionDigits: 2` écrite hors de ce fichier.
 
 **F257 · Journal d'audit : une requête par frappe** [pages-17]
 - **Emplacements :** client/src/pages/JournalAuditPage.tsx:106-119, :161-164
@@ -1944,6 +1949,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Constat :** contraire au § 8 bis.
 - **Correction :** borne déclarée.
 - **Fait le 2026-09-28 :** les listes du registre du personnel sont des tranches qui se disent · salariés 1 000, rubriques, bulletins modèles et avances 500, chacune avec son total compté par la base et `tronque` ; la confrontation lit les salariés par lots de 200 et garde les 500 premières fiches, totaux sur le registre entier (`personnel.service.ts`, `avances-rubriques.service.ts`, `liste-bornee-personnel.ts`). Tests : `registre-borne-et-devise.spec.ts`, `liste-bornee-personnel.spec.ts`, `personnel-audit-final.spec.ts`. **Reste :** les collections imbriquées de `lister`, l'effectif du registre et les versions SMIG de la confrontation.
+- **Complété le 2026-09-28 :** les collections imbriquées de la fiche sont bornées et comptées par la base (`bornes-registre.ts` · 50 enfants, 100 contrats, le contrat en cours en tête de la tranche, `contratsTronques`, `enfantsTronques`), et le DTO refuse plus de 50 enfants. L'effectif se compte par `groupBy` et `count`, sans rapatrier les salariés. La confrontation lit au plus 240 grilles SMIG antérieures au mois jugé le plus tardif, et seuls les contrats que les grilles non lues régiraient s'abstiennent (`GRILLES_SMIG_NON_LUES`). Tests : `registre-borne-et-devise.spec.ts`, `accord-cadre.spec.ts`, `baremes-dossier.spec.ts`.
 
 **F260 · Console : collections sans borne et lecture dans une boucle** [plateforme-10]
 - **Emplacements :** src/modules/plateforme/plateforme.service.ts:68 · abonnements.service.ts:107, :281

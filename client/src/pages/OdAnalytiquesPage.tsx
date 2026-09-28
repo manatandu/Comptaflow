@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { Aide } from '../components/chrome/Aide';
 import type { Compte, PlanAnalytique, SectionAnalytique } from '../lib/types';
+import { montant as fmt } from '../lib/montants';
 
 /**
  * SAISIE DES OD ANALYTIQUES · la commande de Sage i7 du même nom.
@@ -33,7 +34,6 @@ interface OdServie {
   lignes: Array<{ sectionCode: string; sectionIntitule: string; debit: number; credit: number }>;
 }
 
-const fmt = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const nombre = (s: string) => Number(s.replace(/\s/g, '').replace(',', '.')) || 0;
 const ligneVide = (): LigneSaisie => ({ sectionId: '', debit: '', credit: '' });
 

@@ -10,6 +10,7 @@ import {
   MENTIONS_DOCUMENT_EN_TENANT_LIEU,
   OBLIGATION_DACCEPTATION,
   ENTREE_EN_VIGUEUR_DECRET_23_10,
+  renvoiALaMention,
   texteApplicable,
   totauxFacture,
   verifierMentions,
@@ -424,6 +425,65 @@ describe('Le service · qui est l’émetteur, et qui est la contrepartie', () =
     await svc.enregistrer('t', dto({ sens: SensFacture.ACHAT }) as never);
     const ou = ((prisma.facture as Faux).findFirst as jest.Mock).mock.calls[0][0].where;
     expect(ou.sens).toBe(SensFacture.ACHAT);
+  });
+});
+
+/*
+  AUDIT FINAL F229, LE RESTE · deux refus du service nommaient l'art. 100 du
+  décret n° 011/42 en dur, quelle que soit la date de la pièce. Une facture de
+  2026 se voyait opposer un article que le décret n° 23/10 a remplacé pour
+  elle. Le renvoi passe désormais par `texteApplicable`, la fonction qui
+  choisit la liste vérifiée · le test compare le message au renvoi qu'elle
+  rend, pour qu'une seconde règle de date écrite dans le service ne passe pas.
+*/
+describe('F229 · les refus nomment le texte en vigueur à la date de la pièce', () => {
+  const EN_2022 = '2022-11-30';
+  const EN_2026 = '2026-09-10';
+
+  const refus = async (sur: Faux, doublon: Faux | null = null): Promise<string> => {
+    const { svc } = service([], doublon);
+    try {
+      await svc.enregistrer('t', dto(sur) as never);
+    } catch (e) {
+      return (e as Error).message;
+    }
+    throw new Error('aucun refus');
+  };
+
+  it('le renvoi se lit dans la liste du texte · tirets de l’art. 100, lettres de l’art. 26', () => {
+    expect(renvoiALaMention(new Date(`${EN_2022}T00:00:00Z`), 'DATE_ET_NUMERO')).toBe(
+      'troisième tiret de l’art. 100 du décret n° 011/42',
+    );
+    expect(renvoiALaMention(new Date(`${EN_2026}T00:00:00Z`), 'DATE_ET_NUMERO')).toBe(
+      'point c) de l’art. 26 du décret n° 23/10',
+    );
+    // Le dixième groupe n'est écrit qu'à l'art. 26 · aucun tiret ne le porte.
+    expect(renvoiALaMention(new Date(`${EN_2026}T00:00:00Z`), 'AUTRES_IMPOTS_ET_TAXES')).toBe(
+      'point j) de l’art. 26 du décret n° 23/10',
+    );
+    expect(() => renvoiALaMention(new Date(`${EN_2022}T00:00:00Z`), 'AUTRES_IMPOTS_ET_TAXES')).toThrow();
+  });
+
+  it('le n° de série déjà porté · une pièce de 2022 et une de 2026 ne reçoivent pas le même refus', async () => {
+    const ancien = await refus({ dateFacture: EN_2022 }, { id: 'deja' });
+    const recent = await refus({ dateFacture: EN_2026 }, { id: 'deja' });
+    expect(ancien).not.toBe(recent);
+    expect(ancien).toContain(renvoiALaMention(new Date(EN_2022), 'DATE_ET_NUMERO'));
+    expect(recent).toContain(renvoiALaMention(new Date(EN_2026), 'DATE_ET_NUMERO'));
+    expect(recent).toContain('art. 26 du décret n° 23/10');
+    expect(recent).not.toContain('011/42');
+  });
+
+  it('l’identité manquante · le texte suit la date, la mention suit le sens', async () => {
+    const venteAncienne = await refus({ dateFacture: EN_2022, contrepartieNom: '' });
+    const venteRecente = await refus({ dateFacture: EN_2026, contrepartieNom: '' });
+    const achatRecent = await refus({ dateFacture: EN_2026, contrepartieNom: '', sens: SensFacture.ACHAT });
+    expect(venteAncienne).not.toBe(venteRecente);
+    expect(venteAncienne).toContain(renvoiALaMention(new Date(EN_2022), 'IDENTITE_CLIENT'));
+    expect(venteRecente).toContain(renvoiALaMention(new Date(EN_2026), 'IDENTITE_CLIENT'));
+    expect(venteRecente).not.toContain('011/42');
+    // Sur un achat, la contrepartie est le VENDEUR · la première mention, pas la deuxième.
+    expect(achatRecent).toContain(renvoiALaMention(new Date(EN_2026), 'IDENTITE_VENDEUR'));
   });
 });
 

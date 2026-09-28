@@ -184,6 +184,119 @@ describe('saisie des journaux · journaux, comptes et écritures illisibles se d
   });
 });
 
+describe('saisie des journaux · état par mois, devises, axes et modèles illisibles se disent (reste de F255)', () => {
+  const source = lire('SaisiePage.tsx');
+
+  /** Le corps d'une lecture, de son appel à la fin de son effet · jamais une distance fixe. */
+  const lecture = (debut: string, fin: string) => {
+    const i = source.indexOf(debut);
+    expect({ debut, trouve: i > -1 }).toEqual({ debut, trouve: true });
+    const j = source.indexOf(fin, i);
+    expect({ fin, trouve: j > i }).toEqual({ fin, trouve: true });
+    return source.slice(i, j);
+  };
+
+  it('les quatre listes partent de null', () => {
+    expect(source).toContain('useState<LigneGrilleSaisie[] | null>(null)');
+    expect(source).toContain('useState<DeviseDuDossier[] | null>(null)');
+    expect(source).toContain('useState<PlanAnalytique[] | null>(null)');
+    expect(source).toContain('useState<ModeleSaisie[] | null>(null)');
+  });
+
+  it('l’état des journaux par mois · un refus efface la grille et pose son motif', () => {
+    const corps = lecture('`/journaux/saisie?exerciceId=', '}, [ouvert, exerciceCourant?.id]);');
+    expect(corps).toContain('setGrilleLue(null);');
+    expect(corps).toContain('setErreurGrille(e instanceof Error');
+  });
+
+  it('les devises · un refus pose son motif', () => {
+    const corps = lecture("api.get<DeviseDuDossier[]>('/devises').then(", "api.get<PlanAnalytique[]>('/analytique/plans')");
+    expect(corps).toContain('(e) => setErreurDevises(e instanceof Error');
+  });
+
+  it('les axes analytiques · le plan refusé comme les sections refusées d’un axe posent un motif', () => {
+    const corps = lecture("api.get<PlanAnalytique[]>('/analytique/plans').then(", '\n  }, []);');
+    expect(corps).toContain('(e) => setErreurAnalytique(e instanceof Error');
+    // Les sections refusées ne valent pas « aucune section » · l'axe est nommé.
+    expect(corps).toContain("erreur: e instanceof Error ? e.message : 'refus'");
+    expect(corps).toContain('refusees.length === 0');
+  });
+
+  it('les modèles de saisie · un refus ne laisse pas une liste, il pose son motif', () => {
+    const corps = lecture('api.get<ModeleSaisie[]>(`/modeles-saisie?journalId=', '}, [journal?.id]);');
+    expect(corps).toContain('setModelesLus(null);');
+    expect(corps).toContain('setErreurModeles(e instanceof Error');
+  });
+
+  it('chaque motif s’affiche, et avant ce que la liste lue montrerait', () => {
+    const avant = (message: string, suite: string) => {
+      const i = source.indexOf(message);
+      expect({ message, trouve: i > -1 }).toEqual({ message, trouve: true });
+      expect(source.indexOf(suite, i)).toBeGreaterThan(i);
+    };
+    avant('État des journaux par mois illisible · {erreurGrille}', "(['BROUILLARD', 'JOURNAL', 'CLOTURE'] as const)");
+    avant('Modèles de saisie illisibles · {erreurModeles}', '{peutEcrire && modeles.length > 0 && (');
+    avant('Axes analytiques illisibles · {erreurAnalytique}', '{/* Zone de saisie de la ligne');
+    avant('Devises illisibles · {erreurDevises}', '{devises.length > 0 && (');
+  });
+});
+
+describe('saisie des journaux · fiches du référentiel, taux de TVA et libellés illisibles se disent (reste de F255)', () => {
+  const source = lire('SaisiePage.tsx');
+
+  /** Le corps d'une lecture, de son appel à la lecture qui la suit · jamais une distance fixe. */
+  const lecture = (debut: string, fin: string) => {
+    const i = source.indexOf(debut);
+    expect({ debut, trouve: i > -1 }).toEqual({ debut, trouve: true });
+    const j = source.indexOf(fin, i);
+    expect({ fin, trouve: j > i }).toEqual({ fin, trouve: true });
+    return source.slice(i, j);
+  };
+
+  it('les trois listes partent de null', () => {
+    expect(source).toContain('useState<RegleCompte[] | null>(null)');
+    expect(source).toContain('useState<TauxTva[] | null>(null)');
+    expect(source).toContain('useState<LibellePredefini[] | null>(null)');
+  });
+
+  it('les fiches du référentiel · un refus ne vaut pas « aucune exclusion », il pose son motif', () => {
+    const corps = lecture("api.get<RegleCompte[]>('/controles/regles-comptes').then(", "api.get<TauxTva[]>('/taux-tva");
+    expect(corps).toContain('setReglesLues(null);');
+    expect(corps).toContain('setErreurRegles(e instanceof Error');
+  });
+
+  it('les taux de TVA · un refus ne fait pas taire la TVA posée d’office, il pose son motif', () => {
+    const corps = lecture("api.get<TauxTva[]>('/taux-tva?actifsSeuls=true').then(", "'/dossier/parametres'");
+    expect(corps).toContain('setTauxTvaLus(null);');
+    expect(corps).toContain('setErreurTauxTva(e instanceof Error');
+  });
+
+  it('les libellés pré-enregistrés · un refus pose son motif', () => {
+    const corps = lecture("api.get<LibellePredefini[]>('/libelles-ecriture').then(", '\n  }, []);');
+    expect(corps).toContain('setLibellesLus(null);');
+    expect(corps).toContain('setErreurLibelles(e instanceof Error');
+  });
+
+  it('chaque motif s’affiche sur une ligne, avant ce que la liste lue montrerait', () => {
+    const avant = (message: string, suite: string) => {
+      const i = source.indexOf(message);
+      expect({ message, trouve: i > -1 }).toEqual({ message, trouve: true });
+      expect(source.indexOf(suite, i)).toBeGreaterThan(i);
+    };
+    avant('Fiches du référentiel illisibles · {erreurRegles}', '{regleDuCompte?.exclusions && (');
+    avant('Taux de TVA illisibles · {erreurTauxTva}', '{/* Zone de saisie de la ligne');
+    avant('Libellés pré-enregistrés illisibles · {erreurLibelles}', '{/* Zone de saisie de la ligne');
+  });
+
+  it('le motif n’est gardé que par son erreur · aucune autre condition ne le tait', () => {
+    // Ancré sur la STRUCTURE (la garde tient directement la ligne du motif),
+    // jamais sur une distance · un motif écrit mais jamais rendu ne dit rien.
+    expect(source).toMatch(/\{erreurRegles && \(\s*<div[^>]*>\s*Fiches du référentiel illisibles · \{erreurRegles\}/);
+    expect(source).toMatch(/\{erreurTauxTva && \(\s*<div[^>]*>\s*Taux de TVA illisibles · \{erreurTauxTva\}/);
+    expect(source).toMatch(/\{erreurLibelles && \(\s*<div[^>]*>\s*Libellés pré-enregistrés illisibles · \{erreurLibelles\}/);
+  });
+});
+
 describe('passage d’une facture au journal · une lecture refusée se dit (F255)', () => {
   const source = readFileSync(join(__dirname, '..', 'components', 'PasserEcritureFacture.tsx'), 'utf8');
 
@@ -241,4 +354,48 @@ describe('libellés, simulations, états personnalisés · « aucun » sur une l
       verifierTroisBranches(lire(e.fichier), e.erreur, e.lecture, e.vide);
     });
   }
+});
+
+describe('facture avec TVA et facturation · tiers et taux illisibles se disent (reste de F255)', () => {
+  const modeles = readFileSync(join(__dirname, '..', 'components', 'ModelesSaisie.tsx'), 'utf8');
+  const facturation = lire('FacturationPage.tsx');
+
+  /** Le corps d'une lecture, de son appel à la fin de son effet · jamais une distance fixe. */
+  const lecture = (source: string, debut: string, fin: string) => {
+    const i = source.indexOf(debut);
+    expect({ debut, trouve: i > -1 }).toEqual({ debut, trouve: true });
+    const j = source.indexOf(fin, i);
+    expect({ fin, trouve: j > i }).toEqual({ fin, trouve: true });
+    return source.slice(i, j);
+  };
+
+  it('les listes partent de null', () => {
+    expect(modeles).toContain('useState<TauxTva[] | null>(null)');
+    expect(facturation).toContain('useState<Tiers[] | null>(null)');
+    expect(facturation).toContain('useState<TauxTva[] | null>(null)');
+  });
+
+  it('la boîte « Achat / Vente avec TVA » · un refus des taux pose son motif', () => {
+    const corps = lecture(modeles, "api.get<TauxTva[]>('/taux-tva?actifsSeuls=true').then(", '}, [estSyscohada]);');
+    expect(corps).toContain('setTauxTvaLus(null);');
+    expect(corps).toContain('setErreurTauxTva(e instanceof Error');
+  });
+
+  it('la facturation · un refus des tiers comme des taux pose son motif', () => {
+    const tiers = lecture(facturation, "api.get<Tiers[]>('/tiers?actifsSeuls=true').then(", "api.get<TauxTva[]>('/taux-tva");
+    expect(tiers).toContain('setTiersLus(null);');
+    expect(tiers).toContain("setErreurTiers(motif(e,");
+    const taux = lecture(facturation, "api.get<TauxTva[]>('/taux-tva?actifsSeuls=true').then(", '\n  }, []);');
+    expect(taux).toContain('setTauxLus(null);');
+    expect(taux).toContain("setErreurTaux(motif(e,");
+  });
+
+  it('le motif est rendu sous la liste qu’il concerne, gardé par sa seule erreur', () => {
+    // Ancré sur la STRUCTURE · la fin du menu déroulant, puis la ligne du motif.
+    expect(modeles).toMatch(
+      /tauxDisponibles\.map[\s\S]*?<\/select>\s*\{erreurTauxTva && \(\s*<>\s*<span \/>\s*<span[^>]*>Taux de TVA illisibles · \{erreurTauxTva\}/,
+    );
+    expect(facturation).toMatch(/tiersDuSens\.map[\s\S]*?<\/select>\s*\{erreurTiers && <span[^>]*>Tiers illisibles · \{erreurTiers\}/);
+    expect(facturation).toMatch(/tauxListe\.map[\s\S]*?<\/select>\s*\{erreurTaux && <span[^>]*>Taux de TVA illisibles · \{erreurTaux\}/);
+  });
 });

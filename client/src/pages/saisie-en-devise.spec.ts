@@ -23,7 +23,11 @@ function corps(debut: string, fin: string): string {
 
 describe('F49 · la saisie d’une ligne en devise', () => {
   it('les devises proposées sont celles du dossier, sans la monnaie de tenue', () => {
-    expect(page).toMatch(/api\.get<DeviseDuDossier\[\]>\('\/devises'\)\.then\(\s*\(ds\) => setDevises\(devisesEtrangeres\(ds\)\)/);
+    // La liste part de null depuis le reste de l'audit final F255 · ce qui
+    // est gelé ici reste le filtre de la liste LUE, pas le nom de l'état.
+    expect(page).toMatch(
+      /api\.get<DeviseDuDossier\[\]>\('\/devises'\)\.then\(\s*\(ds\) => \{\s*setDevisesLues\(devisesEtrangeres\(ds\)\);/,
+    );
   });
 
   it('la ligne validée emporte l’opération en devise, vérifiée avant', () => {

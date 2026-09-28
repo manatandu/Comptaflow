@@ -11,6 +11,7 @@ import {
   type ListeOrdresVirement,
   type StatutOrdre,
 } from '../lib/liste-ordres-virement';
+import { montant as fmt } from '../lib/montants';
 
 interface OrdreResume {
   id: string;
@@ -47,8 +48,6 @@ interface Ordre extends Omit<OrdreResume, '_count'> {
   lignes: LigneOrdre[];
 }
 
-const fmt = (n: string | number) =>
-  Number(n).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const jour = (d: string) => new Date(d).toLocaleDateString('fr-FR', { timeZone: 'UTC' });
 
 /**

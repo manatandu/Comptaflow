@@ -14,6 +14,7 @@ import type {
   RoleMembreInventaire,
   SousCommissionInventaire,
 } from '../lib/types';
+import { montant } from '../lib/montants';
 
 /**
  * INVENTAIRE PHYSIQUE · les six étapes du CPCC, dans l'ordre où elles se font.
@@ -84,7 +85,6 @@ const BOUTON = 'border border-border rounded-[3px] px-2.5 py-[3px] text-[11.5px]
 const BOUTON_PRINCIPAL =
   'bg-sel text-white rounded-[3px] px-2.5 py-[3px] text-[11.5px] font-semibold disabled:opacity-40';
 
-const montant = (v: unknown) => Number(v ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 });
 const jour = (d: string | null | undefined) => (d ? new Date(d).toLocaleDateString('fr-FR') : '·');
 
 export function InventairePage() {

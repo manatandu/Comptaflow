@@ -270,16 +270,16 @@ export class TenantService {
     tenantId: string,
     dto: {
       nom?: string;
-      activite?: string;
-      adresse?: string;
-      ville?: string;
-      pays?: string;
-      telephone?: string;
-      email?: string;
-      siteWeb?: string;
+      activite?: string | null;
+      adresse?: string | null;
+      ville?: string | null;
+      pays?: string | null;
+      telephone?: string | null;
+      email?: string | null;
+      siteWeb?: string | null;
       capitalSocial?: number | null;
       capitalVariable?: boolean;
-      deviseFonctionnelle?: string;
+      deviseFonctionnelle?: string | null;
     },
   ) {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
@@ -299,7 +299,10 @@ export class TenantService {
     // soit jamais saisi · le second jeu se produirait alors avec des lignes
     // muettes, et un jeu incomplet qui ne se dit pas incomplet est pire qu'un
     // refus. Chaîne vide = on retire la monnaie fonctionnelle, toujours permis.
-    const fonctionnelle = dto.deviseFonctionnelle?.trim().toUpperCase();
+    // `null` aussi (2026-09-28) · il était lu comme « absent » et ignoré en
+    // silence, là où l'appelant demandait un retrait.
+    const fonctionnelle =
+      dto.deviseFonctionnelle === null ? '' : dto.deviseFonctionnelle?.trim().toUpperCase();
     if (fonctionnelle) {
       if (fonctionnelle === MONNAIE_DE_TENUE) {
         throw new BadRequestException(
@@ -320,7 +323,11 @@ export class TenantService {
     }
     // Chaîne vide = effacement (`null`), sauf pour la raison sociale que le
     // DTO refuse déjà vide · elle figure en tête de chaque état imprimé.
-    const normaliser = (v: string | undefined) => (v === undefined ? undefined : v.trim() === '' ? null : v.trim());
+    // `null` vaut effacement lui aussi (2026-09-28) · `@IsOptional` le laisse
+    // passer, et `.trim()` sur lui rendait un 500 sans motif, comme sur les
+    // identifiants légaux avant F237.
+    const normaliser = (v: string | null | undefined) =>
+      v === undefined ? undefined : v === null || v.trim() === '' ? null : v.trim();
     await this.prisma.tenant.update({
       where: { id: tenantId },
       data: {
@@ -707,7 +714,7 @@ export class TenantService {
       venteBiensServices?: ReponseFait;
       dateOptionTva?: string;
       effectifPermanent?: number;
-      numeroAffiliationCnssEmployeur?: string;
+      numeroAffiliationCnssEmployeur?: string | null;
       regimeExigibiliteTva?: RegimeExigibiliteTva;
       dateAutorisationDebitsTva?: string;
     },
@@ -725,9 +732,12 @@ export class TenantService {
         // seul posait une date invalide, ou le 1er janvier 1970 sur un null.
         ...(dto.dateOptionTva === undefined ? {} : { dateOptionTva: dateSaisieOuEffacement(dto.dateOptionTva) }),
         ...(dto.effectifPermanent === undefined ? {} : { effectifPermanent: dto.effectifPermanent }),
+        // `null` efface, comme la chaîne vide (2026-09-28) · `.trim()` sur lui
+        // rendait un 500. Les champs dont la colonne n'admet pas `null`
+        // (booléen, effectif, régime) le refusent au DTO (`FacultatifNonNul`).
         ...(dto.numeroAffiliationCnssEmployeur === undefined
           ? {}
-          : { numeroAffiliationCnssEmployeur: dto.numeroAffiliationCnssEmployeur.trim() || null }),
+          : { numeroAffiliationCnssEmployeur: dto.numeroAffiliationCnssEmployeur?.trim() || null }),
         ...(dto.regimeExigibiliteTva === undefined ? {} : { regimeExigibiliteTva: dto.regimeExigibiliteTva }),
         ...(dto.dateAutorisationDebitsTva === undefined
           ? {}

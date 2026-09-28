@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { PasserEcritureFacture } from '../components/PasserEcritureFacture';
 import { api, ApiError } from '../lib/api';
+import { montant } from '../lib/montants';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import {
@@ -144,8 +145,13 @@ type EtatDetaille = {
   consequenceDuDefaut: string;
 };
 
-const somme = (n: number | null | undefined) =>
-  typeof n === 'number' ? n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '·';
+/** Les listes stables servies tant que rien n'est lu · une référence neuve relancerait les effets. */
+const AUCUN_TIERS: Tiers[] = [];
+const AUCUN_TAUX: TauxTva[] = [];
+
+/** Une quantité n'est pas un montant · elle garde les quatre décimales de sa colonne (audit final F256). */
+const enQuantite = (n: number | null | undefined) =>
+  typeof n === 'number' ? n.toLocaleString('fr-FR', { maximumFractionDigits: 4 }) : '·';
 
 export function FacturationPage() {
   const { peutEcrire, utilisateur } = useAuth();
@@ -174,8 +180,15 @@ export function FacturationPage() {
   // l'écriture » refusait toute pièce saisie ici.
   const [tiersId, setTiersId] = useState('');
   const [tauxTvaId, setTauxTvaId] = useState('');
-  const [tiersListe, setTiersListe] = useState<Tiers[]>([]);
-  const [tauxListe, setTauxListe] = useState<TauxTva[]>([]);
+  // LES DEUX LISTES PARTENT DE null ET LEUR REFUS SE DIT (audit final F255) ·
+  // lu comme une liste vide, un refus laissait croire que le dossier n'a ni
+  // tiers ni taux, et la pièce partait sans l'un ni l'autre.
+  const [tiersLus, setTiersLus] = useState<Tiers[] | null>(null);
+  const [erreurTiers, setErreurTiers] = useState<string | null>(null);
+  const tiersListe = tiersLus ?? AUCUN_TIERS;
+  const [tauxLus, setTauxLus] = useState<TauxTva[] | null>(null);
+  const [erreurTaux, setErreurTaux] = useState<string | null>(null);
+  const tauxListe = tauxLus ?? AUCUN_TAUX;
   // `null` tant que personne n'a touché la case · elle suit alors le régime.
   const [mentionDebits, setMentionDebits] = useState<boolean | null>(null);
   const [periode, setPeriode] = useState('');
@@ -197,7 +210,7 @@ export function FacturationPage() {
   // LA LISTE SE LIT SUR UNE PÉRIODE (audit final F188) · l'exercice courant
   // du sélecteur par défaut, les douze derniers mois sans exercice, et l'écran
   // dit laquelle. Un échec de lecture se dit, il ne laisse pas « Chargement… ».
-  const { exerciceCourant, chargement: chargementExercice } = useExercice();
+  const { exerciceCourant, chargement: chargementExercice, erreur: erreurExercices } = useExercice();
   const [periodeChoisie, setPeriodeChoisie] = useState<PeriodeListe | null>(null);
   const periodeDefaut = useMemo(() => periodeParDefaut(exerciceCourant, new Date()), [exerciceCourant]);
   const periodeListe: PeriodeListe = periodeChoisie ?? periodeDefaut;
@@ -232,8 +245,35 @@ export function FacturationPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chargementExercice, periodeListe.du, periodeListe.au]);
   useEffect(() => {
-    api.get<Tiers[]>('/tiers?actifsSeuls=true').then(setTiersListe, () => setTiersListe([]));
-    api.get<TauxTva[]>('/taux-tva?actifsSeuls=true').then(setTauxListe, () => setTauxListe([]));
+    let annule = false;
+    const motif = (e: unknown, defaut: string) => (e instanceof Error ? e.message : defaut);
+    api.get<Tiers[]>('/tiers?actifsSeuls=true').then(
+      (t) => {
+        if (annule) return;
+        setTiersLus(t);
+        setErreurTiers(null);
+      },
+      (e) => {
+        if (annule) return;
+        setTiersLus(null);
+        setErreurTiers(motif(e, "Le plan des tiers n'a pas pu être lu."));
+      },
+    );
+    api.get<TauxTva[]>('/taux-tva?actifsSeuls=true').then(
+      (t) => {
+        if (annule) return;
+        setTauxLus(t);
+        setErreurTaux(null);
+      },
+      (e) => {
+        if (annule) return;
+        setTauxLus(null);
+        setErreurTaux(motif(e, "Les taux de TVA n'ont pas pu être lus."));
+      },
+    );
+    return () => {
+      annule = true;
+    };
   }, []);
   const tiersDuSens = tiersListe.filter((t) => (sens === 'VENTE' ? t.type === 'CLIENT' || t.type === 'ADHERENT' : t.type === 'FOURNISSEUR'));
   const mentionDebitsCochee = mentionDebits ?? mentionDebitsProposee(sens, etat?.regimeExigibiliteTva);
@@ -417,6 +457,7 @@ export function FacturationPage() {
                 </option>
               ))}
             </select>
+            {erreurTiers && <span className="block text-danger">Tiers illisibles · {erreurTiers}</span>}
           </label>
           <label className="text-[11.5px]">
             N° de série
@@ -472,6 +513,7 @@ export function FacturationPage() {
                 </option>
               ))}
             </select>
+            {erreurTaux && <span className="block text-danger">Taux de TVA illisibles · {erreurTaux}</span>}
           </label>
           <label className="text-[11.5px]">
             Taux de TVA (%)
@@ -587,19 +629,19 @@ export function FacturationPage() {
                       <td className="py-1 pr-2">{l.numeroFacture}</td>
                       <td className="py-1 pr-2">{l.dateFacture}</td>
                       <td className="py-1 pr-2">{l.designation}</td>
-                      <td className="py-1 pr-2 text-right">{somme(l.quantite)}</td>
-                      <td className="py-1 pr-2 text-right">{somme(l.prixHT)}</td>
-                      <td className="py-1 pr-2 text-right">{somme(l.tvaFacturee)}</td>
-                      <td className="py-1 text-right">{somme(l.montantTTC)}</td>
+                      <td className="py-1 pr-2 text-right">{enQuantite(l.quantite)}</td>
+                      <td className="py-1 pr-2 text-right">{montant(l.prixHT)}</td>
+                      <td className="py-1 pr-2 text-right">{montant(l.tvaFacturee)}</td>
+                      <td className="py-1 text-right">{montant(l.montantTTC)}</td>
                     </tr>
                   ))}
                   <tr className="font-bold">
                     <td className="py-1 pr-2" colSpan={6}>
                       Totaux
                     </td>
-                    <td className="py-1 pr-2 text-right">{somme(detaille.totalHT)}</td>
-                    <td className="py-1 pr-2 text-right">{somme(detaille.totalTva)}</td>
-                    <td className="py-1 text-right">{somme(detaille.totalTTC)}</td>
+                    <td className="py-1 pr-2 text-right">{montant(detaille.totalHT)}</td>
+                    <td className="py-1 pr-2 text-right">{montant(detaille.totalTva)}</td>
+                    <td className="py-1 text-right">{montant(detaille.totalTTC)}</td>
                   </tr>
                 </tbody>
               </table>
@@ -611,7 +653,7 @@ export function FacturationPage() {
                 <ul className="text-[11.5px] text-text-dim mt-1">
                   {(detaille.facturesAnnulees ?? []).map((a) => (
                     <li key={a.numeroFacture}>
-                      Facture {a.numeroFacture} du {a.dateFacture} · TVA {somme(a.tvaFacturee)} ·{' '}
+                      Facture {a.numeroFacture} du {a.dateFacture} · TVA {montant(a.tvaFacturee)} ·{' '}
                       {a.ecarteeDesTotaux ? 'hors des totaux' : 'comprise dans les totaux'} · {a.motif}
                     </li>
                   ))}
@@ -672,6 +714,15 @@ export function FacturationPage() {
             />
           </label>
           <span className="text-text-dim">{libellePeriode(periodeListe, originePeriode)}</span>
+          {/* LA PÉRIODE PAR DÉFAUT VIENT DES EXERCICES, ET LEUR ÉCHEC SE DIT ICI (audit
+              final F248) · sans exercice lu, elle retombe sur les douze derniers mois
+              comme sur un dossier qui n'en a aucun ; relue sans succès, elle garde
+              l'exercice d'avant. Même geste que la barre d'état. */}
+          {!chargementExercice && erreurExercices && (
+            <span className="text-danger">
+              {exerciceCourant ? 'Exercices non relus' : 'Exercices illisibles'} · {erreurExercices}
+            </span>
+          )}
         </div>
         {erreurListe && <p className="text-[11.5px] text-danger mb-1.5">{erreurListe}</p>}
         {avisListe && <p className="text-[11.5px] text-warning mb-1.5">{avisListe}</p>}
@@ -778,9 +829,9 @@ export function FacturationPage() {
                     </td>
                     <td className="py-1 pr-2">{f.dateFacture.slice(0, 10)}</td>
                     <td className="py-1 pr-2">{f.sens === 'VENTE' ? f.contrepartieNom : f.emetteurNom}</td>
-                    <td className="py-1 pr-2 text-right">{somme(f.totaux.montantHT)}</td>
-                    <td className="py-1 pr-2 text-right">{somme(f.totaux.montantTva)}</td>
-                    <td className="py-1 pr-2 text-right">{somme(f.totaux.montantTTC)}</td>
+                    <td className="py-1 pr-2 text-right">{montant(f.totaux.montantHT)}</td>
+                    <td className="py-1 pr-2 text-right">{montant(f.totaux.montantTva)}</td>
+                    <td className="py-1 pr-2 text-right">{montant(f.totaux.montantTTC)}</td>
                     <td className="py-1">
                       {f.mentions.conforme ? (
                         <span>Tous les groupes exigibles sont servis.</span>

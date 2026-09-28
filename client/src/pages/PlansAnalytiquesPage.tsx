@@ -5,6 +5,7 @@ import { useExercice } from '../lib/exercice';
 import { Aide } from '../components/chrome/Aide';
 import type { Bailleur, BudgetSection, PlanAnalytique, SectionAnalytique } from '../lib/types';
 import { PortailModale } from '../components/PortailModale';
+import { montant } from '../lib/montants';
 
 /**
  * PLANS ANALYTIQUES · Structure → Plan analytique de Sage 100 i7, dans la
@@ -27,10 +28,6 @@ const MOIS = ['janv.', 'févr.', 'mars', 'avril', 'mai', 'juin', 'juil.', 'août
 /** Une date ISO renvoyée par l'API, en jour/mois/année. */
 function jour(iso: string | null): string {
   return iso ? new Date(iso).toLocaleDateString('fr-FR') : '…';
-}
-
-function montant(n: number): string {
-  return n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 export function PlansAnalytiquesPage() {

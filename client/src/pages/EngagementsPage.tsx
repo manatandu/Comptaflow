@@ -11,6 +11,7 @@ import type {
   PlanAnalytique,
   SectionAnalytique,
 } from '../lib/types';
+import { montant } from '../lib/montants';
 
 /**
  * REGISTRE DES ENGAGEMENTS DE DÉPENSE.
@@ -33,10 +34,6 @@ const NATURES: { valeur: NatureEngagement; libelle: string }[] = [
   { valeur: 'BON_DE_COMMANDE', libelle: 'Bon de commande' },
   { valeur: 'CONTRAT', libelle: 'Contrat' },
 ];
-
-function montant(n: number): string {
-  return n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 
 function jour(iso: string): string {
   return new Date(iso).toLocaleDateString('fr-FR');

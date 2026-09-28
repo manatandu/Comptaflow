@@ -7,6 +7,7 @@ import { EtatsIfrsConsolides } from '../components/EtatsIfrsConsolides';
 import { VariationCapitauxPropresIfrs, VariationServie } from '../components/VariationCapitauxPropresIfrs';
 import { DeclarationEffetChange, EffetChange, FluxServi, TableauFluxIfrs } from '../components/FluxTresorerieIfrs';
 import { Aide } from '../components/chrome/Aide';
+import { montant } from '../lib/montants';
 
 /**
  * ÉTATS IFRS EN SUS DU JEU LÉGAL · item 15, tranche 1 (AUDCIF art. 73-1,
@@ -102,7 +103,7 @@ type Etat = {
 };
 
 const champ = 'w-full border border-border px-1.5 py-1 text-[11.5px]';
-const fc = (v: number | null | undefined) => (v == null ? '' : v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+const fc = (v: number | null | undefined) => montant(v, '');
 const nombre = (v: string) => (v.trim() === '' ? NaN : Number(v.replace(/\s/g, '').replace(',', '.')));
 
 /** Comptes individuels ou comptes consolidés · deux jeux IFRS, deux ensembles de retraitements. */

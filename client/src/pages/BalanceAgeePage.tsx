@@ -4,6 +4,7 @@ import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
+import { montantOuVide as montant } from '../lib/montants';
 
 /**
  * BALANCE ÂGÉE · l'antériorité des créances et dettes non lettrées, tiers par
@@ -89,10 +90,6 @@ const LIBELLE_TYPE_SYSCOHADA: Record<TypeTiers, string> = {
   ETAT_44: 'État (44), hors TVA',
   DIVERS_47: 'Débiteurs et créditeurs divers (47)',
 };
-
-function montant(n: number): string {
-  return n !== 0 ? n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
-}
 
 export function BalanceAgeePage() {
   const { exerciceCourant } = useExercice();

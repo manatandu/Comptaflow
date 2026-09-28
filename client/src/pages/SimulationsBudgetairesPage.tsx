@@ -13,6 +13,7 @@ import {
   type Jauge,
   type SimulationBudgetaire,
 } from '../lib/simulations-budgetaires';
+import * as montants from '../lib/montants';
 
 /**
  * SIMULATEUR BUDGÉTAIRE (priorité 6 de la comparaison avec les autres produits
@@ -21,7 +22,7 @@ import {
  * hypothèses sont enregistrées · les montants se relisent à chaque calcul, et
  * rien n'est passé au journal.
  */
-const montant = (n: number | null) => (n === null ? '' : n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+const montant = (n: number | null) => montants.montant(n, '');
 const pc = (n: number | null) => (n === null ? '' : `${n.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} %`);
 const nombre = (v: string) => Number(v.replace(/\s/g, '').replace(',', '.'));
 const champ = 'border border-border-dark px-1.5 py-0.5 text-[11.5px]';

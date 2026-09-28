@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { montant } from '../lib/montants';
 import { useExercice } from '../lib/exercice';
 import { ModelesSaisieModale, type LigneInseree } from '../components/ModelesSaisie';
 import { Calculette } from '../components/Calculette';
@@ -190,6 +191,14 @@ const LIBELLE_TYPE_JOURNAL: Record<Journal['type'], string> = {
 // calculs qui dépendent des comptes.
 const AUCUN_JOURNAL: Journal[] = [];
 const AUCUN_COMPTE: Compte[] = [];
+const AUCUNE_LIGNE_DE_GRILLE: LigneGrilleSaisie[] = [];
+const AUCUNE_DEVISE: DeviseDuDossier[] = [];
+const AUCUN_PLAN: PlanAnalytique[] = [];
+const AUCUN_MODELE: ModeleSaisie[] = [];
+const AUCUNE_REGLE: RegleCompte[] = [];
+const AUCUN_TAUX_TVA: TauxTva[] = [];
+type LibellePredefini = { id: string; code: string; intitule: string };
+const AUCUN_LIBELLE: LibellePredefini[] = [];
 
 export function SaisiePage() {
   const { exerciceCourant } = useExercice();
@@ -203,7 +212,12 @@ export function SaisiePage() {
   const [erreurJournaux, setErreurJournaux] = useState<string | null>(null);
   const journaux = journauxLus ?? AUCUN_JOURNAL;
   // État de chaque journal, mois par mois (fenêtre des journaux de saisie).
-  const [grilleSaisie, setGrilleSaisie] = useState<LigneGrilleSaisie[]>([]);
+  // Null tant qu'il n'est pas lu, et après un refus (reste de l'audit final
+  // F255) · une case jamais lue est aussi blanche qu'un mois sans écriture, et
+  // la grille entière se lisait « rien de saisi » sans que rien ne le dise.
+  const [grilleLue, setGrilleLue] = useState<LigneGrilleSaisie[] | null>(null);
+  const [erreurGrille, setErreurGrille] = useState<string | null>(null);
+  const grilleSaisie = grilleLue ?? AUCUNE_LIGNE_DE_GRILLE;
   const [comptesLus, setComptesLus] = useState<Compte[] | null>(null);
   const [erreurComptes, setErreurComptes] = useState<string | null>(null);
   const comptes = comptesLus ?? AUCUN_COMPTE;
@@ -234,7 +248,13 @@ export function SaisiePage() {
   // de l'audit final F255).
   const [ecrituresLues, setEcrituresLues] = useState(false);
   const [rechargement, setRechargement] = useState(0);
-  const [plans, setPlans] = useState<PlanAnalytique[]>([]);
+  // Les axes analytiques partent de null (reste de l'audit final F255) · un
+  // refus, du plan ou des sections d'un axe, retirait la colonne de la grille
+  // comme sur un dossier sans analytique, et la ventilation obligatoire ne se
+  // saisissait plus sans que rien ne dise pourquoi.
+  const [plansLus, setPlansLus] = useState<PlanAnalytique[] | null>(null);
+  const [erreurAnalytique, setErreurAnalytique] = useState<string | null>(null);
+  const plans = plansLus ?? AUCUN_PLAN;
   const [sectionsParPlan, setSectionsParPlan] = useState<Record<string, SectionAnalytique[]>>({});
   const [sectionsSaisie, setSectionsSaisie] = useState<Record<string, string>>({});
 
@@ -259,7 +279,11 @@ export function SaisiePage() {
   const [echeance, setEcheance] = useState('');
   const [versement, setVersement] = useState('');
   // OPÉRATION EN DEVISE · une exception de la ligne, comme la date de versement.
-  const [devises, setDevises] = useState<DeviseDuDossier[]>([]);
+  // Null tant que la liste n'est pas lue (reste de l'audit final F255) · un
+  // refus retirait le choix de la devise comme sur un dossier sans devise.
+  const [devisesLues, setDevisesLues] = useState<DeviseDuDossier[] | null>(null);
+  const [erreurDevises, setErreurDevises] = useState<string | null>(null);
+  const devises = devisesLues ?? AUCUNE_DEVISE;
   const [deviseSaisie, setDeviseSaisie] = useState('');
   const [montantDeviseSaisie, setMontantDeviseSaisie] = useState('');
   const [coursSaisie, setCoursSaisie] = useState('');
@@ -274,17 +298,30 @@ export function SaisiePage() {
   const [modaleModeles, setModaleModeles] = useState(false);
   // LES MODÈLES DU JOURNAL OUVERT · la barre « Appeler un modèle » de Sage.
   // Le serveur rend ceux du journal PLUS ceux qui ne visent aucun journal.
-  const [modeles, setModeles] = useState<ModeleSaisie[]>([]);
+  // Null tant qu'ils ne sont pas lus (reste de l'audit final F255) · un refus
+  // retirait la barre comme sur un dossier qui n'a défini aucun modèle.
+  const [modelesLus, setModelesLus] = useState<ModeleSaisie[] | null>(null);
+  const [erreurModeles, setErreurModeles] = useState<string | null>(null);
+  const modeles = modelesLus ?? AUCUN_MODELE;
   const [modeleChoisi, setModeleChoisi] = useState('');
   // Montants des lignes « Saisir » demandés à l'appel du modèle, par ordre.
   const [saisiesModele, setSaisiesModele] = useState<Record<number, string>>({});
   // LES FICHES DU RÉFÉRENTIEL · chargées une fois par ouverture de la
   // fenêtre, pas à chaque ligne saisie (78 entrées, quelques dizaines de Ko).
-  const [regles, setRegles] = useState<RegleCompte[]>([]);
+  // Null tant qu'elles ne sont pas lues (reste de l'audit final F255) · un
+  // refus taisait l'avertissement d'exclusion sur tout compte, comme si
+  // aucune fiche n'en portait.
+  const [reglesLues, setReglesLues] = useState<RegleCompte[] | null>(null);
+  const [erreurRegles, setErreurRegles] = useState<string | null>(null);
+  const regles = reglesLues ?? AUCUNE_REGLE;
   const [calculetteOuverte, setCalculetteOuverte] = useState(false);
   // LES TAUX DE TAXE · chargés une fois, pour proposer la ligne de TVA d'un
-  // compte qui porte un code taxe par défaut.
-  const [tauxTvaListe, setTauxTvaListe] = useState<TauxTva[]>([]);
+  // compte qui porte un code taxe par défaut. Null tant qu'ils ne sont pas lus
+  // (reste de l'audit final F255) · un refus lu comme une liste vide faisait
+  // taire la TVA posée d'office, sans un mot, sur une facture d'assujetti.
+  const [tauxTvaLus, setTauxTvaLus] = useState<TauxTva[] | null>(null);
+  const [erreurTauxTva, setErreurTauxTva] = useState<string | null>(null);
+  const tauxTvaListe = tauxTvaLus ?? AUCUN_TAUX_TVA;
   /**
    * LA PROPOSITION DE TVA EN ATTENTE · elle vise la ligne HT qui vient d'être
    * posée, par son INDICE, et se vide dès qu'on y touche.
@@ -326,28 +363,39 @@ export function SaisiePage() {
       (e) => setErreurComptes(e instanceof Error ? e.message : "Le plan de comptes n'a pas pu être lu."),
     );
     api.get<DeviseDuDossier[]>('/devises').then(
-      (ds) => setDevises(devisesEtrangeres(ds)),
-      () => setDevises([]),
+      (ds) => {
+        setDevisesLues(devisesEtrangeres(ds));
+        setErreurDevises(null);
+      },
+      (e) => setErreurDevises(e instanceof Error ? e.message : "La liste des devises n'a pas pu être lue."),
     );
     // Axes analytiques et leurs sections · chargés une fois, la grille en fait
     // une colonne par axe (voir docs/analytique-et-budget.md).
     api.get<PlanAnalytique[]>('/analytique/plans').then(
       async (ps) => {
         const actifs = ps.filter((p) => p.estActif);
-        setPlans(actifs);
-        const paires = await Promise.all(
+        setPlansLus(actifs);
+        // Les sections d'un axe refusées ne valent pas « aucune section » · la
+        // colonne disparaîtrait de la grille. L'axe est nommé avec le motif.
+        const lectures = await Promise.all(
           actifs.map(async (p) => {
             try {
               const sections = await api.get<SectionAnalytique[]>(`/analytique/plans/${p.id}/sections`);
-              return [p.id, sections.filter((sc) => sc.type === 'DETAIL' && sc.estActive)] as const;
-            } catch {
-              return [p.id, [] as SectionAnalytique[]] as const;
+              return { plan: p, sections: sections.filter((sc) => sc.type === 'DETAIL' && sc.estActive), erreur: null };
+            } catch (e) {
+              return { plan: p, sections: [] as SectionAnalytique[], erreur: e instanceof Error ? e.message : 'refus' };
             }
           }),
         );
-        setSectionsParPlan(Object.fromEntries(paires));
+        setSectionsParPlan(Object.fromEntries(lectures.map((l) => [l.plan.id, l.sections])));
+        const refusees = lectures.filter((l) => l.erreur !== null);
+        setErreurAnalytique(
+          refusees.length === 0
+            ? null
+            : `sections de ${refusees.map((l) => l.plan.code).join(', ')} non lues · ${refusees[0].erreur}`,
+        );
       },
-      () => setPlans([]),
+      (e) => setErreurAnalytique(e instanceof Error ? e.message : "Les axes analytiques n'ont pas pu être lus."),
     );
   }, []);
 
@@ -409,13 +457,29 @@ export function SaisiePage() {
 
   // LIBELLÉS PRÉ-ENREGISTRÉS (Sage i7, Structure / Libellé · point 19) ·
   // proposés au fil de la frappe dans les deux champs de libellé. Ils
-  // n'imputent rien, ils n'écrivent que le texte.
-  const [libellesPredefinis, setLibellesPredefinis] = useState<Array<{ id: string; code: string; intitule: string }>>([]);
+  // n'imputent rien, ils n'écrivent que le texte. Null tant qu'ils ne sont
+  // pas lus (reste de l'audit final F255) · un refus se lisait comme un
+  // dossier qui n'en a enregistré aucun.
+  const [libellesLus, setLibellesLus] = useState<LibellePredefini[] | null>(null);
+  const [erreurLibelles, setErreurLibelles] = useState<string | null>(null);
+  const libellesPredefinis = libellesLus ?? AUCUN_LIBELLE;
   useEffect(() => {
-    api
-      .get<Array<{ id: string; code: string; intitule: string }>>('/libelles-ecriture')
-      .then(setLibellesPredefinis)
-      .catch(() => setLibellesPredefinis([]));
+    let annule = false;
+    api.get<LibellePredefini[]>('/libelles-ecriture').then(
+      (l) => {
+        if (annule) return;
+        setLibellesLus(l);
+        setErreurLibelles(null);
+      },
+      (e) => {
+        if (annule) return;
+        setLibellesLus(null);
+        setErreurLibelles(e instanceof Error ? e.message : "Les libellés pré-enregistrés n'ont pas pu être lus.");
+      },
+    );
+    return () => {
+      annule = true;
+    };
   }, []);
 
   // La grille se relit à chaque retour à l'étape 1 · une pièce validée ou
@@ -424,8 +488,18 @@ export function SaisiePage() {
     if (ouvert || !exerciceCourant) return;
     api
       .get<{ journaux: LigneGrilleSaisie[] }>(`/journaux/saisie?exerciceId=${exerciceCourant.id}`)
-      .then((r) => setGrilleSaisie(r.journaux))
-      .catch(() => setGrilleSaisie([]));
+      .then(
+        (r) => {
+          setGrilleLue(r.journaux);
+          setErreurGrille(null);
+        },
+        // Un refus efface la grille d'avant · ses cases diraient l'état d'une
+        // lecture que celle-ci n'a pas confirmé.
+        (e) => {
+          setGrilleLue(null);
+          setErreurGrille(e instanceof Error ? e.message : "L'état des journaux n'a pas pu être lu.");
+        },
+      );
   }, [ouvert, exerciceCourant?.id]);
 
   // Période par défaut : le mois courant s'il appartient à l'exercice.
@@ -868,12 +942,30 @@ export function SaisiePage() {
 
   useEffect(() => {
     let annule = false;
-    api
-      .get<RegleCompte[]>('/controles/regles-comptes')
-      .then((r) => !annule && setRegles(r), () => !annule && setRegles([]));
-    api
-      .get<TauxTva[]>('/taux-tva?actifsSeuls=true')
-      .then((t) => !annule && setTauxTvaListe(t), () => !annule && setTauxTvaListe([]));
+    api.get<RegleCompte[]>('/controles/regles-comptes').then(
+      (r) => {
+        if (annule) return;
+        setReglesLues(r);
+        setErreurRegles(null);
+      },
+      (e) => {
+        if (annule) return;
+        setReglesLues(null);
+        setErreurRegles(e instanceof Error ? e.message : "Les fiches du référentiel n'ont pas pu être lues.");
+      },
+    );
+    api.get<TauxTva[]>('/taux-tva?actifsSeuls=true').then(
+      (t) => {
+        if (annule) return;
+        setTauxTvaLus(t);
+        setErreurTauxTva(null);
+      },
+      (e) => {
+        if (annule) return;
+        setTauxTvaLus(null);
+        setErreurTauxTva(e instanceof Error ? e.message : "Les taux de TVA n'ont pas pu être lus.");
+      },
+    );
     api
       .get<{ assujettiTva: boolean }>('/dossier/parametres')
       .then((p) => !annule && setAssujettiTva(p.assujettiTva), () => !annule && setAssujettiTva(null));
@@ -898,13 +990,24 @@ export function SaisiePage() {
 
   useEffect(() => {
     if (!journal) {
-      setModeles([]);
+      setModelesLus(null);
+      setErreurModeles(null);
       return;
     }
     let annule = false;
-    api
-      .get<ModeleSaisie[]>(`/modeles-saisie?journalId=${journal.id}`)
-      .then((r) => !annule && setModeles(r), () => !annule && setModeles([]));
+    api.get<ModeleSaisie[]>(`/modeles-saisie?journalId=${journal.id}`).then(
+      (r) => {
+        if (annule) return;
+        setModelesLus(r);
+        setErreurModeles(null);
+      },
+      // Un refus ne laisse pas les modèles d'un autre journal sous celui-ci.
+      (e) => {
+        if (annule) return;
+        setModelesLus(null);
+        setErreurModeles(e instanceof Error ? e.message : "Les modèles de saisie n'ont pas pu être lus.");
+      },
+    );
     return () => {
       annule = true;
     };
@@ -1160,6 +1263,9 @@ export function SaisiePage() {
                   </tbody>
                 </table>
               </div>
+              {erreurGrille && (
+                <p className="text-[11.5px] text-danger mb-2">État des journaux par mois illisible · {erreurGrille}</p>
+              )}
               <div className="flex gap-3 mb-3 text-[10.5px] text-text-dim">
                 {(['BROUILLARD', 'JOURNAL', 'CLOTURE'] as const).map((e) => (
                   <span key={e} className="flex items-center gap-1">
@@ -1239,7 +1345,11 @@ export function SaisiePage() {
       {/* APPELER UN MODÈLE · la barre de Sage, DANS la fenêtre du journal et
           non dans une boîte de dialogue à part : on ne quitte pas la grille.
           Absente tant que le dossier n'a défini aucun modèle · une liste vide
-          n'apprend rien et prend une ligne. */}
+          n'apprend rien et prend une ligne. Une liste REFUSÉE, elle, se dit ·
+          son absence se lirait « aucun modèle ». */}
+      {peutEcrire && erreurModeles && (
+        <div className="text-[11.5px] text-danger mb-2">Modèles de saisie illisibles · {erreurModeles}</div>
+      )}
       {peutEcrire && modeles.length > 0 && (
         <div className="flex items-center gap-2 mb-2 bg-chrome border border-border px-2.5 py-1.5">
           <span className="text-[11.5px] text-text-dim flex-shrink-0">Appeler un modèle</span>
@@ -1442,6 +1552,13 @@ export function SaisiePage() {
             enregistrer les fournisseurs d'immobilisations » ne se vérifie
             qu'en sachant ce qu'on achète. Refuser sur cette base bloquerait
             des écritures correctes ; avertir laisse le comptable trancher. */}
+        {/* Des fiches refusées ne se lisent pas « aucune exclusion » · le
+            compte choisi passerait sans l'avertissement qu'il porte. */}
+        {erreurRegles && (
+          <div className="border-t border-border/50 px-3 py-1.5 text-[11.5px] text-danger">
+            Fiches du référentiel illisibles · {erreurRegles}
+          </div>
+        )}
         {regleDuCompte?.exclusions && (
           <div className="border-t border-warning/40 bg-warning-soft px-3 py-1.5 text-[11px] leading-[1.5]">
             <span className="font-bold">Compte {regleDuCompte.numero} · exclusions du référentiel : </span>
@@ -1613,6 +1730,25 @@ export function SaisiePage() {
           {erreurComptes && (
             <div className="px-3 py-1.5 border-b border-border/50 text-[11.5px] text-danger">
               Plan de comptes illisible · {erreurComptes}
+            </div>
+          )}
+          {/* Des taux illisibles ne se taisent pas · la TVA posée d'office
+              manquerait à la pièce sans que rien ne le dise. */}
+          {erreurTauxTva && (
+            <div className="px-3 py-1.5 border-b border-border/50 text-[11.5px] text-danger">
+              Taux de TVA illisibles · {erreurTauxTva}
+            </div>
+          )}
+          {erreurLibelles && (
+            <div className="px-3 py-1.5 border-b border-border/50 text-[11.5px] text-danger">
+              Libellés pré-enregistrés illisibles · {erreurLibelles}
+            </div>
+          )}
+          {/* Un axe illisible ne se tait pas non plus · sa colonne manquerait
+              à la grille comme sur un dossier sans analytique. */}
+          {erreurAnalytique && (
+            <div className="px-3 py-1.5 border-b border-border/50 text-[11.5px] text-danger">
+              Axes analytiques illisibles · {erreurAnalytique}
             </div>
           )}
           {/* Zone de saisie de la ligne · Tab de zone en zone, Entrée valide. */}
@@ -1812,6 +1948,13 @@ export function SaisiePage() {
             la devise, son montant et le cours appliqué voyagent avec elle, et
             c'est eux que la réévaluation de clôture et le lettrage lisent.
           */}
+          {/* Des devises refusées ne se lisent pas « aucune devise » · le choix
+              manquerait sans motif (reste de l'audit final F255). */}
+          {erreurDevises && (
+            <div className="px-3 py-1.5 border-b border-border/50 text-[11.5px] text-danger">
+              Devises illisibles · {erreurDevises}
+            </div>
+          )}
           {devises.length > 0 && (
             <div className="px-3 py-1.5 border-b border-border bg-surface-alt/60 flex items-center gap-2 flex-wrap text-[11.5px]">
               <span className="text-text-dim">Opération en devise (exception) :</span>
@@ -1921,7 +2064,7 @@ export function SaisiePage() {
                 <span className="text-[11.5px]">
                   → <span className="font-mono">{apercuTva.resultat.ligne.numero}</span>{' '}
                   <span className="font-mono font-semibold">
-                    {apercuTva.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
+                    {montant(apercuTva.montant)}
                   </span>{' '}
                   au {apercuTva.sens === 'depense' ? 'débit' : 'crédit'}
                 </span>

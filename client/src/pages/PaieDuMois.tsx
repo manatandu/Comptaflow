@@ -3,6 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
 import type { Journal } from '../lib/types';
+import { montant as fc } from '../lib/montants';
 
 /**
  * P9 · LA PAIE DU MOIS AU JOURNAL, EN UNE ÉCRITURE.
@@ -45,7 +46,6 @@ interface PropositionPaieDuMois {
   pieces: { id: string; numeroPiece: number | null; date: string; statut: 'BROUILLARD' | 'VALIDEE' }[];
 }
 
-const fc = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const dernierJour = (mois: string) => {
   const [a, m] = mois.split('-').map(Number);
   return new Date(Date.UTC(a, m, 0)).toISOString().slice(0, 10);

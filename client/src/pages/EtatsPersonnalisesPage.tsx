@@ -5,6 +5,7 @@ import { useExercice } from '../lib/exercice';
 import { Aide } from '../components/chrome/Aide';
 import { BoutonImprimer, EnteteImpression } from '../components/chrome/EnteteImpression';
 import { MODELE_ETAT, ligneNeuve, titreColonne, type CalculEtat, type EtatPersonnalise, type LigneEtat } from '../lib/etats-personnalises';
+import { montant } from '../lib/montants';
 
 /**
  * ÉTATS PERSONNALISÉS (point 20 de la comparaison Sage i7). Le catalogue Sage
@@ -13,7 +14,6 @@ import { MODELE_ETAT, ligneNeuve, titreColonne, type CalculEtat, type EtatPerson
  * côte à côte. Ni état financier ni document déposé.
  */
 const PLAFOND_EXERCICES = 5;
-const montant = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const champ = 'border border-border-dark px-1.5 py-0.5 text-[11.5px] w-full';
 
 export function EtatsPersonnalisesPage() {

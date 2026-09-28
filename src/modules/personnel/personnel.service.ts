@@ -89,6 +89,8 @@ import {
   type ContratPourControle,
 } from './regles-contrat-travail';
 import { lireParLots, pageApres, PremiersSelon } from '../../common/lecture-par-lots';
+import { PLAFOND_CONTRATS_PAR_FICHE, PLAFOND_ENFANTS_PAR_FICHE, PLAFOND_GRILLES_SMIG } from './bornes-registre';
+import type { GrillesSmigNonLues } from './regles-contrat-travail';
 
 /**
  * LES BORNES DES LISTES DE TRAVAIL DU REGISTRE (audit final F259, § 8 bis).
@@ -106,8 +108,46 @@ export const PLAFOND_CONFRONTATION = 500;
  */
 export const LOT_CONFRONTATION = 200;
 
-/** Un salarié tel que la confrontation le lit, enfants et contrats compris. */
-type SalarieConfronte = Prisma.SalarieGetPayload<{ include: { enfants: true; contrats: true } }>;
+/**
+ * Un salarié tel que la confrontation le lit · ses contrats, et le seul
+ * NOMBRE de ses enfants sans date de naissance, compté par la base (audit
+ * final F259) · la confrontation n'en lit rien d'autre.
+ */
+type SalarieConfronte = Prisma.SalarieGetPayload<{
+  include: { contrats: true; _count: { select: { enfants: true } } };
+}>;
+
+/**
+ * UNE FICHE DU REGISTRE, ET CE QU'ELLE PORTE (audit final F259, reste). La
+ * liste était bornée salarié par salarié, et chaque fiche rendait pourtant
+ * TOUS ses enfants et TOUS ses contrats. Les deux collections sont désormais
+ * des tranches, et le nombre de chacune est compté par la base (`_count`) ·
+ * `nombreContrats` ne se lit plus sur la tranche, sans quoi « 100 » se lirait
+ * comme le nombre de contrats du salarié.
+ *
+ * LES CONTRATS EN COURS D'ABORD, puis les plus récemment terminés · la
+ * tranche garde toujours le contrat en cours, que la liste affiche en face de
+ * chaque salarié. Ils sont ensuite RE-TRIÉS par entrée en vigueur
+ * décroissante (`presenterFiche`), l'ordre qu'affichait la fiche · sous la
+ * borne, rien ne change.
+ */
+const INCLURE_FICHE = Prisma.validator<Prisma.SalarieInclude>()({
+  enfants: { orderBy: [{ dateNaissance: 'asc' }, { id: 'asc' }], take: PLAFOND_ENFANTS_PAR_FICHE },
+  contrats: {
+    orderBy: [{ dateFin: { sort: 'desc', nulls: 'first' } }, { dateEntreeEnVigueur: 'desc' }, { id: 'desc' }],
+    take: PLAFOND_CONTRATS_PAR_FICHE,
+  },
+  _count: { select: { enfants: true, contrats: true } },
+});
+type FicheLue = Prisma.SalarieGetPayload<{ include: typeof INCLURE_FICHE }>;
+
+/** Les enfants tels que la fiche les écrit · la clé qui dit si rien n'a changé. */
+type EnfantEcrit = { nom: string; postNom: string | null; prenoms: string | null; dateNaissance: Date | null };
+const cleEnfants = (enfants: readonly EnfantEcrit[]) =>
+  enfants
+    .map((e) => JSON.stringify([e.nom, e.postNom, e.prenoms, e.dateNaissance ? e.dateNaissance.toISOString() : null]))
+    .sort()
+    .join('\n');
 
 /**
  * LE PERSONNEL · le registre (P1), puis la paie qui s'appuie sur lui.
@@ -167,22 +207,39 @@ export class PersonnelService {
         where: { tenantId, ...(inclureInactifs ? {} : { actif: true }) },
         orderBy: [{ nom: 'asc' }, { postNom: 'asc' }, { id: 'asc' }],
         take: PLAFOND_REGISTRE_PERSONNEL,
-        include: {
-          enfants: { orderBy: { dateNaissance: 'asc' } },
-          contrats: { orderBy: { dateEntreeEnVigueur: 'desc' } },
-        },
+        include: INCLURE_FICHE,
       }),
       this.prisma.salarie.count({ where: { tenantId, ...(inclureInactifs ? {} : { actif: true }) } }),
     ]);
     return {
-      salaries: salaries.map((s) => ({
-        ...s,
-        contratEnCours: s.contrats.find((c) => c.dateFin === null) ?? null,
-        nombreContrats: s.contrats.length,
-      })),
+      salaries: salaries.map((s) => this.presenterFiche(s)),
       total,
       plafond: PLAFOND_REGISTRE_PERSONNEL,
       tronque: total > salaries.length,
+      plafondEnfantsParFiche: PLAFOND_ENFANTS_PAR_FICHE,
+      plafondContratsParFiche: PLAFOND_CONTRATS_PAR_FICHE,
+    };
+  }
+
+  /**
+   * Une fiche lue, rendue à l'écran · les deux tranches, leur nombre compté
+   * par la base et ce que la tranche ne montre pas. Le contrat en cours est le
+   * plus récent des contrats sans date de fin, comme avant la borne.
+   */
+  private presenterFiche(s: FicheLue) {
+    const { _count, ...fiche } = s;
+    const contrats = [...s.contrats].sort(
+      (a, b) =>
+        b.dateEntreeEnVigueur.getTime() - a.dateEntreeEnVigueur.getTime() || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0),
+    );
+    return {
+      ...fiche,
+      contrats,
+      contratEnCours: contrats.find((c) => c.dateFin === null) ?? null,
+      nombreContrats: _count.contrats,
+      contratsTronques: _count.contrats > contrats.length,
+      nombreEnfants: _count.enfants,
+      enfantsTronques: _count.enfants > s.enfants.length,
     };
   }
 
@@ -211,6 +268,22 @@ export class PersonnelService {
     });
   }
 
+  /**
+   * UNE FICHE SE MODIFIE PAR SON IDENTIFIANT, AU JOURNAL D'AUDIT AVANT ET
+   * APRÈS (audit final F259, même doctrine que la monnaie et la fin du
+   * contrat, F226). Elle s'écrivait par `updateMany`, dont le journal ne
+   * recopie que le filtre et le compte · une nationalité, une date de
+   * naissance ou une déclaration de départ corrigées après coup n'y laissaient
+   * aucun état antérieur, alors que ce sont elles que la confrontation et
+   * l'effectif lisent. `update` porte l'état avant et l'état après, et sa
+   * condition garde le dossier au second bout.
+   *
+   * LES ENFANTS SE REMPLACENT EN BLOC, MAIS UN PAR UN. Même raison · un
+   * `deleteMany` n'en laissait au journal que le compte, et l'enfant retiré
+   * disparaissait sans trace. Chacun se supprime par son identifiant, et
+   * seulement quand la liste a changé · une fiche enregistrée pour une
+   * adresse ne réécrit pas ses enfants à l'identique.
+   */
   async modifierSalarie(tenantId: string, salarieId: string, dto: SalarieDto) {
     // CLOISONNEMENT AU PREMIER BOUT · on vérifie que le salarié appartient au
     // dossier AVANT d'écrire, et jamais en faisant confiance à l'identifiant.
@@ -223,34 +296,44 @@ export class PersonnelService {
 
     return transactionJournalisee(this.prisma, async (tx) => {
       if (dto.enfants) {
-        // Les enfants sont remplacés en bloc · la fiche les rend tous, et
-        // une mise à jour partielle laisserait un enfant supprimé à l'écran
-        // revenir au prochain chargement.
-        await tx.enfantACharge.deleteMany({ where: { tenantId, salarieId } });
-        for (const e of dto.enfants) {
-          await tx.enfantACharge.create({
-            data: {
-              tenantId,
-              salarieId,
-              nom: e.nom,
-              postNom: e.postNom ?? null,
-              prenoms: e.prenoms ?? null,
-              dateNaissance: e.dateNaissance ? new Date(e.dateNaissance) : null,
-            },
-          });
+        // Lus DANS la transaction · un enfant ajouté par un autre poste entre
+        // la lecture et le remplacement resterait sinon en double. Un de plus
+        // que la borne, pour savoir qu'elle est dépassée.
+        const anciens = await tx.enfantACharge.findMany({
+          where: { tenantId, salarieId },
+          select: { id: true, nom: true, postNom: true, prenoms: true, dateNaissance: true },
+          orderBy: { id: 'asc' },
+          take: PLAFOND_ENFANTS_PAR_FICHE + 1,
+        });
+        // UNE FICHE QUE L'ÉCRAN N'A PAS PU MONTRER ENTIÈRE NE SE REMPLACE PAS
+        // · la liste n'en rend que `PLAFOND_ENFANTS_PAR_FICHE`, et remplacer
+        // en bloc effacerait ceux qui n'y paraissaient pas, en silence.
+        if (anciens.length > PLAFOND_ENFANTS_PAR_FICHE) {
+          throw new BadRequestException(
+            `Cette fiche porte plus de ${PLAFOND_ENFANTS_PAR_FICHE} enfants à charge, plus que l'écran n'en montre · ` +
+              'les remplacer en bloc effacerait ceux qui n’y paraissent pas. Enregistrez la fiche sans toucher à ses enfants.',
+          );
+        }
+        const nouveaux: EnfantEcrit[] = dto.enfants.map((e) => ({
+          nom: e.nom,
+          postNom: e.postNom ?? null,
+          prenoms: e.prenoms ?? null,
+          dateNaissance: e.dateNaissance ? new Date(e.dateNaissance) : null,
+        }));
+        if (cleEnfants(anciens) !== cleEnfants(nouveaux)) {
+          for (const e of anciens) await tx.enfantACharge.delete({ where: { id: e.id, tenantId } });
+          for (const e of nouveaux) await tx.enfantACharge.create({ data: { tenantId, salarieId, ...e } });
         }
       }
-      // CLOISONNEMENT AU SECOND BOUT · `updateMany` porte le `tenantId` dans
-      // son `where`, pour qu'aucun chemin ne puisse écrire hors du dossier,
-      // même si le contrôle ci-dessus était un jour contourné.
-      await tx.salarie.updateMany({
+      // CLOISONNEMENT AU SECOND BOUT · la condition porte le `tenantId`, pour
+      // qu'aucun chemin ne puisse écrire hors du dossier, même si le contrôle
+      // ci-dessus était un jour contourné.
+      const fiche = await tx.salarie.update({
         where: { id: salarieId, tenantId },
         data: this.champsSalarie(dto),
+        include: INCLURE_FICHE,
       });
-      return tx.salarie.findFirst({
-        where: { id: salarieId, tenantId },
-        include: { enfants: true, contrats: true },
-      });
+      return this.presenterFiche(fiche);
     });
   }
 
@@ -442,18 +525,14 @@ export class PersonnelService {
    * sans quoi « 12 signalements » se lirait comme le compte du dossier.
    */
   async confronter(tenantId: string, aujourdhui = new Date()) {
-    const [tenant, versionsBaremes] = await Promise.all([
+    const [tenant, grilles] = await Promise.all([
       this.prisma.tenant.findUniqueOrThrow({
         where: { id: tenantId },
         select: { nom: true, numeroAffiliationCnssEmployeur: true },
       }),
       // Les grilles SMIG du cabinet · le minimum d'une classe se lit sur elles.
-      this.prisma.versionBaremePaie.findMany({
-        where: { tenantId, bareme: 'SMIG' },
-        select: { bareme: true, aPartirDu: true, reference: true, valeurs: true },
-      }),
+      this.grillesSmigDeLaConfrontation(tenantId, aujourdhui),
     ]);
-    const annexesSmig = annexesSmigDuDossier(versionsBaremes);
 
     const employeur = {
       nom: tenant.nom,
@@ -473,7 +552,10 @@ export class PersonnelService {
         nationalite: s.nationalite,
         nomConjoint: s.nomConjoint,
         aptitudeConstateeLe: s.aptitudeConstateeLe,
-        enfantsSansDateNaissance: s.enfants.filter((e) => e.dateNaissance === null).length,
+        // Compté par la base (`_count` filtré) · la confrontation ne lit rien
+        // d'autre des enfants, et les rapatrier un à un pour les compter
+        // faisait dépendre la mémoire de la taille des familles.
+        enfantsSansDateNaissance: s._count.enfants,
       };
 
       // LE DÉCOMPTE DE L'ART. 41 SE FAIT PAR SALARIÉ ET PAR RANG, pas en
@@ -549,7 +631,7 @@ export class PersonnelService {
           // part pour ne pas se confondre avec elles.
           visaOnemManquant: c.constateParEcrit && !c.viseParOnem,
           moisDeReference,
-          remunerationMinimale: verdictRemunerationMinimale(contrat, moisDeReference, annexesSmig),
+          remunerationMinimale: verdictRemunerationMinimale(contrat, moisDeReference, grilles.annexes, grilles.nonLues),
         };
       });
     };
@@ -571,7 +653,10 @@ export class PersonnelService {
       (curseur) =>
         this.prisma.salarie.findMany({
           where: { tenantId },
-          include: { enfants: true, contrats: { orderBy: { dateEntreeEnVigueur: 'asc' } } },
+          include: {
+            contrats: { orderBy: { dateEntreeEnVigueur: 'asc' } },
+            _count: { select: { enfants: { where: { dateNaissance: null } } } },
+          },
           ...pageApres(curseur, LOT_CONFRONTATION),
         }),
       (s) => {
@@ -597,7 +682,68 @@ export class PersonnelService {
       plafond: PLAFOND_CONFRONTATION,
       tronque: fiches.tronquee,
       totalSignalements,
+      // Les grilles SMIG du cabinet que la confrontation a lues · tronquée,
+      // la liste le dit, et chaque contrat qu'une grille non lue régirait
+      // s'abstient (motif GRILLES_SMIG_NON_LUES).
+      grillesSmig: {
+        lues: grilles.annexes.length,
+        total: grilles.total,
+        plafond: PLAFOND_GRILLES_SMIG,
+        tronque: grilles.nonLues !== null,
+      },
     };
+  }
+
+  /**
+   * LES GRILLES SMIG QUE LA CONFRONTATION PEUT APPLIQUER, LUES PAR UNE BORNE
+   * DÉCLARÉE (audit final F259, reste ; `PLAFOND_GRILLES_SMIG`).
+   *
+   * La grille d'un mois est la plus récente dont le mois d'effet est atteint
+   * (`annexeApplicable`). Le plus tardif des mois de référence est connu
+   * d'avance · le mois courant, ou la fin d'un contrat terminée plus tard ·
+   * et une grille postérieure ne régit aucun contrat : elle n'est pas lue.
+   * Les autres le sont des plus récentes aux plus anciennes · au-delà de la
+   * borne, les plus anciennes restent en base, et l'intervalle qu'elles
+   * couvrent est rendu (`nonLues`) pour que le contrôle s'abstienne sur les
+   * seuls contrats qu'elles régiraient, jamais sur les autres.
+   */
+  private async grillesSmigDeLaConfrontation(tenantId: string, aujourdhui: Date) {
+    const { _max } = await this.prisma.contratTravail.aggregate({
+      where: { tenantId },
+      _max: { dateFin: true },
+    });
+    // Même lecture du mois que `moisDeReference` · le jour UTC de la date.
+    const dernierMois = [aujourdhui, _max.dateFin]
+      .filter((d): d is Date => d !== null)
+      .map((d) => d.toISOString().slice(0, 7))
+      .sort()
+      .pop()!;
+    const [annee, mois] = dernierMois.split('-').map(Number);
+    const moisSuivant = new Date(Date.UTC(annee, mois, 1)).toISOString().slice(0, 10);
+    // `aPartirDu` est une date AAAA-MM-JJ écrite en chaîne · l'ordre des
+    // chaînes est celui des dates. Le filtre est écrit DANS chaque appel, et
+    // non dans une variable partagée · le balayage de `cloisonnement.spec.ts`
+    // lit la borne du dossier dans le corps de l'appel, et une variable
+    // l'obligerait à geler une exception de plus.
+    const [lignes, decompte] = await Promise.all([
+      this.prisma.versionBaremePaie.findMany({
+        where: { tenantId, bareme: 'SMIG', aPartirDu: { lt: moisSuivant } },
+        orderBy: { aPartirDu: 'desc' },
+        take: PLAFOND_GRILLES_SMIG,
+        select: { bareme: true, aPartirDu: true, reference: true, valeurs: true },
+      }),
+      this.prisma.versionBaremePaie.aggregate({
+        where: { tenantId, bareme: 'SMIG', aPartirDu: { lt: moisSuivant } },
+        _count: { _all: true },
+        _min: { aPartirDu: true },
+      }),
+    ]);
+    const total = decompte._count._all;
+    const nonLues: GrillesSmigNonLues | null =
+      total > lignes.length && decompte._min.aPartirDu !== null && lignes.length > 0
+        ? { du: decompte._min.aPartirDu.slice(0, 7), avant: lignes[lignes.length - 1].aPartirDu.slice(0, 7) }
+        : null;
+    return { annexes: annexesSmigDuDossier(lignes), total, nonLues };
   }
 
 

@@ -346,21 +346,50 @@ describe('Le contrôle de l’article 37', () => {
 });
 
 describe('F146 · le registre du personnel PROPOSE la part, il ne la substitue pas', () => {
-  function avecRegistre(contrats: Faux[]) {
+  function avecRegistre(salaries: Faux[]) {
     const { svc, ecrit } = service(FormeJuridiqueEbnl.ORGANISATION_NON_GOUVERNEMENTALE, true, [
       { id: 'a1', tenantId: 't', dateSignature: new Date('2026-03-01'), dureeAnnees: 10, taciteReconduction: true, preavisMois: 6, denonceLe: null, partMainOeuvreLocale: 55 },
     ]);
     const prisma = (svc as unknown as { prisma: Faux }).prisma;
-    prisma.contratTravail = {
-      // La doublure honore la borne du dossier · un registre d'un autre dossier ne propose rien ici.
-      findMany: jest.fn(({ where }: { where: { tenantId: string } }) => Promise.resolve(where.tenantId === 't' ? contrats : [])),
+    // Audit final F259, reste · l'effectif se compte par la base. La doublure
+    // honore la borne du dossier ET le filtre du contrat en vigueur (dossier,
+    // entrée, fin, type), un salarié comptant une fois quel que soit le nombre
+    // de ses contrats.
+    type Contrat = { tenantId: string; type: string; dateEntreeEnVigueur: Date; dateFin: Date | null };
+    type Filtre = { tenantId: string; dateEntreeEnVigueur: { lte: Date }; OR: unknown[]; type?: string };
+    const enVigueur = (c: Contrat, f: Filtre) =>
+      c.tenantId === f.tenantId &&
+      c.dateEntreeEnVigueur <= f.dateEntreeEnVigueur.lte &&
+      (c.dateFin === null || c.dateFin >= f.dateEntreeEnVigueur.lte) &&
+      (f.type === undefined || c.type === f.type);
+    type Arg = { where: { tenantId: string; contrats: { some: Filtre } } };
+    const retenus = ({ where }: Arg) =>
+      (salaries as { tenantId: string; contrats: Contrat[] }[]).filter(
+        (s) => s.tenantId === where.tenantId && s.contrats.some((c) => enVigueur(c, where.contrats.some)),
+      );
+    prisma.salarie = {
+      groupBy: jest.fn((args: Arg & { by: string[] }) => {
+        const groupes = new Map<string, Faux & { _count: { _all: number } }>();
+        for (const s of retenus(args) as Faux[]) {
+          const cle = Object.fromEntries(args.by.map((k) => [k, s[k] ?? null]));
+          const g = groupes.get(JSON.stringify(cle)) ?? { ...cle, _count: { _all: 0 } };
+          g._count._all += 1;
+          groupes.set(JSON.stringify(cle), g);
+        }
+        return Promise.resolve([...groupes.values()]);
+      }),
+      count: jest.fn((args: Arg) => Promise.resolve(retenus(args).length)),
     };
     return { svc, ecrit };
   }
   const salarie = (id: string, nationalite: string | null) => ({
-    salarieId: id,
-    type: 'DUREE_INDETERMINEE',
-    salarie: { sexe: 'MASCULIN', nationalite },
+    id,
+    tenantId: 't',
+    sexe: 'MASCULIN',
+    nationalite,
+    contrats: [
+      { tenantId: 't', type: 'DUREE_INDETERMINEE', dateEntreeEnVigueur: new Date('2026-01-05'), dateFin: null },
+    ],
   });
 
   it('l’état porte la part du registre, sa source, et laisse la part déclarée intacte', async () => {

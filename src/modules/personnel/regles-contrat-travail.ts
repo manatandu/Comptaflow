@@ -631,7 +631,19 @@ export type MotifAbstentionMinimum =
   | 'REMUNERATION_NON_RENSEIGNEE'
   | 'DEVISE_NON_RENSEIGNEE'
   | 'REMUNERATION_HORS_FRANC'
-  | 'HORS_BAREME';
+  | 'HORS_BAREME'
+  | 'GRILLES_SMIG_NON_LUES';
+
+/**
+ * Les grilles SMIG du cabinet qu'une lecture bornée n'a pas rapportées
+ * (audit final F259) · de `du` (la plus ancienne du dossier) jusqu'à `avant`
+ * exclu (la plus ancienne lue), mois AAAA-MM. Un mois de référence tombé dans
+ * cet intervalle est régi par une grille que le contrôle ne tient pas.
+ */
+export interface GrillesSmigNonLues {
+  du: string;
+  avant: string;
+}
 
 /**
  * La monnaie du minimum · décret n° 25/22, art. 2 : « Le taux journalier du
@@ -671,6 +683,7 @@ export function verdictRemunerationMinimale(
   contrat: ContratPourControle,
   moisDeReference: string,
   annexesSmig: readonly Annexe[] = [],
+  grillesNonLues: GrillesSmigNonLues | null = null,
 ): VerdictRemunerationMinimale {
   const abstention = (
     motif: MotifAbstentionMinimum,
@@ -729,6 +742,21 @@ export function verdictRemunerationMinimale(
         "monnaies différentes, et le contrat ne porte aucun cours auquel les rapprocher. Code du " +
         "travail, art. 89 : « La rémunération doit être stipulée en monnaie ayant cours légal en " +
         'République Démocratique du Congo. »',
+    );
+  }
+
+  // UNE GRILLE NON LUE N'EST PAS UNE GRILLE ABSENTE (audit final F259). La
+  // grille applicable est la plus récente dont le mois est atteint · si elle
+  // est parmi celles que la lecture bornée a laissées, le calcul prendrait
+  // une grille plus ancienne, ou celle du décret, et rendrait un verdict
+  // plausible sur un minimum qui n'est pas celui du mois.
+  if (grillesNonLues !== null && moisDeReference >= grillesNonLues.du && moisDeReference < grillesNonLues.avant) {
+    return abstention(
+      'GRILLES_SMIG_NON_LUES',
+      `Le dossier porte plus de grilles SMIG que la confrontation n'en lit · celles de ${grillesNonLues.du} ` +
+        `à ${grillesNonLues.avant} exclu n'ont pas été lues, et la grille applicable au mois de paie ` +
+        `${moisDeReference} en fait partie. Le contrôle s'abstient plutôt que de juger ce contrat sur un ` +
+        'minimum qui ne serait pas celui du mois.',
     );
   }
 

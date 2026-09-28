@@ -19,6 +19,7 @@ import {
   type LigneFluxSyscohada,
   type TableauFluxTresorerieSyscohada,
 } from '../lib/types';
+import { montant } from '../lib/montants';
 
 /**
  * ÉTATS FINANCIERS DU SYSCOHADA RÉVISÉ · Système normal.
@@ -208,9 +209,6 @@ function EtatsSyscohadaSystemeNormal() {
 
   // `undefined` n'est PAS zéro : sans exercice antérieur la colonne N-1 du
   // modèle reste vide, et un 0 y ferait croire à un exercice réel et nul.
-  const montant = (v: number | undefined) =>
-    v === undefined ? '·' : v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
   /**
    * Détail des comptes d'un poste, déplié sous la ligne. Volontairement hors
    * de la grille de l'état : ses colonnes sont celles du modèle officiel, et

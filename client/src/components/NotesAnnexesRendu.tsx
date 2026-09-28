@@ -1,6 +1,7 @@
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
 import type { Compte, LigneFicheRecapitulative, LigneNoteCalculee, NoteCalculee } from '../lib/types';
 import { Aide } from './chrome/Aide';
+import { montant } from '../lib/montants';
 
 /**
  * RENDU DES NOTES ANNEXES · pièces d'affichage communes aux deux écrans de
@@ -44,7 +45,7 @@ export { compareCodesNotes } from '../lib/tri-notes';
 /** Montant d'une cellule de note · « · » quand la colonne n'a pas de valeur,
  *  ce qui ne se confond pas avec un zéro comptable. */
 export function montantNote(v: number | undefined): string {
-  return v === undefined ? '·' : v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return montant(v);
 }
 
 /**

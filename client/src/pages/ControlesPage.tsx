@@ -10,6 +10,7 @@ import type {
   RapportControles,
 } from '../lib/types';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
+import { montant } from '../lib/montants';
 
 /**
  * ANALYSE ET CONTRÔLES · État → Analyse et contrôles, et État → Contrôle de
@@ -26,10 +27,6 @@ const COULEUR: Record<GraviteControle, { fond: string; texte: string; libelle: s
   AVERTISSEMENT: { fond: 'bg-warning-soft', texte: 'text-warning', libelle: 'À corriger' },
   INFORMATION: { fond: 'bg-sel-soft', texte: 'text-sel', libelle: 'Pour information' },
 };
-
-function montant(n: number): string {
-  return n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 
 type Onglet = 'controles' | 'caisse' | 'evolution' | 'dormants';
 

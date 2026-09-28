@@ -88,4 +88,27 @@ describe('le contexte referme toujours son chargement, et l’erreur se lit à l
       "{exercices.length > 0 ? 'Exercices non relus' : 'Exercices illisibles'} · {erreurExercices}",
     );
   });
+
+  // Reste de F248 · devis et facturation tirent leur période par défaut de
+  // l'exercice courant. Sans exercice lu, elle retombait sur les douze
+  // derniers mois, et l'écran le disait comme d'un dossier sans exercice.
+  // La propriété se lit dans la barre de période elle-même, entre le libellé
+  // de la période et la fin de son bloc, jamais à une distance fixe.
+  it.each(['pages/DevisPage.tsx', 'pages/FacturationPage.tsx'])(
+    '%s dit l’échec de lecture dans la barre de sa période',
+    (chemin) => {
+      const source = lire(chemin);
+      expect(source).toContain(
+        'const { exerciceCourant, chargement: chargementExercice, erreur: erreurExercices } = useExercice();',
+      );
+      const ancre = '{libellePeriode(periodeListe, originePeriode)}</span>';
+      const debut = source.indexOf(ancre);
+      expect(debut).toBeGreaterThan(-1);
+      const barre = source.slice(debut, source.indexOf('</div>', debut));
+      expect(barre).toContain('{!chargementExercice && erreurExercices && (');
+      expect(barre).toContain(
+        "{exerciceCourant ? 'Exercices non relus' : 'Exercices illisibles'} · {erreurExercices}",
+      );
+    },
+  );
 });

@@ -6813,6 +6813,12 @@ l'or. Suivre la densité et le ton de l'existant.
 Nommage en français (`creerCellule`, `balanceAgregee`, `lignesBalance`), sauf
 les termes techniques consacrés.
 
+**FACULTATIF NE VEUT PAS DIRE NULLABLE** (2026-09-28). `@IsOptional()` laisse
+passer `null` comme l'absence · sur une colonne qui n'admet pas `null`, le champ
+porte `@FacultatifNonNul(motif)` (`common/facultatif-non-nul.ts`), qui refuse
+`null` en 400 nommé ; sur une colonne nullable, le service lit `null` comme un
+effacement. Un `null` passé à `new Date` rend le 1er janvier 1970.
+
 Toute règle comptable codée cite sa source en commentaire : l'article, la
 partie, le chapitre. Toute anomalie du texte officiel est signalée sur place,
 jamais corrigée en silence.
@@ -6879,6 +6885,10 @@ OmegaX, JAMAIS le vert de Sage.
   d'exercice aussi · `lireLesExercices` ne lève jamais, le chargement se
   referme, et l'erreur s'affiche à la barre d'état et dans la fenêtre
   Exercices.
+- **Un montant s'écrit par `lib/montants.ts`** (audit final F256) · deux
+  décimales fixes, arrondi au centime, une absence rendue « · » et jamais lue
+  comme zéro. Une quantité et un cours ne sont pas des montants et gardent
+  leur précision. `montants.spec.ts` refuse toute copie du formatage.
 - **« À propos » dit ce qui est installé** (F180) · version, révision et date
   de construction posées par `vite.config.ts`, et la date du paquet sur site ;
   ce qui manque se dit, rien n'est inventé.

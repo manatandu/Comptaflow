@@ -4,6 +4,7 @@ import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
+import { montantOuVide as montant } from '../lib/montants';
 
 /**
  * BALANCE AUXILIAIRE · la balance des comptes de tiers, tiers par tiers.
@@ -59,10 +60,6 @@ const LIBELLE_SYSCOHADA: Record<TypeTiers, string> = {
   CLIENTS: 'Clients et comptes rattachés (41)',
   FOURNISSEURS: 'Fournisseurs (40)',
 };
-
-function montant(n: number): string {
-  return n !== 0 ? n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
-}
 
 export function BalanceAuxiliairePage() {
   const { exerciceCourant } = useExercice();

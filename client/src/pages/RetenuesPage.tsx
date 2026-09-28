@@ -4,6 +4,7 @@ import { useExercice } from '../lib/exercice';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { Aide } from '../components/chrome/Aide';
 import type { EcheancierFiscal, RegistreRetenues } from '../lib/types';
+import { montant } from '../lib/montants';
 
 /**
  * REGISTRE DES RETENUES À LA SOURCE et ÉCHÉANCIER FISCAL ET SOCIAL.
@@ -53,7 +54,6 @@ export function RetenuesPage() {
     };
   }, [exerciceCourant?.id, dateReference]);
 
-  const montant = (v: number) => v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const jour = (d: string) => new Date(d).toLocaleDateString('fr-FR');
   const moisLong = (m: string) => {
     const [a, mo] = m.split('-').map(Number);

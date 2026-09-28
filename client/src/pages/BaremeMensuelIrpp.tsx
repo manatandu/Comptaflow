@@ -8,6 +8,7 @@
  * sans quoi l'écran et le bulletin pourraient dire deux impôts différents.
  */
 import { Aide } from '../components/chrome/Aide';
+import { montant as fc } from '../lib/montants';
 
 export type DetailMensuelIrpp = {
   revenuRetenuFc: number;
@@ -27,7 +28,6 @@ export type DetailMensuelIrpp = {
   retenueFc: number;
 };
 
-const fc = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const entier = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 0 });
 
 export function BaremeMensuelIrpp({

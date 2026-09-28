@@ -14,6 +14,7 @@ import { horsCloisonnement } from '../../common/cloisonnement/contexte-cloisonne
 import * as bcrypt from 'bcryptjs';
 import { licenceDeCellule, LicenceReflet, refuserCelluleEditeur } from '../licence/licence-de-cellule';
 import { PLAFOND_LISTE_CONSOLE, tranche } from './plafond-console';
+import { dateSaisieOuEffacement } from '../tenant/date-effacable';
 
 /** Le refus d'attribuer « Perpétuelle (sur site) » à un dossier hébergé (audit final F171). */
 export const MOTIF_SUR_SITE_NON_ATTRIBUABLE =
@@ -234,10 +235,12 @@ export class PlateformeService implements OnModuleInit {
       ...(dto.type !== undefined ? { type: dto.type } : {}),
       ...(dto.statut !== undefined ? { statut: dto.statut } : {}),
       // '' efface l'échéance (passage en perpétuel) · convention partagée
-      // avec les dates des paramètres du dossier.
-      ...(dto.dateExpiration !== undefined
-        ? { dateExpiration: dto.dateExpiration === '' ? null : new Date(dto.dateExpiration) }
-        : {}),
+      // avec les dates des paramètres du dossier, et la même lecture
+      // (`dateSaisieOuEffacement`, audit final F237) · `new Date` seul
+      // reportait en silence un 30 février au 2 mars, et une forme ISO qu'il
+      // ne lit pas partait à Prisma, refusée en 500. `null` n'arrive pas
+      // jusqu'ici, le DTO le refuse (`FacultatifNonNul`).
+      ...(dto.dateExpiration !== undefined ? { dateExpiration: dateSaisieOuEffacement(dto.dateExpiration) } : {}),
     };
     const resultat = await this.prisma.licence.update({
       where: { tenantId },

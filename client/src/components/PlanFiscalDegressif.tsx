@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { Aide } from './chrome/Aide';
+import { montant as fc } from '../lib/montants';
 
 interface LignePlan {
   exerciceId: string;
@@ -22,8 +23,6 @@ interface PlanFiscal {
   lignes: LignePlan[];
   cumulDerogatoire: number;
 }
-
-const fc = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /**
  * DÉGRESSIF FISCAL ET DÉROGATOIRE d'un bien · le plan fiscal (loi n° 23/053,

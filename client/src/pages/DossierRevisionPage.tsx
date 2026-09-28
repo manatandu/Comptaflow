@@ -3,6 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { Aide } from '../components/chrome/Aide';
+import { montant } from '../lib/montants';
 
 /**
  * DOSSIER DE RÉVISION · ce que le référentiel dit de chaque compte, appliqué
@@ -73,8 +74,6 @@ export function DossierRevisionPage() {
       annule = true;
     };
   }, [exerciceCourant?.id]);
-
-  const montant = (v: number) => v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const affichees = (lignes ?? []).filter((l) => {
     if (sansFicheSeulement && l.elementsDeControle) return false;

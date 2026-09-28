@@ -15,6 +15,7 @@ import type {
   NotesSmtSyscohada,
   PosteSmtSyscohada,
 } from '../lib/types';
+import { montant } from '../lib/montants';
 
 /**
  * ÉTATS FINANCIERS DU SYSTÈME MINIMAL DE TRÉSORERIE · SYSCOHADA RÉVISÉ
@@ -208,8 +209,6 @@ export function EtatsSmtSyscohadaPage() {
     }
   };
 
-  const montant = (v: number | null | undefined) =>
-    v === null || v === undefined ? '·' : v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   // Une quantité se compte en kilogrammes comme en pièces · jamais arrondie
   // au centime comme un montant.
   const quantite = (v: number | null) => (v === null ? '·' : v.toLocaleString('fr-FR', { maximumFractionDigits: 3 }));

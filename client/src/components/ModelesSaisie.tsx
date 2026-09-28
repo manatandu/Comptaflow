@@ -41,6 +41,7 @@ import { MODELES_SIMPLES_SYCEBNL, MODELES_SIMPLES_SYSCOHADA, type ModeleSimple }
 import { ordonnerLignes } from '../lib/ordre-ecriture';
 import { construireLigneTva, montantTva } from '../lib/tva-saisie';
 import { PortailModale } from './PortailModale';
+import * as montants from '../lib/montants';
 
 /*
   UNE FACTURE AVEC TVA PASSE PAR UN TIERS, ELLE AUSSI. Ces deux modèles
@@ -83,6 +84,9 @@ const MODELES_TVA: ModeleTva[] = [
   },
 ];
 
+/** La liste stable servie tant que les taux ne sont pas lus · une référence neuve relancerait les effets. */
+const AUCUN_TAUX_TVA: TauxTva[] = [];
+
 function arrondi2(n: number): number {
   return Math.round(n * 100) / 100;
 }
@@ -105,7 +109,12 @@ export function ModelesSaisieModale({
   const estSyscohada = utilisateur?.tenant.referentiel === 'SYSCOHADA';
   const modelesSimples = estSyscohada ? MODELES_SIMPLES_SYSCOHADA : MODELES_SIMPLES_SYCEBNL;
   const [catalogue, setCatalogue] = useState<CatalogueOperations | null>(null);
-  const [tauxTvaListe, setTauxTvaListe] = useState<TauxTva[]>([]);
+  // LES TAUX PARTENT DE null ET LEUR REFUS SE DIT (audit final F255) · lu
+  // comme une liste vide, un refus laissait la liste des taux vide sans un
+  // mot, et la facture avec TVA ne se proposait jamais.
+  const [tauxTvaLus, setTauxTvaLus] = useState<TauxTva[] | null>(null);
+  const [erreurTauxTva, setErreurTauxTva] = useState<string | null>(null);
+  const tauxTvaListe = tauxTvaLus ?? AUCUN_TAUX_TVA;
   const [selection, setSelection] = useState<Selection | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
 
@@ -143,7 +152,22 @@ export function ModelesSaisieModale({
     if (!estSyscohada) {
       api.get<CatalogueOperations>('/operations-specifiques').then(setCatalogue).catch(() => setCatalogue(null));
     }
-    api.get<TauxTva[]>('/taux-tva?actifsSeuls=true').then(setTauxTvaListe).catch(() => setTauxTvaListe([]));
+    let annule = false;
+    api.get<TauxTva[]>('/taux-tva?actifsSeuls=true').then(
+      (t) => {
+        if (annule) return;
+        setTauxTvaLus(t);
+        setErreurTauxTva(null);
+      },
+      (e) => {
+        if (annule) return;
+        setTauxTvaLus(null);
+        setErreurTauxTva(e instanceof Error ? e.message : "Les taux de TVA n'ont pas pu être lus.");
+      },
+    );
+    return () => {
+      annule = true;
+    };
   }, [estSyscohada]);
 
   useEffect(() => {
@@ -549,6 +573,12 @@ export function ModelesSaisieModale({
                             </option>
                           ))}
                         </select>
+                        {erreurTauxTva && (
+                          <>
+                            <span />
+                            <span className="text-[11.5px] text-danger">Taux de TVA illisibles · {erreurTauxTva}</span>
+                          </>
+                        )}
                       </>
                     )}
   
@@ -730,15 +760,15 @@ export function ModelesSaisieModale({
                           <span className="truncate" title={`${l.intitule} · ${l.libelle}`}>
                             {l.libelle}
                           </span>
-                          <span className="font-mono text-right">{l.debit ? l.debit.toLocaleString('fr-FR') : ''}</span>
-                          <span className="font-mono text-right">{l.credit ? l.credit.toLocaleString('fr-FR') : ''}</span>
+                          <span className="font-mono text-right">{montants.montantOuVide(l.debit)}</span>
+                          <span className="font-mono text-right">{montants.montantOuVide(l.credit)}</span>
                         </div>
                       ))}
                       <div className="grid grid-cols-[110px_1fr_110px_110px] gap-2 px-3 py-1.5 bg-surface-alt text-[11.5px] font-bold">
                         <span />
                         <span className="text-right text-[11px] text-text-dim">Totaux</span>
-                        <span className="font-mono text-right">{proposition.totalDebit.toLocaleString('fr-FR')}</span>
-                        <span className="font-mono text-right">{proposition.totalCredit.toLocaleString('fr-FR')}</span>
+                        <span className="font-mono text-right">{montants.montant(proposition.totalDebit)}</span>
+                        <span className="font-mono text-right">{montants.montant(proposition.totalCredit)}</span>
                       </div>
                     </div>
                   )}

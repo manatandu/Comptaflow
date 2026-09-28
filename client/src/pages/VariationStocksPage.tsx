@@ -5,6 +5,7 @@ import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { Aide } from '../components/chrome/Aide';
 import { useExercice } from '../lib/exercice';
 import type { Journal } from '../lib/types';
+import { montant } from '../lib/montants';
 
 /**
  * VARIATION DES STOCKS · l'écriture que le compte de résultat attendait.
@@ -53,9 +54,6 @@ interface EtatStocks {
     totaux: { debit: number; credit: number };
   } | null;
 }
-
-const montant = (n: number) =>
-  n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export function VariationStocksPage() {
   const { exerciceCourant } = useExercice();

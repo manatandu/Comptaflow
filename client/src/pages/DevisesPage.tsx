@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { montant } from '../lib/montants';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { Aide } from '../components/chrome/Aide';
@@ -25,8 +26,13 @@ import { cotationBorneeAuCoursDuJour, DEVISE_COTEE_PAR_LA_PAIE, jourDeKinshasaIs
  * logiciel affichait jusqu'ici à zéro faute de mécanisme.
  */
 
-function montant(n: number | string): string {
-  return Number(n).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/**
+ * Un cours n'est pas un montant · il se garde à six décimales en base, et
+ * l'écran le montre avec elles plutôt que de l'arrondir au centime comme un
+ * solde (audit final F256).
+ */
+function cours(n: number | string): string {
+  return Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 6 });
 }
 function jour(iso: string): string {
   return new Date(iso).toLocaleDateString('fr-FR');
@@ -280,7 +286,7 @@ export function DevisesPage() {
 
           {coursDuJourDejaCote && (
             <div className="text-[11.5px] text-text-dim bg-surface border border-border rounded-[3px] px-2.5 py-1.5">
-              Cours de l'{DEVISE_COTEE_PAR_LA_PAIE} du jour coté : {montant(coursDuJourDejaCote.cours)} · une correction se
+              Cours de l'{DEVISE_COTEE_PAR_LA_PAIE} du jour coté : {cours(coursDuJourDejaCote.cours)} · une correction se
               demande au comptable.
             </div>
           )}
@@ -378,7 +384,7 @@ export function DevisesPage() {
                 </div>
                 {d.cours.length > 0 ? (
                   <div className="text-[11.5px] text-text-dim mt-0.5 font-mono">
-                    dernier cours {montant(d.cours[0].cours)} au {jour(d.cours[0].date)}
+                    dernier cours {cours(d.cours[0].cours)} au {jour(d.cours[0].date)}
                   </div>
                 ) : (
                   <div className="text-[11.5px] text-warning mt-0.5">aucun cours coté</div>
@@ -525,7 +531,7 @@ export function DevisesPage() {
                     </span>
                     <span className="font-mono">{p.deviseCode}</span>
                     <span className="text-right font-mono">{montant(p.montantDevise)}</span>
-                    <span className="text-right font-mono">{montant(p.coursCloture)}</span>
+                    <span className="text-right font-mono">{cours(p.coursCloture)}</span>
                     <span className="text-right font-mono">{montant(p.valeurComptable)}</span>
                     <span className="text-right font-mono">{montant(p.valeurReevaluee)}</span>
                     <span className={`text-right font-mono font-bold ${p.ecart < 0 ? 'text-danger' : 'text-positive'}`}>
