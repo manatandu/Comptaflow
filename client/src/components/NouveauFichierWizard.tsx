@@ -8,6 +8,7 @@ import { Aide } from '../components/chrome/Aide';
 import type { AuthResponse, JeuEtatsFinanciersSycebnl, Referentiel, SystemeComptableSyscohada } from '../lib/types';
 import { LIBELLE_SYSTEME, SYSTEMES_SYSCOHADA } from '../lib/systemes-syscohada';
 import { PortailModale } from './PortailModale';
+import { libelleExercice } from '../lib/libelle-exercice';
 
 /**
  * ÉTAPES NOMMÉES, et non numérotées · l'assistant de Sage pose UNE question
@@ -351,7 +352,7 @@ export function NouveauFichierWizard({
               </div>
               <h2 className="text-[13px] font-bold">Dossier « {form.nomEntite} » créé</h2>
               <p className="text-[11.5px] text-text-dim max-w-[440px]">
-                Le plan de comptes {form.referentiel} et l'exercice {new Date(form.dateDebutExercice).getFullYear()} sont
+                Le plan de comptes {form.referentiel} et l'exercice {libelleExercice({ dateDebut: form.dateDebutExercice, dateFin: form.dateFinExercice })} sont
                 prêts.{' '}
                 {form.referentiel === 'SYCEBNL'
                   ? `Les états financiers seront ceux ${LIBELLE_JEU[form.jeuEtatsFinanciersSycebnl]}.`

@@ -12,6 +12,7 @@ import { EcritureService } from '../comptabilite/ecriture.service';
 import { EnregistrerAffectationDto } from './dto/affectation.dto';
 import { REGLES, dotationReserveLegale, racineCapital } from './regles-affectation';
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
+import { libelleExercice } from '../../common/libelle-exercice';
 
 const EPSILON = 0.005;
 
@@ -270,7 +271,7 @@ export class AffectationService {
       exerciceId: suivant.id,
       journalId: journal.id,
       date: dto.dateDecision,
-      libelle: `Affectation du résultat de l'exercice ${exercice.dateFin.getUTCFullYear()} · ${dto.organe}`,
+      libelle: `Affectation du résultat de l'exercice ${libelleExercice(exercice)} · ${dto.organe}`,
       reference: dto.reference,
       lignes: lignesEcriture,
     });

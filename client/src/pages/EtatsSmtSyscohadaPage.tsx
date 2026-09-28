@@ -16,6 +16,7 @@ import type {
   PosteSmtSyscohada,
 } from '../lib/types';
 import { montant } from '../lib/montants';
+import { libelleExercice } from '../lib/libelle-exercice';
 
 /**
  * ÉTATS FINANCIERS DU SYSTÈME MINIMAL DE TRÉSORERIE · SYSCOHADA RÉVISÉ
@@ -183,7 +184,7 @@ export function EtatsSmtSyscohadaPage() {
     try {
       await api.telecharger(
         `/exports/etats-financiers-syscohada/liasse-complete?exerciceId=${exerciceCourant.id}`,
-        `liasse-complete-syscohada-${new Date(exerciceCourant.dateDebut).getFullYear()}.xlsx`,
+        `liasse-complete-syscohada-${libelleExercice(exerciceCourant)}.xlsx`,
       );
     } catch (e) {
       setErreur(e instanceof Error ? e.message : "Échec de l'export de la liasse");
@@ -322,7 +323,7 @@ export function EtatsSmtSyscohadaPage() {
         <div className="flex items-center gap-2.5 flex-wrap">
           {exerciceCourant && (
             <span className="font-mono text-[11.5px] border border-border bg-surface px-2.5 py-1.5">
-              Exercice {new Date(exerciceCourant.dateDebut).getFullYear()}
+              Exercice {libelleExercice(exerciceCourant)}
             </span>
           )}
           {/*

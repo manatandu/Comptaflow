@@ -32,6 +32,7 @@ import {
 import { licenceDeCellule } from '../licence/licence-de-cellule';
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 import { balancesDesDossiers, comptagesDesDossiers } from './lecture-des-dossiers';
+import { libelleExercice } from '../../common/libelle-exercice';
 
 /**
  * Une ligne RETIRÉE de l'agrégat parce qu'elle est interne au groupe · le
@@ -1137,7 +1138,7 @@ export class GroupeService {
 
   private async balanceAgregeeExcelDuGroupe(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
     const agregat = await this.balanceAgregee(tenantId, exerciceId);
-    const annee = agregat.exercice.dateFin.getFullYear();
+    const annee = libelleExercice(agregat.exercice);
 
     const wb = new Workbook();
     const fmt = '#,##0.00';
@@ -1541,7 +1542,7 @@ export class GroupeService {
       .replace(/^-+|-+$/g, '')
       .toLowerCase();
     const buffer = Buffer.from(await wb.xlsx.writeBuffer());
-    return { buffer, nomFichier: `canevas-${slug || 'cellule'}-${exercice.dateFin.getFullYear()}.xlsx` };
+    return { buffer, nomFichier: `canevas-${slug || 'cellule'}-${libelleExercice(exercice)}.xlsx` };
   }
 
   /**

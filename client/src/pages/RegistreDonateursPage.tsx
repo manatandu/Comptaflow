@@ -13,6 +13,7 @@ import type {
   TypeDonateur,
 } from '../lib/types';
 import { montant } from '../lib/montants';
+import { libelleExercice } from '../lib/libelle-exercice';
 
 /**
  * REGISTRE DES DONATEURS · articles 17, 18 et 24 de l'Acte uniforme SYCEBNL.
@@ -281,7 +282,7 @@ export function RegistreDonateursPage() {
           />
           {exerciceCourant && (
             <span className="font-mono text-[11.5px] border border-border bg-surface px-2.5 py-1.5">
-              Exercice {new Date(exerciceCourant.dateDebut).getFullYear()}
+              Exercice {libelleExercice(exerciceCourant)}
             </span>
           )}
           <button

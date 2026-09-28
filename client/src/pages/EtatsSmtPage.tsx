@@ -16,6 +16,7 @@ import type {
   PosteCalcule,
 } from '../lib/types';
 import { montant } from '../lib/montants';
+import { libelleExercice } from '../lib/libelle-exercice';
 
 /**
  * États financiers du SYSTÈME MINIMAL DE TRÉSORERIE · troisième jeu SYCEBNL
@@ -135,7 +136,7 @@ export function EtatsSmtPage() {
     try {
       await api.telecharger(
         `/exports/etats-financiers/liasse-complete?exerciceId=${exerciceCourant.id}`,
-        `liasse-complete-${new Date(exerciceCourant.dateDebut).getFullYear()}.xlsx`,
+        `liasse-complete-${libelleExercice(exerciceCourant)}.xlsx`,
       );
     } catch (e) {
       setErreur(e instanceof Error ? e.message : "Échec de l'export de la liasse");
@@ -228,7 +229,7 @@ export function EtatsSmtPage() {
         <div className="flex items-center gap-2.5">
           {exerciceCourant && (
             <span className="font-mono text-[11.5px] border border-border bg-surface px-2.5 py-1.5">
-              Exercice {new Date(exerciceCourant.dateDebut).getFullYear()}
+              Exercice {libelleExercice(exerciceCourant)}
             </span>
           )}
           {/*

@@ -33,6 +33,7 @@ import type {
 } from '../lib/types';
 import { parametrePaiementsEnInstance } from '../lib/paiements-en-instance';
 import { montant } from '../lib/montants';
+import { libelleExercice } from '../lib/libelle-exercice';
 
 /**
  * Onglets du jeu « associations et ordres professionnels » (Partie 4, ch. 2)
@@ -182,7 +183,7 @@ function EtatsSystemeNormalPage() {
     try {
       await api.telecharger(
         `/exports/etats-financiers/liasse-complete?exerciceId=${exerciceCourant.id}${jeuProjet ? parametrePaiementsEnInstance(paiementsEnInstance) : ''}`,
-        `liasse-complete-${new Date(exerciceCourant.dateDebut).getFullYear()}.xlsx`,
+        `liasse-complete-${libelleExercice(exerciceCourant)}.xlsx`,
       );
     } catch (e) {
       setErreur(e instanceof Error ? e.message : "Échec de l'export de la liasse");
@@ -324,7 +325,7 @@ function EtatsSystemeNormalPage() {
         <div className="flex items-center gap-2.5">
           {exerciceCourant && (
             <span className="font-mono text-[11.5px] border border-border bg-surface px-2.5 py-1.5">
-              Exercice {new Date(exerciceCourant.dateDebut).getFullYear()}
+              Exercice {libelleExercice(exerciceCourant)}
             </span>
           )}
           {/*

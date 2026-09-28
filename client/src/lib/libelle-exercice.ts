@@ -14,6 +14,14 @@
  * l'année civile se lit sur son année, les autres « début-fin », pour que le
  * premier et le dernier exercice d'une entité restent discernables.
  *
+ * LES ÉCRANS AUSSI, pas seulement le chrome · l'en-tête des états et des
+ * notes, les listes d'exercices cibles, les messages, le nom par défaut
+ * d'une liasse et le plan fiscal dégressif écrivaient encore l'année de
+ * début (ou de clôture) à la main. Sous une barre de titre « 2026-2027 », la
+ * liasse d'un premier exercice long s'annonçait « Exercice 2026 ».
+ * `libelle-exercice.spec.ts` refuse désormais toute année lue à la main sur
+ * une date d'exercice, ailleurs qu'ici.
+ *
  * L'ANNÉE SE LIT EN UTC · un exercice commence et finit à minuit UTC (le
  * serveur les pose par `Date.UTC`, et une date `AAAA-MM-JJ` se lit en UTC),
  * comme tout jour du dépôt (audit final F81). Lue à l'heure du poste, une

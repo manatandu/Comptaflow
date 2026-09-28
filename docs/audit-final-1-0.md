@@ -624,6 +624,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Constat :** un jalon passe « en retard » dès minuit UTC du jour limite, et aussi un week-end ou un jour férié que le registre des retenues reporte. Le commentaire « UTC partout » est faux.
 - **Correction :** une fonction d'échéance unique, avec report et comparaison au jour, dans une seule convention de fuseau.
 - **Fait le 2026-09-27 :** `common/echeance.ts` · un jour est une date à minuit UTC, « aujourd'hui » le jour de Kinshasa, et une échéance n'est dépassée qu'au lendemain (`echeanceDepassee`). Le registre des retenues et `jour-ouvrable.ts` passent aux accesseurs UTC ; le planning reporte ses seules échéances fiscales (jalons 15, `echeanceFiscale`). Tests : `planning-echeances.spec.ts`, `report-jour-ouvrable.spec.ts` (trois fuseaux, en processus fils, heure d'été comprise).
+- **Complété le 2026-09-28 :** la même convention tient les mois d'un exercice · l'état budgétaire borne le mois choisi en UTC (`analytique/mois-de-l-exercice.ts`, rejoué sous trois fuseaux dont un à l'ouest de Greenwich), la saisie découpe l'exercice en mois et l'en-tête d'impression compte sa durée et imprime ses dates en UTC (`client/src/lib/mois-de-l-exercice.ts`) · à l'heure du poste, un exercice civil faisait treize mois et commençait en décembre à l'ouest de Greenwich. Le cartouche ETAFI lit la clôture en UTC. Tests : `mois-de-l-exercice.spec.ts` des deux côtés.
 
 ### États financiers et notes
 
@@ -1889,6 +1890,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Constat :** deux libellés sur le même écran.
 - **Correction :** fonction `annee` partagée.
 - **Fait le 2026-09-28 :** la barre de titre, le sélecteur d'exercice et l'accueil écrivent l'exercice par une seule fonction, `libelleExercice` (`client/src/lib/libelle-exercice.ts`). Test : `libelle-exercice.spec.ts`, qui tombe si l'un des écrans revient à son écriture propre.
+- **Complété le 2026-09-28 :** les écrans aussi · les dix en-têtes d'états, de notes et de documents, le message de dotation des immobilisations, le sélecteur du groupe, le plan fiscal dégressif, l'assistant de création et les noms par défaut des liasses passent par `libelleExercice` ; `libelle-exercice.spec.ts` relit tout `client/src` et refuse toute année lue à la main sur une date d'exercice, hors du porteur et de deux exceptions motivées (colonnes comparatives des états personnalisés, mois de saisie). Le serveur a son jumeau, même contrat (`src/common/libelle-exercice.ts`) · libellés des écritures de clôture, de report à-nouveau (définitif et provisoire) et d'affectation, noms des fichiers exportés et des classeurs du groupe. Tests : `libelle-exercice.spec.ts` des deux côtés.
 
 **F251 · RegisterPage se dit reliée à aucun bouton** [chrome-14]
 - **Emplacements :** client/src/pages/RegisterPage.tsx:5-11 · AuthPage.tsx:358-367

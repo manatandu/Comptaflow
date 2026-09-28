@@ -21,6 +21,7 @@ import {
   type RattachementNotes,
   type SaisieNotes,
 } from '../components/NotesAnnexesRendu';
+import { libelleExercice } from '../lib/libelle-exercice';
 
 /**
  * Notes annexes SYCEBNL · les deux jeux (45 notes « associations et ordres
@@ -247,7 +248,7 @@ function NotesAnnexesSycebnlPage() {
           <Aide sujet="notesAnnexes" />
           {exerciceCourant && (
             <span className="font-mono text-[11.5px] border border-border bg-surface px-2.5 py-1.5">
-              Exercice {new Date(exerciceCourant.dateDebut).getFullYear()}
+              Exercice {libelleExercice(exerciceCourant)}
             </span>
           )}
           <button

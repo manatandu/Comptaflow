@@ -8,6 +8,7 @@ import type { Devise, Exercice, RapportReevaluation, Reevaluation } from '../lib
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { sousFonctionServie } from '../lib/profil-dossier';
 import { cotationBorneeAuCoursDuJour, DEVISE_COTEE_PAR_LA_PAIE, jourDeKinshasaIso } from '../lib/roles-cantonnes';
+import { libelleExercice } from '../lib/libelle-exercice';
 
 /**
  * DEVISES ET RÉÉVALUATION · Structure → devises et Traitement → Réévaluation
@@ -583,7 +584,7 @@ export function DevisesPage() {
                             .filter((ex) => ex.statut === 'OUVERT' && ex.id !== exerciceCourant?.id)
                             .map((ex) => (
                               <option key={ex.id} value={ex.id}>
-                                Exercice {new Date(ex.dateDebut).getFullYear()}
+                                Exercice {libelleExercice(ex)}
                               </option>
                             ))}
                         </select>

@@ -1,6 +1,10 @@
 import { useAuth } from '../../lib/auth';
 import { useExercice } from '../../lib/exercice';
 import { LIBELLE_SYSTEME } from '../../lib/systemes-syscohada';
+import { dureeEnMois } from '../../lib/mois-de-l-exercice';
+
+/** Un jour de l'exercice, posé à minuit UTC, lu en UTC · à l'heure du poste, il reculait d'un jour à l'ouest de Greenwich. */
+const jourUtc = (d: Date) => d.toLocaleDateString('fr-FR', { timeZone: 'UTC' });
 
 /**
  * En-tête officiel des états imprimés · invisible à l'écran, présent sur
@@ -78,12 +82,11 @@ export function EnteteImpression({ titre, sousTitre }: { titre: string; sousTitr
   // un exercice du 01/01 au 31/12 fait douze mois, un premier exercice ouvert
   // au 01/09 en fait quatre, et c'est bien ce que demande l'imprimé.
   const clos = exerciceCourant ? new Date(exerciceCourant.dateFin) : null;
-  const arrete = exerciceCourant?.dateArreteComptes ? new Date(exerciceCourant.dateArreteComptes) : null;
   const debut = exerciceCourant ? new Date(exerciceCourant.dateDebut) : null;
-  const dureeMois =
-    clos && debut
-      ? (clos.getFullYear() - debut.getFullYear()) * 12 + (clos.getMonth() - debut.getMonth()) + 1
-      : null;
+  const arrete = exerciceCourant?.dateArreteComptes ? new Date(exerciceCourant.dateArreteComptes) : null;
+  // En UTC (lib/mois-de-l-exercice.ts) · lue à l'heure du poste, la durée
+  // valait treize mois à l'ouest de Greenwich.
+  const dureeMois = exerciceCourant ? dureeEnMois(exerciceCourant.dateDebut, exerciceCourant.dateFin) : null;
 
   const JEUX: Record<string, string> = {
     PROJETS_DEVELOPPEMENT: 'Projets de développement et assimilés',
@@ -118,13 +121,13 @@ export function EnteteImpression({ titre, sousTitre }: { titre: string; sousTitr
           {sousTitre && <div className="text-[11.5px]">{sousTitre}</div>}
           {clos && debut && (
             <div className="text-[11px]">
-              Exercice ouvert le {debut.toLocaleDateString('fr-FR')} · clos le {clos.toLocaleDateString('fr-FR')}
+              Exercice ouvert le {jourUtc(debut)} · clos le {jourUtc(clos)}
               {dureeMois !== null && ` · durée ${dureeMois} mois`}
             </div>
           )}
           <div className="text-[11px]">
             {arrete ? (
-              <>Comptes arrêtés le {arrete.toLocaleDateString('fr-FR')}</>
+              <>Comptes arrêtés le {jourUtc(arrete)}</>
             ) : (
               <span className="font-semibold">Date d’arrêté des comptes non renseignée</span>
             )}

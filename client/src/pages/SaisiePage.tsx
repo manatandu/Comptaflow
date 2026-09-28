@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { montant } from '../lib/montants';
+// Les mois de saisie se lisent en UTC, comme les dates de l'exercice.
+import { periodesDeLExercice } from '../lib/mois-de-l-exercice';
 import { useExercice } from '../lib/exercice';
 import { ModelesSaisieModale, type LigneInseree } from '../components/ModelesSaisie';
 import { Calculette } from '../components/Calculette';
@@ -107,32 +109,6 @@ interface ModeleSaisie {
   avertissements: string[];
 }
 
-interface Periode {
-  annee: number;
-  mois: number; // 0-11
-  libelle: string;
-}
-
-const MOIS_FR = [
-  'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-  'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
-];
-
-function periodesDeLExercice(dateDebut: string, dateFin: string): Periode[] {
-  const debut = new Date(dateDebut);
-  const fin = new Date(dateFin);
-  const periodes: Periode[] = [];
-  const curseur = new Date(debut.getFullYear(), debut.getMonth(), 1);
-  while (curseur <= fin) {
-    periodes.push({
-      annee: curseur.getFullYear(),
-      mois: curseur.getMonth(),
-      libelle: `${MOIS_FR[curseur.getMonth()]} ${curseur.getFullYear()}`,
-    });
-    curseur.setMonth(curseur.getMonth() + 1);
-  }
-  return periodes;
-}
 
 function joursDansMois(annee: number, mois: number): number {
   return new Date(annee, mois + 1, 0).getDate();

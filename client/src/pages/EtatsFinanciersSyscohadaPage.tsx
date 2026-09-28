@@ -20,6 +20,7 @@ import {
   type TableauFluxTresorerieSyscohada,
 } from '../lib/types';
 import { montant } from '../lib/montants';
+import { libelleExercice } from '../lib/libelle-exercice';
 
 /**
  * ÉTATS FINANCIERS DU SYSCOHADA RÉVISÉ · Système normal.
@@ -182,7 +183,7 @@ function EtatsSyscohadaSystemeNormal() {
     try {
       await api.telecharger(
         `/exports/etats-financiers-syscohada/liasse-complete?exerciceId=${exerciceCourant.id}`,
-        `liasse-syscohada-${new Date(exerciceCourant.dateDebut).getFullYear()}.xlsx`,
+        `liasse-syscohada-${libelleExercice(exerciceCourant)}.xlsx`,
       );
     } catch (e) {
       setErreur(e instanceof Error ? e.message : "Échec de l'export de la liasse");
@@ -422,7 +423,7 @@ function EtatsSyscohadaSystemeNormal() {
           </label>
           {exerciceCourant && (
             <span className="font-mono text-[11.5px] border border-border bg-surface px-2.5 py-1.5">
-              Exercice {new Date(exerciceCourant.dateDebut).getFullYear()}
+              Exercice {libelleExercice(exerciceCourant)}
             </span>
           )}
           {/* LES EXPORTS PORTENT L'EXERCICE ENTIER (audit final F91) · lancés

@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { Aide } from './chrome/Aide';
 import { montant as fc } from '../lib/montants';
+import { libelleExercice } from '../lib/libelle-exercice';
 
 interface LignePlan {
   exerciceId: string;
@@ -153,7 +154,7 @@ export function PlanFiscalDegressif({
               {plan.lignes.map((l) => (
                 <tr key={l.exerciceId}>
                   <td className="px-2 py-1">
-                    {new Date(l.dateFin).getUTCFullYear()}
+                    {libelleExercice(l)}
                     {l.mode === 'LINEAIRE_ART_35' && <span className="text-text-dim"> · linéaire (art. 35)</span>}
                   </td>
                   <td className="px-2 py-1 text-right">{fc(l.valeurResiduelleDebut)}</td>

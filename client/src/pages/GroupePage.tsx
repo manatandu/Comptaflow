@@ -7,6 +7,7 @@ import { Aide } from '../components/chrome/Aide';
 import type { BalanceAgregeeGroupe, JeuEtatsFinanciersSycebnl } from '../lib/types';
 import { PortailModale } from '../components/PortailModale';
 import * as montants from '../lib/montants';
+import { libelleExercice } from '../lib/libelle-exercice';
 
 /**
  * GROUPE D'ÉTABLISSEMENTS · fenêtre du dossier MÈRE (le siège). Une même
@@ -245,7 +246,7 @@ export function GroupePage() {
           >
             {exercices.map((e) => (
               <option key={e.id} value={e.id}>
-                {new Date(e.dateDebut).getFullYear()}
+                {libelleExercice(e)}
               </option>
             ))}
           </select>

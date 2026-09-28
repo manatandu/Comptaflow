@@ -26,6 +26,7 @@ import {
   type NatureTiers,
 } from '../lib/regularisation-types';
 import { montant } from '../lib/montants';
+import { libelleExercice } from '../lib/libelle-exercice';
 
 /**
  * RÉGULARISATIONS ET ABONNEMENTS · Traitement → Écritures de régularisation
@@ -624,7 +625,7 @@ export function RegularisationPage() {
                           if (
                             cible &&
                             window.confirm(
-                              `Passer la reprise de « ${r.libelle} » sur l’exercice ${new Date(cible.dateDebut).getFullYear()} ?`,
+                              `Passer la reprise de « ${r.libelle} » sur l’exercice ${libelleExercice(cible)} ?`,
                             )
                           ) {
                             reprendre(r.id, cible.id);
@@ -636,7 +637,7 @@ export function RegularisationPage() {
                         {exercicesDeReprise(exercices, r.exerciceId)
                           .map((ex) => (
                             <option key={ex.id} value={ex.id}>
-                              Exercice {new Date(ex.dateDebut).getFullYear()}
+                              Exercice {libelleExercice(ex)}
                             </option>
                           ))}
                       </select>

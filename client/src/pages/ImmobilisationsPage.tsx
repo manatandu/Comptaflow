@@ -7,6 +7,7 @@ import { Aide } from '../components/chrome/Aide';
 import { PlanFiscalDegressif } from '../components/PlanFiscalDegressif';
 import type { Compte, FamilleImmobilisation, Immobilisation, Journal, LieuBien, TypeComposant } from '../lib/types';
 import { montant } from '../lib/montants';
+import { libelleExercice } from '../lib/libelle-exercice';
 
 /**
  * Immobilisations (§3.3) : familles (gabarits, comptes + durée par défaut ·
@@ -280,7 +281,7 @@ export function ImmobilisationsPage() {
         exerciceId: exerciceCourant.id,
         journalId: od?.id ?? journaux[0]?.id,
       });
-      setInfo(`Dotation de ${montant(resultat.montant)} passée pour l'exercice ${new Date(exerciceCourant.dateDebut).getFullYear()}.`);
+      setInfo(`Dotation de ${montant(resultat.montant)} passée pour l'exercice ${libelleExercice(exerciceCourant)}.`);
       await charger();
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Impossible de passer la dotation');

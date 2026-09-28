@@ -16,6 +16,7 @@ import type {
 } from '../lib/types';
 import { corpsSectionsRapport, textesDuRapport } from '../lib/rapport-sections';
 import { montant } from '../lib/montants';
+import { libelleExercice } from '../lib/libelle-exercice';
 
 /**
  * DOCUMENTS OBLIGATOIRES DE CLÔTURE · livre d'inventaire (SYCEBNL art. 14 ·
@@ -249,7 +250,7 @@ export function DocumentsObligatoiresPage() {
         )}
         {exerciceCourant && (
           <span className="font-mono text-[11.5px] border border-border bg-surface px-2.5 py-1.5">
-            Exercice {new Date(exerciceCourant.dateDebut).getFullYear()}
+            Exercice {libelleExercice(exerciceCourant)}
           </span>
         )}
       </div>

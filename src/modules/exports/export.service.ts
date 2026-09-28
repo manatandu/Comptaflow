@@ -99,6 +99,7 @@ import {
   REP_TFT_SYSCOHADA,
   TOTAUX_SYSCOHADA,
 } from './etat-etafi';
+import { libelleExercice } from '../../common/libelle-exercice';
 
 const ENTETE_FONT = { bold: true } as const;
 const ENTETE_FILL = {
@@ -360,9 +361,9 @@ export class ExportService {
     if (!exerciceId) return '';
     const exercice = await this.prisma.exercice.findFirst({
       where: { id: exerciceId, tenantId },
-      select: { dateDebut: true },
+      select: { dateDebut: true, dateFin: true },
     });
-    return exercice ? `-${exercice.dateDebut.getFullYear()}` : '';
+    return exercice ? `-${libelleExercice(exercice)}` : '';
   }
 
   /**
@@ -1950,14 +1951,16 @@ export class ExportService {
     const debut = exercice.dateDebut;
     const fin = exercice.dateFin;
     const duree = Math.max(1, Math.round((fin.getTime() - debut.getTime()) / (30.44 * 86_400_000)));
-    const finAnnee = fin.getMonth() === 11 && fin.getDate() === 31;
+    // En UTC, comme tout jour du dépôt (audit final F81) · l'heure locale d'un
+    // serveur sur site ne doit pas déplacer la clôture d'un jour.
+    const finAnnee = fin.getUTCMonth() === 11 && fin.getUTCDate() === 31;
     return {
       entite: tenant.nom,
       nif: tenant.numeroImpot ?? '',
       // Une clôture au 31/12 s'écrit par l'année seule (le cartouche la
       // développe en « Exercice clos le 31-12-AAAA ») · toute autre date de
       // clôture s'écrit en toutes lettres.
-      exercice: finAnnee ? String(fin.getFullYear()) : fin.toLocaleDateString('fr-FR'),
+      exercice: finAnnee ? String(fin.getUTCFullYear()) : fin.toLocaleDateString('fr-FR', { timeZone: 'UTC' }),
       duree: String(duree),
       adresse: [tenant.adresse, tenant.ville, tenant.pays].filter(Boolean).join(', '),
       sigle: '',

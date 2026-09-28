@@ -30,6 +30,7 @@ import {
 } from './report-a-nouveau';
 import { estTenueParUnLettrage } from '../lettrage/ligne-lettree';
 import { LOT_LECTURE, lireParLots, pageApres } from '../../common/lecture-par-lots';
+import { libelleExercice } from '../../common/libelle-exercice';
 
 /**
  * Ce que le refus dit de la voie que le texte ouvre · AUDCIF art. 22, 4°. Le
@@ -880,7 +881,7 @@ export class ExerciceService {
               journalId: journal.id,
               numeroPiece,
               date: exercice.dateFin,
-              libelle: `Clôture des charges/produits · exercice ${exercice.dateDebut.getUTCFullYear()}`,
+              libelle: `Clôture des charges/produits · exercice ${libelleExercice(exercice)}`,
               createdBy: userId,
               estGenereeParCloture: true,
               estSoldeDesComptesDeGestion: true,
@@ -952,7 +953,7 @@ export class ExerciceService {
               journalId: journal.id,
               numeroPiece: numeroPieceRan,
               date: exerciceSuivant.dateDebut,
-              libelle: `Report à-nouveau · ouverture exercice ${exerciceSuivant.dateDebut.getUTCFullYear()}`,
+              libelle: `Report à-nouveau · ouverture exercice ${libelleExercice(exerciceSuivant)}`,
               createdBy: userId,
               estGenereeParCloture: true,
               // Validé comme l'écriture de solde, et pour la même raison · il
@@ -1060,7 +1061,7 @@ export class ExerciceService {
               journalId: journal.id,
               numeroPiece,
               date: exerciceSuivant.dateDebut,
-              libelle: `Report à-nouveau PROVISOIRE · ouverture exercice ${exerciceSuivant.dateDebut.getUTCFullYear()}`,
+              libelle: `Report à-nouveau PROVISOIRE · ouverture exercice ${libelleExercice(exerciceSuivant)}`,
               createdBy: userId,
               estGenereeParCloture: true,
               estANouveauProvisoire: true,

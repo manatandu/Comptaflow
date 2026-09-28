@@ -6,6 +6,7 @@ import { totalDesFeuilles, valeurDeLaLigne } from './rubriques-budgetaires';
 import { fusionnerCumuls } from './od-analytique';
 import { OdAnalytiqueService } from './od-analytique.service';
 import { moisEntre } from '../../common/mois-entre';
+import { bornesDuMois } from './mois-de-l-exercice';
 
 /** Une ligne du grand livre analytique : le détail d'une section. */
 export interface LigneGrandLivreAnalytique {
@@ -419,9 +420,7 @@ export class EtatsAnalytiquesService {
             'ses dates. La dotation y est annuelle.',
         );
       }
-      const annee = exercice.dateDebut.getFullYear() + (params.mois < exercice.dateDebut.getMonth() + 1 ? 1 : 0);
-      debut = new Date(annee, params.mois - 1, 1);
-      fin = new Date(annee, params.mois, 0, 23, 59, 59);
+      ({ debut, fin } = bornesDuMois(exercice.dateDebut, params.mois));
     }
 
     // LES RUBRIQUES SONT RENDUES, ELLES NE SONT PLUS ÉCARTÉES. Cette requête
