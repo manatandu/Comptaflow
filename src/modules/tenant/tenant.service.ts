@@ -76,6 +76,27 @@ export class TenantService {
    * dossier. `nombreEcritures` sert à l'UI : au-delà de zéro, le jeu d'états
    * financiers est verrouillé (voir modifierJeuEtatsFinanciers).
    */
+  /**
+   * DÉMARRAGE GUIDÉ D'UN DOSSIER NEUF (décision de Manasse du 2026-09-28) ·
+   * l'état de chaque étape se LIT dans le dossier, jamais dans une case cochée
+   * à part : une étape faite ailleurs que dans l'assistant compte aussi, et
+   * rien ne peut se dire fait sans l'être. Des comptes par la base, bornés au
+   * dossier.
+   */
+  async demarrage(tenantId: string) {
+    const [tenant, exercices, journaux, tiers, ecritures] = await Promise.all([
+      this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { modulesActives: true } }),
+      this.prisma.exercice.count({ where: { tenantId } }),
+      this.prisma.journal.count({ where: { tenantId } }),
+      this.prisma.tiers.count({ where: { tenantId } }),
+      this.prisma.ecriture.count({ where: { tenantId } }),
+    ]);
+    if (!tenant) {
+      throw new NotFoundException('Dossier introuvable');
+    }
+    return { exercices, journaux, tiers, ecritures, modulesActives: normaliserModules(tenant.modulesActives) };
+  }
+
   async parametres(tenantId: string) {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant) {

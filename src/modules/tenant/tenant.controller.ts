@@ -31,6 +31,12 @@ import { RoleUtilisateur } from '@prisma/client';
 export class TenantController {
   constructor(private readonly tenantService: TenantService) {}
 
+  /** État des étapes du démarrage guidé · voir TenantService.demarrage. */
+  @Get('demarrage')
+  async demarrage(@CurrentUser() user: AuthenticatedUser) {
+    return this.tenantService.demarrage(user.tenantId);
+  }
+
   @Get('parametres')
   async parametres(@CurrentUser() user: AuthenticatedUser) {
     return this.tenantService.parametres(user.tenantId);

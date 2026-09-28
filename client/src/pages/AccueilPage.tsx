@@ -10,6 +10,8 @@ import type { PlanningCloture, RapportControles, Referentiel } from '../lib/type
 import { fenetreDisponible } from '../lib/referentiel-fenetre';
 import { cheminAuMenu } from '../lib/profil-dossier';
 import { tachesDuRole } from '../lib/accueil-par-metier';
+import { cleDemarragePasse, demarrageInacheve, ouvrirAuChargement, type EtatDemarrage } from '../lib/demarrage-guide';
+import { DemarrageGuide } from '../components/DemarrageGuide';
 import {
   IconBalance,
   IconBanque,
@@ -186,6 +188,32 @@ export function AccueilPage() {
   const [planning, setPlanning] = useState<PlanningCloture | null>(null);
   const [controles, setControles] = useState<RapportControles | null>(null);
   const [chargement, setChargement] = useState(true);
+
+  // DÉMARRAGE GUIDÉ · l'état se lit dans le dossier (`GET /dossier/demarrage`),
+  // à l'administrateur seul ; il s'ouvre seul sur un dossier sans écriture
+  // que ce poste n'a pas passé, et se rouvre depuis l'accueil. Un échec de
+  // lecture ne montre rien · l'accueil ne doit jamais afficher une erreur.
+  const [demarrage, setDemarrage] = useState<EtatDemarrage | null>(null);
+  const [demarrageOuvert, setDemarrageOuvert] = useState(false);
+  const lireDemarrage = () =>
+    api
+      .get<EtatDemarrage>('/dossier/demarrage')
+      .then((e) => {
+        setDemarrage(e);
+        return e;
+      })
+      .catch(() => null);
+  useEffect(() => {
+    if (!estAdmin || !tenantId) return;
+    let vivant = true;
+    lireDemarrage().then((e) => {
+      if (vivant && ouvrirAuChargement(e, estAdmin, lirePasse(tenantId))) setDemarrageOuvert(true);
+    });
+    return () => {
+      vivant = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estAdmin, tenantId]);
   // Vrai tant que le contexte lit encore les exercices et n'en a aucun · lu
   // seulement sans exercice, pour ne pas relancer les deux lectures de
   // l'accueil à chaque relecture des exercices.
@@ -357,6 +385,16 @@ export function AccueilPage() {
 
           {onglet === 'Accueil' && (
             <div className="anim-panneau p-3">
+              {estAdmin && demarrage && demarrageInacheve(demarrage) && (
+                <button
+                  type="button"
+                  onClick={() => setDemarrageOuvert(true)}
+                  className="mb-3 w-full flex items-center justify-between rounded-[3px] border border-sel/40 bg-sel-soft px-3 py-2 text-left text-[11.5px] text-sel font-semibold"
+                >
+                  Démarrage du dossier · reprendre les étapes
+                  <span aria-hidden>›</span>
+                </button>
+              )}
               {tachesVisibles.length > 0 && (
                 <section aria-label={metier.titre} className="mb-3">
                   <h3 className="text-[11.5px] font-semibold text-text-dim mb-1.5">{metier.titre}</h3>
@@ -516,6 +554,19 @@ export function AccueilPage() {
         </div>
       </div>
 
+      {demarrageOuvert && demarrage && (
+        <DemarrageGuide
+          etat={demarrage}
+          onFermer={() => {
+            setDemarrageOuvert(false);
+            lireDemarrage();
+          }}
+          onPasser={() => {
+            ecrire(cleDemarragePasse(tenantId), '1');
+            setDemarrageOuvert(false);
+          }}
+        />
+      )}
       {aProposOuvert && <AProposModale onFermer={() => setAProposOuvert(false)} />}
     </div>
   );
@@ -536,6 +587,13 @@ function ecrire(cle: string, valeur: string) {
     localStorage.setItem(cle, valeur);
   } catch {
     /* préférence perdue, rien d'autre */
+  }
+}
+function lirePasse(tenantId: string): boolean {
+  try {
+    return localStorage.getItem(cleDemarragePasse(tenantId)) === '1';
+  } catch {
+    return false;
   }
 }
 function lireOnglet(): Onglet {

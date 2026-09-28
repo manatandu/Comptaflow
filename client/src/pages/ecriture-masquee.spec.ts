@@ -40,6 +40,7 @@ const EXEMPTS: Record<string, string> = {
  * d'administration peut encore montrer à la lecture seule tout le reste.
  */
 const ADMIN_SEULEMENT: Record<string, string> = {
+  'components/DemarrageGuide.tsx': "choix des modules du dossier, route PATCH /dossier/modules réservée à l'administrateur",
   'pages/BanquesPage.tsx': "banques et RIB, structures du dossier réservées à l'administrateur",
   'pages/LibellesPage.tsx': "libellés pré-enregistrés, structure du dossier réservée à l'administrateur",
   'components/SauvegardesSurSite.tsx': "sauvegardes d'une installation sur site, route réservée à l'administrateur",
