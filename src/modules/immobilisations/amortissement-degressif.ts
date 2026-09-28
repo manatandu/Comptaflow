@@ -50,6 +50,8 @@
  */
 
 import { moisEntre } from '../../common/mois-entre';
+import { ENTREE_EN_VIGUEUR_LOI_23_053 } from '../../common/entree-en-vigueur-loi-23-053';
+import { natureDuBareme } from './bareme-fiscal';
 
 /** Les dix catégories de l'art. 31, dans l'ordre et les mots du texte. */
 export const CATEGORIES_ARTICLE_31 = [
@@ -75,6 +77,82 @@ export function coefficientDegressif(dureeFiscaleAns: number): number | null {
   return 2.5;
 }
 
+/**
+ * LE DÉGRESSIF DE LA LOI N° 23/053 NE COURT QU'À COMPTER DU 1er JANVIER 2026
+ * (passe F12, constat B1). Les art. 31 à 35 entrent en vigueur avec la loi
+ * (art. 153) et le barème de l'arrêté n° 013/2025, dont le taux linéaire est
+ * la base de l'annuité (art. 33, 1°), le même jour (arrêté, art. 6). Un bien
+ * mis en service en 2025 recevait pourtant une annuité 2025 calculée sous ces
+ * textes, et `passer` forçait un 851/151 sur un exercice qu'ils ne régissaient
+ * pas · écriture équilibrée, balance bouclée, dérogatoire faux.
+ *
+ * Le régime antérieur (O.-L. n° 69/009, art. 43 ter D et suivants, abrogés
+ * par l'art. 152, 2° de la loi) avait ses propres coefficients, et OmegaX ne
+ * le calcule pas. Il ne PROLONGE pas non plus un tel plan sous la loi
+ * nouvelle, ni ne le RECOMMENCE au 1er janvier 2026 · aucun texte lu ne dit
+ * ce que devient un plan commencé sous l'ancien régime, et un plan repris
+ * « comme si » serait une règle inventée. Ce qui SOLDE l'historique (la
+ * reprise du dérogatoire déjà passé au 151) reste ouvert.
+ *
+ * La borne porte sur la MISE EN SERVICE, point de départ de l'annuité
+ * (art. 33, 1° et 34), et non sur l'ouverture de l'exercice · un premier
+ * exercice long ouvert en 2025 porte une période imposable 2026 (art. 12),
+ * et un bien mis en service en 2026 n'y reçoit d'annuité que sur celle-ci.
+ */
+export function motifRegimeAnterieurDegressif(dateMiseEnService: Date | null | undefined): string | null {
+  if (!dateMiseEnService || dateMiseEnService.getTime() >= ENTREE_EN_VIGUEUR_LOI_23_053.getTime()) return null;
+  return (
+    'Bien mis en service avant le 1er janvier 2026 · le dégressif de la loi n° 23/053 (art. 31 à 35) et le barème de ' +
+    "l'arrêté n° 013/2025 ne s'appliquent qu'à compter de cette date (loi, art. 153 ; arrêté, art. 6). Le régime antérieur " +
+    "(O.-L. n° 69/009, art. 43 ter D et suivants) n'est pas calculé par OmegaX, qui ne prolonge ni ne recommence le plan " +
+    'sous la loi nouvelle. La reprise du solde du dérogatoire déjà passé reste ouverte.'
+  );
+}
+
+/**
+ * LA DURÉE FISCALE DÉCLARÉE CONFRONTÉE À LA NATURE DU BARÈME (passe F12,
+ * constat B5). Le coefficient se lit sur la « durée normale d'utilisation »
+ * (loi n° 23/053, art. 33, 1°), et c'est l'arrêté n° 013/2025 qui la fixe par
+ * nature (art. 2). La durée se déclare à l'option, et rien ne la rapprochait
+ * de la nature que le bien porte déjà (`Immobilisation.natureFiscaleCle`).
+ *
+ * DEUX SIGNALEMENTS, JAMAIS UN REFUS · l'arrêté admet d'autres taux quand
+ * « les conditions particulières d'exploitation le justifient », justifiés
+ * « lors du contrôle, sous peine de rejet » (art. 4) ; l'écart est donc
+ * permis, et c'est la charge de la preuve qu'il faut dire.
+ *  · la nature du barème est HORS des quatre à vingt ans de l'art. 32, 1°
+ *    alors que la durée déclarée y entre · c'est la durée déclarée, et elle
+ *    seule, qui fait entrer le bien au dégressif ;
+ *  · la durée déclarée est plus COURTE que celle du barème · le taux, donc
+ *    l'annuité, dépasse celui de l'arrêté.
+ * Une durée plus longue que le barème n'est pas signalée · elle ne fait que
+ * différer la déduction.
+ */
+export function avertissementsDureeFiscale(o: {
+  natureFiscaleCle: string | null | undefined;
+  dureeFiscaleAns: number | null | undefined;
+}): string[] {
+  const nature = o.natureFiscaleCle ? natureDuBareme(o.natureFiscaleCle) : undefined;
+  if (!nature || o.dureeFiscaleAns == null) return [];
+  const libelle = `« ${nature.designation} » (${nature.cle})`;
+  const dansLesBornes = (a: number) => a >= 4 && a <= 20;
+  if (!dansLesBornes(nature.dureeAns) && dansLesBornes(o.dureeFiscaleAns)) {
+    return [
+      `Le barème fixe ${nature.dureeAns} ans pour ${libelle} (arrêté n° 013/2025, art. 2), hors des quatre à vingt ans ` +
+        `de la loi n° 23/053, art. 32, 1° · la durée déclarée de ${o.dureeFiscaleAns} ans fait seule entrer le bien au ` +
+        "dégressif, et l'écart se justifie lors du contrôle, sous peine de rejet (arrêté, art. 4).",
+    ];
+  }
+  if (o.dureeFiscaleAns < nature.dureeAns) {
+    return [
+      `Durée fiscale déclarée (${o.dureeFiscaleAns} ans) plus courte que celle du barème pour ${libelle} ` +
+        `(${nature.dureeAns} ans, arrêté n° 013/2025, art. 2) · ce taux dérogatoire se justifie lors du contrôle, ` +
+        'sous peine de rejet (arrêté, art. 4).',
+    ];
+  }
+  return [];
+}
+
 export function motifRefusOptionDegressif(o: {
   referentiel: string;
   personnePhysique: boolean;
@@ -84,6 +162,8 @@ export function motifRefusOptionDegressif(o: {
   dureeFiscaleAns: number | null | undefined;
   amortissementAnterieur: number;
   dotationsPassees: number;
+  /** Nulle tant que le bien n'est pas mis en service · la borne se revérifie alors au dérogatoire. */
+  dateMiseEnService: Date | null;
 }): string | null {
   if (o.referentiel !== 'SYSCOHADA') {
     return "Le dégressif est une option de l'impôt sur les sociétés (loi n° 23/053, art. 31) · un dossier SYCEBNL n'y est pas soumis.";
@@ -91,6 +171,8 @@ export function motifRefusOptionDegressif(o: {
   if (o.personnePhysique) {
     return '« Les sociétés peuvent opter » (art. 31) · une entreprise individuelle ou un entreprenant n’est pas une société.';
   }
+  const anterieur = motifRegimeAnterieurDegressif(o.dateMiseEnService);
+  if (anterieur) return anterieur;
   if (o.numeroCompteImmobilisation.startsWith('21')) {
     return 'Les immobilisations incorporelles sont exclues du dégressif (art. 32, 2°).';
   }

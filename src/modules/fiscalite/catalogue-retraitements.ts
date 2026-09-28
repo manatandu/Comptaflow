@@ -256,10 +256,24 @@ export const CATALOGUE_RETRAITEMENTS: DefinitionRetraitement[] = [
     code: 'AMORTISSEMENTS_EXCEDENT',
     sens: SensRetraitementFiscal.REINTEGRATION,
     libelle: 'Amortissements excédant les taux fiscaux',
-    aide: "Les taux linéaires admis sont fixés par l'arrêté ministériel n° 013/CAB/MIN/FINANCES/2025 du 19 février 2025 · cent trente et une lignes, neuf familles. La différence entre la dotation comptable et l'annuité fiscale se réintègre. Le dégressif n'est ouvert, sur option, qu'aux biens neufs limitativement énumérés, à l'exclusion notamment des véhicules de tourisme et des immobilisations incorporelles.",
-    source: 'Loi n° 23/053, art. 28 à 38 ; arrêté ministériel n° 013/CAB/MIN/FINANCES/2025',
+    aide: "Les taux linéaires admis sont fixés par l'arrêté ministériel n° 013/CAB/MIN/FINANCES/2025 du 19 février 2025 · cent trente et une lignes, neuf familles. Un bien en location-acquisition ne s'amortit pas sur moins de sept ans (constructions, hors la valeur du terrain), quatre ans (équipements) ou trois ans (matériel de transport), art. 5. La différence entre la dotation comptable et l'annuité fiscale se réintègre. Le dégressif n'est ouvert, sur option, qu'aux biens neufs limitativement énumérés, à l'exclusion notamment des véhicules de tourisme et des immobilisations incorporelles.",
+    source: 'Loi n° 23/053, art. 28 à 38 ; arrêté ministériel n° 013/CAB/MIN/FINANCES/2025, art. 2 et 5',
+    // DEUX CHEMINS, ET LE PREMIER EXISTE DANS LE LOGICIEL. Le texte renvoyait
+    // tout bien à « établir l'écart hors du logiciel » · faux pour un bien
+    // amorti en dégressif fiscal (SYSCOHADA, Système normal, option prise),
+    // dont le dérogatoire de l'exercice rend l'EXCÉDENT COMPTABLE à réintégrer
+    // (`derogatoireDeLExercice`, `excedentAReintegrer`, affiché par le bouton
+    // « Fiscal » de la fenêtre Immobilisations). Les autres biens n'ont pas de
+    // plan fiscal tenu par OmegaX, et le renvoi hors du logiciel reste juste
+    // pour eux. Et l'arrêté n° 013/2025, art. 4, admet d'« autres taux » quand
+    // les conditions particulières d'exploitation le justifient, la
+    // justification étant exigée au CONTRÔLE « sous peine de rejet » · un écart
+    // au barème n'est donc pas réintégré d'office, il l'est à défaut de preuve.
     assietteHorsPortee:
-      "Le mouvement du compte de dotations est la DOTATION ENTIÈRE, dont l'art. 28 admet en déduction tout ce qui respecte le barème de l'arrêté n° 013/CAB/MIN/FINANCES/2025 ; seul l'EXCÉDENT se réintègre. L'annuité fiscale se lit dans le tableau des amortissements, immobilisation par immobilisation, et non dans une balance : ce module ne la détient pas et ne propose donc aucun montant. Établir l'écart hors du logiciel, puis le saisir ici.",
+      "Le mouvement du compte de dotations est la DOTATION ENTIÈRE, dont l'art. 28 admet en déduction tout ce qui respecte le barème de l'arrêté n° 013/CAB/MIN/FINANCES/2025 ; seul l'EXCÉDENT se réintègre. L'annuité fiscale se lit dans le tableau des amortissements, immobilisation par immobilisation, et non dans une balance : ce module ne propose donc aucun montant. " +
+      "BIEN AMORTI EN DÉGRESSIF FISCAL (SYSCOHADA, Système normal, option prise) : l'excédent à réintégrer est calculé avec le dérogatoire de l'exercice, dans la fenêtre Immobilisations, bouton « Fiscal », une fois ce dérogatoire passé ; reportez-le ici. " +
+      "AUTRES BIENS : OmegaX ne tient pas leur plan fiscal · établissez l'écart hors du logiciel, puis saisissez-le ici. " +
+      "TAUX DÉROGATOIRE : l'arrêté n° 013/CAB/MIN/FINANCES/2025, art. 4, admet d'autres taux lorsque les conditions particulières d'exploitation le justifient ; justifié lors du contrôle, l'écart n'est pas à réintégrer, et à défaut de justification il est rejeté.",
   },
   {
     /*

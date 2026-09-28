@@ -177,6 +177,123 @@ describe("Quatre conditions cumulatives de l'art. 3, et sanction de l'art. 5", (
   });
 });
 
+describe("Sanction de l'art. 5 de l'arrêté · servie seulement là où l'arrêté s'applique (C2)", () => {
+  // SANCTION_ART_5 est la seule phrase qui dise « OmegaX ne le liquide pas » ;
+  // la version conditionnelle, la seule qui dise « se révèle être ».
+  const brute = /OmegaX ne le liquide pas/;
+  const conditionnelle = /se révèle être celle d'un établissement d'utilité publique ou d'une ONG/;
+
+  it("sert la sanction brute si et seulement si l'arrêté s'applique, la conditionnelle au seul cas indéterminé", () => {
+    const formes: (FormeJuridiqueEbnl | null)[] = [...Object.values(FormeJuridiqueEbnl), null];
+    for (const forme of formes) {
+      for (const droitEtranger of [false, true]) {
+        for (const acte of ['ARR/JUST/2024/117', null]) {
+          const q = qualifierExemptionIs(tenant({ forme, droitEtranger, acte }));
+          const dit = q.avertissements.join(' ');
+          // Art. 1er de l'arrêté n° 007/2025 · EUP et ONG seulement.
+          const arreteSApplique = q.fondement === 'ART_5_POINT_5' || q.attestationRequise === true;
+          expect({ forme, droitEtranger, acte, brute: brute.test(dit) }).toEqual({
+            forme,
+            droitEtranger,
+            acte,
+            brute: arreteSApplique,
+          });
+          expect({ forme, conditionnelle: conditionnelle.test(dit) }).toEqual({
+            forme,
+            conditionnelle: q.fondement === 'INDETERMINE',
+          });
+        }
+      }
+    }
+  });
+
+  it("ne sert aucune sanction à une unité de gestion de projet, que l'arrêté ne vise pas", () => {
+    const dit = qualifierExemptionIs(tenant({ forme: FormeJuridiqueEbnl.UNITE_GESTION_PROJET })).avertissements.join(' ');
+    expect(dit).toMatch(/À établir pièce en main/);
+    expect(brute.test(dit) || conditionnelle.test(dit)).toBe(false);
+  });
+});
+
+describe("Acte de personnalité juridique manquant, entité de droit étranger (C3)", () => {
+  // Loi n° 004/2001, art. 30 · l'autorisation du Président par décret.
+  const art30 = /autorisation du Président de la République donnée par décret sur proposition du Ministre de la Justice » \(art\. 30\)/;
+  // Art. 5 · propre à la Section I, les ASBL de droit congolais.
+  const provisoire = /autorisation provisoire de fonctionnement » de six mois/;
+
+  it("cite l'art. 30 à une ONG étrangère sans acte, nomme décret et ordonnance sans trancher, et tait l'autorisation provisoire", () => {
+    const q = qualifierExemptionIs(
+      tenant({ forme: FormeJuridiqueEbnl.ORGANISATION_NON_GOUVERNEMENTALE, droitEtranger: true, acte: null }),
+    );
+    const dit = q.avertissements.join(' ');
+    expect(dit).toMatch(art30);
+    expect(dit).toMatch(/\(art\. 34\)/);
+    expect(dit).toMatch(/ordonnance présidentielle accordant la personnalité juridique » là où la loi parle d'un décret/);
+    expect(dit).toMatch(/ne tranche pas entre les deux désignations/);
+    expect(provisoire.test(dit)).toBe(false);
+  });
+
+  it("cite l'art. 30 et l'art. 31 à une association étrangère sans acte, et l'art. 32 à la confessionnelle", () => {
+    const asso = qualifierExemptionIs(
+      tenant({ forme: FormeJuridiqueEbnl.ASSOCIATION, droitEtranger: true, acte: null }),
+    ).avertissements.join(' ');
+    expect(asso).toMatch(art30);
+    expect(asso).toMatch(/\(art\. 31\)/);
+    expect(provisoire.test(asso)).toBe(false);
+    const conf = qualifierExemptionIs(
+      tenant({ forme: FormeJuridiqueEbnl.ASSOCIATION_CONFESSIONNELLE, droitEtranger: true, acte: null }),
+    ).avertissements.join(' ');
+    expect(conf).toMatch(art30);
+    expect(conf).toMatch(/\(art\. 32\)/);
+  });
+
+  it("garde les art. 3 et 5 pour une association de droit congolais sans acte", () => {
+    const dit = qualifierExemptionIs(tenant({ forme: FormeJuridiqueEbnl.ASSOCIATION, acte: null })).avertissements.join(
+      ' ',
+    );
+    expect(dit).toMatch(provisoire);
+    expect(art30.test(dit)).toBe(false);
+  });
+});
+
+describe("Art. 3 de l'arrêté, point 4 · la clause finale est citée (C4)", () => {
+  it("cite « condition limitée au public et à l'espace visés par l'objet de la structure »", () => {
+    const dit = qualifierExemptionIs(
+      tenant({ forme: FormeJuridiqueEbnl.ETABLISSEMENT_UTILITE_PUBLIQUE }),
+    ).avertissements.join(' ');
+    expect(dit).toMatch(
+      /ne doit pas entraîner de distorsion de concurrence · condition limitée au public et à l'espace visés par l'objet de la structure\. »/,
+    );
+  });
+});
+
+describe("Pièces d'une entité de droit étranger · ONG et EUP ne se confondent pas (C5)", () => {
+  it("dit l'impossibilité de l'ONG étrangère comme une lecture des pièces de l'art. 2", () => {
+    const dit = qualifierExemptionIs(
+      tenant({ forme: FormeJuridiqueEbnl.ORGANISATION_NON_GOUVERNEMENTALE, droitEtranger: true }),
+    ).avertissements.join(' ');
+    expect(dit).toMatch(/parmi les pièces que l'ONG étrangère joint à sa demande d'attestation \(art\. 2\)\. Il s'ensuit/);
+  });
+
+  it("ne sert ni l'art. 37 ni les pièces de l'EUP de droit national à un EUP étranger, et dit que l'arrêté ne règle pas ce cas", async () => {
+    const s = service(tenant({ forme: FormeJuridiqueEbnl.ETABLISSEMENT_UTILITE_PUBLIQUE, droitEtranger: true }));
+    const r = await s.exemptionIs('t1');
+    expect(r.droitEtranger).toBe(true);
+    const dit = r.avertissements.join(' ');
+    expect(dit).toMatch(/L'arrêté ne règle pas le cas d'un établissement d'utilité publique de droit étranger/);
+    expect(dit).toMatch(/Pièces à joindre à la demande : non fixées par l'arrêté pour un établissement de droit étranger/);
+    // Art. 37 · propre aux ONG (articleTrenteSeptApplicable).
+    expect(/La loi n° 004\/2001, art\. 37/.test(dit)).toBe(false);
+    expect(/Pièces à joindre à la demande : arrêté du Ministre ayant la Justice/.test(dit)).toBe(false);
+  });
+
+  it("garde les pièces de l'EUP de droit national à un EUP congolais", () => {
+    const dit = qualifierExemptionIs(
+      tenant({ forme: FormeJuridiqueEbnl.ETABLISSEMENT_UTILITE_PUBLIQUE }),
+    ).avertissements.join(' ');
+    expect(dit).toMatch(/Pièces à joindre à la demande : arrêté du Ministre ayant la Justice/);
+  });
+});
+
 describe("Le refus du module fiscal n'affirme plus un droit qu'il ne vérifie pas", () => {
   it("affirme l'exemption à une association constituée conformément à la Loi, et à elle seule", async () => {
     const s = service(tenant({ forme: FormeJuridiqueEbnl.ASSOCIATION }));

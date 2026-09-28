@@ -6,13 +6,16 @@ import { motifRefusAmortissementNonLineaireSmt } from '../../common/systeme-mini
 import { FORMES_PERSONNES_PHYSIQUES } from '../retenues/correspondance-retenues';
 import { OptionDegressifDto, PasserDerogatoireDto } from './dto/immobilisation.dto';
 import {
+  avertissementsDureeFiscale,
   CATEGORIES_ARTICLE_31,
   COMPTES_DEROGATOIRE,
   coefficientDegressif,
   derogatoireDeLExercice,
   motifRefusOptionDegressif,
+  motifRegimeAnterieurDegressif,
   planFiscalDegressif,
 } from './amortissement-degressif';
+import { natureDuBareme } from './bareme-fiscal';
 
 const n = (d: unknown) => Number(d ?? 0);
 
@@ -61,13 +64,27 @@ export class DegressifService {
     return { exercices, plan };
   }
 
+  /**
+   * La nature du barème que le bien porte · c'est elle qui PROPOSE la durée à
+   * l'option (arrêté n° 013/2025, art. 2), l'écran ne faisant que la reprendre.
+   */
+  private natureBareme(cle: string | null) {
+    const nature = cle ? natureDuBareme(cle) : undefined;
+    return nature ? { cle: nature.cle, designation: nature.designation, dureeAns: nature.dureeAns } : null;
+  }
+
   /** Le plan fiscal confronté aux dotations comptables et au dérogatoire passé. */
   async planFiscal(tenantId: string, id: string) {
     const immo = await this.immo(tenantId, id);
+    const regimeAnterieur = motifRegimeAnterieurDegressif(immo.dateMiseEnService);
+    const natureBareme = this.natureBareme(immo.natureFiscaleCle);
     if (!immo.degressifFiscal) {
-      return { degressifFiscal: false, categories: CATEGORIES_ARTICLE_31, lignes: [], cumulDerogatoire: 0 };
+      return { degressifFiscal: false, categories: CATEGORIES_ARTICLE_31, lignes: [], cumulDerogatoire: 0, regimeAnterieur, natureBareme };
     }
-    const { exercices, plan } = await this.plan(tenantId, immo);
+    // Un bien mis en service avant 2026 et déjà sous option · aucun plan n'est
+    // rendu, ni prolongé ni recommencé (B1). Le cumul du 151 reste montré,
+    // puisque sa reprise reste ouverte.
+    const { exercices, plan } = regimeAnterieur ? { exercices: [], plan: [] } : await this.plan(tenantId, immo);
     const lignes = plan.map((l) => {
       const e = exercices.find((x) => x.id === l.exerciceId)!;
       const comptable = immo.dotations.find((d) => d.exerciceId === l.exerciceId);
@@ -93,6 +110,9 @@ export class DegressifService {
       categories: CATEGORIES_ARTICLE_31,
       lignes,
       cumulDerogatoire: this.cumul(immo.derogatoires),
+      regimeAnterieur,
+      natureBareme,
+      avertissements: avertissementsDureeFiscale({ natureFiscaleCle: immo.natureFiscaleCle, dureeFiscaleAns: immo.dureeFiscaleAns }),
     };
   }
 
@@ -114,13 +134,16 @@ export class DegressifService {
       dureeFiscaleAns: dto.dureeFiscaleAns,
       amortissementAnterieur: n(immo.amortissementAnterieur),
       dotationsPassees: immo.dotations.length,
+      dateMiseEnService: immo.dateMiseEnService,
     });
     if (refus) throw new BadRequestException(refus);
-    return this.prisma.immobilisation.update({
+    const retenu = await this.prisma.immobilisation.update({
       where: { id: immo.id },
       data: { degressifFiscal: true, categorieDegressif: dto.categorie, dureeFiscaleAns: dto.dureeFiscaleAns, optionDegressifLe: new Date() },
       select: { id: true, degressifFiscal: true, categorieDegressif: true, dureeFiscaleAns: true },
     });
+    // L'écart avec le barème se SIGNALE, l'option est prise (arrêté n° 013/2025, art. 4).
+    return { ...retenu, avertissements: avertissementsDureeFiscale({ natureFiscaleCle: immo.natureFiscaleCle, dureeFiscaleAns: dto.dureeFiscaleAns }) };
   }
 
   /**
@@ -172,6 +195,11 @@ export class DegressifService {
     });
     const refusSmt = motifRefusAmortissementNonLineaireSmt(regime, 'Un nouvel amortissement dérogatoire');
     if (refusSmt) throw new BadRequestException(refusSmt);
+    // Une option prise avant la borne du 1er janvier 2026 (B1) ne donne aucun
+    // dérogatoire, sur aucun exercice · refus NOMMÉ, et non le « pas dans le
+    // plan » d'un plan vide. `solder` reste ouvert.
+    const anterieur = motifRegimeAnterieurDegressif(immo.dateMiseEnService);
+    if (anterieur) throw new BadRequestException(anterieur);
     const { plan } = await this.plan(tenantId, immo);
     const rang = plan.findIndex((l) => l.exerciceId === dto.exerciceId);
     if (rang < 0) throw new BadRequestException("Cet exercice n'est pas dans le plan fiscal du bien.");

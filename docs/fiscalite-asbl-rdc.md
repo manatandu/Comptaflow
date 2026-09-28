@@ -81,10 +81,13 @@ Finances, dans les trois mois, des acquisitions et aliénations immobilières**.
 
 ## 3. Impôt sur les Sociétés · l'exemption n'est ni automatique ni définitive
 
-L'**article 5, point 5 de la loi 23/053** exempte d'IS les associations sans
-but lucratif, les établissements d'utilité publique et les ONG. Son texte
-d'application est l'**arrêté ministériel n° 007/CAB/MIN/FINANCES/2025 du
-19 février 2025**, en vigueur au 1er janvier 2026.
+L'**article 5 de la loi 23/053** exempte d'IS les associations sans but
+lucratif constituées conformément à la loi (**point 3**), et les
+établissements d'utilité publique et les ONG « dans les conditions définies
+par voie réglementaire » (**point 5**). Le texte d'application du seul
+point 5 est l'**arrêté ministériel n° 007/CAB/MIN/FINANCES/2025 du
+19 février 2025**, en vigueur au 1er janvier 2026 (art. 1er et 6) · une ASBL
+qui n'est ni EUP ni ONG tient son exemption du point 3, sans arrêté.
 
 C'est le texte central de la fiscalité des ASBL aujourd'hui, et il est plus
 exigeant que la réputation d'immunité qu'on prête aux associations.
@@ -181,20 +184,25 @@ paie (section 6).
 
 ## 5. TVA · un régime entièrement distinct
 
-L'arrêté 007/2025 le dit lui-même : il ne traite pas de TVA, et « un
-établissement d'utilité publique exempté d'IS n'est pas automatiquement
-exonéré de TVA sur ses achats ou ses ventes : les deux régimes s'apprécient
-séparément ».
+L'arrêté 007/2025 est pris pour la seule exemption d'IS des établissements
+d'utilité publique et des ONG (art. 1er) : ses six articles ne traitent pas
+de TVA, et rien ne peut lui être attribué en cette matière. La phrase selon
+laquelle « les deux régimes s'apprécient séparément » vient de la note de la
+compétence qui le commente, pas de l'arrêté. L'exonération de TVA a sa propre
+base légale, et l'exemption d'IS ne la commande pas.
 
 Base : ordonnance-loi n° 10/001 du 20 août 2010, décret n° 011/42 du
 22 novembre 2011.
 
-- **Article 15, 2°** : sont exonérées « les ventes et importations réalisées
-  par les ASBL légalement constituées, à caractère social, sportif, culturel,
-  religieux, éducatif ou philanthropique **conforme à leur objet** ».
-- **Article 17, 8°** : sont exonérées « les prestations des ASBL légalement
-  constituées **dans leurs activités normales**, si le non-assujettissement
-  n'entraîne pas de distorsion de concurrence ».
+- **Article 15, 2°** : sont exonérées « les ventes et les importations
+  réalisées par les associations sans but lucratif légalement constituées
+  lorsque ces opérations présentent un caractère social, sportif, culturel,
+  religieux, éducatif ou philanthropique **conforme à leur objet**, dans les
+  conditions prévues par voie réglementaire ».
+- **Article 17, 8°** : sont exonérées « les prestations effectuées **dans le
+  cadre de leurs activités normales** par les associations sans but lucratif
+  légalement constituées, lorsque leur non assujettissement n'entraîne pas de
+  distorsion dans les conditions de la concurrence ».
 - **Article 20** : la liste des articles 15 à 19 est **limitative**. Aucune
   exonération de TVA ne peut être accordée par un texte particulier en dehors
   d'elle. Un arrêté interministériel de facilités ne crée donc pas
@@ -400,7 +408,9 @@ une attestation révocable soumise à quatre conditions continues. Un écran qui
 afficherait « dossier exonéré » serait un contresens.
 
 **Ne pas confondre exemption d'IS et exonération de TVA.** Deux bases légales,
-deux appréciations, dit l'arrêté lui-même.
+deux appréciations · la loi n° 23/053, art. 5, pour l'une, l'ordonnance-loi
+n° 10/001, art. 15, 2° et 17, 8°, pour l'autre. L'arrêté 007/2025 ne traite
+pas de TVA.
 
 ### 9.3 Ce que le logiciel pourrait porter, et qui manque
 

@@ -4,8 +4,9 @@ import { arrondirImpotArt150 } from '../fiscalite/arrondi-article-150';
  * LE BARÈME DE L'IMPÔT SUR LE REVENU DES PERSONNES PHYSIQUES, ET CE QU'IL
  * FAUT LUI AJOUTER POUR QU'IL SERVE UN BULLETIN.
  *
- * SOURCE · loi n° 23/053 du 30 novembre 2023 portant réforme de la fiscalité
- * directe, Titre 3, section 3 « Du calcul de l'impôt », articles 118 à 125.
+ * SOURCE · loi n° 23/053 du 30 novembre 2023 relative à l'impôt sur les
+ * sociétés et à l'impôt sur le revenu des personnes physiques, Titre 3,
+ * chapitre 2, section 3 « Du calcul de l'impôt », articles 118 à 125.
  * Entrée en vigueur au 1er janvier 2026 · avant cette date le régime est celui
  * de l'IPR, qui n'est pas au corpus, et ce fichier REFUSE de s'y appliquer.
  *

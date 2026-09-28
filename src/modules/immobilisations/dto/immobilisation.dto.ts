@@ -471,7 +471,13 @@ export class OptionDegressifDto {
   @IsBoolean()
   bienNeuf!: boolean;
 
-  /** Durée normale d'utilisation de l'arrêté n° 013/2025, en années entières. */
+  /**
+   * Durée normale d'utilisation de l'arrêté n° 013/2025, en années entières.
+   * L'écran la propose depuis la nature du barème que le bien porte ; un
+   * écart se SIGNALE en retour (`avertissements`), il ne se refuse pas
+   * (arrêté, art. 4). Les bornes de quatre à vingt ans (loi n° 23/053,
+   * art. 32, 1°) se jugent au service, avec leur motif, et non ici.
+   */
   @IsInt()
   @Min(1)
   @Max(99)

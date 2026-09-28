@@ -2523,3 +2523,49 @@ passer 40 %.
 **UNE LACUNE DÉCLARÉE À TORT, LA NEUVIÈME, ET LE MODULE VOISIN AVAIT LA
 RÉPONSE.** Même cause que la sixième (l'arrêté INPP) · le manque a été relu
 contre le module qu'on écrivait, jamais contre le dépôt entier.
+
+## Passe F12 · le socle 2026, arrêtés ministériels de 2025 et paramètres (2026-09-28)
+
+`parametres-2026.md` et les arrêtés n° 007, 008, 009, 010, 013, 014 et 019/2025,
+confrontés aux constantes et aux messages du code, en quatre blocs. 23 agents,
+121 obligations servies, 19 constats réfutés un à un, **5 écartés, 14 retenus
+dont 4 FAUX, tous traités** (A1 et D1 visant le même défaut). Chaque ligne
+source relue par la session principale ou par l'agent qui corrigeait.
+
+### Corrigés
+
+| Constat | Gravité | Ce qui était faux | Ce qui est fait |
+|---|---|---|---|
+| C1 | FAUX | La réserve TVA du registre attribuait à l'arrêté n° 007/2025 que l'IS et la TVA « s'apprécient séparément » · l'arrêté ne traite pas de TVA, la phrase venait de la glose de la compétence. | Exonération rattachée à l'O.-L. n° 10/001, art. 15, 2° et 17, 8° ; l'ASBL à la loi n° 23/053, art. 5, point 3. `docs/fiscalite-asbl-rdc.md` corrigé, dont son § 3 qui mettait l'ASBL au point 5. |
+| C2 | FAUX | La sanction de l'art. 5 de l'arrêté n° 007/2025 servie à une unité de gestion de projet, que l'art. 1er ne vise pas. | Retirée ; conditionnée au cas où la forme reste indéterminée. Propriété gelée sur toutes les formes. |
+| C3 | FAUX | Une ONG ou une association de droit étranger sans acte recevait l'arrêté du Ministre de la Justice et l'autorisation provisoire de six mois, propres aux ASBL de droit congolais. | Variante étrangère · loi n° 004/2001, art. 29, 30, 31 (32 pour une confessionnelle), 34 ; pour une ONG l'ordonnance présidentielle de l'arrêté n° 007/2025, art. 2, l'écart décret / ordonnance signalé sans être tranché. |
+| A1, D1, D2 | FAUX | L'aide « Seuil d'immobilisation » étendait à TOUT bien le seuil de 500 USD de l'arrêté n° 014/2025, sans « valeur unitaire », sans sa nature fiscale ni sa date d'effet. | Trois catégories, valeur unitaire, déduction IS et IRPP (loi art. 28 et 89), en vigueur au 1er janvier 2026 (art. 3), dite inapplicable sur un exercice clos avant ; la classe 6 comptable (fiche du compte 24) dite à part, sans seuil. |
+| B1 | CALENDRIER | Le plan dégressif et le dérogatoire n'étaient bornés à aucune date · un bien mis en service en 2025 recevait une annuité 2025 aux coefficients de 2026, et `passer` forçait un 851/151 sur 2025. | Option et dotation refusées, motif nommé, pour un bien mis en service avant le 1er janvier 2026 (loi art. 153, arrêté n° 013 art. 6) ; le plan n'est ni prolongé ni recommencé ; la reprise du solde reste ouverte. La borne se lit sur la MISE EN SERVICE, pas sur l'ouverture de l'exercice · un premier exercice long ouvert en 2025 porte une période imposable 2026. Une seule constante (`src/common/entree-en-vigueur-loi-23-053.ts`). |
+| D3 | CALENDRIER | Capitaux mobiliers, salaires, plus-values et prestataires non résidents servis sans borne au registre des retenues. | Borne au 1er janvier 2026 dans les réserves des deux référentiels, texte antérieur dit hors corpus, rien calculé. |
+| B3 | INCOMPLET | Le plancher de l'art. 5 de l'arrêté n° 013/2025 (location-acquisition, 7, 4 et 3 ans) n'avait aucun porteur. | Signalé sans refuser sur les sous-comptes 2316, 2326, 2416, 2426, 2446 et 2456 (mêmes numéros aux deux semis ; le 2446 rangé parmi les équipements est une lecture dite). |
+| B4 | INCOMPLET | `AMORTISSEMENTS_EXCEDENT` renvoyait « hors du logiciel » un excédent que le plan dégressif calcule. | Chemin nommé ; réserve de l'art. 4 (autres taux justifiés au contrôle). |
+| C4 | INCOMPLET | La quatrième condition de l'arrêté n° 007/2025, art. 3, « citée en entier », était tronquée. | Clause « limitée au public et à l'espace visés par l'objet de la structure » rétablie, sa portée dite non tranchée. |
+| B5 | CONFORT | La durée fiscale déclarée à l'option jamais confrontée à la nature du barème. | Durée du barème proposée ; durée plus courte signalée (art. 4), exclusion de l'art. 32, 1° signalée. |
+| C5 | CONFORT | Une déduction de la compétence citée entre guillemets comme l'arrêté ; l'avertissement ONG étrangère servi à un EUP étranger. | Reformulée ; bornée par `articleTrenteSeptApplicable` ; l'EUP étranger reçoit un avertissement propre. |
+| A3 | CONFORT | L'intitulé de la loi n° 23/053 faux dans l'en-tête du barème IRPP. | Corrigé. |
+
+### Écartés par la réfutation
+
+A2 (l'ancienne rédaction de l'art. 57 bis n'a jamais été en vigueur · la loi
+n° 23/052 et la L.F. n° 25/060 prennent effet le même jour), B2 (le taux 1/7
+contre 14,28 % imprimé · lecture à déclarer, pas un défaut), B6 (la réserve de
+l'art. 4 fidèlement résumée), C6 (la liste des États non coopératifs · manque
+déjà nommé, rien n'est qualifié par le logiciel), C7 (la bulle du résultat
+fiscal n'est pas servie à une ONG).
+
+### Ce que la passe apprend
+
+**UNE BORNE D'ENTRÉE EN VIGUEUR SE POSE SUR LE FAIT QUE LE TEXTE DATE.** Le
+constat proposait de refuser tout exercice ouvert avant 2026 ; le dégressif
+court du mois de mise en service (art. 34), et un premier exercice long ouvert
+en 2025 porte une période 2026. Borné sur l'exercice, le bien de 2026 aurait
+été bloqué pour de bon.
+
+**UNE GLOSE DE COMPÉTENCE N'EST PAS LE TEXTE**, deux fois dans la même passe
+(C1, C5) · ce qu'un fichier de compétence déduit se cite comme une lecture,
+jamais entre guillemets au nom de l'arrêté.

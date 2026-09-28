@@ -1,4 +1,5 @@
 import { FormeJuridiqueEbnl } from '@prisma/client';
+import { articleTrenteSeptApplicable } from '../accord-cadre/conditions-ong-etrangere';
 
 /**
  * QUALIFIER L'EXEMPTION D'IMPÔT SUR LES SOCIÉTÉS D'UNE ENTITÉ NON LUCRATIVE ·
@@ -128,15 +129,25 @@ const renseigne = (v?: string | null) => typeof v === 'string' && v.trim().lengt
  * Art. 3 de l'arrêté, l. 45-54, cité en entier · le mot « effectivement » est
  * du texte, et l. 56-58 ajoute que l'attestation « une fois délivrée, ne fige
  * pas l'exemption ».
+ *
+ * LE POINT 4 PORTE UNE CLAUSE FINALE (l. 53-54), « condition limitée au public
+ * et à l'espace visés par l'objet de la structure », que la citation avait
+ * perdue alors qu'elle se disait entière. La source la sépare du reste par un
+ * tiret long, rendu ici par « · ». SA PORTÉE N'EST PAS TRANCHÉE · elle peut
+ * borner l'appréciation de la distorsion au public et au territoire que les
+ * statuts visent, ou désigner le seul champ où la vente est admise ; aucun
+ * autre article de l'arrêté ne l'éclaire. Le texte est donc cité et la
+ * paraphrase qui suit reste neutre sur le marché à considérer.
  */
 const QUATRE_CONDITIONS =
   "Arrêté n° 007/2025, art. 3 : « L'exemption n'est effectivement acquise que si quatre conditions cumulatives sont " +
   "réunies : 1. activités exercées dans un but non lucratif ; 2. gestion désintéressée (voir art. 4) ; 3. en cas " +
   "d'activités lucratives, le produit doit être réinvesti dans le programme d'activités à caractère philanthropique, " +
   "scientifique, culturel, artistique, pédagogique, éducatif ou sportif faisant l'objet de la structure ; 4. la vente " +
-  "éventuelle des produits issus de ces activités lucratives ne doit pas entraîner de distorsion de concurrence. » " +
+  "éventuelle des produits issus de ces activités lucratives ne doit pas entraîner de distorsion de concurrence · " +
+  "condition limitée au public et à l'espace visés par l'objet de la structure. » " +
   "AUCUNE DES QUATRE NE SE LIT DANS UNE COMPTABILITÉ · un compte de produits porte un montant, jamais le but " +
-  "poursuivi, l'affectation du surplus ni l'état de la concurrence sur le marché visé. OmegaX ne les vérifie pas et " +
+  "poursuivi, l'affectation du surplus ni l'effet des ventes sur la concurrence. OmegaX ne les vérifie pas et " +
   "ne prétend pas les vérifier : c'est à vous de les constater, exercice par exercice, l'attestation une fois " +
   "délivrée ne figeant pas l'exemption.";
 
@@ -157,6 +168,21 @@ const SANCTION_ART_5 =
   "à 707, catalogue de retraitements de la loi n° 23/053) et un dossier SYCEBNL n'en a pas. Le chiffrage se fait hors " +
   "logiciel. Le texte est par ailleurs muet sur une remise en cause au-delà de l'exercice visé : silence à signaler, " +
   "pas à trancher.";
+
+/**
+ * LA SANCTION DE L'ART. 5 NE VAUT QUE SOUS L'ARRÊTÉ · son art. 1er n'en vise
+ * que les établissements d'utilité publique et les ONG. Servie telle quelle à
+ * une forme non qualifiée, elle lui opposerait un impôt « dû » au nom d'un
+ * texte qui ne la vise peut-être pas. Elle n'est donc servie qu'au
+ * conditionnel, et seulement quand la forme reste indéterminée · une unité de
+ * gestion de projet, hors loi n° 004/2001, n'est ni l'un ni l'autre et ne la
+ * reçoit pas.
+ */
+const SANCTION_ART_5_CONDITIONNELLE =
+  "Si la forme de ce dossier se révèle être celle d'un établissement d'utilité publique ou d'une ONG, l'arrêté " +
+  "n° 007/2025 s'applique (art. 1er) et son art. 5 avec lui : « En cas de non-respect des conditions des articles 3 " +
+  "et 4, l'impôt sur les sociétés est dû au titre de l'exercice concerné. » Cette sanction ne vaut que dans ce cas · " +
+  "l'arrêté ne vise aucune autre entité.";
 
 /**
  * ONG · LE CONCOURS DE QUALIFICATION, QU'IL FAUT DIRE ET NON TRANCHER.
@@ -223,9 +249,14 @@ const attestationDite = (connue: boolean, pieces: string, dateConnue = false) =>
       "dans ce dossier (paramètres du dossier, « Attestation d'exemption »). Tant qu'elle manque, l'exemption ne peut " +
       `pas être présentée comme acquise. Pièces à joindre à la demande : ${pieces}`;
 
-/** Table de l'art. 2 de l'arrêté, l. 33-37, ligne par ligne. */
+/**
+ * Table de l'art. 2 de l'arrêté, l. 33-37, ligne par ligne. Sa première ligne
+ * est l'établissement d'utilité publique « de droit national » : la table ne
+ * prévoit aucune pièce pour un établissement de droit étranger.
+ */
 const PIECES_EUP =
   "arrêté du Ministre ayant la Justice dans ses attributions, accordant la personnalité juridique.";
+const PIECES_EUP_ETRANGER = "non fixées par l'arrêté pour un établissement de droit étranger (voir ci-dessous).";
 const PIECES_ONG_CONGOLAISE =
   "arrêté du Ministre de la Justice accordant la personnalité juridique ET acte d'enregistrement auprès du Ministère " +
   "du secteur d'activité visé.";
@@ -233,17 +264,39 @@ const PIECES_ONG_ETRANGERE =
   "ordonnance présidentielle accordant la personnalité juridique, justification d'une représentation en RDC, et " +
   "accord-cadre conclu avec le Ministère du Plan.";
 
-/** Art. 37 de la loi n° 004/2001, l. 294-302, et l. 39-41 de l'arrêté. */
+/**
+ * Art. 37 de la loi n° 004/2001, l. 294-302, et table de l'art. 2 de l'arrêté,
+ * l. 37. La phrase de la l. 39-41 du fichier de la compétence (« ne peut donc
+ * pas obtenir l'attestation ») est une DÉDUCTION de la transcription, pas un
+ * alinéa de l'arrêté · elle se dit donc comme une lecture tirée des pièces,
+ * sans guillemets ni attribution au texte.
+ */
 const ONG_ETRANGERE =
   "DOSSIER DÉCLARÉ DE DROIT ÉTRANGER. La loi n° 004/2001, art. 37, impose à l'organisation étrangère d'« avoir une " +
   "représentation en République Démocratique du Congo » et de « conclure un accord-cadre avec le Ministère ayant le " +
-  "plan dans ses attributions ». L'arrêté n° 007/2025 en fait des pièces de la demande d'attestation, et en tire " +
-  "cette conséquence : « Une ONG étrangère sans accord-cadre avec le Ministère du Plan, ou sans représentation " +
-  "justifiée en RDC, ne peut donc pas obtenir l'attestation, même personnalité juridique acquise à l'étranger. » " +
+  "plan dans ses attributions ». L'arrêté n° 007/2025 range la justification d'une représentation en RDC et " +
+  "l'accord-cadre conclu avec le Ministère du Plan parmi les pièces que l'ONG étrangère joint à sa demande " +
+  "d'attestation (art. 2). Il s'ensuit qu'une ONG étrangère à qui l'une de ces deux pièces manque ne peut pas " +
+  "constituer sa demande, même personnalité juridique acquise à l'étranger. " +
   "L'accord-cadre se tient désormais dans la fenêtre Accord-cadre (Ministère du Plan) · il ne se confond pas avec " +
   "le certificat d'enregistrement du Ministère du Plan, qui est une autre pièce, ni avec l'arrêté interministériel " +
   "de l'art. 39, qui ouvre les exonérations et non l'existence de l'ONG. Ce module ne LIT pas l'accord : il rappelle " +
   "la condition, et c'est le contrôle ACCORD_CADRE_PLAN_ABSENT qui constate son absence.";
+
+/**
+ * EUP DE DROIT ÉTRANGER · la table de l'art. 2 de l'arrêté (l. 35) ne prévoit
+ * de pièces que pour l'établissement « de droit national ». Lui servir cette
+ * ligne lui réclamerait un arrêté du Ministre de la Justice qui ne correspond
+ * peut-être pas à sa constitution ; lui servir l'art. 37 de la loi
+ * n° 004/2001 appliquerait une règle des seules ONG. L'arrêté ne règle pas ce
+ * cas, et le logiciel le dit plutôt que d'emprunter la ligne voisine.
+ */
+const EUP_ETRANGER =
+  "DOSSIER DÉCLARÉ DE DROIT ÉTRANGER. La table de l'art. 2 de l'arrêté n° 007/2025 ne prévoit de pièces que pour " +
+  "l'établissement d'utilité publique « de droit national » (arrêté du Ministre ayant la Justice dans ses " +
+  "attributions, accordant la personnalité juridique). L'arrêté ne règle pas le cas d'un établissement d'utilité " +
+  "publique de droit étranger · les pièces de sa demande d'attestation sont à établir auprès de la Direction " +
+  "Générale des Impôts, à qui la demande est adressée.";
 
 /** Loi n° 004/2001, art. 3 et art. 5 · ce que « constituées conformément à la Loi » suppose. */
 const ACTE_MANQUANT =
@@ -253,6 +306,46 @@ const ACTE_MANQUANT =
   "provisoire de fonctionnement » de six mois (art. 5). L'ACTE DE PERSONNALITÉ JURIDIQUE N'EST PAS RENSEIGNÉ dans ce " +
   "dossier. Le champ étant facultatif, son absence ne prouve rien : elle empêche seulement le logiciel d'affirmer " +
   "que la condition du point 3 est remplie.";
+
+/**
+ * ACTE MANQUANT, ENTITÉ DE DROIT ÉTRANGER · les art. 3 et 5 ci-dessus sont
+ * ceux de la Section I, les ASBL de droit congolais. L'association étrangère
+ * (siège à l'étranger, art. 29) relève de la Section II : « Aucune association
+ * étrangère ne peut exercer ses activités en République Démocratique du Congo
+ * sans une autorisation du Président de la République donnée par décret sur
+ * proposition du Ministre de la Justice » (art. 30, l. 244-247), après avis et
+ * enregistrement du Ministère du secteur (art. 31, l. 249-256), ou sur demande
+ * adressée au Ministre de la Justice pour la confessionnelle (art. 32,
+ * l. 258-260) ; autorisée, elle a la capacité que lui reconnaît la loi de son
+ * siège, sans plus de droits qu'une ASBL congolaise (art. 34, l. 266-270).
+ * AUCUNE AUTORISATION PROVISOIRE n'existe dans cette section : l'art. 5 ne
+ * vaut que pour la Section I, et la servir à une entité étrangère lui
+ * promettrait un fonctionnement de six mois que la loi ne lui ouvre pas.
+ *
+ * ET POUR UNE ONG, L'ACTE N'A PAS LE MÊME NOM DANS LES DEUX TEXTES · la loi
+ * parle d'une autorisation par DÉCRET (art. 30), la table de l'art. 2 de
+ * l'arrêté n° 007/2025 d'une ORDONNANCE présidentielle accordant la
+ * personnalité juridique (l. 37). Aucune source lue ne dit si c'est le même
+ * acte sous deux noms ou deux actes. Le logiciel nomme les deux sans trancher.
+ */
+const acteManquantEtranger = (ong: boolean, confessionnelle: boolean) =>
+  "DOSSIER DÉCLARÉ DE DROIT ÉTRANGER. Une association sans but lucratif qui a son siège à l'étranger (loi " +
+  "n° 004/2001, art. 29) ne relève pas des art. 3 et 5 de cette loi mais de sa Section II : « Aucune association " +
+  "étrangère ne peut exercer ses activités en République Démocratique du Congo sans une autorisation du Président " +
+  "de la République donnée par décret sur proposition du Ministre de la Justice » (art. 30), " +
+  (confessionnelle
+    ? "la demande d'enregistrement et d'autorisation d'une association confessionnelle étant adressée au Ministre de " +
+      "la Justice (art. 32) ; "
+    : "après avis et enregistrement auprès du Ministère du secteur d'activités visé (art. 31) ; ") +
+  "autorisée, elle a la capacité que lui reconnaît la loi de son siège, sans plus de droits qu'une association de " +
+  "droit congolais (art. 34). Cette section ne prévoit aucune autorisation provisoire de fonctionnement. " +
+  (ong
+    ? "Pour une ONG, la table de l'art. 2 de l'arrêté n° 007/2025 nomme une « ordonnance présidentielle accordant la " +
+      "personnalité juridique » là où la loi parle d'un décret · le logiciel ne tranche pas entre les deux " +
+      "désignations. "
+    : '') +
+  "L'ACTE D'AUTORISATION N'EST PAS RENSEIGNÉ dans ce dossier. Le champ étant facultatif, son absence ne prouve " +
+  "rien : elle empêche seulement le logiciel d'affirmer que l'entité est constituée conformément à la Loi.";
 
 /**
  * Qualifie le fondement de l'exemption et pose les avertissements dus.
@@ -277,7 +370,12 @@ export function qualifierExemptionIs(entree: EntreeQualificationExemptionIs): Qu
     case FormeJuridiqueEbnl.ASSOCIATION:
     case FormeJuridiqueEbnl.ASSOCIATION_CONFESSIONNELLE: {
       if (!acteConnu) {
-        avertissements.push(ACTE_MANQUANT, POINT_4_MANIFESTATIONS);
+        avertissements.push(
+          etranger
+            ? acteManquantEtranger(false, entree.formeJuridique === FormeJuridiqueEbnl.ASSOCIATION_CONFESSIONNELLE)
+            : ACTE_MANQUANT,
+          POINT_4_MANIFESTATIONS,
+        );
       }
       return {
         fondement: 'ART_5_POINT_3',
@@ -301,9 +399,15 @@ export function qualifierExemptionIs(entree: EntreeQualificationExemptionIs): Qu
     case FormeJuridiqueEbnl.ORGANISATION_NON_GOUVERNEMENTALE: {
       avertissements.push(CONCOURS_ONG);
       avertissements.push(attestationDite(attestationConnue, etranger ? PIECES_ONG_ETRANGERE : PIECES_ONG_CONGOLAISE));
-      if (etranger) avertissements.push(ONG_ETRANGERE);
+      // Art. 37 de la loi n° 004/2001 · la règle qui dit quand il s'applique
+      // vit une fois, dans le module accord-cadre.
+      if (articleTrenteSeptApplicable(FormeJuridiqueEbnl.ORGANISATION_NON_GOUVERNEMENTALE, etranger)) {
+        avertissements.push(ONG_ETRANGERE);
+      }
       avertissements.push(QUATRE_CONDITIONS, GESTION_DESINTERESSEE, SANCTION_ART_5);
-      if (!acteConnu) avertissements.push(ACTE_MANQUANT, POINT_4_MANIFESTATIONS);
+      if (!acteConnu) {
+        avertissements.push(etranger ? acteManquantEtranger(true, false) : ACTE_MANQUANT, POINT_4_MANIFESTATIONS);
+      }
       return {
         fondement: 'ART_5_POINT_3_OU_POINT_5',
         enonce:
@@ -324,8 +428,12 @@ export function qualifierExemptionIs(entree: EntreeQualificationExemptionIs): Qu
     // Titre II de la loi n° 004/2001, art. 58 · un EUP N'EST PAS une ASBL, les
     // points 3 et 4 de l'art. 5 ne le concernent donc pas.
     case FormeJuridiqueEbnl.ETABLISSEMENT_UTILITE_PUBLIQUE: {
-      avertissements.push(attestationDite(attestationConnue, PIECES_EUP));
-      if (etranger) avertissements.push(ONG_ETRANGERE);
+      // La ligne « EUP de droit national » de la table de l'art. 2 ne vaut pas
+      // pour un établissement étranger, et l'art. 37, propre aux ONG, non
+      // plus · voir EUP_ETRANGER.
+      // L'attestation reste due (art. 2), seules les pièces manquent au texte.
+      avertissements.push(attestationDite(attestationConnue, etranger ? PIECES_EUP_ETRANGER : PIECES_EUP));
+      if (etranger) avertissements.push(EUP_ETRANGER);
       avertissements.push(QUATRE_CONDITIONS, GESTION_DESINTERESSEE, SANCTION_ART_5);
       return {
         fondement: 'ART_5_POINT_5',
@@ -352,7 +460,6 @@ export function qualifierExemptionIs(entree: EntreeQualificationExemptionIs): Qu
           "3, 4 et 5 de l'art. 5 de la loi n° 23/053 ne découle donc de sa forme. Si une exemption existe, elle vient " +
           "d'un autre instrument · convention de financement, accord de siège, texte propre au bailleur, qu'OmegaX ne " +
           "détient pas. À établir pièce en main avant toute conclusion.",
-        SANCTION_ART_5,
       );
       return {
         fondement: 'HORS_LOI_004_2001',
@@ -373,7 +480,7 @@ export function qualifierExemptionIs(entree: EntreeQualificationExemptionIs): Qu
           "non renseigné). Les points 3, 4 et 5 de l'art. 5 de la loi n° 23/053 ne visent pas les mêmes entités et " +
           "n'ont pas le même régime : renseigner la forme dans les paramètres du dossier est le préalable à toute " +
           "qualification.",
-        SANCTION_ART_5,
+        SANCTION_ART_5_CONDITIONNELLE,
       );
       return {
         fondement: 'INDETERMINE',

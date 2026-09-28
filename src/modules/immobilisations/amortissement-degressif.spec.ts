@@ -1,11 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  avertissementsDureeFiscale,
   CATEGORIES_ARTICLE_31,
   COMPTES_DEROGATOIRE,
   coefficientDegressif,
   derogatoireDeLExercice,
   motifRefusOptionDegressif,
+  motifRegimeAnterieurDegressif,
   planFiscalDegressif,
 } from './amortissement-degressif';
 import { DegressifService } from './degressif.service';
@@ -34,7 +36,7 @@ describe('dégressif fiscal · loi n° 23/053, art. 31 à 35', () => {
   it('refuse le SYCEBNL, une personne physique, un incorporel, un bien d’occasion, une durée hors bornes, un bien déjà doté', () => {
     const ok = {
       referentiel: 'SYSCOHADA', personnePhysique: false, numeroCompteImmobilisation: '24110000', categorie: 'MATERIEL_INDUSTRIEL',
-      bienNeuf: true, dureeFiscaleAns: 5, amortissementAnterieur: 0, dotationsPassees: 0,
+      bienNeuf: true, dureeFiscaleAns: 5, amortissementAnterieur: 0, dotationsPassees: 0, dateMiseEnService: d('2026-07-15') as Date | null,
     };
     expect(motifRefusOptionDegressif(ok)).toBeNull();
     expect(motifRefusOptionDegressif({ ...ok, referentiel: 'SYCEBNL' })).toMatch(/SYCEBNL/);
@@ -45,6 +47,42 @@ describe('dégressif fiscal · loi n° 23/053, art. 31 à 35', () => {
     expect(motifRefusOptionDegressif({ ...ok, dureeFiscaleAns: 3 })).toMatch(/quatre à vingt/);
     expect(motifRefusOptionDegressif({ ...ok, dotationsPassees: 1 })).toMatch(/première dotation/);
     expect(motifRefusOptionDegressif({ ...ok, amortissementAnterieur: 10 })).toMatch(/repris/);
+  });
+
+  it('B1 · refuse un bien mis en service avant le 1er janvier 2026 (loi n° 23/053, art. 153 ; arrêté n° 013/2025, art. 6)', () => {
+    const ok = {
+      referentiel: 'SYSCOHADA', personnePhysique: false, numeroCompteImmobilisation: '24110000', categorie: 'MATERIEL_INDUSTRIEL',
+      bienNeuf: true, dureeFiscaleAns: 5, amortissementAnterieur: 0, dotationsPassees: 0,
+    };
+    expect(motifRefusOptionDegressif({ ...ok, dateMiseEnService: d('2025-03-01') })).toMatch(/avant le 1er janvier 2026.*art\. 153.*art\. 6/);
+    expect(motifRefusOptionDegressif({ ...ok, dateMiseEnService: d('2025-12-31') })).toMatch(/n'est pas calculé par OmegaX/);
+    // La borne est la date d'entrée en vigueur elle-même, comprise.
+    expect(motifRefusOptionDegressif({ ...ok, dateMiseEnService: d('2026-01-01') })).toBeNull();
+    // Pas encore mis en service · l'option reste ouverte, la borne se revérifie au dérogatoire.
+    expect(motifRefusOptionDegressif({ ...ok, dateMiseEnService: null })).toBeNull();
+    expect(motifRegimeAnterieurDegressif(d('2025-03-01'))).toMatch(/reprise du solde du dérogatoire déjà passé reste ouverte/);
+  });
+});
+
+describe('B5 · la durée fiscale confrontée à la nature du barème (arrêté n° 013/2025, art. 2 et 4)', () => {
+  it('une durée plus courte que le barème se signale, avec la réserve de l’art. 4', () => {
+    // III.14 · machines-outils légères, cinq ans.
+    const a = avertissementsDureeFiscale({ natureFiscaleCle: 'III.14', dureeFiscaleAns: 4 });
+    expect(a).toHaveLength(1);
+    expect(a[0]).toMatch(/plus courte que celle du barème.*\(5 ans, arrêté n° 013\/2025, art\. 2\).*sous peine de rejet \(arrêté, art\. 4\)/);
+  });
+
+  it('un barème hors des quatre à vingt ans, et une durée déclarée qui y entre, se signalent avec l’art. 32, 1°', () => {
+    // III.20 · matériels d'usine fixes, trois ans ; II.12 · autoroutes, quarante ans.
+    expect(avertissementsDureeFiscale({ natureFiscaleCle: 'III.20', dureeFiscaleAns: 4 })[0]).toMatch(/3 ans.*art\. 32, 1°/);
+    expect(avertissementsDureeFiscale({ natureFiscaleCle: 'II.12', dureeFiscaleAns: 20 })[0]).toMatch(/40 ans.*art\. 32, 1°/);
+  });
+
+  it('rien à signaler · durée égale ou plus longue, nature absente ou inconnue', () => {
+    expect(avertissementsDureeFiscale({ natureFiscaleCle: 'III.14', dureeFiscaleAns: 5 })).toEqual([]);
+    expect(avertissementsDureeFiscale({ natureFiscaleCle: 'III.14', dureeFiscaleAns: 8 })).toEqual([]);
+    expect(avertissementsDureeFiscale({ natureFiscaleCle: null, dureeFiscaleAns: 4 })).toEqual([]);
+    expect(avertissementsDureeFiscale({ natureFiscaleCle: 'ZZ.1', dureeFiscaleAns: 4 })).toEqual([]);
   });
 });
 
@@ -62,7 +100,7 @@ describe('le dérogatoire · écart entre annuité fiscale et dotation comptable
 });
 
 describe('DegressifService.passer', () => {
-  function monter(over: { dotations?: unknown[]; derogatoires?: unknown[]; systeme?: string; doublon?: boolean } = {}) {
+  function monter(over: { dotations?: unknown[]; derogatoires?: unknown[]; systeme?: string; doublon?: boolean; miseEnService?: Date } = {}) {
     const creer = jest.fn(async () => ({ id: 'ecr' }));
     const retirerCompensation = jest.fn(async () => undefined);
     // Un second clic passé entre la lecture et l'enregistrement · l'index
@@ -75,7 +113,7 @@ describe('DegressifService.passer', () => {
       immobilisation: {
         findFirst: jest.fn(async () => ({
           id: 'i', designation: 'Presse', degressifFiscal: true, dureeFiscaleAns: 5, valeurOrigine: 1_000_000, valeurResiduelle: 0,
-          dateMiseEnService: d('2026-07-15'), compteImmobilisation: { numero: '24110000' },
+          dateMiseEnService: over.miseEnService ?? d('2026-07-15'), compteImmobilisation: { numero: '24110000' },
           dotations: over.dotations ?? [{ exerciceId: 'e2026', montant: 100_000 }],
           derogatoires: over.derogatoires ?? [],
         })),
@@ -143,6 +181,44 @@ describe('DegressifService.passer', () => {
     expect(creer).not.toHaveBeenCalled();
   });
 
+  it('B1 · refuse, NOMMÉ, le dérogatoire d’un bien sous option mis en service avant 2026, sur tout exercice', async () => {
+    const exercices2025 = [{ id: 'e2025', dateDebut: d('2025-01-01'), dateFin: d('2025-12-31') }, ...exercices];
+    for (const exerciceId of ['e2025', 'e2026']) {
+      const { s, creer } = monter({ miseEnService: d('2025-03-01'), dotations: [{ exerciceId, montant: 100_000 }] });
+      (s as unknown as { prisma: { exercice: { findMany: jest.Mock } } }).prisma.exercice.findMany = jest.fn(async () => exercices2025);
+      await expect(s.passer('t', 'u', 'i', { exerciceId, journalId: 'od' })).rejects.toThrow(/avant le 1er janvier 2026/);
+      expect(creer).not.toHaveBeenCalled();
+    }
+  });
+
+  it('B1 · la reprise du solde du dérogatoire déjà passé reste ouverte pour ce bien', async () => {
+    const { s, creer } = monter({
+      miseEnService: d('2025-03-01'),
+      derogatoires: [{ exerciceId: 'e2025', nature: 'EXERCICE', dotation: 60_000, reprise: 0 }],
+    });
+    (s as unknown as { prisma: { exercice: { findFirst: jest.Mock } } }).prisma.exercice.findFirst = jest.fn(async () => exercices[0]);
+    await s.solder('t', 'u', 'i', { exerciceId: 'e2026', journalId: 'od' });
+    expect((creer.mock.calls[0] as unknown as [string, string, { lignes: unknown[] }])[2].lignes).toEqual([
+      { compteId: '15100000', debit: 60_000, credit: 0 },
+      { compteId: '86100000', debit: 0, credit: 60_000 },
+    ]);
+  });
+
+  it('B1 · le plan d’un tel bien n’est ni prolongé ni recommencé, et le motif est rendu avec le cumul du 151', async () => {
+    const { s } = monter({
+      miseEnService: d('2025-03-01'),
+      derogatoires: [{ exerciceId: 'e2025', nature: 'EXERCICE', dotation: 60_000, reprise: 0 }],
+    });
+    const plan = await s.planFiscal('t', 'i');
+    expect(plan.lignes).toEqual([]);
+    expect(plan.regimeAnterieur).toMatch(/avant le 1er janvier 2026/);
+    expect(plan.cumulDerogatoire).toBe(60_000);
+    // Un bien mis en service en 2026 garde son plan, et aucun motif.
+    const courant = await monter().s.planFiscal('t', 'i');
+    expect(courant.lignes.length).toBeGreaterThan(0);
+    expect(courant.regimeAnterieur).toBeNull();
+  });
+
   it('la reprise passe 151/861', async () => {
     const { s, creer } = monter({
       dotations: [{ exerciceId: 'e2026', montant: 100_000 }, { exerciceId: 'e2027', montant: 400_000 }],
@@ -153,6 +229,46 @@ describe('DegressifService.passer', () => {
       { compteId: '15100000', debit: 80_000, credit: 0 },
       { compteId: '86100000', debit: 0, credit: 80_000 },
     ]);
+  });
+});
+
+describe('DegressifService.opter · borne de 2026 et nature du barème', () => {
+  function monterOption(immo: Record<string, unknown>) {
+    const update = jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({ id: 'i', ...data }));
+    const prisma = {
+      immobilisation: {
+        findFirst: jest.fn(async () => ({
+          id: 'i', degressifFiscal: false, amortissementAnterieur: 0, dotations: [], derogatoires: [],
+          compteImmobilisation: { numero: '24110000' }, dateMiseEnService: d('2026-02-01'), natureFiscaleCle: null, ...immo,
+        })),
+        update,
+      },
+      tenant: {
+        findUniqueOrThrow: jest.fn(async () => ({ referentiel: 'SYSCOHADA', formeJuridiqueSyscohada: 'SARL', systemeComptableSyscohada: 'NORMAL' })),
+      },
+    };
+    return { s: new DegressifService(prisma as never, {} as never), update };
+  }
+  const dto = (dureeFiscaleAns: number) => ({ categorie: 'MATERIEL_INDUSTRIEL', bienNeuf: true, dureeFiscaleAns }) as never;
+
+  it('B1 · refuse l’option d’un bien mis en service en 2025, sans rien écrire', async () => {
+    const { s, update } = monterOption({ dateMiseEnService: d('2025-03-01') });
+    await expect(s.opter('t', 'i', dto(5))).rejects.toThrow(/avant le 1er janvier 2026/);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('B5 · l’option est prise, et l’écart avec le barème revient en avertissement', async () => {
+    const { s, update } = monterOption({ natureFiscaleCle: 'III.14' });
+    const r = await s.opter('t', 'i', dto(4));
+    expect(update).toHaveBeenCalled();
+    expect(r.avertissements[0]).toMatch(/plus courte que celle du barème/);
+    expect((await monterOption({ natureFiscaleCle: 'III.14' }).s.opter('t', 'i', dto(5))).avertissements).toEqual([]);
+  });
+
+  it('B5 · avant l’option, le plan propose la durée de la nature du barème que le bien porte', async () => {
+    const { s } = monterOption({ natureFiscaleCle: 'III.14' });
+    const plan = await s.planFiscal('t', 'i');
+    expect(plan.natureBareme).toEqual({ cle: 'III.14', designation: expect.stringMatching(/Machines-outils/), dureeAns: 5 });
   });
 });
 

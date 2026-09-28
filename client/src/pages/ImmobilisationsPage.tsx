@@ -8,7 +8,14 @@ import { PlanFiscalDegressif } from '../components/PlanFiscalDegressif';
 import type { Compte, FamilleImmobilisation, Immobilisation, Journal, LieuBien, TypeComposant } from '../lib/types';
 import { montant } from '../lib/montants';
 import { libelleExercice } from '../lib/libelle-exercice';
-import { avertissementEcartBareme, sectionsDuBareme, type NatureBaremeFiscal } from '../lib/bareme-fiscal';
+import {
+  avertissementEcartBareme,
+  avertissementPlancherLocationAcquisition,
+  sectionsDuBareme,
+  SOURCE_AIDE_SEUIL_IMMOBILISATION,
+  texteAideSeuilImmobilisation,
+  type NatureBaremeFiscal,
+} from '../lib/bareme-fiscal';
 
 /**
  * Immobilisations (§3.3) : familles (gabarits, comptes + durée par défaut ·
@@ -788,8 +795,8 @@ export function ImmobilisationsPage() {
             Nouvelle immobilisation
             <Aide
               titre="Seuil d'immobilisation"
-              texte="En dessous de l'équivalent de 500 USD, le bien peut être passé directement en charge plutôt qu'immobilisé · à votre appréciation, non vérifié automatiquement ici."
-              source="Arrêté RDC n° 014/2025"
+              texte={texteAideSeuilImmobilisation(exerciceCourant?.dateFin)}
+              source={SOURCE_AIDE_SEUIL_IMMOBILISATION}
             />
           </div>
           <div className="grid grid-cols-3 gap-3 mb-3">
@@ -863,8 +870,8 @@ export function ImmobilisationsPage() {
                   Nature du bien (barème fiscal)
                   <Aide
                     titre="Barème fiscal"
-                    texte="Choisir la nature propose sa durée d'amortissement. La durée saisie reste libre : un écart au barème est signalé, jamais refusé. Un taux supérieur au barème n'est admis que si l'entreprise en justifie les circonstances lors du contrôle, sous peine de rejet. Barème en vigueur depuis le 1er janvier 2026."
-                    source="Arrêté n° 013/CAB/MIN/FINANCES/2025, art. 2, 4 et 6 · loi n° 23/053, art. 28"
+                    texte="Choisir la nature propose sa durée d'amortissement. La durée saisie reste libre : un écart au barème est signalé, jamais refusé. Un taux supérieur au barème n'est admis que si l'entreprise en justifie les circonstances lors du contrôle, sous peine de rejet. Un bien en location-acquisition a une durée plancher : 7 ans pour les constructions, 4 ans pour les équipements, 3 ans pour le matériel de transport. Barème en vigueur depuis le 1er janvier 2026."
+                    source="Arrêté n° 013/CAB/MIN/FINANCES/2025, art. 2, 4, 5 et 6 · loi n° 23/053, art. 28"
                   />
                 </span>
                 <select
@@ -908,15 +915,28 @@ export function ImmobilisationsPage() {
                 className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono"
               />
               {/* Écart au barème fiscal · signalé, jamais refusé (arrêté
-                  n° 013/2025, art. 4). Vide, la durée est celle de la famille. */}
+                  n° 013/2025, art. 4). Vide, la durée est celle de la famille.
+                  Le plancher de la location-acquisition (art. 5) se lit sur le
+                  compte de la famille, indépendamment de la nature choisie. */}
               {(() => {
                 const duree = iDuree ? Number(iDuree) : familleChoisie?.dureeAmortissementAns ?? null;
-                const alerte = avertissementEcartBareme(
-                  duree,
-                  bareme.find((n) => n.cle === iNatureFiscale),
-                  exerciceCourant?.dateFin,
-                );
-                return alerte ? <span className="block mt-1 text-[11px] font-normal text-warning">{alerte}</span> : null;
+                const alertes = [
+                  avertissementEcartBareme(
+                    duree,
+                    bareme.find((n) => n.cle === iNatureFiscale),
+                    exerciceCourant?.dateFin,
+                  ),
+                  avertissementPlancherLocationAcquisition(
+                    duree,
+                    utilisateur?.tenant?.referentiel,
+                    familleChoisie?.compteImmobilisation?.numero
+                      ?? comptesClasse2.find((c) => c.id === familleChoisie?.compteImmobilisationId)?.numero,
+                    exerciceCourant?.dateFin,
+                  ),
+                ].filter((a): a is string => !!a);
+                return alertes.map((a) => (
+                  <span key={a} className="block mt-1 text-[11px] font-normal text-warning">{a}</span>
+                ));
               })()}
             </label>
             {unitesServies && (

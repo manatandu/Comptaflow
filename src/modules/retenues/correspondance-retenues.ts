@@ -8,8 +8,9 @@ import { FORFAITS_ARRETE_019_2025 } from '../personnel/bareme-irpp';
  * ## Pourquoi cet état existe
  *
  * Une ASBL congolaise régulièrement constituée est exemptée d'impôt sur les
- * sociétés (loi n° 23/053, art. 5 ; arrêté ministériel
- * n° 007/CAB/MIN/FINANCES/2025 du 19 février 2025). Elle n'est dispensée
+ * sociétés (loi n° 23/053, art. 5, point 3 · l'arrêté ministériel
+ * n° 007/CAB/MIN/FINANCES/2025 ne régit que le point 5, établissements
+ * d'utilité publique et ONG, son art. 1er). Elle n'est dispensée
  * d'AUCUN impôt qu'elle retient pour le compte d'autrui, ni d'aucune
  * cotisation sociale. C'est là qu'une association se met en défaut, et
  * précisément parce qu'elle croit que « ne rien payer » vaut « ne rien
@@ -200,6 +201,54 @@ export function compteRelevantDe(numero: string, nature: Pick<NatureRetenue, 'co
   return nature.comptes.some((p) => numero.startsWith(p)) && !(nature.exclusions ?? []).some((e) => numero.startsWith(e));
 }
 
+/**
+ * BORNES D'ENTRÉE EN VIGUEUR · les natures du registre n'étaient bornées par
+ * aucune date, alors que l'état est servi exercice par exercice et qu'un
+ * exercice 2024 ou 2025 s'y affiche comme un autre. Les échéances et les bases
+ * servies viennent de textes entrés en vigueur au 1er janvier 2026 · la loi
+ * n° 23/053 (art. 153, « après vingt-quatre mois à compter du 31 décembre de
+ * l'année de sa promulgation »), la loi n° 23/052 qui modifie la loi de
+ * procédures fiscales (art. 6, même formule) et les arrêtés d'application du
+ * 19 février 2025 (n° 008, art. 4 ; retenue salariale, art. 5). Le régime
+ * antérieur n'est pas au corpus · rien n'est calculé pour lui, la réserve dit
+ * seulement que ce qui est servi ne lui est pas opposable. Même parti que la
+ * réserve du prélèvement sur les expatriés.
+ */
+const LIRE_A_LA_DATE =
+  " Cet état est servi exercice par exercice · lisez cette réserve à la date de l'exercice affiché.";
+
+export const BORNE_IRPP_SALAIRES =
+  "EN VIGUEUR AU 1er JANVIER 2026 · l'impôt sur le revenu des personnes physiques (loi n° 23/053, art. 153), la " +
+  "rédaction de l'article 18 de la loi de procédures fiscales issue de la loi n° 23/052 (art. 1er et 6) et l'arrêté " +
+  "ministériel du 19 février 2025 sur la perception et le reversement de la retenue sur les revenus salariaux " +
+  "(art. 5). SUR UN EXERCICE ANTÉRIEUR, les rémunérations relevaient de l'impôt professionnel (titre IV de " +
+  "l'ordonnance-loi n° 69/009, abrogé par l'art. 152 de la loi n° 23/053), qui n'est pas au corpus du logiciel : " +
+  "l'échéance et la base servies ici ne lui sont pas opposables." +
+  LIRE_A_LA_DATE;
+
+export const BORNE_CAPITAUX_MOBILIERS =
+  "EN VIGUEUR AU 1er JANVIER 2026 · la retenue de l'article 120 de la loi n° 23/053 (art. 153), l'article 18 bis " +
+  "de la loi de procédures fiscales, inséré par la loi n° 23/052 (art. 2 et 6), et l'arrêté " +
+  "n° 008/CAB/MIN/FINANCES/2025 (art. 4). SUR UN EXERCICE ANTÉRIEUR, ces revenus relevaient de l'impôt mobilier " +
+  "(titre III de l'ordonnance-loi n° 69/009, abrogé par l'art. 152 de la loi n° 23/053), qui n'est pas au corpus " +
+  "du logiciel : l'échéance et la base servies ici ne lui sont pas opposables." +
+  LIRE_A_LA_DATE;
+
+export const BORNE_PLUS_VALUES =
+  "EN VIGUEUR AU 1er JANVIER 2026 · la retenue de l'article 120 de la loi n° 23/053 (art. 153) et l'article 18 ter " +
+  "de la loi de procédures fiscales, inséré par la loi n° 23/052 (art. 2 et 6). SUR UN EXERCICE ANTÉRIEUR, le " +
+  "régime des plus-values n'est pas au corpus du logiciel : l'échéance et la base servies ici ne lui sont pas " +
+  "opposables." +
+  LIRE_A_LA_DATE;
+
+export const BORNE_PRESTATAIRES_NON_RESIDENTS =
+  "EN VIGUEUR AU 1er JANVIER 2026 · le taux et l'assiette de l'article 144 de la loi n° 23/053 (art. 153) et la " +
+  "rédaction de l'article 22 bis de la loi de procédures fiscales issue de la loi n° 23/052 (art. 1er et 6). " +
+  "L'article 22 bis, créé par la loi de finances n° 21/029, existait avant dans une rédaction qui n'est pas au " +
+  "corpus du logiciel, pas plus que le texte qui fixait alors le prélèvement : SUR UN EXERCICE ANTÉRIEUR, le taux, " +
+  "l'échéance et la base servis ici ne lui sont pas opposables." +
+  LIRE_A_LA_DATE;
+
 export const NATURES_RETENUES: NatureRetenue[] = [
   {
     cle: 'irppSalaires',
@@ -241,7 +290,8 @@ export const NATURES_RETENUES: NatureRetenue[] = [
       "4472 ne distingue ces rémunérations des autres, ne dit si elles sont le revenu unique du bénéficiaire, ni ne " +
       "donne le taux de change à retenir pour convertir un forfait libellé en dollars. Le registre les date donc au 15 " +
       "du mois suivant, comme le reste de la paie, et ne chiffre aucune quotité. Portez la quotité au dernier mois de " +
-      "chaque trimestre : l'échéance servie coïncide alors avec celle de l'arrêté.",
+      "chaque trimestre : l'échéance servie coïncide alors avec celle de l'arrêté. " +
+      BORNE_IRPP_SALAIRES,
   },
   {
     // PAS de `chargeSousConditionArticle20` ici, à dessein : le registre ne
@@ -317,6 +367,7 @@ export const NATURES_RETENUES: NatureRetenue[] = [
       'Article 144 de la loi n° 23/053 ; article 22 bis de la loi de procédures fiscales. Prélèvement de 14 % du montant brut des factures.',
     chargeSousConditionArticle20:
       "Les sommes payées aux prestataires non-résidents · honoraires, études, services et redevances portés en charges de l'exercice.",
+    reserve: BORNE_PRESTATAIRES_NON_RESIDENTS,
   },
   {
     cle: 'prelevementExpatries',
@@ -382,7 +433,8 @@ export const NATURES_RETENUES: NatureRetenue[] = [
       "sociétés établies en République Démocratique du Congo » (art. 22 quater) : une ASBL n'est pas une société, et " +
       "le logiciel ne sert donc pas cette seconde obligation à un dossier SYCEBNL. Si votre entité verse des revenus " +
       "de capitaux mobiliers à un bénéficiaire établi à l'étranger, faites trancher le point par un conseil · ce " +
-      "logiciel ne le tranche pas.",
+      "logiciel ne le tranche pas. " +
+      BORNE_CAPITAUX_MOBILIERS,
     reserveSyscohada:
       "Cas réel pour une entreprise qui distribue des dividendes ou qui sert des intérêts à ses associés. L'intérêt " +
       "d'un PLACEMENT de trésorerie est un revenu du déposant · la retenue, quand elle est due, est opérée par la " +
@@ -395,7 +447,8 @@ export const NATURES_RETENUES: NatureRetenue[] = [
       "l'article 120 ou du prélèvement sur les non-résidents des articles 149 bis à 149 quinquies. Aucun montant ni " +
       "aucune date n'en dépendent · les deux prélèvements sont assis sur le montant brut, au taux de 20 %, et dus le " +
       "15 du mois suivant. Les DÉCLARATIONS, elles, sont deux : ventilez vos versements selon la résidence du " +
-      "bénéficiaire avant de déclarer.",
+      "bénéficiaire avant de déclarer. " +
+      BORNE_CAPITAUX_MOBILIERS,
   },
   {
     cle: 'plusValues',
@@ -405,6 +458,7 @@ export const NATURES_RETENUES: NatureRetenue[] = [
     joursApresPeriode: 15,
     echeance: 'Dans les quinze jours suivant le mois de réalisation',
     baseLegale: 'Article 120 de la loi n° 23/053 ; article 18 ter de la loi de procédures fiscales.',
+    reserve: BORNE_PLUS_VALUES,
   },
   {
     cle: 'autresRetenues',
@@ -447,8 +501,27 @@ export const NATURES_RETENUES: NatureRetenue[] = [
     joursApresPeriode: 15,
     echeance: 'Le 15 du mois suivant',
     baseLegale: "Ordonnance-loi n° 10/001 du 20 août 2010 instituant la TVA et son décret d'application n° 011/42.",
+    // L'ARRÊTÉ N° 007/2025 NE DIT RIEN DE LA TVA, et la réserve lui faisait
+    // dire que les deux régimes « s'apprécient séparément ». Il est pris pour
+    // la seule exemption d'IS des établissements d'utilité publique et des ONG
+    // (art. 1er, en application de l'art. 5, point 5 de la loi n° 23/053), et
+    // ses six articles ne nomment pas la TVA. La phrase venait d'une NOTE de
+    // la compétence qui commente l'arrêté, pas de l'arrêté · citée comme
+    // texte, elle devenait une règle inventée. L'exonération de TVA a sa
+    // propre base, l'O.-L. n° 10/001 : art. 15, 2° (ventes et importations
+    // des ASBL « lorsque ces opérations présentent un caractère social,
+    // sportif, culturel, religieux, éducatif ou philanthropique conforme à
+    // leur objet ») et art. 17, 8° (prestations « dans le cadre de leurs
+    // activités normales », sans distorsion de concurrence). Et une ASBL
+    // n'est exemptée d'IS par aucun arrêté : par l'art. 5, point 3 de la loi.
     reserve:
-      "Une ASBL dont les opérations sont conformes à son objet est exonérée de TVA (art. 15.2 et 17.8), et l'exonération d'impôt sur les sociétés ne l'emporte pas : les deux régimes s'apprécient séparément, l'arrêté n° 007/2025 le dit lui-même.",
+      "Une ASBL légalement constituée est exonérée de TVA sur ses ventes et importations à caractère social, sportif, " +
+      "culturel, religieux, éducatif ou philanthropique conforme à son objet (ordonnance-loi n° 10/001, art. 15, 2°) " +
+      "et sur ses prestations effectuées dans le cadre de ses activités normales, lorsque son non-assujettissement " +
+      "n'entraîne pas de distorsion de concurrence (même texte, art. 17, 8°). Hors de ces opérations, elle reste " +
+      "redevable. L'exemption d'impôt sur les sociétés ne commande pas la TVA : l'ASBL la tient de la loi n° 23/053, " +
+      "art. 5, point 3, et l'arrêté n° 007/CAB/MIN/FINANCES/2025, pris pour la seule exemption d'IS des " +
+      "établissements d'utilité publique et des ONG (art. 1er), ne traite pas de TVA.",
     reserveSyscohada:
       "L'entreprise est assujettie de plein droit dès qu'elle franchit le seuil de chiffre d'affaires de l'article 14, et le reste tant qu'elle n'en est pas sortie dans les formes. Le solde affiché ici est la TVA DUE seule : le crédit de TVA à reporter (compte 4449) en est exclu, parce que c'est une créance sur l'État et non une dette, et l'y mêler ferait paraître la dette fiscale plus faible qu'elle n'est.",
   },

@@ -1284,14 +1284,20 @@ export class ImmobilisationService {
    * comme régime de droit commun. L'arrêté n° 013/2025 ne porte ni l'un ni
    * l'autre : il fixe les taux linéaires par famille (art. 2), les taux
    * dérogatoires (art. 4) et le plancher de location-acquisition (art. 5).
+   * Ce plancher ne borne pas le calcul ici · la durée comptable reste la
+   * durée d'utilité (AUDCIF art. 45). Il est SIGNALÉ à la saisie
+   * (`avertissementPlancherLocationAcquisition`, client/src/lib/
+   * bareme-fiscal.ts) et l'excédent se réintègre au résultat fiscal
+   * (AMORTISSEMENTS_EXCEDENT).
    *
    * La date COMPTABLE de début d'amortissement est celle où l'actif est en
    * état de fonctionner · AUDCIF art. 45 pour un dossier SYSCOHADA, skill
    * `sycebnl` COMPTE 28 pour un dossier SYCEBNL, en termes identiques. Le
    * calcul est donc le même des deux côtés.
    *
-   * Borné à 12 mois pour CET exercice · limite du
-   * MVP assumée : si la mise en service est antérieure au début de
+   * Compté en mois sur CET exercice, sans plafond à douze (un premier
+   * exercice peut en durer dix-huit, AUDCIF art. 7, audit final F34) · limite
+   * assumée : si la mise en service est antérieure au début de
    * l'exercice choisi pour la première dotation (dotation en retard, jamais
    * passée pour l'exercice réel de mise en service), le calcul ne rattrape
    * pas les mois antérieurs à cet exercice, il les ignore silencieusement.

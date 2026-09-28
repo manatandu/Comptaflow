@@ -29,6 +29,7 @@ import {
   PART_MAIN_OEUVRE_LOCALE_MINIMALE,
 } from '../accord-cadre/conditions-ong-etrangere';
 import { ajouterMois } from '../../common/ajouter-mois';
+import { ENTREE_EN_VIGUEUR_LOI_23_053 } from '../../common/entree-en-vigueur-loi-23-053';
 import { aNouveauEnTrop, filtreANouveauEcarte } from '../rapprochement/rapprochement.service';
 
 /**
@@ -175,7 +176,7 @@ const ENTREE_EN_VIGUEUR_AM_007_2025 = new Date('2026-01-01T00:00:00.000Z');
  * Servir la règle de 2026 à un exercice antérieur reprocherait au dossier une
  * obligation au nom d'un texte qui ne le régissait pas.
  */
-const ENTREE_EN_VIGUEUR_LOI_23_053 = new Date('2026-01-01T00:00:00.000Z');
+// La date elle-même vit dans `common/entree-en-vigueur-loi-23-053.ts`, seul porteur.
 
 /**
  * LES COMPTES QUI PORTENT UNE RÉÉVALUATION, ET LE PIÈGE QU'ILS CACHENT.

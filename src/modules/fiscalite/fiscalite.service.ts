@@ -22,6 +22,7 @@ import {
 import { CreerRetraitementDto, ModifierDossierFiscalDto, ModifierRetraitementDto } from './dto/fiscalite.dto';
 import { qualifierExemptionIs } from './exemption-is-ebnl';
 import { arrondirImpotArt150 } from './arrondi-article-150';
+import { ENTREE_EN_VIGUEUR_LOI_23_053 } from '../../common/entree-en-vigueur-loi-23-053';
 // Le chiffre d'affaires n'est plus écrit ici : il se DÉRIVE du poste XB du
 // modèle du ch. 4 (voir correspondance-compte-resultat-syscohada.ts). Une
 // liste officielle recopiée dans deux modules est une divergence en attente.
@@ -70,7 +71,7 @@ const arrondir = (n: number) => Math.round(n * 100) / 100;
  * Tout ce que ce service calcule vient de cette loi ; un exercice ouvert avant
  * cette date relève d'un texte qui n'est pas dans OmegaX.
  */
-const ENTREE_EN_VIGUEUR_LOI_23_053 = new Date(Date.UTC(2026, 0, 1));
+// La date elle-même vit dans `common/entree-en-vigueur-loi-23-053.ts`, seul porteur.
 
 // L'arrondi de l'art. 150 vit dans `arrondi-article-150.ts`, SEUL porteur ·
 // la paie l'appelle aussi (audit final F111).

@@ -23,6 +23,12 @@ interface PlanFiscal {
   categories: readonly { cle: string; libelle: string }[];
   lignes: LignePlan[];
   cumulDerogatoire: number;
+  /** Bien mis en service avant le 1er janvier 2026 · motif rendu par le serveur (loi n° 23/053, art. 153). */
+  regimeAnterieur?: string | null;
+  /** Nature du barème portée par le bien · elle PROPOSE la durée à l'option (arrêté n° 013/2025, art. 2). */
+  natureBareme?: { cle: string; designation: string; dureeAns: number } | null;
+  /** Écart entre la durée déclarée et le barème · signalé par le serveur, jamais refusé (arrêté, art. 4). */
+  avertissements?: string[];
 }
 
 /**
@@ -47,7 +53,13 @@ export function PlanFiscalDegressif({
   const [option, setOption] = useState({ categorie: '', dureeFiscaleAns: '', bienNeuf: false });
 
   const charger = () =>
-    api.get<PlanFiscal>(`/immobilisations/${immoId}/plan-fiscal`).then(setPlan, (e: ApiError) => setErreur(e.message));
+    api.get<PlanFiscal>(`/immobilisations/${immoId}/plan-fiscal`).then((p) => {
+      setPlan(p);
+      // La durée du barème est PROPOSÉE, jamais imposée · une saisie déjà
+      // faite n'est pas écrasée, et l'écart se signale au retour de l'option.
+      const proposee = p.natureBareme?.dureeAns;
+      if (proposee) setOption((o) => (o.dureeFiscaleAns ? o : { ...o, dureeFiscaleAns: String(proposee) }));
+    }, (e: ApiError) => setErreur(e.message));
   useEffect(() => {
     charger();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -82,13 +94,19 @@ export function PlanFiscalDegressif({
         Dégressif fiscal et amortissement dérogatoire
         <Aide
           titre="Dégressif fiscal"
-          texte="Option de l'impôt sur les sociétés pour un bien neuf d'une des dix catégories de l'art. 31, d'une durée fiscale de quatre à vingt ans (arrêté n° 013/2025). Annuité = taux linéaire × coefficient (1,5 pour quatre ans, 2 pour cinq et six ans, 2,5 au-delà), au prorata du mois de mise en service la première année, puis sur la valeur résiduelle, avec bascule en linéaire (art. 35). Le plan comptable du bien reste au 68 ; l'écart se passe au 851 contre 151, ou se reprend au 861. Un excédent comptable au-delà du 151 n'est pas du dérogatoire : il se réintègre (art. 28). Avant la sortie du bien, le solde du 151 se reprend."
-          source="Loi n° 23/053, art. 28 et 31 à 35 · AUDCIF, Titre VII, fiche du compte 68 · Titre VIII ch. 18 § 4.5.1.3"
+          texte="Option de l'impôt sur les sociétés pour un bien neuf d'une des dix catégories de l'art. 31, d'une durée fiscale de quatre à vingt ans (arrêté n° 013/2025). Annuité = taux linéaire × coefficient (1,5 pour quatre ans, 2 pour cinq et six ans, 2,5 au-delà), au prorata du mois de mise en service la première année, puis sur la valeur résiduelle, avec bascule en linéaire (art. 35). Le plan comptable du bien reste au 68 ; l'écart se passe au 851 contre 151, ou se reprend au 861. Un excédent comptable au-delà du 151 n'est pas du dérogatoire : il se réintègre (art. 28). Avant la sortie du bien, le solde du 151 se reprend. Seul un bien mis en service à compter du 1er janvier 2026 y entre ; le régime antérieur n'est pas calculé. La durée est proposée par la nature du barème du bien ; une durée plus courte se justifie lors du contrôle."
+          source="Loi n° 23/053, art. 28, 31 à 35 et 153 · arrêté n° 013/2025, art. 2, 4 et 6 · AUDCIF, Titre VII, fiche du compte 68 · Titre VIII ch. 18 § 4.5.1.3"
         />
       </div>
       {erreur && <div className="text-danger">{erreur}</div>}
+      {plan.regimeAnterieur && <div className="text-warning">{plan.regimeAnterieur}</div>}
+      {plan.avertissements?.map((a) => (
+        <div key={a} className="text-warning">
+          {a}
+        </div>
+      ))}
 
-      {!plan.degressifFiscal && peutEcrire && (
+      {!plan.degressifFiscal && !plan.regimeAnterieur && peutEcrire && (
         <form onSubmit={opter} className="flex flex-wrap items-center gap-2">
           <select
             aria-label="Catégorie de bien éligible"
@@ -107,6 +125,11 @@ export function PlanFiscalDegressif({
           <input
             aria-label="Durée fiscale (années)"
             placeholder="Durée fiscale (ans)"
+            title={
+              plan.natureBareme
+                ? `Proposée par le barème · ${plan.natureBareme.designation}, ${plan.natureBareme.dureeAns} ans (arrêté n° 013/2025, art. 2)`
+                : 'Arrêté n° 013/2025, art. 2'
+            }
             value={option.dureeFiscaleAns}
             onChange={(e) => setOption({ ...option, dureeFiscaleAns: e.target.value })}
             className="border border-border px-1.5 py-0.5 w-[130px]"

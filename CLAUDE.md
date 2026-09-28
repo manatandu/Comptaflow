@@ -5224,7 +5224,15 @@ le 151 porte un solde pour lui, et « Reprendre le solde » le passe au 861
 (lecture d'OmegaX, aucun texte lu ne règle ce moment). L'écriture est retenue
 par `verifierAucunModuleNeLaTient`. Un DOUBLE ENVOI ne double rien (audit final F132) ·
 la fiche refusée par l'index unique retire son écriture, et le refus est un
-409.
+409. LE RÉGIME NE VAUT QUE POUR UN BIEN MIS EN SERVICE DEPUIS LE 1er JANVIER
+2026 (passe F12 · loi n° 23/053, art. 153 ; arrêté n° 013/2025, art. 6) ·
+option, plan et dérogatoire refusés, motif nommé, pour un bien plus ancien,
+dont le régime antérieur n'est pas calculé ; le plan n'est ni prolongé ni
+recommencé, la reprise du solde reste ouverte. La borne se lit sur la MISE EN
+SERVICE, jamais sur l'ouverture de l'exercice · un premier exercice long
+ouvert en 2025 porte une période imposable 2026. Une seule constante,
+`common/entree-en-vigueur-loi-23-053.ts`. La durée du barème de la nature du
+bien est proposée à l'option, une durée plus courte signalée (art. 4).
 
 **Barèmes de paie en données datées (2026-09-26).** Priorité 4 de la
 comparaison avec les autres produits Sage (Sage Paie tient ses barèmes en
