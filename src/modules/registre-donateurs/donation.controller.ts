@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { RoleUtilisateur, Referentiel } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
@@ -15,18 +15,7 @@ import {
   ModifierDonationDto,
   SignerDonationDto,
 } from './dto/donation.dto';
-
-/**
- * Un `@Query` scalaire échappe au ValidationPipe global, et `undefined`
- * traverserait jusqu'à Prisma qui IGNORE purement et simplement un champ
- * `undefined` : le filtre d'exercice disparaîtrait sans bruit et le rapport
- * porterait sur tous les exercices du dossier en se présentant comme celui
- * d'un seul. Même garde que dans ExportController.
- */
-const EXERCICE_REQUIS = new ParseUUIDPipe({
-  exceptionFactory: () =>
-    new BadRequestException("Le paramètre exerciceId est requis et doit être un identifiant d'exercice valide"),
-});
+import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 
 /**
  * Registre des donateurs (art. 17-18). Consultation ouverte aux trois rôles

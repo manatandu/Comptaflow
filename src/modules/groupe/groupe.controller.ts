@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Res, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import { Referentiel, RoleUtilisateur } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -11,11 +11,7 @@ import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-
 import { GroupeService } from './groupe.service';
 import { CreerCelluleDto, ImporterCanevasDto } from './dto/groupe.dto';
 import { ReserveAuComptable } from '../../common/decorators/acces-roles-cantonnes.decorator';
-
-const EXERCICE_REQUIS = new ParseUUIDPipe({
-  exceptionFactory: () =>
-    new BadRequestException("Le paramètre exerciceId est requis et doit être un identifiant d'exercice valide"),
-});
+import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 
 const TYPE_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 

@@ -29,6 +29,7 @@ import { ouverteALaCloture } from '../lettrage/ouverte-a-la-cloture';
 import { ancienneteJours, brouillardInvalidable, enRetardDeCentralisation, JOURS_CENTRALISATION } from './centralisation-brouillard';
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 import { agregatsParCompte, filtresDesTroisColonnes, lignesDeBalance, totauxDeBalance } from './balance-trois-colonnes';
+import { exerciceDuDossierOuRefus } from '../../common/exercice-introuvable';
 
 /**
  * Une ligne est au débit si son montant est porté du côté débit · quel que
@@ -2525,10 +2526,15 @@ export class EcritureService {
     tenantId: string,
     params: { exerciceId: string; dateReference?: string; type?: PerimetreBalanceAgee },
   ) {
-    const exercice = await this.prisma.exercice.findFirstOrThrow({
-      where: { id: params.exerciceId, tenantId },
-      select: { dateDebut: true, dateFin: true },
-    });
+    // UN EXERCICE D'UN AUTRE DOSSIER, OU INCONNU, EST UN 404 NOMMÉ (jumeau de
+    // l'audit final F222) · `findFirstOrThrow` rendait l'erreur brute de
+    // Prisma, que Nest sert en 500 sans un mot.
+    const exercice = exerciceDuDossierOuRefus(
+      await this.prisma.exercice.findFirst({
+        where: { id: params.exerciceId, tenantId },
+        select: { dateDebut: true, dateFin: true },
+      }),
+    );
     // La date de référence ne peut pas sortir de l'exercice : au-delà, les
     // colonnes mensuelles n'auraient plus d'écriture à recevoir.
     const demande = params.dateReference ? new Date(params.dateReference) : new Date();
@@ -2726,21 +2732,30 @@ export class EcritureService {
     tenantId: string,
     params: { compteId: string; exerciceId: string; dateArret?: string; masquerLettrees?: boolean },
   ) {
-    const [compte, exercice, premierExercice] = await Promise.all([
-      this.prisma.compte.findFirstOrThrow({
+    const [compteLu, exerciceLu, premierExercice] = await Promise.all([
+      this.prisma.compte.findFirst({
         where: { id: params.compteId, tenantId },
         select: { id: true, numero: true, intitule: true },
       }),
-      this.prisma.exercice.findFirstOrThrow({
+      this.prisma.exercice.findFirst({
         where: { id: params.exerciceId, tenantId },
         select: { id: true, dateDebut: true, dateFin: true },
       }),
-      this.prisma.exercice.findFirstOrThrow({
+      this.prisma.exercice.findFirst({
         where: { tenantId },
         orderBy: { dateDebut: 'asc' },
         select: { id: true },
       }),
     ]);
+    // L'EXERCICE ET LE COMPTE SE VÉRIFIENT, ils ne se présument pas (jumeau de
+    // l'audit final F222) · `findFirstOrThrow` rendait une erreur de Prisma
+    // servie en 500. L'exercice d'abord, comme tout état : c'est lui que
+    // l'export lit en même temps que l'identité du dossier.
+    const exercice = exerciceDuDossierOuRefus(exerciceLu);
+    if (!compteLu) {
+      throw new NotFoundException('Compte introuvable dans ce dossier : aucun justificatif de solde ne peut être établi.');
+    }
+    const compte = compteLu;
     const demande = params.dateArret ? new Date(params.dateArret) : exercice.dateFin;
     const arret = demande > exercice.dateFin ? exercice.dateFin : demande;
 
@@ -2759,7 +2774,9 @@ export class EcritureService {
           AND: [
             { estGenereeParCloture: true },
             { estSoldeDesComptesDeGestion: false },
-            { exerciceId: { not: premierExercice.id } },
+            // L'exercice demandé est du dossier, le premier existe donc ·
+            // le repli ne sert qu'au typage.
+            { exerciceId: { not: premierExercice?.id ?? exercice.id } },
           ],
         },
       },
@@ -3217,10 +3234,15 @@ export class EcritureService {
    * seul appelant est un état financier.
    */
   async balanceCumulee(tenantId: string, exerciceId: string, inclureBrouillard = false) {
-    const exercice = await this.prisma.exercice.findFirstOrThrow({
-      where: { id: exerciceId, tenantId },
-      select: { id: true, dateDebut: true },
-    });
+    // 404 nommé, jamais l'erreur brute de Prisma servie en 500 (jumeau de
+    // l'audit final F222) · la Note 9 et les colonnes cumulées du tableau
+    // emplois ressources passent par ici.
+    const exercice = exerciceDuDossierOuRefus(
+      await this.prisma.exercice.findFirst({
+        where: { id: exerciceId, tenantId },
+        select: { id: true, dateDebut: true },
+      }),
+    );
     const exercices = await this.prisma.exercice.findMany({
       where: { tenantId, dateDebut: { lte: exercice.dateDebut } },
       orderBy: { dateDebut: 'asc' },

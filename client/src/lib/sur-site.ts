@@ -47,3 +47,38 @@ export function licenceABloquer(e: EtatSurSite): boolean {
 export function creationPremierDossierProposee(e: EtatSurSite): boolean {
   return e.surSite && e.statut === 'VALIDE' && e.premierDossierAttendu === true;
 }
+
+/**
+ * CE QUE /inscription PROPOSE, SELON LE MODE (audit final F251). La page se
+ * disait reliée à aucun bouton, ce qui n'est vrai qu'en ligne · sur site,
+ * l'écran d'ouverture y renvoie tant que le poste n'a aucun dossier.
+ *
+ *  · EN_LIGNE · porte de service, l'assistant est proposé et c'est le serveur
+ *    qui tranche (`INSCRIPTION_PUBLIQUE`, lue en ligne seulement).
+ *  · SUR_SITE_PREMIER_DOSSIER · la porte du premier dossier, par la MÊME règle
+ *    que le lien de l'écran d'ouverture (`creationPremierDossierProposee`) ·
+ *    deux règles auraient divergé, et le lien aurait mené à une page qui
+ *    refuse, ou la page à un assistant que le lien ne proposait pas.
+ *  · SUR_SITE_FERMEE · le serveur refuserait (audit final F44) · la page le
+ *    dit au lieu de dérouler un assistant voué au refus, et nomme la voie.
+ */
+export type PorteInscription =
+  | { mode: 'EN_LIGNE' }
+  | { mode: 'SUR_SITE_PREMIER_DOSSIER' }
+  | { mode: 'SUR_SITE_FERMEE'; motif: string };
+
+export function porteInscription(e: EtatSurSite): PorteInscription {
+  if (!e.surSite) return { mode: 'EN_LIGNE' };
+  if (creationPremierDossierProposee(e)) return { mode: 'SUR_SITE_PREMIER_DOSSIER' };
+  if (e.statut !== 'VALIDE') {
+    return {
+      mode: 'SUR_SITE_FERMEE',
+      motif: "La licence de cette installation ne vaut pas ici · déposez-la à l'écran d'ouverture avant de créer un dossier.",
+    };
+  }
+  return {
+    mode: 'SUR_SITE_FERMEE',
+    motif:
+      "Cette installation a déjà son premier dossier · les suivants se créent depuis le dossier d'installation, fenêtre Restitution.",
+  };
+}

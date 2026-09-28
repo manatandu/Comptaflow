@@ -92,7 +92,10 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     // que les deux contrôles précédents : il a besoin de l'utilisateur.
     if (utilisateur) {
       const requete = contexte.switchToHttp().getRequest();
-      const fonction = fonctionDeRoute(contexte.getClass().name, contexte.getHandler().name);
+      // Le rôle entre dans la lecture · la cotation de l'USD du jour relève de
+      // la paie pour le gestionnaire de paie, de la structure pour le
+      // comptable (audit final F247).
+      const fonction = fonctionDeRoute(contexte.getClass().name, contexte.getHandler().name, utilisateur.role);
       const motif = motifRefusFonction(utilisateur, requete?.method ?? 'GET', fonction);
       if (motif) throw new ForbiddenException(motif);
     }

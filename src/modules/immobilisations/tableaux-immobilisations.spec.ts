@@ -25,6 +25,18 @@ import { EcritureService } from '../comptabilite/ecriture.service';
 
 const EXERCICE = { id: 'ex2025', dateDebut: new Date('2025-01-01'), dateFin: new Date('2025-12-31') };
 
+// La lecture de l'exercice honore l'identifiant ET le dossier · le tableau des
+// amortissements refuse d'un 404 ce qu'elle ne rend pas (jumeau de l'audit
+// final F222). Une doublure qui le rendait quel que soit le dossier validait
+// un service qui aurait servi l'exercice d'un voisin.
+function exerciceDuDossier() {
+  return {
+    findFirst: jest.fn(({ where }: { where: { id?: string; tenantId?: string } }) =>
+      Promise.resolve(where.id === EXERCICE.id && where.tenantId === 'tn' ? EXERCICE : null),
+    ),
+  };
+}
+
 function bien(opts: {
   id: string;
   designation: string;
@@ -77,7 +89,7 @@ function service(biens: ReturnType<typeof bien>[]) {
       }),
     },
     immobilisation: { findMany: jest.fn().mockResolvedValue(biens) },
-    exercice: { findFirstOrThrow: jest.fn().mockResolvedValue(EXERCICE) },
+    exercice: exerciceDuDossier(),
   } as unknown as PrismaService;
   return new ImmobilisationService(prisma, {} as EcritureService);
 }
@@ -269,7 +281,7 @@ describe('tableau des amortissements · douze colonnes', () => {
       {
         tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel: Referentiel.SYSCOHADA, systemeComptableSyscohada: SystemeComptableSyscohada.NORMAL }) },
         immobilisation: { findMany },
-        exercice: { findFirstOrThrow: jest.fn().mockResolvedValue(EXERCICE) },
+        exercice: exerciceDuDossier(),
       } as unknown as PrismaService,
       {} as EcritureService,
     );

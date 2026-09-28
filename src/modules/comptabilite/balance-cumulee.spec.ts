@@ -54,9 +54,11 @@ function service(
 
   const prisma = {
     exercice: {
-      findFirstOrThrow: jest.fn(({ where }: any) => {
-        const e = exercices.find((x) => x.id === where.id)!;
-        return Promise.resolve({ id: e.id, dateDebut: new Date(`${e.annee}-01-01`) });
+      // Honore l'exercice ET le dossier · le service refuse d'un 404 ce que
+      // la doublure ne rend pas (jumeau de l'audit final F222).
+      findFirst: jest.fn(({ where }: any) => {
+        const e = where.tenantId === 't1' ? exercices.find((x) => x.id === where.id) : undefined;
+        return Promise.resolve(e ? { id: e.id, dateDebut: new Date(`${e.annee}-01-01`) } : null);
       }),
       findMany: jest.fn(({ where }: any) => {
         const borne = new Date(where.dateDebut.lte).getUTCFullYear();

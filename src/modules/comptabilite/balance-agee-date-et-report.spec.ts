@@ -34,7 +34,13 @@ function service(lignes: Ligne[]) {
   const findMany = jest.fn().mockResolvedValue(lignes);
   const prisma = {
     exercice: {
-      findFirstOrThrow: jest.fn().mockResolvedValue({ dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') }),
+      // Honore l'exercice ET le dossier · le service refuse d'un 404 ce que
+      // la doublure ne rend pas (jumeau de l'audit final F222).
+      findFirst: jest.fn(({ where }: { where: { id?: string; tenantId?: string } }) =>
+        Promise.resolve(
+          where.id === 'ex' && where.tenantId === 't' ? { dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') } : null,
+        ),
+      ),
     },
     ligneEcriture: { findMany },
     tiersCompte: { findMany: jest.fn().mockResolvedValue([]) },

@@ -33,10 +33,15 @@ function service(
 ) {
   const prisma = {
     exercice: {
-      findFirstOrThrow: jest.fn().mockResolvedValue({
-        dateDebut: new Date('2025-01-01'),
-        dateFin: new Date('2025-12-31'),
-      }),
+      // Honore l'exercice ET le dossier · le service refuse d'un 404 ce que
+      // la doublure ne rend pas (jumeau de l'audit final F222).
+      findFirst: jest.fn(({ where }: { where: { id?: string; tenantId?: string } }) =>
+        Promise.resolve(
+          where.id === 'ex' && where.tenantId === 't'
+            ? { dateDebut: new Date('2025-01-01'), dateFin: new Date('2025-12-31') }
+            : null,
+        ),
+      ),
     },
     ligneEcriture: { findMany: jest.fn().mockResolvedValue(lignes) },
     tiersCompte: { findMany: jest.fn().mockResolvedValue(rattachements) },

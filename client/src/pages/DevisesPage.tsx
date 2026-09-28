@@ -209,10 +209,10 @@ export function DevisesPage() {
   const devisesCotables =
     devises === null ? [] : coursDuJourSeul ? devises.filter((d) => d.code === DEVISE_COTEE_PAR_LA_PAIE) : devises;
   // Le cours du jour déjà coté ne se réécrit pas par le gestionnaire
-  // (relecture adverse de F247, `motifRefusCotationGestionnairePaie`) · le
-  // serveur le refuse, l'écran le dit au lieu d'offrir un formulaire qui
-  // échouerait. Comparé à l'instant, minuit UTC, comme la clé que le
-  // serveur réécrirait.
+  // (relecture adverse de F247) · le serveur ne lui ouvre que la CRÉATION,
+  // et la clé unique (devise, date) refuse en 409 (`ajouterCours`). L'écran
+  // le dit au lieu d'offrir un formulaire qui échouerait. Comparé à
+  // l'instant, minuit UTC, comme la clé que la base tient.
   const coursDuJourDejaCote = coursDuJourSeul
     ? (devisesCotables.flatMap((d) => d.cours).find((c) => Date.parse(c.date) === Date.parse(jourDuCours)) ?? null)
     : null;

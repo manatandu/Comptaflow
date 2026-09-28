@@ -277,6 +277,30 @@ export class DevisesService {
     });
   }
 
+  /**
+   * COTE UN COURS SANS JAMAIS RÉÉCRIRE CELUI QUI EXISTE À LA MÊME DATE · la
+   * voie du gestionnaire de paie (audit final F247, 2026-09-28). `poserCours`
+   * est un `upsert`, juste pour le comptable qui corrige un cours, et faux
+   * pour celui qui vient seulement combler le cours du jour · `CoursDevise`
+   * n'est pas au journal d'audit, et le cours réécrit changerait sans trace.
+   * Une vérification lue avant d'écrire ne suffisait pas · un cours posé entre
+   * la lecture et l'écriture était réécrit quand même. C'est donc la clé
+   * unique (devise, date) qui refuse, à l'instant de l'écriture, et le refus
+   * est un 409 NOMMÉ (`dejaCote`), jamais la violation brute de la base.
+   */
+  async ajouterCours(tenantId: string, deviseId: string, dto: PoserCoursDto, dejaCote: string) {
+    await this.trouver(tenantId, deviseId);
+    const date = new Date(dto.date);
+    try {
+      return await this.prisma.coursDevise.create({
+        data: { deviseId, date, cours: new Prisma.Decimal(dto.cours), source: dto.source },
+      });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') throw new ConflictException(dejaCote);
+      throw e;
+    }
+  }
+
   private async trouver(tenantId: string, deviseId: string) {
     const devise = await this.prisma.devise.findFirst({ where: { id: deviseId, tenantId } });
     if (!devise) throw new NotFoundException('Devise introuvable pour ce dossier');

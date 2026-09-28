@@ -1532,6 +1532,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Constat :** toute session dure huit heures, sans choix, et son cookie survit à la fermeture du navigateur, y compris sur un poste partagé.
 - **Correction :** case décochée par défaut. Décochée, cookie de session (fermé avec le navigateur) et huit heures au plus. Cochée, trente jours au plus, sept jours sans utilisation, prolongée à chaque usage sans dépasser les trente. Jamais pour la console de l'éditeur. Bouton « Déconnecter mes autres appareils » dans Mon compte.
 - **Fait le 2026-09-28 :** case « Rester connecté sur cet appareil » décochée par défaut (`AuthPage.tsx`) · décochée, cookie de session sans échéance et jeton de huit heures ; cochée, sept jours sans usage et trente au plus depuis la connexion d'origine, prolongée à l'usage au plus une fois par jour (`session-longue.ts`, `emettreSession`, `jwt.strategy.ts`, `jwt-auth.guard.ts`, `poserCookieSession`) ; jamais pour un opérateur de la console. « Déconnecter mes autres appareils » dans Mon compte exige le mot de passe (`POST /auth/deconnecter-autres-appareils`, `ModaleMonCompte.tsx`), et `/auth/me` rend le jeton CSRF de la session (`synchroniserCsrf`). Tests : `session-longue.spec.ts`, `cycle-de-vie-acces.spec.ts`, `roles-cantonnes.spec.ts`, `rester-connecte.spec.ts`, `mon-compte.spec.ts`.
+- **Complété le 2026-09-28 :** l'écran de connexion dit sur une ligne pourquoi une session demandée longue s'ouvre courte (`motifSessionCourte`, `lib/connexion.ts`), et la case voyage avec le code de la double authentification. La déconnexion attend `POST /auth/logout` (`fermerLaSession`, `lib/deconnexion.ts`), une connexion lancée pendant ce temps l'attend, et un échec du serveur ferme quand même la session locale. Tests : `connexion.spec.ts`, `deconnexion.spec.ts`.
 
 ## APRES_1_0
 
@@ -1670,6 +1671,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Constat :** réponse fausse au lieu d'un refus.
 - **Correction :** 404.
 - **Fait le 2026-09-28 :** `trouverExerciceN1` lève un 404 en français pour un exercice absent du dossier (`etats-financiers.communs.ts`), et les états SMT passent par `exerciceDuDossier`, borné au dossier, au lieu de `findFirstOrThrow` · bilan, compte de résultat, tableau des flux, situation, NOTES 1 à 4 et éligibilité refusent au lieu de sortir à zéro. Tests : `etats-financiers-syscohada.service.spec.ts`, `etats-financiers-smt-syscohada.service.spec.ts`, `exercice-introuvable-f222.spec.ts`.
+- **Complété le 2026-09-28 :** le même refus sert désormais la balance âgée, le justificatif de solde, la balance cumulée, le tableau des immobilisations et l'état budgétaire des projets · un seul porteur, `src/common/exercice-introuvable.ts` (404 en français, « aucun état ne peut être établi »), que `etats-financiers.communs.ts` réexporte. Test : `exercice-introuvable-jumeaux.spec.ts`.
 
 ### Exports
 
@@ -1766,6 +1768,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Constat :** sur appel direct, tout le dossier est mêlé.
 - **Correction :** `ParseUUIDPipe`.
 - **Fait le 2026-09-28 :** périmètre, cumul, états consolidés et les deux lectures IFRS exigent l'exercice (`EXERCICE_REQUIS`, `consolidation/exercice-requis.ts`), et les services le refusent absent avant toute lecture (`exigerExercice`). Tests : `perimetre.service.spec.ts`, `ifrs.service.spec.ts`.
+- **Complété le 2026-09-28 :** le pipe vit une fois, `src/common/exercice-requis.ts` (`EXERCICE_REQUIS`, `exigerExercice`), et ses huit copies sont retirées · les contrôleurs des états des deux référentiels, des exports, des documents obligatoires, des notes annexes, du registre des donateurs, du groupe et de la consolidation l'importent. Les engagements analytiques et la suppression d'un effet de change IFRS l'exigent aussi. Tests : `exercice-requis.spec.ts`, qui refuse tout autre `ParseUUIDPipe` sur un `exerciceId`, et `exercice-requis-routes.spec.ts`.
 
 **F235 · Renommer une entité vers un nom pris rend 500** [conso-06]
 - **Emplacements :** perimetre.service.ts:240-272 · prisma/schema.prisma:6834
@@ -1863,6 +1866,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Constat :** sa paie en dollars dépend d'un comptable.
 - **Correction :** ouvrir la cotation, ou adapter le message.
 - **Fait le 2026-09-28 :** le gestionnaire de paie lit les devises et cote le cours de l'USD du jour de Kinshasa, et lui seul (`motifRefusCotationGestionnairePaie`, `conversion-usd.ts`, `devises.controller.ts`) ; le message du cours manquant dit où le coter, et la fenêtre Devises lui est ouverte pour ce seul geste (`roles-cantonnes.ts`, `DevisesPage.tsx`). Tests : `cotation-gestionnaire-paie.spec.ts`, `roles-cantonnes.spec.ts` (liste fermée des portes du gestionnaire), `devises-gestionnaire-paie.spec.ts`.
+- **Complété le 2026-09-28 :** le gestionnaire de paie ne fait que CRÉER le cours du jour (`DevisesService.ajouterCours`) · un cours déjà coté, par le comptable ou par un autre clic, est refusé en 409 nommé par la clé unique (devise, date), jamais réécrit ; le comptable et l'administrateur gardent la pose qui corrige (`poserCours`). La fenêtre Devises entre dans son menu, et son profil de fonctions range la cotation à la paie (`fonctionDeRoute` lit le rôle). Tests : `cotation-gestionnaire-paie.spec.ts`, `fonctions-metier.spec.ts`, `menu-gestionnaire-paie.spec.ts`.
 
 **F248 · Contexte d'exercice : chargement infini en cas d'échec** [chrome-10]
 - **Emplacements :** client/src/lib/exercice.tsx:82-103
@@ -1884,12 +1888,14 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 5
 - **Constat :** deux libellés sur le même écran.
 - **Correction :** fonction `annee` partagée.
+- **Fait le 2026-09-28 :** la barre de titre, le sélecteur d'exercice et l'accueil écrivent l'exercice par une seule fonction, `libelleExercice` (`client/src/lib/libelle-exercice.ts`). Test : `libelle-exercice.spec.ts`, qui tombe si l'un des écrans revient à son écriture propre.
 
 **F251 · RegisterPage se dit reliée à aucun bouton** [chrome-14]
 - **Emplacements :** client/src/pages/RegisterPage.tsx:5-11 · AuthPage.tsx:358-367
 - **Condition :** 5
 - **Constat :** faux sur site.
 - **Correction :** distinguer les deux modes.
+- **Fait le 2026-09-28 :** l'inscription distingue le service en ligne du poste sur site, à l'écran comme dans le commentaire · `porteInscription` (`sur-site.ts`) dit laquelle est ouverte · en ligne, ou sur site le seul premier dossier du poste, la page disant sinon pourquoi elle est fermée (licence qui ne vaut pas ici, premier dossier déjà créé). Test : `sur-site.spec.ts`.
 
 **F252 · Branche morte « bientôt » dans l'assistant de création** [chrome-15, pages-18]
 - **Emplacements :** client/src/components/NouveauFichierWizard.tsx:93-152, :432-453
@@ -1942,6 +1948,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Constat :** contraire au § 8 bis.
 - **Correction :** `groupBy`, et plafond déclaré sur la NOTE 4.
 - **Fait le 2026-09-28 :** les états SMT ne lisent plus que les écritures qui touchent un 52 à 58, par tranches (`lireParLots`, `pageApres`), cumulées compte par compte ; l'écart se retrouve par différence avec la colonne mouvement de la balance, et la NOTE 4 porte un plafond déclaré qui refuse en 400 avec le chemin du grand livre (`etats-financiers-smt-syscohada.service.ts`, `EtatsSmtSyscohadaPage.tsx`). Test : `etats-financiers-smt-syscohada.service.spec.ts`.
+- **Complété le 2026-09-28 :** le jumeau du SYCEBNL suit la même règle · les états SMT ne lisent que les écritures qui touchent la trésorerie (classe 5 hors 59), par tranches ; les parts de la Note 3 par échéance passent par deux `groupBy` ; la NOTE 4 a son plafond déclaré (`PLAFOND_MOUVEMENTS_NOTE_4_SMT_SYCEBNL`, celui du grand livre) et se refuse au-delà en renvoyant au grand livre de chaque compte de trésorerie. L'écran ne lit le journal qu'à l'ouverture de son onglet et dit son refus. Tests : `etats-financiers-smt.service.spec.ts`, `etats-smt-note4-f258.spec.ts`, `note3-ventilation-echeance.spec.ts`.
 
 **F259 · Collections du registre du personnel sans borne** [paie-15]
 - **Emplacements :** src/modules/personnel/personnel.service.ts:128-140, :345-360 · avances-rubriques.service.ts:18-21, :62-64, :102-110

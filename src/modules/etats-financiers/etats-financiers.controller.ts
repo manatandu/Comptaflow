@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Get, ParseUUIDPipe, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { Referentiel } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
@@ -11,17 +11,7 @@ import { EtatsFinanciersProjetService } from './etats-financiers-projet.service'
 import { EtatsFinanciersSmtService } from './etats-financiers-smt.service';
 import { EtatsFinanciersProjetBudgetService } from './etats-financiers-projet-budget.service';
 import { lirePaiementsEnInstance } from './paiements-en-instance';
-
-/**
- * Même raison qu'au contrôleur d'export : un `@Query` scalaire échappe au
- * ValidationPipe global, et un `exerciceId` absent devient `undefined`, que
- * Prisma ignore · l'état porterait alors sur TOUS les exercices du dossier
- * sans le dire.
- */
-const EXERCICE_REQUIS = new ParseUUIDPipe({
-  exceptionFactory: () =>
-    new BadRequestException("Le paramètre exerciceId est requis et doit être un identifiant d'exercice valide"),
-});
+import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 
 // RolesGuard présent pour que tout `@Roles` ajouté plus tard soit réellement
 // appliqué (sans lui, il serait silencieusement ignoré).

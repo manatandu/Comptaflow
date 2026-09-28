@@ -7,11 +7,14 @@ import {
   CONTROLEURS_HORS_PROFIL,
   FONCTION_PAR_CONTROLEUR,
   FONCTION_PAR_METHODE,
+  FONCTION_PAR_METHODE_DU_GESTIONNAIRE_PAIE,
   fonctionDeRoute,
   motifRefusFonction,
 } from './fonctions-metier';
 import { JwtAuthGuard } from '../../modules/auth/jwt-auth.guard';
 import { EcritureController } from '../../modules/comptabilite/ecriture.controller';
+import { DevisesController } from '../../modules/devises/devises.controller';
+import { CLE_ACCES_ROLES_CANTONNES } from '../decorators/acces-roles-cantonnes.decorator';
 import { LettrageController } from '../../modules/lettrage/lettrage.controller';
 import { UtilisateurService } from '../../modules/utilisateurs/utilisateur.service';
 import { PrismaService } from '../prisma.service';
@@ -73,6 +76,28 @@ describe('la table est fermée · chaque contrôleur qui écrit est rangé', () 
     expect(fonctionDeRoute('EcritureController', 'valider')).toBe(FonctionMetier.VALIDATION);
     expect(fonctionDeRoute('EcritureController', 'validerJusqua')).toBe(FonctionMetier.VALIDATION);
   });
+
+  it('la table du gestionnaire de paie ne vise que des routes qui existent ET qui lui sont ouvertes', () => {
+    // Une entrée sur une route fermée à son rôle ne rangerait rien · il n'y
+    // entre pas. Elle se lit sur la métadonnée que JwtAuthGuard lit.
+    const proto = DevisesController.prototype as unknown as Record<string, object>;
+    expect(Object.keys(FONCTION_PAR_METHODE_DU_GESTIONNAIRE_PAIE).length).toBeGreaterThan(0);
+    for (const cle of Object.keys(FONCTION_PAR_METHODE_DU_GESTIONNAIRE_PAIE)) {
+      const [classe, methode] = cle.split('.');
+      expect([cle, classes.get(classe)?.includes(methode)]).toEqual([cle, true]);
+      expect(classe).toBe('DevisesController');
+      expect([cle, Reflect.getMetadata(CLE_ACCES_ROLES_CANTONNES, proto[methode])]).toEqual([cle, { gestionnairePaie: true }]);
+    }
+  });
+
+  it('coter l’USD du jour relève de la paie pour le gestionnaire, de la structure pour le comptable (audit final F247)', () => {
+    expect(fonctionDeRoute('DevisesController', 'poserCours', RoleUtilisateur.GESTIONNAIRE_PAIE)).toBe(FonctionMetier.PAIE);
+    for (const role of [RoleUtilisateur.COMPTABLE, RoleUtilisateur.AIDE_COMPTABLE, undefined]) {
+      expect([role, fonctionDeRoute('DevisesController', 'poserCours', role)]).toEqual([role, FonctionMetier.STRUCTURE]);
+    }
+    // Le reste du module garde sa fonction, même pour lui · son rôle le lui ferme de toute façon.
+    expect(fonctionDeRoute('DevisesController', 'creer', RoleUtilisateur.GESTIONNAIRE_PAIE)).toBe(FonctionMetier.STRUCTURE);
+  });
 });
 
 describe('la règle', () => {
@@ -113,6 +138,30 @@ describe('JwtAuthGuard applique le profil', () => {
       garde.canActivate(contexte(saisieSeule, 'POST', EcritureController.prototype.valider, EcritureController)),
     ).rejects.toThrow(/Validation des écritures/);
     await expect(garde.canActivate(contexte(saisieSeule, 'POST', EcritureController.prototype.creer, EcritureController))).resolves.toBe(true);
+  });
+
+  it('le gestionnaire de paie au profil « Personnel et paie » cote l’USD du jour ; un comptable au même profil, non', async () => {
+    // Le profil naturel du gestionnaire ne coche que la paie · rangée à
+    // STRUCTURE pour lui aussi, la cotation que sa paie exige lui était
+    // refusée (audit final F247).
+    const paieSeule = { restreindreFonctions: true, fonctionsAutorisees: [FonctionMetier.PAIE] };
+    const coter = DevisesController.prototype.poserCours;
+    await expect(
+      garde.canActivate(contexte({ ...paieSeule, role: RoleUtilisateur.GESTIONNAIRE_PAIE }, 'POST', coter, DevisesController)),
+    ).resolves.toBe(true);
+    await expect(
+      garde.canActivate(contexte({ ...paieSeule, role: RoleUtilisateur.COMPTABLE }, 'POST', coter, DevisesController)),
+    ).rejects.toThrow(/Structure · plan comptable, journaux, taxes, devises/);
+    await expect(
+      garde.canActivate(
+        contexte(
+          { role: RoleUtilisateur.GESTIONNAIRE_PAIE, restreindreFonctions: true, fonctionsAutorisees: [FonctionMetier.STRUCTURE] },
+          'POST',
+          coter,
+          DevisesController,
+        ),
+      ),
+    ).rejects.toThrow(/Personnel et paie/);
   });
 
   it('refuse le lettrage, mais laisse le consulter', async () => {

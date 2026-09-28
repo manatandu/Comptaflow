@@ -10,7 +10,7 @@ import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-
 import { PerimetreService } from './perimetre.service';
 import { CumulService } from './cumul.service';
 import { EtatsConsolidesService } from './etats-consolides.service';
-import { EXERCICE_REQUIS } from './exercice-requis';
+import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 import {
   AcquisitionDto,
   EcartEvaluationDto,

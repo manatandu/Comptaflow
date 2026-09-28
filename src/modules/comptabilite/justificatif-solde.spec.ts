@@ -52,15 +52,24 @@ function ligne(
 function harnais(lignes: ReturnType<typeof ligne>[], soldeBalance = { debit: 0, credit: 0 }) {
   const findMany = jest.fn().mockResolvedValue(lignes);
   const prisma = {
+    // Les deux doublures honorent l'identifiant ET le dossier · le service
+    // refuse d'un 404 ce qu'elles ne rendent pas (jumeau de l'audit final F222).
     compte: {
-      findFirstOrThrow: jest.fn().mockResolvedValue({ id: 'c1', numero: '469150', intitule: 'Débiteurs divers' }),
+      findFirst: jest.fn(({ where }: { where: { id?: string; tenantId?: string } }) =>
+        Promise.resolve(
+          where.id === 'c1' && where.tenantId === 't' ? { id: 'c1', numero: '469150', intitule: 'Débiteurs divers' } : null,
+        ),
+      ),
     },
     exercice: {
-      findFirstOrThrow: jest
-        .fn()
-        // 1er appel : l'exercice demandé. 2e : le premier exercice du dossier.
-        .mockResolvedValueOnce({ id: 'ex2025', dateDebut: new Date('2025-01-01'), dateFin: new Date('2025-12-31') })
-        .mockResolvedValueOnce({ id: 'ex2020' }),
+      // Avec un identifiant · l'exercice demandé. Sans · le premier du dossier.
+      findFirst: jest.fn(({ where }: { where: { id?: string; tenantId?: string } }) => {
+        if (where.tenantId !== 't') return Promise.resolve(null);
+        if (where.id === undefined) return Promise.resolve({ id: 'ex2020' });
+        return Promise.resolve(
+          where.id === 'ex2025' ? { id: 'ex2025', dateDebut: new Date('2025-01-01'), dateFin: new Date('2025-12-31') } : null,
+        );
+      }),
     },
     ligneEcriture: {
       findMany,

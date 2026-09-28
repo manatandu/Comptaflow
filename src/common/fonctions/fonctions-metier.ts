@@ -115,6 +115,22 @@ export const FONCTION_PAR_METHODE: Record<string, FonctionMetier> = {
   'EcritureController.fusionnerComptes': FonctionMetier.STRUCTURE,
 };
 
+/**
+ * Méthodes rangées autrement POUR LE GESTIONNAIRE DE PAIE (audit final F247,
+ * 2026-09-28). Coter l'USD du jour est, pour lui, un geste de la PAIE · son
+ * salaire stipulé en dollars ne se calcule pas sans ce cours, et c'est tout ce
+ * que le serveur lui ouvre du module (`motifRefusCotationGestionnairePaie`).
+ * Rangée à STRUCTURE comme pour le comptable, la cotation était refusée au
+ * gestionnaire dont le profil ne coche que « Personnel et paie », c'est-à-dire
+ * au profil naturel de son rôle, et le seul remède aurait été de lui cocher
+ * « Structure », qui ne dit pas ce qu'on lui confie. Le comptable, lui, garde
+ * STRUCTURE · pour lui, poser un cours de toute devise à toute date est bien
+ * de la structure du dossier.
+ */
+export const FONCTION_PAR_METHODE_DU_GESTIONNAIRE_PAIE: Record<string, FonctionMetier> = {
+  'DevisesController.poserCours': FonctionMetier.PAIE,
+};
+
 /** Contrôleurs qui écrivent sans relever d'un profil, avec leur motif. */
 export const CONTROLEURS_HORS_PROFIL: Record<string, string> = {
   AuthController: "Connexion et mot de passe · l'utilisateur lui-même, quel que soit son profil.",
@@ -125,8 +141,16 @@ export const CONTROLEURS_HORS_PROFIL: Record<string, string> = {
 
 const METHODES_QUI_ECRIVENT = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
-export function fonctionDeRoute(classe: string, methode: string): FonctionMetier | null {
-  return FONCTION_PAR_METHODE[`${classe}.${methode}`] ?? FONCTION_PAR_CONTROLEUR[classe] ?? null;
+/**
+ * La fonction d'une route, lue pour le RÔLE qui l'appelle · la même route peut
+ * relever de deux fonctions selon qui écrit (voir la table du gestionnaire de
+ * paie). Sans rôle, la lecture commune.
+ */
+export function fonctionDeRoute(classe: string, methode: string, role?: string): FonctionMetier | null {
+  const cle = `${classe}.${methode}`;
+  const propreAuGestionnaire =
+    role === RoleUtilisateur.GESTIONNAIRE_PAIE ? FONCTION_PAR_METHODE_DU_GESTIONNAIRE_PAIE[cle] : undefined;
+  return propreAuGestionnaire ?? FONCTION_PAR_METHODE[cle] ?? FONCTION_PAR_CONTROLEUR[classe] ?? null;
 }
 
 /** Pourquoi la route est refusée à cet utilisateur, ou null. */

@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Get, ParseUUIDPipe, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { Referentiel } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
@@ -9,17 +9,7 @@ import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-
 import { EtatsFinanciersSyscohadaService } from './etats-financiers-syscohada.service';
 import { EtatsFinanciersSmtSyscohadaService } from './etats-financiers-smt-syscohada.service';
 import { NoteAnnexeService } from '../notes-annexes/note-annexe.service';
-
-/**
- * Même raison qu'au contrôleur SYCEBNL : un `@Query` scalaire échappe au
- * ValidationPipe global, et un `exerciceId` absent devient `undefined`, que
- * Prisma ignore · l'état porterait alors sur TOUS les exercices du dossier
- * sans le dire.
- */
-const EXERCICE_REQUIS = new ParseUUIDPipe({
-  exceptionFactory: () =>
-    new BadRequestException("Le paramètre exerciceId est requis et doit être un identifiant d'exercice valide"),
-});
+import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 
 // RolesGuard présent pour que tout `@Roles` ajouté plus tard soit réellement
 // appliqué (sans lui, il serait silencieusement ignoré).

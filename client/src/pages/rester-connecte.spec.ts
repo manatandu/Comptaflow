@@ -32,11 +32,17 @@ describe('la case de l’écran de connexion', () => {
   });
 
   it('part avec CHAQUE envoi de connexion, celui du code compris · une seule requête les porte', () => {
+    // Le corps de la requête vit dans `lib/connexion.ts` depuis la reprise de
+    // F270 (la case voyage avec le code) · l'écran ne fait plus que l'appeler.
     const envoi = corps(page, 'onSubmit');
-    const appels = [...envoi.matchAll(/api\.post(?:<[^>]*>)?\(\s*'\/auth\/login'\s*,\s*\{([\s\S]*?)\}\);/g)];
+    const appels = [...envoi.matchAll(/api\.post(?:<[^>]*>)?\(\s*'\/auth\/login'\s*,\s*corpsConnexion\(\{([^}]*)\}\)/g)];
     expect(appels).toHaveLength(1);
     const cles = appels[0][1].split(',').map((c) => c.trim().match(/^(\w+)/)?.[1]).filter(Boolean);
-    expect(cles).toEqual(['email', 'motDePasse', 'resterConnecte']);
+    expect(cles).toEqual(['email', 'motDePasse', 'resterConnecte', 'codeRequis', 'code']);
+    // Et la case part TOUJOURS, qu'un code soit réclamé ou non.
+    const connexion = lire('lib/connexion.ts');
+    const retour = connexion.slice(connexion.indexOf('export function corpsConnexion'), connexion.indexOf('export type IssueConnexion'));
+    expect(retour).toMatch(/return \{\s*email: s\.email,\s*motDePasse: s\.motDePasse,\s*resterConnecte: s\.resterConnecte,/);
   });
 
   it('la clé envoyée est celle que le DTO de connexion déclare · le serveur refuse toute clé de plus', () => {

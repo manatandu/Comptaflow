@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
 import { useExercice } from '../../lib/exercice';
+import { libelleExercice } from '../../lib/libelle-exercice';
 import { useFenetres } from '../../lib/fenetres';
 import { definitionPour } from '../../lib/registre-fenetres';
 import { fenetreDisponible } from '../../lib/referentiel-fenetre';
@@ -66,7 +67,10 @@ export function AppShell() {
   const [aProposOuvert, setAProposOuvert] = useState(false);
   const [monCompteOuvert, setMonCompteOuvert] = useState(false);
 
-  const anneeExercice = exerciceCourant ? new Date(exerciceCourant.dateDebut).getFullYear() : null;
+  // LE MÊME LIBELLÉ QUE LE SÉLECTEUR DE LA BARRE DE STATUT (audit final F250) ·
+  // la barre de titre écrivait l'année de début seule, le sélecteur
+  // « 2026-2027 » pour un exercice à cheval sur deux années.
+  const exerciceAffiche = exerciceCourant ? libelleExercice(exerciceCourant) : null;
 
   /**
    * L'URL COMMANDE L'OUVERTURE DES FENÊTRES.
@@ -603,15 +607,20 @@ export function AppShell() {
     },
   ];
 
-  // LE GESTIONNAIRE DE PAIE N'A QU'UNE FENÊTRE · lui montrer les menus de la
-  // comptabilité serait lui proposer quarante portes fermées.
+  // LE GESTIONNAIRE DE PAIE N'A QUE SES FENÊTRES · lui montrer les menus de la
+  // comptabilité serait lui proposer quarante portes fermées. Devises y est
+  // depuis le 2026-09-28 (audit final F247) · la paie stipulée en dollars
+  // exige le cours de l'USD du jour, et la fenêtre qui le cote lui était
+  // ouverte sans qu'aucun menu n'y mène. La liste est celle de
+  // `fenetreOuverteAuRole` (roles-cantonnes.ts), et un spec l'y tient.
   const menus: MenuDef[] =
     utilisateur?.role === 'GESTIONNAIRE_PAIE'
       ? [
           {
             titre: 'Fichier',
             items: [
-              { label: 'Registre du personnel', onClick: () => navigate('/personnel') },
+              { label: 'Registre du personnel', chemin: '/personnel', onClick: () => navigate('/personnel') },
+              { label: 'Devises et réévaluation', chemin: '/devises', onClick: () => navigate('/devises') },
               { label: 'Mon compte…', separateurAvant: true, onClick: () => setMonCompteOuvert(true) },
               { label: 'Fermer le dossier (déconnexion)', onClick: seDeconnecter },
             ],
@@ -661,9 +670,9 @@ export function AppShell() {
           <span className="hidden sm:inline font-marque font-semibold tracking-[-0.015em]">OmegaX</span>
           <span className="hidden sm:inline text-white/40">/</span>
           <span className="truncate text-white">{utilisateur?.tenant.nom}</span>
-          {anneeExercice && (
+          {exerciceAffiche && (
             <span className="shrink-0 rounded-full bg-white/15 px-2 py-[1px] text-[11px] font-semibold text-white">
-              Exercice {anneeExercice}
+              Exercice {exerciceAffiche}
             </span>
           )}
         </div>

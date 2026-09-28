@@ -5,6 +5,7 @@ import type { Exercice, JeuEtatsFinanciersSycebnl, SystemeComptableSyscohada, Re
 import { oublierPrechargement, prechargerExercices } from './prechargement';
 import { peutEcrirePourRole, peutValiderPourRole } from './roles-cantonnes';
 import { surSessionPerdue } from './session-perdue';
+import { fermerLaSession } from './deconnexion';
 
 interface MeResponse {
   id: string;
@@ -85,7 +86,11 @@ interface AuthContextValue {
   seConnecter: (csrfToken: string) => Promise<void>;
   /** Relit /auth/me · à appeler après avoir changé un paramètre du dossier. */
   rafraichir: () => Promise<void>;
-  seDeconnecter: () => void;
+  /**
+   * Ferme l'interface tout de suite, et résout quand le serveur a répondu
+   * (succès ou échec) · lib/deconnexion.ts.
+   */
+  seDeconnecter: () => Promise<void>;
   /**
    * Pourquoi la session s'est fermée d'elle-même (expirée, close ailleurs,
    * compte désactivé) · l'écran de connexion l'affiche, pour que le retour à
@@ -204,18 +209,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await chargerUtilisateur();
   };
 
-  const seDeconnecter = () => {
+  const seDeconnecter = (): Promise<void> => {
     oublierPrechargement();
     // Le cookie httpOnly ne peut pas être effacé d'ici · c'est le serveur
-    // qui le fait tomber. Sans attendre la réponse : l'interface se ferme
-    // tout de suite, et un échec réseau laisse au pire un cookie qui
-    // expirera de lui-même (à la fermeture du navigateur, ou à l'échéance
-    // d'une session « Rester connecté »).
-    api.post('/auth/logout').catch(() => undefined);
-    ouverte.current = false;
-    setCsrf(null);
-    setUtilisateur(null);
-    setMotifDeconnexion(null);
+    // qui le fait tomber. L'interface se ferme tout de suite, et la promesse
+    // rendue ATTEND sa réponse (2026-09-28) · une connexion lancée avant
+    // qu'elle n'arrive voyait son cookie neuf effacé par elle. Connexion et
+    // création de dossier passent par `apresDeconnexion` (lib/deconnexion.ts).
+    // Un échec réseau ferme quand même la session locale, et laisse au pire
+    // un cookie qui expirera de lui-même (à la fermeture du navigateur, ou à
+    // l'échéance d'une session « Rester connecté »).
+    return fermerLaSession(
+      () => api.post('/auth/logout'),
+      () => {
+        ouverte.current = false;
+        setCsrf(null);
+        setUtilisateur(null);
+        setMotifDeconnexion(null);
+      },
+    );
   };
 
   return (

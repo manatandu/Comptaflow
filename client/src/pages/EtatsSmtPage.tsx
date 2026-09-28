@@ -63,7 +63,14 @@ export function EtatsSmtPage() {
 
   const [bilan, setBilan] = useState<BilanSmt | null>(null);
   const [cr, setCr] = useState<CompteDeResultatSmt | null>(null);
-  const [note4, setNote4] = useState<Note4Smt | null>(null);
+  // NOTE 4 · lue à l'ouverture de SON onglet, jamais au montage de l'écran
+  // (jumeau de l'audit final F258, déjà posé sur le S.M.T SYSCOHADA). C'est la
+  // pièce qui parcourt, tranche par tranche, les écritures de trésorerie de
+  // l'exercice ; la lire pour qui vient voir le bilan faisait payer au serveur
+  // le livre entier à chaque ouverture. Elle garde l'exercice pour lequel elle
+  // a été lue · en changer la relit.
+  const [note4, setNote4] = useState<{ exerciceId: string; journal: Note4Smt } | null>(null);
+  const [erreurNote4, setErreurNote4] = useState<string | null>(null);
   const [notes, setNotes] = useState<NotesSmt | null>(null);
   const [eligibilite, setEligibilite] = useState<EligibiliteSmt | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -76,17 +83,39 @@ export function EtatsSmtPage() {
   useEffect(() => {
     if (!exerciceCourant) return;
     let annule = false;
+    // Le refus du journal d'un autre exercice ne se lit pas sur celui-ci.
+    setErreurNote4(null);
     const echec = (e: Error) => !annule && setErreur(e.message);
     const q = `?exerciceId=${exerciceCourant.id}`;
     api.get<BilanSmt>(`/etats-financiers/smt/bilan${q}`).then((r) => !annule && setBilan(r), echec);
     api.get<CompteDeResultatSmt>(`/etats-financiers/smt/compte-de-resultat${q}`).then((r) => !annule && setCr(r), echec);
-    api.get<Note4Smt>(`/etats-financiers/smt/journal-tresorerie${q}`).then((r) => !annule && setNote4(r), echec);
     api.get<NotesSmt>(`/etats-financiers/smt/notes${q}`).then((r) => !annule && setNotes(r), echec);
     api.get<EligibiliteSmt>(`/etats-financiers/smt/eligibilite${q}`).then((r) => !annule && setEligibilite(r), echec);
     return () => {
       annule = true;
     };
   }, [exerciceCourant?.id]);
+
+  useEffect(() => {
+    if (!exerciceCourant || onglet !== 'journal' || note4?.exerciceId === exerciceCourant.id) return;
+    let annule = false;
+    const exerciceId = exerciceCourant.id;
+    setErreurNote4(null);
+    api.get<Note4Smt>(`/etats-financiers/smt/journal-tresorerie?exerciceId=${exerciceId}`).then(
+      (journal) => !annule && setNote4({ exerciceId, journal }),
+      // Un refus se lit sur l'onglet · au-delà de son plafond, le journal est
+      // refusé par le serveur avec le chemin de rechange (le grand livre de
+      // chaque compte de trésorerie).
+      (e: Error) => !annule && setErreurNote4(e.message),
+    );
+    return () => {
+      annule = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exerciceCourant?.id, onglet]);
+
+  // Le journal lu pour l'exercice AFFICHÉ, et pour lui seul.
+  const journalNote4 = note4 && exerciceCourant && note4.exerciceId === exerciceCourant.id ? note4.journal : null;
 
   /**
    * Export Excel de l'onglet affiché · même mécanique que les deux autres
@@ -355,14 +384,22 @@ export function EtatsSmtPage() {
       )}
 
       {/* ---------------------------------------------------------------- */}
-      {onglet === 'journal' && note4 && (
+      {onglet === 'journal' && erreurNote4 && (
+        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[11.5px]">
+          Journal de trésorerie indisponible · {erreurNote4}
+        </div>
+      )}
+      {onglet === 'journal' && !journalNote4 && !erreurNote4 && (
+        <div className="border border-border px-4 py-4 text-[11.5px] text-text-dim">Chargement du journal de trésorerie…</div>
+      )}
+      {onglet === 'journal' && journalNote4 && (
         <div className="overflow-x-auto">
-          {note4.journaux.length === 0 && (
+          {journalNote4.journaux.length === 0 && (
             <div className="border border-border px-4 py-4 text-[11.5px] text-text-dim">
               Aucun compte de trésorerie mouvementé sur cet exercice.
             </div>
           )}
-          {note4.journaux.map((j) => (
+          {journalNote4.journaux.map((j) => (
             <div key={j.compteId} className="border border-border bg-surface mb-3 min-w-[900px]">
               <div className="flex items-center justify-between bg-surface-alt border-b border-border px-4 py-1.5">
                 <span className="text-[11.5px] font-bold font-mono">
@@ -435,7 +472,7 @@ export function EtatsSmtPage() {
               </div>
             </div>
           ))}
-          <p className="text-[11px] text-text-dim max-w-[900px]">{note4.nb}</p>
+          <p className="text-[11px] text-text-dim max-w-[900px]">{journalNote4.nb}</p>
         </div>
       )}
 

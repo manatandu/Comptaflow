@@ -86,26 +86,28 @@ export const DEVISE_DE_LA_PAIE = 'USD';
  *    cours par égalité sur minuit UTC, et un cours posé à une autre heure du
  *    même jour ne serait jamais lu ;
  *  · un cours du jour DÉJÀ COTÉ ne se réécrit pas par lui (relecture adverse
- *    de F247) · la cotation est un `upsert`, et `CoursDevise` n'est pas au
- *    journal d'audit (`NON_AUDITES_MOTIVES`). Réécrit par le gestionnaire, le
- *    cours que le comptable a posé changerait sans trace, alors qu'il sert
- *    aussi hors de la paie le jour même · la facture d'abonnement de
- *    l'éditeur, qui le lit à la date exacte, le second jeu en monnaie
- *    fonctionnelle et le cours proposé en saisie. Il vient combler le cours
- *    qui manque à sa paie, jamais trancher un cours qui existe · une faute de
- *    frappe se corrige par le comptable, et un bulletin émis fige le cours
- *    qu'il a lu (`calcul.conversion`).
+ *    de F247) · `CoursDevise` n'est pas au journal d'audit
+ *    (`NON_AUDITES_MOTIVES`), et réécrit par le gestionnaire, le cours que le
+ *    comptable a posé changerait sans trace, alors qu'il sert aussi hors de
+ *    la paie le jour même · la facture d'abonnement de l'éditeur, qui le lit
+ *    à la date exacte, le second jeu en monnaie fonctionnelle et le cours
+ *    proposé en saisie. Il vient combler le cours qui manque à sa paie,
+ *    jamais trancher un cours qui existe · une faute de frappe se corrige par
+ *    le comptable, et un bulletin émis fige le cours qu'il a lu
+ *    (`calcul.conversion`).
+ * Ce dernier refus n'est PAS dans cette règle, et c'est voulu (2026-09-28).
+ * Il y était, sur les dates des cours que la liste du dossier renvoyait,
+ * devant une cotation qui était un `upsert` · deux trous. La liste ne rend que
+ * les douze cours les plus RÉCENTS, si bien qu'un cours du jour suivi de
+ * douze cours postérieurs n'y figurait pas ; et un cours posé entre la lecture
+ * et l'écriture était réécrit quand même. La voie du gestionnaire est
+ * désormais une CRÉATION seule (`DevisesService.ajouterCours`), que la clé
+ * unique (devise, date) refuse en 409 avec `messageCoursDejaCote` · la base
+ * tranche, à l'instant de l'écriture, sur tous les cours.
  * La création d'une devise et la réévaluation restent fermées au
- * gestionnaire, par leurs routes. `datesDejaCotees` sont les dates des cours
- * de cette devise, comparées à l'instant comme la clé unique (devise, date)
- * que l'`upsert` réécrirait.
+ * gestionnaire, par leurs routes.
  */
-export function motifRefusCotationGestionnairePaie(
-  codeDevise: string,
-  dateCours: string,
-  maintenant: Date,
-  datesDejaCotees: readonly Date[],
-): string | null {
+export function motifRefusCotationGestionnairePaie(codeDevise: string, dateCours: string, maintenant: Date): string | null {
   if (codeDevise.toUpperCase() !== DEVISE_DE_LA_PAIE) {
     return (
       'Le gestionnaire de paie ne cote que le dollar américain (USD), la seule devise que la paie convertit · ' +
@@ -119,11 +121,10 @@ export function motifRefusCotationGestionnairePaie(
       'Un autre jour se cote par le comptable.'
     );
   }
-  if (datesDejaCotees.some((d) => new Date(d).getTime() === jour.getTime())) {
-    return (
-      `Le cours de l'USD du ${jourLisible(jour)} est déjà coté, et la paie le lit · ` +
-      'une correction se demande au comptable.'
-    );
-  }
   return null;
+}
+
+/** Le refus du cours du jour déjà coté · rendu en 409 par la création seule du gestionnaire. */
+export function messageCoursDejaCote(jour: Date): string {
+  return `Le cours de l'USD du ${jourLisible(jour)} est déjà coté, et la paie le lit · une correction se demande au comptable.`;
 }

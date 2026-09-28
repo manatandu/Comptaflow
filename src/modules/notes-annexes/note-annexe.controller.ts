@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { Referentiel, RoleUtilisateur } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -10,11 +10,7 @@ import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-
 import { NoteAnnexeService } from './note-annexe.service';
 import { RattacherDto } from './dto/rattachement.dto';
 import { SaisirNoteDto } from './dto/saisie-note.dto';
-
-const EXERCICE_REQUIS = new ParseUUIDPipe({
-  exceptionFactory: () =>
-    new BadRequestException("Le paramètre exerciceId est requis et doit être un identifiant d'exercice valide"),
-});
+import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 
 // PAS de @ReferentielsAutorises au niveau de la CLASSE · il était ici tant
 // que toutes les routes étaient SYCEBNL. Depuis que les 36 notes SYSCOHADA

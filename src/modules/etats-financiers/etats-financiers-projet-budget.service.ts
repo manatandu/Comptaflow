@@ -8,6 +8,7 @@ import { EngagementService } from '../analytique/engagement.service';
 import { totalDesFeuilles, valeurDeLaLigne } from '../analytique/rubriques-budgetaires';
 import { COMPTES_TRESORERIE_PROJET } from './correspondance-projet-emplois-ressources';
 import { ouverteALaCloture } from '../lettrage/ouverte-a-la-cloture';
+import { exerciceDuDossierOuRefus } from '../../common/exercice-introuvable';
 
 /**
  * TABLEAU D'EXÉCUTION BUDGÉTAIRE et TABLEAU DE RÉCONCILIATION DE TRÉSORERIE
@@ -172,6 +173,15 @@ export class EtatsFinanciersProjetBudgetService {
    * un total fondu ne serait justifiable par aucun des deux documents.
    */
   async executionBudgetaire(tenantId: string, exerciceId: string, planId?: string) {
+    // L'EXERCICE SE VÉRIFIE AVANT LE PLAN (jumeau de l'audit final F222). Lu
+    // après, un exercice d'un autre dossier tombait en 500 sur
+    // `findFirstOrThrow` quand le plan existait, et sous le motif « aucun
+    // plan à budgets » quand il n'existait pas · ce second refus est le seul
+    // que la note 35 (24) rattrape pour se replier en saisie, si bien qu'un
+    // exercice inconnu y aurait servi une grille vierge au lieu d'un 404.
+    const exercice = exerciceDuDossierOuRefus(
+      await this.prisma.exercice.findFirst({ where: { id: exerciceId, tenantId }, select: { dateFin: true } }),
+    );
     const plan = planId
       ? await this.prisma.planAnalytique.findFirst({ where: { id: planId, tenantId } })
       : await this.prisma.planAnalytique.findFirst({
@@ -183,8 +193,6 @@ export class EtatsFinanciersProjetBudgetService {
         "Aucun plan analytique à budgets n'est défini pour ce dossier. Le tableau d'exécution budgétaire suit la nomenclature budgétaire du projet : créez un plan analytique et ses sections avant de l'établir.",
       );
     }
-
-    const exercice = await this.prisma.exercice.findFirstOrThrow({ where: { id: exerciceId, tenantId }, select: { dateFin: true } });
 
     const decaisseParSection = new Map<string, number>();
     const engageParSection = new Map<string, number>();
@@ -425,6 +433,10 @@ export class EtatsFinanciersProjetBudgetService {
    *    sur l'impression.
    */
   async reconciliationTresorerie(tenantId: string, exerciceId: string, paiementsEnInstance: number | null = null) {
+    // Aucun contrôle ne lisait l'exercice · un identifiant inconnu, ou celui
+    // d'un autre dossier, rendait un tableau tout à zéro, rapproché et
+    // présentable (jumeau de l'audit final F222). Il se refuse d'abord.
+    exerciceDuDossierOuRefus(await this.prisma.exercice.findFirst({ where: { id: exerciceId, tenantId }, select: { id: true } }));
     const estTresorerie = (numero: string) => correspond(numero, COMPTES_TRESORERIE_PROJET);
 
     // Ventilation des encaissements par nature de contrepartie, et total des

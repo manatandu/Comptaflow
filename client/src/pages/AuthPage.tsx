@@ -7,7 +7,8 @@ import { PanneauSurSite } from '../components/PanneauSurSite';
 import { creationPremierDossierProposee, type EtatSurSite } from '../lib/sur-site';
 import { LogotypeOmegaX, SymboleOmegaX } from '../components/chrome/Logo';
 import { DossierRecent, lireDossiersRecents, oublierDossier } from '../lib/dossiersRecents';
-import type { AuthResponse } from '../lib/types';
+import { corpsConnexion, issueConnexion, type ReponseConnexion } from '../lib/connexion';
+import { apresDeconnexion } from '../lib/deconnexion';
 import { messageConnexion } from '../lib/message-connexion';
 
 /**
@@ -102,6 +103,9 @@ export function AuthPage() {
   const [resterConnecte, setResterConnecte] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
+  // La session est ouverte, mais pas comme demandé (console de l'éditeur,
+  // case cochée) · l'écran le dit avant d'entrer (lib/connexion.ts).
+  const [avisSession, setAvisSession] = useState<string | null>(null);
   const { seConnecter, motifDeconnexion } = useAuth();
   const navigate = useNavigate();
 
@@ -126,25 +130,36 @@ export function AuthPage() {
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    // Session déjà ouverte, avis lu · Entrée vaut « Continuer ».
+    if (avisSession) {
+      navigate('/');
+      return;
+    }
     setErreur(null);
     setEnvoi(true);
     try {
+      // Une déconnexion encore en route effacerait, à sa réponse, le cookie
+      // que cette connexion va poser (lib/deconnexion.ts).
+      await apresDeconnexion();
       // La case repart avec le code du second facteur, comme le mot de passe ·
       // le serveur ne garde aucun état entre les deux appels.
-      const res = await api.post<AuthResponse | { deuxiemeFacteurRequis: true }>('/auth/login', {
-        email,
-        motDePasse,
-        resterConnecte,
-        ...(codeRequis && code.trim() ? { code: code.trim() } : {}),
-      });
-      if ('deuxiemeFacteurRequis' in res) {
+      const res = await api.post<ReponseConnexion>(
+        '/auth/login',
+        corpsConnexion({ email, motDePasse, resterConnecte, codeRequis, code }),
+      );
+      const issue = issueConnexion(res);
+      if (issue.etape === 'CODE_REQUIS') {
         setCodeRequis(true);
         return;
       }
       // Le dossier est ajouté aux dossiers récents par `chargerUtilisateur`
       // (lib/auth.tsx), qui lit /auth/me · la réponse de /auth/login ne porte
       // que le jeton, elle ne connaît pas le nom du dossier.
-      await seConnecter(res.csrfToken);
+      await seConnecter(issue.csrfToken);
+      if (issue.avis) {
+        setAvisSession(issue.avis);
+        return;
+      }
       navigate('/');
     } catch (err) {
       setErreur(messageConnexion(err));
@@ -328,6 +343,11 @@ export function AuthPage() {
               {erreur}
             </div>
           )}
+          {avisSession && (
+            <div role="status" className="text-[11.5px] text-text bg-sel-soft border border-sel/30 rounded-[4px] px-3 py-2">
+              {avisSession}
+            </div>
+          )}
 
           <div className="mt-2 pt-3 border-t border-border flex items-center justify-end">
             <button
@@ -335,7 +355,7 @@ export function AuthPage() {
               disabled={envoi}
               className="px-4 py-1.5 rounded-[4px] bg-sel text-white text-[11.5px] font-semibold hover:brightness-110 disabled:opacity-50"
             >
-              {envoi ? 'Un instant…' : 'Ouvrir le dossier'}
+              {envoi ? 'Un instant…' : avisSession ? 'Continuer' : 'Ouvrir le dossier'}
             </button>
           </div>
         </form>

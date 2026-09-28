@@ -1,4 +1,5 @@
 import { useExercice } from '../../lib/exercice';
+import { libelleExercice } from '../../lib/libelle-exercice';
 
 /**
  * SÉLECTEUR D'EXERCICE · la barre de statut affichait l'exercice, elle ne
@@ -30,21 +31,15 @@ export function SelecteurExercice() {
 
   if (!exerciceCourant) return alerteLecture;
 
-  const annee = (e: { dateDebut: string; dateFin: string }) => {
-    const debut = new Date(e.dateDebut).getFullYear();
-    const fin = new Date(e.dateFin).getFullYear();
-    // Un exercice à cheval sur deux années civiles se lit « 2026-2027 » ·
-    // l'AUDCIF art. 7 fait coïncider l'exercice avec l'année civile, mais le
-    // premier et le dernier d'une entité y échappent, et l'afficher sur sa
-    // seule année de début les rendrait indiscernables.
-    return debut === fin ? String(debut) : `${debut}-${fin}`;
-  };
+  // LE LIBELLÉ EST CELUI DE LA BARRE DE TITRE (audit final F250) · un
+  // exercice à cheval sur deux années civiles se lit « 2026-2027 » en haut
+  // comme en bas, par la même fonction (lib/libelle-exercice.ts).
 
   // Un seul exercice : rien à choisir, le sélecteur reste un simple libellé.
   if (exercices.length <= 1) {
     return (
       <>
-        <span className="shrink-0">· Exercice {annee(exerciceCourant)}</span>
+        <span className="shrink-0">· Exercice {libelleExercice(exerciceCourant)}</span>
         {alerteLecture}
       </>
     );
@@ -69,7 +64,7 @@ export function SelecteurExercice() {
       >
         {exercices.map((e) => (
           <option key={e.id} value={e.id} className="bg-chrome text-text">
-            {annee(e)}
+            {libelleExercice(e)}
             {e.statut === 'OUVERT' ? '' : ' (clôturé)'}
           </option>
         ))}

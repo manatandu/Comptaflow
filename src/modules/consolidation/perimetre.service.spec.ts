@@ -6,7 +6,7 @@ import { PerimetreService } from './perimetre.service';
 import { ConsolidationController } from './consolidation.controller';
 import { REFERENTIELS_KEY } from '../../common/decorators/referentiels.decorator';
 import { ROLES_KEY } from '../../common/decorators/roles.decorator';
-import { EXERCICE_REQUIS } from './exercice-requis';
+import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 
 /**
  * Le câblage du périmètre · le moteur est testé à part, ici on vérifie que le

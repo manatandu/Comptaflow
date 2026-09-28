@@ -3,6 +3,7 @@ import { ClasseCompte, TypeCompteDetailTotal } from '@prisma/client';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
 import { avantSoldeDesComptesDeGestion } from '../comptabilite/balance-trois-colonnes';
+import { MOTIF_EXERCICE_INTROUVABLE } from '../../common/exercice-introuvable';
 
 /**
  * Aides communes aux états financiers, extraites ici lors de la construction
@@ -50,14 +51,11 @@ export function correspond(numero: string, prefixes: readonly string[], exclusio
 }
 
 /**
- * LE REFUS D'UN EXERCICE INCONNU DU DOSSIER, en un seul texte (audit final
- * F222). Les états des deux référentiels le posent, et les exports lisent
- * l'identité du dossier EN MÊME TEMPS que les états (`Promise.all`) · la
- * première lecture qui échoue fait la réponse, et elle doit être la même,
- * statut et message, quel que soit l'ordre d'arrivée.
+ * LE REFUS D'UN EXERCICE INCONNU DU DOSSIER (audit final F222) vit dans
+ * `common/exercice-introuvable.ts` depuis que la comptabilité et les
+ * immobilisations le posent aussi · réexporté ici pour ses lecteurs d'origine.
  */
-export const MOTIF_EXERCICE_INTROUVABLE =
-  'Exercice introuvable dans ce dossier : aucun état financier ne peut être établi.';
+export { MOTIF_EXERCICE_INTROUVABLE };
 
 /**
  * Exercice « N-1 » d'un bilan/compte de résultat (ou compte d'exploitation) :

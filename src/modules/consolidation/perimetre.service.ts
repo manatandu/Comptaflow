@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
-import { exigerExercice } from './exercice-requis';
+import { exigerExercice } from '../../common/exercice-requis';
 import {
   analyserPerimetre,
   EntitePerimetre,

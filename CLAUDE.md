@@ -2480,7 +2480,8 @@ mois de l'art. 97 se comptent de date à date, fin de mois comprise · le
 30 septembre mène au 31 décembre. La consolidante est le DOSSIER, jamais une
 ligne de table, et le périmètre vit PAR EXERCICE. LES LECTURES EXIGENT
 L'EXERCICE (audit final F234) · périmètre, cumul, états et les deux lectures
-IFRS passent par `EXERCICE_REQUIS` (400 nommé), et les services refusent un
+IFRS passent par `EXERCICE_REQUIS` (400 nommé, un seul porteur pour tout le
+serveur, `common/exercice-requis.ts`), et les services refusent un
 exercice absent (`exigerExercice`), Prisma ignorant un `id: undefined`. UNE
 DÉCLARATION NE VISE QUE LES ENTITÉS DE SON EXERCICE (F232) · réciproques,
 résultats internes, provision pour pertes de change et fiscalité passent par
@@ -6599,7 +6600,8 @@ avant de l'écrire ; un spec (`compte-seed-syscohada.spec.ts`) le contrôle.
   personnel, se voir, tenir son propre compte (mot de passe, adresse, double
   authentification, sessions), lister les exercices, et depuis F247 lire les
   devises et coter le cours de l'USD du jour de Kinshasa
-  (`motifRefusCotationGestionnairePaie`) · une liste FERMÉE, que
+  (`motifRefusCotationGestionnairePaie`), en CRÉATION seule, un cours déjà
+  coté refusé en 409 et jamais réécrit (`ajouterCours`) · une liste FERMÉE, que
   `roles-cantonnes.spec.ts` gèle route par route et fichier par fichier) · un
   défaut ouvert lui aurait donné tout le grand livre, la plupart des lectures
   ne portant aucun `@Roles`. Aucun `@Roles` existant ne nomme ces rôles : ils
@@ -6638,7 +6640,10 @@ avant de l'écrire ; un spec (`compte-seed-syscohada.spec.ts`) le contrôle.
   toutes les sessions et repose aussitôt celle de l'appareil, qui garde son
   régime · ce n'est PAS une sortie de mot de passe provisoire. Les routes qui
   éprouvent un secret portent `@Throttle` (vingt par minute) et
-  `JwtAuthGuard`, gelés route par route par `session-longue.spec.ts`.
+  `JwtAuthGuard`, gelés route par route par `session-longue.spec.ts`. Une
+  session demandée longue et ouverte courte le dit à l'écran
+  (`motifSessionCourte`, `lib/connexion.ts`), et la déconnexion attend
+  `POST /auth/logout` avant qu'une connexion reparte (`lib/deconnexion.ts`).
 - **Double authentification** (`src/modules/auth/double-authentification.ts`,
   2026-09-26) · TOTP, RFC 6238, écrit ici et figé par les vecteurs des RFC,
   vérifiable hors ligne donc aussi sur site. OUVERTE À TOUS, EXIGÉE POUR LA

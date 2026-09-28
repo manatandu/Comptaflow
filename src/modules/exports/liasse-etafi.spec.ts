@@ -213,7 +213,9 @@ function fabriquerExport(jeu: JeuEtatsFinanciersSycebnl = TENANT.jeuEtatsFinanci
     saisieNote: { findMany: jest.fn().mockResolvedValue([]) },
     compte: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
     ecriture: { findMany: jest.fn().mockResolvedValue([]) },
-    ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },
+    // `groupBy` sert la Note 3 du S.M.T SYCEBNL, qui demande ses deux parts à
+    // la base (jumeau de l'audit final F258) · aucune ligne de tiers ici.
+    ligneEcriture: { findMany: jest.fn().mockResolvedValue([]), groupBy: jest.fn().mockResolvedValue([]) },
     bailleur: { findMany: jest.fn().mockResolvedValue([]) },
     // Pas de plan analytique à budgets · la liasse projets doit servir la
     // grille VIERGE du modèle, jamais échouer.

@@ -1,7 +1,8 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ClasseCompte, TypeCompteDetailTotal } from '@prisma/client';
-import { EtatsFinanciersSmtService } from './etats-financiers-smt.service';
-import { EcritureService } from '../comptabilite/ecriture.service';
+import { EtatsFinanciersSmtService, PLAFOND_MOUVEMENTS_NOTE_4_SMT_SYCEBNL } from './etats-financiers-smt.service';
+import { EcritureService, PLAFOND_LIGNES_GRAND_LIVRE } from '../comptabilite/ecriture.service';
+import { LOT_ECRITURES } from '../../common/lecture-par-lots';
 import { ExerciceService } from '../exercice/exercice.service';
 import { PrismaService } from '../../common/prisma.service';
 
@@ -61,17 +62,29 @@ function ligneTiers(
   };
 }
 
-/** Une écriture telle que `mouvementsTresorerie` la lit via Prisma. */
+/**
+ * L'ORDRE DE SAISIE des écritures de test · chaque écriture reçoit un
+ * `createdAt` postérieur à la précédente, comme en base, pour que le
+ * départage de deux écritures de même date se lise sur la saisie et non sur
+ * l'identifiant (le journal les lit par identifiant, pour la pagination).
+ */
+let rangDeSaisie = 0;
+
+/** Une écriture telle que la lecture des écritures de trésorerie la rend. */
 function ecriture(
   id: string,
   date: string,
   libelle: string,
   lignes: Array<{ numero: string; debit?: number; credit?: number }>,
-  options: { estGenereeParCloture?: boolean } = {},
+  options: { estGenereeParCloture?: boolean; statut?: 'BROUILLARD' | 'VALIDEE' } = {},
 ) {
+  rangDeSaisie += 1;
   return {
     id,
+    exerciceId: 'e1',
+    statut: options.statut ?? 'VALIDEE',
     date: new Date(date),
+    createdAt: new Date(Date.UTC(2026, 0, 1) + rangDeSaisie * 1000),
     libelle,
     reference: null,
     estGenereeParCloture: options.estGenereeParCloture ?? false,
@@ -128,17 +141,20 @@ function service(
   } as unknown as ExerciceService;
 
   const prisma = {
-    // La doublure respecte `where.estGenereeParCloture` : sans quoi le test
-    // « les écritures de clôture sont écartées » passerait pour de mauvaises
-    // raisons (il ne testerait que la doublure).
+    // La doublure HONORE tout ce que la requête demande · le dossier,
+    // l'exercice, le statut, l'exclusion des écritures de clôture, le filtre
+    // sur les comptes de trésorerie et la pagination par identifiant. Une
+    // doublure qui rendrait tout ce qu'on lui donne validerait une lecture
+    // qui ne ramène pas ce qu'elle croit (§ F2a, « une doublure qui ne filtre
+    // pas valide un code qui ne charge pas »).
     ecriture: {
-      findMany: jest.fn().mockImplementation(({ where }: { where: { estGenereeParCloture?: boolean } }) =>
-        Promise.resolve(
-          (options.ecritures ?? []).filter((e) =>
-            where.estGenereeParCloture === undefined ? true : e.estGenereeParCloture === where.estGenereeParCloture,
-          ),
-        ),
-      ),
+      findMany: jest.fn().mockImplementation((args: ArgsLectureEcritures) => {
+        appelsEcritures += 1;
+        // Garde contre une pagination défaite · sans elle, un curseur qui
+        // n'avance plus bouclerait sans fin au lieu de faire tomber le test.
+        if (appelsEcritures > 1000) throw new Error('La lecture des écritures ne s’arrête pas.');
+        return Promise.resolve(lireEcritures(options.ecritures ?? [], args));
+      }),
     },
     immobilisation: { findMany: jest.fn().mockResolvedValue(options.immobilisations ?? []) },
     // La campagne d'inventaire lue par la note 2 · la doublure honore le
@@ -159,13 +175,39 @@ function service(
     // La doublure respecte `where.lettre`, comme celle des écritures respecte
     // `estGenereeParCloture` : sans quoi le test « une ligne lettrée est
     // soldée » ne testerait que la doublure.
+    //
+    // Les parts échue et non échue sont deux SOMMES demandées à la base
+    // (`groupBy`), et la doublure n'offre QUE celle-là : une lecture ligne à
+    // ligne (`findMany`) tomberait. Elle honore aussi la borne d'échéance
+    // (`gt`, `lte`), une ligne sans échéance n'entrant dans aucune, comme en
+    // base.
     ligneEcriture: {
-      findMany: jest.fn().mockImplementation(({ where }: { where: { lettre?: string | null; OR?: unknown[] } }) =>
-        Promise.resolve(
-          (options.lignesTiers ?? []).filter((l) =>
-            where.lettre === null ? l.lettre === null : where.OR ? l.lettre === null || l.regleApresCloture : true,
-          ),
-        ),
+      groupBy: jest.fn().mockImplementation(
+        ({
+          where,
+        }: {
+          where: { lettre?: string | null; OR?: unknown[]; dateEcheance?: { gt?: Date; lte?: Date } };
+        }) => {
+          const retenues = (options.lignesTiers ?? []).filter((l) => {
+            const ouverte =
+              where.lettre === null ? l.lettre === null : where.OR ? l.lettre === null || l.regleApresCloture : true;
+            if (!ouverte) return false;
+            const e = where.dateEcheance;
+            if (e === undefined) return true;
+            if (!l.dateEcheance) return false;
+            if (e.gt !== undefined && !(l.dateEcheance > e.gt)) return false;
+            if (e.lte !== undefined && !(l.dateEcheance <= e.lte)) return false;
+            return true;
+          });
+          const parCompte = new Map<string, { compteId: string; _sum: { debit: number; credit: number } }>();
+          for (const l of retenues) {
+            const g = parCompte.get(l.compteId) ?? { compteId: l.compteId, _sum: { debit: 0, credit: 0 } };
+            g._sum.debit += l.debit;
+            g._sum.credit += l.credit;
+            parCompte.set(l.compteId, g);
+          }
+          return Promise.resolve([...parCompte.values()]);
+        },
       ),
     },
     tenant: {
@@ -187,7 +229,69 @@ function service(
     },
   } as unknown as PrismaService;
 
+  let appelsEcritures = 0;
   return new EtatsFinanciersSmtService(ecritureService, exerciceService, prisma);
+}
+
+type EcritureTest = ReturnType<typeof ecriture>;
+
+interface ArgsLectureEcritures {
+  where: {
+    tenantId?: string;
+    exerciceId?: string;
+    statut?: string;
+    estGenereeParCloture?: boolean;
+    lignes?: { some?: { compte?: FiltreCompte } };
+  };
+  select?: Record<string, unknown>;
+  include?: unknown;
+  orderBy?: { id?: 'asc' | 'desc' };
+  take?: number;
+  cursor?: { id: string };
+  skip?: number;
+}
+
+interface FiltreCompte {
+  numero?: { startsWith?: string };
+  NOT?: FiltreCompte;
+  OR?: FiltreCompte[];
+  AND?: FiltreCompte[];
+}
+
+/** Le filtre de compte d'une requête, appliqué à un numéro comme la base le ferait. */
+function compteRetenu(numero: string, f: FiltreCompte | undefined): boolean {
+  if (!f) return true;
+  if (f.numero?.startsWith !== undefined && !numero.startsWith(f.numero.startsWith)) return false;
+  if (f.NOT && compteRetenu(numero, f.NOT)) return false;
+  if (f.OR && !f.OR.some((g) => compteRetenu(numero, g))) return false;
+  if (f.AND && !f.AND.every((g) => compteRetenu(numero, g))) return false;
+  return true;
+}
+
+/** Ce que la base rendrait pour une tranche d'écritures. */
+function lireEcritures(ecritures: EcritureTest[], args: ArgsLectureEcritures): EcritureTest[] {
+  const w = args.where;
+  let r = ecritures.filter(
+    (e) =>
+      (w.tenantId === undefined || w.tenantId === 't1') &&
+      (w.exerciceId === undefined || e.exerciceId === w.exerciceId) &&
+      (w.statut === undefined || e.statut === w.statut) &&
+      (w.estGenereeParCloture === undefined || e.estGenereeParCloture === w.estGenereeParCloture) &&
+      (w.lignes?.some === undefined || e.lignes.some((l) => compteRetenu(l.compte.numero, w.lignes!.some!.compte))),
+  );
+  if (args.orderBy?.id === 'asc') r = [...r].sort((a, b) => a.id.localeCompare(b.id));
+  if (args.cursor) {
+    const i = r.findIndex((e) => e.id === args.cursor!.id);
+    r = r.slice(i + (args.skip ?? 0));
+  }
+  if (args.take !== undefined) r = r.slice(0, args.take);
+  return r;
+}
+
+/** La doublure Prisma d'un service de test, pour lire ce qui lui a été demandé. */
+function prismaDe(s: EtatsFinanciersSmtService) {
+  return (s as unknown as { prisma: { ecriture: { findMany: jest.Mock }; ligneEcriture: Record<string, jest.Mock> } })
+    .prisma;
 }
 
 function poste(etat: { actif: unknown[]; passif: unknown[] }, ref: string) {
@@ -691,6 +795,147 @@ describe('Note 4 · journal unique de trésorerie', () => {
     expect(caisse.operations[0].recette).toBe(300);
     expect(caisse.operations[0].ventile).toBe(false);
     expect(caisse.lignesNonVentilees).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LECTURE PAR TRANCHES ET PLAFOND DE LA NOTE 4 (jumeau de l'audit final F258)
+// ---------------------------------------------------------------------------
+
+/**
+ * Le service lisait TOUTES les écritures de l'exercice, lignes et comptes
+ * entiers compris, en une seule requête · la mémoire suivait la taille du
+ * dossier (§ 8 bis). Il ne lit plus que les écritures qui touchent la
+ * trésorerie, par tranches, et la NOTE 4 se refuse au-delà de son plafond au
+ * lieu de se tronquer. Chaque test ci-dessous porte sur ce que la requête
+ * DEMANDE, pas seulement sur ce que la doublure rend.
+ */
+describe('Lecture des écritures de trésorerie et plafond de la NOTE 4 (jumeau de F258)', () => {
+  /** Une recette de caisse, une ligne de trésorerie et une contrepartie. */
+  const recette = (id: string, montant: number, date = '2026-03-01') =>
+    ecriture(id, date, `Cotisation ${id}`, [
+      { numero: '57100000', debit: montant },
+      { numero: '70100000', credit: montant },
+    ]);
+
+  it('ne demande que les écritures validées, hors clôture, qui portent une ligne de la classe 5 hors 59', async () => {
+    const s = service({ e1: BALANCE_CAISSE }, { ecritures: [recette('a', 1000)] });
+    await s.compteDeResultat('t1', 'e1');
+    const { where } = prismaDe(s).ecriture.findMany.mock.calls[0][0] as ArgsLectureEcritures;
+    expect(where).toMatchObject({ tenantId: 't1', exerciceId: 'e1', statut: 'VALIDEE', estGenereeParCloture: false });
+    const filtre = where.lignes?.some?.compte;
+    expect(filtre).toBeDefined();
+    // La même règle que `estTresorerie`, lue au filtre de la requête.
+    expect(['57100000', '52100000', '50100000', '58500000'].map((n) => compteRetenu(n, filtre))).toEqual([
+      true,
+      true,
+      true,
+      true,
+    ]);
+    expect(['59100000', '59400000', '41100000', '70100000', '12100000'].map((n) => compteRetenu(n, filtre))).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
+  });
+
+  it('ne rapatrie ni l’écriture entière ni les comptes entiers : une sélection, jamais un `include`', async () => {
+    const s = service({ e1: BALANCE_CAISSE }, { ecritures: [recette('a', 1000)] });
+    await s.journalTresorerie('t1', 'e1');
+    const args = prismaDe(s).ecriture.findMany.mock.calls[0][0] as ArgsLectureEcritures;
+    expect(args.include).toBeUndefined();
+    const lignes = (args.select as { lignes: { select: Record<string, unknown> } }).lignes.select;
+    expect(lignes.compte).toEqual({ select: { numero: true, intitule: true } });
+  });
+
+  it('lit par tranches de LOT_ECRITURES, curseur sur l’identifiant, sans perdre ni compter deux fois', async () => {
+    const n = LOT_ECRITURES * 2 + 3;
+    const ecritures = Array.from({ length: n }, (_, i) => recette(`r${String(i).padStart(5, '0')}`, 10));
+    const s = service({ e1: [ligne('57100000', ClasseCompte.CLASSE_5, n * 10, 0)] }, { ecritures });
+    const cr = await s.compteDeResultat('t1', 'e1');
+    expect(cr.totalRecettes).toBe(n * 10);
+
+    const appels = prismaDe(s).ecriture.findMany.mock.calls.map((c) => c[0] as ArgsLectureEcritures);
+    expect(appels).toHaveLength(3);
+    for (const a of appels) {
+      expect(a.take).toBe(LOT_ECRITURES);
+      expect(a.orderBy).toEqual({ id: 'asc' });
+    }
+    expect(appels[0].cursor).toBeUndefined();
+    // Le curseur est le DERNIER identifiant de la tranche précédente.
+    expect(appels[1].cursor).toEqual({ id: `r${String(LOT_ECRITURES - 1).padStart(5, '0')}` });
+    expect(appels[1].skip).toBe(1);
+  });
+
+  it('remet le journal dans l’ordre du livre (date, puis saisie), quel que soit l’ordre des identifiants', async () => {
+    const s = service(
+      { e1: [ligne('57100000', ClasseCompte.CLASSE_5, 600, 0)] },
+      {
+        ecritures: [
+          // Identifiants à rebours des dates, et deux écritures du même jour
+          // saisies dans l'ordre inverse de leurs identifiants.
+          recette('z', 100, '2026-02-01'),
+          recette('y', 200, '2026-05-01'),
+          recette('x', 300, '2026-05-01'),
+        ],
+      },
+    );
+    const { journaux } = await s.journalTresorerie('t1', 'e1');
+    expect(journaux[0].operations.map((o) => o.recette)).toEqual([100, 200, 300]);
+    expect(journaux[0].operations.map((o) => o.solde)).toEqual([100, 300, 600]);
+  });
+
+  it('le plafond de la NOTE 4 est celui du grand livre complet', () => {
+    expect(PLAFOND_MOUVEMENTS_NOTE_4_SMT_SYCEBNL).toBe(PLAFOND_LIGNES_GRAND_LIVRE);
+  });
+
+  it('au-delà du plafond, la NOTE 4 se REFUSE en nommant le grand livre, et la lecture s’arrête au plafond', async () => {
+    const n = PLAFOND_MOUVEMENTS_NOTE_4_SMT_SYCEBNL + LOT_ECRITURES * 3;
+    const ecritures = Array.from({ length: n }, (_, i) => recette(`p${String(i).padStart(6, '0')}`, 1));
+    const s = service({ e1: [ligne('57100000', ClasseCompte.CLASSE_5, n, 0)] }, { ecritures });
+    const refus = s.journalTresorerie('t1', 'e1');
+    await expect(refus).rejects.toBeInstanceOf(BadRequestException);
+    await expect(refus).rejects.toThrow(/grand livre de chaque compte de trésorerie/);
+    // La lecture s'est arrêtée à la tranche qui franchit le plafond : la
+    // mémoire reste bornée même sur le dossier qui sera refusé.
+    expect(prismaDe(s).ecriture.findMany.mock.calls).toHaveLength(
+      Math.ceil((PLAFOND_MOUVEMENTS_NOTE_4_SMT_SYCEBNL + 1) / LOT_ECRITURES),
+    );
+  });
+
+  it('au plafond exactement, la NOTE 4 est rendue en entier', async () => {
+    const n = PLAFOND_MOUVEMENTS_NOTE_4_SMT_SYCEBNL;
+    const ecritures = Array.from({ length: n }, (_, i) => recette(`q${String(i).padStart(6, '0')}`, 1));
+    const s = service({ e1: [ligne('57100000', ClasseCompte.CLASSE_5, n, 0)] }, { ecritures });
+    const { journaux } = await s.journalTresorerie('t1', 'e1');
+    expect(journaux[0].operations).toHaveLength(n);
+    expect(journaux[0].boucle).toBe(true);
+  });
+
+  it('les parts de la Note 3 sont deux sommes demandées à la base, bornées à la clôture', async () => {
+    const s = service(
+      { e1: [ligne('41100000', ClasseCompte.CLASSE_4, 9000, 0)] },
+      {
+        lignesTiers: [
+          ligneTiers('41100000', { debit: 5000 }, '2026-06-30'),
+          ligneTiers('41100000', { debit: 4000 }, '2027-03-31'),
+        ],
+      },
+    );
+    const note = await s.note3CreancesDettes('t1', 'e1');
+    expect(note.creances[0].montantEchu).toBe(5000);
+    expect(note.creances[0].montantNonEchu).toBe(4000);
+    const appels = prismaDe(s).ligneEcriture.groupBy.mock.calls.map(
+      (c) => c[0] as { by: string[]; where: { dateEcheance: { gt?: Date; lte?: Date } } },
+    );
+    expect(appels).toHaveLength(2);
+    for (const a of appels) expect(a.by).toEqual(['compteId']);
+    const dateFin = new Date('2026-12-31');
+    expect(appels.map((a) => a.where.dateEcheance)).toEqual(
+      expect.arrayContaining([{ gt: dateFin }, { lte: dateFin }]),
+    );
   });
 });
 

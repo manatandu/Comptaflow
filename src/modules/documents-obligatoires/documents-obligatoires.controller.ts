@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { Referentiel, RoleUtilisateur } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
@@ -14,12 +14,7 @@ import {
   ResumeInventaireDto,
   TranscrireInventaireDto,
 } from './dto/documents-obligatoires.dto';
-
-/** Même garde qu'ailleurs : un `@Query` scalaire échappe au ValidationPipe global. */
-const EXERCICE_REQUIS = new ParseUUIDPipe({
-  exceptionFactory: () =>
-    new BadRequestException("Le paramètre exerciceId est requis et doit être un identifiant d'exercice valide"),
-});
+import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 
 /**
  * Documents obligatoires de clôture · livre d'inventaire (art. 14) et rapport

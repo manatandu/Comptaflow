@@ -18,7 +18,7 @@ import {
   ResultatInterne,
 } from './cumul-consolidation';
 import { PerimetreService } from './perimetre.service';
-import { exigerExercice } from './exercice-requis';
+import { exigerExercice } from '../../common/exercice-requis';
 import {
   AcquisitionDto,
   EcartEvaluationDto,

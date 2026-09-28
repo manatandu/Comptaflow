@@ -3,6 +3,7 @@ import { NatureEngagement, StatutEngagement, StatutEcriture } from '@prisma/clie
 import { PrismaService } from '../../common/prisma.service';
 import { CloreEngagementDto, CreerEngagementDto, RattacherExecutionDto } from './dto/engagement.dto';
 import { refuserSiExerciceBudgetaireClos } from './exercice-budgetaire-clos';
+import { exigerExercice } from '../../common/exercice-requis';
 
 /** En dessous, deux montants sont le même montant · les arrondis de Decimal. */
 const EPSILON = 0.005;
@@ -84,6 +85,9 @@ export class EngagementService {
 
   /** Le registre, tel qu'un réviseur le demande : montant, exécuté, reste. */
   async lister(tenantId: string, exerciceId: string) {
+    // Un appel qui ne passe pas par la route ne mêle pas davantage les
+    // exercices · Prisma ignorerait un `exerciceId` absent.
+    exigerExercice(exerciceId);
     const engagements = await this.prisma.engagementDepense.findMany({
       where: { tenantId, exerciceId },
       orderBy: [{ date: 'asc' }, { reference: 'asc' }],
@@ -358,6 +362,7 @@ export class EngagementService {
    * décaissement correspondant apparaisse nulle part.
    */
   async ecrituresRattachables(tenantId: string, exerciceId: string, recherche?: string) {
+    exigerExercice(exerciceId);
     // LA TRANCHE SE DIT, ET LA RECHERCHE SE FAIT AU SERVEUR (audit final
     // F139) · au-delà de deux cents écritures, la facture à rattacher était
     // introuvable sans que rien ne le dise, et la dépense restait en colonne

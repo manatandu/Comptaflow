@@ -28,6 +28,7 @@ import {
   TypeSortie,
 } from './dto/immobilisation.dto';
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
+import { exerciceDuDossierOuRefus } from '../../common/exercice-introuvable';
 
 const EPSILON = 0.005;
 
@@ -1646,10 +1647,14 @@ export class ImmobilisationService {
     // l'annuité pleine, sans quoi l'état affiché et l'écriture se
     // contrediraient sur la première annuité.
     const sansProrata = this.sansProrataTemporis(await this.regimeComptable(tenantId));
-    const exercice = await this.prisma.exercice.findFirstOrThrow({
-      where: { id: exerciceId, tenantId },
-      select: { id: true, dateDebut: true, dateFin: true },
-    });
+    // Un exercice d'un autre dossier, ou inconnu, est un 404 nommé (jumeau de
+    // l'audit final F222) · jamais l'erreur brute de Prisma servie en 500.
+    const exercice = exerciceDuDossierOuRefus(
+      await this.prisma.exercice.findFirst({
+        where: { id: exerciceId, tenantId },
+        select: { id: true, dateDebut: true, dateFin: true },
+      }),
+    );
     const immos = await this.prisma.immobilisation.findMany({
       where: {
         tenantId,

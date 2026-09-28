@@ -21,7 +21,17 @@ import type { AccesRolesCantonnes } from '../decorators/acces-roles-cantonnes.de
  * (RolesGuard les laisse passer à tout utilisateur authentifié) · un défaut
  * ouvert lui aurait donné tout le grand livre. Il émet les bulletins mais ne
  * les PASSE pas au journal : la comptabilisation écrit au livre-journal, qui
- * reste au comptable.
+ * reste au comptable. Ce qui lui est ouvert est une liste FERMÉE, que
+ * `roles-cantonnes.spec.ts` gèle route par route · le personnel et la paie, se
+ * voir et tenir son propre compte, lister les exercices, et depuis l'audit
+ * final F247 LIRE LES DEVISES et COTER LE COURS DE L'USD DU JOUR DE KINSHASA ·
+ * sa paie stipulée en dollars ne se calcule pas sans ce cours. Cette cotation
+ * est bornée au serveur (`motifRefusCotationGestionnairePaie`, conversion-usd)
+ * et ne fait que CRÉER · un cours déjà coté lui est refusé en 409 par la clé
+ * unique, jamais réécrit (`DevisesService.ajouterCours`). Le reste du module
+ * Devises (création, réévaluation, contre-passation) lui reste fermé, et son
+ * profil de fonctions range cette cotation à la PAIE, pas à la structure
+ * (`FONCTION_PAR_METHODE_DU_GESTIONNAIRE_PAIE`, fonctions-metier.ts).
  *
  * Aucun texte ne fixe ces rôles · ce sont des choix d'organisation que l'AUDCIF
  * art. 69 laisse à l'entité (« l'entité détermine, sous sa responsabilité, les

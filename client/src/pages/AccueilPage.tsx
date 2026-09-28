@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
+import { libelleExercice } from '../lib/libelle-exercice';
 import { AProposModale } from '../components/chrome/AProposModale';
 import type { PlanningCloture, RapportControles, Referentiel } from '../lib/types';
 import { fenetreDisponible } from '../lib/referentiel-fenetre';
@@ -257,7 +258,8 @@ export function AccueilPage() {
       : utilisateur.tenant.jeuEtatsFinanciersSycebnl
         ? JEUX[utilisateur.tenant.jeuEtatsFinanciersSycebnl]
         : null;
-  const anneeExercice = exerciceCourant ? new Date(exerciceCourant.dateDebut).getFullYear() : null;
+  // Le libellé de la barre de titre et du sélecteur (audit final F250).
+  const exerciceAffiche = exerciceCourant ? libelleExercice(exerciceCourant) : null;
 
   const tuilesVisibles = (groupe: GroupeDef) =>
     groupe.tuiles
@@ -349,7 +351,7 @@ export function AccueilPage() {
                   {jeu && ` · ${jeu}`}
                 </dd>
                 <dt className="text-text-dim">Exercice</dt>
-                <dd>{anneeExercice ?? 'Aucun'}</dd>
+                <dd>{exerciceAffiche ?? 'Aucun'}</dd>
                 <dt className="text-text-dim">Utilisateur</dt>
                 <dd>{utilisateur?.email}</dd>
               </dl>

@@ -8,7 +8,7 @@ import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-
 import { DevisesService } from './devises.service';
 import { CreerDeviseDto, ExtournerReevaluationDto, ModifierDeviseDto, PoserCoursDto, ReevaluerDto } from './dto/devises.dto';
 import { RoleUtilisateur } from '@prisma/client';
-import { motifRefusCotationGestionnairePaie } from '../personnel/conversion-usd';
+import { jourDeKinshasa, messageCoursDejaCote, motifRefusCotationGestionnairePaie } from '../personnel/conversion-usd';
 
 @UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
 @Controller('devises')
@@ -52,23 +52,24 @@ export class DevisesController {
     @Body() dto: PoserCoursDto,
   ) {
     // LE GESTIONNAIRE DE PAIE NE COTE QUE LE COURS QUE SA PAIE LIT (audit
-    // final F247) · l'USD, au jour de Kinshasa, et seulement s'il n'est pas
-    // déjà coté. La route lui est ouverte parce que sa paie en dollars en
-    // dépend ; la borne est ici, au serveur, et l'écran ne fait que la
-    // reprendre. Une devise que la liste du dossier ne porte pas est refusée
-    // ICI, avec le motif du service · s'en remettre au service laissait la
-    // borne ouverte à une devise créée entre les deux lectures (relecture
-    // adverse de F247).
+    // final F247) · l'USD, au jour de Kinshasa. La route lui est ouverte
+    // parce que sa paie en dollars en dépend ; la borne est ici, au serveur,
+    // et l'écran ne fait que la reprendre. Une devise que la liste du dossier
+    // ne porte pas est refusée ICI, avec le motif du service · s'en remettre
+    // au service laissait la borne ouverte à une devise créée entre les deux
+    // lectures (relecture adverse de F247).
+    // ET IL NE FAIT QUE CRÉER (2026-09-28) · un cours du jour déjà coté, par
+    // le comptable ou par un autre clic, lui est refusé en 409 par la clé
+    // unique de la base (`ajouterCours`), jamais réécrit par l'`upsert` du
+    // comptable. Le refus se lit sur tous les cours et à l'instant de
+    // l'écriture, là où la liste n'en rend que douze, lus avant.
     if (user.role === RoleUtilisateur.GESTIONNAIRE_PAIE) {
       const devise = (await this.devises.lister(user.tenantId)).find((d) => d.id === id);
       if (!devise) throw new NotFoundException('Devise introuvable pour ce dossier');
-      const motif = motifRefusCotationGestionnairePaie(
-        devise.code,
-        dto.date,
-        new Date(),
-        devise.cours.map((c) => c.date),
-      );
+      const maintenant = new Date();
+      const motif = motifRefusCotationGestionnairePaie(devise.code, dto.date, maintenant);
       if (motif) throw new ForbiddenException(motif);
+      return this.devises.ajouterCours(user.tenantId, id, dto, messageCoursDejaCote(jourDeKinshasa(maintenant)));
     }
     return this.devises.poserCours(user.tenantId, id, dto);
   }

@@ -131,6 +131,32 @@ const LIGNES_NON_LETTREES: LigneTiersStub[] = [
   { compteId: 'id-41100000', debit: 0, credit: 20_000, dateEcheance: null },
 ];
 
+/**
+ * DOUBLURE DE `ligneEcriture.groupBy` QUI HONORE LA BORNE D'ÉCHÉANCE. Le
+ * S.M.T SYCEBNL demande les deux parts de la Note 3 à la base, par deux
+ * sommes (jumeau de l'audit final F258) · une doublure qui rendrait la même
+ * somme quelle que soit la borne validerait un service qui ne distingue plus
+ * l'échu du non échu. Une ligne sans échéance n'entre dans aucune des deux.
+ */
+function sommesParEcheance(lignesTiers: LigneTiersStub[]) {
+  return jest.fn(({ where }: { where: { dateEcheance?: { gt?: Date; lte?: Date } } }) => {
+    const borne = where.dateEcheance ?? {};
+    const parCompte = new Map<string, { debit: number; credit: number }>();
+    for (const l of lignesTiers) {
+      if (!l.dateEcheance) continue;
+      if (borne.gt && !(l.dateEcheance > borne.gt)) continue;
+      if (borne.lte && !(l.dateEcheance <= borne.lte)) continue;
+      const cumul = parCompte.get(l.compteId) ?? { debit: 0, credit: 0 };
+      cumul.debit += l.debit;
+      cumul.credit += l.credit;
+      parCompte.set(l.compteId, cumul);
+    }
+    return Promise.resolve(
+      [...parCompte].map(([compteId, s]) => ({ compteId, _sum: { debit: s.debit, credit: s.credit } })),
+    );
+  });
+}
+
 const TENANT = {
   id: 't1',
   nom: 'ASBL GRACE',
@@ -164,8 +190,9 @@ function fabriquerExport(lignesTiers: LigneTiersStub[]): ExportService {
     saisieNote: { findMany: jest.fn().mockResolvedValue([]) },
     compte: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
     ecriture: { findMany: jest.fn().mockResolvedValue([]) },
-    // Seule `partsParEcheance` lit les lignes dans ce parcours.
-    ligneEcriture: { findMany: jest.fn().mockResolvedValue(lignesTiers) },
+    // Seule `partsParEcheance` lit les lignes dans ce parcours, et elle les
+    // demande sommées par compte, borne d'échéance comprise.
+    ligneEcriture: { groupBy: sommesParEcheance(lignesTiers) },
     bailleur: { findMany: jest.fn().mockResolvedValue([]) },
     planAnalytique: { findFirst: jest.fn().mockResolvedValue(null) },
     immobilisation: { findMany: jest.fn().mockResolvedValue([]) },

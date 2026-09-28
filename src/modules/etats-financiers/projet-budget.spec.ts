@@ -242,7 +242,13 @@ function monter(options: {
         .fn()
         .mockImplementation((args: ArgumentsLecture) => Promise.resolve(lireEcritures(options.ecritures ?? [], args))),
     },
-    exercice: { findFirstOrThrow: jest.fn().mockResolvedValue({ dateFin: new Date('2026-12-31') }) },
+    // Honore l'exercice ET le dossier · les deux tableaux refusent d'un 404
+    // ce que la doublure ne rend pas (jumeau de l'audit final F222).
+    exercice: {
+      findFirst: jest.fn(({ where }: { where: { id?: string; tenantId?: string } }) =>
+        Promise.resolve(where.id === 'e1' && where.tenantId === 't1' ? { id: 'e1', dateFin: new Date('2026-12-31') } : null),
+      ),
+    },
     ligneEcriture: {
       findMany: jest
         .fn()

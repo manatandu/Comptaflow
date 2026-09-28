@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { ClasseCompte, StatutEcriture } from '@prisma/client';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ClasseCompte, Prisma, StatutEcriture } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
+import { LOT_ECRITURES, lireParLots, pageApres } from '../../common/lecture-par-lots';
 import { monnaieDuJeuLegal } from '../../common/monnaie-de-tenue';
-import { EcritureService } from '../comptabilite/ecriture.service';
+import { EcritureService, PLAFOND_LIGNES_GRAND_LIVRE } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
 import {
   CompteDuPoste,
@@ -58,6 +59,69 @@ interface PartsEcheance {
 const PARTS_ECHEANCE_NULLES: PartsEcheance = { nonEchu: 0, echu: 0 };
 
 /**
+ * LES COMPTES DE TRÉSORERIE DU S.M.T, écrits UNE fois · classe 5 entière sauf
+ * le compte 59 (voir la note de tête de la classe). La même règle sert le test
+ * ligne à ligne (`estTresorerie`) et le filtre de la requête
+ * (`filtreEcrituresDeTresorerie`) · deux écritures de la règle auraient pu
+ * diverger, et une écriture de trésorerie laissée hors de la lecture
+ * disparaîtrait des recettes, des dépenses et du journal sans qu'aucun total
+ * ne le dise.
+ */
+const RACINE_TRESORERIE = '5';
+const RACINE_HORS_TRESORERIE = '59';
+
+/**
+ * Ce qu'une écriture de trésorerie apporte aux états du S.M.T, et rien de
+ * plus · ni l'écriture entière ni les comptes entiers, que l'ancienne lecture
+ * rapatriait pour toutes les écritures de l'exercice.
+ */
+const SELECTION_ECRITURE_DE_TRESORERIE = {
+  id: true,
+  date: true,
+  createdAt: true,
+  libelle: true,
+  reference: true,
+  lignes: {
+    select: {
+      compteId: true,
+      debit: true,
+      credit: true,
+      compte: { select: { numero: true, intitule: true } },
+    },
+  },
+} satisfies Prisma.EcritureSelect;
+
+type EcritureDeTresorerie = Prisma.EcritureGetPayload<{ select: typeof SELECTION_ECRITURE_DE_TRESORERIE }>;
+
+/**
+ * Les contreparties des écritures de trésorerie, cumulées compte par compte
+ * au fil de la lecture · aucune écriture n'est gardée (jumeau de l'audit
+ * final F258, porté au S.M.T du SYCEBNL).
+ */
+interface CumulsTresorerie {
+  /** Contreparties des RECETTES, crédit moins débit, par numéro de compte. */
+  recettes: Map<string, CompteDuPoste>;
+  /** Contreparties des DÉPENSES, débit moins crédit, par numéro de compte. */
+  depenses: Map<string, CompteDuPoste>;
+}
+
+/**
+ * PLAFOND DÉCLARÉ DE LA NOTE 4 (jumeau de l'audit final F258). Le journal de
+ * trésorerie est un LIVRE, tenu par compte (« NB : Prévoir un journal par
+ * banque et un journal pour la caisse », Partie 4, ch. 4, section 3) : il ne
+ * se tronque jamais, il se refuse au-delà de son plafond. Ce plafond borne la
+ * CONSTRUCTION du journal, qui se fait en entier en mémoire avant d'être rendu
+ * (trié dans l'ordre du livre, puis parcouru compte par compte), pour la
+ * fenêtre comme pour la liasse, qui appellent le même service. La mesure est
+ * celle du grand livre complet (`PLAFOND_LIGNES_GRAND_LIVRE`), dont la NOTE 4
+ * est, compte de trésorerie par compte de trésorerie, la présentation
+ * ventilée · une seule mesure pour deux livres de même nature, et la même que
+ * celle du S.M.T du SYSCOHADA. Elle compte les lignes portées sur un compte de
+ * trésorerie, chacune donnant au plus une opération du journal.
+ */
+export const PLAFOND_MOUVEMENTS_NOTE_4_SMT_SYCEBNL = PLAFOND_LIGNES_GRAND_LIVRE;
+
+/**
  * ÉTATS FINANCIERS DU SYSTÈME MINIMAL DE TRÉSORERIE · troisième et dernier
  * jeu prévu par l'Acte uniforme SYCEBNL (art. 5 et 6 ; Partie 4, ch. 4).
  *
@@ -90,6 +154,15 @@ const PARTS_ECHEANCE_NULLES: PartsEcheance = { nonEchu: 0, echu: 0 };
  * rouvre les comptes de trésorerie par une écriture qui n'est pas un
  * encaissement. La compter ferait apparaître le solde d'ouverture comme une
  * recette de l'exercice.
+ *
+ * Et parmi elles, CELLES QUI PORTENT UNE LIGNE DE TRÉSORERIE, lues par
+ * tranches (jumeau de l'audit final F258, § 8 bis). Le service lisait TOUTES
+ * les écritures de l'exercice, lignes et comptes entiers compris, en une seule
+ * requête, pour le compte de résultat comme pour la NOTE 4 · la mémoire
+ * suivait la taille du dossier. Une écriture sans ligne de trésorerie n'a
+ * aucun rôle dans ces deux états : elle n'est ni une recette, ni une dépense,
+ * ni un mouvement de caisse ou de banque, et ce qu'elle change aux soldes
+ * est déjà dans la balance.
  */
 @Injectable()
 export class EtatsFinanciersSmtService {
@@ -101,7 +174,7 @@ export class EtatsFinanciersSmtService {
 
   /** Classe 5 hors 59 · voir la note de tête de fichier. */
   private estTresorerie(numero: string): boolean {
-    return numero.startsWith('5') && !numero.startsWith('59');
+    return numero.startsWith(RACINE_TRESORERIE) && !numero.startsWith(RACINE_HORS_TRESORERIE);
   }
 
   private async chargerLignes(tenantId: string, exerciceId: string | null): Promise<LigneBalancePourEtat[]> {
@@ -281,64 +354,99 @@ export class EtatsFinanciersSmtService {
   // -------------------------------------------------------------------------
 
   /**
-   * Une opération de caisse ou de banque, telle que la Note 4 la présente :
-   * une date, un libellé, un montant en recette OU en dépense, et la
-   * ventilation de ce montant sur les comptes de contrepartie.
-   */
-  /**
-   * Les écritures de l'exercice qui entrent dans les états du S.M.T.
+   * LES ÉCRITURES DE L'EXERCICE QUI TOUCHENT LA TRÉSORERIE, ET ELLES SEULES
+   * (jumeau de l'audit final F258).
    *
    * VALIDÉES seulement, et écritures de clôture EXCLUES : le report à nouveau
    * rouvre les comptes de trésorerie par une écriture qui n'est pas un
    * encaissement, et la compter ferait apparaître le solde d'ouverture comme
    * une recette de l'exercice. Le report à nouveau a sa place ailleurs, en
    * première ligne du journal de la Note 4.
+   *
+   * Et PORTANT UNE LIGNE SUR UN COMPTE DE TRÉSORERIE, par la même règle que
+   * `estTresorerie` · une écriture qui ne touche ni caisse ni banque n'entre
+   * ni au compte de résultat du S.M.T ni au journal de la Note 4.
    */
-  private async ecrituresDeLExercice(tenantId: string, exerciceId: string) {
-    return this.prisma.ecriture.findMany({
-      where: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE, estGenereeParCloture: false },
-      include: { lignes: { include: { compte: true } } },
-      orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
-    });
+  private filtreEcrituresDeTresorerie(tenantId: string, exerciceId: string): Prisma.EcritureWhereInput {
+    return {
+      tenantId,
+      exerciceId,
+      statut: StatutEcriture.VALIDEE,
+      estGenereeParCloture: false,
+      lignes: {
+        some: {
+          compte: {
+            numero: { startsWith: RACINE_TRESORERIE },
+            NOT: { numero: { startsWith: RACINE_HORS_TRESORERIE } },
+          },
+        },
+      },
+    };
   }
 
   /**
-   * Une opération qui a un EFFET NET sur la trésorerie de l'entité : une
-   * recette ou une dépense, avec la ventilation de son montant sur les
-   * comptes de contrepartie.
-   *
-   * Un virement de la caisse vers la banque est écarté ici · son flux net est
-   * nul, ce n'est ni une recette ni une dépense. Il n'est PAS écarté du
-   * journal de la Note 4, qui est un livre de caisse et doit montrer tous les
-   * mouvements du compte pour que son solde soit juste (voir
-   * `journalTresorerie`).
+   * Les parcourt par tranches de `LOT_ECRITURES`, curseur sur l'identifiant
+   * (`common/lecture-par-lots.ts`) · une tranche est traitée puis lâchée, la
+   * mémoire ne dépend plus du nombre d'écritures de l'exercice.
    */
-  private async mouvementsTresorerie(tenantId: string, exerciceId: string) {
-    const ecritures = await this.ecrituresDeLExercice(tenantId, exerciceId);
+  private async parcourirEcrituresDeTresorerie(
+    tenantId: string,
+    exerciceId: string,
+    traiter: (ecriture: EcritureDeTresorerie) => void,
+  ): Promise<void> {
+    await lireParLots(
+      (curseur) =>
+        this.prisma.ecriture.findMany({
+          where: this.filtreEcrituresDeTresorerie(tenantId, exerciceId),
+          select: SELECTION_ECRITURE_DE_TRESORERIE,
+          ...pageApres(curseur, LOT_ECRITURES),
+        }),
+      traiter,
+      LOT_ECRITURES,
+    );
+  }
 
-    return ecritures
-      .map((e) => {
-        const tresorerie = e.lignes.filter((l) => this.estTresorerie(l.compte.numero));
-        if (tresorerie.length === 0) return null;
-        const flux = tresorerie.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
-        // Flux net nul : virement interne (caisse vers banque) ou écriture sans
-        // effet sur la trésorerie. Ni recette, ni dépense.
-        if (Math.abs(flux) < 0.005) return null;
-        const sens: 'RECETTE' | 'DEPENSE' = flux > 0 ? 'RECETTE' : 'DEPENSE';
-        // Contribution d'une contrepartie : créditrice pour une recette,
-        // débitrice pour une dépense · la somme vaut |flux| dans une écriture
-        // équilibrée.
-        const contreparties = e.lignes
-          .filter((l) => !this.estTresorerie(l.compte.numero))
-          .map((l) => ({
-            numero: l.compte.numero,
-            intitule: l.compte.intitule,
-            montant: sens === 'RECETTE' ? Number(l.credit) - Number(l.debit) : Number(l.debit) - Number(l.credit),
-          }))
-          .filter((c) => Math.abs(c.montant) > 0.005);
-        return { ecritureId: e.id, date: e.date, libelle: e.libelle, sens, montant: Math.abs(flux), contreparties };
-      })
-      .filter((m): m is NonNullable<typeof m> => m !== null);
+  /**
+   * CUMULE UNE ÉCRITURE DE TRÉSORERIE, compte de contrepartie par compte de
+   * contrepartie, sans la garder.
+   *
+   * Seule compte une opération qui a un EFFET NET sur la trésorerie de
+   * l'entité : une recette ou une dépense. Un virement de la caisse vers la
+   * banque est écarté ici · son flux net est nul, ce n'est ni une recette ni
+   * une dépense. Il n'est PAS écarté du journal de la Note 4, qui est un livre
+   * de caisse et doit montrer tous les mouvements du compte pour que son
+   * solde soit juste (voir `journalTresorerie`).
+   *
+   * La contribution d'une contrepartie est créditrice pour une recette,
+   * débitrice pour une dépense · la somme vaut |flux| dans une écriture
+   * équilibrée. Le seuil d'arrondi se prend LIGNE PAR LIGNE, comme la lecture
+   * écriture par écriture le prenait : cumuler d'abord puis filtrer rendrait
+   * un autre chiffre sur une contrepartie faite de centimes.
+   */
+  private cumulerEcritureDeTresorerie(e: EcritureDeTresorerie, cumuls: CumulsTresorerie): void {
+    const tresorerie = e.lignes.filter((l) => this.estTresorerie(l.compte.numero));
+    if (tresorerie.length === 0) return;
+    const flux = tresorerie.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
+    // Flux net nul : virement interne (caisse vers banque) ou écriture sans
+    // effet sur la trésorerie. Ni recette, ni dépense.
+    if (Math.abs(flux) < 0.005) return;
+    const sens: 'RECETTE' | 'DEPENSE' = flux > 0 ? 'RECETTE' : 'DEPENSE';
+    const cible = sens === 'RECETTE' ? cumuls.recettes : cumuls.depenses;
+    for (const l of e.lignes) {
+      if (this.estTresorerie(l.compte.numero)) continue;
+      const montant = sens === 'RECETTE' ? Number(l.credit) - Number(l.debit) : Number(l.debit) - Number(l.credit);
+      if (Math.abs(montant) <= 0.005) continue;
+      const existant = cible.get(l.compte.numero);
+      if (existant) existant.montant += montant;
+      else cible.set(l.compte.numero, { numero: l.compte.numero, intitule: l.compte.intitule, montant });
+    }
+  }
+
+  /** Les recettes et dépenses de l'exercice, cumulées au fil d'une lecture par tranches. */
+  private async cumulsTresorerie(tenantId: string, exerciceId: string): Promise<CumulsTresorerie> {
+    const cumuls: CumulsTresorerie = { recettes: new Map(), depenses: new Map() };
+    await this.parcourirEcrituresDeTresorerie(tenantId, exerciceId, (e) => this.cumulerEcritureDeTresorerie(e, cumuls));
+    return cumuls;
   }
 
   // -------------------------------------------------------------------------
@@ -346,26 +454,21 @@ export class EtatsFinanciersSmtService {
   // -------------------------------------------------------------------------
 
   private ventilerFlux(
-    mouvements: Awaited<ReturnType<EtatsFinanciersSmtService['mouvementsTresorerie']>>,
-    sens: 'RECETTE' | 'DEPENSE',
+    contreparties: Map<string, CompteDuPoste>,
     postes: PosteFluxSmt[],
   ): { postes: PosteCalcule[]; total: number } {
     const comptesParRef = new Map<string, Map<string, CompteDuPoste>>();
     for (const poste of postes) comptesParRef.set(poste.ref, new Map());
 
-    for (const m of mouvements) {
-      if (m.sens !== sens) continue;
-      for (const c of m.contreparties) {
-        const poste = postes.find((p) => correspond(c.numero, p.comptes, p.exclusions));
-        // Impossible en pratique : KB et JF sont définis par exclusion et
-        // captent les classes 1 à 8. Un compte qui échapperait tout de même
-        // (numéro hors classes 1-8) serait perdu · on ne le laisse pas filer.
-        if (!poste) continue;
-        const parCompte = comptesParRef.get(poste.ref)!;
-        const existant = parCompte.get(c.numero);
-        if (existant) existant.montant += c.montant;
-        else parCompte.set(c.numero, { numero: c.numero, intitule: c.intitule, montant: c.montant });
-      }
+    // Le poste ne dépend que du NUMÉRO du compte : ventiler le cumul par compte
+    // rend exactement ce que rendait la ventilation écriture par écriture.
+    for (const c of contreparties.values()) {
+      const poste = postes.find((p) => correspond(c.numero, p.comptes, p.exclusions));
+      // Impossible en pratique : KB et JF sont définis par exclusion et
+      // captent les classes 1 à 8. Un compte qui échapperait tout de même
+      // (numéro hors classes 1-8) serait perdu · on ne le laisse pas filer.
+      if (!poste) continue;
+      comptesParRef.get(poste.ref)!.set(c.numero, { numero: c.numero, intitule: c.intitule, montant: c.montant });
     }
 
     const resultat = postes.map((p) => {
@@ -417,17 +520,18 @@ export class EtatsFinanciersSmtService {
    * de concordance. L'état imprimé reste celui du texte ; le lecteur sait
    * pourquoi les deux chemins divergent.
    */
-  private fluxHorsExploitation(
-    mouvements: Awaited<ReturnType<EtatsFinanciersSmtService['mouvementsTresorerie']>>,
-  ): { montant: number; comptes: CompteDuPoste[] } {
+  private fluxHorsExploitation(cumuls: CumulsTresorerie): { montant: number; comptes: CompteDuPoste[] } {
     const parCompte = new Map<string, CompteDuPoste>();
-    for (const m of mouvements) {
-      for (const c of m.contreparties) {
+    for (const [contreparties, signe] of [
+      [cumuls.recettes, 1],
+      [cumuls.depenses, -1],
+    ] as const) {
+      for (const c of contreparties.values()) {
         // Classes 1, 2 et 3 seulement. La classe 4 est déjà reprise par VB et
         // VC ; les classes 6, 7 et 8 SONT le résultat.
         if (!/^[123]/.test(c.numero)) continue;
         // Signe : un encaissement augmente KZ, un décaissement le diminue.
-        const montant = m.sens === 'RECETTE' ? c.montant : -c.montant;
+        const montant = signe * c.montant;
         const existant = parCompte.get(c.numero);
         if (existant) existant.montant += montant;
         else parCompte.set(c.numero, { numero: c.numero, intitule: c.intitule, montant });
@@ -440,14 +544,14 @@ export class EtatsFinanciersSmtService {
   }
 
   async compteDeResultat(tenantId: string, exerciceId: string) {
-    const [, mouvements, lignesN] = await Promise.all([
+    const [, cumuls, lignesN] = await Promise.all([
       this.exercice(tenantId, exerciceId),
-      this.mouvementsTresorerie(tenantId, exerciceId),
+      this.cumulsTresorerie(tenantId, exerciceId),
       this.chargerLignes(tenantId, exerciceId),
     ]);
 
-    const recettes = this.ventilerFlux(mouvements, 'RECETTE', POSTES_RECETTES);
-    const depenses = this.ventilerFlux(mouvements, 'DEPENSE', POSTES_DEPENSES);
+    const recettes = this.ventilerFlux(cumuls.recettes, POSTES_RECETTES);
+    const depenses = this.ventilerFlux(cumuls.depenses, POSTES_DEPENSES);
     const soldeCaisse = recettes.total - depenses.total; // KZ
 
     const bilanCloture = this.resoudreBilan(lignesN);
@@ -484,7 +588,7 @@ export class EtatsFinanciersSmtService {
 
     const resultatNet = retraitements.reduce((s, r) => s + r.signe * r.montant, soldeCaisse); // KZC
     const resultatBilan = bilanCloture.get('HB')!.montant;
-    const hors = this.fluxHorsExploitation(mouvements);
+    const hors = this.fluxHorsExploitation(cumuls);
 
     return {
       recettes: recettes.postes,
@@ -546,13 +650,44 @@ export class EtatsFinanciersSmtService {
    * `soldeAReporter` est confronté au solde du compte tel que la balance le
    * donne. L'égalité est la preuve que le journal est complet ; l'écart est
    * exposé, jamais absorbé.
+   *
+   * ## Un plafond déclaré, jamais une troncature (jumeau de l'audit final F258)
+   *
+   * Le journal est un LIVRE : il ne se tronque pas, puisqu'un journal amputé
+   * ne se reboucle plus sur le solde du compte et se lirait pourtant comme
+   * complet. Au-delà de `PLAFOND_MOUVEMENTS_NOTE_4_SMT_SYCEBNL` lignes de
+   * trésorerie, il se REFUSE, en disant par où passer. La lecture s'arrête dès
+   * le plafond franchi : la mémoire reste bornée même sur le dossier qui sera
+   * refusé.
    */
   async journalTresorerie(tenantId: string, exerciceId: string) {
-    const [, ecritures, lignes] = await Promise.all([
-      this.exercice(tenantId, exerciceId),
-      this.ecrituresDeLExercice(tenantId, exerciceId),
+    // L'exercice d'abord · un exercice inconnu du dossier se refuse d'un 404
+    // nommé avant toute lecture (audit final F222).
+    await this.exercice(tenantId, exerciceId);
+    const ecritures: EcritureDeTresorerie[] = [];
+    let mouvementsDeTresorerie = 0;
+    const [, lignes] = await Promise.all([
+      this.parcourirEcrituresDeTresorerie(tenantId, exerciceId, (e) => {
+        mouvementsDeTresorerie += e.lignes.filter((l) => this.estTresorerie(l.compte.numero)).length;
+        if (mouvementsDeTresorerie > PLAFOND_MOUVEMENTS_NOTE_4_SMT_SYCEBNL) {
+          throw new BadRequestException(
+            `Le journal de trésorerie (NOTE 4) de cet exercice porte plus de ` +
+              `${PLAFOND_MOUVEMENTS_NOTE_4_SMT_SYCEBNL.toLocaleString('fr-FR')} mouvements de trésorerie, au-delà de ` +
+              `son plafond, qui est celui du grand livre complet. Un livre ne se tronque pas : ouvrez le grand ` +
+              `livre de chaque compte de trésorerie (banques et caisse), compte par compte, qui en porte les ` +
+              `mêmes mouvements, sans la ventilation par nature.`,
+          );
+        }
+        ecritures.push(e);
+      }),
       this.chargerLignes(tenantId, exerciceId),
     ]);
+    // Lues dans l'ordre des identifiants pour la pagination, remises dans
+    // l'ordre du livre · date comptable, puis ordre de saisie.
+    ecritures.sort(
+      (a, b) =>
+        a.date.getTime() - b.date.getTime() || a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id),
+    );
 
     const comptesTresorerie = lignes
       .filter((l) => this.estTresorerie(l.numero))
@@ -732,39 +867,52 @@ export class EtatsFinanciersSmtService {
    * porter aucune échéance · son ouverture tombe en part non ventilée, ce que
    * la note dit au lieu de le masquer.
    *
-   * PAS DE PAGINATION, à la différence des notes du Système normal : le S.M.T
-   * est réservé aux entités dont chaque catégorie de ressources reste sous
-   * trente millions de FCFA (art. 6), et ce service lit déjà TOUTES les
-   * écritures de l'exercice en une fois (`ecrituresDeLExercice`). Une lecture
-   * bornée à la classe 4 non lettrée y est strictement plus légère.
+   * DEUX SOMMES DEMANDÉES À LA BASE, JAMAIS DES LIGNES RAPATRIÉES (jumeau de
+   * l'audit final F258, § 8 bis). Le service lisait ici toutes les lignes de
+   * tiers ouvertes, une à une, au motif qu'il lisait déjà toutes les écritures
+   * de l'exercice ailleurs · ce n'est plus le cas, et une somme par compte se
+   * demande à la base (`groupBy`). La part NON ÉCHUE est celle des lignes dont
+   * l'échéance est postérieure à la clôture, la part ÉCHUE celle des lignes
+   * dont l'échéance est atteinte · une ligne SANS échéance ne tombe dans
+   * aucune des deux requêtes, et se retrouve dans le reste, sous son nom.
    */
   private async partsParEcheance(tenantId: string, exerciceId: string): Promise<Map<string, PartsEcheance>> {
     const exercice = await this.exercice(tenantId, exerciceId);
-    const lignesTiers = await this.prisma.ligneEcriture.findMany({
+    const lignesOuvertes: Prisma.LigneEcritureWhereInput = {
       // Même porte que la balance qui sert le reste de la note : les états
       // financiers sont des documents légaux et ne lisent que le livre-journal,
       // jamais le brouillard (voir `chargerLignes`).
-      where: {
-        ecriture: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE },
-        // Ouvertes à la clôture (audit final F10), voir la règle.
-        ...ouverteALaCloture(exercice.dateFin),
-        compte: { classe: ClasseCompte.CLASSE_4 },
-      },
-      select: { compteId: true, debit: true, credit: true, dateEcheance: true },
-    });
+      ecriture: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE },
+      // Ouvertes à la clôture (audit final F10), voir la règle.
+      ...ouverteALaCloture(exercice.dateFin),
+      compte: { classe: ClasseCompte.CLASSE_4 },
+    };
+    const [nonEchues, echues] = await Promise.all([
+      this.prisma.ligneEcriture.groupBy({
+        by: ['compteId'],
+        where: { ...lignesOuvertes, dateEcheance: { gt: exercice.dateFin } },
+        _sum: { debit: true, credit: true },
+      }),
+      this.prisma.ligneEcriture.groupBy({
+        by: ['compteId'],
+        where: { ...lignesOuvertes, dateEcheance: { lte: exercice.dateFin } },
+        _sum: { debit: true, credit: true },
+      }),
+    ]);
 
     const parCompte = new Map<string, PartsEcheance>();
-    for (const l of lignesTiers) {
-      const montant = Number(l.debit) - Number(l.credit);
-      if (montant === 0) continue;
-      // Sans échéance, la ligne n'est ni échue ni non échue : elle n'est
-      // comptée nulle part et se retrouvera dans le reste, sous son nom.
-      if (!l.dateEcheance) continue;
-      const parts = parCompte.get(l.compteId) ?? { ...PARTS_ECHEANCE_NULLES };
-      if (l.dateEcheance > exercice.dateFin) parts.nonEchu += montant;
-      else parts.echu += montant;
-      parCompte.set(l.compteId, parts);
-    }
+    const porter = (
+      groupes: Array<{ compteId: string; _sum: { debit: unknown; credit: unknown } }>,
+      part: keyof PartsEcheance,
+    ) => {
+      for (const g of groupes) {
+        const parts = parCompte.get(g.compteId) ?? { ...PARTS_ECHEANCE_NULLES };
+        parts[part] += Number(g._sum.debit ?? 0) - Number(g._sum.credit ?? 0);
+        parCompte.set(g.compteId, parts);
+      }
+    };
+    porter(nonEchues, 'nonEchu');
+    porter(echues, 'echu');
     return parCompte;
   }
 

@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { apresDeconnexion } from '../lib/deconnexion';
 import { IconCheck } from '../components/chrome/icons';
 import { SymboleOmegaX } from '../components/chrome/Logo';
 import { Aide } from '../components/chrome/Aide';
@@ -306,6 +307,10 @@ export function NouveauFichierWizard({
         setSucces(true);
         return;
       }
+      // La création pose une session comme une connexion · elle attend donc
+      // qu'une déconnexion encore en route ait reçu sa réponse, qui
+      // effacerait sinon le cookie neuf (lib/deconnexion.ts).
+      await apresDeconnexion();
       const res = await api.post<AuthResponse>('/auth/register', corps);
       setSucces(true);
       // On connecte directement sur le dossier fraîchement créé · inutile de

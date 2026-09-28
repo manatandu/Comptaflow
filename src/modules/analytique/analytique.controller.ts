@@ -22,6 +22,7 @@ import { CreerOdAnalytiqueDto } from './dto/od-analytique.dto';
 import { OdAnalytiqueService } from './od-analytique.service';
 import { CloreEngagementDto, CreerEngagementDto, RattacherExecutionDto } from './dto/engagement.dto';
 import { Referentiel, RoleUtilisateur } from '@prisma/client';
+import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 
 /**
  * Même règle que le plan comptable et les journaux : consultation ouverte aux
@@ -256,9 +257,16 @@ export class AnalytiqueController {
   // suit donc les droits d'écriture, comme la ventilation plus haut, et non
   // ceux de l'admin.
 
+  // L'EXERCICE EST EXIGÉ PAR LE PORTEUR (`EXERCICE_REQUIS`) · sans lui, un
+  // `exerciceId` absent arrivait `undefined` jusqu'à Prisma, qui IGNORE un
+  // champ `undefined` · le registre rendait les engagements de TOUS les
+  // exercices en se présentant comme celui d'un seul, et les écritures
+  // rattachables d'un autre exercice se proposaient à l'exécution. Un
+  // identifiant illisible, lui, rendait une liste vide sous un 200, lue comme
+  // « aucun engagement ». Même règle que les états (audit final F234).
   @Get('engagements')
   @ReferentielsAutorises(Referentiel.SYCEBNL)
-  async listerEngagements(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
+  async listerEngagements(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
     return this.engagements.lister(user.tenantId, exerciceId);
   }
 
@@ -266,7 +274,7 @@ export class AnalytiqueController {
   @ReferentielsAutorises(Referentiel.SYCEBNL)
   async ecrituresRattachables(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('exerciceId') exerciceId: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
     @Query('recherche') recherche?: string,
   ) {
     return this.engagements.ecrituresRattachables(user.tenantId, exerciceId, recherche);

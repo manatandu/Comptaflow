@@ -6,7 +6,7 @@ import { chargerLignes, LigneBalancePourEtat } from '../etats-financiers/etats-f
 import { EtatsFinanciersSyscohadaService } from '../etats-financiers-syscohada/etats-financiers-syscohada.service';
 import { CumulService } from '../consolidation/cumul.service';
 import { PerimetreService } from '../consolidation/perimetre.service';
-import { exigerExercice } from '../consolidation/exercice-requis';
+import { exigerExercice } from '../../common/exercice-requis';
 import { ResultatCumul } from '../consolidation/cumul-consolidation';
 import { changementsDuPerimetre, construireTableauFluxConsolide, lignesAvecMouvements, variationsDuPerimetre } from '../consolidation/flux-capitaux-consolides';
 import { LIBELLE_POSTE, PosteConsolidation } from '../consolidation/cumul-consolidation';

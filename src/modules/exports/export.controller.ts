@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Get, Param, ParseUUIDPipe, Query, Res, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, Res, UseGuards } from '@nestjs/common';
 import { criteresOuRefus } from '../comptabilite/recherche-ecritures';
 import type { PerimetreBalanceAgee } from '../comptabilite/ecriture.service';
 import { Referentiel } from '@prisma/client';
@@ -11,6 +11,7 @@ import { ReferentielsAutorises } from '../../common/decorators/referentiels.deco
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { ClasseurExporte, ExportService } from './export.service';
 import { lirePaiementsEnInstance } from '../etats-financiers/paiements-en-instance';
+import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 
 /**
  * Cloisonnement par ROUTE, pas par contrôleur : les livres, les éditions de
@@ -34,20 +35,6 @@ import { lirePaiementsEnInstance } from '../etats-financiers/paiements-en-instan
  * dossier. Ce commentaire les rangeait encore parmi les pièces du seul
  * SYCEBNL, d'avant l'ouverture de leurs routes (audit final F223).
  */
-
-/**
- * `exerciceId` doit être validé, pas seulement typé : un `@Query` scalaire
- * n'est pas couvert par le ValidationPipe global, et `undefined` traverse
- * jusqu'à Prisma qui IGNORE purement et simplement un champ `undefined`.
- * Le filtre d'exercice disparaîtrait alors sans bruit et l'export
- * agrégerait TOUS les exercices du dossier en se présentant comme l'état
- * d'un seul · un état faux et non signalé, ce qui est plus grave qu'une
- * erreur pour un module destiné à produire des pièces d'audit.
- */
-const EXERCICE_REQUIS = new ParseUUIDPipe({
-  exceptionFactory: () =>
-    new BadRequestException("Le paramètre exerciceId est requis et doit être un identifiant d'exercice valide"),
-});
 
 const TYPE_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 

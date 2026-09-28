@@ -8,7 +8,7 @@ import { ReferentielGuard } from '../../common/guards/referentiel.guard';
 import { ReferentielsAutorises } from '../../common/decorators/referentiels.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { IfrsService } from './ifrs.service';
-import { EXERCICE_REQUIS } from '../consolidation/exercice-requis';
+import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 import { ActiviteIfrsDto, EffetChangeIfrsDto, MouvementCpIfrsDto, NotesIfrsDto, PremiereApplicationIfrsDto, RegleConsolidationIfrsDto, RegleIfrsDto, RetraitementIfrsDto, TresorerieIfrsDto } from './dto/ifrs.dto';
 
 /**
@@ -84,8 +84,15 @@ export class IfrsController {
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  // Le porteur, comme aux lectures · un identifiant illisible répondait
+  // « aucun effet de change déclaré pour cet exercice », un 404 qui nommait
+  // un exercice que la requête ne désignait pas.
   @Delete('effet-change/:exerciceId')
-  supprimerEffetChange(@CurrentUser() user: AuthenticatedUser, @Param('exerciceId') exerciceId: string, @Query('consolide') consolide?: string) {
+  supprimerEffetChange(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+    @Query('consolide') consolide?: string,
+  ) {
     return this.ifrs.supprimerEffetChange(user.tenantId, exerciceId, consolide === 'true');
   }
 
