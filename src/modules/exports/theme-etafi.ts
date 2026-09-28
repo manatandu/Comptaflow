@@ -119,6 +119,15 @@ export interface IdentiteLiasse {
   nif: string;
   /** Exercice · « 2026 » ou une date « 31/12/2026 ». */
   exercice: string;
+  /**
+   * PREMIER ET DERNIER JOUR EXACTS de l'exercice, « JJ/MM/AAAA » en UTC
+   * (passe R3). `exercice` ne porte que l'année d'une clôture au 31/12, et la
+   * case ZA en tirait « 01-01-AAAA » · un premier exercice court ou long,
+   * que l'AUDCIF art. 7 admet, sortait avec des dates fausses sous un
+   * cartouche qui donnait la vraie durée.
+   */
+  dateDebut: string;
+  dateFin: string;
   /** Durée en mois. */
   duree: string;
   adresse: string;
@@ -598,11 +607,14 @@ export function construireFiche1(
   c.value = `${referentiel} - ${systeme}`;
   c.font = { name: 'Arial', size: 9, bold: true };
   c.alignment = AL_CENTRE;
-  const ex = (ident.exercice ?? '').trim();
-  const annee = /^\d{4}$/.test(ex) ? ex : '';
   const champs: Array<[string, string, string]> = [
-    ['ZA', 'EXERCICE COMPTABLE', `DU : ${annee ? `01-01-${annee}` : ''}    AU : ${annee ? `31-12-${annee}` : ex}`],
-    ['ZB', "DATE D'ARRETE EFFECTIF DES COMPTES", ''],
+    // Les dates EXACTES de l'exercice, jamais reconstituées de l'année · un
+    // premier exercice de neuf ou de dix-huit mois (AUDCIF art. 7) ne
+    // commence pas au 1er janvier (passe R3).
+    ['ZA', 'EXERCICE COMPTABLE', `DU : ${ident.dateDebut}    AU : ${ident.dateFin}`],
+    // Même lecture que le cartouche de la page, qui dit l'absence plutôt que
+    // de la taire (Titre IX ch. 1 § 2.4).
+    ['ZB', "DATE D'ARRETE EFFECTIF DES COMPTES", ident.dateArrete || 'Non renseignée'],
     ['ZC', 'EXERCICE PRECEDENT CLOS LE', ''],
     ['ZD', "DUREE DE L'EXERCICE PRECEDENT (EN MOIS)", ''],
     // Une entité SYCEBNL n'a pas de RCCM (AUDCG art. 2 et 35) · la case du

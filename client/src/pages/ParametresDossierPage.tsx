@@ -149,6 +149,7 @@ export function ParametresDossierPage() {
   // TenantService.modifierCoordonnees).
   const [nom, setNom] = useState('');
   const [activite, setActivite] = useState('');
+  const [codeActivite, setCodeActivite] = useState('');
   const [adresse, setAdresse] = useState('');
   const [ville, setVille] = useState('');
   const [pays, setPays] = useState('');
@@ -188,6 +189,7 @@ export function ParametresDossierPage() {
       setParams(p);
       setNom(p.nom ?? '');
       setActivite(p.activite ?? '');
+      setCodeActivite(p.codeActivitePrincipale ?? '');
       setAdresse(p.adresse ?? '');
       setVille(p.ville ?? '');
       setPays(p.pays ?? '');
@@ -586,6 +588,10 @@ export function ParametresDossierPage() {
         await api.patch<ParametresDossier>('/dossier/coordonnees', {
           nom,
           activite,
+          // Le code activité n'est envoyé que depuis un dossier SYSCOHADA · le
+          // serveur le refuse ailleurs (NOTE 36, passe R3), et l'envoyer vide
+          // d'une ASBL n'aurait aucun objet.
+          ...(params?.referentiel === 'SYSCOHADA' ? { codeActivitePrincipale: codeActivite } : {}),
           adresse,
           ville,
           pays,
@@ -733,6 +739,38 @@ export function ParametresDossierPage() {
                       className={champSage}
                     />
                   </Ligne>
+                  {params?.referentiel === 'SYSCOHADA' && (
+                    <Ligne label="Code activité principale" large>
+                      <div className="flex items-center gap-2">
+                        <input
+                          value={codeActivite}
+                          onChange={(e) => setCodeActivite(e.target.value)}
+                          disabled={!estAdmin || envoi}
+                          maxLength={20}
+                          list="groupes-activites-note-36"
+                          inputMode="numeric"
+                          placeholder="031003"
+                          aria-label="Code activité principale"
+                          className={`${champSage} w-28`}
+                        />
+                        <datalist id="groupes-activites-note-36">
+                          {params.groupesActivites.map((g) => (
+                            <option key={g.code} value={g.code}>
+                              {g.code} · {g.libelle}
+                            </option>
+                          ))}
+                        </datalist>
+                        <Aide
+                          titre="Code activité principale"
+                          texte="Six chiffres · les trois premiers sont le groupe d'activités (44 groupes, de 001 à 044), les trois suivants le poste (000 pour un groupe non subdivisé). La liste propose les groupes ; complétez le poste. Le code s'imprime en case ZI de la Fiche 1 de la liasse. Aucun texte ne donne la liste des postes : un groupe hors des 44 est enregistré, avec un avertissement."
+                          source="AUDCIF Titre IX ch. 6, NOTE 36 · fiche R1 (ch. 2)"
+                        />
+                      </div>
+                      {params.avertissementCodeActivitePrincipale && (
+                        <div className="text-[11px] text-warning font-semibold">{params.avertissementCodeActivitePrincipale}</div>
+                      )}
+                    </Ligne>
+                  )}
                   <Ligne label="Adresse" large>
                     <input
                       value={adresse}

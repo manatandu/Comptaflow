@@ -657,3 +657,102 @@ describe('liasse complète · Système minimal de trésorerie', () => {
     expect(reportTrouve).toBe(true);
   });
 });
+
+/**
+ * FICHE 1 · DATES EXACTES ET CHAMPS CONNUS (passe R3), dans les trois
+ * liasses SYCEBNL. ZA était reconstituée de l'année (« 01-01-AAAA »), fausse
+ * sur un premier exercice court ou long (AUDCIF art. 7, que l'art. 3 du
+ * SYCEBNL n'écarte pas).
+ */
+describe('Fiche 1 des liasses SYCEBNL · ce que le dossier sait', () => {
+  const JEUX = [
+    JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS,
+    JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT,
+    JeuEtatsFinanciersSycebnl.SYSTEME_MINIMAL_TRESORERIE,
+  ];
+
+  function caseFiche1(wb: ExcelJS.Workbook, code: string): string {
+    let valeur = '';
+    wb.getWorksheet('Fiche 1')!.eachRow((row) => {
+      if (row.getCell(1).value === code) valeur = String(row.getCell(7).value ?? '');
+    });
+    return valeur;
+  }
+
+  async function avec<T>(
+    exercice: Record<string, unknown>,
+    tenant: Record<string, unknown>,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    const e1 = EXERCICES[0] as Record<string, unknown>;
+    const t = TENANT as Record<string, unknown>;
+    const avantE = { ...e1 };
+    const avantT = { ...t };
+    Object.assign(e1, exercice);
+    Object.assign(t, tenant);
+    try {
+      return await fn();
+    } finally {
+      for (const k of Object.keys(e1)) delete e1[k];
+      Object.assign(e1, avantE);
+      for (const k of Object.keys(t)) delete t[k];
+      Object.assign(t, avantT);
+    }
+  }
+
+  it.each([
+    ['court', '2026-04-01', 'DU : 01/04/2026    AU : 31/12/2026'],
+    ['long', '2025-07-01', 'DU : 01/07/2025    AU : 31/12/2026'],
+  ])('ZA porte les dates exactes d’un premier exercice %s, dans les trois jeux', async (_nom, debut, attendu) => {
+    for (const jeu of JEUX) {
+      const wb = await avec({ dateDebut: new Date(`${debut}T00:00:00Z`) }, {}, async () =>
+        ouvrir((await fabriquerExport(jeu).liasseCompleteExcel('t1', 'e1')).buffer),
+      );
+      expect({ jeu, za: caseFiche1(wb, 'ZA') }).toEqual({ jeu, za: attendu });
+    }
+  });
+
+  it('préremplit ZB, ZC, ZD, ZG, ZK et ZM dans les trois jeux, l’acte restant en ZE', async () => {
+    for (const jeu of JEUX) {
+      const wb = await avec(
+        { dateArreteComptes: new Date('2027-03-15T00:00:00Z') },
+        {
+          numeroAffiliationCnssEmployeur: 'CNSS-0099',
+          telephone: '+243 99 111 22 33',
+          email: 'grace@asbl.cd',
+          ville: 'Bukavu',
+          activite: 'Appui aux écoles rurales',
+        },
+        async () => ouvrir((await fabriquerExport(jeu).liasseCompleteExcel('t1', 'e1')).buffer),
+      );
+      expect({
+        jeu,
+        ZB: caseFiche1(wb, 'ZB'),
+        ZC: caseFiche1(wb, 'ZC'),
+        ZD: caseFiche1(wb, 'ZD'),
+        ZG: caseFiche1(wb, 'ZG'),
+        ZK: caseFiche1(wb, 'ZK'),
+        ZM: caseFiche1(wb, 'ZM'),
+        ZE: caseFiche1(wb, 'ZE'),
+      }).toEqual({
+        jeu,
+        ZB: '15/03/2027',
+        ZC: '31/12/2025',
+        ZD: '12',
+        ZG: 'CNSS-0099',
+        ZK: '+243 99 111 22 33 · grace@asbl.cd · Bukavu',
+        ZM: 'Appui aux écoles rurales',
+        ZE: 'Arrêté n° 087/CAB/MIN/J/2024',
+      });
+    }
+  });
+
+  it('une valeur absente laisse la case vide', async () => {
+    const wb = await avec({}, { telephone: null, email: '  ', ville: null, activite: null }, async () =>
+      ouvrir((await fabriquerExport().liasseCompleteExcel('t1', 'e1')).buffer),
+    );
+    expect(caseFiche1(wb, 'ZK')).toBe('');
+    expect(caseFiche1(wb, 'ZM')).toBe('');
+    expect(caseFiche1(wb, 'ZG')).toBe('');
+  });
+});

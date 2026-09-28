@@ -5,6 +5,12 @@ import { siSycebnl } from '../../common/reponse-referentiel';
 import { PrismaService } from '../../common/prisma.service';
 import { MONNAIE_DE_TENUE } from '../../common/monnaie-de-tenue';
 import { identiteSociete, mentionsEmetteur, motifRefusCapital } from './mentions-societe';
+import {
+  avertissementCodeActivite,
+  motifRefusCodeActivite,
+  normaliserCodeActivite,
+} from './code-activite-principale';
+import { GROUPES_ACTIVITES_SYSCOHADA } from '../etats-financiers-syscohada/correspondance-notes-syscohada-3';
 import { dateSaisieOuEffacement } from './date-effacable';
 import { normaliserModules } from './modules-optionnels';
 import { Prisma, ModuleOptionnel, FormeJuridiqueEbnl,
@@ -115,6 +121,13 @@ export class TenantService {
       jeuEtatsFinanciersSycebnl: siSycebnl(tenant.referentiel, tenant.jeuEtatsFinanciersSycebnl),
       systemeComptableSyscohada: tenant.systemeComptableSyscohada,
       activite: tenant.activite,
+      // Code activité principale (NOTE 36, passe R3) · l'avertissement est
+      // RENDU à chaque lecture, pas seulement à l'enregistrement, et les 44
+      // groupes sont servis au seul SYSCOHADA pour que l'écran les propose
+      // sans en recopier la liste.
+      codeActivitePrincipale: tenant.codeActivitePrincipale,
+      avertissementCodeActivitePrincipale: avertissementCodeActivite(tenant.codeActivitePrincipale),
+      groupesActivites: tenant.referentiel === Referentiel.SYSCOHADA ? GROUPES_ACTIVITES_SYSCOHADA : [],
       adresse: tenant.adresse,
       ville: tenant.ville,
       pays: tenant.pays,
@@ -297,6 +310,7 @@ export class TenantService {
     dto: {
       nom?: string;
       activite?: string | null;
+      codeActivitePrincipale?: string | null;
       adresse?: string | null;
       ville?: string | null;
       pays?: string | null;
@@ -320,6 +334,13 @@ export class TenantService {
       const motif = motifRefusCapital(tenant.referentiel, tenant.formeJuridiqueSyscohada);
       if (motif) throw new BadRequestException(motif);
     }
+    // LE CODE ACTIVITÉ PRINCIPALE EST REFUSÉ À LA ROUTE hors SYSCOHADA et
+    // hors format (six chiffres, NOTE 36), pas seulement masqué à l'écran
+    // (§ 6). Un groupe hors des 44 n'est PAS refusé · aucun texte lu ne donne
+    // la liste des postes, l'avertissement est rendu avec les paramètres.
+    const codeActivite = normaliserCodeActivite(dto.codeActivitePrincipale);
+    const motifCode = motifRefusCodeActivite(tenant.referentiel, codeActivite);
+    if (motifCode) throw new BadRequestException(motifCode);
     // LA MONNAIE FONCTIONNELLE DOIT EXISTER DANS LE DOSSIER. Sans cette
     // vérification, un dossier pourrait nommer « USD » sans qu'aucun cours ne
     // soit jamais saisi · le second jeu se produirait alors avec des lignes
@@ -359,6 +380,7 @@ export class TenantService {
       data: {
         nom: dto.nom === undefined ? undefined : dto.nom.trim(),
         activite: normaliser(dto.activite),
+        codeActivitePrincipale: codeActivite,
         adresse: normaliser(dto.adresse),
         ville: normaliser(dto.ville),
         pays: normaliser(dto.pays),

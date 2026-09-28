@@ -53,6 +53,16 @@ export class ModifierCoordonneesDto {
   @MaxLength(200)
   activite?: string | null;
 
+  /**
+   * Code activité principale · AUDCIF Titre IX ch. 6, NOTE 36, six chiffres.
+   * `null` ou chaîne vide l'efface. SYSCOHADA seul, format et référentiel
+   * vérifiés par le service (`motifRefusCodeActivite`).
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  codeActivitePrincipale?: string | null;
+
   @IsOptional()
   @IsString()
   @MaxLength(200)

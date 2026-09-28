@@ -727,3 +727,102 @@ describe('feuille BALANCE de la liasse · exercice clos', () => {
     });
   });
 });
+
+/**
+ * FICHE 1 · DATES EXACTES ET CHAMPS CONNUS (passe R3). La case ZA était
+ * reconstituée de l'année (« 01-01-AAAA »), si bien qu'un premier exercice de
+ * neuf ou de dix-huit mois, que l'AUDCIF art. 7 admet, sortait avec des dates
+ * fausses sous un cartouche qui donnait la vraie durée. Et la fiche, qui
+ * promet des « champs connus pré-remplis », laissait vides des cases que le
+ * dossier détient.
+ */
+describe('Fiche 1 de la liasse SYSCOHADA · ce que le dossier sait', () => {
+  function caseFiche1(wb: ExcelJS.Workbook, code: string): string {
+    let valeur = '';
+    wb.getWorksheet('Fiche 1')!.eachRow((row) => {
+      if (row.getCell(1).value === code) valeur = String(row.getCell(7).value ?? '');
+    });
+    return valeur;
+  }
+
+  /** Joue `fn` avec l'exercice e1 et le dossier retouchés, puis les rétablit. */
+  async function avec<T>(
+    exercice: Record<string, unknown>,
+    tenant: Record<string, unknown>,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    const e1 = EXERCICES[0] as Record<string, unknown>;
+    const t = TENANT as Record<string, unknown>;
+    const avantE = { ...e1 };
+    const avantT = { ...t };
+    Object.assign(e1, exercice);
+    Object.assign(t, tenant);
+    try {
+      return await fn();
+    } finally {
+      for (const k of Object.keys(e1)) delete e1[k];
+      Object.assign(e1, avantE);
+      for (const k of Object.keys(t)) delete t[k];
+      Object.assign(t, avantT);
+    }
+  }
+
+  it.each([
+    ['court', '2026-04-01', 'DU : 01/04/2026    AU : 31/12/2026'],
+    ['long', '2025-07-01', 'DU : 01/07/2025    AU : 31/12/2026'],
+  ])('ZA porte les dates exactes d’un premier exercice %s (AUDCIF art. 7)', async (_nom, debut, attendu) => {
+    for (const systeme of [SystemeComptableSyscohada.NORMAL, SystemeComptableSyscohada.MINIMAL_TRESORERIE]) {
+      const wb = await avec({ dateDebut: new Date(`${debut}T00:00:00Z`) }, {}, async () =>
+        ouvrir((await fabriquerExport(systeme).liasseCompleteExcel('t1', 'e1')).buffer),
+      );
+      expect(caseFiche1(wb, 'ZA')).toBe(attendu);
+    }
+  });
+
+  it('préremplit ZB, ZC, ZD, ZG, ZK, ZM et le code activité en ZI, dans les deux liasses', async () => {
+    for (const systeme of [SystemeComptableSyscohada.NORMAL, SystemeComptableSyscohada.MINIMAL_TRESORERIE]) {
+      const wb = await avec(
+        { dateArreteComptes: new Date('2027-03-15T00:00:00Z') },
+        {
+          numeroAffiliationCnssEmployeur: 'CNSS-0042',
+          telephone: '+243 81 000 00 00',
+          email: 'contact@batimat.cd',
+          ville: 'Kinshasa',
+          activite: 'Travaux de construction',
+          codeActivitePrincipale: '030000',
+        },
+        async () => ouvrir((await fabriquerExport(systeme).liasseCompleteExcel('t1', 'e1')).buffer),
+      );
+      expect(caseFiche1(wb, 'ZB')).toBe('15/03/2027');
+      // L'exercice précédent du dossier · e0, clos le 31/12/2025 sur douze mois.
+      expect(caseFiche1(wb, 'ZC')).toBe('31/12/2025');
+      expect(caseFiche1(wb, 'ZD')).toBe('12');
+      expect(caseFiche1(wb, 'ZG')).toBe('CNSS-0042');
+      expect(caseFiche1(wb, 'ZK')).toBe('+243 81 000 00 00 · contact@batimat.cd · Kinshasa');
+      expect(caseFiche1(wb, 'ZM')).toBe('Travaux de construction');
+      expect(caseFiche1(wb, 'ZI')).toBe('030000');
+      // Le registre reste en ZE, inchangé.
+      expect(caseFiche1(wb, 'ZE')).toBe('CD/KIN/RCCM/22-B-01234');
+    }
+  });
+
+  it('la NOTE 36 imprimée nomme les codes par leur fiche de l’AUDCIF, et la case ZI de la Fiche 1', async () => {
+    const wb = await ouvrir((await fabriquerExport().liasseCompleteExcel('t1', 'e1')).buffer);
+    const texte = texteFeuille(wb, 'NOTE 36').join(' ');
+    expect(texte).toContain('fiche R2 : ZK forme juridique');
+    expect(texte).toContain('ZI');
+  });
+
+  it('sans exercice précédent ni arrêté, ZC et ZD restent vides et ZB le dit', async () => {
+    const e0 = EXERCICES.splice(1, 1);
+    try {
+      const wb = await ouvrir((await fabriquerExport().liasseCompleteExcel('t1', 'e1')).buffer);
+      expect(caseFiche1(wb, 'ZC')).toBe('');
+      expect(caseFiche1(wb, 'ZD')).toBe('');
+      expect(caseFiche1(wb, 'ZB')).toBe('Non renseignée');
+      expect(caseFiche1(wb, 'ZI')).toBe('');
+    } finally {
+      EXERCICES.push(...e0);
+    }
+  });
+});

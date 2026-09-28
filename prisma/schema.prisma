@@ -306,6 +306,12 @@ model Tenant {
   // Coordonnées · collectées par l'assistant « Nouveau fichier comptable »,
   // toutes optionnelles pour ne pas bloquer une inscription rapide.
   activite        String?
+  /// CODE ACTIVITÉ PRINCIPALE · AUDCIF Titre IX ch. 6, NOTE 36 (codes
+  /// activités économiques, six chiffres · groupe sur trois, poste sur
+  /// trois), fiche R1 (ZE) ; case ZI de la Fiche 1 au gabarit ETAFI. Saisi,
+  /// jamais déduit de `activite`, sans défaut. SYSCOHADA seul · la NOTE 36
+  /// est une note du SYSCOHADA (passe R3).
+  codeActivitePrincipale String?
   adresse         String?
   ville           String?
   pays            String?  @default("RD Congo")

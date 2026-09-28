@@ -10,8 +10,8 @@ et dure de 2 h 30 à 4 h (§ 5 bis du plan). Une session ne tient pas plus d'une
 passe lourde, et un conteneur perdu en cours de run a déjà fait refaire sept
 heures (F3b). Une passe de plusieurs runs se découpe en sessions d'un run.
 
-**Faites :** F1, F2 (a, b), F3 (a, b), F4 (a, b), F6, F9, F10, F13, R4, O7, O2, F7, F5, F12 ·
-quatorze passes sur trente et une.
+**Faites :** F1, F2 (a, b), F3 (a, b), F4 (a, b), F6, F9, F10, F13, R4, O7, O2, F7, F5, F12, R3 ·
+quinze passes sur trente et une.
 
 ---
 
@@ -113,13 +113,17 @@ mesuré où un run tient sans perdre le conteneur).
   arrondi de l'art. 150, régime de l'art. 121.
 - **F12** · confronter chaque CONSTANTE du code à son arrêté, avec sa date
   d'effet. C'est la passe où une date fausse coûte le plus.
-- **R3** · NAEMA et NOPEMA ne sont nulle part dans le logiciel. Trancher
-  d'abord si une nomenclature d'activité a une place (identité du dossier,
-  liasse), avant de coder.
+- **R3** · FAITE. Les cinq nomenclatures du Titre XI n'ont aucune place (aucun
+  document ne les sert) ; seul le code d'activité de la NOTE 36, au format du
+  Titre IX, entre dans l'identité du dossier et la liasse.
 - **R6, R2, R5, R1** · les tables de correspondance ont leurs specs de
   balayage ; la passe cherche ce que ces specs ne gèlent pas (renvois de
   notes, rubriques, intitulés). Les fichiers engendrés se corrigent à la
-  source, jamais à la main.
+  source, jamais à la main. R2 reprend de R3 la FICHE R2 de la liasse du
+  Système normal, jamais produite · forme juridique codée là où
+  `formeJuridiqueSyscohada` est univoque, pays du siège, régime fiscal,
+  établissements et contrôle DÉCLARÉS, jamais présumés, tableau des
+  activités sans ventilation déduite de la balance.
 - **F11** · l'O.-L. n° 69/009 n'est abrogée que pour ses Titres III et IV
   (loi n° 23/053, art. 152) ; le Titre II survit. Ne rien « nettoyer ».
 - **O6** · le rapport de l'art. 108 est servi. Le reste touche le rapport de

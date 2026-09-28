@@ -156,6 +156,16 @@ export interface ClasseurExporte {
  *    afin que filtre et tableau croisé dynamique restent honnêtes ; les
  *    sous-totaux vivent sur une feuille « Sommaire » dédiée.
  */
+/**
+ * DURÉE EN MOIS DU CARTOUCHE ETAFI · un seul calcul pour la durée de
+ * l'exercice (ligne 5 de chaque page) et celle de l'exercice précédent
+ * (case ZD de la Fiche 1), sans quoi deux pages d'une même liasse
+ * pourraient dire deux durées pour le même exercice.
+ */
+function dureeEnMoisCartouche(debut: Date, fin: Date): number {
+  return Math.max(1, Math.round((fin.getTime() - debut.getTime()) / (30.44 * 86_400_000)));
+}
+
 @Injectable()
 export class ExportService {
   constructor(
@@ -1955,7 +1965,7 @@ export class ExportService {
     ]);
     const debut = exercice.dateDebut;
     const fin = exercice.dateFin;
-    const duree = Math.max(1, Math.round((fin.getTime() - debut.getTime()) / (30.44 * 86_400_000)));
+    const duree = dureeEnMoisCartouche(debut, fin);
     // En UTC, comme tout jour du dépôt (audit final F81) · l'heure locale d'un
     // serveur sur site ne doit pas déplacer la clôture d'un jour.
     const finAnnee = fin.getUTCMonth() === 11 && fin.getUTCDate() === 31;
@@ -1966,6 +1976,8 @@ export class ExportService {
       // développe en « Exercice clos le 31-12-AAAA ») · toute autre date de
       // clôture s'écrit en toutes lettres.
       exercice: finAnnee ? String(fin.getUTCFullYear()) : fin.toLocaleDateString('fr-FR', { timeZone: 'UTC' }),
+      dateDebut: debut.toLocaleDateString('fr-FR', { timeZone: 'UTC' }),
+      dateFin: fin.toLocaleDateString('fr-FR', { timeZone: 'UTC' }),
       duree: String(duree),
       adresse: [tenant.adresse, tenant.ville, tenant.pays].filter(Boolean).join(', '),
       sigle: '',
@@ -1973,8 +1985,46 @@ export class ExportService {
       // Quatrième mention obligatoire du § 2.4 · chaîne vide tant qu'aucun
       // arrêté n'a eu lieu, le cartouche écrivant alors qu'elle manque.
       dateArrete: exercice.dateArreteComptes
-        ? exercice.dateArreteComptes.toLocaleDateString('fr-FR')
+        ? exercice.dateArreteComptes.toLocaleDateString('fr-FR', { timeZone: 'UTC' })
         : '',
+    };
+  }
+
+  /**
+   * CE QUE LA FICHE 1 PEUT DIRE DU DOSSIER (passe R3) · la fiche promet des
+   * « champs connus pré-remplis » et laissait vides des cases que le dossier
+   * détient. Une valeur absente laisse la case VIDE, à compléter par
+   * l'entité · rien n'est déduit ni inventé. La boîte postale n'est tenue
+   * nulle part et reste à écrire à la main.
+   *
+   * ZC et ZD viennent de l'exercice IMMÉDIATEMENT antérieur du dossier (même
+   * lecture que `exerciceN1Id`), date et durée écrites comme le cartouche ;
+   * sans exercice antérieur, elles restent vides · un premier exercice n'a
+   * pas de précédent, et « 0 mois » serait une réponse fausse.
+   */
+  private async champsFiche1(
+    tenantId: string,
+    exerciceId: string,
+    tenant: {
+      numeroAffiliationCnssEmployeur?: string | null;
+      telephone?: string | null;
+      email?: string | null;
+      ville?: string | null;
+      activite?: string | null;
+    },
+  ): Promise<Record<string, string>> {
+    const courant = await this.exerciceDuDossier(tenantId, exerciceId);
+    const precedent = await this.prisma.exercice.findFirst({
+      where: { tenantId, dateDebut: { lt: courant.dateDebut } },
+      orderBy: { dateDebut: 'desc' },
+      select: { dateDebut: true, dateFin: true },
+    });
+    return {
+      ZC: precedent ? precedent.dateFin.toLocaleDateString('fr-FR', { timeZone: 'UTC' }) : '',
+      ZD: precedent ? String(dureeEnMoisCartouche(precedent.dateDebut, precedent.dateFin)) : '',
+      ZG: tenant.numeroAffiliationCnssEmployeur ?? '',
+      ZK: [tenant.telephone, tenant.email, tenant.ville].filter((v) => v && v.trim()).join(' · '),
+      ZM: tenant.activite ?? '',
     };
   }
 
@@ -4534,6 +4584,7 @@ export class ExportService {
       ],
     });
     construireFiche1(classeur, ident, 'SYCEBNL', 'Projets de développement et assimilés', {
+      ...(await this.champsFiche1(tenantId, exerciceId, tenant)),
       ZE: tenant.actePersonnaliteJuridique ?? '',
     });
     construireFiche2(classeur, ident, 'EQUIPE DU PROJET DE DEVELOPPEMENT');
@@ -4724,6 +4775,7 @@ export class ExportService {
       ],
     });
     construireFiche1(classeur, ident, 'SYCEBNL', 'Système minimal de trésorerie', {
+      ...(await this.champsFiche1(tenantId, exerciceId, tenant)),
       ZE: tenant.actePersonnaliteJuridique ?? '',
     });
     construireFiche2(classeur, ident, "EQUIPE DE L'ENTITE A BUT NON LUCRATIF");
@@ -4909,6 +4961,7 @@ export class ExportService {
       ],
     });
     construireFiche1(classeur, ident, 'SYCEBNL', 'Associations et ordres professionnels - Système normal', {
+      ...(await this.champsFiche1(tenantId, exerciceId, tenant)),
       // Une entité SYCEBNL n'a pas de RCCM (AUDCG art. 2 et 35) · la case ZE
       // du modèle porte son acte de personnalité juridique.
       ZE: tenant.actePersonnaliteJuridique ?? '',
@@ -6124,8 +6177,12 @@ export class ExportService {
     if (exerciceN1Id) ecrireFeuilleBalance(classeur, NOM_BALANCE_N1, lignesBalN1);
     construireControleBalance(classeur, Boolean(exerciceN1Id), lignesBalN.length, lignesBalN1.length);
 
-    // 4-7 · pages d'identification (Titre IX ch. 2 : page de garde,
-    // fiches R1 à R4).
+    // 4-7 · pages d'identification · page de garde, Fiche 1 au gabarit ETAFI
+    // (le contenu de la fiche R1 de l'AUDCIF, sous d'autres lettres) et
+    // Fiche 2 (les dirigeants, contenu de la fiche R3). La fiche R2 (Titre IX
+    // ch. 2 · forme juridique, régime fiscal, pays du siège, établissements,
+    // contrôle, activités) N'EST PAS produite (passe R3), et la R4 vient
+    // avec les notes (étape 13).
     construireCouverture(classeur, ident, 'LIASSE SYSTEME NORMAL', tenant.pays ?? '');
     construireGarde(classeur, ident, {
       bandeau: 'ETATS FINANCIERS NORMALISES\nDU SYSTEME COMPTABLE OHADA (SYSCOHADA)',
@@ -6144,6 +6201,11 @@ export class ExportService {
       ],
     });
     construireFiche1(classeur, ident, 'SYSCOHADA', 'Système normal', {
+      ...(await this.champsFiche1(tenantId, exerciceId, tenant)),
+      // Le code activité principale du dossier (NOTE 36, nomenclature à six
+      // chiffres) · en ZI du gabarit ETAFI, qui est la case que le libellé
+      // nomme, là où la fiche R1 de l'AUDCIF le range en ZE (passe R3).
+      ZI: tenant.codeActivitePrincipale ?? '',
       // Une société commerciale EST immatriculée au RCCM, et l'AUDCG art. 14
       // impose d'en porter le numéro sur les livres de commerce. La case ZE
       // du gabarit ETAFI est celle du numéro de registre.
@@ -6401,7 +6463,12 @@ export class ExportService {
         'Notes annexes 1 à 3',
       ],
     });
-    construireFiche1(classeur, ident, 'SYSCOHADA', 'Système minimal de trésorerie', { ZE: numeroRegistreLiasse(tenant) });
+    construireFiche1(classeur, ident, 'SYSCOHADA', 'Système minimal de trésorerie', {
+      ...(await this.champsFiche1(tenantId, exerciceId, tenant)),
+      ZE: numeroRegistreLiasse(tenant),
+      // Même case que la liasse du Système normal (passe R3).
+      ZI: tenant.codeActivitePrincipale ?? '',
+    });
     construireFiche2(classeur, ident, 'DIRIGEANTS');
 
     // Bilan paysage · c'est la présentation même du bilan SMT (« tableau à

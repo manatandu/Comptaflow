@@ -1462,6 +1462,12 @@ export interface ParametresDossier {
   /** Pendant SYSCOHADA · null pour un dossier SYCEBNL. */
   systemeComptableSyscohada: SystemeComptableSyscohada | null;
   activite: string | null;
+  /** NOTE 36 de l'AUDCIF, six chiffres · SYSCOHADA seul, refusé ailleurs par le serveur (passe R3). */
+  codeActivitePrincipale: string | null;
+  /** Groupe hors des 44 de la NOTE 36 · avertissement, jamais un refus. */
+  avertissementCodeActivitePrincipale: string | null;
+  /** Les 44 groupes de la NOTE 36, servis au seul SYSCOHADA (liste vide ailleurs). */
+  groupesActivites: Array<{ code: string; libelle: string }>;
   adresse: string | null;
   ville: string | null;
   pays: string | null;

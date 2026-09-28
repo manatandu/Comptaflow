@@ -257,8 +257,10 @@ import { SpecificationNote } from '../notes-annexes/note-annexe.types';
  *    comptabilité nationale, pas des activités d'entité ; transcrits quand
  *    même, la table en compte 44. Et le renvoi (¹) de la fiche R2 (ch. 2)
  *    renvoie aux tables des codes par « NOTE 34 » alors qu'elles sont la
- *    NOTE 36 ; `renvoyeeDepuis` porte ZK, ZL, ZM (fiche R2) et ZE (code
- *    activité principale, fiche R1), au sens de l'article 15. La
+ *    NOTE 36. Ces renvois partent des fiches R1 et R2 de l'AUDCIF, que la
+ *    liasse ne produit pas (sa Fiche 1 suit le gabarit ETAFI, où ZK, ZL, ZM
+ *    et ZE portent autre chose) · la note n'a donc aucun `renvoyeeDepuis`,
+ *    et `precisionEditeur` nomme les lettres de l'AUDCIF (passe R3). La
  *    `SpecificationNote` de cette note ne porte que les QUATRE TITRES des
  *    tables : le moteur déclaratif ne sait afficher que des rubriques
  *    chiffrées ou saisies, pas une nomenclature. Les tables vivent dans les
@@ -417,7 +419,12 @@ export const CODES_PAYS_SIEGE_SYSCOHADA: CodeTable[] = [
 /**
  * NOTE 36, renvoi (2) de la table 3 · codes des 17 États parties. La RDC
  * porte le code 17 : c'est la seule occurrence de la RDC dans tout le
- * Titre IX, et c'est le code que porte tout dossier de ce logiciel.
+ * Titre IX. La table 3 code le pays du SIÈGE SOCIAL (fiche R2, ZM), pas celui
+ * de l'adresse · 17 vaut pour une entité dont le siège est en RDC. Une
+ * succursale d'une société étrangère (FormeJuridiqueSyscohada.SUCCURSALE,
+ * sans personnalité distincte, AUSCGIE art. 116) porte le code du pays du
+ * siège de sa société, qui se DÉCLARE (table 3 ou renvoi (2)) et ne se déduit
+ * jamais de Tenant.pays.
  */
 export const CODES_PAYS_OHADA_SYSCOHADA: CodeTable[] = [
   { code: '01', libelle: 'Bénin' },
@@ -445,9 +452,16 @@ export const CODE_PAYS_OHADA_RDC = '17';
  * NOTE 36 · codes activités économiques, nomenclature à six chiffres
  * (« groupe » sur 3 chiffres + « poste » sur 3 chiffres). Les 44 groupes
  * sont transcrits ; les postes (001, 002… ; 000 pour un groupe non
- * subdivisé) ne sont pas énumérés par le Titre IX, qui n'en donne que des
- * exemples · ils relèvent du Titre XI (nomenclatures NAEMA/NOPEMA). Le code
- * activité principale se déclare en ZE (fiche R1).
+ * subdivisé) ne sont énumérés par AUCUN texte lu · le Titre IX n'en donne
+ * que des exemples, et la NOTE 36 ne renvoie pas au Titre XI (passe R3).
+ * Le Titre XI reproduit une AUTRE codification, la nomenclature d'activités
+ * des États membres d'AFRISTAT, alphanumérique (une lettre, puis quatre,
+ * puis six chiffres) · « 002 007 Culture de cacao » y est A010201. Aucune
+ * table de passage n'est au corpus, et la NOPEMA classe des PRODUITS. Le
+ * rattachement du code activité principale (ZE de la fiche R1, sans renvoi
+ * dans le texte) à ces groupes est une lecture d'OmegaX ; le renvoi (¹) de
+ * la fiche R2 envoie son « code nomenclature d'activité » aux tables de
+ * codes (il imprime NOTE 34, anomalie n° 12).
  */
 export const GROUPES_ACTIVITES_SYSCOHADA: CodeTable[] = [
   { code: '001', libelle: 'Agriculture vivrière' },
@@ -1355,10 +1369,17 @@ export const NOTES_SYSCOHADA_3: SpecificationNote[] = [
       { type: 'LIBRE' as const, libelle: 'Code' },
       { type: 'LIBRE' as const, libelle: 'Libellé' },
     ],
-    // Fiche R2 : ZK forme juridique, ZL régime fiscal, ZM pays du siège ;
-    // fiche R1 : ZE code activité principale. Le renvoi (¹) de la fiche R2
-    // dit « NOTE 34 » [texte officiel], anomalie n° 12.
-    renvoyeeDepuis: ['ZK', 'ZL', 'ZM', 'ZE'],
+    // AUCUN `renvoyeeDepuis` (passe R3). Les lettres qui renvoient ici sont
+    // celles des fiches R1 et R2 de l'AUDCIF (Titre IX ch. 2), que cette
+    // liasse ne produit pas · sa Fiche 1 suit le gabarit ETAFI, qui donne à
+    // ZK, ZL, ZM et ZE un AUTRE contenu (téléphone, adresse, activité,
+    // registre). Imprimé tel quel, « renvoyée depuis ZK » aurait désigné la
+    // case du téléphone de la même liasse. La précision le dit.
+    precisionEditeur:
+      "Les codes qui renvoient à ces tables sont ceux de l'AUDCIF · fiche R2 : ZK forme juridique, ZL régime " +
+      "fiscal, ZM pays du siège, colonne « code nomenclature d'activité » (le renvoi (¹) officiel imprime NOTE 34) ; " +
+      "fiche R1 : ZE code activité principale, rattachement lu par OmegaX. La Fiche 1 de cette liasse suit le gabarit " +
+      "ETAFI, où le code activité principale est en ZI, et la fiche R2 n'est pas produite.",
     rubriques: [
       saisie('1-code-forme-juridique-1', '1 · Code forme juridique (1)', RENVOI_1_FORME_JURIDIQUE_SYSCOHADA),
       saisie('2-code-regime-fiscal', '2 · Code régime fiscal'),

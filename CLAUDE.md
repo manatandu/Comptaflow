@@ -3017,6 +3017,17 @@ comparaison), à l'écran et dans le contrôle du classeur. Le logiciel NOMME,
 il ne ventile pas · répartir un 481 entre 4811 et 4812 est une question de
 nature d'opération que seul le cabinet connaît.
 
+**Nomenclatures · le Titre XI n'a pas de place, le code de la NOTE 36 en a une
+(2026-09-28, passe R3).** Aucun état ni document ne sert les cinq
+nomenclatures du Titre XI de l'AUDCIF · ne pas les coder. Le code d'activité
+principale est celui de la NOTE 36 (six chiffres, 44 groupes), une AUTRE
+codification que le Titre XI, sans table de passage au corpus
+(`Tenant.codeActivitePrincipale`, SYSCOHADA seul, groupe hors liste accepté
+avec avertissement, case ZI de la Fiche 1). La Fiche 1 de la liasse suit le
+gabarit ETAFI, dont les lettres ne sont pas celles des fiches R1 et R2 de
+l'AUDCIF · un renvoi de note ne nomme jamais une lettre sans sa fiche. La
+fiche R2 n'est pas produite (passe R2).
+
 **Compte de résultat SYSCOHADA · RQP, TQP et la formule de XE (2026-09-27,
 audit final F89).** Les deux postes du ch. 33 ne s'impriment que non nuls (N,
 N-1 ou même période) et sans code REF · leur clé ne noue que les formules. Une

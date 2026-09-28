@@ -1842,3 +1842,61 @@ F2b et F3b.
 tout indissociable » et interdit d'affirmer la conformité tant que tout le
 dispositif n'est pas respecté. Un indicateur calculé sur le bilan seul affirmait
 plus que ce qu'il mesurait.
+
+## Passe R3 · AUDCIF Titre XI, les cinq nomenclatures (2026-09-28)
+
+Le Titre XI (nomenclatures d'activités et de produits d'AFRISTAT, opérations
+financières, actifs non produits non financiers, secteurs institutionnels)
+confronté au dépôt, avec la NOTE 36 et les fiches R1 et R2 du Titre IX qui
+seules pouvaient lui donner une place. 26 agents, 53 obligations servies, 22
+constats réfutés un à un, **3 écartés, 19 retenus (11 écarts distincts, A1, B1,
+C2 et D6 visant le même commentaire, C3 et D7 le même, C4, D3 et A5 la même
+fiche) dont 3 FAUX, tous traités**.
+
+### Le verdict demandé
+
+**AUCUNE DES CINQ NOMENCLATURES N'A DE PLACE DANS LE LOGICIEL.** Aucun état du
+Titre IX, du Titre X ni du D4C ne renvoie au Titre XI. La fiche R2 demande un
+« code nomenclature d'activité » qu'elle envoie aux tables de codes (NOTE 36,
+renvoi imprimé NOTE 34), jamais au Titre XI ; les notes 32 et 33 et la facture
+demandent une désignation, pas un code NOPEMA ; la fiche R2 demande le contrôle
+de l'entité par cases à cocher, jamais un code S. Le Titre VII (comptes 40 et
+41) cite la nomenclature des agents économiques parmi les critères POUVANT
+servir à coder les sous-comptes · un choix de l'entité, rien à coder. Seul le
+code d'activité de la NOTE 36, au format du Titre IX (groupe de trois chiffres
+et poste de trois chiffres, 44 groupes), a une place, et il est servi.
+
+**DEUX CODIFICATIONS D'ACTIVITÉS DANS LE MÊME ACTE, SANS TABLE DE PASSAGE.** La
+NOTE 36 code en six chiffres (« 002 007 Culture de cacao ») ; le Titre XI
+reproduit une nomenclature alphanumérique (« A010201 Culture du cacao »). Le
+corpus ne porte aucune correspondance. ANOMALIE DU TEXTE, non tranchée.
+
+### Corrigés
+
+| Constat | Gravité | Ce qui était faux | Ce qui est fait |
+|---|---|---|---|
+| D1 | FAUX | La case ZA de la Fiche 1 imprimait « DU 01-01 AU 31-12 » de l'année de clôture sans lire le début · un premier exercice court ou long (AUDCIF art. 7) sortait avec des dates fausses, sous un cartouche qui donnait la bonne durée. Défaut hérité du gabarit de la compétence. | Dates exactes de l'exercice, cinq liasses, cellule relue par les tests. |
+| D2 | FAUX | La NOTE 36 imprimait « Renvoyée depuis les postes : ZK, ZL, ZM, ZE » dans une liasse dont la Fiche 1 donne à ces lettres le téléphone, l'adresse, l'activité et le registre. | Renvoi retiré, précision de l'éditeur · fiche R2 (ZK, ZL, ZM) et fiche R1 (ZE) de l'AUDCIF, code activité en ZI de la Fiche 1, fiche R2 non produite. |
+| A1, B1, C2, D6 | FAUX (commentaire) | Les postes de la NOTE 36 dits « relevant du Titre XI (NAEMA/NOPEMA) ». | Commentaire réécrit · aucun texte n'énumère les postes, le Titre XI est une autre codification, la NOPEMA classe des produits. |
+| A3, D4 | INCOMPLET | Le code activité principale (ZE de la fiche R1, ZI de la Fiche 1) n'était tenu nulle part. | `Tenant.codeActivitePrincipale`, SYSCOHADA seul, six chiffres, groupe hors des 44 accepté avec avertissement (aucun texte ne liste les postes), case ZI des deux liasses SYSCOHADA. |
+| A4, D5 | CONFORT | La Fiche 1 « champs connus pré-remplis » laissait vides la date d'arrêté, l'exercice précédent, le numéro CNSS, les coordonnées et l'activité, tous détenus. | Préremplis ; une absence laisse la case vide, la date d'arrêté dit « Non renseignée ». |
+| C3, D7 | CONFORT (commentaire) | Le code pays 17 dit porté par « tout dossier de ce logiciel » · la table code le pays du siège, et une succursale d'une société étrangère a le sien ailleurs. | Commentaire réécrit, jamais déduit de `Tenant.pays`. |
+| C4, D3, A5 | INCOMPLET | La fiche R2 n'est pas produite, et le commentaire de la liasse annonçait « fiches R1 à R4 ». | Commentaire corrigé ; la fiche R2 est RENVOYÉE À LA PASSE R2 (forme juridique codée là où elle est univoque, pays du siège, régime fiscal et contrôle déclarés, jamais présumés). |
+| C1 | CONFORT | Les plans décrivaient le Titre XI par ses deux seules premières nomenclatures. | Décrit en cinq, avec le verdict. |
+
+### Écartés par la réfutation
+
+C5 (anomalies des nomenclatures F, AN et S sans effet sur le logiciel), D8
+(la NOTE 36 ne sort jamais « néant »), D9 (les renvois (1) et (2) sont servis
+au niveau de la rubrique qu'ils qualifient).
+
+### Ce que la passe apprend
+
+**UNE NOMENCLATURE STATISTIQUE QU'AUCUN DOCUMENT NE DEMANDE N'EST PAS UN
+MANQUE.** La question posée à la passe était la bonne · trancher la place avant
+de coder. Coder le Titre XI aurait fait porter des codes alphanumériques dans
+une case que la liasse veut numérique.
+
+**UN GABARIT DE COMPÉTENCE N'EST PAS LE TEXTE.** La date de début fausse en ZA
+venait du script de mise en forme de la compétence, recopié tel quel · même
+famille que les gloses de F12.

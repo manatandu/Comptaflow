@@ -518,9 +518,15 @@ describe('correspondance des notes annexes SYSCOHADA · tranche 3 (AUDCIF Titre 
       expect(GROUPES_ACTIVITES_SYSCOHADA.every((g) => g.libelle.trim().length > 0)).toBe(true);
     });
 
-    it('la note renvoie aux codes des fiches R1 et R2 (ZE, ZK, ZL, ZM) et signale la table 3 lacunaire', () => {
+    it('la note nomme les codes des fiches R1 et R2 de l’AUDCIF, distincts de la Fiche 1 ETAFI, et signale la table 3 lacunaire', () => {
       const n36 = noteUnique('36');
-      expect(n36.renvoyeeDepuis).toEqual(['ZK', 'ZL', 'ZM', 'ZE']);
+      // PASSE R3 · les lettres ZK, ZL, ZM, ZE sont celles des fiches R1 et R2
+      // de l'AUDCIF ; la Fiche 1 de la liasse suit le gabarit ETAFI, où elles
+      // portent autre chose. Un renvoi imprimé « depuis ZK » désignerait la
+      // case du téléphone de la même liasse · la note les nomme par leur fiche.
+      expect(n36.renvoyeeDepuis ?? []).toEqual([]);
+      expect(n36.precisionEditeur).toContain('fiche R2');
+      expect(n36.precisionEditeur).toContain('ZI');
       expect(n36.renvoiOfficiel).toContain('lacunaire');
       expect(n36.renvoiOfficiel).toContain('NOTE 34');
     });
