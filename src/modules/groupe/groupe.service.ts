@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { fondementEliminationGroupe } from './fondement-elimination';
 import { normaliserCourriel } from '../../common/courriel';
 import { Workbook } from 'exceljs';
 import { createHash, randomBytes } from 'crypto';
@@ -835,11 +836,10 @@ export class GroupeService {
 
     // CE QUE L'ÉLIMINATION NE SAIT PAS FAIRE, ET QU'ELLE DIT.
     //
-    // Le D4C ne s'arrête pas aux comptes réciproques : il veut aussi la
-    // « neutralisation des résultats provenant d'opérations entre entités du
-    // périmètre » (ch. XIII-4) et que les « résultats inclus dans
-    // stocks/immobilisations [soient] totalement éliminés » (ch. XII-5). Ces
-    // deux retraitements-là demandent des données que l'agrégat n'a PAS · il
+    // L'élimination ne s'arrête pas aux comptes réciproques · un résultat pris
+    // entre établissements (marge sur stock, cession d'immobilisation) n'est
+    // pas réalisé avec un tiers (`fondementEliminationGroupe`, jamais le D4C
+    // servi à une association). Ces deux retraitements-là demandent des données que l'agrégat n'a PAS · il
     // travaille sur des soldes, et les registres de stocks comme
     // d'immobilisations vivent dans les dossiers (limite déjà assumée par
     // `liasseGroupe`). Calculer serait inventer ; on avertit.
@@ -855,11 +855,10 @@ export class GroupeService {
     if (reciproques.comptesHao.length > 0) {
       avertissements.push(
         `Cession interne d'immobilisation NON neutralisée · une écriture interne au groupe porte un compte de la ` +
-          `classe 8 (${reciproques.comptesHao.join(', ')}). Le D4C range les cessions internes d'immobilisations parmi les ` +
-          `« opérations affectant le résultat consolidé » et impose de « reconstituer valeur brute et amortissements ` +
-          `cumulés du cédant » (ch. XII-5) · l'agrégat ne dispose que de soldes, le registre des immobilisations reste ` +
-          `dans les dossiers. Le produit de cession et la valeur d'entrée chez le preneur restent donc dans l'agrégat, ` +
-          `à retraiter à la main.`,
+          `classe 8 (${reciproques.comptesHao.join(', ')}). Un résultat de cession entre établissements n'est pas réalisé ` +
+          `avec un tiers · ${fondementEliminationGroupe(syscohada)}. L'agrégat ne dispose que de soldes · la valeur brute et ` +
+          `les amortissements du cédant, tenus au registre des immobilisations des dossiers, ne sont pas reconstitués. Le produit de cession et la valeur d'entrée chez le preneur restent ` +
+          `donc dans l'agrégat, à retraiter à la main.`,
       );
     }
     const stocksAgreges = lignes.filter((l) => l.numero.startsWith('3')).reduce((s, l) => s + l.solde, 0);
@@ -870,9 +869,8 @@ export class GroupeService {
       avertissements.push(
         `Marge interne comprise dans les stocks NON neutralisée · des achats et des ventes internes ont été éliminés ` +
           `alors que l'agrégat porte encore ${(Math.round(stocksAgreges * 100) / 100).toFixed(2)} de stocks (classe 3). ` +
-          `Le D4C veut la « neutralisation des résultats provenant d'opérations entre entités du périmètre » ` +
-          `(ch. XIII-4) et l'élimination totale des « résultats inclus dans stocks/immobilisations » (ch. XII-5) · rien ` +
-          `dans les comptes ne dit quelle part du stock de clôture vient d'un achat interne, ni à quelle marge. ` +
+          `Une marge prise entre établissements n'est pas réalisée avec un tiers · ${fondementEliminationGroupe(syscohada)}. ` +
+          `Rien dans les comptes ne dit quelle part du stock de clôture vient d'un achat interne, ni à quelle marge. ` +
           `À retraiter à la main.`,
       );
     }

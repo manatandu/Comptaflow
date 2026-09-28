@@ -239,7 +239,7 @@ export class CumulService {
         dureeEcartAnnees: dto.modeDureeEcart === 'LIMITEE' ? dto.dureeEcartAnnees : null,
         depreciationEcartOuverture: dto.depreciationEcartOuverture ?? 0,
         depreciationEcartCloture: dto.depreciationEcartCloture ?? 0,
-        dividendesExercice: dto.dividendesExercice ?? 0,
+        dividendesExercice: dto.dividendesExercice ?? null,
         compteDividendes: dto.compteDividendes ?? null,
         obligationNonDesengagement: dto.obligationNonDesengagement ?? false,
       },
@@ -411,7 +411,7 @@ export class CumulService {
   async enregistrerMonnaie(tenantId: string, entiteId: string, dto: MonnaieEntiteDto) {
     const e = await this.prisma.entitePerimetreConsolidation.findFirst({ where: { id: entiteId, tenantId }, select: { id: true } });
     if (!e) throw new NotFoundException('Entité introuvable dans ce dossier.');
-    const presentation = await this.monnaiePresentation(tenantId);
+    const { presentation } = await this.monnaiePresentation(tenantId);
     const monnaie = dto.monnaieBalance?.trim().toUpperCase() || null;
     if (monnaie && monnaie !== presentation && !dto.justificationMonnaie?.trim()) {
       throw new BadRequestException(
@@ -439,8 +439,11 @@ export class CumulService {
 
   /** La monnaie des états consolidés · celle de tenue de la consolidante, « unité monétaire ayant cours légal » (art. 87). */
   private async monnaiePresentation(tenantId: string) {
-    const t = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { devise: true } });
-    return (t.devise ?? 'CDF').trim().toUpperCase();
+    const t = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { devise: true, deviseFonctionnelle: true } });
+    return {
+      presentation: (t.devise ?? 'CDF').trim().toUpperCase(),
+      fonctionnelle: t.deviseFonctionnelle?.trim().toUpperCase() || null,
+    };
   }
 
   async supprimerReciproque(tenantId: string, id: string) {
@@ -564,7 +567,7 @@ export class CumulService {
         dureeEcartAnnees: b.dureeEcartAnnees,
         depreciationEcartOuverture: Number(b.depreciationEcartOuverture),
         depreciationEcartCloture: Number(b.depreciationEcartCloture),
-        dividendesExercice: Number(b.dividendesExercice),
+        dividendesExercice: b.dividendesExercice == null ? null : Number(b.dividendesExercice),
         compteDividendes: b.compteDividendes,
         obligationNonDesengagement: b.obligationNonDesengagement,
       };
@@ -612,9 +615,34 @@ export class CumulService {
 
     // Fiscalité · la consolidante la tient dans les faits de l'exercice, les
     // autres entités sur leur ligne. `n` rend null pour null · jamais zéro.
-    const fisc = (id: string, f: Record<string, unknown> | null | undefined): FiscaliteEntite => ({
+    // REPORT VARIABLE (D4C ch. XII-3 § 3) · le taux de la clôture précédente,
+    // lu dans la consolidation N-1, l'entité appariée par sa DÉNOMINATION (le
+    // périmètre est recréé chaque exercice). Aucune consolidation N-1 · null.
+    const precedent = await this.prisma.exercice.findFirst({
+      where: { tenantId, dateDebut: { lt: ex!.dateDebut } },
+      orderBy: { dateDebut: 'desc' },
+      select: { id: true },
+    });
+    const tauxN1ParNom = new Map<string, number | null>();
+    let tauxN1Consolidante: number | null = null;
+    if (precedent) {
+      const [entitesN1, faitsN1] = await Promise.all([
+        this.prisma.entitePerimetreConsolidation.findMany({
+          where: { tenantId, exerciceId: precedent.id },
+          select: { nom: true, tauxImpotDiffere: true },
+        }),
+        this.prisma.faitsConsolidationExercice.findFirst({
+          where: { tenantId, exerciceId: precedent.id },
+          select: { tauxImpotDiffere: true },
+        }),
+      ]);
+      for (const e of entitesN1) tauxN1ParNom.set(e.nom, n(e.tauxImpotDiffere));
+      tauxN1Consolidante = n(faitsN1?.tauxImpotDiffere);
+    }
+    const fisc = (id: string, f: Record<string, unknown> | null | undefined, tauxOuverture: number | null): FiscaliteEntite => ({
       entiteId: id,
       tauxImpot: n(f?.tauxImpotDiffere),
+      tauxImpotOuverture: tauxOuverture,
       idaOuverture: n(f?.idaOuverture),
       idaCloture: n(f?.idaCloture),
       idpOuverture: n(f?.idpOuverture),
@@ -622,8 +650,8 @@ export class CumulService {
       justificationIda: (f?.justificationIda as string | null | undefined) ?? null,
     });
     const fiscalites: FiscaliteEntite[] = [
-      fisc(consolidanteId, etat.faits as Record<string, unknown> | null),
-      ...etat.entites.map((e) => fisc(e.id, e as unknown as Record<string, unknown>)),
+      fisc(consolidanteId, etat.faits as Record<string, unknown> | null, tauxN1Consolidante),
+      ...etat.entites.map((e) => fisc(e.id, e as unknown as Record<string, unknown>, tauxN1ParNom.get(e.nom) ?? null)),
     ];
 
     // Écarts de conversion individuels · retraités pour les seules entités qui
@@ -647,7 +675,17 @@ export class CumulService {
       ...etat.entites.map((e) => declarationConversion(e.id, e.id, e as unknown as Record<string, unknown>)),
     ].filter((c): c is ConversionIndividuelle => c !== null);
 
-    const presentation = await this.monnaiePresentation(tenantId);
+    const { presentation, fonctionnelle } = await this.monnaiePresentation(tenantId);
+    // D4C ch. XII-4 § 5 · « le cas échéant, monnaie de présentation ≠ monnaie
+    // fonctionnelle de la mère et justification » · la justification est
+    // l'art. 87, qui impose l'unité monétaire ayant cours légal.
+    const reserveMonnaie =
+      fonctionnelle && fonctionnelle !== presentation
+        ? [
+            `Monnaie de présentation (${presentation}) différente de la monnaie fonctionnelle déclarée de la consolidante (${fonctionnelle}) · ` +
+              'à mentionner en Notes annexes consolidées avec sa justification, l’art. 87 imposant l’unité monétaire ayant cours légal (D4C ch. XII-4 § 5).',
+          ]
+        : [];
     const monnaies: MonnaieEntite[] = etat.entites.map((e) => ({
       entiteId: e.id,
       monnaie: e.monnaieBalance,
@@ -675,8 +713,12 @@ export class CumulService {
           'Écarts d’évaluation (art. 82, ch. XII-6) · DÉCLARÉS élément par élément, ils passent en priorité et l’écart d’acquisition n’est que le reste. Chacun porte son impôt différé, au taux déclaré de la détenue · jamais l’écart d’acquisition (ch. XII-3 § 3).',
           'Impôts différés (art. 92) · écarts d’évaluation, marges internes éliminées (au taux de la vendeuse) et impôts différés DÉCLARÉS des comptes individuels. Actif et passif ne sont pas compensés, le D4C n’en disant rien, et aucune actualisation n’est faite (ch. XII-3 § 3).',
           'Éliminations de nature fiscale (art. 86, 3°, D4C ch. XII-3 § 2) · provisions réglementées (15) contre-passées, l’exercice au résultat (851 et 861) et l’antérieur aux réserves, avec leur impôt différé passif. Écarts de conversion individuels (478, 479) retraités sur DÉCLARATION de la position N-1 et de la provision pour pertes de change · leur impôt différé éventuel se déclare avec ceux de l’entité. Les subventions d’investissement restent sur leur ligne, hors capitaux propres (ch. XII-8 § 2).',
-          'Résultats internes inclus dans les stocks et immobilisations (art. 86, 4°) · éliminés sur DÉCLARATION de la marge, totalement entre entités intégrées globalement, au produit des pourcentages avec une entité intégrée proportionnellement (D4C ch. XII-5). Le texte ne dit pas qui la supporte · OmegaX retraite le résultat de la VENDEUSE, qui se partage à son pourcentage d’intérêt (art. 85, résultat consolidé bâti des éléments du résultat de chaque entité). Une marge d’incidence négligeable peut ne pas être déclarée (art. 86, dernier alinéa).',
+          'Résultats internes inclus dans les stocks et immobilisations (art. 86, 4°) · éliminés sur DÉCLARATION de la marge, pertes comprises (marge négative, D4C ch. XII-3 § 2), totalement entre entités intégrées globalement, au pourcentage d’intégration de l’entité intégrée proportionnellement, au plus faible des deux entre deux entités intégrées proportionnellement (D4C ch. XII-5 § 5). Sur une immobilisation, la marge est retranchée en valeur nette · brut et amortissements du cédant ne sont pas reconstitués, et l’état le dit. Le texte ne dit pas qui la supporte · OmegaX retraite le résultat de la VENDEUSE, qui se partage à son pourcentage d’intérêt (art. 85, résultat consolidé bâti des éléments du résultat de chaque entité). Une marge d’incidence négligeable peut ne pas être déclarée (art. 86, dernier alinéa).',
           `Conversion des entités étrangères (art. 87, D4C ch. XII-4 § 3) · méthode du COURS DE CLÔTURE vers la monnaie de présentation (${presentation}), aux cours DÉCLARÉS · actifs et passifs au cours de clôture, charges et produits au cours déclaré pour eux, capitaux propres au cours historique déclaré en montant. L’écart se partage au pourcentage d’intérêt et reste sur sa ligne. La balance importée doit être dans la monnaie FONCTIONNELLE · la méthode temporelle (§ 2) et le retraitement d’une monnaie hyperinflationniste (§ 4) ne sont pas joués. Les montants déclarés ailleurs (coût et capitaux propres d’entrée, marges internes, impôts différés, 478 et 479, opérations réciproques) le sont en monnaie de présentation.`,
+          'Impôts différés au report variable (D4C ch. XII-3 § 3) · l’ouverture est aux réserves au taux de la consolidation N-1, et l’effet d’un changement de taux passe au résultat.',
+          'Changements de méthodes comptables (D4C ch. XII-3 § 2) · en consolidé, leur impact va toujours en report à nouveau, net d’impôt. Celui qu’une entité, consolidante comprise, a passé au résultat de ses comptes individuels n’est pas reclassé par OmegaX · il se retraite dans la balance importée, ou dans les comptes de la consolidante.',
+          'Impositions sur distributions prévues (art. 86, 5°) · la charge d’impôt non récupérable et les réductions d’impôt ne sont pas constatées par OmegaX. Seule une incidence négligeable permet de les omettre (art. 86, dernier alinéa).',
+          ...reserveMonnaie,
           'Amortissement de l’écart · prorata au mois, du premier jour du mois d’entrée, convention reprise du module des immobilisations · le D4C dit « linéairement » sans fixer de prorata.',
         ],
       };

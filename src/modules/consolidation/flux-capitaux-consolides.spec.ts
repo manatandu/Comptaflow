@@ -43,6 +43,7 @@ const acq = (extra: Partial<AcquisitionDeclaree> = {}): AcquisitionDeclaree => (
   dateEntree: new Date('2024-01-01'),
   capitauxPropresEntree: 1000,
   modeDureeEcart: 'NON_DETERMINABLE',
+  dividendesExercice: 0,
   ...extra,
 });
 const EX25 = { dateDebut: new Date('2025-01-01'), dateFin: new Date('2025-12-31') };

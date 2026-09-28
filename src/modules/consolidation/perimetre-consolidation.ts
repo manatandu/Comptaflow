@@ -246,13 +246,14 @@ const METHODE_PAR_NATURE: Record<NatureControle, MethodeConsolidation> = {
 
 function natureDuControle(e: EntitePerimetre, pct: number): NatureControle {
   if (pct > SEUIL_CONTROLE_DE_DROIT) return 'EXCLUSIF_DE_DROIT';
-  if (
-    pct > SEUIL_PRESOMPTION_CONTROLE_DE_FAIT &&
-    e.designationMajoriteDeuxExercices === true &&
-    e.aucunAutreAssocieSuperieur === true
-  ) {
-    return 'EXCLUSIF_DE_FAIT';
-  }
+  // ART. 78 · le contrôle de fait EST la désignation de la majorité des organes
+  // pendant deux exercices successifs ; le seuil de 40 % n'en est que la
+  // PRÉSOMPTION (« présumé lorsque […] plus de 40 % […] et qu'aucun autre
+  // associé ne détenait une fraction supérieure »). Exiger les trois faits à la
+  // fois mettait en équivalence une filiale dont la majorité des organes est
+  // désignée avec 35 % des votes.
+  if (e.designationMajoriteDeuxExercices === true) return 'EXCLUSIF_DE_FAIT';
+  if (pct > SEUIL_PRESOMPTION_CONTROLE_DE_FAIT && e.aucunAutreAssocieSuperieur === true) return 'EXCLUSIF_DE_FAIT';
   if (e.controleContractuel === true) return 'EXCLUSIF_CONTRACTUEL';
   // Le contrôle conjoint ne se présume d'aucun pourcentage · il suppose l'accord.
   if (e.accordControleConjoint === true) return 'CONJOINT';
@@ -266,19 +267,22 @@ function fondementDe(n: NatureControle, pct: number, e: EntitePerimetre): string
     case 'EXCLUSIF_DE_DROIT':
       return `Contrôle exclusif de droit · ${p}, « la majorité des droits de vote » (art. 78) · intégration globale (art. 80).`;
     case 'EXCLUSIF_DE_FAIT':
-      return `Contrôle exclusif de fait · ${p}, plus de 40 %, désignation de la majorité des organes pendant deux exercices successifs et aucun autre associé au-dessus, déclarés (art. 78) · intégration globale (art. 80).`;
+      return e.designationMajoriteDeuxExercices === true
+        ? `Contrôle exclusif de fait · ${p}, désignation de la majorité des organes pendant deux exercices successifs, déclarée (art. 78) · intégration globale (art. 80).`
+        : `Contrôle exclusif de fait présumé · ${p}, plus de 40 %, et aucun autre associé au-dessus, déclaré (art. 78) · intégration globale (art. 80).`;
     case 'EXCLUSIF_CONTRACTUEL':
       return `Contrôle exclusif contractuel · influence dominante en vertu d'un contrat ou de clauses statutaires, déclarée (art. 78) · intégration globale (art. 80).`;
     case 'CONJOINT':
       return `Contrôle conjoint · accord contractuel entre un nombre limité d'associés, déclaré (art. 78) · intégration proportionnelle (art. 80).`;
     case 'INFLUENCE_NOTABLE':
+      if (pct > SEUIL_PRESOMPTION_CONTROLE_DE_FAIT) {
+        return `Influence notable présumée · ${p}, au moins un cinquième (art. 78) · mise en équivalence (art. 80). Au-delà de 40 %, le contrôle de fait est présumé si aucun autre associé ne détient une fraction supérieure, ou établi par la désignation de la majorité des organes pendant deux exercices · ni l'un ni l'autre n'est déclaré.`;
+      }
       return pct >= SEUIL_PRESOMPTION_INFLUENCE_NOTABLE
         ? `Influence notable présumée · ${p}, au moins un cinquième (art. 78) · mise en équivalence (art. 80).`
         : `Influence notable déclarée sous le seuil de présomption · ${p} (art. 78, éléments autres que les droits de vote) · mise en équivalence (art. 80).`;
     case 'AUCUN':
-      return pct > SEUIL_PRESOMPTION_CONTROLE_DE_FAIT && !(e.designationMajoriteDeuxExercices && e.aucunAutreAssocieSuperieur)
-        ? `${p} · au-delà de 40 %, mais le contrôle de fait suppose deux faits NON déclarés (désignation de la majorité des organes pendant deux exercices, aucun autre associé au-dessus, art. 78). Hors périmètre tant qu'ils ne le sont pas.`
-        : `${p} · ni contrôle ni influence notable (art. 78) · titres non consolidés.`;
+      return `${p} · ni contrôle ni influence notable (art. 78) · titres non consolidés.`;
   }
 }
 
@@ -426,9 +430,25 @@ export interface VerdictObligation {
 
 export const SEUIL_DISPENSE_FCFA = 500_000_000;
 
+/** Art. 96, al. 2 · les trois causes d'exclusion qui exemptent de publier. */
+const CAUSES_EXEMPTION_ART96: ReadonlySet<MotifExclusion> = new Set<MotifExclusion>([
+  'RESTRICTIONS_SEVERES_DURABLES',
+  'DETENUE_EN_VUE_DE_CESSION',
+  'INFORMATION_FRAIS_EXCESSIFS',
+]);
+
 export function verdictObligation(resultats: ResultatEntite[], faits: FaitsObligation): VerdictObligation {
   const motifs: string[] = [];
-  const controleExclusifOuConjoint = resultats.some((r) => !r.estConsolidante && (r.methode === 'IG' || r.methode === 'IP'));
+  // ART. 74 · l'obligation naît du CONTRÔLE, pas de la méthode retenue. Une
+  // filiale contrôlée puis exclue du périmètre reste contrôlée · seule la perte
+  // de contrôle démontrée (art. 96, al. 1er) la fait sortir du test.
+  const controlees = resultats.filter(
+    (r) =>
+      !r.estConsolidante &&
+      (r.natureControle.startsWith('EXCLUSIF') || r.natureControle === 'CONJOINT') &&
+      r.exclusion?.motif !== 'PERTE_CONTROLE_DEMONTREE',
+  );
+  const controleExclusifOuConjoint = controlees.length > 0;
   const normesIfrsRequises = faits.appelPublicEpargne === true;
   if (normesIfrsRequises) {
     motifs.push(
@@ -442,7 +462,18 @@ export function verdictObligation(resultats: ResultatEntite[], faits: FaitsOblig
     );
     return { obligation: 'NON_REQUISE', motifs, normesIfrsRequises };
   }
-  motifs.push('Au moins une entité sous contrôle exclusif ou conjoint · obligation d’établir et de publier des comptes consolidés (art. 74).');
+  // ART. 96, al. 2 · exemptée de publier l'entité qui ne contrôle QUE des
+  // entités excluables pour l'une des trois causes nommées. L'importance
+  // négligeable (dernier alinéa) permet d'exclure, elle n'exempte pas.
+  if (controlees.every((r) => r.exclusion != null && CAUSES_EXEMPTION_ART96.has(r.exclusion.motif))) {
+    motifs.push(
+      'Les seules entités contrôlées sont exclues pour restrictions sévères et durables, détention en vue de cession ou frais excessifs · exemptée de publier des comptes consolidés (art. 96, al. 2).',
+    );
+    return { obligation: 'DISPENSEE', motifs, normesIfrsRequises };
+  }
+  motifs.push(
+    'Au moins une entité sous contrôle exclusif ou conjoint · obligation d’établir et de publier des états financiers consolidés ET un rapport sur la gestion de l’ensemble (art. 74 et 99). Le rapport de gestion n’est pas produit par OmegaX.',
+  );
 
   // ART. 77 · dispense de la sous-consolidante, et ses trois exceptions.
   if (faits.sousControleEntiteOhadaConsolidante === true) {

@@ -88,6 +88,11 @@ export function GroupePage() {
   // (fiche du COMPTE 18), et le canevas de trésorerie, bâti sur les comptes
   // du plan SYCEBNL, n'existe pas (le serveur le refuse aussi).
   const syscohada = utilisateur?.tenant.referentiel === 'SYSCOHADA';
+  // Le groupe est UNE entité · le D4C régit des entités distinctes, et l'art. 3
+  // du SYCEBNL l'écarte. Jamais cité à une association (passe R4, C22 et C23).
+  const sourceElimination = syscohada
+    ? 'AUDCIF Titre VII, compte 18 · méthode du D4C (ch. XII-5, XIII-4) empruntée, elle vise des entités distinctes'
+    : 'SYCEBNL, cadre conceptuel § 3.3.1.1.2 (postulat de l’entité)';
   const { exercices, exerciceCourant } = useExercice();
   const [exerciceId, setExerciceId] = useState<string | null>(null);
   const [meta, setMeta] = useState<ReponseCellules | null>(null);
@@ -435,9 +440,9 @@ export function GroupePage() {
             </div>
           )}
 
-          {/* LA RÉCIPROCITÉ QUI NE SE BOUCLE PAS · le D4C fait de la
-              « procédure de confirmation de solde pour toutes les opérations »
-              (AUDCIF ch. XII-5) le préalable de toute élimination. L'écart
+          {/* LA RÉCIPROCITÉ QUI NE SE BOUCLE PAS · une élimination suppose que
+              les deux côtés concordent (au SYSCOHADA, « égaux et de sens
+              contraire », compte 18). L'écart
               désigne une opération enregistrée d'un seul côté, ou pour deux
               montants différents · il est nommé, jamais corrigé d'office, et
               les deux soldes sont donnés pour qu'on voie lequel manque. */}
@@ -455,7 +460,7 @@ export function GroupePage() {
                   <Aide
                     titre="Écarts de réciprocité"
                     texte="La créance chez l'un ne répond pas à la dette chez l'autre. Rien n'a été corrigé, la confirmation de solde se fait entre les deux dossiers."
-                    source="AUDCIF, D4C ch. XII-5"
+                    source={sourceElimination}
                   />
                 </span>{' '}
                 · opération enregistrée d'un seul côté, ou pour deux montants différents.
@@ -520,8 +525,8 @@ export function GroupePage() {
           )}
 
           {/* CE QUE L'AGRÉGAT NE SAIT PAS FAIRE, et refuse d'inventer · deux
-              retraitements du D4C (cession interne d'immobilisation, marge
-              interne en stock) demandent des registres que l'agrégat n'a pas. */}
+              retraitements (cession interne d'immobilisation, marge interne en
+              stock) demandent des registres que l'agrégat n'a pas. */}
           {agregat?.avertissements.map((a) => (
             <div key={a} className="text-[11.5px] bg-warning-soft border border-warning/30 px-3 py-1.5 mb-2">
               {a}
@@ -562,10 +567,9 @@ export function GroupePage() {
           )}
 
           {/* CE QUI A ÉTÉ RETIRÉ, ligne à ligne · un agrégat dont on ne voit
-              pas ce qui a été retiré ne se vérifie pas. Le D4C impose
-              l'« élimination des comptes réciproques (actifs/passifs,
-              charges/produits) » (AUDCIF ch. XIII-4) : une vente du siège à une
-              antenne n'est pas une vente, l'entité n'a rien vendu à personne. */}
+              pas ce qui a été retiré ne se vérifie pas. Une vente du siège à
+              une antenne n'est pas une vente, l'entité n'a rien vendu à
+              personne (`sourceElimination`). */}
           {agregat && agregat.eliminations.length > 0 && (
             <div className="border border-border bg-surface shadow-posee overflow-x-auto">
               <div className="min-w-[980px]">
@@ -574,7 +578,7 @@ export function GroupePage() {
                   <Aide
                     titre="Opérations réciproques éliminées"
                     texte="Retirées du cumul parce qu'un groupe d'établissements est une seule personne morale. Le total agrégé ci-dessus est le cumul des balances MOINS ces lignes."
-                    source="AUDCIF, D4C ch. XIII-4"
+                    source={sourceElimination}
                   />
                 </div>
                 <div className="grid grid-cols-[1fr_1fr_80px_1.3fr_170px_120px_120px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[11px] font-bold text-text-dim">

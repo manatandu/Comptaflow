@@ -49,6 +49,7 @@ type Faits = {
   siegesDansDeuxRegions: boolean;
   appelPublicEpargne: boolean;
   demandeAssociesDixieme: boolean;
+  entitesControleHorsOhada: string | null;
   chiffreAffairesN: number | null;
   chiffreAffairesN1: number | null;
   seuilEquivalentFc: number | null;
@@ -140,6 +141,7 @@ export function PerimetreConsolidationPage() {
     siegesDansDeuxRegions: false,
     appelPublicEpargne: false,
     demandeAssociesDixieme: false,
+    entitesControleHorsOhada: null,
     chiffreAffairesN: null,
     chiffreAffairesN1: null,
     seuilEquivalentFc: null,
@@ -179,7 +181,7 @@ export function PerimetreConsolidationPage() {
             {(
               [
                 ['sousControleEntiteOhadaConsolidante', 'Sous le contrôle d’une entité OHADA qui consolide', 'AUDCIF art. 77'],
-                ['siegesDansDeuxRegions', 'Sièges dans deux régions différentes de l’espace OHADA', 'AUDCIF art. 77'],
+                ['siegesDansDeuxRegions', 'Sièges dans deux régions différentes de l’espace OHADA', 'AUDCIF art. 77 · régions de l’espace OHADA (D4C, ch. XII-1) : CEMAC, UEMOA, R.D. Congo, Comores, Guinée · la R.D. Congo forme une région à elle seule'],
                 ['appelPublicEpargne', 'Appel public à l’épargne ou titres cotés', 'AUDCIF art. 75 et 77'],
                 ['demandeAssociesDixieme', 'Consolidation demandée par des associés détenant au moins le dixième', 'AUDCIF art. 77'],
               ] as [keyof Faits, string, string][]
@@ -189,6 +191,10 @@ export function PerimetreConsolidationPage() {
                 <span>{libelle}</span>
               </label>
             ))}
+            <label className="text-[11.5px] sm:col-span-2" title="AUDCIF art. 76 · identité signalée dans les Notes annexes consolidées et dans celles des états personnels de la consolidante">
+              Entité(s) hors de l’espace OHADA contrôlant la consolidante
+              <input className={champ} defaultValue={faits.entitesControleHorsOhada ?? ''} onBlur={(e) => void enregistrerFaits({ entitesControleHorsOhada: e.target.value.trim() || null })} />
+            </label>
             <label className="text-[11.5px]">
               Chiffre d’affaires HT de l’ensemble, exercice N (FC)
               <input className={champ} defaultValue={faits.chiffreAffairesN ?? ''} onBlur={(e) => void enregistrerFaits({ chiffreAffairesN: nombre(e.target.value) })} />

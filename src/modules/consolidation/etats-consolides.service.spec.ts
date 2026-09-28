@@ -57,7 +57,11 @@ function monter(opts: { precedent: string | null; entitesN1: number; cumulN1?: '
   const perimetre: any = {
     etat: jest.fn(async (_t: string, ex: string) =>
       ex === 'N'
-        ? { entites: [{ id: 'F', secteurActivite: 'Ciment' }], resultats: [res('Mère', 'IG', 100, true), res('F', 'IG', 80)] }
+        ? {
+            entites: [{ id: 'F', secteurActivite: 'Ciment' }],
+            resultats: [res('Mère', 'IG', 100, true), res('F', 'IG', 80)],
+            faits: { entitesControleHorsOhada: 'Holding SA (Luxembourg)' },
+          }
         : { entites: Array.from({ length: opts.entitesN1 }, () => ({ id: 'x' })), resultats: [res('Mère', 'IG', 100, true), res('F', 'IG', opts.pctN1 ?? 60)] },
     ),
   };
@@ -154,6 +158,24 @@ describe('variationsDuPerimetre', () => {
   });
 });
 
+describe('EtatsConsolidesService · le jeu est un tout indissociable (D4C ch. XII-8 § 1)', () => {
+  it('sans tableau des flux ni notes, le jeu n’est pas publiable, et chaque document manquant est nommé', async () => {
+    const { svc } = monter({ precedent: null, entitesN1: 0 });
+    const r = await svc.etats(T, 'N');
+    expect(r.publiable).toBe(false);
+    expect(r.motifsNonPubliable.join(' ')).toContain('Tableau consolidé des flux de trésorerie non établi');
+    expect(r.motifsNonPubliable.join(' ')).toContain('Notes annexes consolidées non produites');
+  });
+
+  it('un pourcentage d’intérêt qui change depuis N-1 n’est pas joué (ch. XII-7) · motif du jeu', async () => {
+    const { svc } = monter({ precedent: 'P', entitesN1: 1, pctN1: 60 });
+    const motifs = (await svc.etats(T, 'N')).motifsNonPubliable.join(' ');
+    expect(motifs).toContain('Variation de périmètre ou de pourcentage d’intérêt non jouée (D4C ch. XII-7)');
+    const stable = monter({ precedent: 'P', entitesN1: 1, pctN1: 80 });
+    expect((await stable.svc.etats(T, 'N')).motifsNonPubliable.join(' ')).not.toContain('ch. XII-7');
+  });
+});
+
 describe('noteDuPerimetre', () => {
   const n = [res('Mère', 'IG', 100, true), res('A', 'IG', 80), res('B', 'EXCLUE', 70), res('C', 'ME', 30)];
   const n1 = [res('Mère', 'IG', 100, true), res('A', 'IP', 50), res('D', 'ME', 25)];
@@ -173,6 +195,16 @@ describe('noteDuPerimetre', () => {
     const note = noteDuPerimetre(n, new Map(), null);
     expect(note.comparatifDisponible).toBe(false);
     expect(note.lignes.some((l) => l.entree)).toBe(false);
+  });
+
+  it('art. 76 · l’entité hors OHADA qui contrôle la consolidante est signalée, sinon null', () => {
+    expect(noteDuPerimetre(n, new Map(), null, ' Holding SA ').controleHorsOhada).toBe('Holding SA');
+    expect(noteDuPerimetre(n, new Map(), null).controleHorsOhada).toBeNull();
+  });
+
+  it('art. 76 · le service la lit dans les faits de l’exercice', async () => {
+    const { svc } = monter({ precedent: null, entitesN1: 0 });
+    expect((await svc.etats(T, 'N')).notePerimetre.controleHorsOhada).toBe('Holding SA (Luxembourg)');
   });
 
   it('la consolidante n’a rien à justifier', () => {

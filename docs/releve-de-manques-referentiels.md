@@ -1791,3 +1791,54 @@ entière plutôt que des lignes ici : l'opération de RECLASSEMENT d'une
 immobilisation (ch. 3 et 10), et la SITUATION INTERMÉDIAIRE (ch. 39, avec les
 états à date que les ch. 38 et 40 réclament aussi). Ce sont les deux seuls
 manques du Titre VIII dont un dossier ordinaire du cabinet peut avoir besoin.
+
+---
+
+## Passe R4 · AUDCIF Titres XII et XIII, le D4C (2026-09-28)
+
+Plan de confrontations, rang 5. Source · `audcif-acte-uniforme/references/
+titre-12-13-d4c-consolidation-combinaison.md`, en trois blocs, confrontée aux
+modules `consolidation/` et `groupe/`. 9 agents, 104 obligations servies,
+28 constats réfutés un à un, **6 écartés, 22 retenus**. Chaque constat retenu a
+été relu à sa ligne source par la session principale avant correction, et
+chaque correction a son test, vu tomber par réinjection du défaut.
+
+### Corrigés
+
+| Constat | Gravité | Ce qui était faux | Ce qui est fait |
+|---|---|---|---|
+| A16 | FAUX | Contrôle de fait exigé sur trois faits cumulés (plus de 40 %, désignation, aucun associé au-dessus). Le texte fait de la désignation le contrôle lui-même, et du seuil sa présomption. | `natureDuControle` · désignation déclarée, ou plus de 40 % et aucun associé au-dessus. Fondement nommé, au-delà de 40 % sous influence notable. |
+| A5 | FAUX | L'obligation de l'art. 74 se lisait sur la méthode (IG, IP) · une filiale contrôlée puis exclue faisait conclure « pas d'obligation ». | Lue sur le contrôle, perte de contrôle seule exceptée ; exemption de l'art. 96 al. 2 pour les trois causes nommées, jamais pour l'importance négligeable. |
+| A4 | INCOMPLET | Le rapport de gestion de l'ensemble (art. 74 et 99) n'était pas dit. | Dans le motif d'obligation, avec le fait qu'OmegaX ne le produit pas. |
+| A7 | INCOMPLET | L'identité de l'entité hors OHADA qui contrôle la consolidante (art. 76) n'avait aucun porteur. | `FaitsConsolidationExercice.entitesControleHorsOhada`, restituée dans la note du périmètre. |
+| A12 | CONFORT | « Deux régions » sans dire ce qu'est une région. | Infobulle · CEMAC, UEMOA, R.D. Congo, Comores, Guinée, la RDC formant une région à elle seule. |
+| B44 | FAUX | Entre deux intégrations proportionnelles, la marge interne s'éliminait au PRODUIT des pourcentages (la règle de la mise en équivalence, § 6). | Au plus faible des deux (§ 5), comme les comptes réciproques. Commentaire, réserve et aide corrigés. |
+| A45 | INCOMPLET | Une perte interne était refusée (« pertes/profits inclus », ch. XII-3 § 2) ; sur une immobilisation, brut et amortissements du cédant n'étaient pas reconstitués sans le dire. | Marge négative admise ; la cession interne d'immobilisation rend l'état non publiable en le nommant. |
+| A54 | FAUX | Report variable non joué · l'impôt différé d'ouverture était réévalué au taux N dans les réserves. | Le taux de la consolidation N-1, apparié par dénomination, fait passer l'effet d'un changement de taux au résultat (écarts d'évaluation, marges internes, provisions réglementées) ; sans N-1, un avertissement. |
+| B43 | FAUX | La dépréciation des titres consolidés (2961 à 2963) restait chez la détentrice, perte comptée deux fois. | Nommée, et l'état n'est pas publiable (`retraitementsNonJoues`). |
+| B37 | INCOMPLET | Un dividende interne non déclaré valait zéro et restait au 772. | `dividendesExercice` nullable · non déclaré, l'état n'est pas publiable. Les lignes existantes gardent leur valeur. |
+| B77 | INCOMPLET | L'écart négatif prenait les dix ans de l'écart positif non déterminable. | Refusé en mode non déterminable ; avertissement de revérification des actifs et passifs. |
+| B88, B93, B117, A58 | FAUX / INCOMPLET | « Publiable » se disait du seul bilan, sans tableau des flux, variation des capitaux propres, notes, ni variations de périmètre du ch. XII-7. | La publiabilité est celle du JEU · chaque document manquant, chaque variation de périmètre non jouée et les notes non produites (dont la note sur l'impôt) sont des motifs nommés. `bilanEtResultatPubliables` garde la lecture partielle. |
+| A43, A49/B5 | INCOMPLET | Changement de méthode en report à nouveau, impositions sur distributions prévues (art. 86, 5°) · ni joués ni dits. | Réserves nommées, avec la faculté d'omission de l'art. 86, dernier alinéa. |
+| A75 | INCOMPLET | Une monnaie fonctionnelle déclarée différente de la monnaie de présentation n'était pas mentionnée. | Réserve, justifiée par l'art. 87. |
+| C22, C23 | FAUX | Le module groupe citait l'AUDCIF art. 107 et le D4C à tout groupe, associations comprises · un article que l'art. 3 du SYCEBNL écarte, et qui régit des entités distinctes. | `groupe/fondement-elimination.ts` · SYSCOHADA, fiche du compte 18, le D4C dit « référence empruntée » ; SYCEBNL, postulat de l'entité (cadre conceptuel § 3.3.1.1.2). Un test gèle le fondement SERVI dans les deux sens. |
+
+### Écartés par la réfutation
+
+A22 (le message ne dit pas l'inverse du texte), B72 (le test de dépréciation
+est un jugement, et son résultat se saisit déjà), B79 (le texte ne tranche pas
+contre le code), B25 (droits de vote et capital sont deux champs distincts), C2
+(le passage cité ne dit pas ce qu'on lui prête), C3 (manque déjà déclaré).
+
+### Ce que la passe apprend
+
+**UN TEST GELAIT L'ERREUR, DEUX FOIS.** Le spec du contrôle de fait exigeait
+qu'une désignation seule à 45 % donne une mise en équivalence, et celui de la
+fiche tiers exigeait la présence de « AUDCIF art. 107 ». Les deux couvraient le
+code, aucun n'avait vérifié sa prémisse contre le texte · même famille que F1,
+F2b et F3b.
+
+**« PUBLIABLE » EST UN MOT QUI ENGAGE LE JEU ENTIER.** Le D4C fait du jeu « un
+tout indissociable » et interdit d'affirmer la conformité tant que tout le
+dispositif n'est pas respecté. Un indicateur calculé sur le bilan seul affirmait
+plus que ce qu'il mesurait.

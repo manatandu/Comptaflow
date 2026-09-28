@@ -7080,7 +7080,10 @@ model LienParticipationConsolidation {
   depreciationEcartOuverture Decimal                    @default(0) @db.Decimal(18, 2)
   depreciationEcartCloture   Decimal                    @default(0) @db.Decimal(18, 2)
   /// Dividendes reçus de la détenue dans l'exercice, et le compte qui les porte.
-  dividendesExercice         Decimal                    @default(0) @db.Decimal(18, 2)
+  /// NULL · pas de réponse, et l'état consolidé n'est pas publiable · un
+  /// dividende interne laissé au 772 resterait au résultat consolidé (D4C
+  /// ch. XII-5 § 4). Zéro est une réponse.
+  dividendesExercice         Decimal?                   @db.Decimal(18, 2)
   compteDividendes           String?
   /// Ch. XII-5 § 6 · une mise en équivalence négative passe en provision.
   obligationNonDesengagement Boolean                    @default(false)
@@ -7106,6 +7109,11 @@ model FaitsConsolidationExercice {
   siegesDansDeuxRegions               Boolean @default(false)
   appelPublicEpargne                  Boolean @default(false)
   demandeAssociesDixieme              Boolean @default(false)
+  /// Art. 76 · identité de la ou des entités HORS de l'espace OHADA qui
+  /// contrôlent la consolidante, « signalée dans les Notes annexes des états
+  /// financiers personnels de l'entité consolidante ainsi que dans les Notes
+  /// annexes consolidées ». NULL · rien de déclaré.
+  entitesControleHorsOhada            String?
 
   /// Art. 95 · chiffre d'affaires HT de l'ensemble, en francs congolais.
   chiffreAffairesN  Decimal? @db.Decimal(18, 2)

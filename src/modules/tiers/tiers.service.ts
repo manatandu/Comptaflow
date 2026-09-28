@@ -451,10 +451,10 @@ export class TiersService {
    * du schéma et celui de la migration).
    *
    * CE QUE COÛTERAIT L'ABSENCE DE CONTRÔLE · l'agrégation élimine les
-   * opérations réciproques parce que le périmètre est UNE SEULE entité.
-   * AUDCIF art. 107 : « élimination des comptes réciproques : actifs et
-   * passifs, charges et produits ; neutralisation des résultats provenant
-   * d'opérations effectuées entre les entités DU PÉRIMÈTRE ». Désigner un
+   * opérations réciproques parce que le groupe est UNE SEULE entité (voir
+   * `groupe/fondement-elimination.ts` · l'art. 107 de l'AUDCIF, qui régit la
+   * combinaison d'entités distinctes et que l'art. 3 du SYCEBNL écarte, n'en
+   * est pas le fondement, passe R4). Désigner un
    * dossier étranger au périmètre ferait disparaître de l'agrégat un chiffre
    * d'affaires réellement réalisé avec un tiers · l'inverse exact du défaut
    * que le champ corrige, et sans plus de trace.
@@ -467,7 +467,8 @@ export class TiersService {
         "Ce dossier n'appartient pas au groupe d'établissements du dossier courant · seuls le dossier mère " +
           'et ses cellules peuvent être désignés. Le rattachement sert à éliminer de la balance agrégée les ' +
           "opérations internes au groupe ; un dossier hors du périmètre en ferait disparaître des opérations " +
-          'réellement conclues avec un tiers (AUDCIF art. 107).',
+          'réellement conclues avec un tiers · le groupe est une seule entité, et seule une opération entre ses ' +
+          'propres dossiers lui est interne.',
       );
     }
     return vise;

@@ -792,10 +792,9 @@ export function TiersPage() {
                 VOLET GROUPE D'ÉTABLISSEMENTS · un groupe est UNE SEULE
                 personne morale tenue en plusieurs dossiers. Une vente du
                 siège à une antenne n'est donc pas une vente, et l'agrégat
-                doit l'éliminer des deux côtés · AUDCIF art. 107 :
-                « élimination des comptes réciproques : actifs et passifs,
-                charges et produits ; neutralisation des résultats provenant
-                d'opérations effectuées entre les entités du périmètre ».
+                doit l'éliminer des deux côtés · l'entité est unique, et le
+                D4C (art. 107, combinaison d'entités distinctes, écarté par
+                l'art. 3 du SYCEBNL) n'en est pas le fondement (passe R4).
                 Rien dans un compte 411 ne dit si son titulaire est un client
                 ou une antenne : c'est ici qu'on le dit.
 
@@ -811,7 +810,7 @@ export function TiersPage() {
                     <Aide
                       titre="Groupe d'établissements"
                       texte="Ce compte est ouvert au nom d'une autre cellule du groupe · ses opérations sont internes et sortent de la balance agrégée, produit comme charge, créance comme dette. À ne renseigner que pour ces quelques comptes."
-                      source="AUDCIF art. 107 · élimination des comptes réciproques du périmètre"
+                      source="Un groupe d’établissements est une seule entité · une opération entre ses dossiers n’est pas conclue avec un tiers"
                     />
                   )}
                 </div>
@@ -839,8 +838,7 @@ export function TiersPage() {
                       ))}
                     </select>
                     <div className="text-[11px] text-text-dim leading-[1.5]">
-                      Opérations avec une cellule du groupe éliminées de la balance agrégée (AUDCIF art. 107,
-                      élimination des comptes réciproques).
+                      Opérations avec une cellule du groupe éliminées de la balance agrégée.
                     </div>
                   </>
                 )}

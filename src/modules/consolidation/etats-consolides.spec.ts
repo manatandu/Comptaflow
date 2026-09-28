@@ -35,6 +35,7 @@ const acq = (d: string, t: string, pct: number, cout: number, cp: number, extra:
   dateEntree: entree,
   capitauxPropresEntree: cp,
   modeDureeEcart: 'NON_DETERMINABLE',
+  dividendesExercice: 0,
   ...extra,
 });
 const L = (lignes: LigneEtatConsolide[], cle: string) => {
@@ -92,6 +93,19 @@ describe('oracle A · intégration globale à 55 %', () => {
     expect(L(e.compteDeResultat, 'IMPOTS_DIFFERES').reserve).toMatch(/« GINGER » n’a pas déclaré/);
     expect(e.publiable).toBe(false);
     expect(e.motifsNonPubliable).toContainEqual(expect.stringMatching(/^Impôts différés incomplets · « BLEU CIEL »/));
+  });
+});
+
+describe('retraitements non joués (passe R4)', () => {
+  it('chacun devient un motif de non-publication, nommé', () => {
+    const cumul = cumulerConsolidation(
+      EX21,
+      [ginger([['26100000', 55000]], 245000), bleuCiel('IG', 55)],
+      [acq('GINGER', 'BLEU CIEL', 55, 55000, 100000, { dividendesExercice: null })],
+      [],
+    );
+    const e = construireEtatsConsolides(cumul, R);
+    expect(e.motifsNonPubliable).toContainEqual(expect.stringMatching(/^Retraitement non joué · Dividendes reçus de « BLEU CIEL »/));
   });
 });
 

@@ -59,20 +59,19 @@ describe('pourcentage de contrôle et méthode (art. 78 et 80)', () => {
     expect(par(r, 'A')).toMatchObject({ pctControle: 60, pctInteret: 45, methode: 'IG' });
   });
 
-  it('contrôle de fait · au-delà de 40 % il faut les DEUX faits déclarés, sinon hors périmètre et le dire', () => {
+  it('contrôle de fait · la désignation l’établit seule, le seuil de 40 % ne fait que la présumer (art. 78)', () => {
     const sans = analyserPerimetre([M, ent('A')], [lien('M', 'A', 45)]);
     expect(par(sans, 'A').methode).toBe('ME');
-    const avecUnSeul = analyserPerimetre([M, ent('A', { designationMajoriteDeuxExercices: true })], [lien('M', 'A', 45)]);
-    expect(par(avecUnSeul, 'A').methode).toBe('ME');
-    const avec = analyserPerimetre(
-      [M, ent('A', { designationMajoriteDeuxExercices: true, aucunAutreAssocieSuperieur: true })],
-      [lien('M', 'A', 45)],
-    );
-    expect(par(avec, 'A')).toMatchObject({ natureControle: 'EXCLUSIF_DE_FAIT', methode: 'IG' });
-    const a40 = analyserPerimetre(
-      [M, ent('A', { designationMajoriteDeuxExercices: true, aucunAutreAssocieSuperieur: true })],
-      [lien('M', 'A', 40)],
-    );
+    expect(par(sans, 'A').fondement).toContain('ni l\'un ni l\'autre n\'est déclaré');
+    // La désignation déclarée suffit, même sous 40 % · et la justification du § 6 s'allume.
+    const designation35 = analyserPerimetre([M, ent('A', { designationMajoriteDeuxExercices: true })], [lien('M', 'A', 35)]);
+    expect(par(designation35, 'A')).toMatchObject({ natureControle: 'EXCLUSIF_DE_FAIT', methode: 'IG' });
+    expect(par(designation35, 'A').aJustifierEnNotes.join(' ')).toContain('40 % des droits de vote ou moins');
+    // Au-delà de 40 %, aucun autre associé au-dessus · présomption, sans la désignation.
+    const presomption = analyserPerimetre([M, ent('A', { aucunAutreAssocieSuperieur: true })], [lien('M', 'A', 45)]);
+    expect(par(presomption, 'A')).toMatchObject({ natureControle: 'EXCLUSIF_DE_FAIT', methode: 'IG' });
+    // À 40 % exactement, la présomption ne joue pas (« supérieure à 40 % »).
+    const a40 = analyserPerimetre([M, ent('A', { aucunAutreAssocieSuperieur: true })], [lien('M', 'A', 40)]);
     expect(par(a40, 'A').methode).toBe('ME');
   });
 
@@ -158,9 +157,25 @@ describe('obligation et dispenses (art. 74, 75, 77, 95)', () => {
   const avecIG = analyserPerimetre([M, ent('A')], [lien('M', 'A', 80)]);
   const sansIG = analyserPerimetre([M, ent('A')], [lien('M', 'A', 25)]);
   const seuil = { seuilEquivalentFc: 1_000_000, sourceSeuil: 'test' };
+  const seuilHaut = { ...seuil, chiffreAffairesN: 2e6, chiffreAffairesN1: 2e6 };
 
   it('l’influence notable seule n’oblige pas (art. 74, al. 2)', () => {
     expect(verdictObligation(sansIG, {}).obligation).toBe('NON_REQUISE');
+  });
+
+  it('art. 74 · une filiale contrôlée puis exclue reste contrôlée ; art. 96, al. 2 · seules trois causes exemptent', () => {
+    const exclue = (motif: 'IMPORTANCE_NEGLIGEABLE' | 'DETENUE_EN_VUE_DE_CESSION' | 'PERTE_CONTROLE_DEMONTREE') =>
+      analyserPerimetre([M, ent('A', { exclusion: { motif, justification: 'essai' } })], [lien('M', 'A', 100)]);
+    const negligeable = verdictObligation(exclue('IMPORTANCE_NEGLIGEABLE'), seuilHaut);
+    expect(negligeable.obligation).toBe('OBLIGATOIRE');
+    const cession = verdictObligation(exclue('DETENUE_EN_VUE_DE_CESSION'), seuilHaut);
+    expect(cession.obligation).toBe('DISPENSEE');
+    expect(cession.motifs.join(' ')).toContain('art. 96, al. 2');
+    expect(verdictObligation(exclue('PERTE_CONTROLE_DEMONTREE'), {}).obligation).toBe('NON_REQUISE');
+  });
+
+  it('art. 74 · l’obligation porte aussi le rapport sur la gestion de l’ensemble', () => {
+    expect(verdictObligation(avecIG, seuilHaut).motifs.join(' ')).toContain('rapport sur la gestion de l’ensemble (art. 74 et 99)');
   });
 
   it('art. 77 · dispensée sous une consolidante OHADA, sauf les trois exceptions', () => {

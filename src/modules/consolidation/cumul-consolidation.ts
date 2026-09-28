@@ -74,8 +74,8 @@ export interface AcquisitionDeclaree {
   /** Dépréciation cumulée de l'écart, jugée au test du ch. XII-6 § 4 · jamais reprise. */
   depreciationEcartOuverture?: number;
   depreciationEcartCloture?: number;
-  /** Dividendes reçus de la détenue dans l'exercice, et le compte qui les porte chez la détentrice. */
-  dividendesExercice?: number;
+  /** Dividendes reçus de la détenue dans l'exercice, et le compte qui les porte chez la détentrice · null, pas de réponse. */
+  dividendesExercice?: number | null;
   compteDividendes?: string | null;
   /** Ch. XII-5 § 6 · mise en équivalence négative portée en provision. */
   obligationNonDesengagement?: boolean;
@@ -126,6 +126,13 @@ export interface FiscaliteEntite {
   entiteId: string;
   /** En pour cent. */
   tauxImpot: number | null;
+  /**
+   * Taux retenu à la clôture PRÉCÉDENTE, en pour cent · lu dans la
+   * consolidation N-1. MÉTHODE DU REPORT VARIABLE (D4C ch. XII-3 § 3) · les
+   * impositions différées s'ajustent au changement de taux, « l'effet
+   * affectant le résultat ». Null · pas de consolidation N-1 qui le dise.
+   */
+  tauxImpotOuverture?: number | null;
   idaOuverture: number | null;
   idaCloture: number | null;
   idpOuverture: number | null;
@@ -389,6 +396,8 @@ export interface ResultatCumul {
   conversions: ConversionEntiteCalculee[];
   /** Entités dont la monnaie n'est pas déclarée · vide, toutes l'ont été. */
   conversionsIncompletes: string[];
+  /** Retraitements exigés par le texte et non joués · chacun rend l'état non publiable. */
+  retraitementsNonJoues: string[];
 }
 
 export interface EcartEvaluationCalcule {
@@ -646,7 +655,29 @@ export function cumulerConsolidation(
     const t = fisc.get(id)?.tauxImpot;
     return t == null ? null : t / 100;
   };
+  const tauxOuverture = (id: string) => {
+    const t = fisc.get(id)?.tauxImpotOuverture;
+    return t == null ? null : t / 100;
+  };
+  const reportVariableNonJoue = new Set<string>();
+  /**
+   * REPORT VARIABLE · la part d'ouverture d'un impôt différé est aux RÉSERVES
+   * au taux de l'OUVERTURE, et son réajustement au taux de clôture passe au
+   * RÉSULTAT (ch. XII-3 § 3). Sans taux d'ouverture connu, l'ouverture est
+   * évaluée au taux de clôture, et c'est dit.
+   */
+  const reajustementTaux = (id: string, t: number, baseOuverture: number) => {
+    if (Math.abs(baseOuverture) <= 0.005) return 0;
+    const tOuv = tauxOuverture(id);
+    if (tOuv == null) {
+      reportVariableNonJoue.add(nomDe(id));
+      return 0;
+    }
+    return r2((t - tOuv) * baseOuverture);
+  };
   const impotsDifferesIncomplets: string[] = [];
+  /** Retraitements que le texte exige et que cette version ne joue pas · chacun rend l'état non publiable. */
+  const retraitementsNonJoues: string[] = [];
   /** Un impôt différé au bilan, rangé par son SENS · jamais compensé entre sources, le D4C n'en dit rien. */
   const poserImpotDiffere = (id: string, soldeCloture: number) => {
     if (Math.abs(soldeCloture) <= 0.005) return;
@@ -659,6 +690,25 @@ export function cumulerConsolidation(
   let ecartsEvaluationStocksResultat = 0;
   let dividendesRecusMe = 0;
   const veilleOuverture = new Date(exercice.dateDebut.getTime() - 86_400_000);
+  // « Dotations aux dépréciations des titres de participation constituées pour
+  // pertes […] éliminées en totalité » (D4C ch. XII-5 § 5 et § 6). Le cumul
+  // élimine les titres au coût · une dépréciation laissée chez la détentrice
+  // compterait deux fois la perte de la filiale, déjà cumulée. Elle n'est pas
+  // jouée ici · elle se NOMME, et l'état n'est pas publiable.
+  const depreciationsTitresVues = new Set<string>();
+  for (const a of acquisitions) {
+    if (!parId.get(a.detenueId) || !integree(a.detentriceId) || depreciationsTitresVues.has(a.detentriceId)) continue;
+    depreciationsTitresVues.add(a.detentriceId);
+    const portes = [...(comptes.get(a.detentriceId) ?? new Map<string, number>())].filter(
+      ([cle, solde]) => /^296[123]/.test(cle) && Math.abs(solde) > 0.005,
+    );
+    if (portes.length) {
+      retraitementsNonJoues.push(
+        `« ${nomDe(a.detentriceId)} » porte une dépréciation de titres de participation (${portes.map(([c]) => c).join(', ')}) · ` +
+          'celle des titres consolidés, et sa dotation, s’éliminent en totalité (D4C ch. XII-5 § 5 et § 6), ce que cette version ne joue pas.',
+      );
+    }
+  }
   for (const a of acquisitions) {
     const detenue = parId.get(a.detenueId);
     const detentrice = parId.get(a.detentriceId);
@@ -730,9 +780,12 @@ export function cumulerConsolidation(
         const resultatEcart = r2(f * (rOuv - rClo));
         ajouter(D, 'ECARTS_EVALUATION_RESULTAT', resultatEcart);
         if (classe === '3') ecartsEvaluationStocksResultat += resultatEcart;
-        ajouter(D, AJUSTEMENT_RESERVES, -r2(f * rOuv * (1 - t)));
+        // Report variable · l'impôt différé d'ouverture est aux réserves au taux
+        // d'ouverture, son réajustement au taux de clôture passe au résultat.
+        const ajustEv = reajustementTaux(D, t, f * rOuv);
+        ajouter(D, AJUSTEMENT_RESERVES, -r2(f * rOuv * (1 - t)) - ajustEv);
         poserImpotDiffere(D, -r2(t * f * rClo));
-        ajouter(D, 'IMPOTS_DIFFERES_RESULTAT', -r2(t * resultatEcart));
+        ajouter(D, 'IMPOTS_DIFFERES_RESULTAT', -r2(t * resultatEcart) + ajustEv);
         ecartsEvaluation.push({
           detenue: detenue.nom,
           libelle: ev.libelle,
@@ -747,6 +800,23 @@ export function cumulerConsolidation(
     }
     const quotePart = r2(d * (a.capitauxPropresEntree + reestimation));
     const ecart = r2(a.coutAcquisition - quotePart);
+    // ÉCART NÉGATIF · « rapporté au résultat sur une durée reflétant les
+    // hypothèses et objectifs de l'acquisition » (D4C ch. XII-6 § 4) · les dix
+    // ans du texte ne visent que l'écart POSITIF dont la durée n'est pas
+    // déterminable. Il se déclare en durée limitée, et le profit ne se
+    // comptabilise qu'après une nouvelle vérification des actifs et passifs.
+    if (ecart < -0.005 && a.modeDureeEcart === 'NON_DETERMINABLE') {
+      throw new RefusConsolidation(
+        `L’écart d’acquisition sur « ${detenue.nom} » est négatif (${ecart}) · il est rapporté au résultat sur une durée reflétant les ` +
+          'hypothèses et objectifs de l’acquisition (D4C ch. XII-6 § 4), à déclarer en durée limitée · les dix ans ne visent que l’écart positif.',
+      );
+    }
+    if (ecart < -0.005) {
+      avertissements.push(
+        `Écart d’acquisition négatif sur « ${detenue.nom} » · avant de porter ce profit au résultat, l’acquéreur revérifie l’identification ` +
+          'des actifs acquis et des passifs repris (D4C ch. XII-6 § 4).',
+      );
+    }
     const duree = a.modeDureeEcart === 'NON_DETERMINABLE' ? DUREE_ECART_NON_DETERMINABLE_ANNEES : (a.dureeEcartAnnees ?? 0);
     if (Math.abs(ecart) > 0.005 && !(duree > 0)) {
       throw new RefusConsolidation(
@@ -872,6 +942,14 @@ export function cumulerConsolidation(
 
     // DIVIDENDES · « éliminés du résultat de la période (rapportés aux
     // réserves) » (ch. XII-5 § 4 et § 6, art. 86, 4°).
+    // « Null n'est pas zéro » · un dividende non déclaré laissé au 772 de la
+    // détentrice resterait au résultat consolidé, déjà prélevé sur les
+    // réserves cumulées de la détenue.
+    if (a.dividendesExercice == null) {
+      retraitementsNonJoues.push(
+        `Dividendes reçus de « ${detenue.nom} » par « ${detentrice.nom} » non déclarés · zéro est une réponse, l’absence n’en est pas une (D4C ch. XII-5 § 4).`,
+      );
+    }
     const div = r2(a.dividendesExercice ?? 0);
     if (div > 0 && detenue.methode === 'ME') dividendesRecusMe += div;
     if (div > 0) {
@@ -888,9 +966,9 @@ export function cumulerConsolidation(
 
   // ─── 2 bis. Résultats internes inclus dans les actifs (art. 86, 4°) ───────
   // L'élimination est OBLIGATOIRE (art. 86, 4°), et « totale » entre entités
-  // intégrées globalement (D4C ch. XII-5 § 4) · au PRODUIT des pourcentages
-  // d'intégration dès qu'une entité intégrée proportionnellement est en jeu
-  // (§ 6). QUI LA SUPPORTE, aucun des deux textes ne l'écrit. LECTURE
+  // intégrées globalement (D4C ch. XII-5 § 4) · au pourcentage d'intégration
+  // de l'entité intégrée proportionnellement, au plus faible des deux entre
+  // deux (§ 5). QUI LA SUPPORTE, aucun des deux textes ne l'écrit. LECTURE
   // D'OMEGAX · l'art. 85 bâtit le résultat consolidé des « éléments
   // constitutifs » du résultat de chaque entité, après retraitement, et la
   // marge est un élément du résultat de la VENDEUSE · l'élimination la retraite
@@ -911,8 +989,11 @@ export function cumulerConsolidation(
     if (ri.vendeuseId === ri.acheteuseId) {
       throw new RefusConsolidation(`Résultat interne « ${ri.libelle} » · la vendeuse et l’acheteuse sont la même entité, rien n’est interne au groupe.`);
     }
-    if (!(ri.margeCloture >= 0) || !(ri.margeOuverture >= 0)) {
-      throw new RefusConsolidation(`Résultat interne « ${ri.libelle} » · une marge se déclare positive · une perte interne ne s’élimine pas par ce chemin.`);
+    // « Cessions internes de stocks (PERTES/PROFITS INCLUS) » (D4C ch. XII-3
+    // § 2) · une perte interne se déclare en marge NÉGATIVE et s'élimine comme
+    // un profit, son impôt différé de sens inverse.
+    if (!Number.isFinite(ri.margeCloture) || !Number.isFinite(ri.margeOuverture)) {
+      throw new RefusConsolidation(`Résultat interne « ${ri.libelle} » · la marge d’ouverture et celle de clôture se déclarent toutes deux.`);
     }
     const classeAttendue = ri.nature === 'STOCK' ? '3' : '2';
     if (!ri.compteActif.startsWith(classeAttendue)) {
@@ -920,13 +1001,24 @@ export function cumulerConsolidation(
         `Résultat interne « ${ri.libelle} » · ${ri.nature === 'STOCK' ? 'un stock' : 'une immobilisation'} s’inscrit en classe ${classeAttendue}, pas au compte ${ri.compteActif}.`,
       );
     }
-    const facteur = fraction.get(ri.vendeuseId)! * fraction.get(ri.acheteuseId)!;
+    // IG avec IP · « limitée au pourcentage d'intégration de l'entité
+    // conjointe » ; deux IP · « limitée au pourcentage le plus faible des deux
+    // participations » (D4C ch. XII-5 § 5). Le MINIMUM, comme pour les comptes
+    // réciproques · le produit des pourcentages est la règle de la mise en
+    // équivalence (§ 6), refusée plus haut.
+    const facteur = Math.min(fraction.get(ri.vendeuseId)!, fraction.get(ri.acheteuseId)!);
     const cloture = r2(ri.margeCloture * facteur);
     const ouverture = r2(ri.margeOuverture * facteur);
     const soldeActif = comptes.get(ri.acheteuseId)!.get(ri.compteActif) ?? 0;
     if (soldeActif + 0.005 < cloture) {
       throw new RefusConsolidation(
         `Résultat interne « ${ri.libelle} » · ${cloture} à éliminer excède le solde du compte ${ri.compteActif} de « ${nomDe(ri.acheteuseId)} » (${soldeActif}).`,
+      );
+    }
+    if (ri.nature === 'IMMOBILISATION') {
+      retraitementsNonJoues.push(
+        `Cession interne d’immobilisation « ${ri.libelle} » · la marge est retranchée du compte ${ri.compteActif} en valeur nette ; ` +
+          'la valeur brute et les amortissements cumulés du cédant ne sont pas reconstitués, ni la dotation corrigée (D4C ch. XII-3 § 2).',
       );
     }
     ajouter(ri.vendeuseId, 'ELIMINATION_RESULTATS_INTERNES', r2(cloture - ouverture));
@@ -941,9 +1033,10 @@ export function cumulerConsolidation(
         `Résultat interne « ${ri.libelle} » · aucun taux d’impôt déclaré pour « ${nomDe(ri.vendeuseId)} », l’impôt différé sur la marge éliminée n’est pas calculé.`,
       );
     } else {
+      const ajustRi = reajustementTaux(ri.vendeuseId, t, ouverture);
       poserImpotDiffere(ri.vendeuseId, r2(t * cloture));
-      ajouter(ri.vendeuseId, 'IMPOTS_DIFFERES_RESULTAT', -r2(t * (cloture - ouverture)));
-      ajouter(ri.vendeuseId, AJUSTEMENT_RESERVES, -r2(t * ouverture));
+      ajouter(ri.vendeuseId, 'IMPOTS_DIFFERES_RESULTAT', -r2(t * (cloture - ouverture)) - ajustRi);
+      ajouter(ri.vendeuseId, AJUSTEMENT_RESERVES, -r2(t * ouverture) + ajustRi);
     }
   }
 
@@ -980,9 +1073,10 @@ export function cumulerConsolidation(
         `« ${nomDe(id)} » · aucun taux d’impôt déclaré, l’impôt différé sur ses provisions réglementées contre-passées n’est pas calculé.`,
       );
     } else {
+      const ajustPr = reajustementTaux(id, t, c15 + d851 + s861);
       poserImpotDiffere(id, r2(t * c15));
-      ajouter(id, 'IMPOTS_DIFFERES_RESULTAT', r2(t * (d851 + s861)));
-      ajouter(id, AJUSTEMENT_RESERVES, -r2(t * (c15 + d851 + s861)));
+      ajouter(id, 'IMPOTS_DIFFERES_RESULTAT', r2(t * (d851 + s861)) - ajustPr);
+      ajouter(id, AJUSTEMENT_RESERVES, -r2(t * (c15 + d851 + s861)) + ajustPr);
     }
   }
 
@@ -1225,7 +1319,15 @@ export function cumulerConsolidation(
   const equilibre = r2(lignes.reduce((s, l) => s + l.solde, 0));
   const resultatEnsemble = r2(-lignes.filter((l) => estResultat13(l.cle) || estGestion(l.cle)).reduce((s, l) => s + l.solde, 0));
 
+  if (reportVariableNonJoue.size) {
+    avertissements.push(
+      `Report variable (D4C ch. XII-3 § 3) · aucun taux d’impôt de la consolidation N-1 pour ${[...reportVariableNonJoue].join(', ')} · ` +
+        'l’impôt différé d’ouverture est évalué au taux de clôture, et l’effet d’un éventuel changement de taux n’est pas porté au résultat.',
+    );
+  }
+
   return {
+    retraitementsNonJoues,
     lignes,
     capitauxPropres: {
       capital,

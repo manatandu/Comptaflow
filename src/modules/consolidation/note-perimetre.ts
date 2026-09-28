@@ -46,12 +46,18 @@ export interface NotePerimetre {
   sorties: string[];
   justifications: JustificationPerimetre[];
   comparatifDisponible: boolean;
+  /**
+   * Art. 76 · « l'identité de cette ou ces entités est signalée […] dans les
+   * Notes annexes consolidées ». NULL · rien de déclaré, jamais « aucune ».
+   */
+  controleHorsOhada: string | null;
 }
 
 export function noteDuPerimetre(
   n: ResultatEntite[],
   secteurs: Map<string, string | null>,
   n1: ResultatEntite[] | null,
+  controleHorsOhada: string | null = null,
 ): NotePerimetre {
   const parNom = new Map((n1 ?? []).map((r) => [r.nom, r]));
   const lignes = n.map((r): LigneNotePerimetre => {
@@ -82,5 +88,6 @@ export function noteDuPerimetre(
         exclusion: r.exclusion ? { libelle: r.exclusion.libelle, justification: r.exclusion.justification } : null,
       })),
     comparatifDisponible: n1 != null,
+    controleHorsOhada: controleHorsOhada?.trim() || null,
   };
 }

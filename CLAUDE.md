@@ -2520,8 +2520,11 @@ d'une ME. HORS TRANCHE ET DIT À L'ÉCRAN · les écarts d'évaluation (tranche
 **Résultats internes (art. 86, 4°) · tranchés par la loi le 2026-09-24.**
 Manasse a demandé de s'en remettre au texte. L'art. 86, 4° rend
 l'élimination OBLIGATOIRE ; le D4C (ch. XII-5) la veut TOTALE entre entités
-intégrées globalement, au PRODUIT des pourcentages d'intégration avec une
-entité intégrée proportionnellement. QUI LA SUPPORTE n'est écrit nulle part ·
+intégrées globalement, au pourcentage d'intégration de l'entité intégrée
+proportionnellement, au PLUS FAIBLE des deux entre deux intégrations
+proportionnelles (§ 5 · le produit des pourcentages est la règle de la mise
+en équivalence, § 6, et il a été servi à tort jusqu'à la passe R4). Une perte
+interne se déclare en marge négative (« pertes/profits inclus »). QUI LA SUPPORTE n'est écrit nulle part ·
 OmegaX lit l'art. 85 (le résultat consolidé est fait des « éléments
 constitutifs » du résultat de chaque entité, après retraitement) et retraite
 le résultat de la VENDEUSE AVANT le partage, qui se répartit alors à son
@@ -2534,6 +2537,30 @@ d'actif de l'acheteuse. Une marge négligeable peut ne pas être déclarée
 (art. 86, dernier alinéa). La durée « non limitée » de l'écart d'acquisition
 reste NON SERVIE · l'art. 82 impose « un plan d'amortissement », sans
 exception.
+
+**Consolidation · la passe R4 (2026-09-28).** Le D4C confronté aux modules,
+journal dans `docs/releve-de-manques-referentiels.md`. CINQ RÈGLES À NE PAS
+DÉFAIRE. (1) LE CONTRÔLE DE FAIT EST LA DÉSIGNATION de la majorité des organes
+pendant deux exercices · le seuil de 40 % sans associé au-dessus n'en est que
+la présomption (art. 78). L'obligation de consolider se lit sur le CONTRÔLE,
+jamais sur la méthode, et seules trois causes d'exclusion exemptent de publier
+(art. 96, al. 2). (2) « PUBLIABLE » SE DIT DU JEU (ch. XII-8 § 1, un tout
+indissociable) · tableau des flux et variation des capitaux propres non
+établis, Notes annexes du D4C non produites hormis celle du périmètre,
+variations de périmètre du ch. XII-7 non jouées sont des motifs nommés ;
+`bilanEtResultatPubliables` garde la lecture partielle. (3) CE QUE LE TEXTE
+EXIGE ET QUE LE MOTEUR NE JOUE PAS SE NOMME (`retraitementsNonJoues`) ·
+dépréciation des titres consolidés chez la détentrice, brut et amortissements
+d'une cession interne d'immobilisation, dividende interne NON DÉCLARÉ
+(`dividendesExercice` nullable, zéro est une réponse). Le jeu IFRS consolidé
+les reprend. (4) REPORT VARIABLE · le taux de la consolidation N-1, apparié par
+dénomination, fait passer au résultat l'effet d'un changement de taux ; sans
+N-1, un avertissement. L'écart d'acquisition négatif ne prend jamais les dix
+ans de l'écart positif non déterminable. (5) LE MODULE GROUPE NE CITE NI
+L'ART. 107 NI LE D4C À UNE ASSOCIATION (`groupe/fondement-elimination.ts`) ·
+le groupe est une seule entité, fondée au SYSCOHADA sur la fiche du compte 18
+(le D4C y est une méthode empruntée) et au SYCEBNL sur le postulat de
+l'entité.
 
 **Consolidation SYSCOHADA, tranche 3a · bilan, compte de résultat et note du
 périmètre (2026-09-24).** D4C ch. XII-8 § 2, § 3 et § 6. Moteur pur

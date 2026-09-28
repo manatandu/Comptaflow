@@ -179,7 +179,8 @@ export function CumulConsolidation(props: {
       dureeEcartAnnees: txt('mode') === 'LIMITEE' ? nombre(txt('duree')) : null,
       depreciationEcartOuverture: nombre(txt('depOuv')) ?? 0,
       depreciationEcartCloture: nombre(txt('depClo')) ?? 0,
-      dividendesExercice: nombre(txt('div')) ?? 0,
+      // Vide · pas de réponse, jamais zéro (D4C ch. XII-5 § 4).
+      dividendesExercice: nombre(txt('div')),
       compteDividendes: txt('compteDiv') || null,
       obligationNonDesengagement: f.get('obligation') === 'on',
     };
@@ -250,7 +251,7 @@ export function CumulConsolidation(props: {
               <label className="text-[11.5px]">Durée (années)<input name="duree" className={champ} defaultValue={l.dureeEcartAnnees ?? ''} disabled={!peutEcrire} /></label>
               <label className="text-[11.5px]">Dépréciation cumulée à l’ouverture<input name="depOuv" className={champ} defaultValue={l.depreciationEcartOuverture ?? ''} disabled={!peutEcrire} /></label>
               <label className="text-[11.5px]">Dépréciation cumulée à la clôture<input name="depClo" className={champ} defaultValue={l.depreciationEcartCloture ?? ''} disabled={!peutEcrire} /></label>
-              <label className="text-[11.5px]">Dividendes reçus dans l’exercice<input name="div" className={champ} defaultValue={l.dividendesExercice ?? ''} disabled={!peutEcrire} /></label>
+              <label className="text-[11.5px]" title="Zéro s’il n’y en a pas · vide, l’état consolidé n’est pas publiable (D4C ch. XII-5 § 4)">Dividendes reçus dans l’exercice<input name="div" className={champ} defaultValue={l.dividendesExercice ?? ''} disabled={!peutEcrire} /></label>
               <label className="text-[11.5px]">Compte des dividendes<input name="compteDiv" className={champ} defaultValue={l.compteDividendes ?? ''} disabled={!peutEcrire} /></label>
               <label
                 className="text-[11.5px] flex gap-1.5 items-start sm:col-span-2"
@@ -343,7 +344,7 @@ export function CumulConsolidation(props: {
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
         <h2 className="text-[11.5px] font-bold mb-1.5 flex items-center gap-1.5">
           Résultats internes inclus dans les actifs
-          <Aide titre="Résultats internes inclus dans les actifs" texte="Marge prise par une entité du groupe sur un stock ou une immobilisation encore détenu par une autre à la clôture (art. 86, 4°), déclarée à l’ouverture et à la clôture, nette de sa part amortie. Éliminée totalement entre entités intégrées globalement, au produit des pourcentages avec une entité intégrée proportionnellement (D4C ch. XII-5). Le texte ne dit pas qui la supporte · OmegaX retraite le résultat de la vendeuse, qui se partage à son pourcentage d’intérêt. Une marge d’incidence négligeable peut ne pas être déclarée (art. 86, dernier alinéa)." source="AUDCIF art. 86, 4° et dernier alinéa · D4C ch. XII-5" />
+          <Aide titre="Résultats internes inclus dans les actifs" texte="Marge prise par une entité du groupe sur un stock ou une immobilisation encore détenu par une autre à la clôture (art. 86, 4°), déclarée à l’ouverture et à la clôture, nette de sa part amortie. Une perte interne se déclare en marge négative. Éliminée totalement entre entités intégrées globalement, au pourcentage d’intégration de l’entité intégrée proportionnellement, au plus faible des deux entre deux entités intégrées proportionnellement (D4C ch. XII-5 § 5). Le texte ne dit pas qui la supporte · OmegaX retraite le résultat de la vendeuse, qui se partage à son pourcentage d’intérêt. Une marge d’incidence négligeable peut ne pas être déclarée (art. 86, dernier alinéa)." source="AUDCIF art. 86, 4° et dernier alinéa · D4C ch. XII-5" />
         </h2>
         {peutEcrire && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 mb-2">

@@ -75,7 +75,7 @@ const retenue = (l: LigneFixture, f: FiltreEcritures) =>
 function service(
   lignes: LigneFixture[],
   rattachements: RattachementFixture[],
-  options?: { exercicesCellule?: Array<{ id: string; dateDebut: Date; dateFin: Date }> },
+  options?: { exercicesCellule?: Array<{ id: string; dateDebut: Date; dateFin: Date }>; referentiel?: 'SYCEBNL' | 'SYSCOHADA' },
 ) {
   // Les comptes des dossiers, tirés des lignes · un compte par identifiant.
   const comptes = [...new Map(lignes.map((l) => [l.compteId, l])).values()].map((l) => ({
@@ -99,7 +99,7 @@ function service(
       // Aucune pièce au brouillard · la liasse les compte (audit F7).
       ecriture: { groupBy: async () => [] },
       tenant: {
-        findUnique: async () => ({ id: 'mere', nom: 'Siège', dossierCombinaisonId: 't-comb' }),
+        findUnique: async () => ({ id: 'mere', nom: 'Siège', dossierCombinaisonId: 't-comb', referentiel: options?.referentiel ?? 'SYCEBNL' }),
         // Le dossier de combinaison déjà ouvert est réaligné sur le référentiel
         // du siège à chaque liasse (voir assurerDossierCombinaison).
         update: async () => ({}),
@@ -442,8 +442,18 @@ describe('agrégat du groupe · ce que l’élimination ne sait pas faire, elle 
 
     expect(a.avertissements).toHaveLength(1);
     expect(a.avertissements[0]).toContain('82000000');
-    expect(a.avertissements[0]).toContain('valeur brute et amortissements');
-    expect(a.avertissements[0]).toContain('ch. XII-5');
+    expect(a.avertissements[0]).toContain('valeur brute');
+    // Passe R4, C22 et C23 · le fondement servi à une association est le sien,
+    // jamais le D4C, que l'art. 3 du SYCEBNL écarte.
+    expect(a.avertissements[0]).toContain('postulat de l’entité');
+    expect(a.avertissements[0]).not.toContain('D4C');
+  });
+
+  it('au SYSCOHADA, le fondement est la fiche du compte 18, le D4C n’étant qu’une méthode empruntée', async () => {
+    const a = await service(CESSION_INTERNE, DEUX_COTES, { referentiel: 'SYSCOHADA' }).balanceAgregee('mere', 'ex-m');
+    const cession = a.avertissements.find((x) => x.includes('82000000'))!;
+    expect(cession).toContain('compte 18');
+    expect(cession).toContain('référence empruntée');
   });
 
   it('avertit sur la marge interne restée dans les stocks', async () => {
@@ -458,7 +468,7 @@ describe('agrégat du groupe · ce que l’élimination ne sait pas faire, elle 
 
     expect(a.avertissements).toHaveLength(1);
     expect(a.avertissements[0]).toContain('800000.00');
-    expect(a.avertissements[0]).toContain('ch. XIII-4');
+    expect(a.avertissements[0]).toContain('postulat de l’entité');
     expect(a.avertissements[0]).toContain('stock de clôture');
   });
 

@@ -34,6 +34,7 @@ const acq = (detentriceId: string, detenueId: string, pct: number, cout: number,
   dateEntree: new Date('2024-01-01'),
   capitauxPropresEntree: cpEntree,
   modeDureeEcart: 'NON_DETERMINABLE',
+  dividendesExercice: 0,
   ...extra,
 });
 const ligne = (r: ReturnType<typeof cumulerConsolidation>, cle: string) => r.lignes.find((l) => l.cle === cle)?.solde ?? 0;
@@ -213,6 +214,12 @@ describe('écart d’acquisition négatif et dépréciation', () => {
     const r = cumulerConsolidation(EX, [M, F], [acq('M', 'F', 80, 600, 900, { modeDureeEcart: 'LIMITEE', dureeEcartAnnees: 5 })], []);
     expect(ligne(r, 'ECART_ACQUISITION_NEGATIF')).toBe(-48);
     expect(ligne(r, 'REPRISE_ECART_ACQUISITION_NEGATIF')).toBe(-24);
+    expect(r.avertissements.join(' ')).toContain('revérifie l’identification');
+  });
+
+  it('un écart négatif ne prend pas les dix ans de l’écart positif non déterminable (D4C ch. XII-6 § 4)', () => {
+    expect(() => cumulerConsolidation(EX, [M, F], [acq('M', 'F', 80, 600, 900)], [])).toThrow(/durée reflétant les hypothèses/);
+    expect(() => cumulerConsolidation(EX, [M, F], [acq('M', 'F', 80, 800, 900)], [])).not.toThrow();
   });
 
   it('la dépréciation s’ajoute à la dotation, et ne se reprend jamais', () => {
@@ -412,7 +419,34 @@ describe('résultats internes inclus dans les actifs (art. 86, 4°)', () => {
     expect(r.equilibre).toBe(0);
   });
 
-  it('une entité intégrée proportionnellement · au produit des pourcentages d’intégration (D4C ch. XII-5 § 6)', () => {
+  it('deux entités intégrées proportionnellement · au plus faible des deux pourcentages, pas au produit (D4C ch. XII-5 § 5)', () => {
+    const P1 = ent('P1', 'IP', 50, F.balance!);
+    const P2 = ent('P2', 'IP', 40, F.balance!);
+    const acqs = [acq('M', 'P1', 50, 500, 1000), acq('M', 'P2', 40, 400, 1000)];
+    const r = cumulerConsolidation(EX, [M, P1, P2], acqs, [], [ri('P1', 'P2', { margeOuverture: 0 })]);
+    expect(ligne(r, 'ELIMINATION_RESULTATS_INTERNES')).toBe(40);
+    expect(r.equilibre).toBe(0);
+  });
+
+  it('une perte interne s’élimine aussi · « pertes/profits inclus » (D4C ch. XII-3 § 2)', () => {
+    const r = cumulerConsolidation(EX, [M, F], A, [], [ri('M', 'F', { margeOuverture: 0, margeCloture: -30 })]);
+    expect(ligne(r, '31100000')).toBe(ligne(sans, '31100000') + 30);
+    expect(ligne(r, 'ELIMINATION_RESULTATS_INTERNES')).toBe(-30);
+    expect(r.equilibre).toBe(0);
+  });
+
+  it('des dividendes internes non déclarés rendent l’état non publiable · null n’est pas zéro (D4C ch. XII-5 § 4)', () => {
+    const r = cumulerConsolidation(EX, [M, F], [acq('M', 'F', 80, 800, 1000, { dividendesExercice: null })], []);
+    expect(r.retraitementsNonJoues.join(' ')).toContain('Dividendes reçus de « F » par « M » non déclarés');
+  });
+
+  it('une cession interne d’immobilisation dit que brut et amortissements ne sont pas reconstitués', () => {
+    const r = cumulerConsolidation(EX, [M, F], A, [], [ri('M', 'F', { nature: 'IMMOBILISATION', compteActif: '24100000', margeOuverture: 0, margeCloture: 0 })]);
+    expect(r.retraitementsNonJoues.join(' ')).toContain('amortissements cumulés du cédant ne sont pas reconstitués');
+    expect(sans.retraitementsNonJoues).toEqual([]);
+  });
+
+  it('une entité intégrée proportionnellement · au pourcentage d’intégration de l’entité conjointe (D4C ch. XII-5 § 5)', () => {
     const P = ent('F', 'IP', 50, F.balance!);
     const r = cumulerConsolidation(EX, [M, P], [acq('M', 'F', 50, 500, 1000)], [], [ri('M', 'F', { margeOuverture: 0 })]);
     const s = cumulerConsolidation(EX, [M, P], [acq('M', 'F', 50, 500, 1000)], []);
@@ -420,11 +454,10 @@ describe('résultats internes inclus dans les actifs (art. 86, 4°)', () => {
     expect(ligne(r, '31100000')).toBe(ligne(s, '31100000') - 50);
   });
 
-  it('quatre refus · mise en équivalence, même entité, marge négative, marge au-delà du solde de l’actif', () => {
+  it('trois refus · mise en équivalence, même entité, marge au-delà du solde de l’actif', () => {
     const ME = ent('F', 'ME', 30, F.balance!);
     expect(() => cumulerConsolidation(EX, [M, ME], [acq('M', 'F', 30, 300, 1000)], [], [ri('M', 'F')])).toThrow(/mise en équivalence/);
     expect(() => cumulerConsolidation(EX, [M, F], A, [], [ri('F', 'F')])).toThrow(/même entité/);
-    expect(() => cumulerConsolidation(EX, [M, F], A, [], [ri('M', 'F', { margeCloture: -5 })])).toThrow(/positive/);
     expect(() => cumulerConsolidation(EX, [M, F], A, [], [ri('M', 'F', { margeCloture: 600 })])).toThrow(/excède le solde/);
   });
 
@@ -480,6 +513,43 @@ describe('tranche 4a · écarts d’évaluation et impôts différés (art. 82 e
       expect(r.equilibre).toBe(0);
       expect(r.impotsDifferesIncomplets).toEqual([]);
     });
+  });
+
+  it('report variable · un taux passé de 25 à 30 % réajuste l’impôt différé d’ouverture AU RÉSULTAT (D4C ch. XII-3 § 3)', () => {
+    const acqs = [acq('M', 'F', 80, 800, 900, { ecartsEvaluation: [batiment] })];
+    const fixe = cumulerConsolidation(EX, [M, F], acqs, [], [], [fiscal('M', 30, { tauxImpotOuverture: 30 }), fiscal('F', 30, { tauxImpotOuverture: 30 })]);
+    const change = cumulerConsolidation(EX, [M, F], acqs, [], [], [fiscal('M', 30, { tauxImpotOuverture: 30 }), fiscal('F', 30, { tauxImpotOuverture: 25 })]);
+    // Base d'ouverture 60 · (30 % − 25 %) × 60 = 3 de charge d'impôt en plus, 3 de réserves en moins à débiter.
+    expect(ligne(fixe, 'IMPOTS_DIFFERES_RESULTAT')).toBe(-6);
+    expect(ligne(change, 'IMPOTS_DIFFERES_RESULTAT')).toBe(-3);
+    expect(ligne(change, 'IMPOTS_DIFFERES_PASSIF')).toBe(-12);
+    expect(change.capitauxPropres.resultatEnsemble).toBe(fixe.capitauxPropres.resultatEnsemble - 3);
+    expect(change.equilibre).toBe(0);
+    expect(fixe.avertissements.join(' ')).not.toContain('Report variable');
+    // Sans taux N-1, l'ouverture reste au taux de clôture, et c'est dit.
+    const inconnu = cumulerConsolidation(EX, [M, F], acqs, [], [], FISC);
+    expect(inconnu.avertissements.join(' ')).toContain('Report variable');
+  });
+
+  it('report variable · la marge interne et les provisions réglementées suivent la même règle', () => {
+    const ri: ResultatInterne = { vendeuseId: 'M', acheteuseId: 'F', nature: 'IMMOBILISATION', compteActif: '24500000', margeOuverture: 40, margeCloture: 100, libelle: 'x' };
+    const fixe = cumulerConsolidation(EX, [M, F], [acq('M', 'F', 80, 800, 900)], [], [ri], [fiscal('M', 30, { tauxImpotOuverture: 30 }), fiscal('F', 30)]);
+    const change = cumulerConsolidation(EX, [M, F], [acq('M', 'F', 80, 800, 900)], [], [ri], [fiscal('M', 30, { tauxImpotOuverture: 20 }), fiscal('F', 30)]);
+    // IDA d'ouverture 40 × 20 % = 8 porté à 12 · 4 de produit d'impôt en plus.
+    expect(ligne(change, 'IMPOTS_DIFFERES_RESULTAT')).toBe(ligne(fixe, 'IMPOTS_DIFFERES_RESULTAT') - 4);
+    expect(change.equilibre).toBe(0);
+    const Mpr = ent('M', 'IG', 100, b([['26100000', 800], ['52100000', 1300], ['10100000', -1000], ['11800000', -500], ['15100000', -100], ['85100000', 30], ['70100000', -1000], ['60100000', 470]]), true);
+    const prFixe = cumulerConsolidation(EX, [Mpr, F], [acq('M', 'F', 80, 800, 900)], [], [], [fiscal('M', 30, { tauxImpotOuverture: 30 }), fiscal('F', 30)]);
+    const prChange = cumulerConsolidation(EX, [Mpr, F], [acq('M', 'F', 80, 800, 900)], [], [], [fiscal('M', 30, { tauxImpotOuverture: 20 }), fiscal('F', 30)]);
+    // Provision d'ouverture 70 · IDP de 14 porté à 21 · 7 de charge d'impôt en plus.
+    expect(ligne(prChange, 'IMPOTS_DIFFERES_RESULTAT')).toBe(ligne(prFixe, 'IMPOTS_DIFFERES_RESULTAT') + 7);
+    expect(prChange.equilibre).toBe(0);
+  });
+
+  it('une dépréciation des titres chez la détentrice est nommée, et l’état n’est pas publiable (D4C ch. XII-5 § 5 et § 6)', () => {
+    const Md = ent('M', 'IG', 100, b([['26100000', 800], ['29610000', -200], ['52100000', 1100], ['10100000', -1000], ['11800000', -500], ['70100000', -1000], ['60100000', 500], ['69720000', 200], ['31100000', 100]]), true);
+    const r = cumulerConsolidation(EX, [Md, F], [acq('M', 'F', 80, 800, 900)], [], [], FISC);
+    expect(r.retraitementsNonJoues.join(' ')).toContain('29610000');
   });
 
   it('un stock réestimé puis vendu dans l’exercice · tout passe au résultat, le tableau des flux en est averti', () => {

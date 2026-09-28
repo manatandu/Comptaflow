@@ -426,6 +426,7 @@ export class PerimetreService {
       siegesDansDeuxRegions: dto.siegesDansDeuxRegions,
       appelPublicEpargne: dto.appelPublicEpargne,
       demandeAssociesDixieme: dto.demandeAssociesDixieme,
+      entitesControleHorsOhada: dto.entitesControleHorsOhada === undefined ? undefined : dto.entitesControleHorsOhada?.trim() || null,
       chiffreAffairesN: dto.chiffreAffairesN,
       chiffreAffairesN1: dto.chiffreAffairesN1,
       seuilEquivalentFc: dto.seuilEquivalentFc,

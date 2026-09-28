@@ -133,6 +133,8 @@ export class FaitsConsolidationDto {
   @IsOptional() @IsBoolean() siegesDansDeuxRegions?: boolean;
   @IsOptional() @IsBoolean() appelPublicEpargne?: boolean;
   @IsOptional() @IsBoolean() demandeAssociesDixieme?: boolean;
+  /** Art. 76 · entité(s) hors OHADA qui contrôlent la consolidante · null efface. */
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() @MaxLength(500) entitesControleHorsOhada?: string | null;
 
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber() @Min(0) chiffreAffairesN?: number | null;
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber() @Min(0) chiffreAffairesN1?: number | null;
@@ -159,7 +161,8 @@ export class AcquisitionDto {
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber() @Min(1) @Max(99) dureeEcartAnnees?: number | null;
   @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) depreciationEcartOuverture?: number;
   @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) depreciationEcartCloture?: number;
-  @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) dividendesExercice?: number;
+  /** Null ou absent · pas de réponse · zéro est une réponse (D4C ch. XII-5 § 4). */
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) dividendesExercice?: number | null;
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() @MaxLength(13) compteDividendes?: string | null;
   @IsOptional() @IsBoolean() obligationNonDesengagement?: boolean;
 }
@@ -171,8 +174,9 @@ export class ResultatInterneDto {
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsUUID() acheteuseId?: string | null;
   @IsEnum(NatureResultatInterne) nature!: NatureResultatInterne;
   @IsString() @MaxLength(13) compteActif!: string;
-  @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) margeOuverture!: number;
-  @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) margeCloture!: number;
+  /** Une perte interne se déclare négative · « pertes/profits inclus » (D4C ch. XII-3 § 2). */
+  @IsNumber({ maxDecimalPlaces: 2 }) margeOuverture!: number;
+  @IsNumber({ maxDecimalPlaces: 2 }) margeCloture!: number;
   @IsString() @MaxLength(300) libelle!: string;
 }
 

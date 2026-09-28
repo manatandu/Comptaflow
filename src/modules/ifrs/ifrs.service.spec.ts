@@ -751,6 +751,7 @@ const CUMUL = {
   },
   conversions: [],
   conversionsIncompletes: [],
+  retraitementsNonJoues: [],
   impotsDifferesIncomplets: [],
 };
 const REGLES_CONSO = [
@@ -946,6 +947,7 @@ const cumulFlux = (n: boolean) => ({
   ecartsEvaluationStocksResultat: 0,
   conversions: [],
   conversionsIncompletes: [],
+  retraitementsNonJoues: [],
   impotsDifferesIncomplets: [],
 });
 const ENTITE = { pctControle: 100, natureControle: 'EXCLUSIF_DE_DROIT', fondement: 'art. 78', aJustifierEnNotes: [], exclusion: null, dateCloture: null };

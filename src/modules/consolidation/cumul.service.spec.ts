@@ -12,6 +12,7 @@ import { ROLES_KEY } from '../../common/decorators/roles.decorator';
  */
 const T = 'dossier-1';
 const EX = 'ex-2026';
+const EX1 = 'ex-2025';
 
 function doublure(balanceDossier: [string, number][]) {
   const tables: Record<string, any[]> = { entites: [], liens: [], lignes: [], reciproques: [], internes: [], faits: [], ecarts: [], provisionsChange: [] };
@@ -50,11 +51,21 @@ function doublure(balanceDossier: [string, number][]) {
       // Un `id: undefined` ne filtre rien, comme en base (audit final F234) ·
       // la doublure rend alors l'exercice du dossier, ce que Prisma ferait,
       // au lieu d'un refus qui masquerait le défaut.
-      findFirst: jest.fn(async ({ where }: any) =>
-        (where.id === undefined || where.id === EX) && where.tenantId === T
-          ? { id: EX, dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') }
-          : null,
-      ),
+      // Deux exercices · la doublure honore aussi `dateDebut: { lt }` et
+      // l'ordre décroissant, par lesquels le cumul cherche la consolidation N-1.
+      findFirst: jest.fn(async ({ where, orderBy }: any) => {
+        const exercices = [
+          { id: EX1, dateDebut: new Date('2025-01-01'), dateFin: new Date('2025-12-31') },
+          { id: EX, dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') },
+        ].filter(
+          (e) =>
+            where.tenantId === T &&
+            (where.id === undefined || where.id === e.id) &&
+            (where.dateDebut?.lt === undefined || e.dateDebut < where.dateDebut.lt),
+        );
+        if (orderBy?.dateDebut === 'desc') exercices.reverse();
+        return exercices[where.id === undefined && !where.dateDebut ? exercices.length - 1 : 0] ?? null;
+      }),
     },
     entitePerimetreConsolidation: table('entites', {
       designationMajoriteDeuxExercices: false,
@@ -234,6 +245,40 @@ describe('CumulService · le cumul de bout en bout', () => {
     expect(r.lignes.map((l) => l.cle)).not.toContain('RESULTAT_DEJA_CONSTATE');
     expect(r.lignes.find((l) => l.cle === '70100000')?.solde).toBe(-1700);
     expect(r.obstaclesFlux.filter((o) => o.includes('APRÈS clôture'))).toEqual([]);
+  });
+
+  it('report variable · le taux d’ouverture est celui de la consolidation N-1, apparié par la dénomination', async () => {
+    const moteur = jest.spyOn(require('./cumul-consolidation'), 'cumulerConsolidation');
+    const { service, lien, tables } = await groupe();
+    await service.declarerAcquisition(T, lien.id, {
+      coutAcquisition: 800,
+      compteTitres: '26100000',
+      dateEntree: '2024-01-01',
+      capitauxPropresEntree: 900,
+      modeDureeEcart: 'NON_DETERMINABLE',
+    });
+    tables.entites.push({ id: 'n1', tenantId: T, exerciceId: EX1, nom: 'Filiale', tauxImpotDiffere: 25 });
+    tables.faits.push({ id: 'f1', tenantId: T, exerciceId: EX1, tauxImpotDiffere: 28 });
+    await service.cumul(T, EX);
+    const fiscalites = moteur.mock.calls[0][5] as { entiteId: string; tauxImpotOuverture: number | null }[];
+    moteur.mockRestore();
+    const filiale = tables.entites.find((e) => e.exerciceId === EX && e.nom === 'Filiale');
+    expect(fiscalites.find((f) => f.entiteId === filiale.id)?.tauxImpotOuverture).toBe(25);
+    expect(fiscalites[0].tauxImpotOuverture).toBe(28);
+  });
+
+  it('une monnaie fonctionnelle déclarée autre que la monnaie de présentation se mentionne (D4C ch. XII-4 § 5)', async () => {
+    const { service, lien, prisma } = await groupe();
+    await service.declarerAcquisition(T, lien.id, {
+      coutAcquisition: 800,
+      compteTitres: '26100000',
+      dateEntree: '2024-01-01',
+      capitauxPropresEntree: 900,
+      modeDureeEcart: 'NON_DETERMINABLE',
+    });
+    expect((await service.cumul(T, EX)).reserves.join(' ')).not.toContain('monnaie fonctionnelle déclarée');
+    prisma.tenant.findUniqueOrThrow.mockResolvedValue({ id: T, nom: 'Mère SA', devise: 'CDF', deviseFonctionnelle: 'USD' });
+    expect((await service.cumul(T, EX)).reserves.join(' ')).toContain('monnaie fonctionnelle déclarée de la consolidante (USD)');
   });
 
   it('la consolidante est lue au livre-journal seul, comme ses états individuels', async () => {

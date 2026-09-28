@@ -194,6 +194,7 @@ export function construireEtatsIfrsConsolides(
   etat.motifsNonPubliable.push(
     ...(cumul.conversionsIncompletes ?? []).map((m) => `Consolidation · conversion · ${m}`),
     ...(cumul.impotsDifferesIncomplets ?? []).map((m) => `Consolidation · impôts différés incomplets · ${m}`),
+    ...(cumul.retraitementsNonJoues ?? []).map((m) => `Consolidation · retraitement non joué · ${m}`),
   );
 
   const solde = (poste: PosteConsolidation) => cumul.lignes.find((l) => l.cle === poste)?.solde ?? 0;

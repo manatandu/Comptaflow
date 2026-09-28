@@ -4,6 +4,7 @@ import { EtatsFinanciersSyscohadaService } from '../etats-financiers-syscohada/e
 import { CumulService } from './cumul.service';
 import { apparierN1, construireEtatsConsolides, EtatsConsolides, Resolveurs } from './etats-consolides';
 import {
+  changementsDuPerimetre,
   construireTableauFluxConsolide,
   construireVariationCapitauxPropres,
   TableauFluxConsolide,
@@ -23,6 +24,16 @@ import { PerimetreService } from './perimetre.service';
  * refus du moteur), la colonne reste VIDE et le motif est rendu · une colonne
  * N-1 remplie de zéros se lirait comme un groupe qui n'existait pas.
  */
+/**
+ * D4C ch. XII-8 § 6 · les Notes annexes consolidées que cette version ne
+ * produit pas. Seule la note du périmètre est servie · le dire est la seule
+ * manière de ne pas laisser croire le jeu complet.
+ */
+export const NOTES_D4C_NON_PRODUITES =
+  'Notes annexes consolidées non produites hormis la note du périmètre (D4C ch. XII-8 § 6) · déclaration de conformité, résumé des méthodes, ' +
+  'information sectorielle, informations sur les postes (dont la note sur l’impôt · composantes, preuve d’impôt, changements de taux, ' +
+  'déficits non activés, ch. XII-3 § 3), autres informations, acquisitions et cessions de l’exercice.';
+
 @Injectable()
 export class EtatsConsolidesService {
   constructor(
@@ -95,6 +106,27 @@ export class EtatsConsolidesService {
       tvcp = construireVariationCapitauxPropres(cumulN, cumulN1, consolidanteN);
     }
 
+    // LE JEU EST UN TOUT INDISSOCIABLE (D4C ch. XII-8 § 1) · bilan, compte de
+    // résultat, tableau des flux, variation des capitaux propres et Notes
+    // annexes. « Publiable » se dit du jeu, jamais du seul bilan · et la
+    // déclaration de conformité ne s'affirme « que si tout le dispositif est
+    // respecté » (§ 6).
+    const motifsJeu: string[] = [];
+    if (resultatsN1) {
+      // Ch. XII-7 · une acquisition complémentaire, une cession ou un
+      // changement de méthode ne se jouent pas ici · l'entrée, elle, l'est
+      // (première consolidation à la date d'entrée).
+      for (const c of changementsDuPerimetre(etatN.resultats, resultatsN1).filter((x) => x.nature !== 'ENTREE')) {
+        motifsJeu.push(
+          `Variation de périmètre ou de pourcentage d’intérêt non jouée (D4C ch. XII-7) · ${c.motif} Transaction entre actionnaires, ` +
+            'résultat de cession sur la dernière valeur consolidée et virement des écarts de conversion ne sont pas calculés.',
+        );
+      }
+    }
+    if (!tft.lignes) motifsJeu.push('Tableau consolidé des flux de trésorerie non établi · le jeu complet est indissociable (D4C ch. XII-8 § 1).');
+    if (!tvcp) motifsJeu.push('Tableau de variation des capitaux propres consolidés non établi (D4C ch. XII-8 § 1 et § 5).');
+    motifsJeu.push(NOTES_D4C_NON_PRODUITES);
+
     const secteurs = new Map<string, string | null>(etatN.entites.map((e) => [e.id, e.secteurActivite ?? null]));
     return {
       bilan: {
@@ -103,12 +135,14 @@ export class EtatsConsolidesService {
       },
       compteDeResultat: apparierN1(n.compteDeResultat, n1?.compteDeResultat ?? null),
       controles: n.controles,
-      publiable: n.publiable,
-      motifsNonPubliable: n.motifsNonPubliable,
+      publiable: n.publiable && motifsJeu.length === 0,
+      /** Bilan et compte de résultat seuls · le jeu, lui, se lit dans `publiable`. */
+      bilanEtResultatPubliables: n.publiable,
+      motifsNonPubliable: [...n.motifsNonPubliable, ...motifsJeu],
       comparatif: { disponible: n1 != null, motif: motifSansComparatif },
       tableauDesFlux: tft,
       variationCapitauxPropres: tvcp,
-      notePerimetre: noteDuPerimetre(etatN.resultats, secteurs, resultatsN1),
+      notePerimetre: noteDuPerimetre(etatN.resultats, secteurs, resultatsN1, etatN.faits?.entitesControleHorsOhada ?? null),
       avertissements: cumulN.avertissements,
       reserves: cumulN.reserves,
     };

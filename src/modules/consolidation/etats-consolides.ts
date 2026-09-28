@@ -475,6 +475,7 @@ export function construireEtatsConsolides(cumul: ResultatCumul, resolveurs: Reso
   const motifsNonPubliable = [
     ...cumul.conversionsIncompletes.map((m) => `Conversion · ${m}`),
     ...cumul.impotsDifferesIncomplets.map((m) => `Impôts différés incomplets · ${m}`),
+    ...(cumul.retraitementsNonJoues ?? []).map((m) => `Retraitement non joué · ${m}`),
     ...[...actif, ...passif, ...compteDeResultat]
       .filter((l) => l.nature === 'A_RETRAITER')
       .map((l) => `${l.libelle} · ${l.reserve ?? 'à retraiter'}`),

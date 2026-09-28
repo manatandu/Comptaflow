@@ -8,12 +8,10 @@ import { TypeTiers } from '@prisma/client';
  *
  * Un groupe d'établissements est UNE SEULE personne morale tenue en plusieurs
  * dossiers. Une vente du siège à une antenne n'est pas une vente : l'agrégat
- * doit l'éliminer des deux côtés · AUDCIF art. 107, « élimination des comptes
- * réciproques : actifs et passifs, charges et produits ; neutralisation des
- * résultats provenant d'opérations effectuées entre les entités DU
- * PÉRIMÈTRE ».
+ * doit l'éliminer des deux côtés · le groupe est une seule entité
+ * (`groupe/fondement-elimination.ts`).
  *
- * Tout tient donc dans « du périmètre ». La clé étrangère vise `tenants` sans
+ * Tout tient donc dans « du groupe ». La clé étrangère vise `tenants` sans
  * pouvoir exiger « même dossier mère » · aucune contrainte SQL ne compare deux
  * lignes d'une autre table. Si le service n'y met pas la sienne, un dossier
  * étranger passe, et l'agrégat perd un chiffre d'affaires réellement réalisé

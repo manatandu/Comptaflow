@@ -74,10 +74,11 @@ describe('IFRS consolidés · la balance du D4C projetée, la part des minoritai
   });
 
   it('une consolidation D4C incomplète rend le jeu IFRS non publiable, avec son motif', () => {
-    const c = { ...cumul(), impotsDifferesIncomplets: ['Filiale B · taux non déclaré'], conversionsIncompletes: ['Filiale C · monnaie non déclarée'] } as ResultatCumul;
+    const c = { ...cumul(), impotsDifferesIncomplets: ['Filiale B · taux non déclaré'], conversionsIncompletes: ['Filiale C · monnaie non déclarée'], retraitementsNonJoues: ['Dividendes non déclarés'] } as ResultatCumul;
     const m = jouer([ANNULATION], c).motifsNonPubliable;
     expect(m).toContain('Consolidation · impôts différés incomplets · Filiale B · taux non déclaré');
     expect(m).toContain('Consolidation · conversion · Filiale C · monnaie non déclarée');
+    expect(m).toContain('Consolidation · retraitement non joué · Dividendes non déclarés');
   });
 
   it('les postes rangés par IFRS 18 et les postes déclarés sont rendus avec leur rubrique', () => {

@@ -75,6 +75,7 @@ type Etats = {
       entree: boolean;
     }[];
     sorties: string[];
+    controleHorsOhada: string | null;
     justifications: { denomination: string; fondement: string; aJustifier: string[]; exclusion: { libelle: string; justification: string } | null }[];
     comparatifDisponible: boolean;
   };
@@ -334,6 +335,11 @@ export function EtatsConsolidesVue({ exerciceId }: { exerciceId: string }) {
               </tbody>
             </table>
           </div>
+          {etats.notePerimetre.controleHorsOhada && (
+            <p className="text-[11.5px] mt-1" title="AUDCIF art. 76">
+              Entité(s) hors de l’espace OHADA contrôlant la consolidante · {etats.notePerimetre.controleHorsOhada}.
+            </p>
+          )}
           {etats.notePerimetre.sorties.length > 0 && (
             <p className="text-[11.5px] mt-1">Sorties du périmètre depuis N-1 · {etats.notePerimetre.sorties.join(', ')}.</p>
           )}

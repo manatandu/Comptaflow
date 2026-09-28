@@ -29,8 +29,9 @@ describe('fiche du tiers · cellule du groupe', () => {
 
   it('dit ce que le rattachement fait, et sur quel fondement', () => {
     expect(page).toContain("GROUPE D'ÉTABLISSEMENTS");
-    expect(page).toContain('AUDCIF art. 107');
-    expect(page).toContain('élimination des comptes réciproques');
+    // Passe R4 (C22) · le fondement est l'unicité de l'entité, jamais
+    // l'art. 107 de l'AUDCIF, qui régit la combinaison d'entités distinctes.
+    expect(page).toContain('Un groupe d’établissements est une seule entité · une opération entre ses dossiers n’est pas conclue avec un tiers');
   });
 
   it('ne laisse pas un dossier hors groupe devant une liste vide sans explication', () => {

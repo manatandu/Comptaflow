@@ -69,19 +69,17 @@ export class CreerTiersDto {
 
     Un groupe est UNE SEULE personne morale tenue en plusieurs dossiers : une
     vente du siège à une antenne n'est pas une vente, c'est un mouvement
-    interne, et l'agrégat doit l'éliminer des deux côtés. AUDCIF art. 107 :
-    « Les comptes combinés sont obtenus en procédant aux opérations suivantes :
-    cumul des comptes des entités du périmètre [...] ; élimination des comptes
-    réciproques : actifs et passifs, charges et produits ; neutralisation des
-    résultats provenant d'opérations effectuées entre les entités du
-    périmètre. »
+    interne, et l'agrégat doit l'éliminer des deux côtés. Le fondement est
+    l'unicité de l'entité (`groupe/fondement-elimination.ts`), jamais
+    l'art. 107 de l'AUDCIF · il régit la combinaison d'entités distinctes, et
+    l'art. 3 du SYCEBNL l'écarte (passe R4).
 
     Rien dans un compte 411 ne dit si son titulaire est un client ou une
     antenne · ce champ le dit. Le tenant visé n'est contraint à rien par la
     base, « même dossier mère » ne s'exprimant pas en SQL : c'est
     TiersService qui refuse un rattachement hors groupe. L'accepter ferait
     éliminer de l'agrégat des opérations conclues avec un vrai tiers, donc
-    hors du périmètre que l'art. 107 vise.
+    hors de l'entité.
   */
   @IsOptional()
   @IsUUID()
@@ -193,8 +191,8 @@ export class ModifierTiersDto {
 
   /*
     CE TIERS EST UNE AUTRE CELLULE DU MÊME GROUPE · voir CreerTiersDto pour le
-    fondement (AUDCIF art. 107, élimination des comptes réciproques du
-    périmètre). null explicite = ce compte redevient un tiers ordinaire, et
+    fondement (unicité de l'entité, `groupe/fondement-elimination.ts`).
+    null explicite = ce compte redevient un tiers ordinaire, et
     ses opérations rentrent dans l'agrégat.
   */
   @IsOptional()
