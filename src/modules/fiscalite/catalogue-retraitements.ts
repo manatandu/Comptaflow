@@ -115,6 +115,17 @@ export interface DefinitionRetraitement {
    * s'abstient.
    */
   assietteHorsPortee?: string;
+  /**
+   * LA SECONDE CONSÉQUENCE D'UNE RÉINTÉGRATION (passe F5) · loi n° 23/053,
+   * art. 73, al. 2, 5° · sont des REVENUS DISTRIBUÉS « les recettes non
+   * déclarées et les dépenses et charges dont la déduction pour l'assiette de
+   * l'impôt sur les sociétés est interdite, à l'exclusion des amortissements
+   * et provisions, des impôts, taxes et des amendes et pénalités ». Ils
+   * portent la retenue de 20 % de l'art. 120, opérée par le débiteur du
+   * revenu. Posé par `CODES_HORS_ARTICLE_73_5`, jamais à la main · OmegaX ne
+   * chiffre aucune retenue, la qualification reste au cabinet.
+   */
+  revenusDistribues?: string;
 }
 
 export const CODE_LIBRE = 'AUTRE';
@@ -125,8 +136,8 @@ export const CATALOGUE_RETRAITEMENTS: DefinitionRetraitement[] = [
     code: 'DEPENSES_PERSONNELLES',
     sens: SensRetraitementFiscal.REINTEGRATION,
     libelle: 'Dépenses à caractère personnel',
-    aide: "Dépenses du dirigeant ou des associés étrangères à l'exploitation, passées en charges. Une dépense mixte se ventile ; à défaut de ventilation possible, c'est l'article 20 qui commande, la charge devant être exposée dans l'intérêt direct de l'entreprise.",
-    source: 'Loi n° 23/053, art. 50, 1° (et art. 20 pour les conditions générales)',
+    aide: "Dépenses du dirigeant ou des associés étrangères à l'exploitation, passées en charges. Une dépense mixte se ventile. À l'impôt sur les sociétés, à défaut de ventilation possible, c'est l'article 20 qui commande, la charge devant être exposée dans l'intérêt direct de l'entreprise. À l'IRPP d'un exploitant ou d'un professionnel (personne physique au régime réel), le texte tranche autrement · à défaut de pouvoir déterminer la fraction professionnelle, 50 % de la charge mixte sont retenus forfaitairement, et seule l'autre moitié se réintègre (art. 89, al. 4 ; art. 99, al. 2).",
+    source: 'Loi n° 23/053, art. 50, 1° (et art. 20 pour les conditions générales) ; personnes physiques · art. 89, al. 4 et art. 99, al. 2',
   },
   {
     code: 'IMPOT_SUR_LE_RESULTAT',
@@ -278,8 +289,8 @@ export const CATALOGUE_RETRAITEMENTS: DefinitionRetraitement[] = [
     code: 'REMUNERATIONS_NON_DECLAREES',
     sens: SensRetraitementFiscal.REINTEGRATION,
     libelle: 'Rémunérations et honoraires non déclarés ou non justifiés',
-    aide: "Salaires, commissions, honoraires et rémunérations de services ne sont déductibles que s'ils ont fait l'objet des déclarations aux impôts correspondants. Commissions, courtages, ristournes, vacations et gratifications exigent en outre l'indication exacte du nom et du domicile du bénéficiaire, de la date du paiement et de la somme allouée à chacun ; à défaut, elles s'ajoutent au bénéfice de celui qui les a payées.",
-    source: 'Loi n° 23/053, art. 21 à 24 et art. 26',
+    aide: "Salaires, commissions, honoraires et rémunérations de services ne sont déductibles que s'ils ont fait l'objet des déclarations aux impôts correspondants. Commissions, courtages, ristournes, vacations et gratifications exigent en outre l'indication exacte du nom et du domicile du bénéficiaire, de la date du paiement et de la somme allouée à chacun ; à défaut, elles s'ajoutent au bénéfice de celui qui les a payées. Une société passible de l'IS qui a versé des sommes à des personnes dont elle ne révèle pas l'identité est EN OUTRE assujettie à l'IRPP sur leur montant global, au taux le plus élevé du barème de l'art. 118, sans préjudice de l'imposition des bénéficiaires que l'Administration identifie (art. 117). OmegaX ne le chiffre pas · l'identité ne se lit dans aucun compte.",
+    source: 'Loi n° 23/053, art. 21 à 24, art. 26 et art. 117',
   },
   {
     code: 'SOMMES_NON_RESIDENTS',
@@ -347,6 +358,33 @@ export const CATALOGUE_RETRAITEMENTS: DefinitionRetraitement[] = [
     source: 'À renseigner par le comptable',
   },
 ];
+
+/**
+ * LES RÉINTÉGRATIONS QUE L'ART. 73, AL. 2, 5° EXCLUT DES REVENUS DISTRIBUÉS,
+ * chacune avec son motif · liste FERMÉE, gelée par un test. Toute autre
+ * réintégration du catalogue porte la mention. La ligne libre n'en porte pas,
+ * son fondement étant inconnu.
+ */
+export const CODES_HORS_ARTICLE_73_5: Readonly<Record<string, string>> = {
+  IMPOT_SUR_LE_RESULTAT: 'impôt',
+  PRELEVEMENT_EXPATRIES: 'impôt',
+  AMENDES_PENALITES: 'amendes et pénalités',
+  PROVISIONS_NON_ADMISES: 'provisions',
+  AMORTISSEMENTS_EXCEDENT: 'amortissements',
+  REEVALUATION_SUPPLEMENT_ANNUITE: 'amortissements',
+  // Un écart latent n'est pas une charge interdite · il se déduit ou
+  // s'impose au dénouement (art. 17), c'est un décalage dans le temps.
+  ECARTS_CONVERSION_CREANCES_DETTES: 'décalage temporaire (art. 17), non une charge interdite',
+};
+
+export const MENTION_ARTICLE_73_5 =
+  "Dans une société passible de l'IS, la charge réintégrée est aussi un REVENU DISTRIBUÉ (loi n° 23/053, art. 73, al. 2, 5°), qui porte la retenue de 20 % de l'art. 120 · OmegaX ne la chiffre pas, la qualification reste au cabinet.";
+
+for (const r of CATALOGUE_RETRAITEMENTS) {
+  if (r.sens === SensRetraitementFiscal.REINTEGRATION && r.code !== CODE_LIBRE && !(r.code in CODES_HORS_ARTICLE_73_5)) {
+    r.revenusDistribues = MENTION_ARTICLE_73_5;
+  }
+}
 
 /** Accès par code · un retraitement enregistré garde son code d'origine. */
 export const RETRAITEMENT_PAR_CODE = new Map(CATALOGUE_RETRAITEMENTS.map((r) => [r.code, r]));

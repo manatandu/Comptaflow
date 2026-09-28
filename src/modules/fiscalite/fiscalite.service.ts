@@ -106,6 +106,31 @@ const ECHELLE_REGIMES_PHYSIQUES: RegimePhysique[] = [
   'IRPP_REGIME_REEL',
 ];
 
+/**
+ * PASSE F5 · ce que le Titre 3 (IRPP) pose et qu'aucune balance ne tranche.
+ * Dit, jamais calculé · chaque condition est un fait du dossier.
+ */
+export const OBSERVATIONS_PHYSIQUE_PASSE_F5 = {
+  commun: [
+    "Art. 103 : sont exonérés les revenus des terres EXCLUSIVEMENT affectées à des cultures vivrières et d'une superficie INFÉRIEURE à dix hectares · deux conditions cumulatives qu'aucune écriture ne porte. Si elles sont remplies, ni le régime ni l'impôt annoncés ici ne sont dus sur ces revenus.",
+  ],
+  regimeReel: [
+    "Art. 89, al. 2 et 3 : les revenus de capitaux mobiliers et les loyers d'immeubles NON inscrits à l'actif du bilan ne sont pas des produits taxables de l'entreprise ; inscrits à l'actif, ils le sont pour leur montant net. Art. 90 : sont en outre déductibles les versements définitifs pour rente viagère, pension, assurance maladie ou chômage, dans la limite de 20 % des revenus professionnels imposés l'année antérieure, et les frais médicaux du redevable résident, de son épouse et de ses enfants célibataires à charge, effectivement payés et justifiés. Ces montants se portent en déduction manuelle.",
+    "Art. 92 à 99 : les bénéfices d'une profession libérale ou non commerciale sont l'excédent des RECETTES sur les dépenses. Les provisions et avances sur honoraires EFFECTIVEMENT ENCAISSÉES sont des recettes, sauf celles qui couvrent des débours (art. 95, 1°) · en comptabilité d'engagement, elles restent au 419 et hors du résultat, et se réintègrent ici. Les fonds des clients ne restent non imposables qu'enregistrés à un compte distinct (art. 97), et aucun loyer ne se déduit pour des locaux dont le professionnel est propriétaire (art. 99, al. 3).",
+  ],
+} as const;
+
+/**
+ * PASSE F5 · ANOMALIE DU TEXTE, signalée et non tranchée. Le Titre 2, art. 3
+ * soumet à l'IS les SA, SARL et SAS « même unipersonnelles » ; le Titre 3,
+ * art. 63, al. 2, 1° soumet personnellement à l'IRPP l'associé ou
+ * l'actionnaire unique personne physique de ces mêmes sociétés, par renvoi
+ * au régime des SNC « lorsque ces sociétés n'ont pas opté pour l'Impôt sur les
+ * Sociétés ». Aucune source lue n'articule les deux · le calcul reste à l'IS.
+ */
+export const OBSERVATION_UNIPERSONNELLE_PASSE_F5 =
+  "Société unipersonnelle à associé ou actionnaire unique personne physique : le Titre 2, art. 3 la soumet à l'impôt sur les sociétés « même unipersonnelle », quand l'art. 63, al. 2, 1° soumet cet associé personnellement à l'IRPP, par renvoi au régime des sociétés de personnes qui n'ont pas opté pour l'IS. Aucune source lue n'articule les deux textes · le calcul reste à l'IS, et le point est à faire trancher.";
+
 @Injectable()
 export class FiscaliteService {
   constructor(
@@ -1086,6 +1111,10 @@ export class FiscaliteService {
         );
       }
       observations.push(...this.observationsRegimePhysique(regime, suivi, chiffresAffairesAnterieurs.length));
+      observations.push(...OBSERVATIONS_PHYSIQUE_PASSE_F5.commun);
+      if (regime !== 'IRPP_MICRO_ENTREPRISE' && regime !== 'IRPP_PETITE_ENTREPRISE') {
+        observations.push(...OBSERVATIONS_PHYSIQUE_PASSE_F5.regimeReel);
+      }
       return { regime, observations };
     }
 
@@ -1110,6 +1139,11 @@ export class FiscaliteService {
         observations.push(
           "Entité publique : imposable si elle se livre à une exploitation lucrative (art. 3) ; exemptés, l'État, les Provinces, les ETD, les établissements publics en vertu de leurs statuts et les organismes dont les ressources proviennent uniquement de subventions budgétaires (art. 5).",
         );
+        break;
+      case FormeJuridiqueSyscohada.SOCIETE_ANONYME:
+      case FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE:
+      case FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE:
+        observations.push(OBSERVATION_UNIPERSONNELLE_PASSE_F5);
         break;
       case FormeJuridiqueSyscohada.SUCCURSALE:
         observations.push(

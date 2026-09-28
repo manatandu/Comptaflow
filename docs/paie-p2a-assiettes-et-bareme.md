@@ -202,7 +202,9 @@ une base supérieure à l'un des deux.
    la loi n° 23/053 ne le porte, et une note de cours n'est pas une source.
 3. **La retenue libératoire de l'article 121, alinéa 2** (personnel
    domestique et salariés de micro-entreprises) n'est pas servie · elle suit
-   des taux forfaitaires fixés par l'arrêté n° 019/2025, non lu ici. Le
+   des taux forfaitaires fixés par l'arrêté n° 019/CAB/MIN/FINANCES/2025
+   (lu depuis la passe F5 · 24 et 36 dollars l'an, quotités trimestrielles ;
+   seul le cours de conversion manque, renvoyé à une circulaire). Le
    régime est NOMMÉ plutôt qu'ignoré · une lacune déclarée à tort dispense
    d'une démarche due.
 

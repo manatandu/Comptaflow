@@ -2643,6 +2643,8 @@ export interface DefinitionRetraitementFiscal {
   aide: string;
   source: string;
   plafond?: { part: number; assiette: 'CHIFFRE_AFFAIRES' | 'CHARGE'; enonce: string };
+  /** Loi n° 23/053, art. 73, al. 2, 5° · la réintégration est aussi un revenu distribué (passe F5). */
+  revenusDistribues?: string;
 }
 
 export interface CatalogueRetraitements {

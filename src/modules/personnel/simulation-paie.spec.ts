@@ -202,6 +202,9 @@ describe("Les personnes à charge sont PROPOSÉES, jamais substituées", () => {
     expect(res.propositionPersonnesACharge).toBe(1);
     expect(res.sourceProposition).toContain('article 124');
     expect(res.sourceProposition).toContain('article 125');
+    // Passe F5 · la borne temporelle et l'anomalie de l'art. 124, al. 2.
+    expect(res.sourceProposition).toContain("pendant l'année précédant celle de la réalisation des revenus");
+    expect(res.sourceProposition).toContain('double négation');
   });
 });
 
@@ -354,6 +357,43 @@ describe("P2b · l'ordre de calcul, et le net qui ne part pas de l'assiette", ()
       assietteElargie: avecVehicule.assiettes.assietteSocialeFc > sans.assiettes.assietteSocialeFc,
       passationEquilibree: avecVehicule.passation.equilibree,
     }).toEqual({ verse: 1_000_000, assietteElargie: true, passationEquilibree: true });
+  });
+
+  it("passe F5 · ne verse pas le logement FOURNI en nature, qui reste hors de l'assiette sociale", async () => {
+    const { svc } = service();
+    const avec = (enNature: boolean) =>
+      svc.simulerPaie(
+        't-1',
+        null,
+        dto({
+          elements: [
+            { nature: 'SALAIRE_OU_TRAITEMENT', libelle: 'Salaire', montantFc: 1_000_000 },
+            { nature: 'LOGEMENT_OU_SON_INDEMNITE', libelle: 'Logement', montantFc: 200_000, conditionArticle69Attestee: true, enNature },
+          ],
+          natureEmployeurInpp: 'PRIVE',
+          effectif: 10,
+        } as Partial<SimulationPaieDto>),
+      );
+    const [especes, nature] = await Promise.all([avec(false), avec(true)]);
+    expect({
+      verseEspeces: especes.net.totalVerseFc,
+      verseNature: nature.net.totalVerseFc,
+      memeAssietteSociale: nature.assiettes.assietteSocialeFc === especes.assiettes.assietteSocialeFc,
+      passationEquilibree: nature.passation.equilibree,
+    }).toEqual({ verseEspeces: 1_200_000, verseNature: 1_000_000, memeAssietteSociale: true, passationEquilibree: true });
+  });
+
+  it("passe F5 · refuse « fourni en nature » sur un salaire", async () => {
+    const { svc } = service();
+    await expect(
+      svc.simulerPaie(
+        't-1',
+        null,
+        dto({
+          elements: [{ nature: 'SALAIRE_OU_TRAITEMENT', libelle: 'Salaire', montantFc: 1_000_000, enNature: true }],
+        } as Partial<SimulationPaieDto>),
+      ),
+    ).rejects.toThrow('seuls le logement, le transport et les soins');
   });
 
   it("s'abstient sur l'INPP sans emporter la CNSS ni le net", () => {
@@ -622,6 +662,31 @@ describe("P7 · le service guette la BONNE nature pour le cumul de l'article 138
       } as Partial<SimulationPaieDto>),
     );
     expect(res.quotite.reserves.some((r) => r.includes('Lukoo Musubao'))).toBe(true);
+  });
+
+  it("passe F5 · ne le signale PAS pour un logement FOURNI en nature, qui n'est pas une indemnité", async () => {
+    const { svc } = service();
+    const res = await svc.simulerPaie(
+      't-1',
+      null,
+      dto({
+        elements: [
+          { nature: 'SALAIRE_OU_TRAITEMENT', libelle: 'Salaire', montantFc: 1_000_000 },
+          {
+            nature: 'LOGEMENT_OU_SON_INDEMNITE',
+            libelle: 'Maison de fonction',
+            montantFc: 200_000,
+            conditionArticle69Attestee: true,
+            enNature: true,
+          },
+        ],
+        classeProfessionnelle: 5,
+        logementFourniEnNature: true,
+        natureEmployeurInpp: 'PRIVE',
+        effectif: 10,
+      } as Partial<SimulationPaieDto>),
+    );
+    expect(res.quotite.reserves.some((r) => r.includes('Lukoo Musubao'))).toBe(false);
   });
 
   it("ne le signale PAS pour une autre nature d'élément", async () => {

@@ -216,7 +216,24 @@ export type ElementPaie = {
    * met l'élément en ABSTENTION · jamais en immunité par défaut.
    */
   readonly conditionArticle69Attestee?: boolean | null;
+  /**
+   * Logement, transport ou soins FOURNIS EN NATURE (passe F5) · la nature
+   * reste celle de l'article 7, point 8, et de l'article 69, 8° de la loi
+   * n° 23/053, qui vise « les indemnités ET AVANTAGES EN NATURE concernant le
+   * logement, le transport et les frais médicaux » · les deux assiettes ne
+   * changent donc pas. Ce qui change est le PAIEMENT · rien n'est versé au
+   * travailleur, qui occupe déjà le logement ou emprunte déjà la navette. Le
+   * net, le 422 et la passation le lisent (`estVerseEnEspeces`).
+   */
+  readonly enNature?: boolean;
 };
+
+/** Les trois natures que l'art. 69, 8° admet EN NATURE comme en indemnité. */
+export const NATURES_FOURNIES_EN_NATURE: readonly NatureElementPaie[] = [
+  'LOGEMENT_OU_SON_INDEMNITE',
+  'INDEMNITE_DE_TRANSPORT',
+  'SOINS_DE_SANTE',
+] as const;
 
 export type ElementHorsRemuneration = {
   readonly libelle: string;
@@ -353,6 +370,19 @@ export function assiettes(
   let brutFiscalFc = 0;
   let indetermine = false;
 
+  // LES PLAFONDS DE L'ARTICLE 69 PORTENT SUR LA GRANDEUR DU SALARIÉ, pas sur
+  // une ligne (passe F5). « L'indemnité de logement » (8, a) est une seule
+  // grandeur · deux lignes de 20 % ne font pas deux indemnités sous le seuil,
+  // elles en font une de 40 %. Et le « taux légal » des allocations (1) est
+  // celui de TOUS les enfants bénéficiaires · il se consomme une fois, dans
+  // l'ordre des lignes, jamais recommencé à chaque ligne. Même règle que les
+  // plafonds du catalogue fiscal (`AssiettePlafond`).
+  const estLigneLogement = (e: ElementPaie) =>
+    e.remboursementDeDepenseProfessionnelleEffective !== true && e.nature === 'LOGEMENT_OU_SON_INDEMNITE';
+  const totalLogementFc = elements.filter(estLigneLogement).reduce((t, e) => t + e.montantFc, 0);
+  let tauxLegalRestantFc = parametres.tauxLegalAllocationsFamilialesFc ?? null;
+  let reserveLogementPosee = false;
+
   for (const element of elements) {
     // Article 68, 1 · un remboursement de dépenses professionnelles EFFECTIVES
     // n'entre pas dans les traitements imposables. Il ne s'agit pas d'une
@@ -407,7 +437,9 @@ export function assiettes(
         });
         continue;
       }
-      const excedent = Math.max(0, element.montantFc - tauxLegal);
+      const immunise = Math.min(element.montantFc, Math.max(0, tauxLegalRestantFc ?? tauxLegal));
+      tauxLegalRestantFc = (tauxLegalRestantFc ?? tauxLegal) - immunise;
+      const excedent = element.montantFc - immunise;
       brutFiscalFc += excedent;
       sortsFiscaux.push({
         libelle: element.libelle,
@@ -458,7 +490,7 @@ export function assiettes(
 
     // Article 69, 8, a) · la seule condition que le logiciel sait vérifier.
     const plafondFc = (sociale.montantFc * PLAFOND_LOGEMENT_POUR_CENT) / 100;
-    const conditionRemplie = element.montantFc <= plafondFc;
+    const conditionRemplie = totalLogementFc <= plafondFc;
     const imposableFc = conditionRemplie ? 0 : element.montantFc;
     brutFiscalFc += imposableFc;
     sortsFiscaux.push({
@@ -466,17 +498,19 @@ export function assiettes(
       montantFc: element.montantFc,
       imposableFc,
       motif:
-        `${immunite.point} · ${immunite.texte}. Plafond de comparaison : ${plafondFc.toFixed(2)} FC. ` +
+        `${immunite.point} · ${immunite.texte}. Indemnité de logement du mois, toutes lignes : ${totalLogementFc.toFixed(2)} FC, ` +
+        `plafond de comparaison : ${plafondFc.toFixed(2)} FC. ` +
         (conditionRemplie
           ? "La condition est remplie, l'immunité joue tout entière."
           : "La condition n'est PAS remplie, et le point est écrit « pour autant que », non « dans la limite de » : l'immunité ne joue pas du tout, le montant entier est imposable."),
     });
-    if (!conditionRemplie) {
+    if (!conditionRemplie && !reserveLogementPosee) {
+      reserveLogementPosee = true;
       reserves.push(
         "LECTURE DE L'ARTICLE 69, 8, a) · le point immunise le logement « POUR AUTANT QUE » l'indemnité ne " +
           "dépasse 30 % de la rémunération, quand l'article 116 de la même loi écrit « DANS LA LIMITE DE » lorsqu'il " +
           "veut un plafond. OmegaX impose donc le montant ENTIER. Lu comme un plafond, seul l'excédent de " +
-          `${(element.montantFc - plafondFc).toFixed(2)} FC le serait. Le point n'est tranché par aucune source lue.`,
+          `${(totalLogementFc - plafondFc).toFixed(2)} FC le serait. Le point n'est tranché par aucune source lue.`,
       );
     }
     reserves.push(

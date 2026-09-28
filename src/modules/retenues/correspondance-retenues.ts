@@ -1,5 +1,6 @@
 import { FormeJuridiqueSyscohada, Referentiel } from '@prisma/client';
 import { RESERVE_JOUR_OUVRABLE } from './jour-ouvrable';
+import { FORFAITS_ARRETE_019_2025 } from '../personnel/bareme-irpp';
 
 /**
  * REGISTRE DES RETENUES À LA SOURCE ET ÉCHÉANCIER FISCAL.
@@ -232,11 +233,9 @@ export const NATURES_RETENUES: NatureRetenue[] = [
     reserve:
       "PERSONNEL DOMESTIQUE ET SALARIÉS DE MICRO-ENTREPRISES · leurs rémunérations ne suivent PAS ce régime mensuel. " +
       "L'article 70, alinéa 2 de la loi n° 23/053 les impose « suivant les taux forfaitaires fixés par voie d'Arrêté du " +
-      "Ministre ayant les Finances dans ses attributions », et l'arrêté ministériel n° 019/CAB/MIN/FINANCES/2025 du " +
-      "19 février 2025, en vigueur depuis le 1er janvier 2026, fixe ces forfaits ANNUELS à l'équivalent en francs " +
-      "congolais de 24 dollars par salarié domestique et de 36 dollars par salarié de micro-entreprise, l'impôt étant " +
-      "« retenu à la source par l'employeur et reversé par quotité trimestrielle, au plus tard le 15 du mois qui suit la " +
-      "fin de chaque trimestre » (art. 2). Cette retenue est en outre LIBÉRATOIRE de l'IRPP pour ces salariés, « pour " +
+      "Ministre ayant les Finances dans ses attributions ». " +
+      FORFAITS_ARRETE_019_2025 +
+      " Cette retenue est en outre LIBÉRATOIRE de l'IRPP pour ces salariés, « pour " +
       "autant que ces rémunérations constituent pour eux des revenus uniques » (art. 121, alinéa 2) : ils n'ont alors " +
       "aucune déclaration à souscrire sur ce revenu. CE QUE LE LOGICIEL NE SAIT PAS · rien dans les comptes 4471 et " +
       "4472 ne distingue ces rémunérations des autres, ne dit si elles sont le revenu unique du bénéficiaire, ni ne " +
@@ -375,16 +374,23 @@ export const NATURES_RETENUES: NatureRetenue[] = [
     chargeSousConditionArticle20:
       "Les INTÉRÊTS servis (emprunts, comptes courants d'associés) sur lesquels la retenue est opérée · eux seuls sont une charge, et les articles 39 à 41 leur posent en outre leurs propres limites. Un dividende distribué n'est pas une charge : la condition de l'article 20 ne le concerne pas, mais la retenue lui reste due.",
     reserve:
-      "Cas réel pour une association qui place sa trésorerie à terme ou qui sert des intérêts sur un emprunt reçu " +
-      "d'un membre. Le prélèvement sur les revenus versés à des NON-RÉSIDENTS, lui, ne vise que les revenus « versés " +
+      "Cas réel pour une association qui sert des intérêts sur un emprunt reçu d'un membre. L'intérêt d'un " +
+      "PLACEMENT de trésorerie est un revenu du déposant, et la retenue en est opérée par la banque dépositaire, " +
+      "débitrice du revenu (loi n° 23/053, art. 78, 2° et art. 120, « opérée par les débiteurs de ces revenus ») · il " +
+      "ne se reverse pas depuis ce registre. Le prélèvement sur les revenus versés à des NON-RÉSIDENTS, lui, ne vise que les revenus « versés " +
       "par des sociétés établies en République Démocratique du Congo » (art. 149 ter) et sa déclaration que « les " +
       "sociétés établies en République Démocratique du Congo » (art. 22 quater) : une ASBL n'est pas une société, et " +
       "le logiciel ne sert donc pas cette seconde obligation à un dossier SYCEBNL. Si votre entité verse des revenus " +
       "de capitaux mobiliers à un bénéficiaire établi à l'étranger, faites trancher le point par un conseil · ce " +
       "logiciel ne le tranche pas.",
     reserveSyscohada:
-      "Cas réel pour une entreprise qui place sa trésorerie à terme, qui distribue des dividendes ou qui sert des " +
-      "intérêts à ses associés. CE QUE LE LOGICIEL NE SAIT PAS · le compte 44784 porte la retenue, jamais la " +
+      "Cas réel pour une entreprise qui distribue des dividendes ou qui sert des intérêts à ses associés. L'intérêt " +
+      "d'un PLACEMENT de trésorerie est un revenu du déposant · la retenue, quand elle est due, est opérée par la " +
+      "banque qui le verse (art. 120, « opérée par les débiteurs de ces revenus »), jamais reversée depuis ce registre. SOCIÉTÉ-MÈRE · une SA ou une SARL qui redistribue au " +
+      "titre d'un exercice des produits de participations encaissés le même exercice impute l'impôt que ces " +
+      "produits ont supporté sur celui dont elle est redevable (art. 76), à quatre conditions cumulatives · au moins " +
+      "25 % du capital de la filiale, sièges en RDC, impôt de la filiale égal au droit commun, titres nominatifs ou " +
+      "engagement de conservation de deux ans. Aucune ne se lit dans un compte · OmegaX n'impute rien. CE QUE LE LOGICIEL NE SAIT PAS · le compte 44784 porte la retenue, jamais la " +
       "RÉSIDENCE du bénéficiaire. Il ne peut donc pas dire si ce qui y est crédité relève de la retenue interne de " +
       "l'article 120 ou du prélèvement sur les non-résidents des articles 149 bis à 149 quinquies. Aucun montant ni " +
       "aucune date n'en dépendent · les deux prélèvements sont assis sur le montant brut, au taux de 20 %, et dus le " +

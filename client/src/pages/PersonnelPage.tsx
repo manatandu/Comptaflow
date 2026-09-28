@@ -480,9 +480,14 @@ type LignePaie = {
   montantFc: string;
   attestee: '' | 'oui' | 'non';
   remboursement: boolean;
+  /** Logement, transport ou soins fournis en nature · rien n'est versé (passe F5). */
+  enNature?: boolean;
   /** Rubrique du cabinet · sa nature est relue au serveur. */
   rubriqueId?: string;
 };
+
+/** Les natures que la loi n° 23/053, art. 69, 8° admet fournies en nature. */
+const NATURES_FOURNIES_EN_NATURE = ['LOGEMENT_OU_SON_INDEMNITE', 'INDEMNITE_DE_TRANSPORT', 'SOINS_DE_SANTE'];
 
 const LIGNE_VIERGE: LignePaie = {
   nature: 'SALAIRE_OU_TRAITEMENT',
@@ -701,6 +706,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
             : { montantFc: nombre(l.montantFc) as number }),
           ...(l.remboursement ? { remboursementDeDepenseProfessionnelleEffective: true } : {}),
           ...(l.attestee === '' ? {} : { conditionArticle69Attestee: l.attestee === 'oui' }),
+          ...(l.enNature && NATURES_FOURNIES_EN_NATURE.includes(l.nature) ? { enNature: true } : {}),
         })),
       retenuesArticle71Fc: nombre(retenues71),
       tauxLegalAllocationsFamilialesFc: nombre(tauxAllocations),
@@ -2358,6 +2364,25 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                           />
                           <span className="text-[10.5px] text-text-dim">dépense effective</span>
                         </label>
+                        {NATURES_FOURNIES_EN_NATURE.includes(l.nature) && (
+                          <label
+                            className="flex items-center gap-1"
+                            title="Logement, transport ou soins fournis en nature · compté dans les assiettes, jamais dans le net ni au 422 (loi n° 23/053, art. 69, 8°)"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={l.enNature === true}
+                              onChange={(e) =>
+                                setLignes(
+                                  lignes.map((x, j) =>
+                                    j === i ? { ...x, enNature: e.target.checked } : x,
+                                  ),
+                                )
+                              }
+                            />
+                            <span className="text-[10.5px] text-text-dim">fourni en nature</span>
+                          </label>
+                        )}
                       </td>
                       <td className="py-1 text-right">
                         <button

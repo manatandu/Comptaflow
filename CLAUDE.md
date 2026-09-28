@@ -1689,7 +1689,8 @@ de perception de l'art. 122 (1 % du chiffre d'affaires) ne vise PAS les revenus
 salariaux de l'art. 68 · l'appliquer à un bulletin inventerait un impôt. Le
 plancher de 2 000 FC du livre de cours n'est dans AUCUN article. Et la retenue
 LIBÉRATOIRE de l'art. 121, alinéa 2 (personnel domestique, salariés de
-micro-entreprises, arrêté n° 019/2025 non lu) est un autre régime, nommé plutôt
+micro-entreprises, arrêté n° 019/2025, lu depuis la passe F5, dont seul le cours
+de conversion manque) est un autre régime, nommé plutôt
 qu'ignoré.
 
 **ET UNE LACUNE DÉCLARÉE À TORT DANS NOTRE PROPRE ÉCRAN, LA QUATRIÈME.**
@@ -2442,6 +2443,15 @@ les francs figés dans sa conversion, relus par RANG, jamais par libellé ; et
 l'avantage en nature n'est pas une somme versée · il reste dans les assiettes,
 sort du net et du 422, et se passe en QUATRIÈME temps, D 6617 / C 781, comme
 l'écrivent la fiche du compte 66 des deux textes et le Guide (§ 4.5).
+PASSE F5 (2026-09-28) · le logement, le transport et les soins FOURNIS EN
+NATURE (`ElementPaie.enNature`, refusé sur toute autre nature) gardent leur
+nature et leurs deux assiettes (art. 69, 8°), et sortent du net et du 422 comme
+l'avantage en nature, par le même 6617 / 781. La condition des 30 % et le
+taux légal des allocations se lisent sur le TOTAL du salarié, jamais ligne par
+ligne. Au module fiscal, une réintégration porte la mention de l'art. 73,
+al. 2, 5° sauf les exclusions du texte (`CODES_HORS_ARTICLE_73_5`, liste
+fermée), et le 462 débiteur d'une société SYSCOHADA s'informe
+(`COMPTE_COURANT_ASSOCIE_DEBITEUR`) · aucune retenue n'est chiffrée.
 
 **Salaire stipulé en dollars · la règle est celle du cabinet, pas d'un texte
 (2026-09-24).** Aucun texte du corpus ne fixe le cours de conversion d'une

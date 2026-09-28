@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { Collecte, LOT_ECRITURES, LOT_LECTURE, lireParLots, pageApres } from '../../common/lecture-par-lots';
 import { qualifierExemptionIs } from '../fiscalite/exemption-is-ebnl';
+import { FORMES_PERSONNES_PHYSIQUES } from '../retenues/correspondance-retenues';
 import {
   ClasseCompte,
   FormeJuridiqueSyscohada,
@@ -2180,6 +2181,55 @@ export class ControlesService {
             })),
           });
         }
+      }
+    }
+
+    // --- 19 bis. Compte courant d'associé débiteur (passe F5) ----------------
+    //
+    // Loi n° 23/053, art. 73, al. 2, 2°, a) · sont des revenus distribués,
+    // « sauf preuve contraire, les sommes mises à la disposition des associés
+    // [...] à titre d'avances, de prêts ou d'acomptes », remboursées elles
+    // viennent en déduction. Elles portent la retenue de 20 % de l'art. 120.
+    // SYSCOHADA SEUL, et sociétés seules · au SYCEBNL le 462 porte les fonds
+    // d'administration des projets (un numéro, deux sens), et une personne
+    // physique n'a pas d'associé. La présomption est réfragable · le contrôle
+    // INFORME et ne chiffre aucune retenue.
+    if (
+      tenant.referentiel === Referentiel.SYSCOHADA &&
+      !(tenant.formeJuridiqueSyscohada && FORMES_PERSONNES_PHYSIQUES.includes(tenant.formeJuridiqueSyscohada))
+    ) {
+      const lignes462 = await this.prisma.ligneEcriture.findMany({
+        where: {
+          compte: { tenantId, numero: { startsWith: '462' } },
+          ecriture: { tenantId, exerciceId },
+        },
+        select: { debit: true, credit: true, compte: { select: { numero: true, intitule: true } } },
+      });
+      const soldes462 = new Map<string, { intitule: string; solde: number }>();
+      for (const l of lignes462.filter((x) => x.compte.numero.startsWith('462'))) {
+        const acc = soldes462.get(l.compte.numero) ?? { intitule: l.compte.intitule, solde: 0 };
+        acc.solde += Number(l.debit) - Number(l.credit);
+        soldes462.set(l.compte.numero, acc);
+      }
+      const debiteurs = [...soldes462.entries()].filter(([, v]) => v.solde > 0.005).sort(([a], [b]) => a.localeCompare(b));
+      if (debiteurs.length > 0) {
+        anomalies.push({
+          code: 'COMPTE_COURANT_ASSOCIE_DEBITEUR',
+          gravite: 'INFORMATION',
+          libelle: 'Compte courant d’associé débiteur',
+          consequence:
+            'Les sommes mises à la disposition des associés à titre d’avances, de prêts ou d’acomptes sont ' +
+            'présumées revenus distribués, sauf preuve contraire (loi n° 23/053, art. 73, al. 2, 2°, a), et portent ' +
+            'la retenue de 20 % de l’art. 120. Remboursées, elles viennent en déduction pour la période du remboursement.',
+          action:
+            'Justifiez chaque solde débiteur (convention de prêt, remboursement intervenu) ou traitez-le en revenu ' +
+            'distribué. OmegaX ne chiffre aucune retenue.',
+          occurrences: debiteurs.slice(0, 200).map(([numero, v]) => ({
+            reference: `${numero} ${v.intitule}`,
+            detail: 'Solde débiteur sur l’exercice',
+            montant: Math.round(v.solde * 100) / 100,
+          })),
+        });
       }
     }
 

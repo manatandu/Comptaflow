@@ -377,6 +377,14 @@ export class ElementPaieDto {
   conditionArticle69Attestee?: boolean;
 
   /**
+   * Logement, transport ou soins FOURNIS EN NATURE (passe F5) · rien n'est
+   * versé, et le service refuse le drapeau sur toute autre nature.
+   */
+  @IsOptional()
+  @IsBoolean()
+  enNature?: boolean;
+
+  /**
    * La rubrique du cabinet dont l'élément est tiré. Présente, sa NATURE est
    * relue au serveur et remplace celle que le client envoie · la rubrique
    * nomme, la nature décide (rubriques-paie.ts).
@@ -480,7 +488,8 @@ export class SimulationPaieDto {
   /**
    * Article 121, alinéa 2 · le régime de la retenue. Le personnel domestique
    * et les salariés de micro-entreprises relèvent d'un forfait LIBÉRATOIRE
-   * (arrêté n° 019/2025, non lu) que OmegaX ne chiffre pas · la retenue
+   * (arrêté n° 019/CAB/MIN/FINANCES/2025, lu, `FORFAITS_ARRETE_019_2025`) que
+   * OmegaX ne chiffre pas en francs, faute du cours de conversion · la retenue
    * s'abstient. Non déclaré, le droit commun est retenu ET dit (audit final
    * F105) · il ne se déduit ni d'un montant ni d'une forme juridique.
    */

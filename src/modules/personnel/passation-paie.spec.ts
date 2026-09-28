@@ -323,4 +323,42 @@ describe('Ce que la passation annonce', () => {
       true,
     ]);
   });
+
+  it("passe F5 · un logement FOURNI EN NATURE va au 6617 par le 781, jamais au 6631 ni au 422", () => {
+    const v = passationPaie(
+      entree({
+        // Le logement versé en espèces de l'entrée de base devient FOURNI · le
+        // net perd ses 400 000, le 422 ne porte plus que le salaire.
+        elements: [
+          { nature: 'SALAIRE_OU_TRAITEMENT', libelle: 'Salaire', montantFc: 1_000_000 },
+          { nature: 'LOGEMENT_OU_SON_INDEMNITE', libelle: 'Maison de fonction', montantFc: 400_000, enNature: true },
+        ],
+        netAPayerFc: 850_000,
+      }),
+    );
+    const du = (compte: string, sens: string) => v.lignes.filter((l) => l.compte === compte && l.sens === sens).map((l) => [l.bloc, l.montantFc]);
+    expect({
+      refus: v.refus,
+      c422: du('42200000', 'CREDIT'),
+      d6631: du('66310000', 'DEBIT'),
+      d6617: du('66170000', 'DEBIT'),
+      c781: du('78100000', 'CREDIT'),
+    }).toEqual({
+      refus: [],
+      c422: [['BRUT', 1_000_000]],
+      d6631: [],
+      d6617: [['AVANTAGES_EN_NATURE', 400_000]],
+      c781: [['AVANTAGES_EN_NATURE', 400_000]],
+    });
+  });
+
+  it("passe F5 · fourni en nature, le logement, le transport et les soins ne sont pas versés ; un salaire l'est toujours", () => {
+    expect([
+      estVerseEnEspeces('LOGEMENT_OU_SON_INDEMNITE', true),
+      estVerseEnEspeces('INDEMNITE_DE_TRANSPORT', true),
+      estVerseEnEspeces('SOINS_DE_SANTE', true),
+      estVerseEnEspeces('LOGEMENT_OU_SON_INDEMNITE', false),
+      estVerseEnEspeces('SALAIRE_OU_TRAITEMENT', true),
+    ]).toEqual([false, false, false, true, true]);
+  });
 });

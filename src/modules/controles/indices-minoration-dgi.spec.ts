@@ -1,4 +1,4 @@
-import { Referentiel } from '@prisma/client';
+import { FormeJuridiqueSyscohada, Referentiel } from '@prisma/client';
 import { ControlesService } from './controles.service';
 import { PrismaService } from '../../common/prisma.service';
 
@@ -29,7 +29,12 @@ const ligne = (numero: string, intitule: string, debit: number, credit = 0, exer
 
 type Ligne = ReturnType<typeof ligne>;
 
-function service(lignes: Ligne[], referentiel: Referentiel, avecExercicePrecedent = true) {
+function service(
+  lignes: Ligne[],
+  referentiel: Referentiel,
+  avecExercicePrecedent = true,
+  forme: FormeJuridiqueSyscohada | null = null,
+) {
   const courant = { id: 'ex', dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') };
   const precedent = { id: 'exN1', dateDebut: new Date('2025-01-01'), dateFin: new Date('2025-12-31') };
   const prisma = {
@@ -40,14 +45,20 @@ function service(lignes: Ligne[], referentiel: Referentiel, avecExercicePreceden
         args?.where?.dateFin?.lt ? Promise.resolve(avecExercicePrecedent ? precedent : null) : Promise.resolve(courant),
       ),
     },
-    tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 't', referentiel }) },
+    tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 't', referentiel, formeJuridiqueSyscohada: forme }) },
     ecriture: { findMany: jest.fn().mockResolvedValue([]) },
     compte: { findMany: jest.fn().mockResolvedValue([]) },
     // LA DOUBLURE HONORE LE FILTRE DU SOLDE DE CLÔTURE · elle n'écarte ces
     // lignes que si la requête le demande, comme Postgres.
     ligneEcriture: {
-      findMany: jest.fn(async (args: { where?: { ecriture?: { estSoldeDesComptesDeGestion?: boolean } } }) =>
-        lignes.filter((l) => !(l.soldeDeGestion && args?.where?.ecriture?.estSoldeDesComptesDeGestion === false)),
+      // ET L'EXERCICE DEMANDÉ, quand la requête le nomme (passe F5) · sans
+      // lui, un contrôle qui lirait le mauvais exercice passerait.
+      findMany: jest.fn(async (args: { where?: { ecriture?: { estSoldeDesComptesDeGestion?: boolean; exerciceId?: unknown } } }) =>
+        lignes.filter(
+          (l) =>
+            !(l.soldeDeGestion && args?.where?.ecriture?.estSoldeDesComptesDeGestion === false) &&
+            (typeof args?.where?.ecriture?.exerciceId !== 'string' || l.ecriture.exerciceId === args.where.ecriture.exerciceId),
+        ),
       ),
       groupBy: jest.fn().mockResolvedValue([]),
     },
@@ -78,8 +89,9 @@ const trouver = async (
   lignes: Ligne[],
   referentiel: Referentiel = Referentiel.SYSCOHADA,
   avecExercicePrecedent = true,
+  forme: FormeJuridiqueSyscohada | null = null,
 ) => {
-  const rapport = await service(lignes, referentiel, avecExercicePrecedent).analyser('t', 'ex');
+  const rapport = await service(lignes, referentiel, avecExercicePrecedent, forme).analyser('t', 'ex');
   return rapport.anomalies.find((a) => a.code === code);
 };
 
@@ -199,6 +211,33 @@ describe('19 · avances clients reportées d’un exercice à l’autre', () => 
       Referentiel.SYCEBNL,
     );
     expect(a).toBeUndefined();
+  });
+});
+
+describe('19 bis · compte courant d’associé débiteur (passe F5, art. 73, al. 2, 2°, a)', () => {
+  const avance = ligne('46210000', 'Associés, comptes courants', 3_000_000);
+  it('signale un 462 débiteur d’une société SYSCOHADA, sans chiffrer de retenue', async () => {
+    const a = await trouver('COMPTE_COURANT_ASSOCIE_DEBITEUR', [avance], Referentiel.SYSCOHADA, true, FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE);
+    expect([a?.gravite, a?.occurrences[0].montant, a?.consequence.includes('sauf preuve contraire')]).toEqual(['INFORMATION', 3_000_000, true]);
+  });
+
+  it('ne lit que l’exercice analysé', async () => {
+    const a = await trouver(
+      'COMPTE_COURANT_ASSOCIE_DEBITEUR',
+      [ligne('46210000', 'Associés, comptes courants', 3_000_000, 0, 'exN1')],
+      Referentiel.SYSCOHADA,
+      true,
+      FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE,
+    );
+    expect(a).toBeUndefined();
+  });
+
+  it('se tait au SYCEBNL, où le 462 porte les fonds d’administration des projets, et chez une personne physique', async () => {
+    const [ebnl, physique] = await Promise.all([
+      trouver('COMPTE_COURANT_ASSOCIE_DEBITEUR', [avance], Referentiel.SYCEBNL),
+      trouver('COMPTE_COURANT_ASSOCIE_DEBITEUR', [avance], Referentiel.SYSCOHADA, true, FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE),
+    ]);
+    expect([ebnl, physique]).toEqual([undefined, undefined]);
   });
 });
 

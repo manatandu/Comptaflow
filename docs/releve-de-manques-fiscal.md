@@ -2466,3 +2466,60 @@ manques contre le corpus.
 l'IS, le jalon du planning et la note sur la fiscalité des ASBL raisonnaient
 encore sur l'exonération. La règle se cherche par son MOT dans tout le dépôt,
 pas seulement dans le module qui l'a vue la première fois.
+
+## Passe F5 · IRPP, loi n° 23/053, Titre 3, et les deux arrêtés de retenue (2026-09-28)
+
+Titre 3 de la loi n° 23/053 (IRPP), l'arrêté des retenues sur revenus
+salariaux et l'A.M. n° 008/2025 (capitaux mobiliers), confrontés à la paie et
+au module fiscal, en un seul run de quatre blocs. 12 agents, 80 obligations
+servies, 25 constats réfutés un à un, **9 écartés, 16 retenus (15 écarts
+distincts, C42 et D10 visant le même défaut) dont 7 FAUX, tous traités**.
+Chaque ligne source relue par la session principale (art. 63, 69, 73, 76,
+78, 89, 90, 92 à 99, 103, 117, 120, 124 et l'arrêté n° 019/2025).
+
+### Corrigés
+
+| Constat | Gravité | Ce qui était faux | Ce qui est fait |
+|---|---|---|---|
+| A39 | FAUX | Un logement, un transport ou des soins FOURNIS EN NATURE étaient comptés versés en espèces · le net et le 422 gonflés d'un logement que le travailleur occupe déjà, la charge portée au 6631. Saisi en avantage en nature, il entrait au contraire dans l'assiette sociale dont l'art. 7, point 8 l'exclut. Le défaut F22 revenu par une autre nature. | `ElementPaie.enNature`, refusé hors de ces trois natures ; la nature et les deux assiettes restent celles de l'art. 69, 8° ; `estVerseEnEspeces` le sort du net et du 422, la passation le transfère au 6617 par le 781 ; la réserve du net et le cumul de l'art. 138 corrigés ; case « fourni en nature » à l'écran. |
+| A40 | FAUX | La condition des 30 % de l'art. 69, 8°, a) testée ligne par ligne · deux indemnités de 20 % passaient chacune. | Testée sur le TOTAL du logement du salarié, la réserve posée une fois. |
+| A32 | FAUX | Le plafond « taux légal » des allocations familiales (art. 69, 1) appliqué à chaque ligne. | Plafond global, consommé ligne après ligne. |
+| B11 | FAUX | La retenue sur capitaux mobiliers donnait pour cas réel le dossier qui PLACE sa trésorerie · c'est la banque, débitrice du revenu, qui l'opère (art. 120). | Retiré des deux réserves ; la banque nommée. |
+| B41 | FAUX | L'aide des dépenses personnelles servait l'art. 20 à l'exploitant personne physique · l'art. 89, al. 4 et l'art. 99, al. 2 retiennent 50 % forfaitaires. | Aide scindée, source complétée. |
+| C42, D10 | FAUX | « L'arrêté n'est pas lu ici » · l'arrêté n° 019/CAB/MIN/FINANCES/2025 est au corpus et le registre voisin en citait les chiffres. Lacune déclarée à tort, la neuvième, affichée à l'écran. | Une seule phrase (`FORFAITS_ARRETE_019_2025`) pour la paie et le registre · 24 et 36 dollars, quotités trimestrielles ; seul le cours de conversion reste inconnu, et c'est lui qui est dit. DTO, en-tête, `docs/paie-p2a` et CLAUDE.md corrigés. |
+| A55 | INCOMPLET | Les réintégrations tues comme revenus distribués (art. 73, al. 2, 5°) portant la retenue de 20 % de l'art. 120. | `revenusDistribues` posé par `CODES_HORS_ARTICLE_73_5`, liste fermée des exclusions du texte, gelée ; affiché à l'écran. |
+| A50 | INCOMPLET | Aucun signalement d'un 462 débiteur · présomption de l'art. 73, al. 2, 2°, a). | Contrôle `COMPTE_COURANT_ASSOCIE_DEBITEUR`, SYSCOHADA et sociétés seulement (au SYCEBNL le 462 porte les fonds d'administration), en information. |
+| A13 | INCOMPLET | La SA, la SARL et la SAS unipersonnelles à associé personne physique · art. 3 du Titre 2 et art. 63, al. 2, 1° ne s'articulent pas. | Observation qui nomme les deux textes, calcul maintenu à l'IS. ANOMALIE DU TEXTE, non tranchée. |
+| B1 | INCOMPLET | L'imputation de la société-mère (art. 76) non nommée. | Réserve SYSCOHADA, quatre conditions cumulatives, rien imputé. |
+| B42, B54 | INCOMPLET | Au régime réel d'une personne physique, les art. 89 al. 2-3, 90 et 92 à 99 (professions non commerciales, avances sur honoraires encaissées) n'étaient nommés nulle part. | Deux observations au seul régime réel. |
+| C7 | INCOMPLET | L'exonération des cultures vivrières de moins de dix hectares (art. 103) absente. | Observation servie à toute personne physique. |
+| C31 | INCOMPLET | L'IRPP au taux le plus élevé sur les sommes à bénéficiaires non révélés (art. 117) tu. | Aide et source complétées. |
+| C49 | CONFORT | La double négation de l'art. 124, al. 2 et sa borne temporelle. | Anomalie signalée dans le code et la source servie, avec l'année précédente et 1 944 000 FC. |
+
+### Écartés par la réfutation
+
+A54 (la charge des seuls intérêts servis est juste · l'art. 68 range ailleurs
+les rémunérations), A29 (la phrase du décompte ne calcule rien), B47 (l'art. 91
+ne vise que les périodes inférieures à un an), B14 (les débiteurs exonérés par
+l'art. 80 sont hors du registre), B20 (le registre recense, il ne calcule
+pas), C42 bis (le refus d'émettre un bulletin au forfait découle de deux
+règles déclarées), C48 (la proposition du nombre de personnes à charge est
+déjà dite non substituée), D5 (l'arrêté des modalités fait calculer l'impôt
+par le barème entier), D13 (citation non ancrée dans la source confrontée).
+
+### Ce que la passe apprend
+
+**LE DÉFAUT F22 EST REVENU PAR UNE AUTRE NATURE.** « Versé en espèces » était
+tenu par la seule nature AVANTAGE_EN_NATURE, alors que l'art. 69, 8° nomme
+trois natures « indemnités ET avantages en nature ». Une correction qui tient
+une propriété par une liste de natures se relit contre toutes les natures que
+le texte laisse prendre les deux formes.
+
+**UNE CONDITION SE LIT SUR L'OBJET QUE LE TEXTE NOMME, PAS SUR LA LIGNE
+SAISIE.** Les 30 % et le taux légal portaient sur « l'indemnité » et « les
+allocations », pas sur une ligne de bulletin · deux lignes de 20 % faisaient
+passer 40 %.
+
+**UNE LACUNE DÉCLARÉE À TORT, LA NEUVIÈME, ET LE MODULE VOISIN AVAIT LA
+RÉPONSE.** Même cause que la sixième (l'arrêté INPP) · le manque a été relu
+contre le module qu'on écrivait, jamais contre le dépôt entier.

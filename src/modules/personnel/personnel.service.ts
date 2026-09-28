@@ -9,7 +9,7 @@ import {
   SimulationPaieDto,
   TerminerContratDto,
 } from './dto/personnel.dto';
-import { assiettes, type ElementPaie, type NatureElementPaie } from './assiettes-paie';
+import { assiettes, NATURES_FOURNIES_EN_NATURE, type ElementPaie, type NatureElementPaie } from './assiettes-paie';
 import { RESERVE_REGIME_NON_DECLARE, baremeApplicableAuMois, regimeApplicable, retenueMensuelle } from './bareme-irpp';
 import { cotisations, netAPayer, type NatureEmployeurInpp } from './cotisations-paie';
 import { estVerseEnEspeces, passationPaie, type Referentiel } from './passation-paie';
@@ -958,6 +958,18 @@ export class PersonnelService {
         });
       }
     }
+    // Passe F5 · « fourni en nature » ne se dit que du logement, du transport
+    // et des soins (loi n° 23/053, art. 69, 8°). Sur un salaire, il ferait
+    // disparaître du net une somme versée ; l'avantage en nature, lui, l'est
+    // déjà par sa nature.
+    const horsChamp = elements.find(
+      (e) => e.enNature === true && !NATURES_FOURNIES_EN_NATURE.includes(e.nature as NatureElementPaie),
+    );
+    if (horsChamp) {
+      throw new BadRequestException(
+        `« ${horsChamp.libelle} » · seuls le logement, le transport et les soins se déclarent fournis en nature.`,
+      );
+    }
     return { dto: { ...dto, elements }, retenuesAvances };
   }
 
@@ -1031,13 +1043,19 @@ export class PersonnelService {
         },
       });
       if (!salarie) throw new NotFoundException('Salarié introuvable dans ce dossier.');
+      // ANOMALIE DU TEXTE, signalée (passe F5) · l'art. 124, al. 2 écrit que
+      // ne sont à charge que ceux qui « n'aient pas bénéficié [...] des
+      // ressources nettes NE DÉPASSANT PAS » la première tranche · lue à la
+      // lettre, la double négation écarterait ceux qui n'ont presque rien.
+      // OmegaX retient la lecture de l'éditeur, les ressources SUPÉRIEURES
+      // excluent, et la dit.
       const conjoint = salarie.nomConjoint ? 1 : 0;
       propositionPersonnesACharge = conjoint + salarie._count.enfants;
       sourceProposition =
         `Registre du personnel · ${conjoint} conjoint et ${salarie._count.enfants} enfant(s) à charge. ` +
         "L'article 124 y ajoute les ascendants des deux conjoints faisant partie du ménage, que le registre ne tient pas, " +
-        "et il écarte les enfants et ascendants qui disposent de ressources propres supérieures à la première tranche du barème. " +
-        "L'article 125 fige la situation au 1er janvier de l'année. Le nombre retenu appartient donc au cabinet.";
+        "et il écarte les enfants et ascendants qui ont disposé, pendant l'année précédant celle de la réalisation des revenus, de ressources nettes supérieures à la première tranche du barème (1 944 000 FC). " +
+        "L'article 125 fige la situation au 1er janvier de l'année. La lettre de l'art. 124, al. 2 est inversée (double négation) · la lecture retenue est celle de l'éditeur. Le nombre retenu appartient donc au cabinet.";
     }
 
     const elements: ElementPaie[] = dto.elements.map((e) => ({
@@ -1047,6 +1065,7 @@ export class PersonnelService {
       remboursementDeDepenseProfessionnelleEffective:
         e.remboursementDeDepenseProfessionnelleEffective,
       conditionArticle69Attestee: e.conditionArticle69Attestee ?? null,
+      enNature: e.enNature === true,
     }));
 
     // L'ORDRE DE CALCUL EST LE POINT DÉLICAT, ET IL EST DANS LES TEXTES.
@@ -1112,7 +1131,7 @@ export class PersonnelService {
     // L'avantage en nature entre dans les assiettes, pas dans ce qui est
     // versé (audit final F22, `estVerseEnEspeces`).
     const totalVerseFc = elements
-      .filter((e) => estVerseEnEspeces(e.nature as NatureElementPaie))
+      .filter((e) => estVerseEnEspeces(e.nature as NatureElementPaie, e.enNature))
       .reduce((n, e) => n + Math.max(0, e.montantFc), 0);
     const net = netAPayer(
       totalVerseFc,
@@ -1142,6 +1161,7 @@ export class PersonnelService {
         nature: e.nature as NatureElementPaie,
         libelle: e.libelle,
         montantFc: e.montantFc,
+        enNature: e.enNature === true,
       })),
       cotisations: lesCotisations.lignes.map((l) => ({
         cle: l.cle,
@@ -1179,7 +1199,8 @@ export class PersonnelService {
       // ARTICLE 138 · fournir et indemniser sont ALTERNATIFS. Les deux
       // déclarés ensemble n'est pas interdit, c'est inhabituel · on le dit.
       indemniteDeLogementVersee: elements.some(
-        (e) => e.nature === 'LOGEMENT_OU_SON_INDEMNITE' && e.montantFc > 0,
+        // Fourni en nature, le logement n'est pas une INDEMNITÉ (passe F5).
+        (e) => e.nature === 'LOGEMENT_OU_SON_INDEMNITE' && e.montantFc > 0 && e.enNature !== true,
       ),
       obligationAlimentaireLegale: dto.obligationAlimentaireLegale,
     });

@@ -114,6 +114,31 @@ describe("« Pour autant que » n'est pas « dans la limite de »", () => {
     expect(logement?.imposableFc).not.toBe(100_000);
   });
 
+  it('la condition porte sur l’indemnité du salarié, toutes lignes · deux lignes de 20 % sont une indemnité de 40 % (passe F5)', () => {
+    const verdict = assiettes([
+      salaire(1_000_000),
+      { nature: 'LOGEMENT_OU_SON_INDEMNITE', libelle: 'Loyer', montantFc: 200_000 },
+      { nature: 'LOGEMENT_OU_SON_INDEMNITE', libelle: 'Charges', montantFc: 200_000 },
+    ]);
+    expect(verdict.sortsFiscaux.find((x) => x.libelle === 'Loyer')?.imposableFc).toBe(200_000);
+    expect(verdict.sortsFiscaux.find((x) => x.libelle === 'Charges')?.imposableFc).toBe(200_000);
+    expect(verdict.reserves.filter((r) => r.startsWith("LECTURE DE L'ARTICLE 69, 8, a)"))).toHaveLength(1);
+    expect(verdict.reserves.filter((r) => r.startsWith('BASE DES 30 %'))).toHaveLength(1);
+  });
+
+  it('le taux légal des allocations se consomme une fois, pas à chaque ligne (art. 69, 1, passe F5)', () => {
+    const verdict = assiettes(
+      [
+        salaire(1_000_000),
+        { nature: 'ALLOCATIONS_FAMILIALES_LEGALES', libelle: 'Alloc. 1', montantFc: 50_000 },
+        { nature: 'ALLOCATIONS_FAMILIALES_LEGALES', libelle: 'Alloc. 2', montantFc: 50_000 },
+      ],
+      { tauxLegalAllocationsFamilialesFc: 60_000 },
+    );
+    expect(verdict.sortsFiscaux.find((x) => x.libelle === 'Alloc. 1')?.imposableFc).toBe(0);
+    expect(verdict.sortsFiscaux.find((x) => x.libelle === 'Alloc. 2')?.imposableFc).toBe(40_000);
+  });
+
   it("nomme l'autre lecture et chiffre ce qu'elle changerait", () => {
     const verdict = assiettes([
       salaire(1_000_000),

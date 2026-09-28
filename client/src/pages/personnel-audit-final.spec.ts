@@ -231,3 +231,18 @@ describe('F259 · les listes bornées se lisent et se disent', () => {
     expect(composant).toContain('{trancheRubriques && rubriques.length === 0 && (');
   });
 });
+
+describe('passe F5 · le logement, le transport et les soins fournis EN NATURE', () => {
+  it('se déclarent ligne par ligne et partent au serveur sur ces trois natures seulement', () => {
+    expect(page).toContain("const NATURES_FOURNIES_EN_NATURE = ['LOGEMENT_OU_SON_INDEMNITE', 'INDEMNITE_DE_TRANSPORT', 'SOINS_DE_SANTE'];");
+    expect(page).toContain('...(l.enNature && NATURES_FOURNIES_EN_NATURE.includes(l.nature) ? { enNature: true } : {}),');
+    expect(page).toContain('j === i ? { ...x, enNature: e.target.checked } : x,');
+  });
+});
+
+describe("passe F5 · la réintégration qui est aussi un revenu distribué s'affiche avec son aide", () => {
+  it('Fiscalité rend la mention servie par le catalogue', () => {
+    const fiscalite = readFileSync(join(__dirname, 'FiscalitePage.tsx'), 'utf8');
+    expect(fiscalite).toContain('{definition.revenusDistribues && <div className="mt-1">{definition.revenusDistribues}</div>}');
+  });
+});

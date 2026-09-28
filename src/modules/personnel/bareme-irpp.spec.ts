@@ -236,7 +236,13 @@ describe('Les bornes que ce module ne franchit pas', () => {
     expect(regimeApplicable('BAREME_ARTICLE_118').calculable).toBe(true);
     expect(regimeApplicable('FORFAIT_PERSONNEL_DOMESTIQUE').calculable).toBe(false);
     expect(regimeApplicable('FORFAIT_SALARIE_DE_MICRO_ENTREPRISE').calculable).toBe(false);
-    expect(regimeApplicable('FORFAIT_PERSONNEL_DOMESTIQUE').motif).toContain('019/2025');
+    expect(regimeApplicable('FORFAIT_PERSONNEL_DOMESTIQUE').motif).toContain('019/CAB/MIN/FINANCES/2025');
+  });
+
+  it("passe F5 · l'arrêté n° 019/2025 est LU · ses montants sont dits, et seul le cours manque", () => {
+    const motif = regimeApplicable('FORFAIT_SALARIE_DE_MICRO_ENTREPRISE').motif;
+    expect(motif).toContain('24 dollars par salarié domestique et de 36 dollars');
+    expect(motif).toContain('Le cours de conversion est renvoyé');
   });
 
   it("ne porte NI le minimum de perception de l'article 122 NI le plancher de 2 000 FC du livre de cours", () => {

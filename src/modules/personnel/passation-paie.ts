@@ -40,7 +40,7 @@
  * une balance qui boucle.
  */
 
-import type { NatureElementPaie } from './assiettes-paie';
+import { NATURES_FOURNIES_EN_NATURE, type NatureElementPaie } from './assiettes-paie';
 import { compteDeLAvance, type CategoriePret, type TypeAvance } from './avances-salaire';
 
 export type Referentiel = 'SYSCOHADA' | 'SYCEBNL';
@@ -262,8 +262,13 @@ export type BlocPaie = 'BRUT' | 'RETENUES' | 'PATRONALES' | 'AVANTAGES_EN_NATURE
  * salarié le créancier EN ESPÈCES d'un logement ou d'un véhicule qu'il avait
  * déjà, sur une écriture équilibrée.
  */
-export function estVerseEnEspeces(nature: NatureElementPaie): boolean {
-  return nature !== 'AVANTAGE_EN_NATURE';
+export function estVerseEnEspeces(nature: NatureElementPaie, enNature?: boolean): boolean {
+  if (nature === 'AVANTAGE_EN_NATURE') return false;
+  // Passe F5 · le logement, le transport et les soins FOURNIS en nature ne
+  // sont pas plus versés que l'avantage en nature · c'était le défaut F22
+  // revenu par une autre nature, le net et le 422 gonflés d'un logement que
+  // le travailleur occupe déjà.
+  return !(enNature === true && NATURES_FOURNIES_EN_NATURE.includes(nature));
 }
 
 export type LigneProposee = {
@@ -293,7 +298,7 @@ export type VerdictPassation = {
 
 export type EntreePassation = {
   readonly referentiel: Referentiel;
-  readonly elements: readonly { nature: NatureElementPaie; libelle: string; montantFc: number }[];
+  readonly elements: readonly { nature: NatureElementPaie; libelle: string; montantFc: number; enNature?: boolean }[];
   readonly cotisations: readonly {
     cle: string;
     charge: 'EMPLOYEUR' | 'TRAVAILLEUR';
@@ -355,6 +360,13 @@ export function passationPaie(entree: EntreePassation): VerdictPassation {
   // 1 · Les charges de rémunération, regroupées par compte.
   const parRole = new Map<RoleComptePaie, number>();
   for (const e of entree.elements) {
+    // Fourni en nature · la charge est déjà passée par nature, à la facture du
+    // loyer, de la navette ou de la clinique, et le 781 la transfère au 6617,
+    // comme tout avantage en nature (fiche du compte 66 des deux textes).
+    if (!estVerseEnEspeces(e.nature, e.enNature) && e.nature !== 'AVANTAGE_EN_NATURE') {
+      parRole.set('AVANTAGES_EN_NATURE', (parRole.get('AVANTAGES_EN_NATURE') ?? 0) + Math.max(0, e.montantFc));
+      continue;
+    }
     const sansImputation = NATURES_SANS_IMPUTATION[e.nature];
     if (sansImputation) {
       refus.push({

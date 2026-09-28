@@ -46,8 +46,9 @@ import { arrondirImpotArt150 } from '../fiscalite/arrondi-article-150';
  *
  * 3 · LA RETENUE LIBÉRATOIRE DE L'ARTICLE 121, ALINÉA 2 (personnel domestique
  *     et salariés relevant des Micro-entreprises) N'EST PAS SERVIE. Elle suit
- *     des taux FORFAITAIRES fixés par l'arrêté n° 019/2025, qui n'est pas lu
- *     ici, et elle est LIBÉRATOIRE · ce n'est pas le barème, c'est un autre
+ *     des taux FORFAITAIRES fixés par l'arrêté n° 019/CAB/MIN/FINANCES/2025
+ *     (lu, `FORFAITS_ARRETE_019_2025`), et elle est LIBÉRATOIRE · ce n'est pas
+ *     le barème, c'est un autre
  *     régime. `regimeApplicable` le nomme, et la simulation l'appelle sur le
  *     régime DÉCLARÉ · un forfait s'abstient (audit final F105).
  */
@@ -463,13 +464,25 @@ export type RegimeSalarial =
   | 'FORFAIT_PERSONNEL_DOMESTIQUE'
   | 'FORFAIT_SALARIE_DE_MICRO_ENTREPRISE';
 
+/**
+ * L'ARRÊTÉ n° 019/CAB/MIN/FINANCES/2025 EST LU (passe F5) · ce fichier le
+ * disait « non lu » quand le registre des retenues en citait les chiffres.
+ * UNE SEULE PHRASE pour les deux modules. Ce qui reste inconnu est le COURS
+ * de conversion, que l'arrêté renvoie à une circulaire absente du corpus ·
+ * c'est pourquoi rien n'est chiffré en francs.
+ */
+export const FORFAITS_ARRETE_019_2025 =
+  "L'arrêté ministériel n° 019/CAB/MIN/FINANCES/2025 du 19 février 2025, en vigueur depuis le 1er janvier 2026, fixe ces forfaits ANNUELS à l'équivalent en francs congolais de 24 dollars par salarié domestique et de 36 dollars par salarié de micro-entreprise, retenus à la source par l'employeur et reversés par quotité trimestrielle (6 et 9 dollars) au plus tard le 15 du mois qui suit la fin de chaque trimestre, tout trimestre commencé étant dû en entier (art. 2). Le cours de conversion est renvoyé à la circulaire sur les canaux digitaux, absente du corpus · OmegaX ne chiffre donc aucune quotité en francs.";
+
 export const REGIMES_SALARIAUX: Readonly<Record<RegimeSalarial, string>> = {
   BAREME_ARTICLE_118:
     "Régime de droit commun · barème progressif de l'article 118, retenu mensuellement par l'employeur (art. 119) et imputable sur l'impôt annuel (art. 121, alinéa 1er). C'est le seul régime que ce fichier calcule.",
   FORFAIT_PERSONNEL_DOMESTIQUE:
-    "Taux forfaitaires fixés par arrêté du Ministre des Finances (art. 70, alinéa 2), l'arrêté n° 019/2025 du 19 février 2025. La retenue est LIBÉRATOIRE pour autant que ces rémunérations constituent un revenu unique (art. 121, alinéa 2). L'arrêté n'est pas lu ici · OmegaX ne chiffre rien.",
+    "Taux forfaitaires fixés par arrêté du Ministre des Finances (art. 70, alinéa 2). La retenue est LIBÉRATOIRE pour autant que ces rémunérations constituent un revenu unique (art. 121, alinéa 2). " +
+    FORFAITS_ARRETE_019_2025,
   FORFAIT_SALARIE_DE_MICRO_ENTREPRISE:
-    "Même arrêté n° 019/2025, même caractère libératoire (art. 121, alinéa 2). À ne pas confondre avec le forfait de la micro-entreprise ELLE-MÊME (art. 128, arrêté n° 015/2025) · deux redevables, deux bases, deux arrêtés. OmegaX ne chiffre rien.",
+    "Même arrêté n° 019/CAB/MIN/FINANCES/2025, même caractère libératoire (art. 121, alinéa 2). À ne pas confondre avec le forfait de la micro-entreprise ELLE-MÊME (art. 128, arrêté n° 015/2025) · deux redevables, deux bases, deux arrêtés. " +
+    FORFAITS_ARRETE_019_2025,
 } as const;
 
 /**

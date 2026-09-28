@@ -573,7 +573,7 @@ export function netAPayer(
   retenuesAvancesFc = 0,
 ): VerdictNet {
   const reserves = [
-    "LE NET PART DU TOTAL VERSÉ · les cinq exclusions de l'article 7, point 8 du Code du travail sortent de l'ASSIETTE des cotisations, pas de ce que l'employeur paie. Le logement et le transport sont bien versés au travailleur.",
+    "LE NET PART DU TOTAL VERSÉ · les cinq exclusions de l'article 7, point 8 du Code du travail sortent de l'ASSIETTE des cotisations, pas de ce que l'employeur paie. Le logement et le transport sont bien versés au travailleur, sauf ceux qu'il reçoit EN NATURE, qui ne sont ni dans ce total ni au 422.",
     retenuesAvancesFc > 0
       ? "NET APRÈS LES RETENUES D'AVANCE ET DE PRÊT (article 112, c et f), tirées du registre des avances. Restent hors du net les indemnités compensatoires de l'article 52, le cautionnement et la saisie-arrêt, qui supposent chacun un acte que le registre ne porte pas."
       : "NET AVANT LES RETENUES DE L'ARTICLE 112 · aucune avance ni aucun prêt n'est retenu sur ce bulletin. Les indemnités compensatoires de l'article 52, le cautionnement et la saisie-arrêt supposent chacun un acte que le registre ne porte pas.",

@@ -554,6 +554,7 @@ export function FiscalitePage() {
                 {definition && (
                   <div className="text-[11px] text-text-dim leading-[1.55] border border-border rounded-[4px] p-2.5">
                     <div>{definition.aide}</div>
+                    {definition.revenusDistribues && <div className="mt-1">{definition.revenusDistribues}</div>}
                     <div className="mt-1 font-medium">{definition.source}</div>
                   </div>
                 )}

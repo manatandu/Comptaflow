@@ -890,6 +890,50 @@ describe('Contribuables dispensés de patente · art. 64, 3° et 108', () => {
   });
 });
 
+/** PASSE F5 · ce que le Titre 3 pose et qu'aucune balance ne tranche. */
+describe('passe F5 · observations du Titre 3', () => {
+  it("sert l'art. 103 à toute personne physique, et les art. 89, 90 et 92 à 99 au seul régime réel", async () => {
+    const micro = await service({
+      forme: FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE,
+      balances: { N: [ligne('70110000', -20_000_000)] },
+    }).s.resultatFiscal('t1', 'N');
+    const reel = await service({
+      forme: FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE,
+      balances: { N: [ligne('70110000', -5_000_000_000)] },
+      dossier: { natureActivite: 'VENTE' },
+    }).s.resultatFiscal('t1', 'N');
+    const petite = await service({
+      forme: FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE,
+      balances: { N: [ligne('70110000', -100_000_000)] },
+      dossier: { natureActivite: 'VENTE' },
+    }).s.resultatFiscal('t1', 'N');
+    expect({
+      micro: [micro.regime, micro.observations.some((o) => o.startsWith('Art. 103')), micro.observations.some((o) => o.startsWith('Art. 92 à 99'))],
+      petite: [petite.regime, petite.observations.some((o) => o.startsWith('Art. 89, al. 2 et 3'))],
+      reel: [
+        reel.regime,
+        reel.observations.some((o) => o.startsWith('Art. 103')),
+        reel.observations.some((o) => o.startsWith('Art. 89, al. 2 et 3')),
+        reel.observations.some((o) => o.startsWith('Art. 92 à 99')),
+      ],
+    }).toEqual({
+      micro: ['IRPP_MICRO_ENTREPRISE', true, false],
+      petite: ['IRPP_PETITE_ENTREPRISE', false],
+      reel: ['IRPP_REGIME_REEL', true, true, true],
+    });
+  });
+
+  it("signale à une SARL l'anomalie de l'art. 63, al. 2, 1° sans quitter l'IS, et pas à une SNC", async () => {
+    const sarl = await service({ forme: FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE, balances: { N: [ligne('70110000', -20_000_000)] } }).s.resultatFiscal('t1', 'N');
+    const snc = await service({ forme: FormeJuridiqueSyscohada.SOCIETE_NOM_COLLECTIF, balances: { N: [ligne('70110000', -20_000_000)] } }).s.resultatFiscal('t1', 'N');
+    expect([sarl.regime, sarl.observations.some((o) => o.includes('art. 63, al. 2, 1°')), snc.observations.some((o) => o.includes('art. 63, al. 2, 1°'))]).toEqual([
+      'IMPOT_SOCIETES',
+      true,
+      false,
+    ]);
+  });
+});
+
 /**
  * ART. 133, AL. 2 · « Les amortissements des immobilisations réévaluées
  * doivent être calculés et comptabilisés sur la base des valeurs réévaluées
