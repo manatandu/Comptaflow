@@ -6,6 +6,7 @@ import { CreerTauxTvaDto, ModifierTauxTvaDto } from './dto/taux-tva.dto';
 import { tauxTvaDefaut } from './taux-tva-seed';
 import { Prisma, ClasseCompte, Referentiel, TypeJournal, NatureFacture, SensFacture, StatutEcriture } from '@prisma/client';
 import { DETENTEUR_LIQUIDATION_TVA, EcritureService } from '../comptabilite/ecriture.service';
+import { FicheAutorisationDebits, situationAutorisationDebits } from '../tiers/periode-autorisation-debits';
 
 const EPSILON = 0.005;
 
@@ -1386,6 +1387,112 @@ export class TauxTvaService {
   }
 
   /**
+   * LE RÈGLEMENT ANTÉRIEUR AU DÉBIT · décret n° 011/42, art. 62
+   * (`code-general-2026/references/11-tva-decret-application-ch1-4.md`,
+   * l. 1797-1800) : « L'autorisation de payer la taxe sur la valeur ajoutée
+   * d'après les débits ne dispense pas le redevable de s'acquitter de la taxe
+   * au moment de l'encaissement du prix ou de l'acompte si celui-ci est
+   * antérieur au débit. » Même règle à l'O.-L. n° 10/001, art. 26 al. 3
+   * (`10-tva-ol10-001-loi-base-ch1-10.md`, l. 658-660 : « Elle ne dispense pas
+   * le redevable de s'acquitter de la taxe sur la valeur ajoutée au moment de
+   * l'encaissement du prix ou de l'acompte si celui-ci intervient avant les
+   * débits »).
+   *
+   * La taxe d'une opération aux débits se découpe donc en TRANCHES : chaque
+   * règlement lettré à la facture et daté AVANT elle rend exigible sa part à
+   * sa propre date, le reste l'est à l'inscription au débit (décret art. 61).
+   * Chez un fournisseur autorisé, c'est aussi la date de la déduction du
+   * client · art. 37 al. 1 (« Le droit à déduction prend naissance lorsque la
+   * taxe devient exigible chez l'assujetti ») et décret art. 96
+   * (`12-tva-decret-application-ch5-8.md`, l. 345-351 : « L'assujetti visé à
+   * l'alinéa 1er ci-dessus s'entend du fournisseur de biens ou du prestataire
+   * de services »). Le code datait tout au débit, donc la déduction trop tard.
+   *
+   * LE RÈGLEMENT SE LIT COMME POUR L'ENCAISSEMENT (voir `exigibilite`) · la
+   * date d'ÉCRITURE des lignes du groupe de lettrage de sens opposé à la
+   * facture (décret art. 57). Un règlement du même jour que la facture n'est
+   * pas « antérieur ».
+   *
+   * CE QUI NE SE TRANCHE PAS SE DATE AU DÉBIT, comme avant · plusieurs lignes
+   * de tiers lettrées, ou un groupe qui réunit d'autres factures (une somme
+   * de même sens plus grande que celle de l'écriture) : rien ne dit alors
+   * quel règlement a payé cette facture-ci. Le débit est postérieur au
+   * règlement, si bien que la date retenue est la plus tardive des deux · une
+   * déduction tardive ne se redresse pas (art. 37 al. 2 la laisse ouverte
+   * jusqu'au 31 décembre de l'année suivante). Un acompte versé au 409, ou
+   * reçu au 419, n'est lettré à aucune facture et reste invisible · la
+   * déclaration continue de le dire pour la collecte.
+   */
+  private static tranchesAuxDebits(
+    lignesTiers: Array<{
+      debit: unknown;
+      credit: unknown;
+      lettrage: {
+        lignes?: Array<{ debit: unknown; credit: unknown; ecriture?: { date: Date } | null }>;
+      } | null;
+    }>,
+    dateDebit: Date,
+  ): Array<{ date: Date; fraction: number; auPaiement?: boolean }> {
+    const auDebit = [{ date: dateDebit, fraction: 1 }];
+    const avecLettrage = lignesTiers.filter((l) => l.lettrage);
+    if (avecLettrage.length !== 1) return auDebit;
+    const facture = avecLettrage[0];
+    const sensFacture = Number(facture.debit) - Number(facture.credit);
+    const engage = Math.abs(sensFacture);
+    const lignesGroupe = facture.lettrage!.lignes ?? [];
+    if (engage <= EPSILON || lignesGroupe.length === 0) return auDebit;
+    let memeSens = 0;
+    const anterieurs: Array<{ date: Date; montant: number }> = [];
+    for (const g of lignesGroupe) {
+      const sens = Number(g.debit) - Number(g.credit);
+      if (Math.abs(sens) <= EPSILON) continue;
+      if (sens > 0 === sensFacture > 0) {
+        memeSens += Math.abs(sens);
+        continue;
+      }
+      const date = g.ecriture?.date;
+      if (date && date.getTime() < dateDebit.getTime()) anterieurs.push({ date, montant: Math.abs(sens) });
+    }
+    // D'autres factures dans le groupe · l'imputation est inconnue.
+    if (memeSens > engage + EPSILON || anterieurs.length === 0) return auDebit;
+    anterieurs.sort((a, b) => a.date.getTime() - b.date.getTime());
+    const tranches: Array<{ date: Date; fraction: number; auPaiement?: boolean }> = [];
+    let regle = 0;
+    for (const a of anterieurs) {
+      const part = Math.min(a.montant, engage - regle);
+      if (part <= EPSILON) break;
+      regle += part;
+      tranches.push({ date: a.date, fraction: part / engage, auPaiement: true });
+    }
+    const reste = 1 - regle / engage;
+    if (reste > EPSILON) tranches.push({ date: dateDebit, fraction: reste });
+    return tranches;
+  }
+
+  /**
+   * La taxe d'une ligne répartie sur ses tranches · une tranche seule garde
+   * l'arrondi d'avant (`c(montant × fraction)`), plusieurs tranches qui
+   * couvrent toute la ligne rendent sa taxe au centime, la dernière recevant
+   * le reste.
+   */
+  private static montantsDesTranches(montant: number, tranches: ReadonlyArray<{ fraction: number }>): number[] {
+    if (tranches.length === 1) return [TauxTvaService.c(montant * tranches[0].fraction)];
+    const total = tranches.reduce((t, x) => t + x.fraction, 0);
+    const montants: number[] = [];
+    let cumul = 0;
+    tranches.forEach((t, i) => {
+      if (i === tranches.length - 1 && Math.abs(total - 1) <= EPSILON) {
+        montants.push(TauxTvaService.c(montant - cumul));
+      } else {
+        const m = TauxTvaService.c(montant * t.fraction);
+        cumul = TauxTvaService.c(cumul + m);
+        montants.push(m);
+      }
+    });
+    return montants;
+  }
+
+  /**
    * NATURE de l'opération portée par une ligne de TVA · voir le commentaire
    * de `NATURE_COLLECTEE_SYSCOHADA`. INDETERMINEE n'est pas un échec : c'est
    * le seul aveu honnête quand le plan ne subdivise pas.
@@ -1527,30 +1634,88 @@ export class TauxTvaService {
    * décret art. 59) telle qu'elle a été saisie · NULL dès qu'un seul des tiers
    * autorisés n'en porte aucune, pour que la déclaration puisse signaler une
    * anticipation qui ne s'appuie sur aucune pièce nommée.
+   *
+   * L'AUTORISATION A UNE PÉRIODE, ET L'OPÉRATION DOIT Y TOMBER. La fiche porte
+   * la date d'effet (décision, ou silence de dix jours qui vaut autorisation ·
+   * décret art. 59, `code-general-2026/references/
+   * 11-tva-decret-application-ch1-4.md`, l. 1781-1785 : « L'absence de
+   * décision dans ce délai vaut autorisation ») et la date du retour au droit
+   * commun (O.-L. n° 10/001, art. 26 al. 2 : « L'autorisation demeure valable
+   * tant que le redevable n'a pas demandé, par écrit, de revenir au régime de
+   * droit commun » ; décret art. 63, l. 1802-1806 : « révocable sur simple
+   * demande écrite du contribuable »). Le drapeau seul anticipait toutes les
+   * factures du fournisseur, celles d'avant la décision comme celles d'après
+   * la révocation · une déduction avancée hors de la période est une
+   * déduction avant l'exigibilité chez le fournisseur (art. 37 al. 1), donc
+   * redressable. La date comparée est celle de l'écriture, qui porte
+   * l'inscription au débit du compte du client (décret art. 61) et que la
+   * déclaration retient pour dater aux débits (`situationAutorisationDebits`).
+   *
+   * HORS PÉRIODE, DROIT COMMUN, ET LE FOURNISSEUR EST NOMMÉ (`horsPeriode`).
+   * AUTORISÉ SANS DATE D'EFFET · l'anticipation est GARDÉE, parce que c'est ce
+   * que la fiche disait avant qu'elle porte une date et qu'aucune donnée
+   * nouvelle ne permet de la retirer ; mais elle n'est pas prouvée pour cette
+   * date, et `nonDatee` le fait dire à la déclaration. Aucune date n'est
+   * inventée · ni celle de la fiche, ni celle d'une demande qu'OmegaX ne
+   * connaît pas.
    */
   private static fournisseurAuxDebits(
     lignesTiers: Array<{
       compte?: {
         tiersCompte?: {
-          tiers: { autoriseTvaDebits: boolean; referenceAutorisationDebits: string | null };
+          tiers: FicheAutorisationDebits & {
+            referenceAutorisationDebits: string | null;
+            code?: string | null;
+            nom?: string | null;
+          };
         } | null;
       } | null;
     }>,
-  ): { autorise: boolean; reference: string | null } {
-    const inconnu = { autorise: false, reference: null };
+    dateOperation: Date,
+  ): {
+    autorise: boolean;
+    reference: string | null;
+    nonDatee: string[];
+    horsPeriode: string[];
+    noms: string[];
+  } {
     let rattaches = 0;
     let reference: string | null = null;
     let referenceManquante = false;
+    let refuse = false;
+    const nonDatee: string[] = [];
+    const horsPeriode: string[] = [];
+    const noms: string[] = [];
     for (const l of lignesTiers) {
       const tiers = l.compte?.tiersCompte?.tiers;
       if (!tiers) continue;
       rattaches += 1;
-      if (!tiers.autoriseTvaDebits) return inconnu;
+      const nom = TauxTvaService.nomDuTiers(tiers);
+      if (!noms.includes(nom)) noms.push(nom);
+      const situation = situationAutorisationDebits(tiers, dateOperation);
+      if (situation === 'NON_AUTORISE') {
+        refuse = true;
+        continue;
+      }
+      if (situation === 'AVANT_EFFET' || situation === 'REVOQUEE') {
+        refuse = true;
+        if (!horsPeriode.includes(nom)) horsPeriode.push(nom);
+        continue;
+      }
+      if (situation === 'AUTORISE_NON_DATE' && !nonDatee.includes(nom)) nonDatee.push(nom);
       if (!tiers.referenceAutorisationDebits) referenceManquante = true;
       else reference = reference ?? tiers.referenceAutorisationDebits;
     }
-    if (rattaches === 0) return inconnu;
-    return { autorise: true, reference: referenceManquante ? null : reference };
+    if (rattaches === 0 || refuse) return { autorise: false, reference: null, nonDatee: [], horsPeriode, noms };
+    return { autorise: true, reference: referenceManquante ? null : reference, nonDatee, horsPeriode: [], noms };
+  }
+
+  /** Le fournisseur tel que le cabinet le reconnaît · code et nom de la fiche. */
+  private static nomDuTiers(tiers: { code?: string | null; nom?: string | null }): string {
+    const code = tiers.code?.trim();
+    const nom = tiers.nom?.trim();
+    if (code && nom) return `${code} ${nom}`;
+    return nom || code || 'tiers sans nom';
   }
 
   /**
@@ -1612,13 +1777,14 @@ export class TauxTvaService {
    * une déduction ne fait courir aucun redressement, et l'art. 37 al. 2 laisse
    * jusqu'au 31 décembre de l'année suivante pour l'exercer ; l'anticiper, si.
    *
-   * L'ACOMPTE ANTÉRIEUR AU DÉBIT N'EST PAS VENTILÉ, ET LE SENS DE L'ÉCART EST
-   * CONNU. L'art. 26 in fine et le décret art. 62 (l. 1797-1800) réservent le
-   * cas où le prix ou l'acompte est encaissé AVANT le débit : la taxe est
-   * alors exigible chez le fournisseur dès cet encaissement, donc plus tôt
-   * encore. La déclaration retient la date de la facture, qui lui est
-   * postérieure · elle déduit au plus tard, jamais au plus tôt, et ce sens-là
-   * ne se redresse pas.
+   * LE RÈGLEMENT ANTÉRIEUR AU DÉBIT EST VENTILÉ QUAND IL EST LETTRÉ. L'art. 26
+   * in fine et le décret art. 62 (l. 1797-1800) réservent le cas où le prix
+   * ou l'acompte est encaissé AVANT le débit : la taxe est alors exigible chez
+   * le fournisseur dès cet encaissement. La base reste FAIT_GENERATEUR ici ;
+   * c'est la déclaration qui découpe la taxe en tranches
+   * (`tranchesAuxDebits`) quand un règlement lettré à la facture la précède.
+   * Un acompte que rien ne relie à la facture reste daté au débit, donc au
+   * plus tard.
    *
    * NATURE INDÉTERMINÉE · l'autorisation n'y change rien. L'art. 26 n'est
    * ouvert qu'aux travaux et aux services, et un compte qui ne dit pas la
@@ -1810,6 +1976,19 @@ export class TauxTvaService {
   async declaration(tenantId: string, dateDebut: Date, dateFin: Date) {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     const regime = tenant?.regimeExigibiliteTva ?? 'LIVRAISONS';
+    // L'AUTORISATION DU DOSSIER A UNE DATE, ET ELLE BORNE SA COLLECTE
+    // (2026-09-28, décision de Manasse). O.-L. n° 10/001, art. 26 : le régime
+    // des débits naît d'une décision du Directeur Général des Impôts (décret
+    // n° 011/42, art. 58, ou son silence de dix jours, art. 59). Une opération
+    // antérieure à cette décision reste au droit commun (art. 25, 2° ·
+    // l'encaissement), faute de quoi la déclaration anticiperait la taxe
+    // d'opérations que l'autorisation ne couvrait pas encore. Sans date
+    // saisie, le régime reste appliqué, et la déclaration le dit non daté ·
+    // en retirer d'office changerait des périodes déjà déclarées sans donnée
+    // nouvelle (même parti que la fiche du fournisseur).
+    const dateAutorisationDossier = tenant?.dateAutorisationDebitsTva ?? null;
+    const regimeALaDate = (date: Date): string =>
+      regime === 'DEBITS' && dateAutorisationDossier && date < dateAutorisationDossier ? 'LIVRAISONS' : regime;
     const referentiel = tenant?.referentiel;
     const taux = await this.prisma.tauxTva.findMany({ where: { tenantId }, orderBy: { taux: 'desc' } });
     const dejaLiquidee = await this.liquidationChevauchante(tenantId, dateDebut, dateFin);
@@ -1857,7 +2036,24 @@ export class TauxTvaService {
           // LE LIVRE-JOURNAL SEUL (audit final F25) · une déclaration est
           // un acte devant l'Administration, comme le résultat fiscal et
           // le registre des retenues, qui ne lisent pas le brouillard.
-          ecriture: { tenantId, statut: StatutEcriture.VALIDEE, date: { lte: dateFin } },
+          //
+          // UNE FACTURE POSTÉRIEURE À LA PÉRIODE EST LUE AUSSI QUAND UN
+          // RÈGLEMENT LETTRÉ AVEC ELLE TOMBE DANS LA PÉRIODE OU AVANT · c'est
+          // l'acompte antérieur au débit (décret n° 011/42, art. 62 ; O.-L.
+          // n° 10/001, art. 26 al. 3), et plus largement l'acompte de l'art.
+          // 25, 2° (« au moment de l'encaissement du prix, des acomptes ou
+          // avances »). Sans cette branche, la taxe d'une facture d'avril
+          // réglée d'avance en mars n'entrait dans aucune déclaration : celle
+          // de mars ne lisait pas la facture, celle d'avril la datait de mars
+          // et l'écartait comme antérieure à sa période.
+          ecriture: {
+            tenantId,
+            statut: StatutEcriture.VALIDEE,
+            OR: [
+              { date: { lte: dateFin } },
+              { lignes: { some: { lettrage: { lignes: { some: { ecriture: { date: { lte: dateFin } } } } } } } },
+            ],
+          },
         },
         select: {
           id: true,
@@ -1916,7 +2112,21 @@ export class TauxTvaService {
                       // l'écriture ne nomme le fournisseur.
                       tiersCompte: {
                         select: {
-                          tiers: { select: { autoriseTvaDebits: true, referenceAutorisationDebits: true } },
+                          // La PÉRIODE de l'autorisation et le NOM du
+                          // fournisseur sont lus avec le drapeau · sans les
+                          // dates, une facture antérieure à la décision ou
+                          // postérieure à la révocation serait anticipée ; sans
+                          // le nom, la déclaration ne dirait pas qui reprendre.
+                          tiers: {
+                            select: {
+                              code: true,
+                              nom: true,
+                              autoriseTvaDebits: true,
+                              referenceAutorisationDebits: true,
+                              dateEffetAutorisationDebits: true,
+                              dateRevocationAutorisationDebits: true,
+                            },
+                          },
                         },
                       },
                     },
@@ -1990,6 +2200,25 @@ export class TauxTvaService {
     // voir : un acompte encaissé avant la facture est une avance reçue (419),
     // sans ligne de taxe et sans rattachement à la facture qui suivra.
     let collecteServicesDebits = 0;
+    // LA PÉRIODE DE L'AUTORISATION DU FOURNISSEUR ET LA PREUVE DE L'ART. 60 ·
+    // chaque compteur a sa liste de fournisseurs NOMMÉS, parce que la reprise
+    // se fait fiche par fiche et facture par facture, jamais sur un total.
+    let deductionServicesHorsPeriode = 0;
+    let deductionServicesHorsPeriodeMentionLue = 0;
+    let deductionServicesDebitsNonDatee = 0;
+    let deductionServicesDebitsFactureSansMention = 0;
+    const fournisseursHorsPeriode = new Set<string>();
+    const fournisseursMentionSansFiche = new Set<string>();
+    const fournisseursNonDates = new Set<string>();
+    const fournisseursFactureSansMention = new Set<string>();
+    // ART. 62 DU DÉCRET · part de la taxe datée d'un règlement ANTÉRIEUR au
+    // débit, sur un fournisseur autorisé (déduction) ou sous le régime des
+    // débits du dossier (collecte).
+    let deductionServicesPaiementAnterieur = 0;
+    let collecteServicesPaiementAnterieur = 0;
+    // Collecte sur services d'un dossier aux débits, datée AVANT son
+    // autorisation · remise au droit commun.
+    let collecteServicesAvantAutorisation = 0;
     let tvaExclueArt41 = 0;
     let tvaAVerifierArt41 = 0;
     let tvaNatureDepenseIllisible = 0;
@@ -2035,6 +2264,7 @@ export class TauxTvaService {
           if (!cumul) return;
           const estCollecte = l.compte.numero.startsWith(RACINE_COLLECTEE);
           const dateEcriture = l.ecriture.date as Date;
+          const regimeLigne = estCollecte ? regimeALaDate(dateEcriture) : regime;
           const dansLaPeriode = dateEcriture >= dateDebut && dateEcriture <= dateFin;
 
           /*
@@ -2103,9 +2333,10 @@ export class TauxTvaService {
           // une vente, le tiers de la contrepartie est le CLIENT, et son régime à
           // lui ne date pas la taxe du vendeur.
           const fournisseur = estCollecte
-            ? { autorise: false, reference: null }
+            ? { autorise: false, reference: null, nonDatee: [] as string[], horsPeriode: [] as string[], noms: [] as string[] }
             : TauxTvaService.fournisseurAuxDebits(
                 l.ecriture.lignes.filter((x) => x.compte?.classe === ClasseCompte.CLASSE_4),
+                dateEcriture,
               );
 
           // Contreparties qui portent la NATURE de l'opération · classe 7 sur une
@@ -2122,15 +2353,18 @@ export class TauxTvaService {
 
           const { base, nature } = this.baseExigibilite(
             referentiel,
-            regime,
+            regimeLigne,
             l.compte.numero,
             estCollecte,
             fournisseur.autorise,
             contreparties,
           );
           if (nature === 'INDETERMINEE' && dansLaPeriode) montantIndetermine += montant;
-          if (estCollecte && nature === 'SERVICES' && regime === 'DEBITS' && dansLaPeriode) {
+          if (estCollecte && nature === 'SERVICES' && regimeLigne === 'DEBITS' && dansLaPeriode) {
             collecteServicesDebits += montant;
+          }
+          if (estCollecte && nature === 'SERVICES' && regime === 'DEBITS' && regimeLigne !== 'DEBITS' && dansLaPeriode) {
+            collecteServicesAvantAutorisation += montant;
           }
           if (!estCollecte && nature === 'SERVICES' && dansLaPeriode) {
             // DEUX compteurs, et non un seul : ce qui est différé FAUTE DE SAVOIR
@@ -2140,50 +2374,103 @@ export class TauxTvaService {
             // La mention LUE ne date rien · elle prouve (anticipé) ou elle
             // signale ce que la fiche ne dit pas encore (différé).
             const mentionLue = TauxTvaService.mentionDebitsLueSurLaFacture(l.ecriture.facture);
-            if (base === 'ENCAISSEMENT') {
+            if (base === 'ENCAISSEMENT' && fournisseur.horsPeriode.length > 0) {
+              // FICHE AUTORISÉE, OPÉRATION HORS DE SA PÉRIODE · droit commun,
+              // et un compteur à part : le message du droit commun dit
+              // qu'« aucune autorisation n'est renseignée », ce qui serait
+              // faux ici.
+              deductionServicesHorsPeriode += montant;
+              for (const n of fournisseur.horsPeriode) fournisseursHorsPeriode.add(n);
+              if (mentionLue) deductionServicesHorsPeriodeMentionLue += montant;
+            } else if (base === 'ENCAISSEMENT') {
               deductionServicesDiffere += montant;
-              if (mentionLue) deductionServicesDiffereMentionLue += montant;
+              if (mentionLue) {
+                deductionServicesDiffereMentionLue += montant;
+                for (const n of fournisseur.noms) fournisseursMentionSansFiche.add(n);
+              }
             } else {
               deductionServicesDebits += montant;
               if (!fournisseur.reference) deductionServicesDebitsSansReference += montant;
               if (mentionLue) deductionServicesDebitsMentionLue += montant;
+              if (fournisseur.nonDatee.length > 0) {
+                deductionServicesDebitsNonDatee += montant;
+                for (const n of fournisseur.nonDatee) fournisseursNonDates.add(n);
+              }
+              // FICHE AUTORISÉE, FACTURE D'ACHAT ENREGISTRÉE SANS LA MENTION ·
+              // l'anticipation est GARDÉE (la fiche date, la pièce prouve),
+              // mais la preuve que le décret n° 011/42, art. 60, rend
+              // obligatoire (« doit figurer sur toutes les factures ») manque
+              // sur une pièce que le dossier détient. Distinct de l'absence
+              // de pièce enregistrée, où OmegaX n'a rien à lire.
+              const facture = l.ecriture.facture;
+              if (facture?.sens === SensFacture.ACHAT && facture.mentionTvaDebits !== true) {
+                deductionServicesDebitsFactureSansMention += montant;
+                for (const n of fournisseur.noms) fournisseursFactureSansMention.add(n);
+              }
             }
           }
 
-          const { date, fraction } =
+          /*
+            ARTICLE 62 DU DÉCRET · l'autorisation « ne dispense pas le redevable
+            de s'acquitter de la taxe au moment de l'encaissement du prix ou de
+            l'acompte si celui-ci est antérieur au débit ». Quand la taxe est
+            datée aux débits (fournisseur autorisé dans sa période, ou dossier
+            sous le régime des débits), un règlement LETTRÉ à la facture et daté
+            avant elle avance l'exigibilité de sa part · chez le fournisseur,
+            donc la déduction du client (art. 37 al. 1, décret art. 96), et
+            pour la collecte du dossier (art. 26 al. 3). Voir
+            `tranchesAuxDebits`.
+          */
+          const auxDebits =
+            base === 'FAIT_GENERATEUR' &&
+            nature === 'SERVICES' &&
+            (estCollecte ? regimeLigne === 'DEBITS' : fournisseur.autorise);
+          const tranches: Array<{ date: Date | null; fraction: number; auPaiement?: boolean }> =
             base === 'FAIT_GENERATEUR'
-              ? { date: l.ecriture.date as Date | null, fraction: 1 }
-              : this.exigibilite(l, lignesTiers, l.ecriture.date);
+              ? auxDebits
+                ? TauxTvaService.tranchesAuxDebits(lignesTiers, dateEcriture)
+                : [{ date: dateEcriture, fraction: 1 }]
+              : [this.exigibilite(l, lignesTiers, l.ecriture.date)];
 
           // Part facturée sur la période et pas encore exigible · c'est le chiffre
           // qui explique l'écart entre le chiffre d'affaires et la déclaration, et
           // sans lequel le régime paraît perdre de la TVA.
           if (estCollecte && base === 'ENCAISSEMENT' && dansLaPeriode) {
-            cumul.attente = TauxTvaService.c(cumul.attente + montant * (1 - fraction));
+            cumul.attente = TauxTvaService.c(cumul.attente + montant * (1 - tranches[0].fraction));
           }
-          if (!estCollecte && date && date < limiteDecheance) {
-            tvaDeductibleDechue = TauxTvaService.c(tvaDeductibleDechue + montant * fraction);
-          }
-          if (!date || date < dateDebut || date > dateFin) return;
-          const exigible = TauxTvaService.c(montant * fraction);
-          if (estCollecte) {
-            cumul.collecte = TauxTvaService.c(cumul.collecte + exigible);
+          // Une tranche unique garde l'arrondi d'avant ; plusieurs tranches se
+          // répartissent au centime, la dernière recevant le reste, pour que la
+          // somme des parts rende la taxe de la ligne exactement.
+          const montants = TauxTvaService.montantsDesTranches(montant, tranches);
+          tranches.forEach(({ date, auPaiement }, i) => {
+            const exigible = montants[i];
+            if (!estCollecte && date && date < limiteDecheance) {
+              tvaDeductibleDechue = TauxTvaService.c(tvaDeductibleDechue + exigible);
+            }
+            if (!date || date < dateDebut || date > dateFin) return;
+            if (auPaiement) {
+              if (estCollecte) collecteServicesPaiementAnterieur = TauxTvaService.c(collecteServicesPaiementAnterieur + exigible);
+              else deductionServicesPaiementAnterieur = TauxTvaService.c(deductionServicesPaiementAnterieur + exigible);
+            }
+            if (estCollecte) {
+              cumul.collecte = TauxTvaService.c(cumul.collecte + exigible);
+              const v = suivi(l.tauxTvaId!, l.compteId);
+              v.collecte = TauxTvaService.c(v.collecte + exigible);
+              return;
+            }
+            // ARTICLE 41 · ce que la loi retire du droit à déduction, avant tout
+            // prorata. Le prorata LIMITE une déduction ; l'article 41 la SUPPRIME.
+            const part = this.partExclueArt41(lignesCharge);
+            const exclu = TauxTvaService.c(exigible * part.exclue);
+            if (exclu > EPSILON) tvaExclueArt41 = TauxTvaService.c(tvaExclueArt41 + exclu);
+            if (part.aVerifier > 0) {
+              tvaAVerifierArt41 = TauxTvaService.c(tvaAVerifierArt41 + exigible * part.aVerifier);
+            }
+            if (!part.lisible) tvaNatureDepenseIllisible = TauxTvaService.c(tvaNatureDepenseIllisible + exigible);
+            cumul.deductible = TauxTvaService.c(cumul.deductible + exigible - exclu);
             const v = suivi(l.tauxTvaId!, l.compteId);
-            v.collecte = TauxTvaService.c(v.collecte + exigible);
-            return;
-          }
-          // ARTICLE 41 · ce que la loi retire du droit à déduction, avant tout
-          // prorata. Le prorata LIMITE une déduction ; l'article 41 la SUPPRIME.
-          const part = this.partExclueArt41(lignesCharge);
-          const exclu = TauxTvaService.c(exigible * part.exclue);
-          if (exclu > EPSILON) tvaExclueArt41 = TauxTvaService.c(tvaExclueArt41 + exclu);
-          if (part.aVerifier > 0) {
-            tvaAVerifierArt41 = TauxTvaService.c(tvaAVerifierArt41 + exigible * part.aVerifier);
-          }
-          if (!part.lisible) tvaNatureDepenseIllisible = TauxTvaService.c(tvaNatureDepenseIllisible + exigible);
-          cumul.deductible = TauxTvaService.c(cumul.deductible + exigible - exclu);
-          const v = suivi(l.tauxTvaId!, l.compteId);
-          v.deductible = TauxTvaService.c(v.deductible + exigible - exclu);
+            v.deductible = TauxTvaService.c(v.deductible + exigible - exclu);
+          });
         },
         LOT_ECRITURES,
       );
@@ -2260,6 +2547,18 @@ export class TauxTvaService {
         deductionServicesDebitsMentionLue: TauxTvaService.c(deductionServicesDebitsMentionLue),
         deductionServicesDiffereMentionLue: TauxTvaService.c(deductionServicesDiffereMentionLue),
         collecteServicesDebits: TauxTvaService.c(collecteServicesDebits),
+        deductionServicesHorsPeriode: TauxTvaService.c(deductionServicesHorsPeriode),
+        deductionServicesHorsPeriodeMentionLue: TauxTvaService.c(deductionServicesHorsPeriodeMentionLue),
+        deductionServicesDebitsNonDatee: TauxTvaService.c(deductionServicesDebitsNonDatee),
+        deductionServicesDebitsFactureSansMention: TauxTvaService.c(deductionServicesDebitsFactureSansMention),
+        deductionServicesPaiementAnterieur,
+        collecteServicesPaiementAnterieur,
+        collecteServicesAvantAutorisation: TauxTvaService.c(collecteServicesAvantAutorisation),
+        autorisationDossierNonDatee: regime === 'DEBITS' && !dateAutorisationDossier,
+        fournisseursHorsPeriode: [...fournisseursHorsPeriode],
+        fournisseursMentionSansFiche: [...fournisseursMentionSansFiche],
+        fournisseursNonDates: [...fournisseursNonDates],
+        fournisseursFactureSansMention: [...fournisseursFactureSansMention],
         creditAnterieur: credit.montant,
         creditImpute,
         avoirsCollecteConstates,
@@ -2360,6 +2659,24 @@ export class TauxTvaService {
     /** Part différée dont la facture d'achat rattachée porte la mention, fiche muette. */
     deductionServicesDiffereMentionLue: number;
     collecteServicesDebits: number;
+    /** Déduction différée · fiche autorisée, opération hors de sa période. */
+    deductionServicesHorsPeriode: number;
+    deductionServicesHorsPeriodeMentionLue: number;
+    /** Déduction anticipée sur une autorisation sans date d'effet. */
+    deductionServicesDebitsNonDatee: number;
+    /** Déduction anticipée · facture d'achat enregistrée SANS la mention de l'art. 60. */
+    deductionServicesDebitsFactureSansMention: number;
+    /** Part datée d'un règlement antérieur au débit (décret art. 62). */
+    deductionServicesPaiementAnterieur: number;
+    collecteServicesPaiementAnterieur: number;
+    /** Collecte sur services antérieure à l'autorisation du dossier · droit commun. */
+    collecteServicesAvantAutorisation: number;
+    /** Régime des débits sans date d'autorisation saisie. */
+    autorisationDossierNonDatee: boolean;
+    fournisseursHorsPeriode: string[];
+    fournisseursMentionSansFiche: string[];
+    fournisseursNonDates: string[];
+    fournisseursFactureSansMention: string[];
     creditAnterieur: number;
     creditImpute: number;
     avoirsCollecteConstates: number;
@@ -2375,6 +2692,10 @@ export class TauxTvaService {
   }) {
     const { regime, referentiel } = e;
     const fc = (n: number) => n.toLocaleString('fr-FR');
+    // Les fournisseurs NOMMÉS · huit au plus, le reste compté, pour qu'une
+    // déclaration de cent fournisseurs reste lisible sans en taire aucun.
+    const nommes = (noms: readonly string[]) =>
+      noms.length <= 8 ? noms.join(', ') : `${noms.slice(0, 8).join(', ')} et ${noms.length - 8} autre(s)`;
     const brouillard = e.tvaAuBrouillard;
     const phrases: string[] = [
       ...(brouillard && brouillard.ecritures > 0
@@ -2407,6 +2728,20 @@ export class TauxTvaService {
           'du client, donc à la date de la facture. Cette autorisation ne change rien aux ventes de biens, déjà ' +
           'exigibles au fait générateur, ni à la TVA déductible, qui se juge chez le fournisseur.',
       );
+      if (e.autorisationDossierNonDatee) {
+        phrases.push(
+          "AUTORISATION DU DOSSIER NON DATÉE · le régime des débits est appliqué à toute la période, faute de la " +
+            "date de la décision du Directeur Général des Impôts (décret n° 011/42, art. 58 et 59) · saisissez-la " +
+            'dans les paramètres du dossier.',
+        );
+      }
+      if (e.collecteServicesAvantAutorisation > EPSILON) {
+        phrases.push(
+          `AVANT L'AUTORISATION · ${fc(e.collecteServicesAvantAutorisation)} CDF de TVA collectée sur services et ` +
+            "travaux portent sur des opérations antérieures à l'autorisation du dossier · elles restent au droit " +
+            "commun, exigibles à l'encaissement (O.-L. n° 10/001, art. 25, 2°, et art. 26).",
+        );
+      }
     }
     if (e.collecteServicesDebits > EPSILON) {
       phrases.push(
@@ -2418,7 +2753,23 @@ export class TauxTvaService {
           'une avance sur marché, un acompte à la commande ou un dépôt de garantie imputable s’enregistrent en ' +
           'avance reçue (compte 419), sans ligne de taxe et sans rattachement à la facture qui suivra · rien dans ' +
           'l’écriture ne les relie. Ce montant est donc daté AU PLUS TARD, jamais au plus tôt, et l’écart se ' +
-          'redresse contre le dossier · à reprendre acompte par acompte avant dépôt.',
+          'redresse contre le dossier · à reprendre acompte par acompte avant dépôt.' +
+          (e.collecteServicesPaiementAnterieur > EPSILON
+            ? ` Dont ${fc(e.collecteServicesPaiementAnterieur)} CDF déclarés sur cette période à la date d’un ` +
+              'RÈGLEMENT LETTRÉ à la facture et antérieur à elle, et non à la date de la facture (décret n° 011/42, ' +
+              'art. 62) · ce règlement-là, OmegaX le voit.'
+            : ''),
+      );
+    } else if (e.collecteServicesPaiementAnterieur > EPSILON) {
+      // Facture postérieure à la période, réglée d'avance dans la période ·
+      // rien d'autre n'est daté aux débits ici, la réserve sur le 419 vaut
+      // pour la période où tombera la facture.
+      phrases.push(
+        `ENCAISSEMENT ANTÉRIEUR AU DÉBIT · ${fc(e.collecteServicesPaiementAnterieur)} CDF de TVA collectée sur ` +
+          'services et travaux sont déclarés sur cette période à la date d’un RÈGLEMENT LETTRÉ à une facture qui ' +
+          'lui est postérieure : l’autorisation « ne dispense pas le redevable de s’acquitter de la taxe au moment ' +
+          'de l’encaissement du prix ou de l’acompte si celui-ci est antérieur au débit » (décret n° 011/42, ' +
+          'art. 62 ; O.-L. n° 10/001, art. 26 al. 3).',
       );
     }
     if (e.montantIndetermine > EPSILON) {
@@ -2452,7 +2803,10 @@ export class TauxTvaService {
           (mentionLue > EPSILON
             ? ` Dont ${fc(mentionLue)} CDF sur une facture d’achat enregistrée qui PORTE la mention : portez ` +
               'l’autorisation et sa référence sur la fiche du fournisseur, la déduction naîtra alors à la ' +
-              'facture (décret art. 61 et 96).'
+              'facture (décret art. 61 et 96).' +
+              (e.fournisseursMentionSansFiche.length > 0
+                ? ` Fiche(s) à reprendre, le droit commun étant gardé d’ici là : ${nommes(e.fournisseursMentionSansFiche)}.`
+                : '')
             : ''),
       );
     }
@@ -2484,6 +2838,51 @@ export class TauxTvaService {
           'décision n’est pas saisie. L’autorisation est délivrée « sur décision du Directeur Général des Impôts ' +
           'ou son délégué en province » (art. 26), sur demande adressée par simple lettre (décret art. 58) : sans ' +
           'cette référence, l’anticipation ne s’appuie sur aucune pièce nommée · à documenter avant dépôt.',
+      );
+    }
+    if (e.deductionServicesDebitsFactureSansMention > EPSILON) {
+      // Signal (c) · la fiche date, la pièce devait prouver et ne prouve pas.
+      phrases.push(
+        `FACTURE ENREGISTRÉE SANS LA MENTION DES DÉBITS · ${fc(e.deductionServicesDebitsFactureSansMention)} CDF de ` +
+          'cette déduction anticipée reposent sur une facture d’achat enregistrée où la mention « Autorisation ' +
+          'd’acquitter la TVA d’après les débits » n’est PAS cochée, alors qu’elle « doit figurer sur toutes les ' +
+          'factures délivrées par le prestataire de services ou l’entrepreneur de travaux » autorisé (décret ' +
+          'n° 011/42, art. 60). L’anticipation est gardée, la fiche du fournisseur datant la déduction ; la preuve ' +
+          `manque sur la pièce · à vérifier sur l’original, ou à faire rectifier par : ${nommes(e.fournisseursFactureSansMention)}.`,
+      );
+    }
+    if (e.deductionServicesDebitsNonDatee > EPSILON) {
+      phrases.push(
+        `AUTORISATION AUX DÉBITS NON DATÉE · ${fc(e.deductionServicesDebitsNonDatee)} CDF de cette déduction ` +
+          'anticipée reposent sur une fiche autorisée SANS date d’effet. L’anticipation est gardée, mais rien ne ' +
+          'dit que la décision (ou le silence de dix jours qui « vaut autorisation », décret n° 011/42, art. 59) ' +
+          'précède ces factures · une déduction avancée avant l’exigibilité chez le fournisseur (art. 37 al. 1, ' +
+          `décret art. 96) se redresse. Date d’effet à porter sur la fiche de : ${nommes(e.fournisseursNonDates)}.`,
+      );
+    }
+    if (e.deductionServicesHorsPeriode > EPSILON) {
+      // Signal (b), second visage · la fiche est autorisée, mais pas à cette
+      // date. Le droit commun est gardé et le fournisseur nommé.
+      phrases.push(
+        `HORS DE LA PÉRIODE D’AUTORISATION · ${fc(e.deductionServicesHorsPeriode)} CDF de TVA d’amont sur services ` +
+          'et travaux sont déduits au PAIEMENT, selon le droit commun : la fiche du fournisseur le dit autorisé aux ' +
+          'débits, mais la facture précède la date d’effet de la décision (décret n° 011/42, art. 59) ou suit le ' +
+          'retour au droit commun (O.-L. n° 10/001, art. 26 al. 2 ; décret art. 63).' +
+          (e.deductionServicesHorsPeriodeMentionLue > EPSILON
+            ? ` Dont ${fc(e.deductionServicesHorsPeriodeMentionLue)} CDF sur une facture d’achat enregistrée qui ` +
+              'PORTE pourtant la mention de l’art. 60 · la période saisie sur la fiche est à confronter à la pièce.'
+            : '') +
+          ` Fournisseur(s) : ${nommes(e.fournisseursHorsPeriode)}.`,
+      );
+    }
+    if (e.deductionServicesPaiementAnterieur > EPSILON) {
+      phrases.push(
+        `RÈGLEMENT ANTÉRIEUR AU DÉBIT · ${fc(e.deductionServicesPaiementAnterieur)} CDF de TVA d’amont due à des ` +
+          'fournisseurs autorisés aux débits sont déduits à la date d’un RÈGLEMENT LETTRÉ à leur facture et ' +
+          'antérieur à elle, et non à la date de la facture : l’autorisation « ne dispense pas le redevable de ' +
+          's’acquitter de la taxe au moment de l’encaissement du prix ou de l’acompte si celui-ci est antérieur au ' +
+          'débit » (décret n° 011/42, art. 62), et le droit à déduction naît à cette exigibilité chez le ' +
+          'fournisseur (O.-L. n° 10/001, art. 37 al. 1 ; décret art. 96).',
       );
     }
     if (e.tvaExclueArt41 > EPSILON) {

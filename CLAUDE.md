@@ -5848,6 +5848,27 @@ l'écriture la porte (`Facture.mentionTvaDebits`), et la déclaration de TVA la
 confronte à la fiche du fournisseur (`mentionDebitsLueSurLaFacture`) pour dire
 ce qui est prouvé et ce que la fiche ne dit pas encore ; elle ne DATE jamais
 la déduction, c'est la fiche du tiers qui la date.
+L'AUTORISATION AUX DÉBITS A UNE PÉRIODE, ET L'ART. 62 AVANCE CE QU'ELLE
+RETARDE (2026-09-28, décision de Manasse, sur la pratique d'Odoo et de
+Business Central, qui portent le régime sur un paramètre et jamais sur la
+facture reçue). La fiche du fournisseur date toujours la déduction, la mention
+lue restant une preuve. `Tiers.dateEffetAutorisationDebits` et
+`dateRevocationAutorisationDebits`, nullables et sans défaut · la décision, ou
+le silence de dix jours, fait naître l'autorisation (décret n° 011/42, art. 59),
+la demande écrite y met fin (O.-L. n° 10/001, art. 26 al. 2 ; décret art. 63),
+et aucun texte ne date ce retour · la révocation vaut à sa date, comprise
+(`situationAutorisationDebits`). QUATRE RÈGLES À NE PAS DÉFAIRE. (1) HORS
+PÉRIODE, DROIT COMMUN, fournisseur nommé ; autorisé SANS date d'effet,
+l'anticipation est gardée et dite non datée · retirer d'office des déductions
+déjà déclarées changerait le passé sans donnée nouvelle. Même règle pour la
+collecte du dossier aux débits, bornée par `Tenant.dateAutorisationDebitsTva`.
+(2) DEUX SIGNAUX, AUCUNE DATE · mention lue sous une fiche non autorisée ou
+hors période, fiche autorisée dont la facture enregistrée omet la mention
+(art. 60). (3) ART. 62 · un règlement LETTRÉ à la facture et antérieur au débit
+rend exigible SA part, le reste allant au débit (`tranchesAuxDebits`) ; un
+groupe qui porte d'autres factures reste au débit, l'imputation étant inconnue.
+(4) LA REQUÊTE LIT AUSSI la facture postérieure à la période dont un règlement
+lettré y tombe · sans quoi elle n'entrait dans aucune déclaration.
 
 **« UNE ASSOCIATION NE L'EST PAS DE PLEIN DROIT » ÉTAIT FAUX, ET AFFICHÉ.**
 L'écran des paramètres servait cette phrase à tout dossier SYCEBNL ; aucune

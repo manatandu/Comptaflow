@@ -1,4 +1,4 @@
-import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString, IsUUID, Matches } from 'class-validator';
+import { IsBoolean, IsDateString, IsEmail, IsEnum, IsOptional, IsString, IsUUID, Matches, ValidateIf } from 'class-validator';
 import { TypeTiers } from '@prisma/client';
 
 export class CreerTiersDto {
@@ -118,6 +118,23 @@ export class CreerTiersDto {
   @IsOptional()
   @IsString()
   referenceAutorisationDebits?: string;
+
+  /*
+    PÉRIODE DE L'AUTORISATION · date de la décision du Directeur Général des
+    Impôts, ou celle où son silence vaut autorisation (décret n° 011/42,
+    art. 59 : « L'absence de décision dans ce délai vaut autorisation »), et
+    date du retour au droit commun (O.-L. n° 10/001, art. 26 al. 2 ; décret
+    art. 63). Format AAAA-MM-JJ, relu par `dateSaisieOuEffacement`.
+  */
+  @IsOptional()
+  @ValidateIf((o: CreerTiersDto) => o.dateEffetAutorisationDebits !== '')
+  @IsDateString()
+  dateEffetAutorisationDebits?: string;
+
+  @IsOptional()
+  @ValidateIf((o: CreerTiersDto) => o.dateRevocationAutorisationDebits !== '')
+  @IsDateString()
+  dateRevocationAutorisationDebits?: string;
 }
 
 export class ModifierTiersDto {
@@ -197,6 +214,22 @@ export class ModifierTiersDto {
   @IsOptional()
   @IsString()
   referenceAutorisationDebits?: string | null;
+
+  /*
+    PÉRIODE DE L'AUTORISATION · voir CreerTiersDto. Absent = inchangé, chaîne
+    vide ou null = effacement · une date saisie par erreur doit pouvoir
+    revenir à « pas de date » (même convention que les dates du régime de TVA
+    du dossier, audit final F237).
+  */
+  @IsOptional()
+  @ValidateIf((o: ModifierTiersDto) => o.dateEffetAutorisationDebits !== '')
+  @IsDateString()
+  dateEffetAutorisationDebits?: string | null;
+
+  @IsOptional()
+  @ValidateIf((o: ModifierTiersDto) => o.dateRevocationAutorisationDebits !== '')
+  @IsDateString()
+  dateRevocationAutorisationDebits?: string | null;
 }
 
 export class RattacherCompteDto {

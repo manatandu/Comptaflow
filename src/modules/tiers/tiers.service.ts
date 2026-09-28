@@ -12,6 +12,8 @@ import {
   CalculerEcheancesDto,
 } from './dto/modele-reglement.dto';
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
+import { dateSaisieOuEffacement } from '../tenant/date-effacable';
+import { motifRefusPeriodeAutorisationDebits } from './periode-autorisation-debits';
 
 /**
  * Tiers (cf. docs/plan-de-construction.md §3.2) : Client/Fournisseur/Salarié/
@@ -86,7 +88,21 @@ export class TiersService {
     if (dto.celluleGroupeId) {
       await this.exigerMemeGroupe(tenantId, dto.celluleGroupeId);
     }
-    const { creerCompteIndividuel, ...donnees } = dto;
+    const { creerCompteIndividuel, dateEffetAutorisationDebits, dateRevocationAutorisationDebits, ...reste } = dto;
+    // Les deux dates de l'autorisation aux débits passent par la même lecture
+    // que les dates du régime de TVA du dossier · une chaîne AAAA-MM-JJ n'est
+    // pas un DateTime pour Prisma, et `new Date` reporterait en silence un
+    // jour absent du calendrier.
+    const periode = {
+      dateEffetAutorisationDebits: dateSaisieOuEffacement(dateEffetAutorisationDebits),
+      dateRevocationAutorisationDebits: dateSaisieOuEffacement(dateRevocationAutorisationDebits),
+    };
+    const motif = motifRefusPeriodeAutorisationDebits(
+      periode.dateEffetAutorisationDebits,
+      periode.dateRevocationAutorisationDebits,
+    );
+    if (motif) throw new BadRequestException(motif);
+    const donnees = { ...reste, ...periode };
     // Le compte naît dans la même transaction que le tiers · un tiers créé
     // sans le compte qu'on lui annonce serait une fiche qui ne recevrait
     // aucune écriture, et personne ne s'en apercevrait avant la relance.
@@ -300,7 +316,31 @@ export class TiersService {
     if (dto.celluleGroupeId) {
       await this.exigerMemeGroupe(tenantId, dto.celluleGroupeId);
     }
-    return this.prisma.tiers.update({ where: { id: tiersId }, data: dto });
+    const { dateEffetAutorisationDebits, dateRevocationAutorisationDebits, ...reste } = dto;
+    const effet = dateSaisieOuEffacement(dateEffetAutorisationDebits);
+    const revocation = dateSaisieOuEffacement(dateRevocationAutorisationDebits);
+    // LA COHÉRENCE SE JUGE SUR LA FICHE QUI RÉSULTERA, pas sur la seule
+    // requête · une révocation saisie seule se confronte à la date d'effet
+    // déjà enregistrée, sans quoi elle pourrait la précéder.
+    if (effet !== undefined || revocation !== undefined) {
+      const actuel = await this.prisma.tiers.findFirst({
+        where: { id: tiersId, tenantId },
+        select: { dateEffetAutorisationDebits: true, dateRevocationAutorisationDebits: true },
+      });
+      const motif = motifRefusPeriodeAutorisationDebits(
+        effet === undefined ? actuel?.dateEffetAutorisationDebits : effet,
+        revocation === undefined ? actuel?.dateRevocationAutorisationDebits : revocation,
+      );
+      if (motif) throw new BadRequestException(motif);
+    }
+    return this.prisma.tiers.update({
+      where: { id: tiersId },
+      data: {
+        ...reste,
+        ...(effet === undefined ? {} : { dateEffetAutorisationDebits: effet }),
+        ...(revocation === undefined ? {} : { dateRevocationAutorisationDebits: revocation }),
+      },
+    });
   }
 
   /**

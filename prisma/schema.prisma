@@ -2140,6 +2140,29 @@ model Tiers {
   autoriseTvaDebits           Boolean @default(false)
   referenceAutorisationDebits String?
 
+  // LA PÉRIODE DE L'AUTORISATION · une autorisation a un début et peut avoir
+  // une fin, et une opération n'est « aux débits » que si sa date tombe entre
+  // les deux (`TauxTvaService.fournisseurAuxDebits`).
+  //
+  // DÉBUT · décret n° 011/42, art. 59 : « La décision du Directeur Général des
+  // Impôts ou de son délégué en Province intervient dans les dix jours qui
+  // suivent la réception de la demande. L'absence de décision dans ce délai
+  // vaut autorisation. » C'est la date de la décision, ou celle où le silence
+  // vaut autorisation · une DONNÉE du fournisseur, qu'aucun livre du client ne
+  // porte, jamais calculée ici.
+  //
+  // FIN · art. 26 al. 2 de l'O.-L. n° 10/001 (« L'autorisation demeure valable
+  // tant que le redevable n'a pas demandé, par écrit, de revenir au régime de
+  // droit commun ») et décret art. 63 (« révocable sur simple demande écrite
+  // du contribuable »). Aucun des deux textes ne fixe la date d'effet du
+  // retour · c'est celle que le cabinet saisit, et le droit commun reprend À
+  // CETTE DATE, comprise.
+  //
+  // NULLABLES, SANS DÉFAUT · poser la date du jour ou celle de la création de
+  // la fiche daterait une décision que personne n'a lue.
+  dateEffetAutorisationDebits      DateTime?
+  dateRevocationAutorisationDebits DateTime?
+
   modeleReglementId String?
   modeleReglement   ModeleReglement? @relation(fields: [modeleReglementId], references: [id])
 

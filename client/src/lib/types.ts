@@ -878,6 +878,14 @@ export interface Tiers {
    */
   autoriseTvaDebits: boolean;
   referenceAutorisationDebits: string | null;
+  /**
+   * PÉRIODE DE L'AUTORISATION · date de la décision, ou du silence de dix
+   * jours qui « vaut autorisation » (décret n° 011/42, art. 59), et date du
+   * retour au droit commun (art. 63). Hors de cette période, la déclaration
+   * applique le droit commun. Nulles, sans défaut.
+   */
+  dateEffetAutorisationDebits: string | null;
+  dateRevocationAutorisationDebits: string | null;
 }
 
 /**

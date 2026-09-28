@@ -368,7 +368,16 @@ export function TiersPage() {
    */
   const enregistrerChamp = async (
     t: Tiers,
-    donnees: Partial<Pick<Tiers, 'celluleGroupeId' | 'autoriseTvaDebits' | 'referenceAutorisationDebits'>>,
+    donnees: Partial<
+      Pick<
+        Tiers,
+        | 'celluleGroupeId'
+        | 'autoriseTvaDebits'
+        | 'referenceAutorisationDebits'
+        | 'dateEffetAutorisationDebits'
+        | 'dateRevocationAutorisationDebits'
+      >
+    >,
   ) => {
     setErreur(null);
     try {
@@ -853,8 +862,8 @@ export function TiersPage() {
                   TVA d'après les débits
                   <Aide
                     titre="TVA d'après les débits"
-                    texte="À cocher SEULEMENT si la mention figure sur la facture · le décret l'y impose pour tout prestataire ou entrepreneur autorisé. Sa taxe devient alors exigible à la facture et non au paiement, et notre droit à déduction naît avec elle. Non cochée, la déduction reste différée au paiement, qui est le droit commun."
-                    source="Décret n° 011/42, art. 60 · O.-L. n° 10/001, art. 26 et 37"
+                    texte="À cocher SEULEMENT si la mention figure sur la facture · le décret l'y impose pour tout prestataire ou entrepreneur autorisé. Sa taxe devient alors exigible à la facture et non au paiement, et notre droit à déduction naît avec elle. Non cochée, la déduction reste différée au paiement, qui est le droit commun. La date d'effet est celle de la décision, ou du silence de dix jours qui vaut autorisation ; la révocation, celle du retour au droit commun. Hors de cette période, la déduction suit le droit commun, et sans date d'effet la déclaration signale l'anticipation comme non datée. Un règlement antérieur à la facture rend la taxe exigible à sa date."
+                    source="Décret n° 011/42, art. 59 à 63 · O.-L. n° 10/001, art. 26 et 37"
                   />
                 </div>
                 <label className="flex items-start gap-1.5 text-[11.5px] leading-[1.4]">
@@ -888,6 +897,39 @@ export function TiersPage() {
                       }}
                       className="border border-border rounded-[3px] bg-bg px-2 py-[3px] text-[11.5px] focus:outline-none focus:border-sel"
                     />
+                    {/*
+                      LA PÉRIODE DE L'AUTORISATION · une facture hors de la
+                      période est déduite au paiement (droit commun). Une
+                      autorisation révoquée se DATE, elle ne se décoche pas :
+                      décochée, la case retirerait aussi l'anticipation des
+                      factures de la période où elle valait.
+                    */}
+                    {(
+                      [
+                        ['dateEffetAutorisationDebits', 'Effet le :', 'tiers-effet-debits'],
+                        ['dateRevocationAutorisationDebits', 'Révoquée le :', 'tiers-revocation-debits'],
+                      ] as const
+                    ).map(([champ, libelle, id]) => (
+                      <Fragment key={champ}>
+                        <label className="text-text-dim text-right text-[11.5px]" htmlFor={id}>
+                          {libelle}
+                        </label>
+                        <input
+                          id={id}
+                          type="date"
+                          key={`${tiersSelectionne.id}-${champ}-${tiersSelectionne[champ] ?? ''}`}
+                          defaultValue={tiersSelectionne[champ]?.slice(0, 10) ?? ''}
+                          readOnly={!estAdmin}
+                          onBlur={(e) => {
+                            if (!estAdmin) return;
+                            const valeur = e.target.value;
+                            if (valeur === (tiersSelectionne[champ]?.slice(0, 10) ?? '')) return;
+                            enregistrerChamp(tiersSelectionne, { [champ]: valeur || null });
+                          }}
+                          className="border border-border rounded-[3px] bg-bg px-2 py-[3px] text-[11.5px] focus:outline-none focus:border-sel"
+                        />
+                      </Fragment>
+                    ))}
                   </div>
                 )}
                 <div className="text-[11px] text-text-dim leading-[1.5] mt-1.5">
