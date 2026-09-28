@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Aide } from './chrome/Aide';
+import { mentionAttenteHorsListe, mentionTrancheOrdres, type ListeOrdresVirement } from '../lib/liste-ordres-virement';
 
 type Statut = 'A_IMPRIMER' | 'IMPRIME' | 'ANNULE';
 
@@ -60,14 +61,16 @@ export const LIBELLE_STATUT: Record<Statut, string> = {
  */
 export function OrdresVirement({ ordreInitial, onSelection }: { ordreInitial?: string | null; onSelection: (ouvert: boolean) => void }) {
   const { peutEcrire, utilisateur } = useAuth();
-  const [ordres, setOrdres] = useState<OrdreResume[]>([]);
+  // NULL TANT QUE RIEN N'EST LU (audit final F207) · « aucun ordre » ne se
+  // dit que d'une liste lue, jamais d'une lecture en échec.
+  const [liste, setListe] = useState<ListeOrdresVirement<OrdreResume> | null>(null);
   const [ordre, setOrdre] = useState<Ordre | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
 
   const recharger = () =>
     api
-      .get<OrdreResume[]>('/ordres-virement')
-      .then(setOrdres)
+      .get<ListeOrdresVirement<OrdreResume>>('/ordres-virement')
+      .then(setListe)
       .catch((e) => setErreur(e instanceof ApiError ? e.message : 'Ordres illisibles'));
 
   const ouvrir = async (id: string) => {
@@ -120,46 +123,56 @@ export function OrdresVirement({ ordreInitial, onSelection }: { ordreInitial?: s
   };
 
   const tenant = utilisateur?.tenant;
+  const tranche = liste ? mentionTrancheOrdres(liste) : null;
+  const attenteHorsListe = liste ? mentionAttenteHorsListe(liste) : null;
 
   return (
     <>
       <div className="space-y-3">
         {erreur && <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2">{erreur}</div>}
-        {!ordre && (
+        {!ordre && liste && (
           <>
-            {ordres.length === 0 ? (
+            {liste.total === 0 ? (
               <p className="text-[11.5px] text-text-dim">
                 Aucun ordre de virement. Cochez « Préparer un ordre de virement » en enregistrant des règlements fournisseurs.
               </p>
             ) : (
-              <table className="w-full text-[11.5px]">
-                <thead>
-                  <tr>
-                    <th className="text-left px-2 py-1 w-[70px]">N°</th>
-                    <th className="text-left px-2 py-1 w-[90px]">Date</th>
-                    <th className="text-left px-2 py-1">Journal</th>
-                    <th className="text-right px-2 py-1 w-[90px]">Virements</th>
-                    <th className="text-right px-2 py-1 w-[130px]">Total</th>
-                    <th className="text-left px-2 py-1 w-[170px]">État</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ordres.map((o) => (
-                    <tr key={o.id} className="cursor-pointer hover:bg-[var(--a-50)]" onClick={() => ouvrir(o.id)}>
-                      <td className="px-2 py-1">{o.numero}</td>
-                      <td className="px-2 py-1">{jour(o.date)}</td>
-                      <td className="px-2 py-1">
-                        {o.journal.code} · {o.journal.intitule}
-                      </td>
-                      <td className="px-2 py-1 text-right">{o._count.lignes}</td>
-                      <td className="px-2 py-1 text-right">{fmt(o.total)}</td>
-                      <td className={`px-2 py-1 ${o.statut === 'A_IMPRIMER' ? 'text-warning font-semibold' : o.statut === 'ANNULE' ? 'text-text-dim' : ''}`}>
-                        {LIBELLE_STATUT[o.statut]}
-                      </td>
+              <>
+                {(tranche || attenteHorsListe) && (
+                  <div className="text-[11.5px]">
+                    {tranche && <span className="text-text-dim">{tranche} </span>}
+                    {attenteHorsListe && <span className="text-warning font-semibold">{attenteHorsListe}</span>}
+                  </div>
+                )}
+                <table className="w-full text-[11.5px]">
+                  <thead>
+                    <tr>
+                      <th className="text-left px-2 py-1 w-[70px]">N°</th>
+                      <th className="text-left px-2 py-1 w-[90px]">Date</th>
+                      <th className="text-left px-2 py-1">Journal</th>
+                      <th className="text-right px-2 py-1 w-[90px]">Virements</th>
+                      <th className="text-right px-2 py-1 w-[130px]">Total</th>
+                      <th className="text-left px-2 py-1 w-[170px]">État</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {liste.ordres.map((o) => (
+                      <tr key={o.id} className="cursor-pointer hover:bg-[var(--a-50)]" onClick={() => ouvrir(o.id)}>
+                        <td className="px-2 py-1">{o.numero}</td>
+                        <td className="px-2 py-1">{jour(o.date)}</td>
+                        <td className="px-2 py-1">
+                          {o.journal.code} · {o.journal.intitule}
+                        </td>
+                        <td className="px-2 py-1 text-right">{o._count.lignes}</td>
+                        <td className="px-2 py-1 text-right">{fmt(o.total)}</td>
+                        <td className={`px-2 py-1 ${o.statut === 'A_IMPRIMER' ? 'text-warning font-semibold' : o.statut === 'ANNULE' ? 'text-text-dim' : ''}`}>
+                          {LIBELLE_STATUT[o.statut]}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
             )}
           </>
         )}

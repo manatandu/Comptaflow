@@ -508,6 +508,12 @@ l'échantillon, la lettre et le taux · une campagne au 30 juin envoyait le
 solde de décembre. Une demande ne s'ajoute qu'en PRÉPARATION, une par compte
 (index unique), celle qui n'est pas partie se RETIRE, et la clôture refuse une
 lettre jamais envoyée · elle n'est ni une réponse ni une non-réponse.
+UNE CAMPAGNE EST DÉPOUILLÉE QUAND CHAQUE LETTRE PARTIE EST CLASSÉE (audit
+final F210) · au classement, et au retrait de la dernière lettre « à
+envoyer », par un passage conditionnel qui ne rouvre jamais une campagne
+close. Le dépouillement n'admet que les trois issues (réponse reçue, sans
+réponse, non distribuée) et refuse une lettre qui n'est pas partie ;
+« envoyée » et « relancée » se posent par l'envoi seul.
 
 TROIS REFUS, chacun contre un défaut qui laisse le dossier parfaitement
 présentable. UNE NON-RÉPONSE N'EST PAS UNE CONFIRMATION · ISA 505 § 12, « in
@@ -2360,7 +2366,14 @@ gèle. **(2) DEUX APPELS INDÉPENDANTS PARTENT ENSEMBLE** · chaque `await` ench
 coûte un aller-retour transatlantique. Mesuré : 10 appels dont 5 `OPTIONS` en
 3 vagues, contre 5 appels en 2 vagues. **Le simulateur de latence de Chrome ne
 retarde pas les `OPTIONS`** : une mesure faite avec lui sous-estime ce qu'ils
-coûtent.
+coûtent. **(3) LE CACHE DES RÉFÉRENTIELS SE VIDE PAR CE QUI LES CHANGE**
+(audit final F249) · `/comptes` et `/journaux` sont gardés trente secondes, et
+vidés par toute écriture de leur famille comme par celles qui les changent par
+un autre chemin (`cache-referentiels.ts` · tiers, import, natures, fusion de
+comptes) ; une route nouvelle qui ouvre un compte hors de `/comptes` s'y
+inscrit. **(4) APRÈS UN DÉPLOIEMENT, UN SEUL RECHARGEMENT PAR FENÊTRE DE CINQ
+MINUTES** (F246, convention d'OmegaX) · le marqueur est daté et ne s'efface
+jamais au chargement, sans quoi un morceau encore absent rechargeait sans fin.
 
 **P8 · LE BULLETIN DE PAIE ÉMIS, ET LA LECTURE SEULE QUI NE VOIT PLUS DE
 BOUTON QUI ÉCRIT (2026-09-23).** Deux chantiers livrés ensemble.
@@ -4553,7 +4566,7 @@ PROPOSE les correspondances (`rapprochement/releve-bancaire.ts`). Sage fait la
 même chose avec une tolérance de montant et une écriture d'ajustement ; OmegaX
 reprend l'import et refuse les deux autres, pour les raisons du pré-lettrage.
 
-CINQ RÈGLES À NE PAS DÉFAIRE. (1) LE SENS · débit et crédit du relevé sont ceux
+SIX RÈGLES À NE PAS DÉFAIRE. (1) LE SENS · débit et crédit du relevé sont ceux
 de la BANQUE et restent tels qu'imprimés ; un crédit du relevé est un DÉBIT du
 52 (`montantVuDuCompte`). Comparer débit à débit proposerait chaque
 encaissement face à un décaissement du même montant. (2) AUCUNE TOLÉRANCE ·
@@ -4574,7 +4587,13 @@ correspondance. (5) RIEN N'EST PASSÉ D'OFFICE · une ligne du relevé sans
 écriture (frais, agios, virement non saisi) est « à comptabiliser ». Une ligne
 datée après la date du relevé est refusée à l'import, et un relevé qui ne
 boucle pas (solde de départ + opérations ≠ solde imprimé) est signalé avant de
-rapprocher.
+rapprocher. (6) L'À-NOUVEAU NE SE POINTE PAS (audit final F205) · il recopie un
+solde, ce n'est pas une opération de la banque, et une chaîne n'a qu'une
+ouverture. Après un rapprochement CLOS, aucun à-nouveau n'est pointable ; sans
+lui, seul celui du PREMIER exercice du dossier, qui porte le bilan
+d'ouverture, comme dans `balanceCumulee`. La règle vit une fois
+(`estANouveauEcarte`, `filtreANouveauEcarte`) · filtre en base à la lecture
+et aux propositions, refus nommé au pointage et à la confirmation.
 
 **Règlement des tiers à partir des échéances (2026-09-25).** Deuxième manque
 « usage quotidien » de la comparaison Sage i7. Fenêtre Traitement > Règlement
@@ -4748,6 +4767,11 @@ nouveaux »). CINQ RÈGLES À NE PAS DÉFAIRE. (1) UN SEUL CALCUL POUR LA CLÔTU
 ET LE PROVISOIRE (`exercice/report-a-nouveau.ts`) · le bilan d'ouverture
 provisoire doit ressembler au définitif, et la clôture n'avait AUCUN test
 unitaire avant ce chantier (`cloture-annuelle.spec.ts` le fige désormais).
+UNE SEULE LECTURE aussi (`lireComptesDuReport`, audit final F185) · au SOLDE
+et en gestion, les sommes se demandent à la base, les lignes en devise
+cumulées par devise et par sens ; au DÉTAIL, seules les lignes non lettrées se
+lisent, par tranches. Le report rendu est le même au centime que la lecture
+ligne à ligne (`report-a-nouveau-agrege.spec.ts`).
 (2) LE PROVISOIRE EST CALCULÉ SUR LE LIVRE-JOURNAL, résultat compris sur le
 13, et le brouillard restant est DIT, jamais lu. (3) IL RESTE AU BROUILLARD ET
 NE SE VALIDE JAMAIS (`Ecriture.estANouveauProvisoire`) · validé, il ne
@@ -4995,7 +5019,10 @@ duplicata. (5) L'ANNULATION EXIGE UN MOTIF ET LIBÈRE LES PIÈCES SANS LES DÉFA
 tant que l'ordre tient une pièce, elle ne se supprime pas
 (`verifierAucunModuleNeLaTient`) ; un tiers payé par un ordre ne se supprime
 pas, ses RIB partent avec lui. L'état ne bloque pas la validation de la pièce ·
-décision déclarée, la validation restant l'acte du comptable.
+décision déclarée, la validation restant l'acte du comptable. LA LISTE DES
+ORDRES EST UNE TRANCHE QUI SE DIT (audit final F207) · les plus récents, avec
+le total et le nombre d'ordres à imprimer lus sur le dossier entier, et
+l'écran dit ceux qui n'y sont pas.
 
 **Rubriques de paie du cabinet, avances et prêts au personnel (2026-09-26).**
 Priorité 2 de la comparaison avec les autres produits Sage (Paie et RH).
@@ -6776,10 +6803,13 @@ OmegaX, JAMAIS le vert de Sage.
   une DONNÉE du dossier, et les mentions qu'un test gèle, raccourcies à une
   ligne. Numéros et codes en police d'interface, pas en chasse fixe.
 - **Un échec de lecture se dit, et null n'est pas vide** (audit final F179,
-  F181, F183, F184). Une liste part de `null`, un refus s'affiche avec son
-  motif, et « aucun » ne se dit que sur une liste LUE · « Aucune caisse sans
-  procès-verbal » ou « Aucun mandat » sur un échec sont la réponse favorable à
-  la question que l'écran pose.
+  F181, F183, F184, F207, F248, F254, F255). Une liste part de `null`, un
+  refus s'affiche avec son motif, et « aucun » ne se dit que sur une liste
+  LUE · « Aucune caisse sans procès-verbal » ou « Aucun mandat » sur un échec
+  sont la réponse favorable à la question que l'écran pose. Le contexte
+  d'exercice aussi · `lireLesExercices` ne lève jamais, le chargement se
+  referme, et l'erreur s'affiche à la barre d'état et dans la fenêtre
+  Exercices.
 - **« À propos » dit ce qui est installé** (F180) · version, révision et date
   de construction posées par `vite.config.ts`, et la date du paquet sur site ;
   ce qui manque se dit, rien n'est inventé.

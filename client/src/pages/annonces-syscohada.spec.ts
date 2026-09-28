@@ -57,11 +57,21 @@ describe("l'assistant de création de dossier n'annonce plus le SYSCOHADA comme 
     expect({ mention: MOTS_INACHEVE.exec(entree ?? '')?.[0] ?? null }).toEqual({ mention: null });
   });
 
-  it('laisse le référentiel SÉLECTIONNABLE, badge « bientôt » compris', () => {
-    // Le badge d'attente et le bouton radio sont commandés par le même
-    // `disponible` : le mettre à false rendrait le SYSCOHADA inchoisissable
-    // ET rallumerait le badge, alors que ses états existent.
-    expect(entree).toContain('disponible: true');
+  it('laisse chaque référentiel SÉLECTIONNABLE, sans condition ni badge d’attente', () => {
+    // Le champ `disponible` commandait à la fois le bouton radio et un badge
+    // « bientôt » · il valait vrai partout, et sa branche morte portait le
+    // motif que le § 4 interdit (audit final F252). Le choix ne dépend plus
+    // que de la valeur cochée.
+    const choix = /\{REFERENTIELS\.map\(\(r\) => \{[\s\S]*?\n {24}\}\)\}/.exec(wizard)?.[0] ?? '';
+    expect(choix).toContain('const actif = form.referentiel === r.valeur;');
+    expect(choix).toContain("onChange={() => majer('referentiel', r.valeur)}");
+    // Les deux tables d'options ne portent plus que ce qui s'affiche.
+    expect(wizard).toContain(
+      'const REFERENTIELS: {\n  valeur: Referentiel;\n  titre: string;\n  sousTitre: string;\n  description: string;\n}[] = [',
+    );
+    expect(wizard).toContain(
+      'const TYPES_ENTITE: {\n  valeur: JeuEtatsFinanciersSycebnl;\n  titre: string;\n  description: string;\n}[] = [',
+    );
   });
 });
 
@@ -82,9 +92,7 @@ describe('plus aucune source client ne dit les états SYSCOHADA inachevés', () 
   it("ne porte nulle part la tournure « états … en construction »", () => {
     // Volontairement plus étroit qu'une interdiction du seul « en
     // construction » : AppShell.tsx porte la tournure dans un commentaire qui
-    // la NIE (« plus rien n'est en construction derrière ces deux entrées »),
-    // et le wizard garde des badges « bientôt » légitimes sur la sélection
-    // partielle de données et le paramétrage manuel, qui, eux, n'existent pas.
+    // la NIE (« plus rien n'est en construction derrière ces deux entrées »).
     const fautifs = sourcesClient()
       .filter((fichier) => /états?[^.\n]{0,40}en construction/i.test(readFileSync(fichier, 'utf8')))
       .map((fichier) => fichier.slice(racineClient.length + 1));

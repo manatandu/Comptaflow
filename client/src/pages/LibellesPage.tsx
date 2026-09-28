@@ -20,10 +20,19 @@ export function LibellesPage() {
   const [code, setCode] = useState('');
   const [intitule, setIntitule] = useState('');
   const [erreur, setErreur] = useState<string | null>(null);
+  // La première lecture refusée se DIT (audit final F255) · elle posait une
+  // liste vide, et l'écran répondait « Aucun libellé » sur un échec.
+  const [erreurLecture, setErreurLecture] = useState<string | null>(null);
 
-  const charger = async () => setListe(await api.get<Libelle[]>('/libelles-ecriture'));
+  const charger = async () => {
+    setListe(await api.get<Libelle[]>('/libelles-ecriture'));
+    setErreurLecture(null);
+  };
   useEffect(() => {
-    charger().catch(() => setListe([]));
+    charger().catch((e) => {
+      setListe(null);
+      setErreurLecture(e instanceof Error ? e.message : "La liste des libellés n'a pas pu être lue.");
+    });
   }, []);
 
   const agir = async (fn: () => Promise<unknown>) => {
@@ -91,12 +100,26 @@ export function LibellesPage() {
               </td>
             </tr>
           ))}
-          {liste?.length === 0 && (
+          {erreurLecture ? (
             <tr>
-              <td colSpan={3} className="italic text-text-dim">
-                Aucun libellé.
+              <td colSpan={3} className="text-danger">
+                Liste des libellés illisible · {erreurLecture}
               </td>
             </tr>
+          ) : liste === null ? (
+            <tr>
+              <td colSpan={3} className="italic text-text-dim">
+                Chargement…
+              </td>
+            </tr>
+          ) : (
+            liste.length === 0 && (
+              <tr>
+                <td colSpan={3} className="italic text-text-dim">
+                  Aucun libellé.
+                </td>
+              </tr>
+            )
           )}
         </tbody>
       </table>

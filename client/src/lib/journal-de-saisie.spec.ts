@@ -44,7 +44,9 @@ describe('F61 · le journal chargé dans la saisie', () => {
     const page = readFileSync(join(__dirname, '../pages/SaisiePage.tsx'), 'utf8');
     expect(page).toContain('urlJournalDeSaisie(');
     expect(page).toContain('lireJournalDeSaisie(r)');
-    expect(page).toContain('{totauxJournal.debit.toLocaleString');
+    // Les totaux du SERVEUR, jamais la somme de la tranche · null après une
+    // lecture refusée, et alors rien n'est affiché (audit final F255).
+    expect(page).toContain('{totauxJournal ? totauxJournal.debit.toLocaleString');
     expect(page).toMatch(/\{troncature && \(/);
   });
 });

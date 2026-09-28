@@ -21,10 +21,14 @@ function monter(options: { total?: number; releve?: Array<{ id: string; date: Da
     rapprochementBancaire: {
       findFirst: jest.fn(async ({ where }: { where: { statut?: string } }) => (where.statut === 'CLOTURE' ? null : rapprochement)),
     },
+    // Le premier exercice du dossier, que la règle des à-nouveaux lit (audit final F205).
+    exercice: { findFirst: jest.fn(async () => ({ id: 'ex1' })) },
     ligneReleveBancaire: { findMany: jest.fn().mockResolvedValue(releve) },
     ligneEcriture: {
       findMany: jest.fn().mockResolvedValue([]),
-      count: jest.fn().mockResolvedValue(options.total ?? 0),
+      // Le total de la tranche porte la disjonction « pointée ici ou libre » ;
+      // le décompte des à-nouveaux écartés n'en porte pas, et vaut zéro ici.
+      count: jest.fn(async ({ where }: { where: Record<string, unknown> }) => ('OR' in where ? (options.total ?? 0) : 0)),
       aggregate: jest.fn().mockResolvedValue({ _sum: { debit: 700, credit: 200 } }),
     },
   };

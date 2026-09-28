@@ -76,9 +76,14 @@ describe('câblage du préchargement', () => {
   });
 
   it('le contexte d’exercice reprend la réponse AU DÉMARRAGE seulement, et redemande si elle a échoué', () => {
+    // La lecture vit dans lecture-exercices.ts depuis l'audit final F248 ·
+    // le contexte lui passe la réponse préchargée et la relecture, et c'est
+    // elle qui redemande sur un préchargement refusé.
     const ex = lire('exercice.tsx');
-    expect(ex).toContain('auDemarrage ? consommerPrechargement() : null');
-    expect(ex).toMatch(/prechargee\.catch\(\(\) => api\.get<Exercice\[\]>\('\/exercices'\)\)/);
+    expect(ex).toMatch(
+      /lireLesExercices\(auDemarrage \? consommerPrechargement\(\) : null, \(\) =>\s*api\.get<Exercice\[\]>\('\/exercices'\),?\s*\)/,
+    );
+    expect(lire('lecture-exercices.ts')).toContain('prechargee.catch(() => lire())');
     expect(ex).toContain('recharger(true);');
   });
 });

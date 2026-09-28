@@ -7,7 +7,13 @@ import { ClasseCompte } from '@prisma/client';
 import { ControlesService } from './controles.service';
 import { DossierRevisionService } from './dossier-revision.service';
 
-/** Consultation ouverte aux trois rôles : un contrôle ne modifie rien. */
+/**
+ * Consultation · un contrôle ne modifie rien, et aucune route d'ici ne porte
+ * `@Roles`. Elle est donc ouverte à tout rôle que `JwtAuthGuard` laisse
+ * entrer, aide-comptable compris, mais pas au gestionnaire de paie, fermé
+ * partout où une route ne l'ouvre pas (`roles-cantonnes.ts`). « Les trois
+ * rôles » datait d'avant les deux rôles cantonnés (audit final F209).
+ */
 @UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
 @Controller('controles')
 export class ControlesController {
@@ -18,9 +24,11 @@ export class ControlesController {
 
   /**
    * LES FICHES DU RÉFÉRENTIEL · servies telles quelles au client, qui s'en
-   * sert pour avertir à la saisie. Soixante-dix-huit entrées, quelques
-   * dizaines de kilo-octets : une par dossier ouvert, pas une par ligne
-   * saisie.
+   * sert pour avertir à la saisie. La table du référentiel du dossier et elle
+   * seule (`DossierRevisionService.regles`), son décompte étant tenu par
+   * `regles-comptes.spec.ts` · une lecture par dossier ouvert, pas une par
+   * ligne saisie. « Soixante-dix-huit » ne comptait que la table SYCEBNL
+   * (audit final F209).
    */
   @Get('regles-comptes')
   async reglesComptes(@CurrentUser() user: AuthenticatedUser) {

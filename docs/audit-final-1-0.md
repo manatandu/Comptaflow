@@ -1369,6 +1369,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 
 **F185 · Lectures sans borne des écritures et des lignes sur les routes de travail** [saisie-17, rev-19, infra-02]
 - **Emplacements :**
+- **Complété le 2026-09-28 :** la clôture et l'à-nouveau provisoire ne lisent plus une à une que les lignes NON lettrées des comptes au DÉTAIL, par tranches ; un compte au SOLDE ou de gestion reçoit de la base son débit, son crédit et ses lignes en devise cumulées par devise et par sens (`lireComptesDuReport`, `SommesRan`), `sommesDesLignes` gardant la définition que la requête reproduit. Tests : `report-a-nouveau-agrege.spec.ts`, qui rend le report au centime comme la lecture ligne à ligne, `a-nouveaux-provisoires.spec.ts`, `cloture-annuelle.spec.ts`, `reevaluation-f54-f55.spec.ts`.
   - src/modules/controles/controles.service.ts:400-414, :535-548, :787-806
   - src/modules/controles/test-ecritures-journal.service.ts:35
   - src/modules/journaux/analyse-journaux.service.ts:206
@@ -1539,6 +1540,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** la ligne reste « non pointée » d'une année sur l'autre, et la pointer compte l'ouverture deux fois.
 - **Correction :** l'écarter quand un rapprochement antérieur existe, ou la montrer à part.
+- **Fait le 2026-09-28 :** le report à-nouveau n'est plus proposé au pointage · une seule ouverture par chaîne. Après un rapprochement clos, aucun à-nouveau ; sans rapprochement antérieur, seul celui du premier exercice du dossier, qui porte le bilan d'ouverture, comme dans `balanceCumulee`. La règle vit une fois (`estANouveauEcarte`, `filtreANouveauEcarte`, `rapprochement.service.ts`) · filtre sur la liste et les propositions, refus nommé (`motifRefusANouveau`) au pointage et à la confirmation ; une ligne déjà pointée sur ce rapprochement reste montrée pour se défaire. Test : `a-nouveau-rapprochement.spec.ts`. **Reste :** l'écran ne dit pas encore combien d'à-nouveaux sont écartés (`aNouveauEcartes`).
 
 **F206 · Balance cumulée : l'« ouverture » inclut la clôture du premier exercice** [saisie-24]
 - **Emplacements :** src/modules/comptabilite/ecriture.service.ts:3029-3033
@@ -1552,6 +1554,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 3
 - **Constat :** les ordres les plus anciens disparaissent de l'onglet.
 - **Correction :** `total` et `tronque`, ou filtres.
+- **Fait le 2026-09-28 :** `GET /ordres-virement` rend les `PLAFOND_ORDRES_LISTES` plus récents avec le total et le nombre d'ordres à imprimer, lus sur le dossier entier (`ordres-virement.service.ts`) ; l'onglet part de null et dit les ordres à imprimer qui ne sont pas dans la liste (`liste-ordres-virement.ts`, `OrdresVirement.tsx`). Tests : `ordres-virement.spec.ts` (serveur et écran), `liste-ordres-virement.spec.ts`. **Reste :** aucun filtre par état.
 
 ### Exercice et révision
 
@@ -1560,18 +1563,21 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 5
 - **Constat :** le rattachement se reprend à l'ouverture, pas à la fin.
 - **Correction :** faire dépendre le texte du type.
+- **Fait le 2026-09-28 :** la bulle de la colonne « Reprise » suit le type autant que le référentiel (`momentDeReprise`, `aideDateReprise`, `regularisation-types.ts`), la même règle que `dateReprise` du serveur · le rattachement à l'ouverture des deux côtés, avec la fiche du compte 40 ou 41 du texte du dossier, la subvention pluriannuelle à la fin. Test : `regularisation-types.spec.ts`.
 
 **F209 · Commentaires et décomptes périmés (exercice, contrôles)** [rev-22]
 - **Emplacements :** src/modules/exercice/exercice.service.ts:283, :564-571, :662-685 · planning-cloture.ts:205 · src/modules/controles/controles.controller.ts:10, :21 · dossier-revision.service.ts:39 · controles.service.ts:1581, :3052 · docs/organisation-comptable-cpcc.md:123
 - **Condition :** 5
 - **Constat :** « seize jalons », affectation « à écrire », `premierJourOuvert` null, « trois rôles », « 78 entrées », dépréciation « hors périmètre », « pas de module de paie ».
 - **Correction :** décrire l'existant, sans chiffres déduits.
+- **Fait le 2026-09-28 :** les commentaires décrivent l'existant sans chiffre déduit · jalons filtrés selon le référentiel, la forme et le droit, affectation écrite, `premierJourOuvert` servi, cinq rôles, fiches des deux référentiels, dépréciation portée par le module, registre du personnel (`exercice.service.ts`, `planning-cloture.ts`, `controles.controller.ts`, `controles.service.ts`, `dossier-revision.service.ts`, `docs/organisation-comptable-cpcc.md`).
 
 **F210 · État de campagne DEPOUILLEE jamais atteint** [rev-23]
 - **Emplacements :** src/modules/circularisation/circularisation.service.ts:360-364 · client/src/lib/types.ts:3609
 - **Condition :** 5
 - **Constat :** état mort de l'énumération.
 - **Correction :** poser ce statut, ou le retirer.
+- **Fait le 2026-09-28 :** une campagne passe à « dépouillée » quand chaque lettre partie est classée (`estDepouillee`, `suivreDepouillement`, `circularisation.service.ts`), au classement comme au retrait de la dernière lettre à envoyer, par un passage conditionnel qui ne rouvre jamais une campagne close. Le dépouillement n'accepte que les trois issues (réponse reçue, sans réponse, non distribuée) et refuse une lettre qui n'est pas partie. Tests : `circularisation.spec.ts`, `circularisation-gestes-a-lecran.spec.ts`. **Reste :** le statut de la campagne ne s'affiche pas à l'écran.
 
 ### États financiers
 
@@ -1824,6 +1830,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 5
 - **Constat :** le commentaire n'est pas tenu.
 - **Correction :** marqueur daté.
+- **Fait le 2026-09-28 :** le marqueur de rechargement est daté et n'est plus effacé au chargement · un seul rechargement par fenêtre de cinq minutes, convention d'OmegaX, et un stockage refusé vaut refus (`rechargement-chunk.ts`, `main.tsx`). Test : `rechargement-chunk.spec.ts`.
 
 **F247 · Le gestionnaire de paie ne peut pas saisir le cours du jour** [chrome-06]
 - **Emplacements :** client/src/lib/roles-cantonnes.ts:13-19 · devises.controller.ts:12 · conversion-usd.ts:61
@@ -1837,12 +1844,14 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 3
 - **Constat :** ni try ni finally.
 - **Correction :** try/finally, et erreur affichée.
+- **Fait le 2026-09-28 :** `lireLesExercices` ne lève jamais et rend le motif d'un échec (`lecture-exercices.ts`) · le contexte referme son chargement et expose l'erreur, que la barre d'état et la fenêtre Exercices affichent, et l'accueil ne reste plus sur « Chargement… » sans exercice (`exercice.tsx`, `SelecteurExercice.tsx`, `ExercicePage.tsx`, `AccueilPage.tsx`). Tests : `lecture-exercices.spec.ts`, `prechargement.spec.ts`. **Reste :** les devis et la facturation ne disent pas encore que les exercices sont illisibles.
 
 **F249 · Cache des comptes non vidé après un tiers ou une fusion** [chrome-11, pages-13]
 - **Emplacements :** client/src/lib/api.ts:163-178 · client/src/pages/TiersPage.tsx:268, :322
 - **Condition :** 3 et 5
 - **Constat :** le plan est faux pendant 30 s.
 - **Correction :** vider sur `/tiers` et sur les fusions.
+- **Fait le 2026-09-28 :** une écriture sur `/tiers`, `/import`, `/natures-compte` ou `/ecritures/fusion-comptes` vide aussi le cache des comptes, avant l'envoi et à la réponse (`cheminsAViderApres`, `cache-referentiels.ts`, appelé par `api.ts`). Test : `cache-referentiels.spec.ts`.
 
 **F250 · Barre de titre et sélecteur n'écrivent pas le même exercice** [chrome-12]
 - **Emplacements :** client/src/components/chrome/AppShell.tsx:68, :655 · SelecteurExercice.tsx:22-30
@@ -1861,24 +1870,28 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 5
 - **Constat :** toutes les entrées sont disponibles, et le § 4 interdit ce motif.
 - **Correction :** retirer le champ et la branche.
+- **Fait le 2026-09-28 :** le champ `disponible` et le badge « bientôt » sont retirés de l'assistant de création (`NouveauFichierWizard.tsx`). Test : `annonces-syscohada.spec.ts`.
 
 **F253 · Balance : commentaire périmé sur les comptes Total** [pages-12]
 - **Emplacements :** client/src/pages/JournalPage.tsx:823-826 · ecriture.service.ts:2931
 - **Condition :** 5
 - **Constat :** le serveur les écarte.
 - **Correction :** retirer.
+- **Fait le 2026-09-28 :** les commentaires de `JournalPage.tsx` et de `balance()` disent que le serveur écarte les comptes Total (`lignesDeBalance`).
 
 **F254 · Accueil : un état du brouillard inconnu s'affiche en vert** [pages-14]
 - **Emplacements :** client/src/pages/AccueilPage.tsx:411-412
 - **Condition :** 3
 - **Constat :** une absence de réponse est présentée comme favorable.
 - **Correction :** `?? false`.
+- **Fait le 2026-09-28 :** l'état du brouillard non lu s'affiche comme non satisfait (`?? false`), et « aucun jalon en retard » ne se dit que sur une liste lue (`AccueilPage.tsx`). Test : `echecs-de-lecture-dits.spec.ts`.
 
 **F255 · Lectures sans gestion d'erreur qui laissent des listes vides** [pages-15]
 - **Emplacements :** client/src/pages/SaisiePage.tsx:250-255 · PasserEcritureFacture.tsx:27 · LibellesPage.tsx:127 · SimulationsBudgetairesPage.tsx:46 · EtatsPersonnalisesPage.tsx:34
 - **Condition :** 3
 - **Constat :** une erreur devient « Aucun… ».
 - **Correction :** afficher l'erreur.
+- **Fait le 2026-09-28 :** les journaux, le plan et les écritures de la saisie, les comptes de `PasserEcritureFacture.tsx`, les libellés, les simulations et les états personnalisés partent de null et affichent leur échec au lieu d'une liste vide ou de totaux à zéro. Test : `echecs-de-lecture-dits.spec.ts`. **Reste :** dans la saisie, l'état des journaux par mois, les devises, les plans analytiques et les modèles avalent encore leur échec.
 
 **F256 · Formatage des montants dispersé en une trentaine de copies** [pages-16]
 - **Emplacements :** client/src/pages/DashboardPage.tsx:114, :227 · RapprochementDetailPage.tsx:175 · InventairePage.tsx:84 · CircularisationPage.tsx:85 · ProvisionsPage.tsx:180 · BalanceFonctionnellePage.tsx:21

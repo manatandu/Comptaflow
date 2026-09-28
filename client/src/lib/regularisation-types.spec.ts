@@ -1,6 +1,14 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { estRattachement, exercicesDeReprise, naturesTiersProposees, porteUneCharge } from './regularisation-types';
+import {
+  aideDateReprise,
+  estRattachement,
+  exercicesDeReprise,
+  momentDeReprise,
+  naturesTiersProposees,
+  porteUneCharge,
+} from './regularisation-types';
+import type { Referentiel, TypeRegularisation } from './types';
 
 /**
  * AUDIT FINAL F67 · l'écran des régularisations sert les cinq types du
@@ -62,5 +70,114 @@ describe('F79 · les exercices de reprise', () => {
     expect(select).toContain('exercicesDeReprise(exercices, r.exerciceId)');
     // Le choix ne passe l'écriture qu'à travers la confirmation.
     expect(select).toMatch(/window\.confirm\([\s\S]*\)\s*\) \{\s*reprendre\(r\.id, cible\.id\);/);
+  });
+});
+
+describe('F208 · la date de reprise dite type par type', () => {
+  const REFERENTIELS: Referentiel[] = ['SYCEBNL', 'SYSCOHADA'];
+  const TYPES: TypeRegularisation[] = [
+    'CHARGE_CONSTATEE_AVANCE',
+    'PRODUIT_CONSTATE_AVANCE',
+    'SUBVENTION_PLURIANNUELLE',
+    'CHARGE_A_PAYER',
+    'PRODUIT_A_RECEVOIR',
+  ];
+
+  // La même matrice que `dateReprise` du serveur (regularisation.spec.ts) ·
+  // le rattachement se contre-passe à l'ouverture des DEUX côtés (fiches des
+  // comptes 40 et 41 des deux plans), la subvention se reprend à la fin des
+  // deux côtés, et seuls les 476 et 477 dépendent du référentiel.
+  const ATTENDU: Record<Referentiel, Record<TypeRegularisation, 'OUVERTURE' | 'FIN'>> = {
+    SYCEBNL: {
+      CHARGE_CONSTATEE_AVANCE: 'FIN',
+      PRODUIT_CONSTATE_AVANCE: 'FIN',
+      SUBVENTION_PLURIANNUELLE: 'FIN',
+      CHARGE_A_PAYER: 'OUVERTURE',
+      PRODUIT_A_RECEVOIR: 'OUVERTURE',
+    },
+    SYSCOHADA: {
+      CHARGE_CONSTATEE_AVANCE: 'OUVERTURE',
+      PRODUIT_CONSTATE_AVANCE: 'OUVERTURE',
+      SUBVENTION_PLURIANNUELLE: 'FIN',
+      CHARGE_A_PAYER: 'OUVERTURE',
+      PRODUIT_A_RECEVOIR: 'OUVERTURE',
+    },
+  };
+
+  it('le moment de la reprise suit la règle du serveur, référentiel et type', () => {
+    for (const ref of REFERENTIELS) {
+      for (const t of TYPES) expect([ref, t, momentDeReprise(ref, t)]).toEqual([ref, t, ATTENDU[ref][t]]);
+    }
+  });
+
+  it('la charge à payer d’un dossier SYCEBNL se dit à l’ouverture, pas à la fin', () => {
+    // Le défaut relevé · la bulle de la colonne disait « À LA FIN » à toute
+    // ligne d'un dossier SYCEBNL, rattachement compris.
+    expect(aideDateReprise('SYCEBNL', 'CHARGE_A_PAYER').texte).toContain("À L'OUVERTURE");
+    expect(aideDateReprise('SYCEBNL', 'PRODUIT_A_RECEVOIR').texte).toContain("À L'OUVERTURE");
+  });
+
+  it('le texte de chaque bulle dit le moment que la règle retient', () => {
+    for (const ref of REFERENTIELS) {
+      for (const t of TYPES) {
+        const attendu = momentDeReprise(ref, t) === 'OUVERTURE' ? "À L'OUVERTURE" : 'À LA FIN';
+        expect([ref, t, aideDateReprise(ref, t).texte.includes(attendu)]).toEqual([ref, t, true]);
+      }
+    }
+  });
+
+  it('le rattachement cite la fiche du compte de SON référentiel', () => {
+    expect(aideDateReprise('SYCEBNL', 'CHARGE_A_PAYER').source).toMatch(/^SYCEBNL.*compte 40/);
+    expect(aideDateReprise('SYSCOHADA', 'CHARGE_A_PAYER').source).toMatch(/^AUDCIF.*compte 40/);
+    expect(aideDateReprise('SYCEBNL', 'PRODUIT_A_RECEVOIR').source).toMatch(/^SYCEBNL.*compte 41/);
+    expect(aideDateReprise('SYSCOHADA', 'PRODUIT_A_RECEVOIR').source).toMatch(/^AUDCIF.*compte 41/);
+  });
+
+  it('chaque ligne à reprendre porte la bulle de SON type, et la colonne un résumé par type', () => {
+    const debut = page.indexOf('{regularisations?.map((r) =>');
+    expect(debut).toBeGreaterThan(0);
+    const fin = page.indexOf('{regularisations?.length === 0', debut);
+    expect(fin).toBeGreaterThan(debut);
+    const lignes = page.slice(debut, fin);
+    // Les deux branches sans reprise (qui peut écrire, qui consulte).
+    expect(lignes.split('aideDateReprise(utilisateur?.tenant.referentiel, r.type)')).toHaveLength(3);
+    const entete = page.slice(page.lastIndexOf('<span>Période</span>', debut), debut);
+    expect(entete).toContain('resumeDatesDeReprise(utilisateur?.tenant.referentiel)');
+    const resume = /function resumeDatesDeReprise[\s\S]*?\n\}/.exec(page)![0];
+    expect(resume).toContain('momentDeReprise(referentiel, t.valeur)');
+  });
+});
+
+/**
+ * La liste des régularisations disait « Aucune régularisation sur cet
+ * exercice » sur un échec de lecture, et gardait à l'écran la liste de
+ * l'exercice précédent pendant la lecture du suivant. « Aucune » ne se dit
+ * que sur une liste LUE (CLAUDE.md, § 9 ter).
+ */
+describe('la liste des régularisations · « aucune » sur une liste lue', () => {
+  it('la liste part de null, et un échec la remet à null avec son motif', () => {
+    expect(page).toContain('useState<Regularisation[] | null>(null)');
+    const debut = page.indexOf('const chargerRegularisations = async () => {');
+    expect(debut).toBeGreaterThan(0);
+    const corps = page.slice(debut, page.indexOf('\n  };', debut));
+    const echec = corps.slice(corps.indexOf('} catch'));
+    expect(echec).toContain('setRegularisations(null);');
+    expect(echec).toContain('setErreurLecture(');
+  });
+
+  it('le changement d’exercice n’affiche pas la liste de l’ancien', () => {
+    const effet = page.indexOf("if (onglet === 'regularisation') {");
+    expect(effet).toBeGreaterThan(0);
+    const bloc = page.slice(effet, page.indexOf('} else chargerAbonnements();', effet));
+    expect(bloc.indexOf('setRegularisations(null);')).toBeGreaterThan(-1);
+    expect(bloc.indexOf('setRegularisations(null);')).toBeLessThan(bloc.indexOf('chargerRegularisations();'));
+  });
+
+  it('le motif s’affiche, et « aucune » ne se dit que sur une liste non nulle', () => {
+    const vide = page.indexOf('Aucune régularisation sur cet exercice.');
+    expect(vide).toBeGreaterThan(0);
+    const garde = page.slice(page.lastIndexOf('{', page.lastIndexOf('&& (', vide)), vide);
+    expect(garde).toContain('{regularisations?.length === 0 && (');
+    expect(page).toContain('Liste des régularisations illisible · {erreurLecture}');
   });
 });

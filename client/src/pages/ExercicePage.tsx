@@ -15,7 +15,12 @@ const LIBELLE_GRANULARITE: Record<GranulariteCloture, string> = {
 
 export function ExercicePage() {
   const { estAdmin } = useAuth();
-  const { exercices, chargement: chargementExercices, recharger: rechargerExercices } = useExercice();
+  const {
+    exercices,
+    chargement: chargementExercices,
+    recharger: rechargerExercices,
+    erreur: erreurExercices,
+  } = useExercice();
 
   const [exerciceId, setExerciceId] = useState<string>('');
   const [clotures, setClotures] = useState<Cloture[] | null>(null);
@@ -339,6 +344,15 @@ export function ExercicePage() {
           </select>
         </label>
         {chargementExercices && <span className="text-[11.5px] text-text-dim">Chargement…</span>}
+        {/* Audit final F248 · la lecture manquée ne se lit plus « Chargement… »
+            pour toujours ni comme un dossier sans exercice. Après une
+            relecture manquée, la liste affichée est celle d'avant, et le
+            libellé le dit, comme la barre d'état. */}
+        {!chargementExercices && erreurExercices && (
+          <span className="text-[11.5px] text-danger">
+            {exercices.length > 0 ? 'Exercices non relus' : 'Exercices illisibles'} · {erreurExercices}
+          </span>
+        )}
         <Aide sujet="exerciceClos" />
       </div>
 

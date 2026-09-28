@@ -25,6 +25,9 @@ export interface LigneAOrdonner {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+/** Le nombre d'ordres qu'un onglet montre, les plus récents d'abord (audit final F207) · au-delà, la tranche se dit. */
+export const PLAFOND_ORDRES_LISTES = 500;
+
 /**
  * ORDRES DE VIREMENT · voir tiers/ribs-tiers.ts pour les règles et ce que la
  * source en dit. L'ordre naît de la fenêtre Règlement des tiers, en même temps
@@ -150,13 +153,26 @@ export class OrdresVirementService {
     }
   }
 
-  lister(tenantId: string) {
-    return this.prisma.ordreVirement.findMany({
-      where: { tenantId },
-      orderBy: { numero: 'desc' },
-      take: 500,
-      include: { journal: { select: { code: true, intitule: true } }, _count: { select: { lignes: true } } },
-    });
+  /**
+   * UNE TRANCHE QUI SE DIT (audit final F207) · la liste s'arrêtait aux
+   * `PLAFOND_ORDRES_LISTES` plus récents sans le dire, et les plus anciens
+   * disparaissaient de l'onglet, un ordre resté en attente d'impression
+   * compris. Le total et le nombre d'ordres en attente se demandent à la
+   * base, sur le dossier entier · c'est ce qui permet à l'écran de dire
+   * qu'un ordre à imprimer n'est pas dans la tranche montrée.
+   */
+  async lister(tenantId: string) {
+    const [ordres, total, enAttenteImpression] = await Promise.all([
+      this.prisma.ordreVirement.findMany({
+        where: { tenantId },
+        orderBy: { numero: 'desc' },
+        take: PLAFOND_ORDRES_LISTES,
+        include: { journal: { select: { code: true, intitule: true } }, _count: { select: { lignes: true } } },
+      }),
+      this.prisma.ordreVirement.count({ where: { tenantId } }),
+      this.prisma.ordreVirement.count({ where: { tenantId, statut: StatutOrdreVirement.A_IMPRIMER } }),
+    ]);
+    return { ordres, total, tronque: total > ordres.length, enAttenteImpression };
   }
 
   async detail(tenantId: string, id: string) {

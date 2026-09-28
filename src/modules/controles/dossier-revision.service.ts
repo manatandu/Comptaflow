@@ -5,8 +5,8 @@ import { REGLES_COMPTES_SYCEBNL, RegleCompte } from './regles-comptes-sycebnl';
 import { REGLES_COMPTES_SYSCOHADA } from './regles-comptes-syscohada';
 
 /**
- * DOSSIER DE RÉVISION · ce que le SYCEBNL dit de chaque compte, appliqué au
- * dossier réel.
+ * DOSSIER DE RÉVISION · ce que le référentiel du dossier dit de chaque compte,
+ * appliqué au dossier réel (le SYCEBNL ou l'AUDCIF, voir plus bas).
  *
  * Le référentiel décrit chaque compte par une fiche, dont deux rubriques ne
  * servaient à RIEN dans le logiciel alors qu'elles sont, pour un cabinet, la
@@ -36,10 +36,13 @@ export class DossierRevisionService {
    * La fiche qui gouverne un numéro de compte · la PLUS PRÉCISE qui le
    * préfixe.
    *
-   * Les fiches sont à deux chiffres, sauf trois qui descendent à trois (603,
-   * 659, 759) parce que le texte y descend. Un compte 65910000 relève donc de
-   * la fiche 659 et non de la fiche 65 : prendre la première trouvée
-   * afficherait la règle du compte père, qui dit autre chose.
+   * Les fiches sont à deux chiffres, et descendent plus bas là où le texte y
+   * descend · 603, 659 et 759 dans les deux tables, et dans celle de l'AUDCIF
+   * aussi les subdivisions du compte 10, à trois chiffres, et les engagements
+   * de la classe 9, à quatre (audit final F209 · « sauf trois » ne valait que
+   * pour le SYCEBNL). Un compte 65910000 relève donc de la fiche 659 et non de la
+   * fiche 65 : prendre la première trouvée afficherait la règle du compte
+   * père, qui dit autre chose.
    */
   static regleDe(numero: string, table: RegleCompte[]): RegleCompte | null {
     let choisie: RegleCompte | null = null;
@@ -65,8 +68,9 @@ export class DossierRevisionService {
    * Le dossier de révision d'un exercice · un bloc par compte MOUVEMENTÉ.
    *
    * Les comptes sans mouvement en sont absents : un dossier de révision qui
-   * listerait les 1 400 comptes du plan ne se lit pas, et la révision ne
-   * porte que sur ce qui a bougé.
+   * listerait tout le plan semé ne se lit pas, et la révision ne porte que
+   * sur ce qui a bougé. (Le décompte du plan est tenu par ses specs de semis,
+   * et nulle part ailleurs · audit final F209.)
    */
   async dossier(tenantId: string, exerciceId: string, referentiel?: string) {
     const table = this.regles(referentiel);

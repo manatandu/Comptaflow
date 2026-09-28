@@ -9,16 +9,20 @@ import type {
   Journal,
   ModeleAbonnement,
   PeriodiciteAbonnement,
+  Referentiel,
   Regularisation,
   SimulationRegularisation,
   TypeRegularisation,
 } from '../lib/types';
 import {
   LIBELLE_NATURE_TIERS,
+  aideDateReprise,
   estRattachement,
   exercicesDeReprise,
+  momentDeReprise,
   naturesTiersProposees,
   porteUneCharge,
+  type MomentReprise,
   type NatureTiers,
 } from '../lib/regularisation-types';
 
@@ -40,13 +44,16 @@ import {
  * texte interdit ; et la reprise se fait À LA FIN de l'exercice concerné, non
  * par contre-passation à son ouverture comme le ferait un progiciel français.
  *
- * LA DATE DE REPRISE, ELLE, DÉPEND DU RÉFÉRENTIEL, et le service la calcule
- * (voir `dateReprise`). Le SYCEBNL impose la clôture de l'exercice concerné ;
- * le SYSCOHADA permet les deux et RECOMMANDE VIVEMENT l'ouverture (§ 5.5 pour
- * les charges, § 6.5 pour les produits), parce qu'une part différée reprise
- * seulement à la clôture reste au bilan douze mois de plus et fausse toutes
- * les situations intermédiaires de l'année. La subvention pluriannuelle reste
- * à la clôture des deux côtés · le § 5.5 tolère expressément cette date.
+ * LA DATE DE REPRISE, ELLE, DÉPEND DU TYPE ET DU RÉFÉRENTIEL, et le service
+ * la calcule (voir `dateReprise`) ; l'écran ne fait que la dire
+ * (`aideDateReprise`, audit final F208). Pour les 476 et 477, le SYCEBNL
+ * reprend à la fin de l'exercice concerné ; le SYSCOHADA permet les deux et
+ * RECOMMANDE VIVEMENT l'ouverture (§ 5.5 pour les charges, § 6.5 pour les
+ * produits), parce qu'une part différée reprise seulement à la clôture reste
+ * au bilan douze mois de plus et fausse toutes les situations intermédiaires
+ * de l'année. La subvention pluriannuelle reste à la clôture des deux côtés.
+ * La charge à payer et le produit à recevoir, eux, se contre-passent à
+ * l'OUVERTURE des deux côtés (fiches des comptes 40 et 41 des deux plans).
  */
 
 /**
@@ -95,6 +102,26 @@ const TYPES: { valeur: TypeRegularisation; titre: string; aide: string; aideSysc
   },
 ];
 
+/**
+ * La bulle de la colonne « Reprise » (audit final F208). La colonne porte des
+ * lignes de types différents, et la date de reprise dépend du type autant que
+ * du référentiel · la bulle la dit donc type par type, groupée par moment, sur
+ * la même règle que la bulle de chaque ligne (`momentDeReprise`).
+ */
+function resumeDatesDeReprise(referentiel: Referentiel | undefined): { texte: string; source: string } {
+  const types = (moment: MomentReprise) =>
+    TYPES.filter((t) => momentDeReprise(referentiel, t.valeur) === moment)
+      .map((t) => t.titre)
+      .join(', ');
+  return {
+    texte: `À l'ouverture de l'exercice de reprise : ${types('OUVERTURE')}. À la fin de l'exercice de reprise : ${types('FIN')}.`,
+    source:
+      referentiel === 'SYSCOHADA'
+        ? 'AUDCIF, Titre VII, fiches des comptes 40 et 41 · Guide SYSCOHADA, Partie 1 ch. 6, § 5.5 et § 6.5'
+        : 'SYCEBNL, Partie 2 ch. 3, fiches des comptes 40 et 41 · Partie 3 ch. 6',
+  };
+}
+
 const PERIODICITES: { valeur: PeriodiciteAbonnement; libelle: string }[] = [
   { valeur: 'MENSUELLE', libelle: 'Mensuelle' },
   { valeur: 'TRIMESTRIELLE', libelle: 'Trimestrielle' },
@@ -121,7 +148,11 @@ export function RegularisationPage() {
   const [journaux, setJournaux] = useState<Journal[]>([]);
   const [exercices, setExercices] = useState<Exercice[]>([]);
 
-  const [regularisations, setRegularisations] = useState<Regularisation[]>([]);
+  // La liste part de null, jamais d'une liste vide · « aucune régularisation »
+  // ne se dit que sur une liste LUE. Un échec de lecture se dit avec son motif,
+  // et ne laisse pas à l'écran la liste d'un autre exercice.
+  const [regularisations, setRegularisations] = useState<Regularisation[] | null>(null);
+  const [erreurLecture, setErreurLecture] = useState<string | null>(null);
   const [type, setType] = useState<TypeRegularisation>('SUBVENTION_PLURIANNUELLE');
   const [libelle, setLibelle] = useState('');
   const [compteId, setCompteId] = useState('');
@@ -155,8 +186,10 @@ export function RegularisationPage() {
     if (!exerciceCourant) return;
     try {
       setRegularisations(await api.get<Regularisation[]>(`/regularisations?exerciceId=${exerciceCourant.id}`));
+      setErreurLecture(null);
     } catch (e) {
-      setErreur(e instanceof ApiError ? e.message : 'Chargement impossible');
+      setRegularisations(null);
+      setErreurLecture(e instanceof ApiError ? e.message : 'Chargement impossible');
     }
   };
   const chargerAbonnements = async () => {
@@ -168,8 +201,12 @@ export function RegularisationPage() {
   };
 
   useEffect(() => {
-    if (onglet === 'regularisation') chargerRegularisations();
-    else chargerAbonnements();
+    if (onglet === 'regularisation') {
+      // L'exercice a pu changer · la liste de l'ancien ne reste pas affichée
+      // pendant la lecture du nouveau, ni après son échec.
+      setRegularisations(null);
+      chargerRegularisations();
+    } else chargerAbonnements();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onglet, exerciceCourant?.id]);
 
@@ -552,22 +589,13 @@ export function RegularisationPage() {
               <span>Période</span>
               <span className="flex items-center gap-1.5">
                 Reprise
-                <Aide
-                  titre="Date de reprise"
-                  texte={
-                    utilisateur?.tenant.referentiel === 'SYSCOHADA'
-                      ? "La reprise se passe À L'OUVERTURE de l'exercice concerné : le référentiel permet les deux dates, mais recommande vivement la contre-passation à l'ouverture · reprise seulement à la clôture, la part différée reste au bilan douze mois de plus et fausse toutes les situations intermédiaires de l'année."
-                      : "La reprise se passe À LA FIN de l'exercice concerné, comme le veut la Partie 3 ch. 6 du SYCEBNL, et non par contre-passation à son ouverture."
-                  }
-                  source={
-                    utilisateur?.tenant.referentiel === 'SYSCOHADA'
-                      ? 'SYSCOHADA révisé, § 5.5 (charges) et § 6.5 (produits)'
-                      : 'SYCEBNL, Partie 3 ch. 6'
-                  }
-                />
+                {/* La colonne porte des lignes de types différents (audit final
+                    F208) · sa bulle dit la date type par type, et chaque ligne
+                    à reprendre porte la sienne avec sa source. */}
+                <Aide titre="Date de reprise" {...resumeDatesDeReprise(utilisateur?.tenant.referentiel)} />
               </span>
             </div>
-            {regularisations.map((r) => (
+            {regularisations?.map((r) => (
               <div
                 key={r.id}
                 className="grid grid-cols-[1fr_120px_120px_150px_150px] min-w-[750px] gap-2 px-3 py-1.5 text-[11.5px] items-center border-b border-border/40"
@@ -589,38 +617,49 @@ export function RegularisationPage() {
                       Reprise le {jour(r.ecritureReprise.date)}
                     </span>
                   ) : peutEcrire ? (
-                    <select
-                      value=""
-                      onChange={(e) => {
-                        // UNE ÉCRITURE NE PART PAS D'UN SIMPLE CHOIX DANS UNE LISTE
-                        // (audit final F79) · elle se confirme.
-                        const cible = exercices.find((ex) => ex.id === e.target.value);
-                        if (
-                          cible &&
-                          window.confirm(
-                            `Passer la reprise de « ${r.libelle} » sur l’exercice ${new Date(cible.dateDebut).getFullYear()} ?`,
-                          )
-                        ) {
-                          reprendre(r.id, cible.id);
-                        }
-                      }}
-                      className="w-full border border-border rounded-[4px] px-1 py-0.5 text-[11.5px]"
-                    >
-                      <option value="">Reprendre sur…</option>
-                      {exercicesDeReprise(exercices, r.exerciceId)
-                        .map((ex) => (
-                          <option key={ex.id} value={ex.id}>
-                            Exercice {new Date(ex.dateDebut).getFullYear()}
-                          </option>
-                        ))}
-                    </select>
+                    <span className="flex items-center gap-1">
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          // UNE ÉCRITURE NE PART PAS D'UN SIMPLE CHOIX DANS UNE LISTE
+                          // (audit final F79) · elle se confirme.
+                          const cible = exercices.find((ex) => ex.id === e.target.value);
+                          if (
+                            cible &&
+                            window.confirm(
+                              `Passer la reprise de « ${r.libelle} » sur l’exercice ${new Date(cible.dateDebut).getFullYear()} ?`,
+                            )
+                          ) {
+                            reprendre(r.id, cible.id);
+                          }
+                        }}
+                        className="w-full min-w-0 border border-border rounded-[4px] px-1 py-0.5 text-[11.5px]"
+                      >
+                        <option value="">Reprendre sur…</option>
+                        {exercicesDeReprise(exercices, r.exerciceId)
+                          .map((ex) => (
+                            <option key={ex.id} value={ex.id}>
+                              Exercice {new Date(ex.dateDebut).getFullYear()}
+                            </option>
+                          ))}
+                      </select>
+                      <Aide titre="Date de reprise" {...aideDateReprise(utilisateur?.tenant.referentiel, r.type)} />
+                    </span>
                   ) : (
-                    <span className="text-[11.5px] text-text-dim">à reprendre</span>
+                    <span className="flex items-center gap-1 text-[11.5px] text-text-dim">
+                      à reprendre
+                      <Aide titre="Date de reprise" {...aideDateReprise(utilisateur?.tenant.referentiel, r.type)} />
+                    </span>
                   )}
                 </span>
               </div>
             ))}
-            {regularisations.length === 0 && (
+            {erreurLecture && (
+              <div className="px-3 py-4 text-[11.5px] text-danger">
+                Liste des régularisations illisible · {erreurLecture}
+              </div>
+            )}
+            {regularisations?.length === 0 && (
               <div className="px-3 py-4 text-[11.5px] text-text-dim italic">
                 Aucune régularisation sur cet exercice.
               </div>

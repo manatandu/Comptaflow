@@ -13,15 +13,21 @@ import { PrismaService } from '../../common/prisma.service';
 function monter() {
   const rapprochement = { id: 'rap', tenantId: 't1', compteId: '521', statut: 'EN_COURS', dateReleve: new Date('2026-03-31') };
   const releve = [{ id: 'r1', tenantId: 't1', rapprochementId: 'rap', libelle: 'Remise chèques', debit: 0, credit: 300, lignesEcriture: [] as { id: string }[] }];
+  // Des opérations de l'exercice · l'écriture est celle que `include` ramène (audit final F205).
+  const ecriture = { estGenereeParCloture: false, estSoldeDesComptesDeGestion: false, exerciceId: 'ex' };
   const lignes = [
-    { id: 'a', compteId: '521', debit: 100, credit: 0, rapprochementId: null, ligneReleveId: null },
-    { id: 'b', compteId: '521', debit: 200, credit: 0, rapprochementId: null, ligneReleveId: null },
-    { id: 'c', compteId: '521', debit: 250, credit: 0, rapprochementId: null, ligneReleveId: null },
-    { id: 'x', compteId: '571', debit: 200, credit: 0, rapprochementId: null, ligneReleveId: null },
+    { id: 'a', compteId: '521', debit: 100, credit: 0, rapprochementId: null, ligneReleveId: null, ecriture },
+    { id: 'b', compteId: '521', debit: 200, credit: 0, rapprochementId: null, ligneReleveId: null, ecriture },
+    { id: 'c', compteId: '521', debit: 250, credit: 0, rapprochementId: null, ligneReleveId: null, ecriture },
+    { id: 'x', compteId: '571', debit: 200, credit: 0, rapprochementId: null, ligneReleveId: null, ecriture },
   ];
   const updateMany = jest.fn(async () => ({ count: 1 }));
   const prisma = {
-    rapprochementBancaire: { findFirst: jest.fn(async () => rapprochement) },
+    // Honore la recherche du rapprochement CLOS précédent · aucun ici.
+    rapprochementBancaire: {
+      findFirst: jest.fn(async ({ where }: { where: { statut?: string } }) => (where.statut === 'CLOTURE' ? null : rapprochement)),
+    },
+    exercice: { findFirst: jest.fn(async () => ({ id: 'ex' })) },
     ligneReleveBancaire: {
       findMany: jest.fn(async ({ where }: { where: { id: { in: string[] } } }) => releve.filter((r) => where.id.in.includes(r.id))),
     },

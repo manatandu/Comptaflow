@@ -1780,16 +1780,19 @@ export class ControlesService {
     //    valeur comptable brute diminuée de la valeur résiduelle
     //    prévisionnelle, des amortissements cumulés ET DE LA DÉPRÉCIATION ».
     //
-    // CE QUE LE MODULE FAIT, ET QUI DIVERGE. Le schéma déclare la dépréciation
-    // hors périmètre, ce qui est un choix assumé · mais les comptes 29 sont
-    // semés et mouvementables, et un cabinet qui constate un indice DOIT doter.
-    // Dans ce cas, deux divergences s'installent sans bruit :
+    // CE QUE LE MODULE FAIT, ET CE QUI DIVERGE ENCORE. Le module porte la
+    // dépréciation (`DepreciationImmobilisation`, depuis le 2026-09-03) · il
+    // ré-étale le plan sur la durée restant à courir et solde à la sortie le
+    // cumul qu'il a lui-même posté. Le « hors périmètre » écrit ici datait
+    // d'avant (audit final F209). Mais les comptes 29 restent semés et
+    // mouvementables à la main, et une dépréciation passée HORS du module
+    // installe deux divergences sans bruit :
     //
-    //  1. la base amortissable du module reste « valeur d'origine moins valeur
-    //     résiduelle » · elle ignore la dépréciation, et le plan d'amortissement
-    //     s'écarte de la règle de recalcul dès l'exercice suivant ;
+    //  1. la base amortissable du module ignore cette dépréciation-là, et le
+    //     plan d'amortissement s'écarte de la règle de recalcul dès l'exercice
+    //     suivant ;
     //  2. la SORTIE du bien crédite le compte d'immobilisation pour sa valeur
-    //     d'origine et débite l'amortissement cumulé, sans jamais solder le 29 ·
+    //     d'origine et débite l'amortissement cumulé, sans solder ce 29 ·
     //     la valeur comptable nette portée au compte 81 est alors surévaluée du
     //     montant déprécié, la plus ou moins-value de cession est fausse
     //     d'autant, et le compte 29 garde un solde pour un bien qui n'existe

@@ -818,13 +818,15 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
           solde d'OUVERTURE D/C · MOUVEMENTS de l'exercice D/C · solde de
           CLÔTURE D/C
 
-        Le solde d'ouverture est celui des à-nouveaux (écritures générées par
-        la clôture précédente), les mouvements sont ceux de l'exercice, et la
-        clôture est leur somme · ligne à ligne, ouverture + mouvements =
-        clôture, ce qui rend la balance vérifiable à l'œil. Les comptes de
-        type Total tiennent lieu de lignes de sous-totalisation (les « niveaux
-        de sous-totaux » de Sage), et les totaux généraux en pied ne comptent
-        que les comptes Détail pour ne rien compter deux fois.
+        Le solde d'ouverture est celui des à-nouveaux (le report de l'exercice
+        précédent, définitif ou provisoire, ou le bilan d'ouverture importé),
+        les mouvements sont ceux du journal de l'exercice, écriture qui solde
+        les classes 6 à 8 comprise (`mouvementsDuJournal`), et la clôture est
+        leur somme · ligne à ligne, ouverture + mouvements = clôture, ce qui
+        rend la balance vérifiable à l'œil. Le serveur écarte les comptes Total
+        (`lignesDeBalance`, balance-trois-colonnes.ts, audit final F253) ·
+        chaque ligne est un compte Détail, et les totaux généraux en pied
+        additionnent toutes les lignes sans rien compter deux fois.
       */}
       {onglet === 'balance' && (
         <label className="flex items-center gap-1.5 text-[11.5px] mb-1.5">

@@ -27,6 +27,75 @@ const JOUR_MS = 86_400_000;
 export const PLAFOND_LIGNES_RAPPROCHEMENT = 5000;
 
 /**
+ * L'À-NOUVEAU N'EST PAS UNE OPÉRATION DE LA BANQUE (audit final F205).
+ *
+ * L'état de rapprochement vérifie « la concordance entre le compte "Banques"
+ * tenu par une entité et le relevé bancaire », et ses différences
+ * s'expliquent « par des erreurs, des omissions, ou des enregistrements à des
+ * dates différentes dans deux comptabilités » (AUDCIF Titre VI, RAPPROCHEMENT
+ * (État de)) · il apparie des OPÉRATIONS. Le report à-nouveau n'en est pas
+ * une : il recopie le solde de clôture de l'exercice précédent (le bilan
+ * d'ouverture correspond au bilan de clôture · AUDCIF art. 34 au SYSCOHADA,
+ * SYCEBNL art. 16, 4° pour une EBNL, dont l'art. 3 écarte l'art. 34). Il restait
+ * pourtant proposé au pointage, « non pointé » d'une année sur l'autre, et le
+ * pointer comptait l'ouverture deux fois.
+ *
+ * UNE SEULE OUVERTURE PAR CHAÎNE. L'écart est le solde de départ plus les
+ * lignes pointées, moins le solde du relevé, et le solde de départ est le
+ * solde du relevé du rapprochement CLOS qui précède (`depart`). D'où deux cas :
+ *
+ *  · un rapprochement clos précède · son solde de relevé contient déjà tout
+ *    ce qui le précède, et chaque ligne restée en suspens se pointe pour
+ *    elle-même. AUCUN à-nouveau n'est pointable ;
+ *  · aucun ne précède · le solde de départ vaut zéro, et l'ouverture doit
+ *    entrer par une ligne. Seul l'à-nouveau du PREMIER exercice du dossier le
+ *    peut, celui qui porte le bilan d'ouverture importé · les suivants
+ *    recopient des exercices dont les lignes sont au dossier et se pointent
+ *    une à une. Même lecture que `EcritureService.balanceCumulee`.
+ *
+ * Écarter plutôt que montrer à part · une ligne montrée resterait pointable,
+ * et c'est le pointage qui compte deux fois. Une ligne déjà pointée sur un
+ * rapprochement reste montrée sur LUI, pointée · c'est par là qu'un pointage
+ * fait avant cette règle se défait.
+ */
+export interface RegleANouveau {
+  /** Un rapprochement clos précède celui-ci sur le même compte. */
+  ancre: boolean;
+  /** Le premier exercice du dossier, dont l'à-nouveau porte le bilan d'ouverture. */
+  premierExerciceId: string | null;
+}
+
+/**
+ * L'écriture est-elle un à-nouveau que ce rapprochement ne pointe pas ?
+ * L'à-nouveau est l'écriture de la colonne « report » de la balance
+ * (`filtresDesTroisColonnes`) · jamais l'écriture qui solde les comptes de
+ * gestion, qui n'ouvre rien.
+ */
+export function estANouveauEcarte(
+  ecriture: { estGenereeParCloture: boolean; estSoldeDesComptesDeGestion: boolean; exerciceId: string },
+  regle: RegleANouveau,
+): boolean {
+  if (!ecriture.estGenereeParCloture || ecriture.estSoldeDesComptesDeGestion) return false;
+  return regle.ancre || ecriture.exerciceId !== regle.premierExerciceId;
+}
+
+/** La même règle en filtre d'écriture · les lectures l'écartent en base, les écritures la rejouent ligne à ligne. */
+export function filtreANouveauEcarte(regle: RegleANouveau): Prisma.EcritureWhereInput {
+  return {
+    estGenereeParCloture: true,
+    estSoldeDesComptesDeGestion: false,
+    ...(regle.ancre || !regle.premierExerciceId ? {} : { exerciceId: { not: regle.premierExerciceId } }),
+  };
+}
+
+/** Le refus nomme la raison du cas · l'ouverture déjà dans le solde de départ, ou déjà dans les lignes. */
+export function motifRefusANouveau(regle: RegleANouveau): string {
+  return regle.ancre
+    ? "Un report à-nouveau n'est pas une opération de la banque · le solde de départ, repris du rapprochement précédent, le contient déjà, et le pointer compterait l'ouverture deux fois."
+    : "Ce report à-nouveau recopie un exercice dont les lignes sont au dossier · pointez ces lignes, le pointer compterait l'ouverture deux fois.";
+}
+
+/**
  * Rapprochement bancaire manuel (§3.4 · cf. docs/plan-de-construction.md) :
  * pointage écriture par écriture d'un compte de trésorerie face à un relevé
  * bancaire, distinct du lettrage (qui rapproche des écritures entre elles,
@@ -77,13 +146,27 @@ export class RapprochementService {
    * d'abord comme son propre "dernier clôturé" ; corrigé une première fois
    * par exclusion d'id, ce qui cassait alors la relecture du rapprochement
    * précédent, qui se voyait attribuer le solde de départ du SUIVANT).
+   *
+   * Rend aussi la règle des à-nouveaux (audit final F205) · elle tient au
+   * même rapprochement précédent, lu une fois pour les deux, et au premier
+   * exercice du dossier, lu en même temps.
    */
-  private async soldeDepart(tenantId: string, compteId: string, avant: Date): Promise<number> {
-    const dernier = await this.prisma.rapprochementBancaire.findFirst({
-      where: { tenantId, compteId, statut: StatutRapprochement.CLOTURE, clotureAt: { lt: avant } },
-      orderBy: { clotureAt: 'desc' },
-    });
-    return dernier ? Number(dernier.soldeReleve) : 0;
+  private async depart(
+    tenantId: string,
+    compteId: string,
+    avant: Date,
+  ): Promise<{ soldeDepart: number; regle: RegleANouveau }> {
+    const [dernier, premier] = await Promise.all([
+      this.prisma.rapprochementBancaire.findFirst({
+        where: { tenantId, compteId, statut: StatutRapprochement.CLOTURE, clotureAt: { lt: avant } },
+        orderBy: { clotureAt: 'desc' },
+      }),
+      this.prisma.exercice.findFirst({ where: { tenantId }, orderBy: { dateDebut: 'asc' }, select: { id: true } }),
+    ]);
+    return {
+      soldeDepart: dernier ? Number(dernier.soldeReleve) : 0,
+      regle: { ancre: dernier !== null, premierExerciceId: premier?.id ?? null },
+    };
   }
 
   private async trouverRapprochement(tenantId: string, id: string) {
@@ -139,17 +222,21 @@ export class RapprochementService {
   /** Détail d'un rapprochement : lignes déjà pointées ici + lignes encore pointables sur ce compte. */
   async obtenir(tenantId: string, id: string) {
     const rapprochement = await this.trouverRapprochement(tenantId, id);
+    const { soldeDepart, regle } = await this.depart(tenantId, rapprochement.compteId, rapprochement.clotureAt ?? new Date());
 
     // UNE TRANCHE QUI SE DIT, DES SOLDES ENTIERS (audit final F185) · un
     // compte jamais rapproché portait toutes ses lignes non pointées, tous
     // exercices confondus, en une seule lecture. Le solde pointé se prend
     // par agrégat, et les correspondances du relevé par leurs propres liens.
+    // Les lignes libres, moins les à-nouveaux que ce rapprochement ne pointe
+    // pas (audit final F205) · celles pointées sur LUI restent, pour se défaire.
+    const aNouveau = filtreANouveauEcarte(regle);
     const whereLignes: Prisma.LigneEcritureWhereInput = {
       compteId: rapprochement.compteId,
       ecriture: { tenantId },
-      OR: [{ rapprochementId: id }, { rapprochementId: null }],
+      OR: [{ rapprochementId: id }, { rapprochementId: null, NOT: { ecriture: aNouveau } }],
     };
-    const [lignes, total, pointe] = await Promise.all([
+    const [lignes, total, pointe, aNouveauEcartes] = await Promise.all([
       this.prisma.ligneEcriture.findMany({
         where: whereLignes,
         include: { ecriture: { include: { journal: true } } },
@@ -161,9 +248,11 @@ export class RapprochementService {
         where: { compteId: rapprochement.compteId, ecriture: { tenantId }, rapprochementId: id },
         _sum: { debit: true, credit: true },
       }),
+      this.prisma.ligneEcriture.count({
+        where: { compteId: rapprochement.compteId, rapprochementId: null, ecriture: { tenantId, ...aNouveau } },
+      }),
     ]);
 
-    const soldeDepart = await this.soldeDepart(tenantId, rapprochement.compteId, rapprochement.clotureAt ?? new Date());
     const soldePointe = soldeDepart + Number(pointe._sum.debit ?? 0) - Number(pointe._sum.credit ?? 0);
     const ecart = soldePointe - Number(rapprochement.soldeReleve);
 
@@ -212,6 +301,8 @@ export class RapprochementService {
       /** Vrai quand la liste ne montre qu'une tranche des lignes · les soldes restent entiers. */
       tronque: total > lignes.length,
       totalLignes: total,
+      /** Les à-nouveaux libres que ce rapprochement ne propose pas (audit final F205) · comptés, pour que leur absence se dise. */
+      aNouveauEcartes,
       lignes: lignes.map((l) => ({
         id: l.id,
         date: l.ecriture.date,
@@ -250,6 +341,15 @@ export class RapprochementService {
       }
       if (l.rapprochementId && l.rapprochementId !== id) {
         throw new BadRequestException('Une des lignes est déjà pointée sur un autre rapprochement');
+      }
+    }
+    // LE REFUS AU SERVEUR, PAS SEULEMENT L'ABSENCE À L'ÉCRAN (audit final
+    // F205) · un appel direct pointerait sinon l'à-nouveau que la liste écarte.
+    const libres = lignes.filter((l) => l.rapprochementId !== id);
+    if (libres.some((l) => l.ecriture.estGenereeParCloture)) {
+      const { regle } = await this.depart(tenantId, rapprochement.compteId, new Date());
+      if (libres.some((l) => estANouveauEcarte(l.ecriture, regle))) {
+        throw new BadRequestException(motifRefusANouveau(regle));
       }
     }
 
@@ -400,14 +500,18 @@ export class RapprochementService {
     // ne peut rien proposer. Lire tout le compte libre ne changeait rien au
     // résultat, et chargeait des années de lignes jamais rapprochées.
     const instants = releve.map((r) => r.date.getTime());
+    // Ni les à-nouveaux que la liste écarte (audit final F205) · proposé, un
+    // report du même montant qu'une ligne du relevé se confirmerait.
+    const regle = releve.length === 0 ? null : (await this.depart(tenantId, rapprochement.compteId, new Date())).regle;
     const compte =
-      releve.length === 0
+      regle === null
         ? []
         : await this.prisma.ligneEcriture.findMany({
             where: {
               compteId: rapprochement.compteId,
               ecriture: {
                 tenantId,
+                NOT: filtreANouveauEcarte(regle),
                 date: {
                   gte: new Date(instants.reduce((a, b) => Math.min(a, b)) - fenetreJours * JOUR_MS),
                   lte: new Date(instants.reduce((a, b) => Math.max(a, b)) + fenetreJours * JOUR_MS),
@@ -470,9 +574,18 @@ export class RapprochementService {
     }
     const compte = await this.prisma.ligneEcriture.findMany({
       where: { id: { in: idsCompte }, ecriture: { tenantId } },
+      include: { ecriture: { select: { estGenereeParCloture: true, estSoldeDesComptesDeGestion: true, exerciceId: true } } },
     });
     if (compte.length !== idsCompte.length) {
       throw new NotFoundException('Une ligne d\'écriture est introuvable.');
+    }
+    // Une correspondance composée à la main passe par la même règle que le
+    // pointage (audit final F205) · confirmer, c'est pointer.
+    if (compte.some((l) => l.ecriture.estGenereeParCloture)) {
+      const { regle } = await this.depart(tenantId, rapprochement.compteId, new Date());
+      if (compte.some((l) => l.rapprochementId !== id && estANouveauEcarte(l.ecriture, regle))) {
+        throw new BadRequestException(motifRefusANouveau(regle));
+      }
     }
     for (const c of dto.correspondances) {
       const r = releve.find((x) => x.id === c.ligneReleveId)!;

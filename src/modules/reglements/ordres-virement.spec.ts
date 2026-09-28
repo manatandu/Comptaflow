@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { OrdresVirementService } from './ordres-virement.service';
+import { OrdresVirementService, PLAFOND_ORDRES_LISTES } from './ordres-virement.service';
 
 const ribJournal = {
   id: 'rb',
@@ -146,5 +146,56 @@ describe("créer, imprimer, annuler", () => {
     expect(r.total).toBe(100.3);
     const lignes = (create.mock.calls[1] as unknown as [{ data: { lignes: { create: { tiersId: string; ecritureId: string }[] } } }])[0].data.lignes.create;
     expect(lignes.map((l) => [l.tiersId, l.ecritureId])).toEqual([['tA', 'e1'], ['tA', 'e2']]);
+  });
+});
+
+/**
+ * AUDIT FINAL F207 · la liste s'arrêtait aux cinq cents plus récents sans le
+ * dire, et un ordre ancien resté à imprimer sortait de l'onglet. La doublure
+ * HONORE le filtre (dossier, état), le tri et la borne, pour que le total et
+ * le décompte des ordres à imprimer se lisent sur ce que la base rendrait.
+ */
+describe('la liste des ordres est une tranche qui se dit', () => {
+  function monterListe(nombre: number, aImprimer: number[]) {
+    const tous = Array.from({ length: nombre }, (_, i) => ({
+      id: `o${i + 1}`,
+      tenantId: 't',
+      numero: i + 1,
+      statut: aImprimer.includes(i + 1) ? 'A_IMPRIMER' : 'IMPRIME',
+    }));
+    // Un ordre d'un autre dossier, que ni la liste ni les décomptes ne voient.
+    tous.push({ id: 'x', tenantId: 'autre', numero: 1, statut: 'A_IMPRIMER' });
+    const garde = (where: { tenantId: string; statut?: string }) =>
+      tous.filter((o) => o.tenantId === where.tenantId && (where.statut === undefined || o.statut === where.statut));
+    const prisma = {
+      ordreVirement: {
+        findMany: jest.fn(async ({ where, orderBy, take }: { where: { tenantId: string }; orderBy: { numero: 'desc' }; take: number }) => {
+          expect(orderBy).toEqual({ numero: 'desc' });
+          return [...garde(where)].sort((a, b) => b.numero - a.numero).slice(0, take);
+        }),
+        count: jest.fn(async ({ where }: { where: { tenantId: string; statut?: string } }) => garde(where).length),
+      },
+    };
+    return { service: new OrdresVirementService(prisma as never), prisma };
+  }
+
+  it('au-delà du plafond · les plus récents, le total du dossier, et les ordres à imprimer restés hors de la tranche', async () => {
+    const { service, prisma } = monterListe(PLAFOND_ORDRES_LISTES + 2, [1, PLAFOND_ORDRES_LISTES + 2]);
+    const r = await service.lister('t');
+    expect(prisma.ordreVirement.findMany.mock.calls[0][0].take).toBe(PLAFOND_ORDRES_LISTES);
+    expect(r.ordres).toHaveLength(PLAFOND_ORDRES_LISTES);
+    expect(r.ordres[0].numero).toBe(PLAFOND_ORDRES_LISTES + 2);
+    expect(r.total).toBe(PLAFOND_ORDRES_LISTES + 2);
+    expect(r.tronque).toBe(true);
+    // L'ordre n° 1, à imprimer, n'est pas dans la tranche · il est compté quand même.
+    expect(r.ordres.some((o) => o.numero === 1)).toBe(false);
+    expect(r.enAttenteImpression).toBe(2);
+  });
+
+  it('une liste entière ne se dit pas tronquée', async () => {
+    const { service } = monterListe(3, [2]);
+    const r = await service.lister('t');
+    expect(r).toMatchObject({ total: 3, tronque: false, enAttenteImpression: 1 });
+    expect(r.ordres.map((o) => o.numero)).toEqual([3, 2, 1]);
   });
 });

@@ -164,7 +164,7 @@ export function AccueilPage() {
   const navigate = useNavigate();
   const { utilisateur, estAdmin, seDeconnecter } = useAuth();
   const referentiel = utilisateur?.tenant.referentiel;
-  const { exerciceCourant } = useExercice();
+  const { exerciceCourant, chargement: chargementExercices } = useExercice();
   const [aProposOuvert, setAProposOuvert] = useState(false);
   const tenantId = utilisateur?.tenant.id ?? '';
   const [onglet, setOnglet] = useState<Onglet>(() => lireOnglet());
@@ -183,9 +183,22 @@ export function AccueilPage() {
   const [planning, setPlanning] = useState<PlanningCloture | null>(null);
   const [controles, setControles] = useState<RapportControles | null>(null);
   const [chargement, setChargement] = useState(true);
+  // Vrai tant que le contexte lit encore les exercices et n'en a aucun · lu
+  // seulement sans exercice, pour ne pas relancer les deux lectures de
+  // l'accueil à chaque relecture des exercices.
+  const attenteExercices = !exerciceCourant && chargementExercices;
 
   useEffect(() => {
-    if (!exerciceCourant) return;
+    if (!exerciceCourant) {
+      // Sans exercice (dossier neuf, ou lecture des exercices manquée, audit
+      // final F248), rien n'est en cours une fois les exercices lus ·
+      // « Chargement… » serait resté affiché pour toujours, et les
+      // indicateurs disent « non déterminé ».
+      setPlanning(null);
+      setControles(null);
+      setChargement(attenteExercices);
+      return;
+    }
     let vivant = true;
     setChargement(true);
     // Les deux appels sont indépendants et tolérants : l'accueil ne doit
@@ -205,7 +218,7 @@ export function AccueilPage() {
     return () => {
       vivant = false;
     };
-  }, [exerciceCourant]);
+  }, [exerciceCourant, attenteExercices]);
 
   /*
     Chaînage optionnel jusqu'au BOUT (`jalons?.filter`), et pas seulement sur
@@ -215,11 +228,15 @@ export function AccueilPage() {
     inattendue du serveur (champ absent, forme changée) doit donc dégrader
     l'accueil, jamais l'abattre.
   */
-  const enRetard = planning?.jalons?.filter((j) => j.enRetard) ?? [];
+  // `jalons` vaut null tant que le planning n'est pas lu (refus du serveur,
+  // forme inattendue) · « aucun jalon en retard » et « rien à venir » ne se
+  // disent que sur une liste LUE, jamais sur une absence de réponse (audit
+  // final F254).
+  const jalons = planning?.jalons ?? null;
+  const enRetard = jalons?.filter((j) => j.enRetard) ?? [];
   const aujourdHui = Date.now();
-  const prochain =
-    planning?.jalons?.find((j) => !j.enRetard && new Date(j.echeance).getTime() >= aujourdHui) ?? null;
-  const brouillard = planning?.jalons?.find((j) => j.libelle === 'Balance de vérification')?.observation ?? null;
+  const prochain = jalons?.find((j) => !j.enRetard && new Date(j.echeance).getTime() >= aujourdHui) ?? null;
+  const brouillard = jalons?.find((j) => j.libelle === 'Balance de vérification')?.observation ?? null;
 
   // Les anomalies bloquantes passent avant tout : une écriture déséquilibrée
   // ou une caisse créditrice empêchent d'arrêter les comptes, pas seulement
@@ -409,7 +426,7 @@ export function AccueilPage() {
                     <LigneEtat
                       titre="Écritures au brouillard"
                       valeur={brouillard ? brouillard.libelle : 'Non déterminé'}
-                      bon={brouillard?.satisfait ?? true}
+                      bon={brouillard?.satisfait ?? false}
                       chemin="/brouillard"
                       navigate={navigate}
                     />
@@ -430,15 +447,27 @@ export function AccueilPage() {
                     />
                     <LigneEtat
                       titre="Jalons de clôture en retard"
-                      valeur={enRetard.length === 0 ? 'Aucun jalon en retard' : `${enRetard.length} en retard · ${enRetard[0].libelle}`}
-                      bon={enRetard.length === 0}
+                      valeur={
+                        jalons === null
+                          ? 'Non déterminé'
+                          : enRetard.length === 0
+                            ? 'Aucun jalon en retard'
+                            : `${enRetard.length} en retard · ${enRetard[0].libelle}`
+                      }
+                      bon={jalons !== null && enRetard.length === 0}
                       chemin="/exercice"
                       navigate={navigate}
                     />
                     <LigneEtat
                       titre="Prochaine échéance"
-                      valeur={prochain ? `${dateCourte(prochain.echeance)} · ${prochain.libelle}` : 'Rien à venir'}
-                      bon
+                      valeur={
+                        jalons === null
+                          ? 'Non déterminé'
+                          : prochain
+                            ? `${dateCourte(prochain.echeance)} · ${prochain.libelle}`
+                            : 'Rien à venir'
+                      }
+                      bon={jalons !== null}
                       chemin="/exercice"
                       navigate={navigate}
                     />

@@ -32,7 +32,10 @@ const VIDE = { nom: '', referenceId: '', cibleId: '', croissance: '0', variation
 export function SimulationsBudgetairesPage() {
   const { peutValider } = useAuth();
   const { exercices } = useExercice();
-  const [simulations, setSimulations] = useState<SimulationBudgetaire[]>([]);
+  // Null tant que la liste n'est pas lue (audit final F255) · un refus posait
+  // une liste vide, et l'écran répondait « Aucune simulation » sur un échec.
+  const [simulations, setSimulations] = useState<SimulationBudgetaire[] | null>(null);
+  const [erreurLecture, setErreurLecture] = useState<string | null>(null);
   const [choisi, setChoisi] = useState<string | null>(null);
   const [f, setF] = useState(VIDE);
   const [arreteAu, setArreteAu] = useState('');
@@ -41,9 +44,15 @@ export function SimulationsBudgetairesPage() {
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
-  const charger = async () => setSimulations(await api.get<SimulationBudgetaire[]>('/simulations-budgetaires'));
+  const charger = async () => {
+    setSimulations(await api.get<SimulationBudgetaire[]>('/simulations-budgetaires'));
+    setErreurLecture(null);
+  };
   useEffect(() => {
-    charger().catch(() => setSimulations([]));
+    charger().catch((e) => {
+      setSimulations(null);
+      setErreurLecture(e instanceof Error ? e.message : "La liste des simulations n'a pas pu être lue.");
+    });
   }, []);
 
   const ouvrir = (s: SimulationBudgetaire | null) => {
@@ -155,7 +164,7 @@ export function SimulationsBudgetairesPage() {
       {info && <div className="text-[11.5px] text-positive bg-positive-soft border border-positive/30 px-3 py-1.5 mb-2">{info}</div>}
       <div className="grid gap-3 md:grid-cols-[220px_1fr]">
         <ul className="text-[11.5px] border border-border bg-surface">
-          {simulations.map((s) => (
+          {simulations?.map((s) => (
             <li key={s.id}>
               <button
                 type="button"
@@ -166,7 +175,13 @@ export function SimulationsBudgetairesPage() {
               </button>
             </li>
           ))}
-          {simulations.length === 0 && <li className="px-2.5 py-1 italic text-text-dim">Aucune simulation.</li>}
+          {erreurLecture ? (
+            <li className="px-2.5 py-1 text-danger">Liste des simulations illisible · {erreurLecture}</li>
+          ) : simulations === null ? (
+            <li className="px-2.5 py-1 italic text-text-dim">Chargement…</li>
+          ) : (
+            simulations.length === 0 && <li className="px-2.5 py-1 italic text-text-dim">Aucune simulation.</li>
+          )}
         </ul>
         {choisi && (
           <div className="min-w-0 text-[11.5px]">

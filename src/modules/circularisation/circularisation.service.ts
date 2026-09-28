@@ -91,6 +91,32 @@ export class CircularisationService {
     }
   }
 
+  /**
+   * LES TROIS ISSUES D'UN DÉPOUILLEMENT (audit final F210) · une réponse, ou
+   * l'une des deux non-réponses que l'ISA 505 § 6 d) distingue (absence de
+   * réponse, lettre revenue non distribuée). « Envoyée » et « relancée » se
+   * posent par l'envoi, jamais par le dépouillement · les accepter ici
+   * remettait en attente une lettre déjà classée, et la campagne dite
+   * dépouillée ne l'était plus.
+   */
+  static readonly ISSUES_DEPOUILLEMENT: readonly StatutDemandeConfirmation[] = [
+    StatutDemandeConfirmation.REPONSE_RECUE,
+    StatutDemandeConfirmation.SANS_REPONSE,
+    StatutDemandeConfirmation.NON_DISTRIBUEE,
+  ];
+
+  /**
+   * UNE CAMPAGNE EST DÉPOUILLÉE QUAND CHACUNE DE SES LETTRES EST CLASSÉE
+   * (audit final F210) · l'état figurait à l'énumération et aucun chemin ne
+   * le posait. Le dépouillement est le classement de chaque lettre partie
+   * (voir `depouiller`) ; les procédures alternatives des non-réponses
+   * viennent après, et c'est la CLÔTURE qui les exige (§ 12), pas le
+   * dépouillement. Une campagne sans demande n'a rien à dépouiller.
+   */
+  static estDepouillee(statuts: readonly StatutDemandeConfirmation[]): boolean {
+    return statuts.length > 0 && statuts.every((s) => CircularisationService.ISSUES_DEPOUILLEMENT.includes(s));
+  }
+
   /** Les quatre conditions du § 15, dans l'ordre où la norme les pose. */
   static readonly CONDITIONS_NEGATIVE = [
     'RISQUE_FAIBLE_ET_CONTROLES_TESTES',
@@ -279,6 +305,11 @@ export class CircularisationService {
       );
     }
     await this.prisma.demandeConfirmation.delete({ where: { id: demande.id } });
+    // Retirer la dernière lettre restée « à envoyer » d'une campagne partie
+    // peut achever son dépouillement · sans cette relecture, la campagne
+    // restait « envoyée » alors que chaque lettre était classée (audit final
+    // F210).
+    await this.suivreDepouillement(tenantId, demande.campagneId, demande.campagne.statut);
     return { retiree: true };
   }
 
@@ -333,14 +364,35 @@ export class CircularisationService {
     if (demande.campagne.statut === StatutCampagneCircularisation.CLOTUREE) {
       throw new ForbiddenException('La campagne est close · son dépouillement ne se rouvre pas.');
     }
+    if (!CircularisationService.ISSUES_DEPOUILLEMENT.includes(dto.statut)) {
+      throw new BadRequestException(
+        'Le dépouillement classe une lettre partie : réponse reçue, sans réponse ou non distribuée. « Envoyée » et ' +
+          '« relancée » se posent par l’envoi, jamais ici.',
+      );
+    }
+    // UNE LETTRE QUI N'EST PAS PARTIE NE SE CLASSE PAS (audit final F210, la
+    // règle de F71 à la clôture) · classée « sans réponse », elle passait pour
+    // une non-réponse et la clôture ne la voyait plus.
+    if (demande.statut === StatutDemandeConfirmation.A_ENVOYER) {
+      throw new BadRequestException(
+        'Cette lettre n’est pas partie · elle ne se classe ni en réponse ni en non-réponse. Envoyez-la, ou retirez-la de la campagne.',
+      );
+    }
 
+    const classee = await this.classer(demandeId, demande.soldeAConfirmer, dto);
+    await this.suivreDepouillement(tenantId, demande.campagneId, demande.campagne.statut);
+    return classee;
+  }
+
+  /** L'écriture du classement · une réponse porte son solde et son écart, une non-réponse les efface. */
+  private async classer(demandeId: string, soldeAConfirmer: unknown, dto: DepouillerDto) {
     if (dto.statut === StatutDemandeConfirmation.REPONSE_RECUE) {
       if (dto.soldeConfirme === undefined || dto.soldeConfirme === null) {
         throw new BadRequestException(
           "Une réponse reçue porte un solde confirmé · zéro EST une réponse (« je ne vous dois rien »), l'absence n'en est pas une.",
         );
       }
-      const ecart = Number((dto.soldeConfirme - Number(demande.soldeAConfirmer)).toFixed(2));
+      const ecart = Number((dto.soldeConfirme - Number(soldeAConfirmer)).toFixed(2));
       if (Math.abs(ecart) > 0.005 && !dto.natureEcart) {
         throw new BadRequestException(
           `Écart de ${ecart} à qualifier · ISA 505 § 14, « the auditor shall INVESTIGATE exceptions to determine whether or not they are indicative of misstatements ». ` +
@@ -380,6 +432,41 @@ export class CircularisationService {
         ecart: null,
         natureEcart: null,
       },
+    });
+  }
+
+  /**
+   * LA CAMPAGNE SUIT SES DEMANDES (audit final F210), comme à l'envoi · la
+   * dernière lettre classée la fait passer de « envoyée » ou « relancée » à
+   * « dépouillée ». Lu APRÈS l'écriture du classement, hors transaction · deux
+   * classements simultanés des deux dernières lettres se voient alors l'un
+   * l'autre, et le dernier arrivé pose l'état. Le passage est CONDITIONNEL
+   * (`updateMany` sur les deux états d'origine) · une campagne close entre la
+   * lecture et l'écriture ne se rouvre pas.
+   *
+   * `statutLu` est l'état de la campagne lu par l'appelant · une campagne
+   * déjà dépouillée (une lettre reclassée après coup) n'est ni relue ni
+   * réécrite, sans quoi chaque reclassement laissait au journal d'audit une
+   * modification de masse qui ne touchait rien. Aucun chemin ne ramène une
+   * campagne à « envoyée » ou « relancée », si bien que cette lecture ne
+   * peut pas écarter à tort une campagne qui y serait revenue.
+   */
+  private async suivreDepouillement(tenantId: string, campagneId: string, statutLu: StatutCampagneCircularisation) {
+    if (statutLu !== StatutCampagneCircularisation.ENVOYEE && statutLu !== StatutCampagneCircularisation.RELANCEE) {
+      return;
+    }
+    const demandes = await this.prisma.demandeConfirmation.findMany({
+      where: { tenantId, campagneId },
+      select: { statut: true },
+    });
+    if (!CircularisationService.estDepouillee(demandes.map((d) => d.statut))) return;
+    await this.prisma.campagneCircularisation.updateMany({
+      where: {
+        id: campagneId,
+        tenantId,
+        statut: { in: [StatutCampagneCircularisation.ENVOYEE, StatutCampagneCircularisation.RELANCEE] },
+      },
+      data: { statut: StatutCampagneCircularisation.DEPOUILLEE },
     });
   }
 

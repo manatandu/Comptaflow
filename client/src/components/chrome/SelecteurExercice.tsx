@@ -16,9 +16,19 @@ import { useExercice } from '../../lib/exercice';
  * afficherait un exercice juste, et laisserait croire qu'il a été décidé.
  */
 export function SelecteurExercice() {
-  const { exerciceCourant, exercices, choisir, choixImplicite } = useExercice();
+  const { exerciceCourant, exercices, choisir, choixImplicite, erreur } = useExercice();
 
-  if (!exerciceCourant) return null;
+  // UNE LECTURE MANQUÉE SE DIT (audit final F248) · sans exercice lu, la barre
+  // se taisait comme sur un dossier qui n'en a aucun. Après une relecture
+  // manquée, la liste affichée est celle d'avant, et la barre le dit aussi.
+  // Le motif est au survol, la fenêtre Exercices l'affiche en entier.
+  const alerteLecture = erreur ? (
+    <span className="shrink-0 text-warning font-medium" title={erreur}>
+      {exerciceCourant ? '· Exercices non relus' : '· Exercices illisibles'}
+    </span>
+  ) : null;
+
+  if (!exerciceCourant) return alerteLecture;
 
   const annee = (e: { dateDebut: string; dateFin: string }) => {
     const debut = new Date(e.dateDebut).getFullYear();
@@ -32,11 +42,17 @@ export function SelecteurExercice() {
 
   // Un seul exercice : rien à choisir, le sélecteur reste un simple libellé.
   if (exercices.length <= 1) {
-    return <span className="shrink-0">· Exercice {annee(exerciceCourant)}</span>;
+    return (
+      <>
+        <span className="shrink-0">· Exercice {annee(exerciceCourant)}</span>
+        {alerteLecture}
+      </>
+    );
   }
 
   return (
     <label className="flex items-center gap-1 shrink-0">
+      {alerteLecture}
       <span className={choixImplicite ? 'text-warning' : undefined}>· Exercice</span>
       <select
         aria-label="Exercice de travail"

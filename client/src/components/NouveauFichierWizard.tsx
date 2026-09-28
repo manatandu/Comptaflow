@@ -90,7 +90,6 @@ const REFERENTIELS: {
   titre: string;
   sousTitre: string;
   description: string;
-  disponible: boolean;
 }[] = [
   {
     valeur: 'SYCEBNL',
@@ -98,7 +97,6 @@ const REFERENTIELS: {
     sousTitre: 'Entités à but non lucratif',
     description:
       "Associations, ONG, fondations, organisations religieuses, ordres professionnels et projets de développement. Acte uniforme du 22 décembre 2022, applicable depuis le 1er janvier 2024.",
-    disponible: true,
   },
   {
     valeur: 'SYSCOHADA',
@@ -107,7 +105,6 @@ const REFERENTIELS: {
     description:
       "Entreprises et entités à but lucratif (AUDCIF). Plan de comptes complet, tenue intégrale et états " +
       "financiers des deux systèmes de l'article 11 : Système normal ou Système minimal de trésorerie.",
-    disponible: true,
   },
 ];
 
@@ -128,28 +125,24 @@ const TYPES_ENTITE: {
   valeur: JeuEtatsFinanciersSycebnl;
   titre: string;
   description: string;
-  disponible: boolean;
 }[] = [
   {
     valeur: 'ASSOCIATIONS_ORDRES_PROFESSIONNELS',
     titre: 'Système normal · association, ordre professionnel',
     description:
       'Bilan, compte de résultat, tableau de flux et 35 notes annexes. Le cas le plus fréquent : ASBL, ONG, fondation, organisation religieuse.',
-    disponible: true,
   },
   {
     valeur: 'PROJETS_DEVELOPPEMENT',
     titre: 'Projet de développement financé par un bailleur',
     description:
       "Emplois-ressources, exécution budgétaire, réconciliation de trésorerie et 24 notes. Dès lors que l'entité rend compte de l'emploi des fonds à un bailleur.",
-    disponible: true,
   },
   {
     valeur: 'SYSTEME_MINIMAL_TRESORERIE',
     titre: 'Système minimal de trésorerie · petite ASBL',
     description:
       "Réservé aux entités dont chacune des cinq catégories de ressources annuelles reste sous 30 000 000 FCFA (art. 6). Comptabilité de caisse, journal unique et cinq notes.",
-    disponible: true,
   },
 ];
 
@@ -456,35 +449,31 @@ export function NouveauFichierWizard({
                           commentaire de REFERENTIELS) et aucun écran ne re-sème
                           un dossier · la bulle le dit, « modifiable plus tard »
                           serait faux. */}
+                      {/* Les deux référentiels sont servis en entier · le
+                          champ « disponible » et son badge d'attente n'avaient
+                          plus de branche vivante, et le § 4 de CLAUDE.md
+                          interdit le motif (audit final F252). */}
                       <div className="flex flex-col gap-1.5 mt-2.5">
                         {REFERENTIELS.map((r) => {
-                          const actif = r.disponible && form.referentiel === r.valeur;
+                          const actif = form.referentiel === r.valeur;
                           return (
                             <label
                               key={r.valeur}
-                              className={`flex items-start gap-2.5 rounded-[4px] border p-2.5 transition-colors ${
-                                !r.disponible
-                                  ? 'border-border bg-chrome-alt opacity-60 cursor-not-allowed'
-                                  : actif
-                                    ? 'border-sel bg-sel-soft cursor-pointer'
-                                    : 'border-border hover:border-sel/50 cursor-pointer'
+                              className={`flex items-start gap-2.5 rounded-[4px] border p-2.5 cursor-pointer transition-colors ${
+                                actif ? 'border-sel bg-sel-soft' : 'border-border hover:border-sel/50'
                               }`}
                             >
                               <input
                                 type="radio"
                                 name="referentiel"
                                 className="mt-0.5"
-                                disabled={!r.disponible}
                                 checked={actif}
-                                onChange={() => r.disponible && majer('referentiel', r.valeur)}
+                                onChange={() => majer('referentiel', r.valeur)}
                               />
                               <span className="min-w-0">
                                 <span className="block text-[11.5px] font-semibold flex items-center gap-1.5">
                                   {r.titre}
                                   <span className="text-[11.5px] font-normal text-text-dim">{r.sousTitre}</span>
-                                  {!r.disponible && (
-                                    <span className="text-[11px] font-semibold text-warning">bientôt</span>
-                                  )}
                                 </span>
                                 <span className="block text-[11.5px] text-text-dim leading-[1.45] mt-0.5">
                                   {r.description}

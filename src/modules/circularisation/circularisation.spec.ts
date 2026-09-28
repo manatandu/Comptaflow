@@ -35,6 +35,19 @@ type Etat = {
   balance?: { compteId: string; numero: string; intitule: string; solde: number; typeCompte?: string }[];
 };
 
+/**
+ * Une ligne satisfait-elle un `where` ? Égalité, ou `{ in: [...] }` · les deux
+ * formes que le module emploie. Une doublure qui rend tout sans lire le filtre
+ * valide un code qui ne filtre pas (CLAUDE.md, § 10 et passe F2a).
+ */
+function honore(where: Record<string, unknown> | undefined, ligne: Record<string, unknown>): boolean {
+  return Object.entries(where ?? {}).every(([cle, valeur]) =>
+    valeur !== null && typeof valeur === 'object' && 'in' in (valeur as object)
+      ? ((valeur as { in: unknown[] }).in ?? []).includes(ligne[cle])
+      : ligne[cle] === valeur,
+  );
+}
+
 function service(etat: Etat = {}) {
   const majCampagne = jest.fn().mockImplementation((a) => Promise.resolve({ ...(etat.campagne ?? {}), ...a.data }));
   const majDemande = jest.fn().mockImplementation((a) => Promise.resolve({ id: a.where.id, ...a.data }));
@@ -45,6 +58,15 @@ function service(etat: Etat = {}) {
       findFirst: jest.fn().mockResolvedValue(etat.campagne ?? null),
       create: jest.fn().mockImplementation((a) => Promise.resolve({ id: 'camp1', ...a.data })),
       update: majCampagne,
+      // Le passage à « dépouillée » est conditionnel (audit final F210) · la
+      // doublure honore l'état d'origine exigé, sans quoi elle validerait un
+      // passage qui rouvrirait une campagne close.
+      updateMany: jest.fn().mockImplementation((a) => {
+        const c = etat.campagne;
+        if (!c || !honore(a.where, c)) return Promise.resolve({ count: 0 });
+        Object.assign(c, a.data);
+        return Promise.resolve({ count: 1 });
+      }),
       findMany: jest.fn().mockResolvedValue([]),
     },
     demandeConfirmation: {
@@ -501,5 +523,143 @@ describe('livre-journal seul · échantillon et lettre (F6)', () => {
     avecBrouillard(svc);
     const r = await svc.echantillonPropose('t1', 'camp1');
     expect(['totalCycle', r.totalCycle]).toEqual(['totalCycle', 1_000]);
+  });
+});
+
+/**
+ * AUDIT FINAL F210 · l'état DEPOUILLEE figurait à l'énumération et rien ne le
+ * posait. La campagne passe à « dépouillée » quand sa dernière lettre est
+ * classée, et le dépouillement ne classe plus qu'une lettre partie, dans l'une
+ * des trois issues. Doublure qui HONORE les filtres et les écritures · la
+ * campagne se lit sur ce que le classement vient d'écrire.
+ */
+describe('F210 · la campagne dépouillée', () => {
+  function banc(statutCampagne: StatutCampagneCircularisation, statuts: StatutDemandeConfirmation[]) {
+    const c = campagne(statutCampagne);
+    const demandes = statuts.map((st, i) => demande({ id: `d${i + 1}`, statut: st, campagne: { ...c } }));
+    const etat: Etat = { campagne: c, demandes };
+    const outils = service(etat);
+    const dc = outils.prisma.demandeConfirmation as unknown as Record<string, jest.Mock>;
+    dc.findFirst.mockImplementation((a) => Promise.resolve(demandes.find((d) => honore(a.where, d)) ?? null));
+    dc.findMany.mockImplementation((a) => Promise.resolve(demandes.filter((d) => honore(a.where, d))));
+    dc.update.mockImplementation((a) => {
+      const d = demandes.find((x) => x.id === a.where.id)!;
+      Object.assign(d, a.data);
+      return Promise.resolve(d);
+    });
+    return { ...outils, c, demandes };
+  }
+
+  it('dépouillée, c’est chaque lettre classée · et rien à dépouiller n’est pas dépouillé', () => {
+    const { REPONSE_RECUE, SANS_REPONSE, NON_DISTRIBUEE, ENVOYEE, RELANCEE, A_ENVOYER } = StatutDemandeConfirmation;
+    expect(CircularisationService.estDepouillee([REPONSE_RECUE, SANS_REPONSE, NON_DISTRIBUEE])).toBe(true);
+    expect(CircularisationService.estDepouillee([REPONSE_RECUE, ENVOYEE])).toBe(false);
+    expect(CircularisationService.estDepouillee([REPONSE_RECUE, RELANCEE])).toBe(false);
+    expect(CircularisationService.estDepouillee([REPONSE_RECUE, A_ENVOYER])).toBe(false);
+    expect(CircularisationService.estDepouillee([])).toBe(false);
+  });
+
+  it('la dernière lettre classée fait passer la campagne relancée à « dépouillée »', async () => {
+    const { svc, c } = banc(StatutCampagneCircularisation.RELANCEE, [
+      StatutDemandeConfirmation.RELANCEE,
+      StatutDemandeConfirmation.REPONSE_RECUE,
+    ]);
+    await svc.depouiller('t1', 'd1', { statut: StatutDemandeConfirmation.SANS_REPONSE });
+    expect(c.statut).toBe(StatutCampagneCircularisation.DEPOUILLEE);
+  });
+
+  it('la campagne envoyée aussi, sur une réponse reçue', async () => {
+    const { svc, c } = banc(StatutCampagneCircularisation.ENVOYEE, [StatutDemandeConfirmation.ENVOYEE]);
+    await svc.depouiller('t1', 'd1', {
+      statut: StatutDemandeConfirmation.REPONSE_RECUE,
+      soldeConfirme: 1_000_000,
+    });
+    expect(c.statut).toBe(StatutCampagneCircularisation.DEPOUILLEE);
+  });
+
+  it('tant qu’une lettre attend, la campagne reste où elle est', async () => {
+    const { svc, c } = banc(StatutCampagneCircularisation.ENVOYEE, [
+      StatutDemandeConfirmation.ENVOYEE,
+      StatutDemandeConfirmation.ENVOYEE,
+    ]);
+    await svc.depouiller('t1', 'd1', { statut: StatutDemandeConfirmation.NON_DISTRIBUEE });
+    expect(c.statut).toBe(StatutCampagneCircularisation.ENVOYEE);
+  });
+
+  it('une campagne close entre-temps ne se rouvre pas', async () => {
+    // La demande a été lue sur une campagne encore envoyée, la clôture est
+    // passée avant l'écriture · le passage conditionnel ne la touche pas.
+    const { svc, c } = banc(StatutCampagneCircularisation.ENVOYEE, [StatutDemandeConfirmation.ENVOYEE]);
+    c.statut = StatutCampagneCircularisation.CLOTUREE;
+    await svc.depouiller('t1', 'd1', { statut: StatutDemandeConfirmation.SANS_REPONSE });
+    expect(c.statut).toBe(StatutCampagneCircularisation.CLOTUREE);
+  });
+
+  it('le dépouillement ne remet pas une lettre en attente', async () => {
+    for (const statut of [
+      StatutDemandeConfirmation.ENVOYEE,
+      StatutDemandeConfirmation.RELANCEE,
+      StatutDemandeConfirmation.A_ENVOYER,
+    ]) {
+      const { svc, demandes, majDemande } = banc(StatutCampagneCircularisation.DEPOUILLEE, [
+        StatutDemandeConfirmation.REPONSE_RECUE,
+      ]);
+      await expect(svc.depouiller('t1', 'd1', { statut })).rejects.toThrow(/lettre partie/);
+      expect([statut, demandes[0].statut, majDemande.mock.calls.length]).toEqual([
+        statut,
+        StatutDemandeConfirmation.REPONSE_RECUE,
+        0,
+      ]);
+    }
+  });
+
+  it('une lettre qui n’est pas partie ne se classe pas en non-réponse', async () => {
+    const { svc, majDemande } = banc(StatutCampagneCircularisation.ENVOYEE, [StatutDemandeConfirmation.A_ENVOYER]);
+    await expect(svc.depouiller('t1', 'd1', { statut: StatutDemandeConfirmation.SANS_REPONSE })).rejects.toThrow(
+      /pas partie/,
+    );
+    expect(majDemande).not.toHaveBeenCalled();
+  });
+
+  it('une campagne dépouillée se clôt, et ne se relance pas', async () => {
+    const { svc, majCampagne } = banc(StatutCampagneCircularisation.DEPOUILLEE, [
+      StatutDemandeConfirmation.REPONSE_RECUE,
+    ]);
+    await svc.clore('t1', 'camp1', 'u1', {});
+    expect(majCampagne.mock.calls[0][0].data.statut).toBe(StatutCampagneCircularisation.CLOTUREE);
+
+    const relance = banc(StatutCampagneCircularisation.DEPOUILLEE, [StatutDemandeConfirmation.REPONSE_RECUE]);
+    await expect(relance.svc.envoyer('t1', 'camp1', {})).rejects.toThrow(/DEPOUILLEE/);
+  });
+
+  it('retirer la dernière lettre restée « à envoyer » d’une campagne partie achève son dépouillement', async () => {
+    // Une demande « à envoyer » d'avant la règle de F71 ne se classe pas, elle
+    // se retire · et c'est alors le retrait qui laisse chaque lettre classée.
+    const { svc, c, demandes, prisma } = banc(StatutCampagneCircularisation.ENVOYEE, [
+      StatutDemandeConfirmation.A_ENVOYER,
+      StatutDemandeConfirmation.REPONSE_RECUE,
+    ]);
+    Object.assign(prisma.demandeConfirmation, {
+      delete: jest.fn().mockImplementation((a) => {
+        const i = demandes.findIndex((d) => d.id === a.where.id);
+        return Promise.resolve(demandes.splice(i, 1)[0]);
+      }),
+    });
+    await svc.retirerDemande('t1', 'd1');
+    expect([demandes.length, c.statut]).toEqual([1, StatutCampagneCircularisation.DEPOUILLEE]);
+  });
+
+  it('une lettre reclassée dans une campagne déjà dépouillée ne réécrit pas la campagne', async () => {
+    // Le passage conditionnel ne toucherait rien, mais il laisserait au
+    // journal d'audit une modification de masse à chaque reclassement.
+    const { svc, c, prisma } = banc(StatutCampagneCircularisation.DEPOUILLEE, [
+      StatutDemandeConfirmation.SANS_REPONSE,
+    ]);
+    await svc.depouiller('t1', 'd1', {
+      statut: StatutDemandeConfirmation.REPONSE_RECUE,
+      soldeConfirme: 1_000_000,
+    });
+    const campagnes = prisma.campagneCircularisation as unknown as Record<string, jest.Mock>;
+    expect([c.statut, campagnes.updateMany.mock.calls.length]).toEqual([StatutCampagneCircularisation.DEPOUILLEE, 0]);
   });
 });

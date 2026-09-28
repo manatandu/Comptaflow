@@ -52,10 +52,13 @@
  * dans l'AUDCIF ou dans le cours lui-même : le livre d'inventaire (art. 19) et
  * le dépôt au CPCC.
  *
- * Chacune de ces étapes porte donc désormais DEUX jalons, un par référentiel,
- * sous le MÊME numéro d'étape · les deux ne peuvent jamais coexister puisque
- * leurs `referentiels` sont disjoints, et la numérotation reste comparable
- * d'un référentiel à l'autre. Un spec vérifie cette disjonction.
+ * Chacune de ces étapes porte donc désormais un jalon par référentiel, sous
+ * le MÊME numéro d'étape, et les déclarations fiscales annuelles un par forme
+ * au SYSCOHADA (voir `JALONS_CLOTURE` · « DEUX jalons » ne comptait pas ce
+ * cas, audit final F209). Deux jalons d'une même étape ne coexistent jamais
+ * dans un dossier, leurs `referentiels` ou leurs formes étant disjoints, et
+ * la numérotation reste comparable d'un référentiel à l'autre. Un spec
+ * vérifie cette disjonction, dossier par dossier.
  *
  * AUCUN MONTANT ICI. Le cours cite deux arrêtés fixant des astreintes par jour
  * de retard sans en donner les taux ; un taux de 2013 non revérifié n'a rien à
@@ -201,16 +204,26 @@ export interface DefinitionJalon {
    */
   sanction?: string;
   /**
-   * Ce qu'OmegaX sait observer tout seul sur ce jalon. Renseigné par le
-   * service, pas ici : cette table reste une table de références.
+   * Ce qu'OmegaX sait observer tout seul sur ce jalon. La CLÉ est posée ici,
+   * sur le jalon qui la porte ; sa VALEUR (satisfait ou non, et le libellé)
+   * est calculée par le service (`ExerciceService.planningCloture`) · « renseigné
+   * par le service, pas ici » ne décrivait plus le code (audit final F209).
    */
   observation?: 'BROUILLARD' | 'INVENTAIRE' | 'RAPPORT_ACTIVITE' | 'DONATEURS' | 'CLOTURE_ANNUELLE';
 }
 
 /**
- * Les dix étapes du § 7.1, augmentées des trois jalons propres à une EBNL
- * (livre d'inventaire, registre des donateurs, rapport à l'assemblée) et des
- * quatre dépôts congolais du § 7.3. Les décalages viennent du calendrier du
+ * Les dix étapes du § 7.1, augmentées de jalons propres à un référentiel ou à
+ * une forme juridique · livre d'inventaire, registre des donateurs, rapport à
+ * l'assemblée, dépôts congolais du § 7.3, obligations de l'AUSCGIE, entre
+ * autres. Une étape porte plusieurs jalons sous le même numéro quand les
+ * textes diffèrent · un par référentiel (`referentiels` disjoints), et au
+ * besoin un par forme dans un même référentiel (les déclarations fiscales
+ * annuelles, société ou personne physique) ; d'autres jalons ne valent que
+ * pour certaines formes, ou pour une ONG de droit étranger
+ * (`droitEtrangerSeulement`) · le nombre de jalons d'un dossier se lit par
+ * `jalonsApplicables`, il n'est écrit nulle part (audit final F209, le
+ * décompte d'ici s'était périmé). Les décalages viennent du calendrier du
  * § 2.3, transposé en mois après clôture.
  */
 export const JALONS_CLOTURE: DefinitionJalon[] = [

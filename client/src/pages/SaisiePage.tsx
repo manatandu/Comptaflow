@@ -185,13 +185,28 @@ const LIBELLE_TYPE_JOURNAL: Record<Journal['type'], string> = {
   SITUATION: 'Situation',
 };
 
+// Tableaux vides STABLES pour les listes pas encore lues · un `?? []` écrit
+// dans le composant en créerait un neuf à chaque rendu, et relancerait les
+// calculs qui dépendent des comptes.
+const AUCUN_JOURNAL: Journal[] = [];
+const AUCUN_COMPTE: Compte[] = [];
+
 export function SaisiePage() {
   const { exerciceCourant } = useExercice();
   const { utilisateur, peutEcrire } = useAuth();
-  const [journaux, setJournaux] = useState<Journal[]>([]);
+  // LES DEUX LISTES PARTENT DE NULL (audit final F255) · lues sans gestion
+  // d'erreur, un refus laissait des listes vides, et l'écran répondait
+  // « Aucun journal » ou ne trouvait aucun compte, comme sur un dossier vide.
+  // `journaux` et `comptes` restent des tableaux pour la saisie, sur une
+  // constante stable tant que rien n'est lu.
+  const [journauxLus, setJournauxLus] = useState<Journal[] | null>(null);
+  const [erreurJournaux, setErreurJournaux] = useState<string | null>(null);
+  const journaux = journauxLus ?? AUCUN_JOURNAL;
   // État de chaque journal, mois par mois (fenêtre des journaux de saisie).
   const [grilleSaisie, setGrilleSaisie] = useState<LigneGrilleSaisie[]>([]);
-  const [comptes, setComptes] = useState<Compte[]>([]);
+  const [comptesLus, setComptesLus] = useState<Compte[] | null>(null);
+  const [erreurComptes, setErreurComptes] = useState<string | null>(null);
+  const comptes = comptesLus ?? AUCUN_COMPTE;
 
   // Sélection du journal et de la période (étape 1)
   const [journalId, setJournalId] = useState('');
@@ -207,8 +222,17 @@ export function SaisiePage() {
   const [ecritures, setEcritures] = useState<Ecriture[]>([]);
   // Totaux et troncature du journal, pris par le serveur sur la période
   // entière (audit final F61) · jamais la somme de la tranche rendue.
-  const [totauxJournal, setTotauxJournal] = useState({ debit: 0, credit: 0 });
+  // Null tant qu'aucune lecture n'a abouti, et après une lecture refusée ·
+  // jamais des totaux à zéro que personne n'a lus (audit final F255).
+  const [totauxJournal, setTotauxJournal] = useState<{ debit: number; credit: number } | null>(null);
   const [troncature, setTroncature] = useState<{ montrees: number; total: number } | null>(null);
+  // Une lecture refusée ne se lit pas « Aucune écriture sur ce journal » (audit
+  // final F255) · le motif s'affiche à sa place.
+  const [erreurEcritures, setErreurEcritures] = useState<string | null>(null);
+  // Faux pendant la lecture de la fenêtre ouverte · une liste vide n'est pas
+  // encore « aucune écriture » tant que le serveur n'a pas répondu (relecture
+  // de l'audit final F255).
+  const [ecrituresLues, setEcrituresLues] = useState(false);
   const [rechargement, setRechargement] = useState(0);
   const [plans, setPlans] = useState<PlanAnalytique[]>([]);
   const [sectionsParPlan, setSectionsParPlan] = useState<Record<string, SectionAnalytique[]>>({});
@@ -285,12 +309,22 @@ export function SaisiePage() {
   const creditRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    api.get<Journal[]>('/journaux').then((js) => {
-      setJournaux(js);
-      const premierActif = js.find((j) => j.estActif);
-      if (premierActif) setJournalId((prev) => prev || premierActif.id);
-    });
-    api.get<Compte[]>('/comptes?actifsSeuls=true&typeCompte=DETAIL').then(setComptes);
+    api.get<Journal[]>('/journaux').then(
+      (js) => {
+        setJournauxLus(js);
+        setErreurJournaux(null);
+        const premierActif = js.find((j) => j.estActif);
+        if (premierActif) setJournalId((prev) => prev || premierActif.id);
+      },
+      (e) => setErreurJournaux(e instanceof Error ? e.message : "La liste des journaux n'a pas pu être lue."),
+    );
+    api.get<Compte[]>('/comptes?actifsSeuls=true&typeCompte=DETAIL').then(
+      (cs) => {
+        setComptesLus(cs);
+        setErreurComptes(null);
+      },
+      (e) => setErreurComptes(e instanceof Error ? e.message : "Le plan de comptes n'a pas pu être lu."),
+    );
     api.get<DeviseDuDossier[]>('/devises').then(
       (ds) => setDevises(devisesEtrangeres(ds)),
       () => setDevises([]),
@@ -463,19 +497,36 @@ export function SaisiePage() {
     const fenetre = fenetreDeSaisie(parPiece, periode, exerciceCourant);
     if (!fenetre) return;
     let annule = false;
+    // Une nouvelle lecture part · l'échec de la précédente ne se lit plus sous
+    // elle, et une liste vide attend la réponse avant de se dire vide.
+    setEcrituresLues(false);
+    setErreurEcritures(null);
     const { debut, fin } = fenetre;
     api
       .get<ReponseJournal>(urlJournalDeSaisie({ exerciceId: exerciceCourant.id, journalId: journal.id, debut, fin }))
-      .then((r) => {
-        if (annule) return;
-        const lu = lireJournalDeSaisie(r);
-        setEcritures(lu.ecritures);
-        setTotauxJournal(lu.totaux);
-        setTroncature(lu.troncature);
-        // Par pièce, la dernière pièce s'affiche · celle qu'on vient
-        // d'enregistrer, ou la plus récente à l'ouverture.
-        setRangPiece(lu.ecritures.length - 1);
-      });
+      .then(
+        (r) => {
+          if (annule) return;
+          const lu = lireJournalDeSaisie(r);
+          setEcritures(lu.ecritures);
+          setTotauxJournal(lu.totaux);
+          setTroncature(lu.troncature);
+          setErreurEcritures(null);
+          setEcrituresLues(true);
+          // Par pièce, la dernière pièce s'affiche · celle qu'on vient
+          // d'enregistrer, ou la plus récente à l'ouverture.
+          setRangPiece(lu.ecritures.length - 1);
+        },
+        (e) => {
+          if (annule) return;
+          // Les pièces d'un autre journal ou d'une autre période ne restent
+          // pas affichées sous celui-ci.
+          setEcritures([]);
+          setTotauxJournal(null);
+          setTroncature(null);
+          setErreurEcritures(e instanceof Error ? e.message : "Les écritures du journal n'ont pas pu être lues.");
+        },
+      );
     return () => {
       annule = true;
     };
@@ -1085,12 +1136,26 @@ export function SaisiePage() {
                         </tr>
                       );
                     })}
-                    {journaux.length === 0 && (
+                    {erreurJournaux ? (
                       <tr>
-                        <td colSpan={2 + periodes.length} className="italic text-text-dim">
-                          Aucun journal · créez-les dans Structure → Codes journaux.
+                        <td colSpan={2 + periodes.length} className="text-danger">
+                          Liste des journaux illisible · {erreurJournaux}
                         </td>
                       </tr>
+                    ) : journauxLus === null ? (
+                      <tr>
+                        <td colSpan={2 + periodes.length} className="italic text-text-dim">
+                          Chargement…
+                        </td>
+                      </tr>
+                    ) : (
+                      journauxLus.length === 0 && (
+                        <tr>
+                          <td colSpan={2 + periodes.length} className="italic text-text-dim">
+                            Aucun journal · créez-les dans Structure → Codes journaux.
+                          </td>
+                        </tr>
+                      )
                     )}
                   </tbody>
                 </table>
@@ -1353,10 +1418,17 @@ export function SaisiePage() {
               {troncature.total.toLocaleString('fr-FR')} · les totaux portent sur toutes.
             </div>
           )}
-          {ecritures.length === 0 && (
-            <div className="px-3 py-2.5 text-[11.5px] text-text-dim italic">
-              Aucune écriture sur ce journal pour {parPiece ? "l'exercice" : periode?.libelle}.
-            </div>
+          {erreurEcritures ? (
+            <div className="px-3 py-2.5 text-[11.5px] text-danger">Écritures du journal illisibles · {erreurEcritures}</div>
+          ) : (
+            ecritures.length === 0 &&
+            (ecrituresLues ? (
+              <div className="px-3 py-2.5 text-[11.5px] text-text-dim italic">
+                Aucune écriture sur ce journal pour {parPiece ? "l'exercice" : periode?.libelle}.
+              </div>
+            ) : (
+              <div className="px-3 py-2.5 text-[11.5px] text-text-dim italic">Chargement…</div>
+            ))
           )}
         </div>
 
@@ -1387,8 +1459,8 @@ export function SaisiePage() {
         <div style={grilleStyle} className={`${grille} px-3 py-1.5 bg-surface-alt border-t border-border-dark text-[11.5px] font-bold`}>
           <span style={{ gridColumn: `span ${4 + axesGrille.length}` }} />
           <span className="text-right text-[11px] text-text-dim self-center">Totaux journal</span>
-          <span className="font-mono text-right">{totauxJournal.debit.toLocaleString('fr-FR')}</span>
-          <span className="font-mono text-right">{totauxJournal.credit.toLocaleString('fr-FR')}</span>
+          <span className="font-mono text-right">{totauxJournal ? totauxJournal.debit.toLocaleString('fr-FR') : ''}</span>
+          <span className="font-mono text-right">{totauxJournal ? totauxJournal.credit.toLocaleString('fr-FR') : ''}</span>
           <span />
         </div>
       </div>
@@ -1533,6 +1605,14 @@ export function SaisiePage() {
               <button type="button" onClick={retirerTvaAjoutee} className="border border-sel/40 bg-surface px-2 py-[1px] font-semibold">
                 Opération exonérée · retirer la TVA
               </button>
+            </div>
+          )}
+          {/* Un plan de comptes illisible ne se tait pas · la liste des
+              comptes resterait vide, comme si aucun ne convenait (audit
+              final F255). */}
+          {erreurComptes && (
+            <div className="px-3 py-1.5 border-b border-border/50 text-[11.5px] text-danger">
+              Plan de comptes illisible · {erreurComptes}
             </div>
           )}
           {/* Zone de saisie de la ligne · Tab de zone en zone, Entrée valide. */}

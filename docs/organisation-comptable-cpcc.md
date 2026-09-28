@@ -120,22 +120,30 @@ d'inventaire extracomptable, le planning de clôture doit, avant sa mise en
 application, obtenir le visa du top management. »
 
 La fenêtre « Fin d'exercice » d'OmegaX savait clôturer, elle ne savait pas
-**préparer** la clôture. Elle porte désormais le planning : seize jalons, soit
-les dix étapes du § 7.1, les échéances légales congolaises du § 2.3 et du
-§ 7.3, et trois obligations propres à une EBNL que le cours ignore (livre
-d'inventaire de l'article 14, registre des donateurs des articles 17-18,
-rapport d'activité de l'article 16-3). Chaque jalon est daté **à partir de la
-date de clôture de l'exercice**, jamais de l'année civile : un exercice clos
-au 30 juin décale tout le planning de six mois, et « fin avril » codé en dur
-aurait donné une échéance déjà passée le jour de la clôture.
+**préparer** la clôture. Elle porte désormais le planning : les dix étapes du
+§ 7.1, les échéances légales congolaises du § 2.3 et du § 7.3, les
+obligations propres à une EBNL que le cours ignore (livre d'inventaire de
+l'article 14, registre des donateurs des articles 17-18, rapport d'activité de
+l'article 16-3) et celles que l'AUSCGIE fait peser sur une société. Une étape
+porte plusieurs jalons quand les textes diffèrent, un par référentiel et au
+besoin un par forme juridique, et certains jalons ne valent que pour une
+forme, ou pour une ONG de droit étranger · le planning d'un dossier ne
+montre que les siens (`jalonsApplicables`), et leur nombre n'est écrit nulle
+part, parce qu'il change avec le dossier et avec les textes (le « seize
+jalons » écrit ici s'était périmé, audit final F209). Chaque jalon est daté
+**à partir de la date de clôture de l'exercice**, jamais de l'année civile :
+un exercice clos au 30 juin décale tout le planning de six mois, et « fin
+avril » codé en dur aurait donné une échéance déjà passée le jour de la
+clôture.
 
-Cinq jalons ne sont pas de simples cases à cocher : OmegaX sait les vérifier
-seul, et le fait. Le planning dit combien d'écritures traînent encore au
-brouillard avant la balance, si le livre d'inventaire porte une transcription,
-si le rapport d'activité existe, s'il reste des libéralités non signées au
-registre des donateurs, et si l'exercice est clôturé. Un planning statique est
-une affiche ; un planning qui sait qu'il reste douze écritures au brouillard
-est un outil.
+Certains jalons ne sont pas de simples cases à cocher : OmegaX sait les
+vérifier seul, et le fait (champ `observation` de `planning-cloture.ts`). Le
+planning dit combien d'écritures traînent encore au brouillard avant la
+balance, si le livre d'inventaire porte une transcription, si le rapport
+d'activité existe, s'il reste des libéralités non signées au registre des
+donateurs, et si l'exercice est clôturé. Un planning statique est une
+affiche ; un planning qui sait qu'il reste douze écritures au brouillard est
+un outil.
 
 Ces échéances sont listées dans `src/modules/exercice/planning-cloture.ts`, avec
 leur source et une date de dernière vérification, sur le modèle déjà retenu
@@ -153,21 +161,31 @@ laisse le chiffre au comptable.
 ## 3. Ce que le document valide, et qu'il aurait été coûteux de changer
 
 Un document de référence sert autant à confirmer qu'à corriger. Quatre points
-sur lesquels OmegaX était déjà juste, désormais adossés à une source.
+sur lesquels OmegaX était déjà juste à la lecture du cours, désormais adossés à
+une source · sur le premier, OmegaX a depuis tracé une autre ligne que le
+cours, et le paragraphe le dit.
 
-**La clôture doit laisser passer le lettrage.** Le § 2.3 est catégorique :
+**La clôture et le lettrage · le cours et OmegaX ne tracent plus la même
+ligne.** Le § 2.3 est catégorique :
 
 > « La clôture interdit : l'ajout d'écriture, la modification de tous les
 > composants des écritures comptables, la suppression d'une écriture
 > comptable. La clôture autorise : **le lettrage et le pointage**, la
 > consultation et l'édition. »
 
-C'est déjà le comportement d'OmegaX : `EcritureService` refuse la création, la
-modification et la suppression sur un exercice `CLOTURE`, et `LettrageService`
-ne consulte pas le statut de l'exercice. Ce silence était un choix, il est
-maintenant documenté comme tel dans le service, avec la citation. Un
-rapprochement bancaire de janvier sur un exercice clôturé en mars reste
-possible, et c'est bien ce que veut le cours.
+Ce paragraphe disait qu'OmegaX s'y conformait, `LettrageService` ne consultant
+pas le statut de l'exercice. Ce n'est plus vrai (audit final F63 et F209).
+`EcritureService` refuse toujours la création, la modification et la
+suppression sur un exercice `CLOTURE` ; le POINTAGE du rapprochement bancaire
+reste ouvert, comme le veut le cours ; mais le LETTRAGE d'une ligne est figé
+dès que son exercice est clôturé, qu'une clôture TOTALE de son journal ou une
+clôture de PÉRIODE la couvre, la clôture PARTIELLE seule le laissant faire.
+C'est la lecture du manuel Sage i7, qui n'ouvre cette exception qu'à la
+partielle, et la règle vit une fois, dans `exercice/gel-cloture.ts`. Le
+besoin que le cours protège est tenu autrement : un règlement de mars qui
+solde une facture de décembre se lettre contre la ligne de REPORT À-NOUVEAU de
+l'exercice ouvert (mode Détail des comptes de tiers), jamais contre la ligne
+de l'exercice clos (voir l'en-tête de `lettrage.service.ts`).
 
 **La composition d'une écriture.** Le § 2.6.2 énumère ce qu'une écriture
 devrait porter : numéro d'ordre, date de valeur comptable, numéro de pièce
@@ -188,8 +206,13 @@ de validation ne pouvant excéder le mois au-delà de laquelle l'irréversibilit
 des traitements effectués interdise toute suppression, addition ou
 modification ultérieure », et « une procédure périodique dite de "clôture
 informatique" **au moins trimestrielle** ». C'est la raison d'être du
-brouillard et des trois granularités de clôture. Le planning de clôture reprend
-ces deux cadences comme jalons récurrents.
+brouillard et des trois granularités de clôture. Le planning de clôture n'en
+fait pas des jalons récurrents · il date une fois chacun les travaux de fin
+d'exercice, à partir de la date de clôture annuelle, certains avant elle (le
+planning lui-même, les inventaires). Seul son jalon « Balance de
+vérification » rappelle la première cadence, et l'analyse des journaux
+montre, journal par journal, le brouillard qui reste (« jalons récurrents »,
+écrit ici, ne décrivait pas le planning, audit final F209).
 
 ---
 
@@ -216,6 +239,15 @@ que le logiciel ignore (le circuit des pièces, les instructions d'inventaire),
 transforme une obligation légale que presque personne ne remplit en une
 formalité de dix minutes. C'est le plus fort effet de levier de tout le
 document.
+
+Ce qui est fait depuis (audit final F209, pour que cette section ne se lise
+pas comme un manque entier) : le manuel a sa place, `ManuelProcedures`, par
+dossier et versionné, jamais écrasé
+(`documents-obligatoires/manuel-procedures.service.ts`), avec le squelette des
+rubriques que le § 0.1.4 énumère, proposées VIDES, et deux contrôles
+(`MANUEL_PROCEDURES_ABSENT`, `MANUEL_SANS_ORDRE_DE_CLASSEMENT`). Ce qui reste à
+faire est l'assemblage décrit ci-dessus · aucune rubrique n'est aujourd'hui
+remplie depuis le dossier.
 
 ### 4.2 La fiche d'imputation, et la séparation imputation / encodage
 
@@ -291,8 +323,11 @@ au titre de l'**article 100 du décret n° 011/42 du 22 novembre 2011** : nom ou
 raison sociale, adresse et **n° impôt** du vendeur et de l'acheteur, date,
 **numéro de série** de la facture, désignation et quantité, prix unitaire et
 global, sommes imposables et non imposables, prix hors TVA, **taux de TVA**,
-montant TTC. C'est la liste que devra vérifier tout module de facturation, le
-jour où il existera.
+montant TTC. Le module de facturation existe depuis, et la vérifie
+(`facturation/mentions-facture.ts`) · sur une pièce antérieure au 3 mars 2023
+seulement, le décret n° 23/10 du 3 mars 2023 (art. 26) portant depuis cette
+date la liste en vigueur, que `texteApplicable` choisit à la date de la pièce
+(« le jour où il existera » s'était périmé, audit final F209).
 
 ---
 

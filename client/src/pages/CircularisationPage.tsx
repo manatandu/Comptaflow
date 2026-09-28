@@ -372,13 +372,19 @@ export function CircularisationPage() {
                   <div className="flex gap-1.5 items-center flex-wrap">
                     {peutEcrire && detail.statut !== 'CLOTUREE' && (
                       <>
-                        <button
-                          type="button"
-                          onClick={() => agir(() => api.post(`/circularisation/${detail.id}/envoyer`, {}))}
-                          className="border border-border rounded-[3px] px-2.5 py-[3px] text-[11.5px]"
-                        >
-                          {detail.statut === 'PREPARATION' ? 'Marquer envoyées' : 'Relancer'}
-                        </button>
+                        {/* L'envoi n'est admis qu'en préparation, la relance
+                            qu'une fois envoyée (`CircularisationService.envoyer`) ·
+                            proposé à une campagne relancée ou dépouillée, le
+                            bouton menait à un refus (audit final F210). */}
+                        {(detail.statut === 'PREPARATION' || detail.statut === 'ENVOYEE') && (
+                          <button
+                            type="button"
+                            onClick={() => agir(() => api.post(`/circularisation/${detail.id}/envoyer`, {}))}
+                            className="border border-border rounded-[3px] px-2.5 py-[3px] text-[11.5px]"
+                          >
+                            {detail.statut === 'PREPARATION' ? 'Marquer envoyées' : 'Relancer'}
+                          </button>
+                        )}
                         <input
                           value={refusDirection}
                           onChange={(e) => setRefusDirection(e.target.value)}

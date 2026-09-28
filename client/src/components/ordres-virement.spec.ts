@@ -45,6 +45,19 @@ describe("l'ordre de virement à l'écran", () => {
     expect(ordres).toContain('className="impression-seul ordre-virement');
   });
 
+  it("la liste part de null et « aucun ordre » ne se dit que d'une liste lue (audit final F207)", () => {
+    expect(ordres).toContain('useState<ListeOrdresVirement<OrdreResume> | null>(null)');
+    expect(ordres).toContain('{!ordre && liste && (');
+    expect(ordres).toContain('{liste.total === 0 ? (');
+  });
+
+  it('la tranche et les ordres à imprimer hors de la liste se disent (audit final F207)', () => {
+    expect(ordres).toContain('const tranche = liste ? mentionTrancheOrdres(liste) : null;');
+    expect(ordres).toContain('const attenteHorsListe = liste ? mentionAttenteHorsListe(liste) : null;');
+    expect(ordres).toContain('{tranche && <span');
+    expect(ordres).toContain('{attenteHorsListe && <span');
+  });
+
   it('un ordre annulé ne produit aucun document imprimable', () => {
     expect(ordres).toContain("{ordre && ordre.statut !== 'ANNULE' && (\n        <div className=\"impression-seul");
   });

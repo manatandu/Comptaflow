@@ -19,8 +19,17 @@ import { refuserSiExerciceBudgetaireClos } from '../analytique/exercice-budgetai
 import { echeanceDepassee, jourDeKinshasa } from '../../common/echeance';
 import { reporterAuJourOuvrable } from '../retenues/jour-ouvrable';
 import { premierJourNonCloture } from './report-periode-close';
-import { budgetsAReporter, CompteRan, lignesReportANouveau, resultatDesComptesDeGestion } from './report-a-nouveau';
+import {
+  budgetsAReporter,
+  CompteRan,
+  LigneLueRan,
+  lignesReportANouveau,
+  resultatDesComptesDeGestion,
+  SommesRan,
+  soldeDuCompte,
+} from './report-a-nouveau';
 import { estTenueParUnLettrage } from '../lettrage/ligne-lettree';
+import { LOT_LECTURE, lireParLots, pageApres } from '../../common/lecture-par-lots';
 
 /**
  * Ce que le refus dit de la voie que le texte ouvre · AUDCIF art. 22, 4°. Le
@@ -32,6 +41,13 @@ const AIDE_REPORT_ART_22 =
   'distinctement · demandez le report au premier jour ouvert.';
 
 const EPSILON = 0.005;
+
+/**
+ * Au centime · les sommes viennent de la base en décimaux exacts, mais leur
+ * différence en nombre flottant ne l'est plus (1500,10 moins 1000,20). La
+ * colonne est à deux décimales ; l'écriture porte ce que la base gardera.
+ */
+const auCentime = (x: number) => Math.round(x * 100) / 100;
 
 /**
  * Les écritures que la clôture annuelle engendre entrent au livre-journal
@@ -51,15 +67,6 @@ function periodeLisible(e: { dateDebut: Date; dateFin: Date }): string {
   return `du ${fr(d)} au ${fr(f)}`;
 }
 
-/**
- * Cycle de vie complet de l'exercice (docs/plan-de-construction.md §3.1) :
- * - 3 granularités de clôture (Partielle/Totale/Période), qui verrouillent la
- *   saisie sans rien générer · voir clorePartielle/cloreTotale/clorePeriode
- *   et verifierEcritureAutorisee (consulté par EcritureService.creer).
- * - la clôture ANNUELLE de l'exercice (cloturer), distincte, qui solde les
- *   classes 6/7 sur le résultat et génère le report à-nouveau réel dans
- *   l'exercice suivant selon le mode de chaque compte (Aucun/Solde/Détail).
- */
 /**
  * LE COMPTE 13 PORTE LES MÊMES NUMÉROS DANS LES DEUX PLANS, ET PAS LES MÊMES
  * INTITULÉS · c'est exactement le genre d'écart qui ne casse rien et qui
@@ -114,6 +121,25 @@ export function exerciceSuivantApres(dateFinClos: Date): { dateDebut: Date; date
   return { dateDebut, dateFin };
 }
 
+/**
+ * Cycle de vie de l'exercice (docs/plan-de-construction.md § 3.1), décrit
+ * d'après le code (audit final F209) :
+ * - trois clôtures (Partielle et Totale sur un journal, Période sur tous)
+ *   qui verrouillent la saisie sans engendrer d'écriture · `clorePartielle`,
+ *   `cloreTotale`, `clorePeriode`, et le verrou `refuserSiPeriodeClose`, joué
+ *   par les contrôles d'entrée des pièces, la réimputation et la correction
+ *   en négatif. La Totale et la Période figent en outre le lettrage et la
+ *   ventilation (`gel-cloture.ts`), la Partielle non ;
+ * - la clôture ANNUELLE (`cloturer`), qui solde les comptes de gestion (mode
+ *   AUCUN) sur le 131 ou le 139 et passe le report à-nouveau définitif dans
+ *   l'exercice suivant, selon le mode de chaque compte (Aucun, Solde, Détail),
+ *   les deux écritures entrant validées ;
+ * - le report à-nouveau PROVISOIRE (`genererANouveauxProvisoires`), même
+ *   calcul (`report-a-nouveau.ts`), laissé au brouillard et remplacé à chaque
+ *   relance comme à la clôture ;
+ * - le planning de clôture, la date d'arrêté des comptes et le report des
+ *   budgets sur l'exercice suivant.
+ */
 @Injectable()
 export class ExerciceService {
   constructor(
@@ -303,9 +329,12 @@ export class ExerciceService {
   }
 
   /**
-   * Planning de clôture de l'exercice · les seize jalons de
-   * planning-cloture.ts, datés à partir de la date de clôture de CET
-   * exercice, augmentés de ce qu'OmegaX sait observer tout seul.
+   * Planning de clôture de l'exercice · les jalons de planning-cloture.ts
+   * qui s'appliquent au dossier (`jalonsApplicables`, selon son référentiel,
+   * sa forme et son droit ; aucun décompte écrit ici, il se périmait, audit
+   * final F209), datés à partir de la date de clôture de CET exercice, les
+   * échéances fiscales reportées au premier jour ouvrable, et augmentés de ce
+   * qu'OmegaX sait observer tout seul.
    *
    * L'observation est le point : un planning statique est une affiche, un
    * planning qui sait qu'il reste douze écritures au brouillard est un outil.
@@ -610,21 +639,26 @@ export class ExerciceService {
   }
 
   /**
-   * Appelé par EcritureService.creer() avant toute écriture : lève une
-   * ForbiddenException si une clôture active (Partielle/Totale sur ce
-   * journal, ou Période tous journaux) verrouille cette date.
-   */
-  /**
    * Premier jour non clôturé pour ce journal (AUDCIF art. 22, 4°) · voir
-   * `report-periode-close.ts`. `null` si le journal est clôturé totalement.
+   * `report-periode-close.ts`. Toujours une date, jamais `null` : une clôture
+   * TOTALE est bornée à sa date limite et se franchit comme les autres, et
+   * c'est `date` elle-même quand rien ne la bloque. Le premier jour ouvert
+   * peut tomber hors de l'exercice · c'est l'appelant qui refuse alors le
+   * report (`EcritureService.controlesDEntree`), lui seul connaissant
+   * l'exercice (audit final F209).
    */
   async premierJourOuvert(tenantId: string, journalId: string, date: Date): Promise<Date> {
-    const clotures = await this.prisma.cloture.findMany({
-      where: { tenantId, annuleeAt: null, OR: [{ journalId }, { journalId: null }] },
-    });
-    return premierJourNonCloture(clotures, journalId, date);
+    return premierJourNonCloture(await this.cloturesApplicables(tenantId, journalId), journalId, date);
   }
 
+  /**
+   * Lève une ForbiddenException si une clôture active (Partielle ou Totale
+   * sur ce journal, Période sur tous) verrouille cette date. Appelé par les
+   * contrôles d'entrée d'une pièce (`EcritureService.controlesDEntree`, sauf
+   * pour un lot, qui lit `cloturesApplicables` une fois par journal et joue
+   * `refuserSiPeriodeClose`), par la réimputation et par la correction en
+   * négatif (audit final F209).
+   */
   async verifierEcritureAutorisee(tenantId: string, journalId: string, date: Date) {
     refuserSiPeriodeClose(await this.cloturesApplicables(tenantId, journalId), journalId, date);
   }
@@ -683,42 +717,32 @@ export class ExerciceService {
   }
 
   /**
-   * Clôture ANNUELLE de l'exercice : solde les comptes en mode AUCUN (charges/
-   * produits, et comptes créditeurs/débiteurs de la classe 8 · même règle que
-   * le fonctionnement officiel du compte 13, skill sycebnl) sur le compte de
-   * résultat réel (131 Excédent ou 139 Déficit selon le signe), puis génère
-   * le report à-nouveau réel dans l'exercice suivant (créé automatiquement
-   * s'il n'existe pas encore) selon le mode de chaque compte restant (Solde =
-   * un seul solde net, Détail = chaque mouvement non lettré individuellement).
-   * Les deux écritures générées sont, par construction comptable (partie
-   * double), toujours équilibrées · un déséquilibre ici signalerait un bug,
-   * pas une donnée utilisateur invalide, d'où l'InternalServerErrorException
-   * plutôt qu'un simple rejet de saisie.
+   * Clôture ANNUELLE de l'exercice : solde les comptes en mode AUCUN (charges,
+   * produits, et comptes créditeurs ou débiteurs de la classe 8 · même règle
+   * que le fonctionnement officiel du compte 13, skill sycebnl) sur le compte
+   * de résultat réel (131 Excédent ou 139 Déficit selon le signe), puis passe
+   * le report à-nouveau dans l'exercice suivant (créé s'il n'existe pas
+   * encore) selon le mode de chaque compte restant · au SOLDE, son solde, une
+   * ligne par devise au cours moyen et le reste en francs ; au DÉTAIL, chaque
+   * mouvement non lettré (`report-a-nouveau.ts`). Les deux écritures sont,
+   * par construction (partie double), toujours équilibrées · un déséquilibre
+   * ici signalerait un défaut du calcul, pas une donnée invalide, d'où
+   * l'InternalServerErrorException plutôt qu'un simple rejet de saisie.
    *
-   * LIMITE CONNUE, NON CORRIGÉE À CE STADE, et la même dans les deux
-   * référentiels : le compte 13 doit être soldé par une AFFECTATION décidée
-   * par les organes compétents au cours de l'exercice suivant, pas reporté
-   * indéfiniment sur lui-même. Faute de cette brique, le solde de 131/139
-   * continue à s'accumuler d'exercice en exercice via le report à-nouveau
-   * (mode SOLDE, comme tout compte de bilan) au lieu d'être remis à zéro ·
-   * signalé ici explicitement plutôt que laissé silencieux (règle §2.6).
-   *
-   * Les contreparties de cette affectation ne sont pas les mêmes de part et
-   * d'autre, ce qui est précisément pourquoi la brique reste à écrire :
-   *
-   *  · SYCEBNL, Partie 3 ch. 1 · affectation aux fonds propres de l'entité ;
-   *  · AUDCIF, Titre VII § COMPTE 13, Commentaires et Fonctionnement · 12
-   *    Report à nouveau, 11 Réserves, 101 Capital social, 103 Capital
-   *    personnel, ou 465 Associés, dividendes à payer. « Dans les entités
-   *    individuelles, le solde du compte 13 est viré au compte 103 (Capital
-   *    personnel) », ce qui suppose de connaître la forme juridique OHADA du
-   *    dossier · une raison de plus de traiter l'affectation à part.
+   * LA CLÔTURE NE SOLDE PAS LE COMPTE 13, et c'est voulu : le résultat passe
+   * au report à-nouveau (mode SOLDE, comme tout compte de bilan), et c'est
+   * l'AFFECTATION, décidée par les organes compétents au cours de l'exercice
+   * suivant, qui le solde dans celui-ci (`affectation/affectation.service.ts`,
+   * contreparties de chaque référentiel dans `regles-affectation.ts`). Tant
+   * qu'aucune affectation n'est enregistrée, le résultat reste sur le 131 ou
+   * le 139 et s'y cumule d'exercice en exercice. Ce commentaire tenait encore
+   * l'affectation pour une brique à écrire (audit final F209).
    *
    * Le compte 130 « Résultat en instance d'affectation » (1301 bénéfice, 1309
    * perte) existe au plan SYSCOHADA et pas au plan SYCEBNL. L'AUDCIF n'en
    * fait qu'une POSSIBILITÉ offerte à la réouverture des comptes, pas une
-   * obligation : la clôture ne l'utilise donc pas, et ne doit pas l'utiliser
-   * tant que l'affectation n'est pas construite.
+   * obligation : ni la clôture ni l'affectation ne l'utilisent
+   * (`cloture-vocabulaire.spec.ts` le tient pour la clôture).
    */
   async cloturer(tenantId: string, exerciceId: string, userId: string) {
     const exercice = await this.trouverExercice(tenantId, exerciceId);
@@ -780,12 +804,11 @@ export class ExerciceService {
     return avecRetrySerialisable(
       this.prisma,
       async (tx) => {
-        const comptes = await tx.compte.findMany({
-          where: { tenantId },
-          include: { lignesEcriture: { where: { ecriture: { tenantId, exerciceId } }, select: SELECT_LIGNE_RAN } },
-        });
-        const solde = (c: (typeof comptes)[number]) =>
-          c.lignesEcriture.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
+        // Tout l'exercice · le brouillard vient d'être refusé plus haut. Les
+        // comptes au SOLDE et de gestion sont lus en sommes, ceux au DÉTAIL
+        // ligne à ligne (audit final F185, `lireComptesDuReport`).
+        const comptes = await lireComptesDuReport(tx, tenantId, { tenantId, exerciceId });
+        const solde = (c: CompteRan) => auCentime(soldeDuCompte(c));
 
         // Journal support des écritures générées · on réutilise le journal
         // général existant (code OD, "Opérations diverses") plutôt que
@@ -825,7 +848,7 @@ export class ExerciceService {
           // ligne comme l'ancien code le faisait) : plus proche d'une
           // écriture réelle, et évite de gonfler artificiellement les deux
           // colonnes du journal pour ce compte.
-          deltaResultat = totalDebitResultat - totalCreditResultat;
+          deltaResultat = auCentime(totalDebitResultat - totalCreditResultat);
           // Résultat exactement nul (produits = charges) : ne rien pousser.
           // Une ligne debit: 0, credit: 0 est un mouvement fantôme · elle
           // apparaîtrait au grand livre mais pas à la balance (qui filtre les
@@ -904,7 +927,7 @@ export class ExerciceService {
         // Le calcul vit dans report-a-nouveau.ts, partagé avec le report
         // PROVISOIRE · les deux doivent rendre le même report sur le même livre.
         const lignesRan = lignesReportANouveau(
-          comptes.map((c) => versCompteRan(c)),
+          comptes,
           compteResultatId ? { compteId: compteResultatId, montant: deltaResultat } : null,
         );
         // Le report provisoire éventuel s'efface devant le définitif, et lui
@@ -988,15 +1011,10 @@ export class ExerciceService {
     const resultat = await avecRetrySerialisable(
       this.prisma,
       async (tx) => {
-        const comptes = await tx.compte.findMany({
-          where: { tenantId },
-          include: {
-            lignesEcriture: {
-              where: { ecriture: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE } },
-              select: SELECT_LIGNE_RAN,
-            },
-          },
-        });
+        // Le livre-journal seul · ce qui reste au brouillard est compté à
+        // part (`brouillardNonRepris`), jamais lu. Même lecture que la clôture
+        // (audit final F185, `lireComptesDuReport`).
+        const ran = await lireComptesDuReport(tx, tenantId, { tenantId, exerciceId, statut: StatutEcriture.VALIDEE });
         const journal =
           (await tx.journal.findFirst({ where: { tenantId, code: 'OD' } })) ??
           (await tx.journal.findFirst({ where: { tenantId, type: TypeJournal.GENERAL } }));
@@ -1017,7 +1035,6 @@ export class ExerciceService {
           throw new BadRequestException("L'exercice suivant est clôturé · il ne reçoit plus de report.");
         }
 
-        const ran = comptes.map((c) => versCompteRan(c));
         const delta = resultatDesComptesDeGestion(ran);
         let resultatCompte: { compteId: string; montant: number } | null = null;
         if (Math.abs(delta) > EPSILON) {
@@ -1095,10 +1112,10 @@ export class ExerciceService {
 }
 
 /**
- * CE QUE LE REPORT LIT D'UNE LIGNE, ET RIEN DE PLUS (audit final F185) · la
- * clôture chargeait chaque ligne avec son écriture ENTIÈRE, dans une
- * transaction qui tient déjà tout l'exercice. Le calcul partagé ne lit que
- * ces colonnes, et `versCompteRan` le vérifie au typage.
+ * CE QUE LE REPORT LIT D'UNE LIGNE AU DÉTAIL, ET RIEN DE PLUS (audit final
+ * F185) · la clôture chargeait chaque ligne avec son écriture ENTIÈRE, dans
+ * une transaction qui tient déjà tout l'exercice. `versLigneRan` le vérifie
+ * au typage.
  */
 const SELECT_LIGNE_RAN = {
   debit: true,
@@ -1112,42 +1129,141 @@ const SELECT_LIGNE_RAN = {
   ecriture: { select: { libelle: true } },
 } satisfies Prisma.LigneEcritureSelect;
 
-/** Un compte du plan, avec ses lignes de l'exercice, au format du calcul partagé. */
-function versCompteRan(c: {
-  id: string;
-  numero: string;
-  intitule: string;
-  modeReportANouveau: ModeReportANouveau;
-  lignesEcriture: {
-    debit: Prisma.Decimal;
-    credit: Prisma.Decimal;
-    lettre: string | null;
-    libelle: string | null;
-    dateEcheance: Date | null;
-    // Exigés · un report qui oublierait la devise sortirait la position de
-    // la réévaluation de l'exercice suivant (audit final F55).
-    deviseId: string | null;
-    montantDevise: Prisma.Decimal | null;
-    coursApplique: Prisma.Decimal | null;
-    ecriture: { libelle: string };
-  }[];
-}): CompteRan {
+/** Une ligne au DÉTAIL, au format du calcul partagé. */
+function versLigneRan(l: {
+  debit: Prisma.Decimal;
+  credit: Prisma.Decimal;
+  lettre: string | null;
+  libelle: string | null;
+  dateEcheance: Date | null;
+  // Exigés · un report qui oublierait la devise sortirait la position de la
+  // réévaluation de l'exercice suivant (audit final F55).
+  deviseId: string | null;
+  montantDevise: Prisma.Decimal | null;
+  coursApplique: Prisma.Decimal | null;
+  ecriture: { libelle: string };
+}): LigneLueRan {
   return {
-    id: c.id,
-    numero: c.numero,
-    intitule: c.intitule,
-    modeReportANouveau: c.modeReportANouveau,
-    lignes: c.lignesEcriture.map((l) => ({
-      debit: Number(l.debit),
-      credit: Number(l.credit),
-      lettre: l.lettre,
-      libelle: l.libelle ?? l.ecriture.libelle,
-      dateEcheance: l.dateEcheance,
-      deviseId: l.deviseId,
-      montantDevise: l.montantDevise === null ? null : Number(l.montantDevise),
-      coursApplique: l.coursApplique === null ? null : Number(l.coursApplique),
-    })),
+    debit: Number(l.debit),
+    credit: Number(l.credit),
+    lettre: l.lettre,
+    libelle: l.libelle ?? l.ecriture.libelle,
+    dateEcheance: l.dateEcheance,
+    deviseId: l.deviseId,
+    montantDevise: l.montantDevise === null ? null : Number(l.montantDevise),
+    coursApplique: l.coursApplique === null ? null : Number(l.coursApplique),
   };
+}
+
+/**
+ * LA LECTURE DU REPORT, UNE FOIS POUR LA CLÔTURE ET LE PROVISOIRE (audit final
+ * F185). Les deux lisaient toutes les lignes de l'exercice, compte par compte,
+ * y compris celles des comptes au SOLDE et de gestion, dont le calcul ne garde
+ * que des sommes · un dossier chargé montait l'exercice entier en mémoire dans
+ * une transaction sérialisable.
+ *
+ *  · AU SOLDE ET EN GESTION, LA BASE REND LES SOMMES. Débit et crédit de
+ *    chaque compte ; et ses lignes en devise, par devise et par SENS · le sens
+ *    se lit sur CHAQUE ligne (débit supérieur ou égal au crédit), par une
+ *    référence de champ, parce que le montant en devise est gardé sans signe
+ *    et qu'une ligne inscrite en négatif le retranche. Une ligne n'y est en
+ *    devise que si elle nomme sa devise ET porte un montant en devise non nul,
+ *    la définition de `sommesDesLignes`.
+ *  · AU DÉTAIL, LES LIGNES, par tranches (`lireParLots`) · chaque mouvement
+ *    non lettré est reporté un à un. Les lettrées restent en base, puisque le
+ *    report les écarte ; une lettre vide n'y vaut pas lettre, comme au calcul.
+ *
+ * Le report rendu est le même, au centime, que celui de la lecture ligne à
+ * ligne (`report-a-nouveau-agrege.spec.ts` confronte les deux sur un même
+ * jeu). `ecriture` porte le périmètre de l'appelant · l'exercice entier à la
+ * clôture, le livre-journal seul au provisoire.
+ */
+async function lireComptesDuReport(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  ecriture: Prisma.EcritureWhereInput,
+): Promise<CompteRan[]> {
+  // « Non nul » en deux bornes strictes plutôt qu'un NOT · une comparaison
+  // à NULL n'est ni vraie ni fausse en SQL, et c'est ce que `gt` et `lt`
+  // écartent sans ambiguïté, comme `!montantDevise` au calcul.
+  const enDevise = {
+    ecriture,
+    deviseId: { not: null },
+    OR: [{ montantDevise: { gt: 0 } }, { montantDevise: { lt: 0 } }],
+  } satisfies Prisma.LigneEcritureWhereInput;
+  const credit = tx.ligneEcriture.fields.credit;
+  const [plan, totaux, positifs, negatifs] = await Promise.all([
+    tx.compte.findMany({
+      where: { tenantId },
+      select: { id: true, numero: true, intitule: true, modeReportANouveau: true },
+      orderBy: { numero: 'asc' },
+    }),
+    tx.ligneEcriture.groupBy({ by: ['compteId'], where: { ecriture }, _sum: { debit: true, credit: true } }),
+    tx.ligneEcriture.groupBy({
+      by: ['compteId', 'deviseId'],
+      where: { ...enDevise, debit: { gte: credit } },
+      _sum: { debit: true, credit: true, montantDevise: true },
+    }),
+    tx.ligneEcriture.groupBy({
+      by: ['compteId', 'deviseId'],
+      where: { ...enDevise, debit: { lt: credit } },
+      _sum: { debit: true, credit: true, montantDevise: true },
+    }),
+  ]);
+
+  const nombre = (x: Prisma.Decimal | null) => (x === null ? 0 : Number(x));
+  const sommes = new Map<string, SommesRan>();
+  const sommesDe = (compteId: string) => {
+    const s = sommes.get(compteId) ?? { debit: 0, credit: 0, enDevise: [] };
+    sommes.set(compteId, s);
+    return s;
+  };
+  for (const t of totaux) {
+    const s = sommesDe(t.compteId);
+    s.debit = nombre(t._sum.debit);
+    s.credit = nombre(t._sum.credit);
+  }
+  for (const [groupes, sens] of [
+    [positifs, 1],
+    [negatifs, -1],
+  ] as const) {
+    for (const g of groupes) {
+      if (!g.deviseId) continue;
+      sommesDe(g.compteId).enDevise.push({
+        deviseId: g.deviseId,
+        sens,
+        debit: nombre(g._sum.debit),
+        credit: nombre(g._sum.credit),
+        montantDevise: nombre(g._sum.montantDevise),
+      });
+    }
+  }
+
+  const lignes = new Map<string, LigneLueRan[]>();
+  await lireParLots(
+    (curseur) =>
+      tx.ligneEcriture.findMany({
+        where: {
+          ecriture,
+          compte: { modeReportANouveau: ModeReportANouveau.DETAIL },
+          OR: [{ lettre: null }, { lettre: '' }],
+        },
+        select: { id: true, compteId: true, ...SELECT_LIGNE_RAN },
+        ...pageApres(curseur, LOT_LECTURE),
+      }),
+    (l) => {
+      const duCompte = lignes.get(l.compteId) ?? [];
+      duCompte.push(versLigneRan(l));
+      lignes.set(l.compteId, duCompte);
+    },
+    LOT_LECTURE,
+  );
+
+  return plan.map((c) =>
+    c.modeReportANouveau === ModeReportANouveau.DETAIL
+      ? { ...c, lignes: lignes.get(c.id) ?? [] }
+      : { ...c, sommes: sommes.get(c.id) ?? { debit: 0, credit: 0, enDevise: [] } },
+  );
 }
 
 /**

@@ -3078,16 +3078,17 @@ export class EcritureService {
    *    transférait chaque ligne d'écriture de l'exercice, plus son écriture
    *    parente, pour n'en faire que six sommes. Un dossier de dix mille
    *    lignes transportait dix mille objets sur le réseau pour produire une
-   *    page. Deux `groupBy` font désormais la somme DANS Postgres et ne
-   *    ramènent qu'une ligne par compte. Deux et non un, parce que la
-   *    distinction report / mouvement tient à `estGenereeParCloture`, porté
-   *    par l'écriture et non par la ligne : le groupement se fait donc une
-   *    fois de chaque côté du filtre.
+   *    page. Des `groupBy` font désormais la somme DANS Postgres et ne
+   *    ramènent qu'une ligne par compte, un par colonne (report, mouvements,
+   *    clôture, `filtresDesTroisColonnes`), parce que la colonne tient aux
+   *    drapeaux de l'écriture (`estGenereeParCloture`,
+   *    `estSoldeDesComptesDeGestion`) et non à la ligne.
    *
    * 2. ELLE AGRÉGEAIT LES COMPTES TOTAL, ET PLUS PERSONNE N'EN VOULAIT.
    *    Chaque compte Total balayait la liste entière des comptes pour trouver
    *    ses enfants par `startsWith` · un travail en N² qui a d'abord été rendu
-   *    linéaire, puis retiré.
+   *    linéaire, puis retiré. Les comptes Total sont écartés d'emblée par
+   *    `lignesDeBalance` (balance-trois-colonnes.ts, audit final F253).
    *
    * UNE BALANCE GÉNÉRALE LISTE LES COMPTES MOUVEMENTÉS, PAS UNE HIÉRARCHIE.
    *

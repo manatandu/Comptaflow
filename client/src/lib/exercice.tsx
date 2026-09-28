@@ -3,6 +3,7 @@ import { api } from './api';
 import type { Exercice } from './types';
 import { resoudreExercice } from './exercice-choix';
 import { consommerPrechargement } from './prechargement';
+import { lireLesExercices } from './lecture-exercices';
 
 interface ExerciceContextValue {
   exerciceCourant: Exercice | null;
@@ -17,6 +18,13 @@ interface ExerciceContextValue {
    * n'est décidé par personne, et l'interface doit le dire.
    */
   choixImplicite: boolean;
+  /**
+   * Motif de l'échec de la dernière lecture des exercices, null quand elle a
+   * abouti (audit final F248). Une liste vide n'est pas un dossier sans
+   * exercice tant que ce motif est posé · la barre d'état et la fenêtre
+   * Exercices l'affichent.
+   */
+  erreur: string | null;
 }
 
 const ExerciceContext = createContext<ExerciceContextValue | null>(null);
@@ -77,18 +85,28 @@ function ecrireMemoire(tenantId: string, exerciceId: string | null): void {
 export function ExerciceProvider({ children }: { children: ReactNode }) {
   const [exercices, setExercices] = useState<Exercice[]>([]);
   const [chargement, setChargement] = useState(true);
+  const [erreur, setErreur] = useState<string | null>(null);
   const [choisiId, setChoisiId] = useState<string | null>(null);
 
+  // UN ÉCHEC NE LAISSE PLUS LE CHARGEMENT OUVERT (audit final F248) · la
+  // lecture rend son motif au lieu de lever (lecture-exercices.ts), et le
+  // `finally` referme le chargement quoi qu'il arrive. Une liste déjà lue est
+  // gardée sur un échec de relecture, le motif disant qu'elle n'est pas à
+  // jour ; elle n'est jamais remplacée par une liste vide qui se lirait
+  // « aucun exercice ».
   const recharger = async (auDemarrage = false) => {
     setChargement(true);
-    // Au démarrage seulement, la réponse partie en même temps que /auth/me
-    // est reprise (voir prechargement.ts). Si elle a échoué, on redemande.
-    const prechargee = auDemarrage ? consommerPrechargement() : null;
-    const liste = prechargee
-      ? await prechargee.catch(() => api.get<Exercice[]>('/exercices'))
-      : await api.get<Exercice[]>('/exercices');
-    setExercices(liste);
-    setChargement(false);
+    try {
+      // Au démarrage seulement, la réponse partie en même temps que /auth/me
+      // est reprise (voir prechargement.ts). Si elle a échoué, on redemande.
+      const lu = await lireLesExercices(auDemarrage ? consommerPrechargement() : null, () =>
+        api.get<Exercice[]>('/exercices'),
+      );
+      if (lu.liste) setExercices(lu.liste);
+      setErreur(lu.erreur);
+    } finally {
+      setChargement(false);
+    }
   };
 
   useEffect(() => {
@@ -120,7 +138,7 @@ export function ExerciceProvider({ children }: { children: ReactNode }) {
 
   return (
     <ExerciceContext.Provider
-      value={{ exerciceCourant, exercices, chargement, recharger, choisir, choixImplicite }}
+      value={{ exerciceCourant, exercices, chargement, recharger, choisir, choixImplicite, erreur }}
     >
       {children}
     </ExerciceContext.Provider>

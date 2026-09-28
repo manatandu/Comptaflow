@@ -23,9 +23,92 @@ const COMPTES = [
   { id: '401', numero: '40110000', intitule: 'Fournisseurs', modeReportANouveau: 'DETAIL', lignesEcriture: [ligne(0, 300)] },
 ];
 
+/**
+ * LA LECTURE DU REPORT (audit final F185) · la clôture demande à la base les
+ * sommes des comptes au SOLDE et de gestion, et ne lit ligne à ligne que le
+ * DÉTAIL. Cette doublure les sert depuis les lignes du jeu en HONORANT les
+ * filtres que la lecture pose, et lève sur tout filtre qu'elle ne sait pas
+ * lire · une doublure qui ignore un filtre valide un code qui ne charge pas.
+ */
+type LigneJeu = { lignesEcriture: Record<string, unknown>[] } & Record<string, unknown>;
+const estReference = (x: unknown): x is { name: string } => !!x && typeof x === 'object' && 'modelName' in (x as object);
+function champ(r: Record<string, unknown>, v: unknown, f: unknown): boolean {
+  if (f === null || typeof f !== 'object') return v === f;
+  return Object.entries(f as Record<string, unknown>).every(([op, x]) => {
+    const o = estReference(x) ? r[x.name] : x;
+    if (op === 'not') return o === null ? v !== null : typeof o === 'object' ? !champ(r, v, o) : v !== null && v !== o;
+    if (v === null || v === undefined) return false;
+    if (op === 'equals') return v === o;
+    if (op === 'in') return (o as unknown[]).includes(v);
+    if (op === 'gt') return (v as number) > (o as number);
+    if (op === 'gte') return (v as number) >= (o as number);
+    if (op === 'lt') return (v as number) < (o as number);
+    if (op === 'lte') return (v as number) <= (o as number);
+    throw new Error(`doublure : filtre « ${op} » non honoré`);
+  });
+}
+function correspond(r: Record<string, unknown>, where: unknown): boolean {
+  return Object.entries((where ?? {}) as Record<string, unknown>).every(([cle, f]) => {
+    if (cle === 'AND') return ([] as unknown[]).concat(f).every((w) => correspond(r, w));
+    if (cle === 'OR') return (f as unknown[]).some((w) => correspond(r, w));
+    if (cle === 'NOT') return ([] as unknown[]).concat(f).every((w) => !correspond(r, w));
+    if (cle === 'ecriture' || cle === 'compte') return correspond(r[cle] as Record<string, unknown>, f);
+    return champ(r, r[cle], f);
+  });
+}
+function lectureDuReport(comptes: LigneJeu[]) {
+  const lignes = comptes.flatMap((c) =>
+    c.lignesEcriture.map((l, i) => ({
+      id: `${c.id}-${String(i).padStart(4, '0')}`,
+      compteId: c.id,
+      compte: c,
+      deviseId: null,
+      montantDevise: null,
+      coursApplique: null,
+      ...l,
+      ecriture: { tenantId: 't', exerciceId: 'n', statut: 'VALIDEE', ...(l.ecriture as object) },
+    })),
+  ) as Record<string, unknown>[];
+  const projeter = (r: Record<string, unknown>, select: Record<string, unknown>) =>
+    Object.fromEntries(
+      Object.entries(select).map(([k, v]) => [k, v === true ? r[k] : { libelle: (r[k] as { libelle: string }).libelle }]),
+    );
+  return {
+    compte: {
+      findMany: jest.fn(async (a: { where: unknown; select: Record<string, unknown>; include?: unknown }) => {
+        if (a.include) throw new Error('doublure : include non honoré');
+        return comptes
+          .filter((c) => correspond({ tenantId: 't', ...c }, a.where))
+          .sort((x, y) => ((x.numero as string) < (y.numero as string) ? -1 : 1))
+          .map((c) => Object.fromEntries(Object.keys(a.select).map((k) => [k, c[k]])));
+      }),
+    },
+    ligneEcriture: {
+      fields: { credit: { modelName: 'LigneEcriture', name: 'credit' } },
+      groupBy: jest.fn(async (a: { by: string[]; where: unknown; _sum: Record<string, true> }) => {
+        const groupes = new Map<string, Record<string, unknown>>();
+        for (const l of lignes.filter((x) => correspond(x, a.where))) {
+          const cle = JSON.stringify(a.by.map((k) => l[k]));
+          const g = groupes.get(cle) ?? { ...Object.fromEntries(a.by.map((k) => [k, l[k]])), _sum: {} as Record<string, number | null> };
+          const somme = g._sum as Record<string, number | null>;
+          for (const k of Object.keys(a._sum)) somme[k] = l[k] === null ? (somme[k] ?? null) : (somme[k] ?? 0) + (l[k] as number);
+          groupes.set(cle, g);
+        }
+        return [...groupes.values()];
+      }),
+      findMany: jest.fn(async (a: { where: unknown; select: Record<string, unknown>; take: number; cursor?: { id: string }; skip?: number }) => {
+        let r = lignes.filter((x) => correspond(x, a.where)).sort((x, y) => ((x.id as string) < (y.id as string) ? -1 : 1));
+        if (a.cursor) r = r.slice(r.findIndex((x) => x.id === a.cursor!.id) + (a.skip ?? 0));
+        return r.slice(0, a.take).map((x) => projeter(x, a.select));
+      }),
+    },
+  };
+}
+
 function service(provisoire: { id: string; numeroPiece: number; lignes: { lettre: null; rapprochementId: null }[] } | null) {
+  const lecture = lectureDuReport(COMPTES);
   const tx = {
-    compte: { findMany: jest.fn().mockResolvedValue(COMPTES), findUnique: jest.fn().mockResolvedValue({ id: '131' }) },
+    compte: { findMany: lecture.compte.findMany, findUnique: jest.fn().mockResolvedValue({ id: '131' }) },
     journal: { findFirst: jest.fn().mockResolvedValue({ id: 'od', code: 'OD' }) },
     exercice: { findFirst: jest.fn().mockResolvedValue(N1), create: jest.fn(), update: jest.fn().mockResolvedValue({ ...N, statut: 'CLOTURE' }) },
     ecriture: {
@@ -33,7 +116,7 @@ function service(provisoire: { id: string; numeroPiece: number; lignes: { lettre
       delete: jest.fn().mockResolvedValue({}),
       create: jest.fn().mockResolvedValue({}),
     },
-    ligneEcriture: { deleteMany: jest.fn().mockResolvedValue({}) },
+    ligneEcriture: { ...lecture.ligneEcriture, deleteMany: jest.fn().mockResolvedValue({}) },
   };
   const prisma = {
     // L'exercice lu par son identifiant, et les deux questions d'ordre
@@ -86,13 +169,21 @@ describe('Clôture annuelle', () => {
     expect({ statut: ran.statut, solde: ran.estSoldeDesComptesDeGestion }).toEqual({ statut: 'VALIDEE', solde: undefined });
   });
 
-  it('F185 · la clôture lit chaque ligne par les seules colonnes du report', async () => {
+  /**
+   * AUDIT FINAL F185 · la clôture lisait toutes les lignes de l'exercice avec
+   * le plan. Le plan se lit sans elles, les comptes au SOLDE et de gestion en
+   * sommes, et le DÉTAIL seul ligne à ligne, par les colonnes du report.
+   */
+  it('F185 · la clôture lit le plan sans ses lignes, le reste en sommes, le DÉTAIL par les seules colonnes du report', async () => {
     const { s, tx } = service(null);
     await s.cloturer('t', 'n', 'u');
-    const lecture = tx.compte.findMany.mock.calls[0][0].include.lignesEcriture;
-    expect(lecture.include).toBeUndefined();
-    expect(lecture.select.ecriture).toEqual({ select: { libelle: true } });
-    expect(lecture.select.lettre).toBe(true);
+    expect(tx.compte.findMany.mock.calls[0][0].include).toBeUndefined();
+    expect(tx.ligneEcriture.groupBy).toHaveBeenCalled();
+    const detail = tx.ligneEcriture.findMany.mock.calls[0][0];
+    expect(detail.select.ecriture).toEqual({ select: { libelle: true } });
+    expect(Object.keys(detail.select).sort()).toEqual(
+      ['compteId', 'coursApplique', 'credit', 'dateEcheance', 'debit', 'deviseId', 'ecriture', 'id', 'lettre', 'libelle', 'montantDevise'],
+    );
   });
 
   it('refuse de clôturer avant l’exercice précédent (audit final F6)', async () => {

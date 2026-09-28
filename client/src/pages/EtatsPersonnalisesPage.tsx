@@ -19,7 +19,10 @@ const champ = 'border border-border-dark px-1.5 py-0.5 text-[11.5px] w-full';
 export function EtatsPersonnalisesPage() {
   const { peutValider } = useAuth();
   const { exercices, exerciceCourant } = useExercice();
-  const [etats, setEtats] = useState<EtatPersonnalise[]>([]);
+  // Null tant que la liste n'est pas lue (audit final F255) · un refus posait
+  // une liste vide, et l'écran répondait « Aucun état » sur un échec.
+  const [etats, setEtats] = useState<EtatPersonnalise[] | null>(null);
+  const [erreurLecture, setErreurLecture] = useState<string | null>(null);
   const [choisi, setChoisi] = useState<string | null>(null);
   const [nom, setNom] = useState('');
   const [lignes, setLignes] = useState<LigneEtat[]>([]);
@@ -29,9 +32,15 @@ export function EtatsPersonnalisesPage() {
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
-  const charger = async () => setEtats(await api.get<EtatPersonnalise[]>('/etats-personnalises'));
+  const charger = async () => {
+    setEtats(await api.get<EtatPersonnalise[]>('/etats-personnalises'));
+    setErreurLecture(null);
+  };
   useEffect(() => {
-    charger().catch(() => setEtats([]));
+    charger().catch((e) => {
+      setEtats(null);
+      setErreurLecture(e instanceof Error ? e.message : "La liste des états n'a pas pu être lue.");
+    });
   }, []);
   useEffect(() => {
     if (exerciceCourant && selection.length === 0) setSelection([exerciceCourant.id]);
@@ -118,7 +127,7 @@ export function EtatsPersonnalisesPage() {
       {info && <div className="text-[11.5px] text-positive bg-positive-soft border border-positive/30 px-3 py-1.5 mb-2">{info}</div>}
       <div className="grid gap-3 md:grid-cols-[220px_1fr]">
         <ul className="text-[11.5px] border border-border bg-surface">
-          {etats.map((e) => (
+          {etats?.map((e) => (
             <li key={e.id}>
               <button
                 type="button"
@@ -129,7 +138,13 @@ export function EtatsPersonnalisesPage() {
               </button>
             </li>
           ))}
-          {etats.length === 0 && <li className="px-2.5 py-1 italic text-text-dim">Aucun état.</li>}
+          {erreurLecture ? (
+            <li className="px-2.5 py-1 text-danger">Liste des états illisible · {erreurLecture}</li>
+          ) : etats === null ? (
+            <li className="px-2.5 py-1 italic text-text-dim">Chargement…</li>
+          ) : (
+            etats.length === 0 && <li className="px-2.5 py-1 italic text-text-dim">Aucun état.</li>
+          )}
         </ul>
         {choisi && (
           <div className="min-w-0">

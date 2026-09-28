@@ -196,3 +196,32 @@ describe('circularisation · retenir, retirer, couvrir (F70, F71)', () => {
     expect(ligne).not.toContain('s.soldeEnvoye');
   });
 });
+
+/**
+ * AUDIT FINAL F210 · la campagne passe désormais par « dépouillée », et le
+ * bouton d'envoi s'offrait à tout état autre que « close ». Le serveur
+ * n'envoie qu'en préparation et ne relance qu'une campagne envoyée · offert à
+ * une campagne relancée ou dépouillée, le bouton menait à un refus.
+ */
+describe('circularisation · l’envoi ne se propose que là où le serveur l’admet (F210)', () => {
+  const service = readFileSync(join(racine, 'src/modules/circularisation/circularisation.service.ts'), 'utf8');
+
+  it('le bouton d’envoi suit les états que `envoyer` admet, ni plus ni moins', () => {
+    const debut = service.indexOf('async envoyer(');
+    expect(debut).toBeGreaterThan(0);
+    const corps = bloc(service, service.indexOf('{', service.indexOf(') {', debut) + 1));
+    const admis = corps.slice(corps.indexOf('this.campagne('), corps.indexOf(']);'));
+    const serveur = [...admis.matchAll(/StatutCampagneCircularisation\.([A-Z_]+)/g)].map((m) => m[1]).sort();
+    expect(serveur).toEqual(['ENVOYEE', 'PREPARATION']);
+
+    const appel = /api\.post\(`\/circularisation\/\$\{detail\.id\}\/envoyer`/.exec(page);
+    expect(appel).not.toBeNull();
+    const conditions = [...page.slice(0, (appel as RegExpExecArray).index).matchAll(/\{([^{}]+?) && \(/g)].map(
+      (x) => x[1],
+    );
+    const ecran = [...conditions[conditions.length - 1].matchAll(/detail\.statut === '([A-Z_]+)'/g)]
+      .map((m) => m[1])
+      .sort();
+    expect(ecran).toEqual(serveur);
+  });
+});

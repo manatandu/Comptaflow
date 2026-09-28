@@ -2,6 +2,7 @@ import { entetesRequete } from './entetes-requete';
 import { nomDeDisposition } from './disposition';
 import { adresseApi } from './adresse-api';
 import { motifDeSessionPerdue, signalerSessionPerdue } from './session-perdue';
+import { CHEMINS_CACHES, cheminsAViderApres } from './cache-referentiels';
 
 const API_URL = adresseApi(import.meta.env.VITE_API_URL);
 
@@ -147,15 +148,21 @@ async function telechargerOuSignaler(
  * jeton CSRF, lui, voyage comme sur toute écriture.
  */
 async function envoyerFichier<T>(path: string, corps: FormData): Promise<T> {
-  const csrf = getCsrf();
-  const res = await fetch(`${API_URL}${path}`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: csrf ? { 'X-CSRF-Token': csrf } : {},
-    body: corps,
-  });
-  if (!res.ok) throw await refus(res);
-  return res.json() as Promise<T>;
+  viderCachePour(path);
+  // Vidé de nouveau à la réponse, comme les autres écritures (audit final F249).
+  try {
+    const csrf = getCsrf();
+    const res = await fetch(`${API_URL}${path}`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: csrf ? { 'X-CSRF-Token': csrf } : {},
+      body: corps,
+    });
+    if (!res.ok) throw await refus(res);
+    return (await res.json()) as T;
+  } finally {
+    viderCachePour(path);
+  }
 }
 
 /**
@@ -163,26 +170,21 @@ async function envoyerFichier<T>(path: string, corps: FormData): Promise<T> {
  * presque chaque fenêtre à son ouverture, alors que ces listes ne changent
  * qu'à l'initiative de l'utilisateur. La PROMESSE est mise en cache (deux
  * fenêtres ouvertes coup sur coup partagent la même requête en vol), pour
- * 30 secondes, et le cache est vidé dès qu'une écriture (POST/PATCH/DELETE)
- * touche la même famille de chemins · créer un compte re-remplit donc la
- * liste immédiatement. Les variantes avec paramètres (`/comptes?...`) ne
- * sont pas mises en cache : la clé est le chemin exact.
+ * 30 secondes, et le cache est vidé dès qu'une écriture (POST, PUT, PATCH,
+ * DELETE, envoi de fichier) touche la même famille de chemins, ou une route
+ * qui change ces listes par un autre chemin (création d'un tiers et de son
+ * compte, fusion de comptes, natures · cache-referentiels.ts, audit final
+ * F249) · créer un compte re-remplit donc la liste immédiatement. Les
+ * variantes avec paramètres (`/comptes?...`) ne sont pas mises en cache : la
+ * clé est le chemin exact.
  */
-const CHEMINS_CACHES = ['/comptes', '/journaux'];
 const cacheReferentiels = new Map<string, { promesse: Promise<unknown>; expire: number }>();
 
+// Appelée AVANT l'écriture et de nouveau APRÈS sa réponse · une lecture
+// partie pendant l'écriture (une autre fenêtre qui s'ouvre) remettait en
+// cache la liste d'avant, servie trente secondes de plus.
 function viderCachePour(path: string) {
-  // L'import crée des comptes (et peut créer des journaux) côté serveur sans
-  // jamais toucher un chemin /comptes ou /journaux : il vide tout.
-  if (path.startsWith('/import')) {
-    cacheReferentiels.clear();
-    return;
-  }
-  for (const prefixe of CHEMINS_CACHES) {
-    if (path === prefixe || path.startsWith(`${prefixe}/`) || path.startsWith(`${prefixe}?`)) {
-      cacheReferentiels.delete(prefixe);
-    }
-  }
+  for (const chemin of cheminsAViderApres(path)) cacheReferentiels.delete(chemin);
 }
 
 /** Fenêtre → Actualiser : le F5 doit recharger VRAIMENT, cache compris. */
@@ -207,12 +209,17 @@ export const api = {
   get: <T>(path: string) => getAvecCache<T>(path),
   post: <T>(path: string, body?: unknown) => {
     viderCachePour(path);
-    return request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined });
+    return request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }).finally(() => viderCachePour(path));
   },
-  put: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
+  // Un PUT est une écriture comme les autres · il ne vidait rien, et une
+  // route PUT qui touche un référentiel l'aurait laissé servi trente secondes.
+  put: <T>(path: string, body?: unknown) => {
+    viderCachePour(path);
+    return request<T>(path, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }).finally(() => viderCachePour(path));
+  },
   patch: <T>(path: string, body?: unknown) => {
     viderCachePour(path);
-    return request<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined });
+    return request<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }).finally(() => viderCachePour(path));
   },
   // Corps optionnel : `DELETE /notes-annexes/rattachements` identifie la
   // ligne à retirer par (jeu, codeNote, cleRubrique, compteId), pas par un
@@ -220,7 +227,7 @@ export const api = {
   // adressable côté client, seule cette combinaison l'est.
   delete: <T>(path: string, body?: unknown) => {
     viderCachePour(path);
-    return request<T>(path, { method: 'DELETE', body: body ? JSON.stringify(body) : undefined });
+    return request<T>(path, { method: 'DELETE', body: body ? JSON.stringify(body) : undefined }).finally(() => viderCachePour(path));
   },
   telecharger,
   telechargerOuSignaler,

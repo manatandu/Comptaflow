@@ -1,24 +1,24 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App';
+import { autoriserRechargement } from './lib/rechargement-chunk';
 
 /*
  * DÉPLOIEMENT PENDANT UNE SESSION OUVERTE · les pages sont chargées à la
  * demande (chunks hachés) et Firebase ne sert plus ceux de la version
  * précédente : la première fenêtre jamais ouverte après un déploiement
  * recevrait un module introuvable. Vite signale cet échec par
- * `vite:preloadError` : on recharge alors l'application UNE fois (le
- * marqueur de session empêche toute boucle si le rechargement ne suffit
- * pas), ce qui ramène l'index.html neuf et ses chunks.
+ * `vite:preloadError` : on recharge alors l'application, ce qui ramène
+ * l'index.html neuf et ses chunks. Un seul rechargement par fenêtre de temps,
+ * tenu par un marqueur DATÉ de la session qui ne s'efface pas au chargement
+ * (lib/rechargement-chunk.ts, audit final F246) · au-delà, l'erreur
+ * s'affiche au lieu de relancer la page sans fin.
  */
 window.addEventListener('vite:preloadError', (evenement) => {
-  const CLE = 'omegax:rechargement-chunk';
-  if (sessionStorage.getItem(CLE)) return; // déjà tenté · laisser l'erreur s'afficher
-  sessionStorage.setItem(CLE, '1');
+  if (!autoriserRechargement(() => window.sessionStorage, Date.now())) return;
   evenement.preventDefault();
   window.location.reload();
 });
-window.addEventListener('load', () => sessionStorage.removeItem('omegax:rechargement-chunk'));
 
 /*
  * ENREGISTREMENT DU SERVICE WORKER · le seul geste qui rend l'application
