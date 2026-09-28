@@ -31,8 +31,7 @@
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
-    "testEnvironment": "node",
-    "workerIdleMemoryLimit": "1024MB"
+    "testEnvironment": "node"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.0",

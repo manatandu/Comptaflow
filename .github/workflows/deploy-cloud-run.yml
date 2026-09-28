@@ -120,8 +120,18 @@ jobs:
         if: matrix.suite == 'complete'
         run: npx tsc --noEmit
 
+      # LE TAS DES PROCESSUS DE TEST GROSSIT DE SUITE EN SUITE · deux
+      # déploiements sont tombés à 2 Go (« heap out of memory »). Le
+      # recyclage des processus (`workerIdleMemoryLimit`) a figé l'étape plus
+      # de trente minutes · la limite du tas est relevée pour les tests seuls,
+      # jamais pour le service, dont le tas reste celui qui est mesuré
+      # (docs/capacite-mesuree.md). Et l'étape est bornée · un blocage échoue
+      # au lieu de pendre six heures.
       - name: Tests du serveur
         if: matrix.suite == 'complete'
+        timeout-minutes: 30
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
         run: npx jest --ci
 
       - name: Construction du serveur
