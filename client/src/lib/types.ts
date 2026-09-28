@@ -988,7 +988,13 @@ export interface Immobilisation {
   compteAmortissementId: string;
   compteAmortissement?: Compte;
   dateAcquisition: string;
-  dateMiseEnService: string;
+  /**
+   * Nulle tant que le bien n'est pas en état de fonctionner (AUDCIF art. 45) ·
+   * aucune dotation ne court avant elle.
+   */
+  dateMiseEnService: string | null;
+  /** Nature choisie au barème de l'arrêté n° 013/2025 (« section.rang »), ou null. */
+  natureFiscaleCle?: string | null;
   valeurOrigine: number;
   valeurResiduelle: number;
   dureeAmortissementAns: number;
@@ -2113,7 +2119,7 @@ export interface NotesSmt {
   fiche: { numero: number; intitule: string; partie: 'BILAN' | 'COMPTE_DE_RESULTAT' }[];
   note1: {
     lignes: {
-      dateMiseEnService: string;
+      dateMiseEnService: string | null;
       designation: string;
       montant: number;
       dateAcquisition: string;

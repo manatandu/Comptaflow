@@ -17,7 +17,9 @@ import {
   DepreciationDto,
   ReclasserImmobilisationDto,
   RenouvelerComposantDto,
+  MiseEnServiceDto,
 } from './dto/immobilisation.dto';
+import { baremeFiscal } from './bareme-fiscal';
 import { RoleUtilisateur, StatutImmobilisation } from '@prisma/client';
 import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 
@@ -93,6 +95,27 @@ export class ImmobilisationController {
   @Patch(':id/lieu')
   async affecterLieu(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: AffecterLieuDto) {
     return this.immobilisationService.affecterLieu(user.tenantId, id, dto.lieuId ?? null);
+  }
+
+  /**
+   * Mise en service d'un bien acquis et pas encore en état de fonctionner
+   * (AUDCIF art. 45) · une fois, jamais avant l'acquisition. Geste de tenue,
+   * ouvert au comptable comme la dotation qu'il déclenche.
+   */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Patch(':id/mise-en-service')
+  async mettreEnService(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: MiseEnServiceDto) {
+    return this.immobilisationService.mettreEnService(user.tenantId, id, dto);
+  }
+
+  /**
+   * Le barème de l'arrêté n° 013/CAB/MIN/FINANCES/2025 (art. 2), servi tel
+   * quel · l'écran en tire la durée proposée et l'écart qu'il signale. Aucune
+   * donnée du dossier n'y entre, la lecture est ouverte à tous les rôles.
+   */
+  @Get('bareme-fiscal')
+  async baremeFiscal() {
+    return baremeFiscal();
   }
 
   /** Contreparties admises pour une acquisition de la famille donnée. */

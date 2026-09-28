@@ -318,6 +318,18 @@ function estAuSystemeMinimal(tenant: {
     : tenant.jeuEtatsFinanciersSycebnl === JeuEtatsFinanciersSycebnl.SYSTEME_MINIMAL_TRESORERIE;
 }
 
+/**
+ * Un bien sans date de mise en service n'est pas encore amortissable (AUDCIF
+ * art. 45 · l'amortissement part de la date où l'actif est « en état de
+ * fonctionner »). Le filtre SQL l'écarte déjà (`not: null`) ; ce garde le dit
+ * au typage, pour que les contrôles 12 et 13 ne lisent jamais une date nulle.
+ */
+function estMisEnService<T extends { dateMiseEnService: Date | null }>(
+  i: T,
+): i is T & { dateMiseEnService: Date } {
+  return i.dateMiseEnService !== null;
+}
+
 /** Le nombre trouvé, porté seulement quand la liste montrée en a laissé. */
 function nombreSiTronque(collecte: Collecte<unknown>): { nombre?: number } {
   return collecte.tronquee ? { nombre: collecte.nombre } : {};
@@ -1588,16 +1600,21 @@ export class ControlesService {
       select: { dateDebut: true },
     });
     if (premierExercice) {
-      const reprises = await this.prisma.immobilisation.findMany({
-        where: {
-          tenantId,
-          statut: 'EN_SERVICE',
-          dateMiseEnService: { lt: premierExercice.dateDebut },
-          amortissementAnterieur: 0,
-        },
-        select: { designation: true, dateMiseEnService: true, valeurOrigine: true },
-        orderBy: { dateMiseEnService: 'asc' },
-      });
+      // Un bien PAS ENCORE mis en service (date nulle) n'a rien pu amortir ·
+      // il ne relève pas de ce signalement. Le `not: null` est redit au
+      // filtre, et la liste est retriée en mémoire, pour que le type suive.
+      const reprises = (
+        await this.prisma.immobilisation.findMany({
+          where: {
+            tenantId,
+            statut: 'EN_SERVICE',
+            dateMiseEnService: { not: null, lt: premierExercice.dateDebut },
+            amortissementAnterieur: 0,
+          },
+          select: { designation: true, dateMiseEnService: true, valeurOrigine: true },
+          orderBy: { dateMiseEnService: 'asc' },
+        })
+      ).filter(estMisEnService);
       if (reprises.length > 0) {
         anomalies.push({
           code: 'IMMO_REPRISE_SANS_ANTERIEUR',
@@ -1639,24 +1656,28 @@ export class ControlesService {
     // sans passer par le module. Dans ce cas la comptabilité est juste et la
     // table des dotations vide : bloquer serait refuser une clôture régulière.
     // Le logiciel signale ce qu'il voit et laisse le comptable trancher.
-    const amortissables = await this.prisma.immobilisation.findMany({
-      where: {
-        tenantId,
-        statut: 'EN_SERVICE',
-        // Un bien pas encore en service ne s'amortit pas · l'amortissement
-        // court de la mise en état de fonctionner (art. 45), pas de l'achat.
-        dateMiseEnService: { lte: ex.dateFin },
-      },
-      select: {
-        designation: true,
-        dateMiseEnService: true,
-        valeurOrigine: true,
-        valeurResiduelle: true,
-        amortissementAnterieur: true,
-        dotations: { select: { exerciceId: true, montant: true } },
-      },
-      orderBy: { dateMiseEnService: 'asc' },
-    });
+    const amortissables = (
+      await this.prisma.immobilisation.findMany({
+        where: {
+          tenantId,
+          statut: 'EN_SERVICE',
+          // Un bien pas encore en service ne s'amortit pas · l'amortissement
+          // court de la mise en état de fonctionner (art. 45), pas de l'achat.
+          // Un bien acquis et jamais mis en service (date nulle) non plus ·
+          // lui reprocher une dotation absente serait un signalement faux.
+          dateMiseEnService: { not: null, lte: ex.dateFin },
+        },
+        select: {
+          designation: true,
+          dateMiseEnService: true,
+          valeurOrigine: true,
+          valeurResiduelle: true,
+          amortissementAnterieur: true,
+          dotations: { select: { exerciceId: true, montant: true } },
+        },
+        orderBy: { dateMiseEnService: 'asc' },
+      })
+    ).filter(estMisEnService);
     const sansDotation = amortissables.filter((i) => {
       if (i.dotations.some((d) => d.exerciceId === exerciceId)) return false;
       // Un bien intégralement amorti n'a plus rien à doter · l'absence de

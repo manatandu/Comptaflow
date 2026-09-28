@@ -22,7 +22,8 @@ type Ligne = { compteId: string; debit: number; credit: number };
 
 function harnais(
   options: {
-    dateMiseEnService?: string;
+    /** `null` · bien acquis et jamais mis en service. */
+    dateMiseEnService?: string | null;
     dotations?: number[];
     smt?: boolean;
     /** Numéros de classe 8 absents du plan du dossier. */
@@ -41,7 +42,8 @@ function harnais(
     valeurOrigine: 12_000,
     valeurResiduelle: 0,
     dureeAmortissementAns: 5,
-    dateMiseEnService: new Date(options.dateMiseEnService ?? '2024-01-01'),
+    dateMiseEnService: options.dateMiseEnService === null ? null : new Date(options.dateMiseEnService ?? '2024-01-01'),
+    dateAcquisition: new Date('2023-06-01'),
     amortissementAnterieur: 0,
     modeAmortissement: 'LINEAIRE',
     compteImmobilisationId: 'cimmo',
@@ -240,3 +242,18 @@ describe('F130 · l’écriture du produit de cession est retenue par la fiche',
   });
 });
 
+
+describe('un bien jamais mis en service sort sans dotation complémentaire (AUDCIF art. 45)', () => {
+  it('cédé ou détruit avant usage · aucune annuité, mais l’écriture de sortie passe', async () => {
+    const { svc, ecrituresPostees } = harnais({ dateMiseEnService: null, dotations: [] });
+    await svc.sortir('t1', 'u1', 'i1', sortie('2026-09-30') as never);
+    expect(ecrituresPostees.some((e) => e.libelle.startsWith('Dotation complémentaire'))).toBe(false);
+    expect(ecrituresPostees.length).toBeGreaterThan(0);
+  });
+
+  it('la borne reste l’acquisition · une sortie antérieure est refusée', async () => {
+    const { svc, ecrituresPostees } = harnais({ dateMiseEnService: null, dotations: [] });
+    await expect(svc.sortir('t1', 'u1', 'i1', sortie('2023-05-31') as never)).rejects.toThrow(/date d'acquisition/);
+    expect(ecrituresPostees).toEqual([]);
+  });
+});

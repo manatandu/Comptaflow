@@ -4691,6 +4691,34 @@ L'ordre de virement imprimable est servi depuis le 2026-09-26 (paragraphe
 suivant les documents attachés aux tiers) ; il ne bloque pas la validation de
 la pièce, qui reste au brouillard jusqu'à la décision du comptable.
 
+**Nouvelle immobilisation · contrepartie, mise en service, barème
+(2026-09-28, relevé par Manasse).** TROIS RÈGLES À NE PAS DÉFAIRE. (1) LA
+CONTREPARTIE D'UNE ACQUISITION EST UNE LISTE FERMÉE
+(`immobilisations/contrepartie-acquisition.ts`), lue dans les fiches des
+comptes 21 à 24 des deux textes · capital ou dotation, apporteurs (46) ou
+fondateurs (45), fonds affectés aux investissements (16, SYCEBNL), fournisseurs
+d'investissements du sous-compte de la nature du bien (4811 incorporel, 4812
+corporel), trésorerie, production immobilisée (72, SYSCOHADA). Le refus vit au
+serveur, la liste est servie par famille. (2) UN BIEN ACQUIS N'EST PAS
+FORCÉMENT MIS EN SERVICE · `dateMiseEnService` est nullable, et tant qu'elle
+est vide aucune dotation, aucun dérogatoire ni plan fiscal ne court (AUDCIF,
+« la date de début d'amortissement est la date à laquelle l'actif immobilisé
+est en état de fonctionner ») ; elle se pose une fois, jamais avant
+l'acquisition. (3) LA DURÉE SE PROPOSE AU BARÈME DE L'ARRÊTÉ n° 013/2025,
+engendré par `scripts/extraire-bareme-amortissement.cjs` (131 lignes, jamais
+retouché à la main) · un écart s'avertit (art. 4, justifié au contrôle), il
+ne se refuse pas, la durée comptable étant la durée d'utilité (AUDCIF
+art. 45).
+
+**Comptes retenus (2026-09-28, décision de Manasse).** `Compte.estRetenu` ·
+les listes de choix (saisie, lettrage, modèles, réimputation…) demandent
+`/comptes?retenus=true`, qui rend les comptes retenus ET tout compte UTILISÉ,
+lu dans le schéma (`identifiantsUtilises`, « tout lien retient ») · un compte
+en usage ne disparaît jamais d'une liste. Le plan normalisé semé part non
+retenu, un compte créé par le cabinet naît retenu, les dossiers existants ont
+tout gardé. Jamais un refus · états, imports et écritures automatiques lisent
+tout le plan, et les numéros semés ne se renumérotent pas (§ 7).
+
 **Suppression des structures · tout lien retient (2026-09-25).** Troisième
 manque de la comparaison Sage i7. Comptes, journaux, tiers et taux de taxes se
 suppriment (route DELETE, administrateur seul), et la règle est celle du manuel

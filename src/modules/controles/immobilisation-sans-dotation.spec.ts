@@ -21,7 +21,7 @@ import { PrismaService } from '../../common/prisma.service';
 
 type Immo = {
   designation: string;
-  dateMiseEnService: Date;
+  dateMiseEnService: Date | null;
   valeurOrigine: number;
   valeurResiduelle: number;
   amortissementAnterieur: number;
@@ -36,6 +36,19 @@ const bien = (p: Partial<Immo> & { designation: string }): Immo => ({
   dotations: [],
   ...p,
 });
+
+// La doublure HONORE le filtre de date avec la sémantique SQL · une date
+// nulle ne satisfait jamais `lt`/`lte`, et `not: null` l'écarte. Une doublure
+// qui rendrait tout ce qu'on lui donne validerait un service qui laisserait
+// passer le bien jamais mis en service.
+type FiltreDate = { not?: null; lt?: Date; lte?: Date } | undefined;
+function passeFiltreDate(d: Date | null, f: FiltreDate): boolean {
+  if (!f) return true;
+  if ('not' in f && f.not === null && d === null) return false;
+  if (f.lt !== undefined && (d === null || !(d < f.lt))) return false;
+  if (f.lte !== undefined && (d === null || !(d <= f.lte))) return false;
+  return true;
+}
 
 function service(immobilisations: Immo[]) {
   const prisma = {
@@ -64,10 +77,12 @@ function service(immobilisations: Immo[]) {
     // Le contrôle 30 lit les rapprochements qui tiennent un à-nouveau · aucun ici.
     rapprochementBancaire: { findMany: jest.fn().mockResolvedValue([]) },
     // Le contrôle 12 (bien repris sans amortissement antérieur) interroge la
-    // même table · il filtre sur dateMiseEnService < ouverture du dossier, que
-    // ce faux ignore. Ses signalements éventuels ne gênent pas : on ne lit ici
-    // que le code IMMO_SANS_DOTATION.
-    immobilisation: { findMany: jest.fn().mockResolvedValue(immobilisations) },
+    // même table, filtrée sur dateMiseEnService < ouverture du dossier.
+    immobilisation: {
+      findMany: jest.fn(async (args: { where?: { dateMiseEnService?: FiltreDate } }) =>
+        immobilisations.filter((i) => passeFiltreDate(i.dateMiseEnService, args?.where?.dateMiseEnService)),
+      ),
+    },
   } as unknown as PrismaService;
   return new ControlesService(prisma);
 }
@@ -133,5 +148,24 @@ describe('immobilisation amortissable sans dotation sur l’exercice', () => {
       bien({ designation: 'Ordinateur', dotations: [{ exerciceId: 'ex', montant: 1 }] }),
     ]);
     expect(a!.occurrences.map((o) => o.reference)).toEqual(['Véhicule', 'Mobilier']);
+  });
+
+  it('se tait sur un bien acquis et jamais mis en service (AUDCIF art. 45)', async () => {
+    // L'amortissement court de la mise en état de fonctionner · un bien sans
+    // date de mise en service n'a rien à doter, et le lui reprocher serait un
+    // signalement faux.
+    const a = await signale([bien({ designation: 'Groupe électrogène en caisse', dateMiseEnService: null })]);
+    expect(a).toBeUndefined();
+  });
+
+  it('le contrôle 12 ne réclame pas d\'antérieur à un bien jamais mis en service', async () => {
+    // Le bien de 2024 SERT DE TÉMOIN · il est bien signalé, si bien que le
+    // silence sur l'autre n'est pas celui d'un contrôle qui ne tourne pas.
+    const rapport = await service([
+      bien({ designation: 'Groupe électrogène en caisse', dateMiseEnService: null }),
+      bien({ designation: 'Véhicule repris', dateMiseEnService: new Date('2024-03-01') }),
+    ]).analyser('t', 'ex');
+    const repris = rapport.anomalies.find((x) => x.code === 'IMMO_REPRISE_SANS_ANTERIEUR');
+    expect(repris!.occurrences.map((o) => o.reference)).toEqual(['Véhicule repris']);
   });
 });

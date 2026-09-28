@@ -513,7 +513,7 @@ export function EtatsSmtPage() {
             )}
             {notes.note1.lignes.map((l, i) => (
               <div key={i} className="grid grid-cols-[86px_1fr_110px_100px_78px_86px_110px] gap-2 px-4 py-1 text-[11.5px]">
-                <span className="font-mono text-[11.5px]">{jour(l.dateMiseEnService)}</span>
+                <span className="font-mono text-[11.5px]">{l.dateMiseEnService ? jour(l.dateMiseEnService) : 'Non mis en service'}</span>
                 <span>{l.designation}</span>
                 <span className="font-mono text-right">{montant(l.montant)}</span>
                 <span className="font-mono text-[11.5px]">{jour(l.dateAcquisition)}</span>

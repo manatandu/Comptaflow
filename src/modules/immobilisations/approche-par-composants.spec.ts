@@ -189,6 +189,24 @@ describe('les deux pièces, et leurs deux dates de départ opposées', () => {
     expect(creations[0].typeComposant).toBe(TypeComposant.PIECE_DE_SECURITE);
   });
 
+  it('la pièce de sécurité ne reste jamais « non mise en service » · sans date, refusée', async () => {
+    // Elle s'amortit dès l'acquisition, qu'elle serve ou non · la laisser sans
+    // date la sortirait de la seule règle de date que le texte rend vérifiable.
+    const { svc, creations } = harnais();
+    const { dateMiseEnService: _d, ...sansDate } = ASCENSEUR;
+    await expect(
+      svc.creer('t1', 'u1', { ...sansDate, typeComposant: TypeComposant.PIECE_DE_SECURITE } as never),
+    ).rejects.toThrow(/ne reste pas « non mise en service »/);
+    expect(creations).toEqual([]);
+  });
+
+  it('la pièce de rechange peut attendre son intégration · sans date, acceptée', async () => {
+    const { svc, creations } = harnais();
+    const { dateMiseEnService: _d, ...sansDate } = ASCENSEUR;
+    await svc.creer('t1', 'u1', { ...sansDate, typeComposant: TypeComposant.PIECE_DE_RECHANGE } as never);
+    expect(creations[0].dateMiseEnService).toBeNull();
+  });
+
   it('la pièce de rechange, elle, démarre à son intégration · aucune date imposée', async () => {
     // La date d'intégration n'est connue de personne d'autre que du comptable ;
     // aucun contrôle ne peut la contredire, et ce test dit que c'est voulu.

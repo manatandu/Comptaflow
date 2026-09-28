@@ -8,6 +8,7 @@ import { PlanFiscalDegressif } from '../components/PlanFiscalDegressif';
 import type { Compte, FamilleImmobilisation, Immobilisation, Journal, LieuBien, TypeComposant } from '../lib/types';
 import { montant } from '../lib/montants';
 import { libelleExercice } from '../lib/libelle-exercice';
+import { avertissementEcartBareme, sectionsDuBareme, type NatureBaremeFiscal } from '../lib/bareme-fiscal';
 
 /**
  * Immobilisations (§3.3) : familles (gabarits, comptes + durée par défaut ·
@@ -69,7 +70,16 @@ export function ImmobilisationsPage() {
   const [iDesignation, setIDesignation] = useState('');
   const [iNumeroInventaire, setINumeroInventaire] = useState('');
   const [iDateAcquisition, setIDateAcquisition] = useState(() => new Date().toISOString().slice(0, 10));
+  // Vide, le bien est acquis et pas encore en état de fonctionner (AUDCIF
+  // art. 45) · aucune dotation tant que la mise en service n'est pas posée.
   const [iDateMiseEnService, setIDateMiseEnService] = useState(() => new Date().toISOString().slice(0, 10));
+  // Nature du barème fiscal (arrêté n° 013/2025, art. 2) · elle PROPOSE la
+  // durée, ne l'impose jamais, et l'écart se signale sans refuser.
+  const [iNatureFiscale, setINatureFiscale] = useState('');
+  const [bareme, setBareme] = useState<NatureBaremeFiscal[]>([]);
+  // Le cadre « composant » se replie derrière sa case · un bien sur dix en
+  // est un, et les champs ouverts d'office se lisaient comme obligatoires.
+  const [estComposant, setEstComposant] = useState(false);
   const [iValeurOrigine, setIValeurOrigine] = useState('');
   const [iValeurResiduelle, setIValeurResiduelle] = useState('0');
   // Bien REPRIS · ce qui a été amorti avant l'entrée dans le logiciel. Zéro
@@ -135,14 +145,18 @@ export function ImmobilisationsPage() {
   const [rContrepartie, setRContrepartie] = useState('');
 
   const charger = async () => {
-    const [f, i, c2, ctrésorerie, jrn, lx] = await Promise.all([
+    const [f, i, c2, ctrésorerie, jrn, lx, bf] = await Promise.all([
       api.get<FamilleImmobilisation[]>('/immobilisations/familles'),
       api.get<Immobilisation[]>('/immobilisations'),
       api.get<Compte[]>('/comptes?classe=CLASSE_2&typeCompte=DETAIL'),
       api.get<Compte[]>('/comptes?typeCompte=DETAIL'),
       api.get<Journal[]>('/journaux'),
       api.get<LieuBien[]>('/immobilisations/lieux'),
+      // Le barème ne conditionne rien · illisible, le choix de nature
+      // disparaît et la saisie reste entière.
+      api.get<NatureBaremeFiscal[]>('/immobilisations/bareme-fiscal').catch(() => [] as NatureBaremeFiscal[]),
     ]);
+    setBareme(bf);
     setLieux(lx);
     setFamilles(f);
     setImmobilisations(i);
@@ -251,7 +265,9 @@ export function ImmobilisationsPage() {
         numeroInventaire: iNumeroInventaire || undefined,
         lieuId: iLieuId || undefined,
         dateAcquisition: iDateAcquisition,
-        dateMiseEnService: iDateMiseEnService,
+        // Vide · bien non encore mis en service, la date se pose plus tard.
+        dateMiseEnService: iDateMiseEnService || undefined,
+        natureFiscaleCle: iNatureFiscale || undefined,
         valeurOrigine: Number(iValeurOrigine),
         valeurResiduelle: Number(iValeurResiduelle || 0),
         dureeAmortissementAns: iDuree ? Number(iDuree) : undefined,
@@ -262,9 +278,9 @@ export function ImmobilisationsPage() {
         compteContrepartieId: iRepris ? undefined : iCompteContrepartie,
         exerciceId: exerciceCourant?.id,
         journalId: iRepris ? undefined : iJournalId,
-        immobilisationPrincipaleId: iPrincipal || undefined,
-        typeComposant: iPrincipal ? iTypeComposant : undefined,
-        justificationDecomposition: iPrincipal ? iJustification : undefined,
+        immobilisationPrincipaleId: estComposant && iPrincipal ? iPrincipal : undefined,
+        typeComposant: estComposant && iPrincipal ? iTypeComposant : undefined,
+        justificationDecomposition: estComposant && iPrincipal ? iJustification : undefined,
       });
       setIDesignation('');
       setIPrincipal('');
@@ -277,6 +293,8 @@ export function ImmobilisationsPage() {
       setIAmortissementAnterieur('0');
       setIDuree('');
       setIMode('');
+      setINatureFiscale('');
+      setEstComposant(false);
       setIUnites('');
       setIUniteLibelle('');
       setAfficherFormImmo(false);
@@ -302,6 +320,33 @@ export function ImmobilisationsPage() {
       await charger();
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Impossible de passer la dotation');
+    }
+  };
+
+  /**
+   * Mise en service d'un bien acquis et pas encore en état de fonctionner
+   * (AUDCIF art. 45) · la date se pose une fois, jamais avant l'acquisition,
+   * et c'est le serveur qui le refuse. Aucune écriture n'est passée.
+   */
+  const mettreEnService = async (immo: Immobilisation) => {
+    const saisie = window.prompt(
+      `${immo.designation} · date de mise en service (AAAA-MM-JJ). Elle se pose une fois et ne précède pas l'acquisition.`,
+      new Date().toISOString().slice(0, 10),
+    );
+    if (saisie === null) return;
+    const date = saisie.trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      setErreur('Date de mise en service illisible · attendue au format AAAA-MM-JJ.');
+      return;
+    }
+    setErreur(null);
+    setInfo(null);
+    try {
+      await api.patch(`/immobilisations/${immo.id}/mise-en-service`, { date });
+      setInfo(`${immo.designation} mis en service au ${date.split('-').reverse().join('/')}.`);
+      await charger();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Impossible de poser la mise en service');
     }
   };
 
@@ -757,7 +802,14 @@ export function ImmobilisationsPage() {
               <input value={iNumeroInventaire} onChange={(e) => setINumeroInventaire(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono" />
             </label>
             <label className="text-[11.5px] font-semibold text-text-dim">
-              Lieu
+              <span className="flex items-center gap-1">
+                Lieu
+                <Aide
+                  titre="Lieu du bien"
+                  texte="Emplacement physique du bien, pris dans le référentiel des lieux du dossier. Il sert à retrouver le bien lors de l'inventaire physique. Sans aucun effet comptable : déplacer un bien ne passe aucune écriture."
+                  source="Référentiel des lieux du dossier"
+                />
+              </span>
               <select value={iLieuId} onChange={(e) => setILieuId(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal">
                 <option value="">Non placé</option>
                 {lieux.map((l) => (
@@ -766,7 +818,14 @@ export function ImmobilisationsPage() {
               </select>
             </label>
             <label className="text-[11.5px] font-semibold text-text-dim">
-              Famille
+              <span className="flex items-center gap-1">
+                Famille
+                <Aide
+                  titre="Famille d'immobilisations"
+                  texte="Gabarit qui donne au bien ses comptes (immobilisation 2x, amortissements 28, dotations 681) ainsi que la durée et le mode d'amortissement proposés. La durée et le mode se changent sur le bien ; les comptes ne changent que par un reclassement."
+                  source="Structure > Familles d'immobilisations"
+                />
+              </span>
               <select required value={iFamilleId} onChange={(e) => setIFamilleId(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal">
                 <option value="" />
                 {/* Une famille en sommeil ne reçoit plus de bien (audit final F129). */}
@@ -780,8 +839,15 @@ export function ImmobilisationsPage() {
               <input required type="date" value={iDateAcquisition} onChange={(e) => setIDateAcquisition(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono" />
             </label>
             <label className="text-[11.5px] font-semibold text-text-dim">
-              Date de mise en service
-              <input required type="date" value={iDateMiseEnService} onChange={(e) => setIDateMiseEnService(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono" />
+              <span className="flex items-center gap-1">
+                Date de mise en service
+                <Aide
+                  titre="Mise en service"
+                  texte="Vide, le bien est acquis mais pas encore en état de fonctionner : aucune dotation n'est passée. La date se pose ensuite depuis la liste (« Mettre en service »), une fois, et jamais avant l'acquisition."
+                  source="AUDCIF art. 45"
+                />
+              </span>
+              <input type="date" value={iDateMiseEnService} onChange={(e) => setIDateMiseEnService(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono" />
             </label>
             <label className="text-[11.5px] font-semibold text-text-dim">
               Valeur d'origine
@@ -791,6 +857,36 @@ export function ImmobilisationsPage() {
               Valeur résiduelle
               <input type="number" step="0.01" min={0} value={iValeurResiduelle} onChange={(e) => setIValeurResiduelle(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono" />
             </label>
+            {bareme.length > 0 && (
+              <label className="text-[11.5px] font-semibold text-text-dim">
+                <span className="flex items-center gap-1">
+                  Nature du bien (barème fiscal)
+                  <Aide
+                    titre="Barème fiscal"
+                    texte="Choisir la nature propose sa durée d'amortissement. La durée saisie reste libre : un écart au barème est signalé, jamais refusé. Un taux supérieur au barème n'est admis que si l'entreprise en justifie les circonstances lors du contrôle, sous peine de rejet. Barème en vigueur depuis le 1er janvier 2026."
+                    source="Arrêté n° 013/CAB/MIN/FINANCES/2025, art. 2, 4 et 6 · loi n° 23/053, art. 28"
+                  />
+                </span>
+                <select
+                  value={iNatureFiscale}
+                  onChange={(e) => {
+                    setINatureFiscale(e.target.value);
+                    const n = bareme.find((x) => x.cle === e.target.value);
+                    if (n) setIDuree(String(n.dureeAns));
+                  }}
+                  className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal"
+                >
+                  <option value="">Non précisée</option>
+                  {sectionsDuBareme(bareme).map((g) => (
+                    <optgroup key={g.section} label={`${g.section} · ${g.intitule}`}>
+                      {g.lignes.map((n) => (
+                        <option key={n.cle} value={n.cle}>{n.designation} · {n.dureeAns} ans</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </label>
+            )}
             <label className="text-[11.5px] font-semibold text-text-dim">
               <span className="flex items-center gap-1">
                 Durée d'amortissement (années)
@@ -811,6 +907,17 @@ export function ImmobilisationsPage() {
                 })()}
                 className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono"
               />
+              {/* Écart au barème fiscal · signalé, jamais refusé (arrêté
+                  n° 013/2025, art. 4). Vide, la durée est celle de la famille. */}
+              {(() => {
+                const duree = iDuree ? Number(iDuree) : familleChoisie?.dureeAmortissementAns ?? null;
+                const alerte = avertissementEcartBareme(
+                  duree,
+                  bareme.find((n) => n.cle === iNatureFiscale),
+                  exerciceCourant?.dateFin,
+                );
+                return alerte ? <span className="block mt-1 text-[11px] font-normal text-warning">{alerte}</span> : null;
+              })()}
             </label>
             {unitesServies && (
               <label className="text-[11.5px] font-semibold text-text-dim">
@@ -887,14 +994,24 @@ export function ImmobilisationsPage() {
               plan d'amortissement, ce qui est tout l'objet du chapitre. */}
 {composantsServis && (
           <div className="border-t border-border pt-3 mb-3">
-            <div className="font-mono text-[11px] font-semibold text-text-dim mb-2 flex items-center gap-1.5">
-              COMPOSANT D’UNE AUTRE IMMOBILISATION (facultatif)
+            <label className="text-[11.5px] font-semibold text-text-dim mb-2 flex items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={estComposant}
+                onChange={(e) => {
+                  setEstComposant(e.target.checked);
+                  if (!e.target.checked) setIPrincipal('');
+                }}
+              />
+              Ce bien est un composant d’un autre bien
               <Aide
                 titre="Approche par composants"
-                texte="Une pièce de SÉCURITÉ s’amortit dès l’acquisition du bien principal, qu’elle serve ou non ; une pièce de RECHANGE seulement à partir du jour où elle y est intégrée. Un composant ne porte pas de valeur résiduelle, sauf s’il s’agit du dernier renouvellement avant la fin d’utilisation du bien."
-                source="AUDCIF Titre VIII ch. 4 § 3.3 et § 4.3"
+                texte="Un composant est une immobilisation à part entière, rattachée à son bien principal, avec son propre plan d’amortissement. Une pièce de SÉCURITÉ s’amortit dès l’acquisition du bien principal, qu’elle serve ou non ; une pièce de RECHANGE seulement à partir du jour où elle y est intégrée. Un composant ne porte pas de valeur résiduelle, sauf s’il s’agit du dernier renouvellement avant la fin d’utilisation du bien."
+                source="AUDCIF Titre VIII ch. 4 § 1, § 3.3 et § 4.3"
               />
-            </div>
+            </label>
+            {estComposant && (
+            <>
             <div className="grid grid-cols-3 gap-3">
               <label className="text-[11.5px] font-semibold text-text-dim">
                 Immobilisation principale
@@ -931,6 +1048,8 @@ export function ImmobilisationsPage() {
                   />
                 </label>
               </>
+            )}
+            </>
             )}
           </div>
           )}
@@ -994,7 +1113,11 @@ export function ImmobilisationsPage() {
                     immo.lieu && <span className="block text-[11px] text-text-dim">{immo.lieu.code} · {immo.lieu.intitule}</span>
                   )}
                 </span>
-                <span className="font-mono text-[11px] text-text-dim">{new Date(immo.dateMiseEnService).toLocaleDateString('fr-FR')}</span>
+                {/* Sans date, le bien est acquis et pas encore en service
+                    (AUDCIF art. 45) · jamais new Date(null), qui rendrait 1970. */}
+                <span className="font-mono text-[11px] text-text-dim">
+                  {immo.dateMiseEnService ? new Date(immo.dateMiseEnService).toLocaleDateString('fr-FR') : 'Non mis en service'}
+                </span>
                 <span className="font-mono text-right">{montant(immo.valeurOrigine)}</span>
                 <span className="font-mono text-right">{montant(cumulAmorti(immo))}</span>
                 <span className="font-mono text-right font-semibold">{montant(vcn(immo))}</span>
@@ -1037,10 +1160,25 @@ export function ImmobilisationsPage() {
                           Relevé
                         </button>
                       )}
+                      {!immo.dateMiseEnService && (
+                        <button
+                          onClick={() => void mettreEnService(immo)}
+                          title="Poser la date de mise en service · une fois, jamais avant l'acquisition (AUDCIF art. 45)"
+                          className="text-[11px] text-sel hover:underline"
+                        >
+                          Mettre en service
+                        </button>
+                      )}
                       <button
                         onClick={() => passerDotation(immo.id)}
-                        disabled={dejaDoteeCetExercice(immo)}
-                        title={dejaDoteeCetExercice(immo) ? 'Déjà dotée pour cet exercice' : 'Passer la dotation de cet exercice'}
+                        disabled={!immo.dateMiseEnService || dejaDoteeCetExercice(immo)}
+                        title={
+                          !immo.dateMiseEnService
+                            ? 'Aucune dotation avant la mise en service (AUDCIF art. 45)'
+                            : dejaDoteeCetExercice(immo)
+                              ? 'Déjà dotée pour cet exercice'
+                              : 'Passer la dotation de cet exercice'
+                        }
                         className="text-[11px] text-sel hover:underline disabled:opacity-40 disabled:no-underline"
                       >
                         Doter

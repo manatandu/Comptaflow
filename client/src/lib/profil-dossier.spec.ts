@@ -182,7 +182,7 @@ describe('les sous-fonctions d’une fenêtre utile', () => {
 
   it('Immobilisations enveloppe le bloc des composants et le bouton Révision', () => {
     const src = page('ImmobilisationsPage.tsx');
-    const bloc = src.indexOf('COMPOSANT D’UNE AUTRE IMMOBILISATION');
+    const bloc = src.indexOf('Ce bien est un composant d’un autre bien');
     const garde = src.lastIndexOf('{composantsServis && (', bloc);
     expect(garde).toBeGreaterThan(0);
     // Aucune autre accolade JSX ouverte entre la garde et le titre du bloc.

@@ -3593,8 +3593,26 @@ model Immobilisation {
   // prorata temporis de la première annuité, à compter du premier jour du
   // mois de mise en service, vient de la LOI n° 23/053, art. 34 · et non de
   // l'arrêté n° 013/2025, qui ne porte que les taux.
+  //
+  // NULLE TANT QUE LE BIEN N'EST PAS MIS EN SERVICE (2026-09-28). Un bien
+  // acquis entre à l'actif à son acquisition, mais « la date de début
+  // d'amortissement est la date à laquelle l'actif immobilisé est en état de
+  // fonctionner et au lieu d'utilisation prévu par l'entité » (AUDCIF art. 45)
+  // et « la date de départ de l'amortissement est la date de mise en
+  // service » (Titre VIII, ch. 1 à 7). Exiger une date à la création faisait
+  // saisir une date inventée pour un bien encore en caisse, et l'amortissement
+  // partait avec elle. Nulle, aucune dotation ne se calcule ; elle se pose une
+  // fois (`ImmobilisationService.mettreEnService`), jamais avant l'acquisition.
   dateAcquisition   DateTime
-  dateMiseEnService DateTime
+  dateMiseEnService DateTime?
+
+  /// NATURE DU BIEN AU BARÈME FISCAL · clé d'une ligne de l'arrêté
+  /// n° 013/CAB/MIN/FINANCES/2025, art. 2 (`bareme-amortissement-013-2025.ts`,
+  /// engendré depuis la compétence). Nulle si le cabinet n'en a retenu aucune.
+  /// Elle ne commande AUCUN calcul · la durée comptable reste celle d'utilité
+  /// (AUDCIF art. 45) ; la nature est gardée pour qu'un contrôle ou la liasse
+  /// confronte les deux durées, l'écart se justifiant au contrôle (art. 4).
+  natureFiscaleCle String?
 
   valeurOrigine    Decimal @db.Decimal(18, 2)
   // Déduite de la base amortissable (skill sycebnl, COMPTE 28).

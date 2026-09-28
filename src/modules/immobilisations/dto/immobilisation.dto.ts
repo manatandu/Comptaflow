@@ -71,8 +71,24 @@ export class CreerImmobilisationDto {
   @IsDateString()
   dateAcquisition!: string;
 
+  /**
+   * Absente ou nulle · le bien est acquis et PAS ENCORE mis en service
+   * (AUDCIF art. 45), rien ne se dote avant `PATCH :id/mise-en-service`. La
+   * colonne est nullable, `null` vaut donc « pas encore » et non un oubli.
+   */
+  @IsOptional()
   @IsDateString()
-  dateMiseEnService!: string;
+  dateMiseEnService?: string | null;
+
+  /**
+   * Nature du bien au barème de l'arrêté n° 013/CAB/MIN/FINANCES/2025,
+   * art. 2 · clé « section.rang » (`bareme-amortissement-013-2025.ts`). Elle
+   * propose une durée, elle n'en impose aucune.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  natureFiscaleCle?: string | null;
 
   @IsNumber()
   @IsPositive()
@@ -481,6 +497,16 @@ export class LieuBienDto {
   @Matches(/\S/, { message: 'L’intitulé du lieu est obligatoire.' })
   @MaxLength(120)
   intitule!: string;
+}
+
+/**
+ * Mettre en service un bien acquis · la date se pose UNE fois. Obligatoire
+ * ici, contrairement à la création · « mettre en service sans date » ne veut
+ * rien dire.
+ */
+export class MiseEnServiceDto {
+  @IsDateString()
+  date!: string;
 }
 
 /** Porter un bien à un lieu, ou le retirer de tout lieu (`null`). */

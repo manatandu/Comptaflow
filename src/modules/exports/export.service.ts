@@ -4121,8 +4121,14 @@ export class ExportService {
       if (note1.lignes.length === 0) r = bandeNeant(ws, r + 1, 7) - 1;
       for (const l of note1.lignes) {
         r += 1;
-        ws.getCell(r, 1).value = new Date(l.dateMiseEnService);
-        ws.getCell(r, 1).numFmt = 'DD/MM/YYYY';
+        // Un bien acquis et pas encore mis en service reste à l'actif (NOTE 1) ·
+        // la cellule le DIT, jamais une date inventée ni un 1er janvier 1970.
+        if (l.dateMiseEnService) {
+          ws.getCell(r, 1).value = new Date(l.dateMiseEnService);
+          ws.getCell(r, 1).numFmt = 'DD/MM/YYYY';
+        } else {
+          ws.getCell(r, 1).value = 'Non mis en service';
+        }
         ws.getCell(r, 2).value = l.designation;
         ws.getCell(r, 3).value = l.montant;
         ws.getCell(r, 4).value = new Date(l.dateAcquisition);

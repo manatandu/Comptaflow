@@ -148,11 +148,15 @@ export type LignePlanFiscal = {
 export function planFiscalDegressif(p: {
   base: number;
   dureeFiscaleAns: number;
-  dateMiseEnService: Date;
+  /** Nulle tant que le bien n'est pas mis en service · aucun plan ne court alors (art. 34). */
+  dateMiseEnService: Date | null;
   exercices: readonly { id: string; dateDebut: Date; dateFin: Date }[];
 }): LignePlanFiscal[] {
   const coef = coefficientDegressif(p.dureeFiscaleAns);
-  if (coef === null || !(p.base > 0)) return [];
+  // La première annuité part du mois de mise en service (art. 34) · sans cette
+  // date il n'y a pas de point de départ, et en inventer un doterait un bien
+  // qui ne sert pas encore.
+  if (coef === null || !(p.base > 0) || !p.dateMiseEnService) return [];
   const taux = (1 / p.dureeFiscaleAns) * coef;
   const mes = new Date(Date.UTC(p.dateMiseEnService.getUTCFullYear(), p.dateMiseEnService.getUTCMonth(), 1));
   const lignes: LignePlanFiscal[] = [];

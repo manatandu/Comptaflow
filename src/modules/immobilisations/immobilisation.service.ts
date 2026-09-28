@@ -27,10 +27,12 @@ import {
   SaisirConsommationDto,
   SortirImmobilisationDto,
   TypeSortie,
+  MiseEnServiceDto,
 } from './dto/immobilisation.dto';
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 import { exerciceDuDossierOuRefus } from '../../common/exercice-introuvable';
 import { motifRefusContrepartie, racinesContrepartieAcquisition } from './contrepartie-acquisition';
+import { natureDuBareme } from './bareme-fiscal';
 
 const EPSILON = 0.005;
 
@@ -556,6 +558,60 @@ export class ImmobilisationService {
     });
   }
 
+  /**
+   * MISE EN SERVICE d'un bien acquis et resté « non mis en service ». AUDCIF
+   * art. 45 · « la date de début d'amortissement est la date à laquelle
+   * l'actif immobilisé est en état de fonctionner et au lieu d'utilisation
+   * prévu par l'entité ». Tant qu'elle manque, aucune dotation ne court ;
+   * posée, elle ouvre le plan.
+   *
+   * TROIS REFUS. La date se pose UNE fois · la déplacer après coup
+   * réécrirait un plan déjà doté, et la dotation passée resterait au journal
+   * sous un plan qui ne la justifie plus. Jamais avant l'acquisition · un bien
+   * ne fonctionne pas avant d'être à l'entité. Et seulement sur un bien encore
+   * à l'actif, un bien sorti n'ayant plus de plan à ouvrir.
+   *
+   * L'ÉCRITURE EST UNITAIRE, jamais un `updateMany` · le journal d'audit
+   * (Immobilisation est dans MODELES_AUDITES) garde l'état antérieur de la
+   * ligne, là où un `updateMany` n'y laisse que son filtre. La condition
+   * `dateMiseEnService: null` du `where` tranche une course entre deux
+   * postes · le second trouve la ligne déjà prise et reçoit un 409.
+   */
+  async mettreEnService(tenantId: string, id: string, dto: MiseEnServiceDto) {
+    const immo = await this.prisma.immobilisation.findFirst({
+      where: { id, tenantId },
+      select: { id: true, dateAcquisition: true, dateMiseEnService: true, statut: true },
+    });
+    if (!immo) throw new NotFoundException('Immobilisation introuvable');
+    if (immo.statut !== StatutImmobilisation.EN_SERVICE) {
+      throw new BadRequestException("Ce bien est sorti de l'actif · il n'a plus de plan à ouvrir.");
+    }
+    if (immo.dateMiseEnService) {
+      throw new ConflictException(
+        `Ce bien est déjà mis en service le ${immo.dateMiseEnService.toISOString().slice(0, 10)} · la date ne se déplace pas, le plan en dépend.`,
+      );
+    }
+    const date = new Date(dto.date);
+    if (Number.isNaN(date.getTime())) throw new BadRequestException('Date de mise en service illisible.');
+    if (date < immo.dateAcquisition) {
+      throw new BadRequestException(
+        `La mise en service ne peut précéder l'acquisition (${immo.dateAcquisition.toISOString().slice(0, 10)}) · AUDCIF art. 45.`,
+      );
+    }
+    try {
+      return await this.prisma.immobilisation.update({
+        where: { id, tenantId, dateMiseEnService: null },
+        data: { dateMiseEnService: date },
+        select: { id: true, dateMiseEnService: true },
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+        throw new ConflictException("Ce bien vient d'être mis en service depuis un autre poste · rechargez la liste.");
+      }
+      throw err;
+    }
+  }
+
   /** Un lieu d'un autre dossier n'existe pas, pour celui-ci. */
   private async lieuDuDossier(tenantId: string, lieuId: string) {
     const lieu = await this.prisma.lieuBien.findFirst({ where: { id: lieuId, tenantId }, select: { id: true } });
@@ -795,7 +851,8 @@ export class ImmobilisationService {
       typeComposant?: TypeComposant;
       valeurResiduelle?: number;
       dernierRenouvellement?: boolean;
-      dateMiseEnService: string;
+      /** Absente tant que le bien n'est pas mis en service (AUDCIF art. 45). */
+      dateMiseEnService?: string | null;
       dateAcquisition?: string;
       /** La durée EFFECTIVE · celle saisie, sinon celle de la famille. */
       dureeAmortissementAns: number;
@@ -860,8 +917,21 @@ export class ImmobilisationService {
       renouvellement ; exiger la date du principal refusait tout
       renouvellement, APRÈS que l'ancienne pièce était sortie.
     */
+    /*
+      UNE PIÈCE DE SÉCURITÉ NE CONNAÎT PAS L'ÉTAT « NON MIS EN SERVICE ».
+      Son amortissement démarre à une ACQUISITION (celle du principal, ou la
+      sienne quand elle en remplace une autre), jamais à une mise en service
+      qu'on attendrait · la laisser sans date la ferait échapper à la seule
+      règle de date que le texte rend vérifiable.
+    */
+    if (dto.typeComposant === TypeComposant.PIECE_DE_SECURITE && !dto.dateMiseEnService) {
+      throw new BadRequestException(
+        "Une pièce de sécurité s'amortit dès l'acquisition, qu'elle serve ou non (SYCEBNL, Partie 2 ch. 3, " +
+          "classe 2) · elle ne reste pas « non mise en service ». Indiquez sa date de début d'amortissement.",
+      );
+    }
     if (dto.typeComposant === TypeComposant.PIECE_DE_SECURITE && renouvellement) {
-      if (dto.dateAcquisition && new Date(dto.dateMiseEnService).getTime() !== new Date(dto.dateAcquisition).getTime()) {
+      if (dto.dateAcquisition && new Date(dto.dateMiseEnService!).getTime() !== new Date(dto.dateAcquisition).getTime()) {
         throw new BadRequestException(
           "Une pièce de sécurité qui en remplace une autre s'amortit dès son acquisition, qu'elle serve ou non · " +
             "sa date de mise en service est sa date d'acquisition. Une pièce qui ne s'amortit qu'à son " +
@@ -869,7 +939,7 @@ export class ImmobilisationService {
         );
       }
     } else if (dto.typeComposant === TypeComposant.PIECE_DE_SECURITE) {
-      const debut = new Date(dto.dateMiseEnService);
+      const debut = new Date(dto.dateMiseEnService!);
       if (debut.getTime() !== principal.dateAcquisition.getTime()) {
         throw new BadRequestException(
           "Une pièce de sécurité s'amortit à compter de l'acquisition de l'immobilisation principale, qu'elle " +
@@ -932,9 +1002,36 @@ export class ImmobilisationService {
     }
 
     const dateAcquisition = new Date(dto.dateAcquisition);
-    const dateMiseEnService = new Date(dto.dateMiseEnService);
-    if (dateMiseEnService < dateAcquisition) {
+    /*
+      UN BIEN ACQUIS N'EST PAS FORCÉMENT EN SERVICE. AUDCIF art. 45 · « la
+      date de début d'amortissement est la date à laquelle l'actif immobilisé
+      est en état de fonctionner et au lieu d'utilisation prévu par
+      l'entité » ; Titre VIII, « la date de départ de l'amortissement est la
+      date de mise en service ». Une machine livrée et pas encore montée est
+      au bilan pour son coût et ne s'amortit pas encore. La date reste donc
+      NULLE, jamais posée d'office au jour de l'acquisition ni à celui de la
+      saisie · une date inventée ferait doter des mois où le bien ne servait
+      pas. Elle se pose ensuite, une fois, par `mettreEnService`. Et jamais
+      `new Date(null)`, qui rend le 1er janvier 1970.
+    */
+    const dateMiseEnService = dto.dateMiseEnService ? new Date(dto.dateMiseEnService) : null;
+    if (dateMiseEnService && dateMiseEnService < dateAcquisition) {
       throw new BadRequestException("La date de mise en service ne peut pas précéder la date d'acquisition");
+    }
+    // Un amortissement déjà pratiqué suppose un bien déjà en service · sans
+    // date, le cumul n'aurait aucune origine d'où compter la durée restante.
+    if (!dateMiseEnService && (dto.amortissementAnterieur ?? 0) > EPSILON) {
+      throw new BadRequestException(
+        "Un bien déjà amorti a été mis en service · indiquez sa date de mise en service avec l'amortissement déjà pratiqué.",
+      );
+    }
+    // La nature au barème ne commande aucun calcul · elle se vérifie pour ne
+    // pas garder une clé que l'écran ne saurait plus relire.
+    const natureFiscaleCle = dto.natureFiscaleCle?.trim() || null;
+    if (natureFiscaleCle && !natureDuBareme(natureFiscaleCle)) {
+      throw new BadRequestException(
+        `Nature « ${natureFiscaleCle} » absente du barème de l'arrêté n° 013/CAB/MIN/FINANCES/2025 (art. 2).`,
+      );
     }
 
     /*
@@ -1145,6 +1242,7 @@ export class ImmobilisationService {
           compteDotationId: famille.compteDotationId,
           dateAcquisition,
           dateMiseEnService,
+          natureFiscaleCle,
           valeurOrigine: dto.valeurOrigine,
           valeurResiduelle: dto.valeurResiduelle ?? 0,
           dureeAmortissementAns: dto.dureeAmortissementAns ?? famille.dureeAmortissementAns,
@@ -1379,7 +1477,8 @@ export class ImmobilisationService {
     valeurOrigine: number,
     valeurResiduelle: number,
     dureeAns: number,
-    dateMiseEnService: Date,
+    /** Nulle · bien acquis, PAS ENCORE mis en service, rien à doter. */
+    dateMiseEnService: Date | null,
     dotationsAnterieures: Array<{ montant: number }>,
     exercice: { dateDebut: Date; dateFin: Date },
     amortissementAnterieur = 0,
@@ -1399,6 +1498,12 @@ export class ImmobilisationService {
      */
     uniteOeuvre: { prevues: number; consommees: number; consommeesAnterieures: number } | null = null,
   ): number {
+    // PAS DE MISE EN SERVICE, PAS DE DOTATION · AUDCIF art. 45, la date de
+    // début d'amortissement est celle où l'actif est « en état de
+    // fonctionner ». Le test passe AVANT tout calcul, unités d'œuvre
+    // comprises · un relevé saisi sur un bien qui ne sert pas encore ne
+    // l'amortit pas.
+    if (!dateMiseEnService) return 0;
     const base = this.baseAmortissable(valeurOrigine, valeurResiduelle);
     const cumulAnterieur =
       dotationsAnterieures.reduce((s, d) => s + d.montant, 0) + Math.max(0, amortissementAnterieur);
@@ -1802,13 +1907,15 @@ export class ImmobilisationService {
       // Mois effectivement servis : depuis le mois de mise en service (ou le
       // début de l'exercice si elle est antérieure) jusqu'au mois de sortie
       // (ou la fin de l'exercice).
+      // Un bien pas encore mis en service ne sert AUCUN mois · il figure au
+      // tableau pour sa valeur brute, sans dotation.
       const finService = immo.dateSortie && immo.dateSortie < exercice.dateFin ? immo.dateSortie : exercice.dateFin;
+      const miseEnService = immo.dateMiseEnService;
       const servis = moisDeLExercice.map(({ annee, mois }) => {
+        if (!miseEnService) return false;
         const premierJour = new Date(Date.UTC(annee, mois, 1));
         const dernierJour = new Date(Date.UTC(annee, mois + 1, 0));
-        const debutService = new Date(
-          Date.UTC(immo.dateMiseEnService.getUTCFullYear(), immo.dateMiseEnService.getUTCMonth(), 1),
-        );
+        const debutService = new Date(Date.UTC(miseEnService.getUTCFullYear(), miseEnService.getUTCMonth(), 1));
         return debutService <= dernierJour && premierJour <= finService;
       });
       const nbServis = servis.filter(Boolean).length;
@@ -1999,6 +2106,16 @@ export class ImmobilisationService {
     });
     if (dejaPassee) {
       throw new ConflictException('Une dotation a déjà été passée pour cette immobilisation sur cet exercice');
+    }
+    // Refus NOMMÉ, et AVANT la lecture des unités d'œuvre · celle-ci réclame
+    // un relevé, et le cabinet chercherait un compteur pour un bien qui ne
+    // sert pas encore. Le « aucun montant à doter » générique ne dirait pas
+    // pourquoi.
+    if (!immo.dateMiseEnService) {
+      throw new BadRequestException(
+        "Ce bien n'est pas encore mis en service · aucune dotation avant sa mise en service (AUDCIF art. 45). " +
+          'Indiquez sa date de mise en service depuis la liste des biens.',
+      );
     }
 
     const uniteOeuvre = await this.unitesOeuvreDe(tenantId, immo, dto.exerciceId, exercice.dateFin);
@@ -2543,8 +2660,13 @@ export class ImmobilisationService {
     if (!exercice) throw new BadRequestException('Exercice introuvable pour ce tenant');
     const dateSortie = new Date(dto.dateSortie);
 
-    if (dateSortie < immo.dateMiseEnService) {
+    // Un bien jamais mis en service peut sortir (cédé, détruit avant usage) ·
+    // la borne est alors son acquisition, et il sort sans complément.
+    if (immo.dateMiseEnService && dateSortie < immo.dateMiseEnService) {
       throw new BadRequestException('La date de sortie ne peut pas précéder la date de mise en service');
+    }
+    if (dateSortie < immo.dateAcquisition) {
+      throw new BadRequestException("La date de sortie ne peut pas précéder la date d'acquisition");
     }
     // UN PRINCIPAL NE SORT PAS AVEC SES COMPOSANTS EN SERVICE (audit final
     // F127) · l'ascenseur resterait au bilan, amorti sur son plan propre,
@@ -2636,7 +2758,9 @@ export class ImmobilisationService {
     let cumulAmorti =
       immo.dotations.reduce((s, d) => s + Number(d.montant), 0) + Number(immo.amortissementAnterieur ?? 0);
     const dejaDoteCetExercice = immo.dotations.some((d) => d.exerciceId === dto.exerciceId);
-    const montantComplement = dejaDoteCetExercice
+    // Un bien jamais mis en service n'a rien à compléter · et la lecture des
+    // unités d'œuvre, qui réclame un relevé, ne doit pas bloquer sa sortie.
+    const montantComplement = dejaDoteCetExercice || !immo.dateMiseEnService
       ? 0
       : this.calculerDotation(
           Number(immo.valeurOrigine),

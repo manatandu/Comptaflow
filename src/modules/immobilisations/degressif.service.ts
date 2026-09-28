@@ -156,6 +156,13 @@ export class DegressifService {
   async passer(tenantId: string, userId: string, id: string, dto: PasserDerogatoireDto) {
     const immo = await this.immo(tenantId, id);
     if (!immo.degressifFiscal) throw new BadRequestException("Ce bien n'a pas l'option du dégressif fiscal.");
+    // Sans mise en service, le plan est vide · le refus dit POURQUOI, au lieu du
+    // « pas dans le plan » qui laisserait chercher une erreur d'exercice.
+    if (!immo.dateMiseEnService) {
+      throw new BadRequestException(
+        "Ce bien n'est pas encore mis en service · aucun dérogatoire avant sa mise en service (loi n° 23/053, art. 34). Indiquez sa date de mise en service depuis la liste des biens.",
+      );
+    }
     // Une option prise avant le passage au SMT ne rouvre pas la porte · un
     // nouveau dérogatoire serait publié en F comme un amortissement. Le solde
     // (`solder`), lui, reste ouvert : il éteint l'historique.
