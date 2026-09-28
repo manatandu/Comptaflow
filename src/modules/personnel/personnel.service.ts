@@ -88,6 +88,26 @@ import {
   verdictRemunerationMinimale,
   type ContratPourControle,
 } from './regles-contrat-travail';
+import { lireParLots, pageApres, PremiersSelon } from '../../common/lecture-par-lots';
+
+/**
+ * LES BORNES DES LISTES DE TRAVAIL DU REGISTRE (audit final F259, § 8 bis).
+ * Ce sont des tranches d'ÉCRAN, jamais des documents · une liste tronquée le
+ * dit (`tronque`, `total`), et ce qu'elle compte se compte sur le registre
+ * entier. Mille salariés à l'écran couvrent l'effectif d'une grande ONG ; la
+ * confrontation, qui porte une fiche par contrat et le texte de chaque
+ * manque, en rend cinq cents.
+ */
+export const PLAFOND_REGISTRE_PERSONNEL = 1000;
+export const PLAFOND_CONFRONTATION = 500;
+/**
+ * Salariés lus par tranche pour la confrontation, chacun avec ses enfants et
+ * ses contrats · la mémoire ne dépend plus de l'effectif du dossier.
+ */
+export const LOT_CONFRONTATION = 200;
+
+/** Un salarié tel que la confrontation le lit, enfants et contrats compris. */
+type SalarieConfronte = Prisma.SalarieGetPayload<{ include: { enfants: true; contrats: true } }>;
 
 /**
  * LE PERSONNEL · le registre (P1), puis la paie qui s'appuie sur lui.
@@ -130,21 +150,40 @@ export class PersonnelService {
    * UN SALARIÉ PARTI RESTE AU REGISTRE. Un registre qui efface les partants
    * ne peut plus servir ni le décompte final, ni la déclaration annuelle de
    * l'art. 218, ni un contrôle · c'est son CONTRAT qui se termine.
+   *
+   * UNE LISTE DE TRAVAIL, DONC BORNÉE ET QUI LE DIT (audit final F259, § 8
+   * bis). Elle rendait tout le registre, enfants et contrats compris, à
+   * chaque ouverture de la fenêtre · la mémoire du serveur dépendait de
+   * l'effectif du dossier. Le total est COMPTÉ par la base sur le périmètre
+   * entier, et `tronque` dit quand la tranche en rend moins · « 1 000 » ne
+   * doit jamais se lire comme l'effectif. Le registre n'est pas un document
+   * déposé : le livre de paie et la déclaration de l'art. 218 lisent leurs
+   * propres données. L'identifiant départage deux homonymes, sans quoi la
+   * frontière d'une tranche pleine changerait d'un appel à l'autre.
    */
   async lister(tenantId: string, inclureInactifs = false) {
-    const salaries = await this.prisma.salarie.findMany({
-      where: { tenantId, ...(inclureInactifs ? {} : { actif: true }) },
-      orderBy: [{ nom: 'asc' }, { postNom: 'asc' }],
-      include: {
-        enfants: { orderBy: { dateNaissance: 'asc' } },
-        contrats: { orderBy: { dateEntreeEnVigueur: 'desc' } },
-      },
-    });
-    return salaries.map((s) => ({
-      ...s,
-      contratEnCours: s.contrats.find((c) => c.dateFin === null) ?? null,
-      nombreContrats: s.contrats.length,
-    }));
+    const [salaries, total] = await Promise.all([
+      this.prisma.salarie.findMany({
+        where: { tenantId, ...(inclureInactifs ? {} : { actif: true }) },
+        orderBy: [{ nom: 'asc' }, { postNom: 'asc' }, { id: 'asc' }],
+        take: PLAFOND_REGISTRE_PERSONNEL,
+        include: {
+          enfants: { orderBy: { dateNaissance: 'asc' } },
+          contrats: { orderBy: { dateEntreeEnVigueur: 'desc' } },
+        },
+      }),
+      this.prisma.salarie.count({ where: { tenantId, ...(inclureInactifs ? {} : { actif: true }) } }),
+    ]);
+    return {
+      salaries: salaries.map((s) => ({
+        ...s,
+        contratEnCours: s.contrats.find((c) => c.dateFin === null) ?? null,
+        nombreContrats: s.contrats.length,
+      })),
+      total,
+      plafond: PLAFOND_REGISTRE_PERSONNEL,
+      tronque: total > salaries.length,
+    };
   }
 
   async creerSalarie(tenantId: string, userId: string, dto: SalarieDto) {
@@ -308,6 +347,7 @@ export class PersonnelService {
         periodiciteRemuneration: dto.periodiciteRemuneration ?? null,
         manoeuvreSansSpecialite: dto.manoeuvreSansSpecialite ?? false,
         remunerationBase: dto.remunerationBase ?? null,
+        deviseRemuneration: dto.deviseRemuneration ?? null,
         avantagesConvenus: dto.avantagesConvenus?.trim() || null,
         clauseEssai: dto.clauseEssai ?? false,
         essaiConstateParEcrit: dto.essaiConstateParEcrit ?? false,
@@ -318,6 +358,47 @@ export class PersonnelService {
         renouvelleDeId: dto.renouvelleDeId ?? null,
       },
     });
+  }
+
+  /**
+   * AUDIT FINAL F226 · LA MONNAIE D'UN CONTRAT SAISI SANS ELLE. Le registre
+   * ne l'a pas toujours demandée, et le contrôle du minimum s'abstient tant
+   * qu'elle manque · sans ce chemin, un contrat en francs saisi avant la
+   * colonne n'aurait plus jamais été confronté au SMIG. La monnaie se
+   * COMPLÈTE et ne se change pas : changer celle d'un montant convenu, c'est
+   * changer la rémunération du contrat, que le registre ne modifie pas. La
+   * condition « encore nulle » est reposée dans l'écriture même, pour qu'un
+   * second clic ou un autre poste ne l'écrase pas entre la lecture et elle.
+   *
+   * UNE ÉCRITURE UNITAIRE, JAMAIS UN `updateMany` (relecture adverse de
+   * F226). Le journal d'audit ne recopie d'une opération de masse que son
+   * filtre et son compte (`extension-audit.ts`) · la monnaie déclarée n'y
+   * paraissait pas, alors que la colonne y est ADMISE précisément parce
+   * qu'un contrat en francs déclaré en dollars échappe au contrôle du
+   * minimum. `update` porte l'état avant et l'état après ; sa condition
+   * « encore nulle » rend P2025 quand un autre poste a déclaré entre-temps.
+   */
+  async declarerDeviseRemuneration(tenantId: string, contratId: string, devise: 'CDF' | 'USD') {
+    const contrat = await this.prisma.contratTravail.findFirst({
+      where: { id: contratId, tenantId },
+      select: { id: true, deviseRemuneration: true },
+    });
+    if (!contrat) throw new NotFoundException('Contrat introuvable dans ce dossier.');
+    const refus = (deja: string | null) =>
+      new ConflictException(
+        `La monnaie de la rémunération de ce contrat est déjà déclarée${deja ? ` (${deja})` : ''}. ` +
+          'Elle se complète quand elle manque, elle ne se change pas · le registre ne modifie pas un contrat.',
+      );
+    if (contrat.deviseRemuneration !== null) throw refus(contrat.deviseRemuneration);
+    try {
+      return await this.prisma.contratTravail.update({
+        where: { id: contratId, tenantId, deviseRemuneration: null },
+        data: { deviseRemuneration: devise },
+      });
+    } catch (erreur) {
+      if (erreur instanceof Prisma.PrismaClientKnownRequestError && erreur.code === 'P2025') throw refus(null);
+      throw erreur;
+    }
   }
 
   async terminerContrat(tenantId: string, contratId: string, dto: TerminerContratDto) {
@@ -332,11 +413,14 @@ export class PersonnelService {
         "La date de fin est antérieure à l'entrée en vigueur du contrat.",
       );
     }
-    await this.prisma.contratTravail.updateMany({
+    // UNE ÉCRITURE UNITAIRE, pour la raison qui vaut à la monnaie (relecture
+    // de cohérence du lot 5, audit final F226) · la date de fin choisit le
+    // mois de référence du contrôle du minimum, et un `updateMany` n'en
+    // laissait au journal d'audit que le filtre et le compte, jamais la date.
+    return this.prisma.contratTravail.update({
       where: { id: contratId, tenantId },
       data: { dateFin: fin, motifFin: dto.motifFin?.trim() || null },
     });
-    return this.prisma.contratTravail.findFirst({ where: { id: contratId, tenantId } });
   }
 
   /**
@@ -346,17 +430,22 @@ export class PersonnelService {
    * hier doit cesser d'être signalé aujourd'hui, et une colonne du dossier
    * remplie entre-temps (le numéro CNSS de l'employeur, par exemple) lève le
    * manque sur TOUS les contrats d'un coup.
+   *
+   * UNE LISTE DE TRAVAIL, LUE PAR TRANCHES ET BORNÉE EN SORTIE (audit final
+   * F259, § 8 bis). Elle rapatriait tout le registre d'un coup, enfants et
+   * contrats compris. Les salariés se lisent désormais par lots
+   * (`lireParLots`), chacun avec TOUS ses contrats · le rang de CDD de
+   * l'art. 41 et la chaîne des renouvellements se comptent par salarié, et un
+   * lot ne coupe jamais un salarié en deux. Seules les `PLAFOND_CONFRONTATION`
+   * premières fiches, dans l'ordre du nom, sont rendues ; le nombre de
+   * contrats et celui des signalements sont comptés sur le registre ENTIER,
+   * sans quoi « 12 signalements » se lirait comme le compte du dossier.
    */
   async confronter(tenantId: string, aujourdhui = new Date()) {
-    const [tenant, salaries, versionsBaremes] = await Promise.all([
+    const [tenant, versionsBaremes] = await Promise.all([
       this.prisma.tenant.findUniqueOrThrow({
         where: { id: tenantId },
         select: { nom: true, numeroAffiliationCnssEmployeur: true },
-      }),
-      this.prisma.salarie.findMany({
-        where: { tenantId },
-        include: { enfants: true, contrats: { orderBy: { dateEntreeEnVigueur: 'asc' } } },
-        orderBy: [{ nom: 'asc' }],
       }),
       // Les grilles SMIG du cabinet · le minimum d'une classe se lit sur elles.
       this.prisma.versionBaremePaie.findMany({
@@ -371,7 +460,7 @@ export class PersonnelService {
       numeroAffiliationCnssEmployeur: tenant.numeroAffiliationCnssEmployeur,
     };
 
-    const fiches = salaries.flatMap((s) => {
+    const fichesDe = (s: SalarieConfronte) => {
       const pourControle = {
         nom: s.nom,
         postNom: s.postNom,
@@ -416,6 +505,9 @@ export class PersonnelService {
           essaiDureeJours: c.essaiDureeJours,
           classeProfessionnelle: c.classeProfessionnelle,
           periodiciteRemuneration: c.periodiciteRemuneration,
+          // AUDIT FINAL F226 · la monnaie du montant, sans laquelle le
+          // contrôle du minimum lisait des dollars comme des francs.
+          deviseRemuneration: c.deviseRemuneration,
         };
         const nombreRenouvellements = this.longueurChaineRenouvellement(s.contrats, c.id);
         // LE MOIS DE RÉFÉRENCE DU CONTRÔLE DE MINIMUM. Un contrat TERMINÉ se
@@ -460,55 +552,55 @@ export class PersonnelService {
           remunerationMinimale: verdictRemunerationMinimale(contrat, moisDeReference, annexesSmig),
         };
       });
-    });
+    };
+    type FicheConfrontee = ReturnType<typeof fichesDe>[number];
+
+    // L'ordre de l'écran · le nom du salarié, puis ses contrats dans l'ordre
+    // de leur entrée en vigueur. L'identifiant du salarié départage deux
+    // homonymes, pour que leurs contrats ne s'entrelacent pas.
+    const fiches = new PremiersSelon<FicheConfrontee>(
+      PLAFOND_CONFRONTATION,
+      (a, b) =>
+        a.salarie.localeCompare(b.salarie, 'fr') ||
+        a.salarieId.localeCompare(b.salarieId) ||
+        a.dateEntreeEnVigueur.getTime() - b.dateEntreeEnVigueur.getTime() ||
+        a.contratId.localeCompare(b.contratId),
+    );
+    let totalSignalements = 0;
+    await lireParLots(
+      (curseur) =>
+        this.prisma.salarie.findMany({
+          where: { tenantId },
+          include: { enfants: true, contrats: { orderBy: { dateEntreeEnVigueur: 'asc' } } },
+          ...pageApres(curseur, LOT_CONFRONTATION),
+        }),
+      (s) => {
+        for (const f of fichesDe(s)) {
+          totalSignalements +=
+            f.mentionsManquantes.length +
+            f.requalifications.length +
+            f.declarations.filter((d) => d.enRetard).length +
+            (f.remunerationMinimale.conforme === false ? 1 : 0);
+          fiches.ajouter(f);
+        }
+      },
+      LOT_CONFRONTATION,
+    );
 
     return {
       employeur,
       // Un dossier qui n'a pas saisi son numéro CNSS d'employeur le voit UNE
       // fois, en tête, et non répété sur chaque contrat.
       manqueEmployeur: tenant.numeroAffiliationCnssEmployeur === null,
-      fiches,
-      totalSignalements: fiches.reduce(
-        (n, f) =>
-          n +
-          f.mentionsManquantes.length +
-          f.requalifications.length +
-          f.declarations.filter((d) => d.enRetard).length +
-          (f.remunerationMinimale.conforme === false ? 1 : 0),
-        0,
-      ),
+      fiches: fiches.elements(),
+      totalFiches: fiches.nombre,
+      plafond: PLAFOND_CONFRONTATION,
+      tronque: fiches.tronquee,
+      totalSignalements,
     };
   }
 
 
-  /**
-   * LA SIMULATION DE PAIE D'UN MOIS · les deux assiettes, les cotisations des
-   * deux côtés, la retenue de l'art. 119, le net, la quotité de l'art. 114 et
-   * la proposition d'écriture.
-   *
-   * CE QU'ELLE N'EST PAS · un bulletin. Rien n'est stocké et rien n'est passé
-   * au journal ; c'est l'ÉMISSION du bulletin qui fige ce calcul (art. 103),
-   * et la paie du mois qui le passe (audit final F109 · cet en-tête disait
-   * encore qu'aucune cotisation patronale n'était liquidée ni aucune écriture
-   * proposée).
-   *
-   * POURQUOI ELLE EXISTE QUAND MÊME. Les deux assiettes d'un bulletin
-   * congolais ne coïncident pas, et c'est l'erreur la plus coûteuse du
-   * domaine : elle laisse un bulletin dont tous les totaux s'additionnent, un
-   * net à payer plausible, et une retenue fausse. La rendre VISIBLE, élément
-   * par élément, avec l'article qui décide de chacun, est ce qui permet à un
-   * cabinet de vérifier avant de payer.
-   *
-   * LE NOMBRE DE PERSONNES À CHARGE EST PROPOSÉ, JAMAIS SUBSTITUÉ · même
-   * parti que la part de main-d'œuvre nationale de l'effectif, et pour une
-   * raison écrite dans le texte : l'article 124 ne compte les enfants et les
-   * ascendants que « pour autant qu'ils n'aient pas bénéficié personnellement
-   * […] des ressources nettes ne dépassant pas le revenu de la première
-   * tranche », donnée qu'aucun livre du dossier ne porte. Et l'article 125
-   * fige la situation de famille AU 1er JANVIER de l'année de réalisation des
-   * revenus, non au jour de la paie · un enfant né en mars ne compte qu'en
-   * janvier suivant.
-   */
   /**
    * LE « TAUX LÉGAL » DE L'ARTICLE 69, 1, ET POURQUOI IL EST CALCULÉ ICI.
    *
@@ -660,6 +752,38 @@ export class PersonnelService {
     return { dto: { ...dto, elements }, retenuesAvances };
   }
 
+  /**
+   * LA SIMULATION DE PAIE D'UN MOIS · les deux assiettes, les cotisations des
+   * deux côtés, la retenue de l'art. 119, le net, la quotité de l'art. 114 et
+   * la proposition d'écriture.
+   *
+   * CE QU'ELLE N'EST PAS · un bulletin. Rien n'est stocké et rien n'est passé
+   * au journal ; c'est l'ÉMISSION du bulletin qui fige ce calcul (art. 103),
+   * et la paie du mois qui le passe (audit final F109 · cet en-tête disait
+   * encore qu'aucune cotisation patronale n'était liquidée ni aucune écriture
+   * proposée).
+   *
+   * POURQUOI ELLE EXISTE QUAND MÊME. Les deux assiettes d'un bulletin
+   * congolais ne coïncident pas, et c'est l'erreur la plus coûteuse du
+   * domaine : elle laisse un bulletin dont tous les totaux s'additionnent, un
+   * net à payer plausible, et une retenue fausse. La rendre VISIBLE, élément
+   * par élément, avec l'article qui décide de chacun, est ce qui permet à un
+   * cabinet de vérifier avant de payer.
+   *
+   * LE NOMBRE DE PERSONNES À CHARGE EST PROPOSÉ, JAMAIS SUBSTITUÉ · même
+   * parti que la part de main-d'œuvre nationale de l'effectif, et pour une
+   * raison écrite dans le texte : l'article 124 ne compte les enfants et les
+   * ascendants que « pour autant qu'ils n'aient pas bénéficié personnellement
+   * […] des ressources nettes ne dépassant pas le revenu de la première
+   * tranche », donnée qu'aucun livre du dossier ne porte. Et l'article 125
+   * fige la situation de famille AU 1er JANVIER de l'année de réalisation des
+   * revenus, non au jour de la paie · un enfant né en mars ne compte qu'en
+   * janvier suivant.
+   *
+   * (Relecture de cohérence du lot 5 · ce commentaire était empilé sur celui
+   * de `tauxLegalAllocationsFamiliales`, qu'il ne documentait pas, même
+   * défaut que celui qu'a corrigé l'audit final F245 dans la console.)
+   */
   async simulerPaie(
     tenantId: string,
     salarieId: string | null,

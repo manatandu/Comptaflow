@@ -100,9 +100,11 @@ export class ConventionFinancementService {
         traitement: ConventionFinancementService.traitement(c),
         montantEncaisse: encaisse,
         resteARecevoir: ConventionFinancementService.resteARecevoir(c),
-        // Le jalon 11 du planning de clôture (loi n° 004/2001, art. 37)
-        // demande de vérifier la validité à chaque exercice · la voici, plutôt
-        // qu'une case à cocher que personne ne peut recouper.
+        // Échue et toujours EN COURS · son reste à recevoir continue d'être
+        // présenté comme attendu, ce que le contrôle 24 relit à la clôture.
+        // C'est la validité d'un contrat avec un BAILLEUR, pas celle de
+        // l'accord-cadre d'une ONG étrangère (loi n° 004/2001, art. 37), qui a
+        // son module (audit final F231).
         expiree: c.statut === StatutConvention.EN_COURS && c.dateFin < aujourdhui,
         tranches: c.tranches.map((t) => ({
           id: t.id,

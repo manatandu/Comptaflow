@@ -18,6 +18,7 @@ import {
   ResultatInterne,
 } from './cumul-consolidation';
 import { PerimetreService } from './perimetre.service';
+import { exigerExercice } from './exercice-requis';
 import {
   AcquisitionDto,
   EcartEvaluationDto,
@@ -71,6 +72,43 @@ export class CumulService {
   private async entite(tenantId: string, id: string) {
     const e = await this.prisma.entitePerimetreConsolidation.findFirst({ where: { id, tenantId } });
     if (!e) throw new NotFoundException('Entité introuvable dans ce dossier.');
+    return e;
+  }
+
+  /**
+   * L'exercice d'une déclaration, lu dans le dossier · un exercice d'un autre
+   * dossier, ou inexistant, est introuvable. Un exercice ABSENT est refusé
+   * avant la lecture, comme au périmètre (audit final F234) · Prisma ignore un
+   * `id: undefined`, et la déclaration, écrite sur l'exercice LU, pouvait
+   * partir sur le premier exercice du dossier.
+   */
+  private async exerciceDuDossier(tenantId: string, exerciceId: string) {
+    exigerExercice(exerciceId);
+    const ex = await this.prisma.exercice.findFirst({ where: { id: exerciceId, tenantId }, select: { id: true } });
+    if (!ex) throw new NotFoundException('Exercice introuvable dans ce dossier.');
+    return ex;
+  }
+
+  /**
+   * UNE ENTITÉ NOMMÉE PAR UNE DÉCLARATION FIGURE AU PÉRIMÈTRE DE SON EXERCICE
+   * (audit final F232). Le périmètre est recréé à chaque exercice · une entité
+   * de l'exercice voisin passait la porte des réciproques et des résultats
+   * internes, et le cumul refusait ensuite toute la consolidation en « une des
+   * deux entités n'est pas retenue », sans dire laquelle ni pourquoi. Le refus
+   * est posé ici, au moment de la saisie, en nommant l'entité.
+   */
+  private async entiteDeLExercice(tenantId: string, exerciceId: string, id: string) {
+    const e = await this.prisma.entitePerimetreConsolidation.findFirst({
+      where: { id, tenantId },
+      select: { id: true, nom: true, exerciceId: true },
+    });
+    if (!e) throw new NotFoundException('Entité introuvable dans ce dossier.');
+    if (e.exerciceId !== exerciceId) {
+      throw new BadRequestException(
+        `« ${e.nom} » figure au périmètre d’un autre exercice · le périmètre se déclare par exercice, et une déclaration ` +
+          'ne vise que les entités du périmètre de SON exercice.',
+      );
+    }
     return e;
   }
 
@@ -209,14 +247,17 @@ export class CumulService {
   }
 
   async ajouterReciproque(tenantId: string, dto: OperationReciproqueDto) {
-    for (const id of [dto.entiteAId, dto.entiteBId]) if (id) await this.entite(tenantId, id);
+    // Les contrôles de `ajouterProvisionChange` (audit final F232) · l'exercice
+    // est celui du dossier, et chaque entité figure au périmètre de CET exercice.
+    const ex = await this.exerciceDuDossier(tenantId, dto.exerciceId);
+    for (const id of [dto.entiteAId, dto.entiteBId]) if (id) await this.entiteDeLExercice(tenantId, ex.id, id);
     if ((dto.entiteAId ?? null) === (dto.entiteBId ?? null)) {
       throw new BadRequestException('Une opération réciproque relie deux entités DIFFÉRENTES du périmètre.');
     }
     return this.prisma.operationReciproqueConsolidation.create({
       data: {
         tenantId,
-        exerciceId: dto.exerciceId,
+        exerciceId: ex.id,
         entiteAId: dto.entiteAId ?? null,
         compteA: dto.compteA,
         entiteBId: dto.entiteBId ?? null,
@@ -234,7 +275,9 @@ export class CumulService {
    * voit sans lui.
    */
   async ajouterResultatInterne(tenantId: string, dto: ResultatInterneDto) {
-    for (const id of [dto.vendeuseId, dto.acheteuseId]) if (id) await this.entite(tenantId, id);
+    // Mêmes contrôles que les réciproques (audit final F232).
+    const ex = await this.exerciceDuDossier(tenantId, dto.exerciceId);
+    for (const id of [dto.vendeuseId, dto.acheteuseId]) if (id) await this.entiteDeLExercice(tenantId, ex.id, id);
     if ((dto.vendeuseId ?? null) === (dto.acheteuseId ?? null)) {
       throw new BadRequestException('Un résultat interne relie une vendeuse et une acheteuse DIFFÉRENTES du périmètre.');
     }
@@ -245,7 +288,7 @@ export class CumulService {
     return this.prisma.resultatInterneConsolidation.create({
       data: {
         tenantId,
-        exerciceId: dto.exerciceId,
+        exerciceId: ex.id,
         vendeuseId: dto.vendeuseId ?? null,
         acheteuseId: dto.acheteuseId ?? null,
         nature: dto.nature,
@@ -299,12 +342,8 @@ export class CumulService {
    * l'ouverture qu'elle implique (clôture − dotation + reprise) serait négative.
    */
   async ajouterProvisionChange(tenantId: string, dto: ProvisionChangeDto) {
-    const ex = await this.prisma.exercice.findFirst({ where: { id: dto.exerciceId, tenantId }, select: { id: true } });
-    if (!ex) throw new NotFoundException('Exercice introuvable dans ce dossier.');
-    if (dto.entiteId) {
-      const e = await this.prisma.entitePerimetreConsolidation.findFirst({ where: { id: dto.entiteId, tenantId, exerciceId: ex.id }, select: { id: true } });
-      if (!e) throw new NotFoundException('Entité introuvable dans ce périmètre.');
-    }
+    const ex = await this.exerciceDuDossier(tenantId, dto.exerciceId);
+    if (dto.entiteId) await this.entiteDeLExercice(tenantId, ex.id, dto.entiteId);
     const compte = dto.compteProvision.trim();
     if (!FAMILLES_PROVISION_CHANGE.some((f) => compte.startsWith(f.provision))) {
       throw new BadRequestException('La provision pour pertes de change se loge au 194, au 4991 ou au 4997 (AUDCIF Titre VIII ch. 22 § 2.3).');
@@ -331,8 +370,7 @@ export class CumulService {
    * impôt différé actif sans le motif qui le rend probable.
    */
   async enregistrerFiscalite(tenantId: string, dto: FiscaliteEntiteDto) {
-    const ex = await this.prisma.exercice.findFirst({ where: { id: dto.exerciceId, tenantId }, select: { id: true } });
-    if (!ex) throw new NotFoundException('Exercice introuvable dans ce dossier.');
+    const ex = await this.exerciceDuDossier(tenantId, dto.exerciceId);
     if (dto.tauxImpotDiffere != null && !dto.sourceTauxImpot?.trim()) {
       throw new BadRequestException(
         'Le taux d’impôt se déclare AVEC sa source · c’est celui « en vigueur à la clôture » (D4C ch. XII-3 § 3), et OmegaX n’en écrit aucun.',
@@ -355,8 +393,7 @@ export class CumulService {
       ecartConversionPassifN1: dto.ecartConversionPassifN1 ?? null,
     };
     if (dto.entiteId) {
-      const e = await this.prisma.entitePerimetreConsolidation.findFirst({ where: { id: dto.entiteId, tenantId, exerciceId: ex.id }, select: { id: true } });
-      if (!e) throw new NotFoundException('Entité introuvable dans ce périmètre.');
+      const e = await this.entiteDeLExercice(tenantId, ex.id, dto.entiteId);
       return this.prisma.entitePerimetreConsolidation.update({ where: { id: e.id }, data });
     }
     const faits = await this.prisma.faitsConsolidationExercice.findFirst({ where: { tenantId, exerciceId: ex.id }, select: { id: true } });
@@ -540,6 +577,25 @@ export class CumulService {
     }));
 
     const internes = await this.prisma.resultatInterneConsolidation.findMany({ where: { tenantId, exerciceId } });
+    // Une déclaration saisie avant les contrôles de la porte peut viser une
+    // entité d'un autre exercice (audit final F232) · elle est NOMMÉE ici, au
+    // lieu du refus du moteur, « une des deux entités n'est pas retenue », qui
+    // ne dit ni laquelle ni pourquoi. Une entité EXCLUE du périmètre, elle,
+    // reste au moteur, dont le refus est alors exact.
+    const duPerimetre = new Set(etat.entites.map((e) => e.id));
+    const horsPerimetre = (ids: (string | null)[]) => ids.some((id) => id !== null && !duPerimetre.has(id));
+    const egarees = [
+      ...operations.filter((o) => horsPerimetre([o.entiteAId, o.entiteBId])).map((o) => `l’opération réciproque « ${o.libelle} »`),
+      ...internes.filter((o) => horsPerimetre([o.vendeuseId, o.acheteuseId])).map((o) => `le résultat interne « ${o.libelle} »`),
+    ];
+    if (egarees.length > 0) {
+      const plusieurs = egarees.length > 1;
+      throw new BadRequestException(
+        `Déclaration hors du périmètre · ${egarees.join(', ')} ${plusieurs ? 'visent des entités qui ne figurent' : 'vise une entité qui ne figure'} ` +
+          'pas au périmètre de cet exercice, qui se déclare par exercice. Retirez chaque déclaration nommée et saisissez-la de ' +
+          'nouveau sur les entités de l’exercice.',
+      );
+    }
     const resultatsInternes: ResultatInterne[] = internes.map((o) => ({
       vendeuseId: versMoteur(o.vendeuseId),
       acheteuseId: versMoteur(o.acheteuseId),

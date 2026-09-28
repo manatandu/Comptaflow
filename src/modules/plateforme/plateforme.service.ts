@@ -13,6 +13,7 @@ import { CreerCabinetDto, ModifierGroupeDto, ModifierLicenceDto } from './dto/pl
 import { horsCloisonnement } from '../../common/cloisonnement/contexte-cloisonnement';
 import * as bcrypt from 'bcryptjs';
 import { licenceDeCellule, LicenceReflet, refuserCelluleEditeur } from '../licence/licence-de-cellule';
+import { PLAFOND_LISTE_CONSOLE, tranche } from './plafond-console';
 
 /** Le refus d'attribuer « Perpétuelle (sur site) » à un dossier hébergé (audit final F171). */
 export const MOTIF_SUR_SITE_NON_ATTRIBUABLE =
@@ -77,33 +78,44 @@ export class PlateformeService implements OnModuleInit {
     }
   }
 
-  /** Vue d'ensemble des cabinets clients, licence et volumétrie comprises. */
+  /**
+   * Vue d'ensemble des cabinets clients, licence et volumétrie comprises ·
+   * UNE TRANCHE QUI SE DIT (audit final F260) · les premiers par nom, sous
+   * `PLAFOND_LISTE_CONSOLE`, avec le total compté sur le périmètre entier.
+   */
   async listeCabinets() {
-    const tenants = await this.prisma.tenant.findMany({
-      // Les dossiers de combinaison sont TECHNIQUES (voir GroupeService.
-      // liasseGroupe) : régénérés par le serveur, sans utilisateurs · ils
-      // n'ont rien à faire dans la liste des cabinets clients.
-      where: { combinaisonPour: null },
-      orderBy: { nom: 'asc' },
-      select: {
-        id: true,
-        nom: true,
-        referentiel: true,
-        jeuEtatsFinanciersSycebnl: true,
-        systemeComptableSyscohada: true,
-        ville: true,
-        pays: true,
-        numeroImpot: true,
-        createdAt: true,
-        licence: {
-          select: { type: true, statut: true, dateDebut: true, dateExpiration: true, dernierHeartbeatAt: true },
+    // Les dossiers de combinaison sont TECHNIQUES (voir GroupeService.
+    // liasseGroupe) : régénérés par le serveur, sans utilisateurs · ils
+    // n'ont rien à faire dans la liste des cabinets clients. Le même filtre
+    // sert la tranche et le total, sans quoi l'écran dirait tronquée une
+    // liste complète.
+    const perimetre = { combinaisonPour: null };
+    const [tenants, total] = await Promise.all([
+      this.prisma.tenant.findMany({
+        where: perimetre,
+        orderBy: { nom: 'asc' },
+        take: PLAFOND_LISTE_CONSOLE,
+        select: {
+          id: true,
+          nom: true,
+          referentiel: true,
+          jeuEtatsFinanciersSycebnl: true,
+          systemeComptableSyscohada: true,
+          ville: true,
+          pays: true,
+          numeroImpot: true,
+          createdAt: true,
+          licence: {
+            select: { type: true, statut: true, dateDebut: true, dateExpiration: true, dernierHeartbeatAt: true },
+          },
+          dossierMere: { select: { id: true, nom: true } },
+          plafondCellules: true,
+          _count: { select: { users: true, ecritures: true, cellules: true } },
         },
-        dossierMere: { select: { id: true, nom: true } },
-        plafondCellules: true,
-        _count: { select: { users: true, ecritures: true, cellules: true } },
-      },
-    });
-    return tenants.map((t) => ({
+      }),
+      this.prisma.tenant.count({ where: perimetre }),
+    ]);
+    const cabinets = tenants.map((t) => ({
       id: t.id,
       nom: t.nom,
       referentiel: t.referentiel,
@@ -120,6 +132,7 @@ export class PlateformeService implements OnModuleInit {
       nbUtilisateurs: t._count.users,
       nbEcritures: t._count.ecritures,
     }));
+    return { cabinets, ...tranche(cabinets.length, total) };
   }
 
   /**
@@ -143,12 +156,6 @@ export class PlateformeService implements OnModuleInit {
     throw new BadRequestException(MOTIF_SUR_SITE_NON_ATTRIBUABLE);
   }
 
-  /**
-   * Suspension, réactivation, changement de type, renouvellement. EXPIREE ne
-   * se décrète pas (refusée par le DTO) : elle découle de dateExpiration,
-   * évaluée à chaque requête par LicenceService · « renouveler », c'est donc
-   * poser une nouvelle échéance, le statut ACTIVE suffisant ensuite.
-   */
   /**
    * LA LICENCE EST CELLE D'UN AUTRE DOSSIER · l'opérateur est connecté au sien,
    * et la garde de cloisonnement rendait la ligne cible INEXISTANTE : la
@@ -204,6 +211,12 @@ export class PlateformeService implements OnModuleInit {
     return echeance;
   }
 
+  /**
+   * Suspension, réactivation, changement de type, renouvellement. EXPIREE ne
+   * se décrète pas (refusée par le DTO) : elle découle de dateExpiration,
+   * évaluée à chaque requête par LicenceService · « renouveler », c'est donc
+   * poser une nouvelle échéance, le statut ACTIVE suffisant ensuite.
+   */
   private async modifierLicenceSansGarde(tenantId: string, dto: ModifierLicenceDto) {
     // Avant toute lecture : un type non attribuable est un défaut de la
     // DEMANDE, il n'a pas à dépendre de l'existence de la cible, et surtout
@@ -545,47 +558,6 @@ export class PlateformeService implements OnModuleInit {
   }
 
   /**
-   * DOSSIER DE DÉMONSTRATION · le troisième prérequis commun à tous les
-   * magasins d'applications, avec le manifeste installable et la politique de
-   * confidentialité publiée.
-   *
-   * Un examinateur de magasin n'instruit pas une soumission qu'il ne peut pas
-   * ouvrir : il lui faut une adresse et un mot de passe qui marchent, sur un
-   * dossier garni d'écritures FICTIVES. Jamais sur un dossier de client, dont
-   * les données sont couvertes par le secret professionnel du cabinet.
-   *
-   * TROIS DIFFÉRENCES AVEC UN DOSSIER ORDINAIRE, chacune pour une raison.
-   *
-   * 1. LE MOT DE PASSE EST CHOISI, PAS TIRÉ AU SORT · il figure dans le
-   *    formulaire de soumission du magasin, et un mot de passe qui change à
-   *    chaque remise à zéro y devient faux sans que personne ne s'en aperçoive.
-   *
-   * 2. `doitChangerMotDePasse` EST FAUX, et c'est le point qui aurait tout
-   *    fait échouer en silence. `MotDePasseAChangerGuard` FERME le serveur
-   *    tant que le mot de passe provisoire n'a pas été remplacé : l'examinateur
-   *    se serait connecté, aurait reçu l'écran de changement de mot de passe à
-   *    la place du logiciel, et aurait rejeté la soumission pour une
-   *    application « qui ne s'ouvre pas ». Rien dans les journaux n'aurait
-   *    signalé quoi que ce soit · la garde aurait fait exactement son travail.
-   *
-   * 3. LE DOSSIER PORTE UN DRAPEAU, `estDemonstration`. Reconnaître la vitrine
-   *    à son intitulé marcherait jusqu'au jour où un client s'appellerait
-   *    « DÉMO », et ce jour-là c'est un vrai dossier que la remise à zéro
-   *    effacerait.
-   *
-   * CE QUE CETTE ROUTE NE FAIT PAS : elle ne remet rien à zéro. Créer est sûr,
-   * effacer ne l'est pas, et un second dossier de démonstration est un
-   * désordre, pas un incident. Elle REFUSE donc quand il en existe déjà un, en
-   * nommant celui qui existe.
-   *
-   * UN PAR RÉFÉRENTIEL (2026-09-26) · une association (SYCEBNL) et une SARL
-   * (SYSCOHADA) ne montrent pas le même logiciel, et ne divergent pas l'une de
-   * l'autre : ce sont deux vitrines de deux produits. Deux vitrines du MÊME
-   * référentiel restent refusées. Le dossier naît GARNI d'opérations fictives
-   * (`GarnissageDemonstrationService`), validées, pour que la balance, la
-   * balance âgée et les états financiers aient quelque chose à montrer.
-   */
-  /**
    * DÉSIGNER LE DOSSIER DE L'ÉDITEUR · un geste, une fois, et pas un menu
    * déroulant.
    *
@@ -652,6 +624,47 @@ export class PlateformeService implements OnModuleInit {
     return l?.tenantId ?? null;
   }
 
+  /**
+   * DOSSIER DE DÉMONSTRATION · le troisième prérequis commun à tous les
+   * magasins d'applications, avec le manifeste installable et la politique de
+   * confidentialité publiée.
+   *
+   * Un examinateur de magasin n'instruit pas une soumission qu'il ne peut pas
+   * ouvrir : il lui faut une adresse et un mot de passe qui marchent, sur un
+   * dossier garni d'écritures FICTIVES. Jamais sur un dossier de client, dont
+   * les données sont couvertes par le secret professionnel du cabinet.
+   *
+   * TROIS DIFFÉRENCES AVEC UN DOSSIER ORDINAIRE, chacune pour une raison.
+   *
+   * 1. LE MOT DE PASSE EST CHOISI, PAS TIRÉ AU SORT · il figure dans le
+   *    formulaire de soumission du magasin, et un mot de passe qui change à
+   *    chaque remise à zéro y devient faux sans que personne ne s'en aperçoive.
+   *
+   * 2. `doitChangerMotDePasse` EST FAUX, et c'est le point qui aurait tout
+   *    fait échouer en silence. `MotDePasseAChangerGuard` FERME le serveur
+   *    tant que le mot de passe provisoire n'a pas été remplacé : l'examinateur
+   *    se serait connecté, aurait reçu l'écran de changement de mot de passe à
+   *    la place du logiciel, et aurait rejeté la soumission pour une
+   *    application « qui ne s'ouvre pas ». Rien dans les journaux n'aurait
+   *    signalé quoi que ce soit · la garde aurait fait exactement son travail.
+   *
+   * 3. LE DOSSIER PORTE UN DRAPEAU, `estDemonstration`. Reconnaître la vitrine
+   *    à son intitulé marcherait jusqu'au jour où un client s'appellerait
+   *    « DÉMO », et ce jour-là c'est un vrai dossier que la remise à zéro
+   *    effacerait.
+   *
+   * CE QUE CETTE ROUTE NE FAIT PAS : elle ne remet rien à zéro. Créer est sûr,
+   * effacer ne l'est pas, et un second dossier de démonstration est un
+   * désordre, pas un incident. Elle REFUSE donc quand il en existe déjà un, en
+   * nommant celui qui existe.
+   *
+   * UN PAR RÉFÉRENTIEL (2026-09-26) · une association (SYCEBNL) et une SARL
+   * (SYSCOHADA) ne montrent pas le même logiciel, et ne divergent pas l'une de
+   * l'autre : ce sont deux vitrines de deux produits. Deux vitrines du MÊME
+   * référentiel restent refusées. Le dossier naît GARNI d'opérations fictives
+   * (`GarnissageDemonstrationService`), validées, pour que la balance, la
+   * balance âgée et les états financiers aient quelque chose à montrer.
+   */
   async preparerDossierDemonstration(dto: {
     nomEntite?: string;
     email: string;

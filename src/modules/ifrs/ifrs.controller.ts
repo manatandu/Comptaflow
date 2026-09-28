@@ -8,6 +8,7 @@ import { ReferentielGuard } from '../../common/guards/referentiel.guard';
 import { ReferentielsAutorises } from '../../common/decorators/referentiels.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { IfrsService } from './ifrs.service';
+import { EXERCICE_REQUIS } from '../consolidation/exercice-requis';
 import { ActiviteIfrsDto, EffetChangeIfrsDto, MouvementCpIfrsDto, NotesIfrsDto, PremiereApplicationIfrsDto, RegleConsolidationIfrsDto, RegleIfrsDto, RetraitementIfrsDto, TresorerieIfrsDto } from './dto/ifrs.dto';
 
 /**
@@ -22,13 +23,15 @@ import { ActiviteIfrsDto, EffetChangeIfrsDto, MouvementCpIfrsDto, NotesIfrsDto, 
 export class IfrsController {
   constructor(private readonly ifrs: IfrsService) {}
 
+  // Les deux lectures exigent l'exercice (audit final F234) · un exercice
+  // absent laissait Prisma retenir le premier venu du dossier.
   @Get()
-  etat(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
+  etat(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
     return this.ifrs.etat(user.tenantId, exerciceId);
   }
 
   @Get('consolide')
-  etatConsolide(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
+  etatConsolide(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
     return this.ifrs.etatConsolide(user.tenantId, exerciceId);
   }
 

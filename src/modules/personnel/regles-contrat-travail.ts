@@ -209,6 +209,12 @@ export interface ContratPourControle {
   classeProfessionnelle: number | null;
   /** L'unité dans laquelle `remunerationBase` est stipulée. */
   periodiciteRemuneration: 'JOUR' | 'SEMAINE' | 'MOIS' | 'ANNEE' | null;
+  /**
+   * La MONNAIE dans laquelle `remunerationBase` est stipulée (CDF, USD), et
+   * null quand elle n'a pas été déclarée. Le minimum ne se compare qu'à un
+   * montant en francs (audit final F226).
+   */
+  deviseRemuneration: string | null;
 }
 
 const rempli = (v: unknown): boolean =>
@@ -595,7 +601,7 @@ export function aptitudeProvisoirePerimee(
  * contractuelle accordant au travailleur des avantages inférieurs à ceux
  * prescrits par le présent Code ».
  *
- * TROIS CHOSES SANS LESQUELLES LE CONTRÔLE S'ABSTIENT, ET LE DIT.
+ * QUATRE CHOSES SANS LESQUELLES LE CONTRÔLE S'ABSTIENT, ET LE DIT.
  *
  * 1. LA CLASSE. Elle vient du décret, pas de la convention collective du
  *    dossier · les deux vivent dans deux colonnes séparées, et aucune ne se
@@ -606,6 +612,12 @@ export function aptitudeProvisoirePerimee(
  * 3. LE MOIS DE RÉFÉRENCE. Le minimum a changé en janvier 2026 (art. 3 du
  *    décret n° 25/22) et s'ajuste chaque janvier (art. 11 du n° 25/21). Un
  *    contrat conforme à sa signature peut cesser de l'être.
+ * 4. LA MONNAIE (audit final F226). Le décret n° 25/22 fixe le taux en
+ *    « Francs Congolais » (art. 2 et 3) · un salaire stipulé en dollars, ou
+ *    dont la monnaie n'est pas déclarée, ne se compare pas à lui. Le
+ *    convertir supposerait un cours que le contrat ne porte pas, et le lire
+ *    comme des francs rendait un faux « en deçà du minimum » d'un salaire de
+ *    mille dollars.
  *
  * CE QU'IL NE FAIT PAS. Il compare la rémunération CONVENUE au contrat, pas
  * ce qui est effectivement payé · un bulletin est de P2. Et il ne tient
@@ -617,14 +629,29 @@ export type MotifAbstentionMinimum =
   | 'CLASSE_NON_RENSEIGNEE'
   | 'PERIODICITE_NON_RENSEIGNEE'
   | 'REMUNERATION_NON_RENSEIGNEE'
+  | 'DEVISE_NON_RENSEIGNEE'
+  | 'REMUNERATION_HORS_FRANC'
   | 'HORS_BAREME';
+
+/**
+ * La monnaie du minimum · décret n° 25/22, art. 2 : « Le taux journalier du
+ * Salaire Minimum Interprofessionnel Garanti est fixé à 21.500 Francs
+ * Congolais ». Code du travail, art. 89 : « La rémunération doit être
+ * stipulée en monnaie ayant cours légal en République Démocratique du
+ * Congo. »
+ */
+export const MONNAIE_DU_MINIMUM = 'CDF';
 
 export interface VerdictRemunerationMinimale {
   /** Vrai quand la rémunération convenue atteint au moins le minimum. */
   conforme: boolean | null;
   /** Le minimum légal, ramené à la périodicité du contrat. */
   minimumFc: number | null;
-  /** La rémunération convenue, telle que stipulée. */
+  /**
+   * La rémunération convenue, quand elle est stipulée en francs · null hors
+   * franc ou sans monnaie déclarée, un montant en dollars n'étant pas des
+   * francs (audit final F226).
+   */
   convenueFc: number | null;
   /** Ce qui manque au contrat pour atteindre le minimum, quand il est en deçà. */
   manqueFc: number | null;
@@ -651,7 +678,7 @@ export function verdictRemunerationMinimale(
   ): VerdictRemunerationMinimale => ({
     conforme: null,
     minimumFc: null,
-    convenueFc: contrat.remunerationBase,
+    convenueFc: contrat.deviseRemuneration === MONNAIE_DU_MINIMUM ? contrat.remunerationBase : null,
     manqueFc: null,
     abstention: motif,
     explication,
@@ -680,6 +707,28 @@ export function verdictRemunerationMinimale(
       'REMUNERATION_NON_RENSEIGNEE',
       "La rémunération convenue n'est pas renseignée · c'est déjà le point 9 manquant de " +
         "l'article 212.",
+    );
+  }
+  // AUDIT FINAL F226 · le montant se lisait en francs quelle que soit sa
+  // monnaie, et un salaire de 1 000 USD par mois passait « en deçà » d'un
+  // minimum de 559 000 FC. Sans monnaie déclarée, ou hors franc, le contrôle
+  // s'abstient · il ne suppose pas le franc, et il ne convertit pas.
+  if (contrat.deviseRemuneration === null) {
+    return abstention(
+      'DEVISE_NON_RENSEIGNEE',
+      "La monnaie de la rémunération convenue n'est pas déclarée. Le minimum du décret n° 25/22 est " +
+        'un taux en francs congolais · OmegaX ne suppose pas que le montant du contrat en soit, un ' +
+        'salaire stipulé en dollars lu comme des francs paraîtrait très en deçà du minimum.',
+    );
+  }
+  if (contrat.deviseRemuneration !== MONNAIE_DU_MINIMUM) {
+    return abstention(
+      'REMUNERATION_HORS_FRANC',
+      `La rémunération convenue est stipulée en ${contrat.deviseRemuneration}. Le minimum du décret ` +
+        'n° 25/22 est un taux en francs congolais (art. 2) · OmegaX ne compare pas deux montants de ' +
+        "monnaies différentes, et le contrat ne porte aucun cours auquel les rapprocher. Code du " +
+        "travail, art. 89 : « La rémunération doit être stipulée en monnaie ayant cours légal en " +
+        'République Démocratique du Congo. »',
     );
   }
 

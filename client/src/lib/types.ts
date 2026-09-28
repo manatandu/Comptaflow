@@ -1951,6 +1951,8 @@ export interface BilanEmissionRelances {
   exclues: { compteId: string; tiers: string; motif: string }[];
   /** Désignés, sans rien à réclamer dans l'état du niveau choisi (audit final F167). */
   sansObjet: { compteId: string; compte: string; motif: string }[];
+  /** Désignés, dont la lettre de ce niveau était déjà en file ou partie ce jour-là · rien n'est réécrit (audit final F241). */
+  dejaEmises: { compteId: string; compte: string; motif: string }[];
   lettres: LettreRelance[];
 }
 

@@ -95,8 +95,13 @@ export const ETATS_MESSAGE: EtatMessage[] = [
   {
     statut: 'EN_ATTENTE',
     libelle: 'En attente',
+    // DEUX CAS, ET LE SECOND EST DEVENU L'ORDINAIRE (audit final F241) · les
+    // relances sont écrites en file sans tentative, et partent au passage
+    // suivant de la reprise, que la fenêtre Rappel et relevé lance d'elle-même
+    // après l'émission. Dire seulement « la remise est en cours » laisserait
+    // attendre un envoi que personne n'a lancé, si cette fenêtre a été fermée.
     explication:
-      'Écrit, la remise est en cours. Un message qui y reste est repris au passage suivant · c’est le cas du service redémarré entre l’écriture et l’envoi.',
+      'Écrit et en file · il part au passage suivant de la reprise (« Relancer les envois » dans cette fenêtre). Un envoi en cours y passe aussi un instant, et un message qui y reste après un redémarrage du service est repris au passage suivant.',
     ton: 'neutre',
   },
   {
@@ -144,11 +149,13 @@ export function etatMessage(statut: StatutMessage): EtatMessage {
 /**
  * L'ORIGINE, EN CLAIR · ce qui a demandé le message.
  *
- * Les deux valeurs sont celles que nomme le serveur (ORIGINE_RELANCE,
- * ORIGINE_MOT_DE_PASSE_TEMPORAIRE dans courrier.service.ts). Une origine que
- * ce tableau ne connaît pas s'affiche TELLE QUELLE plutôt que vide : un module
- * qui en ajoute une sans passer ici laisse alors une colonne lisible, et non
- * une file dont on ne sait plus quelle décision comptable l'a remplie.
+ * Une entrée par constante `ORIGINE_` de courrier.service.ts · deux d'entre
+ * elles, venues de la console de l'éditeur, s'affichaient en code brut (audit
+ * final F244), et `file-des-courriels.spec.ts` relit désormais chaque
+ * constante du serveur contre ce tableau. Une origine que ce tableau ne
+ * connaît pas s'affiche encore TELLE QUELLE plutôt que vide, pour un client
+ * plus ancien que le serveur : une colonne lisible, et non une file dont on
+ * ne sait plus quelle décision comptable l'a remplie.
  */
 export const LIBELLES_ORIGINE: Record<string, string> = {
   RELANCE: 'Rappel et relevé',
@@ -161,6 +168,10 @@ export const LIBELLES_ORIGINE: Record<string, string> = {
   // provisoire » dans la file laisserait croire le contraire, et donnerait
   // envie de faire suivre ce message.
   MOT_DE_PASSE_TEMPORAIRE: 'Avis d’accès',
+  // Les deux envois de la console de l'éditeur · la facture d'un abonnement
+  // et le fichier de licence d'une installation sur site, joint au courriel.
+  FACTURE_ABONNEMENT: 'Facture d’abonnement',
+  LICENCE_SUR_SITE: 'Licence sur site',
 };
 
 export function libelleOrigine(origine: string): string {
@@ -178,7 +189,10 @@ export function libelleOrigine(origine: string): string {
  *    compterait afficherait un nombre à trois chiffres dès la première
  *    relance, sur des messages intacts que personne ne peut faire partir
  *    depuis le logiciel · on apprendrait en une semaine à l'ignorer ;
- *  · EN_ATTENTE · un état de passage, qui se vide tout seul ;
+ *  · EN_ATTENTE · un état de passage · la fenêtre Rappel et relevé fait
+ *    partir ses lettres aussitôt écrites (audit final F241), et ce qui en
+ *    resterait, fenêtre fermée trop tôt, se compte dans « Relancer les
+ *    envois » (`aRelancer`), pas sur la cloche ;
  *  · les échéances et les anomalies · aucune route ne les agrège. Une cloche
  *    qui affiche un chiffre faux est pire qu'une cloche absente.
  */
@@ -243,9 +257,11 @@ export function titreCloche(compteurs: CompteursCourrier | null): string {
  *
  * `restants` est toujours dit quand il en reste · la reprise est bornée à un
  * lot (REPRISE_PAR_APPEL), et un bilan muet sur ce point laisserait croire la
- * file vidée alors qu'elle attend un second clic.
+ * file vidée alors qu'elle attend un second clic. `suite` dit où le donner ·
+ * « relancez » ne se comprend que dans la fenêtre qui porte le bouton, et la
+ * fenêtre Rappel et relevé nomme donc celle des Courriers sortants.
  */
-export function resumeReprise(bilan: BilanRepriseCourrier): string {
+export function resumeReprise(bilan: BilanRepriseCourrier, suite = 'relancez pour continuer'): string {
   if (!bilan.transportConfigure) {
     const manques = bilan.manques.map((m) => m.variable).join(', ');
     const attente =
@@ -274,10 +290,53 @@ export function resumeReprise(bilan: BilanRepriseCourrier): string {
     phrase += ` ${bilan.ignores} laissé${bilan.ignores > 1 ? 's' : ''} à un autre passage.`;
   }
   if (bilan.restants > 0) {
-    phrase += ` Il en reste ${bilan.restants} à reprendre · relancez pour continuer.`;
+    phrase += ` Il en reste ${bilan.restants} à reprendre · ${suite}.`;
   }
   return phrase;
 }
+
+/**
+ * FAUT-IL REPRENDRE ENCORE ? · la fenêtre Rappel et relevé fait partir les
+ * lettres qu'elle vient d'écrire en file (audit final F241), par passages
+ * successifs de la reprise, chacun borné côté serveur.
+ *
+ * Elle s'arrête dès que la reprise n'a plus rien à faire ou ne peut rien faire
+ * (pas de messagerie, rien de repris à ce passage · un autre onglet s'en
+ * charge), et au plus tard au plafond de passages, que l'appelant fixe au
+ * nombre de lettres écrites · chaque passage utile en fait partir au moins
+ * une. La taille d'un passage n'est pas recopiée ici · elle vit au serveur
+ * (`REPRISE_PAR_APPEL`), et une valeur recopiée mentirait le jour où elle y
+ * changerait.
+ */
+export function reprendreEncore(bilan: BilanRepriseCourrier, passages: number, plafond: number): boolean {
+  return bilan.transportConfigure && bilan.restants > 0 && bilan.examines > 0 && passages < plafond;
+}
+
+/**
+ * PLUSIEURS PASSAGES DE REPRISE, DITS COMME UN SEUL (audit final F241) · la
+ * fenêtre Rappel et relevé enchaîne les passages après l'émission, et ne dire
+ * que le dernier annonçait « 10 envoyés » quand soixante lettres étaient
+ * parties. Les compteurs s'additionnent ; ce qui reste, la messagerie et ses
+ * manques sont ceux du DERNIER passage, le seul qui dise l'état présent de la
+ * file.
+ */
+export function cumulerReprises(avant: BilanRepriseCourrier | null, passage: BilanRepriseCourrier): BilanRepriseCourrier {
+  if (!avant) return passage;
+  return {
+    ...passage,
+    examines: avant.examines + passage.examines,
+    envoyes: avant.envoyes + passage.envoyes,
+    echoues: avant.echoues + passage.echoues,
+    abandonnes: avant.abandonnes + passage.abandonnes,
+    ignores: avant.ignores + passage.ignores,
+  };
+}
+
+/**
+ * Où faire partir ce qui reste, dit depuis la fenêtre Rappel et relevé · elle
+ * n'a pas de bouton de reprise, celle des Courriers sortants en a un.
+ */
+export const SUITE_REPRISE_HORS_FILE = '« Relancer les envois » dans Courriers sortants les fera partir';
 
 /** Un onglet de filtre de la fenêtre · « Tous » d'abord, puis les cinq états. */
 export interface FiltreFile {

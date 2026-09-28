@@ -1695,12 +1695,14 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 1
 - **Constat :** un montant en dollars est comparé à un minimum en francs.
 - **Correction :** unité à l'écran ou devise au contrat, et abstention hors franc.
+- **Fait le 2026-09-28 :** le contrat porte la monnaie de sa rémunération (`ContratTravail.deviseRemuneration`, nullable, sans défaut ni rétro-remplissage, migration `20261205000000_contrat_devise_remuneration`) · le contrôle du minimum s'abstient sans elle (`DEVISE_NON_RENSEIGNEE`) et hors franc (`REMUNERATION_HORS_FRANC`), sans rien convertir (décret n° 25/22, art. 2 ; Code du travail, art. 89). Elle se complète une fois (`POST /personnel/contrats/:contratId/devise-remuneration`, 409 sur un changement), et elle comme la fin du contrat s'écrivent par une opération UNITAIRE, un `updateMany` ne laissant au journal d'audit que son filtre. Tests : `regles-contrat-travail.spec.ts`, `registre-borne-et-devise.spec.ts`, `personnel-audit-final.spec.ts`.
 
 **F227 · Message de refus de barème qui exclut le SMIG** [paie-12]
 - **Emplacements :** src/modules/personnel/baremes-dossier.ts:131-132
 - **Condition :** 5
 - **Constat :** le SMIG est saisissable.
 - **Correction :** corriger le message.
+- **Fait le 2026-09-28 :** le refus d'un barème non saisissable vit une fois (`MOTIF_BAREME_NON_SAISISSABLE`, `baremes-dossier.ts`) et nomme le SMIG journalier du manœuvre parmi ce qui se saisit ; le DTO sert le même message en français. Test : `registre-borne-et-devise.spec.ts`.
 
 ### Fiscalité
 
@@ -1709,12 +1711,14 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 5
 - **Constat :** ils citent une condition absente, et la mention de l'art. 60 est lisible sur la facture.
 - **Correction :** mettre à jour, et lire `mentionTvaDebits`.
+- **Fait le 2026-09-28 :** le commentaire du prorata décrit `construireLigneTva`, et la déclaration LIT la mention de l'art. 60 portée par la facture d'achat rattachée (`mentionDebitsLueSurLaFacture`, `taux-tva.service.ts`) · elle dit la part prouvée par la pièce et celle que la fiche du fournisseur ne dit pas encore, sans dater la déduction, que la fiche du tiers date. La mention se saisit aussi sur une facture reçue. Tests : `tva-mention-debits-facture-f228.spec.ts`, `facturation-audit-final.spec.ts`.
 
 **F229 · mentions-facture.ts resté à neuf groupes** [fact-08]
 - **Emplacements :** src/modules/facturation/mentions-facture.ts:291, :603 · client/src/pages/FacturationPage.tsx:492
 - **Condition :** 5
 - **Constat :** douze groupes, dont dix dus, et une colonne « art. 100 ».
 - **Correction :** réécrire, et intituler la colonne « Mentions obligatoires ».
+- **Fait le 2026-09-28 :** aucune règle ne change · les commentaires et messages de `mentions-facture.ts` disent les douze points de l'art. 26 du décret n° 23/10, dont dix dus, et les neuf tirets de l'art. 100 du décret n° 011/42, adresse exacte comprise, selon la date de la pièce (`texteApplicable`) ; la colonne s'intitule « Mentions obligatoires ». Tests : `mentions-facture-f229.spec.ts`, `facturation-audit-final.spec.ts`. **Reste :** deux refus de `facturation.service.ts` nomment l'art. 100 quelle que soit la date.
 
 ### Analytique et EBNL
 
@@ -1723,12 +1727,14 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 5
 - **Constat :** code mort.
 - **Correction :** le retirer.
+- **Fait le 2026-09-28 :** `VentilerLotDto`, `VentilerUneLigneDto` et `ListerEngagementsDto`, reçus par aucune route, sont retirés. Test : `dto-servis-f230.spec.ts`, qui lit les métadonnées de Nest et exige qu'aucun DTO exporté du module ne reste sans route.
 
 **F231 · Jalon 11 attribué à tort aux conventions** [bailleurs-02]
 - **Emplacements :** convention-financement.service.ts:103-106 · planning-cloture.ts:412-420
 - **Condition :** 5
 - **Constat :** ce jalon vise l'accord-cadre.
 - **Correction :** retirer le renvoi.
+- **Fait le 2026-09-28 :** le jalon 11 renvoie à l'accord-cadre (loi n° 004/2001, art. 37 ; contrôle 29), et le champ `expiree` des conventions de financement est décrit par ce qu'il fait, relu par le contrôle 24 · commentaires et titres de spec seuls (`convention-financement.service.ts`, `planning-cloture.ts`, `types.ts`).
 
 ### Groupe et IFRS
 
@@ -1737,30 +1743,35 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 5
 - **Constat :** le cumul est refusé avec un message peu clair.
 - **Correction :** contrôles de `ajouterProvisionChange`.
+- **Fait le 2026-09-28 :** réciproques, résultats internes, provision pour pertes de change et fiscalité passent par `exerciceDuDossier` et `entiteDeLExercice` (`cumul.service.ts`) · 404 hors du dossier, 400 nommé pour une entité d'un autre exercice, et le cumul nomme une déclaration ancienne hors du périmètre. Tests : `cumul.service.spec.ts`.
 
 **F233 · Notes IFRS consolidées sans note de transition** [ifrs-01]
 - **Emplacements :** src/modules/ifrs/ifrs.service.ts:501, :751 · notes-ifrs.ts:574
 - **Condition :** 5
 - **Constat :** les comptes individuels la portent.
 - **Correction :** passer `ia1.premiereApplication`.
+- **Fait le 2026-09-28 :** les notes consolidées reçoivent la première application consolidée (`ia1.premiereApplication`, `ifrs.service.ts`) · la note de transition sort sur le premier exercice IFRS du groupe. Test : `ifrs.service.spec.ts`.
 
 **F234 · Routes de lecture sans exerciceId obligatoire** [conso-05]
 - **Emplacements :** consolidation.controller.ts:45 · ifrs.controller.ts:25 · perimetre.service.ts:70
 - **Condition :** 5
 - **Constat :** sur appel direct, tout le dossier est mêlé.
 - **Correction :** `ParseUUIDPipe`.
+- **Fait le 2026-09-28 :** périmètre, cumul, états consolidés et les deux lectures IFRS exigent l'exercice (`EXERCICE_REQUIS`, `consolidation/exercice-requis.ts`), et les services le refusent absent avant toute lecture (`exigerExercice`). Tests : `perimetre.service.spec.ts`, `ifrs.service.spec.ts`.
 
 **F235 · Renommer une entité vers un nom pris rend 500** [conso-06]
 - **Emplacements :** perimetre.service.ts:240-272 · prisma/schema.prisma:6834
 - **Condition :** 5
 - **Constat :** l'unicité n'est vérifiée qu'à la création.
 - **Correction :** même vérification.
+- **Fait le 2026-09-28 :** un nom d'entité est unique par exercice aux deux portes (`nomLibre`, `perimetre.service.ts`), une violation d'unicité simultanée rendant le même 400 nommé (`sousUniciteDuNom`). Test : `perimetre.service.spec.ts`.
 
 **F236 · Commentaire « écarts de conversion pas encore calculés »** [conso-07]
 - **Emplacements :** client/src/pages/EtatsConsolidesVue.tsx:14-15
 - **Condition :** 5
 - **Constat :** la tranche 4c les calcule.
 - **Correction :** retirer.
+- **Fait le 2026-09-28 :** le commentaire de tête d'`EtatsConsolidesVue.tsx` décrit l'existant · « non calculé » pour les « dont » et le résultat par action, colonne des écarts de conversion.
 
 ### Sécurité
 
@@ -1798,30 +1809,35 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 6
 - **Constat :** un second clic envoie une seconde lettre.
 - **Correction :** `ArrayMaxSize`, ou mise en file sans envoi immédiat.
+- **Fait le 2026-09-28 :** l'émission des relances n'envoie rien · sélection bornée à 500 comptes sans doublon (DTO et service), relances et lettres écrites dans une transaction sous verrou par dossier (`ecrireEnFileSansTenter`, `courrier.service.ts`), remises par la reprise bornée que la fenêtre enchaîne. Une lettre du même compte, du même niveau et du même jour de Kinshasa, en file ou partie, n'est pas réécrite et revient dans `dejaEmises`. Tests : `emission-bornee-f241.spec.ts`, `courrier.service.spec.ts`, `remise-des-lettres.spec.ts`, `file-des-courriels.spec.ts`, `remise-a-lecran.spec.ts`.
 
 **F242 · En-tête du tableau Utilisateurs : six cellules pour cinq colonnes** [utilisateurs-02]
 - **Emplacements :** client/src/pages/UtilisateursPage.tsx:176
 - **Condition :** 5
 - **Constat :** « STATUT » apparaît deux fois.
 - **Correction :** cinq cellules.
+- **Fait le 2026-09-28 :** l'en-tête du tableau des utilisateurs porte cinq cellules pour cinq colonnes. Test : `entetes-de-grille-f242.spec.ts`, qui relit par le compilateur les grilles à colonnes figées de quatre pages.
 
 **F243 · Commentaire de RelancesPage contraire au serveur** [relances-06]
 - **Emplacements :** client/src/pages/RelancesPage.tsx:25-27 · relances.service.ts:68-75
 - **Condition :** 5
 - **Constat :** les modèles de relance sont désormais propres à chaque référentiel.
 - **Correction :** aligner.
+- **Fait le 2026-09-28 :** le commentaire d'en-tête de `RelancesPage.tsx` dit les niveaux propres à chaque référentiel (`NIVEAUX_DEFAUT`). Test : `remise-a-lecran.spec.ts`.
 
 **F244 · Deux origines de courrier affichées en code brut** [courrier-01]
 - **Emplacements :** client/src/lib/courrier-file.ts:153-164 · courrier.service.ts:31
 - **Condition :** 5
 - **Constat :** FACTURE_ABONNEMENT et LICENCE_SUR_SITE.
 - **Correction :** ajouter les libellés.
+- **Fait le 2026-09-28 :** les origines « Facture d'abonnement » et « Licence sur site » ont leur libellé (`courrier-file.ts`). Test : `file-des-courriels.spec.ts`, qui exige un libellé pour chaque constante `ORIGINE_` du serveur.
 
 **F245 · Commentaires déplacés et chemin périmé (plateforme)** [plateforme-11]
 - **Emplacements :** plateforme.controller.ts:126-147 · plateforme.service.ts:448-508 · prisma/schema.prisma:732
 - **Condition :** 5
 - **Constat :** JSDoc empilés, et `src/modules/abonnements` inexistant.
 - **Correction :** replacer et corriger.
+- **Fait le 2026-09-28 :** les JSDoc de la console sont remis au-dessus de leur route ou méthode, et le schéma cite `src/modules/plateforme/abonnements`. Test : `commentaires-f245.spec.ts`.
 
 ### Interface
 
@@ -1920,12 +1936,14 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 6
 - **Constat :** contraire au § 8 bis.
 - **Correction :** borne déclarée.
+- **Fait le 2026-09-28 :** les listes du registre du personnel sont des tranches qui se disent · salariés 1 000, rubriques, bulletins modèles et avances 500, chacune avec son total compté par la base et `tronque` ; la confrontation lit les salariés par lots de 200 et garde les 500 premières fiches, totaux sur le registre entier (`personnel.service.ts`, `avances-rubriques.service.ts`, `liste-bornee-personnel.ts`). Tests : `registre-borne-et-devise.spec.ts`, `liste-bornee-personnel.spec.ts`, `personnel-audit-final.spec.ts`. **Reste :** les collections imbriquées de `lister`, l'effectif du registre et les versions SMIG de la confrontation.
 
 **F260 · Console : collections sans borne et lecture dans une boucle** [plateforme-10]
 - **Emplacements :** src/modules/plateforme/plateforme.service.ts:68 · abonnements.service.ts:107, :281
 - **Condition :** 6
 - **Constat :** les factures sont relues pour chaque abonnement.
 - **Correction :** borne, et numéro calculé une fois.
+- **Fait le 2026-09-28 :** cabinets, abonnements et licences sur site de la console sont bornés à `PLAFOND_LISTE_CONSOLE` avec total et `tronque` (`plafond-console.ts`), et la facturation parcourt le parc par tranches, le numéro calculé une fois. Test : `console-bornee-f260.spec.ts`.
 
 **F261 · Index par tenantId absents** [socle-13, infra-16]
 - **Emplacements :** prisma/schema.prisma:831, :1563, :1810, :3414

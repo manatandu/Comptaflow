@@ -91,12 +91,46 @@ describe("Le compte rendu d'émission des relances", () => {
     expect(plusieurs).toContain("3 comptes de la sélection n'avaient rien à réclamer dans cet état");
   });
 
+  it('dit les comptes DÉJÀ RELANCÉS à cette date · le second clic n’écrit rien, et le dit (audit final F241)', () => {
+    // « Aucun courrier préparé. » tout seul, après un second clic, se lirait
+    // « il n'y avait rien à réclamer » · or la lettre est déjà en file. Et
+    // jamais « déjà reçu » · une lettre gardée faute de messagerie n'a été
+    // reçue par personne.
+    const seul = phraseEmission({ emises: 0, misesEnFile: 0, nonRemises: 0, dejaEmises: [{ compte: '41100001 · Client A' }] });
+    expect(seul).toContain('Aucun courrier préparé.');
+    expect(seul).toContain(
+      '1 compte de la sélection avait déjà sa lettre de ce niveau en file ou partie à cette date (41100001 · Client A) · aucune seconde lettre.',
+    );
+
+    const melange = phraseEmission({
+      emises: 1,
+      misesEnFile: 1,
+      nonRemises: 0,
+      dejaEmises: [{ compte: 'A' }, { compte: 'B' }],
+    });
+    expect(melange).toContain('1 courrier préparé · tous mis en file de départ.');
+    expect(melange).toContain(
+      '2 comptes de la sélection avaient déjà leur lettre de ce niveau en file ou partie à cette date · aucune seconde lettre.',
+    );
+  });
+
   it('le choix du niveau suit l’état affiché, et les jetons sont dits dans la bulle (audit final F166, F167)', () => {
     expect(relances).toContain('const niveauxDeLEtat = niveaux.filter((n) => n.type === type && n.estActif);');
     expect(relances).toContain('{niveauxDeLEtat.map((n) => (');
     expect(relances).toContain('<Aide titre="Jetons du modèle" texte={AIDE_JETONS}');
     expect(relances).toContain('{date} le jour du courrier');
     expect(relances).toContain("{echeance} l'échéance la plus ancienne des lignes réclamées");
+  });
+
+  it('l’en-tête de la fenêtre renvoie aux modèles PAR RÉFÉRENTIEL que le serveur sème (audit final F243)', () => {
+    // Le commentaire les disait « neutres » et communs aux deux référentiels ·
+    // le serveur sème un jeu par référentiel depuis. La présence est gelée des
+    // deux côtés · le nom cité ici existe là-bas, sous la forme qui le rend
+    // propre à chaque référentiel.
+    const service = readFileSync(join(__dirname, '../../../src/modules/relances/relances.service.ts'), 'utf8');
+    expect(service).toMatch(/^const NIVEAUX_DEFAUT: Record<Referentiel, /m);
+    const entete = relances.slice(relances.indexOf('/**'), relances.indexOf('*/'));
+    expect(entete).toContain('PROPRES À CHAQUE RÉFÉRENTIEL (`NIVEAUX_DEFAUT`');
   });
 
   it("est bien la phrase que l'écran affiche, et non un texte oublié dans un module", () => {

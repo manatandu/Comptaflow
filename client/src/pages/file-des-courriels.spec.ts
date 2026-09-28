@@ -3,14 +3,18 @@ import { join } from 'node:path';
 import {
   CLASSES_TON,
   ETATS_MESSAGE,
+  LIBELLES_ORIGINE,
   PHRASE_OU_SE_POSE_LE_COURRIEL,
   PHRASE_SANS_TRANSPORT,
+  SUITE_REPRISE_HORS_FILE,
   TITRE_SANS_TRANSPORT,
   compteCloche,
+  cumulerReprises,
   etatMessage,
   filtresFile,
   libelleCompteCloche,
   libelleOrigine,
+  reprendreEncore,
   resumeReprise,
   titreCloche,
 } from '../lib/courrier-file';
@@ -226,6 +230,73 @@ describe('le bilan d’une reprise', () => {
   });
 });
 
+describe('les relances partent par la reprise, en passages bornés (audit final F241)', () => {
+  it('continue tant qu’il reste à faire et qu’un passage a fait quelque chose', () => {
+    expect(reprendreEncore(BILAN({ examines: 25, envoyes: 25, restants: 40 }), 1, 10)).toBe(true);
+  });
+
+  it('s’arrête quand la file est vide, sans messagerie, sur un passage stérile, ou au plafond', () => {
+    expect(reprendreEncore(BILAN({ examines: 25, envoyes: 25, restants: 0 }), 1, 10)).toBe(false);
+    // Sans messagerie, rien n'est tenté · reboucler ne ferait que marteler le serveur.
+    expect(reprendreEncore(BILAN({ transportConfigure: false, restants: 40 }), 1, 10)).toBe(false);
+    // Un passage qui n'a rien pris (tout revendiqué par un autre onglet) ne
+    // se répète pas · la boucle tournerait jusqu'au plafond pour rien.
+    expect(reprendreEncore(BILAN({ examines: 0, ignores: 25, restants: 40 }), 1, 10)).toBe(false);
+    // Le plafond borne la boucle quoi que dise le serveur.
+    expect(reprendreEncore(BILAN({ examines: 25, envoyes: 25, restants: 40 }), 10, 10)).toBe(false);
+  });
+
+  it('la fenêtre Rappel et relevé appelle la reprise après l’émission, bornée par le nombre de lettres', () => {
+    const page = lire('pages/RelancesPage.tsx');
+    const debut = page.indexOf('const emettre = async');
+    expect(debut).toBeGreaterThan(-1);
+    const ouvrante = page.indexOf('{', page.indexOf('=>', debut));
+    let profondeur = 0;
+    let corps = '';
+    for (let i = ouvrante; i < page.length; i++) {
+      if (page[i] === '{') profondeur++;
+      if (page[i] === '}' && --profondeur === 0) {
+        corps = page.slice(ouvrante, i + 1);
+        break;
+      }
+    }
+    expect(corps).toContain("api.post<BilanRepriseCourrier>('/courrier/reprendre'");
+    expect(corps).toContain('reprendreEncore(bilan, passages, enAttente + 1)');
+    expect(corps).toContain('window.dispatchEvent(new Event(EVENEMENT_FILE_COURRIER))');
+    // Le compte rendu porte le CUMUL des passages, et dit où faire partir le
+    // reste · la fenêtre n'a pas de bouton de reprise.
+    expect(corps).toContain('cumul = cumulerReprises(cumul, bilan);');
+    expect(corps).toContain('resumeReprise(cumul, SUITE_REPRISE_HORS_FILE)');
+  });
+
+  it('le compte rendu additionne les passages · le dernier seul disait « 10 envoyés » pour soixante', () => {
+    const premier = BILAN({ examines: 25, envoyes: 25, restants: 35 });
+    const second = BILAN({ examines: 25, envoyes: 24, echoues: 1, restants: 10 });
+    const dernier = BILAN({ examines: 10, envoyes: 9, abandonnes: 1, ignores: 2, restants: 0 });
+    const cumul = [premier, second, dernier].reduce<BilanRepriseCourrier | null>((a, b) => cumulerReprises(a, b), null)!;
+    expect(cumul).toMatchObject({ examines: 60, envoyes: 58, echoues: 1, abandonnes: 1, ignores: 2, restants: 0 });
+    expect(resumeReprise(cumul)).toContain('60 messages repris · 58 envoyés, 1 en échec, 1 abandonné.');
+    // Ce qui reste et la messagerie sont ceux du DERNIER passage, l'état présent.
+    const sansMessagerie = cumulerReprises(premier, BILAN({ transportConfigure: false, restants: 35 }));
+    expect(sansMessagerie).toMatchObject({ transportConfigure: false, examines: 25, restants: 35 });
+  });
+
+  it('hors de la fenêtre des courriers, ce qui reste se dit par le bouton qui le fera partir', () => {
+    const reste = BILAN({ examines: 25, envoyes: 25, restants: 40 });
+    expect(resumeReprise(reste)).toContain('Il en reste 40 à reprendre · relancez pour continuer.');
+    expect(resumeReprise(reste, SUITE_REPRISE_HORS_FILE)).toContain(
+      'Il en reste 40 à reprendre · « Relancer les envois » dans Courriers sortants les fera partir.',
+    );
+  });
+
+  it('EN_ATTENTE dit que le message attend la reprise, et où la lancer', () => {
+    const attente = etatMessage('EN_ATTENTE');
+    expect(attente.explication).toContain('passage suivant de la reprise');
+    expect(attente.explication).toContain('« Relancer les envois »');
+    expect(lire('pages/CourrierPage.tsx')).toContain('Relancer les envois (');
+  });
+});
+
 describe('la fenêtre', () => {
   it('offre les six filtres, même à zéro et même sans compteurs', () => {
     // Un onglet qui disparaît quand son état se vide fait bouger la barre sous
@@ -251,6 +322,22 @@ describe('la fenêtre', () => {
     // quelle décision comptable les a demandés.
     expect(libelleOrigine('RELANCE')).toBe('Rappel et relevé');
     expect(libelleOrigine('CONVOCATION_ASSEMBLEE')).toBe('CONVOCATION_ASSEMBLEE');
+  });
+
+  it('chaque origine que le serveur nomme a son libellé à l’écran (audit final F244)', () => {
+    // FACTURE_ABONNEMENT et LICENCE_SUR_SITE s'affichaient en code brut ·
+    // le repli « telle quelle » est fait pour un client plus ancien que le
+    // serveur, pas pour une origine qu'on a oublié de nommer. Chaque
+    // constante `ORIGINE_` du service est relue, jamais recopiée ici.
+    const service = lireServeur('modules/courrier/courrier.service.ts');
+    const origines = [...service.matchAll(/^export const ORIGINE_\w+ = '(\w+)';$/gm)].map((m) => m[1]);
+    // Le relevé trouve encore les quatre d'aujourd'hui · un motif qui ne
+    // trouverait plus rien passerait sans rien vérifier.
+    expect(origines).toEqual(expect.arrayContaining(['RELANCE', 'MOT_DE_PASSE_TEMPORAIRE', 'FACTURE_ABONNEMENT', 'LICENCE_SUR_SITE']));
+    const sansLibelle = origines.filter((o) => !LIBELLES_ORIGINE[o] || libelleOrigine(o) === o);
+    expect(sansLibelle).toEqual([]);
+    expect(libelleOrigine('FACTURE_ABONNEMENT')).toBe('Facture d’abonnement');
+    expect(libelleOrigine('LICENCE_SUR_SITE')).toBe('Licence sur site');
   });
 
   it('ne laisse pas croire qu’un avis d’accès porte le mot de passe', () => {

@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { StatutMessage } from '@prisma/client';
+import { Prisma, StatutMessage } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { filtreBorne } from '../../common/cloisonnement/extension-cloisonnement';
 import { CourrierService, ORIGINE_RELANCE } from './courrier.service';
@@ -87,6 +87,26 @@ function baseMemoire(initiales: Ligne[] = []) {
         };
         table.push(ligne);
         return { ...ligne };
+      }),
+      // L'insertion groupée du lot différé (audit final F241) · mêmes défauts
+      // que `create`, l'identifiant étant tiré par le service.
+      createMany: jest.fn(async ({ data }: any) => {
+        for (const d of data as Ligne[]) {
+          table.push({
+            statut: StatutMessage.EN_ATTENTE,
+            tentatives: 0,
+            destinataireNom: null,
+            origineId: null,
+            createdBy: null,
+            dernierEssaiAt: null,
+            prochainEssaiAt: null,
+            erreur: null,
+            envoyeAt: null,
+            createdAt: new Date(),
+            ...d,
+          });
+        }
+        return { count: (data as Ligne[]).length };
       }),
       updateMany: jest.fn(async ({ where, data }: any) => {
         filtres.push(where);
@@ -559,5 +579,127 @@ describe('pièce jointe · écrite avec le message, remise au transport', () => 
     const service = new CourrierService(memoire.prisma, transportFactice({ configure: true }));
     await expect(service.mettreEnFile(DOSSIER, { ...RELANCE, pieceJointe: { nom: 'licence.omegax', texte: '  ' } })).rejects.toThrow(/Pièce jointe/);
     expect(memoire.table).toHaveLength(0);
+  });
+});
+
+describe('un lot écrit pour la reprise · `ecrireEnFileSansTenter` (audit final F241)', () => {
+  // L'émission des relances tentait chaque remise dans la requête, une
+  // seconde par tiers et sans borne. Le lot est ÉCRIT, dans la transaction de
+  // l'émission, et laissé à la reprise, qui le prend dès son passage suivant.
+  const tx = (m: ReturnType<typeof baseMemoire>) => m.prisma as unknown as Prisma.TransactionClient;
+
+  it('avec une messagerie, chaque message attend EN_ATTENTE sans aucune tentative, en UNE insertion', async () => {
+    const memoire = baseMemoire();
+    const transport = transportFactice({ configure: true });
+    const service = new CourrierService(memoire.prisma, transport);
+
+    const resultats = await service.ecrireEnFileSansTenter(tx(memoire), DOSSIER, [
+      RELANCE,
+      { ...RELANCE, destinataire: 'autre@lemba.cd' },
+    ]);
+
+    expect(resultats.map((r) => [r.statut, r.motif])).toEqual([
+      [StatutMessage.EN_ATTENTE, null],
+      [StatutMessage.EN_ATTENTE, null],
+    ]);
+    // L'identifiant rendu est celui de la ligne écrite · c'est par lui que
+    // l'appelant nomme le message de chaque lettre.
+    expect(resultats.map((r) => r.id)).toEqual(memoire.table.map((l) => l.id));
+    expect(new Set(resultats.map((r) => r.id)).size).toBe(2);
+    expect((memoire.prisma as any).message.createMany).toHaveBeenCalledTimes(1);
+    expect((memoire.prisma as any).message.create).not.toHaveBeenCalled();
+    expect(transport.envoyer).not.toHaveBeenCalled();
+    expect(memoire.table[0]).toMatchObject({ tenantId: DOSSIER, statut: StatutMessage.EN_ATTENTE, tentatives: 0, dernierEssaiAt: null });
+    expect(memoire.table[0].prochainEssaiAt).toBeInstanceOf(Date);
+  });
+
+  it('écrit par le client de la TRANSACTION reçue, jamais par le sien', async () => {
+    // Écrite hors de la transaction de l'émission, la lettre naissait après
+    // la relance, et une seconde émission passait entre les deux.
+    const propre = baseMemoire();
+    const transaction = baseMemoire();
+    const service = new CourrierService(propre.prisma, transportFactice({ configure: true }));
+    await service.ecrireEnFileSansTenter(tx(transaction), DOSSIER, [RELANCE]);
+    expect(transaction.table).toHaveLength(1);
+    expect(propre.table).toHaveLength(0);
+  });
+
+  it('la reprise le prend AU PASSAGE SUIVANT, sans attendre le délai des orphelins', async () => {
+    const memoire = baseMemoire();
+    const transport = transportFactice({ configure: true });
+    const service = new CourrierService(memoire.prisma, transport);
+    await service.ecrireEnFileSansTenter(tx(memoire), DOSSIER, [RELANCE]);
+
+    // Il est compté parmi ce que le bouton ferait partir · écrit à l'instant,
+    // il n'est pourtant pas un orphelin.
+    expect((await service.compterParStatut(DOSSIER)).aRelancer).toBe(1);
+    const bilan = await service.reprendre(DOSSIER);
+
+    expect(bilan).toMatchObject({ examines: 1, envoyes: 1, restants: 0 });
+    expect(transport.envoyer).toHaveBeenCalledTimes(1);
+    expect(memoire.table[0]).toMatchObject({ statut: StatutMessage.ENVOYE, tentatives: 1, prochainEssaiAt: null });
+  });
+
+  it('un message différé déjà revendiqué par une reprise en cours n’est pas repris par une autre', async () => {
+    // La revendication pose `dernierEssaiAt` et laisse EN_ATTENTE le temps de
+    // la remise · une seconde reprise qui le prendrait l'enverrait deux fois
+    // au même tiers.
+    const memoire = baseMemoire([
+      {
+        id: 'm-revendique',
+        tenantId: DOSSIER,
+        ...RELANCE,
+        statut: StatutMessage.EN_ATTENTE,
+        tentatives: 0,
+        dernierEssaiAt: new Date(Date.now() - 5_000),
+        prochainEssaiAt: ilYA(1),
+        erreur: null,
+        envoyeAt: null,
+        createdAt: ilYA(1),
+      },
+    ]);
+    const transport = transportFactice({ configure: true });
+    const bilan = await new CourrierService(memoire.prisma, transport).reprendre(DOSSIER);
+    expect(bilan).toMatchObject({ examines: 0, envoyes: 0 });
+    expect(transport.envoyer).not.toHaveBeenCalled();
+  });
+
+  it('sans messagerie, il est écrit SANS_TRANSPORT, comme un envoi immédiat l’aurait marqué', async () => {
+    const memoire = baseMemoire();
+    const transport = transportFactice({ configure: false });
+    const service = new CourrierService(memoire.prisma, transport);
+
+    const [resultat] = await service.ecrireEnFileSansTenter(tx(memoire), DOSSIER, [RELANCE]);
+
+    expect(resultat.statut).toBe(StatutMessage.SANS_TRANSPORT);
+    expect(memoire.table[0].statut).toBe(StatutMessage.SANS_TRANSPORT);
+    expect(transport.envoyer).not.toHaveBeenCalled();
+  });
+
+  it('un message refusé à l’écriture revient avec son motif, et n’emporte pas le lot', async () => {
+    // Les refus sont ceux de `mettreEnFile` · une adresse inutilisable ne se
+    // répare par aucune tentative. Elle vaut pour CETTE lettre.
+    const memoire = baseMemoire();
+    const service = new CourrierService(memoire.prisma, transportFactice({ configure: true }));
+
+    const resultats = await service.ecrireEnFileSansTenter(tx(memoire), DOSSIER, [
+      { ...RELANCE, destinataire: 'deux, adresses@nzita.cd' },
+      RELANCE,
+    ]);
+
+    expect(resultats[0]).toMatchObject({ id: null, statut: null });
+    expect(resultats[0].motif).toContain('inutilisable');
+    expect(resultats[1]).toMatchObject({ statut: StatutMessage.EN_ATTENTE, motif: null });
+    expect(memoire.table).toHaveLength(1);
+    expect(memoire.table[0].destinataire).toBe(RELANCE.destinataire);
+  });
+
+  it('un message isolé part toujours dans la requête · avis, factures, licences', async () => {
+    const memoire = baseMemoire();
+    const transport = transportFactice({ configure: true });
+    const service = new CourrierService(memoire.prisma, transport);
+    const resultat = await service.mettreEnFile(DOSSIER, RELANCE);
+    expect(resultat.statut).toBe(StatutMessage.ENVOYE);
+    expect(transport.envoyer).toHaveBeenCalledTimes(1);
   });
 });

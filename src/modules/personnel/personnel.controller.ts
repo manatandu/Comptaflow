@@ -12,6 +12,7 @@ import {
   ComptabilisationPaieDto,
   ContratTravailDto,
   DecompteFinalDto,
+  DeviseRemunerationDto,
   LivreDePaieDto,
   RemiseBulletinDto,
   SalarieDto,
@@ -73,6 +74,18 @@ export class PersonnelController {
     @Body() dto: ContratTravailDto,
   ) {
     return this.personnel.creerContrat(user.tenantId, user.userId, salarieId, dto);
+  }
+
+  // AUDIT FINAL F226 · la monnaie d'un contrat saisi sans elle se complète,
+  // faute de quoi le contrôle du minimum s'abstient pour toujours.
+  @Post('contrats/:contratId/devise-remuneration')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  async declarerDeviseRemuneration(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('contratId') contratId: string,
+    @Body() dto: DeviseRemunerationDto,
+  ) {
+    return this.personnel.declarerDeviseRemuneration(user.tenantId, contratId, dto.deviseRemuneration);
   }
 
   @Post('contrats/:contratId/fin')

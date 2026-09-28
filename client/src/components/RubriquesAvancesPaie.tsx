@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { Aide } from './chrome/Aide';
+import { libelleListeBornee } from '../lib/liste-bornee-personnel';
 
 export interface RubriquePaie {
   id: string;
@@ -27,6 +28,9 @@ export interface AvanceSalaire {
   retenues: { montantFc: number; numero: number; moisDePaie: string; bulletinAnnule: boolean }[];
   soldeFc: number;
 }
+
+/** Une liste du serveur et ce qu'elle dit d'elle-même (audit final F259). */
+type Tranche = { total: number; tronque: boolean };
 
 /** Les libellés des natures qu'une rubrique peut prendre · la liste vient du serveur. */
 const LIBELLE_NATURE: Record<string, string> = {
@@ -59,6 +63,10 @@ export function OngletRubriquesAvances({ salaries, peutEcrire }: { salaries: Sal
   const [rubriques, setRubriques] = useState<RubriquePaie[]>([]);
   const [natures, setNatures] = useState<string[]>([]);
   const [avances, setAvances] = useState<AvanceSalaire[]>([]);
+  // Null tant que la liste n'est pas LUE · « Aucune » ne se dit pas sur un
+  // échec de lecture, qui serait la réponse favorable à la question posée.
+  const [trancheRubriques, setTrancheRubriques] = useState<Tranche | null>(null);
+  const [trancheAvances, setTrancheAvances] = useState<Tranche | null>(null);
   const [erreur, setErreur] = useState('');
   const [rubrique, setRubrique] = useState({ code: '', libelle: '', nature: 'PRIME', fondement: '' });
   const [avance, setAvance] = useState({
@@ -73,14 +81,21 @@ export function OngletRubriquesAvances({ salaries, peutEcrire }: { salaries: Sal
   });
 
   const charger = useCallback(() => {
-    api.get<{ rubriques: RubriquePaie[]; naturesPermises: string[] }>('/personnel/rubriques').then(
+    api.get<{ rubriques: RubriquePaie[]; naturesPermises: string[] } & Tranche>('/personnel/rubriques').then(
       (r) => {
         setRubriques(r.rubriques);
         setNatures(r.naturesPermises);
+        setTrancheRubriques({ total: r.total, tronque: r.tronque });
       },
       (e: ApiError) => setErreur(e.message),
     );
-    api.get<AvanceSalaire[]>('/personnel/avances').then(setAvances, (e: ApiError) => setErreur(e.message));
+    api.get<{ avances: AvanceSalaire[] } & Tranche>('/personnel/avances').then(
+      (r) => {
+        setAvances(r.avances);
+        setTrancheAvances({ total: r.total, tronque: r.tronque });
+      },
+      (e: ApiError) => setErreur(e.message),
+    );
   }, []);
   useEffect(charger, [charger]);
 
@@ -143,7 +158,7 @@ export function OngletRubriquesAvances({ salaries, peutEcrire }: { salaries: Sal
             </tr>
           </thead>
           <tbody>
-            {rubriques.length === 0 && (
+            {trancheRubriques && rubriques.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-2 py-1 text-text-dim">
                   Aucune rubrique.
@@ -171,6 +186,9 @@ export function OngletRubriquesAvances({ salaries, peutEcrire }: { salaries: Sal
             ))}
           </tbody>
         </table>
+        {trancheRubriques && libelleListeBornee(trancheRubriques, rubriques.length, 'rubriques') && (
+          <div className="text-warning mt-1">{libelleListeBornee(trancheRubriques, rubriques.length, 'rubriques')}</div>
+        )}
         {peutEcrire && (
           <form onSubmit={creerRubrique} className="flex flex-wrap gap-1.5 mt-2 items-center">
             <input aria-label="Code de la rubrique" placeholder="Code" value={rubrique.code} onChange={(e) => setRubrique({ ...rubrique, code: e.target.value })} className={`${champ} w-[90px]`} />
@@ -218,7 +236,7 @@ export function OngletRubriquesAvances({ salaries, peutEcrire }: { salaries: Sal
             </tr>
           </thead>
           <tbody>
-            {avances.length === 0 && (
+            {trancheAvances && avances.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-2 py-1 text-text-dim">
                   Aucune avance.
@@ -259,6 +277,9 @@ export function OngletRubriquesAvances({ salaries, peutEcrire }: { salaries: Sal
             ))}
           </tbody>
         </table>
+        {trancheAvances && libelleListeBornee(trancheAvances, avances.length, 'avances') && (
+          <div className="text-warning mt-1">{libelleListeBornee(trancheAvances, avances.length, 'avances')}</div>
+        )}
         {peutEcrire && (
           <form onSubmit={creerAvance} className="flex flex-wrap gap-1.5 mt-2 items-center">
             <select aria-label="Salarié" value={avance.salarieId} onChange={(e) => setAvance({ ...avance, salarieId: e.target.value })} className={champ} required>

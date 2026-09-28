@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
+import { exigerExercice } from './exercice-requis';
 import {
   analyserPerimetre,
   EntitePerimetre,
@@ -16,6 +18,22 @@ import {
 } from './dto/perimetre.dto';
 
 type LienStocke = { id: string; detentriceId: string | null; detenueId: string; pctDroitsVote: unknown; pctCapital: unknown };
+
+const NOM_PRIS = (nom: string) => `« ${nom} » figure déjà au périmètre de cet exercice.`;
+
+/**
+ * Deux saisies simultanées du même nom passent toutes deux la vérification ·
+ * la seconde bute sur l'unicité (exercice, nom) du schéma, et reçoit le même
+ * refus nommé plutôt qu'une 500 (audit final F235).
+ */
+async function sousUniciteDuNom<T>(nom: string, ecriture: Promise<T>): Promise<T> {
+  try {
+    return await ecriture;
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') throw new BadRequestException(NOM_PRIS(nom));
+    throw e;
+  }
+}
 
 /**
  * PÉRIMÈTRE DE CONSOLIDATION · la persistance autour du moteur pur. Le service
@@ -68,6 +86,9 @@ export class PerimetreService {
   constructor(private readonly prisma: PrismaService) {}
 
   private async exercice(tenantId: string, exerciceId: string) {
+    // Un exercice absent n'est pas « le premier venu » (audit final F234) ·
+    // Prisma ignore un `id: undefined` et rendait le premier exercice du dossier.
+    exigerExercice(exerciceId);
     const ex = await this.prisma.exercice.findFirst({
       where: { id: exerciceId, tenantId },
       select: { id: true, dateDebut: true, dateFin: true },
@@ -77,6 +98,10 @@ export class PerimetreService {
   }
 
   private async charger(tenantId: string, exerciceId: string) {
+    // AVANT les lectures parallèles · sans exercice, elles partaient toutes sur
+    // le dossier entier, entités et participations de tous les exercices
+    // mêlées dans un seul périmètre (audit final F234).
+    exigerExercice(exerciceId);
     const [tenant, ex, entites, liens, faits] = await Promise.all([
       this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { id: true, nom: true } }),
       this.exercice(tenantId, exerciceId),
@@ -234,19 +259,34 @@ export class PerimetreService {
     }
   }
 
+  /**
+   * UN NOM PAR EXERCICE, AUX DEUX PORTES (audit final F235). L'unicité
+   * (exercice, nom) du schéma n'était vérifiée qu'à la création · renommer une
+   * entité vers un nom déjà pris laissait la base lever sa violation d'unicité,
+   * rendue en 500 sans dire quel nom gênait. `sauf` écarte l'entité renommée,
+   * qui peut garder son propre nom. Un nom vide est refusé · une entité sans
+   * nom ne se lit ni dans la note du périmètre ni dans un refus du moteur.
+   */
+  private async nomLibre(tenantId: string, exerciceId: string, nom: string, sauf?: string): Promise<string> {
+    const n = nom.trim();
+    if (!n) throw new BadRequestException('Une entité du périmètre se déclare avec son nom.');
+    const existe = await this.prisma.entitePerimetreConsolidation.findFirst({
+      where: { tenantId, exerciceId, nom: n, ...(sauf ? { id: { not: sauf } } : {}) },
+      select: { id: true },
+    });
+    if (existe) throw new BadRequestException(NOM_PRIS(n));
+    return n;
+  }
+
   async creerEntite(tenantId: string, dto: EntitePerimetreDto) {
     await this.exercice(tenantId, dto.exerciceId);
     this.verifierExclusion(dto.motifExclusion, dto.justificationExclusion);
-    const existe = await this.prisma.entitePerimetreConsolidation.findFirst({
-      where: { tenantId, exerciceId: dto.exerciceId, nom: dto.nom.trim() },
-      select: { id: true },
-    });
-    if (existe) throw new BadRequestException(`« ${dto.nom.trim()} » figure déjà au périmètre de cet exercice.`);
-    return this.prisma.entitePerimetreConsolidation.create({
+    const nom = await this.nomLibre(tenantId, dto.exerciceId, dto.nom);
+    return sousUniciteDuNom(nom, this.prisma.entitePerimetreConsolidation.create({
       data: {
         tenantId,
         exerciceId: dto.exerciceId,
-        nom: dto.nom.trim(),
+        nom,
         designationMajoriteDeuxExercices: dto.designationMajoriteDeuxExercices ?? false,
         aucunAutreAssocieSuperieur: dto.aucunAutreAssocieSuperieur ?? false,
         controleContractuel: dto.controleContractuel ?? false,
@@ -257,7 +297,7 @@ export class PerimetreService {
         dateCloture: dto.dateCloture ? new Date(dto.dateCloture) : null,
         secteurActivite: dto.secteurActivite?.trim() || null,
       },
-    });
+    }));
   }
 
   async modifierEntite(tenantId: string, id: string, dto: ModifierEntitePerimetreDto) {
@@ -266,10 +306,13 @@ export class PerimetreService {
     const motif = dto.motifExclusion !== undefined ? dto.motifExclusion : actuelle.motifExclusion;
     const justif = dto.justificationExclusion !== undefined ? dto.justificationExclusion : actuelle.justificationExclusion;
     this.verifierExclusion(motif, justif);
-    return this.prisma.entitePerimetreConsolidation.update({
+    // Renommer passe par la même règle que créer (audit final F235), dans le
+    // périmètre de l'exercice de l'entité.
+    const nom = dto.nom == null ? undefined : await this.nomLibre(tenantId, actuelle.exerciceId, dto.nom, id);
+    return sousUniciteDuNom(nom ?? actuelle.nom, this.prisma.entitePerimetreConsolidation.update({
       where: { id },
       data: {
-        nom: dto.nom?.trim(),
+        nom,
         designationMajoriteDeuxExercices: dto.designationMajoriteDeuxExercices,
         aucunAutreAssocieSuperieur: dto.aucunAutreAssocieSuperieur,
         controleContractuel: dto.controleContractuel,
@@ -280,7 +323,7 @@ export class PerimetreService {
         dateCloture: dto.dateCloture === undefined ? undefined : dto.dateCloture ? new Date(dto.dateCloture) : null,
         secteurActivite: dto.secteurActivite === undefined ? undefined : dto.secteurActivite?.trim() || null,
       },
-    });
+    }));
   }
 
   async supprimerEntite(tenantId: string, id: string) {

@@ -1,7 +1,6 @@
 import { Referentiel, StatutMessage, TypeRelance } from '@prisma/client';
-import { BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { CourrierService, ORIGINE_RELANCE } from '../courrier/courrier.service';
+import { CourrierService, MessageAMettreEnFile, ORIGINE_RELANCE } from '../courrier/courrier.service';
 import { RelancesService, objetDeLaRelance } from './relances.service';
 
 /**
@@ -59,16 +58,19 @@ function ligne(numero: string, tiers: { id: string; nom: string; email: string |
   };
 }
 
-function service(
-  lignes: ReturnType<typeof ligne>[],
-  mettreEnFile: jest.Mock = jest.fn(async () => ({
-    id: 'm-1',
-    statut: StatutMessage.SANS_TRANSPORT,
-    erreur: null,
-  })),
-) {
-  let cree = 0;
-  const relanceCreate = jest.fn(async () => ({ id: `r-${++cree}` }));
+/**
+ * La file du lot · une réponse par message, dans l'ordre · SANS_TRANSPORT par
+ * défaut, l'état de cette installation (audit final F241 : l'émission écrit
+ * ses lettres en UN lot, dans sa transaction).
+ */
+type ReponseFile = (m: MessageAMettreEnFile) => { id: string; statut: StatutMessage; motif: null } | { id: null; statut: null; motif: string };
+const sansTransport: ReponseFile = () => ({ id: 'm-1', statut: StatutMessage.SANS_TRANSPORT, motif: null });
+
+function service(lignes: ReturnType<typeof ligne>[], repondre: ReponseFile = sansTransport) {
+  // Les relances écrites, une par lettre · l'émission les insère d'un seul
+  // `createMany` (audit final F241), et la doublure les rejoue une à une.
+  const ecrites: { id: string }[] = [];
+  const relanceCreate = jest.fn((ligne: { id: string }) => ecrites.push(ligne));
   const prisma = {
     tenant: {
       findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel: Referentiel.SYSCOHADA }),
@@ -79,10 +81,26 @@ function service(
       findFirst: jest.fn().mockResolvedValue(NIVEAU),
       findMany: jest.fn().mockResolvedValue([]),
     },
-    relance: { findMany: jest.fn().mockResolvedValue([]), create: relanceCreate },
+    relance: {
+      findMany: jest.fn().mockResolvedValue([]),
+      createMany: jest.fn(async ({ data }: { data: { id: string }[] }) => {
+        data.forEach((ligne) => relanceCreate(ligne));
+        return { count: data.length };
+      }),
+    },
+    // L'émission écrit sous un verrou par dossier, dans une transaction
+    // (audit final F241) · la doublure joue la transaction sur elle-même.
+    $executeRaw: jest.fn(async () => 0),
+    $transaction: jest.fn(async (fn: (tx: unknown) => unknown) => fn(prisma)),
   } as unknown as PrismaService;
-  const courrier = { mettreEnFile } as unknown as CourrierService;
-  return { svc: new RelancesService(prisma, courrier), mettreEnFile, relanceCreate };
+  const ecrireEnFileSansTenter = jest.fn(async (_tx: unknown, _dossier: string, lot: MessageAMettreEnFile[]) => lot.map(repondre));
+  /** Les messages remis à la file, à plat, avec le dossier de chacun. */
+  const remis = () =>
+    (ecrireEnFileSansTenter.mock.calls as unknown as [unknown, string, MessageAMettreEnFile[]][]).flatMap(([, dossier, lot]) =>
+      lot.map((message) => ({ dossier, message })),
+    );
+  const courrier = { ecrireEnFileSansTenter } as unknown as CourrierService;
+  return { svc: new RelancesService(prisma, courrier), ecrireEnFileSansTenter, remis, relanceCreate, ecrites };
 }
 
 const emettre = (svc: RelancesService, compteIds: string[]) =>
@@ -92,14 +110,15 @@ const emettre = (svc: RelancesService, compteIds: string[]) =>
 
 describe('la lettre composée est remise, telle quelle', () => {
   it('part à l’adresse du tiers, avec le TEXTE ENREGISTRÉ mot pour mot', async () => {
-    const { svc, mettreEnFile } = service([
+    const { svc, remis, ecrites } = service([
       ligne('41100001', { id: 't-1', nom: 'Coopérative Lemba', email: 'tresorier@lemba.cd' }),
     ]);
 
     const resultat = await emettre(svc, ['c-41100001']);
 
-    expect(mettreEnFile).toHaveBeenCalledTimes(1);
-    const [dossier, message] = mettreEnFile.mock.calls[0];
+    expect(remis()).toHaveLength(1);
+    expect(ecrites).toHaveLength(1);
+    const [{ dossier, message }] = remis();
     // Le cloisonnement se porte AUX DEUX BOUTS · la file écrit dans le
     // dossier qu'on lui donne, elle ne le devine pas.
     expect(dossier).toBe(DOSSIER);
@@ -109,7 +128,7 @@ describe('la lettre composée est remise, telle quelle', () => {
       origine: ORIGINE_RELANCE,
       // La pièce d'origine · c'est par elle qu'on remonte de la file au
       // rappel qui l'a demandée.
-      origineId: 'r-1',
+      origineId: ecrites[0].id,
       createdBy: AGENT,
     });
     // LE CORPS EST LE TEXTE DE L'HISTORIQUE, sans une virgule d'écart · c'est
@@ -120,15 +139,15 @@ describe('la lettre composée est remise, telle quelle', () => {
   });
 
   it('donne un objet au courriel sans toucher au corps', async () => {
-    const { svc, mettreEnFile } = service([
+    const { svc, remis } = service([
       ligne('41100001', { id: 't-1', nom: 'Coopérative Lemba', email: 'tresorier@lemba.cd' }),
     ]);
     await emettre(svc, ['c-41100001']);
     // Le libellé du niveau est ce que le DOSSIER a nommé, et le nom de
     // l'entité dit de qui vient le rappel.
-    expect(mettreEnFile.mock.calls[0][1].sujet).toBe('Premier rappel · ONG Kin');
+    expect(remis()[0].message.sujet).toBe('Premier rappel · ONG Kin');
     // L'objet ne s'est pas glissé dans la lettre.
-    expect(mettreEnFile.mock.calls[0][1].corps.startsWith('Cher ')).toBe(true);
+    expect(remis()[0].message.corps.startsWith('Cher ')).toBe(true);
   });
 
   it('rend le statut de la file · SANS_TRANSPORT n’est ni un envoi ni une perte', async () => {
@@ -151,13 +170,13 @@ describe('la lettre composée est remise, telle quelle', () => {
 
 describe('sans adresse · le dire à l’émission, pas au recouvrement', () => {
   it('n’écrit RIEN dans la file et nomme le tiers qu’il faut compléter', async () => {
-    const { svc, mettreEnFile, relanceCreate } = service([
+    const { svc, remis, relanceCreate } = service([
       ligne('41100002', { id: 't-2', nom: 'Établissements Nzita', email: null }),
     ]);
 
     const resultat = await emettre(svc, ['c-41100002']);
 
-    expect(mettreEnFile).not.toHaveBeenCalled();
+    expect(remis()).toEqual([]);
     // La lettre EXISTE quand même · elle s'imprime, elle se remet en main
     // propre, et l'historique en garde la trace. Ce n'est pas l'émission qui
     // est refusée, c'est la remise qui n'a pas eu lieu.
@@ -166,6 +185,26 @@ describe('sans adresse · le dire à l’émission, pas au recouvrement', () => 
     expect(resultat.lettres[0].remise.statut).toBeNull();
     expect(resultat.lettres[0].remise.motif).toContain('Établissements Nzita');
     expect(resultat.lettres[0].remise.motif).toContain("n'est partie à personne");
+  });
+
+  it('dans un lot mêlé, chaque lettre garde SA remise · la lettre sans adresse ne décale pas les autres', async () => {
+    // Les lettres avec adresse partent en un lot ; celles sans adresse n'y
+    // entrent pas. La réponse de la file doit revenir à la bonne lettre.
+    const repondre: ReponseFile = (message) => ({ id: `m-${message.destinataire}`, statut: StatutMessage.EN_ATTENTE, motif: null });
+    const { svc } = service(
+      [
+        ligne('41100001', { id: 't-1', nom: 'Lemba', email: 'a@lemba.cd' }),
+        ligne('41100002', { id: 't-2', nom: 'Nzita', email: null }),
+        ligne('41100003', { id: 't-3', nom: 'Kasa', email: 'c@kasa.cd' }),
+      ],
+      repondre,
+    );
+    const resultat = await emettre(svc, ['c-41100001', 'c-41100002', 'c-41100003']);
+    expect(resultat.lettres.map((l) => [l.compteId, l.remise.destinataire, l.remise.messageId])).toEqual([
+      ['c-41100001', 'a@lemba.cd', 'm-a@lemba.cd'],
+      ['c-41100002', null, null],
+      ['c-41100003', 'c@kasa.cd', 'm-c@kasa.cd'],
+    ]);
   });
 
   it('distingue le tiers sans adresse du compte sans tiers', async () => {
@@ -195,26 +234,25 @@ describe('sans adresse · le dire à l’émission, pas au recouvrement', () => 
 describe('un destinataire perdu n’emporte pas le lot', () => {
   it('les autres relances partent, et le refus est rendu pour celle-là', async () => {
     // La file refuse À L'ÉCRITURE une adresse qu'aucune tentative ne
-    // réparerait. Laisser remonter ce refus tuerait les dix-neuf autres
-    // rappels du lot, tous déjà décidés et déjà écrits.
-    const mettreEnFile = jest.fn(async (_dossier: string, message: { destinataire: string }) => {
-      if (message.destinataire === 'deux, adresses@nzita.cd') {
-        throw new BadRequestException('Adresse de destinataire inutilisable · « deux, adresses@nzita.cd ».');
-      }
-      return { id: 'm-1', statut: StatutMessage.SANS_TRANSPORT, erreur: null };
-    });
+    // réparerait, et rend ce refus pour CETTE lettre · il revient sur sa
+    // ligne, et les autres rappels du lot, déjà décidés, partent.
+    const repondre: ReponseFile = (message) =>
+      message.destinataire === 'deux, adresses@nzita.cd'
+        ? { id: null, statut: null, motif: 'Adresse de destinataire inutilisable · « deux, adresses@nzita.cd ».' }
+        : { id: 'm-1', statut: StatutMessage.SANS_TRANSPORT, motif: null };
     const { svc, relanceCreate } = service(
       [
         ligne('41100002', { id: 't-2', nom: 'Nzita', email: 'deux, adresses@nzita.cd' }),
         ligne('41100001', { id: 't-1', nom: 'Lemba', email: 'a@lemba.cd' }),
       ],
-      mettreEnFile as unknown as jest.Mock,
+      repondre,
     );
 
     const resultat = await emettre(svc, ['c-41100002', 'c-41100001']);
 
     expect(relanceCreate).toHaveBeenCalledTimes(2);
     expect(resultat).toMatchObject({ emises: 2, misesEnFile: 1, nonRemises: 1 });
+    expect(resultat.lettres[0].remise).toMatchObject({ destinataire: 'deux, adresses@nzita.cd', statut: null, messageId: null });
     expect(resultat.lettres[0].remise.motif).toContain('inutilisable');
     expect(resultat.lettres[1].remise.statut).toBe(StatutMessage.SANS_TRANSPORT);
   });

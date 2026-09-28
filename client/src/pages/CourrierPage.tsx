@@ -174,7 +174,7 @@ export function CourrierPage() {
           <button
             onClick={relancer}
             disabled={reprise}
-            title="Reprend les messages qui attendent un envoi · ceux qui ont échoué, et ceux écrits pendant que la messagerie n’était pas posée. Les envoyés et les abandonnés ne sont pas retentés."
+            title="Reprend les messages qui attendent un envoi · les relances écrites en file, ceux qui ont échoué, et ceux écrits pendant que la messagerie n’était pas posée. Les envoyés et les abandonnés ne sont pas retentés."
             className="bg-sel text-white text-[11.5px] font-bold px-3.5 py-1.5 rounded-[3px] hover:brightness-110 disabled:opacity-50"
           >
             {reprise ? 'Reprise en cours…' : `Relancer les envois (${aRelancer})`}

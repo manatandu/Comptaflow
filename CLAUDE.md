@@ -1556,11 +1556,17 @@ laquelle aucun travailleur ne peut être rémunéré SOUS PEINE DE SANCTION »
 (décret n° 25/21, art. 3), et l'art. 37 du Code du travail frappe de NULLITÉ DE
 PLEIN DROIT toute clause moins favorable.
 
-**TROIS ABSTENTIONS PLUTÔT QU'UNE SUPPOSITION**, et `conforme` vaut `null`,
+**DES ABSTENTIONS PLUTÔT QU'UNE SUPPOSITION**, et `conforme` vaut `null`,
 jamais `true` : sans la classe, sans la PÉRIODICITÉ (colonne neuve · le décret
 fixe un taux JOURNALIER, la supposer mensuelle ferait paraître un salaire
-journalier vingt-six fois trop bas), et sans un mois de référence dans le
-barème. **Le mois se choisit** : un contrat TERMINÉ se juge sur son dernier
+journalier vingt-six fois trop bas), sans un mois de référence dans le
+barème, et depuis l'audit final F226 SANS LA MONNAIE du contrat
+(`ContratTravail.deviseRemuneration`, nulle par défaut,
+`DEVISE_NON_RENSEIGNEE`) ou HORS FRANC (`REMUNERATION_HORS_FRANC`) · le
+minimum du décret n° 25/22 est un taux en francs, et le contrôle ne convertit
+rien. La monnaie d'un contrat saisi sans elle se COMPLÈTE une fois et ne se
+change pas ; elle et la fin du contrat s'écrivent par une opération UNITAIRE,
+un `updateMany` ne laissant au journal d'audit que son filtre et son compte. **Le mois se choisit** : un contrat TERMINÉ se juge sur son dernier
 mois, sinon on reprocherait à l'employeur une revalorisation postérieure au
 départ du salarié ; un contrat EN COURS se juge au mois courant.
 
@@ -2471,7 +2477,15 @@ seuil de 500 000 000 FCFA (art. 95) n'est dans aucune source lue · il se
 déclare avec sa source, sans quoi la dispense n'est pas examinée. Les trois
 mois de l'art. 97 se comptent de date à date, fin de mois comprise · le
 30 septembre mène au 31 décembre. La consolidante est le DOSSIER, jamais une
-ligne de table, et le périmètre vit PAR EXERCICE.
+ligne de table, et le périmètre vit PAR EXERCICE. LES LECTURES EXIGENT
+L'EXERCICE (audit final F234) · périmètre, cumul, états et les deux lectures
+IFRS passent par `EXERCICE_REQUIS` (400 nommé), et les services refusent un
+exercice absent (`exigerExercice`), Prisma ignorant un `id: undefined`. UNE
+DÉCLARATION NE VISE QUE LES ENTITÉS DE SON EXERCICE (F232) · réciproques,
+résultats internes, provision pour pertes de change et fiscalité passent par
+`exerciceDuDossier` et `entiteDeLExercice`, et le cumul nomme une déclaration
+ancienne hors du périmètre. UN NOM PAR EXERCICE AUX DEUX PORTES (F235) ·
+création et renommage, une violation d'unicité rendue en 400 nommé.
 
 **Consolidation SYSCOHADA, tranche 2 · cumul et éliminations (2026-09-24).**
 AUDCIF art. 80 à 86, D4C ch. XII-5 et XII-6. Moteur pur
@@ -2921,6 +2935,9 @@ DE L'EXEMPTION C1 SE DÉCLARE (`exemptionRegroupementsC1`) · non déclaré, le 
 n'est pas publiable. Exemption prise, l'écart d'acquisition de l'ouverture est
 sa valeur AUDCIF sans ajustement de l'amortissement antérieur (§ C4 h ii), et
 le test IAS 36 à la date de transition (§ C4 g ii) se déclare en ajustement.
+Les notes consolidées reçoivent cette première application
+(`ia1.premiereApplication`) · la note de transition du § 23 à 26 sort sur le
+premier exercice IFRS du groupe (audit final F233).
 
 **États IFRS consolidés, tranche IAS 21 · les écarts de conversion
 (2026-09-26).** `variationConversionExercice`, `OptionsConsolidation.
@@ -3633,6 +3650,18 @@ relances postérieures à la plus ancienne PIÈCE encore ouverte du compte (pas 
 son échéance · un avis préventif part avant elle, et serait resuggéré chaque
 jour), lues sur les seuls comptes retenus.
 
+**L'émission des relances n'envoie rien (2026-09-28, audit final F241).** La
+sélection est bornée à 500 comptes sans doublon (DTO et service). Relances et
+lettres naissent dans UNE transaction, sous `pg_advisory_xact_lock` par
+dossier, par des insertions groupées (`CourrierService.ecrireEnFileSansTenter`,
+qui partage ses contrôles avec `mettreEnFile`), EN_ATTENTE ou SANS_TRANSPORT ;
+la remise passe par la reprise bornée (`POST /courrier/reprendre`), que la
+fenêtre Rappel et relevé enchaîne. Une lettre du même compte, du même niveau
+et du même jour de Kinshasa, déjà en file ou partie, n'est pas réécrite et
+revient dans `dejaEmises` ; une relance du jour sans lettre, ou à lettre
+abandonnée, ne bloque rien. Le jour se tranche par `jourDeKinshasa`, jamais
+par un décalage recopié. `mettreEnFile` reste la voie des messages isolés.
+
 **Une ligne lettrée l'est aussi dans un groupe PARTIEL (2026-09-27, audit
 final F50).** `lettre` n'est servie qu'au groupe soldé ; toute garde qui
 refuse de toucher une ligne lettrée passe par `estTenueParUnLettrage`
@@ -4242,12 +4271,15 @@ plus coûteux. Le module tient donc la facture comme PIÈCE JUSTIFICATIVE
 (AUDCIF art. 17, dix ans) et comme source de l'état détaillé, ce qui ne demande
 aucune homologation, et il le porte en tête de l'écran.
 
-LES NEUF GROUPES DE L'ART. 100 du décret n° 011/42 sont transcrits dans l'ordre
-du texte, et leur nombre est EN DUR. TROIS d'entre eux ne se lisent que sur des
-LIGNES (désignation et quantité ; prix unitaire et global ; taux et montant de
-TVA), et trois autres en dépendent : une pièce sans lignes manque SIX groupes
-sur neuf. C'était exactement l'état de chaque vente d'OmegaX, et rien ne le
-disait.
+LES DOUZE POINTS DE L'ART. 26 du décret n° 23/10 (a à l), dont DIX dus par un
+document en tenant lieu, sont transcrits dans l'ordre du texte, et leur nombre
+est EN DUR ; une pièce antérieure au 3 mars 2023 se vérifie contre les NEUF
+tirets de l'art. 100 du décret n° 011/42 (`texteApplicable`). SIX groupes se
+lisent sur les LIGNES, trois directement (désignation et quantité ; prix
+unitaire et global ; taux et montant de TVA) et trois par leurs totaux · une
+pièce sans lignes en manque six. C'était exactement l'état de chaque vente
+d'OmegaX, et rien ne le disait. La colonne de la liste s'intitule « Mentions
+obligatoires » (audit final F229).
 
 LE TOTAL DE L'AMENDE NE SE CALCULE PAS. L'art. 97 bis punit « 750.000 FC
 (personnes morales) ; 250.000 FC (personnes physiques), PAR OMISSION » sans
@@ -4392,7 +4424,9 @@ obligations extraites du texte, 30 constats, **25 réfutés par l'étape adverse
 **L'ADRESSE EXACTE · art. 26 a) et b), et c'est le plus grave.** Le texte écrit
 « les nom, post-nom et prénom ou raison sociale, L'ADRESSE EXACTE, le numéro
 impôt du vendeur ou prestataire », et de même du client. Le module avait été
-bâti sur l'art. 100 de 2011, qui n'écrit que « identité et n° impôt ». Ce
+bâti sur un RÉSUMÉ de l'art. 100 de 2011 réduit à « identité et n° impôt »,
+alors que ses deux premiers tirets écrivent eux aussi l'adresse exacte
+(passe F3b). Ce
 n'était pas un champ de moins : `verifierMentions` rendait `conforme: true` sur
 une pièce qui omet une mention obligatoire, et l'écran l'affichait ainsi, sans
 amende, quand l'art. 97 bis en punit chaque omission de 750 000 FC. **Le
@@ -5048,7 +5082,11 @@ ANNULÉS, relu dans la transaction d'émission ; une retenue au-delà du solde e
 refusée, un net négatif aussi (le ramener à zéro ferait mentir le 422). Une
 avance qui porte une retenue ne se supprime plus. (5) AUCUN PLAFOND N'EST
 OPPOSÉ AU NOM DE L'ART. 114 · l'art. 112 n'y renvoie que pour son litera d) ;
-la quotité est montrée pour comparaison, et c'est dit.
+la quotité est montrée pour comparaison, et c'est dit. LES LISTES DU REGISTRE
+SONT DES TRANCHES QUI SE DISENT (audit final F259) · salariés 1 000,
+confrontation de 500 fiches lue par lots de 200 salariés (totaux sur le
+registre entier), rubriques, bulletins modèles et avances 500, chacune avec
+son total compté par la base et `tronque`.
 
 **Dégressif fiscal et amortissement dérogatoire, SYSCOHADA (2026-09-26).**
 Priorité 3 de la comparaison avec les autres produits Sage
@@ -5379,7 +5417,11 @@ retirée, et une facture d'abonnement ne se supprime pas du facturier (note de
 crédit). Les quatre tables sont HORS DOSSIER (`MODELES_HORS_DOSSIER`,
 `cabinetId` et non `tenantId`). Le dossier de l'éditeur se lit par
 `PlateformeService.dossierEditeurId`, hors cloisonnement (audit final F173) ·
-lu dans la session, il était introuvable depuis tout autre dossier.
+lu dans la session, il était introuvable depuis tout autre dossier. LES
+LISTES DE LA CONSOLE SONT DES TRANCHES (audit final F260) · cabinets,
+abonnements et licences sur site bornés à `PLAFOND_LISTE_CONSOLE`, avec total
+et `tronque` ; la facturation parcourt le parc par tranches (`pageApres`) et
+calcule le numéro une fois.
 
 **La licence suit l'abonnement (2026-09-26).** Un abonnement enregistré pose
 la licence ABONNEMENT du cabinet, et c'est l'ENCAISSEMENT déclaré d'une facture
@@ -5778,9 +5820,13 @@ travaux publics ou de travaux immobiliers. » Le champ existait sur la pièce et
 `verifierMentions` ne le lisait pas : `conforme: true` sur une vente qui
 l'omet. **Répétition exacte du défaut corrigé par F1 sur l'adresse exacte.**
 Deux limites tenues · la mention ne pèse que sur celui qui DÉLIVRE et qui est
-AUTORISÉ, et l'amende de l'art. 97 bis ne lui est PAS étendue, ce barème visant
-les mentions du décret n° 23/10 quand le décret n° 011/42 n'énonce aucune
-sanction.
+AUTORISÉ, et OmegaX ne chiffre aucune amende sur son omission, sans en faire
+une dispense · l'art. 97 bis vise TOUTE mention obligatoire (passe F9). SUR UN
+ACHAT, LA MENTION SE LIT (audit final F228) · la facture d'achat rattachée à
+l'écriture la porte (`Facture.mentionTvaDebits`), et la déclaration de TVA la
+confronte à la fiche du fournisseur (`mentionDebitsLueSurLaFacture`) pour dire
+ce qui est prouvé et ce que la fiche ne dit pas encore ; elle ne DATE jamais
+la déduction, c'est la fiche du tiers qui la date.
 
 **« UNE ASSOCIATION NE L'EST PAS DE PLEIN DROIT » ÉTAIT FAUX, ET AFFICHÉ.**
 L'écran des paramètres servait cette phrase à tout dossier SYCEBNL ; aucune

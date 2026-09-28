@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/prisma.service';
 import { CLE_PUBLIQUE_EDITEUR } from '../sur-site/cle-publique-editeur';
 import { ContenuLicence, FORMAT_LICENCE, motifRefusContenu, signerLicence, verifierLicence } from '../sur-site/licence-signee';
 import { jourDeKinshasaIso } from '../../common/echeance';
+import { PLAFOND_LISTE_CONSOLE, tranche } from './plafond-console';
 
 export interface DemandeLicence {
   titulaire: string;
@@ -51,23 +52,32 @@ export class LicencesSurSiteService {
     private readonly clePublique: string | null = CLE_PUBLIQUE_EDITEUR,
   ) {}
 
-  lister() {
-    return this.prisma.licenceSurSiteEmise.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 500,
-      select: {
-        id: true,
-        numero: true,
-        titulaire: true,
-        empreinteMachine: true,
-        emiseLe: true,
-        finMaintenance: true,
-        expiration: true,
-        dossiersMax: true,
-        emisePar: true,
-        createdAt: true,
-      },
-    });
+  /**
+   * Les licences émises, les plus récentes d'abord · UNE TRANCHE QUI SE DIT
+   * (audit final F260). La borne existait, muette · cinq cents lignes se
+   * lisaient comme le registre entier. Le total est compté par la base.
+   */
+  async lister() {
+    const [licences, total] = await Promise.all([
+      this.prisma.licenceSurSiteEmise.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: PLAFOND_LISTE_CONSOLE,
+        select: {
+          id: true,
+          numero: true,
+          titulaire: true,
+          empreinteMachine: true,
+          emiseLe: true,
+          finMaintenance: true,
+          expiration: true,
+          dossiersMax: true,
+          emisePar: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.licenceSurSiteEmise.count(),
+    ]);
+    return { licences, ...tranche(licences.length, total) };
   }
 
   async fichier(id: string) {

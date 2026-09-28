@@ -6,6 +6,7 @@ import { Aide } from '../components/chrome/Aide';
 import { OngletBulletins } from './BulletinsPaie';
 import { OngletBaremesPaie } from '../components/BaremesPaie';
 import { OngletRubriquesAvances, type AvanceSalaire, type RubriquePaie } from '../components/RubriquesAvancesPaie';
+import { libelleListeBornee } from '../lib/liste-bornee-personnel';
 import { TITRE_BLOC_PAIE } from './PaieDuMois';
 import { BaremeMensuelIrpp, type DetailMensuelIrpp } from './BaremeMensuelIrpp';
 import { lignesDepuisModele, lignesVersModele, type ModeleBulletin } from '../lib/modeles-bulletin';
@@ -58,6 +59,8 @@ interface Contrat {
   constateParEcrit: boolean;
   viseParOnem: boolean;
   remunerationBase: string | number | null;
+  /** La monnaie du montant convenu · null tant qu'elle n'est pas déclarée (audit final F226). */
+  deviseRemuneration: 'CDF' | 'USD' | null;
   categorieProfessionnelle: string | null;
   classeProfessionnelle: number | null;
   periodiciteRemuneration: 'JOUR' | 'SEMAINE' | 'MOIS' | 'ANNEE' | null;
@@ -147,6 +150,9 @@ interface Confrontation {
   employeur: { nom: string; numeroAffiliationCnssEmployeur: string | null };
   manqueEmployeur: boolean;
   fiches: FicheConfrontee[];
+  /** Contrats confrontés sur le registre ENTIER · les fiches n'en sont qu'une tranche (audit final F259). */
+  totalFiches: number;
+  tronque: boolean;
   totalSignalements: number;
 }
 
@@ -358,6 +364,9 @@ const NOUVEAU_CONTRAT = {
   periodiciteRemuneration: '' as '' | 'JOUR' | 'SEMAINE' | 'MOIS' | 'ANNEE',
   manoeuvreSansSpecialite: false,
   remunerationBase: '',
+  // Vide = non déclarée · le serveur s'abstient alors de confronter le
+  // montant au minimum, qu'il ne suppose jamais en francs (audit final F226).
+  deviseRemuneration: '' as '' | 'CDF' | 'USD',
   avantagesConvenus: '',
   clauseEssai: false,
   essaiConstateParEcrit: false,
@@ -493,6 +502,14 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
   // ils calculent sans rien conserver.
   const { peutEcrire } = useAuth();
   const [salaries, setSalaries] = useState<Salarie[]>([]);
+  // Ce que la liste du registre dit d'elle-même · null tant qu'elle n'est
+  // pas lue, et « Aucun salarié » ne se dit que sur une liste LUE (audit
+  // final F259).
+  const [registre, setRegistre] = useState<{ total: number; tronque: boolean } | null>(null);
+  // Les listes de la simulation tronquées par le serveur, une phrase chacune.
+  const [listesTronquees, setListesTronquees] = useState<Record<string, string | null>>({});
+  // La monnaie à déclarer sur un contrat saisi sans elle (audit final F226).
+  const [deviseADeclarer, setDeviseADeclarer] = useState<Record<string, '' | 'CDF' | 'USD'>>({});
   const [confrontation, setConfrontation] = useState<Confrontation | null>(null);
   const [effectif, setEffectif] = useState<Effectif | null>(null);
   const [onglet, setOnglet] = useState<OngletPersonnel>(() => ongletPersonnelDe(adresse));
@@ -568,8 +585,11 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
   const [regimeSalarial, setRegimeSalarial] = useState('');
 
   const charger = useCallback(() => {
-    api.get<Salarie[]>(`/personnel/salaries${tous ? '?tous=true' : ''}`).then(
-      setSalaries,
+    api.get<{ salaries: Salarie[]; total: number; tronque: boolean }>(`/personnel/salaries${tous ? '?tous=true' : ''}`).then(
+      (r) => {
+        setSalaries(r.salaries);
+        setRegistre({ total: r.total, tronque: r.tronque });
+      },
       (e: ApiError) => setErreur(e.message),
     );
   }, [tous]);
@@ -577,15 +597,46 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
   useEffect(charger, [charger]);
 
   // Rubriques du cabinet et avances du salarié choisi, pour la simulation.
+  // Un échec de lecture se DIT (relecture adverse de F259) · avalé, il
+  // laissait une liste vide qui se lit « aucune rubrique, aucune avance », et
+  // une simulation passée sans la retenue d'une avance qui existe.
   useEffect(() => {
     if (onglet !== 'simulation') return;
-    api.get<{ rubriques: RubriquePaie[] }>('/personnel/rubriques').then((r) => setRubriques(r.rubriques), () => setRubriques([]));
-    api.get<ModeleBulletin[]>('/personnel/modeles-bulletin').then(setModeles, () => setModeles([]));
+    api.get<{ rubriques: RubriquePaie[]; total: number; tronque: boolean }>('/personnel/rubriques').then(
+      (r) => {
+        setRubriques(r.rubriques);
+        setListesTronquees((l) => ({ ...l, rubriques: libelleListeBornee(r, r.rubriques.length, 'rubriques') }));
+      },
+      (e: ApiError) => {
+        setRubriques([]);
+        setErreur(e.message);
+      },
+    );
+    api.get<{ modeles: ModeleBulletin[]; total: number; tronque: boolean }>('/personnel/modeles-bulletin').then(
+      (r) => {
+        setModeles(r.modeles);
+        setListesTronquees((l) => ({ ...l, modeles: libelleListeBornee(r, r.modeles.length, 'bulletins modèles') }));
+      },
+      (e: ApiError) => {
+        setModeles([]);
+        setErreur(e.message);
+      },
+    );
     if (!selection) {
       setAvancesSalarie([]);
+      setListesTronquees((l) => ({ ...l, avances: null }));
       return;
     }
-    api.get<AvanceSalaire[]>(`/personnel/avances?salarieId=${selection}`).then(setAvancesSalarie, () => setAvancesSalarie([]));
+    api.get<{ avances: AvanceSalaire[]; total: number; tronque: boolean }>(`/personnel/avances?salarieId=${selection}`).then(
+      (r) => {
+        setAvancesSalarie(r.avances);
+        setListesTronquees((l) => ({ ...l, avances: libelleListeBornee(r, r.avances.length, 'avances du salarié') }));
+      },
+      (e: ApiError) => {
+        setAvancesSalarie([]);
+        setErreur(e.message);
+      },
+    );
   }, [onglet, selection]);
 
   useEffect(() => {
@@ -894,6 +945,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
         periodiciteRemuneration: contrat.periodiciteRemuneration || undefined,
         manoeuvreSansSpecialite: contrat.manoeuvreSansSpecialite,
         remunerationBase: contrat.remunerationBase ? Number(contrat.remunerationBase) : undefined,
+        deviseRemuneration: contrat.deviseRemuneration || undefined,
         avantagesConvenus: contrat.avantagesConvenus.trim() || undefined,
         clauseEssai: contrat.clauseEssai,
         essaiConstateParEcrit: contrat.essaiConstateParEcrit,
@@ -904,6 +956,27 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
       });
       setSucces('Contrat enregistré.');
       setContrat({ ...NOUVEAU_CONTRAT });
+      charger();
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Enregistrement impossible');
+    } finally {
+      setEnCours(false);
+    }
+  };
+
+  // AUDIT FINAL F226 · un contrat saisi avant que le registre ne demande la
+  // monnaie la reçoit ici · le serveur refuse de changer une monnaie déjà
+  // déclarée.
+  const declarerDevise = async (contratId: string) => {
+    const devise = deviseADeclarer[contratId];
+    if (!devise) return;
+    setErreur('');
+    setSucces('');
+    setEnCours(true);
+    try {
+      await api.post(`/personnel/contrats/${contratId}/devise-remuneration`, { deviseRemuneration: devise });
+      setSucces('Monnaie de la rémunération déclarée.');
+      setDeviseADeclarer((d) => ({ ...d, [contratId]: '' }));
       charger();
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Enregistrement impossible');
@@ -1007,7 +1080,9 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
         <div className="grid grid-cols-[minmax(320px,1fr)_minmax(420px,1.4fr)] gap-2">
           <div className="border border-border">
             <div className="flex items-center justify-between px-2 py-1 border-b border-border">
-              <div className="text-[11.5px] font-bold">Salariés ({salaries.length})</div>
+              <div className="text-[11.5px] font-bold">
+                Salariés ({registre?.tronque ? `${salaries.length} sur ${registre.total}` : salaries.length})
+              </div>
               <div className="flex items-center gap-2">
                 <label className="text-[11px] flex items-center gap-1">
                   <input type="checkbox" checked={tous} onChange={(e) => setTous(e.target.checked)} />
@@ -1045,7 +1120,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                     </td>
                   </tr>
                 ))}
-                {salaries.length === 0 && (
+                {registre && salaries.length === 0 && (
                   <tr>
                     <td className={cell} colSpan={3}>
                       Aucun salarié au registre.
@@ -1054,6 +1129,11 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                 )}
               </tbody>
             </table>
+            {registre && libelleListeBornee(registre, salaries.length, 'salariés') && (
+              <div className="px-2 py-1 text-[11px] text-warning">
+                {libelleListeBornee(registre, salaries.length, 'salariés')}
+              </div>
+            )}
           </div>
 
           <div className="border border-border p-2">
@@ -1299,6 +1379,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                       <th className={`${cell} text-left`}>Entrée en vigueur</th>
                       <th className={`${cell} text-left`}>Terme prévu</th>
                       <th className={`${cell} text-left`}>Fin réelle</th>
+                      <th className={`${cell} text-left`}>Rémunération</th>
                       {peutEcrire && <th className={cell} />}
                     </tr>
                   </thead>
@@ -1309,6 +1390,39 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                         <td className={cell}>{jour(c.dateEntreeEnVigueur)}</td>
                         <td className={cell}>{jour(c.dateFinPrevue)}</td>
                         <td className={cell}>{jour(c.dateFin)}</td>
+                        <td className={cell}>
+                          {c.remunerationBase === null ? (
+                            ''
+                          ) : (
+                            <>
+                              {fc(Number(c.remunerationBase))} {c.deviseRemuneration ?? 'monnaie non déclarée'}
+                              {c.deviseRemuneration === null && peutEcrire && (
+                                <span className="inline-flex gap-1 ml-1">
+                                  <select
+                                    aria-label="Monnaie à déclarer"
+                                    className="border border-border bg-transparent px-1 py-0.5 text-[11px]"
+                                    value={deviseADeclarer[c.id] ?? ''}
+                                    onChange={(e) =>
+                                      setDeviseADeclarer((d) => ({ ...d, [c.id]: e.target.value as '' | 'CDF' | 'USD' }))
+                                    }
+                                  >
+                                    <option value="">·</option>
+                                    <option value="CDF">CDF</option>
+                                    <option value="USD">USD</option>
+                                  </select>
+                                  <button
+                                    type="button"
+                                    className="underline text-[11px] disabled:opacity-40"
+                                    disabled={enCours || !deviseADeclarer[c.id]}
+                                    onClick={() => declarerDevise(c.id)}
+                                  >
+                                    Déclarer
+                                  </button>
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </td>
                         {peutEcrire && (
                           <td className={cell}>
                             {!c.dateFin && finContrat?.contratId !== c.id && (
@@ -1437,6 +1551,23 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                           value={contrat.remunerationBase}
                           onChange={(e) => setContrat({ ...contrat, remunerationBase: e.target.value })}
                         />
+                      </label>
+                      <label>
+                        <span className={etiquette}>Monnaie de la rémunération</span>
+                        <select
+                          className={champ}
+                          value={contrat.deviseRemuneration}
+                          onChange={(e) =>
+                            setContrat({
+                              ...contrat,
+                              deviseRemuneration: e.target.value as typeof contrat.deviseRemuneration,
+                            })
+                          }
+                        >
+                          <option value="">non déclarée</option>
+                          <option value="CDF">francs congolais (CDF)</option>
+                          <option value="USD">dollars américains (USD)</option>
+                        </select>
                       </label>
                       <label>
                         <span className={etiquette}>Préavis stipulé, en jours (point 12)</span>
@@ -1612,8 +1743,21 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
           <div className="text-[11.5px] mb-1.5">
             {confrontation.totalSignalements === 0
               ? 'Aucun signalement. Chaque contrat porte les quinze énonciations, et aucune requalification de plein droit ne s’applique.'
-              : `${confrontation.totalSignalements} signalement(s) sur ${confrontation.fiches.length} contrat(s).`}
+              : `${confrontation.totalSignalements} signalement(s) sur ${confrontation.totalFiches} contrat(s).`}
           </div>
+          {libelleListeBornee(
+            { total: confrontation.totalFiches, tronque: confrontation.tronque },
+            confrontation.fiches.length,
+            'contrats',
+          ) && (
+            <div className="text-[11.5px] text-warning mb-1.5">
+              {libelleListeBornee(
+                { total: confrontation.totalFiches, tronque: confrontation.tronque },
+                confrontation.fiches.length,
+                'contrats',
+              )}
+            </div>
+          )}
           {confrontation.fiches.map((f) => (
             <div key={f.contratId} className="border border-border mb-2 p-2 text-[11.5px]">
               <div className="font-bold">
@@ -1928,6 +2072,13 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
             </div>
           </div>
 
+          {Object.values(listesTronquees)
+            .filter((m): m is string => m !== null)
+            .map((m) => (
+              <div key={m} className="text-[11.5px] text-warning mb-1">
+                {m}
+              </div>
+            ))}
           {(modeles.length > 0 || peutEcrire) && (
             <div className="flex flex-wrap items-center gap-2 text-[11.5px] mb-1.5">
               <span className={etiquette}>Bulletin modèle</span>

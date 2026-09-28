@@ -427,6 +427,10 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     /*
       Le champ `droitEtrangerSeulement` existait depuis l'origine mais AUCUN
       jalon ne l'utilisait · un drapeau posé sur le dossier et lu par personne.
+
+      Ce que le jalon demande se lit dans le module accord-cadre (contrôle 29),
+      jamais sur les conventions de financement, contrats avec des bailleurs
+      que le dossier de subvention tient à part (audit final F231).
     */
     etape: 11,
     libelle: 'Accord-cadre et main-d’œuvre nationale (ONG de droit étranger)',

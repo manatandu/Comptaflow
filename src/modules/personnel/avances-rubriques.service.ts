@@ -7,6 +7,17 @@ import { NATURES_DES_RUBRIQUES, motifRefusRubrique } from './rubriques-paie';
 import { LITTERA_ARTICLE_112, compteDeLAvance, motifRefusAvance, soldeAvance, type CategoriePret, type TypeAvance } from './avances-salaire';
 
 /**
+ * LA BORNE DES TROIS LISTES DE CE SERVICE (audit final F259, § 8 bis) ·
+ * rubriques, bulletins modèles et avances sont des listes de TRAVAIL. Elles
+ * rendaient tout le dossier à chaque ouverture de l'onglet ; elles rendent
+ * désormais une tranche, et disent quand elle ne couvre pas tout (`total`
+ * compté par la base, `tronque`). Aucune n'est un document · les retenues
+ * d'un bulletin relisent leur avance par son identifiant, jamais dans cette
+ * liste.
+ */
+export const PLAFOND_LISTES_PAIE = 500;
+
+/**
  * RUBRIQUES DU CABINET ET REGISTRE DES AVANCES · voir rubriques-paie.ts et
  * avances-salaire.ts pour les règles et leurs sources.
  */
@@ -14,10 +25,18 @@ import { LITTERA_ARTICLE_112, compteDeLAvance, motifRefusAvance, soldeAvance, ty
 export class AvancesRubriquesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  listerRubriques(tenantId: string) {
-    return this.prisma.rubriquePaie
-      .findMany({ where: { tenantId }, orderBy: { code: 'asc' } })
-      .then((rubriques) => ({ rubriques, naturesPermises: NATURES_DES_RUBRIQUES }));
+  async listerRubriques(tenantId: string) {
+    const [rubriques, total] = await Promise.all([
+      this.prisma.rubriquePaie.findMany({ where: { tenantId }, orderBy: { code: 'asc' }, take: PLAFOND_LISTES_PAIE }),
+      this.prisma.rubriquePaie.count({ where: { tenantId } }),
+    ]);
+    return {
+      rubriques,
+      naturesPermises: NATURES_DES_RUBRIQUES,
+      total,
+      plafond: PLAFOND_LISTES_PAIE,
+      tronque: total > rubriques.length,
+    };
   }
 
   async creerRubrique(tenantId: string, dto: RubriquePaieDto) {
@@ -59,8 +78,12 @@ export class AvancesRubriquesService {
 
   // ---- Bulletins modèles (modeles-bulletin.ts) ------------------------
 
-  listerModeles(tenantId: string) {
-    return this.prisma.modeleBulletin.findMany({ where: { tenantId }, orderBy: { nom: 'asc' } });
+  async listerModeles(tenantId: string) {
+    const [modeles, total] = await Promise.all([
+      this.prisma.modeleBulletin.findMany({ where: { tenantId }, orderBy: { nom: 'asc' }, take: PLAFOND_LISTES_PAIE }),
+      this.prisma.modeleBulletin.count({ where: { tenantId } }),
+    ]);
+    return { modeles, total, plafond: PLAFOND_LISTES_PAIE, tronque: total > modeles.length };
   }
 
   /** Les rubriques sont relues dans CE dossier · un id étranger n'existe pas. */
@@ -98,17 +121,26 @@ export class AvancesRubriquesService {
     return { supprime: true };
   }
 
-  /** Le registre, avec le SOLDE calculé et le compte que chaque retenue crédite. */
+  /**
+   * Le registre, avec le SOLDE calculé et le compte que chaque retenue
+   * crédite. Les plus récentes d'abord, l'identifiant départageant deux
+   * avances du même jour pour que la frontière d'une tranche pleine ne change
+   * pas d'un appel à l'autre.
+   */
   async listerAvances(tenantId: string, salarieId?: string) {
-    const avances = await this.prisma.avanceSalaire.findMany({
-      where: { tenantId, ...(salarieId ? { salarieId } : {}) },
-      orderBy: { dateOctroi: 'desc' },
-      include: {
-        salarie: { select: { nom: true, postNom: true, prenoms: true, matricule: true } },
-        retenues: { select: { montantFc: true, bulletin: { select: { numero: true, moisDePaie: true, statut: true } } } },
-      },
-    });
-    return avances.map((a) => {
+    const [avances, total] = await Promise.all([
+      this.prisma.avanceSalaire.findMany({
+        where: { tenantId, ...(salarieId ? { salarieId } : {}) },
+        orderBy: [{ dateOctroi: 'desc' }, { id: 'desc' }],
+        take: PLAFOND_LISTES_PAIE,
+        include: {
+          salarie: { select: { nom: true, postNom: true, prenoms: true, matricule: true } },
+          retenues: { select: { montantFc: true, bulletin: { select: { numero: true, moisDePaie: true, statut: true } } } },
+        },
+      }),
+      this.prisma.avanceSalaire.count({ where: { tenantId, ...(salarieId ? { salarieId } : {}) } }),
+    ]);
+    const lignes = avances.map((a) => {
       const retenues = a.retenues.map((r) => ({
         montantFc: Number(r.montantFc),
         numero: r.bulletin.numero,
@@ -133,6 +165,7 @@ export class AvancesRubriquesService {
         soldeFc: soldeAvance(Number(a.montantFc), retenues),
       };
     });
+    return { avances: lignes, total, plafond: PLAFOND_LISTES_PAIE, tronque: total > lignes.length };
   }
 
   /**

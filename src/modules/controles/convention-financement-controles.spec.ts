@@ -5,10 +5,11 @@ import { PrismaService } from '../../common/prisma.service';
 /**
  * LE CONTRÔLE 24 · le dossier de subvention relu à la clôture.
  *
- * Le jalon 11 du planning de clôture demandait de vérifier « à chaque exercice
- * que l'accord-cadre est en cours de validité » (loi n° 004/2001 du 20 juillet
- * 2001, art. 37), sur une donnée que RIEN ne détenait. Elle existe depuis le
- * dossier de subvention, et ces contrôles la relisent.
+ * La date de fin, les tranches et les rapports promis au bailleur sont tenus
+ * par le dossier de subvention, et ces contrôles les relisent. La convention
+ * d'un bailleur n'est pas l'accord-cadre d'une ONG étrangère (loi n° 004/2001,
+ * art. 37), que vise le jalon 11 du planning de clôture et que le module
+ * accord-cadre tient (audit final F76, F231).
  *
  * Le troisième est le plus fin, et il vise l'erreur naturelle : le cabinet
  * SAIT l'engagement ferme, et croit que cela suffit. Le § 5.4.2.4 pose deux

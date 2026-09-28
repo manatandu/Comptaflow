@@ -1,10 +1,12 @@
 import 'reflect-metadata';
-import { BadRequestException } from '@nestjs/common';
-import { Referentiel, RoleUtilisateur } from '@prisma/client';
+import { BadRequestException, ParseUUIDPipe } from '@nestjs/common';
+import { ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
+import { Prisma, Referentiel, RoleUtilisateur } from '@prisma/client';
 import { PerimetreService } from './perimetre.service';
 import { ConsolidationController } from './consolidation.controller';
 import { REFERENTIELS_KEY } from '../../common/decorators/referentiels.decorator';
 import { ROLES_KEY } from '../../common/decorators/roles.decorator';
+import { EXERCICE_REQUIS } from './exercice-requis';
 
 /**
  * Le câblage du périmètre · le moteur est testé à part, ici on vérifie que le
@@ -19,13 +21,19 @@ function doublure() {
   const liens: any[] = [];
   const faits: any[] = [];
   let n = 0;
+  // La doublure HONORE les filtres comme Prisma · un champ `undefined` ne
+  // filtre rien, et `{ not: x }` écarte x (audit final F234 et F235). Une
+  // doublure qui prendrait `undefined` pour un refus ferait passer pour
+  // cloisonnée une lecture qui, en base, rend tout le dossier.
+  const vaut = (r: any, k: string, v: any) =>
+    v === undefined || (v && typeof v === 'object' && 'not' in v ? r[k] !== v.not : r[k] === v);
   const filtre = (rows: any[], where: any) =>
-    rows.filter((r) => Object.entries(where ?? {}).every(([k, v]) => r[k] === v));
+    rows.filter((r) => Object.entries(where ?? {}).every(([k, v]) => vaut(r, k, v)));
   const prisma: any = {
     tenant: { findUniqueOrThrow: jest.fn(async () => ({ id: T, nom: 'Mère SA' })) },
     exercice: {
       findFirst: jest.fn(async ({ where }: any) =>
-        where.id === EX && where.tenantId === T
+        (where.id === undefined || where.id === EX) && where.tenantId === T
           ? { id: EX, dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') }
           : null,
       ),
@@ -240,5 +248,89 @@ describe('F150 · une participation se modifie, rejouée par l’analyse', () =>
     const roles = Reflect.getMetadata(ROLES_KEY, ConsolidationController.prototype.modifierLien);
     expect(roles).toEqual([RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE]);
     expect(Reflect.getMetadata(REFERENTIELS_KEY, ConsolidationController)).toEqual([Referentiel.SYSCOHADA]);
+  });
+});
+
+/**
+ * AUDIT FINAL F235 · l'unicité (exercice, nom) n'était vérifiée qu'à la
+ * création · renommer vers un nom déjà pris laissait la base lever sa violation
+ * d'unicité, rendue en 500.
+ */
+describe('F235 · renommer une entité passe par la règle de la création', () => {
+  it('un nom déjà pris dans l’exercice est refusé en 400, nommé, et rien n’est écrit', async () => {
+    const { service, prisma, entites } = doublure();
+    await entite(service, 'Filiale A');
+    const b = await entite(service, 'Filiale B');
+    await expect(service.modifierEntite(T, b.id, { nom: ' Filiale A ' })).rejects.toMatchObject({
+      status: 400,
+      message: '« Filiale A » figure déjà au périmètre de cet exercice.',
+    });
+    expect(prisma.entitePerimetreConsolidation.update).not.toHaveBeenCalled();
+    expect(entites.find((e) => e.id === b.id)?.nom).toBe('Filiale B');
+  });
+
+  it('une entité garde son propre nom, et un nom pris dans un AUTRE exercice reste libre', async () => {
+    const { service, entites } = doublure();
+    const a = await entite(service, 'Filiale A');
+    entites.push({ id: 'e-2025', tenantId: T, exerciceId: 'ex-2025', nom: 'Filiale Z' });
+    await service.modifierEntite(T, a.id, { nom: 'Filiale A', controleContractuel: true });
+    await service.modifierEntite(T, a.id, { nom: 'Filiale Z' });
+    expect(entites.find((e) => e.id === a.id)).toMatchObject({ nom: 'Filiale Z', controleContractuel: true });
+  });
+
+  it('deux saisies simultanées · la violation d’unicité de la base rend le même refus nommé, jamais une 500', async () => {
+    const { service, prisma } = doublure();
+    const a = await entite(service, 'Filiale A');
+    prisma.entitePerimetreConsolidation.update.mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError('unique', { code: 'P2002', clientVersion: 'x' }),
+    );
+    await expect(service.modifierEntite(T, a.id, { nom: 'Filiale C' })).rejects.toMatchObject({
+      status: 400,
+      message: '« Filiale C » figure déjà au périmètre de cet exercice.',
+    });
+    prisma.entitePerimetreConsolidation.create.mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError('unique', { code: 'P2002', clientVersion: 'x' }),
+    );
+    await expect(entite(service, 'Filiale D')).rejects.toMatchObject({ status: 400, message: '« Filiale D » figure déjà au périmètre de cet exercice.' });
+  });
+
+  it('un nom vide est refusé aux deux portes', async () => {
+    const { service } = doublure();
+    await expect(entite(service, '   ')).rejects.toThrow(/se déclare avec son nom/);
+    const a = await entite(service, 'Filiale A');
+    await expect(service.modifierEntite(T, a.id, { nom: ' ' })).rejects.toThrow(/se déclare avec son nom/);
+  });
+});
+
+/**
+ * AUDIT FINAL F234 · un `@Query` scalaire échappe au ValidationPipe global, et
+ * Prisma ignore un `exerciceId` absent · le périmètre se lisait sur tous les
+ * exercices du dossier à la fois.
+ */
+describe('F234 · les lectures exigent l’exercice', () => {
+  it.each(['etat', 'cumul', 'etats'])('%s · le paramètre exerciceId passe par un ParseUUIDPipe', (methode) => {
+    const args = Reflect.getMetadata(ROUTE_ARGS_METADATA, ConsolidationController, methode) as Record<string, { data?: string; pipes: unknown[] }>;
+    const exercice = Object.values(args).find((a) => a.data === 'exerciceId');
+    expect(exercice?.pipes).toContain(EXERCICE_REQUIS);
+    expect(exercice?.pipes.some((p) => p instanceof ParseUUIDPipe)).toBe(true);
+  });
+
+  it('le pipe refuse un exerciceId absent ou illisible en 400, avec son motif', async () => {
+    const meta = { type: 'query' as const, data: 'exerciceId' };
+    for (const v of [undefined, '', 'ex-2026']) {
+      await expect(EXERCICE_REQUIS.transform(v as any, meta)).rejects.toMatchObject({
+        status: 400,
+        message: expect.stringMatching(/exerciceId est requis/),
+      });
+    }
+    await expect(EXERCICE_REQUIS.transform('0b5f9c1e-3a4d-4c2b-9f1e-2a7d6c8b1e30', meta)).resolves.toBe('0b5f9c1e-3a4d-4c2b-9f1e-2a7d6c8b1e30');
+  });
+
+  it('au service aussi · sans exercice, rien n’est lu, jamais le dossier entier', async () => {
+    const { service, prisma } = doublure();
+    await entite(service, 'Filiale A');
+    prisma.entitePerimetreConsolidation.findMany.mockClear();
+    await expect(service.etat(T, undefined as unknown as string)).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.entitePerimetreConsolidation.findMany).not.toHaveBeenCalled();
   });
 });

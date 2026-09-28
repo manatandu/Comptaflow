@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { Prisma, StatutMessage } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { adresseAcceptable, normaliserAdresse } from './adresse-courriel';
@@ -21,10 +22,15 @@ import { ManqueTransport, TransportCourriel, texteDErreur } from './transport-co
  */
 
 /**
- * L'ORIGINE · ce qui a produit le message. Colonne libre, ces deux valeurs
- * sont celles que la migration nomme · un module qui en ajoute une la nomme
- * ici, faute de quoi la file devient illisible au bout d'un mois : on voit
- * partir des messages sans savoir quelle décision comptable les a demandés.
+ * L'ORIGINE · ce qui a produit le message. Colonne libre · les deux premières
+ * valeurs sont celles que la migration nomme, les deux suivantes viennent de
+ * la console de l'éditeur. Un module qui en ajoute une la nomme ici, faute de
+ * quoi la file devient illisible au bout d'un mois : on voit partir des
+ * messages sans savoir quelle décision comptable les a demandés. Et il lui
+ * donne son libellé à l'écran (`LIBELLES_ORIGINE`, client/src/lib/
+ * courrier-file.ts) · deux origines s'y affichaient en code brut (audit final
+ * F244), et `file-des-courriels.spec.ts` relit désormais chaque constante
+ * `ORIGINE_` de ce fichier contre ce tableau.
  */
 export const ORIGINE_RELANCE = 'RELANCE';
 export const ORIGINE_MOT_DE_PASSE_TEMPORAIRE = 'MOT_DE_PASSE_TEMPORAIRE';
@@ -36,7 +42,7 @@ export interface MessageAMettreEnFile {
   destinataireNom?: string | null;
   sujet: string;
   corps: string;
-  /** Voir ORIGINE_RELANCE et ORIGINE_MOT_DE_PASSE_TEMPORAIRE. */
+  /** L'une des constantes `ORIGINE_` ci-dessus. */
   origine: string;
   /** Clé de la pièce d'origine quand elle en a une · sert à y remonter. */
   origineId?: string | null;
@@ -51,6 +57,15 @@ export interface ResultatMiseEnFile {
   statut: StatutMessage;
   erreur: string | null;
 }
+
+/**
+ * Ce qu'un message d'un LOT est devenu (`ecrireEnFileSansTenter`) · écrit, ou
+ * refusé à l'écriture avec son motif. Le refus d'un message n'emporte pas le
+ * lot, comme `mettreEnFile` ne fait échouer que le message qu'il refuse.
+ */
+export type ResultatEcritureEnFile =
+  | { id: string; statut: StatutMessage; motif: null }
+  | { id: null; statut: null; motif: string };
 
 export interface BilanReprise {
   transportConfigure: boolean;
@@ -144,6 +159,70 @@ export class CourrierService {
    * être réparé par une nouvelle tentative.
    */
   async mettreEnFile(tenantId: string, message: MessageAMettreEnFile): Promise<ResultatMiseEnFile> {
+    const ligne = await this.prisma.message.create({ data: this.preparer(tenantId, message) });
+    return this.tenter(tenantId, ligne);
+  }
+
+  /**
+   * ÉCRIRE UN LOT EN FILE, SANS RIEN TENTER, DANS LA TRANSACTION DE L'APPELANT
+   * (audit final F241).
+   *
+   * C'est la voie des relances d'une émission. Tenter chaque remise dans la
+   * requête la tenait ouverte une seconde par tiers, sans borne, et un second
+   * clic sur une requête qui n'en finissait pas écrivait une seconde lettre.
+   * Les messages sont écrits, et la reprise, bornée à un lot par appel, les
+   * fait partir ensuite. Un message isolé (avis d'accès, facture, licence)
+   * garde l'envoi immédiat de `mettreEnFile`.
+   *
+   * DANS LA TRANSACTION DE L'APPELANT, et c'est ce qui ferme le doublon · la
+   * relance et sa lettre naissent ensemble, sous le verrou du dossier, si bien
+   * qu'une seconde émission qui cherche « une lettre de ce niveau déjà en
+   * file » ne peut pas passer entre les deux. UNE SEULE INSERTION pour le lot
+   * · cinq cents écritures une à une tiendraient la transaction au-delà du
+   * délai d'une transaction interactive.
+   *
+   * Chaque message est écrit DANS SON ÉTAT FINAL pour cette requête ·
+   * SANS_TRANSPORT quand aucune messagerie n'est posée (c'est ce que `tenter`
+   * aurait posé), EN_ATTENTE sinon, avec l'heure de la prochaine reprise.
+   * `prochainEssaiAt` posé sur un message jamais essayé est ce qui le
+   * distingue d'un envoi immédiat en cours, que la reprise ne doit pas prendre
+   * (voir `filtreEligibles`).
+   *
+   * Les refus sont ceux de `mettreEnFile`, rendus message par message avec
+   * leur motif · une adresse inutilisable n'emporte pas les dix-neuf autres
+   * lettres du lot. Rendus dans l'ordre des messages reçus.
+   */
+  async ecrireEnFileSansTenter(
+    client: Prisma.TransactionClient,
+    tenantId: string,
+    messages: MessageAMettreEnFile[],
+  ): Promise<ResultatEcritureEnFile[]> {
+    const etat: { statut: StatutMessage; prochainEssaiAt?: Date } = this.transport.etat().configure
+      ? { statut: StatutMessage.EN_ATTENTE, prochainEssaiAt: new Date() }
+      : { statut: StatutMessage.SANS_TRANSPORT };
+    const lignes: Prisma.MessageCreateManyInput[] = [];
+    const resultats: ResultatEcritureEnFile[] = messages.map((message) => {
+      try {
+        // L'identifiant est tiré ici · une insertion groupée ne rend pas les
+        // lignes, et l'appelant doit pouvoir nommer le message de chaque lettre.
+        const id = randomUUID();
+        lignes.push({ ...this.preparer(tenantId, message), id, ...etat });
+        return { id, statut: etat.statut, motif: null };
+      } catch (erreur) {
+        if (!(erreur instanceof BadRequestException)) throw erreur;
+        return { id: null, statut: null, motif: erreur.message };
+      }
+    });
+    if (lignes.length > 0) await client.message.createMany({ data: lignes });
+    return resultats;
+  }
+
+  /**
+   * LA LIGNE À ÉCRIRE, et les refus qui la précèdent · une seule écriture des
+   * contrôles pour l'envoi immédiat et pour le lot, sans quoi un lot
+   * accepterait un jour ce que l'envoi immédiat refuse.
+   */
+  private preparer(tenantId: string, message: MessageAMettreEnFile): Prisma.MessageCreateManyInput {
     const destinataire = normaliserAdresse(message.destinataire);
     if (!adresseAcceptable(destinataire)) {
       // REFUSÉ À L'ÉCRITURE · découverte à la troisième tentative, la faute
@@ -175,22 +254,18 @@ export class CourrierService {
       throw new BadRequestException('Pièce jointe sans nom ou sans contenu · le message n’a pas été mis en file.');
     }
 
-    const ligne = await this.prisma.message.create({
-      data: {
-        tenantId,
-        destinataire,
-        destinataireNom: message.destinataireNom ?? null,
-        sujet,
-        corps: message.corps,
-        origine,
-        origineId: message.origineId ?? null,
-        createdBy: message.createdBy ?? null,
-        pieceJointeNom: piece?.nom.trim() ?? null,
-        pieceJointeTexte: piece?.texte ?? null,
-      },
-    });
-
-    return this.tenter(tenantId, ligne);
+    return {
+      tenantId,
+      destinataire,
+      destinataireNom: message.destinataireNom ?? null,
+      sujet,
+      corps: message.corps,
+      origine,
+      origineId: message.origineId ?? null,
+      createdBy: message.createdBy ?? null,
+      pieceJointeNom: piece?.nom.trim() ?? null,
+      pieceJointeTexte: piece?.texte ?? null,
+    };
   }
 
   /**
@@ -352,6 +427,12 @@ export class CourrierService {
         // mais un ECHEC sans report resterait piégé pour toujours dans une
         // file que personne ne relit. On préfère le reprendre.
         { statut: StatutMessage.ECHEC, prochainEssaiAt: null },
+        // Écrits pour la reprise et jamais essayés (`ecrireEnFileSansTenter`,
+        // audit final F241) · pris dès le passage suivant, sans attendre le
+        // délai des orphelins. Un envoi immédiat en cours n'a pas de
+        // `prochainEssaiAt`, et n'est donc pas pris ici · il partirait deux
+        // fois.
+        { statut: StatutMessage.EN_ATTENTE, dernierEssaiAt: null, prochainEssaiAt: { lte: maintenant } },
         // Orphelins · le processus est mort entre l'écriture et la tentative
         // (jamais essayé), ou entre la revendication et la tentative.
         { statut: StatutMessage.EN_ATTENTE, dernierEssaiAt: null, createdAt: { lte: seuilOrphelin } },

@@ -174,6 +174,10 @@ describe('la liste d’exclusion est fermée sur User', () => {
       // Et sans l'unité, un changement de classe au journal se lirait sans
       // qu'on puisse voir s'il s'accompagne d'un changement de base.
       'periodiciteRemuneration',
+      // LA MONNAIE, PAS LE MONTANT (audit final F226) · même raison que
+      // l'unité. Elle décide si le minimum se contrôle · un contrat en francs
+      // déclaré en dollars y échappe, et c'est ce que le journal doit montrer.
+      'deviseRemuneration',
       'manoeuvreSansSpecialite',
       'clauseEssai',
       'essaiConstateParEcrit',

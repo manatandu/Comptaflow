@@ -108,15 +108,22 @@ function service(lignes: ReturnType<typeof ligne>[], niveaux: Niveau[], relances
           .sort((a, b) => b.joursApresEcheance - a.joursApresEcheance),
       ),
     },
-    relance: { findMany: relanceFindMany, create: jest.fn(async () => ({ id: 'r-1' })) },
+    relance: { findMany: relanceFindMany, createMany: jest.fn(async ({ data }: { data: unknown[] }) => ({ count: data.length })) },
     compte: {
       findMany: jest.fn(async (args: { where: { id: { in: string[] } } }) =>
         args.where.id.in.map((id) => ({ id, numero: id.replace('c-', ''), intitule: `Client ${id.replace('c-', '')}` })),
       ),
     },
+    // L'émission écrit sous un verrou par dossier, dans une transaction
+    // (audit final F241) · la doublure joue la transaction sur elle-même.
+    $executeRaw: jest.fn(async () => 0),
+    $transaction: jest.fn(async (fn: (tx: unknown) => unknown) => fn(prisma)),
   } as unknown as PrismaService;
   const courrier = {
-    mettreEnFile: jest.fn(async () => ({ id: 'm-1', statut: StatutMessage.SANS_TRANSPORT, erreur: null })),
+    // La file du lot (audit final F241) · une réponse par message.
+    ecrireEnFileSansTenter: jest.fn(async (_tx: unknown, _dossier: string, lot: unknown[]) =>
+      lot.map(() => ({ id: 'm-1', statut: StatutMessage.SANS_TRANSPORT, motif: null })),
+    ),
   } as unknown as CourrierService;
   return { svc: new RelancesService(prisma, courrier), relanceFindMany };
 }

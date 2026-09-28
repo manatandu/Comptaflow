@@ -1,4 +1,4 @@
-import { IsDateString, IsEnum, IsNumber, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsDateString, IsEnum, IsNumber, IsString, MinLength } from 'class-validator';
 import { NatureEngagement } from '@prisma/client';
 
 export class CreerEngagementDto {
@@ -57,8 +57,6 @@ export class CloreEngagementDto {
   motif!: string;
 }
 
-export class ListerEngagementsDto {
-  @IsOptional()
-  @IsString()
-  exerciceId?: string;
-}
+// La liste des engagements lit son exercice en paramètre de requête
+// (`@Query('exerciceId')`) · le DTO qui le décrivait n'était reçu par aucune
+// route, même défaut que la ventilation par lot (audit final F230), retiré.

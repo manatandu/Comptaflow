@@ -1,4 +1,5 @@
 import type { RegimeSalarial } from '../bareme-irpp';
+import { BAREMES_SERVIS, MOTIF_BAREME_NON_SAISISSABLE } from '../baremes-dossier';
 import { Type } from 'class-transformer';
 import {
   IsArray,
@@ -130,6 +131,14 @@ export class SalarieDto {
   enfants?: EnfantAChargeDto[];
 }
 
+/**
+ * Le refus d'une monnaie de rémunération que le registre ne connaît pas, en
+ * français (relecture adverse de F226) · la validation du corps rendait le
+ * message anglais de class-validator.
+ */
+export const MOTIF_MONNAIE_REMUNERATION =
+  'La monnaie de la rémunération convenue est le franc congolais (CDF) ou le dollar américain (USD).';
+
 export class ContratTravailDto {
   @IsEnum(TypeContratTravail)
   type!: TypeContratTravail;
@@ -214,6 +223,16 @@ export class ContratTravailDto {
   @Min(0)
   remunerationBase?: number;
 
+  /**
+   * La monnaie dans laquelle `remunerationBase` est stipulée (audit final
+   * F226). Absente, le contrôle du minimum s'abstient · il ne suppose pas le
+   * franc, et un salaire en dollars lu comme des francs passait très en deçà
+   * du minimum.
+   */
+  @IsOptional()
+  @IsEnum(['CDF', 'USD'], { message: MOTIF_MONNAIE_REMUNERATION })
+  deviseRemuneration?: 'CDF' | 'USD';
+
   @IsOptional()
   @IsString()
   @MaxLength(500)
@@ -252,6 +271,16 @@ export class ContratTravailDto {
   @IsOptional()
   @IsString()
   renouvelleDeId?: string;
+}
+
+/**
+ * AUDIT FINAL F226 · la monnaie de la rémunération d'un contrat saisi avant
+ * que le registre ne la demande. Elle COMPLÈTE le contrat, elle ne le modifie
+ * pas · une monnaie déjà déclarée ne se change pas ici.
+ */
+export class DeviseRemunerationDto {
+  @IsEnum(['CDF', 'USD'], { message: MOTIF_MONNAIE_REMUNERATION })
+  deviseRemuneration!: 'CDF' | 'USD';
 }
 
 export class TerminerContratDto {
@@ -691,7 +720,10 @@ export class AvanceSalaireDto {
 
 /** Les valeurs se vérifient par barème dans baremes-dossier.ts (lireValeurs). */
 export class VersionBaremePaieDto {
-  @IsEnum(['CNSS', 'INPP', 'ONEM', 'SMIG']) bareme!: 'CNSS' | 'INPP' | 'ONEM' | 'SMIG';
+  // Le refus du barème est celui du service, en français (audit final F227) ·
+  // la validation du corps passe avant lui et rendait le message anglais de
+  // class-validator.
+  @IsEnum(BAREMES_SERVIS, { message: MOTIF_BAREME_NON_SAISISSABLE }) bareme!: 'CNSS' | 'INPP' | 'ONEM' | 'SMIG';
   @IsDateString() aPartirDu!: string;
   @IsString() @MinLength(8) @MaxLength(400) reference!: string;
   @IsObject() valeurs!: Record<string, unknown>;

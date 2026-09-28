@@ -3,8 +3,9 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { Aide } from '../components/chrome/Aide';
-import type { BilanEmissionRelances, LettreRelance, NiveauRelance, PositionRelance, TypeRelance } from '../lib/types';
+import type { BilanEmissionRelances, BilanRepriseCourrier, LettreRelance, NiveauRelance, PositionRelance, TypeRelance } from '../lib/types';
 import { libelleRemise, phraseEmission, tonRemise } from '../lib/remise-courriel';
+import { EVENEMENT_FILE_COURRIER, SUITE_REPRISE_HORS_FILE, cumulerReprises, reprendreEncore, resumeReprise } from '../lib/courrier-file';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { HistoriqueRappels } from '../components/HistoriqueRappels';
 
@@ -23,8 +24,12 @@ import { HistoriqueRappels } from '../components/HistoriqueRappels';
  *
  * La colonne « Qualité » vient du serveur, qui la nomme selon le plan du
  * dossier (`qualiteDuCompte`, relances.service.ts). Les modèles de lettre
- * livrés, eux, sont volontairement NEUTRES et servent aux deux : ils
- * s'adressent au « cher {tiers} » et ne nomment ni cotisation ni facture.
+ * livrés sont eux aussi PROPRES À CHAQUE RÉFÉRENTIEL (`NIVEAUX_DEFAUT`,
+ * relances.service.ts) · un jeu parle à un membre (« Cher {tiers} »,
+ * « Invitation à régler »), l'autre à un client (« Madame, Monsieur »,
+ * « Avis d'échéance », « Mise en demeure préalable »). Ce commentaire les
+ * disait neutres et communs, ce qu'ils ne sont plus (audit final F243). Le
+ * dossier les réécrit de toute façon depuis cette fenêtre.
  */
 
 const ETATS: { valeur: TypeRelance; titre: string; description: string }[] = [
@@ -148,6 +153,37 @@ function PositionsRelances() {
       // que ceux qui n'ont pas d'adresse ne sont partis à personne.
       setInfo(phraseEmission(r));
       await charger();
+      // LES LETTRES PARTENT PAR LA REPRISE (audit final F241) · l'émission les
+      // écrit en file sans rien tenter, et c'est ici qu'elles partent, par
+      // passages bornés au serveur, chacun une requête courte. La reprise
+      // traite toute la file du dossier, comme le bouton de la fenêtre
+      // Courriers sortants · c'est l'ordonnanceur du produit. Un échec de la
+      // reprise ne défait pas l'émission · les lettres restent en file, et
+      // la phrase le dit.
+      const enAttente = r.lettres.filter((l) => l.remise.statut === 'EN_ATTENTE').length;
+      if (enAttente > 0) {
+        // Le compte rendu porte TOUS les passages · le dernier seul annonçait
+        // « 10 envoyés » quand soixante étaient partis.
+        let cumul: BilanRepriseCourrier | null = null;
+        try {
+          let passages = 0;
+          let bilan: BilanRepriseCourrier;
+          do {
+            bilan = await api.post<BilanRepriseCourrier>('/courrier/reprendre', {});
+            cumul = cumulerReprises(cumul, bilan);
+            passages += 1;
+          } while (reprendreEncore(bilan, passages, enAttente + 1));
+          setInfo(`${phraseEmission(r)} ${resumeReprise(cumul, SUITE_REPRISE_HORS_FILE)}`);
+        } catch (e) {
+          // Un passage refusé après d'autres réussis · ce qui est parti est
+          // dit, le reste attend en file.
+          const fait = cumul ? ` ${resumeReprise(cumul, SUITE_REPRISE_HORS_FILE)}` : '';
+          setInfo(
+            `${phraseEmission(r)}${fait} La remise s'est interrompue (${e instanceof ApiError ? e.message : 'reprise impossible'}) · ce qui reste en file, ${SUITE_REPRISE_HORS_FILE}.`,
+          );
+        }
+        window.dispatchEvent(new Event(EVENEMENT_FILE_COURRIER));
+      }
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Émission impossible');
     } finally {

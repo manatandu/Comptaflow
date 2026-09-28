@@ -71,6 +71,14 @@ export function phraseEmission(bilan: {
    * niveau choisi (audit final F167) · écartés en silence jusque-là.
    */
   sansObjet?: { compte: string }[];
+  /**
+   * Comptes dont la lettre de ce niveau était déjà en file ou partie à cette
+   * date (audit final F241) · le second clic n'écrit pas de seconde lettre,
+   * et le dit, au lieu d'un « Aucun courrier préparé. » qui se lirait « rien à
+   * réclamer ». « En file ou partie », jamais « reçue » · une lettre gardée
+   * faute de messagerie n'a encore été reçue par personne.
+   */
+  dejaEmises?: { compte: string }[];
 }): string {
   // LE HORS-CIRCUIT SE DIT DANS LA MÊME PHRASE, et surtout dans le cas où la
   // sélection ne portait QUE des exclus : « Aucun courrier préparé. » tout
@@ -90,19 +98,27 @@ export function phraseEmission(bilan: {
       : nSansObjet === 1
         ? ` 1 compte de la sélection n'avait rien à réclamer dans cet état (${bilan.sansObjet![0].compte}) · aucun courrier.`
         : ` ${nSansObjet} comptes de la sélection n'avaient rien à réclamer dans cet état · aucun courrier.`;
+  const nDeja = bilan.dejaEmises?.length ?? 0;
+  const deja =
+    nDeja === 0
+      ? ''
+      : nDeja === 1
+        ? ` 1 compte de la sélection avait déjà sa lettre de ce niveau en file ou partie à cette date (${bilan.dejaEmises![0].compte}) · aucune seconde lettre.`
+        : ` ${nDeja} comptes de la sélection avaient déjà leur lettre de ce niveau en file ou partie à cette date · aucune seconde lettre.`;
+  const suite = `${horsCircuit}${sansObjet}${deja}`;
   const lettres = bilan.emises <= 1 ? `${bilan.emises} courrier préparé` : `${bilan.emises} courriers préparés`;
-  if (bilan.emises === 0) return `Aucun courrier préparé.${horsCircuit}${sansObjet}`;
+  if (bilan.emises === 0) return `Aucun courrier préparé.${suite}`;
   if (bilan.nonRemises === 0) {
-    return `${lettres} · tous mis en file de départ.${horsCircuit}${sansObjet}`;
+    return `${lettres} · tous mis en file de départ.${suite}`;
   }
   if (bilan.misesEnFile === 0) {
-    return `${lettres} · AUCUN n'a de destinataire, ils sont enregistrés et s'impriment, ils ne sont partis à personne.${horsCircuit}${sansObjet}`;
+    return `${lettres} · AUCUN n'a de destinataire, ils sont enregistrés et s'impriment, ils ne sont partis à personne.${suite}`;
   }
   const restants =
     bilan.nonRemises === 1
       ? "1 n'a pas de destinataire"
       : `${bilan.nonRemises} n'ont pas de destinataire`;
-  return `${lettres} · ${bilan.misesEnFile} mis en file de départ, ${restants} et ne sont partis à personne.${horsCircuit}${sansObjet}`;
+  return `${lettres} · ${bilan.misesEnFile} mis en file de départ, ${restants} et ne sont partis à personne.${suite}`;
 }
 
 /**

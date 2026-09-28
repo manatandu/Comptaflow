@@ -33,12 +33,16 @@
  *     les deux derniers ne s'obtiennent que d'un dispositif électronique
  *     fiscal. Le module a porté les neuf seuls pendant un jour.
  *
- *     Art. 100, pour mémoire :
- *     « identité et n° impôt du vendeur/prestataire ; identité et n° impôt du
- *     client ; date et n° de série ; désignation et quantité ; prix unitaire et
- *     global par type de biens/services (distinction sommes imposables/non
- *     imposables justifiées) ; prix hors TVA ; taux et montant de TVA ; montant
- *     non taxable ; montant TTC ».
+ *     Art. 100, pour mémoire, RÉSUMÉ et non cité (le texte des deux premiers
+ *     tirets est au tableau) : identité, ADRESSE EXACTE et n° impôt du vendeur
+ *     ou prestataire ; identité, ADRESSE EXACTE et n° impôt du client ; date et
+ *     n° de série ; désignation et quantité ; prix unitaire et global par type
+ *     de biens ou services (distinction sommes imposables / non imposables
+ *     justifiées) ; prix hors TVA ; taux et montant de TVA ; montant non
+ *     taxable ; montant TTC. Audit final F229 · ce résumé était mis entre
+ *     guillemets comme une citation, sans l'adresse exacte que les deux
+ *     premiers tirets écrivent pourtant, et c'est de lui qu'était partie la
+ *     branche antérieure sans adresse que la passe F3b a défaite.
  *
  *     Art. 26 du décret n° 23/10 ajoute, après ces neuf : « j) le montant de
  *     tous autres impôts et taxes, LE CAS ÉCHÉANT ; k) le numéro
@@ -55,14 +59,15 @@
  *     750.000 FC (personnes morales) ; 250.000 FC (personnes physiques), PAR
  *     OMISSION ».
  *
- * CE QUE LE TEXTE NE DIT PAS, ET QU'ON N'INVENTE PAS · l'art. 100 énumère ses
- * mentions en NEUF groupes séparés par des points-virgules, dont plusieurs en
- * réunissent deux (« identité ET n° impôt »). L'art. 97 bis sanctionne « par
- * omission » sans définir l'unité de l'omission : le groupe, ou chacun de ses
- * éléments. Multiplier neuf par 750.000 et annoncer un montant serait donc
- * inventer un barème que personne n'a écrit. Le module compte les groupes
- * manquants, donne l'amende UNITAIRE avec sa source, et dit que le produit des
- * deux ne lui appartient pas.
+ * CE QUE LE TEXTE NE DIT PAS, ET QU'ON N'INVENTE PAS · l'art. 26 énumère ses
+ * mentions en DOUZE points (a à l), dont dix sont dus par un document en
+ * tenant lieu, l'art. 100 en NEUF tirets, et les deux premiers en réunissent
+ * trois, le nom, l'adresse exacte et le numéro impôt. L'art. 97 bis
+ * sanctionne « par omission » sans définir l'unité de l'omission : le groupe,
+ * ou chacun de ses éléments. Multiplier les groupes dus par 750.000 et
+ * annoncer un montant serait donc inventer un barème que personne n'a écrit.
+ * Le module compte les groupes manquants, donne l'amende UNITAIRE avec sa
+ * source, et dit que le produit des deux ne lui appartient pas.
  */
 
 /** Les deux barèmes de l'art. 97 bis, en francs congolais, PAR omission. */
@@ -71,8 +76,9 @@ export const AMENDE_PAR_OMISSION = {
   personnePhysique: 250_000,
   source: 'Loi de procédures fiscales, art. 97 bis (créé par l’O.-L. n° 13/005 du 23 février 2013)',
   reserve:
-    'Le texte sanctionne « par omission » sans définir si l’unité est le groupe de mentions de l’art. 26 ou ' +
-    'chacun de ses éléments. Le montant total encouru ne se déduit donc pas du nombre de groupes manquants.',
+    'Le texte sanctionne « par omission » sans définir si l’unité est le groupe de mentions du texte applicable ' +
+    'à la pièce (décret n° 23/10, art. 26, ou décret n° 011/42, art. 100, avant le 3 mars 2023) ou chacun de ses ' +
+    'éléments. Le montant total encouru ne se déduit donc pas du nombre de groupes manquants.',
 } as const;
 
 /**
@@ -289,22 +295,32 @@ const renseigne = (v: string | null | undefined): boolean => typeof v === 'strin
 const nombreRenseigne = (v: number | null | undefined): boolean => typeof v === 'number' && Number.isFinite(v);
 
 /**
- * LES NEUF GROUPES, DANS L'ORDRE DU TEXTE.
+ * LES DOUZE GROUPES DE L'ART. 26 DU DÉCRET N° 23/10, DANS L'ORDRE DU TEXTE
+ * (a à l), DONT DIX SONT DUS par un document en tenant lieu · les deux
+ * derniers ne s'obtiennent que d'un dispositif électronique fiscal, et le
+ * dernier alinéa de l'article les en retire. La liste opposée à une pièce est
+ * celle du texte en vigueur À SA DATE (`texteApplicable`) · les neuf de
+ * l'art. 100 avant le 3 mars 2023. Audit final F229 · ce commentaire annonçait
+ * encore les « neuf groupes » de l'art. 100, que le tableau ne porte plus.
  *
- * Deux d'entre eux ne se lisent que sur les LIGNES, et c'est la raison
- * principale de ce chantier : une facture sans lignes ne porte ni désignation,
- * ni quantité, ni prix unitaire · elle manque donc trois groupes sur neuf, et
- * c'est exactement l'état dans lequel se trouvait chaque vente d'OmegaX, dont
- * la seule trace était un `reference` libre sur l'écriture.
+ * SIX d'entre eux ne se lisent que sur les LIGNES, et c'est la raison
+ * principale de ce chantier : trois directement (désignation et quantité,
+ * prix unitaire et global, taux et montant de TVA), trois par leurs totaux
+ * (prix hors TVA, montant non taxable, montant TTC). Une facture sans lignes
+ * manque donc SIX groupes sur les dix dus, et c'est exactement l'état dans
+ * lequel se trouvait chaque vente d'OmegaX, dont la seule trace était un
+ * `reference` libre sur l'écriture.
  */
 export const MENTIONS_ARTICLE_26: readonly Mention[] = [
   {
     /**
      * TROIS ÉLÉMENTS, ET L'ADRESSE MANQUAIT · art. 26 a), lu verbatim : « les
      * nom, post-nom et prénom ou raison sociale, L'ADRESSE EXACTE, le numéro
-     * impôt du vendeur ou prestataire ». Le module avait été bâti sur l'art. 100
-     * de 2011, qui écrit seulement « identité et n° impôt » : l'adresse n'y est
-     * pas, et elle n'était vérifiée nulle part.
+     * impôt du vendeur ou prestataire ». Le module avait été bâti sur un RÉSUMÉ
+     * de l'art. 100 de 2011 réduit à « identité et n° impôt » : l'adresse,
+     * que le premier tiret de l'art. 100 écrit lui aussi (voir
+     * `MENTIONS_ARTICLE_100`, passe F3b), n'était vérifiée nulle part. Audit
+     * final F229 · ce commentaire prêtait encore ce résumé au texte lui-même.
      *
      * CE N'ÉTAIT PAS UN CHAMP DE MOINS, C'ÉTAIT UN VERDICT FAUX ·
      * `verifierMentions` rendait `conforme: true` sur une pièce qui omet une
@@ -356,8 +372,9 @@ export const MENTIONS_ARTICLE_26: readonly Mention[] = [
   {
     /**
      * SUR UNE LIGNE IMPOSABLE SEULEMENT. Exiger un taux sur une ligne exonérée
-     * ferait mentir la facture : l'art. 100 demande au contraire de distinguer
-     * les sommes imposables des non imposables.
+     * ferait mentir la facture : l'art. 26 e), comme l'art. 100 avant lui,
+     * demande au contraire de distinguer les sommes imposables des non
+     * imposables.
      */
     cle: 'TAUX_ET_MONTANT_TVA',
     libelle: 'taux et montant de TVA',
@@ -442,10 +459,11 @@ export const ENTREE_EN_VIGUEUR_DECRET_23_10 = new Date(Date.UTC(2023, 2, 3));
 
 /**
  * Les neuf groupes de l'art. 100, pour une pièce antérieure au 3 mars 2023 ·
- * l'adresse exacte et les autres impôts n'y figurent pas, et les deux mentions
- * du dispositif électronique non plus.
- */
-/**
+ * les neuf premiers de l'art. 26, adresse exacte comprise, sans le montant des
+ * autres impôts et taxes ni les deux mentions du dispositif électronique.
+ * (Audit final F229 · une première ligne, restée seule au-dessus de ce
+ * commentaire, écrivait encore que l'adresse exacte n'y figurait pas.)
+ *
  * L'ARTICLE 100 RÉCLAME L'ADRESSE EXACTE, LUI AUSSI · ET CE MODULE A AFFIRMÉ LE
  * CONTRAIRE PENDANT TROIS JOURS.
  *
@@ -470,9 +488,10 @@ export const ENTREE_EN_VIGUEUR_DECRET_23_10 = new Date(Date.UTC(2023, 2, 3));
  * et le logiciel l'affichait conforme.
  *
  * CE QUI DIFFÈRE VRAIMENT ENTRE LES DEUX TEXTES, et c'est tout : l'art. 100
- * compte NEUF groupes, l'art. 26 du décret n° 23/10 en compte DIX, le dixième
- * étant « le montant des autres impôts et taxes ». C'est la seule mention que
- * cette branche retire.
+ * compte NEUF groupes, l'art. 26 du décret n° 23/10 en compte DOUZE, dont DIX
+ * dus par un document en tenant lieu, le dixième étant « le montant de tous
+ * autres impôts et taxes, le cas échéant ». C'est la seule mention que cette
+ * branche retire aux dix.
  */
 export const MENTIONS_ARTICLE_100: readonly Mention[] = MENTIONS_DOCUMENT_EN_TENANT_LIEU.filter(
   (m) => m.cle !== 'AUTRES_IMPOTS_ET_TAXES',
@@ -531,7 +550,8 @@ export interface Totaux {
 }
 
 /**
- * Les totaux que l'art. 100 demande de porter au pied de la facture.
+ * Les totaux que l'art. 26, f) à j), demande de porter au pied de la facture
+ * (l'art. 100 pour une pièce antérieure au 3 mars 2023, sans le j).
  *
  * LE TTC COMPREND LES AUTRES IMPÔTS ET TAXES (audit final F114) · « toutes
  * taxes comprises », et le décret n° 23/10, art. 26 les fait figurer sur la
@@ -614,8 +634,14 @@ export interface VerificationMentions {
 }
 
 /**
+ * Confronte la pièce aux mentions du texte en vigueur À SA DATE
+ * (`texteApplicable`) · les dix groupes dus de l'art. 26 du décret n° 23/10,
+ * ou les neuf de l'art. 100 du décret n° 011/42 pour une pièce antérieure au
+ * 3 mars 2023. La mention de l'art. 60 se juge à part, sur le contexte. Audit
+ * final F229 · ce commentaire parlait encore de neuf groupes à toutes les dates.
+ *
  * @param personneMorale commande le barème de l'art. 97 bis, pas le contenu des
- * mentions · les neuf groupes sont les mêmes pour tous.
+ * mentions · les groupes dus à une date sont les mêmes pour tous.
  */
 export function verifierMentions(
   f: FactureVerifiable,
@@ -632,9 +658,9 @@ export function verifierMentions(
   /*
     LA MENTION DE L'ARTICLE 60 · DEUX TEXTES, DEUX SANCTIONS, UNE SEULE PIÈCE.
 
-    Elle ne vient PAS du décret n° 23/10, dont les art. 26 et 100 fixent les
-    mentions de la facture normalisée : elle vient du décret n° 011/42 portant
-    mesures d'application de la TVA, art. 60 (fichier
+    Elle ne vient ni de l'art. 26 du décret n° 23/10 ni de l'art. 100 du décret
+    n° 011/42, qui fixent les mentions de la facture normalisée : elle vient du
+    décret n° 011/42 portant mesures d'application de la TVA, art. 60 (fichier
     `code-general-2026/references/11-tva-decret-application-ch1-4.md`) :
     « La mention "Autorisation d'acquitter la TVA d'après les débits" doit
     figurer sur toutes les factures délivrées par le prestataire de services ou
@@ -669,8 +695,10 @@ export function verifierMentions(
 
     ELLE N'EST EXIGÉE QUE DE CELUI QUI DÉLIVRE LA FACTURE, ET QUI EST AUTORISÉ.
     Sur un ACHAT, la mention se lit, elle ne s'impose pas · c'est le
-    fournisseur qui la doit. Et un dossier dont le régime n'est pas DEBITS
-    n'est pas autorisé : rien à mentionner.
+    fournisseur qui la doit. La déclaration de TVA la lit sur la facture
+    d'achat rattachée à l'écriture, pour confronter l'autorisation portée sur
+    la fiche du fournisseur (audit final F228). Et un dossier dont le régime
+    n'est pas DEBITS n'est pas autorisé : rien à mentionner.
 
     `conforme` LA PREND EN COMPTE. C'est le point du défaut : une pièce qui
     omet une mention obligatoire ne peut pas être affichée conforme, et c'est

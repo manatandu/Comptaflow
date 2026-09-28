@@ -45,6 +45,19 @@ export type NomBareme = 'CNSS' | 'INPP' | 'ONEM' | 'SMIG';
 
 export const BAREMES_SERVIS: readonly NomBareme[] = ['CNSS', 'INPP', 'ONEM', 'SMIG'];
 
+/**
+ * LE REFUS D'UN BARÈME QUI NE SE SAISIT PAS (audit final F227). Il disait
+ * « Seuls les taux CNSS, INPP et ONEM se saisissent · le SMIG et le barème
+ * de l'IRPP restent ceux des textes », alors que le SMIG du manœuvre se
+ * saisit depuis la priorité 4 (décret n° 25/21, art. 10 et 11) · le cabinet
+ * qui lisait ce refus renonçait à poser l'ajustement de janvier. Le message
+ * vit une fois, et le DTO le sert aussi, la validation du corps passant avant
+ * le service.
+ */
+export const MOTIF_BAREME_NON_SAISISSABLE =
+  "Se saisissent les taux CNSS, INPP et ONEM et le SMIG journalier du manœuvre ordinaire · le barème de l'IRPP " +
+  '(loi n° 23/053, art. 118) et la tension salariale restent ceux des textes lus par OmegaX.';
+
 /** La date d'effet du dernier texte livré, par barème. */
 export const DERNIERE_DATE_LIVREE: Record<NomBareme, string> = {
   CNSS: BAREMES_CNSS[BAREMES_CNSS.length - 1].aPartirDu,
@@ -129,7 +142,7 @@ export function lireValeurs(
  */
 export function motifRefusVersion(saisie: VersionSaisie, datesDuDossier: readonly string[]): string | null {
   if (!BAREMES_SERVIS.includes(saisie.bareme as NomBareme)) {
-    return "Seuls les taux CNSS, INPP et ONEM se saisissent · le SMIG et le barème de l'IRPP restent ceux des textes lus par OmegaX.";
+    return MOTIF_BAREME_NON_SAISISSABLE;
   }
   const bareme = saisie.bareme as NomBareme;
   if (!dateValide(saisie.aPartirDu)) return "La date d'effet est une date (AAAA-MM-JJ).";

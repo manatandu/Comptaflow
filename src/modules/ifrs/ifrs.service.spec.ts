@@ -1,7 +1,8 @@
 import 'reflect-metadata';
 import { readdirSync, readFileSync, statSync } from 'fs';
 import { join, relative } from 'path';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ParseUUIDPipe } from '@nestjs/common';
+import { ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
 import { Prisma, RoleUtilisateur } from '@prisma/client';
 import { IfrsService } from './ifrs.service';
 import { LIBELLE_POSTE } from '../consolidation/cumul-consolidation';
@@ -35,8 +36,11 @@ function doublure(avecPrecedent = false, avecAvantPrecedent = false, balancesPro
   let seq = 0;
   const prisma: any = {
     exercice: {
+      // Un `id: undefined` ne filtre rien, comme en base (audit final F234) ·
+      // la doublure rend alors le premier exercice du dossier, ce que Prisma
+      // ferait, au lieu d'un refus qui masquerait le défaut.
       findFirst: jest.fn(async ({ where }: any) => {
-        if (where.id) return (where.tenantId === T && exercices.find((e) => e.id === where.id)) || null;
+        if ('id' in where) return (where.tenantId === T && exercices.find((e) => where.id === undefined || e.id === where.id)) || null;
         const avant = exercices.filter((e) => e.dateFin < where.dateFin.lt).sort((a, b) => b.dateFin.getTime() - a.dateFin.getTime());
         return avant[0] ?? null;
       }),
@@ -605,6 +609,25 @@ describe('IfrsService · tableau des flux de trésorerie (IAS 7 modifiée par IF
   });
 });
 
+/**
+ * AUDIT FINAL F234 · un `@Query` scalaire échappe au ValidationPipe global,
+ * et un exerciceId absent laissait Prisma retenir le premier exercice venu.
+ */
+describe('F234 · les lectures IFRS exigent l’exercice', () => {
+  it.each(['etat', 'etatConsolide'])('%s · le paramètre exerciceId passe par un ParseUUIDPipe', (methode) => {
+    const args = Reflect.getMetadata(ROUTE_ARGS_METADATA, IfrsController, methode) as Record<string, { data?: string; pipes: unknown[] }>;
+    const exercice = Object.values(args).find((a) => a.data === 'exerciceId');
+    expect(exercice?.pipes.some((p) => p instanceof ParseUUIDPipe)).toBe(true);
+  });
+
+  it('au service aussi · sans exercice, 400, jamais l’état du premier exercice venu', async () => {
+    const { service } = doublure(true, true);
+    for (const r of REGLES) await service.ajouterRegle(T, r);
+    await expect(service.etat(T, undefined as unknown as string)).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/exerciceId est requis/) });
+    await expect(service.etatConsolide(T, undefined as unknown as string)).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/exerciceId est requis/) });
+  });
+});
+
 describe('IfrsController · les écritures sont réservées', () => {
   it('toute route qui écrit porte @Roles, sans la lecture seule', () => {
     const proto = IfrsController.prototype as any;
@@ -1100,6 +1123,11 @@ describe('IfrsService · première application consolidée (tranche C5, IFRS 1)'
     expect(pa.rapprochements[0].lignes.map((l) => l.cle)).toEqual(['DEPART', `R_${d.tables.retraitements[0].id}`, 'ARRIVEE']);
     expect(e.exerciceTransitionId).toBe(EX1);
     expect(e.ajustementsTransition).toHaveLength(1);
+    // La note de transition (IFRS 1 § 23 à 26) porte les rapprochements du
+    // groupe, comme aux comptes individuels (audit final F233).
+    const transition = e.notes!.notes.find((x: { cle: string }) => x.cle === 'TRANSITION');
+    expect(transition?.titre).toBe('Transition aux normes IFRS');
+    expect(JSON.stringify(transition?.blocs)).toContain('Capitaux propres consolidés selon le D4C (part du groupe et minoritaires)');
     // Le bloc comparatif de la variation part de l'état d'ouverture.
     expect(e.variationCapitauxPropres!.n1!.lignes.find((l: { cle: string }) => l.cle === 'OUVERTURE_RETRAITEE')!.total).toBe(950);
     expect(d.cumuls.cumul).toHaveBeenCalledWith(T, EX2);

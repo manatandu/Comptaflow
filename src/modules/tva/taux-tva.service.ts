@@ -4,7 +4,7 @@ import { LOT_ECRITURES, LOT_LECTURE, lireParLots, pageApres } from '../../common
 import { PrismaService } from '../../common/prisma.service';
 import { CreerTauxTvaDto, ModifierTauxTvaDto } from './dto/taux-tva.dto';
 import { tauxTvaDefaut } from './taux-tva-seed';
-import { Prisma, ClasseCompte, Referentiel, TypeJournal, NatureFacture, StatutEcriture } from '@prisma/client';
+import { Prisma, ClasseCompte, Referentiel, TypeJournal, NatureFacture, SensFacture, StatutEcriture } from '@prisma/client';
 import { DETENTEUR_LIQUIDATION_TVA, EcritureService } from '../comptabilite/ecriture.service';
 
 const EPSILON = 0.005;
@@ -903,8 +903,15 @@ export class TauxTvaService {
       ouvrant droit à déduction de la taxe sur la valeur ajoutée, Y COMPRIS LES
       EXPORTATIONS ET OPÉRATIONS ASSIMILÉES » (l. 1115-1117). Une exportation
       est taxée à 0 % : elle n'ouvre le numérateur que si sa ligne de TVA au
-      taux zéro existe, et la saisie guidée n'en pose aucune quand la taxe est
-      nulle (`client/src/components/ModelesSaisie.tsx`, `if (tva > 0.005)`).
+      taux zéro existe. La saisie la pose, grille comme modale, par une seule
+      règle (`construireLigneTva`, `client/src/lib/tva-saisie.ts`), qui ne
+      renonce à la ligne que sur une taxe nulle À TAUX NON NUL
+      (`!(tva > 0.005) && !tauxZero`), et l'écriture passée depuis une
+      facture la pose aussi (`src/modules/facturation/ecriture-facture.ts`).
+      Une écriture saisie sans taux, ou importée, n'en porte en revanche
+      aucune. Audit final F228 · ce commentaire citait encore, dans
+      `ModelesSaisie.tsx`, une condition qui n'y est plus et qui écartait
+      justement la ligne au taux zéro.
       Le serveur ne peut PAS distinguer, dans un crédit de classe 7 nu, une
       exportation d'une recette exonérée · il ne devine donc pas, il compte ce
       qui n'est pas qualifié et le NOMME, avec son article.
@@ -1476,8 +1483,15 @@ export class TauxTvaService {
    * débits" doit figurer sur toutes les factures délivrées par le prestataire
    * de services ou l'entrepreneur de travaux publics ou de travaux
    * immobiliers. » Le comptable la reporte sur la fiche du tiers
-   * (`Tiers.autoriseTvaDebits`) ; aucun autre chemin ne mène à cette
-   * information, et le logiciel n'en invente pas.
+   * (`Tiers.autoriseTvaDebits`), et c'est la FICHE qui date la déduction ·
+   * l'autorisation est un fait du FOURNISSEUR, une décision du Directeur
+   * Général des Impôts (art. 26, décret art. 58 et 59) dont la fiche porte la
+   * référence, et non de chaque pièce. La mention recopiée sur la facture
+   * d'achat enregistrée (`Facture.mentionTvaDebits`) en est la PREUVE : la
+   * déclaration la lit pour dire ce que l'anticipation a de prouvé et ce que
+   * la fiche ne dit pas encore (`mentionDebitsLueSurLaFacture`, audit final
+   * F228), sans en faire une seconde source de datation, qui daterait de deux
+   * façons deux factures du même fournisseur. Le logiciel n'invente rien.
    *
    * LE CHEMIN JUSQU'AU FOURNISSEUR, ET CE QU'IL NE DIT PAS. Une ligne de TVA
    * ne porte aucun tiers : le seul rattachement est la CONTREPARTIE de classe 4
@@ -1527,6 +1541,29 @@ export class TauxTvaService {
     }
     if (rattaches === 0) return inconnu;
     return { autorise: true, reference: referenceManquante ? null : reference };
+  }
+
+  /**
+   * LA MENTION DE L'ARTICLE 60, LUE SUR LA FACTURE D'ACHAT RATTACHÉE À
+   * L'ÉCRITURE (audit final F228). Décret n° 011/42, art. 60 : la mention
+   * « doit figurer sur toutes les factures délivrées par le prestataire de
+   * services ou l'entrepreneur de travaux publics ou de travaux immobiliers »
+   * autorisé. La déclaration écrivait qu'OmegaX ne pouvait pas la vérifier,
+   * alors que la facture enregistrée porte le champ
+   * (`Facture.mentionTvaDebits`), que la saisie d'une facture reçue offre
+   * désormais à cocher.
+   *
+   * VRAI seulement sur une facture d'ACHAT cochée · la mention d'une VENTE est
+   * celle que le DOSSIER porte pour sa propre collecte, elle ne dit rien de
+   * son fournisseur. FAUX ne veut jamais dire « la pièce ne la porte pas » :
+   * la colonne vaut faux par défaut, et une facture d'achat enregistrée sans
+   * que la case ait été examinée ressemble trait pour trait à une facture qui
+   * ne porte pas la mention. FAUX dit seulement « pas lue ici ».
+   */
+  private static mentionDebitsLueSurLaFacture(
+    facture: { sens?: SensFacture | null; mentionTvaDebits?: boolean | null } | null | undefined,
+  ): boolean {
+    return facture?.sens === SensFacture.ACHAT && facture.mentionTvaDebits === true;
   }
 
   /**
@@ -1822,10 +1859,13 @@ export class TauxTvaService {
           ecriture: {
             select: {
               date: true,
-              // LA PIÈCE QUI JUSTIFIE UN AVOIR SUR VENTE · décret n° 011/42,
-              // art. 127. Seule la NATURE est lue : une note de crédit
-              // rattachée à l'écriture est la pièce que le texte exige.
-              facture: { select: { nature: true } },
+              // LA PIÈCE RATTACHÉE À L'ÉCRITURE, lue pour deux questions.
+              // Sa NATURE justifie un avoir sur vente (décret n° 011/42,
+              // art. 127) · une note de crédit est la pièce que le texte
+              // exige. Son SENS et sa MENTION DES DÉBITS prouvent, sur un
+              // achat, l'autorisation du fournisseur (décret art. 60, audit
+              // final F228).
+              facture: { select: { nature: true, sens: true, mentionTvaDebits: true } },
               // DEUX contreparties sont lues sur la même écriture, et pour
               // trois questions différentes : la ligne de TIERS lettrée dit
               // QUAND la taxe est exigible (art. 25, 2°), le TIERS auquel son
@@ -1930,6 +1970,11 @@ export class TauxTvaService {
     let deductionServicesDiffere = 0;
     let deductionServicesDebits = 0;
     let deductionServicesDebitsSansReference = 0;
+    // CE QUE LA FACTURE D'ACHAT ENREGISTRÉE DIT DE L'ART. 60 (audit final
+    // F228) · part anticipée dont la pièce porte la mention, et part différée
+    // dont la pièce la porte alors que la fiche du fournisseur ne le dit pas.
+    let deductionServicesDebitsMentionLue = 0;
+    let deductionServicesDiffereMentionLue = 0;
     // TVA COLLECTÉE datée à la facture SOUS LE RÉGIME DES DÉBITS · l'art. 26,
     // alinéa 3, réserve l'encaissement antérieur, et OmegaX ne peut pas le
     // voir : un acompte encaissé avant la facture est une avance reçue (419),
@@ -2082,10 +2127,16 @@ export class TauxTvaService {
             // n'est pas ce qui est déduit d'avance PARCE QU'ON SAIT. Les confondre
             // ferait dire à la déclaration qu'elle a différé ce qu'elle a anticipé,
             // et l'avertissement qui suit perdrait son objet.
-            if (base === 'ENCAISSEMENT') deductionServicesDiffere += montant;
-            else {
+            // La mention LUE ne date rien · elle prouve (anticipé) ou elle
+            // signale ce que la fiche ne dit pas encore (différé).
+            const mentionLue = TauxTvaService.mentionDebitsLueSurLaFacture(l.ecriture.facture);
+            if (base === 'ENCAISSEMENT') {
+              deductionServicesDiffere += montant;
+              if (mentionLue) deductionServicesDiffereMentionLue += montant;
+            } else {
               deductionServicesDebits += montant;
               if (!fournisseur.reference) deductionServicesDebitsSansReference += montant;
+              if (mentionLue) deductionServicesDebitsMentionLue += montant;
             }
           }
 
@@ -2196,6 +2247,8 @@ export class TauxTvaService {
         deductionServicesDiffere: TauxTvaService.c(deductionServicesDiffere),
         deductionServicesDebits: TauxTvaService.c(deductionServicesDebits),
         deductionServicesDebitsSansReference: TauxTvaService.c(deductionServicesDebitsSansReference),
+        deductionServicesDebitsMentionLue: TauxTvaService.c(deductionServicesDebitsMentionLue),
+        deductionServicesDiffereMentionLue: TauxTvaService.c(deductionServicesDiffereMentionLue),
         collecteServicesDebits: TauxTvaService.c(collecteServicesDebits),
         creditAnterieur: credit.montant,
         creditImpute,
@@ -2287,6 +2340,15 @@ export class TauxTvaService {
     deductionServicesDiffere: number;
     deductionServicesDebits: number;
     deductionServicesDebitsSansReference: number;
+    /**
+     * Part anticipée dont la facture d'achat rattachée porte la mention de
+     * l'art. 60. Les deux parts sont REQUISES · optionnelles, un appel qui les
+     * oublierait compilerait, lirait zéro, et la déclaration dirait « non
+     * lue » de tout ce qui l'est (audit final F228, relecture).
+     */
+    deductionServicesDebitsMentionLue: number;
+    /** Part différée dont la facture d'achat rattachée porte la mention, fiche muette. */
+    deductionServicesDiffereMentionLue: number;
     collecteServicesDebits: number;
     creditAnterieur: number;
     creditImpute: number;
@@ -2361,19 +2423,35 @@ export class TauxTvaService {
       );
     }
     if (e.deductionServicesDiffere > EPSILON) {
+      // AUDIT FINAL F228 · la mention se lit aussi sur la facture d'achat
+      // enregistrée. Le message disait « nulle part ailleurs » que sur la
+      // pièce du fournisseur, et « ne PEUT pas savoir » même quand la facture
+      // rattachée la porte.
+      const mentionLue = e.deductionServicesDiffereMentionLue;
       phrases.push(
         `DÉDUCTION SUR SERVICES · ${fc(e.deductionServicesDiffere)} CDF de TVA d'amont facturée ` +
           "sur la période sont déduits au PAIEMENT du fournisseur : l'article 37 al. 1 fait naître le droit à " +
           "déduction « lorsque la taxe devient exigible chez l'assujetti », et le décret n° 011/42, art. 96, " +
           'précise qu’il s’agit du FOURNISSEUR. AUCUNE AUTORISATION D’ACQUITTER D’APRÈS LES DÉBITS N’EST ' +
-          'RENSEIGNÉE sur les tiers de ces factures · ce qui ne veut PAS dire qu’il n’y en a pas. La mention ' +
-          '« Autorisation d’acquitter la TVA d’après les débits » se lit sur la facture et nulle part ailleurs ' +
-          '(décret art. 60) : tant qu’elle n’a pas été portée sur la fiche du fournisseur, OmegaX ne PEUT pas ' +
-          'savoir, et s’en tient au droit commun. Chez un fournisseur autorisé (art. 26), la taxe est exigible ' +
-          'dès la facture et la déduction naît plus tôt · à vérifier facture par facture avant dépôt.',
+          'RENSEIGNÉE sur la fiche des tiers de ces factures · ce qui ne veut PAS dire qu’il n’y en a pas. La ' +
+          'mention « Autorisation d’acquitter la TVA d’après les débits » se lit sur la facture (décret art. 60), ' +
+          'et la date de la déduction suit la fiche du fournisseur, qui porte l’autorisation et la référence de ' +
+          'la décision (art. 26) : tant que la fiche ne la porte pas, OmegaX ne PEUT pas avancer la déduction, ' +
+          'et s’en tient au droit commun. Chez un fournisseur autorisé (art. 26), la taxe est exigible dès la ' +
+          'facture et la déduction naît plus tôt · à vérifier facture par facture avant dépôt.' +
+          (mentionLue > EPSILON
+            ? ` Dont ${fc(mentionLue)} CDF sur une facture d’achat enregistrée qui PORTE la mention : portez ` +
+              'l’autorisation et sa référence sur la fiche du fournisseur, la déduction naîtra alors à la ' +
+              'facture (décret art. 61 et 96).'
+            : ''),
       );
     }
     if (e.deductionServicesDebits > EPSILON) {
+      // AUDIT FINAL F228 · la mention se LIT sur la facture d'achat
+      // enregistrée et rattachée à l'écriture. Le message disait qu'OmegaX ne
+      // pouvait pas la vérifier ; il dit désormais ce qui en est prouvé, et
+      // ce qui reste à vérifier sur la pièce du fournisseur.
+      const nonLue = TauxTvaService.c(e.deductionServicesDebits - e.deductionServicesDebitsMentionLue);
       phrases.push(
         `FOURNISSEURS AUTORISÉS AUX DÉBITS · ${fc(e.deductionServicesDebits)} CDF de TVA d’amont sur services et ` +
           'travaux sont déduits DÈS LA FACTURE, et non au paiement : ces fournisseurs sont renseignés comme ' +
@@ -2381,7 +2459,12 @@ export class TauxTvaService {
           'Impôts), leur taxe est donc exigible « par l’inscription de la somme au débit du compte du client » ' +
           '(décret n° 011/42, art. 61) et le droit à déduction du client naît à cette date (article 37 al. 1, ' +
           'décret art. 96). L’autorisation est appliquée TELLE QU’ELLE A ÉTÉ SAISIE sur la fiche du tiers · elle ' +
-          'se prouve par la mention portée sur la facture (décret art. 60), qu’OmegaX ne peut pas vérifier.',
+          'se prouve par la mention portée sur la facture (décret art. 60), qu’OmegaX lit sur la facture d’achat ' +
+          'enregistrée et rattachée à l’écriture. ' +
+          (nonLue > EPSILON
+            ? `${fc(nonLue)} CDF ne reposent sur aucune facture d’achat enregistrée où la mention soit cochée · ` +
+              'elle est à vérifier sur la pièce du fournisseur avant dépôt.'
+            : 'Chacune de ces écritures est rattachée à une facture d’achat enregistrée qui la porte.'),
       );
     }
     if (e.deductionServicesDebitsSansReference > EPSILON) {

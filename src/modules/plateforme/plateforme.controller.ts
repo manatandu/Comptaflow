@@ -124,18 +124,6 @@ export class PlateformeController {
   }
 
   /**
-   * DERNIER RECOURS · quand c'est l'administrateur d'un cabinet qui a oublié
-   * son mot de passe, plus personne dans le dossier ne peut le réinitialiser.
-   * Sans cette route on retombait sur un UPDATE SQL en production.
-   */
-  /**
-   * DOSSIER DE DÉMONSTRATION · la vitrine que tout magasin d'applications
-   * réclame pour instruire une soumission. Ouverte à l'opérateur SEUL, comme
-   * le reste de cette console : le dossier qu'elle crée porte un mot de passe
-   * public, et n'importe qui d'autre pouvant l'ouvrir pourrait ouvrir une
-   * vitrine parallèle qui divergerait de celle qu'on donne au magasin.
-   */
-  /**
    * Désigne le dossier de l'éditeur · voir
    * `PlateformeService.designerDossierEditeur`. Sa licence cesse alors
    * d'expirer et de pouvoir être suspendue, parce que c'est depuis ce dossier
@@ -146,11 +134,23 @@ export class PlateformeController {
     return this.plateformeService.designerDossierEditeur(tenantId);
   }
 
+  /**
+   * DOSSIER DE DÉMONSTRATION · la vitrine que tout magasin d'applications
+   * réclame pour instruire une soumission. Ouverte à l'opérateur SEUL, comme
+   * le reste de cette console : le dossier qu'elle crée porte un mot de passe
+   * public, et n'importe qui d'autre pouvant l'ouvrir pourrait ouvrir une
+   * vitrine parallèle qui divergerait de celle qu'on donne au magasin.
+   */
   @Post('dossier-demonstration')
   preparerDemonstration(@Body() dto: PreparerDemonstrationDto) {
     return this.plateformeService.preparerDossierDemonstration(dto);
   }
 
+  /**
+   * DERNIER RECOURS · quand c'est l'administrateur d'un cabinet qui a oublié
+   * son mot de passe, plus personne dans le dossier ne peut le réinitialiser.
+   * Sans cette route on retombait sur un UPDATE SQL en production.
+   */
   @Post('cabinets/:tenantId/reinitialiser-admin')
   reinitialiserAdmin(@Param('tenantId') tenantId: string, @Body() dto: ReinitialiserAdminDto) {
     return this.plateformeService.reinitialiserAdmin(tenantId, dto);

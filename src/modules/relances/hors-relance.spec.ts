@@ -69,8 +69,8 @@ function ligne(
 }
 
 function service(lignes: ReturnType<typeof ligne>[], tiersEnBase?: Record<string, unknown> | null) {
-  let cree = 0;
-  const relanceCreate = jest.fn(async () => ({ id: `r-${++cree}` }));
+  // Une relance écrite par ligne du `createMany` de l'émission (audit final F241).
+  const relanceCreate = jest.fn();
   const tiersUpdate = jest.fn(async ({ data }: { data: unknown }) => data);
   const prisma = {
     tenant: {
@@ -84,14 +84,27 @@ function service(lignes: ReturnType<typeof ligne>[], tiersEnBase?: Record<string
       findFirst: jest.fn().mockResolvedValue(NIVEAU),
       findMany: jest.fn().mockResolvedValue([NIVEAU]),
     },
-    relance: { findMany: jest.fn().mockResolvedValue([]), create: relanceCreate },
+    relance: {
+      findMany: jest.fn().mockResolvedValue([]),
+      createMany: jest.fn(async ({ data }: { data: unknown[] }) => {
+        data.forEach((ligne) => relanceCreate(ligne));
+        return { count: data.length };
+      }),
+    },
     tiers: {
       findFirst: jest.fn().mockResolvedValue(tiersEnBase === undefined ? { id: 'ti-1', tenantId: DOSSIER } : tiersEnBase),
       update: tiersUpdate,
     },
+    // L'émission écrit sous un verrou par dossier, dans une transaction
+    // (audit final F241) · la doublure joue la transaction sur elle-même.
+    $executeRaw: jest.fn(async () => 0),
+    $transaction: jest.fn(async (fn: (tx: unknown) => unknown) => fn(prisma)),
   } as unknown as PrismaService;
   const courrier = {
-    mettreEnFile: jest.fn(async () => ({ id: 'm-1', statut: StatutMessage.SANS_TRANSPORT, erreur: null })),
+    // La file du lot (audit final F241) · une réponse par message.
+    ecrireEnFileSansTenter: jest.fn(async (_tx: unknown, _dossier: string, lot: unknown[]) =>
+      lot.map(() => ({ id: 'm-1', statut: StatutMessage.SANS_TRANSPORT, motif: null })),
+    ),
   } as unknown as CourrierService;
   return { svc: new RelancesService(prisma, courrier), relanceCreate, tiersUpdate };
 }

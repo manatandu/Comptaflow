@@ -288,7 +288,7 @@ describe('les tranches', () => {
   });
 });
 
-describe('la validité, que le jalon 11 du planning demandait sans donnée', () => {
+describe('la validité de la convention, lue sur sa date de fin', () => {
   it("marque expirée une convention EN COURS dont la date de fin est passée", async () => {
     const { service: s } = service({
       conventions: [

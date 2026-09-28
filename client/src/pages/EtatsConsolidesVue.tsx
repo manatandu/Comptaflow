@@ -11,9 +11,11 @@ import { api, ApiError } from '../lib/api';
  * lignes. Des lignes à zéro se liraient comme un groupe sans trésorerie.
  *
  * L'écran ne calcule rien et le dit à trois endroits. Un montant NON CALCULÉ
- * s'affiche comme tel, jamais comme un zéro · les écarts de conversion d'un
- * groupe ne valent pas zéro parce qu'OmegaX ne les calcule pas encore, et des
- * impôts différés INCOMPLETS le disent sur leur ligne. Une ligne À
+ * s'affiche comme tel, jamais comme un zéro · les « dont » des
+ * immobilisations corporelles et le résultat par action, qu'aucune balance
+ * ne porte, et des impôts différés INCOMPLETS le disent sur leur ligne. Les
+ * écarts de conversion, eux, sont calculés depuis la tranche 4c (audit final
+ * F236) et ont leur colonne dans la variation des capitaux propres. Une ligne À
  * RETRAITER est montrée et comptée, pour que le bilan boucle et que rien ne
  * disparaisse, mais l'état porte alors la mention « non publiable » avec ses
  * motifs. Et une colonne N-1 vide dit pourquoi elle l'est.

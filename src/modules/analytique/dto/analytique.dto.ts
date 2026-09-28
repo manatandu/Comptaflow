@@ -1,6 +1,5 @@
 import { Type } from 'class-transformer';
 import {
-  ArrayMinSize,
   IsArray,
   IsBoolean,
   IsDateString,
@@ -158,20 +157,10 @@ export class VentilerLigneDto {
   ventilations!: LigneVentilationDto[];
 }
 
-export class VentilerLotDto {
-  @IsArray()
-  @ArrayMinSize(1)
-  @ValidateNested({ each: true })
-  @Type(() => VentilerUneLigneDto)
-  lignes!: VentilerUneLigneDto[];
-}
-
-export class VentilerUneLigneDto {
-  @IsString()
-  ligneEcritureId!: string;
-
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => LigneVentilationDto)
-  ventilations!: LigneVentilationDto[];
-}
+// UNE VENTILATION PAR LOT N'A PAS DE ROUTE (audit final F230). Deux DTO la
+// décrivaient ici sans qu'aucun contrôleur ne les reçoive ni qu'aucun écran ne
+// les envoie · retirés. La ventilation se fait ligne par ligne
+// (`VentilerLigneDto`), chaque appel repassant le gel de clôture de SA ligne.
+// Un DTO sans route se lit comme une capacité servie, et une validation qu'on
+// croit posée ne l'est nulle part : `dto-servis-f230.spec.ts` exige que tout
+// DTO du module soit reçu par une route, directement ou imbriqué.

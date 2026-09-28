@@ -1,11 +1,27 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../../common/prisma.service';
 import { Prisma, Referentiel, StatutMessage, TypeRelance } from '@prisma/client';
 import { CourrierService, ORIGINE_RELANCE } from '../courrier/courrier.service';
-import { CreerNiveauDto, EmettreRelancesDto, ModifierNiveauDto } from './dto/relances.dto';
+import { CreerNiveauDto, EmettreRelancesDto, ModifierNiveauDto, PLAFOND_COMPTES_PAR_EMISSION } from './dto/relances.dto';
 import { LOT_LECTURE, lireParLots, pageApres } from '../../common/lecture-par-lots';
+import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
+import { jourDeKinshasa } from '../../common/echeance';
 
 const JOUR = 86_400_000;
+
+/**
+ * LES ÉTATS D'UNE LETTRE QUI EST PARTIE OU PARTIRA (audit final F241) · écrite
+ * en file, gardée faute de messagerie, en échec qui sera retenté, ou envoyée.
+ * Une lettre ABANDONNÉE n'est pas partie et ne partira plus · elle ne fait pas
+ * refuser une seconde émission du même niveau le même jour.
+ */
+const STATUTS_EN_FILE_OU_PARTIS: StatutMessage[] = [
+  StatutMessage.EN_ATTENTE,
+  StatutMessage.SANS_TRANSPORT,
+  StatutMessage.ECHEC,
+  StatutMessage.ENVOYE,
+];
 
 /**
  * QUALITÉ DU TIERS DERRIÈRE UN COMPTE 41, SELON LE RÉFÉRENTIEL.
@@ -209,8 +225,8 @@ export interface PositionRelance {
  * Rien du corps n'est touché : le texte enregistré dans l'historique est celui
  * qui part, mot pour mot, et c'est ce qui fait foi. Seul l'objet s'ajoute,
  * parce qu'un courriel en exige un · la file refuse un message sans sujet
- * (CourrierService.mettreEnFile), et une lettre pourtant composée resterait
- * alors à quai.
+ * (CourrierService, pour l'envoi immédiat comme pour le lot), et une lettre
+ * pourtant composée resterait alors à quai.
  *
  * Le libellé vient du NIVEAU, c'est-à-dire de ce que le dossier a lui-même
  * nommé (« Premier rappel », « Avis d'échéance », et ce qu'il a réécrit
@@ -234,9 +250,11 @@ export function objetDeLaRelance(libelleNiveau: string, entite: string): string 
  * destinataire n'est pas une lettre partie, et l'apprendre au recouvrement,
  * trois mois plus tard, est trop tard pour aller chercher l'adresse.
  *
- * `statut` est celui de la file, SANS_TRANSPORT compris · aucun transport
- * n'est configuré aujourd'hui, et cet état-là n'est ni un envoi ni une perte :
- * le message repartira tel quel le jour où les identifiants seront posés.
+ * `statut` est celui de la file au moment de l'écriture · EN_ATTENTE quand
+ * une messagerie est posée (la lettre part au passage suivant de la reprise,
+ * aucun envoi n'étant tenté dans l'émission, audit final F241), SANS_TRANSPORT
+ * sinon · cet état-là n'est ni un envoi ni une perte : le message repartira
+ * tel quel le jour où les identifiants seront posés.
  */
 export interface RemiseLettre {
   /** L'adresse retenue, ou `null` quand il n'y en avait aucune. */
@@ -556,13 +574,36 @@ export class RelancesService {
   }
 
   /**
-   * ÉMETTRE, PUIS REMETTRE · et dire lesquelles ne sont parties à personne.
+   * ÉMETTRE, PUIS METTRE EN FILE · et dire lesquelles ne sont parties à personne.
    *
    * L'ordre n'est pas indifférent. La relance est d'abord ÉCRITE dans
    * l'historique · c'est la décision du comptable, et elle ne dépend d'aucune
    * messagerie. Le message vient ensuite, en file, avec l'identifiant de cette
    * relance en origine, ce qui permet de remonter de la ligne de courrier à la
    * pièce qui l'a demandée.
+   *
+   * AUCUN ENVOI N'EST TENTÉ ICI (audit final F241). La requête tentait chaque
+   * remise SMTP, une seconde par tiers et sans borne · elle restait ouverte
+   * au-delà de la patience des relais, le comptable recliquait, et la seconde
+   * requête écrivait une seconde lettre au même tiers. Le message est écrit
+   * pour la reprise (`CourrierService.ecrireEnFileSansTenter`), que l'écran
+   * appelle ensuite par lots bornés (`POST /courrier/reprendre`), et la
+   * sélection est plafonnée (`PLAFOND_COMPTES_PAR_EMISSION`).
+   *
+   * UNE LETTRE IDENTIQUE NE PART QU'UNE FOIS PAR JOUR · même compte, même
+   * niveau, même jour de Kinshasa, et une lettre de cette relance déjà EN
+   * FILE OU PARTIE. Le second clic, ou la même émission lancée depuis deux
+   * onglets, est RENDU (`dejaEmises`) au lieu d'écrire une seconde lettre ·
+   * c'est un refus par compte, pas une erreur du lot. Une relance du jour
+   * restée SANS lettre (tiers sans adresse, adresse refusée, envoi abandonné)
+   * ne bloque rien · le comptable qui vient de compléter la fiche du tiers
+   * doit pouvoir la faire partir, et lui dire « déjà reçue » serait faux. Le
+   * contrôle, la relance et sa lettre s'écrivent sous un verrou PAR DOSSIER,
+   * dans une seule transaction · deux requêtes simultanées liraient sinon
+   * chacune « rien ce jour », et une lettre écrite après la transaction
+   * laisserait la seconde passer entre la relance et son message. Un AUTRE
+   * niveau le même jour reste permis : c'est une autre lettre, que le
+   * comptable a choisie.
    *
    * Rien ici ne lève parce qu'une lettre n'a pas trouvé son destinataire · un
    * lot de vingt rappels décidés ne doit pas mourir sur le seul tiers dont
@@ -571,6 +612,15 @@ export class RelancesService {
    * ne partiront à personne, tant qu'il tient encore le dossier ouvert.
    */
   async emettre(tenantId: string, createdBy: string, dto: EmettreRelancesDto) {
+    // LA BORNE EST REVÉRIFIÉE ICI · le DTO la pose à la porte HTTP, et le
+    // service ne présume pas de son appelant. Un compte nommé deux fois n'est
+    // parcouru qu'une fois.
+    const compteIds = [...new Set(dto.compteIds)];
+    if (compteIds.length > PLAFOND_COMPTES_PAR_EMISSION) {
+      throw new BadRequestException(
+        `Au plus ${PLAFOND_COMPTES_PAR_EMISSION} comptes par émission · découpez la sélection.`,
+      );
+    }
     const niveau = await this.prisma.niveauRelance.findFirst({ where: { id: dto.niveauId, tenantId } });
     if (!niveau) throw new BadRequestException('Niveau de relance introuvable pour ce dossier');
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
@@ -583,16 +633,9 @@ export class RelancesService {
     });
     const date = dto.dateReference ? new Date(dto.dateReference) : new Date();
 
-    const lettres: {
-      compteId: string;
-      tiers: string;
-      montant: number;
-      texte: string;
-      remise: RemiseLettre;
-    }[] = [];
     const exclues: { compteId: string; tiers: string; motif: string }[] = [];
     const sansObjet: { compteId: string; compte: string; motif: string }[] = [];
-    const sansPosition = dto.compteIds.filter((id) => !positions.some((p) => p.compteId === id));
+    const sansPosition = compteIds.filter((id) => !positions.some((p) => p.compteId === id));
     const numerosSansPosition = new Map(
       sansPosition.length
         ? (
@@ -603,7 +646,8 @@ export class RelancesService {
           ).map((c) => [c.id, `${c.numero} · ${c.intitule}`] as const)
         : [],
     );
-    for (const compteId of dto.compteIds) {
+    const aEcrire: { position: PositionRelance; tiers: string; texte: string }[] = [];
+    for (const compteId of compteIds) {
       const position = positions.find((p) => p.compteId === compteId);
       // UN COMPTE SANS RIEN À RÉCLAMER DANS CET ÉTAT EST DIT, jamais sauté en
       // silence (audit final F167) · une échéance future ne se rappelle pas,
@@ -641,31 +685,97 @@ export class RelancesService {
         entite,
         lignes: position.lignes,
       });
-      const relance = await this.prisma.relance.create({
-        data: {
-          tenantId,
-          compteId: position.compteId,
-          tiersId: position.tiersId,
-          niveauId: niveau.id,
-          dateRelance: date,
-          montant: new Prisma.Decimal(position.montantDu),
-          texte,
-          createdBy,
-        },
-      });
-      lettres.push({
-        compteId: position.compteId,
-        tiers,
-        montant: position.montantDu,
-        texte,
-        remise: await this.remettre(tenantId, createdBy, {
-          position,
-          texte,
-          objet: objetDeLaRelance(niveau.libelle, entite),
-          relanceId: relance.id,
-        }),
-      });
+      aEcrire.push({ position, tiers, texte });
     }
+
+    // LE JOUR DE KINSHASA DU COURRIER · une relance « du même jour » est celle
+    // dont `jourDeKinshasa` rend ce jour-là, la convention de toutes les dates
+    // du dépôt (`common/echeance.ts`). La lecture prend les deux jours UTC qui
+    // l'encadrent, et le jour se tranche ensuite par la MÊME fonction · le
+    // décalage de Kinshasa n'est écrit qu'à un endroit (audit final F113).
+    // Relecture de cohérence du lot 5 (F241) · la borne le recopiait à la
+    // main, en millisecondes.
+    const jour = jourDeKinshasa(date);
+    const debutLecture = new Date(jour.getTime() - JOUR);
+    const finLecture = new Date(jour.getTime() + JOUR);
+    const objet = objetDeLaRelance(niveau.libelle, entite);
+    const { lettres, dejaEcrits } = aEcrire.length
+      ? await transactionJournalisee(this.prisma, async (tx) => {
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`relances:${tenantId}`}))`;
+          const memeJour = (
+            await tx.relance.findMany({
+              where: {
+                tenantId,
+                niveauId: niveau.id,
+                compteId: { in: aEcrire.map((l) => l.position.compteId) },
+                dateRelance: { gte: debutLecture, lt: finLecture },
+              },
+              select: { id: true, compteId: true, dateRelance: true },
+            })
+          ).filter((r) => jourDeKinshasa(r.dateRelance).getTime() === jour.getTime());
+          // SEULE UNE LETTRE EN FILE OU PARTIE BLOQUE · une relance du jour
+          // sans message (pas d'adresse, adresse refusée) ou dont le message
+          // a été abandonné n'a rien fait partir.
+          const enFile = memeJour.length
+            ? await tx.message.findMany({
+                where: {
+                  tenantId,
+                  origine: ORIGINE_RELANCE,
+                  origineId: { in: memeJour.map((r) => r.id) },
+                  statut: { in: STATUTS_EN_FILE_OU_PARTIS },
+                },
+                select: { origineId: true },
+              })
+            : [];
+          const relancesEnFile = new Set(enFile.map((m) => m.origineId));
+          const dejaIds = new Set(memeJour.filter((r) => relancesEnFile.has(r.id)).map((r) => r.compteId));
+          // UNE SEULE INSERTION POUR LE LOT · cinq cents écritures une à une
+          // tiendraient la transaction, et le verrou du dossier, au-delà du
+          // délai d'une transaction interactive. Les identifiants sont tirés
+          // ici (ce que fait de toute façon le client Prisma pour un
+          // `@default(uuid())`), sans quoi le message ne saurait pas quelle
+          // relance l'a demandé.
+          const faites = aEcrire
+            .filter((l) => !dejaIds.has(l.position.compteId))
+            .map((l) => ({ ...l, relanceId: randomUUID() }));
+          if (faites.length) {
+            await tx.relance.createMany({
+              data: faites.map((l) => ({
+                id: l.relanceId,
+                tenantId,
+                compteId: l.position.compteId,
+                tiersId: l.position.tiersId,
+                niveauId: niveau.id,
+                dateRelance: date,
+                montant: new Prisma.Decimal(l.position.montantDu),
+                texte: l.texte,
+                createdBy,
+              })),
+            });
+          }
+          // LA LETTRE NAÎT AVEC SA RELANCE, dans la même transaction · écrite
+          // après, elle laissait une seconde émission lire la relance sans sa
+          // lettre et en écrire une seconde.
+          const remises = await this.remettre(tx, tenantId, createdBy, faites, objet);
+          return {
+            lettres: faites.map((l, rang) => ({
+              compteId: l.position.compteId,
+              tiers: l.tiers,
+              montant: l.position.montantDu,
+              texte: l.texte,
+              remise: remises[rang],
+            })),
+            dejaEcrits: aEcrire.filter((l) => dejaIds.has(l.position.compteId)),
+          };
+        })
+      : { lettres: [], dejaEcrits: [] };
+
+    const jourLisible = jour.toLocaleDateString('fr-FR', { timeZone: 'UTC' });
+    const dejaEmises = dejaEcrits.map((l) => ({
+      compteId: l.position.compteId,
+      compte: `${l.position.numero} · ${l.tiers}`,
+      motif: `« ${niveau.libelle} » a déjà une lettre en file ou partie pour ce compte le ${jourLisible} · une seconde lettre identique n'est pas écrite.`,
+    }));
 
     return {
       emises: lettres.length,
@@ -681,67 +791,82 @@ export class RelancesService {
       // Ceux qui n'avaient rien à réclamer dans l'état du niveau choisi
       // (audit final F167) · ni hors circuit ni oubliés, sans objet.
       sansObjet,
+      // Ceux dont la lettre de ce niveau était déjà en file ou partie ce
+      // jour-là (audit final F241) · le second clic ne leur écrit pas une
+      // seconde lettre, et le dit.
+      dejaEmises,
       lettres,
     };
   }
 
   /**
-   * LA MISE EN FILE D'UNE LETTRE, ET LE DIRE QUAND ELLE N'A PAS D'ADRESSE.
+   * LA MISE EN FILE DES LETTRES, ET LE DIRE QUAND L'UNE N'A PAS D'ADRESSE.
    *
    * Le tiers porte un champ `email` depuis peu, et il est FACULTATIF · la
    * plupart des dossiers en tiennent sans. Une lettre composée pour un tiers
    * sans adresse reste une lettre juste : elle s'imprime, elle se remet en
    * main propre. Ce qui serait faux, c'est de laisser croire qu'elle est
    * partie.
+   *
+   * Les lettres sont écrites en file SANS tentative, dans la transaction de
+   * l'émission (`ecrireEnFileSansTenter`, audit final F241) · leur statut est
+   * EN_ATTENTE quand une messagerie est posée (elles partent au passage
+   * suivant de la reprise), SANS_TRANSPORT sinon. Rendues dans l'ordre des
+   * lettres reçues.
    */
   private async remettre(
+    tx: Prisma.TransactionClient,
     tenantId: string,
     createdBy: string,
-    lettre: { position: PositionRelance; texte: string; objet: string; relanceId: string },
-  ): Promise<RemiseLettre> {
-    const { position } = lettre;
-    const adresse = (position.tiersEmail ?? '').trim();
-    if (adresse.length === 0) {
-      return {
-        destinataire: null,
-        statut: null,
-        messageId: null,
-        motif: position.tiersId
-          ? `Aucune adresse de courriel pour « ${position.tiersNom ?? position.numero} » · la lettre est enregistrée dans l'historique, elle n'est partie à personne. Complétez la fiche du tiers, ou remettez-la autrement.`
-          : `Aucun tiers n'est rattaché au compte ${position.numero} · la lettre est enregistrée dans l'historique, elle n'a pas de destinataire.`,
-      };
-    }
+    lettres: { position: PositionRelance; texte: string; relanceId: string }[],
+    objet: string,
+  ): Promise<RemiseLettre[]> {
+    const avecAdresse = lettres
+      .map((lettre, rang) => ({ lettre, rang, adresse: (lettre.position.tiersEmail ?? '').trim() }))
+      .filter((l) => l.adresse.length > 0);
+    // La file REFUSE À L'ÉCRITURE ce qu'aucune tentative ne réparerait (une
+    // adresse inutilisable, deux adresses dans un champ qui n'en attend
+    // qu'une). Ce refus vaut pour CETTE lettre et revient avec son motif : le
+    // laisser remonter emporterait le lot entier, dont les autres relances.
+    const ecrits = avecAdresse.length
+      ? await this.courrier.ecrireEnFileSansTenter(
+          tx,
+          tenantId,
+          avecAdresse.map(({ lettre, adresse }) => ({
+            destinataire: adresse,
+            destinataireNom: lettre.position.tiersNom,
+            sujet: objet,
+            // LE TEXTE ENREGISTRÉ EST LE TEXTE ENVOYÉ · l'historique fait foi,
+            // et il ne ferait plus foi si le corps du courriel en différait
+            // d'un mot.
+            corps: lettre.texte,
+            origine: ORIGINE_RELANCE,
+            // De la ligne de courrier à la pièce qui l'a demandée · sans quoi
+            // la file devient illisible au bout d'un mois.
+            origineId: lettre.relanceId,
+            createdBy,
+          })),
+        )
+      : [];
+    const parRang = new Map(avecAdresse.map((l, i) => [l.rang, { adresse: l.adresse, ecrit: ecrits[i] }] as const));
 
-    try {
-      const message = await this.courrier.mettreEnFile(tenantId, {
-        destinataire: adresse,
-        destinataireNom: position.tiersNom,
-        sujet: lettre.objet,
-        // LE TEXTE ENREGISTRÉ EST LE TEXTE ENVOYÉ · l'historique fait foi, et
-        // il ne ferait plus foi si le corps du courriel en différait d'un mot.
-        corps: lettre.texte,
-        origine: ORIGINE_RELANCE,
-        // De la ligne de courrier à la pièce qui l'a demandée · sans quoi la
-        // file devient illisible au bout d'un mois.
-        origineId: lettre.relanceId,
-        createdBy,
-      });
-      return { destinataire: adresse, statut: message.statut, messageId: message.id, motif: null };
-    } catch (erreur) {
-      // La file REFUSE À L'ÉCRITURE ce qu'aucune tentative ne réparerait (une
-      // adresse inutilisable, deux adresses dans un champ qui n'en attend
-      // qu'une). Ce refus vaut pour CETTE lettre : le laisser remonter
-      // emporterait le lot entier, dont les relances déjà écrites.
-      return {
-        destinataire: adresse,
-        statut: null,
-        messageId: null,
-        motif:
-          erreur instanceof Error
-            ? erreur.message
-            : "La file a refusé ce message · la lettre est enregistrée, elle n'est pas partie.",
-      };
-    }
+    return lettres.map((lettre, rang): RemiseLettre => {
+      const remise = parRang.get(rang);
+      if (!remise) {
+        const { position } = lettre;
+        return {
+          destinataire: null,
+          statut: null,
+          messageId: null,
+          motif: position.tiersId
+            ? `Aucune adresse de courriel pour « ${position.tiersNom ?? position.numero} » · la lettre est enregistrée dans l'historique, elle n'est partie à personne. Complétez la fiche du tiers, ou remettez-la autrement.`
+            : `Aucun tiers n'est rattaché au compte ${position.numero} · la lettre est enregistrée dans l'historique, elle n'a pas de destinataire.`,
+        };
+      }
+      const { adresse, ecrit } = remise;
+      if (ecrit.id === null) return { destinataire: adresse, statut: null, messageId: null, motif: ecrit.motif };
+      return { destinataire: adresse, statut: ecrit.statut, messageId: ecrit.id, motif: null };
+    });
   }
 
   /**

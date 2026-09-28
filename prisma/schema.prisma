@@ -729,9 +729,9 @@ model LicenceSurSiteEmise {
 }
 
 /// Les FORMULES ET OPTIONS de l'abonnement OmegaX · registre de l'éditeur,
-/// hors de tout dossier (src/modules/abonnements). Les prix, en dollars, se
-/// saisissent dans la console · null tant qu'ils ne sont pas arrêtés, et la
-/// facture est alors refusée plutôt que d'être faite à zéro.
+/// hors de tout dossier (src/modules/plateforme/abonnements). Les prix, en
+/// dollars, se saisissent dans la console · null tant qu'ils ne sont pas
+/// arrêtés, et la facture est alors refusée plutôt que d'être faite à zéro.
 model FormuleAbonnement {
   id             String                @id @default(uuid())
   code           String                @unique
@@ -6521,6 +6521,17 @@ model ContratTravail {
   /// séparées, et aucune des trois ne se déduit des deux autres.
   remunerationBase  Decimal? @db.Decimal(18, 2)
   avantagesConvenus String?
+
+  /// LA MONNAIE DE LA RÉMUNÉRATION CONVENUE, CDF ou USD (audit final F226).
+  /// Le Code du travail, art. 89, veut la rémunération « stipulée en monnaie
+  /// ayant cours légal », et des contrats sont pourtant signés en dollars.
+  /// Sans cette colonne, `remunerationBase` se lisait en francs et un salaire
+  /// de mille dollars passait très en deçà du minimum du décret n° 25/22.
+  ///
+  /// Nulle par défaut, comme la périodicité · la supposer franc refaisait le
+  /// défaut sur les contrats déjà saisis. Le contrôle du minimum s'abstient
+  /// alors, et hors franc aussi · il ne convertit pas.
+  deviseRemuneration String?
 
   /// ART. 43 · « Tout contrat de travail peut être assorti d'une clause
   /// d'essai. CETTE CLAUSE D'ESSAI DOIT ÊTRE CONSTATÉE PAR ÉCRIT. » Trois

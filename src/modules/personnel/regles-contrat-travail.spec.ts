@@ -57,6 +57,7 @@ const CONTRAT: ContratPourControle = {
   essaiDureeJours: null,
   classeProfessionnelle: null,
   periodiciteRemuneration: null,
+  deviseRemuneration: 'CDF',
 };
 
 describe('article 212 · les quinze énonciations, et pas une de plus', () => {
@@ -507,6 +508,29 @@ describe('la rémunération convenue confrontée au minimum de sa classe', () =>
       expect(v.conforme).toBeNull();
       expect(v.explication.length).toBeGreaterThan(60);
     }
+  });
+
+  it('LA MONNAIE · un salaire en dollars ne se compare pas à un minimum en francs (audit final F226)', () => {
+    // 1 000 USD par mois, lus comme des francs, passaient « en deçà » des
+    // 559 000 FC de la classe 1 · le montant n'est pas des francs, et le
+    // contrat ne porte aucun cours.
+    const enDollars = verdictRemunerationMinimale({ ...manoeuvre, remunerationBase: 1000, deviseRemuneration: 'USD' }, '2026-01');
+    expect(enDollars.conforme).toBeNull();
+    expect(enDollars.abstention).toBe('REMUNERATION_HORS_FRANC');
+    expect(enDollars.manqueFc).toBeNull();
+    // Un montant en dollars n'est pas servi comme des francs.
+    expect(enDollars.convenueFc).toBeNull();
+    expect(enDollars.explication).toContain('stipulée en USD');
+    expect(enDollars.explication).toContain('art. 89');
+    // Sans monnaie déclarée, le contrôle ne suppose pas le franc.
+    const sansMonnaie = verdictRemunerationMinimale({ ...manoeuvre, remunerationBase: 1000, deviseRemuneration: null }, '2026-01');
+    expect(sansMonnaie.conforme).toBeNull();
+    expect(sansMonnaie.abstention).toBe('DEVISE_NON_RENSEIGNEE');
+    expect(sansMonnaie.convenueFc).toBeNull();
+    // Le même montant en francs est bien en deçà, et le contrôle le dit.
+    const enFrancs = verdictRemunerationMinimale({ ...manoeuvre, remunerationBase: 1000, deviseRemuneration: 'CDF' }, '2026-01');
+    expect(enFrancs.conforme).toBe(false);
+    expect(enFrancs.convenueFc).toBe(1000);
   });
 
   it('NE CONTRÔLE RIEN avant mai 2025 · le barème de 2018 n’est pas au corpus', () => {

@@ -45,7 +45,8 @@ describe("l'écran du dossier de subvention", () => {
   });
 
   it('signale une convention expirée et une échéance en retard', () => {
-    // Ce que le jalon 11 du planning de clôture demandait sans donnée.
+    // Échue et toujours en cours, son reste à recevoir est encore présenté
+    // comme attendu. Ce n'est pas l'accord-cadre du jalon 11 (audit final F231).
     expect(page).toContain('EXPIRÉE');
     expect(page).toContain('EN RETARD');
   });

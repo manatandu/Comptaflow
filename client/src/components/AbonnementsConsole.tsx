@@ -56,6 +56,9 @@ function lirePrix(v: string): number | null {
 export function AbonnementsConsole({ cabinets }: { cabinets: { id: string; nom: string }[] }) {
   const [formules, setFormules] = useState<Formule[]>([]);
   const [abonnements, setAbonnements] = useState<Abonnement[]>([]);
+  // Une tranche qui se dit (audit final F260) · le serveur borne la liste et
+  // compte le total sur le périmètre entier.
+  const [tranche, setTranche] = useState<{ total: number; tronque: boolean } | null>(null);
   const [tiers, setTiers] = useState<{ id: string; nom: string }[]>([]);
   const [taux, setTaux] = useState<{ id: string; intitule: string }[]>([]);
   const [prix, setPrix] = useState<Record<string, { m: string; a: string }>>({});
@@ -66,13 +69,19 @@ export function AbonnementsConsole({ cabinets }: { cabinets: { id: string; nom: 
   const [fac, setFac] = useState({ periode: aujourdhui().slice(0, 7), dateFacture: aujourdhui(), tauxTvaId: '', envoyer: false });
 
   const charger = async () => {
-    const [fo, ab] = await Promise.all([api.get<Formule[]>('/plateforme/formules'), api.get<Abonnement[]>('/plateforme/abonnements')]);
+    const [fo, ab] = await Promise.all([
+      api.get<Formule[]>('/plateforme/formules'),
+      api.get<{ abonnements: Abonnement[]; total: number; tronque: boolean }>('/plateforme/abonnements'),
+    ]);
     setFormules(fo);
-    setAbonnements(ab);
+    setAbonnements(ab.abonnements);
+    setTranche({ total: ab.total, tronque: ab.tronque });
     setPrix(Object.fromEntries(fo.map((x) => [x.code, { m: x.prixMensuelUsd?.toString() ?? '', a: x.prixAnnuelUsd?.toString() ?? '' }])));
   };
   useEffect(() => {
-    charger().catch(() => undefined);
+    // UN ÉCHEC DE LECTURE SE DIT · avalé, il laissait une grille de prix et
+    // une liste d'abonnements vides qui se lisaient « rien de souscrit ».
+    charger().catch((e) => setErreur(e instanceof ApiError ? e.message : 'Les abonnements n’ont pas pu être lus.'));
     api.get<{ id: string; nom: string }[]>('/tiers?type=CLIENT&actifsSeuls=true').then(setTiers).catch(() => setTiers([]));
     api.get<{ id: string; intitule: string }[]>('/taux-tva?actifsSeuls=true').then(setTaux).catch(() => setTaux([]));
   }, []);
@@ -231,6 +240,11 @@ export function AbonnementsConsole({ cabinets }: { cabinets: { id: string; nom: 
         </div>
       </form>
 
+      {tranche?.tronque && (
+        <p className="mt-3 text-warning">
+          {abonnements.length} abonnements affichés sur {tranche.total} · les premiers souscrits.
+        </p>
+      )}
       {abonnements.length > 0 && (
         <div className="overflow-x-auto mt-3">
           <table className="w-full">

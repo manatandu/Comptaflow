@@ -246,8 +246,12 @@ export function FacturationPage() {
         numeroSerie,
         dateFacture,
         tiersId: tiersId || undefined,
-        // Décret n° 011/42, art. 60 · due par celui qui DÉLIVRE, donc sur une vente.
-        ...(sens === 'VENTE' ? { mentionTvaDebits: mentionDebitsCochee } : {}),
+        // Décret n° 011/42, art. 60 · DUE par celui qui délivre, sur une vente ;
+        // LUE sur la pièce du fournisseur, sur un achat, où la déclaration de
+        // TVA la confronte à la fiche du tiers (audit final F228). Envoyée sur
+        // la vente seule, elle restait fausse sur tout achat, quoi que porte
+        // la pièce reçue.
+        mentionTvaDebits: mentionDebitsCochee,
         // « Le cas échéant » veut dire « s'il y en a », pas « si vous voulez » ·
         // laisser vide n'est pas répondre, et la mention manque.
         autresImpotsEtTaxes: autresImpots === '' ? undefined : Number(autresImpots),
@@ -477,7 +481,7 @@ export function FacturationPage() {
             Montant de TVA
             <input type="number" className="w-full border border-border px-1.5 py-1 text-[11.5px]" value={montantTva} onChange={(e) => setMontantTva(e.target.value === '' ? '' : Number(e.target.value))} />
           </label>
-          {sens === 'VENTE' && (
+          {sens === 'VENTE' ? (
             <label className="text-[11.5px] flex items-center gap-1.5 mt-4">
               <input type="checkbox" checked={mentionDebitsCochee} onChange={(e) => setMentionDebits(e.target.checked)} />
               Autorisation d’acquitter la TVA d’après les débits
@@ -487,6 +491,18 @@ export function FacturationPage() {
                 source="Décret n° 011/42, art. 60"
               />
             </label>
+          ) : (
+            // SUR UN ACHAT, LA MENTION SE LIT (audit final F228) · jamais
+            // cochée d'office, elle appartient au fournisseur.
+            <label className="text-[11.5px] flex items-center gap-1.5 mt-4">
+              <input type="checkbox" checked={mentionDebitsCochee} onChange={(e) => setMentionDebits(e.target.checked)} />
+              La pièce porte « Autorisation d’acquitter la TVA d’après les débits »
+              <Aide
+                titre="Mention de l’art. 60"
+                texte="Cochez si la facture reçue porte cette mention. La déclaration de TVA la confronte à la fiche du fournisseur, qui porte l’autorisation et date la déduction."
+                source="Décret n° 011/42, art. 60 et 61"
+              />
+            </label>
           )}
           <label className="text-[11.5px] flex items-center gap-1.5 mt-4">
             <input type="checkbox" checked={imposable} onChange={(e) => setImposable(e.target.checked)} />
@@ -494,7 +510,7 @@ export function FacturationPage() {
             <Aide
               titre="Ligne imposable"
               texte="Décochez « imposable » pour une opération exonérée. Une opération au taux zéro (exportation) reste imposable : les deux zéros ne se confondent pas."
-              source="Décret n° 011/42, art. 100"
+              source="Décret n° 23/10 du 3 mars 2023, art. 26 e) · décret n° 011/42, art. 100"
             />
           </label>
           <label className="text-[11.5px]">
@@ -515,9 +531,10 @@ export function FacturationPage() {
             />
           </label>
         </div>
-        {/* La distinction imposable / non imposable est demandée par l'art. 100
-            lui-même · elle ne se déduit pas d'un taux nul, une opération au
-            taux zéro (exportation) étant imposable. */}
+        {/* La distinction imposable / non imposable est demandée par l'art. 26 e)
+            du décret n° 23/10, comme par l'art. 100 avant lui · elle ne se
+            déduit pas d'un taux nul, une opération au taux zéro (exportation)
+            étant imposable. */}
         {erreur && <p className="text-[11.5px] text-danger mt-2">{erreur}</p>}
         {peutEcrire && (
           <button className="mt-2 border border-border px-2.5 py-1 text-[11.5px]" onClick={() => void enregistrer()}>
@@ -677,7 +694,13 @@ export function FacturationPage() {
                   <th className="py-1 pr-2 text-right">HT</th>
                   <th className="py-1 pr-2 text-right">TVA</th>
                   <th className="py-1 pr-2 text-right">TTC</th>
-                  <th className="py-1">Mentions de l'art. 100</th>
+                  {/* AUDIT FINAL F229 · la liste appliquée dépend de la date
+                      de la pièce (art. 26 du décret n° 23/10, ou art. 100 du
+                      décret n° 011/42 avant le 3 mars 2023), et la ligne
+                      « Texte appliqué » dit laquelle. Titrée « art. 100 »,
+                      la colonne nommait le texte des seules pièces
+                      antérieures au 3 mars 2023. */}
+                  <th className="py-1">Mentions obligatoires</th>
                 </tr>
               </thead>
               <tbody>
@@ -791,6 +814,12 @@ export function FacturationPage() {
                         Hors de portée sans dispositif électronique fiscal :{' '}
                         {f.mentions.horsDePortee.map((m) => m.libelle).join(' · ')}.
                       </p>
+                      {/* SUR UN ACHAT, LA MENTION DE L'ART. 60 EST CE QUE LA
+                          DÉCLARATION DE TVA LIT (audit final F228) · elle se
+                          voit sur la ligne de la pièce qui la porte. */}
+                      {f.sens === 'ACHAT' && f.mentionTvaDebits && (
+                        <p className="text-[11px] text-text-dim mt-1">Porte la mention de l’art. 60 (débits).</p>
+                      )}
                       {/* LE TEXTE APPLIQUÉ EST CELUI DE LA DATE DE LA PIÈCE ·
                           sans cette ligne, une facture de 2022 se verrait
                           reprocher une mention au nom d'un décret de 2023. */}

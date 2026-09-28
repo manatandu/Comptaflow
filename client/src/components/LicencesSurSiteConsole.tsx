@@ -30,6 +30,9 @@ function enregistrer(numero: string, texte: string) {
  */
 export function LicencesSurSiteConsole() {
   const [liste, setListe] = useState<LicenceEmise[]>([]);
+  // Une tranche qui se dit (audit final F260) · cinq cents lignes se lisaient
+  // comme le registre entier.
+  const [tranche, setTranche] = useState<{ total: number; tronque: boolean } | null>(null);
   const [titulaire, setTitulaire] = useState('');
   const [empreinte, setEmpreinte] = useState('');
   const [finMaintenance, setFinMaintenance] = useState('');
@@ -41,9 +44,14 @@ export function LicencesSurSiteConsole() {
 
   const charger = () =>
     api
-      .get<LicenceEmise[]>('/plateforme/licences-sur-site')
-      .then(setListe)
-      .catch(() => undefined);
+      .get<{ licences: LicenceEmise[]; total: number; tronque: boolean }>('/plateforme/licences-sur-site')
+      .then((r) => {
+        setListe(r.licences);
+        setTranche({ total: r.total, tronque: r.tronque });
+      })
+      // UN ÉCHEC DE LECTURE SE DIT · avalé, il laissait un registre vide qui
+      // se lisait « aucune licence émise ».
+      .catch((e) => setErreur(e instanceof ApiError ? e.message : 'Les licences émises n’ont pas pu être lues.'));
   useEffect(() => {
     charger();
   }, []);
@@ -124,6 +132,11 @@ export function LicencesSurSiteConsole() {
         </p>
       )}
       {info && <p className="mt-2 text-[11.5px]">{info}</p>}
+      {tranche?.tronque && (
+        <p className="mt-3 text-[11.5px] text-warning">
+          {liste.length} licences affichées sur {tranche.total} · les plus récentes.
+        </p>
+      )}
       {liste.length > 0 && (
         <div className="overflow-x-auto mt-3">
           <table className="w-full text-[11.5px]">

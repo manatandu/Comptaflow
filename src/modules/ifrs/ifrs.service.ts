@@ -6,6 +6,7 @@ import { chargerLignes, LigneBalancePourEtat } from '../etats-financiers/etats-f
 import { EtatsFinanciersSyscohadaService } from '../etats-financiers-syscohada/etats-financiers-syscohada.service';
 import { CumulService } from '../consolidation/cumul.service';
 import { PerimetreService } from '../consolidation/perimetre.service';
+import { exigerExercice } from '../consolidation/exercice-requis';
 import { ResultatCumul } from '../consolidation/cumul-consolidation';
 import { changementsDuPerimetre, construireTableauFluxConsolide, lignesAvecMouvements, variationsDuPerimetre } from '../consolidation/flux-capitaux-consolides';
 import { LIBELLE_POSTE, PosteConsolidation } from '../consolidation/cumul-consolidation';
@@ -139,6 +140,10 @@ export class IfrsService {
   ) {}
 
   private async exercice(tenantId: string, exerciceId: string) {
+    // Un exercice absent n'est pas « le premier venu » (audit final F234) ·
+    // Prisma ignore un `id: undefined`, et l'état IFRS portait sur le premier
+    // exercice du dossier, qu'aucune requête n'avait nommé.
+    exigerExercice(exerciceId);
     const ex = await this.prisma.exercice.findFirst({ where: { id: exerciceId, tenantId }, select: { id: true, dateDebut: true, dateFin: true } });
     if (!ex) throw new NotFoundException('Exercice introuvable dans ce dossier.');
     return ex;
@@ -748,7 +753,12 @@ export class IfrsService {
       n,
       n1,
       retraitements: retraitements.map(versMoteurConsolide),
-      premiereApplication: null,
+      // La première application CONSOLIDÉE (tranche C5), comme le chemin
+      // individuel passe la sienne (audit final F233) · sans elle, le premier
+      // jeu consolidé IFRS publiait ses rapprochements du § 24 à l'écran et
+      // aucune note de transition (IFRS 1 § 23 à 26). Elle ne vaut que sur le
+      // premier exercice IFRS du groupe, null ailleurs.
+      premiereApplication: ia1.premiereApplication,
       distributionsDeclarees: mouvementsGroupe.some((m) => m.type === 'DISTRIBUTION'),
       applicationAnticipee: ex.dateDebut.getTime() < ENTREE_EN_VIGUEUR_IFRS18,
       motifsJeu: [...n.motifsNonPubliable],

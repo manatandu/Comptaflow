@@ -10,6 +10,7 @@ import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-
 import { PerimetreService } from './perimetre.service';
 import { CumulService } from './cumul.service';
 import { EtatsConsolidesService } from './etats-consolides.service';
+import { EXERCICE_REQUIS } from './exercice-requis';
 import {
   AcquisitionDto,
   EcartEvaluationDto,
@@ -42,8 +43,10 @@ export class ConsolidationController {
     private readonly etatsConsolides: EtatsConsolidesService,
   ) {}
 
+  // Les trois lectures exigent l'exercice (audit final F234) · sans lui, le
+  // périmètre se lisait sur tous les exercices du dossier à la fois.
   @Get('perimetre')
-  etat(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
+  etat(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
     return this.perimetre.etat(user.tenantId, exerciceId);
   }
 
@@ -92,13 +95,13 @@ export class ConsolidationController {
   // ─── Tranche 2 · cumul et éliminations ──────────────────────────────────
 
   @Get('cumul')
-  cumul(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
+  cumul(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
     return this.cumuls.cumul(user.tenantId, exerciceId);
   }
 
   // ─── Tranche 3a · bilan, compte de résultat et note du périmètre ─────────
   @Get('etats')
-  etats(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
+  etats(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
     return this.etatsConsolides.etats(user.tenantId, exerciceId);
   }
 

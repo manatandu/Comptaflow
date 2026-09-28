@@ -184,7 +184,13 @@ export function UtilisateursPage() {
               source="Autorisations d'accès"
             />
           </span>
-          <span>STATUT</span><span>STATUT</span><span></span><span>Mot de passe</span>
+          {/* CINQ CELLULES POUR CINQ COLONNES (audit final F242) · « STATUT »
+              y figurait deux fois, et tout l'en-tête glissait d'un cran : la
+              colonne des mots de passe se disait vide, et la dernière cellule
+              débordait sur une sixième colonne que la grille n'a pas. */}
+          <span>Statut</span>
+          <span></span>
+          <span>Mot de passe</span>
         </div>
         {!liste && <div className="p-3 text-[11.5px] text-text-dim">Chargement…</div>}
         {liste?.map((u, i) => (

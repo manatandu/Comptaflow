@@ -16,6 +16,16 @@ import {
   verdictPeriode,
 } from './facturation-abonnements';
 import { jourDeKinshasaIso } from '../../../common/echeance';
+import { pageApres } from '../../../common/lecture-par-lots';
+import { PLAFOND_LISTE_CONSOLE, tranche } from '../plafond-console';
+
+/**
+ * Taille d'une tranche d'abonnements à facturer · chaque abonnement porte sa
+ * formule, ses options et la facture de la période, et en fait naître une
+ * autre. Cinq cents, l'ordre de grandeur des lots d'écritures
+ * (`LOT_ECRITURES`).
+ */
+export const LOT_ABONNEMENTS_A_FACTURER = 500;
 
 /**
  * Les formules de la grille décidée le 2026-09-26 · posées SANS PRIX, que
@@ -107,22 +117,31 @@ export class AbonnementsService {
     return id;
   }
 
+  /**
+   * Les abonnements, UNE TRANCHE QUI SE DIT (audit final F260) · les premiers
+   * souscrits, sous `PLAFOND_LISTE_CONSOLE`, chacun avec ses vingt-quatre
+   * dernières factures, et le total compté par la base.
+   */
   async lister() {
-    const a = await this.prisma.abonnementCabinet.findMany({
-      orderBy: { createdAt: 'asc' },
-      include: {
-        cabinet: { select: { nom: true, licence: { select: { dateExpiration: true, statut: true } } } },
-        formule: { select: { code: true, libelle: true } },
-        options: { select: { formule: { select: { code: true, libelle: true } } } },
-        tiers: { select: { nom: true } },
-        factures: {
-          orderBy: { periode: 'desc' },
-          take: 24,
-          select: { id: true, periode: true, montantUsd: true, payeeLe: true, facture: { select: { numeroSerie: true, dateFacture: true } } },
+    const [a, total] = await Promise.all([
+      this.prisma.abonnementCabinet.findMany({
+        orderBy: { createdAt: 'asc' },
+        take: PLAFOND_LISTE_CONSOLE,
+        include: {
+          cabinet: { select: { nom: true, licence: { select: { dateExpiration: true, statut: true } } } },
+          formule: { select: { code: true, libelle: true } },
+          options: { select: { formule: { select: { code: true, libelle: true } } } },
+          tiers: { select: { nom: true } },
+          factures: {
+            orderBy: { periode: 'desc' },
+            take: 24,
+            select: { id: true, periode: true, montantUsd: true, payeeLe: true, facture: { select: { numeroSerie: true, dateFacture: true } } },
+          },
         },
-      },
-    });
-    return a.map((x) => ({
+      }),
+      this.prisma.abonnementCabinet.count(),
+    ]);
+    const abonnements = a.map((x) => ({
       id: x.id,
       cabinetId: x.cabinetId,
       cabinet: x.cabinet.nom,
@@ -146,6 +165,7 @@ export class AbonnementsService {
         joursImpayee: f.payeeLe ? null : joursDepuis(jour(f.facture.dateFacture)!, aujourdhuiKinshasa()),
       })),
     }));
+    return { abonnements, ...tranche(abonnements.length, total) };
   }
 
   async enregistrer(d: DemandeAbonnement) {
@@ -252,90 +272,127 @@ export class AbonnementsService {
     }
     const cours = Number(cote.cours);
 
-    const abonnements = await this.prisma.abonnementCabinet.findMany({
-      include: { cabinet: { select: { nom: true } }, formule: true, options: { include: { formule: true } }, factures: { where: { periode }, select: { id: true } } },
-    });
+    // LE NUMÉRO SE CALCULE UNE FOIS (audit final F260) · la série de l'année
+    // était relue, entière, pour CHAQUE abonnement facturé. Elle est lue ici,
+    // puis le numéro avance à chaque facture gardée · une pièce retirée (le
+    // second clic, plus bas) rend son numéro au suivant, comme la relecture
+    // le faisait.
+    const annee = dateFacture.slice(0, 4);
+    const numeroLibre = async () =>
+      numeroFactureSuivant(
+        annee,
+        (
+          await this.prisma.facture.findMany({
+            where: { tenantId: editeur, sens: SensFacture.VENTE, numeroSerie: { startsWith: `VMG-${annee}-` } },
+            select: { numeroSerie: true },
+          })
+        ).map((e) => e.numeroSerie),
+      );
+    let numero = await numeroLibre();
+
     const resultats: { cabinet: string; statut: 'FACTURE' | 'DEJA_FACTURE' | 'NON_DU'; motif?: string; numero?: string; totalUsd?: number; courriel?: string }[] = [];
-    for (const a of abonnements) {
-      if (a.factures.length) {
-        resultats.push({ cabinet: a.cabinet.nom, statut: 'DEJA_FACTURE' });
-        continue;
-      }
-      const prix = (f: typeof a.formule): FormulePrix => ({
-        code: f.code,
-        libelle: f.libelle,
-        type: f.type,
-        prixMensuelUsd: nombre(f.prixMensuelUsd),
-        prixAnnuelUsd: nombre(f.prixAnnuelUsd),
+    // LES ABONNEMENTS SE LISENT PAR TRANCHES (audit final F260, CLAUDE.md
+    // § 8 bis) · une facturation parcourt tout le parc, et la lecture d'un
+    // seul tenant rapatriait chaque abonnement avec ses options d'un coup.
+    const lire = (apres?: string) =>
+      this.prisma.abonnementCabinet.findMany({
+        ...pageApres(apres, LOT_ABONNEMENTS_A_FACTURER),
+        include: { cabinet: { select: { nom: true } }, formule: true, options: { include: { formule: true } }, factures: { where: { periode }, select: { id: true } } },
       });
-      const entree: AbonnementAFacturer = {
-        formule: prix(a.formule),
-        options: a.options.map((o) => prix(o.formule)),
-        dossiersSupplementaires: a.dossiersSupplementaires,
-        periodicite: a.periodicite,
-        debut: jour(a.debut)!,
-        finEssai: jour(a.finEssai),
-        actif: a.actif,
-      };
-      const v = verdictPeriode(entree, periode);
-      if (!v.du) {
-        resultats.push({ cabinet: a.cabinet.nom, statut: 'NON_DU', motif: v.motif });
-        continue;
-      }
-      const existants = await this.prisma.facture.findMany({
-        where: { tenantId: editeur, sens: SensFacture.VENTE, numeroSerie: { startsWith: `VMG-${dateFacture.slice(0, 4)}-` } },
-        select: { numeroSerie: true },
-      });
-      const numero = numeroFactureSuivant(dateFacture.slice(0, 4), existants.map((e) => e.numeroSerie));
-      const lignes = v.lignes.map((l) => {
-        const pu = usdEnFc(l.prixUnitaireUsd, cours);
-        const ht = Math.round(pu * l.quantite * 100) / 100;
-        return {
-          designation: `${l.designation} · ${l.prixUnitaireUsd} USD au cours de ${cours} FC du ${dateFacture}`,
-          quantite: l.quantite,
-          prixUnitaire: pu,
-          montantHT: ht,
-          imposable: taux !== null,
-          tauxTvaId: taux?.id,
-          tauxApplique: taux?.taux,
-          montantTva: taux ? Math.round(ht * taux.taux) / 100 : 0,
-        };
-      });
-      const f = await this.facturation.enregistrer(editeur, {
-        sens: SensFacture.VENTE,
-        numeroSerie: numero,
-        dateFacture,
-        tiersId: a.tiersId,
-        lignes,
-      });
-      let fa: { id: string };
-      try {
-        fa = await this.prisma.factureAbonnement.create({
-          data: { abonnementId: a.id, periode, factureId: f.id, montantUsd: new Prisma.Decimal(v.totalUsd), cours: new Prisma.Decimal(cours) },
-          select: { id: true },
-        });
-      } catch (e) {
-        // Un second clic a facturé la même période entre-temps · la pièce
-        // en double est retirée, jamais laissée orpheline dans le facturier.
-        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-          await this.facturation.supprimer(editeur, f.id);
+    let curseur: string | undefined;
+    for (;;) {
+      const lot = await lire(curseur);
+      for (const a of lot) {
+        if (a.factures.length) {
           resultats.push({ cabinet: a.cabinet.nom, statut: 'DEJA_FACTURE' });
           continue;
         }
-        throw e;
-      }
-      // L'envoi suit la facture et ne la défait jamais · un client sans
-      // adresse ou une messagerie absente se DIT sur sa ligne, la pièce reste.
-      let courriel: string | undefined;
-      if (envoi && this.courriels) {
-        try {
-          const r = await this.courriels.envoyerFacture({ tenantId: editeur, userId: envoi.userId }, fa.id);
-          courriel = r.statut === 'ENVOYE' ? 'Envoyée par courriel' : `Courriel en file (${r.statut})`;
-        } catch (e) {
-          courriel = `Courriel non envoyé · ${e instanceof Error ? e.message : String(e)}`;
+        const prix = (f: typeof a.formule): FormulePrix => ({
+          code: f.code,
+          libelle: f.libelle,
+          type: f.type,
+          prixMensuelUsd: nombre(f.prixMensuelUsd),
+          prixAnnuelUsd: nombre(f.prixAnnuelUsd),
+        });
+        const entree: AbonnementAFacturer = {
+          formule: prix(a.formule),
+          options: a.options.map((o) => prix(o.formule)),
+          dossiersSupplementaires: a.dossiersSupplementaires,
+          periodicite: a.periodicite,
+          debut: jour(a.debut)!,
+          finEssai: jour(a.finEssai),
+          actif: a.actif,
+        };
+        const v = verdictPeriode(entree, periode);
+        if (!v.du) {
+          resultats.push({ cabinet: a.cabinet.nom, statut: 'NON_DU', motif: v.motif });
+          continue;
         }
+        const lignes = v.lignes.map((l) => {
+          const pu = usdEnFc(l.prixUnitaireUsd, cours);
+          const ht = Math.round(pu * l.quantite * 100) / 100;
+          return {
+            designation: `${l.designation} · ${l.prixUnitaireUsd} USD au cours de ${cours} FC du ${dateFacture}`,
+            quantite: l.quantite,
+            prixUnitaire: pu,
+            montantHT: ht,
+            imposable: taux !== null,
+            tauxTvaId: taux?.id,
+            tauxApplique: taux?.taux,
+            montantTva: taux ? Math.round(ht * taux.taux) / 100 : 0,
+          };
+        });
+        const piece = { sens: SensFacture.VENTE, dateFacture, tiersId: a.tiersId, lignes };
+        let f: { id: string };
+        try {
+          f = await this.facturation.enregistrer(editeur, { ...piece, numeroSerie: numero });
+        } catch (e) {
+          // UN NUMÉRO PRIS ENTRE-TEMPS · une autre facturation lancée en même
+          // temps, ou une facture saisie à la main dans le dossier de
+          // l'éditeur, depuis la lecture de la série. La relecture à chaque
+          // abonnement couvrait ce cas, le numéro calculé une fois ne le
+          // couvre plus (audit final F260) · la série est relue, UNE fois, et
+          // la pièce refaite sous le numéro libre. Si le numéro était libre,
+          // la cause est ailleurs, et elle remonte telle quelle.
+          if (!(e instanceof BadRequestException)) throw e;
+          const libre = await numeroLibre();
+          if (libre === numero) throw e;
+          numero = libre;
+          f = await this.facturation.enregistrer(editeur, { ...piece, numeroSerie: numero });
+        }
+        let fa: { id: string };
+        try {
+          fa = await this.prisma.factureAbonnement.create({
+            data: { abonnementId: a.id, periode, factureId: f.id, montantUsd: new Prisma.Decimal(v.totalUsd), cours: new Prisma.Decimal(cours) },
+            select: { id: true },
+          });
+        } catch (e) {
+          // Un second clic a facturé la même période entre-temps · la pièce
+          // en double est retirée, jamais laissée orpheline dans le facturier.
+          if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+            await this.facturation.supprimer(editeur, f.id);
+            resultats.push({ cabinet: a.cabinet.nom, statut: 'DEJA_FACTURE' });
+            continue;
+          }
+          throw e;
+        }
+        const numeroGarde = numero;
+        numero = numeroFactureSuivant(annee, [numeroGarde]);
+        // L'envoi suit la facture et ne la défait jamais · un client sans
+        // adresse ou une messagerie absente se DIT sur sa ligne, la pièce reste.
+        let courriel: string | undefined;
+        if (envoi && this.courriels) {
+          try {
+            const r = await this.courriels.envoyerFacture({ tenantId: editeur, userId: envoi.userId }, fa.id);
+            courriel = r.statut === 'ENVOYE' ? 'Envoyée par courriel' : `Courriel en file (${r.statut})`;
+          } catch (e) {
+            courriel = `Courriel non envoyé · ${e instanceof Error ? e.message : String(e)}`;
+          }
+        }
+        resultats.push({ cabinet: a.cabinet.nom, statut: 'FACTURE', numero: numeroGarde, totalUsd: v.totalUsd, ...(courriel ? { courriel } : {}) });
       }
-      resultats.push({ cabinet: a.cabinet.nom, statut: 'FACTURE', numero, totalUsd: v.totalUsd, ...(courriel ? { courriel } : {}) });
+      if (lot.length < LOT_ABONNEMENTS_A_FACTURER) break;
+      curseur = lot[lot.length - 1].id;
     }
     return { periode, cours, assujetti: t.assujettiTva, resultats };
   }

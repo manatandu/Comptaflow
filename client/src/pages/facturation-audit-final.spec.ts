@@ -34,3 +34,40 @@ describe('F119 · une note de crédit ne se propose pas à la suppression', () =
     expect(garde).toContain("{peutEcrire && !f.ecritureId && !f.barree && f.nature === 'FACTURE' && (");
   });
 });
+
+describe('F229 · la colonne des mentions ne nomme plus l’art. 100', () => {
+  it('l’en-tête de la liste s’intitule « Mentions obligatoires »', () => {
+    // La liste appliquée dépend de la date de la pièce (décret n° 23/10,
+    // art. 26, ou décret n° 011/42, art. 100 avant le 3 mars 2023) · la ligne
+    // « Texte appliqué » dit laquelle, l'en-tête ne la tranche pas.
+    const entete = bloc('<th className="py-1 pr-2">Sens</th>', '</tr>');
+    expect(entete).toContain('<th className="py-1">Mentions obligatoires</th>');
+  });
+
+  it('la distinction imposable renvoie à l’art. 26 e), et à l’art. 100 pour les pièces anciennes', () => {
+    const aide = bloc('titre="Ligne imposable"', '/>');
+    expect(aide).toContain('source="Décret n° 23/10 du 3 mars 2023, art. 26 e) · décret n° 011/42, art. 100"');
+  });
+});
+
+describe('F228 · la mention de l’art. 60 se saisit aussi sur une facture reçue', () => {
+  it('le formulaire envoie la mention quel que soit le sens', () => {
+    const envoi = bloc("await api.post('/facturation', {", "setNumeroSerie('');");
+    expect(envoi).toContain('        mentionTvaDebits: mentionDebitsCochee,\n');
+  });
+
+  it('sur un achat, la case dit ce qu’elle lit et suit la même valeur', () => {
+    const cases = bloc("{sens === 'VENTE' ? (", 'Ligne imposable');
+    const [vente, achat] = cases.split(') : (');
+    expect([
+      vente.includes('checked={mentionDebitsCochee}'),
+      achat.includes('checked={mentionDebitsCochee}'),
+      achat.includes('La pièce porte « Autorisation d’acquitter la TVA d’après les débits »'),
+    ]).toEqual([true, true, true]);
+  });
+
+  it('une facture reçue qui porte la mention le montre sur sa ligne', () => {
+    const cellule = bloc('Hors de portée sans dispositif électronique fiscal', 'Texte appliqué');
+    expect(cellule).toContain("{f.sens === 'ACHAT' && f.mentionTvaDebits && (");
+  });
+});

@@ -98,6 +98,10 @@ function dateCourte(iso: string | null): string {
 export function PlateformePage({ adresse }: { adresse?: string } = {}) {
   const { utilisateur } = useAuth();
   const [liste, setListe] = useState<CabinetClient[] | null>(null);
+  // LA LISTE EST UNE TRANCHE (audit final F260) · le serveur la borne et
+  // compte le total sur le périmètre entier, l'écran le dit quand il en montre
+  // moins.
+  const [tranche, setTranche] = useState<{ total: number; tronque: boolean } | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
 
   // Modale « licence » d'un cabinet
@@ -149,7 +153,9 @@ export function PlateformePage({ adresse }: { adresse?: string } = {}) {
 
   const charger = async () => {
     try {
-      setListe(await api.get<CabinetClient[]>('/plateforme/cabinets'));
+      const r = await api.get<{ cabinets: CabinetClient[]; total: number; tronque: boolean }>('/plateforme/cabinets');
+      setListe(r.cabinets);
+      setTranche({ total: r.total, tronque: r.tronque });
       setErreur(null);
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Impossible de charger les cabinets');
@@ -349,6 +355,11 @@ export function PlateformePage({ adresse }: { adresse?: string } = {}) {
       </div>
 
       {erreur && <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-1.5 mb-2 max-w-[980px]">{erreur}</div>}
+      {liste && tranche?.tronque && (
+        <div className="text-[11.5px] text-warning bg-warning-soft border border-warning/30 px-3 py-1.5 mb-2 max-w-[980px]">
+          {liste.length} cabinets affichés sur {tranche.total} · les premiers par nom.
+        </div>
+      )}
 
       <div className="border border-border bg-surface shadow-posee max-w-[1080px] overflow-x-auto">
         <div className="min-w-[1000px]">
@@ -363,7 +374,7 @@ export function PlateformePage({ adresse }: { adresse?: string } = {}) {
             <span>État</span>
             <span></span>
           </div>
-          {!liste && <div className="p-3 text-[11.5px] text-text-dim">Chargement…</div>}
+          {!liste && !erreur && <div className="p-3 text-[11.5px] text-text-dim">Chargement…</div>}
           {liste?.length === 0 && <div className="p-3 text-[11.5px] text-text-dim">Aucun cabinet client.</div>}
           {liste?.map((c, i) => {
             const etat = etatLicence(c.licence);

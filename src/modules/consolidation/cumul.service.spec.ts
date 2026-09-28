@@ -47,8 +47,13 @@ function doublure(balanceDossier: [string, number][]) {
   const prisma: any = {
     tenant: { findUniqueOrThrow: jest.fn(async () => ({ id: T, nom: 'Mère SA' })) },
     exercice: {
+      // Un `id: undefined` ne filtre rien, comme en base (audit final F234) ·
+      // la doublure rend alors l'exercice du dossier, ce que Prisma ferait,
+      // au lieu d'un refus qui masquerait le défaut.
       findFirst: jest.fn(async ({ where }: any) =>
-        where.id === EX && where.tenantId === T ? { id: EX, dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') } : null,
+        (where.id === undefined || where.id === EX) && where.tenantId === T
+          ? { id: EX, dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') }
+          : null,
       ),
     },
     entitePerimetreConsolidation: table('entites', {
@@ -450,5 +455,96 @@ describe('ConsolidationController · tranche 2', () => {
     for (const m of ['importerBalance', 'declarerAcquisition', 'ajouterReciproque', 'supprimerReciproque', 'ajouterResultatInterne', 'supprimerResultatInterne']) {
       expect(Reflect.getMetadata(ROLES_KEY, proto[m])).toEqual([RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE]);
     }
+  });
+});
+
+/**
+ * AUDIT FINAL F232 · les réciproques et les résultats internes passent par
+ * les contrôles de la provision pour pertes de change · l'exercice est celui
+ * du dossier, et chaque entité figure au périmètre de CET exercice. Le
+ * périmètre étant recréé par exercice, une entité de l'exercice voisin
+ * passait la porte et faisait tomber tout le cumul sur un refus anonyme.
+ */
+describe('CumulService · F232, exercice et appartenance vérifiés à la porte', () => {
+  const ACQ = { coutAcquisition: 800, compteTitres: '26100000', dateEntree: '2024-01-01', capitauxPropresEntree: 900, modeDureeEcart: 'NON_DETERMINABLE' as const };
+  // Une entité du MÊME dossier, déclarée au périmètre d'un AUTRE exercice.
+  const entiteVoisine = (tables: Record<string, any[]>) => {
+    const e = { id: 'entite-2025', tenantId: T, exerciceId: 'ex-2025', nom: 'Filiale de 2025' };
+    tables.entites.push(e);
+    return e;
+  };
+  const RECIPROQUE = { compteA: '41100000', compteB: '40100000', montant: 100, libelle: 'Créance' };
+  const INTERNE = { nature: 'STOCK' as const, compteActif: '31100000', margeOuverture: 0, margeCloture: 10, libelle: 'Marge sur stock' };
+
+  it('un exercice d’un autre dossier est introuvable, et rien n’est écrit', async () => {
+    const { service, f, tables } = await groupe();
+    await expect(service.ajouterReciproque(T, { exerciceId: 'ex-voisin', entiteBId: f.id, ...RECIPROQUE })).rejects.toThrow(/Exercice introuvable dans ce dossier/);
+    await expect(service.ajouterResultatInterne(T, { exerciceId: 'ex-voisin', acheteuseId: f.id, ...INTERNE })).rejects.toThrow(/Exercice introuvable dans ce dossier/);
+    expect(tables.reciproques).toHaveLength(0);
+    expect(tables.internes).toHaveLength(0);
+  });
+
+  it('une entité d’un autre exercice est refusée en 400, NOMMÉE, et rien n’est écrit', async () => {
+    const { service, tables } = await groupe();
+    const v = entiteVoisine(tables);
+    await expect(service.ajouterReciproque(T, { exerciceId: EX, entiteBId: v.id, ...RECIPROQUE })).rejects.toMatchObject({
+      status: 400,
+      message: expect.stringMatching(/« Filiale de 2025 » figure au périmètre d’un autre exercice/),
+    });
+    await expect(service.ajouterResultatInterne(T, { exerciceId: EX, vendeuseId: v.id, ...INTERNE })).rejects.toMatchObject({
+      status: 400,
+      message: expect.stringMatching(/« Filiale de 2025 » figure au périmètre d’un autre exercice/),
+    });
+    expect(tables.reciproques).toHaveLength(0);
+    expect(tables.internes).toHaveLength(0);
+  });
+
+  it('sans exercice, la déclaration est refusée en 400, jamais écrite sur le premier exercice du dossier (F234)', async () => {
+    const { service, f, tables } = await groupe();
+    const sans = undefined as unknown as string;
+    const exerciceRequis = { status: 400, message: expect.stringMatching(/exerciceId est requis/) };
+    await expect(service.ajouterReciproque(T, { exerciceId: sans, entiteBId: f.id, ...RECIPROQUE })).rejects.toMatchObject(exerciceRequis);
+    await expect(service.ajouterResultatInterne(T, { exerciceId: sans, acheteuseId: f.id, ...INTERNE })).rejects.toMatchObject(exerciceRequis);
+    await expect(
+      service.ajouterProvisionChange(T, { exerciceId: sans, entiteId: f.id, compteProvision: '49910000', cloture: 50, dotation: 50, reprise: 0 }),
+    ).rejects.toMatchObject(exerciceRequis);
+    expect(tables.reciproques).toHaveLength(0);
+    expect(tables.internes).toHaveLength(0);
+    expect(tables.provisionsChange).toHaveLength(0);
+  });
+
+  it('une entité d’un autre dossier reste introuvable', async () => {
+    const { service, tables } = await groupe();
+    tables.entites.push({ id: 'entite-voisin', tenantId: 'autre-dossier', exerciceId: EX, nom: 'Chez le voisin' });
+    await expect(service.ajouterReciproque(T, { exerciceId: EX, entiteBId: 'entite-voisin', ...RECIPROQUE })).rejects.toThrow(/Entité introuvable dans ce dossier/);
+    expect(tables.reciproques).toHaveLength(0);
+  });
+
+  it('la provision pour pertes de change nomme l’entité d’un autre exercice de la même manière', async () => {
+    const { service, tables } = await groupe();
+    const v = entiteVoisine(tables);
+    await expect(
+      service.ajouterProvisionChange(T, { exerciceId: EX, entiteId: v.id, compteProvision: '49910000', cloture: 50, dotation: 50, reprise: 0 }),
+    ).rejects.toThrow(/« Filiale de 2025 » figure au périmètre d’un autre exercice/);
+    expect(tables.provisionsChange).toHaveLength(0);
+  });
+
+  it('une déclaration saisie avant la porte, sur une entité d’un autre exercice, arrête le cumul en la NOMMANT', async () => {
+    const { service, lien, tables } = await groupe();
+    await service.declarerAcquisition(T, lien.id, ACQ);
+    const v = entiteVoisine(tables);
+    tables.reciproques.push({ id: 'r-ancienne', tenantId: T, exerciceId: EX, entiteAId: null, entiteBId: v.id, ...RECIPROQUE, libelle: 'Prêt' });
+    await expect(service.cumul(T, EX)).rejects.toMatchObject({
+      status: 400,
+      message: expect.stringMatching(/^Déclaration hors du périmètre · l’opération réciproque « Prêt » vise une entité qui ne figure pas/),
+    });
+  });
+
+  it('les entités de l’exercice passent, et la déclaration est rattachée à son exercice', async () => {
+    const { service, f, tables } = await groupe();
+    await service.ajouterReciproque(T, { exerciceId: EX, entiteBId: f.id, ...RECIPROQUE });
+    await service.ajouterResultatInterne(T, { exerciceId: EX, acheteuseId: f.id, ...INTERNE });
+    expect(tables.reciproques).toEqual([expect.objectContaining({ exerciceId: EX, entiteBId: f.id })]);
+    expect(tables.internes).toEqual([expect.objectContaining({ exerciceId: EX, acheteuseId: f.id })]);
   });
 });
