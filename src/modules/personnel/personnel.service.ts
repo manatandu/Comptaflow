@@ -72,7 +72,7 @@ import {
   type FormeDuDocument,
 } from './livre-de-paie';
 import { MULTIPLICATEURS_ARTICLE_7, allocationFamilialeJournaliere, type Annexe } from './bareme-smig';
-import { annexesSmigDuDossier, versionsDuDossier } from './baremes-dossier';
+import { BAREMES_SERVIS, annexesSmigDuDossier, versionsDuDossier, type LigneVersion } from './baremes-dossier';
 import { effectifDuRegistre } from './effectif-registre';
 import {
   decompteFinal,
@@ -746,6 +746,46 @@ export class PersonnelService {
     return { annexes: annexesSmigDuDossier(lignes), total, nonLues };
   }
 
+  /**
+   * LES VERSIONS DU CABINET QU'UN MOIS DE PAIE PEUT APPLIQUER, ET ELLES SEULES
+   * (audit final F259, suite).
+   *
+   * La simulation lisait TOUTES les versions du dossier, à chaque calcul et
+   * sans borne. Or chaque moteur n'en retient qu'une par barème · la plus
+   * récente dont le MOIS d'effet est atteint (`baremeDuMois` pour la CNSS,
+   * l'INPP et l'ONEM, `annexeApplicable` pour le SMIG), après fusion avec les
+   * versions livrées, qu'elles départagent par la date d'effet. Une version
+   * du cabinet plus ancienne que la plus récente du même barème ne peut donc
+   * jamais être retenue, et une version postérieure au mois non plus · seule
+   * la plus récente au plus tard du mois l'est. On lit celle-là, une par
+   * barème servi, et c'est TOUT ce que le moteur lisait. Une version livrée
+   * plus récente qu'elle l'emporte toujours, puisque la fusion se fait
+   * après la lecture, exactement comme avant.
+   *
+   * « Au plus tard du mois » s'écrit « avant le premier jour du mois
+   * suivant » · `aPartirDu` est une date AAAA-MM-JJ en chaîne, dont l'ordre
+   * est celui des dates, et le moteur compare les MOIS · une version datée
+   * du 15 régit déjà le mois qui la porte. Le filtre est écrit DANS chaque
+   * appel, pour la raison dite plus haut (balayage du cloisonnement). Un
+   * test rejoue la simulation sur toutes les versions et sur celles-ci, et
+   * exige le même résultat au centime (`simulation-baremes-du-mois.spec.ts`).
+   */
+  private async versionsBaremesDuMois(tenantId: string, moisDePaie: string): Promise<LigneVersion[]> {
+    // Le mois est déjà reconnu AAAA-MM (`moisValide`, en tête de simulerPaie).
+    const [annee, mois] = moisDePaie.split('-').map(Number);
+    const moisSuivant = new Date(Date.UTC(annee, mois, 1)).toISOString().slice(0, 10);
+    const lignes = await Promise.all(
+      BAREMES_SERVIS.map((bareme) =>
+        this.prisma.versionBaremePaie.findFirst({
+          where: { tenantId, bareme, aPartirDu: { lt: moisSuivant } },
+          orderBy: { aPartirDu: 'desc' },
+          select: { bareme: true, aPartirDu: true, reference: true, valeurs: true },
+        }),
+      ),
+    );
+    return lignes.filter((l): l is NonNullable<typeof l> => l !== null);
+  }
+
 
   /**
    * LE « TAUX LÉGAL » DE L'ARTICLE 69, 1, ET POURQUOI IL EST CALCULÉ ICI.
@@ -936,16 +976,21 @@ export class PersonnelService {
     dtoSaisi: SimulationPaieDto,
     maintenant: Date = new Date(),
   ) {
+    // Le mois borne la lecture des barèmes du cabinet (`versionsBaremesDuMois`)
+    // · illisible, il n'en bornerait aucun, et la simulation mêlerait des
+    // barèmes que personne n'a demandés. Même refus, mot pour mot, que
+    // l'émission du bulletin et la passation du mois.
+    if (!moisValide(dtoSaisi.moisDePaie)) {
+      throw new BadRequestException('Mois de paie illisible · la forme attendue est AAAA-MM.');
+    }
     const { dto: dtoStipule, retenuesAvances } = await this.resoudreSaisie(tenantId, salarieId, dtoSaisi);
     const retenuesAvancesFc = retenuesAvances.reduce((s, r) => s + r.montantFc, 0);
     const { dtoFc: dto, conversion } = await this.convertirEnFrancs(tenantId, dtoStipule, maintenant);
     const borne = baremeApplicableAuMois(dto.moisDePaie);
     // Les versions de barème que le cabinet a ajoutées (baremes-dossier.ts) ·
-    // taux de cotisation et grilles SMIG, pris à partir de leur mois d'effet.
-    const versionsBaremes = await this.prisma.versionBaremePaie.findMany({
-      where: { tenantId },
-      select: { bareme: true, aPartirDu: true, reference: true, valeurs: true },
-    });
+    // taux de cotisation et grilles SMIG, pris à partir de leur mois d'effet,
+    // et lues pour CE mois seulement (audit final F259, suite).
+    const versionsBaremes = await this.versionsBaremesDuMois(tenantId, dto.moisDePaie);
     const annexesSmig = annexesSmigDuDossier(versionsBaremes);
 
     // Le salarié n'est lu QUE pour proposer un nombre de personnes à charge,

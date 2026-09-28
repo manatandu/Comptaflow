@@ -239,7 +239,9 @@ function fabriquerExport(systeme: SystemeComptableSyscohada = SystemeComptableSy
     saisieNote: { findMany: jest.fn().mockResolvedValue([]) },
     compte: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
     ecriture: { findMany: jest.fn().mockResolvedValue(smt ? ECRITURES_SMT : []) },
-    ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },
+    // `groupBy` sert la NOTE 3 du S.M.T, qui demande ses deux parts sommées à
+    // la base (audit final F258) · aucune ligne datée dans ce jeu d'essai.
+    ligneEcriture: { findMany: jest.fn().mockResolvedValue([]), groupBy: jest.fn().mockResolvedValue([]) },
     immobilisation: { findMany: jest.fn().mockResolvedValue([]) },
     // Aucune campagne d'inventaire · la note 2 du SMT garde ses quantités vides.
     campagneInventaire: { findFirst: jest.fn().mockResolvedValue(null) },

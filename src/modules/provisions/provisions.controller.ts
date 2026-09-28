@@ -12,6 +12,7 @@ import {
   ReporterProvisionsDto,
   StatuerProvisionDto,
 } from './dto/provision.dto';
+import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 
 /**
  * AUCUN `@ReferentielsAutorises`, et pour une raison écrite dans le SYCEBNL
@@ -27,12 +28,12 @@ export class ProvisionsController {
   constructor(private readonly provisions: ProvisionsService) {}
 
   @Get()
-  lister(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
+  lister(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
     return this.provisions.lister(user.tenantId, exerciceId);
   }
 
   @Get('variation/:exerciceId')
-  variation(@CurrentUser() user: AuthenticatedUser, @Param('exerciceId') exerciceId: string) {
+  variation(@CurrentUser() user: AuthenticatedUser, @Param('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
     return this.provisions.tableauDeVariation(user.tenantId, exerciceId);
   }
 
@@ -40,7 +41,7 @@ export class ProvisionsController {
   @Post(':exerciceId')
   creer(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('exerciceId') exerciceId: string,
+    @Param('exerciceId', EXERCICE_REQUIS) exerciceId: string,
     @Body() dto: CreerProvisionDto,
   ) {
     return this.provisions.creer(user.tenantId, exerciceId, dto, user.email);

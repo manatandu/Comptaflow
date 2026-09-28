@@ -33,6 +33,7 @@ import { licenceDeCellule } from '../licence/licence-de-cellule';
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 import { balancesDesDossiers, comptagesDesDossiers } from './lecture-des-dossiers';
 import { libelleExercice } from '../../common/libelle-exercice';
+import { exigerExercice } from '../../common/exercice-requis';
 
 /**
  * Une ligne RETIRÉE de l'agrégat parce qu'elle est interne au groupe · le
@@ -521,6 +522,13 @@ export class GroupeService {
    * qu'elle ne sait pas faire.
    */
   async balanceAgregee(tenantId: string, exerciceId: string) {
+    // L'exercice absent se refuse ICI, avant toute lecture (audit final
+    // F234, suite) · Prisma ignore un `id: undefined`, et la recherche qui
+    // suit rendait alors le premier exercice venu du siège, sur lequel tout
+    // le groupe était agrégé sans que rien ne le dise. « Exercice
+    // introuvable » reste le refus d'un identifiant donné qui n'est pas du
+    // dossier · les deux messages ne disent pas la même chose.
+    exigerExercice(exerciceId);
     return this.dansLeGroupe(tenantId, () => this.balanceAgregeeDuGroupe(tenantId, exerciceId));
   }
 
@@ -1133,6 +1141,8 @@ export class GroupeService {
    * Les totaux et vérifications vivent sur la feuille « Contrôles ».
    */
   async balanceAgregeeExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    // Même refus que `balanceAgregee`, posé à l'entrée · voir là-bas.
+    exigerExercice(exerciceId);
     return this.dansLeGroupe(tenantId, () => this.balanceAgregeeExcelDuGroupe(tenantId, exerciceId));
   }
 
@@ -1333,6 +1343,9 @@ export class GroupeService {
    * demandent à la cellule, qui les passe elle-même, tracées.
    */
   async supervision(tenantId: string, exerciceId: string) {
+    // Sans lui, la recherche de l'exercice rendait le premier du siège, et
+    // chaque cellule était jugée sur la période de celui-là (F234, suite).
+    exigerExercice(exerciceId);
     return this.dansLeGroupe(tenantId, () => this.supervisionDuGroupe(tenantId, exerciceId));
   }
 
@@ -1437,6 +1450,10 @@ export class GroupeService {
    * groupe, et l'exercice à la cellule.
    */
   async balanceCellule(tenantId: string, celluleId: string, exerciceId: string) {
+    // Sans lui, la seconde borne ne bornait rien · la recherche rendait le
+    // premier exercice de la cellule, et la balance lue ensuite n'était plus
+    // bornée à aucun (F234, suite).
+    exigerExercice(exerciceId);
     return this.dansLeGroupe(tenantId, () => this.balanceCelluleDuGroupe(tenantId, celluleId, exerciceId));
   }
 
@@ -1784,6 +1801,10 @@ export class GroupeService {
    * tiers) vivent dans les dossiers, pas dans la combinaison.
    */
   async liasseGroupe(tenantId: string, exerciceId: string, createdBy: string): Promise<ClasseurExporte> {
+    // Refusé AVANT `assurerDossierCombinaison`, qui peut créer un dossier ·
+    // le refus que `balanceAgregee` opposerait plus loin arriverait après
+    // cette écriture (F234, suite).
+    exigerExercice(exerciceId);
     const combinaisonId = await this.assurerDossierCombinaison(tenantId);
     return this.dansLeGroupe(tenantId, () =>
       this.liasseGroupeDuGroupe(tenantId, exerciceId, createdBy, combinaisonId),

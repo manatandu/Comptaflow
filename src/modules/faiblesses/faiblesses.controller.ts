@@ -17,6 +17,7 @@ import {
   ReporterDto,
   SuivreDto,
 } from './dto/faiblesses.dto';
+import { EXERCICE_FACULTATIF } from '../../common/exercice-requis';
 
 /**
  * Aucun `@ReferentielsAutorises` · une faiblesse du contrôle interne n'est
@@ -29,8 +30,11 @@ import {
 export class FaiblessesController {
   constructor(private readonly faiblesses: FaiblessesService) {}
 
+  // L'exercice est un FILTRE facultatif · la liste des registres du dossier a un
+  // sens sans lui, chaque ligne portant le sien. Présent et illisible, il est
+  // refusé plutôt que de rendre une liste vide (EXERCICE_FACULTATIF).
   @Get()
-  lister(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId?: string) {
+  lister(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_FACULTATIF) exerciceId?: string) {
     return this.faiblesses.lister(user.tenantId, exerciceId);
   }
 

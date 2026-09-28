@@ -7,6 +7,7 @@ import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-
 import { RelancesService } from './relances.service';
 import { CreerNiveauDto, EmettreRelancesDto, HorsRelanceDto, ModifierNiveauDto } from './dto/relances.dto';
 import { RoleUtilisateur, TypeRelance } from '@prisma/client';
+import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 
 @UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
 @Controller('relances')
@@ -38,7 +39,7 @@ export class RelancesController {
   @Get()
   async positions(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('exerciceId') exerciceId: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
     @Query('type') type?: TypeRelance,
     @Query('dateReference') dateReference?: string,
     @Query('racine') racine?: string,
@@ -50,7 +51,7 @@ export class RelancesController {
   async releve(
     @CurrentUser() user: AuthenticatedUser,
     @Param('compteId') compteId: string,
-    @Query('exerciceId') exerciceId: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
   ) {
     return this.relances.releve(user.tenantId, compteId, exerciceId);
   }

@@ -13,6 +13,7 @@ import { FusionnerComptesDto, ReimputerDto } from './dto/reimputer.dto';
 import { ModifierEcritureDto, ValiderEcrituresDto, ValiderJusquaDto } from './dto/brouillard.dto';
 import { RoleUtilisateur } from '@prisma/client';
 import { ReserveAuComptable } from '../../common/decorators/acces-roles-cantonnes.decorator';
+import { EXERCICE_FACULTATIF, EXERCICE_REQUIS } from '../../common/exercice-requis';
 
 @UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
 @Controller('ecritures')
@@ -98,7 +99,7 @@ export class EcritureController {
   @Get('brouillard')
   async brouillard(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('exerciceId') exerciceId: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
     @Query('journalId') journalId?: string,
     @Query('dateDebut') dateDebut?: string,
     @Query('dateFin') dateFin?: string,
@@ -156,11 +157,19 @@ export class EcritureController {
     return this.ecritureService.validerJusqua(user.tenantId, user.userId, dto);
   }
 
-  /** Journal · voir l'écran « Journal & grand livre » (onglet Journal) du canevas. */
+  /**
+   * Journal · voir l'écran « Journal & grand livre » (onglet Journal) du canevas.
+   *
+   * L'exercice y est FACULTATIF, et c'est voulu · le journal se filtre aussi
+   * par dates, et son export se titre « Toutes périodes » quand aucun exercice
+   * n'est nommé (`perimetreJournal`, `identiteEtat`). Présent et illisible, il
+   * est refusé (EXERCICE_FACULTATIF) plutôt que de filtrer sur un exercice qui
+   * n'existe pas et de rendre un journal vide.
+   */
   @Get()
   async lister(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('exerciceId') exerciceId?: string,
+    @Query('exerciceId', EXERCICE_FACULTATIF) exerciceId?: string,
     @Query('journalId') journalId?: string,
     @Query('dateDebut') dateDebut?: string,
     @Query('dateFin') dateFin?: string,
@@ -192,7 +201,7 @@ export class EcritureController {
   @Get('balance')
   async balance(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('exerciceId') exerciceId: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
     @Query('regrouperTiers') regrouperTiers?: string,
   ) {
     // Balance générale « façon Sage » · les comptes individuels des tiers
@@ -212,7 +221,7 @@ export class EcritureController {
   @Get('echeancier')
   async echeancier(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('exerciceId') exerciceId: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
     @Query('dateReference') dateReference?: string,
   ) {
     return this.ecritureService.echeancier(user.tenantId, { exerciceId, dateReference });
@@ -221,7 +230,7 @@ export class EcritureController {
   @Get('balance-agee')
   async balanceAgee(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('exerciceId') exerciceId: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
     @Query('dateReference') dateReference?: string,
     @Query('type') type?: PerimetreBalanceAgee,
   ) {
@@ -242,7 +251,7 @@ export class EcritureController {
   @Get('balance-auxiliaire')
   async balanceAuxiliaire(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('exerciceId') exerciceId: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
     @Query('type') type?: 'CLIENTS' | 'FOURNISSEURS' | 'TOUS',
   ) {
     return this.ecritureService.balanceAuxiliaire(user.tenantId, { exerciceId, type });
@@ -257,7 +266,7 @@ export class EcritureController {
   async justificatifSolde(
     @CurrentUser() user: AuthenticatedUser,
     @Param('compteId') compteId: string,
-    @Query('exerciceId') exerciceId: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
     @Query('dateArret') dateArret?: string,
     @Query('masquerLettrees') masquerLettrees?: string,
   ) {
@@ -294,21 +303,27 @@ export class EcritureController {
    * Cette route doit rester déclarée AVANT `grand-livre/:compteId` : sinon un
    * appel sans identifiant serait capté par la route paramétrée.
    */
+  //
+  // L'EXERCICE EST REQUIS, comme à l'export du même livre (audit final F100,
+  // puis F234) · sans lui, le solde progressif courait sur tous les exercices
+  // du dossier, chaque report à-nouveau rejouant le solde de l'année d'avant,
+  // et la fenêtre montrait un livre faux sous le nom d'un seul exercice.
   @Get('grand-livre')
   async grandLivreComplet(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('exerciceId') exerciceId?: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
   ) {
     return this.ecritureService.grandLivreComplet(user.tenantId, exerciceId);
   }
 
   // Aucun écran ne la lit (audit de l'interface, I12) · le grand livre d'un
   // compte s'ouvre par la route complète et s'exporte par /exports/grand-livre/:compteId.
+  // Exercice requis, même motif que la route complète.
   @Get('grand-livre/:compteId')
   async grandLivre(
     @CurrentUser() user: AuthenticatedUser,
     @Param('compteId') compteId: string,
-    @Query('exerciceId') exerciceId?: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
   ) {
     return this.ecritureService.grandLivre(user.tenantId, compteId, exerciceId);
   }

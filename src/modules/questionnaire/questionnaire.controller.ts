@@ -7,6 +7,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { QuestionnaireService } from './questionnaire.service';
 import { ClorerQuestionnaireDto, CreerQuestionnaireDto, RepondreDto } from './dto/questionnaire.dto';
+import { EXERCICE_FACULTATIF } from '../../common/exercice-requis';
 
 /**
  * Aucun `@ReferentielsAutorises` sur le contrôleur · le questionnaire vaut
@@ -19,8 +20,11 @@ import { ClorerQuestionnaireDto, CreerQuestionnaireDto, RepondreDto } from './dt
 export class QuestionnaireController {
   constructor(private readonly questionnaire: QuestionnaireService) {}
 
+  // L'exercice est un FILTRE facultatif · la liste des questionnaires du dossier a un
+  // sens sans lui, chaque ligne portant le sien. Présent et illisible, il est
+  // refusé plutôt que de rendre une liste vide (EXERCICE_FACULTATIF).
   @Get()
-  lister(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId?: string) {
+  lister(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_FACULTATIF) exerciceId?: string) {
     return this.questionnaire.lister(user.tenantId, exerciceId);
   }
 

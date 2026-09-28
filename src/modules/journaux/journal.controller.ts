@@ -8,6 +8,7 @@ import { JournalService } from './journal.service';
 import { AnalyseJournauxService } from './analyse-journaux.service';
 import { CreerJournalDto, ModifierJournalDto } from './dto/journal.dto';
 import { RoleUtilisateur } from '@prisma/client';
+import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 
 @UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
 @Controller('journaux')
@@ -37,7 +38,7 @@ export class JournalController {
   @Get('palmares-comptes')
   async palmaresComptes(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('exerciceId') exerciceId: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
     @Query('classe') classe?: string,
     @Query('limite') limite?: string,
     @Query('inclureBrouillard') inclureBrouillard?: string,
@@ -52,13 +53,13 @@ export class JournalController {
 
   /** JOURNAUX DE SAISIE · la grille journal × mois et l'état de chaque case (Sage i7). */
   @Get('saisie')
-  async grilleSaisie(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
+  async grilleSaisie(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
     return this.analyseJournauxService.grilleSaisie(user.tenantId, exerciceId);
   }
 
   /** ANALYSE DES JOURNAUX · volumes, brouillard restant, trous de séquence. */
   @Get('analyse')
-  async analyse(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
+  async analyse(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
     return this.analyseJournauxService.analyseJournaux(user.tenantId, { exerciceId });
   }
 

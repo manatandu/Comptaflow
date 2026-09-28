@@ -7,6 +7,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { ReglementsService } from './reglements.service';
 import { EnregistrerReglementsDto } from './reglements.dto';
+import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 
 @UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
 @Controller('reglements')
@@ -16,12 +17,15 @@ export class ReglementsController {
   @Get('echeances')
   async echeances(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('exerciceId') exerciceId: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
     @Query('sens') sens: string,
     @Query('jusquau') jusquau?: string,
   ) {
     if (sens !== 'FOURNISSEUR' && sens !== 'CLIENT') throw new BadRequestException('Sens attendu : FOURNISSEUR ou CLIENT.');
-    if (!exerciceId) throw new BadRequestException('Exercice requis.');
+    // L'exercice absent ou illisible est refusé par le porteur (EXERCICE_REQUIS),
+    // avec le message de toutes les autres routes · le refus écrit ici à la
+    // main (« Exercice requis. ») disait la même chose en d'autres mots, et
+    // laissait un identifiant illisible descendre jusqu'à la base.
     return this.reglements.echeances(user.tenantId, exerciceId, sens, jusquau);
   }
 

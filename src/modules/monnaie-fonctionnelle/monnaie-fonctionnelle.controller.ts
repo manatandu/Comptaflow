@@ -4,6 +4,7 @@ import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { BalanceFonctionnelleService } from './balance-fonctionnelle.service';
+import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 
 /**
  * LE SECOND JEU · lecture seule, et il le dit sur chaque page.
@@ -18,7 +19,7 @@ export class MonnaieFonctionnelleController {
   constructor(private readonly balanceFonctionnelle: BalanceFonctionnelleService) {}
 
   @Get('balance/:exerciceId')
-  balance(@CurrentUser() user: AuthenticatedUser, @Param('exerciceId') exerciceId: string) {
+  balance(@CurrentUser() user: AuthenticatedUser, @Param('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
     return this.balanceFonctionnelle.balance(user.tenantId, exerciceId);
   }
 }

@@ -19,6 +19,7 @@ import {
   RenouvelerComposantDto,
 } from './dto/immobilisation.dto';
 import { RoleUtilisateur, StatutImmobilisation } from '@prisma/client';
+import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 
 // Consultation ouverte aux trois rôles ; gestion (familles, création,
 // dotation, sortie) réservée à ADMIN_CABINET/COMPTABLE · même règle que la
@@ -46,7 +47,7 @@ export class ImmobilisationController {
   @Get('tableau-amortissements')
   async tableauAmortissements(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('exerciceId') exerciceId: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
   ) {
     return this.immobilisationService.tableauAmortissements(user.tenantId, exerciceId);
   }

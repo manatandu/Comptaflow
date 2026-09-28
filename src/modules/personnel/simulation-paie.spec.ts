@@ -26,7 +26,9 @@ function service(salarie?: unknown, referentiel?: 'SYSCOHADA' | 'SYCEBNL') {
     // pas lieu.
     salarie: { findFirst },
     tenant: { findUniqueOrThrow: tenantFind },
-    versionBaremePaie: { findMany: jest.fn().mockResolvedValue([]) },
+    // Une version par barème, la plus récente du mois (audit final F259,
+    // suite) · aucune ici, le dossier n'en a pas saisi.
+    versionBaremePaie: { findFirst: jest.fn().mockResolvedValue(null) },
   } as unknown as PrismaService;
   return { svc: new PersonnelService(prisma), findFirst, tenantFind };
 }
@@ -233,8 +235,16 @@ describe("Ce que la simulation annonce ne pas être", () => {
     // Et les deux lectures attendues sont bien là.
     expect(corps).toContain('this.prisma.salarie.findFirst(');
     expect(corps).toContain('this.prisma.tenant.findUniqueOrThrow(');
-    // Les versions de barème du cabinet sont lues à chaque calcul.
-    expect(corps).toContain('this.prisma.versionBaremePaie.findMany(');
+    // Les versions de barème du cabinet sont lues à chaque calcul, pour le
+    // mois simulé (audit final F259, suite) · la lecture vit dans sa méthode,
+    // qui ne fait que lire elle aussi.
+    expect(corps).toContain('this.versionsBaremesDuMois(tenantId, dto.moisDePaie)');
+    const debutVersions = source.indexOf('private async versionsBaremesDuMois(');
+    const versions = source.slice(debutVersions, source.indexOf('\n  }\n', debutVersions));
+    expect(versions).toContain('this.prisma.versionBaremePaie.findFirst(');
+    for (const appel of versions.match(/this\.prisma\.\w+\.(\w+)\(/g) ?? []) {
+      expect(appel).toMatch(/\.(find\w*|count|aggregate|groupBy)\($/);
+    }
   });
 });
 

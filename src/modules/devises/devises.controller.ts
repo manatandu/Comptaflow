@@ -9,6 +9,7 @@ import { DevisesService } from './devises.service';
 import { CreerDeviseDto, ExtournerReevaluationDto, ModifierDeviseDto, PoserCoursDto, ReevaluerDto } from './dto/devises.dto';
 import { RoleUtilisateur } from '@prisma/client';
 import { jourDeKinshasa, messageCoursDejaCote, motifRefusCotationGestionnairePaie } from '../personnel/conversion-usd';
+import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 
 @UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
 @Controller('devises')
@@ -87,7 +88,7 @@ export class DevisesController {
   }
 
   @Get('reevaluation/liste')
-  async listerReevaluations(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
+  async listerReevaluations(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
     return this.devises.listerReevaluations(user.tenantId, exerciceId);
   }
 

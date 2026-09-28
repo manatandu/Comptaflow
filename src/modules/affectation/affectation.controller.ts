@@ -8,6 +8,7 @@ import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-
 import { AffectationService } from './affectation.service';
 import { EnregistrerAffectationDto } from './dto/affectation.dto';
 import { ReserveAuComptable } from '../../common/decorators/acces-roles-cantonnes.decorator';
+import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 
 /**
  * AFFECTATION DU RÉSULTAT · commune aux deux référentiels, et c'est voulu.
@@ -32,7 +33,7 @@ export class AffectationController {
 
   /** Ce qu'il faut savoir avant de décider · montant, destinations, réserve légale. */
   @Get('exercice/:exerciceId')
-  async preparer(@CurrentUser() user: AuthenticatedUser, @Param('exerciceId') exerciceId: string) {
+  async preparer(@CurrentUser() user: AuthenticatedUser, @Param('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
     return this.affectation.preparer(user.tenantId, exerciceId);
   }
 

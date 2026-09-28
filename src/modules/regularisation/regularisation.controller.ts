@@ -13,6 +13,7 @@ import {
   ReprendreRegularisationDto,
 } from './dto/regularisation.dto';
 import { RoleUtilisateur } from '@prisma/client';
+import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 
 /**
  * Régularisations et abonnements posent des écritures : mêmes droits que la
@@ -26,7 +27,7 @@ export class RegularisationController {
   // --- Régularisations -----------------------------------------------------
 
   @Get()
-  async lister(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
+  async lister(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
     return this.service.lister(user.tenantId, exerciceId);
   }
 

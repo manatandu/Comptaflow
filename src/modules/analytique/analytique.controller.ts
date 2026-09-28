@@ -52,7 +52,7 @@ export class AnalytiqueController {
   @Get('od')
   async listerOd(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('exerciceId') exerciceId: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
     @Query('planId') planId?: string,
   ) {
     return this.od.lister(user.tenantId, exerciceId, planId);
@@ -138,7 +138,7 @@ export class AnalytiqueController {
   async budget(
     @CurrentUser() user: AuthenticatedUser,
     @Param('sectionId') sectionId: string,
-    @Query('exerciceId') exerciceId: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
   ) {
     return this.analytique.budget(user.tenantId, sectionId, exerciceId);
   }
@@ -194,7 +194,7 @@ export class AnalytiqueController {
   async balance(
     @CurrentUser() user: AuthenticatedUser,
     @Query('planId') planId: string,
-    @Query('exerciceId') exerciceId: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
     @Query('dateDebut') dateDebut?: string,
     @Query('dateFin') dateFin?: string,
   ) {
@@ -205,7 +205,7 @@ export class AnalytiqueController {
   async grandLivre(
     @CurrentUser() user: AuthenticatedUser,
     @Query('sectionId') sectionId: string,
-    @Query('exerciceId') exerciceId: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
     @Query('dateDebut') dateDebut?: string,
     @Query('dateFin') dateFin?: string,
   ) {
@@ -215,7 +215,7 @@ export class AnalytiqueController {
   @Get('etats/controle-cumuls')
   async controleCumuls(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('exerciceId') exerciceId: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
     @Query('planId') planId?: string,
     @Query('dateDebut') dateDebut?: string,
     @Query('dateFin') dateFin?: string,
@@ -227,7 +227,7 @@ export class AnalytiqueController {
   async etatBudgetaire(
     @CurrentUser() user: AuthenticatedUser,
     @Query('planId') planId: string,
-    @Query('exerciceId') exerciceId: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
     @Query('mois') mois?: string,
     @Query('dateDebut') dateDebut?: string,
     @Query('dateFin') dateFin?: string,

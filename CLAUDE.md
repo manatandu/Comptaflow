@@ -2482,7 +2482,10 @@ ligne de table, et le périmètre vit PAR EXERCICE. LES LECTURES EXIGENT
 L'EXERCICE (audit final F234) · périmètre, cumul, états et les deux lectures
 IFRS passent par `EXERCICE_REQUIS` (400 nommé, un seul porteur pour tout le
 serveur, `common/exercice-requis.ts`), et les services refusent un
-exercice absent (`exigerExercice`), Prisma ignorant un `id: undefined`. UNE
+exercice absent (`exigerExercice`), Prisma ignorant un `id: undefined`.
+Toute route qui lit `exerciceId` porte ce pipe ou `EXERCICE_FACULTATIF` (six
+listes où l'absence veut dire tous les exercices, liste fermée par
+`exercice-requis.spec.ts`), un identifiant illisible y étant refusé. UNE
 DÉCLARATION NE VISE QUE LES ENTITÉS DE SON EXERCICE (F232) · réciproques,
 résultats internes, provision pour pertes de change et fiscalité passent par
 `exerciceDuDossier` et `entiteDeLExercice`, et le cumul nomme une déclaration

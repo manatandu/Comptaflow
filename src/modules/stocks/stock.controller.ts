@@ -7,6 +7,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { EnregistrerVariationStocksDto } from './dto/stock.dto';
 import { StockService } from './stock.service';
+import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 
 /**
  * STOCKS · commun aux deux référentiels, et ce n'est pas un oubli du
@@ -28,7 +29,7 @@ export class StockController {
 
   @Get('variation/:exerciceId')
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE, RoleUtilisateur.LECTURE_SEULE)
-  async proposer(@CurrentUser() user: AuthenticatedUser, @Param('exerciceId') exerciceId: string) {
+  async proposer(@CurrentUser() user: AuthenticatedUser, @Param('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
     return this.stocks.proposer(user.tenantId, exerciceId);
   }
 

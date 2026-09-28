@@ -11,7 +11,7 @@ import { ReferentielsAutorises } from '../../common/decorators/referentiels.deco
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { ClasseurExporte, ExportService } from './export.service';
 import { lirePaiementsEnInstance } from '../etats-financiers/paiements-en-instance';
-import { EXERCICE_REQUIS } from '../../common/exercice-requis';
+import { EXERCICE_FACULTATIF, EXERCICE_REQUIS } from '../../common/exercice-requis';
 
 /**
  * Cloisonnement par ROUTE, pas par contrôleur : les livres, les éditions de
@@ -106,11 +106,15 @@ function envoyerXlsx(res: Response, classeur: ClasseurExporte) {
 export class ExportController {
   constructor(private readonly exportService: ExportService) {}
 
+  // L'exercice est FACULTATIF, comme à la fenêtre du journal · sans lui, le
+  // classeur se titre « Toutes périodes » (`identiteEtat`) et ne se présente
+  // pas comme le journal d'un seul exercice. Présent et illisible, il est
+  // refusé AVANT le flux (les pipes passent avant le corps de la route).
   @Get('journal')
   async journal(
     @CurrentUser() user: AuthenticatedUser,
     @Res() res: Response,
-    @Query('exerciceId') exerciceId?: string,
+    @Query('exerciceId', EXERCICE_FACULTATIF) exerciceId?: string,
     @Query('journalId') journalId?: string,
     @Query('dateDebut') dateDebut?: string,
     @Query('dateFin') dateFin?: string,

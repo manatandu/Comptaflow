@@ -264,7 +264,16 @@ describe('Le câblage', () => {
     const source = readFileSync(join(__dirname, 'personnel.service.ts'), 'utf8');
     const debut = source.indexOf('async simulerPaie(');
     const corps = source.slice(debut, source.indexOf('\n  }\n', debut));
-    expect(corps).toMatch(/versionBaremePaie\.findMany\(\{\s*where: \{ tenantId \}/);
+    // La lecture est bornée au mois simulé, une version par barème servi
+    // (audit final F259, suite) · la borne du dossier et le filtre du mois
+    // sont écrits dans le corps de l'appel, que le balayage du cloisonnement
+    // lit là. L'égalité avec la lecture complète est prouvée sur doublure par
+    // `simulation-baremes-du-mois.spec.ts`.
+    expect(corps).toContain('const versionsBaremes = await this.versionsBaremesDuMois(tenantId, dto.moisDePaie);');
+    const debutVersions = source.indexOf('private async versionsBaremesDuMois(');
+    const versions = source.slice(debutVersions, source.indexOf('\n  }\n', debutVersions));
+    expect(versions).toContain('BAREMES_SERVIS.map((bareme) =>');
+    expect(versions).toMatch(/versionBaremePaie\.findFirst\(\{\s*where: \{ tenantId, bareme, aPartirDu: \{ lt: moisSuivant \} \},\s*orderBy: \{ aPartirDu: 'desc' \},/);
     expect(corps).toContain('versionsDossier: versionsDuDossier(versionsBaremes)');
     expect(corps).toContain('this.tauxLegalAllocationsFamiliales(dto, annexesSmig)');
     expect(corps).toMatch(/quotiteSaisissable\(\{\s*moisDePaie: dto\.moisDePaie,\s*annexesSmig,/);

@@ -9,6 +9,7 @@ import { ReferentielsAutorises } from '../../common/decorators/referentiels.deco
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { FiscaliteService } from './fiscalite.service';
 import { CreerRetraitementDto, ModifierDossierFiscalDto, ModifierRetraitementDto } from './dto/fiscalite.dto';
+import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 
 // LA DÉTERMINATION DU RÉSULTAT FISCAL lit une balance SYSCOHADA · la fenêtre
 // n'existe que pour un dossier SYSCOHADA, et la route le refuse aussi,
@@ -53,12 +54,12 @@ export class FiscaliteController {
    * Rien n'est créé ici : les routes d'écriture restent celles ci-dessous.
    */
   @Get('exercices/:exerciceId/propositions-retraitements')
-  async propositions(@CurrentUser() user: AuthenticatedUser, @Param('exerciceId') exerciceId: string) {
+  async propositions(@CurrentUser() user: AuthenticatedUser, @Param('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
     return this.fiscalite.propositionsRetraitements(user.tenantId, exerciceId);
   }
 
   @Get('resultat-fiscal')
-  async resultatFiscal(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
+  async resultatFiscal(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
     return this.fiscalite.resultatFiscal(user.tenantId, exerciceId);
   }
 
@@ -66,7 +67,7 @@ export class FiscaliteController {
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   async ajouterRetraitement(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('exerciceId') exerciceId: string,
+    @Param('exerciceId', EXERCICE_REQUIS) exerciceId: string,
     @Body() dto: CreerRetraitementDto,
   ) {
     return this.fiscalite.ajouterRetraitement(user.tenantId, exerciceId, dto);
@@ -92,7 +93,7 @@ export class FiscaliteController {
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   async modifierDossier(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('exerciceId') exerciceId: string,
+    @Param('exerciceId', EXERCICE_REQUIS) exerciceId: string,
     @Body() dto: ModifierDossierFiscalDto,
   ) {
     return this.fiscalite.modifierDossier(user.tenantId, exerciceId, dto);

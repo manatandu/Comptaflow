@@ -6,6 +6,7 @@ import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-
 import { ClasseCompte } from '@prisma/client';
 import { ControlesService } from './controles.service';
 import { DossierRevisionService } from './dossier-revision.service';
+import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 
 /**
  * Consultation · un contrôle ne modifie rien, et aucune route d'ici ne porte
@@ -37,17 +38,17 @@ export class ControlesController {
 
   /** Dossier de révision · un bloc par compte mouvementé de l'exercice. */
   @Get('dossier-revision')
-  async dossierRevision(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
+  async dossierRevision(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
     return this.revision.dossier(user.tenantId, exerciceId, user.referentiel);
   }
 
   @Get()
-  async analyser(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
+  async analyser(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
     return this.controles.analyser(user.tenantId, exerciceId);
   }
 
   @Get('caisse')
-  async caisse(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
+  async caisse(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
     return this.controles.controleCaisse(user.tenantId, exerciceId);
   }
 
@@ -55,7 +56,7 @@ export class ControlesController {
   @Get('evolution-mensuelle')
   async evolutionMensuelle(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('exerciceId') exerciceId: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
     @Query('classe') classe?: ClasseCompte,
   ) {
     return this.controles.evolutionMensuelle(user.tenantId, exerciceId, { classe });

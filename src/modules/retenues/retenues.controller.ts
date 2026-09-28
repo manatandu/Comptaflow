@@ -4,6 +4,7 @@ import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { RetenuesService } from './retenues.service';
+import { EXERCICE_REQUIS } from '../../common/exercice-requis';
 
 @UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
 @Controller('retenues')
@@ -14,7 +15,7 @@ export class RetenuesController {
   @Get('registre')
   async registre(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('exerciceId') exerciceId: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
     @Query('dateReference') dateReference?: string,
   ) {
     return this.retenues.registre(user.tenantId, { exerciceId, dateReference });
@@ -24,7 +25,7 @@ export class RetenuesController {
   @Get('echeancier')
   async echeancier(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('exerciceId') exerciceId: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
     @Query('dateReference') dateReference?: string,
   ) {
     return this.retenues.echeancierFiscal(user.tenantId, { exerciceId, dateReference });

@@ -1216,15 +1216,19 @@ export class EtatsFinanciersSmtSyscohadaService {
    * comptes que ceux que la note imprime, et ses parts ne sommeraient plus
    * au solde affiché.
    *
-   * PAS DE PAGINATION, à la différence des notes du Système normal : le
-   * S.M.T est réservé aux entités dont le chiffre d'affaires reste sous
-   * soixante millions de F CFA au plus haut des trois seuils (art. 13), et
-   * la lecture est bornée aux lignes encore ouvertes à la clôture des seuls
-   * comptes de la note, quatre colonnes par ligne. Elle ne rend pourtant que
-   * deux SOMMES par compte · un `groupBy` par compte et par part (échue, non
-   * échue) la remplacerait, et reste à poser (audit final F258 : ce
-   * commentaire s'appuyait sur une lecture de toutes les écritures de
-   * l'exercice, qui n'existe plus).
+   * DEUX SOMMES DEMANDÉES À LA BASE, JAMAIS DES LIGNES RAPATRIÉES (audit
+   * final F258, § 8 bis, comme le jumeau SYCEBNL). La note ne rend que deux
+   * montants par compte, et les lignes encore ouvertes à la clôture étaient
+   * pourtant lues une à une · le seuil du S.M.T (art. 13) borne le chiffre
+   * d'affaires, pas le nombre de factures ouvertes d'un dossier qui ne
+   * lettre pas. La part NON ÉCHUE est celle des lignes dont l'échéance est
+   * postérieure à la clôture, la part ÉCHUE celle des lignes dont l'échéance
+   * est atteinte, la clôture comprise · une ligne SANS échéance ne tombe
+   * dans aucune des deux requêtes, et se retrouve dans le reste, sous son
+   * nom. La somme est faite en décimal par la base, puis convertie une fois
+   * par compte · plus juste au centime que l'addition de flottants ligne à
+   * ligne qu'elle remplace, et le spec du service confronte les deux lectures
+   * sur un jeu à centimes.
    */
   private async partsParEcheance(
     tenantId: string,
@@ -1235,30 +1239,42 @@ export class EtatsFinanciersSmtSyscohadaService {
     if (compteIds.length === 0) return parCompte;
 
     const exerciceId = exercice.id;
-    const lignesTiers = await this.prisma.ligneEcriture.findMany({
+    const lignesOuvertes: Prisma.LigneEcritureWhereInput = {
       // Même porte que la balance qui sert le reste de la note : les états
       // financiers sont des documents légaux et ne lisent que le
       // livre-journal, jamais le brouillard (voir `chargerLignes`).
-      where: {
-        ecriture: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE },
-        // Ouvertes à la clôture (audit final F10), voir la règle.
-        ...ouverteALaCloture(exercice.dateFin),
-        compteId: { in: compteIds },
-      },
-      select: { compteId: true, debit: true, credit: true, dateEcheance: true },
-    });
+      ecriture: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE },
+      // Ouvertes à la clôture (audit final F10), voir la règle.
+      ...ouverteALaCloture(exercice.dateFin),
+      compteId: { in: compteIds },
+    };
+    const [nonEchues, echues] = await Promise.all([
+      this.prisma.ligneEcriture.groupBy({
+        by: ['compteId'],
+        where: { ...lignesOuvertes, dateEcheance: { gt: exercice.dateFin } },
+        _sum: { debit: true, credit: true },
+      }),
+      // `lte` et non `lt` · une échéance qui tombe le jour même de la clôture
+      // est atteinte à la date où l'état est arrêté, donc échue.
+      this.prisma.ligneEcriture.groupBy({
+        by: ['compteId'],
+        where: { ...lignesOuvertes, dateEcheance: { lte: exercice.dateFin } },
+        _sum: { debit: true, credit: true },
+      }),
+    ]);
 
-    for (const l of lignesTiers) {
-      const montant = Number(l.debit) - Number(l.credit);
-      if (montant === 0) continue;
-      // Sans échéance, la ligne n'est ni échue ni non échue : elle n'est
-      // comptée nulle part et se retrouvera dans le reste, sous son nom.
-      if (!l.dateEcheance) continue;
-      const parts = parCompte.get(l.compteId) ?? { ...PARTS_ECHEANCE_NULLES_SMT_SYSCOHADA };
-      if (l.dateEcheance > exercice.dateFin) parts.nonEchu += montant;
-      else parts.echu += montant;
-      parCompte.set(l.compteId, parts);
-    }
+    const porter = (
+      groupes: Array<{ compteId: string; _sum: { debit: unknown; credit: unknown } }>,
+      part: keyof PartsEcheanceSmtSyscohada,
+    ) => {
+      for (const g of groupes) {
+        const parts = parCompte.get(g.compteId) ?? { ...PARTS_ECHEANCE_NULLES_SMT_SYSCOHADA };
+        parts[part] += Number(g._sum.debit ?? 0) - Number(g._sum.credit ?? 0);
+        parCompte.set(g.compteId, parts);
+      }
+    };
+    porter(nonEchues, 'nonEchu');
+    porter(echues, 'echu');
     return parCompte;
   }
 

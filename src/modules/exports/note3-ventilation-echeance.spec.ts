@@ -137,13 +137,19 @@ const LIGNES_NON_LETTREES: LigneTiersStub[] = [
  * sommes (jumeau de l'audit final F258) · une doublure qui rendrait la même
  * somme quelle que soit la borne validerait un service qui ne distingue plus
  * l'échu du non échu. Une ligne sans échéance n'entre dans aucune des deux.
+ * Le S.M.T SYSCOHADA y passe aussi depuis la même correction, et borne sa
+ * lecture aux comptes des postes SA3 et SP4 (`compteId.in`) · la doublure
+ * honore cette borne quand elle est posée, le SYCEBNL filtrant, lui, sur la
+ * classe.
  */
+type FiltreSommesParEcheance = { dateEcheance?: { gt?: Date; lte?: Date }; compteId?: { in: string[] } };
 function sommesParEcheance(lignesTiers: LigneTiersStub[]) {
-  return jest.fn(({ where }: { where: { dateEcheance?: { gt?: Date; lte?: Date } } }) => {
+  return jest.fn(({ where }: { where: FiltreSommesParEcheance }) => {
     const borne = where.dateEcheance ?? {};
     const parCompte = new Map<string, { debit: number; credit: number }>();
     for (const l of lignesTiers) {
       if (!l.dateEcheance) continue;
+      if (where.compteId && !where.compteId.in.includes(l.compteId)) continue;
       if (borne.gt && !(l.dateEcheance > borne.gt)) continue;
       if (borne.lte && !(l.dateEcheance <= borne.lte)) continue;
       const cumul = parCompte.get(l.compteId) ?? { debit: 0, credit: 0 };
@@ -434,7 +440,9 @@ function fabriquerExportSyscohada(lignesTiers: LigneTiersStub[]): ExportService 
     saisieNote: { findMany: jest.fn().mockResolvedValue([]) },
     compte: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
     ecriture: { findMany: jest.fn().mockResolvedValue([]) },
-    ligneEcriture: { findMany: jest.fn().mockResolvedValue(lignesTiers) },
+    // Le jumeau SYSCOHADA demande lui aussi ses deux parts sommées à la base
+    // (audit final F258) · même doublure, borne d'échéance comprise.
+    ligneEcriture: { groupBy: sommesParEcheance(lignesTiers) },
     immobilisation: { findMany: jest.fn().mockResolvedValue([]) },
     // Aucune campagne d'inventaire · la note 2 du SMT garde ses quantités vides.
     campagneInventaire: { findFirst: jest.fn().mockResolvedValue(null) },

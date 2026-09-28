@@ -28,6 +28,30 @@ export const EXERCICE_REQUIS = new ParseUUIDPipe({
 });
 
 /**
+ * L'EXERCICE FACULTATIF, ET CE QU'IL N'AUTORISE PAS.
+ *
+ * Quelques routes ont un sens SANS exercice · une liste de campagnes, de
+ * questionnaires ou de registres, dont chaque ligne porte le sien, et le
+ * journal, qui se filtre aussi par dates et dont l'export se titre alors
+ * « Toutes périodes ». Absent, l'identifiant y reste absent, et c'est voulu.
+ *
+ * PRÉSENT ET ILLISIBLE, il y est refusé comme ailleurs (audit final F234,
+ * suite) · une valeur comme « undefined », venue d'un écran qui interpole un
+ * exercice pas encore choisi, filtrait sur un identifiant qui n'existe pas et
+ * rendait une liste VIDE, lue comme « rien dans cet exercice ». Le message
+ * n'est pas celui du porteur requis, qui dirait « requis » d'un paramètre qui
+ * ne l'est pas. La liste fermée des routes qui le portent, chacune avec son
+ * motif, est tenue par `exercice-requis.spec.ts`.
+ */
+export const MESSAGE_EXERCICE_ILLISIBLE =
+  "Le paramètre exerciceId, quand il est donné, doit être un identifiant d'exercice valide · un identifiant illisible n'est jamais lu comme « tous les exercices » ni comme un exercice vide.";
+
+export const EXERCICE_FACULTATIF = new ParseUUIDPipe({
+  optional: true,
+  exceptionFactory: () => new BadRequestException(MESSAGE_EXERCICE_ILLISIBLE),
+});
+
+/**
  * La même exigence au service · un appel qui ne passe pas par la route (un
  * autre module, un traitement) ne doit pas davantage mêler les exercices. Le
  * format n'y est pas revérifié, la route l'a fait · seule l'absence l'est.

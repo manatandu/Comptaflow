@@ -14,6 +14,7 @@ import {
   EnvoyerDto,
   ProceduresAlternativesDto,
 } from './dto/circularisation.dto';
+import { EXERCICE_FACULTATIF } from '../../common/exercice-requis';
 
 /**
  * Aucun `@ReferentielsAutorises` · la confirmation de soldes n'est propre à
@@ -26,8 +27,11 @@ import {
 export class CircularisationController {
   constructor(private readonly circularisation: CircularisationService) {}
 
+  // L'exercice est un FILTRE facultatif · la liste des campagnes du dossier a un
+  // sens sans lui, chaque ligne portant le sien. Présent et illisible, il est
+  // refusé plutôt que de rendre une liste vide (EXERCICE_FACULTATIF).
   @Get()
-  lister(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId?: string) {
+  lister(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_FACULTATIF) exerciceId?: string) {
     return this.circularisation.lister(user.tenantId, exerciceId);
   }
 

@@ -18,6 +18,7 @@ import {
   RattacherEcritureEcartDto,
   SaisirComptageDto,
 } from './dto/inventaire.dto';
+import { EXERCICE_FACULTATIF, EXERCICE_REQUIS } from '../../common/exercice-requis';
 
 /**
  * AUCUN `@ReferentielsAutorises` ICI, et c'est délibéré.
@@ -36,13 +37,16 @@ import {
 export class InventaireController {
   constructor(private readonly inventaire: InventaireService) {}
 
+  // L'exercice est un FILTRE facultatif · la liste des campagnes du dossier a un
+  // sens sans lui, chaque ligne portant le sien. Présent et illisible, il est
+  // refusé plutôt que de rendre une liste vide (EXERCICE_FACULTATIF).
   @Get()
-  lister(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId?: string) {
+  lister(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_FACULTATIF) exerciceId?: string) {
     return this.inventaire.lister(user.tenantId, exerciceId);
   }
 
   @Get('resume/:exerciceId')
-  resume(@CurrentUser() user: AuthenticatedUser, @Param('exerciceId') exerciceId: string) {
+  resume(@CurrentUser() user: AuthenticatedUser, @Param('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
     return this.inventaire.resumePourLivreInventaire(user.tenantId, exerciceId);
   }
 

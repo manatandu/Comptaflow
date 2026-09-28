@@ -103,6 +103,69 @@ function ligneTiers(
   };
 }
 
+/** Ce que la doublure lit d'une demande de sommes par compte. */
+interface ArgsSommes {
+  by: string[];
+  where: {
+    lettre?: null;
+    OR?: unknown[];
+    compteId?: { in: string[] };
+    compte?: { classe: ClasseCompte };
+    dateEcheance?: Record<string, Date>;
+  };
+  _sum: { debit?: boolean; credit?: boolean };
+}
+
+/**
+ * DOUBLURE DE `ligneEcriture.groupBy` · elle filtre comme la base filtrerait,
+ * borne d'échéance comprise, puis somme par compte. Elle refuse toute forme
+ * qu'elle ne sait pas lire (un autre regroupement, un opérateur de date
+ * qu'elle ne connaît pas) · une doublure qui ignorerait la borne rendrait la même somme à
+ * l'échu et au non échu, et validerait un service qui ne les distingue plus.
+ */
+function sommesDesLignesTiers(lignesTiers: ReturnType<typeof ligneTiers>[]) {
+  return jest.fn(({ by, where, _sum }: ArgsSommes) => {
+    if (by.length !== 1 || by[0] !== 'compteId') throw new Error(`Regroupement inattendu : ${by.join(', ')}`);
+    if (!_sum.debit || !_sum.credit) throw new Error('Les deux sommes, débit et crédit, sont attendues');
+    // Les quatre comparaisons sont honorées comme la base les lirait · une
+    // borne décalée d'un jour (`lt` pour `lte`) se voit alors à la VALEUR
+    // rendue, et non parce que la doublure l'aurait refusée.
+    const borne = where.dateEcheance;
+    if (borne) {
+      for (const op of Object.keys(borne)) {
+        if (!['gt', 'gte', 'lt', 'lte'].includes(op)) throw new Error(`Borne d'échéance inattendue : ${op}`);
+      }
+    }
+    const parCompte = new Map<string, { debit: number; credit: number }>();
+    for (const l of lignesTiers) {
+      if (where.lettre === null && l.lettre !== null) continue;
+      // Ouverte à la clôture (audit final F10) · non lettrée, ou soldée par
+      // un règlement postérieur.
+      if (where.OR && l.lettre !== null && !l.regleApresCloture) continue;
+      if (where.compteId && !where.compteId.in.includes(l.compteId)) continue;
+      if (where.compte && l.classe !== where.compte.classe) continue;
+      if (borne) {
+        // Comme en SQL, une échéance nulle ne satisfait aucune comparaison.
+        if (!l.dateEcheance) continue;
+        if (borne.gt && !(l.dateEcheance > borne.gt)) continue;
+        if (borne.gte && !(l.dateEcheance >= borne.gte)) continue;
+        if (borne.lt && !(l.dateEcheance < borne.lt)) continue;
+        if (borne.lte && !(l.dateEcheance <= borne.lte)) continue;
+      }
+      // La base somme des DÉCIMAUX · la doublure somme donc en centimes
+      // entiers, pour rendre ce que Postgres rendrait et non une addition de
+      // flottants (0,1 + 0,2 ne fait pas 0,3 en flottant).
+      const cumul = parCompte.get(l.compteId) ?? { debit: 0, credit: 0 };
+      cumul.debit += Math.round(l.debit * 100);
+      cumul.credit += Math.round(l.credit * 100);
+      parCompte.set(l.compteId, cumul);
+    }
+    return Promise.resolve(
+      [...parCompte].map(([compteId, s]) => ({ compteId, _sum: { debit: s.debit / 100, credit: s.credit / 100 } })),
+    );
+  });
+}
+
 /** Une écriture telle que le service la lit via Prisma. */
 function ecriture(
   id: string,
@@ -195,31 +258,13 @@ function service(
         return Promise.resolve(retenues.slice(debut, take === undefined ? undefined : debut + take));
       }),
     },
-    // La doublure respecte les TROIS filtres du `where` de
-    // `partsParEcheance` · sans quoi le test du périmètre (postes SA3/SP4 et
-    // non « classe 4 ») et celui du lettrage ne testeraient que la doublure.
-    ligneEcriture: {
-      findMany: jest
-        .fn()
-        .mockImplementation(
-          ({
-            where,
-          }: {
-            where: { lettre?: null; OR?: unknown[]; compteId?: { in: string[] }; compte?: { classe: ClasseCompte } };
-          }) =>
-            Promise.resolve(
-              (options.lignesTiers ?? []).filter((l) => {
-                if (where.lettre === null && l.lettre !== null) return false;
-                // Ouverte à la clôture (audit final F10) · non lettrée, ou
-                // soldée par un règlement postérieur.
-                if (where.OR && l.lettre !== null && !l.regleApresCloture) return false;
-                if (where.compteId && !where.compteId.in.includes(l.compteId)) return false;
-                if (where.compte && l.classe !== where.compte.classe) return false;
-                return true;
-              }),
-            ),
-        ),
-    },
+    // La doublure respecte TOUS les filtres du `where` de `partsParEcheance`
+    // et la borne d'ÉCHÉANCE de chacune de ses deux sommes (audit final F258) ·
+    // sans quoi le test du périmètre (postes SA3/SP4 et non « classe 4 »),
+    // celui du lettrage et celui de l'échéance au jour de la clôture ne
+    // testeraient que la doublure. Une borne qu'elle ne sait pas lire la fait
+    // tomber, plutôt que de rendre une somme qui l'ignorerait.
+    ligneEcriture: { groupBy: sommesDesLignesTiers(options.lignesTiers ?? []) },
     immobilisation: { findMany: jest.fn().mockResolvedValue(options.immobilisations ?? []) },
     // La campagne d'inventaire lue par la note 2 · la doublure honore le
     // dossier et l'exercice, et l'exigence d'un stock compté (audit final F85).
@@ -1019,6 +1064,94 @@ describe('Notes annexes S.M.T SYSCOHADA', () => {
     expect(note.creances.map((c) => c.numero)).toEqual(['51210000']);
     expect(note.creances[0].montantNonEchu).toBe(400_000);
     expect(note.echeancesTenues).toBe(true);
+  });
+
+  // AUDIT FINAL F258 · les deux parts sont demandées à la base, par deux
+  // sommes, au lieu des lignes ouvertes rapatriées une à une. La ventilation
+  // doit rester celle de la lecture ligne à ligne, au centime, sur un jeu où
+  // les centimes ne tombent pas juste en flottant (0,10 + 0,20), où une
+  // échéance tombe le jour de la clôture, où une ligne n'est pas datée, et où
+  // le lettrage retire une ligne et en laisse une autre.
+  it('NOTE 3 · deux sommes demandées à la base, la ventilation de la lecture ligne à ligne au centime', async () => {
+    const lignesTiers = [
+      ligneTiers('41110000', { debit: 0.1 }, { echeance: '2027-01-15' }),
+      ligneTiers('41110000', { debit: 0.2 }, { echeance: '2027-02-15' }),
+      ligneTiers('41110000', { debit: 1_234.57 }, { echeance: '2026-12-31' }), // le jour de la clôture
+      ligneTiers('41110000', { credit: 0.07 }, { echeance: '2026-10-01' }),
+      ligneTiers('41110000', { debit: 999.99 }), // aucun terme saisi
+      ligneTiers('41110000', { debit: 333.33 }, { echeance: '2027-03-01', lettre: 'B', regleApresCloture: true }),
+      ligneTiers('41110000', { debit: 777.77 }, { echeance: '2027-04-01', lettre: 'C' }), // soldée avant la clôture
+      ligneTiers('40110000', { credit: 100.1 }, { echeance: '2027-01-10' }),
+      ligneTiers('40110000', { credit: 200.2 }, { echeance: '2026-11-11' }),
+      ligneTiers('40110000', { debit: 50.05 }, { echeance: '2026-12-01' }),
+      ligneTiers('51210000', { debit: 0.3 }, { echeance: '2027-06-30' }),
+    ];
+    const s = service(
+      {
+        e1: [
+          ligne('41110000', ClasseCompte.CLASSE_4, 2_568.12, 0),
+          ligne('40110000', ClasseCompte.CLASSE_4, 0, 250.25),
+          ligne('51210000', ClasseCompte.CLASSE_5, 0.3, 0),
+        ],
+      },
+      { lignesTiers },
+    );
+    const note = await s.note3CreancesDettes('t1', 'e1');
+
+    // LA LECTURE D'AVANT, rejouée ici telle qu'elle était écrite · ligne par
+    // ligne, en flottant, sur les lignes ouvertes à la clôture.
+    const cloture = new Date('2026-12-31');
+    const reference = new Map<string, { nonEchu: number; echu: number }>();
+    for (const l of lignesTiers) {
+      if (l.lettre !== null && !l.regleApresCloture) continue;
+      const montant = l.debit - l.credit;
+      if (montant === 0 || !l.dateEcheance) continue;
+      const parts = reference.get(l.compteId) ?? { nonEchu: 0, echu: 0 };
+      if (l.dateEcheance > cloture) parts.nonEchu += montant;
+      else parts.echu += montant;
+      reference.set(l.compteId, parts);
+    }
+    const auCentime = (x: number) => Math.round(x * 100);
+    const lignesNote = [
+      ...note.creances.map((c) => ({ ...c, signe: 1 })),
+      ...note.dettes.map((d) => ({ ...d, signe: -1 })),
+    ];
+    expect(lignesNote.map((l) => l.numero).sort()).toEqual(['40110000', '41110000', '51210000']);
+    for (const l of lignesNote) {
+      const ref = reference.get(`id-${l.numero}`)!;
+      expect(auCentime(l.montantNonEchu)).toBe(auCentime(l.signe * ref.nonEchu));
+      expect(auCentime(l.montantEchu)).toBe(auCentime(l.signe * ref.echu));
+    }
+
+    // Et les montants attendus, écrits à la main pour ne pas dépendre de la
+    // seule référence rejouée.
+    const client = note.creances.find((c) => c.numero === '41110000')!;
+    expect(client.montantNonEchu).toBeCloseTo(333.63, 2); // 0,10 + 0,20 + 333,33
+    expect(client.montantEchu).toBeCloseTo(1_234.5, 2); // 1 234,57 - 0,07, clôture comprise
+    expect(client.montantNonVentile).toBeCloseTo(999.99, 2);
+    const fournisseur = note.dettes.find((d) => d.numero === '40110000')!;
+    expect(fournisseur.montantNonEchu).toBeCloseTo(100.1, 2);
+    expect(fournisseur.montantEchu).toBeCloseTo(150.15, 2); // 200,20 - 50,05
+    expect(note.creances.find((c) => c.numero === '51210000')!.montantNonEchu).toBeCloseTo(0.3, 2);
+
+    // LA FORME DE LA LECTURE · deux sommes par compte, bornées par
+    // l'échéance de part et d'autre de la clôture, sur les seuls comptes des
+    // postes SA3 et SP4 du livre-journal, et aucune ligne rapatriée.
+    const prisma = (s as unknown as { prisma: { ligneEcriture: Record<string, jest.Mock> } }).prisma;
+    expect(Object.keys(prisma.ligneEcriture)).toEqual(['groupBy']);
+    const appels = prisma.ligneEcriture.groupBy.mock.calls.map(([args]) => args as ArgsSommes);
+    expect(appels).toHaveLength(2);
+    expect(appels.map((a) => a.where.dateEcheance)).toEqual([{ gt: cloture }, { lte: cloture }]);
+    for (const a of appels) {
+      expect(a.by).toEqual(['compteId']);
+      expect(a._sum).toEqual({ debit: true, credit: true });
+      expect([...(a.where.compteId?.in ?? [])].sort()).toEqual(['id-40110000', 'id-41110000', 'id-51210000']);
+      expect((a.where as { ecriture?: unknown }).ecriture).toEqual({
+        tenantId: 't1',
+        exerciceId: 'e1',
+        statut: 'VALIDEE',
+      });
+    }
   });
 
   it("NOTE 3 · la table ne renvoie à la note 3 que les deux postes SA3 et SP4", () => {
