@@ -48,6 +48,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Constat :** l'écriture de clôture est créée au brouillard et marquée `estGenereeParCloture`. Or `soldesDuBilan` lit le 131/139 en mouvement sur une balance qui ne retient que les écritures validées, et `balance()` range ce drapeau en report. Le résultat lu vaut 0 : l'affectation est refusée (« aucun résultat à affecter ») sur tout exercice clos par OmegaX, et l'exercice suivant propose même d'imputer une perte fictive. Le spec masque le défaut avec une doublure.
 - **Correction :** lire le résultat par la règle unique (`resultat-de-l-exercice.ts`) sur une balance qui inclut l'écriture de clôture, ou distinguer les deux sens du drapeau. Ajouter un test d'intégration « clôturer puis affecter » sans doublure de `balance`.
 - **Fait le 2026-09-27 :** nouvelle colonne `Ecriture.estSoldeDesComptesDeGestion` (migration `20261121000000_solde_des_comptes_de_gestion`, qui rattrape les écritures déjà passées) ; les deux écritures de la clôture entrent VALIDÉES (`exercice.service.ts`, `validationParLaCloture`) ; l'affectation lit le résultat dans la colonne de clôture de la balance, sur les 131 à 139 (`affectation.service.ts`, `soldesDuBilan`). Test sans doublure : `e2e/tests/cloture.e2e.ts`, vu tomber (montant 0) défaut réinjecté.
+- **Complété le 2026-09-28 :** l'écriture qui solde les classes 6 à 8 entrant VALIDÉE, les états lisaient sur tout exercice clos des comptes de gestion soldés · compte de résultat à zéro, colonne N-1 du suivant comprise. `chargerLignes` et la feuille BALANCE des liasses (`lignesBalanceLiasse`) lisent la balance avant ce solde (`avantSoldeDesComptesDeGestion`, `balance-trois-colonnes.ts`). Tests : `balance-trois-colonnes.spec.ts`, `liasse-syscohada.spec.ts`, et `cloture.e2e.ts` sur la base réelle, vu tomber à zéro défaut réinjecté.
 
 **F5 · Sur un exercice clos, la balance présente l'écriture de clôture comme solde d'ouverture** [pages-01, transv-02]
 - **Emplacements :** client/src/pages/JournalPage.tsx:874, :820 · src/modules/comptabilite/ecriture.service.ts:2888 · src/modules/exercice/exercice.service.ts:792 · src/modules/exports/export.service.ts:895, :939
@@ -1578,72 +1579,84 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 5
 - **Constat :** contraire au commentaire et à la règle de `resultat-de-l-exercice.ts`.
 - **Correction :** exclure 10 et 131 à 139 seulement, ou lister les non rattachés.
+- **Fait le 2026-09-28 :** le poste HC du bilan SMT prend toute la classe 1 sauf le 10 et les 131 à 139, lus à la même source que HB (`COMPTES_RESULTAT_DE_L_EXERCICE`, `correspondance-smt.ts`) · un 130, qu'aucun plan SYCEBNL n'ouvre, va à HC et se nomme au détail comme le 128 ; le contrôle signale en plus un résultat N-1 resté aux 131 à 139 pendant que les classes 6 à 8 portent N. Tests : `correspondance-smt.spec.ts`, `etats-financiers-smt.service.spec.ts`.
 
 **F212 · Commentaires périmés des états SYCEBNL** [etats-08]
 - **Emplacements :** etats-financiers.communs.ts:5-13 · etats-financiers.controller.ts:76-82 · etats-financiers.service.ts:164-170 · etats-financiers-smt.service.ts:904-911, :967
 - **Condition :** 5
 - **Constat :** SMT « non construit », « bilan seulement », « 564/565 », « CDF ou USD ».
 - **Correction :** mettre à jour, et servir `monnaieDuJeuLegal()`.
+- **Fait le 2026-09-28 :** les commentaires décrivent l'existant (`etats-financiers.communs.ts`, `etats-financiers.controller.ts`, `calculerDW`, éligibilité SMT), et `deviseDossier` sert `monnaieDuJeuLegal(tenant.devise)`, une devise nulle rendant CDF. Test : `etats-financiers-smt.service.spec.ts`.
 
 **F213 · Sources MOUVEMENT_DEBIT et MOUVEMENT_CREDIT mortes et fausses** [notes-08]
 - **Emplacements :** src/modules/notes-annexes/note-annexe.service.ts:396-400 · note-annexe.types.ts:86-92
 - **Condition :** 5
 - **Constat :** aucune rubrique ne les pose, et elles lisent le report.
 - **Correction :** les retirer, ou les brancher sur les mouvements.
+- **Fait le 2026-09-28 :** `SourceMontantNote` et le champ `source` sont retirés (`note-annexe.types.ts`), le montant d'un compte est toujours son solde signé (`calculerRubrique`), et une table qui voudrait poser `source` ne compile plus. Test : `source-montant-f213.spec.ts`.
 
 **F214 · Notes associations : neuf rechargements de balance** [notes-09]
 - **Emplacements :** src/modules/notes-annexes/note-annexe.service.ts:974-978, :1144-1148
 - **Condition :** 6
 - **Constat :** agrégats redondants.
 - **Correction :** passer les lignes déjà chargées, ou mémoriser.
+- **Fait le 2026-09-28 :** une mémoire bornée à l'appel (`balanceMemorisee`, clé dossier, exercice, brouillard et arrêté) sert les lectures des notes et des états qu'elles appellent · trois balances au lieu de neuf, valeurs identiques. Test : `balance-memorisee-f214.spec.ts`, sur le vrai `EtatsFinanciersService`.
 
 **F215 · Commentaires SMT SYSCOHADA « CDF ou USD »** [efsy-04]
 - **Emplacements :** etats-financiers-smt-syscohada.service.ts:1359, :1429 · etats-financiers-syscohada.controller.ts:200
 - **Condition :** 5
 - **Constat :** contraires à monnaie-de-tenue.
 - **Correction :** réécrire, et utiliser `monnaieDuJeuLegal`.
+- **Fait le 2026-09-28 :** la tenue est dite en francs congolais dans le service et le contrôleur SMT, et `deviseDossier` sert `monnaieDuJeuLegal(tenant.devise)`, l'écran l'affichant sans repli. Tests : `etats-financiers-smt-syscohada.service.spec.ts`, `etats-smt-syscohada-audit-final.spec.ts`.
 
 **F216 · Point 14 a) périmé : le remède du TFT est écrit** [efsy-06]
 - **Emplacements :** correspondance-compte-resultat-syscohada.ts:211
 - **Condition :** 5
 - **Constat :** contredit la table du TFT.
 - **Correction :** le réécrire comme fait.
+- **Fait le 2026-09-28 :** le point 14 a) de `correspondance-compte-resultat-syscohada.ts` décrit un fait · FA lit RQP et TQP (`correspondance-tft-syscohada.ts`), et l'en-tête dit ce qui reste de b). Test : `correspondance-compte-resultat-syscohada.spec.ts`.
 
 **F217 · brutN1 et amortissementN1 : faux zéro, champs morts** [efsy-10]
 - **Emplacements :** etats-financiers-syscohada.service.ts:741-743
 - **Condition :** 5
 - **Constat :** personne ne les lit.
 - **Correction :** `undefined`, ou retrait.
+- **Fait le 2026-09-28 :** `brutN1` et `amortissementN1` sont retirés de `LigneBilanSyscohada`, au serveur comme au client · le modèle officiel ne donne à N-1 qu'une colonne, en net. Test : `etats-financiers-syscohada.service.spec.ts`.
 
 **F218 · Commentaire SMT : orphelins « vides par construction »** [efsy-12]
 - **Emplacements :** etats-financiers-smt-syscohada.service.ts:321
 - **Condition :** 5
 - **Constat :** le 130 est un orphelin voulu, et le 57 est en SA4.
 - **Correction :** mettre à jour.
+- **Fait le 2026-09-28 :** le commentaire des orphelins du bilan SMT nomme le 130 (13010000, 13090000) et la couverture réelle de `correspondance-smt-syscohada.ts`. Test : `etats-financiers-smt-syscohada.service.spec.ts`.
 
 **F219 · « Un fichier de 45 notes » pour 46 codes** [efsy-13]
 - **Emplacements :** correspondance-notes-syscohada.ts:21
 - **Condition :** 5
 - **Constat :** décompte faux.
 - **Correction :** corriger.
+- **Fait le 2026-09-28 :** le commentaire dit « un fichier unique portant les 46 codes », que `correspondance-notes-syscohada.spec.ts` compte déjà.
 
 **F220 · arreteAu illisible : 500 au lieu de 400** [efsy-14]
 - **Emplacements :** etats-financiers-syscohada.service.ts:404
 - **Condition :** 4
 - **Constat :** NaN passe les contrôles.
 - **Correction :** refuser une date invalide.
+- **Fait le 2026-09-28 :** `lireDateArrete` n'admet qu'une date AAAA-MM-JJ qui existe, relue en UTC, et lève un 400 en français avant toute lecture (« xyz », « 2026-02-30 », « 06/30/2026 », « 2026-6-30 »). Test : `etats-financiers-syscohada.service.spec.ts`.
 
 **F221 · Liste des comptes avalée dans la fenêtre des notes SYSCOHADA** [efsy-15]
 - **Emplacements :** client/src/pages/NotesAnnexesSyscohadaPage.tsx:94
 - **Condition :** 3
 - **Constat :** formulaire vide sans message.
 - **Correction :** `setErreur`.
+- **Fait le 2026-09-28 :** l'échec de `GET /comptes` a son état (`erreurComptes`) et son bandeau, qu'un refus de saisie ni « Fermer » n'écrasent (`NotesAnnexesSyscohadaPage.tsx`). Test : `NotesAnnexesSyscohadaPage.spec.ts`.
 
 **F222 · Exercice introuvable : états à zéro « équilibrés »** [efsy-18]
 - **Emplacements :** etats-financiers-syscohada.service.ts:706 · etats-financiers.communs.ts:62-66
 - **Condition :** 3
 - **Constat :** réponse fausse au lieu d'un refus.
 - **Correction :** 404.
+- **Fait le 2026-09-28 :** `trouverExerciceN1` lève un 404 en français pour un exercice absent du dossier (`etats-financiers.communs.ts`), et les états SMT passent par `exerciceDuDossier`, borné au dossier, au lieu de `findFirstOrThrow` · bilan, compte de résultat, tableau des flux, situation, NOTES 1 à 4 et éligibilité refusent au lieu de sortir à zéro. Tests : `etats-financiers-syscohada.service.spec.ts`, `etats-financiers-smt-syscohada.service.spec.ts`, `exercice-introuvable-f222.spec.ts`.
 
 ### Exports
 
@@ -1652,18 +1665,21 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 5
 - **Constat :** six commentaires décrivent un état révolu.
 - **Correction :** mettre à jour, et replacer la doc du livre.
+- **Fait le 2026-09-28 :** les commentaires de `export.service.ts` sont remis sur leur déclaration et décrivent l'existant (garde-fou de volume, cartouche posé partout, test ISA 240, livre d'inventaire et rapport, liasse complète).
 
 **F224 · Notes projets exportées sans les parties officielles** [exp-10]
 - **Emplacements :** src/modules/exports/export.service.ts:2575
 - **Condition :** 5
 - **Constat :** deux présentations du même document.
 - **Correction :** passer `PARTIES_NOTES_PROJETS`.
+- **Fait le 2026-09-28 :** `notesProjetExcel` range sa fiche sous les quatre parties officielles (`PARTIES_NOTES_PROJETS`), comme la liasse projets. Test : `notes-projet-parties.spec.ts`, qui relit le classeur produit.
 
 **F225 · Nom de fichier de restitution calculé et jamais servi** [restit-04]
 - **Emplacements :** restitution.service.ts:254-256 · restitution.controller.ts:47, :95-98
 - **Condition :** 5
 - **Constat :** code mort, et deux dossiers le même jour portent le même nom.
 - **Correction :** nommer dans le contrôleur.
+- **Fait le 2026-09-28 :** le nom de l'archive porte la dénomination, l'identifiant du dossier et le jour (`nomDeLArchive`), lu avant les en-têtes · un dossier introuvable est une 404 nommée (`restitution.controller.ts`, `restitution.service.ts`). Tests : `restitution-nom.spec.ts`, `restitution.spec.ts`.
 
 ### Paie
 
@@ -1878,6 +1894,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 6
 - **Constat :** contraire au § 8 bis.
 - **Correction :** `groupBy`, et plafond déclaré sur la NOTE 4.
+- **Fait le 2026-09-28 :** les états SMT ne lisent plus que les écritures qui touchent un 52 à 58, par tranches (`lireParLots`, `pageApres`), cumulées compte par compte ; l'écart se retrouve par différence avec la colonne mouvement de la balance, et la NOTE 4 porte un plafond déclaré qui refuse en 400 avec le chemin du grand livre (`etats-financiers-smt-syscohada.service.ts`, `EtatsSmtSyscohadaPage.tsx`). Test : `etats-financiers-smt-syscohada.service.spec.ts`.
 
 **F259 · Collections du registre du personnel sans borne** [paie-15]
 - **Emplacements :** src/modules/personnel/personnel.service.ts:128-140, :345-360 · avances-rubriques.service.ts:18-21, :62-64, :102-110

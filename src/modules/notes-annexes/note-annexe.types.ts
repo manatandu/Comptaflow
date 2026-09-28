@@ -83,14 +83,6 @@ export interface ColonneNote {
   libelle: string;
 }
 
-/**
- * D'où vient le montant d'une rubrique.
- * - `SOLDE` : solde de fin de période (le cas courant, notes de bilan).
- * - `MOUVEMENT_DEBIT` / `MOUVEMENT_CREDIT` : cumul des mouvements de la période
- *   (notes de charges et de produits, et tableau emplois-ressources).
- */
-export type SourceMontantNote = 'SOLDE' | 'MOUVEMENT_DEBIT' | 'MOUVEMENT_CREDIT';
-
 /** Restreint une rubrique aux comptes dont le solde va dans ce sens (tiers polyvalents). */
 export type SensRubrique = 'DEBITEUR' | 'CREDITEUR';
 
@@ -128,7 +120,13 @@ export interface RubriqueNote {
    * À ne pas confondre avec `sens: 'CREDITEUR'`, qui filtre.
    */
   natureCreditrice?: boolean;
-  source?: SourceMontantNote;
+  // AUCUNE SOURCE DE MONTANT À CHOISIR (audit final F213) · une rubrique se
+  // lit au SOLDE de ses comptes. Les sources « mouvement débit » et
+  // « mouvement crédit » qui vivaient ici n'étaient posées par aucune rubrique
+  // des trois jeux, et elles lisaient le total de la balance, report
+  // à-nouveau compris. Les mouvements propres de l'exercice se lisent dans les
+  // colonnes A/B/C/D des tableaux de situations et mouvements (`OUVERTURE`,
+  // `AUGMENTATIONS`, `DIMINUTIONS`, `CLOTURE`), qui écartent le report.
   /**
    * Présentation en négatif : les dépréciations et les comptes créditeurs
    * intercalés dans une note d'actif sont affichés en soustraction, comme le

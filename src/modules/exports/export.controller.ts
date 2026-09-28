@@ -13,17 +13,26 @@ import { ClasseurExporte, ExportService } from './export.service';
 import { lirePaiementsEnInstance } from '../etats-financiers/paiements-en-instance';
 
 /**
- * Cloisonnement par ROUTE, pas par contrôleur : journal, grand livre et
- * balance valent pour les deux référentiels, mais tout ce qui reprend un
- * ÉTAT porte le décorateur du référentiel dont il vient, route par route.
+ * Cloisonnement par ROUTE, pas par contrôleur : les livres, les éditions de
+ * travail et les documents dus des deux côtés valent pour les deux
+ * référentiels, mais tout ce qui reprend un état propre à un seul texte porte
+ * le décorateur du référentiel dont il vient, route par route.
  *
- * Les routes `etats-financiers/...` servent les états SYCEBNL (liasse,
- * bilan, résultat, TFT, jeu projets, SMT, notes) ainsi que les pièces qui
- * n'existent que là (registre des donateurs, livre d'inventaire, rapport
- * d'activité) ; les routes `etats-financiers-syscohada/...` servent les
- * états SYSCOHADA (Titre IX et Titre X de l'AUDCIF). Aucune route n'accepte
- * les deux : c'est le verrou serveur qu'exige CLAUDE.md §6, celui qui rend
- * vrai le cloisonnement affiché côté client.
+ * FERMÉES À UN RÉFÉRENTIEL · les routes `etats-financiers/...` et
+ * `notes-annexes/...` servent les états et les notes SYCEBNL (liasse, bilan,
+ * résultat, TFT, jeu projets, SMT), avec le registre des donateurs, qui
+ * n'existe que là ; les routes `etats-financiers-syscohada/...` servent les
+ * états SYSCOHADA (Titre IX et Titre X de l'AUDCIF). Aucune de ces routes
+ * n'accepte les deux : c'est le verrou serveur qu'exige CLAUDE.md § 6, celui
+ * qui rend vrai le cloisonnement affiché côté client.
+ *
+ * OUVERTES AUX DEUX, et chacune le dit à sa place · le journal, le grand
+ * livre, les balances, les éditions de travail (justificatif de solde,
+ * évolution des soldes, immobilisations, test des écritures de journal) et
+ * les deux documents que chaque texte impose à sa manière, le livre
+ * d'inventaire et le rapport, dont le service aiguille sur le texte du
+ * dossier. Ce commentaire les rangeait encore parmi les pièces du seul
+ * SYCEBNL, d'avant l'ouverture de leurs routes (audit final F223).
  */
 
 /**
@@ -42,12 +51,6 @@ const EXERCICE_REQUIS = new ParseUUIDPipe({
 
 const TYPE_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
-/**
- * Le nom de fichier est décidé par le service (il connaît l'exercice et le
- * compte concernés, et y ajoute l'année pour que deux exports d'exercices
- * différents ne s'écrasent pas côté navigateur). Le contrôleur se contente
- * de le servir.
- */
 /**
  * ENVOI EN FLUX · le classeur part au fur et à mesure qu'il s'écrit.
  *
@@ -87,6 +90,12 @@ async function envoyerXlsxEnFlux(
   }
 }
 
+/**
+ * Le nom de fichier est décidé par le service (il connaît l'exercice et le
+ * compte concernés, et y ajoute l'année pour que deux exports d'exercices
+ * différents ne s'écrasent pas côté navigateur). Le contrôleur se contente
+ * de le servir.
+ */
 function envoyerXlsx(res: Response, classeur: ClasseurExporte) {
   res.set({
     'Content-Type': TYPE_XLSX,
@@ -98,11 +107,13 @@ function envoyerXlsx(res: Response, classeur: ClasseurExporte) {
   res.send(classeur.buffer);
 }
 
-// RolesGuard est inclus bien qu'aucune route ne porte encore `@Roles` (les
-// exports sont en lecture seule, ouverts aux trois rôles comme les écrans
-// qu'ils reprennent). Sans lui, un futur `@Roles` posé ici serait
-// SILENCIEUSEMENT ignoré · pas d'erreur, pas de 403, la route resterait
-// ouverte à tous. Aligné sur les autres contrôleurs du projet.
+// RolesGuard est inclus bien qu'aucune route ne porte `@Roles` · les exports
+// sont des lectures, ouverts à tous les rôles du dossier comme les écrans
+// qu'ils reprennent, sauf le gestionnaire de paie, que JwtAuthGuard arrête
+// faute d'ouverture (`roles-cantonnes.ts`) · le commentaire comptait encore
+// trois rôles (audit final F223). Sans RolesGuard, un futur `@Roles` posé ici
+// serait SILENCIEUSEMENT ignoré · pas d'erreur, pas de 403, la route
+// resterait ouverte à tous. Aligné sur les autres contrôleurs du projet.
 @UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard, ReferentielGuard)
 @Controller('exports')
 export class ExportController {

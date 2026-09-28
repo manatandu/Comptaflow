@@ -459,12 +459,16 @@ export interface LigneGrandLivre {
   contrepartie: string[];
 }
 
-/** Un poste ACTIF ou PASSIF du bilan officiel SYCEBNL (REF à deux lettres, ex. "BW", "CA"). */
 /**
+ * Un poste ACTIF ou PASSIF du bilan officiel SYCEBNL (REF à deux lettres,
+ * ex. "BW", "CA").
+ *
  * `brut`/`amortissement` : ACTIF seulement (le texte officiel exige Brut /
  * Amort. et dépréc. / Net côté actif, rien que Net côté passif).
- * `*N1` : comparatif N-1, exigé sur le bilan ET le compte de résultat ·
- * `undefined` (jamais 0) quand il n'y a pas d'exercice antérieur.
+ * `montantN1` : comparatif N-1, exigé sur le bilan ET le compte de résultat ·
+ * `undefined` (jamais 0) quand il n'y a pas d'exercice antérieur. Le modèle
+ * n'imprime N-1 qu'en Net · les champs brut et amortissement de N-1, que rien
+ * ne lisait, sont retirés (audit final F217, son jumeau SYCEBNL).
  */
 export interface LigneBilan {
   ref: string;
@@ -472,9 +476,7 @@ export interface LigneBilan {
   montant: number;
   montantN1?: number;
   brut?: number;
-  brutN1?: number;
   amortissement?: number;
-  amortissementN1?: number;
   /** Ligne de sous-total ou de total (ex. AZ, BT, DZ) · pas un poste de détail. */
   estTotal: boolean;
   comptes: CompteDuPoste[];
@@ -2121,7 +2123,8 @@ export interface EligibiliteSmt {
   categories: { cle: string; libelle: string; montant: number; comptes: CompteDuPoste[] }[];
   totalRessources: number;
   seuilParCategorieFcfa: number;
-  deviseDossier: string | null;
+  /** La monnaie du jeu légal, jamais nulle (`monnaieDuJeuLegal`, audit final F212). */
+  deviseDossier: string;
   conversionAppliquee: boolean;
   avertissement: string;
 }
@@ -3513,7 +3516,7 @@ export interface ConventionFinancement {
   traitement: TraitementEngagement;
   montantEncaisse: number;
   resteARecevoir: number;
-  /** Validité dépassée · ce que le jalon 11 du planning demande de vérifier. */
+  /** En cours et date de fin passée · son reste à recevoir n'est plus fondé (contrôle 24). */
   expiree: boolean;
   tranches: TrancheFinancement[];
   rapports: RapportBailleur[];

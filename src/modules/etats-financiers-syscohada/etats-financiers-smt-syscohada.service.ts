@@ -1,11 +1,14 @@
-import { Injectable } from '@nestjs/common';
-import { ClasseCompte, StatutEcriture } from '@prisma/client';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ClasseCompte, Prisma, StatutEcriture } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
-import { EcritureService } from '../comptabilite/ecriture.service';
+import { LOT_ECRITURES, lireParLots, pageApres } from '../../common/lecture-par-lots';
+import { monnaieDuJeuLegal } from '../../common/monnaie-de-tenue';
+import { EcritureService, PLAFOND_LIGNES_GRAND_LIVRE } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
 import {
   CompteDuPoste,
   LigneBalancePourEtat,
+  MOTIF_EXERCICE_INTROUVABLE,
   chargerLignes,
   correspond,
   trouverExerciceN1,
@@ -116,6 +119,11 @@ import { chargerCampagneStocks, lignesNoteStocks, motifQuantitesNote2 } from '..
  * ferait apparaître le solde d'ouverture comme une recette de l'exercice.
  * Elle a sa place ailleurs, en première ligne du journal de la NOTE 4.
  *
+ * SEULES CELLES QUI TOUCHENT LA TRÉSORERIE SONT LUES UNE À UNE, et par
+ * tranches (audit final F258) · voir `parcourirEcrituresDeTresorerie`. Les
+ * autres n'entrent au bilan et au compte de résultat que par des SOMMES, que
+ * la balance (`groupBy`) donne déjà.
+ *
  * ## Le comparatif N-1
  *
  * Les DEUX maquettes du ch. 2 impriment une colonne « Montant Exercice N-1 »
@@ -141,6 +149,26 @@ export class EtatsFinanciersSmtSyscohadaService {
    */
   private estTresorerie(numero: string): boolean {
     return correspond(numero, COMPTES_TRESORERIE_SMT_SYSCOHADA);
+  }
+
+  /**
+   * L'EXERCICE DU DOSSIER, OU UN REFUS (audit final F222). Lu borné au
+   * dossier : un identifiant d'un AUTRE dossier ne rend rien, pas même une
+   * date. Introuvable, la demande est refusée par un 404, avec le message du
+   * refus commun (`trouverExerciceN1`) · `findFirstOrThrow` laissait
+   * remonter l'erreur brute de Prisma en 500, et le journal de la NOTE 4
+   * comme les NOTES 2 et 3, qui ne lisaient pas l'exercice (ou seulement
+   * quand un compte de tiers était à ventiler), rendaient des états vides.
+   */
+  private async exerciceDuDossier(tenantId: string, exerciceId: string): Promise<{ dateDebut: Date; dateFin: Date }> {
+    const exercice = await this.prisma.exercice.findFirst({
+      where: { id: exerciceId, tenantId },
+      select: { dateDebut: true, dateFin: true },
+    });
+    if (!exercice) {
+      throw new NotFoundException(MOTIF_EXERCICE_INTROUVABLE);
+    }
+    return exercice;
   }
 
   private async chargerLignes(tenantId: string, exerciceId: string | null): Promise<LigneBalancePourEtat[]> {
@@ -320,12 +348,20 @@ export class EtatsFinanciersSmtSyscohadaService {
     /*
       COMPTES DE BILAN QU'AUCUN POSTE NE CAPTE · signalés, jamais absorbés
       en silence (même discipline qu'au Système normal). Avec le plan semé,
-      la liste est vide par construction : SA1 à SA5 et SP1 à SP4 couvrent
-      les classes 1 à 5 (10 à 19 au passif, classe 2, classe 3, classe 4
-      entière répartie entre SA3 et SP4, classe 5 répartie entre SA3, SA5 et
-      SP4). Mais un plan personnalisé, ou un compte ajouté à la main hors
-      des préfixes officiels, ferait ressortir ses comptes ici plutôt que de
-      déséquilibrer le bilan sans explication.
+      seuls les comptes du 130 y figurent (13010000 et 13090000), et c'est
+      VOULU : le résultat de l'exercice précédent en instance
+      d'affectation n'a aucun poste et se vire en fin d'exercice (Titre VII
+      COMPTE 13) · un résidu se nomme ici, il ne s'additionne à rien (la
+      table le dit sous COMPTES_RESULTAT_SMT_SYSCOHADA, et son spec fige
+      cette liste d'orphelins). Le reste est
+      couvert : 10, 11, 12, 14 et 15 en SP1, 131 à 139 en SP2, 16 à 19 en
+      SP3, la classe 2 en SA1, la classe 3 en SA2, la classe 4 entre SA3 et
+      SP4, et la classe 5 entre SA3 (50, 51, 590, 591), SA4 (le 57, la
+      caisse), SA5 (52 à 56, 58, 592 à 594) et SP4 (599) · audit final
+      F218, ce commentaire disait la liste « vide par construction » et
+      rangeait le 57 hors de SA4. Un plan personnalisé, ou un compte ajouté
+      à la main hors des préfixes officiels, ressort ici lui aussi plutôt
+      que de déséquilibrer le bilan sans explication.
 
       Le rattachement se juge sur les PRÉFIXES seuls, sans le filtre de
       sens : un compte de tiers au solde nul n'appartient ni à SA3 ni à SP4
@@ -385,58 +421,90 @@ export class EtatsFinanciersSmtSyscohadaService {
   // MOUVEMENTS DE TRÉSORERIE · matière commune au compte de résultat et à la NOTE 4
   // -------------------------------------------------------------------------
 
-  private async ecrituresDeLExercice(tenantId: string, exerciceId: string) {
-    return this.prisma.ecriture.findMany({
-      where: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE, estGenereeParCloture: false },
-      include: { lignes: { include: { compte: true } } },
-      orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
-    });
+  /**
+   * LES ÉCRITURES QUI TOUCHENT LA TRÉSORERIE, ET ELLES SEULES (audit final
+   * F258). Le service lisait TOUTES les écritures de l'exercice, lignes et
+   * comptes entiers compris, en une seule requête, et trois fois par écran
+   * (compte de résultat N, compte de résultat N-1, journal de la NOTE 4) ·
+   * la mémoire suivait la taille du dossier, contraire au § 8 bis. Seules
+   * les écritures qui portent une ligne de trésorerie ont besoin d'être lues
+   * une à une, parce que le sens d'une recette ou d'une dépense se juge
+   * écriture par écriture ; les autres n'entrent dans ces états que par des
+   * sommes, que la balance donne déjà (voir `composantesEcartConcordance`).
+   *
+   * Même périmètre que la colonne « mouvement » de la balance · validées,
+   * écritures de clôture exclues (voir la note de tête).
+   */
+  private filtreEcrituresDeTresorerie(tenantId: string, exerciceId: string): Prisma.EcritureWhereInput {
+    return {
+      tenantId,
+      exerciceId,
+      statut: StatutEcriture.VALIDEE,
+      estGenereeParCloture: false,
+      lignes: { some: { compte: { OR: COMPTES_TRESORERIE_SMT_SYSCOHADA.map((p) => ({ numero: { startsWith: p } })) } } },
+    };
   }
 
   /**
-   * Partage les écritures de l'exercice en deux :
-   *
-   *  - `mouvements` · celles qui ont un EFFET NET sur la trésorerie, avec la
-   *    ventilation de leur montant sur les comptes de contrepartie. C'est la
-   *    matière des lignes A et B. Un virement de la caisse vers la banque
-   *    n'y est pas : son flux net est nul, ce n'est ni une recette ni une
-   *    dépense (anomalie n° 14). Il n'est PAS écarté du journal de la NOTE
-   *    4, qui est un livre de caisse et doit montrer tous les mouvements du
-   *    compte pour que son solde à reporter soit juste ;
-   *
-   *  - `sansEffetTresorerie` · toutes les autres, écritures purement
-   *    d'engagement comprises (facture 60/401, dotation 68/28, variation de
-   *    stock 603/31) et virements internes. Elles n'entrent dans aucune
-   *    ligne du compte de résultat, mais elles sont EXACTEMENT ce qui
-   *    explique l'écart entre G et le résultat du bilan · voir
-   *    `composantesEcartConcordance`.
+   * Les parcourt par tranches de `LOT_ECRITURES`, curseur sur l'identifiant
+   * (`common/lecture-par-lots.ts`) · une tranche est traitée puis lâchée, la
+   * mémoire ne dépend plus du nombre d'écritures de l'exercice.
    */
-  private classerEcritures(ecritures: Awaited<ReturnType<EtatsFinanciersSmtSyscohadaService['ecrituresDeLExercice']>>) {
-    const mouvements: MouvementTresorerieSmt[] = [];
-    const sansEffetTresorerie: typeof ecritures = [];
+  private async parcourirEcrituresDeTresorerie(
+    tenantId: string,
+    exerciceId: string,
+    traiter: (ecriture: EcritureDeTresorerieSmt) => void,
+  ): Promise<void> {
+    await lireParLots(
+      (curseur) =>
+        this.prisma.ecriture.findMany({
+          where: this.filtreEcrituresDeTresorerie(tenantId, exerciceId),
+          select: SELECTION_ECRITURE_TRESORERIE_SMT,
+          ...pageApres(curseur, LOT_ECRITURES),
+        }),
+      traiter,
+      LOT_ECRITURES,
+    );
+  }
 
-    for (const e of ecritures) {
-      const tresorerie = e.lignes.filter((l) => this.estTresorerie(l.compte.numero));
-      const flux = tresorerie.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
-      if (tresorerie.length === 0 || Math.abs(flux) < 0.005) {
-        sansEffetTresorerie.push(e);
-        continue;
-      }
-      const sens: 'RECETTE' | 'DEPENSE' = flux > 0 ? 'RECETTE' : 'DEPENSE';
+  /**
+   * CUMULE UNE ÉCRITURE DE TRÉSORERIE, compte par compte, sans la garder.
+   *
+   * Seules comptent celles qui ont un EFFET NET sur la trésorerie : un
+   * virement de la caisse vers la banque a un flux net nul, ce n'est ni une
+   * recette ni une dépense (anomalie n° 14). Il n'est PAS écarté du journal
+   * de la NOTE 4, qui est un livre de caisse et doit montrer tous les
+   * mouvements du compte pour que son solde à reporter soit juste.
+   *
+   * Une écriture SANS effet (virement interne, et, hors de cette lecture,
+   * toute écriture d'engagement : facture 60/401, dotation 68/28, variation
+   * de stock 603/31) n'entre dans aucune ligne du compte de résultat, mais
+   * elle est EXACTEMENT ce qui explique l'écart entre G et le résultat du
+   * bilan · `composantesEcartConcordance` la retrouve par différence, sans la
+   * relire.
+   */
+  private cumulerEcritureDeTresorerie(e: EcritureDeTresorerieSmt, cumuls: CumulsTresorerieSmt): void {
+    const tresorerie = e.lignes.filter((l) => this.estTresorerie(l.compte.numero));
+    const flux = tresorerie.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
+    if (tresorerie.length === 0 || Math.abs(flux) < 0.005) return;
+    const sens: 'RECETTE' | 'DEPENSE' = flux > 0 ? 'RECETTE' : 'DEPENSE';
+    const cible = sens === 'RECETTE' ? cumuls.recettes : cumuls.depenses;
+    for (const l of e.lignes) {
+      if (this.estTresorerie(l.compte.numero)) continue;
+      const numero = l.compte.numero;
+      const creditMoinsDebit = Number(l.credit) - Number(l.debit);
+      // TOUTES les lignes hors trésorerie d'une écriture à effet, sans filtre
+      // d'arrondi · c'est la part que l'écart retranche de la balance.
+      cumuls.avecEffetParNumero.set(numero, (cumuls.avecEffetParNumero.get(numero) ?? 0) + creditMoinsDebit);
       // Contribution d'une contrepartie : créditrice pour une recette,
       // débitrice pour une dépense · la somme vaut |flux| dans une écriture
       // équilibrée dont toutes les contreparties sont hors trésorerie.
-      const contreparties = e.lignes
-        .filter((l) => !this.estTresorerie(l.compte.numero))
-        .map((l) => ({
-          numero: l.compte.numero,
-          intitule: l.compte.intitule,
-          montant: sens === 'RECETTE' ? Number(l.credit) - Number(l.debit) : Number(l.debit) - Number(l.credit),
-        }))
-        .filter((c) => Math.abs(c.montant) > 0.005);
-      mouvements.push({ ecritureId: e.id, date: e.date, libelle: e.libelle, sens, montant: Math.abs(flux), contreparties });
+      const montant = sens === 'RECETTE' ? creditMoinsDebit : -creditMoinsDebit;
+      if (Math.abs(montant) <= 0.005) continue;
+      const existant = cible.get(numero);
+      if (existant) existant.montant += montant;
+      else cible.set(numero, { numero, intitule: l.compte.intitule, montant });
     }
-    return { mouvements, sansEffetTresorerie };
   }
 
   // -------------------------------------------------------------------------
@@ -452,26 +520,21 @@ export class EtatsFinanciersSmtSyscohadaService {
    * (anomalie n° 13). Il est repris par `fluxHorsResultat`, jamais perdu.
    */
   private ventilerFlux(
-    mouvements: MouvementTresorerieSmt[],
-    sens: 'RECETTE' | 'DEPENSE',
+    contreparties: Map<string, CompteDuPoste>,
     postes: PosteFluxSmtSyscohada[],
   ): { postes: PosteCalculeSmtSyscohada[]; total: number } {
     const comptesParRef = new Map<string, Map<string, CompteDuPoste>>();
     for (const poste of postes) comptesParRef.set(poste.ref, new Map());
 
-    for (const m of mouvements) {
-      if (m.sens !== sens) continue;
-      for (const c of m.contreparties) {
-        // `find` : l'ordre des postes de la table est celui de la maquette,
-        // et les postes résiduels (SR2, SD6) portent leurs exclusions · le
-        // premier qui répond est le bon.
-        const poste = postes.find((p) => correspond(c.numero, p.comptes, p.exclusions));
-        if (!poste) continue; // hors A et B · voir `fluxHorsResultat`
-        const parCompte = comptesParRef.get(poste.ref)!;
-        const existant = parCompte.get(c.numero);
-        if (existant) existant.montant += c.montant;
-        else parCompte.set(c.numero, { numero: c.numero, intitule: c.intitule, montant: c.montant });
-      }
+    // Les contreparties arrivent déjà cumulées par compte, pour UN sens
+    // (`cumulerEcritureDeTresorerie`) · un compte ne répond qu'à un poste.
+    for (const c of contreparties.values()) {
+      // `find` : l'ordre des postes de la table est celui de la maquette,
+      // et les postes résiduels (SR2, SD6) portent leurs exclusions · le
+      // premier qui répond est le bon.
+      const poste = postes.find((p) => correspond(c.numero, p.comptes, p.exclusions));
+      if (!poste) continue; // hors A et B · voir `fluxHorsResultat`
+      comptesParRef.get(poste.ref)!.set(c.numero, { numero: c.numero, intitule: c.intitule, montant: c.montant });
     }
 
     const resultat = postes.map((p) => {
@@ -512,7 +575,7 @@ export class EtatsFinanciersSmtSyscohadaService {
    * portée par erreur face à un compte de caisse) est signalée à part :
    * jamais rattachée d'office à un poste voisin.
    */
-  private fluxHorsResultat(mouvements: MouvementTresorerieSmt[]) {
+  private fluxHorsResultat(cumuls: CumulsTresorerieSmt) {
     const parCle = new Map<string, Map<string, CompteDuPoste>>();
     for (const b of CONTREPARTIES_HORS_RESULTAT_SMT_SYSCOHADA) parCle.set(b.cle, new Map());
     const nonRattachees = new Map<string, CompteDuPoste>();
@@ -523,13 +586,17 @@ export class EtatsFinanciersSmtSyscohadaService {
       else cible.set(c.numero, { numero: c.numero, intitule: c.intitule, montant });
     };
 
-    for (const m of mouvements) {
-      for (const c of m.contreparties) {
+    // Un encaissement compte en plus, un décaissement en moins · la même
+    // contrepartie peut avoir servi les deux sens dans l'exercice.
+    const signes: Array<[Map<string, CompteDuPoste>, 1 | -1]> = [
+      [cumuls.recettes, 1],
+      [cumuls.depenses, -1],
+    ];
+    for (const [contreparties, signe] of signes) {
+      for (const c of contreparties.values()) {
         if (correspond(c.numero, CONTREPARTIES_RESULTAT_SMT_SYSCOHADA)) continue; // déjà en A ou en B
-        const montant = m.sens === 'RECETTE' ? c.montant : -c.montant;
         const bucket = CONTREPARTIES_HORS_RESULTAT_SMT_SYSCOHADA.find((b) => correspond(c.numero, b.comptes));
-        if (bucket) cumuler(parCle.get(bucket.cle)!, c, montant);
-        else cumuler(nonRattachees, c, montant);
+        cumuler(bucket ? parCle.get(bucket.cle)! : nonRattachees, c, signe * c.montant);
       }
     }
 
@@ -581,28 +648,38 @@ export class EtatsFinanciersSmtSyscohadaService {
    * nulle : non nulle, elle signale un vrai défaut (compte hors plan,
    * écriture déséquilibrée, contrepartie non rattachée), et elle est
    * exposée telle quelle plutôt qu'absorbée.
+   *
+   * K SE CALCULE SANS RELIRE CES ÉCRITURES (audit final F258). Pris sur
+   * TOUTES les écritures, K est la colonne « mouvement » de la balance, que
+   * la base agrège déjà (`groupBy`, écritures de clôture exclues, livre-
+   * journal seul · le périmètre même de la lecture des écritures de
+   * trésorerie). La part des écritures À EFFET est cumulée pendant cette
+   * lecture (`avecEffetParNumero`). K sans effet est leur différence, compte
+   * par compte : les écritures d'engagement, qui sont l'essentiel d'un
+   * exercice, ne sont plus jamais rapatriées une à une.
    */
   private composantesEcartConcordance(
-    sansEffetTresorerie: Awaited<ReturnType<EtatsFinanciersSmtSyscohadaService['ecrituresDeLExercice']>>,
+    lignes: LigneBalancePourEtat[],
+    avecEffetParNumero: Map<string, number>,
     dotations: number,
   ) {
+    const kSansEffet = new Map<string, number>();
+    for (const l of lignes) kSansEffet.set(l.numero, l.mouvementCredit - l.mouvementDebit);
+    for (const [numero, k] of avecEffetParNumero) kSansEffet.set(numero, (kSansEffet.get(numero) ?? 0) - k);
+
     let classe1 = 0;
     let classe2 = 0;
     let depreciationsTresorerie = 0;
     let autresComptes = 0;
-    for (const e of sansEffetTresorerie) {
-      for (const l of e.lignes) {
-        const k = Number(l.credit) - Number(l.debit);
-        const numero = l.compte.numero;
-        if (numero.startsWith('1')) classe1 += k;
-        else if (numero.startsWith('2')) classe2 += k;
-        else if (correspond(numero, COMPTES_DEPRECIATION_TRESORERIE_SMT_SYSCOHADA)) depreciationsTresorerie += k;
-        else if (!correspond(numero, CONTREPARTIES_RESULTAT_SMT_SYSCOHADA) && !this.estTresorerie(numero)) {
-          // Ni dans le périmètre de A/B, ni une classe 1 ou 2, ni de la
-          // trésorerie : classe 9, ou compte hors plan. Compté à part pour
-          // que le résiduel reste nul et que l'anomalie se voie.
-          autresComptes += k;
-        }
+    for (const [numero, k] of kSansEffet) {
+      if (numero.startsWith('1')) classe1 += k;
+      else if (numero.startsWith('2')) classe2 += k;
+      else if (correspond(numero, COMPTES_DEPRECIATION_TRESORERIE_SMT_SYSCOHADA)) depreciationsTresorerie += k;
+      else if (!correspond(numero, CONTREPARTIES_RESULTAT_SMT_SYSCOHADA) && !this.estTresorerie(numero)) {
+        // Ni dans le périmètre de A/B, ni une classe 1 ou 2, ni de la
+        // trésorerie : classe 9, ou compte hors plan. Compté à part pour
+        // que le résiduel reste nul et que l'anomalie se voie.
+        autresComptes += k;
       }
     }
     return {
@@ -645,14 +722,14 @@ export class EtatsFinanciersSmtSyscohadaService {
    * la maquette imprime la colonne (voir la note de tête).
    */
   private async construireCompteDeResultat(tenantId: string, exerciceId: string) {
-    const [ecritures, lignesN] = await Promise.all([
-      this.ecrituresDeLExercice(tenantId, exerciceId),
+    const cumuls: CumulsTresorerieSmt = { recettes: new Map(), depenses: new Map(), avecEffetParNumero: new Map() };
+    const [, lignesN] = await Promise.all([
+      this.parcourirEcrituresDeTresorerie(tenantId, exerciceId, (e) => this.cumulerEcritureDeTresorerie(e, cumuls)),
       this.chargerLignes(tenantId, exerciceId),
     ]);
-    const { mouvements, sansEffetTresorerie } = this.classerEcritures(ecritures);
 
-    const recettes = this.ventilerFlux(mouvements, 'RECETTE', POSTES_RECETTES_SMT_SYSCOHADA);
-    const depenses = this.ventilerFlux(mouvements, 'DEPENSE', POSTES_DEPENSES_SMT_SYSCOHADA);
+    const recettes = this.ventilerFlux(cumuls.recettes, POSTES_RECETTES_SMT_SYSCOHADA);
+    const depenses = this.ventilerFlux(cumuls.depenses, POSTES_DEPENSES_SMT_SYSCOHADA);
 
     const { parRef: cloture } = this.resoudreBilan(lignesN);
     const { parRef: ouverture } = this.resoudreBilan(this.aLOuverture(lignesN));
@@ -728,9 +805,9 @@ export class EtatsFinanciersSmtSyscohadaService {
       });
     }
 
-    const hors = this.fluxHorsResultat(mouvements);
+    const hors = this.fluxHorsResultat(cumuls);
     const resultatBilan = montantDe(cloture, REF_RESULTAT_SMT_SYSCOHADA);
-    const composantes = this.composantesEcartConcordance(sansEffetTresorerie, dotations);
+    const composantes = this.composantesEcartConcordance(lignesN, cumuls.avecEffetParNumero, dotations);
     const ecart = calcule.G - resultatBilan;
 
     return {
@@ -838,12 +915,44 @@ export class EtatsFinanciersSmtSyscohadaService {
    * `soldeAReporter` est confronté au solde du compte tel que la balance le
    * donne. L'égalité est la preuve que le journal est complet ; l'écart est
    * exposé, jamais absorbé.
+   *
+   * ## Un plafond déclaré, jamais une troncature (audit final F258)
+   *
+   * Le journal est un LIVRE : il ne se tronque pas, puisqu'un journal amputé
+   * ne se reboucle plus sur le solde du compte et se lirait pourtant comme
+   * complet. Au-delà de `PLAFOND_MOUVEMENTS_NOTE_4_SMT_SYSCOHADA` lignes de
+   * trésorerie, il se REFUSE, en disant par où passer. La lecture s'arrête
+   * dès le plafond franchi : la mémoire reste bornée même sur le dossier
+   * qui sera refusé.
    */
   async journalTresorerie(tenantId: string, exerciceId: string) {
-    const [ecritures, lignes] = await Promise.all([
-      this.ecrituresDeLExercice(tenantId, exerciceId),
+    // Un exercice inconnu du dossier rendait des journaux vides, lus comme
+    // « aucun compte de trésorerie mouvementé » (audit final F222).
+    await this.exerciceDuDossier(tenantId, exerciceId);
+    const ecritures: EcritureDeTresorerieSmt[] = [];
+    let mouvementsDeTresorerie = 0;
+    const [, lignes] = await Promise.all([
+      this.parcourirEcrituresDeTresorerie(tenantId, exerciceId, (e) => {
+        mouvementsDeTresorerie += e.lignes.filter((l) => this.estTresorerie(l.compte.numero)).length;
+        if (mouvementsDeTresorerie > PLAFOND_MOUVEMENTS_NOTE_4_SMT_SYSCOHADA) {
+          throw new BadRequestException(
+            `Le journal de trésorerie (NOTE 4) de cet exercice porte plus de ` +
+              `${PLAFOND_MOUVEMENTS_NOTE_4_SMT_SYSCOHADA.toLocaleString('fr-FR')} mouvements de trésorerie, au-delà de ` +
+              `son plafond, qui est celui du grand livre complet. Un livre ne se tronque pas : ouvrez le grand ` +
+              `livre de chaque compte de trésorerie (banques et caisse), compte par compte, qui en porte les ` +
+              `mêmes mouvements, sans la ventilation par nature.`,
+          );
+        }
+        ecritures.push(e);
+      }),
       this.chargerLignes(tenantId, exerciceId),
     ]);
+    // Lues dans l'ordre des identifiants pour la pagination, remises dans
+    // l'ordre du livre · date comptable, puis ordre de saisie.
+    ecritures.sort(
+      (a, b) =>
+        a.date.getTime() - b.date.getTime() || a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id),
+    );
 
     const comptesTresorerie = lignes
       .filter((l) => this.estTresorerie(l.numero))
@@ -966,10 +1075,7 @@ export class EtatsFinanciersSmtSyscohadaService {
    * que l'état imprimé la porte.
    */
   async note1MaterielMobilierCautions(tenantId: string, exerciceId: string) {
-    const exercice = await this.prisma.exercice.findFirstOrThrow({
-      where: { id: exerciceId, tenantId },
-      select: { dateFin: true },
-    });
+    const exercice = await this.exerciceDuDossier(tenantId, exerciceId);
     const [immobilisations, lignes] = await Promise.all([
       this.prisma.immobilisation.findMany({
         where: { tenantId, dateAcquisition: { lte: exercice.dateFin } },
@@ -1031,7 +1137,12 @@ export class EtatsFinanciersSmtSyscohadaService {
    * le même montant.
    */
   async note2Stocks(tenantId: string, exerciceId: string) {
-    const lignes = await this.chargerLignes(tenantId, exerciceId);
+    // Un exercice inconnu du dossier rendait une note à zéro, lue comme
+    // « aucun stock » (audit final F222) · refusé comme les autres états.
+    const [, lignes] = await Promise.all([
+      this.exerciceDuDossier(tenantId, exerciceId),
+      this.chargerLignes(tenantId, exerciceId),
+    ]);
     const { parRef: cloture } = this.resoudreBilan(lignes);
     const { parRef: ouverture } = this.resoudreBilan(this.aLOuverture(lignes));
 
@@ -1108,22 +1219,22 @@ export class EtatsFinanciersSmtSyscohadaService {
    * PAS DE PAGINATION, à la différence des notes du Système normal : le
    * S.M.T est réservé aux entités dont le chiffre d'affaires reste sous
    * soixante millions de F CFA au plus haut des trois seuils (art. 13), et
-   * ce service lit déjà toutes les écritures de l'exercice en une fois
-   * (`ecrituresDeLExercice`). Une lecture bornée aux seuls comptes de la
-   * note, non lettrés, y est strictement plus légère.
+   * la lecture est bornée aux lignes encore ouvertes à la clôture des seuls
+   * comptes de la note, quatre colonnes par ligne. Elle ne rend pourtant que
+   * deux SOMMES par compte · un `groupBy` par compte et par part (échue, non
+   * échue) la remplacerait, et reste à poser (audit final F258 : ce
+   * commentaire s'appuyait sur une lecture de toutes les écritures de
+   * l'exercice, qui n'existe plus).
    */
   private async partsParEcheance(
     tenantId: string,
-    exerciceId: string,
+    exercice: { id: string; dateFin: Date },
     compteIds: string[],
   ): Promise<Map<string, PartsEcheanceSmtSyscohada>> {
     const parCompte = new Map<string, PartsEcheanceSmtSyscohada>();
     if (compteIds.length === 0) return parCompte;
 
-    const exercice = await this.prisma.exercice.findFirstOrThrow({
-      where: { id: exerciceId, tenantId },
-      select: { dateFin: true },
-    });
+    const exerciceId = exercice.id;
     const lignesTiers = await this.prisma.ligneEcriture.findMany({
       // Même porte que la balance qui sert le reste de la note : les états
       // financiers sont des documents légaux et ne lisent que le
@@ -1222,7 +1333,13 @@ export class EtatsFinanciersSmtSyscohadaService {
    * personne ne le verrait.
    */
   async note3CreancesDettes(tenantId: string, exerciceId: string) {
-    const lignes = await this.chargerLignes(tenantId, exerciceId);
+    // L'exercice est lu EN TÊTE, et non plus seulement quand un compte de
+    // tiers est à ventiler · un exercice inconnu du dossier rendait sinon une
+    // note à zéro, sans créance ni dette (audit final F222).
+    const [exercice, lignes] = await Promise.all([
+      this.exerciceDuDossier(tenantId, exerciceId),
+      this.chargerLignes(tenantId, exerciceId),
+    ]);
     const { parRef: cloture } = this.resoudreBilan(lignes);
     const { parRef: ouverture } = this.resoudreBilan(this.aLOuverture(lignes));
 
@@ -1244,7 +1361,11 @@ export class EtatsFinanciersSmtSyscohadaService {
         ).filter((id): id is string => Boolean(id)),
       ),
     ];
-    const parts = await this.partsParEcheance(tenantId, exerciceId, compteIdsVentilables);
+    const parts = await this.partsParEcheance(
+      tenantId,
+      { id: exerciceId, dateFin: exercice.dateFin },
+      compteIdsVentilables,
+    );
 
     const construire = (ref: string) => {
       // MÊME SIGNE que `calculerPosteBilan`, lu au même endroit : un poste
@@ -1360,11 +1481,14 @@ export class EtatsFinanciersSmtSyscohadaService {
    * l'entité qualifier son activité · l'arbitrage reste humain.
    *
    * Il ne CONVERTIT pas davantage : les seuils sont en F CFA, la RDC tient
-   * ses comptes en CDF ou en USD, et le cours de conversion n'appartient pas
-   * au texte comptable. Le montant est affiché dans la monnaie de tenue du
-   * dossier, les seuils rappelés en F CFA avec leur clause « ou
-   * l'équivalent ». Aucun dossier n'est déclaré inéligible sur une
-   * conversion que le logiciel aurait inventée.
+   * ses comptes en francs congolais et en rien d'autre (loi n° 23/053
+   * art. 141, 1° · AUDCIF art. 17, 1°, `common/monnaie-de-tenue.ts`), et le
+   * cours de conversion n'appartient pas au texte comptable. Le montant est
+   * affiché dans la monnaie du jeu LÉGAL (`monnaieDuJeuLegal`, audit final
+   * F215 · ce commentaire disait « CDF ou USD », et le champ recopiait la
+   * devise du dossier telle quelle, nulle comprise), les seuils rappelés en
+   * F CFA avec leur clause « ou l'équivalent ». Aucun dossier n'est déclaré
+   * inéligible sur une conversion que le logiciel aurait inventée.
    *
    * Et il rappelle l'art. 11 : « Toute entité est, SAUF EXCEPTION LIÉE À SA
    * TAILLE, soumise au Système normal de présentation des états financiers
@@ -1389,12 +1513,9 @@ export class EtatsFinanciersSmtSyscohadaService {
         select: { devise: true, systemeComptableSyscohada: true },
       }),
     ]);
-    // findFirst borné au tenant : un id d'exercice d'un AUTRE dossier ne doit
-    // rien renvoyer (même une date de début est une fuite).
-    const exercice = await this.prisma.exercice.findFirstOrThrow({
-      where: { id: exerciceId, tenantId },
-      select: { dateDebut: true, dateFin: true },
-    });
+    // Borné au dossier : un id d'exercice d'un AUTRE dossier ne doit rien
+    // renvoyer (même une date de début est une fuite) · voir `exerciceDuDossier`.
+    const exercice = await this.exerciceDuDossier(tenantId, exerciceId);
 
     const lignesCa = lignes.filter((l) => correspond(l.numero, COMPTES_CHIFFRE_AFFAIRES_ART13));
     // Un produit porte un solde créditeur (négatif en solde algébrique) :
@@ -1430,7 +1551,11 @@ export class EtatsFinanciersSmtSyscohadaService {
       chiffreAffaires,
       ventilation,
       comptesHorsVentilation,
-      deviseDossier: tenant.devise,
+      // La monnaie du jeu légal, par la règle commune (`monnaieDuJeuLegal`)
+      // et non par la colonne lue telle quelle · la devise du dossier non
+      // renseignée laissait l'écran écrire « monnaie de tenue du dossier »
+      // sans la nommer (audit final F215).
+      deviseDossier: monnaieDuJeuLegal(tenant.devise),
       systemeActuel: tenant.systemeComptableSyscohada,
       conversionAppliquee: false,
       // AUCUN VERDICT PAR SEUIL (audit final F88) · la tenue est en francs
@@ -1516,15 +1641,57 @@ function signePosteBilanSmtSyscohada(ref: string): 1 | -1 {
   return poste.sens === 'ACTIF' ? 1 : -1;
 }
 
-/** Une opération de trésorerie et la ventilation de son montant sur les contreparties. */
-interface MouvementTresorerieSmt {
-  ecritureId: string;
-  date: Date;
-  libelle: string;
-  sens: 'RECETTE' | 'DEPENSE';
-  montant: number;
-  contreparties: CompteDuPoste[];
+/**
+ * Ce que le service lit d'une écriture de trésorerie, et rien de plus · les
+ * lignes avec le numéro et l'intitulé de leur compte, jamais le compte
+ * entier (audit final F258). La date de saisie ordonne le journal de la
+ * NOTE 4 à date comptable égale.
+ */
+const SELECTION_ECRITURE_TRESORERIE_SMT = {
+  id: true,
+  date: true,
+  createdAt: true,
+  libelle: true,
+  reference: true,
+  lignes: {
+    select: { compteId: true, debit: true, credit: true, compte: { select: { numero: true, intitule: true } } },
+  },
+} satisfies Prisma.EcritureSelect;
+
+type EcritureDeTresorerieSmt = Prisma.EcritureGetPayload<{ select: typeof SELECTION_ECRITURE_TRESORERIE_SMT }>;
+
+/**
+ * Les écritures de trésorerie d'un exercice, cumulées compte par compte au
+ * fil de la lecture · aucune écriture n'est gardée (audit final F258).
+ */
+interface CumulsTresorerieSmt {
+  /** Contreparties des RECETTES, crédit moins débit, par numéro de compte. */
+  recettes: Map<string, CompteDuPoste>;
+  /** Contreparties des DÉPENSES, débit moins crédit, par numéro de compte. */
+  depenses: Map<string, CompteDuPoste>;
+  /**
+   * Crédit moins débit de TOUTES les lignes hors trésorerie des écritures à
+   * effet, par numéro · la part que `composantesEcartConcordance` retranche
+   * de la balance pour retrouver celle des écritures sans effet.
+   */
+  avecEffetParNumero: Map<string, number>;
 }
+
+/**
+ * PLAFOND DÉCLARÉ DE LA NOTE 4 (audit final F258). Le journal de trésorerie
+ * est un LIVRE, tenu par compte (« prévoir un journal par banque et un
+ * journal pour la caisse », Titre X ch. 3) : il ne se tronque jamais, il se
+ * refuse au-delà de son plafond. Ce plafond ne tient pas à l'écran : le
+ * journal se construit EN ENTIER en mémoire avant d'être rendu (trié dans
+ * l'ordre du livre, puis parcouru compte par compte), pour la fenêtre comme
+ * pour la liasse et son classeur, qui appellent le même service · c'est
+ * cette construction qu'il borne. La mesure est celle du grand livre complet
+ * (`PLAFOND_LIGNES_GRAND_LIVRE`), dont la NOTE 4 est, compte de trésorerie
+ * par compte de trésorerie, la présentation ventilée · une seule mesure pour
+ * deux livres de même nature. Elle compte les lignes portées sur un compte
+ * de trésorerie, chacune donnant au plus une opération du journal.
+ */
+export const PLAFOND_MOUVEMENTS_NOTE_4_SMT_SYSCOHADA = PLAFOND_LIGNES_GRAND_LIVRE;
 
 /**
  * Compte 275 « Dépôts et cautionnements versés » (plan de comptes

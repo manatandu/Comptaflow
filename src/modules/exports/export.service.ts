@@ -1,4 +1,4 @@
-import { Injectable, PayloadTooLargeException } from '@nestjs/common';
+import { Injectable, NotFoundException, PayloadTooLargeException } from '@nestjs/common';
 import { REFS_DE_SOLDE } from '../etats-financiers/correspondance-projet-emplois-ressources';
 import type { Writable } from 'stream';
 import type { PerimetreBalanceAgee } from '../comptabilite/ecriture.service';
@@ -14,9 +14,11 @@ import * as ExcelJS from 'exceljs';
 import { PrismaService } from '../../common/prisma.service';
 import { monnaieDuJeuLegal } from '../../common/monnaie-de-tenue';
 import { EcritureService } from '../comptabilite/ecriture.service';
+import { avantSoldeDesComptesDeGestion } from '../comptabilite/balance-trois-colonnes';
 import { ImmobilisationService } from '../immobilisations/immobilisation.service';
 import { TestEcrituresJournalService } from '../controles/test-ecritures-journal.service';
 import { EtatsFinanciersService, PosteCalcule } from '../etats-financiers/etats-financiers.service';
+import { MOTIF_EXERCICE_INTROUVABLE } from '../etats-financiers/etats-financiers.communs';
 import { EtatsFinanciersProjetService } from '../etats-financiers/etats-financiers-projet.service';
 import { EtatsFinanciersSmtService } from '../etats-financiers/etats-financiers-smt.service';
 import { AucunPlanABudgetsException, EtatsFinanciersProjetBudgetService } from '../etats-financiers/etats-financiers-projet-budget.service';
@@ -215,26 +217,6 @@ export class ExportService {
   }
 
   /**
-   * Garde-fou de volume. Le classeur est intégralement construit en mémoire
-   * puis sérialisé en un seul buffer (`writeBuffer`) : mesuré, un export de
-   * 50 000 lignes consomme environ 1 Go. Sans borne, un utilisateur · même
-   * en LECTURE_SEULE · pouvait enchaîner les exports d'un gros dossier et
-   * saturer le tas Node, ce qui fait tomber le processus pour TOUS les
-   * tenants (l'application est mono-processus, sans file de travaux).
-   *
-   * Le refus est explicite et actionnable plutôt que silencieux : mieux vaut
-   * demander de restreindre la période qu'un état tronqué, ou qu'un
-   * plantage. Le passage à `ExcelJS.stream.xlsx.WorkbookWriter` lèverait la
-   * contrainte, au prix d'une refonte de la réponse en flux · hors périmètre
-   * ici, mesuré dans docs/capacite-mesuree.md.
-   *
-   * CETTE LIMITE NE VAUT PAS POUR LA RESTITUTION. L'archive du dossier
-   * complet écrit des CSV ligne à ligne, à mémoire constante · elle n'a donc
-   * aucune borne de lignes. Voir restitution/restitution.service.ts. Ce qui
-   * est plafonné ici, c'est le CLASSEUR, que `writeBuffer()` construit en
-   * entier en mémoire.
-   */
-  /**
    * Taille d'un lot de lecture pour les exports en flux · le pendant de
    * `LOT_LECTURE` des notes annexes. Cinq cents écritures avec leurs lignes
    * pèsent quelques mégaoctets : l'intérêt n'est pas la vitesse, c'est que la
@@ -338,6 +320,26 @@ export class ExportService {
     }
   }
 
+  /**
+   * GARDE-FOU DE VOLUME DES DEUX LIVRES EXPORTÉS EN FLUX, le journal et le
+   * grand livre complet. Ce commentaire décrivait encore un classeur bâti en
+   * mémoire, et le flux comme une refonte à venir (audit final F223) · les
+   * deux livres s'écrivent en flux, et le plafond et sa mesure sont portés
+   * par `MAX_LIGNES_EXPORT`.
+   *
+   * Les lignes sont COMPTÉES par la base avant que le flux ne s'ouvre · une
+   * fois le premier octet parti, le refus ne pourrait plus devenir un 413. Il
+   * est explicite et actionnable, restreindre la période ou le journal, et
+   * jamais une troncature. Sans borne, un utilisateur, même en lecture
+   * seule, pouvait saturer le tas Node et faire tomber le processus pour
+   * tous les dossiers.
+   *
+   * CETTE LIMITE NE VAUT PAS POUR LA RESTITUTION. L'archive du dossier
+   * complet écrit des CSV ligne à ligne, à mémoire constante · elle n'a donc
+   * aucune borne de lignes. Voir restitution/restitution.service.ts. Les
+   * classeurs encore bâtis en mémoire ont leur propre plafond,
+   * `MAX_LIGNES_CLASSEUR_EN_MEMOIRE`.
+   */
   private async verifierVolume(where: Prisma.LigneEcritureWhereInput, quoi: string) {
     const nb = await this.prisma.ligneEcriture.count({ where });
     if (nb > ExportService.MAX_LIGNES_EXPORT) {
@@ -363,11 +365,6 @@ export class ExportService {
     return exercice ? `-${exercice.dateDebut.getFullYear()}` : '';
   }
 
-  /**
-   * En-tête figée + auto-filtre sur la plage de données. La plage s'arrête à
-   * `dernereLigneDonnees` : y inclure une ligne de totaux ferait remonter
-   * celle-ci dans les résultats de n'importe quel filtre.
-   */
   /**
    * FORMULES · un total écrit en dur est un chiffre que personne ne peut
    * vérifier.
@@ -406,6 +403,11 @@ export class ExportService {
     return feuille.getColumn(cle).letter;
   }
 
+  /**
+   * En-tête figée + auto-filtre sur la plage de données. La plage s'arrête à
+   * `derniereLigneDonnees` : y inclure une ligne de totaux ferait remonter
+   * celle-ci dans les résultats de n'importe quel filtre.
+   */
   private finaliserTableau(
     feuille: ExcelJS.Worksheet,
     nbColonnes: number,
@@ -423,16 +425,15 @@ export class ExportService {
   }
 
   /**
-   * IDENTIFICATION D'UN ÉTAT PÉRIODIQUE · en PIED DE PAGE IMPRIMÉ, pas en
-   * cellules.
+   * IDENTIFICATION D'UN ÉTAT PÉRIODIQUE AU PIED DE PAGE IMPRIMÉ · la
+   * numérotation et la date.
    *
    * L'AUDCIF art. 22, 7° veut que « les états périodiques fournis soient
-   * numérotés et datés ». Une coiffe de trois lignes posée au-dessus du
-   * tableau satisfaisait la règle, mais elle n'existe dans aucun des modèles
-   * de cabinet relevés : leurs classeurs commencent en A1 par l'en-tête des
-   * colonnes, sans titre ni cartouche. Le pied de page imprimé porte la même
-   * information sans ajouter une seule cellule · la grille reste celle du
-   * modèle, l'état fourni reste numéroté et daté.
+   * numérotés et datés ». Le pied de page imprimé les porte sans décaler une
+   * seule colonne ; le cartouche posé au-dessus du tableau (`coifferEtat`)
+   * porte l'identification que le pied ne peut pas tenir. Ce commentaire
+   * donnait le pied SEUL, du temps où le cartouche avait été retiré des
+   * livres ; il est rétabli partout (audit final F223).
    */
   private piedDePageEtat(
     feuille: ExcelJS.Worksheet,
@@ -446,15 +447,6 @@ export class ExportService {
     };
   }
 
-  /**
-   * Identité d'un état périodique · elle ne dépend PAS d'un exercice.
-   *
-   * `identiteLiasse` exige un exerciceId et lève si l'exercice n'existe pas ;
-   * or le journal et le grand livre complet s'exportent aussi sans exercice
-   * borné (filtres de dates libres). Cette variante se contente du dossier et
-   * de la période réellement filtrée · un export ne doit pas échouer faute
-   * d'exercice.
-   */
   /**
    * CARTOUCHE D'ÉTAT · les trois lignes d'en-tête posées au-dessus du tableau,
    * plus le pied de page imprimé.
@@ -503,6 +495,15 @@ export class ExportService {
     return ligneEnteteAvant + 3;
   }
 
+  /**
+   * Identité d'un état périodique · elle ne dépend PAS d'un exercice.
+   *
+   * `identiteLiasse` exige un exerciceId et lève si l'exercice n'existe pas ;
+   * or le journal et le grand livre complet s'exportent aussi sans exercice
+   * borné (filtres de dates libres). Cette variante se contente du dossier et
+   * de la période réellement filtrée · un export ne doit pas échouer faute
+   * d'exercice.
+   */
   private async identiteEtat(
     tenantId: string,
     periode: { exerciceId?: string; dateDebut?: string; dateFin?: string },
@@ -675,9 +676,9 @@ export class ExportService {
     return { lignes: nbLignes };
   }
 
-  /** Colonnes communes au grand livre d'un compte et au grand livre complet. */
   /**
-   * Colonnes du grand livre, aux LIBELLÉS du dossier de révision réel
+   * Colonnes communes au grand livre d'un compte et au grand livre complet,
+   * aux LIBELLÉS du dossier de révision réel
    * (« GD LIVRES au 31/12/2025 CARRIGRES », ouvert sur le Drive) : Compte
    * général, Journal, Date écriture, Libellé, Réf. pièce, N° pièce, Code
    * lettrage.
@@ -991,14 +992,15 @@ export class ExportService {
      * période, Débit, Crédit, Débit cumulé, Crédit cumulé, Devise, Société ».
      * Un réviseur lit cette balance-là.
      *
-     * CE QUE CE FICHIER NE PORTE PAS, ET POURQUOI. Rien au-dessus de la ligne
-     * 1 : leur balance commence directement par ses en-têtes, sans titre, sans
-     * fusion, sans ligne d'identification · un bandeau décale le tableau et
-     * casse le tri et les filtres. L'identification passe par les colonnes
-     * Devise et Société, comme chez eux, et la numérotation avec la date
-     * qu'exige l'AUDCIF (art. 22, 7° : « les états périodiques fournis
-     * soient numérotés et datés ») reste au pied de page imprimé, invisible
-     * à l'écran.
+     * AU-DESSUS DU TABLEAU, LE CARTOUCHE DE TOUS LES ÉTATS (`coifferEtat`).
+     * Leur balance commence en ligne 1, sans titre ; le cartouche avait été
+     * retiré des livres pour les suivre, puis rétabli partout, un état envoyé
+     * à un tiers devant se nommer lui-même · ce paragraphe disait encore
+     * « rien au-dessus de la ligne 1 » (audit final F223). Le figeage et
+     * l'autofiltre sont posés sous lui, et les colonnes Devise et Société
+     * restent, comme chez eux. La numérotation et la date qu'exige l'AUDCIF
+     * (art. 22, 7° : « les états périodiques fournis soient numérotés et
+     * datés ») sont au pied de page imprimé.
      *
      * Pas de colonne « Type » : elle distinguait les comptes Total, que la
      * balance ne porte plus. Pas de colonne « Solde » signée : leur balance
@@ -1555,12 +1557,12 @@ export class ExportService {
    * titre, date d'arrêté), puis une ligne par bien GROUPÉE PAR COMPTE
    * D'IMPUTATION, un S/TOTAL par groupe, un TOTAL GÉNÉRAL.
    *
-   * Le cartouche est ici conservé alors qu'il a été retiré du journal, du
-   * grand livre et de la balance · et ce n'est pas une incohérence. Leurs
-   * livres comptables commencent en ligne 1 sans titre ; LEUR tableau des
-   * immobilisations, lui, en porte un, parce que c'est une feuille de travail
-   * qu'on classe et qu'on relit hors de son classeur. On copie ce qu'ils font,
-   * pas une règle qu'on leur prête.
+   * Le cartouche est celui de tous les états (`coifferEtat`). Ce paragraphe
+   * le disait conservé ici seulement, « retiré du journal, du grand livre et
+   * de la balance », état révolu depuis qu'il est rétabli partout (audit
+   * final F223). Leur tableau des immobilisations en portait déjà un, parce
+   * que c'est une feuille de travail qu'on classe et qu'on relit hors de son
+   * classeur.
    */
   async tableauImmobilisationsExcel(tenantId: string, dateArret?: string): Promise<ClasseurExporte> {
     const t = await this.immos.tableauImmobilisations(tenantId, { dateArret });
@@ -1917,6 +1919,22 @@ export class ExportService {
   }
 
   /**
+   * L'EXERCICE DU DOSSIER, OU LE REFUS COMMUN DES ÉTATS (audit final F222,
+   * revue de cohérence du lot). `findFirstOrThrow` laissait remonter l'erreur
+   * brute de Prisma en 500, et l'identité du cartouche se lit EN MÊME TEMPS
+   * que les états (`Promise.all`), qui refusent le même exercice par un 404 ·
+   * la première lecture qui échouait faisait la réponse, si bien qu'un même
+   * exercice inconnu rendait tantôt un 404, tantôt un 500. Même exception et
+   * même message que `trouverExerciceN1` · entre l'identité et les états qui
+   * le refusent ainsi, la réponse ne dépend plus de l'ordre.
+   */
+  private async exerciceDuDossier(tenantId: string, exerciceId: string) {
+    const exercice = await this.prisma.exercice.findFirst({ where: { id: exerciceId, tenantId } });
+    if (!exercice) throw new NotFoundException(MOTIF_EXERCICE_INTROUVABLE);
+    return exercice;
+  }
+
+  /**
    * IDENTITÉ DU CARTOUCHE · les six lignes d'en-tête que la charte ETAFI
    * pose sur chaque page (voir theme-etafi.ts). Le NIF y figure au titre de
    * l'en-tête que le CPCC impose sur chaque page (travaux de fin d'exercice
@@ -1927,7 +1945,7 @@ export class ExportService {
   private async identiteLiasse(tenantId: string, exerciceId: string): Promise<IdentiteLiasse> {
     const [tenant, exercice] = await Promise.all([
       this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } }),
-      this.prisma.exercice.findFirstOrThrow({ where: { id: exerciceId, tenantId } }),
+      this.exerciceDuDossier(tenantId, exerciceId),
     ]);
     const debut = exercice.dateDebut;
     const fin = exercice.dateFin;
@@ -2714,13 +2732,19 @@ export class ExportService {
    * note 9 « Fonds du bailleur » y figure comme un simple RENVOI (colonnes
    * dynamiques par bailleur, hors de la forme de ce moteur) vers
    * `noteBailleurExcel` · voir `NoteAnnexeService.notesProjet`.
+   *
+   * LA FICHE RÉCAPITULATIVE SUIT LES QUATRE PARTIES OFFICIELLES (audit final
+   * F224), comme dans la liasse du même jeu (`liasseProjetsEtafi`) · sans
+   * elles, le classeur des notes seul rangeait les vingt-six notes sous une
+   * bande unique « NOTES ANNEXES », et le même document sortait sous deux
+   * présentations selon la porte par laquelle on le demandait.
    */
   async notesProjetExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
     const [resultat, ident] = await Promise.all([
       this.noteAnnexeService.notesProjet(tenantId, exerciceId),
       this.identiteLiasse(tenantId, exerciceId),
     ]);
-    const classeur = this.construireClasseurNotes(resultat, ident);
+    const classeur = this.construireClasseurNotes(resultat, ident, ExportService.PARTIES_NOTES_PROJETS);
     numeroterPages(classeur);
     return {
       buffer: await this.versBuffer(classeur),
@@ -2929,19 +2953,9 @@ export class ExportService {
   }
 
   // -------------------------------------------------------------------------
-  // Livre d'inventaire (art. 14) et rapport d'activité (art. 16-3)
+  // Test des écritures de journal (ISA 240)
   // -------------------------------------------------------------------------
 
-  /**
-   * Le livre d'inventaire tel qu'il se présente : une feuille de garde qui
-   * dit ce que l'article 14 exige et ce que la transcription porte, puis les
-   * états FIGÉS, puis le résumé de l'opération d'inventaire.
-   *
-   * Les états sont relus depuis la transcription, JAMAIS recalculés · c'est
-   * le sens même du mot « transcrits » de l'article. Un classeur qui
-   * régénérerait les états à l'export produirait, à partir du même livre,
-   * deux documents différents à deux dates différentes.
-   */
   private get testIsa240(): TestEcrituresJournalService {
     if (!this.testEcrituresJournal) {
       throw new Error("Sélection ISA 240 absente de l'injection : export impossible");
@@ -3066,6 +3080,23 @@ export class ExportService {
     };
   }
 
+  // -------------------------------------------------------------------------
+  // Livre d'inventaire et rapport · chacun dans le texte du dossier
+  // -------------------------------------------------------------------------
+
+  /**
+   * Le livre d'inventaire tel qu'il se présente : une feuille de garde qui
+   * dit ce que le texte du DOSSIER exige (SYCEBNL art. 14, point 1 ou 2 selon
+   * le jeu, ou AUDCIF art. 19, lus par `fondementInventaire`) et ce que la
+   * transcription porte, puis les états FIGÉS, puis le résumé de l'opération
+   * d'inventaire. Cette documentation vivait au-dessus d'une autre fonction
+   * et ne nommait que l'article du SYCEBNL (audit final F223).
+   *
+   * Les états sont relus depuis la transcription, JAMAIS recalculés · c'est
+   * le sens même du mot « transcrits », que les deux articles emploient. Un
+   * classeur qui régénérerait les états à l'export produirait, à partir du
+   * même livre, deux documents différents à deux dates différentes.
+   */
   async livreInventaireExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
     const [transcription, conformite, identite] = await Promise.all([
       this.livreInventaire.courante(tenantId, exerciceId),
@@ -3078,8 +3109,9 @@ export class ExportService {
 
     if (transcription) {
       const etats = transcription.etats as Record<string, any>;
-      // Ordre de l'article 14, pas ordre alphabétique des clés : le livre se
-      // lit dans l'ordre où le texte énumère les états.
+      // Ordre du texte du dossier (SYCEBNL art. 14, AUDCIF art. 19), pas
+      // ordre alphabétique des clés : le livre se lit dans l'ordre où le
+      // texte énumère les états.
       for (const e of conformite.etatsExiges) {
         const etat = etats[e.cle];
         if (etat) this.feuilleEtatFige(classeur, e.libelle, etat, identite);
@@ -3243,11 +3275,11 @@ export class ExportService {
   }
 
   /**
-   * Le rapport d'activité, section par section dans l'ordre de l'article
-   * 16-3, avec la citation qui fonde chacune et la mention explicite d'une
-   * section vide · un rapport amputé d'un contenu exigé n'est pas « établi ».
-   */
-  /**
+   * Le rapport, section par section dans l'ordre du texte du dossier, avec la
+   * citation qui fonde chacune et la mention explicite d'une section vide · un
+   * rapport amputé d'un contenu exigé n'est pas « établi ». Cette phrase ne
+   * nommait que l'article 16-3 du SYCEBNL (audit final F223).
+   *
    * LE RAPPORT N'A PAS LES MÊMES SECTIONS DES DEUX CÔTÉS, et cet export les
    * servait toutes deux sur le gabarit SYCEBNL.
    *
@@ -4342,7 +4374,7 @@ export class ExportService {
     }
     f.addRow({ libelle: 'TOTAL DES RESSOURCES', montant: e.totalRessources }).font = ENTETE_FONT;
     f.addRow({});
-    f.addRow({ libelle: `Montants exprimés en ${e.deviseDossier ?? 'monnaie de tenue du dossier'}.` });
+    f.addRow({ libelle: `Montants exprimés en ${e.deviseDossier}.` });
     f.addRow({ libelle: e.avertissement });
     this.appliquerFormats(f, { montant: FORMAT_MONTANT });
     this.finaliserTableau(f, f.columns.length, f.rowCount);
@@ -4360,30 +4392,27 @@ export class ExportService {
   // -------------------------------------------------------------------
   // LIASSE COMPLÈTE · tous les états du jeu dans UN seul classeur
   // -------------------------------------------------------------------
+  //
+  // Un bouton par état, c'est bien pour consulter ; c'est intenable pour
+  // déposer. Une liasse SYCEBNL, c'est cinq à sept états plus les notes
+  // annexes : les exporter un par un, puis les recoller à la main dans un
+  // classeur avant de l'envoyer au CPCC ou à un bailleur, c'est huit
+  // téléchargements et une manipulation où l'on oublie une pièce.
+  //
+  // LA LIASSE EST BÂTIE NATIVEMENT, JEU PAR JEU (`liasseAssociationsEtafi`,
+  // `liasseProjetsEtafi`, `liasseSmtEtafi`, `liasseSyscohadaEtafi`,
+  // `liasseSmtSyscohadaEtafi`), et `liasseCompleteExcel` aiguille sur le
+  // référentiel et le jeu du dossier. Ce bloc la décrivait encore assemblée
+  // en recopiant les feuilles des exports unitaires, derrière un sommaire, et
+  // il documentait, faute de déclaration, la fonction qui suit (audit final
+  // F223). Les notes annexes des associations, des projets et du SYSCOHADA
+  // sortent du même constructeur dans la liasse et à l'unité
+  // (`construireClasseurNotes`), sous les mêmes parties officielles (audit
+  // final F224).
 
-  /**
-   * Un bouton par état, c'est bien pour consulter ; c'est intenable pour
-   * déposer. Une liasse SYCEBNL, c'est cinq à sept états plus les notes
-   * annexes : les exporter un par un, puis les recoller à la main dans un
-   * classeur avant de l'envoyer au CPCC ou à un bailleur, c'est huit
-   * téléchargements et une manipulation où l'on oublie une pièce.
-   *
-   * Cette méthode produit LE classeur du dépôt : tous les états du jeu retenu
-   * par le dossier, dans l'ordre officiel, précédés d'un sommaire qui porte
-   * les mentions d'en-tête exigées de chaque page déposée (dénomination,
-   * n° impôt, exercice clos le, durée en mois · CPCC § 7.4 règle 7-a) et qui
-   * dit ce que le classeur contient.
-   *
-   * La construction réutilise les exports unitaires plutôt que de dupliquer
-   * leur logique : chacun produit son classeur, dont les feuilles sont
-   * recopiées ici. C'est un aller-retour par la sérialisation, plus coûteux
-   * qu'un assemblage direct, mais qui garantit qu'un état exporté seul et le
-   * même état dans la liasse sont RIGOUREUSEMENT identiques. Un écart entre
-   * les deux serait le pire défaut possible pour un document d'audit.
-   */
   /** Exercice immédiatement antérieur du même dossier, s'il existe. */
   private async exerciceN1Id(tenantId: string, exerciceId: string): Promise<string | null> {
-    const courant = await this.prisma.exercice.findFirstOrThrow({ where: { id: exerciceId, tenantId } });
+    const courant = await this.exerciceDuDossier(tenantId, exerciceId);
     const anterieur = await this.prisma.exercice.findFirst({
       where: { tenantId, dateDebut: { lt: courant.dateDebut } },
       orderBy: { dateDebut: 'desc' },
@@ -4399,10 +4428,18 @@ export class ExportService {
    * NET dans leur colonne de sens, mouvements en cumuls. Ligne à ligne,
    * ouverture + mouvements = clôture · l'identité que la feuille CONTROLE
    * BALANCE vérifie ensuite en formules.
+   *
+   * C'est la balance dont les états du classeur sont tirés · AVANT l'écriture
+   * qui solde les classes 6 à 8 d'un exercice clos, comme `chargerLignes`
+   * (`avantSoldeDesComptesDeGestion`). Lue après, cette écriture étant VALIDÉE
+   * depuis l'audit final F4, chaque charge et chaque produit sortait à zéro
+   * dans BALANCE N-1 et le 13 portait le résultat, pendant que la feuille
+   * Résultat du même classeur les publiait en entier, sans qu'aucun contrôle
+   * d'équilibre ne le voie.
    */
   private async lignesBalanceLiasse(tenantId: string, exerciceId: string): Promise<LigneBalanceLiasse[]> {
     const balance = await this.ecritureService.balance(tenantId, exerciceId, false);
-    return balance.lignes
+    return avantSoldeDesComptesDeGestion(balance.lignes)
       // Redondant par construction, gardé contre le double comptage.
       .filter((l) => l.typeCompte !== 'TOTAL')
       .map((l) => {
@@ -4412,11 +4449,10 @@ export class ExportService {
           libelle: l.intitule,
           ouvertureDebit: Math.max(ouverture, 0),
           ouvertureCredit: Math.max(-ouverture, 0),
-          // L'écriture qui solde les classes 6 à 8 d'un exercice clos se lit
-          // avec les mouvements (audit final F5) · sans elle, l'identité
-          // tomberait sur chaque charge et chaque produit d'un exercice clos.
-          mouvementDebit: l.mouvementDebit + l.clotureDebit,
-          mouvementCredit: l.mouvementCredit + l.clotureCredit,
+          // La colonne de clôture est retirée plus haut · il ne reste que
+          // l'activité de l'exercice.
+          mouvementDebit: l.mouvementDebit,
+          mouvementCredit: l.mouvementCredit,
           clotureDebit: Math.max(l.solde, 0),
           clotureCredit: Math.max(-l.solde, 0),
         };
@@ -6421,7 +6457,7 @@ export class ExportService {
       [
         "Chiffre d'affaires de l'exercice (art. 13, compte 70)",
         eligibilite.chiffreAffaires,
-        `${eligibilite.deviseDossier ?? 'monnaie de tenue'}`,
+        eligibilite.deviseDossier,
       ],
       ...eligibilite.seuils.map(
         (s) =>
@@ -6506,7 +6542,7 @@ export class ExportService {
         'A_VERIFIER',
         'art. 13',
         'Éligibilité au Système minimal de trésorerie',
-        `Chiffre d'affaires de ${eligibilite.chiffreAffaires.toLocaleString('fr-FR')} ${eligibilite.deviseDossier ?? ''} face à des seuils exprimés en F CFA (30 à 60 millions selon la catégorie). ${eligibilite.avertissementConversion}`,
+        `Chiffre d'affaires de ${eligibilite.chiffreAffaires.toLocaleString('fr-FR')} ${eligibilite.deviseDossier} face à des seuils exprimés en F CFA (30 à 60 millions selon la catégorie). ${eligibilite.avertissementConversion}`,
         eligibilite.qualificationParLEntite,
       ]);
     }
@@ -6529,15 +6565,16 @@ export class ExportService {
   /**
    * LIASSE COMPLÈTE · le classeur ENTIER du modèle du skill, construit
    * nativement pour le jeu du dossier (art. 4 de l'Acte uniforme) ·
-   * associations, projets de développement ou Système minimal de trésorerie.
+   * associations, projets de développement ou Système minimal de trésorerie
+   * au SYCEBNL, Système normal ou Système minimal de trésorerie au SYSCOHADA
+   * (l'aiguillage est ci-dessous). TOUTES ses notes annexes sont comprises ·
+   * celles que l'exercice ne chiffre pas portent la mention NEANT (voir
+   * `construireClasseurNotes` pour la décision et son écart assumé avec le
+   * renvoi (1) du modèle). Les deux commentaires qui se suivaient ici sont
+   * fondus en un (audit final F223).
+   *
    * `paiementsEnInstance` : poste H de la réconciliation de trésorerie (jeu
    * projets), donnée extra-comptable que seul l'utilisateur connaît.
-   */
-  /**
-   * La liasse entière du jeu retenu par le dossier, TOUTES ses notes annexes
-   * comprises · celles que l'exercice ne chiffre pas portent la mention
-   * NEANT (voir `construireClasseurNotes` pour la décision et son écart
-   * assumé avec le renvoi (1) du modèle).
    */
   async liasseCompleteExcel(
     tenantId: string,

@@ -17,8 +17,9 @@ import { NOTES_SYSCOHADA_3 } from './correspondance-notes-syscohada-3';
  * nombre de 36, pour 46 codes.
  *
  * Le jeu est assemblé depuis trois tranches, écrites séparément parce
- * qu'un fichier de 45 notes ne se relit pas · chacune porte ses sources,
- * ses anomalies et son spec :
+ * qu'un fichier unique portant les 46 codes ne se relit pas (audit final
+ * F219 · il était dit « de 45 notes », le spec voisin compte 46 codes) ·
+ * chacune porte ses sources, ses anomalies et son spec :
  *  - tranche 1 : notes 1 à 15B (`correspondance-notes-syscohada-1.ts`) ;
  *  - tranche 2 : notes 16A à 27B (`correspondance-notes-syscohada-2.ts`) ;
  *  - tranche 3 : notes 28 à 36 (`correspondance-notes-syscohada-3.ts`).

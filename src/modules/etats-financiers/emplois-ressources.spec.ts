@@ -65,6 +65,8 @@ function service(
       }),
     ),
   } as unknown as EcritureService;
+  // L'exercice demandé ('e1') est toujours du dossier · hors de la liste,
+  // l'état est refusé (audit final F222).
   const exerciceService = {
     lister: jest.fn().mockResolvedValue(
       options.exercicePrecedentId
@@ -72,7 +74,7 @@ function service(
             { id: 'e1', dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') },
             { id: options.exercicePrecedentId, dateDebut: new Date('2025-01-01'), dateFin: new Date('2025-12-31') },
           ]
-        : [],
+        : [{ id: 'e1', dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') }],
     ),
   } as unknown as ExerciceService;
   const prisma = {

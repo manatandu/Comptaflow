@@ -1,10 +1,11 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ClasseCompte } from '@prisma/client';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
 import {
   CompteDuPoste,
   LigneBalancePourEtat,
+  MOTIF_EXERCICE_INTROUVABLE,
   chargerLignes,
   correspond,
   trouverExerciceN1,
@@ -124,6 +125,13 @@ import {
  * `brut`/`amortissement` : ACTIF seulement, le modèle exigeant trois colonnes
  * (Brut, Amort. et déprec., Net). `amortissement` est une magnitude POSITIVE,
  * `montant` (net) = `brut` − `amortissement`.
+ *
+ * LA COLONNE N-1 EST NETTE, ET SEULEMENT NETTE (audit final F217) · le modèle
+ * du ch. 3 imprime l'exercice N en Brut, Amort. et déprec., Net, et
+ * l'exercice N-1 en Net seul. Deux champs `brutN1` et `amortissementN1`
+ * étaient servis sans que personne ne les lise, écran, liasse ni export, et
+ * valaient 0 sur un dossier sans exercice antérieur · un faux zéro sur une
+ * colonne que le modèle n'a pas. Ils sont retirés ; `montantN1` porte le net.
  */
 export interface LigneBilanSyscohada {
   ref: string;
@@ -131,9 +139,7 @@ export interface LigneBilanSyscohada {
   montant: number;
   montantN1?: number;
   brut?: number;
-  brutN1?: number;
   amortissement?: number;
-  amortissementN1?: number;
   estTotal: boolean;
   comptes: CompteDuPoste[];
   note?: string;
@@ -395,6 +401,30 @@ const CLASSES_DE_GESTION = new Set<ClasseCompte>([ClasseCompte.CLASSE_6, ClasseC
 /** Tolérance d'arrondi commune · en deçà, un montant est nul et un contrôle boucle. */
 const EPSILON = 0.005;
 
+/** Le format du champ de date de l'écran, le seul qu'une date d'arrêté accepte. */
+const FORMAT_JOUR = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * LA DATE D'ARRÊTÉ LUE, OU REFUSÉE (audit final F220). `new Date('xyz')` rend
+ * une date invalide que `motifRefusDateArrete` laissait passer, toute
+ * comparaison avec NaN étant fausse, et la lecture de la balance tombait
+ * ensuite en erreur 500 sur une demande qui n'était qu'illisible. Deux autres
+ * formes se lisaient SANS erreur et sont refusées du même geste :
+ * « 2026-02-30 », que le moteur JavaScript reporte en silence au 2 mars, et
+ * « 06/30/2026 », lu à l'américaine et à l'heure locale du serveur, donc la
+ * veille sur un poste réglé à Kinshasa. Seul le format AAAA-MM-JJ est admis,
+ * et il doit désigner un jour qui existe.
+ */
+export function lireDateArrete(arreteAu: string): Date {
+  const jour = FORMAT_JOUR.test(arreteAu) ? new Date(`${arreteAu}T00:00:00.000Z`) : new Date(Number.NaN);
+  if (Number.isNaN(jour.getTime()) || jour.toISOString().slice(0, 10) !== arreteAu) {
+    throw new BadRequestException(
+      `La date d'arrêté « ${arreteAu} » n'est pas lisible · elle s'écrit AAAA-MM-JJ et désigne un jour qui existe.`,
+    );
+  }
+  return finDeJournee(jour);
+}
+
 @Injectable()
 export class EtatsFinanciersSyscohadaService {
   constructor(
@@ -402,6 +432,10 @@ export class EtatsFinanciersSyscohadaService {
     private readonly exerciceService: ExerciceService,
   ) {}
 
+  // Appelée en tête des trois états · elle REFUSE un exercice inconnu du
+  // dossier (NotFoundException, `etats-financiers.communs.ts`). Sans ce
+  // refus, chaque état se lisait sur une balance vide et sortait tout à zéro,
+  // « équilibré » (audit final F222).
   private async trouverExerciceN1(tenantId: string, exerciceId: string): Promise<string | null> {
     return trouverExerciceN1(this.exerciceService, tenantId, exerciceId);
   }
@@ -429,13 +463,21 @@ export class EtatsFinanciersSyscohadaService {
     arreteAu?: string,
   ): Promise<{ borneN?: Date; borneMemePeriodeN1: Date | null }> {
     if (!arreteAu) return { borneN: undefined, borneMemePeriodeN1: null };
+    // Lue avant la balance et avant les dates de l'exercice · une date
+    // illisible est un refus de la demande (400), pas une panne du serveur
+    // (audit final F220).
+    const borneN = lireDateArrete(arreteAu);
     // Les dates viennent d'ExerciceService · le service des états n'atteint
     // jamais Prisma directement, et lui ouvrir cette porte pour deux dates
     // serait un chemin de plus à borner au dossier.
     const exercices = await this.exerciceService.lister(tenantId);
     const exercice = exercices.find((e) => e.id === exerciceId);
-    if (!exercice) throw new BadRequestException('Exercice introuvable pour ce tenant');
-    const borneN = finDeJournee(new Date(arreteAu));
+    // Un exercice inconnu du dossier est introuvable, pas une demande mal
+    // formée (audit final F222) · `trouverExerciceN1`, appelé avant, le
+    // refuse déjà ; ce refus-ci tient la même réponse si l'ordre change.
+    if (!exercice) {
+      throw new NotFoundException(MOTIF_EXERCICE_INTROUVABLE);
+    }
     const motif = motifRefusDateArrete(borneN, exercice as BornesExercice);
     if (motif) throw new BadRequestException(motif);
     const exerciceN1 = exerciceN1Id ? (exercices.find((e) => e.id === exerciceN1Id) ?? null) : null;
@@ -772,9 +814,7 @@ export class EtatsFinanciersSyscohadaService {
         montant: n.montant,
         montantN1: n1?.montant,
         brut: n.brut,
-        brutN1: n.brut !== undefined ? (n1?.brut ?? 0) : undefined,
         amortissement: n.amortissement,
-        amortissementN1: n.amortissement !== undefined ? (n1?.amortissement ?? 0) : undefined,
         estTotal,
         // Une rubrique de totalisation n'a pas de drill-down : ses comptes sont
         // déjà présentés sous les postes qu'elle additionne, les répéter ici

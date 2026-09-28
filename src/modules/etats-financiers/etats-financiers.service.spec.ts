@@ -1,3 +1,4 @@
+import { NotFoundException } from '@nestjs/common';
 import { ClasseCompte, TypeCompteDetailTotal } from '@prisma/client';
 import { EtatsFinanciersService } from './etats-financiers.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
@@ -46,9 +47,16 @@ function serviceAvecExercices(
       });
     }),
   } as unknown as EcritureService;
+  // Sans liste nommée, les exercices du dossier sont ceux dont la balance est
+  // fournie, ouverts le même jour pour qu'aucun ne soit le N-1 d'un autre ·
+  // un exercice hors de la liste est INCONNU du dossier, et l'état le refuse
+  // (audit final F222).
+  const duDossier = exercices.length
+    ? exercices
+    : Object.keys(lignesParExercice).map((id) => ({ id, dateDebut: new Date('2026-01-01') }));
   const exerciceService = {
     // ExerciceService.lister() trie par dateDebut décroissant · répliqué ici.
-    lister: jest.fn().mockResolvedValue([...exercices].sort((a, b) => b.dateDebut.getTime() - a.dateDebut.getTime())),
+    lister: jest.fn().mockResolvedValue([...duDossier].sort((a, b) => b.dateDebut.getTime() - a.dateDebut.getTime())),
   } as unknown as ExerciceService;
   return new EtatsFinanciersService(ecritureService, exerciceService);
 }
@@ -503,7 +511,7 @@ describe('EtatsFinanciersService', () => {
       { id: 'e0', dateDebut: new Date('2025-01-01') },
     ];
 
-    it('bilan : peuple montantN1/brutN1/amortissementN1 depuis l’exercice antérieur', async () => {
+    it('bilan : peuple montantN1 depuis l’exercice antérieur', async () => {
       const service = serviceAvecExercices(
         {
           e1: [ligne('52110000', ClasseCompte.CLASSE_5, 1000, 0), ligne('10110000', ClasseCompte.CLASSE_1, 0, 1000)],
@@ -536,6 +544,29 @@ describe('EtatsFinanciersService', () => {
       expect(bilan.exerciceN1Disponible).toBe(false);
       expect(bw.montantN1).toBeUndefined();
       expect(bilan.totalActifN1).toBeUndefined();
+    });
+
+    it('bilan : ni Brut ni Amort. en N-1 · le modèle de la Partie 4 ch. 2 n’imprime que le net de N-1 (audit final F217, jumeau SYCEBNL)', async () => {
+      // Sans exercice antérieur, l'ancien code servait `brutN1: 0` sur tout
+      // poste d'actif · un faux zéro sur une colonne que le modèle n'a pas.
+      // Avec un antérieur, le champ n'était lu par personne.
+      const balances = {
+        e1: [ligne('24410000', ClasseCompte.CLASSE_2, 1000, 0), ligne('10110000', ClasseCompte.CLASSE_1, 0, 1000)],
+        e0: [ligne('24410000', ClasseCompte.CLASSE_2, 600, 0), ligne('10110000', ClasseCompte.CLASSE_1, 0, 600)],
+      };
+      for (const [exercicesDuDossier, attenduN1] of [
+        [exercices, true],
+        [[exercices[0]], false],
+      ] as const) {
+        const bilan = await serviceAvecExercices(balances, [...exercicesDuDossier]).bilan('t1', 'e1');
+        expect(bilan.exerciceN1Disponible).toBe(attenduN1);
+        for (const l of [...bilan.actif, ...bilan.passif]) {
+          expect({ ref: l.ref, cles: Object.keys(l).filter((k) => k === 'brutN1' || k === 'amortissementN1') }).toEqual({
+            ref: l.ref,
+            cles: [],
+          });
+        }
+      }
     });
 
     it('choisit le PLUS RÉCENT exercice antérieur quand il y en a plusieurs', async () => {
@@ -1033,4 +1064,22 @@ describe('EtatsFinanciersService · tableau de flux de trésorerie', () => {
     expect(sections).toHaveLength(4);
     expect(sections[0]).toBe('Flux de trésorerie provenant des activités opérationnelles');
   });
+});
+
+/**
+ * AUDIT FINAL F222 · la balance ne vérifie pas l'exercice qu'on lui passe. Un
+ * identifiant inconnu rendait un bilan à zéro dit équilibré, un compte de
+ * résultat et un tableau des flux vides, sans comparatif · une réponse fausse
+ * et présentable, là où il fallait un 404. Les trois états passent par
+ * `trouverExerciceN1` avant toute lecture, et c'est là que le refus se pose.
+ */
+describe('Exercice introuvable · un refus, jamais un état à zéro (audit final F222)', () => {
+  it.each(['bilan', 'compteDeResultat', 'tableauFluxTresorerie'] as const)(
+    '%s refuse un exercice que le dossier ne porte pas',
+    async (etat) => {
+      const service = serviceAvecExercices({ e1: [ligne('52110000', ClasseCompte.CLASSE_5, 1000, 0)] });
+      await expect(service[etat]('t1', 'inconnu')).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service[etat]('t1', 'inconnu')).rejects.toThrow('Exercice introuvable dans ce dossier');
+    },
+  );
 });

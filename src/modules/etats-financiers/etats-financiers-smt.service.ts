@@ -1,9 +1,17 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { ClasseCompte, StatutEcriture } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
+import { monnaieDuJeuLegal } from '../../common/monnaie-de-tenue';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
-import { CompteDuPoste, LigneBalancePourEtat, chargerLignes, correspond, trouverExerciceN1 } from './etats-financiers.communs';
+import {
+  CompteDuPoste,
+  LigneBalancePourEtat,
+  MOTIF_EXERCICE_INTROUVABLE,
+  chargerLignes,
+  correspond,
+  trouverExerciceN1,
+} from './etats-financiers.communs';
 import { chargerCampagneStocks, lignesNoteStocks, motifQuantitesNote2 } from './stocks-depuis-inventaire';
 import { estCompteDuResultatDeLExercice } from './resultat-de-l-exercice';
 import { PosteCalcule } from './etats-financiers.service';
@@ -101,6 +109,25 @@ export class EtatsFinanciersSmtService {
   }
 
   /**
+   * L'exercice demandé, lu dans CE dossier, ou un refus nommé (audit final
+   * F222). Le bilan le vérifie par `trouverExerciceN1` ; les autres états du
+   * S.M.T ne cherchent pas de comparatif et lisaient la balance directement,
+   * qui ne vérifie pas l'exercice : un identifiant inconnu rendait un compte
+   * de résultat tout à zéro et dit concordant, et les notes 1 et 3 comme le
+   * contrôle de l'article 6 tombaient en erreur 500 sur `findFirstOrThrow`.
+   */
+  private async exercice(tenantId: string, exerciceId: string): Promise<{ dateDebut: Date; dateFin: Date }> {
+    const exercice = await this.prisma.exercice.findFirst({
+      where: { id: exerciceId, tenantId },
+      select: { dateDebut: true, dateFin: true },
+    });
+    if (!exercice) {
+      throw new NotFoundException(MOTIF_EXERCICE_INTROUVABLE);
+    }
+    return exercice;
+  }
+
+  /**
    * Les mêmes lignes de balance, ramenées à l'OUVERTURE de l'exercice : le
    * report à nouveau tient lieu de solde, les mouvements de l'exercice sont
    * mis de côté.
@@ -145,19 +172,33 @@ export class EtatsFinanciersSmtService {
   }
 
   /**
-   * HB « Résultat net de l'exercice (en + ou en -) » · même arbitrage que CH
-   * (associations) et CC (projets) : avant clôture le résultat n'existe que
-   * dans les classes 6/7/8, après clôture il est au compte 13. Prendre les
-   * deux les additionnerait.
+   * Les deux sources possibles du résultat de l'exercice · les classes 6 à 8
+   * avant clôture, les comptes 131 à 139 après (`resultat-de-l-exercice.ts`,
+   * jamais le 130). Lues une fois pour HB et pour le contrôle du bilan.
    */
-  private calculerHB(lignes: LigneBalancePourEtat[]): PosteCalcule {
+  private sourcesDuResultat(lignes: LigneBalancePourEtat[]) {
     const lignes678 = lignes.filter(
       (l) =>
         l.classe === ClasseCompte.CLASSE_6 || l.classe === ClasseCompte.CLASSE_7 || l.classe === ClasseCompte.CLASSE_8,
     );
-    const resultat678 = lignes678.reduce((s, l) => s - l.solde, 0);
     const lignes13 = lignes.filter((l) => estCompteDuResultatDeLExercice(l.numero));
-    const resultat13 = lignes13.reduce((s, l) => s - l.solde, 0);
+    return {
+      lignes678,
+      resultat678: lignes678.reduce((s, l) => s - l.solde, 0),
+      lignes13,
+      resultat13: lignes13.reduce((s, l) => s - l.solde, 0),
+    };
+  }
+
+  /**
+   * HB « Résultat net de l'exercice (en + ou en -) » · même arbitrage que CH
+   * (associations) et CC (projets) : avant clôture le résultat n'existe que
+   * dans les classes 6/7/8, après clôture il est aux comptes 131 à 139.
+   * Prendre les deux les additionnerait. Le 130 n'est pas le résultat de
+   * l'exercice et va à HC (audit final F211).
+   */
+  private calculerHB(lignes: LigneBalancePourEtat[]): PosteCalcule {
+    const { lignes678, resultat678, lignes13, resultat13 } = this.sourcesDuResultat(lignes);
 
     const avantCloture = Math.abs(resultat678) > 0.005;
     const source = avantCloture ? lignes678 : lignes13;
@@ -206,6 +247,7 @@ export class EtatsFinanciersSmtService {
 
     const totalActif = parRefN.get('GZ')!.montant;
     const totalPassif = parRefN.get('HZ')!.montant;
+    const { resultat678, resultat13 } = this.sourcesDuResultat(lignesN);
 
     return {
       actif: ORDRE_BILAN_ACTIF.map(fusionner),
@@ -217,10 +259,20 @@ export class EtatsFinanciersSmtService {
       exerciceN1Disponible: exerciceN1Id !== null,
       equilibre: Math.abs(totalActif - totalPassif) < 0.01,
       renvoiImmobilisations: RENVOI_IMMOBILISATIONS,
-      // Aucun poste de « comptes non rattachés » ici, et ce n'est pas un oubli :
-      // GA à GE et HA à HD couvrent les classes 1 à 5 par construction (classe
-      // par classe, avec les soldes de tiers répartis entre GC et HD). Aucun
-      // compte de bilan ne peut échapper à cette maquette.
+      // Aucun poste de « comptes non rattachés » ici : GA à GE et HA à HD
+      // couvrent les classes 1 à 5 par construction (classe par classe, les
+      // soldes de tiers répartis entre GC et HD, HC étant le reste exact de
+      // la classe 1 depuis l'audit final F211, 130 compris). UN SEUL SOLDE
+      // peut encore manquer au passif, et il est signalé plutôt que deviné ·
+      // des comptes 131 à 139 qui portent encore le résultat de l'exercice
+      // précédent, non affecté, pendant que les classes 6 à 8 portent celui
+      // de l'exercice. HB ne retient qu'une des deux sources (`calculerHB`),
+      // le même contrôle que le bilan des associations le dit.
+      controle: {
+        resultatClasses678: resultat678,
+        resultatCompte13: resultat13,
+        doubleComptageProbable: Math.abs(resultat678) > 0.005 && Math.abs(resultat13) > 0.005,
+      },
     };
   }
 
@@ -336,7 +388,8 @@ export class EtatsFinanciersSmtService {
    * VA/VB/VC/JG qui ramènent au résultat net d'engagement KZC.
    *
    * KZC est ensuite CONFRONTÉ au résultat du bilan (poste HB, lu dans les
-   * classes 6/7/8) : les deux chemins doivent aboutir au même montant. L'écart
+   * classes 6/7/8 avant clôture, aux comptes 131 à 139 après, voir
+   * `calculerHB`) : les deux chemins doivent aboutir au même montant. L'écart
    * est exposé tel quel dans `controle`, jamais absorbé · c'est le seul
    * contrôle qui atteste que la reconstruction de trésorerie est complète.
    */
@@ -387,7 +440,8 @@ export class EtatsFinanciersSmtService {
   }
 
   async compteDeResultat(tenantId: string, exerciceId: string) {
-    const [mouvements, lignesN] = await Promise.all([
+    const [, mouvements, lignesN] = await Promise.all([
+      this.exercice(tenantId, exerciceId),
       this.mouvementsTresorerie(tenantId, exerciceId),
       this.chargerLignes(tenantId, exerciceId),
     ]);
@@ -494,7 +548,8 @@ export class EtatsFinanciersSmtService {
    * exposé, jamais absorbé.
    */
   async journalTresorerie(tenantId: string, exerciceId: string) {
-    const [ecritures, lignes] = await Promise.all([
+    const [, ecritures, lignes] = await Promise.all([
+      this.exercice(tenantId, exerciceId),
       this.ecrituresDeLExercice(tenantId, exerciceId),
       this.chargerLignes(tenantId, exerciceId),
     ]);
@@ -599,10 +654,7 @@ export class EtatsFinanciersSmtService {
    * que laissée ambiguë.
    */
   async note1Immobilisations(tenantId: string, exerciceId: string) {
-    const exercice = await this.prisma.exercice.findFirstOrThrow({
-      where: { id: exerciceId, tenantId },
-      select: { dateFin: true },
-    });
+    const exercice = await this.exercice(tenantId, exerciceId);
     const immobilisations = await this.prisma.immobilisation.findMany({
       where: { tenantId, dateAcquisition: { lte: exercice.dateFin } },
       orderBy: [{ dateAcquisition: 'asc' }],
@@ -633,7 +685,7 @@ export class EtatsFinanciersSmtService {
    * final F85) · jamais un « 1 » qui laisserait croire à un comptage.
    */
   async note2Stocks(tenantId: string, exerciceId: string) {
-    const lignes = await this.chargerLignes(tenantId, exerciceId);
+    const [, lignes] = await Promise.all([this.exercice(tenantId, exerciceId), this.chargerLignes(tenantId, exerciceId)]);
     const stocks = lignes
       .filter((l) => l.classe === ClasseCompte.CLASSE_3)
       .sort((a, b) => a.numero.localeCompare(b.numero));
@@ -687,10 +739,7 @@ export class EtatsFinanciersSmtService {
    * bornée à la classe 4 non lettrée y est strictement plus légère.
    */
   private async partsParEcheance(tenantId: string, exerciceId: string): Promise<Map<string, PartsEcheance>> {
-    const exercice = await this.prisma.exercice.findFirstOrThrow({
-      where: { id: exerciceId, tenantId },
-      select: { dateFin: true },
-    });
+    const exercice = await this.exercice(tenantId, exerciceId);
     const lignesTiers = await this.prisma.ligneEcriture.findMany({
       // Même porte que la balance qui sert le reste de la note : les états
       // financiers sont des documents légaux et ne lisent que le livre-journal,
@@ -845,7 +894,7 @@ export class EtatsFinanciersSmtService {
    * présenter une colonne vide sans explication.
    */
   async note5Dotation(tenantId: string, exerciceId: string) {
-    const lignes = await this.chargerLignes(tenantId, exerciceId);
+    const [, lignes] = await Promise.all([this.exercice(tenantId, exerciceId), this.chargerLignes(tenantId, exerciceId)]);
     const rubriques = [
       { cle: 'nonConsomptible', libelle: 'Dotation non consomptible', comptes: ['101', '102'] },
       { cle: 'droitEntree', libelle: "Droit d'entrée", comptes: ['103'] },
@@ -895,21 +944,6 @@ export class EtatsFinanciersSmtService {
   // CONTRÔLE D'ÉLIGIBILITÉ (art. 6)
   // -------------------------------------------------------------------------
 
-  /**
-   * Article 6 : le S.M.T est réservé aux entités dont CHACUNE des cinq
-   * catégories de ressources annuelles reste sous trente millions de FCFA,
-   * et « si, de manière cumulée sur deux exercices, les ressources dépassent
-   * trente millions […] l'entité est éligible au Système normal ».
-   *
-   * Ce contrôle mesure les ressources de l'exercice, catégorie par catégorie,
-   * et les confronte au seuil légal. Il ne CONVERTIT pas : le seuil est
-   * exprimé en FCFA par le texte, la RDC tient ses comptes en CDF ou en USD,
-   * et le cours de conversion n'appartient pas au texte comptable. Le
-   * contrôle affiche donc les montants dans la monnaie de tenue du dossier,
-   * rappelle le seuil en FCFA, et laisse l'entité conclure · il ne déclare
-   * jamais de lui-même un dossier inéligible sur une conversion qu'il aurait
-   * inventée.
-   */
   /** Ressources par catégorie de l'article 6, sur un exercice donné. */
   private async ressourcesParCategorie(tenantId: string, exerciceId: string) {
     const lignes = await this.chargerLignes(tenantId, exerciceId);
@@ -921,13 +955,32 @@ export class EtatsFinanciersSmtService {
     });
   }
 
+  /**
+   * Article 6 : le S.M.T est réservé aux entités dont CHACUNE des cinq
+   * catégories de ressources annuelles reste sous trente millions de FCFA,
+   * et « si, de manière cumulée sur deux exercices, les ressources dépassent
+   * trente millions […] l'entité est éligible au Système normal ».
+   *
+   * Ce contrôle mesure les ressources de l'exercice, catégorie par catégorie,
+   * et les confronte au seuil légal. Il ne CONVERTIT pas : le seuil est
+   * exprimé en FCFA par le texte, les livres sont tenus en francs congolais
+   * (loi n° 23/053, art. 141, 1° ; AUDCIF art. 17, 1°, voir
+   * `common/monnaie-de-tenue.ts`), et le cours de conversion n'appartient pas
+   * au texte comptable. Le contrôle affiche donc les montants dans la monnaie
+   * du jeu légal, `monnaieDuJeuLegal`, rappelle le seuil en FCFA, et laisse
+   * l'entité conclure · il ne déclare jamais de lui-même un dossier
+   * inéligible sur une conversion qu'il aurait inventée. Le commentaire
+   * disait « en CDF ou en USD », et l'état servait la devise du dossier
+   * telle quelle, nulle comprise (audit final F212).
+   */
   async eligibilite(tenantId: string, exerciceId: string) {
     const [categories, tenant, exercice] = await Promise.all([
       this.ressourcesParCategorie(tenantId, exerciceId),
       this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { devise: true } }),
-      // findFirst borné au tenant : un id d'exercice d'un AUTRE dossier ne
-      // doit rien renvoyer (même une date de début est une fuite).
-      this.prisma.exercice.findFirstOrThrow({ where: { id: exerciceId, tenantId }, select: { dateDebut: true } }),
+      // Borné au tenant : un id d'exercice d'un AUTRE dossier ne doit rien
+      // renvoyer (même une date de début est une fuite), et il est refusé
+      // par un 404 nommé, plus par une erreur 500 (audit final F222).
+      this.exercice(tenantId, exerciceId),
     ]);
 
     /*
@@ -964,7 +1017,7 @@ export class EtatsFinanciersSmtService {
         ? "L'article 6 ajoute que « si, de manière cumulée sur deux exercices, les ressources dépassent trente millions […] l'entité est éligible au Système normal ». Comparez donc AUSSI la colonne cumulée au seuil : une entité sous le seuil chaque année peut le franchir sur deux."
         : "Aucun exercice antérieur n'est clos dans ce dossier : le cumul sur deux exercices de l'article 6 ne peut pas être mesuré. Il le sera à partir du deuxième exercice.",
       seuilParCategorieFcfa: SEUIL_SMT_FCFA,
-      deviseDossier: tenant.devise,
+      deviseDossier: monnaieDuJeuLegal(tenant.devise),
       conversionAppliquee: false,
       avertissement:
         "L'article 6 fixe le seuil à 30 000 000 FCFA « ou l'équivalent dans l'unité monétaire ayant cours légal dans l'État partie ». OmegaX ne convertit pas : comparez chaque catégorie au seuil converti au cours que retient votre entité. L'article 5 rappelle que le Système normal est la règle et le S.M.T l'exception liée à la taille.",

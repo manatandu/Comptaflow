@@ -45,10 +45,18 @@ import {
  * (undefined) pour un poste de passif ou du compte de résultat, qui n'ont
  * qu'une colonne de valeur.
  *
- * `montantN1`/`brutN1`/`amortissementN1` : comparatif N-1, exigé par le
- * texte officiel sur les DEUX états (bilan ET compte de résultat). Calculé
- * depuis l'exercice immédiatement antérieur du même tenant ; `undefined`
- * (jamais 0 trompeur) quand il n'y en a aucun (premier exercice du dossier).
+ * `montantN1` : comparatif N-1, exigé par le texte officiel sur les DEUX
+ * états (bilan ET compte de résultat). Calculé depuis l'exercice
+ * immédiatement antérieur du même tenant ; `undefined` (jamais 0 trompeur)
+ * quand il n'y en a aucun (premier exercice du dossier).
+ *
+ * LA COLONNE N-1 DU BILAN EST NETTE, ET SEULEMENT NETTE (audit final F217,
+ * son jumeau SYCEBNL) · le modèle de la Partie 4 ch. 2 imprime l'actif en
+ * « Brut (N) | Amort. et déprec. (N) | Net (N) | Net (N-1) ». Deux champs
+ * `brutN1` et `amortissementN1` étaient servis sans que personne ne les
+ * lise, et valaient 0 sur un dossier sans exercice antérieur, là où ce
+ * commentaire promettait `undefined` · un faux zéro sur une colonne que le
+ * modèle n'a pas. Ils sont retirés, comme au SYSCOHADA.
  */
 export interface PosteCalcule {
   ref: string;
@@ -56,9 +64,7 @@ export interface PosteCalcule {
   montant: number;
   montantN1?: number;
   brut?: number;
-  brutN1?: number;
   amortissement?: number;
-  amortissementN1?: number;
   comptes: CompteDuPoste[];
   /** Bilan uniquement : ligne de sous-total ou de total, pas un poste de détail. */
   estTotal?: boolean;
@@ -162,11 +168,15 @@ export class EtatsFinanciersService {
   }
 
   /**
-   * DW (banques… crédits de trésorerie) · anomalie n° 5 : capte 564/565
-   * comme un poste normal, PLUS les comptes 52/53 (les mêmes numéros que BW
-   * à l'actif) mais SEULEMENT pour ceux dont le solde est créditeur (une
-   * banque à découvert). Traité à part : ce n'est pas un poste de détail
-   * ordinaire, il partage ses comptes avec un poste de l'ACTIF.
+   * DW (banques… crédits de trésorerie) · capte le compte 56 comme un poste
+   * normal, PLUS les comptes 52/53 (les mêmes numéros que BW à l'actif) mais
+   * SEULEMENT pour ceux dont le solde est créditeur (une banque à
+   * découvert) · « 56, Solde créditeurs : 52, 53 », dit la table officielle
+   * (Partie 4, ch. 2). Traité à part : ce n'est pas un poste de détail
+   * ordinaire, il partage ses comptes avec un poste de l'ACTIF. Le
+   * commentaire parlait encore de « 564/565 », restriction retirée le
+   * 2026-08-28 (anomalie n° 5 de `correspondance-bilan.ts`, audit final
+   * F212).
    */
   private calculerDW(lignes: LigneBalancePourBilan[]): PosteCalcule {
     const posteDW = POSTES_PASSIF.find((p) => p.ref === 'DW')!;
@@ -274,8 +284,6 @@ export class EtatsFinanciersService {
         ...n,
         estTotal: refsTotaux.has(ref),
         montantN1: n1?.montant,
-        brutN1: n.brut !== undefined ? (n1?.brut ?? 0) : undefined,
-        amortissementN1: n.amortissement !== undefined ? (n1?.amortissement ?? 0) : undefined,
       };
     };
     const actif = ORDRE_AFFICHAGE_ACTIF.map(fusionnerN1);

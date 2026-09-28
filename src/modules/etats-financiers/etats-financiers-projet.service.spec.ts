@@ -60,8 +60,15 @@ function serviceAvecExercices(
       return Promise.resolve({ lignes: [...parCompte.values()] });
     }),
   } as unknown as EcritureService;
+  // Sans liste nommée, les exercices du dossier sont ceux dont la balance est
+  // fournie, ouverts le même jour pour qu'aucun ne soit le N-1 d'un autre ·
+  // un exercice hors de la liste est INCONNU du dossier, et l'état le refuse
+  // (audit final F222).
+  const duDossier = exercices.length
+    ? exercices
+    : Object.keys(lignesParExercice).map((id) => ({ id, dateDebut: new Date('2026-01-01') }));
   const exerciceService = {
-    lister: jest.fn().mockResolvedValue([...exercices].sort((a, b) => b.dateDebut.getTime() - a.dateDebut.getTime())),
+    lister: jest.fn().mockResolvedValue([...duDossier].sort((a, b) => b.dateDebut.getTime() - a.dateDebut.getTime())),
   } as unknown as ExerciceService;
   return new EtatsFinanciersProjetService(ecritureService, exerciceService, prisma);
 }

@@ -108,6 +108,18 @@ describe('écran des notes annexes SYSCOHADA', () => {
     expect(page).toContain('16B bis');
   });
 
+  it('dit l’échec de la lecture des comptes au lieu de l’avaler (audit final F221)', () => {
+    // Avalé, l'échec laissait le formulaire de rattachement vide et muet,
+    // lu comme « aucun compte à rattacher ». La lecture a son second
+    // argument, qui pose l'erreur dans un état à elle, et l'écran l'affiche.
+    const debut = page.indexOf("api.get<Compte[]>('/comptes')");
+    expect(debut).toBeGreaterThan(-1);
+    const appel = page.slice(debut, page.indexOf(';', debut));
+    expect(appel).toContain('.then(setComptes, (e) =>');
+    expect(appel).toContain('setErreurComptes(');
+    expect(page).toContain('Liste des comptes illisible · rattachement des sous-comptes indisponible · {erreurComptes}');
+  });
+
   it("cite le texte qui fonde l'écran, et lui seul", () => {
     expect(page).toContain('AUDCIF Titre IX ch. 6');
     // La bulle d'aide est propre à l'écran : l'entrée « notesAnnexes » du

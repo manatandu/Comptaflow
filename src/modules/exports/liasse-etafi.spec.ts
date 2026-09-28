@@ -193,7 +193,14 @@ function fabriquerExport(jeu: JeuEtatsFinanciersSycebnl = TENANT.jeuEtatsFinanci
         .mockImplementation(({ where }: { where: { id: string } }) =>
           Promise.resolve(EXERCICES.find((e) => e.id === where.id)),
         ),
-      findFirst: jest.fn().mockImplementation(({ where }: { where: { dateDebut?: { lt: Date } } }) => {
+      findFirst: jest.fn().mockImplementation(({ where }: { where: { id?: string; tenantId?: string; dateDebut?: { lt: Date } } }) => {
+        // PAR IDENTIFIANT · l'exercice demandé, borné au dossier, `null`
+        // s'il n'en est pas · c'est sur ce `null` que l'export refuse par un
+        // 404 (audit final F222), et une doublure qui rendrait toujours le
+        // premier exercice validerait un cartouche lu sur le mauvais.
+        if (where?.id !== undefined) {
+          return Promise.resolve(EXERCICES.find((e) => e.id === where.id && e.tenantId === where.tenantId) ?? null);
+        }
         if (where?.dateDebut?.lt) {
           const avant = EXERCICES.filter((e) => e.dateDebut < where.dateDebut!.lt);
           avant.sort((a, b) => b.dateDebut.getTime() - a.dateDebut.getTime());

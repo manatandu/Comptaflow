@@ -133,3 +133,46 @@ export function totauxDeBalance(lignes: readonly LigneDeBalance[]): { debit: num
     credit: lignes.reduce((s, l) => s + l.totalCredit, 0),
   };
 }
+
+/**
+ * LA BALANCE VUE AVANT L'ÉCRITURE QUI SOLDE LES COMPTES DE GESTION · celle
+ * que lisent les états financiers, la fiscalité et la consolidation.
+ *
+ * Depuis F4, cette écriture entre VALIDÉE, et la migration du même jour a
+ * validé celles déjà passées. Or ces lecteurs prennent le livre-journal seul et
+ * calculent le compte de résultat sur les TOTAUX des classes 6 à 8 · sur tout
+ * exercice clos, chaque charge et chaque produit y retombait à zéro, dans
+ * l'état de l'exercice comme dans la colonne N-1 du suivant, le chiffre
+ * d'affaires du calcul de l'impôt avec eux. Le bilan tenait encore par le 13,
+ * et rien ne se déséquilibrait. Les états se lisent donc tels qu'ils
+ * s'établissent · avant la détermination du résultat, qui transfère les soldes
+ * de gestion sur le 13 sans rien changer au résultat lui-même (le bilan le lit
+ * alors sur les classes 6 à 8, `calculerCJ`, `lireBalance`).
+ *
+ * Un total retranché de sa colonne de clôture rend exactement le cumul de
+ * l'à-nouveau et des mouvements, additionnés avant elle (`agregatsParCompte`).
+ * Le solde perd la même colonne, et elle seule · il n'est pas recalculé sur
+ * les totaux, ce qui effacerait l'écart qu'un lecteur contrôle entre un solde
+ * et ses colonnes (note 5B, `ecartCloture`). Une ligne que seule la clôture
+ * avait mouvementée (le 131 du résultat) disparaît, comme toute ligne sans
+ * mouvement. Les colonnes de clôture valent zéro · une ligne dont la balance
+ * ne les porte pas les lit comme nulles.
+ */
+export function avantSoldeDesComptesDeGestion<
+  L extends { totalDebit: number; totalCredit: number; solde: number; clotureDebit?: number; clotureCredit?: number },
+>(lignes: readonly L[]): L[] {
+  return lignes
+    .map((l) => {
+      const clotureDebit = l.clotureDebit ?? 0;
+      const clotureCredit = l.clotureCredit ?? 0;
+      return {
+        ...l,
+        totalDebit: l.totalDebit - clotureDebit,
+        totalCredit: l.totalCredit - clotureCredit,
+        clotureDebit: 0,
+        clotureCredit: 0,
+        solde: l.solde - clotureDebit + clotureCredit,
+      };
+    })
+    .filter((l) => l.totalDebit !== 0 || l.totalCredit !== 0);
+}

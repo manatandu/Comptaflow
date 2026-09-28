@@ -219,7 +219,14 @@ function fabriquerExport(systeme: SystemeComptableSyscohada = SystemeComptableSy
         .mockImplementation(({ where }: { where: { id: string } }) =>
           Promise.resolve(EXERCICES.find((e) => e.id === where.id)),
         ),
-      findFirst: jest.fn().mockImplementation(({ where }: { where: { dateDebut?: { lt: Date } } }) => {
+      findFirst: jest.fn().mockImplementation(({ where }: { where: { id?: string; tenantId?: string; dateDebut?: { lt: Date } } }) => {
+        // PAR IDENTIFIANT · l'exercice demandé, borné au dossier, `null`
+        // s'il n'en est pas · c'est sur ce `null` que l'export refuse par un
+        // 404 (audit final F222), et une doublure qui rendrait toujours le
+        // premier exercice validerait un cartouche lu sur le mauvais.
+        if (where?.id !== undefined) {
+          return Promise.resolve(EXERCICES.find((e) => e.id === where.id && e.tenantId === where.tenantId) ?? null);
+        }
         if (where?.dateDebut?.lt) {
           const avant = EXERCICES.filter((e) => e.dateDebut < where.dateDebut!.lt);
           avant.sort((a, b) => b.dateDebut.getTime() - a.dateDebut.getTime());
@@ -678,29 +685,43 @@ describe('liasse complète · Système minimal de trésorerie SYSCOHADA', () => 
 });
 
 /**
- * AUDIT FINAL F5 · la feuille BALANCE de la liasse vérifie, compte par compte,
- * « ouverture + mouvements = clôture ». Sur un exercice clos, l'écriture qui
- * solde les classes 6 à 8 n'est ni une ouverture ni un solde avant période ·
- * oubliée des mouvements, l'identité tombait sur chaque charge.
+ * LA FEUILLE BALANCE EST CELLE DONT LES ÉTATS SONT TIRÉS · sur un exercice
+ * clos, avant l'écriture qui solde les classes 6 à 8 (régression de l'audit
+ * final F4). Validée, cette écriture faisait sortir chaque charge à zéro et
+ * le 13 porteur du résultat, pendant que la feuille Résultat publiait les
+ * charges en entier. L'identité « ouverture + mouvements = clôture » reste
+ * vraie ligne à ligne (audit final F5).
  */
 describe('feuille BALANCE de la liasse · exercice clos', () => {
-  it('lit l’écriture de solde des comptes de gestion avec les mouvements', async () => {
+  it('rend les comptes de gestion avant leur solde, et retire le 13 que seule la clôture a mouvementé', async () => {
     const charge = {
       ...ligne('60110000', 'Achats', ClasseCompte.CLASSE_6, 0, 0, 3000, 0),
       clotureCredit: 3000,
       totalCredit: 3000,
       solde: 0,
     };
+    const resultat = {
+      ...ligne('13900000', 'Résultat net : perte', ClasseCompte.CLASSE_1, 0, 0, 0, 0),
+      clotureDebit: 3000,
+      totalDebit: 3000,
+      solde: 3000,
+    };
     const service = fabriquerExport();
     (service as unknown as { ecritureService: { balance: jest.Mock } }).ecritureService.balance = jest
       .fn()
-      .mockResolvedValue({ lignes: [charge] });
-    const [l] = await (
-      service as unknown as { lignesBalanceLiasse: (t: string, e: string) => Promise<Record<string, number>[]> }
+      .mockResolvedValue({ lignes: [charge, resultat] });
+    const lignes = await (
+      service as unknown as { lignesBalanceLiasse: (t: string, e: string) => Promise<Record<string, number | string>[]> }
     ).lignesBalanceLiasse('t', 'e1');
-    expect(l.ouvertureDebit + l.ouvertureCredit + l.mouvementDebit - l.mouvementCredit).toBe(
+    expect(lignes.map((l) => l.compte)).toEqual(['60110000']);
+    const [l] = lignes as Record<string, number>[];
+    expect(l.ouvertureDebit - l.ouvertureCredit + l.mouvementDebit - l.mouvementCredit).toBe(
       l.clotureDebit - l.clotureCredit,
     );
-    expect({ ouverture: l.ouvertureCredit, credit: l.mouvementCredit }).toEqual({ ouverture: 0, credit: 3000 });
+    expect({ mouvementDebit: l.mouvementDebit, mouvementCredit: l.mouvementCredit, clotureDebit: l.clotureDebit }).toEqual({
+      mouvementDebit: 3000,
+      mouvementCredit: 0,
+      clotureDebit: 3000,
+    });
   });
 });

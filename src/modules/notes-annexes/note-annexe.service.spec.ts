@@ -169,8 +169,14 @@ function service(
     balance: jest.fn().mockImplementation((_t: string, e: string) =>
       Promise.resolve({ lignes: lignesParExercice[e] ?? [], totaux: { debit: 0, credit: 0 } })),
   } as unknown as EcritureService;
+  // Le dossier TIENT toujours l'exercice que les tests demandent (« e1 ») ·
+  // depuis l'audit final F222, un exercice absent du dossier est un 404 et
+  // non des notes à zéro. Seul, il n'a pas d'antérieur : N-1 reste absent.
+  const duDossier = exercices.some((e) => e.id === 'e1')
+    ? exercices
+    : [...exercices, { id: 'e1', dateDebut: new Date('2026-01-01') }];
   const exercice = {
-    lister: jest.fn().mockResolvedValue([...exercices].sort((a, b) => b.dateDebut.getTime() - a.dateDebut.getTime())),
+    lister: jest.fn().mockResolvedValue([...duDossier].sort((a, b) => b.dateDebut.getTime() - a.dateDebut.getTime())),
   } as unknown as ExerciceService;
   return new NoteAnnexeService(ecriture, exercice, prisma, budget as unknown as EtatsFinanciersProjetBudgetService, etats);
 }

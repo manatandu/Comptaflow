@@ -76,10 +76,12 @@ export class EtatsFinanciersController {
   }
 
   /**
-   * Jeu « projets de développement et assimilés » (Partie 4, ch. 3) · bilan
-   * et compte d'exploitation seulement ; voir
-   * `EtatsFinanciersProjetService` pour ce qui reste hors périmètre
-   * (tableau d'exécution budgétaire, TER, TRC).
+   * Jeu « projets de développement et assimilés » (Partie 4, ch. 3) · bilan,
+   * compte d'exploitation, tableau emplois-ressources, tableau d'exécution
+   * budgétaire, tableau de réconciliation de trésorerie et Note 9 des fonds
+   * du bailleur, servis par les routes `projet/*` ci-dessous. Le
+   * commentaire annonçait encore le bilan et le compte d'exploitation
+   * seulement (audit final F212).
    */
   @Get('projet/bilan')
   async bilanProjet(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {

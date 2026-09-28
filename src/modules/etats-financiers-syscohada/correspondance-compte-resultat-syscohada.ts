@@ -208,19 +208,19 @@
  *    écrit « le poste "Quote-part de résultat sur opérations faites en
  *    commun" », qui est l'intitulé des comptes 652 et 752 (Titre VII).
  *    Retenu comme LIBELLÉ : celui de la section 7.2.
- * 14. **Ce que le complément n° 12 entraîne HORS de ce fichier · déclaré,
- *    non corrigé ici** (ces fichiers relèvent d'autres chantiers) :
+ * 14. **Ce que le complément n° 12 entraîne HORS de ce fichier** · a) et c)
+ *    sont servis là où ce point le dit ; b) ne l'est qu'en partie, son
+ *    analyse en composantes restant déclarée et non servie :
  *    a) TABLEAU DES FLUX · le poste FA (CAFG) part de XD (« le point
- *       d'entrée est l'EBE, jamais le résultat net », ch. 5 § 1.2.1) et ne
- *       reprend aucun des deux nouveaux postes. Le 652 et le 752 ayant
- *       quitté XD, la quote-part n'est plus dans la CAFG, alors que sa
- *       contrepartie (compte 463 Associés, opérations faites en commun ·
- *       ch. 33 section 3.2) continue d'être lue par la variation des
- *       créances et des dettes (FD et FE, qui n'excluent pas le 46). Pour un
- *       coparticipant, le flux de trésorerie opérationnel s'en trouve décalé
- *       du montant de la quote-part. Remède : deux termes
- *       `poste(1, 'COMPTE_RESULTAT', 'RQP' | 'TQP', 'N')` dans FA, à écrire
- *       dans `correspondance-tft-syscohada.ts`.
+ *       d'entrée est l'EBE, jamais le résultat net », ch. 5 § 1.2.1). Le 652
+ *       et le 752 ayant quitté XD, la quote-part sortait de la CAFG, alors
+ *       que sa contrepartie (compte 463 Associés, opérations faites en
+ *       commun · ch. 33 section 3.2) reste lue par la variation des créances
+ *       et des dettes (FD et FE, qui n'excluent pas le 46). FA les reprend
+ *       donc par deux termes `poste(1, 'COMPTE_RESULTAT', 'RQP' | 'TQP',
+ *       'N')`, écrits dans `correspondance-tft-syscohada.ts` à la suite de
+ *       XD, et le spec de cette table-ci vérifie qu'ils y sont (audit final
+ *       F216 · ce point décrivait encore le remède comme restant à écrire).
  *    b) NOTES ANNEXES · les deux postes renvoient aux notes du ch. 6 qui
  *       portent déjà le 652 et le 752 : la note 26 « AUTRES CHARGES », dont
  *       une rubrique est précisément « Quote-part de résultat sur opérations

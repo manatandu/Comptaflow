@@ -64,18 +64,6 @@ const NOTES_ATTENDUES_PAR_JEU: Record<JeuNotesAnnexes, number> = {
 };
 
 /**
- * Ce qui compte pour UNE note officielle dans `couverture.transcrites`.
- *
- * Les deux jeux SYCEBNL donnent un code unique par note et rangent leurs
- * tableaux multiples sous ce même code (`sousTableau`) : compter les codes
- * distincts suffit. Le SYSCOHADA, lui, SUBDIVISE le numéro officiel en codes
- * distincts · la NOTE 3 se décline en 3A à 3F, la 15 en 15A et 15B, la 16 en
- * 16A, 16B, 16B bis et 16C, la 27 en 27A et 27B (AUDCIF Titre IX ch. 6,
- * section 2). Ses 46 codes ne valent donc que 36 notes : sans cette
- * réduction, `transcrites` afficherait 46 contre 36 attendues et ferait
- * passer un jeu complet pour un jeu en excédent.
- */
-/**
  * Code de la note qui porte le TABLEAU D'EXÉCUTION BUDGÉTAIRE, par jeu.
  *
  * C'est le MÊME tableau sous deux numéros · la 35 chez les associations
@@ -90,6 +78,18 @@ const CODE_NOTE_EXECUTION_BUDGETAIRE: Record<JeuNotesAnnexes, string | null> = {
   [JeuNotesAnnexes.SYSCOHADA_SYSTEME_NORMAL]: null,
 };
 
+/**
+ * Ce qui compte pour UNE note officielle dans `couverture.transcrites`.
+ *
+ * Les deux jeux SYCEBNL donnent un code unique par note et rangent leurs
+ * tableaux multiples sous ce même code (`sousTableau`) : compter les codes
+ * distincts suffit. Le SYSCOHADA, lui, SUBDIVISE le numéro officiel en codes
+ * distincts · la NOTE 3 se décline en 3A à 3F, la 15 en 15A et 15B, la 16 en
+ * 16A, 16B, 16B bis et 16C, la 27 en 27A et 27B (AUDCIF Titre IX ch. 6,
+ * section 2). Ses 46 codes ne valent donc que 36 notes : sans cette
+ * réduction, `transcrites` afficherait 46 contre 36 attendues et ferait
+ * passer un jeu complet pour un jeu en excédent.
+ */
 const NUMERO_OFFICIEL_PAR_JEU: Record<JeuNotesAnnexes, (code: string) => string> = {
   [JeuNotesAnnexes.ASSOCIATIONS_ORDRES_PROFESSIONNELS]: (code) => code,
   [JeuNotesAnnexes.PROJETS_DEVELOPPEMENT]: (code) => code,
@@ -188,6 +188,43 @@ interface RubriqueResolue {
   mouvementCredit: number;
   echeances: Echeances;
   ventilation: VentilationNature;
+}
+
+/**
+ * UNE BALANCE PAR EXERCICE ET PAR APPEL (audit final F214). Les notes du jeu
+ * associations relisaient la balance NEUF fois pour trois exercices · N et
+ * N-1 ici, puis N et N-1 dans le bilan, N et N-1 dans le compte de résultat,
+ * N, N-1 et N-2 dans le tableau des flux, trois états que la note 33 résume.
+ * Relire le même exercice ne change aucun chiffre, cela ne fait que repasser
+ * par la base.
+ *
+ * La mémoire vit le temps d'UN appel · créée par `notesDuJeu`, jamais gardée
+ * sur le service, qui est un singleton partagé par tous les dossiers : gardée
+ * d'un appel à l'autre, elle servirait la balance d'avant la dernière
+ * écriture.
+ *
+ * Elle ne double que `balance`, et sa clé porte TOUS les paramètres de la
+ * lecture (dossier, exercice, brouillard, date d'arrêté) · deux lectures qui
+ * ne demandent pas la même balance ne partagent jamais leur résultat. Les
+ * lignes rendues sont partagées, pas recopiées · aucun lecteur ne les modifie
+ * (`chargerLignes` filtre dans un nouveau tableau, les états en projettent
+ * les montants).
+ */
+function balanceMemorisee(ecritureService: EcritureService): EcritureService {
+  const lues = new Map<string, ReturnType<EcritureService['balance']>>();
+  const memoire: EcritureService = Object.create(ecritureService);
+  memoire.balance = (tenantId, exerciceId, inclureBrouillard = true, arreteAu) => {
+    // `getTime` et non `toISOString`, qui lèverait sur une date illisible ·
+    // la mémoire ne doit refuser que ce que la balance refuserait.
+    const cle = [tenantId, exerciceId, inclureBrouillard, arreteAu ? arreteAu.getTime() : ''].join('|');
+    let lecture = lues.get(cle);
+    if (!lecture) {
+      lecture = ecritureService.balance(tenantId, exerciceId, inclureBrouillard, arreteAu);
+      lues.set(cle, lecture);
+    }
+    return lecture;
+  };
+  return memoire;
 }
 
 /**
@@ -362,16 +399,20 @@ export class NoteAnnexeService {
     if (rubrique.sens === 'CREDITEUR') matches = matches.filter((l) => l.solde < 0);
     const litAuCredit = rubrique.sens === 'CREDITEUR' || rubrique.natureCreditrice === true;
 
-    const source = rubrique.source ?? 'SOLDE';
-    const comptes: CompteDeRubrique[] = matches.map((l) => {
-      let montant: number;
-      if (source === 'MOUVEMENT_DEBIT') montant = l.totalDebit;
-      else if (source === 'MOUVEMENT_CREDIT') montant = l.totalCredit;
-      // `SOLDE` : le signe est ramené au sens de lecture de la rubrique. Une
-      // rubrique créditrice (dettes, dépréciations) s'affiche en positif.
-      else montant = litAuCredit || rubrique.presenterEnNegatif ? -l.solde : l.solde;
-      return { numero: l.numero, intitule: l.intitule, montant };
-    });
+    // UNE RUBRIQUE SE LIT AU SOLDE, ET À LUI SEUL (audit final F213). Les
+    // sources « mouvement débit » et « mouvement crédit » n'étaient posées
+    // par aucune rubrique des trois jeux, et elles lisaient le TOTAL de la
+    // balance, report à-nouveau compris · un bâtiment détenu depuis des
+    // années y serait sorti en mouvement de l'exercice. Les mouvements
+    // propres, report exclu, ont leur lecture : les colonnes A/B/C/D des
+    // tableaux de situations et mouvements (`colonnesDeMouvement`).
+    // Le signe est ramené au sens de lecture de la rubrique · une rubrique
+    // créditrice (dettes, dépréciations) s'affiche en positif.
+    const comptes: CompteDeRubrique[] = matches.map((l) => ({
+      numero: l.numero,
+      intitule: l.intitule,
+      montant: litAuCredit || rubrique.presenterEnNegatif ? -l.solde : l.solde,
+    }));
 
     const brut = comptes.reduce((s, c) => s + c.montant, 0);
     // `|| 0` normalise -0 en 0 (même souci de propreté qu'au bilan).
@@ -964,11 +1005,6 @@ export class NoteAnnexeService {
   }
 
   /**
-   * Toutes les notes du jeu associations pour un exercice, plus la fiche
-   * récapitulative · qui fait partie de la liasse : elle déclare, note par
-   * note, si elle est applicable ou non.
-   */
-  /**
    * Toutes les notes d'un jeu pour un exercice, plus la fiche récapitulative
    * · qui fait partie de la liasse : elle déclare, note par note, si elle
    * est applicable ou non. Commune aux trois jeux transcrits : la seule
@@ -979,9 +1015,12 @@ export class NoteAnnexeService {
     const specs = NOTES_PAR_JEU[jeu];
 
     const exerciceN1Id = await trouverExerciceN1(this.exerciceService, tenantId, exerciceId);
+    // UNE LECTURE PAR EXERCICE POUR TOUT L'APPEL (audit final F214) · les
+    // notes et les trois états de la note 33 lisent la même balance.
+    const ecriture = balanceMemorisee(this.ecritureService);
     const [lignesN, lignesN1] = await Promise.all([
-      chargerLignes(this.ecritureService, tenantId, exerciceId),
-      chargerLignes(this.ecritureService, tenantId, exerciceN1Id),
+      chargerLignes(ecriture, tenantId, exerciceId),
+      chargerLignes(ecriture, tenantId, exerciceN1Id),
     ]);
 
     const [rattachements, echeances, ventilation, saisies] = await Promise.all([
@@ -995,7 +1034,9 @@ export class NoteAnnexeService {
     );
 
     await this.injecterExecutionBudgetaire(notes, tenantId, exerciceId, jeu);
-    await this.injecterIndicateursFinanciers(notes, tenantId, exerciceId, jeu, lignesN, lignesN1, exerciceN1Id !== null);
+    await this.injecterIndicateursFinanciers(
+      notes, tenantId, exerciceId, jeu, lignesN, lignesN1, exerciceN1Id !== null, ecriture,
+    );
 
     return {
       notes,
@@ -1120,6 +1161,19 @@ export class NoteAnnexeService {
   }
 
   /**
+   * Le service des états, lisant la balance DE L'APPEL (audit final F214).
+   * Il tient sa lecture de sa dépendance `ecritureService` · on lui en prête
+   * une qui se souvient, pour cet appel seul, sans toucher au singleton
+   * injecté. Le nom de la dépendance est vérifié par le compilateur, par le
+   * type `EtatsFinanciersService['ecritureService']` · renommée, la
+   * compilation tombe au lieu que la mémoire cesse en silence.
+   */
+  private etatsSurLaBalanceDeLAppel(ecriture: EcritureService): EtatsFinanciersService {
+    const lecture: EtatsFinanciersService['ecritureService'] = ecriture;
+    return Object.create(this.etatsFinanciersService, { ecritureService: { value: lecture } });
+  }
+
+  /**
    * Remplit la NOTE 33 « FICHE DE SYNTHESE DES PRINCIPAUX INDICATEURS
    * FINANCIERS » · jeu associations et ordres professionnels seulement, c'est
    * le seul des trois jeux à la porter.
@@ -1149,15 +1203,19 @@ export class NoteAnnexeService {
     lignesN: LigneBalancePourEtat[],
     lignesN1: LigneBalancePourEtat[],
     exerciceN1Disponible: boolean,
+    // La balance de l'appel (`balanceMemorisee`) · les trois états la
+    // relisent sans repasser par la base (audit final F214).
+    ecriture: EcritureService,
   ) {
     if (jeu !== JeuNotesAnnexes.ASSOCIATIONS_ORDRES_PROFESSIONNELS) return;
     const note = notes.find((n) => n.code === '33');
     if (!note) return;
 
+    const etats = this.etatsSurLaBalanceDeLAppel(ecriture);
     const [bilan, compteDeResultat, fluxTresorerie] = await Promise.all([
-      this.etatsFinanciersService.bilan(tenantId, exerciceId),
-      this.etatsFinanciersService.compteDeResultat(tenantId, exerciceId),
-      this.etatsFinanciersService.tableauFluxTresorerie(tenantId, exerciceId),
+      etats.bilan(tenantId, exerciceId),
+      etats.compteDeResultat(tenantId, exerciceId),
+      etats.tableauFluxTresorerie(tenantId, exerciceId),
     ]);
 
     const indicateurs = new Map(

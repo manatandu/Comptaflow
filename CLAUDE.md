@@ -3254,6 +3254,15 @@ postérieur est déjà clos. Le tableau de bord lit lui aussi les comptes de
 gestion hors clôture (F93). `e2e/tests/cloture.e2e.ts` le prouve sur la base
 réelle, parce que F4 avait passé tous les tests unitaires sous une doublure de
 la balance.
+LA RÉGRESSION QUE (2) A OUVERTE (2026-09-28) · validée, l'écriture de solde
+entre au livre-journal, et tout lecteur qui calcule un compte de résultat sur
+les TOTAUX des classes 6 à 8 y trouvait zéro sur un exercice clos, colonne N-1
+du suivant comprise, sans qu'aucun total du bilan ne bouge. Les états lisent
+donc la balance AVANT ce solde (`avantSoldeDesComptesDeGestion`,
+`balance-trois-colonnes.ts`, appelé par `chargerLignes`), et `cloture.e2e.ts`
+compare au montant passé le compte de résultat du clos et la colonne N-1 du
+suivant. Un lecteur du livre-journal qui lit les classes 6 à 8 passe par elle
+ou par la colonne mouvement, jamais par le total.
 
 Trois refus, chacun sourcé : la destination doit être un 12 (seul compte de
 report à nouveau des deux plans) ; la contrepartie doit être un poste de BILAN,

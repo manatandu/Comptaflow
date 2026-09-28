@@ -77,6 +77,7 @@ function NotesSyscohadaSystemeNormal() {
   const [comptes, setComptes] = useState<Compte[] | null>(null);
   const [codeSelectionne, setCodeSelectionne] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
+  const [erreurComptes, setErreurComptes] = useState<string | null>(null);
   const [exportEnCours, setExportEnCours] = useState(false);
   // Compte sélectionné dans le formulaire de rattachement, par clé de rubrique.
   const [compteChoisi, setCompteChoisi] = useState<Record<string, string>>({});
@@ -91,7 +92,15 @@ function NotesSyscohadaSystemeNormal() {
 
   useEffect(() => {
     charger();
-    api.get<Compte[]>('/comptes').then(setComptes, () => {});
+    // Un échec se DIT (audit final F221) · avalé, il laissait le formulaire
+    // de rattachement avec une liste de comptes vide et sans un mot, lu
+    // comme « aucun compte à rattacher ». Il a son propre état : un refus de
+    // saisie ou sa fermeture ne doivent pas le faire disparaître tant que la
+    // liste reste illisible.
+    setErreurComptes(null);
+    api.get<Compte[]>('/comptes').then(setComptes, (e) =>
+      setErreurComptes(e instanceof Error ? e.message : 'La liste des comptes n’a pas pu être lue.'),
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exerciceCourant?.id]);
 
@@ -282,6 +291,12 @@ function NotesSyscohadaSystemeNormal() {
           <button onClick={() => setErreur(null)} className="text-[11.5px] font-bold shrink-0 hover:underline">
             Fermer
           </button>
+        </div>
+      )}
+
+      {erreurComptes && (
+        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[11.5px]">
+          Liste des comptes illisible · rattachement des sous-comptes indisponible · {erreurComptes}
         </div>
       )}
 

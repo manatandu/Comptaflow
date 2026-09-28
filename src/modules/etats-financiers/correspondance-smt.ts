@@ -69,6 +69,8 @@
  *    défaut du moteur · et le drill-down le montre compte par compte.
  */
 
+import { COMPTES_RESULTAT_DE_L_EXERCICE } from './resultat-de-l-exercice';
+
 // ---------------------------------------------------------------------------
 // BILAN (Section 1)
 // ---------------------------------------------------------------------------
@@ -158,18 +160,29 @@ export const POSTES_BILAN_PASSIF: PosteBilanSmt[] = [
     fondement:
       "Compte 10 « Dotation » (Partie 2, ch. 3, COMPTE 10). La Note 5 le confirme en le détaillant en « Dotation non consomptible / Droit d'entrée / Dotation consomptible ».",
   },
-  // HB n'est PAS listé ici : il est arbitré entre les classes 6/7/8 et le
-  // compte 13 selon que l'exercice est clôturé ou non · voir calculerHB()
-  // dans le service, même mécanisme que CH (associations) et CC (projets).
+  // HB n'est PAS listé ici : il est arbitré entre les classes 6/7/8 et les
+  // comptes 131 à 139 selon que l'exercice est clôturé ou non · voir
+  // calculerHB() dans le service, même mécanisme que CH (associations) et
+  // CC (projets). Le commentaire disait « le compte 13 », que HB ne lit plus
+  // en entier (audit final F211).
   {
     ref: 'HC',
     libelle: 'Autres fonds propres',
     sens: 'PASSIF',
     note: null,
     comptes: ['1'],
-    exclusions: ['10', '13'],
+    // HC EST LE RESTE DE LA CLASSE 1, ET RIEN DE MOINS (audit final F211).
+    // Il excluait tout le 13, alors que HB ne lit que 131 à 139
+    // (`resultat-de-l-exercice.ts`) : un 130 ouvert par le cabinet n'était
+    // ni dans HB ni dans HC, et sortait du bilan sans que rien le dise. Le
+    // plan SYCEBNL n'ouvre que 131 et 139 sous son 13 (Partie 2, ch. 2), et
+    // range le « Résultat net en instance d'affectation » au 128, sous le 12,
+    // que HC reçoit déjà · un 130 porte la même nature et va au même poste,
+    // nommé dans le drill-down. Les exclusions sont celles de HA et de HB,
+    // lues à la même source, pour que les trois postes ne divergent plus.
+    exclusions: ['10', ...COMPTES_RESULTAT_DE_L_EXERCICE],
     fondement:
-      "Reste de la classe 1. RÉSERVE À CONNAÎTRE : la classe 1 contient aussi le compte 18 « Emprunts et dettes assimilées » et le compte 19 « Provisions pour risques et charges », qui ne sont pas des fonds propres. La maquette du SMT n'ouvre que quatre lignes de passif et aucune ne peut les recevoir ; les laisser dehors déséquilibrerait le bilan d'un montant égal à l'emprunt. Ils sont donc rattachés ici, et le drill-down du poste les montre nommément. Une entité du SMT qui porterait un emprunt significatif dépasse en pratique les seuils de l'article 6 et relève du Système normal.",
+      "Reste de la classe 1, hors le compte 10 (HA) et les comptes 131 à 139 que HB lit comme résultat de l'exercice. Un résultat en instance d'affectation y figure donc, au 128 du plan SYCEBNL comme sur un 130 ouvert par le cabinet. RÉSERVE À CONNAÎTRE : la classe 1 contient aussi le compte 18 « Emprunts et dettes assimilées » et le compte 19 « Provisions pour risques et charges », qui ne sont pas des fonds propres. La maquette du SMT n'ouvre que quatre lignes de passif et aucune ne peut les recevoir ; les laisser dehors déséquilibrerait le bilan d'un montant égal à l'emprunt. Ils sont donc rattachés ici, et le drill-down du poste les montre nommément. Une entité du SMT qui porterait un emprunt significatif dépasse en pratique les seuils de l'article 6 et relève du Système normal.",
   },
   {
     ref: 'HD',

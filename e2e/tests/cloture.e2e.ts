@@ -65,6 +65,27 @@ for (const referentiel of ['SYSCOHADA', 'SYCEBNL'] as const) {
     );
     expect({ montant: affectation.montant, estBenefice: affectation.estBenefice }).toEqual({ montant: MONTANT, estBenefice: true });
 
+    // LE COMPTE DE RÉSULTAT DU CLOS NE TOMBE PAS À ZÉRO, NI LA COLONNE N-1 DU
+    // SUIVANT. F4 a fait entrer VALIDÉE l'écriture qui solde les classes 6 à
+    // 8, et les états, qui lisent le livre-journal, prenaient ces comptes
+    // soldés · chaque produit et chaque charge d'un exercice clos valaient
+    // zéro, sous des tests unitaires verts. Ils se lisent désormais avant ce
+    // solde (`avantSoldeDesComptesDeGestion`).
+    if (referentiel === 'SYSCOHADA') {
+      type Cr = { lignes: { ref: string; montant: number; montantN1?: number }[] };
+      const clos = await appelApi<Cr>(page, 'GET', `/etats-financiers-syscohada/compte-de-resultat?exerciceId=${exercice.id}`);
+      const apres = await appelApi<Cr>(page, 'GET', `/etats-financiers-syscohada/compte-de-resultat?exerciceId=${suivant.id}`);
+      expect({
+        clos: clos.lignes.find((l) => l.ref === 'XI')?.montant,
+        n1: apres.lignes.find((l) => l.ref === 'XI')?.montantN1,
+      }).toEqual({ clos: MONTANT, n1: MONTANT });
+    } else {
+      type Cr = { resultatNet: number; resultatNetN1?: number };
+      const clos = await appelApi<Cr>(page, 'GET', `/etats-financiers/compte-de-resultat?exerciceId=${exercice.id}`);
+      const apres = await appelApi<Cr>(page, 'GET', `/etats-financiers/compte-de-resultat?exerciceId=${suivant.id}`);
+      expect({ clos: clos.resultatNet, n1: apres.resultatNetN1 }).toEqual({ clos: MONTANT, n1: MONTANT });
+    }
+
     expect(pannes).toEqual([]);
   });
 }

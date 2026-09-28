@@ -1,3 +1,4 @@
+import { NotFoundException } from '@nestjs/common';
 import { ClasseCompte, TypeCompteDetailTotal } from '@prisma/client';
 import { EtatsFinanciersSmtService } from './etats-financiers-smt.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
@@ -92,7 +93,8 @@ function service(
     immobilisations?: unknown[];
     tiersComptes?: Array<{ compteId: string; tiers: { nom: string } }>;
     lignesTiers?: ReturnType<typeof ligneTiers>[];
-    devise?: string;
+    // `null` est une réponse · un dossier dont la devise n'a jamais été posée.
+    devise?: string | null;
     campagne?: unknown;
     campagneExerciceId?: string;
     exercicePrecedent?: { id: string; dateDebut: Date; dateFin: Date } | null;
@@ -105,10 +107,24 @@ function service(
     }),
   } as unknown as EcritureService;
 
+  // LES EXERCICES DU DOSSIER · ceux qu'on nomme, ou à défaut ceux dont la
+  // balance est fournie, tous ouverts le même jour pour qu'aucun ne soit le
+  // N-1 d'un autre. Un exercice hors de cette liste est INCONNU du dossier,
+  // et les deux doublures qui le lisent (liste et `findFirst` par id)
+  // honorent ce fait · c'est lui que le refus de l'audit final F222 vérifie.
+  const exercicesDuDossier =
+    options.exercices ?? Object.keys(lignesParExercice).map((id) => ({ id, dateDebut: new Date('2026-01-01') }));
   const exerciceService = {
+    // Bornée au dossier 't1', comme `ExerciceService.lister` l'est au tenant.
     lister: jest
       .fn()
-      .mockResolvedValue([...(options.exercices ?? [])].sort((a, b) => b.dateDebut.getTime() - a.dateDebut.getTime())),
+      .mockImplementation((tenantId: string) =>
+        Promise.resolve(
+          tenantId === 't1'
+            ? [...exercicesDuDossier].sort((a, b) => b.dateDebut.getTime() - a.dateDebut.getTime())
+            : [],
+        ),
+      ),
   } as unknown as ExerciceService;
 
   const prisma = {
@@ -152,13 +168,22 @@ function service(
         ),
       ),
     },
-    tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ devise: options.devise ?? 'CDF' }) },
+    tenant: {
+      findUniqueOrThrow: jest.fn().mockResolvedValue({ devise: 'devise' in options ? options.devise : 'CDF' }),
+    },
     exercice: {
-      findFirstOrThrow: jest.fn().mockResolvedValue({ dateFin: new Date('2026-12-31') }),
-      findUniqueOrThrow: jest.fn().mockResolvedValue({ dateDebut: new Date('2026-01-01') }),
-      // Exercice antérieur · `null` par défaut, ce qui est le cas d'un premier
-      // exercice. Le cumul biennal de l'article 6 ne se calcule qu'avec lui.
-      findFirst: jest.fn().mockResolvedValue(options.exercicePrecedent ?? null),
+      // Deux lectures distinctes, et la doublure les distingue par leur
+      // filtre. PAR IDENTIFIANT · l'exercice demandé, borné au dossier 't1',
+      // `null` s'il n'en est pas (audit final F222). SANS IDENTIFIANT ·
+      // l'exercice antérieur du cumul biennal, `null` par défaut, ce qui est
+      // le cas d'un premier exercice.
+      findFirst: jest.fn().mockImplementation(({ where }: { where: { id?: string; tenantId?: string } }) => {
+        if (where.id !== undefined) {
+          const connu = where.tenantId === 't1' && exercicesDuDossier.some((e) => e.id === where.id);
+          return Promise.resolve(connu ? { dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') } : null);
+        }
+        return Promise.resolve(options.exercicePrecedent ?? null);
+      }),
     },
   } as unknown as PrismaService;
 
@@ -267,6 +292,71 @@ describe('Bilan S.M.T', () => {
     expect(poste(bilan, 'GD').note).toBe('4');
     expect(poste(bilan, 'GE').note).toBe('4');
     expect(poste(bilan, 'HA').note).toBe('5');
+  });
+
+  /**
+   * AUDIT FINAL F211 · HC excluait tout le 13, HB ne lit que 131 à 139 : un
+   * 130 n'allait nulle part, et le bilan se déséquilibrait de son montant
+   * sans rien nommer. Il va à HC, et le résultat du bilan reste celui du
+   * compte de résultat.
+   */
+  it('un 130 va à HC, le bilan boucle, et HB reste le résultat du compte de résultat', async () => {
+    const s = service(
+      {
+        e1: [
+          ligne('57100000', ClasseCompte.CLASSE_5, 14000, 4000, { debit: 5000 }), // caisse 10000
+          ligne('10100000', ClasseCompte.CLASSE_1, 0, 3000, { credit: 3000 }), // dotation
+          ligne('13010000', ClasseCompte.CLASSE_1, 0, 2000, { credit: 2000 }), // résultat N-1 en instance
+          ligne('70100000', ClasseCompte.CLASSE_7, 0, 9000),
+          ligne('60100000', ClasseCompte.CLASSE_6, 4000, 0),
+        ],
+      },
+      {
+        ecritures: [
+          ecriture('a', '2026-03-01', 'Cotisations', [
+            { numero: '57100000', debit: 9000 },
+            { numero: '70100000', credit: 9000 },
+          ]),
+          ecriture('b', '2026-04-01', 'Achat de fournitures', [
+            { numero: '60100000', debit: 4000 },
+            { numero: '57100000', credit: 4000 },
+          ]),
+        ],
+      },
+    );
+    const bilan = await s.bilan('t1', 'e1');
+    expect(poste(bilan, 'HC').montant).toBe(2000);
+    expect(poste(bilan, 'HC').comptes.map((c) => c.numero)).toEqual(['13010000']);
+    expect(poste(bilan, 'HB').montant).toBe(5000);
+    expect(bilan.totalActif).toBe(10000);
+    expect(bilan.totalPassif).toBe(10000);
+    expect(bilan.equilibre).toBe(true);
+    // Le 130 n'est pas une source du résultat de l'exercice.
+    expect(bilan.controle.doubleComptageProbable).toBe(false);
+
+    const cr = await s.compteDeResultat('t1', 'e1');
+    expect(cr.resultatNet).toBe(5000);
+    expect(cr.controle.resultatBilan).toBe(poste(bilan, 'HB').montant);
+    expect(cr.controle.concordant).toBe(true);
+  });
+
+  it('un résultat N-1 encore au 131 pendant que les classes 6 à 8 portent N est SIGNALÉ, jamais additionné', async () => {
+    // Le seul solde que la maquette laisse hors du passif · HB ne retient
+    // qu'une des deux sources, et le contrôle le dit comme au bilan des
+    // associations.
+    const s = service({
+      e1: [
+        ligne('57100000', ClasseCompte.CLASSE_5, 14000, 4000, { debit: 5000 }),
+        ligne('13100000', ClasseCompte.CLASSE_1, 0, 5000, { credit: 5000 }),
+        ligne('70100000', ClasseCompte.CLASSE_7, 0, 9000),
+        ligne('60100000', ClasseCompte.CLASSE_6, 4000, 0),
+      ],
+    });
+    const bilan = await s.bilan('t1', 'e1');
+    expect(poste(bilan, 'HB').montant).toBe(5000);
+    expect(poste(bilan, 'HC').montant).toBe(0);
+    expect(bilan.equilibre).toBe(false);
+    expect(bilan.controle).toEqual({ resultatClasses678: 5000, resultatCompte13: 5000, doubleComptageProbable: true });
   });
 });
 
@@ -920,6 +1010,13 @@ describe('Éligibilité au S.M.T · article 6', () => {
     expect(e.deviseDossier).toBe('CDF');
     expect(e.conversionAppliquee).toBe(false);
   });
+
+  it('sert la monnaie du jeu légal quand le dossier n’a aucune devise posée (audit final F212)', async () => {
+    // Les livres sont en francs (loi n° 23/053, art. 141, 1°) · une devise
+    // de dossier nulle n'est pas une unité inconnue.
+    const e = await service({ e1: [] }, { devise: null }).eligibilite('t1', 'e1');
+    expect(e.deviseDossier).toBe('CDF');
+  });
 });
 
 /**
@@ -962,5 +1059,39 @@ describe('Cumul biennal de l’article 6', () => {
     ).eligibilite('t1', 'e2026');
     expect(r.conversionAppliquee).toBe(false);
     expect(r.avertissementCumul).toContain('cumulée sur deux exercices');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// EXERCICE INTROUVABLE (audit final F222)
+// ---------------------------------------------------------------------------
+
+/**
+ * La balance ne vérifie pas l'exercice qu'on lui passe · un identifiant
+ * inconnu, ou celui d'un autre dossier, rendait des états tout à zéro, un
+ * bilan dit équilibré et un compte de résultat dit concordant, et les notes 1
+ * et 3 comme l'article 6 tombaient en erreur 500. Chaque état se refuse
+ * désormais par un 404 nommé.
+ */
+describe('Exercice introuvable · un refus, jamais un état à zéro (audit final F222)', () => {
+  const ETATS = [
+    'bilan',
+    'compteDeResultat',
+    'journalTresorerie',
+    'note1Immobilisations',
+    'note2Stocks',
+    'note3CreancesDettes',
+    'note5Dotation',
+    'eligibilite',
+  ] as const;
+
+  it.each(ETATS)('%s refuse un exercice inconnu du dossier', async (etat) => {
+    const s = service({ e1: BALANCE_CAISSE });
+    await expect(s[etat]('t1', 'inconnu')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it.each(ETATS)('%s refuse l’exercice d’un AUTRE dossier', async (etat) => {
+    const s = service({ e1: BALANCE_CAISSE });
+    await expect(s[etat]('t2', 'e1')).rejects.toThrow('Exercice introuvable dans ce dossier');
   });
 });

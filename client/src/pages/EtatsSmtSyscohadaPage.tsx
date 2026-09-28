@@ -120,7 +120,13 @@ export function EtatsSmtSyscohadaPage() {
 
   const [bilan, setBilan] = useState<BilanSmtSyscohada | null>(null);
   const [cr, setCr] = useState<CompteDeResultatSmtSyscohada | null>(null);
-  const [note4, setNote4] = useState<Note4SmtSyscohada | null>(null);
+  // NOTE 4 · lue à l'ouverture de SON onglet, jamais au montage de l'écran
+  // (audit final F258). C'est la seule pièce qui parcourt une à une les
+  // écritures de trésorerie de l'exercice ; la lire pour qui vient voir le
+  // bilan faisait payer au serveur le livre entier à chaque ouverture. Elle
+  // garde l'exercice pour lequel elle a été lue · en changer la relit.
+  const [note4, setNote4] = useState<{ exerciceId: string; journal: Note4SmtSyscohada } | null>(null);
+  const [erreurNote4, setErreurNote4] = useState<string | null>(null);
   const [notes, setNotes] = useState<NotesSmtSyscohada | null>(null);
   const [eligibilite, setEligibilite] = useState<EligibiliteSmtSyscohada | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -129,18 +135,39 @@ export function EtatsSmtSyscohadaPage() {
   useEffect(() => {
     if (!exerciceCourant) return;
     let annule = false;
+    // Le refus du journal d'un autre exercice ne se lit pas sur celui-ci.
+    setErreurNote4(null);
     const echec = (e: Error) => !annule && setErreur(e.message);
     const q = `?exerciceId=${exerciceCourant.id}`;
     const base = '/etats-financiers-syscohada/smt';
     api.get<BilanSmtSyscohada>(`${base}/bilan${q}`).then((r) => !annule && setBilan(r), echec);
     api.get<CompteDeResultatSmtSyscohada>(`${base}/compte-de-resultat${q}`).then((r) => !annule && setCr(r), echec);
-    api.get<Note4SmtSyscohada>(`${base}/journal-tresorerie${q}`).then((r) => !annule && setNote4(r), echec);
     api.get<NotesSmtSyscohada>(`${base}/notes${q}`).then((r) => !annule && setNotes(r), echec);
     api.get<EligibiliteSmtSyscohada>(`${base}/eligibilite${q}`).then((r) => !annule && setEligibilite(r), echec);
     return () => {
       annule = true;
     };
   }, [exerciceCourant?.id]);
+
+  useEffect(() => {
+    if (!exerciceCourant || onglet !== 'journal' || note4?.exerciceId === exerciceCourant.id) return;
+    let annule = false;
+    const exerciceId = exerciceCourant.id;
+    setErreurNote4(null);
+    api.get<Note4SmtSyscohada>(`/etats-financiers-syscohada/smt/journal-tresorerie?exerciceId=${exerciceId}`).then(
+      (journal) => !annule && setNote4({ exerciceId, journal }),
+      // Un refus se lit sur l'onglet · au-delà de son plafond, le journal
+      // est refusé par le serveur avec le chemin de rechange.
+      (e: Error) => !annule && setErreurNote4(e.message),
+    );
+    return () => {
+      annule = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exerciceCourant?.id, onglet]);
+
+  // Le journal lu pour l'exercice AFFICHÉ, et pour lui seul.
+  const journalNote4 = note4 && exerciceCourant && note4.exerciceId === exerciceCourant.id ? note4.journal : null;
 
   /**
    * La liasse complète : tous les états du système retenu par le dossier
@@ -588,14 +615,22 @@ export function EtatsSmtSyscohadaPage() {
       )}
 
       {/* ------------------------------------------------------------------ */}
-      {onglet === 'journal' && note4 && (
+      {onglet === 'journal' && erreurNote4 && (
+        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[11.5px]">
+          Journal de trésorerie indisponible · {erreurNote4}
+        </div>
+      )}
+      {onglet === 'journal' && !journalNote4 && !erreurNote4 && (
+        <div className="border border-border px-4 py-4 text-[11.5px] text-text-dim">Chargement du journal de trésorerie…</div>
+      )}
+      {onglet === 'journal' && journalNote4 && (
         <div>
-          {note4.journaux.length === 0 && (
+          {journalNote4.journaux.length === 0 && (
             <div className="border border-border px-4 py-4 text-[11.5px] text-text-dim">
               Aucun compte de trésorerie mouvementé sur cet exercice.
             </div>
           )}
-          {note4.journaux.map((j) => (
+          {journalNote4.journaux.map((j) => (
             <div key={j.compteId} className="border border-border bg-surface mb-3 overflow-x-auto">
               <div className="flex items-center justify-between gap-2 flex-wrap bg-surface-alt border-b border-border px-3 py-1.5">
                 <span className="text-[11.5px] font-bold font-mono">
@@ -690,13 +725,13 @@ export function EtatsSmtSyscohadaPage() {
             <div className="text-[11.5px] font-bold mb-1">Ventilation de la NOTE 4</div>
             <div className="text-[11.5px] mb-0.5">
               <span className="text-text-dim">Recettes : </span>
-              {note4.colonnesRecettes.map((c) => `${c.libelle}${c.rajoutAutorise ? ' (rajout)' : ''}`).join(' · ')}
+              {journalNote4.colonnesRecettes.map((c) => `${c.libelle}${c.rajoutAutorise ? ' (rajout)' : ''}`).join(' · ')}
             </div>
             <div className="text-[11.5px]">
               <span className="text-text-dim">Dépenses : </span>
-              {note4.colonnesDepenses.map((c) => `${c.libelle}${c.rajoutAutorise ? ' (rajout)' : ''}`).join(' · ')}
+              {journalNote4.colonnesDepenses.map((c) => `${c.libelle}${c.rajoutAutorise ? ' (rajout)' : ''}`).join(' · ')}
             </div>
-            <p className="text-[11px] text-text-dim mt-1.5">{note4.nb}</p>
+            <p className="text-[11px] text-text-dim mt-1.5">{journalNote4.nb}</p>
           </div>
         </div>
       )}
@@ -991,7 +1026,7 @@ export function EtatsSmtSyscohadaPage() {
                 <span className="font-mono text-right">{montant(eligibilite.chiffreAffaires)}</span>
               </div>
               <p className="flex items-center gap-1.5 px-3 py-2 text-[11px] text-text-dim border-t border-border">
-                Montants exprimés en {eligibilite.deviseDossier ?? 'monnaie de tenue du dossier'}.
+                Montants exprimés en {eligibilite.deviseDossier}.
                 <Aide
                   titre="Chiffre d'affaires"
                   texte="Lu en solde des comptes de ventes, c'est-à-dire en montant facturé et non en encaissements : l'article 13 parle de chiffre d'affaires, pas de recettes. Une entité qui facture beaucoup et encaisse peu n'échappe pas au Système normal."

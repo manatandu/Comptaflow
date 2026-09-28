@@ -17,6 +17,7 @@ import {
   trouvePosteCompteResultat,
   trouveSoldeIntermediaire,
 } from './correspondance-compte-resultat-syscohada';
+import { TOUS_LES_POSTES_FLUX_SYSCOHADA } from './correspondance-tft-syscohada';
 
 /**
  * La table est une transcription de l'AUDCIF (Titre IX ch. 4 et ch. 7). Une
@@ -543,6 +544,25 @@ describe('correspondance compte de résultat SYSCOHADA (AUDCIF Titre IX ch. 4 et
       expect(signeConformeAuModele(tqp, montantSigne(0, 900))).toBe(true);
       // Une charge créditrice reste une anomalie à remonter, pas à redresser.
       expect(signeConformeAuModele(rqp, montantSigne(0, 400))).toBe(false);
+    });
+
+    it('la CAFG (FA) du tableau des flux reprend RQP et TQP · le point 14 a) décrit un fait (audit final F216)', () => {
+      // Le point 14 a) annonçait ce remède comme restant à écrire, alors
+      // qu'il l'était. Ce qu'un commentaire affirme d'un autre fichier se
+      // vérifie contre ce fichier · sans ces deux termes, la quote-part
+      // sortait de la CAFG pendant que sa contrepartie 463 restait lue par FD
+      // et FE, et la ligne FA d'un coparticipant était fausse sans marque.
+      const fa = TOUS_LES_POSTES_FLUX_SYSCOHADA.find((p) => p.ref === 'FA')!;
+      const lus = fa.termes
+        .filter((t) => t.poste?.etat === 'COMPTE_RESULTAT')
+        .map((t) => ({ ref: t.poste!.ref, lecture: t.poste!.lecture, signe: t.signe }));
+      expect(lus).toEqual(
+        expect.arrayContaining([
+          { ref: 'XD', lecture: 'N', signe: 1 },
+          { ref: 'RQP', lecture: 'N', signe: 1 },
+          { ref: 'TQP', lecture: 'N', signe: 1 },
+        ]),
+      );
     });
   });
 });

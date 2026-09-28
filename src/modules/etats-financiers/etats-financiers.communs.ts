@@ -1,15 +1,18 @@
+import { NotFoundException } from '@nestjs/common';
 import { ClasseCompte, TypeCompteDetailTotal } from '@prisma/client';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
+import { avantSoldeDesComptesDeGestion } from '../comptabilite/balance-trois-colonnes';
 
 /**
- * Aides communes aux DEUX jeux d'états financiers SYCEBNL construits à ce
- * jour · « associations et ordres professionnels » (`etats-financiers.service.ts`)
- * et « projets de développement et assimilés » (`etats-financiers-projet.service.ts`)
- * · extraites ici lors de la construction du second jeu (2026-08-28) pour ne
- * pas dupliquer une logique déjà écrite et testée pour le premier. Le
- * Système Minimal de Trésorerie (3ᵉ jeu) n'est pas construit ; il pourra
- * réutiliser ces mêmes aides le jour où il le sera.
+ * Aides communes aux états financiers, extraites ici lors de la construction
+ * du jeu « projets de développement » (2026-08-28) pour ne pas dupliquer une
+ * logique déjà écrite et testée pour le jeu « associations ». Elles servent
+ * aujourd'hui les trois jeux SYCEBNL (associations, projets, Système minimal
+ * de trésorerie) et, au-delà, les états SYSCOHADA des deux systèmes, les
+ * notes annexes, les états IFRS, la consolidation et le registre des
+ * donateurs · tous lisent ainsi la balance de la même façon (audit final
+ * F212, le commentaire annonçait encore un Système minimal « non construit »).
  */
 
 /** Un compte rattaché à un poste, avec sa contribution · permet le drill-down. */
@@ -47,12 +50,29 @@ export function correspond(numero: string, prefixes: readonly string[], exclusio
 }
 
 /**
+ * LE REFUS D'UN EXERCICE INCONNU DU DOSSIER, en un seul texte (audit final
+ * F222). Les états des deux référentiels le posent, et les exports lisent
+ * l'identité du dossier EN MÊME TEMPS que les états (`Promise.all`) · la
+ * première lecture qui échoue fait la réponse, et elle doit être la même,
+ * statut et message, quel que soit l'ordre d'arrivée.
+ */
+export const MOTIF_EXERCICE_INTROUVABLE =
+  'Exercice introuvable dans ce dossier : aucun état financier ne peut être établi.';
+
+/**
  * Exercice « N-1 » d'un bilan/compte de résultat (ou compte d'exploitation) :
  * celui du même tenant dont la date de début est la plus récente PARMI
  * celles antérieures à l'exercice demandé. `null` si aucun (premier
  * exercice du dossier) · le comparatif reste alors simplement absent
  * (`undefined`), jamais un faux zéro qui laisserait croire à un exercice
  * antérieur réel et vide.
+ *
+ * L'EXERCICE DEMANDÉ DOIT ÊTRE DU DOSSIER, sinon c'est un refus (audit final
+ * F222). La balance ne vérifie pas l'exercice qu'on lui passe : un
+ * identifiant inconnu, ou celui d'un autre dossier, rendait un bilan tout à
+ * zéro, dit équilibré et sans comparatif · une réponse fausse, présentable,
+ * là où il fallait un 404. Les états qui cherchent leur comparatif
+ * l'appellent avant de lire la balance, c'est donc ici que le refus se pose.
  */
 export async function trouverExerciceN1(
   exerciceService: ExerciceService,
@@ -61,7 +81,9 @@ export async function trouverExerciceN1(
 ): Promise<string | null> {
   const exercices = await exerciceService.lister(tenantId); // triés par dateDebut décroissant
   const courant = exercices.find((e) => e.id === exerciceId);
-  if (!courant) return null;
+  if (!courant) {
+    throw new NotFoundException(MOTIF_EXERCICE_INTROUVABLE);
+  }
   const anterieur = exercices.find((e) => e.dateDebut < courant.dateDebut);
   return anterieur?.id ?? null;
 }
@@ -97,10 +119,14 @@ export async function chargerLignes(
   // entrée · un bilan bâti dessus n'engagerait personne (voir
   // EcritureService.balance et StatutEcriture dans le schéma).
   const { lignes } = await ecritureService.balance(tenantId, exerciceId, false, arreteAu);
+  // AVANT L'ÉCRITURE QUI SOLDE LES COMPTES DE GESTION · validée depuis F4, elle
+  // ramenait à zéro le compte de résultat de tout exercice clos
+  // (`avantSoldeDesComptesDeGestion`).
+  //
   // GARDE-FOU CONSERVÉ, ET REDONDANT PAR CONSTRUCTION · la balance ne rend
   // plus que des comptes de détail depuis qu'elle a cessé de sous-totaliser
   // par compte principal. Le filtre reste parce qu'un agrégat compté en plus
   // de ses enfants double des montants EN SILENCE · une assurance d'une ligne
   // contre la catégorie de bug que ce projet ne peut pas se permettre.
-  return lignes.filter((l) => l.typeCompte !== TypeCompteDetailTotal.TOTAL);
+  return avantSoldeDesComptesDeGestion(lignes).filter((l) => l.typeCompte !== TypeCompteDetailTotal.TOTAL);
 }

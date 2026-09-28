@@ -40,11 +40,13 @@ export class RestitutionController {
     // Les en-têtes partent AVANT la première ligne · l'archive est produite
     // en flux, il n'y a pas de moment où l'on connaîtrait sa taille. Le nom
     // de fichier est donc posé ici, à partir du dossier, et non rendu par le
-    // service à la fin.
-    const jour = new Date().toISOString().slice(0, 10);
+    // service à la fin. Il porte la dénomination ET l'identifiant du dossier
+    // (audit final F225) · le jour seul donnait le même nom à deux dossiers
+    // restitués le même jour.
+    const nomFichier = await this.restitution.nomDeLArchive(user.tenantId);
     res.set({
       'Content-Type': 'application/zip',
-      'Content-Disposition': `attachment; filename="restitution-${jour}.zip"`,
+      'Content-Disposition': `attachment; filename="${nomFichier}"`,
       // Sans cet en-tête, `fetch` côté client ne voit pas le nom proposé ·
       // CORS masque tout sauf une liste blanche.
       'Access-Control-Expose-Headers': 'Content-Disposition',

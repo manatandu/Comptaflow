@@ -163,7 +163,8 @@ export class EtatsFinanciersSyscohadaController {
    * de TENUE, longue d'autant de lignes que l'exercice compte de mouvements
    * de trésorerie : la charger avec les notes de synthèse rendrait celles-ci
    * inutilisables. Le NB officiel demande un journal par banque et un
-   * journal pour la caisse.
+   * journal pour la caisse. Au-delà de son plafond déclaré, la pièce se
+   * refuse (400) en disant par où passer, jamais tronquée (audit final F258).
    */
   @Get('smt/journal-tresorerie')
   async journalTresorerieSmt(
@@ -197,7 +198,9 @@ export class EtatsFinanciersSyscohadaController {
    * chiffre d'affaires, selon que l'entité est de négoce, artisanale ou de
    * services). Le contrôle ne TRANCHE pas : la qualification de l'activité
    * n'est pas portée par `Tenant`, et les seuils sont en F CFA quand le
-   * dossier tient ses comptes en CDF ou en USD. Il expose le chiffre
+   * dossier tient ses comptes en francs congolais, seule monnaie de tenue
+   * admise (loi n° 23/053 art. 141, 1° · AUDCIF art. 17, 1°,
+   * `common/monnaie-de-tenue.ts`, audit final F215). Il expose le chiffre
    * d'affaires face aux trois seuils et laisse l'arbitrage à l'entité.
    */
   @Get('smt/eligibilite')

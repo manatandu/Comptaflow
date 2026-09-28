@@ -236,7 +236,7 @@ describe('l’archive produite', () => {
     const { client } = prismaFactice({ Journal: [{ id: 'a', tenantId: DOSSIER, code: 'OD' }] });
     const service = new RestitutionService(client);
     const { flux, buffer } = collecteur();
-    const nom = await service.produire(DOSSIER, { id: 'u-1', email: 'chef@asbl.cd', adresseIp: null }, flux);
+    await service.produire(DOSSIER, { id: 'u-1', email: 'chef@asbl.cd', adresseIp: null }, flux);
 
     const zip = buffer();
     expect(zip.subarray(0, 2).toString('latin1')).toBe('PK');
@@ -246,7 +246,9 @@ describe('l’archive produite', () => {
     expect(texte).toContain('MANIFESTE.md');
     expect(texte).toContain('controles.txt');
     for (const table of TABLES_RESTITUEES) expect(texte).toContain(fichierDeLaTable(table));
-    expect(nom).toMatch(/^restitution-asbl-espoir-\d{4}-\d{2}-\d{2}\.zip$/);
+    // Le nom de l'archive ne sort plus de `produire`, qui le rendait après
+    // l'envoi des en-têtes · il est lu avant, voir restitution-nom.spec.ts
+    // (audit final F225).
   });
 });
 

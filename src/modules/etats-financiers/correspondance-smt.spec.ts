@@ -16,6 +16,7 @@ import {
 } from './correspondance-smt';
 import { PLAN_COMPTES_SYCEBNL } from '../comptes/compte-seed';
 import { correspond } from './etats-financiers.communs';
+import { estCompteDuResultatDeLExercice } from './resultat-de-l-exercice';
 
 /**
  * SYSTÈME MINIMAL DE TRÉSORERIE · 480 lignes que rien ne vérifiait, et le
@@ -204,6 +205,26 @@ describe('correspondance SMT · discipline de la dérivation', () => {
         }
       }
     }
+  });
+
+  /**
+   * AUDIT FINAL F211 · HC excluait tout le 13 quand HB ne lit que 131 à 139 :
+   * un 130 ouvert par le cabinet n'appartenait à aucun poste et sortait du
+   * bilan sans que rien le dise. Chaque compte de la classe 1 va à UN seul
+   * des trois postes de fonds propres · HA (10), HB (131 à 139) ou HC (le
+   * reste), sur le semis ET sur un 130 que le plan SYCEBNL n'ouvre pas.
+   */
+  it('chaque compte de la classe 1 va à HA, à HB ou à HC, et à un seul · 130 compris', () => {
+    const ha = POSTES_BILAN_PASSIF.find((p) => p.ref === 'HA')!;
+    const hc = POSTES_BILAN_PASSIF.find((p) => p.ref === 'HC')!;
+    const classe1 = [...COMPTES_IMPUTATION.filter((c) => c.numero.startsWith('1')).map((c) => c.numero), '13010000'];
+    const orphelins = classe1.filter(
+      (n) => [capte(ha, n), estCompteDuResultatDeLExercice(n), capte(hc, n)].filter(Boolean).length !== 1,
+    );
+    expect(orphelins).toEqual([]);
+    expect(capte(hc, '13010000')).toBe(true);
+    // HB garde ses comptes · HC ne les lui prend pas.
+    for (const n of ['13100000', '13900000']) expect(capte(hc, n)).toBe(false);
   });
 
   it('les postes de tiers portent un qualificatif de sens des DEUX côtés', () => {

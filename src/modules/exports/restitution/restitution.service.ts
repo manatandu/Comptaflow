@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ActionAudit, Prisma } from '@prisma/client';
 // `import = require` et non un import par défaut · `esModuleInterop` est
 // désactivé dans ce dépôt (seul `allowSyntheticDefaultImports` l'est, qui ne
@@ -34,6 +34,48 @@ const LOT = 2_000;
 const SEPARATEUR = ';';
 
 /**
+ * LE NOM DE L'ARCHIVE PORTE LE DOSSIER ET LE JOUR (audit final F225).
+ *
+ * Le contrôleur servait `restitution-<jour>.zip` · deux dossiers restitués le
+ * même jour, par un opérateur qui passe d'un cabinet à l'autre, portaient le
+ * même nom, et le second téléchargement écrasait le premier ou devenait
+ * « restitution-<jour> (1).zip », sans rien qui dise de quel dossier il
+ * s'agit. Le service calculait bien un nom avec la dénomination, rendu à la
+ * fin de `produire` · trop tard, les en-têtes étant partis avec le premier
+ * octet, et personne ne le lisait.
+ *
+ * La dénomination seule ne suffit pas à distinguer deux dossiers · deux
+ * cabinets peuvent porter le même nom, et un nom tout en caractères non
+ * latins se réduit à rien. L'IDENTIFIANT du dossier, celui que le manifeste
+ * imprime déjà, les distingue toujours. La dénomination reste devant, pour
+ * qu'un lecteur reconnaisse l'archive sans l'ouvrir.
+ *
+ * Le nom ne garde que des lettres ASCII, des chiffres et des traits d'union ·
+ * il part dans `Content-Disposition` entre guillemets, où un guillemet ou un
+ * retour à la ligne venus de la dénomination casseraient l'en-tête. Le jour
+ * est celui de l'horodatage en temps universel, comme le manifeste.
+ */
+export function nomDeLArchive(dossier: { id: string; nom: string }, jour: Date): string {
+  const denomination = dossier.nom
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z0-9]+/g, '-')
+    .toLowerCase()
+    .slice(0, 40)
+    .replace(/^-+|-+$/g, '');
+  const identifiant = dossier.id.replace(/[^A-Za-z0-9-]+/g, '-');
+  const date = jour.toISOString().slice(0, 10);
+  return `restitution-${denomination ? `${denomination}-` : ''}${identifiant}-${date}.zip`;
+}
+
+/** Ce que l'archive a réellement écrit des pièces attachées, pour `controles.txt`. */
+interface SuiviPieces {
+  annoncees: number;
+  ecrites: number;
+  manquantes: string[];
+}
+
+/**
  * LA RESTITUTION COMPLÈTE DU DOSSIER.
  *
  * POURQUOI UN ZIP DE CSV, ET PAS UN CLASSEUR. `writeBuffer()` d'ExcelJS
@@ -50,18 +92,22 @@ const SEPARATEUR = ';';
  * réversibilité doit exclure. C'est une décision de VMG et non une règle de
  * droit · aucun texte lu ne tranche, c'est une clause de contrat de licence.
  */
-/** Ce que l'archive a réellement écrit des pièces attachées, pour `controles.txt`. */
-interface SuiviPieces {
-  annoncees: number;
-  ecrites: number;
-  manquantes: string[];
-}
-
 @Injectable()
 export class RestitutionService {
   private readonly journal = new Logger(RestitutionService.name);
 
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Le nom de l'archive du dossier (`nomDeLArchive`), lu AVANT que la
+   * réponse ne parte · c'est le contrôleur qui le pose dans les en-têtes, et
+   * il ne peut plus le faire une fois le premier octet envoyé.
+   */
+  async nomDeLArchive(tenantId: string, maintenant: Date = new Date()): Promise<string> {
+    const dossier = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { id: true, nom: true } });
+    if (!dossier) throw new NotFoundException('Dossier introuvable : aucune archive ne peut être produite.');
+    return nomDeLArchive(dossier, maintenant);
+  }
 
   /**
    * Une valeur de colonne, en texte. Aucune valeur n'est « jolie » ici · une
@@ -180,7 +226,9 @@ export class RestitutionService {
   }
 
   /**
-   * Produit l'archive dans `sortie`. Rend le nom de fichier proposé.
+   * Produit l'archive dans `sortie`. Le nom du fichier n'est pas rendu ici ·
+   * les en-têtes partent avant la première ligne, le contrôleur le demande à
+   * `nomDeLArchive` avant d'appeler (audit final F225).
    *
    * LE MAILLON EST ÉCRIT AVANT LA PREMIÈRE LIGNE. Une extraction qui
    * échouerait en cours de route laisserait donc un maillon pour une archive
@@ -193,7 +241,7 @@ export class RestitutionService {
     tenantId: string,
     acteur: { id: string | null; email: string; adresseIp: string | null },
     sortie: Writable,
-  ): Promise<string> {
+  ): Promise<void> {
     const dossier = await this.prisma.tenant.findUniqueOrThrow({
       where: { id: tenantId },
       select: { id: true, nom: true, referentiel: true },
@@ -299,8 +347,6 @@ export class RestitutionService {
     // Rejetée seulement sur une archive abandonnée · déjà consignée ci-dessus.
     fin.catch(() => undefined);
     await Promise.race([fin, arret]);
-    const jour = horodatage.toISOString().slice(0, 10);
-    return `restitution-${dossier.nom.replace(/[^\w-]+/g, '-').toLowerCase()}-${jour}.zip`;
   }
 
   /**

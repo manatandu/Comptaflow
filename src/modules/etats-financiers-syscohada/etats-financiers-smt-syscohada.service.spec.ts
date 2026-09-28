@@ -1,6 +1,11 @@
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ClasseCompte, TypeCompteDetailTotal } from '@prisma/client';
-import { EtatsFinanciersSmtSyscohadaService } from './etats-financiers-smt-syscohada.service';
-import { EcritureService } from '../comptabilite/ecriture.service';
+import {
+  EtatsFinanciersSmtSyscohadaService,
+  PLAFOND_MOUVEMENTS_NOTE_4_SMT_SYSCOHADA,
+} from './etats-financiers-smt-syscohada.service';
+import { LOT_ECRITURES } from '../../common/lecture-par-lots';
+import { EcritureService, PLAFOND_LIGNES_GRAND_LIVRE } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
 import { PrismaService } from '../../common/prisma.service';
 import {
@@ -109,6 +114,9 @@ function ecriture(
   return {
     id,
     date: new Date(date),
+    // L'ordre de saisie départage deux écritures du même jour dans le
+    // journal de la NOTE 4 · la date suffit aux jeux d'essai.
+    createdAt: new Date(date),
     libelle,
     reference: null,
     estGenereeParCloture: options.estGenereeParCloture ?? false,
@@ -122,6 +130,17 @@ function ecriture(
   };
 }
 
+/** Ce que la doublure lit d'une demande d'écritures (voir `ecriture.findMany`). */
+interface ArgsEcritures {
+  where: {
+    estGenereeParCloture?: boolean;
+    lignes?: { some?: { compte?: { OR?: Array<{ numero: { startsWith: string } }> } } };
+  };
+  cursor?: { id: string };
+  skip?: number;
+  take?: number;
+}
+
 function service(
   lignesParExercice: Record<string, LigneTest[]>,
   options: {
@@ -130,11 +149,18 @@ function service(
     immobilisations?: unknown[];
     tiersComptes?: Array<{ compteId: string; tiers: { nom: string } }>;
     lignesTiers?: ReturnType<typeof ligneTiers>[];
-    devise?: string;
+    devise?: string | null;
     campagne?: unknown;
     campagneExerciceId?: string;
   } = {},
 ) {
+  // LES EXERCICES DU DOSSIER · ceux qu'on déclare, sinon un par balance
+  // servie. Un exercice que le dossier ne connaît pas est refusé (audit final
+  // F222), et une doublure muette sur ce point testerait le refus au lieu de
+  // l'état.
+  const exercices =
+    options.exercices ??
+    Object.keys(lignesParExercice).map((id) => ({ id, dateDebut: new Date('2026-01-01T00:00:00Z') }));
   const ecritureService = {
     balance: jest.fn().mockImplementation((_t: string, exerciceId: string) => {
       const lignes = lignesParExercice[exerciceId] ?? [];
@@ -145,20 +171,29 @@ function service(
   const exerciceService = {
     lister: jest
       .fn()
-      .mockResolvedValue([...(options.exercices ?? [])].sort((a, b) => b.dateDebut.getTime() - a.dateDebut.getTime())),
+      .mockResolvedValue([...exercices].sort((a, b) => b.dateDebut.getTime() - a.dateDebut.getTime())),
   } as unknown as ExerciceService;
 
   const prisma = {
     // La doublure respecte `where.estGenereeParCloture` : sans quoi le test
     // « les écritures de clôture sont écartées » ne testerait que la doublure.
+    // Elle respecte aussi, depuis l'audit final F258, le filtre « au moins une
+    // ligne de trésorerie » et la PAGINATION (tri par identifiant, curseur
+    // exclu par `skip`, `take`) · la correction repose sur l'un et l'autre,
+    // et une doublure qui rendrait tout d'un coup validerait une lecture par
+    // tranches qui compterait deux fois l'écriture du curseur.
     ecriture: {
-      findMany: jest.fn().mockImplementation(({ where }: { where: { estGenereeParCloture?: boolean } }) =>
-        Promise.resolve(
-          (options.ecritures ?? []).filter((e) =>
+      findMany: jest.fn().mockImplementation(({ where, cursor, skip, take }: ArgsEcritures) => {
+        const prefixes = where.lignes?.some?.compte?.OR?.map((o) => o.numero.startsWith);
+        const retenues = [...(options.ecritures ?? [])]
+          .filter((e) =>
             where.estGenereeParCloture === undefined ? true : e.estGenereeParCloture === where.estGenereeParCloture,
-          ),
-        ),
-      ),
+          )
+          .filter((e) => !prefixes || e.lignes.some((l) => prefixes.some((p) => l.compte.numero.startsWith(p))))
+          .sort((a, b) => a.id.localeCompare(b.id));
+        const debut = cursor ? retenues.findIndex((e) => e.id === cursor.id) + (skip ?? 0) : 0;
+        return Promise.resolve(retenues.slice(debut, take === undefined ? undefined : debut + take));
+      }),
     },
     // La doublure respecte les TROIS filtres du `where` de
     // `partsParEcheance` · sans quoi le test du périmètre (postes SA3/SP4 et
@@ -202,12 +237,21 @@ function service(
     tenant: {
       findUniqueOrThrow: jest
         .fn()
-        .mockResolvedValue({ devise: options.devise ?? 'CDF', systemeComptableSyscohada: 'MINIMAL_TRESORERIE' }),
+        .mockResolvedValue({
+          devise: 'devise' in options ? options.devise : 'CDF',
+          systemeComptableSyscohada: 'MINIMAL_TRESORERIE',
+        }),
     },
+    // Honore le dossier ET l'identifiant · un exercice inconnu ne rend rien,
+    // et c'est sur ce rien que porte le refus de l'audit final F222.
     exercice: {
-      findFirstOrThrow: jest
-        .fn()
-        .mockResolvedValue({ dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') }),
+      findFirst: jest.fn().mockImplementation(({ where }: { where: { id: string; tenantId: string } }) =>
+        Promise.resolve(
+          where.tenantId === 't1' && exercices.some((e) => e.id === where.id)
+            ? { dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') }
+            : null,
+        ),
+      ),
     },
   } as unknown as PrismaService;
 
@@ -1062,5 +1106,166 @@ describe('Éligibilité au S.M.T · art. 11 et 13', () => {
     const e = await negoce().eligibilite('t1', 'e2026');
     expect(e.rappelArticle11).toContain('sauf exception liée à sa taille');
     expect(e.rappelArticle11).toContain('Système normal');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AUDIT FINAL F215, F218, F222, F258
+// ---------------------------------------------------------------------------
+
+/** Les appels faits à la doublure `ecriture.findMany` · la forme même des demandes. */
+function demandesEcritures(s: EtatsFinanciersSmtSyscohadaService) {
+  const prisma = (s as unknown as { prisma: { ecriture: { findMany: jest.Mock } } }).prisma;
+  return prisma.ecriture.findMany.mock.calls.map(([args]) => args as Record<string, unknown> & ArgsEcritures);
+}
+
+/** `n` ventes encaissées en caisse, 1 000 chacune · des écritures de trésorerie à la chaîne. */
+function ventesComptant(n: number) {
+  return Array.from({ length: n }, (_, i) =>
+    ecriture(`v${String(i).padStart(6, '0')}`, '2026-03-01', `Vente ${i}`, [
+      { numero: '57110000', debit: 1_000 },
+      { numero: '70110000', credit: 1_000 },
+    ]),
+  );
+}
+
+describe('lecture des écritures bornée · audit final F258', () => {
+  it('ne demande que des écritures de TRÉSORERIE, par tranches, sans le compte entier', async () => {
+    const s = negoce();
+    await s.compteDeResultat('t1', 'e2026');
+    await s.journalTresorerie('t1', 'e2026');
+    const demandes = demandesEcritures(s);
+    expect(demandes.length).toBeGreaterThan(0);
+    for (const d of demandes) {
+      // Une tranche, jamais tout l'exercice d'un coup (§ 8 bis).
+      expect(d.take).toBe(LOT_ECRITURES);
+      // Au moins une ligne sur un compte de trésorerie : les écritures
+      // d'engagement n'entrent que par la balance.
+      expect(d.where.lignes?.some?.compte?.OR?.map((o) => o.numero.startsWith)).toEqual([
+        '52', '53', '54', '55', '56', '57', '58',
+      ]);
+      // Une sélection de colonnes, pas le compte ni l'écriture entiers.
+      expect(d).toHaveProperty('select');
+      expect(d).not.toHaveProperty('include');
+    }
+  });
+
+  it('lit un exercice de plus d’une tranche sans perdre ni recompter l’écriture du curseur', async () => {
+    const n = LOT_ECRITURES * 2 + 1;
+    const s = service(
+      { e1: [ligne('57110000', ClasseCompte.CLASSE_5, n * 1_000, 0), ligne('70110000', ClasseCompte.CLASSE_7, 0, n * 1_000)] },
+      { ecritures: ventesComptant(n) },
+    );
+    const cr = await s.compteDeResultat('t1', 'e1');
+    expect(cr.totalRecettes).toBe(n * 1_000);
+    expect(cr.controle.concordant).toBe(true);
+    expect(demandesEcritures(s)).toHaveLength(3);
+    const j = await s.journalTresorerie('t1', 'e1');
+    expect(j.journaux[0].operations).toHaveLength(n);
+    expect(j.journaux[0].boucle).toBe(true);
+  });
+
+  it('retrouve l’écart de concordance par différence avec la balance, sans relire les écritures d’engagement', async () => {
+    // L'apport (1 000 000, classe 1) et l'achat du matériel (400 000, classe 2)
+    // passent par la banque : ils sont À EFFET et ne sont pas des écarts. La
+    // dotation (80 000 au 284) n'y passe pas : elle est l'écart, et F la
+    // reprend. Sans la soustraction de la part à effet, la classe 1 vaudrait
+    // 1 000 000 et la classe 2 -320 000.
+    const cr = await negoce().compteDeResultat('t1', 'e2026');
+    expect(cr.controle.composantesEcart).toEqual({
+      classe1: 0,
+      classe2: 80_000,
+      depreciationsTresorerie: 0,
+      autresComptes: 0,
+      dotations: 80_000,
+      total: 0,
+    });
+    expect(cr.controle.residuel).toBe(0);
+  });
+
+  it('refuse la NOTE 4 au-delà de son plafond déclaré, en disant par où passer · jamais un journal tronqué', async () => {
+    // Le plafond est celui du grand livre · une seule mesure pour deux livres.
+    expect(PLAFOND_MOUVEMENTS_NOTE_4_SMT_SYSCOHADA).toBe(PLAFOND_LIGNES_GRAND_LIVRE);
+    const n = PLAFOND_MOUVEMENTS_NOTE_4_SMT_SYSCOHADA + LOT_ECRITURES * 3;
+    const s = service(
+      { e1: [ligne('57110000', ClasseCompte.CLASSE_5, n * 1_000, 0), ligne('70110000', ClasseCompte.CLASSE_7, 0, n * 1_000)] },
+      { ecritures: ventesComptant(n) },
+    );
+    const refus = s.journalTresorerie('t1', 'e1');
+    await expect(refus).rejects.toBeInstanceOf(BadRequestException);
+    await expect(refus).rejects.toThrow('grand livre de chaque compte de trésorerie');
+    // La lecture s'arrête au plafond franchi · la tranche qui le franchit est
+    // la dernière demandée, les suivantes ne le sont jamais.
+    expect(demandesEcritures(s)).toHaveLength(Math.ceil((PLAFOND_MOUVEMENTS_NOTE_4_SMT_SYSCOHADA + 1) / LOT_ECRITURES));
+  });
+
+  it('sert la NOTE 4 entière au plafond exactement', async () => {
+    const n = PLAFOND_MOUVEMENTS_NOTE_4_SMT_SYSCOHADA;
+    const s = service(
+      { e1: [ligne('57110000', ClasseCompte.CLASSE_5, n * 1_000, 0), ligne('70110000', ClasseCompte.CLASSE_7, 0, n * 1_000)] },
+      { ecritures: ventesComptant(n) },
+    );
+    const j = await s.journalTresorerie('t1', 'e1');
+    expect(j.journaux[0].operations).toHaveLength(n);
+    expect(j.journaux[0].boucle).toBe(true);
+  });
+
+  it('remet le journal dans l’ordre du livre · date comptable, puis ordre de saisie', async () => {
+    // Les identifiants (ordre de lecture) disent l'inverse des dates.
+    const s = service(
+      { e1: [ligne('57110000', ClasseCompte.CLASSE_5, 300, 0), ligne('70110000', ClasseCompte.CLASSE_7, 0, 300)] },
+      {
+        ecritures: [
+          ecriture('a', '2026-05-01', 'Troisième', [{ numero: '57110000', debit: 100 }, { numero: '70110000', credit: 100 }]),
+          ecriture('b', '2026-02-01', 'Premier', [{ numero: '57110000', debit: 100 }, { numero: '70110000', credit: 100 }]),
+          ecriture('c', '2026-03-01', 'Deuxième', [{ numero: '57110000', debit: 100 }, { numero: '70110000', credit: 100 }]),
+        ],
+      },
+    );
+    const j = await s.journalTresorerie('t1', 'e1');
+    expect(j.journaux[0].operations.map((o) => o.libelle)).toEqual(['Premier', 'Deuxième', 'Troisième']);
+    expect(j.journaux[0].operations.map((o) => o.solde)).toEqual([100, 200, 300]);
+  });
+});
+
+describe('exercice introuvable · un refus, jamais des états vides (audit final F222)', () => {
+  it('refuse le bilan, le compte de résultat, les NOTES 1 à 4 et l’éligibilité d’un exercice inconnu du dossier', async () => {
+    const s = negoce();
+    await expect(s.bilan('t1', 'inconnu')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(s.compteDeResultat('t1', 'inconnu')).rejects.toBeInstanceOf(NotFoundException);
+    // Le journal ne lisait aucun exercice · il rendait des journaux vides, lus
+    // « aucun compte de trésorerie mouvementé ».
+    await expect(s.journalTresorerie('t1', 'inconnu')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(s.note1MaterielMobilierCautions('t1', 'inconnu')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(s.eligibilite('t1', 'inconnu')).rejects.toBeInstanceOf(NotFoundException);
+    // Les NOTES 2 et 3 le refusent aussi, chacune pour son compte · la
+    // NOTE 3 ne lisait l'exercice que lorsqu'un compte de tiers était à
+    // ventiler, et une balance vide n'en a aucun.
+    await expect(s.note2Stocks('t1', 'inconnu')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(s.note3CreancesDettes('t1', 'inconnu')).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('monnaie du jeu légal · audit final F215', () => {
+  it('nomme la monnaie de tenue même quand la devise du dossier n’est pas renseignée', async () => {
+    const s = service({ e1: [ligne('70110000', ClasseCompte.CLASSE_7, 0, 100)] }, { devise: null });
+    const e = await s.eligibilite('t1', 'e1');
+    // Loi n° 23/053 art. 141, 1° et AUDCIF art. 17, 1° · jamais nulle, jamais choisie.
+    expect(e.deviseDossier).toBe('CDF');
+  });
+});
+
+describe('le 130 est un orphelin VOULU du bilan S.M.T · audit final F218', () => {
+  it('le signale comme compte non rattaché, sans l’additionner à aucun poste', async () => {
+    // Résultat N-1 en instance d'affectation, resté au 31 décembre : il doit
+    // être soldé. Le bilan ne boucle pas, et la cause est nommée.
+    const s = service({
+      e1: [ligne('13010000', ClasseCompte.CLASSE_1, 0, 50_000), ligne('57110000', ClasseCompte.CLASSE_5, 50_000, 0)],
+    });
+    const bilan = await s.bilan('t1', 'e1');
+    expect(bilan.comptesNonRattaches.map((c) => c.numero)).toEqual(['13010000']);
+    expect(poste(bilan, 'SA4').montant).toBe(50_000);
+    expect(poste(bilan, 'SP2').montant).toBe(0);
+    expect(bilan.equilibre).toBe(false);
   });
 });

@@ -1,5 +1,6 @@
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ClasseCompte, TypeCompteDetailTotal } from '@prisma/client';
-import { EtatsFinanciersSyscohadaService, subdivisionsLuesParLeTft } from './etats-financiers-syscohada.service';
+import { EtatsFinanciersSyscohadaService, lireDateArrete, subdivisionsLuesParLeTft } from './etats-financiers-syscohada.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
 import { ORDRE_AFFICHAGE_COMPTE_RESULTAT } from './correspondance-compte-resultat-syscohada';
@@ -90,9 +91,16 @@ function serviceAvecExercices(
   return new EtatsFinanciersSyscohadaService(ecritureService, exerciceService);
 }
 
-/** Un seul exercice ('e1'), sans antérieur. */
+/**
+ * Un seul exercice ('e1'), sans antérieur. L'exercice est DÉCLARÉ au dossier
+ * de la doublure · depuis l'audit final F222, un exercice que le dossier ne
+ * connaît pas est refusé (404), et une doublure qui ne le déclarerait pas
+ * testerait ce refus au lieu de l'état.
+ */
 function serviceAvecBalance(lignes: LigneBalance[]) {
-  return serviceAvecExercices({ e1: lignes });
+  return serviceAvecExercices({ e1: lignes }, [
+    { id: 'e1', dateDebut: new Date('2026-01-01T00:00:00Z'), dateFin: new Date('2026-12-31T00:00:00Z') } as never,
+  ]);
 }
 
 const C1 = ClasseCompte.CLASSE_1;
@@ -229,7 +237,6 @@ describe('EtatsFinanciersSyscohadaService', () => {
       const avecN1 = await serviceDeReference().bilan('t1', 'e2');
       expect(avecN1.exerciceN1Disponible).toBe(true);
       expect(poste(avecN1, 'AN')?.montantN1).toBe(5000); // 6000 - 1000
-      expect(poste(avecN1, 'AN')?.brutN1).toBe(6000);
       expect(avecN1.totalActifN1).toBe(10500);
 
       const sansN1 = await serviceDeReference().bilan('t1', 'e1');
@@ -684,6 +691,50 @@ describe('EtatsFinanciersSyscohadaService', () => {
       // porte la variation, pas rester muet.
       expect(montant(tft, 'FD').comptes.map((c) => c.numero)).toEqual(['41110000']);
       expect(montant(tft, 'FD').comptes[0].montant).toBe(-1000);
+    });
+  });
+
+  // =========================================================================
+  describe('refus et colonnes du modèle (audit final F217, F220, F222)', () => {
+    it('ne sert ni Brut ni Amort. en N-1 · le modèle du ch. 3 n’imprime que le net de N-1 (F217)', async () => {
+      // e1 n'a pas d'exercice antérieur : l'ancien code y servait `brutN1: 0`,
+      // un faux zéro sur une colonne que le modèle n'a pas. e2 en a un.
+      for (const exercice of ['e1', 'e2']) {
+        const bilan = await serviceDeReference().bilan('t1', exercice);
+        for (const l of [...bilan.actif, ...bilan.passif]) {
+          expect({ ref: l.ref, cles: Object.keys(l).filter((k) => k === 'brutN1' || k === 'amortissementN1') }).toEqual({
+            ref: l.ref,
+            cles: [],
+          });
+        }
+      }
+      // Le net N-1, lui, reste servi quand l'exercice antérieur existe.
+      const avecN1 = await serviceDeReference().bilan('t1', 'e2');
+      expect(avecN1.actif.find((l) => l.ref === 'AN')?.montantN1).toBe(5000);
+    });
+
+    it.each(['xyz', '2026-02-30', '06/30/2026', '2026-6-30'])(
+      'refuse la date d’arrêté illisible « %s » par un 400, jamais un 500 ni un jour déplacé (F220)',
+      async (date) => {
+        const service = serviceAvecBalance([ligne('52110000', C5, 100, 0), ligne('10130000', C1, 0, 100)]);
+        await expect(service.bilan('t1', 'e1', date)).rejects.toBeInstanceOf(BadRequestException);
+        await expect(service.compteDeResultat('t1', 'e1', date)).rejects.toThrow('AAAA-MM-JJ');
+        await expect(service.tableauFluxTresorerie('t1', 'e1', date)).rejects.toBeInstanceOf(BadRequestException);
+      },
+    );
+
+    it('lit une date bien formée à la FIN de ce jour, et pas un autre (F220)', () => {
+      expect(lireDateArrete('2026-06-30').toISOString()).toBe('2026-06-30T23:59:59.999Z');
+      expect(lireDateArrete('2024-02-29').toISOString()).toBe('2024-02-29T23:59:59.999Z');
+    });
+
+    it('refuse un exercice que le dossier ne connaît pas · 404, jamais des états à zéro « équilibrés » (F222)', async () => {
+      const service = serviceDeReference();
+      await expect(service.bilan('t1', 'inconnu')).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.compteDeResultat('t1', 'inconnu')).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.tableauFluxTresorerie('t1', 'inconnu')).rejects.toBeInstanceOf(NotFoundException);
+      // Situation intermédiaire comprise · l'exercice est refusé avant la date.
+      await expect(service.bilan('t1', 'inconnu', '2026-06-30')).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 });
