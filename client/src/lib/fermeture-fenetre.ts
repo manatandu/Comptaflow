@@ -1,5 +1,3 @@
-import type { FenetreOuverte } from './fenetres';
-
 /**
  * FERMETURE ANIMÉE D'UNE FENÊTRE · « où est passée cette fenêtre ? ». La
  * fenêtre est d'abord MARQUÉE (`enFermeture`), joue sa sortie, puis se
@@ -13,11 +11,15 @@ import type { FenetreOuverte } from './fenetres';
  */
 export const DUREE_FERMETURE_MS = 140;
 
-export function marquerFermeture(fenetres: FenetreOuverte[], cle: string): FenetreOuverte[] {
+// Générique plutôt que `FenetreOuverte` · ce module se charge aussi sous le
+// jest de la racine, qui ne compile pas le JSX de `fenetres.tsx`.
+type Fermable = { cle: string; enFermeture?: boolean };
+
+export function marquerFermeture<T extends Fermable>(fenetres: T[], cle: string): T[] {
   return fenetres.map((f) => (f.cle === cle ? { ...f, enFermeture: true } : f));
 }
 
-export function retirerSiEnFermeture(fenetres: FenetreOuverte[], cle: string): FenetreOuverte[] {
+export function retirerSiEnFermeture<T extends Fermable>(fenetres: T[], cle: string): T[] {
   return fenetres.filter((f) => !(f.cle === cle && f.enFermeture));
 }
 

@@ -1,12 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DUREE_FERMETURE_MS, marquerFermeture, retirerSiEnFermeture } from './fermeture-fenetre';
-import type { FenetreOuverte } from './fenetres';
 
 // Aucun import de « vitest » · convention du dépôt.
 
-const f = (cle: string, enFermeture?: boolean): FenetreOuverte =>
-  ({ cle, adresse: cle, titre: cle, titreCourt: cle, etat: 'agrandie', etatAvantReduction: 'agrandie', ordre: 1, version: 0, cadre: { x: 0, y: 0, largeur: 1, hauteur: 1 }, enFermeture }) as FenetreOuverte;
+const f = (cle: string, enFermeture?: boolean) => ({ cle, titre: cle, enFermeture });
 
 describe('fermeture animée des fenêtres', () => {
   it('marque la fenêtre, puis ne retire qu’une fenêtre encore en fermeture', () => {
