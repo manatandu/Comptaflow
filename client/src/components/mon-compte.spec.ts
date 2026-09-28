@@ -119,6 +119,22 @@ describe('Mon compte · les réglages de sécurité de chacun', () => {
     expect(retour).toBeGreaterThan(sortie);
   });
 
+  it('« Déconnecter mes autres appareils » envoie le mot de passe, PUIS reprend le jeton CSRF rendu, PUIS relit la session (audit final F270)', () => {
+    // Le serveur ferme toutes les sessions et repose celle-ci · son jeton
+    // CSRF change. Sans `setCsrf`, l'écriture suivante partait avec l'ancien.
+    const deconnecter = corps(modale, 'deconnecterAutresAppareils');
+    const appel = deconnecter.indexOf("await api.post<{ autresAppareilsDeconnectes: boolean; csrfToken: string }>('/auth/deconnecter-autres-appareils', {");
+    const csrf = deconnecter.indexOf('setCsrf(csrfToken);');
+    const relecture = deconnecter.indexOf('await rafraichir();');
+    expect(appel).toBeGreaterThan(-1);
+    expect(csrf).toBeGreaterThan(appel);
+    expect(relecture).toBeGreaterThan(csrf);
+    // Et ce n'est PAS la fermeture de toutes les sessions · l'interface reste
+    // ouverte, et le dit.
+    expect(deconnecter).toContain("setFait('Vos autres appareils sont déconnectés · cet appareil reste connecté.');");
+    expect(modale).toContain('<form onSubmit={deconnecterAutresAppareils}');
+  });
+
   it('la modale monte les deux modales existantes, double authentification et adresse', () => {
     expect(modale).toContain("return <ModaleDoubleAuth onFermer={() => setSousModale(null)} />;");
     expect(modale).toContain('return <ModaleMonAdresse adresseActuelle={utilisateur.email} onFermer={() => setSousModale(null)} />;');
@@ -133,7 +149,14 @@ describe('Mon compte · les réglages de sécurité de chacun', () => {
     it('le recensement trouve encore les appels · sans quoi le test suivant ne prouve rien', () => {
       const routes = appels.map((a) => a.route);
       expect(routes).toEqual(
-        expect.arrayContaining(['changer-mot-de-passe', 'deconnecter-partout', 'changer-adresse', 'double-authentification/activer', 'double-authentification/desactiver']),
+        expect.arrayContaining([
+          'changer-mot-de-passe',
+          'deconnecter-partout',
+          'deconnecter-autres-appareils',
+          'changer-adresse',
+          'double-authentification/activer',
+          'double-authentification/desactiver',
+        ]),
       );
     });
 

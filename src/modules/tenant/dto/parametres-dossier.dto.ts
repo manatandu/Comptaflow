@@ -242,7 +242,12 @@ export class ModifierRegimeDto {
   @IsIn(REPONSES_FAIT)
   venteBiensServices?: ReponseFait;
 
+  // La chaîne vide est le geste d'EFFACEMENT (le service la convertit en null,
+  // `dateSaisieOuEffacement`), même garde que les dates de ModifierIdentiteDto
+  // · @IsDateString seul la refusait, et une date saisie par erreur ne se
+  // retirait plus (audit final F237).
   @IsOptional()
+  @ValidateIf((o: ModifierRegimeDto) => o.dateOptionTva !== '')
   @IsDateString()
   dateOptionTva?: string;
 
@@ -273,7 +278,12 @@ export class ModifierRegimeDto {
   @IsEnum(RegimeExigibiliteTva)
   regimeExigibiliteTva?: RegimeExigibiliteTva;
 
+  // Même garde que la date d'option (audit final F237) · l'autorisation
+  // « reste valable tant que le redevable n'a pas demandé, par écrit, de
+  // revenir au régime de droit commun » (O.-L. n° 10/001, art. 26) · ce
+  // retour, ou une saisie erronée, doit pouvoir vider la date.
   @IsOptional()
+  @ValidateIf((o: ModifierRegimeDto) => o.dateAutorisationDebitsTva !== '')
   @IsDateString()
   dateAutorisationDebitsTva?: string;
 }

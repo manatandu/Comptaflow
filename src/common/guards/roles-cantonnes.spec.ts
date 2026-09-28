@@ -2,19 +2,22 @@ import { CanActivate, Controller, ExecutionContext, ForbiddenException, Get, Inj
 import { APP_GUARD, Reflector } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import { RoleUtilisateur } from '@prisma/client';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, relative } from 'node:path';
 import { AuthGuard } from '@nestjs/passport';
 import { rolesSatisfaits, routeOuverteAuRoleCantonne } from './roles-cantonnes';
 import { CLE_ACCES_ROLES_CANTONNES } from '../decorators/acces-roles-cantonnes.decorator';
 import { JwtAuthGuard } from '../../modules/auth/jwt-auth.guard';
 import { MotDePasseAChangerGuard } from './mot-de-passe-a-changer.guard';
 import { PersonnelController } from '../../modules/personnel/personnel.controller';
+import { AvancesRubriquesController } from '../../modules/personnel/avances-rubriques.controller';
+import { BaremesPaieController } from '../../modules/personnel/baremes-paie.controller';
 import { EcritureController } from '../../modules/comptabilite/ecriture.controller';
 import { AffectationController } from '../../modules/affectation/affectation.controller';
 import { GroupeController } from '../../modules/groupe/groupe.controller';
 import { ExerciceController } from '../../modules/exercice/exercice.controller';
 import { AuthController } from '../../modules/auth/auth.controller';
+import { DevisesController } from '../../modules/devises/devises.controller';
 
 /**
  * LES DEUX RÔLES CANTONNÉS (décision du 2026-09-24, plan item 13), et la garde
@@ -159,6 +162,90 @@ describe('les routes marquées', () => {
     for (const cible of [AuthController.prototype.me, AuthController.prototype.changerMotDePasse, ExerciceController.prototype.lister]) {
       expect(acces(cible)).toEqual({ gestionnairePaie: true });
     }
+  });
+
+  it('le gestionnaire de paie lit les devises et cote le cours du jour que sa paie lit (audit final F247)', () => {
+    // La borne de la cotation (USD, jour de Kinshasa) et la fermeture du reste
+    // du module sont tenues par devises/cotation-gestionnaire-paie.spec.ts.
+    for (const cible of [DevisesController.prototype.lister, DevisesController.prototype.poserCours]) {
+      expect(acces(cible)).toEqual({ gestionnairePaie: true });
+    }
+    expect(acces(DevisesController.prototype.reevaluer)).toBeUndefined();
+  });
+});
+
+describe('les portes du gestionnaire de paie · une liste FERMÉE (audit de cohérence du lot F247, F270)', () => {
+  /**
+   * Son défaut est de n'avoir RIEN · chaque porte ouverte est donc une
+   * décision, et elle se prend ici, pas au détour d'un contrôleur. Les tests
+   * d'au-dessus vérifient que CERTAINES routes lui sont ouvertes ; aucun ne
+   * disait que ce sont LES SEULES, si bien que F247 (les devises) et F270
+   * (déconnecter ses autres appareils) ont élargi son périmètre sans qu'une
+   * liste le constate. Deux lectures, et il faut les deux · la métadonnée
+   * que la garde lit, sur les contrôleurs qui l'ouvrent, et les SOURCES de
+   * tout le serveur, pour qu'un contrôleur nouveau ne s'ajoute pas en silence.
+   */
+  const acces = (cible: object) => Reflect.getMetadata(CLE_ACCES_ROLES_CANTONNES, cible) as { gestionnairePaie?: boolean } | undefined;
+  const methodesOuvertes = (classe: { prototype: object; name: string }) => {
+    const proto = classe.prototype as Record<string, object>;
+    return Object.getOwnPropertyNames(proto)
+      .filter((m) => m !== 'constructor' && acces(proto[m])?.gestionnairePaie === true)
+      .map((m) => `${classe.name}.${m}`);
+  };
+
+  it('le module du personnel lui est ouvert en entier, par la classe · et lui seul', () => {
+    for (const classe of [PersonnelController, AvancesRubriquesController, BaremesPaieController]) {
+      expect([classe.name, acces(classe)?.gestionnairePaie]).toEqual([classe.name, true]);
+    }
+    for (const classe of [AuthController, ExerciceController, DevisesController]) {
+      expect([classe.name, acces(classe)]).toEqual([classe.name, undefined]);
+    }
+  });
+
+  it('hors du personnel, route par route · se voir, son propre compte, les exercices, le cours du jour', () => {
+    expect([AuthController, ExerciceController, DevisesController].flatMap(methodesOuvertes).sort()).toEqual(
+      [
+        // Entrer, et tenir son propre compte · CLAUDE.md § 8.
+        'AuthController.me',
+        'AuthController.changerMotDePasse',
+        'AuthController.changerAdresse',
+        'AuthController.etatDoubleAuth',
+        'AuthController.initierDoubleAuth',
+        'AuthController.activerDoubleAuth',
+        'AuthController.desactiverDoubleAuth',
+        'AuthController.regenererCodesSecours',
+        'AuthController.deconnecterPartout',
+        // audit final F270
+        'AuthController.deconnecterAutresAppareils',
+        // Le sélecteur d'exercice, sans aucun chiffre comptable.
+        'ExerciceController.lister',
+        // audit final F247 · la cotation est bornée au cours de l'USD du jour.
+        'DevisesController.lister',
+        'DevisesController.poserCours',
+      ].sort(),
+    );
+  });
+
+  it('aucun autre fichier du serveur ne lui ouvre une porte', () => {
+    const racine = join(__dirname, '../..');
+    const sources = (dossier: string): string[] =>
+      readdirSync(dossier).flatMap((nom) => {
+        const chemin = join(dossier, nom);
+        if (statSync(chemin).isDirectory()) return sources(chemin);
+        return nom.endsWith('.ts') && !nom.endsWith('.spec.ts') ? [chemin] : [];
+      });
+    const ouvrent = sources(racine)
+      .filter((f) => /gestionnairePaie\s*:\s*true/.test(readFileSync(f, 'utf8')))
+      .map((f) => relative(racine, f).split('\\').join('/'))
+      .sort();
+    expect(ouvrent).toEqual([
+      'modules/auth/auth.controller.ts',
+      'modules/devises/devises.controller.ts',
+      'modules/exercice/exercice.controller.ts',
+      'modules/personnel/avances-rubriques.controller.ts',
+      'modules/personnel/baremes-paie.controller.ts',
+      'modules/personnel/personnel.controller.ts',
+    ]);
   });
 });
 

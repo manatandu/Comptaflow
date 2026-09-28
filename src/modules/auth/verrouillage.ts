@@ -33,12 +33,17 @@ export function instantDeverrouillage(tentativesEchouees: number, maintenant: Da
   return minutes === 0 ? null : new Date(maintenant.getTime() + minutes * 60_000);
 }
 
-/** Message d'attente, arrondi à la minute supérieure pour ne pas dire « 0 minute ». */
-export function messageVerrou(verrouilleJusqua: Date, maintenant: Date): string {
-  const minutes = Math.max(1, Math.ceil((verrouilleJusqua.getTime() - maintenant.getTime()) / 60_000));
-  return (
-    `Ce compte est temporairement verrouillé après plusieurs tentatives infructueuses. ` +
-    `Réessayez dans ${minutes} minute${minutes > 1 ? 's' : ''}, ou demandez à l'administrateur du dossier ` +
-    `de réinitialiser votre mot de passe.`
-  );
-}
+/**
+ * LE MESSAGE D'UN REFUS DE CONNEXION, UN SEUL (audit final F238). Adresse
+ * inconnue, mot de passe faux, compte verrouillé · les trois rendent CE texte,
+ * mot pour mot. Le verrou disait jusque-là « Ce compte est temporairement
+ * verrouillé… », et une adresse inconnue ne se verrouille jamais · il suffisait
+ * de cinq essais pour savoir qu'une adresse avait un compte. La suspension est
+ * donc nommée pour tous, sans dire si elle frappe ce compte · le titulaire
+ * bloqué sait quoi attendre, l'inconnu n'apprend rien. Elle n'est pas non plus
+ * réservée au BON mot de passe, qui la ferait servir d'oracle pendant le
+ * verrou (auth.service.ts, `login`).
+ */
+export const MOTIF_IDENTIFIANTS_INVALIDES =
+  "Identifiants invalides · après plusieurs essais manqués, un compte reste fermé quelques minutes, ou jusqu'à ce que " +
+  "l'administrateur du dossier réinitialise son mot de passe.";

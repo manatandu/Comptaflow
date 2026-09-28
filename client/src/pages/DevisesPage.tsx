@@ -6,6 +6,7 @@ import { Aide } from '../components/chrome/Aide';
 import type { Devise, Exercice, RapportReevaluation, Reevaluation } from '../lib/types';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { sousFonctionServie } from '../lib/profil-dossier';
+import { cotationBorneeAuCoursDuJour, DEVISE_COTEE_PAR_LA_PAIE, jourDeKinshasaIso } from '../lib/roles-cantonnes';
 
 /**
  * DEVISES ET RÉÉVALUATION · Structure → devises et Traitement → Réévaluation
@@ -36,8 +37,15 @@ export function DevisesPage() {
   // Au SMT, la réévaluation se masque, les cours restent (audit final F178) ·
   // une réévaluation déjà passée reste lisible et contre-passable.
   const reevaluationServie = sousFonctionServie('reevaluation', utilisateur?.tenant);
+  // Le gestionnaire de paie ne vient ici que coter le cours de l'USD du jour
+  // (audit final F247) · le serveur lui ferme la réévaluation et borne la
+  // cotation à ce cours, l'écran ne lui propose que ce geste.
+  const coursDuJourSeul = cotationBorneeAuCoursDuJour(utilisateur?.role);
+  const jourDuCours = jourDeKinshasaIso(new Date());
   const { exerciceCourant } = useExercice();
-  const [devises, setDevises] = useState<Devise[]>([]);
+  // null tant que la liste n'est pas lue · « Aucune devise » ne se dit que
+  // d'une liste LUE, jamais d'un échec de lecture.
+  const [devises, setDevises] = useState<Devise[] | null>(null);
   const [exercices, setExercices] = useState<Exercice[]>([]);
   const [reevaluations, setReevaluations] = useState<Reevaluation[]>([]);
   const [rapport, setRapport] = useState<RapportReevaluation | null>(null);
@@ -63,7 +71,7 @@ export function DevisesPage() {
       // transatlantique de moins à l'ouverture de la fenêtre.
       const [devises, reevaluations] = await Promise.all([
         api.get<Devise[]>('/devises'),
-        exerciceCourant
+        exerciceCourant && !coursDuJourSeul
           ? api.get<Reevaluation[]>(`/devises/reevaluation/liste?exerciceId=${exerciceCourant.id}`)
           : Promise.resolve(null),
       ]);
@@ -76,7 +84,8 @@ export function DevisesPage() {
 
   useEffect(() => {
     charger();
-    api.get<Exercice[]>('/exercices').then(setExercices, () => setExercices([]));
+    // Les exercices ne servent qu'à la contre-passation d'une réévaluation.
+    if (!coursDuJourSeul) api.get<Exercice[]>('/exercices').then(setExercices, () => setExercices([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exerciceCourant?.id]);
 
@@ -110,7 +119,7 @@ export function DevisesPage() {
     setErreur(null);
     try {
       await api.post(`/devises/${deviseCours}/cours`, {
-        date: dateCours,
+        date: coursDuJourSeul ? jourDuCours : dateCours,
         cours: Number(valeurCours),
         source: 'BCC',
       });
@@ -189,6 +198,18 @@ export function DevisesPage() {
   };
 
   const champ = 'mt-1 w-full border border-border rounded-[3px] px-2.5 py-1.5 text-[11.5px] font-normal';
+  // Ce que la cotation propose · pour le gestionnaire de paie, la seule
+  // devise que la paie convertit.
+  const devisesCotables =
+    devises === null ? [] : coursDuJourSeul ? devises.filter((d) => d.code === DEVISE_COTEE_PAR_LA_PAIE) : devises;
+  // Le cours du jour déjà coté ne se réécrit pas par le gestionnaire
+  // (relecture adverse de F247, `motifRefusCotationGestionnairePaie`) · le
+  // serveur le refuse, l'écran le dit au lieu d'offrir un formulaire qui
+  // échouerait. Comparé à l'instant, minuit UTC, comme la clé que le
+  // serveur réécrirait.
+  const coursDuJourDejaCote = coursDuJourSeul
+    ? (devisesCotables.flatMap((d) => d.cours).find((c) => Date.parse(c.date) === Date.parse(jourDuCours)) ?? null)
+    : null;
 
   return (
     <div className="p-2">
@@ -251,7 +272,20 @@ export function DevisesPage() {
             </form>
           )}
 
-          {peutEcrire && devises.length > 0 && (
+          {coursDuJourSeul && devises !== null && devisesCotables.length === 0 && (
+            <div className="text-[11.5px] text-warning bg-warning-soft border border-warning/30 rounded-[3px] px-2.5 py-1.5">
+              Aucune devise {DEVISE_COTEE_PAR_LA_PAIE} au dossier · l'administrateur l'ajoute avant la première cotation.
+            </div>
+          )}
+
+          {coursDuJourDejaCote && (
+            <div className="text-[11.5px] text-text-dim bg-surface border border-border rounded-[3px] px-2.5 py-1.5">
+              Cours de l'{DEVISE_COTEE_PAR_LA_PAIE} du jour coté : {montant(coursDuJourDejaCote.cours)} · une correction se
+              demande au comptable.
+            </div>
+          )}
+
+          {peutEcrire && devisesCotables.length > 0 && !coursDuJourDejaCote && (
             <form onSubmit={poserCours} className="bg-surface border border-border rounded-[4px] shadow-posee overflow-hidden">
               <div className="px-3 py-2 bg-chrome-alt border-b border-border text-[11.5px] font-bold">
                 Coter un cours
@@ -261,7 +295,7 @@ export function DevisesPage() {
                   Devise
                   <select required value={deviseCours} onChange={(e) => setDeviseCours(e.target.value)} className={champ}>
                     <option value="">Choisir…</option>
-                    {devises.map((d) => (
+                    {devisesCotables.map((d) => (
                       <option key={d.id} value={d.id}>
                         {d.code} · {d.intitule}
                       </option>
@@ -274,7 +308,8 @@ export function DevisesPage() {
                     <input
                       type="date"
                       required
-                      value={dateCours}
+                      value={coursDuJourSeul ? jourDuCours : dateCours}
+                      readOnly={coursDuJourSeul}
                       onChange={(e) => setDateCours(e.target.value)}
                       className={`${champ} font-mono`}
                     />
@@ -312,7 +347,7 @@ export function DevisesPage() {
             <div className="px-3 py-2 bg-chrome-alt border-b border-border text-[11.5px] font-bold">
               Devises du dossier
             </div>
-            {devises.map((d) => (
+            {(devises ?? []).map((d) => (
               <div key={d.id} className="px-3 py-2 border-b border-border/40">
                 <div className="text-[11.5px] font-semibold flex items-baseline gap-2">
                   <span>
@@ -350,7 +385,7 @@ export function DevisesPage() {
                 )}
               </div>
             ))}
-            {devises.length === 0 && (
+            {devises !== null && devises.length === 0 && (
               <div className="px-3 py-3 text-[11.5px] text-text-dim italic">
                 Aucune devise.
               </div>
@@ -358,7 +393,7 @@ export function DevisesPage() {
           </section>
         </div>
 
-        {(reevaluationServie || reevaluations.length > 0) && (
+        {!coursDuJourSeul && (reevaluationServie || reevaluations.length > 0) && (
           <section
             // `overflow-x-auto` ici, `min-w` sur les lignes · les 830 px de colonnes
             // incompressibles du tableau ne tiennent pas dans les ~326 px utiles d'une

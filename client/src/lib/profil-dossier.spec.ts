@@ -172,7 +172,9 @@ describe('les sous-fonctions d’une fenêtre utile', () => {
   it('Devises enveloppe la réévaluation, qui reste lisible si elle a déjà servi (audit final F178)', () => {
     const src = page('DevisesPage.tsx');
     const bloc = src.indexOf('Réévaluation à la clôture');
-    const garde = src.lastIndexOf('{(reevaluationServie || reevaluations.length > 0) && (', bloc);
+    // La garde exclut aussi le gestionnaire de paie, qui ne vient que coter
+    // le cours du jour (audit final F247, devises-gestionnaire-paie.spec.ts).
+    const garde = src.lastIndexOf('{!coursDuJourSeul && (reevaluationServie || reevaluations.length > 0) && (', bloc);
     expect(garde).toBeGreaterThan(0);
     expect(src.slice(garde, bloc)).not.toContain('</section>');
     expect(src).toContain("const reevaluationServie = sousFonctionServie('reevaluation', utilisateur?.tenant);");

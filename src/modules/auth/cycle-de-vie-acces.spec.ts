@@ -1,8 +1,9 @@
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { PATH_METADATA } from '@nestjs/common/constants';
 import * as bcrypt from 'bcryptjs';
-import { AuthService } from './auth.service';
+import { AuthService, EMPREINTE_FACTICE, SALT_ROUNDS } from './auth.service';
 import { sessionRevoquee } from './jwt.strategy';
-import { dureeVerrouMinutes, instantDeverrouillage, SEUIL_VERROUILLAGE } from './verrouillage';
+import { dureeVerrouMinutes, instantDeverrouillage, MOTIF_IDENTIFIANTS_INVALIDES, SEUIL_VERROUILLAGE } from './verrouillage';
 import { MotDePasseAChangerGuard } from '../../common/guards/mot-de-passe-a-changer.guard';
 import { CLE_SORTIE_MOT_DE_PASSE } from '../../common/decorators/sortie-mot-de-passe.decorator';
 import { UtilisateurService } from '../utilisateurs/utilisateur.service';
@@ -16,7 +17,8 @@ import { UtilisateurService } from '../utilisateurs/utilisateur.service';
  *     l'écran de changement, le serveur ne refusait rien, et un appel direct
  *     à l'API travaillait normalement.
  *  2. Un mot de passe changé, réinitialisé ou un compte rétrogradé FERME les
- *     sessions ouvertes · un jeton vit jusqu'à huit heures.
+ *     sessions ouvertes · un jeton vit jusqu'à huit heures, et trente jours
+ *     pour une session « Rester connecté » (audit final F270).
  *  3. Un compte se VERROUILLE après des échecs répétés, mais TEMPORAIREMENT ·
  *     un verrou définitif se retourne en refus de service.
  *  4. L'administrateur du dossier peut RÉINITIALISER un mot de passe · sans
@@ -49,16 +51,52 @@ describe('1 · le mot de passe provisoire ferme le logiciel côté serveur', () 
   });
 
   it('les trois sorties sont marquées dans le contrôleur, et elles seules', () => {
-    // Une quatrième sortie ajoutée par confort rouvrirait le trou.
-    const controleur = require('fs').readFileSync(
-      require('path').join(__dirname, 'auth.controller.ts'),
-      'utf8',
-    ) as string;
-    const marquees = [...controleur.matchAll(/@SortieMotDePasseProvisoire\(\)[\s\S]{0,220}?@(?:Get|Post|Patch)\('([\w-]+)'\)/g)].map(
-      (m) => m[1],
-    );
-    expect(marquees.sort()).toEqual(['changer-mot-de-passe', 'deconnecter-partout', 'me']);
+    // Une quatrième sortie ajoutée par confort rouvrirait le trou. LUE SUR LA
+    // MÉTADONNÉE QUE LA GARDE LIT, route par route, et non plus sur une
+    // distance dans la source (audit de cohérence du lot F270) · l'ancienne
+    // lecture cherchait le verbe à moins de 220 caractères du décorateur, si
+    // bien qu'un commentaire posé entre les deux suffisait à cacher une
+    // quatrième sortie, et la route nouvelle `deconnecter-autres-appareils`
+    // en porte un de plusieurs lignes.
+    const { AuthController } = require('./auth.controller') as { AuthController: { prototype: Record<string, unknown> } };
+    const proto = AuthController.prototype;
+    const sorties = Object.getOwnPropertyNames(proto)
+      .filter((m) => m !== 'constructor' && Reflect.getMetadata(CLE_SORTIE_MOT_DE_PASSE, proto[m] as object) === true)
+      .map((m) => Reflect.getMetadata(PATH_METADATA, proto[m] as object) as string);
+    expect(sorties.sort()).toEqual(['changer-mot-de-passe', 'deconnecter-partout', 'me']);
+    // Posée sur la CLASSE, elle ouvrirait toutes les routes du contrôleur · la
+    // garde lit la classe aussi (`getAllAndOverride`).
+    expect(Reflect.getMetadata(CLE_SORTIE_MOT_DE_PASSE, AuthController)).toBeUndefined();
     expect(CLE_SORTIE_MOT_DE_PASSE).toBe('sortie-mot-de-passe-provisoire');
+  });
+
+  it('aucun autre fichier du serveur ne pose une sortie, sous le décorateur ou sous sa clé', () => {
+    // Le test précédent ne lit que l'AuthController · une sortie posée dans un
+    // autre contrôleur, ou par `SetMetadata` sur la clé, lui échapperait. On
+    // gèle la PRÉSENCE : les fichiers qui nomment le décorateur ou sa clé sont
+    // ceux-ci, et eux seuls.
+    const { readdirSync, readFileSync, statSync } = require('fs') as typeof import('fs');
+    const { join, relative } = require('path') as typeof import('path');
+    const racine = join(__dirname, '..', '..');
+    const sources = (dossier: string): string[] =>
+      readdirSync(dossier).flatMap((nom) => {
+        const chemin = join(dossier, nom);
+        if (statSync(chemin).isDirectory()) return sources(chemin);
+        return nom.endsWith('.ts') && !nom.endsWith('.spec.ts') ? [chemin] : [];
+      });
+    const nomment = (motif: RegExp) =>
+      sources(racine)
+        .filter((f) => motif.test(readFileSync(f, 'utf8')))
+        .map((f) => relative(racine, f).split('\\').join('/'))
+        .sort();
+    expect(nomment(/\bSortieMotDePasseProvisoire\b/)).toEqual([
+      'common/decorators/sortie-mot-de-passe.decorator.ts',
+      'modules/auth/auth.controller.ts',
+    ]);
+    expect(nomment(/\bCLE_SORTIE_MOT_DE_PASSE\b|sortie-mot-de-passe-provisoire/)).toEqual([
+      'common/decorators/sortie-mot-de-passe.decorator.ts',
+      'common/guards/mot-de-passe-a-changer.guard.ts',
+    ]);
   });
 });
 
@@ -136,23 +174,44 @@ describe('3 · le verrouillage par compte', () => {
     expect(capture.data!.verrouilleJusqua).toBeInstanceOf(Date);
   });
 
-  it('refuse un compte verrouillé SANS faire tourner bcrypt', async () => {
-    // Le verrou se vérifie avant le hachage · sinon le verrou lui-même
-    // devient le levier d'un épuisement du processeur.
-    const capture: { data?: Record<string, unknown> } = {};
+  it('un compte verrouillé répond comme un mot de passe faux, APRÈS le même hachage (audit final F238)', async () => {
+    // Le verrou répondait sans bcrypt, donc plus vite qu'une adresse inconnue
+    // (qui compare à l'empreinte factice) · sa rapidité disait « ce compte
+    // existe ». Et son message le disait en toutes lettres.
     const compare = jest.spyOn(bcrypt, 'compare');
-    const user = {
-      id: 'u1',
-      motDePasse: 'peu-importe',
-      estActif: true,
-      tentativesEchouees: 5,
-      verrouilleJusqua: new Date(Date.now() + 60_000),
-    };
-    await expect(
-      authService(user, capture).login({ email: 'a@b.cd', motDePasse: 'faux' } as never),
-    ).rejects.toThrow(/verrouillé/);
-    expect(compare).not.toHaveBeenCalled();
+    const hash = await bcrypt.hash('le-bon', 4);
+    for (const essai of ['faux', 'le-bon']) {
+      compare.mockClear();
+      const capture: { data?: Record<string, unknown> } = {};
+      const user = {
+        id: 'u1',
+        motDePasse: hash,
+        estActif: true,
+        tentativesEchouees: 5,
+        verrouilleJusqua: new Date(Date.now() + 60_000),
+      };
+      await expect(authService(user, capture).login({ email: 'a@b.cd', motDePasse: essai } as never)).rejects.toThrow(
+        MOTIF_IDENTIFIANTS_INVALIDES,
+      );
+      expect([essai, compare.mock.calls.length]).toEqual([essai, 1]);
+      // Le verrou tient, même sur le bon mot de passe · et un essai pendant le
+      // verrou ne le prolonge pas, sans quoi qui connaît l'adresse le tiendrait
+      // fermé à volonté.
+      expect([essai, capture.data]).toEqual([essai, undefined]);
+    }
     compare.mockRestore();
+  });
+
+  it('le bon mot de passe pendant le verrou ne se distingue pas d’un faux · le verrou n’est pas un oracle', async () => {
+    const hash = await bcrypt.hash('le-bon', 4);
+    const verrouille = (motDePasse: string) =>
+      authService(
+        { id: 'u1', motDePasse: hash, estActif: true, tentativesEchouees: 5, verrouilleJusqua: new Date(Date.now() + 60_000) },
+        {},
+      )
+        .login({ email: 'a@b.cd', motDePasse } as never)
+        .catch((e: Error) => e.message);
+    expect(await verrouille('le-bon')).toBe(await verrouille('faux'));
   });
 
   it('repart de zéro si le verrou précédent est ÉCHU', async () => {
@@ -181,9 +240,10 @@ describe('3 · le verrouillage par compte', () => {
     expect(capture.data).toEqual({ tentativesEchouees: 0, verrouilleJusqua: null });
   });
 
-  it('dit « identifiants invalides » dans les deux cas · le message n’apprend rien', async () => {
+  it('dit la même chose dans les trois cas · adresse inconnue, mot de passe faux, compte verrouillé (F238)', async () => {
     // Distinguer « compte inconnu » de « mot de passe faux » apprendrait
-    // quelles adresses existent.
+    // quelles adresses existent · et le message du verrou le disait aussi,
+    // une adresse inconnue ne se verrouillant jamais.
     const capture: { data?: Record<string, unknown> } = {};
     const hash = await bcrypt.hash('le-bon', 4);
     const inconnu = new AuthService(
@@ -195,10 +255,42 @@ describe('3 · le verrouillage par compte', () => {
     for (const service of [
       inconnu,
       authService({ id: 'u1', motDePasse: hash, estActif: true, tentativesEchouees: 0, verrouilleJusqua: null }, capture),
+      authService({ id: 'u1', motDePasse: hash, estActif: true, tentativesEchouees: 5, verrouilleJusqua: new Date(Date.now() + 60_000) }, {}),
     ]) {
       await service.login({ email: 'a@b.cd', motDePasse: 'faux' } as never).catch((e) => messages.push(e.message));
     }
-    expect(messages).toEqual(['Identifiants invalides', 'Identifiants invalides']);
+    expect(messages).toEqual([MOTIF_IDENTIFIANTS_INVALIDES, MOTIF_IDENTIFIANTS_INVALIDES, MOTIF_IDENTIFIANTS_INVALIDES]);
+    // Le message nomme la suspension pour tous · le titulaire bloqué sait
+    // quoi attendre sans que l'inconnu apprenne rien.
+    expect(MOTIF_IDENTIFIANTS_INVALIDES).toMatch(/^Identifiants invalides · après plusieurs essais manqués/);
+  });
+
+  it('une adresse inconnue fait tourner bcrypt comme une adresse connue · la durée ne trahit rien (F238)', async () => {
+    const compare = jest.spyOn(bcrypt, 'compare');
+    const inconnu = new AuthService(
+      { user: { findUnique: async () => null } } as never,
+      { sign: () => 'j' } as never,
+      ...([undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined] as [never, never, never, never, never, never, never, never]),
+    );
+    await expect(inconnu.login({ email: 'personne@b.cd', motDePasse: 'essai' } as never)).rejects.toThrow(MOTIF_IDENTIFIANTS_INVALIDES);
+    expect(compare.mock.calls).toEqual([['essai', EMPREINTE_FACTICE]]);
+    compare.mockRestore();
+  });
+
+  it('l’empreinte factice est du même coût que les vraies, et son résultat est jeté', async () => {
+    // Un coût plus faible rendrait la réponse d'une adresse inconnue plus
+    // rapide · exactement la différence qu'elle existe pour effacer.
+    expect(bcrypt.getRounds(EMPREINTE_FACTICE)).toBe(SALT_ROUNDS);
+    // Et quand bien même elle dirait oui · une adresse inconnue est refusée
+    // quel que soit le résultat, que le service jette.
+    const inconnu = new AuthService(
+      { user: { findUnique: async () => null } } as never,
+      { sign: () => 'j' } as never,
+      ...([undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined] as [never, never, never, never, never, never, never, never]),
+    );
+    const compare = jest.spyOn(bcrypt, 'compare').mockImplementation(async () => true);
+    await expect(inconnu.login({ email: 'personne@b.cd', motDePasse: 'x' } as never)).rejects.toThrow(MOTIF_IDENTIFIANTS_INVALIDES);
+    compare.mockRestore();
   });
 });
 

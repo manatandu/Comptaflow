@@ -1528,6 +1528,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 2
 - **Constat :** toute session dure huit heures, sans choix, et son cookie survit à la fermeture du navigateur, y compris sur un poste partagé.
 - **Correction :** case décochée par défaut. Décochée, cookie de session (fermé avec le navigateur) et huit heures au plus. Cochée, trente jours au plus, sept jours sans utilisation, prolongée à chaque usage sans dépasser les trente. Jamais pour la console de l'éditeur. Bouton « Déconnecter mes autres appareils » dans Mon compte.
+- **Fait le 2026-09-28 :** case « Rester connecté sur cet appareil » décochée par défaut (`AuthPage.tsx`) · décochée, cookie de session sans échéance et jeton de huit heures ; cochée, sept jours sans usage et trente au plus depuis la connexion d'origine, prolongée à l'usage au plus une fois par jour (`session-longue.ts`, `emettreSession`, `jwt.strategy.ts`, `jwt-auth.guard.ts`, `poserCookieSession`) ; jamais pour un opérateur de la console. « Déconnecter mes autres appareils » dans Mon compte exige le mot de passe (`POST /auth/deconnecter-autres-appareils`, `ModaleMonCompte.tsx`), et `/auth/me` rend le jeton CSRF de la session (`synchroniserCsrf`). Tests : `session-longue.spec.ts`, `cycle-de-vie-acces.spec.ts`, `roles-cantonnes.spec.ts`, `rester-connecte.spec.ts`, `mon-compte.spec.ts`.
 
 ## APRES_1_0
 
@@ -1762,18 +1763,21 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 3
 - **Constat :** la convention de la chaîne vide n'est pas appliquée.
 - **Correction :** `ValidateIf` et conversion en null.
+- **Fait le 2026-09-28 :** les deux dates passent par `dateSaisieOuEffacement` (`tenant/date-effacable.ts`) · absente, inchangée ; vide ou null, effacée ; illisible ou hors calendrier, refusée en 400 ; le jumeau de `modifierIdentite` (date de l'acte, date de l'attestation) est corrigé de même. L'onglet Régime fiscal porte enfin les deux cases, que rien n'écrivait (`ParametresDossierPage.tsx`, `lib/date-quittee.ts`). Tests : `dates-regime-effacables.spec.ts`, `dates-regime-a-lecran.spec.ts`, `date-quittee.spec.ts`.
 
 **F238 · Verrouillage et durée de réponse révèlent l'existence d'un compte** [socle-14]
 - **Emplacements :** src/modules/auth/auth.service.ts:206, :215, :237 · verrouillage.ts:40
 - **Condition :** 2
 - **Constat :** contraire à l'intention écrite.
 - **Correction :** empreinte factice, et message identique.
+- **Fait le 2026-09-28 :** adresse inconnue, mot de passe faux et compte verrouillé rendent le même message (`MOTIF_IDENTIFIANTS_INVALIDES`, `verrouillage.ts`), une adresse inconnue compare le mot de passe à `EMPREINTE_FACTICE` (même coût), et bcrypt tourne avant la lecture du verrou (`auth.service.ts`). Test : `cycle-de-vie-acces.spec.ts`.
 
 **F239 · Filtres illisibles du journal d'audit : 500** [socle-15]
 - **Emplacements :** journal-audit.controller.ts:38-41 · journal-audit.service.ts:92-93
 - **Condition :** 4
 - **Constat :** NaN et dates invalides passent.
 - **Correction :** DTO de requête.
+- **Fait le 2026-09-28 :** le filtre passe par un DTO de requête (`filtre-journal-audit.dto.ts`) · nombres faits de chiffres seuls et bornés, dates AAAA-MM-JJ ou ISO avec fuseau, jour existant, paramètre répété ou inconnu refusé, tout en 400 motivé ; le service garde un dernier refus avant toute lecture. Test : `filtre-journal-audit.spec.ts`.
 
 **F240 · La garde de cloisonnement ne regarde pas le tenantId des données d'une mise à jour** [socle-16]
 - **Emplacements :** src/common/cloisonnement/extension-cloisonnement.ts:188-240
@@ -1826,6 +1830,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 4
 - **Constat :** sa paie en dollars dépend d'un comptable.
 - **Correction :** ouvrir la cotation, ou adapter le message.
+- **Fait le 2026-09-28 :** le gestionnaire de paie lit les devises et cote le cours de l'USD du jour de Kinshasa, et lui seul (`motifRefusCotationGestionnairePaie`, `conversion-usd.ts`, `devises.controller.ts`) ; le message du cours manquant dit où le coter, et la fenêtre Devises lui est ouverte pour ce seul geste (`roles-cantonnes.ts`, `DevisesPage.tsx`). Tests : `cotation-gestionnaire-paie.spec.ts`, `roles-cantonnes.spec.ts` (liste fermée des portes du gestionnaire), `devises-gestionnaire-paie.spec.ts`.
 
 **F248 · Contexte d'exercice : chargement infini en cas d'échec** [chrome-10]
 - **Emplacements :** client/src/lib/exercice.tsx:82-103
@@ -1886,6 +1891,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 6
 - **Constat :** pas de temporisation.
 - **Correction :** temporiser.
+- **Fait le 2026-09-28 :** le champ Auteur ne pose le filtre qu'après 250 ms sans frappe, la page revient à 1 dans la même mise à jour, et seule la dernière réponse demandée s'affiche (`JournalAuditPage.tsx`). Test : `journal-audit-temporisation.spec.ts`.
 
 ### Performance
 

@@ -96,6 +96,10 @@ export function AuthPage() {
   // Le second facteur · demandé par le serveur, jamais supposé par l'écran.
   const [codeRequis, setCodeRequis] = useState(false);
   const [code, setCode] = useState('');
+  // « Rester connecté sur cet appareil » (audit final F270) · DÉCOCHÉE par
+  // défaut, et jamais mémorisée d'une ouverture à l'autre · sur un poste
+  // partagé, la case cochée par le précédent ouvrirait trente jours au suivant.
+  const [resterConnecte, setResterConnecte] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
   const { seConnecter, motifDeconnexion } = useAuth();
@@ -125,9 +129,12 @@ export function AuthPage() {
     setErreur(null);
     setEnvoi(true);
     try {
+      // La case repart avec le code du second facteur, comme le mot de passe ·
+      // le serveur ne garde aucun état entre les deux appels.
       const res = await api.post<AuthResponse | { deuxiemeFacteurRequis: true }>('/auth/login', {
         email,
         motDePasse,
+        resterConnecte,
         ...(codeRequis && code.trim() ? { code: code.trim() } : {}),
       });
       if ('deuxiemeFacteurRequis' in res) {
@@ -294,6 +301,22 @@ export function AuthPage() {
               />
             </label>
           )}
+
+          <div className="flex items-center gap-1.5">
+            <label className="flex items-center gap-2 text-[11.5px] text-text cursor-pointer">
+              <input
+                type="checkbox"
+                checked={resterConnecte}
+                onChange={(e) => setResterConnecte(e.target.checked)}
+              />
+              Rester connecté sur cet appareil
+            </label>
+            <Aide
+              titre="Rester connecté sur cet appareil"
+              texte="Case décochée, la session se ferme avec le navigateur, et au plus tard huit heures après la connexion. Cochée, elle reste ouverte sur cet appareil trente jours au plus, et se ferme après sept jours sans utilisation. Ne la cochez pas sur un poste partagé. La console de l'éditeur n'admet que la session fermée avec le navigateur. « Mon compte » déconnecte à tout moment vos autres appareils."
+              source="Règle d'OmegaX (audit final F270)."
+            />
+          </div>
 
           {!erreur && motifDeconnexion && (
             <div role="status" className="text-[11.5px] text-text bg-sel-soft border border-sel/30 rounded-[4px] px-3 py-2">

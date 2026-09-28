@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
-import { api, ApiError, setCsrf } from './api';
+import { api, ApiError, setCsrf, synchroniserCsrf } from './api';
 import { memoriserDossier } from './dossiersRecents';
 import type { Exercice, JeuEtatsFinanciersSycebnl, SystemeComptableSyscohada, Referentiel, RoleUtilisateur } from './types';
 import { oublierPrechargement, prechargerExercices } from './prechargement';
@@ -50,7 +50,16 @@ interface MeResponse {
     /** Longueur maximale d'un numéro de compte ouvert par le cabinet (3 à 13). */
     longueurCompte?: number;
   };
+  /**
+   * « Rester connecté sur cet appareil » · vrai pour une session longue
+   * (trente jours au plus), faux pour une session fermée avec le navigateur
+   * (audit final F270). Lu par « Mon compte ».
+   */
+  sessionLongue?: boolean;
 }
+
+/** Ce que /auth/me rend · le jeton CSRF de la session en cours ne reste pas dans l'état React. */
+type MeEtCsrf = MeResponse & { csrfToken?: string };
 
 interface AuthContextValue {
   chargement: boolean;
@@ -134,7 +143,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    */
   const chargerUtilisateur = async (exigeante = false) => {
     try {
-      const me = await api.get<MeResponse>('/auth/me');
+      const { csrfToken, ...me } = await api.get<MeEtCsrf>('/auth/me');
+      // Le jeton CSRF de CE cookie (audit final F270) · il suit la session au
+      // lieu de lui survivre ou de mourir avant elle (lib/api.ts).
+      synchroniserCsrf(csrfToken);
       setUtilisateur(me);
       // Le dossier vient d'être ouvert · il rejoint la liste des dossiers
       // récents de cet appareil, l'équivalent du menu Fichier > Favoris de
@@ -197,7 +209,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Le cookie httpOnly ne peut pas être effacé d'ici · c'est le serveur
     // qui le fait tomber. Sans attendre la réponse : l'interface se ferme
     // tout de suite, et un échec réseau laisse au pire un cookie qui
-    // expirera de lui-même (8 h).
+    // expirera de lui-même (à la fermeture du navigateur, ou à l'échéance
+    // d'une session « Rester connecté »).
     api.post('/auth/logout').catch(() => undefined);
     ouverte.current = false;
     setCsrf(null);

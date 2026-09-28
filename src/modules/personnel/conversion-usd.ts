@@ -1,3 +1,5 @@
+import { jourDeKinshasa } from '../../common/echeance';
+
 /**
  * LE SALAIRE STIPULÉ EN DOLLARS · sa conversion en francs congolais.
  *
@@ -49,10 +51,79 @@ export function usdEnFc(montantUsd: number, cours: number): number {
   return Math.round(montantUsd * cours * 100) / 100;
 }
 
+/**
+ * Le refus dit OÙ coter et QUI peut le faire (audit final F247) · il renvoyait
+ * à « Devises » sans dire que le gestionnaire de paie, qui le lit le premier,
+ * y cote désormais ce cours-là, ni que la devise USD s'ajoute d'abord par
+ * l'administrateur quand le dossier ne l'a pas.
+ */
 export function messageCoursManquant(jour: Date): string {
   return (
     `Aucun cours du dollar américain (USD) n'est renseigné pour aujourd'hui, ${jourLisible(jour)}. ` +
-    'Le salaire stipulé en dollars se convertit au cours du jour, à saisir chaque jour dans Devises (cours de USD à ' +
-    'cette date). Le cours d’un autre jour n’est jamais repris.'
+    'Le salaire stipulé en dollars se convertit au cours du jour : cotez-le dans la fenêtre Devises (« Coter un ' +
+    'cours », USD, date du jour), ouverte au gestionnaire de paie pour ce seul cours. Sans devise USD au dossier, ' +
+    "l'administrateur l'ajoute d'abord. Le cours d’un autre jour n’est jamais repris."
   );
+}
+
+/** La seule devise que la paie convertit · `PersonnelService` lit le cours de ce code. */
+export const DEVISE_DE_LA_PAIE = 'USD';
+
+/**
+ * LE GESTIONNAIRE DE PAIE COTE LE COURS QUE SA PAIE LIT, ET AUCUN AUTRE
+ * (audit final F247). Sa paie stipulée en dollars exige le cours du jour, et
+ * la fenêtre Devises lui était fermée · chaque jour de paie dépendait d'un
+ * comptable. La cotation lui est ouverte (`DevisesController.poserCours`),
+ * bornée à ce que `PersonnelService` lit, le cours de l'USD à la date EXACTE
+ * du jour de Kinshasa :
+ *  · une autre devise ne sert à aucune paie ;
+ *  · un autre jour réécrirait un cours qui a pu servir ailleurs (la
+ *    réévaluation de clôture, qui prend le dernier cours à la date d'arrêté,
+ *    le second jeu en monnaie fonctionnelle, qui prend le cours en vigueur à
+ *    la date de l'écriture), et un cours futur n'est pas le cours « actuel »
+ *    que la règle du cabinet retient ;
+ *  · la date se compare à l'INSTANT, pas au seul jour · la paie cherche le
+ *    cours par égalité sur minuit UTC, et un cours posé à une autre heure du
+ *    même jour ne serait jamais lu ;
+ *  · un cours du jour DÉJÀ COTÉ ne se réécrit pas par lui (relecture adverse
+ *    de F247) · la cotation est un `upsert`, et `CoursDevise` n'est pas au
+ *    journal d'audit (`NON_AUDITES_MOTIVES`). Réécrit par le gestionnaire, le
+ *    cours que le comptable a posé changerait sans trace, alors qu'il sert
+ *    aussi hors de la paie le jour même · la facture d'abonnement de
+ *    l'éditeur, qui le lit à la date exacte, le second jeu en monnaie
+ *    fonctionnelle et le cours proposé en saisie. Il vient combler le cours
+ *    qui manque à sa paie, jamais trancher un cours qui existe · une faute de
+ *    frappe se corrige par le comptable, et un bulletin émis fige le cours
+ *    qu'il a lu (`calcul.conversion`).
+ * La création d'une devise et la réévaluation restent fermées au
+ * gestionnaire, par leurs routes. `datesDejaCotees` sont les dates des cours
+ * de cette devise, comparées à l'instant comme la clé unique (devise, date)
+ * que l'`upsert` réécrirait.
+ */
+export function motifRefusCotationGestionnairePaie(
+  codeDevise: string,
+  dateCours: string,
+  maintenant: Date,
+  datesDejaCotees: readonly Date[],
+): string | null {
+  if (codeDevise.toUpperCase() !== DEVISE_DE_LA_PAIE) {
+    return (
+      'Le gestionnaire de paie ne cote que le dollar américain (USD), la seule devise que la paie convertit · ' +
+      'les autres cours se cotent par le comptable.'
+    );
+  }
+  const jour = jourDeKinshasa(maintenant);
+  if (new Date(dateCours).getTime() !== jour.getTime()) {
+    return (
+      `Le gestionnaire de paie ne cote que le cours du jour, celui que la paie lit : le ${jourLisible(jour)}. ` +
+      'Un autre jour se cote par le comptable.'
+    );
+  }
+  if (datesDejaCotees.some((d) => new Date(d).getTime() === jour.getTime())) {
+    return (
+      `Le cours de l'USD du ${jourLisible(jour)} est déjà coté, et la paie le lit · ` +
+      'une correction se demande au comptable.'
+    );
+  }
+  return null;
 }

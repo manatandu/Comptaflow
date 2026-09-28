@@ -7,6 +7,7 @@ import { CurrentUser, AuthenticatedUser } from '../decorators/current-user.decor
 import { RoleUtilisateur } from '@prisma/client';
 import { JournalAuditService } from './journal-audit.service';
 import { objetsAudites } from './libelles-objets-audites';
+import { FiltreJournalAuditDto } from './filtre-journal-audit.dto';
 
 /**
  * Le journal se lit, il ne s'écrit pas · aucune route POST, PATCH ou DELETE
@@ -21,26 +22,16 @@ import { objetsAudites } from './libelles-objets-audites';
 export class JournalAuditController {
   constructor(private readonly service: JournalAuditService) {}
 
+  /**
+   * UN SEUL `@Query()`, TYPÉ PAR SON DTO (audit final F239) · des `@Query('x')`
+   * scalaires échappent au ValidationPipe global, et leur conversion à la main
+   * (`Number`, `new Date`) laissait passer NaN et les dates invalides jusqu'à
+   * Prisma, soit une erreur 500 sur une simple faute de frappe. Le DTO les
+   * refuse en 400 et en nomme la raison.
+   */
   @Get()
-  async lister(
-    @CurrentUser() user: AuthenticatedUser,
-    @Query('entite') entite?: string,
-    @Query('entiteId') entiteId?: string,
-    @Query('acteurEmail') acteurEmail?: string,
-    @Query('depuis') depuis?: string,
-    @Query('jusqua') jusqua?: string,
-    @Query('page') page?: string,
-    @Query('taille') taille?: string,
-  ) {
-    return this.service.lister(user.tenantId, {
-      entite,
-      entiteId,
-      acteurEmail,
-      depuis: depuis ? new Date(depuis) : undefined,
-      jusqua: jusqua ? new Date(jusqua) : undefined,
-      page: page ? Number(page) : undefined,
-      taille: taille ? Number(taille) : undefined,
-    });
+  async lister(@CurrentUser() user: AuthenticatedUser, @Query() filtre: FiltreJournalAuditDto) {
+    return this.service.lister(user.tenantId, filtre);
   }
 
   /** Les objets que le filtre propose · tous ceux que le journal couvre (audit final F182). */

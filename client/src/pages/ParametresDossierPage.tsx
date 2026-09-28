@@ -11,6 +11,7 @@ import { BoutonImprimer, EnteteImpression } from '../components/chrome/EnteteImp
 import { EditionStructure } from '../components/EditionStructure';
 import { editionParametres } from '../lib/editions-structures';
 import { LIBELLE_SYSTEME } from '../lib/systemes-syscohada';
+import { dateQuittee } from '../lib/date-quittee';
 import type {
   FormeJuridiqueEbnl,
   FormeJuridiqueSyscohada,
@@ -345,6 +346,8 @@ export function ParametresDossierPage() {
     effectifPermanent?: number;
     numeroAffiliationCnssEmployeur?: string | null;
     regimeExigibiliteTva?: RegimeExigibiliteTva;
+    dateOptionTva?: string;
+    dateAutorisationDebitsTva?: string;
   }) => {
     setEnvoi(true);
     setErreur(null);
@@ -357,6 +360,19 @@ export function ParametresDossierPage() {
       setErreur(e instanceof ApiError ? e.message : 'Modification impossible');
     } finally {
       setEnvoi(false);
+    }
+  };
+
+  // Dates du régime de TVA · la case vidée envoie la chaîne vide, qui les
+  // efface (audit final F237) ; une saisie incomplète ne part pas.
+  const quitterDate = (champ: 'dateOptionTva' | 'dateAutorisationDebitsTva', caseDate: HTMLInputElement) => {
+    const sortie = dateQuittee(caseDate.value, caseDate.validity.badInput, params?.[champ] ?? null);
+    if (sortie.etat === 'INCOMPLETE') {
+      setErreur('Date incomplète · rien n’a été enregistré.');
+    } else if (sortie.etat === 'A_ENVOYER') {
+      changerRegime(
+        champ === 'dateOptionTva' ? { dateOptionTva: sortie.valeur } : { dateAutorisationDebitsTva: sortie.valeur },
+      );
     }
   };
 
@@ -1187,6 +1203,29 @@ export function ParametresDossierPage() {
                     <option value="NON">Non</option>
                   </select>
                 </label>
+                {/* DATE D'EFFET DE L'ASSUJETTISSEMENT · montrée aussi quand une
+                    date reste enregistrée sur un dossier qui n'est plus
+                    assujetti, sans quoi elle ne s'effacerait plus (audit
+                    final F237). */}
+                {(params.assujettiTva || params.dateOptionTva !== null) && (
+                  <label className="block text-[11.5px]">
+                    Date d’effet de l’assujettissement{' '}
+                    <Aide
+                      titre="Date d’effet de l’assujettissement"
+                      texte="Date du franchissement du seuil de 80 000 000 FC de chiffre d’affaires annuel, ou de l’option prise en deçà sur demande expresse à l’Administration des Impôts. L’option est définitive pendant deux ans, sauf révocation de l’Administration. Vider la case efface la date."
+                      source="O.-L. n° 10/001, art. 14"
+                    />
+                    <input
+                      type="date"
+                      key={`option-${params.dateOptionTva ?? ''}`}
+                      aria-label="Date d’effet de l’assujettissement"
+                      defaultValue={params.dateOptionTva ? params.dateOptionTva.slice(0, 10) : ''}
+                      disabled={!estAdmin || envoi}
+                      onBlur={(e) => quitterDate('dateOptionTva', e.target)}
+                      className="mt-1 block w-44 border border-border rounded-[4px] bg-bg px-2 py-1 text-[11.5px] focus:outline-none focus:border-sel"
+                    />
+                  </label>
+                )}
                 <label className="block text-[11.5px]">
                   L’entité vend-elle des biens ou des services ?{' '}
                   <Aide
@@ -1226,6 +1265,29 @@ export function ParametresDossierPage() {
                       <option value="ENCAISSEMENTS">Encaissements · taxe due au règlement (art. 25, 2°)</option>
                       <option value="DEBITS">Débits · sur autorisation du DGI (art. 26)</option>
                     </select>
+                  </label>
+                )}
+                {/* DATE DE L'AUTORISATION AUX DÉBITS · même règle que la date
+                    d'effet : une date restée après le retour au droit commun
+                    reste visible pour pouvoir être effacée (audit final F237). */}
+                {((params.assujettiTva && params.regimeExigibiliteTva === 'DEBITS') ||
+                  params.dateAutorisationDebitsTva !== null) && (
+                  <label className="block text-[11.5px]">
+                    Date de l’autorisation aux débits{' '}
+                    <Aide
+                      titre="Autorisation aux débits"
+                      texte="Date de l’autorisation du Directeur Général des Impôts, ou de son délégué en province, d’acquitter la TVA d’après les débits. Elle reste valable tant que le redevable n’a pas demandé, par écrit, de revenir au régime de droit commun. Vider la case efface la date."
+                      source="O.-L. n° 10/001, art. 26"
+                    />
+                    <input
+                      type="date"
+                      key={`debits-${params.dateAutorisationDebitsTva ?? ''}`}
+                      aria-label="Date de l’autorisation aux débits"
+                      defaultValue={params.dateAutorisationDebitsTva ? params.dateAutorisationDebitsTva.slice(0, 10) : ''}
+                      disabled={!estAdmin || envoi}
+                      onBlur={(e) => quitterDate('dateAutorisationDebitsTva', e.target)}
+                      className="mt-1 block w-44 border border-border rounded-[4px] bg-bg px-2 py-1 text-[11.5px] focus:outline-none focus:border-sel"
+                    />
                   </label>
                 )}
                 <label className="block text-[11.5px]">

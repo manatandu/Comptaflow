@@ -1,4 +1,4 @@
-import { CookieOptions } from 'express';
+import { CookieOptions, Response } from 'express';
 import { estSurSite } from '../../common/mode-installation';
 
 /**
@@ -33,14 +33,17 @@ export const ANCIEN_COOKIE_SESSION = 'omegax_session';
 /** En-tête porteur du jeton CSRF apparié au cookie de session. */
 export const ENTETE_CSRF = 'x-csrf-token';
 
-// 8 heures · aligné sur JWT_EXPIRES_IN (le cookie n'est qu'un véhicule, la
-// vraie échéance est celle du JWT qu'il transporte).
+// SANS `maxAge` NI `expires` (audit final F270) · un cookie DE SESSION, que le
+// navigateur jette à sa fermeture. Il portait huit heures jusque-là, et une
+// session laissée sur un poste partagé s'y rouvrait au lancement suivant. La
+// durée d'une session « Rester connecté » se pose au cas par cas
+// (`poserCookieSession`), jamais ici · la vraie échéance reste celle du JWT
+// que le cookie transporte.
 export const OPTIONS_COOKIE_SESSION: CookieOptions = {
   httpOnly: true,
   secure: true,
   sameSite: 'none',
   path: '/',
-  maxAge: 8 * 60 * 60 * 1000,
 };
 
 /**
@@ -65,4 +68,24 @@ export function optionsCookieSession(surSite = estSurSite(), httpLocal = false):
  */
 export function estHttpLocal(req?: { secure?: boolean; hostname?: string } | null): boolean {
   return !!req && !req.secure && ['localhost', '127.0.0.1', '::1'].includes(req.hostname ?? '');
+}
+
+/**
+ * LE SEUL ENDROIT OÙ LE COOKIE DE SESSION SE POSE (audit final F270) · la
+ * connexion, les réémissions du contrôleur et la prolongation de
+ * `JwtAuthGuard` passent toutes par lui, si bien que les deux régimes ne
+ * peuvent pas diverger d'un chemin à l'autre. `maxAgeMs` nul · cookie de
+ * session, fermé avec le navigateur ; sinon la durée de la session longue,
+ * calculée par `emettreSession` et jamais ailleurs.
+ */
+export function poserCookieSession(res: Response, jeton: string, maxAgeMs: number | null): void {
+  const base = optionsCookieSession(estSurSite(), estHttpLocal(res.req));
+  res.cookie(COOKIE_SESSION, jeton, maxAgeMs === null ? base : { ...base, maxAge: maxAgeMs });
+}
+
+/** Fait tomber le cookie de session, et l'ancien nom avec lui. */
+export function effacerCookiesSession(res: Response): void {
+  const base = { ...optionsCookieSession(estSurSite(), estHttpLocal(res.req)), maxAge: undefined };
+  res.clearCookie(COOKIE_SESSION, base);
+  res.clearCookie(ANCIEN_COOKIE_SESSION, base);
 }

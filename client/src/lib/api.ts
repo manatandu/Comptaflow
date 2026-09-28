@@ -39,6 +39,19 @@ export function setCsrf(token: string | null) {
 }
 
 /**
+ * LE JETON CSRF SUIT LA SESSION (audit final F270) · /auth/me rend celui du
+ * cookie en cours, et l'interface le reprend à chaque ouverture. Le stockage
+ * local peut disparaître quand le cookie reste (Safari peut l'effacer après
+ * sept jours sans interaction, une session « Rester connecté » en vit trente) · la
+ * session survivait alors, et chaque écriture était refusée en 403. Écrit
+ * seulement s'il a changé · réécrit à chaque relecture de /auth/me, il
+ * viderait sans raison le cache des référentiels.
+ */
+export function synchroniserCsrf(token: string | undefined): void {
+  if (token && token !== getCsrf()) setCsrf(token);
+}
+
+/**
  * Lit le refus d'une réponse · son message, et le SIGNAL d'une session perdue
  * (session-perdue.ts, audit final F164), que l'écran de connexion reprend.
  * Une seule lecture pour les appels et les téléchargements · deux auraient

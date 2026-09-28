@@ -1,6 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, ApiError } from '../lib/api';
+import { api, ApiError, setCsrf } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { changerMonMotDePasse, refusNouveauMotDePasse } from '../lib/mot-de-passe';
 import { Aide } from './chrome/Aide';
@@ -27,6 +27,7 @@ export function ModaleMonCompte({ onFermer }: { onFermer: () => void }) {
   const [actuel, setActuel] = useState('');
   const [nouveau, setNouveau] = useState('');
   const [confirmation, setConfirmation] = useState('');
+  const [motDePasseAppareils, setMotDePasseAppareils] = useState('');
   const [erreur, setErreur] = useState<string | null>(null);
   const [fait, setFait] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
@@ -50,6 +51,34 @@ export function ModaleMonCompte({ onFermer }: { onFermer: () => void }) {
       setFait('Mot de passe changé · vos autres sessions sont fermées.');
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Changement impossible');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  /**
+   * « DÉCONNECTER MES AUTRES APPAREILS » (audit final F270) · le serveur ferme
+   * toutes les sessions du compte et repose aussitôt celle de cet appareil,
+   * avec son choix « Rester connecté » et son origine. Le jeton CSRF change,
+   * comme au changement de mot de passe · sans `setCsrf`, l'écriture suivante
+   * partirait avec l'ancien et se ferait refuser. Les clés sont celles de
+   * `DeconnecterAutresAppareilsDto` · le serveur refuse toute clé de plus.
+   */
+  const deconnecterAutresAppareils = async (e: FormEvent) => {
+    e.preventDefault();
+    setErreur(null);
+    setFait(null);
+    setEnvoi(true);
+    try {
+      const { csrfToken } = await api.post<{ autresAppareilsDeconnectes: boolean; csrfToken: string }>('/auth/deconnecter-autres-appareils', {
+        motDePasseActuel: motDePasseAppareils,
+      });
+      setCsrf(csrfToken);
+      await rafraichir();
+      setMotDePasseAppareils('');
+      setFait('Vos autres appareils sont déconnectés · cet appareil reste connecté.');
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Déconnexion impossible');
     } finally {
       setEnvoi(false);
     }
@@ -91,8 +120,8 @@ export function ModaleMonCompte({ onFermer }: { onFermer: () => void }) {
               Mon compte
               <Aide
                 titre="Mon compte"
-                texte="Changer de mot de passe, activer la double authentification ou changer d'adresse ferme vos autres sessions ; celle-ci est aussitôt rouverte. « Fermer toutes mes sessions » ferme aussi celle-ci, par exemple après avoir laissé une session ouverte sur un autre poste."
-                source="Règle d'OmegaX · révocation des sessions à chaque changement d'accès."
+                texte="Changer de mot de passe, activer la double authentification ou changer d'adresse ferme vos autres sessions ; celle-ci est aussitôt rouverte. « Déconnecter mes autres appareils » ferme les sessions ouvertes ailleurs, par exemple sur un poste perdu ou prêté, et garde celle-ci telle qu'elle est ; le mot de passe actuel est demandé. « Fermer toutes mes sessions » ferme aussi celle-ci. Une session « Rester connecté sur cet appareil » dure trente jours au plus depuis la connexion et se ferme après sept jours sans utilisation ; sinon, elle se ferme avec le navigateur."
+                source="Règle d'OmegaX · révocation des sessions à chaque changement d'accès (audit final F270)."
               />
             </span>
             <button type="button" onClick={onFermer} aria-label="Fermer">
@@ -101,6 +130,10 @@ export function ModaleMonCompte({ onFermer }: { onFermer: () => void }) {
           </div>
           <div className="p-3 space-y-3">
             <div className="text-text-dim">{utilisateur?.email}</div>
+            <div className="text-text-dim">
+              Cet appareil :{' '}
+              {utilisateur?.sessionLongue ? 'rester connecté, trente jours au plus' : 'session fermée avec le navigateur'}
+            </div>
             {erreur && <div className="text-danger bg-danger-soft border border-danger/30 px-3 py-2">{erreur}</div>}
             {fait && <div className="text-positive bg-positive-soft border border-positive/30 px-3 py-2">{fait}</div>}
 
@@ -133,6 +166,26 @@ export function ModaleMonCompte({ onFermer }: { onFermer: () => void }) {
                 Changer mon adresse de connexion…
               </button>
             </div>
+
+            <form onSubmit={deconnecterAutresAppareils} className="border border-border p-2.5 space-y-2">
+              <div className="font-semibold">Autres appareils</div>
+              <label className="flex flex-col gap-0.5">
+                <span className="text-text-dim">Mot de passe actuel</span>
+                <input
+                  type="password"
+                  required
+                  autoComplete="current-password"
+                  value={motDePasseAppareils}
+                  onChange={(e) => setMotDePasseAppareils(e.target.value)}
+                  className="border border-border px-2 py-[3px]"
+                />
+              </label>
+              <div className="flex justify-end">
+                <button type="submit" disabled={envoi} className="bg-sel text-white font-semibold px-4 py-1.5 disabled:opacity-40">
+                  {envoi ? '…' : 'Déconnecter mes autres appareils'}
+                </button>
+              </div>
+            </form>
 
             <div className="flex justify-end">
               <button type="button" disabled={envoi} onClick={() => void fermerToutesMesSessions()} className="text-danger border border-danger/40 px-3 py-1.5 disabled:opacity-40">

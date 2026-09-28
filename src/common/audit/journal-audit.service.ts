@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { ActionAudit } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { calculerEmpreinte, EMPREINTE_ORIGINE } from './empreinte-audit';
@@ -11,6 +11,10 @@ import { calculerEmpreinte, EMPREINTE_ORIGINE } from './empreinte-audit';
  * remettrait la fonction à portée de l'OOM qu'elle vient de quitter.
  */
 const LOT_VERIFICATION = 5_000;
+
+/** Taille d'une page du journal · le DTO et le service lisent la même borne. */
+export const TAILLE_PAGE_JOURNAL_DEFAUT = 50;
+export const TAILLE_PAGE_JOURNAL_MAX = 200;
 
 export interface FiltreJournal {
   entite?: string;
@@ -34,12 +38,73 @@ export interface VerdictChaine {
   ruptures: RuptureChaine[];
 }
 
+/**
+ * UN INSTANT QUE LA BASE PEUT RECEVOIR (audit final F239) · Prisma transmet une
+ * date par `toISOString()`, et son moteur ne lit l'année que sur QUATRE
+ * chiffres. Une date valide pour JavaScript mais hors des années 0000 à 9999
+ * une fois ramenée en UTC (« 9999-12-31T23:00-23:59 » tombe en l'an 10000)
+ * s'écrit « +010000-… », et le moteur la refusait par une erreur 500
+ * (« Could not convert argument value », constaté sur une base réelle).
+ */
+export function instantTransmissible(date: Date): boolean {
+  return !Number.isNaN(date.getTime()) && /^\d{4}-/.test(date.toISOString());
+}
+
+/**
+ * Le caractère nul · PostgreSQL le refuse dans un texte (« invalid byte
+ * sequence for encoding UTF8: 0x00 », code 22021), et un `%00` dans l'adresse
+ * suffisait à faire tomber la lecture en 500 (audit final F239).
+ */
+export const CARACTERE_NUL = '\u0000';
+
+/**
+ * Le motif qui rend un filtre DÉJÀ CONVERTI inexploitable, ou null · un nombre
+ * qui n'est pas un entier exact, une date qui ne désigne aucun instant que la
+ * base puisse recevoir, un texte qui porte le caractère nul.
+ */
+export function motifFiltreIllisible(filtre: FiltreJournal): string | null {
+  const nombres: Array<[string, number | undefined]> = [
+    ['Numéro de page', filtre.page],
+    ['Taille de page', filtre.taille],
+  ];
+  for (const [nom, valeur] of nombres) {
+    if (valeur !== undefined && !Number.isSafeInteger(valeur)) return `${nom} illisible.`;
+  }
+  const dates: Array<[string, Date | undefined]> = [
+    ['Date de début', filtre.depuis],
+    ['Date de fin', filtre.jusqua],
+  ];
+  for (const [nom, valeur] of dates) {
+    if (valeur !== undefined && !(valeur instanceof Date && instantTransmissible(valeur))) {
+      return `${nom} illisible.`;
+    }
+  }
+  const textes: Array<[string, string | undefined]> = [
+    ['Objet', filtre.entite],
+    ['Identifiant d’objet', filtre.entiteId],
+    ['Auteur', filtre.acteurEmail],
+  ];
+  for (const [nom, valeur] of textes) {
+    if (valeur !== undefined && (typeof valeur !== 'string' || valeur.includes(CARACTERE_NUL))) {
+      return `${nom} illisible.`;
+    }
+  }
+  return null;
+}
+
 @Injectable()
 export class JournalAuditService {
   constructor(private readonly prisma: PrismaService) {}
 
   async lister(tenantId: string, filtre: FiltreJournal) {
-    const taille = Math.min(Math.max(filtre.taille ?? 50, 1), 200);
+    // DERNIÈRE LIGNE, APRÈS LE DTO (audit final F239) · `Math.max(NaN, 1)`
+    // rend NaN, et une date invalide passe tout `?:` · l'un comme l'autre
+    // arrivaient à Prisma, qui les refusait en 500. La route passe par
+    // `FiltreJournalAuditDto` ; un appel interne qui convertirait lui-même
+    // un paramètre ne doit pas rouvrir la même panne.
+    const motif = motifFiltreIllisible(filtre);
+    if (motif) throw new BadRequestException(motif);
+    const taille = Math.min(Math.max(filtre.taille ?? TAILLE_PAGE_JOURNAL_DEFAUT, 1), TAILLE_PAGE_JOURNAL_MAX);
     const page = Math.max(filtre.page ?? 1, 1);
     const where = {
       tenantId,

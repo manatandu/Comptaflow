@@ -1,19 +1,27 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, NotFoundException, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { AccesRolesCantonnes } from '../../common/decorators/acces-roles-cantonnes.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { DevisesService } from './devises.service';
 import { CreerDeviseDto, ExtournerReevaluationDto, ModifierDeviseDto, PoserCoursDto, ReevaluerDto } from './dto/devises.dto';
 import { RoleUtilisateur } from '@prisma/client';
+import { motifRefusCotationGestionnairePaie } from '../personnel/conversion-usd';
 
 @UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
 @Controller('devises')
 export class DevisesController {
   constructor(private readonly devises: DevisesService) {}
 
+  /**
+   * Ouverte au gestionnaire de paie (audit final F247) · il doit voir la
+   * devise USD et ses derniers cours pour coter celui du jour. Aucune donnée
+   * comptable n'y figure, seulement les devises et leurs cotations.
+   */
   @Get()
+  @AccesRolesCantonnes({ gestionnairePaie: true })
   async lister(@CurrentUser() user: AuthenticatedUser) {
     return this.devises.lister(user.tenantId);
   }
@@ -37,11 +45,31 @@ export class DevisesController {
   /** Cote un cours à une date · en RDC, celui de la Banque Centrale du Congo. */
   @Post(':id/cours')
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @AccesRolesCantonnes({ gestionnairePaie: true })
   async poserCours(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
     @Body() dto: PoserCoursDto,
   ) {
+    // LE GESTIONNAIRE DE PAIE NE COTE QUE LE COURS QUE SA PAIE LIT (audit
+    // final F247) · l'USD, au jour de Kinshasa, et seulement s'il n'est pas
+    // déjà coté. La route lui est ouverte parce que sa paie en dollars en
+    // dépend ; la borne est ici, au serveur, et l'écran ne fait que la
+    // reprendre. Une devise que la liste du dossier ne porte pas est refusée
+    // ICI, avec le motif du service · s'en remettre au service laissait la
+    // borne ouverte à une devise créée entre les deux lectures (relecture
+    // adverse de F247).
+    if (user.role === RoleUtilisateur.GESTIONNAIRE_PAIE) {
+      const devise = (await this.devises.lister(user.tenantId)).find((d) => d.id === id);
+      if (!devise) throw new NotFoundException('Devise introuvable pour ce dossier');
+      const motif = motifRefusCotationGestionnairePaie(
+        devise.code,
+        dto.date,
+        new Date(),
+        devise.cours.map((c) => c.date),
+      );
+      if (motif) throw new ForbiddenException(motif);
+    }
     return this.devises.poserCours(user.tenantId, id, dto);
   }
 

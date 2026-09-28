@@ -62,6 +62,14 @@ const MOTIFS: Record<string, string> = {
   EMPREINTE_INVALIDE: 'le contenu d’un événement a été RETOUCHÉ',
 };
 
+/**
+ * TEMPORISATION DE LA SAISIE DE L'AUTEUR (audit final F257) · chaque frappe
+ * lançait une requête, et chacune fait l'aller-retour jusqu'au serveur. Le
+ * filtre ne part qu'une fois la saisie arrêtée depuis 250 ms, le délai des
+ * recherches du plan de comptes et du plan des tiers.
+ */
+const DELAI_SAISIE_MS = 250;
+
 function horodatage(iso: string): string {
   return new Date(iso).toLocaleString('fr-FR');
 }
@@ -79,6 +87,9 @@ function differences(avant: unknown, apres: unknown): string {
 export function JournalAuditPage() {
   const [page, setPage] = useState(1);
   const [entite, setEntite] = useState('');
+  // Deux états pour un champ · ce qui est TAPÉ (`saisieAuteur`, lié au champ)
+  // et ce qui est DEMANDÉ au serveur (`acteurEmail`, posé après le délai).
+  const [saisieAuteur, setSaisieAuteur] = useState('');
   const [acteurEmail, setActeurEmail] = useState('');
   const [donnees, setDonnees] = useState<Page | null>(null);
   const [verdict, setVerdict] = useState<Verdict | null>(null);
@@ -98,6 +109,23 @@ export function JournalAuditPage() {
   }, []);
   const libelleObjet = (cle: string) => objets?.find((o) => o.cle === cle)?.libelle ?? cle;
 
+  // La saisie ne devient le filtre qu'après le délai · une frappe de plus
+  // relance la minuterie. La page revient à la première au même moment, dans
+  // la même mise à jour, si bien qu'un seul appel part.
+  useEffect(() => {
+    if (saisieAuteur === acteurEmail) return;
+    const minuterie = setTimeout(() => {
+      setActeurEmail(saisieAuteur);
+      setPage(1);
+    }, DELAI_SAISIE_MS);
+    return () => clearTimeout(minuterie);
+  }, [saisieAuteur, acteurEmail]);
+
+  // SEULE LA DERNIÈRE RÉPONSE DEMANDÉE S'AFFICHE (audit final F257) · un
+  // filtre qui change marque l'appel précédent comme périmé, et sa réponse,
+  // si elle arrive après celle du filtre en vigueur, n'écrase plus rien. Sans
+  // ce drapeau, la liste affichée pourrait être celle d'un filtre déjà quitté,
+  // sous le filtre saisi.
   useEffect(() => {
     let annule = false;
     setErreur(null);
@@ -153,11 +181,8 @@ export function JournalAuditPage() {
           <label className="flex flex-col gap-1">
             <span className="text-[11px] font-bold text-text-dim">AUTEUR</span>
             <input
-              value={acteurEmail}
-              onChange={(e) => {
-                setActeurEmail(e.target.value);
-                setPage(1);
-              }}
+              value={saisieAuteur}
+              onChange={(e) => setSaisieAuteur(e.target.value)}
               placeholder="courriel"
               className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] min-w-[180px]"
             />

@@ -2,21 +2,29 @@ import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/c
 import { PassportStrategy } from '@nestjs/passport';
 import { Strategy, ExtractJwt } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import { PrismaService } from '../../common/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { ANCIEN_COOKIE_SESSION, COOKIE_SESSION, ENTETE_CSRF } from './session.constants';
+import {
+  ChargeJeton,
+  CLE_SESSION_REQUETE,
+  emettreSession,
+  MOTIF_CONSOLE_SANS_SESSION_LONGUE,
+  prolongationDue,
+  SessionDeRequete,
+  sessionDuJeton,
+} from './session-longue';
 
-interface JwtPayload {
-  sub: string; // userId
-  /** Jeton CSRF apparié · absent des jetons émis avant la migration cookie. */
-  csrf?: string;
-  /** Émission, en SECONDES depuis l'époque · posé par jsonwebtoken. */
-  iat?: number;
-}
+type JwtPayload = ChargeJeton;
 
 /**
- * Le jeton a-t-il été émis AVANT la révocation des sessions du compte ?
+ * Le jeton a-t-il été AUTHENTIFIÉ avant la révocation des sessions du compte ?
+ * L'appelant passe la dernière authentification explicite du jeton (claim
+ * `authentification`, que la prolongation recopie), et son émission à défaut
+ * pour un jeton d'avant F270 · voir `ChargeJeton` (session-longue.ts). Le
+ * paramètre garde son nom d'origine, c'est le même instant en secondes.
  *
  * `iat` est en SECONDES, `sessionsInvalidesAvant` en millisecondes. Comparer
  * directement rejetterait un jeton fraîchement signé : un changement de mot de
@@ -42,7 +50,17 @@ const METHODES_MUTANTES = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(config: ConfigService, private readonly prisma: PrismaService) {
+  /**
+   * `jwt` signe la PROLONGATION d'une session longue (audit final F270) · la
+   * stratégie vit dans AuthModule, qui importe JwtModule, et Nest l'injecte.
+   * Facultatif au typage seulement, pour les specs qui construisent la
+   * stratégie à la main · sans lui, rien n'est prolongé, rien n'est refusé.
+   */
+  constructor(
+    config: ConfigService,
+    private readonly prisma: PrismaService,
+    private readonly jwt?: JwtService,
+  ) {
     super({
       // Le cookie d'abord (le chemin normal du navigateur), l'en-tête
       // Authorization ensuite (tests, outils, période de transition).
@@ -66,7 +84,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
    * On ne fait PAS confiance à `email`/`role` du payload : ils sont relus en
    * base à chaque requête, pour qu'une désactivation ou un changement de
    * rôle prenne effet immédiatement, sans attendre l'expiration du token
-   * (jusqu'à 8h · voir JWT_EXPIRES_IN).
+   * (huit heures, trente jours pour une session longue · voir session-longue.ts).
    *
    * CONTRÔLE CSRF · un cookie part avec TOUTE requête vers l'API, y compris
    * une requête forgée par un site tiers (formulaire auto-soumis). Toute
@@ -79,6 +97,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
    * c'est sa présence même qui prouve l'origine.
    */
   async validate(req: Request, payload: JwtPayload): Promise<AuthenticatedUser> {
+    // L'émission d'une éventuelle prolongation (plus bas) · une révocation
+    // postérieure l'atteint par l'authentification recopiée, pas par elle.
+    const maintenant = Date.now();
     const porteParCookie = !req.headers.authorization && !!extraireJetonDuCookie(req);
     if (porteParCookie && METHODES_MUTANTES.has(req.method)) {
       const jetonRecu = req.headers[ENTETE_CSRF];
@@ -99,13 +120,50 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user || !user.estActif) {
       throw new UnauthorizedException('Compte désactivé ou introuvable');
     }
-    // RÉVOCATION DE SESSION · un jeton vit jusqu'à huit heures. Sans ce
+    // RÉVOCATION DE SESSION · un jeton vit jusqu'à huit heures, et une session
+    // « Rester connecté » jusqu'à trente jours (audit final F270). Sans ce
     // contrôle, changer un mot de passe volé, réinitialiser un compte ou
     // fermer ses sessions ne prenait effet qu'à l'expiration, c'est-à-dire
-    // pas pendant la seule période où cela comptait.
-    if (sessionRevoquee(payload.iat, user.sessionsInvalidesAvant)) {
+    // pas pendant la seule période où cela comptait. La comparaison porte sur
+    // la dernière AUTHENTIFICATION du jeton, que la prolongation recopie, et
+    // non sur son émission (audit final F270, relecture adverse) · un jeton
+    // prolongé dans la seconde d'une révocation lui échappait sinon.
+    if (sessionRevoquee(payload.authentification ?? payload.iat, user.sessionsInvalidesAvant)) {
       throw new UnauthorizedException('Session close · reconnectez-vous');
     }
+    // LA CONSOLE DE L'ÉDITEUR N'A JAMAIS DE SESSION LONGUE (audit final F270) ·
+    // la connexion la refuse déjà, mais le drapeau d'opérateur s'accorde au
+    // démarrage (OPERATEURS_PLATEFORME) · un compte promu APRÈS s'être connecté
+    // « sur cet appareil » garderait sinon trente jours d'accès à la console.
+    // Relu ici comme le rôle, à chaque requête.
+    if (payload.longue === true && user.estOperateurPlateforme) {
+      throw new UnauthorizedException(MOTIF_CONSOLE_SANS_SESSION_LONGUE);
+    }
+
+    // LA SESSION DE LA REQUÊTE, posée à côté de l'utilisateur · le contrôleur
+    // d'authentification y lit ce qu'une réémission doit garder, et
+    // `JwtAuthGuard` la prolongation à poser en cookie.
+    const session: SessionDeRequete = sessionDuJeton(payload, Math.floor(maintenant / 1000));
+    // CHAQUE USAGE PROLONGE (au plus une fois par jour, `prolongationDue`),
+    // seulement quand le jeton voyage en cookie · un jeton porté par
+    // l'en-tête Authorization n'a pas de cookie à remplacer. Le jeton neuf
+    // RECOPIE l'origine et le jeton CSRF · l'origine borne les trente jours,
+    // et un CSRF neuf que l'écran ne recevrait pas ferait refuser chaque
+    // écriture suivante. Il recopie aussi l'AUTHENTIFICATION du jeton qu'il
+    // remplace · une révocation posée pendant cette requête, après la lecture
+    // du compte, le frappe donc comme elle frappe l'ancien, même dans la même
+    // seconde (audit final F270, relecture adverse).
+    if (porteParCookie && this.jwt && prolongationDue(session, Math.floor(maintenant / 1000))) {
+      const prolonge = emettreSession(
+        this.jwt,
+        user.id,
+        { longue: true, origine: session.origine, csrf: session.csrf, authentification: session.authentification },
+        maintenant,
+      );
+      session.prolongation = { accessToken: prolonge.accessToken, maxAgeMs: prolonge.maxAgeMs ?? 0 };
+    }
+    (req as unknown as Record<string, unknown>)[CLE_SESSION_REQUETE] = session;
+
     return {
       userId: user.id,
       tenantId: user.tenantId,

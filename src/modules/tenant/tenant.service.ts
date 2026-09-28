@@ -5,6 +5,7 @@ import { siSycebnl } from '../../common/reponse-referentiel';
 import { PrismaService } from '../../common/prisma.service';
 import { MONNAIE_DE_TENUE } from '../../common/monnaie-de-tenue';
 import { identiteSociete, mentionsArticle17, motifRefusCapital } from './mentions-societe';
+import { dateSaisieOuEffacement } from './date-effacable';
 import { Prisma, FormeJuridiqueEbnl,
   FormeJuridiqueSyscohada, JeuEtatsFinanciersSycebnl, MethodeCotisations, Referentiel, RegimeExigibiliteTva, SystemeComptableSyscohada, TypeLicence,
   MethodeInventaireStocks,
@@ -390,9 +391,14 @@ export class TenantService {
     if (!tenant) {
       throw new NotFoundException('Dossier introuvable');
     }
-    const normaliser = (v: string | undefined) => (v === undefined ? undefined : v.trim() === '' ? null : v.trim());
+    // `null` vaut effacement, comme la chaîne vide · `@IsOptional` le laisse
+    // passer la validation, et `.trim()` sur lui levait une TypeError, soit un
+    // 500 sans motif (audit de cohérence du lot F237, jumeau de
+    // `dateSaisieOuEffacement`).
+    const normaliser = (v: string | null | undefined) =>
+      v === undefined ? undefined : v === null || v.trim() === '' ? null : v.trim();
 
-    const renseigne = (v: string | undefined) => v !== undefined && v.trim() !== '';
+    const renseigne = (v: string | null | undefined) => typeof v === 'string' && v.trim() !== '';
     if (tenant.referentiel === Referentiel.SYCEBNL && renseigne(dto.rccm)) {
       throw new BadRequestException(
         "Une entité à but non lucratif n'est pas commerçante : elle n'est pas immatriculée au registre du commerce " +
@@ -425,26 +431,21 @@ export class TenantService {
         rccm: normaliser(dto.rccm),
         actePersonnaliteJuridique: normaliser(dto.actePersonnaliteJuridique),
         // Date vide = pas d'arrêté encore obtenu (autorisation provisoire de
-        // l'art. 5) · c'est un état légitime, pas une saisie incomplète.
-        dateActePersonnalite:
-          dto.dateActePersonnalite === undefined
-            ? undefined
-            : dto.dateActePersonnalite.trim() === ''
-              ? null
-              : new Date(dto.dateActePersonnalite),
+        // l'art. 5) · c'est un état légitime, pas une saisie incomplète. Lue
+        // par `dateSaisieOuEffacement`, comme les deux dates du régime de TVA
+        // (audit de cohérence du lot F237) · `new Date` laissait partir à
+        // Prisma une forme ISO qu'il ne lit pas (« 2026-W05 », un 500) et
+        // reportait en silence un « 2026-02-30 » au 2 mars.
+        dateActePersonnalite: dateSaisieOuEffacement(dto.dateActePersonnalite),
         numeroEnregistrementSecteur: normaliser(dto.numeroEnregistrementSecteur),
         certificatEnregistrementPlan: normaliser(dto.certificatEnregistrementPlan),
         attestationExemptionIs: normaliser(dto.attestationExemptionIs),
         // Date de DÉLIVRANCE, jamais d'échéance · l'arrêté n° 007/2025 n'en
         // fixe aucune, et en déduire une serait inventer la règle qu'il
         // n'écrit pas. Vide = l'attestation est connue mais sa date ne l'est
-        // pas, état légitime tant que la pièce n'est pas sous les yeux.
-        dateAttestationExemptionIs:
-          dto.dateAttestationExemptionIs === undefined
-            ? undefined
-            : dto.dateAttestationExemptionIs.trim() === ''
-              ? null
-              : new Date(dto.dateAttestationExemptionIs),
+        // pas, état légitime tant que la pièce n'est pas sous les yeux. Même
+        // lecture que la date de l'acte, juste au-dessus.
+        dateAttestationExemptionIs: dateSaisieOuEffacement(dto.dateAttestationExemptionIs),
       },
     });
     return this.parametres(tenantId);
@@ -720,7 +721,9 @@ export class TenantService {
       data: {
         ...donneesAssujettissementTva(dto.reponseAssujettissementTva, dto.assujettiTva),
         ...donneesVenteBiensServices(dto.venteBiensServices),
-        ...(dto.dateOptionTva === undefined ? {} : { dateOptionTva: new Date(dto.dateOptionTva) }),
+        // Chaîne vide ou null = effacement (audit final F237) · `new Date`
+        // seul posait une date invalide, ou le 1er janvier 1970 sur un null.
+        ...(dto.dateOptionTva === undefined ? {} : { dateOptionTva: dateSaisieOuEffacement(dto.dateOptionTva) }),
         ...(dto.effectifPermanent === undefined ? {} : { effectifPermanent: dto.effectifPermanent }),
         ...(dto.numeroAffiliationCnssEmployeur === undefined
           ? {}
@@ -728,7 +731,7 @@ export class TenantService {
         ...(dto.regimeExigibiliteTva === undefined ? {} : { regimeExigibiliteTva: dto.regimeExigibiliteTva }),
         ...(dto.dateAutorisationDebitsTva === undefined
           ? {}
-          : { dateAutorisationDebitsTva: new Date(dto.dateAutorisationDebitsTva) }),
+          : { dateAutorisationDebitsTva: dateSaisieOuEffacement(dto.dateAutorisationDebitsTva) }),
       },
     });
     return this.parametres(tenantId);

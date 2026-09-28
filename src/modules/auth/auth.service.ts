@@ -4,7 +4,7 @@ import { LicenceSurSiteService } from '../sur-site/licence-sur-site.service';
 import { identiteSociete, mentionsArticle17 } from '../tenant/mentions-societe';
 import { articleTrenteSeptApplicable } from '../accord-cadre/conditions-ong-etrangere';
 import { JwtService } from '@nestjs/jwt';
-import { randomBytes, randomUUID } from 'crypto';
+import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { siSycebnl } from '../../common/reponse-referentiel';
 import { PrismaService } from '../../common/prisma.service';
@@ -23,10 +23,31 @@ import { horsCloisonnement } from '../../common/cloisonnement/contexte-cloisonne
 import { normaliserCourriel } from '../../common/courriel';
 import { dansContexteAudit, acteurCourant, ACTEUR_SYSTEME } from '../../common/audit/contexte-audit';
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
-import { instantDeverrouillage, messageVerrou } from './verrouillage';
+import { instantDeverrouillage, MOTIF_IDENTIFIANTS_INVALIDES } from './verrouillage';
 import { genererCodesSecours, genererSecret, secondFacteurAccepte, uriOtpauth, verifierCodeTotp } from './double-authentification';
+import {
+  demandeDeReemission,
+  emettreSession,
+  MOTIF_CONSOLE_SANS_SESSION_LONGUE,
+  SessionEmise,
+  SessionEnCours,
+} from './session-longue';
 
-const SALT_ROUNDS = 12;
+export const SALT_ROUNDS = 12;
+
+/**
+ * EMPREINTE FACTICE (audit final F238) · une adresse INCONNUE répondait
+ * aussitôt, une adresse connue après une centaine de millisecondes de bcrypt,
+ * et la durée de la réponse disait donc ce que le message tait. Pour une
+ * adresse inconnue, le mot de passe est comparé à cette empreinte, du même
+ * coût que les vraies (`SALT_ROUNDS`, un spec le tient), et le résultat est
+ * JETÉ · le refus ne dépend jamais de lui. C'est l'empreinte d'une chaîne
+ * aléatoire tirée une fois et oubliée · elle ne protège rien et n'ouvre rien.
+ * Écrite en dur plutôt que calculée · un calcul au démarrage coûterait une
+ * empreinte de plus à la première adresse inconnue de chaque instance, et
+ * c'est justement cette première différence de durée qu'on veut éviter.
+ */
+export const EMPREINTE_FACTICE = '$2b$12$zNSRXkByzfZhOQSR4/60ze6WWpSytqcVD.yZf5fl0OqDCsgj6X03y';
 
 export const MOTIF_LICENCE_EDITEUR_A_LA_CREATION =
   "La licence de l'éditeur ne s'attribue pas à la création d'un dossier · elle se pose une seule fois, par le geste " +
@@ -227,7 +248,8 @@ export class AuthService {
         numeroImpot: tenant.numeroImpot,
       },
       exercice,
-      ...this.signToken(user.id),
+      // Session courte · un dossier naissant n'a pas coché « Rester connecté ».
+      ...emettreSession(this.jwt, user.id, { longue: false }),
     };
   }
 
@@ -265,17 +287,45 @@ export class AuthService {
     const user = await horsCloisonnement('connexion · le dossier n’est pas encore connu', () =>
       this.prisma.user.findUnique({ where: { email: normaliserCourriel(dto.email) } }),
     );
+
+    // UNE CONNEXION REFUSÉE NE DIT PAS SI LE COMPTE EXISTE, ni par son message
+    // ni par sa durée (audit final F238). Trois cas se ressemblent désormais
+    // de l'extérieur · adresse inconnue, mot de passe faux, compte verrouillé.
+    // Les trois font tourner bcrypt une fois, et les trois rendent le MÊME
+    // message (`MOTIF_IDENTIFIANTS_INVALIDES`). IL RESTE UNE DIFFÉRENCE, et
+    // elle est dite plutôt que tue · sur un compte connu, non verrouillé, au
+    // mot de passe faux, le décompte des échecs s'écrit en base, et `User`
+    // est au journal d'audit (pré-image, mise à jour, maillon dans sa propre
+    // transaction), soit plusieurs allers-retours que les deux autres cas
+    // n'ont pas · quelques millisecondes à quelques dizaines, contre environ
+    // trois cents pour bcryptjs à douze tours. Le verrou borne l'échantillon
+    // à cinq essais par fenêtre, et `@Throttle` le débit par adresse. Le
+    // rendre indiscernable demanderait un plancher de durée sur tout refus,
+    // qui n'est pas posé (relecture adverse de l'audit final F238).
     if (!user) {
-      throw new UnauthorizedException('Identifiants invalides');
+      await bcrypt.compare(dto.motDePasse, EMPREINTE_FACTICE);
+      throw new UnauthorizedException(MOTIF_IDENTIFIANTS_INVALIDES);
     }
 
     const maintenant = new Date();
-    // Le verrou se vérifie AVANT bcrypt · un compte verrouillé ne doit pas
-    // faire tourner une centaine de millisecondes de hachage à chaque essai,
-    // sans quoi le verrou lui-même devient le levier d'un épuisement du
-    // processeur.
+    // bcrypt TOURNE AVANT LE VERROU, et c'est le contraire de ce que ce code
+    // faisait jusqu'au 2026-09-28. Le verrou répondait sans hachage, pour ne
+    // pas offrir un levier d'épuisement du processeur ; mais une adresse
+    // inconnue fait désormais tourner bcrypt elle aussi (empreinte factice),
+    // si bien que le raccourci ne protégeait plus rien, et que sa RAPIDITÉ
+    // disait « ce compte existe et il est verrouillé ». Le débit reste borné
+    // par adresse IP (`@Throttle` de la route, vingt essais par minute).
+    const motDePasseValide = await bcrypt.compare(dto.motDePasse, user.motDePasse);
+
+    // LE VERROU TIENT, MÊME SUR LE BON MOT DE PASSE · et il ne le dit pas.
+    // Dire « verrouillé » au seul bon mot de passe apprendrait à qui essaie des
+    // mots de passe lequel est le bon · il n'aurait plus qu'à attendre la fin
+    // du verrou. Le message commun nomme la suspension sans dire si elle
+    // frappe ce compte. Un essai pendant le verrou n'est pas compté · le
+    // compter prolongerait le verrou au gré de qui connaît l'adresse, et
+    // l'adresse d'un comptable n'est pas un secret (verrouillage.ts).
     if (user.verrouilleJusqua && user.verrouilleJusqua > maintenant) {
-      throw new UnauthorizedException(messageVerrou(user.verrouilleJusqua, maintenant));
+      throw new UnauthorizedException(MOTIF_IDENTIFIANTS_INVALIDES);
     }
 
     // Le compteur repart de zéro si le verrou précédent est ÉCHU · sinon une
@@ -293,12 +343,11 @@ export class AuthService {
       );
     };
 
-    const motDePasseValide = await bcrypt.compare(dto.motDePasse, user.motDePasse);
     if (!motDePasseValide) {
       await compterEchec();
       // Le message reste le MÊME que pour un compte inexistant · dire « mot de
       // passe faux » apprendrait que l'adresse existe.
-      throw new UnauthorizedException('Identifiants invalides');
+      throw new UnauthorizedException(MOTIF_IDENTIFIANTS_INVALIDES);
     }
 
     if (!user.estActif) {
@@ -307,7 +356,9 @@ export class AuthService {
 
     // SECOND FACTEUR · sans code, la réponse dit seulement qu'il en faut un,
     // et aucune session n'est posée. Le mot de passe est redemandé avec le
-    // code : aucun état intermédiaire n'est gardé entre les deux appels.
+    // code : aucun état intermédiaire n'est gardé entre les deux appels. La
+    // case « Rester connecté » voyage de même avec le code, relue au second
+    // appel comme le mot de passe (audit final F270).
     let consomme: Record<string, unknown> = {};
     if (user.doubleAuthActiveDepuis) {
       if (!dto.code?.trim()) return { deuxiemeFacteurRequis: true as const };
@@ -331,7 +382,19 @@ export class AuthService {
         }),
       );
     }
-    return this.signToken(user.id);
+
+    // « RESTER CONNECTÉ SUR CET APPAREIL » (audit final F270) · la case est
+    // décochée par défaut, et seul `true` l'est · une valeur absente ou fausse
+    // ouvre une session courte. JAMAIS POUR LA CONSOLE DE L'ÉDITEUR, même case
+    // cochée · refusé ICI, au serveur, et relu à chaque requête par
+    // JwtStrategy. La connexion n'est pas refusée pour autant · elle s'ouvre
+    // en session courte, et la réponse le dit.
+    const demandee = dto.resterConnecte === true;
+    const longue = demandee && !user.estOperateurPlateforme;
+    return {
+      ...emettreSession(this.jwt, user.id, { longue }),
+      ...(demandee && !longue ? { motifSessionCourte: MOTIF_CONSOLE_SANS_SESSION_LONGUE } : {}),
+    };
   }
 
   // ── DOUBLE AUTHENTIFICATION ─────────────────────────────────────────────
@@ -372,7 +435,7 @@ export class AuthService {
    * fois, ici, et seules leurs empreintes restent. Les autres sessions sont
    * fermées : aucune n'a présenté de second facteur.
    */
-  async activerDoubleAuth(userId: string, code: string, maintenant = new Date()) {
+  async activerDoubleAuth(userId: string, code: string, maintenant = new Date(), session: SessionEnCours | null = null) {
     const u = await this.compteDoubleAuth(userId);
     if (u.doubleAuthActiveDepuis) throw new BadRequestException('La double authentification est déjà active.');
     if (!u.secretDoubleAuth) throw new BadRequestException('Affichez d’abord la clé à enregistrer dans l’application.');
@@ -385,11 +448,11 @@ export class AuthService {
       where: { id: userId },
       data: { doubleAuthActiveDepuis: maintenant, dernierPasDoubleAuth: pas, codesSecoursDoubleAuth: empreintes, sessionsInvalidesAvant: maintenant },
     });
-    return { codesSecours: codes, ...this.signToken(userId) };
+    return { codesSecours: codes, ...this.reemettre(u, session) };
   }
 
   /** Mot de passe ET second facteur · un poste laissé ouvert ne suffit pas à la retirer. */
-  async desactiverDoubleAuth(userId: string, motDePasse: string, code: string, maintenant = new Date()) {
+  async desactiverDoubleAuth(userId: string, motDePasse: string, code: string, maintenant = new Date(), session: SessionEnCours | null = null) {
     const u = await this.compteDoubleAuth(userId);
     if (!u.doubleAuthActiveDepuis) throw new BadRequestException('La double authentification n’est pas active.');
     if (!(await bcrypt.compare(motDePasse, u.motDePasse))) throw new UnauthorizedException('Le mot de passe actuel est incorrect');
@@ -398,7 +461,7 @@ export class AuthService {
       where: { id: userId },
       data: { secretDoubleAuth: null, doubleAuthActiveDepuis: null, dernierPasDoubleAuth: null, codesSecoursDoubleAuth: [], sessionsInvalidesAvant: maintenant },
     });
-    return { desactivee: true, ...this.signToken(userId) };
+    return { desactivee: true, ...this.reemettre(u, session) };
   }
 
   /** De nouveaux codes de secours · les anciens cessent de valoir. */
@@ -419,7 +482,7 @@ export class AuthService {
    * (console plateforme, siège de groupe, admin du dossier) connaissait le
    * mot de passe.
    */
-  async changerMotDePasse(userId: string, motDePasseActuel: string, nouveauMotDePasse: string) {
+  async changerMotDePasse(userId: string, motDePasseActuel: string, nouveauMotDePasse: string, session: SessionEnCours | null = null) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new UnauthorizedException('Utilisateur introuvable');
@@ -435,8 +498,9 @@ export class AuthService {
         doitChangerMotDePasse: false,
         // RÉVOCATION · un mot de passe change souvent PARCE QU'IL A FUITÉ.
         // Sans cette ligne, celui qui le détenait gardait sa session ouverte
-        // jusqu'à huit heures, et le changement ne servait à rien pour la
-        // seule période où il aurait servi.
+        // jusqu'à huit heures, trente jours pour une session « Rester
+        // connecté » (audit final F270), et le changement ne servait à rien
+        // pour la seule période où il aurait servi.
         sessionsInvalidesAvant: new Date(),
         // Un mot de passe changé délie aussi le verrou · le titulaire a
         // prouvé qui il est en donnant l'ancien.
@@ -447,7 +511,7 @@ export class AuthService {
     // La session COURANTE est révoquée elle aussi · c'est voulu. Le client
     // redemande un jeton juste après (voir AuthController), et rien ne
     // distingue, côté serveur, la session du titulaire de celle du voleur.
-    return { change: true, ...this.signToken(userId) };
+    return { change: true, ...this.reemettre(user, session) };
   }
 
   /**
@@ -462,7 +526,7 @@ export class AuthService {
    *    de mot de passe. Le rôle, le dossier et le drapeau d'opérateur sont
    *    sur le COMPTE, pas sur l'adresse : ils suivent.
    */
-  async changerAdresse(userId: string, motDePasseActuel: string, nouvelleAdresse: string) {
+  async changerAdresse(userId: string, motDePasseActuel: string, nouvelleAdresse: string, session: SessionEnCours | null = null) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new UnauthorizedException('Utilisateur introuvable');
     if (!(await bcrypt.compare(motDePasseActuel, user.motDePasse))) {
@@ -478,7 +542,38 @@ export class AuthService {
       }
       throw e;
     }
-    return { adresse, ...this.signToken(userId) };
+    return { adresse, ...this.reemettre(user, session) };
+  }
+
+  /**
+   * « DÉCONNECTER MES AUTRES APPAREILS » (audit final F270) · une session
+   * longue vit trente jours, et un appareil perdu ou prêté la garde. Ferme
+   * toutes les sessions du compte (`sessionsInvalidesAvant`, comparé à la
+   * SECONDE par `sessionRevoquee`) et en repose AUSSITÔT une pour l'appareil
+   * qui le demande, qui garde son choix « Rester connecté » et son origine ·
+   * fermer ses autres appareils ne doit ni éjecter celui-ci ni lui rendre
+   * trente jours neufs. Le mot de passe actuel est exigé, comme pour tout
+   * acte qui touche aux accès · un poste laissé ouvert ne doit pas pouvoir
+   * évincer le titulaire de ses autres appareils.
+   *
+   * La révocation et l'émission partagent le même instant · le jeton neuf
+   * porte une émission que la comparaison à la seconde ne tient pas pour
+   * antérieure à sa propre révocation. Limite connue, celle de toute
+   * révocation · un jeton émis ailleurs DANS LA MÊME SECONDE survit.
+   */
+  async deconnecterAutresAppareils(
+    userId: string,
+    motDePasseActuel: string,
+    session: SessionEnCours | null,
+    maintenant = new Date(),
+  ) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('Utilisateur introuvable');
+    if (!(await bcrypt.compare(motDePasseActuel, user.motDePasse))) {
+      throw new UnauthorizedException('Le mot de passe actuel est incorrect');
+    }
+    await this.prisma.user.update({ where: { id: userId }, data: { sessionsInvalidesAvant: maintenant } });
+    return { autresAppareilsDeconnectes: true, ...this.reemettre(user, session, maintenant.getTime()) };
   }
 
   /**
@@ -565,18 +660,34 @@ export class AuthService {
     };
   }
 
-  // Payload volontairement minimal : JwtStrategy.validate relit tenantId/
-  // email/role en base à chaque requête (voir son commentaire) plutôt que
-  // de leur faire confiance ici · un rôle changé ou un compte désactivé
-  // doit prendre effet immédiatement, pas seulement à l'expiration du token.
-  //
-  // Le claim `csrf` appareille le jeton de session (cookie httpOnly) et le
-  // jeton CSRF (renvoyé au client, qui le rejoue en en-tête X-CSRF-Token sur
-  // chaque mutation) · voir session.constants.ts et jwt.strategy.ts. Aucun
-  // état serveur : la correspondance se vérifie dans le JWT lui-même.
-  private signToken(userId: string) {
-    const csrfToken = randomBytes(16).toString('hex');
-    const accessToken = this.jwt.sign({ sub: userId, csrf: csrfToken });
-    return { accessToken, csrfToken };
+  /**
+   * RÉÉMET LA SESSION DE CET APPAREIL après un acte qui a fermé toutes les
+   * autres (mot de passe, adresse, double authentification, autres appareils
+   * déconnectés). Elle garde son régime et son origine (audit final F270) ·
+   * une session longue qui redeviendrait courte ferait perdre « Rester
+   * connecté » au premier changement de mot de passe, et une session courte
+   * qui repartirait pour huit heures dépasserait les huit heures annoncées.
+   * La console de l'éditeur ne reçoit jamais de session longue · JwtStrategy
+   * la refuse déjà, et c'est redit ici, où le compte est sous la main.
+   *
+   * La charge reste minimale (voir `emettreSession`) · JwtStrategy.validate
+   * relit dossier, adresse et rôle en base à chaque requête plutôt que de leur
+   * faire confiance, pour qu'un rôle changé ou un compte désactivé prenne
+   * effet tout de suite. Le claim `csrf` appareille le jeton de session
+   * (cookie httpOnly) et le jeton CSRF que l'écran rejoue en en-tête
+   * X-CSRF-Token · voir session.constants.ts et jwt.strategy.ts.
+   */
+  private reemettre(
+    user: { id: string; estOperateurPlateforme?: boolean },
+    session: SessionEnCours | null,
+    instantMs?: number,
+  ): SessionEmise {
+    const demande = demandeDeReemission(session);
+    return emettreSession(
+      this.jwt,
+      user.id,
+      demande.longue && user.estOperateurPlateforme ? { longue: false } : demande,
+      instantMs,
+    );
   }
 }

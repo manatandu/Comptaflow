@@ -10,6 +10,8 @@ import {
 import { MotDePasseAChangerGuard } from '../../common/guards/mot-de-passe-a-changer.guard';
 import { ROLES_CANTONNES, routeOuverteAuRoleCantonne } from '../../common/guards/roles-cantonnes';
 import { fonctionDeRoute, motifRefusFonction } from '../../common/fonctions/fonctions-metier';
+import { sessionDeLaRequete } from './session-longue';
+import { poserCookieSession } from './session.constants';
 
 /**
  * LA SESSION PERDUE SE DIT, EN FRANÇAIS, ET SE RECONNAÎT (audit final F164).
@@ -93,6 +95,19 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       const fonction = fonctionDeRoute(contexte.getClass().name, contexte.getHandler().name);
       const motif = motifRefusFonction(utilisateur, requete?.method ?? 'GET', fonction);
       if (motif) throw new ForbiddenException(motif);
+    }
+
+    // 4 · « Rester connecté » · chaque usage prolonge la session longue (audit
+    // final F270). Le jeton est signé par JwtStrategy, qui tient la charge et
+    // le signataire ; il n'est posé qu'ICI, une fois la requête ADMISE par
+    // les trois contrôles ci-dessus, et par la seule fonction qui pose le
+    // cookie de session · un refus de cette garde ne prolonge rien. Une garde
+    // posée après elle (rôle, licence) peut encore refuser la route · la
+    // session, authentifiée et non révoquée, reste prolongée, comme l'usage
+    // qu'elle vient de faire.
+    const prolongation = sessionDeLaRequete(contexte.switchToHttp().getRequest())?.prolongation;
+    if (prolongation) {
+      poserCookieSession(contexte.switchToHttp().getResponse(), prolongation.accessToken, prolongation.maxAgeMs);
     }
     return true;
   }

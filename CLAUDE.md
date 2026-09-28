@@ -6487,8 +6487,10 @@ avant de l'écrire ; un spec (`compte-seed-syscohada.spec.ts`) le contrôle.
   `doitChangerMotDePasse` force le changement à la première connexion, et
   `MotDePasseAChangerGuard` FERME le serveur jusque-là · trois routes de
   sortie seulement, marquées `@SortieMotDePasseProvisoire()`, liste figée par
-  un test. Le client seul ne suffisait pas. **LA GARDE EST APPELÉE PAR
-  `JwtAuthGuard`, JAMAIS EN GARDE GLOBALE.** Nest exécute les gardes globales
+  `cycle-de-vie-acces.spec.ts`, lue sur la MÉTADONNÉE que la garde lit, route
+  par route et jamais sur une distance dans la source ; aucun autre fichier du
+  serveur ne nomme le décorateur ni sa clé. Le client seul ne suffisait pas.
+  **LA GARDE EST APPELÉE PAR `JwtAuthGuard`, JAMAIS EN GARDE GLOBALE.** Nest exécute les gardes globales
   AVANT celles du contrôleur, donc avant que `JwtAuthGuard` ne pose
   `request.user` · posée en `APP_GUARD` de la phase 1a au 2026-09-24, elle
   lisait un utilisateur absent et ne refusait RIEN en production, sous des
@@ -6504,18 +6506,49 @@ avant de l'écrire ; un spec (`compte-seed-syscohada.spec.ts`) le contrôle.
   corriger, affecter, liasse du groupe, passer la paie au journal) et le
   personnel lui est fermé. Le GESTIONNAIRE DE PAIE n'a RIEN tant qu'une route
   ne l'ouvre pas (`@AccesRolesCantonnes({ gestionnairePaie: true })` · le
-  personnel, se voir, changer son mot de passe, lister les exercices) · un
+  personnel, se voir, tenir son propre compte (mot de passe, adresse, double
+  authentification, sessions), lister les exercices, et depuis F247 lire les
+  devises et coter le cours de l'USD du jour de Kinshasa
+  (`motifRefusCotationGestionnairePaie`) · une liste FERMÉE, que
+  `roles-cantonnes.spec.ts` gèle route par route et fichier par fichier) · un
   défaut ouvert lui aurait donné tout le grand livre, la plupart des lectures
   ne portant aucun `@Roles`. Aucun `@Roles` existant ne nomme ces rôles : ils
   se lisent comme le COMPTABLE ou la LECTURE SEULE qu'ils remplacent, là où la
   route le leur permet. Côté écran, `peutValider` (admin, comptable) est
   distinct de `peutEcrire` (qui inclut les deux rôles cantonnés).
-- **Révocation de session** · `User.sessionsInvalidesAvant`. Tout jeton émis
-  avant cet instant est refusé par `JwtStrategy`. Posé au changement de mot de
-  passe, à la réinitialisation, à la désactivation et au changement de rôle ·
-  un jeton vit huit heures, sans cela un mot de passe volé restait utile
-  jusqu'à son expiration. La comparaison tronque à la SECONDE (l'`iat` du JWT
-  est en secondes) · sans quoi le titulaire est éjecté par son propre geste.
+- **Révocation de session** · `User.sessionsInvalidesAvant`. Tout jeton
+  AUTHENTIFIÉ avant cet instant est refusé par `JwtStrategy`. Posé au
+  changement de mot de passe et d'adresse, à la réinitialisation, à la
+  désactivation, au changement de rôle, de profil de fonctions ou de journaux
+  autorisés, à l'activation et au retrait de la double authentification, par
+  « Fermer toutes mes sessions » et par « Déconnecter mes autres appareils » ·
+  sans cela un mot de passe volé restait utile jusqu'à l'échéance du jeton. La
+  comparaison porte sur la dernière authentification explicite (claim
+  `authentification` · la connexion, ou la réémission qui suit un acte
+  présentant le mot de passe ou le code), que la prolongation d'une session
+  longue RECOPIE · sans quoi un jeton prolongé dans la seconde d'une
+  révocation lui échappait (audit final F270). Un jeton plus ancien retombe
+  sur son `iat`. Elle tronque à la SECONDE · sans quoi le titulaire est
+  éjecté par son propre geste.
+- **« Rester connecté sur cet appareil »** (`src/modules/auth/session-longue.ts`,
+  audit final F270, décision de Manasse). La case est DÉCOCHÉE par défaut.
+  Décochée · cookie DE SESSION, sans `maxAge` ni `expires`, fermé avec le
+  navigateur, et jeton de huit heures (`JWT_EXPIRES_IN`) ; une réémission
+  garde son échéance. Cochée · trente jours au plus depuis la connexion
+  d'ORIGINE (claim `origine`, que toute réémission recopie) et sept jours sans
+  usage · `JwtStrategy` prolonge à l'usage, au plus une fois par jour, jeton
+  CSRF recopié, et `JwtAuthGuard` ne pose le cookie prolongé qu'une fois la
+  requête admise. UNE seule écriture de la charge (`emettreSession`), UNE
+  seule pose du cookie (`poserCookieSession`). JAMAIS POUR LA CONSOLE · la
+  session d'un opérateur s'ouvre courte, et `JwtStrategy` refuse un jeton long
+  à un compte promu opérateur après coup. `/auth/me` rend le jeton CSRF de la
+  session en cours, le stockage local de l'écran pouvant disparaître avant le
+  cookie. « Déconnecter mes autres appareils » (`POST
+  /auth/deconnecter-autres-appareils`) exige le mot de passe actuel, ferme
+  toutes les sessions et repose aussitôt celle de l'appareil, qui garde son
+  régime · ce n'est PAS une sortie de mot de passe provisoire. Les routes qui
+  éprouvent un secret portent `@Throttle` (vingt par minute) et
+  `JwtAuthGuard`, gelés route par route par `session-longue.spec.ts`.
 - **Double authentification** (`src/modules/auth/double-authentification.ts`,
   2026-09-26) · TOTP, RFC 6238, écrit ici et figé par les vecteurs des RFC,
   vérifiable hors ligne donc aussi sur site. OUVERTE À TOUS, EXIGÉE POUR LA
@@ -6538,9 +6571,15 @@ avant de l'écrire ; un spec (`compte-seed-syscohada.spec.ts`) le contrôle.
   la console, qui ne réinitialise que les administrateurs, ne le rattrapait
   pas. Décompte et écriture se font sous un verrou par dossier, dans la
   transaction.
-- **Verrouillage par compte** temporaire et croissant (`src/modules/auth/
-  verrouillage.ts`), vérifié AVANT bcrypt. Jamais définitif : un verrou
-  définitif se retourne en refus de service.
+- **Verrouillage par compte** temporaire (`src/modules/auth/verrouillage.ts`),
+  vérifié APRÈS bcrypt depuis le 2026-09-28 (audit final F238) · un verrou
+  qui répondait sans hachage se reconnaissait à sa rapidité. Une adresse
+  INCONNUE compare le mot de passe à une empreinte factice du même coût
+  (`EMPREINTE_FACTICE`), et adresse inconnue, mot de passe faux et compte
+  verrouillé rendent le MÊME message (`MOTIF_IDENTIFIANTS_INVALIDES`). Le bon
+  mot de passe pendant le verrou est refusé comme un faux, et un essai pendant
+  le verrou ne le prolonge pas. Jamais définitif : un verrou définitif se
+  retourne en refus de service.
 - Toute requête est filtrée par `tenantId`. Une requête Prisma sans `tenantId`
   sur une table multi-locataire est un défaut de cloisonnement. Ce n'est plus
   seulement une règle de discipline : `src/common/cloisonnement/` porte une
