@@ -1519,6 +1519,7 @@ export interface ParametresDossier {
   assujettissementTva: boolean | null;
   /** L'entité vend-elle des biens ou des services ? `null` = pas encore dit. */
   venteBiensServices: boolean | null;
+  modulesActives: import('./profil-dossier').ModuleOptionnel[];
   dateOptionTva: string | null;
   /**
    * Régime d'exigibilité de la TVA · O.-L. n° 10/001, art. 25 et 26. Il

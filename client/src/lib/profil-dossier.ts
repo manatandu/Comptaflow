@@ -65,6 +65,36 @@ export interface RegimeDossierClient {
   venteBiensServices?: boolean | null;
   jeuEtatsFinanciersSycebnl?: JeuEtatsFinanciersSycebnl | null;
   systemeComptableSyscohada?: SystemeComptableSyscohada | null;
+  /** Modules affichés · absent = dossier pas encore chargé, tout se montre. */
+  modulesActives?: ModuleOptionnel[] | null;
+}
+
+/** Même énumération que le schéma (`tenant/modules-optionnels.ts`). */
+export type ModuleOptionnel = 'PAIE' | 'REVISION' | 'GESTION_COMMERCIALE' | 'CONSOLIDATION' | 'IFRS';
+
+/**
+ * MODULES ACTIVABLES · ce qu'un dossier n'affiche que s'il l'a activé. Décision
+ * de Manasse du 2026-09-28. MASQUER N'EST PAS REFUSER (même règle que le SMT) :
+ * la route reste ouverte, les données restent. N'y figure rien de ce qu'un
+ * texte impose à tous · facturation, inventaire physique, provisions,
+ * documents obligatoires, registre des donateurs restent toujours au menu.
+ */
+export const MODULES: ReadonlyArray<{ cle: ModuleOptionnel; libelle: string; chemins: readonly string[] }> = [
+  { cle: 'PAIE', libelle: 'Paie et personnel', chemins: ['/personnel'] },
+  {
+    cle: 'REVISION',
+    libelle: 'Révision et contrôle interne',
+    chemins: ['/dossier-revision', '/circularisation', '/questionnaire-revision', '/faiblesses'],
+  },
+  { cle: 'GESTION_COMMERCIALE', libelle: 'Gestion commerciale et stocks', chemins: ['/devis', '/magasin', '/emballages'] },
+  { cle: 'CONSOLIDATION', libelle: 'Consolidation', chemins: ['/consolidation'] },
+  { cle: 'IFRS', libelle: 'États IFRS', chemins: ['/ifrs'] },
+];
+
+/** Le module qui porte ce chemin, ou null s'il est toujours affiché. */
+export function moduleDuChemin(chemin: string): ModuleOptionnel | null {
+  const base = chemin.split('?')[0];
+  return MODULES.find((m) => m.chemins.includes(base))?.cle ?? null;
 }
 
 /** Même règle que le serveur (`estSystemeMinimal`) · le jeu au SYCEBNL, le système au SYSCOHADA. */
@@ -82,6 +112,10 @@ export function estSystemeMinimalDossier(t: RegimeDossierClient | null | undefin
  */
 export function cheminAuMenu(chemin: string, t: RegimeDossierClient | null | undefined): boolean {
   const base = chemin.split('?')[0];
+  // Un dossier chargé sans la liste (ancien serveur) voit tout · retirer faute
+  // de savoir cacherait un module utilisé.
+  const module = moduleDuChemin(base);
+  if (module && t?.modulesActives && !t.modulesActives.includes(module)) return false;
   const fait = CHEMINS_SELON_UN_FAIT[base];
   if (fait && t && fait(t) === false) return false;
   if (!estSystemeMinimalDossier(t)) return true;

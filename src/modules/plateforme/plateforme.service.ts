@@ -7,6 +7,7 @@ import { randomBytes } from 'crypto';
 import { FormeJuridiqueSyscohada, Referentiel, RoleUtilisateur, StatutEcriture, StatutLicence, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
 import { GarnissageDemonstrationService } from './garnissage-demonstration.service';
 import { scenarioDemonstration } from './scenario-demonstration';
+import { MODULES_OPTIONNELS } from '../tenant/modules-optionnels';
 import { siSycebnl } from '../../common/reponse-referentiel';
 import { PrismaService } from '../../common/prisma.service';
 import { AuthService } from '../auth/auth.service';
@@ -727,6 +728,9 @@ export class PlateformeService implements OnModuleInit {
         where: { id: resultat.tenant.id },
         data: {
           estDemonstration: true,
+          // LA VITRINE MONTRE TOUT · un dossier neuf part sans les modules
+          // optionnels, la démonstration les a tous (`tenant/modules-optionnels.ts`).
+          modulesActives: [...MODULES_OPTIONNELS],
           ...(referentiel === Referentiel.SYSCOHADA ? { formeJuridiqueSyscohada: FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE } : {}),
         },
       });

@@ -1,4 +1,4 @@
-import { IsBoolean, IsEmail, IsEnum, IsNumber, IsOptional, IsString, MaxLength, MinLength, IsDateString, IsIn, IsInt, Max, Min, ValidateIf } from 'class-validator';
+import { ArrayUnique, IsArray, IsBoolean, IsEmail, IsEnum, IsNumber, IsOptional, IsString, MaxLength, MinLength, IsDateString, IsIn, IsInt, Max, Min, ValidateIf } from 'class-validator';
 import {
   FormeJuridiqueEbnl,
   FormeJuridiqueSyscohada,
@@ -7,6 +7,7 @@ import {
   RegimeExigibiliteTva,
   SystemeComptableSyscohada,
   MethodeInventaireStocks,
+  ModuleOptionnel,
 } from '@prisma/client';
 import { FacultatifNonNul } from '../../../common/facultatif-non-nul';
 
@@ -378,4 +379,15 @@ export class ModifierLongueurCompteDto {
   @Min(3)
   @Max(13)
   longueurCompte!: number;
+}
+
+/**
+ * MODULES AFFICHÉS PAR LE DOSSIER · la liste entière, remplacée d'un bloc.
+ * Préférence d'affichage, jamais un refus (`tenant/modules-optionnels.ts`).
+ */
+export class ModifierModulesDto {
+  @IsArray()
+  @ArrayUnique()
+  @IsEnum(ModuleOptionnel, { each: true })
+  modulesActives!: ModuleOptionnel[];
 }

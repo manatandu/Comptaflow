@@ -3,6 +3,9 @@ import { PrismaService } from '../../common/prisma.service';
 import { AuthService } from '../auth/auth.service';
 import { ConfigService } from '@nestjs/config';
 
+// La vitrine montre tout · `tenant/modules-optionnels.ts`.
+const TOUS_LES_MODULES = ['PAIE', 'REVISION', 'GESTION_COMMERCIALE', 'CONSOLIDATION', 'IFRS'];
+
 /**
  * DOSSIER DE DÉMONSTRATION · la vitrine que tout magasin d'applications
  * réclame pour instruire une soumission.
@@ -55,14 +58,14 @@ describe("l'ouverture du dossier de démonstration", () => {
     // remise à zéro effacerait.
     const { service: s, tenantUpdate } = service();
     await s.preparerDossierDemonstration(DTO);
-    expect(tenantUpdate.mock.calls[0][0].data).toEqual({ estDemonstration: true });
+    expect(tenantUpdate.mock.calls[0][0].data).toEqual({ estDemonstration: true, modulesActives: TOUS_LES_MODULES });
   });
 
   it('une SARL au SYSCOHADA · système normal, forme SARL', async () => {
     const { service: s, tenantUpdate, authService } = service();
     await s.preparerDossierDemonstration({ ...DTO, referentiel: 'SYSCOHADA' as never });
     expect((authService.register as jest.Mock).mock.calls[0][0]).toMatchObject({ referentiel: 'SYSCOHADA', systemeComptableSyscohada: 'NORMAL' });
-    expect(tenantUpdate.mock.calls[0][0].data).toEqual({ estDemonstration: true, formeJuridiqueSyscohada: 'SOCIETE_RESPONSABILITE_LIMITEE' });
+    expect(tenantUpdate.mock.calls[0][0].data).toEqual({ estDemonstration: true, formeJuridiqueSyscohada: 'SOCIETE_RESPONSABILITE_LIMITEE', modulesActives: TOUS_LES_MODULES });
   });
 
   it('le dossier naît garni, par l’utilisateur du dossier lui-même', async () => {

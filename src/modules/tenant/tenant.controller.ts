@@ -11,6 +11,7 @@ import {
   ModifierFormeSyscohadaDto,
   ModifierIdentiteDto,
   ModifierDoubleRegardDto,
+  ModifierModulesDto,
   ModifierJeuEtatsDto,
   ModifierLongueurCompteDto,
   ModifierMethodeCotisationsDto,
@@ -166,5 +167,12 @@ export class TenantController {
     @Body() dto: ModifierDoubleRegardDto,
   ) {
     return this.tenantService.modifierDoubleRegard(user.tenantId, dto.doubleRegardValidation);
+  }
+
+  /** Modules affichés · voir `tenant/modules-optionnels.ts`. */
+  @Patch('modules')
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
+  async modifierModules(@CurrentUser() user: AuthenticatedUser, @Body() dto: ModifierModulesDto) {
+    return this.tenantService.modifierModules(user.tenantId, dto.modulesActives);
   }
 }

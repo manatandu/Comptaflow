@@ -270,6 +270,15 @@ enum MethodeCotisations {
   ENCAISSEMENT
 }
 
+/// Modules que le dossier affiche · `tenant/modules-optionnels.ts`.
+enum ModuleOptionnel {
+  PAIE
+  REVISION
+  GESTION_COMMERCIALE
+  CONSOLIDATION
+  IFRS
+}
+
 model Tenant {
   id                        String                     @id @default(uuid())
   nom                       String
@@ -518,6 +527,10 @@ model Tenant {
   // ne vend rien aujourd'hui peut ouvrir une activité accessoire demain (loi
   // n° 004/2001, art. 1er), et un compte vide ne dit pas qu'il le restera.
   venteBiensServices         Boolean?
+  // MODULES ACTIVÉS · préférence d'affichage, jamais un refus
+  // (`tenant/modules-optionnels.ts`). Vide pour un dossier neuf ; la migration
+  // du 2026-09-28 active tout sur les dossiers existants.
+  modulesActives             ModuleOptionnel[] @default([])
   // Date d'effet de l'option ou du franchissement du seuil · sert à dater le
   // début des obligations déclaratives, et à rappeler que l'option prise en
   // deçà du seuil engage deux ans.

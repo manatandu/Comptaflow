@@ -6,7 +6,8 @@ import { PrismaService } from '../../common/prisma.service';
 import { MONNAIE_DE_TENUE } from '../../common/monnaie-de-tenue';
 import { identiteSociete, mentionsArticle17, motifRefusCapital } from './mentions-societe';
 import { dateSaisieOuEffacement } from './date-effacable';
-import { Prisma, FormeJuridiqueEbnl,
+import { normaliserModules } from './modules-optionnels';
+import { Prisma, ModuleOptionnel, FormeJuridiqueEbnl,
   FormeJuridiqueSyscohada, JeuEtatsFinanciersSycebnl, MethodeCotisations, Referentiel, RegimeExigibiliteTva, SystemeComptableSyscohada, TypeLicence,
   MethodeInventaireStocks,
 } from '@prisma/client';
@@ -140,6 +141,7 @@ export class TenantService {
       // `null` = pas encore dit · voir `faits-declares.ts`.
       assujettissementTva: faitAssujettissementTva(tenant),
       venteBiensServices: tenant.venteBiensServices,
+      modulesActives: normaliserModules(tenant.modulesActives ?? []),
       dateOptionTva: tenant.dateOptionTva,
       regimeExigibiliteTva: tenant.regimeExigibiliteTva,
       dateAutorisationDebitsTva: tenant.dateAutorisationDebitsTva,
@@ -682,6 +684,20 @@ export class TenantService {
    * addition ou modification ultérieure », et aucun chemin de dévalidation
    * n'existe dans ce dépôt.
    */
+  /**
+   * Modules affichés par le dossier · la liste remplace la précédente. Rien
+   * n'est supprimé ni refusé ailleurs · un module désactivé garde ses données
+   * et ses routes (`tenant/modules-optionnels.ts`).
+   */
+  async modifierModules(tenantId: string, modulesActives: ModuleOptionnel[]) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) {
+      throw new NotFoundException('Dossier introuvable');
+    }
+    await this.prisma.tenant.update({ where: { id: tenantId }, data: { modulesActives: normaliserModules(modulesActives) } });
+    return this.parametres(tenantId);
+  }
+
   async modifierDoubleRegard(tenantId: string, doubleRegardValidation: boolean) {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant) {

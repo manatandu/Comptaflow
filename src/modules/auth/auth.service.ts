@@ -25,6 +25,7 @@ import { dansContexteAudit, acteurCourant, ACTEUR_SYSTEME } from '../../common/a
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 import { avisDoubleAuth, EvenementDoubleAuth } from './avis-double-authentification';
 import { CourrierService, ORIGINE_DOUBLE_AUTHENTIFICATION } from '../courrier/courrier.service';
+import { normaliserModules } from '../tenant/modules-optionnels';
 import { DECOMPTE_REMIS_A_ZERO, decompteApresEchec, MOTIF_IDENTIFIANTS_INVALIDES } from './verrouillage';
 import { genererCodesSecours, genererSecret, secondFacteurAccepte, uriOtpauth, verifierCodeTotp } from './double-authentification';
 import {
@@ -709,6 +710,8 @@ export class AuthService {
         // masque sur lui (`tenant/faits-declares.ts`).
         assujettissementTva: faitAssujettissementTva(user.tenant),
         venteBiensServices: user.tenant.venteBiensServices,
+        // Modules affichés · masquer n'est pas refuser (`tenant/modules-optionnels.ts`).
+        modulesActives: normaliserModules(user.tenant.modulesActives ?? []),
         // Longueur MAXIMALE des numéros que le cabinet ouvre (audit final
         // F144) · l'écran du plan de comptes l'imposait à huit, alors que le
         // dossier la porte jusqu'à treize (`CompteService.creer` la relit).
