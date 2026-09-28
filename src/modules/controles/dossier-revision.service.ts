@@ -76,7 +76,14 @@ export class DossierRevisionService {
     const table = this.regles(referentiel);
     const mouvements = await this.prisma.ligneEcriture.groupBy({
       by: ['compteId'],
-      where: { ecriture: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE } },
+      // SANS LE SOLDE DE CLÔTURE (régression de l'audit final F4) · l'écriture
+      // qui solde les classes 6 à 8 sur le 13 entre VALIDÉE. Lue avec elle,
+      // chaque charge et chaque produit d'un exercice clos affichait un solde
+      // nul sous des débits et des crédits doublés, et le réviseur n'y voyait
+      // plus le montant de l'année. Même lecture que les états
+      // (`avantSoldeDesComptesDeGestion`) · ce n'est ni une ouverture ni une
+      // activité de l'exercice.
+      where: { ecriture: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE, estSoldeDesComptesDeGestion: false } },
       _sum: { debit: true, credit: true },
     });
     if (!mouvements.length) return { comptes: [] };

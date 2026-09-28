@@ -278,25 +278,19 @@ describe('Rattachement · il ne se proratise pas', () => {
 describe('Rattachement · la contre-passation est à l’ouverture, des deux côtés', () => {
   const cible = { dateDebut: d('2027-01-01'), dateFin: d('2027-12-31') };
 
-  it('une charge à payer s’extourne à l’ouverture même en SYCEBNL, où une quote-part se reprend à la clôture', () => {
+  it('une charge à payer et un produit à recevoir s’extournent à l’ouverture', () => {
     // Les deux textes emploient la même phrase dans la fiche de leurs comptes
     // 40 et 41 : « À l'ouverture de l'exercice, ces écritures sont
-    // contre-passées ». Le référentiel n'a pas son mot à dire ici, alors qu'il
-    // l'a pour une quote-part de 476/477.
-    for (const referentiel of [Referentiel.SYCEBNL, Referentiel.SYSCOHADA]) {
-      expect(dateReprise(referentiel, TypeRegularisation.CHARGE_A_PAYER, cible)).toEqual(cible.dateDebut);
-      expect(dateReprise(referentiel, TypeRegularisation.PRODUIT_A_RECEVOIR, cible)).toEqual(cible.dateDebut);
-    }
+    // contre-passées ». La date ne dépend plus du référentiel · dateReprise
+    // ne le reçoit pas.
+    expect(dateReprise(TypeRegularisation.CHARGE_A_PAYER, cible)).toEqual(cible.dateDebut);
+    expect(dateReprise(TypeRegularisation.PRODUIT_A_RECEVOIR, cible)).toEqual(cible.dateDebut);
   });
 
-  it('la règle du 476/477 n’est pas touchée · le SYCEBNL reprend toujours à la clôture', () => {
-    expect(dateReprise(Referentiel.SYCEBNL, TypeRegularisation.CHARGE_CONSTATEE_AVANCE, cible)).toEqual(cible.dateFin);
-    expect(dateReprise(Referentiel.SYSCOHADA, TypeRegularisation.CHARGE_CONSTATEE_AVANCE, cible)).toEqual(
-      cible.dateDebut,
-    );
-    expect(dateReprise(Referentiel.SYSCOHADA, TypeRegularisation.SUBVENTION_PLURIANNUELLE, cible)).toEqual(
-      cible.dateFin,
-    );
+  it('le 476 et le 477 se reprennent à l’ouverture aussi, la subvention pluriannuelle seule à la fin', () => {
+    expect(dateReprise(TypeRegularisation.CHARGE_CONSTATEE_AVANCE, cible)).toEqual(cible.dateDebut);
+    expect(dateReprise(TypeRegularisation.PRODUIT_CONSTATE_AVANCE, cible)).toEqual(cible.dateDebut);
+    expect(dateReprise(TypeRegularisation.SUBVENTION_PLURIANNUELLE, cible)).toEqual(cible.dateFin);
   });
 });
 
@@ -405,6 +399,30 @@ describe('Reprise · l’inverse exact de la constatation, pour chaque type', ()
     // Un montant non nul à la constatation, sinon un solde nul ne prouverait rien.
     expect(ecritures[0].lignes.some((l) => (l.debit ?? 0) > 0)).toBe(true);
     expect(solde).toEqual({ gestion: 0, contrepartie: 0 });
+  });
+
+  it('la reprise est DATÉE par dateReprise · le 476 et le 477 à l’ouverture, la subvention à la fin', async () => {
+    // Le câblage, pas seulement la règle · le service passait jadis le
+    // référentiel du dossier, et c'est lui qui renvoyait le 476 SYCEBNL à la fin.
+    const cas: Array<[TypeRegularisation, string]> = [
+      [TypeRegularisation.CHARGE_CONSTATEE_AVANCE, '2027-01-01'],
+      [TypeRegularisation.PRODUIT_CONSTATE_AVANCE, '2027-01-01'],
+      [TypeRegularisation.SUBVENTION_PLURIANNUELLE, '2027-12-31'],
+    ];
+    for (const [type, attendue] of cas) {
+      const { svc, ecritures } = monde(type);
+      await svc.creer('t1', 'u1', {
+        exerciceId: 'n',
+        type,
+        libelle: 'Loyer',
+        compteChargeProduitId: 'gestion',
+        montantTotal: 1_200,
+        periodeDebut: '2026-07-01',
+        periodeFin: '2027-06-30',
+      } as never);
+      await svc.reprendre('t1', 'u1', 'r1', 'n1');
+      expect([type, (ecritures[1] as unknown as { date: string }).date]).toEqual([type, attendue]);
+    }
   });
 
   it('refuse la reprise sur le même exercice ou sur un exercice antérieur encore ouvert (audit final F79)', async () => {

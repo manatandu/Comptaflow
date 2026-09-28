@@ -1721,7 +1721,10 @@ export class ControlesService {
     const lignes637 = await this.prisma.ligneEcriture.findMany({
       where: {
         compte: { tenantId, numero: { startsWith: '637' } },
-        ecriture: { tenantId, exerciceId },
+        // SANS LE SOLDE DE CLÔTURE (régression de l'audit final F4) · validé,
+        // il remet le 637 à zéro sur tout exercice clos, et un virement jamais
+        // passé se lisait comme fait.
+        ecriture: { tenantId, exerciceId, estSoldeDesComptesDeGestion: false },
       },
       select: { debit: true, credit: true, compte: { select: { numero: true, intitule: true } } },
     });
@@ -1979,7 +1982,9 @@ export class ControlesService {
     const lignesFiscales = await this.prisma.ligneEcriture.findMany({
       where: {
         compte: { tenantId, OR: [{ numero: { startsWith: '613' } }, { numero: { startsWith: '781' } }] },
-        ecriture: { tenantId, exerciceId },
+        // SANS LE SOLDE DE CLÔTURE (régression de l'audit final F4) · validé,
+        // il remet le 613 à zéro et fait bouger le 781 sur tout exercice clos.
+        ecriture: { tenantId, exerciceId, estSoldeDesComptesDeGestion: false },
       },
       select: { debit: true, credit: true, compte: { select: { numero: true, intitule: true } } },
     });
@@ -2797,7 +2802,10 @@ export class ControlesService {
     ];
     const lignesStocks = await this.prisma.ligneEcriture.findMany({
       where: {
-        ecriture: { tenantId, exerciceId },
+        // SANS LE SOLDE DE CLÔTURE (régression de l'audit final F4) · validé,
+        // il solde le 603 et le 72 sur tout exercice clos, et leurs cumuls
+        // ne diraient plus ce que l'exercice a passé.
+        ecriture: { tenantId, exerciceId, estSoldeDesComptesDeGestion: false },
         OR: racinesStocks.map((r) => ({ compte: { tenantId, numero: { startsWith: r } } })),
       },
       select: { debit: true, credit: true, compte: { select: { numero: true, intitule: true } } },

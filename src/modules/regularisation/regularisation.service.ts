@@ -23,39 +23,44 @@ const JOUR = 86_400_000;
 /**
  * DATE DE REPRISE DE LA PART DIFFÉRÉE · voir le commentaire de `reprendre`.
  *
- * Le SYCEBNL impose la clôture de l'exercice concerné (Partie 3 ch. 6). Le
- * SYSCOHADA permet les deux et RECOMMANDE VIVEMENT l'ouverture (§ 5.5 pour les
- * charges, § 6.5 pour les produits) · une part différée reprise seulement à la
- * clôture reste au bilan douze mois de plus et fausse toutes les situations
- * intermédiaires de l'année.
+ * À L'OUVERTURE DE L'EXERCICE CONCERNÉ, DES DEUX CÔTÉS, SAUF LA SUBVENTION
+ * PLURIANNUELLE. Le SYSCOHADA permet les deux dates et RECOMMANDE VIVEMENT
+ * l'ouverture (§ 5.5 pour les charges, § 6.5 pour les produits) · une part
+ * différée reprise seulement à la clôture reste au bilan douze mois de plus et
+ * fausse toutes les situations intermédiaires de l'année.
+ *
+ * Le SYCEBNL ne fixe « la fin » que pour la subvention pluriannuelle (Partie 3
+ * ch. 6, section 1 · « A la fin de chaque exercice ultérieur concerné »). Pour
+ * une charge constatée d'avance, son Guide d'application extourne le 476 au
+ * 01/01/N+1 (Application 10, « extourné au début de l'exercice suivant »), et
+ * sa Partie 3 ch. 4, section 1, écrit que « les écritures de fin d'exercice
+ * doivent être extournées au début de l'exercice suivant ». Le produit
+ * constaté d'avance suit en miroir · la fiche du compte 47 les constate tous
+ * deux « à la clôture de l'exercice », et aucun texte lu ne fixe sa reprise à
+ * la fin ; c'est une lecture d'OmegaX, dite ici. Jusqu'au 2026-09-28, la règle
+ * de la subvention était servie à tout le 476/477 d'un dossier SYCEBNL, sur un
+ * renvoi à la Partie 3 ch. 6 qui ne le disait pas.
  *
  * La subvention pluriannuelle reste à la clôture des deux côtés : c'est le
  * texte SYCEBNL qui la traite nommément, et le § 5.5 du SYSCOHADA tolère
  * expressément « à la fin de n+1 ».
  */
 export function dateReprise(
-  referentiel: Referentiel,
   type: TypeRegularisation,
   cible: { dateDebut: Date; dateFin: Date },
 ): Date {
-  // LE RATTACHEMENT SE CONTRE-PASSE À L'OUVERTURE, DES DEUX CÔTÉS, et sans
-  // que le référentiel ait son mot à dire : les deux textes emploient la même
+  // LE RATTACHEMENT SE CONTRE-PASSE À L'OUVERTURE, DES DEUX CÔTÉS, et le
+  // référentiel n'a pas son mot à dire : les deux textes emploient la même
   // phrase dans la fiche de leurs comptes 40 et 41 · « À l'ouverture de
   // l'exercice, ces écritures sont contre-passées pour permettre un meilleur
   // contrôle et une meilleure analyse des flux, ou soldées par le compte
   // fournisseur à la réception de la facture ». Ce n'est pas une reprise de
   // quote-part comme pour un 476/477 : c'est l'extourne de l'estimation, que
   // la facture réelle vient remplacer.
-  if (
-    type === TypeRegularisation.CHARGE_A_PAYER ||
-    type === TypeRegularisation.PRODUIT_A_RECEVOIR
-  ) {
-    return cible.dateDebut;
-  }
-  if (referentiel === Referentiel.SYSCOHADA && type !== TypeRegularisation.SUBVENTION_PLURIANNUELLE) {
-    return cible.dateDebut;
-  }
-  return cible.dateFin;
+  // Le 476 et le 477 aussi, voir plus haut · seule la subvention
+  // pluriannuelle se reprend à la fin, par le texte qui la nomme.
+  if (type === TypeRegularisation.SUBVENTION_PLURIANNUELLE) return cible.dateFin;
+  return cible.dateDebut;
 }
 
 /**
@@ -557,31 +562,27 @@ export class RegularisationService {
     });
   }
 
-  /**
-   * Reprend la part différée sur l'exercice qu'elle concerne · À QUELLE DATE
-   * DÉPEND DU RÉFÉRENTIEL, et c'est ce que le service ignorait.
-   *
-   *  · SYCEBNL, Partie 3 ch. 6 · « A la fin de chaque exercice ultérieur
-   *    concerné, la quote-part est reprise au débit du compte 477 par le
-   *    crédit du compte 71. » Ce n'est pas une contre-passation d'ouverture,
-   *    et c'est explicite ;
-   *  · SYSCOHADA, § 5.5 et 6.5 · les deux dates sont permises, « au début
-   *    (immédiate) ou à la fin de n+1 », mais la CONTRE-PASSATION À
-   *    L'OUVERTURE est « vivement recommandée ». Elle l'est pour une raison
-   *    pratique : reprise à la clôture, la part différée reste au bilan douze
-   *    mois de plus et fausse toutes les situations intermédiaires de l'année.
-   *
-   * Le dossier SYSCOHADA reprend donc ses charges et produits constatés
-   * d'avance à l'OUVERTURE de l'exercice cible. La subvention pluriannuelle
-   * fait exception et reste à la clôture : sa mécanique vient du texte SYCEBNL
-   * qui la traite nommément, et le § 5.5 du SYSCOHADA tolère expressément
-   * cette date. Les deux référentiels restent donc dans leur texte.
-   */
   /** Un exercice commence après celui de la constatation · la règle de la reprise. */
   static exercicePosterieur(cible: { dateDebut: Date }, constatation: { dateDebut: Date }): boolean {
     return cible.dateDebut.getTime() > constatation.dateDebut.getTime();
   }
 
+  /**
+   * Reprend la part différée sur l'exercice qu'elle concerne, à l'ouverture
+   * de cet exercice, sauf la subvention pluriannuelle, reprise à sa fin
+   * (`dateReprise`, où les textes sont cités).
+   *
+   *  · SYCEBNL, Partie 3 ch. 6, section 1 · « A la fin de chaque exercice
+   *    ultérieur concerné, la quote-part de la subvention d'exploitation y
+   *    afférant est reprise au débit du compte 477 » · la subvention seule ;
+   *    le Guide d'application extourne le 476 au début de l'exercice suivant
+   *    (Application 10) ;
+   *  · SYSCOHADA, § 5.5 et 6.5 · les deux dates sont permises, « au début
+   *    (immédiate) ou à la fin de n+1 », mais la CONTRE-PASSATION À
+   *    L'OUVERTURE est « vivement recommandée ». Reprise à la clôture, la part
+   *    différée reste au bilan douze mois de plus et fausse toutes les
+   *    situations intermédiaires de l'année.
+   */
   async reprendre(tenantId: string, createdBy: string, regularisationId: string, exerciceCibleId: string) {
     const regul = await this.prisma.regularisation.findFirst({
       where: { id: regularisationId, tenantId },
@@ -594,11 +595,6 @@ export class RegularisationService {
     if (!regul.ecritureConstatationId) {
       throw new BadRequestException("La constatation n'a pas été passée : il n'y a rien à reprendre.");
     }
-
-    const { referentiel } = await this.prisma.tenant.findUniqueOrThrow({
-      where: { id: tenantId },
-      select: { referentiel: true },
-    });
 
     const cible = await this.prisma.exercice.findFirst({ where: { id: exerciceCibleId, tenantId } });
     if (!cible) throw new BadRequestException('Exercice de reprise introuvable pour ce dossier');
@@ -644,7 +640,7 @@ export class RegularisationService {
     const ecriture = await this.ecritureService.creer(tenantId, createdBy, {
       exerciceId: cible.id,
       journalId: journal.id,
-      date: dateReprise(referentiel, regul.type, cible).toISOString().slice(0, 10),
+      date: dateReprise(regul.type, cible).toISOString().slice(0, 10),
       libelle: `Reprise de régularisation · ${regul.libelle}`,
       reference: 'REGUL',
       lignes,

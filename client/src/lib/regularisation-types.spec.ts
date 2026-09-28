@@ -84,13 +84,13 @@ describe('F208 · la date de reprise dite type par type', () => {
   ];
 
   // La même matrice que `dateReprise` du serveur (regularisation.spec.ts) ·
-  // le rattachement se contre-passe à l'ouverture des DEUX côtés (fiches des
-  // comptes 40 et 41 des deux plans), la subvention se reprend à la fin des
-  // deux côtés, et seuls les 476 et 477 dépendent du référentiel.
+  // tout se reprend à l'ouverture des DEUX côtés, sauf la subvention
+  // pluriannuelle, reprise à la fin. Le 476 et le 477 SYCEBNL allaient à la
+  // fin jusqu'au 2026-09-28, sur la règle de la seule subvention.
   const ATTENDU: Record<Referentiel, Record<TypeRegularisation, 'OUVERTURE' | 'FIN'>> = {
     SYCEBNL: {
-      CHARGE_CONSTATEE_AVANCE: 'FIN',
-      PRODUIT_CONSTATE_AVANCE: 'FIN',
+      CHARGE_CONSTATEE_AVANCE: 'OUVERTURE',
+      PRODUIT_CONSTATE_AVANCE: 'OUVERTURE',
       SUBVENTION_PLURIANNUELLE: 'FIN',
       CHARGE_A_PAYER: 'OUVERTURE',
       PRODUIT_A_RECEVOIR: 'OUVERTURE',
@@ -104,10 +104,17 @@ describe('F208 · la date de reprise dite type par type', () => {
     },
   };
 
-  it('le moment de la reprise suit la règle du serveur, référentiel et type', () => {
+  it('le moment de la reprise suit la règle du serveur, dans les deux référentiels', () => {
     for (const ref of REFERENTIELS) {
-      for (const t of TYPES) expect([ref, t, momentDeReprise(ref, t)]).toEqual([ref, t, ATTENDU[ref][t]]);
+      for (const t of TYPES) expect([ref, t, momentDeReprise(t)]).toEqual([ref, t, ATTENDU[ref][t]]);
     }
+  });
+
+  it('le 476 d’un dossier SYCEBNL se reprend à l’ouverture, sur le Guide d’application', () => {
+    // Application 10 · le 476 « extourné au début de l'exercice suivant ».
+    const aide = aideDateReprise('SYCEBNL', 'CHARGE_CONSTATEE_AVANCE');
+    expect(aide.texte).toContain("À L'OUVERTURE");
+    expect(aide.source).toContain('Application 10');
   });
 
   it('la charge à payer d’un dossier SYCEBNL se dit à l’ouverture, pas à la fin', () => {
@@ -120,7 +127,7 @@ describe('F208 · la date de reprise dite type par type', () => {
   it('le texte de chaque bulle dit le moment que la règle retient', () => {
     for (const ref of REFERENTIELS) {
       for (const t of TYPES) {
-        const attendu = momentDeReprise(ref, t) === 'OUVERTURE' ? "À L'OUVERTURE" : 'À LA FIN';
+        const attendu = momentDeReprise(t) === 'OUVERTURE' ? "À L'OUVERTURE" : 'À LA FIN';
         expect([ref, t, aideDateReprise(ref, t).texte.includes(attendu)]).toEqual([ref, t, true]);
       }
     }
@@ -144,7 +151,7 @@ describe('F208 · la date de reprise dite type par type', () => {
     const entete = page.slice(page.lastIndexOf('<span>Période</span>', debut), debut);
     expect(entete).toContain('resumeDatesDeReprise(utilisateur?.tenant.referentiel)');
     const resume = /function resumeDatesDeReprise[\s\S]*?\n\}/.exec(page)![0];
-    expect(resume).toContain('momentDeReprise(referentiel, t.valeur)');
+    expect(resume).toContain('momentDeReprise(t.valeur)');
   });
 });
 

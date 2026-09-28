@@ -16,7 +16,7 @@ import { PrismaService } from '../../common/prisma.service';
 
 function harnais(
   exercices: Array<{ id: string; annee: string }>,
-  agregatsParExercice: Record<string, Array<{ compteId: string; debit: number; credit: number }>>,
+  agregatsParExercice: Record<string, Array<{ compteId: string; debit: number; credit: number; soldeGestion?: boolean }>>,
   comptes = [
     { id: 'c1', numero: '471500', intitule: 'Provision fiscale', classe: 4 },
     { id: 'c2', numero: '411001', intitule: 'Clients', classe: 4 },
@@ -24,8 +24,19 @@ function harnais(
 ) {
   const groupBy = jest.fn().mockImplementation(({ where }) => {
     const id = where.ecriture.exerciceId as string;
+    // La doublure HONORE le filtre de l'écriture de solde des comptes de
+    // gestion · sans lui, elle validerait une requête qui la compte.
+    const sansSolde = where.ecriture.estSoldeDesComptesDeGestion === false;
+    const regroupes = new Map<string, { debit: number; credit: number }>();
+    for (const a of agregatsParExercice[id] ?? []) {
+      if (a.soldeGestion && sansSolde) continue;
+      const g = regroupes.get(a.compteId) ?? { debit: 0, credit: 0 };
+      g.debit += a.debit;
+      g.credit += a.credit;
+      regroupes.set(a.compteId, g);
+    }
     return Promise.resolve(
-      (agregatsParExercice[id] ?? []).map((a) => ({
+      [...regroupes.entries()].map(([compteId, a]) => ({ compteId, ...a })).map((a) => ({
         compteId: a.compteId,
         _sum: { debit: a.debit, credit: a.credit },
       })),
@@ -49,6 +60,27 @@ function harnais(
 }
 
 describe('évolution pluriannuelle des soldes', () => {
+  it('rend la charge d’un exercice CLOS pour son total de l’année, pas zéro (régression de F4)', async () => {
+    // L'écriture qui solde les classes 6 à 8 entre validée depuis l'audit
+    // final F4 · lue, elle ramenait à zéro chaque charge d'un exercice clos.
+    const { service } = harnais(
+      [{ id: 'e2025', annee: '2025' }],
+      {
+        e2025: [
+          { compteId: 'c6', debit: 1_000, credit: 0 },
+          { compteId: 'c6', debit: 0, credit: 1_000, soldeGestion: true },
+          { compteId: 'c13', debit: 1_000, credit: 0, soldeGestion: true },
+        ],
+      },
+      [
+        { id: 'c6', numero: '60500000', intitule: 'Autres achats', classe: 6 },
+        { id: 'c13', numero: '13900000', intitule: 'Résultat net · perte', classe: 1 },
+      ],
+    );
+    const r = await service.evolutionSoldes('t');
+    expect(r.lignes.map((l) => [l.numero, l.soldes])).toEqual([['60500000', [1_000]]]);
+  });
+
   it('distingue un solde NUL d’un compte NON MOUVEMENTÉ', () => {
     // Zéro dit « soldé », vide dit « n'existait pas encore ». Les confondre
     // fait lire une extinction là où il n'y a qu'une création · c'est le genre

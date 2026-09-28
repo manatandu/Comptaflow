@@ -3114,8 +3114,13 @@ LA CONTRE-PASSATION EST À L'OUVERTURE, DES DEUX CÔTÉS, sans que le référent
 ait son mot à dire · les deux textes emploient la même phrase dans la fiche de
 leurs comptes 40 et 41 : « À l'ouverture de l'exercice, ces écritures sont
 contre-passées […] ou soldées par le compte fournisseur à la réception de la
-facture ». C'est une extourne d'estimation, pas une reprise de quote-part : la
-règle du 476/477, où le SYCEBNL reprend à la clôture, ne s'y applique pas.
+facture ». C'est une extourne d'estimation, pas une reprise de quote-part. Le
+476 et le 477 se reprennent eux aussi à l'ouverture, dans les deux
+référentiels, seule la subvention pluriannuelle se reprenant à la fin
+(SYCEBNL, Partie 3 ch. 6, section 1). Jusqu'au 2026-09-28, la règle de la
+subvention était servie à tout le 476/477 SYCEBNL · le Guide d'application
+extourne le 476 « au début de l'exercice suivant » (Application 10), comme la
+Partie 3 ch. 4, section 1, ses écritures de fin d'exercice (`dateReprise`).
 
 LE COMPTE DE RATTACHEMENT N'EST PAS LIBRE, et il dépend de la NATURE DU TIERS ·
 408 fournisseurs, 418 clients et adhérents, 4286/4287 personnel, 4386/4387
@@ -3292,7 +3297,16 @@ donc la balance AVANT ce solde (`avantSoldeDesComptesDeGestion`,
 `balance-trois-colonnes.ts`, appelé par `chargerLignes`), et `cloture.e2e.ts`
 compare au montant passé le compte de résultat du clos et la colonne N-1 du
 suivant. Un lecteur du livre-journal qui lit les classes 6 à 8 passe par elle
-ou par la colonne mouvement, jamais par le total.
+ou par la colonne mouvement, jamais par le total, et une requête sur les
+lignes pose `estSoldeDesComptesDeGestion: false`. Dix lecteurs lisaient
+encore le total, et chacun sortait à zéro ou se taisait sur tout exercice
+clos · l'évolution des soldes, le résultat fiscal (qui retombait sur un 13
+portant aussi le bénéfice de N-1 non affecté) et ses propositions de
+retraitement, le dossier de révision, les contrôles du 637, du 613 et des
+stocks, le contrôle des cumuls analytiques (qui listait le solde « à
+ventiler »), le prorata de TVA et la balance de la consolidante. Le test des
+écritures de journal ne compte plus les écritures que la clôture engendre
+parmi les usages d'un compte.
 
 Trois refus, chacun sourcé : la destination doit être un 12 (seul compte de
 report à nouveau des deux plans) ; la contrepartie doit être un poste de BILAN,

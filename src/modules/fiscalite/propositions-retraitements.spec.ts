@@ -21,7 +21,12 @@ import { EcritureService } from '../comptabilite/ecriture.service';
 
 function service(options: {
   comptes?: Array<{ id: string; numero: string; intitule: string; codeRetraitementFiscal: string | null }>;
-  mouvements?: Array<{ compteId: string; debit: number; credit: number }>;
+  /**
+   * `soldeDeGestion` marque une ligne de l'écriture qui solde les comptes de
+   * gestion à la clôture (`estSoldeDesComptesDeGestion`), VALIDÉE depuis
+   * l'audit final F4.
+   */
+  mouvements?: Array<{ compteId: string; debit: number; credit: number; soldeDeGestion?: boolean }>;
   chiffreAffaires?: number;
   /**
    * Charges comptabilisées · elles seules font le SIGNE du résultat, et
@@ -39,9 +44,20 @@ function service(options: {
     exercice: { findFirst: jest.fn().mockResolvedValue({ id: 'ex-1', tenantId: 't-1' }) },
     compte: { findMany: jest.fn().mockResolvedValue(options.comptes ?? []) },
     ligneEcriture: {
-      groupBy: jest.fn().mockResolvedValue(
-        (options.mouvements ?? []).map((m) => ({ compteId: m.compteId, _sum: { debit: m.debit, credit: m.credit } })),
-      ),
+      // LA DOUBLURE HONORE LE FILTRE DE L'ÉCRITURE DE SOLDE · elle somme par
+      // compte ce que la requête retient, comme Postgres, et n'écarte le solde
+      // de clôture que si la requête le demande.
+      groupBy: jest.fn(async ({ where }: { where: { ecriture: { estSoldeDesComptesDeGestion?: boolean } } }) => {
+        const parCompte = new Map<string, { debit: number; credit: number }>();
+        for (const m of options.mouvements ?? []) {
+          if (m.soldeDeGestion && where.ecriture.estSoldeDesComptesDeGestion === false) continue;
+          const a = parCompte.get(m.compteId) ?? { debit: 0, credit: 0 };
+          a.debit += m.debit;
+          a.credit += m.credit;
+          parCompte.set(m.compteId, a);
+        }
+        return [...parCompte].map(([compteId, s]) => ({ compteId, _sum: s }));
+      }),
     },
     retraitementFiscal: {
       findMany: jest.fn().mockResolvedValue(
@@ -152,6 +168,20 @@ describe('propositions de retraitement', () => {
     });
     const { propositions } = await svc.propositionsRetraitements('t-1', 'ex-1');
     expect(propositions).toEqual([]);
+  });
+
+  it('un exercice CLOS propose encore sa réintégration · le solde de clôture n’annule pas le mouvement (régression de F4)', async () => {
+    // L'amende de 500 000 a été soldée sur le 13 par l'écriture de clôture,
+    // validée. Lue avec elle, la charge valait zéro et rien n'était proposé.
+    const svc = service({
+      comptes: [compte('c-1', '64710000', 'AMENDES_PENALITES')],
+      mouvements: [
+        { compteId: 'c-1', debit: 500_000, credit: 0 },
+        { compteId: 'c-1', debit: 0, credit: 500_000, soldeDeGestion: true },
+      ],
+    });
+    const { propositions } = await svc.propositionsRetraitements('t-1', 'ex-1');
+    expect(propositions.map((p) => p.montant)).toEqual([500_000]);
   });
 
   it('la lecture ne prend QUE le livre-journal', async () => {

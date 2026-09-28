@@ -23,10 +23,13 @@ import { PrismaService } from '../../common/prisma.service';
  * cascade des soldes intermédiaires que l'art. 31 impose de faire apparaître.
  */
 
-const ligne = (numero: string, intitule: string, debit: number, credit = 0) => ({
+// `soldeDeGestion` marque une ligne de l'écriture qui solde les classes 6 à 8
+// à la clôture, VALIDÉE depuis l'audit final F4.
+const ligne = (numero: string, intitule: string, debit: number, credit = 0, soldeDeGestion = false) => ({
   debit,
   credit,
   compte: { numero, intitule },
+  soldeDeGestion,
 });
 
 function service(lignes637: ReturnType<typeof ligne>[], referentiel: Referentiel = Referentiel.SYCEBNL) {
@@ -43,7 +46,14 @@ function service(lignes637: ReturnType<typeof ligne>[], referentiel: Referentiel
     compte: { findMany: jest.fn().mockResolvedValue([]) },
     // Le contrôle 14 est le seul à interroger ligneEcriture avec un préfixe de
     // compte · les autres passent par ecriture/compte, servis à vide ci-dessus.
-    ligneEcriture: { findMany: jest.fn().mockResolvedValue(lignes637), groupBy: jest.fn().mockResolvedValue([]) },
+    // LA DOUBLURE HONORE LE FILTRE DU SOLDE DE CLÔTURE · elle n'écarte ces
+    // lignes que si la requête le demande, comme Postgres.
+    ligneEcriture: {
+      findMany: jest.fn(async ({ where }: { where: { ecriture?: { estSoldeDesComptesDeGestion?: boolean } } }) =>
+        lignes637.filter((l) => !(l.soldeDeGestion && where.ecriture?.estSoldeDesComptesDeGestion === false)),
+      ),
+      groupBy: jest.fn().mockResolvedValue([]),
+    },
     exoneration: { findMany: jest.fn().mockResolvedValue([]) },
     // Le contrôle 21 lit le manuel des procédures (AUDCIF art. 16 al. 1) ·
     // sans ce faux, il croirait la table absente plutôt que le manuel.
@@ -66,6 +76,17 @@ const signale = async (lignes: ReturnType<typeof ligne>[], referentiel: Referent
 };
 
 describe('personnel extérieur resté au compte 637', () => {
+  it('signale encore un exercice CLOS · le solde de clôture ne vaut pas virement (régression de F4)', async () => {
+    // Le 637 n'a jamais été viré au 667 · c'est l'écriture qui solde les
+    // comptes de gestion sur le 13, validée, qui l'a remis à zéro. Lue avec
+    // elle, le contrôle se taisait sur tout exercice clos.
+    const a = await signale([
+      ligne('63710000', 'Personnel intérimaire', 4_500_000),
+      ligne('63710000', 'Personnel intérimaire', 0, 4_500_000, true),
+    ]);
+    expect(a?.occurrences.map((o) => o.montant)).toEqual([4_500_000]);
+  });
+
   it('signale un solde débiteur non viré', async () => {
     const a = await signale([ligne('63710000', 'Personnel intérimaire', 4_500_000)]);
     expect(a).toBeDefined();

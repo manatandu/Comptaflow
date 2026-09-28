@@ -62,17 +62,25 @@ const ORDINAIRE = {
 function service(ecritures: Faux[]) {
   // Le décompte par compte est un AGRÉGAT (audit final F185) · la doublure le
   // calcule sur les lignes de la même liste, le numéro servant d'identifiant.
-  const lignes = ecritures.flatMap((e) => (e.lignes as Array<{ compte: { numero: string } }>) ?? []);
-  const numeros = [...new Set(lignes.map((l) => l.compte.numero))];
+  const lignesDe = (liste: Faux[]) => liste.flatMap((e) => (e.lignes as Array<{ compte: { numero: string } }>) ?? []);
+  const numeros = [...new Set(lignesDe(ecritures).map((l) => l.compte.numero))];
   const prisma = {
     exercice: { findFirst: jest.fn().mockResolvedValue(EXERCICE) },
     ecriture: { findMany: jest.fn().mockResolvedValue(ecritures) },
     user: { findMany: jest.fn().mockResolvedValue([COMPTABLE, ADMIN]) },
     compte: { findMany: jest.fn().mockResolvedValue(numeros.map((n) => ({ id: n, numero: n }))) },
     ligneEcriture: {
-      groupBy: jest.fn().mockResolvedValue(
-        numeros.map((n) => ({ compteId: n, _count: { _all: lignes.filter((l) => l.compte.numero === n).length } })),
-      ),
+      // LA DOUBLURE HONORE LE FILTRE DES ÉCRITURES DE CLÔTURE · elle ne les
+      // écarte du décompte que si la requête le demande.
+      groupBy: jest.fn(async ({ where }: { where: { ecriture: { estGenereeParCloture?: boolean } } }) => {
+        const retenues = ecritures.filter(
+          (e) => !(e.estGenereeParCloture === true && where.ecriture.estGenereeParCloture === false),
+        );
+        const lignes = lignesDe(retenues);
+        return numeros
+          .map((n) => ({ compteId: n, _count: { _all: lignes.filter((l) => l.compte.numero === n).length } }))
+          .filter((g) => g._count._all > 0);
+      }),
     },
   } as Faux;
   return new TestEcrituresJournalService(prisma as unknown as PrismaService);
@@ -146,6 +154,27 @@ describe('la sélection ISA 240 · § 33 a)', () => {
     const e = r.selection.find((s) => s.id === 'e9')!;
     expect(e.criteres).toContain('COMPTE_RARE');
     expect(e.comptesRares).toEqual(['27500000']);
+  });
+
+  it('un compte de charge d’un exercice CLOS reste rare · l’écriture de clôture n’est pas un usage', async () => {
+    // Deux usages du 65800000 dans l'année, puis l'écriture générée qui le
+    // solde sur le 13 à la clôture. Comptée, elle portait le compte à trois
+    // mouvements, au-delà du seuil, et le critère se taisait sur tout
+    // exercice clos.
+    const usage = (id: string) => ({
+      ...ORDINAIRE, id, lignes: [ligne('65800000', 3_400_000), ligne('40100000', 0, 3_400_000)],
+    });
+    const cloture = {
+      ...ORDINAIRE, id: 'cl', estGenereeParCloture: true,
+      lignes: [ligne('65800000', 0, 6_800_000), ligne('13100000', 6_800_000)],
+    };
+    const r = await service([
+      ...Array.from({ length: 5 }, (_, i) => ({ ...ORDINAIRE, id: `r${i}` })),
+      usage('u1'),
+      usage('u2'),
+      cloture,
+    ]).selection('t1', 'ex');
+    expect(r.selection.find((s) => s.id === 'u1')?.comptesRares).toEqual(['65800000']);
   });
 
   it('compte les écritures retenues par critère · une sélection se justifie', async () => {

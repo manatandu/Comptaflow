@@ -17,11 +17,14 @@ import { PrismaService } from '../../common/prisma.service';
  * la raison d'être du dernier test de ce fichier.
  */
 
-const ligne = (numero: string, intitule: string, debit: number, credit = 0, exerciceId = 'ex') => ({
+// `soldeDeGestion` marque une ligne de l'écriture qui solde les classes 6 à 8
+// à la clôture, VALIDÉE depuis l'audit final F4.
+const ligne = (numero: string, intitule: string, debit: number, credit = 0, exerciceId = 'ex', soldeDeGestion = false) => ({
   debit,
   credit,
   compte: { numero, intitule },
   ecriture: { exerciceId },
+  soldeDeGestion,
 });
 
 type Ligne = ReturnType<typeof ligne>;
@@ -40,7 +43,14 @@ function service(lignes: Ligne[], referentiel: Referentiel, avecExercicePreceden
     tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 't', referentiel }) },
     ecriture: { findMany: jest.fn().mockResolvedValue([]) },
     compte: { findMany: jest.fn().mockResolvedValue([]) },
-    ligneEcriture: { findMany: jest.fn().mockResolvedValue(lignes), groupBy: jest.fn().mockResolvedValue([]) },
+    // LA DOUBLURE HONORE LE FILTRE DU SOLDE DE CLÔTURE · elle n'écarte ces
+    // lignes que si la requête le demande, comme Postgres.
+    ligneEcriture: {
+      findMany: jest.fn(async (args: { where?: { ecriture?: { estSoldeDesComptesDeGestion?: boolean } } }) =>
+        lignes.filter((l) => !(l.soldeDeGestion && args?.where?.ecriture?.estSoldeDesComptesDeGestion === false)),
+      ),
+      groupBy: jest.fn().mockResolvedValue([]),
+    },
     exoneration: { findMany: jest.fn().mockResolvedValue([]) },
     // Le contrôle 21 lit le manuel des procédures (AUDCIF art. 16 al. 1) ·
     // sans ce faux, il croirait la table absente plutôt que le manuel.
@@ -80,6 +90,16 @@ describe('17 · transport pour le compte de tiers sans transfert de charges', ()
     expect(a!.gravite).toBe('AVERTISSEMENT');
     expect(a!.occurrences[0].montant).toBe(2_400_000);
     expect(a!.consequence).toContain('minoré');
+  });
+
+  it('signale encore un exercice CLOS · le solde de clôture n’est pas un transfert (régression de F4)', async () => {
+    // L'écriture validée qui solde les comptes de gestion remet le 613 à
+    // zéro · lue avec elle, le contrôle se taisait sur tout exercice clos.
+    const a = await trouver('TRANSPORT_TIERS_SANS_TRANSFERT', [
+      ligne('61300000', 'Transports pour le compte de tiers', 2_400_000),
+      ligne('61300000', 'Transports pour le compte de tiers', 0, 2_400_000, 'ex', true),
+    ]);
+    expect(a).toBeDefined();
   });
 
   it('se tait dès qu’un transfert de charges a été passé', async () => {

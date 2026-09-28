@@ -29,11 +29,14 @@ import { PrismaService } from '../../common/prisma.service';
  * référentiel accuserait une association d'avoir mal comptabilisé ses dons.
  */
 
-const ligne = (numero: string, intitule: string, debit: number, credit = 0, exerciceId = 'ex') => ({
+// `soldeDeGestion` marque une ligne de l'écriture qui solde les classes 6 à 8
+// à la clôture, VALIDÉE depuis l'audit final F4.
+const ligne = (numero: string, intitule: string, debit: number, credit = 0, exerciceId = 'ex', soldeDeGestion = false) => ({
   debit,
   credit,
   compte: { numero, intitule },
   ecriture: { exerciceId },
+  soldeDeGestion,
 });
 
 type Ligne = ReturnType<typeof ligne>;
@@ -50,7 +53,14 @@ function service(lignes: Ligne[], referentiel: Referentiel) {
     tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 't', referentiel }) },
     ecriture: { findMany: jest.fn().mockResolvedValue([]) },
     compte: { findMany: jest.fn().mockResolvedValue([]) },
-    ligneEcriture: { findMany: jest.fn().mockResolvedValue(lignes), groupBy: jest.fn().mockResolvedValue([]) },
+    // LA DOUBLURE HONORE LE FILTRE DU SOLDE DE CLÔTURE · elle n'écarte ces
+    // lignes que si la requête le demande, comme Postgres.
+    ligneEcriture: {
+      findMany: jest.fn(async (args: { where?: { ecriture?: { estSoldeDesComptesDeGestion?: boolean } } }) =>
+        lignes.filter((l) => !(l.soldeDeGestion && args?.where?.ecriture?.estSoldeDesComptesDeGestion === false)),
+      ),
+      groupBy: jest.fn().mockResolvedValue([]),
+    },
     exoneration: { findMany: jest.fn().mockResolvedValue([]) },
     manuelProcedures: { findFirst: jest.fn().mockResolvedValue(null) },
     conventionFinancement: { findMany: jest.fn().mockResolvedValue([]) },
@@ -223,6 +233,17 @@ describe('production immobilisée sans immobilisation', () => {
     expect(a).toBeDefined();
     expect(a!.occurrences[0].montant).toBe(18_000_000);
     expect(a!.consequence).toContain('PAR LE DÉBIT');
+  });
+
+  it('signale encore un exercice CLOS · le solde de clôture ne vaut pas immobilisation (régression de F4)', async () => {
+    // L'écriture validée qui solde les comptes de gestion remet le 72 à
+    // zéro · lue avec elle, le contrôle se taisait sur tout exercice clos.
+    const a = await trouver('PRODUCTION_IMMOBILISEE_SANS_IMMOBILISATION', [
+      ...stockEnRouteBoucle('38'),
+      ligne('72200000', 'Immobilisations corporelles', 0, 18_000_000),
+      ligne('72200000', 'Immobilisations corporelles', 18_000_000, 0, 'ex', true),
+    ]);
+    expect(a?.occurrences[0].montant).toBe(18_000_000);
   });
 
   it('se tait dès qu’une immobilisation est entrée · 21, 23 ou 24', async () => {

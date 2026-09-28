@@ -10,6 +10,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
+import { avantSoldeDesComptesDeGestion } from '../comptabilite/balance-trois-colonnes';
 import { CATALOGUE_RETRAITEMENTS, CODE_LIBRE, RETRAITEMENT_PAR_CODE } from './catalogue-retraitements';
 import {
   DERNIERE_VERIFICATION_FISCALE,
@@ -339,7 +340,13 @@ export class FiscaliteService {
     // de ses enfants double des montants EN SILENCE · une assurance d'une ligne
     // contre la catégorie de bug que ce projet ne peut pas se permettre.
     const details = balance.lignes.filter((l) => l.typeCompte !== TypeCompteDetailTotal.TOTAL);
-    const gestion = details.filter((l) => /^[678]/.test(l.numero));
+    // LES CLASSES 6 À 8 AVANT LEUR SOLDE DE CLÔTURE (régression de l'audit
+    // final F4). L'écriture qui les solde sur le 13 entre VALIDÉE, donc au
+    // livre-journal · lues au solde, elles valaient zéro sur tout exercice
+    // clos, et le résultat retombait sur le 13, qui porte AUSSI le résultat de
+    // l'exercice précédent tant que l'affectation n'est pas passée · l'impôt
+    // se calculait alors sur deux bénéfices.
+    const gestion = avantSoldeDesComptesDeGestion(details).filter((l) => /^[678]/.test(l.numero));
     const resultatClasses678 = gestion.reduce((s, l) => s - l.solde, 0);
     // 131 À 139, JAMAIS LE 130 · la règle de tout le logiciel
     // (`resultat-de-l-exercice.ts`), pour que l'impôt parte du résultat que le
@@ -437,7 +444,10 @@ export class FiscaliteService {
           // LE LIVRE-JOURNAL SEUL · une écriture restée en brouillard n'est
           // pas entrée en comptabilité, et un impôt ne se calcule pas sur du
           // provisoire.
-          ecriture: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE },
+          // ET SANS LE SOLDE DE CLÔTURE · l'écriture qui solde les comptes de
+          // gestion est validée (audit final F4), et le mouvement d'une charge
+          // d'un exercice clos serait nul · aucune réintégration proposée.
+          ecriture: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE, estSoldeDesComptesDeGestion: false },
         },
         _sum: { debit: true, credit: true },
       }),

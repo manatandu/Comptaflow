@@ -916,11 +916,23 @@ export class TauxTvaService {
       exportation d'une recette exonérée · il ne devine donc pas, il compte ce
       qui n'est pas qualifié et le NOMME, avec son article.
     */
+    // LES RECETTES DE LA PÉRIODE, SANS L'ÉCRITURE QUI SOLDE LES COMPTES DE
+    // GESTION (régression de l'audit final F4) · validée et datée de la fin
+    // de l'exercice, elle crédite les classes 7 à solde débiteur (le 709) et
+    // comptait ce crédit comme une recette, au dénominateur comme parmi les
+    // recettes que rien ne qualifie. Un seul filtre pour les trois agrégats,
+    // qui doivent parler des mêmes écritures.
+    const recettesDeLaPeriode = {
+      tenantId,
+      statut: StatutEcriture.VALIDEE,
+      date: { gte: dateDebut, lte: dateFin },
+      estSoldeDesComptesDeGestion: false,
+    };
     const [recettesAgg, exclusAgg, nonQualifieesAgg] = await Promise.all([
       this.prisma.ligneEcriture.aggregate({
         where: {
           compte: { tenantId, classe: ClasseCompte.CLASSE_7 },
-          ecriture: { tenantId, statut: StatutEcriture.VALIDEE, date: { gte: dateDebut, lte: dateFin } },
+          ecriture: recettesDeLaPeriode,
         },
         _sum: { credit: true },
       }),
@@ -929,7 +941,7 @@ export class TauxTvaService {
         : this.prisma.ligneEcriture.aggregate({
             where: {
               compte: { tenantId, classe: ClasseCompte.CLASSE_7, OR: filtreExclusions },
-              ecriture: { tenantId, statut: StatutEcriture.VALIDEE, date: { gte: dateDebut, lte: dateFin } },
+              ecriture: recettesDeLaPeriode,
             },
             _sum: { credit: true },
           }),
@@ -941,9 +953,7 @@ export class TauxTvaService {
             ...(filtreExclusions.length > 0 ? { NOT: filtreExclusions } : {}),
           },
           ecriture: {
-            tenantId,
-            statut: StatutEcriture.VALIDEE,
-            date: { gte: dateDebut, lte: dateFin },
+            ...recettesDeLaPeriode,
             lignes: { none: { tauxTvaId: { not: null }, compte: { numero: { startsWith: RACINE_COLLECTEE } } } },
           },
         },

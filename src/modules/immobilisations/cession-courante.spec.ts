@@ -80,40 +80,24 @@ describe('sortie d’immobilisation · cession courante', () => {
 });
 
 /**
- * DATE DE REPRISE D'UNE RÉGULARISATION · les deux référentiels ne disent pas
- * la même chose, et le service imposait celle du SYCEBNL aux deux.
+ * DATE DE REPRISE D'UNE RÉGULARISATION · le service imposait jadis la date du
+ * SYCEBNL aux deux référentiels, puis la règle de la subvention pluriannuelle
+ * à tout le 476/477 SYCEBNL. Seule la subvention se reprend à la fin.
  */
-describe('régularisation · la date de reprise suit le référentiel', () => {
+describe('régularisation · la date de reprise suit le type', () => {
   const cible = { dateDebut: new Date('2027-01-01'), dateFin: new Date('2027-12-31') };
 
-  it('reprend à la CLÔTURE en SYCEBNL, comme la Partie 3 ch. 6 l’impose', () => {
-    for (const type of [
-      TypeRegularisation.CHARGE_CONSTATEE_AVANCE,
-      TypeRegularisation.PRODUIT_CONSTATE_AVANCE,
-      TypeRegularisation.SUBVENTION_PLURIANNUELLE,
-    ]) {
-      expect(dateReprise(Referentiel.SYCEBNL, type, cible)).toEqual(cible.dateFin);
-    }
+  it('reprend le 476 et le 477 à l’OUVERTURE · le SYSCOHADA le recommande, le Guide SYCEBNL l’écrit', () => {
+    // SYSCOHADA § 5.5 et § 6.5 · « vivement recommandée ». SYCEBNL · Guide
+    // d'application, Application 10, le 476 « extourné au début de
+    // l'exercice suivant », et Partie 3 ch. 4, section 1.
+    expect(dateReprise(TypeRegularisation.CHARGE_CONSTATEE_AVANCE, cible)).toEqual(cible.dateDebut);
+    expect(dateReprise(TypeRegularisation.PRODUIT_CONSTATE_AVANCE, cible)).toEqual(cible.dateDebut);
   });
 
-  it('reprend à l’OUVERTURE en SYSCOHADA, comme le référentiel le recommande vivement', () => {
-    // § 5.5 pour les charges, § 6.5 pour les produits : les deux dates sont
-    // permises, la contre-passation à l'ouverture est « vivement recommandée ».
-    // Reprise seulement à la clôture, la part différée reste au bilan douze
-    // mois de plus et fausse les situations intermédiaires.
-    expect(dateReprise(Referentiel.SYSCOHADA, TypeRegularisation.CHARGE_CONSTATEE_AVANCE, cible)).toEqual(
-      cible.dateDebut,
-    );
-    expect(dateReprise(Referentiel.SYSCOHADA, TypeRegularisation.PRODUIT_CONSTATE_AVANCE, cible)).toEqual(
-      cible.dateDebut,
-    );
-  });
-
-  it('laisse la subvention pluriannuelle à la clôture des deux côtés', () => {
-    // Sa mécanique vient du texte SYCEBNL qui la traite nommément, et le § 5.5
-    // du SYSCOHADA tolère expressément « à la fin de n+1 ».
-    expect(dateReprise(Referentiel.SYSCOHADA, TypeRegularisation.SUBVENTION_PLURIANNUELLE, cible)).toEqual(
-      cible.dateFin,
-    );
+  it('laisse la subvention pluriannuelle à la clôture', () => {
+    // Sa mécanique vient du texte SYCEBNL qui la traite nommément (Partie 3
+    // ch. 6, section 1), et le § 5.5 du SYSCOHADA tolère « à la fin de n+1 ».
+    expect(dateReprise(TypeRegularisation.SUBVENTION_PLURIANNUELLE, cible)).toEqual(cible.dateFin);
   });
 });

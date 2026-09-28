@@ -56,27 +56,27 @@ export function exercicesDeReprise<E extends Pick<Exercice, 'id' | 'dateDebut' |
 }
 
 /**
- * LE MOMENT DE LA REPRISE DÉPEND DU TYPE AUTANT QUE DU RÉFÉRENTIEL (audit final
- * F208). La bulle de la colonne « Reprise » ne lisait que le référentiel, et
- * annonçait « à la fin de l'exercice concerné » à toute ligne d'un dossier
- * SYCEBNL, charge à payer comprise, que le serveur contre-passe pourtant à
- * l'ouverture. Même règle que `dateReprise` du serveur, que l'écran ne fait
- * que dire · il ne calcule aucune date.
+ * LE MOMENT DE LA REPRISE DÉPEND DU TYPE (audit final F208). La bulle de la
+ * colonne « Reprise » ne lisait que le référentiel, et annonçait « à la fin de
+ * l'exercice concerné » à toute ligne d'un dossier SYCEBNL, charge à payer
+ * comprise, que le serveur contre-passe pourtant à l'ouverture. Même règle que
+ * `dateReprise` du serveur, que l'écran ne fait que dire · il ne calcule
+ * aucune date.
  *
- * Le rattachement (charge à payer, produit à recevoir) se contre-passe à
- * l'OUVERTURE des deux côtés · les fiches des comptes 40 et 41 des deux plans
- * écrivent la même phrase (« À l'ouverture de l'exercice ces écritures sont
- * contre-passées »). Les 476 et 477 vont à l'ouverture au SYSCOHADA, qui la
- * recommande (Guide, Partie 1 ch. 6, § 5.5 et § 6.5), et à la fin au SYCEBNL.
- * La subvention pluriannuelle va à la fin des deux côtés (SYCEBNL, Partie 3
- * ch. 6, section 1 · « à la fin de chaque exercice ultérieur concerné »).
+ * Tout se reprend à l'OUVERTURE de l'exercice concerné, dans les deux
+ * référentiels, sauf la subvention pluriannuelle, reprise à la FIN (SYCEBNL,
+ * Partie 3 ch. 6, section 1 · « à la fin de chaque exercice ultérieur
+ * concerné »). Le rattachement suit les fiches des comptes 40 et 41 des deux
+ * plans ; les 476 et 477 suivent au SYSCOHADA la recommandation du Guide
+ * (Partie 1 ch. 6, § 5.5 et § 6.5), et au SYCEBNL son Guide d'application,
+ * qui extourne le 476 au début de l'exercice suivant (Application 10).
+ * Jusqu'au 2026-09-28, la règle de la subvention était servie à tout le
+ * 476/477 SYCEBNL.
  */
 export type MomentReprise = 'OUVERTURE' | 'FIN';
 
-export function momentDeReprise(referentiel: Referentiel | undefined, type: TypeRegularisation): MomentReprise {
-  if (estRattachement(type)) return 'OUVERTURE';
-  if (referentiel === 'SYSCOHADA' && type !== 'SUBVENTION_PLURIANNUELLE') return 'OUVERTURE';
-  return 'FIN';
+export function momentDeReprise(type: TypeRegularisation): MomentReprise {
+  return type === 'SUBVENTION_PLURIANNUELLE' ? 'FIN' : 'OUVERTURE';
 }
 
 /**
@@ -130,7 +130,10 @@ export function aideDateReprise(
   }
   return {
     texte:
-      "La quote-part différée se reprend À LA FIN de l'exercice concerné, comme la Partie 3 ch. 6 le fait pour la subvention pluriannuelle, et non par contre-passation à son ouverture.",
-    source: "SYCEBNL, Partie 3 ch. 6 · la fiche du compte 47 ne fixe pas la date de reprise",
+      "La quote-part différée se reprend À L'OUVERTURE de l'exercice concerné, par l'extourne de l'écriture de clôture.",
+    source:
+      type === 'CHARGE_CONSTATEE_AVANCE'
+        ? "SYCEBNL, Guide d'application, Application 10 · Partie 3 ch. 4, section 1"
+        : "SYCEBNL, Partie 3 ch. 4, section 1 · fiche du compte 47, par symétrie avec le 476",
   };
 }

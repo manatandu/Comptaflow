@@ -500,15 +500,19 @@ export class CumulService {
     const lignesImportees = await this.prisma.ligneBalanceConsolidation.findMany({
       where: { tenantId, entiteId: { in: retenus.filter((r) => !r.estConsolidante).map((r) => r.id) } },
     });
-    // `false` · le livre-journal seul, comme les états individuels
-    // (`chargerLignes`). Un état consolidé bâti sur le brouillard de la
-    // consolidante n'engagerait personne, et le tableau des flux, qui relit ses
-    // comptes propres par `lignesConsolidante`, ne bouclerait plus avec lui.
-    const balanceDossier = await this.ecritures.balance(tenantId, exerciceId, false);
+    // PAR `chargerLignes`, la lecture de ses états individuels · le
+    // livre-journal seul, un état consolidé bâti sur le brouillard de la
+    // consolidante n'engageant personne, et le tableau des flux, qui relit ses
+    // comptes propres par `lignesConsolidante`, ne bouclerait plus avec lui. Et
+    // AVANT le solde de ses comptes de gestion (régression de l'audit final
+    // F4) · validé, il vidait les classes 6 à 8 d'une consolidante close au
+    // profit d'un résultat « reçu au 13 », à retraiter, et refusait le tableau
+    // des flux.
+    const balanceDossier = await chargerLignes(this.ecritures, tenantId, exerciceId);
 
     const entites: EntiteACumuler[] = retenus.map((r) => {
       const balance = r.estConsolidante
-        ? balanceDossier.lignes.map((l) => ({
+        ? balanceDossier.map((l) => ({
             numero: l.numero,
             intitule: l.intitule,
             solde: Number(l.solde),

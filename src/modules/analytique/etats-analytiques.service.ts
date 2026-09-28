@@ -304,8 +304,18 @@ export class EtatsAnalytiquesService {
       // filtres écrits séparément rendraient des cumuls et une liste qui ne
       // parlent pas des mêmes lignes. La borne du dossier passe par
       // l'écriture, ligne et ventilation n'ayant pas de tenantId.
+      //
+      // SANS L'ÉCRITURE QUI SOLDE LES COMPTES DE GESTION (régression de
+      // l'audit final F4) · elle vire les classes 6 et 7 au 13 à la clôture,
+      // n'est l'objet d'aucune ventilation, et doublait les mouvements
+      // généraux d'un exercice clos en ressortant ligne à ligne « à ventiler ».
       const perimetre: Prisma.LigneEcritureWhereInput = {
-        ecriture: { tenantId, exerciceId: params.exerciceId, date: { gte: du, lte: au } },
+        ecriture: {
+          tenantId,
+          exerciceId: params.exerciceId,
+          date: { gte: du, lte: au },
+          estSoldeDesComptesDeGestion: false,
+        },
         compte: { classe: { in: classes } },
       };
       // Sans répartition sur CE plan, et non nulle · la même condition que la

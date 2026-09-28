@@ -25,6 +25,8 @@ type Ecriture = {
   numeroPiece: number | null;
   libelle: string;
   journal: { code: string };
+  /** L'écriture qui solde les classes 6 à 8 à la clôture, VALIDÉE depuis l'audit final F4. */
+  estSoldeDesComptesDeGestion?: boolean;
 };
 type Ligne = { id: string; ecritureId: string; compteId: string; libelle: string | null; debit: number; credit: number };
 type Ventilation = { id: string; ligneEcritureId: string; planId: string; debit: number; credit: number };
@@ -60,6 +62,7 @@ function doublure(d: Donnees) {
   const ecritureRepond = (e: Ecriture, w: Record<string, any>): boolean =>
     Object.entries(w).every(([cle, v]) => {
       if (cle === 'tenantId' || cle === 'exerciceId') return e[cle] === v;
+      if (cle === 'estSoldeDesComptesDeGestion') return (e.estSoldeDesComptesDeGestion ?? false) === v;
       if (cle === 'date')
         return Object.entries(v as Record<string, Date>).every(([op, borne]) => {
           if (op === 'gte') return e.date.getTime() >= borne.getTime();
@@ -495,5 +498,23 @@ describe('Contrôle des cumuls · les cumuls à la base, la liste bornée (F186)
       tronque: false,
       lignesSansRepartition: [],
     });
+  });
+});
+
+describe('Contrôle des cumuls · un exercice clos (régression de F4)', () => {
+  it('ne compte ni ne liste l’écriture qui solde les comptes de gestion', async () => {
+    // Le 31 décembre, l'écriture validée de clôture solde le 604 sur le 13 ·
+    // lue avec le reste, elle doublait les mouvements généraux et sa ligne
+    // ressortait « à ventiler » sur tout exercice clos.
+    const donnees = dossierOrdinaire();
+    donnees.ecritures.push({
+      id: 'ECL', tenantId: 't1', exerciceId: 'e1', date: new Date('2026-12-31'), numeroPiece: 99,
+      libelle: 'Solde des comptes de gestion', journal: { code: 'CL' }, estSoldeDesComptesDeGestion: true,
+    });
+    donnees.lignes.push({ id: 'LCL', ecritureId: 'ECL', compteId: 'c6', libelle: null, debit: 0, credit: 1_000_000 });
+    const { service } = doublure(donnees);
+    const [proj] = await service.controleCumuls('t1', { exerciceId: 'e1', planId: 'p1' });
+    expect(proj.lignesSansRepartition.map((l) => l.ligneId)).not.toContain('LCL');
+    expect(proj.mouvementsGenerauxCredit).toBeLessThan(1_000_000);
   });
 });

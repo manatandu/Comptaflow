@@ -197,6 +197,45 @@ describe('CumulService · le cumul de bout en bout', () => {
     expect(r.reserves.join(' ')).toContain('Éliminations de nature fiscale (art. 86, 3°');
   });
 
+  it('la consolidante d’un exercice CLOS est lue avant le solde de ses comptes de gestion (régression de F4)', async () => {
+    // La clôture, validée, a soldé le 70 et le 60 de la mère sur le 131 · lue
+    // avec elle, la mère n'avait plus de compte de résultat, et son résultat
+    // apparaissait « reçu au 13 », à retraiter.
+    const { service, lien, ecritures } = await groupe();
+    const ligne = (numero: string, mouvement: number, cloture: number) => ({
+      numero,
+      intitule: numero,
+      solde: mouvement + cloture,
+      totalDebit: Math.max(mouvement, 0) + Math.max(cloture, 0),
+      totalCredit: Math.max(-mouvement, 0) + Math.max(-cloture, 0),
+      clotureDebit: Math.max(cloture, 0),
+      clotureCredit: Math.max(-cloture, 0),
+    });
+    ecritures.balance.mockResolvedValue({
+      lignes: [
+        ligne('26100000', 800, 0),
+        ligne('24100000', 1200, 0),
+        ligne('10100000', -1000, 0),
+        ligne('11800000', -500, 0),
+        ligne('70100000', -700, 700),
+        ligne('60100000', 200, -200),
+        ligne('13100000', 0, -500),
+      ],
+    });
+    await service.declarerAcquisition(T, lien.id, {
+      coutAcquisition: 800,
+      compteTitres: '26100000',
+      dateEntree: '2024-01-01',
+      capitauxPropresEntree: 900,
+      modeDureeEcart: 'NON_DETERMINABLE',
+    });
+    const r = await service.cumul(T, EX);
+    expect(r.capitauxPropres).toMatchObject({ reservesGroupe: 1044, resultatGroupe: 812 });
+    expect(r.lignes.map((l) => l.cle)).not.toContain('RESULTAT_DEJA_CONSTATE');
+    expect(r.lignes.find((l) => l.cle === '70100000')?.solde).toBe(-1700);
+    expect(r.obstaclesFlux.filter((o) => o.includes('APRÈS clôture'))).toEqual([]);
+  });
+
   it('la consolidante est lue au livre-journal seul, comme ses états individuels', async () => {
     const { service, lien, ecritures } = await groupe();
     await service.declarerAcquisition(T, lien.id, {
@@ -207,7 +246,9 @@ describe('CumulService · le cumul de bout en bout', () => {
       modeDureeEcart: 'NON_DETERMINABLE',
     });
     await service.cumul(T, EX);
-    expect(ecritures.balance).toHaveBeenCalledWith(T, EX, false);
+    // Le troisième argument dit le livre-journal seul · le quatrième, la date
+    // d'arrêté, n'est pas posé par le cumul.
+    expect(ecritures.balance.mock.calls[0].slice(0, 3)).toEqual([T, EX, false]);
   });
 
   it('une participation retenue sans coût d’acquisition arrête le cumul et la nomme', async () => {

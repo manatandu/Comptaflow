@@ -25,7 +25,11 @@ function service(options: {
   balances: Record<string, Ligne[]>;
   /** Écritures ordinaires restées au BROUILLARD, par exercice. */
   brouillards?: Record<string, Ligne[]>;
-  /** Écriture de CLÔTURE (au brouillard, `estGenereeParCloture`), par exercice. */
+  /**
+   * Écriture de CLÔTURE qui solde les classes 6 à 8 sur le 13
+   * (`estSoldeDesComptesDeGestion`), par exercice. VALIDÉE, comme en
+   * production depuis l'audit final F4 · elle compte donc au livre-journal.
+   */
   clotures?: Record<string, Ligne[]>;
   exercices?: { id: string; dateDebut: Date; dateFin: Date }[];
   retraitements?: Record<string, { sens: SensRetraitementFiscal; montant: number }[]>;
@@ -90,26 +94,37 @@ function service(options: {
           : null,
     },
   };
-  // LA DOUBLURE HONORE LE BROUILLARD ET SÉPARE LES REPORTS DES MOUVEMENTS,
-  // comme `EcritureService.balance` · une doublure qui rendait la même balance
-  // quel que soit le troisième argument validait un service qui lisait le
-  // provisoire (audit du 2026-09-27, F6). L'écriture de clôture, comme en
-  // production, compte dans les reports et jamais dans les mouvements.
+  // LA DOUBLURE HONORE LE BROUILLARD ET SÉPARE LES COLONNES, comme
+  // `EcritureService.balance` · une doublure qui rendait la même balance quel
+  // que soit le troisième argument validait un service qui lisait le
+  // provisoire (audit du 2026-09-27, F6). L'écriture qui solde les comptes de
+  // gestion entre VALIDÉE (audit final F4) · elle est lue au livre-journal,
+  // rangée dans les colonnes de CLÔTURE et comptée dans le solde, jamais dans
+  // les mouvements. La ranger au brouillard, comme avant F4, laissait passer
+  // un service qui lisait le résultat d'un exercice clos sur un solde nul.
+  type LigneBalance = Ligne & {
+    totalDebit: number; totalCredit: number;
+    mouvementDebit: number; mouvementCredit: number;
+    clotureDebit: number; clotureCredit: number;
+  };
   const ecritures = {
     balance: async (_t: string, exerciceId: string, inclureBrouillard = true) => {
-      const parNumero = new Map<string, Ligne & { reportDebit: number; reportCredit: number; mouvementDebit: number; mouvementCredit: number }>();
+      const parNumero = new Map<string, LigneBalance>();
       const verser = (lignes: Ligne[] | undefined, estCloture: boolean) => {
         for (const l of lignes ?? []) {
           const a = parNumero.get(l.numero) ?? {
             numero: l.numero, solde: 0, typeCompte: l.typeCompte ?? D,
-            reportDebit: 0, reportCredit: 0, mouvementDebit: 0, mouvementCredit: 0,
+            totalDebit: 0, totalCredit: 0,
+            mouvementDebit: 0, mouvementCredit: 0, clotureDebit: 0, clotureCredit: 0,
           };
           a.solde += l.solde;
           const debit = Math.max(l.solde, 0);
           const credit = Math.max(-l.solde, 0);
+          a.totalDebit += debit;
+          a.totalCredit += credit;
           if (estCloture) {
-            a.reportDebit += debit;
-            a.reportCredit += credit;
+            a.clotureDebit += debit;
+            a.clotureCredit += credit;
           } else {
             a.mouvementDebit += debit;
             a.mouvementCredit += credit;
@@ -118,10 +133,8 @@ function service(options: {
         }
       };
       verser(options.balances[exerciceId], false);
-      if (inclureBrouillard) {
-        verser(options.brouillards?.[exerciceId], false);
-        verser(options.clotures?.[exerciceId], true);
-      }
+      verser(options.clotures?.[exerciceId], true);
+      if (inclureBrouillard) verser(options.brouillards?.[exerciceId], false);
       return { lignes: [...parNumero.values()], totaux: { debit: 0, credit: 0 } };
     },
   };
@@ -1316,7 +1329,7 @@ describe('Lecture du livre-journal · brouillard et écriture de clôture (F6)',
     dateFin: new Date(Date.UTC(annee, 11, 31)),
   });
 
-  it('un exercice clos rend son chiffre d’affaires du livre-journal, clôture au brouillard comprise', async () => {
+  it('un exercice clos rend son chiffre d’affaires du livre-journal, écriture de clôture comprise', async () => {
     const { s } = service({
       balances: { N: [ligne('70110000', -1000), ligne('60110000', 400)] },
       // L'écriture de clôture solde 70 et 60 sur le 13.
@@ -1324,6 +1337,19 @@ describe('Lecture du livre-journal · brouillard et écriture de clôture (F6)',
     });
     const r = await s.resultatFiscal('t1', 'N');
     expect(['chiffreAffaires', r.chiffreAffaires]).toEqual(['chiffreAffaires', 1000]);
+    expect(['resultatComptable', r.resultatComptable]).toEqual(['resultatComptable', 600]);
+  });
+
+  it('un exercice clos lit son résultat dans les classes 6 à 8 AVANT leur solde, pas dans un 13 qui porte encore N-1 (régression de F4)', async () => {
+    // Le bénéfice de N-1 (5 000) est reporté au 131 et pas encore affecté.
+    // Le solde de clôture de N, validé, vire 600 au 131 · lu au 13, le
+    // résultat de N valait 5 600 et l'impôt portait sur deux bénéfices.
+    const { s } = service({
+      balances: { N: [ligne('13100000', -5_000), ligne('70110000', -1000), ligne('60110000', 400)] },
+      clotures: { N: [ligne('70110000', 1000), ligne('60110000', -400), ligne('13100000', -600)] },
+    });
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(['sourceResultat', r.sourceResultat]).toEqual(['sourceResultat', 'CLASSES_6_7_8']);
     expect(['resultatComptable', r.resultatComptable]).toEqual(['resultatComptable', 600]);
   });
 

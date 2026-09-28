@@ -44,16 +44,16 @@ import {
  * texte interdit ; et la reprise se fait À LA FIN de l'exercice concerné, non
  * par contre-passation à son ouverture comme le ferait un progiciel français.
  *
- * LA DATE DE REPRISE, ELLE, DÉPEND DU TYPE ET DU RÉFÉRENTIEL, et le service
- * la calcule (voir `dateReprise`) ; l'écran ne fait que la dire
- * (`aideDateReprise`, audit final F208). Pour les 476 et 477, le SYCEBNL
- * reprend à la fin de l'exercice concerné ; le SYSCOHADA permet les deux et
- * RECOMMANDE VIVEMENT l'ouverture (§ 5.5 pour les charges, § 6.5 pour les
- * produits), parce qu'une part différée reprise seulement à la clôture reste
- * au bilan douze mois de plus et fausse toutes les situations intermédiaires
- * de l'année. La subvention pluriannuelle reste à la clôture des deux côtés.
- * La charge à payer et le produit à recevoir, eux, se contre-passent à
- * l'OUVERTURE des deux côtés (fiches des comptes 40 et 41 des deux plans).
+ * LA DATE DE REPRISE, ELLE, DÉPEND DU TYPE, et le service la calcule (voir
+ * `dateReprise`) ; l'écran ne fait que la dire (`aideDateReprise`, audit final
+ * F208). Tout se reprend à l'OUVERTURE de l'exercice concerné, sauf la
+ * subvention pluriannuelle, reprise à la fin. Pour les 476 et 477, le
+ * SYSCOHADA permet les deux dates et RECOMMANDE VIVEMENT l'ouverture (§ 5.5
+ * pour les charges, § 6.5 pour les produits), une part différée reprise
+ * seulement à la clôture restant au bilan douze mois de plus ; le Guide
+ * d'application SYCEBNL extourne le 476 au début de l'exercice suivant
+ * (Application 10). La charge à payer et le produit à recevoir se
+ * contre-passent à l'ouverture (fiches des comptes 40 et 41 des deux plans).
  */
 
 /**
@@ -110,7 +110,7 @@ const TYPES: { valeur: TypeRegularisation; titre: string; aide: string; aideSysc
  */
 function resumeDatesDeReprise(referentiel: Referentiel | undefined): { texte: string; source: string } {
   const types = (moment: MomentReprise) =>
-    TYPES.filter((t) => momentDeReprise(referentiel, t.valeur) === moment)
+    TYPES.filter((t) => momentDeReprise(t.valeur) === moment)
       .map((t) => t.titre)
       .join(', ');
   return {
@@ -118,7 +118,7 @@ function resumeDatesDeReprise(referentiel: Referentiel | undefined): { texte: st
     source:
       referentiel === 'SYSCOHADA'
         ? 'AUDCIF, Titre VII, fiches des comptes 40 et 41 · Guide SYSCOHADA, Partie 1 ch. 6, § 5.5 et § 6.5'
-        : 'SYCEBNL, Partie 2 ch. 3, fiches des comptes 40 et 41 · Partie 3 ch. 6',
+        : "SYCEBNL, Partie 2 ch. 3, fiches des comptes 40 et 41 · Guide d'application, Application 10 · Partie 3 ch. 6",
   };
 }
 

@@ -61,7 +61,13 @@ export class TestEcrituresJournalService {
       this.prisma.compte.findMany({ where: { tenantId }, select: { id: true, numero: true } }),
       this.prisma.ligneEcriture.groupBy({
         by: ['compteId'],
-        where: { ecriture: { tenantId, exerciceId } },
+        // LES ÉCRITURES QUE LA CLÔTURE ENGENDRE NE SONT PAS UN USAGE · le
+        // report à-nouveau recopie un solde, le solde des comptes de gestion
+        // les vire au 13, validé depuis l'audit final F4. Comptées, elles
+        // ajoutaient un mouvement à chaque compte touché, et un compte de
+        // charge servi deux fois cessait d'être « rarement utilisé » sur tout
+        // exercice clos.
+        where: { ecriture: { tenantId, exerciceId, estGenereeParCloture: false } },
         _count: { _all: true },
       }),
     ]);

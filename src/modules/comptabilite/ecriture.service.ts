@@ -2861,6 +2861,14 @@ export class EcritureService {
    * prendre que les mouvements donnerait, sur un compte de bilan, une colonne
    * qui ne veut rien dire.
    *
+   * MAIS AVANT LE SOLDE DES COMPTES DE GESTION (régression de l'audit final
+   * F4) · l'écriture qui solde les classes 6 à 8 sur le 13 est de l'exercice,
+   * si bien qu'une charge ou un produit d'un exercice clos valait zéro, et
+   * que la colonne d'un exercice clos ne se comparait plus à celle d'un
+   * exercice ouvert. Elle est écartée, comme `avantSoldeDesComptesDeGestion`
+   * l'écarte de la balance des états · le 13 garde ce que les autres
+   * écritures y ont passé.
+   *
    * Un exercice où le compte n'a jamais été mouvementé rend `null`, pas zéro.
    * La nuance compte : zéro dit « soldé », null dit « n'existait pas encore »,
    * et les confondre fait lire une extinction là où il n'y a qu'une création.
@@ -2886,7 +2894,7 @@ export class EcritureService {
       ...exercices.map((e) =>
         this.prisma.ligneEcriture.groupBy({
           by: ['compteId'],
-          where: { ecriture: { tenantId, exerciceId: e.id } },
+          where: { ecriture: { tenantId, exerciceId: e.id, estSoldeDesComptesDeGestion: false } },
           _sum: { debit: true, credit: true },
         }),
       ),
