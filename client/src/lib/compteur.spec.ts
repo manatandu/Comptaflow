@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DUREE_COMPTEUR_MS, valeurIntermediaire } from './compteur';
+import { DUREE_COMPTEUR_MS, valeurIntermediaire } from './compteur-valeur';
 import { montant } from './montants';
 
 // Aucun import de « vitest » (globales) · convention du dépôt.
