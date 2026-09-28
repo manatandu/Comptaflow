@@ -3,6 +3,7 @@ import { EtatsFinanciersProjetBudgetService } from './etats-financiers-projet-bu
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { PrismaService } from '../../common/prisma.service';
 import { EngagementService } from '../analytique/engagement.service';
+import { LOT_ECRITURES, LOT_LECTURE } from '../../common/lecture-par-lots';
 
 /**
  * TABLEAU D'EXÉCUTION BUDGÉTAIRE et TABLEAU DE RÉCONCILIATION DE TRÉSORERIE.
@@ -34,12 +35,27 @@ function ligneBalance(numero: string, mouvement: { debit?: number; credit?: numb
 
 function ecriture(
   id: string,
-  lignes: Array<{ numero: string; debit?: number; credit?: number; lettre?: string | null; section?: string; regleApresCloture?: boolean }>,
+  lignes: Array<{
+    numero: string;
+    debit?: number;
+    credit?: number;
+    lettre?: string | null;
+    section?: string;
+    /** Le plan de la ventilation · `p1`, celui du tableau, par défaut. */
+    plan?: string;
+    regleApresCloture?: boolean;
+  }>,
+  // La tête de l'écriture · validée, du dossier t1 et de l'exercice e1 par
+  // défaut. La changer fait naître l'écriture que la lecture doit ÉCARTER.
+  tete: { tenantId?: string; exerciceId?: string; statut?: StatutEcriture; estGenereeParCloture?: boolean } = {},
 ) {
   return {
     id,
+    tenantId: tete.tenantId ?? 't1',
+    exerciceId: tete.exerciceId ?? 'e1',
     date: new Date('2026-05-01'),
-    statut: StatutEcriture.VALIDEE,
+    statut: tete.statut ?? StatutEcriture.VALIDEE,
+    estGenereeParCloture: tete.estGenereeParCloture ?? false,
     lignes: lignes.map((l, i) => ({
       id: `${id}-${i}`,
       debit: l.debit ?? 0,
@@ -48,13 +64,140 @@ function ecriture(
       regleApresCloture: l.regleApresCloture ?? false,
       compte: { numero: l.numero, intitule: `Compte ${l.numero}` },
       ventilations: l.section
-        ? [{ planId: 'p1', sectionId: l.section, debit: l.debit ?? 0, credit: l.credit ?? 0 }]
+        ? [{ planId: l.plan ?? 'p1', sectionId: l.section, debit: l.debit ?? 0, credit: l.credit ?? 0 }]
         : [],
     })),
   };
 }
 
-function service(options: {
+type EcritureDeTest = ReturnType<typeof ecriture>;
+type LigneDeTest = EcritureDeTest['lignes'][number];
+type Filtre = Record<string, unknown>;
+
+/*
+  LES DOUBLURES HONORENT CE QUE LA REQUÊTE DEMANDE (audit final F187). Le
+  tableau lit l'exercice par tranches, ne demande que les écritures ventilées
+  sur le plan (ou, pour la réconciliation, celles qui touchent la
+  trésorerie), et ne sélectionne que les colonnes qu'il lit. Une doublure qui
+  rendrait tout, dans l'ordre, sans projection, validerait une pagination qui
+  saute ou double une tranche, et un `select` qui oublie une colonne. Un
+  filtre que la doublure ne sait pas lire LÈVE · l'ignorer élargirait la
+  réponse en silence.
+*/
+function egalites(objet: Record<string, unknown>, where: Filtre): boolean {
+  return Object.entries(where).every(([cle, valeur]) => {
+    if (valeur !== null && typeof valeur === 'object') throw new Error(`filtre non honoré par la doublure : ${cle}`);
+    return objet[cle] === valeur;
+  });
+}
+
+function compteParmi(numero: string, filtre: unknown): boolean {
+  return (filtre as { OR: { numero: { startsWith: string } }[] }).OR.some((o) => numero.startsWith(o.numero.startsWith));
+}
+
+function ligneSatisfait(l: LigneDeTest, filtre: Filtre): boolean {
+  return Object.entries(filtre).every(([cle, valeur]) => {
+    if (cle === 'ventilations') {
+      const some = (valeur as { some: Filtre }).some;
+      return l.ventilations.some((v) => egalites(v, some));
+    }
+    if (cle === 'compte') return compteParmi(l.compte.numero, valeur);
+    throw new Error(`filtre de ligne non honoré par la doublure : ${cle}`);
+  });
+}
+
+function ecritureSatisfait(e: EcritureDeTest, where: Filtre = {}): boolean {
+  return Object.entries(where).every(([cle, valeur]) => {
+    // Le dossier et l'exercice se comparent par leur VALEUR, comme la garde de
+    // cloisonnement · une doublure qui les tiendrait pour acquis laisserait
+    // passer une lecture qui a perdu sa borne.
+    if (cle === 'tenantId' || cle === 'exerciceId' || cle === 'statut' || cle === 'estGenereeParCloture') {
+      return (e as Record<string, unknown>)[cle] === valeur;
+    }
+    if (cle === 'lignes') return e.lignes.some((l) => ligneSatisfait(l, (valeur as { some: Filtre }).some));
+    throw new Error(`filtre d'écriture non honoré par la doublure : ${cle}`);
+  });
+}
+
+/** Le `select` Prisma, relations comprises, avec le `where` d'une relation multiple. */
+function projeter(objet: unknown, select: Filtre): Record<string, unknown> {
+  const source = objet as Record<string, unknown>;
+  const rendu: Record<string, unknown> = {};
+  for (const [cle, spec] of Object.entries(select)) {
+    if (spec === true) {
+      rendu[cle] = source[cle];
+      continue;
+    }
+    const { select: sous, where } = spec as { select?: Filtre; where?: Filtre };
+    const valeur = source[cle];
+    if (Array.isArray(valeur)) {
+      rendu[cle] = valeur
+        .filter((v) => !where || egalites(v as Record<string, unknown>, where))
+        .map((v) => (sous ? projeter(v, sous) : v));
+    } else {
+      if (where) throw new Error(`where sur une relation simple : ${cle}`);
+      rendu[cle] = sous ? projeter(valeur, sous) : valeur;
+    }
+  }
+  return rendu;
+}
+
+interface ArgumentsLecture {
+  where?: Filtre;
+  select?: Filtre;
+  orderBy?: { id?: 'asc' | 'desc' };
+  cursor?: { id: string };
+  skip?: number;
+  take?: number;
+}
+
+/** Tri, curseur INCLUS puis `skip`, puis `take` · l'ordre où Prisma les applique. */
+function paginer<T extends { id: string }>(elements: T[], args: ArgumentsLecture): T[] {
+  let rendu = [...elements];
+  if (args.orderBy?.id) {
+    const sens = args.orderBy.id === 'asc' ? 1 : -1;
+    rendu.sort((a, b) => (a.id < b.id ? -sens : a.id > b.id ? sens : 0));
+  }
+  if (args.cursor) {
+    const i = rendu.findIndex((e) => e.id === args.cursor!.id);
+    rendu = i < 0 ? [] : rendu.slice(i);
+  }
+  if (args.skip) rendu = rendu.slice(args.skip);
+  if (args.take !== undefined) rendu = rendu.slice(0, args.take);
+  return rendu;
+}
+
+function lireEcritures(ecritures: EcritureDeTest[], args: ArgumentsLecture) {
+  const retenues = paginer(ecritures.filter((e) => ecritureSatisfait(e, args.where)), args);
+  return retenues.map((e) => (args.select ? projeter(e, args.select) : e));
+}
+
+// Les lignes fournisseurs ouvertes à la clôture · non lettrées, ou soldées par
+// un règlement postérieur (F10). La règle elle-même est gelée par
+// ouverte-a-la-cloture.spec ; la doublure en honore la PRÉSENCE, et la liste
+// d'identifiants qui borne la question à une tranche.
+function lireLignesOuvertes(ecritures: EcritureDeTest[], where: Filtre) {
+  const ids = where.id ? new Set((where.id as { in: string[] }).in) : null;
+  return ecritures
+    .flatMap((e) => e.lignes.map((l) => ({ e, l })))
+    .filter(({ e, l }) =>
+      Object.entries(where).every(([cle, valeur]) => {
+        // Borne du dossier, de l'exercice et du statut, lue sur l'écriture de la ligne.
+        if (cle === 'ecriture') return egalites(e as Record<string, unknown>, valeur as Filtre);
+        if (cle === 'id') return ids!.has(l.id);
+        if (cle === 'compte') return compteParmi(l.compte.numero, valeur);
+        if (cle === 'OR') return l.lettre === null || l.regleApresCloture;
+        throw new Error(`filtre de ligne fournisseur non honoré par la doublure : ${cle}`);
+      }),
+    )
+    .map(({ l }) => ({ id: l.id }));
+}
+
+function service(options: Parameters<typeof monter>[0] = {}) {
+  return monter(options).s;
+}
+
+function monter(options: {
   balance?: ReturnType<typeof ligneBalance>[];
   ecritures?: ReturnType<typeof ecriture>[];
   sections?: { id: string; code: string; intitule: string; type: TypeCompteDetailTotal }[];
@@ -94,24 +237,16 @@ function service(options: {
         ),
       ),
     },
-    ecriture: { findMany: jest.fn().mockResolvedValue(options.ecritures ?? []) },
+    ecriture: {
+      findMany: jest
+        .fn()
+        .mockImplementation((args: ArgumentsLecture) => Promise.resolve(lireEcritures(options.ecritures ?? [], args))),
+    },
     exercice: { findFirstOrThrow: jest.fn().mockResolvedValue({ dateFin: new Date('2026-12-31') }) },
-    // Les lignes fournisseurs ouvertes à la clôture, tirées des écritures du
-    // test · non lettrées, ou soldées par un règlement postérieur (F10).
     ligneEcriture: {
-      // La doublure honore la PRÉSENCE de la règle · sans elle, toute ligne
-      // fournisseur passerait pour ouverte (la règle elle-même est gelée par
-      // ouverte-a-la-cloture.spec).
-      findMany: jest.fn().mockImplementation(({ where }: { where: { OR?: unknown[]; lettre?: null } }) =>
-        Promise.resolve(
-          (options.ecritures ?? []).flatMap((e) =>
-            e.lignes
-              .filter((l) => /^(40|481)/.test(l.compte.numero))
-              .filter((l) => (where.OR ? l.lettre === null || l.regleApresCloture : where.lettre === null ? l.lettre === null : true))
-              .map((l) => ({ id: l.id })),
-          ),
-        ),
-      ),
+      findMany: jest
+        .fn()
+        .mockImplementation(({ where }: { where: Filtre }) => Promise.resolve(lireLignesOuvertes(options.ecritures ?? [], where))),
     },
     // Le registre des engagements hors comptabilité · les deux termes NON
     // comptables de la colonne Engagement (guide, ch. 7, APPLICATION 22,
@@ -119,8 +254,9 @@ function service(options: {
     engagementDepense: { findMany: jest.fn().mockResolvedValue(options.engagements ?? []) },
     // Les OD analytiques du plan · comptées pour être DITES, jamais reprises.
     odAnalytique: { count: jest.fn().mockResolvedValue(options.nombreOd ?? 0) },
-  } as unknown as PrismaService;
-  return new EtatsFinanciersProjetBudgetService(ecritureService, prisma, new EngagementService(prisma));
+  };
+  const client = prisma as unknown as PrismaService;
+  return { s: new EtatsFinanciersProjetBudgetService(ecritureService, client, new EngagementService(client)), prisma };
 }
 
 // Le TYPE est porté, comme en base (`SectionAnalytique.type`, défaut DETAIL) ·
@@ -468,5 +604,196 @@ describe("Tableau d'exécution budgétaire · les OD analytiques", () => {
     expect(sans.odAnalytiquesNonReprises).toBeNull();
     const avec = await service({ sections, nombreOd: 2 }).executionBudgetaire('t1', 'e1');
     expect(avec.odAnalytiquesNonReprises).toMatch(/2 OD analytique\(s\) de ce plan ne sont pas reprises/);
+  });
+});
+
+/*
+  AUDIT FINAL F187 · le tableau chargeait toutes les écritures validées de
+  l'exercice d'un coup, avec leurs lignes, la fiche de leur compte et leurs
+  ventilations, à chaque ouverture des notes 35 et 24. C'est un DOCUMENT, il
+  ne se tronque pas · il se lit donc en entier, par tranches, et doit rendre
+  le même tableau qu'un parcours d'un seul tenant.
+*/
+describe("Tableau d'exécution budgétaire · l'exercice lu par tranches (audit final F187)", () => {
+  // Deux tranches pleines et une d'une seule écriture · la dernière tranche
+  // incomplète est celle qui arrête la lecture.
+  const N = 2 * LOT_ECRITURES + 1;
+
+  /**
+   * Un tiers payé comptant sur A1, un tiers passé au fournisseur et encore dû
+   * sur A2, un tiers passé au fournisseur et lettré sur A2 · rendu dans le
+   * désordre, la base ne promettant aucun ordre sans `orderBy`.
+   */
+  function grandDossier(): EcritureDeTest[] {
+    const ecritures: EcritureDeTest[] = [];
+    for (let i = 0; i < N; i++) {
+      const id = `e${String(i).padStart(5, '0')}`;
+      if (i % 3 === 0) {
+        ecritures.push(ecriture(id, [{ numero: '60100000', debit: 1_000, section: 's1' }, { numero: '52110000', credit: 1_000 }]));
+      } else if (i % 3 === 1) {
+        ecritures.push(ecriture(id, [{ numero: '60100000', debit: 2_000, section: 's2' }, { numero: '40100000', credit: 2_000 }]));
+      } else {
+        ecritures.push(
+          ecriture(id, [{ numero: '60100000', debit: 500, section: 's2' }, { numero: '40100000', credit: 500, lettre: 'A' }]),
+        );
+      }
+    }
+    return ecritures.reverse();
+  }
+
+  it('rend, sur trois tranches, le tableau exact de l’exercice entier', async () => {
+    // 334 payées (i ≡ 0), 334 dues (i ≡ 1), 333 lettrées (i ≡ 2), sur 1 001.
+    const { s, prisma } = monter({
+      sections: SECTIONS,
+      budgets: [{ sectionId: 's1', montant: 1_000_000 }, { sectionId: 's2', montant: 1_000_000 }],
+      ecritures: grandDossier(),
+    });
+    const t = await s.executionBudgetaire('t1', 'e1');
+    const a1 = t.lignes.find((l) => l.code === 'A1')!;
+    const a2 = t.lignes.find((l) => l.code === 'A2')!;
+    expect({ decaissement: a1.decaissement, engagement: a1.engagement }).toEqual({ decaissement: 334_000, engagement: 0 });
+    expect({ decaissement: a2.decaissement, engagement: a2.engagementComptable }).toEqual({
+      decaissement: 166_500,
+      engagement: 668_000,
+    });
+    expect(t.total.realisation).toBe(1_168_500);
+
+    // Trois lectures, chacune bornée à une tranche · jamais l'exercice d'un coup.
+    const lectures = prisma.ecriture.findMany.mock.calls.map(([args]) => args as ArgumentsLecture);
+    expect(lectures).toHaveLength(3);
+    expect(lectures.map((a) => a.take)).toEqual([LOT_ECRITURES, LOT_ECRITURES, LOT_ECRITURES]);
+  });
+
+  it('ne cherche les fournisseurs encore dus QUE parmi les candidates de chaque tranche', async () => {
+    // Un achat réglé dans la même pièce · la ligne fournisseur y est, mais
+    // l'écriture touche la trésorerie et se trouve décaissée d'office.
+    const comptant = ecriture('comptant', [
+      { numero: '60100000', debit: 300, section: 's1' },
+      { numero: '40100000', credit: 300 },
+      { numero: '40100000', debit: 300 },
+      { numero: '52110000', credit: 300 },
+    ]);
+    const { s, prisma } = monter({ sections: SECTIONS, ecritures: [...grandDossier(), comptant] });
+    const t = await s.executionBudgetaire('t1', 'e1');
+    expect(t.lignes.find((l) => l.code === 'A1')!.decaissement).toBe(334_300);
+    const questions = prisma.ligneEcriture.findMany.mock.calls.map(([args]) => (args as { where: Filtre }).where);
+    expect(questions.length).toBeGreaterThan(0);
+    const demandees = new Set<string>();
+    for (const where of questions) {
+      // Une question sans liste d'identifiants porterait sur tout l'exercice.
+      const ids = (where.id as { in: string[] } | undefined)?.in;
+      expect(ids).toBeDefined();
+      expect(ids!.length).toBeLessThanOrEqual(LOT_ECRITURES);
+      for (const id of ids!) demandees.add(id);
+    }
+    // Les 40 et 481 des écritures sans trésorerie, et elles seules.
+    expect(demandees.size).toBe(667);
+    expect(demandees.has('comptant-1')).toBe(false);
+    expect(demandees.has('comptant-2')).toBe(false);
+  });
+
+  it('ne lit que les écritures ventilées sur CE plan, sans rien changer au tableau', async () => {
+    // Un grand livre porte surtout des écritures que le plan ne ventile pas ·
+    // les lire toutes rendrait le même tableau, au prix de tout l'exercice.
+    const ecritures = [
+      ...Array.from({ length: LOT_ECRITURES }, (_, i) =>
+        ecriture(`v${String(i).padStart(4, '0')}`, [{ numero: '70100000', credit: 10 }, { numero: '52110000', debit: 10 }]),
+      ),
+      ecriture('autrePlan', [{ numero: '60100000', debit: 900, section: 's1', plan: 'p2' }, { numero: '52110000', credit: 900 }]),
+      ecriture('ventilee', [{ numero: '60100000', debit: 300, section: 's1' }, { numero: '52110000', credit: 300 }]),
+    ];
+    const { s, prisma } = monter({ sections: SECTIONS, ecritures });
+    const t = await s.executionBudgetaire('t1', 'e1');
+    expect(t.lignes.find((l) => l.code === 'A1')!.decaissement).toBe(300);
+    // Une seule écriture ventilée sur p1 · une seule tranche, incomplète.
+    expect(prisma.ecriture.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('pose la question des lignes ouvertes par paquets, sans en oublier aucune', async () => {
+    // Une écriture importée peut porter des milliers de lignes fournisseurs.
+    // Seule la DERNIÈRE est encore due · si un paquet était sauté ou relu, la
+    // dépense passerait en décaissement.
+    const nombre = LOT_LECTURE + 1;
+    const f = ecriture('import', [
+      { numero: '60100000', debit: nombre * 100, section: 's1' },
+      ...Array.from({ length: nombre }, (_, i) => ({
+        numero: '40100000',
+        credit: 100,
+        lettre: i === nombre - 1 ? null : 'A',
+      })),
+    ]);
+    const { s, prisma } = monter({ sections: SECTIONS, ecritures: [f] });
+    const a1 = (await s.executionBudgetaire('t1', 'e1')).lignes.find((l) => l.code === 'A1')!;
+    expect({ decaissement: a1.decaissement, engagement: a1.engagement }).toEqual({ decaissement: 0, engagement: nombre * 100 });
+    const tailles = prisma.ligneEcriture.findMany.mock.calls.map(([args]) => ((args as { where: Filtre }).where.id as { in: string[] }).in.length);
+    expect(tailles).toEqual([LOT_LECTURE, 1]);
+  });
+
+  it("n'emporte ni le brouillard, ni la clôture, ni un autre exercice, ni un autre dossier", async () => {
+    // Quatre dépenses ventilées sur le plan que la lecture doit ÉCARTER, chacune
+    // d'un ordre de grandeur différent · une borne perdue en route la ferait
+    // entrer au tableau sur une écriture équilibrée, et le montant faux dirait
+    // laquelle.
+    const depense = (id: string, montant: number, tete: Parameters<typeof ecriture>[2] = {}) =>
+      ecriture(id, [{ numero: '60100000', debit: montant, section: 's1' }, { numero: '52110000', credit: montant }], tete);
+    const { s } = monter({
+      sections: SECTIONS,
+      ecritures: [
+        depense('validee', 300),
+        depense('brouillard', 1_000, { statut: StatutEcriture.BROUILLARD }),
+        depense('cloture', 20_000, { estGenereeParCloture: true }),
+        depense('autreExercice', 400_000, { exerciceId: 'e0' }),
+        depense('autreDossier', 5_000_000, { tenantId: 't2' }),
+      ],
+    });
+    const a1 = (await s.executionBudgetaire('t1', 'e1')).lignes.find((l) => l.code === 'A1')!;
+    expect({ decaissement: a1.decaissement, engagement: a1.engagement }).toEqual({ decaissement: 300, engagement: 0 });
+  });
+});
+
+describe('Tableau de réconciliation de trésorerie · l’exercice lu par tranches (audit final F187)', () => {
+  it('rend, sur trois tranches, les dépenses de l’exercice entier, et boucle', async () => {
+    const N = 2 * LOT_ECRITURES + 1;
+    const ecritures = [
+      ...Array.from({ length: N }, (_, i) =>
+        ecriture(`d${String(i).padStart(5, '0')}`, [{ numero: '60100000', debit: 1_000 }, { numero: '52110000', credit: 1_000 }]),
+      ).reverse(),
+      // Sans trésorerie · n'entrent pas dans le tableau, et ne sont pas lues.
+      // Lues, elles feraient une quatrième tranche.
+      ...Array.from({ length: LOT_ECRITURES }, (_, i) =>
+        ecriture(`o${String(i).padStart(5, '0')}`, [{ numero: '68130000', debit: 50 }, { numero: '28130000', credit: 50 }]),
+      ),
+    ];
+    const { s, prisma } = monter({
+      balance: [ligneBalance('52110000', { credit: N * 1_000 }, { debit: 2_000_000 })],
+      ecritures,
+    });
+    const t = await s.reconciliationTresorerie('t1', 'e1');
+    const rep = (r: string) => t.lignes.find((l) => l.rep === r)!.montant;
+    expect(rep('F')).toBe(N * 1_000);
+    expect(rep('G')).toBe(2_000_000 - N * 1_000);
+    expect(t.controle.boucle).toBe(true);
+    const lectures = prisma.ecriture.findMany.mock.calls.map(([args]) => args as ArgumentsLecture);
+    expect(lectures.map((a) => a.take)).toEqual([LOT_ECRITURES, LOT_ECRITURES, LOT_ECRITURES]);
+  });
+
+  it("n'emporte ni le brouillard, ni la clôture, ni un autre exercice, ni un autre dossier", async () => {
+    // Même garde que le tableau d'exécution · chaque écriture écartée pèse un
+    // ordre de grandeur différent, et F la trahirait si elle entrait.
+    const paiement = (id: string, montant: number, tete: Parameters<typeof ecriture>[2] = {}) =>
+      ecriture(id, [{ numero: '60100000', debit: montant }, { numero: '52110000', credit: montant }], tete);
+    const { s } = monter({
+      balance: [ligneBalance('52110000', { credit: 300 }, { debit: 2_000_000 })],
+      ecritures: [
+        paiement('validee', 300),
+        paiement('brouillard', 1_000, { statut: StatutEcriture.BROUILLARD }),
+        paiement('cloture', 20_000, { estGenereeParCloture: true }),
+        paiement('autreExercice', 400_000, { exerciceId: 'e0' }),
+        paiement('autreDossier', 5_000_000, { tenantId: 't2' }),
+      ],
+    });
+    const t = await s.reconciliationTresorerie('t1', 'e1');
+    expect(t.lignes.find((l) => l.rep === 'F')!.montant).toBe(300);
+    expect(t.controle.boucle).toBe(true);
   });
 });

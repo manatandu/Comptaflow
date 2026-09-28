@@ -12,7 +12,9 @@ import { PrismaService } from '../../common/prisma.service';
  * clôture du MÊME jeu pour l'exercice précédent.
  *
  * La doublure honore les filtres · exercice, drapeaux de clôture, borne de
- * date de l'exercice précédent, racine 13 du compte de résultat.
+ * date de l'exercice précédent, racine 13 du compte de résultat. Elle sert les
+ * ÉCRITURES par tranches, comme Prisma · ordre par identifiant, `take`,
+ * curseur et `skip` (audit final F189).
  */
 
 const j = (s: string) => new Date(`${s}T00:00:00.000Z`);
@@ -60,6 +62,18 @@ function service(lignes: Ligne[], exercices = [EX26, EX27]) {
     (w.ecriture.estGenereeParCloture === undefined || (x.gpc ?? false) === w.ecriture.estGenereeParCloture) &&
     (w.ecriture.estSoldeDesComptesDeGestion === undefined || (x.sdcg ?? false) === w.ecriture.estSoldeDesComptesDeGestion) &&
     (!w.compte || x.numero.startsWith(w.compte.numero.startsWith));
+  // Les lignes se regroupent en écritures, drapeaux compris · le service lit
+  // les écritures par tranches, chacune avec toutes ses lignes.
+  type LigneLue = Omit<ReturnType<typeof vue>, 'ecriture'>;
+  const parEcriture = new Map<string, { id: string; date: Date; premiere: Ligne; lignes: LigneLue[] }>();
+  for (const x of lignes) {
+    const e = parEcriture.get(x.ecritureId) ?? { id: x.ecritureId, date: x.date, premiere: x, lignes: [] };
+    const { debit, credit, montantDevise, devise, compte } = vue(x);
+    e.lignes.push({ debit, credit, montantDevise, devise, compte });
+    parEcriture.set(x.ecritureId, e);
+  }
+  const ecritures = [...parEcriture.values()].sort((a, b) => a.id.localeCompare(b.id));
+  type Page = { take?: number; cursor?: { id: string }; skip?: number };
   const prisma = {
     tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ devise: 'CDF', deviseFonctionnelle: 'USD' }) },
     exercice: {
@@ -71,8 +85,18 @@ function service(lignes: Ligne[], exercices = [EX26, EX27]) {
       }),
     },
     devise: { findFirst: jest.fn().mockResolvedValue({ id: 'd1', code: 'USD', cours: COURS }) },
+    ecriture: {
+      findMany: jest.fn(({ where, take, cursor, skip }: { where: Filtre['ecriture'] } & Page) => {
+        const retenues = ecritures.filter((e) => retient(e.premiere, { ecriture: where }));
+        const debut = cursor ? retenues.findIndex((e) => e.id === cursor.id) + (skip ?? 0) : 0;
+        return Promise.resolve(
+          retenues
+            .slice(debut, take === undefined ? undefined : debut + take)
+            .map((e) => ({ id: e.id, date: e.date, lignes: e.lignes })),
+        );
+      }),
+    },
     ligneEcriture: {
-      findMany: jest.fn(({ where }: { where: Filtre }) => Promise.resolve(lignes.filter((x) => retient(x, where)).map(vue))),
       findFirst: jest.fn(({ where }: { where: Filtre }) => {
         const x = lignes.find((y) => retient(y, where));
         return Promise.resolve(x ? vue(x) : null);

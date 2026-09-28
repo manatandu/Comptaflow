@@ -58,47 +58,46 @@ interface RattachementFixture {
  * LA BALANCE EST DÉDUITE DES MÊMES LIGNES QUE L'ÉLIMINATION · si le jeu
  * d'essai posait les deux à la main, un chiffre pourrait s'y contredire sans
  * que rien ne le dise, et le test prouverait alors le contraire de ce qu'il
- * annonce.
+ * annonce. La doublure les regroupe par compte comme la base le ferait pour
+ * les requêtes du service, par couples (dossier, exercice) · audit final F190.
+ * Toutes ces lignes sont des mouvements, ni à-nouveau ni clôture.
  */
-function balanceDe(lignes: LigneFixture[], tenantId: string, exerciceId: string) {
-  const par = new Map<string, { compteId: string; numero: string; intitule: string; typeCompte: string; totalDebit: number; totalCredit: number }>();
-  for (const l of lignes) {
-    if (l.tenantId !== tenantId || l.exerciceId !== exerciceId) continue;
-    const c = par.get(l.compteId) ?? {
-      compteId: l.compteId,
-      numero: l.numero,
-      intitule: l.intitule,
-      typeCompte: 'DETAIL',
-      totalDebit: 0,
-      totalCredit: 0,
-    };
-    c.totalDebit += l.debit;
-    c.totalCredit += l.credit;
-    par.set(l.compteId, c);
-  }
-  const sorties = [...par.values()].map((c) => ({ ...c, solde: c.totalDebit - c.totalCredit }));
-  return {
-    lignes: sorties,
-    totaux: {
-      debit: sorties.reduce((s, c) => s + c.totalDebit, 0),
-      credit: sorties.reduce((s, c) => s + c.totalCredit, 0),
-    },
-  };
-}
+type FiltreEcritures = {
+  OR: Array<{ tenantId: string; exerciceId: string }>;
+  estGenereeParCloture?: boolean;
+  estSoldeDesComptesDeGestion?: boolean;
+};
+const retenue = (l: LigneFixture, f: FiltreEcritures) =>
+  f.OR.some((o) => o.tenantId === l.tenantId && o.exerciceId === l.exerciceId) &&
+  f.estGenereeParCloture !== true &&
+  f.estSoldeDesComptesDeGestion !== true;
 
 function service(
   lignes: LigneFixture[],
   rattachements: RattachementFixture[],
   options?: { exercicesCellule?: Array<{ id: string; dateDebut: Date; dateFin: Date }> },
 ) {
+  // Les comptes des dossiers, tirés des lignes · un compte par identifiant.
+  const comptes = [...new Map(lignes.map((l) => [l.compteId, l])).values()].map((l) => ({
+    id: l.compteId,
+    tenantId: l.tenantId,
+    numero: l.numero,
+    intitule: l.intitule,
+    classe: `CLASSE_${l.numero[0]}`,
+    typeCompte: 'DETAIL',
+  }));
   return new GroupeService(
     {
+      compte: {
+        findMany: async ({ where }: { where: { tenantId: { in: string[] } } }) =>
+          comptes.filter((c) => where.tenantId.in.includes(c.tenantId)).sort((a, b) => (a.numero < b.numero ? -1 : 1)),
+      },
       exercice: {
         findFirst: async ({ where }: { where: { id?: string; tenantId: string } }) =>
           where.id === 'ex-m' && where.tenantId === 'mere' ? EX : null,
       },
       // Aucune pièce au brouillard · la liasse les compte (audit F7).
-      ecriture: { count: async () => 0 },
+      ecriture: { groupBy: async () => [] },
       tenant: {
         findUnique: async () => ({ id: 'mere', nom: 'Siège', dossierCombinaisonId: 't-comb' }),
         // Le dossier de combinaison déjà ouvert est réaligné sur le référentiel
@@ -119,6 +118,15 @@ function service(
             })),
       },
       ligneEcriture: {
+        // Les sommes par compte des écritures désignées, comme la base les rend.
+        groupBy: async ({ where }: { where: { ecriture: FiltreEcritures } }) => {
+          const sommes = new Map<string, { debit: number; credit: number }>();
+          for (const l of lignes.filter((x) => retenue(x, where.ecriture))) {
+            const s = sommes.get(l.compteId) ?? { debit: 0, credit: 0 };
+            sommes.set(l.compteId, { debit: s.debit + l.debit, credit: s.credit + l.credit });
+          }
+          return [...sommes].map(([compteId, _sum]) => ({ compteId, _sum }));
+        },
         // Le faux Prisma applique VRAIMENT le filtre du service · borne
         // d'exercice, borne de dossier, et « écritures qui touchent un compte
         // réciproque ». Un filtre ignoré ferait passer un test que la vraie
@@ -154,9 +162,7 @@ function service(
         },
       },
     } as never,
-    {
-      balance: async (tenantId: string, exerciceId: string) => balanceDe(lignes, tenantId, exerciceId),
-    } as never,
+    {} as never,
     undefined as never,
     {
       liasseCompleteExcel: async () => {

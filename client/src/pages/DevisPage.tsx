@@ -1,6 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { useExercice } from '../lib/exercice';
+import {
+  horsPeriode,
+  libellePeriode,
+  libelleTranche,
+  periodeParDefaut,
+  requetePeriode,
+  type OriginePeriode,
+  type PeriodeListe,
+} from '../lib/periode-liste-travail';
 import { Aide } from '../components/chrome/Aide';
 import { BlocEmetteur, montantImprime, TableauLignes } from '../components/PieceImprimable';
 import { avertissementArticle17, type MentionsRecopiees } from '../lib/mentions-piece';
@@ -19,6 +29,11 @@ type Etat = {
   dateReference: string;
   aucuneConditionDeForme: { article: string; mention: string };
   delaisDeConformite: { cle: string; libelle: string; delai: string; article: string }[];
+  /** La période lue et la tranche rendue (audit final F188) · le total est celui de la période entière. */
+  periode: PeriodeListe;
+  total: number;
+  plafond: number;
+  tronque: boolean;
   devis: {
     id: string;
     emetteur: 'DOSSIER' | 'CLIENT';
@@ -36,6 +51,8 @@ type Etat = {
     detailReponse: string | null;
     revoqueLe: string | null;
     contrePropositionDeId: string | null;
+    /** La contre-proposition née de ce devis, lue sur SA ligne (audit final F188). */
+    contrePropositionId: string | null;
     lignes: { id: string; ordre: number; designation: string; quantite: number; prixUnitaire: number; montantHT: number }[];
     totalHT: number;
     prixPresume: { article: string; mention: string };
@@ -100,10 +117,42 @@ export function DevisPage() {
     window.scrollTo({ top: 0 });
   };
 
-  const recharger = () => api.get<Etat>('/commercial/devis').then(setEtat);
+  // LA LISTE SE LIT SUR UNE PÉRIODE (audit final F188) · l'exercice courant
+  // du sélecteur par défaut, les douze derniers mois sans exercice, et l'écran
+  // dit laquelle. Un échec de lecture se dit, il ne laisse pas « Chargement… ».
+  const { exerciceCourant, chargement: chargementExercice } = useExercice();
+  const [periodeChoisie, setPeriodeChoisie] = useState<PeriodeListe | null>(null);
+  const periodeDefaut = useMemo(() => periodeParDefaut(exerciceCourant, new Date()), [exerciceCourant]);
+  const periodeListe: PeriodeListe = periodeChoisie ?? periodeDefaut;
+  const originePeriode: OriginePeriode = periodeChoisie ? 'CHOISIE' : periodeDefaut.origine;
+  const [erreurListe, setErreurListe] = useState<string | null>(null);
+  const [avisListe, setAvisListe] = useState<string | null>(null);
+  // DEUX LECTURES SE CROISENT (relecture audit final F188) · le sélecteur
+  // d'exercice se résout en deux temps, et un champ de date se tape chiffre
+  // par chiffre. Seule la DERNIÈRE demandée s'affiche · une réponse arrivée
+  // en retard poserait la liste d'une période sous le libellé d'une autre.
+  const lectureListe = useRef(0);
+  const recharger = () => {
+    const numero = ++lectureListe.current;
+    return api.get<Etat>(`/commercial/devis${requetePeriode(periodeListe)}`).then(
+      (e) => {
+        if (numero !== lectureListe.current) return;
+        setEtat(e);
+        setErreurListe(null);
+      },
+      (e) => {
+        if (numero !== lectureListe.current) return;
+        setErreurListe(e instanceof ApiError ? e.message : "La liste des devis n'a pas pu être lue.");
+      },
+    );
+  };
   useEffect(() => {
-    void recharger().catch(() => setEtat(null));
-  }, []);
+    if (chargementExercice) return;
+    // L'avis d'un devis hors période vaut pour la période où il a été donné.
+    setAvisListe(null);
+    void recharger();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chargementExercice, periodeListe.du, periodeListe.au]);
 
   async function emettre() {
     setErreur(null);
@@ -129,6 +178,8 @@ export function DevisPage() {
       setNumero('');
       setDesignation('');
       setContrePropositionDe(null);
+      // Un devis daté hors de la période affichée ne s'y verra pas · le dire.
+      setAvisListe(horsPeriode(dateEmission, periodeListe) ? 'Devis enregistré · daté hors de la période affichée.' : null);
       await recharger();
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : "L'émission n'a pas abouti.");
@@ -172,7 +223,13 @@ export function DevisPage() {
     }
   }
 
-  if (!etat) return <div className="p-3 text-[11.5px] text-text-dim">Chargement…</div>;
+  if (!etat) {
+    return erreurListe ? (
+      <div className="p-3 text-[11.5px] text-danger">{erreurListe}</div>
+    ) : (
+      <div className="p-3 text-[11.5px] text-text-dim">Chargement…</div>
+    );
+  }
 
   return (
     <div className={`p-2 max-w-[1100px] ${aImprimer ? 'avec-edition' : ''}`}>
@@ -278,9 +335,42 @@ export function DevisPage() {
             texte={`Un devis n'est pas un brouillon de facture. S'il est suffisamment précis et indique la volonté d'être lié, c'est une offre (art. 241), et son acceptation forme le contrat (art. 244). ${etat.aucuneConditionDeForme.mention}`}
             source="AUDCG, Livre 8"
           />
+          <Aide
+            titre="Période de la liste"
+            texte="La liste se lit sur la date d'émission, bornes comprises · celle dont court le délai d'acceptation (art. 246). Par défaut, l'exercice courant du sélecteur, ou les douze derniers mois sans exercice. Au-delà du plafond, les devis les plus récents sont affichés et le total de la période est dit."
+            source="Audit final F188"
+          />
         </h2>
-        {etat.devis.length === 0 ? (
-          <p className="text-[11.5px] text-text-dim">Aucun devis enregistré.</p>
+        <div className="flex flex-wrap items-end gap-2 mb-1.5 text-[11.5px]">
+          <label>
+            Du
+            <input
+              type="date"
+              className="block border border-border px-1.5 py-0.5 text-[11.5px]"
+              value={periodeListe.du ?? ''}
+              onChange={(e) => setPeriodeChoisie({ ...periodeListe, du: e.target.value || null })}
+            />
+          </label>
+          <label>
+            Au
+            <input
+              type="date"
+              className="block border border-border px-1.5 py-0.5 text-[11.5px]"
+              value={periodeListe.au ?? ''}
+              onChange={(e) => setPeriodeChoisie({ ...periodeListe, au: e.target.value || null })}
+            />
+          </label>
+          <span className="text-text-dim">{libellePeriode(periodeListe, originePeriode)}</span>
+        </div>
+        {erreurListe && <p className="text-[11.5px] text-danger mb-1.5">{erreurListe}</p>}
+        {avisListe && <p className="text-[11.5px] text-warning mb-1.5">{avisListe}</p>}
+        {/* UNE LECTURE REFUSÉE NE LAISSE PAS LES LIGNES D'AVANT sous le libellé de
+            la période demandée · elles se liraient comme sa réponse. */}
+        {!erreurListe && libelleTranche(etat, etat.devis.length) && (
+          <p className="text-[11.5px] text-warning mb-1.5">{libelleTranche(etat, etat.devis.length)}</p>
+        )}
+        {erreurListe ? null : etat.devis.length === 0 ? (
+          <p className="text-[11.5px] text-text-dim">Aucun devis sur la période.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-[11.5px]">
@@ -365,9 +455,12 @@ export function DevisPage() {
                           )}
                         </div>
                       )}
+                      {/* LA SUITE SE LIT SUR LA LIGNE (audit final F188) · la liste
+                          n'est plus qu'une tranche, et une contre-proposition émise
+                          hors de la période aurait rouvert le geste. */}
                       {peutEcrire &&
                         d.etat.etat === 'CONTRE_PROPOSITION' &&
-                        !etat.devis.some((x) => x.contrePropositionDeId === d.id) && (
+                        !d.contrePropositionId && (
                           <button
                             type="button"
                             className="mt-1 border border-border px-1.5 py-0.5 text-[11px]"

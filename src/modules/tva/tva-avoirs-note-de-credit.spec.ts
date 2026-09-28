@@ -34,12 +34,14 @@ function service(lignes: LigneFausse[], derniere: { dateDebut: Date; dateFin: Da
     // d'essai n'en porte aucune.
     ecriture: { count: jest.fn().mockResolvedValue(0) },
     ligneEcriture: {
-      findMany: jest.fn().mockImplementation(({ where, include }: { where: Record<string, unknown>; include?: any }) => {
+      findMany: jest.fn().mockImplementation(({ where, select }: { where: Record<string, unknown>; select?: any }) => {
         const compte = where.compte as { OR?: unknown } | undefined;
         if (!compte?.OR) return Promise.resolve([]);
         // La requête DOIT demander la pièce · sinon la nature ne serait jamais
-        // lue en production, quoi que ce doublon renvoie.
-        const demandeLaPiece = !!include?.ecriture?.include?.facture;
+        // lue en production, quoi que ce doublon renvoie. Depuis la lecture
+        // par tranches (audit final F188), elle ne demande que les colonnes
+        // qu'elle lit, par `select`.
+        const demandeLaPiece = !!select?.ecriture?.select?.facture;
         return Promise.resolve(
           lignes.map((l, i) => ({
             id: `l${i}`,

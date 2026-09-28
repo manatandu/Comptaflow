@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { StatutEcriture, TypeCompteDetailTotal } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
+import { LOT_ECRITURES, LOT_LECTURE, lireParLots, pageApres } from '../../common/lecture-par-lots';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { LigneBalancePourEtat, chargerLignes, correspond } from './etats-financiers.communs';
 import { EngagementService } from '../analytique/engagement.service';
@@ -71,6 +72,41 @@ export class EtatsFinanciersProjetBudgetService {
 
   private async chargerLignes(tenantId: string, exerciceId: string): Promise<LigneBalancePourEtat[]> {
     return chargerLignes(this.ecritureService, tenantId, exerciceId);
+  }
+
+  /**
+   * Parmi les lignes fournisseurs NOMMÉES, celles qui sont encore dues à la
+   * clôture · non lettrées, ou soldées par un règlement postérieur (règle de
+   * F10, `ouverteALaCloture`, écrite une seule fois).
+   *
+   * LA QUESTION SE POSE LOT PAR LOT (audit final F187). Elle se posait sur
+   * tout l'exercice d'un coup, pour tous les 40 et 481, et la réponse restait
+   * en mémoire le temps du tableau. Posée sur les seules lignes candidates
+   * d'une tranche, elle rend la même appartenance pour chacune d'elles, et
+   * la mémoire ne dépend plus de la taille du dossier. Les identifiants
+   * partent par paquets de LOT_LECTURE · une écriture importée peut porter
+   * des milliers de lignes fournisseurs, et une liste `in` sans borne
+   * rencontrerait la limite des paramètres liés de la base.
+   */
+  private async lignesOuvertesParmi(
+    tenantId: string,
+    exerciceId: string,
+    dateFin: Date,
+    ids: readonly string[],
+  ): Promise<Set<string>> {
+    const ouvertes = new Set<string>();
+    for (let i = 0; i < ids.length; i += LOT_LECTURE) {
+      const lignes = await this.prisma.ligneEcriture.findMany({
+        where: {
+          id: { in: ids.slice(i, i + LOT_LECTURE) },
+          ecriture: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE },
+          ...ouverteALaCloture(dateFin),
+        },
+        select: { id: true },
+      });
+      for (const l of lignes) ouvertes.add(l.id);
+    }
+    return ouvertes;
   }
 
   /**
@@ -149,7 +185,97 @@ export class EtatsFinanciersProjetBudgetService {
     }
 
     const exercice = await this.prisma.exercice.findFirstOrThrow({ where: { id: exerciceId, tenantId }, select: { dateFin: true } });
-    const [sections, budgets, ecritures, resteEngageParSection, nombreOd, fournisseursOuverts] = await Promise.all([
+
+    const decaisseParSection = new Map<string, number>();
+    const engageParSection = new Map<string, number>();
+
+    const toucheTresorerie = (lignes: readonly { compte: { numero: string } }[]) =>
+      lignes.some((l) => correspond(l.compte.numero, COMPTES_TRESORERIE_PROJET));
+    // L'ENGAGEMENT EST LE SEUL « solde créditeur balance N des comptes
+    // fournisseurs d'exploitation (compte 40) et d'investissement (compte
+    // 481) » (SYCEBNL, Guide d'application, Application 22, (d)). Tout le
+    // reste des débits des classes 2, 6 et 8 est DÉCAISSEMENT, (c) · une
+    // paie 661/422, une dotation, une OD n'ont aucune ligne fournisseur et
+    // restaient « engagées » pour toujours (audit final F11). Les 42 et 43
+    // n'entrent pas dans l'engagement : le guide ne les y met pas.
+    const estFournisseurQuiEngage = (numero: string) => correspond(numero, COMPTES_ENGAGEMENT, ['409']);
+
+    /*
+      L'EXERCICE SE LIT PAR TRANCHES (audit final F187). Le tableau chargeait
+      d'un coup toutes les écritures validées de l'exercice, chacune avec ses
+      lignes, la fiche entière de leur compte et toutes leurs ventilations, et
+      il le faisait à chaque ouverture des notes 35 et 24 · le motif même qui
+      a fait tomber le banc d'un million de lignes. C'est un DOCUMENT, il ne se
+      tronque pas : il se lit en entier, une tranche de LOT_ECRITURES à la
+      fois, et ne garde que ses deux cumuls par section.
+
+      TROIS RESSERREMENTS, AUCUN NE CHANGE UN MONTANT.
+       · Seules les écritures dont une ligne est ventilée sur CE plan sont
+         lues · une écriture sans ventilation du plan (un règlement, un
+         encaissement, une écriture de bilan) n'ajoute rien aux cumuls.
+       · De chaque ligne, seuls son identifiant, le numéro de son compte et
+         ses ventilations du plan · c'est tout ce que le classement lit. Les
+         AUTRES lignes de l'écriture restent toutes lues, parce que le
+         classement se fait sur l'écriture entière (trésorerie touchée,
+         fournisseur encore dû).
+       · Les lignes fournisseurs ouvertes à la clôture ne sont plus cherchées
+         sur tout l'exercice, mais parmi les seules candidates de la tranche
+         (`lignesOuvertesParmi`) · même règle, même réponse pour chacune.
+    */
+    const parcours = lireParLots(
+      async (curseur) => {
+        const lot = await this.prisma.ecriture.findMany({
+          where: {
+            tenantId,
+            exerciceId,
+            statut: StatutEcriture.VALIDEE,
+            estGenereeParCloture: false,
+            lignes: { some: { ventilations: { some: { planId: plan.id } } } },
+          },
+          select: {
+            id: true,
+            lignes: {
+              select: {
+                id: true,
+                compte: { select: { numero: true } },
+                ventilations: {
+                  where: { planId: plan.id },
+                  select: { planId: true, sectionId: true, debit: true, credit: true },
+                },
+              },
+            },
+          },
+          ...pageApres(curseur, LOT_ECRITURES),
+        });
+        // Une écriture qui touche la trésorerie est décaissée quoi qu'elle
+        // porte d'autre · ses lignes fournisseurs ne sont pas des candidates.
+        const candidates = lot
+          .filter((e) => !toucheTresorerie(e.lignes))
+          .flatMap((e) => e.lignes.filter((l) => estFournisseurQuiEngage(l.compte.numero)).map((l) => l.id));
+        const ouvertes = await this.lignesOuvertesParmi(tenantId, exerciceId, exercice.dateFin, candidates);
+        return lot.map((e) => ({
+          id: e.id,
+          lignes: e.lignes,
+          engagee:
+            !toucheTresorerie(e.lignes) &&
+            e.lignes.some((l) => estFournisseurQuiEngage(l.compte.numero) && ouvertes.has(l.id)),
+        }));
+      },
+      (e) => {
+        const cible = e.engagee ? engageParSection : decaisseParSection;
+        for (const l of e.lignes) {
+          for (const v of l.ventilations) {
+            if (v.planId !== plan.id) continue;
+            const montant = Number(v.debit) - Number(v.credit);
+            if (Math.abs(montant) < 0.005) continue;
+            cible.set(v.sectionId, (cible.get(v.sectionId) ?? 0) + montant);
+          }
+        }
+      },
+      LOT_ECRITURES,
+    );
+
+    const [sections, budgets, resteEngageParSection, nombreOd] = await Promise.all([
       this.prisma.sectionAnalytique.findMany({
         where: { planId: plan.id, tenantId },
         orderBy: { code: 'asc' },
@@ -159,61 +285,14 @@ export class EtatsFinanciersProjetBudgetService {
       // l'annuel. Les additionner sans filtre doublait le budget des notes
       // 35 et 24, et le crédit disponible avec lui.
       this.prisma.budgetSection.findMany({ where: { exerciceId, mois: null, section: { planId: plan.id } } }),
-      this.prisma.ecriture.findMany({
-        where: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE, estGenereeParCloture: false },
-        include: {
-          lignes: {
-            include: { compte: true, ventilations: true },
-          },
-        },
-      }),
       this.engagementService.resteParSection(tenantId, exerciceId),
       this.prisma.odAnalytique.count({ where: { tenantId, exerciceId, planId: plan.id } }),
-      // Les lignes fournisseurs ENCORE DUES À LA CLÔTURE · non lettrées, ou
-      // soldées par un règlement postérieur (règle de F10). C'est le « solde
-      // créditeur balance N » du guide, ligne par ligne.
-      this.prisma.ligneEcriture.findMany({
-        where: {
-          ecriture: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE },
-          compte: { OR: COMPTES_ENGAGEMENT.map((r) => ({ numero: { startsWith: r } })) },
-          ...ouverteALaCloture(exercice.dateFin),
-        },
-        select: { id: true },
-      }),
+      parcours,
     ]);
-    const idsFournisseursOuverts = new Set(fournisseursOuverts.map((l) => l.id));
 
     const budgetParSection = new Map<string, number>();
     for (const b of budgets) {
       budgetParSection.set(b.sectionId, (budgetParSection.get(b.sectionId) ?? 0) + Number(b.montant));
-    }
-
-    const decaisseParSection = new Map<string, number>();
-    const engageParSection = new Map<string, number>();
-
-    for (const e of ecritures) {
-      const toucheTresorerie = e.lignes.some((l) => correspond(l.compte.numero, COMPTES_TRESORERIE_PROJET));
-      // L'ENGAGEMENT EST LE SEUL « solde créditeur balance N des comptes
-      // fournisseurs d'exploitation (compte 40) et d'investissement (compte
-      // 481) » (SYCEBNL, Guide d'application, Application 22, (d)). Tout le
-      // reste des débits des classes 2, 6 et 8 est DÉCAISSEMENT, (c) · une
-      // paie 661/422, une dotation, une OD n'ont aucune ligne fournisseur et
-      // restaient « engagées » pour toujours (audit final F11). Les 42 et 43
-      // n'entrent pas dans l'engagement : le guide ne les y met pas.
-      const engagee =
-        !toucheTresorerie &&
-        e.lignes.some((l) => correspond(l.compte.numero, COMPTES_ENGAGEMENT, ['409']) && idsFournisseursOuverts.has(l.id));
-      const decaissee = !engagee;
-
-      for (const l of e.lignes) {
-        for (const v of l.ventilations) {
-          if (v.planId !== plan.id) continue;
-          const montant = Number(v.debit) - Number(v.credit);
-          if (Math.abs(montant) < 0.005) continue;
-          const cible = decaissee ? decaisseParSection : engageParSection;
-          cible.set(v.sectionId, (cible.get(v.sectionId) ?? 0) + montant);
-        }
-      }
     }
 
     /*
@@ -346,18 +425,7 @@ export class EtatsFinanciersProjetBudgetService {
    *    sur l'impression.
    */
   async reconciliationTresorerie(tenantId: string, exerciceId: string, paiementsEnInstance: number | null = null) {
-    const [lignes, ecritures] = await Promise.all([
-      this.chargerLignes(tenantId, exerciceId),
-      this.prisma.ecriture.findMany({
-        where: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE, estGenereeParCloture: false },
-        include: { lignes: { include: { compte: true } } },
-      }),
-    ]);
-
     const estTresorerie = (numero: string) => correspond(numero, COMPTES_TRESORERIE_PROJET);
-    const lignesTresorerie = lignes.filter((l) => estTresorerie(l.numero));
-    const tresorerieDebut = lignesTresorerie.reduce((s, l) => s + l.reportDebit - l.reportCredit, 0);
-    const tresorerieFin = lignesTresorerie.reduce((s, l) => s + l.solde, 0);
 
     // Ventilation des encaissements par nature de contrepartie, et total des
     // décaissements · les virements internes (flux net nul) sont écartés,
@@ -367,29 +435,61 @@ export class EtatsFinanciersProjetBudgetService {
     let autresFonds = 0;
     let depenses = 0;
 
-    for (const e of ecritures) {
-      const tresorerie = e.lignes.filter((l) => estTresorerie(l.compte.numero));
-      if (tresorerie.length === 0) continue;
-      const flux = tresorerie.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
-      if (Math.abs(flux) < 0.005) continue;
-      if (flux < 0) {
-        depenses += -flux;
-        continue;
-      }
-      for (const l of e.lignes.filter((x) => !estTresorerie(x.compte.numero))) {
-        const contribution = Number(l.credit) - Number(l.debit);
-        if (Math.abs(contribution) < 0.005) continue;
-        // 161 à 164 (fonds d'investissement) et 462 à 464 (fonds
-        // d'administration) · Partie 3, ch. 3, décaissement des bailleurs.
-        if (correspond(l.compte.numero, ['161', '162', '163', '164', '462', '463', '464'])) {
-          fondsBailleurs += contribution;
-        } else if (correspond(l.compte.numero, ['77'])) {
-          interets += contribution;
-        } else {
-          autresFonds += contribution;
-        }
-      }
-    }
+    /*
+      MÊME LECTURE PAR TRANCHES que le tableau d'exécution (audit final F187) ·
+      c'est la même famille, dans le même fichier. Seules les écritures qui
+      touchent un compte de trésorerie sont lues, les autres n'y entrant pas,
+      et de chaque ligne seuls le numéro de son compte et ses deux montants.
+      Un document ne se tronque pas · l'exercice est lu en entier.
+    */
+    const [lignes] = await Promise.all([
+      this.chargerLignes(tenantId, exerciceId),
+      lireParLots(
+        (curseur) =>
+          this.prisma.ecriture.findMany({
+            where: {
+              tenantId,
+              exerciceId,
+              statut: StatutEcriture.VALIDEE,
+              estGenereeParCloture: false,
+              lignes: { some: { compte: { OR: COMPTES_TRESORERIE_PROJET.map((p) => ({ numero: { startsWith: p } })) } } },
+            },
+            select: {
+              id: true,
+              lignes: { select: { debit: true, credit: true, compte: { select: { numero: true } } } },
+            },
+            ...pageApres(curseur, LOT_ECRITURES),
+          }),
+        (e) => {
+          const tresorerie = e.lignes.filter((l) => estTresorerie(l.compte.numero));
+          if (tresorerie.length === 0) return;
+          const flux = tresorerie.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
+          if (Math.abs(flux) < 0.005) return;
+          if (flux < 0) {
+            depenses += -flux;
+            return;
+          }
+          for (const l of e.lignes.filter((x) => !estTresorerie(x.compte.numero))) {
+            const contribution = Number(l.credit) - Number(l.debit);
+            if (Math.abs(contribution) < 0.005) continue;
+            // 161 à 164 (fonds d'investissement) et 462 à 464 (fonds
+            // d'administration) · Partie 3, ch. 3, décaissement des bailleurs.
+            if (correspond(l.compte.numero, ['161', '162', '163', '164', '462', '463', '464'])) {
+              fondsBailleurs += contribution;
+            } else if (correspond(l.compte.numero, ['77'])) {
+              interets += contribution;
+            } else {
+              autresFonds += contribution;
+            }
+          }
+        },
+        LOT_ECRITURES,
+      ),
+    ]);
+
+    const lignesTresorerie = lignes.filter((l) => estTresorerie(l.numero));
+    const tresorerieDebut = lignesTresorerie.reduce((s, l) => s + l.reportDebit - l.reportCredit, 0);
+    const tresorerieFin = lignesTresorerie.reduce((s, l) => s + l.solde, 0);
 
     const g = tresorerieDebut + fondsBailleurs + interets + autresFonds - 0 - depenses;
     // `null` pour H non renseigné, et donc pour I (audit final F13) · jamais

@@ -59,6 +59,10 @@ function service(opts: { initiale?: Faux | null; doublon?: boolean } = {}) {
     if (where.numeroSerie) return Promise.resolve(opts.doublon ? { id: 'autre' } : null);
     return Promise.resolve(null);
   });
+  // La liste compte sa période (audit final F188) · le décompte rend ce que
+  // la même doublure rendrait à la lecture, jamais un nombre posé à part.
+  const findMany = jest.fn().mockResolvedValue([]);
+  const count = jest.fn().mockImplementation(async (a: Faux) => ((await findMany(a)) as unknown[]).length);
   const prisma = {
     tenant: {
       findUniqueOrThrow: jest.fn().mockResolvedValue({
@@ -69,7 +73,7 @@ function service(opts: { initiale?: Faux | null; doublon?: boolean } = {}) {
       }),
     },
     ecriture: { findFirst: jest.fn().mockResolvedValue({ id: 'e-avoir' }) },
-    facture: { findFirst, findMany: jest.fn().mockResolvedValue([]), create, delete: jest.fn().mockResolvedValue({}) },
+    facture: { findFirst, findMany, count, create, delete: jest.fn().mockResolvedValue({}) },
   } as Faux;
   return { svc: new FacturationService(prisma as unknown as PrismaService), prisma, create };
 }

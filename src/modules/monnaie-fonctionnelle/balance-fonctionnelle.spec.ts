@@ -129,6 +129,17 @@ describe('la balance du second jeu', () => {
   };
 
   function service(etat: Etat = {}) {
+    // Les lignes se regroupent en écritures · le service lit les ÉCRITURES par
+    // tranches, chacune avec toutes ses lignes (audit final F189).
+    type LigneLue = Omit<NonNullable<Etat['lignes']>[number], 'ecriture'>;
+    const parEcriture = new Map<string, { id: string; date: Date; lignes: LigneLue[] }>();
+    for (const { ecriture, ...reste } of etat.lignes ?? []) {
+      const e = parEcriture.get(ecriture.id) ?? { id: ecriture.id, date: ecriture.date, lignes: [] };
+      e.lignes.push(reste);
+      parEcriture.set(ecriture.id, e);
+    }
+    const ecritures = [...parEcriture.values()].sort((a, b) => a.id.localeCompare(b.id));
+    type Filtre = { tenantId: string; exerciceId: string; estGenereeParCloture: boolean };
     const prisma = {
       tenant: {
         findUniqueOrThrow: jest.fn().mockResolvedValue({
@@ -148,10 +159,22 @@ describe('la balance du second jeu', () => {
       },
       // La doublure HONORE le filtre des écritures de clôture · ces lignes
       // sont toutes des mouvements, aucune n'est un à-nouveau (audit final
-      // F42, voir balance-fonctionnelle-ouverture-f42.spec.ts).
+      // F42, voir balance-fonctionnelle-ouverture-f42.spec.ts). Et elle
+      // pagine comme Prisma · ordre par identifiant, `take`, curseur et
+      // `skip` (audit final F189, voir balance-fonctionnelle-par-tranches-f189.spec.ts).
+      ecriture: {
+        findMany: jest.fn(
+          ({ where, take, cursor, skip }: { where: Filtre; take?: number; cursor?: { id: string }; skip?: number }) => {
+            const retenues =
+              where.tenantId === 't1' && where.exerciceId === 'ex1' && !where.estGenereeParCloture ? ecritures : [];
+            const debut = cursor ? retenues.findIndex((e) => e.id === cursor.id) + (skip ?? 0) : 0;
+            return Promise.resolve(retenues.slice(debut, take === undefined ? undefined : debut + take));
+          },
+        ),
+      },
       ligneEcriture: {
-        findMany: jest.fn(({ where }: { where: { ecriture: { estGenereeParCloture: boolean } } }) =>
-          Promise.resolve(where.ecriture.estGenereeParCloture ? [] : (etat.lignes ?? [])),
+        findFirst: jest.fn(({ where }: { where: { ecriture: Filtre } }) =>
+          Promise.resolve(where.ecriture.estGenereeParCloture ? null : (ecritures[0]?.lignes[0] ?? null)),
         ),
       },
     } as unknown as PrismaService;

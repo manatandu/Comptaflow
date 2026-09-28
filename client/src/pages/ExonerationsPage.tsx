@@ -1,6 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import {
+  horsPeriode,
+  jourDuPoste,
+  libellePeriode,
+  libelleTranche,
+  periodeParDefaut,
+  requetePeriode,
+  type OriginePeriode,
+  type PeriodeListe,
+} from '../lib/periode-liste-travail';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { Aide } from '../components/chrome/Aide';
 import type {
@@ -61,12 +71,47 @@ export function ExonerationsPage() {
   const [dateArrete, setDateArrete] = useState('');
   const [debutArrete, setDebutArrete] = useState('');
 
+  // LE REGISTRE SE LIT SUR UNE PÉRIODE (audit final F188) · l'ouverture du
+  // dossier, les douze derniers mois par défaut, un registre n'étant pas tenu
+  // par exercice. Un titre en alerte reste listé hors de la période, et les
+  // compteurs du bandeau portent sur tout le registre.
+  const [periodeChoisie, setPeriodeChoisie] = useState<PeriodeListe | null>(null);
+  const periodeDefaut = useMemo(() => periodeParDefaut(null, new Date()), []);
+  const periodeListe: PeriodeListe = periodeChoisie ?? periodeDefaut;
+  const originePeriode: OriginePeriode = periodeChoisie ? 'CHOISIE' : periodeDefaut.origine;
+  // L'échec de LECTURE se dit à côté de la période, et s'efface à la lecture
+  // suivante · une période refusée puis corrigée ne laisse pas son refus affiché.
+  const [erreurListe, setErreurListe] = useState<string | null>(null);
+  const [avisListe, setAvisListe] = useState<string | null>(null);
+
+  // DEUX LECTURES SE CROISENT (relecture audit final F188) · un champ de date
+  // se tape chiffre par chiffre. Seule la DERNIÈRE demandée s'affiche · une
+  // réponse arrivée en retard poserait le registre d'une période sous le
+  // libellé d'une autre.
+  const lectureListe = useRef(0);
   const charger = () => {
-    api.get<RegistreExonerations>('/exonerations').then(setRegistre, (e: Error) => setErreur(e.message));
+    const numero = ++lectureListe.current;
+    api.get<RegistreExonerations>(`/exonerations${requetePeriode(periodeListe)}`).then(
+      (r) => {
+        if (numero !== lectureListe.current) return;
+        setRegistre(r);
+        setErreurListe(null);
+      },
+      (e: Error) => {
+        if (numero !== lectureListe.current) return;
+        setErreurListe(e.message);
+      },
+    );
   };
 
   useEffect(() => {
+    // L'avis d'un dossier hors période vaut pour la période où il a été donné.
+    setAvisListe(null);
     charger();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodeListe.du, periodeListe.au]);
+
+  useEffect(() => {
     api.get<ReferentielExonerations>('/exonerations/referentiel').then(setReferentiel, () => undefined);
   }, []);
 
@@ -99,6 +144,8 @@ export function ExonerationsPage() {
       setCreation(null);
       setObjet('');
       setDebutValidite('');
+      // Un dossier s'ouvre aujourd'hui · hors de la période affichée, il ne s'y verra pas.
+      setAvisListe(horsPeriode(jourDuPoste(new Date()), periodeListe) ? 'Dossier créé · ouvert hors de la période affichée.' : null);
       charger();
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Création impossible');
@@ -213,6 +260,46 @@ export function ExonerationsPage() {
         </div>
       )}
 
+      {/* La période s'imprime avec le registre · une liste bornée qui ne dirait
+          pas sa borne se lirait comme le registre entier. Seuls les champs
+          restent à l'écran. */}
+      <div className="flex flex-wrap items-end gap-2 mb-1.5 text-[11.5px] max-w-[1240px]">
+        <label className="ecran-seul">
+          Ouverts du
+          <input
+            type="date"
+            className="block border border-border px-1.5 py-0.5 text-[11.5px]"
+            value={periodeListe.du ?? ''}
+            onChange={(e) => setPeriodeChoisie({ ...periodeListe, du: e.target.value || null })}
+          />
+        </label>
+        <label className="ecran-seul">
+          Au
+          <input
+            type="date"
+            className="block border border-border px-1.5 py-0.5 text-[11.5px]"
+            value={periodeListe.au ?? ''}
+            onChange={(e) => setPeriodeChoisie({ ...periodeListe, au: e.target.value || null })}
+          />
+        </label>
+        <span className="text-text-dim">
+          Dossiers ouverts · {libellePeriode(periodeListe, originePeriode)}
+          {/* Le libellé s'imprime · il dit aussi les titres en alerte, listés hors de la période. */}
+          {(periodeListe.du || periodeListe.au) && ' · arrêtés en alerte compris'}
+        </span>
+        <Aide
+          className="ecran-seul"
+          titre="Période du registre"
+          texte="La liste se lit sur la date d'ouverture du dossier, bornes comprises, les douze derniers mois par défaut. Un arrêté expiré ou à renouveler reste listé quelle que soit la période, et les compteurs du bandeau portent sur tout le registre. Au-delà du plafond, le total de la période est dit."
+          source="Audit final F188"
+        />
+        {!erreurListe && registre && libelleTranche(registre, registre.dossiers.length) && (
+          <span className="text-warning">{libelleTranche(registre, registre.dossiers.length)}</span>
+        )}
+        {erreurListe && <span className="text-danger">{erreurListe}</span>}
+        {avisListe && <span className="text-warning">{avisListe}</span>}
+      </div>
+
       <div className="flex gap-2.5 max-w-[1240px] items-start">
         {/* --- Liste des dossiers ------------------------------------------ */}
         <div
@@ -229,13 +316,15 @@ export function ExonerationsPage() {
             <span>Échéance</span>
             <span>Pièces</span>
           </div>
-          {!registre && <div className="px-3.5 py-3 text-[11.5px] text-text-dim">Chargement…</div>}
-          {registre?.dossiers.length === 0 && (
+          {!registre && !erreurListe && <div className="px-3.5 py-3 text-[11.5px] text-text-dim">Chargement…</div>}
+          {/* Une lecture refusée ne laisse pas les dossiers d'avant sous le
+              libellé de la période demandée · ils se liraient comme sa réponse. */}
+          {!erreurListe && registre?.dossiers.length === 0 && (
             <div className="px-3.5 py-3 text-[11.5px] text-text-dim italic">
-              Aucun dossier.
+              Aucun dossier sur la période.
             </div>
           )}
-          {registre?.dossiers.map((d) => (
+          {!erreurListe && registre?.dossiers.map((d) => (
             <button
               key={d.id}
               type="button"

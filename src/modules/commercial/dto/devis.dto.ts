@@ -47,3 +47,16 @@ export class RevoquerDevisDto {
   @IsDateString() revoqueLe!: string;
   @IsString() @MinLength(3) @MaxLength(500) motifRevocation!: string;
 }
+
+/**
+ * LA LISTE DE TRAVAIL DES DEVIS (audit final F188). `du` et `au` sont des jours
+ * AAAA-MM-JJ, lus et refusés par `lirePeriodeDeListe` au service · une seule
+ * règle. Le DTO les DÉCLARE, le filtre global refusant tout paramètre inconnu.
+ * La date de référence, illisible, faisait tomber la liste en erreur serveur ·
+ * elle est désormais refusée à la porte.
+ */
+export class ListerDevisDto {
+  @IsOptional() @IsDateString() dateReference?: string;
+  @IsOptional() @IsString() du?: string;
+  @IsOptional() @IsString() au?: string;
+}

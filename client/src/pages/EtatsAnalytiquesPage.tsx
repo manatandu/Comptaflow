@@ -392,8 +392,13 @@ export function EtatsAnalytiquesPage() {
                 ))}
                 {c.lignesSansRepartition.length > 0 && (
                   <div className="border-t border-border">
+                    {/* Une tranche se dit (audit final F186) · les cumuls
+                        ci-dessus portent toute la période, la liste seulement
+                        ses premières lignes. */}
                     <div className="px-3 py-1.5 bg-chrome text-[11px] font-bold text-text-dim">
-                      {c.lignesSansRepartition.length} écriture(s) sans répartition
+                      {c.tronque
+                        ? `${c.lignesSansRepartition.length} premières sur ${c.nombreSansRepartition.toLocaleString('fr-FR')} écriture(s) sans répartition`
+                        : `${c.lignesSansRepartition.length} écriture(s) sans répartition`}
                     </div>
                     <div className="max-h-[240px] overflow-y-auto">
                       {c.lignesSansRepartition.map((l, i) => (

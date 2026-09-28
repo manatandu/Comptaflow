@@ -1,7 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { PasserEcritureFacture } from '../components/PasserEcritureFacture';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { useExercice } from '../lib/exercice';
+import {
+  horsPeriode,
+  libellePeriode,
+  libelleTranche,
+  periodeParDefaut,
+  requetePeriode,
+  type OriginePeriode,
+  type PeriodeListe,
+} from '../lib/periode-liste-travail';
 import { Aide } from '../components/chrome/Aide';
 import { BlocEmetteur, montantImprime, TableauLignes } from '../components/PieceImprimable';
 import { avertissementArticle17, manquesDeLaPiece, mentionDebitsProposee, type MentionsRecopiees } from '../lib/mentions-piece';
@@ -92,6 +102,11 @@ type Etat = {
     reserveSupports: string;
   };
   regimeExigibiliteTva?: string | null;
+  /** La période lue et la tranche rendue (audit final F188) · le total est celui de la période entière. */
+  periode: PeriodeListe;
+  total: number;
+  plafond: number;
+  tronque: boolean;
   factures: Facture[];
 };
 
@@ -179,9 +194,44 @@ export function FacturationPage() {
     window.setTimeout(() => window.print(), 50);
   };
 
-  const recharger = () => api.get<Etat>('/facturation').then(setEtat);
+  // LA LISTE SE LIT SUR UNE PÉRIODE (audit final F188) · l'exercice courant
+  // du sélecteur par défaut, les douze derniers mois sans exercice, et l'écran
+  // dit laquelle. Un échec de lecture se dit, il ne laisse pas « Chargement… ».
+  const { exerciceCourant, chargement: chargementExercice } = useExercice();
+  const [periodeChoisie, setPeriodeChoisie] = useState<PeriodeListe | null>(null);
+  const periodeDefaut = useMemo(() => periodeParDefaut(exerciceCourant, new Date()), [exerciceCourant]);
+  const periodeListe: PeriodeListe = periodeChoisie ?? periodeDefaut;
+  const originePeriode: OriginePeriode = periodeChoisie ? 'CHOISIE' : periodeDefaut.origine;
+  const [erreurListe, setErreurListe] = useState<string | null>(null);
+  const [avisListe, setAvisListe] = useState<string | null>(null);
+  // DEUX LECTURES SE CROISENT (relecture audit final F188) · le sélecteur
+  // d'exercice se résout en deux temps (défaut, puis choix mémorisé), et un
+  // champ de date se tape chiffre par chiffre. Seule la DERNIÈRE demandée
+  // s'affiche · une réponse arrivée en retard poserait la liste d'une période
+  // sous le libellé d'une autre.
+  const lectureListe = useRef(0);
+  const recharger = () => {
+    const numero = ++lectureListe.current;
+    return api.get<Etat>(`/facturation${requetePeriode(periodeListe)}`).then(
+      (e) => {
+        if (numero !== lectureListe.current) return;
+        setEtat(e);
+        setErreurListe(null);
+      },
+      (e) => {
+        if (numero !== lectureListe.current) return;
+        setErreurListe(e instanceof ApiError ? e.message : "La liste des factures n'a pas pu être lue.");
+      },
+    );
+  };
   useEffect(() => {
-    void recharger().catch(() => setEtat(null));
+    if (chargementExercice) return;
+    // L'avis d'une pièce hors période vaut pour la période où il a été donné.
+    setAvisListe(null);
+    void recharger();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chargementExercice, periodeListe.du, periodeListe.au]);
+  useEffect(() => {
     api.get<Tiers[]>('/tiers?actifsSeuls=true').then(setTiersListe, () => setTiersListe([]));
     api.get<TauxTva[]>('/taux-tva?actifsSeuls=true').then(setTauxListe, () => setTauxListe([]));
   }, []);
@@ -220,6 +270,8 @@ export function FacturationPage() {
       setNumeroSerie('');
       setDesignation('');
       setMentionDebits(null);
+      // Une pièce datée hors de la période affichée ne s'y verra pas · le dire.
+      setAvisListe(horsPeriode(dateFacture, periodeListe) ? 'Pièce enregistrée · datée hors de la période affichée.' : null);
       await recharger();
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : "L'enregistrement n'a pas abouti.");
@@ -251,6 +303,8 @@ export function FacturationPage() {
         numeroSerie: noteNumero,
         dateNote: noteDate,
       });
+      // La note est une pièce du facturier · datée hors de la période, elle ne s'y verra pas.
+      setAvisListe(horsPeriode(noteDate, periodeListe) ? 'Note de crédit émise · datée hors de la période affichée.' : null);
       setNoteSur(null);
       setNoteNumero('');
       setNoteDate('');
@@ -270,7 +324,13 @@ export function FacturationPage() {
     }
   }
 
-  if (!etat) return <div className="p-3 text-[11.5px] text-text-dim">Chargement…</div>;
+  if (!etat) {
+    return erreurListe ? (
+      <div className="p-3 text-[11.5px] text-danger">{erreurListe}</div>
+    ) : (
+      <div className="p-3 text-[11.5px] text-text-dim">Chargement…</div>
+    );
+  }
 
   return (
     <div className={`p-2 max-w-[1100px] ${aImprimer ? 'avec-edition' : ''}`}>
@@ -567,9 +627,44 @@ export function FacturationPage() {
       </section>
 
       <section className="border border-border bg-surface px-3.5 py-2.5">
-        <h2 className="text-[11.5px] font-bold mb-1.5">Factures enregistrées</h2>
-        {etat.factures.length === 0 ? (
-          <p className="text-[11.5px] text-text-dim">Aucune facture enregistrée.</p>
+        <h2 className="text-[11.5px] font-bold mb-1.5 flex items-center gap-1.5">
+          Factures enregistrées
+          <Aide
+            titre="Période de la liste"
+            texte="La liste se lit sur la date de la pièce, bornes comprises. Par défaut, l'exercice courant du sélecteur, ou les douze derniers mois sans exercice. Au-delà du plafond, les pièces les plus récentes sont affichées et le total de la période est dit. L'état détaillé se produit toujours sur le mois entier."
+            source="Audit final F188"
+          />
+        </h2>
+        <div className="flex flex-wrap items-end gap-2 mb-1.5 text-[11.5px]">
+          <label>
+            Du
+            <input
+              type="date"
+              className="block border border-border px-1.5 py-0.5 text-[11.5px]"
+              value={periodeListe.du ?? ''}
+              onChange={(e) => setPeriodeChoisie({ ...periodeListe, du: e.target.value || null })}
+            />
+          </label>
+          <label>
+            Au
+            <input
+              type="date"
+              className="block border border-border px-1.5 py-0.5 text-[11.5px]"
+              value={periodeListe.au ?? ''}
+              onChange={(e) => setPeriodeChoisie({ ...periodeListe, au: e.target.value || null })}
+            />
+          </label>
+          <span className="text-text-dim">{libellePeriode(periodeListe, originePeriode)}</span>
+        </div>
+        {erreurListe && <p className="text-[11.5px] text-danger mb-1.5">{erreurListe}</p>}
+        {avisListe && <p className="text-[11.5px] text-warning mb-1.5">{avisListe}</p>}
+        {/* UNE LECTURE REFUSÉE NE LAISSE PAS LES LIGNES D'AVANT sous le libellé de
+            la période demandée · elles se liraient comme sa réponse. */}
+        {!erreurListe && libelleTranche(etat, etat.factures.length) && (
+          <p className="text-[11.5px] text-warning mb-1.5">{libelleTranche(etat, etat.factures.length)}</p>
+        )}
+        {erreurListe ? null : etat.factures.length === 0 ? (
+          <p className="text-[11.5px] text-text-dim">Aucune facture sur la période.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-[11.5px]">

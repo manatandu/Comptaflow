@@ -139,3 +139,23 @@ export class ComptabiliserFactureDto {
   @IsObject()
   comptesParLigne?: Record<string, string>;
 }
+
+/**
+ * LA LISTE DE TRAVAIL DU FACTURIER (audit final F188). Les deux dates sont des
+ * jours AAAA-MM-JJ, lus et refusés par `lirePeriodeDeListe` · une seule règle,
+ * au service, et non une seconde ici qui pourrait diverger d'elle. Le DTO les
+ * DÉCLARE seulement, le filtre global refusant tout paramètre inconnu.
+ */
+export class ListerFacturesDto {
+  @IsOptional()
+  @IsEnum(SensFacture)
+  sens?: SensFacture;
+
+  @IsOptional()
+  @IsString()
+  du?: string;
+
+  @IsOptional()
+  @IsString()
+  au?: string;
+}

@@ -40,9 +40,55 @@ const BALANCES: Record<string, { lignes: unknown[]; totaux: { debit: number; cre
   },
 };
 
+type LigneFixture = { numero: string; intitule: string; typeCompte: string; totalDebit: number; totalCredit: number };
+type Couples = { OR: Array<{ tenantId: string; exerciceId: string }> };
+
+/**
+ * LA LECTURE DES BALANCES PAR TRANCHES (audit final F190) · le service ne
+ * demande plus une balance par dossier : il lit les comptes des dossiers et
+ * leurs sommes par compte, pour les seuls couples (dossier, exercice) retenus.
+ * La doublure rend ce que la base rendrait · un couple absent de la requête ne
+ * rend rien, et ces jeux d'essai ne portent que des mouvements, ni à-nouveau
+ * ni clôture.
+ */
+function lectureDesBalances(parDossier: Record<string, { exerciceId: string; lignes: LigneFixture[] }>) {
+  const comptes = Object.entries(parDossier).flatMap(([tenantId, { lignes }]) =>
+    lignes.map((l) => ({
+      id: `${tenantId}:${l.numero}`,
+      tenantId,
+      numero: l.numero,
+      intitule: l.intitule,
+      classe: `CLASSE_${l.numero[0]}`,
+      typeCompte: l.typeCompte,
+      sommes: { debit: l.totalDebit, credit: l.totalCredit },
+    })),
+  );
+  return {
+    compte: {
+      findMany: async ({ where }: { where: { tenantId: { in: string[] } } }) =>
+        comptes.filter((c) => where.tenantId.in.includes(c.tenantId)).sort((a, b) => (a.numero < b.numero ? -1 : 1)),
+    },
+    ligneEcriture: {
+      groupBy: async ({ where }: { where: { ecriture: Couples & { estGenereeParCloture?: boolean } } }) =>
+        where.ecriture.estGenereeParCloture !== false
+          ? []
+          : comptes
+              .filter((c) => where.ecriture.OR.some((o) => o.tenantId === c.tenantId && o.exerciceId === parDossier[c.tenantId].exerciceId))
+              .map((c) => ({ compteId: c.id, _sum: c.sommes })),
+    },
+  };
+}
+
+const lectureDuGroupe = (balanceC1: (typeof BALANCES)['c1'] = BALANCES.c1) =>
+  lectureDesBalances({
+    mere: { exerciceId: 'ex-m', lignes: BALANCES.mere.lignes as LigneFixture[] },
+    c1: { exerciceId: 'ex-c1', lignes: balanceC1.lignes as LigneFixture[] },
+  });
+
 const service = (surcharges?: { balanceC1?: (typeof BALANCES)['c1'] }) =>
   new GroupeService(
     {
+      ...lectureDuGroupe(surcharges?.balanceC1),
       exercice: { findFirst: async ({ where }: { where: { id: string; tenantId: string } }) => (where.id === 'ex-m' && where.tenantId === 'mere' ? EX_MERE : null) },
       // AUCUN TIERS N'EST UNE CELLULE DU GROUPE · c'est l'état de tous les
       // dossiers existants, aucune reprise de données n'ayant eu lieu. Les
@@ -62,9 +108,8 @@ const service = (surcharges?: { balanceC1?: (typeof BALANCES)['c1'] }) =>
             : [],
       },
     } as never,
-    {
-      balance: async (tenantId: string) => (tenantId === 'mere' ? BALANCES.mere : (surcharges?.balanceC1 ?? BALANCES.c1)),
-    } as never,
+    // Aucune balance par dossier n'est plus demandée au service des écritures.
+    {} as never,
     undefined as never,
     undefined as never,
   );
@@ -117,7 +162,7 @@ describe('GroupeService · balance agrégée', () => {
         tenant: { findUnique: async () => ({ id: 'seul', nom: 'Dossier seul' }), findMany: async () => [] },
         tiersCompte: { findMany: async () => [] },
       } as never,
-      { balance: async () => BALANCES.mere } as never,
+      {} as never,
       undefined as never,
       undefined as never,
     );
@@ -414,8 +459,17 @@ describe('GroupeService · liasse du groupe en un clic', () => {
   const prismaCombinaison = (
     journalDeAppels: Array<{ nom: string; args?: unknown }>,
     brouillard: Record<string, number> = {},
-  ) =>
-    ({
+    balanceC1: (typeof BALANCES)['c1'] = BALANCES.c1,
+  ) => {
+    const lecture = lectureDuGroupe(balanceC1);
+    return {
+      ligneEcriture: {
+        groupBy: lecture.ligneEcriture.groupBy,
+        deleteMany: async () => {
+          journalDeAppels.push({ nom: 'lignes.deleteMany' });
+          return { count: 0 };
+        },
+      },
       exercice: {
         findFirst: async ({ where }: { where: { id?: string; tenantId: string } }) => {
           // L'exercice de la mère existe · celui de la combinaison, pas encore.
@@ -447,17 +501,20 @@ describe('GroupeService · liasse du groupe en un clic', () => {
           return {};
         },
       },
-      ligneEcriture: {
-        deleteMany: async () => {
-          journalDeAppels.push({ nom: 'lignes.deleteMany' });
-          return { count: 0 };
-        },
-      },
       ecriture: {
-        // Le brouillard restant, dossier par dossier · aucun par défaut.
-        count: async ({ where }: { where: { tenantId: string; estANouveauProvisoire?: boolean } }) => {
-          journalDeAppels.push({ nom: 'ecriture.count', args: where });
-          return where.estANouveauProvisoire ? 0 : (brouillard[where.tenantId] ?? 0);
+        // Le brouillard restant, par couple (dossier, exercice) · aucun par
+        // défaut. La doublure ne répond qu'aux couples DEMANDÉS, comme la base
+        // (audit final F190) · un exercice mal choisi ne trouverait rien.
+        groupBy: async ({ where }: { where: Couples }) => {
+          journalDeAppels.push({ nom: 'ecriture.groupBy', args: where });
+          return where.OR.filter((c) => (brouillard[`${c.tenantId}|${c.exerciceId}`] ?? 0) > 0).map((c) => ({
+            tenantId: c.tenantId,
+            exerciceId: c.exerciceId,
+            statut: 'BROUILLARD',
+            estANouveauProvisoire: false,
+            _count: { _all: brouillard[`${c.tenantId}|${c.exerciceId}`] },
+            _max: { date: EX_MERE.dateFin },
+          }));
         },
         deleteMany: async () => {
           journalDeAppels.push({ nom: 'ecritures.deleteMany' });
@@ -473,21 +530,26 @@ describe('GroupeService · liasse du groupe en un clic', () => {
           journalDeAppels.push({ nom: 'compte.createMany', args: data });
           return { count: data.length };
         },
-        findMany: async ({ where }: { where: { numero: { in: string[] } } }) =>
-          where.numero.in.map((n) => ({ id: `cpt-${n}`, numero: n })),
+        // Deux lectures · les comptes des dossiers pour la balance, ceux du
+        // dossier de combinaison, par numéro, pour le reversement.
+        findMany: async (args: { where: { numero?: { in: string[] }; tenantId: { in: string[] } } }) =>
+          args.where.numero
+            ? args.where.numero.in.map((n) => ({ id: `cpt-${n}`, numero: n }))
+            : lecture.compte.findMany(args),
       },
       journal: {
         findFirst: async () => null,
         create: async () => ({ id: 'j-od' }),
       },
-    }) as never;
+    } as never;
+  };
 
   it('reverse la balance agrégée dans le dossier de combinaison, régénéré, puis fait produire la liasse aux moteurs existants', async () => {
     const appels: Array<{ nom: string; args?: unknown }> = [];
     let liasseDemandee: { tenantId: string; exerciceId: string } | undefined;
     const s = new GroupeService(
       prismaCombinaison(appels),
-      { balance: async (tenantId: string) => (tenantId === 'mere' ? BALANCES.mere : BALANCES.c1) } as never,
+      {} as never,
       undefined as never,
       {
         liasseCompleteExcel: async (tenantId: string, exerciceId: string) => {
@@ -528,19 +590,14 @@ describe('GroupeService · liasse du groupe en un clic', () => {
   it('refuse tant qu’un contrôle est rouge · une liasse fausse à l’apparence officielle serait le pire des livrables', async () => {
     // Le 58 de C1 ne fait pas face à celui de la mère · écart de liaison.
     const s = new GroupeService(
-      prismaCombinaison([]),
-      {
-        balance: async (tenantId: string) =>
-          tenantId === 'mere'
-            ? BALANCES.mere
-            : {
-                lignes: [
-                  { numero: '571000', intitule: 'Caisse', typeCompte: 'DETAIL', totalDebit: 200, totalCredit: 0, solde: 200 },
-                  { numero: '581000', intitule: 'Virements internes', typeCompte: 'DETAIL', totalDebit: 0, totalCredit: 200, solde: -200 },
-                ],
-                totaux: { debit: 200, credit: 200 },
-              },
-      } as never,
+      prismaCombinaison([], {}, {
+        lignes: [
+          { numero: '571000', intitule: 'Caisse', typeCompte: 'DETAIL', totalDebit: 200, totalCredit: 0, solde: 200 },
+          { numero: '581000', intitule: 'Virements internes', typeCompte: 'DETAIL', totalDebit: 0, totalCredit: 200, solde: -200 },
+        ],
+        totaux: { debit: 200, credit: 200 },
+      }),
+      {} as never,
       undefined as never,
       {
         liasseCompleteExcel: async () => {
@@ -557,8 +614,8 @@ describe('GroupeService · liasse du groupe en un clic', () => {
     // une liasse déposable. Tout est équilibré, seul le brouillard bloque.
     const appels: Array<{ nom: string; args?: unknown }> = [];
     const s = new GroupeService(
-      prismaCombinaison(appels, { c1: 2 }),
-      { balance: async (tenantId: string) => (tenantId === 'mere' ? BALANCES.mere : BALANCES.c1) } as never,
+      prismaCombinaison(appels, { 'c1|ex-c1': 2 }),
+      {} as never,
       undefined as never,
       {
         liasseCompleteExcel: async () => {
@@ -568,13 +625,14 @@ describe('GroupeService · liasse du groupe en un clic', () => {
     );
     await expect(s.liasseGroupe('mere', 'ex-m', 'u')).rejects.toThrow(/brouillard : Cellule A \(2 pièce\(s\)\)/);
     expect(appels.some((a) => a.nom === 'ecriture.create')).toBe(false);
-    // Compté dans l'exercice RETENU de chaque dossier, pas dans tout le dossier.
-    const comptages = appels
-      .filter((a) => a.nom === 'ecriture.count')
-      .map((a) => a.args as { tenantId: string; exerciceId: string; statut: string });
-    expect(comptages.filter((w) => w.tenantId === 'c1').map((w) => [w.exerciceId, w.statut])).toContainEqual([
-      'ex-c1',
-      'BROUILLARD',
+    // Compté dans l'exercice RETENU de chaque dossier, pas dans tout le
+    // dossier · la doublure ne répond qu'au couple demandé, et une seule
+    // requête sert tout le groupe (audit final F190).
+    const comptages = appels.filter((a) => a.nom === 'ecriture.groupBy').map((a) => a.args as Couples);
+    expect(comptages).toHaveLength(1);
+    expect(comptages[0].OR).toEqual([
+      { tenantId: 'mere', exerciceId: 'ex-m' },
+      { tenantId: 'c1', exerciceId: 'ex-c1' },
     ]);
   });
 });

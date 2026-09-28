@@ -8,7 +8,7 @@ import { ReferentielGuard } from '../../common/guards/referentiel.guard';
 import { ReferentielsAutorises } from '../../common/decorators/referentiels.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { ExonerationsService } from './exonerations.service';
-import { CreerExonerationDto, ModifierExonerationDto } from './dto/exoneration.dto';
+import { CreerExonerationDto, ListerExonerationsDto, ModifierExonerationDto } from './dto/exoneration.dto';
 
 // Les facilités douanières de l'article 39 de la loi n° 004/2001 sont
 // propres aux ONG et associations · sans objet pour un dossier SYSCOHADA.
@@ -18,10 +18,14 @@ import { CreerExonerationDto, ModifierExonerationDto } from './dto/exoneration.d
 export class ExonerationsController {
   constructor(private readonly exonerations: ExonerationsService) {}
 
-  /** Registre complet · dossiers enrichis, pièces manquantes, échéances. */
+  /**
+   * Le registre · dossiers enrichis, pièces manquantes, échéances. Une période
+   * (du, au) et une tranche qui se dit ; les compteurs d'alerte restent ceux
+   * du registre entier (audit final F188).
+   */
   @Get()
-  async lister(@CurrentUser() user: AuthenticatedUser, @Query('dateReference') dateReference?: string) {
-    return this.exonerations.lister(user.tenantId, dateReference);
+  async lister(@CurrentUser() user: AuthenticatedUser, @Query() filtre: ListerExonerationsDto) {
+    return this.exonerations.lister(user.tenantId, filtre.dateReference, { du: filtre.du, au: filtre.au });
   }
 
   /**

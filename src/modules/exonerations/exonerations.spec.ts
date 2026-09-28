@@ -40,6 +40,8 @@ function service(dossiers: unknown[], creation?: jest.Mock) {
   const prisma = {
     exoneration: {
       findMany: jest.fn().mockResolvedValue(dossiers),
+      // La liste compte sa période (audit final F188) · autant que la lecture rend.
+      count: jest.fn().mockResolvedValue(dossiers.length),
       create: creation ?? jest.fn().mockImplementation(({ data }) => Promise.resolve(data)),
       findFirst: jest.fn().mockResolvedValue(dossiers[0] ?? null),
       update: jest.fn().mockImplementation(({ data }) => Promise.resolve(data)),

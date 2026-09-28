@@ -346,6 +346,8 @@ function service(factures: Faux[] = [], doublon: Faux | null = null) {
     ecriture: { findFirst: jest.fn().mockResolvedValue({ id: 'e1' }) },
     facture: {
       findMany: jest.fn().mockResolvedValue(factures),
+      // La liste compte sa période (audit final F188) · autant que la lecture rend.
+      count: jest.fn().mockResolvedValue(factures.length),
       findFirst: jest.fn().mockResolvedValue(doublon),
       create,
       delete: jest.fn().mockResolvedValue({}),

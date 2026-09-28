@@ -1579,6 +1579,10 @@ export interface ControleCumuls {
   mouvementsAnalytiquesCredit: number;
   ecartDebit: number;
   ecartCredit: number;
+  /** Nombre exact de lignes sans répartition · la liste n'en montre que les premières (audit final F186). */
+  nombreSansRepartition: number;
+  /** Vrai quand la liste ne montre pas toutes les lignes sans répartition. */
+  tronque: boolean;
   lignesSansRepartition: {
     ligneId: string;
     ecritureId: string;
@@ -2507,6 +2511,15 @@ export interface DossierExoneration {
 
 export interface RegistreExonerations {
   dateReference: string;
+  /**
+   * La période lue (ouverture du dossier) et la tranche rendue (audit final
+   * F188). Le total compte la période ET les titres en alerte, listés hors
+   * d'elle ; les trois compteurs restent ceux du registre entier.
+   */
+  periode: { du: string | null; au: string | null };
+  total: number;
+  plafond: number;
+  tronque: boolean;
   dossiers: DossierExoneration[];
   aRenouveler: number;
   expires: number;
@@ -2670,6 +2683,10 @@ export interface CompteDuPosteSyscohada {
  * `note` est le renvoi de la colonne NOTE du modèle (« 3e » sur CE) et
  * `renvoi` le renvoi de bas de poste (« dont Placement en Net » sur AJ et
  * AK) : deux chaînes d'affichage, aucune valeur calculée.
+ *
+ * La colonne N-1 du modèle est nette seulement (`montantN1`) · le serveur
+ * ne sert plus de brut ni d'amortissement N-1, que personne ne lisait
+ * (audit final F217).
  */
 export interface LigneBilanSyscohada {
   ref: string;
@@ -2677,9 +2694,7 @@ export interface LigneBilanSyscohada {
   montant: number;
   montantN1?: number;
   brut?: number;
-  brutN1?: number;
   amortissement?: number;
-  amortissementN1?: number;
   estTotal: boolean;
   comptes: CompteDuPosteSyscohada[];
   note?: string;
@@ -3145,7 +3160,8 @@ export interface EligibiliteSmtSyscohada {
   /** Détail par les quatre postes du Système normal dont le chiffre d'affaires est la somme. */
   ventilation: { ref: string; libelle: string; lettre?: string; montant: number; comptes: CompteDuPoste[] }[];
   comptesHorsVentilation: CompteDuPoste[];
-  deviseDossier: string | null;
+  /** La monnaie du jeu légal, jamais nulle (`monnaieDuJeuLegal`, audit final F215). */
+  deviseDossier: string;
   systemeActuel: 'NORMAL' | 'MINIMAL_TRESORERIE' | null;
   /** Toujours faux · le cours de conversion n'appartient pas au texte comptable. */
   conversionAppliquee: boolean;

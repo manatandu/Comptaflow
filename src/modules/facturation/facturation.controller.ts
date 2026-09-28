@@ -1,12 +1,12 @@
 import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
-import { RoleUtilisateur, SensFacture } from '@prisma/client';
+import { RoleUtilisateur } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { FacturationService } from './facturation.service';
-import { ComptabiliserFactureDto, EmettreNoteDeCreditDto, EnregistrerFactureDto } from './dto/facture.dto';
+import { ComptabiliserFactureDto, EmettreNoteDeCreditDto, EnregistrerFactureDto, ListerFacturesDto } from './dto/facture.dto';
 import { ComptabilisationFactureService } from './comptabilisation-facture.service';
 
 /**
@@ -35,9 +35,10 @@ export class FacturationController {
     private readonly comptabilisation: ComptabilisationFactureService,
   ) {}
 
+  /** Une période (du, au) et une tranche qui se dit · audit final F188. */
   @Get()
-  lister(@CurrentUser() user: AuthenticatedUser, @Query('sens') sens?: SensFacture) {
-    return this.facturation.lister(user.tenantId, { sens });
+  lister(@CurrentUser() user: AuthenticatedUser, @Query() filtre: ListerFacturesDto) {
+    return this.facturation.lister(user.tenantId, { sens: filtre.sens, du: filtre.du, au: filtre.au });
   }
 
   @Get('etat-detaille')

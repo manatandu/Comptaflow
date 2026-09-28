@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { StatutExoneration, TypeDemandeExoneration } from '@prisma/client';
+import { Prisma, StatutExoneration, TypeDemandeExoneration } from '@prisma/client';
 import {
   AVERTISSEMENT_FRANCHISE,
   FRANCHISES_DOUANIERES_EBNL,
@@ -8,8 +8,24 @@ import {
   MODELES_DEMANDE,
 } from './correspondance-exonerations';
 import { ajouterMois } from '../../common/ajouter-mois';
+import { lirePeriodeDeListe } from '../../common/periode-de-liste';
+import { LOT_LECTURE, lireParLots, pageApres } from '../../common/lecture-par-lots';
 
 const MS_PAR_JOUR = 24 * 60 * 60 * 1000;
+
+/**
+ * LES DOSSIERS EN ALERTE, EN REQUÊTE (audit final F188) · exactement ceux à
+ * qui `enrichir` donne une alerte. L'alerte naît d'un titre ACCORDÉ dont les
+ * jours restants, arrondis au jour supérieur, ne dépassent pas le seuil ;
+ * un plafond entier ne tient que si la valeur exacte ne le dépasse pas, d'où
+ * une fin au plus tard à la date de référence plus le seuil, expirés compris.
+ */
+export function filtreEnAlerte(aujourdhui: Date): Prisma.ExonerationWhereInput {
+  return {
+    statut: StatutExoneration.ACCORDE,
+    dateFinValidite: { lte: new Date(aujourdhui.getTime() + JOURS_ALERTE_RENOUVELLEMENT * MS_PAR_JOUR) },
+  };
+}
 
 /**
  * UN ARRÊTÉ ACCORDÉ SE DIT PAR SA RÉFÉRENCE ET SES DATES (audit final F123).
@@ -111,12 +127,68 @@ export class ExonerationsService {
     };
   }
 
-  async lister(tenantId: string, dateReference?: string) {
+  /**
+   * LE REGISTRE À L'ÉCRAN · une période, une tranche qui se dit, et des
+   * alertes qui restent celles du registre ENTIER (audit final F188, § 8 bis).
+   *
+   * LA PÉRIODE PORTE SUR L'OUVERTURE DU DOSSIER (`createdAt`) · c'est la seule
+   * date que tout dossier porte, l'arrêté n'en ayant une qu'une fois accordé.
+   *
+   * MAIS UN TITRE EN ALERTE RESTE LISTÉ QUELLE QUE SOIT LA PÉRIODE. Un arrêté
+   * prévisionnel ouvert il y a vingt mois tombe dans quatre, et c'est
+   * exactement le dossier que ce registre existe pour montrer · le bandeau le
+   * compte sur tout le registre, et une liste qui le tairait désignerait un
+   * titre qu'on ne peut pas ouvrir. Même parti que les échéances du tableau de
+   * bord, où ce qui presse est retenu hors de l'horizon. L'ordre, inchangé,
+   * met d'ailleurs les échéances les plus proches en tête · une tranche pleine
+   * coupe d'abord les dossiers sans échéance et les échéances lointaines, et
+   * ne coupe un titre en alerte que si plus de `PLAFOND_LISTE_EXONERATIONS`
+   * dossiers ont une fin antérieure à la sienne, ce que `tronque` dit alors.
+   * Le TOTAL compte ce même périmètre, période et titres en alerte.
+   *
+   * LES TROIS COMPTEURS SE CALCULENT COMME AVANT, sur tout le registre et par
+   * la même règle (`enrichir`), lus par tranches · la complétude dépend de la
+   * liste des pièces, qui vit dans le code et non dans la base, et la traduire
+   * en requête ferait deux règles pour un seul compte.
+   */
+  async lister(tenantId: string, dateReference?: string, filtre: { du?: string; au?: string } = {}) {
+    // La période se lit avant toute lecture · illisible, elle est refusée.
+    const periode = lirePeriodeDeListe(filtre);
     const aujourdhui = dateReference ? new Date(dateReference) : new Date();
-    const dossiers = await this.prisma.exoneration.findMany({
-      where: { tenantId },
-      orderBy: [{ dateFinValidite: 'asc' }, { createdAt: 'desc' }],
-    });
+
+    let aRenouveler = 0;
+    let expires = 0;
+    let incomplets = 0;
+    await lireParLots(
+      (curseur) =>
+        this.prisma.exoneration.findMany({
+          where: { tenantId },
+          select: { id: true, type: true, statut: true, dateFinValidite: true, piecesFournies: true },
+          ...pageApres(curseur, LOT_LECTURE),
+        }),
+      (d) => {
+        // Ce qui doit sauter aux yeux : les titres périmés et ceux qui vont
+        // l'être. Le reste du registre est de la consultation.
+        const e = this.enrichir(d, aujourdhui);
+        if (e.alerte === 'A_RENOUVELER') aRenouveler++;
+        if (e.alerte === 'EXPIRE') expires++;
+        if (!e.complet && d.statut === StatutExoneration.EN_PREPARATION) incomplets++;
+      },
+    );
+
+    const perimetre: Prisma.ExonerationWhereInput = periode.bornes
+      ? { OR: [{ createdAt: periode.bornes }, filtreEnAlerte(aujourdhui)] }
+      : {};
+    const [dossiers, total] = await Promise.all([
+      this.prisma.exoneration.findMany({
+        where: { tenantId, ...perimetre },
+        // L'identifiant départage les ex aequo · la frontière d'une tranche
+        // pleine ne bouge pas d'un appel à l'autre.
+        orderBy: [{ dateFinValidite: 'asc' }, { createdAt: 'desc' }, { id: 'asc' }],
+        take: PLAFOND_LISTE_EXONERATIONS,
+      }),
+      this.prisma.exoneration.count({ where: { tenantId, ...perimetre } }),
+    ]);
     const enrichis = dossiers.map((d) => ({
       ...d,
       valeurBiens: d.valeurBiens === null ? null : Number(d.valeurBiens),
@@ -124,12 +196,14 @@ export class ExonerationsService {
     }));
     return {
       dateReference: aujourdhui,
+      periode: { du: periode.du, au: periode.au },
+      total,
+      plafond: PLAFOND_LISTE_EXONERATIONS,
+      tronque: total > dossiers.length,
       dossiers: enrichis,
-      // Ce qui doit sauter aux yeux : les titres périmés et ceux qui vont
-      // l'être. Le reste du registre est de la consultation.
-      aRenouveler: enrichis.filter((d) => d.alerte === 'A_RENOUVELER').length,
-      expires: enrichis.filter((d) => d.alerte === 'EXPIRE').length,
-      incomplets: enrichis.filter((d) => !d.complet && d.statut === StatutExoneration.EN_PREPARATION).length,
+      aRenouveler,
+      expires,
+      incomplets,
       avertissement: AVERTISSEMENT_FRANCHISE,
     };
   }
@@ -231,3 +305,6 @@ export class ExonerationsService {
     return { supprime: true };
   }
 }
+
+/** Plafond d'une tranche du registre à l'écran · une fenêtre, pas un export (§ 8 bis, audit final F188). */
+export const PLAFOND_LISTE_EXONERATIONS = 500;

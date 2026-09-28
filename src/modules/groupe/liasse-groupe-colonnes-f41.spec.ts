@@ -11,9 +11,11 @@ import { GroupeService } from './groupe.service';
  * des acquisitions de l'exercice, et le compte de résultat d'une cellule close
  * lisait des comptes de gestion déjà soldés.
  *
- * Le jeu d'essai déduit la balance des MÊMES lignes que l'élimination, avec la
- * partition de `EcritureService.balance` (clôture, puis report, puis le reste) ·
- * un chiffre posé deux fois à la main pourrait se contredire sans rien dire.
+ * Le jeu d'essai déduit la balance des MÊMES lignes que l'élimination · la
+ * doublure les regroupe par compte comme la base le ferait pour les requêtes
+ * du service (audit final F190), chaque ligne portant les drapeaux de son
+ * écriture. Un chiffre posé deux fois à la main pourrait se contredire sans
+ * rien dire.
  */
 
 type Colonne = 'report' | 'mouvement' | 'cloture';
@@ -45,63 +47,39 @@ interface EcritureCreee {
 const EX = { id: 'ex-m', dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') };
 const EX_C1 = { id: 'ex-c1', dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') };
 
-interface LigneBalance {
-  compteId: string;
-  numero: string;
-  intitule: string;
-  typeCompte: string;
-  totalDebit: number;
-  totalCredit: number;
-  reportDebit: number;
-  reportCredit: number;
-  clotureDebit: number;
-  clotureCredit: number;
-}
+/** Les drapeaux de l'écriture qui porte une ligne de cette colonne. */
+const drapeaux = (colonne: Colonne) => ({
+  estGenereeParCloture: colonne !== 'mouvement',
+  estSoldeDesComptesDeGestion: colonne === 'cloture',
+});
 
-function balanceDe(lignes: LigneFixture[], tenantId: string, exerciceId: string) {
-  const par = new Map<string, LigneBalance>();
-  for (const l of lignes) {
-    if (l.tenantId !== tenantId || l.exerciceId !== exerciceId) continue;
-    const c = par.get(l.compteId) ?? {
-      compteId: l.compteId,
-      numero: l.numero,
-      intitule: l.numero,
-      typeCompte: 'DETAIL',
-      totalDebit: 0,
-      totalCredit: 0,
-      reportDebit: 0,
-      reportCredit: 0,
-      clotureDebit: 0,
-      clotureCredit: 0,
-    };
-    c.totalDebit += l.debit;
-    c.totalCredit += l.credit;
-    if (l.colonne === 'report') {
-      c.reportDebit += l.debit;
-      c.reportCredit += l.credit;
-    } else if (l.colonne === 'cloture') {
-      c.clotureDebit += l.debit;
-      c.clotureCredit += l.credit;
-    }
-    par.set(l.compteId, c);
-  }
-  const sorties = [...par.values()].map((c) => ({ ...c, solde: c.totalDebit - c.totalCredit }));
-  return {
-    lignes: sorties,
-    totaux: {
-      debit: sorties.reduce((t, c) => t + c.totalDebit, 0),
-      credit: sorties.reduce((t, c) => t + c.totalCredit, 0),
-    },
-  };
-}
+type FiltreEcritures = {
+  OR: Array<{ tenantId: string; exerciceId: string }>;
+  estGenereeParCloture?: boolean;
+  estSoldeDesComptesDeGestion?: boolean;
+};
 
-function harnais(
-  lignes: LigneFixture[],
-  rattachements: RattachementFixture[] = [],
-  balanceForcee?: (t: string) => unknown,
-  referentiel = 'SYCEBNL',
-) {
+/** La ligne entre-t-elle dans les écritures que le filtre désigne ? */
+const retenue = (l: LigneFixture, f: FiltreEcritures) => {
+  const d = drapeaux(l.colonne);
+  return (
+    f.OR.some((o) => o.tenantId === l.tenantId && o.exerciceId === l.exerciceId) &&
+    (f.estGenereeParCloture === undefined || f.estGenereeParCloture === d.estGenereeParCloture) &&
+    (f.estSoldeDesComptesDeGestion === undefined || f.estSoldeDesComptesDeGestion === d.estSoldeDesComptesDeGestion)
+  );
+};
+
+function harnais(lignes: LigneFixture[], rattachements: RattachementFixture[] = [], referentiel = 'SYCEBNL') {
   const creees: EcritureCreee[] = [];
+  // Les comptes des dossiers, tirés des lignes · un compte par numéro et par dossier.
+  const comptes = [...new Map(lignes.map((l) => [l.compteId, l])).values()].map((l) => ({
+    id: l.compteId,
+    tenantId: l.tenantId,
+    numero: l.numero,
+    intitule: l.numero,
+    classe: `CLASSE_${l.numero[0]}`,
+    typeCompte: 'DETAIL',
+  }));
   const s = new GroupeService(
     {
       exercice: {
@@ -125,6 +103,15 @@ function harnais(
       },
       ligneEcriture: {
         deleteMany: async () => ({ count: 0 }),
+        // Les sommes par compte des écritures désignées, comme la base les rend.
+        groupBy: async ({ where }: { where: { ecriture: FiltreEcritures } }) => {
+          const sommes = new Map<string, { debit: number; credit: number }>();
+          for (const l of lignes.filter((x) => retenue(x, where.ecriture))) {
+            const s2 = sommes.get(l.compteId) ?? { debit: 0, credit: 0 };
+            sommes.set(l.compteId, { debit: s2.debit + l.debit, credit: s2.credit + l.credit });
+          }
+          return [...sommes].map(([compteId, _sum]) => ({ compteId, _sum }));
+        },
         findMany: async ({
           where,
         }: {
@@ -150,7 +137,8 @@ function harnais(
         },
       },
       ecriture: {
-        count: async () => 0,
+        // Aucune pièce au brouillard · la liasse les compte (audit F7).
+        groupBy: async () => [],
         deleteMany: async () => ({ count: 0 }),
         aggregate: async () => ({ _max: { numeroPiece: creees.reduce((m, e) => Math.max(m, e.numeroPiece), 0) || null } }),
         create: async ({ data }: { data: EcritureCreee }) => {
@@ -160,15 +148,16 @@ function harnais(
       },
       compte: {
         createMany: async ({ data }: { data: unknown[] }) => ({ count: data.length }),
-        findMany: async ({ where }: { where: { numero: { in: string[] } } }) =>
-          where.numero.in.map((n) => ({ id: `cpt-${n}`, numero: n })),
+        // Deux lectures · les comptes des dossiers pour la balance, ceux du
+        // dossier de combinaison, par numéro, pour le reversement.
+        findMany: async ({ where }: { where: { numero?: { in: string[] }; tenantId: { in: string[] } } }) =>
+          where.numero
+            ? where.numero.in.map((n) => ({ id: `cpt-${n}`, numero: n }))
+            : comptes.filter((c) => where.tenantId.in.includes(c.tenantId)).sort((a, b) => (a.numero < b.numero ? -1 : 1)),
       },
       journal: { findFirst: async () => ({ id: 'j-od', numerotation: 'CONTINUE_FICHIER' }) },
     } as never,
-    {
-      balance: async (tenantId: string, exerciceId: string) =>
-        balanceForcee ? balanceForcee(tenantId) : balanceDe(lignes, tenantId, exerciceId),
-    } as never,
+    {} as never,
     undefined as never,
     { liasseCompleteExcel: async () => ({ buffer: Buffer.from('x'), nomFichier: 'liasse.xlsx' }) } as never,
   );
@@ -315,15 +304,10 @@ describe('F41 · une ouverture qui ne se compense pas est prise sur les mouvemen
 
 describe('F41 · une colonne qui ne s’équilibre pas refuse la liasse avant toute pièce', () => {
   it('à-nouveau déséquilibré dans une balance · rien n’est posé', async () => {
-    const bancale = {
-      lignes: [
-        { compteId: 'x1', numero: '24410000', intitule: 'x', typeCompte: 'DETAIL', totalDebit: 100, totalCredit: 0, reportDebit: 100, reportCredit: 0, clotureDebit: 0, clotureCredit: 0, solde: 100 },
-        { compteId: 'x2', numero: '52110000', intitule: 'x', typeCompte: 'DETAIL', totalDebit: 0, totalCredit: 100, reportDebit: 0, reportCredit: 0, clotureDebit: 0, clotureCredit: 0, solde: -100 },
-      ],
-      totaux: { debit: 100, credit: 100 },
-    };
-    const vide = { lignes: [], totaux: { debit: 0, credit: 0 } };
-    const { s, creees } = harnais([], [], (t) => (t === 'mere' ? bancale : vide));
+    // Le siège est équilibré au total, mais son à-nouveau porte un débit que
+    // rien ne contrebalance dans la même colonne.
+    const bancale = [l('an', 'mere', 'report', '24410000', 100, 0), l('mv', 'mere', 'mouvement', '52110000', 0, 100)];
+    const { s, creees } = harnais(bancale);
     await expect(s.liasseGroupe('mere', 'ex-m', 'u1')).rejects.toThrow(BadRequestException);
     await expect(s.liasseGroupe('mere', 'ex-m', 'u1')).rejects.toThrow(/Report à-nouveau/);
     expect(creees).toEqual([]);
@@ -342,7 +326,7 @@ const LIAISON_OUVERTURE: LigneFixture[] = [
 
 describe('F41 · la liaison siège / établissements sort de l’à-nouveau', () => {
   it('ni à-nouveau ni mouvement sur les 185 de la combinaison', async () => {
-    const { s, creees } = harnais(LIAISON_OUVERTURE, [], undefined, 'SYSCOHADA');
+    const { s, creees } = harnais(LIAISON_OUVERTURE, [], 'SYSCOHADA');
     await s.liasseGroupe('mere', 'ex-m', 'u1');
     expect(creees).toHaveLength(1);
     expect(lu(piece(creees, true, false)!)).toEqual(['10100000 0/500000', '52110000 500000/0']);

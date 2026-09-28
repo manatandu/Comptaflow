@@ -8,7 +8,7 @@ import { ReferentielGuard } from '../../common/guards/referentiel.guard';
 import { ReferentielsAutorises } from '../../common/decorators/referentiels.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { CommercialService } from './commercial.service';
-import { EmettreDevisDto, EnregistrerReponseDto, RevoquerDevisDto } from './dto/devis.dto';
+import { EmettreDevisDto, EnregistrerReponseDto, ListerDevisDto, RevoquerDevisDto } from './dto/devis.dto';
 
 /**
  * CLOISONNÉ AU SYSCOHADA, et cette fois le §8.4 du plan de construction avait
@@ -29,9 +29,10 @@ import { EmettreDevisDto, EnregistrerReponseDto, RevoquerDevisDto } from './dto/
 export class CommercialController {
   constructor(private readonly commercial: CommercialService) {}
 
+  /** Une période (du, au) et une tranche qui se dit · audit final F188. */
   @Get()
-  lister(@CurrentUser() user: AuthenticatedUser, @Query('dateReference') dateReference?: string) {
-    return this.commercial.lister(user.tenantId, { dateReference });
+  lister(@CurrentUser() user: AuthenticatedUser, @Query() filtre: ListerDevisDto) {
+    return this.commercial.lister(user.tenantId, { dateReference: filtre.dateReference, du: filtre.du, au: filtre.au });
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)

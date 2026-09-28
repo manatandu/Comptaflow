@@ -58,6 +58,42 @@ const SUCCURSALE_BOITEUSE = {
   totaux: { debit: 500, credit: 500 },
 };
 
+type Couples = { OR: Array<{ tenantId: string; exerciceId: string }> };
+
+/**
+ * LA LECTURE DES BALANCES PAR TRANCHES (audit final F190) · la doublure rend
+ * les comptes des dossiers et leurs sommes pour les seuls couples (dossier,
+ * exercice) demandés, comme la base. Ces jeux d'essai ne portent que des
+ * mouvements.
+ */
+function lectureDesBalances(parDossier: Record<string, { exerciceId: string; lignes: Ligne[] }>) {
+  const comptes = Object.entries(parDossier).flatMap(([tenantId, { lignes }]) =>
+    lignes.map((x) => ({
+      id: `${tenantId}:${x.numero}`,
+      tenantId,
+      numero: x.numero,
+      intitule: x.intitule,
+      classe: `CLASSE_${x.numero[0]}`,
+      typeCompte: x.typeCompte,
+      sommes: { debit: x.totalDebit, credit: x.totalCredit },
+    })),
+  );
+  return {
+    compte: {
+      findMany: async ({ where }: { where: { tenantId: { in: string[] } } }) =>
+        comptes.filter((c) => where.tenantId.in.includes(c.tenantId)).sort((a, b) => (a.numero < b.numero ? -1 : 1)),
+    },
+    ligneEcriture: {
+      groupBy: async ({ where }: { where: { ecriture: Couples & { estGenereeParCloture?: boolean } } }) =>
+        where.ecriture.estGenereeParCloture !== false
+          ? []
+          : comptes
+              .filter((c) => where.ecriture.OR.some((o) => o.tenantId === c.tenantId && o.exerciceId === parDossier[c.tenantId].exerciceId))
+              .map((c) => ({ compteId: c.id, _sum: c.sommes })),
+    },
+  };
+}
+
 const service = (options: {
   referentiel: 'SYSCOHADA' | 'SYCEBNL';
   succursale?: typeof SUCCURSALE;
@@ -66,6 +102,10 @@ const service = (options: {
   const majTenant: unknown[] = [];
   const s = new GroupeService(
     {
+      ...lectureDesBalances({
+        siege: { exerciceId: 'ex-m', lignes: (options.siege ?? SIEGE).lignes },
+        succ: { exerciceId: 'ex-s', lignes: (options.succursale ?? SUCCURSALE).lignes },
+      }),
       exercice: {
         findFirst: async ({ where }: { where: { id: string; tenantId: string } }) =>
           where.id === 'ex-m' && where.tenantId === 'siege' ? EX : null,
@@ -88,12 +128,20 @@ const service = (options: {
           return {};
         },
       },
-      ecriture: { findFirst: async () => ({ date: new Date('2026-06-30') }), count: async () => 3 },
+      // Trois écritures validées par dossier, pour le seul couple demandé.
+      ecriture: {
+        groupBy: async ({ where }: { where: Couples }) =>
+          where.OR.map((c) => ({
+            tenantId: c.tenantId,
+            exerciceId: c.exerciceId,
+            statut: 'VALIDEE',
+            estANouveauProvisoire: false,
+            _count: { _all: 3 },
+            _max: { date: new Date('2026-06-30') },
+          })),
+      },
     } as never,
-    {
-      balance: async (tenantId: string) =>
-        tenantId === 'siege' ? (options.siege ?? SIEGE) : (options.succursale ?? SUCCURSALE),
-    } as never,
+    {} as never,
     undefined as never,
     undefined as never,
   );

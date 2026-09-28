@@ -28,6 +28,7 @@ import { designationLettrage, estTenueParUnLettrage } from '../lettrage/ligne-le
 import { ouverteALaCloture } from '../lettrage/ouverte-a-la-cloture';
 import { ancienneteJours, brouillardInvalidable, enRetardDeCentralisation, JOURS_CENTRALISATION } from './centralisation-brouillard';
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
+import { agregatsParCompte, filtresDesTroisColonnes, lignesDeBalance, totauxDeBalance } from './balance-trois-colonnes';
 
 /**
  * Une ligne est au débit si son montant est porté du côté débit · quel que
@@ -3129,104 +3130,33 @@ export class EcritureService {
       ...(inclureBrouillard ? {} : { statut: StatutEcriture.VALIDEE }),
       ...(arreteAu ? { date: { lte: arreteAu } } : {}),
     };
-    // TROIS COLONNES ET NON DEUX (audit final F4, F5). L'écriture qui solde
-    // les classes 6 à 8 sur le 13, datée de la FIN de l'exercice clos, portait
-    // le même drapeau que le report à-nouveau et tombait avec lui en
-    // « ouverture » · l'écran et le classeur présentaient alors en solde
-    // d'ouverture l'inverse de toute l'activité de l'année. Elle a désormais
-    // sa colonne, `cloture*` : ni une ouverture, ni un mouvement de
-    // l'exercice (les lectures « mouvements, clôture exclue » restent justes).
+    // TROIS COLONNES ET NON DEUX (audit final F4, F5) · le report à-nouveau,
+    // les mouvements, et l'écriture qui solde les comptes de gestion. Le calcul
+    // vit dans `balance-trois-colonnes.ts`, que la lecture du groupe appelle
+    // aussi (audit final F190) · une cellule vue du siège a la même balance
+    // que chez elle.
+    const filtres = filtresDesTroisColonnes(filtreEcriture);
     const [comptes, reports, mouvements, clotures] = await Promise.all([
       this.prisma.compte.findMany({ where: { tenantId }, orderBy: { numero: 'asc' } }),
       this.prisma.ligneEcriture.groupBy({
         by: ['compteId'],
-        where: { ecriture: { ...filtreEcriture, estGenereeParCloture: true, estSoldeDesComptesDeGestion: false } },
+        where: { ecriture: filtres.reports },
         _sum: { debit: true, credit: true },
       }),
       this.prisma.ligneEcriture.groupBy({
         by: ['compteId'],
-        where: { ecriture: { ...filtreEcriture, estGenereeParCloture: false } },
+        where: { ecriture: filtres.mouvements },
         _sum: { debit: true, credit: true },
       }),
       this.prisma.ligneEcriture.groupBy({
         by: ['compteId'],
-        where: { ecriture: { ...filtreEcriture, estSoldeDesComptesDeGestion: true } },
+        where: { ecriture: filtres.clotures },
         _sum: { debit: true, credit: true },
       }),
     ]);
 
-    /** Les huit agrégats d'une ligne, résolus pareillement pour Détail et Total. */
-    const CHAMPS = [
-      'totalDebit',
-      'totalCredit',
-      'reportDebit',
-      'reportCredit',
-      'mouvementDebit',
-      'mouvementCredit',
-      'clotureDebit',
-      'clotureCredit',
-    ] as const;
-    type Agregats = Record<(typeof CHAMPS)[number], number>;
-    const zero = (): Agregats => ({
-      totalDebit: 0,
-      totalCredit: 0,
-      reportDebit: 0,
-      reportCredit: 0,
-      mouvementDebit: 0,
-      mouvementCredit: 0,
-      clotureDebit: 0,
-      clotureCredit: 0,
-    });
-
-    const soldeDirectParCompte = new Map<string, Agregats>();
-    const accumuler = (
-      groupes: Array<{ compteId: string; _sum: { debit: unknown; credit: unknown } }>,
-      champDebit: 'reportDebit' | 'mouvementDebit' | 'clotureDebit',
-      champCredit: 'reportCredit' | 'mouvementCredit' | 'clotureCredit',
-    ) => {
-      for (const g of groupes) {
-        const a = soldeDirectParCompte.get(g.compteId) ?? zero();
-        const d = Number(g._sum.debit ?? 0);
-        const c = Number(g._sum.credit ?? 0);
-        a[champDebit] += d;
-        a[champCredit] += c;
-        a.totalDebit += d;
-        a.totalCredit += c;
-        soldeDirectParCompte.set(g.compteId, a);
-      }
-    };
-    accumuler(reports, 'reportDebit', 'reportCredit');
-    accumuler(mouvements, 'mouvementDebit', 'mouvementCredit');
-    accumuler(clotures, 'clotureDebit', 'clotureCredit');
-
-    // Les comptes Total sont écartés d'emblée · ils ne reçoivent jamais
-    // d'écriture (un numéro à deux ou trois chiffres est structurellement
-    // impossible à saisir, CreerCompteDto en exige trois à treize) et ne
-    // portaient qu'une sous-totalisation d'affichage dont plus personne ne
-    // veut. Le tri croissant vient du `orderBy` de la requête.
-    const lignesBalance = comptes
-      .filter((c) => c.typeCompte !== TypeCompteDetailTotal.TOTAL)
-      .map((c) => {
-        const agregats = soldeDirectParCompte.get(c.id) ?? zero();
-        return {
-          compteId: c.id,
-          numero: c.numero,
-          intitule: c.intitule,
-          classe: c.classe,
-          typeCompte: c.typeCompte,
-          ...agregats,
-          solde: agregats.totalDebit - agregats.totalCredit,
-        };
-      })
-      .filter((l) => l.totalDebit !== 0 || l.totalCredit !== 0);
-
-    return {
-      lignes: lignesBalance,
-      totaux: {
-        debit: lignesBalance.reduce((s, l) => s + l.totalDebit, 0),
-        credit: lignesBalance.reduce((s, l) => s + l.totalCredit, 0),
-      },
-    };
+    const lignesBalance = lignesDeBalance(comptes, agregatsParCompte(reports, mouvements, clotures));
+    return { lignes: lignesBalance, totaux: totauxDeBalance(lignesBalance) };
   }
 
   /**

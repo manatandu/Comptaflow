@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { ClasseCompte, TypeCompteDetailTotal } from '@prisma/client';
+import { ClasseCompte, Prisma, TypeCompteDetailTotal } from '@prisma/client';
 import type { LigneBalanceAnalytique, LigneEtatBudgetaire } from './analytique.service';
 import { totalDesFeuilles, valeurDeLaLigne } from './rubriques-budgetaires';
 import { fusionnerCumuls } from './od-analytique';
@@ -37,7 +37,18 @@ export interface LigneControleCumuls {
   mouvementsAnalytiquesCredit: number;
   ecartDebit: number;
   ecartCredit: number;
-  /** Lignes qui auraient dû être ventilées et ne le sont pas. */
+  /**
+   * Nombre EXACT de lignes sans répartition sur la période (audit final
+   * F186) · la liste ci-dessous n'en montre que les premières quand il y en a
+   * plus que le plafond, et « 500 » ne doit jamais se lire comme le total.
+   */
+  nombreSansRepartition: number;
+  /** Vrai quand la liste ne montre pas toutes les lignes sans répartition. */
+  tronque: boolean;
+  /**
+   * Lignes qui auraient dû être ventilées et ne le sont pas, par date, pièce
+   * puis identifiant, au plus `PLAFOND_LIGNES_SANS_REPARTITION` par plan.
+   */
   lignesSansRepartition: {
     /** La ligne à ventiler · c'est elle, pas l'écriture, que la route de ventilation attend. */
     ligneId: string;
@@ -51,6 +62,26 @@ export interface LigneControleCumuls {
     credit: number;
   }[];
 }
+
+/**
+ * Plafond des lignes sans répartition que le contrôle des cumuls montre par
+ * plan (audit final F186). C'est un écran de TRAVAIL (§ 8 bis) · la liste se
+ * ventile ligne à ligne, elle montre une tranche et le DIT, et les cumuls
+ * comme les écarts restent pris sur la période entière, par la base.
+ */
+export const PLAFOND_LIGNES_SANS_REPARTITION = 500;
+
+/**
+ * Tri total de la liste · la date seule laisserait deux lignes du même jour
+ * dans l'ordre du plan d'exécution, et la tranche montrée changerait d'un
+ * appel à l'autre sur un dossier au-delà du plafond. L'identifiant final
+ * rend l'ordre déterministe (même règle que le grand livre).
+ */
+const TRI_SANS_REPARTITION = [
+  { ecriture: { date: 'asc' } },
+  { ecriture: { numeroPiece: 'asc' } },
+  { id: 'asc' },
+] satisfies Prisma.LigneEcritureOrderByWithRelationInput[];
 
 /**
  * ÉTATS ANALYTIQUES ET BUDGÉTAIRES.
@@ -244,7 +275,8 @@ export class EtatsAnalytiquesService {
    * des comptes que le plan est censé ventiler aux mouvements effectivement
    * ventilés, et liste les écritures manquantes. Un écart non nul n'est pas
    * une anomalie technique : c'est du travail de ventilation qui reste à
-   * faire, et l'état dit exactement lequel.
+   * faire, et l'état dit exactement lequel. Au-delà du plafond, la liste en
+   * montre les premières et dit combien il y en a (audit final F186).
    */
   async controleCumuls(
     tenantId: string,
@@ -263,45 +295,54 @@ export class EtatsAnalytiquesService {
         .map((c) => `CLASSE_${c}` as ClasseCompte)
         .filter((c) => Object.values(ClasseCompte).includes(c));
 
-      const lignesConcernees = await this.prisma.ligneEcriture.findMany({
-        where: {
-          ecriture: { tenantId, exerciceId: params.exerciceId, date: { gte: du, lte: au } },
-          compte: { classe: { in: classes } },
-        },
-        include: {
-          compte: { select: { numero: true, intitule: true } },
-          ecriture: { select: { id: true, date: true, libelle: true, journal: { select: { code: true } } } },
-          ventilations: { where: { planId: plan.id }, select: { debit: true, credit: true } },
-        },
-      });
+      // LES CUMULS SE DEMANDENT À LA BASE, LA LISTE SE BORNE (audit final
+      // F186). Toutes les lignes des classes ventilées de l'exercice étaient
+      // rapatriées une à une, plan par plan, pour en faire deux sommes, et la
+      // liste des lignes sans répartition partait entière · sur un dossier
+      // d'un million de lignes, c'est l'instance qui tombait. Un seul
+      // périmètre sert les deux agrégats, la tranche et son décompte : deux
+      // filtres écrits séparément rendraient des cumuls et une liste qui ne
+      // parlent pas des mêmes lignes. La borne du dossier passe par
+      // l'écriture, ligne et ventilation n'ayant pas de tenantId.
+      const perimetre: Prisma.LigneEcritureWhereInput = {
+        ecriture: { tenantId, exerciceId: params.exerciceId, date: { gte: du, lte: au } },
+        compte: { classe: { in: classes } },
+      };
+      // Sans répartition sur CE plan, et non nulle · la même condition que la
+      // boucle d'avant (aucune ventilation du plan, débit ou crédit non nul),
+      // dite à la base. `not: 0` et non `gt: 0` · une réimputation inscrit en
+      // négatif, et la ligne négative reste à ventiler.
+      const sansRepartition: Prisma.LigneEcritureWhereInput = {
+        ...perimetre,
+        ventilations: { none: { planId: plan.id } },
+        OR: [{ debit: { not: 0 } }, { credit: { not: 0 } }],
+      };
 
-      let generalDebit = 0;
-      let generalCredit = 0;
-      let analytiqueDebit = 0;
-      let analytiqueCredit = 0;
-      const sansRepartition: LigneControleCumuls['lignesSansRepartition'] = [];
+      const [general, analytique, tranche, nombreSansRepartition] = await Promise.all([
+        this.prisma.ligneEcriture.aggregate({ where: perimetre, _sum: { debit: true, credit: true } }),
+        // Les ventilations DE CE PLAN portées par les lignes du périmètre, et
+        // elles seules · une ventilation d'un autre plan ou d'une ligne hors
+        // des classes ventilées n'entrait pas dans la somme d'avant.
+        this.prisma.ventilationAnalytique.aggregate({
+          where: { planId: plan.id, ligne: perimetre },
+          _sum: { debit: true, credit: true },
+        }),
+        this.prisma.ligneEcriture.findMany({
+          where: sansRepartition,
+          include: {
+            compte: { select: { numero: true, intitule: true } },
+            ecriture: { select: { id: true, date: true, libelle: true, journal: { select: { code: true } } } },
+          },
+          orderBy: TRI_SANS_REPARTITION,
+          take: PLAFOND_LIGNES_SANS_REPARTITION,
+        }),
+        this.prisma.ligneEcriture.count({ where: sansRepartition }),
+      ]);
 
-      for (const l of lignesConcernees) {
-        generalDebit += Number(l.debit);
-        generalCredit += Number(l.credit);
-        for (const v of l.ventilations) {
-          analytiqueDebit += Number(v.debit);
-          analytiqueCredit += Number(v.credit);
-        }
-        if (l.ventilations.length === 0 && (Number(l.debit) !== 0 || Number(l.credit) !== 0)) {
-          sansRepartition.push({
-            ligneId: l.id,
-            ecritureId: l.ecriture.id,
-            date: l.ecriture.date.toISOString().slice(0, 10),
-            journal: l.ecriture.journal.code,
-            compteNumero: l.compte.numero,
-            compteIntitule: l.compte.intitule,
-            libelle: l.libelle ?? l.ecriture.libelle,
-            debit: Number(l.debit),
-            credit: Number(l.credit),
-          });
-        }
-      }
+      const generalDebit = Number(general._sum.debit ?? 0);
+      const generalCredit = Number(general._sum.credit ?? 0);
+      const analytiqueDebit = Number(analytique._sum.debit ?? 0);
+      const analytiqueCredit = Number(analytique._sum.credit ?? 0);
 
       resultats.push({
         planId: plan.id,
@@ -313,7 +354,19 @@ export class EtatsAnalytiquesService {
         mouvementsAnalytiquesCredit: analytiqueCredit,
         ecartDebit: generalDebit - analytiqueDebit,
         ecartCredit: generalCredit - analytiqueCredit,
-        lignesSansRepartition: sansRepartition,
+        nombreSansRepartition,
+        tronque: nombreSansRepartition > tranche.length,
+        lignesSansRepartition: tranche.map((l) => ({
+          ligneId: l.id,
+          ecritureId: l.ecriture.id,
+          date: l.ecriture.date.toISOString().slice(0, 10),
+          journal: l.ecriture.journal.code,
+          compteNumero: l.compte.numero,
+          compteIntitule: l.compte.intitule,
+          libelle: l.libelle ?? l.ecriture.libelle,
+          debit: Number(l.debit),
+          credit: Number(l.credit),
+        })),
       });
     }
     return resultats;

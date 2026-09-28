@@ -1386,30 +1386,35 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 6
 - **Constat :** une requête par plan dans une boucle, et toutes les lignes sans répartition renvoyées.
 - **Correction :** `groupBy`, plafond avec `tronque` et `total`.
+- **Fait le 2026-09-28 :** les cumuls généraux et analytiques de chaque plan viennent de deux agrégats en base sur un seul périmètre (dossier par l'écriture, exercice, fenêtre, classes ventilées). La liste des lignes sans répartition est plafonnée à 500 par plan (`PLAFOND_LIGNES_SANS_REPARTITION`), triée par date, pièce puis identifiant, avec son décompte exact (`nombreSansRepartition`) et `tronque` ; l'écran dit « n premières sur N ». Tests : `controle-cumuls-f186.spec.ts` (serveur, confronté à la lecture d'avant, et client) ; dix-neuf mutations, dix-neuf attrapées.
 
 **F187 · Exécution budgétaire : tout l'exercice chargé à chaque ouverture des notes** [etats-05]
 - **Emplacements :** src/modules/etats-financiers/etats-financiers-projet-budget.service.ts:134-150, :309-315 · note-annexe.service.ts:1050
 - **Condition :** 6
 - **Constat :** même famille que ce qui avait fait tomber le banc, non corrigée ici.
 - **Correction :** `lireParLots` ou agrégat SQL.
+- **Fait le 2026-09-28 :** le tableau d'exécution budgétaire et la réconciliation de trésorerie lisent les écritures par tranches (`lireParLots`, `LOT_ECRITURES`), en ne gardant de chaque ligne que son compte et ses ventilations du plan ; les lignes fournisseurs ouvertes à la clôture se cherchent parmi les candidates de chaque tranche, plus sur tout l'exercice. Ce sont des documents · rien n'est tronqué, montants, lignes et mentions sont identiques. Test : `projet-budget.spec.ts`, dont les doublures comparent désormais dossier et exercice par leur valeur ; dix mutations, dix attrapées.
 
 **F188 · Facturation, devis, exonérations sans borne, déclaration de TVA qui relit tout** [perf-01]
 - **Emplacements :** src/modules/facturation/facturation.service.ts:144 · commercial.service.ts:117 · exonerations.service.ts:91 · taux-tva.service.ts:1692
 - **Condition :** 6
 - **Constat :** le volume croît sans limite avec l'ancienneté du dossier.
 - **Correction :** filtre par période avec `tronque`.
+- **Fait le 2026-09-28 :** facturier, devis et registre des exonérations se lisent sur une période (`du`, `au`, `common/periode-de-liste.ts` ; une date illisible est un 400), plafonnés à 500 avec `total` et `tronque`. Les compteurs du registre restent ceux du registre entier, lus par tranches, et un titre en alerte reste listé hors période. Les écrans demandent par défaut l'exercice courant (douze mois pour le registre), le disent, et n'affichent que la dernière lecture demandée. La déclaration de TVA et le prorata lisent leurs lignes par tranches SANS borner la fenêtre · la déchéance de l'art. 37 al. 2, l'exigibilité à l'encaissement et les avoirs de l'art. 52 remontent avant la période, et la borner changerait le résultat ; la mémoire est bornée, pas le temps. Tests : `liste-bornee-f188.spec.ts` (trois modules), `listes-bornees-f188.spec.ts`, `periode-de-liste.spec.ts`, `declaration-par-tranches.spec.ts` (égalité objet pour objet avec la lecture d'un bloc) ; quarante et une mutations, quarante et une attrapées.
 
 **F189 · Balance fonctionnelle : toutes les lignes en mémoire** [mf-03]
 - **Emplacements :** src/modules/monnaie-fonctionnelle/balance-fonctionnelle.service.ts:162
 - **Condition :** 6
 - **Constat :** collection sans borne, contraire au § 8 bis.
 - **Correction :** agréger par compte, date et devise.
+- **Fait le 2026-09-28 :** `jeuFonctionnel` lit les écritures par tranches (`LOT_ECRITURES`, borne du dossier écrite dans l'appel) et convertit au fil de l'eau au cours de leur date ; seuls les cumuls par compte restent en mémoire, et le refus des dates sans cours tombe après la dernière tranche en les listant toutes. Balance, écart de conversion et mention inchangés. Test : `balance-fonctionnelle-par-tranches-f189.spec.ts` (1 007 écritures en trois tranches, reprise close) ; dix mutations, dix attrapées.
 
 **F190 · Supervision et balance agrégée du groupe : une balance par cellule, en série** [groupe-03]
 - **Emplacements :** src/modules/groupe/groupe.service.ts:561, :1177, :1706
 - **Condition :** 6
 - **Constat :** environ 1 500 requêtes en série, et 600 comptages simultanés.
 - **Correction :** un `groupBy` sur les couples dossier-exercice.
+- **Fait le 2026-09-28 :** balance agrégée, supervision et liasse du groupe lisent par tranches de vingt dossiers (`groupe/lecture-des-dossiers.ts`), chacune bornée par ses couples dossier-exercice sous le périmètre du siège · les comptes et trois regroupements par compte, un regroupement pour les comptages. La balance de chaque dossier passe par le calcul désormais partagé avec `EcritureService.balance` (`comptabilite/balance-trois-colonnes.ts`) · une cellule vue du siège a la balance qu'elle voit chez elle. Test : `lecture-groupe-f190.spec.ts`, confronté au vrai service sous la vraie garde (quarante-cinq cellules, cellule décalée) ; dix-huit mutations, dix-huit attrapées.
 
 ### Exploitation, sur site et CI
 
@@ -1462,24 +1467,28 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 6
 - **Constat :** Cloud SQL europe-west1, `gcloud run deploy` à la main, CORS ouvert par défaut, 58 migrations.
 - **Correction :** retirer ou marquer les sections 1 à 6, et renvoyer au workflow.
+- **Fait le 2026-09-28 :** un bandeau daté dit ce que les anciennes sections prescrivaient à tort (Cloud SQL, `gcloud run deploy` à la main, migrations « une fois », API ouverte à tout domaine) ; le document renvoie au workflow, à `docs/connexions-et-plafonds.md` et au § 5 de CLAUDE.md, et décrit ce qui tourne · Neon PG 18 à deux chaînes, relais `/api` de Firebase Hosting, `--env-vars-file`, CORS tel que `bootstrap.ts` l'applique, surveillance. Chaque référence relue au code.
 
 **F199 · docs/actions-du-proprietaire.md : actions réglées listées, clé publique de licence omise** [doc-07]
 - **Emplacements :** docs/actions-du-proprietaire.md:48-70, :98-122, :137-141 · src/modules/sur-site/cle-publique-editeur.ts:6-16 · .github/workflows/paquet-sur-site.yml:36-38 · docs/plan-ordonne-2026-09.md:46
 - **Condition :** 5
 - **Constat :** le heartbeat, la devise, la période close et l'OCR sont réglés. La clé `null`, qui bloque le paquet, n'est pas listée.
 - **Correction :** refaire la liste contre le code et corriger le renvoi de section.
+- **Fait le 2026-09-28 :** la liste est refaite contre le code · les points réglés (heartbeat, devise, période close, OCR, sauvegardes, mécénat, groupe) passent en fin avec leur date et leur fichier ; la paire Ed25519 et la clé publique `null` qui arrête le paquet (`cle-publique-editeur.ts`, `paquet-sur-site.yml`) sont ajoutées avec la marche à suivre ; le renvoi du plan ordonné est corrigé.
 
 **F200 · Les deux audits du 2026-09-27 annoncent ouverts des constats corrigés** [doc-08]
 - **Emplacements :** docs/audit-serveur-2026-09.md:20, :25-113, :593-663 · docs/audit-interface-2026-09.md:26, :141-255, :494-512
 - **Condition :** 5
 - **Constat :** B1 à B3, C5, C8, C10, C11, B4, F3, I1, C3 et C4 sont faits sans être marqués.
 - **Correction :** marquer « Fait le… » avec fichier:ligne, et recompter.
+- **Fait le 2026-09-28 :** les constats nommés, et les autres constats corrigés des deux rapports, sont marqués « Fait » avec fichier, ligne, test et commit, chacun relu dans le code ; les totaux sont recomptés. Restaient ouverts le constat C9 du serveur (aucun arrondi commun) et, à moitié, le constat I1 de l'interface.
 
 **F201 · docs/conversion-monnaie-fonctionnelle.md condamne la méthode retenue** [doc-09]
 - **Emplacements :** docs/conversion-monnaie-fonctionnelle.md:97-150 · balance-fonctionnelle.service.ts:21-31 · CLAUDE.md:566-600
 - **Condition :** 5
 - **Constat :** document dépassé, sans bandeau.
 - **Correction :** bandeau de renvoi à M2.
+- **Fait le 2026-09-28 :** un bandeau « dépassé sur la méthode » en tête renvoie au paragraphe M2 et au service, dit la méthode retenue et nomme les sections dépassées ; le corps n'est pas réécrit.
 
 **F202 · Tirets cadratins hors des exceptions déclarées** [doc-11]
 - **Emplacements :** src/modules/import/lecture-fichier.ts:45-46 · src/common/cloisonnement/extension-cloisonnement.ts:82 · docs/etats-financiers-liasses-referentiels.md (13 occurrences) · scripts/extraire-schemas-guides.cjs:91, :134 · src/modules/controles/regles-comptes-syscohada.ts:269, :339, :598 · CLAUDE.md:92-106
@@ -1492,12 +1501,14 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 5
 - **Constat :** interdits par le § 4.
 - **Correction :** ne garder que le niveau d'effort.
+- **Fait le 2026-09-28 :** les noms de modèle sont retirés des trois documents, seul le niveau d'effort reste ; aucun nom de modèle dans `docs/`.
 
 **F204 · README.md décrit un prototype de phase 1** [doc-18]
 - **Emplacements :** README.md:1-105
 - **Condition :** 5
 - **Constat :** « sycebnl-suite », heartbeat, inscription non atomique, émojis.
 - **Correction :** réduire à nom, propriétaire, pile, commandes et renvois.
+- **Fait le 2026-09-28 :** le README se réduit au nom, au propriétaire, à la pile, aux commandes et aux renvois, chacun vérifié ; un bandeau dit ce qu'il décrivait jusque-là.
 
 ---
 

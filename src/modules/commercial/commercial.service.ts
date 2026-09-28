@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { NatureReponseDevis, Prisma, Referentiel } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { identiteSociete, mentionsRecopiees, type MentionsRecopiees } from '../tenant/mentions-societe';
+import { lirePeriodeDeListe } from '../../common/periode-de-liste';
 import { EmettreDevisDto, EnregistrerReponseDto, RevoquerDevisDto } from './dto/devis.dto';
 import {
   AUCUNE_CONDITION_DE_FORME,
@@ -15,7 +16,15 @@ import {
   revocabilite,
 } from './vente-commerciale';
 
-type DevisAvecLignes = Prisma.DevisGetPayload<{ include: { lignes: true } }>;
+/**
+ * CE QUE LA VUE D'UN DEVIS LIT · ses lignes, et la contre-proposition qui lui
+ * répond. Celle-ci se lit sur SA ligne (audit final F188) · l'écran la
+ * cherchait dans la liste, qui n'est plus qu'une tranche, et une suite émise
+ * hors de la période aurait rouvert le geste que le serveur refuse ensuite.
+ */
+const INCLUSION_DEVIS = { lignes: true, contreProposition: { select: { id: true } } } satisfies Prisma.DevisInclude;
+
+type DevisAvecLignes = Prisma.DevisGetPayload<{ include: typeof INCLUSION_DEVIS }>;
 
 @Injectable()
 export class CommercialService {
@@ -92,6 +101,8 @@ export class CommercialService {
       revoqueLe: d.revoqueLe,
       motifRevocation: d.motifRevocation,
       contrePropositionDeId: d.contrePropositionDeId,
+      /** La contre-proposition née de ce devis, s'il en a une (art. 245). */
+      contrePropositionId: d.contreProposition?.id ?? null,
       lignes,
       // TOTAL HORS TAXES, et la mention l'accompagne · art. 263.
       totalHT: lignes.reduce((s, l) => s + l.montantHT, 0),
@@ -111,18 +122,40 @@ export class CommercialService {
     };
   }
 
-  async lister(tenantId: string, params: { dateReference?: string } = {}) {
+  /**
+   * LES DEVIS À L'ÉCRAN · une période et une tranche qui se dit (audit final
+   * F188, § 8 bis). La liste rendait tous les devis du dossier, lignes
+   * comprises · elle se lit désormais sur la DATE D'ÉMISSION (`du`, `au`),
+   * celle dont court le délai (art. 246), sous `PLAFOND_LISTE_DEVIS`, le plus
+   * récent d'abord comme avant. Le total est compté par la base sur la période
+   * entière. L'état de chaque devis reste calculé ligne à ligne, à la date de
+   * référence · rien n'est additionné sur la tranche.
+   */
+  async lister(tenantId: string, params: { dateReference?: string; du?: string; au?: string } = {}) {
+    // La période se lit avant toute lecture · illisible, elle est refusée.
+    const periode = lirePeriodeDeListe(params);
     await this.exigerCommercant(tenantId);
     const reference = params.dateReference ? new Date(params.dateReference) : new Date();
-    const devis = await this.prisma.devis.findMany({
-      where: { tenantId },
-      include: { lignes: true },
-      orderBy: [{ dateEmission: 'desc' }, { numero: 'desc' }],
-    });
+    const filtre: Prisma.DevisWhereInput = periode.bornes ? { dateEmission: periode.bornes } : {};
+    const [devis, total] = await Promise.all([
+      this.prisma.devis.findMany({
+        where: { tenantId, ...filtre },
+        include: INCLUSION_DEVIS,
+        // Le numéro est unique au dossier · l'ordre est donc total, et la
+        // frontière d'une tranche pleine ne bouge pas d'un appel à l'autre.
+        orderBy: [{ dateEmission: 'desc' }, { numero: 'desc' }],
+        take: PLAFOND_LISTE_DEVIS,
+      }),
+      this.prisma.devis.count({ where: { tenantId, ...filtre } }),
+    ]);
     return {
       dateReference: reference.toISOString().slice(0, 10),
       aucuneConditionDeForme: AUCUNE_CONDITION_DE_FORME,
       delaisDeConformite: DELAIS_DE_CONFORMITE,
+      periode: { du: periode.du, au: periode.au },
+      total,
+      plafond: PLAFOND_LISTE_DEVIS,
+      tronque: total > devis.length,
       devis: devis.map((d) => this.vue(d, reference)),
     };
   }
@@ -207,7 +240,7 @@ export class CommercialService {
           })),
         },
       },
-      include: { lignes: true },
+      include: INCLUSION_DEVIS,
     });
     return this.vue(devis, new Date());
   }
@@ -220,7 +253,7 @@ export class CommercialService {
    */
   async enregistrerReponse(tenantId: string, id: string, dto: EnregistrerReponseDto) {
     await this.exigerCommercant(tenantId);
-    const devis = await this.prisma.devis.findFirst({ where: { id, tenantId }, include: { lignes: true } });
+    const devis = await this.prisma.devis.findFirst({ where: { id, tenantId }, include: INCLUSION_DEVIS });
     if (!devis) throw new NotFoundException('Devis introuvable dans ce dossier.');
     if (devis.natureReponse) throw new BadRequestException('Une réponse est déjà enregistrée sur ce devis.');
 
@@ -257,14 +290,14 @@ export class CommercialService {
         dateReponse: reponse,
         detailReponse: dto.detailReponse?.trim() || null,
       },
-      include: { lignes: true },
+      include: INCLUSION_DEVIS,
     });
     return this.vue(maj, new Date());
   }
 
   async revoquer(tenantId: string, id: string, dto: RevoquerDevisDto) {
     await this.exigerCommercant(tenantId);
-    const devis = await this.prisma.devis.findFirst({ where: { id, tenantId }, include: { lignes: true } });
+    const devis = await this.prisma.devis.findFirst({ where: { id, tenantId }, include: INCLUSION_DEVIS });
     if (!devis) throw new NotFoundException('Devis introuvable dans ce dossier.');
 
     const vue = this.vue(devis, new Date());
@@ -275,8 +308,11 @@ export class CommercialService {
     const maj = await this.prisma.devis.update({
       where: { id: devis.id },
       data: { revoqueLe: new Date(dto.revoqueLe), motifRevocation: dto.motifRevocation.trim() },
-      include: { lignes: true },
+      include: INCLUSION_DEVIS,
     });
     return this.vue(maj, new Date());
   }
 }
+
+/** Plafond d'une tranche de devis à l'écran · une fenêtre, pas un export (§ 8 bis, audit final F188). */
+export const PLAFOND_LISTE_DEVIS = 500;

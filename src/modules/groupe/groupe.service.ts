@@ -31,6 +31,7 @@ import {
 } from './canevas-tresorerie';
 import { licenceDeCellule } from '../licence/licence-de-cellule';
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
+import { balancesDesDossiers, comptagesDesDossiers } from './lecture-des-dossiers';
 
 /**
  * Une ligne RETIRÉE de l'agrégat parce qu'elle est interne au groupe · le
@@ -649,9 +650,17 @@ export class GroupeService {
     /** Les lignes 184 à 187 de chaque dossier, telles qu'elles sortiront si la liaison se neutralise. */
     const lignesLiaison: EliminationReciproque[] = [];
 
+    // LES BALANCES DES DOSSIERS RETENUS, lues par tranches de dossiers et non
+    // une par cellule en série (audit final F190) · chacune est celle de
+    // `EcritureService.balance` pour son exercice, voir `balancesDesDossiers`.
+    const couplesRetenus = dossiers
+      .filter((d) => d.exerciceId)
+      .map((d) => ({ tenantId: d.id, exerciceId: d.exerciceId! }));
+    const balances = await balancesDesDossiers(this.prisma, couplesRetenus);
+
     for (const d of dossiers) {
       if (!d.exerciceId) continue;
-      const balance = await this.ecritureService.balance(d.id, d.exerciceId);
+      const balance = balances.get(d.id)!;
       let solde58 = 0;
       let soldeLiaison18 = 0;
       for (const l of balance.lignes) {
@@ -722,7 +731,7 @@ export class GroupeService {
 
     const reciproques = await this.eliminerOperationsReciproques(
       compteReciproque,
-      dossiers.filter((d) => d.exerciceId).map((d) => ({ tenantId: d.id, exerciceId: d.exerciceId! })),
+      couplesRetenus,
       nomParDossier,
       soldeReciproqueParCompte,
     );
@@ -1342,15 +1351,27 @@ export class GroupeService {
     const mere = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { referentiel: true } });
     const syscohada = mere?.referentiel === Referentiel.SYSCOHADA;
 
-    const lignes = [];
-    for (const c of cellules) {
-      // La supervision est un écran de LECTURE : on y montre l'exercice
-      // recouvrant s'il n'y a pas de concordant, pour que le siège voie
-      // quand même l'activité de la cellule et puisse ouvrir sa balance.
-      // Mais une cellule décalée n'est jamais « prête » pour l'agrégat, et
-      // ses dates sont rendues pour que l'écart soit dicible.
+    // La supervision est un écran de LECTURE : on y montre l'exercice
+    // recouvrant s'il n'y a pas de concordant, pour que le siège voie
+    // quand même l'activité de la cellule et puisse ouvrir sa balance.
+    // Mais une cellule décalée n'est jamais « prête » pour l'agrégat, et
+    // ses dates sont rendues pour que l'écart soit dicible.
+    const parCellule = cellules.map((c) => {
       const choix = this.exercicePourLaPeriode(c.exercices, exercice.dateDebut, exercice.dateFin);
-      const exCellule = choix.concordant ?? choix.discordant;
+      return { c, choix, exCellule: choix.concordant ?? choix.discordant };
+    });
+    // TOUTES LES CELLULES EN QUELQUES REQUÊTES (audit final F190) · une balance
+    // et trois comptages PAR CELLULE, à la file, faisaient plus d'un millier de
+    // requêtes pour un groupe fourni. Balances puis comptages, l'un après
+    // l'autre · jamais plus de requêtes ensemble qu'une seule balance.
+    const couples = parCellule
+      .filter((x) => x.exCellule)
+      .map((x) => ({ tenantId: x.c.id, exerciceId: x.exCellule!.id }));
+    const balances = await balancesDesDossiers(this.prisma, couples);
+    const comptages = await comptagesDesDossiers(this.prisma, couples);
+
+    const lignes = [];
+    for (const { c, choix, exCellule } of parCellule) {
       if (!exCellule) {
         lignes.push({
           id: c.id,
@@ -1369,18 +1390,8 @@ export class GroupeService {
         });
         continue;
       }
-      const [balance, derniere, nbEcritures, nbBrouillard] = await Promise.all([
-        this.ecritureService.balance(c.id, exCellule.id),
-        this.prisma.ecriture.findFirst({
-          where: { tenantId: c.id, exerciceId: exCellule.id },
-          orderBy: { date: 'desc' },
-          select: { date: true },
-        }),
-        this.prisma.ecriture.count({ where: { tenantId: c.id, exerciceId: exCellule.id } }),
-        this.prisma.ecriture.count({
-          where: { tenantId: c.id, exerciceId: exCellule.id, statut: StatutEcriture.BROUILLARD },
-        }),
-      ]);
+      const balance = balances.get(c.id)!;
+      const { derniereEcriture, nbEcritures, nbBrouillard } = comptages.get(c.id)!;
       const detail = balance.lignes.filter((l) => l.typeCompte !== 'TOTAL');
       const tresorerie = detail
         .filter((l) => l.numero.startsWith('5') && !l.numero.startsWith('58'))
@@ -1401,7 +1412,7 @@ export class GroupeService {
         periodeDiscordante: choix.concordant
           ? null
           : { dateDebut: exCellule.dateDebut, dateFin: exCellule.dateFin },
-        derniereEcriture: derniere?.date ?? null,
+        derniereEcriture,
         nbEcritures,
         nbBrouillard,
         tresorerie,
@@ -1875,25 +1886,23 @@ export class GroupeService {
     // le brouillard : ne changer que la balance désaccorderait les deux. La
     // supervision dit déjà qu'une cellule n'est « prête » qu'à zéro
     // brouillard · la liasse s'aligne sur elle.
-    const brouillardParDossier = await Promise.all(
-      agregat.dossiers.map(async (d) => ({
-        nom: d.nom,
-        pieces: await this.prisma.ecriture.count({
-          where: { tenantId: d.id, exerciceId: d.exerciceId, statut: StatutEcriture.BROUILLARD },
-        }),
-        // L'à-nouveau provisoire reste au brouillard par construction et ne
-        // se valide jamais · il ne se règle qu'en clôturant l'exercice
-        // précédent, et le message doit le dire au lieu de « validez ».
-        provisoires: await this.prisma.ecriture.count({
-          where: {
-            tenantId: d.id,
-            exerciceId: d.exerciceId,
-            statut: StatutEcriture.BROUILLARD,
-            estANouveauProvisoire: true,
-          },
-        }),
-      })),
+    //
+    // Compté dans l'exercice RETENU de chaque dossier, en une requête par
+    // tranche de dossiers (audit final F190) · deux comptages par dossier
+    // lancés tous ensemble faisaient six cents requêtes simultanées pour
+    // trois cents cellules, et vidaient le pool de connexions de l'instance.
+    const comptages = await comptagesDesDossiers(
+      this.prisma,
+      agregat.dossiers.map((d) => ({ tenantId: d.id, exerciceId: d.exerciceId })),
     );
+    const brouillardParDossier = agregat.dossiers.map((d) => ({
+      nom: d.nom,
+      pieces: comptages.get(d.id)!.nbBrouillard,
+      // L'à-nouveau provisoire reste au brouillard par construction et ne
+      // se valide jamais · il ne se règle qu'en clôturant l'exercice
+      // précédent, et le message doit le dire au lieu de « validez ».
+      provisoires: comptages.get(d.id)!.nbProvisoiresAuBrouillard,
+    }));
     const enBrouillard = brouillardParDossier.filter((b) => b.pieces > 0);
     if (enBrouillard.length > 0) {
       const nommes = enBrouillard

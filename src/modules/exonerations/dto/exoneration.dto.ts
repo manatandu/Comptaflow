@@ -114,3 +114,24 @@ export class ModifierExonerationDto {
   @MaxLength(2000)
   observations?: string;
 }
+
+/**
+ * LA LISTE DE TRAVAIL DU REGISTRE (audit final F188). `du` et `au` sont des
+ * jours AAAA-MM-JJ, lus et refusés par `lirePeriodeDeListe` au service · une
+ * seule règle. Le DTO les DÉCLARE, le filtre global refusant tout paramètre
+ * inconnu. La date de référence, illisible, rendait des alertes calculées sur
+ * une date invalide · elle est désormais refusée à la porte.
+ */
+export class ListerExonerationsDto {
+  @IsOptional()
+  @IsDateString()
+  dateReference?: string;
+
+  @IsOptional()
+  @IsString()
+  du?: string;
+
+  @IsOptional()
+  @IsString()
+  au?: string;
+}

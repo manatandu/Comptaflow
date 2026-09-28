@@ -29,8 +29,11 @@ describe('F118 · une réponse tardive s’enregistre, et l’offre reste caduqu
 
 describe('F124 · la contre-proposition a son geste', () => {
   it('un devis rejeté substantiellement, sans suite encore, propose de l’enregistrer', () => {
+    // La suite se lit sur la LIGNE, que le serveur rend (audit final F188) ·
+    // la liste n'est plus qu'une tranche, et une contre-proposition émise hors
+    // de la période y manquerait.
     const garde = bloc("d.etat.etat === 'CONTRE_PROPOSITION' &&", 'Enregistrer la contre-proposition');
-    expect(garde).toContain('!etat.devis.some((x) => x.contrePropositionDeId === d.id)');
+    expect(garde).toContain('!d.contrePropositionId');
     expect(garde).toContain('onClick={() => preparerContreProposition(d)}');
   });
 

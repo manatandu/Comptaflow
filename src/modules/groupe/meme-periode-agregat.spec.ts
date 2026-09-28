@@ -52,10 +52,53 @@ const BALANCE_CELLULE = {
   totaux: { debit: 400, credit: 400 },
 };
 
+type LigneFixture = { numero: string; intitule: string; typeCompte: string; totalDebit: number; totalCredit: number };
+type Couples = { OR: Array<{ tenantId: string; exerciceId: string }> };
+
+/**
+ * LA LECTURE DES BALANCES PAR TRANCHES (audit final F190) · la doublure rend
+ * les comptes des dossiers et leurs sommes pour les seuls couples (dossier,
+ * exercice) demandés, comme la base · une cellule que le service n'a pas
+ * retenue ne rend rien. Ces jeux d'essai ne portent que des mouvements.
+ */
+function lectureDesBalances(parDossier: Record<string, { exerciceId: string; lignes: LigneFixture[] }>) {
+  const comptes = Object.entries(parDossier).flatMap(([tenantId, { lignes }]) =>
+    lignes.map((l) => ({
+      id: `${tenantId}:${l.numero}`,
+      tenantId,
+      numero: l.numero,
+      intitule: l.intitule,
+      classe: `CLASSE_${l.numero[0]}`,
+      typeCompte: l.typeCompte,
+      sommes: { debit: l.totalDebit, credit: l.totalCredit },
+    })),
+  );
+  return {
+    compte: {
+      findMany: async ({ where }: { where: { tenantId: { in: string[] } } }) =>
+        comptes.filter((c) => where.tenantId.in.includes(c.tenantId)).sort((a, b) => (a.numero < b.numero ? -1 : 1)),
+    },
+    ligneEcriture: {
+      groupBy: async ({ where }: { where: { ecriture: Couples & { estGenereeParCloture?: boolean } } }) =>
+        where.ecriture.estGenereeParCloture !== false
+          ? []
+          : comptes
+              .filter((c) => where.ecriture.OR.some((o) => o.tenantId === c.tenantId && o.exerciceId === parDossier[c.tenantId].exerciceId))
+              .map((c) => ({ compteId: c.id, _sum: c.sommes })),
+    },
+  };
+}
+
+const LECTURE = lectureDesBalances({
+  mere: { exerciceId: 'ex-m', lignes: BALANCE_MERE.lignes },
+  c1: { exerciceId: 'ex-c1', lignes: BALANCE_CELLULE.lignes },
+});
+
 /** Un groupe d'une seule cellule, dont on choisit les exercices. */
 const service = (exercicesCellule: Array<{ id: string; dateDebut: Date; dateFin: Date }>) =>
   new GroupeService(
     {
+      ...LECTURE,
       exercice: {
         findFirst: async ({ where }: { where: { id?: string; tenantId: string } }) =>
           where.id === 'ex-m' && where.tenantId === 'mere' ? EX_MERE : null,
@@ -66,7 +109,7 @@ const service = (exercicesCellule: Array<{ id: string; dateDebut: Date; dateFin:
       // l'élimination des opérations réciproques : ce fichier est le garde-fou
       // qui le vérifie.
       // Aucune pièce au brouillard · la liasse les compte (audit F7).
-      ecriture: { count: async () => 0 },
+      ecriture: { groupBy: async () => [] },
       tiersCompte: { findMany: async () => [] },
       tenant: {
         findUnique: async () => ({ id: 'mere', nom: 'Église centrale', dossierCombinaisonId: 't-comb' }),
@@ -77,7 +120,7 @@ const service = (exercicesCellule: Array<{ id: string; dateDebut: Date; dateFin:
           where.dossierMereId === 'mere' ? [{ id: 'c1', nom: 'Cellule Matete', exercices: exercicesCellule }] : [],
       },
     } as never,
-    { balance: async (tenantId: string) => (tenantId === 'mere' ? BALANCE_MERE : BALANCE_CELLULE) } as never,
+    {} as never,
     undefined as never,
     {
       liasseCompleteExcel: async () => {
@@ -181,6 +224,7 @@ describe('supervision · une cellule décalée n’est jamais annoncée « prêt
   const superviseur = (exercicesCellule: Array<{ id: string; dateDebut: Date; dateFin: Date }>) =>
     new GroupeService(
       {
+        ...LECTURE,
         exercice: { findFirst: async () => EX_MERE },
         tenant: {
           findMany: async () => [
@@ -198,13 +242,21 @@ describe('supervision · une cellule décalée n’est jamais annoncée « prêt
           findUnique: async () => ({ dossierCombinaisonId: null }),
         },
         ecriture: {
-          findFirst: async () => ({ date: new Date('2026-11-30') }),
           // Douze écritures, aucune en brouillard · la cellule est
-          // irréprochable, seule sa période peut la disqualifier.
-          count: async ({ where }: { where: { statut?: string } }) => (where.statut ? 0 : 12),
+          // irréprochable, seule sa période peut la disqualifier. Rendues
+          // pour le seul couple demandé, comme la base.
+          groupBy: async ({ where }: { where: Couples }) =>
+            where.OR.map((c) => ({
+              tenantId: c.tenantId,
+              exerciceId: c.exerciceId,
+              statut: 'VALIDEE',
+              estANouveauProvisoire: false,
+              _count: { _all: 12 },
+              _max: { date: new Date('2026-11-30') },
+            })),
         },
       } as never,
-      { balance: async () => BALANCE_CELLULE } as never,
+      {} as never,
       undefined as never,
       undefined as never,
     );

@@ -12,6 +12,7 @@ import {
 import { construireEtatDetaille, FactureAchatSource } from './etat-detaille-tva';
 import { FORMES_PERSONNES_PHYSIQUES } from '../retenues/correspondance-retenues';
 import { identiteSociete, mentionsRecopiees, type MentionsRecopiees } from '../tenant/mentions-societe';
+import { lirePeriodeDeListe } from '../../common/periode-de-liste';
 
 const nombre = (d: Prisma.Decimal | number | null): number | null =>
   d === null || d === undefined ? null : Number(d);
@@ -138,19 +139,49 @@ export class FacturationService {
     };
   }
 
-  async lister(tenantId: string, params: { sens?: SensFacture } = {}) {
+  /**
+   * LE FACTURIER À L'ÉCRAN · une période, et une tranche qui se dit (audit
+   * final F188, § 8 bis).
+   *
+   * La liste rendait toutes les pièces du dossier, lignes comprises, à chaque
+   * ouverture de la fenêtre · la mémoire du serveur dépendait de l'ancienneté
+   * du cabinet. Elle se lit désormais sur la DATE DE LA PIÈCE (`du`, `au`) et
+   * sous `PLAFOND_LISTE_FACTURES`, la plus récente d'abord comme avant. Le
+   * total est COMPTÉ par la base sur la période entière, et `tronque` dit
+   * quand la tranche en rend moins · « 500 » ne doit jamais se lire comme le
+   * nombre de pièces du facturier.
+   *
+   * Rien d'autre n'est calculé sur la liste. L'état détaillé, l'impression, la
+   * passation et les abonnements de la console lisent leurs pièces par leurs
+   * propres requêtes, et ne passent pas par ici.
+   */
+  async lister(tenantId: string, params: { sens?: SensFacture; du?: string; au?: string } = {}) {
+    // La période se lit AVANT toute lecture · une date illisible est un refus,
+    // jamais une liste élargie en silence.
+    const periode = lirePeriodeDeListe(params);
     const t = await this.dossier(tenantId);
     const morale = this.estPersonneMorale(t);
-    const factures = await this.prisma.facture.findMany({
-      where: { tenantId, ...(params.sens ? { sens: params.sens } : {}) },
-      include: {
-        lignes: { orderBy: { ordre: 'asc' } },
-        tiers: { select: { id: true, code: true, nom: true } },
-        factureAnnulee: { select: { id: true, numeroSerie: true, dateFacture: true } },
-        noteDeCredit: { select: { id: true, numeroSerie: true, dateFacture: true } },
-      },
-      orderBy: [{ dateFacture: 'desc' }, { numeroSerie: 'desc' }],
-    });
+    const filtre: Prisma.FactureWhereInput = {
+      ...(params.sens ? { sens: params.sens } : {}),
+      ...(periode.bornes ? { dateFacture: periode.bornes } : {}),
+    };
+    const [factures, total] = await Promise.all([
+      this.prisma.facture.findMany({
+        where: { tenantId, ...filtre },
+        include: {
+          lignes: { orderBy: { ordre: 'asc' } },
+          tiers: { select: { id: true, code: true, nom: true } },
+          factureAnnulee: { select: { id: true, numeroSerie: true, dateFacture: true } },
+          noteDeCredit: { select: { id: true, numeroSerie: true, dateFacture: true } },
+        },
+        // L'identifiant départage les ex aequo (une vente et un achat du même
+        // jour sous le même numéro) · sans lui, la frontière d'une tranche
+        // pleine changerait d'un appel à l'autre.
+        orderBy: [{ dateFacture: 'desc' }, { numeroSerie: 'desc' }, { id: 'desc' }],
+        take: PLAFOND_LISTE_FACTURES,
+      }),
+      this.prisma.facture.count({ where: { tenantId, ...filtre } }),
+    ]);
 
     return {
       homologation: HOMOLOGATION,
@@ -158,6 +189,10 @@ export class FacturationService {
       // Décret n° 011/42, art. 60 · l'écran propose la mention cochée sur une
       // vente d'un dossier autorisé aux débits (audit final F24).
       regimeExigibiliteTva: t.regimeExigibiliteTva,
+      periode: { du: periode.du, au: periode.au },
+      total,
+      plafond: PLAFOND_LISTE_FACTURES,
+      tronque: total > factures.length,
       factures: factures.map((f) => {
         const v = this.verifiable(f);
         return {
@@ -551,3 +586,6 @@ export class FacturationService {
     return construireEtatDetaille(periode, source);
   }
 }
+
+/** Plafond d'une tranche du facturier à l'écran · une fenêtre, pas un export (§ 8 bis, audit final F188). */
+export const PLAFOND_LISTE_FACTURES = 500;

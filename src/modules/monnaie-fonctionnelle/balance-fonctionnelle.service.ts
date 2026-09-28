@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { MONNAIE_DE_TENUE } from '../../common/monnaie-de-tenue';
+import { LOT_ECRITURES, lireParLots, pageApres } from '../../common/lecture-par-lots';
 
 /**
  * LA BALANCE EN MONNAIE FONCTIONNELLE · le second jeu, et ce qu'il n'est pas.
@@ -91,14 +93,33 @@ interface JeuFonctionnel {
  */
 const PROFONDEUR_MAX = 20;
 
-const SELECT_LIGNE = {
-  debit: true,
-  credit: true,
-  montantDevise: true,
-  devise: { select: { code: true } },
-  ecriture: { select: { id: true, date: true } },
-  compte: { select: { id: true, numero: true, intitule: true } },
-} as const;
+/**
+ * Ce que le jeu lit d'une écriture (audit final F189) · sa date, qui donne le
+ * cours de TOUTES ses lignes, et de chaque ligne ce que la conversion demande,
+ * rien d'autre. L'écriture arrive entière dans sa tranche · ses lignes ne sont
+ * jamais séparées du cours qu'elles partagent.
+ */
+const SELECT_ECRITURE = {
+  id: true,
+  date: true,
+  lignes: {
+    select: {
+      debit: true,
+      credit: true,
+      montantDevise: true,
+      devise: { select: { code: true } },
+      compte: { select: { id: true, numero: true, intitule: true } },
+    },
+  },
+} satisfies Prisma.EcritureSelect;
+
+type EcritureLue = Prisma.EcritureGetPayload<{ select: typeof SELECT_ECRITURE }>;
+
+/** Les mouvements de l'exercice · tout ce que la clôture n'a pas engendré. */
+const MOUVEMENTS = { estGenereeParCloture: false } as const;
+
+/** L'à-nouveau · engendré par la clôture, sans être le solde des comptes de gestion. */
+const A_NOUVEAU = { estGenereeParCloture: true, estSoldeDesComptesDeGestion: false } as const;
 
 @Injectable()
 export class BalanceFonctionnelleService {
@@ -284,6 +305,22 @@ export class BalanceFonctionnelleService {
    * dont chaque charge avait pris le cours de sa propre date. L'ouverture est
    * donc la clôture du MÊME jeu pour l'exercice précédent, et la clôture de
    * l'exercice n'est pas rejouée · le jeu s'arrête avant elle.
+   *
+   * L'EXERCICE SE LIT PAR TRANCHES, ET SE CONVERTIT AU FIL DE L'EAU (audit
+   * final F189). Le jeu chargeait d'un coup toutes les lignes de l'exercice,
+   * puis toutes celles de chaque exercice précédent en remontant, alors qu'il
+   * ne rend qu'un cumul par compte · le motif même qui a fait tomber le banc
+   * d'un million de lignes. Les écritures arrivent désormais par tranches de
+   * LOT_ECRITURES, chacune avec toutes ses lignes, et seuls restent en mémoire
+   * les cumuls par compte, le cours de chaque date déjà vue et les dates sans
+   * cours. Rien du calcul ne change : tous les cours de la devise sont connus
+   * avant la première tranche, si bien que chaque ligne se convertit au cours
+   * de SON écriture dès qu'elle est lue, exactement comme avant, et qu'aucune
+   * ligne n'a besoin d'être gardée pour attendre son cours.
+   *
+   * LE REFUS NE TOMBE QU'APRÈS LA DERNIÈRE TRANCHE · il rend la liste de
+   * TOUTES les dates sans cours, et s'arrêter à la première n'en montrerait
+   * qu'une, le cabinet découvrant les autres une par une.
    */
   private async jeuFonctionnel(
     tenantId: string,
@@ -292,18 +329,16 @@ export class BalanceFonctionnelleService {
     cours: { date: Date; cours: number }[],
     profondeur: number,
   ): Promise<JeuFonctionnel> {
-    const [mouvements, aNouveau] = await Promise.all([
-      this.prisma.ligneEcriture.findMany({
-        where: { ecriture: { tenantId, exerciceId: exercice.id, estGenereeParCloture: false } },
-        select: SELECT_LIGNE,
-      }),
-      this.prisma.ligneEcriture.findMany({
-        where: {
-          ecriture: { tenantId, exerciceId: exercice.id, estGenereeParCloture: true, estSoldeDesComptesDeGestion: false },
-        },
-        select: SELECT_LIGNE,
-      }),
-    ]);
+    const bornes = { tenantId, exerciceId: exercice.id };
+    // UNE LIGNE SUFFIT À DIRE QU'IL Y A UN À-NOUVEAU (audit final F189) · il
+    // était lu en entier pour être compté, et il ne se relit plus que s'il
+    // faut le convertir. Une écriture d'à-nouveau sans ligne ne comptait pas
+    // plus hier qu'aujourd'hui.
+    const aUnANouveau =
+      (await this.prisma.ligneEcriture.findFirst({
+        where: { ecriture: { ...bornes, ...A_NOUVEAU } },
+        select: { id: true },
+      })) !== null;
 
     const parCompte = new Map<string, CompteFonctionnel>();
     const compte = (id: string, numero: string, intitule: string) => {
@@ -313,7 +348,7 @@ export class BalanceFonctionnelleService {
     };
 
     const precedent =
-      aNouveau.length > 0 && profondeur < PROFONDEUR_MAX
+      aUnANouveau && profondeur < PROFONDEUR_MAX
         ? await this.prisma.exercice.findFirst({
             where: { tenantId, dateFin: { lt: exercice.dateDebut } },
             orderBy: { dateFin: 'desc' },
@@ -321,23 +356,65 @@ export class BalanceFonctionnelleService {
           })
         : null;
 
+    // LE COURS SE CHERCHE UNE FOIS PAR DATE, PAS UNE FOIS PAR ÉCRITURE (audit
+    // final F189) · `coursApplicable` parcourt tous les cours de la devise, et
+    // cent mille écritures tombées sur trois cents dates le rejouaient cent
+    // mille fois. La clé est l'instant exact, celui que `coursApplicable`
+    // compare.
+    const coursParDate = new Map<number, number | null>();
+    const sansCours = new Set<string>();
+    let lignes = 0;
+    let lignesExactes = 0;
+    let ecritures = 0;
+    const convertir = (ouverture: boolean) => (e: EcritureLue) => {
+      // Une écriture sans ligne n'a rien à convertir · la lecture partait des
+      // lignes, et ne la voyait ni pour la compter ni pour dater son cours.
+      if (e.lignes.length === 0) return;
+      ecritures += 1;
+      lignes += e.lignes.length;
+      const instant = e.date.getTime();
+      if (!coursParDate.has(instant)) {
+        coursParDate.set(instant, BalanceFonctionnelleService.coursApplicable(cours, e.date));
+      }
+      const coursDeLEcriture = coursParDate.get(instant) ?? null;
+      if (coursDeLEcriture === null || coursDeLEcriture <= 0) {
+        // Rien n'est converti pour cette écriture · l'état s'arrêtera après la
+        // dernière tranche, avec toutes les dates sans cours.
+        sansCours.add(e.date.toISOString().slice(0, 10));
+        return;
+      }
+      // Toutes les lignes de l'écriture prennent le même cours, celui de sa
+      // date · c'est ce qui la garde équilibrée après conversion.
+      for (const l of e.lignes) {
+        const converti = BalanceFonctionnelleService.convertirLigne(
+          {
+            debit: Number(l.debit),
+            credit: Number(l.credit),
+            deviseCode: l.devise?.code ?? null,
+            montantDevise: l.montantDevise === null ? null : Number(l.montantDevise),
+          },
+          fonctionnelle,
+          coursDeLEcriture,
+        );
+        if (converti.exacte) lignesExactes += 1;
+        const c = compte(l.compte.id, l.compte.numero, l.compte.intitule);
+        if (ouverture) {
+          c.ouvertureDebit += converti.debit;
+          c.ouvertureCredit += converti.credit;
+        } else {
+          c.debit += converti.debit;
+          c.credit += converti.credit;
+        }
+      }
+    };
+
     // Ce qui se convertit au cours de sa date · les mouvements, et l'à-nouveau
     // d'une reprise qui n'a aucun exercice précédent dans le dossier.
-    const aConvertir = [
-      ...mouvements.map((l) => ({ l, ouverture: false })),
-      ...(aNouveau.length > 0 && !precedent ? aNouveau.map((l) => ({ l, ouverture: true })) : []),
-    ];
-    const datesParEcriture = new Map<string, Date>();
-    for (const { l } of aConvertir) datesParEcriture.set(l.ecriture.id, l.ecriture.date);
-    const sansCours: string[] = [];
-    const coursParEcriture = new Map<string, number>();
-    for (const [id, date] of datesParEcriture) {
-      const c = BalanceFonctionnelleService.coursApplicable(cours, date);
-      if (c === null || c <= 0) sansCours.push(date.toISOString().slice(0, 10));
-      else coursParEcriture.set(id, c);
-    }
-    if (sansCours.length > 0) {
-      const distinctes = [...new Set(sansCours)].sort();
+    await this.lireEcritures({ ...bornes, ...MOUVEMENTS }, convertir(false));
+    if (aUnANouveau && !precedent) await this.lireEcritures({ ...bornes, ...A_NOUVEAU }, convertir(true));
+
+    if (sansCours.size > 0) {
+      const distinctes = [...sansCours].sort();
       throw new BadRequestException(
         `Aucun cours ${fonctionnelle} connu à ${distinctes.length} date(s) d'écriture ` +
           `(${distinctes.slice(0, 10).join(', ')}${distinctes.length > 10 ? '…' : ''}). ` +
@@ -346,30 +423,7 @@ export class BalanceFonctionnelleService {
       );
     }
 
-    let lignesExactes = 0;
-    for (const { l, ouverture } of aConvertir) {
-      const converti = BalanceFonctionnelleService.convertirLigne(
-        {
-          debit: Number(l.debit),
-          credit: Number(l.credit),
-          deviseCode: l.devise?.code ?? null,
-          montantDevise: l.montantDevise === null ? null : Number(l.montantDevise),
-        },
-        fonctionnelle,
-        coursParEcriture.get(l.ecriture.id) as number,
-      );
-      if (converti.exacte) lignesExactes += 1;
-      const c = compte(l.compte.id, l.compte.numero, l.compte.intitule);
-      if (ouverture) {
-        c.ouvertureDebit += converti.debit;
-        c.ouvertureCredit += converti.credit;
-      } else {
-        c.debit += converti.debit;
-        c.credit += converti.credit;
-      }
-    }
-
-    let ouverture: OuvertureFonctionnelle = aNouveau.length === 0 ? 'AUCUNE' : 'CONVERTIE_A_SA_DATE';
+    let ouverture: OuvertureFonctionnelle = aUnANouveau ? 'CONVERTIE_A_SA_DATE' : 'AUCUNE';
     if (precedent) {
       ouverture = 'EXERCICE_PRECEDENT';
       const jeuPrecedent = await this.jeuFonctionnel(tenantId, precedent, fonctionnelle, cours, profondeur + 1);
@@ -412,12 +466,25 @@ export class BalanceFonctionnelleService {
       }
     }
 
-    return {
-      parCompte,
-      lignes: aConvertir.length,
-      lignesExactes,
-      ecritures: datesParEcriture.size,
-      ouverture,
-    };
+    return { parCompte, lignes, lignesExactes, ecritures, ouverture };
+  }
+
+  /**
+   * Toutes les écritures d'un filtre, une tranche de LOT_ECRITURES à la fois
+   * (audit final F189). Le filtre porte toujours le dossier par sa valeur · la
+   * garde de cloisonnement refuse une collection d'écritures qui ne l'a pas,
+   * et le balayage du code (`cloisonnement.spec.ts`) exige de la LIRE dans
+   * l'appel même.
+   */
+  private lireEcritures(
+    { tenantId, ...filtre }: { tenantId: string; exerciceId: string; estGenereeParCloture: boolean; estSoldeDesComptesDeGestion?: boolean },
+    traiter: (e: EcritureLue) => void,
+  ): Promise<void> {
+    return lireParLots(
+      (curseur) =>
+        this.prisma.ecriture.findMany({ where: { tenantId, ...filtre }, select: SELECT_ECRITURE, ...pageApres(curseur, LOT_ECRITURES) }),
+      traiter,
+      LOT_ECRITURES,
+    );
   }
 }

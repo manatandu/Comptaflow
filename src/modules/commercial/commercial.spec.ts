@@ -251,6 +251,8 @@ function service(opts: { referentiel?: Referentiel; devis?: Faux[]; unDevis?: Fa
     tiers: { findFirst: jest.fn().mockResolvedValue(null) },
     devis: {
       findMany: jest.fn().mockResolvedValue(opts.devis ?? []),
+      // La liste compte sa période (audit final F188) · autant que la lecture rend.
+      count: jest.fn().mockResolvedValue((opts.devis ?? []).length),
       // LA DOUBLURE DISCRIMINE SUR LE `where`, comme la vraie base · le
       // service interroge `findFirst` DEUX fois pour des questions
       // différentes (un numéro déjà pris, puis le devis d'origine d'une

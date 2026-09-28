@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { referencesVers, refuserSiReferences } from '../../common/suppression/references';
+import { LOT_ECRITURES, LOT_LECTURE, lireParLots, pageApres } from '../../common/lecture-par-lots';
 import { PrismaService } from '../../common/prisma.service';
 import { CreerTauxTvaDto, ModifierTauxTvaDto } from './dto/taux-tva.dto';
 import { tauxTvaDefaut } from './taux-tva-seed';
@@ -831,6 +832,9 @@ export class TauxTvaService {
     const racinesExclues = this.racinesHorsDenominateur(tenant?.referentiel);
     const filtreExclusions = racinesExclues.map((r) => ({ numero: { startsWith: r } }));
 
+    let numerateur = 0;
+    const ecrituresTauxZero = new Set<string>();
+
     /*
       Le numérateur ne se lit que sur la TVA COLLECTÉE (443). Une ligne de 445
       n'est jamais une recette, et un avoir fournisseur, qui crédite le 445,
@@ -841,31 +845,37 @@ export class TauxTvaService {
       isole au 4434 · c'est le seul plan où elles sont repérables, et le seul
       où on les retranche.
     */
-    const lignesTaxe = await this.prisma.ligneEcriture.findMany({
-      where: {
-        tauxTvaId: { not: null },
-        compte: { numero: { startsWith: RACINE_COLLECTEE } },
-        ecriture: { tenantId, statut: StatutEcriture.VALIDEE, date: { gte: dateDebut, lte: dateFin } },
+    // LUES PAR TRANCHES (audit final F188) · le prorata provisoire parcourt
+    // toute la TVA collectée d'une ANNÉE (art. 45), et la déclaration le
+    // demande à chaque appel. Chaque ligne est traitée à son arrivée ; seuls
+    // le numérateur et les écritures au taux zéro survivent à la tranche.
+    await lireParLots(
+      (curseur) =>
+        this.prisma.ligneEcriture.findMany({
+          ...pageApres(curseur, LOT_LECTURE),
+          where: {
+            tauxTvaId: { not: null },
+            compte: { numero: { startsWith: RACINE_COLLECTEE } },
+            ecriture: { tenantId, statut: StatutEcriture.VALIDEE, date: { gte: dateDebut, lte: dateFin } },
+          },
+          select: {
+            id: true,
+            credit: true,
+            ecritureId: true,
+            compte: { select: { numero: true } },
+            tauxTva: { select: { taux: true } },
+          },
+        }),
+      (l) => {
+        if (this.estLivraisonASoiMeme(tenant?.referentiel, l.compte.numero)) return;
+        const taux = Number(l.tauxTva?.taux ?? 0);
+        if (taux <= EPSILON) {
+          ecrituresTauxZero.add(l.ecritureId);
+          return;
+        }
+        numerateur += Number(l.credit) / (taux / 100);
       },
-      select: {
-        credit: true,
-        ecritureId: true,
-        compte: { select: { numero: true } },
-        tauxTva: { select: { taux: true } },
-      },
-    });
-
-    let numerateur = 0;
-    const ecrituresTauxZero = new Set<string>();
-    for (const l of lignesTaxe) {
-      if (this.estLivraisonASoiMeme(tenant?.referentiel, l.compte.numero)) continue;
-      const taux = Number(l.tauxTva?.taux ?? 0);
-      if (taux <= EPSILON) {
-        ecrituresTauxZero.add(l.ecritureId);
-        continue;
-      }
-      numerateur += Number(l.credit) / (taux / 100);
-    }
+    );
     if (ecrituresTauxZero.size > 0) {
       const agg = await this.prisma.ligneEcriture.aggregate({
         where: {
@@ -1765,87 +1775,121 @@ export class TauxTvaService {
       include: { ecriture: { select: { id: true, libelle: true } } },
     });
 
-    const candidates =
-      taux.length === 0
-        ? []
-        : await this.prisma.ligneEcriture.findMany({
-            where: {
-              tauxTvaId: { in: taux.map((t) => t.id) },
-              compte: {
-                OR: [{ numero: { startsWith: RACINE_COLLECTEE } }, { numero: { startsWith: RACINE_RECUPERABLE } }],
-              },
-              // LE LIVRE-JOURNAL SEUL (audit final F25) · une déclaration est
-              // un acte devant l'Administration, comme le résultat fiscal et
-              // le registre des retenues, qui ne lisent pas le brouillard.
-              ecriture: { tenantId, statut: StatutEcriture.VALIDEE, date: { lte: dateFin } },
-            },
-            include: {
-              compte: { select: { numero: true } },
-              ecriture: {
-                include: {
-                  // LA PIÈCE QUI JUSTIFIE UN AVOIR SUR VENTE · décret n° 011/42,
-                  // art. 127. Seule la NATURE est lue : une note de crédit
-                  // rattachée à l'écriture est la pièce que le texte exige.
-                  facture: { select: { nature: true } },
-                  // DEUX contreparties sont lues sur la même écriture, et pour
-                  // trois questions différentes : la ligne de TIERS lettrée dit
-                  // QUAND la taxe est exigible (art. 25, 2°), le TIERS auquel son
-                  // compte est rattaché dit si le fournisseur acquitte d'après
-                  // les DÉBITS (art. 26), la ligne de CHARGE dit si l'article 41
-                  // en interdit la déduction.
-                  //
-                  // Le tiers se lit sur la contrepartie LETTRÉE OU NON · une
-                  // facture qu'aucun règlement n'a encore touchée n'a pas de
-                  // lettrage à opposer, et son fournisseur reste le même.
-                  lignes: {
-                    where: {
-                      OR: [
-                        { compte: { classe: ClasseCompte.CLASSE_4 }, lettrageId: { not: null } },
-                        { compte: { classe: ClasseCompte.CLASSE_4, tiersCompte: { isNot: null } } },
-                        { compte: { classe: ClasseCompte.CLASSE_6 } },
-                        // CONTREPARTIES DE PRODUIT ET D'IMMOBILISATION · elles ne
-                        // servent qu'à une seule question, mais elle est lourde :
-                        // la NATURE FISCALE de l'opération (art. 6 et 8). Sans
-                        // la classe 7, une vente n'a aucune contrepartie lisible
-                        // et sa nature retombait sur le numéro du compte de TVA,
-                        // qui ne la porte pas (voir NATURE_CONTREPARTIE_CHARGES).
-                        { compte: { classe: ClasseCompte.CLASSE_7 } },
-                        { compte: { classe: ClasseCompte.CLASSE_2 } },
-                      ],
-                    },
-                    include: {
-                      compte: {
+    /*
+      LUES PAR TRANCHES (audit final F188) · la fenêtre remonte sans borne
+      inférieure, et la requête rapatriait D'UN COUP toute la TVA validée du
+      dossier depuis sa création, chaque ligne avec son écriture, ses
+      contreparties et le groupe de lettrage de chacune. La mémoire d'une
+      déclaration grandissait avec l'ANCIENNETÉ du dossier, et non avec le
+      volume de la période déclarée.
+
+      LA FENÊTRE NE SE RACCOURCIT PAS SANS CHANGER LE RÉSULTAT, et c'est pour
+      cela qu'elle est lue par tranches plutôt que bornée. Trois lectures y
+      remontent toute l'histoire, chacune par son texte : la TVA d'amont dont
+      le délai est expiré (art. 37 al. 2) se compte sur TOUTE exigibilité
+      antérieure au 1er janvier Y-1 ; une ligne datée à l'encaissement
+      (art. 25, 2°) entre dans la période où tombe son règlement, quel que
+      soit l'âge de sa facture ; et, sans liquidation antérieure, les avoirs
+      sur ventes non imputés (art. 52) se comptent depuis l'origine. Écarter
+      les lignes « dont l'exigibilité est acquise avant la période » ferait
+      donc taire la déchéance, qui porte précisément sur elles.
+
+      Le parcours reste celui d'avant, ligne à ligne, sur le même périmètre et
+      dans le même traitement ; seul son pas change. Et seules les colonnes
+      lues sont demandées (`select`), jamais les lignes ni les écritures
+      entières.
+    */
+    const lire = (curseur: string | undefined) =>
+      this.prisma.ligneEcriture.findMany({
+        ...pageApres(curseur, LOT_ECRITURES),
+        where: {
+          tauxTvaId: { in: taux.map((t) => t.id) },
+          compte: {
+            OR: [{ numero: { startsWith: RACINE_COLLECTEE } }, { numero: { startsWith: RACINE_RECUPERABLE } }],
+          },
+          // LE LIVRE-JOURNAL SEUL (audit final F25) · une déclaration est
+          // un acte devant l'Administration, comme le résultat fiscal et
+          // le registre des retenues, qui ne lisent pas le brouillard.
+          ecriture: { tenantId, statut: StatutEcriture.VALIDEE, date: { lte: dateFin } },
+        },
+        select: {
+          id: true,
+          tauxTvaId: true,
+          compteId: true,
+          debit: true,
+          credit: true,
+          compte: { select: { numero: true } },
+          ecriture: {
+            select: {
+              date: true,
+              // LA PIÈCE QUI JUSTIFIE UN AVOIR SUR VENTE · décret n° 011/42,
+              // art. 127. Seule la NATURE est lue : une note de crédit
+              // rattachée à l'écriture est la pièce que le texte exige.
+              facture: { select: { nature: true } },
+              // DEUX contreparties sont lues sur la même écriture, et pour
+              // trois questions différentes : la ligne de TIERS lettrée dit
+              // QUAND la taxe est exigible (art. 25, 2°), le TIERS auquel son
+              // compte est rattaché dit si le fournisseur acquitte d'après
+              // les DÉBITS (art. 26), la ligne de CHARGE dit si l'article 41
+              // en interdit la déduction.
+              //
+              // Le tiers se lit sur la contrepartie LETTRÉE OU NON · une
+              // facture qu'aucun règlement n'a encore touchée n'a pas de
+              // lettrage à opposer, et son fournisseur reste le même.
+              lignes: {
+                where: {
+                  OR: [
+                    { compte: { classe: ClasseCompte.CLASSE_4 }, lettrageId: { not: null } },
+                    { compte: { classe: ClasseCompte.CLASSE_4, tiersCompte: { isNot: null } } },
+                    { compte: { classe: ClasseCompte.CLASSE_6 } },
+                    // CONTREPARTIES DE PRODUIT ET D'IMMOBILISATION · elles ne
+                    // servent qu'à une seule question, mais elle est lourde :
+                    // la NATURE FISCALE de l'opération (art. 6 et 8). Sans
+                    // la classe 7, une vente n'a aucune contrepartie lisible
+                    // et sa nature retombait sur le numéro du compte de TVA,
+                    // qui ne la porte pas (voir NATURE_CONTREPARTIE_CHARGES).
+                    { compte: { classe: ClasseCompte.CLASSE_7 } },
+                    { compte: { classe: ClasseCompte.CLASSE_2 } },
+                  ],
+                },
+                select: {
+                  debit: true,
+                  credit: true,
+                  compte: {
+                    select: {
+                      numero: true,
+                      classe: true,
+                      // SEUL CHEMIN d'une ligne de TVA vers son fournisseur ·
+                      // le compte auxiliaire de la contrepartie est rattaché
+                      // à un tiers, et n'en porte qu'un seul
+                      // (`TiersCompte.compteId` est unique). Rien d'autre dans
+                      // l'écriture ne nomme le fournisseur.
+                      tiersCompte: {
                         select: {
-                          numero: true,
-                          classe: true,
-                          // SEUL CHEMIN d'une ligne de TVA vers son fournisseur ·
-                          // le compte auxiliaire de la contrepartie est rattaché
-                          // à un tiers, et n'en porte qu'un seul
-                          // (`TiersCompte.compteId` est unique). Rien d'autre dans
-                          // l'écriture ne nomme le fournisseur.
-                          tiersCompte: {
-                            select: {
-                              tiers: { select: { autoriseTvaDebits: true, referenceAutorisationDebits: true } },
-                            },
-                          },
+                          tiers: { select: { autoriseTvaDebits: true, referenceAutorisationDebits: true } },
                         },
                       },
-                      // Les lignes du GROUPE de lettrage, avec la date de leur
-                      // écriture · c'est le règlement, pas le lettrage, qui
-                      // date l'encaissement (décret art. 57).
-                      lettrage: {
-                        include: {
-                          lignes: {
-                            select: { debit: true, credit: true, ecriture: { select: { date: true } } },
-                          },
-                        },
+                    },
+                  },
+                  // Les lignes du GROUPE de lettrage, avec la date de leur
+                  // écriture · c'est le règlement, pas le lettrage, qui
+                  // date l'encaissement (décret art. 57).
+                  lettrage: {
+                    select: {
+                      statut: true,
+                      solde: true,
+                      soldeAt: true,
+                      lignes: {
+                        select: { debit: true, credit: true, ecriture: { select: { date: true } } },
                       },
                     },
                   },
                 },
               },
             },
-          });
+          },
+        },
+      });
 
     // CE QUI RESTE AU BROUILLARD N'EST PAS DÉCLARÉ, ET LA DÉCLARATION LE DIT
     // (audit final F25) · un oubli de validation minorerait la taxe sans que
@@ -1926,153 +1970,162 @@ export class TauxTvaService {
     // Fenêtre de report des avoirs sur ventes · voir l'en-tête de la méthode.
     const debutReportAvoirs = derniereLiquidation?.dateDebut ?? null;
 
-    for (const l of candidates) {
-      const cumul = l.tauxTvaId ? parTaux.get(l.tauxTvaId) : undefined;
-      if (!cumul) continue;
-      const estCollecte = l.compte.numero.startsWith(RACINE_COLLECTEE);
-      const dateEcriture = l.ecriture.date as Date;
-      const dansLaPeriode = dateEcriture >= dateDebut && dateEcriture <= dateFin;
+    // CHAQUE LIGNE TRAITÉE À SON ARRIVÉE, puis oubliée (audit final F188) ·
+    // seuls les cumuls survivent à la tranche qui les a nourris.
+    if (taux.length > 0) {
+      await lireParLots(
+        lire,
+        (l) => {
+          const cumul = l.tauxTvaId ? parTaux.get(l.tauxTvaId) : undefined;
+          if (!cumul) return;
+          const estCollecte = l.compte.numero.startsWith(RACINE_COLLECTEE);
+          const dateEcriture = l.ecriture.date as Date;
+          const dansLaPeriode = dateEcriture >= dateDebut && dateEcriture <= dateFin;
 
-      /*
-        L'AVOIR EST LA LIGNE DE SENS INVERSE À SA FAMILLE · un 443 débité, un
-        445 crédité. Il se date à la CONSTATATION (décret art. 126), donc à
-        l'écriture, jamais à un encaissement qui n'aura pas lieu.
+          /*
+            L'AVOIR EST LA LIGNE DE SENS INVERSE À SA FAMILLE · un 443 débité, un
+            445 crédité. Il se date à la CONSTATATION (décret art. 126), donc à
+            l'écriture, jamais à un encaissement qui n'aura pas lieu.
 
-        Aucune confusion possible avec l'écriture de liquidation, qui débite
-        elle aussi le 443 : ses lignes sont posées sans `tauxTvaId` (voir
-        `comptabiliserLiquidation`) et la requête ci-dessus filtre dessus.
-      */
-      const avoir = estCollecte ? Number(l.debit) : Number(l.credit);
-      if (avoir > EPSILON) {
-        if (!estCollecte) {
-          // Reprise de la déduction, à la constatation (décret art. 127).
-          if (dansLaPeriode) {
-            cumul.deductible = TauxTvaService.c(cumul.deductible - avoir);
-            const v = suivi(l.tauxTvaId!, l.compteId);
-            v.deductible = TauxTvaService.c(v.deductible - avoir);
+            Aucune confusion possible avec l'écriture de liquidation, qui débite
+            elle aussi le 443 : ses lignes sont posées sans `tauxTvaId` (voir
+            `comptabiliserLiquidation`) et la requête ci-dessus filtre dessus.
+          */
+          const avoir = estCollecte ? Number(l.debit) : Number(l.credit);
+          if (avoir > EPSILON) {
+            if (!estCollecte) {
+              // Reprise de la déduction, à la constatation (décret art. 127).
+              if (dansLaPeriode) {
+                cumul.deductible = TauxTvaService.c(cumul.deductible - avoir);
+                const v = suivi(l.tauxTvaId!, l.compteId);
+                v.deductible = TauxTvaService.c(v.deductible - avoir);
+              }
+              return;
+            }
+            /*
+              LA RÉCUPÉRATION EST SUBORDONNÉE À UNE PIÈCE. O.-L. n° 10/001, art. 52
+              al. 2 : « la récupération de la taxe acquittée est subordonnée à
+              l'établissement et à l'envoi au client d'une facture nouvelle ou note
+              de crédit annulant et remplaçant la facture initiale ». Depuis I3, le
+              module facturation émet cette note et la rattache à l'écriture.
+
+              LE MONTANT N'EST PAS RETIRÉ, IL EST SIGNALÉ. La facturation d'OmegaX
+              est facultative : un dossier peut émettre ses notes ailleurs, sur un
+              carnet ou un autre logiciel, et les retirer d'office refuserait à tous
+              ceux-là une récupération à laquelle ils ont droit. Le logiciel dit
+              donc ce qu'il ne voit pas, au lieu de le trancher.
+            */
+            const justifie = l.ecriture.facture?.nature === NatureFacture.NOTE_DE_CREDIT;
+            const compteIci =
+              dansLaPeriode || (dateEcriture < dateDebut && !!debutReportAvoirs && dateEcriture >= debutReportAvoirs);
+            if (compteIci && !justifie) avoirsSansNoteDeCredit = TauxTvaService.c(avoirsSansNoteDeCredit + avoir);
+            if (dansLaPeriode) cumul.avoir = TauxTvaService.c(cumul.avoir + avoir);
+            else if (dateEcriture < dateDebut) {
+              if (!debutReportAvoirs) {
+                // Aucune liquidation antérieure · rien ne dit ce qui a déjà été
+                // déclaré, on n'impute pas et on rend le montant.
+                avoirsCollecteNonImputes = TauxTvaService.c(avoirsCollecteNonImputes + avoir);
+              } else if (dateEcriture >= debutReportAvoirs) {
+                cumul.recuperation = TauxTvaService.c(cumul.recuperation + avoir);
+                const v = suivi(l.tauxTvaId!, l.compteId);
+                v.recuperation = TauxTvaService.c(v.recuperation + avoir);
+              }
+              // Plus ancien que la dernière période liquidée : la déclaration qui a
+              // suivi sa constatation l'a déjà imputé, par cette même règle. Le
+              // signaler ici serait une fausse alerte, et l'imputer une seconde
+              // fois une déduction en double.
+            }
+            return;
           }
-          continue;
-        }
-        /*
-          LA RÉCUPÉRATION EST SUBORDONNÉE À UNE PIÈCE. O.-L. n° 10/001, art. 52
-          al. 2 : « la récupération de la taxe acquittée est subordonnée à
-          l'établissement et à l'envoi au client d'une facture nouvelle ou note
-          de crédit annulant et remplaçant la facture initiale ». Depuis I3, le
-          module facturation émet cette note et la rattache à l'écriture.
 
-          LE MONTANT N'EST PAS RETIRÉ, IL EST SIGNALÉ. La facturation d'OmegaX
-          est facultative : un dossier peut émettre ses notes ailleurs, sur un
-          carnet ou un autre logiciel, et les retirer d'office refuserait à tous
-          ceux-là une récupération à laquelle ils ont droit. Le logiciel dit
-          donc ce qu'il ne voit pas, au lieu de le trancher.
-        */
-        const justifie = l.ecriture.facture?.nature === NatureFacture.NOTE_DE_CREDIT;
-        const compteIci = dansLaPeriode || (dateEcriture < dateDebut && !!debutReportAvoirs && dateEcriture >= debutReportAvoirs);
-        if (compteIci && !justifie) avoirsSansNoteDeCredit = TauxTvaService.c(avoirsSansNoteDeCredit + avoir);
-        if (dansLaPeriode) cumul.avoir = TauxTvaService.c(cumul.avoir + avoir);
-        else if (dateEcriture < dateDebut) {
-          if (!debutReportAvoirs) {
-            // Aucune liquidation antérieure · rien ne dit ce qui a déjà été
-            // déclaré, on n'impute pas et on rend le montant.
-            avoirsCollecteNonImputes = TauxTvaService.c(avoirsCollecteNonImputes + avoir);
-          } else if (dateEcriture >= debutReportAvoirs) {
-            cumul.recuperation = TauxTvaService.c(cumul.recuperation + avoir);
-            const v = suivi(l.tauxTvaId!, l.compteId);
-            v.recuperation = TauxTvaService.c(v.recuperation + avoir);
-          }
-          // Plus ancien que la dernière période liquidée : la déclaration qui a
-          // suivi sa constatation l'a déjà imputé, par cette même règle. Le
-          // signaler ici serait une fausse alerte, et l'imputer une seconde
-          // fois une déduction en double.
-        }
-        continue;
-      }
+          const montant = estCollecte ? Number(l.credit) : Number(l.debit);
+          if (montant <= EPSILON) return;
 
-      const montant = estCollecte ? Number(l.credit) : Number(l.debit);
-      if (montant <= EPSILON) continue;
+          const lignesTiers = l.ecriture.lignes.filter((x) => x.compte?.classe === ClasseCompte.CLASSE_4 && x.lettrage);
+          const lignesCharge = l.ecriture.lignes.filter((x) => x.compte?.classe === ClasseCompte.CLASSE_6);
 
-      const lignesTiers = l.ecriture.lignes.filter((x) => x.compte?.classe === ClasseCompte.CLASSE_4 && x.lettrage);
-      const lignesCharge = l.ecriture.lignes.filter((x) => x.compte?.classe === ClasseCompte.CLASSE_6);
+          // L'autorisation de l'art. 26 ne se lit QUE du côté de la déduction · sur
+          // une vente, le tiers de la contrepartie est le CLIENT, et son régime à
+          // lui ne date pas la taxe du vendeur.
+          const fournisseur = estCollecte
+            ? { autorise: false, reference: null }
+            : TauxTvaService.fournisseurAuxDebits(
+                l.ecriture.lignes.filter((x) => x.compte?.classe === ClasseCompte.CLASSE_4),
+              );
 
-      // L'autorisation de l'art. 26 ne se lit QUE du côté de la déduction · sur
-      // une vente, le tiers de la contrepartie est le CLIENT, et son régime à
-      // lui ne date pas la taxe du vendeur.
-      const fournisseur = estCollecte
-        ? { autorise: false, reference: null }
-        : TauxTvaService.fournisseurAuxDebits(
-            l.ecriture.lignes.filter((x) => x.compte?.classe === ClasseCompte.CLASSE_4),
+          // Contreparties qui portent la NATURE de l'opération · classe 7 sur une
+          // vente, classes 6 et 2 sur un achat. Jamais les classes 4 et 5, qui
+          // disent avec qui et par quel moyen, jamais quoi.
+          const contreparties = l.ecriture.lignes
+            .filter((x) =>
+              estCollecte
+                ? x.compte?.classe === ClasseCompte.CLASSE_7
+                : x.compte?.classe === ClasseCompte.CLASSE_6 || x.compte?.classe === ClasseCompte.CLASSE_2,
+            )
+            .map((x) => x.compte?.numero)
+            .filter((n): n is string => Boolean(n));
+
+          const { base, nature } = this.baseExigibilite(
+            referentiel,
+            regime,
+            l.compte.numero,
+            estCollecte,
+            fournisseur.autorise,
+            contreparties,
           );
+          if (nature === 'INDETERMINEE' && dansLaPeriode) montantIndetermine += montant;
+          if (estCollecte && nature === 'SERVICES' && regime === 'DEBITS' && dansLaPeriode) {
+            collecteServicesDebits += montant;
+          }
+          if (!estCollecte && nature === 'SERVICES' && dansLaPeriode) {
+            // DEUX compteurs, et non un seul : ce qui est différé FAUTE DE SAVOIR
+            // n'est pas ce qui est déduit d'avance PARCE QU'ON SAIT. Les confondre
+            // ferait dire à la déclaration qu'elle a différé ce qu'elle a anticipé,
+            // et l'avertissement qui suit perdrait son objet.
+            if (base === 'ENCAISSEMENT') deductionServicesDiffere += montant;
+            else {
+              deductionServicesDebits += montant;
+              if (!fournisseur.reference) deductionServicesDebitsSansReference += montant;
+            }
+          }
 
-      // Contreparties qui portent la NATURE de l'opération · classe 7 sur une
-      // vente, classes 6 et 2 sur un achat. Jamais les classes 4 et 5, qui
-      // disent avec qui et par quel moyen, jamais quoi.
-      const contreparties = l.ecriture.lignes
-        .filter((x) =>
-          estCollecte
-            ? x.compte?.classe === ClasseCompte.CLASSE_7
-            : x.compte?.classe === ClasseCompte.CLASSE_6 || x.compte?.classe === ClasseCompte.CLASSE_2,
-        )
-        .map((x) => x.compte?.numero)
-        .filter((n): n is string => Boolean(n));
+          const { date, fraction } =
+            base === 'FAIT_GENERATEUR'
+              ? { date: l.ecriture.date as Date | null, fraction: 1 }
+              : this.exigibilite(l, lignesTiers, l.ecriture.date);
 
-      const { base, nature } = this.baseExigibilite(
-        referentiel,
-        regime,
-        l.compte.numero,
-        estCollecte,
-        fournisseur.autorise,
-        contreparties,
+          // Part facturée sur la période et pas encore exigible · c'est le chiffre
+          // qui explique l'écart entre le chiffre d'affaires et la déclaration, et
+          // sans lequel le régime paraît perdre de la TVA.
+          if (estCollecte && base === 'ENCAISSEMENT' && dansLaPeriode) {
+            cumul.attente = TauxTvaService.c(cumul.attente + montant * (1 - fraction));
+          }
+          if (!estCollecte && date && date < limiteDecheance) {
+            tvaDeductibleDechue = TauxTvaService.c(tvaDeductibleDechue + montant * fraction);
+          }
+          if (!date || date < dateDebut || date > dateFin) return;
+          const exigible = TauxTvaService.c(montant * fraction);
+          if (estCollecte) {
+            cumul.collecte = TauxTvaService.c(cumul.collecte + exigible);
+            const v = suivi(l.tauxTvaId!, l.compteId);
+            v.collecte = TauxTvaService.c(v.collecte + exigible);
+            return;
+          }
+          // ARTICLE 41 · ce que la loi retire du droit à déduction, avant tout
+          // prorata. Le prorata LIMITE une déduction ; l'article 41 la SUPPRIME.
+          const part = this.partExclueArt41(lignesCharge);
+          const exclu = TauxTvaService.c(exigible * part.exclue);
+          if (exclu > EPSILON) tvaExclueArt41 = TauxTvaService.c(tvaExclueArt41 + exclu);
+          if (part.aVerifier > 0) {
+            tvaAVerifierArt41 = TauxTvaService.c(tvaAVerifierArt41 + exigible * part.aVerifier);
+          }
+          if (!part.lisible) tvaNatureDepenseIllisible = TauxTvaService.c(tvaNatureDepenseIllisible + exigible);
+          cumul.deductible = TauxTvaService.c(cumul.deductible + exigible - exclu);
+          const v = suivi(l.tauxTvaId!, l.compteId);
+          v.deductible = TauxTvaService.c(v.deductible + exigible - exclu);
+        },
+        LOT_ECRITURES,
       );
-      if (nature === 'INDETERMINEE' && dansLaPeriode) montantIndetermine += montant;
-      if (estCollecte && nature === 'SERVICES' && regime === 'DEBITS' && dansLaPeriode) {
-        collecteServicesDebits += montant;
-      }
-      if (!estCollecte && nature === 'SERVICES' && dansLaPeriode) {
-        // DEUX compteurs, et non un seul : ce qui est différé FAUTE DE SAVOIR
-        // n'est pas ce qui est déduit d'avance PARCE QU'ON SAIT. Les confondre
-        // ferait dire à la déclaration qu'elle a différé ce qu'elle a anticipé,
-        // et l'avertissement qui suit perdrait son objet.
-        if (base === 'ENCAISSEMENT') deductionServicesDiffere += montant;
-        else {
-          deductionServicesDebits += montant;
-          if (!fournisseur.reference) deductionServicesDebitsSansReference += montant;
-        }
-      }
-
-      const { date, fraction } =
-        base === 'FAIT_GENERATEUR'
-          ? { date: l.ecriture.date as Date | null, fraction: 1 }
-          : this.exigibilite(l, lignesTiers, l.ecriture.date);
-
-      // Part facturée sur la période et pas encore exigible · c'est le chiffre
-      // qui explique l'écart entre le chiffre d'affaires et la déclaration, et
-      // sans lequel le régime paraît perdre de la TVA.
-      if (estCollecte && base === 'ENCAISSEMENT' && dansLaPeriode) {
-        cumul.attente = TauxTvaService.c(cumul.attente + montant * (1 - fraction));
-      }
-      if (!estCollecte && date && date < limiteDecheance) {
-        tvaDeductibleDechue = TauxTvaService.c(tvaDeductibleDechue + montant * fraction);
-      }
-      if (!date || date < dateDebut || date > dateFin) continue;
-      const exigible = TauxTvaService.c(montant * fraction);
-      if (estCollecte) {
-        cumul.collecte = TauxTvaService.c(cumul.collecte + exigible);
-        const v = suivi(l.tauxTvaId!, l.compteId);
-        v.collecte = TauxTvaService.c(v.collecte + exigible);
-        continue;
-      }
-      // ARTICLE 41 · ce que la loi retire du droit à déduction, avant tout
-      // prorata. Le prorata LIMITE une déduction ; l'article 41 la SUPPRIME.
-      const part = this.partExclueArt41(lignesCharge);
-      const exclu = TauxTvaService.c(exigible * part.exclue);
-      if (exclu > EPSILON) tvaExclueArt41 = TauxTvaService.c(tvaExclueArt41 + exclu);
-      if (part.aVerifier > 0) {
-        tvaAVerifierArt41 = TauxTvaService.c(tvaAVerifierArt41 + exigible * part.aVerifier);
-      }
-      if (!part.lisible) tvaNatureDepenseIllisible = TauxTvaService.c(tvaNatureDepenseIllisible + exigible);
-      cumul.deductible = TauxTvaService.c(cumul.deductible + exigible - exclu);
-      const v = suivi(l.tauxTvaId!, l.compteId);
-      v.deductible = TauxTvaService.c(v.deductible + exigible - exclu);
     }
 
     const lignes = [];
