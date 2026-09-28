@@ -95,16 +95,16 @@ Reprise de celle du relevé de manques, qui a fait ses preuves.
 
 ### Qui conduit une passe · arbitré par Manasse le 2026-09-13
 
-Chaque passe est conduite par un **workflow d'agents**, avec modèle et effort
-réglés par étape. Ce n'est PAS une délégation : c'est une division du travail,
+Chaque passe est conduite par un **workflow d'agents**, avec l'effort réglé
+par étape. Ce n'est PAS une délégation : c'est une division du travail,
 et elle tient à trois règles qui ne se négocient pas.
 
-| Étape | Qui | Modèle · effort | Pourquoi |
+| Étape | Qui | Effort | Pourquoi |
 |---|---|---|---|
-| **Lecture** du texte, article par article | un agent par chapitre, **qui n'a pas accès au code** | Opus · `high` | L'indépendance est le seul vrai apport. Un lecteur qui connaît le code lit le texte à travers lui et ne voit plus que ce que le logiciel fait déjà |
-| **Confrontation** de chaque obligation au dépôt | un agent par chapitre | Opus · `high` | Cherche où l'obligation vit, ou constate qu'elle ne vit nulle part |
-| **Réfutation** de chaque manque annoncé | un agent par constat, payé pour DÉMOLIR | Opus · `xhigh` | Un constat qu'on n'a pas essayé de réfuter n'est qu'une impression |
-| **Correction**, schéma, migrations, tests, déploiement | **la session principale, jamais un agent** | Opus · `high` | C'est la seule discipline qui a réellement attrapé des défauts : réinjection, garde-fous du dépôt, déploiement relu pas à pas |
+| **Lecture** du texte, article par article | un agent par chapitre, **qui n'a pas accès au code** | `high` | L'indépendance est le seul vrai apport. Un lecteur qui connaît le code lit le texte à travers lui et ne voit plus que ce que le logiciel fait déjà |
+| **Confrontation** de chaque obligation au dépôt | un agent par chapitre | `high` | Cherche où l'obligation vit, ou constate qu'elle ne vit nulle part |
+| **Réfutation** de chaque manque annoncé | un agent par constat, payé pour DÉMOLIR | `xhigh` | Un constat qu'on n'a pas essayé de réfuter n'est qu'une impression |
+| **Correction**, schéma, migrations, tests, déploiement | **la session principale, jamais un agent** | `high` | C'est la seule discipline qui a réellement attrapé des défauts : réinjection, garde-fous du dépôt, déploiement relu pas à pas |
 
 **TROIS RÈGLES, ET « SANS ERREURS » N'EN FAIT PAS PARTIE.** Des agents
 n'apportent pas la justesse · ils lisent et hallucinent comme la session

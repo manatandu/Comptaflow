@@ -18,6 +18,16 @@ Gravité :
 
 Décompte : **3 B, 12 F, 7 I, 11 C.**
 
+**État au 2026-09-28** (relu dans le code, audit final F200) · **32 constats
+sur 33 sont faits**, chacun marqué « Fait le » sous son titre, avec le fichier
+et la ligne du correctif : 3 B, 12 F, 7 I, 10 C. Six l'étaient déjà (I5, C1 à
+C4, C6) ; les vingt-six autres ont été retrouvés dans le code et le journal
+des commits. **Reste ouvert : C9** (arrondi au centime) · aucun module commun
+n'existe, et plus de quarante fichiers hors specs portent encore leur propre
+`Math.round(… * 100) / 100`. Les numéros de ligne cités sont ceux du
+2026-09-28 ; `src/modules/tva/taux-tva.service.ts`, en cours de modification
+ce jour-là, est cité par le nom de ses fonctions.
+
 ---
 
 ## B · bloquant
@@ -52,6 +62,14 @@ un Prisma factice où `liquidationTva.count` rend 1 tant que le marqueur existe,
 appeler `annulerLiquidation` et exiger `{ supprime: true }` et la disparition
 du marqueur.
 
+**Fait le 2026-09-27 :** `EcritureService.supprimer` reçoit du module le
+détenteur qu'il libère et le geste qui dénoue son marqueur, joué dans la même
+transaction avant les lignes puis la tête
+(`src/modules/comptabilite/ecriture.service.ts:1061-1073`) ; tout autre
+détenteur refuse encore (`:1214`). `annulerLiquidation` se nomme comme
+détenteur libéré (`src/modules/tva/taux-tva.service.ts`, `annulerLiquidation`). Test :
+`src/modules/tva/annulation-liquidation.spec.ts` (commit 80b569e).
+
 ### B2 · Le canevas de trésorerie du groupe vise des comptes absents du plan SYCEBNL semé **(nouveau)**
 
 - `src/modules/groupe/canevas-tresorerie.ts:33-46` impute les rubriques sur
@@ -78,6 +96,17 @@ plan non semé.
 **Test.** Nouveau spec à côté de `compte-seed-syscohada.spec.ts` · chaque
 compte de `RUBRIQUES_CANEVAS` et de `TRESORERIES_CANEVAS` existe dans le semis
 SYCEBNL ET y est de type DETAIL.
+
+**Fait le 2026-09-27 :** les huit rubriques de dépenses visent une feuille
+semée (60110000, 61810000, 62280000, 62480000, 62880000, 63180000, 64800000,
+66110000 · `src/modules/groupe/canevas-tresorerie.ts:32-50`) ; le
+commentaire y dit le choix, la feuille « autres » de la racine quand la
+rubrique n'en dit pas plus, et le 648 « Autres impôts et taxes » pour les
+impôts. Le refus d'import nomme les
+comptes absents sans présumer un plan non semé
+(`src/modules/groupe/groupe.service.ts:1668-1673`). Test :
+`src/modules/groupe/canevas-comptes-semes.spec.ts`, qui relit le semis
+SYCEBNL et exige chaque compte en DETAIL (commit 1ec639c).
 
 ### B3 · Le report à-nouveau définitif se modifie et se supprime depuis le journal **(nouveau)**
 
@@ -106,6 +135,14 @@ report à-nouveau provisoire ou à la correction.
 **Test.** `casse-en-silence.spec.ts`, bloc 3 · une écriture
 `estGenereeParCloture: true` d'un exercice qui n'est pas le premier : `modifier`
 et `supprimer` rejettent, en nommant le report à-nouveau.
+
+**Fait le 2026-09-27 :** `trouverEnBrouillard`, garde de `modifier` et de
+`supprimer`, refuse toute écriture `estGenereeParCloture` d'un exercice qui
+n'est pas le premier du dossier, en renvoyant au report provisoire et à
+l'imputation déclarée aux capitaux propres d'ouverture
+(`src/modules/comptabilite/ecriture.service.ts:909-931`). Test :
+`src/modules/comptabilite/report-a-nouveau-verrouille.spec.ts`, posé à part
+plutôt que dans `casse-en-silence.spec.ts` (commit 5fd58f4).
 
 ---
 
@@ -136,6 +173,17 @@ l'erreur. Les cinq sites l'appellent.
 `ligneEcriture.deleteMany` n'a pas été appelé pour cet id ; exiger l'ordre des
 appels et qu'aucune erreur ne soit avalée.
 
+**Fait le 2026-09-27 :** `EcritureService.retirerCompensation` retire lignes
+puis tête dans une transaction et laisse remonter l'erreur
+(`src/modules/comptabilite/ecriture.service.ts:1094-1106`). Les deux sites
+fautifs l'appellent (`src/modules/tva/taux-tva.service.ts`,
+`comptabiliserLiquidation`,
+`src/modules/facturation/comptabilisation-facture.service.ts:138`), comme
+depuis la régularisation, les devises, les règlements, le dégressif et la
+paie ; l'affectation, l'immobilisation et le report provisoire gardent leur
+compensation propre, déjà correcte. Test :
+`src/modules/comptabilite/compensation-ecriture.spec.ts` (commit f513f81).
+
 ### F2 · Une écriture qu'un module tient se modifie et se réimpute
 
 Seule la suppression est gardée par `verifierAucunModuleNeLaTient`.
@@ -160,6 +208,13 @@ un message qui renvoie au module.
 
 **Test.** `casse-en-silence.spec.ts` · pour chaque détenteur de la liste,
 `modifier` et `reimputer` rejettent comme `supprimer`.
+
+**Fait le 2026-09-27 :** une seule liste des détenteurs (`detenteursDe`,
+`src/modules/comptabilite/ecriture.service.ts:1122`), lue par les quatre
+gestes, chacun avec son verbe dans le refus (`:1205-1222`) · `modifier`
+(`:976`), `supprimer` (`:1063`), `reimputer`, brouillard et validées
+(`:1665`), correction par inscription en négatif (`:1897`). Tests :
+`casse-en-silence.spec.ts`, `reimputation-service.spec.ts` (commit 289c4ef).
 
 ### F3 · Trois chemins d'écriture recopient en partie les contrôles de `creer`
 
@@ -189,6 +244,16 @@ en premier.
 l'exercice est refusée ; lecture de source : chaque fichier qui contient
 `ecriture.create(` hors `ecriture.service.ts` appelle `controlesDEntree`.
 
+**Fait le 2026-09-27 :** les contrôles de `creer` vivent dans
+`controlesDEntree` (`src/modules/comptabilite/ecriture.service.ts:612`),
+appelé par la reprise de balance et l'import d'écritures
+(`src/modules/import/import.service.ts:606`, `:843`) et par le canevas du
+groupe (`src/modules/groupe/groupe.service.ts:1708`). La date d'une reprise
+est bornée à l'exercice avant toute lecture du fichier
+(`import.service.ts:472-480`), et `reimputer` lit le verrou de période au
+brouillard aussi (`ecriture.service.ts:1668-1677`). Test :
+`casse-en-silence.spec.ts` (commit 289c4ef).
+
 ### F4 · `modifier` efface la devise et la ventilation, et ne contrôle pas le taux de TVA **(nouveau)**
 
 - `ModifierEcritureDto.lignes` est un `LigneEcritureDto[]`
@@ -209,6 +274,13 @@ ventilations compris), et y appeler les mêmes contrôles (voir F3).
 `deviseId`, `montantDevise` et une ventilation : `createMany` reçoit les trois,
 et un `tauxTvaId` d'un autre dossier est refusé.
 
+**Fait le 2026-09-27 :** `modifier` passe par `controlesDEntree` (taux de TVA
+du dossier, sections ventilées, journal en sommeil compris,
+`src/modules/comptabilite/ecriture.service.ts:988`) et recrée ses lignes par
+`donneesLigneSaisie`, la fonction de `creer`, devise et ventilation comprises
+(`:367`, `:1026`). Test : `brouillard.spec.ts` (commit 289c4ef) ; la fenêtre
+Brouillard rouvre la pièce sans perdre ces champs (commit 749c9ed).
+
 ### F5 · Un mouvement de magasin se lie à l'écriture de n'importe quel dossier
 
 - `src/modules/stocks/magasin.service.ts:299` · `ecritureId: dto.ecritureId ?? null`,
@@ -228,6 +300,11 @@ la création, refus nommé sinon.
 
 **Test.** `magasin.spec` · un `ecritureId` absent du dossier est refusé et
 `mouvementStock.create` n'est pas appelé.
+
+**Fait le 2026-09-27 :** l'écriture liée est cherchée dans le dossier avant la
+création, refus nommé sinon (`src/modules/stocks/magasin.service.ts:300-313`).
+Test : `src/modules/stocks/mouvement-ecriture-du-dossier.spec.ts`
+(commit 6d4515e).
 
 ### F6 · Des actes qui engagent lisent la balance brouillard compris
 
@@ -256,6 +333,16 @@ d'affaires, lire le livre-journal SANS l'écriture de clôture
 1 000 au 70 rend `chiffreAffaires = 1000`, et une écriture au brouillard ne
 change pas l'impôt.
 
+**Fait le 2026-09-27 :** les quatre chemins lisent le livre-journal seul ·
+fiscalité (`src/modules/fiscalite/fiscalite.service.ts:335`), avec un
+chiffre d'affaires lu sur les mouvements, écritures de clôture exclues
+(`:361-372`) ; circularisation
+(`src/modules/circularisation/circularisation.service.ts:170`) ; inventaire
+(`src/modules/inventaire/inventaire.service.ts:534`), qui refuse en outre de
+rapprocher tant qu'une ligne des comptes inventoriés reste au brouillard
+(`:521-532`). Tests : `fiscalite.spec.ts`, `circularisation.spec.ts`,
+`inventaire.spec.ts` (commit d0fa539).
+
 ### F7 · Liasse du groupe · le brouillard des cellules devient une écriture VALIDÉE
 
 - `groupe.service.ts:562` · l'agrégat lit `balance(d.id, d.exerciceId)`,
@@ -269,6 +356,13 @@ qu'une cellule a du brouillard (la requête existe déjà, l. 1206-1210).
 
 **Test.** `groupe.spec.ts` · une cellule avec une écriture au brouillard : la
 liasse refuse, ou l'écriture de combinaison n'en porte pas le montant.
+
+**Fait le 2026-09-27 :** la liasse est refusée tant qu'un dossier du groupe a
+du brouillard dans l'exercice retenu, chaque dossier nommé avec son nombre de
+pièces, l'à-nouveau provisoire renvoyé à la clôture de l'exercice précédent
+(`src/modules/groupe/groupe.service.ts:1863-1910`). Refus plutôt que
+`balance(…, false)`, et le code dit pourquoi : une liasse amputée d'opérations
+réelles bouclerait. Test : `groupe.spec.ts` (commit cc728e0).
 
 ### F8 · Seuils de désignation de l'auditeur · « total du bilan » cumulé ligne à ligne
 
@@ -286,6 +380,13 @@ les produits.
 
 **Test.** `mandat-auditeur.spec.ts` · un compte 57 débité de 100 et crédité de
 90 dix fois : total du bilan approché = 100, pas 1 000.
+
+**Fait le 2026-09-27 :** deux regroupements par compte sur le livre-journal ·
+le total du bilan additionne les soldes débiteurs des comptes de détail des
+classes 1 à 5, les produits lisent les mouvements hors écritures de clôture
+(`src/modules/controles/controles.service.ts:778-845`) ; aucune ligne n'est
+plus rapatriée. Test : `src/modules/controles/seuils-auditeur.spec.ts`
+(commit 6520837).
 
 ### F9 · Archive de restitution · la ligne du dossier manque, et le manifeste dit le contraire
 
@@ -307,6 +408,13 @@ dans le manifeste. La première est la seule qui tienne la promesse.
 **Test.** `restitution.spec.ts` · l'archive contient `tables/tenant.csv`, et
 toute colonne scalaire de `Tenant` absente du CSV figure dans la liste
 d'exclusion.
+
+**Fait le 2026-09-27 :** l'archive écrit `tables/tenant.csv`, une ligne lue
+par son identifiant, colonnes de `colonnesDuModele` avec la même liste
+d'exclusion que les autres tables
+(`src/modules/exports/restitution/restitution.service.ts:144-160`,
+`tables-restitution.ts:158-170`). Test : `restitution.spec.ts`
+(commit 2d4b11a).
 
 ### F10 · Marqueurs posés APRÈS `creer`, hors transaction · écritures doublées ou orphelines **(nouveau)**
 
@@ -333,6 +441,15 @@ fonction de F1 si `count === 0`.
 **Test.** Par service · deux appels concurrents simulés (le second voit le
 marqueur nul) : une seule écriture reste, ou la seconde est retirée.
 
+**Fait le 2026-09-27 :** le lien se pose par un `updateMany` sur un marqueur
+encore nul, et le perdant retire son écriture par `retirerCompensation` ·
+reprise de régularisation et échéances d'abonnement
+(`src/modules/regularisation/regularisation.service.ts:653-665`, `:862-873`),
+extourne de réévaluation (`src/modules/devises/devises.service.ts:672-682`) ;
+la réévaluation retire ses deux écritures si son marqueur ne s'écrit pas
+(`:607-625`). Test : `src/modules/comptabilite/marqueurs-conditionnels.spec.ts`
+(commit fcaf15c).
+
 ### F11 · Journal d'audit · un maillon survit à la transaction annulée **(nouveau)**
 
 - `common/audit/extension-audit.ts:277-287` · hors `journaliserDansTransaction`,
@@ -352,6 +469,14 @@ audité), pour que le maillon naisse et meure avec l'acte.
 
 **Test.** `journal-audit.spec.ts` · une transaction qui crée une `Ecriture`
 puis lève : aucun maillon écrit ; une reprise après P2034 : un seul maillon.
+
+**Fait le 2026-09-27 :** `avecRetrySerialisable` passe par
+`transactionJournalisee`, qui pose `journaliserDansTransaction`
+(`src/common/prisma-retry.util.ts:62`,
+`src/common/audit/transaction-journalisee.ts:32-39` ; test
+`src/common/prisma-retry-audit.spec.ts`, commit b2d5fbe). L'audit final F159
+a étendu la règle à toute transaction du serveur, et
+`transaction-journalisee.spec.ts` refuse un `$transaction(` écrit ailleurs.
 
 ### F12 · L'écriture de clôture reste au brouillard, et un contrôle en fabrique une anomalie **(nouveau)**
 
@@ -373,6 +498,18 @@ nommément du contrôle 4 et du comptage de brouillard.
 
 **Test.** `controles` · un exercice clos dont seule l'écriture de clôture est
 au brouillard ne produit pas `BROUILLARD_EN_RETARD`.
+
+**Fait le 2026-09-27 :** en deux temps. Le contrôle 4 écarte d'abord
+nommément les deux brouillards que personne ne peut valider, l'à-nouveau
+provisoire et l'écriture de clôture d'un exercice clos (test
+`src/modules/controles/brouillard-invalidable.spec.ts`, commit 13e3ab6) ; la
+règle vit depuis dans
+`src/modules/comptabilite/centralisation-brouillard.ts:28-58`, lue par
+`controles.service.ts:961` (commit 7bec705). Puis l'audit final F4 a
+tranché le statut : les deux écritures de la clôture entrent VALIDÉES
+(`src/modules/exercice/exercice.service.ts:41-43`, `:870`, `:938`), et
+`Ecriture.estSoldeDesComptesDeGestion` sépare l'écriture de solde de
+l'à-nouveau (commit ce9ae8c).
 
 ---
 
@@ -401,6 +538,14 @@ liste `ECRITURE_LAISSEE_PARTIR` avec leur motif.
 **Test.** Relire `schema.prisma`, extraire toute relation vers `Ecriture`,
 exiger que chaque couple modèle/colonne figure dans l'une des deux listes.
 
+**Fait le 2026-09-27 :** le reclassement est compté parmi les détenteurs
+(`src/modules/comptabilite/ecriture.service.ts:1141`), et
+`src/modules/comptabilite/detenteurs-ecriture.ts` range chaque relation vers
+une écriture en « retient » (`:23-50`, l'écart d'inventaire compris depuis
+I2) ou « laissée partir » avec son motif (`:53-62` · lignes, correction,
+facture). Test : `detenteurs-ecriture.spec.ts`, qui relit le schéma
+(commits 92bdf5c, 7583352).
+
 ### I2 · Trois colonnes de liaison vers une écriture ne sont jamais écrites
 
 - `EcartInventaire.ecritureId` (`schema.prisma:4620`) · aucune écriture de la
@@ -419,6 +564,15 @@ colonnes par migration et le détenteur mort).
 **Test.** Lecture de source · toute colonne `ecriture*Id` du schéma a au moins
 un site d'écriture dans `src/`.
 
+**Fait le 2026-09-27 :** les trois colonnes s'écrivent par un rattachement
+explicite, contrôlé contre la proposition recalculée au serveur et posé sur
+une colonne encore libre · consignation
+(`src/modules/emballages/emballages.service.ts:400-448`), écart d'inventaire
+(`src/modules/inventaire/inventaire.service.ts:782`). Les deux retiennent
+désormais leur écriture (`ecriture.service.ts:1171`, `:1192`). Tests :
+`liaisons-ecriture-ecrites.spec.ts`, `rattachement-consignation.spec.ts`,
+`rattachement-redressement.spec.ts` (commits 00f522f, 7583352).
+
 ### I3 · Relations facultatives vers `Ecriture` sans `onDelete` déclaré
 
 Seize colonnes reposent sur le défaut implicite SET NULL : `Regularisation`
@@ -436,6 +590,14 @@ décision (sans migration pour SetNull, qui est l'état actuel).
 
 **Test.** Relire `schema.prisma` · toute relation vers `Ecriture` porte un
 `onDelete` explicite.
+
+**Fait le 2026-09-27 :** chacune des relations vers `Ecriture` qui portent une
+clé (`fields:`) déclare son `onDelete` au schéma, par décision : `SetNull`,
+`Restrict` (la paie, l'acquisition et le produit de cession d'un bien, entre
+autres) ou `Cascade` (la liquidation de TVA) ; par exemple
+`prisma/schema.prisma:1500`, `corrigeEcriture`. Les côtés inverses, sans clé,
+n'en portent pas. Test : `detenteurs-ecriture.spec.ts:81`, qui relit le
+schéma (commit 92bdf5c).
 
 ### I4 · Tables de même nature que les auditées, absentes de `MODELES_AUDITES`
 
@@ -456,6 +618,12 @@ audités).
 
 **Test.** Le même que la liste fermée des colonnes · tout modèle du schéma est
 soit audité, soit dans une liste `NON_AUDITES_MOTIVES`.
+
+**Fait le 2026-09-27 :** chaque modèle du schéma est soit dans
+`MODELES_AUDITES`, soit dans `NON_AUDITES_MOTIVES` avec son motif
+(`src/common/audit/champs-audites.ts:22`, `:255`) ;
+`src/common/audit/classement-modeles.spec.ts` relit le schéma et tombe sur un
+modèle non classé (commit 2b6b1cf).
 
 ### I5 · « Résultat avant ou après clôture » écrit cinq fois, avec trois définitions du compte 13
 
@@ -501,6 +669,15 @@ recopier.
 **Test.** Lecture de source · `ENTREPRISE_INDIVIDUELLE` n'apparaît hors du
 schéma que dans `correspondance-retenues.ts` et `regles-affectation.ts`.
 
+**Fait le 2026-09-27 :** côté serveur, une seule définition
+(`src/modules/retenues/correspondance-retenues.ts:565`), importée partout,
+tenue par `src/modules/retenues/formes-personnes-physiques-unique.spec.ts`
+(commit 7342290). Côté écran, la liste n'est pas servie par
+`/dossier/parametres` comme proposé : elle vit une fois
+(`client/src/lib/formes-juridiques-syscohada.ts:119`) et
+`client/src/lib/formes-personnes-physiques.spec.ts` la confronte à celle du
+serveur (commit 5ad1417).
+
 ### I7 · Deux trous dans la garde de cloisonnement **(nouveau)**
 
 `common/cloisonnement/extension-cloisonnement.ts` :
@@ -521,6 +698,15 @@ le retirer du résultat ; créations · vérifier que `data.tenantId` (ou chaque
 **Test.** `cloisonnement.spec.ts` · une lecture unitaire avec `select` sans
 `tenantId` d'une ligne étrangère rend `null` ; un `create` au `tenantId`
 étranger lève `CloisonnementViole`.
+
+**Fait le 2026-09-27 :** règle A · une lecture unitaire dont le `select` omet
+`tenantId` reçoit la colonne à la demande, vérifiée puis retirée du résultat
+(`src/common/cloisonnement/extension-cloisonnement.ts:244-256`) ; règle D,
+nouvelle · `create`, `createMany`, `createManyAndReturn` et la branche
+création d'un `upsert` confrontent le dossier posé dans `data` à celui de la
+session ou du périmètre déclaré (`:48-55`, `:188`). Les clés étrangères d'une
+création restent vérifiées par chaque service (F5). Test :
+`cloisonnement.spec.ts` (commit c809f0e).
 
 ---
 
@@ -596,6 +782,12 @@ qu'un spec teste » ne se lit pas mécaniquement dans ses imports.
 `@ReferentielsAutorises` (ouvert aux deux référentiels depuis le 2026-09-02,
 l. 33-46). Le retirer, ou le garder avec un commentaire qui dit qu'il est inerte.
 
+**Fait le 2026-09-27 :** la garde est retirée, et le commentaire dit pourquoi
+(`src/modules/documents-obligatoires/documents-obligatoires.controller.ts:47-52`) ;
+`src/common/guards/referentiel-apparie.spec.ts` exige dans tous les
+contrôleurs que `@ReferentielsAutorises` et `ReferentielGuard` aillent
+ensemble (commit 5679c6a).
+
 ### C6 · Câblage irrégulier des contrôleurs
 
 Les 68 contrôleurs sont câblés et chaque route d'écriture porte un rôle (hors
@@ -628,6 +820,13 @@ réinjection faite, attrapée.
 **Correction.** Écrire les nombres qui se déduisent comme ce qu'ils sont (« la
 liste de … ») plutôt qu'un chiffre.
 
+**Fait le 2026-09-27 :** les nombres qui se déduisent sont remplacés par ce
+qu'ils désignent, dans CLAUDE.md et dans les commentaires cités (« Plusieurs
+de ces tables », `src/modules/comptabilite/ecriture.service.ts:1128`) ; aucune
+des formules relevées ne se retrouve dans `src/` ni dans CLAUDE.md
+(commit 5679c6a, puis 572a05b pour les « 54 tables » et les « quinze
+modèles » de la restitution).
+
 ### C8 · Chiffre d'affaires de l'art. 13 recopié
 
 `etats-financiers-syscohada/correspondance-smt-syscohada.ts:1359`
@@ -640,6 +839,12 @@ tant qu'aucun 708 ou 709 n'est créé au dossier.
 **Test.** `COMPTES_CHIFFRE_AFFAIRES_ART13` égale `PREFIXES_CHIFFRE_AFFAIRES_SYSCOHADA`,
 ou mieux, l'un est l'autre.
 
+**Fait le 2026-09-27 :** l'un est l'autre · `COMPTES_CHIFFRE_AFFAIRES_ART13`
+est `PREFIXES_CHIFFRE_AFFAIRES_SYSCOHADA`
+(`src/modules/etats-financiers-syscohada/correspondance-smt-syscohada.ts:1368-1371`),
+et `correspondance-smt-syscohada.spec.ts:584` exige l'identité
+(commit 0977518).
+
 ### C9 · Arrondi au centime réécrit une vingtaine de fois
 
 `Math.round(x * 100) / 100` défini localement dans `fiscalite.service.ts:60`,
@@ -651,6 +856,11 @@ de `ifrs/` (`r2`, avec `|| 0` qui efface le zéro négatif ailleurs non traité)
 `rapprochement/releve-bancaire.ts:157` exporte déjà `arrondi`. Un module
 `common/arrondi.ts`, une seule définition du zéro négatif.
 
+**Toujours ouvert au 2026-09-28.** `src/common/arrondi.ts` n'existe pas, et
+plus de quarante fichiers hors specs portent encore leur propre
+`Math.round(… * 100) / 100` (par exemple
+`src/modules/fiscalite/fiscalite.service.ts:63`).
+
 ### C10 · Garde de source plus étroite que sa règle
 
 `casse-en-silence.spec.ts:149` compte `ecriture.create(` contre `numeroPiece,`
@@ -658,12 +868,24 @@ dans DEUX fichiers nommés. La règle (« toute écriture porte le numéro que s
 journal impose ») vaut aussi pour `exercice.service.ts:789, 853, 963` et
 `ecriture.service.ts`. Balayer tout `src/` hors specs.
 
+**Fait le 2026-09-27 :** le spec parcourt tout `src/` hors specs, découpe
+chaque `ecriture.create(` et `ecriture.createMany(` par équilibrage des
+parenthèses et exige `numeroPiece` dans SON argument
+(`src/modules/comptabilite/casse-en-silence.spec.ts:202-248`, commit 5679c6a).
+Rejoué à la main sur l'arbre du 2026-09-28 : dix appels, aucun sans numéro.
+
 ### C11 · Point d'entrée Vercel résiduel
 
 `api/index.ts`, `vercel.json`, et le script `vercel-build` de `package.json:18`
 (`prisma generate && prisma migrate deploy`). Le déploiement est Cloud Run
 (CLAUDE.md § 5) ; si un projet Vercel restait relié au dépôt, ce script
 appliquerait les migrations par une seconde chaîne. À retirer.
+
+**Fait le 2026-09-27 :** `api/index.ts` et `vercel.json` sont supprimés, et
+`package.json` n'a plus de script `vercel-build` (commit 0977518) ; le
+commentaire de tête de `src/bootstrap.ts:8-15` date le retrait. Reste, sans
+effet, un exemple périmé en commentaire (« domaine Vercel par défaut »,
+`src/bootstrap.ts:71`).
 
 ---
 
@@ -694,7 +916,8 @@ appliquerait les migrations par une seconde chaîne. À retirer.
   § 10 ter).
 - **Correction d'une correction** · `corrigeEcritureId` en SET NULL : supprimer
   la correction au brouillard rend l'écriture d'origine de nouveau corrigeable,
-  ce qui est l'effet cherché (reste à l'écrire, I1).
+  ce qui est l'effet cherché (reste à l'écrire, I1 · écrit depuis,
+  `src/modules/comptabilite/detenteurs-ecriture.ts:56-58`).
 - **Balance cumulée** · exclut le report à-nouveau sauf au premier exercice,
   écrit (`ecriture.service.ts:2765-2800`).
 - **Stocks, provisions, simulations, états personnalisés** · lecture brouillard

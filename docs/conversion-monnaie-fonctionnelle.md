@@ -1,5 +1,66 @@
 # Conversion en monnaie fonctionnelle · ce que le texte impose
 
+> **DÉPASSÉ SUR LA MÉTHODE · bandeau posé le 2026-09-28 (audit final F201).**
+> La méthode qu'OmegaX a retenue pour le second jeu est celle que ce document
+> condamne. La source à jour est le paragraphe « M2 · la balance en monnaie
+> fonctionnelle, ligne à ligne au cours historique » de `CLAUDE.md`, et
+> l'en-tête de `src/modules/monnaie-fonctionnelle/balance-fonctionnelle.service.ts`.
+>
+> **Ce qui est retenu.** La tenue reste en francs congolais, sans option
+> (loi n° 23/053 art. 141, 1° · AUDCIF art. 17, 1°) : le second jeu part des
+> livres en francs et les convertit VERS la monnaie fonctionnelle. Chaque
+> écriture de l'exercice est convertie LIGNE À LIGNE au cours EN VIGUEUR À SA
+> DATE, le dernier saisi à cette date ou avant au plan des devises du dossier,
+> jamais un postérieur (`coursApplicable`), toutes les lignes d'une écriture au
+> même cours ; une ligne déjà libellée dans la monnaie fonctionnelle garde son
+> montant d'origine (`convertirLigne`). L'à-nouveau et la clôture ne se
+> convertissent pas : l'ouverture reprend la clôture du MÊME jeu pour
+> l'exercice précédent, et une reprise sans exercice précédent dans le dossier
+> convertit son à-nouveau au cours de sa date, en le disant (`jeuFonctionnel`,
+> audit final F42). L'écart de conversion est montré sur sa ligne, jamais logé
+> dans un compte, et une écriture antérieure à tout cours saisi arrête l'état.
+>
+> **Ce qui est dépassé ci-dessous.**
+>
+> - **§ 1, dernier alinéa, et le verdict du § 3** · la « première tentative »
+>   déclarée fausse (chaque ligne au cours de son jour, capital compris) est,
+>   pour l'essentiel, la méthode retenue. Le premier tiret du § 3 (une ligne
+>   d'acquisition convertie au cours de son jour EST le cours historique) est
+>   la raison même que M2 en donne, et la propriété que son dernier alinéa dit
+>   trompeuse (chaque écriture équilibrée après conversion) est celle que M2
+>   veut garder. Ce que le § 3 lui reproche (cours de clôture pour le
+>   monétaire, dotations au cours d'entrée du bien, résultat par différence)
+>   sont les règles de la méthode temporelle, qui ne régit pas ce second jeu :
+>   M2 écrit qu'aucun texte lu ne le régit. Et l'écart de conversion qu'il
+>   réclame existe, d'une autre nature · il naît des lignes prises à leur
+>   montant d'origine face à des lignes converties.
+> - **§ 2, « Notre cas est le premier passage », et § 4, « par analogie »** ·
+>   la méthode temporelle n'est pas appliquée au second jeu.
+> - **§ 5** · aucun des cinq ouvrages n'a été construit pour le second jeu, et
+>   la méthode retenue n'en demande aucun.
+> - **§ 6** · le passage qu'il décrit (monnaie fonctionnelle vers francs) n'est
+>   pas celui d'OmegaX, qui part des livres en francs : il suppose des livres
+>   tenus en dollars ou en euros, ce que la règle de la monnaie de tenue
+>   exclut, et il relève du cours de clôture, que M2 écarte (un bâtiment acquis
+>   il y a six ans serait exprimé au cours d'aujourd'hui). La hiérarchie des
+>   cours de clôture (cours du bailleur, cours BCC au 31 décembre, dernier jour
+>   ouvré) n'est pas appliquée : aucun cours de clôture n'entre dans le second
+>   jeu.
+> - **§ 7** · sans objet pour le second jeu, qui n'emploie aucun cours moyen.
+>
+> **Ce qui reste juste.** La distinction du § 1 entre une opération en devise
+> dans des livres en francs (Titre VIII ch. 22, réévaluation de clôture de la
+> fenêtre « Devises et réévaluation », que le § 1 appelle module Réévaluation)
+> et la traduction d'un jeu d'états complet ; la lecture du chapitre XII-4 au
+> § 2, dont la consolidation joue la méthode du cours de clôture pour ses
+> entités étrangères (paragraphe « Consolidation SYSCOHADA, tranche 4c » de
+> `CLAUDE.md`) ; la portée établie au § 4 (le chapitre régit une entité
+> étrangère consolidée, et l'art. 3 du SYCEBNL écarte les art. 73 à 113), qui
+> s'accorde avec le constat de M2 ; et l'exigence que le second jeu dise par
+> quelle méthode il a été produit, que la mention imprimée remplit
+> (`MENTION_SANS_VALEUR_LEGALE`). Le corps est conservé tel quel, sans
+> réécriture : effacer une erreur en efface aussi la leçon.
+
 Recherche du 2026-09-05, faite après une première tentative fausse. Chaque
 règle ci-dessous est lue dans le référentiel, aucune n'est écrite de mémoire.
 

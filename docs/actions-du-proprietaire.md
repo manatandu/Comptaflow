@@ -2,16 +2,137 @@
 
 Établi le 2026-09-03. **Chaque point a été rouvert dans le code ou dans un
 journal d'exécution ce jour-là**, pas recopié d'un plan antérieur · deux
-d'entre eux se sont d'ailleurs révélés plus graves que ce que le plan en
+d'entre eux s'étaient d'ailleurs révélés plus graves que ce que le plan en
 disait, et un troisième était déjà réglé.
 
+**Refait contre le code le 2026-09-28 (audit final F199).** La liste avait
+vieilli dans les deux sens. Quatre points y figuraient encore comme ouverts
+alors qu'ils étaient réglés · le heartbeat de la licence sur site, la tenue en
+devise, l'écriture tombant dans une période close, l'OCR du Code du numérique ;
+trois autres, marqués réglés sur place (sauvegardes, mécénat, module groupe),
+restaient rangés parmi les points ouverts. Et le seul geste du propriétaire
+qui bloque aujourd'hui une livraison sur site n'y était pas · la clé publique
+des licences, qui vaut encore `null`. Les
+points réglés sont rangés en fin de document, chacun avec sa date et son
+fichier ; ceux qui restent ont été vérifiés un par un.
+
 Aucun développement ne débloque cette liste. Elle est classée par ce que
-l'inaction coûte, pas par la difficulté du geste.
+l'inaction coûte, pas par la difficulté du geste. L'ORDRE dans lequel attaquer
+l'ensemble des restes, ceux-ci compris, est celui de
+`docs/plan-ordonne-2026-09.md`, table « LES RESTES, VERROUILLÉS DU MOINS LOURD
+AU PLUS LOURD » (rangs 10, 16, 17 et 18 pour ceux des points ci-dessous qui y
+figurent) et section « Décisions qui n'appartiennent pas au logiciel ». Au
+2026-09-28, l'item « Licence PERPETUEL_ONPREMISE » de cette section donne
+encore pour ouverte la décision de livrer une installation qui émette le
+heartbeat · elle est prise, et le heartbeat n'a pas été retenu (voir « Ce qui
+est déjà réglé »).
 
 ---
 
+## 1. Ce qui empêche une vente
 
-## Engagements de retraite · quels dossiers en portent un ?
+### La paire de clés des licences sur site n'est pas posée · le paquet refuse de se construire
+
+**Constat, vérifié le 2026-09-28.** `src/modules/sur-site/cle-publique-editeur.ts:16`
+porte `export const CLE_PUBLIQUE_EDITEUR: string | null = null;`, et le
+commentaire du même fichier le dit (l. 6 à 11) : « `null` TANT QUE MANASSE NE
+L'A PAS POSÉE ». Trois conséquences, chacune lue dans le code :
+
+- **le paquet d'installation ne se construit pas.** Juste après la
+  récupération du code, le workflow « Paquet sur site (Windows) » passe l'étape
+  « Exiger la clé publique de l'éditeur »
+  (`.github/workflows/paquet-sur-site.yml:34-39`), qui relit ce fichier
+  et lève une erreur s'il ne contient pas la chaîne `BEGIN PUBLIC KEY`. Aucun
+  `.exe` ne sort, et rien d'autre dans le workflow n'attend un geste du
+  propriétaire ;
+- **la console refuse d'émettre une licence** · « Cette version ne porte pas la
+  clé publique de VMG · une licence émise ne pourrait être vérifiée nulle part »
+  (`src/modules/plateforme/licences-sur-site.service.ts:84-86`) ;
+- **une version sans clé ne s'ouvrirait jamais chez un client** · le poste rend
+  `CLE_EDITEUR_ABSENTE` avant même d'examiner le fichier de licence
+  (`src/modules/sur-site/licence-signee.ts:147-149`).
+
+La console exige en plus la clé PRIVÉE, que le déploiement passe au service
+depuis le secret de dépôt `API_CLE_PRIVEE_LICENCE`
+(`.github/workflows/deploy-cloud-run.yml:250` et `:329-330`, facultatif) ;
+absente, l'émission est refusée en nommant ce secret
+(`licences-sur-site.service.ts:80-83`). Que ce secret soit déjà posé ne se
+vérifie pas d'ici · la console le dira à la première émission.
+
+**Ce que ça bloque.** Toute installation sur site · ni paquet, ni licence.
+L'installation elle-même est livrée depuis le 2026-09-26
+(`docs/installation-sur-site.md`) ; c'est le seul geste du propriétaire que le
+code attend encore pour elle.
+
+**Ce qui est attendu de vous.** Une seule fois, chez VMG et jamais dans la CI,
+la marche de `docs/installation-sur-site.md` § 2 « Une seule fois chez VMG · la
+paire de clés » (le commentaire du code l'appelle « Clés de licence »). Les
+gestes sont ceux de la fiche ; seul l'ordre diffère, le secret étant posé
+AVANT de pousser la clé publique pour qu'un seul déploiement porte les deux :
+
+```bash
+openssl genpkey -algorithm ed25519 -out omegax-licences-privee.pem
+openssl pkey -in omegax-licences-privee.pem -pubout -out omegax-licences-publique.pem
+```
+
+1. Ranger la clé PRIVÉE hors du dépôt, en deux exemplaires (coffre de mots de
+   passe et support hors ligne). Perdue, plus aucune licence ne peut être émise
+   pour les installations existantes ; volée, n'importe qui en émet. Elle ne va
+   jamais dans le code.
+2. La poser en secret de dépôt `API_CLE_PRIVEE_LICENCE` (contenu entier du
+   fichier `.pem`).
+3. Coller le contenu entier de `omegax-licences-publique.pem`, lignes
+   `BEGIN PUBLIC KEY` et `END PUBLIC KEY` comprises, à la place de `null` dans
+   `src/modules/sur-site/cle-publique-editeur.ts`, en chaîne de caractères
+   (entre accents graves, lignes non indentées : la constante est typée
+   `string | null`, et un PEM collé nu ne compilerait pas), puis committer et pousser
+   sur `main`. La clé publique ne sait pas signer, sa publication ne coûte rien
+   (même fichier, l. 2 à 4). Le fichier est sous `src/**` · le push redéploie
+   le service, qui porte alors la clé publique ET, le secret étant posé avant,
+   la clé privée. Relire le résultat du déploiement.
+
+La clé publique NE SE LIT JAMAIS dans l'environnement (même fichier, l. 13 et
+14) : une clé réglable sur le poste laisserait le client se signer ses propres
+licences. C'est pour cela qu'elle se pose par un commit, et non par une
+variable.
+
+**Comment vérifier.** Lancer le workflow « Paquet sur site (Windows) » (onglet
+Actions, « Run workflow ») · l'étape « Exiger la clé publique de l'éditeur »
+passe, et l'artefact `OmegaX-installation-<date>-<commit>` est produit. Dans la
+console, cadre « Licences sur site », une émission n'est plus refusée ; la
+console vérifie chaque licence avec la clé publique du code avant de
+l'enregistrer, si bien qu'une clé privée qui ne correspond pas est refusée et
+que rien n'est émis (`docs/installation-sur-site.md` § 2).
+
+### L'homologation d'OmegaX comme système de facturation (SFE)
+
+**Constat, vérifié le 2026-09-28.** `src/modules/facturation/mentions-facture.ts:119`
+porte `omegaxHomologue: false`. Le décret n° 23/10 du 3 mars 2023 fait
+d'OmegaX un « Système de Facturation d'Entreprise » (art. 3, 7°), utilisable
+seulement après une attestation de conformité de l'Administration fiscale
+(art. 22), et ajoute que « seuls les SFE homologués sont proposés à la vente
+aux contribuables et utilisés en République Démocratique du Congo pour
+produire les factures normalisées » (art. 20, lu au corpus fiscal ; le même
+fichier le cite l. 111 à 116 avec l'art. 21, sans ses derniers mots). La
+procédure est renvoyée à un arrêté du Ministre des Finances (art. 23) qui
+n'est dans aucune source lue.
+
+**Ce qui est attendu de vous.** Une démarche auprès de la DGI, qui peut
+s'engager dès aujourd'hui, en parallèle de tout le reste. Rang 18 du plan
+ordonné · c'est la plus longue, et elle conditionne la VENTE en RDC.
+
+---
+
+## 2. Ce qui laisse passer une erreur comptable
+
+### Engagements de retraite · quels dossiers en portent un ?
+
+**Toujours ouvert, vérifié le 2026-09-28** · aucun contrôle ne signale
+l'absence de provision pour pensions (19600000 au SYCEBNL, 19610000 au
+SYSCOHADA) ; le seul fichier de `src/modules/controles/` qui nomme ces comptes
+est la table engendrée des schémas d'écriture du Guide
+(`schemas-guide-syscohada.ts`), qu'aucun contrôle ne consulte encore (en-tête
+du même fichier).
 
 **Ce qui est certain.** L'AUDCIF, art. 48 et Titre VIII ch. 21, oblige les
 entités à « évaluer et comptabiliser SOUS FORME DE PROVISIONS à inscrire au
@@ -43,126 +164,54 @@ Relevé : docs/releve-de-manques-referentiels.md, passe 15, écart 15.1.
 
 ---
 
-## 1. Ce qui casse une vente le jour où elle se fait
+## 3. Ce qui demande un juriste, pas un développeur
 
-### La licence « Perpétuelle (sur site) » est vendable et ne marche pas
-
-**Constat, vérifié.** `PlateformePage.tsx` propose le type
-`PERPETUEL_ONPREMISE` dans la liste déroulante de la console. Et
-`LicenceService.verifier()` refuse ce type tant que `dernierHeartbeatAt` est
-antérieur au délai de grâce · or `enregistrerHeartbeat()` **n'a aucun
-appelant dans tout le dépôt**, et le champ vaut `null` à la création. Un
-dossier vendu sous cette licence est donc **coupé à sa toute première
-requête**.
-
-**Ce que ça bloque.** Une vente, et de la pire manière : le client paie, se
-connecte, et rien ne s'ouvre.
-
-**Ce qui est attendu de vous.** Un arbitrage, pas un geste technique · ce
-type de licence fait-il partie de l'offre ?
-
-- **Non** · je retire l'option de la console en dix minutes. C'est le choix
-  que je recommande tant qu'aucun client ne l'a demandée.
-- **Oui** · il faut construire le heartbeat (route côté serveur, appel
-  périodique côté installation, et la décision du délai de grâce). Un ou deux
-  jours, et ça n'a de sens que si une vente sur site est réellement en vue.
-
-**En attendant : ne proposez pas cette licence.**
-
----
-
-## 2. Ce qui coûte des données le jour où ça tourne mal
-
-### Les sauvegardes ne vivent que 90 jours
-
-**FAIT le 2026-09-24.** Bucket créé, droit d'écriture accordé à `github-deploy`, variable posée. Le run n° 28, lancé à la main le même jour, a copié la sauvegarde chiffrée vers Cloud Storage. Reste facultatif : une règle de cycle de vie sur le bucket pour en borner le coût.
-
-**Constat, vérifié.** Sur l'exécution nocturne du 2026-09-03, les deux étapes
-*S'authentifier sur Google Cloud* et *Copier vers Cloud Storage* sont
-**SKIPPED** : la variable de dépôt `BUCKET_SAUVEGARDES` n'est pas posée. Tout
-le reste est vert · l'export, la restauration d'épreuve, le chiffrement, la
-vérification qu'aucun fichier en clair ne subsiste.
-
-**Ce que ça bloque.** Rien aujourd'hui. Dans 91 jours, la plus ancienne
-sauvegarde disparaît, et il n'existe plus aucune copie hors de GitHub. Un
-cabinet qui découvre une erreur de saisie datant de quatre mois n'a plus rien
-à restaurer.
-
-**Ce qui est attendu de vous.** Trois gestes dans le compte Google, décrits
-dans `docs/sauvegardes-et-restauration.md` : créer un bucket Cloud Storage,
-autoriser le compte de service à y écrire, poser le nom du bucket en variable
-de dépôt `BUCKET_SAUVEGARDES`. Le workflow s'en sert dès qu'elle existe, sans
-que je touche à rien.
+- **Code du numérique congolais** · autorisation de transfert hors RDC, et
+  articulation des art. 201 et 202. **La qualification par un juriste reste
+  due.** Ce qui a changé depuis le 2026-09-03, lu dans
+  `docs/code-du-numerique-et-omegax.md` : le corpus n'est plus un OCR (réglé,
+  voir plus bas) et le numéro est confirmé sur le texte intégral ·
+  ordonnance-loi n° 23/10 du 13 mars 2023 (`docs/hebergement-en-rdc.md:17`
+  l'écrit 23/010). La règle du dépôt est de la citer avec sa date (CLAUDE.md),
+  le même numéro 23/10 portant aussi le décret du 3 mars 2023 sur la facture
+  normalisée. Le traitement mis en œuvre pour la tenue d'une comptabilité
+  générale est dispensé de déclaration préalable (art. 189, 5°, même
+  document). La notification des violations (art. 244) ne relève pas du
+  juriste : le § 3 du même document la dit intenable tant qu'aucune procédure
+  n'est écrite et qu'aucune messagerie n'est posée (`SMTP_HOST`). Aucun
+  document du dépôt ne porte encore cette procédure ; que la messagerie soit
+  posée ne se vérifie pas d'ici. La politique de confidentialité est écrite
+  (`client/src/pages/ConfidentialitePage.tsx`) : elle cite les art. 201, 202
+  et 244 sans affirmer aucune conformité, et ne dit pas que l'autorisation de
+  l'art. 201 n'a été ni demandée ni obtenue, décision laissée à VMG après
+  l'avis du juriste. La question est concrète : l'art. 201 veut les données
+  personnelles « stockées et/ou hébergées en République Démocratique du
+  Congo », et la version en ligne d'OmegaX est hébergée hors de RDC (rang 17
+  du plan ordonné, `docs/hebergement-en-rdc.md`).
+- **Formulaire de déclaration DGI** · toujours ouvert (rang 10 du plan
+  ordonné). L'impôt est calculé, l'imprimé se remplit à la main faute d'en
+  détenir le modèle officiel (`src/modules/fiscalite/fiscalite.service.ts:44-45`).
+- **Forfait micro-entreprise** · toujours ouvert. La branche rend `impotDu:
+  null` (`src/modules/fiscalite/fiscalite.service.ts:1467-1475`) : la
+  contre-valeur en francs du forfait libellé en dollars dépend d'une circulaire
+  de perception que le logiciel ne détient pas.
 
 ---
 
-## 3. Ce qui laisse passer une erreur comptable
-
-### Un dossier peut s'ouvrir en devise étrangère sans un mot
-
-**Constat, vérifié.** L'écran des paramètres laisse choisir la devise du
-dossier, modifiable tant qu'aucune écriture n'existe. Aucun avertissement, à
-aucun endroit, sur l'article 141 de la loi n° 23/053.
-
-**Ce que ça bloque.** Rien mécaniquement. Mais un dossier tenu en USD produit
-des états dont la recevabilité dépend d'une règle que le logiciel ne dit pas.
-
-**Ce qui est attendu de vous.** Un avis de praticien : dans quels cas la tenue
-en devise est-elle admise, et que faut-il alors afficher ? Dès que la règle est
-établie, je la pose en avertissement ou en refus, selon ce qu'elle dit.
-
-### L'écriture qui tombe dans une période close est refusée, pas reportée
-
-**Constat, vérifié.** `ecriture.service.ts` lève
-`Impossible d'enregistrer une écriture sur un exercice clôturé`. L'AUDCIF
-art. 22 prévoit autre chose : l'enregistrer **au premier jour de la période
-ouverte**, avec mention distincte de sa date de valeur.
-
-**Ce que ça bloque.** Une opération légitime, arrivée en retard, n'a aucun
-chemin dans le logiciel. À ma lecture c'est un écart de conception, pas un
-excès de rigueur · mais c'est votre métier, pas le mien.
-
-**Ce qui est attendu de vous.** Confirmer la lecture. Si elle tient, je
-construis le report avec sa mention.
-
-### Mécénat · 4571 ou 475
-
-**TRANCHÉ le 2026-09-24 · 475.** Le paragraphe ci-dessous était périmé : le modèle portait alors le 4571, pas le 475, et le tableau des flux cherchait la créance au 475. Les deux sont alignés sur le 475, le 4751 du texte étant lu comme sa subdivision.
-
-Les deux comptes sont semés, le catalogue n'utilise que le **475** (le modèle
-note lui-même que « le texte écrit 4751 · subdivision du 475 »). Arbitrage de
-doctrine ouvert depuis l'audit d'août. **Ce que ça bloque :** rien, jusqu'au
-jour où un réviseur demande pourquoi ce compte-là.
-
----
-
-## 4. Ce qui demande un juriste, pas un développeur
-
-- **Code du numérique congolais** · déclaration des traitements, autorisation
-  de transfert hors RDC, notification des violations. Le corpus dont je
-  dispose est un OCR non collationné et le numéro du texte apparaît sous deux
-  formes selon les sources. **À faire qualifier avant tout usage**, et
-  certainement avant d'écrire une politique de confidentialité.
-- **Formulaire de déclaration DGI** · l'impôt est calculé, l'imprimé se
-  remplit à la main faute d'en détenir le modèle officiel.
-- **Forfait micro-entreprise** · la branche rend `null` : la contre-valeur du
-  forfait en dollars dépend d'une circulaire de perception que le logiciel ne
-  détient pas.
-
----
-
-## 5. Ce qui n'est qu'un confort
+## 4. Ce qui n'est qu'un confort
 
 - **Confirmation du régime de connexion dans les journaux Cloud Run** ·
   console Google Cloud → IAM → compte `github-deploy` → rôle « Lecteur de
-  journaux ». Depuis le 2026-09-03 le déploiement affirme déjà le régime à
+  journaux » (`roles/logging.viewer`, `.github/workflows/deploy-cloud-run.yml:394`
+  et `:416`). Depuis le 2026-09-03 le déploiement affirme déjà le régime à
   l'envoi, ce qui suffit. **Ne bloque rien.**
-- ~~**Module groupe en SYSCOHADA** · le refus est posé aux deux portes, les
-  moteurs existent. Ce n'est plus technique, c'est un arbitrage commercial.~~ **TRANCHÉ le 2026-09-24** · ouvert aux succursales d'une même société (comptes 184 à 187).
+- **Règle de cycle de vie sur le bucket des sauvegardes** · facultative, pour
+  en borner le coût (`docs/sauvegardes-et-restauration.md`, « Copie durable
+  sur Cloud Storage », point 4). **Ne bloque rien.**
 
 ---
 
-## 6. Ce que je ne peux pas vérifier d'ici
+## 5. Ce que je ne peux pas vérifier d'ici
 
 Ces points ne relèvent pas d'une action mais d'une **lecture depuis un poste
 sans mandataire réseau** · l'environnement de développement ne les atteint
@@ -179,6 +228,59 @@ position de l'ONEC sur les outils informatiques, son site étant bloqué.
 
 ## Ce qui est déjà réglé, pour mémoire
 
+### Réglé depuis l'établissement de la liste, retiré des points ouverts le 2026-09-28
+
+- **Licence « Perpétuelle (sur site) » et heartbeat** · la liste disait que la
+  console proposait ce type et qu'un dossier vendu ainsi était coupé à sa
+  première requête, `enregistrerHeartbeat()` n'ayant aucun appelant. Fermé en
+  deux temps. Constaté le 2026-09-24 au plan ordonné : la console n'attribue
+  plus ce type, à la création comme au changement (`PlateformeService.refuserAttributionSurSite`,
+  `src/modules/plateforme/plateforme.service.ts:141-144`, appelée l. 211 et
+  419) ; le sélecteur ne le montre plus que grisé, sur une licence qui le porte
+  déjà (`client/src/pages/PlateformePage.tsx:536-540`). Le 2026-09-26, Manasse
+  choisit une licence en FICHIER SIGNÉ vérifiée sans internet, et le heartbeat
+  n'est pas retenu (`src/modules/licence/licence.service.ts:16-23`) ; le motif
+  de refus est corrigé le 2026-09-27 (audit final F171). Ce qui reste est la
+  paire de clés, § 1.
+- **Tenue en devise étrangère** · la liste demandait un avis de praticien sur
+  les cas où elle serait admise. Les textes n'en admettent aucun (loi
+  n° 23/053, art. 141, 1° · AUDCIF art. 17, 1°). Réglé par le chantier M1,
+  déjà cité comme fait dans `docs/audit-citations-2026-09-06.md`, et constaté
+  au plan ordonné le 2026-09-24 ; la reprise des dossiers est portée par la
+  migration `20260918120000_monnaie_fonctionnelle`. La monnaie de tenue est le franc
+  congolais (`src/common/monnaie-de-tenue.ts:39`), `Tenant.devise`
+  n'est dans aucun DTO, n'est écrite par aucun service et ne se modifie plus à
+  l'écran (`src/common/monnaie-de-tenue.spec.ts`). La monnaie fonctionnelle
+  commande un second jeu sans valeur légale.
+- **Écriture tombant dans une période close** · réglé le 2026-09-24, sur la
+  lecture de l'AUDCIF art. 22, 4° que Manasse a confirmée. Le report se
+  demande à la saisie (`reporterAuPremierJourOuvert`,
+  `src/modules/comptabilite/ecriture.service.ts:707`), l'écriture prend le
+  premier jour ouvert et garde sa date réelle en `Ecriture.dateValeur`
+  (`prisma/schema.prisma:1376`), la règle vivant dans
+  `src/modules/exercice/report-periode-close.ts`. Jamais d'office, jamais
+  au-delà de l'exercice, jamais sur un journal clôturé totalement.
+- **Mécénat · 4571 ou 475** · tranché le 2026-09-24 pour le 475, le 4751 du
+  texte étant lu comme sa subdivision. Le modèle portait alors le 4571 et le
+  tableau des flux cherchait la créance au 475 ; les deux sont alignés
+  (`src/modules/operations-specifiques/catalogue-operations-dons.ts:397-409`,
+  gelé par `operation-specifique.service.spec.ts:469`).
+- **Sauvegardes limitées à 90 jours** · fait le 2026-09-24. Bucket créé,
+  droit d'écriture accordé à `github-deploy`, variable de dépôt
+  `BUCKET_SAUVEGARDES` posée ; le run n° 28, lancé à la main le même jour, a
+  copié la sauvegarde chiffrée vers Cloud Storage
+  (`.github/workflows/sauvegarde-base.yml:222-231`). Reste le confort du § 4.
+- **Module groupe en SYSCOHADA** · tranché le 2026-09-24, ouvert au siège et
+  aux succursales d'une même société, liaison par les comptes 184 à 187
+  (`src/modules/groupe/groupe.service.ts`, gelé par
+  `liaison-etablissements-syscohada.spec.ts`).
+- **OCR du Code du numérique** · le corpus a été réextrait du PDF natif et lu
+  sur le texte intégral le 2026-09-05, et le numéro du texte confirmé
+  (`docs/code-du-numerique-et-omegax.md`, en tête) ; constat reporté au plan
+  ordonné le 2026-09-23. Reste la qualification par un juriste, § 3.
+
+### Réglé dès l'établissement de la liste
+
 - **Réévaluation · les coefficients** · tranché par Manasse le 2026-09-03. Le
   Ministre des Finances publie le coefficient CHAQUE ANNÉE, et pour l'exercice
   en cours il n'y a pas eu de réévaluation. Il n'y a donc rien à coder tant
@@ -190,7 +292,6 @@ position de l'ONEC sur les outils informatiques, son site étant bloqué.
   Elles se remplissent en EXTRA-COMPTABLE, hors du jeu d'états. Rien à ajouter
   aux notes annexes du logiciel, qui s'arrêtent légitimement à la 44. Manasse
   fournira les modèles plus tard si un besoin apparaît.
-
 - **Clé de chiffrement des sauvegardes** (`CLE_AGE_SAUVEGARDES`) · posée. La
   sauvegarde nocturne du 2026-09-03 est verte de bout en bout.
 - **Endpoint Neon poolé** (`API_DATABASE_URL_POOLED`) · posé. Le déploiement
@@ -200,4 +301,5 @@ position de l'ONEC sur les outils informatiques, son site étant bloqué.
   `API_DATABASE_URL` (`docs/sauvegardes-et-restauration.md`, étapes 4 et 5).
 - **Limitation de débit par instance** · le compteur reste par conteneur,
   mais `--max-instances 4` borne désormais le dépassement à un facteur connu
-  au lieu d'un facteur inconnu. Redis n'est plus une urgence.
+  au lieu d'un facteur inconnu. Redis n'est plus une urgence. Tranché le
+  2026-09-24 · assumé, sans Redis (`docs/connexions-et-plafonds.md` § 7).

@@ -52,20 +52,26 @@ budgétaire. Les deux états redeviennent constructibles sur base officielle. Se
 
 Établie le 2026-08-28. Le couple modèle-effort est annoncé au début de chaque phase.
 
-| Opération | Modèle | Effort |
-|---|---|---|
-| Dépouiller un référentiel, transcrire une table de correspondance officielle | Opus 5 | xhigh |
-| Concevoir un moteur, une architecture, un modèle de données | Opus 5 | xhigh |
-| Déboguer un symptôme dont la cause est inconnue | Opus 5 | xhigh |
-| Rédiger un plan, une documentation de référence | Opus 5 | high |
-| Transcrire des notes en lot · motif établi ET tests-gardes en place | Sonnet 5 | high |
-| Corriger un bug identifié et localisé | Sonnet 5 | high |
-| Frontend, écrans, rendu | Sonnet 5 | high |
-| Wiring, CRUD, export Excel, écriture de tests | Sonnet 5 | medium |
-| Audit adversarial d'un bloc livré | Fable 5 | xhigh |
-| Audit complet du logiciel, en fin de module | Fable 5 | xhigh (ou max) |
+Corrigé le 2026-09-28 · la table portait une colonne « Modèle » qui nommait les modèles
+retenus. Le § 4 de CLAUDE.md interdit tout nom de modèle d'IA dans ce qui est poussé : la
+colonne est retirée, seul l'effort reste, et l'annonce en tête de chaque phase de
+`plan-ordonne-2026-09.md` ne porte plus que lui.
 
-**Condition impérative sur les lignes Sonnet 5** : le motif doit être établi et les tests-gardes
+| Opération | Effort |
+|---|---|
+| Dépouiller un référentiel, transcrire une table de correspondance officielle | xhigh |
+| Concevoir un moteur, une architecture, un modèle de données | xhigh |
+| Déboguer un symptôme dont la cause est inconnue | xhigh |
+| Rédiger un plan, une documentation de référence | high |
+| Transcrire des notes en lot · motif établi ET tests-gardes en place | high |
+| Corriger un bug identifié et localisé | high |
+| Frontend, écrans, rendu | high |
+| Wiring, CRUD, export Excel, écriture de tests | medium |
+| Audit adversarial d'un bloc livré | xhigh |
+| Audit complet du logiciel, en fin de module | xhigh (ou max) |
+
+**Condition impérative sur les quatre lignes de transcription en lot, de correction localisée,
+d'écrans et de câblage** : le motif doit être établi et les tests-gardes
 écrits. Sans ces deux conditions, on retombe dans la configuration exacte qui a produit les
 erreurs de l'audit · colonnes Brut/Amortissement recopiées du mauvais jeu, compte 564 cité de
 mémoire depuis le SYSCOHADA. Ce ne sont pas des échecs de raisonnement complexe mais des
@@ -77,7 +83,8 @@ de l'économie sur une session longue.
 
 **Ce qui compte plus que le modèle** : retourner au texte officiel ligne à ligne, et écrire des
 tests-gardes structurels. Deux tests auraient suffi à attraper seuls les deux bugs de chiffres
-de l'audit. Cette discipline fonctionne sur les trois modèles ; la sauter échoue sur les trois.
+de l'audit. Cette discipline fonctionne sur les trois modèles employés ; la sauter échoue sur
+les trois.
 
 ---
 
