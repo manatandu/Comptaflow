@@ -362,6 +362,38 @@ export interface RapprochementBancaire {
   createdAt: string;
   createdBy: string;
   clotureAt: string | null;
+  /** Solde de départ lu sur le relevé · porté par le premier rapprochement du compte seulement. */
+  soldeDepartDeclare?: number | string | null;
+  dateDepart?: string | null;
+  /** Réouverture d'un rapprochement clos · le motif reste sur la ligne. */
+  rouvertAt?: string | null;
+  motifReouverture?: string | null;
+}
+
+/**
+ * En-cours d'ouverture · opération du livre antérieure à la date de départ que
+ * la banque n'avait pas encore passée. Débit et crédit VUS DU COMPTE 52.
+ */
+export interface EncoursOuverture {
+  id: string;
+  date: string;
+  libelle: string;
+  debit: number;
+  credit: number;
+  pointee: boolean;
+  ligneReleveId: string | null;
+  /** Déclaré sur ce rapprochement-ci · seul celui-là se retire. */
+  declareIci: boolean;
+}
+
+/** L'ouverture du premier rapprochement · livre à la veille = départ + en-cours. */
+export interface OuvertureRapprochement {
+  soldeDepart: number | null;
+  dateDepart: string | null;
+  soldeLivre: number | null;
+  encours: number;
+  ecart: number | null;
+  motif: string | null;
 }
 
 export interface LignePointage {
@@ -386,20 +418,28 @@ export interface LigneReleve {
   debit: number;
   credit: number;
   ligneEcritureIds: string[];
+  encoursIds?: string[];
 }
 
 export interface PropositionsRapprochement {
   fenetreJours: number;
-  propositions: { ligneReleveId: string; ligneEcritureIds: string[]; motif: 'REFERENCE' | 'MONTANT_DATE' }[];
+  propositions: { ligneReleveId: string; ligneEcritureIds: string[]; encoursIds?: string[]; motif: 'REFERENCE' | 'MONTANT_DATE' }[];
   lignesReleveSansProposition: number;
 }
 
 export interface DetailRapprochement {
   rapprochement: RapprochementBancaire;
-  soldeDepart: number;
-  soldePointe: number;
-  ecart: number;
+  /** Premier rapprochement du compte · il porte le solde de départ déclaré et les en-cours. */
+  premier?: boolean;
+  /** Null tant que le premier rapprochement n'a pas déclaré son départ · jamais zéro. */
+  soldeDepart: number | null;
+  soldePointe: number | null;
+  ecart: number | null;
   equilibre: boolean;
+  ouverture?: OuvertureRapprochement | null;
+  encours?: EncoursOuverture[];
+  /** Lignes libres antérieures à la date de départ, fondues dans le solde de départ · le nombre seul. */
+  fonduesDansLeDepart?: number;
   /** Solde de départ + mouvements du relevé − solde imprimé · null sans relevé importé. */
   ecartReleve: number | null;
   releve: LigneReleve[];

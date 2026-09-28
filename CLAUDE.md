@@ -4640,14 +4640,36 @@ correspondance. (5) RIEN N'EST PASSÉ D'OFFICE · une ligne du relevé sans
 écriture (frais, agios, virement non saisi) est « à comptabiliser ». Une ligne
 datée après la date du relevé est refusée à l'import, et un relevé qui ne
 boucle pas (solde de départ + opérations ≠ solde imprimé) est signalé avant de
-rapprocher. (6) L'À-NOUVEAU NE SE POINTE PAS (audit final F205) · il recopie un
+rapprocher. (6) L'À-NOUVEAU NE SE POINTE PAS, ET L'OUVERTURE VIENT DE LA
+BANQUE (audit final F205, décision de Manasse du 2026-09-28) · il recopie un
 solde, ce n'est pas une opération de la banque, et une chaîne n'a qu'une
-ouverture. Après un rapprochement CLOS, aucun à-nouveau n'est pointable ; sans
-lui, seul celui du PREMIER exercice du dossier, qui porte le bilan
-d'ouverture, comme dans `balanceCumulee`. La règle vit une fois
-(`estANouveauEcarte`, `filtreANouveauEcarte`) · filtre en base à la lecture
+ouverture. Aucun à-nouveau n'est pointable, premier exercice compris. Le
+PREMIER rapprochement d'un compte (aucun clos avant lui) porte un SOLDE DE
+DÉPART DÉCLARÉ, montant et date lus sur le relevé (`soldeDepartDeclare`,
+`dateDepart`), jamais déduit de l'à-nouveau, qui est un solde comptable ·
+non déclaré, le départ vaut `null` et jamais zéro. Les lignes du compte datées
+avant la date de départ de la tête de la chaîne sont fondues dans ce solde.
+Ce que la banque n'avait pas encore passé ce jour-là se DÉCLARE en en-cours
+d'ouverture (`EncoursOuvertureRapprochement`) et se pointe comme une écriture
+· aucune écriture n'est créée, OmegaX ne touche pas au livre-journal là où Xero
+et Sage 100 en passent une. L'ÉCART D'OUVERTURE est la formule de Sage 50 ·
+solde du compte au livre-journal à la veille = départ + en-cours
+(`ecartDOuverture`) · il est montré, et il REFUSE la clôture du premier
+rapprochement tant qu'il n'est pas nul, décision d'éditeur comme QuickBooks,
+qui bloque la continuité. La règle vit une fois (`estEcarteeDuPointage`,
+`filtreEcarteDuPointage`, `motifRefusPointage`) · filtre en base à la lecture
 et aux propositions, refus nommé au pointage et à la confirmation. L'écran
-dit combien il en écarte, le nombre et jamais la somme.
+dit combien de lignes il écarte, le nombre et jamais la somme. UN À-NOUVEAU
+POINTÉ AVANT LA RÈGLE SE DÉTECTE, IL NE SE ROUVRE PAS D'OFFICE · aucun éditeur
+relu ne rouvre seul, et `RAPPROCHEMENT_A_NOUVEAU_POINTE` le nomme
+(`aNouveauEnTrop` épargne le premier rapprochement d'avant la règle, parti de
+zéro, qui n'avait que le bilan d'ouverture du premier exercice). La
+RÉOUVERTURE est un acte de l'administrateur (`POST
+/rapprochements/:id/rouvrir`), motif obligatoire, au journal d'audit, sur le
+SEUL dernier rapprochement clos du compte (un plus ancien changerait le
+départ des suivants), jamais avec un rapprochement en cours sur le compte ni
+à travers une période figée (`motifLigneFigee`). Motif et date restent sur la
+ligne, et un rapprochement rouvert ne s'annule pas, il se reclôt.
 
 **Règlement des tiers à partir des échéances (2026-09-25).** Deuxième manque
 « usage quotidien » de la comparaison Sage i7. Fenêtre Traitement > Règlement

@@ -591,7 +591,7 @@ model Tenant {
   combinaisonPour      Tenant?  @relation("Combinaison")
 
   licence                  Licence?
-  abonnementEditeur        AbonnementCabinet?        @relation("AbonnementDuCabinet")
+  abonnementEditeur        AbonnementCabinet?              @relation("AbonnementDuCabinet")
   comptes                  Compte[]
   exercices                Exercice[]
   ecritures                Ecriture[]
@@ -602,7 +602,7 @@ model Tenant {
   messages                 Message[]
   // Comptes de tiers ouverts, dans les AUTRES dossiers du groupe, au nom de
   // celui-ci · voir `celluleGroupeId` sur Tiers.
-  tiersCellule             Tiers[]                   @relation("TiersCelluleGroupe")
+  tiersCellule             Tiers[]                         @relation("TiersCelluleGroupe")
   bailleurs                Bailleur[]
   rattachementsNotes       RattachementNote[]
   saisiesNotes             SaisieNote[]
@@ -615,6 +615,7 @@ model Tenant {
   liquidationsTva          LiquidationTva[]
   rapprochements           RapprochementBancaire[]
   lignesReleveBancaire     LigneReleveBancaire[]
+  encoursOuvertureRappro   EncoursOuvertureRapprochement[]
   famillesImmobilisation   FamilleImmobilisation[]
   immobilisations          Immobilisation[]
   plansAnalytiques         PlanAnalytique[]
@@ -1849,8 +1850,28 @@ model RapprochementBancaire {
   createdBy String
   clotureAt DateTime?
 
-  lignes LigneEcriture[]
-  releve LigneReleveBancaire[]
+  // SOLDE DE DÉPART DÉCLARÉ (2026-09-28) · porté par le PREMIER rapprochement
+  // d'un compte, celui qu'aucun rapprochement clos ne précède. Lu sur le
+  // relevé, dans le sens de `soldeReleve` (positif = avoir en banque), à
+  // l'ouverture de `dateDepart` · les lignes du compte datées avant ce jour
+  // sont fondues dans ce solde et ne se pointent plus, sur toute la chaîne.
+  // Jamais déduit de l'à-nouveau · un solde comptable n'est pas un solde de
+  // banque. Nuls sur un rapprochement suivant, et sur ceux d'avant la règle.
+  soldeDepartDeclare Decimal?  @db.Decimal(18, 2)
+  dateDepart         DateTime?
+
+  // RÉOUVERTURE (2026-09-28) · administrateur seul, le dernier rapprochement
+  // clos du compte seulement, motif obligatoire. Le motif et la date restent
+  // sur la ligne après la nouvelle clôture · le journal d'audit garde les
+  // réouvertures successives.
+  rouvertAt        DateTime?
+  rouvertBy        String?
+  motifReouverture String?
+
+  lignes          LigneEcriture[]
+  releve          LigneReleveBancaire[]
+  encoursDeclares EncoursOuvertureRapprochement[] @relation("EnCoursDeclares")
+  encoursPointes  EncoursOuvertureRapprochement[] @relation("EnCoursPointes")
 
   // AUDIT FINAL F261 · un rapprochement se cherche par le dossier et le compte
   // de trésorerie (le dernier clos, l'en cours), jamais seul par son compte.
@@ -1887,11 +1908,55 @@ model LigneReleveBancaire {
   credit    Decimal  @default(0) @db.Decimal(18, 2)
   createdAt DateTime @default(now())
 
-  lignesEcriture LigneEcriture[]
+  lignesEcriture   LigneEcriture[]
+  encoursOuverture EncoursOuvertureRapprochement[]
 
   @@index([rapprochementId])
   @@index([tenantId])
   @@map("lignes_releve_bancaire")
+}
+
+// ---------------------------------------------------------------------------
+// EN-COURS D'OUVERTURE D'UN RAPPROCHEMENT (2026-09-28) · une opération passée
+// au livre AVANT la date de départ du premier rapprochement et que la banque
+// n'a pas encore portée (chèque émis non présenté, remise non créditée). Elle
+// est fondue dans le solde du livre à cette date, et le solde de départ de la
+// banque ne la contient pas · elle se déclare donc à part, et se POINTE contre
+// le relevé comme une ligne d'écriture, sur le rapprochement où la banque la
+// passe (celui-ci ou un suivant).
+//
+// AUCUNE ÉCRITURE N'EST CRÉÉE, choix d'OmegaX · Xero et Sage 100 passent par
+// des écritures d'ouverture, OmegaX ne touche pas au livre-journal pour une
+// opération qui y est déjà.
+//
+// Débit et crédit sont ceux du COMPTE 52, comme une ligne d'écriture · une
+// sortie (chèque émis) est au crédit.
+// ---------------------------------------------------------------------------
+model EncoursOuvertureRapprochement {
+  id            String                 @id @default(uuid())
+  tenantId      String
+  tenant        Tenant                 @relation(fields: [tenantId], references: [id])
+  // Le premier rapprochement du compte, qui la déclare · annulé, il l'emporte.
+  declareSurId  String
+  declareSur    RapprochementBancaire  @relation("EnCoursDeclares", fields: [declareSurId], references: [id], onDelete: Cascade)
+  // Le rapprochement qui la pointe · null tant que la banque ne l'a pas passée.
+  pointeSurId   String?
+  pointeSur     RapprochementBancaire? @relation("EnCoursPointes", fields: [pointeSurId], references: [id], onDelete: SetNull)
+  // La ligne du relevé confirmée en correspondance, comme `LigneEcriture.ligneReleveId`.
+  ligneReleveId String?
+  ligneReleve   LigneReleveBancaire?   @relation(fields: [ligneReleveId], references: [id], onDelete: SetNull)
+
+  libelle   String
+  date      DateTime
+  debit     Decimal  @default(0) @db.Decimal(18, 2)
+  credit    Decimal  @default(0) @db.Decimal(18, 2)
+  createdAt DateTime @default(now())
+  createdBy String
+
+  @@index([tenantId, declareSurId])
+  @@index([pointeSurId])
+  @@index([ligneReleveId])
+  @@map("encours_ouverture_rapprochement")
 }
 
 // ---------------------------------------------------------------------------

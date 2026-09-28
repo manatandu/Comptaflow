@@ -28,6 +28,7 @@ import {
   PART_MAIN_OEUVRE_LOCALE_MINIMALE,
 } from '../accord-cadre/conditions-ong-etrangere';
 import { ajouterMois } from '../../common/ajouter-mois';
+import { aNouveauEnTrop, filtreANouveauEcarte } from '../rapprochement/rapprochement.service';
 
 /**
  * SEUILS DE DÉSIGNATION DU CONTRÔLEUR DES COMPTES · ils ne sont PLUS ici.
@@ -3284,6 +3285,96 @@ export class ControlesService {
               montant: accord.partMainOeuvreLocale,
             },
           ],
+        });
+      }
+    }
+
+    // --- 30. Rapprochement bancaire qui tient un report à-nouveau -----------
+    //
+    // Un à-nouveau recopie le solde de clôture · pointé, il compte l'ouverture
+    // une seconde fois, et l'écart du rapprochement se referme sur un chiffre
+    // faux (audit final F205). La règle écarte désormais tout à-nouveau du
+    // pointage, mais ne défait rien de ce qui a été pointé AVANT elle, ni ne
+    // rouvre un rapprochement clos · aucun éditeur relu ne rouvre d'office. Le
+    // contrôle DÉTECTE, et la réouverture reste un acte de l'administrateur.
+    //
+    // UNE ANOMALIE FABRIQUÉE SERAIT PIRE QUE LE DÉFAUT (§ 10 bis) · le premier
+    // rapprochement d'avant la règle, parti de zéro sans solde déclaré, ne
+    // pouvait faire entrer l'ouverture que par l'à-nouveau du premier exercice,
+    // et ne la comptait qu'une fois. `aNouveauEnTrop` le lit à sa place dans la
+    // chaîne. Borné aux rapprochements dont le relevé tombe dans l'exercice ·
+    // les contrôles sont PAR EXERCICE, et un même rapprochement ne se signale
+    // qu'une fois.
+    const rapprochementsANouveau = await this.prisma.rapprochementBancaire.findMany({
+      where: {
+        tenantId,
+        dateReleve: { gte: ex.dateDebut, lte: ex.dateFin },
+        lignes: { some: { ecriture: filtreANouveauEcarte() } },
+      },
+      select: {
+        id: true,
+        compteId: true,
+        statut: true,
+        dateReleve: true,
+        clotureAt: true,
+        soldeDepartDeclare: true,
+        compte: { select: { numero: true, intitule: true } },
+        lignes: {
+          where: { ecriture: filtreANouveauEcarte() },
+          select: {
+            debit: true,
+            credit: true,
+            ecriture: {
+              select: { date: true, exerciceId: true, estGenereeParCloture: true, estSoldeDesComptesDeGestion: true },
+            },
+          },
+        },
+      },
+    });
+    if (rapprochementsANouveau.length > 0) {
+      const [clos, premierExercice] = await Promise.all([
+        this.prisma.rapprochementBancaire.findMany({
+          where: {
+            tenantId,
+            compteId: { in: [...new Set(rapprochementsANouveau.map((r) => r.compteId))] },
+            statut: 'CLOTURE',
+          },
+          select: { compteId: true, clotureAt: true },
+        }),
+        this.prisma.exercice.findFirst({ where: { tenantId }, orderBy: { dateDebut: 'asc' }, select: { id: true } }),
+      ]);
+      const occurrences: AnomalieControle['occurrences'] = [];
+      for (const r of rapprochementsANouveau) {
+        const avant = (r.clotureAt ?? new Date(maintenant)).getTime();
+        const place = {
+          ancre: clos.some((c) => c.compteId === r.compteId && c.clotureAt !== null && c.clotureAt.getTime() < avant),
+          departDeclare: r.soldeDepartDeclare !== null,
+          premierExerciceId: premierExercice?.id ?? null,
+        };
+        for (const l of r.lignes) {
+          if (!aNouveauEnTrop(l.ecriture, place)) continue;
+          occurrences.push({
+            reference: `${r.compte.numero} ${r.compte.intitule} · relevé du ${r.dateReleve.toISOString().slice(0, 10)}`,
+            detail: `${r.statut === 'CLOTURE' ? 'Rapprochement clos' : 'Rapprochement en cours'} · report à-nouveau du ${l.ecriture.date
+              .toISOString()
+              .slice(0, 10)} pointé`,
+            date: l.ecriture.date.toISOString().slice(0, 10),
+            montant: Number(l.debit) - Number(l.credit),
+          });
+        }
+      }
+      if (occurrences.length > 0) {
+        anomalies.push({
+          code: 'RAPPROCHEMENT_A_NOUVEAU_POINTE',
+          gravite: 'AVERTISSEMENT',
+          libelle: "Rapprochement bancaire qui compte l'ouverture deux fois",
+          consequence:
+            "Un report à-nouveau recopie le solde de clôture de l'exercice précédent · ce n'est pas une opération de la banque. " +
+            "Pointé, il ajoute l'ouverture au solde de départ qui la contient déjà, et l'écart du rapprochement se referme sur un chiffre faux.",
+          action:
+            "Rapprochement en cours · dépointez la ligne. Rapprochement clos · l'administrateur rouvre le dernier rapprochement clos du compte, " +
+            'motif à l\'appui, puis la ligne se dépointe ; un rapprochement plus ancien ne se rouvre pas, les suivants partent de son solde de relevé.',
+          occurrences,
         });
       }
     }

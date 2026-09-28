@@ -43,6 +43,7 @@ export const LIBELLES_OBJETS_AUDITES: Readonly<Record<string, string>> = {
   Regularisation: 'Régularisation',
   Reevaluation: 'Réévaluation',
   RapprochementBancaire: 'Rapprochement bancaire',
+  EncoursOuvertureRapprochement: "En-cours d'ouverture d'un rapprochement",
   Immobilisation: 'Immobilisation',
   Donation: 'Donation',
   TranscriptionInventaire: "Livre d'inventaire",

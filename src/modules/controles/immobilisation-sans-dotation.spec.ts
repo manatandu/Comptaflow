@@ -61,6 +61,8 @@ function service(immobilisations: Immo[]) {
     // le testent pas ; une doublure muette sur une lecture réelle validerait
     // un service qui n'existe pas.
     mandatAuditeur: { findMany: jest.fn().mockResolvedValue([]) },
+    // Le contrôle 30 lit les rapprochements qui tiennent un à-nouveau · aucun ici.
+    rapprochementBancaire: { findMany: jest.fn().mockResolvedValue([]) },
     // Le contrôle 12 (bien repris sans amortissement antérieur) interroge la
     // même table · il filtre sur dateMiseEnService < ouverture du dossier, que
     // ce faux ignore. Ses signalements éventuels ne gênent pas : on ne lit ici

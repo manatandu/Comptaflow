@@ -70,6 +70,8 @@ function service(biens: Bien[], referentiel: Referentiel = Referentiel.SYSCOHADA
     // le testent pas ; une doublure muette sur une lecture réelle validerait
     // un service qui n'existe pas.
     mandatAuditeur: { findMany: jest.fn().mockResolvedValue([]) },
+    // Le contrôle 30 lit les rapprochements qui tiennent un à-nouveau · aucun ici.
+    rapprochementBancaire: { findMany: jest.fn().mockResolvedValue([]) },
     depreciationImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },
     reevaluationImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },
     immobilisation: {

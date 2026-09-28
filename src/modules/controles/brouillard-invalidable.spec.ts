@@ -49,6 +49,8 @@ function analyser(statutExercice: 'OUVERT' | 'CLOTURE', ecritures: Faux[]) {
     manuelProcedures: { findFirst: jest.fn().mockResolvedValue(null) },
     conventionFinancement: { findMany: jest.fn().mockResolvedValue([]) },
     mandatAuditeur: { findMany: jest.fn().mockResolvedValue([]) },
+    // Le contrôle 30 lit les rapprochements qui tiennent un à-nouveau · aucun ici.
+    rapprochementBancaire: { findMany: jest.fn().mockResolvedValue([]) },
     immobilisation: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
   } as Faux;
   return new ControlesService(prisma as unknown as PrismaService).analyser('t', 'ex');

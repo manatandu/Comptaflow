@@ -61,6 +61,8 @@ function servicePagine(ecritures: ReturnType<typeof ecriture>[]) {
     manuelProcedures: { findFirst: jest.fn().mockResolvedValue(null) },
     conventionFinancement: { findMany: jest.fn().mockResolvedValue([]) },
     mandatAuditeur: { findMany: jest.fn().mockResolvedValue([]) },
+    // Le contrôle 30 lit les rapprochements qui tiennent un à-nouveau · aucun ici.
+    rapprochementBancaire: { findMany: jest.fn().mockResolvedValue([]) },
   } as unknown as PrismaService;
   return { svc: new ControlesService(prisma), appels };
 }

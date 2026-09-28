@@ -64,6 +64,10 @@ export const MODELES_AUDITES = new Set<string>([
   'Regularisation',
   'Reevaluation',
   'RapprochementBancaire',
+  // L'en-cours d'ouverture est une DÉCLARATION, comme le solde de départ qu'il
+  // explique · retouché après coup, il referme l'écart d'ouverture sans
+  // qu'aucune écriture n'ait bougé, et rien d'autre n'en garderait la trace.
+  'EncoursOuvertureRapprochement',
   // Les registres légaux et fiscaux.
   'Immobilisation',
   'Donation',

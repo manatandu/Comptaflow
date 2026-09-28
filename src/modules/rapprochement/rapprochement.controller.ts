@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -7,9 +7,13 @@ import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-
 import { RapprochementService } from './rapprochement.service';
 import {
   ConfirmerCorrespondancesDto,
+  DeclarerDepartDto,
+  DeclarerEncoursDto,
   ImporterReleveDto,
   OuvrirRapprochementDto,
   PointerDto,
+  PointerEncoursDto,
+  RouvrirRapprochementDto,
 } from './dto/rapprochement.dto';
 import { RoleUtilisateur } from '@prisma/client';
 
@@ -52,6 +56,50 @@ export class RapprochementController {
   @Post(':id/cloturer')
   async cloturer(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.rapprochementService.cloturer(user.tenantId, id);
+  }
+
+  // RÉOUVERTURE · administrateur seul. Rouvrir un état arrêté défait ce qui
+  // a été constaté, et c'est lui qui en répond · même partage que la
+  // structure du dossier, réservée à l'administrateur.
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
+  @Post(':id/rouvrir')
+  async rouvrir(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: RouvrirRapprochementDto) {
+    return this.rapprochementService.rouvrir(user.tenantId, user.userId, id, dto.motif);
+  }
+
+  // OUVERTURE DU PREMIER RAPPROCHEMENT · solde de départ et en-cours.
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Patch(':id/depart')
+  async declarerDepart(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: DeclarerDepartDto) {
+    return this.rapprochementService.declarerDepart(user.tenantId, id, dto);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post(':id/encours')
+  async declarerEncours(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: DeclarerEncoursDto) {
+    return this.rapprochementService.declarerEncours(user.tenantId, user.userId, id, dto);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Delete(':id/encours/:encoursId')
+  async retirerEncours(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('encoursId') encoursId: string,
+  ) {
+    return this.rapprochementService.retirerEncours(user.tenantId, id, encoursId);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post(':id/encours/pointer')
+  async pointerEncours(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: PointerEncoursDto) {
+    return this.rapprochementService.pointerEncours(user.tenantId, id, dto.encoursIds);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post(':id/encours/depointer')
+  async depointerEncours(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: PointerEncoursDto) {
+    return this.rapprochementService.depointerEncours(user.tenantId, id, dto.encoursIds);
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)

@@ -71,8 +71,9 @@ describe('l’inventaire couvre le schéma, sans trou ni surplus', () => {
     // à 116 avec les versions de barème de paie du cabinet, bornées de même,
     // et à 117 avec les simulations budgétaires, 119 avec les lots de virements, 120 avec les lieux des biens, 121 avec les bulletins modèles,
     // 122 avec le registre des licences sur site, HORS DOSSIER et donc hors archive,
-    // 126 avec les formules, abonnements, options et factures d'abonnement de l'éditeur, hors dossier de même.
-    expect(modeles).toHaveLength(126);
+    // 126 avec les formules, abonnements, options et factures d'abonnement de l'éditeur, hors dossier de même,
+    // 127 avec les en-cours d'ouverture du premier rapprochement bancaire, bornés par leur tenantId.
+    expect(modeles).toHaveLength(127);
     expect([...TABLES_RESTITUEES].sort()).toEqual(modeles.filter((m) => m !== 'Tenant' && !(m in MODELES_HORS_DOSSIER)).sort());
     for (const m of Object.keys(MODELES_HORS_DOSSIER)) {
       expect(modeles).toContain(m);

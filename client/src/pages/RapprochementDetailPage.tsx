@@ -4,7 +4,12 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import type { DetailRapprochement, PropositionsRapprochement } from '../lib/types';
 import { Aide } from '../components/chrome/Aide';
-import { mentionANouveauxEcartes } from '../lib/rapprochement-a-nouveau';
+import { PortailModale } from '../components/PortailModale';
+import {
+  mentionANouveauxEcartes,
+  mentionFonduesDansLeDepart,
+  motifOuvertureBloquante,
+} from '../lib/rapprochement-a-nouveau';
 import { montant as fmt, montantOuVide } from '../lib/montants';
 
 /**
@@ -19,7 +24,7 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
   const params = useParams<{ id: string }>();
   const id = idProp ?? params.id;
   const navigate = useNavigate();
-  const { peutEcrire } = useAuth();
+  const { peutEcrire, estAdmin } = useAuth();
   const [detail, setDetail] = useState<DetailRapprochement | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -42,6 +47,12 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
 
   const enCours = detail?.rapprochement.statut === 'EN_COURS';
   const mentionANouveau = detail ? mentionANouveauxEcartes(detail.aNouveauEcartes) : null;
+  const mentionFondues = detail ? mentionFonduesDansLeDepart(detail.fonduesDansLeDepart) : null;
+  const ouvertureBloquante = detail ? motifOuvertureBloquante(detail) : null;
+  const encours = detail?.encours ?? [];
+
+  // --- Réouverture d'un rapprochement clos (administrateur, motif) --------
+  const [reouverture, setReouverture] = useState<string | null>(null);
 
   // --- Relevé importé et correspondances ---------------------------------
   const [propositions, setPropositions] = useState<PropositionsRapprochement | null>(null);
@@ -53,6 +64,9 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
   // compte qui la composent (une remise de chèques en compte plusieurs).
   const [associationPour, setAssociationPour] = useState<string | null>(null);
   const [choixEcritures, setChoixEcritures] = useState<Set<string>>(new Set());
+  // Les en-cours d'ouverture se choisissent à part · le serveur les reçoit
+  // dans `encoursIds`, jamais mêlés aux lignes d'écriture.
+  const [choixEncours, setChoixEncours] = useState<Set<string>>(new Set());
 
   const executer = async (action: () => Promise<unknown>, succes?: string) => {
     setErreur(null);
@@ -95,23 +109,24 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
     if (!propositions) return;
     const correspondances = propositions.propositions
       .filter((p) => retenues.has(p.ligneReleveId))
-      .map((p) => ({ ligneReleveId: p.ligneReleveId, ligneEcritureIds: p.ligneEcritureIds }));
+      .map((p) => ({ ligneReleveId: p.ligneReleveId, ligneEcritureIds: p.ligneEcritureIds, encoursIds: p.encoursIds ?? [] }));
     if (correspondances.length === 0) return;
     await executer(() => api.post(`/rapprochements/${id}/correspondances`, { correspondances }), `${correspondances.length} correspondance(s) confirmée(s).`);
     setPropositions(null);
   };
 
   const validerAssociation = async () => {
-    if (!associationPour || choixEcritures.size === 0) return;
+    if (!associationPour || choixEcritures.size + choixEncours.size === 0) return;
     await executer(
       () =>
         api.post(`/rapprochements/${id}/correspondances`, {
-          correspondances: [{ ligneReleveId: associationPour, ligneEcritureIds: [...choixEcritures] }],
+          correspondances: [{ ligneReleveId: associationPour, ligneEcritureIds: [...choixEcritures], encoursIds: [...choixEncours] }],
         }),
       'Correspondance confirmée.',
     );
     setAssociationPour(null);
     setChoixEcritures(new Set());
+    setChoixEncours(new Set());
   };
 
   const basculerPointage = async (ligneId: string, pointee: boolean) => {
@@ -124,6 +139,24 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Impossible de modifier le pointage de cette ligne');
     }
+  };
+
+  const basculerEncours = async (encoursId: string, pointee: boolean) => {
+    if (!id || !enCours) return;
+    setErreur(null);
+    setInfo(null);
+    try {
+      await api.post(`/rapprochements/${id}/encours/${pointee ? 'depointer' : 'pointer'}`, { encoursIds: [encoursId] });
+      await charger();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : "Impossible de modifier le pointage de cet en-cours");
+    }
+  };
+
+  const rouvrir = async () => {
+    if (!id || reouverture === null) return;
+    await executer(() => api.post(`/rapprochements/${id}/rouvrir`, { motif: reouverture }), 'Rapprochement rouvert.');
+    setReouverture(null);
   };
 
   const cloturer = async () => {
@@ -178,7 +211,18 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
             Relevé du {new Date(detail.rapprochement.dateReleve).toLocaleDateString('fr-FR')} · solde{' '}
             <span className="font-mono font-semibold">{fmt(detail.rapprochement.soldeReleve)}</span>{' '}
             {detail.rapprochement.statut === 'CLOTURE' && <span className="font-mono font-bold text-text-dim">(Clôturé)</span>}
+            {estAdmin && detail.rapprochement.statut === 'CLOTURE' && (
+              <button onClick={() => setReouverture('')} className="ml-3 border border-border px-2.5 py-[2px] text-[11.5px] hover:bg-chrome-alt">
+                Rouvrir
+              </button>
+            )}
           </div>
+          {/* La réouverture reste sur la ligne · un état arrêté puis rouvert ne se lit pas comme un état jamais clos. */}
+          {detail.rapprochement.rouvertAt && (
+            <div className="text-[11.5px] text-warning mb-3 max-w-[900px]">
+              Rouvert le {new Date(detail.rapprochement.rouvertAt).toLocaleDateString('fr-FR')} · {detail.rapprochement.motifReouverture}
+            </div>
+          )}
 
           {info && <div className="text-[11.5px] text-positive bg-positive-soft border border-positive/30 px-3 py-2 mb-3 max-w-[900px]">{info}</div>}
 
@@ -203,6 +247,19 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
             </div>
           </div>
 
+          {detail.premier && (
+            <BlocOuverture
+              detail={detail}
+              modifiable={!!peutEcrire && !!enCours}
+              envoi={envoi}
+              onDeclarer={(soldeDepart, dateDepart) =>
+                executer(() => api.patch(`/rapprochements/${id}/depart`, { soldeDepart, dateDepart }), 'Solde de départ enregistré.')
+              }
+              onAjouterEncours={(corps) => executer(() => api.post(`/rapprochements/${id}/encours`, corps), 'En-cours déclaré.')}
+              onRetirerEncours={(encoursId) => executer(() => api.delete(`/rapprochements/${id}/encours/${encoursId}`), 'En-cours retiré.')}
+            />
+          )}
+
           <BlocReleve
             detail={detail}
             modifiable={!!peutEcrire && !!enCours}
@@ -214,6 +271,7 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
             setFenetreJours={setFenetreJours}
             associationPour={associationPour}
             choixEcritures={choixEcritures}
+            choixEncours={choixEncours}
             onImporter={importerReleve}
             onRetirer={() => executer(() => api.delete(`/rapprochements/${id}/releve`), 'Relevé retiré.')}
             onProposer={proposer}
@@ -222,11 +280,13 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
             onAssocier={(rid) => {
               setAssociationPour(rid);
               setChoixEcritures(new Set());
+              setChoixEncours(new Set());
             }}
             onValiderAssociation={validerAssociation}
             onAbandonnerAssociation={() => {
               setAssociationPour(null);
               setChoixEcritures(new Set());
+              setChoixEncours(new Set());
             }}
           />
 
@@ -283,7 +343,46 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
                 <span className="font-mono text-right">{montantOuVide(l.credit)}</span>
               </div>
             ))}
-            {detail.lignes.length === 0 && (
+            {/* Les en-cours d'ouverture se pointent comme des lignes du compte · aucune écriture ne les porte. */}
+            {encours.map((e) => (
+              <div
+                key={e.id}
+                className={`grid grid-cols-[26px_70px_46px_1.4fr_100px_100px] min-w-[570px] gap-2.5 px-3.5 py-1.5 items-center border-b border-border last:border-b-0 text-[11.5px] ${
+                  e.pointee ? 'bg-positive-soft' : 'bg-surface'
+                }`}
+              >
+                {associationPour ? (
+                  <input
+                    type="checkbox"
+                    aria-label="Choisir pour la correspondance"
+                    disabled={e.pointee}
+                    checked={choixEncours.has(e.id)}
+                    onChange={() =>
+                      setChoixEncours((prev) => {
+                        const n = new Set(prev);
+                        if (n.has(e.id)) n.delete(e.id);
+                        else n.add(e.id);
+                        return n;
+                      })
+                    }
+                  />
+                ) : (
+                  <input
+                    type="checkbox"
+                    aria-label="Pointer l'en-cours"
+                    disabled={!enCours || !peutEcrire}
+                    checked={e.pointee}
+                    onChange={() => basculerEncours(e.id, e.pointee)}
+                  />
+                )}
+                <span className="font-mono text-[11px] text-text-dim">{new Date(e.date).toLocaleDateString('fr-FR')}</span>
+                <span className="text-text-dim">En-cours</span>
+                <span className="truncate">{e.libelle}</span>
+                <span className="font-mono text-right">{montantOuVide(e.debit)}</span>
+                <span className="font-mono text-right">{montantOuVide(e.credit)}</span>
+              </div>
+            ))}
+            {detail.lignes.length === 0 && encours.length === 0 && (
               <div className="p-3 text-[11.5px] text-text-dim">Aucun mouvement pointable sur ce compte.</div>
             )}
             {/* Une tranche se dit (audit final F185) · les soldes ci-dessus
@@ -302,29 +401,81 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
                 <span>{mentionANouveau}</span>
                 <Aide
                   titre="Report à-nouveau écarté"
-                  texte="Le report à-nouveau recopie le solde de clôture de l'exercice précédent · ce n'est pas une opération de la banque. Après un rapprochement clos, le solde de départ le contient déjà. Sans rapprochement antérieur, seul celui du premier exercice du dossier, qui porte le bilan d'ouverture, se pointe · les suivants recopient des lignes qui se pointent une à une. Pointé, il compterait l'ouverture deux fois."
+                  texte="Le report à-nouveau recopie le solde de clôture de l'exercice précédent · ce n'est pas une opération de la banque. Après un rapprochement clos, le solde de départ le contient déjà. Sur le premier rapprochement du compte, c'est le solde de départ lu sur le relevé qui le remplace. Pointé, il compterait l'ouverture deux fois."
                   source="AUDCIF Titre VI, Rapprochement (État de) · AUDCIF art. 34, SYCEBNL art. 16, 4°"
                 />
               </div>
             )}
+            {mentionFondues && <div className="px-3 py-1 text-[11px] text-text-dim">{mentionFondues}</div>}
           </div>
 
           {peutEcrire && enCours && (
             <div className="mt-3 flex items-center gap-2 max-w-[900px]">
               <button
                 onClick={cloturer}
-                disabled={!detail.equilibre || envoi}
-                title={detail.equilibre ? undefined : "L'écart doit être nul pour clôturer"}
+                disabled={!detail.equilibre || ouvertureBloquante !== null || envoi}
+                title={ouvertureBloquante ?? (detail.equilibre ? undefined : "L'écart doit être nul pour clôturer")}
                 className="bg-sel text-white text-[11.5px] font-semibold px-4 py-1.5 disabled:opacity-40"
               >
                 {envoi ? '…' : 'Clôturer le rapprochement'}
               </button>
-              <button onClick={annuler} disabled={envoi} className="text-[11.5px] font-semibold text-danger px-4 py-1.5 disabled:opacity-40">
-                Annuler ce rapprochement
-              </button>
+              {/* Un rapprochement rouvert se reclôt · le serveur refuse de l'annuler. */}
+              {!detail.rapprochement.rouvertAt && (
+                <button onClick={annuler} disabled={envoi} className="text-[11.5px] font-semibold text-danger px-4 py-1.5 disabled:opacity-40">
+                  Annuler ce rapprochement
+                </button>
+              )}
             </div>
           )}
         </>
+      )}
+
+      {reouverture !== null && (
+        <PortailModale>
+          <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                rouvrir();
+              }}
+              className="anim-modale w-full max-w-[440px] bg-surface border border-border-dark shadow-flottante modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto"
+            >
+              <div className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[11.5px]">
+                <span className="flex items-center gap-1.5">
+                  Rouvrir le rapprochement
+                  <Aide
+                    titre="Réouverture"
+                    texte="Seul le dernier rapprochement clos du compte se rouvre, par l'administrateur, et jamais sur un exercice ou une période clôturés · un rapprochement plus ancien changerait le solde de départ des suivants. Le motif reste sur le rapprochement et au journal d'audit. Une fois rouvert, une ligne pointée à tort se dépointe, puis le rapprochement se reclôt."
+                    source="OmegaX"
+                  />
+                </span>
+                <button type="button" onClick={() => setReouverture(null)} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">
+                  ✕
+                </button>
+              </div>
+              <div className="p-4">
+                <label className="text-[11.5px] font-semibold text-text-dim block">
+                  Motif
+                  <textarea
+                    required
+                    value={reouverture}
+                    onChange={(e) => setReouverture(e.target.value)}
+                    maxLength={500}
+                    className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal min-h-[70px]"
+                  />
+                </label>
+                <div className="flex gap-2 mt-3">
+                  <button type="submit" disabled={envoi || reouverture.trim() === ''} className="bg-sel text-white text-[11.5px] font-semibold px-4 py-1.5 disabled:opacity-40">
+                    Rouvrir
+                  </button>
+                  <button type="button" onClick={() => setReouverture(null)} className="text-[11.5px] font-semibold text-text-dim px-4 py-1.5">
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </PortailModale>
       )}
     </div>
   );
@@ -348,6 +499,7 @@ function BlocReleve(props: {
   setFenetreJours: (n: number) => void;
   associationPour: string | null;
   choixEcritures: Set<string>;
+  choixEncours: Set<string>;
   onImporter: (f: File) => void;
   onRetirer: () => void;
   onProposer: () => void;
@@ -360,12 +512,20 @@ function BlocReleve(props: {
   const { detail, modifiable, propositions, retenues } = props;
   const parReleve = new Map((propositions?.propositions ?? []).map((p) => [p.ligneReleveId, p]));
   const lignesCompte = new Map(detail.lignes.map((l) => [l.id, l]));
-  const aComptabiliser = detail.releve.filter((r) => r.ligneEcritureIds.length === 0 && !parReleve.has(r.id));
+  const encoursCompte = new Map((detail.encours ?? []).map((e) => [e.id, e]));
+  const rapprochee = (r: { ligneEcritureIds: string[]; encoursIds?: string[] }) =>
+    r.ligneEcritureIds.length + (r.encoursIds ?? []).length > 0;
+  const aComptabiliser = detail.releve.filter((r) => !rapprochee(r) && !parReleve.has(r.id));
   const ligneAssociee = detail.releve.find((r) => r.id === props.associationPour);
-  const sommeChoix = [...props.choixEcritures].reduce((acc, lid) => {
-    const l = lignesCompte.get(lid);
-    return l ? acc + l.debit - l.credit : acc;
-  }, 0);
+  const sommeChoix =
+    [...props.choixEcritures].reduce((acc, lid) => {
+      const l = lignesCompte.get(lid);
+      return l ? acc + l.debit - l.credit : acc;
+    }, 0) +
+    [...props.choixEncours].reduce((acc, eid) => {
+      const e = encoursCompte.get(eid);
+      return e ? acc + e.debit - e.credit : acc;
+    }, 0);
 
   return (
     <div className="max-w-[900px] mb-3 border border-border bg-surface shadow-posee">
@@ -450,7 +610,7 @@ function BlocReleve(props: {
                 Associer « {ligneAssociee.libelle} » ({fmt(ligneAssociee.credit - ligneAssociee.debit)} vu du compte) · cochez les écritures ci-dessous.
                 Sélection : <b>{fmt(sommeChoix)}</b>
               </span>
-              <button onClick={props.onValiderAssociation} disabled={props.envoi || props.choixEcritures.size === 0} className="bg-sel text-white px-3 py-[3px] font-semibold disabled:opacity-40">
+              <button onClick={props.onValiderAssociation} disabled={props.envoi || props.choixEcritures.size + props.choixEncours.size === 0} className="bg-sel text-white px-3 py-[3px] font-semibold disabled:opacity-40">
                 Valider
               </button>
               <button onClick={props.onAbandonnerAssociation} className="border border-border px-2.5 py-[3px]">
@@ -482,7 +642,7 @@ function BlocReleve(props: {
                       <td className="px-2 py-1 text-right">{r.debit ? fmt(r.debit) : ''}</td>
                       <td className="px-2 py-1 text-right">{r.credit ? fmt(r.credit) : ''}</td>
                       <td className="px-2 py-1">
-                        {r.ligneEcritureIds.length > 0 ? (
+                        {rapprochee(r) ? (
                           <span className="inline-flex items-center gap-2">
                             <span className="rounded-full bg-positive-soft text-positive px-2 py-[1px] font-semibold">Rapprochée</span>
                             {modifiable && (
@@ -531,6 +691,186 @@ function BlocReleve(props: {
             )}
           </div>
         </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * L'OUVERTURE DU PREMIER RAPPROCHEMENT · le solde de départ lu sur le relevé,
+ * les en-cours que la banque n'avait pas encore passés, et l'écart d'ouverture
+ * que le serveur calcule (livre à la veille moins départ et en-cours). Rien ne
+ * se déduit de l'à-nouveau · c'est un solde comptable, pas un solde de banque.
+ */
+function BlocOuverture(props: {
+  detail: DetailRapprochement;
+  modifiable: boolean;
+  envoi: boolean;
+  onDeclarer: (soldeDepart: number, dateDepart: string) => void;
+  onAjouterEncours: (corps: { libelle: string; date: string; montant: number; sens: 'DEBIT' | 'CREDIT' }) => void;
+  onRetirerEncours: (encoursId: string) => void;
+}) {
+  const { detail, modifiable } = props;
+  const o = detail.ouverture ?? null;
+  const [solde, setSolde] = useState(() =>
+    detail.rapprochement.soldeDepartDeclare == null ? '' : String(detail.rapprochement.soldeDepartDeclare),
+  );
+  const [date, setDate] = useState(() => detail.rapprochement.dateDepart?.slice(0, 10) ?? '');
+  const [libelle, setLibelle] = useState('');
+  const [dateEncours, setDateEncours] = useState('');
+  const [montantEncours, setMontantEncours] = useState('');
+  const [sens, setSens] = useState<'DEBIT' | 'CREDIT'>('CREDIT');
+  // Un champ vide n'est pas zéro · le bouton reste désactivé au lieu d'envoyer 0.
+  const soldeLu = solde.trim() === '' ? NaN : Number(solde.replace(',', '.'));
+  const montantLu = montantEncours.trim() === '' ? NaN : Number(montantEncours.replace(',', '.'));
+  const declares = (detail.encours ?? []).filter((e) => e.declareIci);
+  const ecartNul = o !== null && o.ecart !== null && Math.abs(o.ecart) < 0.005;
+
+  return (
+    <div className="max-w-[900px] mb-3 border border-border bg-surface shadow-posee">
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-border">
+        <span className="text-[12px] font-semibold">Ouverture</span>
+        <Aide
+          titre="Solde de départ et en-cours"
+          texte="Premier rapprochement du compte · il part du solde que la banque portait à l'ouverture de la date de départ, lu sur le relevé (positif quand le compte est créditeur à la banque). Les lignes du compte datées avant cette date y sont comprises et ne se pointent pas. Les opérations du livre antérieures à cette date que la banque n'avait pas encore passées (chèque émis non présenté, remise non créditée) se déclarent en en-cours, dans le sens du compte, et se pointent quand la banque les passe · aucune écriture n'est créée. Le solde du compte au livre-journal à la veille doit égaler le solde de départ plus les en-cours, sans quoi la clôture est refusée."
+          source="OmegaX · pratique d'Odoo, Xero, Sage 100 et Sage 50"
+        />
+      </div>
+
+      {modifiable && (
+        <div className="flex flex-wrap items-end gap-2 px-3 pt-2 text-[11.5px]">
+          <label className="text-text-dim">
+            Date de départ
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="block mt-0.5 border border-border px-1.5 py-[2px]" />
+          </label>
+          <label className="text-text-dim">
+            Solde de départ
+            <input
+              type="number"
+              step="0.01"
+              value={solde}
+              onChange={(e) => setSolde(e.target.value)}
+              className="block mt-0.5 w-[140px] border border-border px-1.5 py-[2px] text-right"
+            />
+          </label>
+          <button
+            onClick={() => props.onDeclarer(soldeLu, date)}
+            disabled={props.envoi || !date || !Number.isFinite(soldeLu)}
+            className="border border-border px-2.5 py-[3px] disabled:opacity-40"
+          >
+            Enregistrer
+          </button>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-5 px-3 py-2 text-[11.5px]">
+        <div>
+          <div className="text-[11px] text-text-dim font-semibold">Livre à la veille</div>
+          <div className="font-mono">{fmt(o?.soldeLivre)}</div>
+        </div>
+        <div>
+          <div className="text-[11px] text-text-dim font-semibold">Solde de départ</div>
+          <div className="font-mono">{fmt(o?.soldeDepart)}</div>
+        </div>
+        <div>
+          <div className="text-[11px] text-text-dim font-semibold">En-cours</div>
+          <div className="font-mono">{fmt(o?.encours)}</div>
+        </div>
+        <div>
+          <div className="text-[11px] text-text-dim font-semibold">Écart d'ouverture</div>
+          <div className={`font-mono font-bold ${ecartNul ? 'text-positive' : 'text-danger'}`}>{fmt(o?.ecart)}</div>
+        </div>
+        {o?.motif && <span className="text-warning">{o.motif}</span>}
+      </div>
+
+      {(declares.length > 0 || modifiable) && (
+        <div className="overflow-x-auto px-3 pb-2">
+          <table className="w-full min-w-[560px] text-[11.5px]">
+            <thead>
+              <tr>
+                <th className="text-left px-2 py-1 w-[110px]">Date</th>
+                <th className="text-left px-2 py-1">En-cours d'ouverture</th>
+                <th className="text-right px-2 py-1 w-[100px]">Débit</th>
+                <th className="text-right px-2 py-1 w-[100px]">Crédit</th>
+                <th className="px-2 py-1 w-[80px]" />
+              </tr>
+            </thead>
+            <tbody>
+              {declares.map((e) => (
+                <tr key={e.id}>
+                  <td className="px-2 py-1">{new Date(e.date).toLocaleDateString('fr-FR')}</td>
+                  <td className="px-2 py-1 truncate max-w-[280px]">{e.libelle}</td>
+                  <td className="px-2 py-1 text-right">{montantOuVide(e.debit)}</td>
+                  <td className="px-2 py-1 text-right">{montantOuVide(e.credit)}</td>
+                  <td className="px-2 py-1 text-right">
+                    {modifiable && !e.pointee && (
+                      <button onClick={() => props.onRetirerEncours(e.id)} disabled={props.envoi} className="text-text-dim underline">
+                        retirer
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {modifiable && (
+                <tr>
+                  <td className="px-2 py-1">
+                    <input
+                      type="date"
+                      aria-label="Date de l'en-cours"
+                      value={dateEncours}
+                      onChange={(e) => setDateEncours(e.target.value)}
+                      className="w-full border border-border px-1 py-[1px]"
+                    />
+                  </td>
+                  <td className="px-2 py-1">
+                    <input
+                      aria-label="Libellé de l'en-cours"
+                      value={libelle}
+                      onChange={(e) => setLibelle(e.target.value)}
+                      maxLength={200}
+                      className="w-full border border-border px-1.5 py-[1px]"
+                    />
+                  </td>
+                  <td className="px-2 py-1" colSpan={2}>
+                    <div className="flex gap-1">
+                      <select
+                        aria-label="Sens de l'en-cours"
+                        value={sens}
+                        onChange={(e) => setSens(e.target.value as 'DEBIT' | 'CREDIT')}
+                        className="border border-border px-1 py-[1px]"
+                      >
+                        <option value="CREDIT">Sortie</option>
+                        <option value="DEBIT">Entrée</option>
+                      </select>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        aria-label="Montant de l'en-cours"
+                        value={montantEncours}
+                        onChange={(e) => setMontantEncours(e.target.value)}
+                        className="w-full border border-border px-1.5 py-[1px] text-right"
+                      />
+                    </div>
+                  </td>
+                  <td className="px-2 py-1 text-right">
+                    <button
+                      onClick={() => {
+                        props.onAjouterEncours({ libelle, date: dateEncours, montant: montantLu, sens });
+                        setLibelle('');
+                        setMontantEncours('');
+                      }}
+                      disabled={props.envoi || !libelle.trim() || !dateEncours || !(montantLu > 0)}
+                      className="border border-border px-2 py-[2px] disabled:opacity-40"
+                    >
+                      Ajouter
+                    </button>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

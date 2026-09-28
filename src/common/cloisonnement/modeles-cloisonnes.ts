@@ -65,6 +65,9 @@ export const MODELES_CLOISONNES = new Set<string>([
   'RegleCorrespondanceIfrs',
   'RetraitementIfrs',
   'LigneReleveBancaire',
+  // En-cours d'ouverture du premier rapprochement (2026-09-28) · la ligne
+  // porte son tenantId, comme le rapprochement qui la déclare.
+  'EncoursOuvertureRapprochement',
   'LigneRetraitementIfrs',
   'MouvementCapitauxPropresIfrs',
   'EffetChangeTresorerieIfrs',

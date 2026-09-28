@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { mentionANouveauxEcartes } from './rapprochement-a-nouveau';
+import { mentionANouveauxEcartes, mentionFonduesDansLeDepart, motifOuvertureBloquante } from './rapprochement-a-nouveau';
 
 // Aucun import de « vitest » · convention du dépôt, `globals` fournit describe,
 // it et expect.
@@ -42,5 +42,40 @@ describe("la fenêtre du rapprochement porte la mention que le serveur compte", 
     expect(debut).toBeGreaterThan(0);
     const fin = types.indexOf('\n}', debut);
     expect(types.slice(debut, fin)).toContain('aNouveauEcartes: number;');
+  });
+});
+
+describe('le premier rapprochement · lignes fondues et ouverture bloquante', () => {
+  it('les lignes fondues dans le départ se disent, le nombre seul', () => {
+    expect(mentionFonduesDansLeDepart(undefined)).toBeNull();
+    expect(mentionFonduesDansLeDepart(0)).toBeNull();
+    expect(mentionFonduesDansLeDepart(1)).toBe('1 ligne antérieure à la date de départ, comprise dans le solde de départ.');
+    expect(mentionFonduesDansLeDepart(3)).toBe('3 lignes antérieures à la date de départ, comprises dans le solde de départ.');
+  });
+
+  it('la clôture du premier rapprochement suit le serveur · départ déclaré, écart d’ouverture nul', () => {
+    const o = (x: Partial<{ soldeDepart: number | null; ecart: number | null; motif: string | null }>) => ({
+      premier: true,
+      ouverture: { soldeDepart: 1300, ecart: 0, motif: null, ...x },
+    });
+    expect(motifOuvertureBloquante(o({}))).toBeNull();
+    expect(motifOuvertureBloquante(o({ soldeDepart: null, ecart: null }))).toBe('Déclarez le solde de départ lu sur le relevé.');
+    expect(motifOuvertureBloquante(o({ ecart: null, motif: 'Aucun exercice.' }))).toBe('Aucun exercice.');
+    expect(motifOuvertureBloquante(o({ ecart: -50 }))).toBe("L'écart d'ouverture n'est pas nul.");
+    // Un rapprochement suivant n'a pas d'ouverture à juger.
+    expect(motifOuvertureBloquante({ premier: false, ouverture: null })).toBeNull();
+  });
+
+  const page = readFileSync(join(__dirname, '../pages/RapprochementDetailPage.tsx'), 'utf8');
+
+  it('le bouton de clôture lit l’ouverture, et la réouverture est réservée à l’administrateur', () => {
+    expect(page).toContain('disabled={!detail.equilibre || ouvertureBloquante !== null || envoi}');
+    expect(page).toContain("{estAdmin && detail.rapprochement.statut === 'CLOTURE' && (");
+    expect(page).toContain('api.post(`/rapprochements/${id}/rouvrir`, { motif: reouverture })');
+  });
+
+  it('la correspondance envoie les en-cours à part des lignes d’écriture', () => {
+    expect(page).toContain('encoursIds: [...choixEncours]');
+    expect(page).toContain('encoursIds: p.encoursIds ?? []');
   });
 });

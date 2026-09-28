@@ -113,6 +113,8 @@ function serviceControles(referentiel: Referentiel, dateArreteComptes: Date | nu
     // le testent pas ; une doublure muette sur une lecture réelle validerait
     // un service qui n'existe pas.
     mandatAuditeur: { findMany: jest.fn().mockResolvedValue([]) },
+    // Le contrôle 30 lit les rapprochements qui tiennent un à-nouveau · aucun ici.
+    rapprochementBancaire: { findMany: jest.fn().mockResolvedValue([]) },
     immobilisation: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
   } as Faux;
   return new ControlesService(prisma as unknown as PrismaService);

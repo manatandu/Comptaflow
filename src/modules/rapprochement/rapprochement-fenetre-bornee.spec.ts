@@ -13,6 +13,10 @@ function monter(options: { total?: number; releve?: Array<{ id: string; date: Da
     statut: 'EN_COURS',
     soldeReleve: 500,
     clotureAt: null,
+    // Premier rapprochement du compte · son départ est DÉCLARÉ, jamais un zéro
+    // présumé (2026-09-28). Zéro ici, pour garder le calcul de la tranche.
+    soldeDepartDeclare: 0,
+    dateDepart: new Date('2026-01-01T00:00:00Z'),
   };
   const releve = (options.releve ?? []).map((r, i) => ({ ...r, rang: i, libelle: 'x', reference: null, debit: 0, credit: 100 }));
   const prisma = {
@@ -21,9 +25,11 @@ function monter(options: { total?: number; releve?: Array<{ id: string; date: Da
     rapprochementBancaire: {
       findFirst: jest.fn(async ({ where }: { where: { statut?: string } }) => (where.statut === 'CLOTURE' ? null : rapprochement)),
     },
-    // Le premier exercice du dossier, que la règle des à-nouveaux lit (audit final F205).
+    // L'exercice qui porte le livre de la veille de la date de départ.
     exercice: { findFirst: jest.fn(async () => ({ id: 'ex1' })) },
     ligneReleveBancaire: { findMany: jest.fn().mockResolvedValue(releve) },
+    // Aucun en-cours d'ouverture déclaré ici.
+    encoursOuvertureRapprochement: { findMany: jest.fn().mockResolvedValue([]) },
     ligneEcriture: {
       findMany: jest.fn().mockResolvedValue([]),
       // Le total de la tranche porte la disjonction « pointée ici ou libre » ;
