@@ -220,6 +220,23 @@ export function ImmobilisationsPage() {
   };
 
   const familleChoisie = (familles ?? []).find((x) => x.id === iFamilleId);
+
+  // LA CONTREPARTIE SE LIT DANS LA FICHE DES COMPTES 21 À 24 · liste fermée,
+  // servie par le serveur pour la famille choisie
+  // (`immobilisations/contrepartie-acquisition.ts`), la même règle que son refus.
+  const [contrepartiesAdmises, setContrepartiesAdmises] = useState<Compte[] | null>(null);
+  useEffect(() => {
+    setContrepartiesAdmises(null);
+    if (!iFamilleId) return;
+    let vivant = true;
+    api
+      .get<Compte[]>(`/immobilisations/contreparties-acquisition?familleId=${iFamilleId}`)
+      .then((c) => vivant && setContrepartiesAdmises(c))
+      .catch(() => vivant && setContrepartiesAdmises([]));
+    return () => {
+      vivant = false;
+    };
+  }, [iFamilleId]);
   const modeRetenu = iMode || familleChoisie?.modeAmortissement || 'LINEAIRE';
   const unitesServies = !(utilisateur?.tenant?.referentiel === 'SYSCOHADA' && utilisateur?.tenant?.systemeComptableSyscohada === 'MINIMAL_TRESORERIE');
 
@@ -855,9 +872,9 @@ export function ImmobilisationsPage() {
             ) : (
               <label className="text-[11.5px] font-semibold text-text-dim">
                 Financement (contrepartie)
-                <select required value={iCompteContrepartie} onChange={(e) => setICompteContrepartie(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal">
-                  <option value="" />
-                  {comptesFinancement.map((c) => (
+                <select required disabled={!iFamilleId} value={iCompteContrepartie} onChange={(e) => setICompteContrepartie(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal">
+                  <option value="">{iFamilleId ? '' : 'Choisissez d’abord la famille'}</option>
+                  {(contrepartiesAdmises ?? []).map((c) => (
                     <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
                   ))}
                 </select>

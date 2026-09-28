@@ -10,6 +10,7 @@ import {
   StatutImmobilisation,
   SystemeComptableSyscohada,
   TypeComposant,
+  TypeCompteDetailTotal,
 } from '@prisma/client';
 import { AMORTISSEMENT_SMT } from '../etats-financiers-syscohada/correspondance-smt-syscohada';
 import { motifRefusAmortissementNonLineaireSmt, motifRefusDepreciationSmt } from '../../common/systeme-minimal';
@@ -29,6 +30,7 @@ import {
 } from './dto/immobilisation.dto';
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
 import { exerciceDuDossierOuRefus } from '../../common/exercice-introuvable';
+import { motifRefusContrepartie, racinesContrepartieAcquisition } from './contrepartie-acquisition';
 
 const EPSILON = 0.005;
 
@@ -879,6 +881,33 @@ export class ImmobilisationService {
     }
   }
 
+  /**
+   * Les comptes que l'écran propose en contrepartie d'une acquisition, pour la
+   * famille choisie · la même règle que le refus de `creer`
+   * (`contrepartie-acquisition.ts`), servie une fois.
+   */
+  async contrepartiesAcquisition(tenantId: string, familleId: string) {
+    const [dossier, famille] = await Promise.all([
+      this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { referentiel: true } }),
+      this.prisma.familleImmobilisation.findFirst({
+        where: { id: familleId, tenantId },
+        select: { compteImmobilisation: { select: { numero: true } } },
+      }),
+    ]);
+    if (!dossier || !famille) throw new BadRequestException('Famille introuvable pour ce tenant');
+    const racines = racinesContrepartieAcquisition(dossier.referentiel, famille.compteImmobilisation.numero);
+    return this.prisma.compte.findMany({
+      where: {
+        tenantId,
+        typeCompte: TypeCompteDetailTotal.DETAIL,
+        estActif: true,
+        OR: racines.map((r) => ({ numero: { startsWith: r } })),
+      },
+      select: { id: true, numero: true, intitule: true },
+      orderBy: { numero: 'asc' },
+    });
+  }
+
   async creer(
     tenantId: string,
     userId: string,
@@ -967,6 +996,14 @@ export class ImmobilisationService {
         where: { id: dto.compteContrepartieId, tenantId },
       });
       if (!compteContrepartie) throw new BadRequestException('Compte de contrepartie introuvable pour ce tenant');
+      // LA CONTREPARTIE EST UNE LISTE FERMÉE (contrepartie-acquisition.ts).
+      const [dossier, compteImmo] = await Promise.all([
+        this.regimeComptable(tenantId),
+        this.prisma.compte.findFirst({ where: { id: famille.compteImmobilisationId, tenantId }, select: { numero: true } }),
+      ]);
+      if (!compteImmo) throw new BadRequestException("Compte d'immobilisation de la famille introuvable pour ce tenant");
+      const motif = motifRefusContrepartie(dossier.referentiel, compteImmo.numero, compteContrepartie.numero);
+      if (motif) throw new BadRequestException(motif);
     }
 
     // APPROCHE PAR COMPOSANTS · seulement si un principal est désigné. Sans

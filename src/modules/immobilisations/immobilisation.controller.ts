@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -93,6 +93,12 @@ export class ImmobilisationController {
   @Patch(':id/lieu')
   async affecterLieu(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: AffecterLieuDto) {
     return this.immobilisationService.affecterLieu(user.tenantId, id, dto.lieuId ?? null);
+  }
+
+  /** Contreparties admises pour une acquisition de la famille donnée. */
+  @Get('contreparties-acquisition')
+  async contrepartiesAcquisition(@CurrentUser() user: AuthenticatedUser, @Query('familleId', ParseUUIDPipe) familleId: string) {
+    return this.immobilisationService.contrepartiesAcquisition(user.tenantId, familleId);
   }
 
   @Get()

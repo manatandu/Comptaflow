@@ -47,9 +47,18 @@ function harnais() {
       findFirst: jest
         .fn()
         .mockImplementation(({ where }: { where: { id: string; tenantId: string } }) =>
-          Promise.resolve(where.id === 'c521' && where.tenantId === 't1' ? { id: 'c521', numero: '52110000' } : null),
+          Promise.resolve(
+            where.tenantId !== 't1'
+              ? null
+              : where.id === 'c521'
+                ? { id: 'c521', numero: '52110000' }
+                : where.id === 'cimmo'
+                  ? { id: 'cimmo', numero: '24420000' }
+                  : null,
+          ),
         ),
     },
+    tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel: 'SYSCOHADA' }) },
     immobilisation: {
       create: jest.fn().mockImplementation(({ data }: { data: Faux }) => {
         creations.push(data);
