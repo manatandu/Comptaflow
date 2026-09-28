@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit, Optional } from '@nestjs/common';
 import { normaliserCourriel } from '../../common/courriel';
 import { SANS_DOUBLE_AUTH } from '../auth/double-authentification';
+import { DECOMPTE_REMIS_A_ZERO } from '../auth/verrouillage';
 import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
 import { FormeJuridiqueSyscohada, Referentiel, RoleUtilisateur, StatutEcriture, StatutLicence, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
@@ -550,8 +551,7 @@ export class PlateformeService implements OnModuleInit {
           motDePasse: bcrypt.hashSync(dto.motDePasseProvisoire, 12),
           doitChangerMotDePasse: true,
           sessionsInvalidesAvant: new Date(),
-          tentativesEchouees: 0,
-          verrouilleJusqua: null,
+          ...DECOMPTE_REMIS_A_ZERO,
           ...SANS_DOUBLE_AUTH,
         },
       }),

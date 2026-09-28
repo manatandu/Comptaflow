@@ -66,6 +66,9 @@ describe('AuthService · changement de mot de passe', () => {
     // qui il est en donnant l'ancien mot de passe.
     expect(capture.data!.tentativesEchouees).toBe(0);
     expect(capture.data!.verrouilleJusqua).toBeNull();
+    // Et le délai d'oubli repart de rien · un mot de passe changé efface
+    // l'historique des échecs (verrouillage.ts).
+    expect(capture.data!.dernierEchecLe).toBeNull();
     // Une session neuve est rendue, sans quoi le titulaire serait éjecté par
     // son propre geste.
     expect(resultat).toMatchObject({ change: true, accessToken: 'jeton-neuf' });

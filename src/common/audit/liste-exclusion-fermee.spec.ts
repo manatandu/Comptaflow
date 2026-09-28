@@ -56,6 +56,9 @@ describe('la liste d’exclusion est fermée sur User', () => {
     'sessionsInvalidesAvant',
     'tentativesEchouees',
     'verrouilleJusqua',
+    // Délai d'oubli du verrou (verrouillage.ts) · ADMIS comme ses deux
+    // voisines : un décompte d'échecs remis à zéro à la main se relit.
+    'dernierEchecLe',
     'createdAt',
     // Profil de fonctions (point 15) · ADMIS : qui a ouvert ou fermé quelle
     // fonction à qui est exactement ce qu'un journal d'audit doit rendre.

@@ -1803,6 +1803,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Constat :** contraire à l'intention écrite.
 - **Correction :** empreinte factice, et message identique.
 - **Fait le 2026-09-28 :** adresse inconnue, mot de passe faux et compte verrouillé rendent le même message (`MOTIF_IDENTIFIANTS_INVALIDES`, `verrouillage.ts`), une adresse inconnue compare le mot de passe à `EMPREINTE_FACTICE` (même coût), et bcrypt tourne avant la lecture du verrou (`auth.service.ts`). Test : `cycle-de-vie-acces.spec.ts`.
+- **Complété le 2026-09-28 :** décision de Manasse du 2026-09-28 · le compteur d'échecs ne repart plus de zéro à l'échéance du verrou, qui laissait l'attaquant patient au palier d'une minute ; il s'oublie douze heures après le dernier échec (`User.dernierEchecLe`, `DELAI_OUBLI_ECHECS_HEURES`, « Failure Reset Time » de Keycloak), et sur une connexion réussie, un mot de passe changé ou réinitialisé (`DECOMPTE_REMIS_A_ZERO`). Même jour, activer la double authentification et régénérer les codes de secours exigent le mot de passe actuel (OWASP ASVS 5.0, 7.5.1), et le titulaire est averti par courriel. Tests : `verrouillage.spec.ts`, `double-authentification-service.spec.ts`, `mon-compte.spec.ts`, douze réinjections.
 
 **F239 · Filtres illisibles du journal d'audit : 500** [socle-15]
 - **Emplacements :** journal-audit.controller.ts:38-41 · journal-audit.service.ts:92-93

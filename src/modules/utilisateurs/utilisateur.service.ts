@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { normaliserCourriel } from '../../common/courriel';
 import { SANS_DOUBLE_AUTH } from '../auth/double-authentification';
+import { DECOMPTE_REMIS_A_ZERO } from '../auth/verrouillage';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../common/prisma.service';
 import { FonctionMetier, RoleUtilisateur } from '@prisma/client';
@@ -211,8 +212,7 @@ export class UtilisateurService {
         motDePasse: await bcrypt.hash(motDePasseProvisoire, SALT_ROUNDS),
         doitChangerMotDePasse: true,
         sessionsInvalidesAvant: new Date(),
-        tentativesEchouees: 0,
-        verrouilleJusqua: null,
+        ...DECOMPTE_REMIS_A_ZERO,
         ...SANS_DOUBLE_AUTH,
       },
     });
@@ -230,7 +230,7 @@ export class UtilisateurService {
     }
     return this.prisma.user.update({
       where: { id: userId },
-      data: { tentativesEchouees: 0, verrouilleJusqua: null },
+      data: DECOMPTE_REMIS_A_ZERO,
       select: SELECTION,
     });
   }

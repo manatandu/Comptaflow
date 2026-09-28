@@ -6678,6 +6678,33 @@ avant de l'écrire ; un spec (`compte-seed-syscohada.spec.ts`) le contrôle.
   mot de passe pendant le verrou est refusé comme un faux, et un essai pendant
   le verrou ne le prolonge pas. Jamais définitif : un verrou définitif se
   retourne en refus de service.
+  **LE COMPTEUR S'OUBLIE DOUZE HEURES APRÈS LE DERNIER ÉCHEC, JAMAIS À
+  L'ÉCHÉANCE DU VERROU** (2026-09-28, décision de Manasse). Il repartait de
+  zéro dès qu'un verrou expirait · l'attaquant qui attendait chaque échéance
+  restait au palier d'une minute, environ sept mille essais par jour et par
+  compte, et les paliers (1, 5, 15, 30, 60 minutes) ne jouaient jamais. Il
+  tombe dans trois cas seulement · une connexion réussie (NIST SP 800-63B-4,
+  Rate Limiting, « SHOULD disregard any previous failed attempts »), un mot de
+  passe changé ou réinitialisé ou un déverrouillage par l'administrateur, et le
+  délai d'oubli compté depuis le dernier échec (`User.dernierEchecLe`,
+  `DELAI_OUBLI_ECHECS_HEURES`), valeur par défaut du « Failure Reset Time » de
+  Keycloak, qui exige qu'il dépasse le verrou le plus long, sinon le plafond
+  n'est jamais atteint (`verrouillage.spec.ts` le tient et rejoue l'attaquant
+  patient). Une seule remise à zéro (`DECOMPTE_REMIS_A_ZERO`), un seul
+  décompte (`decompteApresEchec`).
+- **ACTIVER LE SECOND FACTEUR EXIGE LE MOT DE PASSE, ET LE TITULAIRE EST AVERTI
+  HORS DE LA SESSION** (2026-09-28, décision de Manasse). OWASP ASVS 5.0,
+  exigence 7.5.1 (« full re-authentication » avant de modifier la
+  configuration du second facteur), NIST SP 800-63B-4 (un authentificateur ne
+  se lie qu'après authentification). Une session « Rester connecté » peut
+  dater de trente jours · volée, elle installerait SA propre application et
+  fermerait la porte au titulaire. L'activation et la régénération des codes
+  de secours (le « sudo mode » de GitHub) prennent `motDePasseActuel`, vérifié
+  par bcrypt AVANT le code, même refus que le retrait, sans compter au verrou.
+  Activer, retirer ou renouveler les codes met en file un courriel au
+  titulaire, sans aucun secret (`avis-double-authentification.ts`) · un échec
+  de mise en file ne défait jamais l'acte. `AuthModule` importe
+  `CourrierModule`, un test le fige.
 - Toute requête est filtrée par `tenantId`. Une requête Prisma sans `tenantId`
   sur une table multi-locataire est un défaut de cloisonnement. Ce n'est plus
   seulement une règle de discipline : `src/common/cloisonnement/` porte une

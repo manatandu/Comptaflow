@@ -36,6 +36,8 @@ export const ORIGINE_RELANCE = 'RELANCE';
 export const ORIGINE_MOT_DE_PASSE_TEMPORAIRE = 'MOT_DE_PASSE_TEMPORAIRE';
 export const ORIGINE_LICENCE_SUR_SITE = 'LICENCE_SUR_SITE';
 export const ORIGINE_FACTURE_ABONNEMENT = 'FACTURE_ABONNEMENT';
+/** L'avis hors bande d'un second facteur activé, retiré ou de codes de secours renouvelés (auth/avis-double-authentification.ts). */
+export const ORIGINE_DOUBLE_AUTHENTIFICATION = 'DOUBLE_AUTHENTIFICATION';
 
 export interface MessageAMettreEnFile {
   destinataire: string;

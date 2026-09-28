@@ -166,11 +166,13 @@ describe('3 · le verrouillage par compte', () => {
   it('compte les échecs et pose le verrou au cinquième', async () => {
     const capture: { data?: Record<string, unknown> } = {};
     const hash = await bcrypt.hash('le-bon', 4);
-    const user = { id: 'u1', motDePasse: hash, estActif: true, tentativesEchouees: 4, verrouilleJusqua: null };
+    // Quatre échecs dont le dernier date d'une minute · dans le délai d'oubli.
+    const user = { id: 'u1', motDePasse: hash, estActif: true, tentativesEchouees: 4, verrouilleJusqua: null, dernierEchecLe: new Date(Date.now() - 60_000) };
     await expect(authService(user, capture).login({ email: 'a@b.cd', motDePasse: 'faux' } as never)).rejects.toThrow(
       UnauthorizedException,
     );
     expect(capture.data).toMatchObject({ tentativesEchouees: 5 });
+    expect(capture.data!.dernierEchecLe).toBeInstanceOf(Date);
     expect(capture.data!.verrouilleJusqua).toBeInstanceOf(Date);
   });
 
@@ -214,9 +216,10 @@ describe('3 · le verrouillage par compte', () => {
     expect(await verrouille('le-bon')).toBe(await verrouille('faux'));
   });
 
-  it('repart de zéro si le verrou précédent est ÉCHU', async () => {
-    // Sinon une faute de frappe six mois plus tard hériterait de la sévérité
-    // d'un incident oublié.
+  it('NE repart PLUS de zéro à l’échéance du verrou · seul le délai d’oubli efface le compteur (verrouillage.ts)', async () => {
+    // Remis à zéro à l'échéance, le compteur laissait l'attaquant patient au
+    // palier d'une minute pour toujours. Neuf échecs, le dernier il y a une
+    // heure, verrou échu · le dixième échec pose le palier d'une heure.
     const capture: { data?: Record<string, unknown> } = {};
     const hash = await bcrypt.hash('le-bon', 4);
     const user = {
@@ -225,19 +228,24 @@ describe('3 · le verrouillage par compte', () => {
       estActif: true,
       tentativesEchouees: 9,
       verrouilleJusqua: new Date(Date.now() - 60_000),
+      dernierEchecLe: new Date(Date.now() - 61 * 60_000),
     };
     await expect(
       authService(user, capture).login({ email: 'a@b.cd', motDePasse: 'faux' } as never),
     ).rejects.toThrow(UnauthorizedException);
-    expect(capture.data).toMatchObject({ tentativesEchouees: 1 });
+    expect(capture.data).toMatchObject({ tentativesEchouees: 10 });
+    expect(dureeVerrouMinutes(capture.data!.tentativesEchouees as number)).toBe(60);
   });
 
   it('remet le compteur à zéro à la connexion réussie', async () => {
     const capture: { data?: Record<string, unknown> } = {};
     const hash = await bcrypt.hash('le-bon', 4);
-    const user = { id: 'u1', motDePasse: hash, estActif: true, tentativesEchouees: 3, verrouilleJusqua: null };
+    const user = { id: 'u1', motDePasse: hash, estActif: true, tentativesEchouees: 3, verrouilleJusqua: null, dernierEchecLe: new Date() };
     await authService(user, capture).login({ email: 'a@b.cd', motDePasse: 'le-bon' } as never);
-    expect(capture.data).toEqual({ tentativesEchouees: 0, verrouilleJusqua: null });
+    // NIST SP 800-63B-4 · « the verifier SHOULD disregard any previous failed
+    // attempts » après une authentification réussie · la date du dernier
+    // échec tombe avec le compteur.
+    expect(capture.data).toEqual({ tentativesEchouees: 0, verrouilleJusqua: null, dernierEchecLe: null });
   });
 
   it('dit la même chose dans les trois cas · adresse inconnue, mot de passe faux, compte verrouillé (F238)', async () => {
@@ -322,6 +330,7 @@ describe('4 · la réinitialisation par l’administrateur du dossier', () => {
     expect(capture.data!.sessionsInvalidesAvant).toBeInstanceOf(Date);
     // Déverrouillé · c'est aussi la sortie de secours d'un comptable bloqué.
     expect(capture.data!.tentativesEchouees).toBe(0);
+    expect(capture.data!.dernierEchecLe).toBeNull();
     // Et le second facteur tombe · le titulaire le réactivera lui-même.
     expect(capture.data).toMatchObject({ secretDoubleAuth: null, doubleAuthActiveDepuis: null, codesSecoursDoubleAuth: [] });
     expect(capture.data!.verrouilleJusqua).toBeNull();
@@ -380,6 +389,7 @@ describe('5 · la chaîne de recours va jusqu’au bout', () => {
     expect(capture.data!.doitChangerMotDePasse).toBe(true);
     expect(capture.data!.sessionsInvalidesAvant).toBeInstanceOf(Date);
     expect(capture.data!.verrouilleJusqua).toBeNull();
+    expect(capture.data).toMatchObject({ tentativesEchouees: 0, dernierEchecLe: null });
     expect(await bcrypt.compare('provisoire-tres-long', capture.data!.motDePasse as string)).toBe(true);
     // Le second facteur tombe avec le mot de passe · sinon un administrateur
     // qui a perdu son téléphone et ses codes resterait dehors pour de bon.

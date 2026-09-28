@@ -7,7 +7,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ChangerMotDePasseDto } from './dto/changer-mot-de-passe.dto';
 import { ChangerAdresseDto } from './dto/changer-adresse.dto';
-import { CodeDoubleAuthDto, DesactiverDoubleAuthDto } from './dto/double-authentification.dto';
+import { ActiverDoubleAuthDto, DesactiverDoubleAuthDto, RegenererCodesSecoursDto } from './dto/double-authentification.dto';
 import { DeconnecterAutresAppareilsDto } from './dto/deconnecter-autres-appareils.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
@@ -192,10 +192,14 @@ export class AuthController {
   @AccesRolesCantonnes({ gestionnairePaie: true })
   @UseGuards(JwtAuthGuard)
   @Post('double-authentification/activer')
-  async activerDoubleAuth(@CurrentUser() user: AuthenticatedUser, @Body() dto: CodeDoubleAuthDto, @Res({ passthrough: true }) res: Response) {
+  async activerDoubleAuth(@CurrentUser() user: AuthenticatedUser, @Body() dto: ActiverDoubleAuthDto, @Res({ passthrough: true }) res: Response) {
     // Les autres sessions sont fermées · celle-ci est reposée, comme au
-    // changement de mot de passe.
-    return this.poserSession(res, await this.authService.activerDoubleAuth(user.userId, dto.code, undefined, sessionDeLaRequete(res.req)));
+    // changement de mot de passe. Le mot de passe actuel est exigé
+    // (ActiverDoubleAuthDto, OWASP ASVS 5.0 exigence 7.5.1).
+    return this.poserSession(
+      res,
+      await this.authService.activerDoubleAuth(user.userId, dto.motDePasseActuel, dto.code, undefined, sessionDeLaRequete(res.req)),
+    );
   }
 
   @Throttle({ default: { ttl: 60_000, limit: 20 } })
@@ -213,8 +217,8 @@ export class AuthController {
   @AccesRolesCantonnes({ gestionnairePaie: true })
   @UseGuards(JwtAuthGuard)
   @Post('double-authentification/codes-secours')
-  regenererCodesSecours(@CurrentUser() user: AuthenticatedUser, @Body() dto: CodeDoubleAuthDto) {
-    return this.authService.regenererCodesSecours(user.userId, dto.code);
+  regenererCodesSecours(@CurrentUser() user: AuthenticatedUser, @Body() dto: RegenererCodesSecoursDto) {
+    return this.authService.regenererCodesSecours(user.userId, dto.motDePasseActuel, dto.code);
   }
 
   /**

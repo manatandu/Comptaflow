@@ -891,6 +891,11 @@ model User {
   /// sur le compte d'un comptable pour l'empêcher de travailler.
   tentativesEchouees Int       @default(0)
   verrouilleJusqua   DateTime?
+  /// DÉLAI D'OUBLI · instant du DERNIER échec. Le compteur ne se remet plus à
+  /// zéro à l'échéance du verrou (l'attaquant patient restait au palier d'une
+  /// minute), il s'oublie douze heures après le dernier échec
+  /// (src/modules/auth/verrouillage.ts, DELAI_OUBLI_ECHECS_HEURES).
+  dernierEchecLe     DateTime?
 
   // DOUBLE AUTHENTIFICATION (src/modules/auth/double-authentification.ts) ·
   // TOTP, RFC 6238. Le secret est posé à l'initiation et ne vaut qu'une fois

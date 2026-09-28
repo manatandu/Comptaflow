@@ -1,5 +1,5 @@
 import { faitAssujettissementTva } from '../tenant/faits-declares';
-import { BadRequestException, ConflictException, Injectable, Optional, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, Optional, UnauthorizedException } from '@nestjs/common';
 import { LicenceSurSiteService } from '../sur-site/licence-sur-site.service';
 import { identiteSociete, mentionsArticle17 } from '../tenant/mentions-societe';
 import { articleTrenteSeptApplicable } from '../accord-cadre/conditions-ong-etrangere';
@@ -23,7 +23,9 @@ import { horsCloisonnement } from '../../common/cloisonnement/contexte-cloisonne
 import { normaliserCourriel } from '../../common/courriel';
 import { dansContexteAudit, acteurCourant, ACTEUR_SYSTEME } from '../../common/audit/contexte-audit';
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
-import { instantDeverrouillage, MOTIF_IDENTIFIANTS_INVALIDES } from './verrouillage';
+import { avisDoubleAuth, EvenementDoubleAuth } from './avis-double-authentification';
+import { CourrierService, ORIGINE_DOUBLE_AUTHENTIFICATION } from '../courrier/courrier.service';
+import { DECOMPTE_REMIS_A_ZERO, decompteApresEchec, MOTIF_IDENTIFIANTS_INVALIDES } from './verrouillage';
 import { genererCodesSecours, genererSecret, secondFacteurAccepte, uriOtpauth, verifierCodeTotp } from './double-authentification';
 import {
   demandeDeReemission,
@@ -55,6 +57,8 @@ export const MOTIF_LICENCE_EDITEUR_A_LA_CREATION =
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
@@ -67,6 +71,11 @@ export class AuthService {
     private readonly analytiqueService: AnalytiqueService,
     private readonly relancesService: RelancesService,
     @Optional() private readonly surSite?: LicenceSurSiteService,
+    // La file des courriels · l'avis hors bande d'un second facteur changé.
+    // Facultative ici pour que les specs construisent le service sans elle ;
+    // AuthModule importe CourrierModule, et `avis-double-authentification.spec.ts`
+    // le tient.
+    @Optional() private readonly courrier?: CourrierService,
   ) {}
 
   /**
@@ -328,20 +337,19 @@ export class AuthService {
       throw new UnauthorizedException(MOTIF_IDENTIFIANTS_INVALIDES);
     }
 
-    // Le compteur repart de zéro si le verrou précédent est ÉCHU · sinon une
-    // faute de frappe six mois plus tard hériterait de la sévérité d'un
-    // incident oublié. Un code de vérification faux compte comme un mot de
-    // passe faux · sans quoi six chiffres se devineraient à l'infini derrière
-    // un mot de passe volé.
-    const compterEchec = () => {
-      const echecs = (user.verrouilleJusqua && user.verrouilleJusqua <= maintenant ? 0 : user.tentativesEchouees) + 1;
-      return horsCloisonnement('connexion · décompte des échecs sur un compte non encore identifié', () =>
+    // Le compteur NE repart PLUS de zéro à l'échéance du verrou · il
+    // s'oublie douze heures après le DERNIER échec (`decompteApresEchec`,
+    // verrouillage.ts). Remis à zéro à l'échéance, il laissait l'attaquant
+    // patient au palier d'une minute pour toujours. Un code de vérification
+    // faux compte comme un mot de passe faux · sans quoi six chiffres se
+    // devineraient à l'infini derrière un mot de passe volé.
+    const compterEchec = () =>
+      horsCloisonnement('connexion · décompte des échecs sur un compte non encore identifié', () =>
         this.prisma.user.update({
           where: { id: user.id },
-          data: { tentativesEchouees: echecs, verrouilleJusqua: instantDeverrouillage(echecs, maintenant) },
+          data: decompteApresEchec(user, maintenant),
         }),
       );
-    };
 
     if (!motDePasseValide) {
       await compterEchec();
@@ -374,11 +382,11 @@ export class AuthService {
     // `> 0` et non `!== 0` · le compteur vaut 0 par défaut en base, mais
     // écrire l'inégalité stricte ferait tourner une écriture inutile à chaque
     // connexion sur tout compte dont le champ n'est pas encore servi.
-    if (user.tentativesEchouees > 0 || user.verrouilleJusqua || Object.keys(consomme).length > 0) {
+    if (user.tentativesEchouees > 0 || user.verrouilleJusqua || user.dernierEchecLe || Object.keys(consomme).length > 0) {
       await horsCloisonnement('connexion · remise à zéro du décompte', () =>
         this.prisma.user.update({
           where: { id: user.id },
-          data: { tentativesEchouees: 0, verrouilleJusqua: null, ...consomme },
+          data: { ...DECOMPTE_REMIS_A_ZERO, ...consomme },
         }),
       );
     }
@@ -431,14 +439,31 @@ export class AuthService {
   }
 
   /**
+   * LE MOT DE PASSE ACTUEL D'ABORD, PUIS LE CODE, et le même refus que le
+   * retrait. OWASP ASVS 5.0, exigence 7.5.1 (« full re-authentication » avant
+   * de modifier la configuration du second facteur), et NIST SP 800-63B-4
+   * (un authentificateur ne se lie qu'après une authentification préalable) ·
+   * une session « Rester connecté » peut dater de trente jours, et volée, elle
+   * installerait sa propre application et fermerait la porte au titulaire.
+   * Comme au retrait, un mot de passe ou un code faux ne compte pas au verrou
+   * de connexion · il est déjà borné par le `@Throttle` de la route.
+   *
    * Le premier code juste l'active · les codes de secours sont rendus UNE
    * fois, ici, et seules leurs empreintes restent. Les autres sessions sont
-   * fermées : aucune n'a présenté de second facteur.
+   * fermées : aucune n'a présenté de second facteur. Le titulaire est averti
+   * par courriel, hors de la session (`aviserDoubleAuth`).
    */
-  async activerDoubleAuth(userId: string, code: string, maintenant = new Date(), session: SessionEnCours | null = null) {
+  async activerDoubleAuth(
+    userId: string,
+    motDePasseActuel: string,
+    code: string,
+    maintenant = new Date(),
+    session: SessionEnCours | null = null,
+  ) {
     const u = await this.compteDoubleAuth(userId);
     if (u.doubleAuthActiveDepuis) throw new BadRequestException('La double authentification est déjà active.');
     if (!u.secretDoubleAuth) throw new BadRequestException('Affichez d’abord la clé à enregistrer dans l’application.');
+    if (!(await bcrypt.compare(motDePasseActuel, u.motDePasse))) throw new UnauthorizedException('Le mot de passe actuel est incorrect');
     const pas = verifierCodeTotp(u.secretDoubleAuth, code, maintenant.getTime(), null);
     if (pas === null) {
       throw new BadRequestException('Code invalide · vérifiez que l’heure du téléphone est à l’heure, puis saisissez le code affiché.');
@@ -448,6 +473,7 @@ export class AuthService {
       where: { id: userId },
       data: { doubleAuthActiveDepuis: maintenant, dernierPasDoubleAuth: pas, codesSecoursDoubleAuth: empreintes, sessionsInvalidesAvant: maintenant },
     });
+    await this.aviserDoubleAuth(u, 'ACTIVEE', maintenant);
     return { codesSecours: codes, ...this.reemettre(u, session) };
   }
 
@@ -461,18 +487,50 @@ export class AuthService {
       where: { id: userId },
       data: { secretDoubleAuth: null, doubleAuthActiveDepuis: null, dernierPasDoubleAuth: null, codesSecoursDoubleAuth: [], sessionsInvalidesAvant: maintenant },
     });
+    await this.aviserDoubleAuth(u, 'RETIREE', maintenant);
     return { desactivee: true, ...this.reemettre(u, session) };
   }
 
-  /** De nouveaux codes de secours · les anciens cessent de valoir. */
-  async regenererCodesSecours(userId: string, code: string, maintenant = new Date()) {
+  /**
+   * De nouveaux codes de secours · les anciens cessent de valoir. Mot de passe
+   * ET code, comme le retrait · GitHub range cette régénération sous son
+   * « sudo mode », et un code du téléphone présenté par une session volée ne
+   * prouve pas qui la tient.
+   */
+  async regenererCodesSecours(userId: string, motDePasseActuel: string, code: string, maintenant = new Date()) {
     const u = await this.compteDoubleAuth(userId);
     if (!u.doubleAuthActiveDepuis) throw new BadRequestException('La double authentification n’est pas active.');
+    if (!(await bcrypt.compare(motDePasseActuel, u.motDePasse))) throw new UnauthorizedException('Le mot de passe actuel est incorrect');
     const r = secondFacteurAccepte(u, code, maintenant.getTime());
     if (!r) throw new UnauthorizedException('Code de vérification invalide');
     const { codes, empreintes } = genererCodesSecours();
     await this.prisma.user.update({ where: { id: userId }, data: { ...r, codesSecoursDoubleAuth: empreintes } });
+    await this.aviserDoubleAuth(u, 'CODES_SECOURS_REGENERES', maintenant);
     return { codesSecours: codes };
+  }
+
+  /**
+   * L'AVIS HORS BANDE (NIST SP 800-63B-4, notification du titulaire quand un
+   * authentificateur est lié ou retiré). Il est écrit APRÈS l'acte, et un
+   * échec de mise en file ne le défait JAMAIS · l'acte est fait, c'est un avis
+   * qui manque. Sans messagerie posée, le message attend en file
+   * (SANS_TRANSPORT), comme partout. L'échec est consigné au journal du
+   * serveur, jamais rendu à l'écran, qui dirait sinon « échoué » sur un second
+   * facteur bel et bien activé.
+   */
+  private async aviserDoubleAuth(u: { id: string; tenantId: string; email: string }, evenement: EvenementDoubleAuth, instant: Date) {
+    if (!this.courrier) return;
+    try {
+      await this.courrier.mettreEnFile(u.tenantId, {
+        destinataire: u.email,
+        ...avisDoubleAuth(evenement, { email: u.email, instant }),
+        origine: ORIGINE_DOUBLE_AUTHENTIFICATION,
+        origineId: u.id,
+        createdBy: u.id,
+      });
+    } catch (erreur) {
+      this.logger.warn(`Avis de double authentification non mis en file · ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+    }
   }
 
   /**
@@ -504,8 +562,7 @@ export class AuthService {
         sessionsInvalidesAvant: new Date(),
         // Un mot de passe changé délie aussi le verrou · le titulaire a
         // prouvé qui il est en donnant l'ancien.
-        tentativesEchouees: 0,
-        verrouilleJusqua: null,
+        ...DECOMPTE_REMIS_A_ZERO,
       },
     });
     // La session COURANTE est révoquée elle aussi · c'est voulu. Le client

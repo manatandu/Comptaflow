@@ -142,6 +142,16 @@ describe('Mon compte · les réglages de sécurité de chacun', () => {
     expect(modale).toContain("onClick={() => setSousModale('adresse')}");
   });
 
+  it('activer et renouveler les codes envoient le mot de passe actuel · le serveur l’exige (OWASP ASVS 5.0, 7.5.1)', () => {
+    const doubleAuth = appelsAuth(lire('components/ModaleDoubleAuth.tsx'));
+    const cles = (route: string) => doubleAuth.find((a) => a.route === route)?.cles;
+    for (const route of ['double-authentification/activer', 'double-authentification/codes-secours', 'double-authentification/desactiver']) {
+      expect([route, cles(route)]).toEqual([route, expect.arrayContaining(['motDePasseActuel', 'code'])]);
+      // Et le DTO du serveur le déclare, sans quoi `forbidNonWhitelisted` le refuserait.
+      expect([route, proprietesDto(dtoDeLaRoute(route)!)]).toEqual([route, expect.arrayContaining(['motDePasseActuel', 'code'])]);
+    }
+  });
+
   describe('chaque corps envoyé ne porte que des clés du DTO du serveur', () => {
     const fichiers = ['lib/mot-de-passe.ts', 'components/ModaleMonCompte.tsx', 'components/ModaleMonAdresse.tsx', 'components/ModaleDoubleAuth.tsx'];
     const appels = fichiers.flatMap((f) => appelsAuth(lire(f)).map((a) => ({ fichier: f, ...a })));
@@ -156,6 +166,7 @@ describe('Mon compte · les réglages de sécurité de chacun', () => {
           'changer-adresse',
           'double-authentification/activer',
           'double-authentification/desactiver',
+          'double-authentification/codes-secours',
         ]),
       );
     });

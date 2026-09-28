@@ -15,6 +15,7 @@ import { ImmobilisationsModule } from '../immobilisations/immobilisations.module
 import { AnalytiqueModule } from '../analytique/analytique.module';
 import { RelancesModule } from '../relances/relances.module';
 import { JwtAuthModule } from './jwt-auth.module';
+import { CourrierModule } from '../courrier/courrier.module';
 
 @Module({
   imports: [
@@ -37,6 +38,9 @@ import { JwtAuthModule } from './jwt-auth.module';
     AnalytiqueModule,
     RelancesModule,
     JwtAuthModule,
+    // L'avis hors bande d'un second facteur changé passe par la file des
+    // courriels, jamais par un second chemin d'envoi.
+    CourrierModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],
