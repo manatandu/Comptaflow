@@ -48,6 +48,9 @@ export class FacturationService {
         capitalSocial: true,
         capitalVariable: true,
         rccm: true,
+        // AUDCG art. 59, 62 et 140 · immatriculation et location-gérance (passe O2).
+        numeroDeclarationActivite: true,
+        locataireGerantFonds: true,
         devise: true,
         // Décret n° 011/42, art. 60 · la mention n'est due que par le dossier
         // AUTORISÉ, et seulement sur les factures qu'il DÉLIVRE.

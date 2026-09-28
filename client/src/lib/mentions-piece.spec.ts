@@ -17,6 +17,15 @@ describe('AUSCGIE art. 17 sur la pièce imprimée', () => {
     expect(avertissementArticle17({ denomination: 'X', ligne: null, manquantes: [] }, false)).toBeNull();
   });
 
+  it('AUDCG art. 59 · un commerçant sans RCCM n’a pas de ligne, et le manque se dit quand même (passe O2)', () => {
+    const a = avertissementArticle17(
+      { denomination: 'Ets X', ligne: null, manquantes: ['numéro et lieu d’immatriculation au RCCM (AUDCG art. 59)'] },
+      true,
+    );
+    expect(a).toContain('AUDCG art. 59');
+    expect(a).toMatch(/^Mentions de l’émetteur/);
+  });
+
   it('une pièce antérieure à la recopie le DIT, chez une société seulement', () => {
     expect(avertissementArticle17(null, true)).toBe(PIECE_ANTERIEURE);
     expect(avertissementArticle17(null, false)).toBeNull();

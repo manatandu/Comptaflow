@@ -4,7 +4,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { siSycebnl } from '../../common/reponse-referentiel';
 import { PrismaService } from '../../common/prisma.service';
 import { MONNAIE_DE_TENUE } from '../../common/monnaie-de-tenue';
-import { identiteSociete, mentionsArticle17, motifRefusCapital } from './mentions-societe';
+import { identiteSociete, mentionsEmetteur, motifRefusCapital } from './mentions-societe';
 import { dateSaisieOuEffacement } from './date-effacable';
 import { normaliserModules } from './modules-optionnels';
 import { Prisma, ModuleOptionnel, FormeJuridiqueEbnl,
@@ -125,7 +125,7 @@ export class TenantService {
       capitalVariable: tenant.capitalVariable,
       // La ligne de l'art. 17 AUSCGIE telle qu'elle s'imprime, et ce qui y
       // manque · même calcul que l'en-tête d'impression (/auth/me).
-      mentionsSociete: mentionsArticle17(identiteSociete(tenant)),
+      mentionsSociete: mentionsEmetteur(identiteSociete(tenant)),
       // MONNAIE DE TENUE · lecture seule côté écran. Elle ne se choisit pas
       // (loi n° 23/053 art. 141, 1° · AUDCIF art. 17, 1°) et elle n'a jamais
       // rien converti · elle étiquette le cartouche des états.
@@ -134,11 +134,14 @@ export class TenantService {
       numeroImpot: tenant.numeroImpot,
       idNat: tenant.idNat,
       rccm: tenant.rccm,
+      numeroDeclarationActivite: tenant.numeroDeclarationActivite,
+      locataireGerantFonds: tenant.locataireGerantFonds,
       // Identifiants propres aux entités à but non lucratif · voir
       // docs/identifiants-legaux-ebnl-rdc.md. Le RCCM ci-dessus ne concerne
-      // qu'un dossier SYSCOHADA : l'AUDCG (art. 2) n'assujettit au registre
-      // que les commerçants et les sociétés, pas une ASBL, une ONG ou un
-      // projet de développement.
+      // qu'un dossier SYSCOHADA : l'AUDCG (art. 35, 1°) immatricule les
+      // commerçants (art. 2), les sociétés, les GIE, les succursales et les
+      // groupements que la loi y soumet · la loi n° 004/2001 n'y soumet pas
+      // une ASBL, une ONG ou un projet de développement.
       actePersonnaliteJuridique: tenant.actePersonnaliteJuridique,
       dateActePersonnalite: tenant.dateActePersonnalite,
       numeroEnregistrementSecteur: tenant.numeroEnregistrementSecteur,
@@ -409,6 +412,8 @@ export class TenantService {
       numeroImpot?: string;
       idNat?: string;
       rccm?: string;
+      numeroDeclarationActivite?: string;
+      locataireGerantFonds?: ReponseFait;
       actePersonnaliteJuridique?: string;
       dateActePersonnalite?: string;
       numeroEnregistrementSecteur?: string;
@@ -436,6 +441,27 @@ export class TenantService {
           'succursales (AUDCG, art. 2 et art. 35, 1°).',
       );
     }
+    // AUDCG art. 62 et 64 · l'entreprenant DÉCLARE son activité et « ne peut
+    // être en même temps immatriculé » ; les autres formes n'ont pas de
+    // déclaration d'activité. Et l'art. 138 lui ferme la location-gérance.
+    const entreprenant = tenant.formeJuridiqueSyscohada === FormeJuridiqueSyscohada.ENTREPRENANT;
+    if (entreprenant && renseigne(dto.rccm)) {
+      throw new BadRequestException(
+        "L'entreprenant n'est pas immatriculé au RCCM (AUDCG art. 64) · son numéro est celui de sa déclaration d'activité (art. 62).",
+      );
+    }
+    if ((!entreprenant || tenant.referentiel !== Referentiel.SYSCOHADA) && renseigne(dto.numeroDeclarationActivite)) {
+      throw new BadRequestException(
+        "Le numéro de déclaration d'activité est celui de l'entreprenant (AUDCG art. 62) · une personne immatriculée porte son RCCM.",
+      );
+    }
+    if (dto.locataireGerantFonds === 'OUI' && (entreprenant || tenant.referentiel !== Referentiel.SYSCOHADA)) {
+      throw new BadRequestException(
+        entreprenant
+          ? "L'entreprenant ne peut être partie à un contrat de location-gérance (AUDCG art. 138)."
+          : "La location-gérance d'un fonds de commerce (AUDCG art. 138 à 140) ne concerne pas une entité à but non lucratif.",
+      );
+    }
     if (tenant.referentiel === Referentiel.SYSCOHADA) {
       const propresAuxEbnl: [string, string | undefined][] = [
         ['arrêté de personnalité juridique', dto.actePersonnaliteJuridique],
@@ -459,6 +485,10 @@ export class TenantService {
         numeroImpot: normaliser(dto.numeroImpot),
         idNat: normaliser(dto.idNat),
         rccm: normaliser(dto.rccm),
+        numeroDeclarationActivite: normaliser(dto.numeroDeclarationActivite),
+        ...(dto.locataireGerantFonds === undefined
+          ? {}
+          : { locataireGerantFonds: dto.locataireGerantFonds === 'OUI' ? true : dto.locataireGerantFonds === 'NON' ? false : null }),
         actePersonnaliteJuridique: normaliser(dto.actePersonnaliteJuridique),
         // Date vide = pas d'arrêté encore obtenu (autorisation provisoire de
         // l'art. 5) · c'est un état légitime, pas une saisie incomplète. Lue

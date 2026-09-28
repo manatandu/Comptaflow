@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { identiteSociete, mentionsEmetteur } from '../tenant/mentions-societe';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../common/prisma.service';
 import { Prisma, Referentiel, StatutMessage, TypeRelance } from '@prisma/client';
@@ -624,7 +625,12 @@ export class RelancesService {
     const niveau = await this.prisma.niveauRelance.findFirst({ where: { id: dto.niveauId, tenantId } });
     if (!niveau) throw new BadRequestException('Niveau de relance introuvable pour ce dossier');
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
-    const entite = tenant?.nom ?? '';
+    // AUDCG art. 59 · la CORRESPONDANCE d'une personne immatriculée porte son
+    // numéro et son lieu d'immatriculation ; celle d'une société, la ligne de
+    // l'AUSCGIE art. 17 (passe O2). La signature {entite} les porte sous la
+    // dénomination · rien en SYCEBNL.
+    const mentionEmetteur = tenant ? mentionsEmetteur(identiteSociete(tenant)).ligne : null;
+    const entite = [tenant?.nom ?? '', mentionEmetteur].filter((x) => x).join('\n');
 
     const positions = await this.positions(tenantId, {
       exerciceId: dto.exerciceId,

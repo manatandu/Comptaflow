@@ -1479,12 +1479,16 @@ export interface ParametresDossier {
   numeroImpot: string | null;
   idNat: string | null;
   /**
-   * Le RCCM ne concerne qu'un dossier SYSCOHADA · l'AUDCG (art. 2) n'assujettit
-   * au registre que les commerçants et les sociétés. Une entité SYCEBNL
-   * (association, ONG, EUP, projet) n'en a pas · voir
-   * docs/identifiants-legaux-ebnl-rdc.md.
+   * Le RCCM ne concerne qu'un dossier SYSCOHADA · l'AUDCG (art. 35, 1°)
+   * immatricule les commerçants, les sociétés, les GIE, les succursales et les
+   * groupements que la loi y soumet. Une entité SYCEBNL (association, ONG, EUP,
+   * projet) n'en a pas · voir docs/identifiants-legaux-ebnl-rdc.md.
    */
   rccm: string | null;
+  /** AUDCG art. 62 · l'entreprenant, qui n'est pas immatriculé (art. 64). */
+  numeroDeclarationActivite: string | null;
+  /** AUDCG art. 140 · null, pas encore dit. */
+  locataireGerantFonds: boolean | null;
   /** Arrêté (ou décret pour une ONG étrangère) accordant la personnalité juridique · loi n° 004/2001. */
   actePersonnaliteJuridique: string | null;
   dateActePersonnalite: string | null;

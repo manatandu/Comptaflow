@@ -383,11 +383,23 @@ model Tenant {
   idNat       String?
   // Une ASBL n'est pas commerçante (art. 1er de la loi 004/2001 : elle « ne se
   // livre pas à des opérations industrielles ou commerciales, si ce n'est à
-  // titre accessoire ») et l'AUDCG n'assujettit au RCCM que le commerçant ou
-  // « les groupements que LA LOI soumet à l'immatriculation » · la loi
-  // 004/2001 ne le fait nulle part. Le champ ne sert donc qu'à un dossier
-  // SYSCOHADA, et l'interface ne le montre qu'à celui-là. § 1.
+  // titre accessoire ») et l'AUDCG (art. 35, 1°) n'immatricule au RCCM, au-delà
+  // des commerçants, des sociétés, des GIE et des succursales, que « tous les
+  // groupements dotés de la personnalité juridique que la loi soumet à
+  // l'immatriculation » · la loi 004/2001 ne le fait nulle part. Le champ ne
+  // sert donc qu'à un dossier SYSCOHADA, et l'interface ne le montre qu'à
+  // celui-là. § 1. Refusé à l'ENTREPRENANT, qui « ne peut être en même temps
+  // immatriculé » (AUDCG art. 64) · il porte son numéro de déclaration
+  // d'activité ci-dessous.
   rccm        String?
+  // AUDCG art. 62 · le numéro de DÉCLARATION D'ACTIVITÉ de l'entreprenant, à
+  // porter sur ses pièces « suivi de l'indication du RCCM et de la mention
+  // "Entreprenant dispensé d'immatriculation" ». Propre à cette forme.
+  numeroDeclarationActivite String?
+  // AUDCG art. 140 · le dossier exploite un fonds en LOCATION-GÉRANCE, qualité
+  // à indiquer en tête de ses pièces avec le RCCM. null = pas encore dit ;
+  // jamais pour l'entreprenant, qui ne peut en être partie (art. 138).
+  locataireGerantFonds      Boolean?
 
   // --- Identifiants propres aux entités à but non lucratif ---------------
   // Ce qui fonde l'existence d'une ASBL n'est pas un numéro de registre mais

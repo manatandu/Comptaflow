@@ -1,7 +1,7 @@
 import { faitAssujettissementTva } from '../tenant/faits-declares';
 import { BadRequestException, ConflictException, Injectable, Logger, Optional, UnauthorizedException } from '@nestjs/common';
 import { LicenceSurSiteService } from '../sur-site/licence-sur-site.service';
-import { identiteSociete, mentionsArticle17 } from '../tenant/mentions-societe';
+import { identiteSociete, mentionsEmetteur } from '../tenant/mentions-societe';
 import { articleTrenteSeptApplicable } from '../accord-cadre/conditions-ong-etrangere';
 import { JwtService } from '@nestjs/jwt';
 import { randomUUID } from 'crypto';
@@ -686,9 +686,10 @@ export class AuthService {
         // figurer sur chaque page d'un état déposé (CPCC, § 7.4 règle 7-a).
         numeroImpot: user.tenant.numeroImpot,
         // AUSCGIE art. 17 · forme, capital, siège et RCCM à côté de la
-        // dénomination sur tout document destiné aux tiers. `null` hors des
-        // sociétés commerciales (`tenant/mentions-societe.ts`).
-        mentionsSociete: mentionsArticle17(identiteSociete(user.tenant)).ligne,
+        // dénomination d'une société ; pour les autres formes SYSCOHADA,
+        // l'immatriculation de l'AUDCG (art. 14, 59, 62 et 140) · `null` en
+        // SYCEBNL (`tenant/mentions-societe.ts`, `mentionsEmetteur`).
+        mentionsSociete: mentionsEmetteur(identiteSociete(user.tenant)).ligne,
         // Dossier mère d'un groupe d'établissements · ouvre l'entrée de menu
         // « Balance agrégée du groupe » (le serveur re-vérifie de toute façon
         // le lien à chaque appel /groupe).

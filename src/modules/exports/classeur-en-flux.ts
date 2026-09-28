@@ -62,6 +62,17 @@ export interface IdentiteEtat {
   nif: string;
   periode: string;
   devise: string;
+  /**
+   * AUDCG art. 14 · « Les livres de commerce doivent mentionner le numéro
+   * d'immatriculation au RCCM » · le numéro, la déclaration d'activité de
+   * l'entreprenant, ou le manque dit. Vide en SYCEBNL (passe O2).
+   */
+  immatriculation?: string;
+}
+
+/** Le segment d'identification du cartouche et du pied · NIF puis immatriculation. */
+export function segmentIdentification(identite: IdentiteEtat): string {
+  return [identite.nif ? `NIF ${identite.nif}` : '', identite.immatriculation ?? ''].filter((x) => x !== '').join(' · ');
 }
 
 /**
@@ -103,7 +114,7 @@ function poserFeuille(
     views: [{ state: 'frozen', ySplit: LIGNE_ENTETE }],
     headerFooter: {
       oddFooter:
-        `&L${params.identite.entite}${params.identite.nif ? ` · NIF ${params.identite.nif}` : ''} · ` +
+        `&L${params.identite.entite}${segmentIdentification(params.identite) ? ` · ${segmentIdentification(params.identite)}` : ''} · ` +
         `${params.identite.periode} · montants en ${params.identite.devise}` +
         `&RPage &P / &N · édité le ${new Date().toLocaleDateString('fr-FR')}`,
     },
@@ -121,7 +132,7 @@ function poserFeuille(
 
   const ligneIdentite = feuille.getRow(2);
   ligneIdentite.getCell(1).value =
-    `${params.identite.nif ? `NIF ${params.identite.nif} · ` : ''}${params.identite.periode} · ` +
+    `${segmentIdentification(params.identite) ? `${segmentIdentification(params.identite)} · ` : ''}${params.identite.periode} · ` +
     `montants en ${params.identite.devise} · édité le ${edite}`;
   ligneIdentite.getCell(1).font = { size: 9, italic: true };
   ligneIdentite.commit();

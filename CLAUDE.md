@@ -5304,6 +5304,22 @@ dépassement) · aucun texte n'en fixe. Seules les hypothèses sont enregistrée
 rien n'est passé au journal ; définies par l'administrateur et le comptable
 (`peutValider`), consultées par tous.
 
+**L'immatriculation imprimée · l'AUDCG, au-delà de l'art. 17 (2026-09-28,
+passe O2).** `tenant/mentions-immatriculation.ts`, et `mentionsEmetteur`, qui
+réunit les deux règles pour toute pièce, tout en-tête et la signature des
+relances. QUATRE RÈGLES À NE PAS DÉFAIRE. (1) L'ART. 59 VISE TOUTE PERSONNE
+IMMATRICULÉE · commerçant, sociétés, GIE, succursale ; le numéro, ou son manque
+dit, jamais une liste vide qui se lirait conforme. La coopérative n'est pas au
+RCCM, l'entité publique ne se voit rien reprocher. (2) LES LIVRES DE COMMERCE
+PORTENT LE NUMÉRO (art. 14) · coiffe et pied de chaque état exporté
+(`IdentiteEtat.immatriculation`). (3) L'ENTREPRENANT N'EST PAS IMMATRICULÉ
+(art. 64) · son numéro de déclaration d'activité vit dans
+`numeroDeclarationActivite`, suivi de « Entreprenant dispensé
+d'immatriculation » (art. 62) ; le RCCM lui est refusé, et la déclaration
+aux autres formes. (4) LE LOCATAIRE-GÉRANT (art. 140) se déclare
+(`locataireGerantFonds`, null = pas encore dit), jamais pour l'entreprenant
+(art. 138) · sa qualité s'imprime en tête, avec le RCCM.
+
 **Pièces imprimées · facture de vente et devis (2026-09-26).** Point 1 des
 restes de la comparaison Sage. L'AUSCGIE art. 17 vise « tous les actes et
 documents émanant de la société et destinés aux tiers, notamment [...] les

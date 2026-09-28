@@ -181,6 +181,7 @@ function service(lignes: ReturnType<typeof ligne>[], options: { lectureLente?: b
     executeRaw,
     ordre,
     lireRelances,
+    prisma: prisma as unknown as { tenant: { findUnique: jest.Mock }; niveauRelance: { findFirst: jest.Mock } },
   };
 }
 
@@ -381,5 +382,20 @@ describe('F241 · une lettre identique ne part qu’une fois par jour', () => {
     expect(creer).toHaveBeenCalledTimes(1);
     expect(a.emises + b.emises).toBe(1);
     expect(a.dejaEmises.length + b.dejaEmises.length).toBe(1);
+  });
+});
+
+describe('AUDCG art. 59 · la correspondance d’une personne immatriculée porte son RCCM (passe O2)', () => {
+  it('la signature {entite} porte la dénomination et, dessous, l’immatriculation', async () => {
+    const { svc, ecrits, prisma } = service([ligne('41100001')]);
+    prisma.tenant.findUnique.mockResolvedValue({
+      nom: 'Ets Kin',
+      referentiel: Referentiel.SYSCOHADA,
+      formeJuridiqueSyscohada: 'ENTREPRISE_INDIVIDUELLE',
+      rccm: 'CD/KIN/RCCM/24-A-5',
+    });
+    prisma.niveauRelance.findFirst.mockResolvedValue({ ...NIVEAU, modeleTexte: 'Cher {tiers}.\n\n{entite}' });
+    await emettre(svc, ['c-41100001']);
+    expect(ecrits()[0].corps).toContain('Ets Kin\nRCCM CD/KIN/RCCM/24-A-5');
   });
 });

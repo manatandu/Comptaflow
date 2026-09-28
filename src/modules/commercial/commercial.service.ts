@@ -44,6 +44,9 @@ export class CommercialService {
         adresse: true,
         ville: true,
         rccm: true,
+        // AUDCG art. 59, 62 et 140 · immatriculation et location-gérance (passe O2).
+        numeroDeclarationActivite: true,
+        locataireGerantFonds: true,
         devise: true,
       },
     });

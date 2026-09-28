@@ -102,7 +102,9 @@ describe('exports périodiques · identification de l’état', () => {
     // numérotation de page. La coiffe les porte à l'écran, le pied de page à
     // l'impression : les deux lisent la MÊME identité résolue.
     expect(service).toContain('identite.entite');
-    expect(service).toContain('NIF ${identite.nif}');
+    expect(service).toContain('segmentIdentification(identite)');
+    // AUDCG art. 14 · le numéro d'immatriculation sur les livres de commerce (passe O2).
+    expect(service).toContain('immatriculation: immatriculationDesLivres(tenant)');
     expect(service).toContain('identite.periode');
     expect(service).toContain('montants en ${identite.devise}');
     expect(service).toContain('édité le ${edite}');

@@ -17,8 +17,11 @@ export function avertissementArticle17(
   dossierEstUneSociete: boolean,
 ): string | null {
   if (m === null) return dossierEstUneSociete ? PIECE_ANTERIEURE : null;
-  if (m.ligne === null || m.manquantes.length === 0) return null;
-  return `AUSCGIE art. 17 · manquait au dossier à l'établissement de la pièce : ${m.manquantes.join(', ')}. Complétez Paramètres du dossier pour les pièces suivantes.`;
+  // Le manque se dit même quand la ligne est vide · un commerçant sans RCCM
+  // n'a aucune ligne, et c'est justement le manque de l'AUDCG art. 59 (passe O2).
+  if (m.manquantes.length === 0) return null;
+  const texte = m.ligne !== null && m.manquantes.some((x) => !x.includes('AUDCG')) ? 'AUSCGIE art. 17' : 'Mentions de l’émetteur';
+  return `${texte} · manquait au dossier à l'établissement de la pièce : ${m.manquantes.join(', ')}. Complétez Paramètres du dossier pour les pièces suivantes.`;
 }
 
 

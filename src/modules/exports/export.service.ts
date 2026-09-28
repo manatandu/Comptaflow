@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, PayloadTooLargeException } from '@nestjs/common';
+import { immatriculationDesLivres, numeroRegistreLiasse } from '../tenant/mentions-immatriculation';
 import { REFS_DE_SOLDE } from '../etats-financiers/correspondance-projet-emplois-ressources';
 import type { Writable } from 'stream';
 import type { PerimetreBalanceAgee } from '../comptabilite/ecriture.service';
@@ -8,6 +9,7 @@ import {
   PREMIERE_LIGNE_DONNEES,
   ouvrirFeuilleEnFlux,
   type IdentiteEtat,
+  segmentIdentification,
 } from './classeur-en-flux';
 import { JeuEtatsFinanciersSycebnl, Prisma, Referentiel, SystemeComptableSyscohada } from '@prisma/client';
 import * as ExcelJS from 'exceljs';
@@ -438,12 +440,13 @@ export class ExportService {
    */
   private piedDePageEtat(
     feuille: ExcelJS.Worksheet,
-    identite: { entite: string; nif: string; periode: string; devise: string },
+    identite: IdentiteEtat,
   ) {
     const edite = new Date().toLocaleDateString('fr-FR');
+    const ident = segmentIdentification(identite);
     feuille.headerFooter = {
       oddFooter:
-        `&L${identite.entite}${identite.nif ? ` · NIF ${identite.nif}` : ''} · ${identite.periode} · ` +
+        `&L${identite.entite}${ident ? ` · ${ident}` : ''} · ${identite.periode} · ` +
         `montants en ${identite.devise}&RPage &P / &N · édité le ${edite}`,
     };
   }
@@ -473,7 +476,7 @@ export class ExportService {
    */
   private coifferEtat(
     feuille: ExcelJS.Worksheet,
-    identite: { entite: string; nif: string; periode: string; devise: string },
+    identite: IdentiteEtat,
     titre: string,
     nbColonnes: number,
     ligneEnteteAvant = 1,
@@ -488,7 +491,7 @@ export class ExportService {
     const ligneIdent = feuille.getRow(2);
     const edite = new Date().toLocaleDateString('fr-FR');
     ligneIdent.getCell(1).value =
-      `${identite.nif ? `NIF ${identite.nif} · ` : ''}${identite.periode} · montants en ${identite.devise} · ` +
+      `${segmentIdentification(identite) ? `${segmentIdentification(identite)} · ` : ''}${identite.periode} · montants en ${identite.devise} · ` +
       `édité le ${edite}`;
     ligneIdent.getCell(1).font = { size: 9, italic: true };
     if (nbColonnes > 1) feuille.mergeCells(2, 1, 2, nbColonnes);
@@ -508,7 +511,7 @@ export class ExportService {
   private async identiteEtat(
     tenantId: string,
     periode: { exerciceId?: string; dateDebut?: string; dateFin?: string },
-  ): Promise<{ entite: string; nif: string; periode: string; devise: string }> {
+  ): Promise<IdentiteEtat> {
     const tenant = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } });
     const exercice = periode.exerciceId
       ? await this.prisma.exercice.findFirst({ where: { id: periode.exerciceId, tenantId } })
@@ -527,6 +530,8 @@ export class ExportService {
       // second jeu, en monnaie fonctionnelle, porte la sienne et dit lui-même
       // qu'il n'a pas de valeur légale. Voir src/common/monnaie-de-tenue.ts.
       devise: monnaieDuJeuLegal(tenant.devise),
+      // AUDCG art. 14 · le numéro d'immatriculation sur les livres de commerce (passe O2).
+      immatriculation: immatriculationDesLivres(tenant),
     };
   }
 
@@ -6152,7 +6157,7 @@ export class ExportService {
       // Le gabarit est conservé tel quel · c'est lui qui fait la
       // présentation de toute la liasse, et le LIBELLÉ de la case dit ce
       // qu'elle contient. Ne pas lire ZE ici comme le ZE de la fiche R1.
-      ZE: tenant.rccm ?? '',
+      ZE: numeroRegistreLiasse(tenant),
     });
     construireFiche2(classeur, ident, 'DIRIGEANTS');
 
@@ -6396,7 +6401,7 @@ export class ExportService {
         'Notes annexes 1 à 3',
       ],
     });
-    construireFiche1(classeur, ident, 'SYSCOHADA', 'Système minimal de trésorerie', { ZE: tenant.rccm ?? '' });
+    construireFiche1(classeur, ident, 'SYSCOHADA', 'Système minimal de trésorerie', { ZE: numeroRegistreLiasse(tenant) });
     construireFiche2(classeur, ident, 'DIRIGEANTS');
 
     // Bilan paysage · c'est la présentation même du bilan SMT (« tableau à

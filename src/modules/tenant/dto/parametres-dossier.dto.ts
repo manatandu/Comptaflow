@@ -146,6 +146,17 @@ export class ModifierIdentiteDto {
   @MaxLength(40)
   rccm?: string;
 
+  // AUDCG art. 62 · l'entreprenant seul, qui n'a pas de RCCM (art. 64).
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  numeroDeclarationActivite?: string;
+
+  // AUDCG art. 140 · exploitation d'un fonds en location-gérance.
+  @IsOptional()
+  @IsIn(['OUI', 'NON', 'PAS_ENCORE_DIT'], { message: 'La location-gérance se déclare OUI, NON ou PAS_ENCORE_DIT.' })
+  locataireGerantFonds?: ReponseFait;
+
   // --- Propres aux entités à but non lucratif -----------------------------
   // Arrêté du Ministre de la Justice (loi 004/2001, art. 3) ou décret
   // présidentiel pour une entité de droit étranger (art. 30) · plus long

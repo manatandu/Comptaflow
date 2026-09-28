@@ -165,6 +165,9 @@ export function ParametresDossierPage() {
   const [numeroImpot, setNumeroImpot] = useState('');
   const [idNat, setIdNat] = useState('');
   const [rccm, setRccm] = useState('');
+  // AUDCG art. 62 et 140 (passe O2).
+  const [numeroDeclaration, setNumeroDeclaration] = useState('');
+  const [locataireGerant, setLocataireGerant] = useState<'OUI' | 'NON' | 'PAS_ENCORE_DIT'>('PAS_ENCORE_DIT');
   const [actePersonnalite, setActePersonnalite] = useState('');
   const [dateActe, setDateActe] = useState('');
   const [enregistrementSecteur, setEnregistrementSecteur] = useState('');
@@ -198,6 +201,8 @@ export function ParametresDossierPage() {
       setNumeroImpot(p.numeroImpot ?? '');
       setIdNat(p.idNat ?? '');
       setRccm(p.rccm ?? '');
+      setNumeroDeclaration(p.numeroDeclarationActivite ?? '');
+      setLocataireGerant(p.locataireGerantFonds === true ? 'OUI' : p.locataireGerantFonds === false ? 'NON' : 'PAS_ENCORE_DIT');
       setActePersonnalite(p.actePersonnaliteJuridique ?? '');
       setDateActe(p.dateActePersonnalite ? p.dateActePersonnalite.slice(0, 10) : '');
       setEnregistrementSecteur(p.numeroEnregistrementSecteur ?? '');
@@ -419,9 +424,12 @@ export function ParametresDossierPage() {
    * QUELS IDENTIFIANTS POUR QUELLE ENTITÉ · voir
    * docs/identifiants-legaux-ebnl-rdc.md pour la démonstration textuelle.
    *
-   * - Le RCCM n'existe que pour un dossier SYSCOHADA : l'AUDCG (art. 2)
-   *   n'assujettit au registre que les commerçants et les sociétés
-   *   commerciales. Une association, une ONG, un établissement d'utilité
+   * - Le RCCM n'existe que pour un dossier SYSCOHADA : l'AUDCG (art. 35, 1°)
+   *   immatricule les commerçants, les sociétés commerciales, les GIE, les
+   *   succursales et les groupements que la loi y soumet. L'entreprenant, lui,
+   *   DÉCLARE son activité et « ne peut être en même temps immatriculé »
+   *   (art. 62 et 64) · il reçoit le champ de sa déclaration, jamais celui du
+   *   RCCM. Une association, une ONG, un établissement d'utilité
    *   publique ou un projet de développement n'en a pas · le montrer, c'est
    *   inviter à inventer un numéro qui n'existe pas.
    * - L'acte de personnalité juridique le remplace : arrêté du ministre de la
@@ -434,6 +442,7 @@ export function ParametresDossierPage() {
    *   EUP, projets financés par un bailleur).
    */
   const estSycebnl = params?.referentiel === 'SYCEBNL';
+  const estEntreprenant = params?.formeJuridiqueSyscohada === 'ENTREPRENANT';
   const champsOng = params?.formeJuridique === 'ORGANISATION_NON_GOUVERNEMENTALE';
   const champsPlan =
     champsOng ||
@@ -461,7 +470,9 @@ export function ParametresDossierPage() {
         { label: 'Identification nationale', valeur: idNat, set: setIdNat, exemple: '01-93-K12345C' },
         ...(estSycebnl
           ? []
-          : [{ label: 'RCCM', valeur: rccm, set: setRccm, exemple: 'CD/KIN/RCCM/23-B-01234' }]),
+          : estEntreprenant
+            ? [{ label: 'N° de déclaration d’activité', valeur: numeroDeclaration, set: setNumeroDeclaration, exemple: 'CD/KIN/RCCM/24-EN-00123' }]
+            : [{ label: 'RCCM', valeur: rccm, set: setRccm, exemple: 'CD/KIN/RCCM/23-B-01234' }]),
         ...(estSycebnl
           ? [
               {
@@ -609,7 +620,11 @@ export function ParametresDossierPage() {
           // Le RCCM n'est envoyé que depuis un dossier SYSCOHADA · le champ
           // n'est même pas affiché ailleurs, et l'omettre évite d'écraser en
           // aveugle une valeur héritée d'un changement de référentiel.
-          ...(params?.referentiel === 'SYSCOHADA' ? { rccm } : {}),
+          ...(params?.referentiel === 'SYSCOHADA'
+            ? estEntreprenant
+              ? { numeroDeclarationActivite: numeroDeclaration }
+              : { rccm, locataireGerantFonds: locataireGerant }
+            : {}),
           ...(params?.referentiel === 'SYCEBNL'
             ? {
                 actePersonnaliteJuridique: actePersonnalite,
@@ -939,10 +954,12 @@ export function ParametresDossierPage() {
                   titre="Immatriculation"
                   texte={
                     estSycebnl
-                      ? 'Le numéro d’impôt est porté en tête de chaque page imprimée, au même titre que la dénomination, la date de clôture et la durée de l’exercice. L’acte de personnalité juridique est celui qui reconnaît l’entité (loi n° 004/2001) ; les autres identifiants servent aux dossiers déposés auprès des ministères et des bailleurs. Une entité à but non lucratif n’est pas immatriculée au registre du commerce : l’Acte uniforme sur le droit commercial général (art. 2) n’y assujettit que les commerçants et les sociétés. Le champ RCCM n’est donc pas proposé ici. L’identification nationale reste facultative, elle n’est requise que des agents économiques.'
-                      : 'Le numéro d’impôt est porté en tête de chaque page imprimée, au même titre que la dénomination, la date de clôture et la durée de l’exercice.'
+                      ? 'Le numéro d’impôt est porté en tête de chaque page imprimée, au même titre que la dénomination, la date de clôture et la durée de l’exercice. L’acte de personnalité juridique est celui qui reconnaît l’entité (loi n° 004/2001) ; les autres identifiants servent aux dossiers déposés auprès des ministères et des bailleurs. Une entité à but non lucratif n’est pas immatriculée au registre du commerce : l’Acte uniforme sur le droit commercial général (art. 35, 1°) y immatricule les commerçants, les sociétés, les GIE, les succursales et les groupements que la loi y soumet, et la loi n° 004/2001 n’y soumet pas une ASBL. Le champ RCCM n’est donc pas proposé ici. L’identification nationale reste facultative, elle n’est requise que des agents économiques.'
+                      : estEntreprenant
+                        ? 'L’entreprenant déclare son activité et n’est pas immatriculé au RCCM. Son numéro de déclaration d’activité s’imprime sur ses pièces et ses livres, suivi de la mention « Entreprenant dispensé d’immatriculation ».'
+                        : 'Le numéro d’impôt est porté en tête de chaque page imprimée. Le RCCM s’imprime sur les livres de commerce, les pièces émises et la correspondance ; un locataire-gérant y ajoute sa qualité.'
                   }
-                  source={estSycebnl ? 'Loi n° 004/2001 · AUDCG, art. 2' : 'Paramètres du dossier'}
+                  source={estSycebnl ? 'Loi n° 004/2001 · AUDCG, art. 35, 1°' : estEntreprenant ? 'AUDCG, art. 62 et 64' : 'AUDCG, art. 14, 59 et 140'}
                 />
               </SectionTitre>
               <form onSubmit={enregistrerIdentite} className="flex flex-col gap-3">
@@ -961,6 +978,22 @@ export function ParametresDossierPage() {
                       />
                     </Ligne>
                   ))}
+                  {!estSycebnl && !estEntreprenant && (
+                    <Ligne label="Location-gérance du fonds">
+                      <select
+                        value={locataireGerant}
+                        onChange={(e) => setLocataireGerant(e.target.value as 'OUI' | 'NON' | 'PAS_ENCORE_DIT')}
+                        disabled={!estAdmin || envoi}
+                        aria-label="Location-gérance du fonds"
+                        title="AUDCG art. 140 · le locataire-gérant indique sa qualité en tête de ses pièces, avec son RCCM"
+                        className={champSage}
+                      >
+                        <option value="PAS_ENCORE_DIT">Pas encore dit</option>
+                        <option value="OUI">Exploite un fonds en location-gérance</option>
+                        <option value="NON">Non</option>
+                      </select>
+                    </Ligne>
+                  )}
                 </div>
                 {estAdmin && (
                   <div>

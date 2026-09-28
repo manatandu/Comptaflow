@@ -1,5 +1,6 @@
 import { FormeJuridiqueSyscohada, Referentiel } from '@prisma/client';
 import { FORMES_PERSONNES_PHYSIQUES } from '../retenues/correspondance-retenues';
+import { mentionImmatriculation } from './mentions-immatriculation';
 
 /**
  * MENTIONS DE L'ARTICLE 17 DE L'AUSCGIE (point 16 de la comparaison Sage i7).
@@ -20,9 +21,10 @@ import { FORMES_PERSONNES_PHYSIQUES } from '../retenues/correspondance-retenues'
  * LE PÉRIMÈTRE EST CELUI DES SOCIÉTÉS COMMERCIALES DE L'ART. 6, ET DE ELLES
  * SEULES. L'art. 17 est au chapitre de la « dénomination sociale » des
  * sociétés. Une ASBL n'a pas de capital social, une personne physique non
- * plus ; le GIE, la coopérative, la succursale et l'entité publique relèvent
- * d'autres textes que ce module n'a pas lus · la ligne ne leur est pas
- * reprochée, et le capital leur reste saisissable sans être exigé.
+ * plus ; le GIE, la coopérative, la succursale et l'entité publique ne portent
+ * pas la ligne de l'art. 17, et le capital leur reste saisissable sans être
+ * exigé. LEUR IMMATRICULATION, elle, s'imprime · AUDCG art. 14, 59, 62 et 140,
+ * `mentions-immatriculation.ts` (passe O2). `mentionsEmetteur` réunit les deux.
  */
 
 export const FORMES_SOCIETES_COMMERCIALES: FormeJuridiqueSyscohada[] = [
@@ -62,6 +64,10 @@ export interface IdentiteSociete {
   ville: string | null;
   rccm: string | null;
   devise: string | null;
+  /** AUDCG art. 62 · l'entreprenant, qui n'est pas immatriculé (art. 64). */
+  numeroDeclarationActivite?: string | null;
+  /** AUDCG art. 140 · null, pas encore dit. */
+  locataireGerantFonds?: boolean | null;
 }
 
 export interface MentionsSociete {
@@ -119,5 +125,18 @@ export interface MentionsRecopiees extends MentionsSociete {
  * l'impression réécrirait l'offre faite l'an dernier.
  */
 export function mentionsRecopiees(t: IdentiteSociete): MentionsRecopiees {
-  return { denomination: t.nom, ...mentionsArticle17(t) };
+  return { denomination: t.nom, ...mentionsEmetteur(t) };
+}
+
+/**
+ * CE QUI ACCOMPAGNE LA DÉNOMINATION sur toute pièce émise et tout document
+ * imprimé · la ligne de l'art. 17 pour une société (le RCCM y est déjà), la
+ * mention d'immatriculation de l'AUDCG pour les autres formes, et la qualité
+ * de locataire-gérant (art. 140) en tête dans les deux cas.
+ */
+export function mentionsEmetteur(t: IdentiteSociete): MentionsSociete {
+  const art17 = mentionsArticle17(t);
+  if (art17.ligne === null) return mentionImmatriculation(t);
+  const locataire = t.locataireGerantFonds === true ? 'Locataire-gérant du fonds de commerce · ' : '';
+  return { ligne: `${locataire}${art17.ligne}`, manquantes: art17.manquantes };
 }
