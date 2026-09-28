@@ -116,8 +116,10 @@ export function PlanComptesPage() {
   const [intituleEdit, setIntituleEdit] = useState('');
 
   const charger = async () => {
-    const params = recherche ? `?recherche=${encodeURIComponent(recherche)}` : '';
-    setComptes(await api.get<Compte[]>(`/comptes${params}`));
+    // `usage` · la fenêtre dit quels comptes sont utilisés, ceux que les
+    // listes de choix proposent même non retenus (Compte.estRetenu).
+    const params = recherche ? `&recherche=${encodeURIComponent(recherche)}` : '';
+    setComptes(await api.get<Compte[]>(`/comptes?usage=true${params}`));
   };
 
   useEffect(() => {
@@ -151,10 +153,27 @@ export function PlanComptesPage() {
 
   // Une recherche en cours affiche ses résultats toutes classes confondues ·
   // le classement par classe ne s'applique qu'en navigation libre, sans recherche.
+  // RETENUS SEULEMENT · la vue des comptes que les listes de choix proposent
+  // (retenus, ou déjà utilisés). Préférence d'affichage, jamais un refus.
+  const [retenusSeuls, setRetenusSeuls] = useState(false);
   const liste = useMemo(
-    () => (comptes ?? []).filter((c) => recherche.trim() !== '' || c.classe === classeFiltre),
-    [comptes, classeFiltre, recherche],
+    () =>
+      (comptes ?? [])
+        .filter((c) => recherche.trim() !== '' || c.classe === classeFiltre)
+        .filter((c) => !retenusSeuls || c.typeCompte === 'TOTAL' || c.estRetenu || c.utilise),
+    [comptes, classeFiltre, recherche, retenusSeuls],
   );
+
+  const neRetenirQueLesUtilises = async () => {
+    if (!window.confirm('Ne retenir que les comptes déjà utilisés ? Les autres ne seront plus proposés dans les listes de choix. Rien n’est supprimé.')) return;
+    setErreur(null);
+    try {
+      await api.post('/comptes/ne-retenir-que-les-utilises', {});
+      await charger();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Modification impossible');
+    }
+  };
   const selection = liste.find((c) => c.id === selectionId) ?? (comptes ?? []).find((c) => c.id === selectionId) ?? null;
 
   /*
@@ -193,6 +212,7 @@ export function PlanComptesPage() {
     corps: {
       intitule?: string;
       estActif?: boolean;
+      estRetenu?: boolean;
       modeReportANouveau?: ModeReportANouveau;
       lettrable?: boolean;
       tauxTvaDefautId?: string | null;
@@ -266,6 +286,20 @@ export function PlanComptesPage() {
             placeholder="Rechercher (numéro ou intitulé)…"
             className="border border-border-dark bg-surface px-2.5 py-1 text-[11.5px] w-72"
           />
+          <label className="flex items-center gap-1.5 text-[11.5px]">
+            <input type="checkbox" checked={retenusSeuls} onChange={(e) => setRetenusSeuls(e.target.checked)} />
+            Comptes retenus seulement
+            <Aide
+              titre="Comptes retenus"
+              texte="Les listes de choix (saisie, lettrage, modèles, réimputation, régularisations) ne proposent que les comptes retenus par le cabinet et ceux déjà utilisés : mouvementés, portés par un journal, un taux de taxe, une famille d’immobilisations ou un tiers. Le plan officiel reste entier : les états financiers, les imports et les écritures automatiques lisent tout le plan. Retenir un compte ne change aucun solde."
+              source="Organisation d’OmegaX · le plan officiel reste celui du référentiel"
+            />
+          </label>
+          {estAdmin && (
+            <button type="button" onClick={() => void neRetenirQueLesUtilises()} className="border border-border-dark px-3 py-1 text-[11.5px]">
+              Ne retenir que les comptes utilisés
+            </button>
+          )}
           {estAdmin && (
             <button
               type="button"
@@ -318,14 +352,15 @@ export function PlanComptesPage() {
           // qui emportait alors titre, onglets et boutons hors de l'écran.
           className="flex-1 min-w-0 bg-surface border border-border shadow-posee flex flex-col overflow-x-auto"
         >
-          <div className="entete-colonnes grid grid-cols-[92px_1fr_58px_72px_74px] min-w-[520px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[11px] font-bold text-text-dim shrink-0">
+          <div className="entete-colonnes grid grid-cols-[92px_1fr_58px_72px_74px_58px] min-w-[590px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[11px] font-bold text-text-dim shrink-0">
             <span>N° compte</span>
             <span>Intitulé</span>
             <span>Type</span>
             <span title="Mode de report à-nouveau en fin d'exercice">À-nouveau</span>
             <span>État</span>
+            <span title="Proposé dans les listes de choix · retenu par le cabinet, ou déjà utilisé">Saisie</span>
           </div>
-          <div className="flex-1 overflow-auto min-w-[520px]">
+          <div className="flex-1 overflow-auto min-w-[590px]">
             {!comptes && <div className="px-3.5 py-3 text-[11.5px] text-text-dim">Chargement…</div>}
             {liste.map((c) => (
               <button
@@ -344,7 +379,7 @@ export function PlanComptesPage() {
                   fond plus soutenu · on doit reconnaître la charpente du plan
                   en le parcourant, sans lire les numéros.
                 */
-                className={`w-full grid grid-cols-[92px_1fr_58px_72px_74px] min-w-[520px] gap-2.5 px-3.5 items-center text-left border-b border-border/50 ${
+                className={`w-full grid grid-cols-[92px_1fr_58px_72px_74px_58px] min-w-[590px] gap-2.5 px-3.5 items-center text-left border-b border-border/50 ${
                   estComptePrincipalOfficiel(c) ? 'py-[5px] text-[11.5px]' : 'py-[3.5px] text-[11.5px]'
                 } ${
                   selectionId === c.id
@@ -367,6 +402,9 @@ export function PlanComptesPage() {
                 </span>
                 <span className={`text-[11px] ${selectionId === c.id ? 'text-white/90' : c.estActif ? 'text-positive' : 'text-warning'}`}>
                   {c.estActif ? 'Actif' : 'Sommeil'}
+                </span>
+                <span className={`text-[11px] ${selectionId === c.id ? 'text-white/90' : 'text-sel'}`} title={c.estRetenu ? 'Retenu par le cabinet' : c.utilise ? 'Utilisé, donc proposé' : ''}>
+                  {c.typeCompte !== 'DETAIL' ? '' : c.estRetenu ? 'Retenu' : c.utilise ? 'Utilisé' : '·'}
                 </span>
               </button>
             ))}
@@ -564,6 +602,16 @@ export function PlanComptesPage() {
                     </label>
                   )}
 
+                  <label className="flex items-start gap-2 mb-2 text-[11.5px]">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      disabled={!estAdmin}
+                      checked={!!selection.estRetenu}
+                      onChange={(e) => modifier(selection.id, { estRetenu: e.target.checked })}
+                    />
+                    <span>Compte retenu (proposé à la saisie){selection.utilise && !selection.estRetenu ? ' · proposé car utilisé' : ''}</span>
+                  </label>
                   <label className="flex items-start gap-2 mb-3 text-[11.5px]">
                     <input
                       type="checkbox"

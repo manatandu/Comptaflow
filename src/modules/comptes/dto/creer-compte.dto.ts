@@ -1,4 +1,5 @@
 import { IsBoolean, IsEnum, IsOptional, IsString, Matches } from 'class-validator';
+import { FacultatifNonNul } from '../../../common/facultatif-non-nul';
 import { ClasseCompte, ModeReportANouveau, TypeCompteDetailTotal } from '@prisma/client';
 
 export class CreerCompteDto {
@@ -58,6 +59,11 @@ export class CreerCompteDto {
 }
 
 export class ModifierCompteDto {
+  /** Compte retenu par le cabinet · proposé dans les listes de choix. */
+  @FacultatifNonNul('Un compte est retenu ou non · null ne dit pas lequel des deux.')
+  @IsBoolean()
+  estRetenu?: boolean;
+
   @IsOptional()
   @IsString()
   intitule?: string;

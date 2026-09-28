@@ -226,7 +226,7 @@ export function BrouillardPage() {
    */
   const ouvrirEdition = (l: LigneBrouillard) => {
     setErreurEdition(null);
-    if (!comptes) api.get<Compte[]>('/comptes?typeCompte=DETAIL').then(setComptes, () => setComptes([]));
+    if (!comptes) api.get<Compte[]>('/comptes?typeCompte=DETAIL&retenus=true').then(setComptes, () => setComptes([]));
     setEdition({
       id: l.id,
       numeroPiece: l.numeroPiece,

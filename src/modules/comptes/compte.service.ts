@@ -10,6 +10,7 @@ import { CreerCompteDto, ModifierCompteDto } from './dto/creer-compte.dto';
 import { naturesDuDossier } from './natures-compte.service';
 import { LIBELLES_NATURE, natureDe } from './natures-compte';
 import { classeDuNumero } from './classe-du-numero';
+import { identifiantsUtilises } from '../../common/suppression/references';
 
 /**
  * Comptes ouverts au lettrage à la création d'un dossier.
@@ -60,6 +61,9 @@ export class CompteService {
         // vieilli à chaque régénération : la règle se dit par la CONVENTION de
         // semis, pas par un décompte.
         lettrable: c.typeCompte === 'TOTAL' ? false : estLettrableParDefaut(c.numero),
+        // Le plan normalisé part NON retenu · le cabinet retient ce qu'il
+        // utilise, et tout compte utilisé reste proposé (schema.prisma).
+        estRetenu: false,
       })),
       skipDuplicates: true,
     });
@@ -67,7 +71,16 @@ export class CompteService {
 
   async lister(
     tenantId: string,
-    filtres: { classe?: ClasseCompte; recherche?: string; actifsSeuls?: boolean; typeCompte?: TypeCompteDetailTotal },
+    filtres: {
+      classe?: ClasseCompte;
+      recherche?: string;
+      actifsSeuls?: boolean;
+      typeCompte?: TypeCompteDetailTotal;
+      /** Ne rendre que les comptes retenus ou déjà utilisés (listes de choix). */
+      retenus?: boolean;
+      /** Rendre pour chaque compte s'il est utilisé (fenêtre Plan comptable). */
+      usage?: boolean;
+    },
   ) {
     const where: Prisma.CompteWhereInput = {
       tenantId,
@@ -90,10 +103,23 @@ export class CompteService {
     // La nature s'AFFICHE, elle ne se stocke pas · « la nature d'un compte
     // s'affiche automatiquement en fonction du numéro de compte et du
     // paramétrage des comptes par nature » (support Sage 100).
-    return comptes.map((c) => {
-      const n = natureDe(c.numero, natures);
-      return { ...c, nature: n ? LIBELLES_NATURE[n.nature] : null };
-    });
+    // UTILISÉ = référencé par quoi que ce soit, lu dans le schéma. Le lien
+    // d'un compte individuel vers son collectif n'est pas un usage du
+    // collectif · un collectif ne se saisit pas à la place de ses tiers.
+    const utilises =
+      filtres.retenus || filtres.usage
+        ? await identifiantsUtilises(this.prisma, 'Compte', comptes.map((c) => c.id), tenantId, ['Compte.collectifId'])
+        : null;
+    return comptes
+      .filter((c) => !filtres.retenus || c.estRetenu || utilises!.has(c.id))
+      .map((c) => {
+        const n = natureDe(c.numero, natures);
+        return {
+          ...c,
+          nature: n ? LIBELLES_NATURE[n.nature] : null,
+          ...(utilises ? { utilise: utilises.has(c.id) } : {}),
+        };
+      });
   }
 
   async creer(tenantId: string, dto: CreerCompteDto) {
@@ -187,6 +213,17 @@ export class CompteService {
     refuserSiReferences(`Le compte ${compte.numero}`, await referencesVers(this.prisma, 'Compte', compte.id, tenantId));
     await this.prisma.compte.delete({ where: { id: compte.id } });
     return { supprime: true };
+  }
+
+  /**
+   * NE RETENIR QUE LES COMPTES UTILISÉS · remet tout le plan du dossier à
+   * « non retenu ». Rien ne disparaît de ce qui sert · un compte utilisé reste
+   * proposé par la règle de `lister`. Le geste d'un dossier existant dont le
+   * plan entier a été retenu par la migration.
+   */
+  async neRetenirQueLesUtilises(tenantId: string) {
+    const { count } = await this.prisma.compte.updateMany({ where: { tenantId, estRetenu: true }, data: { estRetenu: false } });
+    return { comptesDesretenus: count };
   }
 
   async modifier(tenantId: string, compteId: string, dto: ModifierCompteDto) {

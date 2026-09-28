@@ -175,7 +175,7 @@ export function RegularisationPage() {
   const estSycebnl = utilisateur?.tenant.referentiel !== 'SYSCOHADA';
 
   useEffect(() => {
-    api.get<Compte[]>('/comptes?actifsSeuls=true&typeCompte=DETAIL').then(setComptes, () => setComptes([]));
+    api.get<Compte[]>('/comptes?actifsSeuls=true&typeCompte=DETAIL&retenus=true').then(setComptes, () => setComptes([]));
     api.get<Journal[]>('/journaux').then(setJournaux, () => setJournaux([]));
     api.get<Exercice[]>('/exercices').then(setExercices, () => setExercices([]));
   }, []);

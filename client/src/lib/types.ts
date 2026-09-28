@@ -104,6 +104,10 @@ export interface Compte {
   classe: ClasseCompte;
   typeCompte: TypeCompteDetailTotal;
   estActif: boolean;
+  /** Retenu par le cabinet · proposé dans les listes de choix (schema.prisma). */
+  estRetenu?: boolean;
+  /** Utilisé quelque part (écriture, journal, taux, famille, tiers) · rendu sur `?usage=true`. */
+  utilise?: boolean;
   /** Report à-nouveau en fin d'exercice · Aucun (charges/produits), Solde, ou Détail (lignes non lettrées). */
   modeReportANouveau: ModeReportANouveau;
   /** Nature (Sage) déduite du numéro et du paramétrage du dossier · lue par GET /comptes, jamais stockée. */

@@ -26,13 +26,27 @@ export class CompteController {
     // (EcritureService.creer rejette de toute façon une écriture sur un
     // compte Total, mais autant ne pas le proposer dans la liste).
     @Query('typeCompte') typeCompte?: TypeCompteDetailTotal,
+    // Listes de choix · les comptes retenus et ceux déjà utilisés
+    // (Compte.estRetenu dans le schéma). La fenêtre Plan comptable demande
+    // `usage` pour afficher lesquels sont utilisés.
+    @Query('retenus') retenus?: string,
+    @Query('usage') usage?: string,
   ) {
     return this.compteService.lister(user.tenantId, {
       classe,
       recherche,
       actifsSeuls: actifsSeuls === 'true',
       typeCompte,
+      retenus: retenus === 'true',
+      usage: usage === 'true',
     });
+  }
+
+  /** Ne retenir que les comptes utilisés · voir CompteService. */
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
+  @Post('ne-retenir-que-les-utilises')
+  async neRetenirQueLesUtilises(@CurrentUser() user: AuthenticatedUser) {
+    return this.compteService.neRetenirQueLesUtilises(user.tenantId);
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET)

@@ -331,7 +331,7 @@ export function SaisiePage() {
       },
       (e) => setErreurJournaux(e instanceof Error ? e.message : "La liste des journaux n'a pas pu être lue."),
     );
-    api.get<Compte[]>('/comptes?actifsSeuls=true&typeCompte=DETAIL').then(
+    api.get<Compte[]>('/comptes?actifsSeuls=true&typeCompte=DETAIL&retenus=true').then(
       (cs) => {
         setComptesLus(cs);
         setErreurComptes(null);

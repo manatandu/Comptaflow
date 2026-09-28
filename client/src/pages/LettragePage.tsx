@@ -104,7 +104,7 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
     // de choisir. Seul l'état de lettrage attend un compte.
     try {
       const [tousComptes, resultat, groupesDuDossier] = await Promise.all([
-        api.get<Compte[]>('/comptes'),
+        api.get<Compte[]>('/comptes?retenus=true'),
         compteId
           ? api.get<EtatLettrage>(`/comptes/${compteId}/lettrage${nonLettreesSeulement ? '?nonLettreesSeulement=true' : ''}`)
           : Promise.resolve(null),

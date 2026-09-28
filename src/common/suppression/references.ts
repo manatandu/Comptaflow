@@ -153,3 +153,38 @@ export async function reporterReferences(
   }
   return reportees;
 }
+
+/**
+ * LES IDENTIFIANTS UTILISÉS · parmi `ids`, ceux auxquels quoi que ce soit se
+ * réfère, relation par relation lue dans le schéma comme pour la suppression.
+ * Sert les listes de choix des comptes · un compte utilisé (mouvementé, porté
+ * par un journal, un taux, une famille, un tiers…) y reste proposé même non
+ * retenu, et une table ajoutée demain qui pointe vers un compte le retiendra
+ * sans que personne ait à y penser. Une requête par relation, jamais une par
+ * compte.
+ */
+export async function identifiantsUtilises(
+  prisma: unknown,
+  cible: string,
+  ids: string[],
+  tenantId: string,
+  exclure: string[] = [],
+): Promise<Set<string>> {
+  const utilises = new Set<string>();
+  if (ids.length === 0) return utilises;
+  const client = prisma as Record<
+    string,
+    { findMany: (a: { where: Record<string, unknown>; select: Record<string, boolean>; distinct: string[] }) => Promise<Record<string, string | null>[]> }
+  >;
+  for (const lien of relationsVers(cible, exclure)) {
+    const delegue = client[lien.modele.charAt(0).toLowerCase() + lien.modele.slice(1)];
+    const where: Record<string, unknown> = { [lien.champ]: { in: ids } };
+    if (lien.cloisonne) where.tenantId = tenantId;
+    const lignes = await delegue.findMany({ where, select: { [lien.champ]: true }, distinct: [lien.champ] });
+    for (const l of lignes) {
+      const v = l[lien.champ];
+      if (v) utilises.add(v);
+    }
+  }
+  return utilises;
+}

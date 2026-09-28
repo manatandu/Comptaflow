@@ -55,7 +55,7 @@ export function ModaleReimputation({
 
   useEffect(() => {
     api
-      .get<Compte[]>('/comptes')
+      .get<Compte[]>('/comptes?retenus=true')
       .then((c) => setComptes(c.filter((x) => x.typeCompte === 'DETAIL' && x.estActif)))
       .catch(() => setComptes([]));
   }, []);

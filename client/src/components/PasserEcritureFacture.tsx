@@ -35,7 +35,7 @@ export function PasserEcritureFacture({ facture, onFait }: { facture: { id: stri
       setJournaux(ok);
       if (ok.length === 1) setJournalId(ok[0].id);
     }, echec);
-    api.get<Compte[]>('/comptes').then(
+    api.get<Compte[]>('/comptes?retenus=true').then(
       (cs) =>
         setComptes(
           cs.filter(

@@ -94,7 +94,7 @@ export function ModelesSaisiePage() {
       const [m, j, c, t] = await Promise.all([
         api.get<ModeleSaisie[]>('/modeles-saisie?inclureInactifs=true'),
         api.get<Journal[]>('/journaux'),
-        api.get<Compte[]>('/comptes'),
+        api.get<Compte[]>('/comptes?retenus=true'),
         api.get<TauxTva[]>('/taux-tva?actifsSeuls=true'),
       ]);
       setTaux(t);

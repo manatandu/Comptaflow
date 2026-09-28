@@ -223,7 +223,7 @@ export function ProvisionsPage() {
 
   useEffect(() => {
     if (!peutEcrire) return;
-    api.get<Compte[]>('/comptes?actifsSeuls=true&typeCompte=DETAIL').then(setComptes, () => setComptes([]));
+    api.get<Compte[]>('/comptes?actifsSeuls=true&typeCompte=DETAIL&retenus=true').then(setComptes, () => setComptes([]));
   }, [peutEcrire]);
 
   useEffect(() => {

@@ -431,8 +431,8 @@ describe('les écrans qui débordaient le plus', () => {
     // minimale et défilent ensemble, dans le conteneur du panneau.
     const src = lire('PlanComptesPage.tsx');
     expect(src).toMatch(/flex-1 min-w-0 bg-surface border border-border shadow-posee flex flex-col overflow-x-auto/);
-    expect(src).toMatch(/grid-cols-\[92px_1fr_58px_72px_74px\] min-w-\[520px\]/);
-    expect(src).toMatch(/className="flex-1 overflow-auto min-w-\[520px\]"/);
+    expect(src).toMatch(/grid-cols-\[92px_1fr_58px_72px_74px_58px\] min-w-\[590px\]/);
+    expect(src).toMatch(/className="flex-1 overflow-auto min-w-\[590px\]"/);
   });
 
   it('la liste des tiers, même forme et même remède', () => {

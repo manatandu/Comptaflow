@@ -44,7 +44,7 @@ export function HistoriqueRappels() {
   useEffect(() => {
     // Les comptes de tiers seulement · une relance ne vise qu'un compte de la classe 4.
     api
-      .get<Compte[]>('/comptes?typeCompte=DETAIL')
+      .get<Compte[]>('/comptes?typeCompte=DETAIL&retenus=true')
       .then((cs) => setComptes(cs.filter((c) => c.numero.startsWith('4'))))
       .catch(() => setComptes([]));
   }, []);

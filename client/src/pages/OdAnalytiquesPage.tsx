@@ -56,7 +56,7 @@ export function OdAnalytiquesPage() {
   const [envoi, setEnvoi] = useState(false);
 
   useEffect(() => {
-    Promise.all([api.get<PlanAnalytique[]>('/analytique/plans'), api.get<Compte[]>('/comptes')])
+    Promise.all([api.get<PlanAnalytique[]>('/analytique/plans'), api.get<Compte[]>('/comptes?retenus=true')])
       .then(([p, c]) => {
         setPlans(p);
         setPlanId((id) => id || p[0]?.id || '');
