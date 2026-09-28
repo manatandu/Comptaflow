@@ -562,10 +562,12 @@ function BlocConformite({
   montant: (v: number) => string;
 }) {
   const r = rapport.rapprochement;
-  const constat = (titre: string, ok: boolean, resultat: string, detail: string) => (
+  // Le titre est un intitulé métier ; l'article qui le fonde va dans
+  // l'infobulle (`source`), jamais dans le titre affiché.
+  const constat = (titre: string, ok: boolean, resultat: string, detail: string, source?: string) => (
     <div className="border border-border bg-surface mb-2 px-3.5 py-2.5">
       <div className="flex items-baseline justify-between gap-3">
-        <span className="text-[11.5px] font-bold">{titre}</span>
+        <span className="text-[11.5px] font-bold" title={source}>{titre}</span>
         <span className={`text-[11.5px] font-bold ${ok ? 'text-positive' : 'text-danger'}`}>{resultat}</span>
       </div>
       <div className="text-[11px] text-text-dim mt-1 italic">{detail}</div>
@@ -627,7 +629,7 @@ function BlocConformite({
             : ''),
       )}
       {constat(
-        'Contenu obligatoire (art. 17, points 1 à 4)',
+        'Contenu obligatoire des lignes',
         rapport.completude.lignesIncompletes.length === 0,
         rapport.completude.lignesIncompletes.length === 0
           ? 'CONFORME'
@@ -637,6 +639,7 @@ function BlocConformite({
           : rapport.completude.lignesIncompletes
               .map((l) => `n° ${l.numero} : ${l.manquements.map((m) => LIBELLE_CHAMP[m.champ] ?? m.champ).join(', ')}`)
               .join(' ; '),
+        'SYCEBNL, art. 17, points 1 à 4',
       )}
 
       <div className={`border px-3.5 py-2.5 mb-2 ${r.rapproche ? 'border-positive/40 bg-positive-soft' : 'border-danger/30 bg-danger-soft'}`}>

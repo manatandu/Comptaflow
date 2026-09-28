@@ -70,7 +70,8 @@ describe("Ce que la fenêtre annonce avant tout chiffre", () => {
 
   it('nomme les DEUX assiettes et la raison pour laquelle elles diffèrent', () => {
     expect(SOURCE).toContain('Assiette sociale');
-    expect(SOURCE).toContain('Assiette fiscale nette (art. 70)');
+    // Titre formel à l'écran, l'article dans l'infobulle du même élément.
+    expect(SOURCE).toContain('title="Loi n° 23/053, art. 70">Assiette fiscale nette</div>');
     expect(SOURCE).toContain('sans aucune condition');
     expect(SOURCE).toContain('sous condition');
   });
@@ -192,7 +193,7 @@ describe("L'article 114 à l'écran", () => {
   it('ne recalcule aucune fraction dans la page', () => {
     // Le défaut visé : diviser par cinq ou par trois « pour afficher tout de
     // suite ». Le seuil et les deux fractions vivent au serveur.
-    const debut = SOURCE.indexOf("Article 114 · quotité");
+    const debut = SOURCE.indexOf("Quotité cessible et saisissable");
     const fin = SOURCE.indexOf('Réserves de lecture', debut);
     const panneau = SOURCE.slice(debut, fin);
     expect(panneau).not.toMatch(/\/\s*5\b/);
@@ -202,7 +203,7 @@ describe("L'article 114 à l'écran", () => {
   });
 
   it("affiche les abstentions plutôt qu'un zéro", () => {
-    const debut = SOURCE.indexOf("Article 114 · quotité");
+    const debut = SOURCE.indexOf("Quotité cessible et saisissable");
     const panneau = SOURCE.slice(debut, debut + 2600);
     expect(panneau).toContain('simulation.quotite.abstentions.length > 0');
   });
@@ -311,7 +312,7 @@ describe("L'article 112 à l'écran · la liste fermée", () => {
     // à la main dans la page, là où le serveur n'en rend que sept.
     // On borne au TABLEAU seul · les réserves qui suivent parlent, elles,
     // de la cotisation syndicale, et c'est leur rôle.
-    const debut = SOURCE.indexOf('Article 112 · les sept seules retenues');
+    const debut = SOURCE.indexOf('Retenues autorisées sur la rémunération');
     const panneau = SOURCE.slice(debut, SOURCE.indexOf('</table>', debut));
     expect(panneau).not.toMatch(/syndic/i);
     expect(panneau).not.toContain('saisie-arrêt');

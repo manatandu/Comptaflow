@@ -63,7 +63,8 @@ const CHOIX: {
   },
   {
     valeur: 'SYSTEME_MINIMAL_TRESORERIE',
-    titre: 'Système minimal de trésorerie · petites entités (art. 5 et 6)',
+    // L'article (SYCEBNL, art. 5 et 6) est dans la bulle d'aide « smt ».
+    titre: 'Système minimal de trésorerie · petites entités',
     etats: [
       'Bilan (5 lignes d’actif, 4 de passif)',
       'Compte de résultat de trésorerie',
@@ -794,8 +795,8 @@ export function ParametresDossierPage() {
                         </div>
                       </Ligne>
                       {params?.mentionsSociete.ligne && (
-                        <Ligne label="Art. 17" large>
-                          <div className="text-[11px]">
+                        <Ligne label="Mentions légales" large>
+                          <div className="text-[11px]" title="AUSCGIE art. 17 · mentions des actes et documents destinés aux tiers">
                             {params.mentionsSociete.ligne}
                             {params.mentionsSociete.manquantes.length > 0 && (
                               <div className="text-warning font-semibold">
@@ -1060,7 +1061,10 @@ export function ParametresDossierPage() {
                     );
                   })}
                 </div>
-                <label className="flex items-center gap-2 text-[11.5px] mt-1">
+                <label
+                  className="flex items-center gap-2 text-[11.5px] mt-1"
+                  title="Loi n° 004/2001, art. 29 à 34 et art. 37 · accord-cadre avec le Ministère du Plan"
+                >
                   <input
                     type="checkbox"
                     checked={params.droitEtranger ?? false}
@@ -1069,7 +1073,7 @@ export function ParametresDossierPage() {
                     // juridique de la loi n° 004/2001 y est nécessairement servie.
                     onChange={(e) => params.formeJuridique && changerForme(params.formeJuridique, e.target.checked)}
                   />
-                  Entité de droit étranger (art. 29 à 34 et art. 37 : accord-cadre avec le Ministère du Plan)
+                  Entité de droit étranger
                 </label>
               </div>
             </>
@@ -1261,9 +1265,9 @@ export function ParametresDossierPage() {
                       onChange={(e) => changerRegime({ regimeExigibiliteTva: e.target.value as RegimeExigibiliteTva })}
                       className="mt-1 block w-full max-w-[420px] border border-border rounded-[4px] bg-bg px-2 py-1 text-[11.5px] focus:outline-none focus:border-sel"
                     >
-                      <option value="LIVRAISONS">Livraisons · taxe due à la livraison du bien (art. 25, 1°)</option>
-                      <option value="ENCAISSEMENTS">Encaissements · taxe due au règlement (art. 25, 2°)</option>
-                      <option value="DEBITS">Débits · sur autorisation du DGI (art. 26)</option>
+                      <option value="LIVRAISONS" title="O.-L. n° 10/001, art. 25, 1°">Livraisons · taxe due à la livraison du bien</option>
+                      <option value="ENCAISSEMENTS" title="O.-L. n° 10/001, art. 25, 2°">Encaissements · taxe due au règlement</option>
+                      <option value="DEBITS" title="O.-L. n° 10/001, art. 26">Débits · sur autorisation du DGI</option>
                     </select>
                   </label>
                 )}

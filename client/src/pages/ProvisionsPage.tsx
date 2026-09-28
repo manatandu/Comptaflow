@@ -693,7 +693,7 @@ export function ProvisionsPage() {
                         {n.compte} · {LIBELLE_NATURE[n.nature] ?? n.intitule}
                       </option>
                     ))}
-                    <optgroup label="Interdites (ch. 18 § 4.11)">
+                    <optgroup label="Provisions interdites" title="AUDCIF Titre VIII ch. 18 § 4.11">
                       {NATURES_INTERDITES.map((n) => (
                         <option key={n} value={n}>
                           {LIBELLE_NATURE[n] ?? n}

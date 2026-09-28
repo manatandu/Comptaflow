@@ -1051,6 +1051,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
           <button
             key={o}
             type="button"
+            title={o === 'confrontation' ? 'Code du travail, art. 212 et art. 40 à 45' : undefined}
             onClick={() => setOnglet(o)}
             className={`px-3 py-1 border ${
               onglet === o ? 'border-accent text-accent' : 'border-border text-text-dim'
@@ -1059,7 +1060,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
             {o === 'registre'
               ? 'Registre'
               : o === 'confrontation'
-                ? 'Article 212'
+                ? 'Contrôle des contrats'
                 : o === 'effectif'
                   ? 'Effectif'
                   : o === 'simulation'
@@ -1292,10 +1293,10 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                     checked={salarie.aptitudeProvisoire}
                     onChange={(e) => setSalarie({ ...salarie, aptitudeProvisoire: e.target.checked })}
                   />
-                  Certificat provisoire (art. 38 · à confirmer sous trois mois)
+                  <span title="Code du travail, art. 38">Certificat provisoire (à confirmer sous trois mois)</span>
                 </label>
                 <label>
-                  <span className={etiquette}>Déclaration d’engagement (art. 217)</span>
+                  <span className={etiquette} title="Code du travail, art. 217">Déclaration d’engagement</span>
                   <input
                     type="date"
                     className={champ}
@@ -1306,7 +1307,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                   />
                 </label>
                 <label>
-                  <span className={etiquette}>Déclaration de départ (art. 217)</span>
+                  <span className={etiquette} title="Code du travail, art. 217">Déclaration de départ</span>
                   <input
                     type="date"
                     className={champ}
@@ -1500,7 +1501,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                     <div className={etiquette}>Nouveau contrat</div>
                     <div className="grid grid-cols-3 gap-1.5 mt-1">
                       <label>
-                        <span className={etiquette}>Type (art. 39)</span>
+                        <span className={etiquette} title="Code du travail, art. 39">Type de contrat</span>
                         <select
                           className={champ}
                           value={contrat.type}
@@ -1527,7 +1528,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                         />
                       </label>
                       <label>
-                        <span className={etiquette}>Terme prévu (art. 41)</span>
+                        <span className={etiquette} title="Code du travail, art. 41">Terme prévu</span>
                         <input
                           type="date"
                           className={champ}
@@ -1648,7 +1649,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                         </select>
                       </label>
                       <label>
-                        <span className={etiquette}>Ouvrage déterminé (art. 40)</span>
+                        <span className={etiquette} title="Code du travail, art. 40">Ouvrage déterminé</span>
                         <input
                           className={champ}
                           value={contrat.ouvrageDetermine}
@@ -1656,7 +1657,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                         />
                       </label>
                       <label>
-                        <span className={etiquette}>Motif de remplacement (art. 45)</span>
+                        <span className={etiquette} title="Code du travail, art. 45">Motif de remplacement</span>
                         <input
                           className={champ}
                           value={contrat.motifRemplacement}
@@ -1664,7 +1665,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                         />
                       </label>
                       <label>
-                        <span className={etiquette}>Essai, en jours (art. 43)</span>
+                        <span className={etiquette} title="Code du travail, art. 43">Durée de l’essai, en jours</span>
                         <input
                           className={champ}
                           value={contrat.essaiDureeJours}
@@ -1681,7 +1682,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                             setContrat({ ...contrat, constateParEcrit: e.target.checked })
                           }
                         />
-                        Constaté par écrit (art. 44)
+                        <span title="Code du travail, art. 44">Constaté par écrit</span>
                       </label>
                       <label className="flex items-center gap-1">
                         <input
@@ -1689,7 +1690,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                           checked={contrat.emploiPermanent}
                           onChange={(e) => setContrat({ ...contrat, emploiPermanent: e.target.checked })}
                         />
-                        Emploi permanent (art. 42)
+                        <span title="Code du travail, art. 42">Emploi permanent</span>
                       </label>
                       <label className="flex items-center gap-1">
                         <input
@@ -1699,7 +1700,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                             setContrat({ ...contrat, separeDeSaFamille: e.target.checked })
                           }
                         />
-                        Travailleur séparé de sa famille (art. 41 · plafond ramené à un an)
+                        <span title="Code du travail, art. 41">Travailleur séparé de sa famille (plafond ramené à un an)</span>
                       </label>
                       <label className="flex items-center gap-1">
                         <input
@@ -1709,7 +1710,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                             setContrat({ ...contrat, manoeuvreSansSpecialite: e.target.checked })
                           }
                         />
-                        Manœuvre sans spécialité (art. 43 · essai plafonné à un mois)
+                        <span title="Code du travail, art. 43">Manœuvre sans spécialité (essai plafonné à un mois)</span>
                       </label>
                       <label className="flex items-center gap-1">
                         <input
@@ -1727,7 +1728,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                             setContrat({ ...contrat, essaiConstateParEcrit: e.target.checked })
                           }
                         />
-                        Clause d’essai constatée par écrit (art. 43)
+                        <span title="Code du travail, art. 43">Clause d’essai constatée par écrit</span>
                       </label>
                       <label className="flex items-center gap-1">
                         <input
@@ -1735,7 +1736,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                           checked={contrat.viseParOnem}
                           onChange={(e) => setContrat({ ...contrat, viseParOnem: e.target.checked })}
                         />
-                        Visé par l’Office national de l’emploi (art. 47)
+                        <span title="Code du travail, art. 47">Visé par l’Office national de l’emploi</span>
                       </label>
                     </div>
                     <button
@@ -1793,16 +1794,16 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
               {f.requalifications.map((r) => (
                 <div key={r.motif} className="mt-1 border-l-2 border-danger pl-2">
                   <div className="font-bold text-danger">
-                    Requalifié en contrat à durée indéterminée · {r.article}
+                    Requalifié en contrat à durée indéterminée
                   </div>
-                  <div className="italic text-text-dim">« {r.formule} »</div>
+                  <div className="italic text-text-dim">« {r.formule} » ({r.article})</div>
                   <div>{r.explication}</div>
                 </div>
               ))}
               {f.mentionsManquantes.length > 0 && (
                 <div className="mt-1">
-                  <div className="font-bold">
-                    Énonciations manquantes de l’article 212 ({f.mentionsManquantes.length})
+                  <div className="font-bold" title="Code du travail, art. 212">
+                    Mentions manquantes ({f.mentionsManquantes.length})
                   </div>
                   <ul className="list-disc ml-4">
                     {f.mentionsManquantes.map((m) => (
@@ -1980,7 +1981,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                 </select>
               </label>
               <label className="flex flex-col gap-0.5">
-                <span className={etiquette}>Autres retenues art. 71 (FC)</span>
+                <span className={etiquette} title="Loi n° 23/053, art. 71">Autres retenues déductibles (FC)</span>
                 <input
                   value={retenues71}
                   onChange={(e) => setRetenues71(e.target.value)}
@@ -2004,7 +2005,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                 />
               </label>
               <label className="flex flex-col gap-0.5">
-                <span className={etiquette}>Classe (art. 114)</span>
+                <span className={etiquette} title="Code du travail, art. 114 · décret n° 25/22">Classe professionnelle</span>
                 <input
                   value={classePro}
                   onChange={(e) => setClassePro(e.target.value)}
@@ -2063,7 +2064,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                   className="border border-border bg-transparent px-2 py-1"
                 >
                   <option value="">Non déclaré</option>
-                  <option value="BAREME_ARTICLE_118">Barème de l'art. 118</option>
+                  <option value="BAREME_ARTICLE_118" title="Loi n° 23/053, art. 118">Barème progressif de l’IRPP</option>
                   <option value="FORFAIT_PERSONNEL_DOMESTIQUE">Personnel domestique (forfait)</option>
                   <option value="FORFAIT_SALARIE_DE_MICRO_ENTREPRISE">Salarié de micro-entreprise (forfait)</option>
                 </select>
@@ -2226,8 +2227,8 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                   <th className={`${etiquette} py-1`}>Nature</th>
                   <th className={`${etiquette} py-1`}>Libellé</th>
                   <th className={`${etiquette} py-1 text-right`}>{deviseStipulation === 'USD' ? 'Montant USD' : 'Montant FC'}</th>
-                  <th className={`${etiquette} py-1`}>Art. 69, 8 attesté</th>
-                  <th className={`${etiquette} py-1`}>Art. 68, 1</th>
+                  <th className={`${etiquette} py-1`} title="Loi n° 23/053, art. 69, 8, b et c">Condition d’immunité</th>
+                  <th className={`${etiquette} py-1`} title="Loi n° 23/053, art. 68, 1">Remboursement de frais</th>
                   <th className={`${etiquette} py-1`} />
                 </tr>
               </thead>
@@ -2268,14 +2269,14 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                                 ))}
                             </optgroup>
                           )}
-                          <optgroup label="Dans la rémunération (art. 7, point 8)">
+                          <optgroup label="Éléments de rémunération" title="Code du travail, art. 7, point 8">
                             {NATURES_PAIE.filter((n) => n.dansLaRemuneration).map((n) => (
                               <option key={n.valeur} value={n.valeur}>
                                 {n.libelle}
                               </option>
                             ))}
                           </optgroup>
-                          <optgroup label="Hors rémunération (art. 7, point 8)">
+                          <optgroup label="Éléments hors rémunération" title="Code du travail, art. 7, point 8">
                             {NATURES_PAIE.filter((n) => !n.dansLaRemuneration).map((n) => (
                               <option key={n.valeur} value={n.valeur}>
                                 {n.libelle}
@@ -2377,7 +2378,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
           {selection && avancesSalarie.some((a) => a.soldeFc > 0) && (
             <div className="border border-border px-3 py-2 mt-2">
               <div className={`${etiquette} mb-1 flex items-center gap-1.5`}>
-                Retenues d’avance et de prêt (art. 112, c et f)
+                Retenues d’avance et de prêt
                 <Aide
                   titre="Retenues d’avance et de prêt"
                   texte="Chaque avance, acompte ou prêt du registre dont un solde reste dû. La retenue saisie baisse le net et crédite le compte de l’avance (4211, 4212 ou 272) par le débit du 422. Elle ne peut dépasser le solde. Aucun plafond n’est opposé au nom de l’article 114, qui n’est visé par l’article 112 que pour son litera d) ; la quotité est montrée pour comparaison."
@@ -2483,7 +2484,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                 </div>
 
                 <div className="border border-border px-3.5 py-2.5">
-                  <div className={etiquette}>Assiette fiscale nette (art. 70)</div>
+                  <div className={etiquette} title="Loi n° 23/053, art. 70">Assiette fiscale nette</div>
                   <div className="text-[13px] font-bold">
                     {simulation.assiettes.assietteFiscaleNetteFc === null
                       ? 'Indéterminée'
@@ -2542,7 +2543,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
 
               {simulation.retenue && (
                 <div className="border border-border px-3.5 py-2.5 mt-2.5">
-                  <div className={etiquette}>Retenue du mois (art. 119)</div>
+                  <div className={etiquette} title="Loi n° 23/053, art. 119">Retenue d’IRPP du mois</div>
                   <div className="text-[14px] font-bold">
                     {fc(simulation.retenue.retenueFc)} FC
                   </div>
@@ -2767,8 +2768,8 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                 sociales. Tous les montants viennent du serveur.
               */}
               <div className="border border-border px-3.5 py-2.5 mt-2.5">
-                <div className={`${etiquette} mb-1.5`}>
-                  Article 114 · quotité cessible et saisissable
+                <div className={`${etiquette} mb-1.5`} title="Code du travail, art. 114">
+                  Quotité cessible et saisissable
                 </div>
                 {simulation.quotite.abstentions.length > 0 ? (
                   <ul className="text-[11px]">
@@ -2849,8 +2850,8 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                 qu'on peut encore l'éviter, jamais au contrôle.
               */}
               <div className="border border-border px-3.5 py-2.5 mt-2.5">
-                <div className={`${etiquette} mb-1.5`}>
-                  Article 112 · les sept seules retenues autorisées
+                <div className={`${etiquette} mb-1.5`} title="Code du travail, art. 112">
+                  Retenues autorisées sur la rémunération
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[520px] text-[11px]">
@@ -3077,7 +3078,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-2.5">
                 <div className="border border-border px-3.5 py-2.5">
-                  <div className={etiquette}>Préavis (article 64)</div>
+                  <div className={etiquette} title="Code du travail, art. 64">Préavis</div>
                   <div className="text-[13px] font-bold">
                     {decompte.preavis.joursOuvrables === null
                       ? 'Aucun'
@@ -3090,7 +3091,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                   )}
                 </div>
                 <div className="border border-border px-3.5 py-2.5">
-                  <div className={etiquette}>Congé (article 141)</div>
+                  <div className={etiquette} title="Code du travail, art. 141">Congé</div>
                   <div className="text-[13px] font-bold">
                     {decompte.conge.joursOuvrables} jours ouvrables
                   </div>
@@ -3180,7 +3181,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                 />
               </label>
               <label className="flex flex-col gap-0.5">
-                <span className={etiquette}>Forme du document (art. 1er)</span>
+                <span className={etiquette} title="Arrêté n° 12/CAB.MIN/ETPS/042 du 8 août 2008, art. 1er">Forme du livre de paie</span>
                 <select
                   value={livreSaisie.forme}
                   onChange={(e) =>
@@ -3198,7 +3199,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                 </select>
               </label>
               <label className="flex flex-col gap-0.5">
-                <span className={etiquette}>Autorisation Inspecteur (art. 215, al. 2)</span>
+                <span className={etiquette} title="Code du travail, art. 215, al. 2">Autorisation de l’inspecteur du travail</span>
                 <select
                   value={livreSaisie.autorisation}
                   onChange={(e) =>
@@ -3283,8 +3284,11 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
               </div>
 
               <div className="border border-border px-3.5 py-2.5 mb-2.5 overflow-x-auto">
-                <div className={`${etiquette} mb-1`}>
-                  Les trente-trois énonciations de l’article 1er de l’arrêté du 8 août 2008
+                <div
+                  className={`${etiquette} mb-1`}
+                  title="Arrêté n° 12/CAB.MIN/ETPS/042 du 8 août 2008, art. 1er"
+                >
+                  Mentions obligatoires du livre de paie (33)
                 </div>
                 <table className="w-full min-w-[520px] text-[11px]">
                   <tbody>

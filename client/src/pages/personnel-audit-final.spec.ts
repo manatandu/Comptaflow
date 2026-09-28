@@ -70,7 +70,7 @@ describe('F109 · le champ de l’article 71 ne reçoit que les autres versement
   });
 
   it('le libellé du champ le dit aussi', () => {
-    expect(page).toContain('Autres retenues art. 71 (FC)');
+    expect(page).toContain('title="Loi n° 23/053, art. 71">Autres retenues déductibles (FC)');
   });
 });
 
@@ -164,7 +164,7 @@ describe('F226, suite · la monnaie se choisit, et les contrats à compléter se
   });
 
   it('le bouton attend la monnaie quand un montant est saisi', () => {
-    const bouton = bloc(page, 'Visé par l’Office national de l’emploi (art. 47)', 'Enregistrer le contrat');
+    const bouton = bloc(page, 'Visé par l’Office national de l’emploi</span>', 'Enregistrer le contrat');
     expect(bouton).toContain('(!!contrat.remunerationBase && !contrat.deviseRemuneration)');
   });
 

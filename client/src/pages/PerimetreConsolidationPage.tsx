@@ -73,7 +73,7 @@ const LIBELLE_METHODE: Record<Resultat['methode'], string> = {
   IP: 'Intégration proportionnelle',
   ME: 'Mise en équivalence',
   NC: 'Non consolidée',
-  EXCLUE: 'Exclue (art. 96)',
+  EXCLUE: 'Exclue du périmètre',
 };
 
 const LIBELLE_OBLIGATION: Record<string, string> = {
@@ -83,12 +83,14 @@ const LIBELLE_OBLIGATION: Record<string, string> = {
   A_EXAMINER: 'À examiner',
 };
 
-const FAITS_ENTITE: { cle: keyof Entite; libelle: string }[] = [
-  { cle: 'designationMajoriteDeuxExercices', libelle: 'A désigné la majorité des organes pendant deux exercices successifs (art. 78)' },
-  { cle: 'aucunAutreAssocieSuperieur', libelle: 'Aucun autre associé ne détenait une fraction supérieure (art. 78)' },
-  { cle: 'controleContractuel', libelle: 'Influence dominante par contrat ou clauses statutaires (art. 78)' },
-  { cle: 'accordControleConjoint', libelle: 'Accord contractuel de contrôle conjoint (art. 78)' },
-  { cle: 'influenceNotableDeclaree', libelle: 'Influence notable par d’autres éléments que les droits de vote (art. 78)' },
+// Le libellé est un intitulé métier ; l'article qui le fonde part dans
+// l'infobulle (`source`), jamais dans le libellé affiché.
+const FAITS_ENTITE: { cle: keyof Entite; libelle: string; source: string }[] = [
+  { cle: 'designationMajoriteDeuxExercices', libelle: 'A désigné la majorité des organes pendant deux exercices successifs', source: 'AUDCIF art. 78' },
+  { cle: 'aucunAutreAssocieSuperieur', libelle: 'Aucun autre associé ne détenait une fraction supérieure', source: 'AUDCIF art. 78' },
+  { cle: 'controleContractuel', libelle: 'Influence dominante par contrat ou clauses statutaires', source: 'AUDCIF art. 78' },
+  { cle: 'accordControleConjoint', libelle: 'Accord contractuel de contrôle conjoint', source: 'AUDCIF art. 78' },
+  { cle: 'influenceNotableDeclaree', libelle: 'Influence notable par d’autres éléments que les droits de vote', source: 'AUDCIF art. 78' },
 ];
 
 const champ = 'w-full border border-border px-1.5 py-1 text-[11.5px]';
@@ -162,7 +164,7 @@ export function PerimetreConsolidationPage() {
         <h2 className="text-[11.5px] font-bold mb-1.5">
           Obligation de consolider · {LIBELLE_OBLIGATION[etat.obligation.obligation] ?? etat.obligation.obligation}{' '}
           <Aide
-            titre="Seuil de l’art. 95"
+            titre="Seuil de consolidation"
             texte="Le seuil de l’art. 95 est écrit en francs CFA, « ou l’équivalent dans l’unité monétaire ayant cours légal ». Aucune source lue ne fixe cet équivalent en francs congolais · il se déclare avec sa source, et sans lui la dispense n’est pas examinée."
             source="AUDCIF art. 95"
           />
@@ -176,13 +178,13 @@ export function PerimetreConsolidationPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
             {(
               [
-                ['sousControleEntiteOhadaConsolidante', 'Sous le contrôle d’une entité OHADA qui consolide (art. 77)'],
-                ['siegesDansDeuxRegions', 'Sièges dans deux régions différentes de l’espace OHADA (art. 77)'],
-                ['appelPublicEpargne', 'Appel public à l’épargne ou titres cotés (art. 75 et 77)'],
-                ['demandeAssociesDixieme', 'Consolidation demandée par des associés détenant au moins le dixième (art. 77)'],
-              ] as [keyof Faits, string][]
-            ).map(([cle, libelle]) => (
-              <label key={cle} className="text-[11.5px] flex gap-1.5 items-start">
+                ['sousControleEntiteOhadaConsolidante', 'Sous le contrôle d’une entité OHADA qui consolide', 'AUDCIF art. 77'],
+                ['siegesDansDeuxRegions', 'Sièges dans deux régions différentes de l’espace OHADA', 'AUDCIF art. 77'],
+                ['appelPublicEpargne', 'Appel public à l’épargne ou titres cotés', 'AUDCIF art. 75 et 77'],
+                ['demandeAssociesDixieme', 'Consolidation demandée par des associés détenant au moins le dixième', 'AUDCIF art. 77'],
+              ] as [keyof Faits, string, string][]
+            ).map(([cle, libelle, source]) => (
+              <label key={cle} title={source} className="text-[11.5px] flex gap-1.5 items-start">
                 <input type="checkbox" checked={faits[cle] === true} onChange={(e) => void enregistrerFaits({ [cle]: e.target.checked })} />
                 <span>{libelle}</span>
               </label>
@@ -199,8 +201,8 @@ export function PerimetreConsolidationPage() {
               Source de l’équivalent (texte, cours, date)
               <input className={champ} defaultValue={faits.sourceSeuil ?? ''} onBlur={(e) => void enregistrerFaits({ sourceSeuil: e.target.value || null })} />
             </label>
-            <label className="text-[11.5px]">
-              Équivalent en FC de 500 000 000 FCFA (art. 95)
+            <label className="text-[11.5px]" title="AUDCIF art. 95">
+              Équivalent en FC de 500 000 000 FCFA
               <input className={champ} defaultValue={faits.seuilEquivalentFc ?? ''} onBlur={(e) => void enregistrerFaits({ seuilEquivalentFc: nombre(e.target.value) })} />
             </label>
           </div>
@@ -229,7 +231,7 @@ export function PerimetreConsolidationPage() {
                   </td>
                   <td className="py-1 pr-2 text-right">{r.pctControle.toFixed(2)}</td>
                   <td className="py-1 pr-2 text-right">{r.pctInteret.toFixed(2)}</td>
-                  <td className="py-1 pr-2">{LIBELLE_METHODE[r.methode]}</td>
+                  <td className="py-1 pr-2" title={r.methode === 'EXCLUE' ? 'AUDCIF art. 96' : undefined}>{LIBELLE_METHODE[r.methode]}</td>
                   <td className="py-1">
                     {r.fondement}
                     {r.dateCloture && r.dateCloture.verdict !== 'MEME_DATE' && <div className="text-text-dim">{r.dateCloture.message}</div>}
@@ -252,8 +254,8 @@ export function PerimetreConsolidationPage() {
               Nom
               <input className={champ} value={nom} onChange={(e) => setNom(e.target.value)} />
             </label>
-            <label className="text-[11.5px]">
-              Date de clôture (art. 97)
+            <label className="text-[11.5px]" title="AUDCIF art. 97">
+              Date de clôture
               <input type="date" className={champ} value={dateCloture} onChange={(e) => setDateCloture(e.target.value)} />
             </label>
             <button
@@ -282,7 +284,7 @@ export function PerimetreConsolidationPage() {
               </summary>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 py-1.5">
                 {FAITS_ENTITE.map((f) => (
-                  <label key={f.cle} className="text-[11.5px] flex gap-1.5 items-start">
+                  <label key={f.cle} title={f.source} className="text-[11.5px] flex gap-1.5 items-start">
                     <input
                       type="checkbox"
                       disabled={!peutEcrire}
@@ -292,8 +294,8 @@ export function PerimetreConsolidationPage() {
                     <span>{f.libelle}</span>
                   </label>
                 ))}
-                <label className="text-[11.5px]">
-                  Motif d’exclusion (art. 96)
+                <label className="text-[11.5px]" title="AUDCIF art. 96">
+                  Motif d’exclusion
                   <select
                     className={champ}
                     disabled={!peutEcrire}
