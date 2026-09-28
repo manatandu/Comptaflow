@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { viderCacheReferentiels } from './api';
+import { DUREE_FERMETURE_MS, marquerFermeture, mouvementReduit, retirerSiEnFermeture } from './fermeture-fenetre';
 
 /**
  * GESTIONNAIRE DE FENÊTRES · le modèle MDI de Sage 100 Comptabilité i7.
@@ -58,6 +59,8 @@ export interface FenetreOuverte {
   etatAvantReduction: Exclude<EtatFenetre, 'reduite'>;
   /** Ordre d'empilement · le plus grand est devant. */
   ordre: number;
+  /** Sortie en cours · voir `lib/fermeture-fenetre.ts`. */
+  enFermeture?: boolean;
   /** Position et taille à l'état « normale », en pixels dans l'espace de travail. */
   cadre: CadreFenetre;
   /**
@@ -147,7 +150,7 @@ export function FenetresProvider({ children }: { children: React.ReactNode }) {
         // donnerait l'impression que la commande n'a rien fait.
         return actuelles.map((f) =>
           f.cle === cle
-            ? { ...f, adresse, ordre, etat: f.etat === 'reduite' ? f.etatAvantReduction : f.etat }
+            ? { ...f, adresse, ordre, enFermeture: false, etat: f.etat === 'reduite' ? f.etatAvantReduction : f.etat }
             : f,
         );
       }
@@ -190,7 +193,12 @@ export function FenetresProvider({ children }: { children: React.ReactNode }) {
     const motif = gardes.current.get(cle)?.();
     if (!confirmerPerte(motif ? [motif] : [])) return;
     gardes.current.delete(cle);
-    setFenetres((a) => a.filter((f) => f.cle !== cle));
+    if (mouvementReduit()) {
+      setFenetres((a) => a.filter((f) => f.cle !== cle));
+      return;
+    }
+    setFenetres((a) => marquerFermeture(a, cle));
+    window.setTimeout(() => setFenetres((a) => retirerSiEnFermeture(a, cle)), DUREE_FERMETURE_MS);
   }, []);
 
   const fermerTout = useCallback(() => {

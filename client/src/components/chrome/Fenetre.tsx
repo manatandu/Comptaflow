@@ -162,7 +162,7 @@ function FenetreInterne({ fenetre, active }: { fenetre: FenetreOuverte; active: 
       style={style}
       // UNE FENÊTRE INACTIVE NE S'IMPRIME PAS · sans cela, « Imprimer » sortait
       // aussi toutes les fenêtres ouvertes derrière celle qu'on regardait.
-      className={`anim-fenetre absolute flex flex-col overflow-hidden rounded-[4px] border bg-surface ${active ? '' : 'fenetre-inactive'} ${
+      className={`${fenetre.enFermeture ? 'anim-fenetre-sortie pointer-events-none' : 'anim-fenetre'} absolute flex flex-col overflow-hidden rounded-[4px] border bg-surface ${active ? '' : 'fenetre-inactive'} ${
         active ? 'border-border-dark shadow-dominante' : 'border-border shadow-posee'
       }`}
     >

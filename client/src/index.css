@@ -701,6 +701,18 @@ tbody tr {
     transform: none;
   }
 }
+/* « Où est passée cette fenêtre ? » · elle se retire vers le bas, plus vite
+   qu'elle n'est venue (lib/fermeture-fenetre.ts). */
+@keyframes fenetre-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0) scale(0.99);
+  }
+}
 /* « Ce menu sort d'où ? » · de la barre qui l'a ouvert. */
 @keyframes menu-in {
   from {
@@ -777,6 +789,9 @@ tbody tr {
 
 .anim-fenetre {
   animation: fenetre-in 0.28s var(--t-sortie) both;
+}
+.anim-fenetre-sortie {
+  animation: fenetre-out 0.14s var(--t-doux) both;
 }
 .anim-menu {
   animation: menu-in 0.15s var(--t-sortie) both;
