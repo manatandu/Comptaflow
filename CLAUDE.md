@@ -84,7 +84,7 @@ npx prisma generate       # après toute modification du schéma
 
 # Client (depuis client/)
 npx tsc --noEmit
-npx vitest run
+npm test                  # vitest, version figée dans le script (audit final F196)
 npm run build
 npm run dev               # port 5173
 ```

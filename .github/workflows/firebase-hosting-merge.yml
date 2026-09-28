@@ -24,7 +24,7 @@ jobs:
         run: npx tsc --noEmit
         working-directory: client
       - name: Tests du client
-        run: npx vitest run
+        run: npm test
         working-directory: client
       - run: npm run build
         working-directory: client

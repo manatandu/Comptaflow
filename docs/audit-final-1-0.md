@@ -1461,6 +1461,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 6
 - **Constat :** chaque CI prend la dernière version publiée.
 - **Correction :** devDependency à version fixée.
+- **Fait le 2026-09-28 :** la version de vitest s'écrit une fois, dans le script `test` du client (`npx --yes vitest@5.0.2 run`), et les deux workflows lancent `npm test` au lieu d'un `npx vitest run` nu. Pas en devDependency · vitest 5 exige vite 6.4 au moins et le client est sur vite 5, l'installer forcerait une montée de vite (dit dans `client/vitest.config.ts`). Test : `chaine-de-livraison.spec.ts`, qui exige la version exacte et le script dans les deux workflows, vu tomber sur un workflow et un script remis à nu.
 
 **F197 · Marche locale des tests navigateur (CLAUDE.md § 10) contraire au montage réel** [infra-13]
 - **Emplacements :** CLAUDE.md:3150 · e2e/tests/outils.ts:3 · .github/workflows/tests-navigateur.yml:53

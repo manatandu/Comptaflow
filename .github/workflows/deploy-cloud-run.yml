@@ -209,7 +209,7 @@ jobs:
       - name: Tests du client
         if: matrix.suite == 'complete'
         working-directory: client
-        run: npx vitest run
+        run: npm test
 
       - name: Construction du client
         if: matrix.suite == 'complete'
