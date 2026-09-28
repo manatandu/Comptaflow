@@ -47,7 +47,7 @@ const l = (exerciceId: string, ecritureId: string, date: string, numero: string,
   ...drapeaux,
 });
 
-function service(lignes: Ligne[], exercices = [EX26, EX27]) {
+function service(lignes: Ligne[], exercices = [EX26, EX27], cours = COURS) {
   const vue = (x: Ligne) => ({
     debit: x.debit,
     credit: x.credit,
@@ -84,7 +84,7 @@ function service(lignes: Ligne[], exercices = [EX26, EX27]) {
         return Promise.resolve(avant.sort((a, b) => b.dateFin.getTime() - a.dateFin.getTime())[0] ?? null);
       }),
     },
-    devise: { findFirst: jest.fn().mockResolvedValue({ id: 'd1', code: 'USD', cours: COURS }) },
+    devise: { findFirst: jest.fn().mockResolvedValue({ id: 'd1', code: 'USD', cours }) },
     ecriture: {
       findMany: jest.fn(({ where, take, cursor, skip }: { where: Filtre['ecriture'] } & Page) => {
         const retenues = ecritures.filter((e) => retient(e.premiere, { ecriture: where }));
@@ -180,5 +180,22 @@ describe('F42 · l’ouverture est la clôture du même jeu pour l’exercice pr
   it('la clôture de l’exercice lu n’est ni convertie ni comptée parmi les écritures', async () => {
     const r = await service(DEUX_EXERCICES).balance('t1', 'ex26');
     expect(r.origine.ecritures).toBe(3);
+  });
+
+  it('un cours manquant sur l’exercice précédent est dit comme tel, exercice nommé', async () => {
+    // Cours saisis à partir de 2027 seulement · la balance de 2027 reprend la
+    // clôture du second jeu de 2026, qui n'a aucun cours.
+    const seulement2027 = COURS.filter((c) => c.date >= j('2027-01-01'));
+    await expect(service(DEUX_EXERCICES, [EX26, EX27], seulement2027).balance('t1', 'ex27')).rejects.toThrow(
+      /dans l'exercice du 2026-01-01 au 2026-12-31, exercice antérieur dont la clôture sert d'ouverture/,
+    );
+  });
+
+  it('un cours manquant sur l’exercice lu nomme cet exercice, sans le dire antérieur', async () => {
+    const tard = [{ date: j('2027-06-01'), cours: 3300 }];
+    const seul = DEUX_EXERCICES.filter((x) => x.exerciceId === 'ex27' && !x.gpc);
+    const erreur = await service(seul, [EX27], tard).balance('t1', 'ex27').catch((e: Error) => e.message);
+    expect(erreur).toContain("dans l'exercice du 2027-01-01 au 2027-12-31.");
+    expect(erreur).not.toContain('antérieur');
   });
 });

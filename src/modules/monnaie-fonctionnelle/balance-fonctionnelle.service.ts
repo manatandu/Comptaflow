@@ -417,7 +417,14 @@ export class BalanceFonctionnelleService {
       const distinctes = [...sansCours].sort();
       throw new BadRequestException(
         `Aucun cours ${fonctionnelle} connu à ${distinctes.length} date(s) d'écriture ` +
-          `(${distinctes.slice(0, 10).join(', ')}${distinctes.length > 10 ? '…' : ''}). ` +
+          `(${distinctes.slice(0, 10).join(', ')}${distinctes.length > 10 ? '…' : ''}) ` +
+          // L'EXERCICE EST NOMMÉ · l'ouverture reprend la clôture du même jeu
+          // pour l'exercice précédent, qui exige aussi ses cours. Sans le dire,
+          // le cabinet lisait des dates de l'an passé sous la balance de cette
+          // année et croyait l'état en panne.
+          `dans l'exercice du ${exercice.dateDebut.toISOString().slice(0, 10)} au ${exercice.dateFin.toISOString().slice(0, 10)}` +
+          (profondeur > 0 ? ", exercice antérieur dont la clôture sert d'ouverture au second jeu" : '') +
+          '. ' +
           "Le cours retenu est le dernier saisi à la date de l'écriture ou avant · l'état s'arrête ici plutôt que de prendre un cours postérieur ou celui de la clôture · une " +
           'balance convertie avec un cours inventé est plausible et fausse, et personne ne la vérifie.',
       );
