@@ -9,6 +9,7 @@ import { AProposModale } from '../components/chrome/AProposModale';
 import type { PlanningCloture, RapportControles, Referentiel } from '../lib/types';
 import { fenetreDisponible } from '../lib/referentiel-fenetre';
 import { cheminAuMenu } from '../lib/profil-dossier';
+import { tachesDuRole } from '../lib/accueil-par-metier';
 import {
   IconBalance,
   IconBanque,
@@ -269,6 +270,13 @@ export function AccueilPage() {
       // Même filtre de profil que la barre de menus (lib/profil-dossier.ts).
       .filter((t) => cheminAuMenu(t.chemin, utilisateur?.tenant));
 
+  // ACCUEIL PAR MÉTIER · les tâches du rôle en tête, passées par le même
+  // filtre que les menus (`lib/accueil-par-metier.ts`). Aucun droit n'en naît.
+  const metier = tachesDuRole(utilisateur?.role);
+  const tachesVisibles = metier.taches
+    .filter((t) => !t.admin || estAdmin)
+    .filter((t) => cheminAuMenu(t.chemin, utilisateur?.tenant));
+
   const dateCourte = (iso: string) =>
     new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 
@@ -349,6 +357,23 @@ export function AccueilPage() {
 
           {onglet === 'Accueil' && (
             <div className="anim-panneau p-3">
+              {tachesVisibles.length > 0 && (
+                <section aria-label={metier.titre} className="mb-3">
+                  <h3 className="text-[11.5px] font-semibold text-text-dim mb-1.5">{metier.titre}</h3>
+                  <div className="anim-cascade grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                    {tachesVisibles.map((t) => (
+                      <button
+                        key={t.chemin}
+                        type="button"
+                        onClick={() => navigate(t.chemin)}
+                        className="carte-indicateur text-left border border-border bg-surface px-2.5 py-2 text-[11.5px] font-semibold text-text hover:border-sel/40"
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
               <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-0.5 text-[11.5px]">
                 <dt className="text-text-dim">Dossier</dt>
                 <dd className="font-semibold">{utilisateur?.tenant.nom}</dd>
