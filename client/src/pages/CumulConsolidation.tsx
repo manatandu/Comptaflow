@@ -252,9 +252,12 @@ export function CumulConsolidation(props: {
               <label className="text-[11.5px]">Dépréciation cumulée à la clôture<input name="depClo" className={champ} defaultValue={l.depreciationEcartCloture ?? ''} disabled={!peutEcrire} /></label>
               <label className="text-[11.5px]">Dividendes reçus dans l’exercice<input name="div" className={champ} defaultValue={l.dividendesExercice ?? ''} disabled={!peutEcrire} /></label>
               <label className="text-[11.5px]">Compte des dividendes<input name="compteDiv" className={champ} defaultValue={l.compteDividendes ?? ''} disabled={!peutEcrire} /></label>
-              <label className="text-[11.5px] flex gap-1.5 items-start sm:col-span-2">
+              <label
+                className="text-[11.5px] flex gap-1.5 items-start sm:col-span-2"
+                title="Une quote-part négative passe alors en provision · AUDCIF, D4C ch. XII-5 § 6"
+              >
                 <input name="obligation" type="checkbox" defaultChecked={l.obligationNonDesengagement === true} disabled={!peutEcrire} />
-                <span>Obligation ou intention de ne pas se désengager · une quote-part négative passe en provision (ch. XII-5 § 6)</span>
+                <span>Obligation ou intention de ne pas se désengager</span>
               </label>
               {peutEcrire && (
                 <button type="submit" className="border border-border px-2.5 py-1 text-[11.5px] sm:col-span-3 justify-self-start">

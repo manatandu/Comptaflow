@@ -131,7 +131,7 @@ export function DossierRevisionPage() {
           title="Écritures sélectionnées selon les caractéristiques de l'ISA 240, § A44, avec leur piste : qui a saisi, et quand"
           className="border border-border bg-surface hover:bg-surface-alt disabled:opacity-50 px-2 py-1 text-[11.5px]"
         >
-          {exportEnCours ? 'Export…' : 'Test des écritures de journal · ISA 240'}
+          {exportEnCours ? 'Export…' : 'Test des écritures de journal'}
         </button>
       </div>
 

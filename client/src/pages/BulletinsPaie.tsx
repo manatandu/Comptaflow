@@ -291,14 +291,13 @@ export function OngletBulletins({ moisInitial, peutEcrire }: { moisInitial: stri
                   </tr>
                 ))}
               <tr className="border-t border-border/60">
-                <td className="py-1">Retenue IRPP (art. 119)</td>
+                <td className="py-1" title="Loi n° 23/053, art. 119">Retenue IRPP</td>
                 <td className="py-1 text-right">− {fc(ouvert.irppFc)}</td>
               </tr>
               {retenuesDuBulletin(ouvert.calcul).map((r, i) => (
                 <tr key={`avance-${i}`} className="border-t border-border/60">
-                  <td className="py-1">
+                  <td className="py-1" title={r.littera ? `Code du travail, art. 112, ${r.littera}` : undefined}>
                     Retenue {r.libelle}
-                    {r.littera && ` (art. 112, ${r.littera})`}
                   </td>
                   <td className="py-1 text-right">− {fc(r.montantFc)}</td>
                 </tr>

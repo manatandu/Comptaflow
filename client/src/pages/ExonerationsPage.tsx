@@ -479,7 +479,7 @@ export function ExonerationsPage() {
       {referentiel && (
         <div className="mt-2.5 border border-border bg-surface max-w-[1240px]">
           <div className="px-3.5 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim flex items-center gap-1.5">
-            CAS DE FRANCHISE INVOCABLES PAR UNE EBNL · CODE DES DOUANES, ART. 339, 1°
+            FRANCHISES DOUANIÈRES INVOCABLES PAR UNE EBNL
             <Aide
               titre="Cas de franchise"
               texte="Chaque cas reste soumis aux conditions déterminées par le ministre des Finances : le Code pose le principe et l’énumération, pas la procédure."

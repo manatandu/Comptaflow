@@ -267,17 +267,21 @@ export function DocumentsObligatoiresPage() {
       <div className="flex gap-0 mb-2.5 border-b border-border">
         {(
           [
+            // L'onglet porte un intitulé métier ; l'article du DOSSIER (servi
+            // par le serveur, jamais écrit ici) passe dans l'infobulle.
+            ['inventaire', "LIVRE D'INVENTAIRE", confInv?.complete, confInv?.fondement.article],
             [
-              'inventaire',
-              confInv ? `LIVRE D'INVENTAIRE (${confInv.fondement.article.toUpperCase()})` : "LIVRE D'INVENTAIRE",
-              confInv?.complete,
+              'rapport',
+              rapportDeGestion ? 'RAPPORT DE GESTION' : "RAPPORT D'ACTIVITÉ",
+              confRap?.complet,
+              rapportDeGestion ? undefined : 'SYCEBNL, art. 16-3',
             ],
-            ['rapport', rapportDeGestion ? 'RAPPORT DE GESTION' : "RAPPORT D'ACTIVITÉ (ART. 16-3)", confRap?.complet],
-            ['manuel', 'MANUEL DES PROCÉDURES (AUDCIF ART. 16)', confManuel?.existe],
+            ['manuel', 'MANUEL DES PROCÉDURES', confManuel?.existe, 'AUDCIF, art. 16'],
           ] as const
-        ).map(([cle, libelle, complet]) => (
+        ).map(([cle, libelle, complet, fondement]) => (
           <button
             key={cle}
+            title={fondement}
             onClick={() => setOnglet(cle)}
             className={`px-3.5 py-1.5 text-[11.5px] font-bold border border-b-0 ${
               onglet === cle ? 'bg-surface border-border' : 'bg-chrome border-transparent text-text-dim hover:bg-surface-alt'
@@ -324,9 +328,10 @@ export function DocumentsObligatoiresPage() {
 
           <div className="border border-border bg-surface px-3.5 py-3 mb-2.5">
             <div className="text-[11px] font-bold text-text-dim mb-1.5 flex items-center gap-1.5 flex-wrap">
-              {/* L'article du DOSSIER · le périmètre (dont la lecture du SMT, que
-                  l'art. 14 ne nomme pas) va dans la bulle. */}
-              ÉTATS EXIGÉS · {confInv.fondement.article}
+              {/* L'article du DOSSIER et le périmètre (dont la lecture du SMT,
+                  que l'art. 14 ne nomme pas) vont dans la bulle · le titre du
+                  cadre reste un intitulé métier. */}
+              ÉTATS EXIGÉS
               <Aide
                 titre="États exigés"
                 texte={`${confInv.exigence} ${confInv.fondement.perimetre}`}

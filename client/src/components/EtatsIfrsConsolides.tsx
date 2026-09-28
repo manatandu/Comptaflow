@@ -133,17 +133,17 @@ export function EtatsIfrsConsolides({ exerciceId }: { exerciceId: string }) {
   const regleDe = (poste: string) => etat.reglesConsolidation.find((r) => r.poste === poste);
   const rubriquesDeclarables = etat.rubriques.filter((r) => r.etat !== 'RESULTAT_GLOBAL' && r.code !== 'SF_PARTICIPATIONS_NE_DONNANT_PAS_CONTROLE');
 
-  const tableau = (titre: string, lignes: Ligne[], n1: Ligne[] | null) => {
+  const tableau = (titre: string, lignes: Ligne[], n1: Ligne[] | null, fondement?: string) => {
     let groupe: string | undefined;
     return (
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[11.5px] font-bold mb-1.5">{titre}</h2>
+        <h2 className="text-[11.5px] font-bold mb-1.5" title={fondement}>{titre}</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-[11.5px]">
             <thead>
               <tr className="text-left border-b border-border">
                 <th className="py-1 pr-2">Poste</th>
-                <th className="py-1 pr-2">IFRS 18</th>
+                <th className="py-1 pr-2" title="Paragraphe d’IFRS 18">Référence</th>
                 <th className="py-1 pr-2 text-right">Consolidé D4C reclassé</th>
                 <th className="py-1 pr-2 text-right">Retraitements</th>
                 <th className="py-1 pr-2 text-right">IFRS N</th>
@@ -208,7 +208,7 @@ export function EtatsIfrsConsolides({ exerciceId }: { exerciceId: string }) {
                   <tr className="text-left border-b border-border">
                     <th className="py-1 pr-2">Poste</th>
                     <th className="py-1 pr-2 text-right">Solde</th>
-                    <th className="py-1 pr-2">Rubrique IFRS 18</th>
+                    <th className="py-1 pr-2">Rubrique IFRS</th>
                     <th className="py-1">Fondement</th>
                   </tr>
                 </thead>
@@ -310,9 +310,9 @@ export function EtatsIfrsConsolides({ exerciceId }: { exerciceId: string }) {
                   </button>
                   <span className={Math.abs(ecartRetr) > 0.005 ? 'text-[11.5px] text-warning' : 'text-[11.5px] text-text-dim'}>Écart {fc(ecartRetr)}</span>
                   {etat.exerciceTransitionId && (
-                    <label className="text-[11.5px] flex items-center gap-1">
+                    <label className="text-[11.5px] flex items-center gap-1" title="IFRS 1, § 11">
                       <input type="checkbox" checked={transition} onChange={(e) => setTransition(e.target.checked)} />
-                      Ajustement de transition (IFRS 1 § 11)
+                      Ajustement de transition
                     </label>
                   )}
                   <button
@@ -371,7 +371,7 @@ export function EtatsIfrsConsolides({ exerciceId }: { exerciceId: string }) {
 
           <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
             <h2 className="text-[11.5px] font-bold mb-1.5 flex items-center gap-1.5">
-              Première application aux comptes consolidés (IFRS 1)
+              Première application aux comptes consolidés
               <Aide
                 titre="Première application consolidée"
                 texte="Le groupe déclare son premier exercice IFRS, à part des comptes individuels (la mère et le groupe n’adoptent pas forcément à la même date). L’état d’ouverture à la date de transition est la consolidation de clôture de l’exercice qui précède le comparatif, corrigée des ajustements de transition consolidés. Le choix de l’exemption C1 décide si l’écart d’acquisition amorti selon l’AUDCIF passe tel quel à l’ouverture."
@@ -395,7 +395,7 @@ export function EtatsIfrsConsolides({ exerciceId }: { exerciceId: string }) {
                 }
               >
                 <option value="">Non déclarée</option>
-                <option value="DEJA">Le groupe présente déjà des états consolidés conformes aux IFRS (§ 4 et 5)</option>
+                <option value="DEJA" title="IFRS 1, § 4 et 5">Le groupe présente déjà des états consolidés conformes aux IFRS</option>
                 {exercices.map((x) => (
                   <option key={x.id} value={x.id}>
                     Premier exercice IFRS du groupe · {x.dateDebut.slice(0, 10)} au {x.dateFin.slice(0, 10)}
@@ -417,9 +417,9 @@ export function EtatsIfrsConsolides({ exerciceId }: { exerciceId: string }) {
                   )
                 }
               >
-                <option value="">Regroupements passés · choix non déclaré (§ C1)</option>
-                <option value="OUI">Regroupements passés non retraités selon IFRS 3 (exemption C1)</option>
-                <option value="NON">Regroupements passés retraités selon IFRS 3</option>
+                <option value="" title="IFRS 1, § C1">Regroupements passés · choix non déclaré</option>
+                <option value="OUI" title="IFRS 1, § C1 · IFRS 3">Regroupements passés non retraités (exemption retenue)</option>
+                <option value="NON" title="IFRS 3">Regroupements passés retraités</option>
               </select>
             </div>
             {etat.motifPremiereApplication && <p className="text-[11.5px] text-warning mt-1.5">{etat.motifPremiereApplication}</p>}
@@ -447,8 +447,8 @@ export function EtatsIfrsConsolides({ exerciceId }: { exerciceId: string }) {
                 )}
                 {etat.premiereApplication.rapprochements.map((rp) => (
                   <div key={rp.ref} className="mt-2">
-                    <p className="text-[11.5px] font-semibold mb-1">
-                      {rp.titre} ({rp.ref})
+                    <p className="text-[11.5px] font-semibold mb-1" title={rp.ref}>
+                      {rp.titre}
                     </p>
                     <table className="w-full text-[11.5px]">
                       <tbody>
@@ -475,7 +475,7 @@ export function EtatsIfrsConsolides({ exerciceId }: { exerciceId: string }) {
           </section>
 
           {etat.premiereApplication &&
-            tableau(`État consolidé de la situation financière d’ouverture au ${etat.premiereApplication.dateTransition} (IFRS 1 § 6)`, etat.premiereApplication.ouverture.situation, null)}
+            tableau(`État consolidé de la situation financière d’ouverture au ${etat.premiereApplication.dateTransition}`, etat.premiereApplication.ouverture.situation, null, 'IFRS 1, § 6')}
 
           {tableau('État consolidé de la situation financière', etat.n.situation, etat.n1?.situation ?? null)}
           {tableau('Compte de résultat consolidé', etat.n.resultat, etat.n1?.resultat ?? null)}
@@ -484,7 +484,8 @@ export function EtatsIfrsConsolides({ exerciceId }: { exerciceId: string }) {
 
           {etat.variationCapitauxPropres && (
             <VariationCapitauxPropresIfrs
-              titre="État consolidé des variations des capitaux propres (IFRS 18 § 107 à 112)"
+              titre="État consolidé des variations des capitaux propres"
+              fondement="IFRS 18, § 107 à 112"
               vcp={etat.variationCapitauxPropres}
               consolide
               exerciceId={exerciceId}
@@ -496,15 +497,15 @@ export function EtatsIfrsConsolides({ exerciceId }: { exerciceId: string }) {
           {etat.fluxTresorerie && (
             <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
               <h2 className="text-[11.5px] font-bold mb-1.5 flex items-center gap-1.5">
-                Tableau consolidé des flux de trésorerie (IAS 7, modifiée par IFRS 18)
+                Tableau consolidé des flux de trésorerie
                 <Aide
                   titre="Tableau consolidé des flux de trésorerie"
                   texte="Il part du tableau des flux consolidé du D4C (ch. XII-8 § 4) et en garde les refus · un périmètre ou un pourcentage d’intérêt qui a changé depuis l’exercice précédent, ou une entité convertie, l’arrête. Les dividendes reçus des entités mises en équivalence passent à l’investissement, ceux versés aux participations ne donnant pas le contrôle au financement. Les découverts suivent la déclaration faite dans les comptes individuels (uniformité des méthodes) ; la trésorerie du groupe en devises et son effet de change se déclarent ici."
-                  source="IAS 7 § 28, § 33A, § 34A b, § 38, § 39 à 42A · IFRS 10 § 19 · D4C ch. XII-8 § 4"
+                  source="IAS 7 modifiée par IFRS 18, § 28, § 33A, § 34A b, § 38, § 39 à 42A · IFRS 10 § 19 · D4C ch. XII-8 § 4"
                 />
               </h2>
-              <label className="text-[11.5px] block mb-2 max-w-[420px]">
-                La trésorerie du groupe comprend des soldes en devises (§ 28)
+              <label className="text-[11.5px] block mb-2 max-w-[420px]" title="IAS 7, § 28">
+                La trésorerie du groupe comprend des soldes en devises
                 <select
                   className={champ}
                   disabled={!peutEcrire}

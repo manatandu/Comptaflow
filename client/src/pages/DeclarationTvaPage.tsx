@@ -247,7 +247,7 @@ export function DeclarationTvaPage() {
           </div>
 
           <div className="border border-border max-w-[780px] p-4 mb-4 bg-surface-alt">
-            <div className="font-mono text-[11px] font-semibold text-text-dim mb-2">PRORATA de DÉDUCTION (art. 43 o.-L. 10/001)</div>
+            <div className="font-mono text-[11px] font-semibold text-text-dim mb-2" title="O.-L. n° 10/001, art. 43">PRORATA DE DÉDUCTION</div>
             <div className="grid grid-cols-3 gap-3 font-mono text-[11.5px]">
               <div>
                 Recettes taxables (numérateur)
@@ -284,8 +284,8 @@ export function DeclarationTvaPage() {
                   paragraphe d'exigibilité. Un net qu'on ne peut pas recomposer
                   de l'écran ne se vérifie pas. */}
               {declaration.recuperationArt52 > 0 && (
-                <div>
-                  Avoirs antérieurs récupérés (art. 52) :{' '}
+                <div title="O.-L. n° 10/001, art. 52">
+                  Avoirs antérieurs récupérés :{' '}
                   <span className="font-semibold text-positive">
                     {montant(declaration.recuperationArt52)} CDF
                   </span>
@@ -297,7 +297,7 @@ export function DeclarationTvaPage() {
                   <span className="font-semibold text-text">
                     {montant(declaration.avoirsCollecteConstates)} CDF
                   </span>
-                  <span className="text-text-dim"> · imputables sur la déclaration suivante (décret art. 126)</span>
+                  <span className="text-text-dim" title="Décret n° 011/42, art. 126"> · imputables sur la déclaration suivante</span>
                 </div>
               )}
               {declaration.avoirsCollecteNonImputes > 0 && (
@@ -307,8 +307,8 @@ export function DeclarationTvaPage() {
                 </div>
               )}
               {declaration.tvaExclueArt41 > 0 && (
-                <div>
-                  TVA écartée par l’article 41 :{' '}
+                <div title="O.-L. n° 10/001, art. 41">
+                  TVA exclue du droit à déduction :{' '}
                   <span className="font-semibold text-danger">
                     {montant(declaration.tvaExclueArt41)} CDF
                   </span>
@@ -316,14 +316,14 @@ export function DeclarationTvaPage() {
                 </div>
               )}
               {declaration.tvaAVerifierArt41 > 0 && (
-                <div className="text-warning">
-                  TVA sur des postes que l’article 41 vise SOUS CONDITION, à vérifier :{' '}
+                <div className="text-warning" title="O.-L. n° 10/001, art. 41">
+                  TVA sur des postes exclus SOUS CONDITION, à vérifier :{' '}
                   {montant(declaration.tvaAVerifierArt41)} CDF
                 </div>
               )}
               {declaration.tvaDeductibleDechue > 0 && (
-                <div className="text-danger">
-                  TVA dont le délai de déduction est expiré (art. 37, al. 2) :{' '}
+                <div className="text-danger" title="O.-L. n° 10/001, art. 37, al. 2">
+                  TVA dont le délai de déduction est expiré :{' '}
                   {montant(declaration.tvaDeductibleDechue)} CDF
                 </div>
               )}
@@ -341,8 +341,8 @@ export function DeclarationTvaPage() {
                       {montant(declaration.netAvantImputation)} CDF
                     </span>
                   </div>
-                  <div>
-                    Crédit de TVA reporté (art. 63) :{' '}
+                  <div title="O.-L. n° 10/001, art. 63">
+                    Crédit de TVA reporté :{' '}
                     <span className="font-semibold text-text">
                       {montant(declaration.creditAnterieur)} CDF
                     </span>

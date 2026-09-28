@@ -83,7 +83,10 @@ describe('F111 · le tableau mensuel montre l’arrondi de l’art. 150', () => 
   const tableau = readFileSync(join(__dirname, 'BaremeMensuelIrpp.tsx'), 'utf8');
   it('une ligne porte l’écart, lu au serveur, avant la retenue', () => {
     const ligne = bloc(tableau, 'mensuel.arrondiArticle150Fc !== undefined', 'Retenue du mois');
-    expect(ligne).toContain('Arrondi à la centaine (art. 150)');
+    // Le libellé est un intitulé métier (titres formels) ; l'article reste
+    // servi, en infobulle de la même ligne.
+    expect(ligne).toContain('Arrondi à la centaine');
+    expect(ligne).toContain('title="Loi n° 23/053, art. 150"');
     expect(ligne).toContain('fc(Math.abs(mensuel.arrondiArticle150Fc))');
   });
 });

@@ -1157,20 +1157,25 @@ export function ImmobilisationsPage() {
                         </span>
                       </label>
                     )}
-                    <label className="flex flex-col gap-1 sm:col-span-2">
-                      <span className="text-[11px] font-bold text-text-dim">Motif du changement d’utilisation</span>
-                      <input
-                        value={rcMotif}
-                        onChange={(e) => setRcMotif(e.target.value)}
-                        required
-                        placeholder="Ce que le bien sert désormais, et depuis quand"
-                        className="border border-border rounded-[3px] bg-surface px-2 py-1 text-[11.5px]"
-                      />
+                    {/* Le libellé reste un intitulé métier · la raison de
+                        l'obligation, avec ses paragraphes, est une aide posée
+                        sous le champ, hors du libellé (titres formels). */}
+                    <div className="flex flex-col gap-1 sm:col-span-2">
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[11px] font-bold text-text-dim">Motif du changement d’utilisation</span>
+                        <input
+                          value={rcMotif}
+                          onChange={(e) => setRcMotif(e.target.value)}
+                          required
+                          placeholder="Ce que le bien sert désormais, et depuis quand"
+                          className="border border-border rounded-[3px] bg-surface px-2 py-1 text-[11.5px]"
+                        />
+                      </label>
                       <span className="text-[11px] text-text-dim leading-[1.5]">
                         Obligatoire · le § 1.2 qualifie un immeuble de placement par l’USAGE, que nul solde ne
                         porte, et le § 4.2 en fait une information de Notes annexes.
                       </span>
-                    </label>
+                    </div>
                   </div>
                   <div className="flex gap-2 mt-2">
                     <button

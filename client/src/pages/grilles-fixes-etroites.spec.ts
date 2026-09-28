@@ -507,7 +507,9 @@ describe('les écrans qui débordaient le plus', () => {
     // `overflow-x-auto`, ses vingt-deux tableaux repasseraient tous à la
     // fenêtre d'un coup.
     expect(lire('EtatsSmtSyscohadaPage.tsx')).toMatch(
-      /const bloc = \(titre: string, contenu: React\.ReactNode\) => \(\s*\n\s*<div className="border border-border bg-surface mb-3 overflow-x-auto">/,
+      // Le troisième paramètre porte la référence du cadre, rendue en
+      // infobulle (titres formels) · il ne change rien à la forme.
+      /const bloc = \(titre: string, contenu: React\.ReactNode(?:, fondement\?: string)?\) => \(\s*\n\s*<div className="border border-border bg-surface mb-3 overflow-x-auto">/,
     );
   });
 });

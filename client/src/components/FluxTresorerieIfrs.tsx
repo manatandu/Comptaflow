@@ -45,7 +45,7 @@ export function DeclarationEffetChange({
   const [change, setChange] = useState({ montant: '', categorie: 'FINANCEMENT' as CategorieChange, justification: '' });
   return (
     <div className="mb-2">
-      <p className="text-[11.5px] font-semibold mb-1">Effet des variations des cours de change sur la trésorerie de l’exercice (§ 28)</p>
+      <p className="text-[11.5px] font-semibold mb-1" title="IAS 7, § 28">Effet des variations des cours de change sur la trésorerie de l’exercice</p>
       {effetChange ? (
         <div className="flex justify-between gap-2 text-[11.5px]">
           <span>
@@ -97,7 +97,7 @@ export function TableauFluxIfrs({ flux }: { flux: FluxServi }) {
               <thead>
                 <tr className="text-left border-b border-border">
                   <th className="py-1 pr-2">Flux</th>
-                  <th className="py-1 pr-2">IAS 7</th>
+                  <th className="py-1 pr-2" title="Paragraphe d’IAS 7">Référence</th>
                   <th className="py-1 pr-2 text-right">N</th>
                   <th className="py-1 text-right">N-1</th>
                 </tr>
@@ -118,7 +118,7 @@ export function TableauFluxIfrs({ flux }: { flux: FluxServi }) {
             </table>
           </div>
           {!flux.n1 && <p className="text-[11.5px] text-text-dim mt-1">{flux.motifN1}</p>}
-          <p className="text-[11.5px] font-semibold mt-2 mb-1">Rapprochement avec l’état de la situation financière (§ 45)</p>
+          <p className="text-[11.5px] font-semibold mt-2 mb-1" title="IAS 7, § 45">Rapprochement avec l’état de la situation financière</p>
           <table className="text-[11.5px]">
             <tbody>
               {flux.n.rapprochementSituation.map((x) => (

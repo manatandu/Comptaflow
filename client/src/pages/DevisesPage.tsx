@@ -468,7 +468,7 @@ export function DevisesPage() {
               <>
                 {rapport.avertissements.length > 0 && (
                   <div className="mx-3 mt-3 text-[11.5px] text-warning bg-warning-soft border border-warning/30 rounded-[3px] px-2.5 py-2 leading-[1.55]">
-                    <strong>Étalement à décider · AUDCIF art. 56.</strong>
+                    <strong title="AUDCIF, art. 56">Étalement à décider.</strong>
                     <ul className="mt-1 list-disc pl-4 flex flex-col gap-1">
                       {rapport.avertissements.map((a) => (
                         <li key={a}>{a}</li>

@@ -172,17 +172,24 @@ function EtatsIfrsIndividuels() {
 
   // § 114 · les renvois ne valent que pour les états de l'exercice, pas pour
   // l'état d'ouverture de la transition.
-  const tableau = (titre: string, lignes: Ligne[], n1: Ligne[] | null, colonne = 'IFRS N', renvois: Record<string, number[]> | null = etat.notes.renvois) => {
+  const tableau = (
+    titre: string,
+    lignes: Ligne[],
+    n1: Ligne[] | null,
+    colonne = 'IFRS N',
+    renvois: Record<string, number[]> | null = etat.notes.renvois,
+    fondement?: string,
+  ) => {
     let groupe: string | undefined;
     return (
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[11.5px] font-bold mb-1.5">{titre}</h2>
+        <h2 className="text-[11.5px] font-bold mb-1.5" title={fondement}>{titre}</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-[11.5px]">
             <thead>
               <tr className="text-left border-b border-border">
                 <th className="py-1 pr-2">Poste</th>
-                <th className="py-1 pr-2">IFRS 18</th>
+                <th className="py-1 pr-2" title="Paragraphe d’IFRS 18">Référence</th>
                 {renvois && <th className="py-1 pr-2">Note</th>}
                 <th className="py-1 pr-2 text-right">SYSCOHADA reclassé</th>
                 <th className="py-1 pr-2 text-right">Retraitements</th>
@@ -270,7 +277,7 @@ function EtatsIfrsIndividuels() {
       </section>
 
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[11.5px] font-bold mb-1.5">Activité principale (IFRS 18 § 49 à 51)</h2>
+        <h2 className="text-[11.5px] font-bold mb-1.5" title="IFRS 18, § 49 à 51">Activité principale</h2>
         <select
           className={champ + ' max-w-[520px]'}
           disabled={!peutEcrire}
@@ -290,12 +297,12 @@ function EtatsIfrsIndividuels() {
           <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr_auto] gap-1.5 mb-2">
             <input className={champ} placeholder="Préfixe (ex. 24)" value={regle.prefixe} onChange={(e) => setRegle({ ...regle, prefixe: e.target.value })} />
             <select className={champ} value={regle.rubrique} onChange={(e) => setRegle({ ...regle, rubrique: e.target.value })}>
-              <option value="">Rubrique IFRS 18…</option>
+              <option value="">Rubrique IFRS…</option>
               {etat.rubriques
                 .filter((rb) => rb.etat !== 'RESULTAT_GLOBAL')
                 .map((rb) => (
-                  <option key={rb.code} value={rb.code}>
-                    {rb.etat === 'SITUATION' ? 'Situation' : 'Résultat'} · {rb.libelle} ({rb.ref})
+                  <option key={rb.code} value={rb.code} title={rb.ref}>
+                    {rb.etat === 'SITUATION' ? 'Situation' : 'Résultat'} · {rb.libelle}
                   </option>
                 ))}
             </select>
@@ -370,14 +377,14 @@ function EtatsIfrsIndividuels() {
               </div>
             ))}
             <div className="flex flex-wrap items-center gap-3 text-[11.5px]">
-              <label className="flex items-center gap-1">
+              <label className="flex items-center gap-1" title="IFRS 1, § 26">
                 <input type="checkbox" checked={retr.correctionErreur} onChange={(e) => setRetr({ ...retr, correctionErreur: e.target.checked })} />
-                Correction d’erreur du référentiel antérieur (IFRS 1 § 26)
+                Correction d’erreur du référentiel antérieur
               </label>
               {etat.exerciceTransitionId && (
-                <label className="flex items-center gap-1">
+                <label className="flex items-center gap-1" title="IFRS 1, § 11">
                   <input type="checkbox" checked={retr.aLaTransition} onChange={(e) => setRetr({ ...retr, aLaTransition: e.target.checked })} />
-                  Ajustement de transition, aux capitaux propres d’ouverture (IFRS 1 § 11)
+                  Ajustement de transition, aux capitaux propres d’ouverture
                 </label>
               )}
             </div>
@@ -417,7 +424,7 @@ function EtatsIfrsIndividuels() {
       </section>
 
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[11.5px] font-bold mb-1.5">Première application des IFRS (IFRS 1)</h2>
+        <h2 className="text-[11.5px] font-bold mb-1.5" title="IFRS 1">Première application des IFRS</h2>
         <select
           className={champ + ' max-w-[520px]'}
           disabled={!peutEcrire}
@@ -432,7 +439,7 @@ function EtatsIfrsIndividuels() {
           }
         >
           <option value="">Non déclarée</option>
-          <option value="DEJA">L’entité présente déjà des états conformes aux IFRS (§ 4 et 5)</option>
+          <option value="DEJA" title="IFRS 1, § 4 et 5">L’entité présente déjà des états conformes aux IFRS</option>
           {exercices.map((x) => (
             <option key={x.id} value={x.id}>
               Premier exercice IFRS · {x.dateDebut.slice(0, 10)} au {x.dateFin.slice(0, 10)}
@@ -453,8 +460,8 @@ function EtatsIfrsIndividuels() {
             )}
             {etat.premiereApplication.rapprochements.map((rp) => (
               <div key={rp.ref} className="mt-2">
-                <p className="text-[11.5px] font-semibold mb-1">
-                  {rp.titre} ({rp.ref})
+                <p className="text-[11.5px] font-semibold mb-1" title={rp.ref}>
+                  {rp.titre}
                 </p>
                 <table className="w-full text-[11.5px]">
                   <tbody>
@@ -480,7 +487,7 @@ function EtatsIfrsIndividuels() {
         )}
       </section>
 
-      {etat.premiereApplication && tableau(`État de la situation financière d’ouverture au ${etat.premiereApplication.dateTransition} (IFRS 1 § 6)`, etat.premiereApplication.ouverture.situation, null, 'IFRS ouverture', null)}
+      {etat.premiereApplication && tableau(`État de la situation financière d’ouverture au ${etat.premiereApplication.dateTransition}`, etat.premiereApplication.ouverture.situation, null, 'IFRS ouverture', null, 'IFRS 1, § 6')}
 
       {tableau('État de la situation financière', etat.n.situation, etat.n1?.situation ?? null)}
       {tableau('Compte de résultat', etat.n.resultat, etat.n1?.resultat ?? null)}
@@ -488,7 +495,8 @@ function EtatsIfrsIndividuels() {
       {etat.motifN1 && <p className="text-[11.5px] text-text-dim mb-2">{etat.motifN1}</p>}
 
       <VariationCapitauxPropresIfrs
-        titre="État des variations des capitaux propres (IFRS 18 § 107 à 112)"
+        titre="État des variations des capitaux propres"
+        fondement="IFRS 18, § 107 à 112"
         vcp={vcp}
         consolide={false}
         exerciceId={exerciceId}
@@ -497,10 +505,10 @@ function EtatsIfrsIndividuels() {
       />
 
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[11.5px] font-bold mb-1.5">État des flux de trésorerie (IAS 7, modifiée par IFRS 18)</h2>
+        <h2 className="text-[11.5px] font-bold mb-1.5" title="IAS 7, modifiée par IFRS 18">État des flux de trésorerie</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mb-2">
-          <label className="text-[11.5px]">
-            Découverts bancaires remboursables à vue, partie intégrante de la gestion de trésorerie (§ 8)
+          <label className="text-[11.5px]" title="IAS 7, § 8">
+            Découverts bancaires remboursables à vue, partie intégrante de la gestion de trésorerie
             <select
               className={champ}
               disabled={!peutEcrire}
@@ -514,8 +522,8 @@ function EtatsIfrsIndividuels() {
               <option value="NON">Non · ce sont des financements</option>
             </select>
           </label>
-          <label className="text-[11.5px]">
-            La trésorerie comprend des soldes en devises (§ 28)
+          <label className="text-[11.5px]" title="IAS 7, § 28">
+            La trésorerie comprend des soldes en devises
             <select
               className={champ}
               disabled={!peutEcrire}

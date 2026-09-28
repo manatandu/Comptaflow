@@ -18,13 +18,20 @@ function bloc(debut: string, fin: string): string {
 }
 
 describe('F95 · le livre d’inventaire cite le texte du dossier', () => {
-  it('l’onglet porte l’article servi par le serveur', () => {
-    expect(bloc("'inventaire',", 'confInv?.complete')).toContain('confInv.fondement.article');
+  it('l’onglet porte l’article servi par le serveur, en infobulle', () => {
+    // Le titre de l'onglet est un intitulé métier (titres formels) ; l'article
+    // du dossier reste servi, dans l'infobulle de l'onglet.
+    const onglet = bloc("['inventaire',", '],');
+    expect(onglet).toContain(`"LIVRE D'INVENTAIRE"`);
+    expect(onglet).toContain('confInv?.fondement.article');
+    expect(bloc('.map(([cle, libelle, complet, fondement])', 'onClick')).toContain('title={fondement}');
   });
 
   it('les états exigés portent l’article et le périmètre du dossier', () => {
-    // Le libellé lui-même, pas seulement la bulle qui le suit.
-    expect(bloc('ÉTATS EXIGÉS', '<Aide')).toContain('ÉTATS EXIGÉS · {confInv.fondement.article}');
+    // Le titre du cadre est un intitulé métier ; l'article du dossier est la
+    // source de la bulle qui le suit, et le périmètre son texte.
+    expect(page).toContain('ÉTATS EXIGÉS');
+    expect(bloc('titre="États exigés"', '/>')).toContain('source={confInv.fondement.article}');
     expect(bloc('titre="États exigés"', '/>')).toContain('confInv.fondement.perimetre');
   });
 

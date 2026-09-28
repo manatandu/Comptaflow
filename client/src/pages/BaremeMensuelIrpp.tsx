@@ -61,31 +61,31 @@ export function BaremeMensuelIrpp({
             </tr>
           ))}
           <tr className="border-b border-border/40">
-            <td className="py-1" colSpan={3}>
-              Barème (art. 118)
+            <td className="py-1" colSpan={3} title="Loi n° 23/053, art. 118">
+              Impôt selon le barème
             </td>
             <td className="py-1 text-right font-mono">{fc(mensuel.impotDuBaremeFc)}</td>
           </tr>
           {mensuel.plafondApplique && (
             <tr className="border-b border-border/40">
-              <td className="py-1" colSpan={3}>
-                Ramené au plafond de 30 % du revenu imposable (art. 118, al. 2)
+              <td className="py-1" colSpan={3} title="Loi n° 23/053, art. 118, al. 2">
+                Ramené au plafond de 30 % du revenu imposable
               </td>
               <td className="py-1 text-right font-mono">{fc(mensuel.impotArticle118Fc)}</td>
             </tr>
           )}
           {mensuel.quotitePourCent > 0 && (
             <tr className="border-b border-border/40">
-              <td className="py-1" colSpan={3}>
-                Charges de famille, {mensuel.quotitePourCent} % (art. 123)
+              <td className="py-1" colSpan={3} title="Loi n° 23/053, art. 123">
+                Réduction pour charges de famille, {mensuel.quotitePourCent} %
               </td>
               <td className="py-1 text-right font-mono">− {fc(mensuel.reductionFc)}</td>
             </tr>
           )}
           {mensuel.arrondiArticle150Fc !== undefined && Math.abs(mensuel.arrondiArticle150Fc) > 0.005 && (
             <tr className="border-b border-border/40">
-              <td className="py-1" colSpan={3}>
-                Arrondi à la centaine (art. 150)
+              <td className="py-1" colSpan={3} title="Loi n° 23/053, art. 150">
+                Arrondi à la centaine
               </td>
               <td className="py-1 text-right font-mono">
                 {mensuel.arrondiArticle150Fc > 0 ? '+ ' : '− '}

@@ -34,13 +34,22 @@ export type VariationServie = {
   motifN1: string | null;
   mouvements: { id: string; type: TypeMouvement; composante: Composante; montant: number; libelle: string; justification: string }[];
 };
+// Le libellé est un intitulé métier ; le paragraphe qui le fonde passe dans
+// l'infobulle (titres formels, décision du 2026-09-28).
 const TYPES_MOUVEMENT: Record<TypeMouvement, string> = {
-  APPORT: 'Apport des propriétaires (§ 107 c iii)',
-  DISTRIBUTION: 'Distribution aux propriétaires (§ 107 c iii)',
-  VARIATION_PARTS_INTERETS: 'Variation de parts d’intérêts sans perte du contrôle (§ 107 c iii)',
+  APPORT: 'Apport des propriétaires',
+  DISTRIBUTION: 'Distribution aux propriétaires',
+  VARIATION_PARTS_INTERETS: 'Variation de parts d’intérêts sans perte du contrôle',
   TRANSFERT: 'Transfert entre composantes',
-  CHANGEMENT_METHODE: 'Changement de méthode comptable (§ 107 b, IAS 8)',
-  CORRECTION_ERREUR: 'Correction d’erreur (§ 107 b, IAS 8)',
+  CHANGEMENT_METHODE: 'Changement de méthode comptable',
+  CORRECTION_ERREUR: 'Correction d’erreur',
+};
+const FONDEMENT_MOUVEMENT: Partial<Record<TypeMouvement, string>> = {
+  APPORT: 'IFRS 18, § 107 c iii',
+  DISTRIBUTION: 'IFRS 18, § 107 c iii',
+  VARIATION_PARTS_INTERETS: 'IFRS 18, § 107 c iii',
+  CHANGEMENT_METHODE: 'IFRS 18, § 107 b · IAS 8',
+  CORRECTION_ERREUR: 'IFRS 18, § 107 b · IAS 8',
 };
 
 const champ = 'w-full border border-border px-1.5 py-1 text-[11.5px]';
@@ -49,6 +58,7 @@ const nombre = (v: string) => (v.trim() === '' ? NaN : Number(v.replace(/\s/g, '
 
 export function VariationCapitauxPropresIfrs({
   titre,
+  fondement,
   vcp,
   consolide,
   exerciceId,
@@ -56,6 +66,8 @@ export function VariationCapitauxPropresIfrs({
   agir,
 }: {
   titre: string;
+  /** La référence normative du tableau, rendue en infobulle du titre. */
+  fondement?: string;
   vcp: VariationServie;
   consolide: boolean;
   exerciceId: string;
@@ -67,9 +79,9 @@ export function VariationCapitauxPropresIfrs({
   const composantes = Object.keys(vcp.composantes) as Composante[];
   const libelle = (c: Composante) => vcp.composantes[c]?.libelle ?? c;
 
-  const bloc = (sousTitre: string, v: Variation | null, motif: string | null) => (
+  const bloc = (sousTitre: string, v: Variation | null, motif: string | null, fondementBloc?: string) => (
     <div className="mb-2">
-      <p className="text-[11.5px] font-semibold mb-1">{sousTitre}</p>
+      <p className="text-[11.5px] font-semibold mb-1" title={fondementBloc}>{sousTitre}</p>
       {!v ? (
         <p className="text-[11.5px] text-warning">{motif}</p>
       ) : (
@@ -78,7 +90,7 @@ export function VariationCapitauxPropresIfrs({
             <thead>
               <tr className="text-left border-b border-border">
                 <th className="py-1 pr-2">Mouvement</th>
-                <th className="py-1 pr-2">IFRS 18</th>
+                <th className="py-1 pr-2" title="Paragraphe d’IFRS 18">Référence</th>
                 <th className="py-1 pr-2 text-right">{libelle('CAPITAL')}</th>
                 <th className="py-1 pr-2 text-right">{libelle('RESERVES')}</th>
                 <th className="py-1 pr-2 text-right">{libelle('AUTRES_COMPOSANTES')}</th>
@@ -112,15 +124,15 @@ export function VariationCapitauxPropresIfrs({
 
   return (
     <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-      <h2 className="text-[11.5px] font-bold mb-1.5">{titre}</h2>
+      <h2 className="text-[11.5px] font-bold mb-1.5" title={fondement}>{titre}</h2>
       {bloc('Exercice N', vcp.n, vcp.motifN)}
-      {bloc('Exercice N-1 (comparatif, § 10 f)', vcp.n1, vcp.motifN1)}
+      {bloc('Exercice N-1 (comparatif)', vcp.n1, vcp.motifN1, 'IFRS 18, § 10 f')}
       <p className="text-[11.5px] font-semibold mt-2 mb-1">Mouvements déclarés de l’exercice</p>
       {peutEcrire && (
         <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_140px] gap-1.5 mb-1.5">
           <select className={champ} value={mvt.type} onChange={(e) => setMvt({ ...mvt, type: e.target.value as TypeMouvement })}>
             {types.map((t) => (
-              <option key={t} value={t}>{TYPES_MOUVEMENT[t]}</option>
+              <option key={t} value={t} title={FONDEMENT_MOUVEMENT[t]}>{TYPES_MOUVEMENT[t]}</option>
             ))}
           </select>
           <select className={champ} value={mvt.composante} onChange={(e) => setMvt({ ...mvt, composante: e.target.value as Composante })}>

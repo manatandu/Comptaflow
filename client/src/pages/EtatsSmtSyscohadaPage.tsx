@@ -279,9 +279,13 @@ export function EtatsSmtSyscohadaPage() {
    * 360 px, une colonne de plus ne doit jamais faire défiler la PAGE, sans
    * quoi les onglets et les boutons d'export sortent de l'écran.
    */
-  const bloc = (titre: string, contenu: React.ReactNode) => (
+  // Le titre du cadre est un intitulé métier ; la référence au texte, quand
+  // il y en a une, passe dans l'infobulle (titres formels).
+  const bloc = (titre: string, contenu: React.ReactNode, fondement?: string) => (
     <div className="border border-border bg-surface mb-3 overflow-x-auto">
-      <div className="bg-surface-alt border-b border-border px-3 py-1.5 text-[11.5px] font-bold">{titre}</div>
+      <div className="bg-surface-alt border-b border-border px-3 py-1.5 text-[11.5px] font-bold" title={fondement}>
+        {titre}
+      </div>
       {contenu}
     </div>
   );
@@ -740,7 +744,7 @@ export function EtatsSmtSyscohadaPage() {
       {onglet === 'notes' && notes && (
         <div className="max-w-[1000px]">
           {bloc(
-            'STRUCTURE OFFICIELLE DU JEU · TITRE X CH. 1 ET CH. 3',
+            'STRUCTURE OFFICIELLE DU JEU',
             <>
               <div className="px-3 py-1.5 text-[11.5px]">
                 <span className="text-text-dim">États financiers annuels du S.M.T : </span>
@@ -780,6 +784,7 @@ export function EtatsSmtSyscohadaPage() {
                 § 1), distincte de celle du Système normal.
               </div>
             </>,
+            "AUDCIF, Titre X ch. 1 et ch. 3",
           )}
 
           {bloc(
@@ -1050,7 +1055,7 @@ export function EtatsSmtSyscohadaPage() {
           )}
 
           {bloc(
-            "LES TROIS SEUILS DE L'ARTICLE 13",
+            "SEUILS D'ÉLIGIBILITÉ AU SYSTÈME MINIMAL",
             <>
               {/* AUCUN VERDICT (audit final F88) · le chiffre d'affaires est en
                   francs congolais, les seuils en F CFA, et aucun cours ne les
@@ -1080,6 +1085,7 @@ export function EtatsSmtSyscohadaPage() {
                 <Aide titre="Système normal, Système minimal" texte={eligibilite.rappelArticle11} source="AUDCIF art. 11 et 13" />
               </p>
             </>,
+            "AUDCIF, art. 13",
           )}
 
           <div className="border border-border bg-surface px-3.5 py-2.5">

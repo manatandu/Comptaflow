@@ -91,12 +91,13 @@ export function PlanFiscalDegressif({
       {!plan.degressifFiscal && peutEcrire && (
         <form onSubmit={opter} className="flex flex-wrap items-center gap-2">
           <select
-            aria-label="Catégorie de l'art. 31"
+            aria-label="Catégorie de bien éligible"
+            title="Loi n° 23/053, art. 31"
             value={option.categorie}
             onChange={(e) => setOption({ ...option, categorie: e.target.value })}
             className="border border-border px-1.5 py-0.5 max-w-[420px]"
           >
-            <option value="">Catégorie de l’art. 31…</option>
+            <option value="">Catégorie de bien éligible…</option>
             {plan.categories.map((c) => (
               <option key={c.cle} value={c.cle}>
                 {c.libelle}
@@ -155,7 +156,7 @@ export function PlanFiscalDegressif({
                 <tr key={l.exerciceId}>
                   <td className="px-2 py-1">
                     {libelleExercice(l)}
-                    {l.mode === 'LINEAIRE_ART_35' && <span className="text-text-dim"> · linéaire (art. 35)</span>}
+                    {l.mode === 'LINEAIRE_ART_35' && <span className="text-text-dim" title="Loi n° 23/053, art. 35"> · bascule en linéaire</span>}
                   </td>
                   <td className="px-2 py-1 text-right">{fc(l.valeurResiduelleDebut)}</td>
                   <td className="px-2 py-1 text-right">{fc(l.annuiteFiscale)}</td>

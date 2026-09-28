@@ -652,7 +652,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
             <span>Libellé écriture</span>
             <span className="text-right">Débit</span>
             <span className="text-right">Crédit</span>
-            <span>CORRECTION (ART. 20)</span>
+            <span title="AUDCIF, art. 20">CORRECTION</span>
           </div>
           {lignesJournal.length === 0 && (
             <div className="px-3.5 py-4 text-[11.5px] text-text-dim">

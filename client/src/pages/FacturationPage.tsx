@@ -471,8 +471,8 @@ export function FacturationPage() {
             {sens === 'VENTE' ? 'Client' : 'Fournisseur'}
             <input className="w-full border border-border px-1.5 py-1 text-[11.5px]" value={contrepartieNom} onChange={(e) => setContrepartieNom(e.target.value)} />
           </label>
-          <label className="text-[11.5px]">
-            Adresse exacte de la contrepartie (art. 26)
+          <label className="text-[11.5px]" title="Décret n° 23/10 du 3 mars 2023, art. 26 a) et b)">
+            Adresse exacte de la contrepartie
             <input className="w-full border border-border px-1.5 py-1 text-[11.5px]" value={contrepartieAdresse} onChange={(e) => setContrepartieAdresse(e.target.value)} />
           </label>
           <label className="text-[11.5px]">
@@ -528,7 +528,7 @@ export function FacturationPage() {
               <input type="checkbox" checked={mentionDebitsCochee} onChange={(e) => setMentionDebits(e.target.checked)} />
               Autorisation d’acquitter la TVA d’après les débits
               <Aide
-                titre="Mention de l’art. 60"
+                titre="Mention d’autorisation aux débits"
                 texte="La mention « Autorisation d’acquitter la TVA d’après les débits » doit figurer sur toutes les factures délivrées par le prestataire de services ou l’entrepreneur de travaux autorisé. Elle est proposée cochée quand le dossier est au régime des débits."
                 source="Décret n° 011/42, art. 60"
               />
@@ -540,7 +540,7 @@ export function FacturationPage() {
               <input type="checkbox" checked={mentionDebitsCochee} onChange={(e) => setMentionDebits(e.target.checked)} />
               La pièce porte « Autorisation d’acquitter la TVA d’après les débits »
               <Aide
-                titre="Mention de l’art. 60"
+                titre="Mention d’autorisation aux débits"
                 texte="Cochez si la facture reçue porte cette mention. La déclaration de TVA la confronte à la fiche du fournisseur, qui porte l’autorisation et date la déduction."
                 source="Décret n° 011/42, art. 60 et 61"
               />
@@ -557,7 +557,7 @@ export function FacturationPage() {
           </label>
           <label className="text-[11.5px]">
             <span className="flex items-center gap-1.5">
-              Autres impôts et taxes (art. 26 j)
+              Autres impôts et taxes
               <Aide
                 titre="Autres impôts et taxes"
                 texte="Portez 0 s'il n'y en a pas : un champ vide n'est pas une réponse, et la mention manque."
@@ -663,7 +663,7 @@ export function FacturationPage() {
 
             {detaille.incompletudes.length > 0 && (
               <div className="mt-2 border border-border px-2.5 py-1.5">
-                <p className="text-[11.5px] font-bold">Lignes incomplètes au regard de l'art. 134</p>
+                <p className="text-[11.5px] font-bold" title="Décret n° 011/42, art. 134">Lignes incomplètes de l’état détaillé</p>
                 <ul className="text-[11.5px] text-text-dim mt-1">
                   {detaille.incompletudes.map((i, r) => (
                     <li key={`${i.numeroFacture}-${r}`}>
@@ -853,7 +853,7 @@ export function FacturationPage() {
                           {f.mentions.mentionDebitsManquante && f.mentions.mentionDebits && (
                             <p className="text-[11px] text-text-dim mt-0.5 flex items-center gap-1.5">
                               Sanction non chiffrée.
-                              <Aide titre="Mention de l’art. 60" texte={f.mentions.mentionDebits.reserveSanction} source={f.mentions.mentionDebits.article} />
+                              <Aide titre="Mention d’autorisation aux débits" texte={f.mentions.mentionDebits.reserveSanction} source={f.mentions.mentionDebits.article} />
                             </p>
                           )}
                         </>
@@ -869,7 +869,7 @@ export function FacturationPage() {
                           DÉCLARATION DE TVA LIT (audit final F228) · elle se
                           voit sur la ligne de la pièce qui la porte. */}
                       {f.sens === 'ACHAT' && f.mentionTvaDebits && (
-                        <p className="text-[11px] text-text-dim mt-1">Porte la mention de l’art. 60 (débits).</p>
+                        <p className="text-[11px] text-text-dim mt-1" title="Décret n° 011/42, art. 60">Porte la mention d’autorisation aux débits.</p>
                       )}
                       {/* LE TEXTE APPLIQUÉ EST CELUI DE LA DATE DE LA PIÈCE ·
                           sans cette ligne, une facture de 2022 se verrait

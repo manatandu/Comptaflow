@@ -710,7 +710,7 @@ export function EtatsSmtPage() {
         <div className="max-w-[760px]">
           <div className="border border-border bg-surface mb-3">
             <div className="grid grid-cols-[1fr_150px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim">
-              <span>CATÉGORIE DE RESSOURCES (ART. 6)</span>
+              <span title="SYCEBNL, art. 6">CATÉGORIE DE RESSOURCES</span>
               <span className="text-right">EXERCICE N</span>
             </div>
             {eligibilite.categories.map((c) => (

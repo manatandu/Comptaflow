@@ -161,7 +161,7 @@ export function AccordCadrePage() {
     <div className="p-2 max-w-[980px]">
       <div className="flex items-center justify-end gap-1.5 mb-2">
         <Aide
-          titre="Accord-cadre · conditions de l'art. 37"
+          titre="Accord-cadre · conditions d'établissement"
           texte={`Quatre conditions cumulatives pour une ONG de droit étranger : une représentation en RDC, un accord-cadre avec le Ministère du Plan, les attestations de bonne conduite du personnel expatrié, et ${etat.partMinimaleMainOeuvreLocale} % au minimum de main-d'œuvre locale. L'accord-cadre conditionne l'existence de l'ONG étrangère en RDC ; il n'ouvre aucune exonération : l'art. 39 la réserve à un arrêté interministériel des Ministres du Plan et des Finances, pris après l'obtention de la personnalité juridique (fenêtre Exonérations). Il ne se confond pas non plus avec le certificat d'enregistrement du Ministère du Plan.`}
           source="Loi n° 004/2001, art. 37 et 39"
         />
@@ -202,8 +202,8 @@ export function AccordCadrePage() {
             <input type="checkbox" checked={tacite} onChange={(e) => setTacite(e.target.checked)} />
             Renouvelable par tacite reconduction
           </label>
-          <label className="text-[11.5px]">
-            Représentation en RDC (art. 37, 1)
+          <label className="text-[11.5px]" title="Loi n° 004/2001, art. 37, 1°">
+            Représentation en RDC
             <input className="w-full border border-border px-1.5 py-1 text-[11.5px]" value={representationRdc} onChange={(e) => setRepresentationRdc(e.target.value)} />
           </label>
         </div>

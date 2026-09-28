@@ -271,7 +271,7 @@ export function DevisPage() {
               <option value="SERVICES">Prestation de services</option>
               <option value="MIXTE_SERVICES_PREPONDERANTS">Mixte, main-d'œuvre prépondérante</option>
               <option value="USAGE_PERSONNEL">Usage personnel, familial ou domestique</option>
-              <option value="REGIME_PARTICULIER">Régime particulier (art. 236)</option>
+              <option value="REGIME_PARTICULIER" title="Enchères, saisie, valeurs mobilières, navires et aéronefs, électricité · AUDCG, art. 236">Régime particulier (hors vente commerciale)</option>
             </select>
           </label>
           <label className="text-[11.5px]">

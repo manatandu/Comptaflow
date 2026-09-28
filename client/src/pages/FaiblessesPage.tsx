@@ -542,8 +542,8 @@ export function FaiblessesPage() {
                       </label>
                     )}
                   </div>
-                  <label className="text-[11px] text-text-dim block mb-1.5">
-                    Description · § 11 a)
+                  <label className="text-[11px] text-text-dim block mb-1.5" title="ISA 265, § 11 a)">
+                    Description
                     <textarea
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
@@ -553,11 +553,11 @@ export function FaiblessesPage() {
                   </label>
                   <label className="text-[11px] text-text-dim block mb-1.5">
                     <span className="flex items-center gap-1">
-                      Effet potentiel · § 11 a)
+                      Effet potentiel
                       <Aide
                         titre="Effet potentiel"
                         texte="« The auditor need not QUANTIFY those effects »."
-                        source="ISA 265 § A28"
+                        source="ISA 265 § 11 a) et § A28"
                       />
                     </span>
                     <textarea
@@ -579,9 +579,9 @@ export function FaiblessesPage() {
                   {!detailExterne && indicateursA7.length > 0 && (
                     <fieldset className="text-[11px] mb-1.5">
                       <legend className="text-text-dim flex items-center gap-1.5">
-                        Indicateurs (§ A7)
+                        Indicateurs de faiblesse significative
                         <Aide
-                          titre="Indicateurs du § A7"
+                          titre="Indicateurs de faiblesse significative"
                           texte="La norme les donne « for example » comme indices d'une faiblesse significative. Les cocher n'emporte aucune qualification : celle-ci reste un acte de jugement motivé (§ 6 b)."
                           source="ISA 265, § A7"
                         />
@@ -645,8 +645,8 @@ export function FaiblessesPage() {
                         <div className="text-[11px] text-text-dim mt-0.5">Recommandation · {f.recommandation}</div>
                       )}
                       {(f.indicateursA7 ?? []).length > 0 && (
-                        <div className="text-[11px] text-text-dim mt-0.5">
-                          Indicateurs (§ A7) · {f.indicateursA7.map((c) => LIBELLE_INDICATEUR_A7[c] ?? c).join(' ; ')}
+                        <div className="text-[11px] text-text-dim mt-0.5" title="ISA 265, § A7">
+                          Indicateurs · {f.indicateursA7.map((c) => LIBELLE_INDICATEUR_A7[c] ?? c).join(' ; ')}
                         </div>
                       )}
                       {f.verificationCabinet && (
@@ -750,7 +750,7 @@ export function FaiblessesPage() {
 
               {(detail.mentionsContexte ?? []).length > 0 && (
                 <div className="border border-border bg-chrome px-3.5 py-2 mt-2 text-[10.5px] text-text-dim">
-                  <div className="font-mono mb-0.5">CONTEXTE de la COMMUNICATION · ISA 265 § 11 b)</div>
+                  <div className="font-mono mb-0.5" title="ISA 265, § 11 b)">CONTEXTE DE LA COMMUNICATION</div>
                   {(detail.mentionsContexte ?? []).map((m) => (
                     <div key={m} className="mt-0.5">
                       {m}

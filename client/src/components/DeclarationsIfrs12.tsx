@@ -62,22 +62,22 @@ export function DeclarationsIfrs12Form({
 
   return (
     <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-      <h2 className="text-[11.5px] font-bold mb-1.5">Intérêts détenus dans d’autres entités · réponses IFRS 12</h2>
+      <h2 className="text-[11.5px] font-bold mb-1.5" title="IFRS 12">Intérêts détenus dans d’autres entités</h2>
       <fieldset disabled={!peutEcrire} className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-        <label className="text-[11.5px] sm:col-span-2">
-          Hypothèses et jugements importants sur le contrôle et l’influence (§ 7 à 9)
+        <label className="text-[11.5px] sm:col-span-2" title="IFRS 12, § 7 à 9">
+          Hypothèses et jugements importants sur le contrôle et l’influence
           <textarea className={champ} rows={2} value={d.jugements ?? ''} onChange={(e) => setD({ ...d, jugements: texte(e.target.value) })} />
         </label>
-        <label className="text-[11.5px]">
-          Restrictions importantes (§ 13, § 22 a), « aucune » compris
+        <label className="text-[11.5px]" title="IFRS 12, § 13 et § 22 a · « aucune » compris">
+          Restrictions importantes
           <textarea className={champ} rows={2} value={d.restrictions ?? ''} onChange={(e) => setD({ ...d, restrictions: texte(e.target.value) })} />
         </label>
-        <label className="text-[11.5px]">
-          Raison des dates de clôture différentes (§ 11 b, § 22 b ii)
+        <label className="text-[11.5px]" title="IFRS 12, § 11 b et § 22 b ii">
+          Raison des dates de clôture différentes
           <textarea className={champ} rows={2} value={d.datesCloture ?? ''} onChange={(e) => setD({ ...d, datesCloture: texte(e.target.value) })} />
         </label>
-        <label className="text-[11.5px]">
-          Intérêts dans des entités structurées (§ 14 à 17, § 24 à 31)
+        <label className="text-[11.5px]" title="IFRS 12, § 14 à 17 et § 24 à 31">
+          Intérêts dans des entités structurées
           <select
             className={champ}
             value={d.entitesStructurees == null ? '' : d.entitesStructurees ? 'OUI' : 'NON'}
@@ -92,7 +92,7 @@ export function DeclarationsIfrs12Form({
 
       {filiales.length > 0 && (
         <div className="mt-2">
-          <p className="text-[11.5px] font-semibold mb-1">Filiales dont des participations ne donnent pas le contrôle (§ 12, B10 a)</p>
+          <p className="text-[11.5px] font-semibold mb-1" title="IFRS 12, § 12 et B10 a">Filiales dont des participations ne donnent pas le contrôle</p>
           {filiales.map((e) => {
             const x = filiale(e.nom);
             return (
@@ -110,7 +110,7 @@ export function DeclarationsIfrs12Form({
 
       {partenaires.length > 0 && (
         <div className="mt-2">
-          <p className="text-[11.5px] font-semibold mb-1">Partenariats et entreprises associées (§ 21 a, B12 a)</p>
+          <p className="text-[11.5px] font-semibold mb-1" title="IFRS 12, § 21 a et B12 a">Partenariats et entreprises associées</p>
           {partenaires.map((e) => {
             const x = partenaire(e.nom);
             return (
@@ -124,8 +124,8 @@ export function DeclarationsIfrs12Form({
                   onChange={(ev) => majPartenaire(e.nom, { typePartenariat: (ev.target.value || null) as Partenaire['typePartenariat'] })}
                 >
                   <option value="">{e.natureControle === 'CONJOINT' ? 'Type de partenariat à déclarer' : 'Sans objet (influence notable)'}</option>
-                  <option value="ENTREPRISE_COMMUNE">Entreprise commune (IFRS 11 § 15)</option>
-                  <option value="COENTREPRISE">Coentreprise (IFRS 11 § 16)</option>
+                  <option value="ENTREPRISE_COMMUNE" title="IFRS 11, § 15">Entreprise commune</option>
+                  <option value="COENTREPRISE" title="IFRS 11, § 16">Coentreprise</option>
                 </select>
                 <input className={champ} placeholder="Dividendes reçus" value={versTexte(x.dividendesRecus)} onChange={(ev) => majPartenaire(e.nom, { dividendesRecus: versNombre(ev.target.value) })} />
               </fieldset>
@@ -136,7 +136,7 @@ export function DeclarationsIfrs12Form({
 
       {peutEcrire && (
         <button className="mt-2 border border-border px-2.5 py-1 text-[11.5px]" onClick={() => void enregistrer()}>
-          Enregistrer les réponses IFRS 12
+          Enregistrer les réponses
         </button>
       )}
       {erreur && <p className="text-[11.5px] text-danger mt-1.5">{erreur}</p>}
