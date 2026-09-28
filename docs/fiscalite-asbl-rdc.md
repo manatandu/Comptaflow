@@ -336,9 +336,15 @@ taux, et le logiciel le rappelle en réserve sur la nature « ONEM ».
 - **Numéro Impôt** : demande dans les **15 jours** suivant le début des
   activités (art. 1er, loi n° 004/2003 portant réforme des procédures
   fiscales).
-- **Déclarer même exonéré** : l'exonération dispense du paiement, pas de la
-  déclaration aux échéances prévues. C'est le point sur lequel toutes les
-  sources consultées, anciennes comme récentes, convergent.
+- **Déclarer même exonéré, mais pas si exempté** : la loi n° 004/2003, art. 3,
+  distingue les deux. « Les déclarations doivent être souscrites même si le
+  redevable est exonéré. Les personnes exemptées sont dispensées de
+  l'obligation de souscrire les déclarations, à l'exception de celles
+  afférentes aux impôts dont elles sont redevables légaux. » Une ASBL exemptée
+  de l'IS (loi n° 23/053, art. 5, 3°) ne dépose donc pas de déclaration d'IS,
+  mais dépose celles des impôts qu'elle retient pour autrui (salaires,
+  sommes versées à des tiers). Corrigé à la passe F7 (2026-09-28) · la
+  version précédente de ce paragraphe raisonnait sur l'exonération seule.
 - **Tenir une comptabilité régulière** : depuis le 1er janvier 2024, c'est le
   **SYCEBNL** (Acte uniforme OHADA, Niamey, 22 décembre 2022), et non plus le
   Plan Comptable Général Congolais que citait la doctrine antérieure.

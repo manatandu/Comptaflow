@@ -427,7 +427,7 @@ export function FacturationPage() {
           Enregistrer une facture
           <Aide
             titre="Mentions obligatoires"
-            texte="Une facture est due « pour chaque transaction effectuée ». Ses mentions sont celles de l'art. 26 du décret n° 23/10 du 3 mars 2023 · douze groupes, dont deux ne s'obtiennent que d'un dispositif électronique fiscal et que le dernier alinéa retire du document en tenant lieu. Dix restent dues, et l'art. 97 bis sanctionne chaque omission. La fenêtre confronte chaque pièce à ces mentions ; elle ne les complète jamais d'office."
+            texte="L’art. 23 de la loi de procédures fiscales impose aux redevables de l’impôt sur les sociétés, de l’IRPP (bénéfices industriels, commerciaux, immobiliers, artisanaux et agricoles) et de la TVA une facture normalisée ou un document en tenant lieu « pour chaque transaction effectuée », sous réserve du régime des entreprises de petite taille. Ses mentions sont celles de l'art. 26 du décret n° 23/10 du 3 mars 2023 · douze groupes, dont deux ne s'obtiennent que d'un dispositif électronique fiscal et que le dernier alinéa retire du document en tenant lieu. Dix restent dues, et l'art. 97 bis sanctionne chaque omission. La fenêtre confronte chaque pièce à ces mentions ; elle ne les complète jamais d'office."
             source="Loi de procédures fiscales, art. 23 · décret n° 23/10 du 3 mars 2023, art. 26"
           />
         </h2>

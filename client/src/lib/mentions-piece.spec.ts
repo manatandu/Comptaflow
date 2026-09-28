@@ -64,3 +64,11 @@ describe('Facturation · la pièce saisie se passe au journal (audit final F23)'
     ]).toEqual([true, true, true, true]);
   });
 });
+
+describe('LPF art. 23 · l’aide de Facturation nomme les redevables (passe F7)', () => {
+  it('la facture est due par les redevables de l’IS, de l’IRPP et de la TVA, sous réserve des petites entreprises', () => {
+    const page = readFileSync(join(__dirname, '..', 'pages', 'FacturationPage.tsx'), 'utf8');
+    expect(page).toContain('impose aux redevables de l’impôt sur les sociétés, de l’IRPP');
+    expect(page).toContain('sous réserve du régime des entreprises de petite taille');
+  });
+});

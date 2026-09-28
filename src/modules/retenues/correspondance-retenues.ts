@@ -209,14 +209,18 @@ export const NATURES_RETENUES: NatureRetenue[] = [
     comptes: ['4471', '4472'],
     beneficiaire: 'ETAT',
     joursApresPeriode: 15,
-    echeance: 'Le 15 du mois suivant le versement des rémunérations',
+    // « Cette déclaration doit être souscrite même si les revenus salariaux et
+    // revenus assimilés ne sont pas versés. Dans ce cas, elle porte la mention
+    // "Néant" » (art. 18, al. 2) · c'est le mois sans paie qu'une association
+    // oublie (passe F7).
+    echeance: 'Le 15 du mois suivant le versement des rémunérations · due chaque mois, même sans rémunération versée, avec la mention « Néant » (art. 18, al. 2)',
     // Imprimé lu à la source · « DECLARATION DE LA RETENUE DE L'IMPOT SUR LE
     // REVENU DES PERSONNES PHYSIQUES DANS LA CATEGORIE DE REVENUS SALARIAUX ET
     // REVENUS ASSIMILES (IRPPDR1) », Ministère des Finances. La déclaration est
     // rattachée au MOIS des rémunérations, ce que le registre fait déjà.
     imprime: 'IRPPDR1',
     baseLegale:
-      "Article 18 de la loi n° 004/2003 portant réforme des procédures fiscales, tel que modifié par la loi n° 23/052 du 30 novembre 2023.",
+      "Article 18 de la loi n° 004/2003 portant réforme des procédures fiscales, tel que modifié par la loi de finances n° 23/056 du 10 décembre 2023, art. 24, et par la loi n° 23/052 du 30 novembre 2023.",
     chargeSousConditionArticle20:
       "Les traitements, salaires et autres rémunérations sur lesquels l'IRPP est retenu (comptes 66). L'article 21 y ajoute d'ailleurs sa propre condition : ces rémunérations ne sont déductibles que si elles ont été imposées à l'IRPP.",
     // LE FORFAIT TRIMESTRIEL DU PERSONNEL DOMESTIQUE ET DES SALARIÉS DE
@@ -321,7 +325,7 @@ export const NATURES_RETENUES: NatureRetenue[] = [
     comptes: ['44783'],
     beneficiaire: 'ETAT',
     joursApresPeriode: 15,
-    echeance: 'Dans les quinze jours suivant le mois du versement',
+    echeance: 'Dans les quinze jours suivant le mois du versement · due chaque mois, même sans rémunération versée, avec la mention « Néant » (art. 19, al. 2)',
     baseLegale:
       'Articles 145 à 149 de la loi n° 23/053 ; article 19 de la loi de procédures fiscales. Prélèvement de 25 % du brut.',
     // La charge visée est la RÉMUNÉRATION, pas le prélèvement · celui-ci
@@ -777,15 +781,51 @@ export const OBLIGATIONS_DECLARATIVES: ObligationDeclarative[] = [
       'revenus, une déclaration de ses revenus. » L’alinéa 2, ajouté en 2025, permet à l’Administration de ' +
       'communiquer les informations dont elle dispose, mais « la responsabilité de la déclaration et du calcul de ' +
       'l’impôt demeure entièrement à la charge du contribuable ».',
+    // Art. 13 al. 1 et art. 14 · les états et leur certification ne visent que
+    // le SYSTÈME NORMAL ; le relevé de l'al. 3 et le dépôt en cas de perte
+    // (art. 15) valent pour tout déclarant ; l'art. 16 avance l'échéance en
+    // cas de dissolution ou de cessation (passe F7).
     contenu:
-      "Déclaration auto-liquidative des revenus de l'exercice, accompagnée des états financiers certifiés par un " +
-      "membre de l'Ordre national des experts-comptables (art. 13 et 14). Le SOLDE de l'impôt se paie au même " +
+      "Déclaration auto-liquidative des revenus de l'exercice, contresignée par le conseil ou le comptable du redevable " +
+      "(art. 13, al. 2). Pour une entreprise relevant du Système normal, elle est appuyée du bilan, du compte de " +
+      "résultat, du tableau des flux de trésorerie, du tableau de variation des capitaux propres et des notes annexes " +
+      "(art. 13, al. 1er), certifiés par un expert-comptable inscrit au tableau de l'Ordre national des experts-comptables " +
+      "(art. 14). Tout déclarant y joint le relevé récapitulatif des ventes faites aux « commerçants » ou « fabricants » " +
+      "(art. 13, al. 3), et la dépose même en cas de perte (art. 15). En cas de dissolution, de liquidation ou de " +
+      "cessation, elle se remet dans le mois, avant le départ du dirigeant (art. 16). Le SOLDE de l'impôt se paie au même " +
       "moment : les trois acomptes « sont à déduire de l'impôt dû par le contribuable pour l'exercice fiscal " +
       "considéré, le solde éventuel de cet impôt devant être versé au moment du dépôt de la déclaration y " +
       "afférente » (art. 57 bis, al. 3). Le 30 avril est donc aussi une échéance de paiement.",
     sourceDonnees:
       "Résultat fiscal de la fenêtre État > Résultat fiscal et impôt sur les bénéfices, et liasse de la fenêtre États financiers.",
     referentiels: [Referentiel.SYSCOHADA],
+    // Une personne physique n'est pas redevable de l'IS · sa déclaration est
+    // celle de l'IRPP (art. 17), ci-dessous (passe F7).
+    formesExclues: FORMES_PERSONNES_PHYSIQUES,
+  },
+  {
+    cle: 'declarationIrpp',
+    libelle: 'Déclaration annuelle de l’impôt sur le revenu des personnes physiques',
+    periodicite: 'ANNUELLE',
+    moisEcheance: 4,
+    jourEcheance: 30,
+    echeance: "Au plus tard le 30 avril de l'année qui suit celle de la réalisation des revenus",
+    baseLegale:
+      "Article 17 de la loi de procédures fiscales n° 004/2003, modifié par la loi n° 23/052 du 30 novembre 2023 " +
+      'et par la loi de finances n° 25/060 du 29 décembre 2025, art. 20 : « Les personnes physiques soumises à ' +
+      'l’Impôt sur le Revenu des Personnes Physiques sont tenues de souscrire chaque année, au plus tard le 30 avril ' +
+      'de l’année qui suit celle de la réalisation des revenus, au Service de l’Administration des Impôts du lieu de ' +
+      'leur résidence, une déclaration de leurs revenus. »',
+    contenu:
+      "Déclaration des revenus de l'année, au service du lieu de résidence. Pour une personne relevant du Système " +
+      "normal et réalisant des bénéfices industriels, commerciaux, immobiliers, artisanaux, non commerciaux ou " +
+      "agricoles, elle porte les mêmes annexes que celles de l'article 13, est contresignée par le conseil ou le " +
+      "comptable, et s'accompagne du relevé récapitulatif des ventes aux « commerçants » ou « fabricants » (art. 17, " +
+      "al. 2 et 3). En cas de cessation, elle se remet dans le mois (art. 16).",
+    sourceDonnees:
+      "Résultat fiscal de la fenêtre État > Résultat fiscal et impôt sur les bénéfices, et liasse de la fenêtre États financiers.",
+    referentiels: [Referentiel.SYSCOHADA],
+    personnesPhysiquesSeulement: true,
   },
   {
     cle: 'premierAcompteIs',
@@ -912,6 +952,12 @@ export const OBLIGATIONS_DECLARATIVES: ObligationDeclarative[] = [
       'bulletins de paie émis (fenêtre Personnel) pour les montants par salarié. LA FICHE INDIVIDUELLE NE SORT PAS ' +
       'DE CES SOLDES · le texte la veut par rémunéré, CLASSÉE PAR PROVINCE, et le registre du personnel ne porte ' +
       "aucune province d'affectation. Le classement se fait hors du logiciel.",
+    // Art. 22 ter, al. 1er · une personne physique n'y est tenue qu'au régime
+    // réel ou au régime des petites entreprises (passe F7).
+    reserveRegimePhysique:
+      "Pour une personne physique, cette déclaration n'est due qu'au RÉGIME RÉEL ou au RÉGIME DES PETITES ENTREPRISES " +
+      "(art. 22 ter, al. 1er) · le régime des micro-entreprises n'est pas visé. Le régime se lit dans État > Résultat " +
+      'fiscal et impôt sur les bénéfices.',
   },
   {
     cle: 'listeFournisseurs',

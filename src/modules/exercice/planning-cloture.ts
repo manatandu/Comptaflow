@@ -534,12 +534,12 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     etape: 15,
     libelle: 'Déclarations fiscales annuelles',
     detail:
-      'Déclarations dues à l’administration fiscale, y compris à zéro : une entité exemptée d’impôt sur les sociétés ne paie pas, mais elle déclare. S’y ajoute la déclaration trimestrielle des sommes versées à des tiers hors salaires. Ce jalon N’EST PAS un dépôt d’états financiers : l’ASBL ne dépose pas sa liasse à la DGI, qui dispose en revanche d’un droit de contrôle sur sa comptabilité et ses déclarations. Voir docs/fiscalite-asbl-rdc.md et docs/obligations-annuelles-ebnl-rdc.md. LA MENTION DU COMPTABLE · l’article 141, 2° de la loi n° 23/053 oblige le redevable « d’indiquer dans leur déclaration le nom, l’adresse et la qualification du comptable chargé de tenir leur comptabilité, en précisant si celui-ci est salarié ou non de leur entreprise ». Il vise « les redevables visés aux articles 139 ET 140 », et l’article 140 nomme expressément « les entités à but non lucratif » : la mention concerne donc aussi une ASBL. RÉSERVE · l’exemption de l’article 5, 3° dispense de la déclaration d’impôt sur les sociétés, pas des autres déclarations ; c’est sur celles-là que la mention se porte, et aucun texte lu ne le dit en toutes lettres. OmegaX ne détient aucune de ces quatre données · à reporter à la main sur la déclaration.',
+      'Déclarations dues à l’administration fiscale. L’EXEMPTION d’impôt sur les sociétés dispense de déclarer l’impôt sur les sociétés, pas de déclarer les impôts dont l’entité est redevable légal · retenues sur salaires, relevé trimestriel des sommes versées à des tiers hors salaires (loi n° 004/2003, art. 3 · « Les personnes exemptées sont dispensées de l’obligation de souscrire les déclarations, à l’exception de celles afférentes aux impôts dont elles sont redevables légaux » ; l’EXONÉRATION, elle, ne dispense pas de déclarer). Une ASBL exemptée ne dépose donc ni déclaration d’impôt sur les sociétés ni liasse à la DGI, qui dispose en revanche d’un droit de contrôle sur sa comptabilité et ses déclarations. UNE ENTITÉ À BUT NON LUCRATIF REDEVABLE DE L’IMPÔT SUR LES SOCIÉTÉS (exemption non acquise, voir Paramètres du dossier) joint à sa déclaration ses états financiers SYCEBNL (art. 13, al. 4). Voir docs/fiscalite-asbl-rdc.md et docs/obligations-annuelles-ebnl-rdc.md. LA MENTION DU COMPTABLE · l’article 141, 2° de la loi n° 23/053 oblige le redevable « d’indiquer dans leur déclaration le nom, l’adresse et la qualification du comptable chargé de tenir leur comptabilité, en précisant si celui-ci est salarié ou non de leur entreprise ». Il vise « les redevables visés aux articles 139 ET 140 », et l’article 140 nomme expressément « les entités à but non lucratif » : la mention concerne donc aussi une ASBL. RÉSERVE · l’exemption de l’article 5, 3° dispense de la déclaration d’impôt sur les sociétés, pas des autres déclarations (loi n° 004/2003, art. 3) ; c’est sur celles-là que la mention se porte. OmegaX ne détient aucune de ces quatre données · à reporter à la main sur la déclaration.',
     nature: 'LEGALE',
     debut: { moisApres: 3, jour: 1 },
     echeance: { moisApres: 4, jour: 'FIN' },
     source:
-      'CENCO, Vade Mecum du gestionnaire (obligations fiscales de l’ASBL) ; loi n° 23/053, art. 140 et art. 141, 2° (mention du comptable) ; à confirmer sur texte primaire',
+      'Loi n° 004/2003, art. 3 (exemption), art. 13, al. 4 (états des entités à but non lucratif redevables de l’IS) ; CENCO, Vade Mecum du gestionnaire ; loi n° 23/053, art. 140 et art. 141, 2° (mention du comptable)',
     echeanceFiscale: true,
     referentiels: [Referentiel.SYCEBNL],
   },
@@ -560,12 +560,12 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     etape: 15,
     libelle: 'Déclarations fiscales annuelles',
     detail:
-      'Déclaration de l’Impôt sur les Sociétés au plus tard le 30 avril de l’année qui suit celle de la réalisation des revenus, à souscrire MÊME en cas de perte ou d’absence de revenus imposables. Pour une entreprise relevant du Système normal, elle est appuyée du bilan, du compte de résultat, du tableau des flux de trésorerie, du tableau de variation des capitaux propres et des notes annexes, contresignés par le conseil ou le comptable du redevable, et, sous peine de rejet, certifiés par un expert-comptable inscrit au tableau de l’ONEC. S’y ajoute le relevé récapitulatif des ventes de l’année aux personnes réputées commerçants ou fabricants. Les trois acomptes provisionnels de l’exercice se versent en juillet, septembre et novembre, hors calendrier de clôture. LA MENTION DU COMPTABLE · l’article 141, 2° de la loi n° 23/053 oblige le redevable « d’indiquer dans leur déclaration le nom, l’adresse et la qualification du comptable chargé de tenir leur comptabilité, en précisant si celui-ci est salarié ou non de leur entreprise ». Ce n’est pas le contreseing ci-dessus : signer n’est pas déclarer son adresse, sa qualification et son lien de subordination. OmegaX ne détient aucune de ces quatre données et ne les porte donc sur aucune pièce · à reporter à la main sur la déclaration.',
+      'Déclaration de l’Impôt sur les Sociétés au plus tard le 30 avril de l’année qui suit celle de la réalisation des revenus, à souscrire MÊME en cas de perte ou d’absence de revenus imposables. Pour une entreprise relevant du Système normal, elle est appuyée du bilan, du compte de résultat, du tableau des flux de trésorerie, du tableau de variation des capitaux propres et des notes annexes, et, sous peine de rejet, certifiés par un expert-comptable inscrit au tableau de l’ONEC. La déclaration est contresignée par le conseil ou le comptable du redevable (art. 13, al. 2). S’y ajoute le relevé récapitulatif des ventes de l’année aux personnes réputées commerçants ou fabricants. Les trois acomptes provisionnels de l’exercice se versent en juillet, septembre et novembre, hors calendrier de clôture. LA MENTION DU COMPTABLE · l’article 141, 2° de la loi n° 23/053 oblige le redevable « d’indiquer dans leur déclaration le nom, l’adresse et la qualification du comptable chargé de tenir leur comptabilité, en précisant si celui-ci est salarié ou non de leur entreprise ». Ce n’est pas le contreseing ci-dessus : signer n’est pas déclarer son adresse, sa qualification et son lien de subordination. OmegaX ne détient aucune de ces quatre données et ne les porte donc sur aucune pièce · à reporter à la main sur la déclaration.',
     nature: 'LEGALE',
     debut: { moisApres: 3, jour: 1 },
     echeance: { moisApres: 4, jour: 'FIN' },
     source:
-      'Loi n° 004/2003 portant réforme des procédures fiscales, art. 12 (échéance), 13 (états joints), 14 (certification ONEC) et 15 (déclaration en cas de perte), modifiés par la loi n° 23/052 ; art. 57 bis LPF tel que modifié par la loi de finances n° 25/060 du 29 décembre 2025 ; loi n° 23/053, art. 141, 2° (mention du comptable)',
+      'Loi n° 004/2003 portant réforme des procédures fiscales, art. 12 (échéance), 13 (états joints), 14 (certification ONEC), 15 (déclaration en cas de perte) et 16 (dans le mois en cas de dissolution, de liquidation ou de cessation), modifiés par la loi n° 23/052 ; art. 57 bis LPF tel que modifié par la loi de finances n° 25/060 du 29 décembre 2025 ; loi n° 23/053, art. 141, 2° (mention du comptable)',
     echeanceFiscale: true,
     referentiels: [Referentiel.SYSCOHADA],
     formesSyscohadaExclues: FORMES_PERSONNES_PHYSIQUES,
@@ -605,7 +605,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     etape: 15,
     libelle: 'Déclaration annuelle des revenus (personne physique)',
     detail:
-      'Déclaration des revenus de l’exercice au plus tard le 30 avril de l’année qui suit celle de leur réalisation, au Service des Impôts du lieu de résidence. Elle n’est PAS une déclaration d’impôt sur les sociétés : une entreprise individuelle et un entreprenant relèvent de l’Impôt sur le Revenu des Personnes Physiques. Elle n’est appuyée des annexes de l’article 13, contresignées par le conseil ou le comptable, que si le dossier relève du SYSTÈME NORMAL de comptabilité et réalise des revenus dans les catégories énumérées par l’article 17, alinéa 2 ; un dossier au Système minimal de trésorerie n’y est pas tenu. S’y ajoute alors le relevé récapitulatif des ventes de l’année aux personnes réputées commerçants ou fabricants. LE CALENDRIER DE PAIEMENT DÉPEND DU RÉGIME : au régime réel, trois acomptes provisionnels aux 25 juillet, 25 septembre et 25 novembre ; au régime des petites entreprises, deux quotités, la première au plus tard le 31 janvier ; au régime des micro-entreprises, ni acompte ni quotité. Le régime applicable se lit dans État > Résultat fiscal et impôt sur les bénéfices, ce calendrier ne le tranche pas. LA MENTION DU COMPTABLE · l’article 141, 2° de la loi n° 23/053 oblige le redevable « d’indiquer dans leur déclaration le nom, l’adresse et la qualification du comptable chargé de tenir leur comptabilité, en précisant si celui-ci est salarié ou non de leur entreprise ». Ce n’est pas le contreseing ci-dessus : signer n’est pas déclarer son adresse, sa qualification et son lien de subordination. OmegaX ne détient aucune de ces quatre données et ne les porte donc sur aucune pièce · à reporter à la main sur la déclaration.',
+      'Déclaration des revenus de l’exercice au plus tard le 30 avril de l’année qui suit celle de leur réalisation, au Service des Impôts du lieu de résidence. Elle n’est PAS une déclaration d’impôt sur les sociétés : une entreprise individuelle et un entreprenant relèvent de l’Impôt sur le Revenu des Personnes Physiques. Elle n’est appuyée des annexes de l’article 13, et contresignée par le conseil ou le comptable (art. 17, al. 2), que si le dossier relève du SYSTÈME NORMAL de comptabilité et réalise des revenus dans les catégories énumérées par l’article 17, alinéa 2 ; un dossier au Système minimal de trésorerie n’y est pas tenu. S’y ajoute alors le relevé récapitulatif des ventes de l’année aux personnes réputées commerçants ou fabricants. LE CALENDRIER DE PAIEMENT DÉPEND DU RÉGIME : au régime réel, trois acomptes provisionnels aux 25 juillet, 25 septembre et 25 novembre ; au régime des petites entreprises, deux quotités, la première au plus tard le 31 janvier ; au régime des micro-entreprises, ni acompte ni quotité. Le régime applicable se lit dans État > Résultat fiscal et impôt sur les bénéfices, ce calendrier ne le tranche pas. LA MENTION DU COMPTABLE · l’article 141, 2° de la loi n° 23/053 oblige le redevable « d’indiquer dans leur déclaration le nom, l’adresse et la qualification du comptable chargé de tenir leur comptabilité, en précisant si celui-ci est salarié ou non de leur entreprise ». Ce n’est pas le contreseing ci-dessus : signer n’est pas déclarer son adresse, sa qualification et son lien de subordination. OmegaX ne détient aucune de ces quatre données et ne les porte donc sur aucune pièce · à reporter à la main sur la déclaration.',
     nature: 'LEGALE',
     debut: { moisApres: 3, jour: 1 },
     echeance: { moisApres: 4, jour: 'FIN' },
@@ -913,6 +913,8 @@ export interface ObligationEvenementielle {
    * obligations d'association le jour où elle sera branchée sur un écran.
    */
   referentiels?: Referentiel[];
+  /** Formes OHADA écartées · même sens que sur les jalons (passe F7). */
+  formesSyscohadaExclues?: FormeJuridiqueSyscohada[];
   droitEtrangerSeulement?: boolean;
   /** Écran d'OmegaX depuis lequel l'événement se constate. */
   ecranDeclencheur?: string;
@@ -985,8 +987,23 @@ export const OBLIGATIONS_EVENEMENTIELLES: ObligationEvenementielle[] = [
       'Loi de procédures fiscales, art. 13 bis, inséré par la loi de finances n° 25/060 · vise « les sociétés et ' +
       'les autres personnes morales soumises à l’impôt sur les sociétés »',
     // Une association est exemptée de l'IS (loi n° 23/053, art. 5) · le
-    // procès-verbal n'est pas à déposer à la DGI par elle.
+    // procès-verbal n'est pas à déposer à la DGI par elle. Une personne
+    // physique n'a ni assemblée ni IS · filtre de F13, qui n'avait été posé
+    // qu'à l'échéancier (passe F7).
     referentiels: [Referentiel.SYSCOHADA],
+    formesSyscohadaExclues: FORMES_PERSONNES_PHYSIQUES,
+  },
+  {
+    cle: 'modificationsIdentiteFiscale',
+    evenement:
+      'Modification de l’identité, de la direction, de l’adresse physique ou électronique, du téléphone, d’un élément imposable ou de l’exploitation, ou sa cessation',
+    libelle: 'Déclaration de la modification à l’Administration des impôts',
+    delai: 'Dans les quinze jours de la survenance de l’événement',
+    destinataire: 'Direction générale des impôts',
+    source:
+      'Loi de procédures fiscales, art. 2 (modifié par la loi de finances n° 15/021) et art. 2 bis (adresse physique, inséré par la loi de ' +
+      'finances n° 24/011, art. 33) · son absence est punie par l’art. 94, qui range nommément « la déclaration prévue à l’article 2 »',
+    ecranDeclencheur: 'Structure > Paramètres du dossier · coordonnées, dirigeants et identifiants',
   },
   {
     cle: 'renouvellementFacilites',
@@ -1015,9 +1032,11 @@ export function obligationsEvenementiellesApplicables(contexte: {
   referentiel: Referentiel;
   formeJuridique: FormeJuridiqueEbnl;
   droitEtranger: boolean;
+  formeJuridiqueSyscohada?: FormeJuridiqueSyscohada | null;
 }): ObligationEvenementielle[] {
   return OBLIGATIONS_EVENEMENTIELLES.filter((o) => {
     if (o.referentiels && !o.referentiels.includes(contexte.referentiel)) return false;
+    if (o.formesSyscohadaExclues && contexte.formeJuridiqueSyscohada && o.formesSyscohadaExclues.includes(contexte.formeJuridiqueSyscohada)) return false;
     if (o.formes && !o.formes.includes(contexte.formeJuridique)) return false;
     if (o.droitEtrangerSeulement && !contexte.droitEtranger) return false;
     return true;

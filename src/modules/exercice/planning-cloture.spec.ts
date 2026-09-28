@@ -176,7 +176,10 @@ describe('jalons applicables selon la forme juridique', () => {
     // Le seul jalon fiscal parle de DÉCLARATIONS, jamais d'un dépôt de liasse.
     const fiscal = JALONS_CLOTURE.find((j) => j.libelle.includes('Déclarations fiscales'))!;
     expect(fiscal.libelle).toBe('Déclarations fiscales annuelles');
-    expect(fiscal.detail).toContain('N’EST PAS un dépôt d’états financiers');
+    // Passe F7 · conditionné à l'exemption · une EBNL redevable de l'IS joint
+    // ses états à sa déclaration (LPF art. 13, al. 4), elle ne les « dépose » pas.
+    expect(fiscal.detail).toContain('Une ASBL exemptée ne dépose donc ni déclaration d’impôt sur les sociétés ni liasse à la DGI');
+    expect(fiscal.detail).toContain('joint à sa déclaration ses états financiers SYCEBNL (art. 13, al. 4)');
     const depots = JALONS_CLOTURE.filter((j) => j.libelle.toLowerCase().startsWith('dépôt'));
     expect(depots.some((j) => /DGI|fiscal|impôts/i.test(j.libelle))).toBe(false);
   });

@@ -2420,3 +2420,49 @@ constat.
   complète » : tout article qu'elle touche n'est pas un article qu'elle crée.
 - **UN TEXTE SANS RELAIS DANS L'ENTITÉ NE REND RIEN, ET LE DIRE SUFFIT.** Deux
   cents lignes d'IPM, perçues au guichet d'une chefferie, pour zéro constat.
+
+
+---
+
+## Passe F7 · procédures fiscales, Titre 1 (2026-09-28)
+
+Loi n° 004/2003, Livre II, Titre 1 · obligations déclaratives, telle que
+compilée par la DGI (fichier de 535 lignes, en un seul run de deux blocs, et
+non deux runs comme le plan le prévoyait). 6 agents, 14 minutes, 16 constats
+réfutés un à un, **4 écartés, 12 retenus, tous traités**. Chaque ligne source
+relue par la session principale (art. 2, 2 bis, 3, 12 à 19, 22 ter, 23).
+
+### Corrigés
+
+| Constat | Gravité | Ce qui était faux | Ce qui est fait |
+|---|---|---|---|
+| A43 | FAUX | L'échéancier servait la déclaration d'IS à l'entreprise individuelle et à l'entreprenant, et ne portait aucune déclaration IRPP (art. 17). Le commentaire du PV d'assemblée annonçait « même filtre que la déclaration d'IS » · ce filtre n'existait pas. | `formesExclues` sur la déclaration d'IS ; `declarationIrpp` (30 avril, art. 17) pour les seules personnes physiques. |
+| A17 | FAUX | Le jalon SYCEBNL disait qu'« une entité exemptée d'impôt sur les sociétés […] déclare », et déclarait en réserve qu'« aucun texte lu ne le dit ». L'art. 3 le dit mot pour mot · l'exempté est dispensé de déclarer, sauf les impôts dont il est redevable légal ; l'EXONÉRÉ déclare. | Jalon réécrit sur l'art. 3 ; `docs/fiscalite-asbl-rdc.md` § 8 corrigé. Lacune déclarée à tort, la huitième. |
+| A37 | INCOMPLET | « L'ASBL ne dépose pas sa liasse à la DGI », sans condition · l'art. 13, al. 4 fait joindre ses états SYCEBNL à l'EBNL redevable de l'IS. | Conditionné à l'exemption, l'al. 4 nommé. |
+| A34, A35 | INCOMPLET / CONFORT | Les états certifiés exigés de toute société, SMT compris ; le relevé de l'al. 3 et la perte de l'art. 15 tus ; le contreseing porté sur les états au lieu de la déclaration. | Contenu de l'échéancier et jalons réécrits sur les art. 13, 14, 15 et 17. |
+| A47, A53 | INCOMPLET | La déclaration mensuelle IRPP et celle du prélèvement des expatriés dues même sans paie, avec la mention « Néant » (art. 18 al. 2, 19 al. 2) · non dit, quand la ligne CNSS voisine le disait. | Dans l'échéance servie. |
+| A42 | CALENDRIER | L'art. 16 (déclaration dans le mois en cas de dissolution, de liquidation ou de cessation) n'était nommé nulle part. | Nommé dans l'échéancier et le jalon SYSCOHADA. Le drapeau de liquidation n'est pas conservé au modèle · l'échéance ne se recalcule pas, et c'est dit. |
+| A4 | INCOMPLET | La déclaration des modifications de l'art. 2 (quinze jours), et l'adresse de l'art. 2 bis, sans porteur · alors que la sanction de l'art. 94 la nomme. | Obligation événementielle `modificationsIdentiteFiscale`, ouverte aux deux référentiels. |
+| A38 | INCOMPLET | Le PV d'assemblée de l'art. 13 bis restait servi aux personnes physiques dans la liste des obligations événementielles, que F13 disait filtrée. | `formesSyscohadaExclues` et la forme OHADA dans le contexte. |
+| B7 | INCOMPLET | La déclaration annuelle des salaires (art. 22 ter) servie à une personne physique sans dire qu'elle n'y est tenue qu'au réel ou aux petites entreprises. | `reserveRegimePhysique`, comme les acomptes. |
+| B13 | INCOMPLET | L'aide de Facturation disait la facture due « pour chaque transaction » sans les redevables de l'art. 23 ni la réserve des petites entreprises. | Aide réécrite. |
+
+### Écartés par la réfutation
+
+A3 (l'art. 1er réécrit par la loi de finances 2026, déjà suivi), B9 (l'art. 22
+quater ouvre une faculté de correction, pas une obligation), B15 (l'ordre
+d'enliassement est tenu par le refus de supprimer une pièce comptabilisée),
+B12 (le contexte des non-résidents était exact).
+
+### Ce que la passe apprend
+
+**UN COMMENTAIRE QUI ANNONCE UN FILTRE N'EST PAS UN FILTRE**, deuxième fois
+après F6 · « Même filtre que la déclaration d'IS » était écrit sur le PV, et la
+déclaration d'IS n'en portait aucun. Le journal de F13 le disait posé aux deux
+endroits · une ligne de journal se vérifie contre le code, comme une liste de
+manques contre le corpus.
+
+**EXEMPTION ET EXONÉRATION, UNE TROISIÈME FOIS.** F4a l'avait tranché pour
+l'IS, le jalon du planning et la note sur la fiscalité des ASBL raisonnaient
+encore sur l'exonération. La règle se cherche par son MOT dans tout le dépôt,
+pas seulement dans le module qui l'a vue la première fois.
