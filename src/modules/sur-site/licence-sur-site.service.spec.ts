@@ -109,6 +109,27 @@ describe('LicenceSurSiteService', () => {
     expect(() => s.verifierPlafondDossiers(2)).toThrow(/couvre 2 dossier/);
   });
 
+  it('audit final F193 · le lanceur lit le refus sur le service, avec le chemin où déposer la licence', () => {
+    const pp = poste();
+    // Paquet publié après la fin de maintenance.
+    pp.fichiers.set(join(VERSION, 'version-sur-site.json'), JSON.stringify({ date: '2027-10-01', commit: 'def' }));
+    pp.fichiers.set(join(DONNEES, 'licence.omegax'), fichier());
+    const m = service(pp).motifRefusMigration();
+    // Le motif du verdict, puis la voie de dépôt · l'état de la base est dit
+    // par le lanceur, seul à savoir si une migration l'a déjà touchée.
+    expect(m).toMatch(/^Cette version a été publiée le 2027-10-01/);
+    expect(m).toContain('2027-09-26');
+    expect(m).toContain(join(DONNEES, 'licence.omegax'));
+    // Couverte, sans licence, ou en ligne · rien ne s'oppose.
+    pp.fichiers.set(join(VERSION, 'version-sur-site.json'), JSON.stringify({ date: '2027-09-26', commit: 'def' }));
+    expect(service(pp).motifRefusMigration()).toBeNull();
+    expect(service(poste()).motifRefusMigration()).toBeNull();
+    const enLigne = poste();
+    enLigne.fichiers.set(join(DONNEES, 'licence.omegax'), fichier({ finMaintenance: '2026-09-26' }));
+    enLigne.fichiers.set(join(VERSION, 'version-sur-site.json'), JSON.stringify({ date: '2027-10-01', commit: 'def' }));
+    expect(service(enLigne, {} as NodeJS.ProcessEnv).motifRefusMigration()).toBeNull();
+  });
+
   it('la date de version vient du fichier du paquet, jamais de l’horloge · absente, l’installation est fermée', () => {
     const pp = poste();
     pp.fichiers.delete(join(VERSION, 'version-sur-site.json'));

@@ -9,7 +9,18 @@ permissions:
   pull-requests: write
 jobs:
   build_and_preview:
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    # PAS DE CANAL D'APERÇU POUR DEPENDABOT (relevé le 2026-09-28 par l'audit
+    # de cohérence des corrections F195 et F266 de l'audit final). Une
+    # demande de tirage ouverte par Dependabot ne reçoit pas les secrets
+    # Actions du dépôt, seulement les siens · le compte de service Firebase
+    # est vide, et ce job tombait à chaque montée (dix échecs sur les dix
+    # derniers runs de Dependabot). Une montée se juge au portillon
+    # `verifier` de deploy-cloud-run.yml et à tests-navigateur.yml, qui ne
+    # lisent aucun secret ; un rouge qui ne dit rien de la montée apprendrait
+    # seulement à ignorer les rouges. On lit l'AUTEUR de la demande de tirage,
+    # pas l'acteur du run · c'est lui qui dit qu'elle vient de Dependabot,
+    # quel que soit celui qui relance le run.
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

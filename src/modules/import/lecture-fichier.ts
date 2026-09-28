@@ -42,8 +42,8 @@ function detecterSeparateur(texte: string): string {
  *
  * CE QUE FAISAIT LA VERSION PRÉCÉDENTE · elle découpait d'abord le texte sur
  * les retours à la ligne, puis traitait les guillemets DANS chaque morceau.
- * Un champ entre guillemets contenant un retour à la ligne — un libellé de
- * cotisation sur deux lignes, une adresse de tiers, une observation — était
+ * Un champ entre guillemets contenant un retour à la ligne (un libellé de
+ * cotisation sur deux lignes, une adresse de tiers, une observation) était
  * donc coupé en deux. L'écriture devenait deux lignes, dont l'une portait
  * `annee 2026;1500` en une seule cellule : le montant disparaissait, et RIEN
  * ne remontait comme anomalie, puisque chacune des deux moitiés était un

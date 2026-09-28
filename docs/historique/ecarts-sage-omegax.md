@@ -1,5 +1,43 @@
 # Ce que Sage a et qu'OmegaX n'a pas · rapport d'écart
 
+> **HISTORIQUE · bandeau posé le 2026-09-28 (audit final F267).** Ce rapport
+> décrit OmegaX au 29 août 2026, et il n'est plus que de l'histoire : il a été
+> rangé dans `docs/historique/`. La comparaison à jour est
+> `docs/comparaison-sage-i7-omegax.md` (relevé du 2026-09-25, relu le
+> 2026-09-26), et l'état du logiciel se lit dans `CLAUDE.md` et dans le code.
+>
+> **Ce qui est révolu ci-dessous.**
+>
+> - **§ 2, presque entier, a été construit depuis** · l'échéancier
+>   (`GET /ecritures/echeancier`), le code taxe par défaut du compte
+>   (`Compte.tauxTvaDefautId`, lu aussi par la grille de saisie,
+>   `client/src/lib/tva-saisie.ts`), le registre des retenues et les échéances
+>   fiscales au tableau de bord, le relevé bancaire importé et le
+>   rapprochement proposé (`LigneReleveBancaire`), le règlement des tiers et
+>   l'ordre de virement (`OrdreVirement`), le pré-lettrage, les composants, le
+>   plan fiscal dégressif avec son amortissement dérogatoire (SYSCOHADA), le
+>   palmarès des comptes et l'analyse des journaux, les états personnalisés
+>   sur cinq exercices au plus. `ModeAmortissement` connaît `LINEAIRE` et
+>   `UNITES_DOEUVRE` ; le dégressif n'y entre pas, c'est un plan fiscal tenu à
+>   côté du plan comptable (AUDCIF, fiche du compte 68).
+> - **§ 3, plusieurs écarts ont été levés** · l'amortissement dérogatoire
+>   (SYSCOHADA, 2026-09-26), la consolidation SYSCOHADA (2026-09-24), les
+>   états IFRS en sus du jeu légal (2026-09-25 et 2026-09-26), la paie
+>   (P1 à P9), le simulateur budgétaire (2026-09-26, sans le cube), et deux
+>   restrictions d'accès inspirées de Sage X3 (profil de fonctions et journaux
+>   autorisés par utilisateur, 2026-09-25 et 2026-09-26). Du module Moyens
+>   de Paiement, les lots de virements récurrents et l'ordre de virement
+>   imprimable sont servis (2026-09-26, `src/modules/reglements/`) ; les
+>   formats d'échange bancaires (LCR, SEPA) et la télétransmission restent
+>   écartés.
+> - **§ 4.1 à 4.3** · les trois états du jeu « projets de développement »
+>   (tableau emplois-ressources, exécution budgétaire, réconciliation de
+>   trésorerie) sont servis, et la convention de financement a sa table
+>   (`ConventionFinancement`).
+> - **§ 5** · l'ordre proposé est sans objet.
+>
+> Les § 4.4 et 4.5 n'ont pas été revérifiés pour ce bandeau.
+
 29 août 2026. Confrontation des manuels et guides Sage du Drive au logiciel tel
 qu'il est aujourd'hui. Le rapport dit trois choses : ce qui est déjà repris,
 ce qui manque et vaut la peine d'être construit, et ce qui est écarté

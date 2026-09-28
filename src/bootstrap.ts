@@ -6,14 +6,6 @@ import * as cookieParser from 'cookie-parser';
 import { sautsDeConfiance } from './common/sauts-de-confiance';
 
 /**
- * Configuration commune de l'application (CORS, taille du corps,
- * validation), appelée par `main.ts`. Elle vivait à part pour être partagée
- * avec un point d'entrée Vercel, retiré le 2026-09-27 (audit du serveur,
- * C11) · le déploiement est Cloud Run seul, et le script `vercel-build`
- * aurait appliqué les migrations par une seconde chaîne si un projet Vercel
- * était resté relié au dépôt.
- */
-/**
  * L'API SOUS L'ADRESSE DU SITE · Firebase Hosting relaie oomega.web.app/api/**
  * vers Cloud Run en gardant le chemin entier. Le préfixe est retiré ici, et
  * les routes restent les mêmes · un appel direct à l'adresse de Cloud Run
@@ -25,6 +17,16 @@ export function retirerPrefixeApi(url: string): string {
   return url.startsWith('/api/') ? url.slice(4) : url;
 }
 
+/**
+ * Configuration commune de l'application (CORS, taille du corps,
+ * validation), appelée par `main.ts`. Elle vivait à part pour être partagée
+ * avec un point d'entrée Vercel, retiré le 2026-09-27 (audit du serveur,
+ * C11) · le déploiement est Cloud Run seul, et le script `vercel-build`
+ * aurait appliqué les migrations par une seconde chaîne si un projet Vercel
+ * était resté relié au dépôt. Ce commentaire était posé au-dessus de
+ * `retirerPrefixeApi`, dont il semblait être la documentation (audit final
+ * F264).
+ */
 export function configurerApplication(app: INestApplication) {
   app.use((req: { url: string }, _res: unknown, next: () => void) => {
     req.url = retirerPrefixeApi(req.url);
@@ -68,8 +70,9 @@ export function configurerApplication(app: INestApplication) {
   // En développement (CORS_ORIGIN absent), tout est autorisé. En production,
   // restreindre au(x) domaine(s) du client évite qu'un site tiers appelle
   // l'API avec les identifiants d'un utilisateur connecté. Séparateur
-  // virgule pour plusieurs domaines (ex. domaine Vercel par défaut + domaine
-  // personnalisé).
+  // virgule pour plusieurs domaines (ex. un domaine personnalisé en plus des
+  // deux domaines Firebase ci-dessous · l'exemple d'un domaine Vercel est
+  // retiré avec Vercel, audit final F264).
   //
   // Les deux domaines que Firebase Hosting sert sont admis D'OFFICE, en plus
   // de CORS_ORIGIN : ce sont les adresses fixes du site, elles ne dépendent
@@ -102,12 +105,19 @@ export function configurerApplication(app: INestApplication) {
 /**
  * LE CONTRÔLE PRÉALABLE CORS SE MET EN CACHE · `maxAge`.
  *
- * Le site et l'API sont deux origines : toute écriture (JSON, jeton CSRF) est
- * précédée d'une requête OPTIONS. Sans `Access-Control-Max-Age`, Chrome n'en
- * garde la réponse que CINQ SECONDES, si bien que presque chaque écriture
- * coûtait deux allers-retours entre Kinshasa et us-east1 au lieu d'un.
- * 7 200 secondes est le plafond de Chrome (Firefox en admet davantage) : au
- * delà, la valeur est ramenée à 7 200, pas refusée.
+ * Quand le site et l'API sont deux origines, toute écriture (JSON, jeton
+ * CSRF) est précédée d'une requête OPTIONS. Sans `Access-Control-Max-Age`,
+ * Chrome n'en garde la réponse que CINQ SECONDES, si bien que presque chaque
+ * écriture coûtait deux allers-retours entre Kinshasa et us-east1 au lieu
+ * d'un. 7 200 secondes est le plafond de Chrome (Firefox en admet davantage) :
+ * au delà, la valeur est ramenée à 7 200, pas refusée.
+ *
+ * CE N'EST PLUS LE CAS DU SITE PUBLIÉ (audit final F264) · depuis le
+ * 2026-09-26, Firebase Hosting relaie oomega.web.app/api/** vers Cloud Run
+ * (`client/firebase.json`, `client/.env.production`), et le site appelle
+ * l'API sous sa propre origine, sans contrôle préalable. Le cache sert encore
+ * là où deux origines demeurent · le développement local (Vite sur 5173,
+ * serveur sur 3000) et un appel direct à l'adresse de Cloud Run.
  *
  * Le cache ne relâche rien : il porte sur la réponse au contrôle (origine,
  * méthodes, en-têtes admis), pas sur les données, et il est propre à chaque

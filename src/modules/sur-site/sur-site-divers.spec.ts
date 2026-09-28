@@ -233,3 +233,121 @@ describe('sur site · la sauvegarde appelle la recopie', () => {
     expect(corps).toContain('await this.recopier(nom);');
   });
 });
+
+describe('sur site · les deux séries de copies (audit final F191, F265)', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const fs = require('fs') as typeof import('fs');
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { tmpdir } = require('os') as typeof import('os');
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { join } = require('path') as typeof import('path');
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { nomCopieAvantMiseAJour } = require('./copies-avant-mise-a-jour') as typeof import('./copies-avant-mise-a-jour');
+
+  /**
+   * Un poste, avec un faux `pg_dump` qui dit où on lui demande d'écrire · la
+   * vraie commande n'est pas sur la machine de test, et c'est le NOM du
+   * fichier écrit qui est vérifié.
+   */
+  const monter = (pgDump = 'ecrire') => {
+    const racine = fs.mkdtempSync(join(tmpdir(), 'omegax-series-'));
+    const donnees = join(racine, 'donnees');
+    const bin = join(racine, 'bin');
+    fs.mkdirSync(join(donnees, 'sauvegardes'), { recursive: true });
+    fs.mkdirSync(bin);
+    const script =
+      pgDump === 'ecrire'
+        ? 'while [ "$1" != "--file" ]; do shift; done; echo "$2" > "$2"'
+        : 'while [ "$1" != "--file" ]; do shift; done; echo "à moitié" > "$2"; exit 3';
+    fs.writeFileSync(join(bin, 'pg_dump'), `#!/bin/sh\n${script}\n`, { mode: 0o755 });
+    const s = new SauvegardeSurSiteService({
+      MODE_INSTALLATION: 'SUR_SITE',
+      DOSSIER_DONNEES: donnees,
+      PG_BIN: bin,
+      DATABASE_URL: 'postgresql://omegax:x@127.0.0.1:5433/omegax',
+      SAUVEGARDES_AVANT_MISE_A_JOUR_A_GARDER: '1',
+    } as NodeJS.ProcessEnv);
+    const dossier = join(donnees, 'sauvegardes');
+    return { s, racine, donnees, dossier, fin: () => fs.rmSync(racine, { recursive: true, force: true }) };
+  };
+  const avantMaj = (jour: number) => nomCopieAvantMiseAJour(new Date(2026, 0, jour, 9, 0, 0), 'abc');
+
+  const posixSeulement = process.platform === 'win32' ? it.skip : it;
+
+  posixSeulement('la copie quotidienne s’écrit sous un nom provisoire, puis prend son nom', async () => {
+    const m = monter();
+    fs.writeFileSync(join(m.dossier, 'omegax-20200101-000000.dump.partiel'), 'reste d’une coupure');
+    const c = await m.s.lancer();
+    expect(c.nom).toMatch(/^omegax-\d{8}-\d{6}\.dump$/);
+    // Le faux pg_dump écrit dans le fichier le chemin qu'on lui a donné.
+    expect(fs.readFileSync(join(m.dossier, c.nom), 'utf8').trim()).toBe(join(m.dossier, `${c.nom}.partiel`));
+    expect(fs.readdirSync(m.dossier)).toEqual([c.nom]);
+    m.fin();
+  });
+
+  posixSeulement('une copie quotidienne qui échoue ne laisse rien qui passe pour une copie', async () => {
+    const m = monter('echouer');
+    await expect(m.s.lancer()).rejects.toThrow(/La sauvegarde a échoué/);
+    expect(fs.readdirSync(m.dossier)).toEqual([]);
+    m.fin();
+  });
+
+  it('la liste montre les deux séries, le rythme quotidien ne lit que la sienne', async () => {
+    const m = monter();
+    fs.writeFileSync(join(m.dossier, 'omegax-20260101-080000.dump'), 'quotidienne');
+    fs.writeFileSync(join(m.dossier, avantMaj(1)), 'avant mise à jour');
+    fs.writeFileSync(join(m.dossier, `${avantMaj(2)}.partiel`), 'interrompue');
+    expect(m.s.lister().map((c) => c.nom)).toEqual([avantMaj(1), 'omegax-20260101-080000.dump']);
+    // La quotidienne date de plus de vingt-quatre heures · la copie avant
+    // mise à jour, toute récente sur le disque, ne la remplace pas.
+    const vieille = new Date(Date.now() - 48 * 3600 * 1000);
+    fs.utimesSync(join(m.dossier, 'omegax-20260101-080000.dump'), vieille, vieille);
+    const lancer = jest.spyOn(m.s, 'lancer').mockResolvedValue({ nom: 'x', taille: 0, date: '' });
+    await m.s.siNecessaire();
+    expect(lancer).toHaveBeenCalledTimes(1);
+    m.fin();
+  });
+
+  it('hors du poste, chaque série garde son nombre, et la copie la plus récente part si elle manque', async () => {
+    const m = monter();
+    const externe = join(m.racine, 'usb');
+    fs.mkdirSync(externe);
+    fs.writeFileSync(join(m.dossier, 'omegax-20260101-080000.dump'), 'quotidienne');
+    await m.s.definirCopieExterne(externe, 'une phrase assez longue');
+    fs.writeFileSync(join(m.dossier, avantMaj(2)), 'avant mise à jour 2');
+    // Le lanceur l'a écrite sans serveur · le service la recopie au démarrage.
+    await m.s.recopierSiAbsente();
+    fs.writeFileSync(join(m.dossier, avantMaj(3)), 'avant mise à jour 3');
+    await m.s.recopierSiAbsente();
+    expect(fs.readdirSync(externe).sort()).toEqual(['omegax-20260101-080000.dump.chiffre', `${avantMaj(3)}.chiffre`]);
+    expect(m.s.copieExterne().derniere).toBe(avantMaj(3));
+    // Déjà là · rien ne repart.
+    const recopier = jest.spyOn(m.s, 'recopier');
+    await m.s.recopierSiAbsente();
+    expect(recopier).not.toHaveBeenCalled();
+    m.fin();
+  });
+
+  it('hors du poste, la copie d’une migration jamais aboutie échappe à la rotation, comme sur le poste', async () => {
+    const m = monter();
+    const externe = join(m.racine, 'usb');
+    fs.mkdirSync(externe);
+    await m.s.definirCopieExterne(externe, 'une phrase assez longue');
+    // Le repère du lanceur · la copie d'avant l'essai du jour 1 n'a jamais servi à une migration aboutie.
+    fs.writeFileSync(join(m.donnees, 'derniere-version.json'), JSON.stringify({ commit: 'abc', nonAbouties: [avantMaj(1)] }));
+    for (const j of [1, 2, 3]) {
+      fs.writeFileSync(join(m.dossier, avantMaj(j)), `avant mise à jour ${j}`);
+      await m.s.recopier(avantMaj(j));
+    }
+    // Une seule gardée par série (réglage du poste), plus la copie protégée.
+    expect(fs.readdirSync(externe).sort()).toEqual([`${avantMaj(1)}.chiffre`, `${avantMaj(3)}.chiffre`]);
+    m.fin();
+  });
+
+  it('au démarrage, la recopie de la plus récente précède la copie quotidienne', () => {
+    const src = fs.readFileSync(join(__dirname, 'sauvegarde-sur-site.service.ts'), 'utf8');
+    const init = src.slice(src.indexOf('  onModuleInit()'), src.indexOf('  onModuleDestroy()'));
+    expect(init).toContain('this.recopierSiAbsente()');
+    expect(init.indexOf('this.recopierSiAbsente()')).toBeLessThan(init.indexOf('this.siNecessaire()'));
+  });
+});

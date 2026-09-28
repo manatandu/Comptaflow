@@ -26,9 +26,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
+    # LES VERSIONS DE LA PRODUCTION (audit final F194) · PostgreSQL 18 comme
+    # Neon, et Node 22 comme le Dockerfile ; ce job éprouvait 16 et 20. La
+    # version 17 de l'installation sur site est éprouvée par le démarrage réel
+    # du portillon (deploy-cloud-run.yml, job `verifier`), pas ici · c'est un
+    # choix, trente minutes de parcours d'écrans ne se doublent pas pour une
+    # version majeure que les migrations et le démarrage éprouvent déjà.
     services:
       postgres:
-        image: postgres:16
+        image: postgres:18
         env:
           POSTGRES_USER: omega
           POSTGRES_PASSWORD: omega
@@ -66,7 +72,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Construire le serveur

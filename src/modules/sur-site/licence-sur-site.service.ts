@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { dirname, join } from 'path';
 import { estSurSite } from '../../common/mode-installation';
 import { CLE_PUBLIQUE_EDITEUR } from './cle-publique-editeur';
-import { ContenuLicence, empreinteDe, StatutLicenceSurSite, verifierLicence, VerdictLicence } from './licence-signee';
+import { ContenuLicence, empreinteDe, motifRefusMigration, StatutLicenceSurSite, verifierLicence, VerdictLicence } from './licence-signee';
 
 /** Ce que le service lit du poste · remplaçable dans les tests, jamais par l'environnement. */
 export interface AccesPoste {
@@ -188,6 +188,27 @@ export class LicenceSurSiteService implements OnModuleInit, OnModuleDestroy {
 
   etat(): EtatSurSite {
     return this.etatCourant;
+  }
+
+  /**
+   * AUDIT FINAL F193 · appelée par le LANCEUR (`installation/demarrer.cjs`),
+   * qui construit ce service depuis le serveur compilé du paquet AVANT la
+   * copie et les migrations d'une nouvelle version · la lecture du poste
+   * (identifiant, fichier, horloge, date du paquet) est celle du serveur, pas
+   * une seconde écriture. `null` · rien ne s'oppose à la migration.
+   *
+   * Le message dit les deux sorties · le serveur ne démarrant pas, l'écran
+   * d'ouverture ne peut pas recevoir une licence renouvelée, qui se dépose
+   * donc à la main à l'emplacement que le service relit. L'état de la base,
+   * lui, est dit par le lanceur (`etatDeLaBaseAuRefus`), seul à savoir si une
+   * migration précédente l'a déjà touchée · ce service ne le sait pas, et
+   * écrivait « la base n'a pas été modifiée » jusque sur une reprise.
+   */
+  motifRefusMigration(): string | null {
+    if (!this.surSite) return null;
+    const m = motifRefusMigration(this.etatCourant, this.etatCourant.dateVersion);
+    if (!m) return null;
+    return `${m} Une licence renouvelée se dépose dans ${this.cheminLicence}, puis le service OmegaX se redémarre.`;
   }
 
   /** L'accès aux dossiers · le verdict du fichier, pour tous. */

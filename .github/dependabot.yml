@@ -2,6 +2,14 @@
 # clients, une faille connue dans une dépendance transitive n'a pas à
 # attendre qu'on y pense. Dependabot ouvre la demande de tirage, et le
 # portillon de `deploy-cloud-run.yml` (job « verifier ») dit si elle passe.
+# Ce n'était pas vrai avant l'audit final F195 : le portillon ne tournait
+# que sur un push de main, si bien qu'aucune montée n'était éprouvée avant
+# sa fusion. Il tourne désormais sur toute demande de tirage, sans filtre de
+# chemins et sans secret, et rien n'y est déployé (le `if` du job
+# `migrer-et-deployer`). `tests-navigateur.yml` la juge aussi. L'aperçu
+# Firebase (`firebase-hosting-pull-request.yml`) ne tourne pas pour elle ·
+# Dependabot ne reçoit pas les secrets Actions, et le job tombait à chaque
+# montée sans rien dire d'elle (relevé le 2026-09-28).
 #
 # Le regroupement évite une demande de tirage par paquet : une par
 # écosystème et par semaine, ce qui reste lisible pour un cabinet de la

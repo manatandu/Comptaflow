@@ -128,6 +128,17 @@ export interface DefinitionFenetre extends MetaFenetre {
    * même par un appel direct. Voir `docs/plan-de-construction.md` §8.
    */
   referentielsApplicables?: Referentiel[];
+  /**
+   * RÉSERVÉE À L'ADMINISTRATEUR DU DOSSIER, À L'OUVERTURE COMME AU MENU
+   * (audit de l'interface I1, audit final F200). Pour une fenêtre dont le
+   * serveur refuse TOUTES les routes au non-administrateur et dont la page ne
+   * le dit pas elle-même · l'aiguillage d'AppShell renvoie alors à l'accueil,
+   * comme pour une fenêtre d'un autre référentiel, au lieu d'ouvrir un écran
+   * qui n'affiche que le refus du serveur. La règle est
+   * `fenetreOuverteSelonAdmin` (`reserve-admin.ts`), et
+   * `fenetres-reservees-admin.spec.ts` confronte chaque marque au contrôleur.
+   */
+  reserveAdmin?: true;
 }
 
 /**
@@ -198,6 +209,9 @@ export const FENETRES: DefinitionFenetre[] = [
     titre: "Journal d'audit",
     titreCourt: 'Journal audit',
     rendre: () => <JournalAuditPage />,
+    // Le journal dit qui a fait quoi · son contrôleur est réservé en entier à
+    // l'ADMIN_CABINET, et la page n'a aucun écran pour un autre rôle.
+    reserveAdmin: true,
   },
   {
     motif: /^\/balance-auxiliaire$/,
@@ -499,8 +513,11 @@ export const FENETRES: DefinitionFenetre[] = [
   },
   {
     // Fenêtre du dossier MÈRE d'un groupe d'établissements (une même
-    // personne morale en plusieurs dossiers) · le menu État ne la montre
-    // qu'aux dossiers qui ont des cellules, le serveur re-vérifie le lien.
+    // personne morale en plusieurs dossiers) · le menu État la montre aux
+    // dossiers qui ont des cellules ET à l'administrateur d'un siège à plafond
+    // posé qui n'a pas encore créé la première, cette fenêtre étant aussi
+    // celle qui les crée (audit de l'interface F4, `peutCreerCellules` servi
+    // par /auth/me). Le serveur re-vérifie le lien.
     motif: /^\/groupe$/,
     titre: 'Balance agrégée du groupe',
     titreCourt: 'Groupe',

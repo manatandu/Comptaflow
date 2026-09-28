@@ -1,5 +1,15 @@
 import { expect, type Page, type Response } from '@playwright/test';
 
+/**
+ * L'API EST LE RELAIS /api DE `vite preview`, JAMAIS LE SERVEUR EN DIRECT ·
+ * même adresse que la page, comme Firebase Hosting relaie vers Cloud Run.
+ * Le relais n'existe que si le client est servi avec `OMEGAX_API_RELAIS` et
+ * construit avec `VITE_API_URL=/api` (tests-navigateur.yml, CLAUDE.md § 10).
+ * La marche locale écrite jusqu'au 2026-09-28 construisait le client contre
+ * le serveur en direct et ne posait pas le relais · chaque appel d'ici
+ * tombait (audit final F197). `reglement-interieur.spec.ts` tient cette
+ * valeur égale à celle du workflow.
+ */
 export const API = process.env.OMEGAX_API ?? 'http://localhost:4173/api';
 export const MOT_DE_PASSE = 'MotDePasse-e2e-2026!';
 

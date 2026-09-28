@@ -1,8 +1,8 @@
 {
-  "name": "sycebnl-suite",
+  "name": "omegax",
   "version": "0.0.1",
   "private": true,
-  "description": "Moteur comptable professionnel OHADA / SYCEBNL · MVP SYCEBNL (associations, ONG, projets de développement)",
+  "description": "OmegaX · serveur du logiciel de comptabilité SYCEBNL et SYSCOHADA pour les ASBL, ONG et entreprises de RDC (VMG Consulting)",
   "scripts": {
     "build": "nest build",
     "start": "nest start",

@@ -36,6 +36,21 @@ mettre à jour ; c'est dit sous chaque constat. Les numéros de ligne cités son
 ceux du 2026-09-28 ; `client/src/pages/FacturationPage.tsx`, en cours de
 modification ce jour-là, est cité sans ligne.
 
+**Complété plus tard le 2026-09-28** (reste de l'audit final F200) · le
+paragraphe ci-dessus est laissé tel qu'il a été écrit. L'aiguillage de I1 et
+le commentaire du registre demandé sous F4 sont faits à leur tour, chacun
+marqué sous son constat : **30 constats sur 30 sont faits** (4 B, 4 F, 12 I,
+10 C). Seuls restent non pris les volets facultatifs de I9 et I10.
+
+Les numéros de ligne cités AVANT ce complément sont ceux d'avant lui, et il
+en a décalé dans deux fichiers (relevé au diff le même jour, audit de
+cohérence du lot) · dans `client/src/components/chrome/AppShell.tsx`, un
+numéro ancien se lit plus 1 à partir de la ligne 19, plus 5 à partir de la
+100, plus 6 à partir de la 103 et plus 11 à partir de la 625 ; dans
+`client/src/lib/registre-fenetres.tsx`, plus 11 à partir de la 131, plus 14
+à partir de la 201 et plus 17 à partir de la 504. Les lignes « Fait le »
+qu'il ajoute sous I1 et F4 citent la numérotation d'après.
+
 ---
 
 ## 1. Revérification des constats de la veille
@@ -73,7 +88,7 @@ modification ce jour-là, est cité sans ligne.
 
 *Relu le 2026-09-28* · ce tableau décrit l'état du jour de l'audit. Chaque
 constat porte désormais sa ligne « Fait le » dans les sections 2 à 5 (I1,
-« Fait en partie »).
+« Fait en partie » le 2026-09-27, complété le 2026-09-28).
 
 ---
 
@@ -301,6 +316,12 @@ l'administrateur d'un siège à plafond posé avant sa première cellule
 Reste le commentaire du registre, qui dit encore la fenêtre montrée aux
 seuls dossiers qui ont des cellules (`client/src/lib/registre-fenetres.tsx:501-503`).
 
+**Fait le 2026-09-28 :** le commentaire du registre dit la fenêtre montrée aux
+dossiers qui ont des cellules ET à l'administrateur d'un siège à plafond posé
+qui n'a pas encore créé la première, `peutCreerCellules` étant servi par
+`/auth/me` (`client/src/lib/registre-fenetres.tsx:515-520`). Commentaire seul,
+aucun test ne le fige.
+
 ---
 
 ## 4. Constats incohérents (I)
@@ -329,6 +350,18 @@ sous `estAdmin`, après « Autorisations d'accès »
 un non-administrateur qui tape l'adresse ouvre encore la fenêtre, qui
 affiche le refus du serveur (`client/src/pages/JournalAuditPage.tsx:175-176`)
 au lieu de le renvoyer à l'accueil.
+
+**Fait le 2026-09-28 :** le registre marque la fenêtre `reserveAdmin`
+(`client/src/lib/registre-fenetres.tsx:214`) ; l'aiguillage renvoie alors un
+non-administrateur à l'accueil, comme pour les rôles cantonnés
+(`client/src/components/chrome/AppShell.tsx:105-112`), par la règle de
+`client/src/lib/reserve-admin.ts`, que le filtre du menu lit aussi
+(`AppShell.tsx:635`). Le serveur, lui, refuse déjà tout le contrôleur
+(`@Roles(ADMIN_CABINET)` sur la classe de `journal-audit.controller.ts`).
+Test : `client/src/components/chrome/fenetres-reservees-admin.spec.ts`, qui
+relie chaque fenêtre marquée à son contrôleur et exige que toute entrée de
+menu réservée à l'administrateur mène soit à une fenêtre marquée, soit à une
+page qui dit elle-même le refus (autorisations, import, restitution).
 
 ### I2 · Les exonérations sont rangées parmi les éditions
 
@@ -833,7 +866,9 @@ littéral dans les contrôleurs (commit af1ad64).
 
 *Relu le 2026-09-28* · toutes ces corrections sont faites, sauf l'aiguillage
 de I1 (`reserveAdmin`), le commentaire du registre noté sous F4 et les volets
-facultatifs notés sous I9 et I10.
+facultatifs notés sous I9 et I10. *Complété le même jour* · l'aiguillage de
+I1 et le commentaire du registre sont faits ; restent les volets facultatifs
+de I9 et I10.
 La table reste celle du jour de l'audit.
 
 | Fichier | Constats | Nature de la correction |

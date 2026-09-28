@@ -5,12 +5,15 @@ qu'une fois. Le rattachement texte <-> article se lit sur la ligne quand un
 seul texte y est nommé ; sinon la référence est mise de côté comme AMBIGUË,
 et le comptage le dit plutôt que de deviner.
 """
-import csv, re, json, collections
+import re, collections
+from citations_commun import repertoire_de_travail, lire_citations, lire_lot_a, ecrire_json
 
-L = list(csv.DictReader(open('/tmp/claude-0/-home-user/ac8187b8-6ad7-5085-a3b1-d7551f9bf74d/scratchpad/citations.tsv',
-                             encoding='utf-8'), delimiter='\t'))
-A = {(l['fichier'], l['ligne']) for l in json.load(
-    open('/tmp/claude-0/-home-user/ac8187b8-6ad7-5085-a3b1-d7551f9bf74d/scratchpad/lotA.json'))}
+# Le répertoire de travail se passe en argument (audit final F263) · il était
+# écrit en dur sur le répertoire temporaire de la session d'origine, et le
+# script tombait partout ailleurs. Voir citations_commun.py pour le déroulé.
+TRAVAIL = repertoire_de_travail('index-citations-lot-b.py')
+L = lire_citations(TRAVAIL)
+A = lire_lot_a(TRAVAIL)
 B = [l for l in L if (l['fichier'], l['ligne']) not in A]
 
 # Les corpus que le dépôt peut citer. L'ordre ne compte pas : ce qui compte est
@@ -61,6 +64,5 @@ print()
 print("Références distinctes par corpus :")
 for corpus, n in collections.Counter(c[0] for c in couples).most_common():
     print(f"  {n:4}  {corpus}")
-json.dump({'couples': [[k[0], k[1], v, exemple[k]] for k, v in couples.items()]},
-          open('/tmp/claude-0/-home-user/ac8187b8-6ad7-5085-a3b1-d7551f9bf74d/scratchpad/lotB_index.json', 'w'),
-          ensure_ascii=False, indent=1)
+ecrire_json(TRAVAIL, 'lotB_index.json',
+            {'couples': [[k[0], k[1], v, exemple[k]] for k, v in couples.items()]})

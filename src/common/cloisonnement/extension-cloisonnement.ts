@@ -79,7 +79,7 @@ const CLES_QUI_NE_BORNENT_PAS = new Set(['NOT', 'none', 'isNot', 'every']);
  *
  * `dossier` est celui de la session, `perimetre` celui que le siège d'un
  * groupe a déclaré (voir perimetreDeGroupe). Quand aucun dossier n'est connu
- * — semis, chemins sans acteur —, on exige au moins une valeur LITTÉRALE :
+ * (semis, chemins sans acteur), on exige au moins une valeur LITTÉRALE :
  * il n'y a alors rien à quoi comparer, mais `{ not: null }` reste refusé.
  *
  * Seuls `equals` et `in` épinglent. Tout le reste (`not`, `notIn`, `contains`,

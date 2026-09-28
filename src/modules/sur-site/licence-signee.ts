@@ -181,15 +181,51 @@ export function verifierLicence(texte: string | null, ctx: ContexteVerification)
   if (c.expiration && ctx.aujourdhui > c.expiration) {
     return verdict('EXPIREE', `La licence n° ${c.numero} a expiré le ${c.expiration}.`, c);
   }
-  if (!ctx.dateVersion) {
-    return verdict('VERSION_INCONNUE', 'La date de cette version est inconnue · la couverture par la maintenance ne peut pas être vérifiée. Réinstallez OmegaX depuis un paquet officiel.', c);
-  }
-  if (ctx.dateVersion > c.finMaintenance) {
-    return verdict(
-      'VERSION_NON_COUVERTE',
-      `Cette version a été publiée le ${ctx.dateVersion}, après la fin de maintenance de la licence n° ${c.numero} (${c.finMaintenance}). Renouvelez la maintenance, ou réinstallez une version publiée au plus tard à cette date.`,
-      c,
-    );
-  }
+  if (!ctx.dateVersion) return verdict('VERSION_INCONNUE', MOTIF_VERSION_INCONNUE, c);
+  if (!versionCouverte(c, ctx.dateVersion)) return verdict('VERSION_NON_COUVERTE', motifVersionNonCouverte(ctx.dateVersion, c), c);
   return verdict('VALIDE', null, c);
+}
+
+const MOTIF_VERSION_INCONNUE =
+  'La date de cette version est inconnue · la couverture par la maintenance ne peut pas être vérifiée. Réinstallez OmegaX depuis un paquet officiel.';
+
+function motifVersionNonCouverte(dateVersion: string, c: ContenuLicence): string {
+  return `Cette version a été publiée le ${dateVersion}, après la fin de maintenance de la licence n° ${c.numero} (${c.finMaintenance}). Renouvelez la maintenance, ou réinstallez une version publiée au plus tard à cette date.`;
+}
+
+/**
+ * La version installée est-elle couverte par la maintenance · une seule
+ * comparaison, que le verdict du serveur et le refus du lanceur partagent
+ * (audit final F193). Une date inconnue ne couvre rien.
+ */
+export function versionCouverte(c: ContenuLicence, dateVersion: string | null): boolean {
+  return dateVersion !== null && dateVersion <= c.finMaintenance;
+}
+
+/**
+ * AUDIT FINAL F193 · LA LICENCE DEVANT LES MIGRATIONS. Le lanceur demande,
+ * avant la copie et les migrations d'une nouvelle version, si la licence du
+ * poste s'y oppose. Le serveur refusait bien une version hors maintenance,
+ * mais seulement une fois démarré, donc APRÈS avoir migré la base · le client
+ * ne pouvait plus revenir à la version que sa licence couvre sans restaurer
+ * sa copie, alors que la fiche d'installation (§ 6) lui promet de garder à
+ * vie la version qu'il a.
+ *
+ * Le refus ne vise que ce cas · une licence AUTHENTIQUE, émise pour CE poste,
+ * qui ne couvre pas la version à installer. Il se lit aussi quand le verdict
+ * s'est arrêté plus haut (horloge reculée, licence expirée), la fin de
+ * maintenance restant lisible dans une licence authentique.
+ *
+ * Il ne vise JAMAIS un poste sans licence lisible (absente, illisible, mal
+ * signée, clé de l'éditeur absente), ni une licence d'un autre poste. Un poste
+ * neuf doit migrer sa base vide et démarrer, puisque c'est l'écran
+ * d'ouverture qui montre l'empreinte et reçoit la licence ; et sans licence
+ * valide, aucun dossier n'a pu y être créé (`verifierPlafondDossiers`) · il
+ * n'y a rien à protéger. Refuser là fermerait le seul chemin qui mène à une
+ * licence.
+ */
+export function motifRefusMigration(v: VerdictLicence, dateVersion: string | null): string | null {
+  if (!v.contenu || v.statut === 'AUTRE_MACHINE') return null;
+  if (versionCouverte(v.contenu, dateVersion)) return null;
+  return dateVersion === null ? MOTIF_VERSION_INCONNUE : motifVersionNonCouverte(dateVersion, v.contenu);
 }

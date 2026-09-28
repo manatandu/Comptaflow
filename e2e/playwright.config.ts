@@ -7,9 +7,12 @@ import { defineConfig, devices } from '@playwright/test';
  * rend un 500 à la première lecture, un cookie qui ne voyage plus, rien de
  * tout cela ne rougit ailleurs.
  *
- * `OMEGAX_APP` et `OMEGAX_API` désignent le client et le serveur déjà
- * lancés (le workflow les démarre). `PW_CHROMIUM` permet de pointer un
- * Chromium déjà installé, sans téléchargement.
+ * `OMEGAX_APP` désigne le client déjà construit et servi (le workflow le
+ * démarre), lu ci-dessous. `OMEGAX_API`, lu par `tests/outils.ts`, n'est PAS
+ * le serveur · c'est le relais `/api` de ce même client, qui renvoie vers le
+ * serveur comme Firebase Hosting vers Cloud Run (CLAUDE.md § 10, audit final
+ * F197). `PW_CHROMIUM` permet de pointer un Chromium déjà installé, sans
+ * téléchargement, et `PW_WEBKIT` ajoute WebKit.
  */
 export default defineConfig({
   testDir: './tests',

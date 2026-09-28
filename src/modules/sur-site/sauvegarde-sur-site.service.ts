@@ -1,10 +1,20 @@
 import { BadRequestException, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { execFile } from 'child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'fs';
 import { isAbsolute, join } from 'path';
 import { promisify } from 'util';
 import { estSurSite } from '../../common/mode-installation';
 import { chiffrerFichier, deriverCle, motifRefusPhrase, nouveauSel } from './chiffrement-sauvegarde';
+import {
+  avantMiseAJourAGarder,
+  copiesAvantMiseAJourARetirer,
+  copiesProtegees,
+  horodatageCopie,
+  lireRepere,
+  MOTIF_AVANT_MISE_A_JOUR,
+  MOTIF_AVANT_MISE_A_JOUR_CHIFFRE,
+  SUFFIXE_PROVISOIRE,
+} from './copies-avant-mise-a-jour';
 
 const executer = promisify(execFile);
 
@@ -49,11 +59,12 @@ export function parametresConnexion(url: string | undefined): Record<string, str
 const MOTIF_NOM = /^omegax-(\d{8}-\d{6})\.dump$/;
 /** Une copie externe · chiffrée, son nom le dit (audit final F44). */
 const MOTIF_NOM_CHIFFRE = /^omegax-(\d{8}-\d{6})\.dump\.chiffre$/;
+/** Une copie quotidienne que l'écriture n'a pas menée à son terme (coupure de courant, arrêt du service). */
+const MOTIF_NOM_PROVISOIRE = /^omegax-(\d{8}-\d{6})\.dump\.partiel$/;
 
 /** Le nom d'une copie · horodaté au calendrier du poste, triable comme une chaîne. */
 export function nomSauvegarde(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `omegax-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.dump`;
+  return `omegax-${horodatageCopie(d)}.dump`;
 }
 
 /** Les copies à retirer pour n'en garder que `garder`, les plus récentes · seules celles d'OmegaX sont touchées. */
@@ -109,24 +120,34 @@ export class SauvegardeSurSiteService implements OnModuleInit, OnModuleDestroy {
   readonly surSite: boolean;
   readonly dossier: string;
   private readonly garder: number;
+  private readonly garderAvantMiseAJour: number;
   private readonly pgDump: string;
   private readonly fichierCopieExterne: string;
+  private readonly fichierRepere: string;
 
   constructor(private readonly env: NodeJS.ProcessEnv = process.env) {
     this.surSite = estSurSite(env);
     const donnees = env.DOSSIER_DONNEES || join(process.cwd(), 'donnees');
     this.fichierCopieExterne = join(donnees, 'sauvegarde-externe.json');
+    this.fichierRepere = join(donnees, 'derniere-version.json');
     this.dossier = env.DOSSIER_SAUVEGARDES || join(donnees, 'sauvegardes');
     const g = Number.parseInt(env.SAUVEGARDES_A_GARDER ?? '', 10);
     this.garder = Number.isInteger(g) && g > 0 ? g : 30;
+    this.garderAvantMiseAJour = avantMiseAJourAGarder(env);
     const exe = process.platform === 'win32' ? 'pg_dump.exe' : 'pg_dump';
     this.pgDump = env.PG_BIN ? join(env.PG_BIN, exe) : exe;
   }
 
   onModuleInit() {
     if (!this.surSite) return;
+    // La copie la plus récente part d'abord hors du poste si elle n'y est pas
+    // · c'est le cas de la copie avant mise à jour, que le lanceur écrit
+    // quand le serveur n'existe pas encore (audit final F265), et d'une copie
+    // dont la recopie a échoué faute de disque branché.
     const tenter = () => {
-      this.siNecessaire().catch((e) => this.log.error(`Sauvegarde automatique échouée · ${(e as Error).message}`));
+      this.recopierSiAbsente()
+        .then(() => this.siNecessaire())
+        .catch((e) => this.log.error(`Sauvegarde automatique échouée · ${(e as Error).message}`));
     };
     // Deux minutes après le démarrage · laisser les migrations et le premier
     // accès passer avant de charger le disque.
@@ -139,7 +160,16 @@ export class SauvegardeSurSiteService implements OnModuleInit, OnModuleDestroy {
     if (this.minuterie) clearInterval(this.minuterie);
   }
 
+  /**
+   * Les copies du poste, la plus récente d'abord · les quotidiennes ET celles
+   * que le lanceur prend avant une mise à jour (audit final F265). Les deux
+   * noms commencent par le même horodatage et se trient donc ensemble.
+   */
   lister(): CopieSauvegarde[] {
+    return this.copies((n) => MOTIF_NOM.test(n) || MOTIF_AVANT_MISE_A_JOUR.test(n));
+  }
+
+  private copies(retenir: (nom: string) => boolean): CopieSauvegarde[] {
     let noms: string[] = [];
     try {
       noms = readdirSync(this.dossier);
@@ -147,7 +177,7 @@ export class SauvegardeSurSiteService implements OnModuleInit, OnModuleDestroy {
       return [];
     }
     return noms
-      .filter((n) => MOTIF_NOM.test(n))
+      .filter(retenir)
       .sort()
       .reverse()
       .map((nom) => {
@@ -156,8 +186,13 @@ export class SauvegardeSurSiteService implements OnModuleInit, OnModuleDestroy {
       });
   }
 
+  /**
+   * Le rythme QUOTIDIEN ne lit que les copies quotidiennes · une copie avant
+   * mise à jour est une autre série, avec sa propre rotation, et elle ne
+   * décale pas la copie du jour.
+   */
   async siNecessaire(maintenant = new Date()): Promise<CopieSauvegarde | null> {
-    const derniere = this.lister()[0];
+    const derniere = this.copies((n) => MOTIF_NOM.test(n))[0];
     if (derniere && maintenant.getTime() - new Date(derniere.date).getTime() < 24 * 60 * 60 * 1000) return null;
     return this.lancer();
   }
@@ -177,23 +212,39 @@ export class SauvegardeSurSiteService implements OnModuleInit, OnModuleDestroy {
     const pg = parametresConnexion(this.env.DATABASE_URL);
     if (!pg) throw new BadRequestException('La chaîne de connexion à la base est illisible · la sauvegarde ne peut pas partir.');
     mkdirSync(this.dossier, { recursive: true });
+    // Les restes d'une copie qu'une coupure a interrompue · jamais listés,
+    // ils ne feraient qu'occuper le disque.
+    for (const n of readdirSync(this.dossier).filter((x) => MOTIF_NOM_PROVISOIRE.test(x))) {
+      try {
+        unlinkSync(join(this.dossier, n));
+      } catch {
+        /* un reste qui résiste ne coûte que de la place */
+      }
+    }
     const nom = nomSauvegarde(new Date());
     const chemin = join(this.dossier, nom);
+    // Une copie à moitié écrite ne doit pas passer pour la dernière bonne ·
+    // elle s'écrit sous un nom PROVISOIRE, que la liste ne reconnaît pas, et
+    // ne prend son nom qu'une fois `pg_dump` terminé sans erreur. Retirer le
+    // fichier en cas d'échec ne suffisait pas · une coupure de courant ne
+    // passe par aucun `catch` (même principe que la copie avant mise à jour,
+    // audit final F191).
+    const provisoire = `${chemin}${SUFFIXE_PROVISOIRE}`;
     try {
-      await executer(this.pgDump, ['--format=custom', '--no-owner', '--file', chemin], {
+      await executer(this.pgDump, ['--format=custom', '--no-owner', '--file', provisoire], {
         env: { ...process.env, ...pg },
         timeout: 30 * 60 * 1000,
         windowsHide: true,
       });
     } catch (e) {
-      // Une copie à moitié écrite ne doit pas passer pour la dernière bonne.
       try {
-        unlinkSync(chemin);
+        unlinkSync(provisoire);
       } catch {
         /* rien à retirer */
       }
       throw new BadRequestException(`La sauvegarde a échoué · ${(e as { stderr?: string }).stderr?.trim() || (e as Error).message}`);
     }
+    renameSync(provisoire, chemin);
     for (const n of copiesARetirer(readdirSync(this.dossier), this.garder)) {
       try {
         unlinkSync(join(this.dossier, n));
@@ -205,6 +256,22 @@ export class SauvegardeSurSiteService implements OnModuleInit, OnModuleDestroy {
     const s = statSync(chemin);
     this.log.log(`Sauvegarde écrite · ${nom} (${s.size} octets)`);
     return { nom, taille: s.size, date: s.mtime.toISOString() };
+  }
+
+  /**
+   * Les copies avant mise à jour que le repère du lanceur protège (audit
+   * final F265) · celle d'une migration jamais aboutie reste la dernière image
+   * saine de la base, et la rotation du dossier externe la garderait sinon
+   * cinq mises à jour, pas davantage, quand le poste, lui, ne la retire
+   * jamais. Un repère absent ou illisible ne protège rien de plus.
+   */
+  private copiesAvantMiseAJourProtegees(): string[] {
+    try {
+      const r = lireRepere(existsSync(this.fichierRepere) ? readFileSync(this.fichierRepere, 'utf8') : null);
+      return r ? copiesProtegees(r, r) : [];
+    } catch {
+      return [];
+    }
   }
 
   /** Ce qu'une route rend du réglage · jamais la clé ni le sel. */
@@ -266,6 +333,18 @@ export class SauvegardeSurSiteService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Recopie la copie la plus récente si le dossier externe ne l'a pas encore ·
+   * rien sans dossier externe. N'échoue jamais, comme `recopier`.
+   */
+  async recopierSiAbsente(): Promise<void> {
+    const etat = this.reglageExterne();
+    if (!etat.dossier) return;
+    const derniere = this.lister()[0];
+    if (!derniere || existsSync(join(etat.dossier, `${derniere.nom}.chiffre`))) return;
+    await this.recopier(derniere.nom);
+  }
+
+  /**
    * Recopie une sauvegarde, CHIFFRÉE, dans le dossier externe · n'échoue
    * jamais, l'échec est noté. Sans phrase posée (réglage d'avant le
    * chiffrement), rien ne part en clair · l'échec le dit et l'écran alerte.
@@ -284,7 +363,18 @@ export class SauvegardeSurSiteService implements OnModuleInit, OnModuleDestroy {
     try {
       await chiffrerFichier(join(this.dossier, nom), join(etat.dossier, `${nom}.chiffre`), Buffer.from(etat.cle, 'base64'), Buffer.from(etat.sel, 'base64'));
       const presents = readdirSync(etat.dossier);
-      for (const n of [...copiesARetirer(presents, this.garder, MOTIF_NOM_CHIFFRE), ...copiesEnClairARetirer(presents)]) {
+      // Chaque série garde son nombre de copies, hors du poste comme dessus
+      // (audit final F265).
+      for (const n of [
+        ...copiesARetirer(presents, this.garder, MOTIF_NOM_CHIFFRE),
+        ...copiesAvantMiseAJourARetirer(
+          presents,
+          this.garderAvantMiseAJour,
+          this.copiesAvantMiseAJourProtegees().map((n) => `${n}.chiffre`),
+          MOTIF_AVANT_MISE_A_JOUR_CHIFFRE,
+        ),
+        ...copiesEnClairARetirer(presents),
+      ]) {
         try {
           unlinkSync(join(etat.dossier, n));
         } catch {

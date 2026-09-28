@@ -10,9 +10,15 @@ Chaque nuit à 02:00 UTC (03:00 à Kinshasa), le workflow GitHub Actions
    `-pooler` · `pg_dump` tient une session longue, incompatible avec le
    pooling en mode transaction) ;
 2. **restaure l'export dans un Postgres 18 jetable** monté pour l'occasion ;
-3. vérifie la base restaurée : au moins 20 tables, au moins un dossier et
-   un utilisateur, et la balance globale (somme des débits = somme des
-   crédits sur `lignes_ecriture`) équilibrée au centime ;
+3. vérifie la base restaurée : chaque table de la source et son nombre de
+   lignes, décomptés dans l'instantané même que `pg_dump` exporte
+   (`pg_export_snapshot`, puis `pg_dump --snapshot`) et comparés table par
+   table à la base restaurée, par la même requête ; au moins un dossier et
+   un utilisateur ; et la balance globale (somme des débits = somme des
+   crédits sur `lignes_ecriture`) équilibrée au centime. Jusqu'au
+   2026-09-28, l'épreuve se contentait d'« au moins 20 tables », quand le
+   schéma en compte plus de cent · une restauration amputée des trois quarts
+   passait au vert (audit final F262) ;
 4. **chiffre** le fichier avec `age`, éprouve le chiffré (voir plus bas),
    efface l'original en clair, puis archive
    `sauvegarde-omegax-AAAA-MM-JJ-HHMM.dump.age` en artefact GitHub
@@ -23,6 +29,14 @@ Une exécution ROUGE signifie qu'une des étapes a échoué : export
 impossible, fichier qui ne se restaure pas, ou données incohérentes. C'est
 le contraire d'une alarme à ignorer · une sauvegarde qui ne se restaure pas
 n'existe pas.
+
+**À vérifier au premier run après le 2026-09-28.** L'export dans un
+instantané exporté (`pg_export_snapshot`, `pg_dump --snapshot`) n'a été
+éprouvé que contre un PostgreSQL local, jamais contre Neon, que
+l'environnement de développement n'atteint pas. S'il était refusé, le run
+tomberait en rouge sur « Instantané de la base source non obtenu » et
+n'archiverait rien ce jour-là · d'où un lancement à la main du workflow
+juste après la poussée qui l'a introduit, et la lecture de son résultat.
 
 Le workflow se lance aussi à la main : onglet Actions → « Sauvegarde de la
 base (éprouvée par restauration) » → Run workflow. À faire avant toute

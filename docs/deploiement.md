@@ -14,14 +14,20 @@
 > `docs/connexions-et-plafonds.md` et le § 5 de `CLAUDE.md`. En cas de
 > désaccord entre ce document et le workflow, **le workflow prime** · c'est lui
 > qui s'exécute.
+>
+> **Relu le même jour, après les corrections F194, F195, F264 et F266 de
+> l'audit final.** Le portillon tourne désormais sous Node 22, en deux jambes
+> PostgreSQL 18 et 17, et sur les demandes de tirage ; le § 2 le dit, et les
+> numéros de ligne cités du workflow, de `src/bootstrap.ts`, du `Dockerfile`
+> et de `initialiser.ps1` sont ceux d'après ces corrections.
 
 ## 1. L'architecture qui tourne
 
 | Étage | Où | Source |
 |---|---|---|
 | Client (React, Vite, site statique) | Firebase Hosting, site `oomega`, projet `omega-x-ec07a` | `client/.firebaserc:3-9`, `.github/workflows/firebase-hosting-merge.yml:36` |
-| API (NestJS, conteneur) | Cloud Run, service `comptaflow-api`, région `us-east1`, même projet | `.github/workflows/deploy-cloud-run.yml:22-24` |
-| Base | Neon, PostgreSQL 18, deux chaînes de connexion (directe et poolée) | `CLAUDE.md` § 2 et § 5, `.github/workflows/sauvegarde-base.yml:53-66` |
+| API (NestJS, conteneur) | Cloud Run, service `comptaflow-api`, région `us-east1`, même projet | `.github/workflows/deploy-cloud-run.yml:37-39` |
+| Base | Neon, PostgreSQL 18, deux chaînes de connexion (directe et poolée) | `CLAUDE.md` § 2 et § 5, `.github/workflows/sauvegarde-base.yml:69-84` |
 
 Deux fournisseurs, pas trois : Firebase Hosting et Cloud Run vivent dans le
 même projet Google Cloud, Neon tient la base.
@@ -33,10 +39,10 @@ précède la réécriture de l'application monopage `**` vers `index.html`
 (`client/firebase.json:15-18`) : dans l'autre ordre, toute requête d'API
 recevrait la page d'accueil. Le client est construit avec `VITE_API_URL=/api`
 (`client/.env.production:18`, fichier versionné), lu par
-`client/src/lib/api.ts:6` à travers `client/src/lib/adresse-api.ts:9-12`. Le
+`client/src/lib/api.ts:7` à travers `client/src/lib/adresse-api.ts:9-12`. Le
 serveur retire le préfixe avant le routage (`retirerPrefixeApi`,
-`src/bootstrap.ts:22-32`) · un appel direct à l'adresse Cloud Run, sans
-préfixe, répond donc aux mêmes routes.
+`src/bootstrap.ts:14-18`, appliqué l. 31-34) · un appel direct à l'adresse
+Cloud Run, sans préfixe, répond donc aux mêmes routes.
 
 Deux conséquences sont posées ailleurs et ne se défont pas :
 
@@ -49,47 +55,60 @@ Deux conséquences sont posées ailleurs et ne se défont pas :
 
 ## 2. Comment on déploie · par les workflows, jamais à la main
 
-Un push sur `main` déclenche deux chaînes indépendantes (`CLAUDE.md` § 5).
+Les workflows sont indépendants, et un push sur `main` en déclenche
+plusieurs à la fois · la table du § 5 de `CLAUDE.md`, relue contre
+`.github/workflows/` par `reglement-interieur.spec.ts`, les nomme tous. Deux
+publient en production, le serveur et le client. (Ce paragraphe parlait jusqu'au
+2026-09-28 de « deux chaînes indépendantes », comme le § 5 d'alors, qui ne
+montrait que quatre workflows sur sept · audit final F266.)
 
-**Serveur · `.github/workflows/deploy-cloud-run.yml`**, sur tout push qui
-touche `src/**`, `prisma/**`, le `Dockerfile`, `package.json`,
-`package-lock.json` ou le workflow lui-même (l. 8-16). Il se lance aussi
-depuis l'onglet Actions (`workflow_dispatch`, l. 7), et passe alors par les
-mêmes étapes.
+**Serveur · `.github/workflows/deploy-cloud-run.yml`**, sur tout push sur
+`main` qui touche `src/**`, `prisma/**`, le `Dockerfile`, `package.json`,
+`package-lock.json` ou le workflow lui-même (l. 22-30). Il se lance aussi
+depuis l'onglet Actions (`workflow_dispatch`, l. 21), et passe alors par les
+mêmes étapes. Sur une demande de tirage (l. 31), seul le portillon tourne ·
+le job de déploiement ne suit qu'un push ou un lancement manuel sur `main`
+(l. 228, audit final F195).
 
-1. Le job `verifier` (l. 35-139) n'a aucun secret. Il type, teste et construit
-   le serveur et le client, et fait DÉMARRER le serveur pour de bon contre un
-   Postgres jetable, interrogé sur `/health`, en relisant le journal de
-   démarrage (l. 84-123). Ce Postgres jetable est une image `postgres:16`
-   (l. 46), quand la base de production est en PostgreSQL 18.
-2. Le job `migrer-et-deployer` ne part que si le premier est vert
-   (`needs: verifier`, l. 141-142). Il applique `prisma migrate deploy` sur la
-   chaîne DIRECTE `API_DATABASE_URL` AVANT le déploiement (l. 151-163).
+1. Le job `verifier` (l. 51-217) n'a aucun secret. Il tourne sous Node 22,
+   comme le `Dockerfile` (l. 111), en DEUX JAMBES de Postgres jetable
+   (l. 73-94, audit final F194) · PostgreSQL 18, la version de Neon, et
+   PostgreSQL 17, celle que gèle l'installation sur site (`PG_MAJEUR_ATTENDU`
+   de `paquet-sur-site.yml`). La jambe de la production type et teste le
+   serveur et le client ; les deux construisent le serveur, lisent la version
+   réellement servie (l. 130-150) et font DÉMARRER le serveur pour de bon,
+   interrogé sur `/health`, en relisant le journal de démarrage
+   (l. 152-197). Jusqu'au 2026-09-28, ce Postgres jetable était une image
+   `postgres:16`, sous Node 20.
+2. Le job `migrer-et-deployer` ne part que si les deux jambes sont vertes
+   (`needs: verifier`, l. 219-220). Il applique `prisma migrate deploy` sur la
+   chaîne DIRECTE `API_DATABASE_URL` AVANT le déploiement (l. 239-251).
 3. Il déploie ensuite par `gcloud run deploy --source .`, avec une instance
    gardée chaude (`--min-instances 1`, `--cpu-boost`), les plafonds
    `--concurrency 80` et `--max-instances 4`, et les variables passées par
-   `--env-vars-file` (l. 358-368). Le service reçoit la chaîne POOLÉE
+   `--env-vars-file` (l. 446-456). Le service reçoit la chaîne POOLÉE
    `API_DATABASE_URL_POOLED`, ou la directe tant que ce secret n'existe pas
-   (repli voulu, l. 218) ; une chaîne poolée est
+   (repli voulu, l. 306) ; une chaîne poolée est
    complétée de `pgbouncer=true` et `connection_limit=10` sans jamais être
-   affichée, et sans écraser un paramètre déjà présent (l. 266-290).
-4. Il interroge enfin `/health` sur le service déployé (l. 426-436), qui
+   affichée, et sans écraser un paramètre déjà présent (l. 354-378).
+4. Il interroge enfin `/health` sur le service déployé (l. 506-516), qui
    répond 503 quand la base n'est pas jointe · un déploiement vert prouve que
    le service répond ET joint sa base.
 
 **Client · `.github/workflows/firebase-hosting-merge.yml`**, sur tout push
 sur `main` : typage, tests et construction du client, puis publication sur le
 canal `live` (l. 21-37). Une pull request publie un aperçu
-(`firebase-hosting-pull-request.yml`).
+(`firebase-hosting-pull-request.yml`), sauf celles de Dependabot, qui ne
+reçoivent pas les secrets Actions.
 
 **Le piège du déploiement.** `--env-vars-file` REMPLACE TOUTES les variables
-du service (`CLAUDE.md` § 5, commentaires du workflow l. 224-227 et 340-345).
+du service (`CLAUDE.md` § 5, commentaires du workflow l. 312-315 et 428-433).
 Une variable posée à la main dans la console Cloud Run est effacée au push
 suivant : toute variable passe par le workflow. Un `gcloud run deploy` lancé à
 la main, comme l'ancienne section 4 le prescrivait, sauterait en plus le
 portillon `verifier` et l'ordre « migrations puis code », et la forme
 `--set-env-vars` qu'elle employait a déjà échoué sur une chaîne Postgres
-(commentaire du workflow, l. 192-198).
+(commentaire du workflow, l. 280-286).
 
 **Après chaque push qui touche `src/**` ou `prisma/**`, relire le résultat du
 déploiement** dans Actions (`CLAUDE.md` § 5) · pousser n'est pas déployer.
@@ -110,27 +129,27 @@ La règle vit dans `src/bootstrap.ts` (et non dans `main.ts`, qui se borne à
 l'appeler, `src/main.ts:21`).
 
 - Les deux adresses du site, `https://oomega.web.app` et
-  `https://oomega.firebaseapp.com`, sont admises D'OFFICE (l. 80), qu'il y ait
+  `https://oomega.firebaseapp.com`, sont admises D'OFFICE (l. 83), qu'il y ait
   ou non `CORS_ORIGIN`.
-- `CORS_ORIGIN`, liste séparée par des virgules, s'y AJOUTE (l. 81 et 86-87).
+- `CORS_ORIGIN`, liste séparée par des virgules, s'y AJOUTE (l. 84 et 89-90).
   Le workflow la pose aux deux mêmes adresses
-  (`.github/workflows/deploy-cloud-run.yml:221`).
-- En production (`NODE_ENV=production`, posé par le `Dockerfile` l. 22),
+  (`.github/workflows/deploy-cloud-run.yml:309`).
+- En production (`NODE_ENV=production`, posé par le `Dockerfile` l. 31),
   l'absence de `CORS_ORIGIN` ne veut JAMAIS dire « tout le monde » : le repli
-  est la liste fermée des deux adresses (l. 82-89).
+  est la liste fermée des deux adresses (l. 85-92).
 - Seul un serveur hors production ET sans `CORS_ORIGIN`, c'est-à-dire le
-  développement local, reflète l'origine appelante (`origin: true`, l. 90 et
-  120). L'installation sur site n'en est pas · elle tourne en
-  `NODE_ENV=production` (`installation/windows/initialiser.ps1:74`).
+  développement local, reflète l'origine appelante (`origin: true`, l. 93 et
+  130). L'installation sur site n'en est pas · elle tourne en
+  `NODE_ENV=production` (`installation/windows/initialiser.ps1:91`).
 - Les identifiants voyagent (`credentials: true`) et la réponse au contrôle
-  préalable se met en cache 7 200 secondes (l. 116-123).
+  préalable se met en cache 7 200 secondes (l. 126-133).
 
 Depuis le relais, le site appelle l'API à sa propre origine (`/api`) · la
 règle CORS ne joue plus que pour un appel adressé directement à Cloud Run et
 pour le développement local.
 
 Le dépôt ne nomme aucun domaine personnalisé : les deux adresses ci-dessus
-sont les seules que connaissent `src/bootstrap.ts:80`, le workflow (l. 221) et
+sont les seules que connaissent `src/bootstrap.ts:83`, le workflow (l. 309) et
 la surveillance (`surveillance.yml:32-33`). Rattacher un domaine se fait dans
 la console Firebase et ne relève pas de ce document ; tout réglage serveur qui
 en découlerait passe par le workflow, jamais par la console Cloud Run.
@@ -142,10 +161,10 @@ en découlerait passe par le workflow, jamais par la console Cloud Run.
 | Créer un projet (`comptaflow-prod` en exemple) et remplir `client/.firebaserc` (ancienne section 1) | Projet `omega-x-ec07a`, fichier renseigné et versionné | `client/.firebaserc:3-4` |
 | Rattacher un domaine Google Workspace, puis l'ajouter à `CORS_ORIGIN` (ancienne section 2) | Aucun domaine personnalisé dans le dépôt ; le site est servi sous les deux adresses Firebase | section 3 ci-dessus |
 | Base Cloud SQL PostgreSQL 16, `db-f1-micro`, `europe-west1`, connecteur par socket Unix (ancienne section 3) | Neon, PostgreSQL 18, chaîne directe pour les migrations et `pg_dump`, chaîne poolée pour le service | `CLAUDE.md` § 5, `docs/connexions-et-plafonds.md` |
-| `gcloud run deploy` à la main, `--set-env-vars`, `--add-cloudsql-instances`, région `europe-west1` (ancienne section 4) | Déploiement par le workflow, `--env-vars-file`, région `us-east1`, aucune connexion Cloud SQL | `deploy-cloud-run.yml:23` et 199-368 |
-| `prisma migrate deploy` « une fois », après le premier déploiement | À chaque déploiement, AVANT le code, sur la chaîne directe, après le portillon `verifier` | `deploy-cloud-run.yml:141-163` |
+| `gcloud run deploy` à la main, `--set-env-vars`, `--add-cloudsql-instances`, région `europe-west1` (ancienne section 4) | Déploiement par le workflow, `--env-vars-file`, région `us-east1`, aucune connexion Cloud SQL | `deploy-cloud-run.yml:38` et 287-456 |
+| `prisma migrate deploy` « une fois », après le premier déploiement | À chaque déploiement, AVANT le code, sur la chaîne directe, après le portillon `verifier` | `deploy-cloud-run.yml:219-251` |
 | Construire le client avec l'adresse Cloud Run et `firebase deploy` à la main (ancienne section 5) | `VITE_API_URL=/api` versionné, relais Firebase, publication par le workflow | `client/.env.production:18`, `client/firebase.json:10-14`, `firebase-hosting-merge.yml` |
-| CORS ouvert à tout domaine pendant la mise au point, à « boucler » ensuite ; « absent, tout est autorisé » (ancienne section 6) | Fermé en production même sans variable ; ouvert au seul développement local | `src/bootstrap.ts:80-90` |
+| CORS ouvert à tout domaine pendant la mise au point, à « boucler » ensuite ; « absent, tout est autorisé » (ancienne section 6) | Fermé en production même sans variable ; ouvert au seul développement local | `src/bootstrap.ts:83-93` |
 | CORS réglé dans `main.ts` | Réglé dans `src/bootstrap.ts`, que `main.ts` appelle | `src/main.ts:21` |
 
 ## 5. Ce qui a été retenu, et ce qui a été écarté
@@ -206,14 +225,14 @@ HEURES DE CALCUL de Neon. Voir `docs/capacite-mesuree.md`.
 ## 6. Ce qui porte le déploiement dans le code
 
 - `Dockerfile` (racine) · construction en deux étapes sur `node:22-slim`,
-  `NODE_ENV=production` à l'exécution (l. 22), lancement par
-  `node dist/main.js` (l. 36). Le serveur écoute `process.env.PORT`
+  `NODE_ENV=production` à l'exécution (l. 31), lancement par
+  `node dist/main.js` (l. 45). Le serveur écoute `process.env.PORT`
   (`src/main.ts:22`), que Cloud Run fournit.
 - `client/firebase.json` et `client/.firebaserc` · cible `oomega`, relais
   `/api/**` vers Cloud Run, réécriture de l'application monopage, cache long
   sur les ressources versionnées et les polices, en-têtes de sécurité.
 - `src/bootstrap.ts` · retrait du préfixe `/api`, en-têtes défensifs, nombre de
-  relais de confiance (l. 57), CORS (section 3).
+  relais de confiance (l. 59), CORS (section 3).
 - `client/.env.production`, `client/src/lib/api.ts` et
   `client/src/lib/adresse-api.ts` · l'adresse de l'API du site publié (`/api`) ;
   le paquet sur site construit avec `meme-origine`

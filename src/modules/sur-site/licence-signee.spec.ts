@@ -1,5 +1,5 @@
 import { generateKeyPairSync } from 'crypto';
-import { ContenuLicence, empreinteDe, FORMAT_LICENCE, motifRefusContenu, serialiser, signerLicence, verifierLicence } from './licence-signee';
+import { ContenuLicence, empreinteDe, FORMAT_LICENCE, motifRefusContenu, motifRefusMigration, serialiser, signerLicence, verifierLicence } from './licence-signee';
 
 /**
  * LA LICENCE SIGNÉE · chaque statut sur un fichier réellement signé par une
@@ -107,5 +107,43 @@ describe('licence sur site · signée par VMG, vérifiée sans internet', () => 
     expect(empreinteDe('ABC-def')).toBe(empreinteDe(' abc-DEF '));
     expect(empreinteDe('abc')).toMatch(/^[0-9a-f]{64}$/);
     expect(serialiser(CONTENU)).not.toContain('{');
+  });
+});
+
+describe('audit final F193 · la licence devant les migrations d’une nouvelle version', () => {
+  const refus = (p: Partial<Parameters<typeof verifierLicence>[1]> = {}, c: ContenuLicence = CONTENU, t: string | null = texte(c)) => {
+    const x = ctx(p);
+    return motifRefusMigration(verifierLicence(t, x), x.dateVersion);
+  };
+
+  it('une version hors maintenance est refusée AVANT la migration, avec le motif du serveur', () => {
+    const m = refus({ dateVersion: '2027-09-27' });
+    expect(m).toBe(verifierLicence(texte(), ctx({ dateVersion: '2027-09-27' })).motif);
+    expect(m).toContain('2027-09-26');
+  });
+
+  it('le dernier jour de maintenance couvre encore la version · et une licence valide ne refuse rien', () => {
+    expect(refus({ dateVersion: '2027-09-26' })).toBeNull();
+    expect(refus()).toBeNull();
+  });
+
+  it('la fin de maintenance se lit même quand le verdict s’arrête plus haut (expirée, horloge reculée)', () => {
+    const expiree = { ...CONTENU, expiration: '2026-10-31' };
+    expect(verifierLicence(texte(expiree), ctx({ aujourdhui: '2026-11-01', horlogeMax: '2026-10-31', dateVersion: '2027-09-27' })).statut).toBe('EXPIREE');
+    expect(refus({ aujourdhui: '2026-11-01', horlogeMax: '2026-10-31', dateVersion: '2027-09-27' }, expiree)).toContain('2027-09-26');
+    expect(refus({ aujourdhui: '2026-11-01', horlogeMax: '2026-10-31', dateVersion: '2026-10-15' }, expiree)).toBeNull();
+    expect(refus({ aujourdhui: '2026-09-01', horlogeMax: '2026-09-30', dateVersion: '2027-09-27' })).toContain('2027-09-26');
+  });
+
+  it('une version dont la date est inconnue n’est pas couverte · la migration attend', () => {
+    expect(refus({ dateVersion: null })).toMatch(/date de cette version est inconnue/);
+  });
+
+  it('un poste sans licence lisible, ou avec la licence d’un autre poste, migre · c’est le chemin vers une licence', () => {
+    expect(refus({ dateVersion: '2027-09-27' }, CONTENU, null)).toBeNull();
+    expect(refus({ dateVersion: '2027-09-27' }, CONTENU, 'pas du json')).toBeNull();
+    expect(refus({ dateVersion: '2027-09-27' }, CONTENU, texte(CONTENU, PIRATE.prive))).toBeNull();
+    expect(refus({ dateVersion: '2027-09-27', clePubliquePem: null })).toBeNull();
+    expect(refus({ dateVersion: '2027-09-27', empreinte: empreinteDe('autre-poste') })).toBeNull();
   });
 });

@@ -1,8 +1,15 @@
 <!--
   Service Windows d'OmegaX, piloté par WinSW. Il démarre le LANCEUR
   (demarrer.cjs), jamais le serveur directement : le lanceur lit la
-  configuration du poste, sauvegarde avant une mise à jour et applique les
-  migrations. Il dépend du service PostgreSQL, que Windows démarre d'abord.
+  configuration du poste, vérifie la licence d'une nouvelle version,
+  sauvegarde avant une mise à jour et applique les migrations. Il dépend du
+  service PostgreSQL, que Windows démarre d'abord.
+
+  Les relances ci-dessous suivent aussi une migration qui échoue · le
+  lanceur reprend alors la copie faite avant le premier essai et ne la
+  réécrit jamais (audit final F191). Un service tourne sous le compte
+  système tant qu'aucun compte n'est déclaré ici, et c'est ce compte qui
+  garde l'accès aux données fermées aux utilisateurs du poste (F192).
 -->
 <service>
   <id>OmegaX</id>

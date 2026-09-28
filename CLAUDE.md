@@ -48,16 +48,29 @@ passport-jwt, bcryptjs. Node 22.
 **Client** · React 18, Vite, TypeScript, Tailwind, react-router-dom 6 en
 **HashRouter** (les URL sont de la forme `oomega.web.app/#/comptes`).
 
-Racine = serveur. `client/` = interface. Un seul dépôt.
+Racine = serveur. `client/` = interface. Un seul dépôt. L'arborescence
+ci-dessous est relue contre le disque par `reglement-interieur.spec.ts` (audit
+final F269) · un dossier de premier niveau qu'elle ne nomme pas, ou un module
+qu'elle nomme et qui n'existe pas, fait tomber le test.
 
 ```
-src/modules/     modules métier (auth, comptes, ecritures, etats-financiers,
-                 notes-annexes, exports, groupe, plateforme, licence…)
+src/modules/     modules métier (auth, comptes, comptabilite, etats-financiers,
+                 notes-annexes, exports, groupe, plateforme, licence, sur-site…)
+                 · les écritures, la balance et le grand livre vivent dans
+                 comptabilite/
 src/common/      gardes, décorateurs, Prisma, journal d'audit, /health
 prisma/          schema.prisma + migrations SQL écrites à la main
 client/src/      pages/, components/chrome/, lib/
+e2e/             tests navigateur (Playwright), paquet npm à part (§ 10)
+installation/    installation sur site · lanceur du service, déchiffrement des
+                 copies externes, programme d'installation Windows (windows/)
+scripts/         extracteurs des compétences (règles par compte, schémas des
+                 guides), émission de licence de secours, relevé des citations,
+                 pose des clés des rubriques de notes en saisie
 docs/            plan de construction, audits, guides pilote, notes de droit
-.github/workflows/  déploiement et sauvegardes
+                 · historique/ range les documents révolus, sous bandeau (F267)
+.github/workflows/  déploiement, tests, sauvegarde, surveillance, paquet (§ 5)
+.claude/skills/  la compétence sage-i7, versionnée avec le dépôt (§ 1)
 ```
 
 ## 3. Commandes
@@ -91,18 +104,41 @@ que ça compile ».
   commits du dépôt sont signés.
 - **JAMAIS** de tiret cadratin (—) nulle part : code, commentaires, interface,
   documentation, messages de commit. Utiliser « · » ou une ponctuation
-  ordinaire. Le dépôt en est nettoyé, ne pas en réintroduire.
-  *Deux exceptions, à ne pas « corriger »* : la migration
+  ordinaire. Le dépôt en est nettoyé, ne pas en réintroduire. Une garde qui
+  REFUSE le caractère l'écrit échappé (`\u2014`), jamais en clair.
+  `cadratins.spec.ts` relit le dépôt entier et tient la liste FERMÉE des
+  exceptions ci-dessous, chacune avec son nombre exact d'occurrences (audit
+  final F202) · un caractère de plus dans un fichier admis le fait tomber
+  comme un caractère dans un fichier qui ne l'est pas, et le nombre que ce
+  paragraphe imprime pour les deux tables engendrées est relu lui aussi. Les
+  specs qui écrivent encore le caractère en clair dans leur propre garde ne
+  sont PAS des exceptions · le spec les nomme à part (`RESTENT_A_ECHAPPER`),
+  chacun avec son nombre, et tombe le jour où l'un d'eux est échappé, pour
+  qu'on retire sa ligne.
+  *Les exceptions, à ne pas « corriger »* : la migration
   `20260829033943_retire_cadratins` porte le caractère comme DONNÉE, puisque
   c'est elle qui le remplace en base (et une migration appliquée ne se modifie
-  jamais, Prisma en vérifie l'empreinte) ; et les fichiers ENGENDRÉS qui
+  jamais, Prisma en vérifie l'empreinte) ; les fichiers ENGENDRÉS qui
   transcrivent le texte officiel VERBATIM · `regles-comptes-sycebnl.ts` en
-  porte 97, tous dans des citations du type « 481 — Fournisseurs
-  d'investissements ». Les remplacer falsifierait la citation, et c'est
-  justement sa fidélité qui rend l'avertissement opposable devant un
-  réviseur. Même raison, même statut, pour l'item CPCC-PRO-5 de
+  porte 173 sur 97 lignes (le « 97 » écrit ici jusqu'au 2026-09-28 comptait
+  les lignes), tous dans des citations du type « 481 — Fournisseurs
+  d'investissements », et `regles-comptes-syscohada.ts` en porte 3, lus au
+  Titre VII de l'AUDCIF tel que la compétence le transcrit (deux dans les
+  exclusions des comptes 49 et 59, qui citent l'intitulé l'un de l'autre, le
+  troisième dans une note de la transcription à la fiche du 759, que
+  l'extracteur recopie avec le reste). Les remplacer falsifierait la
+  citation, et c'est justement sa fidélité qui rend l'avertissement opposable
+  devant un réviseur ; retouchés à la main, ils reviendraient d'ailleurs à la
+  régénération suivante. Même raison, même statut, pour l'item CPCC-PRO-5 de
   `catalogue-questionnaire.ts`, qui cite un impératif du séminaire tel qu'il
-  est écrit.
+  est écrit, et pour les deux tests qui gèlent ces citations mot pour mot
+  (`regles-comptes.spec.ts`, `questionnaire.spec.ts`). Le script
+  `scripts/extraire-schemas-guides.cjs` porte le caractère comme DONNÉE DE
+  RECONNAISSANCE · ses deux motifs de titre l'écrivent en clair, dans une
+  classe qui admet aussi le trait d'union, pour lire le séparateur qui suit
+  « APPLICATION n » dans les guides d'application des compétences, qui
+  l'écrivent avec ce caractère. Enfin ce fichier-ci, qui montre le caractère
+  pour l'interdire et le cite là où il est cité.
 - **JAMAIS** de nom de modèle d'IA dans un commit, une PR, un commentaire ou
   quoi que ce soit de poussé.
 - **JAMAIS** de « bientôt disponible » qui soit faux. Une fenêtre annoncée en
@@ -115,14 +151,23 @@ Le travail va sur **`main`** · c'est cette branche qui déclenche les
 déploiements. Pas de branche de fonctionnalité sauf demande explicite. Pas de
 pull request sauf demande explicite.
 
-Un push sur `main` déclenche deux chaînes indépendantes :
+Les workflows de `.github/workflows/` sont indépendants : aucun n'attend
+qu'un autre ait réussi. Un push sur `main` en déclenche plusieurs à la fois,
+le déploiement du serveur seulement s'il touche ses chemins ; les autres
+tournent sur demande de tirage, sur horaire ou à la main. La table est
+relue contre le dossier et contre le `on:` de chaque fichier par
+`reglement-interieur.spec.ts` (audit final F266) · un workflow ajouté, retiré
+ou redéclenché sans que la ligne suive fait tomber le test.
 
 | Workflow | Déclencheur | Effet |
 |---|---|---|
-| `deploy-cloud-run.yml` | `src/**`, `prisma/**`, `Dockerfile`, `package*.json` | `prisma migrate deploy` PUIS déploiement Cloud Run, PUIS contrôle `/health` |
-| `firebase-hosting-merge.yml` | tout push sur main | Firebase Hosting, site `oomega` |
-| `sauvegarde-base.yml` | nocturne | `pg_dump` + restauration de contrôle |
-| `tests-navigateur.yml` | tout push sur main, et les PR | client construit contre le serveur réel et un Postgres jetable, Playwright (`e2e/`) |
+| `deploy-cloud-run.yml` | push sur `main` touchant `src/**`, `prisma/**`, `Dockerfile`, `package*.json` ou le workflow lui-même ; demande de tirage (job `verifier` seul) ; à la main | portillon `verifier` sous Node 22 (typage, tests et construction des deux côtés, démarrage réel contre une base jetable en PostgreSQL 18 comme Neon ET en PostgreSQL 17 comme le sur site), PUIS `prisma migrate deploy`, PUIS déploiement Cloud Run, PUIS contrôle `/health` |
+| `firebase-hosting-merge.yml` | push sur `main`, quel que soit le fichier | typage et tests du client, construction, Firebase Hosting, site `oomega` |
+| `firebase-hosting-pull-request.yml` | demande de tirage ouverte depuis le dépôt même, sauf par Dependabot, qui n'en reçoit pas les secrets | construction du client et canal de prévisualisation Firebase |
+| `tests-navigateur.yml` | push sur `main`, demande de tirage, à la main | client construit et servi en relayant `/api` vers le serveur réel et un Postgres jetable, Playwright sous Chromium et WebKit (`e2e/`, § 10) |
+| `sauvegarde-base.yml` | horaire, chaque nuit à 02:00 UTC ; à la main | `pg_dump` chiffré + restauration de contrôle, qui doit rendre la source table par table et ligne par ligne, décomptée dans l'instantané même de l'export (audit final F262) |
+| `surveillance.yml` | horaire, toutes les quinze minutes ; à la main | interroge le service, le relais `/api` du site et le site ; après trois échecs, ouvre l'issue « Panne de production », refermée au retour |
+| `paquet-sur-site.yml` | à la main seulement | paquet d'installation Windows (`OmegaX-installation-<date>-<commit>.exe`) |
 
 **DEUX chaînes de connexion, et elles ne s'échangent pas.**
 `API_DATABASE_URL` est l'endpoint DIRECT · migrations (`prisma migrate
@@ -172,6 +217,20 @@ verrou d'audit illisible) sont passées au vert dans 1696 tests et sont tombées
 à la première seconde de vie réelle. Ce contrôle relit aussi le journal de
 démarrage : un maillon d'audit non écrit ne fait tomber aucune requête, il ne
 se voit que là.
+
+**LE PORTILLON ÉPROUVE LES VERSIONS DE SES CIBLES, ET IL JUGE LES DEMANDES DE
+TIRAGE (2026-09-28, audit final F194, F195).** Node 22 comme le `Dockerfile`,
+et DEUX JAMBES de base jetable · PostgreSQL 18, celle de Neon, où tourne la
+suite complète, et PostgreSQL 17, celle que gèle l'installation sur site
+(`PG_MAJEUR_ATTENDU` de `paquet-sur-site.yml`), qui migre et démarre. Chaque
+jambe relit la version réellement servie avant de démarrer. La jambe 17
+démarre le serveur EN LIGNE · elle éprouve la version de la base, pas le mode
+`SUR_SITE`, qu'aucun workflow ne démarre. Le portillon tourne aussi sur toute
+demande de tirage, sans filtre de chemins et sans secret (Dependabot s'y
+disait jugé alors qu'il ne tournait que sur push) ; le déploiement, lui, ne
+suit qu'un push ou un lancement manuel sur `main`, par une condition à liste
+fermée, et jamais `pull_request_target`. `chaine-de-livraison.spec.ts` lit
+les versions dans les fichiers qui les imposent et tient le reste.
 
 Pour pousser : `git push -u origin main`, avec quelques tentatives espacées en
 cas d'échec réseau.
@@ -5218,10 +5277,48 @@ son administrateur seul tient les sauvegardes et crée les dossiers suivants
 rendue) · une sauvegarde est la base de tous les dossiers. L'inscription
 publique ne sert qu'au poste sans dossier, `INSCRIPTION_PUBLIQUE` n'y est pas
 lue. La copie externe est CHIFFRÉE (AES-256-GCM, clé tirée par scrypt d'une
-phrase que l'administrateur choisit, `chiffrement-sauvegarde.ts`) · jamais un
-secret rangé sur le poste, qui mourrait avec le disque que la copie existe
-pour remplacer. Sans phrase, rien ne part, et `dechiffrer-sauvegarde.cjs`
+phrase que l'administrateur choisit, `chiffrement-sauvegarde.ts`) · la copie
+ne dépend jamais d'un secret qui ne vivrait QUE sur le poste, et mourrait avec
+le disque que la copie existe pour remplacer. La clé dérivée est rangée sur
+le poste pour chiffrer chaque jour sans redemander la phrase
+(`sauvegarde-externe.json`, sous les données fermées aux utilisateurs du
+poste, F192), la PHRASE jamais · c'est elle seule qui relit la copie sur un
+poste réinstallé. Sans phrase, rien ne part, et `dechiffrer-sauvegarde.cjs`
 relit le format par le module du serveur, jamais par une seconde écriture.
+
+**Sur site, la mise à jour (2026-09-28, audit final F191 à F193, F265).**
+QUATRE RÈGLES À NE PAS DÉFAIRE. (1) LA COPIE AVANT MISE À JOUR NE S'ÉCRASE
+JAMAIS · WinSW relance le service après un échec, et chaque relance recopiait
+sous le même nom une base à moitié migrée par-dessus la seule image saine. La
+copie s'écrit sous un nom provisoire (`.partiel`) et ne prend son nom,
+horodaté, qu'une fois complète ; le repère `derniere-version.json` ne la
+nomme qu'ensuite (`enCours`), et tant que la migration n'a pas abouti, elle est
+REPRISE, jamais refaite (`planMiseAJour`, `copies-avant-mise-a-jour.ts`). Un
+repère illisible n'est pas un poste neuf · il fait copier. (2) LES DONNÉES
+ENTIÈRES SONT FERMÉES aux utilisateurs du poste · `initialiser.ps1`
+restreint `C:\ProgramData\OmegaX` au système et aux administrateurs à chaque
+installation et à chaque mise à jour, Service réseau n'y recevant que la
+traversée · une copie est la base de tous les dossiers, en clair. Un
+`DOSSIER_SAUVEGARDES` déplacé hors de ce dossier ne reçoit pas la
+restriction, et la fiche le dit. (3) LA LICENCE SE VÉRIFIE AVANT LA COPIE ET
+LES MIGRATIONS, dès que la version change, par le service COMPILÉ du paquet
+(`motifRefusMigration`, la même comparaison `versionCouverte` que le
+serveur) · refusée une fois démarré, une version hors maintenance avait déjà
+migré la base. Seule une licence authentique pour CE poste qui ne couvre pas
+la version bloque ; un poste sans licence lisible démarre toujours, c'est
+l'écran d'ouverture qui reçoit la licence. Le refus dit l'état réel de la base
+(`etatDeLaBaseAuRefus`), « à moitié migrée » sur une reprise. (4) LES COPIES
+AVANT MISE À JOUR SONT UNE SÉRIE du service des sauvegardes
+(`omegax-AAAAMMJJ-HHMMSS-avant-mise-a-jour-<version de la base>.dump`) ·
+listées avec les quotidiennes, tournées à part (cinq par défaut,
+`SAUVEGARDES_AVANT_MISE_A_JOUR_A_GARDER`), recopiées hors du poste, et jamais
+retirées quand elles précèdent une migration qui n'a pas abouti. Le lanceur
+charge ces règles et la lecture de la licence depuis le serveur compilé
+(`moduleCompile`) · introuvables, il s'arrête avant la base. Ces règles sont
+éprouvées par les specs de `src/modules/sur-site/`, qui jouent le vrai
+lanceur sur un poste simulé, et pas encore sur un poste Windows · les droits
+posés par `icacls` et les relances de WinSW restent à constater au premier
+paquet.
 
 **Abonnements des cabinets et leur facturation (2026-09-26).** Grille décidée
 par Manasse · Essentiel, Standard, Cabinet, option Groupe, paie en option de
@@ -6656,19 +6753,48 @@ commit.
 
 **TESTS NAVIGATEUR (`e2e/`, 2026-09-26).** Les suites unitaires tournent sur
 des Prisma factices et ne montent aucun écran. `tests-navigateur.yml` construit
-le client, le sert contre le serveur réel et une base jetable, et Playwright
-ouvre CHAQUE commande de menu dans les deux référentiels (les chemins sont LUS
-dans `AppShell.tsx`, jamais recopiés), puis passe une écriture jusqu'à la
-balance et aux états financiers. Tombent · une fenêtre en limite d'erreur, une
-exception JavaScript, une réponse 5xx ; un 4xx est un refus, pas une panne.
-Chaque dossier naît par l'inscription, ouverte dans ce job seulement. Deux
+le client, le sert en relayant `/api` vers le serveur réel et une base
+jetable, et Playwright ouvre, sous Chromium et WebKit, CHAQUE commande de
+menu dans les deux référentiels (les chemins sont LUS dans `AppShell.tsx`,
+jamais recopiés), puis passe une écriture jusqu'à la balance et aux états
+financiers. Tombent · une fenêtre en limite d'erreur, une exception
+JavaScript, une réponse 5xx ; un 4xx est un refus, pas une panne. Chaque
+dossier naît par l'inscription, ouverte dans ce job seulement. Deux
 réinjections l'ont vu tomber, une fenêtre qui plante et une route à 500, et la
 première a exigé d'attendre la fenêtre RENDUE avant de lire l'écran, sans quoi
-la panne était imputée à la fenêtre suivante. En local : serveur sur 8080
-(`CORS_ORIGIN=http://localhost:4173`), client construit avec
-`VITE_API_URL=http://localhost:8080` et servi par `vite preview --port 4173`,
-puis `npx playwright test` dans `e2e/` (`PW_CHROMIUM` pour un Chromium déjà
-installé).
+la panne était imputée à la fenêtre suivante.
+
+**EN LOCAL, LE MONTAGE DU JOB, À LA MAIN** (réécrit le 2026-09-28 d'après
+`tests-navigateur.yml`, audit final F197). L'interface appelle `/api` sur SA
+propre adresse, et `vite preview` relaie vers le serveur comme Firebase
+Hosting relaie vers Cloud Run (`client/vite.config.ts`) · le cookie de
+session est alors celui de la page, comme en production. La marche écrite
+jusque-là construisait le client contre le serveur en direct et ne posait pas
+le relais : `e2e/tests/outils.ts` appelant `http://localhost:4173/api`, chaque
+appel des tests tombait. `reglement-interieur.spec.ts` relit ce paragraphe
+contre le workflow.
+
+1. Serveur, à la racine, contre une base PostgreSQL JETABLE, jamais celle de
+   production · `npm ci` et `npm run build`, puis `npx prisma migrate deploy`
+   et `node dist/main.js` avec `DATABASE_URL` sur cette base, un
+   `JWT_SECRET` de valeur jetable, `PORT=8080`,
+   `INSCRIPTION_PUBLIQUE=true` et `CORS_ORIGIN=http://localhost:4173` (le job
+   pose aussi `JWT_EXPIRES_IN=8h`, la valeur par défaut du serveur, et
+   `NODE_ENV=production` pour cette migration et ce démarrage seulement).
+2. Client, dans `client/` · `npm ci`, puis construit avec
+   `VITE_API_URL=/api` par `npx vite build --outDir dist-e2e`, puis servi avec
+   `OMEGAX_API_RELAIS=http://localhost:8080` par
+   `npx vite preview --outDir dist-e2e --port 4173 --strictPort`. Sans
+   `OMEGAX_API_RELAIS`, `vite preview` ne relaie rien, et `/api` n'atteint
+   jamais le serveur.
+3. Tests, dans `e2e/` · `npm ci`, `npx tsc --noEmit -p .`, puis
+   `npx playwright test`. `OMEGAX_APP` et `OMEGAX_API` valent par défaut
+   `http://localhost:4173` et `http://localhost:4173/api`
+   (`playwright.config.ts`, `outils.ts`) ; `PW_CHROMIUM` désigne un Chromium
+   déjà installé (à défaut, `npx playwright install chromium`, avec
+   `--with-deps` sur un Linux neuf, comme le job), et `PW_WEBKIT=1` ajoute
+   WebKit, le moteur de l'iPhone, une fois installé par
+   `npx playwright install webkit`.
 
 **UN TEST DE SOURCE S'ANCRE SUR UNE STRUCTURE, JAMAIS SUR UNE DISTANCE.** Le
 2026-09-18, un test du journal gelait « appliquer AJOUTE à la pièce » par

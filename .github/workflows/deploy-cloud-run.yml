@@ -1,8 +1,22 @@
 name: Déployer le serveur sur Cloud Run
 
-# Se déclenche à chaque push sur main qui touche le code du serveur (pas le
-# client, qui a son propre workflow Firebase Hosting) · évite un redéploiement
-# du serveur pour un simple changement d'écran côté client.
+# DEUX DÉCLENCHEURS, DEUX RÔLES, et ils ne se mélangent pas.
+#
+# PUSH SUR MAIN (ou lancement manuel sur main) · tout le chemin, portillon
+# puis migration et déploiement. Le push ne se déclenche que s'il touche le
+# code du serveur (pas le client, qui a son propre workflow Firebase Hosting)
+# · évite un redéploiement du serveur pour un simple changement d'écran.
+#
+# DEMANDE DE TIRAGE · le portillon `verifier` SEUL (audit final F195).
+# Dependabot (.github/dependabot.yml) se disait jugé par ce job alors qu'il
+# ne tournait que sur push · aucune montée de dépendance n'était éprouvée
+# avant sa fusion. Aucun filtre de chemins ici : une montée du client
+# (client/package*.json) ou d'une action (.github/workflows) doit passer le
+# portillon comme une montée du serveur, puisque le portillon construit et
+# teste les deux côtés. Rien ne se déploie depuis une demande de tirage · le
+# job de déploiement est borné par son `if` au push et au lancement manuel
+# sur main, et `verifier` ne lit aucun secret. JAMAIS `pull_request_target`,
+# qui confierait les secrets du dépôt au code de la branche proposée.
 on:
   workflow_dispatch:
   push:
@@ -14,6 +28,7 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/deploy-cloud-run.yml'
+  pull_request:
 
 permissions:
   contents: read
@@ -32,8 +47,41 @@ jobs:
   #
   # Ce job ne touche NI la base NI Cloud Run · il n'a aucun secret, aucune
   # authentification Google. Il compile, teste et construit les deux côtés.
+  # C'est aussi ce qui permet de le lancer sur une demande de tirage (F195).
   verifier:
+    # LES VERSIONS DE LA CIBLE, PAS D'AUTRES (audit final F194). La CI
+    # éprouvait Node 20 et PostgreSQL 16 quand la production tourne sous
+    # Node 22 (Dockerfile) et PostgreSQL 18 (Neon, la version que le client
+    # pg_dump de sauvegarde-base.yml doit suivre) · le job censé prouver le
+    # démarrage réel prouvait celui d'autres versions majeures.
+    #
+    # L'INSTALLATION SUR SITE EN GÈLE UNE AUTRE · PostgreSQL 17
+    # (`PG_MAJEUR_ATTENDU` de paquet-sur-site.yml, que omegax.iss et
+    # initialiser.ps1 refusent ensuite de changer sous une base existante).
+    # Les mêmes migrations s'y appliquent et le même serveur y démarre, sous
+    # le même Node 22 · d'où DEUX JAMBES. La suite complète (typage, tests,
+    # client) ne lit aucune base : elle tourne une fois, sur la jambe de la
+    # production ; celle du sur site migre, construit et démarre.
+    # Elle démarre le serveur EN LIGNE, comme l'autre jambe · ce qu'elle
+    # éprouve est la VERSION DE LA BASE, pas le mode
+    # `MODE_INSTALLATION=SUR_SITE` (licence par fichier, interface servie par
+    # le serveur), qu'aucun workflow ne démarre.
+    # `chaine-de-livraison.spec.ts` tient les versions de ce job accordées au
+    # Dockerfile, à la sauvegarde et au paquet sur site.
+    name: verifier · PostgreSQL ${{ matrix.postgres }} (${{ matrix.cible }})
     runs-on: ubuntu-latest
+    strategy:
+      # Une jambe rouge n'arrête pas l'autre · savoir LAQUELLE des deux
+      # versions tombe est précisément l'information.
+      fail-fast: false
+      matrix:
+        include:
+          - postgres: '18'
+            cible: production
+            suite: complete
+          - postgres: '17'
+            cible: sur site
+            suite: demarrage
 
     # UNE VRAIE BASE, JETABLE · le 2026-09-02, sept déploiements de suite ont
     # été refusés par Cloud Run parce que le serveur mourait au démarrage, et
@@ -43,7 +91,7 @@ jobs:
     # serveur démarre. Cette base-là le prouve.
     services:
       postgres:
-        image: postgres:16
+        image: postgres:${{ matrix.postgres }}
         env:
           POSTGRES_USER: omega
           POSTGRES_PASSWORD: omega
@@ -60,7 +108,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       # `npm ci` déclenche le postinstall `prisma generate` · le client
@@ -69,13 +117,37 @@ jobs:
         run: npm ci
 
       - name: Typage du serveur
+        if: matrix.suite == 'complete'
         run: npx tsc --noEmit
 
       - name: Tests du serveur
+        if: matrix.suite == 'complete'
         run: npx jest --ci
 
       - name: Construction du serveur
         run: npm run build
+
+      # LA VERSION SERVIE SE LIT, ELLE NE SE PRÉSUME PAS · une clé de matrice
+      # renommée ou une image mal écrite ferait démarrer le serveur contre une
+      # autre version sans que rien ne le dise, et la jambe éprouverait une
+      # cible qui n'est pas la sienne (F194). Le `psql` est celui du
+      # conteneur, pour ne dépendre d'aucun client installé sur la machine.
+      - name: "Version de PostgreSQL réellement servie"
+        env:
+          CONTENEUR: ${{ job.services.postgres.id }}
+          PG_MAJEUR: ${{ matrix.postgres }}
+          CIBLE: ${{ matrix.cible }}
+        run: |
+          version=$(docker exec "$CONTENEUR" psql -U omega -d omegatest -tAc 'SHOW server_version_num' | tr -d '[:space:]')
+          if ! [[ "$version" =~ ^[0-9]+$ ]]; then
+            echo "::error::Version de la base jetable illisible"; exit 1
+          fi
+          majeur=$(( version / 10000 ))
+          if [ "$majeur" != "$PG_MAJEUR" ]; then
+            echo "::error::La base jetable est en PostgreSQL $majeur, $PG_MAJEUR attendu ($CIBLE) · cette jambe n'éprouverait pas sa cible"
+            exit 1
+          fi
+          echo "PostgreSQL $majeur servi, comme attendu ($CIBLE)"
 
       # PREUVE DE DÉMARRAGE · migrations appliquées sur une base vierge, puis
       # le serveur lancé pour de bon et interrogé sur /health. Les valeurs
@@ -92,6 +164,8 @@ jobs:
           # la sortie de cloisonnement et l'extension d'audit, donc le chemin
           # exact qui tombait en production.
           OPERATEURS_PLATEFORME: controle@exemple.invalid
+          PG_MAJEUR: ${{ matrix.postgres }}
+          CIBLE: ${{ matrix.cible }}
         run: |
           npx prisma migrate deploy
           point=dist/main.js
@@ -107,7 +181,7 @@ jobs:
           done
           kill "$pid" 2>/dev/null || true
           if [ "$vivant" != "1" ]; then
-            echo "::error::Le serveur n'a pas démarré · Cloud Run le refuserait de la même façon"
+            echo "::error::Le serveur n'a pas démarré sous PostgreSQL $PG_MAJEUR ($CIBLE) · la cible le refuserait de la même façon"
             tail -60 /tmp/demarrage.log
             exit 1
           fi
@@ -120,33 +194,47 @@ jobs:
             grep -A4 "Maillon d'audit NON écrit" /tmp/demarrage.log | head -20
             exit 1
           fi
-          echo "serveur vivant, base jointe, journal d'audit écrit"
+          echo "serveur vivant sous PostgreSQL $PG_MAJEUR ($CIBLE), base jointe, journal d'audit écrit"
 
       - name: Installer le client
+        if: matrix.suite == 'complete'
         working-directory: client
         run: npm ci
 
       - name: Typage du client
+        if: matrix.suite == 'complete'
         working-directory: client
         run: npx tsc --noEmit
 
       - name: Tests du client
+        if: matrix.suite == 'complete'
         working-directory: client
         run: npx vitest run
 
       - name: Construction du client
+        if: matrix.suite == 'complete'
         working-directory: client
         run: npm run build
 
   migrer-et-deployer:
     needs: verifier
+    # PUSH OU LANCEMENT MANUEL SUR MAIN, ET RIEN D'AUTRE (audit final F195).
+    # Le workflow tourne désormais sur les demandes de tirage pour que le
+    # portillon les juge ; ce job-ci ne doit jamais les suivre · il migre la
+    # base de production et lit ses secrets. La liste des événements est
+    # FERMÉE : un déclencheur ajouté demain au workflow ne déploiera rien tant
+    # que quelqu'un ne l'aura pas écrit ici. La branche est vérifiée aussi,
+    # un lancement manuel pouvant viser n'importe laquelle.
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
+      # Le Node de la production (Dockerfile) · `prisma migrate deploy`
+      # s'exécute ici contre la base réelle (F194).
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       # La base se met à jour AVANT le serveur : une migration en attente ne
       # doit jamais arriver après du code qui en dépend déjà.
@@ -367,29 +455,21 @@ jobs:
             --max-instances 4 \
             --env-vars-file /tmp/env-vars.yaml
 
-      # PREUVE DU RÉGIME DE CONNEXION · le déploiement le dit lui-même.
-      #
-      # Un déploiement vert ne prouve PAS que l'endpoint poolé est en service :
-      # le repli sur la chaîne directe passe au vert exactement pareil. La
-      # seule preuve est la ligne que le serveur écrit à son démarrage, et
-      # elle vivait jusqu'ici dans les journaux Cloud Run · c'est-à-dire hors
-      # d'atteinte de l'environnement de développement (politique réseau) et
-      # à deux consoles de distance pour l'exploitant.
-      #
-      # Elle est donc relue ICI, où les deux la voient. Elle ne porte ni hôte,
-      # ni base, ni utilisateur, ni mot de passe · c'est tout l'objet de
-      # `src/common/pooling-base.ts`, et un test le verrouille.
-      #
-      # AVERTISSEMENT, JAMAIS ÉCHEC · l'ingestion des journaux prend un
-      # instant, et le compte de service peut ne pas avoir le droit de les
-      # lire. Faire tomber un déploiement réussi pour une ligne pas encore
-      # indexée serait une panne fabriquée.
       # CONFIRMATION PAR LE SERVEUR LUI-MÊME · facultative, et c'est assumé.
       #
       # L'étape précédente dit ce que le service REÇOIT, ce qui suffit :
       # `--env-vars-file` remplace toutes ses variables, il n'y a pas d'autre
       # source. Cette étape-ci lit ce que le service DIT au démarrage, ce qui
-      # est une confirmation de plus, pas la preuve principale.
+      # est une confirmation de plus, pas la preuve principale. La ligne relue
+      # ne porte ni hôte, ni base, ni utilisateur, ni mot de passe · c'est tout
+      # l'objet de `src/common/pooling-base.ts`, et un test le verrouille.
+      # Elle ne fait jamais échouer le déploiement (`continue-on-error`) ·
+      # l'ingestion des journaux prend un instant, et faire tomber un
+      # déploiement réussi pour une ligne pas encore indexée serait une panne
+      # fabriquée. (Un commentaire plus ancien, posé au-dessus de celui-ci
+      # jusqu'au 2026-09-28, en faisait encore « la seule preuve » · il datait
+      # d'avant que l'étape précédente n'affirme le régime à l'envoi, et
+      # contredisait ces lignes.)
       #
       # Elle ne marche que si le compte de service a `roles/logging.viewer`,
       # ce qui n'est pas le cas aujourd'hui (il peut déployer, pas lire). Une

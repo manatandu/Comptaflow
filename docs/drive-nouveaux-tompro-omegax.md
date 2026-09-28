@@ -5,6 +5,11 @@ Relecture du 27 septembre 2026. Lecture seule du Drive et du dépôt : rien n'a
 Les numéros de page sont les numéros IMPRIMÉS des manuels (bas de page),
 pas les numéros de page du fichier PDF.
 
+> **Corrigé le 2026-09-28 (audit final).** Le § 4.3 prêtait à la balance en
+> monnaie fonctionnelle la méthode temporelle, qu'elle n'applique pas ; le
+> § 4.2 et la proposition P1-8 ignoraient la saisie en devise livrée le
+> 2026-09-27. Chaque correction est marquée sur place, avec sa date.
+
 ---
 
 ## 0. En bref
@@ -312,6 +317,12 @@ d'architecture d'OmegaX, pas un texte), **Nouveau**.
 - **Précision** : la règle n'est aujourd'hui portée que par la réévaluation ;
   la grille de saisie d'OmegaX ne propose aucun cours (P1-8). C'est à la
   construction de P1-8 que le piège se présentera.
+- **Précision révolue, note du 2026-09-28 (audit final)** : la même règle
+  est portée depuis le 2026-09-27 par la grille de saisie, qui PROPOSE le
+  dernier cours coté au plus tard à la date de la pièce, le champ restant
+  modifiable (`coursPropose`, `client/src/lib/ligne-en-devise.ts`, audit
+  final F49), et par la balance en monnaie fonctionnelle (`coursApplicable`,
+  voir 4.3). Un cours postérieur n'est retenu nulle part.
 
 ### 4.3 Conversion au cours moyen · Confirmé, portée précisée
 
@@ -322,20 +333,36 @@ d'architecture d'OmegaX, pas un texte), **Nouveau**.
   état, bilan compris (LACI 1A et 1C, réc. p. 117 et 118 ; analytique p. 71 ;
   budget p. 82 et 83 ; décaissements p. 138) ; budget en devises « indiquez
   le taux de conversion » (anc. p. 47).
-- **Règle d'OmegaX** : la balance en monnaie fonctionnelle applique la
-  méthode temporelle (monétaire au cours de clôture, non monétaire et
-  capitaux propres au cours historique, charges et produits au cours de la
-  transaction, résultat obtenu par différence).
-  `src/modules/monnaie-fonctionnelle/balance-fonctionnelle.service.ts`,
-  `docs/conversion-monnaie-fonctionnelle.md`.
+- **Règle d'OmegaX** (corrigée le 2026-09-28, audit final · cette ligne
+  disait que la balance en monnaie fonctionnelle applique la méthode
+  temporelle, monétaire au cours de clôture et résultat par différence, ce
+  qui est faux) : la balance en monnaie fonctionnelle convertit **ligne à
+  ligne**, chaque écriture au cours **en vigueur à sa date** (le dernier
+  saisi à cette date ou avant, `coursApplicable`, jamais un postérieur),
+  toutes les lignes d'une écriture au même cours. Une ligne déjà libellée
+  dans la monnaie fonctionnelle garde son montant d'origine
+  (`convertirLigne`), et l'écart de conversion qui en naît est montré sur sa
+  propre ligne. L'à-nouveau ne se convertit pas · l'ouverture reprend la
+  clôture du même jeu pour l'exercice précédent (`jeuFonctionnel`). Aucun
+  cours moyen, aucun cours de clôture.
+  `src/modules/monnaie-fonctionnelle/balance-fonctionnelle.service.ts` ;
+  `CLAUDE.md`, paragraphe « M2 · la balance en monnaie fonctionnelle, ligne à
+  ligne au cours historique ». `docs/conversion-monnaie-fonctionnelle.md`
+  décrit la méthode temporelle et porte depuis le 2026-09-28 un bandeau qui
+  dit qu'elle n'a pas été retenue.
 - **Texte relu** : AUDCIF, Titre XII, **chapitre XII-4, section 2** : le
   cours moyen n'est admis que pour les **produits et charges** « s'il est
-  proche du cours réel », jamais pour le bilan. **Portée** : ce chapitre
-  régit la conversion des entités étrangères consolidées ; OmegaX l'applique
-  par analogie à la monnaie fonctionnelle d'une entité seule, et le dit
-  (`docs/conversion-monnaie-fonctionnelle.md` § 1). Le cours moyen de TOMPRO
-  reste acceptable pour un **rapport au bailleur** (situation de convention)
-  qui ne prétend pas être le bilan ; il ne l'est pas pour un bilan converti.
+  proche du cours réel », jamais pour le bilan. **Portée** (corrigée le
+  2026-09-28) : ce chapitre régit la conversion des entités étrangères
+  consolidées, et c'est là seulement qu'OmegaX l'applique (consolidation
+  SYSCOHADA, tranche 4c · méthode du cours de clôture, charges et produits au
+  cours moyen ou de clôture déclaré). Il n'est pas appliqué, même par
+  analogie, au second jeu d'une entité seule · aucun texte lu ne régit ce
+  jeu, et sa méthode est une décision de l'éditeur (`CLAUDE.md`, « M2 »). Le
+  verdict tient, sur ce fondement-là : le cours moyen unique de TOMPRO reste
+  acceptable pour un **rapport au bailleur** (situation de convention) qui ne
+  prétend pas être le bilan ; OmegaX ne l'emploie pas pour son second jeu,
+  qui reste historique écriture par écriture.
 
 ### 4.4 Frais bancaires glissés dans la pièce de règlement · À nuancer
 
@@ -632,6 +659,10 @@ sont conservés ; les ajouts portent la mention « nouveau ».
   `coursApplique`, `CoursDevise`. Manque : champ devise sur `Journal`, champs
   devise et cours dans `SaisiePage.tsx`. **Respecter 4.2** : cours du jour
   ou antérieur, jamais postérieur.
+  *Note du 2026-09-28 (audit final)* · les champs devise, montant en devise
+  et cours existent dans `SaisiePage.tsx` depuis le 2026-09-27 (audit final
+  F49, vérifiés au serveur par `comptabilite/ligne-en-devise.ts`) ; reste le
+  champ devise sur `Journal`, que le modèle ne porte toujours pas.
 - **P1-9 · Écart fiches d'immobilisations / classe 2.** Source : état
   « Rapprochement avec la Comptabilité » (réc. p. 103). Existe : fiche née
   avec son écriture ; contrôles `PRODUCTION_IMMOBILISEE_SANS_IMMOBILISATION`,

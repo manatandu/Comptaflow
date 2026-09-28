@@ -1,5 +1,35 @@
 # Audit complet d'OmegaX · 29 août 2026
 
+> **HISTORIQUE · bandeau posé le 2026-09-28 (audit final F267).** Cet audit
+> décrit OmegaX au 29 août 2026, et il n'est plus que de l'histoire : il a été
+> rangé dans `docs/historique/`. Ses listes de manques et de réserves ne
+> disent plus l'état du logiciel · celui-ci se lit dans `CLAUDE.md` et dans le
+> code, la comparaison avec Sage dans `docs/comparaison-sage-i7-omegax.md`, et
+> ce qui reste à faire dans `docs/plan-ordonne-2026-09.md`.
+>
+> **Ce qui est révolu ci-dessous.**
+>
+> - **« Reste ouvert » et le volet A** · la plupart des manques ont été
+>   construits depuis : relevé bancaire importé et rapprochement proposé,
+>   règlement des tiers et ordre de virement, modèles de saisie en table
+>   (`ModeleSaisie`, avec leurs fonctions), pré-lettrage, contrepartie à chaque
+>   ligne (`Journal.contrepartieChaqueLigne`), composants et plan fiscal
+>   dégressif, lieux des biens (`LieuBien`), palmarès des comptes et analyse
+>   des journaux, états personnalisés sur cinq exercices au plus, longueur de
+>   compte modifiable, code taxe par défaut lu par la grille de saisie,
+>   conventions de financement (`ConventionFinancement`).
+> - **« C · Écartés/réserve (ne pas rouvrir sans décision) » et le P3** ·
+>   la décision a été prise pour plusieurs d'entre eux, et ils sont
+>   construits : l'amortissement dérogatoire (SYSCOHADA, 2026-09-26), la
+>   consolidation SYSCOHADA (2026-09-24), les états IFRS en sus du jeu légal
+>   (2026-09-25 et 2026-09-26), la paie (P1 à P9), deux restrictions d'accès
+>   inspirées de Sage X3 (profil de fonctions et journaux autorisés par
+>   utilisateur). Les formats d'échange bancaires (LCR, SEPA) restent écartés.
+> - **Volet B, manque 5** · le mécénat a été tranché le 2026-09-24 pour le 475
+>   (`docs/plan-ordonne-2026-09.md`, rang 4).
+>
+> Les points non cités ici n'ont pas été revérifiés pour ce bandeau.
+
 Trois examens croisés, menés en parallèle et vérifiés dans le code (jamais
 sur résumé) : les manuels Sage 100 i7 du Drive, l'intégralité du référentiel
 SYCEBNL (texte légal, plan des comptes, Partie 3, Partie 4, guide

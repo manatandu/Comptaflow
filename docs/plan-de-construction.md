@@ -1,5 +1,62 @@
 # Compta Flow · Plan de construction complet
 
+> **FEUILLE DE ROUTE RÉVOLUE · bandeau posé le 2026-09-28 (audit final
+> F267).** Ce plan a été écrit à la fin d'août 2026, sous l'ancien nom du
+> logiciel (« Compta Flow », aujourd'hui OmegaX). Il reste à cette adresse
+> parce que le schéma, le code, les écrans, `CLAUDE.md` et la compétence
+> `sage-i7` le citent pour ses sections d'ARCHITECTURE (notamment § 3, items
+> du § 4, règle de revue du § 7, mécanisme de cloisonnement du § 8.1). Il
+> n'est plus la feuille de route ·
+> l'état du logiciel se lit dans `CLAUDE.md` et dans le code, ce qui reste à
+> faire dans `docs/plan-ordonne-2026-09.md`, la comparaison avec Sage dans
+> `docs/comparaison-sage-i7-omegax.md`.
+>
+> **Ce qui est révolu ci-dessous.**
+>
+> - **En tête** · le dossier `docs/references/sage-i7/` n'existe pas ; la
+>   synthèse des manuels Sage est dans la compétence `.claude/skills/sage-i7/`
+>   (le § 5 le dit déjà).
+> - **§ 1 « Où on en est »** décrit la fin d'août 2026. Les rôles sont cinq
+>   (`RoleUtilisateur` · les trois d'origine, plus `AIDE_COMPTABLE` et
+>   `GESTIONNAIRE_PAIE`, 2026-09-24, `CLAUDE.md` § 8) ; le plan SYCEBNL
+>   descend au quatrième chiffre depuis le 2026-09-05 (`CLAUDE.md` § 7), et le
+>   décompte de 696 comptes n'est plus le bon ; le bilan « simplifié » a laissé
+>   place aux jeux d'états complets des deux référentiels.
+> - **§ 2, point 3, et § 8.2 à 8.4 · l'ordre « SYCEBNL d'abord, SYSCOHADA en
+>   Phase 3 »** n'a pas été tenu (`docs/plan-ordonne-2026-09.md`, « L'écart
+>   avec l'ordre décidé ») et il est sans objet : le SYSCOHADA est complet
+>   (`CLAUDE.md` § 6), la consolidation SYSCOHADA (2026-09-24) et les états
+>   IFRS (2026-09-25 et 2026-09-26) sont construits. Les deux modules du
+>   § 8.3 existent (`EngagementDepense` pour les engagements de dépense,
+>   `ConventionFinancement` pour le dossier de subvention). La gestion
+>   commerciale du § 8.4 est servie, et la FACTURE n'est pas propre au
+>   SYSCOHADA · elle est commune aux deux référentiels, le devis seul restant
+>   au SYSCOHADA (`CLAUDE.md`, « Facturation » et « Devis et commande
+>   client »).
+> - **§ 2, point 2, et § 3.7 à 3.9 · ce qui était « en dernier », « en
+>   réserve » ou « pour la vision, pas pour construire »** est construit ·
+>   l'installation sur site (2026-09-26, `src/modules/sur-site/`), des droits
+>   plus fins que trois rôles (cinq rôles, profil de fonctions
+>   `src/common/fonctions/fonctions-metier.ts`, journaux autorisés par
+>   utilisateur `src/common/perimetre/extension-perimetre-journaux.ts`), la
+>   paie (P1 à P9, `src/modules/personnel/`, passée au journal par
+>   `comptabilisation-paie.ts`, barèmes en données datées
+>   `VersionBaremePaie`) et le simulateur budgétaire (2026-09-26,
+>   `src/modules/simulations/`, sans le cube).
+> - **§ 7, l'exemple de la paie** · le salarié n'est pas un `Tiers` : la paie
+>   tient son registre du personnel dans `Salarie` (P1, 2026-09-19, art. 212
+>   du Code du travail), et sa passation va au 422 global. Le principe du § 7
+>   (vérifier que `Compte`, `Tiers`, `Journal` ou `Ecriture` ne couvrent pas
+>   déjà le besoin avant d'ajouter une table) reste celui du dépôt ; son
+>   exemple de la paie ne l'est plus.
+>
+> Le § 8.1 (`@ReferentielsAutorises`, `ReferentielGuard`,
+> `referentielsApplicables`) décrit toujours le mécanisme en place ; la liste
+> des fenêtres qu'il dit filtrées ou à filtrer date d'août, et c'est le
+> registre des fenêtres (`client/src/lib/registre-fenetres.tsx`) qui fait
+> foi · les bailleurs de fonds, par exemple, y sont désormais réservés au
+> SYCEBNL.
+
 > Document de référence, évolutif. Rédigé après analyse minutieuse de 19 documents de
 > formation/référence Sage 100 Comptabilité i7 (et modules associés : Immobilisations,
 > Moyens de Paiement/Banque, Paie & RH, Édition Pilotée, Sage X3), consolidés avec la

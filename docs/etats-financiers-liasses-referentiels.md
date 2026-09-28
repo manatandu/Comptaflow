@@ -1,4 +1,40 @@
-# États financiers et liasses — spécification par référentiel et par système
+# États financiers et liasses · spécification par référentiel et par système
+
+> **CAHIER DES CHARGES D'ORIGINE · bandeau posé le 2026-09-28 (audit final
+> F267).** Ce document a spécifié le module avant sa construction, sous
+> l'ancien nom du logiciel (« Compta Flow », aujourd'hui OmegaX). Le module est
+> construit : ce qui fait foi est désormais le code et ses specs, et non ce
+> cahier ni les moteurs qu'il prenait pour référence.
+>
+> **Ce qui est révolu ci-dessous.**
+>
+> - **En tête** · les moteurs de liasse Python/openpyxl d'un autre dépôt ne
+>   sont plus l'implémentation de référence, et ce dépôt ne les porte pas
+>   (`.claude/skills/` n'y contient que `sage-i7`). Les états sont calculés par
+>   OmegaX (`src/modules/etats-financiers/`,
+>   `src/modules/etats-financiers-syscohada/`, `src/modules/notes-annexes/`),
+>   les correspondances postes/comptes sont tenues par les specs
+>   `correspondance-*.spec.ts` de ces modules, et les classeurs sont produits
+>   par `src/modules/exports/`.
+> - **« Notes non documentées à ne pas joindre »** · ce n'est pas ce que fait
+>   l'export. TOUTES les notes du jeu sont jointes, une note que l'exercice ne
+>   chiffre pas portant la mention NEANT. C'est un écart assumé avec le
+>   renvoi (1) du modèle officiel, décidé en connaissance de cause et écrit
+>   dans `ExportService.construireClasseurNotes` (`CLAUDE.md` § 1). Le second
+>   membre de la même règle, la suppression des LIGNES non chiffrées d'une
+>   note, reste appliqué (`NoteAnnexeService.calculerNote`).
+> - **L'ouverture « venue des colonnes du fichier »** · il s'agit du fichier de
+>   balance que lisaient les moteurs de référence. La balance d'OmegaX se
+>   calcule sur les écritures du dossier (le livre-journal seul pour les états
+>   légaux), en trois colonnes · report à-nouveau, mouvements de l'exercice,
+>   écriture de clôture qui solde les comptes de gestion (audit final F4 à F6,
+>   `CLAUDE.md`, « Clôture annuelle »).
+> - **Le tableau des cinq jeux** porte les décomptes du cahier ; les jeux
+>   servis et leur couverture se lisent dans `CLAUDE.md` § 6 et dans les
+>   specs de correspondance des notes.
+>
+> Les tirets cadratins de ce document ont été remplacés le même jour (audit
+> final F202) · aucun n'était une citation d'un texte officiel.
 
 Cahier des charges du module « états financiers » de Compta Flow, aligné sur
 les moteurs de liasse construits et validés dans le dépôt Skill-Claude
@@ -15,7 +51,7 @@ Devant une balance, deux questions avant toute génération :
 
 1. **Référentiel** : SYSCOHADA (entité commerciale) ou SYCEBNL (EBNL).
    Dans Compta Flow, cette information vient du paramétrage du dossier
-   (division SYCEBNL/SYSCOHADA déjà en place) — ne jamais l'inférer de la
+   (division SYCEBNL/SYSCOHADA déjà en place) · ne jamais l'inférer de la
    seule numérotation des comptes.
 2. **Système** :
    - SYSCOHADA → Système normal ou Système minimal de trésorerie (seuils
@@ -32,11 +68,11 @@ aucun partage de maquette entre systèmes.
 
 | Référentiel / système | États | Notes annexes | Source officielle |
 |---|---|---|---|
-| SYSCOHADA — Système normal | Bilan (actif / passif), Compte de résultat, TFT | Notes 1 à 36 (3A-3F, 8A/8B, 15A/B, 16A-16C, 27A/B…) | AUDCIF Titre IX ch. 6-7 |
-| SYSCOHADA — SMT | Bilan SMT, Compte de résultat SMT (G = C − D + E − F) | Notes 1 à 4 + journaux de suivi | AUDCIF Titre X ch. 1-3 |
-| SYCEBNL — associations (SN) | Bilan (AA→DZ), Compte de résultat (RA→XE), TFT (ZA→ZG, méthode directe) | Notes 1 à 35 (5A-5H, 17A/B, 18A/B, 29A/B) | JO OHADA 22/02/2023, Partie 4 ch. 2 |
-| SYCEBNL — projets de développement | Tableau emplois-ressources (FA→GZ), Tableau d'exécution budgétaire, Tableau de réconciliation de trésorerie (A→I), Bilan (en net), Compte d'exploitation (RA→XC) | Notes 1 à 24 (3A/3B, 20A/B) | Partie 4 ch. 3 |
-| SYCEBNL — SMT | Bilan (GA→HZ), Compte de résultat (KA→KZC) | Notes 1 à 5 | Partie 4 ch. 4 |
+| SYSCOHADA · Système normal | Bilan (actif / passif), Compte de résultat, TFT | Notes 1 à 36 (3A-3F, 8A/8B, 15A/B, 16A-16C, 27A/B…) | AUDCIF Titre IX ch. 6-7 |
+| SYSCOHADA · SMT | Bilan SMT, Compte de résultat SMT (G = C − D + E − F) | Notes 1 à 4 + journaux de suivi | AUDCIF Titre X ch. 1-3 |
+| SYCEBNL · associations (SN) | Bilan (AA→DZ), Compte de résultat (RA→XE), TFT (ZA→ZG, méthode directe) | Notes 1 à 35 (5A-5H, 17A/B, 18A/B, 29A/B) | JO OHADA 22/02/2023, Partie 4 ch. 2 |
+| SYCEBNL · projets de développement | Tableau emplois-ressources (FA→GZ), Tableau d'exécution budgétaire, Tableau de réconciliation de trésorerie (A→I), Bilan (en net), Compte d'exploitation (RA→XC) | Notes 1 à 24 (3A/3B, 20A/B) | Partie 4 ch. 3 |
+| SYCEBNL · SMT | Bilan (GA→HZ), Compte de résultat (KA→KZC) | Notes 1 à 5 | Partie 4 ch. 4 |
 
 ## Décisions de correspondance à reprendre telles quelles
 
@@ -45,13 +81,13 @@ texte officiel. À reprendre dans Compta Flow :
 
 **SYSCOHADA SN** : AL sans 2394/2395/2398 ; BS sans 585/588 (résidu de
 virement interne = anomalie) ; CJ (résultat bilan) = résultat du CR + solde
-classe 13, pour boucler avant comme après affectation ; TFT — les cellules
+classe 13, pour boucler avant comme après affectation ; TFT · les cellules
 FB/FC/FD portent l'opposé de la variation (libellés « − Variation … », ZB
 somme simple).
 
 **SYCEBNL associations** : 41 retiré de BE ; qualificatifs de sens sur
 BE/DI ; CJ = compte 15 ; RH inclus dans XA ; **compte 46 ajouté à BE
-(débiteurs) et DI (créditeurs)** — omis du tableau officiel alors que les
+(débiteurs) et DI (créditeurs)** · omis du tableau officiel alors que les
 notes 10 et 21 l'exigent.
 
 **SYCEBNL projets** : bilan présenté **en net** (le modèle officiel n'a pas
@@ -62,7 +98,7 @@ reproduits à l'affichage, distingués en interne (TJ2/TK2).
 
 **SMT (deux référentiels)** : classe 2 en net ; découvert bancaire en moins
 de l'actif ; 603/73 reclassés en « variation des stocks » ; variations de
-créances/dettes (VB/VC) jamais déduites de la balance — saisies depuis
+créances/dettes (VB/VC) jamais déduites de la balance · saisies depuis
 l'inventaire extra-comptable, et laissées à zéro si la balance est en base
 engagement (classe 4 mouvementée).
 
@@ -72,7 +108,7 @@ engagement (classe 4 mouvementée).
   sur des feuilles séparées ; page de garde ; notes annexes une par
   feuille ;
 - **traçabilité** : chaque montant est une formule (équivalent SUMIF sur la
-  balance) — dans l'application, prévoir le drill-down poste → comptes ;
+  balance) · dans l'application, prévoir le drill-down poste → comptes ;
 - feuilles d'audit : BALANCE N et BALANCE N-1, CONTROLE BALANCE,
   CONTROLES (équilibres et recoupements notes ↔ postes, « doit être 0 »),
   ANOMALIES (gravités BLOQUANT / A_TRAITER / A_VERIFIER / MINEUR / INFO,
@@ -85,7 +121,7 @@ engagement (classe 4 mouvementée).
   bilan (classes 1 à 5)** : les comptes de gestion (classes 6 à 8) sont
   soldés à la clôture par le compte 13 « pour solde » (AUDCIF art. 18 et
   Titre VII, ch. 1 ; SYCEBNL Partie 2, ch. 1) et n'ont donc pas
-  d'à-nouveau, la classe 9 étant hors bilan — le bloc d'ouverture reprend
+  d'à-nouveau, la classe 9 étant hors bilan · le bloc d'ouverture reprend
   le seul bilan d'ouverture, et une ouverture portée par un compte de
   classe 6 à 9 dans le fichier source est ramenée à zéro et signalée dans
   ANOMALIES. Pour les comptes de bilan, l'ouverture vient des colonnes du
@@ -116,5 +152,5 @@ engagement (classe 4 mouvementée).
 ## Jeux d'essai
 
 Les balances synthétiques équilibrées et les classeurs générés des cinq
-systèmes sont livrés dans `liasse/exemples/` de chaque skill — utilisables
+systèmes sont livrés dans `liasse/exemples/` de chaque skill · utilisables
 comme jeux d'essai de non-régression pour le module Compta Flow.

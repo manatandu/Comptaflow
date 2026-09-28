@@ -13,7 +13,8 @@ La fenêtre est de douze lignes de part et d'autre · un bloc de commentaire
 nomme son texte en tête et cite ses articles ensuite, parfois sur dix lignes.
 Plus large, on rattacherait n'importe quoi à n'importe quoi.
 """
-import csv, re, json, os, collections
+import re, collections
+from citations_commun import repertoire_de_travail, lire_citations, lire_lot_a, chemin_cite, ecrire_json
 
 TEXTES = {
     'AUDCIF': r'\bAUDCIF\b', 'SYCEBNL': r'\bSYCEBNL\b', 'SYSCOHADA': r'\bSYSCOHADA\b',
@@ -31,10 +32,11 @@ TEXTES = {
 ART = re.compile(r'\b(?:art(?:icles?)?\.?)\s*((?:premier|\d+)(?:\s*(?:bis|ter|quater|quinquies))?)', re.I)
 FENETRE = 12
 
-L = list(csv.DictReader(open('/tmp/claude-0/-home-user/ac8187b8-6ad7-5085-a3b1-d7551f9bf74d/scratchpad/citations.tsv',
-                             encoding='utf-8'), delimiter='\t'))
-A = {(l['fichier'], l['ligne']) for l in json.load(
-    open('/tmp/claude-0/-home-user/ac8187b8-6ad7-5085-a3b1-d7551f9bf74d/scratchpad/lotA.json'))}
+# Le répertoire de travail se passe en argument (audit final F263) · voir
+# citations_commun.py pour le déroulé.
+TRAVAIL = repertoire_de_travail('lot-c-citations-sans-texte.py')
+L = lire_citations(TRAVAIL)
+A = lire_lot_a(TRAVAIL)
 
 def textes(s):
     return [n for n, m in TEXTES.items() if re.search(m, s)]
@@ -42,7 +44,7 @@ def textes(s):
 cache = {}
 def contexte(f, no):
     if f not in cache:
-        cache[f] = open(f, encoding='utf-8').read().split('\n')
+        cache[f] = open(chemin_cite(f), encoding='utf-8').read().split('\n')
     l = cache[f]
     return '\n'.join(l[max(0, no - 1 - FENETRE): no + FENETRE])
 
@@ -72,7 +74,6 @@ print(f"        {len(orphelines)} lignes ORPHELINES · aucun texte à {FENETRE} 
 print("Rattachements par contexte, par corpus :")
 for c, n in collections.Counter(k[0] for k in resolues).most_common(14):
     print(f"  {n:4}  {c}")
-json.dump({'resolues': [[k[0], k[1], v, exemple[k]] for k, v in resolues.items()],
-           'orphelines': orphelines},
-          open('/tmp/claude-0/-home-user/ac8187b8-6ad7-5085-a3b1-d7551f9bf74d/scratchpad/lotC.json', 'w'),
-          ensure_ascii=False, indent=1)
+ecrire_json(TRAVAIL, 'lotC.json',
+            {'resolues': [[k[0], k[1], v, exemple[k]] for k, v in resolues.items()],
+             'orphelines': orphelines})

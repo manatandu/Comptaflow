@@ -1,5 +1,17 @@
 # Relevé de manques, référentiel par référentiel
 
+> **RELEVÉ REFERMÉ, CONSTATS DATÉS · bandeau posé le 2026-09-28 (audit final
+> F267).** Le relevé a été refermé le 2026-09-05 (dernière section), et la
+> phrase d'en-tête qui le dit « tenu au fil des passes » ne vaut plus. Chaque
+> constat décrit le logiciel à la date de SA passe, pas aujourd'hui ·
+> plusieurs manques ont été construits depuis sans que les passes aient été
+> réécrites. Exemples vérifiés le 2026-09-28 : le module de stocks (passe 10,
+> note sur place) ; l'opération de reclassement d'une immobilisation
+> (`POST /immobilisations/:id/reclassement`, `reclasser`) et la situation
+> intermédiaire des états SYSCOHADA du Système normal (paramètre `arreteAu`,
+> ch. 39), que la dernière section donne encore pour « entiers ». L'état du
+> logiciel se lit dans `CLAUDE.md` et dans le code, jamais ici.
+
 Méthode : relire le texte officiel dans les compétences, **article par
 article**, et confronter chaque obligation au code. Rien n'est écrit ici qui
 n'ait été lu à sa source puis vérifié dans un fichier.
@@ -863,6 +875,19 @@ passe 7 ; et, côté logiciel, `docs/plan-de-construction.md` § 16 et le module
 `regularisation`.
 
 ### Périmètre déclaré · les stocks
+
+> **Révolu · note du 2026-09-28 (audit final F267).** Ce constat décrit le
+> logiciel d'avant la clôture du relevé (2026-09-05). Le module de stocks
+> existe depuis
+> (`src/modules/stocks/`) · écriture de variation de stocks proposée
+> (`variation-stocks.ts`), valorisation des biens fongibles
+> (`valorisation-stocks.ts`), magasin en inventaire permanent avec boni et mali
+> d'inventaire (`ArticleStock`, `MouvementStock`, `boni-mali-inventaire.ts`), et
+> les emballages avec leur consignation (`src/modules/emballages/`). Des
+> contrôles de stocks existent aussi (`STOCK_EN_COURS_DE_ROUTE_SANS_VARIATION`
+> et ses voisins, `controles.service.ts`). Le renvoi au « point 16 » du plan de
+> construction est révolu avec lui. Voir `CLAUDE.md`, « Variation de stocks »
+> et « Le magasin et le BONI / MALI D'INVENTAIRE ».
 
 Le logiciel n'a **aucun module de stocks** : ni modèle Prisma, ni service, ni
 écran. Ce n'est pas un oubli · le plan de construction range **Stocks** au

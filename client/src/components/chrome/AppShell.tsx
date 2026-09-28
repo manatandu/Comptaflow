@@ -16,6 +16,7 @@ import { LimiteErreur } from './LimiteErreur';
 import { AProposModale } from './AProposModale';
 import { ModaleMonCompte } from '../ModaleMonCompte';
 import { fenetreOuverteAuRole } from '../../lib/roles-cantonnes';
+import { fenetreOuverteSelonAdmin } from '../../lib/reserve-admin';
 import { cheminAuMenu } from '../../lib/profil-dossier';
 import { filtrerParProfil } from './menu-groupes';
 
@@ -97,15 +98,20 @@ export function AppShell() {
     // défense en profondeur, prise du côté qui décide de ce qui s'affiche.
     // RÔLES CANTONNÉS · même principe, même défense en profondeur · le
     // serveur refuse déjà (JwtAuthGuard, roles-cantonnes.ts).
+    // RÉSERVÉE À L'ADMINISTRATEUR · même principe encore (audit de
+    // l'interface I1, audit final F200) · le menu masquait le journal
+    // d'audit au non-administrateur, et l'adresse tapée le lui ouvrait sur le
+    // seul refus du serveur.
     if (
       !fenetreDisponible(def, utilisateur?.tenant.referentiel) ||
-      !fenetreOuverteAuRole(location.pathname, utilisateur?.role)
+      !fenetreOuverteAuRole(location.pathname, utilisateur?.role) ||
+      !fenetreOuverteSelonAdmin(def, estAdmin)
     ) {
       navigate('/', { replace: true });
       return;
     }
     ouvrir(location.pathname + location.search, { titre: def.titre, titreCourt: def.titreCourt });
-  }, [location.pathname, location.search, ouvrir, navigate, utilisateur?.tenant.referentiel, utilisateur?.role]);
+  }, [location.pathname, location.search, ouvrir, navigate, utilisateur?.tenant.referentiel, utilisateur?.role, estAdmin]);
 
   /**
    * … ET RÉCIPROQUEMENT : donner le premier plan à une fenêtre remet l'URL
@@ -622,6 +628,11 @@ export function AppShell() {
         filtrerParProfil(menusComplets, (chemin) => {
           const def = definitionPour(chemin);
           if (def && !fenetreDisponible(def, utilisateur?.tenant.referentiel)) return false;
+          // La même règle que l'aiguillage (audit final F200) · la garde
+          // `estAdmin ?` écrite sur l'entrée reste, celle-ci la double depuis
+          // le registre, pour qu'une entrée recopiée sans garde ne montre pas
+          // une fenêtre que l'ouverture refuserait.
+          if (def && !fenetreOuverteSelonAdmin(def, estAdmin)) return false;
           return cheminAuMenu(chemin, utilisateur?.tenant);
         });
 

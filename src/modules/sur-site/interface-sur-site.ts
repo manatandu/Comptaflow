@@ -16,8 +16,12 @@ import { Response } from 'express';
  * script de l'interface. Le fichier statique répond ici et n'atteint jamais
  * helmet ; ce qui n'est pas un fichier (toutes les routes de l'API) continue
  * sa route et reçoit la politique stricte. Les en-têtes de l'interface
- * reprennent ceux de `client/firebase.json`, l'API en moins dans
- * `connect-src`, puisqu'elle est à la même origine.
+ * reprennent ceux de `client/firebase.json` À L'IDENTIQUE, `connect-src 'self'`
+ * compris · l'API est à la même origine ici, et le site publié l'appelle lui
+ * aussi sous la sienne depuis le relais `/api` du 2026-09-26. La politique du
+ * site portait jusqu'au 2026-09-28 l'adresse de Cloud Run, que celle-ci
+ * retirait (audit final F264) ; `configuration-a-jour.spec.ts` tient les deux
+ * égales.
  */
 export const POLITIQUE_INTERFACE =
   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; font-src 'self'; " +

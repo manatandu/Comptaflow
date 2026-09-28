@@ -2,10 +2,10 @@ name: Sauvegarde de la base (éprouvée par restauration)
 
 # UNE SAUVEGARDE JAMAIS RESTAURÉE N'EST PAS UNE SAUVEGARDE · chaque
 # exécution exporte la base Neon, la RESTAURE dans un Postgres jetable et
-# vérifie ce qui compte (tables présentes, dossiers présents, balance
-# globale équilibrée) AVANT d'archiver le fichier. Un export corrompu ou
-# vide fait échouer le workflow au lieu de dormir 90 jours en donnant une
-# fausse assurance.
+# vérifie ce qui compte (chaque table de la source et son nombre de lignes,
+# dossiers présents, balance globale équilibrée) AVANT d'archiver le
+# fichier. Un export corrompu ou vide fait échouer le workflow au lieu de
+# dormir 90 jours en donnant une fausse assurance.
 #
 # Archivage : le fichier est CHIFFRÉ avant de quitter le job. Il partait
 # auparavant en artefact GitHub en clair, conservé 90 jours · quiconque a
@@ -34,6 +34,22 @@ permissions:
 jobs:
   sauvegarder-et-eprouver:
     runs-on: ubuntu-latest
+    env:
+      # LE MÊME DÉCOMPTE DES DEUX CÔTÉS (audit final F262) · une ligne
+      # « table|lignes » par table du schéma public, lue dans le catalogue
+      # (information_schema tait les tables sur lesquelles l'utilisateur n'a
+      # aucun droit), triée octet par octet (`COLLATE "C"`, que le type `name`
+      # porte déjà depuis PostgreSQL 12 · écrit pour que l'ordre ne dépende
+      # jamais de la collation d'une base). Elle sert TELLE QUELLE à la base
+      # source et à la base restaurée · deux requêtes écrites séparément
+      # finiraient par ne plus compter la même chose.
+      REQUETE_DECOMPTE: >-
+        SELECT format('%s|%s', c.relname,
+        (xpath('/row/n/text()', query_to_xml(format('SELECT count(*) AS n FROM public.%I', c.relname), false, true, '')))[1]::text)
+        FROM pg_catalog.pg_class c
+        JOIN pg_catalog.pg_namespace s ON s.oid = c.relnamespace
+        WHERE s.nspname = 'public' AND c.relkind IN ('r', 'p')
+        ORDER BY c.relname COLLATE "C"
     services:
       # Le Postgres JETABLE de la restauration d'épreuve · détruit avec le
       # job, il ne sert qu'à prouver que le fichier se restaure.
@@ -67,20 +83,98 @@ jobs:
           echo "PGBIN=/usr/lib/postgresql/18/bin" >> "$GITHUB_ENV"
           /usr/lib/postgresql/18/bin/pg_dump --version
 
-      - name: Exporter la base (pg_dump)
+      # LA SOURCE SE DÉCOMPTE DANS L'INSTANTANÉ MÊME DE L'EXPORT (audit final
+      # F262). L'épreuve acceptait toute base restaurée d'au moins vingt
+      # tables quand le schéma en compte plus de cent · une restauration
+      # amputée des trois quarts passait au vert. La restauration se compare
+      # désormais à la SOURCE, table par table et ligne par ligne, jamais à
+      # un nombre écrit ici.
+      #
+      # Compter la source avant ou après pg_dump ne suffirait pas : une
+      # écriture passée entre les deux ferait différer les lignes sans
+      # qu'aucune restauration ne soit fausse, et un contrôle qui rougit sans
+      # défaut s'apprend à ignorer. Une session ouvre donc une transaction
+      # REPEATABLE READ, en EXPORTE l'instantané (`pg_export_snapshot`), y
+      # compte les tables, puis pg_dump exporte CET instantané
+      # (`--snapshot`) · le décompte et le fichier voient la même base, à la
+      # même transaction près.
+      #
+      # Rien de la chaîne de connexion ne s'imprime · le journal d'erreur de
+      # la session n'est relu que pour ses lignes `ERROR:`, qui sont des
+      # erreurs SQL ; la ligne d'échec de connexion, qui nomme l'hôte, n'en
+      # est pas une. Le décompte (noms de tables et nombres de lignes) va
+      # dans RUNNER_TEMP, hors du répertoire que l'archivage ramasse.
+      - name: Exporter la base (pg_dump), décomptée dans le même instantané
         env:
           # La chaîne DIRECTE (sans -pooler) · pg_dump tient une session
-          # longue, incompatible avec le pooling en mode transaction.
+          # longue, incompatible avec le pooling en mode transaction ; et un
+          # instantané exporté ne s'importe que sur le même serveur, ce que le
+          # pooling ne garantit pas d'une connexion à l'autre.
           DATABASE_URL: ${{ secrets.API_DATABASE_URL }}
         run: |
           horodatage=$(date -u +%Y-%m-%d-%H%M)
           echo "HORODATAGE=$horodatage" >> "$GITHUB_ENV"
+          dump="sauvegarde-omegax-$horodatage.dump"
+          decompte="$RUNNER_TEMP/decompte-source.txt"
+          journal_session="$RUNNER_TEMP/session-source.err"
+
+          diagnostic() {
+            echo "::error::$1"
+            grep -F 'ERROR:' "$journal_session" 2>/dev/null | head -5 || true
+            exit 1
+          }
+
+          # Une écriture vers une session tombée doit échouer, pas tuer le
+          # script sans un mot (SIGPIPE) · d'où le signal ignoré tant que la
+          # session vit.
+          trap '' PIPE
+          coproc SESSION { "$PGBIN/psql" "$DATABASE_URL" -X -q -tA -v ON_ERROR_STOP=1 2>"$journal_session"; }
+          entree=${SESSION[1]}
+          sortie=${SESSION[0]}
+          session=$SESSION_PID
+          envoyer() {
+            { printf '%s\n' "$@" >&"$entree"; } 2>/dev/null \
+              || diagnostic "La session sur la base source s'est fermée · ni décompte ni export"
+          }
+
+          envoyer 'SET statement_timeout = 0;' \
+            'SET idle_in_transaction_session_timeout = 0;' \
+            'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;' \
+            'SELECT pg_export_snapshot();'
+          instantane=''
+          read -r -t 120 -u "$sortie" instantane \
+            || diagnostic "Instantané de la base source non obtenu · ni décompte ni export"
+          [[ "$instantane" =~ ^[0-9A-F]+(-[0-9A-F]+)+$ ]] \
+            || diagnostic "Instantané de la base source illisible · ni décompte ni export"
+
+          envoyer "$REQUETE_DECOMPTE;" "SELECT 'FIN-DU-DECOMPTE';"
+          : > "$decompte"
+          fini=0
+          while read -r -t 900 -u "$sortie" ligne; do
+            if [ "$ligne" = 'FIN-DU-DECOMPTE' ]; then fini=1; break; fi
+            printf '%s\n' "$ligne" >> "$decompte"
+          done
+          [ "$fini" = 1 ] || diagnostic "Décompte de la base source interrompu · rien n'est exporté"
+          [ -s "$decompte" ] || diagnostic "La base source n'a aucune table · rien à sauvegarder"
+          if grep -qvE '^[^|]+[|][0-9]+$' "$decompte"; then
+            diagnostic "Décompte de la base source illisible · rien n'est exporté"
+          fi
+
           "$PGBIN/pg_dump" "$DATABASE_URL" \
+            --snapshot="$instantane" \
             --format=custom \
             --no-owner \
             --no-privileges \
-            --file "sauvegarde-omegax-$horodatage.dump"
-          ls -l "sauvegarde-omegax-$horodatage.dump"
+            --file "$dump"
+
+          # La session peut se refermer comme elle veut désormais · pg_dump a
+          # importé l'instantané à son ouverture, et le fichier est écrit.
+          { printf '%s\n' 'COMMIT;' '\q' >&"$entree"; } 2>/dev/null || true
+          wait "$session" 2>/dev/null || true
+          trap - PIPE
+
+          echo "Base source · $(wc -l < "$decompte") tables, $(awk -F'|' '{ s += $2 } END { printf "%.0f", s }' "$decompte") lignes, décomptées dans l'instantané de l'export"
+          ls -l "$dump"
 
       - name: "Restauration d'épreuve"
         env:
@@ -96,8 +190,19 @@ jobs:
           PGPASSWORD: epreuve
         run: |
           interroger() { "$PGBIN/psql" -h localhost -U postgres -d epreuve -tAc "$1"; }
+          decompte_source="$RUNNER_TEMP/decompte-source.txt"
+          decompte_restaure="$RUNNER_TEMP/decompte-restaure.txt"
+          ecart="$RUNNER_TEMP/ecart-restauration.txt"
 
-          tables=$(interroger "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
+          if [ ! -s "$decompte_source" ]; then
+            echo "::error::Décompte de la base source absent · la restauration n'a rien à quoi se comparer"; exit 1
+          fi
+          "$PGBIN/psql" -h localhost -U postgres -d epreuve -X -q -tA -v ON_ERROR_STOP=1 \
+            -c "$REQUETE_DECOMPTE" > "$decompte_restaure"
+          somme() { awk -F'|' '{ s += $2 } END { printf "%.0f", s }' "$1"; }
+
+          tables_source=$(wc -l < "$decompte_source")
+          tables=$(wc -l < "$decompte_restaure")
           dossiers=$(interroger "SELECT count(*) FROM tenants")
           utilisateurs=$(interroger "SELECT count(*) FROM users")
           lignes=$(interroger "SELECT count(*) FROM lignes_ecriture")
@@ -106,10 +211,17 @@ jobs:
           # qu'inutile.
           desequilibre=$(interroger "SELECT COALESCE(abs(sum(debit) - sum(credit)), 0) > 0.01 FROM lignes_ecriture")
 
-          echo "Tables : $tables · Dossiers : $dossiers · Utilisateurs : $utilisateurs · Lignes d'écriture : $lignes"
+          echo "Tables : $tables (source $tables_source) · Lignes : $(somme "$decompte_restaure") (source $(somme "$decompte_source")) · Dossiers : $dossiers · Utilisateurs : $utilisateurs · Lignes d'écriture : $lignes"
 
-          if [ "$tables" -lt 20 ]; then
-            echo "::error::Restauration suspecte · $tables tables seulement (au moins 20 attendues)"; exit 1
+          # LA BASE RESTAURÉE REND LA SOURCE, table par table et ligne par
+          # ligne (audit final F262) · les deux décomptes sortent de la même
+          # requête, la source dans l'instantané de l'export. Aucun seuil écrit
+          # ici : le schéma grandit à chaque chantier, et un plancher fixe
+          # vieillit en silence jusqu'à ne plus rien garder.
+          if ! diff "$decompte_source" "$decompte_restaure" > "$ecart"; then
+            echo "::error::Restauration incomplète · la base restaurée ne rend pas la source ($tables tables contre $tables_source). Écart, table|lignes (< source, > restaurée) :"
+            head -40 "$ecart"
+            exit 1
           fi
           if [ "$dossiers" -lt 1 ] || [ "$utilisateurs" -lt 1 ]; then
             echo "::error::Restauration suspecte · aucune donnée (dossiers=$dossiers, utilisateurs=$utilisateurs)"; exit 1
@@ -117,7 +229,7 @@ jobs:
           if [ "$desequilibre" = "t" ]; then
             echo "::error::La balance globale de la base restaurée est déséquilibrée"; exit 1
           fi
-          echo "Sauvegarde ÉPROUVÉE · elle se restaure, et la comptabilité restaurée boucle."
+          echo "Sauvegarde ÉPROUVÉE · elle se restaure, rend la source table par table, et la comptabilité restaurée boucle."
 
       # LE CHIFFREMENT N'EST PAS FACULTATIF · sans clé publique configurée,
       # le job s'arrête ici. Il ne retombe JAMAIS sur un archivage en clair :

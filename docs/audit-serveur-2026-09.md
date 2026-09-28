@@ -887,6 +887,13 @@ commentaire de tête de `src/bootstrap.ts:8-15` date le retrait. Reste, sans
 effet, un exemple périmé en commentaire (« domaine Vercel par défaut »,
 `src/bootstrap.ts:71`).
 
+**Complété le 2026-09-28 (audit final F264) :** l'exemple Vercel est
+retiré (`src/bootstrap.ts:70-75`), et le commentaire de tête, qui s'était
+retrouvé au-dessus de `retirerPrefixeApi` dont il semblait la
+documentation, est rendu à `configurerApplication` (`src/bootstrap.ts:20-29`).
+`src/configuration-a-jour.spec.ts` tient chaque commentaire de documentation
+de ce fichier devant sa déclaration.
+
 ---
 
 ## Examiné et non signalé (voulu ou documenté)

@@ -4,8 +4,10 @@
  * clé privée, gardée par VMG seul, qui signe.
  *
  * `null` TANT QUE MANASSE NE L'A PAS POSÉE · la paire se génère une seule
- * fois (voir docs/installation-sur-site.md, « Clés de licence »), la clé
- * privée va dans le secret de déploiement, la clé publique ici. Sans elle,
+ * fois (voir docs/installation-sur-site.md, § 2 « Une seule fois chez VMG ·
+ * la paire de clés » · le renvoi nommait une section « Clés de licence » qui
+ * n'existe pas, audit final F199), la clé privée va dans le secret de
+ * dépôt `API_CLE_PRIVEE_LICENCE`, la clé publique ici. Sans elle,
  * aucune licence ne se vérifie, et le paquet d'installation refuse de se
  * construire · une version sans clé installée chez un client ne s'ouvrirait
  * jamais.

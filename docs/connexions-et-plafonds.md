@@ -164,10 +164,26 @@ mentirait, et ses plafonds seraient calibrés pour une machine qui n'existe plus
 
 Décision du 2026-09-24. `ThrottlerModule.forRoot` n'a pas de `storage` : chaque
 instance Cloud Run tient son propre compteur. Les plafonds écrits dans le code
-(300 requêtes par minute et par adresse partout ; 20 par minute sur les deux
-routes d'identification ; 30 par heure sur la troisième) sont donc des plafonds
-PAR INSTANCE. Avec `--max-instances 4`, le pire cas est quatre fois le chiffre
-écrit, et seulement quand Google a réellement démarré les quatre.
+sont donc des plafonds PAR INSTANCE · le plafond commun, posé une fois dans
+`src/app.module.ts` (300 requêtes par minute et par adresse), et les plafonds
+plus serrés que portent, route par route, les décorateurs `@Throttle` de
+`src/modules/auth/auth.controller.ts` (la connexion, l'inscription, et les
+gestes qui revérifient un mot de passe ou un code de double authentification)
+et de `src/modules/sur-site/sur-site.controller.ts` (dépôt du fichier de
+licence d'une installation sur site). Avec `--max-instances 4`, le pire cas
+est quatre fois le chiffre écrit, et seulement quand Google a réellement
+démarré les quatre.
+
+LA LISTE DES ROUTES ET LEURS CHIFFRES SE LISENT DANS CES CONTRÔLEURS
+(`grep -rn '@Throttle' src`), jamais ici. Ce paragraphe en écrivait un
+décompte (« 20 par minute sur les deux routes d'identification ; 30 par heure
+sur la troisième ») qui a périmé en silence à chaque route ajoutée ·
+l'audit final (F268) en a trouvé six au plafond de 20 par minute là où il en
+annonçait deux, et une septième s'y est ajoutée le jour même de la
+correction (« déconnecter mes autres appareils », F270).
+`src/common/limitation-debit-documentee.spec.ts` exige que ce paragraphe
+nomme chaque fichier de `src/` qui pose un `@Throttle`, et que le plafond
+commun écrit ici soit celui de `app.module.ts`.
 
 POURQUOI ON NE POSE PAS REDIS. La défense contre la force brute sur un mot de
 passe n'est pas là : c'est le verrouillage PAR COMPTE (`auth/verrouillage.ts`),

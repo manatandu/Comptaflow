@@ -1423,30 +1423,35 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 3
 - **Constat :** WinSW relance le service et `pg_dump` réécrit le même fichier à partir de la base à moitié migrée.
 - **Correction :** ne jamais écraser une copie existante.
+- **Fait le 2026-09-28 :** la copie s'écrit sous un nom provisoire (`.partiel`) puis prend un nom horodaté, le repère `derniere-version.json` ne la nomme qu'ensuite (`enCours`), et une relance la REPREND sans relancer `pg_dump` tant que la migration n'a pas abouti (`planMiseAJour`, `src/modules/sur-site/copies-avant-mise-a-jour.ts`, `installation/demarrer.cjs`) ; un repère illisible fait copier, et la copie quotidienne passe aussi par un nom provisoire (`sauvegarde-sur-site.service.ts`). Tests : `lanceur-sur-site.spec.ts`, `copies-avant-mise-a-jour.spec.ts`, `sur-site-divers.spec.ts`.
 
 **F192 · Les sauvegardes sur site sont lisibles par tout utilisateur Windows du poste** [infra-05]
 - **Emplacements :** installation/windows/initialiser.ps1:16, :28 · sauvegarde-sur-site.service.ts:99 · installation/demarrer.cjs:76
 - **Condition :** 2
 - **Constat :** seuls `pgdata` et la configuration sont restreints.
 - **Correction :** restreindre `$Donnees` ou le dossier `sauvegardes`.
+- **Fait le 2026-09-28 :** `initialiser.ps1` restreint `C:\ProgramData\OmegaX` au système et aux administrateurs, avec héritage, avant les deux branches (poste neuf et mise à jour), Service réseau n'y gardant que la traversée ; un poste déjà installé est corrigé à la mise à jour suivante. Test : `paquet-sur-site.spec.ts`. Pas encore constaté sur un poste Windows.
 
 **F193 · Sur site, une version hors maintenance migre la base avant d'être refusée** [infra-06]
 - **Emplacements :** installation/demarrer.cjs:95, :98, :112 · src/modules/sur-site/licence-signee.ts:187
 - **Condition :** 3
 - **Constat :** contraire à docs/installation-sur-site.md § 6.
 - **Correction :** vérifier la licence dans le lanceur avant la copie et les migrations.
+- **Fait le 2026-09-28 :** le lanceur vérifie la licence avant la copie et les migrations, dès que la version change, par le service compilé du paquet (`motifRefusMigration`, `versionCouverte` partagée avec `verifierLicence`, `licence-signee.ts`, `licence-sur-site.service.ts`) ; seule une licence authentique pour ce poste qui ne couvre pas la version bloque, et le refus dit l'état de la base. Tests : `licence-signee.spec.ts`, `licence-sur-site.service.spec.ts`, `lanceur-sur-site.spec.ts`.
 
 **F194 · La CI éprouve Node 20 et PostgreSQL 16, alors que la production tourne sous 22 et 18** [infra-08]
 - **Emplacements :** .github/workflows/deploy-cloud-run.yml:46, :63 · .github/workflows/tests-navigateur.yml:31, :69 · Dockerfile:5
 - **Condition :** 6
 - **Constat :** le job censé prouver le démarrage réel tourne sur d'autres versions majeures.
 - **Correction :** aligner sur Node 22 et PG 18 (plus 17 pour le sur site).
+- **Fait le 2026-09-28 :** Node 22 dans les trois workflows qui font tourner le serveur, et le job `verifier` en deux jambes, PostgreSQL 18 (suite complète) et 17 (démarrage réel), chacune relisant la version servie (`deploy-cloud-run.yml`) ; `tests-navigateur.yml` passe en PostgreSQL 18. Test : `chaine-de-livraison.spec.ts`, qui lit les versions dans le `Dockerfile`, `sauvegarde-base.yml` et `paquet-sur-site.yml`.
 
 **F195 · Dependabot se dit jugé par le job `verifier`, qui ne tourne pas sur les PR** [infra-09]
 - **Emplacements :** .github/dependabot.yml:4 · .github/workflows/deploy-cloud-run.yml:6-16
 - **Condition :** 5
 - **Constat :** aucune montée de dépendance n'est testée avant la fusion.
 - **Correction :** déclencheur `pull_request` pour `verifier`, ou commentaire corrigé.
+- **Fait le 2026-09-28 :** `deploy-cloud-run.yml` se déclenche sur toute demande de tirage, sans filtre de chemins, et `migrer-et-deployer` ne suit qu'un push ou un lancement manuel sur `main` ; `firebase-hosting-pull-request.yml` écarte Dependabot, qui n'en reçoit pas les secrets. Test : `chaine-de-livraison.spec.ts`.
 
 **F196 · Vitest n'est ni déclaré ni verrouillé** [infra-10]
 - **Emplacements :** client/package.json:10 · client/vitest.config.ts:3 · deploy-cloud-run.yml:135 · firebase-hosting-merge.yml:27
@@ -1459,6 +1464,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 5
 - **Constat :** sans `VITE_API_URL=/api` et `OMEGAX_API_RELAIS`, chaque appel échoue.
 - **Correction :** réécrire la procédure.
+- **Fait le 2026-09-28 :** le § 10 de CLAUDE.md décrit le montage du job en trois étapes, relais `/api` compris (`OMEGAX_API_RELAIS`). Test : `reglement-interieur.spec.ts`, qui relit le paragraphe contre `tests-navigateur.yml`.
 
 ### Documentation
 
@@ -1482,6 +1488,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Constat :** B1 à B3, C5, C8, C10, C11, B4, F3, I1, C3 et C4 sont faits sans être marqués.
 - **Correction :** marquer « Fait le… » avec fichier:ligne, et recompter.
 - **Fait le 2026-09-28 :** les constats nommés, et les autres constats corrigés des deux rapports, sont marqués « Fait » avec fichier, ligne, test et commit, chacun relu dans le code ; les totaux sont recomptés. Restaient ouverts le constat C9 du serveur (aucun arrondi commun) et, à moitié, le constat I1 de l'interface.
+- **Complété le 2026-09-28 :** le constat I1 est fermé · l'aiguillage refuse aussi l'adresse tapée d'une fenêtre réservée à l'administrateur, et le menu lit la même règle (`client/src/lib/reserve-admin.ts`, `AppShell.tsx`). Test : `fenetres-reservees-admin.spec.ts`.
 
 **F201 · docs/conversion-monnaie-fonctionnelle.md condamne la méthode retenue** [doc-09]
 - **Emplacements :** docs/conversion-monnaie-fonctionnelle.md:97-150 · balance-fonctionnelle.service.ts:21-31 · CLAUDE.md:566-600
@@ -1495,6 +1502,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 5
 - **Constat :** interdits par le § 4.
 - **Correction :** remplacer, et déclarer comme exceptions le fichier SYSCOHADA verbatim et le script.
+- **Fait le 2026-09-28 :** les cadratins de ponctuation de `lecture-fichier.ts`, `extension-cloisonnement.ts` et `docs/etats-financiers-liasses-referentiels.md` sont retirés ; le § 4 de CLAUDE.md déclare chaque exception avec son nombre (173 occurrences sur 97 lignes, et non 97). Test : `src/common/cadratins.spec.ts`, qui relit le dépôt entier contre une liste fermée.
 
 **F203 · Noms de modèles d'IA dans trois documents poussés** [doc-12]
 - **Emplacements :** docs/plan-ordonne-2026-09.md:91, :116, :328, :367, :393, :411, :432, :484 · docs/plan-confrontations.md:104-105 · docs/plan-sycebnl-complet.md:57-68
@@ -1896,24 +1904,28 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 6
 - **Constat :** le schéma compte 126 modèles.
 - **Correction :** comparer à la base source.
+- **Fait le 2026-09-28 :** la restauration de contrôle se compare table par table et ligne par ligne au décompte de la source, pris dans l'instantané que `pg_dump` exporte (`pg_export_snapshot`, `--snapshot`, `sauvegarde-base.yml`) ; le seuil de 20 tables est retiré. Test : `chaine-de-livraison.spec.ts`. À constater sur Neon au premier run.
 
 **F263 · Scripts de scripts/ qui lisent des fichiers de session disparus** [infra-17]
 - **Emplacements :** scripts/index-citations-lot-b.py:10 · scripts/lot-c-citations-sans-texte.py · scripts/lot-d-affirmations-sans-source.py · scripts/rapprocher-citations.py:10
 - **Condition :** 5
 - **Constat :** ils échouent hors de la session d'origine.
 - **Correction :** retirer, ou paramétrer et ranger.
+- **Fait le 2026-09-28 :** les quatre scripts du relevé des citations prennent leur répertoire de travail en argument (`scripts/citations_commun.py`), et `rapprocher-citations.py` la racine des compétences en argument ou par `OMEGAX_COMPETENCES` ; déroulé vérifié de bout en bout.
 
 **F264 · Libellés et CSP périmés dans la configuration** [infra-18]
 - **Emplacements :** package.json:2, :5 · client/firebase.json:78 · Dockerfile:1
 - **Condition :** 5
 - **Constat :** « sycebnl-suite », « MVP », « Compta Flow », et une URL Cloud Run inutile dans la CSP.
 - **Correction :** mettre à jour, et `connect-src 'self'`.
+- **Fait le 2026-09-28 :** `package.json` et son verrou s'appellent `omegax`, avec une description qui nomme les deux référentiels ; l'en-tête du `Dockerfile` nomme OmegaX ; le `connect-src` de `client/firebase.json` vaut `'self'`, la CSP du site étant égale à `POLITIQUE_INTERFACE`. Tests : `src/configuration-a-jour.spec.ts`, `chaine-de-livraison.spec.ts`.
 
 **F265 · Copies avant mise à jour ni listées, ni tournées, ni recopiées** [surSite-03, infra-19]
 - **Emplacements :** installation/demarrer.cjs:76-78 · src/modules/sur-site/sauvegarde-sur-site.service.ts:48, :129, :176
 - **Condition :** 6
 - **Constat :** hors `MOTIF_NOM`, elles s'accumulent sur le disque.
 - **Correction :** nommer selon le motif ou l'étendre, et garder les N dernières.
+- **Fait le 2026-09-28 :** les copies avant mise à jour forment une série (`omegax-AAAAMMJJ-HHMMSS-avant-mise-a-jour-<version>.dump`), listée avec les quotidiennes, tournée à part (cinq par défaut, `SAUVEGARDES_AVANT_MISE_A_JOUR_A_GARDER`), recopiée hors du poste, et jamais retirée quand elle précède une migration qui n'a pas abouti (`copies-avant-mise-a-jour.ts`, `sauvegarde-sur-site.service.ts`). Tests : `copies-avant-mise-a-jour.spec.ts`, `lanceur-sur-site.spec.ts`, `sur-site-divers.spec.ts`.
 
 ### Documentation
 
@@ -1922,24 +1934,28 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 6
 - **Constat :** la surveillance de production n'y figure pas.
 - **Correction :** compléter, et retirer « deux chaînes ».
+- **Fait le 2026-09-28 :** la table du § 5 de CLAUDE.md porte les sept workflows, chaque déclencheur relu dans son `on:`. Test : `reglement-interieur.spec.ts`.
 
 **F267 · Documents historiques présentés comme vivants** [doc-19]
 - **Emplacements :** docs/plan-de-construction.md:1-40 · ecarts-sage-omegax.md:51-120 · audit-complet-2026-08.md:125-148 · releve-de-manques-referentiels.md:867-870 · plan-ordonne-2026-09.md:45-46 · decision-multi-classification.md:9-12 · etats-financiers-liasses-referentiels.md:1-10, :92-96
 - **Condition :** 5
 - **Constat :** état révolu, sans bandeau.
 - **Correction :** bandeaux datés, et dossier `docs/historique/`.
+- **Fait le 2026-09-28 :** `ecarts-sage-omegax.md` et `audit-complet-2026-08.md`, cités par ce seul document, sont rangés dans `docs/historique/` sous bandeau (`docs/historique/README.md`) ; les cinq autres, cités par le code ou la compétence, restent en place avec un bandeau daté qui dit ce qui a changé. Test : `src/common/documents-historiques.spec.ts`.
 
 **F268 · Décompte des routes limitées en débit périmé** [doc-20]
 - **Emplacements :** docs/connexions-et-plafonds.md:162-168 · auth.controller.ts:43-171 · sur-site.controller.ts:47
 - **Condition :** 5
 - **Constat :** six routes à 20 par minute, pas deux.
 - **Correction :** renvoyer aux contrôleurs.
+- **Fait le 2026-09-28 :** le § 7 de `docs/connexions-et-plafonds.md` ne compte plus les routes, il nomme le plafond commun et les deux contrôleurs qui posent des `@Throttle`. Test : `src/common/limitation-debit-documentee.spec.ts`.
 
 **F269 · Arborescence de CLAUDE.md § 2 : module inexistant et dossiers omis** [doc-21]
 - **Emplacements :** CLAUDE.md:52-60
 - **Condition :** 5
 - **Constat :** « ecritures » au lieu de « comptabilite », et `installation/`, `e2e/`, `scripts/` absents.
 - **Correction :** corriger.
+- **Fait le 2026-09-28 :** l'arborescence du § 2 de CLAUDE.md est relue contre le disque (`comptabilite/`, `sur-site`, `e2e/`, `installation/`, `scripts/`, `.claude/skills/`, `docs/historique/`). Test : `reglement-interieur.spec.ts`.
 
 ---
 

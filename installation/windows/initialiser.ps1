@@ -25,14 +25,31 @@ try {
   $Port = 5433
   $ServicePg = 'OmegaX-PostgreSQL'
 
-  # Les deux fichiers sensibles (configuration et base) ne sont lisibles que
-  # par le système et les administrateurs · SID plutôt que noms, qui changent
-  # avec la langue de Windows (« Administrateurs »).
+  # Ce qui est sensible (les données entières, la configuration et la base)
+  # n'est lisible que par le système et les administrateurs · SID plutôt que
+  # noms, qui changent avec la langue de Windows (« Administrateurs »).
   function Restreindre([string]$chemin, [string[]]$autres = @()) {
     $droits = @('*S-1-5-18:(OI)(CI)F', '*S-1-5-32-544:(OI)(CI)F') + $autres
     & icacls $chemin /inheritance:r /grant:r @droits | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "icacls a échoué sur $chemin ($LASTEXITCODE)" }
   }
+
+  # AUDIT FINAL F192 · les DONNÉES ENTIÈRES, pas seulement la base et la
+  # configuration. Un dossier créé sous %ProgramData% hérite, dans la
+  # configuration par défaut de Windows, de la lecture pour les utilisateurs
+  # du poste · les sauvegardes (la base de TOUS les dossiers, en clair), la
+  # clé de la copie externe (sauvegarde-externe.json) et le repère de
+  # version (derniere-version.json) se lisaient depuis n'importe quelle
+  # session Windows, et un utilisateur pouvait y déposer un fichier. Le service
+  # OmegaX tourne sous le compte système (WinSW sans compte déclaré,
+  # omegax-service.xml) et garde tout. Le compte Service réseau
+  # (PostgreSQL) ne reçoit ici que la TRAVERSÉE de ce seul dossier, sans
+  # rien y lire · ses droits complets sont posés sur pgdata, plus bas.
+  # Posé AVANT les deux branches, donc rejoué à chaque mise à jour · un poste
+  # déjà installé est corrigé par la mise à jour suivante. pgdata et
+  # omegax.env, dont l'héritage est déjà coupé, n'en sont pas touchés ; les
+  # sauvegardes et les journaux, qui héritent, le sont.
+  Restreindre $Donnees @('*S-1-5-20:(X)')
 
   # Un mot de passe et un secret de session se tirent au générateur
   # cryptographique · Get-Random est prévisible et ne sert pas à cela.

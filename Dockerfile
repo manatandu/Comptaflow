@@ -1,6 +1,15 @@
-# --- Compta Flow · API NestJS (déploiement Cloud Run) ---------------------
+# --- OmegaX · API NestJS (déploiement Cloud Run) --------------------------
 # Multi-stage : la première étape compile (dev deps + prisma generate), la
 # seconde ne garde que le nécessaire à l'exécution.
+#
+# Le produit s'appelle OmegaX (audit final F264). Le service Cloud Run garde
+# son nom technique `comptaflow-api` : le relais de Firebase Hosting et le
+# contrôle de santé du déploiement le désignent, le renommer est un autre
+# chantier que cet en-tête.
+#
+# La version de Node des deux étapes est CELLE DE LA PRODUCTION, et la CI
+# l'éprouve sous le même numéro (audit final F194) · chaine-de-livraison.spec.ts
+# refuse qu'un workflow du serveur en installe une autre.
 
 FROM node:22-slim AS build
 WORKDIR /app

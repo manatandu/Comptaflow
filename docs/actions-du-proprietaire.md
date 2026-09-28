@@ -33,9 +33,9 @@ est déjà réglé »).
 
 ### La paire de clés des licences sur site n'est pas posée · le paquet refuse de se construire
 
-**Constat, vérifié le 2026-09-28.** `src/modules/sur-site/cle-publique-editeur.ts:16`
+**Constat, vérifié le 2026-09-28.** `src/modules/sur-site/cle-publique-editeur.ts:18`
 porte `export const CLE_PUBLIQUE_EDITEUR: string | null = null;`, et le
-commentaire du même fichier le dit (l. 6 à 11) : « `null` TANT QUE MANASSE NE
+commentaire du même fichier le dit (l. 6 à 13) : « `null` TANT QUE MANASSE NE
 L'A PAS POSÉE ». Trois conséquences, chacune lue dans le code :
 
 - **le paquet d'installation ne se construit pas.** Juste après la
@@ -54,7 +54,7 @@ L'A PAS POSÉE ». Trois conséquences, chacune lue dans le code :
 
 La console exige en plus la clé PRIVÉE, que le déploiement passe au service
 depuis le secret de dépôt `API_CLE_PRIVEE_LICENCE`
-(`.github/workflows/deploy-cloud-run.yml:250` et `:329-330`, facultatif) ;
+(`.github/workflows/deploy-cloud-run.yml:338` et `:417-418`, facultatif) ;
 absente, l'émission est refusée en nommant ce secret
 (`licences-sur-site.service.ts:80-83`). Que ce secret soit déjà posé ne se
 vérifie pas d'ici · la console le dira à la première émission.
@@ -66,7 +66,9 @@ code attend encore pour elle.
 
 **Ce qui est attendu de vous.** Une seule fois, chez VMG et jamais dans la CI,
 la marche de `docs/installation-sur-site.md` § 2 « Une seule fois chez VMG · la
-paire de clés » (le commentaire du code l'appelle « Clés de licence »). Les
+paire de clés » (le commentaire du code renvoie à ce titre depuis le
+2026-09-28, audit final F199 ; il nommait une section « Clés de licence »
+qui n'existe pas). Les
 gestes sont ceux de la fiche ; seul l'ordre diffère, le secret étant posé
 AVANT de pousser la clé publique pour qu'un seul déploiement porte les deux :
 
@@ -202,8 +204,8 @@ Relevé : docs/releve-de-manques-referentiels.md, passe 15, écart 15.1.
 
 - **Confirmation du régime de connexion dans les journaux Cloud Run** ·
   console Google Cloud → IAM → compte `github-deploy` → rôle « Lecteur de
-  journaux » (`roles/logging.viewer`, `.github/workflows/deploy-cloud-run.yml:394`
-  et `:416`). Depuis le 2026-09-03 le déploiement affirme déjà le régime à
+  journaux » (`roles/logging.viewer`, `.github/workflows/deploy-cloud-run.yml:474`
+  et `:496`). Depuis le 2026-09-03 le déploiement affirme déjà le régime à
   l'envoi, ce qui suffit. **Ne bloque rien.**
 - **Règle de cycle de vie sur le bucket des sauvegardes** · facultative, pour
   en borner le coût (`docs/sauvegardes-et-restauration.md`, « Copie durable
@@ -269,7 +271,7 @@ position de l'ONEC sur les outils informatiques, son site étant bloqué.
   droit d'écriture accordé à `github-deploy`, variable de dépôt
   `BUCKET_SAUVEGARDES` posée ; le run n° 28, lancé à la main le même jour, a
   copié la sauvegarde chiffrée vers Cloud Storage
-  (`.github/workflows/sauvegarde-base.yml:222-231`). Reste le confort du § 4.
+  (`.github/workflows/sauvegarde-base.yml:334-343`). Reste le confort du § 4.
 - **Module groupe en SYSCOHADA** · tranché le 2026-09-24, ouvert au siège et
   aux succursales d'une même société, liaison par les comptes 184 à 187
   (`src/modules/groupe/groupe.service.ts`, gelé par

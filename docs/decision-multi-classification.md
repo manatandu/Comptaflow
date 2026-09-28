@@ -1,5 +1,28 @@
 # Décision de structure · multi-classification de `Compte`, `Journal` et `Immobilisation`
 
+> **DÉCISION EN VIGUEUR, CHANTIERS CONSTRUITS DEPUIS · bandeau posé le
+> 2026-09-28 (audit final F267).** La décision tient : `Compte`, `Journal` et
+> `Immobilisation` restent mono-classification, et rien n'écrit dans
+> `Ecriture` ni dans `LigneEcriture` qui ne soit du référentiel légal
+> (`CLAUDE.md`, « Multi-classification »). Ce qui est révolu est le FUTUR du
+> document · « le jour où ils seront construits » (ci-dessous), « le jour où
+> un dossier en aura besoin, et pas avant » (§ 4) et les signaux du § 5. Les
+> deux chantiers ont été construits sur l'architecture du § 4, sans attendre
+> ces signaux :
+>
+> - **la consolidation SYSCOHADA**, tranches 1 à 4c (2026-09-24,
+>   `src/modules/consolidation/`), ses données dans des tables à côté du grand
+>   livre (`EntitePerimetreConsolidation`, `LigneBalanceConsolidation`…) ;
+> - **les états IFRS**, individuels puis consolidés (2026-09-25 et
+>   2026-09-26, `src/modules/ifrs/`), par des règles de correspondance
+>   (`RegleCorrespondanceIfrs`) et des retraitements (`RetraitementIfrs`)
+>   tenus dans leurs tables, un spec (`ifrs.service.spec.ts`) gelant les seuls
+>   fichiers qui les nomment.
+>
+> Aucun des deux modules n'écrit d'écriture au grand livre. Le plan
+> d'amortissement IFRS d'une immobilisation, prévu au § 4 en table fille,
+> n'a pas été construit.
+
 Tranchée le 2026-09-23. Question ouverte par `plan-de-construction.md` § 3.6 et
 reprise en avertissement dans `plan-ordonne-2026-09.md`, Phase I : « le
 multi-classification se pose à la CONCEPTION. `Compte`, `Journal` et

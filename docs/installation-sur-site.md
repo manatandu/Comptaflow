@@ -14,7 +14,7 @@ chez le client :
 | Élément | Où sur le poste |
 |---|---|
 | Programme (Node, serveur, interface, PostgreSQL, WinSW) | `C:\Program Files\OmegaX` |
-| Base, configuration, licence, sauvegardes, journaux | `C:\ProgramData\OmegaX` |
+| Base, configuration, licence, sauvegardes, journaux | `C:\ProgramData\OmegaX`, fermé aux utilisateurs du poste (système et administrateurs seulement) |
 | Service de la base | `OmegaX-PostgreSQL`, port 5433, adresse 127.0.0.1 seulement |
 | Service du logiciel | `OmegaX`, port 8080, démarrage automatique |
 | Raccourcis | Bureau et menu Démarrer, « OmegaX » |
@@ -96,14 +96,42 @@ Changer de PC serveur demande une nouvelle licence pour la nouvelle empreinte.
 ## 5. Sauvegardes et restauration
 
 Une copie de la base par jour, tentée chaque heure tant que le poste est
-allumé, dans `C:\ProgramData\OmegaX\sauvegardes` (30 copies gardées). Une
-copie part aussi avant chaque mise à jour, avant les migrations. Ces copies
-sont SUR LE MÊME DISQUE · une panne de disque emporterait tout. D'où la
+allumé, dans `C:\ProgramData\OmegaX\sauvegardes` (30 copies gardées,
+`omegax-AAAAMMJJ-HHMMSS.dump`). Une copie part aussi avant chaque mise à jour,
+avant les migrations (`omegax-AAAAMMJJ-HHMMSS-avant-mise-a-jour-<version>.dump`,
+la version étant celle dont la base avait la forme, donc celle qu'il faudrait
+réinstaller pour la relire). Les deux séries sont listées dans Restitution,
+et chacune garde son propre nombre de copies · 5 pour les copies avant mise à
+jour (`SAUVEGARDES_AVANT_MISE_A_JOUR_A_GARDER` dans `omegax.env` pour en
+changer), la copie d'une mise à jour dont la migration n'a jamais abouti
+n'étant jamais retirée, ni sur le poste ni hors du poste.
+
+Une copie s'écrit d'abord sous un nom provisoire (`….partiel`), qui n'est ni
+listé ni recopié, et ne prend son nom qu'une fois complète · une coupure de
+courant pendant la copie ne laisse rien qui passe pour une copie faite. Une
+copie avant mise à jour n'est JAMAIS réécrite · si la migration échoue, le
+service redémarre, reprend la copie faite avant le premier essai (celle de la
+base saine) et retente la migration, sans recopier une base à moitié migrée.
+
+Le dossier `C:\ProgramData\OmegaX` entier n'est lisible que par le système et
+les administrateurs du poste · une copie est la base de TOUS les dossiers, en
+clair, et le réglage de la copie externe porte la clé qui relit les copies
+chiffrées. L'initialisation pose cette restriction à chaque installation et à
+chaque mise à jour. Lire un journal ou une copie demande donc une session
+administrateur du poste (l'Explorateur le propose à l'ouverture du dossier).
+Un dossier de sauvegardes déplacé hors de
+`C:\ProgramData\OmegaX` (variable `DOSSIER_SAUVEGARDES`) ne la reçoit pas ·
+elle est alors à poser à la main.
+
+Ces copies sont SUR LE MÊME DISQUE · une panne de disque emporterait tout. D'où la
 **copie hors du poste** : dans Restitution, l'administrateur du dossier
 d'installation désigne un dossier sur un disque USB ou un partage réseau et
 choisit une **phrase de chiffrement** (douze caractères au moins), et chaque
 sauvegarde y est recopiée CHIFFRÉE (`omegax-AAAAMMJJ-HHMMSS.dump.chiffre`,
-même nombre de copies gardées). La phrase n'est rangée nulle part en clair ·
+même nombre de copies gardées, par série). La copie avant mise à jour, écrite
+avant que le serveur ne démarre, part au démarrage suivant, comme toute copie
+la plus récente que le dossier externe n'a pas encore reçue (disque
+débranché lors de la copie du jour). La phrase n'est rangée nulle part en clair ·
 c'est elle seule qui relira la copie si le disque du poste lâche, et perdue,
 la copie externe est illisible. Les copies en clair qu'une version
 antérieure avait déposées dans ce dossier en sont retirées. L'écran alerte
@@ -137,7 +165,37 @@ avant d'appliquer les migrations. La version majeure de PostgreSQL est gelée
 avant toute copie, la conversion d'une base se faisant avec VMG.
 
 Une mise à jour ne tourne que si sa date de publication est couverte par la
-fin de maintenance de la licence.
+fin de maintenance de la licence, et c'est vérifié AVANT la copie et les
+migrations · une version non couverte s'arrête sans avoir touché à la base.
+Le service ne démarre pas, et le motif est dans son journal
+(`C:\ProgramData\OmegaX\journaux`). Deux sorties, la base étant restée à la
+forme de la version précédente :
+
+1. renouveler la maintenance · VMG émet la licence, qui se dépose À LA MAIN
+   dans `C:\ProgramData\OmegaX\licence.omegax` (l'écran d'ouverture n'est pas
+   joignable tant que le service est arrêté). Le service la lit au démarrage
+   suivant · `net start OmegaX` s'il n'a pas déjà redémarré de lui-même ;
+2. réinstaller la version précédente, que la licence couvre.
+
+Une exception, et le journal la nomme · l'arrêt qui survient sur la REPRISE
+d'une migration qui avait échoué (un correctif publié après la fin de
+maintenance, installé par-dessus une mise à jour cassée). La base n'est alors
+PAS à la forme de la version précédente · l'essai l'a laissée dans l'état où
+il s'est interrompu, et le message nomme la copie faite avant lui, seule image
+saine. Réinstaller la version dont la migration avait échoué, ou une autre
+version plus récente que la licence couvre, retente la migration sur la base
+telle qu'elle est, cette copie restant celle de référence ; revenir à la
+version précédente demande de restaurer la copie, avec VMG (voir plus bas).
+
+Ce contrôle ne bloque jamais un poste sans licence lisible · un poste neuf doit
+créer sa base et démarrer, puisque c'est l'écran d'ouverture qui montre
+l'empreinte et reçoit la licence, et sans licence valide aucun dossier n'a pu
+y être créé.
+
+Si la migration échoue, le service redémarre et la retente, sans refaire la
+copie · celle d'avant le premier essai reste la copie de référence (§ 5). Pour revenir en arrière · arrêter le service, restaurer la copie avant
+mise à jour nommée dans le journal du service, et réinstaller la version que
+son nom porte, avec VMG.
 
 ## 7. Désinstaller
 
