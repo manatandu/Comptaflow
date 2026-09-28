@@ -407,6 +407,12 @@ export interface DetailRapprochement {
   /** Tranche montrée (audit final F185) · soldes et correspondances restent entiers. */
   tronque?: boolean;
   totalLignes?: number;
+  /**
+   * Les reports à-nouveau libres que ce rapprochement ne propose pas au
+   * pointage (audit final F205), comptés par la base sur le complément exact
+   * de la liste. Un nombre, jamais un montant · voir `RapprochementService.obtenir`.
+   */
+  aNouveauEcartes: number;
 }
 
 export interface LigneBalance {

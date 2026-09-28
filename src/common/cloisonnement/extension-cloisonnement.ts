@@ -64,6 +64,78 @@ function dossierCree(data: unknown): string | undefined {
 }
 
 /**
+ * E · MISE À JOUR · le dossier que `data` (ou le bloc `update` d'un upsert)
+ * ferait porter à la ligne. Audit final F240 · les règles B et C vérifiaient
+ * la ligne VISÉE par le filtre, jamais la ligne OBTENUE · un
+ * `update({ where: { id, tenantId: session }, data: { tenantId: autre } })`
+ * passait la borne du filtre et DÉPLAÇAIT la ligne chez un autre cabinet, qui
+ * la voyait ensuite comme la sienne. Aucun coût non plus · la valeur est dans
+ * la requête.
+ *
+ * PLUS STRICT QUE `dossierCree`, et pour deux raisons que la création n'a pas.
+ *
+ *  · Une mise à jour admet des formes qu'une création n'admet pas · `{ set: d }`
+ *    sur la colonne, et sur la relation `create`, `connectOrCreate`, `upsert`,
+ *    `disconnect`, ou un `connect` par une autre clé unique que l'identifiant
+ *    (`Tenant.dossierCombinaisonId`). Chacune peut changer le dossier sans le
+ *    nommer lisiblement · elles rendent FORME_ILLISIBLE, et la garde refuse
+ *    au lieu de deviner, comme `valeurEpingle` refuse `not` et `mode`.
+ *  · `null` y est une CIBLE et non une absence · poser `tenantId: null` sur un
+ *    maillon du journal d'audit (seul modèle où la colonne est facultative) le
+ *    sortirait de la chaîne du dossier pour celle de la plateforme. À la
+ *    création, en revanche, `null` est légitime · c'est le maillon d'un acte
+ *    de la console, écrit pendant une session du dossier de l'éditeur.
+ *
+ * `tenant: { update }` ne déplace rien · il modifie le dossier auquel la ligne
+ * appartient déjà, et que le filtre ou la relecture ont vérifié. Il n'est pas
+ * une cible.
+ */
+const FORME_ILLISIBLE = Symbol('forme de dossier illisible');
+type DossierVise = string | null | typeof FORME_ILLISIBLE;
+
+function dossiersVises(data: unknown): DossierVise[] {
+  if (!data || typeof data !== 'object') return [];
+  const d = data as Record<string, unknown>;
+  const cibles: DossierVise[] = [];
+
+  if (d.tenantId !== undefined) {
+    const v = d.tenantId;
+    if (typeof v === 'string' || v === null) cibles.push(v);
+    else if (
+      v &&
+      typeof v === 'object' &&
+      !Array.isArray(v) &&
+      Object.keys(v).length === 1 &&
+      (typeof (v as { set?: unknown }).set === 'string' || (v as { set?: unknown }).set === null)
+    ) {
+      cibles.push((v as { set: string | null }).set);
+    } else cibles.push(FORME_ILLISIBLE);
+  }
+
+  if (d.tenant !== undefined) {
+    const r = d.tenant;
+    if (!r || typeof r !== 'object' || Array.isArray(r)) return [...cibles, FORME_ILLISIBLE];
+    for (const [cle, valeur] of Object.entries(r as Record<string, unknown>)) {
+      if (cle === 'update') continue;
+      if (cle === 'connect') {
+        // Un `id` présent désigne à lui seul le dossier relié · d'autres
+        // critères à côté ne peuvent que faire échouer la liaison, jamais
+        // la porter ailleurs. Sans `id`, la clé unique est une autre, et
+        // l'identifiant du dossier ne se lit pas.
+        const c = valeur as Record<string, unknown> | null;
+        const lisible = !!c && typeof c === 'object' && typeof c.id === 'string';
+        cibles.push(lisible ? (c!.id as string) : FORME_ILLISIBLE);
+        continue;
+      }
+      cibles.push(FORME_ILLISIBLE);
+    }
+  }
+  return cibles;
+}
+
+const MISES_A_JOUR = ['update', 'updateMany', 'upsert'];
+
+/**
  * LES CLÉS QUI NE BORNENT PAS, MÊME QUAND ELLES PORTENT UN `tenantId`.
  *
  * `NOT` inverse la condition · `{ NOT: { tenantId: d } }` rend tout SAUF le
@@ -200,6 +272,28 @@ export async function garderCloisonnement(
       }
     }
     if (operation !== 'upsert') return query(args);
+  }
+
+  // E · la ligne OBTENUE, et pas seulement la ligne visée (F240). Posé AVANT
+  // les règles B et C, qui rendent la main dès que le filtre porte la borne ·
+  // placé après, il ne verrait jamais le cas qu'il existe pour refuser.
+  if (MISES_A_JOUR.includes(operation) && dossier) {
+    const donnees =
+      operation === 'upsert' ? (args as { update?: unknown })?.update : (args as { data?: unknown })?.data;
+    for (const cible of dossiersVises(donnees)) {
+      if (cible === FORME_ILLISIBLE) {
+        throw new CloisonnementViole(
+          `Mise à jour refusée · ${model}.${operation} touche au dossier de la ligne sous une forme que la garde ne sait pas lire. ` +
+            'Écrire le tenantId en clair, ou relier par tenant.connect.id.',
+        );
+      }
+      if (!dossierAutorise(cible)) {
+        throw new CloisonnementViole(
+          `Mise à jour refusée · ${model}.${operation} ferait passer la ligne dans un autre dossier que celui de la session. ` +
+            'Déclarer le périmètre par perimetreDeGroupe(...) ou la sortie par horsCloisonnement("raison", ...).',
+        );
+      }
+    }
   }
 
   if (COLLECTIONS.includes(operation)) {

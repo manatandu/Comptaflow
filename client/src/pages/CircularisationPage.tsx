@@ -36,6 +36,23 @@ const LIBELLE_STATUT_DEMANDE: Record<string, string> = {
   NON_DISTRIBUEE: 'Non distribuée',
 };
 
+/**
+ * L'ÉTAT DE LA CAMPAGNE, dit à l'écran (audit final F210). Le serveur la fait
+ * passer seul à « dépouillée » quand chaque lettre partie est classée, et
+ * c'est cet état qui ouvre la clôture · sans lui à l'écran, le comptable ne
+ * voyait ni qu'il restait des lettres à classer, ni que la campagne était
+ * prête à clore. Les clés sont celles de `StatutCampagneCircularisation`, et
+ * le type de l'écran les exige toutes · un état ajouté au schéma sans libellé
+ * ne compile plus.
+ */
+const LIBELLE_STATUT_CAMPAGNE: Record<CampagneCircularisation['statut'], string> = {
+  PREPARATION: 'En préparation',
+  ENVOYEE: 'Envoyée',
+  RELANCEE: 'Relancée',
+  DEPOUILLEE: 'Dépouillée',
+  CLOTUREE: 'Close',
+};
+
 const LIBELLE_NATURE: Record<string, string> = {
   DELAI: 'Délai',
   MESURE: 'Mesure',
@@ -345,7 +362,7 @@ export function CircularisationPage() {
             >
               <div className="text-[11.5px] font-semibold leading-tight">{c.libelle}</div>
               <div className="text-[10.5px] text-text-dim mt-0.5">
-                {LIBELLE_CYCLE[c.cycle]} · {jour(c.dateArrete)}
+                {LIBELLE_CYCLE[c.cycle]} · {jour(c.dateArrete)} · {LIBELLE_STATUT_CAMPAGNE[c.statut]}
               </div>
             </button>
           ))}
@@ -366,7 +383,13 @@ export function CircularisationPage() {
                     <div className="text-[11.5px] font-bold">{detail.libelle}</div>
                     <div className="text-[11px] text-text-dim">
                       {LIBELLE_CYCLE[detail.cycle]} au {jour(detail.dateArrete)} ·{' '}
-                      {detail.forme === 'NEGATIVE' ? 'demande négative' : 'demande positive'}
+                      {detail.forme === 'NEGATIVE' ? 'demande négative' : 'demande positive'} ·{' '}
+                      <span className="font-semibold text-text">{LIBELLE_STATUT_CAMPAGNE[detail.statut]}</span>
+                      <Aide
+                        titre="État de la campagne"
+                        texte="En préparation, l’échantillon se compose et les lettres ne sont pas parties. Envoyée puis relancée, des lettres attendent leur réponse. Dépouillée, chaque lettre partie est classée (réponse reçue, sans réponse, non distribuée) et la campagne peut être close, pourvu que chaque non-réponse ait sa procédure alternative. Close, la clôture a été acceptée."
+                        source="ISA 505 § 12"
+                      />
                     </div>
                   </div>
                   <div className="flex gap-1.5 items-center flex-wrap">

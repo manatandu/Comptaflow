@@ -905,6 +905,12 @@ model User {
 
   createdAt DateTime @default(now())
 
+  // AUDIT FINAL F261 · la liste des utilisateurs d'un dossier, et le décompte
+  // de ses administrateurs actifs (verrou du dernier administrateur, F157), se
+  // lisent par le dossier. L'unique sur `email` ne sert à rien ici · il ne
+  // commence pas par `tenantId`, et chaque lecture balayait la table entière,
+  // tous cabinets confondus.
+  @@index([tenantId])
   @@map("users")
 }
 
@@ -1587,6 +1593,11 @@ model Cloture {
   annuleeAt   DateTime?
   annuleeBy   String?
 
+  // AUDIT FINAL F261 · le gel de clôture (exercice/gel-cloture.ts) relit les
+  // clôtures du dossier à chaque saisie, lettrage et ventilation, par dossier
+  // puis par exercice. Sans index, chaque contrôle balayait les clôtures de
+  // tous les cabinets.
+  @@index([tenantId, exerciceId])
   @@map("clotures")
 }
 
@@ -1836,6 +1847,9 @@ model RapprochementBancaire {
   lignes LigneEcriture[]
   releve LigneReleveBancaire[]
 
+  // AUDIT FINAL F261 · un rapprochement se cherche par le dossier et le compte
+  // de trésorerie (le dernier clos, l'en cours), jamais seul par son compte.
+  @@index([tenantId, compteId])
   @@map("rapprochements_bancaires")
 }
 
@@ -2749,6 +2763,11 @@ model LigneOdAnalytique {
 
   @@index([odId])
   @@index([sectionId])
+  // AUDIT FINAL F261 · les états analytiques et le regroupement des OD lisent
+  // les lignes par le dossier, puis par la section · les deux index des clés
+  // étrangères ne portent pas le dossier, et la restitution lit la table par
+  // lui (`borneDuModele`).
+  @@index([tenantId, sectionId])
   @@map("lignes_od_analytique")
 }
 
@@ -3588,6 +3607,10 @@ model Immobilisation {
   fichesInventaire FicheInventaire[]
 
   @@index([immobilisationPrincipaleId])
+  // AUDIT FINAL F261 · le registre, les dotations, les contrôles et
+  // l'inventaire lisent les biens par le dossier, le plus souvent EN_SERVICE ·
+  // l'index du principal ne porte pas le dossier.
+  @@index([tenantId, statut])
   @@map("immobilisations")
 }
 
@@ -7256,6 +7279,10 @@ model LigneRetraitementIfrs {
   montant        Decimal          @db.Decimal(18, 2)
 
   @@index([retraitementId])
+  // AUDIT FINAL F261 · les lignes se lisent par leur retraitement (index
+  // ci-dessus), mais la restitution et le cloisonnement les bornent par le
+  // dossier (`borneDuModele`), qui n'avait aucun index.
+  @@index([tenantId])
   @@map("lignes_retraitement_ifrs")
 }
 

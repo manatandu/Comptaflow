@@ -4,6 +4,7 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import type { DetailRapprochement, PropositionsRapprochement } from '../lib/types';
 import { Aide } from '../components/chrome/Aide';
+import { mentionANouveauxEcartes } from '../lib/rapprochement-a-nouveau';
 
 /**
  * Pointage écriture par écriture d'un rapprochement bancaire (§3.4) : chaque
@@ -39,6 +40,7 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
   }, [id]);
 
   const enCours = detail?.rapprochement.statut === 'EN_COURS';
+  const mentionANouveau = detail ? mentionANouveauxEcartes(detail.aNouveauEcartes) : null;
 
   // --- Relevé importé et correspondances ---------------------------------
   const [propositions, setPropositions] = useState<PropositionsRapprochement | null>(null);
@@ -289,6 +291,19 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
               <div className="px-3 py-1 text-[11px] text-text-dim">
                 {detail.lignes.length} premières lignes sur {detail.totalLignes.toLocaleString('fr-FR')} · les soldes
                 portent tout le compte.
+              </div>
+            )}
+            {/* Les reports à-nouveau que le serveur n'offre pas au pointage se
+                comptent (audit final F205) · écartés sans un mot, ils se
+                liraient comme des lignes perdues. */}
+            {mentionANouveau && (
+              <div className="px-3 py-1 text-[11px] text-text-dim flex items-center gap-1.5">
+                <span>{mentionANouveau}</span>
+                <Aide
+                  titre="Report à-nouveau écarté"
+                  texte="Le report à-nouveau recopie le solde de clôture de l'exercice précédent · ce n'est pas une opération de la banque. Après un rapprochement clos, le solde de départ le contient déjà. Sans rapprochement antérieur, seul celui du premier exercice du dossier, qui porte le bilan d'ouverture, se pointe · les suivants recopient des lignes qui se pointent une à une. Pointé, il compterait l'ouverture deux fois."
+                  source="AUDCIF Titre VI, Rapprochement (État de) · AUDCIF art. 34, SYCEBNL art. 16, 4°"
+                />
               </div>
             )}
           </div>

@@ -301,7 +301,14 @@ export class RapprochementService {
       /** Vrai quand la liste ne montre qu'une tranche des lignes · les soldes restent entiers. */
       tronque: total > lignes.length,
       totalLignes: total,
-      /** Les à-nouveaux libres que ce rapprochement ne propose pas (audit final F205) · comptés, pour que leur absence se dise. */
+      /**
+       * Les à-nouveaux libres que ce rapprochement ne propose pas (audit final
+       * F205) · comptés par la base sur le complément exact de la liste, pour
+       * que leur absence se dise à l'écran. Le NOMBRE seul, jamais leur somme ·
+       * chaque report recopie un solde qui contient le précédent, et
+       * additionner les reports de deux exercices compterait la première
+       * ouverture deux fois, le défaut même que cette règle écarte.
+       */
       aNouveauEcartes,
       lignes: lignes.map((l) => ({
         id: l.id,

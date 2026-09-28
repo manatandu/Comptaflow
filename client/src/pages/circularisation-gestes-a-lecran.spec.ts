@@ -225,3 +225,34 @@ describe('circularisation · l’envoi ne se propose que là où le serveur l’
     expect(ecran).toEqual(serveur);
   });
 });
+
+/**
+ * AUDIT FINAL F210, LE RESTE · l'état de la campagne se lit à l'écran. Le
+ * serveur la fait passer seul à « dépouillée », et c'est cet état qui ouvre la
+ * clôture · tant que l'écran ne le montrait pas, rien ne disait au comptable
+ * s'il restait des lettres à classer ou si la campagne pouvait être close.
+ */
+describe('circularisation · l’état de la campagne est dit (F210)', () => {
+  it('les états libellés sont exactement ceux de StatutCampagneCircularisation', () => {
+    const i = page.indexOf('const LIBELLE_STATUT_CAMPAGNE');
+    expect(i).toBeGreaterThan(0);
+    const corps = bloc(page, page.indexOf('{', page.indexOf('=', i)));
+    const libelles = [...corps.matchAll(/^\s*([A-Z_]+)\s*:/gm)].map((m) => m[1]);
+    expect(new Set(libelles)).toEqual(valeursEnum('StatutCampagneCircularisation'));
+  });
+
+  it('chaque campagne de la liste porte son état', () => {
+    const debut = page.indexOf('campagnes?.map((c) => (');
+    expect(debut).toBeGreaterThan(0);
+    const element = page.slice(debut, page.indexOf('))}', debut));
+    expect(element).toContain('{LIBELLE_STATUT_CAMPAGNE[c.statut]}');
+  });
+
+  it('la campagne ouverte porte son état dans son en-tête', () => {
+    const debut = page.indexOf('{detail && (');
+    expect(debut).toBeGreaterThan(0);
+    // L'en-tête est le premier cadre du détail, jusqu'aux boutons d'action.
+    const entete = page.slice(debut, page.indexOf('<div className="flex gap-1.5 items-center flex-wrap">', debut));
+    expect(entete).toContain('{LIBELLE_STATUT_CAMPAGNE[detail.statut]}');
+  });
+});

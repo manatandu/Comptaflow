@@ -1,17 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Aide } from './chrome/Aide';
-import { mentionAttenteHorsListe, mentionTrancheOrdres, type ListeOrdresVirement } from '../lib/liste-ordres-virement';
-
-type Statut = 'A_IMPRIMER' | 'IMPRIME' | 'ANNULE';
+import {
+  cheminListeOrdres,
+  LIBELLE_STATUT_ORDRE,
+  mentionAttenteHorsListe,
+  mentionListeVide,
+  mentionTrancheOrdres,
+  type ListeOrdresVirement,
+  type StatutOrdre,
+} from '../lib/liste-ordres-virement';
 
 interface OrdreResume {
   id: string;
   numero: number;
   date: string;
   total: string | number;
-  statut: Statut;
+  statut: StatutOrdre;
   nombreImpressions: number;
   journal: { code: string; intitule: string };
   _count: { lignes: number };
@@ -45,12 +51,6 @@ const fmt = (n: string | number) =>
   Number(n).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const jour = (d: string) => new Date(d).toLocaleDateString('fr-FR', { timeZone: 'UTC' });
 
-export const LIBELLE_STATUT: Record<Statut, string> = {
-  A_IMPRIMER: "En attente d'impression",
-  IMPRIME: 'Imprimé',
-  ANNULE: 'Annulé',
-};
-
 /**
  * ORDRES DE VIREMENT · onglet de la fenêtre Règlement des tiers. L'ordre naît
  * avec ses pièces, « en attente d'impression » (Sage : « le règlement n'est
@@ -66,12 +66,33 @@ export function OrdresVirement({ ordreInitial, onSelection }: { ordreInitial?: s
   const [liste, setListe] = useState<ListeOrdresVirement<OrdreResume> | null>(null);
   const [ordre, setOrdre] = useState<Ordre | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
+  // LE FILTRE PAR ÉTAT (audit final F207, le reste) · `null`, tous les ordres.
+  const [filtre, setFiltre] = useState<StatutOrdre | null>(null);
+  // Seule la DERNIÈRE lecture demandée s'affiche · deux filtres choisis coup
+  // sur coup, la réponse du premier arrivant après celle du second, et la
+  // liste d'un état s'afficherait sous le choix de l'autre.
+  const derniereLecture = useRef(0);
 
-  const recharger = () =>
-    api
-      .get<ListeOrdresVirement<OrdreResume>>('/ordres-virement')
-      .then(setListe)
-      .catch((e) => setErreur(e instanceof ApiError ? e.message : 'Ordres illisibles'));
+  const recharger = () => {
+    const lecture = ++derniereLecture.current;
+    return api
+      .get<ListeOrdresVirement<OrdreResume>>(cheminListeOrdres(filtre))
+      .then((l) => {
+        if (lecture === derniereLecture.current) setListe(l);
+      })
+      .catch((e) => {
+        if (lecture === derniereLecture.current) setErreur(e instanceof ApiError ? e.message : 'Ordres illisibles');
+      });
+  };
+
+  // Un autre filtre, une autre liste · l'ancienne ne reste pas affichée sous
+  // le nouveau choix pendant la lecture, et « aucun ordre » ne se dit que de
+  // la liste lue pour lui.
+  const changerFiltre = (valeur: string) => {
+    setFiltre(valeur === '' ? null : (valeur as StatutOrdre));
+    setListe(null);
+    setErreur(null);
+  };
 
   const ouvrir = async (id: string) => {
     setErreur(null);
@@ -83,8 +104,14 @@ export function OrdresVirement({ ordreInitial, onSelection }: { ordreInitial?: s
     }
   };
 
+  // La liste se relit à chaque filtre, et quand un ordre vient de naître
+  // (`ordreInitial`), pour qu'il y figure.
   useEffect(() => {
     recharger();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtre, ordreInitial]);
+
+  useEffect(() => {
     if (ordreInitial) ouvrir(ordreInitial);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ordreInitial]);
@@ -125,25 +152,44 @@ export function OrdresVirement({ ordreInitial, onSelection }: { ordreInitial?: s
   const tenant = utilisateur?.tenant;
   const tranche = liste ? mentionTrancheOrdres(liste) : null;
   const attenteHorsListe = liste ? mentionAttenteHorsListe(liste) : null;
+  const listeVide = liste ? mentionListeVide(liste) : null;
 
   return (
     <>
       <div className="space-y-3">
         {erreur && <div className="text-[11.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2">{erreur}</div>}
+        {!ordre && (
+          <label className="flex items-center gap-2 text-[11.5px]">
+            État
+            <select
+              aria-label="Filtrer les ordres par état"
+              value={filtre ?? ''}
+              onChange={(e) => changerFiltre(e.target.value)}
+              className="border border-border px-2 py-[3px] bg-surface"
+            >
+              <option value="">Tous les états</option>
+              {(Object.keys(LIBELLE_STATUT_ORDRE) as StatutOrdre[]).map((s) => (
+                <option key={s} value={s}>
+                  {LIBELLE_STATUT_ORDRE[s]}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {!ordre && liste && (
           <>
+            {/* Dits même sur une liste filtrée vide · un ordre qui attend son
+                impression hors du filtre attend toujours (audit final F207). */}
+            {(tranche || attenteHorsListe) && (
+              <div className="text-[11.5px]">
+                {tranche && <span className="text-text-dim">{tranche} </span>}
+                {attenteHorsListe && <span className="text-warning font-semibold">{attenteHorsListe}</span>}
+              </div>
+            )}
             {liste.total === 0 ? (
-              <p className="text-[11.5px] text-text-dim">
-                Aucun ordre de virement. Cochez « Préparer un ordre de virement » en enregistrant des règlements fournisseurs.
-              </p>
+              <p className="text-[11.5px] text-text-dim">{listeVide}</p>
             ) : (
               <>
-                {(tranche || attenteHorsListe) && (
-                  <div className="text-[11.5px]">
-                    {tranche && <span className="text-text-dim">{tranche} </span>}
-                    {attenteHorsListe && <span className="text-warning font-semibold">{attenteHorsListe}</span>}
-                  </div>
-                )}
                 <table className="w-full text-[11.5px]">
                   <thead>
                     <tr>
@@ -166,7 +212,7 @@ export function OrdresVirement({ ordreInitial, onSelection }: { ordreInitial?: s
                         <td className="px-2 py-1 text-right">{o._count.lignes}</td>
                         <td className="px-2 py-1 text-right">{fmt(o.total)}</td>
                         <td className={`px-2 py-1 ${o.statut === 'A_IMPRIMER' ? 'text-warning font-semibold' : o.statut === 'ANNULE' ? 'text-text-dim' : ''}`}>
-                          {LIBELLE_STATUT[o.statut]}
+                          {LIBELLE_STATUT_ORDRE[o.statut]}
                         </td>
                       </tr>
                     ))}
@@ -184,7 +230,7 @@ export function OrdresVirement({ ordreInitial, onSelection }: { ordreInitial?: s
                 ← Tous les ordres
               </button>
               <span className="font-semibold">
-                Ordre n° {ordre.numero} du {jour(ordre.date)} · {LIBELLE_STATUT[ordre.statut]}
+                Ordre n° {ordre.numero} du {jour(ordre.date)} · {LIBELLE_STATUT_ORDRE[ordre.statut]}
               </span>
               {ordre.premiereImpressionLe && (
                 <span className="text-text-dim">

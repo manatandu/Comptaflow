@@ -58,6 +58,59 @@ describe("l'ordre de virement à l'écran", () => {
     expect(ordres).toContain('{attenteHorsListe && <span');
   });
 
+  describe('le filtre par état (audit final F207, le reste)', () => {
+    /** Le corps de `const nom = (...) => { ... };`, par équilibrage des accolades. */
+    function corpsFleche(source: string, nom: string): string {
+      const debut = source.indexOf(`const ${nom} = (`);
+      expect(debut).toBeGreaterThan(-1);
+      const ouverture = source.indexOf('{', source.indexOf('=>', debut));
+      let profondeur = 0;
+      for (let i = ouverture; i < source.length; i++) {
+        if (source[i] === '{') profondeur++;
+        if (source[i] === '}' && --profondeur === 0) return source.slice(ouverture, i + 1);
+      }
+      throw new Error(`corps de ${nom} introuvable`);
+    }
+
+    it('la liste se lit sous le filtre choisi, et se relit quand il change', () => {
+      const recharger = corpsFleche(ordres, 'recharger');
+      expect(recharger).toContain('cheminListeOrdres(filtre)');
+      expect(ordres).toContain('}, [filtre, ordreInitial]);');
+    });
+
+    it('seule la dernière lecture demandée s’affiche, réponse comme refus', () => {
+      const recharger = corpsFleche(ordres, 'recharger');
+      expect(recharger).toContain('const lecture = ++derniereLecture.current;');
+      expect(recharger).toContain('if (lecture === derniereLecture.current) setListe(l);');
+      expect(recharger).toContain('if (lecture === derniereLecture.current) setErreur(');
+    });
+
+    it("changer de filtre retire l'ancienne liste · rien ne s'affiche sous un choix qu'elle ne porte pas", () => {
+      const changer = corpsFleche(ordres, 'changerFiltre');
+      expect(changer).toContain('setListe(null);');
+      expect(changer).toContain("setFiltre(valeur === '' ? null : (valeur as StatutOrdre));");
+    });
+
+    it('les états proposés sont ceux de la table des libellés, et « tous » vide le filtre', () => {
+      expect(ordres).toContain("value={filtre ?? ''}");
+      expect(ordres).toContain('onChange={(e) => changerFiltre(e.target.value)}');
+      expect(ordres).toContain('<option value="">Tous les états</option>');
+      expect(ordres).toContain('(Object.keys(LIBELLE_STATUT_ORDRE) as StatutOrdre[]).map((s) => (');
+    });
+
+    it('une liste filtrée vide se dit par la règle, et les ordres à imprimer hors filtre restent dits', () => {
+      expect(ordres).toContain('const listeVide = liste ? mentionListeVide(liste) : null;');
+      expect(ordres).toContain('{listeVide}');
+      // Dans le bloc de la liste lue, la mention des ordres à imprimer vient
+      // AVANT l'aiguillage « liste vide ou tableau » · elle se lit dans les deux.
+      const bloc = ordres.slice(ordres.indexOf('{!ordre && liste && ('));
+      const mention = bloc.indexOf('{(tranche || attenteHorsListe) && (');
+      const aiguillage = bloc.indexOf('{liste.total === 0 ? (');
+      expect(mention).toBeGreaterThan(-1);
+      expect(aiguillage).toBeGreaterThan(mention);
+    });
+  });
+
   it('un ordre annulé ne produit aucun document imprimable', () => {
     expect(ordres).toContain("{ordre && ordre.statut !== 'ANNULE' && (\n        <div className=\"impression-seul");
   });

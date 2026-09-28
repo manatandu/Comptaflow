@@ -195,7 +195,46 @@ describe('la liste des ordres est une tranche qui se dit', () => {
   it('une liste entière ne se dit pas tronquée', async () => {
     const { service } = monterListe(3, [2]);
     const r = await service.lister('t');
-    expect(r).toMatchObject({ total: 3, tronque: false, enAttenteImpression: 1 });
+    expect(r).toMatchObject({ total: 3, tronque: false, enAttenteImpression: 1, statut: null });
     expect(r.ordres.map((o) => o.numero)).toEqual([3, 2, 1]);
+  });
+
+  /**
+   * AUDIT FINAL F207, LE RESTE · le filtre par état. La liste et son total se
+   * lisent sur le MÊME filtre, les ordres à imprimer sur le dossier entier.
+   */
+  it('filtrée par état · la liste et son total ne portent que cet état, et le filtre est rendu', async () => {
+    const { service, prisma } = monterListe(6, [2, 5]);
+    const r = await service.lister('t', 'A_IMPRIMER' as never);
+    expect(prisma.ordreVirement.findMany.mock.calls[0][0].where).toEqual({ tenantId: 't', statut: 'A_IMPRIMER' });
+    expect(r.ordres.map((o) => o.numero)).toEqual([5, 2]);
+    expect(r).toMatchObject({ total: 2, tronque: false, enAttenteImpression: 2, statut: 'A_IMPRIMER' });
+  });
+
+  it('un filtre qui ne garde qu’une partie du dossier ne se dit pas tronqué pour autant', async () => {
+    // Le dossier dépasse le plafond, l'état filtré non · un total pris sur le
+    // dossier entier annoncerait une tranche sur une liste complète.
+    const { service } = monterListe(PLAFOND_ORDRES_LISTES + 2, [1, 3]);
+    const r = await service.lister('t', 'A_IMPRIMER' as never);
+    expect(r.ordres.map((o) => o.numero)).toEqual([3, 1]);
+    expect(r).toMatchObject({ total: 2, tronque: false });
+  });
+
+  it('filtrée au-delà du plafond · la tranche se dit, les ordres à imprimer restent comptés sur le dossier', async () => {
+    const { service } = monterListe(PLAFOND_ORDRES_LISTES + 3, [1]);
+    const r = await service.lister('t', 'IMPRIME' as never);
+    expect(r.ordres).toHaveLength(PLAFOND_ORDRES_LISTES);
+    expect(r.ordres.every((o) => o.statut === 'IMPRIME')).toBe(true);
+    expect(r).toMatchObject({ total: PLAFOND_ORDRES_LISTES + 2, tronque: true, statut: 'IMPRIME' });
+    // Aucun ordre à imprimer dans une liste filtrée sur « Imprimé » · celui du
+    // dossier est compté quand même, pour que l'écran dise qu'il attend.
+    expect(r.enAttenteImpression).toBe(1);
+  });
+
+  it('un état inconnu est refusé avant toute lecture, jamais ignoré', async () => {
+    const { service, prisma } = monterListe(3, [2]);
+    await expect(service.lister('t', 'INCONNU' as never)).rejects.toThrow(/État d'ordre de virement inconnu : INCONNU/);
+    expect(prisma.ordreVirement.findMany).not.toHaveBeenCalled();
+    expect(prisma.ordreVirement.count).not.toHaveBeenCalled();
   });
 });

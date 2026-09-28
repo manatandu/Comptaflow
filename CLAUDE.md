@@ -513,7 +513,8 @@ final F210) · au classement, et au retrait de la dernière lettre « à
 envoyer », par un passage conditionnel qui ne rouvre jamais une campagne
 close. Le dépouillement n'admet que les trois issues (réponse reçue, sans
 réponse, non distribuée) et refuse une lettre qui n'est pas partie ;
-« envoyée » et « relancée » se posent par l'envoi seul.
+« envoyée » et « relancée » se posent par l'envoi seul. L'état de chaque
+campagne s'affiche, dans la liste et dans son en-tête.
 
 TROIS REFUS, chacun contre un défaut qui laisse le dossier parfaitement
 présentable. UNE NON-RÉPONSE N'EST PAS UNE CONFIRMATION · ISA 505 § 12, « in
@@ -4641,7 +4642,8 @@ ouverture. Après un rapprochement CLOS, aucun à-nouveau n'est pointable ; sans
 lui, seul celui du PREMIER exercice du dossier, qui porte le bilan
 d'ouverture, comme dans `balanceCumulee`. La règle vit une fois
 (`estANouveauEcarte`, `filtreANouveauEcarte`) · filtre en base à la lecture
-et aux propositions, refus nommé au pointage et à la confirmation.
+et aux propositions, refus nommé au pointage et à la confirmation. L'écran
+dit combien il en écarte, le nombre et jamais la somme.
 
 **Règlement des tiers à partir des échéances (2026-09-25).** Deuxième manque
 « usage quotidien » de la comparaison Sage i7. Fenêtre Traitement > Règlement
@@ -5070,7 +5072,8 @@ pas, ses RIB partent avec lui. L'état ne bloque pas la validation de la pièce 
 décision déclarée, la validation restant l'acte du comptable. LA LISTE DES
 ORDRES EST UNE TRANCHE QUI SE DIT (audit final F207) · les plus récents, avec
 le total et le nombre d'ordres à imprimer lus sur le dossier entier, et
-l'écran dit ceux qui n'y sont pas.
+l'écran dit ceux qui n'y sont pas. Elle se filtre par état, le même filtre
+servant la tranche et son total, et un état inconnu est refusé.
 
 **Rubriques de paie du cabinet, avances et prêts au personnel (2026-09-26).**
 Priorité 2 de la comparaison avec les autres produits Sage (Paie et RH).
@@ -6679,7 +6682,13 @@ avant de l'écrire ; un spec (`compte-seed-syscohada.spec.ts`) le contrôle.
   travers : les règles A et B se court-circuitent sur cette fonction, si bien
   qu'un `tenantId` étranger DÉSACTIVAIT la garde au lieu de la déclencher.
   `{ tenantId: { not: null } }` et `{ OR: [{ tenantId: d }, {}] }` passaient
-  pour des bornes.
+  pour des bornes. LA LIGNE OBTENUE SE VÉRIFIE COMME LA LIGNE VISÉE
+  (2026-09-28, audit final F240) · une mise à jour dont les données
+  porteraient la ligne dans un autre dossier est refusée, et une forme qui
+  touche au dossier sans le nommer lisiblement l'est aussi. Toute table
+  cloisonnée porte un index qui commence par `tenantId` (F261,
+  `index-du-dossier.spec.ts`) · sans lui, chaque lecture bornée balaie la
+  table de tous les cabinets.
   Deux échappatoires, et deux seulement :
   `horsCloisonnement('raison', ...)`, qui sort TOTALEMENT de la garde et dont
   la liste des utilisateurs est gelée par un test ; et

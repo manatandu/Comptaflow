@@ -160,19 +160,39 @@ export class OrdresVirementService {
    * compris. Le total et le nombre d'ordres en attente se demandent à la
    * base, sur le dossier entier · c'est ce qui permet à l'écran de dire
    * qu'un ordre à imprimer n'est pas dans la tranche montrée.
+   *
+   * LE FILTRE PAR ÉTAT DIT SON PÉRIMÈTRE (audit final F207, le reste). La
+   * liste et son `total` se lisent sur le MÊME filtre · un total pris sur le
+   * dossier entier à côté d'une liste filtrée rendrait `tronque` vrai sur une
+   * liste complète, et l'écran annoncerait une tranche qui n'existe pas. Le
+   * filtre est RENDU (`statut`, `null` sans filtre), pour que la phrase qui dit
+   * la tranche nomme l'état qu'elle compte. Les ordres à imprimer, eux, restent
+   * comptés sur le dossier entier · filtré sur « Imprimé », l'écran doit encore
+   * dire qu'un ordre attend son impression hors de la liste affichée. Un état
+   * inconnu est refusé ici comme au DTO, jamais ignoré · ignoré, il rendrait
+   * la liste entière sous un filtre que l'utilisateur croit posé.
    */
-  async lister(tenantId: string) {
+  async lister(tenantId: string, statut?: StatutOrdreVirement) {
+    if (statut !== undefined && !Object.values(StatutOrdreVirement).includes(statut)) {
+      throw new BadRequestException(
+        `État d'ordre de virement inconnu : ${String(statut)}. États admis : ${Object.values(StatutOrdreVirement).join(', ')}.`,
+      );
+    }
+    // Le dossier s'écrit en clair dans chaque requête · la garde qui relit le
+    // code (`cloisonnement.spec.ts`) ne suit pas un filtre posé dans une
+    // variable.
+    const parEtat = statut === undefined ? {} : { statut };
     const [ordres, total, enAttenteImpression] = await Promise.all([
       this.prisma.ordreVirement.findMany({
-        where: { tenantId },
+        where: { tenantId, ...parEtat },
         orderBy: { numero: 'desc' },
         take: PLAFOND_ORDRES_LISTES,
         include: { journal: { select: { code: true, intitule: true } }, _count: { select: { lignes: true } } },
       }),
-      this.prisma.ordreVirement.count({ where: { tenantId } }),
+      this.prisma.ordreVirement.count({ where: { tenantId, ...parEtat } }),
       this.prisma.ordreVirement.count({ where: { tenantId, statut: StatutOrdreVirement.A_IMPRIMER } }),
     ]);
-    return { ordres, total, tronque: total > ordres.length, enAttenteImpression };
+    return { ordres, total, tronque: total > ordres.length, enAttenteImpression, statut: statut ?? null };
   }
 
   async detail(tenantId: string, id: string) {

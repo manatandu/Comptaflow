@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { RoleUtilisateur } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
@@ -6,7 +6,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { OrdresVirementService } from './ordres-virement.service';
-import { AnnulerOrdreDto } from './ordres-virement.dto';
+import { AnnulerOrdreDto, ListerOrdresDto } from './ordres-virement.dto';
 
 /**
  * Les ordres de virement, onglet de la fenêtre Règlement des tiers. Lus par
@@ -19,9 +19,10 @@ import { AnnulerOrdreDto } from './ordres-virement.dto';
 export class OrdresVirementController {
   constructor(private readonly ordres: OrdresVirementService) {}
 
+  /** Filtrable par état (`?statut=A_IMPRIMER`), un état inconnu étant un 400. */
   @Get()
-  lister(@CurrentUser() user: AuthenticatedUser) {
-    return this.ordres.lister(user.tenantId);
+  lister(@CurrentUser() user: AuthenticatedUser, @Query() filtre: ListerOrdresDto) {
+    return this.ordres.lister(user.tenantId, filtre.statut);
   }
 
   @Get(':id')

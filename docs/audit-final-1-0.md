@@ -1543,6 +1543,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Constat :** la ligne reste « non pointée » d'une année sur l'autre, et la pointer compte l'ouverture deux fois.
 - **Correction :** l'écarter quand un rapprochement antérieur existe, ou la montrer à part.
 - **Fait le 2026-09-28 :** le report à-nouveau n'est plus proposé au pointage · une seule ouverture par chaîne. Après un rapprochement clos, aucun à-nouveau ; sans rapprochement antérieur, seul celui du premier exercice du dossier, qui porte le bilan d'ouverture, comme dans `balanceCumulee`. La règle vit une fois (`estANouveauEcarte`, `filtreANouveauEcarte`, `rapprochement.service.ts`) · filtre sur la liste et les propositions, refus nommé (`motifRefusANouveau`) au pointage et à la confirmation ; une ligne déjà pointée sur ce rapprochement reste montrée pour se défaire. Test : `a-nouveau-rapprochement.spec.ts`. **Reste :** l'écran ne dit pas encore combien d'à-nouveaux sont écartés (`aNouveauEcartes`).
+- **Complété le 2026-09-28 :** l'écran du rapprochement dit combien de reports à-nouveau sont écartés du pointage, le nombre et jamais la somme, qui compterait la première ouverture autant de fois qu'un report la recopie (`mentionANouveauxEcartes`, `rapprochement-a-nouveau.ts`, `RapprochementDetailPage.tsx`). Test : `rapprochement-a-nouveau.spec.ts`.
 
 **F206 · Balance cumulée : l'« ouverture » inclut la clôture du premier exercice** [saisie-24]
 - **Emplacements :** src/modules/comptabilite/ecriture.service.ts:3029-3033
@@ -1557,6 +1558,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Constat :** les ordres les plus anciens disparaissent de l'onglet.
 - **Correction :** `total` et `tronque`, ou filtres.
 - **Fait le 2026-09-28 :** `GET /ordres-virement` rend les `PLAFOND_ORDRES_LISTES` plus récents avec le total et le nombre d'ordres à imprimer, lus sur le dossier entier (`ordres-virement.service.ts`) ; l'onglet part de null et dit les ordres à imprimer qui ne sont pas dans la liste (`liste-ordres-virement.ts`, `OrdresVirement.tsx`). Tests : `ordres-virement.spec.ts` (serveur et écran), `liste-ordres-virement.spec.ts`. **Reste :** aucun filtre par état.
+- **Complété le 2026-09-28 :** la liste des ordres de virement se filtre par état (`ListerOrdresDto`, `?statut=`), le même filtre servant la tranche et son total ; les ordres à imprimer restent comptés sur le dossier entier, et un état inconnu est refusé au DTO comme au service, jamais ignoré. L'écran propose les trois états et nomme celui qu'il filtre. Tests : `ordres-virement-filtre.spec.ts`, qui monte un serveur Nest avec sa validation, `ordres-virement.spec.ts`, `liste-ordres-virement.spec.ts`, `ordres-virement.spec.ts` (client).
 
 ### Exercice et révision
 
@@ -1581,6 +1583,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Constat :** état mort de l'énumération.
 - **Correction :** poser ce statut, ou le retirer.
 - **Fait le 2026-09-28 :** une campagne passe à « dépouillée » quand chaque lettre partie est classée (`estDepouillee`, `suivreDepouillement`, `circularisation.service.ts`), au classement comme au retrait de la dernière lettre à envoyer, par un passage conditionnel qui ne rouvre jamais une campagne close. Le dépouillement n'accepte que les trois issues (réponse reçue, sans réponse, non distribuée) et refuse une lettre qui n'est pas partie. Tests : `circularisation.spec.ts`, `circularisation-gestes-a-lecran.spec.ts`. **Reste :** le statut de la campagne ne s'affiche pas à l'écran.
+- **Complété le 2026-09-28 :** l'état de chaque campagne s'affiche, dans la liste et dans l'en-tête de la campagne ouverte, par une table dont le type exige tous les états du schéma (`LIBELLE_STATUT_CAMPAGNE`, `CircularisationPage.tsx`). Test : `circularisation-gestes-a-lecran.spec.ts`.
 
 ### États financiers
 
@@ -1804,6 +1807,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 2
 - **Constat :** lacune de défense en profondeur, non exploitable aujourd'hui.
 - **Correction :** appliquer `dossierCree` à `data` et à `update`.
+- **Fait le 2026-09-28 :** la garde vérifie aussi la ligne OBTENUE (règle E, `dossiersVises`, `extension-cloisonnement.ts`) · une mise à jour ou un upsert dont les données porteraient la ligne dans un autre dossier (`tenantId`, `{ set }`, `tenant.connect.id`) est refusé, et une forme qui touche au dossier sans le nommer lisiblement (`connectOrCreate`, `disconnect`, `connect` sans `id`, `null` sur le journal d'audit) l'est aussi, au lieu d'être devinée. Test : `deplacement-par-mise-a-jour.spec.ts`.
 
 ### Plateforme
 
@@ -1953,6 +1957,7 @@ Chaque ligne donne ses références d'origine entre crochets. Quand une ligne fu
 - **Condition :** 6
 - **Constat :** User, Cloture, RapprochementBancaire, Immobilisation, LigneOdAnalytique et LigneRetraitementIfrs sont parcourues entières.
 - **Correction :** `@@index([tenantId…])` par migration, puis contrôle de dérive.
+- **Fait le 2026-09-28 :** six index qui commencent par `tenantId` (`users`, `clotures`, `rapprochements_bancaires`, `lignes_od_analytique`, `immobilisations`, `lignes_retraitement_ifrs`), déclarés au schéma et posés par la migration `20261206000000_index_tenant_f261` ; le contrôle de dérive rend « No difference detected » sur une base jetable. Test : `index-du-dossier.spec.ts`, qui exige un index commençant par le dossier sur TOUTE table cloisonnée, celles de demain comprises.
 
 ### Exploitation
 
