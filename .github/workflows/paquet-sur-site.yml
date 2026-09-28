@@ -29,7 +29,7 @@ jobs:
       run:
         shell: pwsh
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Exiger la clé publique de l'éditeur
         run: |
