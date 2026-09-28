@@ -12,11 +12,27 @@ import { TiersModule } from '../tiers/tiers.module';
 import { ComptabiliteModule } from '../comptabilite/comptabilite.module';
 import { GarnissageDemonstrationService } from './garnissage-demonstration.service';
 import { CourrielsEditeurService } from './abonnements/courriels-editeur.service';
+import { ImmobilisationsModule } from '../immobilisations/immobilisations.module';
+import { PersonnelModule } from '../personnel/personnel.module';
+import { RapprochementModule } from '../rapprochement/rapprochement.module';
+import { QuestionnaireModule } from '../questionnaire/questionnaire.module';
 
 @Module({
   // AuthModule pour AuthService : la création d'un cabinet client réutilise
-  // le pipeline d'inscription (voir PlateformeService.creerCabinet).
-  imports: [AuthModule, FacturationModule, CourrierModule, TiersModule, ComptabiliteModule],
+  // le pipeline d'inscription (voir PlateformeService.creerCabinet). Les
+  // quatre derniers servent le garnissage de la vitrine, qui passe par les
+  // services de chaque fenêtre et jamais par une écriture en base à la main.
+  imports: [
+    AuthModule,
+    FacturationModule,
+    CourrierModule,
+    TiersModule,
+    ComptabiliteModule,
+    ImmobilisationsModule,
+    PersonnelModule,
+    RapprochementModule,
+    QuestionnaireModule,
+  ],
   controllers: [PlateformeController],
   providers: [
     PlateformeService,

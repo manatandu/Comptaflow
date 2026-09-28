@@ -1,5 +1,6 @@
 import { Referentiel, TypeTiers } from '@prisma/client';
-import { scenarioDemonstration } from './scenario-demonstration';
+import { mouvementsBanque, scenarioDemonstration } from './scenario-demonstration';
+import { FAMILLES_IMMOBILISATION_DEFAUT, FAMILLES_IMMOBILISATION_DEFAUT_SYSCOHADA } from '../immobilisations/famille-immobilisation-seed';
 import { join } from 'path';
 import { numeroCollectif } from '../tiers/collectifs-tiers';
 
@@ -51,11 +52,16 @@ describe.each([
     expect([...jours].sort()).toEqual(jours);
   });
 
-  it('la banque ne passe jamais sous zéro, et une facture reste ouverte à dessein', () => {
+  it('la banque ne passe jamais sous zéro, acquisitions comptant comprises, et une facture reste ouverte à dessein', () => {
     let banque = 0;
-    for (const op of s.operations) {
-      for (const l of op.lignes) if ('tresorerie' in l) banque += l.sens === 'DEBIT' ? l.montant : -l.montant;
-      expect([op.libelle, banque >= 0]).toEqual([op.libelle, true]);
+    const mouvements = mouvementsBanque(s);
+    // La lecture commune compte les opérations ET les biens payés comptant.
+    expect(mouvements.length).toBe(
+      s.operations.reduce((a, o) => a + o.lignes.filter((l) => 'tresorerie' in l).length, 0) + s.immobilisations.length,
+    );
+    for (const m of mouvements) {
+      banque += m.montant;
+      expect([m.jour, banque >= 0]).toEqual([m.jour, true]);
     }
     const soldes = new Map<string, number>();
     for (const op of s.operations) for (const l of op.lignes) if ('tiers' in l) soldes.set(l.tiers, (soldes.get(l.tiers) ?? 0) + (l.sens === 'DEBIT' ? l.montant : -l.montant));
@@ -66,6 +72,33 @@ describe.each([
     expect(s.nomEntite).toMatch(/démonstration/);
     expect(s.activite).toMatch(/fictive/);
     expect(s.tiers.every((t) => /fictif/.test(t.nom))).toBe(true);
+    expect(s.immobilisations.every((i) => /fictif/.test(i.designation))).toBe(true);
+    expect(s.salarie.nom).toMatch(/fictif/);
+    expect(s.questionnaire).toMatch(/démonstration/);
+  });
+
+  it('chaque bien se range dans une famille que le semis de CE référentiel ouvre · aucun numéro choisi pour la vitrine', () => {
+    const familles = referentiel === Referentiel.SYSCOHADA ? FAMILLES_IMMOBILISATION_DEFAUT_SYSCOHADA : FAMILLES_IMMOBILISATION_DEFAUT;
+    const codes = new Set(familles.map((f) => f.code));
+    expect(s.immobilisations.length).toBeGreaterThan(0);
+    for (const i of s.immobilisations) expect([i.designation, codes.has(i.famille)]).toEqual([i.designation, true]);
+    // Une désignation est la clé de la reprise · deux biens de même nom se confondraient.
+    expect(new Set(s.immobilisations.map((i) => i.designation)).size).toBe(s.immobilisations.length);
+  });
+
+  it('le relevé tombe dans l’année, porte un solde positif, et laisse des opérations postérieures à pointer', () => {
+    const mouvements = mouvementsBanque(s);
+    const avant = mouvements.filter((m) => m.jour <= s.jourReleve);
+    expect(avant.length).toBeGreaterThan(0);
+    expect(avant.reduce((a, m) => a + m.montant, 0)).toBeGreaterThan(0);
+    expect(mouvements.some((m) => m.jour > s.jourReleve)).toBe(true);
+  });
+
+  it('le bulletin tombe sur un mois SANS écriture de paie au scénario · le passer au journal ne doublerait rien', () => {
+    expect(s.salarie.moisBulletin).toMatch(/^(0[1-9]|1[0-2])$/);
+    expect(s.salarie.remunerationMensuelleFc).toBeGreaterThan(0);
+    const moisDesSalaires = s.operations.filter((o) => o.lignes.some((l) => 'nature' in l && l.nature.startsWith('66'))).map((o) => o.jour.slice(0, 2));
+    expect(moisDesSalaires).not.toContain(s.salarie.moisBulletin);
   });
 });
 

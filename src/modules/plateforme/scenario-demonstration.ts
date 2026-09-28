@@ -1,4 +1,4 @@
-import { Referentiel, TypeTiers } from '@prisma/client';
+import { Referentiel, SexeTravailleur, TypeContratTravail, TypeTiers } from '@prisma/client';
 
 /**
  * LE SCÉNARIO DES DOSSIERS DE DÉMONSTRATION · une association (SYCEBNL) et
@@ -33,11 +33,66 @@ export interface OperationDemo {
   lignes: LigneDemo[];
 }
 
+/**
+ * Un bien acquis dans l'exercice, passé par `ImmobilisationService.creer`,
+ * qui pose l'écriture d'acquisition et le plan d'amortissement. AUCUN NUMÉRO
+ * ICI NON PLUS · le bien se range dans une FAMILLE semée à la création du
+ * dossier (`famille-immobilisation-seed.ts`, comptes et durées sourcés à
+ * l'arrêté n° 013/2025), et il est payé comptant, par le compte du journal
+ * de banque. Un spec exige que la famille existe dans les deux semis.
+ */
+export interface ImmobilisationDemo {
+  jour: string;
+  designation: string;
+  numeroInventaire: string;
+  famille: 'INFORMATIQUE' | 'MOBILIER';
+  valeur: number;
+}
+
+/**
+ * Un salarié du registre, son contrat et UN bulletin émis. La rémunération
+ * est STIPULÉE EN FRANCS · un salaire en dollars exigerait le cours du jour
+ * saisi dans Devises (`personnel/conversion-usd.ts`), que la vitrine n'a pas.
+ * La monnaie est portée par le contrat, jamais omise (`motifMonnaieExigee`).
+ *
+ * La CLASSE professionnelle n'est pas posée · elle dépend de l'emploi au sens
+ * de la grille du décret n° 25/22, et la choisir pour un emploi fictif serait
+ * une qualification inventée. La confrontation au minimum s'abstient alors,
+ * et le dit.
+ *
+ * Le bulletin est d'un mois SANS écriture de paie au scénario · le passer au
+ * journal depuis l'onglet Bulletins reste à montrer, et il ne double rien.
+ */
+export interface SalarieDemo {
+  matricule: string;
+  nom: string;
+  prenoms: string;
+  sexe: SexeTravailleur;
+  nationalite: string;
+  natureTravail: string;
+  type: TypeContratTravail;
+  /** Brut mensuel, en francs. */
+  remunerationMensuelleFc: number;
+  /** Mois (MM) du bulletin émis, dans l'année de l'exercice. */
+  moisBulletin: string;
+}
+
 export interface ScenarioDemo {
   nomEntite: string;
   activite: string;
   tiers: { code: string; nom: string; type: TypeTiers }[];
   operations: OperationDemo[];
+  immobilisations: ImmobilisationDemo[];
+  salarie: SalarieDemo;
+  /**
+   * Le PREMIER rapprochement du compte de banque · relevé fictif arrêté à ce
+   * jour, dont le solde est celui des lignes de banque qu'il pointe, départ
+   * DÉCLARÉ à zéro à l'ouverture de l'exercice (le dossier naît sans banque).
+   * Les opérations postérieures restent à pointer, à dessein.
+   */
+  jourReleve: string;
+  /** Un questionnaire de révision ouvert, sans réponse · les réponses sont le travail du cabinet. */
+  questionnaire: string;
 }
 
 /** Deux lignes équilibrées · la forme de tous les modèles simples. */
@@ -66,6 +121,23 @@ const SYCEBNL: ScenarioDemo = {
     { jour: '05-12', journal: 'ACH', libelle: 'Transport de matériel médical', reference: 'TL-118', lignes: deux({ nature: '60110000', sens: 'DEBIT' }, { tiers: 'FRN002', sens: 'CREDIT' }, 300_000) },
     { jour: '06-15', journal: 'BQ', libelle: 'Don reçu · journée portes ouvertes', lignes: deux({ tresorerie: true, sens: 'DEBIT' }, { nature: '70410000', sens: 'CREDIT' }, 1_000_000) },
   ],
+  immobilisations: [
+    { jour: '02-05', designation: 'Ordinateurs du centre de santé (fictif)', numeroInventaire: 'INV-001', famille: 'INFORMATIQUE', valeur: 1_200_000 },
+    { jour: '04-15', designation: 'Mobilier de la salle d’attente (fictif)', numeroInventaire: 'INV-002', famille: 'MOBILIER', valeur: 600_000 },
+  ],
+  salarie: {
+    matricule: 'DEMO-001',
+    nom: 'Ilunga (fictif)',
+    prenoms: 'Grâce',
+    sexe: SexeTravailleur.FEMININ,
+    nationalite: 'Congolaise',
+    natureTravail: 'Infirmière',
+    type: TypeContratTravail.DUREE_INDETERMINEE,
+    remunerationMensuelleFc: 800_000,
+    moisBulletin: '05',
+  },
+  jourReleve: '03-31',
+  questionnaire: 'Révision de l’exercice (démonstration)',
 };
 
 const SYSCOHADA: ScenarioDemo = {
@@ -88,7 +160,38 @@ const SYSCOHADA: ScenarioDemo = {
     { jour: '04-30', journal: 'OD', libelle: 'Salaires d’avril · brut', lignes: [{ nature: '66110000', sens: 'DEBIT', montant: 900_000 }, { nature: '42200000', sens: 'CREDIT', montant: 900_000 }] },
     { jour: '05-15', journal: 'VEN', libelle: 'Vente de marchandises · Hôtel du Lac', reference: 'F-0003', lignes: deux({ tiers: 'CLI002', sens: 'DEBIT' }, { nature: '70110000', sens: 'CREDIT' }, 2_000_000) },
   ],
+  immobilisations: [
+    { jour: '02-25', designation: 'Ordinateurs du bureau (fictif)', numeroInventaire: 'INV-001', famille: 'INFORMATIQUE', valeur: 800_000 },
+    { jour: '04-20', designation: 'Mobilier du magasin (fictif)', numeroInventaire: 'INV-002', famille: 'MOBILIER', valeur: 500_000 },
+  ],
+  salarie: {
+    matricule: 'DEMO-001',
+    nom: 'Tshibanda (fictif)',
+    prenoms: 'Patrick',
+    sexe: SexeTravailleur.MASCULIN,
+    nationalite: 'Congolaise',
+    natureTravail: 'Magasinier',
+    type: TypeContratTravail.DUREE_INDETERMINEE,
+    remunerationMensuelleFc: 900_000,
+    moisBulletin: '05',
+  },
+  jourReleve: '03-31',
+  questionnaire: 'Révision de l’exercice (démonstration)',
 };
+
+/**
+ * Les mouvements de la banque, dans l'ordre des dates · opérations du
+ * scénario ET acquisitions payées comptant. Une seule lecture, pour que le
+ * spec qui garde la banque au-dessus de zéro et le relevé du rapprochement
+ * ne comptent pas deux banques différentes.
+ */
+export function mouvementsBanque(s: ScenarioDemo): { jour: string; montant: number }[] {
+  const ops = s.operations.flatMap((o) =>
+    o.lignes.filter((l) => 'tresorerie' in l).map((l) => ({ jour: o.jour, montant: l.sens === 'DEBIT' ? l.montant : -l.montant })),
+  );
+  const immos = s.immobilisations.map((i) => ({ jour: i.jour, montant: -i.valeur }));
+  return [...ops, ...immos].sort((a, b) => a.jour.localeCompare(b.jour));
+}
 
 export function scenarioDemonstration(referentiel: Referentiel): ScenarioDemo {
   return referentiel === Referentiel.SYSCOHADA ? SYSCOHADA : SYCEBNL;

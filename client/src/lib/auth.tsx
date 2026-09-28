@@ -51,6 +51,8 @@ interface MeResponse {
     modulesActives?: import('./profil-dossier').ModuleOptionnel[] | null;
     /** Longueur maximale d'un numéro de compte ouvert par le cabinet (3 à 13). */
     longueurCompte?: number;
+    /** Dossier de démonstration · commande le bandeau « données fictives » (`lib/bandeau-demonstration.ts`). */
+    estDemonstration?: boolean;
   };
   /**
    * « Rester connecté sur cet appareil » · vrai pour une session longue

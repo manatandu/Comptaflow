@@ -59,3 +59,17 @@ describe('/auth/me · la longueur des numéros de compte (audit final F144)', ()
     expect(t.longueurCompte).toBe(12);
   });
 });
+
+describe('/auth/me · la vitrine se dit fictive (dossiers de démonstration)', () => {
+  const base = { referentiel: 'SYSCOHADA', systemeComptableSyscohada: 'NORMAL' };
+
+  it('porte le drapeau du dossier, que le bandeau du chrome lit', async () => {
+    expect((await me({ ...base, estDemonstration: true })).tenant.estDemonstration).toBe(true);
+    expect((await me({ ...base, estDemonstration: false })).tenant.estDemonstration).toBe(false);
+  });
+
+  it('jamais le nom · un client qui s’appelle « Démo » n’est pas une vitrine, et l’absence vaut faux', async () => {
+    expect((await me({ ...base, nom: 'Démo SARL', estDemonstration: false })).tenant.estDemonstration).toBe(false);
+    expect((await me({ ...base })).tenant.estDemonstration).toBe(false);
+  });
+});

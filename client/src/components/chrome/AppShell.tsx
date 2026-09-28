@@ -10,6 +10,7 @@ import { SymboleOmegaX } from './Logo';
 import { MenuBar, type MenuDef } from './MenuBar';
 import { CalculetteChrome, ClocheChrome, NavigationChrome } from './OutilsChrome';
 import { StatusBar } from './StatusBar';
+import { BandeauDemonstration } from './BandeauDemonstration';
 import { BarreFenetres } from './BarreFenetres';
 import { Fenetre } from './Fenetre';
 import { AccueilPage } from '../../pages/AccueilPage';
@@ -708,6 +709,9 @@ export function AppShell() {
             </>
           }
         />
+        {/* Sous la barre de menus, au-dessus de l'espace de travail · une
+            vitrine se dit fictive sur chaque écran (lib/bandeau-demonstration.ts). */}
+        <BandeauDemonstration />
       </div>
 
       {/*

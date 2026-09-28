@@ -716,6 +716,11 @@ export class AuthService {
         // F144) · l'écran du plan de comptes l'imposait à huit, alors que le
         // dossier la porte jusqu'à treize (`CompteService.creer` la relit).
         longueurCompte: user.tenant.longueurCompte,
+        // LA VITRINE SE DIT FICTIVE SUR CHAQUE ÉCRAN · le bandeau du chrome le
+        // lit ici. Le drapeau du dossier, jamais son nom (`plateforme.service.ts`,
+        // point 3) · un client qui s'appellerait « Démo » n'est pas une vitrine.
+        // Un faux strict · une valeur absente ne fait pas un dossier fictif.
+        estDemonstration: user.tenant.estDemonstration === true,
       },
     };
   }
