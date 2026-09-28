@@ -6975,6 +6975,26 @@ OmegaX, JAMAIS le vert de Sage.
   groupes thématiques dont un seul est ouvert (« cliquez sur son intitulé »),
   et l'INTUISAGE à trois onglets, Accueil, Favoris, Indicateurs. Les favoris
   sont une préférence du poste (navigateur), jamais une donnée du dossier.
+- **Titres formels, jamais une référence juridique** (décision du
+  2026-09-28, « façon logiciel professionnel »). Aucun titre de cadre,
+  onglet, en-tête de colonne, légende, groupe d'options, libellé de bouton
+  ou de champ ne s'écrit « Article 212 » ni « (§ 116 c) » · il nomme ce que
+  la section contient (« Contrôle des contrats »). La référence ne disparaît
+  pas : infobulle `title` ou bulle `Aide`. Deux specs relisent les titres
+  (`titres-formels.spec.ts`, `titres-formels-pages-m-z.spec.ts`).
+- **Le mouvement sert la compréhension**, 120 à 280 ms, transform et
+  opacité seules, et TOUT se coupe sous `prefers-reduced-motion` par une
+  règle universelle (`mouvement-reduit.spec.ts`). Un compteur de montant
+  finit sur la valeur exacte de `lib/montants.ts` (`lib/compteur.ts`). Les
+  couleurs de la charte passent par des canaux RGB (`--x-rgb`), sans quoi
+  `border-danger/30` ne produisait aucun CSS (`canaux-couleurs.spec.ts`).
+- **Ce que l'écran montre dépend du dossier et du rôle, jamais les droits.**
+  Modules activables par dossier (`tenant/modules-optionnels.ts`, paie,
+  révision, gestion commerciale, consolidation, IFRS · un dossier neuf part
+  sans eux, les existants et la vitrine les ont tous) ; accueil par métier
+  (`lib/accueil-par-metier.ts`) ; démarrage guidé d'un dossier sans
+  écriture (`lib/demarrage-guide.ts`, état lu par `GET /dossier/demarrage`).
+  Masquer n'est pas refuser · le serveur tient seul les droits.
 
 ## 10. Tests
 
