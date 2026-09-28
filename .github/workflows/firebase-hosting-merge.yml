@@ -11,6 +11,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Le Node de la production, comme les autres workflows (audit final F194)
+      # · sans cette étape, le job prenait celui de l'image du runner, et vite
+      # 6 comme vitest 5 fixent chacun un plancher de version de Node.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       # firebase.json vit dans client/, pas à la racine du dépôt (le dépôt
       # contient aussi le serveur NestJS) : sans ce dossier de travail, npm
       # construisait le serveur et l'action ne trouvait pas firebase.json.

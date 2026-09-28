@@ -654,6 +654,56 @@ export interface GrillesSmigNonLues {
  */
 export const MONNAIE_DU_MINIMUM = 'CDF';
 
+/**
+ * UN MONTANT CONVENU NE S'ENREGISTRE PLUS SANS SA MONNAIE (décision de
+ * Manasse, suite de l'audit final F226). Le refus d'une création qui porte
+ * `remunerationBase` sans `deviseRemuneration` · il vit ici une fois, et le
+ * DTO comme le service le servent, pour qu'un appel qui contourne la
+ * validation du corps (un autre module, un script) tombe sur le même mot.
+ *
+ * POURQUOI EXIGER, ET NON PROPOSER LE FRANC. Le Code du travail, art. 89,
+ * veut la rémunération « stipulée en monnaie ayant cours légal en République
+ * Démocratique du Congo », et la pratique des ONG et des sociétés congolaises
+ * stipule pourtant souvent en dollars. L'écart entre la règle et l'usage est
+ * justement ce que le champ doit enregistrer · une valeur présélectionnée à
+ * l'écran ferait enregistrer « CDF » par simple inattention sur un contrat de
+ * 800 dollars, qui deviendrait 800 FC jugés en deçà du minimum, et la monnaie
+ * ne se change plus une fois déclarée. Sans montant, rien n'est exigé · il n'y
+ * a pas de monnaie à dire d'un montant qui n'existe pas.
+ *
+ * ET LES CONTRATS DÉJÀ SAISIS NE SONT REMPLIS D'AUCUNE MONNAIE. L'art. 89
+ * pose une OBLIGATION de stipuler en francs, pas le FAIT que le contrat l'a
+ * été · il ne fonde aucune présomption. Remplir d'office en francs un contrat
+ * de 800 USD le ferait juger sous le minimum, définitivement, et remplir en
+ * dollars déchargerait du contrôle un contrat en francs. Ils sont COMPTÉS
+ * (`CONTRAT_A_COMPLETER`) et complétés un à un par le cabinet, qui a le
+ * contrat sous les yeux.
+ */
+export const MOTIF_MONNAIE_EXIGEE =
+  'La rémunération convenue est renseignée sans sa monnaie · choisissez francs congolais (CDF) ou dollars américains (USD). ' +
+  'OmegaX ne la suppose pas, et elle ne se change plus une fois déclarée.';
+
+/** Le refus d'une création, ou null quand la monnaie n'est pas due ou qu'elle est dite. */
+export function motifMonnaieExigee(
+  remunerationBase: number | null | undefined,
+  deviseRemuneration: string | null | undefined,
+): string | null {
+  const montantRenseigne = remunerationBase !== null && remunerationBase !== undefined;
+  const monnaieDite = deviseRemuneration !== null && deviseRemuneration !== undefined && deviseRemuneration !== '';
+  return montantRenseigne && !monnaieDite ? MOTIF_MONNAIE_EXIGEE : null;
+}
+
+/**
+ * Un contrat À COMPLÉTER · un montant convenu sans monnaie, saisi avant que le
+ * registre ne l'exige. Le même filtre sert le décompte du registre et la liste
+ * filtrée de l'écran, pour que le nombre annoncé soit celui des contrats
+ * montrés.
+ */
+export const CONTRAT_A_COMPLETER = {
+  remunerationBase: { not: null },
+  deviseRemuneration: null,
+} as const;
+
 export interface VerdictRemunerationMinimale {
   /** Vrai quand la rémunération convenue atteint au moins le minimum. */
   conforme: boolean | null;

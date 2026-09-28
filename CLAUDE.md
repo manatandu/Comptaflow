@@ -84,7 +84,7 @@ npx prisma generate       # après toute modification du schéma
 
 # Client (depuis client/)
 npx tsc --noEmit
-npm test                  # vitest, version figée dans le script (audit final F196)
+npm test                  # vitest run · vite et vitest en devDependencies à version exacte, portées par le lockfile (audit final F196)
 npm run build
 npm run dev               # port 5173
 ```
@@ -1567,7 +1567,7 @@ barème, et depuis l'audit final F226 SANS LA MONNAIE du contrat
 minimum du décret n° 25/22 est un taux en francs, et le contrôle ne convertit
 rien. La monnaie d'un contrat saisi sans elle se COMPLÈTE une fois et ne se
 change pas ; elle et la fin du contrat s'écrivent par une opération UNITAIRE,
-un `updateMany` ne laissant au journal d'audit que son filtre et son compte. **Le mois se choisit** : un contrat TERMINÉ se juge sur son dernier
+un `updateMany` ne laissant au journal d'audit que son filtre et son compte. UN MONTANT CONVENU NE S'ENREGISTRE PLUS SANS SA MONNAIE (2026-09-28, décision de Manasse) · la création d'un contrat qui porte `remunerationBase` sans `deviseRemuneration` est refusée en 400 nommé (`MOTIF_MONNAIE_EXIGEE`, servi par le DTO et le service), et le champ part vide à l'écran, sans monnaie présélectionnée. Les contrats déjà saisis sans elle ne sont remplis d'AUCUNE monnaie · l'art. 89 pose une obligation, pas un fait, et la monnaie ne se change plus · ils sont comptés par la base sur tout le registre (`contratsACompleter`, `CONTRAT_A_COMPLETER`), et une ligne de l'écran Personnel y mène. **Le mois se choisit** : un contrat TERMINÉ se juge sur son dernier
 mois, sinon on reprocherait à l'employeur une revalorisation postérieure au
 départ du salarié ; un contrat EN COURS se juge au mois courant.
 

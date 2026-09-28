@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException, ValidationPipe } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -19,6 +19,7 @@ import {
   VersionBaremePaieDto,
 } from './dto/personnel.dto';
 import { effectifDuRegistre } from './effectif-registre';
+import { MOTIF_MONNAIE_EXIGEE, motifMonnaieExigee } from './regles-contrat-travail';
 
 /**
  * AUDIT FINAL F226, F227 ET F259 · la monnaie du contrat, le refus de barème
@@ -175,8 +176,10 @@ function lecture(source: Ligne[] | (() => Ligne[])) {
   });
 }
 
-function compte(table: Ligne[]) {
-  return jest.fn(async (args: { where?: Ligne } = {}) => table.filter((l) => correspond(l, args.where)).length);
+function compte(source: Ligne[] | (() => Ligne[])) {
+  return jest.fn(async (args: { where?: Ligne } = {}) =>
+    (typeof source === 'function' ? source() : source).filter((l) => correspond(l, args.where)).length,
+  );
 }
 
 const pasTrouvee = () =>
@@ -371,6 +374,7 @@ function monterPersonnel(salaries: Ligne[], contrats: Ligne[] = [], versions: Li
         return c ? { ...c } : null;
       }),
       aggregate: contratAggregate,
+      count: compte(contratsAPlat),
       updateMany,
       update,
       create,
@@ -390,6 +394,8 @@ function monterPersonnel(salaries: Ligne[], contrats: Ligne[] = [], versions: Li
     enfantDelete,
     enfantCreate,
     enfantDeleteMany,
+    salarieFindFirst: (prisma.salarie as { findFirst: jest.Mock }).findFirst,
+    contratCount: (prisma.contratTravail as { count: jest.Mock }).count,
     versionFindMany: (prisma.versionBaremePaie as { findMany: jest.Mock }).findMany,
     prisma: prisma as never as {
       contratTravail: { findFirst: jest.Mock };
@@ -537,6 +543,130 @@ describe('F226 · la monnaie du contrat, jusqu’à la confrontation', () => {
       );
       expect(update).not.toHaveBeenCalled();
       expect(lignes[0].dateFin).toBeNull();
+    });
+  });
+});
+
+/**
+ * SUITE DE F226 · UN MONTANT CONVENU NE S'ENREGISTRE PLUS SANS SA MONNAIE, et
+ * les contrats déjà saisis sans elle sont comptés, jamais remplis d'office
+ * (décision de Manasse, `MOTIF_MONNAIE_EXIGEE`).
+ */
+describe('F226, suite · la monnaie exigée à la création, les anciens contrats comptés', () => {
+  // Le pipe de production, tel que `bootstrap.ts` le pose · c'est lui qui
+  // rend le 400 du corps de la requête.
+  const pipe = new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true });
+  const passerAuPipe = (corps: Ligne) =>
+    pipe.transform(corps, { type: 'body', metatype: ContratTravailDto });
+  const base = { type: 'DUREE_INDETERMINEE', dateEntreeEnVigueur: '2026-01-05' };
+
+  describe('à la porte, le corps de la requête', () => {
+    it('refuse en 400 un montant sans monnaie, avec le motif nommé', async () => {
+      for (const devise of [undefined, null]) {
+        const refus = await passerAuPipe({ ...base, remunerationBase: 800, deviseRemuneration: devise }).catch((e) => e);
+        expect(refus).toBeInstanceOf(BadRequestException);
+        expect(refus.getStatus()).toBe(400);
+        expect((refus.getResponse() as { message: string[] }).message).toContain(MOTIF_MONNAIE_EXIGEE);
+      }
+    });
+
+    it('un montant nul est un montant · la monnaie reste due', async () => {
+      const refus = await passerAuPipe({ ...base, remunerationBase: 0 }).catch((e) => e);
+      expect(refus).toBeInstanceOf(BadRequestException);
+    });
+
+    it('accepte un contrat sans rémunération, sans rien exiger', async () => {
+      await expect(passerAuPipe({ ...base })).resolves.toBeInstanceOf(ContratTravailDto);
+    });
+
+    it('accepte un montant avec sa monnaie, dans les deux monnaies', async () => {
+      for (const devise of ['CDF', 'USD']) {
+        await expect(
+          passerAuPipe({ ...base, remunerationBase: 800, deviseRemuneration: devise }),
+        ).resolves.toMatchObject({ remunerationBase: 800, deviseRemuneration: devise });
+      }
+    });
+  });
+
+  describe('au service, pour qui contournerait le corps', () => {
+    it('refuse un montant sans monnaie avant toute lecture, et n’écrit rien', async () => {
+      const { svc, create, salarieFindFirst } = monterPersonnel([salarie()]);
+      const refus = await svc
+        .creerContrat('t1', 'u-1', 's-1', { ...base, remunerationBase: 800 } as never)
+        .catch((e) => e);
+      expect(refus).toBeInstanceOf(BadRequestException);
+      expect(refus.message).toBe(MOTIF_MONNAIE_EXIGEE);
+      expect(create).not.toHaveBeenCalled();
+      expect(salarieFindFirst).not.toHaveBeenCalled();
+    });
+
+    it('écrit un contrat sans rémunération, et un montant avec sa monnaie', async () => {
+      const { svc, create } = monterPersonnel([salarie()]);
+      await svc.creerContrat('t1', 'u-1', 's-1', { ...base } as never);
+      await svc.creerContrat('t1', 'u-1', 's-1', { ...base, remunerationBase: 800, deviseRemuneration: 'USD' } as never);
+      expect(create).toHaveBeenCalledTimes(2);
+      expect(create.mock.calls[1][0].data).toMatchObject({ remunerationBase: 800, deviseRemuneration: 'USD' });
+    });
+
+    it('la règle pure · due sur un montant, jamais sans montant', () => {
+      expect(motifMonnaieExigee(800, undefined)).toBe(MOTIF_MONNAIE_EXIGEE);
+      expect(motifMonnaieExigee(800, '')).toBe(MOTIF_MONNAIE_EXIGEE);
+      expect(motifMonnaieExigee(0, null)).toBe(MOTIF_MONNAIE_EXIGEE);
+      expect(motifMonnaieExigee(null, null)).toBeNull();
+      expect(motifMonnaieExigee(undefined, undefined)).toBeNull();
+      expect(motifMonnaieExigee(800, 'CDF')).toBeNull();
+    });
+  });
+
+  describe('le registre compte les contrats à compléter', () => {
+    const dossier = () => [
+      // À compléter · un montant, pas de monnaie. L'un est chez un salarié
+      // parti, le décompte vaut tout le registre.
+      salarie({ id: 's-a', nom: 'Amani', contrats: [contrat({ id: 'c-a', deviseRemuneration: null })] }),
+      salarie({
+        id: 's-b',
+        nom: 'Bisimwa',
+        actif: false,
+        contrats: [contrat({ id: 'c-b', deviseRemuneration: null })],
+      }),
+      // Pas à compléter · monnaie dite, ou aucun montant.
+      salarie({
+        id: 's-c',
+        nom: 'Chako',
+        contrats: [
+          contrat({ id: 'c-c1', deviseRemuneration: 'CDF' }),
+          contrat({ id: 'c-c2', remunerationBase: null, deviseRemuneration: null }),
+        ],
+      }),
+      // Un autre dossier ne compte pas.
+      salarie({ id: 's-x', tenantId: 't2', nom: 'Zola', contrats: [contrat({ id: 'c-x', tenantId: 't2', deviseRemuneration: null })] }),
+    ];
+
+    it('compte par la base, sur le dossier entier, inactifs compris', async () => {
+      const { svc, contratCount } = monterPersonnel(dossier());
+      const r = await svc.lister('t1');
+      expect(r.contratsACompleter).toBe(2);
+      expect(contratCount).toHaveBeenCalledWith({
+        where: { tenantId: 't1', remunerationBase: { not: null }, deviseRemuneration: null },
+      });
+    });
+
+    it('le filtre montre ces salariés-là et eux seuls, partis compris', async () => {
+      const { svc } = monterPersonnel(dossier());
+      const r = await svc.lister('t1', false, true);
+      expect(r.salaries.map((s) => s.id)).toEqual(['s-a', 's-b']);
+      expect(r.total).toBe(2);
+      expect(r.contratsACompleter).toBe(2);
+    });
+
+    it('rien n’est rempli d’office · la lecture n’écrit aucune monnaie', async () => {
+      const lignes = dossier();
+      const { svc, update, updateMany } = monterPersonnel(lignes);
+      await svc.lister('t1');
+      await svc.confronter('t1', AUJOURDHUI);
+      expect(update).not.toHaveBeenCalled();
+      expect(updateMany).not.toHaveBeenCalled();
+      expect((lignes[0].contrats as Ligne[])[0].deviseRemuneration).toBeNull();
     });
   });
 });

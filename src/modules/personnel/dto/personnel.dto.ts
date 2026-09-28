@@ -1,12 +1,14 @@
 import type { RegimeSalarial } from '../bareme-irpp';
 import { BAREMES_SERVIS, MOTIF_BAREME_NON_SAISISSABLE } from '../baremes-dossier';
 import { PLAFOND_ENFANTS_PAR_FICHE } from '../bornes-registre';
+import { MOTIF_MONNAIE_EXIGEE } from '../regles-contrat-travail';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
   IsDateString,
+  IsDefined,
   IsEnum,
   IsInt,
   IsNumber,
@@ -239,8 +241,18 @@ export class ContratTravailDto {
    * F226). Absente, le contrôle du minimum s'abstient · il ne suppose pas le
    * franc, et un salaire en dollars lu comme des francs passait très en deçà
    * du minimum.
+   *
+   * EXIGÉE DÈS QU'UN MONTANT EST CONVENU (`MOTIF_MONNAIE_EXIGEE`, dont la
+   * règle et le motif sont écrits dans `regles-contrat-travail.ts`). Sans
+   * montant, le champ reste facultatif ; dit, il doit être l'une des deux
+   * monnaies, montant ou non.
    */
-  @IsOptional()
+  @ValidateIf(
+    (o: ContratTravailDto) =>
+      (o.deviseRemuneration !== undefined && o.deviseRemuneration !== null) ||
+      (o.remunerationBase !== undefined && o.remunerationBase !== null),
+  )
+  @IsDefined({ message: MOTIF_MONNAIE_EXIGEE })
   @IsEnum(['CDF', 'USD'], { message: MOTIF_MONNAIE_REMUNERATION })
   deviseRemuneration?: 'CDF' | 'USD';
 

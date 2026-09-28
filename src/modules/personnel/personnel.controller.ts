@@ -46,8 +46,12 @@ export class PersonnelController {
 
   @Get('salaries')
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE, RoleUtilisateur.LECTURE_SEULE)
-  async lister(@CurrentUser() user: AuthenticatedUser, @Query('tous') tous?: string) {
-    return this.personnel.lister(user.tenantId, tous === 'true');
+  async lister(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('tous') tous?: string,
+    @Query('aCompleter') aCompleter?: string,
+  ) {
+    return this.personnel.lister(user.tenantId, tous === 'true', aCompleter === 'true');
   }
 
   @Post('salaries')

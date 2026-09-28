@@ -142,6 +142,46 @@ describe('F226 · la monnaie du montant convenu se dit et part au serveur', () =
 });
 
 /**
+ * SUITE DE F226 · un montant convenu ne s'enregistre plus sans sa monnaie, et
+ * l'écran ne la choisit pas à la place de l'utilisateur · une valeur proposée
+ * d'office serait enregistrée par inattention, puis ne se changerait plus. Les
+ * contrats saisis sans elle sont comptés par le serveur, et une ligne y mène.
+ */
+describe('F226, suite · la monnaie se choisit, et les contrats à compléter se montrent', () => {
+  it('le nouveau contrat part sans monnaie, et la liste propose le vide d’abord', () => {
+    expect(bloc(page, 'const NOUVEAU_CONTRAT = {', '\n};')).toContain("deviseRemuneration: '' as '' | 'CDF' | 'USD',");
+    const choix = bloc(page, 'Monnaie de la rémunération</span>', '</select>');
+    expect(choix).toContain('value={contrat.deviseRemuneration}');
+    const options = [...choix.matchAll(/<option value="([A-Z]*)"/g)].map((m) => m[1]);
+    expect(options).toEqual(['', 'CDF', 'USD']);
+    expect(choix).toContain('<option value="">à choisir</option>');
+  });
+
+  it('un contrat enregistré remet le formulaire au nouveau contrat, monnaie vide comprise', () => {
+    expect(bloc(page, 'const creerContrat = async', 'const declarerDevise')).toContain(
+      'setContrat({ ...NOUVEAU_CONTRAT });',
+    );
+  });
+
+  it('le bouton attend la monnaie quand un montant est saisi', () => {
+    const bouton = bloc(page, 'Visé par l’Office national de l’emploi (art. 47)', 'Enregistrer le contrat');
+    expect(bouton).toContain('(!!contrat.remunerationBase && !contrat.deviseRemuneration)');
+  });
+
+  it('le registre lit le décompte du serveur, et le filtre part au serveur', () => {
+    const charger = bloc(page, 'const charger = useCallback', '}, [tous, aCompleter]);');
+    expect(charger).toContain('setContratsACompleter(r.contratsACompleter);');
+    expect(charger).toContain("aCompleter ? 'aCompleter=true' : ''");
+  });
+
+  it('une ligne annonce les contrats à compléter et les montre', () => {
+    const ligne = bloc(page, '(aCompleter || (contratsACompleter !== null && contratsACompleter > 0)) && (', '</button>');
+    expect(ligne).toContain('onClick={() => setACompleter(!aCompleter)}');
+    expect(ligne).toContain('contrat(s) sans monnaie de la rémunération · les afficher');
+  });
+});
+
+/**
  * AUDIT FINAL F259 · les listes du registre sont bornées par le serveur, et
  * l'écran lit leur nouvelle forme · tranche, total et `tronque`.
  */
@@ -149,7 +189,7 @@ describe('F259 · les listes bornées se lisent et se disent', () => {
   const composant = readFileSync(join(__dirname, '..', 'components', 'RubriquesAvancesPaie.tsx'), 'utf8');
 
   it('le registre lit la tranche et ce qu’elle dit d’elle-même', () => {
-    const charger = bloc(page, 'const charger = useCallback', '}, [tous]);');
+    const charger = bloc(page, 'const charger = useCallback', '}, [tous, aCompleter]);');
     expect(charger).toContain('setSalaries(r.salaries);');
     expect(charger).toContain('setRegistre({ total: r.total, tronque: r.tronque });');
     expect(page).toContain("libelleListeBornee(registre, salaries.length, 'salariés')");

@@ -41,7 +41,7 @@ npx prisma generate       # après toute modification du schéma
 
 # Client (depuis client/)
 npx tsc --noEmit
-npm test                  # vitest à version figée (script test), npx le récupère
+npm test                  # vitest run · vite et vitest en devDependencies exactes, lockfile
 npm run build             # tsc -b && vite build
 npm run dev               # port 5173
 ```

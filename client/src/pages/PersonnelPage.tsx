@@ -365,8 +365,12 @@ const NOUVEAU_CONTRAT = {
   periodiciteRemuneration: '' as '' | 'JOUR' | 'SEMAINE' | 'MOIS' | 'ANNEE',
   manoeuvreSansSpecialite: false,
   remunerationBase: '',
-  // Vide = non déclarée · le serveur s'abstient alors de confronter le
-  // montant au minimum, qu'il ne suppose jamais en francs (audit final F226).
+  // VIDE, ET AUCUNE MONNAIE PRÉSÉLECTIONNÉE · l'utilisateur la choisit. Le
+  // Code du travail (art. 89) veut la rémunération en francs, la pratique la
+  // stipule souvent en dollars, et une valeur proposée d'office serait
+  // enregistrée par inattention sur un contrat de l'autre monnaie, puis ne se
+  // changerait plus. Le serveur refuse un montant sans elle
+  // (`MOTIF_MONNAIE_EXIGEE`), et le bouton d'enregistrement l'attend.
   deviseRemuneration: '' as '' | 'CDF' | 'USD',
   avantagesConvenus: '',
   clauseEssai: false,
@@ -528,6 +532,11 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
   const [avancesSalarie, setAvancesSalarie] = useState<AvanceSalaire[]>([]);
   const [retenuesAvances, setRetenuesAvances] = useState<Record<string, string>>({});
   const [tous, setTous] = useState(false);
+  // Les contrats saisis avec un montant et sans monnaie, comptés par le
+  // serveur sur le dossier entier · null tant que le registre n'est pas lu,
+  // jamais zéro par défaut. Le filtre montre les salariés qui en portent.
+  const [contratsACompleter, setContratsACompleter] = useState<number | null>(null);
+  const [aCompleter, setACompleter] = useState(false);
   const [selection, setSelection] = useState<string>('');
   const [erreur, setErreur] = useState('');
   const [succes, setSucces] = useState('');
@@ -583,14 +592,20 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
   const [regimeSalarial, setRegimeSalarial] = useState('');
 
   const charger = useCallback(() => {
-    api.get<{ salaries: Salarie[]; total: number; tronque: boolean }>(`/personnel/salaries${tous ? '?tous=true' : ''}`).then(
-      (r) => {
-        setSalaries(r.salaries);
-        setRegistre({ total: r.total, tronque: r.tronque });
-      },
-      (e: ApiError) => setErreur(e.message),
-    );
-  }, [tous]);
+    const parametres = [tous ? 'tous=true' : '', aCompleter ? 'aCompleter=true' : ''].filter(Boolean).join('&');
+    api
+      .get<{ salaries: Salarie[]; total: number; tronque: boolean; contratsACompleter: number }>(
+        `/personnel/salaries${parametres ? `?${parametres}` : ''}`,
+      )
+      .then(
+        (r) => {
+          setSalaries(r.salaries);
+          setRegistre({ total: r.total, tronque: r.tronque });
+          setContratsACompleter(r.contratsACompleter);
+        },
+        (e: ApiError) => setErreur(e.message),
+      );
+  }, [tous, aCompleter]);
 
   useEffect(charger, [charger]);
 
@@ -1121,12 +1136,23 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                 {registre && salaries.length === 0 && (
                   <tr>
                     <td className={cell} colSpan={3}>
-                      Aucun salarié au registre.
+                      {aCompleter ? 'Aucun contrat à compléter.' : 'Aucun salarié au registre.'}
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
+            {(aCompleter || (contratsACompleter !== null && contratsACompleter > 0)) && (
+              <button
+                type="button"
+                className="block w-full text-left px-2 py-1 text-[11px] text-warning underline"
+                onClick={() => setACompleter(!aCompleter)}
+              >
+                {aCompleter
+                  ? 'Afficher tout le registre'
+                  : `${contratsACompleter} contrat(s) sans monnaie de la rémunération · les afficher`}
+              </button>
+            )}
             {registre && libelleListeBornee(registre, salaries.length, 'salariés') && (
               <div className="px-2 py-1 text-[11px] text-warning">
                 {libelleListeBornee(registre, salaries.length, 'salariés')}
@@ -1562,7 +1588,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                             })
                           }
                         >
-                          <option value="">non déclarée</option>
+                          <option value="">à choisir</option>
                           <option value="CDF">francs congolais (CDF)</option>
                           <option value="USD">dollars américains (USD)</option>
                         </select>
@@ -1714,7 +1740,9 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                     </div>
                     <button
                       type="button"
-                      disabled={enCours || !contrat.dateEntreeEnVigueur}
+                      disabled={
+                        enCours || !contrat.dateEntreeEnVigueur || (!!contrat.remunerationBase && !contrat.deviseRemuneration)
+                      }
                       onClick={creerContrat}
                       className="mt-2 px-3 py-1 border border-accent text-accent text-[11.5px] disabled:opacity-40"
                     >

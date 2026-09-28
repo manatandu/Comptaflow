@@ -80,9 +80,11 @@ import {
   type MotifRupture,
 } from './decompte-final';
 import {
+  CONTRAT_A_COMPLETER,
   aptitudeProvisoirePerimee,
   declarationsDues,
   mentionsManquantes,
+  motifMonnaieExigee,
   requalifications,
   verdictEssai,
   verdictRemunerationMinimale,
@@ -201,17 +203,31 @@ export class PersonnelService {
    * propres données. L'identifiant départage deux homonymes, sans quoi la
    * frontière d'une tranche pleine changerait d'un appel à l'autre.
    */
-  async lister(tenantId: string, inclureInactifs = false) {
-    const [salaries, total] = await Promise.all([
+  async lister(tenantId: string, inclureInactifs = false, aCompleter = false) {
+    // LE FILTRE « À COMPLÉTER » VAUT TOUT LE REGISTRE, inactifs compris · le
+    // décompte l'est, et un salarié parti dont le contrat attend sa monnaie
+    // doit rester atteignable depuis la ligne qui l'annonce.
+    const perimetre = aCompleter
+      ? { contrats: { some: CONTRAT_A_COMPLETER } }
+      : inclureInactifs
+        ? {}
+        : { actif: true };
+    const [salaries, total, contratsACompleter] = await Promise.all([
       this.prisma.salarie.findMany({
-        where: { tenantId, ...(inclureInactifs ? {} : { actif: true }) },
+        where: { tenantId, ...perimetre },
         orderBy: [{ nom: 'asc' }, { postNom: 'asc' }, { id: 'asc' }],
         take: PLAFOND_REGISTRE_PERSONNEL,
         include: INCLURE_FICHE,
       }),
-      this.prisma.salarie.count({ where: { tenantId, ...(inclureInactifs ? {} : { actif: true }) } }),
+      this.prisma.salarie.count({ where: { tenantId, ...perimetre } }),
+      // LES CONTRATS À COMPLÉTER, COMPTÉS PAR LA BASE SUR LE DOSSIER ENTIER ·
+      // un montant convenu saisi sans monnaie, que le contrôle du minimum ne
+      // juge pas (`DEVISE_NON_RENSEIGNEE`). Rien n'est rempli d'office, le
+      // cabinet complète chacun, et c'est ce nombre qui le lui dit.
+      this.prisma.contratTravail.count({ where: { tenantId, ...CONTRAT_A_COMPLETER } }),
     ]);
     return {
+      contratsACompleter,
       salaries: salaries.map((s) => this.presenterFiche(s)),
       total,
       plafond: PLAFOND_REGISTRE_PERSONNEL,
@@ -386,6 +402,13 @@ export class PersonnelService {
     salarieId: string,
     dto: ContratTravailDto,
   ) {
+    // UN MONTANT SANS MONNAIE EST REFUSÉ AVANT TOUTE LECTURE, au service
+    // comme au DTO · un appel qui contournerait la validation du corps ne
+    // doit pas écrire un contrat que le contrôle du minimum ne pourrait plus
+    // jamais juger. Le motif et sa raison vivent dans `regles-contrat-travail.ts`.
+    const monnaieManquante = motifMonnaieExigee(dto.remunerationBase, dto.deviseRemuneration);
+    if (monnaieManquante) throw new BadRequestException(monnaieManquante);
+
     const salarie = await this.prisma.salarie.findFirst({
       where: { id: salarieId, tenantId },
       select: { id: true },
