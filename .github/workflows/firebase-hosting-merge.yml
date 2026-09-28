@@ -10,7 +10,7 @@ jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Le Node de la production, comme les autres workflows (audit final F194)
       # · sans cette étape, le job prenait celui de l'image du runner, et vite
       # 6 comme vitest 5 fixent chacun un plancher de version de Node.
