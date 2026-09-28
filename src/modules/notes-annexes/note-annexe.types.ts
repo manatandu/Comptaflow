@@ -81,6 +81,28 @@ export interface ColonneNote {
   type: TypeColonneNote;
   /** Intitulé exact du texte officiel. */
   libelle: string;
+  /**
+   * Colonne LIBRE que le dossier RENSEIGNE sur les rubriques CHIFFRÉES du
+   * tableau · une sûreté réelle (note 1), la nature d'un contrat de
+   * location-acquisition, un régime fiscal, une échéance. Le montant de la
+   * ligne se calcule ; ce fait-là est attaché au contrat, et aucun compte ne
+   * le porte (AUDCIF Titre VII, COMPTE 16, commentaires : « le montant et la
+   * portée de la caution, de la garantie ou du gage doivent être indiqués
+   * dans les Notes annexes »).
+   *
+   * Sans ce qualificatif, la cellule sortait vide et non modifiable, à
+   * l'écran comme dans la liasse · et une case vide sous « Hypothèques » se
+   * lit « aucune hypothèque ».
+   *
+   * LA RÈGLE, ET ELLE EST À LA CELLULE · une cellule CHIFFRÉE n'est jamais en
+   * saisie ; une cellule LIBRE d'une rubrique chiffrée peut l'être, si sa
+   * colonne porte ce qualificatif et sa rubrique une `cle`. Jamais sur une
+   * colonne chiffrée (deux sources pour un montant), jamais sur la colonne
+   * « Note » (elle porte le `renvoi`, que la spécification fixe), jamais sur
+   * un sous-total ou un total (un texte ne s'additionne pas, et le recopier
+   * d'une ligne de détail le ferait valoir pour toutes).
+   */
+  saisieSurLigneChiffree?: boolean;
 }
 
 /** Restreint une rubrique aux comptes dont le solde va dans ce sens (tiers polyvalents). */
@@ -158,6 +180,10 @@ export interface RubriqueNote {
    * rattachable (rien à rattacher) ni en attente (rien ne manque au plan) :
    * elle attend une saisie. Sans ce qualificatif elle serait indistinguable
    * d'un oubli de rattachement.
+   *
+   * La rubrique ENTIÈRE est alors en saisie. Une rubrique chiffrée ne l'est
+   * jamais, mais ses cellules LIBRE peuvent l'être, une à une · voir
+   * `ColonneNote.saisieSurLigneChiffree`.
    */
   saisie?: boolean;
   /** Renvoi de bas de tableau du texte officiel, reproduit tel quel. */
@@ -296,6 +322,15 @@ export interface LigneNoteCalculee {
    * donnerait deux chiffres pour un seul état.
    */
   saisieVerrouillee?: boolean;
+  /**
+   * Cellules LIBRE que le dossier a renseignées sur une rubrique CHIFFRÉE
+   * (`ColonneNote.saisieSurLigneChiffree`), une case par colonne, dans
+   * l'ordre de `SpecificationNote.colonnes` · `null` là où la colonne n'est
+   * pas en saisie ou n'a rien reçu. Les montants restent dans leurs champs
+   * calculés : ce tableau ne porte que du texte. Absent sur une rubrique en
+   * saisie, sur un total et sur une rubrique sans `cle`.
+   */
+  saisieLibre?: (string | number | null)[];
 }
 
 /**

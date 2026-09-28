@@ -189,7 +189,13 @@ const EXERCICES = [
   { id: 'e0', tenantId: 't1', dateDebut: new Date('2025-01-01T00:00:00Z'), dateFin: new Date('2025-12-31T00:00:00Z') },
 ];
 
-function fabriquerExport(systeme: SystemeComptableSyscohada = SystemeComptableSyscohada.NORMAL): ExportService {
+/** Une cellule saisie des notes annexes, telle que la table `saisies_notes` la rend. */
+type SaisieStub = { exerciceId: string; codeNote: string; cleRubrique: string; colonne: number; valeurTexte: string };
+
+function fabriquerExport(
+  systeme: SystemeComptableSyscohada = SystemeComptableSyscohada.NORMAL,
+  saisies: SaisieStub[] = [],
+): ExportService {
   const smt = systeme === SystemeComptableSyscohada.MINIMAL_TRESORERIE;
   const balances: Record<string, LigneBalanceStub[]> = smt
     ? { e1: BALANCE_SMT_N, e0: [] }
@@ -236,7 +242,17 @@ function fabriquerExport(systeme: SystemeComptableSyscohada = SystemeComptableSy
       }),
     },
     rattachementNote: { findMany: jest.fn().mockResolvedValue([]) },
-    saisieNote: { findMany: jest.fn().mockResolvedValue([]) },
+    // La doublure honore l'exercice demandé · une saisie d'un autre exercice
+    // ne doit pas sortir dans la liasse de celui-ci.
+    saisieNote: {
+      findMany: jest.fn().mockImplementation(({ where }: { where: { exerciceId: string } }) =>
+        Promise.resolve(
+          saisies
+            .filter((c) => c.exerciceId === where.exerciceId)
+            .map(({ exerciceId: _e, ...c }) => ({ valeurNombre: null, ...c })),
+        ),
+      ),
+    },
     compte: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
     ecriture: { findMany: jest.fn().mockResolvedValue(smt ? ECRITURES_SMT : []) },
     // `groupBy` sert la NOTE 3 du S.M.T, qui demande ses deux parts sommées à
@@ -824,5 +840,31 @@ describe('Fiche 1 de la liasse SYSCOHADA · ce que le dossier sait', () => {
     } finally {
       EXERCICES.push(...e0);
     }
+  });
+});
+
+describe('NOTE 1 · les sûretés réelles saisies sortent dans la liasse (passe O3, constat A1/D1)', () => {
+  it('la sûreté écrite sur une ligne de dette chiffrée sort dans SA colonne, à côté du montant calculé', async () => {
+    // Une case vide sous « Gages/autres » se lit « aucun gage » · la liasse
+    // doit porter ce que le dossier a écrit, pas un blanc.
+    const exportService = fabriquerExport(SystemeComptableSyscohada.NORMAL, [
+      { exerciceId: 'e1', codeNote: '1', cleRubrique: 'dettes-garanties-fournisseurs', colonne: 4, valeurTexte: 'Gage sur stock' },
+      // Même cellule, AUTRE exercice · ne doit pas sortir.
+      { exerciceId: 'e0', codeNote: '1', cleRubrique: 'dettes-garanties-fournisseurs', colonne: 2, valeurTexte: 'Hypothèque 2025' },
+    ]);
+    const wb = await ouvrir((await exportService.notesSyscohadaExcel('t1', 'e1')).buffer);
+    const ws = wb.getWorksheet('NOTE 1')!;
+    let rang = 0;
+    ws.eachRow((row, n) => {
+      if (row.getCell(1).value === 'Fournisseurs et comptes rattachés' && rang === 0) rang = n;
+    });
+    expect(rang).toBeGreaterThan(0);
+    const ligneDette = ws.getRow(rang);
+    // Colonnes : A libellé, B « Note », C « Montant brut », D à F sûretés.
+    expect(ligneDette.getCell(3).value).toBe(45_000);
+    expect(ligneDette.getCell(6).value).toBe('Gage sur stock');
+    expect(ligneDette.getCell(4).value).toBeNull();
+    // La colonne « Note » reste vide : elle ne se saisit pas.
+    expect(ligneDette.getCell(2).value).toBeNull();
   });
 });

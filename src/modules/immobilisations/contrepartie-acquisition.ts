@@ -29,8 +29,36 @@ import { Referentiel } from '@prisma/client';
  */
 const TRESORERIE = ['52', '53', '55', '57'];
 
-const FOURNISSEURS_INCORPORELS = ['4811', '4816', '4818', '4821'];
-const FOURNISSEURS_CORPORELS = ['4812', '4816', '4818', '4822'];
+/**
+ * RÉSERVE DE PROPRIÉTÉ (4816) ET FACTURES NON PARVENUES (4818) · LA NATURE DU
+ * BIEN SE LIT À UN CRAN PLUS BAS AU SYCEBNL, ET NULLE PART AU SYSCOHADA.
+ *
+ * SYCEBNL · la fiche du compte 48 (Partie 2 ch. 3) n'ouvre que « 4816 Réserve
+ * de propriété » et « 4818 Factures non parvenues », sans les ventiler. Le
+ * semis, lui, les subdivise · 48161000 « réserve de propriété
+ * (incorporelles) », 48162000 « (corporelles) », 48181000 et 48182000 de même.
+ * L'affectation n'est donc PAS du texte · elle vient de l'intitulé du semis et
+ * de la symétrie avec 4811 (incorporelles) et 4812 (corporelles), que la fiche
+ * écrit, elle. Servir '4816' aux deux natures admettait (et proposait) un
+ * matériel crédité au 48161, réserve de propriété d'un INCORPOREL · le compte
+ * existe, l'écriture s'équilibre, la balance boucle.
+ *
+ * SYSCOHADA · le semis ne subdivise pas (48160000, 48170000, 48180000), le
+ * compte ne dit pas la nature du bien · '4816' et '4818' restent communs aux
+ * deux natures, faute de quoi rien ne pourrait y être crédité. Le Titre VII
+ * (compte 48) demande pourtant de « créer des sous-comptes pour distinguer
+ * les immobilisations corporelles des incorporelles » · aucun numéro n'en
+ * est écrit, et un sous-compte que le cabinet ouvrirait sous le 4816 reste
+ * admis pour les deux natures, faute de convention lisible.
+ */
+const FOURNISSEURS_INCORPORELS: Record<Referentiel, readonly string[]> = {
+  [Referentiel.SYSCOHADA]: ['4811', '4816', '4818', '4821'],
+  [Referentiel.SYCEBNL]: ['4811', '48161', '48181', '4821'],
+};
+const FOURNISSEURS_CORPORELS: Record<Referentiel, readonly string[]> = {
+  [Referentiel.SYSCOHADA]: ['4812', '4816', '4818', '4822'],
+  [Referentiel.SYCEBNL]: ['4812', '48162', '48182', '4822'],
+};
 
 const PROPRES: Record<Referentiel, readonly string[]> = {
   // Capital, dotation, capital personnel, compte de l'exploitant · jamais
@@ -45,7 +73,7 @@ const PROPRES: Record<Referentiel, readonly string[]> = {
 
 export function racinesContrepartieAcquisition(referentiel: Referentiel, compteImmobilisation: string): string[] {
   const incorporel = compteImmobilisation.startsWith('21');
-  const fournisseurs = incorporel ? [...FOURNISSEURS_INCORPORELS] : [...FOURNISSEURS_CORPORELS];
+  const fournisseurs = incorporel ? [...FOURNISSEURS_INCORPORELS[referentiel]] : [...FOURNISSEURS_CORPORELS[referentiel]];
   if (referentiel === Referentiel.SYSCOHADA) fournisseurs.push(...(incorporel ? ['4041', '4046'] : ['4042', '4047']));
   return [...PROPRES[referentiel], ...fournisseurs, ...TRESORERIE];
 }

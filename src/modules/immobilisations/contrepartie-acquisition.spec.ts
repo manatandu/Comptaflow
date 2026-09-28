@@ -42,6 +42,32 @@ describe('contrepartie d’une acquisition d’immobilisation', () => {
     expect(contrepartieAcquisitionAdmise(SYSCO, '24420000', '16200000')).toBe(false);
   });
 
+  it('au SYCEBNL, la réserve de propriété et les factures non parvenues suivent la nature du bien', () => {
+    // Semis · 48161/48181 incorporelles, 48162/48182 corporelles.
+    expect(contrepartieAcquisitionAdmise(EBNL, '24420000', '48161000')).toBe(false);
+    expect(contrepartieAcquisitionAdmise(EBNL, '24420000', '48181000')).toBe(false);
+    expect(contrepartieAcquisitionAdmise(EBNL, '21300000', '48162000')).toBe(false);
+    expect(contrepartieAcquisitionAdmise(EBNL, '21300000', '48182000')).toBe(false);
+    expect(contrepartieAcquisitionAdmise(EBNL, '24420000', '48162000')).toBe(true);
+    expect(contrepartieAcquisitionAdmise(EBNL, '24420000', '48182000')).toBe(true);
+    expect(contrepartieAcquisitionAdmise(EBNL, '21300000', '48161000')).toBe(true);
+    expect(contrepartieAcquisitionAdmise(EBNL, '21300000', '48181000')).toBe(true);
+    // La liste proposée à l'écran est celle que le serveur admet.
+    expect(racinesContrepartieAcquisition(EBNL, '24420000')).toEqual(
+      ['101', '102', '104', '162', '163', '164', '165', '167', '45', '4812', '48162', '48182', '4822', '52', '53', '55', '57'],
+    );
+    expect(racinesContrepartieAcquisition(EBNL, '21300000')).toEqual(
+      ['101', '102', '104', '162', '163', '164', '165', '167', '45', '4811', '48161', '48181', '4821', '52', '53', '55', '57'],
+    );
+  });
+
+  it('au SYSCOHADA, le 4816 et le 4818 non subdivisés restent communs aux deux natures', () => {
+    for (const immo of ['21300000', '24420000']) {
+      expect(contrepartieAcquisitionAdmise(SYSCO, immo, '48160000')).toBe(true);
+      expect(contrepartieAcquisitionAdmise(SYSCO, immo, '48180000')).toBe(true);
+    }
+  });
+
   it('le refus cite le texte du dossier', () => {
     expect(motifRefusContrepartie(SYSCO, '24420000', '60100000')).toContain('AUDCIF, Titre VII');
     expect(motifRefusContrepartie(EBNL, '24420000', '60100000')).toContain('SYCEBNL, Partie 2');
@@ -56,7 +82,7 @@ describe('contrepartie d’une acquisition d’immobilisation', () => {
     for (const ref of [SYSCO, EBNL]) {
       for (const immo of ['21300000', '24420000']) {
         const orphelines = racinesContrepartieAcquisition(ref, immo).filter((r) => !new RegExp(`'${r}\\d*'`).test(semis[ref]));
-        // Le 482 n'est pas semé au SYCEBNL, le 4816 et le 4818 y sont en 48161/48181.
+        // Le 482 n'est pas semé au SYCEBNL.
         expect(orphelines.filter((r) => !(ref === EBNL && ['4821', '4822'].includes(r)))).toEqual([]);
       }
     }

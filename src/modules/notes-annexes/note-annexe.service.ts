@@ -23,6 +23,7 @@ import {
 } from './note-annexe.types';
 import { NOTES_ASSOCIATIONS } from './correspondance-notes-associations';
 import { NOTES_PROJETS } from './correspondance-notes-projets';
+import { celluleLibreEnSaisie, colonneLibreEnSaisie } from './cellules-libres-en-saisie';
 import {
   NOMBRE_NOTES_SYSCOHADA,
   NOTES_SYSCOHADA,
@@ -639,6 +640,15 @@ export class NoteAnnexeService {
         saisie: rubrique.saisie
           ? spec.colonnes.map((_, ci) => saisies.get(`${spec.code}::${rubrique.cle}`)?.[ci] ?? null)
           : undefined,
+        // Rubrique CHIFFRÉE dont certaines colonnes LIBRE se renseignent
+        // (sûretés de la note 1, nature d'un contrat, échéances) : seules ces
+        // cellules sont servies, les montants restant ceux de la balance.
+        // Jamais sur un total · voir `ColonneNote.saisieSurLigneChiffree`.
+        saisieLibre: celluleLibreEnSaisie(spec, rubrique)
+          ? spec.colonnes.map((c, ci) =>
+              colonneLibreEnSaisie(c) ? (saisies.get(`${spec.code}::${rubrique.cle}`)?.[ci] ?? null) : null,
+            )
+          : undefined,
       };
     });
 
@@ -660,7 +670,11 @@ export class NoteAnnexeService {
     // que le dossier a RENSEIGNÉ une de ses cellules · c'est le seul signal
     // qu'elle porte (note 18B « Actifs et passifs éventuels », par exemple,
     // n'est pas `horsBalance` mais n'est alimentée que par la saisie).
-    const saisieRenseignee = toutes.some((l) => (l.saisie ?? []).some((v) => v !== null && v !== ''));
+    const renseignee = (cellules: (string | number | null)[] | undefined) =>
+      (cellules ?? []).some((v) => v !== null && v !== '');
+    // Une sûreté ou une échéance écrite sur une rubrique chiffrée compte
+    // aussi : la note qui la porte est documentée.
+    const saisieRenseignee = toutes.some((l) => renseignee(l.saisie) || renseignee(l.saisieLibre));
     const applicable = applicableChiffree || saisieRenseignee || (spec.horsBalance ?? false);
     // DÉFAUT CORRIGÉ : une note `horsBalance` (informations obligatoires,
     // effectifs, note 9 « fonds du bailleur »…) ne porte QUE des rubriques en
@@ -682,7 +696,16 @@ export class NoteAnnexeService {
       : spec.horsBalance
         ? toutes
         : toutes.filter(
-            (l) => l.saisie !== undefined || chiffree(l) || l.estTotal || l.enAttenteDeRattachement || l.rattachementDuDossier,
+            (l) =>
+              l.saisie !== undefined ||
+              chiffree(l) ||
+              l.estTotal ||
+              l.enAttenteDeRattachement ||
+              l.rattachementDuDossier ||
+              // Une ligne dont le montant est tombé à zéro garde le texte que
+              // le dossier y a écrit · masquée, il resterait en base sans
+              // qu'aucun écran ne permette de le relire ni de l'effacer.
+              renseignee(l.saisieLibre),
           );
 
     return {
@@ -897,13 +920,18 @@ export class NoteAnnexeService {
   }
 
   /**
-   * Retrouve une rubrique EN SAISIE et la colonne visée, ou refuse.
+   * Retrouve une cellule EN SAISIE et la colonne visée, ou refuse.
    *
    * Même garde-fou que `rubriqueRattachable`, pour la même raison et en sens
    * inverse : on n'écrit à la main que dans une cellule qu'aucune balance ne
-   * chiffre. Écrire dans une rubrique calculée donnerait deux sources pour un
-   * même montant, dont l'une invisible dans le grand livre · exactement le
-   * genre d'écart qui ne se découvre qu'au contrôle.
+   * chiffre. Écrire un MONTANT dans une rubrique calculée donnerait deux
+   * sources pour un même montant, dont l'une invisible dans le grand livre ·
+   * exactement le genre d'écart qui ne se découvre qu'au contrôle.
+   *
+   * La règle est à la CELLULE, pas à la rubrique · une cellule chiffrée n'est
+   * jamais en saisie ; une cellule LIBRE d'une rubrique chiffrée peut l'être
+   * (`cellules-libres-en-saisie.ts` · les sûretés réelles de la note 1, que
+   * le texte veut renseignées et qu'aucun compte ne porte).
    */
   private celluleSaisissable(jeu: JeuNotesAnnexes, codeNote: string, cleRubrique: string, colonne: number) {
     const tableaux = NOTES_PAR_JEU[jeu].filter((n) => n.code === codeNote);
@@ -916,16 +944,22 @@ export class NoteAnnexeService {
     if (!spec || !rubrique) {
       throw new NotFoundException(`La note ${codeNote} n'a pas de rubrique « ${cleRubrique} ».`);
     }
-    if (!rubrique.saisie) {
-      throw new BadRequestException(
-        `La rubrique « ${rubrique.libelle} » de la note ${codeNote} est chiffrée par la comptabilité : ` +
-          `elle ne se saisit pas à la main. Corriger l'écriture, ou rattacher les comptes du dossier.`,
-      );
-    }
     const colonneSpec = spec.colonnes[colonne];
     if (!colonneSpec) {
       throw new BadRequestException(
         `La note ${codeNote} n'a pas de colonne n° ${colonne} · elle en compte ${spec.colonnes.length}.`,
+      );
+    }
+    // Une rubrique CHIFFRÉE n'ouvre que ses cellules LIBRE déclarées en
+    // saisie (une sûreté, une nature de contrat, une échéance) · jamais une
+    // colonne de montant, jamais la colonne « Note », jamais un total. La
+    // règle vit une fois (`celluleLibreEnSaisie`), le calcul de la note la lit
+    // aussi : l'écran ne propose que ce que cette porte accepte.
+    if (!rubrique.saisie && !(celluleLibreEnSaisie(spec, rubrique) && colonneLibreEnSaisie(colonneSpec))) {
+      throw new BadRequestException(
+        `La cellule « ${colonneSpec.libelle} » de la rubrique « ${rubrique.libelle} » (note ${codeNote}) est ` +
+          `chiffrée par la comptabilité : elle ne se saisit pas à la main. Corriger l'écriture, ou rattacher ` +
+          `les comptes du dossier.`,
       );
     }
     return { spec, rubrique, colonneSpec };

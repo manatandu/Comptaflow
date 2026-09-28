@@ -238,6 +238,23 @@ describe('une forme ne s’échange pas contre une autre', () => {
   });
 });
 
+describe('VMG-ENG-1 · les sûretés réelles sont un objet du recensement', () => {
+  it('nomme hypothèques, nantissements et gages, y compris sur les dettes du bilan, avec leur fondement', () => {
+    const item = ITEM_PAR_CODE.get('VMG-ENG-1')!;
+    expect(item.objets).toEqual([
+      'Cautions',
+      'Avals',
+      'Garanties données',
+      'Hypothèques, nantissements, gages et autres sûretés réelles consentis, y compris en garantie des dettes du bilan',
+    ]);
+    expect(item.fondement).toContain('AUDCIF, Titre VII, compte 16');
+    expect(item.fondement).toContain('« Dettes garanties par des sûretés réelles »');
+    expect(item.fondement).toContain('« hypothèques, nantissements, gages, autres »');
+    // Posé aux deux référentiels · le filtre ne porte que sur VMG-ENG-3.
+    expect(item.referentiel).toBeUndefined();
+  });
+});
+
 describe('le référentiel filtre l’item, pas le questionnaire', () => {
   it('écarte la classe 9 des contributions volontaires en SYSCOHADA', () => {
     const sycebnl = QuestionnaireService.itemsRetenus(

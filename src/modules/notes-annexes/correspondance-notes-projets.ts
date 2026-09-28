@@ -206,13 +206,23 @@ export const NOTES_PROJETS: SpecificationNote[] = [
   {
     code: '3B',
     titre: 'BIENS PRIS EN LOCATION-ACQUISITION',
-    colonnes: [{ type: 'LIBRE' as const, libelle: 'Nature du contrat (I ; M ; A)' }, ...COLONNES_MOUVEMENTS],
+    // « Nature du contrat » qualifie le contrat, aucun compte ne la dit : elle
+    // se SAISIT sur chaque ligne chiffrée, d'où les `cle`. Le total n'en porte
+    // pas (`cellules-libres-en-saisie.ts`).
+    colonnes: [
+      { type: 'LIBRE' as const, libelle: 'Nature du contrat (I ; M ; A)', saisieSurLigneChiffree: true },
+      ...COLONNES_MOUVEMENTS,
+    ],
     // Mêmes divisionnaires « 6 » de chaque famille que la note 5C associations.
     rubriques: [
-      { libelle: 'Terrains', comptes: ['2286'] },
-      { libelle: 'Bâtiments', comptes: ['2316', '2326'] },
-      { libelle: 'Matériel, mobilier', comptes: ['2416', '2426', '2446'] },
-      { libelle: 'Matériel de transport', comptes: ['2456'] },
+      { cle: 'location-acquisition-terrains', libelle: 'Terrains', comptes: ['2286'] },
+      { cle: 'location-acquisition-batiments', libelle: 'Bâtiments', comptes: ['2316', '2326'] },
+      {
+        cle: 'location-acquisition-materiel-mobilier',
+        libelle: 'Matériel, mobilier',
+        comptes: ['2416', '2426', '2446'],
+      },
+      { cle: 'location-acquisition-materiel-transport', libelle: 'Matériel de transport', comptes: ['2456'] },
       { libelle: 'TOTAL IMMOBILISATIONS EN LOCATION-ACQUISITION', totalDeRubriques: [0, 1, 2, 3] },
     ],
     renvoiOfficiel:
@@ -410,17 +420,40 @@ export const NOTES_PROJETS: SpecificationNote[] = [
   {
     code: '10',
     titre: 'SUBVENTIONS',
-    colonnes: [...COLONNES_STANDARD, { type: 'LIBRE' as const, libelle: 'Echéances' }],
+    // « Echéances » qualifie la subvention, aucun compte ne la porte : elle se
+    // SAISIT sur chaque ligne chiffrée, d'où les `cle`. Le total n'en porte
+    // pas (`cellules-libres-en-saisie.ts`).
+    colonnes: [...COLONNES_STANDARD, { type: 'LIBRE' as const, libelle: 'Echéances', saisieSurLigneChiffree: true }],
     renvoyeeDepuis: ['CD'],
     rubriques: [
-      { libelle: 'État', comptes: ['1411'], natureCreditrice: true },
-      { libelle: 'Région', comptes: ['1412'], natureCreditrice: true },
-      { libelle: 'Département', comptes: ['1413'], natureCreditrice: true },
-      { libelle: 'Communes et collectivités publiques décentralisées', comptes: ['1414'], natureCreditrice: true },
-      { libelle: 'Entités publiques ou mixtes', comptes: ['1415'], natureCreditrice: true },
-      { libelle: 'Entités et organismes privés', comptes: ['1416'], natureCreditrice: true },
-      { libelle: 'Organismes internationaux', comptes: ['1417'], natureCreditrice: true },
-      { libelle: 'Autres', comptes: ['1418', '148'], natureCreditrice: true },
+      { cle: 'subventions-etat', libelle: 'État', comptes: ['1411'], natureCreditrice: true },
+      { cle: 'subventions-region', libelle: 'Région', comptes: ['1412'], natureCreditrice: true },
+      { cle: 'subventions-departement', libelle: 'Département', comptes: ['1413'], natureCreditrice: true },
+      {
+        cle: 'subventions-communes',
+        libelle: 'Communes et collectivités publiques décentralisées',
+        comptes: ['1414'],
+        natureCreditrice: true,
+      },
+      {
+        cle: 'subventions-entites-publiques-ou-mixtes',
+        libelle: 'Entités publiques ou mixtes',
+        comptes: ['1415'],
+        natureCreditrice: true,
+      },
+      {
+        cle: 'subventions-entites-privees',
+        libelle: 'Entités et organismes privés',
+        comptes: ['1416'],
+        natureCreditrice: true,
+      },
+      {
+        cle: 'subventions-organismes-internationaux',
+        libelle: 'Organismes internationaux',
+        comptes: ['1417'],
+        natureCreditrice: true,
+      },
+      { cle: 'subventions-autres', libelle: 'Autres', comptes: ['1418', '148'], natureCreditrice: true },
       { libelle: 'TOTAL SUBVENTIONS', totalDeRubriques: [0, 1, 2, 3, 4, 5, 6, 7] },
     ],
   },

@@ -832,7 +832,11 @@ l'inverse.
   ordinaire et en produit tous les effets ». Le suivi en comptes ad hoc (un
   4116 « Clients, réserve de propriété ») est présenté comme utile, jamais
   obligatoire, et le plan de comptes du logiciel permet de les ouvrir. Rien ne
-  manque.
+  manque. **RECTIFIÉ PAR LA PASSE O3 (2026-09-28)** · la conclusion ne rendait
+  pas compte de la section 3, qui demande en Notes annexes QUATRE montants
+  frappés de réserve de propriété (immobilisations, stocks, clients,
+  fournisseurs). Seul le montant clients était servi (Note 7) · voir la
+  passe O3.
 
 ### Confort · la qualification d'un contrat de location n'est pas outillée
 

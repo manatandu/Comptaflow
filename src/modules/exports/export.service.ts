@@ -2540,8 +2540,13 @@ export class ExportService {
    * vivent sur des champs dédiés de `LigneNoteCalculee` ; toutes les autres
    * (mouvements, ventilation par nature, échéances, variation absolue)
    * vivent dans `valeurs`, indexé par le même `TypeColonneNote` · voir
-   * `note-annexe.types.ts`. `LIBRE` n'a rien à calculer : c'est une colonne
-   * de saisie (devise, cours, identité d'un apporteur…), jamais un oubli.
+   * `note-annexe.types.ts`. `LIBRE` n'a rien à calculer. Sur une rubrique
+   * chiffrée, sa cellule vient de ce que le dossier a saisi quand la colonne
+   * le permet (`saisieLibre` · sûretés réelles de la note 1, nature d'un
+   * contrat, échéances). Ailleurs elle reste VIDE, et ce vide n'est pas une
+   * réponse · colonne « Note » (le renvoi part en commentaire de cellule),
+   * virements de poste à poste, devises et cours, identité des membres,
+   * qu'aucune saisie ne sert encore (`cellules-libres-en-saisie.ts`).
    */
   private valeurColonneNote(ligne: LigneNoteCalculee, type: TypeColonneNote, index: number): number | string | null {
     // Rubrique renseignée HORS comptabilité : la cellule vient de ce que le
@@ -2560,7 +2565,8 @@ export class ExportService {
       case 'VARIATION_POURCENT':
         return ligne.variationPourcent ?? null;
       case 'LIBRE':
-        return null;
+        // Le texte que le dossier a écrit sur la ligne chiffrée, s'il y en a.
+        return ligne.saisieLibre?.[index] ?? null;
       default:
         return ligne.valeurs?.[type] ?? null;
     }

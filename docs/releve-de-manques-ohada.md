@@ -90,3 +90,52 @@ RÈGLE (tous les livres), pas par le fichier où la phrase est écrite.
 rendait `manquantes: []` hors des sociétés, ce qui disait « rien ne manque » à
 un commerçant qui n'avait pas de RCCM. Une règle hors de son périmètre doit
 rendre « pas de réponse », et c'est à une autre règle de parler.
+
+## Passe O3 · Acte uniforme portant organisation des sûretés (2026-09-28)
+
+L'AUS révisé du 15 décembre 2010 confronté au dépôt, en quatre blocs (titre
+préliminaire et sûretés personnelles ; inscription, rétention et réserve de
+propriété ; gage, nantissement et privilèges ; hypothèques et distribution).
+25 agents, 20 obligations servies, 21 constats réfutés un à un, **11 écartés,
+10 retenus (7 écarts distincts, A1 et D1, B1 et C1, C4 et D5 visant le même
+défaut) dont 2 FAUX, tous traités**.
+
+### Corrigés
+
+| Constat | Gravité | Ce qui était faux | Ce qui est fait |
+|---|---|---|---|
+| A1, D1 | FAUX | Les colonnes Hypothèques, Nantissements et Gages/autres de la NOTE 1 « Dettes garanties par des sûretés réelles » se disaient « en saisie » et ne l'étaient pas, aux deux référentiels · un blanc se lisait « aucune sûreté ». | La cellule LIBRE d'une rubrique chiffrée se saisit (`cellules-libres-en-saisie.ts`), totaux et colonne « Note » exclus, écran et liasse ; jumeaux ouverts (nature du contrat, régime fiscal, échéances) et liste fermée des colonnes laissées vides, chacune avec son motif. |
+| B1, C1 | FAUX (commentaire) | Le tableau des engagements financiers disait que « hypothèques, nantissements, gages » « n'a que des hypothèques en 9023/9063 ». | Réécrit · 9028 et 9068 portent le gage et le nantissement, la classe 9 est facultative, la réserve de propriété est aux 9043 et 9083 ; la ligne reste en saisie. |
+| B2 | INCOMPLET | Le ch. 9 § 3 (AUDCIF Titre VIII) veut en Notes annexes quatre montants frappés de réserve de propriété ; seul le montant clients était servi. La passe 9 avait conclu « rien ne manque ». | Contrôle `RESERVE_PROPRIETE_A_MENTIONNER` (information, SYSCOHADA Système normal) sur les soldes des 4016, 4116, 4816, 9043 et 9083 ; conclusion de la passe 9 rectifiée. |
+| B4 | INCOMPLET | Au SYCEBNL, un bien corporel crédité au 48161 (réserve de propriété, incorporelles) était admis et proposé. | Listes par référentiel · 48161/48181 incorporels, 48162/48182 corporels ; le SYSCOHADA garde 4816/4818, non subdivisés au semis. |
+| C4, D5 | CONFORT | VMG-ENG-1 ignorait les sûretés réelles ; la classe 9 du SYSCOHADA était dite « celle de la comptabilité analytique ». | Objet ajouté (fiche du compte 16, NOTE 1) ; engagements hors bilan (90-91) et analytique (92-99) nommés, au code et à CLAUDE.md. |
+| B6 | CONFORT | Le plan disait que le logiciel « ne tient rien » de la réserve de propriété. | État exact écrit. |
+
+### Lus et sans objet comptable (B8)
+
+Inscription au RCCM (art. 50 à 66, formalités au greffe), droit de rétention
+(art. 67 à 70), réserve de propriété après défaut (art. 75 à 78, traitée par
+l'AUDCIF ch. 9 et le Guide, Application 40), cession de créance à titre de
+garantie (art. 80 à 86, aucune source comptable lue ; la ligne « créances
+cédées » est en saisie), transfert fiduciaire d'une somme d'argent (art. 87 à
+91, qualification du cabinet), privilèges généraux du Trésor, des douanes et
+de la sécurité sociale (acte du comptable public). Le rang et la réalisation
+des sûretés ne se traduisent par aucune écriture propre.
+
+### Écartés par la réfutation
+
+A2, A3, B3, B5, B7, C2, C3, C5, D2, D3, D4 · chacun parce que le dépôt servait
+déjà l'information, que le texte ne visait pas la comptabilité, ou que la
+correction aurait inventé une règle (rapprochement forcé avec la classe 9,
+pacte commissoire traité comme une procédure, lignes HAO absentes des deux
+maquettes officielles).
+
+### Ce que la passe apprend
+
+**UNE RÈGLE ÉCRITE À LA RUBRIQUE CACHAIT UN MANQUE À LA CELLULE.** « Une
+rubrique rattachable n'est jamais en saisie » était juste pour les montants,
+et empêchait de saisir le texte que la maquette place à côté d'un montant ·
+les commentaires affirmaient une saisie que la règle interdisait.
+
+**UNE CONCLUSION « RIEN NE MANQUE » SE RELIT QUAND UN AUTRE TEXTE RENVOIE AU
+MÊME OBJET.** La passe 9 avait lu le principe du ch. 9, pas sa section 3.

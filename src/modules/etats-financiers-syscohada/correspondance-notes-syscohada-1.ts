@@ -347,19 +347,23 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
     code: '1',
     sousTableau: 'DETTES GARANTIES PAR DES SÛRETÉS RÉELLES',
     titre: 'DETTES GARANTIES PAR DES SÛRETÉS RÉELLES',
-    // Les trois colonnes de sûretés sont en saisie : une hypothèque, un
-    // nantissement ou un gage est un fait juridique attaché au contrat, que
-    // le plan de comptes ne porte nulle part (Titre VII COMPTE 16 : « le
-    // montant et la portée de la caution, de la garantie ou du gage doivent
-    // être indiqués dans les Notes annexes »). Seul le « Montant brut » de
-    // la dette se calcule ; la colonne « Note » renvoie à la note qui
-    // détaille chaque ligne (`renvoi`).
+    // Les trois colonnes de sûretés se SAISISSENT, ligne de dette par ligne
+    // de dette : une hypothèque, un nantissement ou un gage est un fait
+    // juridique attaché au contrat, que le plan de comptes ne porte nulle
+    // part (Titre VII COMPTE 16, commentaires : « le montant et la portée de
+    // la caution, de la garantie ou du gage doivent être indiqués dans les
+    // Notes annexes »). Seul le « Montant brut » de la dette se calcule ; la
+    // colonne « Note » renvoie à la note qui détaille chaque ligne (`renvoi`)
+    // et ne se saisit pas. Chaque ligne de dette porte donc une `cle`,
+    // l'ancre de sa saisie ; les sous-totaux et le total n'en portent pas ·
+    // une sûreté se rapporte à une dette, et un texte ne s'additionne pas
+    // (`cellules-libres-en-saisie.ts`).
     colonnes: [
       { type: 'LIBRE' as const, libelle: 'Note' },
       { type: 'EXERCICE_N' as const, libelle: 'Montant brut' },
-      { type: 'LIBRE' as const, libelle: 'SÛRETÉS RÉELLES : Hypothèques' },
-      { type: 'LIBRE' as const, libelle: 'SÛRETÉS RÉELLES : Nantissements' },
-      { type: 'LIBRE' as const, libelle: 'SÛRETÉS RÉELLES : Gages/autres' },
+      { type: 'LIBRE' as const, libelle: 'SÛRETÉS RÉELLES : Hypothèques', saisieSurLigneChiffree: true },
+      { type: 'LIBRE' as const, libelle: 'SÛRETÉS RÉELLES : Nantissements', saisieSurLigneChiffree: true },
+      { type: 'LIBRE' as const, libelle: 'SÛRETÉS RÉELLES : Gages/autres', saisieSurLigneChiffree: true },
     ],
     // Pas de `renvoyeeDepuis` : le ch. 3 renvoie DA, DB et DC à la NOTE 16,
     // aucun poste du bilan ne renvoie à la note 1 (anomalie n° 16).
@@ -367,8 +371,15 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
       // Dettes financières et ressources assimilées · DA = « 16, 181, 182,
       // 183, 184 » (ch. 7). Titre VII COMPTE 16 : 1612 « convertibles en
       // actions », donc « autres emprunts obligataires » = 161 sauf 1612.
-      { libelle: 'Emprunts obligataires convertibles', comptes: ['1612'], natureCreditrice: true, renvoi: '16A' },
       {
+        cle: 'dettes-garanties-emprunts-obligataires-convertibles',
+        libelle: 'Emprunts obligataires convertibles',
+        comptes: ['1612'],
+        natureCreditrice: true,
+        renvoi: '16A',
+      },
+      {
+        cle: 'dettes-garanties-autres-emprunts-obligataires',
         libelle: 'Autres emprunts obligataires',
         comptes: ['161'],
         exclusions: ['1612'],
@@ -376,6 +387,7 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
         renvoi: '16A',
       },
       {
+        cle: 'dettes-garanties-etablissements-de-credit',
         libelle: 'Emprunts et dettes des établissements de crédit',
         comptes: ['162'],
         natureCreditrice: true,
@@ -387,6 +399,7 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
       // en deux lignes ; le ventiler serait un rangement au jugé. La note
       // 16A leur donne une ligne propre, d'où le renvoi.
       {
+        cle: 'dettes-garanties-autres-dettes-financieres',
         libelle: 'Autres dettes financières',
         comptes: ['16', '181', '182', '183', '184'],
         exclusions: ['161', '162'],
@@ -403,19 +416,28 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
       // pourrait tomber sans sortir de la note (SOUS TOTAL (2) doit recouper
       // DB = « 17 »).
       {
+        cle: 'dettes-garanties-credit-bail-immobilier',
         libelle: 'Dettes de crédit-bail immobilier',
         comptes: ['172', '1762'],
         natureCreditrice: true,
         renvoi: '16A',
       },
-      { libelle: 'Dettes de crédit-bail mobilier', comptes: ['173', '1763'], natureCreditrice: true, renvoi: '16A' },
       {
+        cle: 'dettes-garanties-credit-bail-mobilier',
+        libelle: 'Dettes de crédit-bail mobilier',
+        comptes: ['173', '1763'],
+        natureCreditrice: true,
+        renvoi: '16A',
+      },
+      {
+        cle: 'dettes-garanties-location-vente',
         libelle: 'Dettes sur contrats de location-vente',
         comptes: ['174', '1764'],
         natureCreditrice: true,
         renvoi: '16A',
       },
       {
+        cle: 'dettes-garanties-location-acquisition',
         libelle: 'Dettes sur contrats de location-acquisition',
         comptes: ['178', '1768'],
         natureCreditrice: true,
@@ -425,13 +447,38 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
       // Dettes du passif circulant : postes DJ, DI, DK, DM du ch. 7. Les
       // tiers polyvalents (42 à 47) sont filtrés au crédit, comme le ch. 7
       // le fait pour DK et DM (« soldes créditeurs »).
-      { libelle: 'Fournisseurs et comptes rattachés', comptes: ['40'], exclusions: ['409'], natureCreditrice: true, renvoi: '17' },
-      { libelle: 'Clients', comptes: ['419'], natureCreditrice: true, renvoi: '7' },
-      { libelle: 'Personnel', comptes: ['42'], sens: 'CREDITEUR', renvoi: '18' },
-      { libelle: 'Sécurité sociale et organismes sociaux', comptes: ['43'], sens: 'CREDITEUR', renvoi: '18' },
-      { libelle: 'État', comptes: ['44'], sens: 'CREDITEUR', renvoi: '18' },
-      { libelle: 'Organismes internationaux', comptes: ['45'], sens: 'CREDITEUR', renvoi: '19' },
-      { libelle: 'Associés et groupe', comptes: ['46'], sens: 'CREDITEUR', renvoi: '19' },
+      {
+        cle: 'dettes-garanties-fournisseurs',
+        libelle: 'Fournisseurs et comptes rattachés',
+        comptes: ['40'],
+        exclusions: ['409'],
+        natureCreditrice: true,
+        renvoi: '17',
+      },
+      { cle: 'dettes-garanties-clients', libelle: 'Clients', comptes: ['419'], natureCreditrice: true, renvoi: '7' },
+      { cle: 'dettes-garanties-personnel', libelle: 'Personnel', comptes: ['42'], sens: 'CREDITEUR', renvoi: '18' },
+      {
+        cle: 'dettes-garanties-securite-sociale',
+        libelle: 'Sécurité sociale et organismes sociaux',
+        comptes: ['43'],
+        sens: 'CREDITEUR',
+        renvoi: '18',
+      },
+      { cle: 'dettes-garanties-etat', libelle: 'État', comptes: ['44'], sens: 'CREDITEUR', renvoi: '18' },
+      {
+        cle: 'dettes-garanties-organismes-internationaux',
+        libelle: 'Organismes internationaux',
+        comptes: ['45'],
+        sens: 'CREDITEUR',
+        renvoi: '19',
+      },
+      {
+        cle: 'dettes-garanties-associes-et-groupe',
+        libelle: 'Associés et groupe',
+        comptes: ['46'],
+        sens: 'CREDITEUR',
+        renvoi: '19',
+      },
       // DM = « 185, 45, 46, 47 (sauf 479) » créditeurs. La lettre du ch. 7
       // n'exclut que 479, mais 478 est exclu ICI AUSSI, exactement comme le
       // poste DM que cette note documente · voir l'anomalie n° 12 de
@@ -444,6 +491,7 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
       // poste, et c'est lui qui a trouvé cet écart.
       // 185 créditeur n'a pas de ligne dans la note : anomalie n° 6.
       {
+        cle: 'dettes-garanties-crediteurs-divers',
         libelle: 'Créditeurs divers',
         comptes: ['47', '185'],
         exclusions: ['478', '479'],
@@ -460,13 +508,20 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
     sousTableau: 'ENGAGEMENTS FINANCIERS',
     titre: 'ENGAGEMENTS FINANCIERS',
     // Un engagement hors bilan n'est porté par aucun compte de bilan. Le
-    // plan SYSCOHADA a bien une classe 9 (901 à 908, engagements obtenus et
-    // accordés), mais ses subdivisions ne recouvrent pas les lignes de la
-    // note (aucun compte pour les engagements envers les entités liées, les
-    // primes de remboursement, les créances cédées ; « hypothèques,
-    // nantissements, gages » n'a que des hypothèques en 9023/9063) : les
-    // rattacher au jugé ferait une note fausse. Tout le tableau est en
-    // saisie.
+    // plan SYSCOHADA a une classe 9 (901 à 908, engagements obtenus et
+    // accordés), mais son usage est FACULTATIF (Titre VII, classe 9,
+    // introduction) · une note lue sur la balance dirait « aucun
+    // engagement » de tout dossier qui ne la tient pas. Ses subdivisions ne
+    // recouvrent pas non plus les lignes de la note · aucun compte pour les
+    // engagements envers les entités liées, les primes de remboursement, les
+    // créances cédées. « Hypothèques, nantissements, gages, autres » a bien
+    // ses comptes, 9023 et 9063 pour les hypothèques, 9028 et 9068 pour le
+    // gage, le nantissement et l'antichrèse (fiches 9028 et 9068), mais ces
+    // derniers reçoivent aussi d'autres objets (promesses d'hypothèque,
+    // effets endossés par procuration, et au 9028 chèques de caution et
+    // actions de garantie de gestion), et la réserve de propriété, sûreté au
+    // sens de l'AUS (art. 4 al. 2), est aux 9043 et 9083. Rattacher au jugé
+    // ferait une note fausse (passe O3). Tout le tableau est en saisie.
     horsBalance: true,
     colonnes: [
       { type: 'LIBRE' as const, libelle: 'Engagements donnés' },
@@ -592,10 +647,15 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
     code: '3B',
     titre: 'BIENS PRIS EN LOCATION ACQUISITION',
     // La première colonne qualifie le contrat (I, M, A), elle ne porte pas
-    // de montant : en saisie. Les sous-colonnes de B et C qui ne se lisent
-    // pas en balance sont en saisie (anomalie n° 9).
+    // de montant et aucun compte ne la dit : elle se SAISIT, sur les lignes
+    // incorporelles (en saisie entière) comme sur les lignes chiffrées, d'où
+    // leurs `cle` (`cellules-libres-en-saisie.ts`). Les sous-colonnes de B et
+    // C qui ne se lisent pas en balance (anomalie n° 9) ne se saisissent que
+    // sur les lignes incorporelles · ce sont des MONTANTS, et sur une ligne
+    // chiffrée ils seraient une seconde source à côté du A, du B et du D que
+    // la balance calcule.
     colonnes: [
-      { type: 'LIBRE' as const, libelle: 'NATURE DU CONTRAT (I ; M ; A)' },
+      { type: 'LIBRE' as const, libelle: 'NATURE DU CONTRAT (I ; M ; A)', saisieSurLigneChiffree: true },
       { type: 'OUVERTURE' as const, libelle: "A · MONTANT BRUT À L'OUVERTURE" },
       { type: 'AUGMENTATIONS' as const, libelle: 'B · AUGMENTATIONS : Acquisitions/Apports/Créations' },
       { type: 'LIBRE' as const, libelle: 'B · AUGMENTATIONS : Virements de poste à poste' },
@@ -615,12 +675,16 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
     rubriques: [
       // Anomalie n° 3 : lignes incorporelles de la maquette, sans compte
       // possible ; en saisie et non en attente.
-      { cle: 'brevets-licences-logiciels-et-droits-similaires', libelle: 'Brevets, licences, logiciels et droits similaires', saisie: true },
+      {
+        cle: 'brevets-licences-logiciels-et-droits-similaires',
+        libelle: 'Brevets, licences, logiciels et droits similaires',
+        saisie: true,
+      },
       { cle: 'fonds-commercial-et-droit-au-bail', libelle: 'Fonds commercial et droit au bail', saisie: true },
       { cle: 'autres-immobilisations-incorporelles', libelle: 'Autres immobilisations incorporelles', saisie: true },
       { libelle: 'SOUS TOTAL : IMMOBILISATIONS INCORPORELLES', totalDeRubriques: [0, 1, 2] },
-      { libelle: 'Terrains', comptes: ['2286'] },
-      { libelle: 'Bâtiments', comptes: ['2316', '2326'] },
+      { cle: 'location-acquisition-terrains', libelle: 'Terrains', comptes: ['2286'] },
+      { cle: 'location-acquisition-batiments', libelle: 'Bâtiments', comptes: ['2316', '2326'] },
       enAttente(
         'amenagements-location-acquisition',
         'Aménagements, agencements et installations',
@@ -628,8 +692,12 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
           '(Titre VII COMPTE 23 n’en ouvre qu’en 2316 et 2326) : subdiviser le compte concerné et rattacher ' +
           'ici le sous-compte des aménagements pris en location-acquisition.',
       ),
-      { libelle: 'Matériel, mobilier et actifs biologiques', comptes: ['2416', '2426', '2446'] },
-      { libelle: 'Matériel de transport', comptes: ['2456'] },
+      {
+        cle: 'location-acquisition-materiel-mobilier',
+        libelle: 'Matériel, mobilier et actifs biologiques',
+        comptes: ['2416', '2426', '2446'],
+      },
+      { cle: 'location-acquisition-materiel-transport', libelle: 'Matériel de transport', comptes: ['2456'] },
       { libelle: 'SOUS TOTAL : IMMOBILISATIONS CORPORELLES', totalDeRubriques: [4, 5, 6, 7, 8] },
       { libelle: 'TOTAL GÉNÉRAL', totalDeRubriques: [3, 9] },
     ],
@@ -677,7 +745,8 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
       // en saisie, avec le motif porté sur la ligne.
       { libelle: 'Terrains hors immeuble de placement', comptes: ['282'] },
       {
-        cle: 'terrains-immeuble-de-placement', libelle: 'Terrains - immeuble de placement',
+        cle: 'terrains-immeuble-de-placement',
+        libelle: 'Terrains - immeuble de placement',
         saisie: true,
         renvoi:
           'Le compte 282 « Amortissements des terrains » n’est pas subdivisé par destination (seul 2824 ' +
@@ -686,7 +755,8 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
       },
       { libelle: 'Bâtiments hors immeuble de placement', comptes: ['2831', '2832', '2833', '2837'] },
       {
-        cle: 'batiments-immeuble-de-placement', libelle: 'Bâtiments - immeuble de placement',
+        cle: 'batiments-immeuble-de-placement',
+        libelle: 'Bâtiments - immeuble de placement',
         saisie: true,
         renvoi:
           'Les comptes 2831 et 2832 ne sont pas subdivisés (contrairement au brut, 2315 et 2325) et la ligne ' +
@@ -751,7 +821,8 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
       { cle: 'elements-reevalues-par-postes-du-bilan', libelle: 'Éléments réévalués par postes du bilan', saisie: true },
       { cle: 'methode-de-reevaluation-utilisee', libelle: 'Méthode de réévaluation utilisée', saisie: true },
       {
-        cle: 'traitement-fiscal-de-l-ecart-de-reevaluation-et', libelle: "Traitement fiscal de l'écart de réévaluation et des amortissements supplémentaires",
+        cle: 'traitement-fiscal-de-l-ecart-de-reevaluation-et',
+        libelle: "Traitement fiscal de l'écart de réévaluation et des amortissements supplémentaires",
         saisie: true,
       },
       { cle: 'montant-de-l-ecart-incorpore-au-capital', libelle: "Montant de l'écart incorporé au capital", saisie: true },
@@ -777,7 +848,8 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
       { cle: 'montant-global-a-etaler-au-1er-janvier-2018', libelle: 'Montant global à étaler au 1er janvier 2018', saisie: true },
       { cle: 'duree-d-etalement-retenue', libelle: "Durée d'étalement retenue", saisie: true },
       {
-        cle: 'exercice-2018-comptes-montants-comptes-60-61-62', libelle: 'Exercice 2018 · Comptes / Montants (comptes 60…, 61…, 62…, 63… ; compte 6714 pour les primes)',
+        cle: 'exercice-2018-comptes-montants-comptes-60-61-62',
+        libelle: 'Exercice 2018 · Comptes / Montants (comptes 60…, 61…, 62…, 63… ; compte 6714 pour les primes)',
         saisie: true,
       },
       { cle: 'total-exercice-2018', libelle: 'Total exercice 2018', saisie: true },
@@ -1312,41 +1384,103 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
       // c'est la variation en montant, d'où `VARIATION_VALEUR` (anomalie n° 5).
       { type: 'VARIATION_VALEUR' as const, libelle: 'Variation en valeur absolue' },
       { type: 'VARIATION_POURCENT' as const, libelle: 'Variation en %' },
-      { type: 'LIBRE' as const, libelle: 'Régime fiscal' },
-      { type: 'LIBRE' as const, libelle: 'Échéances' },
+      { type: 'LIBRE' as const, libelle: 'Régime fiscal', saisieSurLigneChiffree: true },
+      { type: 'LIBRE' as const, libelle: 'Échéances', saisieSurLigneChiffree: true },
     ],
+    // « Régime fiscal » et « Échéances » qualifient la subvention ou la
+    // provision (le commentaire officiel demande la date d'octroi, la nature,
+    // les obligations, le texte de référence) · aucun compte ne les porte.
+    // Elles se SAISISSENT sur chaque ligne chiffrée, d'où les `cle` ; la
+    // colonne « NOTE » et les totaux, non (`cellules-libres-en-saisie.ts`).
     renvoyeeDepuis: ['CL', 'CM'],
     // CL = 14, CM = 15 (ch. 7). Titre VII COMPTE 14 : 1411 à 1418 par
     // pourvoyeur, 148 autres ; COMPTE 15 : 151 à 158. Les huit lignes de
     // subventions sont les huit subdivisions du 141 ; 148 et 153 :
     // anomalie n° 6.
     rubriques: [
-      { libelle: 'État', comptes: ['1411'], natureCreditrice: true },
-      { libelle: 'Régions', comptes: ['1412'], natureCreditrice: true },
-      { libelle: 'Départements', comptes: ['1413'], natureCreditrice: true },
-      { libelle: 'Communes et collectivités publiques décentralisées', comptes: ['1414'], natureCreditrice: true },
-      { libelle: 'Entités publiques ou mixtes', comptes: ['1415'], natureCreditrice: true },
-      { libelle: 'Entités et organismes privés', comptes: ['1416'], natureCreditrice: true },
-      { libelle: 'Organismes internationaux', comptes: ['1417'], natureCreditrice: true },
+      { cle: 'subventions-etat', libelle: 'État', comptes: ['1411'], natureCreditrice: true },
+      { cle: 'subventions-regions', libelle: 'Régions', comptes: ['1412'], natureCreditrice: true },
+      { cle: 'subventions-departements', libelle: 'Départements', comptes: ['1413'], natureCreditrice: true },
+      {
+        cle: 'subventions-communes',
+        libelle: 'Communes et collectivités publiques décentralisées',
+        comptes: ['1414'],
+        natureCreditrice: true,
+      },
+      {
+        cle: 'subventions-entites-publiques-ou-mixtes',
+        libelle: 'Entités publiques ou mixtes',
+        comptes: ['1415'],
+        natureCreditrice: true,
+      },
+      {
+        cle: 'subventions-entites-privees',
+        libelle: 'Entités et organismes privés',
+        comptes: ['1416'],
+        natureCreditrice: true,
+      },
+      {
+        cle: 'subventions-organismes-internationaux',
+        libelle: 'Organismes internationaux',
+        comptes: ['1417'],
+        natureCreditrice: true,
+      },
       // Ligne résiduelle des subventions : « 14 sauf les sept pourvoyeurs
       // nommés », donc 1418 ET 148 (anomalie n° 6) et tout divisionnaire que
       // le dossier créerait, comme CL = « 14 » les prend (ch. 7).
       {
+        cle: 'subventions-autres',
         libelle: 'Autres',
         comptes: ['14'],
         exclusions: ['1411', '1412', '1413', '1414', '1415', '1416', '1417'],
         natureCreditrice: true,
       },
       { libelle: 'TOTAL SUBVENTIONS', totalDeRubriques: [0, 1, 2, 3, 4, 5, 6, 7] },
-      { libelle: 'Amortissements dérogatoires', comptes: ['151'], natureCreditrice: true },
-      { libelle: 'Plus-value de cession à réinvestir', comptes: ['152'], natureCreditrice: true },
+      {
+        cle: 'provisions-amortissements-derogatoires',
+        libelle: 'Amortissements dérogatoires',
+        comptes: ['151'],
+        natureCreditrice: true,
+      },
+      {
+        cle: 'provisions-plus-value-a-reinvestir',
+        libelle: 'Plus-value de cession à réinvestir',
+        comptes: ['152'],
+        natureCreditrice: true,
+      },
       // Ch. 7, clés de lecture : « la provision spéciale de réévaluation
       // relève du 154 et rejoint CM par le 15 » ; renvoi officiel à la 3E.
-      { libelle: 'Provision spéciale de réévaluation', comptes: ['154'], natureCreditrice: true, renvoi: '3E' },
-      { libelle: 'Provisions réglementées relatives aux immobilisations', comptes: ['155'], natureCreditrice: true },
-      { libelle: 'Provisions réglementées relatives aux stocks', comptes: ['156'], natureCreditrice: true },
-      { libelle: 'Provisions pour investissement', comptes: ['157'], natureCreditrice: true },
-      { libelle: 'Autres provisions et fonds réglementées', comptes: ['153', '158'], natureCreditrice: true },
+      {
+        cle: 'provisions-speciale-de-reevaluation',
+        libelle: 'Provision spéciale de réévaluation',
+        comptes: ['154'],
+        natureCreditrice: true,
+        renvoi: '3E',
+      },
+      {
+        cle: 'provisions-immobilisations',
+        libelle: 'Provisions réglementées relatives aux immobilisations',
+        comptes: ['155'],
+        natureCreditrice: true,
+      },
+      {
+        cle: 'provisions-stocks',
+        libelle: 'Provisions réglementées relatives aux stocks',
+        comptes: ['156'],
+        natureCreditrice: true,
+      },
+      {
+        cle: 'provisions-pour-investissement',
+        libelle: 'Provisions pour investissement',
+        comptes: ['157'],
+        natureCreditrice: true,
+      },
+      {
+        cle: 'provisions-autres',
+        libelle: 'Autres provisions et fonds réglementées',
+        comptes: ['153', '158'],
+        natureCreditrice: true,
+      },
       { libelle: 'TOTAL PROVISIONS RÉGLEMENTÉES', totalDeRubriques: [9, 10, 11, 12, 13, 14, 15] },
       { libelle: 'TOTAL SUBVENTIONS ET PROVISIONS RÉGLEMENTÉES', totalDeRubriques: [8, 16] },
     ],
@@ -1368,8 +1502,12 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
       // négative.
       { type: 'VARIATION_VALEUR' as const, libelle: 'Variation en valeur absolue' },
       { type: 'VARIATION_POURCENT' as const, libelle: 'Variation en %' },
-      { type: 'LIBRE' as const, libelle: 'Échéances' },
+      { type: 'LIBRE' as const, libelle: 'Échéances', saisieSurLigneChiffree: true },
     ],
+    // « Échéances » est ce que le commentaire officiel oppose à ces dettes
+    // (« absence d'échéancier ») · aucun compte ne la porte. Elle se SAISIT
+    // sur chaque ligne chiffrée ou en attente, d'où les `cle` ; la colonne
+    // « NOTE » et le total, non (`cellules-libres-en-saisie.ts`).
     // Pas de `renvoyeeDepuis` : la note 15B est bien un détail de DA, mais le
     // ch. 3 renvoie DA à la NOTE 16 et n'attribue aucun code à cette ligne
     // intercalée · aucun poste du bilan ne renvoie ici (anomalie n° 16).
@@ -1387,7 +1525,13 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
       // Titre VII COMPTE 16 : 1671 avances bloquées pour augmentation du
       // capital, 1672 à 1674 avances conditionnées par l'État, les organismes
       // africains, les organismes internationaux.
-      { libelle: 'Avances conditionnées', comptes: ['167'], natureCreditrice: true, renvoi: '16A' },
+      {
+        cle: 'avances-conditionnees',
+        libelle: 'Avances conditionnées',
+        comptes: ['167'],
+        natureCreditrice: true,
+        renvoi: '16A',
+      },
       enAttente(
         'titres-subordonnes-duree-indeterminee',
         'Titres subordonnés à durée indéterminée (T.S.D.I.)',
@@ -1397,6 +1541,7 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
       // Titre VII COMPTE 16 : « 1613 remboursables en actions ». Reste aussi
       // dans 161 à la note 16A (anomalie n° 8).
       {
+        cle: 'obligations-remboursables-en-actions',
         libelle: 'Obligations remboursables en actions (O.R.A.)',
         comptes: ['1613'],
         natureCreditrice: true,

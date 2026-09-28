@@ -2,6 +2,7 @@ import type { Dispatch, ReactNode, SetStateAction } from 'react';
 import type { Compte, LigneFicheRecapitulative, LigneNoteCalculee, NoteCalculee } from '../lib/types';
 import { Aide } from './chrome/Aide';
 import { montant } from '../lib/montants';
+import { celluleLibreSaisissable, texteCelluleLibre } from '../lib/cellules-notes';
 
 /**
  * RENDU DES NOTES ANNEXES · pièces d'affichage communes aux deux écrans de
@@ -173,6 +174,33 @@ function LigneTableauNote({
               className={`border border-border bg-surface px-1 py-0.5 text-[11.5px] disabled:opacity-50 ${
                 c.type === 'LIBRE' ? '' : 'font-mono text-right'
               }`}
+            />
+          );
+        }
+        // Cellule LIBRE d'une ligne CHIFFRÉE (sûreté réelle de la note 1,
+        // nature d'un contrat, échéance) : le montant de la ligne reste
+        // calculé, ce fait-là s'écrit. Même champ, même enregistrement que
+        // les rubriques en saisie · le serveur refuse toute autre cellule.
+        if (celluleLibreSaisissable(c, ligne)) {
+          const texte = texteCelluleLibre(ligne, ci);
+          if (!saisie) {
+            return (
+              <span key={ci} className="text-text-dim whitespace-pre-wrap">
+                {texte}
+              </span>
+            );
+          }
+          const ancre = `${note.code}::${ligne.cle}::${ci}`;
+          return (
+            <input
+              key={`${ancre}-${texte}`}
+              defaultValue={texte}
+              onBlur={(e) => {
+                if (e.target.value !== texte) saisie.enregistrer(note.code, ligne.cle!, ci, e.target.value);
+              }}
+              disabled={saisie.enCours !== null}
+              title={c.libelle}
+              className="border border-border bg-surface px-1 py-0.5 text-[11.5px] disabled:opacity-50"
             />
           );
         }

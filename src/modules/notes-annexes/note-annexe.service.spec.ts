@@ -237,7 +237,10 @@ describe.each([
   it('toute colonne déclarée est effectivement calculée par le moteur', () => {
     // Garde contre le défaut relevé sur la note 9 avant la ventilation par
     // échéance : trois colonnes officielles déclarées, rendues vides, et rien
-    // pour le signaler. Une colonne LIBRE est une saisie assumée, pas un oubli.
+    // pour le signaler. Une colonne LIBRE ne se calcule pas : elle se saisit
+    // (rubrique en saisie, ou colonne `saisieSurLigneChiffree` sur une ligne
+    // chiffrée), ou elle reste vide sous un motif écrit · la liste fermée de
+    // `rubriques-en-saisie.spec.ts` tient ce partage.
     const CALCULEES = [
       'EXERCICE_N', 'EXERCICE_N1', 'VARIATION_VALEUR', 'VARIATION_POURCENT', 'VARIATION_VALEUR_ABSOLUE',
       'OUVERTURE', 'AUGMENTATIONS', 'DIMINUTIONS', 'CLOTURE',
@@ -1236,12 +1239,13 @@ describe('jeu de notes SYSCOHADA · Système normal', () => {
   });
 
   it('le garde-fou des rubriques officielles vaut aussi pour le SYSCOHADA', async () => {
-    // « Avances conditionnées » est rattachée au compte 167 par l'AUDCIF :
-    // elle ne porte pas de clé et n'est pas modifiable.
+    // « Avances conditionnées » est rattachée au compte 167 par l'AUDCIF.
+    // Elle porte une clé depuis la passe O3, pour sa colonne « Échéances »
+    // en saisie · la clé ancre une saisie, elle n'ouvre pas un rattachement.
     const s = dossier(Referentiel.SYSCOHADA, [], [{ id: 'c1', typeCompte: 'DETAIL', numero: '16700000' }]);
     await expect(
       s.rattacher('t', 'u', JeuNotesAnnexes.SYSCOHADA_SYSTEME_NORMAL, '15B', 'avances-conditionnees', 'c1'),
-    ).rejects.toThrow(/pas de rubrique rattachable/);
+    ).rejects.toThrow(/rattachée par le plan de comptes officiel/);
   });
 
   it('CLOISONNEMENT · un dossier SYSCOHADA ne rattache pas à un jeu SYCEBNL', async () => {
@@ -1456,6 +1460,110 @@ describe('rubriques en saisie · ce que le dossier écrit lui-même', () => {
     await expect(
       s.enregistrerSaisie('t', 'u', 'e-ailleurs', JEU_ASSO, '2', 'a-identite-organisation', 0, 'x'),
     ).rejects.toThrow(/Exercice introuvable/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CELLULES LIBRE D'UNE RUBRIQUE CHIFFRÉE · passe O3, constat A1/D1
+// ---------------------------------------------------------------------------
+describe('cellules LIBRE d’une rubrique chiffrée · les sûretés réelles de la note 1', () => {
+  const JEU_SYSCO = JeuNotesAnnexes.SYSCOHADA_SYSTEME_NORMAL;
+  const JEU_ASSO = JeuNotesAnnexes.ASSOCIATIONS_ORDRES_PROFESSIONNELS;
+  const DETTES_SYSCO = 'DETTES GARANTIES PAR DES SÛRETÉS RÉELLES';
+  const DETTES_ASSO = 'DETTES GARANTIES PAR DES SURETES REELLES';
+
+  it('ENREGISTRE une hypothèque sur une ligne de dette chiffrée, en texte (SYSCOHADA et associations)', async () => {
+    // AUDCIF Titre VII COMPTE 16, commentaires · « le montant et la portée de
+    // la caution, de la garantie ou du gage doivent être indiqués dans les
+    // Notes annexes ». Aucun compte ne le porte : la cellule se saisit.
+    const sysco = service({ e1: [] }, [], prismaAvec([], [], [], [], Referentiel.SYSCOHADA));
+    const r = await sysco.enregistrerSaisie('t', 'u', 'e1', JEU_SYSCO, '1', 'dettes-garanties-etablissements-de-credit', 2, 'Hypothèque 1er rang, immeuble de Gombe');
+    expect(r).toMatchObject({
+      codeNote: '1', cleRubrique: 'dettes-garanties-etablissements-de-credit', colonne: 2,
+      valeurTexte: 'Hypothèque 1er rang, immeuble de Gombe', valeurNombre: null,
+    });
+    const asso = service({ e1: [] }, [], prismaAvec());
+    const g = await asso.enregistrerSaisie('t', 'u', 'e1', JEU_ASSO, '1', 'dettes-garanties-fournisseurs', 4, 'Gage sur stock');
+    expect(g).toMatchObject({ colonne: 4, valeurTexte: 'Gage sur stock' });
+  });
+
+  it('REFUSE le « Montant brut » d’une ligne de dette · une cellule chiffrée n’est jamais en saisie', async () => {
+    const s = service({ e1: [] }, [], prismaAvec([], [], [], [], Referentiel.SYSCOHADA));
+    await expect(
+      s.enregistrerSaisie('t', 'u', 'e1', JEU_SYSCO, '1', 'dettes-garanties-etablissements-de-credit', 1, '1000'),
+    ).rejects.toThrow(/chiffrée par la comptabilité/);
+  });
+
+  it('REFUSE la colonne « Note » · elle porte le renvoi que la spécification fixe', async () => {
+    const s = service({ e1: [] }, [], prismaAvec());
+    await expect(
+      s.enregistrerSaisie('t', 'u', 'e1', JEU_ASSO, '1', 'dettes-garanties-etablissements-de-credit', 0, '18A'),
+    ).rejects.toThrow(/chiffrée par la comptabilité/);
+  });
+
+  it('REFUSE une colonne LIBRE non déclarée en saisie · « Virements de poste à poste » est un montant', async () => {
+    // Note 3B SYSCOHADA · la première colonne (nature du contrat) s'ouvre,
+    // pas les sous-colonnes de montant B et C sur une ligne chiffrée.
+    const s = service({ e1: [] }, [], prismaAvec([], [], [], [], Referentiel.SYSCOHADA));
+    await expect(
+      s.enregistrerSaisie('t', 'u', 'e1', JEU_SYSCO, '3B', 'location-acquisition-terrains', 3, '500'),
+    ).rejects.toThrow(/chiffrée par la comptabilité/);
+    const nature = await s.enregistrerSaisie('t', 'u', 'e1', JEU_SYSCO, '3B', 'location-acquisition-terrains', 0, 'I');
+    expect(nature).toMatchObject({ valeurTexte: 'I' });
+  });
+
+  it('SERT la sûreté à côté du montant calculé, au rang de sa colonne ; ni le montant ni le total ne changent', async () => {
+    const s = service(
+      { e1: [ligne('16210000', ClasseCompte.CLASSE_1, 0, 50_000_000)] },
+      [],
+      prismaAvec([], [], [], [], Referentiel.SYSCOHADA, [
+        { codeNote: '1', cleRubrique: 'dettes-garanties-etablissements-de-credit', colonne: 2, valeurTexte: 'Hypothèque, immeuble de Gombe' },
+        { codeNote: '1', cleRubrique: 'dettes-garanties-etablissements-de-credit', colonne: 4, valeurTexte: 'Caution du gérant' },
+        // Une cellule FERMÉE qui porterait quand même une valeur en base
+        // (colonne « Note ») ne doit pas remonter à côté du renvoi.
+        { codeNote: '1', cleRubrique: 'dettes-garanties-etablissements-de-credit', colonne: 0, valeurTexte: 'fantôme' },
+      ]),
+    );
+    const n = note(await s.notesSyscohada('t', 'e1'), '1', DETTES_SYSCO);
+    const l = ligneDe(n, 'Emprunts et dettes des établissements de crédit');
+    expect(l.montantN).toBe(50_000_000);
+    expect(l.saisie).toBeUndefined();
+    expect(l.saisieLibre).toEqual([null, null, 'Hypothèque, immeuble de Gombe', null, 'Caution du gérant']);
+    // Un sous-total ne reçoit aucun texte · une sûreté se rapporte à une dette.
+    const st = ligneDe(n, 'SOUS TOTAL (1)');
+    expect(st.montantN).toBe(50_000_000);
+    expect(st.saisieLibre).toBeUndefined();
+    expect(ligneDe(n, 'TOTAL (1) + (2) + (3)').saisieLibre).toBeUndefined();
+  });
+
+  it('une ligne de dette tombée à zéro reste présentée tant qu’elle porte une sûreté écrite', async () => {
+    // Masquée par le § 1.4, elle garderait en base un texte qu'aucun écran ne
+    // relit ni n'efface.
+    const s = service(
+      { e1: [ligne('16210000', ClasseCompte.CLASSE_1, 0, 1_000)] },
+      [],
+      prismaAvec([], [], [], [], Referentiel.SYSCOHADA, [
+        { codeNote: '1', cleRubrique: 'dettes-garanties-credit-bail-mobilier', colonne: 3, valeurTexte: 'Nantissement du matériel' },
+      ]),
+    );
+    const n = note(await s.notesSyscohada('t', 'e1'), '1', DETTES_SYSCO);
+    const l = ligneDe(n, 'Dettes de crédit-bail mobilier');
+    expect(l).toBeDefined();
+    expect(l.montantN).toBe(0);
+    expect(l.saisieLibre[3]).toBe('Nantissement du matériel');
+    // Une ligne à zéro SANS texte reste masquée, comme avant.
+    expect(ligneDe(n, 'Dettes de crédit-bail immobilier')).toBeUndefined();
+  });
+
+  it('une sûreté écrite rend la note applicable, même sans montant chiffré', async () => {
+    const vide = service({ e1: [] }, [], prismaAvec());
+    expect(note(await vide.notesAssociations('t', 'e1'), '1', DETTES_ASSO).applicable).toBe(false);
+    const remplie = service({ e1: [] }, [], prismaAvec([], [], [], [], Referentiel.SYCEBNL, [
+      { codeNote: '1', cleRubrique: 'dettes-garanties-emprunts-obligataires', colonne: 2, valeurTexte: 'Hypothèque' },
+    ]));
+    const n = note(await remplie.notesAssociations('t', 'e1'), '1', DETTES_ASSO);
+    expect(n.applicable).toBe(true);
+    expect(ligneDe(n, 'Emprunts obligataires').saisieLibre).toEqual([null, null, 'Hypothèque', null, null]);
   });
 });
 

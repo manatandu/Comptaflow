@@ -56,6 +56,16 @@ function service(lignes: Ligne[], finExercice = '2026-12-31') {
             .map((l) => ({ debit: l.debit, credit: l.credit, compte: { numero: l.numero, intitule: l.intitule } })),
         );
       }),
+      // Le contrôle 19 ter (réserve de propriété) regroupe par compte les
+      // racines qu'il nomme · la doublure honore le filtre sur le numéro.
+      groupBy: jest.fn().mockImplementation((a: { where?: { OR?: { compte?: { numero?: { startsWith?: string } } }[] } }) => {
+        const prefixes = (a?.where?.OR ?? []).map((o) => o.compte?.numero?.startsWith).filter(Boolean) as string[];
+        return Promise.resolve(
+          lignes
+            .filter((l) => prefixes.some((prefixe) => l.numero.startsWith(prefixe)))
+            .map((l) => ({ compteId: l.numero, _sum: { debit: l.debit, credit: l.credit } })),
+        );
+      }),
     },
     exoneration: { findMany: jest.fn().mockResolvedValue([]) },
     manuelProcedures: { findFirst: jest.fn().mockResolvedValue(null) },

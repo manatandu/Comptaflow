@@ -5,6 +5,7 @@ import { NOTES_SYSCOHADA_1 } from '../etats-financiers-syscohada/correspondance-
 import { NOTES_SYSCOHADA_2 } from '../etats-financiers-syscohada/correspondance-notes-syscohada-2';
 import { NOTES_SYSCOHADA_3 } from '../etats-financiers-syscohada/correspondance-notes-syscohada-3';
 import type { SpecificationNote } from './note-annexe.types';
+import { celluleLibreEnSaisie, colonneLibreEnSaisie } from './cellules-libres-en-saisie';
 
 /**
  * GARDE-FOU DE LA SAISIE DES NOTES · commun aux trois jeux.
@@ -25,9 +26,12 @@ const JEUX: [JeuNotesAnnexes, SpecificationNote[]][] = [
 
 const etiquette = (n: SpecificationNote) => (n.sousTableau ? `${n.code}|${n.sousTableau}` : n.code);
 
+/** Le tableau stocke des saisies : une rubrique en saisie, ou une colonne LIBRE ouverte sur ses lignes chiffrées. */
+const stockeDesSaisies = (n: SpecificationNote) => n.rubriques.some((r) => r.saisie) || n.colonnes.some(colonneLibreEnSaisie);
+
 /**
  * NOMBRE DE COLONNES GELÉ, par tableau qui porte au moins une rubrique en
- * saisie. La colonne est stockée par son RANG · une colonne insérée au milieu
+ * saisie ou une colonne LIBRE saisie sur ses lignes chiffrées (passe O3). La colonne est stockée par son RANG · une colonne insérée au milieu
  * décalerait toutes les saisies déjà enregistrées d'un cran vers la droite.
  *
  * Les colonnes viennent de la maquette officielle et ne bougent pas sans
@@ -37,6 +41,9 @@ const etiquette = (n: SpecificationNote) => (n.sousTableau ? `${n.code}|${n.sous
  */
 const COLONNES_GELEES: Record<JeuNotesAnnexes, Record<string, number>> = {
   ASSOCIATIONS_ORDRES_PROFESSIONNELS: {
+    '1|DETTES GARANTIES PAR DES SURETES REELLES': 5,
+    '5C': 5,
+    '17A': 7,
     '18B': 2,
     '1|ENGAGEMENTS FINANCIERS': 3,
     '5G': 5,
@@ -52,6 +59,8 @@ const COLONNES_GELEES: Record<JeuNotesAnnexes, Record<string, number>> = {
   },
   PROJETS_DEVELOPPEMENT: {
     '1': 1,
+    '3B': 5,
+    '10': 5,
     '2': 1,
     '9': 1,
     '20B|PERSONNEL PROPRE': 8,
@@ -60,6 +69,7 @@ const COLONNES_GELEES: Record<JeuNotesAnnexes, Record<string, number>> = {
     '24': 8,
   },
   SYSCOHADA_SYSTEME_NORMAL: {
+    '1|DETTES GARANTIES PAR DES SÛRETÉS RÉELLES': 5,
     '1|ENGAGEMENTS FINANCIERS': 2,
     '2': 1,
     '3B': 8,
@@ -69,6 +79,8 @@ const COLONNES_GELEES: Record<JeuNotesAnnexes, Record<string, number>> = {
     '3F': 3,
     '4|LISTE DES FILIALES ET PARTICIPATIONS': 6,
     '13': 6,
+    '15A': 7,
+    '15B': 6,
     '16B|HYPOTHÈSES ACTUARIELLES': 2,
     '16B|VARIATION DE LA VALEUR DE L\'ENGAGEMENT DE RETRAITE AU COURS DE L\'EXERCICE': 2,
     '16B|ANALYSE DE SENSIBILITÉ DES HYPOTHÈSES ACTUARIELLES': 4,
@@ -131,9 +143,135 @@ describe('rubriques de notes en saisie · ancrage du stockage', () => {
   it.each(JEUX)('%s · le nombre de colonnes des tableaux en saisie est celui qui est gelé', (jeu, table) => {
     const reel: Record<string, number> = {};
     for (const n of table) {
-      if (!n.rubriques.some((r) => r.saisie)) continue;
+      if (!stockeDesSaisies(n)) continue;
       reel[etiquette(n)] = n.colonnes.length;
     }
     expect(reel).toEqual(COLONNES_GELEES[jeu]);
+  });
+});
+
+/**
+ * UNE CELLULE CHIFFRÉE N'EST JAMAIS EN SAISIE ; UNE CELLULE LIBRE D'UNE
+ * RUBRIQUE CHIFFRÉE PEUT L'ÊTRE (passe O3, constat A1/D1). La règle d'avant,
+ * « une rubrique rattachable n'est jamais en saisie », laissait blanches et
+ * non modifiables les sûretés réelles de la note 1 · un blanc sous
+ * « Hypothèques » se lit « aucune hypothèque ».
+ */
+describe('cellules LIBRE d’une rubrique chiffrée · ce qui s’ouvre et ce qui reste fermé', () => {
+  it.each(JEUX)('%s · une colonne ouverte à la saisie est LIBRE, jamais la colonne « Note »', (_jeu, table) => {
+    const fautives = table.flatMap((n) =>
+      n.colonnes
+        .filter((c) => c.saisieSurLigneChiffree && (c.type !== 'LIBRE' || /^note$/i.test(c.libelle)))
+        .map((c) => `${etiquette(n)} :: ${c.libelle}`),
+    );
+    expect(fautives).toEqual([]);
+  });
+
+  it.each(JEUX)('%s · chaque ligne de détail d’un tableau ouvert porte sa clé, aucun total ne s’ouvre', (_jeu, table) => {
+    // Sans clé, la cellule n'a pas d'ancre et reste blanche sans que rien ne
+    // le dise ; un total ne reçoit aucun texte (une sûreté se rapporte à UNE
+    // dette, et un texte ne s'additionne pas).
+    const sansAncre: string[] = [];
+    const totauxOuverts: string[] = [];
+    for (const n of table) {
+      if (!n.colonnes.some(colonneLibreEnSaisie)) continue;
+      for (const r of n.rubriques) {
+        if (r.totalDeRubriques && celluleLibreEnSaisie(n, r)) totauxOuverts.push(`${etiquette(n)} :: ${r.libelle}`);
+        if (!r.totalDeRubriques && !r.saisie && !r.cle) sansAncre.push(`${etiquette(n)} :: ${r.libelle}`);
+      }
+    }
+    expect({ sansAncre, totauxOuverts }).toEqual({ sansAncre: [], totauxOuverts: [] });
+  });
+
+  it('la note 1 ouvre ses trois colonnes de sûretés, et elles seules, dans les deux référentiels', () => {
+    const ouvertes = (table: SpecificationNote[], sousTableau: string) =>
+      table
+        .find((n) => n.code === '1' && n.sousTableau === sousTableau)!
+        .colonnes.map((c, i) => (colonneLibreEnSaisie(c) ? i : -1))
+        .filter((i) => i >= 0);
+    expect(ouvertes(NOTES_ASSOCIATIONS, 'DETTES GARANTIES PAR DES SURETES REELLES')).toEqual([2, 3, 4]);
+    expect(ouvertes(NOTES_SYSCOHADA_1, 'DETTES GARANTIES PAR DES SÛRETÉS RÉELLES')).toEqual([2, 3, 4]);
+  });
+
+  it.each(JEUX)('%s · les clés du code 1 sont uniques sur ses sous-tableaux, dettes garanties comprises', (_jeu, table) => {
+    // La note 1 aligne deux ou trois tableaux sous un seul code, et l'ancre
+    // du stockage est (code, clé) : une clé de dette garantie homonyme d'une
+    // clé d'engagement écrirait l'une par-dessus l'autre.
+    const note1 = table.filter((n) => n.code === '1');
+    const cles = note1.flatMap((n) => n.rubriques.map((r) => r.cle).filter(Boolean));
+    expect(cles.length).toBe(new Set(cles).size);
+  });
+
+  it('la note 1 porte au moins deux sous-tableaux à clés · le test d’unicité ci-dessus mord', () => {
+    for (const table of [NOTES_ASSOCIATIONS, NOTES_SYSCOHADA_1]) {
+      const aCles = table.filter((n) => n.code === '1' && n.rubriques.some((r) => r.cle));
+      expect(aCles.length).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  /**
+   * LISTE FERMÉE des colonnes LIBRE posées sur des rubriques chiffrées et qui
+   * restent VIDES, chacune avec son motif. Une colonne LIBRE nouvelle sur une
+   * ligne chiffrée fait tomber le test tant qu'on n'a pas décidé : la
+   * saisir (`saisieSurLigneChiffree`), ou la laisser vide ici en disant
+   * pourquoi.
+   */
+  const MOTIF_RENVOI = 'porte le renvoi de la ligne (`renvoi`), fixé par la spécification';
+  const MOTIF_MONTANT = 'MONTANT mal typé : saisi sur une ligne chiffrée, il ferait une seconde source à côté de A/B/C/D';
+  const MOTIF_DEVISE = 'une ligne par sens d’écart, pas par devise · le texte veut le détail par devise, que la saisie par ligne ne porte pas';
+  const MOTIF_PAR_PERSONNE = 'le texte veut une ligne par membre ou apporteur ; la ligne chiffrée agrège par nature';
+  const VIDES_MOTIVEES: Record<JeuNotesAnnexes, Record<string, string>> = {
+    ASSOCIATIONS_ORDRES_PROFESSIONNELS: {
+      '1|DETTES GARANTIES PAR DES SURETES REELLES :: Note': MOTIF_RENVOI,
+      '5D :: D · Virements de poste à poste': MOTIF_MONTANT,
+      '5E :: D · Virements de poste à poste': MOTIF_MONTANT,
+      '14 :: Devises': MOTIF_DEVISE,
+      '14 :: Montant en devises': MOTIF_DEVISE,
+      '14 :: Cours UML Année acquisition': MOTIF_DEVISE,
+      '14 :: Cours UML 31/12': MOTIF_DEVISE,
+      '15 :: Nom et prénoms des membres': MOTIF_PAR_PERSONNE,
+      '15 :: Nationalité': MOTIF_PAR_PERSONNE,
+      '15 :: Préciser avec ou sans droit de reprise':
+        'se lit au compte (renvoi officiel de la note : 101 sans droit de reprise, 102 avec), et le texte veut une ligne par membre',
+      '17A :: Note': MOTIF_RENVOI,
+      '17B :: Note': MOTIF_RENVOI,
+    },
+    PROJETS_DEVELOPPEMENT: {
+      '8 :: Devises': MOTIF_DEVISE,
+      '8 :: Montant en devises': MOTIF_DEVISE,
+      '8 :: Cours UML Année acquisition': MOTIF_DEVISE,
+      '8 :: Cours UML 31/12': MOTIF_DEVISE,
+    },
+    SYSCOHADA_SYSTEME_NORMAL: {
+      '1|DETTES GARANTIES PAR DES SÛRETÉS RÉELLES :: Note': MOTIF_RENVOI,
+      '3A :: AUGMENTATIONS : Virements de poste à poste': MOTIF_MONTANT,
+      "3A :: Suite à une réévaluation pratiquée au cours de l'exercice": MOTIF_MONTANT,
+      '3A :: DIMINUTIONS : Virements de poste à poste': MOTIF_MONTANT,
+      '3B :: B · AUGMENTATIONS : Virements de poste à poste': MOTIF_MONTANT,
+      "3B :: B · AUGMENTATIONS : Suite à une réévaluation pratiquée au cours de l'exercice": MOTIF_MONTANT,
+      '3B :: C · DIMINUTIONS : Virements de poste à poste': MOTIF_MONTANT,
+      '12|ÉCARTS DE CONVERSION :: Devises': MOTIF_DEVISE,
+      '12|ÉCARTS DE CONVERSION :: Montant en devises': MOTIF_DEVISE,
+      '12|ÉCARTS DE CONVERSION :: Cours UML Année acquisition': MOTIF_DEVISE,
+      '12|ÉCARTS DE CONVERSION :: Cours UML 31/12': MOTIF_DEVISE,
+      '13 :: Nom et prénoms': MOTIF_PAR_PERSONNE,
+      '13 :: Nationalité': MOTIF_PAR_PERSONNE,
+      '13 :: Nature des actions ou parts (Ordinaires ou préférences)': MOTIF_PAR_PERSONNE,
+      '13 :: Nombre': MOTIF_PAR_PERSONNE,
+      "13 :: Cessions ou remboursements en cours d'exercice": MOTIF_MONTANT,
+      '15A :: NOTE': MOTIF_RENVOI,
+      '15B :: NOTE': MOTIF_RENVOI,
+    },
+  };
+
+  it.each(JEUX)('%s · toute colonne LIBRE d’un tableau chiffré est ouverte, ou vide sous un motif écrit', (jeu, table) => {
+    const videsReelles: string[] = [];
+    for (const n of table) {
+      if (!n.rubriques.some((r) => !r.saisie && !r.totalDeRubriques)) continue;
+      for (const c of n.colonnes) {
+        if (c.type === 'LIBRE' && !colonneLibreEnSaisie(c)) videsReelles.push(`${etiquette(n)} :: ${c.libelle}`);
+      }
+    }
+    expect(videsReelles.sort()).toEqual(Object.keys(VIDES_MOTIVEES[jeu]).sort());
   });
 });

@@ -983,17 +983,26 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     titre: 'BIENS PRIS EN LOCATION-ACQUISITION',
     // La première colonne du modèle (« Nature du contrat : I crédit-bail
     // immobilier, M mobilier, A autres contrats ») qualifie le contrat, elle
-    // ne porte pas de montant : déclarée en saisie.
-    colonnes: [{ type: 'LIBRE' as const, libelle: 'Nature du contrat (I ; M ; A)' }, ...COLONNES_MOUVEMENTS],
+    // ne porte pas de montant et aucun compte ne la dit : elle se SAISIT sur
+    // chaque ligne chiffrée, d'où la `cle` de chaque rubrique. Le total n'en
+    // porte pas (`cellules-libres-en-saisie.ts`).
+    colonnes: [
+      { type: 'LIBRE' as const, libelle: 'Nature du contrat (I ; M ; A)', saisieSurLigneChiffree: true },
+      ...COLONNES_MOUVEMENTS,
+    ],
     // Les comptes de location-acquisition sont les divisionnaires « 6 » de
     // chaque famille d'immobilisations (Partie 2, ch. 2) : 2286 terrains,
     // 2316/2326 bâtiments, 2416/2426/2446 matériel et mobilier, 2456
     // matériel de transport.
     rubriques: [
-      { libelle: 'Terrains', comptes: ['2286'] },
-      { libelle: 'Bâtiments', comptes: ['2316', '2326'] },
-      { libelle: 'Matériel, mobilier', comptes: ['2416', '2426', '2446'] },
-      { libelle: 'Matériel de transport', comptes: ['2456'] },
+      { cle: 'location-acquisition-terrains', libelle: 'Terrains', comptes: ['2286'] },
+      { cle: 'location-acquisition-batiments', libelle: 'Bâtiments', comptes: ['2316', '2326'] },
+      {
+        cle: 'location-acquisition-materiel-mobilier',
+        libelle: 'Matériel, mobilier',
+        comptes: ['2416', '2426', '2446'],
+      },
+      { cle: 'location-acquisition-materiel-transport', libelle: 'Matériel de transport', comptes: ['2456'] },
       { libelle: 'TOTAL IMMOBILISATIONS EN LOCATION-ACQUISITION', totalDeRubriques: [0, 1, 2, 3] },
     ],
     renvoiOfficiel:
@@ -1408,31 +1417,66 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     code: '1',
     sousTableau: 'DETTES GARANTIES PAR DES SURETES REELLES',
     titre: 'DETTES GARANTIES PAR DES SURETES REELLES',
-    // Les trois colonnes de sûretés sont en saisie : une hypothèque, un
-    // nantissement ou un gage est un fait juridique attaché au contrat, que
-    // le plan de comptes ne porte nulle part. Seul le « Montant brut » de la
-    // dette se calcule.
+    // Les trois colonnes de sûretés se SAISISSENT, ligne de dette par ligne
+    // de dette : une hypothèque, un nantissement ou un gage est un fait
+    // juridique attaché au contrat, que le plan de comptes ne porte nulle
+    // part (commentaire officiel : « Indiquer la raison d'être des
+    // sûretés »). Seul le « Montant brut » de la dette se calcule ; la
+    // colonne « Note » renvoie à la note qui détaille la ligne (`renvoi`) et
+    // ne se saisit pas. Chaque ligne de dette porte une `cle`, l'ancre de sa
+    // saisie ; les sous-totaux et le total n'en portent pas · une sûreté se
+    // rapporte à une dette, et un texte ne s'additionne pas
+    // (`cellules-libres-en-saisie.ts`).
     colonnes: [
       { type: 'LIBRE' as const, libelle: 'Note' },
       { type: 'EXERCICE_N' as const, libelle: 'Montant brut (1)' },
-      { type: 'LIBRE' as const, libelle: 'SURETES REELLES (2) : Hypothèques' },
-      { type: 'LIBRE' as const, libelle: 'SURETES REELLES (2) : Nantissements' },
-      { type: 'LIBRE' as const, libelle: 'SURETES REELLES (2) : Gages/Autres' },
+      { type: 'LIBRE' as const, libelle: 'SURETES REELLES (2) : Hypothèques', saisieSurLigneChiffree: true },
+      { type: 'LIBRE' as const, libelle: 'SURETES REELLES (2) : Nantissements', saisieSurLigneChiffree: true },
+      { type: 'LIBRE' as const, libelle: 'SURETES REELLES (2) : Gages/Autres', saisieSurLigneChiffree: true },
     ],
     rubriques: [
-      { libelle: 'Emprunts obligataires', comptes: ['181'], natureCreditrice: true, renvoi: '18A' },
       {
+        cle: 'dettes-garanties-emprunts-obligataires',
+        libelle: 'Emprunts obligataires',
+        comptes: ['181'],
+        natureCreditrice: true,
+        renvoi: '18A',
+      },
+      {
+        cle: 'dettes-garanties-etablissements-de-credit',
         libelle: 'Emprunts et dettes des établissements de crédit',
         comptes: ['182'],
         natureCreditrice: true,
         renvoi: '18A',
       },
-      { libelle: 'Autres dettes financières', comptes: ['183', '185', '186', '188'], natureCreditrice: true },
-      { libelle: 'SOUS TOTAL (1)', totalDeRubriques: [0, 1, 2] },
-      { libelle: 'Dettes de crédit-bail immobilier', comptes: ['1871'], natureCreditrice: true, renvoi: '18A' },
-      { libelle: 'Dettes de crédit-bail mobilier', comptes: ['1872'], natureCreditrice: true },
-      { libelle: 'Dettes sur contrats de location-vente', comptes: ['1873'], natureCreditrice: true },
       {
+        cle: 'dettes-garanties-autres-dettes-financieres',
+        libelle: 'Autres dettes financières',
+        comptes: ['183', '185', '186', '188'],
+        natureCreditrice: true,
+      },
+      { libelle: 'SOUS TOTAL (1)', totalDeRubriques: [0, 1, 2] },
+      {
+        cle: 'dettes-garanties-credit-bail-immobilier',
+        libelle: 'Dettes de crédit-bail immobilier',
+        comptes: ['1871'],
+        natureCreditrice: true,
+        renvoi: '18A',
+      },
+      {
+        cle: 'dettes-garanties-credit-bail-mobilier',
+        libelle: 'Dettes de crédit-bail mobilier',
+        comptes: ['1872'],
+        natureCreditrice: true,
+      },
+      {
+        cle: 'dettes-garanties-location-vente',
+        libelle: 'Dettes sur contrats de location-vente',
+        comptes: ['1873'],
+        natureCreditrice: true,
+      },
+      {
+        cle: 'dettes-garanties-location-acquisition',
         libelle: 'Autres dettes sur contrats de location-acquisition',
         comptes: ['187'],
         exclusions: ['1871', '1872', '1873'],
@@ -1441,19 +1485,56 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { libelle: 'SOUS TOTAL (2)', totalDeRubriques: [4, 5, 6, 7] },
       // Dettes du passif circulant : comptes de tiers polyvalents, donc
       // filtrés au crédit, comme aux notes 19 à 21.
-      { libelle: 'Fournisseurs et comptes rattachés', comptes: ['40'], sens: 'CREDITEUR', renvoi: '19' },
-      { libelle: 'Adhérents, clients-usagers créditeurs', comptes: ['419'], sens: 'CREDITEUR', renvoi: '9' },
-      { libelle: 'Personnel', comptes: ['42'], sens: 'CREDITEUR', renvoi: '20' },
-      { libelle: 'Organismes sociaux', comptes: ['43'], sens: 'CREDITEUR', renvoi: '20' },
-      { libelle: 'Etat et collectivités', comptes: ['44'], sens: 'CREDITEUR', renvoi: '20' },
-      { libelle: 'Fondateurs, apporteurs et comptes rattachés', comptes: ['45'], sens: 'CREDITEUR', renvoi: '21' },
       {
+        cle: 'dettes-garanties-fournisseurs',
+        libelle: 'Fournisseurs et comptes rattachés',
+        comptes: ['40'],
+        sens: 'CREDITEUR',
+        renvoi: '19',
+      },
+      {
+        cle: 'dettes-garanties-adherents-clients-usagers',
+        libelle: 'Adhérents, clients-usagers créditeurs',
+        comptes: ['419'],
+        sens: 'CREDITEUR',
+        renvoi: '9',
+      },
+      { cle: 'dettes-garanties-personnel', libelle: 'Personnel', comptes: ['42'], sens: 'CREDITEUR', renvoi: '20' },
+      {
+        cle: 'dettes-garanties-organismes-sociaux',
+        libelle: 'Organismes sociaux',
+        comptes: ['43'],
+        sens: 'CREDITEUR',
+        renvoi: '20',
+      },
+      {
+        cle: 'dettes-garanties-etat',
+        libelle: 'Etat et collectivités',
+        comptes: ['44'],
+        sens: 'CREDITEUR',
+        renvoi: '20',
+      },
+      {
+        cle: 'dettes-garanties-fondateurs-apporteurs',
+        libelle: 'Fondateurs, apporteurs et comptes rattachés',
+        comptes: ['45'],
+        sens: 'CREDITEUR',
+        renvoi: '21',
+      },
+      {
+        cle: 'dettes-garanties-bailleurs',
         libelle: "Bailleurs, Etat et autres organismes, fonds d'administration",
         comptes: ['46'],
         sens: 'CREDITEUR',
         renvoi: '21',
       },
-      { libelle: 'Créditeurs divers', comptes: ['47'], sens: 'CREDITEUR', renvoi: '21' },
+      {
+        cle: 'dettes-garanties-crediteurs-divers',
+        libelle: 'Créditeurs divers',
+        comptes: ['47'],
+        sens: 'CREDITEUR',
+        renvoi: '21',
+      },
       { libelle: 'SOUS TOTAL (3)', totalDeRubriques: [9, 10, 11, 12, 13, 14, 15, 16] },
       { libelle: 'TOTAL (1) + (2) + (3)', totalDeRubriques: [3, 8, 17] },
     ],
@@ -1620,27 +1701,59 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     colonnes: [
       { type: 'LIBRE' as const, libelle: 'Note' },
       ...COLONNES_STANDARD,
-      { type: 'LIBRE' as const, libelle: 'Régime fiscal' },
-      { type: 'LIBRE' as const, libelle: 'Echéances' },
+      { type: 'LIBRE' as const, libelle: 'Régime fiscal', saisieSurLigneChiffree: true },
+      { type: 'LIBRE' as const, libelle: 'Echéances', saisieSurLigneChiffree: true },
     ],
+    // « Régime fiscal » et « Echéances » qualifient la subvention ou la
+    // provision (le commentaire officiel demande la date d'octroi, la nature,
+    // les obligations, le texte de référence) · aucun compte ne les porte.
+    // Elles se SAISISSENT sur chaque ligne chiffrée, d'où les `cle` ; la
+    // colonne « Note » et les totaux, non (`cellules-libres-en-saisie.ts`).
     renvoyeeDepuis: ['CI', 'CJ'],
     // Le compte 141 « Subventions d'équipement » est subdivisé par ORIGINE
     // (1411 État à 1418 Autres), exactement les rubriques du modèle.
     rubriques: [
-      { libelle: 'Etat', comptes: ['1411'], natureCreditrice: true },
-      { libelle: 'Région', comptes: ['1412'], natureCreditrice: true },
-      { libelle: 'Département', comptes: ['1413'], natureCreditrice: true },
+      { cle: 'subventions-etat', libelle: 'Etat', comptes: ['1411'], natureCreditrice: true },
+      { cle: 'subventions-region', libelle: 'Région', comptes: ['1412'], natureCreditrice: true },
+      { cle: 'subventions-departement', libelle: 'Département', comptes: ['1413'], natureCreditrice: true },
       {
+        cle: 'subventions-communes',
         libelle: 'Communes et collectivités publiques décentralisées',
         comptes: ['1414'],
         natureCreditrice: true,
       },
-      { libelle: 'Entités publiques ou mixtes', comptes: ['1415'], natureCreditrice: true },
-      { libelle: 'Entités et organismes privés', comptes: ['1416'], natureCreditrice: true },
-      { libelle: 'Organismes internationaux', comptes: ['1417'], natureCreditrice: true },
-      { libelle: "Autres subventions d'investissements", comptes: ['1418', '148'], natureCreditrice: true },
+      {
+        cle: 'subventions-entites-publiques-ou-mixtes',
+        libelle: 'Entités publiques ou mixtes',
+        comptes: ['1415'],
+        natureCreditrice: true,
+      },
+      {
+        cle: 'subventions-entites-privees',
+        libelle: 'Entités et organismes privés',
+        comptes: ['1416'],
+        natureCreditrice: true,
+      },
+      {
+        cle: 'subventions-organismes-internationaux',
+        libelle: 'Organismes internationaux',
+        comptes: ['1417'],
+        natureCreditrice: true,
+      },
+      {
+        cle: 'subventions-autres',
+        libelle: "Autres subventions d'investissements",
+        comptes: ['1418', '148'],
+        natureCreditrice: true,
+      },
       { libelle: 'TOTAL SUBVENTIONS', totalDeRubriques: [0, 1, 2, 3, 4, 5, 6, 7] },
-      { libelle: 'PROVISIONS REGLEMENTEES', comptes: ['15'], natureCreditrice: true, renvoi: '30' },
+      {
+        cle: 'provisions-reglementees',
+        libelle: 'PROVISIONS REGLEMENTEES',
+        comptes: ['15'],
+        natureCreditrice: true,
+        renvoi: '30',
+      },
       { libelle: 'TOTAL SUBVENTIONS ET PROVISIONS REGLEMENTEES', totalDeRubriques: [8, 9] },
     ],
     commentaire:

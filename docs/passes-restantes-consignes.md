@@ -10,8 +10,8 @@ et dure de 2 h 30 à 4 h (§ 5 bis du plan). Une session ne tient pas plus d'une
 passe lourde, et un conteneur perdu en cours de run a déjà fait refaire sept
 heures (F3b). Une passe de plusieurs runs se découpe en sessions d'un run.
 
-**Faites :** F1, F2 (a, b), F3 (a, b), F4 (a, b), F6, F9, F10, F13, R4, O7, O2, F7, F5, F12, R3 ·
-quinze passes sur trente et une.
+**Faites :** F1, F2 (a, b), F3 (a, b), F4 (a, b), F6, F9, F10, F13, R4, O7, O2, F7, F5, F12, R3, O3 ·
+seize passes sur trente et une.
 
 ---
 

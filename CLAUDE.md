@@ -362,7 +362,13 @@ rubrique) et le RANG de la colonne, jamais un libellé ni un index de ligne ·
 sous-tableaux compris, et nombre de colonnes par tableau). Une rubrique en
 saisie n'est JAMAIS rattachable, et une rubrique rattachable n'est jamais en
 saisie · deux sources pour une même cellule, ce serait un montant dont rien ne
-dit d'où il vient. Et les lignes en saisie sont présentées même quand la note
+dit d'où il vient. La règle se lit à la CELLULE (2026-09-28, passe O3) · une
+cellule chiffrée n'est jamais en saisie, mais la colonne LIBRE marquée
+`saisieSurLigneChiffree` d'une rubrique chiffrée porteuse d'une clé l'est,
+totaux exclus (`cellules-libres-en-saisie.ts`) · les sûretés réelles de la
+NOTE 1, la nature du contrat, le régime fiscal et les échéances des
+emprunts. Une colonne LIBRE laissée vide sur une ligne chiffrée est dans une
+liste FERMÉE, avec son motif. Et les lignes en saisie sont présentées même quand la note
 n'est pas applicable : le filtre du § 1.4 les retirait, ce qui faisait de
 toute note vide un cul-de-sac impossible à remplir.
 
@@ -3096,8 +3102,9 @@ Le taux de réponse ne compte QUE les questions. Les dix-sept impératifs du
 CPCC sont comptés à part : les mélanger ferait monter un pourcentage que
 personne ne pourrait plus lire. Le filtre par référentiel est au niveau de
 l'ITEM et non de la fenêtre · un seul en porte un, les contributions
-volontaires en nature, dont les comptes 900 à 914 n'existent qu'au SYCEBNL, la
-classe 9 du SYSCOHADA étant celle de la comptabilité analytique.
+volontaires en nature, qui n'existent qu'au SYCEBNL · au SYSCOHADA les mêmes
+racines portent les engagements hors bilan (90 et 91) et les comptes 92 à 99
+la comptabilité analytique (AUDCIF Titre VII ch. 1), un numéro, deux sens.
 
 Le caractère « — » de CPCC-PRO-5 est celui du texte source et se conserve, pour
 la même raison que les 97 de `regles-comptes-sycebnl.ts` : le remplacer

@@ -1070,6 +1070,12 @@ export type TypeColonneNote =
 export interface ColonneNote {
   type: TypeColonneNote;
   libelle: string;
+  /**
+   * Colonne LIBRE que le dossier renseigne sur les lignes CHIFFRÉES (sûretés
+   * réelles de la note 1, nature d'un contrat, échéances). Voir
+   * `lib/cellules-notes.ts` et, côté serveur, `cellules-libres-en-saisie.ts`.
+   */
+  saisieSurLigneChiffree?: boolean;
 }
 
 export interface CompteDeRubrique {
@@ -1104,6 +1110,12 @@ export interface LigneNoteCalculee {
   saisie?: (string | number | null)[];
   /** Cellules calculées par le logiciel · présentées, jamais modifiables. */
   saisieVerrouillee?: boolean;
+  /**
+   * Cellules LIBRE renseignées sur une ligne CHIFFRÉE, une case par colonne ·
+   * `null` là où la colonne n'est pas en saisie ou n'a rien reçu. Les
+   * montants restent dans leurs champs calculés.
+   */
+  saisieLibre?: (string | number | null)[];
 }
 
 export interface RubriqueEnAttente {

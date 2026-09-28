@@ -726,9 +726,21 @@ const ENGAGEMENTS: ItemQuestionnaire[] = [
     libelle: 'Les cautions, avals et garanties donnés ont-ils été recensés ?',
     origine: 'VMG',
     forme: 'OUI_NON',
-    objets: ['Cautions', 'Avals', 'Garanties données'],
+    // Les sûretés réelles sont un objet à part · la fiche du compte 16 veut en
+    // Notes annexes « le montant et la portée de la caution, de la garantie ou
+    // du gage » d'un emprunt, et la NOTE 1 du Système normal les porte sur
+    // deux tableaux que les trois premiers objets ne couvraient pas. Un
+    // « Oui » donné pour les cautions laissait l'hypothèque d'un emprunt
+    // bancaire hors du recensement, et la note partait vide.
+    objets: [
+      'Cautions',
+      'Avals',
+      'Garanties données',
+      'Hypothèques, nantissements, gages et autres sûretés réelles consentis, y compris en garantie des dettes du bilan',
+    ],
     fondement:
-      "Prolongement de CPCC-PRO-5, qui demande de s'assurer que « tous les risques en cours ont fait l'objet d'une provision : garanties… ». Un engagement qui n'est pas provisionné doit au moins être recensé.",
+      "Prolongement de CPCC-PRO-5, qui demande de s'assurer que « tous les risques en cours ont fait l'objet d'une provision : garanties… ». Un engagement qui n'est pas provisionné doit au moins être recensé. " +
+      "Pour les sûretés réelles · AUDCIF, Titre VII, compte 16 (« Pour les emprunts assortis d'une caution, d'une garantie ou d'un gage, le montant et la portée de la caution, de la garantie ou du gage doivent être indiqués dans les Notes annexes »), et les deux tableaux de la NOTE 1 du Système normal (Titre IX ch. 6) · « Dettes garanties par des sûretés réelles » et, aux engagements financiers, la ligne « hypothèques, nantissements, gages, autres ».",
   },
   {
     code: 'VMG-ENG-2',
@@ -745,9 +757,11 @@ const ENGAGEMENTS: ItemQuestionnaire[] = [
     libelle: 'Les contributions volontaires en nature ont-elles été suivies en classe 9 ?',
     origine: 'VMG',
     forme: 'OUI_NON',
-    // SYCEBNL seulement · les comptes 900 à 914 n'existent que là. Au
-    // SYSCOHADA la classe 9 est celle de la comptabilité analytique, et poser
-    // cette question à une société commerciale serait un contresens.
+    // SYCEBNL seulement · les contributions volontaires en nature n'existent
+    // que là. Au SYSCOHADA la classe 9 porte les engagements hors bilan (90 et
+    // 91) et la comptabilité analytique de gestion (92 à 99) (AUDCIF, Titre VII
+    // ch. 1) · les mêmes racines y ont un autre sens, et poser cette question
+    // à une société commerciale serait un contresens.
     referentiel: Referentiel.SYCEBNL,
     fondement:
       "SYCEBNL, Partie 2 ch. 3 section 9 · contributions volontaires en nature, comptes spéciaux 900 à 914, hors bilan et hors résultat.",

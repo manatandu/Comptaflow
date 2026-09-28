@@ -309,6 +309,19 @@ const PLAFOND_OCCURRENCES = 200;
 /** Les racines que les modèles du Système minimal n'ouvrent pas (contrôle 6 ter). */
 const RACINES_SANS_POSTE_SMT = ['15', '19', '29'];
 
+/**
+ * Les comptes que le plan SYSCOHADA ouvre pour la réserve de propriété
+ * (Titre VII, comptes 40, 41, 48 et 90), intitulés relus dans le semis
+ * `compte-seed-syscohada.ts` · contrôle RESERVE_PROPRIETE_A_MENTIONNER.
+ */
+export const RACINES_RESERVE_PROPRIETE: readonly { racine: string; intitule: string }[] = [
+  { racine: '4016', intitule: 'Fournisseurs, réserve de propriété' },
+  { racine: '4816', intitule: 'Fournisseurs d’investissements, réserve de propriété' },
+  { racine: '4116', intitule: 'Clients, réserve de propriété' },
+  { racine: '9043', intitule: 'Ventes avec clause de réserve de propriété' },
+  { racine: '9083', intitule: 'Achats avec clause de réserve de propriété' },
+];
+
 /** Le dossier tient-il le Système minimal de trésorerie, dans l'un ou l'autre texte ? */
 function estAuSystemeMinimal(tenant: {
   referentiel: Referentiel;
@@ -2229,6 +2242,76 @@ export class ControlesService {
             reference: `${numero} ${v.intitule}`,
             detail: 'Solde débiteur sur l’exercice',
             montant: Math.round(v.solde * 100) / 100,
+          })),
+        });
+      }
+    }
+
+    // --- 19 ter. Réserve de propriété à mentionner aux Notes annexes (O3) ----
+    //
+    // AUDCIF Titre VIII ch. 9, section 3 · les informations relatives à la
+    // réserve de propriété « doivent être indiquées aux tiers » dans les Notes
+    // annexes, « quelle que soit l'importance relative des montants en
+    // cause », sauf montants « dérisoires ». Quatre montants · immobilisations,
+    // stocks, clients (et autres créances), fournisseurs (et autres dettes).
+    // La maquette n'en porte qu'UN en ligne propre (Note 7, 4116) · les trois
+    // autres n'ont aucune case, et rien ne rappelait qu'ils sont dus. Le
+    // contrôle part des comptes que le dossier a lui-même ouverts pour la
+    // clause (Titre VII · 4016, 4816, 4116, et au § 3.1 les engagements 9043
+    // et 9083), lus à la clôture sur le livre-journal seul, comme les états.
+    // Comptes de bilan et de classe 9 · le solde des comptes de gestion ne les
+    // touche pas. INFORMATION · le texte n'est enfreint par aucun solde, et la
+    // dispense des montants dérisoires est un jugement de l'entité.
+    // SYSCOHADA Système normal SEUL · le Système minimal n'a pas ces notes
+    // (Titre X), et le SYCEBNL a sa propre nomenclature.
+    if (tenant.referentiel === Referentiel.SYSCOHADA && !auSystemeMinimal) {
+      const groupesRp = await this.prisma.ligneEcriture.groupBy({
+        by: ['compteId'],
+        where: {
+          ecriture: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE },
+          OR: RACINES_RESERVE_PROPRIETE.map((r) => ({ compte: { tenantId, numero: { startsWith: r.racine } } })),
+        },
+        _sum: { debit: true, credit: true },
+      });
+      const idsRp = groupesRp.map((g) => g.compteId);
+      const comptesRp = idsRp.length
+        ? await this.prisma.compte.findMany({
+            where: { tenantId, id: { in: idsRp } },
+            select: { id: true, numero: true },
+          })
+        : [];
+      const numeroRp = new Map(comptesRp.map((c) => [c.id, c.numero]));
+      const soldeParRacine = new Map<string, number>();
+      for (const g of groupesRp) {
+        const numero = numeroRp.get(g.compteId);
+        const racine = numero && RACINES_RESERVE_PROPRIETE.find((r) => numero.startsWith(r.racine));
+        if (!racine) continue;
+        const solde = Number(g._sum.debit ?? 0) - Number(g._sum.credit ?? 0);
+        soldeParRacine.set(racine.racine, (soldeParRacine.get(racine.racine) ?? 0) + solde);
+      }
+      const soldesRp = RACINES_RESERVE_PROPRIETE.map((r) => ({
+        ...r,
+        solde: Math.round((soldeParRacine.get(r.racine) ?? 0) * 100) / 100,
+      })).filter((r) => Math.abs(r.solde) > 0.005);
+      if (soldesRp.length > 0) {
+        anomalies.push({
+          code: 'RESERVE_PROPRIETE_A_MENTIONNER',
+          gravite: 'INFORMATION',
+          libelle: 'Réserve de propriété à mentionner aux Notes annexes',
+          consequence:
+            'Les Notes annexes doivent indiquer, quelle que soit leur importance relative, les montants des ' +
+            'immobilisations, des stocks, des clients (et autres créances) et des fournisseurs (et autres dettes) ' +
+            'frappés de réserve de propriété (AUDCIF, Titre VIII ch. 9, section 3). Seul le montant des clients a ' +
+            'une ligne propre, en Note 7 (4116) · les trois autres n’ont aucune case.',
+          action:
+            'Portez les trois autres montants en Note 2 D, informations complémentaires relatives au bilan ' +
+            '(emplacement retenu par OmegaX, le texte n’en désigne aucun). Des montants dérisoires peuvent ne pas ' +
+            'être fournis (même section). Le montant des stocks frappés de réserve de propriété ne se suit que ' +
+            'dans une entité qui tient un inventaire permanent (§ 3.1).',
+          occurrences: soldesRp.map((r) => ({
+            reference: `${r.racine} ${r.intitule}`,
+            detail: `Solde ${r.solde > 0 ? 'débiteur' : 'créditeur'} à la clôture (livre-journal)`,
+            montant: r.solde,
           })),
         });
       }
