@@ -1,4 +1,4 @@
-import { versReponse, type ReponseFait } from '../lib/profil-dossier';
+import { MODULES, versReponse, type ModuleOptionnel, type ReponseFait } from '../lib/profil-dossier';
 import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -335,6 +335,24 @@ export function ParametresDossierPage() {
       );
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Modification impossible');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  // MODULES AFFICHÉS · la liste entière part, et le menu se relit sur
+  // /auth/me · sans relecture, il garderait l'ancienne liste.
+  const changerModule = async (cle: ModuleOptionnel, actif: boolean) => {
+    if (!params) return;
+    const actuels = params.modulesActives ?? [];
+    const suivants = actif ? [...actuels, cle] : actuels.filter((m) => m !== cle);
+    setEnvoi(true);
+    setErreur(null);
+    try {
+      setParams(await api.patch<ParametresDossier>('/dossier/modules', { modulesActives: [...new Set(suivants)] }));
+      await rafraichir();
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Modification impossible');
     } finally {
       setEnvoi(false);
     }
@@ -1155,6 +1173,29 @@ export function ParametresDossierPage() {
                     obligation, et le cabinet qui la décoche croirait
                     contrevenir à quelque chose.
                     ---------------------------------------------------------- */}
+                <fieldset className="text-[11.5px]">
+                  <legend className="font-semibold mb-1">
+                    Modules du dossier{' '}
+                    <Aide
+                      titre="Modules du dossier"
+                      texte="Un module désactivé disparaît des menus et de l’accueil. Ses données et ses fenêtres restent, et le réactiver les rend telles quelles. La facturation, l’inventaire physique, les provisions, les documents obligatoires et le registre des donateurs ne se désactivent pas."
+                      source="Préférence d’affichage d’OmegaX · aucun texte ne la régit"
+                    />
+                  </legend>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+                    {MODULES.map((m) => (
+                      <label key={m.cle} className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={(params.modulesActives ?? []).includes(m.cle)}
+                          disabled={!estAdmin || envoi}
+                          onChange={(e) => changerModule(m.cle, e.target.checked)}
+                        />
+                        {m.libelle}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
                 <label className="flex items-start gap-2 text-[11.5px]">
                   <input
                     type="checkbox"

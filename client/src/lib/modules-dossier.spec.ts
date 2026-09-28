@@ -37,3 +37,17 @@ describe('modules activables', () => {
     }
   });
 });
+
+describe('modules activables · l’écran des paramètres', () => {
+  const page = readFileSync(join(__dirname, '../pages/ParametresDossierPage.tsx'), 'utf8');
+  it('chaque module du catalogue a sa case, envoyée à /dossier/modules, et le menu se relit', () => {
+    expect(page).toContain('{MODULES.map((m) => (');
+    expect(page).toContain("api.patch<ParametresDossier>('/dossier/modules'");
+    const corps = page.slice(page.indexOf('const changerModule'), page.indexOf('const changerRegime'));
+    expect(corps).toContain('await rafraichir()');
+  });
+  it('la case est réservée à l’administrateur, comme la route', () => {
+    const debut = page.indexOf('{MODULES.map((m) => (');
+    expect(page.slice(debut, page.indexOf('</fieldset>', debut))).toContain('disabled={!estAdmin || envoi}');
+  });
+});
