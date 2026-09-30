@@ -153,6 +153,32 @@ describe('Contrôles · la classe 9 ne porte pas la même chose dans les deux pl
     expect(await anomalie(svc, 'CLASSE_9_MOUVEMENTEE')).toBeUndefined();
   });
 
+  // PASSES R1-C7 ET R5-A3 · une pièce entrée avant le refus d'entrée, où un
+  // 90 se solde contre la caisse, reste au dossier. Elle se nomme, et la
+  // phrase « ne modifient ni le résultat ni la situation nette » cesse d'être
+  // servie sans réserve.
+  for (const referentiel of [Referentiel.SYCEBNL, Referentiel.SYSCOHADA]) {
+    it(`${referentiel} · nomme la pièce où les 90 et 91 ne s’équilibrent pas entre eux`, async () => {
+      const fautive = ecriture('Bénévolat payé en caisse', [ligne('90400000', 500_000), ligne('57100000', 0, 500_000)]);
+      const { svc } = service(referentiel, [...engagement, fautive]);
+      const rapport = await svc.analyser('t', 'ex');
+      const a = rapport.anomalies.find((x) => x.code === 'CLASSE_9_HORS_EQUILIBRE')!;
+      expect(a.gravite).toBe('AVERTISSEMENT');
+      expect(a.occurrences.map((o) => o.detail)).toEqual(['Bénévolat payé en caisse']);
+      expect(a.consequence).toContain(referentiel === Referentiel.SYCEBNL ? '910 à 914' : '911 à 914');
+      const info = rapport.anomalies.find((x) => x.code === 'CLASSE_9_MOUVEMENTEE')!;
+      expect(info.consequence).toContain('Sauf sur les écritures signalées');
+    });
+  }
+
+  it('se tait sur la pièce du Guide, 90 contre 91, et la classe 9 garde sa phrase entière', async () => {
+    const { svc } = service(Referentiel.SYCEBNL, engagement);
+    const rapport = await svc.analyser('t', 'ex');
+    expect(rapport.anomalies.find((x) => x.code === 'CLASSE_9_HORS_EQUILIBRE')).toBeUndefined();
+    const info = rapport.anomalies.find((x) => x.code === 'CLASSE_9_MOUVEMENTEE')!;
+    expect(info.consequence).toMatch(/situation nette, et se présentent en note annexe\.$/);
+  });
+
   it('annonce les engagements hors bilan et l’analytique au SYSCOHADA', async () => {
     const { svc } = service(Referentiel.SYSCOHADA, engagement);
     const a = await anomalie(svc, 'CLASSE_9_MOUVEMENTEE');

@@ -26,6 +26,7 @@ type Immo = {
   valeurResiduelle: number;
   amortissementAnterieur: number;
   dotations: Array<{ exerciceId: string; montant: number }>;
+  compteImmobilisation: { numero: string };
 };
 
 const bien = (p: Partial<Immo> & { designation: string }): Immo => ({
@@ -34,6 +35,7 @@ const bien = (p: Partial<Immo> & { designation: string }): Immo => ({
   valeurResiduelle: 0,
   amortissementAnterieur: 0,
   dotations: [],
+  compteImmobilisation: { numero: '24410000' },
   ...p,
 });
 
@@ -50,7 +52,7 @@ function passeFiltreDate(d: Date | null, f: FiltreDate): boolean {
   return true;
 }
 
-function service(immobilisations: Immo[]) {
+function service(immobilisations: Immo[], referentiel: 'SYCEBNL' | 'SYSCOHADA' = 'SYSCOHADA') {
   const prisma = {
     exercice: {
       findFirst: jest.fn().mockResolvedValue({
@@ -59,10 +61,10 @@ function service(immobilisations: Immo[]) {
         dateFin: new Date('2026-12-31'),
       }),
     },
-    tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 't' }) },
+    tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 't', referentiel }) },
     ecriture: { findMany: jest.fn().mockResolvedValue([]) },
     compte: { findMany: jest.fn().mockResolvedValue([]) },
-    ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },
+    ligneEcriture: { findMany: jest.fn().mockResolvedValue([]), groupBy: jest.fn().mockResolvedValue([]) },
     exoneration: { findMany: jest.fn().mockResolvedValue([]) },
     // Le contrôle 21 lit le manuel des procédures (AUDCIF art. 16 al. 1) ·
     // sans ce faux, il croirait la table absente plutôt que le manuel.
@@ -167,5 +169,36 @@ describe('immobilisation amortissable sans dotation sur l’exercice', () => {
     ]).analyser('t', 'ex');
     const repris = rapport.anomalies.find((x) => x.code === 'IMMO_REPRISE_SANS_ANTERIEUR');
     expect(repris!.occurrences.map((o) => o.reference)).toEqual(['Véhicule repris']);
+  });
+
+  // PASSES R1-A1 ET R5-B1 · « Immobilisation AMORTISSABLE ». Le bien que le
+  // plan ne fait pas amortir n'a ni dotation à passer ni antérieur à
+  // reprendre · les deux contrôles lisent la règle du module. Le véhicule sert
+  // de TÉMOIN, pour que le silence ne soit pas celui d'un contrôle muet.
+  const nonAmortissables: Array<[string, 'SYCEBNL' | 'SYSCOHADA', string]> = [
+    ['Terrain nu', 'SYSCOHADA', '22210000'],
+    ['Titres de participation', 'SYSCOHADA', '26110000'],
+    ['Dépôt et cautionnement', 'SYCEBNL', '27500000'],
+    ['Bien reçu en don destiné à la vente', 'SYCEBNL', '20300000'],
+  ];
+  for (const [designation, referentiel, numero] of nonAmortissables) {
+    it(`${referentiel} · ni dotation ni antérieur réclamés sur « ${designation} » (${numero})`, async () => {
+      const rapport = await service(
+        [bien({ designation, compteImmobilisation: { numero } }), bien({ designation: 'Véhicule' })],
+        referentiel,
+      ).analyser('t', 'ex');
+      const sans = rapport.anomalies.find((x) => x.code === 'IMMO_SANS_DOTATION')!;
+      const repris = rapport.anomalies.find((x) => x.code === 'IMMO_REPRISE_SANS_ANTERIEUR')!;
+      expect(sans.occurrences.map((o) => o.reference)).toEqual(['Véhicule']);
+      expect(repris.occurrences.map((o) => o.reference)).toEqual(['Véhicule']);
+    });
+  }
+
+  it('l’usufruit temporaire (2011) s’amortit, et reste réclamé au SYCEBNL', async () => {
+    const a = await service(
+      [bien({ designation: 'Usufruit temporaire', compteImmobilisation: { numero: '20110000' } })],
+      'SYCEBNL',
+    ).analyser('t', 'ex');
+    expect(a.anomalies.find((x) => x.code === 'IMMO_SANS_DOTATION')!.occurrences[0].reference).toBe('Usufruit temporaire');
   });
 });

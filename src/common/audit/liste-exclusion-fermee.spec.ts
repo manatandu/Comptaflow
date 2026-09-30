@@ -239,6 +239,13 @@ describe('la liste d’exclusion est fermée sur User', () => {
       'categoriePret',
       'dateOctroi',
       'pieceJustificative',
+      // La saisie-arrêt notifiée (passe O4-C2) · l'acte, son greffe, le
+      // destinataire des versements et la mainlevée. Aucun montant · ce sont
+      // les références qu'un contrôle de l'employeur demande (AUPSRVE, art. 188).
+      'referenceActe',
+      'greffe',
+      'destinataire',
+      'dateFin',
       'creePar',
       'createdAt',
       'retenues',

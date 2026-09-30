@@ -1,5 +1,21 @@
 # Paie P3 · la passation comptable
 
+> **CORRIGÉ LE 2026-09-30 (passe R5-C6) · CE DOCUMENT EST FAUX SUR DEUX
+> POINTS, ET IL EST LAISSÉ TEL QUEL POUR LA LEÇON.** (1) **Sa section 4 range à
+> tort trois comptes parmi les absences du SYCEBNL** · 66330000 « Indemnités
+> d'expatriation », 66720000 « Personnel détaché ou prêté à l'entité » et
+> 66820000 « Versements aux comités d'hygiène et de sécurité » sont ouverts
+> par le texte SYCEBNL (Partie 2 ch. 3, compte 66 : « 6633 Indemnités
+> d'expatriation », « 6672 Personnel détaché ou prêté à l'entité », « 6682
+> Versements aux comités d'hygiène et de sécurité ») et semés dans
+> `src/modules/comptes/compte-seed.ts`. Restent exacts · le 666 au seul
+> SYSCOHADA, le 665 et le 669 au seul SYCEBNL. C'est une prémisse sur le plan
+> qui n'avait été vérifiée contre aucun semis. (2) **Les rôles sont dix-huit et
+> non dix-sept** depuis le 2026-09-27 · le 78100000 des avantages en nature,
+> même numéro aux deux semis (`src/modules/personnel/passation-paie.ts`). La
+> présentation en trois temps (brut, retenues, patronales), elle, est déjà
+> corrigée plus bas.
+
 Journal du 2026-09-19. Compétences mobilisées : `sage-i7` (pattern de passation),
 les deux semis du dépôt comme source de vérité sur ce que chaque plan OUVRE,
 et les fiches par compte des deux référentiels.

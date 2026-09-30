@@ -7,7 +7,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AccesRolesCantonnes } from '../../common/decorators/acces-roles-cantonnes.decorator';
 import { AvancesRubriquesService } from './avances-rubriques.service';
-import { AvanceSalaireDto, ModeleBulletinDto, ModifierRubriquePaieDto, RubriquePaieDto } from './dto/personnel.dto';
+import { AvanceSalaireDto, FinSaisieArretDto, ModeleBulletinDto, ModifierRubriquePaieDto, RubriquePaieDto } from './dto/personnel.dto';
 
 /**
  * Rubriques de paie du cabinet et registre des avances · mêmes droits que le
@@ -66,6 +66,13 @@ export class AvancesRubriquesController {
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   creerAvance(@CurrentUser() user: AuthenticatedUser, @Param('salarieId') salarieId: string, @Body() dto: AvanceSalaireDto) {
     return this.service.creerAvance(user.tenantId, user.email, salarieId, dto);
+  }
+
+  /** Mainlevée d'une saisie-arrêt (AUPSRVE, art. 201) · déclarée une fois. */
+  @Patch('avances/:id/fin')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  terminerSaisie(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: FinSaisieArretDto) {
+    return this.service.terminerSaisie(user.tenantId, id, dto);
   }
 
   @Delete('avances/:id')

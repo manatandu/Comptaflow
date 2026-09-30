@@ -1867,11 +1867,11 @@ semis et exige que chacun des dix-sept numéros y soit réellement ouvert,
 trente-quatre assertions. Règle sortie de F2b, et deux specs l'avaient déjà
 payée.
 
-**CINQ ABSENCES ASYMÉTRIQUES EN CLASSE 66**, relevées et non codées ·
-66330000 (indemnités d'expatriation), 666 (exploitant individuel), 66720000
-(personnel détaché) et 66820000 (comités d'hygiène) n'existent QU'AU SYSCOHADA ;
-66500000 (habillement) et 66900000 (dégrèvements de charges sociales) QU'AU
-SYCEBNL. Ce sont des ABSENCES, pas des sens différents · moins traître que « un
+**TROIS ABSENCES ASYMÉTRIQUES EN CLASSE 66**, relevées et non codées · le 666
+(exploitant individuel) n'existe QU'AU SYSCOHADA ; 66500000 (habillement) et
+66900000 (dégrèvements de charges sociales) QU'AU SYCEBNL. Les 66330000,
+66720000 et 66820000, dits jusqu'au 2026-09-30 propres au SYSCOHADA, sont
+ouverts aux deux semis. Ce sont des ABSENCES, pas des sens différents · moins traître que « un
 numéro, deux sens », aussi coûteux à la saisie.
 
 **LE SÉMINAIRE CPCC SE TROMPE ICI, DANS LES DEUX PLANS** · il écrit « C/ 4331
@@ -3515,10 +3515,13 @@ et Titre VIII ch. 12, dont l'art. 46 n'est pas exclu par l'art. 3 du SYCEBNL) :
   COURIR (ch. 12 § 2.4.1, chiffré au § 2.3.2 : 1 200 000 et non 2 000 000).
   Sans dépréciation, l'annuité ne bouge pas · ré-étaler partout modifierait le
   plan de tout le parc, ce qu'aucun texte ne demande ;
-- **la sortie solde le 29** et le retranche de la valeur comptable nette. Un 29
-  laissé au bilan est une correction d'actif sans actif, et la VCN portée au 81
-  était surévaluée d'autant · une moins-value se présentait en plus-value sans
-  qu'aucune écriture ne se déséquilibre.
+- **la sortie solde le 29 par sa reprise**, et le 81 reçoit la valeur d'entrée
+  diminuée des seuls AMORTISSEMENTS · la fiche du compte 81 exclut les
+  dépréciations (« → 29 ») et, pour un bien non amortissable, porte la valeur
+  d'entrée « sans déduction des éventuelles dépréciations ». Un 29 laissé au
+  bilan est une correction d'actif sans actif. (Corrigé le 2026-09-30 · la
+  phrase disait que la sortie retranchait le 29 de la VCN, ce que le code ne
+  fait pas et que le texte n'écrit pas.)
 
 Le logiciel ne décide NI le montant NI l'indice. Le § 2.1 est explicite :
 « s'il n'existe pas d'indice de perte de valeur, aucun test n'est requis ».

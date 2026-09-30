@@ -1,10 +1,18 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, StatutBulletinPaie } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
-import { AvanceSalaireDto, ModeleBulletinDto, ModifierRubriquePaieDto, RubriquePaieDto } from './dto/personnel.dto';
+import { AvanceSalaireDto, FinSaisieArretDto, ModeleBulletinDto, ModifierRubriquePaieDto, RubriquePaieDto } from './dto/personnel.dto';
 import { motifRefusModele, normaliserLignes } from './modeles-bulletin';
 import { NATURES_DES_RUBRIQUES, motifRefusRubrique } from './rubriques-paie';
-import { LITTERA_ARTICLE_112, compteDeLAvance, motifRefusAvance, soldeAvance, type CategoriePret, type TypeAvance } from './avances-salaire';
+import {
+  LITTERA_ARTICLE_112,
+  compteDeLAvance,
+  motifRefusAvance,
+  motifRefusFinSaisie,
+  soldeAvance,
+  type CategoriePret,
+  type TypeAvance,
+} from './avances-salaire';
 
 /**
  * LA BORNE DES TROIS LISTES DE CE SERVICE (audit final F259, § 8 bis) ·
@@ -161,6 +169,10 @@ export class AvancesRubriquesService {
         retenueMensuelleFc: a.retenueMensuelleFc === null ? null : Number(a.retenueMensuelleFc),
         objet: a.objet,
         pieceJustificative: a.pieceJustificative,
+        referenceActe: a.referenceActe,
+        greffe: a.greffe,
+        destinataire: a.destinataire,
+        dateFin: a.dateFin,
         retenues,
         soldeFc: soldeAvance(Number(a.montantFc), retenues),
       };
@@ -190,9 +202,32 @@ export class AvancesRubriquesService {
         retenueMensuelleFc: dto.retenueMensuelleFc ?? null,
         objet: dto.objet.trim(),
         pieceJustificative: dto.pieceJustificative.trim(),
+        // La saisie-arrêt seule les porte · `motifRefusAvance` les refuse
+        // ailleurs, si bien qu'aucune avance n'en reçoit un par mégarde.
+        referenceActe: dto.type === 'SAISIE_ARRET' ? dto.referenceActe!.trim() : null,
+        greffe: dto.type === 'SAISIE_ARRET' ? dto.greffe!.trim() : null,
+        destinataire: dto.type === 'SAISIE_ARRET' ? dto.destinataire!.trim() : null,
         creePar: email,
       },
     });
+  }
+
+  /**
+   * LA MAINLEVÉE D'UNE SAISIE-ARRÊT (AUPSRVE, art. 201, « notifiée à
+   * l'employeur dans les huit jours ») · déclarée une fois, par une opération
+   * unitaire qui laisse au journal d'audit l'état antérieur. Au-delà, aucun
+   * bulletin ne retient plus rien sur elle (`motifRefusMoisSaisie`).
+   */
+  async terminerSaisie(tenantId: string, id: string, dto: FinSaisieArretDto) {
+    const a = await this.prisma.avanceSalaire.findFirst({
+      where: { id, tenantId },
+      select: { id: true, type: true, dateOctroi: true, dateFin: true },
+    });
+    if (!a) throw new NotFoundException('Saisie introuvable dans ce dossier.');
+    const dateFin = new Date(dto.dateFin);
+    const refus = motifRefusFinSaisie({ type: a.type as TypeAvance, dateOctroi: a.dateOctroi, dateFin: a.dateFin }, dateFin);
+    if (refus) throw new BadRequestException(refus);
+    return this.prisma.avanceSalaire.update({ where: { id: a.id }, data: { dateFin } });
   }
 
   /** Une avance saisie par erreur se retire tant qu'aucun bulletin n'y a retenu · après, elle est l'histoire des bulletins. */

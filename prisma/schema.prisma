@@ -7000,6 +7000,9 @@ enum TypeAvanceSalaire {
   AVANCE
   ACOMPTE
   PRET
+  /// Saisie-arrêt notifiée par le greffier (Code du travail, art. 112, g ;
+  /// AUPSRVE, art. 183 à 189) · retenue au 42320000 (passe O4-C2).
+  SAISIE_ARRET
 }
 
 enum CategoriePretPersonnel {
@@ -7029,6 +7032,15 @@ model AvanceSalaire {
   /// Reconnaissance de dette ou contrat de prêt · « éléments de contrôle » du
   /// compte 42 dans les deux plans.
   pieceJustificative String
+  /// SAISIE-ARRÊT SEULEMENT (passe O4-C2), null ailleurs · ce que l'acte
+  /// notifié porte, recopié et jamais calculé (AUPSRVE, art. 183, 184 et
+  /// 188). `dateOctroi` y est la date de notification (art. 187).
+  referenceActe      String?
+  greffe             String?
+  /// « Au greffe ou à l'organisme spécialement désigné à cet effet » (art. 188).
+  destinataire       String?
+  /// Mainlevée (art. 201) · déclarée une fois, aucune retenue au-delà.
+  dateFin            DateTime?               @db.Date
   creePar            String
   createdAt          DateTime                @default(now())
   retenues           RetenueAvanceBulletin[]

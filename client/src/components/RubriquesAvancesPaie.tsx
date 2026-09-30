@@ -17,7 +17,7 @@ export interface AvanceSalaire {
   id: string;
   salarieId: string;
   salarie: string;
-  type: 'AVANCE' | 'ACOMPTE' | 'PRET';
+  type: 'AVANCE' | 'ACOMPTE' | 'PRET' | 'SAISIE_ARRET';
   categoriePret: string | null;
   littera: string;
   compte: { compte: string; intitule: string };
@@ -26,6 +26,11 @@ export interface AvanceSalaire {
   retenueMensuelleFc: number | null;
   objet: string;
   pieceJustificative: string;
+  /** Saisie-arrêt seulement · l'acte notifié, recopié (AUPSRVE, art. 183 à 188). */
+  referenceActe?: string | null;
+  greffe?: string | null;
+  destinataire?: string | null;
+  dateFin?: string | null;
   retenues: { montantFc: number; numero: number; moisDePaie: string; bulletinAnnule: boolean }[];
   soldeFc: number;
 }
@@ -46,7 +51,12 @@ const LIBELLE_NATURE: Record<string, string> = {
   INDEMNITE_INCAPACITE_OU_ACCOUCHEMENT: "Indemnité d'incapacité ou d'accouchement",
 };
 
-const TYPE: Record<AvanceSalaire['type'], string> = { AVANCE: 'Avance', ACOMPTE: 'Acompte', PRET: 'Prêt' };
+const TYPE: Record<AvanceSalaire['type'], string> = {
+  AVANCE: 'Avance',
+  ACOMPTE: 'Acompte',
+  PRET: 'Prêt',
+  SAISIE_ARRET: 'Saisie-arrêt notifiée',
+};
 const nombre = (v: string) => Number(v.replace(/\s/g, '').replace(',', '.'));
 const champ = 'border border-border bg-transparent px-1.5 py-0.5';
 
@@ -78,7 +88,12 @@ export function OngletRubriquesAvances({ salaries, peutEcrire }: { salaries: Sal
     retenueMensuelleFc: '',
     objet: '',
     pieceJustificative: '',
+    referenceActe: '',
+    greffe: '',
+    destinataire: '',
   });
+  // La mainlevée d'une saisie-arrêt (AUPSRVE, art. 201), par saisie.
+  const [finSaisie, setFinSaisie] = useState<Record<string, string>>({});
 
   const charger = useCallback(() => {
     api.get<{ rubriques: RubriquePaie[]; naturesPermises: string[] } & Tranche>('/personnel/rubriques').then(
@@ -128,9 +143,12 @@ export function OngletRubriquesAvances({ salaries, peutEcrire }: { salaries: Sal
       ...(avance.retenueMensuelleFc.trim() ? { retenueMensuelleFc: nombre(avance.retenueMensuelleFc) } : {}),
       objet: avance.objet,
       pieceJustificative: avance.pieceJustificative,
+      ...(avance.type === 'SAISIE_ARRET'
+        ? { referenceActe: avance.referenceActe, greffe: avance.greffe, destinataire: avance.destinataire }
+        : {}),
     };
     if (await envoyer(() => api.post(`/personnel/salaries/${avance.salarieId}/avances`, corps))) {
-      setAvance((a) => ({ ...a, montantFc: '', retenueMensuelleFc: '', objet: '', pieceJustificative: '' }));
+      setAvance((a) => ({ ...a, montantFc: '', retenueMensuelleFc: '', objet: '', pieceJustificative: '', referenceActe: '', greffe: '', destinataire: '' }));
     }
   };
 
@@ -219,8 +237,8 @@ export function OngletRubriquesAvances({ salaries, peutEcrire }: { salaries: Sal
           Avances, acomptes et prêts au personnel
           <Aide
             titre="Avances et prêts au personnel"
-            texte="Le registre tient ce qui a été consenti ; le versement lui-même s'enregistre au journal de trésorerie (D/4211 ou 4212 pour une avance ou un acompte, D/272 pour un prêt, les deux plans excluant les prêts du compte 42). Le remboursement se fait par les retenues des bulletins émis, qui créditent le même compte par le débit du 422. Le solde se calcule ; une retenue d'un bulletin annulé ne compte plus. Une avance ne se supprime que tant qu'aucun bulletin n'y a retenu."
-            source="Code du travail, art. 112, c) et f) · fiche du compte 42 (AUDCIF, SYCEBNL) · Guide SYSCOHADA, Partie 1 ch. 3, § 4.3"
+            texte="Le registre tient ce qui a été consenti ; le versement lui-même s'enregistre au journal de trésorerie (D/4211 ou 4212 pour une avance ou un acompte, D/272 pour un prêt, les deux plans excluant les prêts du compte 42). Le remboursement se fait par les retenues des bulletins émis, qui créditent le même compte par le débit du 422. Le solde se calcule ; une retenue d'un bulletin annulé ne compte plus. Une avance ne se supprime que tant qu'aucun bulletin n'y a retenu. Une saisie-arrêt notifiée par le greffier s'inscrit ici avec la référence de l'acte, le greffe et le destinataire des versements : la retenue du bulletin crédite le 4232 par le débit du 422, de la notification à la mainlevée, et le versement mensuel au greffe (D/4232, C/trésorerie) se passe au journal. Le montant et la retenue sont ceux de l'acte ; OmegaX ne les calcule pas. La cession des rémunérations n'est pas tenue ici."
+            source="Code du travail, art. 112, c), f) et g) · AUPSRVE, art. 183 à 189 et 201 · fiche du compte 42 (AUDCIF, SYCEBNL) · Guide SYSCOHADA, Partie 1 ch. 3, § 4.3"
           />
         </div>
         <table className="w-full">
@@ -248,6 +266,12 @@ export function OngletRubriquesAvances({ salaries, peutEcrire }: { salaries: Sal
                 <td className="px-2 py-1">{a.salarie}</td>
                 <td className="px-2 py-1">
                   {TYPE[a.type]} du {a.dateOctroi.slice(0, 10)} · art. 112, {a.littera})
+                  {a.type === 'SAISIE_ARRET' && (
+                    <div className="text-[11px] text-text-dim">
+                      Acte {a.referenceActe} · {a.greffe} · versements à {a.destinataire}
+                      {a.dateFin ? ` · mainlevée le ${a.dateFin.slice(0, 10)}` : ''}
+                    </div>
+                  )}
                 </td>
                 <td className="px-2 py-1">
                   {a.objet} <span className="text-text-dim">· {a.pieceJustificative}</span>
@@ -263,6 +287,25 @@ export function OngletRubriquesAvances({ salaries, peutEcrire }: { salaries: Sal
                 <td className="px-2 py-1 text-right">{fc(a.montantFc)}</td>
                 <td className="px-2 py-1 text-right font-semibold">{fc(a.soldeFc)}</td>
                 <td className="px-2 py-1 text-right">
+                  {peutEcrire && a.type === 'SAISIE_ARRET' && !a.dateFin && (
+                    <span className="inline-flex gap-1 items-center">
+                      <input
+                        aria-label="Date de mainlevée"
+                        type="date"
+                        value={finSaisie[a.id] ?? ''}
+                        onChange={(e) => setFinSaisie({ ...finSaisie, [a.id]: e.target.value })}
+                        className={champ}
+                      />
+                      <button
+                        type="button"
+                        className="hover:underline"
+                        disabled={!finSaisie[a.id]}
+                        onClick={() => envoyer(() => api.patch(`/personnel/avances/${a.id}/fin`, { dateFin: finSaisie[a.id] }))}
+                      >
+                        Mainlevée
+                      </button>
+                    </span>
+                  )}
                   {peutEcrire && a.retenues.length === 0 && (
                     <button
                       type="button"
@@ -294,6 +337,7 @@ export function OngletRubriquesAvances({ salaries, peutEcrire }: { salaries: Sal
               <option value="AVANCE">Avance</option>
               <option value="ACOMPTE">Acompte</option>
               <option value="PRET">Prêt</option>
+              <option value="SAISIE_ARRET">Saisie-arrêt notifiée</option>
             </select>
             {avance.type === 'PRET' && (
               <select aria-label="Catégorie du prêt" value={avance.categoriePret} onChange={(e) => setAvance({ ...avance, categoriePret: e.target.value })} className={champ}>
@@ -303,7 +347,14 @@ export function OngletRubriquesAvances({ salaries, peutEcrire }: { salaries: Sal
                 <option value="AUTRE">Autre (2728)</option>
               </select>
             )}
-            <input aria-label="Date d'octroi" type="date" value={avance.dateOctroi} onChange={(e) => setAvance({ ...avance, dateOctroi: e.target.value })} className={champ} />
+            {avance.type === 'SAISIE_ARRET' && (
+              <>
+                <input aria-label="Référence de l'acte de saisie" placeholder="Référence de l'acte" value={avance.referenceActe} onChange={(e) => setAvance({ ...avance, referenceActe: e.target.value })} className={`${champ} w-[140px]`} />
+                <input aria-label="Greffe" placeholder="Greffe" value={avance.greffe} onChange={(e) => setAvance({ ...avance, greffe: e.target.value })} className={`${champ} w-[140px]`} />
+                <input aria-label="Destinataire des versements" placeholder="Destinataire des versements" value={avance.destinataire} onChange={(e) => setAvance({ ...avance, destinataire: e.target.value })} className={`${champ} w-[180px]`} />
+              </>
+            )}
+            <input aria-label={avance.type === 'SAISIE_ARRET' ? 'Date de notification' : "Date d'octroi"} type="date" value={avance.dateOctroi} onChange={(e) => setAvance({ ...avance, dateOctroi: e.target.value })} className={champ} />
             <input aria-label="Montant consenti" placeholder="Montant FC" value={avance.montantFc} onChange={(e) => setAvance({ ...avance, montantFc: e.target.value })} className={`${champ} w-[110px] text-right`} />
             <input aria-label="Retenue mensuelle proposée" placeholder="Retenue / mois" value={avance.retenueMensuelleFc} onChange={(e) => setAvance({ ...avance, retenueMensuelleFc: e.target.value })} className={`${champ} w-[110px] text-right`} />
             <input aria-label="Objet" placeholder="Objet" value={avance.objet} onChange={(e) => setAvance({ ...avance, objet: e.target.value })} className={`${champ} w-[160px]`} />

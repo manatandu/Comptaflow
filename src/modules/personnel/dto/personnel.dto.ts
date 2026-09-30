@@ -848,8 +848,8 @@ export class ModifierRubriquePaieDto {
 }
 
 export class AvanceSalaireDto {
-  @IsEnum(['AVANCE', 'ACOMPTE', 'PRET'])
-  type!: 'AVANCE' | 'ACOMPTE' | 'PRET';
+  @IsEnum(['AVANCE', 'ACOMPTE', 'PRET', 'SAISIE_ARRET'])
+  type!: 'AVANCE' | 'ACOMPTE' | 'PRET' | 'SAISIE_ARRET';
 
   @IsOptional()
   @IsEnum(['IMMOBILIER', 'MOBILIER_ET_INSTALLATION', 'AUTRE'])
@@ -869,6 +869,18 @@ export class AvanceSalaireDto {
 
   @IsString() @MinLength(1) @MaxLength(200) objet!: string;
   @IsString() @MinLength(1) @MaxLength(200) pieceJustificative!: string;
+
+  // Saisie-arrêt seulement (passe O4-C2) · exigés et refusés ailleurs par
+  // `motifRefusSaisieArret`, le service disant pourquoi en français.
+  @IsOptional() @IsString() @MaxLength(200) referenceActe?: string;
+  @IsOptional() @IsString() @MaxLength(200) greffe?: string;
+  @IsOptional() @IsString() @MaxLength(200) destinataire?: string;
+}
+
+/** La mainlevée d'une saisie-arrêt (AUPSRVE, art. 201) · déclarée une fois. */
+export class FinSaisieArretDto {
+  @IsDateString()
+  dateFin!: string;
 }
 
 /** Les valeurs se vérifient par barème dans baremes-dossier.ts (lireValeurs). */

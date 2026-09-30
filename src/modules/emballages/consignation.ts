@@ -206,8 +206,14 @@ export function lignesDuDenouement(
     // balance boucle, et l'actif est surévalué de la valeur nette du bien
     // tandis que le résultat est surévalué d'autant. C'est le § 10 bis dans sa
     // forme la plus coûteuse, et c'est exactement le défaut que le module des
-    // immobilisations existe pour empêcher (« la sortie solde le 29 et le
-    // retranche de la valeur comptable nette »).
+    // immobilisations existe pour empêcher · il porte au 81 la valeur d'entrée
+    // moins les seuls amortissements, et solde le 29 par sa REPRISE (79 ou
+    // 863), la fiche du compte 81 excluant les dépréciations de la valeur
+    // comptable des cessions (« Les dépréciations afférentes aux éléments
+    // d'actif immobilisé cédés → 29 », AUDCIF, Titre VII, compte 81,
+    // Exclusions). La phrase citée ici jusqu'au 2026-09-30, « la sortie solde
+    // le 29 et le retranche de la valeur comptable nette », décrivait
+    // l'inverse (passe R1-C5).
     if (c.sens === 'EMISE' && c.nature === 'MATERIEL') {
       const produit = compteDuRole('PRODUIT_CESSION_IMMO', referentiel);
       const vnc = compteDuRole('VALEUR_COMPTABLE_CESSION', referentiel);

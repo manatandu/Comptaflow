@@ -643,14 +643,19 @@ export function cotisations(
  * le compte que le Guide d'application nomme (Partie 1 ch. 3, § 4.3, 422 vers
  * 423) et que les deux semis ouvrent (42320000).
  */
+// UNE GARANTIE NÉGATIVE VIEILLIT · cette réserve disait jusqu'au 2026-09-30
+// que le registre ne tenait pas la saisie-arrêt. Il la tient (passe O4-C2) ;
+// seule la CESSION reste hors registre, aucun des deux textes comptables ne
+// lui désignant un compte.
 export const RESERVE_SAISIES_ET_CESSIONS =
   "Restent hors du net les indemnités compensatoires de l'article 52 et le cautionnement, qui supposent un acte " +
-  "propre, ET LA SAISIE-ARRÊT OU LA CESSION NOTIFIÉE PAR LE GREFFIER, que le registre d'OmegaX ne tient pas " +
-  "encore · l'acte notifié porte le mode de calcul et le montant de la retenue (AUPSRVE, art. 184, 3° et 206), " +
+  "propre. LA SAISIE-ARRÊT NOTIFIÉE PAR LE GREFFIER se tient au registre des avances et se retient sur le " +
+  "bulletin, du 422 au 42320000 « Personnel, saisies-arrêts » (Guide d'application SYSCOHADA, Partie 1 ch. 3, " +
+  "§ 4.3) · l'acte notifié porte le mode de calcul et le montant de la retenue (AUPSRVE, art. 184, 3° et 206), " +
   "la quotité est indisponible dès la notification (art. 187), l'employeur verse chaque mois au greffe ou au " +
   "cessionnaire (art. 188 et 207) et, s'il omet de le faire, il en est déclaré personnellement débiteur " +
-  "(art. 189). La retenue se passe à la main, du 422 au 42320000 « Personnel, saisies-arrêts » (Guide " +
-  "d'application SYSCOHADA, Partie 1 ch. 3, § 4.3), et le net de ce bulletin est à diminuer d'autant.";
+  "(art. 189). LA CESSION NOTIFIÉE n'est pas tenue au registre · elle se passe à la main, et le net de ce " +
+  "bulletin est à diminuer d'autant.";
 
 export type VerdictNet = {
   /** Tout ce que l'employeur verse, exclusions de l'article 7 comprises. */
@@ -686,7 +691,7 @@ export function netAPayer(
   const reserves = [
     "LE NET PART DU TOTAL VERSÉ · les cinq exclusions de l'article 7, point 8 du Code du travail sortent de l'ASSIETTE des cotisations, pas de ce que l'employeur paie. Le logement et le transport sont bien versés au travailleur, sauf ceux qu'il reçoit EN NATURE, qui ne sont ni dans ce total ni au 422.",
     retenuesAvancesFc > 0
-      ? `NET APRÈS LES RETENUES D'AVANCE ET DE PRÊT (article 112, c et f), tirées du registre des avances. ${RESERVE_SAISIES_ET_CESSIONS}`
+      ? `NET APRÈS LES RETENUES DU REGISTRE DES AVANCES (article 112, c, f et g · avances, prêts, saisies-arrêts). ${RESERVE_SAISIES_ET_CESSIONS}`
       : `NET AVANT LES RETENUES DE L'ARTICLE 112 · aucune avance ni aucun prêt n'est retenu sur ce bulletin. ${RESERVE_SAISIES_ET_CESSIONS}`,
     // UNE GARANTIE NÉGATIVE VIEILLIT · cette réserve disait la quotité « non
     // calculée » depuis P2b, alors qu'elle l'est depuis P5 et P6, et chaque

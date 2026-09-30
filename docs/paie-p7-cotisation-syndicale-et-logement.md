@@ -1,5 +1,23 @@
 # Paie P7 · la cotisation syndicale, et ce qu'un article de doctrine apporte
 
+> **CORRIGÉ LE 2026-09-30 (passe O4) · LA SECTION 2 EST FAUSSE SUR LA FORME DE
+> LA CESSION, ET ELLE EST LAISSÉE TELLE QUELLE POUR LA LEÇON.** Elle écrit
+> qu'« aucune source lue ne l'énonce » et qu'une cession au syndicat suppose
+> « un écrit du travailleur, révocable ». C'était une lacune déclarée à tort ·
+> l'AUPSRVE fixe lui-même la forme, et « seules les dispositions du présent
+> acte uniforme sont applicables » aux mesures d'exécution qu'il régit
+> (art. 336). La cession « ne peut être consentie, quel qu'en soit le
+> montant, que par déclaration du cédant en personne, au greffe de la
+> juridiction de son domicile » (art. 205) ; l'employeur verse au cessionnaire
+> « sur production d'une copie de la déclaration de cession » (art. 207) ; et
+> elle ne prend fin que par annulation judiciaire, résiliation par
+> déclaration DU CESSIONNAIRE au greffe, ou paiement de la dernière échéance
+> (art. 212) · jamais par la seule révocation du travailleur. Un paiement au
+> syndicat sur un simple écrit remis à l'employeur n'est donc pas une
+> cession, c'est une retenue hors de la liste de l'art. 112. Ce qui reste une
+> lecture d'éditeur est seulement qu'une cession au profit d'un syndicat soit
+> admise. Le code corrigé · `src/modules/personnel/retenues-autorisees.ts`.
+
 Passe du 19 septembre 2026, tard. Elle ferme la dernière demande ouverte de
 toute la série paie, et elle le fait sans rien demander à personne : **la
 réponse était dans le corpus depuis le début, à un autre Titre.**

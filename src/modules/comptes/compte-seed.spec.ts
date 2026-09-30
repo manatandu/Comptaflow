@@ -184,6 +184,14 @@ describe('intitulés relus sur le plan des comptes officiel', () => {
     // 20 % (loi n° 83/004, art. 11) ou, à Kinshasa, 15 % selon le rang de la
     // localité (arrêté provincial n° 015/2023, art. 5 et 8).
     ['44781000', 'État, retenue sur les revenus locatifs'],
+    // 44782 à 44784 · le taux que l'intitulé portait n'est pas le seul que le
+    // compte porte (conventions fiscales RDC-Belgique et RDC-Afrique du Sud,
+    // art. 10 à 12 ; Code minier, art. 244 bis). 44785 garde le sien, seul
+    // taux de la retenue sur les plus-values (loi n° 23/053, art. 120).
+    ['44782000', 'État, prélèvement sur prestataires non-résidents'],
+    ['44783000', 'État, prélèvement exceptionnel sur le personnel expatrié'],
+    ['44784000', 'État, retenue sur les revenus de capitaux mobiliers'],
+    ['44785000', 'État, retenue sur les plus-values (20 %)'],
   ];
 
   it.each(RELUS)('%s porte l’intitulé du texte officiel', (numero, intitule) => {

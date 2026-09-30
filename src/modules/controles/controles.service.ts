@@ -37,6 +37,8 @@ import { ajouterMois } from '../../common/ajouter-mois';
 import { ENTREE_EN_VIGUEUR_LOI_23_053 } from '../../common/entree-en-vigueur-loi-23-053';
 import { aNouveauEnTrop, filtreANouveauEcarte } from '../rapprochement/rapprochement.service';
 import { formeApplicable } from '../tenant/forme-applicable';
+import { motifNonAmortissable } from '../immobilisations/comptes-du-bien';
+import { ecartClasse9 } from '../comptabilite/classe-9-equilibree';
 
 /**
  * SEUILS DE DÉSIGNATION DU CONTRÔLEUR DES COMPTES · ils ne sont PLUS ici.
@@ -1068,6 +1070,9 @@ export class ControlesService {
     const validesParLeurAuteur = new Collecte<EcritureControlee>(PLAFOND_OCCURRENCES);
     const soldesTiers = new Map<string, number>();
     const comptesClasse9 = new Set<string>();
+    // Les pièces entrées avant le refus d'entrée (classe-9-equilibree.ts) ·
+    // la saisie les refuse désormais, les données anciennes restent.
+    const classe9HorsEquilibre = new Collecte<EcritureControlee>(PLAFOND_OCCURRENCES);
 
     const seuilAnciennete = new Date(ex.dateFin);
     seuilAnciennete.setDate(seuilAnciennete.getDate() - ControlesService.JOURS_ANCIENNETE_TIERS);
@@ -1100,6 +1105,11 @@ export class ControlesService {
           if (n.startsWith('9') && !e.estGenereeParCloture) comptesClasse9.add(n);
         }
         if (Math.abs(debit - credit) > 0.005) desequilibrees.ajouter(e);
+        if (
+          ecartClasse9(e.lignes.map((l) => ({ numero: l.compte.numero, debit: Number(l.debit), credit: Number(l.credit) }))) !== 0
+        ) {
+          classe9HorsEquilibre.ajouter(e);
+        }
 
         if (!e.reference?.trim() && !['AN', 'OD'].includes(e.journal.code) && e.lignes.length > 0) {
           sansReference.ajouter(e);
@@ -1188,6 +1198,7 @@ export class ControlesService {
       validesParLeurAuteur,
       soldesTiers,
       comptesClasse9,
+      classe9HorsEquilibre,
     };
   }
 
@@ -1636,6 +1647,35 @@ export class ControlesService {
     // sous-section 2). Annoncer une contribution volontaire sur un 94 de coûts
     // était le défaut corrigé côté SYSCOHADA, resté entier ici.
     const estSycebnlClasse9 = tenant.referentiel === Referentiel.SYCEBNL;
+    // UNE PIÈCE OÙ LES 90 ET 91 NE S'ÉQUILIBRENT PAS ENTRE EUX (passes R1-C7,
+    // R5-A3) · la saisie la refuse depuis le 2026-09-30, mais une pièce
+    // entrée avant reste. Elle touche le bilan (D 904 / C 571 fait baisser la
+    // caisse) sans que l'état nomme la cause, la classe 9 n'étant lue par
+    // aucun état. Tant qu'il en existe, dire que la classe 9 « ne modifie ni
+    // le résultat ni la situation nette » serait faux sur ce dossier.
+    const horsEquilibre9 = parcours.classe9HorsEquilibre.elements;
+    if (horsEquilibre9.length > 0) {
+      anomalies.push({
+        code: 'CLASSE_9_HORS_EQUILIBRE',
+        gravite: 'AVERTISSEMENT',
+        libelle: 'Écriture dont les comptes 90 et 91 ne s’équilibrent pas entre eux',
+        consequence: estSycebnlClasse9
+          ? 'Les contributions volontaires en nature « ne doi[vent] pas impacter le bilan et le compte de résultat » ' +
+            '(SYCEBNL, Partie 2 ch. 1), les 900 à 904 se débitant par le crédit des 910 à 914 (ch. 3, classe 9). ' +
+            'Soldée contre un compte des classes 1 à 8, la pièce déplace ce compte et le bilan cesse de boucler.'
+          : 'Les 901 à 904 ont pour contrepartie les 911 à 914, les 905 à 908 les 915 à 918 (AUDCIF, Titre VII, ' +
+            'classe 9). Soldée contre un compte des classes 1 à 8, la pièce déplace ce compte et le bilan cesse de boucler.',
+        action: 'Corrigez la pièce par inscription en négatif, puis passez la contrepartie sur le compte 91 qui lui répond.',
+        occurrences: horsEquilibre9.map((e) => ({
+          reference: `${e.journal.code} n° ${e.numeroPiece ?? '·'}`,
+          detail: e.libelle,
+          date: e.date.toISOString().slice(0, 10),
+        })),
+        ...nombreSiTronque(parcours.classe9HorsEquilibre),
+      });
+    }
+    const reserveHorsEquilibre =
+      horsEquilibre9.length > 0 ? ' Sauf sur les écritures signalées par le contrôle des comptes 90 et 91 hors équilibre.' : '';
     const contributions = estSycebnlClasse9 ? classe9.filter((n) => /^9[01]/.test(n)) : [];
     const analytiqueSycebnl = estSycebnlClasse9 ? classe9.filter((n) => !/^9[01]/.test(n)) : [];
     if (contributions.length > 0) {
@@ -1644,7 +1684,8 @@ export class ControlesService {
         gravite: 'INFORMATION',
         libelle: 'Contributions volontaires en nature enregistrées',
         consequence:
-          'Les comptes de classe 9 sont hors bilan et hors résultat : ils ne modifient ni le résultat ni la situation nette, et se présentent en note annexe.',
+          'Les comptes de classe 9 sont hors bilan et hors résultat : ils ne modifient ni le résultat ni la situation nette, et se présentent en note annexe.' +
+          reserveHorsEquilibre,
         action: 'Vérifiez que la note annexe des contributions volontaires est renseignée.',
         occurrences: contributions.map((n) => ({ reference: n, detail: 'Compte de contributions volontaires mouvementé' })),
       });
@@ -1666,7 +1707,8 @@ export class ControlesService {
         gravite: 'INFORMATION',
         libelle: 'Comptes de classe 9 mouvementés (engagements hors bilan ou comptabilité analytique)',
         consequence:
-          'Les comptes de classe 9 sont hors bilan et hors compte de résultat. Les engagements des comptes 90 et 91 se portent aux Notes annexes · ils supposent une convention écrite. Les comptes 92 à 99 relèvent de la comptabilité analytique de gestion et n’entrent dans aucun état de synthèse.',
+          'Les comptes de classe 9 sont hors bilan et hors compte de résultat. Les engagements des comptes 90 et 91 se portent aux Notes annexes · ils supposent une convention écrite. Les comptes 92 à 99 relèvent de la comptabilité analytique de gestion et n’entrent dans aucun état de synthèse.' +
+          reserveHorsEquilibre,
         action: 'Vérifiez que la note annexe des engagements hors bilan est renseignée.',
         occurrences: classe9.map((n) => ({ reference: n, detail: 'Compte de classe 9 mouvementé' })),
       });
@@ -1856,10 +1898,22 @@ export class ControlesService {
             dateMiseEnService: { not: null, lt: premierExercice.dateDebut },
             amortissementAnterieur: 0,
           },
-          select: { designation: true, dateMiseEnService: true, valeurOrigine: true },
+          select: {
+            designation: true,
+            dateMiseEnService: true,
+            valeurOrigine: true,
+            compteImmobilisation: { select: { numero: true } },
+          },
           orderBy: { dateMiseEnService: 'asc' },
         })
-      ).filter(estMisEnService);
+      )
+        .filter(estMisEnService)
+        // UN BIEN QUE LE PLAN NE FAIT PAS AMORTIR N'A AUCUN ANTÉRIEUR À
+        // REPRENDRE (passes R1-A1, R5-B1) · terrain nu, titre, prêt, bien reçu
+        // en don destiné à la vente. Lui réclamer un cumul au 28 était un
+        // signalement faux (§ 10 bis). La règle est celle du module, lue une
+        // seule fois (`motifNonAmortissable`).
+        .filter((i) => !motifNonAmortissable(i.compteImmobilisation.numero, tenant.referentiel));
       if (reprises.length > 0) {
         anomalies.push({
           code: 'IMMO_REPRISE_SANS_ANTERIEUR',
@@ -1919,10 +1973,18 @@ export class ControlesService {
           valeurResiduelle: true,
           amortissementAnterieur: true,
           dotations: { select: { exerciceId: true, montant: true } },
+          compteImmobilisation: { select: { numero: true } },
         },
         orderBy: { dateMiseEnService: 'asc' },
       })
-    ).filter(estMisEnService);
+    )
+      .filter(estMisEnService)
+      // « Immobilisation AMORTISSABLE » · l'art. 45 ne vise que celles-là. Un
+      // terrain nu (222, 223, 225 à 228), un 25, 26 ou 27, ou au SYCEBNL un
+      // bien reçu en don destiné à la vente (« Ils ne doivent pas être
+      // amortis ») n'a aucune dotation à passer, et le module la refuse
+      // (passes R1-A1, R5-B1). Même règle que `passerDotation`.
+      .filter((i) => !motifNonAmortissable(i.compteImmobilisation.numero, tenant.referentiel));
     const sansDotation = amortissables.filter((i) => {
       if (i.dotations.some((d) => d.exerciceId === exerciceId)) return false;
       // Un bien intégralement amorti n'a plus rien à doter · l'absence de

@@ -465,7 +465,8 @@ export function passationPaie(entree: EntreePassation): VerdictPassation {
   const irppFc = Math.max(0, entree.irppFc ?? 0);
   let retenuesFc = irppFc;
   for (const m of ouvrieres.values()) retenuesFc += m;
-  // Article 112, c) et f) · regroupées par compte crédité (4211, 4212, 272x).
+  // Article 112, c), f) et g) · regroupées par compte crédité (4211, 4212,
+  // 272x, et 4232 pour la saisie-arrêt, passe O4-C2).
   const avancesParCompte = new Map<string, { intitule: string; montantFc: number }>();
   for (const a of entree.retenuesAvances ?? []) {
     if (!(a.montantFc > 0)) continue;

@@ -713,9 +713,26 @@ const classe4Solde: LigneSeed[] = c(ClasseCompte.CLASSE_4, SOLDE, [
   // retenues, passe F11). Les dossiers déjà semés gardent leur intitulé ·
   // aucune migration ne réécrit un compte que le cabinet a pu renommer.
   ['44781000', 'État, retenue sur les revenus locatifs'],
-  ['44782000', 'État, prélèvement sur prestataires non-résidents (14 %)'],
-  ['44783000', 'État, prélèvement exceptionnel sur le personnel expatrié (25 %)'],
-  ['44784000', 'État, retenue sur les revenus de capitaux mobiliers (20 %)'],
+  // LES QUATRE SUIVANTS RELUS UN PAR UN (2026-09-30). Un intitulé ne garde
+  // son taux que si c'est LE taux que le compte porte, quel que soit le
+  // bénéficiaire ou le secteur.
+  //  · 44782 · 14 % (loi n° 23/053, art. 144), mais une redevance versée à un
+  //    résident belge ou sud-africain n'est imposable en RDC qu'à 10 % au plus
+  //    (conventions RDC-Belgique et RDC-Afrique du Sud, art. 12), et le taux
+  //    antérieur au 1er janvier 2026 n'est pas au corpus. Taux retiré.
+  //  · 44783 · 25 % (art. 148), mais le Code minier, art. 244 bis, réduit de
+  //    moitié l'impôt sur les rémunérations des expatriés pendant les dix
+  //    premières années du projet. Taux retiré.
+  //  · 44784 · 20 % (art. 120 et 149 quater), mais un dividende ou un intérêt
+  //    versé à un non-résident conventionné ne supporte en RDC que 10 % ou
+  //    15 % (Belgique, art. 10 et 11), 5 %, 10 % ou 15 % (Afrique du Sud,
+  //    art. 10 et 11). Taux retiré.
+  //  · 44785 · 20 % (art. 120), SEUL taux de la retenue sur les plus-values ·
+  //    les conventions (art. 13) attribuent l'imposition d'un gain, elles ne
+  //    fixent aucun autre taux de retenue en RDC. Taux gardé.
+  ['44782000', 'État, prélèvement sur prestataires non-résidents'],
+  ['44783000', 'État, prélèvement exceptionnel sur le personnel expatrié'],
+  ['44784000', 'État, retenue sur les revenus de capitaux mobiliers'],
   ['44785000', 'État, retenue sur les plus-values (20 %)'],
   ['44860000', 'État · charges à payer'],
   ['44870000', 'État · produits à recevoir'],

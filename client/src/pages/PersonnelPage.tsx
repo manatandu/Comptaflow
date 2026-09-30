@@ -217,6 +217,8 @@ interface Simulation {
   };
   retenuesAvances?: { avanceId: string; littera: string; libelle: string; montantFc: number; soldeAvantFc: number }[];
   reserveRetenuesAvances?: string | null;
+  /** « Sans excéder la portion saisissable » (AUPSRVE, art. 188) · confrontée, jamais refusée. */
+  reserveSaisies?: string | null;
   net: {
     totalVerseFc: number;
     quotePartOuvriereFc: number;
@@ -2532,7 +2534,14 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                     .map((a) => (
                       <tr key={a.id} className="border-t border-border/40">
                         <td className="py-1 pr-2">
-                          {a.type === 'PRET' ? 'Prêt' : a.type === 'ACOMPTE' ? 'Acompte' : 'Avance'} du {a.dateOctroi.slice(0, 10)} · {a.objet}
+                          {a.type === 'SAISIE_ARRET'
+                            ? 'Saisie-arrêt notifiée le'
+                            : a.type === 'PRET'
+                              ? 'Prêt du'
+                              : a.type === 'ACOMPTE'
+                                ? 'Acompte du'
+                                : 'Avance du'}{' '}
+                          {a.dateOctroi.slice(0, 10)} · {a.objet}
                         </td>
                         <td className="py-1 pr-2 text-text-dim">{a.compte.compte}</td>
                         <td className="py-1 pr-2 text-right">solde {fc(a.soldeFc)} FC</td>
@@ -2812,6 +2821,7 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                       </li>
                     ))}
                     {simulation.reserveRetenuesAvances && <li className="text-text-dim">{simulation.reserveRetenuesAvances}</li>}
+                    {simulation.reserveSaisies && <li className="text-warning">{simulation.reserveSaisies}</li>}
                   </ul>
                 )}
                 <ul className="mt-1.5 text-[11px] text-text-dim">

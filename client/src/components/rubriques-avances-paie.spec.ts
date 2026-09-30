@@ -54,3 +54,27 @@ describe('barèmes de paie datés', () => {
     expect(onglet).toContain('reference: f.reference,');
   });
 });
+
+/**
+ * PASSE O4-C2 · la saisie-arrêt notifiée s'inscrit au registre avec son acte,
+ * et sa mainlevée se déclare. Le corps envoyé porte les trois champs de
+ * l'acte sur une saisie SEULEMENT, le serveur les refusant ailleurs.
+ */
+describe('la saisie-arrêt notifiée à l’écran', () => {
+  const onglet = readFileSync(join(__dirname, 'RubriquesAvancesPaie.tsx'), 'utf8');
+
+  it('propose la saisie-arrêt, et envoie l’acte, le greffe et le destinataire sur elle seule', () => {
+    expect(onglet).toContain('<option value="SAISIE_ARRET">Saisie-arrêt notifiée</option>');
+    expect(onglet).toContain(
+      "...(avance.type === 'SAISIE_ARRET'\n        ? { referenceActe: avance.referenceActe, greffe: avance.greffe, destinataire: avance.destinataire }\n        : {}),",
+    );
+  });
+
+  it('déclare la mainlevée par la route du serveur', () => {
+    expect(onglet).toContain('api.patch(`/personnel/avances/${a.id}/fin`, { dateFin: finSaisie[a.id] })');
+  });
+
+  it('la simulation montre la confrontation à la quotité (art. 188)', () => {
+    expect(page).toContain('{simulation.reserveSaisies && <li className="text-warning">{simulation.reserveSaisies}</li>}');
+  });
+});

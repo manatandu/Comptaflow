@@ -16,7 +16,9 @@ import { estVerseEnEspeces, passationPaie, type Referentiel } from './passation-
 import {
   LITTERA_ARTICLE_112,
   RESERVE_QUOTITE_AVANCES,
+  motifRefusMoisSaisie,
   motifRefusRetenue,
+  reserveQuotiteSaisies,
   soldeAvance,
   type CategoriePret,
   type TypeAvance,
@@ -964,7 +966,7 @@ export class PersonnelService {
       avanceId: string;
       type: TypeAvance;
       categoriePret: CategoriePret | null;
-      littera: 'c' | 'f';
+      littera: 'c' | 'f' | 'g';
       libelle: string;
       montantFc: number;
       soldeAvantFc: number;
@@ -986,9 +988,18 @@ export class PersonnelService {
           Number(a.montantFc),
           a.retenues.map((x) => ({ montantFc: Number(x.montantFc), bulletinAnnule: x.bulletin.statut !== StatutBulletinPaie.EMIS })),
         );
-        const libelle = `${a.type === 'PRET' ? 'Prêt' : a.type === 'ACOMPTE' ? 'Acompte' : 'Avance'} du ${a.dateOctroi.toISOString().slice(0, 10)} · ${a.objet}`;
+        const libelle =
+          a.type === 'SAISIE_ARRET'
+            ? `Saisie-arrêt notifiée le ${a.dateOctroi.toISOString().slice(0, 10)} (acte ${a.referenceActe ?? '·'}) · ${a.objet}`
+            : `${a.type === 'PRET' ? 'Prêt' : a.type === 'ACOMPTE' ? 'Acompte' : 'Avance'} du ${a.dateOctroi.toISOString().slice(0, 10)} · ${a.objet}`;
         const refus = motifRefusRetenue(r.montantFc, solde, libelle);
         if (refus) throw new BadRequestException(refus);
+        // UNE SAISIE NE MORD QUE DE LA NOTIFICATION À LA MAINLEVÉE (AUPSRVE,
+        // art. 187 et 201) · passe O4-C2.
+        if (a.type === 'SAISIE_ARRET' && moisValide(dto.moisDePaie)) {
+          const refusMois = motifRefusMoisSaisie(dto.moisDePaie, a.dateOctroi, a.dateFin);
+          if (refusMois) throw new BadRequestException(refusMois);
+        }
         retenuesAvances.push({
           avanceId: a.id,
           type: a.type as TypeAvance,
@@ -1268,6 +1279,13 @@ export class PersonnelService {
       // ARTICLE 112, c) ET f) · figées avec le bulletin, relues par P9.
       retenuesAvances,
       reserveRetenuesAvances: retenuesAvances.length ? RESERVE_QUOTITE_AVANCES : null,
+      // « Sans excéder la portion saisissable » (AUPSRVE, art. 188) · confrontée,
+      // jamais refusée (passe O4-C2). La plus large des quotités chiffrées ·
+      // l'alimentaire et le cumul de l'alinéa 3 ne jouent que si déclarés.
+      reserveSaisies: reserveQuotiteSaisies(
+        retenuesAvances.filter((r) => r.type === 'SAISIE_ARRET').reduce((s, r) => s + r.montantFc, 0),
+        quotite.quotiteCumuleeFc ?? quotite.quotiteAlimentaireFc ?? quotite.quotiteOrdinaireFc,
+      ),
       // ARTICLE 112 · LA LISTE FERMÉE VOYAGE AVEC LA SIMULATION, parce
       // qu'une retenue illicite a exactement l'aspect d'une retenue licite
       // sur un bulletin, et qu'aucun contrôle ne la rattrape après coup.
