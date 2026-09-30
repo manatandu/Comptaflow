@@ -504,19 +504,23 @@ const classe4Detail: LigneSeed[] = c(ClasseCompte.CLASSE_4, DETAIL, [
   // 41 Adhérents, clients-usagers et comptes rattachés
   ['41100000', 'Adhérents'],
   ['41200000', 'Clients-usagers'],
-  ['41310000', 'Adhérents, clients-usagers · chèques impayés'],
-  ['41320000', 'Adhérents, clients-usagers · chèques impayés (2)'],
-  ['41330000', 'Adhérents, clients-usagers · autres valeurs impayées'],
-  ['41380000', 'Adhérents, clients-usagers · autres valeurs impayées'],
+  // 413 et 419 · la fiche du COMPTE 41 (Partie 2 ch. 3, « Subdivisions »)
+  // nomme la nature de tiers de chaque subdivision, adhérents ou
+  // clients-usagers ; le tableau des flux la lit (FA ou FE). Passe R6 : les
+  // intitulés l'avaient perdue (« Adhérents, clients-usagers » partout).
+  ['41310000', 'Adhérents, chèques impayés'],
+  ['41320000', 'Clients-usagers, chèques impayés'],
+  ['41330000', 'Adhérents, autres valeurs impayées'],
+  ['41380000', 'Clients-usagers, autres valeurs impayées'],
   ['41610000', 'Créances · cotisations litigieuses ou douteuses'],
   ['41620000', 'Créances · adhérents, clients-usagers litigieuses ou douteuses'],
-  ['41810000', 'Adhérents, clients-usagers · appels de fonds à établir'],
-  ['41820000', 'Adhérents, clients-usagers · factures à établir'],
+  ['41810000', 'Adhérents, appels de fonds à établir'],
+  ['41820000', 'Clients-usagers, factures à établir'],
   ['41860000', 'Adhérents, clients-usagers · intérêts courus'],
-  ['41910000', 'Adhérents, clients-usagers créditeurs · avances reçues'],
-  ['41920000', 'Adhérents, clients-usagers créditeurs · avances et acomptes reçus'],
-  ['41940000', 'Adhérents, clients-usagers créditeurs · dettes pour emballages et matériels consignés'],
-  ['41980000', 'Adhérents, clients-usagers créditeurs · rabais, remises, ristournes et autres avoirs à accorder'],
+  ['41910000', 'Adhérents, avances reçues'],
+  ['41920000', 'Clients-usagers, avances et acomptes reçus'],
+  ['41940000', 'Clients-usagers, dettes pour emballages et matériels consignés'],
+  ['41980000', 'Clients-usagers, rabais, remises, ristournes et autres avoirs à accorder'],
   // 45 Fondateurs, apporteurs et comptes courants
   ['45110000', 'Associations et assimilées · apporteurs en nature'],
   ['45120000', 'Associations et assimilées · apporteurs en numéraire'],

@@ -839,6 +839,7 @@ describe('EtatsFinanciersService · tableau de flux de trésorerie', () => {
       // Tiers
       '40110000', '41100000', '41610000', '41810000', '41200000', '41620000', '41820000',
       '42200000', '43100000', '44200000', '44910000', '47110000', '47310000', '47320000', '47500000',
+      '41310000', '41320000', '41330000', '41380000', '41910000', '41920000', '41940000', '41980000',
       '48100000', '48510000', '48560000',
       // Immobilisations et ressources durables
       '21200000', '23110000', '26100000', '27100000', '10110000', '14110000', '16500000', '18200000',
@@ -851,9 +852,12 @@ describe('EtatsFinanciersService · tableau de flux de trésorerie', () => {
         (p) => p.comptesContrepartie && correspond(numero, p.comptesContrepartie, p.exclusionsContrepartie),
       );
       // FM et FO partagent volontairement le compte 10, lus en sens OPPOSÉS
-      // (`CREDIT_SEUL` / `DEBIT_SEUL`) · de même FP et FQ sur 16/18. Ce n'est
-      // pas un double comptage : c'est ainsi que le modèle sépare l'apport du
-      // remboursement. On vérifie donc l'unicité PAR SENS DE LECTURE.
+      // (`CREDIT_SEUL` / `DEBIT_SEUL`) · de même FP et FQ sur 16/18. Ce test
+      // n'en vérifie que l'unicité PAR SENS DE LECTURE : il ne dit PAS que
+      // chaque débit ou crédit lu est un flux. La passe R6 l'a montré · le
+      // débit du 1049 (couverture des charges) et les débits du 16 contre le
+      // 792 n'en sont pas. Ceux-là sont gelés par les tests « passe R6 »
+      // ci-dessous.
       const parLecture = new Map<string, string[]>();
       for (const p of enFlux) parLecture.set(p.lectureFlux, [...(parLecture.get(p.lectureFlux) ?? []), p.ref]);
       for (const [lecture, refs] of parLecture) {
@@ -1044,6 +1048,295 @@ describe('EtatsFinanciersService · tableau de flux de trésorerie', () => {
     const tft = await service.tableauFluxTresorerie('t1', 'eN');
     // N-1 = 500 + 0 (créance N-2 absente, chargerLignes(null) = []) - 200 (créance N-1) = 300.
     expect(ref(tft, 'FA').montantN1).toBe(300);
+  });
+
+  // ==========================================================================
+  // PASSE R6 · écritures internes que le tableau lisait comme des flux.
+  // ==========================================================================
+
+  it('la couverture des charges par la dotation consomptible (1049 / 703) ne décaisse rien en FO', async () => {
+    // Écriture B14 du catalogue, Partie 3 ch. 1 : « couverture des charges de
+    // la période », 1049 au débit, 703 au crédit. Les 400 de charges sont déjà
+    // décaissés en FF · FO les décaissait une seconde fois, et le 703 était
+    // désigné comme la cause de l'écart.
+    const service = serviceAvecExercices({
+      eN: [
+        ligneF('10410000', ClasseCompte.CLASSE_1, 0, 1000), // dotation consomptible reçue
+        ligneF('52110000', ClasseCompte.CLASSE_5, 1000, 400),
+        ligneF('60400000', ClasseCompte.CLASSE_6, 400, 0), // charges payées
+        ligneF('10490000', ClasseCompte.CLASSE_1, 400, 0), // couverture
+        ligneF('70300000', ClasseCompte.CLASSE_7, 0, 400),
+      ],
+    });
+    const tft = await service.tableauFluxTresorerie('t1', 'eN');
+    expect(ref(tft, 'FM').montant).toBe(1000);
+    expect(ref(tft, 'FO').montant).toBe(0);
+    expect(ref(tft, 'FF').montant).toBe(-400);
+    expect(ref(tft, 'ZF').montant).toBe(600);
+    expect(tft.controle.coherent).toBe(true);
+    expect(tft.comptesNonVentiles).toEqual([]);
+  });
+
+  it('l’incorporation de l’excédent à la dotation (131 / 101), que la balance ne qualifie pas, est NOMMÉE à côté de l’écart', async () => {
+    // Fiche du COMPTE 10 : le 101 crédité « par le débit […] du compte 131 ».
+    // Sans trésorerie, mais lue en FM · la balance ne dit pas la contrepartie
+    // du crédit du 101. Le défaut n'est pas corrigé ici (il faudrait lire
+    // chaque écriture) : il est nommé, et l'écart n'est plus orphelin.
+    const service = serviceAvecExercices(
+      {
+        eN1: [ligneF('52110000', ClasseCompte.CLASSE_5, 500, 0)],
+        eN: [
+          ligneF('13100000', ClasseCompte.CLASSE_1, 500, 0, [0, 500]),
+          ligneF('10110000', ClasseCompte.CLASSE_1, 0, 500),
+          ligneF('52110000', ClasseCompte.CLASSE_5, 0, 0, [500, 0]),
+        ],
+      },
+      DEUX_EXERCICES,
+    );
+    const tft = await service.tableauFluxTresorerie('t1', 'eN');
+    expect(tft.controle.ecart).toBe(500);
+    expect(tft.comptesNonVentiles.map((c: any) => c.numero)).toEqual(['13100000']);
+  });
+
+  it('… mais une affectation ordinaire au report à nouveau ne fait pas de bruit quand le tableau boucle', async () => {
+    const service = serviceAvecExercices(
+      {
+        eN1: [ligneF('52110000', ClasseCompte.CLASSE_5, 500, 0)],
+        eN: [
+          ligneF('13100000', ClasseCompte.CLASSE_1, 500, 0, [0, 500]),
+          ligneF('12100000', ClasseCompte.CLASSE_1, 0, 300),
+          ligneF('11100000', ClasseCompte.CLASSE_1, 0, 200),
+          ligneF('52110000', ClasseCompte.CLASSE_5, 0, 0, [500, 0]),
+        ],
+      },
+      DEUX_EXERCICES,
+    );
+    const tft = await service.tableauFluxTresorerie('t1', 'eN');
+    expect(tft.controle.coherent).toBe(true);
+    expect(tft.comptesNonVentiles).toEqual([]);
+  });
+
+  it('… ni quand l’écart a une autre cause et que la dotation n’a pas bougé', async () => {
+    // L'écart vient du 4491 (anomalie n° 2) · l'affectation 131 au 121 n'y
+    // est pour rien, et ne doit pas s'ajouter au diagnostic.
+    const service = serviceAvecExercices(
+      {
+        eN1: [ligneF('52110000', ClasseCompte.CLASSE_5, 500, 0)],
+        eN: [
+          ligneF('13100000', ClasseCompte.CLASSE_1, 500, 0, [0, 500]),
+          ligneF('12100000', ClasseCompte.CLASSE_1, 0, 500),
+          ligneF('44910000', ClasseCompte.CLASSE_4, 200, 0),
+          ligneF('71100000', ClasseCompte.CLASSE_7, 0, 200),
+          ligneF('52110000', ClasseCompte.CLASSE_5, 0, 0, [500, 0]),
+        ],
+      },
+      DEUX_EXERCICES,
+    );
+    const tft = await service.tableauFluxTresorerie('t1', 'eN');
+    expect(tft.controle.ecart).toBe(200);
+    expect(tft.comptesNonVentiles.map((c: any) => c.numero)).toEqual(['44910000']);
+  });
+
+  it('les reprises du 16 au 792 et l’engagement 1679 / 192 ne sont pas des remboursements (Guide App. 4)', async () => {
+    // App. 4 : 45 000 000 reçus (52 / 165), 15 000 000 repris (165 / 7925)
+    // pour 15 000 000 de charges payées. Plus un legs conservé repris
+    // (167 / 7923) et une obligation révélée tard (1679 / 192), App. 5.
+    const service = serviceAvecExercices({
+      eN: [
+        ligneF('52110000', ClasseCompte.CLASSE_5, 45_000_000, 15_000_000),
+        ligneF('16500000', ClasseCompte.CLASSE_1, 15_000_000, 45_000_000),
+        ligneF('79250000', ClasseCompte.CLASSE_7, 0, 15_000_000),
+        ligneF('60400000', ClasseCompte.CLASSE_6, 15_000_000, 0),
+        ligneF('16710000', ClasseCompte.CLASSE_1, 2_000_000, 0, [0, 40_000_000]),
+        ligneF('79230000', ClasseCompte.CLASSE_7, 0, 2_000_000),
+        ligneF('16790000', ClasseCompte.CLASSE_1, 500_000, 0),
+        ligneF('19200000', ClasseCompte.CLASSE_1, 0, 500_000),
+      ],
+    });
+    const tft = await service.tableauFluxTresorerie('t1', 'eN');
+    expect(ref(tft, 'FP').montant).toBe(45_000_000);
+    expect(ref(tft, 'FQ').montant).toBe(0);
+    expect(ref(tft, 'ZF').montant).toBe(30_000_000);
+    expect(tft.controle.coherent).toBe(true);
+  });
+
+  it('un débit du 16 que le texte ne décrit pas (une restitution) reste un remboursement', async () => {
+    const service = serviceAvecExercices(
+      {
+        eN1: [ligneF('52110000', ClasseCompte.CLASSE_5, 5000, 0)],
+        eN: [
+          ligneF('16500000', ClasseCompte.CLASSE_1, 1000, 0, [0, 5000]),
+          ligneF('52110000', ClasseCompte.CLASSE_5, 0, 1000, [5000, 0]),
+        ],
+      },
+      DEUX_EXERCICES,
+    );
+    const tft = await service.tableauFluxTresorerie('t1', 'eN');
+    expect(ref(tft, 'FQ').montant).toBe(-1000);
+    expect(tft.controle.coherent).toBe(true);
+  });
+
+  it('chaque débit du 16 que le plan apparie à une contrepartie sans trésorerie est neutralisé dans FQ', () => {
+    // Balayage des comptesFlux, pendant de celui des contreparties : deux
+    // paires nommées par le texte. Fiche du COMPTE 79, 792 crédité « par le
+    // débit : du compte 16 » ; fiche du COMPTE 16, 1679 débité « par le
+    // crédit du compte 192 ».
+    const fq = TOUS_LES_POSTES_FLUX.find((p) => p.ref === 'FQ')!;
+    const retranche = (numero: string) =>
+      (fq.creditsARetrancher ?? []).some((r) => correspond(numero, r.comptes, r.exclusions));
+    for (const reprise of ['79230000', '79250000', '79280000']) {
+      expect({ reprise, retranche: retranche(reprise) }).toEqual({ reprise, retranche: true });
+    }
+    for (const poste of TOUS_LES_POSTES_FLUX.filter((p) => p.lectureFlux === 'DEBIT_SEUL')) {
+      expect({ poste: poste.ref, lit1679: correspond('16790000', poste.comptesFlux, poste.exclusionsFlux) }).toEqual({
+        poste: poste.ref,
+        lit1679: false,
+      });
+    }
+  });
+
+  it('un en-cours payé en N-1 et achevé en N n’est pas une seconde acquisition', async () => {
+    const service = serviceAvecExercices(
+      {
+        eN1: [
+          ligneF('23910000', ClasseCompte.CLASSE_2, 1000, 0),
+          ligneF('52110000', ClasseCompte.CLASSE_5, 5000, 1000),
+        ],
+        eN: [
+          ligneF('23910000', ClasseCompte.CLASSE_2, 0, 1000, [1000, 0]),
+          ligneF('23110000', ClasseCompte.CLASSE_2, 1000, 0),
+          ligneF('52110000', ClasseCompte.CLASSE_5, 0, 0, [4000, 0]),
+        ],
+      },
+      DEUX_EXERCICES,
+    );
+    const tft = await service.tableauFluxTresorerie('t1', 'eN');
+    expect(ref(tft, 'FI').montant).toBe(0);
+    expect(tft.controle.coherent).toBe(true);
+  });
+
+  it('une avance versée en N-1 puis imputée en N ne se décaisse qu’une fois', async () => {
+    const service = serviceAvecExercices(
+      {
+        eN1: [
+          ligneF('25200000', ClasseCompte.CLASSE_2, 300, 0),
+          ligneF('52110000', ClasseCompte.CLASSE_5, 5000, 300),
+        ],
+        eN: [
+          ligneF('25200000', ClasseCompte.CLASSE_2, 0, 300, [300, 0]),
+          ligneF('24410000', ClasseCompte.CLASSE_2, 1000, 0),
+          ligneF('48120000', ClasseCompte.CLASSE_4, 700, 700),
+          ligneF('52110000', ClasseCompte.CLASSE_5, 0, 700, [4700, 0]),
+        ],
+      },
+      DEUX_EXERCICES,
+    );
+    const tft = await service.tableauFluxTresorerie('t1', 'eN');
+    expect(ref(tft, 'FI').montant).toBe(-700); // le seul solde payé en N
+    expect(tft.controle.coherent).toBe(true);
+  });
+
+  it('la production immobilisée n’est pas une acquisition décaissée · ses charges le sont déjà en FF', async () => {
+    const service = serviceAvecExercices({
+      eN: [
+        ligneF('60400000', ClasseCompte.CLASSE_6, 500, 0),
+        ligneF('52110000', ClasseCompte.CLASSE_5, 1000, 500, [0, 0]),
+        ligneF('10110000', ClasseCompte.CLASSE_1, 0, 1000),
+        ligneF('23110000', ClasseCompte.CLASSE_2, 500, 0),
+        ligneF('72200000', ClasseCompte.CLASSE_7, 0, 500),
+      ],
+    });
+    const tft = await service.tableauFluxTresorerie('t1', 'eN');
+    expect(ref(tft, 'FF').montant).toBe(-500);
+    expect(ref(tft, 'FI').montant).toBe(0);
+    expect(tft.controle.coherent).toBe(true);
+    expect(tft.comptesNonVentiles).toEqual([]);
+  });
+
+  it('l’achèvement d’un 219, que la balance ne qualifie pas, est nommé à côté de l’écart', async () => {
+    const service = serviceAvecExercices(
+      {
+        eN1: [ligneF('52110000', ClasseCompte.CLASSE_5, 1000, 0)],
+        eN: [
+          ligneF('21930000', ClasseCompte.CLASSE_2, 0, 800, [800, 0]),
+          ligneF('21300000', ClasseCompte.CLASSE_2, 800, 0),
+          ligneF('52110000', ClasseCompte.CLASSE_5, 0, 0, [1000, 0]),
+        ],
+      },
+      DEUX_EXERCICES,
+    );
+    const tft = await service.tableauFluxTresorerie('t1', 'eN');
+    expect(tft.controle.ecart).toBe(-800);
+    expect(tft.comptesNonVentiles.map((c: any) => c.numero)).toEqual(['21930000']);
+  });
+
+  it('une avance de cotisation (52 / 4191) et un chèque impayé (4131 / 52) laissent le tableau cohérent', async () => {
+    // Fiche du COMPTE 41 : 4191 « Adhérents, avances reçues », 4131
+    // « Adhérents, chèques impayés », 4192 « Clients-usagers, avances et
+    // acomptes reçus ». Aucune n'était rattachée : le bouclage tombait.
+    const service = serviceAvecExercices(
+      {
+        eN1: [ligneF('52110000', ClasseCompte.CLASSE_5, 1000, 0)],
+        eN: [
+          ligneF('41910000', ClasseCompte.CLASSE_4, 0, 500),
+          ligneF('41310000', ClasseCompte.CLASSE_4, 200, 0),
+          ligneF('41920000', ClasseCompte.CLASSE_4, 0, 150),
+          ligneF('52110000', ClasseCompte.CLASSE_5, 650, 200, [1000, 0]),
+        ],
+      },
+      DEUX_EXERCICES,
+    );
+    const tft = await service.tableauFluxTresorerie('t1', 'eN');
+    expect(ref(tft, 'FA').montant).toBe(300);
+    expect(ref(tft, 'FE').montant).toBe(150);
+    expect(tft.controle.coherent).toBe(true);
+    expect(tft.comptesNonVentiles).toEqual([]);
+  });
+
+  it('les comptes que le plan ne tranche pas (anomalies n° 6 à 10) ne sont captés par AUCUN poste', () => {
+    // Même gel que le 4572 : le rattacher d'office à un poste choisirait une
+    // lecture que le texte ne donne pas.
+    for (const compte of ['41860000', '47380000', '47390000', '82800000', '47210000', '47260000', '83100000', '84100000', '84300000', '48400000']) {
+      const captants = TOUS_LES_POSTES_FLUX.filter(
+        (p) =>
+          correspond(compte, p.comptesFlux, p.exclusionsFlux) ||
+          (p.comptesContrepartie && correspond(compte, p.comptesContrepartie, p.exclusionsContrepartie)),
+      ).map((p) => p.ref);
+      expect({ compte, captants }).toEqual({ compte, captants: [] });
+    }
+  });
+
+  it('variation de stocks produits (736) et dépréciation de tiers (659 / 491) ne font pas de bruit au diagnostic', async () => {
+    const service = serviceAvecExercices({
+      eN: [
+        ligneF('36000000', ClasseCompte.CLASSE_3, 200, 0),
+        ligneF('73600000', ClasseCompte.CLASSE_7, 0, 200),
+        ligneF('65900000', ClasseCompte.CLASSE_6, 100, 0),
+        ligneF('49110000', ClasseCompte.CLASSE_4, 0, 100),
+        ligneF('83900000', ClasseCompte.CLASSE_8, 50, 0),
+        ligneF('49980000', ClasseCompte.CLASSE_4, 20, 50),
+        ligneF('84900000', ClasseCompte.CLASSE_8, 0, 20),
+      ],
+    });
+    const tft = await service.tableauFluxTresorerie('t1', 'eN');
+    expect(tft.controle.coherent).toBe(true);
+    expect(tft.comptesNonVentiles).toEqual([]);
+  });
+
+  it('… mais y laisse l’abandon de créance (836), dont l’autre moitié est lue en FA', async () => {
+    const service = serviceAvecExercices(
+      {
+        eN1: [ligneF('41100000', ClasseCompte.CLASSE_4, 300, 0)],
+        eN: [
+          ligneF('41100000', ClasseCompte.CLASSE_4, 0, 300, [300, 0]),
+          ligneF('83600000', ClasseCompte.CLASSE_8, 300, 0),
+        ],
+      },
+      DEUX_EXERCICES,
+    );
+    const tft = await service.tableauFluxTresorerie('t1', 'eN');
+    expect(tft.controle.ecart).toBe(300);
+    expect(tft.comptesNonVentiles.map((c: any) => c.numero)).toEqual(['83600000']);
   });
 
   it('reproduit l’ordre officiel, en-têtes de section compris, et la ligne de financement SANS code REF', async () => {

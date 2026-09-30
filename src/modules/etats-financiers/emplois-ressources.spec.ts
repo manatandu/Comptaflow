@@ -176,6 +176,28 @@ describe('Tableau emplois-ressources · projets de développement', () => {
     expect(er.controle.ecart).toBe(0);
   });
 
+  it('l’achèvement d’un en-cours n’est pas un second emploi · renvoi (2), seconde phrase (passe R6)', async () => {
+    // Bâtiment en cours payé l'an passé (report 400 000 au 2391), achevé
+    // cette année : 2311 au débit, 2391 au crédit. Rien n'est décaissé.
+    const s = service([
+      ligne('23910000', ClasseCompte.CLASSE_2, { credit: 400_000 }, { debit: 400_000 }),
+      ligne('23110000', ClasseCompte.CLASSE_2, { debit: 400_000 }),
+    ]);
+    const er = await s.tableauEmploisRessources('t1', 'e1');
+    expect(poste(er, 'FG').montant).toBe(0);
+  });
+
+  it('l’en-cours du transport (2495) se retranche de FJ, pas du matériel (FI)', async () => {
+    const s = service([
+      ligne('24950000', ClasseCompte.CLASSE_2, { credit: 90_000 }, { debit: 90_000 }),
+      ligne('24510000', ClasseCompte.CLASSE_2, { debit: 90_000 }),
+      ligne('24410000', ClasseCompte.CLASSE_2, { debit: 50_000 }),
+    ]);
+    const er = await s.tableauEmploisRessources('t1', 'e1');
+    expect(poste(er, 'FJ').montant).toBe(0);
+    expect(poste(er, 'FI').montant).toBe(50_000);
+  });
+
   it('émet une ligne PAR BAILLEUR quand les comptes de fonds leur sont rattachés', async () => {
     const s = service(
       [

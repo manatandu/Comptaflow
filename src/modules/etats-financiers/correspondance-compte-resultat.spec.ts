@@ -100,3 +100,16 @@ describe('correspondance compte de résultat (SYCEBNL, Partie 4 ch. 2)', () => {
     });
   });
 });
+
+describe('en-tête du fichier (passe R6)', () => {
+  it('situe le bilan sur SA table officielle, pas sur un regroupement simplifié', () => {
+    // L'en-tête présentait encore le bilan comme un regroupement « MVP » par
+    // classe, périmé depuis le 2026-08-28 : un lecteur y aurait vu une
+    // approximation à reprendre. On gèle la PRÉSENCE du renvoi à la table du
+    // bilan dans le commentaire d'en-tête.
+    const source = require('fs').readFileSync(require('path').join(__dirname, 'correspondance-compte-resultat.ts'), 'utf8');
+    const entete = source.slice(0, source.indexOf('*/'));
+    expect(entete).toContain('comme le bilan');
+    expect(entete).toContain('`correspondance-bilan.ts`');
+  });
+});

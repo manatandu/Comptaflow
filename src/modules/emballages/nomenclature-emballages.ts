@@ -92,7 +92,7 @@ const SYSCOHADA: CompteEmballage[] = [
 
 const SYCEBNL: CompteEmballage[] = [
   { role: 'CREANCE_CONSIGNATION', numero: '4094', intitule: 'Fournisseurs, créances pour emballages et matériels à rendre' },
-  { role: 'DETTE_CONSIGNATION', numero: '4194', intitule: 'Adhérents, clients-usagers créditeurs · dettes pour emballages et matériels consignés' },
+  { role: 'DETTE_CONSIGNATION', numero: '4194', intitule: 'Clients-usagers, dettes pour emballages et matériels consignés' },
   { role: 'ACHAT_EMBALLAGE_RECUPERABLE', numero: '6082', intitule: "Achats d'emballages · Emballages récupérables non identifiables" },
   { role: 'MALI_SUR_EMBALLAGES', numero: '6224', intitule: 'Malis sur emballages' },
   // LE SEUL RÔLE QUI DIVERGE · le SYCEBNL n'ouvre aucune subdivision sous son

@@ -783,7 +783,9 @@ export class EtatsFinanciersProjetService {
         // compte 166 se RETRANCHE.
         const montant =
           d.operation === 'RETRANCHER_MOUVEMENT'
-            ? -lignes.filter((l) => correspond(l.numero, d.comptes)).reduce((s, l) => s + l.mouvementCredit, 0)
+            ? // Les exclusions comptent aussi ici (passe R6) : l'en-cours du
+              // matériel (249) exclut celui du transport (2495), lu par FJ.
+              -lignes.filter((l) => correspond(l.numero, d.comptes, d.exclusions)).reduce((s, l) => s + l.mouvementCredit, 0)
             : this.variationDettes(lignes, d.comptes, d.exclusions);
         if (Math.abs(montant) < 0.005) continue;
 

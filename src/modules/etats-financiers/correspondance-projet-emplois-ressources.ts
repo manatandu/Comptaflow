@@ -129,6 +129,34 @@ const DEDUCTION_DETTES_INVESTISSEMENT: DeductionEmploisRessources = {
     "Renvoi (2) : « Déduire la variation des dettes fournisseurs d'investissements (+ solde créditeur N-1 du compte 481 concerné sauf 4813 − solde créditeur N du compte 481 concerné sauf 4813). »",
 };
 
+/**
+ * Renvoi (2), SECONDE PHRASE · « En sus, ne pas tenir compte des virements de
+ * compte à compte qui ne traduisent pas une acquisition d'immobilisation
+ * incorporelle et corporelle décaissée. » Passe R6 : la première phrase seule
+ * était transcrite. L'achèvement d'un en-cours (fiches des COMPTES 23 et 24 :
+ * les travaux en cours achevés sont « portés au débit des comptes 231 à 238
+ * par le crédit du compte 239 », le 24 débité « du compte 249 […] lorsqu'ils
+ * ont été achevés ») est un tel virement : son débit est lu en mouvement,
+ * alors que le paiement l'a déjà été au débit de l'en-cours. Chaque en-cours
+ * est rattaché au MÊME poste que son compte définitif · le crédit se retranche
+ * donc du poste qui lit le débit.
+ *
+ * LIMITE : un crédit d'en-cours peut aussi être une mise au rebut par le 81
+ * (fiche du COMPTE 23, « Utilisation au crédit ») ; la balance ne dit pas la
+ * contrepartie. Le reclassement d'un compte 2x à un autre, l'imputation d'une
+ * avance (25, poste FK) et la « livraison à soi-même » des renvois (4) et (6)
+ * à (8), que la balance ne ventile pas par nature, ne sont PAS neutralisés.
+ */
+function virementEnCours(comptes: string[], exclusions?: string[]): DeductionEmploisRessources {
+  return {
+    comptes,
+    exclusions,
+    operation: 'RETRANCHER_MOUVEMENT',
+    renvoi:
+      "Renvoi (2), seconde phrase : « En sus, ne pas tenir compte des virements de compte à compte qui ne traduisent pas une acquisition d'immobilisation incorporelle et corporelle décaissée. » Mouvement crédit de l'en-cours achevé, retranché.",
+  };
+}
+
 export const POSTES_IMMOBILISATIONS: PosteEmploisRessources[] = [
   {
     ref: 'FE',
@@ -136,7 +164,7 @@ export const POSTES_IMMOBILISATIONS: PosteEmploisRessources[] = [
     section: 'IMMOBILISATIONS',
     sens: 'DEBIT',
     comptes: ['21'],
-    deductions: [DEDUCTION_DETTES_INVESTISSEMENT],
+    deductions: [DEDUCTION_DETTES_INVESTISSEMENT, virementEnCours(['219'])],
     fondement: "Application 21 : « Balance mouvement débit : compte 21 (2) ».",
   },
   {
@@ -145,7 +173,7 @@ export const POSTES_IMMOBILISATIONS: PosteEmploisRessources[] = [
     section: 'IMMOBILISATIONS',
     sens: 'DEBIT',
     comptes: ['22'],
-    deductions: [DEDUCTION_DETTES_INVESTISSEMENT],
+    deductions: [DEDUCTION_DETTES_INVESTISSEMENT, virementEnCours(['229'])],
     fondement: "Application 21 : « Balance mouvement débit : compte 22 (2) ».",
   },
   {
@@ -154,7 +182,7 @@ export const POSTES_IMMOBILISATIONS: PosteEmploisRessources[] = [
     section: 'IMMOBILISATIONS',
     sens: 'DEBIT',
     comptes: ['231', '232', '233', '2391', '2392', '2393', '2396'],
-    deductions: [DEDUCTION_DETTES_INVESTISSEMENT],
+    deductions: [DEDUCTION_DETTES_INVESTISSEMENT, virementEnCours(['2391', '2392', '2393', '2396'])],
     fondement: "Application 21 : « comptes 231, 232, 233, 2391, 2392, 2393, 2396 (2) ».",
   },
   {
@@ -163,7 +191,7 @@ export const POSTES_IMMOBILISATIONS: PosteEmploisRessources[] = [
     section: 'IMMOBILISATIONS',
     sens: 'DEBIT',
     comptes: ['234', '235', '238', '2394', '2395', '2398'],
-    deductions: [DEDUCTION_DETTES_INVESTISSEMENT],
+    deductions: [DEDUCTION_DETTES_INVESTISSEMENT, virementEnCours(['2394', '2395', '2398'])],
     fondement: "Application 21 : « comptes 234, 235, 238, 2394, 2395, 2398 (2) ».",
   },
   {
@@ -173,7 +201,7 @@ export const POSTES_IMMOBILISATIONS: PosteEmploisRessources[] = [
     sens: 'DEBIT',
     comptes: ['24'],
     exclusions: ['245', '2495'],
-    deductions: [DEDUCTION_DETTES_INVESTISSEMENT],
+    deductions: [DEDUCTION_DETTES_INVESTISSEMENT, virementEnCours(['249'], ['2495'])],
     fondement: "Application 21 : « comptes 24 (sauf 245 et 2495) (2) ».",
   },
   {
@@ -182,7 +210,7 @@ export const POSTES_IMMOBILISATIONS: PosteEmploisRessources[] = [
     section: 'IMMOBILISATIONS',
     sens: 'DEBIT',
     comptes: ['245', '2495'],
-    deductions: [DEDUCTION_DETTES_INVESTISSEMENT],
+    deductions: [DEDUCTION_DETTES_INVESTISSEMENT, virementEnCours(['2495'])],
     fondement: "Application 21 : « comptes 245 et 2495 (2) ».",
   },
   {

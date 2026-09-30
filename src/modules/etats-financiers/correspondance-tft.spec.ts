@@ -9,6 +9,7 @@ import {
   trouvePosteFlux,
 } from './correspondance-tft';
 import { PLAN_COMPTES_SYCEBNL } from '../comptes/compte-seed';
+import { correspond } from './etats-financiers.communs';
 
 /**
  * TABLEAU DE FLUX DE TRÉSORERIE SYCEBNL · 599 lignes de correspondance que
@@ -147,7 +148,11 @@ describe('correspondance TFT SYCEBNL · confrontation au modèle officiel', () =
 describe('correspondance TFT SYCEBNL · cohérence avec le plan de comptes', () => {
   it('chaque préfixe cité correspond à au moins un compte d’imputation du semis', () => {
     for (const p of TOUS_LES_POSTES_FLUX) {
-      for (const prefixe of [...p.comptesFlux, ...(p.comptesContrepartie ?? [])]) {
+      for (const prefixe of [
+        ...p.comptesFlux,
+        ...(p.comptesContrepartie ?? []),
+        ...(p.creditsARetrancher ?? []).flatMap((r) => r.comptes),
+      ]) {
         expect([p.ref, prefixe, existeAuPlan(prefixe)]).toEqual([p.ref, prefixe, true]);
       }
     }
@@ -172,7 +177,12 @@ describe('correspondance TFT SYCEBNL · cohérence avec le plan de comptes', () 
      * la lecture. Le modèle officiel pose lui-même des paires symétriques :
      * FM « + Encaissement des dotations » lit le compte 10 en CRÉDITS SEULS,
      * FO « - Décaissement des dotations » lit le MÊME 10 en DÉBITS SEULS.
-     * Chaque mouvement ne tombe que d'un côté, et la ventilation est juste.
+     * Chaque mouvement ne tombe que d'un côté · ce test ne dit rien de plus.
+     * Il ne vérifie PAS que chaque débit ou crédit lu est un flux de
+     * trésorerie : la passe R6 a trouvé le débit du 1049 (couverture des
+     * charges, contrepartie 703) lu en FO, et les reprises du 16 au 792 lues
+     * en FQ, sous ce test vert. Voir « les autres moitiés sans trésorerie »
+     * plus bas, et les tests passe R6 du spec du service.
      *
      * Ce qui serait faux, c'est deux postes lisant le même compte du MÊME
      * côté, ou l'un en solde net et l'autre en débits seuls · le montant
@@ -233,6 +243,33 @@ describe('correspondance TFT SYCEBNL · cohérence avec le plan de comptes', () 
       const p = trouvePosteFlux(ref)!;
       expect([ref, (p.comptesContrepartie ?? []).length > 0]).toEqual([ref, true]);
       for (const c of p.comptesContrepartie!) expect([ref, c.startsWith('4')]).toEqual([ref, true]);
+    }
+  });
+
+  it('les autres moitiés sans trésorerie que le plan décrit sont neutralisées (passe R6)', () => {
+    // FO : le 1049 n'est débité que par le crédit du 703 (fiche du COMPTE 10).
+    expect(correspond('10490000', trouvePosteFlux('FO')!.comptesFlux, trouvePosteFlux('FO')!.exclusionsFlux)).toBe(false);
+    // FQ : le 1679 n'est débité que par le crédit du 192 (fiche du COMPTE 16).
+    expect(correspond('16790000', trouvePosteFlux('FQ')!.comptesFlux, trouvePosteFlux('FQ')!.exclusionsFlux)).toBe(false);
+    // FI : l'achèvement d'un en-cours, l'imputation d'une avance, la
+    // production immobilisée · chacun porte son fondement cité.
+    const fi = trouvePosteFlux('FI')!;
+    const retranches = (fi.creditsARetrancher ?? []).flatMap((r) => r.comptes);
+    expect(retranches).toEqual(['239', '249', '25', '721', '722']);
+    for (const r of [...(fi.creditsARetrancher ?? []), ...(trouvePosteFlux('FQ')!.creditsARetrancher ?? [])]) {
+      expect(r.fondement).toMatch(/Fiches? d(u|es) COMPTES? \d\d/);
+    }
+  });
+
+  it('les subdivisions du 413 et du 419 suivent la nature de tiers que la fiche du COMPTE 41 leur donne', () => {
+    const fa = trouvePosteFlux('FA')!;
+    const fe = trouvePosteFlux('FE')!;
+    const capte = (p: typeof fa, n: string) => correspond(n, p.comptesContrepartie!, p.exclusionsContrepartie);
+    for (const adherent of ['41310000', '41330000', '41910000']) {
+      expect({ adherent, FA: capte(fa, adherent), FE: capte(fe, adherent) }).toEqual({ adherent, FA: true, FE: false });
+    }
+    for (const usager of ['41320000', '41380000', '41920000', '41940000', '41980000']) {
+      expect({ usager, FA: capte(fa, usager), FE: capte(fe, usager) }).toEqual({ usager, FA: false, FE: true });
     }
   });
 

@@ -7,6 +7,15 @@ import {
   TOTAUX_ACTIF,
   TOTAUX_PASSIF,
 } from './correspondance-bilan';
+import { correspond } from './etats-financiers.communs';
+import { NOTES_ASSOCIATIONS } from '../notes-annexes/correspondance-notes-associations';
+
+/** Postes d'actif qui DÉDUISENT réellement ce compte, lus comme le service les lit. */
+function postesAmortissementDe(numero: string): string[] {
+  return POSTES_ACTIF.filter(
+    (p) => p.comptesAmortissement && correspond(numero, p.comptesAmortissement, p.exclusionsAmortissement),
+  ).map((p) => p.ref);
+}
 
 /**
  * Intégrité structurelle du tableau de correspondance du bilan. Le
@@ -120,9 +129,40 @@ describe('correspondance bilan (SYCEBNL, Partie 4 ch. 2)', () => {
   });
 
   it('2919, 2939 ET 2949 (les trois comptes « p » du texte officiel) ne sont assignés qu’à UN SEUL poste chacun', () => {
+    // Lu par la CAPTURE réelle (préfixes et exclusions), comme le service :
+    // la version d'avant cherchait le numéro dans la liste écrite, et ne
+    // voyait donc pas qu'un 2949 exclu de AL puis rattaché nommément à AM
+    // était pris par le mauvais poste · elle exigeait seulement qu'il le soit
+    // par UN poste (passe R6). Le 2949 n'est plus nommé dans aucune liste :
+    // AL le capte par son préfixe 294.
     for (const numero of ['2919', '2939', '2949']) {
-      const postes = POSTES_ACTIF.filter((p) => p.comptesAmortissement?.includes(numero));
-      expect(postes).toHaveLength(1);
+      expect({ numero, postes: postesAmortissementDe(`${numero}0000`) }).toEqual({
+        numero,
+        postes: postesAmortissementDe(`${numero}0000`).slice(0, 1),
+      });
+      expect(postesAmortissementDe(`${numero}0000`)).toHaveLength(1);
+    }
+  });
+
+  it('chaque compte « p » va au poste de la même famille que la rubrique de la Note 5F qui le porte', () => {
+    // Passe R6 · le 2949 « Dépréciations du matériel en cours » était déduit
+    // du matériel de TRANSPORT (AM) alors que la Note 5F du même référentiel
+    // le range sous « Matériel, mobilier et actifs biologiques », et que sept
+    // subdivisions sur huit du 249 brut vont en AL. Le 2939 (AK au bilan,
+    // « Bâtiments » à la Note 5F) reste ouvert, hors de ce constat : il n'est
+    // pas figé ici.
+    const note5F = NOTES_ASSOCIATIONS.find((n) => n.code === '5F')!;
+    const rubriqueDe = (numero: string) =>
+      note5F.rubriques.find((r: any) => (r.comptes ?? []).includes(numero))?.libelle;
+    for (const [numero, poste] of [
+      ['2919', 'AF'],
+      ['2949', 'AL'],
+    ] as const) {
+      expect({ numero, postes: postesAmortissementDe(`${numero}0000`) }).toEqual({ numero, postes: [poste] });
+      expect({ numero, rubrique: rubriqueDe(numero) }).toEqual({
+        numero,
+        rubrique: POSTES_ACTIF.find((p) => p.ref === poste)!.libelle,
+      });
     }
   });
 

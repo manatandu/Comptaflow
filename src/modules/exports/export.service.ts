@@ -2204,9 +2204,13 @@ export class ExportService {
   }
 
   /**
-   * Feuille `TFT` du modèle : cinq colonnes (REF, LIBELLES, Rep., EXERCICE N,
-   * EXERCICE N-1), bandes grises de sections, lignes clefs ZA/ZF/ZG sur bleu
-   * 003366. Contrairement au moteur Python du skill · qui ne connaît qu'une
+   * Feuille `TFT` du modèle : SIX colonnes, celles du modèle officiel
+   * (Partie 4 ch. 2, section 3 : « REF | LIBELLES | (repère A à H) | Note |
+   * Exercice N | Exercice N-1 »), bandes grises de sections, lignes clefs
+   * ZA/ZF/ZG sur bleu 003366. La colonne Note reste VIDE : le modèle transcrit
+   * ne donne aucun renvoi de note ligne par ligne pour cet état, et aucune
+   * n'est choisie d'office (passe R6 · la feuille n'en portait que cinq, celles
+   * du gabarit de la compétence, pas celles du texte). Contrairement au moteur Python du skill · qui ne connaît qu'une
    * balance de clôture et laisse FA à FH vides ·, le serveur ventile les
    * encaissements et décaissements réels : les lignes FA-FH sont chiffrées.
    */
@@ -2217,20 +2221,20 @@ export class ExportService {
   ): { rangs: Map<string, number>; dernier: number } {
     const rangs = new Map<string, number>();
     const ws = classeur.addWorksheet('TFT');
-    ecrireCartouche(ws, ident, 'TABLEAU DES FLUX\nDE TRESORERIE', 5);
-    titreEtat(ws, 'TABLEAU DES FLUX DE TRESORERIE', 1, 5, 7, 14);
+    ecrireCartouche(ws, ident, 'TABLEAU DES FLUX\nDE TRESORERIE', 6);
+    titreEtat(ws, 'TABLEAU DES FLUX DE TRESORERIE', 1, 6, 7, 14);
     let r = 8;
-    for (const [i, h] of ['REF', 'LIBELLES', 'Rep.', 'EXERCICE N', 'EXERCICE N-1'].entries()) {
+    for (const [i, h] of ['REF', 'LIBELLES', 'Rep.', 'Note', 'EXERCICE N', 'EXERCICE N-1'].entries()) {
       ws.getCell(r, i + 1).value = h;
     }
-    entetesBande(ws, r, r, 1, 5);
+    entetesBande(ws, r, r, 1, 6);
     ws.getRow(r).height = 22;
     for (const l of tft.lignes) {
       r += 1;
       ws.getRow(r).height = 22;
       if ('section' in l) {
         ws.getCell(r, 2).value = l.section;
-        styleLigne(ws, r, 2, 5, 'bande', [4, 5]);
+        styleLigne(ws, r, 2, 6, 'bande', [5, 6]);
         styleLigne(ws, r, 1, 1, 'normal');
         continue;
       }
@@ -2238,12 +2242,13 @@ export class ExportService {
       ws.getCell(r, 1).value = l.ref;
       ws.getCell(r, 2).value = l.libelle;
       ws.getCell(r, 3).value = l.repere ?? REP_TFT[l.ref] ?? '';
-      ws.getCell(r, 4).value = l.montant;
-      if (l.montantN1 !== undefined) ws.getCell(r, 5).value = l.montantN1;
-      styleLigne(ws, r, 1, 5, NIVEAUX_TFT[l.ref] ?? 'normal', [4, 5], 1);
+      // Colonne 4 · Note, vide (voir l'en-tête de la méthode).
+      ws.getCell(r, 5).value = l.montant;
+      if (l.montantN1 !== undefined) ws.getCell(r, 6).value = l.montantN1;
+      styleLigne(ws, r, 1, 6, NIVEAUX_TFT[l.ref] ?? 'normal', [5, 6], 1);
       ws.getCell(r, 3).alignment = { horizontal: 'center', vertical: 'middle' };
     }
-    cadre(ws, 8, 1, r, 5, MOYEN);
+    cadre(ws, 8, 1, r, 6, MOYEN);
     r += 2;
     ligneControleSousEtat(
       ws,
@@ -2251,7 +2256,7 @@ export class ExportService {
       "(1) à l'exclusion des fournisseurs d'investissements. Méthode directe (Partie 4, ch. 1 § 4) · " +
         'les lignes FA à FH sont ventilées depuis les écritures de trésorerie du dossier.',
     );
-    largeurs(ws, { A: 5.5, B: 72, C: 6, D: 15.7, E: 15.7 });
+    largeurs(ws, { A: 5.5, B: 72, C: 6, D: 6, E: 15.7, F: 15.7 });
     ws.views = [{ state: 'frozen', ySplit: 8, showGridLines: false }];
     return { rangs, dernier: r };
   }
@@ -5040,7 +5045,7 @@ export class ExportService {
       ['Résultat net (compte de résultat, XE)', `Résultat!D${rangsCr.get('XE')}`, ''],
       ['Résultat net logé au bilan (CH)', `'Bilan-Passif'!D${rangsPassif.get('CH')}`, ''],
       ['Écart résultat CR / bilan (doit être 0)', 'B8-B9', 0],
-      ['Trésorerie nette au 31/12 (TFT, ZG)', `TFT!D${rangsTft.get('ZG')}`, ''],
+      ['Trésorerie nette au 31/12 (TFT, ZG)', `TFT!E${rangsTft.get('ZG')}`, ''],
       [
         'Trésorerie nette au 31/12 (bilan, BX - DX)',
         `'Bilan-Actif'!F${rangsActif.get('BX')}-'Bilan-Passif'!D${rangsPassif.get('DX')}`,

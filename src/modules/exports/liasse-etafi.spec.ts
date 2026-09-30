@@ -310,6 +310,28 @@ describe('exports individuels · charte ETAFI, état seul en valeurs', () => {
     expect(ws.getCell(rangs.get('RA')!, 4).value).toBe(400_000);
   });
 
+  it('le TFT porte les six colonnes du modèle officiel, Note comprise et vide (passe R6)', async () => {
+    // Partie 4 ch. 2, section 3 : « Colonnes : REF | LIBELLES | (repère A à
+    // H) | Note | Exercice N | Exercice N-1 ». Le modèle transcrit ne donne
+    // aucun renvoi de note par ligne · la colonne existe, vide.
+    const exportService = fabriquerExport();
+    const { buffer } = await exportService.tableauFluxTresorerieExcel('t1', 'e1');
+    const ws = (await ouvrir(buffer)).getWorksheet('TFT')!;
+    expect([1, 2, 3, 4, 5, 6].map((c) => ws.getCell(8, c).value)).toEqual([
+      'REF',
+      'LIBELLES',
+      'Rep.',
+      'Note',
+      'EXERCICE N',
+      'EXERCICE N-1',
+    ]);
+    ws.eachRow((row, n) => {
+      if (n > 8 && typeof row.getCell(1).value === 'string' && row.getCell(1).value !== '') {
+        expect({ ref: row.getCell(1).value, note: row.getCell(4).value ?? null }).toEqual({ ref: row.getCell(1).value, note: null });
+      }
+    });
+  });
+
   it('le TFT porte les bandes de sections et la ligne clef ZG sur bleu 003366', async () => {
     const exportService = fabriquerExport();
     const { buffer } = await exportService.tableauFluxTresorerieExcel('t1', 'e1');
@@ -411,6 +433,18 @@ describe('liasse complète · le classeur entier du modèle', () => {
     // CONTROLES · les recoupements croisés du modèle, en formules.
     const ctl = wb.getWorksheet('CONTROLES')!;
     expect((ctl.getCell(2, 2).value as { formula?: string }).formula).toContain("'BALANCE N'!G2:G");
+    // La trésorerie de clôture lue par CONTROLES est la cellule du MONTANT N
+    // de ZG (colonne E depuis la colonne Note, passe R6), jamais la Note vide.
+    const tftLiasse = wb.getWorksheet('TFT')!;
+    let rangZgLiasse = 0;
+    tftLiasse.eachRow((row, n) => {
+      if (row.getCell(1).value === 'ZG') rangZgLiasse = n;
+    });
+    let formuleZg = '';
+    ctl.eachRow((row) => {
+      if (String(row.getCell(1).value).includes('(TFT, ZG)')) formuleZg = (row.getCell(2).value as { formula?: string }).formula ?? '';
+    });
+    expect(formuleZg).toBe(`TFT!E${rangZgLiasse}`);
 
     // Les pages porteuses de cartouche sont numérotées en continu.
     expect(wb.getWorksheet('Fiche 1')!.getCell('A1').value).toMatch(/^- \d+ -$/);

@@ -29,6 +29,7 @@ import {
 } from './correspondance-bilan';
 import {
   COMPTES_SANS_TRESORERIE,
+  COMPTES_A_CONTREPARTIE_INTERNE,
   ORDRE_AFFICHAGE_FLUX,
   PosteFluxTresorerie,
   TOTAUX_FLUX,
@@ -520,10 +521,17 @@ export class EtatsFinanciersService {
    * l'exercice, et tout le tableau serait faux dès le deuxième exercice.
    */
   private fluxDuPoste(poste: PosteFluxTresorerie, lignes: LigneBalancePourBilan[]): CompteDuPoste[] {
-    return lignes
-      .filter((l) => correspond(l.numero, poste.comptesFlux, poste.exclusionsFlux))
-      .map((l) => {
-        let montant: number;
+    const comptes: CompteDuPoste[] = [];
+    for (const l of lignes) {
+      const enFlux = correspond(l.numero, poste.comptesFlux, poste.exclusionsFlux);
+      // Passe R6 · l'autre moitié d'un virement sans trésorerie dont le poste
+      // lit le débit (en-cours achevé, avance imputée, production
+      // immobilisée, reprise au 792). Un même compte peut être lu des deux
+      // côtés (le 239 : débit payé, crédit viré) · une seule ligne, nette.
+      const retranche = (poste.creditsARetrancher ?? []).some((r) => correspond(l.numero, r.comptes, r.exclusions));
+      if (!enFlux && !retranche) continue;
+      let montant = 0;
+      if (enFlux) {
         switch (poste.lectureFlux) {
           case 'NET_PRODUIT':
             montant = l.mouvementCredit - l.mouvementDebit;
@@ -538,9 +546,11 @@ export class EtatsFinanciersService {
             montant = l.mouvementCredit;
             break;
         }
-        return { numero: l.numero, intitule: l.intitule, montant };
-      })
-      .filter((c) => Math.abs(c.montant) > 0.005);
+      }
+      if (retranche) montant -= l.mouvementCredit;
+      if (Math.abs(montant) > 0.005) comptes.push({ numero: l.numero, intitule: l.intitule, montant });
+    }
+    return comptes;
   }
 
   /**
@@ -707,27 +717,52 @@ export class EtatsFinanciersService {
       for (const l of lignesN) {
         if (
           correspond(l.numero, poste.comptesFlux, poste.exclusionsFlux) ||
-          (poste.comptesContrepartie && correspond(l.numero, poste.comptesContrepartie, poste.exclusionsContrepartie))
+          (poste.comptesContrepartie && correspond(l.numero, poste.comptesContrepartie, poste.exclusionsContrepartie)) ||
+          (poste.creditsARetrancher ?? []).some((r) => correspond(l.numero, r.comptes, r.exclusions))
         ) {
           ventiles.add(l.compteId);
         }
       }
     }
+    const mouvemente = (l: LigneBalancePourBilan) =>
+      Math.abs(l.mouvementDebit) > 0.005 || Math.abs(l.mouvementCredit) > 0.005;
+    const interne = (l: LigneBalancePourBilan) => COMPTES_A_CONTREPARTIE_INTERNE.find((c) => l.numero.startsWith(c.numero));
     const comptesNonVentiles = lignesN
       .filter((l) => !ventiles.has(l.compteId))
       // La trésorerie elle-même (classe 5) n'a rien à ventiler : elle EST le
-      // solde que le tableau explique. Les classes 3 (stocks) et 12/13
-      // (report et résultat) ne portent pas de flux non plus.
+      // solde que le tableau explique. La classe 3 (stocks) ne porte pas de
+      // flux non plus. Les 11, 12 et 13 passent par la règle ci-dessous.
       .filter((l) => !l.numero.startsWith('5') && !l.numero.startsWith('3'))
-      .filter((l) => !l.numero.startsWith('12') && !l.numero.startsWith('13'))
+      .filter((l) => !interne(l))
       // Comptes sans trésorerie PAR CONSTRUCTION (dons en nature, dotations,
       // écritures d'inventaire…) : ils n'expliquent aucun écart, et les lister
       // à côté d'un écart nul apprend à ignorer le bloc. Ce qui doit y rester,
-      // ce sont les comptes que le PLAN ne tranche pas (4491, 4572) · ceux-là
-      // en expliquent un. Voir COMPTES_SANS_TRESORERIE.
+      // ce sont les comptes que le PLAN ne tranche pas (4491, 4572 et les
+      // anomalies n° 6 à 10 de l'en-tête) · ceux-là en expliquent un. Voir
+      // COMPTES_SANS_TRESORERIE.
       .filter((l) => !COMPTES_SANS_TRESORERIE.some((c) => l.numero.startsWith(c.numero)))
-      .filter((l) => Math.abs(l.mouvementDebit) > 0.005 || Math.abs(l.mouvementCredit) > 0.005)
+      .filter(mouvemente)
       .map((l) => ({ numero: l.numero, intitule: l.intitule, montant: l.solde }));
+
+    // Passe R6 · les mouvements que la balance ne sait pas qualifier
+    // (incorporation à la dotation, absorption d'un déficit, achèvement d'un
+    // 219 ou d'un 229) sont lus comme des flux sans l'être. Ils ne sont pas
+    // retranchés d'office, faute de connaître la contrepartie de chaque
+    // écriture · ils sont NOMMÉS, seulement quand le tableau ne boucle pas.
+    // Les réserves, le report et le résultat ne le sont que si la dotation a
+    // bougé : sans mouvement du 10, leur affectation ordinaire (131 au 121,
+    // 131 au 111) ne touche aucun poste.
+    if (Math.abs(resN.ecart) >= 0.01) {
+      const dotationMouvementee = lignesN.some(
+        (l) => correspond(l.numero, ['10'], ['106', '1049']) && mouvemente(l),
+      );
+      for (const l of lignesN) {
+        const c = interne(l);
+        if (!c) continue;
+        const suspect = c.lecture === 'CREDIT' ? l.mouvementCredit > 0.005 : dotationMouvementee && mouvemente(l);
+        if (suspect) comptesNonVentiles.push({ numero: l.numero, intitule: l.intitule, montant: l.solde });
+      }
+    }
 
     return {
       lignes: lignesAffichees,

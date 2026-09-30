@@ -155,8 +155,20 @@ describe('intitulés relus sur le plan des comptes officiel', () => {
     // 4421 est l'impôt d'État, par opposition à 4422 (collectivités publiques).
     ['44210000', "État, impôts et taxes d'État"],
     // 4133 · « autres valeurs impayées » ; les chèques et effets impayés sont
-    // en 4131 et 4132.
-    ['41330000', 'Adhérents, clients-usagers · autres valeurs impayées'],
+    // en 4131 et 4132. Passe R6 : la fiche du COMPTE 41 dit « 4133 Adhérents,
+    // autres valeurs impayées » · l'intitulé gelé ici (« Adhérents,
+    // clients-usagers ») avait perdu la nature de tiers que le tableau des
+    // flux lit. Même correction pour les 413 et 419 de la fiche.
+    ['41310000', 'Adhérents, chèques impayés'],
+    ['41320000', 'Clients-usagers, chèques impayés'],
+    ['41330000', 'Adhérents, autres valeurs impayées'],
+    ['41380000', 'Clients-usagers, autres valeurs impayées'],
+    ['41810000', 'Adhérents, appels de fonds à établir'],
+    ['41820000', 'Clients-usagers, factures à établir'],
+    ['41910000', 'Adhérents, avances reçues'],
+    ['41920000', 'Clients-usagers, avances et acomptes reçus'],
+    ['41940000', 'Clients-usagers, dettes pour emballages et matériels consignés'],
+    ['41980000', 'Clients-usagers, rabais, remises, ristournes et autres avoirs à accorder'],
     ['66900000', 'Dégrèvements et annulations des charges sociales'],
     ['60310000', "Variations des stocks de biens et services liés à l'activité"],
     // 249x · troncatures : « outillage », « de bureau », « actifs biologiques »

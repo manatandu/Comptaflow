@@ -40,9 +40,12 @@
  * plan de comptes · jamais « au jugé » :
  *
  *  - 703 quote-part de dotation consomptible transférée · virement interne
- *    depuis la dotation (compte 10), aucun encaissement ;
+ *    depuis la dotation, aucun encaissement. Son autre moitié, le débit du
+ *    1049, est exclue de FO pour la même raison (passe R6, voir FO) ;
  *  - 72 production immobilisée, 73 variation des stocks de biens produits,
- *    603 variation des stocks achetés · écritures d'inventaire ;
+ *    603 variation des stocks achetés · écritures d'inventaire. L'autre
+ *    moitié du 721 et du 722, le débit du 21, du 23 ou du 24, est retranchée
+ *    de FI (passe R6, voir FI) ;
  *  - 78 transferts de charges, 79 reprises, 68/69 dotations · sans flux ;
  *  - 754 dons en nature courants, 654 dons en nature à distribuer,
  *    7583 abandons de frais par les bénévoles · le référentiel les qualifie
@@ -55,7 +58,12 @@
  * Un compte encaissable qu'aucun poste ne réclame ressort en
  * `comptesNonVentiles` (voir `EtatsFinanciersService.tableauFluxTresorerie`) :
  * visible, jamais absorbé en silence · et l'écart de bouclage ci-dessous en
- * chiffre l'effet.
+ * chiffre l'effet. Un compte sans trésorerie en est écarté quand l'autre
+ * moitié de son écriture n'est lue par aucun poste, ou y est neutralisée
+ * (703 face au 1049, 721 et 722 face à FI) : il ne peut alors expliquer aucun
+ * écart. Celui dont l'autre moitié reste lue comme un flux (724, 726, 834,
+ * 836) y reste, parce que c'est lui qui désigne la cause de l'écart que cette
+ * lecture crée.
  *
  * ## Le bouclage : deux calculs indépendants, jamais un seul
  *
@@ -108,6 +116,57 @@
  *    rattaché, donc · même traitement que le 4491, et pour la même raison. Un
  *    dossier qui l'utilise doit subdiviser 4572, sans quoi son montant
  *    apparaîtra en écart de bouclage.
+ *
+ * Passe R6 · six autres comptes que le plan ne tranche pas, non rattachés
+ * pour la même raison, et qui ressortent donc en `comptesNonVentiles` avec
+ * leur montant quand ils sont mouvementés :
+ *
+ * 6. **4186 « Adhérents, clients-usagers, intérêts courus »** (Partie 2
+ *    ch. 3, COMPTE 41) · intitulé MIXTE, là où la fiche répartit toutes les
+ *    autres subdivisions du 41 entre adhérents (FA) et clients-usagers (FE).
+ * 7. **4738 « Autres subventions à recevoir »** · ni exploitation (FB) ni
+ *    investissement (FN) ; et **4739 « Subventions à reverser »**, débité du
+ *    71 OU du 14 « selon le cas » (Partie 3 ch. 6 § 4), donc FB ou FN · même
+ *    traitement que le 4491.
+ * 8. **828 « Immobilisations reçues en dons et legs destinées à la vente »**
+ *    · produit de cession d'un bien du compte 20, qui couvre aussi le 205
+ *    titres (FK ou FL), et que la fiche du COMPTE 17 qualifie de « produit
+ *    d'activité ordinaire ».
+ * 9. **4721 et 4726** (créances et versements restant à effectuer sur
+ *    cessions de titres de PLACEMENT) · les titres de placement sont en
+ *    trésorerie au bilan (BU dans BX), et aucune ligne du modèle ne porte ces
+ *    créances et dettes.
+ * 10. **831, 841, 843 et leur contrepartie 484 (H.A.O.)** · le modèle n'a
+ *    aucune ligne H.A.O., hormis le 88 que le libellé de FB réunit
+ *    expressément ; 843 « dons en numéraire non récurrents » est pourtant
+ *    encaissable.
+ * 11. **FP vise « emprunts et autres dettes financières »** alors que le
+ *    bilan range le 16 (fonds affectés) en CW, dans CZ, hors des dettes
+ *    financières (DD) `[texte officiel]`. Faute de correspondance poste →
+ *    comptes pour cet état, la réception du 165 reste en FP.
+ *
+ * ## Mouvements que la balance ne sait pas qualifier (passe R6)
+ *
+ * Le tableau lit une balance COMPTE PAR COMPTE, jamais écriture par
+ * écriture : il ne connaît pas la contrepartie d'un mouvement. Quatre
+ * écritures internes, sans trésorerie, que le plan décrit lui-même, y sont
+ * donc lues comme des flux, et ne se neutralisent pas sans lire la
+ * contrepartie de chaque écriture :
+ *
+ *  - l'INCORPORATION à la dotation des réserves (11), du report à nouveau
+ *    (12) ou de l'excédent (131), lue en FM, et l'ABSORPTION d'un déficit
+ *    (12, 139) par la dotation, lue en FO (fiche du COMPTE 10,
+ *    « Fonctionnement ») ;
+ *  - l'ACHÈVEMENT d'une immobilisation incorporelle en cours (219) ou d'un
+ *    aménagement de terrain en cours (229), dont le plan ne décrit pas le
+ *    virement et dont un crédit peut aussi être une mise au rebut par le 81,
+ *    et le RECLASSEMENT d'une immobilisation d'un compte 2x à un autre
+ *    (`ImmobilisationService.reclasser`), lus en FI.
+ *
+ * Ils ne sont pas retranchés d'office · retrancher tous les crédits d'un
+ * compte en ôterait aussi les sorties. Ils sont NOMMÉS : quand le tableau ne
+ * boucle pas, les comptes de `COMPTES_A_CONTREPARTIE_INTERNE` mouvementés
+ * rejoignent `comptesNonVentiles`, comme causes possibles de l'écart.
  */
 
 /** Comment lire les comptes de flux d'un poste. */
@@ -141,6 +200,13 @@ export interface PosteFluxTresorerie {
   exclusionsContrepartie?: string[];
   /** Commentaire de rattachement, reproduit dans l'état pour justifier le montant. */
   note?: string;
+  /**
+   * Mouvements CRÉDITEURS de l'exercice à RETRANCHER du flux (passe R6) ·
+   * l'autre moitié d'une écriture dont ce poste lit le débit, et que le plan
+   * décrit sans trésorerie. Chaque entrée porte son fondement. Le compte
+   * retranché figure dans le détail du poste, en négatif.
+   */
+  creditsARetrancher?: { comptes: string[]; exclusions?: string[]; fondement: string }[];
 }
 
 /**
@@ -152,6 +218,15 @@ export interface PosteFluxTresorerie {
  * COTISATIONS (donc FA) ; 4162 et 4182 sont leurs symétriques côté
  * clients-usagers (donc FE). Cette lecture ne relève pas du jugement : elle
  * est écrite au plan de comptes (Partie 2, ch. 2, comptes 416 et 418).
+ *
+ * La fiche du COMPTE 41 (Partie 2 ch. 3, « Subdivisions ») nomme de même la
+ * nature de tiers des subdivisions du 413 et du 419 : 4131 « Adhérents,
+ * chèques impayés », 4133 « Adhérents, autres valeurs impayées », 4191
+ * « Adhérents, avances reçues » (FA) ; 4132, 4138, 4192, 4194 et 4198,
+ * « Clients-usagers » (FE). Elles n'étaient rattachées à aucun poste jusqu'à
+ * la passe R6 : une cotisation perçue d'avance (52 / 4191) ou un chèque
+ * impayé (4131 / 52) faisait tomber le bouclage. Le solde est lu signé : un
+ * 419 créditeur réduit la créance, comme le 409 le fait dans FF.
  */
 export const POSTES_OPERATIONNELS: PosteFluxTresorerie[] = [
   {
@@ -160,7 +235,7 @@ export const POSTES_OPERATIONNELS: PosteFluxTresorerie[] = [
     sens: 'ENCAISSEMENT',
     lectureFlux: 'NET_PRODUIT',
     comptesFlux: ['701'],
-    comptesContrepartie: ['411', '4161', '4181'],
+    comptesContrepartie: ['411', '4131', '4133', '4161', '4181', '4191'],
     note:
       "Exemple chiffré donné par le texte officiel (Partie 4, ch. 1 § 4) : « Cotisations des adhérents " +
       "encaissées en N = Cotisations des adhérents de l'exercice N + Créances adhérents de N-1 - Créances " +
@@ -205,14 +280,15 @@ export const POSTES_OPERATIONNELS: PosteFluxTresorerie[] = [
     libelle: 'Encaissement des autres revenus',
     sens: 'ENCAISSEMENT',
     lectureFlux: 'NET_PRODUIT',
-    // Tous les autres produits ENCAISSABLES : 702 fonds d'administration
-    // transférés, 705 ventes, 707 produits accessoires, 708 autres revenus,
-    // 75 autres produits, 77 revenus financiers.
+    // Les autres produits encaissables des activités ordinaires : 702 fonds
+    // d'administration transférés, 705 ventes, 707 produits accessoires, 708
+    // autres revenus, 75 autres produits, 77 revenus financiers. Les produits
+    // H.A.O. encaissables (841, 843) n'y sont pas · anomalie n° 10.
     // Exclus car sans trésorerie (voir en-tête) : 754 dons en nature,
     // 7583 abandons de frais des bénévoles, 759 reprises de dépréciations.
     comptesFlux: ['702', '705', '707', '708', '75', '77'],
     exclusionsFlux: ['754', '7583', '759'],
-    comptesContrepartie: ['412', '4162', '4182'],
+    comptesContrepartie: ['412', '4132', '4138', '4162', '4182', '4192', '4194', '4198'],
   },
   {
     ref: 'FF',
@@ -268,8 +344,9 @@ export const POSTES_OPERATIONNELS: PosteFluxTresorerie[] = [
     // et 444 pour donner la TVA nette réellement décaissée.
     //
     // Exclus du 47 : 473 (subventions à recevoir → FB et FN), 475
-    // (générosités → FC), 472 (titres de placement, qui sont de la
-    // trésorerie), 478/479 (écarts de conversion, réévaluation sans flux).
+    // (générosités → FC), 472 (créances et dettes sur cessions de titres de
+    // placement, anomalie n° 9 · les titres eux-mêmes sont de la trésorerie),
+    // 478/479 (écarts de conversion, réévaluation sans flux).
     //
     // SECOND DÉFAUT DE LA MÊME CLASSE, relevé en UTILISANT le logiciel (le
     // livre d'inventaire figeait un TFT qui ne bouclait pas) : le préfixe
@@ -302,13 +379,51 @@ export const POSTES_INVESTISSEMENT: PosteFluxTresorerie[] = [
     libelle: "Décaissements liés aux acquisitions d'immobilisations incorporelles et corporelles",
     sens: 'DECAISSEMENT',
     lectureFlux: 'DEBIT_SEUL',
-    // 20 immobilisations reçues par dons et legs : EXCLU volontairement ·
-    // reçues sans contrepartie de trésorerie par définition (Partie 3, ch. 2).
+    // 20 : EXCLU. Le compte 20 porte les biens reçus en dons et legs
+    // DESTINÉS À LA VENTE (fonds reportés 172) et l'usufruit temporaire (171),
+    // sans contrepartie de trésorerie par définition (Partie 3, ch. 2).
+    //
+    // Un legs que l'entité CONSERVE, lui, n'est PAS au compte 20 : il est
+    // porté en classe 2 ordinaire (2313, 2441, 2442, 2451) contre le 167
+    // (Guide d'application, App. 5 ; fiche du COMPTE 16). Il gonfle donc FI
+    // comme une acquisition décaissée ET FP comme un fonds reçu, du même
+    // montant : ZF n'en est pas faussé, la ventilation l'est. Les deux postes
+    // sont à corriger ENSEMBLE, jamais FP seul, qui ouvrirait un écart.
     comptesFlux: ['21', '22', '23', '24', '25'],
     // 481 « Fournisseurs d'investissements » · la dette qui décale le
     // paiement de l'immobilisation. C'est le pendant exact du renvoi (1) de
     // FF, qui les en exclut.
     comptesContrepartie: ['481'],
+    // Passe R6 · trois virements de compte à compte que le plan décrit, dont
+    // le débit est lu ici sans être un décaissement. Le principe est celui du
+    // Guide d'application, Application 21, renvois (2) et (4), pour le poste
+    // analogue du tableau emplois-ressources : « ne pas tenir compte des
+    // virements de compte à compte qui ne traduisent pas une acquisition
+    // d'immobilisation incorporelle et corporelle décaissée » et des achats
+    // « transférés en immobilisations (livraison à soi-même) pour éviter le
+    // double emploi ». Sans eux, FI dépassait le décaissé du montant viré, et
+    // le tableau ne bouclait plus sans que rien n'en nomme la cause.
+    //
+    // LIMITE : un crédit du 239 ou du 249 peut aussi être une mise au rebut
+    // par le 81 (fiche du COMPTE 23, « Utilisation au crédit ») · il serait
+    // alors retranché à tort. La balance ne dit pas la contrepartie.
+    creditsARetrancher: [
+      {
+        comptes: ['239', '249'],
+        fondement:
+          "Fiches des COMPTES 23 et 24 : après achèvement, les en-cours « seront portés au débit des comptes 231 à 238 par le crédit du compte 239 » ; le 24 est débité « du compte 249 – Matériel en cours, lorsqu'ils ont été achevés ». Le paiement de l'en-cours a déjà été lu au débit du 239 ou du 249.",
+      },
+      {
+        comptes: ['25'],
+        fondement:
+          "Fiche du COMPTE 25 : « est crédité le compte 25 pour solde à la réception de la facture définitive […] par le débit du compte d'immobilisation concerné ». Le versement de l'avance a déjà été lu au débit du 25.",
+      },
+      {
+        comptes: ['721', '722'],
+        fondement:
+          "Fiche du COMPTE 72 : « est crédité le compte 72 […] par le débit : du compte 21 […] du compte 23 […] ou 24 ». Les charges de production ont déjà été lues en FF, FG et FH. Le Guide neutralise côté charges ; la balance ne ventilant pas le 72 par nature, la neutralisation se fait ici, par choix de lecture.",
+      },
+    ],
   },
   {
     ref: 'FJ',
@@ -347,9 +462,14 @@ export const POSTES_FONDS_PROPRES: PosteFluxTresorerie[] = [
     sens: 'ENCAISSEMENT',
     lectureFlux: 'CREDIT_SEUL',
     // 10 Dotation (y compris 103 droit d'entrée). 106 écarts de réévaluation
-    // EXCLU : réévaluation comptable, sans encaissement.
+    // EXCLU : réévaluation comptable, sans encaissement. 1049 EXCLU : la fiche
+    // du COMPTE 10 ne le crédite jamais (voir FO).
+    //
+    // LIMITE (passe R6) : les incorporations à la dotation (crédit du 10 par
+    // le débit du 11, du 12 ou du 131) sont lues ici comme des encaissements ·
+    // voir « Mouvements que la balance ne sait pas qualifier » en tête.
     comptesFlux: ['10'],
-    exclusionsFlux: ['106'],
+    exclusionsFlux: ['106', '1049'],
     // 45 Fondateurs, apporteurs · la créance sur l'apporteur qui a souscrit
     // sans avoir encore libéré (Partie 3, ch. 1 : souscription puis libération).
     //
@@ -392,8 +512,19 @@ export const POSTES_FONDS_PROPRES: PosteFluxTresorerie[] = [
     lectureFlux: 'DEBIT_SEUL',
     // Reprise d'une dotation avec droit de reprise (compte 102), remboursement
     // d'un apport. Mêmes comptes que FM, lus en sens inverse.
+    //
+    // 1049 EXCLU (passe R6). La fiche du COMPTE 10 (Partie 2 ch. 3,
+    // « Utilisation au débit ») ne le débite que « par le crédit du compte 703
+    // Quote-part de dotation consomptible transférée », et la Partie 3 ch. 1
+    // fait de cette écriture la « couverture des charges de la période » · les
+    // charges couvertes sont déjà décaissées en FF, FG ou FH. Lu ici, le débit
+    // du 1049 les décaissait une seconde fois, et le 703, sa moitié crédit,
+    // était désigné à tort comme la cause de l'écart.
+    //
+    // LIMITE : l'absorption d'un déficit par la dotation (débit du 10 par le
+    // crédit du 12 ou du 139) reste lue ici · voir l'en-tête.
     comptesFlux: ['10'],
-    exclusionsFlux: ['106'],
+    exclusionsFlux: ['106', '1049'],
   },
 ];
 
@@ -416,7 +547,25 @@ export const POSTES_FONDS_ETRANGERS: PosteFluxTresorerie[] = [
     sens: 'DECAISSEMENT',
     lectureFlux: 'DEBIT_SEUL',
     comptesFlux: ['16', '18'],
-    exclusionsFlux: ['186'],
+    // Passe R6 · la fiche du COMPTE 16 ne décrit AUCUN débit du 16 contre la
+    // trésorerie. Ses seuls débits sont les reprises au 792 (« est débité le
+    // compte 167 […] par le crédit du compte 7923 » ; le 165 « repris au fur
+    // et à mesure de la consommation par le biais du compte 7925 ») et le
+    // 1679 contre le 192. Lus ici, ils sortaient en remboursements fictifs,
+    // sans pendant, et le tableau ne bouclait plus.
+    //  - 1679 EXCLU : son seul débit décrit est « par le crédit du compte 192 ».
+    //  - Les crédits du 792 sont RETRANCHÉS : la fiche du COMPTE 79 le dit
+    //    crédité « par le débit : du compte 16 ».
+    // Un débit résiduel du 16 (une restitution au bailleur, que le texte ne
+    // décrit pas) reste en FQ.
+    exclusionsFlux: ['186', '1679'],
+    creditsARetrancher: [
+      {
+        comptes: ['792'],
+        fondement:
+          "Fiche du COMPTE 79 : « est crédité le compte 792 · REPRISES DE FONDS AFFECTES ET PROVENANT DES DONS ET LEGS D'IMMOBILISATIONS […] par le débit : du compte 16 » ; fiche du COMPTE 16 : 165 repris par le 7925, 167 par le 7923.",
+      },
+    ],
   },
 ];
 
@@ -531,8 +680,10 @@ export function trouvePosteFlux(ref: string): PosteFluxTresorerie | undefined {
  * différentes conduisent pourtant un compte à n'être rattaché à aucun poste :
  *
  *  - le plan NE TRANCHE PAS (4491 non subdivisé entre exploitation et
- *    investissement, 4572 non subdivisé entre remboursement et renonciation) :
- *    ces comptes-là expliquent bel et bien un écart, et doivent être vus ;
+ *    investissement, 4572 non subdivisé entre remboursement et renonciation,
+ *    et les anomalies n° 6 à 10 de l'en-tête · 4186, 4738, 4739, 828, 4721,
+ *    4726, 831, 841, 843, 484) : ces comptes-là expliquent bel et bien un
+ *    écart, et doivent être vus ;
  *  - l'opération EST SANS TRÉSORERIE par construction (dons en nature,
  *    abandons de frais, dotations et reprises de dépréciations) : ceux-là
  *    n'expliquent rien, par définition. Les afficher à côté d'un écart nul
@@ -570,6 +721,60 @@ export const COMPTES_SANS_TRESORERIE: { numero: string; motif: string }[] = [
   { numero: '28', motif: 'Amortissements · contrepartie du 68, sans flux.' },
   { numero: '29', motif: 'Dépréciations · contrepartie du 69, sans flux.' },
   { numero: '19', motif: 'Provisions pour risques et charges · dotation et reprise, sans flux.' },
+  // Passe R6 · A1. L'autre moitié de l'écriture est neutralisée dans FO.
+  {
+    numero: '703',
+    motif:
+      "Quote-part de dotation consomptible transférée · « couverture des charges de la période » (Partie 3 ch. 1), débitée au 1049 (fiche du COMPTE 10), sans trésorerie.",
+  },
+  {
+    numero: '1049',
+    motif: 'Dotation consomptible inscrite au compte de résultat · débitée par le crédit du 703 seul (fiche du COMPTE 10), sans trésorerie.',
+  },
+  // Passe R6 · A3. L'autre moitié de l'écriture est retranchée de FI.
+  { numero: '721', motif: 'Production immobilisée incorporelle · par le débit du 21 (fiche du COMPTE 72), retranchée de FI.' },
+  { numero: '722', motif: 'Production immobilisée corporelle · par le débit du 23 ou du 24 (fiche du COMPTE 72), retranchée de FI.' },
+  // Passe R6 · A7. Pendants SYCEBNL du 603, du 87, du 659 et du 759 : leur
+  // contrepartie (classe 3, compte 49) n'est lue par aucun poste.
+  { numero: '73', motif: 'Variations des stocks de biens produits · écriture d’inventaire contre les stocks (fiche du COMPTE 73).' },
+  { numero: '49', motif: 'Dépréciations et provisions à court terme des tiers · contrepartie des 659, 759, 839 et 849, sans flux.' },
+  { numero: '839', motif: 'Charges pour dépréciations et provisions à court terme H.A.O. · pendant du 659, sans décaissement.' },
+  { numero: '849', motif: 'Reprises de charges pour dépréciations et provisions à court terme H.A.O. · pendant du 759, sans encaissement.' },
+];
+
+/**
+ * COMPTES À CONTREPARTIE INTERNE POSSIBLE · nommés au diagnostic quand le
+ * tableau ne boucle pas (passe R6). Voir « Mouvements que la balance ne sait
+ * pas qualifier » en tête. `lecture` dit quel mouvement les rend suspects :
+ * le crédit d'un en-cours (achèvement ou reclassement), ou tout mouvement
+ * des réserves, du report et du résultat quand la dotation a bougé.
+ */
+export const COMPTES_A_CONTREPARTIE_INTERNE: { numero: string; lecture: 'CREDIT' | 'MOUVEMENT'; motif: string }[] = [
+  {
+    numero: '11',
+    lecture: 'MOUVEMENT',
+    motif: 'Réserves · « incorporation à la dotation » (fiche du COMPTE 10), lue en FM.',
+  },
+  {
+    numero: '12',
+    lecture: 'MOUVEMENT',
+    motif: 'Report à nouveau · incorporation à la dotation (FM) ou absorption par elle (FO), fiche du COMPTE 10.',
+  },
+  {
+    numero: '13',
+    lecture: 'MOUVEMENT',
+    motif: 'Résultat · 131 incorporé à la dotation (FM), 139 absorbé par elle (FO), fiche du COMPTE 10.',
+  },
+  {
+    numero: '219',
+    lecture: 'CREDIT',
+    motif: 'Immobilisations incorporelles en cours · un crédit peut être un achèvement, lu en FI au débit du compte définitif.',
+  },
+  {
+    numero: '229',
+    lecture: 'CREDIT',
+    motif: 'Aménagements de terrains en cours · un crédit peut être un achèvement, lu en FI au débit du compte définitif.',
+  },
 ];
 
 export const CONTREPARTIES_SANS_TRESORERIE: { numero: string; intitule: string; fondement: string }[] = [

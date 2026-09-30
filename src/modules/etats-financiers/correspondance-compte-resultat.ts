@@ -10,9 +10,10 @@
  * de comptes tels qu'ils figurent au texte · jamais de mémoire, jamais
  * complété depuis le SYSCOHADA (règle §2.6 du plan de construction).
  *
- * Contrairement au bilan · dont le regroupement classe→poste reste
- * simplifié/MVP dans `etats-financiers.service.ts` ·, ce compte de résultat
- * est donc réellement adossé au tableau officiel.
+ * Ce compte de résultat est adossé au tableau officiel, comme le bilan
+ * (`correspondance-bilan.ts`, qui a remplacé le 2026-08-28 le regroupement
+ * simplifié classe → poste d'`etats-financiers.service.ts`) · les deux tables
+ * sont transcrites de la même section du texte.
  *
  * ## Convention de lecture des numéros de comptes
  *

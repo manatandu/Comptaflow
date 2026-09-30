@@ -77,14 +77,26 @@
  * dépréciation qu'il liste sous DEUX postes à la fois · 2919p (AE et AF),
  * 2939p (AJ et AK) et 2949p (AL et AM) ·, sans que rien n'indique la clé de
  * répartition. Le troisième (2949p) manquait à cette liste jusqu'à l'audit
- * du 2026-08-28 ; le code le traitait pourtant déjà comme les deux autres
- * (rattaché en entier à AM, exclu de AL). Dans les trois cas : un
- * compte agrégé "Autres" partagé entre plusieurs postes de détail que la
- * seule balance ne permet pas de désagréger. Pris en entier sous UN SEUL
- * poste (celui dont le libellé "Autres"/"Aménagements" correspond le mieux
- * à l'intitulé du compte 291/293), signalé ici plutôt que dupliqué (ce qui
- * gonflerait artificiellement l'actif net) ou pris par moitié (ce qui
- * inventerait une clé de répartition qu'aucun texte ne donne).
+ * du 2026-08-28. Dans les trois cas : un compte agrégé partagé entre
+ * plusieurs postes de détail que la seule balance ne permet pas de
+ * désagréger. Pris en entier sous UN SEUL poste, signalé ici plutôt que
+ * dupliqué (ce qui gonflerait artificiellement l'actif net) ou pris par
+ * moitié (ce qui inventerait une clé de répartition qu'aucun texte ne
+ * donne). C'est une CONVENTION, et son motif est donné compte par compte :
+ *  - 2919 → AF, le poste « Autres immobilisations incorporelles », qui reçoit
+ *    déjà côté brut le 2198 (autres incorporelles en cours) ;
+ *  - 2939 → AK, par l'intitulé « installations en cours » du compte ;
+ *  - 2949 → AL (« Matériel, mobilier et actifs biologiques »), par
+ *    l'intitulé « matériel en cours » et par la ventilation du compte brut :
+ *    le 249 a les « mêmes subdivisions que 241-248 » (Partie 2 ch. 3,
+ *    compte 24), et sept d'entre elles (2491 à 2494, 2496 à 2498) vont en
+ *    AL, le seul 2495 allant en AM. Même rattachement que la Note 5F
+ *    (`correspondance-notes-associations.ts`, rubrique « Matériel, mobilier
+ *    et actifs biologiques »). Passe R6 : le 2949 était jusque-là déduit en
+ *    entier du matériel de TRANSPORT, sous un motif (« Autres » /
+ *    « Aménagements ») qui ne le couvrait pas · une dépréciation d'un
+ *    matériel de bureau en cours y diminuait le net de AM, jusqu'à le rendre
+ *    négatif, et surévaluait AL d'autant, sans que le total ne bouge.
  */
 
 export type SensBilan = 'ACTIF' | 'PASSIF';
@@ -164,15 +176,18 @@ export const POSTES_ACTIF: PosteBilanDeBase[] = [
     comptes: ['24'],
     exclusions: ['245', '2495'],
     comptesAmortissement: ['284', '294'],
-    // 2845/2945/2949 -> AM (matériel de transport), pas AL.
-    exclusionsAmortissement: ['2845', '2945', '2949'],
+    // 2845/2945 -> AM (matériel de transport). 2949p pris en entier ICI,
+    // poste dont l'intitulé couvre « matériel en cours » et qui reçoit côté
+    // brut 2491 à 2494 et 2496 à 2498, seul 2495 allant en AM. Même
+    // rattachement que la Note 5F. Voir la septième ambiguïté en tête.
+    exclusionsAmortissement: ['2845', '2945'],
   },
   {
     ref: 'AM',
     libelle: 'Matériel de transport',
     sens: 'ACTIF',
     comptes: ['245', '2495'],
-    comptesAmortissement: ['2845', '2945', '2949'],
+    comptesAmortissement: ['2845', '2945'],
   },
   { ref: 'AN', libelle: 'Avances et acomptes versés sur immobilisations corporelles', sens: 'ACTIF', comptes: ['252'], comptesAmortissement: ['2952'] },
   { ref: 'AX', libelle: 'Titres de participation', sens: 'ACTIF', comptes: ['26'], comptesAmortissement: ['296'] },
