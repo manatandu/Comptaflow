@@ -18,6 +18,7 @@ import { ETATS_JOURNAL, bulleCase, moisCourt, sigleCase, type LigneGrilleSaisie 
 import { contrevaleur, coursPropose, devisesEtrangeres, motifLigneEnDevise, type DeviseDuDossier } from '../lib/ligne-en-devise';
 import { lireJournalDeSaisie, urlJournalDeSaisie, type ReponseJournal } from '../lib/journal-de-saisie';
 import { useGardeFermeture } from '../lib/fenetres';
+import { libelleRenvoiDiscordant, remplacementsProposes, type RenvoiDiscordant } from '../lib/regle-compte-saisie';
 
 /**
  * SAISIE DES JOURNAUX · l'écran central du logiciel, calqué sur
@@ -83,6 +84,8 @@ interface RegleCompte {
   intitule: string;
   exclusions: string | null;
   comptesAUtiliser: string[];
+  /** Renvois que le plan du même référentiel intitule autrement (R5-A1). */
+  renvoisDiscordants?: RenvoiDiscordant[];
   elementsDeControle: string | null;
 }
 
@@ -1539,12 +1542,18 @@ export function SaisiePage() {
           <div className="border-t border-warning/40 bg-warning-soft px-3 py-1.5 text-[11px] leading-[1.5]">
             <span className="font-bold">Compte {regleDuCompte.numero} · exclusions du référentiel : </span>
             {regleDuCompte.exclusions}
-            {regleDuCompte.comptesAUtiliser.length > 0 && (
+            {compteChoisi && remplacementsProposes(regleDuCompte.comptesAUtiliser, compteChoisi.numero).length > 0 && (
               <span className="text-text-dim">
                 {' '}
-                (comptes à utiliser à la place : {regleDuCompte.comptesAUtiliser.join(', ')})
+                (comptes à utiliser à la place :{' '}
+                {remplacementsProposes(regleDuCompte.comptesAUtiliser, compteChoisi.numero).join(', ')})
               </span>
             )}
+            {(regleDuCompte.renvoisDiscordants ?? []).map((d) => (
+              <span key={d.numero} className="block text-danger">
+                Anomalie du texte · {libelleRenvoiDiscordant(d)}.
+              </span>
+            ))}
           </div>
         )}
 

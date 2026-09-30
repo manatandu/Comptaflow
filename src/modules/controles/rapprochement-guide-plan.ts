@@ -8,11 +8,14 @@
  *
  * Trois cas, et ils ne se traitent pas pareil.
  *
- *  1. PLUS FIN QUE LE PLAN. Le guide SYCEBNL écrit `6011` là où le plan
- *     s'arrête à `601` ; il écrit `7961` (plan : `796`), `28442` (plan :
- *     `2844`). Le SYSCOHADA écrit `5212` (plan : `5211`), `6811` (plan :
- *     `681`). Ce sont des subdivisions que l'entité ouvre à sa convenance.
- *     On les rattache à leur RACINE connue du plan · c'est le même compte.
+ *  1. PLUS FIN QUE LE PLAN. Le guide SYCEBNL écrit `28442` là où le plan
+ *     s'arrête à `2844` ; le SYSCOHADA écrit `5212` (racine au plan : `521`). Ce sont
+ *     des subdivisions que l'entité ouvre à sa convenance. On les rattache à
+ *     leur RACINE connue du plan · c'est le même compte. (Le `6011` et le
+ *     `7961` que ce paragraphe citait jusqu'au 2026-09-30 sont au plan
+ *     officiel et au semis depuis le 2026-09-05 ; le `6811` est un compte
+ *     ABOLI, qui ne se rattache à rien · voir `COMPTES_ABOLIS_PAR_LA_REVISION`,
+ *     passe R5-C7.)
  *
  *  2. HORS PLAN. L'Application 107 du SYSCOHADA ouvre `06` et `07`
  *     « Exploitation en SP, charges / produits » pour tenir une société en

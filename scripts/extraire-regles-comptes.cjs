@@ -62,8 +62,9 @@ function rubrique(corps, nom) {
  *  · « Il convient … d'utiliser les comptes ci-après : 481 - … ; 25 - … » ·
  *    la liste court jusqu'à la fin du bloc.
  */
-function comptesAUtiliser(texte) {
-  const trouves = [];
+/** Les segments qui suivent « utiliser » · la liste des remplacements. */
+function segmentsAUtiliser(texte) {
+  const segments = [];
   const re = /utiliser/g;
   let m;
   while ((m = re.exec(texte)) !== null) {
@@ -71,9 +72,123 @@ function comptesAUtiliser(texte) {
     // « ci-après » annonce une liste qui va jusqu'au bout ; sinon le
     // remplacement se referme avec la parenthèse.
     const fin = /ci-apr[eè]s/i.test(suite.slice(0, 40)) ? suite.length : (suite.indexOf(')') + 1 || suite.length);
-    for (const n of suite.slice(0, fin).matchAll(/\b(\d{2,5})\b/g)) trouves.push(n[1]);
+    segments.push(suite.slice(0, fin));
   }
-  return [...new Set(trouves)].sort();
+  return segments;
+}
+
+/**
+ * LES NUMÉROS D'UN SEGMENT, PLAGES COMPRISES (passe R5-B4). « utiliser
+ * comptes 21 à 26 » se lisait « 21, 26 » · un terrain légué (22) ou un
+ * matériel (24) disparaissait de la liste. Une plage « N à M » de même
+ * longueur se restitue en entier, comme le texte la désigne.
+ */
+function numerosDuSegment(segment) {
+  const trouves = [];
+  const plages = [];
+  for (const p of segment.matchAll(/\b(\d{2,5})\s+à\s+(\d{2,5})\b/g)) {
+    const [a, b] = [Number(p[1]), Number(p[2])];
+    if (p[1].length === p[2].length && b > a && b - a <= 9) {
+      for (let n = a; n <= b; n++) trouves.push(String(n));
+      plages.push(p[0]);
+    }
+  }
+  let reste = segment;
+  for (const p of plages) reste = reste.replace(p, ' ');
+  for (const n of reste.matchAll(/\b(\d{2,5})\b/g)) trouves.push(n[1]);
+  return trouves;
+}
+
+function comptesAUtiliser(texte) {
+  return [...new Set(segmentsAUtiliser(texte).flatMap(numerosDuSegment))].sort();
+}
+
+/**
+ * LE PLAN SYCEBNL SEMÉ, numéro → intitulé · lu dans `compte-seed.ts`, que ce
+ * script ne modifie pas. Un compte de détail à huit chiffres est rangé aussi
+ * sous son numéro sans les zéros de complément (84800000 → 848).
+ */
+function planSycebnlSeme() {
+  const source = fs.readFileSync('src/modules/comptes/compte-seed.ts', 'utf8');
+  const plan = new Map();
+  for (const m of source.matchAll(/total\('(\d+)',\s*(['"])(.*?)\2/g)) plan.set(m[1], m[3]);
+  for (const m of source.matchAll(/\['(\d{8})',\s*(['"])(.*?)\2\]/g)) {
+    plan.set(m[1], m[3]);
+    const court = m[1].replace(/0+$/, '');
+    if (!plan.has(court)) plan.set(court, m[3]);
+  }
+  return plan;
+}
+const PLAN_SYCEBNL = planSycebnlSeme();
+/** Intitulé normalisé → numéros du plan qui le portent. */
+const INTITULES_SYCEBNL = new Map();
+for (const [numero, intitule] of PLAN_SYCEBNL) {
+  if (numero.length === 8) continue;
+  const cle = intitule
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!INTITULES_SYCEBNL.has(cle)) INTITULES_SYCEBNL.set(cle, []);
+  INTITULES_SYCEBNL.get(cle).push(numero);
+}
+
+const normaliser = (t) =>
+  t
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+/**
+ * LES RENVOIS QUE LE PLAN DU MÊME RÉFÉRENTIEL NUMÉROTE AUTREMENT (passes
+ * R5-A1 et R5-C1). Les fiches 64 et 67 écrivent « 16 · Emprunts et dettes
+ * assimilées » · la numérotation du tableau de synthèse du ch. 1, que le plan
+ * détaillé du ch. 2 a remplacée (16 Fonds affectés, 18 Emprunts). La fiche
+ * 78 écrit « 848 - Transferts de charges H.A.O. » quand le plan intitule le
+ * 848 « Transferts de produits H.A.O. ». Le texte reste CITÉ tel quel ; le
+ * numéro dont TOUTES les citations contredisent l'intitulé semé sort de la
+ * liste « à utiliser » et devient un renvoi discordant, nommé. Rien ne choisit
+ * un autre numéro à la place du texte · la fiche 84 elle-même dit que le 84
+ * « comprend […] des transferts de charges », le texte se contredit.
+ */
+function renvoisDiscordants(texte) {
+  const citations = new Map();
+  for (const segment of segmentsAUtiliser(texte)) {
+    for (const c of segment.matchAll(/\b(?:(\d{2,5})\s+et\s+)?(\d{2,5})\s*[\u2014-]\s*([^;()]+)/g)) {
+      // « 654 et 7542 - Dons en nature courants à distribuer » · un intitulé
+      // posé sur DEUX numéros n'est l'intitulé exact d'aucun des deux, il ne
+      // se confronte pas.
+      if (c[1]) continue;
+      const intitule = c[3].trim().replace(/\.$/, '').trim();
+      if (!citations.has(c[2])) citations.set(c[2], []);
+      citations.get(c[2]).push(intitule);
+    }
+  }
+  const discordants = [];
+  for (const [numero, cites] of citations) {
+    const duPlan = PLAN_SYCEBNL.get(numero);
+    if (!duPlan) continue;
+    const plan = normaliser(duPlan);
+    const concorde = cites.some((c) => {
+      const n = normaliser(c);
+      return n.length > 0 && (plan.includes(n) || n.includes(plan));
+    });
+    // DISCORDANT, ET SEULEMENT LÀ, quand l'intitulé cité est mot pour mot
+    // celui qu'un AUTRE numéro porte au plan. Une simple variante de
+    // rédaction (« Ventes » pour « Revenus ») n'est pas une discordance ·
+    // la déclarer telle retirerait des renvois justes.
+    const autre = cites
+      .map((c) => INTITULES_SYCEBNL.get(normaliser(c)) ?? [])
+      .flat()
+      .find((n) => n !== numero);
+    if (!concorde && autre) discordants.push({ numero, intituleCite: cites[0], intitulePlan: duPlan });
+  }
+  return discordants.sort((a, b) => a.numero.localeCompare(b.numero));
 }
 
 const regles = [];
@@ -89,7 +204,18 @@ for (const nom of fichiers) {
     const m = l.match(/^## COMPTE (\d{1,3}) : (.+)$/);
     if (m) {
       if (courant) fiches.push(courant);
-      courant = { numero: m[1], intitule: m[2].trim(), corps: [] };
+      // UN TITRE, DEUX COMPTES (passe R5-C5) · « COMPTE 62 : Services
+      // extérieurs / COMPTE 63 : Autres services extérieurs ». Le texte les
+      // traite ensemble ; chacun reçoit sa fiche, sur le même corps, comme 90
+      // et 91. Sans cela un 63 n'avait aucune fiche au dossier de révision.
+      const second = m[2].match(/^(.+?)\s*\/\s*COMPTE (\d{1,3}) : (.+)$/);
+      if (second) {
+        const corpsCommun = [];
+        fiches.push({ numero: m[1], intitule: second[1].trim(), corps: corpsCommun });
+        courant = { numero: second[2], intitule: second[3].trim(), corps: corpsCommun };
+      } else {
+        courant = { numero: m[1], intitule: m[2].trim(), corps: [] };
+      }
     } else if (courant) {
       courant.corps.push(l);
     }
@@ -99,11 +225,15 @@ for (const nom of fichiers) {
   for (const f of fiches) {
     const corps = f.corps.join('\n');
     const exclusions = rubrique(corps, 'Exclusions');
+    const discordants = exclusions ? renvoisDiscordants(exclusions) : [];
     regles.push({
       numero: f.numero,
       intitule: f.intitule,
       exclusions,
-      comptesAUtiliser: exclusions ? comptesAUtiliser(exclusions) : [],
+      comptesAUtiliser: exclusions
+        ? comptesAUtiliser(exclusions).filter((n) => !discordants.some((d) => d.numero === n))
+        : [],
+      renvoisDiscordants: discordants,
       elementsDeControle: rubrique(corps, 'Éléments de contrôle'),
     });
   }
@@ -131,6 +261,7 @@ for (const [numero, intitule] of [
     intitule,
     exclusions: exclusions9,
     comptesAUtiliser: exclusions9 ? comptesAUtiliser(exclusions9) : [],
+    renvoisDiscordants: exclusions9 ? renvoisDiscordants(exclusions9) : [],
     elementsDeControle: controle9,
   });
 }
@@ -172,8 +303,17 @@ function rubriqueAudcif(corps, nom) {
  */
 function comptesApresFleche(texte) {
   const trouves = [];
-  for (const m of texte.matchAll(/→\s*([^→]{0,60})/g)) {
-    for (const n of m[1].matchAll(/\b(\d{2,5})\b/g)) trouves.push(n[1]);
+  // TOUT LE SEGMENT, jusqu'à la puce suivante ou à la flèche suivante (passe
+  // R1-C10). Une fenêtre de soixante caractères perdait la fin des listes ·
+  // « → 759 (…) ; 779 (…) ; 849 (…) » rendait 759 seul, et le 697 du 86
+  // disparaissait. Les parenthèses sont des intitulés, jamais des comptes.
+  // Les notes de la TRANSCRIPTION (« *[…]* », « > *Anomalie du texte
+  // officiel* … ») ne sont pas du texte officiel · les numéros qu'elles
+  // citent pour commenter une anomalie ne sont pas des remplacements.
+  const officiel = texte.replace(/\*\[[^\]]*\]\*/g, ' ').replace(/>\s*\*Anomalie[\s\S]*$/, ' ');
+  for (const m of officiel.matchAll(/→\s*([^→]*)/g)) {
+    const segment = m[1].split(/\s-\s/)[0].replace(/\([^)]*\)/g, ' ');
+    for (const n of segment.matchAll(/\b(\d{2,5})\b/g)) trouves.push(n[1]);
   }
   return [...new Set(trouves)].sort();
 }
@@ -198,6 +338,16 @@ for (const nom of fs.readdirSync(dossierAudcif).filter((n) => /^titre-7-comptes-
   }
   if (courant) fiches.push(courant);
 
+  // DES EN-TÊTES QUI SE SUIVENT SANS CORPS SE PARTAGENT LA FICHE COMMUNE
+  // (passe R1-C3). Le Titre VII traite ensemble 62 et 63, 9013, 9014 et 9018,
+  // 9033 et 9038, 9043 et 9048, 9051 et 9058, 9083 et 9088 · seul le DERNIER
+  // en-tête recevait le corps, les autres sortaient sans exclusions ni
+  // éléments de contrôle, et le dossier de révision affichait qu'un 62 n'en a
+  // pas. Parcours à rebours pour que les chaînes de trois se remplissent.
+  for (let i = fiches.length - 2; i >= 0; i--) {
+    if (fiches[i].corps.every((l) => !l.trim())) fiches[i].corps = fiches[i + 1].corps;
+  }
+
   for (const f of fiches) {
     const corps = f.corps.join('\n');
     const exclusions = rubriqueAudcif(corps, 'Exclusions');
@@ -206,6 +356,7 @@ for (const nom of fs.readdirSync(dossierAudcif).filter((n) => /^titre-7-comptes-
       intitule: f.intitule,
       exclusions,
       comptesAUtiliser: exclusions ? comptesApresFleche(exclusions) : [],
+      renvoisDiscordants: [],
       elementsDeControle: rubriqueAudcif(corps, 'Éléments de contrôle'),
     });
   }
@@ -218,6 +369,7 @@ function ecrire(chemin, constante, referentiel, source, table) {
       (r) =>
         `  {\n    numero: ${JSON.stringify(r.numero)},\n    intitule: ${JSON.stringify(r.intitule)},\n` +
         `    exclusions: ${JSON.stringify(r.exclusions)},\n    comptesAUtiliser: ${JSON.stringify(r.comptesAUtiliser)},\n` +
+        `    renvoisDiscordants: ${JSON.stringify(r.renvoisDiscordants)},\n` +
         `    elementsDeControle: ${JSON.stringify(r.elementsDeControle)},\n  },`,
     )
     .join('\n');
@@ -248,6 +400,7 @@ const corps = regles
     (r) =>
       `  {\n    numero: ${JSON.stringify(r.numero)},\n    intitule: ${JSON.stringify(r.intitule)},\n` +
       `    exclusions: ${JSON.stringify(r.exclusions)},\n    comptesAUtiliser: ${JSON.stringify(r.comptesAUtiliser)},\n` +
+      `    renvoisDiscordants: ${JSON.stringify(r.renvoisDiscordants)},\n` +
       `    elementsDeControle: ${JSON.stringify(r.elementsDeControle)},\n  },`,
   )
   .join('\n');
@@ -281,6 +434,12 @@ export interface RegleCompte {
    * suivent « utiliser », jamais les comptes exclus eux-mêmes.
    */
   comptesAUtiliser: string[];
+  /**
+   * Les renvois du texte dont le numéro porte, au plan semé du même
+   * référentiel, un autre intitulé que celui que la fiche lui accole · sortis
+   * de \`comptesAUtiliser\`, nommés, jamais remplacés par un autre numéro.
+   */
+  renvoisDiscordants: { numero: string; intituleCite: string; intitulePlan: string }[];
   /** Texte intégral du bloc « Éléments de contrôle ». */
   elementsDeControle: string | null;
 }

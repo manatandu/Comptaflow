@@ -83,6 +83,21 @@ describe('charge imputée directement sur la trésorerie', () => {
     expect(a!.occurrences[0].montant).toBe(300_000);
   });
 
+  it('la TVA récupérable n’est pas le tiers · un achat avec TVA réglé en banque remonte (R1-B3)', async () => {
+    const svc = service([
+      ecriture('Achat comptant', [ligne('60110000', 100_000), ligne('44520000', 16_000), ligne('52110000', 0, 116_000)]),
+    ]);
+    const a = await trouver(svc);
+    expect(a!.occurrences).toHaveLength(1);
+  });
+
+  it('une retenue à la source (447) absout toujours', async () => {
+    const svc = service([
+      ecriture('Loyer', [ligne('62210000', 300_000), ligne('44710000', 0, 60_000), ligne('52110000', 0, 240_000)]),
+    ]);
+    expect(await trouver(svc)).toBeUndefined();
+  });
+
   it('laisse passer le schéma correct : la charge contre le tiers', async () => {
     // § 2.2 : 6 ou 8 au débit, 4 comptes de tiers au crédit.
     const svc = service([ecriture('Loyer mai', [ligne('62210000', 300_000), ligne('40110000', 0, 300_000)])]);

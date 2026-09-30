@@ -234,7 +234,34 @@ describe('production immobilisée sans immobilisation', () => {
     ]);
     expect(a).toBeDefined();
     expect(a!.occurrences[0].montant).toBe(18_000_000);
-    expect(a!.consequence).toContain('PAR LE DÉBIT');
+    expect(a!.consequence).toContain('par le débit du compte 21');
+  });
+
+  it('au SYSCOHADA, une autoconsommation (724 crédité par le 104) ne fabrique aucune anomalie (R1-C1)', async () => {
+    const a = await trouver('PRODUCTION_IMMOBILISEE_SANS_IMMOBILISATION', [
+      ...stockEnRouteBoucle('38'),
+      ligne('10470000', 'Prélèvements d’autoconsommation', 2_000_000),
+      ligne('72400000', 'Production autoconsommée', 0, 2_000_000),
+      ligne('72600000', 'Immobilisations financières', 0, 1_000_000),
+    ]);
+    expect(a).toBeUndefined();
+  });
+
+  it('au SYCEBNL, la fiche du 72 ne donne au 724 aucune autre contrepartie · rien n’est transposé', async () => {
+    const a = await trouver(
+      'PRODUCTION_IMMOBILISEE_SANS_IMMOBILISATION',
+      [...stockEnRouteBoucle('37'), ligne('72400000', 'Production auto-consommée', 0, 2_000_000)],
+      Referentiel.SYCEBNL,
+    );
+    expect(a!.occurrences.map((o) => o.reference)).toEqual(['72400000 Production auto-consommée']);
+  });
+
+  it('l’action renvoie aux comptes en cours 219, 239 ou 249, jamais au 22 des terrains (R1-C2)', async () => {
+    const a = await trouver('PRODUCTION_IMMOBILISEE_SANS_IMMOBILISATION', [
+      ...stockEnRouteBoucle('38'),
+      ligne('72200000', 'Immobilisations corporelles', 0, 18_000_000),
+    ]);
+    expect(a!.action).toContain('du compte en cours de sa nature (219, 239 ou 249)');
   });
 
   it('signale encore un exercice CLOS · le solde de clôture ne vaut pas immobilisation (régression de F4)', async () => {

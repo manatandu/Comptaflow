@@ -36,9 +36,12 @@ const EXCEPTIONS: Record<
     motif: 'la migration qui remplace le caractère en base le porte comme donnée ; appliquée, elle ne se modifie plus',
   },
   'src/modules/controles/regles-comptes-sycebnl.ts': {
-    // 173 caractères sur 97 lignes · le « 97 » que le § 4 écrivait jusqu'au
-    // 2026-09-28 comptait les lignes, pas les caractères.
-    occurrences: 173,
+    // 174 caractères sur 98 lignes · le « 97 » que le § 4 écrivait jusqu'au
+    // 2026-09-28 comptait les lignes, pas les caractères. Un de plus le
+    // 2026-09-30 (passe R5-C5) · la fiche 63 reçoit la citation commune
+    // « Les comptes 62 et 63 », citée pour les deux comptes, que le texte donne aux
+    // deux comptes.
+    occurrences: 174,
     nomAuParagraphe4: 'regles-comptes-sycebnl.ts',
     nombreImprime: true,
     motif: 'table engendrée, transcription verbatim du SYCEBNL',

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { Collecte, LOT_ECRITURES, LOT_LECTURE, lireParLots, pageApres } from '../../common/lecture-par-lots';
 import { qualifierExemptionIs } from '../fiscalite/exemption-is-ebnl';
@@ -18,6 +18,11 @@ import {
 } from '@prisma/client';
 import { JOURS_ALERTE_RENOUVELLEMENT } from '../exonerations/correspondance-exonerations';
 import { regleAuditeur, type RegleAuditeur } from './regles-auditeur';
+import { conventionInterditeCompteCourant } from './conventions-interdites';
+import { verdictMoitieCapital } from './moitie-capital';
+import { EcritureService } from '../comptabilite/ecriture.service';
+import { EtatsFinanciersSyscohadaService } from '../etats-financiers-syscohada/etats-financiers-syscohada.service';
+import { chargerLignes } from '../etats-financiers/etats-financiers.communs';
 import { sourceManuel } from '../documents-obligatoires/manuel-procedures.service';
 import { PREFIXES_CHIFFRE_AFFAIRES_SYSCOHADA } from '../etats-financiers-syscohada/correspondance-compte-resultat-syscohada';
 import { evaluerComparabilite } from '../etats-financiers/comparabilite-exercices';
@@ -40,10 +45,11 @@ import { aNouveauEnTrop, filtreANouveauEcarte } from '../rapprochement/rapproche
  * trois constantes restent exportées parce que des écrans les citent, mais
  * elles ne valent que pour le SYCEBNL et le disent.
  *
- * Exprimés en FRANCS CFA par les textes, et laissés tels quels : le logiciel
- * ne connaît pas le taux applicable au dossier, et un seuil converti à un
- * taux inventé induirait en erreur plus sûrement qu'un seuil brut annoncé
- * comme tel. Même règle que pour le seuil du Système minimal de trésorerie.
+ * Exprimés en FRANCS CFA par les textes, et laissés tels quels. Ils ne se
+ * comparent pas non plus aux montants du dossier, tenus en francs congolais ·
+ * voir `seuilsAuditeur`. Un seuil converti à un taux inventé induirait en
+ * erreur plus sûrement qu'un seuil brut annoncé comme tel. Même règle que
+ * pour le seuil du Système minimal de trésorerie.
  */
 export const SEUIL_BILAN_AUDITEUR = 100_000_000;
 export const SEUIL_RESSOURCES_AUDITEUR = 200_000_000;
@@ -63,6 +69,13 @@ export interface CritereAuditeur {
   critere: string;
   valeur: number;
   seuil: number;
+  /**
+   * Le critère a-t-il été COMPARÉ à son seuil ? Faux pour les deux critères
+   * monétaires tant que l'équivalent du seuil en francs congolais n'est pas
+   * établi · la valeur est en francs congolais, le seuil en francs CFA, et
+   * `franchi` vaut alors faux sans rien conclure.
+   */
+  mesure: boolean;
   franchi: boolean;
   detail: string;
 }
@@ -271,10 +284,11 @@ const STOCK_PROVENANT_D_IMMOBILISATIONS_PAR_REFERENTIEL: Record<Referentiel, str
 };
 
 /**
- * LES COMPTES QUE LE 72 DÉBITE · fonctionnement identique dans les deux plans.
- * « Est crédité le compte 72 du montant des travaux effectués au cours de
- * l'exercice par l'entité pour elle-même (au coût de production) ; par le
- * débit du compte 21, du compte 23 ou 24. »
+ * LES COMPTES QUE LE 72 DÉBITE · « Est crédité le compte 72 du montant des
+ * travaux effectués au cours de l'exercice par l'entité pour elle-même (au
+ * coût de production) ; par le débit du compte 21, du compte 23 ou 24. » La
+ * fiche AUDCIF ajoute au 724 d'autres contreparties (104, 6617, 6627) · voir
+ * le contrôle, qui ne lit au SYSCOHADA que le 721 et le 722 (passe R1-C1).
  */
 const IMMOBILISATIONS_DE_LA_PRODUCTION = ['21', '23', '24'];
 
@@ -354,7 +368,15 @@ function nombreSiTronque(collecte: Collecte<unknown>): { nombre?: number } {
 export class ControlesService {
   /** Au-delà, une créance ou une dette non lettrée mérite qu'on la regarde. */
   private static readonly JOURS_ANCIENNETE_TIERS = 180;
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // La résolution du bilan du ch. 7 · lue, jamais réécrite, pour les
+    // capitaux propres du contrôle de la moitié du capital. Facultatives pour
+    // les doublures qui n'instancient que Prisma · absentes, ce seul contrôle
+    // ne tourne pas.
+    @Optional() private readonly ecritureService?: EcritureService,
+    @Optional() private readonly etatsSyscohada?: EtatsFinanciersSyscohadaService,
+  ) {}
 
   private async exercice(tenantId: string, exerciceId: string) {
     const ex = await this.prisma.exercice.findFirst({ where: { id: exerciceId, tenantId } });
@@ -388,6 +410,34 @@ export class ControlesService {
         c.numero.startsWith('57') ||
         c.journauxTresorerie.some((j) => /caiss|especes|espèces/i.test(`${j.code} ${j.intitule}`)),
     );
+    return this.soldesJourParJour(tenantId, exerciceId, comptesCaisse);
+  }
+
+  /**
+   * INSTRUMENTS DE MONNAIE ÉLECTRONIQUE, jour par jour (passes R1-B5, R5-C4).
+   *
+   * Les deux textes écrivent, à la fiche de leur compte 55, la règle qu'ils
+   * écrivent de la caisse · « Le solde du compte instruments monétaires
+   * électroniques ne doit être que débiteur ou nul » (AUDCIF Titre VII,
+   * compte 55 ; SYCEBNL Partie 2 ch. 3, compte 55). Rien ne le lisait · un 55
+   * créditeur passait au bilan en diminution de la trésorerie-actif, fondu
+   * avec les banques et la caisse, sans qu'aucune ligne ne le signale. Même
+   * reconstitution que la caisse, sur les seuls comptes 55 de détail.
+   */
+  async controleMonnaieElectronique(tenantId: string, exerciceId: string): Promise<ControleCaisse[]> {
+    await this.exercice(tenantId, exerciceId);
+    const comptes = await this.prisma.compte.findMany({
+      where: { tenantId, typeCompte: TypeCompteDetailTotal.DETAIL, numero: { startsWith: '55' } },
+      include: { journauxTresorerie: { select: { code: true, intitule: true } } },
+    });
+    return this.soldesJourParJour(tenantId, exerciceId, comptes.filter((c) => c.numero.startsWith('55')));
+  }
+
+  private async soldesJourParJour(
+    tenantId: string,
+    exerciceId: string,
+    comptesCaisse: { id: string; numero: string; intitule: string; journauxTresorerie: { code: string }[] }[],
+  ): Promise<ControleCaisse[]> {
     if (comptesCaisse.length === 0) return [];
 
     // PAR TRANCHES, CUMULÉ PAR JOUR (audit final F185) · une caisse
@@ -746,16 +796,31 @@ export class ControlesService {
   }
 
   /**
-   * SEUILS DE DÉSIGNATION DE L'AUDITEUR · Acte uniforme SYCEBNL, article 19.
+   * SEUILS DE DÉSIGNATION DE L'AUDITEUR · la règle du dossier (voir
+   * `regles-auditeur.ts`), mesurée sur la balance.
    *
-   * Les trois critères sont ALTERNATIFS, et le texte les exprime en francs
-   * CFA. Aucune conversion n'est appliquée : le logiciel ne connaît pas le
-   * taux applicable au dossier et un seuil converti à un taux inventé serait
-   * pire qu'un seuil brut. Même discipline que pour le seuil du Système
-   * minimal de trésorerie (voir etats-financiers-smt.service.ts).
+   * LES DEUX CRITÈRES MONÉTAIRES NE SONT PAS COMPARÉS (passes O1b-A2 et G2).
+   * Le dossier est tenu en francs congolais (loi n° 23/053 art. 141, 1° ;
+   * AUDCIF art. 17, 1°), les seuils sont écrits en francs CFA. La première
+   * version comparait les deux nombres bruts et concluait · une monnaie plus
+   * faible gonflait les montants et déclarait franchi un seuil que l'entité
+   * n'avait pas atteint, puis AUDITEUR_OBLIGATOIRE_SANS_MANDAT en naissait :
+   * le signalement fabriqué du § 10 bis. Chaque texte dit à quel équivalent
+   * comparer, et aucun ne donne le chiffre :
    *
-   * Exposé publiquement : l'écran d'analyse s'en sert pour alerter, mais la
-   * mesure vaut aussi comme diagnostic à part entière, hors anomalie.
+   *  · AUSCGIE art. 906 · la contre-valeur en monnaie nationale est celle de
+   *    « la parité en vigueur entre le franc CFA et la monnaie nationale […]
+   *    le jour de l'adoption du présent Acte uniforme » (30 janvier 2014),
+   *    « arrondie à l'unité supérieure ». Cette parité n'est pas au corpus ;
+   *  · SYCEBNL art. 19 · « ou l'équivalent dans l'unité monétaire ayant cours
+   *    légal dans l'État partie », sans date ni cours. L'art. 906 ne lui est
+   *    PAS transposé.
+   *
+   * Aucun cours n'est écrit ici. Tant que l'équivalent n'est pas établi, seul
+   * l'effectif, qui n'a pas d'unité, se compare, et le verdict n'est rendu que
+   * s'il s'établit sans les montants. Sinon il reste INDÉTERMINÉ et se dit.
+   * Même discipline que l'éligibilité au Système minimal de trésorerie, qui ne
+   * convertit rien et ne conclut rien.
    */
   async seuilsAuditeur(
     tenantId: string,
@@ -764,7 +829,15 @@ export class ControlesService {
   ): Promise<{
     criteres: CritereAuditeur[];
     franchis: CritereAuditeur[];
+    /**
+     * Critères monétaires non comparés dont la valeur, en francs congolais,
+     * dépasse le NOMBRE du seuil en francs CFA · ceux que l'ancienne
+     * comparaison brute déclarait franchis.
+     */
+    nonCompares: CritereAuditeur[];
     obligationDeclenchee: boolean;
+    /** Le verdict dépend des critères non comparés · ni oui ni non. */
+    obligationIndeterminee: boolean;
     obligationSansSeuil: boolean;
     regle: RegleAuditeur;
     conversionAppliquee: boolean;
@@ -774,7 +847,22 @@ export class ControlesService {
       where: { id: tenantId },
       select: { referentiel: true, formeJuridiqueSyscohada: true },
     });
-    const regle = regleAuditeur(tenant.referentiel, tenant.formeJuridiqueSyscohada);
+    const filtre = { tenantId, exerciceId, statut: StatutEcriture.VALIDEE };
+    // AUSCGIE art. 875 et 880 · le GIE qui émet des obligations doit un
+    // commissaire aux comptes. L'émission se lit au solde du compte 161
+    // « Emprunts obligataires » de l'exercice, report à-nouveau compris.
+    let gieEmetDesObligations: boolean | null = null;
+    if (
+      tenant.referentiel === Referentiel.SYSCOHADA &&
+      tenant.formeJuridiqueSyscohada === FormeJuridiqueSyscohada.GROUPEMENT_INTERET_ECONOMIQUE
+    ) {
+      const somme = await this.prisma.ligneEcriture.aggregate({
+        where: { ecriture: filtre, compte: { tenantId, numero: { startsWith: '161' } } },
+        _sum: { debit: true, credit: true },
+      });
+      gieEmetDesObligations = Math.abs(Number(somme._sum.credit ?? 0) - Number(somme._sum.debit ?? 0)) > 0.005;
+    }
+    const regle = regleAuditeur(tenant.referentiel, tenant.formeJuridiqueSyscohada, gieEmetDesObligations);
 
     // Une forme sans règle lue ne mesure RIEN · annoncer un seuil emprunté à
     // une autre forme serait pire que se taire.
@@ -782,7 +870,9 @@ export class ControlesService {
       return {
         criteres: [],
         franchis: [],
+        nonCompares: [],
         obligationDeclenchee: false,
+        obligationIndeterminee: false,
         obligationSansSeuil: false,
         regle,
         conversionAppliquee: false,
@@ -795,7 +885,9 @@ export class ControlesService {
       return {
         criteres: [],
         franchis: [],
+        nonCompares: [],
         obligationDeclenchee: false,
+        obligationIndeterminee: false,
         obligationSansSeuil: true,
         regle,
         conversionAppliquee: false,
@@ -818,7 +910,6 @@ export class ControlesService {
     // c'est une situation à la clôture) ; les produits lisent les MOUVEMENTS,
     // écritures de clôture exclues, comme `balanceCumulee` · l'écriture de
     // clôture solde la classe 7 d'un exercice clos.
-    const filtre = { tenantId, exerciceId, statut: StatutEcriture.VALIDEE };
     const [soldesGroupes, mouvementsGroupes] = await Promise.all([
       this.prisma.ligneEcriture.groupBy({
         by: ['compteId'],
@@ -874,25 +965,32 @@ export class ControlesService {
     totalBilan = Math.round(totalBilan * 100) / 100;
     produits = Math.round(produits * 100) / 100;
 
-    const criteres = [
-      {
-        critere: 'Total du bilan',
-        valeur: totalBilan,
-        seuil: regle.seuilBilan,
-        franchi: totalBilan > regle.seuilBilan,
-        detail: `Total du bilan approché à ${totalBilan.toLocaleString('fr-FR')} · seuil ${regle.seuilBilan.toLocaleString('fr-FR')} FCFA`,
-      },
-      {
-        critere: regle.libelleProduits,
-        valeur: produits,
-        seuil: regle.seuilProduits,
-        franchi: produits > regle.seuilProduits,
-        detail: `${regle.libelleProduits} de l'exercice ${produits.toLocaleString('fr-FR')} · seuil ${regle.seuilProduits.toLocaleString('fr-FR')} FCFA`,
-      },
+    // L'équivalent du seuil en francs congolais, et le texte qui le fixe.
+    const equivalent =
+      regle.genre === 'ALTERNATIF'
+        ? "l'article 19 compare à « l'équivalent dans l'unité monétaire ayant cours légal dans l'État partie », que " +
+          'le dossier ne déclare pas'
+        : "l'article 906 de l'AUSCGIE fixe l'équivalent à la parité du franc CFA en vigueur le jour de l'adoption de " +
+          "l'Acte uniforme (30 janvier 2014), arrondie à l'unité supérieure, et cette parité n'est pas au corpus lu";
+    const nonCompare = (libelle: string, valeur: number, seuil: number): CritereAuditeur => ({
+      critere: libelle,
+      valeur,
+      seuil,
+      mesure: false,
+      franchi: false,
+      detail:
+        `${libelle} de ${valeur.toLocaleString('fr-FR')} FC (monnaie de tenue) · seuil ` +
+        `${seuil.toLocaleString('fr-FR')} FCFA · non comparé : ${equivalent}.`,
+    });
+    const criteres: CritereAuditeur[] = [
+      nonCompare('Total du bilan', totalBilan, regle.seuilBilan),
+      nonCompare(regle.libelleProduits, produits, regle.seuilProduits),
       {
         critere: 'Effectif permanent',
         valeur: effectifPermanent,
         seuil: regle.seuilEffectif,
+        // L'effectif n'a pas d'unité monétaire · il se compare tel quel.
+        mesure: true,
         franchi: effectifPermanent > regle.seuilEffectif,
         detail:
           effectifPermanent > 0
@@ -906,16 +1004,24 @@ export class ControlesService {
     // (« l'un des trois »), l'AUSCGIE en demande DEUX sur trois. Alerter une
     // entreprise sur un seul critère l'aurait envoyée chercher un commissaire
     // aux comptes qu'elle n'est pas tenue de désigner.
-    const obligationDeclenchee = regle.genre === 'ALTERNATIF' ? franchis.length >= 1 : franchis.length >= 2;
+    const requis = regle.genre === 'ALTERNATIF' ? 1 : 2;
+    const obligationDeclenchee = franchis.length >= requis;
+    // Convention de lecture d'OmegaX, et elle ne conclut rien : le verdict est
+    // dit indéterminé quand les critères non comparés POURRAIENT le faire
+    // basculer, et seulement pour ceux dont le montant dépasse le nombre du
+    // seuil · ce sont les dossiers que l'ancienne comparaison brute alertait.
+    const nonCompares = criteres.filter((c) => !c.mesure && c.valeur > c.seuil);
+    const obligationIndeterminee = !obligationDeclenchee && franchis.length + nonCompares.length >= requis;
 
     return {
       criteres,
       franchis,
+      nonCompares,
       obligationDeclenchee,
+      obligationIndeterminee,
       obligationSansSeuil: false,
       regle,
-      // Le seuil est légalement exprimé en FCFA et n'est PAS converti · voir
-      // la note de tête de `regles-auditeur.ts`.
+      // Le seuil est légalement exprimé en FCFA et n'est PAS converti.
       conversionAppliquee: false,
       source: regle.source,
     };
@@ -978,7 +1084,10 @@ export class ControlesService {
           if (n.startsWith('40') || n.startsWith('41')) {
             soldesTiers.set(n, (soldesTiers.get(n) ?? 0) + Number(l.debit) - Number(l.credit));
           }
-          if (n.startsWith('9')) comptesClasse9.add(n);
+          // Le report à-nouveau n'est pas un mouvement (passe R5-C2) · les 90
+          // et 91 sont semés en report SOLDE, et le signalement se rallumait à
+          // chaque exercice qui suivait des contributions passées.
+          if (n.startsWith('9') && !e.estGenereeParCloture) comptesClasse9.add(n);
         }
         if (Math.abs(debit - credit) > 0.005) desequilibrees.ajouter(e);
 
@@ -1017,7 +1126,14 @@ export class ControlesService {
           // La présence d'un tiers dans la MÊME écriture suffit à l'absoudre :
           // c'est le cas d'une écriture composée (facture + règlement partiel)
           // ou d'une retenue à la source, où le tiers est bien nommé.
-          const aUnTiers = e.lignes.some((l) => l.compte.numero.startsWith('4'));
+          //
+          // SAUF LA TVA RÉCUPÉRABLE (passe R1-B3). Le 445 n'est pas le tiers de
+          // l'achat · la fiche du compte 40, dans les deux textes, le range du
+          // côté de la charge, dans la facture portée au crédit du fournisseur
+          // (« par le débit des comptes concernés de la classe 6 […] ; par le
+          // débit du compte 445 »). Un achat D 60x + D 4452 / C 521 était
+          // absous, alors que c'est la forme ordinaire de l'écriture visée.
+          const aUnTiers = e.lignes.some((l) => l.compte.numero.startsWith('4') && !l.compte.numero.startsWith('445'));
           if (aUneCharge && aUneTresorerieCreditee && !aUnTiers) chargesDirectes.ajouter(e);
         } else if (
           !e.estGenereeParCloture &&
@@ -1087,6 +1203,36 @@ export class ControlesService {
         occurrences: caissesNegatives.map((c) => ({
           reference: `${c.numero} ${c.intitule}`,
           detail: `Créditrice ${c.nombreJoursNegatifs} jour(s), pour la première fois le ${c.premierJourNegatif}`,
+          date: c.premierJourNegatif ?? undefined,
+          montant: Math.min(...c.journees.filter((j) => j.negatif).map((j) => j.soldeFinJournee)),
+        })),
+      });
+    }
+
+    // --- 1 bis. Instrument de monnaie électronique créditeur -----------------
+    //
+    // Les deux textes l'écrivent chacun à sa fiche 55, et c'est lui que le
+    // message cite. La « présomption d'irrégularité » n'est PAS reprise · le
+    // texte ne la pose que pour la caisse. D'où AVERTISSEMENT et non BLOQUANT.
+    const electroniques = (await this.controleMonnaieElectronique(tenantId, exerciceId)).filter(
+      (c) => c.nombreJoursNegatifs > 0,
+    );
+    if (electroniques.length > 0) {
+      anomalies.push({
+        code: 'MONNAIE_ELECTRONIQUE_CREDITRICE',
+        gravite: 'AVERTISSEMENT',
+        libelle: 'Instrument de monnaie électronique créditeur',
+        consequence:
+          '« Le solde du compte instruments monétaires électroniques ne doit être que débiteur ou nul » (' +
+          (tenant.referentiel === Referentiel.SYCEBNL
+            ? 'SYCEBNL, Partie 2 ch. 3, compte 55'
+            : 'AUDCIF, Titre VII, compte 55') +
+          '). Au bilan, un solde créditeur diminue la trésorerie-actif sans ligne qui le montre.',
+        action:
+          'Enregistrez le chargement AVANT les paiements du même jour, ou retrouvez le chargement manquant.',
+        occurrences: electroniques.map((c) => ({
+          reference: `${c.numero} ${c.intitule}`,
+          detail: `Créditeur ${c.nombreJoursNegatifs} jour(s), pour la première fois le ${c.premierJourNegatif}`,
           date: c.premierJourNegatif ?? undefined,
           montant: Math.min(...c.journees.filter((j) => j.negatif).map((j) => j.soldeFinJournee)),
         })),
@@ -1460,7 +1606,8 @@ export class ControlesService {
     // retrouver au compte de résultat.
     //
     // LA CLASSE 9 NE PORTE PAS LA MÊME CHOSE DANS LES DEUX PLANS. En SYCEBNL
-    // ce sont les contributions volontaires en nature (900 à 914). En
+    // ce sont les contributions volontaires en nature (90 et 91) et la
+    // comptabilité analytique de gestion (92 à 99). En
     // SYSCOHADA ce sont les engagements hors bilan (90 · obtenus au débit des
     // 901-904, accordés au crédit des 905-908, contreparties 911-918) ET la
     // comptabilité analytique de gestion (92 à 99). Annoncer des
@@ -1468,20 +1615,45 @@ export class ControlesService {
     // d'enregistrer une caution, et la renvoyer à une note annexe absente de
     // sa liasse, était faux deux fois.
     const classe9 = [...parcours.comptesClasse9];
-    if (classe9.length > 0) {
-      const estSycebnlClasse9 = tenant.referentiel === Referentiel.SYCEBNL;
+    // AU SYCEBNL AUSSI, LA CLASSE 9 PORTE DEUX CHOSES (passes R5-A4, R5-C2) ·
+    // « Classe 9 : comptes des contributions volontaires en nature et comptes
+    // de la comptabilité analytique » (Partie 2 ch. 1), les 92 à 99 étant
+    // « laissé[s] à l'initiative des entités » (ch. 3, section 9,
+    // sous-section 2). Annoncer une contribution volontaire sur un 94 de coûts
+    // était le défaut corrigé côté SYSCOHADA, resté entier ici.
+    const estSycebnlClasse9 = tenant.referentiel === Referentiel.SYCEBNL;
+    const contributions = estSycebnlClasse9 ? classe9.filter((n) => /^9[01]/.test(n)) : [];
+    const analytiqueSycebnl = estSycebnlClasse9 ? classe9.filter((n) => !/^9[01]/.test(n)) : [];
+    if (contributions.length > 0) {
       anomalies.push({
         code: 'CLASSE_9_MOUVEMENTEE',
         gravite: 'INFORMATION',
-        libelle: estSycebnlClasse9
-          ? 'Contributions volontaires en nature enregistrées'
-          : 'Comptes de classe 9 mouvementés (engagements hors bilan ou comptabilité analytique)',
-        consequence: estSycebnlClasse9
-          ? 'Les comptes de classe 9 sont hors bilan et hors résultat : ils ne modifient ni le résultat ni la situation nette, et se présentent en note annexe.'
-          : 'Les comptes de classe 9 sont hors bilan et hors compte de résultat. Les engagements des comptes 90 et 91 se portent aux Notes annexes · ils supposent une convention écrite. Les comptes 92 à 99 relèvent de la comptabilité analytique de gestion et n’entrent dans aucun état de synthèse.',
-        action: estSycebnlClasse9
-          ? 'Vérifiez que la note annexe des contributions volontaires est renseignée.'
-          : 'Vérifiez que la note annexe des engagements hors bilan est renseignée.',
+        libelle: 'Contributions volontaires en nature enregistrées',
+        consequence:
+          'Les comptes de classe 9 sont hors bilan et hors résultat : ils ne modifient ni le résultat ni la situation nette, et se présentent en note annexe.',
+        action: 'Vérifiez que la note annexe des contributions volontaires est renseignée.',
+        occurrences: contributions.map((n) => ({ reference: n, detail: 'Compte de contributions volontaires mouvementé' })),
+      });
+    }
+    if (analytiqueSycebnl.length > 0) {
+      anomalies.push({
+        code: 'CLASSE_9_ANALYTIQUE_MOUVEMENTEE',
+        gravite: 'INFORMATION',
+        libelle: 'Comptes de la comptabilité analytique de gestion mouvementés (92 à 99)',
+        consequence:
+          'Les comptes 92 à 99 relèvent de la comptabilité analytique de gestion (Partie 2 ch. 3, section 9, sous-section 2) · hors bilan et hors compte de résultat, ils n’entrent dans aucun état de synthèse.',
+        action: 'Vérifiez que ces écritures relèvent bien de la comptabilité analytique et non des contributions volontaires.',
+        occurrences: analytiqueSycebnl.map((n) => ({ reference: n, detail: 'Compte de comptabilité analytique mouvementé' })),
+      });
+    }
+    if (!estSycebnlClasse9 && classe9.length > 0) {
+      anomalies.push({
+        code: 'CLASSE_9_MOUVEMENTEE',
+        gravite: 'INFORMATION',
+        libelle: 'Comptes de classe 9 mouvementés (engagements hors bilan ou comptabilité analytique)',
+        consequence:
+          'Les comptes de classe 9 sont hors bilan et hors compte de résultat. Les engagements des comptes 90 et 91 se portent aux Notes annexes · ils supposent une convention écrite. Les comptes 92 à 99 relèvent de la comptabilité analytique de gestion et n’entrent dans aucun état de synthèse.',
+        action: 'Vérifiez que la note annexe des engagements hors bilan est renseignée.',
         occurrences: classe9.map((n) => ({ reference: n, detail: 'Compte de classe 9 mouvementé' })),
       });
     }
@@ -1504,6 +1676,22 @@ export class ControlesService {
     // bilan, classe 7 pour les ressources), pas repris de la liasse arrêtée.
     // Il alerte, l'expert tranche · d'où la gravité AVERTISSEMENT.
     const seuils = await this.seuilsAuditeur(tenantId, exerciceId, tenant.effectifPermanent);
+    // LA SORTIE DE L'OBLIGATION, DANS LES MOTS DU TEXTE (passe O1b-A8). Les
+    // art. 376, 853-13 et 289-1 (celui-ci valant pour la SCS par l'art. 293-1)
+    // écrivent tous la même phrase : la société n'est plus tenue « dès lors
+    // qu'elle n'a pas rempli deux (2) des conditions fixées ci-dessus pendant
+    // les deux (2) exercices précédant l'expiration du mandat du commissaire
+    // aux comptes ». « Deux exercices consécutifs » laissait croire qu'un
+    // commissaire s'écarte en cours de mandat.
+    const sortieAuscgie =
+      "La société cesse d'être tenue de désigner un commissaire aux comptes lorsqu'elle n'a pas rempli deux des " +
+      "conditions pendant les deux exercices précédant l'expiration du mandat du commissaire aux comptes " +
+      `(${seuils.source}) · ce contrôle ne regarde qu'un exercice.`;
+    // AUSCGIE art. 897 · « Encourent une sanction pénale, les dirigeants
+    // sociaux qui n'ont pas provoqué la désignation des commissaires aux
+    // comptes de la société » (passe O1b-G8). La Partie 3 renvoie les peines
+    // au droit pénal national · aucune n'est chiffrée.
+    const sanctionAuscgie = "L'article 897 de l'AUSCGIE punit les dirigeants qui n'ont pas provoqué la désignation.";
     if (seuils.obligationDeclenchee) {
       const alternatif = seuils.regle.genre === 'ALTERNATIF';
       anomalies.push({
@@ -1518,15 +1706,38 @@ export class ControlesService {
             "à 200 000 000 FCFA, ou plus de vingt personnes employées à titre permanent. Les articles 24 à 27 prévoient " +
             'des sanctions pénales.'
           : `${seuils.source} rend la désignation d'un commissaire aux comptes obligatoire dès que DEUX des trois ` +
-            'conditions sont remplies à la clôture. Le dossier en remplit deux ou plus.',
+            `conditions sont remplies à la clôture. Le dossier en remplit deux ou plus. ${sanctionAuscgie}`,
         action: alternatif
           ? "Faites désigner un auditeur, et prévoyez de lui remettre les états financiers et le rapport de gestion au " +
-            "moins 45 jours avant l'assemblée générale (art. 19, alinéa 4). Les montants ci-dessous sont approchés " +
-            'depuis la balance : confrontez-les à la liasse arrêtée avant de conclure.'
-          : "Faites désigner un commissaire aux comptes. La sortie de l'obligation suppose DEUX exercices consécutifs " +
-            "sous les seuils, que ce contrôle ne mesure pas · il ne regarde qu'un exercice. Les montants ci-dessous " +
-            'sont approchés depuis la balance : confrontez-les à la liasse arrêtée avant de conclure.',
+            "moins 45 jours avant l'assemblée générale (art. 19, alinéa 4)."
+          : `Faites désigner un commissaire aux comptes. ${sortieAuscgie}`,
         occurrences: seuils.franchis.map((f) => ({ reference: f.critere, detail: f.detail })),
+      });
+    }
+    // LE VERDICT QUE LES MONTANTS SEULS POURRAIENT FAIRE BASCULER. Les deux
+    // critères monétaires ne sont pas comparés (voir `seuilsAuditeur`) · le
+    // contrôle informe, sans affirmer l'obligation ni l'écarter.
+    if (seuils.obligationIndeterminee) {
+      const alternatif = seuils.regle.genre === 'ALTERNATIF';
+      anomalies.push({
+        code: 'SEUILS_AUDITEUR_NON_COMPARES',
+        gravite: 'INFORMATION',
+        libelle: alternatif
+          ? "Seuils de désignation d'un auditeur à comparer en francs congolais"
+          : 'Seuils de désignation du commissaire aux comptes à comparer en francs congolais',
+        consequence:
+          `${seuils.source} exprime ses seuils en francs CFA, le dossier est tenu en francs congolais. Les montants ` +
+          'ci-dessous dépassent le nombre du seuil sans lui être comparables · ' +
+          (alternatif
+            ? "l'article 19 compare à « l'équivalent dans l'unité monétaire ayant cours légal dans l'État partie »."
+            : "l'article 906 de l'AUSCGIE fixe l'équivalent à la parité du franc CFA en vigueur le jour de l'adoption " +
+              "de l'Acte uniforme (30 janvier 2014), arrondie à l'unité supérieure. " +
+              sanctionAuscgie),
+        action:
+          'Établissez l’équivalent des seuils en francs congolais avec sa source, puis confrontez-le aux montants de ' +
+          'la liasse arrêtée · OmegaX ne convertit pas et ne conclut pas.' +
+          (alternatif ? '' : ` ${sortieAuscgie}`),
+        occurrences: seuils.nonCompares.map((f) => ({ reference: f.critere, detail: f.detail })),
       });
     }
     // La société anonyme n'a pas de seuil à franchir · son obligation est
@@ -1536,7 +1747,12 @@ export class ControlesService {
         code: 'COMMISSAIRE_AUX_COMPTES_OBLIGATOIRE',
         gravite: 'INFORMATION',
         libelle: 'Commissaire aux comptes obligatoire, sans condition de taille',
-        consequence: `${seuils.regle.source} · ${seuils.regle.motif}`,
+        // L'art. 897 vise les « dirigeants sociaux […] de la société » · il est
+        // servi à la société anonyme, pas au GIE émetteur, dont la répression
+        // propre (art. 881) ne porte que sur les obligations.
+        consequence:
+          `${seuils.regle.source} · ${seuils.regle.motif}` +
+          (tenant.formeJuridiqueSyscohada === FormeJuridiqueSyscohada.SOCIETE_ANONYME ? ` ${sanctionAuscgie}` : ''),
         action: "Vérifiez que le mandat est en cours et que le commissaire recevra les comptes en temps utile.",
         occurrences: [],
       });
@@ -2227,6 +2443,9 @@ export class ControlesService {
       }
       const debiteurs = [...soldes462.entries()].filter(([, v]) => v.solde > 0.005).sort(([a], [b]) => a.localeCompare(b));
       if (debiteurs.length > 0) {
+        // Le droit des sociétés annule, pour certains titulaires, le prêt que
+        // l'action proposait comme justification (voir conventions-interdites.ts).
+        const interdiction = conventionInterditeCompteCourant(tenant.formeJuridiqueSyscohada);
         anomalies.push({
           code: 'COMPTE_COURANT_ASSOCIE_DEBITEUR',
           gravite: 'INFORMATION',
@@ -2234,15 +2453,74 @@ export class ControlesService {
           consequence:
             'Les sommes mises à la disposition des associés à titre d’avances, de prêts ou d’acomptes sont ' +
             'présumées revenus distribués, sauf preuve contraire (loi n° 23/053, art. 73, al. 2, 2°, a), et portent ' +
-            'la retenue de 20 % de l’art. 120. Remboursées, elles viennent en déduction pour la période du remboursement.',
-          action:
-            'Justifiez chaque solde débiteur (convention de prêt, remboursement intervenu) ou traitez-le en revenu ' +
-            'distribué. OmegaX ne chiffre aucune retenue.',
+            'la retenue de 20 % de l’art. 120. Remboursées, elles viennent en déduction pour la période du remboursement.' +
+            (interdiction ? ` ${interdiction}` : ''),
+          action: interdiction
+            ? 'Identifiez le titulaire de chaque solde débiteur. Justifiez-le par un remboursement intervenu, ou par une ' +
+              'convention de prêt seulement si le titulaire n’est pas visé par l’interdiction ci-dessus, ou traitez-le ' +
+              'en revenu distribué. OmegaX ne qualifie aucun solde et ne chiffre aucune retenue.'
+            : 'Justifiez chaque solde débiteur (convention de prêt, remboursement intervenu) ou traitez-le en revenu ' +
+              'distribué. OmegaX ne chiffre aucune retenue.',
           occurrences: debiteurs.slice(0, 200).map(([numero, v]) => ({
             reference: `${numero} ${v.intitule}`,
             detail: 'Solde débiteur sur l’exercice',
             montant: Math.round(v.solde * 100) / 100,
           })),
+        });
+      }
+    }
+
+    // --- 19 bis A. Capitaux propres sous la moitié du capital (O1b-D1, G3) ----
+    //
+    // AUSCGIE art. 371 à 373 (SARL), 664 à 669 (SA, et SAS par l'art. 853-3),
+    // 901 · voir moitie-capital.ts. Les grandeurs sont celles de l'AUDCIF,
+    // Titre VIII ch. 16, section 3, et le bilan est lu par la résolution du
+    // ch. 7, livre-journal seul et avant le solde des comptes de gestion,
+    // comme les états financiers.
+    if (tenant.referentiel === Referentiel.SYSCOHADA && this.ecritureService && this.etatsSyscohada) {
+      const lignes = await chargerLignes(this.ecritureService, tenantId, exerciceId);
+      const soldeRacine = (racine: string) =>
+        lignes.filter((l) => l.numero.startsWith(racine)).reduce((t, l) => t + Number(l.solde), 0);
+      const cp = this.etatsSyscohada.resoudreBilanSurLignes(lignes).resolution.parRef.get('CP')?.montant ?? 0;
+      const verdict = verdictMoitieCapital(tenant.formeJuridiqueSyscohada, cp, soldeRacine('109'), -soldeRacine('101'));
+      // LE 109 ET LE 1011, UNE IDENTITÉ QUE LA FICHE POSE (passe R1-A7).
+      // AUDCIF Titre VII, fiche du compte 109, éléments de contrôle · « compte
+      // 1011 (Capital souscrit, non appelé), de solde opposé et de montant
+      // identique ». Un appel de fonds qui vire le 1011 au 1012 sans créditer
+      // le 109 laisse les capitaux propres faux d'autant, sur une balance qui
+      // boucle. Rien n'est proposé · l'écriture manquante est un fait à
+      // retrouver, pas à deviner.
+      const solde109 = soldeRacine('109');
+      const solde1011 = soldeRacine('1011');
+      if (Math.abs(solde109 + solde1011) > 0.005) {
+        anomalies.push({
+          code: 'CAPITAL_NON_APPELE_DISCORDANT',
+          gravite: 'INFORMATION',
+          libelle: 'Capital souscrit non appelé · le 109 et le 1011 ne se correspondent pas',
+          consequence:
+            'La fiche du compte 109 (AUDCIF, Titre VII) donne pour élément de contrôle le « compte 1011 (Capital ' +
+            'souscrit, non appelé), de solde opposé et de montant identique ». Ici les deux soldes ne se ' +
+            'compensent pas.',
+          action:
+            'Vérifiez les décisions d’appel de fonds · un appel se passe au 1011 vers le 1012 et au 467 par le crédit ' +
+            'du 109.',
+          occurrences: [
+            { reference: '109', detail: 'Solde débiteur (positif) ou créditeur (négatif)', montant: Math.round(solde109 * 100) / 100 },
+            { reference: '1011', detail: 'Solde débiteur (positif) ou créditeur (négatif)', montant: Math.round(solde1011 * 100) / 100 },
+          ],
+        });
+      }
+      if (verdict) {
+        anomalies.push({
+          code: 'CAPITAUX_PROPRES_INFERIEURS_MOITIE_CAPITAL',
+          gravite: 'INFORMATION',
+          libelle: 'Capitaux propres inférieurs à la moitié du capital social',
+          consequence: verdict.consequence,
+          action: verdict.action,
+          occurrences: [
+            { reference: 'Capitaux propres', detail: 'Total du bilan augmenté du capital non appelé', montant: verdict.capitauxPropres },
+            { reference: 'Capital social', detail: 'Solde créditeur du compte 101', montant: verdict.capital },
+          ],
         });
       }
     }
@@ -2578,12 +2856,45 @@ export class ControlesService {
         },
       },
     });
-    const sansTerrain = batimentsSolPropre.filter(
+    const sansLigneDeTerrain = batimentsSolPropre.filter(
       (i) =>
         i.compteImmobilisation?.numero?.startsWith('231') &&
         i.ecritureAcquisition &&
         !i.ecritureAcquisition.lignes.some((l) => l.compte?.numero?.startsWith('22')),
     );
+    // LA VENTILATION SE LIT LÀ OÙ LE MODULE PEUT LA PORTER (passe R5-B3). Le
+    // module des immobilisations écrit l'acquisition en DEUX lignes exactement
+    // (le bien, sa contrepartie), et la contrepartie n'est jamais un 22 · un
+    // bâtiment créé par lui était donc signalé à chaque exercice, même avec
+    // son terrain entré sur sa propre fiche. Le contrôle fabriquait l'anomalie
+    // qu'il dénonce (§ 10 bis). Le terrain est tenu pour ventilé quand une
+    // fiche au compte 22 porte la MÊME date d'acquisition, ou qu'une ligne au
+    // débit d'un 22 est passée le même jour. Une déclaration « sans terrain »
+    // sur la fiche n'existe pas encore au schéma.
+    let sansTerrain = sansLigneDeTerrain;
+    if (sansLigneDeTerrain.length > 0) {
+      const jour = (d: Date) => d.toISOString().slice(0, 10);
+      const dates = [...new Set(sansLigneDeTerrain.map((i) => jour(i.dateAcquisition)))].map((d) => new Date(d));
+      const [terrains, lignesTerrain] = await Promise.all([
+        this.prisma.immobilisation.findMany({
+          where: { tenantId, compteImmobilisation: { numero: { startsWith: '22' } } },
+          select: { dateAcquisition: true },
+        }),
+        this.prisma.ligneEcriture.findMany({
+          where: {
+            debit: { gt: 0 },
+            compte: { tenantId, numero: { startsWith: '22' } },
+            ecriture: { tenantId, date: { in: dates } },
+          },
+          select: { ecriture: { select: { date: true } } },
+        }),
+      ]);
+      const joursVentiles = new Set([
+        ...terrains.map((t) => jour(t.dateAcquisition)),
+        ...lignesTerrain.map((l) => jour(l.ecriture.date)),
+      ]);
+      sansTerrain = sansLigneDeTerrain.filter((i) => !joursVentiles.has(jour(i.dateAcquisition)));
+    }
     if (sansTerrain.length > 0) {
       const sourceVentilation =
         tenant.referentiel === Referentiel.SYCEBNL
@@ -2595,7 +2906,8 @@ export class ControlesService {
         libelle: 'Bâtiment sur sol propre entré sans part de terrain',
         consequence:
           `Le texte (${sourceVentilation}) impose de distinguer dès l’origine la valeur du terrain de celle de ` +
-          'la construction. L’écriture d’acquisition de ces biens ne touche aucun compte 22 : le prix global est ' +
+          'la construction. Aucun terrain (compte 22) n’est entré le jour de l’acquisition de ces biens, ni par ' +
+          'leur écriture, ni sur une fiche, ni par une autre écriture : le prix global est ' +
           'donc resté sur le bâtiment, et il s’amortit EN ENTIER, terrain compris. La dotation est majorée de la ' +
           'part du terrain à chaque exercice, le résultat minoré d’autant, et la valeur nette du terrain s’érode ' +
           'alors qu’un terrain ne s’use pas. Rien ne le trahit : l’écriture s’équilibre et la balance boucle. ' +
@@ -2608,7 +2920,7 @@ export class ControlesService {
           'sol d’autrui (compte 232), qui n’a pas de terrain à ventiler.',
         occurrences: sansTerrain.slice(0, 200).map((i) => ({
           reference: `${i.compteImmobilisation.numero} ${i.designation}`,
-          detail: `Acquisition ${i.ecritureAcquisition?.numeroPiece ?? ''} · aucune ligne sur un compte 22`,
+          detail: `Acquisition ${i.ecritureAcquisition?.numeroPiece ?? ''} · aucun terrain entré le même jour`,
           montant: Math.round(Number(i.valeurOrigine) * 100) / 100,
           date: i.dateAcquisition.toISOString().slice(0, 10),
         })),
@@ -3154,7 +3466,18 @@ export class ControlesService {
     // phrase. Un 72 crédité sans qu'aucune immobilisation ne soit entrée
     // signale une contrepartie manquante ou passée ailleurs, et cette
     // fois-ci le dossier a bien écrit quelque chose.
-    const productionImmobilisee = cumul((n) => n.startsWith('72'));
+    //
+    // AU SYSCOHADA, LE 721 ET LE 722 SEULS (passe R1-C1). La fiche AUDCIF du
+    // compte 72 donne au 724 d'autres contreparties · « par le débit du compte
+    // 104 (Compte de l'exploitant) ou des comptes 6617 et 6627 (Avantages en
+    // nature) pour la production autoconsommée » · et le 726 (immobilisations
+    // financières, « en cas d'OPE ou d'OPA ») n'a pas pour contrepartie un 21,
+    // 23 ou 24. Les lire signalait une autoconsommation régulière comme un
+    // bien produit sans actif. Au SYCEBNL, la fiche du 72 ne décrit aucune
+    // contrepartie propre au 724 · rien n'y est transposé.
+    const racinesProductionImmobilisee = referentielDossier === Referentiel.SYSCOHADA ? ['721', '722'] : ['72'];
+    const estProductionImmobilisee = (n: string) => racinesProductionImmobilisee.some((r) => n.startsWith(r));
+    const productionImmobilisee = cumul(estProductionImmobilisee);
     const entreesImmobilisations = IMMOBILISATIONS_DE_LA_PRODUCTION.reduce(
       (t, r) => t + cumul((n) => n.startsWith(r)).debit,
       0,
@@ -3165,20 +3488,30 @@ export class ControlesService {
         gravite: 'AVERTISSEMENT',
         libelle: 'Production immobilisée créditée sans entrée d’immobilisation',
         consequence:
-          'Le compte 72 « Production immobilisée » porte un solde créditeur alors qu’aucun compte 21, 23 ou 24 ' +
-          'n’a été débité de l’exercice. Les deux plans écrivent la même contrepartie : le 72 « est crédité du ' +
-          'montant des travaux effectués au cours de l’exercice par l’entité pour elle-même, au coût de ' +
-          'production, PAR LE DÉBIT du compte 21, du compte 23 ou 24 ». Sans l’entrée en immobilisation, le ' +
-          'produit est constaté sans l’actif qui le justifie, et l’exercice suivant ne portera aucun ' +
-          'amortissement sur un bien pourtant en service.',
+          (referentielDossier === Referentiel.SYSCOHADA
+            ? 'Les comptes 721 et 722 de la production immobilisée portent un solde créditeur alors qu’aucun ' +
+              'compte 21, 23 ou 24 n’a été débité de l’exercice. La fiche du compte 72 (AUDCIF, Titre VII) le fait ' +
+              'créditer « par le débit du compte 21 […] ou par le débit du compte 23 […] ou 24 » · la production ' +
+              'autoconsommée (724), elle, a pour contrepartie le 104 ou les 6617 et 6627, et n’est pas lue ici.'
+            : 'Le compte 72 « Production immobilisée » porte un solde créditeur alors qu’aucun compte 21, 23 ou 24 ' +
+              'n’a été débité de l’exercice. La fiche du compte 72 le fait créditer « du montant des travaux ' +
+              'effectués au cours de l’exercice par l’entité pour elle-même (au coût de production) ; par le débit : ' +
+              'du compte 21 […] ; du compte 23 […] ; ou 24 ».') +
+          ' Sans l’entrée en immobilisation, le produit est constaté sans l’actif qui le justifie, et l’exercice ' +
+          'suivant ne portera aucun amortissement sur un bien pourtant en service.',
+        // LES TRAVAUX NON ACHEVÉS VONT AUX COMPTES « EN COURS » (passe R1-C2) ·
+        // 219, 239 ou 249, subdivisions des 21, 23 et 24 dans les deux plans.
+        // Le 22 est celui des Terrains, que le 72 ne débite jamais, et un
+        // comptable qui l'aurait suivi n'aurait pas fait tomber ce contrôle.
         action:
           'Portez le bien produit à l’actif, au coût de production, par le débit du compte d’immobilisation de ' +
-          'sa nature · ou du 22 si les travaux ne sont pas achevés à la clôture. Le coût retenu doit intégrer ' +
+          'sa nature · ou, si les travaux ne sont pas achevés à la clôture, du compte en cours de sa nature ' +
+          '(219, 239 ou 249). Le coût retenu doit intégrer ' +
           'tous les intrants : matériaux consommés, charges directes et charges indirectes rattachables, et les ' +
           'frais financiers des emprunts exclusivement affectés à la fabrication, pour la seule période de ' +
           'fabrication.',
         occurrences: [...parNumero.entries()]
-          .filter(([n, v]) => n.startsWith('72') && v.credit - v.debit > 0.005)
+          .filter(([n, v]) => estProductionImmobilisee(n) && v.credit - v.debit > 0.005)
           .sort(([a], [b]) => a.localeCompare(b))
           .slice(0, 50)
           .map(([numero, v]) => ({

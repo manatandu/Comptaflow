@@ -24,13 +24,22 @@ const NUMEROS_PLAN = PLAN_COMPTES_SYCEBNL.map((c) => c.numero);
 const existe = (n: string) => NUMEROS_PLAN.some((p) => p.startsWith(n) || n.startsWith(p));
 
 describe('couverture du chapitre 3', () => {
-  it('porte les 78 fiches · 76 comptes des classes 1 à 8, plus 90 et 91', () => {
+  it('porte les 79 fiches · 77 comptes des classes 1 à 8, plus 90 et 91', () => {
     // La classe 9 ne présente pas de fiche par compte : le texte traite 90 et
     // 91 ENSEMBLE sous une sous-section. Les écarter aurait perdu une règle
     // vraie, ils reçoivent donc le même texte, ce que le texte dit lui-même.
-    expect(REGLES_COMPTES_SYCEBNL).toHaveLength(78);
+    // Même partage pour 62 et 63, sous un seul titre (passe R5-C5).
+    expect(REGLES_COMPTES_SYCEBNL).toHaveLength(79);
     expect(REGLES_COMPTES_SYCEBNL.filter((r) => r.exclusions)).toHaveLength(71);
-    expect(REGLES_COMPTES_SYCEBNL.filter((r) => r.elementsDeControle)).toHaveLength(77);
+    expect(REGLES_COMPTES_SYCEBNL.filter((r) => r.elementsDeControle)).toHaveLength(78);
+  });
+
+  it('le 63 a sa fiche, sur le texte commun aux comptes 62 et 63 (R5-C5)', () => {
+    const par = (n: string) => REGLES_COMPTES_SYCEBNL.find((r) => r.numero === n)!;
+    expect([par('62').intitule, par('63').intitule]).toEqual(['Services extérieurs', 'Autres services extérieurs']);
+    expect(par('63').elementsDeControle).toContain('Les comptes 62 et 63');
+    expect(par('63').elementsDeControle).toBe(par('62').elementsDeControle);
+    expect(DossierRevisionService.regleDe('63100000', REGLES_COMPTES_SYCEBNL)?.numero).toBe('63');
   });
 
   it('les trois fiches à TROIS chiffres sont là', () => {
@@ -94,6 +103,46 @@ describe('un compte ne se propose jamais en remplacement de lui-même', () => {
     expect(par('40').comptesAUtiliser).toEqual(['25', '481']);
     // « … utiliser les comptes ci-après : 53 … ; 538 … »
     expect(par('52').comptesAUtiliser).toEqual(['53', '538']);
+  });
+
+  it('une plage « 21 à 26 » se restitue en entier, jamais en deux numéros (R5-B4)', () => {
+    const vingt = REGLES_COMPTES_SYCEBNL.find((r) => r.numero === '20')!;
+    expect(vingt.exclusions).toContain('utiliser comptes 21 à 26');
+    expect(vingt.comptesAUtiliser).toEqual(['21', '22', '23', '24', '25', '26']);
+  });
+});
+
+describe('un renvoi que le plan du même référentiel numérote autrement (R5-A1, R5-C1)', () => {
+  const par = (n: string) => REGLES_COMPTES_SYCEBNL.find((r) => r.numero === n)!;
+  it('« 16 · Emprunts et dettes assimilées » des fiches 64 et 67 est nommé discordant, pas proposé', () => {
+    // Au plan détaillé (ch. 2) et au semis, 16 est « Fonds affectés », les
+    // emprunts sont au 18 · la fiche 56 écrit bien 18.
+    for (const n of ['64', '67']) {
+      expect(par(n).exclusions).toContain('16 \u2014 Emprunts et dettes assimilées');
+      expect(par(n).comptesAUtiliser).not.toContain('16');
+      expect(par(n).renvoisDiscordants).toEqual([
+        { numero: '16', intituleCite: 'Emprunts et dettes assimilées', intitulePlan: 'Fonds affectés' },
+      ]);
+    }
+    expect(par('56').comptesAUtiliser).toContain('18');
+  });
+
+  it('le 848 de la fiche 78 est nommé discordant, sans qu’aucun autre numéro soit choisi', () => {
+    expect(par('78').renvoisDiscordants.map((d) => [d.numero, d.intitulePlan])).toEqual([
+      ['848', 'Transferts de produits H.A.O.'],
+    ]);
+    expect(par('78').comptesAUtiliser).toEqual(['72']);
+  });
+
+  it('un intitulé partagé (« 654 et 7542 - … ») ou juste n’est jamais discordant', () => {
+    expect(par('90').renvoisDiscordants).toEqual([]);
+    // Le 831 est cité deux fois, dont une sous son intitulé du plan.
+    expect(par('65').comptesAUtiliser).toContain('831');
+    expect(REGLES_COMPTES_SYCEBNL.flatMap((r) => r.renvoisDiscordants.map((d) => `${r.numero} → ${d.numero}`))).toEqual([
+      '64 → 16',
+      '67 → 16',
+      '78 → 848',
+    ]);
   });
 });
 
@@ -159,6 +208,33 @@ describe('règles par compte du SYSCOHADA · AUDCIF, Titre VII', () => {
       ),
     ].sort();
     expect(fantomes).toEqual([]);
+  });
+
+  it('des en-têtes consécutifs partagent la fiche commune (R1-C3)', () => {
+    const par = (n: string) => REGLES_COMPTES_SYSCOHADA.find((r) => r.numero === n)!;
+    expect(par('62').elementsDeControle).toBe('Factures et avoirs fournisseurs ; dispositions des contrats.');
+    expect(par('62').elementsDeControle).toBe(par('63').elementsDeControle);
+    for (const [seul, commun] of [
+      ['9013', '9018'],
+      ['9014', '9018'],
+      ['9033', '9038'],
+      ['9043', '9048'],
+      ['9051', '9058'],
+      ['9083', '9088'],
+    ]) {
+      expect([seul, par(seul).elementsDeControle]).toEqual([seul, par(commun).elementsDeControle]);
+      expect([seul, par(seul).elementsDeControle]).not.toEqual([seul, null]);
+    }
+    expect(par('9013').comptesAUtiliser).toEqual(['9011']);
+  });
+
+  it('la liste des remplacements lit tout le segment, hors parenthèses et notes de transcription (R1-C10)', () => {
+    const par = (n: string) => REGLES_COMPTES_SYSCOHADA.find((r) => r.numero === n)!;
+    expect(par('79').comptesAUtiliser).toEqual(['759', '779', '849', '86']);
+    expect(par('86').comptesAUtiliser).toEqual(['691', '697', '759', '779', '791', '797']);
+    // Les notes « *[…]* » et « > *Anomalie…* » commentent, elles ne renvoient pas.
+    expect(par('759').comptesAUtiliser).toEqual(['791', '797']);
+    expect(par('9024').comptesAUtiliser).toEqual(['9088']);
   });
 
   it('aucune fiche ne se cite elle-même en remplacement', () => {

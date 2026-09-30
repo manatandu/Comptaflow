@@ -116,7 +116,17 @@ export function diagnostiquerTiers(
           PRODUITS_SANS_TIERS_SYCEBNL.some((r) => l.numero.startsWith(r))
         ),
     );
-  const aUnTiers = lignes.some((l) => l.numero.startsWith(CLASSE_TIERS));
+  // LA TVA N'EST PAS LE TIERS (passe R1-B3) · la fiche du compte 40 des deux
+  // textes range le 445 du côté de la charge, dans la facture portée au crédit
+  // du fournisseur ; le 443 est, symétriquement, la taxe du produit facturé.
+  // Les autres lignes de classe 4 (447 retenue à la source, 40, 42…)
+  // absolvent toujours.
+  const aUnTiers = lignes.some(
+    (l) =>
+      l.numero.startsWith(CLASSE_TIERS) &&
+      !(chargesDebitees.length > 0 && l.numero.startsWith('445')) &&
+      !(produitsCredites.length > 0 && l.numero.startsWith('443')),
+  );
   const aUneTresorerie = lignes.some((l) => l.numero.startsWith(CLASSE_TRESORERIE));
 
   // Aucun compte de nature, ou déjà un tiers, ou aucune trésorerie en face :

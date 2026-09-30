@@ -45,7 +45,7 @@ function ecriture(libelle: string, lignes: ReturnType<typeof ligne>[]) {
   };
 }
 
-function service(referentiel: Referentiel, ecritures: ReturnType<typeof ecriture>[]) {
+function service(referentiel: Referentiel, ecritures: (ReturnType<typeof ecriture> & { estGenereeParCloture?: boolean })[]) {
   const exoneration = { findMany: jest.fn().mockResolvedValue([]) };
   const prisma = {
     exercice: {
@@ -135,6 +135,22 @@ describe('Contrôles · la classe 9 ne porte pas la même chose dans les deux pl
     const a = await anomalie(svc, 'CLASSE_9_MOUVEMENTEE');
     expect(a!.libelle).toMatch(/contributions volontaires/i);
     expect(a!.action).toMatch(/contributions volontaires/i);
+  });
+
+  it('au SYCEBNL, un 94 est de la comptabilité analytique, pas une contribution volontaire (R5-A4, R5-C2)', async () => {
+    const couts = [ecriture('Coûts', [ligne('94100000', 100_000), ligne('92100000', 0, 100_000)])];
+    const { svc } = service(Referentiel.SYCEBNL, couts);
+    const rapport = await svc.analyser('t', 'ex');
+    expect(rapport.anomalies.some((a) => a.code === 'CLASSE_9_MOUVEMENTEE')).toBe(false);
+    const a = rapport.anomalies.find((x) => x.code === 'CLASSE_9_ANALYTIQUE_MOUVEMENTEE')!;
+    expect(a.occurrences.map((o) => o.reference)).toEqual(['94100000', '92100000']);
+    expect(a.libelle).not.toMatch(/contributions volontaires/i);
+  });
+
+  it('le report à-nouveau d’un 90 n’est pas un mouvement (R5-C2)', async () => {
+    const report = { ...ecriture('À-nouveau', [ligne('90110000', 4_000_000), ligne('91110000', 0, 4_000_000)]), estGenereeParCloture: true };
+    const { svc } = service(Referentiel.SYCEBNL, [report]);
+    expect(await anomalie(svc, 'CLASSE_9_MOUVEMENTEE')).toBeUndefined();
   });
 
   it('annonce les engagements hors bilan et l’analytique au SYSCOHADA', async () => {
@@ -229,4 +245,34 @@ describe('Contrôles · la créance douteuse se reclasse au 416 et se déprécie
     expect(a!.consequence).toMatch(/416/);
     expect(a!.consequence).toMatch(/491/);
   });
+});
+
+describe('Contrôles · le compte 55 lit la phrase de SON texte (R1-B5, R5-C4)', () => {
+  for (const [referentiel, source] of [
+    [Referentiel.SYCEBNL, 'SYCEBNL, Partie 2 ch. 3, compte 55'],
+    [Referentiel.SYSCOHADA, 'AUDCIF, Titre VII, compte 55'],
+  ] as const) {
+    it(`${referentiel} · un 55 créditeur est signalé en avertissement`, async () => {
+      const { svc } = service(referentiel, []);
+      const prisma = (svc as unknown as { prisma: Record<string, { findMany: jest.Mock }> }).prisma;
+      prisma.compte.findMany.mockImplementation(({ where }: { where: { numero?: { startsWith: string } } }) =>
+        Promise.resolve(
+          where.numero?.startsWith === '55'
+            ? [{ id: 'c55', numero: '55100000', intitule: 'Mobile money', journauxTresorerie: [] }]
+            : [],
+        ),
+      );
+      prisma.ligneEcriture.findMany.mockImplementation(({ where }: { where: { compteId?: { in: string[] } } }) =>
+        Promise.resolve(
+          where.compteId?.in?.includes('c55')
+            ? [{ id: 'l55', compteId: 'c55', debit: 0, credit: 10_000, ecriture: { date: new Date('2026-04-01') } }]
+            : [],
+        ),
+      );
+      const a = await anomalie(svc, 'MONNAIE_ELECTRONIQUE_CREDITRICE');
+      expect(a!.gravite).toBe('AVERTISSEMENT');
+      expect(a!.consequence).toContain(source);
+      expect(a!.consequence).toContain('ne doit être que débiteur ou nul');
+    });
+  }
 });

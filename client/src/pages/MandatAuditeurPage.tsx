@@ -196,7 +196,7 @@ export function MandatAuditeurPage() {
                 texte={
                   obligation.genre === 'TOUJOURS'
                     ? obligation.motif
-                    : 'Les seuils sont ceux du texte applicable au dossier. La sortie de l\'obligation (deux exercices consécutifs sous les seuils) n\'est pas mesurée ici.'
+                    : 'Les seuils sont ceux du texte applicable au dossier, en francs CFA · les montants du dossier, en francs congolais, ne leur sont pas comparés sans leur équivalent. La sortie de l\'obligation (deux exercices sous les seuils précédant l\'expiration du mandat) n\'est pas mesurée ici.'
                 }
                 source={obligation.source}
               />

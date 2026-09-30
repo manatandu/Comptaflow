@@ -16,6 +16,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Réserves",
     exclusions: "Le compte 11 ne sert pas à enregistrer : - les provisions pour pertes et charges → 19 (Provisions pour risques et charges) ; - les dépréciations des immobilisations → 29 (Dépréciations) ; - les dépréciations des comptes de stocks → 39 (Dépréciations des stocks) ; - les dépréciations des comptes clients → 49 (Dépréciations et provisions pour risques à court terme – Tiers) ; - les dépréciations des comptes de trésorerie → 59 (Dépréciations et provisions pour risques à court terme – Trésorerie).",
     comptesAUtiliser: ["19","29","39","49","59"],
+    renvoisDiscordants: [],
     elementsDeControle: "Dispositions législatives, statutaires ou contractuelles obligatoires concernant la répartition des résultats ; décisions de l'assemblée générale des actionnaires portant répartition des résultats.",
   },
   {
@@ -23,6 +24,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Report à nouveau",
     exclusions: "Le compte 12 ne sert pas à enregistrer les sommes à porter en réserves par décision de l'assemblée générale ordinaire → 11 (Réserves).",
     comptesAUtiliser: ["11"],
+    renvoisDiscordants: [],
     elementsDeControle: "Recoupements issus des décisions des assemblées sur la répartition des résultats.",
   },
   {
@@ -30,6 +32,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Résultat net de l'exercice",
     exclusions: "Le compte 13 ne sert pas à enregistrer les charges ou produits qui n'auraient pas au préalable transité par les comptes de gestion → classes 6, 7 et 8.",
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Recoupements issus des soldes des comptes de gestion.",
   },
   {
@@ -37,6 +40,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Subventions d'investissement",
     exclusions: "Le compte 14 ne sert pas à enregistrer : - les subventions d'exploitation reçues → 71 (Subventions d'exploitation) ; - les subventions d'équilibre reçues → 88 (Subventions d'équilibre).",
     comptesAUtiliser: ["71","88"],
+    renvoisDiscordants: [],
     elementsDeControle: "Décisions d'octroi de la subvention ou d'affectation définitive et gratuite d'un bien à l'entité ; tableau d'amortissement des biens acquis ou créés à l'aide de la subvention, pour vérifier la reprise au résultat selon le même rythme que les amortissements (pour les biens non amortissables, l'entité a la faculté de décider du rythme de reprise en l'absence d'instruction du pourvoyeur).",
   },
   {
@@ -44,6 +48,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Provisions réglementées et fonds assimilés",
     exclusions: "Le compte 15 ne sert pas à enregistrer : - les provisions destinées à couvrir des risques et charges futurs (à plus d'un an) → 19 ; - les dépréciations de l'actif immobilisé → 29 ; - les dépréciations de l'actif circulant → 39 et 49 ; - les dépréciations des comptes de trésorerie → 59.",
     comptesAUtiliser: ["19","29","39","49","59"],
+    renvoisDiscordants: [],
     elementsDeControle: "Écritures à la clôture de l'exercice ; tableaux d'amortissements comptables et fiscaux ; factures de cession d'immobilisations et opérations faisant ressortir la plus ou moins-value ; décisions des assemblées sur la répartition du résultat et législation concernant cette affectation.",
   },
   {
@@ -51,6 +56,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Emprunts et dettes assimilées",
     exclusions: "Le compte 16 ne sert pas à enregistrer : - les emprunts et dettes liées à des participations → 181 ; - les dettes de location acquisition → 17 ; - les primes de remboursement des obligations → 6714.",
     comptesAUtiliser: ["17","181","6714"],
+    renvoisDiscordants: [],
     elementsDeControle: "Contrats de prêts signés par l'entité ; virements (réception et remboursements) ; tableau d'amortissement des emprunts ; calcul des intérêts courus ; contrats de dépôts et cautionnements ; contrats d'avances-engagements de l'État et des organismes internationaux.",
   },
   {
@@ -58,6 +64,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Dettes de location acquisition",
     exclusions: "Le compte 17 ne sert pas à enregistrer : - les dettes autres que celles relatives aux contrats de location acquisition (répondant au critère d'inscription à l'actif du bilan) → 16 ou 18 selon le cas ; - les redevances non retraitées → 622 (Locations et charges locatives).",
     comptesAUtiliser: ["16","18","622"],
+    renvoisDiscordants: [],
     elementsDeControle: "Factures de redevances ; contrats de crédit-bail et assimilés ; contrats de location-vente et assimilés ; échéanciers de remboursement.",
   },
   {
@@ -65,6 +72,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Dettes liées à des participations et comptes de liaison des établissements et sociétés en participation",
     exclusions: "Le compte 18 ne sert pas à enregistrer : - les dettes résultant d'opérations commerciales courantes entre les sociétés du groupe → 40 (Fournisseurs et comptes rattachés) ; - les dettes financières à l'égard de tiers non liés à l'entité par des liens de participation, ou celles contractées auprès d'autres établissements de crédit mais à des conditions de droit commun → 16 ; - les comptes bloqués d'associés → 164 (Avances reçues et comptes courants bloqués).",
     comptesAUtiliser: ["16","164","40"],
+    renvoisDiscordants: [],
     elementsDeControle: "Vérification du lien de participation ; contrat de prêt ; tableau de remboursement ou d'amortissement de l'emprunt ; calcul des intérêts courus ; vérification des conditions d'octroi lorsque l'entité liée est un établissement de crédit ; virements.",
   },
   {
@@ -72,6 +80,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Provisions pour risques et charges",
     exclusions: "Le compte 19 ne sert pas à enregistrer : - les charges certaines d'un montant déterminé, à comptabiliser dans les comptes de charges par nature avec contrepartie dans les comptes de tiers ou de trésorerie → classes 6 et 8 ; - les provisions ayant pour origine une réglementation particulière, souvent d'ordre fiscal, sans charges ou pertes réellement prévisibles → 15 ; - les provisions correspondant à des risques à moins d'un an → 499 (Provisions pour risques à court terme).",
     comptesAUtiliser: ["15","499"],
+    renvoisDiscordants: [],
     elementsDeControle: "Vérification du calcul des provisions ; recherche de la réalité du risque ou de l'éventualité de la charge ; appréciation de l'échéance du risque ou de la charge.",
   },
   {
@@ -79,6 +88,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Immobilisations incorporelles",
     exclusions: "Le compte 21 ne sert pas à enregistrer : les frais d'établissement, les frais de recherche, les frais de pré-exploitation → charges de la classe 6.",
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Factures ; promesses d'apport ; actes d'acquisition ; récépissés de dépôt de brevets, de marques ; contrats de concession.",
   },
   {
@@ -86,6 +96,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Terrains",
     exclusions: "Le compte 22 ne sert pas à enregistrer les dépenses de construction qui constituent des composantes du coût des bâtiments → 23 (Bâtiments, installations techniques et agencements).",
     comptesAUtiliser: ["23"],
+    renvoisDiscordants: [],
     elementsDeControle: "Actes d'acquisition ; titres de propriété.",
   },
   {
@@ -93,6 +104,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Bâtiments, installations techniques et agencements",
     exclusions: "Le compte 23 ne sert pas à enregistrer les biens corporels disparaissant par le premier usage ou dont la durée d'utilisation est inférieure à un an (petit outillage) → compte approprié de la classe 6.",
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Actes d'acquisition ; titres de propriété (titres fonciers) ; factures.",
   },
   {
@@ -100,6 +112,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Matériel, Mobilier et Actifs biologiques",
     exclusions: "Le compte 24 ne sert pas à enregistrer les biens corporels disparaissant par le premier usage, d'une durée de vie inférieure à un an ou de très faible valeur → comptes de la classe 6.",
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Factures ; inventaires ; documents nécessaires à la circulation (cartes grises, livrets de bord…) ; recoupements avec les assurances payées et les taxes sur les matériels roulants.",
   },
   {
@@ -107,6 +120,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Avances et acomptes versés sur immobilisations",
     exclusions: "Le compte 25 ne sert pas à enregistrer : - les en-cours d'immobilisation → comptes appropriés de la classe 2 ; - les avances et acomptes versés sur d'autres biens que les immobilisations → 48 (Créances et dettes H.A.O.) ou 40 (Fournisseurs et comptes rattachés).",
     comptesAUtiliser: ["40","48"],
+    renvoisDiscordants: [],
     elementsDeControle: "Chèques ; relevés bancaires ; factures ; versements effectués.",
   },
   {
@@ -114,6 +128,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Titres de participation",
     exclusions: "Le compte 26 ne sert pas à enregistrer : - les titres de placement → 50 ; - les titres immobilisés → 274.",
     comptesAUtiliser: ["274","50"],
+    renvoisDiscordants: [],
     elementsDeControle: "Bons de souscription ; ordres d'achat et de vente en Bourse.",
   },
   {
@@ -121,6 +136,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Autres immobilisations financières",
     exclusions: "Le compte 27 ne sert pas à enregistrer : - les titres de participation → 26 ; - les titres de placement → 50.",
     comptesAUtiliser: ["26","50"],
+    renvoisDiscordants: [],
     elementsDeControle: "Contrats de prêts, reçus des dépôts et cautionnements ; souscriptions de titres, certificats de propriété de titres ; reconnaissances de dettes de la part de tiers, virements bancaires et mouvements financiers.",
   },
   {
@@ -128,6 +144,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Amortissements",
     exclusions: null,
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Recoupements provenant des tableaux d'amortissement.",
   },
   {
@@ -135,6 +152,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Dépréciations des immobilisations",
     exclusions: "Le compte 29 ne sert pas à enregistrer : - les dépréciations des comptes de stocks → 39 ; - les dépréciations des comptes de tiers → 49 ; - les dépréciations des comptes de trésorerie → 59.",
     comptesAUtiliser: ["39","49","59"],
+    renvoisDiscordants: [],
     elementsDeControle: "Rapprochements effectués entre la valeur d'entrée des actifs dans le patrimoine de l'entité et la valeur à la date de clôture de l'exercice ; factures ; argus ; livre d'inventaire.",
   },
   {
@@ -142,6 +160,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Marchandises",
     exclusions: "Le compte 31 ne sert pas à enregistrer les achats de matières premières et fournitures non destinées à être revendues en l'état → 32 (Matières premières et fournitures liées).",
     comptesAUtiliser: ["32"],
+    renvoisDiscordants: [],
     elementsDeControle: "Inventaire extra-comptable ; factures (achats et frais).",
   },
   {
@@ -149,6 +168,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Matières premières et fournitures liées",
     exclusions: "Le compte 32 ne sert pas à enregistrer le matériel de remplacement ou de réserve qui n'est pas encore en service → 24 (Matériel, mobilier et actifs biologiques).",
     comptesAUtiliser: ["24"],
+    renvoisDiscordants: [],
     elementsDeControle: "Inventaire extra-comptable ; factures (achats et frais).",
   },
   {
@@ -156,6 +176,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Autres approvisionnements",
     exclusions: "Le compte 33 ne sert pas à enregistrer le matériel de remplacement ou de réserve qui n'est pas encore en service → 24 (Matériel, Mobilier et Actifs biologiques).",
     comptesAUtiliser: ["24"],
+    renvoisDiscordants: [],
     elementsDeControle: "Inventaire extra-comptable ; factures (achats et frais).",
   },
   {
@@ -163,6 +184,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Produits en cours",
     exclusions: "Le compte 34 ne sert pas à enregistrer les services en cours → 35 (Services en cours).",
     comptesAUtiliser: ["35"],
+    renvoisDiscordants: [],
     elementsDeControle: "Inventaire extra-comptable ; évaluation des coûts de production.",
   },
   {
@@ -170,6 +192,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Services en cours",
     exclusions: "Le compte 35 ne sert pas à enregistrer les produits en cours → 34 (Produits en cours).",
     comptesAUtiliser: ["34"],
+    renvoisDiscordants: [],
     elementsDeControle: "Inventaire extra-comptable ; évaluation des coûts de production.",
   },
   {
@@ -177,6 +200,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Produits finis",
     exclusions: "Le compte 36 ne sert pas à enregistrer les produits intermédiaires fabriqués → 37 (Produits intermédiaires et résiduels).",
     comptesAUtiliser: ["37"],
+    renvoisDiscordants: [],
     elementsDeControle: "Inventaire extra-comptable ; évaluation des coûts de production.",
   },
   {
@@ -184,6 +208,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Produits intermédiaires et résiduels",
     exclusions: "Le compte 37 ne sert pas à enregistrer : - les produits en cours, qui par définition ne peuvent être inscrits à un compte de magasin → 34 ; - les produits issus d'immobilisations démontées ou mises hors service en attendant l'affectation définitive → 38 ; - les produits issus de la récupération affectés définitivement à d'autres stocks → 31, 32, 33.",
     comptesAUtiliser: ["31","32","33","34","38"],
+    renvoisDiscordants: [],
     elementsDeControle: "Inventaire extra-comptable ; évaluation des coûts de production des produits concernés.",
   },
   {
@@ -191,6 +216,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Stocks en cours de route, en consignation ou en dépôt",
     exclusions: "Le compte 38 ne sert pas à enregistrer les stocks dont l'entité a pris possession et dont elle continue d'attendre les factures d'achat → en cours d'exercice : pas d'écriture à passer ; à la clôture de l'exercice : comptes de régularisation.",
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Inventaire extra-comptable ; factures d'achat.",
   },
   {
@@ -198,6 +224,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Dépréciations des stocks et en-cours de production",
     exclusions: "Le compte 39 ne sert pas à enregistrer : - les dépréciations de l'actif immobilisé de la classe 2 → 29 ; - les dépréciations des clients et comptes rattachés → 49 ; - les dépréciations des comptes de trésorerie → 59.",
     comptesAUtiliser: ["29","49","59"],
+    renvoisDiscordants: [],
     elementsDeControle: "Inventaire extra-comptable et évaluation, notamment.",
   },
   {
@@ -205,6 +232,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Fournisseurs et comptes rattachés",
     exclusions: "Les fournisseurs d'immobilisations → 481 (Fournisseurs d'investissements). Les avances et acomptes versés sur commande d'immobilisations → 25 (Avances et acomptes versés sur immobilisations).",
     comptesAUtiliser: ["25","481"],
+    renvoisDiscordants: [],
     elementsDeControle: "Factures, chèques de règlement, effets.",
   },
   {
@@ -212,6 +240,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Clients et comptes rattachés",
     exclusions: "Les créances sur des tiers nées des opérations autres que la vente des marchandises, des produits intermédiaires, des produits finis ou services → 485 (Créances sur cessions d'immobilisations).",
     comptesAUtiliser: ["485"],
+    renvoisDiscordants: [],
     elementsDeControle: "Factures, chèques de règlement, effets, impayés, relances clients, dossiers contentieux.",
   },
   {
@@ -219,6 +248,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Personnel",
     exclusions: "Les prêts consentis au personnel → 272 (Prêts au personnel). Les opérations en comptes courants des associés et administrateurs pour les mouvements de fonds n'intéressant pas la rémunération de leur travail → 46 (Apporteurs, Associés et Groupe).",
     comptesAUtiliser: ["272","46"],
+    renvoisDiscordants: [],
     elementsDeControle: "Fiches de paie ; déclarations sociales ; contrats de prêts ; procès-verbaux de saisie-arrêt ; avis à tiers détenteur.",
   },
   {
@@ -226,6 +256,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Organismes sociaux",
     exclusions: "Les opérations faites avec les organismes sociaux en tant que clients → 41 (Clients et comptes rattachés).",
     comptesAUtiliser: ["41"],
+    renvoisDiscordants: [],
     elementsDeControle: "Fiches de paie ; bordereaux de déclarations sociales ; livres de paie.",
   },
   {
@@ -233,6 +264,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "État et Collectivités publiques",
     exclusions: "Opérations faites avec l'État en tant que fournisseur → 40. En tant que client → 41. Les droits de douane acquittés à l'entrée des biens sur le territoire national faisant partie du prix d'achat du bien → comptes de la classe 2 ou 6 concernés.",
     comptesAUtiliser: ["40","41"],
+    renvoisDiscordants: [],
     elementsDeControle: "Avis d'imposition ; déclarations fiscales ; relevés bancaires.",
   },
   {
@@ -240,6 +272,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Organismes internationaux",
     exclusions: "Opérations faites avec les organismes internationaux en tant que fournisseurs → 40 ; en tant que clients → 41.",
     comptesAUtiliser: ["40","41"],
+    renvoisDiscordants: [],
     elementsDeControle: "Relevés bancaires ; avis de versement ; avis d'octroi de subventions.",
   },
   {
@@ -247,6 +280,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Apporteurs, Associés et Groupe",
     exclusions: "Les dettes et créances des associés contractées ou consenties → 16 (Emprunts et dettes assimilées). Les emprunts et les prêts des associés → 27 (Autres immobilisations financières). La dette des associés représentative du capital souscrit non appelé → 109 (Apporteurs, capital souscrit, non appelé).",
     comptesAUtiliser: ["109","16","27"],
+    renvoisDiscordants: [],
     elementsDeControle: "Décisions des assemblées d'associés.",
   },
   {
@@ -254,6 +288,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Débiteurs et créditeurs divers",
     exclusions: "Les charges imputables au compte Fournisseurs → 40. Les produits imputables au compte Clients → 41.",
     comptesAUtiliser: ["40","41"],
+    renvoisDiscordants: [],
     elementsDeControle: "Contrats ; conventions ; décomptes de régularisation ; chèques ; relevés de banque.",
   },
   {
@@ -261,6 +296,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Créances et dettes hors activités ordinaires",
     exclusions: "Les dettes ou les créances ayant pour origine les activités ordinaires de l'entité → 40 et 41.",
     comptesAUtiliser: ["40","41"],
+    renvoisDiscordants: [],
     elementsDeControle: "Chèques ; effets de commerce ; contrats d'acquisition d'immobilisations ; factures ; ordres de mouvements en Bourse.",
   },
   {
@@ -268,6 +304,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Dépréciations et provisions pour risques à court terme (Tiers)",
     exclusions: "Les provisions pour risques et charges à plus d'un an → 19 (Provisions pour risques et charges). Les dépréciations des éléments (classe 2) de l'actif immobilisé → 29 (Dépréciations). Les dépréciations des comptes de trésorerie (classe 5) → 59 (Dépréciations et provisions pour risques à court terme — Trésorerie).",
     comptesAUtiliser: ["19","29","59"],
+    renvoisDiscordants: [],
     elementsDeControle: "Tous documents à même de justifier les motifs qui rendent la créance douteuse ou litigieuse (courriers et autres protêts, justificatifs du caractère douteux ou litigieux de la créance).",
   },
   {
@@ -275,6 +312,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Titres de placement",
     exclusions: "Les titres dont la cession n'est pas facilement réalisable → 26 (Titres de participation) ou 274 (Titres immobilisés).",
     comptesAUtiliser: ["26","274"],
+    renvoisDiscordants: [],
     elementsDeControle: "Ordres d'achat ; ordres de vente des titres ; bordereaux de banque ; contrats ; relevés de titres en portefeuille.",
   },
   {
@@ -282,6 +320,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Valeurs à encaisser",
     exclusions: "Les effets à payer à plus d'un an d'échéance → 16 (Emprunts et dettes assimilées). Les effets remis à l'escompte → 56 (Banques, crédits de trésorerie et d'escompte).",
     comptesAUtiliser: ["16","56"],
+    renvoisDiscordants: [],
     elementsDeControle: "Effets ; chèques ; bordereaux de remise d'effets ou de chèques ; relevés de banque.",
   },
   {
@@ -289,6 +328,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Banques",
     exclusions: "Les mouvements de fonds relatifs aux opérations avec les Chèques postaux et le Trésor → 53 (Établissements financiers et assimilés). Les représentations locales d'institutions financières internationales ou étrangères → 538 (Autres organismes financiers).",
     comptesAUtiliser: ["53","538"],
+    renvoisDiscordants: [],
     elementsDeControle: "Relevés bancaires ; états de rapprochement bancaire.",
   },
   {
@@ -296,6 +336,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Établissements financiers et assimilés",
     exclusions: "Les mouvements de fonds relatifs aux opérations avec les banques → 52.",
     comptesAUtiliser: ["52"],
+    renvoisDiscordants: [],
     elementsDeControle: "Relevés de chèques postaux ; relevés du Trésor ; états de rapprochement.",
   },
   {
@@ -303,6 +344,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Instruments de trésorerie",
     exclusions: "Les opérations de crédits de trésorerie → 56 (Banques, crédits de trésorerie et d'escompte).",
     comptesAUtiliser: ["56"],
+    renvoisDiscordants: [],
     elementsDeControle: "Relevés et états de rapprochement bancaires.",
   },
   {
@@ -310,6 +352,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Instruments de monnaie électronique",
     exclusions: "Les mouvements de fonds des banques → 52. Les opérations de crédit de trésorerie → 56. Les instruments de trésorerie → 54. Les paiements effectués par cartes de crédit → 515 (Cartes de crédit à encaisser).",
     comptesAUtiliser: ["515","52","54","56"],
+    renvoisDiscordants: [],
     elementsDeControle: "Factures de chargement ; code d'accès au service de l'instrument et code secret du gestionnaire de l'instrument.",
   },
   {
@@ -317,6 +360,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Banques, crédits de trésorerie et d'escompte",
     exclusions: "Les prêts bancaires à plus d'un an → 16 (Emprunts et dettes assimilées). Les découverts bancaires autorisés, tant qu'ils n'ont qu'un caractère d'engagement de la banque vis-à-vis de l'entité et qu'ils s'ajustent donc sur le montant du solde débiteur chez le banquier → comptes d'engagements hors bilan. Les effets remis à l'encaissement à leur échéance normale → 51 (Valeurs à encaisser).",
     comptesAUtiliser: ["16","51"],
+    renvoisDiscordants: [],
     elementsDeControle: "Attestations de la banque concernant les crédits de trésorerie ; relevés bancaires, étant entendu que le crédit de trésorerie doit avoir été positionné au crédit du compte courant ; bordereaux de remise des effets à l'escompte.",
   },
   {
@@ -324,6 +368,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Caisse",
     exclusions: "Les chèques de voyage → 518 (Autres valeurs à l'encaissement). Les chèques de banque → 513 (Chèques à encaisser) ou 514 (Chèques à l'encaissement). Les timbres fiscaux → 64 (Impôts et taxes). Les timbres postaux et autres figurines d'affranchissement → 616 (Transports de plis). Les effets de commerce → 41, 51, 56. Les paiements effectués par cartes de crédit → 515 (Cartes de crédit à encaisser).",
     comptesAUtiliser: ["41","51","513","514","515","518","56","616","64"],
+    renvoisDiscordants: [],
     elementsDeControle: "Procès-verbaux de caisse ; états de reddition de la caisse ; bordereaux de situation journalière.",
   },
   {
@@ -331,6 +376,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Régies d'avances, accréditifs et virements internes",
     exclusions: "Les opérations internes de trésorerie lorsque l'entité utilise un journal unique → les autres comptes de la classe 5 concernés.",
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Relevés bancaires. Il importe de s'assurer que les comptes 585 et 588 relatifs aux virements internes sont soldés à la fin de l'exercice.",
   },
   {
@@ -338,6 +384,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Dépréciations et provisions pour risques à court terme (Trésorerie)",
     exclusions: "Les provisions pour dépréciations d'autres éléments du bilan : classe 1 → 19 (Provisions pour risques et charges) ; classe 2 → 29 (Dépréciations) ; classe 3 → 39 (Dépréciations des stocks) ; classe 4 → 49 (Dépréciations et provisions pour risques à court terme — Tiers).",
     comptesAUtiliser: ["19","29","39","49"],
+    renvoisDiscordants: [],
     elementsDeControle: "Cours de Bourse de clôture ; évaluations de titres ; cours du change.",
   },
   {
@@ -345,6 +392,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Achats (sauf 603)",
     exclusions: "Les frais accessoires d'achats directement rattachables aux immobilisations → comptes de la classe 2.",
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Factures et avoirs fournisseurs ; bons de commande ; états d'inventaire.",
   },
   {
@@ -352,6 +400,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Transports",
     exclusions: "Les consommations intermédiaires de biens et de services lorsque l'entité effectue des transports pour son propre compte (carburants, réparations de véhicules, etc.) → comptes de charges appropriés.",
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Factures et avoirs fournisseurs ; documents de transport (connaissements, lettres de voiture, etc.) ; inventaire des figurines d'affranchissement ; bons de course.",
   },
   {
@@ -359,13 +408,15 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Services extérieurs",
     exclusions: null,
     comptesAUtiliser: [],
-    elementsDeControle: null,
+    renvoisDiscordants: [],
+    elementsDeControle: "Factures et avoirs fournisseurs ; dispositions des contrats.",
   },
   {
     numero: "63",
     intitule: "Autres services extérieurs",
     exclusions: null,
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Factures et avoirs fournisseurs ; dispositions des contrats.",
   },
   {
@@ -373,6 +424,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Impôts et taxes",
     exclusions: "Les annuités de remboursement d'emprunts contractés ou d'avances consenties par l'État → 16. Les droits de douane relatifs aux acquisitions d'immobilisations → classe 2. Les droits de douane relatifs à des achats de biens importés incorporés au prix d'achat (prix rendu frontière) → 60. L'impôt sur les bénéfices → 89 (Impôts sur le résultat).",
     comptesAUtiliser: ["16","60","89"],
+    renvoisDiscordants: [],
     elementsDeControle: "Déclarations ; avis d'imposition ; règlements à l'ordre du Trésor.",
   },
   {
@@ -380,6 +432,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Autres charges (sauf 659)",
     exclusions: "Les charges H.A.O. constatées → 831 (Charges H.A.O. constatées). - L'amoindrissement de la valeur d'une créance dont les effets ne sont pas jugés irréversibles → 659 (Charges pour dépréciations et provisions pour risques à court terme). - Les cessions d'immobilisations non fréquentes et récurrentes → 81 (Valeurs comptables des cessions d'immobilisations). - Les libéralités et dons à l'occasion d'évènements exceptionnels tels les phénomènes naturels (sécheresse, inondations, tempête, vols de criquets, guerres, tremblement de terre…) → 835 (Dons et libéralités accordés). - Les pertes de change sur opérations ayant un caractère financier (emprunts bancaires et liquidités en devises) → 676 (Pertes de change financières).",
     comptesAUtiliser: ["659","676","81","831","835"],
+    renvoisDiscordants: [],
     elementsDeControle: "Factures ; notifications de cessation de paiement relevées ou courrier des avocats ; états financiers de la société en participation ; procès-verbal de l'assemblée générale ou du conseil d'administration.",
   },
   {
@@ -387,6 +440,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Charges de personnel",
     exclusions: "Les impôts dont l'assiette repose sur la rémunération → 6413 (Taxes sur appointements et salaires). Les charges considérées comme des consommations intermédiaires (dépenses exposées par les salariés pour le compte de l'entité, notamment) → comptes appropriés de la classe 6. Les rémunérations de toutes natures attribuées à des tiers → comptes appropriés de la classe 6. Les indemnités versées à des tierces personnes qui ne sont pas membres de l'entité (honoraires) → 632 (Rémunérations d'intermédiaires et de conseils).",
     comptesAUtiliser: ["632","6413"],
+    renvoisDiscordants: [],
     elementsDeControle: "Livres de paie ; fiches de paie ; déclarations sociales et fiscales.",
   },
   {
@@ -394,6 +448,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Frais financiers et charges assimilées",
     exclusions: "Les remboursements d'emprunts contractés ou d'avances reçues → 16. Les intérêts intercalaires d'emprunts dus au titre de la période de construction et de mise en route des immobilisations → comptes de la classe 2 concernés. Les commissions et courtages bancaires, rémunérations de services → 631 (Frais bancaires). Les pertes de change sur créances et dettes commerciales, inscrites en résultat d'exploitation → 656.",
     comptesAUtiliser: ["16","631","656"],
+    renvoisDiscordants: [],
     elementsDeControle: "Relevés de banque ; décomptes d'intérêt.",
   },
   {
@@ -401,6 +456,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Dotations aux amortissements",
     exclusions: "Les dotations aux provisions → 69 (Dotations aux provisions et aux dépréciations). Les charges provisionnées → 659 (… d'exploitation) ou 679 (… financières). Les dotations aux amortissements H.A.O. → 852 (Dotations aux amortissements H.A.O.).",
     comptesAUtiliser: ["659","679","69","852"],
+    renvoisDiscordants: [],
     elementsDeControle: "Plans et tableaux d'amortissement.",
   },
   {
@@ -408,6 +464,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Dotations aux provisions et aux dépréciations",
     exclusions: "Les dotations aux provisions H.A.O. → 85 (Dotations H.A.O.). Les charges à la clôture correspondant à la dépréciation probable des éléments de l'actif circulant (stocks, clients) → 659. Les charges correspondant à la dépréciation probable des éléments de trésorerie → 679.",
     comptesAUtiliser: ["659","679","85"],
+    renvoisDiscordants: [],
     elementsDeControle: "Tous documents susceptibles d'éclairer le jugement sur les charges à prévoir par suite de dépréciation d'éléments d'actif, ou les risques attachés à des événements ou opérations intervenus au cours de l'exercice.",
   },
   {
@@ -415,6 +472,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Ventes",
     exclusions: "Les subventions d'exploitation compensatrices d'insuffisances de tarifs → 71 (Subventions d'exploitation).",
     comptesAUtiliser: ["71"],
+    renvoisDiscordants: [],
     elementsDeControle: "Factures de ventes ; factures d'avoirs ; vérification des marges.",
   },
   {
@@ -422,6 +480,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Subventions d'exploitation",
     exclusions: "Les aides accordées par les collectivités publiques et organismes internationaux ayant le caractère de fonds de dotation → 102 (Capital par dotation). - Les subventions accordées en vue d'acquérir, créer, remplacer et mettre en l'état des immobilisations → 14 (Subventions d'investissement).",
     comptesAUtiliser: ["102","14"],
+    renvoisDiscordants: [],
     elementsDeControle: "Courriers d'octroi des subventions.",
   },
   {
@@ -429,6 +488,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Production immobilisée",
     exclusions: null,
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Immobilisations portées à l'actif ; charges saisies par la comptabilité analytique.",
   },
   {
@@ -436,6 +496,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Variations des stocks de biens et services produits",
     exclusions: "La variation de la période afférente aux stocks de marchandises, de matières, de fournitures et d'emballages commerciaux → 603 (Variations des stocks de biens achetés).",
     comptesAUtiliser: ["603"],
+    renvoisDiscordants: [],
     elementsDeControle: "Fiches d'inventaire ; évaluation des stocks ; comptabilité analytique.",
   },
   {
@@ -443,6 +504,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Autres produits (sauf compte 759)",
     exclusions: "Les rabais, remises et ristournes accordés hors factures aux clients → 70 (Ventes). - Les profits de change sur opérations ayant un caractère financier (emprunts et liquidités en devises) → 776 (Gains de change financiers).",
     comptesAUtiliser: ["70","776"],
+    renvoisDiscordants: [],
     elementsDeControle: "Factures ; avis bancaires ; correspondances échangées.",
   },
   {
@@ -450,6 +512,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Revenus financiers et produits assimilés",
     exclusions: "Les récupérations de prêts ou d'avances consenties → 27 (Autres immobilisations financières).",
     comptesAUtiliser: ["27"],
+    renvoisDiscordants: [],
     elementsDeControle: "Virements bancaires ; décomptes d'intérêts ; factures avec escompte ; bordereaux de cession de titres ; encaissement des coupons.",
   },
   {
@@ -457,13 +520,15 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Transferts de charges",
     exclusions: "Les transferts de charges en actif immobilisé → 72 (Production immobilisée). - Les transferts de charges H.A.O. → 848 (Transferts de charges H.A.O.).",
     comptesAUtiliser: ["72","848"],
+    renvoisDiscordants: [],
     elementsDeControle: "Relevé des décisions de gestion des organes compétents.",
   },
   {
     numero: "79",
     intitule: "Reprises de provisions, de dépréciations et autres",
     exclusions: "Les reprises HAO → 86 (Reprises HAO). - Les reprises de charges provisionnées → 759 (Reprises de charges pour dépréciations et provisions pour risques à court terme d'exploitation) ; 779 (… financières) ; 849 (… H.A.O.).",
-    comptesAUtiliser: ["759","86"],
+    comptesAUtiliser: ["759","779","849","86"],
+    renvoisDiscordants: [],
     elementsDeControle: "Relevé des décisions des organes compétents.",
   },
   {
@@ -471,6 +536,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Valeurs comptables des cessions d'immobilisations",
     exclusions: "Les dépréciations afférentes aux éléments d'actif immobilisé cédés → 29 (Dépréciations). - Les cessions considérées comme courantes, compte tenu de l'activité de l'entité → 654 (Valeurs comptables des cessions courantes d'immobilisations).",
     comptesAUtiliser: ["29","654"],
+    renvoisDiscordants: [],
     elementsDeControle: "Documents attestant de la valeur de sortie de l'immobilisation : procès-verbal de mise au rebut ; factures de vente ; procès-verbal de destruction ; tableaux d'amortissement.",
   },
   {
@@ -478,6 +544,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Produits des cessions d'immobilisations",
     exclusions: "Les indemnités d'assurances autres que celles représentatives de l'indemnisation du bien détruit → 7582 (Indemnités d'assurances reçues). - Les produits des cessions courantes d'immobilisations → 754.",
     comptesAUtiliser: ["754","7582"],
+    renvoisDiscordants: [],
     elementsDeControle: "Factures de cession d'immobilisations ; commissions et frais de vente.",
   },
   {
@@ -485,6 +552,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Charges hors activités ordinaires",
     exclusions: "Les provisions pour risques et charges hors activités ordinaires à plus d'un an → 854 (Dotations aux provisions pour risques et charges H.A.O.).",
     comptesAUtiliser: ["854"],
+    renvoisDiscordants: [],
     elementsDeControle: "Factures ; évaluations ; tableaux d'amortissements ; calculs de plus-values, notamment.",
   },
   {
@@ -492,6 +560,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Produits hors activités ordinaires",
     exclusions: "Les reprises de provisions H.A.O. antérieurement constituées → 86 (Reprises H.A.O.).",
     comptesAUtiliser: ["86"],
+    renvoisDiscordants: [],
     elementsDeControle: "Analyse ; factures ; évaluations ; tableaux de provisions.",
   },
   {
@@ -499,13 +568,15 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Dotations hors activités ordinaires",
     exclusions: "Les charges calculées H.A.O. à court terme (moins d'un an) → 839 (Charges pour dépréciations et provisions pour risques à court terme H.A.O.).",
     comptesAUtiliser: ["839"],
+    renvoisDiscordants: [],
     elementsDeControle: "Évaluation de la provision.",
   },
   {
     numero: "86",
     intitule: "Reprises de charges, provisions et dépréciations HAO",
     exclusions: "Les reprises de dépréciations et provisions pour risques à court terme → 759 (… d'exploitation) ou 779 (… financières). - Les reprises de dépréciations d'éléments de l'actif immobilisé → 791 (Reprises de provisions et de dépréciations d'exploitation). - Les reprises de dotations à caractère financier → 797 (Reprises de provisions et de dépréciations financières). - Les dotations aux provisions et aux dépréciations d'exploitation ou à caractère financier → 691 (Dotations aux provisions et aux dépréciations d'exploitation) ou 697 (… financières).",
-    comptesAUtiliser: ["691","759","779","791","797"],
+    comptesAUtiliser: ["691","697","759","779","791","797"],
+    renvoisDiscordants: [],
     elementsDeControle: "Tableaux d'amortissements ; tableaux de reprises des écarts de réévaluation ; tableaux de reprises de la plus-value de cession à réinvestir.",
   },
   {
@@ -513,6 +584,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Participation des travailleurs",
     exclusions: "La participation du personnel au capital de l'entité → 10 (Capital). - Les rémunérations diverses versées au personnel (intéressement) → 66 (Charges de personnel).",
     comptesAUtiliser: ["10","66"],
+    renvoisDiscordants: [],
     elementsDeControle: "Conventions ; accords d'entités.",
   },
   {
@@ -520,6 +592,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Subventions d'équilibre",
     exclusions: "Les subventions d'investissement → 14. - Les subventions d'exploitation → 71.",
     comptesAUtiliser: ["14","71"],
+    renvoisDiscordants: [],
     elementsDeControle: "Décrets ou arrêtés ministériels ; décisions de collectivités publiques accordant la subvention.",
   },
   {
@@ -527,6 +600,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Impôts sur le résultat",
     exclusions: "Les impôts et taxes → 64 (Impôts et taxes).",
     comptesAUtiliser: ["64"],
+    renvoisDiscordants: [],
     elementsDeControle: "Liasse fiscale ; notifications et rappels d'impôt de la Direction Générale des Impôts (D.G.I.).",
   },
   {
@@ -534,6 +608,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Capital social",
     exclusions: "Le compte 101 ne sert pas à enregistrer : - les versements et/ou retraits temporaires de fonds des associés → 46 (Apporteurs, Associés et Groupe) ; - les apports de l'exploitant individuel → 103 (Capital personnel) ; - les apports non remboursables de la puissance publique → 102 (Capital par dotation).",
     comptesAUtiliser: ["102","103","46"],
+    renvoisDiscordants: [],
     elementsDeControle: "Statuts de la société ; déclaration notariée de souscription et de versement ; virements bancaires et relevés de banque ; procès-verbal de l'assemblée des associés.",
   },
   {
@@ -541,6 +616,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Capital par dotation",
     exclusions: "Le compte 102 ne sert pas à enregistrer : - les sommes reçues à titre de prêts ou d'avances remboursables par les entités publiques → 163 (Avances reçues de l'État) ; - les prêts ou avances remboursables assortis de conditions particulières → 167 (Avances assorties de conditions particulières) ; - les subventions d'investissement non transformées en capital par dotation → 14 (Subventions d'investissement).",
     comptesAUtiliser: ["14","163","167"],
+    renvoisDiscordants: [],
     elementsDeControle: "Décret, arrêté ou lettre officielle d'octroi ou de déblocage des fonds ; procès-verbal de remise d'un bien cédé en apport en nature ; pièces justificatives des virements correspondants.",
   },
   {
@@ -548,6 +624,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Capital personnel",
     exclusions: "Le compte 103 ne sert pas à enregistrer : - les prélèvements et versements effectués dans les entités non individuelles → 462 (Apporteurs, Associés, comptes courants) ; - les prélèvements et apports de l'exploitant à titre temporaire → 104 (Compte de l'exploitant).",
     comptesAUtiliser: ["104","462"],
+    renvoisDiscordants: [],
     elementsDeControle: "Compte de résultat de l'exercice précédent ; virements ; fiches de caisse ; relevés de banque.",
   },
   {
@@ -555,6 +632,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Compte de l'exploitant",
     exclusions: "Le compte 104 ne sert pas à enregistrer les prélèvements et versements effectués dans des entités non individuelles → 462 (Apporteurs, Associés, comptes courants).",
     comptesAUtiliser: ["462"],
+    renvoisDiscordants: [],
     elementsDeControle: "Virements ; fiches de caisse ; relevés de banque.",
   },
   {
@@ -562,6 +640,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Primes liées au capital social",
     exclusions: "Le compte 105 ne sert pas à enregistrer certaines sommes qualifiées de primes : - primes de remboursement des obligations → 6714 ; - primes d'assurance → 625 ; - primes de création d'emplois, primes de développement → 7078 (Autres produits accessoires) ; etc.",
     comptesAUtiliser: ["625","6714","7078"],
+    renvoisDiscordants: [],
     elementsDeControle: "Décisions de l'assemblée des associés portant augmentation du capital ; textes relatifs au protocole de fusion ; textes relatifs au protocole d'apport ; factures de frais ou calcul analytique des frais d'augmentation de capital.",
   },
   {
@@ -569,6 +648,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Écarts de réévaluation",
     exclusions: null,
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Décisions des organes de gestion ; décisions de l'assemblée générale portant augmentation de capital par incorporation de tout ou partie de l'écart ; comparaison des actifs de l'exercice précédent avec ceux de l'exercice en cours.",
   },
   {
@@ -576,6 +656,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Apporteurs, capital souscrit, non appelé",
     exclusions: null,
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Statuts ; décisions des assemblées générales ordinaires et extraordinaires ; décisions du conseil d'administration ou de la gérance pour les appels de fonds ; compte 1011 (Capital souscrit, non appelé), de solde opposé et de montant identique.",
   },
   {
@@ -583,6 +664,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Variations des stocks de biens achetés",
     exclusions: "Les variations de stocks d'en-cours ou de produits fabriqués → 73 (Variations des stocks de biens et de services produits).",
     comptesAUtiliser: ["73"],
+    renvoisDiscordants: [],
     elementsDeControle: "Inventaire, ou décompte physique, et évaluation.",
   },
   {
@@ -590,6 +672,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Charges pour dépréciations et provisions pour risques à court terme d'exploitation",
     exclusions: "Les dépréciations et les provisions pour risques à court terme H.A.O. → 839 (Charges pour dépréciations et provisions pour risques à court terme H.A.O.).",
     comptesAUtiliser: ["839"],
+    renvoisDiscordants: [],
     elementsDeControle: "Factures ; notifications de cessation de paiements ; relevés ; courriers des avocats.",
   },
   {
@@ -597,6 +680,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Reprises de charges pour dépréciations et provisions pour risques à court terme d'exploitation",
     exclusions: "Les reprises de dépréciations d'éléments de l'actif immobilisé → 791. *[Le texte officiel reproduit ici, par erreur, le libellé du 759 en regard du numéro 791 ; le libellé exact du 791 est « Reprises de provisions et de dépréciations d'exploitation » — voir compte 79.]* - Les reprises de dépréciations d'éléments à caractère financier → 797 (Reprises de charges pour dépréciations et provisions pour risques à court terme financières). *[Même remarque : le libellé exact du 797 est « Reprises de provisions et dépréciations financières ».]*",
     comptesAUtiliser: ["791","797"],
+    renvoisDiscordants: [],
     elementsDeControle: "Relevé des décisions de gestion des organes compétents.",
   },
   {
@@ -604,6 +688,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Crédits confirmés obtenus",
     exclusions: "Les dépôts de garanties (déposit) sur CREDOC → 275 (Dépôts et cautionnements versés).",
     comptesAUtiliser: ["275"],
+    renvoisDiscordants: [],
     elementsDeControle: "Lettres de notification de la banque.",
   },
   {
@@ -611,27 +696,31 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Emprunts restant à encaisser",
     exclusions: "Les crédits bancaires notifiés non encore encaissés → 9011 (Crédits confirmés obtenus).",
     comptesAUtiliser: ["9011"],
+    renvoisDiscordants: [],
     elementsDeControle: "Conventions de prêt.",
   },
   {
     numero: "9013",
     intitule: "Facilités de financement renouvelables",
-    exclusions: null,
-    comptesAUtiliser: [],
-    elementsDeControle: null,
+    exclusions: "Les crédits confirmés → 9011 (Crédits confirmés obtenus).",
+    comptesAUtiliser: ["9011"],
+    renvoisDiscordants: [],
+    elementsDeControle: "Conventions conclues dans le cadre d'émission de titres ; effets représentatifs des « engagements à payer » obtenus.",
   },
   {
     numero: "9014",
     intitule: "Facilités d'émission",
-    exclusions: null,
-    comptesAUtiliser: [],
-    elementsDeControle: null,
+    exclusions: "Les crédits confirmés → 9011 (Crédits confirmés obtenus).",
+    comptesAUtiliser: ["9011"],
+    renvoisDiscordants: [],
+    elementsDeControle: "Conventions conclues dans le cadre d'émission de titres ; effets représentatifs des « engagements à payer » obtenus.",
   },
   {
     numero: "9018",
     intitule: "Autres engagements de financement obtenus",
     exclusions: "Les crédits confirmés → 9011 (Crédits confirmés obtenus).",
     comptesAUtiliser: ["9011"],
+    renvoisDiscordants: [],
     elementsDeControle: "Conventions conclues dans le cadre d'émission de titres ; effets représentatifs des « engagements à payer » obtenus.",
   },
   {
@@ -639,6 +728,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Avals obtenus",
     exclusions: null,
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Effets avalisés.",
   },
   {
@@ -646,6 +736,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Cautions, garanties obtenues",
     exclusions: "Les gages, les nantissements, les antichrèses → 9028 (Autres garanties obtenues).",
     comptesAUtiliser: ["9028"],
+    renvoisDiscordants: [],
     elementsDeControle: "Conventions de prêts ; acte constitutif de la caution.",
   },
   {
@@ -653,6 +744,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Hypothèques obtenues",
     exclusions: "Les promesses d'hypothèques, les gages, les nantissements, les antichrèses → 9028 (Autres garanties obtenues).",
     comptesAUtiliser: ["9028"],
+    renvoisDiscordants: [],
     elementsDeControle: "Conventions de prêts ; récépissés d'inscription de l'hypothèque ; rapports d'expertise immobilière.",
   },
   {
@@ -660,6 +752,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Effets endossés par des tiers",
     exclusions: "Les effets transmis aux tiers par endossement de procuration → 9088 (Divers engagements accordés). > *Anomalie du texte officiel* : cette exclusion renvoie au 9088, alors que les Commentaires du compte 9028 rangent « les effets transmis aux tiers par endossement de procuration (encaissement) » dans le 9028, et que l'exclusion symétrique du 9064 renvoie au 9048. Le texte n'est pas cohérent sur ce point ; transcrit tel quel, à ne pas arbitrer.",
     comptesAUtiliser: ["9088"],
+    renvoisDiscordants: [],
     elementsDeControle: "Effets reçus ; bordereaux d'escompte.",
   },
   {
@@ -667,6 +760,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Autres garanties obtenues",
     exclusions: "Les avals → 9021 (Avals obtenus). - Les cautions → 9022 (Cautions, garanties obtenues). - Les hypothèques → 9023 (Hypothèques obtenues).",
     comptesAUtiliser: ["9021","9022","9023"],
+    renvoisDiscordants: [],
     elementsDeControle: "Conventions de prêt ; acte constitutif de la garantie ; chèques ; actions.",
   },
   {
@@ -674,6 +768,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Achats de marchandises à terme",
     exclusions: null,
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Demandes d'achat ; bons de commande ; bons de livraison ; factures.",
   },
   {
@@ -681,6 +776,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Achats à terme de devises",
     exclusions: null,
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Ordres d'achat ; avis d'opéré.",
   },
   {
@@ -688,13 +784,15 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Commandes fermes des clients",
     exclusions: null,
     comptesAUtiliser: [],
-    elementsDeControle: null,
+    renvoisDiscordants: [],
+    elementsDeControle: "Bons de commande ; bons de livraison ; factures.",
   },
   {
     numero: "9038",
     intitule: "Autres engagements réciproques",
     exclusions: null,
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Bons de commande ; bons de livraison ; factures.",
   },
   {
@@ -702,6 +800,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Abandons de créances conditionnels",
     exclusions: null,
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "« Grosses » du jugement ; conventions.",
   },
   {
@@ -709,13 +808,15 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Ventes avec clause de réserve de propriété",
     exclusions: null,
     comptesAUtiliser: [],
-    elementsDeControle: null,
+    renvoisDiscordants: [],
+    elementsDeControle: "Conventions de cession ; bordereaux ou attestations de souscription de titres.",
   },
   {
     numero: "9048",
     intitule: "Divers engagements obtenus",
     exclusions: null,
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Conventions de cession ; bordereaux ou attestations de souscription de titres.",
   },
   {
@@ -723,13 +824,15 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Crédits accordés non décaissés",
     exclusions: null,
     comptesAUtiliser: [],
-    elementsDeControle: null,
+    renvoisDiscordants: [],
+    elementsDeControle: "Lettres de notification de l'entité ; conventions de crédit ; décisions des organes compétents.",
   },
   {
     numero: "9058",
     intitule: "Autres engagements de financement accordés",
     exclusions: null,
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Lettres de notification de l'entité ; conventions de crédit ; décisions des organes compétents.",
   },
   {
@@ -737,6 +840,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Avals accordés",
     exclusions: null,
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Effets avalisés ; décisions des organes compétents.",
   },
   {
@@ -744,6 +848,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Cautions, garanties accordées",
     exclusions: "Les gages, les nantissements, les antichrèses → 9068 (Autres garanties accordées).",
     comptesAUtiliser: ["9068"],
+    renvoisDiscordants: [],
     elementsDeControle: "Conventions de prêts ; actes constitutifs de la caution ; lettres d'intention ou lettres de confort ; décisions des organes compétents.",
   },
   {
@@ -751,6 +856,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Hypothèques accordées",
     exclusions: "Les promesses d'hypothèques, les gages, les nantissements, les antichrèses → 9068 (Autres garanties accordées).",
     comptesAUtiliser: ["9068"],
+    renvoisDiscordants: [],
     elementsDeControle: "Conventions de prêts ; récépissés d'inscription de l'hypothèque ; rapports d'expertise immobilière.",
   },
   {
@@ -758,6 +864,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Effets endossés par l'entité",
     exclusions: "Les effets transmis par endossement de procuration → 9048 (Divers engagements obtenus).",
     comptesAUtiliser: ["9048"],
+    renvoisDiscordants: [],
     elementsDeControle: "Effets.",
   },
   {
@@ -765,6 +872,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Autres garanties accordées",
     exclusions: "Les avals → 9061 (Avals accordés). - Les cautions → 9062 (Cautions, garanties accordées). - Les hypothèques → 9063 (Hypothèques accordées).",
     comptesAUtiliser: ["9061","9062","9063"],
+    renvoisDiscordants: [],
     elementsDeControle: "Conventions de prêt ; acte constitutif de la garantie.",
   },
   {
@@ -772,6 +880,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Ventes de marchandises à terme",
     exclusions: null,
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Bons de commandes ; bons de livraison ; factures.",
   },
   {
@@ -779,6 +888,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Ventes à terme de devises",
     exclusions: null,
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Ordres d'achat ; avis d'opéré.",
   },
   {
@@ -786,6 +896,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Commandes fermes aux fournisseurs",
     exclusions: null,
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Bons de commande ; factures.",
   },
   {
@@ -793,6 +904,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Autres engagements réciproques",
     exclusions: null,
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Conventions.",
   },
   {
@@ -800,6 +912,7 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Annulations conditionnelles de dettes",
     exclusions: null,
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "« Grosses » du jugement ; conventions ; décisions des organes compétents.",
   },
   {
@@ -807,13 +920,15 @@ export const REGLES_COMPTES_SYSCOHADA: RegleCompte[] = [
     intitule: "Achats avec clause de réserve de propriété",
     exclusions: null,
     comptesAUtiliser: [],
-    elementsDeControle: null,
+    renvoisDiscordants: [],
+    elementsDeControle: "Conventions de cession ; bordereaux ou attestations de souscription de titres ; conventions de subvention ; décisions des organes compétents.",
   },
   {
     numero: "9088",
     intitule: "Divers engagements accordés",
     exclusions: null,
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Conventions de cession ; bordereaux ou attestations de souscription de titres ; conventions de subvention ; décisions des organes compétents.",
   },
 ];

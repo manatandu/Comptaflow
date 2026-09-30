@@ -898,12 +898,12 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     etape: 18,
     libelle: 'Mise à disposition du commissaire aux comptes',
     detail:
-      'Remise du projet d’états financiers, du rapport de gestion et, le cas échéant, du bilan social au commissaire aux comptes, QUARANTE-CINQ JOURS AU MOINS avant la date de l’assemblée générale ordinaire. Le commissaire aux comptes émet une opinion sur la régularité, la sincérité et l’image fidèle des comptes, et se prononce sur la concordance avec les états financiers des informations données dans le rapport de gestion. Sa désignation est obligatoire dans toute société anonyme, et dans la SARL comme dans la SAS au-delà de deux des trois critères de taille.',
+      'Remise du projet d’états financiers, du rapport de gestion et, le cas échéant, du bilan social au commissaire aux comptes, QUARANTE-CINQ JOURS AU MOINS avant la date de l’assemblée générale ordinaire. Le commissaire aux comptes émet une opinion sur la régularité, la sincérité et l’image fidèle des comptes, et se prononce sur la concordance avec les états financiers des informations données dans le rapport de gestion. Sa désignation est obligatoire dans toute société anonyme, dans la SARL comme dans la SAS au-delà de deux des trois critères de taille, et dans la SNC et la SCS au-delà de deux des trois critères de l’art. 289-1 (seuils plus élevés).',
     nature: 'INTERNE',
     debut: { moisApres: 3, jour: 1 },
     echeance: { moisApres: 5, jour: 15 },
     source:
-      'AUDCIF, art. 69 à 71 (contrôle externe, opinion, délai de quarante-cinq jours) ; AUSCGIE, art. 694 et 702 (SA), 376 (SARL), 853-13 (SAS) ; CPCC, § 2.3 (« début mars au 15 mai »)',
+      'AUDCIF, art. 69 à 71 (contrôle externe, opinion, délai de quarante-cinq jours) ; AUSCGIE, art. 694 et 702 (SA), 376 (SARL), 853-13 (SAS), 289-1 (SNC) et 293-1 (SCS) ; CPCC, § 2.3 (« début mars au 15 mai »)',
     referentiels: [Referentiel.SYSCOHADA],
   },
   {
@@ -1122,7 +1122,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     nature: 'LEGALE',
     debut: { moisApres: 7, jour: 1 },
     echeance: { moisApres: 7, jour: 'FIN' },
-    source: 'AUSCGIE, art. 269 ; CPCC, § 2.3 et § 7.3 ; loi n° 004/2001, art. 1er (exclusion des ASBL)',
+    source: 'AUSCGIE, art. 269 (sanction pénale des dirigeants sociaux, art. 890-1) ; CPCC, § 2.3 et § 7.3 ; loi n° 004/2001, art. 1er (exclusion des ASBL)',
     referentiels: [Referentiel.SYSCOHADA],
     formesSyscohada: FORMES_DEPOT_RCCM,
   },

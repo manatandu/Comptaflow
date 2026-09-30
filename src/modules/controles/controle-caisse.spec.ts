@@ -103,3 +103,40 @@ describe('contrôle de caisse', () => {
     expect(r[0].journees.map((j) => j.soldeFinJournee)).toEqual([-100000, -150000, 50000]);
   });
 });
+
+describe('instrument de monnaie électronique (compte 55 · R1-B5, R5-C4)', () => {
+  function serviceMonnaie(lignes: { compteId: string; date: string; debit: number; credit: number }[]) {
+    const comptes = [
+      { id: 'c55', numero: '55100000', intitule: 'Mobile money', typeCompte: 'DETAIL', journauxTresorerie: [] },
+      { id: 'c57', numero: '57100000', intitule: 'Caisse siège', typeCompte: 'DETAIL', journauxTresorerie: [] },
+    ];
+    const prisma = {
+      exercice: { findFirst: jest.fn().mockResolvedValue({ id: 'ex1' }) },
+      compte: {
+        // La doublure honore la racine demandée.
+        findMany: jest.fn().mockImplementation(({ where }: { where: { numero?: { startsWith: string } } }) =>
+          Promise.resolve(comptes.filter((c) => !where.numero || c.numero.startsWith(where.numero.startsWith))),
+        ),
+      },
+      ligneEcriture: {
+        findMany: jest.fn().mockImplementation(({ where }: { where: { compteId: { in: string[] } } }) =>
+          Promise.resolve(
+            lignes
+              .filter((l) => where.compteId.in.includes(l.compteId))
+              .map((l, i) => ({ id: `l${i}`, compteId: l.compteId, debit: l.debit, credit: l.credit, ecriture: { date: new Date(l.date) } })),
+          ),
+        ),
+      },
+    } as Faux;
+    return new ControlesService(prisma as unknown as PrismaService);
+  }
+
+  it('nomme le jour où le 55 passe créditeur, et lui seul', async () => {
+    const r = await serviceMonnaie([
+      { compteId: 'c55', date: '2026-03-01', debit: 0, credit: 30_000 },
+      { compteId: 'c55', date: '2026-03-02', debit: 50_000, credit: 0 },
+      { compteId: 'c57', date: '2026-03-01', debit: 0, credit: 1 },
+    ]).controleMonnaieElectronique('t1', 'ex1');
+    expect(r.map((c) => [c.numero, c.premierJourNegatif, c.nombreJoursNegatifs])).toEqual([['55100000', '2026-03-01', 1]]);
+  });
+});

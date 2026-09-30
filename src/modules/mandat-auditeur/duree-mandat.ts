@@ -34,8 +34,9 @@ import { FormeJuridiqueSyscohada, Referentiel } from '@prisma/client';
  * texte refuse.
  *
  * CE QUE LE MODULE NE SAIT PAS, ET LE DIT. La SAS (art. 853-13), la SNC
- * (art. 289-1), la société en commandite simple, le GIE, la coopérative et
+ * (art. 289-1), la société en commandite simple, la coopérative et
  * l'entreprenant n'ont, dans les textes lus, AUCUNE durée de mandat chiffrée ·
+ * le GIE en a une, six exercices, quand il émet des obligations (art. 880) ·
  * l'art. 853-13 renvoie aux conditions de nomination de l'art. 853-11 sans
  * fixer de durée. La durée y est donc SAISIE, avec la mention que le logiciel
  * ne la connaît pas. Une règle absente est déclarée absente · elle n'est pas
@@ -62,6 +63,9 @@ export function dureeMandat(
   referentiel: Referentiel,
   formeJuridique: FormeJuridiqueSyscohada | null,
   organe: OrganeDesignation,
+  // GIE seulement · émet-il des obligations (compte 161) ? `null` quand les
+  // livres n'ont pas été interrogés.
+  gieEmetDesObligations: boolean | null = null,
 ): DureeMandat {
   if (referentiel === Referentiel.SYCEBNL) {
     return {
@@ -79,8 +83,24 @@ export function dureeMandat(
         : { exercices: 6, mandatsMaximum: null, source: 'AUSCGIE art. 704, second alinéa' };
     case FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE:
       return { exercices: 3, mandatsMaximum: null, source: 'AUSCGIE art. 379' };
+    case FormeJuridiqueSyscohada.GROUPEMENT_INTERET_ECONOMIQUE:
+      // AUSCGIE art. 880 · le contrôle des états financiers est celui du
+      // CONTRAT (al. 1er), SAUF émission d'obligations (art. 875) : le
+      // commissaire aux comptes est alors « nommé par l'assemblée pour une
+      // durée de six (6) exercices » (al. 4). « Aucun texte lu ne fixe de
+      // durée » était faux dans ce cas (passe O1b-G7).
+      if (gieEmetDesObligations) {
+        return { exercices: 6, mandatsMaximum: null, source: 'AUSCGIE art. 880, quatrième alinéa (GIE émetteur d’obligations)' };
+      }
+      return {
+        exercices: null,
+        mandatsMaximum: null,
+        source:
+          'AUSCGIE art. 880 · la durée est celle du contrat du groupement, sauf émission d’obligations (art. 875), ' +
+          'où le commissaire aux comptes est nommé pour six exercices · à saisir.',
+      };
     default:
-      // SAS, SNC, commandite simple, GIE, coopérative, entreprenant · aucun
+      // SAS, SNC, commandite simple, coopérative, entreprenant · aucun
       // texte lu ne chiffre la durée. La saisir est la seule réponse honnête.
       return {
         exercices: null,

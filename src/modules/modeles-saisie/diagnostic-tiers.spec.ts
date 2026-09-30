@@ -62,6 +62,19 @@ describe('Diagnostic du tiers · un modèle qui solde une charge sur la trésore
 });
 
 describe('Diagnostic du tiers · ce qui NE déclenche rien', () => {
+  it('la TVA n’est pas le tiers · 445 sur un achat, 443 sur une vente (R1-B3)', () => {
+    expect(
+      diagnostiquerTiers([l('60110000', 'DEBIT'), l('44520000', 'DEBIT'), l('52100000', 'CREDIT')], Referentiel.SYSCOHADA),
+    ).toHaveLength(1);
+    expect(
+      diagnostiquerTiers([l('52100000', 'DEBIT'), l('70110000', 'CREDIT'), l('44310000', 'CREDIT')], Referentiel.SYSCOHADA),
+    ).toHaveLength(1);
+    // La retenue à la source absout toujours.
+    expect(
+      diagnostiquerTiers([l('62210000', 'DEBIT'), l('44710000', 'CREDIT'), l('52100000', 'CREDIT')], Referentiel.SYSCOHADA),
+    ).toEqual([]);
+  });
+
   it('un modèle qui porte déjà un compte de tiers', () => {
     // Achat correct · charge au débit, fournisseur au crédit.
     expect(

@@ -37,7 +37,14 @@ interface Bien {
   comptesAcquisition: string[];
 }
 
-function service(biens: Bien[], referentiel: Referentiel = Referentiel.SYSCOHADA) {
+interface Ventilation {
+  /** Fiches au compte 22, par date d'acquisition. */
+  terrains?: string[];
+  /** Lignes au débit d'un 22, par date d'écriture. */
+  lignesTerrain?: string[];
+}
+
+function service(biens: Bien[], referentiel: Referentiel = Referentiel.SYSCOHADA, ventilation: Ventilation = {}) {
   const biensServis = biens.map((b) => ({
     designation: b.designation,
     valeurOrigine: 200_000_000,
@@ -60,7 +67,23 @@ function service(biens: Bien[], referentiel: Referentiel = Referentiel.SYSCOHADA
     tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 't', nom: 'Dossier', referentiel }) },
     ecriture: { findMany: jest.fn().mockResolvedValue([]) },
     compte: { findMany: jest.fn().mockResolvedValue([]) },
-    ligneEcriture: { findMany: jest.fn().mockResolvedValue([]), groupBy: jest.fn().mockResolvedValue([]) },
+    ligneEcriture: {
+      // Les lignes de terrain · la doublure honore la racine 22, le débit et
+      // les dates demandées, comme la base.
+      findMany: jest.fn().mockImplementation(
+        (args: { where?: { debit?: unknown; compte?: { numero?: { startsWith?: string } }; ecriture?: { date?: { in?: Date[] } } } }) => {
+          const w = args?.where;
+          if (w?.compte?.numero?.startsWith !== '22' || !w.debit) return Promise.resolve([]);
+          const demandees = (w.ecriture?.date?.in ?? []).map((d) => d.toISOString().slice(0, 10));
+          return Promise.resolve(
+            (ventilation.lignesTerrain ?? [])
+              .filter((d) => demandees.includes(d))
+              .map((d) => ({ ecriture: { date: new Date(d) } })),
+          );
+        },
+      ),
+      groupBy: jest.fn().mockResolvedValue([]),
+    },
     exoneration: { findMany: jest.fn().mockResolvedValue([]) },
     manuelProcedures: { findFirst: jest.fn().mockResolvedValue(null) },
     // Dossiers de subvention · vides ici, ces specs ne les testent pas. Sans
@@ -81,18 +104,22 @@ function service(biens: Bien[], referentiel: Referentiel = Referentiel.SYSCOHADA
       // contrôles voisins sur des lignes qui ne sont pas les leurs, et un
       // test vert dirait alors n'importe quoi. On aiguille sur le `where`,
       // comme le service lui-même.
-      findMany: jest.fn().mockImplementation((args: { where?: { compteImmobilisation?: unknown } }) =>
-        Promise.resolve(
-          args?.where?.compteImmobilisation ? biensServis : [],
-        ),
+      findMany: jest.fn().mockImplementation(
+        (args: { where?: { compteImmobilisation?: { numero?: { startsWith?: string } } } }) => {
+          const racine = args?.where?.compteImmobilisation?.numero?.startsWith;
+          if (racine === '22') {
+            return Promise.resolve((ventilation.terrains ?? []).map((d) => ({ dateAcquisition: new Date(d) })));
+          }
+          return Promise.resolve(racine ? biensServis.filter((b) => b.compteImmobilisation.numero.startsWith(racine)) : []);
+        },
       ),
     },
   } as Record<string, unknown>;
   return new ControlesService(prisma as unknown as PrismaService);
 }
 
-const anomalie = async (biens: Bien[], referentiel: Referentiel = Referentiel.SYSCOHADA) => {
-  const rapport = await service(biens, referentiel).analyser('t', 'ex');
+const anomalie = async (biens: Bien[], referentiel: Referentiel = Referentiel.SYSCOHADA, ventilation: Ventilation = {}) => {
+  const rapport = await service(biens, referentiel, ventilation).analyser('t', 'ex');
   return rapport.anomalies.find((a) => a.code === 'BATIMENT_SANS_VENTILATION_TERRAIN');
 };
 
@@ -119,6 +146,17 @@ describe('la ventilation du terrain et de la construction', () => {
     expect(
       await anomalie([{ ...BATIMENT_SEUL, comptesAcquisition: ['23130000', '22100000', '48100000'] }]),
     ).toBeUndefined();
+  });
+
+  it('un bâtiment créé par le module (deux lignes) se tait quand son terrain a sa fiche du même jour (R5-B3)', async () => {
+    // L'écriture que `ImmobilisationService.creer` produit · le bien et sa
+    // contrepartie, jamais un 22.
+    const duModule = { ...BATIMENT_SEUL, comptesAcquisition: ['23130000', '48120000'] };
+    expect(await anomalie([duModule])).toBeDefined();
+    expect(await anomalie([duModule], Referentiel.SYSCOHADA, { terrains: ['2026-02-10'] })).toBeUndefined();
+    expect(await anomalie([duModule], Referentiel.SYSCOHADA, { lignesTerrain: ['2026-02-10'] })).toBeUndefined();
+    // Un terrain entré un autre jour ne ventile pas cette acquisition.
+    expect(await anomalie([duModule], Referentiel.SYSCOHADA, { terrains: ['2026-06-01'] })).toBeDefined();
   });
 
   it('NE CRIE JAMAIS sur un bâtiment sur sol d’autrui · il n’a pas de terrain à ventiler', async () => {

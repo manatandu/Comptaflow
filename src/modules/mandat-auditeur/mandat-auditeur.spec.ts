@@ -51,12 +51,21 @@ describe('Durée du mandat · trois textes, trois durées', () => {
     for (const forme of [
       FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE,
       FormeJuridiqueSyscohada.SOCIETE_NOM_COLLECTIF,
-      FormeJuridiqueSyscohada.GROUPEMENT_INTERET_ECONOMIQUE,
     ]) {
       const d = dureeMandat(Referentiel.SYSCOHADA, forme, 'ASSEMBLEE_GENERALE_ORDINAIRE');
       expect(d.exercices).toBeNull();
       expect(d.source).toMatch(/aucun texte lu/i);
     }
+  });
+
+  it('GIE · six exercices s’il émet des obligations, sinon le contrat · AUSCGIE art. 880 (O1b-G7)', () => {
+    const gie = FormeJuridiqueSyscohada.GROUPEMENT_INTERET_ECONOMIQUE;
+    const emetteur = dureeMandat(Referentiel.SYSCOHADA, gie, 'ASSEMBLEE_GENERALE_ORDINAIRE', true);
+    expect([emetteur.exercices, emetteur.source]).toEqual([6, 'AUSCGIE art. 880, quatrième alinéa (GIE émetteur d’obligations)']);
+    const inconnu = dureeMandat(Referentiel.SYSCOHADA, gie, 'ASSEMBLEE_GENERALE_ORDINAIRE');
+    expect(inconnu.exercices).toBeNull();
+    expect(inconnu.source).toContain('AUSCGIE art. 880');
+    expect(inconnu.source).toContain('six exercices');
   });
 
   it('la réduction à l’existence de l’entité est PROPRE au SYCEBNL', () => {
@@ -180,6 +189,7 @@ function serviceControles(
   effectifPermanent = 0,
   actif = 0,
   referentiel: Referentiel = Referentiel.SYSCOHADA,
+  obligataire = 0,
 ) {
   // Un actif de trésorerie, lu par le regroupement de la balance, pour
   // franchir le seuil du total du bilan quand le test le demande.
@@ -206,7 +216,14 @@ function serviceControles(
         ),
       ),
     },
-    ligneEcriture: { findMany: jest.fn().mockResolvedValue([]), groupBy: jest.fn().mockResolvedValue(groupes) },
+    ligneEcriture: {
+      findMany: jest.fn().mockResolvedValue([]),
+      groupBy: jest.fn().mockResolvedValue(groupes),
+      // Le solde du 161 d'un GIE · la doublure honore la racine demandée.
+      aggregate: jest.fn().mockImplementation(({ where }: { where: { compte: { numero: { startsWith: string } } } }) =>
+        Promise.resolve({ _sum: { debit: 0, credit: where.compte.numero.startsWith === '161' ? obligataire : 0 } }),
+      ),
+    },
     exoneration: { findMany: jest.fn().mockResolvedValue([]) },
     manuelProcedures: { findFirst: jest.fn().mockResolvedValue(null) },
     conventionFinancement: { findMany: jest.fn().mockResolvedValue([]) },
@@ -274,6 +291,19 @@ describe('Le contrôle du mandat · et le piège de l’article 22', () => {
       'ex',
     );
     expect(rapport.anomalies.some((x) => x.code === 'MANDAT_AUDITEUR_PROROGE')).toBe(false);
+  });
+
+  it('un GIE émetteur d’obligations, tenu sans seuil, n’a aucune prorogation servie (art. 880, F69)', async () => {
+    const echu = [{ id: 'm', nom: 'Cabinet X', premierExercice: 2026, nombreExercices: 3, refusDeProrogation: false }];
+    const rapport = await serviceControles(
+      echu,
+      FormeJuridiqueSyscohada.GROUPEMENT_INTERET_ECONOMIQUE,
+      0,
+      0,
+      Referentiel.SYSCOHADA,
+      5_000_000,
+    ).analyser('t', 'ex');
+    expect(rapport.anomalies.some((x) => x.code === 'MANDAT_AUDITEUR_PROROGE')).toBe(false);
     const a = rapport.anomalies.find((x) => x.code === 'AUDITEUR_OBLIGATOIRE_SANS_MANDAT');
     expect(a!.occurrences[0].detail).toMatch(/aucun texte lu ne proroge le mandat pour cette forme/);
   });
@@ -287,19 +317,34 @@ describe('Le contrôle du mandat · et le piège de l’article 22', () => {
       'ex',
     );
     expect(rapport.anomalies.some((x) => x.code === 'MANDAT_AUDITEUR_SANS_PROROGATION')).toBe(false);
-    expect(rapport.anomalies.some((x) => x.code === 'AUDITEUR_OBLIGATOIRE_SANS_MANDAT')).toBe(true);
   });
 
-  it('une SARL qui ne franchit qu’UN seuil sur trois n’est pas tenue de désigner (audit final F17)', async () => {
-    // AUSCGIE art. 376 · deux des trois conditions. Le contrôle 28 comptait
-    // « un seuil franchi », quand le contrôle 6 de la même classe en exige
-    // deux : l'un disait obligatoire ce que l'autre disait facultatif.
+  it('une SARL n’est jamais dite tenue sur des montants FC comparés à des seuils FCFA (O1b-A2, F17)', async () => {
+    // AUSCGIE art. 376 · deux des trois conditions, dont deux en francs CFA
+    // que l'art. 906 convertit à une parité absente du corpus. L'effectif seul
+    // ne suffit pas ; avec un actif en FC au-delà du NOMBRE du seuil, le
+    // verdict est indéterminé et se dit en information, jamais en obligation.
     const sarl = (effectif: number, actif: number) =>
       serviceControles([], FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE, effectif, actif)
         .analyser('t', 'ex')
-        .then((r) => r.anomalies.some((a) => a.code === 'AUDITEUR_OBLIGATOIRE_SANS_MANDAT'));
-    // Effectif seul · un seuil. Effectif et total du bilan · deux seuils.
-    expect([await sarl(500, 0), await sarl(500, 200_000_000)]).toEqual([false, true]);
+        .then((r) => [
+          r.anomalies.some((a) => a.code === 'AUDITEUR_OBLIGATOIRE_SANS_MANDAT'),
+          r.anomalies.some((a) => a.code === 'SEUILS_AUDITEUR_NON_COMPARES'),
+        ]);
+    expect([await sarl(500, 0), await sarl(500, 200_000_000)]).toEqual([
+      [false, false],
+      [false, true],
+    ]);
+  });
+
+  it('les messages AUSCGIE disent la sortie du texte et la sanction de l’art. 897 (O1b-A8, O1b-G8)', async () => {
+    const sarl = await serviceControles([], FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE, 500, 200_000_000).analyser('t', 'ex');
+    const info = sarl.anomalies.find((a) => a.code === 'SEUILS_AUDITEUR_NON_COMPARES')!;
+    expect(info.action).toContain("pendant les deux exercices précédant l'expiration du mandat du commissaire aux comptes");
+    expect(info.consequence).toContain("L'article 897 de l'AUSCGIE punit les dirigeants");
+    expect(info.consequence).toContain('article 906');
+    const sa = await anomalie('COMMISSAIRE_AUX_COMPTES_OBLIGATOIRE', []);
+    expect(sa!.consequence).toContain("L'article 897 de l'AUSCGIE punit les dirigeants");
   });
 
   it('SEUL le refus exprès rouvre le trou · l’unique fait que l’art. 709 oppose', async () => {

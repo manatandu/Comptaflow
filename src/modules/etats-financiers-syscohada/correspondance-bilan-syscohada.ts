@@ -143,7 +143,9 @@ import { COMPTES_RESULTAT_DE_L_EXERCICE } from '../etats-financiers/resultat-de-
  *    (`comptesTransferesSiCrediteur`, même mécanisme que BW → DW côté
  *    SYCEBNL, bug de double comptage des découverts corrigé là-bas le
  *    2026-08-28) ; 54, 55, 57, 581, 582 créditeurs RESTENT en BS, en
- *    négatif, donc visibles et à corriger avant arrêté.
+ *    négatif, fondus dans le total du poste · aucune ligne ne les montre.
+ *    Ils ne sont visibles que par les contrôles (CAISSE_CREDITRICE pour le
+ *    57, MONNAIE_ELECTRONIQUE_CREDITRICE pour le 55, passe R1-B5).
  *    Même décision, en miroir, pour DR « Soldes créditeurs : 52, 53, 561,
  *    566 » : le ch. 7 qualifie toute la ligne, mais 561 et 566 n'ont aucun
  *    poste d'accueil DÉBITEUR (Titre VII COMPTE 56 : 561 est crédité des
@@ -473,7 +475,8 @@ export const POSTES_ACTIF_SYSCOHADA: PosteBilanDeBase[] = [
     comptes: ['52', '53', '54', '55', '57', '581', '582'],
     comptesAmortissement: ['592', '593', '594'],
     // Seuls 52/53 ont un poste d'accueil créditeur (DR) ; 54, 55, 57, 581,
-    // 582 créditeurs restent ici, visibles en négatif (anomalie n° 3).
+    // 582 créditeurs restent ici, en négatif dans le total (anomalie n° 3) ·
+    // le 55 et le 57 ne se voient que par les contrôles.
     comptesTransferesSiCrediteur: ['52', '53'],
   },
   { ref: 'BU', libelle: 'Écart de conversion-Actif', sens: 'ACTIF', note: '12', comptes: ['478'] },

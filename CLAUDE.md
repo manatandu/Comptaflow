@@ -120,7 +120,7 @@ que ça compile ».
   c'est elle qui le remplace en base (et une migration appliquée ne se modifie
   jamais, Prisma en vérifie l'empreinte) ; les fichiers ENGENDRÉS qui
   transcrivent le texte officiel VERBATIM · `regles-comptes-sycebnl.ts` en
-  porte 173 sur 97 lignes (le « 97 » écrit ici jusqu'au 2026-09-28 comptait
+  porte 174 sur 98 lignes (le « 97 » écrit ici jusqu'au 2026-09-28 comptait
   les lignes), tous dans des citations du type « 481 — Fournisseurs
   d'investissements », et `regles-comptes-syscohada.ts` en porte 3, lus au
   Titre VII de l'AUDCIF tel que la compétence le transcrit (deux dans les
@@ -277,7 +277,7 @@ un jeu s'appliquerait en silence à l'autre.
 
 **Fiches par compte, les deux référentiels** · chaque texte décrit ses
 comptes par une fiche, et deux de ses rubriques sont mises au travail depuis
-le 2026-09-03 (`regles-comptes-sycebnl.ts`, 78 fiches, Partie 2 ch. 3 ·
+le 2026-09-03 (`regles-comptes-sycebnl.ts`, 79 fiches, Partie 2 ch. 3 ·
 `regles-comptes-syscohada.ts`, 115 fiches, AUDCIF Titre VII · les deux
 engendrés par `scripts/extraire-regles-comptes.cjs`) : « Exclusions » avertit
 à la saisie de ce que le compte ne doit pas enregistrer et du compte à

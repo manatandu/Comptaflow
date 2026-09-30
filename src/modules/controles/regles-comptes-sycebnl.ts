@@ -25,6 +25,12 @@ export interface RegleCompte {
    * suivent « utiliser », jamais les comptes exclus eux-mêmes.
    */
   comptesAUtiliser: string[];
+  /**
+   * Les renvois du texte dont le numéro porte, au plan semé du même
+   * référentiel, un autre intitulé que celui que la fiche lui accole · sortis
+   * de `comptesAUtiliser`, nommés, jamais remplacés par un autre numéro.
+   */
+  renvoisDiscordants: { numero: string; intituleCite: string; intitulePlan: string }[];
   /** Texte intégral du bloc « Éléments de contrôle ». */
   elementsDeControle: string | null;
 }
@@ -35,6 +41,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Dotation",
     exclusions: "Les comptes 101 et 102 – Dotation non consomptible ne doivent pas servir à enregistrer : les mises à disposition de fonds durables effectuées par les Fondateurs ou membres destinés à couvrir des charges (utiliser 104 – Dotation consomptible) ; les apports effectués par les bailleurs de fonds du projet de développement et assimilés affectés aux immobilisations (utiliser 16 – Fonds affectés) ; les apports effectués par les bailleurs de fonds du projet de développement et assimilés affectés à l'administration (utiliser 46 – Bailleurs, fonds d'administration).",
     comptesAUtiliser: ["104","16","46"],
+    renvoisDiscordants: [],
     elementsDeControle: "Les comptes 101 et 102 peuvent être contrôlés à partir de recoupements issus : des statuts de l'entité ; des virements bancaires et relevés de banque ; du procès-verbal de l'assemblée des membres.",
   },
   {
@@ -42,6 +49,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Réserves",
     exclusions: "Le compte 11 – Réserves ne doit pas servir à enregistrer : les provisions pour pertes et charges (utiliser 19) ; les dépréciations des immobilisations (utiliser 29) ; les dépréciations des comptes de stocks (utiliser 39) ; les dépréciations des comptes clients (utiliser 49) ; les dépréciations des comptes de trésorerie (utiliser 59).",
     comptesAUtiliser: ["19","29","39","49","59"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 11 peut être contrôlé à partir de recoupements issus : de dispositions législatives, statutaires ou contractuelles obligatoires concernant la répartition des résultats ; des décisions de l'assemblée générale des membres portant affectation des résultats.",
   },
   {
@@ -49,6 +57,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Report à nouveau",
     exclusions: "Le compte 12 – Report à nouveau ne doit pas servir à enregistrer : les sommes à porter en réserves par disposition statutaire ou décision des organes compétents (utiliser 11 – Réserves).",
     comptesAUtiliser: ["11"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 12 peut être contrôlé à partir de recoupements issus des statuts ou des décisions des organes compétents.",
   },
   {
@@ -56,6 +65,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Résultat net de l'exercice ou Solde des opérations de l'exercice",
     exclusions: "Le compte 13 ne doit pas servir à enregistrer les charges ou produits qui n'auraient pas au préalable transité par les comptes de gestion (utiliser les classes 6, 7 et 8).",
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 13 peut être contrôlé à partir de recoupements issus des soldes des comptes de gestion.",
   },
   {
@@ -63,6 +73,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Subventions d'investissement",
     exclusions: "Le compte 14 ne doit pas servir à enregistrer : les subventions d'exploitation reçues (utiliser 71) ; les subventions d'équilibre reçues (utiliser 88).",
     comptesAUtiliser: ["71","88"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 14 peut être contrôlé à partir de recoupements issus : des décisions d'octroi de la subvention ou d'affectation à l'entité d'un bien de façon définitive et à titre gratuit ; du tableau d'amortissement des biens acquis ou créés à l'aide de la subvention pour vérification de la reprise au résultat de la subvention selon le même rythme que les amortissements. Pour les biens non amortissables, l'entité a la faculté de décider en l'absence d'instruction du pourvoyeur de la subvention, du rythme de reprise de la subvention au résultat.",
   },
   {
@@ -70,6 +81,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Provisions réglementées et fonds assimilés",
     exclusions: "Le compte 15 ne doit pas servir à enregistrer : les provisions destinées à couvrir des risques et des charges futurs (à plus d'un an) (utiliser 19) ; les dépréciations de l'actif immobilisé (utiliser 29) ; les dépréciations de l'actif circulant (utiliser 39) ; les dépréciations des comptes de trésorerie (utiliser 49 puis 59).",
     comptesAUtiliser: ["19","29","39","49","59"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 15 peut être contrôlé à partir des lois et règlements qui ont été à l'origine de cette provision.",
   },
   {
@@ -77,6 +89,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Fonds affectés",
     exclusions: "Le compte 16 – Fonds affectés ne doit pas servir à enregistrer : les Fonds de dotation (utiliser 10 – Fonds de dotation) ; les Fonds d'administration des projets (utiliser 46 – Bailleurs fonds d'administration).",
     comptesAUtiliser: ["10","46"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 16 peut être contrôlé à partir : des documents de projet et le budget des bailleurs de fonds ; des documents de financement des autres tiers financeurs.",
   },
   {
@@ -84,6 +97,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Fonds reportés",
     exclusions: "Le compte 17 ne doit pas servir à enregistrer : les fonds affectés (utiliser 16) ; les fonds de dotation (utiliser 10) ; les assurances vie au profit de l'entité (utiliser Engagements reçus).",
     comptesAUtiliser: ["10","16"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 17 peut être contrôlé à partir de l'acte de donation ; de l'acte de vente des biens ; du compte bancaire.",
   },
   {
@@ -91,6 +105,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Emprunts et dettes assimilées",
     exclusions: null,
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 18 peut être contrôlé à partir de recoupements issus : des contrats de prêts signés par l'entité ; des virements (réception et remboursements) ; du tableau d'amortissement des emprunts ; du calcul des intérêts courus ; des contrats de dépôts et cautionnements ; des contrats d'avances-engagements de l'Etat et des organismes internationaux. Le compte 187 – Dettes de location-acquisition peut être contrôlé à partir : des factures de redevances ; des contrats de crédit-bail et assimilés ; des contrats de location-vente et assimilés ; des échéanciers de remboursement.",
   },
   {
@@ -98,13 +113,15 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Provisions pour risques et charges",
     exclusions: "Le compte 19 ne doit pas servir à enregistrer : les charges certaines d'un montant déterminé, qui sont à comptabiliser dans les comptes de charges par nature avec contrepartie dans les comptes de tiers ou de trésorerie concernés (utiliser classes 6 et 8 de Charges) ; les provisions qui ont pour origine une réglementation particulière, souvent d'ordre fiscal, sans charges réellement prévisibles (utiliser 15 – Provisions réglementées et fonds assimilés) ; les provisions correspondant à des risques à moins d'un an (utiliser 499 – Provisions pour risques à court terme).",
     comptesAUtiliser: ["15","499"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 19 peut être contrôlé à partir des éléments ci-après : vérification du calcul des provisions ; recherche de la réalité du risque ou de l'éventualité de la charge ; appréciation de l'échéance du risque ou de la charge.",
   },
   {
     numero: "20",
     intitule: "Immobilisations destinées à la vente provenant de dons et legs non encore reçus et usufruit temporaire",
     exclusions: "Le compte 20 ne doit pas servir à enregistrer : les dons et legs d'immobilisations destinés à être conservés (utiliser comptes 21 à 26).",
-    comptesAUtiliser: ["21","26"],
+    comptesAUtiliser: ["21","22","23","24","25","26"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 20 peut être contrôlé à partir : des actes notariés ; des contrats de jouissance ; des actes de cession ; des relevés bancaires.",
   },
   {
@@ -112,6 +129,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Immobilisations incorporelles",
     exclusions: "Le compte 21 ne doit pas servir à enregistrer : les dons d'immobilisations reçus destinés à la vente et la donation temporaire d'usufruit (utiliser 20).",
     comptesAUtiliser: ["20"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 21 peut être contrôlé à partir : des factures ; des promesses d'apport ; des actes d'acquisition ; des récépissés de dépôt de brevets, de marques.",
   },
   {
@@ -119,6 +137,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Terrains",
     exclusions: "Le compte 22 ne doit pas servir à enregistrer : les dépenses de construction qui constituent des composantes du coût des bâtiments (utiliser 23) ; les dons de terrains reçus destinés à la vente (utiliser 20).",
     comptesAUtiliser: ["20","23"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 22 peut être contrôlé à partir : des actes d'acquisition ; des titres de propriété.",
   },
   {
@@ -126,6 +145,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Bâtiments, installations techniques et agencements",
     exclusions: "Le compte 23 ne doit pas servir à enregistrer : les biens corporels disparaissant par le premier usage ou dont la durée d'utilisation est inférieure à un an (petit outillage) (utiliser un compte approprié de la classe 6) ; les bâtiments reçus en dons destinés à la vente (utiliser 20).",
     comptesAUtiliser: ["20"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 23 peut être contrôlé à partir des actes d'acquisition, titres de propriété (titres fonciers), factures…",
   },
   {
@@ -133,6 +153,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Matériel, mobilier et actifs biologiques",
     exclusions: "Le compte 24 ne doit pas servir à enregistrer : les biens corporels disparaissant par le premier usage ou d'une durée de vie inférieure à un an ou de très faible valeur (utiliser des comptes de la classe 6).",
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 24 peut être contrôlé à partir : des factures ; des inventaires ; des documents nécessaires à la circulation (cartes grises, livrets de bord…) ; de recoupements avec les assurances payées et les taxes sur les matériels roulants.",
   },
   {
@@ -140,6 +161,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Avances et acomptes versés sur immobilisations",
     exclusions: "Le compte 25 ne doit pas servir à enregistrer : les en-cours d'immobilisation (utiliser des comptes appropriés de la classe 2) ; les avances et acomptes versés sur d'autres biens que les immobilisations (utiliser 48 – Créances et dettes H.A.O. ou 40 – Fournisseurs et comptes rattachés).",
     comptesAUtiliser: ["40","48"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 25 peut être contrôlé à partir : des chèques, des relevés bancaires, des factures, des versements effectués.",
   },
   {
@@ -147,6 +169,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Titres de participation",
     exclusions: "Le compte 26 ne doit pas servir à enregistrer : les titres de placement (utiliser 50) ; les titres immobilisés (utiliser 274).",
     comptesAUtiliser: ["274","50"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 26 peut être contrôlé à partir : des bons de souscription ; des ordres d'achat et de vente en Bourse.",
   },
   {
@@ -154,6 +177,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Autres immobilisations financières",
     exclusions: "Le compte 27 ne doit pas servir à enregistrer : les titres de participation (utiliser 26) ; les titres de placement (utiliser 50).",
     comptesAUtiliser: ["26","50"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 27 peut être contrôlé à partir des recoupements provenant des : contrats de prêts, reçus des dépôts et cautionnement ; souscriptions de titres, certificats de propriété de titres ; reconnaissances de dettes de la part de tiers, virements bancaires et mouvements financiers.",
   },
   {
@@ -161,6 +185,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Amortissements",
     exclusions: null,
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 28 peut être contrôlé à partir des recoupements provenant des tableaux d'amortissement.",
   },
   {
@@ -168,6 +193,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Dépréciations des immobilisations",
     exclusions: "Le compte 29 ne doit pas servir à enregistrer : les dépréciations des comptes de stocks (utiliser 39) ; les dépréciations des comptes de tiers (utiliser 49) ; les dépréciations des comptes de trésorerie (utiliser 59).",
     comptesAUtiliser: ["39","49","59"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 29 peut être contrôlé à partir : des rapprochements effectués entre la valeur d'entrée des actifs dans le patrimoine de l'entité et la valeur à la date de clôture de l'exercice ; de factures ; de l'argus ; du livre d'inventaire.",
   },
   {
@@ -175,6 +201,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Biens liés à l'activité",
     exclusions: "Le compte 31 — BIENS LIÉS A L'ACTIVITÉ ne doit pas servir à enregistrer : les achats de marchandises, matières premières et fournitures liées destinées à être revendues en l'état ou incorporées aux produits fabriqués. Il convient dans le cas d'espèce d'utiliser le compte ci-après : 32 — Marchandises, matières premières et fournitures liées.",
     comptesAUtiliser: ["32"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 31 — BIENS LIÉS A L'ACTIVITÉ peut être contrôlé à partir de l'inventaire extra comptable et des factures (achats et frais).",
   },
   {
@@ -182,6 +209,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Marchandises, matières premières et fournitures liées",
     exclusions: "Le compte 32 — MARCHANDISES, MATIERES PREMIERES ET FOURNITURES LIEES ne doit pas servir à enregistrer : le matériel de remplacement ou de réserve qui n'est pas encore en service. Il convient dans le cas d'espèce d'utiliser le compte ci-après : 24 — Matériel, mobilier et actifs biologiques.",
     comptesAUtiliser: ["24"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 32 — MARCHANDISES, MATIERES PREMIERES ET FOURNITURES LIEES peut être contrôlé à partir de l'inventaire extra comptable et des factures (achats et frais).",
   },
   {
@@ -189,6 +217,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Autres approvisionnements",
     exclusions: "Le compte 33 — AUTRES APPROVISIONNEMENTS ne doit pas servir à enregistrer : le matériel de remplacement ou de réserve qui n'est pas encore en service. Il convient dans le cas d'espèce d'utiliser le compte ci-après : 24 — Matériel, Mobilier et Actifs biologiques.",
     comptesAUtiliser: ["24"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 33 – AUTRES APPROVISIONNEMENTS peut être contrôlé à partir de l'inventaire extra comptable et des factures (achats et frais).",
   },
   {
@@ -196,6 +225,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Dons en nature",
     exclusions: "Le compte 34 — DONS EN NATURE ne doit pas servir à enregistrer : les dons en nature exceptionnels non récurrents ; les dons en nature d'immobilisations ; les dons en nature d'immobilisations destinés à la vente ; les dons en nature, autres que les immobilisation, destinés à la vente ; les dons temporaires d'usufruit. Il convient dans le cas d'espèce d'utiliser le compte ci-après : 38 - Dons en nature H.A.O ; comptes de la classe 2 en fonction de la nature de l'immobilisation ; 20 (sauf 2011) - Immobilisations non reçues destinées à la vente provenant de dons et legs ; suivi extra comptable ; 2011 Usufruit temporaire.",
     comptesAUtiliser: ["20","2011","38"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 34 — DONS EN NATURE peut être contrôlé à partir de l'inventaire extra comptable.",
   },
   {
@@ -203,6 +233,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Produits finis et services en cours",
     exclusions: null,
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: null,
   },
   {
@@ -210,6 +241,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Produits finis, produits intermédiaires et résiduels",
     exclusions: null,
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 36 — PRODUITS FINIS, PRODUITS INTERMÉDIAIRES ET RÉSIDUELS peut être contrôlé à partir de l'inventaire extra comptable et de l'évaluation des coûts de production.",
   },
   {
@@ -217,6 +249,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Stocks en cours de route, en consignation ou en dépôt",
     exclusions: "Le compte 37 — STOCKS EN COURS DE ROUTE EN CONSIGNATION OU EN DEPOT ne doit pas servir à enregistrer : les stocks dont l'entité a pris possession et dont elle continue d'attendre les factures d'achat. Il convient dans le cas d'espèce d'utiliser le compte ci-après : en cours d'exercice, pas d'écriture à passer ; à la clôture de l'exercice, les comptes de régularisation.",
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 37 — STOCKS EN COURS DE ROUTE EN CONSIGNATION OU EN DEPOT peut être contrôlé à partir de l'inventaire extra comptable et au moyen des factures d'achat.",
   },
   {
@@ -224,6 +257,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Dons en nature H.A.O",
     exclusions: "Le compte 38 — DONS EN NATURE HAO ne doit pas servir à enregistrer : les dons en nature récurrents ; les dons en nature d'immobilisations ; les dons en nature d'immobilisations destinés à la vente ; les dons en nature consommables destinés à la vente ; les dons temporaires d'usufruit. Il convient dans le cas d'espèce d'utiliser le compte ci-après : 34 Dons en nature ; comptes de la classe 2 en fonction de la nature de l'immobilisation ; 20 (sauf 2011) - Legs ou donations d'immobilisations non reçus destinés à la vente ; suivi extra comptable ; 2011 Usufruit temporaire.",
     comptesAUtiliser: ["20","2011","34"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 38 — DONS EN NATURE HAO peut être contrôlé à partir de l'inventaire extra comptable.",
   },
   {
@@ -231,6 +265,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Dépréciations des stocks et en cours de production",
     exclusions: "Le compte 39 — DEPRECIATIONS DES STOCKS ne doit pas servir à enregistrer : les dépréciations de l'actif immobilisé de la classe 2 ; les dépréciations des clients et comptes rattachés ; les dépréciations des comptes de trésorerie. Il convient dans les cas d'espèce d'utiliser les comptes ci-après : compte 29 — Dépréciations ; compte 49 — Dépréciations et provisions pour risques à court terme (Tiers) ; compte 59 — Dépréciations et provisions pour risques à court terme (Trésorerie).",
     comptesAUtiliser: ["29","49","59"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 39 — DEPRECIATIONS DES STOCKS peut être contrôlé à partir de l'inventaire extra-comptable et par évaluation, notamment.",
   },
   {
@@ -238,6 +273,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Fournisseurs et comptes rattachés",
     exclusions: "Le compte 40 — FOURNISSEURS ET COMPTES RATTACHES ne doit pas servir à enregistrer : les fournisseurs d'immobilisations ; les avances et acomptes versés sur commande d'immobilisations. Il convient dans le cas d'espèce d'utiliser le compte ci-après : 481 — Fournisseurs d'investissements ; 25 — Avances et acomptes versés sur immobilisations.",
     comptesAUtiliser: ["25","481"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 40 — FOURNISSEURS ET COMPTES RATTACHES peut être contrôlé à partir des factures, chèques de règlement, effets ...",
   },
   {
@@ -245,6 +281,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Adhérents, clients-usagers et comptes rattachés",
     exclusions: "Le compte 41 — ADHERENTS CLIENTS-USAGERS ET COMPTES RATTACHES ne doit pas servir à enregistrer : les créances sur des tiers nées des opérations autres que les cotisations des membres, les revenus des dons en nature et d'usufruit, la vente des marchandises, des produits intermédiaires, des produits finis ou services. Il convient dans le cas d'espèce d'utiliser le compte ci-après : 485 — Créances sur cessions d'immobilisations.",
     comptesAUtiliser: ["485"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 41 — CLIENTS-USAGERS ET COMPTES RATTACHES peut être contrôlé à partir des appels de cotisations, factures, chèques de règlement, relances adhérents, clients, dossiers contentieux.",
   },
   {
@@ -252,6 +289,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Personnel",
     exclusions: "Le compte 42 — PERSONNEL ne doit pas servir à enregistrer : les prêts consentis au personnel. Il convient dans les cas d'espèce d'utiliser les comptes ci-après : 272 — Prêts au personnel.",
     comptesAUtiliser: ["272"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 42 — PERSONNEL peut être contrôlé à partir : des fiches de paie ; des déclarations sociales ; des contrats de prêts ; des procès-verbaux de saisie-arrêt ; des avis à tiers détenteur.",
   },
   {
@@ -259,6 +297,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Organismes sociaux",
     exclusions: "Le compte 43 — ORGANISMES SOCIAUX ne doit pas servir à enregistrer : les opérations faites avec les organismes sociaux en tant que clients. Il convient dans le cas d'espèce d'utiliser le compte ci-après : 41 — Clients et comptes rattachés.",
     comptesAUtiliser: ["41"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 43 — ORGANISMES SOCIAUX peut être contrôlé à partir : des fiches de paie ; des bordereaux de déclarations sociales ; des livres de paie.",
   },
   {
@@ -266,6 +305,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Etat et Collectivités publiques",
     exclusions: "Le compte 44 — ETAT ET COLLECTIVITÉS PUBLIQUES ne doit pas servir à enregistrer : les opérations faites avec l'Etat en tant que fournisseur ; les opérations faites avec l'Etat en tant que client ; les droits de douane acquittés à l'entrée des biens sur le territoire national faisant partie du prix d'achat du bien. Il convient dans les cas d'espèce d'utiliser les comptes ci-après : 40 — Fournisseurs et comptes rattachés ; 412 — Clients-usagers et comptes rattachés ; comptes de la classe 2 ou 6 concernés.",
     comptesAUtiliser: ["40","412"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 44 — ETAT ET COLLECTIVITÉS PUBLIQUES peut être contrôlé à partir : des avis d'imposition ; des déclarations fiscales ; des relevés bancaires.",
   },
   {
@@ -273,6 +313,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Fondateurs, apporteurs et comptes courants",
     exclusions: "Le compte 45 — FONDATEURS, APPORTEURS ET COMPTES COURANTS ne doit pas servir à enregistrer : les appels de cotisations des membres. Il convient dans les cas d'espèce d'utiliser les comptes ci-après : 411 — Adhérents.",
     comptesAUtiliser: ["411"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 45 – FONDATEURS peut être contrôlé à partir : des décisions des organes compétents ou des statuts.",
   },
   {
@@ -280,6 +321,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Bailleurs, fonds d'administration",
     exclusions: "Le compte 46 — BAILLEURS, ETAT ET AUTRES ORGANISMES, FONDS D'ADMINISTRATION ne doit pas servir à enregistrer : les fonds d'investissement des bailleurs de fonds ; les fonds de dotation des associations ; les cotisations des adhérents des associations et assimilées. Il convient dans les cas d'espèce d'utiliser les comptes ci-après : 16 — Fonds affectés ; 10 — Dotation ; 411 Adhérents.",
     comptesAUtiliser: ["10","16","411"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 46 — BAILLEURS, ETAT ET AUTRES ORGANISMES, FONDS D'ADMINISTRATION peut être contrôlé à partir des documents de projets et du budget.",
   },
   {
@@ -287,6 +329,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Débiteurs et créditeurs divers",
     exclusions: "Le compte 47 — DEBITEURS ET CREDITEURS DIVERS ne doit pas servir à enregistrer : les charges imputables au compte Fournisseurs ; les produits imputables au compte Clients. Il convient dans les cas d'espèce d'utiliser les comptes ci-après : 40 — Fournisseurs et comptes rattachés ; 41 — Clients et comptes rattachés.",
     comptesAUtiliser: ["40","41"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 47 — DEBITEURS ET CREDITEURS DIVERS peut être contrôlé à partir : des contrats ; des conventions ; des décomptes de régularisation ; des chèques ; des relevés de banque.",
   },
   {
@@ -294,6 +337,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Créances et dettes hors activités ordinaires",
     exclusions: "Le compte 48 — CREANCES ET DETTES HORS ACTIVITES ORDINAIRES ne doit pas servir à enregistrer les dettes ou les créances ayant pour origine les activités ordinaires de l'entité. Il convient dans les cas d'espèce d'utiliser les comptes ci-après : 40 — Fournisseurs et comptes rattachés ; 41 — Clients et comptes rattachés.",
     comptesAUtiliser: ["40","41"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 48 — CREANCES ET DETTES HORS ACTIVITES ORDINAIRES peut être contrôlé à partir : des chèques ; des contrats d'acquisition d'immobilisations ; des factures ; des ordres de mouvements en Bourse.",
   },
   {
@@ -301,6 +345,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Dépréciations et provisions pour risques à court terme (Tiers)",
     exclusions: "Le compte 49 — DEPRECIATIONS ET PROVISIONS POUR RISQUES ET CHARGES A COURT TERME (TIERS) ne doit pas servir à enregistrer : les provisions pour risques et charges à plus d'un an ; les dépréciations des éléments (classe 2) de l'actif immobilisé ; les dépréciations des comptes de trésorerie (classe 5). Il convient dans les cas d'espèce d'utiliser les comptes ci-après : compte 19 — Provisions pour risques et charges ; compte 29 — Dépréciations ; compte 59 — Dépréciations et provisions pour risques et charges à court terme (Trésorerie).",
     comptesAUtiliser: ["19","29","59"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 49 — DEPRECIATIONS ET PROVISIONS POUR RISQUES ET CHARGES A COURT TERME (TIERS) peut être contrôlé à partir de tous documents à même de justifier les motifs qui rendent la créance douteuse ou litigieuse (courriers et autres protêts, justificatifs du caractère douteux ou litigieux de la créance).",
   },
   {
@@ -308,6 +353,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Titres de placement",
     exclusions: "Le compte 50 — TITRES DE PLACEMENT ne doit pas servir à enregistrer : les titres dont la cession n'est pas facilement réalisable. Il convient dans les cas d'espèce d'utiliser les comptes ci-après : 26 — Titres de participation ; 274 — Titres immobilisés.",
     comptesAUtiliser: ["26","274"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 50 — TITRES DE PLACEMENT peut être contrôlé à partir : des ordres d'achat ; des ordres de vente des titres ; des bordereaux de banque ; des contrats ; des relevés de titres en portefeuille.",
   },
   {
@@ -315,6 +361,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Valeurs à encaisser",
     exclusions: null,
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 51 — VALEURS A ENCAISSER peut être contrôlé à partir : des chèques ; des bordereaux de remise de chèques ; des relevés de banque.",
   },
   {
@@ -322,6 +369,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Banques",
     exclusions: "Le compte 52 — BANQUES ne doit pas servir à enregistrer les mouvements de fonds relatifs aux opérations avec : les Chèques postaux et le Trésor ; les représentations locales d'institutions financières internationales ou étrangères. Il convient dans les cas d'espèce d'utiliser les comptes ci-après : 53 — Etablissements financiers et assimilés ; 538 — Autres organismes financiers.",
     comptesAUtiliser: ["53","538"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 52 — BANQUES peut être contrôlé à partir : des relevés bancaires ; des états de rapprochement bancaire.",
   },
   {
@@ -329,6 +377,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Etablissements financiers et assimilés",
     exclusions: "Le compte 53 — ETABLISSEMENTS FINANCIERS ET ASSIMILES ne doit pas servir à enregistrer : les mouvements de fonds relatifs aux opérations avec les banques. Il convient dans le cas d'espèce d'utiliser le compte ci-après : 52 — Banques.",
     comptesAUtiliser: ["52"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 53 — ETABLISSEMENTS FINANCIERS ET ASSIMILES peut être contrôlé à partir : des relevés de Banques postales ; des relevés du Trésor ; des états de rapprochement.",
   },
   {
@@ -336,6 +385,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Instruments de monnaie électronique",
     exclusions: "Le compte 55 — INSTRUMENTS MONNAIE ELECTRONIQUE ne doit pas servir à enregistrer : les mouvements de fonds des banques ; les opérations de crédit de trésorerie ; les paiements effectués par cartes de crédit. Il convient dans les cas d'espèce d'utiliser les comptes ci-après : 52 — Banques ; 56 — Banques crédits de trésorerie et d'escompte ; 515 — Cartes de crédit à encaisser.",
     comptesAUtiliser: ["515","52","56"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 55 — INSTRUMENTS MONNAIE ELECTRONIQUE peut être contrôlé à partir : des factures de chargement ; du code accès au service de l'instrument et du code secret du gestionnaire de l'instrument.",
   },
   {
@@ -343,6 +393,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Banques, crédits de trésorerie et d'escompte",
     exclusions: "Le compte 56 — BANQUES CREDITS DE TRESORERIE ET D'ESCOMPTE ne doit pas servir à enregistrer : les prêts bancaires à plus d'un an ; les découverts bancaires autorisés, tant qu'ils n'ont qu'un caractère d'engagement de la banque vis-à-vis de l'entité et qu'ils s'ajustent donc sur le montant du solde débiteur chez le banquier. Il convient dans les cas d'espèce d'utiliser les comptes ci-après : 18 — Emprunts et dettes assimilées ; comptes d'engagements hors bilan.",
     comptesAUtiliser: ["18"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 56 — BANQUES, CREDITS DE TRESORERIE ET D'ESCOMPTE peut être contrôlé à partir : des attestations de la banque concernant les crédits de trésorerie ; des relevés bancaires, étant entendu que le crédit de trésorerie doit avoir été positionné au crédit du compte courant.",
   },
   {
@@ -350,6 +401,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Caisse",
     exclusions: "Le compte 57 — CAISSE ne doit pas servir à enregistrer : les chèques de voyage ; les chèques de banque ; les timbres fiscaux ; les timbres postaux et autres figurines d'affranchissement ; les paiements effectués par cartes de crédit. Il convient dans les cas d'espèce d'utiliser les comptes ci-après : 518 — Autres valeurs à l'encaissement ; 513 — Chèques à encaisser ou 514 — Chèques à l'encaissement ; 64 — Impôts et taxes ; 616 — Transports de plis ; 515 — Cartes de crédit à encaisser.",
     comptesAUtiliser: ["513","514","515","518","616","64"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 57 — CAISSE peut être contrôlé à partir : des procès-verbaux de caisse ; des états de reddition de la caisse ; des bordereaux de situation journalière.",
   },
   {
@@ -357,6 +409,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Virements internes",
     exclusions: "Le compte 58 — VIREMENTS INTERNES ne doit pas servir à enregistrer : les opérations internes de trésorerie, lorsque l'entité utilise un journal unique. Il convient dans le cas d'espèce d'utiliser le compte ci-après : les autres comptes de la classe 5 concernés.",
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 58 — VIREMENTS INTERNES peut être contrôlé à partir des relevés bancaires. Il importe de s'assurer que les comptes 585 et 588 relatifs aux virements internes sont soldés à la fin de l'exercice.",
   },
   {
@@ -364,6 +417,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Dépréciations et provisions pour risques à court terme (Trésorerie)",
     exclusions: "Le compte 59 — DEPRECIATIONS ET PROVISIONS POUR RISQUES A COURT TERME (TRESORERIE) ne doit pas servir à enregistrer les provisions pour dépréciations d'autres éléments du bilan : Classe 1 ; Classe 2 ; Classe 3 ; Classe 4. Il convient dans les cas d'espèce d'utiliser les comptes ci-après : 19 — Provisions pour risques et charges ; 29 — Dépréciations ; 39 — Dépréciations des stocks ; 49 — Dépréciations et provisions pour risques à court terme (Tiers).",
     comptesAUtiliser: ["19","29","39","49"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 59 — DEPRECIATIONS ET PROVISIONS POUR RISQUES A COURT TERME (TRESORERIE) peut être contrôlé à partir des cours de Bourse de clôture, des évaluations de titres, des cours du change.",
   },
   {
@@ -371,6 +425,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "60 (sauf 603) Achats",
     exclusions: "Le compte 60 — ACHATS ne doit pas servir à enregistrer : les frais accessoires d'achats directement rattachables aux immobilisations. Il convient dans le cas d'espèce d'utiliser le compte ci-après : comptes de la classe 2.",
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 60 — ACHATS peut être contrôlé à partir : des factures et avoirs fournisseurs ; des bons de commande ; des états d'inventaire.",
   },
   {
@@ -378,20 +433,31 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Transports",
     exclusions: "Le compte 61 — TRANSPORTS ne doit pas servir à enregistrer : les consommations intermédiaires de biens et de services, lorsque l'entité effectue des transports pour son propre compte : carburants, réparations de véhicules, etc. Il convient dans le cas d'espèce d'utiliser les comptes ci-après : comptes de charges appropriés.",
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 61 — TRANSPORTS peut être contrôlé à partir : des factures et avoirs fournisseurs ; des documents de transport (connaissements, lettres de voiture, etc.) ; de l'inventaire des figurines d'affranchissement ; des bons de course.",
   },
   {
     numero: "62",
-    intitule: "Services extérieurs / COMPTE 63 : Autres services extérieurs",
+    intitule: "Services extérieurs",
     exclusions: null,
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
+    elementsDeControle: "Les comptes 62 et 63 — SERVICES EXTERIEURS ET AUTRES SERVICES EXTERIEURS peuvent être contrôlés à partir des factures et avoirs fournisseurs ainsi que des dispositions des contrats.",
+  },
+  {
+    numero: "63",
+    intitule: "Autres services extérieurs",
+    exclusions: null,
+    comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Les comptes 62 et 63 — SERVICES EXTERIEURS ET AUTRES SERVICES EXTERIEURS peuvent être contrôlés à partir des factures et avoirs fournisseurs ainsi que des dispositions des contrats.",
   },
   {
     numero: "64",
     intitule: "Impôts et taxes",
     exclusions: "Le compte 64 — IMPÔTS ET TAXES ne doit pas servir à enregistrer : les annuités de remboursement d'emprunts contractés ou d'avances consenties par l'Etat ; les droits de douane relatifs aux acquisitions d'immobilisations ; les droits de douane relatifs à des achats de biens importés incorporés au prix d'achat (prix rendu frontière). Il convient dans les cas d'espèce d'utiliser les comptes ci-après : 16 — Emprunts et dettes assimilées ; de la classe 2 ; 60 — Achats et variations de stocks.",
-    comptesAUtiliser: ["16","60"],
+    comptesAUtiliser: ["60"],
+    renvoisDiscordants: [{"numero":"16","intituleCite":"Emprunts et dettes assimilées","intitulePlan":"Fonds affectés"}],
     elementsDeControle: "Le compte 64 — IMPÔTS ET TAXES peut être contrôlé à partir : des déclarations ; des avis d'imposition ; des règlements à l'ordre du Trésor.",
   },
   {
@@ -399,6 +465,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Autres charges (sauf 659)",
     exclusions: "Le compte 65 — AUTRES CHARGES ne doit pas servir à enregistrer : les charges H.A.O. constatées ; amoindrissement de la valeur d'une créance dont les effets ne sont pas jugés irréversibles ; les dons en natures reçus non récurrents. Il convient dans le cas d'espèce d'utiliser le compte ci-après : 831 — Charges H.A.O. constatées ; 659 charges pour dépréciations et provisions pour risques à court terme ; 831- Dons en nature HAO.",
     comptesAUtiliser: ["659","831"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 65 — AUTRES CHARGES peut être contrôlé à partir : des factures ; des notifications de cessation de paiement relevées ou du courrier des avocats ; des états financiers de la société en participation ; du procès-verbal de l'assemblée générale ou du conseil d'administration.",
   },
   {
@@ -406,13 +473,15 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Charges de personnel",
     exclusions: "Le compte 66 — CHARGES DE PERSONNEL ne doit pas servir à enregistrer : les impôts dont l'assiette repose sur la rémunération ; les charges considérées comme des consommations intermédiaires (dépenses exposées par les salariés pour le compte de l'entité, notamment) ; les rémunérations de toutes natures attribuées à des tiers ; les indemnités versées à des tierces personnes qui ne sont pas membres de l'entité (honoraires). Il convient dans les cas d'espèce d'utiliser les comptes ci-après : 6413 — Taxes sur appointements et salaires ; comptes appropriés de la classe 6 ; comptes appropriés de la classe 6 ; 632 — Rémunérations d'intermédiaires et de conseils.",
     comptesAUtiliser: ["632","6413"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 66 — CHARGES DE PERSONNEL peut être contrôlé à partir : des livres de paie ; des fiches de paie ; des déclarations sociales et fiscales.",
   },
   {
     numero: "67",
     intitule: "Frais financiers et charges assimilées",
     exclusions: "Le compte 67 — FRAIS FINANCIERS ET CHARGES ASSIMILEES ne doit pas servir à enregistrer : les remboursements d'emprunts contractés ou d'avances reçues ; les intérêts intercalaires d'emprunts dus au titre de la période de construction et de mise en route des immobilisations ; les commissions et courtages bancaires, rémunérations de services. Il convient dans les cas d'espèce d'utiliser les comptes ci-après : 16 — Emprunts et dettes assimilées ; comptes de la classe 2 concernés ; 631 — Frais bancaires.",
-    comptesAUtiliser: ["16","631"],
+    comptesAUtiliser: ["631"],
+    renvoisDiscordants: [{"numero":"16","intituleCite":"Emprunts et dettes assimilées","intitulePlan":"Fonds affectés"}],
     elementsDeControle: "Le compte 67 — FRAIS FINANCIERS ET CHARGES ASSIMILEES peut être contrôlé à partir des relevés de banque et décomptes d'intérêt.",
   },
   {
@@ -420,6 +489,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Dotations aux amortissements",
     exclusions: "Le compte 68 — DOTATIONS AUX AMORTISSEMENTS ne doit pas servir à enregistrer : les dotations aux provisions et dépréciations ; les charges pour provisions et dépréciations ; les dotations aux amortissements H.A.O. Il convient dans les cas d'espèce d'utiliser les comptes ci-après : 69 — Dotations aux provisions et aux dépréciations ; 659 — Charges pour dépréciations et provisions pour risques à court terme d'exploitation ; 679 — Charges pour dépréciations et provisions pour risques à court terme financières ; 852 — Dotations aux amortissements H.A.O.",
     comptesAUtiliser: ["659","679","69","852"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 68 — DOTATIONS AUX AMORTISSEMENTS peut être contrôlé à partir des plans et tableaux d'amortissement.",
   },
   {
@@ -427,6 +497,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Dotations aux provisions et aux dépréciations",
     exclusions: "Le compte 69 — DOTATIONS AUX PROVISIONS ET AUX DÉPRÉCIATIONS ne doit pas servir à enregistrer : les dotations aux provisions H.A.O. ; les charges à la clôture de l'exercice correspondant à la dépréciation probable constatée sur les éléments de l'actif circulant (stocks, clients) ; les charges correspondant à la dépréciation probable constatée sur les éléments de trésorerie. Il convient dans les cas d'espèce d'utiliser les comptes ci-après : 85 — Dotations H.A.O. ; 659 — Charges pour dépréciations et provisions pour risques à court terme d'exploitation ; 679 — Charges pour dépréciations et provisions pour risques à court terme financières.",
     comptesAUtiliser: ["659","679","85"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 69 – DOTATIONS AUX PROVISIONS ET AUX DÉPRÉCIATIONS peut être contrôlé à partir de tous documents susceptibles d'éclairer le jugement sur les charges à prévoir par suite de dépréciation d'éléments d'actif ou les risques attachés à des événements ou opérations intervenus au cours de l'exercice.",
   },
   {
@@ -434,6 +505,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Revenus",
     exclusions: "Le compte 70 — REVENUS ne doit pas servir à enregistrer : les subventions d'exploitation compensatrices d'insuffisances de tarifs. Il convient dans le cas d'espèce d'utiliser le compte ci-après : 71 - Subventions d'exploitation.",
     comptesAUtiliser: ["71"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 70 - VENTES peut être contrôlé à partir : des appels de cotisations ; du document de projet ou budget du bailleur de fonds ; des statuts de la fondation ou de l'association pour la dotation consomptible ; du registre des donateurs pour les revenus liés à la générosité.",
   },
   {
@@ -441,6 +513,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Subventions d'exploitation",
     exclusions: "Le compte 71 — SUBVENTIONS D'EXPLOITATION ne doit pas servir à enregistrer : les fonds de dotation ; les fonds affectés aux investissements ; les fonds d'administration des projets et assimilés ; les subventions accordées en vue d'acquérir, de créer, de remplacer et de mettre en état des immobilisations. Il convient dans les cas d'espèce d'utiliser les comptes ci-après : 10 — Dotation ; 16 — Fonds affectés ; 46 — Bailleurs fonds d'administration ; 14 — Subventions d'investissement.",
     comptesAUtiliser: ["10","14","16","46"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 71 - SUBVENTIONS D'EXPLOITATION peut être contrôlé à partir des courriers d'octroi des subventions.",
   },
   {
@@ -448,6 +521,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Production immobilisée",
     exclusions: null,
     comptesAUtiliser: [],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 72 - PRODUCTION IMMOBILISEE peut être contrôlé à partir : des immobilisations portées à l'actif ; des charges saisies par la comptabilité analytique.",
   },
   {
@@ -455,6 +529,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Variations des stocks de biens produits",
     exclusions: "Le compte 73 — VARIATION DE STOCKS DE BIENS PRODUITS ne doit pas servir à enregistrer : la variation de la période, afférente aux stocks de marchandises, de matières, de fournitures et d'emballages commerciaux. Il convient dans le cas d'espèce d'utiliser le compte ci-après : comptes 603 - Variations des stocks de biens achetés.",
     comptesAUtiliser: ["603"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 73 - VARIATIONS DES STOCKS DE BIENS PRODUITS peut être contrôlé à partir : des fiches d'inventaire ; de l'évaluation des stocks ; de la comptabilité analytique.",
   },
   {
@@ -462,6 +537,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Autres produits (sauf compte 759)",
     exclusions: "Le compte 75 - AUTRES PRODUITS (sauf 759) ne doit pas servir à enregistrer : les rabais, remises et ristournes accordés, hors factures, aux clients ; les dons en nature destinés à la vente non encore réalisée ; les profits de change sur opérations ayant un caractère financier (emprunts et liquidité en devises). Il convient dans les cas d'espèce d'utiliser les comptes ci-après : compte 70 — Ventes ; suivi extra comptable ; 776 Gains de change financiers.",
     comptesAUtiliser: ["70","776"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 75 — AUTRES PRODUITS peut être contrôlé à partir : des factures, des avis bancaires ; des correspondances échangées.",
   },
   {
@@ -469,13 +545,15 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Revenus financiers et produits assimilés",
     exclusions: "Le compte 77 — REVENUS FINANCIERS ET PRODUITS ASSIMILES ne doit pas servir à enregistrer : les récupérations de prêts ou d'avances consenties. Il convient dans le cas d'espèce d'utiliser le compte ci-après : 27 - Autres immobilisations financières.",
     comptesAUtiliser: ["27"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 77 - REVENUS FINANCIERS ET PRODUITS ASSIMILES peut être contrôlé à partir : de virements bancaires ; de décompte d'intérêts ; de factures avec escompte ; de bordereaux de cession de titres ; de l'encaissement des coupons.",
   },
   {
     numero: "78",
     intitule: "Transferts de charges",
     exclusions: "Le compte 78 — TRANSFERTS DE CHARGES ne doit pas servir à enregistrer les transferts de charges en actif immobilisé ; les transferts de charges H.A.O. Il convient dans ces cas d'espèce d'utiliser les comptes ci-après : 72 - Production immobilisée ; 848 - Transferts de charges H.A.O.",
-    comptesAUtiliser: ["72","848"],
+    comptesAUtiliser: ["72"],
+    renvoisDiscordants: [{"numero":"848","intituleCite":"Transferts de charges H.A.O","intitulePlan":"Transferts de produits H.A.O."}],
     elementsDeControle: "Le compte 78 - TRANSFERTS DE CHARGES peut être contrôlé à partir du relevé des décisions de gestion des organes compétents.",
   },
   {
@@ -483,6 +561,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Reprises de provisions, de dépréciations et autres",
     exclusions: "Le compte 79 — REPRISES DE PROVISIONS, DE DEPRECIATIONS ET AUTRES ne doit pas servir à enregistrer : les reprises H.A.O. ; les reprises de charges pour provisions. Il convient dans le cas d'espèce d'utiliser les comptes ci-après : 86 Reprises H.A.O. ; 759 Reprises de charges pour dépréciations et provisions pour risques à court terme d'exploitation ; 779 Reprises de charges pour dépréciations et provisions pour risques à court terme financières ; 849 Reprises de charges pour dépréciations et provisions pour risques à court terme H.A.O.",
     comptesAUtiliser: ["759","779","849","86"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 79 — REPRISES DE PROVISIONS, DE DEPRECIATIONS ET AUTRES peut être contrôlé à partir du relevé des décisions des organes compétents.",
   },
   {
@@ -490,6 +569,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Valeurs comptables des cessions d'immobilisations",
     exclusions: "Le compte 81 — VALEURS COMPTABLES DES CESSIONS D'IMMOBILISATIONS ne doit pas servir à enregistrer : les dépréciations afférentes aux éléments d'actif immobilisé cédés. Il convient dans les cas d'espèce d'utiliser les comptes ci-après : 29 — Dépréciations.",
     comptesAUtiliser: ["29"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 81 — VALEURS COMPTABLES DES CESSIONS D'IMMOBILISATIONS peut être contrôlé à partir : des documents attestant de la valeur de sortie de l'immobilisation : procès-verbal de mise au rebut ; des factures de vente ; d'un procès-verbal de destruction ; des tableaux d'amortissement.",
   },
   {
@@ -497,6 +577,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Produits des cessions d'immobilisations",
     exclusions: "Le compte 82 — PRODUITS DES CESSIONS D'IMMOBILISATIONS ne doit pas servir à enregistrer : les indemnités d'assurances autres que celles représentatives de l'indemnisation du bien détruit. Il convient dans le cas d'espèce d'utiliser le compte ci-après : 7582 — Indemnités d'assurances reçues.",
     comptesAUtiliser: ["7582"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 82 — PRODUITS DES CESSIONS D'IMMOBILISATIONS peut être contrôlé à partir : des factures de cession d'immobilisations ; des commissions et des frais de vente.",
   },
   {
@@ -504,6 +585,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Charges hors activités ordinaires",
     exclusions: "Le compte 83 — CHARGES HORS ACTIVITES ORDINAIRES ne doit pas servir à enregistrer : les provisions pour risques et charges hors activités ordinaires à plus d'un an. Il convient dans le cas d'espèce d'utiliser le compte ci-après : 854 — Dotations aux provisions pour risques et charges H.A.O.",
     comptesAUtiliser: ["854"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 83 - CHARGES HORS ACTIVITES ORDINAIRES peut être contrôlé à partir : des factures ; des évaluations ; des tableaux d'amortissements ; des calculs de plus-values, notamment.",
   },
   {
@@ -511,6 +593,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Revenus hors activités ordinaires",
     exclusions: "Le compte 84 — REVENUS HORS ACTIVITES ORDINAIRES ne doit pas servir à enregistrer : les reprises de provisions H.A.O. antérieurement constituées. Il convient dans le cas d'espèce d'utiliser le compte ci-après : 86 — Reprises H.A.O.",
     comptesAUtiliser: ["86"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 84 — REVENUS HORS ACTIVITES ORDINAIRES peut être contrôlé à partir de l'analyse, des factures, des évaluations et des tableaux de provisions.",
   },
   {
@@ -518,6 +601,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Dotations hors activités ordinaires",
     exclusions: "Le compte 85 — DOTATIONS HORS ACTIVITES ORDINAIRES ne doit pas servir à enregistrer : les charges calculées H.A.O. à court terme (moins d'un an). Il convient dans le cas d'espèce d'utiliser le compte ci-après : 839 — Charges pour dépréciations et provisions pour risques à court terme H.A.O.",
     comptesAUtiliser: ["839"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 85 — DOTATIONS HORS ACTIVITES ORDINAIRES peut être contrôlé à partir de l'évaluation de la provision.",
   },
   {
@@ -525,6 +609,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Reprises d'amortissements, provisions et dépréciations HAO",
     exclusions: "Le compte 86 — REPRISES HORS ACTIVITES ORDINAIRES ne doit pas servir à enregistrer : les reprises de dépréciations et provisions pour risques à court terme d'exploitation ; les reprises de dépréciations d'éléments de l'actif immobilisé ; les reprises de dotations à caractère financier ; les dotations aux provisions et aux dépréciations d'exploitation ou à caractère financier. Il convient dans le cas d'espèce d'utiliser les comptes ci-après : 759 — Reprises de charges pour dépréciations et provisions pour risques à court terme d'exploitation ou 779 — Reprises de charges pour dépréciations et provisions pour risques à court terme financières ; 791 — Reprises de provisions et de dépréciations d'exploitation ou 797 — Reprises de provisions et de dépréciations financières ; 691 — Dotations aux provisions et aux dépréciations d'exploitation ou 697 — Dotations aux provisions et aux dépréciations financières.",
     comptesAUtiliser: ["691","697","759","779","791","797"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 86 - REPRISES HORS ACTIVITES ORDINAIRES peut être contrôlé à partir : des tableaux d'amortissements ; des tableaux de reprises des écarts de réévaluation ; des tableaux de reprises de la plus-value de cession à réinvestir.",
   },
   {
@@ -532,6 +617,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Variations de stocks de dons en nature HAO",
     exclusions: "Le compte 87 — VARIATIONS DE STOCKS DE DONS EN NATURE HAO ne doit pas servir à enregistrer : le stock de dons en nature courant à distribuer ; le stock de dons en nature non récurrents destinés à la vente pour se procurer de la trésorerie. Il convient dans les cas d'espèce d'utiliser les comptes ci-après : 6035 — Variations de stocks de dons en nature ; suivi extra comptable.",
     comptesAUtiliser: ["6035"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 87 — VARIATIONS DE STOCKS DE DONS EN NATURE HAO peut être contrôlé à partir de la prise d'inventaire et de la nature des dons.",
   },
   {
@@ -539,6 +625,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Subventions d'équilibre",
     exclusions: "Le compte 88 — SUBVENTIONS D'EQUILIBRE ne doit pas servir à enregistrer : les subventions d'investissement ; les subventions d'exploitation. Il convient dans les cas d'espèce d'utiliser les comptes ci-après : 14 — Subventions d'investissement ; 71 — Subventions d'exploitation.",
     comptesAUtiliser: ["14","71"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 88 — SUBVENTIONS D'EQUILIBRE peut être contrôlé à partir de décrets ou d'arrêtés ministériels, de décisions de collectivités publiques accordant la subvention.",
   },
   {
@@ -546,6 +633,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Contributions volontaires en nature · comptes de contrepartie (débit)",
     exclusions: "Les comptes 90 et 91 ne doivent pas servir à enregistrer : des produits de la vente des dons en nature reçus ; des dons en nature courants à distribuer ; des dons en nature non courants à distribuer ; les dons et legs d'immobilisations. Il convient dans les cas d'espèce d'utiliser les comptes ci-après : 7081 - Ventes de dons en nature ; 654 et 7542 - Dons en nature courants à distribuer ; 832 et 842 — Contributions volontaires en nature ; 167 Fonds provenant de dons et legs d'immobilisations ou 172 Legs et donations d'immobilisations non reçus destinés à la vente.",
     comptesAUtiliser: ["167","172","654","7081","7542","832","842"],
+    renvoisDiscordants: [],
     elementsDeControle: "Les comptes 90 et 91 peuvent être contrôlés à partir de recoupements issus : des conventions de mises à disposition du personnel ou des locaux ; du barème d'estimation des heures de bénévolat ; des copies des reçus-dons.",
   },
   {
@@ -553,6 +641,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Contributions volontaires en nature · comptes de contrepartie (crédit)",
     exclusions: "Les comptes 90 et 91 ne doivent pas servir à enregistrer : des produits de la vente des dons en nature reçus ; des dons en nature courants à distribuer ; des dons en nature non courants à distribuer ; les dons et legs d'immobilisations. Il convient dans les cas d'espèce d'utiliser les comptes ci-après : 7081 - Ventes de dons en nature ; 654 et 7542 - Dons en nature courants à distribuer ; 832 et 842 — Contributions volontaires en nature ; 167 Fonds provenant de dons et legs d'immobilisations ou 172 Legs et donations d'immobilisations non reçus destinés à la vente.",
     comptesAUtiliser: ["167","172","654","7081","7542","832","842"],
+    renvoisDiscordants: [],
     elementsDeControle: "Les comptes 90 et 91 peuvent être contrôlés à partir de recoupements issus : des conventions de mises à disposition du personnel ou des locaux ; du barème d'estimation des heures de bénévolat ; des copies des reçus-dons.",
   },
   {
@@ -560,6 +649,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Variations des stocks de biens achetés et reçus en dons en nature à distribuer",
     exclusions: "Le compte 603 — VARIATIONS DES STOCKS DE BIENS ACHETES ET RECUS EN DONS EN NATURE ne doit pas servir à enregistrer : les variations de stocks d'en-cours ou de produits fabriqués. Il convient dans le cas d'espèce d'utiliser le compte ci-après : 736 — Variations des stocks.",
     comptesAUtiliser: ["736"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 603 — VARIATIONS DES STOCKS DE BIENS ACHETES ET RECUS EN DONS EN NATURE A DISTRIBUER peut être contrôlé à partir de l'inventaire, ou du décompte physique, et de l'évaluation.",
   },
   {
@@ -567,6 +657,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Charges pour dépréciations et provisions pour risques à court terme d'exploitation",
     exclusions: "Le compte 659 — CHARGES POUR DÉPRÉCIATIONS ET PROVISIONS POUR RISQUES A COURT TERME D'EXPLOITATION ne doit pas servir à enregistrer : les Dépréciations et les provisions pour risques à court terme H.A.O. Il convient dans le cas d'espèce d'utiliser le compte ci-après : 839 — Charges pour dépréciations et provisions pour risques à court terme H.A.O.",
     comptesAUtiliser: ["839"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 659 — CHARGES POUR DÉPRÉCIATIONS ET PROVISIONS POUR RISQUES A COURT TERME D'EXPLOITATION peut être contrôlé à partir des factures, notifications de cessation de paiements, relevés, ou des courriers des avocats.",
   },
   {
@@ -574,6 +665,7 @@ export const REGLES_COMPTES_SYCEBNL: RegleCompte[] = [
     intitule: "Reprises de charges pour dépréciations et provisions pour risques à court terme d'exploitation",
     exclusions: "Le compte 759 — REPRISES DE CHARGES POUR DEPRECIATIONS ET PROVISIONS POUR RISQUES A COURT TERME D'EXPLOITATION ne doit pas servir à enregistrer : les reprises de dépréciations d'éléments de l'actif immobilisé ; les reprises de dépréciations d'éléments à caractère financier. Il convient dans les cas d'espèce d'utiliser les comptes ci-après : 791 Reprises de charges pour dépréciations et provisions pour risques à court terme d'exploitation ; 797 Reprises de charges pour dépréciations et provisions pour risques à court terme financières.",
     comptesAUtiliser: ["791","797"],
+    renvoisDiscordants: [],
     elementsDeControle: "Le compte 759 — REPRISES DE CHARGES POUR DEPRECIATIONS ET PROVISIONS POUR RISQUES A COURT TERME D'EXPLOITATION peut être contrôlé à partir du relevé des décisions de gestion des organes compétents.",
   },
 ];
