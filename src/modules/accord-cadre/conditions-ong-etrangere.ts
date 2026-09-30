@@ -104,6 +104,16 @@ export interface EtatAccordCadre {
    * l'accord ne calcule pas lui-même.
    */
   dernierJourPourDenoncer: Date | null;
+  /**
+   * VRAI quand la dénonciation est parvenue APRÈS le dernier jour pour
+   * dénoncer la période qu'elle vise. Le modèle Kahasha (annexe VIII,
+   * art. IX) exige qu'elle intervienne « 6 mois avant la fin de chaque
+   * période » et fait courir le préavis « à la date de réception ». Ce qu'il
+   * advient d'une dénonciation tardive dépend de l'accord signé · le logiciel
+   * le DIT et ne fixe aucune autre date. `null` sans dénonciation ou sans
+   * préavis stipulé.
+   */
+  denonciationHorsPreavis: boolean | null;
 }
 
 /**
@@ -125,13 +135,20 @@ export function etatAccordCadre(params: {
   // 29 février ne finit pas le 1er mars.
   const finDe = (rang: number) => ajouterMois(dateSignature, 12 * dureeAnnees * rang);
 
+  // LA PÉRIODE SE SUIT JUSQU'À LA DATE QUI COMPTE. Sans dénonciation, c'est
+  // la référence · l'accord repart tant que personne ne l'arrête. AVEC une
+  // dénonciation, c'est la date où elle est parvenue · l'accord a été
+  // reconduit jusqu'à elle, et c'est la période en cours ce jour-là qu'elle
+  // termine. S'arrêter à la première période, comme avant, affichait « jusqu'au
+  // 15/01/2020 » pour un accord signé en 2010, reconduit, et dénoncé en 2026.
+  const jusqua = denonceLe ?? reference;
   let rang = 1;
   let fin = finDe(rang);
-  if (taciteReconduction && !denonceLe) {
-    // Avancer de période en période jusqu'à celle qui couvre la référence.
+  if (taciteReconduction) {
+    // Avancer de période en période jusqu'à celle qui couvre cette date.
     // Bornée à cent tours · une durée nulle ou négative boucle sinon, et un
     // écran qui ne répond plus est un écran qu'on ferme.
-    while (fin.getTime() <= reference.getTime() && rang < 100 && dureeAnnees > 0) {
+    while (fin.getTime() <= jusqua.getTime() && rang < 100 && dureeAnnees > 0) {
       rang += 1;
       fin = finDe(rang);
     }
@@ -147,5 +164,7 @@ export function etatAccordCadre(params: {
     periodeEcoulee: fin.getTime() <= reference.getTime(),
     enTaciteReconduction: taciteReconduction && !denonceLe,
     dernierJourPourDenoncer,
+    denonciationHorsPreavis:
+      denonceLe && dernierJourPourDenoncer ? denonceLe.getTime() > dernierJourPourDenoncer.getTime() : null,
   };
 }

@@ -308,14 +308,17 @@ export class FiscaliteService {
           'calculé ici est faux de cet écart. ' +
           (enTrop
             ? "LE COMPTE PORTE PLUS QUE CE QUI EST DÉCLARÉ : ce sens-là n'est PAS une insuffisance de versement, " +
-              "et l'amende de l'art. 98 bis ne s'y applique pas. DEUX CAUSES À EXAMINER. Un acompte versé et non " +
+              "et l'amende de l'art. 98 bis ne s'y applique pas. TROIS CAUSES À EXAMINER. Un acompte versé et non " +
               'saisi dans cette fenêtre, qui se corrige à la saisie. Ou une somme qui N’EST PAS un acompte : ' +
               "l'art. 110, alinéa 2 de la loi de procédures fiscales oblige le contribuable qui demande un sursis " +
               'de recouvrement sur un supplément contesté à « verser un montant égal au DIXIÈME du supplément ' +
               "d'impôt contesté ». Cette consignation n'est pas une avance sur l'impôt de l'exercice et ne " +
               "s'impute pas comme un acompte · son sort suit l'issue de la réclamation. Le sursis ne joue pas en " +
-              "cas de taxation d'office (même article, alinéa 3). OmegaX ne détient aucune réclamation et ne peut " +
-              'donc pas distinguer les deux : la ventilation appartient au cabinet.'
+              "cas de taxation d'office (même article, alinéa 3). Ou, si le dossier donne des immeubles en location, " +
+              "les retenues sur loyers opérées par ses locataires en son acquit : la loi n° 83/004, art. 11, appelle " +
+              "chacune « acompte », et son art. 13 l'impute sur l'impôt sur les revenus locatifs du propriétaire, non " +
+              "sur l'impôt sur les sociétés. OmegaX ne détient aucune réclamation ni aucun bail et ne peut donc pas " +
+              'distinguer ces trois sommes : la ventilation appartient au cabinet.'
             : "LE COMPTE PORTE MOINS QUE CE QUI EST DÉCLARÉ. Si ce sont les acomptes qui manquent, l'art. 98 bis " +
               "LPF punit « le défaut ou l'insuffisance de paiement de l'acompte provisionnel » d'« une amende " +
               "égale à 50 % du montant de l'acompte non versé »."),
@@ -1146,9 +1149,19 @@ export class FiscaliteService {
       case FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE:
         observations.push(OBSERVATION_UNIPERSONNELLE_PASSE_F5);
         break;
+      // LA FORME NE DIT NI LA NATURE NI LA RÉSIDENCE DU PROPRIÉTAIRE (passe
+      // O1a). L'AUSCGIE, art. 116, fait de la succursale l'établissement
+      // « d'une société ou d'une personne physique », et l'art. 118 dit
+      // seulement qu'elle « PEUT être l'établissement d'une société ou d'une
+      // personne physique étrangère ». Le module groupe tient d'ailleurs le cas
+      // domestique (une société et ses succursales, liées par les 184 à 187).
+      // L'établissement stable (art. 7 et 8) et la non-déductibilité des
+      // frais du siège (art. 50, 7°) ne valent que pour une SOCIÉTÉ
+      // NON-RÉSIDENTE · la phrase est donc conditionnelle, et rien n'est
+      // présumé du propriétaire.
       case FormeJuridiqueSyscohada.SUCCURSALE:
         observations.push(
-          "Succursale d'une société non-résidente : établissement stable imposable en RDC (art. 7 et 8). Les frais généraux du siège à l'étranger ne sont pas déductibles (art. 50, 7°) · voir la réintégration correspondante.",
+          "Succursale : la forme ne dit ni si son propriétaire est une société ou une personne physique (AUSCGIE, art. 116), ni s'il est étranger (art. 118) · ses droits et obligations sont compris dans le patrimoine du propriétaire (art. 117). SI ce propriétaire est une société non-résidente, la succursale est un établissement stable imposable en RDC (loi n° 23/053, art. 7 et 8), et les frais généraux du siège se trouvant à l'étranger ne sont pas déductibles (art. 50, 7°) · voir la réintégration correspondante.",
         );
         break;
       case null:

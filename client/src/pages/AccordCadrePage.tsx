@@ -45,6 +45,7 @@ type Etat = {
       periodeEcoulee: boolean;
       enTaciteReconduction: boolean;
       dernierJourPourDenoncer: string | null;
+      denonciationHorsPreavis: boolean | null;
     };
   }[];
 };
@@ -123,7 +124,9 @@ export function AccordCadrePage() {
 
   async function denoncer(id: string) {
     setErreur(null);
-    const denonceLe = window.prompt('Date de la dénonciation (AAAA-MM-JJ)');
+    // Le préavis du modèle court « à la date de réception » (guide Kahasha,
+    // annexe VIII, art. IX) · c'est cette date qui se saisit.
+    const denonceLe = window.prompt('Date de réception de la dénonciation par l’autre partie (AAAA-MM-JJ)');
     if (!denonceLe) return;
     const motif = window.prompt('Motif de la dénonciation');
     if (!motif?.trim()) return;
@@ -234,7 +237,9 @@ export function AccordCadrePage() {
                   <th className="py-1 pr-2">Référence</th>
                   <th className="py-1 pr-2">Signé le</th>
                   <th className="py-1 pr-2">Période en cours</th>
-                  <th className="py-1 pr-2">Dénoncer avant</th>
+                  <th className="py-1 pr-2" title="Le préavis du modèle d'accord court à la date de réception de la dénonciation (guide Kahasha, annexe VIII, art. IX) · à confronter à l'accord signé">
+                    Dénonciation reçue au plus tard le
+                  </th>
                   <th className="py-1 pr-2">Main-d'œuvre locale</th>
                   <th className="py-1">État</th>
                 </tr>
@@ -257,7 +262,11 @@ export function AccordCadrePage() {
                     </td>
                     <td className="py-1">
                       {a.denonceLe
-                        ? `Dénoncé le ${jour(a.denonceLe)}`
+                        ? `Dénoncé le ${jour(a.denonceLe)}${
+                            a.etat.denonciationHorsPreavis
+                              ? ' · préavis de l’accord non respecté, l’effet dépend de l’accord signé'
+                              : ''
+                          }`
                         : a.etat.enTaciteReconduction
                           ? 'Reconduit tacitement'
                           : a.etat.periodeEcoulee

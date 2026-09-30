@@ -1424,3 +1424,28 @@ describe('Lecture du livre-journal · brouillard et écriture de clôture (F6)',
     expect(['regime', r.regime]).toEqual(['regime', 'IRPP_REGIME_REEL']);
   });
 });
+
+/**
+ * PASSES F11 ET O1a · deux observations du module fiscal qui en disaient plus
+ * que leurs textes, ou moins.
+ */
+describe('Passes F11 et O1a · le 4492 et la succursale', () => {
+  it('F11-B7 · un 4492 qui porte PLUS nomme aussi la retenue sur loyers subie, imputée sur l’IRL', () => {
+    const o = FiscaliteService.suiviAcomptes({
+      acomptesDus: true,
+      declares: 1_000_000,
+      comptabilises: 3_000_000,
+      impotDu: null,
+    })!.observations.join(' ');
+    expect(o).toContain('TROIS CAUSES À EXAMINER');
+    expect(o).toContain('la loi n° 83/004, art. 11, appelle chacune « acompte »');
+  });
+
+  it('O1a-B1 · une succursale ne se lit plus comme l’établissement d’une société non-résidente', async () => {
+    const { s } = service({ forme: FormeJuridiqueSyscohada.SUCCURSALE, balances: { N: [] } });
+    const r = await s.resultatFiscal('t1', 'N');
+    const o = r.observations.join(' ');
+    expect(o).toContain('SI ce propriétaire est une société non-résidente');
+    expect(o).toContain('(AUSCGIE, art. 116)');
+  });
+});

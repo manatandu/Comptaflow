@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { parcoursConstitution, piecesDuParcours } from './catalogue-constitution';
+import {
+  champsIdentificationDeLaForme,
+  motifHorsParcours,
+  parcoursConstitution,
+  piecesDuParcours,
+} from './catalogue-constitution';
 
 /**
  * CHECKLIST DE CONSTITUTION · et ce qu'elle NE crée PAS.
@@ -42,19 +47,36 @@ export class ConstitutionService {
     // l'étape · l'appariement par RANG se serait décalé le jour où le parcours
     // d'une ONG étrangère insère une étape, et un produit se serait retrouvé
     // en face de la mauvaise démarche.
+    //
+    // UN CHAMP N'EST CONFRONTÉ QUE SI LA FORME LE PORTE (constats D1-A5,
+    // D1-B3). Une association lisait « Certificat d'enregistrement du
+    // Ministère du Plan : non renseigné au dossier » sans qu'aucun écran lui
+    // ouvre ce champ · un manque qu'on ne peut pas lever n'est pas un manque,
+    // c'est un défaut d'affichage. Et l'AVIS favorable des art. 3 et 5 n'est
+    // pas l'ENREGISTREMENT au ministère du secteur (art. 36 pour l'ONG,
+    // art. 31 pour l'association étrangère) · le numéro d'enregistrement ne
+    // se met en face de l'avis que pour les formes que la loi enregistre.
+    const champs = champsIdentificationDeLaForme(t.formeJuridique, t.droitEtranger);
+    const enregistrement = {
+      champ: `Enregistrement au ministère du secteur (${t.droitEtranger ? 'art. 31' : 'art. 36'})`,
+      valeur: t.numeroEnregistrementSecteur,
+    };
     const detenu: Record<string, { champ: string; valeur: string | null }> = {
-      // L'avis favorable du ministère de tutelle se matérialise, côté dossier,
-      // par le numéro d'enregistrement auprès de ce ministère · c'est le seul
-      // champ que le dossier porte pour cette étape.
-      'avis-tutelle': { champ: 'Enregistrement au ministère du secteur', valeur: t.numeroEnregistrementSecteur },
+      ...(champs.enregistrementSecteur
+        ? { 'avis-tutelle': enregistrement, 'avis-enregistrement-secteur': enregistrement }
+        : {}),
       'personnalite-juridique': {
-        champ: 'Acte accordant la personnalité juridique',
+        champ: t.droitEtranger ? 'Décret d’autorisation' : 'Acte accordant la personnalité juridique',
         valeur: t.actePersonnaliteJuridique,
       },
-      'enregistrement-plan': {
-        champ: 'Certificat d’enregistrement du Ministère du Plan',
-        valeur: t.certificatEnregistrementPlan,
-      },
+      ...(champs.certificatPlan
+        ? {
+            'enregistrement-plan': {
+              champ: 'Certificat d’enregistrement du Ministère du Plan',
+              valeur: t.certificatEnregistrementPlan,
+            },
+          }
+        : {}),
     };
 
     const etapes = parcoursConstitution(t.formeJuridique, t.droitEtranger).map((e) => {
@@ -62,16 +84,23 @@ export class ConstitutionService {
       return {
         ...e,
         // `null` et non `false` quand le dossier ne porte AUCUN champ pour
-        // cette étape · l'ONG étrangère n'en a pas, et afficher « non
-        // renseigné » y ferait croire à un manque alors que la fenêtre
-        // Accord-cadre tient la réponse.
+        // cette étape · afficher « non renseigné » y ferait croire à un
+        // manque. Le motif dit pourquoi la ligne est vide.
         produitDetenu: d ? { ...d, renseigne: Boolean(d.valeur) } : null,
+        motifSansProduit: d
+          ? null
+          : e.cle === 'conditions-ong-etrangere'
+            ? 'Tenu dans la fenêtre Accord-cadre'
+            : 'Aucun champ du dossier ne porte cet acte',
       };
     });
 
     const pieces = piecesDuParcours(t.formeJuridique, t.droitEtranger);
     return {
       etapes,
+      // Ce que la loi n° 004/2001 ne régit pas se dit, au lieu d'une liste.
+      horsParcours: motifHorsParcours(t.formeJuridique),
+      champsPortes: champs,
       formeJuridique: t.formeJuridique,
       droitEtranger: t.droitEtranger,
       dateActePersonnalite: t.dateActePersonnalite,

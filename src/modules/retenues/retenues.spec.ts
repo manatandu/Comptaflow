@@ -1179,7 +1179,7 @@ describe('Contribution nationale · la base légale qui ne se vérifiait pas', (
   le constate · même rattachement à l'article 18 bis pour les capitaux
   mobiliers (lignes 294 à 297), à l'article 19 pour le prélèvement expatriés
   (lignes 313 à 315 et 322), à l'article 22 bis pour les prestataires
-  non-résidents (lignes 346 à 349) et à l'article 57, alinéa 5 pour la retenue
+  non-résidents (lignes 346 à 349) et à l'article 57, alinéa 4 pour la retenue
   locative (`19-procedures-titre3-recouvrement.md`, lignes 25 à 27).
 
   Une paie de décembre passée au 31 décembre et versée le 5 janvier voyait

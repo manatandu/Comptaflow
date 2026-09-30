@@ -46,8 +46,8 @@
  * LE RAISONNEMENT ÉTAIT JUSTE ET LA SOURCE ÉTAIT LA MAUVAISE. Le Code du
  * travail régit les rapports entre EMPLOYEURS ET TRAVAILLEURS. L'obligation que
  * l'art. 110 bis fait tomber à une date, elle, s'exécute DEVANT
- * L'ADMINISTRATION · on dépose une déclaration et on verse à un guichet. Et les
- * jours d'ouverture de ce guichet sont fixés ailleurs :
+ * L'ADMINISTRATION · on dépose une déclaration à un guichet. Et les jours
+ * d'ouverture de ce guichet sont fixés ailleurs :
  *
  *   DÉCRET N° 24/09 DU 17 FÉVRIER 2024 portant règlement d'administration
  *   relatif à la discipline, art. 1er, VERBATIM : « L'horaire de travail dans
@@ -55,8 +55,24 @@
  *   8 heures à 17 heures, avec une pause de 12 heures 30 à 13 heures. »
  *
  * Les services publics ne travaillent donc pas le samedi, et un redevable dont
- * l'échéance y tombe ne peut ni déclarer ni payer. C'est exactement le cas que
- * l'art. 110 bis, alinéa 2 règle. LE SAMEDI EST NON OUVRABLE pour une échéance
+ * l'échéance y tombe ne peut pas y déposer sa déclaration. C'est exactement le
+ * cas que l'art. 110 bis, alinéa 2 règle.
+ *
+ * LE PAIEMENT NE SE FAIT PAS À CE GUICHET, et la réserve servie l'affirmait
+ * jusqu'à la passe F8. Décret n° 20/019 du 21 août 2020, art. 1er : le
+ * règlement des dettes envers l'État « est obligatoirement effectué [...]
+ * auprès des seuls organismes ou agents habilités », les « intervenants »,
+ * que l'art. 2 énumère · « les banques et les autres établissements de crédit
+ * agréés », les attachés financiers à l'étranger, et « exceptionnellement »
+ * les receveurs là où aucune banque n'est représentée. La circulaire
+ * ministérielle n° 002 du 1er octobre 2020, III.2.2, le redit pour la DGI, et
+ * nomme les acomptes provisionnels, versés « auprès de l'intervenant ou de la
+ * Banque Centrale du Congo sur base du bordereau de versement d'acompte ». Le
+ * décret n° 24/09 ne fixe pas les jours d'une banque. Pour une échéance de
+ * PUR PAIEMENT, le samedi n'est donc exclu par aucun texte lu · le calcul
+ * n'est PAS changé (décider de ne plus reporter ces échéances appartient à
+ * l'éditeur, et aucun texte lu ne dit si une banque ouverte le samedi rend ce
+ * jour « ouvrable » au sens de l'art. 110 bis), mais la réserve le dit. LE SAMEDI EST NON OUVRABLE pour une échéance
  * fiscale, à compter du 17 février 2024 (art. 51 du même décret, « entre en
  * vigueur à la date de sa signature »).
  *
@@ -264,10 +280,10 @@ export const RESERVE_JOUR_OUVRABLE =
   'non ouvrable est reportée au premier jour ouvrable qui suit. Cet état applique le report sur TROIS exclusions, ' +
   'chacune avec sa source et sa date. Le DIMANCHE, jour de repos hebdomadaire (Code du travail, art. 121, ' +
   'alinéa 2), de tout temps. Le SAMEDI, parce que les services publics travaillent « du lundi au vendredi » ' +
-  '(décret n° 24/09 du 17 février 2024, art. 1er) et que la déclaration comme le paiement se font devant eux · ' +
-  'à compter du 17 février 2024. Et les DIX JOURS FÉRIÉS LÉGAUX de l\u2019article 1er de l\u2019ordonnance ' +
+  '(décret n° 24/09 du 17 février 2024, art. 1er) et que la DÉCLARATION se dépose auprès des services de la ' +
+  'DGI · à compter du 17 février 2024. Et les DIX JOURS FÉRIÉS LÉGAUX de l\u2019article 1er de l\u2019ordonnance ' +
   'n° 23-042 du 30 mars 2023 (1er, 4, 16 et 17 janvier, 6 avril, 1er et 17 mai, 30 juin, 1er août, 25 décembre) · ' +
-  "à compter du 30 mars 2023. QUATRE RÉSERVES. (1) La législation fiscale ne définit pas le « jour ouvrable » : " +
+  "à compter du 30 mars 2023. CINQ RÉSERVES. (1) La législation fiscale ne définit pas le « jour ouvrable » : " +
   'ces trois règles lui sont EMPRUNTÉES au droit du travail et au droit de la fonction publique. (2) Avant leurs ' +
   "dates d'effet, les textes antérieurs (ordonnance 14-010 du 14 mai 2014 pour les fériés, ordonnance 81-067 du " +
   "7 mai 1981 pour la discipline) ne sont pas au corpus du logiciel · une échéance plus ancienne ne porte que le " +
@@ -276,4 +292,10 @@ export const RESERVE_JOUR_OUVRABLE =
   "fait AVANCER une échéance, et rien n'articule les deux. Le logiciel ne s'en sert pas et le dit. (4) Un " +
   "ministre peut fixer « des horaires de prestation spécifiques » pour les services spéciaux de son autorité " +
   "(décret n° 24/09, art. 2, alinéa 3), et l'Administration peut fixer l'échéance au jour ouvrable PRÉCÉDANT " +
-  "l'échéance légale (art. 110 bis, alinéa 3) · deux actes qu'aucune comptabilité ne porte.";
+  "l'échéance légale (art. 110 bis, alinéa 3) · deux actes qu'aucune comptabilité ne porte. (5) Le PAIEMENT ne se " +
+  "fait pas à ces guichets : il s'effectue « auprès des seuls organismes ou agents habilités », en principe les " +
+  'banques et autres établissements de crédit agréés, ou à la Banque Centrale du Congo (décret n° 20/019 du ' +
+  '21 août 2020, art. 1er et 2 ; circulaire ministérielle n° 002 du 1er octobre 2020, III.2.2), dont le décret ' +
+  "n° 24/09 ne fixe pas les jours. Pour une échéance de PUR PAIEMENT, sans dépôt de déclaration, comme les trois " +
+  'acomptes provisionnels versés sur bordereau à la banque, l\u2019exclusion du samedi ne repose sur aucun texte ' +
+  "lu : le report affiché (le samedi 25 juillet 2026 servi au lundi 27) n'est pas acquis.";

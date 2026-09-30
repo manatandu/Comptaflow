@@ -19,6 +19,8 @@ type Fondement = 'LOI' | 'PRATIQUE_ADMINISTRATIVE' | 'USAGE_SANS_BASE_LEGALE';
 type Parcours = {
   formeJuridique: string;
   droitEtranger: boolean;
+  /** Motif quand la loi n° 004/2001 ne régit pas la forme du dossier · aucune liste alors. */
+  horsParcours: string | null;
   parFondement: Record<Fondement, number>;
   etapes: {
     cle: string;
@@ -27,6 +29,7 @@ type Parcours = {
     source: string;
     produit: string;
     produitDetenu: { champ: string; valeur: string | null; renseigne: boolean } | null;
+    motifSansProduit: string | null;
     pieces: { cle: string; libelle: string; fondement: Fondement; source: string; reserve?: string }[];
   }[];
 };
@@ -46,6 +49,16 @@ export function ConstitutionPage() {
 
   if (!p) return <div className="p-3 text-[11.5px] text-text-dim">Chargement…</div>;
 
+  if (p.horsParcours) {
+    // Dire pourquoi il n'y a pas de liste plutôt que servir le parcours d'une
+    // ASBL à une forme que la loi n° 004/2001 ne régit pas (constat D1-B1).
+    return (
+      <div className="p-2 max-w-[760px]">
+        <section className="border border-border bg-surface px-3.5 py-2.5 text-[11.5px]">{p.horsParcours}</section>
+      </div>
+    );
+  }
+
   return (
     <div className="p-2 max-w-[980px]">
       <section className="border border-border bg-surface px-3.5 py-2 mb-2.5 flex flex-wrap items-center gap-x-5 gap-y-1 text-[11.5px]">
@@ -60,8 +73,8 @@ export function ConstitutionPage() {
         </span>
         <Aide
           titre="Trois fondements, et ils ne se valent pas"
-          texte="Loi · exigée par la loi n° 004/2001 elle-même, article à l'appui. Pratique administrative · exigée par la note circulaire n° 003/2013, qui écrit d'elle-même qu'elle « ne crée pas de droit nouveau » ; refuser de la fournir bloque le dossier, ce n'est pas pour autant une obligation légale. Sans base légale en vigueur · réclamée en pratique, sans texte qui la fonde ; à fournir en le sachant. OmegaX n'engendre aucune pièce et ne saisit aucune administration · c'est une liste de contrôle, et les modèles d'actes sont au guide."
-          source="Loi n° 004/2001 · note circulaire n° 003/2013"
+          texte="Loi · exigée par la loi n° 004/2001 elle-même, article à l'appui. Pratique administrative · exigée par une liste de l'administration, la note circulaire n° 003/2013 (qui écrit d'elle-même qu'elle « ne crée pas de droit nouveau ») ou la liste de la 2e Direction du Ministère de la Justice ; refuser de la fournir bloque le dossier, ce n'est pas pour autant une obligation légale. Sans base légale en vigueur · réclamée en pratique, sans texte qui la fonde ; à fournir en le sachant. OmegaX n'engendre aucune pièce et ne saisit aucune administration · c'est une liste de contrôle, et les modèles d'actes sont au guide."
+          source="Loi n° 004/2001 · note circulaire n° 003/2013 · guide Kahasha, annexe I"
         />
       </section>
 
@@ -71,11 +84,13 @@ export function ConstitutionPage() {
             <h2 className="text-[11.5px] font-bold">
               Étape {rang + 1} · {e.libelle}
             </h2>
-            {e.produitDetenu && (
+            {e.produitDetenu ? (
               <span className={`text-[11px] ${e.produitDetenu.renseigne ? 'text-positive' : 'text-text-dim'}`}>
                 {e.produitDetenu.champ} :{' '}
                 {e.produitDetenu.renseigne ? e.produitDetenu.valeur : 'non renseigné au dossier'}
               </span>
+            ) : (
+              e.motifSansProduit && <span className="text-[11px] text-text-dim">{e.motifSansProduit}</span>
             )}
           </div>
           <p className="text-[11px] text-text-dim mt-0.5 leading-[1.6]">

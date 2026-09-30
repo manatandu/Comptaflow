@@ -2,7 +2,15 @@ import { TypeContratTravail } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 
 /**
- * L'EFFECTIF À UNE DATE, et la part de main-d'œuvre nationale.
+ * L'EFFECTIF À UNE DATE, et la part de main-d'œuvre locale.
+ *
+ * LE MOT EST CELUI DE LA LOI · l'art. 37, 4° de la loi n° 004/2001 impose
+ * « d'utiliser la main d'œuvre LOCALE à concurrence de 60% au minimum ». Le
+ * registre la lit sur la nationalité congolaise des salariés, parce que c'est
+ * la seule donnée qu'il porte · c'est une LECTURE d'OmegaX, que la loi ne
+ * définit pas, et la proposition reste soumise au cabinet. Le nom de la
+ * propriété (`partMainOeuvreNationale`) dit ce qu'elle compte ; les textes
+ * servis disent ce que la loi demande.
  *
  * ELLE EST PROPOSÉE, JAMAIS SUBSTITUÉE. `AccordCadrePlan.partMainOeuvreLocale`
  * reste une valeur SAISIE, avec sa source et sa date · c'est la règle posée
@@ -82,7 +90,7 @@ export async function effectifDuRegistre(prisma: PrismaService, tenantId: string
     source: `Registre du personnel au ${ala.toISOString().slice(0, 10)}`,
     reserve:
       sansNationalite > 0
-        ? `${sansNationalite} salarié(s) de l'effectif n'ont pas de nationalité au registre. La part de main-d'œuvre nationale n'est pas calculée : un pourcentage tiré d'un registre incomplet serait faux sous une apparence de calcul, et c'est l'engagement des 60 % de l'article 37, point 4 de la loi n° 004/2001 qu'il servirait.`
+        ? `${sansNationalite} salarié(s) de l'effectif n'ont pas de nationalité au registre. La part de main-d'œuvre locale (art. 37, 4° de la loi n° 004/2001) n'est pas calculée : un pourcentage tiré d'un registre incomplet serait faux sous une apparence de calcul, et c'est l'engagement des 60 % de cet article qu'il servirait.`
         : null,
   };
 }

@@ -33,6 +33,19 @@ const RYTHME: Record<'MENSUELLE' | 'TRIMESTRIELLE' | 'ANNUELLE', string> = {
   ANNUELLE: 'Annuel',
 };
 
+/**
+ * Titulaire de l'impôt ou de la cotisation · lu comme une chaîne, parce que le
+ * serveur sert désormais 'PROVINCE' pour la retenue locative (Constitution,
+ * art. 204, 16°, passe F11). Une valeur inconnue n'est jamais lue comme un
+ * organisme social : elle est rendue telle quelle.
+ */
+export function libelleBeneficiaire(beneficiaire: string): string {
+  if (beneficiaire === 'ETAT') return 'État (DGI)';
+  if (beneficiaire === 'PROVINCE') return 'Province';
+  if (beneficiaire === 'ORGANISME_SOCIAL') return 'Organisme social';
+  return beneficiaire;
+}
+
 export function RetenuesPage() {
   const { exerciceCourant } = useExercice();
   const [onglet, setOnglet] = useState<Onglet>('echeancier');
@@ -153,8 +166,15 @@ export function RetenuesPage() {
                   )}
                   {e.reserve && <span className="block text-[11px] text-warning leading-[1.5] mt-0.5">{e.reserve}</span>}
                 </span>
-                <span className="text-[11px] text-text-dim">
-                  {e.beneficiaire === 'ETAT' ? 'État (DGI)' : 'Organisme social'}
+                <span
+                  className="text-[11px] text-text-dim"
+                  title={
+                    String(e.beneficiaire) === 'PROVINCE'
+                      ? 'Impôt provincial (Constitution, art. 204, 16°) · le service qui le perçoit est dit dans la réserve de la ligne.'
+                      : undefined
+                  }
+                >
+                  {libelleBeneficiaire(e.beneficiaire)}
                 </span>
                 <span className={`font-mono text-right ${e.montantDu > 0.005 ? 'font-semibold' : 'text-text-dim'}`}>
                   {e.genre === 'DECLARATION' ? (

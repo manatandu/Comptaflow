@@ -90,6 +90,42 @@ describe('État d’un accord · une période écoulée n’est pas une fin', ()
     });
     expect(e.enTaciteReconduction).toBe(false);
     expect(e.periodeEcoulee).toBe(true);
+    expect(e.finDePeriode.toISOString().slice(0, 10)).toBe('2026-03-01');
+    expect(e.denonciationHorsPreavis).toBe(false);
+  });
+
+  it('une dénonciation en DEUXIÈME période termine la période en cours ce jour-là, pas la première', () => {
+    // Accord de dix ans signé le 15/01/2010, reconduit le 15/01/2020, dénoncé
+    // le 01/03/2026 · la période qu'il termine court jusqu'au 15/01/2030.
+    // Avant la correction, la boucle ne tournait plus dès qu'une dénonciation
+    // était posée, et l'écran affichait « jusqu'au 15/01/2020 ».
+    const e = etatAccordCadre({
+      dateSignature: new Date('2010-01-15'),
+      dureeAnnees: 10,
+      preavisMois: 6,
+      taciteReconduction: true,
+      denonceLe: new Date('2026-03-01'),
+      reference: new Date('2026-09-30'),
+    });
+    expect(e.finDePeriode.toISOString().slice(0, 10)).toBe('2030-01-15');
+    expect(e.periodeEcoulee).toBe(false);
+    expect(e.dernierJourPourDenoncer!.toISOString().slice(0, 10)).toBe('2029-07-15');
+    expect(e.denonciationHorsPreavis).toBe(false);
+  });
+
+  it('une dénonciation parvenue après le dernier jour du préavis est DITE, sans autre date', () => {
+    // Modèle Kahasha, annexe VIII, art. IX · « 6 mois avant la fin de chaque
+    // période », le préavis courant « à la date de réception ».
+    const e = etatAccordCadre({
+      dateSignature: new Date('2010-01-15'),
+      dureeAnnees: 10,
+      preavisMois: 6,
+      taciteReconduction: true,
+      denonceLe: new Date('2029-10-01'),
+      reference: new Date('2029-10-02'),
+    });
+    expect(e.finDePeriode.toISOString().slice(0, 10)).toBe('2030-01-15');
+    expect(e.denonciationHorsPreavis).toBe(true);
   });
 
   it('rend le DERNIER JOUR POUR DÉNONCER · la seule date encore utilisable', () => {
@@ -406,6 +442,8 @@ describe('F146 · le registre du personnel PROPOSE la part, il ne la substitue p
     const etat = await svc.etat('t', { dateReference: '2026-12-31' });
     expect(etat.propositionMainOeuvre?.part).toBeNull();
     expect(etat.propositionMainOeuvre?.reserve).toMatch(/1 salarié\(s\) de l'effectif n'ont pas de nationalité/);
+    // Le mot de la loi · art. 37, 4° : « la main d'œuvre LOCALE ».
+    expect(etat.propositionMainOeuvre?.reserve).toMatch(/main-d'œuvre locale \(art\. 37, 4° de la loi n° 004\/2001\)/);
   });
 
   it('un dossier hors périmètre ne lit pas le registre', async () => {

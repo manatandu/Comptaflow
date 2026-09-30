@@ -256,3 +256,17 @@ describe('circularisation · l’état de la campagne est dit (F210)', () => {
     expect(entete).toContain('{LIBELLE_STATUT_CAMPAGNE[detail.statut]}');
   });
 });
+
+describe('D3-A4 · la circularisation dit ce qu’elle n’est pas', () => {
+  it('la bulle principale porte la réserve des faiblesses, sourcée à la loi n° 15/002', () => {
+    // Loi n° 15/002, art. 3, 1° (la certification, « opinion motivée ») et
+    // art. 43, 5° (réviser « pour exprimer une opinion d'audit ») · l'écran
+    // cite l'ISA 505 dans le vocabulaire de l'auditeur, la bulle dit donc,
+    // comme celle des faiblesses, qu'aucune opinion n'en sort.
+    const i = page.search(/<Aide\s+titre="Circularisation"/);
+    expect(i).toBeGreaterThan(-1);
+    const bulle = page.slice(i, page.indexOf('/>', i));
+    expect(bulle).toContain('ce n’est pas un audit et aucune opinion sur les états financiers n’en sort');
+    expect(bulle).toContain('loi n° 15/002, art. 3, 1°, et art. 43, 5°');
+  });
+});

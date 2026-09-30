@@ -49,8 +49,25 @@ export interface NatureRetenue {
   /** Comptes du plan SYCEBNL qui portent cette retenue ou cotisation. */
   comptes: string[];
   exclusions?: string[];
-  /** Qui en est le bénéficiaire · commande le regroupement à l'écran. */
-  beneficiaire: 'ETAT' | 'ORGANISME_SOCIAL';
+  /**
+   * Qui en est le bénéficiaire · commande le regroupement à l'écran.
+   *
+   * PROVINCE (passe F11) · l'impôt sur les revenus locatifs est rangé par la
+   * Constitution, art. 204, 16°, parmi les impôts de la compétence exclusive
+   * des provinces. Le ranger sous « État (DGI) » faisait déposer au mauvais
+   * guichet à Kinshasa, où l'arrêté provincial n° 015/2023, art. 3, fait
+   * reverser la retenue au compte de la Ville. La valeur dit le TITULAIRE de
+   * l'impôt, que la Constitution nomme, et jamais la RÉGIE qui le perçoit,
+   * que le corpus ne décrit que pour Kinshasa · la réserve de la nature le dit.
+   */
+  beneficiaire: 'ETAT' | 'PROVINCE' | 'ORGANISME_SOCIAL';
+  /**
+   * Ce qu'il faut produire avec le reversement, quand un texte l'exige · même
+   * rôle que le `contenu` d'une obligation déclarative (passe F11).
+   */
+  contenu?: string;
+  /** Ce que le logiciel détient pour le produire, et ce qu'il ne détient pas. */
+  sourceDonnees?: string;
   /**
    * Nombre de JOURS après la fin du mois de la retenue où le reversement est
    * dû. Quinze pour la plupart ; DIX pour la retenue locative (loi de
@@ -183,6 +200,33 @@ export interface ObligationDeclarative {
    * un dossier incomplet n'est pas un dossier exclu.
    */
   formesExclues?: FormeJuridiqueSyscohada[];
+  /**
+   * Formes SYSCOHADA que l'obligation VISE bien qu'elle soit réservée à un
+   * autre référentiel par `referentiels` · le symétrique de `formesExclues`
+   * (passe F8). L'art. 47, alinéa 1er nomme « les établissements publics, les
+   * organismes semi-publics, les entreprises publiques », tenus au SYSCOHADA
+   * sous la forme ENTITE_PUBLIQUE : filtrer par le seul référentiel leur
+   * retirait le relevé et son amende.
+   */
+  formesIncluses?: FormeJuridiqueSyscohada[];
+  /** Réserve servie à la forme reçue par `formesIncluses`, et à elle seule. */
+  reserveFormesIncluses?: string;
+  /** Réserve servie à tout dossier qui reçoit l'obligation. */
+  reserveCommune?: string;
+  /** Réserve servie aux seuls dossiers SYCEBNL qui reçoivent l'obligation. */
+  reserveSycebnl?: string;
+  /**
+   * L'obligation tombe quand le dossier a DÉCLARÉ ne vendre ni biens ni
+   * services (`Tenant.venteBiensServices` à faux). « Pas encore dit » (null)
+   * la garde · un fait non déclaré ne masque rien (`tenant/faits-declares.ts`).
+   */
+  masqueeSiAucuneVente?: boolean;
+}
+
+/** Faits du dossier que le filtre des obligations sait lire. */
+export interface FaitsDuDossier {
+  /** `Tenant.venteBiensServices` · null ou absent = pas encore dit. */
+  venteBiensServices?: boolean | null;
 }
 
 /**
@@ -324,15 +368,33 @@ export const NATURES_RETENUES: NatureRetenue[] = [
   },
   {
     cle: 'retenueLocative',
-    libelle: 'Retenue sur les revenus locatifs (20 %)',
+    // LE TAUX N'EST PLUS DANS LE LIBELLÉ (passe F11) · l'impôt sur les revenus
+    // locatifs est provincial (Constitution, art. 204, 16°), et à Kinshasa la
+    // retenue est de 15 % dans les localités des 2e à 4e rangs depuis le
+    // 1er janvier 2024. « (20 %) » en tête de ligne faisait retenir cinq points
+    // de trop sur chaque loyer payé dans ces localités.
+    libelle: 'Retenue sur les revenus locatifs',
     comptes: ['44781'],
-    beneficiaire: 'ETAT',
+    beneficiaire: 'PROVINCE',
     // DIX jours, et non quinze · c'est le seul prélèvement du registre à ne
     // pas suivre l'échéance commune, et le registre le datait pourtant au 15.
     joursApresPeriode: 10,
     echeance: 'Dans les dix jours du mois suivant le paiement du loyer',
+    // LES COMPTES SONT CEUX DU LOYER D'IMMEUBLE, PAS LE 622 ENTIER (passe
+    // F11). L'O.-L. n° 69/009, art. 4, n'impose que « les revenus provenant de
+    // la location des bâtiments et des terrains » ; le 622 porte aussi les
+    // matériels (6223) et les emballages (6224, 6225), et le 6221 désignait les
+    // seuls terrains. Numéros et intitulés relus aux deux semis (62210000
+    // « Locations de terrains », 62220000 « Locations de bâtiments »,
+    // 62260000 « Fermages et loyers du foncier », 62280000 « Locations et
+    // charges locatives diverses »). Le mobilier et le matériel ne sont pas
+    // paraphrasés : l'art. 5 est CITÉ.
     chargeSousConditionArticle20:
-      "Les loyers versés au bailleur, sur lesquels la retenue de 20 % est opérée (comptes 622 et 6221 · locations et charges locatives).",
+      "Les loyers de bâtiments et de terrains versés au bailleur, sur lesquels la retenue est opérée (comptes 6221 " +
+      "locations de terrains, 6222 locations de bâtiments, 6226 fermages et loyers du foncier, et la part du 6228 qui " +
+      "s'y rapporte). Pour le mobilier et le matériel loués, l'ordonnance-loi n° 69/009, art. 5, écrit : « Le revenu " +
+      "brut comprend éventuellement le loyer des meubles, du matériel, de l'outillage, du cheptel et de tous objets " +
+      "quelconques. »",
     // TROIS TEXTES, ET LE PLUS FACILE À CONFONDRE EST LE MODIFICATIF. Le
     // décret-loi n° 109/2000 ne PORTE aucun de ces deux articles 11 · il les
     // MODIFIE. Le 20 % appartient à l'art. 11 de la loi n° 83/004, le 22 % à
@@ -347,14 +409,61 @@ export const NATURES_RETENUES: NatureRetenue[] = [
     // revenus locatifs, survit, et la loi n° 23/053 exclut d'ailleurs ces
     // revenus des catégories de l'IRPP. Le dire ici plutôt que de laisser un
     // relecteur conclure de l'abrogation partielle que la ligne est morte.
+    //
+    // LA CITATION EST ENTIÈRE (passes F11 et F8) · elle se refermait sur « du
+    // paiement du loyer. », changeait un mot (le texte écrit « de loyer ») et
+    // amputait la condition de forme, le relevé conforme au modèle. C'est
+    // l'alinéa 4 de l'article 57, qui en compte quatre (compilation DGI au
+    // 19 juillet 2026, `19-procedures-titre3-recouvrement.md`, lignes 13 à 27).
     baseLegale:
-      "Article 57 de la loi n° 004/2003 portant réforme des procédures fiscales, intégralement remplacé par la loi " +
-      "n° 23/052 du 30 novembre 2023, en vigueur depuis le 1er janvier 2026 : « La retenue sur les revenus locatifs est " +
-      "reversée dans les dix jours du mois qui suit celui du paiement du loyer. » Le taux de la retenue est de 20 % du " +
-      "loyer brut (article 11 de la loi n° 83/004 du 23 février 1983, tel que modifié et complété par le décret-loi " +
-      "n° 109/2000 du 19 juillet 2000) ; c'est un ACOMPTE, imputable sur l'impôt sur les revenus locatifs de 22 % dû par " +
-      "le bailleur (article 11 de l'ordonnance-loi n° 69/009, titre II, que la loi n° 23/053 n'abroge pas · son art. 152 " +
-      "point 2 ne vise que les titres III et IV). Les deux taux ne se confondent pas.",
+      "Article 57, alinéa 4, de la loi n° 004/2003 portant réforme des procédures fiscales, modifié par la loi " +
+      "n° 23/052 du 30 novembre 2023, art. 1er : « La retenue sur les revenus locatifs est reversée dans les dix " +
+      "jours du mois qui suit celui du paiement de loyer, à l'aide d'un relevé conforme au modèle fixé par " +
+      "l'Administration des Impôts. » TAUX DES TEXTES NATIONAUX · la retenue est de 20 % du montant brut du loyer " +
+      "(article 11 de la loi n° 83/004 du 23 février 1983, tel que modifié et complété par le décret-loi " +
+      "n° 109/2000 du 19 juillet 2000) ; c'est un ACOMPTE, imputé sur l'impôt sur les revenus locatifs du bailleur " +
+      "(article 13 de la même loi), dont le taux national est de 22 % (article 11 de l'ordonnance-loi n° 69/009, " +
+      "titre II, que la loi n° 23/053 n'abroge pas · son art. 152 point 2 ne vise que les titres III et IV). Les " +
+      "deux taux ne se confondent pas.",
+    // TROIS RÉSERVES, CHACUNE LUE À SA SOURCE (passe F11) · le taux provincial
+    // (Constitution, art. 204, 16° ; arrêté kinois n° 015/2023, art. 5 et 8),
+    // le guichet (loi n° 83/004, art. 10 · art. 57 LPF · arrêté n° 015/2023,
+    // art. 3), et la borne de l'art. 57 dans sa rédaction de 2026 (loi
+    // n° 23/052, art. 6), en tension avec la loi n° 83/004, art. 11, toujours
+    // imprimée. AUCUN CALCUL DE DATE N'EST CHANGÉ · le registre compte par
+    // mois, et le texte antérieur n'est pas au corpus.
+    reserve:
+      "IMPÔT PROVINCIAL · la Constitution, art. 204, 16°, range « l'impôt sur les revenus locatifs » parmi les " +
+      "impôts de la compétence exclusive des provinces, et chaque province en fixe le barème. À KINSHASA, depuis le " +
+      "1er janvier 2024 (arrêté provincial n° 015/CAB/MIN.PROV/FIN.ECO/2023 du 7 décembre 2023, art. 5 et 8), la " +
+      "retenue est de 20 % et l'impôt de 22 % dans les localités du 1er rang, de 15 % et 17 % dans celles des 2e, " +
+      "3e et 4e rangs, « tout loyer confondu ». Le barème des autres provinces n'est pas au corpus du logiciel, qui " +
+      "n'applique aucun taux · il lit ce que votre comptabilité porte au compte 44781. GUICHET · la loi n° 83/004, " +
+      "art. 10, fait opérer la retenue « au profit du Trésor », et l'art. 57 cité renvoie au modèle « fixé par " +
+      "l'Administration des Impôts » ; à Kinshasa, l'arrêté n° 015/2023, art. 3, la fait reverser « au compte Ville " +
+      "de Kinshasa/Receveur des Recettes Fiscales », « suivant le modèle établi par la DGRK ». Le service qui la " +
+      "perçoit dans les autres provinces n'est pas au corpus · à confirmer auprès de la régie de votre province. " +
+      "ÉCHÉANCE · l'art. 57 est cité dans sa rédaction en vigueur depuis le 1er janvier 2026 (loi n° 23/052, art. 1er " +
+      "et 6). La loi n° 83/004, art. 11, toujours imprimée dans la compilation, écrit « reversé dans les dix jours " +
+      "qui suivent le paiement du loyer », délai plus court ; l'arrêté kinois fixe le dixième jour du mois qui suit " +
+      "depuis le 1er janvier 2024. Le registre compte par MOIS et ne date pas au jour du paiement · l'échéance servie " +
+      "peut donc être postérieure à celle de l'art. 11, et SUR UN EXERCICE ANTÉRIEUR à 2026 la rédaction alors en " +
+      "vigueur de l'art. 57 n'est pas au corpus." +
+      LIRE_A_LA_DATE,
+    // LE RELEVÉ PAR BAILLEUR (passe F11) · loi n° 83/004, art. 12, § 1, cité,
+    // pas reformulé. Aucun modèle n'est inventé : il est celui de
+    // l'Administration.
+    contenu:
+      "Chaque retenue « doit être accompagnée d'un relevé daté et signé ». « Il est établi un relevé par bénéficiaire " +
+      "des loyers, quel que soit le nombre de locaux et terrains ou autres biens imposables pris à bail », conforme au " +
+      "modèle défini par l'Administration, qui mentionne obligatoirement « le nom ou la dénomination et l'adresse de " +
+      "la personne débitrice des loyers qui établit le relevé ; le nom, l'adresse et le numéro d'Identification " +
+      "national du bailleur concerné ; l'adresse précise de chaque immeuble pris en location, ainsi que sa surface " +
+      "développée et son affectation » (loi n° 83/004, art. 12, § 1).",
+    sourceDonnees:
+      "Compte 44781 pour les retenues, et la fiche du bailleur dans le plan des tiers pour son nom, son adresse et " +
+      "son Numéro Impôt. Le logiciel ne détient ni l'adresse de l'immeuble loué, ni sa surface développée, ni son " +
+      "affectation · à reporter sur le relevé à partir du bail.",
   },
   {
     cle: 'prestatairesNonResidents',
@@ -607,7 +716,16 @@ export const NATURES_RETENUES: NatureRetenue[] = [
  *    versées à leurs membres ou mandants · celui-là vise bien les deux ;
  *  · art. 47 ter · « toute personne physique ou morale, soumise à l'impôt sur
  *    les sociétés et à l'impôt sur le revenu des personnes physiques,
- *    exonérée ou non » · les deux également, et sans exception.
+ *    exonérée ou non ». « Sans exception » était écrit ici, et c'était trop
+ *    dire (passe F8) · la loi n° 23/053 distingue l'EXEMPTION (art. 2, 10°,
+ *    dispense de déclaration ET de paiement) de l'EXONÉRATION (11°, dispense
+ *    de paiement), exempte l'ASBL (art. 5, 3°), et la loi de procédures
+ *    fiscales, art. 3, dispense les exemptés des déclarations. Le texte ne
+ *    tranche pas pour une EBNL exemptée · l'obligation lui reste servie, avec
+ *    la question écrite (`reserveSycebnl`), plutôt que retirée au jugé ;
+ *  · art. 47 bis · les « fabricants, importateurs et toutes entreprises
+ *    effectuant des ventes en gros et/ou en demi-gros », qualité qu'aucun livre
+ *    ne porte · servie à tout dossier qui n'a pas déclaré ne rien vendre.
  */
 /**
  * ACOMPTES PROVISIONNELS · les trois échéances viennent de l'article 57 bis
@@ -691,6 +809,38 @@ const SANCTION_ARTICLE_94 =
 const CONTENU_ACOMPTE = (quotite: string) =>
   `Versement de ${quotite} de l'impôt de référence, au moyen du bordereau de versement d'acomptes ` +
   "provisionnels dont le modèle est défini par l'Administration des Impôts.";
+
+
+/**
+ * L'ARRÊTÉ DE L'ARTICLE 14 · la certification a ses « conditions définies par
+ * Arrêté du Ministre », et l'échéancier les taisait (passe D3).
+ *
+ * Arrêté ministériel n° 014/CAB/MIN/FINANCES/2023 du 16 mai 2023 (compilation
+ * DGI au 19 juillet 2026, `23-mesures-execution-controle.md`, lignes 184 à
+ * 505). Il sert un lecteur qui est précisément un cabinet qui TIENT les
+ * comptes, et c'est la personne que son art. 5 écarte · lire « inscrit au
+ * tableau » sans la condition d'indépendance le laissait se croire habilité.
+ *
+ * CE QUI N'EST PAS TRANCHÉ, ET QUI SE DIT. (1) L'art. 7, al. 2 déroge « à
+ * l'article 5 » pour les entités non astreintes à un commissaire aux comptes,
+ * c'est-à-dire la plupart des SARL · lu à la lettre, il lève l'incompatibilité
+ * pour elles ; et son al. 3 fait certifier les cabinets comptables par
+ * eux-mêmes. Servir l'incompatibilité à tout dossier du Système normal serait
+ * une règle que le texte écarte lui-même (§ 10 bis). (2) L'arrêté est pris
+ * pour l'IBP (art. 1er), et aucun arrêté d'application de l'art. 14 postérieur
+ * au passage à l'impôt sur les sociétés n'est au corpus. (3) Il vaut « à
+ * compter de l'exercice fiscal 2024/revenus 2023 » (art. 28).
+ */
+const RESERVE_ARRETE_CERTIFICATION =
+  "CERTIFICATION · arrêté ministériel n° 014/CAB/MIN/FINANCES/2023 du 16 mai 2023, applicable « à compter de " +
+  "l'exercice fiscal 2024/revenus 2023 » (art. 28). Il a été pris pour l'impôt sur les bénéfices et profits " +
+  "(art. 1er), et aucun arrêté d'application de l'article 14 postérieur au passage à l'impôt sur les sociétés n'est " +
+  "au corpus du logiciel. Son article 7, alinéa 2 écrit : « Par dérogation à l'article 5 du présent Arrêté, les " +
+  "entités non astreintes, par les Actes uniformes, à la nomination d'un ou des plusieurs commissaires aux comptes " +
+  "doivent désigner pour un mandat de six (6) ans renouvelables un expert-comptable pour certifier leurs états " +
+  "financiers », et son alinéa 3 que « les Cabinets comptables non astreints [...] certifient eux-mêmes leurs états " +
+  "financiers » · la portée de cette dérogation sur l'incompatibilité de l'article 5 n'est pas tranchée ici. Pour " +
+  "une entité astreinte à un commissaire aux comptes, c'est lui qui certifie (art. 6).";
 
 export const OBLIGATIONS_DECLARATIVES: ObligationDeclarative[] = [
   {
@@ -793,23 +943,40 @@ export const OBLIGATIONS_DECLARATIVES: ObligationDeclarative[] = [
     baseLegale:
       "Article 47, alinéa 1er, de la loi n° 004/2003 portant réforme des procédures fiscales, tel que modifié par la loi de finances n° 24/011 du 20 décembre 2024, article 40. Il vise nommément les associations sans but lucratif et les établissements d'utilité publique.",
     contenu:
-      'Relevé, sur support papier ET numérique, des sommes de toute nature versées à des tiers en dehors des rémunérations salariales : honoraires, commissions, courtages, ristournes, vacations, droits d’auteur, loyers. Le modèle du relevé est fixé par l’Administration des Impôts.',
-    // Cette obligation n'est servie qu'aux dossiers SYCEBNL, et l'article 94
-    // y nomme les associations sans but lucratif : 2 500 000 FC. La grille
-    // entière reste affichée parce que le SYCEBNL couvre aussi des entités
-    // qui ne sont pas des ASBL (fondations, ordres professionnels, projets),
-    // et que le logiciel ne sait pas laquelle il a devant lui.
+      'Relevé, sur support papier ET numérique, de « toutes les sommes versées à des tiers, à quelque titre que ce soit, à l’exclusion des salaires », notamment honoraires, commissions, courtages, ristournes, vacations, droits d’auteur, loyers. Le modèle du relevé est fixé par l’Administration des Impôts.',
+    // L'article 94 nomme les associations sans but lucratif : 2 500 000 FC.
+    // La grille entière reste affichée parce que le SYCEBNL couvre aussi des
+    // entités qui ne sont pas des ASBL (fondations, ordres professionnels,
+    // projets), que l'entité publique du SYSCOHADA la reçoit aussi, et que le
+    // logiciel ne sait pas quelle taille il a devant lui.
     sanction: SANCTION_ARTICLE_94,
+    // LE 481 EST UN FOURNISSEUR COMME LE 40 (passe F8) · le texte vise
+    // « toutes les sommes versées à des tiers, à quelque titre que ce soit »,
+    // et celui qui vend une immobilisation en est un. Jumeau exact de la
+    // correction F13 de la liste de l'art. 47 ter, qui ne l'avait pas suivi.
+    // Le 481 est ouvert aux deux semis sous « Fournisseurs d'investissements ».
     sourceDonnees:
-      'Comptes de tiers 40 (fournisseurs) et 47 (débiteurs et créditeurs divers), et charges des comptes 62-63 (services extérieurs) et 65.',
+      "Comptes de tiers 40 (fournisseurs), 481 (fournisseurs d'investissements) et 47 (débiteurs et créditeurs divers), et charges des comptes 62-63 (services extérieurs) et 65. Celui qui vend une immobilisation est un tiers à qui une somme est versée : le relevé tiré des seuls 40 et 47 l'omettrait.",
     // L'alinéa 1er énumère limitativement des entités publiques et non
     // lucratives. Une société commerciale privée n'y figure pas · c'est
     // l'alinéa 2 qui peut l'atteindre, et seulement pour les droits d'auteurs
-    // ou d'inventeurs. Un dossier SYSCOHADA qui serait entreprise publique ou
-    // semi-publique y reste tenu, mais le logiciel ne connaît pas ce
-    // caractère : il ne l'invente pas, il sert l'obligation qu'il peut
-    // fonder.
+    // ou d'inventeurs.
+    //
+    // LE LOGICIEL CONNAÎT LA FORME PUBLIQUE (passe F8), et le commentaire qui
+    // écrivait le contraire était périmé · `obligationsDeclarativesApplicables`
+    // reçoit déjà `formeJuridiqueSyscohada`. La forme ENTITE_PUBLIQUE (AUDCIF
+    // art. 2) reçoit donc le relevé ; les sociétés privées, rien de plus.
     referentiels: [Referentiel.SYCEBNL],
+    formesIncluses: [FormeJuridiqueSyscohada.ENTITE_PUBLIQUE],
+    // L'ÉCONOMIE MIXTE N'EST PAS NOMMÉE PAR L'ALINÉA 1er, et la forme la
+    // couvre · l'art. 48 la nomme à part (« les entreprises publiques ou
+    // d'économie mixte »), ce qui dit que le législateur sait l'écrire quand il
+    // la veut. Rien n'est tranché, la qualité se confirme.
+    reserveFormesIncluses:
+      "La forme « entité publique » du dossier couvre aussi les entités parapubliques et d'économie mixte (AUDCIF, " +
+      "art. 2). L'article 47, alinéa 1er, nomme « les établissements publics, les organismes semi-publics, les " +
+      "entreprises publiques » et pas l'économie mixte, que l'article 48 de la même loi nomme à part (« les " +
+      "entreprises publiques ou d'économie mixte »). Confirmez la qualité de l'entité avant de tenir le relevé pour dû.",
   },
   {
     cle: 'releveTrimestrielDroitsAuteur',
@@ -868,8 +1035,17 @@ export const OBLIGATIONS_DECLARATIVES: ObligationDeclarative[] = [
       "Déclaration auto-liquidative des revenus de l'exercice, contresignée par le conseil ou le comptable du redevable " +
       "(art. 13, al. 2). Pour une entreprise relevant du Système normal, elle est appuyée du bilan, du compte de " +
       "résultat, du tableau des flux de trésorerie, du tableau de variation des capitaux propres et des notes annexes " +
-      "(art. 13, al. 1er), certifiés par un expert-comptable inscrit au tableau de l'Ordre national des experts-comptables " +
-      "(art. 14). Tout déclarant y joint le relevé récapitulatif des ventes faites aux « commerçants » ou « fabricants » " +
+      "(art. 13, al. 1er), certifiés « par un expert-comptable inscrit au tableau de l'Ordre national des " +
+      "experts-comptables, dans les conditions définies par Arrêté du Ministre » (art. 14). Cet arrêté, n° 014 du " +
+      "16 mai 2023, veut un certificateur INDÉPENDANT : « La mission de certification des états financiers est " +
+      "incompatible avec celle d'assistance comptable et/ou fiscale. La certification ne peut être délivrée que par un " +
+      "Expert-comptable indépendant de l'entité établissant les états financiers » (art. 5) ; celle d'« un membre non " +
+      "indépendant » est irrégulière et « assimilée à un refus de certification » (art. 14) ; et la NON-DÉSIGNATION du " +
+      "certificateur est « considéré[e] comme un refus », qui fait l'objet « d'une taxation d'office pour comptabilité " +
+      "irrégulière au sens de l'article 41 » de la loi n° 004/2003 (art. 15). Au 30 avril, la recevabilité est " +
+      "subordonnée à « l'attestation de certification » revêtue du « timbre spécial ou hologramme » (art. 20 et 22) ; " +
+      "le rapport de certification est adressé à la DGI « par le commissaire aux comptes ou l'expert-comptable » avant " +
+      "le 30 juin (art. 13). Tout déclarant y joint le relevé récapitulatif des ventes faites aux « commerçants » ou « fabricants » " +
       "(art. 13, al. 3), et la dépose même en cas de perte (art. 15). En cas de dissolution, de liquidation ou de " +
       "cessation, elle se remet dans le mois, avant le départ du dirigeant (art. 16). Le SOLDE de l'impôt se paie au même " +
       "moment : les trois acomptes « sont à déduire de l'impôt dû par le contribuable pour l'exercice fiscal " +
@@ -881,6 +1057,63 @@ export const OBLIGATIONS_DECLARATIVES: ObligationDeclarative[] = [
     // Une personne physique n'est pas redevable de l'IS · sa déclaration est
     // celle de l'IRPP (art. 17), ci-dessous (passe F7).
     formesExclues: FORMES_PERSONNES_PHYSIQUES,
+    reserveCommune: RESERVE_ARRETE_CERTIFICATION,
+  },
+  /*
+    LA DÉSIGNATION DU CERTIFICATEUR · une obligation de l'ENTITÉ, datée, et
+    muette jusqu'ici (passe D3). Arrêté n° 014 du 16 mai 2023, art. 4 et 8 ;
+    la non-désignation vaut refus et taxation d'office (art. 15).
+
+    LE RAPPORT DU 30 JUIN N'EST PAS SERVI COMME OBLIGATION DE L'ENTITÉ · l'art. 13
+    le fait adresser à la DGI « par le commissaire aux comptes ou
+    l'expert-comptable ». La norme ONEC n° 2024/001, § 15, le fait transmettre
+    par l'entreprise, mais elle lie les membres de l'Ordre, pas les
+    contribuables · la créer ici trancherait l'anomalie en faveur du texte
+    inférieur, et servirait l'obligation d'un tiers (même faute que le PV
+    d'assemblée corrigé en F13). L'anomalie est dite en réserve.
+
+    « AVANT LE 30 JUIN » · le dernier jour du délai est le 29 juin, que le
+    report de l'art. 110 bis, al. 2 traite comme toute échéance.
+
+    Mêmes filtres que la déclaration d'impôt sur les sociétés.
+  */
+  {
+    cle: 'designationCertificateur',
+    libelle: 'Désignation de l’expert-comptable certificateur des états financiers',
+    periodicite: 'ANNUELLE',
+    moisEcheance: 6,
+    jourEcheance: 29,
+    echeance: 'Avant le 30 juin de chaque année',
+    baseLegale:
+      "Arrêté ministériel n° 014/CAB/MIN/FINANCES/2023 du 16 mai 2023, pris pour l'application de l'article 14 de la " +
+      "loi n° 004/2003 : « Tout contribuable a l'obligation de désigner avant le 30 juin de chaque année un " +
+      "expert-comptable ou une société d'expertise comptable inscrit au tableau de l'ONEC pour certifier ses états " +
+      "financiers » (art. 4) ; « Toutes les entités n'ayant pas désigné des commissaires aux comptes, des " +
+      "experts-comptables ou des sociétés d'expertise comptable doivent les désigner avant le 30 juin de l'année en " +
+      "cours » (art. 8).",
+    contenu:
+      "Désignation de l'expert-comptable ou de la société d'expertise comptable inscrit au tableau de l'ONEC qui " +
+      "certifiera les états financiers joints à la déclaration du 30 avril. Il doit être « indépendant de l'entité " +
+      "établissant les états financiers » (art. 5) · voir la déclaration de l'impôt sur les sociétés. Pour une entité " +
+      "astreinte à un commissaire aux comptes, c'est lui qui certifie (art. 6).",
+    sanction:
+      "« Est considéré comme un refus de faire certifier ses états financiers, la non désignation par l'entité [...] " +
+      "d'un commissaire aux comptes ou d'un expert-comptable » : taxation d'office pour comptabilité irrégulière au " +
+      "sens de l'article 41 de la loi n° 004/2003 (arrêté n° 014, art. 15). Aucun montant n'est chiffré ici.",
+    sourceDonnees:
+      "Aucun livre ne porte cette désignation · le module Mandat du contrôleur des comptes ne tient que le " +
+      "contrôleur légal.",
+    referentiels: [Referentiel.SYSCOHADA],
+    formesExclues: FORMES_PERSONNES_PHYSIQUES,
+    reserveCommune:
+      "Deux points que le texte ne concilie pas, et que le logiciel ne tranche pas. « Chaque année » (art. 4) contre " +
+      "un mandat « de six (6) ans renouvelables » (art. 7) · une désignation pluriannuelle en cours satisfait-elle " +
+      "l'obligation annuelle, le texte ne le dit pas. Et le rapport de certification, que l'article 13 fait adresser " +
+      "à la DGI « par le commissaire aux comptes ou l'expert-comptable » avant le 30 juin, la norme professionnelle " +
+      "ONEC n° 2024/001, § 15, le fait transmettre par l'entreprise. L'arrêté ne vise que « les entités soumises au " +
+      "régime fiscal de droit commun » (art. 2), et l'article 14 de la loi n° 004/2003 que les états des entreprises " +
+      "relevant du système normal. " +
+      RESERVE_ARRETE_CERTIFICATION,
   },
   {
     cle: 'declarationIrpp',
@@ -905,6 +1138,16 @@ export const OBLIGATIONS_DECLARATIVES: ObligationDeclarative[] = [
       "Résultat fiscal de la fenêtre État > Résultat fiscal et impôt sur les bénéfices, et liasse de la fenêtre États financiers.",
     referentiels: [Referentiel.SYSCOHADA],
     personnesPhysiquesSeulement: true,
+    // PASSE F8 · au régime des petites entreprises, l'art. 57 quater, al. 2
+    // attache la première quotité à « la souscription de la déclaration auto
+    // liquidative, au plus tard le 31 janvier ». La tension avec le 30 avril
+    // de l'art. 17 est NOMMÉE, jamais tranchée, et aucune date ne bouge.
+    reserveRegimePhysique:
+      "Au RÉGIME DES PETITES ENTREPRISES, l'article 57 quater, alinéa 2, fait payer la première quotité « à la " +
+      "souscription de la déclaration auto liquidative, au plus tard le 31 janvier de l'année qui suit celle de la " +
+      "réalisation des revenus », quand l'article 17 fixe la déclaration au 30 avril · les deux textes ne " +
+      "s'articulent pas, et l'échéancier ne déplace aucune date. À faire préciser par le service gestionnaire. Le " +
+      "régime se lit dans État > Résultat fiscal et impôt sur les bénéfices.",
   },
   {
     cle: 'premierAcompteIs',
@@ -986,7 +1229,7 @@ export const OBLIGATIONS_DECLARATIVES: ObligationDeclarative[] = [
     baseLegale:
       'Article 57, alinéa 3, et article 57 quater, alinéa 2, de la loi de procédures fiscales n° 004/2003.',
     contenu:
-      "Versement de 60 % de l'impôt dû au titre de l'exercice, au plus tard le 31 janvier de l'année qui suit celle de la réalisation des revenus. Ce n'est PAS un acompte sur l'exercice suivant : c'est le paiement de cet impôt-ci, fractionné.",
+      "Versement de 60 % de l'impôt dû au titre de l'exercice, au plus tard le 31 janvier de l'année qui suit celle de la réalisation des revenus. Ce n'est PAS un acompte sur l'exercice suivant : c'est le paiement de cet impôt-ci, fractionné. L'article 57 quater, alinéa 2, le lie à la déclaration : « La 1ère quotité visée à l'alinéa précédent du présent article est payée à la souscription de la déclaration auto liquidative, au plus tard le 31 janvier de l'année qui suit celle de la réalisation des revenus. » La déclaration de l'article 17, elle, est due au plus tard le 30 avril · les deux textes ne s'articulent pas, et l'échéancier ne déplace aucune date. À faire préciser par le service gestionnaire, comme l'échéance de la seconde quotité.",
     sourceDonnees:
       "Impôt dû de la fenêtre État > Résultat fiscal et impôt sur les bénéfices, qui sert les deux quotités chiffrées.",
     referentiels: [Referentiel.SYSCOHADA],
@@ -1051,6 +1294,117 @@ export const OBLIGATIONS_DECLARATIVES: ObligationDeclarative[] = [
       "Liste des fournisseurs avec, pour chacun : identité, adresse, boîte postale, Numéro Impôt, montant hors taxes, TVA et montant toutes taxes comprises payé.",
     sourceDonnees:
       "Comptes 40 (fournisseurs) ET 481 (fournisseurs d'investissements), et 445 (TVA récupérable). Le texte dit « la liste de ses fournisseurs » sans distinguer l'objet de l'achat · celui qui vend une immobilisation en est un, et le relevé du seul 401 l'omettrait. Le Numéro Impôt de chaque fournisseur se renseigne sur sa fiche, dans le plan des tiers.",
+    // L'ASBL EXEMPTÉE, ET LA QUESTION QUE LE TEXTE LAISSE OUVERTE (passe F8).
+    // Le même dépôt lit les mêmes mots (« soumises à l'impôt sur les
+    // sociétés ») comme excluant l'ASBL au procès-verbal de l'art. 13 bis ;
+    // ici « exonérée ou non » et le « et » inapplicable à la lettre entre IS
+    // et IRPP laissent le doute. Ni retirée ni affirmée · la question écrite.
+    reserveSycebnl:
+      "ENTITÉ EXEMPTÉE · l'article 47 ter vise « toute personne physique ou morale, soumise à l'impôt sur les " +
+      "sociétés et à l'impôt sur le revenu des personnes physiques, exonérée ou non ». La loi n° 23/053 distingue " +
+      "l'exemption, « la dispense d'une obligation fiscale de déclaration et de paiement » (art. 2, 10°), de " +
+      "l'exonération, « la dispense totale ou partielle de paiement d'impôt » (11°), et exempte « les Associations " +
+      "sans but lucratif constituées conformément à la Loi » (art. 5, 3°). La loi de procédures fiscales, art. 3, " +
+      "dispense les personnes exemptées « de l'obligation de souscrire les déclarations, à l'exception de celles " +
+      "afférentes aux impôts dont elles sont redevables légaux ». Une entité dont l'exemption n'est pas acquise " +
+      "reste visée. Pour une entité exemptée, le texte lu ne tranche pas, la liste figurant au titre du contrôle et " +
+      "non des déclarations · à confirmer auprès du service gestionnaire avant de la tenir pour due ou pour " +
+      "dispensée.",
+  },
+  /*
+    LA LISTE DES CLIENTS DE L'ARTICLE 47 BIS · le jumeau de la liste des
+    fournisseurs, qui n'était servi nulle part (passe F8). Inséré par la loi
+    de finances de l'exercice 2025 (L.F. n° 24/011, art. 41), en vigueur le
+    1er janvier 2025 (art. 94 de cette loi, lu dans la compétence
+    `rgcp-comptabilite-publique`, lf-2025.md). Ce n'est PAS le relevé
+    récapitulatif de l'art. 13, al. 3, joint à la déclaration d'IS.
+
+    LE TEXTE VISE UNE ACTIVITÉ, PAS UN RÉFÉRENTIEL · « les fabricants, les
+    importateurs et toutes entreprises effectuant des ventes en gros et/ou en
+    demi-gros ». Aucun livre ne porte cette qualité : l'obligation est servie à
+    tout dossier, sauf celui qui a DÉCLARÉ ne vendre ni biens ni services, et
+    la qualité est dite à confirmer. Aucune sanction n'est chiffrée · l'article
+    qui la porterait n'a pas été lu.
+  */
+  {
+    cle: 'listeClients',
+    libelle: 'Liste annuelle des clients',
+    periodicite: 'ANNUELLE',
+    moisEcheance: 3,
+    jourEcheance: 31,
+    echeance: 'Au plus tard le 31 mars de chaque année',
+    baseLegale:
+      "Article 47 bis de la loi de procédures fiscales, inséré par la loi de finances n° 24/011 du 20 décembre 2024, " +
+      "art. 41 : « Les fabricants, les importateurs et toutes entreprises effectuant des ventes en gros et/ou en " +
+      "demi-gros doivent adresser à l'Administration des Impôts au plus tard le 31 mars de chaque année, sur support " +
+      "papier ou en support numérique, la liste de leurs clients ».",
+    contenu:
+      "Liste des clients comportant pour chacun d'eux : l'identité et l'adresse physique ainsi que le numéro de la " +
+      "boîte postale ; le numéro impôt ; le montant total hors taxes des achats effectués au cours de l'année " +
+      "précédente ; la taxe sur la valeur ajoutée facturée.",
+    sourceDonnees:
+      "La fiche du client dans le plan des tiers (adresse, boîte postale, Numéro Impôt), les factures de vente de la " +
+      "fenêtre Facturation, et les comptes 41 (clients) et 443 (TVA facturée) pour le hors taxes et la TVA de " +
+      "l'année précédente.",
+    masqueeSiAucuneVente: true,
+    reserveCommune:
+      "QUALITÉ DU DÉCLARANT · le texte ne vise que les fabricants, les importateurs et les entreprises qui vendent en " +
+      "gros ou en demi-gros. Aucun livre ne porte cette qualité : confirmez-la avant de tenir la liste pour due. Il " +
+      "n'est pas question ici du relevé des ventes joint à la déclaration de l'impôt sur les sociétés (art. 13, " +
+      "al. 3), qui est une autre obligation. L'article est en vigueur depuis le 1er janvier 2025.",
+  },
+  /*
+    LE DOSSIER BAILLEUR · la déclaration annuelle de l'impôt sur les revenus
+    locatifs, que l'échéancier ne servait à personne (passe F11). Il sert
+    l'impôt propre de l'entité (IS, IRPP, acomptes) ; celui-là en est un, dès
+    que le dossier donne un bâtiment ou un terrain en location.
+
+    CONDITIONNELLE, ET SERVIE AUX DEUX RÉFÉRENTIELS · rien dans un compte ne
+    dit qu'un produit est un loyer d'immeuble (ni le 70730000 du SYSCOHADA ni
+    le 70700000 du SYCEBNL ne le distinguent) · même parti que le relevé des
+    droits d'auteur, servi à tous sur un fait que le logiciel ne connaît pas.
+
+    ET CE N'EST PAS UN CAS ISOLÉ · les autres déclarations du chapitre II du
+    livre II de la loi de procédures fiscales (impôt foncier, art. 6 ;
+    véhicules, art. 7 à 9 ; superficie des concessions minières, art. 10) ne
+    sont pas servies non plus, et la réserve le dit.
+  */
+  {
+    cle: 'declarationRevenusLocatifs',
+    libelle: 'Déclaration annuelle de l’impôt sur les revenus locatifs · si le dossier donne des bâtiments ou des terrains en location',
+    periodicite: 'ANNUELLE',
+    moisEcheance: 2,
+    jourEcheance: 1,
+    echeance: "Au plus tard le 1er février de l'année qui suit celle de la réalisation des revenus",
+    baseLegale:
+      "Article 11 de la loi de procédures fiscales : « Le redevable de l'impôt sur les revenus locatifs souscrit " +
+      "chaque année une déclaration au plus tard le 1er février de l'année qui suit celle de la réalisation des " +
+      "revenus. » Article 14 de la loi n° 83/004 du 23 février 1983 : « Chaque propriétaire reste tenu d'inclure " +
+      "dans la déclaration annuelle de ses revenus locatifs le montant brut des loyers qui comporte, d'une part, le " +
+      "montant des loyers réellement encaissés, et d'autre part, le montant des retenues à la source opérées par le " +
+      "locataire ou sous-locataire. »",
+    contenu:
+      "Déclaration des loyers bruts de l'année · les loyers réellement encaissés et les retenues à la source " +
+      "opérées par les locataires, que l'Administration impute sur l'impôt dû « au titre de l'année au cours de " +
+      "laquelle les loyers ont fait l'objet des retenues » (loi n° 83/004, art. 13). À Kinshasa, la déclaration se " +
+      "fait « suivant le modèle prévu par la Direction Générale des Recettes de Kinshasa » et l'impôt se paie au " +
+      "plus tard le 1er février (arrêté provincial n° 015/CAB/MIN.PROV/FIN.ECO/2023, art. 2).",
+    sourceDonnees:
+      "Comptes de produits où le dossier porte ses loyers, et compte de l'État où il porte les retenues subies. " +
+      "Aucun compte semé ne distingue un loyer d'immeuble d'un autre produit · la ventilation appartient au cabinet. " +
+      "Aucun montant n'est calculé ici.",
+    reserveCommune:
+      "À TENIR POUR DUE SEULEMENT SI LE DOSSIER EST BAILLEUR. EXEMPTIONS · l'ordonnance-loi n° 69/009, art. 12, " +
+      "exempte notamment l'État, les provinces et les établissements publics « n'ayant d'autres ressources que " +
+      "celles provenant de subventions budgétaires », les établissements d'utilité publique et « les associations " +
+      "sans but lucratif ayant pour fin de s'occuper d'œuvres religieuses, scientifiques ou philanthropiques » · le " +
+      "logiciel ne tranche pas l'objet de l'entité. SOCIÉTÉS IMMOBILIÈRES · la circulaire ministérielle n° 0023 du " +
+      "9 janvier 2001 les écartait de cet impôt au motif qu'elles étaient « imposés à l'impôt professionnel », " +
+      "abrogé depuis le 1er janvier 2026 (loi n° 23/053, art. 152) · la portée actuelle de cette exclusion n'est pas " +
+      "tranchée. TAUX · l'impôt est provincial (Constitution, art. 204, 16°) : voir la réserve de la retenue sur les " +
+      "revenus locatifs. AUTRES DÉCLARATIONS DU MÊME CHAPITRE · l'impôt foncier (art. 6), l'impôt sur les véhicules " +
+      "(art. 7 à 9) et la taxe de superficie des concessions minières (art. 10) ne sont pas servies non plus par cet " +
+      "échéancier.",
   },
   {
     cle: 'procesVerbalAssemblee',
@@ -1270,16 +1624,34 @@ export type ObligationServie = ObligationDeclarative & { reserve: string | null 
 export function obligationsDeclarativesApplicables(
   referentiel: Referentiel,
   formeSyscohada?: FormeJuridiqueSyscohada | null,
+  faits: FaitsDuDossier = {},
 ): ObligationServie[] {
   const physique = !!formeSyscohada && FORMES_PERSONNES_PHYSIQUES.includes(formeSyscohada);
+  // La forme n'est lue qu'au SYSCOHADA, où elle a un sens · un dossier SYCEBNL
+  // qui porterait une forme OHADA résiduelle ne reçoit rien de ce chef.
+  const parLaForme = (o: ObligationDeclarative) =>
+    referentiel === Referentiel.SYSCOHADA &&
+    !!formeSyscohada &&
+    !!o.formesIncluses &&
+    o.formesIncluses.includes(formeSyscohada);
   return OBLIGATIONS_DECLARATIVES.filter(
     (o) =>
-      (!o.referentiels || o.referentiels.includes(referentiel)) &&
+      (!o.referentiels || o.referentiels.includes(referentiel) || parLaForme(o)) &&
       (!o.personnesPhysiquesSeulement || physique) &&
       // Forme non renseignée = rien n'est retranché · on n'exclut que ce
       // qu'on sait exclure.
-      !(o.formesExclues && !!formeSyscohada && o.formesExclues.includes(formeSyscohada)),
-  ).map((o) => ({ ...o, reserve: physique ? (o.reserveRegimePhysique ?? null) : null }));
+      !(o.formesExclues && !!formeSyscohada && o.formesExclues.includes(formeSyscohada)) &&
+      // « Non » déclaré seulement · null, « pas encore dit », garde la ligne.
+      !(o.masqueeSiAucuneVente && faits.venteBiensServices === false),
+  ).map((o) => {
+    const parts = [
+      o.reserveCommune,
+      referentiel === Referentiel.SYCEBNL ? o.reserveSycebnl : undefined,
+      parLaForme(o) && !(o.referentiels ?? []).includes(referentiel) ? o.reserveFormesIncluses : undefined,
+      physique ? o.reserveRegimePhysique : undefined,
+    ].filter((r): r is string => !!r);
+    return { ...o, reserve: parts.length ? parts.join(' ') : null };
+  });
 }
 
 /** Réserve à afficher pour une nature, selon le référentiel du dossier. */

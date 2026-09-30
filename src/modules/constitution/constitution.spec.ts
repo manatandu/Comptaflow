@@ -127,16 +127,43 @@ describe('Confrontation avec ce que le dossier détient déjà', () => {
   });
 
   it('dit « non renseigné » sur un dossier vide, et « renseigné » quand la pièce est là', async () => {
-    const rien = await service(vide).parcours('t');
+    const ong = { ...vide, formeJuridique: ONG };
+    const rien = await service(ong).parcours('t');
     expect(rien.etapes.map((e) => e.produitDetenu?.renseigne)).toEqual([false, false, false]);
 
     const garni = await service({
-      ...vide,
+      ...ong,
       actePersonnaliteJuridique: 'Arrêté 0142/CAB/MIN/J/2019',
       numeroEnregistrementSecteur: 'MINSANTE/ONG/2019/77',
       certificatEnregistrementPlan: 'CE/PLAN/2020/311',
     }).parcours('t');
     expect(garni.etapes.map((e) => e.produitDetenu?.renseigne)).toEqual([true, true, true]);
+  });
+
+  it('D1-A5, D1-B3 · un champ que la forme ne porte pas rend null et son motif, jamais « non renseigné »', async () => {
+    // Une association ne peut renseigner ni l'enregistrement au ministère du
+    // secteur (art. 36 pour l'ONG, art. 31 pour l'étrangère) ni le
+    // certificat du Plan · les dire « non renseignés » affichait un manque
+    // qu'aucun écran ne permet de lever.
+    const r = await service(vide).parcours('t');
+    expect(r.etapes.map((e) => e.produitDetenu === null)).toEqual([true, false, true]);
+    expect(r.etapes[0].motifSansProduit).toBe('Aucun champ du dossier ne porte cet acte');
+    expect(r.etapes[1].motifSansProduit).toBeNull();
+    expect(r.champsPortes).toEqual({ enregistrementSecteur: false, certificatPlan: false });
+  });
+
+  it('D1-B3 · l’association étrangère confronte son enregistrement au ministère du secteur (art. 31)', async () => {
+    const r = await service({ ...vide, droitEtranger: true, numeroEnregistrementSecteur: 'MIN/ET/1' }).parcours('t');
+    const avis = r.etapes.find((e) => e.cle === 'avis-enregistrement-secteur')!;
+    expect(avis.produitDetenu).toEqual({ champ: 'Enregistrement au ministère du secteur (art. 31)', valeur: 'MIN/ET/1', renseigne: true });
+    expect(r.etapes.find((e) => e.cle === 'personnalite-juridique')!.produitDetenu!.champ).toBe('Décret d’autorisation');
+  });
+
+  it('D1-B1 · l’unité de gestion de projet reçoit un motif et aucune liste', async () => {
+    const r = await service({ ...vide, formeJuridique: FormeJuridiqueEbnl.UNITE_GESTION_PROJET }).parcours('t');
+    expect(r.etapes).toHaveLength(0);
+    expect(r.horsParcours).toMatch(/pas concerné par la loi n° 004\/2001/);
+    expect((await service(vide).parcours('t')).horsParcours).toBeNull();
   });
 
   it('l’appariement se fait PAR CLÉ, jamais par rang · gelé dans la source', async () => {
@@ -170,5 +197,98 @@ describe('Confrontation avec ce que le dossier détient déjà', () => {
     expect(r.parFondement.USAGE_SANS_BASE_LEGALE).toBe(1);
     expect(r.parFondement.LOI).toBe(7);
     expect(r.parFondement.PRATIQUE_ADMINISTRATIVE).toBe(8);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CONSTATS D1 · le parcours se lit par la forme et par le droit.
+
+const pieceDe = (etapes: ReturnType<typeof parcoursConstitution>, cle: string) =>
+  etapes.flatMap((e) => e.pieces).find((p) => p.cle === cle);
+
+describe('D1-B1, D1-A4 · l’établissement d’utilité publique suit le Titre II, pas l’art. 4', () => {
+  const eup = parcoursConstitution(FormeJuridiqueEbnl.ETABLISSEMENT_UTILITE_PUBLIQUE, false);
+
+  it('déclaration authentique et autorisation provisoire (art. 60 à 62), puis arrêté dans les douze mois (art. 63)', () => {
+    expect(eup.map((e) => e.cle)).toEqual(['declaration-eup', 'personnalite-juridique', 'enregistrement-plan']);
+    expect(eup[0].source).toBe('Loi n° 004/2001, art. 60 à 62');
+    expect(pieceDe(eup, 'declaration-authentique')!.source).toBe('Loi n° 004/2001, art. 60 al. 1');
+    expect(eup[1].source).toBe('Loi n° 004/2001, art. 63');
+    expect(eup[1].produit).toMatch(/dans les douze mois de l’autorisation provisoire/);
+  });
+
+  it('aucune pièce de l’art. 4 · il n’a pas de membres effectifs', () => {
+    expect(eup.flatMap((e) => e.pieces).filter((p) => /art\. 4/.test(p.source))).toHaveLength(0);
+    expect(pieceDe(eup, 'liste-membres')).toBeUndefined();
+  });
+
+  it('les pièces 7, 9 et 11 de la liste de la Justice sont de la PRATIQUE, jamais de la loi', () => {
+    for (const [cle, point] of [
+      ['cession-biens-eup', 7],
+      ['designation-administrateurs-eup', 9],
+      ['dispositions-testamentaires-eup', 11],
+    ] as const) {
+      const p = pieceDe(eup, cle)!;
+      expect(p.fondement).toBe('PRATIQUE_ADMINISTRATIVE');
+      expect(p.source).toMatch(new RegExp(`annexe I\\), point ${point}$`));
+    }
+    expect(pieceDe(eup, 'acte-personnalite')!.source).toMatch(/art\. 63/);
+  });
+
+  it('la forme AUTRE s’abstient, le drapeau étranger ne change rien à l’EUP', () => {
+    expect(parcoursConstitution(FormeJuridiqueEbnl.AUTRE, false)).toHaveLength(0);
+    expect(parcoursConstitution(FormeJuridiqueEbnl.ETABLISSEMENT_UTILITE_PUBLIQUE, true).map((e) => e.cle)).toEqual(
+      eup.map((e) => e.cle),
+    );
+  });
+});
+
+describe('D1-B2, D1-A4 · l’association de droit étranger obtient un décret d’autorisation (art. 30)', () => {
+  it('avis et enregistrement au ministère du secteur, puis autorisation, jamais l’arrêté de personnalité', () => {
+    const a = parcoursConstitution(FormeJuridiqueEbnl.ASSOCIATION, true);
+    expect(a.map((e) => e.cle)).toEqual(['avis-enregistrement-secteur', 'personnalite-juridique', 'enregistrement-plan']);
+    expect(a[0].source).toBe('Loi n° 004/2001, art. 31 al. 1');
+    expect(a[0].produit).toMatch(/aucune autorisation provisoire/);
+    expect(a[1].libelle).toBe('Autorisation d’exercer en RDC');
+    expect(a[1].produit).toMatch(/^Décret du Président de la République, sur proposition du Ministre de la Justice/);
+    expect(a[1].produit).toMatch(/art\. 34/);
+    // Les pièces de l'art. 4, par le renvoi de l'art. 31 al. 3.
+    expect(a[1].pieces).toHaveLength(5);
+    for (const p of a[1].pieces) expect(p.source).toMatch(/art\. 4, [a-e]\) · par le renvoi de l’art\. 31 al\. 3$/);
+    expect(pieceDe(a, 'acte-personnalite')!.source).toMatch(/art\. 30/);
+  });
+
+  it('pour une ONG, l’écart décret / ordonnance est nommé sans être tranché', () => {
+    const o = parcoursConstitution(ONG, true);
+    expect(o.find((e) => e.cle === 'personnalite-juridique')!.produit).toMatch(/ne tranche pas entre les deux désignations/);
+    expect(o.map((e) => e.cle)).toContain('conditions-ong-etrangere');
+  });
+
+  it('la confessionnelle étrangère s’adresse à la Justice (art. 32) et produit la pièce de l’art. 52', () => {
+    const c = parcoursConstitution(FormeJuridiqueEbnl.ASSOCIATION_CONFESSIONNELLE, true);
+    expect(c.map((e) => e.cle)).toEqual(['personnalite-juridique', 'enregistrement-plan']);
+    expect(c[0].destinataire).toBe('Ministre de la Justice (art. 32)');
+    expect(pieceDe(c, 'dossier-doctrine')!.source).toBe('Loi n° 004/2001, art. 52, 1°');
+  });
+});
+
+describe('D1-B5, D1-B6, D1-A9 · l’association de droit congolais', () => {
+  it('la confessionnelle produit le dossier de doctrine de l’art. 52, 1°, en fondement LOI', () => {
+    const c = parcoursConstitution(FormeJuridiqueEbnl.ASSOCIATION_CONFESSIONNELLE, false);
+    const doctrine = pieceDe(c, 'dossier-doctrine')!;
+    expect(doctrine.fondement).toBe('LOI');
+    expect(doctrine.source).toBe('Loi n° 004/2001, art. 52, 1°');
+    expect(pieceDe(parcoursConstitution(FormeJuridiqueEbnl.ASSOCIATION, false), 'dossier-doctrine')).toBeUndefined();
+  });
+
+  it('l’autorisation provisoire vaut pour toute ASBL, le gouverneur la donne en province (art. 5 al. 2)', () => {
+    const [avis, personnalite] = parcoursConstitution(FormeJuridiqueEbnl.ASSOCIATION, false);
+    expect(avis.produit).toMatch(/gouverneur de province pour une ASBL enregistrée en province \(art\. 5 al\. 2\)/);
+    expect(avis.destinataire).toMatch(/gouverneur de province/);
+    // La demande écrite repose sur les art. 3 et 4, que le guide rattache à l'art. 5.
+    expect(avis.pieces[0].fondement).toBe('LOI');
+    expect(avis.pieces[0].source).toMatch(/^Loi n° 004\/2001, art\. 3 \(avis exigé\) et art\. 4/);
+    // L'art. 5 al. 3 · la personnalité censée octroyée après six mois.
+    expect(personnalite.produit).toMatch(/censée être octroyée.*dans le mois qui suit \(art\. 5 al\. 3\)/);
   });
 });

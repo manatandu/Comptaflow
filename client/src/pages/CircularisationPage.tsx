@@ -254,8 +254,8 @@ export function CircularisationPage() {
           )}
           <Aide
             titre="Circularisation"
-            texte="Confirmation de soldes auprès des tiers · méthode de l’ISA 505. Le logiciel n’envoie aucune lettre : la norme veut la réponse revenue directement au demandeur, ce qu’un envoi depuis la boîte du dossier ne garantit pas. Le CPCC ouvre chaque cycle de l’inventaire documentaire par la même question : a-t-on circularisé ?"
-            source="ISA 505 · inventaire documentaire du CPCC"
+            texte="Confirmation de soldes auprès des tiers · méthode de l’ISA 505. Le logiciel n’envoie aucune lettre : la norme veut la réponse revenue directement au demandeur, ce qu’un envoi depuis la boîte du dossier ne garantit pas. Le CPCC ouvre chaque cycle de l’inventaire documentaire par la même question : a-t-on circularisé ? Travaux de révision et de contrôle interne préparatoires · ce n’est pas un audit et aucune opinion sur les états financiers n’en sort : la loi la réserve à l’expert-comptable inscrit au tableau de l’Ordre."
+            source="ISA 505 · inventaire documentaire du CPCC · loi n° 15/002, art. 3, 1°, et art. 43, 5°"
           />
         </div>
       </div>

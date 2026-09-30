@@ -166,15 +166,23 @@ cinquième de trop sur chaque loyer payé :
 
 | | Taux | Qui le supporte | Texte |
 |---|---|---|---|
-| Impôt sur les revenus locatifs | **22 %** | le **bailleur**, sur son revenu | art. 11 de l'O.-L. n° 69/009 |
-| Retenue opérée par le locataire | **20 % du loyer brut** | avancé par le **locataire**, pour le compte du bailleur | art. 11 du régime de retenue, D.-L. n° 109/2000 |
+| Impôt sur les revenus locatifs | **22 %** (taux national) | le **bailleur**, sur son revenu | art. 11 de l'O.-L. n° 69/009 |
+| Retenue opérée par le locataire | **20 % du loyer brut** (taux national) | avancé par le **locataire**, pour le compte du bailleur | art. 11 de la loi n° 83/004 du 23 février 1983, modifié par le D.-L. n° 109/2000 |
 
-La retenue de 20 % est un **acompte** : elle s'impute sur l'impôt de 22 % dû
-par le bailleur, elle ne s'y ajoute pas et ne s'y substitue pas.
+La retenue est un **acompte** : elle s'impute sur l'impôt dû par le bailleur
+(art. 13 de la loi n° 83/004), elle ne s'y ajoute pas et ne s'y substitue pas.
 
-À Kinshasa, un barème provincial différencié 22 % / 17 % par rang de localité
-s'applique à l'impôt depuis le 1er janvier 2024 (arrêtés provinciaux n° 015 à
-017 du 7 décembre 2023). **Propre à Kinshasa, à ne pas extrapoler.**
+**L'impôt est provincial** : la Constitution, art. 204, 16°, range l'impôt
+sur les revenus locatifs parmi les impôts de la compétence exclusive des
+provinces, et chaque province fixe son barème. À Kinshasa, depuis le
+1er janvier 2024, l'arrêté provincial n° 015/CAB/MIN.PROV/FIN.ECO/2023 du
+7 décembre 2023 (art. 5 et 8) fixe, « tout loyer confondu », **l'impôt à 22 %
+et la retenue à 20 %** dans les localités du 1er rang, **l'impôt à 17 % et la
+retenue à 15 %** dans celles des 2e, 3e et 4e rangs. La retenue s'y reverse
+« au compte Ville de Kinshasa/Receveur des Recettes Fiscales » au plus tard le
+dixième jour du mois qui suit, suivant le modèle de la DGRK (art. 3).
+**Propre à Kinshasa, à ne pas extrapoler** : le barème des autres provinces
+n'est pas au corpus.
 
 Attention au sens de l'exonération : elle vise l'ASBL **bailleresse**. Une
 ASBL **locataire** reste tenue de la retenue à la source sur le loyer qu'elle
@@ -225,7 +233,7 @@ d'autrui**. C'est la source d'erreur la plus fréquente, et la plus coûteuse.
 | Prélèvement | Taux | Échéance de reversement |
 |---|---|---|
 | Retenue IRPP sur revenus salariaux | barème progressif (section 7) | le 15 du mois suivant le versement (art. 18 LPF) |
-| Retenue sur revenus locatifs (loyer payé) | 20 % du loyer brut | dans les 10 jours du mois suivant le paiement (art. 57 LPF) |
+| Retenue sur revenus locatifs (loyer payé) | 20 % du loyer brut (taux national ; à Kinshasa, 20 % au 1er rang et 15 % aux 2e à 4e rangs) | dans les 10 jours du mois suivant le paiement (art. 57 LPF) |
 | Prélèvement sur sommes payées aux prestataires non-résidents | 14 % du brut des factures (art. 144) | le 15 du mois suivant le paiement (art. 22 bis LPF) |
 | Prélèvement exceptionnel sur personnel expatrié | 25 % du brut (art. 148) | dans les 15 jours suivant le mois du versement (art. 19 LPF) |
 | TVA collectée sur une opération non exonérée | 16 % (taux normal) | le 15 du mois suivant |

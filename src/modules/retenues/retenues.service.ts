@@ -58,7 +58,7 @@ export class RetenuesService {
    * disposition » (lignes 313 à 315 et 322) ·, à l'art. 22 bis pour les
    * prestataires non-résidents · « au plus tard le quinze du mois qui suit
    * celui du paiement des factures » (lignes 346 à 349) · et à l'art. 57,
-   * alinéa 5 pour la retenue locative · « reversée dans les dix jours du mois
+   * alinéa 4 pour la retenue locative · « reversée dans les dix jours du mois
    * qui suit celui du paiement de loyer »
    * (`19-procedures-titre3-recouvrement.md`, lignes 25 à 27).
    *
@@ -257,12 +257,14 @@ export class RetenuesService {
     // LE RÉGIME D'IMPÔT DU DOSSIER COMMANDE CE QUI EST ÉCRIT EN TÊTE DE CET
     // ÉTAT. Une société est redevable de l'IS, une ASBL en est exemptée : le
     // registre annonçait l'exemption à tout le monde.
-    const { referentiel, formeJuridiqueSyscohada } = await this.prisma.tenant.findUniqueOrThrow({
+    const { referentiel, formeJuridiqueSyscohada, venteBiensServices } = await this.prisma.tenant.findUniqueOrThrow({
       where: { id: tenantId },
       // LA FORME OHADA commande le calendrier de paiement de l'impôt · voir
       // `obligationsDeclarativesApplicables`. Une entreprise individuelle ne
-      // doit pas les trois acomptes de l'impôt sur les sociétés.
-      select: { referentiel: true, formeJuridiqueSyscohada: true },
+      // doit pas les trois acomptes de l'impôt sur les sociétés. La vente de
+      // biens ou de services, fait DÉCLARÉ à trois réponses, commande la liste
+      // des clients de l'art. 47 bis (passe F8).
+      select: { referentiel: true, formeJuridiqueSyscohada: true, venteBiensServices: true },
     });
 
     const lignes = await this.prisma.ligneEcriture.findMany({
@@ -493,6 +495,10 @@ export class RetenuesService {
         // Le code de l'imprimé DGI · celui qu'on demande au guichet.
         imprime: nature.imprime ?? null,
         reserve: reservePourReferentiel(nature, referentiel) ?? null,
+        // Le relevé qui accompagne le reversement, quand un texte l'exige
+        // (retenue locative, loi n° 83/004, art. 12, § 1 · passe F11).
+        contenu: nature.contenu ?? null,
+        sourceDonnees: nature.sourceDonnees ?? null,
         comptes: [...parCompte.values()].sort((a, b) => a.numero.localeCompare(b.numero)),
         mois,
         retenu: Math.round(retenu * 100) / 100,
@@ -569,6 +575,8 @@ export class RetenuesService {
       comptesNonRattaches,
       referentiel,
       formeJuridiqueSyscohada,
+      // Absent d'une doublure ou d'un dossier ancien = pas encore dit.
+      venteBiensServices: venteBiensServices ?? null,
       signalementsDeductibilite,
       avertissements: [
         AVERTISSEMENT_REGISTRE,
@@ -612,9 +620,9 @@ export class RetenuesService {
       reserve: n.reserve,
       montantDu: n.solde,
       moisEnRetard: n.moisEnRetard,
-      contenu: null as string | null,
+      contenu: n.contenu as string | null,
       sanction: null as string | null,
-      sourceDonnees: null as string | null,
+      sourceDonnees: n.sourceDonnees as string | null,
     }));
 
     /*
@@ -626,10 +634,13 @@ export class RetenuesService {
     */
     // Toutes ne visent pas tout le monde : l'article 47, alinéa 1er énumère
     // des entités publiques et non lucratives, et l'échéancier servait son
-    // amende de 500 000 FC à une société commerciale privée.
+    // amende (la grille graduée de `SANCTION_ARTICLE_94`) à une société
+    // commerciale privée. La liste des clients de l'art. 47 bis tombe, elle,
+    // sur un dossier qui a déclaré ne rien vendre (passe F8).
     const declarations = obligationsDeclarativesApplicables(
       registre.referentiel,
       registre.formeJuridiqueSyscohada,
+      { venteBiensServices: registre.venteBiensServices },
     ).map((o) => ({
       cle: o.cle,
       libelle: o.libelle,
