@@ -11,7 +11,7 @@ import {
 } from './dto/personnel.dto';
 import { assiettes, NATURES_FOURNIES_EN_NATURE, type ElementPaie, type NatureElementPaie } from './assiettes-paie';
 import { RESERVE_REGIME_NON_DECLARE, baremeApplicableAuMois, regimeApplicable, retenueMensuelle } from './bareme-irpp';
-import { cotisations, netAPayer, type NatureEmployeurInpp } from './cotisations-paie';
+import { cotisations, netAPayer, type NatureEmployeurInpp, type RegimeCnss } from './cotisations-paie';
 import { estVerseEnEspeces, passationPaie, type Referentiel } from './passation-paie';
 import {
   LITTERA_ARTICLE_112,
@@ -22,6 +22,7 @@ import {
   type TypeAvance,
 } from './avances-salaire';
 import { quotiteSaisissable } from './quotite-saisissable';
+import { reserveIndemniteLogementKinshasa } from './indemnite-logement-kinshasa';
 import {
   AVERTISSEMENT_ARTICLE_89,
   jourDeKinshasa,
@@ -45,6 +46,7 @@ import {
   LIMITE_UN_BULLETIN_PAR_MOIS,
   RESERVE_MODELE,
   TEXTE_ARTICLE_103,
+  enonciationsDuBulletin,
   TEXTE_INALTERABILITE,
   TEXTE_NUMEROTATION,
   contratCouvrantLeMois,
@@ -63,6 +65,10 @@ import {
 import {
   ARRETE_DU_MODELE,
   DESTINATION_DES_DOUBLES,
+  ECARTS_2008_2018,
+  MENTIONS_ARRETE_142_2018,
+  REFERENCE_ARRETE_142_2018,
+  TEXTE_ARTICLE_2_SECOND_DOUBLE,
   DOUBLES_DETACHABLES_MINIMUM,
   FORMULES_DU_MODELE,
   MENTIONS_MODELE_2008,
@@ -85,6 +91,7 @@ import {
 import {
   CONTRAT_A_COMPLETER,
   aptitudeProvisoirePerimee,
+  journeesJourLeJourAvant,
   declarationsDues,
   mentionsManquantes,
   motifMonnaieExigee,
@@ -594,6 +601,7 @@ export class PersonnelService {
         const contrat: ContratPourControle = {
           type: c.type,
           constateParEcrit: c.constateParEcrit,
+          viseParOnem: c.viseParOnem,
           dateEntreeEnVigueur: c.dateEntreeEnVigueur,
           dateConclusion: c.dateConclusion,
           lieuConclusion: c.lieuConclusion,
@@ -618,6 +626,8 @@ export class PersonnelService {
           deviseRemuneration: c.deviseRemuneration,
         };
         const nombreRenouvellements = this.longueurChaineRenouvellement(s.contrats, c.id);
+        const journeesJourLeJour =
+          c.type === TypeContratTravail.JOUR_LE_JOUR ? journeesJourLeJourAvant(s.contrats, c) : undefined;
         // LE MOIS DE RÉFÉRENCE DU CONTRÔLE DE MINIMUM. Un contrat TERMINÉ se
         // juge sur son dernier mois · le barème a pu changer depuis, et le
         // confronter au minimum d'aujourd'hui reprocherait à l'employeur une
@@ -636,7 +646,14 @@ export class PersonnelService {
           requalifications: requalifications(contrat, {
             nombreCdd: rangCdd,
             nombreRenouvellements,
+            journeesJourLeJour,
           }),
+          // ART. 40 AL. 2 · null quand le registre ne dit pas les journées ·
+          // l'écran le dit au lieu de laisser croire la règle servie.
+          jourLeJourNonCompte:
+            c.type === TypeContratTravail.JOUR_LE_JOUR && journeesJourLeJour === null
+              ? "Engagement au jour le jour · les journées des deux mois précédents ne se comptent pas sur le registre (engagements de plusieurs jours ou sans fin), et la requalification de l'article 40, alinéa 2 n'est pas examinée."
+              : null,
           essai: verdictEssai(contrat),
           declarations: declarationsDues(
             {
@@ -654,8 +671,12 @@ export class PersonnelService {
           ),
           // ART. 47 · le défaut de visa ouvre au travailleur la résiliation
           // sans préavis. Il n'est pas une requalification · il est rendu à
-          // part pour ne pas se confondre avec elles.
-          visaOnemManquant: c.constateParEcrit && !c.viseParOnem,
+          // part pour ne pas se confondre avec elles. L'art. 47 vise le
+          // CONTRAT DE TRAVAIL · le visa d'un apprentissage relève de l'art. 21,
+          // dont l'effet est une présomption de contrat de travail, rendue
+          // parmi les requalifications (passe D2).
+          visaOnemManquant:
+            c.type !== TypeContratTravail.APPRENTISSAGE && c.constateParEcrit && !c.viseParOnem,
           moisDeReference,
           remunerationMinimale: verdictRemunerationMinimale(contrat, moisDeReference, grilles.annexes, grilles.nonLues),
         };
@@ -831,7 +852,25 @@ export class PersonnelService {
     if (typeof enfants !== 'number') return null;
     const a = allocationFamilialeJournaliere(dto.moisDePaie, enfants, annexesSmig);
     if (!a.valeur) return null;
-    return a.valeur.totalFc * MULTIPLICATEURS_ARTICLE_7.MOIS;
+    // PASSE D2 · les jours qui OUVRENT DROIT (mention 28 du modèle de 2008),
+    // quand ils sont déclarés · un mois incomplet mensualisé à 26 jours
+    // plaçait le plafond trop haut, et l'excédent imposable n'était pas repris.
+    return a.valeur.totalFc * (dto.joursAllocationsFamiliales ?? MULTIPLICATEURS_ARTICLE_7.MOIS);
+  }
+
+  /** La réserve du plafond calculé · sur quels jours, et ce qu'il faut déclarer. */
+  private reserveTauxLegalAllocations(dto: SimulationPaieDto, tauxFc: number | null): string | null {
+    if (typeof dto.tauxLegalAllocationsFamilialesFc === 'number' || tauxFc === null) return null;
+    if (typeof dto.joursAllocationsFamiliales === 'number') {
+      return `Plafond de l'article 69, 1 calculé sur ${dto.joursAllocationsFamiliales} jour(s) ouvrant droit aux allocations familiales (mention 28 de l'arrêté du 8 août 2008).`;
+    }
+    const incomplet = typeof dto.joursPayes === 'number' && dto.joursPayes < MULTIPLICATEURS_ARTICLE_7.MOIS;
+    return (
+      "Plafond de l'article 69, 1 mensualisé à 26 jours (décret n° 25/22, art. 7) · valable pour un mois entier. " +
+      (incomplet
+        ? `Le mois est déclaré incomplet (${dto.joursPayes} jours payés) : déclarez les jours ouvrant droit aux allocations (jours payés à 100 %, de congé payé et payés aux deux tiers, mention 28), sans quoi le plafond est trop haut.`
+        : 'Sur un mois incomplet, déclarez les jours ouvrant droit aux allocations (mention 28).')
+    );
   }
 
   /**
@@ -1036,6 +1075,10 @@ export class PersonnelService {
     // ne désigne jamais à lui seul la ligne à lire.
     let propositionPersonnesACharge: number | null = null;
     let sourceProposition: string | null = null;
+    // LE RÉGIME CNSS SE LIT SUR LE CONTRAT DU MOIS (passe D2) · un apprenti
+    // n'est assujetti qu'aux risques professionnels (loi n° 16/009, art. 4).
+    // Null sans salarié ou sans contrat couvrant le mois, et la réserve le dit.
+    let regimeCnss: RegimeCnss | null = null;
     if (salarieId) {
       const salarie = await this.prisma.salarie.findFirst({
         where: { id: salarieId, tenantId },
@@ -1043,9 +1086,14 @@ export class PersonnelService {
           nom: true,
           nomConjoint: true,
           _count: { select: { enfants: true } },
+          contrats: { select: { id: true, type: true, dateEntreeEnVigueur: true, dateFin: true } },
         },
       });
       if (!salarie) throw new NotFoundException('Salarié introuvable dans ce dossier.');
+      const contratDuMois = contratCouvrantLeMois(salarie.contrats ?? [], dto.moisDePaie);
+      if (contratDuMois) {
+        regimeCnss = contratDuMois.type === TypeContratTravail.APPRENTISSAGE ? 'APPRENTI' : 'TRAVAILLEUR';
+      }
       // ANOMALIE DU TEXTE, signalée (passe F5) · l'art. 124, al. 2 écrit que
       // ne sont à charge que ceux qui « n'aient pas bénéficié [...] des
       // ressources nettes NE DÉPASSANT PAS » la première tranche · lue à la
@@ -1093,7 +1141,8 @@ export class PersonnelService {
       versionsDossier: versionsDuDossier(versionsBaremes),
       natureEmployeurInpp: (dto.natureEmployeurInpp as NatureEmployeurInpp | undefined) ?? null,
       effectif: dto.effectif ?? null,
-      majorationRisquesProfessionnels: dto.majorationRisquesProfessionnels,
+      majorationRisquesProfessionnelsPourCent: dto.majorationRisquesProfessionnelsPourCent ?? null,
+      regimeCnss,
       // Le plancher de la CNSS (audit final F112) · la grille SMIG du dossier
       // et les jours payés d'un mois incomplet.
       joursPayes: dto.joursPayes ?? null,
@@ -1156,7 +1205,7 @@ export class PersonnelService {
     // connaissent ni le SYCEBNL ni le SYSCOHADA, le PLAN DE COMPTES si.
     const tenant = await this.prisma.tenant.findUniqueOrThrow({
       where: { id: tenantId },
-      select: { referentiel: true },
+      select: { referentiel: true, ville: true },
     });
     const passation = passationPaie({
       referentiel: tenant.referentiel as Referentiel,
@@ -1230,6 +1279,16 @@ export class PersonnelService {
         litteraeDatees: RESERVE_LITTERAE_DATEES,
       },
       tauxLegalAllocationsFamilialesFc,
+      reserveTauxLegalAllocations: this.reserveTauxLegalAllocations(dto, tauxLegalAllocationsFamilialesFc),
+      // Mention 29 du modèle de 2008 · le taux journalier PAR ENFANT, quand
+      // le plafond a été calculé et non saisi (passe D2).
+      tauxJournalierAllocationsFamilialesFc:
+        typeof dto.tauxLegalAllocationsFamilialesFc !== 'number' && typeof dto.enfantsBeneficiairesAllocations === 'number'
+          ? (allocationFamilialeJournaliere(dto.moisDePaie, 1, annexesSmig).valeur?.parEnfantFc ?? null)
+          : null,
+      // PASSE F11 · l'obligation de l'employeur qui verse une indemnité de
+      // logement à Kinshasa (arrêté provincial n° 016/2023, art. 3 et 7).
+      reserveIndemniteLogement: reserveIndemniteLogementKinshasa(elements, tenant.ville, dto.moisDePaie),
       cotisations: lesCotisations,
       net,
       baremeApplicable: borne.applicable,
@@ -1294,6 +1353,14 @@ export class PersonnelService {
       mentions: MENTIONS_MODELE_2008,
       formules: FORMULES_DU_MODELE,
       destinationDesDoubles: DESTINATION_DES_DOUBLES,
+      texteSecondDouble: TEXTE_ARTICLE_2_SECOND_DOUBLE,
+      // PASSE D2 · le second texte du bulletin de paie, restitué à côté du
+      // premier, ses écarts nommés et non tranchés.
+      arrete1422018: {
+        reference: REFERENCE_ARRETE_142_2018,
+        mentions: MENTIONS_ARRETE_142_2018,
+        ecarts: ECARTS_2008_2018,
+      },
       arreteDuModele: ARRETE_DU_MODELE,
       doublesDetachablesMinimum: DOUBLES_DETACHABLES_MINIMUM,
       sanctionArticle103: SANCTION_ARTICLE_103,
@@ -1417,6 +1484,10 @@ export class PersonnelService {
             dateFin: true,
             natureTravail: true,
             categorieProfessionnelle: true,
+            // Mention 5 du modèle de 2008 · figée sur le bulletin (passe D2).
+            remunerationBase: true,
+            periodiciteRemuneration: true,
+            deviseRemuneration: true,
           },
         },
       },
@@ -1476,7 +1547,18 @@ export class PersonnelService {
             irppFc: simulation.retenue?.retenueFc ?? 0,
             netAPayerFc: simulation.net.netAPayerFc ?? 0,
             entree: JSON.parse(JSON.stringify(saisie)) as Prisma.InputJsonValue,
-            calcul: JSON.parse(JSON.stringify(simulation)) as Prisma.InputJsonValue,
+            // Le salaire du contrat (mention 5 du modèle de 2008) est FIGÉ avec
+            // le calcul · un bulletin remis ne change pas avec le contrat.
+            calcul: JSON.parse(
+              JSON.stringify({
+                ...simulation,
+                contrat: {
+                  remunerationBase: contrat.remunerationBase === null ? null : Number(contrat.remunerationBase),
+                  periodiciteRemuneration: contrat.periodiciteRemuneration,
+                  deviseRemuneration: contrat.deviseRemuneration,
+                },
+              }),
+            ) as Prisma.InputJsonValue,
             emisPar: userId,
           },
         });
@@ -1605,6 +1687,9 @@ export class PersonnelService {
       cotisationsEmployeurFc: Number(b.cotisationsEmployeurFc),
       irppFc: Number(b.irppFc),
       netAPayerFc: Number(b.netAPayerFc),
+      // PASSE D2 · ce que le bulletin porte des énonciations du modèle de
+      // 2008, et ce qu'il ne porte pas, dit rang par rang.
+      enonciations: enonciationsDuBulletin(b),
       reserves: [TEXTE_ARTICLE_103, TEXTE_INALTERABILITE, RESERVE_MODELE],
     };
   }

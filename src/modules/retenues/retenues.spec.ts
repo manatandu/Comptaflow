@@ -329,12 +329,11 @@ describe('Registre des retenues à la source', () => {
     // la relation qu'on fige, et elle ne s'observe que dans ce mois-là.
     expect(declaration!.date.getMonth()).toBe(versement!.date.getMonth());
     expect(declaration!.date.getDate()).toBe(10);
-    // Le 15 mars 2026 est un DIMANCHE · le versement est reporté au lundi 16
-    // par l'art. 110 bis, al. 2 (passe F10). CE QUI EST FIGÉ ICI N'EST PAS
-    // L'ÉCART DE CINQ JOURS mais l'ORDRE des deux échéances : la déclaration
-    // précède le versement, et le report ne peut pas les intervertir · le 10
-    // et le 15 d'un même mois ne peuvent pas tomber le même jour de semaine.
-    expect(versement!.date.getDate()).toBe(16);
+    // Le 15 mars 2026 est un DIMANCHE · ce test figeait son report au lundi
+    // 16 par l'art. 110 bis, al. 2, qui ne vise pourtant que la législation
+    // FISCALE (passe D2). L'arrêté ONEM n° 028/2025 ne reporte rien · le
+    // versement reste dû le dimanche 15, la déclaration le mardi 10.
+    expect(versement!.date.getDate()).toBe(15);
     expect(declaration!.date.getTime()).toBeLessThan(versement!.date.getTime());
   });
 
@@ -395,6 +394,17 @@ describe('Échéancier fiscal et social', () => {
     const e = await service([]).echeancierFiscal('t1', { exerciceId: 'e1', dateReference: '2026-09-01' });
     const declaration = e.echeances.find((x) => x.cle === 'declarationMensuelleOnem')!;
     expect(declaration.date.toISOString().slice(0, 10)).toBe('2026-09-10');
+  });
+
+  it('PASSE D2 · la déclaration ONEM tombant un samedi n’est pas reportée, le relevé fiscal du même jour l’est', async () => {
+    // Le 10 octobre 2026 est un SAMEDI. L'art. 110 bis ne vise que la
+    // législation fiscale · la déclaration ONEM (arrêté n° 028/2025, art. 2)
+    // reste au 10, le relevé trimestriel (art. 47, fiscal) passe au 12.
+    const e = await service([]).echeancierFiscal('t1', { exerciceId: 'e1', dateReference: '2026-10-01' });
+    const onem = e.echeances.find((x) => x.cle === 'declarationMensuelleOnem')!;
+    expect(onem.date.toISOString().slice(0, 10)).toBe('2026-10-10');
+    const releve = e.echeances.find((x) => x.cle === 'releveTrimestrielTiers')!;
+    expect(releve.date.toISOString().slice(0, 10)).toBe('2026-10-12');
   });
 
   it('le relevé trimestriel bascule au trimestre suivant une fois l’échéance passée', async () => {

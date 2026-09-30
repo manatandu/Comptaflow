@@ -104,6 +104,10 @@ interface Requal {
   article: string;
   formule: string;
   explication: string;
+  /** L'effet, qui n'est pas le même pour un CDD et pour un apprentissage (art. 21 et 23). */
+  effet: string;
+  /** La condition que le dossier doit qualifier, ou null. */
+  reserve: string | null;
 }
 
 interface Declaration {
@@ -143,6 +147,8 @@ interface FicheConfrontee {
   declarations: Declaration[];
   aptitudeProvisoirePerimee: boolean;
   visaOnemManquant: boolean;
+  /** Art. 40 al. 2 non examiné faute de journées lisibles, ou null. */
+  jourLeJourNonCompte: string | null;
   moisDeReference: string;
   remunerationMinimale: RemunerationMinimale;
 }
@@ -170,6 +176,10 @@ interface Simulation {
   } | null;
   baremeApplicable: boolean;
   motifBaremeInapplicable: string | null;
+  /** Sur quels jours le plafond de l'art. 69, 1 est calculé, ou null. */
+  reserveTauxLegalAllocations?: string | null;
+  /** Indemnité de logement versée à Kinshasa · relevé à la DGRK (arrêté provincial n° 016/2023), ou null. */
+  reserveIndemniteLogement?: string | null;
   /** Article 121, alinéa 2 · le régime déclaré, et s'il se calcule (audit final F105). */
   regimeSalarial?: { regime: string; declare: boolean; calculable: boolean; motif: string };
   assiettes: {
@@ -286,6 +296,14 @@ interface LivreDePaie {
   mentions: { rang: number; libelle: string }[];
   formules: Record<string, { rang: number; composantes: number[] }>;
   destinationDesDoubles: { premier: string; second: string };
+  /** Le libellé de l'arrêté de 2008 (« Institut National de Sécurité Sociale »), pour l'aide. */
+  texteSecondDouble: string;
+  /** L'arrêté n° 142/2018, art. 12 · second texte du bulletin, ses écarts nommés. */
+  arrete1422018: {
+    reference: string;
+    mentions: { rang: number; libelle: string }[];
+    ecarts: { rangs: string; ecart: string }[];
+  };
   arreteDuModele: {
     reference: string;
     objet: string;
@@ -628,7 +646,11 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
   // DÉCRET n° 18/041, ART. 8 · le plancher de la CNSS se mesure au SMIG des
   // jours payés. Vide = mois entier (26 jours).
   const [joursPayes, setJoursPayes] = useState('');
-  const [majorationRp, setMajorationRp] = useState(false);
+  // Mention 28 du modèle de 2008 · les jours qui ouvrent droit aux allocations.
+  const [joursAllocations, setJoursAllocations] = useState('');
+  // La majoration NOTIFIÉE par la Caisse · 50 % (arrêté n° 140/2018, art. 22)
+  // ou 100 % en récidive (art. 24), jamais une case qui doublait toujours.
+  const [majorationRp, setMajorationRp] = useState<'' | '50' | '100'>('');
   // ARTICLE 121, ALINÉA 2 · vide = non déclaré, le serveur retient le droit
   // commun ET le dit ; un forfait abstient la retenue (audit final F105).
   const [regimeSalarial, setRegimeSalarial] = useState('');
@@ -754,7 +776,8 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
       ...(natureInpp === '' ? {} : { natureEmployeurInpp: natureInpp }),
       effectif: nombre(effectifInpp),
       joursPayes: nombre(joursPayes),
-      ...(majorationRp ? { majorationRisquesProfessionnels: true } : {}),
+      joursAllocationsFamiliales: nombre(joursAllocations),
+      ...(majorationRp ? { majorationRisquesProfessionnelsPourCent: Number(majorationRp) } : {}),
       ...(regimeSalarial === '' ? {} : { regimeSalarial }),
       // ARTICLE 69, 1 · le nombre d'enfants BÉNÉFICIAIRES, dont le serveur
       // tire le taux légal. Absent, il s'abstient · il ne suppose pas un.
@@ -1140,8 +1163,8 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
         <span className="ml-auto self-center">
           <Aide
             titre="Registre du personnel"
-            texte="Le registre tient l’état civil et les engagements, et confronte chaque contrat aux quinze énonciations obligatoires de l’article 212 ainsi qu’aux requalifications de plein droit des articles 40 à 45. L’onglet Simulation rend les deux assiettes d’un mois, les cotisations et la retenue de l’article 119."
-            source="Code du travail (loi n° 015/2002), art. 40 à 45 et 212"
+            texte="Le registre tient l’état civil et les engagements, et confronte chaque contrat aux quinze énonciations obligatoires de l’article 212 ainsi qu’aux requalifications de plein droit des articles 40 à 45. L’onglet Simulation rend les deux assiettes d’un mois, les cotisations et la retenue de l’article 119. La paie suit le contrat de travail · le mandataire de l’État, le marin et l’associé actif d’une société, assujettis à toutes les branches de la CNSS sur l’ensemble de leurs rétributions, jetons de présence compris, n’y sont pas calculés."
+            source="Code du travail (loi n° 015/2002), art. 40 à 45 et 212 · arrêté n° 146/2018, art. 3 (points 2, 4 et 6) et 17, point 2"
           />
         </span>
       </div>
@@ -1280,7 +1303,12 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                   </select>
                 </label>
                 <label>
-                  <span className={etiquette}>N° CNSS du travailleur (point 4)</span>
+                  <span
+                    className={etiquette}
+                    title="Le numéro d’immatriculation de la carte de sécurité sociale (arrêté n° 146/2018, art. 9 à 12 et 25, point 3), que l’art. 212, 4° du Code du travail appelle « numéro d’affiliation »"
+                  >
+                    N° CNSS du travailleur (point 4)
+                  </span>
                   <input
                     className={champ}
                     value={salarie.numeroAffiliationCnss}
@@ -1823,7 +1851,9 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
         <div className="max-w-[1240px]">
           {confrontation.manqueEmployeur && (
             <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mb-2.5 text-[11.5px]">
-              <strong>Le numéro d’immatriculation de l’employeur à la CNSS n’est pas renseigné.</strong>{' '}
+              <strong title="Le numéro du certificat d’affiliation que la Caisse délivre à l’employeur (arrêté n° 146/2018, art. 7), que l’art. 212, 2° du Code du travail appelle « numéro d’immatriculation »">
+                Le numéro d’immatriculation de l’employeur à la CNSS n’est pas renseigné.
+              </strong>{' '}
               Aucun contrat de ce dossier n’est complet (art. 212, point 2) · Structure &gt; Paramètres
               du dossier.
             </div>
@@ -1854,11 +1884,10 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
               </div>
               {f.requalifications.map((r) => (
                 <div key={r.motif} className="mt-1 border-l-2 border-danger pl-2">
-                  <div className="font-bold text-danger">
-                    Requalifié en contrat à durée indéterminée
-                  </div>
+                  <div className="font-bold text-danger">{r.effet}</div>
                   <div className="italic text-text-dim">« {r.formule} » ({r.article})</div>
                   <div>{r.explication}</div>
+                  {r.reserve && <div className="text-text-dim">{r.reserve}</div>}
                 </div>
               ))}
               {f.mentionsManquantes.length > 0 && (
@@ -1910,6 +1939,9 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                   Contrat écrit non visé par l’Office national de l’emploi (art. 47) · le défaut
                   ouvre au travailleur la résiliation sans préavis.
                 </div>
+              )}
+              {f.jourLeJourNonCompte && (
+                <div className="mt-1 text-text-dim">{f.jourLeJourNonCompte}</div>
               )}
               {f.aptitudeProvisoirePerimee && (
                 <div className="mt-1">
@@ -1964,7 +1996,12 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                   <td className={cell}>{effectif.permanents}</td>
                 </tr>
                 <tr>
-                  <td className={cell}>Main-d’œuvre nationale</td>
+                  <td
+                    className={cell}
+                    title="Loi n° 004/2001, art. 37, 4° · lue sur la nationalité congolaise des salariés, lecture d’OmegaX"
+                  >
+                    Main-d’œuvre locale
+                  </td>
                   <td className={cell}>
                     {effectif.partMainOeuvreNationale === null
                       ? 'non calculée'
@@ -2109,13 +2146,22 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                   className="border border-border bg-transparent px-2 py-1 w-[110px] text-right"
                 />
               </label>
-              <label className="flex items-center gap-1 pb-1">
-                <input
-                  type="checkbox"
-                  checked={majorationRp}
-                  onChange={(e) => setMajorationRp(e.target.checked)}
-                />
-                <span className="text-[11px]">Risques prof. majorés</span>
+              <label className="flex flex-col gap-0.5">
+                <span
+                  className={etiquette}
+                  title="Majoration notifiée par la Caisse · arrêté n° 140/2018, art. 22 et 24 ; plafond du double, décret n° 18/041, art. 5"
+                >
+                  Majoration risques prof.
+                </span>
+                <select
+                  value={majorationRp}
+                  onChange={(e) => setMajorationRp(e.target.value as '' | '50' | '100')}
+                  className="border border-border bg-transparent px-2 py-1"
+                >
+                  <option value="">Aucune notifiée</option>
+                  <option value="50">50 %</option>
+                  <option value="100">100 % (récidive)</option>
+                </select>
               </label>
               <label className="flex flex-col gap-0.5">
                 <span className={etiquette}>Régime de la retenue</span>
@@ -2143,6 +2189,20 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                 <input
                   value={joursPayes}
                   onChange={(e) => setJoursPayes(e.target.value)}
+                  placeholder="26"
+                  className="border border-border bg-transparent px-2 py-1 w-[120px] text-right"
+                />
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span
+                  className={etiquette}
+                  title="Jours payés à 100 %, de congé payé et payés aux deux tiers · mention 28 de l’arrêté du 8 août 2008"
+                >
+                  Jours ouvrant droit (alloc. fam.)
+                </span>
+                <input
+                  value={joursAllocations}
+                  onChange={(e) => setJoursAllocations(e.target.value)}
                   placeholder="26"
                   className="border border-border bg-transparent px-2 py-1 w-[120px] text-right"
                 />
@@ -2701,6 +2761,16 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                     </li>
                   ))}
                 </ul>
+              )}
+
+              {simulation.reserveTauxLegalAllocations && (
+                <div className="text-[11px] text-text-dim mt-1.5">{simulation.reserveTauxLegalAllocations}</div>
+              )}
+
+              {simulation.reserveIndemniteLogement && (
+                <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mt-2.5 text-[11px]">
+                  {simulation.reserveIndemniteLogement}
+                </div>
               )}
 
               {simulation.cotisations.abstentions.length > 0 && (
@@ -3694,7 +3764,14 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                   Article 214 · le livre se compose de feuilles numérotées de manière continue,
                   chacune comportant au moins {livre.doublesDetachablesMinimum} doubles détachables.
                   Article 2 de l’arrêté · le premier va {livre.destinationDesDoubles.premier} ; le
-                  second {livre.destinationDesDoubles.second}.
+                  second <span title={livre.texteSecondDouble}>{livre.destinationDesDoubles.second}</span>.
+                </div>
+                <div className="py-1 border-t border-border/40 text-text-dim">
+                  <span title={`${livre.arrete1422018.reference} · ${livre.arrete1422018.mentions.length} mentions, mêmes formules de somme`}>
+                    Arrêté n° 142/2018
+                  </span>{' '}
+                  · écarts avec 2008 :{' '}
+                  {livre.arrete1422018.ecarts.map((e) => `mention ${e.rangs}, ${e.ecart}`).join(' ; ')}.
                 </div>
                 <div className="py-1 border-t border-border/40 text-text-dim">
                   Article 1er de l’arrêté · trois mentions sont des <strong>formules de somme</strong>{' '}

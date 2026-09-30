@@ -189,6 +189,20 @@ describe('Report au premier jour ouvrable · art. 110 bis, alinéa 2', () => {
       );
     });
 
+    it("PASSE D2 · la CNSS n'est PAS reportée · les cotisations de janvier 2026 sont dues le DIMANCHE 15 février", async () => {
+      // L'art. 110 bis ne vise que « le délai prescrit par la législation
+      // fiscale » · l'arrêté n° 146/2018 (art. 21 et 31) ne reporte rien.
+      const r = await service([ligne('43110000', '2026-01-31', { credit: 200_000 })]).registre('t1', {
+        exerciceId: 'e1',
+        dateReference: '2026-02-16',
+      });
+      const cnss = moisDe(r, 'cnss');
+      expect(cnss.mois.find((m) => m.mois === '2026-01')?.echeance).toEqual(new Date(Date.UTC(2026, 1, 15)));
+      // Le lundi 16, le retard court déjà.
+      expect(cnss.moisEnRetard).toBe(1);
+      expect(r.avertissements.join(' ')).toContain('ne sont PAS reportées');
+    });
+
     it("une échéance qui tombe déjà un jour ouvrable n'est pas déplacée · avril 2026 reste le 15", async () => {
       // 15 avril 2026 est un mercredi · le report ne doit rien changer.
       expect(new Date(2026, 3, 15).getDay()).toBe(3);
@@ -296,7 +310,11 @@ describe('Report au premier jour ouvrable · art. 110 bis, alinéa 2', () => {
       // elle-même (audit final F81).
       expect(source).toContain("import { echeanceDeReversement, reporterAuJourOuvrable } from './jour-ouvrable'");
       expect(source).not.toMatch(/getDay\(\)/);
-      expect((source.match(/(?:reporterAuJourOuvrable|echeanceDeReversement)\(/g) ?? []).length).toBeGreaterThanOrEqual(5);
+      // Depuis la passe D2, le report des déclarations passe par une seule
+      // fermeture (`reporter`) qui ne reporte que l'échéance fiscale · trois
+      // appels à la règle, et chaque calcul passe par l'un d'eux.
+      expect((source.match(/(?:reporterAuJourOuvrable|echeanceDeReversement)\(/g) ?? []).length).toBeGreaterThanOrEqual(3);
+      expect(source).toContain('estEcheanceFiscale(');
     });
   });
 });

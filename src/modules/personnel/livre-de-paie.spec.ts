@@ -2,6 +2,9 @@ import {
   ARRETE_DU_MODELE,
   DECOMPTE_A_LA_RUPTURE,
   DESTINATION_DES_DOUBLES,
+  ECARTS_2008_2018,
+  MENTIONS_ARRETE_142_2018,
+  TEXTE_ARTICLE_2_SECOND_DOUBLE,
   DOUBLES_DETACHABLES_MINIMUM,
   EFFECTIF_LIVRE_INSPIRE,
   EFFECTIF_LIVRE_INSPIRE_ARRETE,
@@ -267,7 +270,10 @@ describe("L'article 2 de l'arrêté · les deux doubles et le décompte à la ru
   it('donne la destination des deux doubles de l\'article 214', () => {
     expect(DESTINATION_DES_DOUBLES.premier).toMatch(/TRAVAILLEUR/);
     expect(DESTINATION_DES_DOUBLES.premier).toMatch(/à chaque paie/i);
-    expect(DESTINATION_DES_DOUBLES.second).toMatch(/INSTITUT NATIONAL DE SÉCURITÉ SOCIALE/);
+    // Passe D2 · l'écran ne sert pas l'organisme renommé, l'aide cite l'arrêté.
+    expect(DESTINATION_DES_DOUBLES.second).toBe('à la CNSS, selon la réglementation en vigueur');
+    expect(TEXTE_ARTICLE_2_SECOND_DOUBLE).toContain("l'Institut National de Sécurité Sociale");
+    expect(TEXTE_ARTICLE_2_SECOND_DOUBLE).toContain('18/027');
   });
 
   it('porte le décompte dû à la RUPTURE, en plus du bulletin', () => {
@@ -317,5 +323,21 @@ describe("L'article 103 et sa sanction probatoire", () => {
 describe("L'article 214", () => {
   it('porte le minimum de deux doubles détachables', () => {
     expect(DOUBLES_DETACHABLES_MINIMUM).toBe(2);
+  });
+});
+
+describe("Passe D2 · l'arrêté n° 142/2018, second texte du bulletin de paie", () => {
+  it('porte trente-trois mentions, avec les mêmes trois formules de somme que 2008', () => {
+    expect(MENTIONS_ARRETE_142_2018.map((m) => m.rang)).toEqual(Array.from({ length: 33 }, (_, i) => i + 1));
+    expect(MENTIONS_ARRETE_142_2018[19].libelle).toContain('7, 10, 11, 12, 13,16 et 19');
+    expect(MENTIONS_ARRETE_142_2018[25].libelle).toContain('21, 22, 23,24 et 25');
+    expect(MENTIONS_ARRETE_142_2018[27].libelle).toContain('6, 14 et 17');
+  });
+
+  it('nomme ses écarts avec 2008 sans les trancher', () => {
+    expect(MENTIONS_ARRETE_142_2018[3].libelle).toContain('caisse de sécurité sociale');
+    expect(MENTIONS_ARRETE_142_2018[10].libelle).not.toContain('samedi');
+    expect(MENTIONS_ARRETE_142_2018[26].libelle).toContain('extra-légales');
+    expect(ECARTS_2008_2018.map((e) => e.rangs)).toEqual(['4', '11', '16 et 17', '24', '27 à 30']);
   });
 });

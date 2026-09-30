@@ -1,5 +1,5 @@
 import { FormeJuridiqueSyscohada, Referentiel } from '@prisma/client';
-import { RESERVE_JOUR_OUVRABLE } from './jour-ouvrable';
+import { RESERVE_ECHEANCES_SOCIALES, RESERVE_JOUR_OUVRABLE } from './jour-ouvrable';
 import { FORFAITS_ARRETE_019_2025 } from '../personnel/bareme-irpp';
 
 /**
@@ -161,6 +161,11 @@ export interface ObligationDeclarative {
   sanction?: string;
   /** D'où le logiciel peut tirer la matière de la déclaration. */
   sourceDonnees?: string;
+  /**
+   * Faux pour une déclaration due à un organisme social (ONEM) · son échéance
+   * ne se reporte pas au jour ouvrable. Absent = échéance fiscale.
+   */
+  echeanceFiscale?: boolean;
   /**
    * Obligation réservée aux PERSONNES PHYSIQUES · l'entreprise individuelle
    * et l'entreprenant. Absent = toutes les formes.
@@ -650,9 +655,9 @@ export const NATURES_RETENUES: NatureRetenue[] = [
     joursApresPeriode: 15,
     echeance: 'Dans les quinze jours suivant le mois civil, déclaration due même sans travailleur',
     baseLegale:
-      "Loi n° 16/009 du 15 juillet 2016 (régime général de sécurité sociale) ; décret n° 18/041 du 24 novembre 2018 fixant les taux : prestations aux familles 6,5 % (employeur), pensions 10 % (5 % employeur, 5 % travailleur), risques professionnels 1,5 % (employeur, doublable en cas de non-conformité). Échéances : arrêté ministériel n° 146/2018, article 21 (déclaration) et article 31 (versement), « dans les quinze jours suivant le mois civil » ; article 26 : la déclaration est due même en l'absence de travailleur ; régularisation possible dans les cinq jours.",
+      "Loi n° 16/009 du 15 juillet 2016 (régime général de sécurité sociale) ; décret n° 18/041 du 24 novembre 2018 fixant les taux : prestations aux familles 6,5 % (employeur), pensions 10 % (5 % employeur, 5 % travailleur), risques professionnels 1,5 % (employeur, majorable par la Caisse jusqu'au double, décret n° 18/041, art. 5 · 50 % au premier constat, 100 % en récidive, arrêté n° 140/2018, art. 22 et 24). Échéances : arrêté ministériel n° 146/2018, article 21 (déclaration) et article 31 (versement), « dans les quinze jours suivant le mois civil » ; article 26 : la déclaration est due même en l'absence de travailleur ; régularisation possible dans les cinq jours. FEUILLES DE PAIE · l'article 24 impose de joindre à la déclaration une copie des feuilles de paie, et l'article 28 fait de leur absence un DÉFAUT DE DÉCLARATION (le texte renvoie aux « annexes requises à l'article 25 », alors que c'est l'article 24 qui les requiert et l'article 25 qui en fixe le contenu · anomalie de renvoi, signalée et non tranchée). SANCTIONS · arrêté ministériel n° 138/2018 : majoration de 0,5 % des cotisations dues par jour de retard (art. 2), qui prend cours à partir du vingt-unième jour du mois civil suivant (art. 3) ; déclaration et annexes non déposées, cotisations déterminées d'office sur la dernière déclaration majorée de 30 % (art. 9) ; déclaration produite après taxation d'office, pénalité de 0,5 % par jour sur les cotisations déclarées (art. 10) ; remise pour bonne foi ou force majeure (art. 4, 5 et 8). Le montant d'une majoration est un acte de la Caisse · ce registre n'en chiffre aucun.",
     reserve:
-      "L'ASSIETTE N'EST PAS LE REVENU IMPOSABLE, ET DEUX TEXTES LE DISENT PLUTÔT QU'UN. L'article 13 de la loi n° 16/009 ROUTE l'assiette hors de la fiscalité : les cotisations « sont assises sur l'ensemble de la rémunération du travailleur assujetti TEL QUE PRÉVU À L'ARTICLE 7, LITERA H, DU CODE DU TRAVAIL ». Et l'arrêté n° 146/2018, article 17, point 1, définit l'« assiette de cotisation du travailleur » en RECOPIANT cette définition, exclusions comprises : ne sont pas éléments de la rémunération les soins de santé, l'indemnité de logement ou le logement en nature, les allocations familiales légales, l'indemnité de transport, les frais de voyage et les avantages accordés exclusivement en vue de faciliter au travailleur l'accomplissement de ses fonctions. CES CINQ EXCLUSIONS SONT INCONDITIONNELLES · leur montant ne change rien, leur nature suffit. C'est ce qui les sépare des immunités de l'article 69 de la loi n° 23/053, qui portent des conditions et des plafonds. LA DÉCLARATION ELLE-MÊME LE PROUVE · le formulaire Mod. DC de l'article 23 porte DEUX colonnes distinctes, le « montant total brut des sommes payées aux travailleurs » (point 5) et le « montant total des sommes payées aux travailleurs QUI SONT PRISES EN CONSIDÉRATION POUR LE CALCUL DES COTISATIONS » (point 6). Si l'assiette était le brut, le point 6 n'aurait pas lieu d'être. NE PAS LA « CORRIGER » SUR UNE SOURCE ÉTRANGÈRE · la règle inverse existe ailleurs et se trouve en premier sur le web. Le Maroc a harmonisé son assiette sociale sur le traitement fiscal des indemnités par l'arrêté n° 1314-25, et le Gabon assied ses cotisations sur le « salaire brut imposable ». Aucun des deux ne régit la RDC. Un plancher au SMIG s'applique (loi, art. 13 in fine ; décret n° 18/041, art. 8). LE SMIG EST CHIFFRÉ · décret n° 25/22 du 30 mai 2025, art. 2 : 21 500 FC par jour pour le travailleur MANŒUVRE ORDINAIRE, soit 559 000 FC par mois en appliquant le multiplicateur 26 de son article 7. Le taux monte ensuite de classe en classe jusqu'à 215 000 FC par jour au dernier échelon du cadre de collaboration, suivant la tension salariale des annexes. SUR QUEL MONTANT S'ASSIED LE PLANCHER, LA QUESTION RESTE OUVERTE, et OmegaX ne la tranche pas : l'article 2 fixe le SMIG à 21 500 FC tandis que l'article 3 échelonne son PAIEMENT (14 500 FC de la paie de mai 2025 à celle de décembre 2025, 21 500 FC ensuite). Les annexes du décret, elles, assoient les allocations familiales et la contre-valeur du logement sur le montant PAYÉ (537,04 FC de mai à décembre 2025, soit 14 500/27) · elles ne disent rien du plancher d'assiette sociale, qui relève d'un autre texte. Le point est à confirmer auprès de la CNSS avant d'en tirer une assiette. LA PAIE D'OMEGAX applique le plancher là où les deux lectures coïncident (à partir de janvier 2026, ou sur une grille saisie par le cabinet), au SMIG des jours payés, et s'abstient sur la CNSS de mai à décembre 2025 quand l'assiette tombe entre les deux. Déclaration mensuelle unique impôts et cotisations au guichet unique (arrêté interministériel du 12 mai 2015) ; télédéclaration obligatoire au-delà de vingt-cinq travailleurs (arrêté n° 146/2018, art. 24).",
+      "L'ASSIETTE N'EST PAS LE REVENU IMPOSABLE, ET DEUX TEXTES LE DISENT PLUTÔT QU'UN. L'article 13 de la loi n° 16/009 ROUTE l'assiette hors de la fiscalité : les cotisations « sont assises sur l'ensemble de la rémunération du travailleur assujetti TEL QUE PRÉVU À L'ARTICLE 7, LITERA H, DU CODE DU TRAVAIL ». Et l'arrêté n° 146/2018, article 17, point 1, définit l'« assiette de cotisation du travailleur » en RECOPIANT cette définition, exclusions comprises : ne sont pas éléments de la rémunération les soins de santé, l'indemnité de logement ou le logement en nature, les allocations familiales légales, l'indemnité de transport, les frais de voyage et les avantages accordés exclusivement en vue de faciliter au travailleur l'accomplissement de ses fonctions. CES CINQ EXCLUSIONS SONT INCONDITIONNELLES · leur montant ne change rien, leur nature suffit. C'est ce qui les sépare des immunités de l'article 69 de la loi n° 23/053, qui portent des conditions et des plafonds. LA DÉCLARATION ELLE-MÊME LE PROUVE · le formulaire Mod. DC de l'article 23 porte DEUX colonnes distinctes, le « montant total brut des sommes payées aux travailleurs » (point 5) et le « montant total des sommes payées aux travailleurs QUI SONT PRISES EN CONSIDÉRATION POUR LE CALCUL DES COTISATIONS » (point 6). Si l'assiette était le brut, le point 6 n'aurait pas lieu d'être. NE PAS LA « CORRIGER » SUR UNE SOURCE ÉTRANGÈRE · la règle inverse existe ailleurs et se trouve en premier sur le web. Le Maroc a harmonisé son assiette sociale sur le traitement fiscal des indemnités par l'arrêté n° 1314-25, et le Gabon assied ses cotisations sur le « salaire brut imposable ». Aucun des deux ne régit la RDC. Un plancher au SMIG s'applique (loi, art. 13 in fine ; décret n° 18/041, art. 8). LE SMIG EST CHIFFRÉ · décret n° 25/22 du 30 mai 2025, art. 2 : 21 500 FC par jour pour le travailleur MANŒUVRE ORDINAIRE, soit 559 000 FC par mois en appliquant le multiplicateur 26 de son article 7. Le taux monte ensuite de classe en classe jusqu'à 215 000 FC par jour au dernier échelon du cadre de collaboration, suivant la tension salariale des annexes. SUR QUEL MONTANT S'ASSIED LE PLANCHER, LA QUESTION RESTE OUVERTE, et OmegaX ne la tranche pas : l'article 2 fixe le SMIG à 21 500 FC tandis que l'article 3 échelonne son PAIEMENT (14 500 FC de la paie de mai 2025 à celle de décembre 2025, 21 500 FC ensuite). Les annexes du décret, elles, assoient les allocations familiales et la contre-valeur du logement sur le montant PAYÉ (537,04 FC de mai à décembre 2025, soit 14 500/27) · elles ne disent rien du plancher d'assiette sociale, qui relève d'un autre texte. Le point est à confirmer auprès de la CNSS avant d'en tirer une assiette. CES CINQ EXCLUSIONS SONT CELLES DU TRAVAILLEUR (art. 17, point 1) · l'arrêté n° 146/2018 assujettit aussi à toutes les branches le mandataire de l'État dans les entreprises publiques, le marin et l'ASSOCIÉ ACTIF d'une société (art. 3, points 2, 4 et 6), dont l'assiette est « l'ensemble des rétributions », avantages et jetons de présence compris, seuls ceux accordés exclusivement pour faciliter les fonctions en étant exclus (art. 17, point 2). La paie d'OmegaX, bâtie sur le contrat de travail, ne la calcule pas ; la qualité d'associé actif est au cabinet. L'APPRENTI, lui, n'est assujetti qu'à la branche des risques professionnels (loi n° 16/009, art. 4). LA PAIE D'OMEGAX applique le plancher là où les deux lectures coïncident (à partir de janvier 2026, ou sur une grille saisie par le cabinet), au SMIG des jours payés, et s'abstient sur la CNSS de mai à décembre 2025 quand l'assiette tombe entre les deux. DEUX VOIES DE DÉCLARATION, et OmegaX n'en choisit aucune pour le dossier · l'arrêté n° 146/2018, art. 21, nomme le guichet unique et la « déclaration mensuelle unique des impôts, cotisations sociales et contributions patronales sur les rémunérations » pour les employeurs créateurs d'entreprise, et la représentation territorialement compétente de la Caisse, avec le formulaire Mod. DC en trois exemplaires, pour les autres catégories ; l'arrêté interministériel du 12 mai 2015, qu'il vise sans l'abroger, étend la déclaration unique à tout employeur assujetti au régime général (art. 3). Les deux textes ne s'articulent pas, et le logiciel ne tranche pas entre eux. Télédéclaration obligatoire au-delà de vingt-cinq travailleurs (arrêté n° 146/2018, art. 24).",
   },
   {
     cle: 'inpp',
@@ -662,6 +667,7 @@ export const NATURES_RETENUES: NatureRetenue[] = [
     joursApresPeriode: 15,
     echeance: 'Mensuelle, au plus tard le 15 du mois suivant',
     baseLegale:
+      "Code du travail, art. 15 b) : la cotisation est « la cotisation mensuelle des employeurs proportionnelle à la somme des rémunérations versées par eux à leur personnel au cours du trimestre précédent », son TAUX seul étant fixé par arrêté. " +
       "Arrêté interministériel n° 002/CAB/MET/2025, n° […]/CAB/MIN/FINANCES/2025, n° 003/CAB/VPM/MIN/BUD/2025 du 24 septembre 2025, article 1er : 4 % pour les entreprises et établissements PUBLICS ; pour les entreprises et établissements PRIVÉS, 3,5 % de 1 à 50 travailleurs, 3 % de 51 à 300, 2 % au-delà de 300. L\'assiette est « les rémunérations versées à ses travailleurs ». Son article 3 le fait entrer en vigueur « à la date de sa signature », soit le 24 SEPTEMBRE 2025, et son article 2 abroge celui de 2006. " +
       "JUSQU\'AU 23 SEPTEMBRE 2025, et donc sur tout exercice antérieur : arrêté interministériel n° 12/MTPS/123, n° 007/CAB/MIN/FINANCES/2006, n° 001/CAB/MIN/BUD/2006 du 14 février 2006 (J.O. n° 6 du 15 mars 2006, p. 25-26), article 1er : 3 % pour les entreprises publiques ; 3 % de 1 à 50 travailleurs, 2 % de 51 à 300, 1 % au-delà de 300. Lui aussi entrait en vigueur à la date de sa signature.",
     reserve:
@@ -852,6 +858,7 @@ export const OBLIGATIONS_DECLARATIVES: ObligationDeclarative[] = [
     cle: 'declarationMensuelleOnem',
     libelle: "Déclaration mensuelle de la contribution patronale ONEM",
     periodicite: 'MENSUELLE',
+    echeanceFiscale: false,
     joursApresPeriode: 10,
     echeance: 'Au plus tard le 10 du mois suivant le paiement de la rémunération',
     baseLegale:
@@ -1444,7 +1451,23 @@ export const AVERTISSEMENT_REGISTRE =
   "Cet état ne calcule aucun impôt et n'applique aucun barème. Il recense ce que votre comptabilité porte déjà sur " +
   "les comptes de retenue et de cotisation, en regard de l'échéance légale de reversement. Les montants viennent de " +
   'vos écritures ; les échéances viennent des textes cités, à la date de vérification indiquée. ' +
-  RESERVE_JOUR_OUVRABLE;
+  RESERVE_JOUR_OUVRABLE +
+  ' ' +
+  RESERVE_ECHEANCES_SOCIALES;
+
+/**
+ * UNE ÉCHÉANCE EST-ELLE FISCALE ? Seule celle-là se reporte au premier jour
+ * ouvrable (art. 110 bis, al. 2). Une nature versée à un organisme social
+ * (CNSS, INPP, ONEM, autres) ne l'est pas ; une obligation déclarative l'est
+ * sauf déclaration contraire (`echeanceFiscale: false`, la déclaration ONEM).
+ */
+export function estEcheanceFiscale(e: NatureRetenue | ObligationDeclarative): boolean {
+  // Seule la nature versée à un organisme social sort du report · la retenue
+  // provinciale garde le traitement qu'elle avait, la passe D2 ne portant que
+  // sur les cotisations sociales.
+  if ('beneficiaire' in e) return e.beneficiaire !== 'ORGANISME_SOCIAL';
+  return e.echeanceFiscale !== false;
+}
 
 /**
  * LE RÉGIME D'IMPÔT DU DOSSIER, ET C'EST L'AVERTISSEMENT LE PLUS FAUX QU'ON

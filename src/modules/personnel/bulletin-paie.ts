@@ -78,9 +78,78 @@ export const LIMITE_UN_BULLETIN_PAR_MOIS =
   "bulletins d'un même mois seraient annualisés séparément et l'impôt progressif serait faux. La paie " +
   "infra-mensuelle n'est pas traitée : un seul bulletin actif par salarié et par mois.";
 
+/**
+ * LE BULLETIN EST UN DOUBLE DU LIVRE DE PAIE (arrêté de 2008, art. 2), et le
+ * modèle lui impose trente-trois énonciations (art. 1er) · l'arrêté
+ * n° 142/2018, art. 10 et 12, en impose au « bordereau ou bulletin de paie »
+ * trente-trois autres, presque les mêmes (livre-de-paie.ts). RESERVE_MODELE ne
+ * mettait en doute que la MISE EN FORME, ce qui laissait lire les
+ * énonciations complètes (passe D2). `enonciationsDuBulletin` dit, rang par
+ * rang du modèle de 2008, lesquelles le bulletin porte, avec leur valeur, et
+ * nomme les autres · sans rien certifier.
+ */
+export type EnonciationPortee = { readonly rang: number; readonly valeur: string };
+
+type BulletinLu = {
+  matricule: string | null;
+  nomComplet: string;
+  emploi: string | null;
+  categorieProfessionnelle: string | null;
+  numeroAffiliationCnss: string | null;
+  entree: unknown;
+  calcul: unknown;
+};
+
+const RANGS_DU_MODELE = 33;
+
+const nombreOuNull = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
+const UNITES: Record<string, string> = { JOUR: 'jour', SEMAINE: 'semaine', MOIS: 'mois', ANNEE: 'an' };
+
+export function enonciationsDuBulletin(b: BulletinLu): { portees: EnonciationPortee[]; nonPortees: number[] } {
+  const entree = (b.entree ?? {}) as Record<string, unknown>;
+  const calcul = (b.calcul ?? {}) as Record<string, unknown>;
+  const portees: EnonciationPortee[] = [];
+  portees.push({ rang: 1, valeur: b.matricule ?? 'non attribué' });
+  portees.push({ rang: 2, valeur: b.nomComplet });
+  if (b.emploi) portees.push({ rang: 3, valeur: [b.emploi, b.categorieProfessionnelle].filter(Boolean).join(' · ') });
+  if (b.numeroAffiliationCnss) portees.push({ rang: 4, valeur: b.numeroAffiliationCnss });
+  // Mention 5 · le salaire du contrat, figé à l'émission. Un bulletin émis
+  // avant la passe D2 ne le porte pas, et il le dit.
+  const contrat = (calcul.contrat ?? null) as Record<string, unknown> | null;
+  const base = nombreOuNull(contrat?.remunerationBase);
+  const periode = typeof contrat?.periodiciteRemuneration === 'string' ? contrat.periodiciteRemuneration : null;
+  if (base !== null && periode !== null) {
+    const devise = typeof contrat?.deviseRemuneration === 'string' ? contrat.deviseRemuneration : 'monnaie non déclarée';
+    portees.push({ rang: 5, valeur: `${base} ${devise} par ${UNITES[periode] ?? periode}` });
+  }
+  // Mention 6 · les jours payés à 100 %, déclarés, ou le mois entier que la
+  // simulation a retenu faute de déclaration (26, décret n° 25/22, art. 7).
+  const jours = nombreOuNull(entree.joursPayes);
+  portees.push({ rang: 6, valeur: jours !== null ? `${jours} jour(s)` : '26 jours (mois entier, jours non déclarés)' });
+  const cotisations = ((calcul.cotisations as { lignes?: { cle: string; montantFc: number }[] } | undefined)?.lignes ?? []);
+  const pension = cotisations.find((l) => l.cle === 'cnss-pension-travailleur');
+  if (pension) portees.push({ rang: 21, valeur: String(pension.montantFc) });
+  const irpp = (calcul.retenue as { retenueFc?: number } | null | undefined)?.retenueFc;
+  if (typeof irpp === 'number') portees.push({ rang: 25, valeur: String(irpp) });
+  const enfants = nombreOuNull(entree.enfantsBeneficiairesAllocations);
+  if (enfants !== null) portees.push({ rang: 27, valeur: String(enfants) });
+  const taux = nombreOuNull(calcul.tauxJournalierAllocationsFamilialesFc);
+  if (taux !== null) portees.push({ rang: 29, valeur: `${taux} FC par jour et par enfant` });
+  const net = nombreOuNull((calcul.net as { netAPayerFc?: unknown } | undefined)?.netAPayerFc);
+  if (net !== null) portees.push({ rang: 31, valeur: String(net) });
+  const assiette = nombreOuNull((calcul.assiettes as { assietteSocialeFc?: unknown } | undefined)?.assietteSocialeFc);
+  if (assiette !== null) portees.push({ rang: 32, valeur: String(assiette) });
+  const rangsPortes = new Set(portees.map((p) => p.rang));
+  const nonPortees = Array.from({ length: RANGS_DU_MODELE }, (_, i) => i + 1).filter((r) => !rangsPortes.has(r));
+  return { portees, nonPortees };
+}
+
 export const RESERVE_MODELE =
   "Ce bulletin porte les montants calculés par OmegaX. Il n'est pas certifié conforme au modèle annexé à l'arrêté " +
-  "de 2008, dont OmegaX ne vérifie pas la mise en forme (voir le livre de paie).";
+  "de 2008, dont OmegaX ne vérifie pas la mise en forme, ni aux trente-trois énonciations de ce modèle et de " +
+  "l'arrêté n° 142/2018, art. 12, dont il ne porte qu'une partie · celles qu'il ne porte pas sont nommées " +
+  "(voir le livre de paie).";
 
 const FORME_MOIS = /^(\d{4})-(0[1-9]|1[0-2])$/;
 

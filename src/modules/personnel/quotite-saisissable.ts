@@ -212,7 +212,37 @@ export type VerdictQuotite = {
 export const RESERVE_CUMUL =
   "ALINÉA 3 · le cumul de la quotité ordinaire et de la quotité alimentaire est AUTORISÉ par le texte, " +
   "qui ne lui fixe AUCUN PLAFOND. OmegaX rend donc la somme telle quelle et ne la ramène pas d'office à " +
-  "une fraction moindre. Le montant effectivement retenu relève du titre exécutoire et du juge, pas du logiciel.";
+  "une fraction moindre. Ce cumul est le seuil que l'AUPSRVE, art. 177, al. 3 laisse à chaque État · « le " +
+  "total des sommes saisies ou volontairement cédées ne peut, EN AUCUN CAS, fût-ce pour dettes alimentaires, " +
+  "excéder un seuil fixé par chaque État partie ». Le montant effectivement retenu relève du titre exécutoire " +
+  "et du juge, pas du logiciel.";
+
+/**
+ * L'ACTE UNIFORME FIXE L'ASSIETTE, LE CODE LES PROPORTIONS (passe O4). AUPSRVE
+ * art. 177 · les États ne fixent que les « proportions » (al. 1) et le seuil
+ * du cumul (al. 3) ; l'ASSIETTE est celle de l'al. 2, « le traitement ou
+ * salaire brut global avec tous les accessoires », déduction faite des
+ * prélèvements légaux retenus à la source, des indemnités représentatives de
+ * frais, des suppléments pour charge de famille et des indemnités déclarées
+ * insaisissables par la loi de l'État · et l'art. 336 écarte toute autre
+ * règle. Le calcul d'OmegaX part de l'assiette de l'art. 7 h du Code, qui
+ * retire d'office l'indemnité de logement, et retranche le forfait logement
+ * de l'art. 114 al. 4, que la liste de l'Acte ne nomme pas. Qualifier
+ * l'indemnité de logement (frais, ou indemnité déclarée insaisissable) n'est
+ * tranché par aucune source lue · le calcul ne change pas, la réserve est
+ * TOUJOURS servie. Borne · art. 337, voies engagées après l'entrée en vigueur
+ * de l'Acte.
+ */
+export const RESERVE_ASSIETTE_AUPSRVE =
+  "ACTE UNIFORME · l'AUPSRVE, art. 177, al. 2 fixe lui-même l'assiette de la partie saisissable · « le " +
+  "traitement ou salaire brut global avec tous les accessoires », moins les prélèvements légaux retenus à la " +
+  "source, les indemnités représentatives de frais, les suppléments pour charge de famille et les indemnités " +
+  "déclarées insaisissables par la loi de l'État · et il s'applique à l'exclusion de toute autre règle " +
+  "(art. 336). Ce calcul part de la rémunération de l'art. 7 h du Code du travail, qui retire d'office " +
+  "l'indemnité de logement, et retranche le forfait logement de l'art. 114, al. 4, que la liste de l'Acte ne " +
+  "nomme pas. Le mode de calcul notifié dans l'acte de saisie (art. 184, 3°), ou vérifié par la juridiction " +
+  "pour une cession (art. 206), PRIME ce chiffre. Vaut pour les voies engagées depuis l'entrée en vigueur de " +
+  "l'Acte (art. 337).";
 
 export const RESERVE_CATEGORIE =
   "« SA CATÉGORIE » · les annexes du décret n° 25/22 portent sept catégories et dix-sept classes, et une " +
@@ -320,7 +350,7 @@ const ABSTENU: Omit<VerdictQuotite, 'abstentions' | 'reserves' | 'annexe' | 'col
 
 export function quotiteSaisissable(entree: EntreeQuotite): VerdictQuotite {
   const abstentions: { motif: MotifAbstentionQuotite; explication: string }[] = [];
-  const reserves: string[] = [RESERVE_CATEGORIE, RESERVE_LOGEMENT];
+  const reserves: string[] = [RESERVE_ASSIETTE_AUPSRVE, RESERVE_CATEGORIE, RESERVE_LOGEMENT];
 
   if (entree.logementFourniEnNature) {
     reserves.push(RESERVE_FACULTE_DE_DEFALCATION, RESERVE_CONTINUITE_DES_TEXTES);

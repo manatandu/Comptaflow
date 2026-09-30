@@ -264,9 +264,35 @@ export function reporterAuJourOuvrable(echeance: Date): Date {
  * Un JOUR à minuit UTC, jamais une date locale (audit final F81) · sur un
  * poste réglé à l'heure de Kinshasa, minuit local est 23 h UTC la veille.
  */
-export function echeanceDeReversement(jours: number, annee: number, moisZeroBase: number): Date {
-  return reporterAuJourOuvrable(new Date(Date.UTC(annee, moisZeroBase + 1, jours)));
+export function echeanceDeReversement(
+  jours: number,
+  annee: number,
+  moisZeroBase: number,
+  echeanceFiscale = true,
+): Date {
+  const brute = new Date(Date.UTC(annee, moisZeroBase + 1, jours));
+  // L'ART. 110 BIS NE VISE QUE « le délai prescrit par la LÉGISLATION
+  // FISCALE » (passe D2) · une cotisation CNSS, INPP ou ONEM garde sa date
+  // brute, aucun texte du corpus ne la reportant.
+  return echeanceFiscale ? reporterAuJourOuvrable(brute) : brute;
 }
+
+/**
+ * LES ÉCHÉANCES SOCIALES NE SE REPORTENT PAS (passe D2). L'art. 110 bis,
+ * al. 2 ne vise que « le délai prescrit par la législation fiscale ». Le
+ * délai de la CNSS vient de l'arrêté n° 146/2018 (art. 21 et 31, « dans les
+ * quinze jours suivant le mois civil »), celui de l'ONEM de l'arrêté
+ * n° 028/2025, et ni l'un ni l'autre ne prévoit de report · « ouvrable »
+ * n'apparaît dans le corpus CNSS que pour l'immatriculation, les indemnités
+ * et les visites. Reporter un 15 qui tombe un dimanche faisait lire « à
+ * jour » un lundi où le retard courait déjà. Même règle que le planning de
+ * clôture (`echeanceFiscale`, audit final F81).
+ */
+export const RESERVE_ECHEANCES_SOCIALES =
+  "Les échéances de la CNSS, de l'INPP et de l'ONEM ne sont PAS reportées · l'art. 110 bis, al. 2 ne vise que " +
+  "le délai de la législation fiscale, et aucun texte du corpus ne reporte ces échéances (arrêté n° 146/2018, " +
+  "art. 21 et 31 ; arrêté n° 028/2025, art. 2 et 3). Le délai de régularisation de cinq jours de l'arrêté " +
+  "n° 146/2018 n'est pas un report.";
 
 /**
  * Réserve rendue avec tout état qui oppose une échéance au redevable.

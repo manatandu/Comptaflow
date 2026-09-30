@@ -761,6 +761,51 @@ describe('F259 · le registre du personnel, une liste de travail bornée', () =>
       }
     });
 
+    it('passe D2 · un apprentissage non visé relève de l’art. 21, jamais de l’art. 47', async () => {
+      const { svc } = monterPersonnel([
+        salarie({ contrats: [contrat({ type: 'APPRENTISSAGE', viseParOnem: false })] }),
+      ]);
+      const [f] = (await svc.confronter('t1', AUJOURDHUI)).fiches;
+      expect(f.visaOnemManquant).toBe(false);
+      expect(f.requalifications.map((r) => r.motif)).toContain('APPRENTISSAGE_NON_VISE');
+      expect(f.mentionsManquantes).toEqual([]);
+      // Un CDI écrit non visé garde l'art. 47.
+      const cdi = monterPersonnel([salarie({ contrats: [contrat({ viseParOnem: false })] })]);
+      expect((await cdi.svc.confronter('t1', AUJOURDHUI)).fiches[0].visaOnemManquant).toBe(true);
+    });
+
+    it('passe D2 · les engagements d’un jour du registre font requalifier le vingt-troisième (art. 40 al. 2)', async () => {
+      const jours = Array.from({ length: 22 }, (_, i) => {
+        const d = new Date(Date.UTC(2026, 0, 12 + i));
+        return contrat({ id: `j-${pad(i, 2)}`, type: 'JOUR_LE_JOUR', constateParEcrit: false, dateEntreeEnVigueur: d, dateFin: d });
+      });
+      const nouveau = contrat({
+        id: 'j-99',
+        type: 'JOUR_LE_JOUR',
+        constateParEcrit: false,
+        dateEntreeEnVigueur: new Date('2026-02-20T00:00:00Z'),
+        dateFin: null,
+      });
+      const { svc } = monterPersonnel([salarie({ contrats: [...jours, nouveau] })]);
+      const r = await svc.confronter('t1', AUJOURDHUI);
+      const f = r.fiches.find((x) => x.contratId === 'j-99')!;
+      expect(f.requalifications.map((x) => x.motif)).toEqual(['ENGAGEMENT_JOUR_LE_JOUR_REPETE']);
+      expect(f.jourLeJourNonCompte).toBeNull();
+      // Le vingt-deuxième, lui, n'en a que vingt et un derrière lui.
+      expect(r.fiches.find((x) => x.contratId === 'j-21')!.requalifications).toEqual([]);
+      // Un engagement de plusieurs jours rend le décompte illisible, et c'est dit.
+      const flou = monterPersonnel([
+        salarie({
+          contrats: [
+            contrat({ id: 'j-a', type: 'JOUR_LE_JOUR', constateParEcrit: false, dateEntreeEnVigueur: new Date('2026-02-01T00:00:00Z'), dateFin: new Date('2026-02-10T00:00:00Z') }),
+            nouveau,
+          ],
+        }),
+      ]);
+      const g = (await flou.svc.confronter('t1', AUJOURDHUI)).fiches.find((x) => x.contratId === 'j-99')!;
+      expect(g.jourLeJourNonCompte).toMatch(/article 40, alinéa 2 n'est pas examinée/);
+    });
+
     it('une liste qui tient dans la borne n’est pas dite tronquée', async () => {
       const { svc } = monterPersonnel([salarie()]);
       const r = await svc.confronter('t1', AUJOURDHUI);

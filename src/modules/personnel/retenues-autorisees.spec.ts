@@ -102,13 +102,18 @@ describe("La cotisation syndicale · six passes pour lire le bon article", () =>
     expect(RESERVE_CESSION_SYNDICALE).toMatch(/UNE CESSION, PAS UNE RETENUE/);
     expect(RESERVE_CESSION_SYNDICALE).toContain('114');
     expect(RESERVE_CESSION_SYNDICALE).toMatch(/LECTURE D'ÉDITEUR/);
-    expect(RESERVE_CESSION_SYNDICALE).toMatch(/AUCUNE SOURCE LUE NE L'ÉNONCE/);
+    // Passe O4 · la forme de la cession est celle de l'AUPSRVE, pas un écrit
+    // révocable remis à l'employeur.
+    expect(RESERVE_CESSION_SYNDICALE).toContain('205');
+    expect(RESERVE_CESSION_SYNDICALE).toMatch(/greffe/i);
+    expect(RESERVE_CESSION_SYNDICALE).toContain('207');
+    expect(RESERVE_CESSION_SYNDICALE).toContain('212');
+    expect(RESERVE_CESSION_SYNDICALE).toMatch(/n'est pas une cession et relève de l'article 112/);
   });
 
   it('dit les deux conséquences de cette voie avant de la proposer', () => {
     expect(RESERVE_CESSION_SYNDICALE).toMatch(/CONSOMME LA QUOTITÉ CESSIBLE/);
-    expect(RESERVE_CESSION_SYNDICALE).toMatch(/ÉCRIT DU TRAVAILLEUR/);
-    expect(RESERVE_CESSION_SYNDICALE).toMatch(/révocable/);
+    expect(RESERVE_CESSION_SYNDICALE).toMatch(/EN PERSONNE AU GREFFE/);
     expect(RESERVE_CESSION_SYNDICALE).toMatch(/jamais une clause qui vaudrait pour tous/i);
   });
 
@@ -117,5 +122,10 @@ describe("La cotisation syndicale · six passes pour lire le bon article", () =>
     expect(SANCTION_ARTICLE_112).toContain('328');
     expect(SANCTION_ARTICLE_112).toContain('20 000');
     expect(SANCTION_ARTICLE_112).toMatch(/cinquante fois/);
+  });
+
+  it('multiplie par TRAVAILLEUR concerné, jamais par bulletin (art. 328 b)', () => {
+    // Douze mois sur dix salariés font dix amendes, pas cent vingt.
+    expect(SANCTION_ARTICLE_112).toMatch(/bulletins de cent travailleurs est donc cent amendes/);
   });
 });

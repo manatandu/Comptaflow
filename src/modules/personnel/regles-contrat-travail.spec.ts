@@ -1,6 +1,8 @@
 import {
   ENONCIATIONS_ARTICLE_212,
-  JOURS_CONFIRMATION_APTITUDE,
+  FORMULE_ARTICLE_41_ALINEAS_2_ET_3,
+  MOIS_CONFIRMATION_APTITUDE,
+  journeesJourLeJourAvant,
   JOURS_DECLARATION_ARTICLE_217,
   JOURS_PAR_MOIS_ESSAI,
   aptitudeProvisoirePerimee,
@@ -38,6 +40,7 @@ const SALARIE: SalariePourControle = {
 const CONTRAT: ContratPourControle = {
   type: 'DUREE_INDETERMINEE',
   constateParEcrit: true,
+  viseParOnem: true,
   dateEntreeEnVigueur: '2026-01-05',
   dateConclusion: '2026-01-02',
   lieuConclusion: 'Kinshasa',
@@ -189,10 +192,83 @@ describe('les requalifications de plein droit (art. 40 à 45)', () => {
 
   it('L’APPRENTISSAGE RELÈVE DU TITRE III · les art. 41 et 42 ne le visent pas', () => {
     const r = requalifications(
-      { ...CONTRAT, type: 'APPRENTISSAGE', constateParEcrit: false, emploiPermanent: true },
+      { ...CONTRAT, type: 'APPRENTISSAGE', constateParEcrit: true, viseParOnem: true, emploiPermanent: true },
       { nombreCdd: 5, nombreRenouvellements: 9 },
     );
     expect(r).toEqual([]);
+  });
+
+  it('L’APPRENTISSAGE A SES PROPRES PRÉSOMPTIONS · écrit (art. 19 et 23), visa (art. 21), quatre ans (art. 20)', () => {
+    const r = requalifications(
+      {
+        ...CONTRAT,
+        type: 'APPRENTISSAGE',
+        constateParEcrit: false,
+        viseParOnem: false,
+        dateEntreeEnVigueur: '2026-01-05',
+        dateFinPrevue: '2030-01-06',
+      },
+      rien,
+    );
+    expect(r.map((x) => x.motif)).toEqual([
+      'APPRENTISSAGE_SANS_ECRIT',
+      'APPRENTISSAGE_NON_VISE',
+      'APPRENTISSAGE_TROP_LONG',
+    ]);
+    const visa = r.find((x) => x.motif === 'APPRENTISSAGE_NON_VISE')!;
+    // L'effet est celui de l'art. 21, pas la résiliation de l'art. 47.
+    expect(visa.article).toBe('art. 21, alinéa 3');
+    expect(visa.formule).toContain('présumés être prestés en exécution d’un contrat de travail'.replace(/’/g, "'"));
+    expect(visa.effet).toMatch(/contrat de travail/);
+    // Quatre ans de date à date · le 5 janvier 2030 passe, le 6 non.
+    expect(
+      requalifications(
+        { ...CONTRAT, type: 'APPRENTISSAGE', dateEntreeEnVigueur: '2026-01-05', dateFinPrevue: '2030-01-05' },
+        rien,
+      ),
+    ).toEqual([]);
+  });
+
+  it('L’APPRENTISSAGE ne se voit pas réclamer les quinze énonciations de l’art. 212 (art. 20)', () => {
+    expect(mentionsManquantes(EMPLOYEUR, { ...SALARIE, numeroAffiliationCnss: null }, { ...CONTRAT, type: 'APPRENTISSAGE', lieuExecution: null })).toEqual([]);
+  });
+
+  it('LE JOUR LE JOUR NON ÉCRIT n’a aucune énonciation de l’art. 212 à porter (art. 44 al. 3)', () => {
+    const sansTout = { ...CONTRAT, type: 'JOUR_LE_JOUR', lieuExecution: null, dureePreavisJours: null };
+    expect(mentionsManquantes(EMPLOYEUR, SALARIE, { ...sansTout, constateParEcrit: false })).toEqual([]);
+    // Écrit, il les porte comme tout contrat écrit.
+    expect(
+      mentionsManquantes(EMPLOYEUR, SALARIE, { ...sansTout, constateParEcrit: true }).map((m) => m.numero),
+    ).toEqual([10, 12]);
+  });
+
+  it('JOUR LE JOUR · vingt-deux journées en deux mois font du nouvel engagement un CDI (art. 40 al. 2)', () => {
+    const jlj = { ...CONTRAT, type: 'JOUR_LE_JOUR', constateParEcrit: false };
+    expect(requalifications(jlj, { ...rien, journeesJourLeJour: 21 })).toEqual([]);
+    const r = requalifications(jlj, { ...rien, journeesJourLeJour: 22 });
+    expect(r.map((x) => x.motif)).toEqual(['ENGAGEMENT_JOUR_LE_JOUR_REPETE']);
+    expect(r[0].formule).toContain('le nouvel engagement conclu, avant l');
+    // Non lisible · aucune requalification inventée.
+    expect(requalifications(jlj, { ...rien, journeesJourLeJour: null })).toEqual([]);
+  });
+
+  it('les journées se comptent sur les engagements d’un jour des deux mois de date à date, et s’abstiennent sinon', () => {
+    const unJour = (d: string) => ({ type: 'JOUR_LE_JOUR', dateEntreeEnVigueur: d, dateFin: d });
+    const anterieurs = [
+      unJour('2026-01-04'), // hors fenêtre · la veille des deux mois
+      unJour('2026-01-05'), // premier jour de la fenêtre
+      unJour('2026-02-10'),
+      { type: 'DUREE_DETERMINEE', dateEntreeEnVigueur: '2026-02-01', dateFin: null },
+      unJour('2026-03-05'), // le nouvel engagement lui-même n'est pas compté
+    ];
+    expect(journeesJourLeJourAvant(anterieurs, { dateEntreeEnVigueur: '2026-03-05' })).toBe(2);
+    // Un engagement de plusieurs jours ne dit pas ses journées.
+    expect(
+      journeesJourLeJourAvant(
+        [...anterieurs, { type: 'JOUR_LE_JOUR', dateEntreeEnVigueur: '2026-02-12', dateFin: '2026-02-20' }],
+        { dateEntreeEnVigueur: '2026-03-05' },
+      ),
+    ).toBeNull();
   });
 
   it('EMPLOI PERMANENT en CDD · réputé conclu pour une durée indéterminée (art. 42)', () => {
@@ -268,6 +344,28 @@ describe('les requalifications de plein droit (art. 40 à 45)', () => {
     const r = requalifications(cdd, { nombreCdd: 1, nombreRenouvellements: 2 });
     expect(r.map((x) => x.motif)).toEqual(['SECOND_RENOUVELLEMENT']);
     expect(r[0].explication).toContain("n'est pas déduite");
+    // La loi nomme elle-même saisonniers et ouvrages · seuls les « autres
+    // travaux » attendent l'arrêté.
+    expect(r[0].explication).toMatch(/exceptés par la loi elle-même/);
+    expect(r[0].reserve).toBeNull();
+  });
+
+  it('l’art. 41 al. 2 est cité EN ENTIER, exception comprise, dans les deux requalifications', () => {
+    expect(FORMULE_ARTICLE_41_ALINEAS_2_ET_3).toContain('sauf dans le cas d');
+    const r = requalifications(cdd, { nombreCdd: 3, nombreRenouvellements: 2 });
+    for (const x of r) expect(x.formule).toContain("d'ouvrages bien définis");
+  });
+
+  it('un ouvrage déterminé met la requalification de l’art. 41 SOUS RÉSERVE de l’exception', () => {
+    const r = requalifications(
+      { ...cdd, ouvrageDetermine: 'Construction du puits de Kimpese' },
+      { nombreCdd: 3, nombreRenouvellements: 2 },
+    );
+    expect(r.map((x) => x.motif)).toEqual(['TROISIEME_CDD', 'SECOND_RENOUVELLEMENT']);
+    for (const x of r) {
+      expect(x.reserve).toMatch(/ouvrage bien défini/);
+      expect(x.effet).toMatch(/sous réserve/);
+    }
   });
 
   it('cumule les motifs sans en perdre · un contrat peut violer plusieurs articles', () => {
@@ -397,8 +495,15 @@ describe('les déclarations de l’article 217 · quinze jours, deux fois', () =
 });
 
 describe('l’aptitude provisoire de l’article 38', () => {
+  it('trois mois DE DATE À DATE · entré le 1er juillet, signalé le 2 octobre et pas le 30 septembre', () => {
+    expect(MOIS_CONFIRMATION_APTITUDE).toBe(3);
+    const juillet = { dateEntreeEnVigueur: '2026-07-01' };
+    expect(aptitudeProvisoirePerimee({ aptitudeProvisoire: true }, juillet, new Date('2026-09-30T12:00:00Z'))).toBe(false);
+    expect(aptitudeProvisoirePerimee({ aptitudeProvisoire: true }, juillet, new Date('2026-10-01T12:00:00Z'))).toBe(false);
+    expect(aptitudeProvisoirePerimee({ aptitudeProvisoire: true }, juillet, new Date('2026-10-02T00:00:00Z'))).toBe(true);
+  });
+
   it('trois mois pour confirmer, et pas un de plus', () => {
-    expect(JOURS_CONFIRMATION_APTITUDE).toBe(90);
     const contrat = { dateEntreeEnVigueur: '2026-01-05' };
     expect(aptitudeProvisoirePerimee({ aptitudeProvisoire: true }, contrat, new Date('2026-03-01'))).toBe(
       false,
@@ -454,7 +559,10 @@ describe('la rémunération convenue confrontée au minimum de sa classe', () =>
     expect(v.manqueFc).toBe(59_000);
     // Ce n'est pas un conseil · le décret et le Code le disent.
     expect(v.explication).toContain('sous peine de sanction');
-    expect(v.explication).toContain("l'article 37 du Code du travail");
+    expect(v.explication).toContain("l'article 37");
+    // L'article qui vise EXACTEMENT ce cas, et la sanction du décret de l'art. 87.
+    expect(v.explication).toContain('art. 88, al. 2');
+    expect(v.explication).toContain("l'article 321");
   });
 
   it('LE MINIMUM A CHANGÉ EN JANVIER 2026 · le même contrat bascule', () => {

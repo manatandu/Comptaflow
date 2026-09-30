@@ -57,12 +57,27 @@
  * prévoit expressément ; l'employeur qui paie le cessionnaire EXÉCUTE une
  * cession, il ne pratique pas une retenue de l'article 112.
  *
- * C'EST UNE LECTURE D'ÉDITEUR, ET ELLE EST DÉCLARÉE COMME TELLE. Aucune
- * source lue ne l'énonce en ces termes. Elle a deux conséquences qu'un
- * cabinet doit connaître avant de s'en servir : la cession CONSOMME LA
- * QUOTITÉ CESSIBLE, donc elle entre en concurrence avec les créanciers du
- * travailleur ; et elle suppose un ÉCRIT DU TRAVAILLEUR, révocable, jamais
- * une clause de convention collective qui vaudrait pour tous.
+ * CE QUI RESTE UNE LECTURE D'ÉDITEUR, ET CE QUI NE L'EST PAS (passe O4).
+ * Une LECTURE : qu'une cession au profit d'un syndicat soit admise, ce que
+ * ni le Code ni l'AUPSRVE ne tranchent. PAS UNE LECTURE : la FORME de la
+ * cession, que l'AUPSRVE fixe lui-même et qui s'applique « à l'exclusion »
+ * de toute autre règle (art. 336). Ce fichier écrivait jusqu'au 2026-09-30
+ * qu'« aucune source lue ne l'énonce » et qu'il suffisait d'un « écrit du
+ * travailleur, révocable » · lacune déclarée à tort, et elle menait à la
+ * faute que la liste de l'art. 112 existe pour empêcher :
+ *  · art. 205 · la cession « ne peut être consentie, quel qu'en soit le
+ *    montant, que par déclaration du cédant en personne, au greffe » ;
+ *  · art. 206 · la juridiction vérifie qu'elle reste dans la quotité
+ *    saisissable, le greffier la notifie à l'employeur ;
+ *  · art. 207 · l'employeur paie le cessionnaire « sur production d'une copie
+ *    de la déclaration de cession » ;
+ *  · art. 212 · elle ne prend fin que par annulation judiciaire, résiliation
+ *    par déclaration DU CESSIONNAIRE au greffe, ou dernière échéance · jamais
+ *    par la seule révocation du travailleur.
+ * Un paiement fait au syndicat sur un simple écrit remis à l'employeur n'est
+ * donc pas une cession : c'est une retenue hors de la liste de l'art. 112.
+ * Borne · art. 337, l'Acte ne régit que les voies engagées après son entrée
+ * en vigueur, fixée par l'art. 9 du Traité, non lu ici.
  * ────────────────────────────────────────────────────────────────────────
  *
  * DEUX LITTERAE DE L'ARTICLE 112 SONT DATÉES, ET ON LES LIT DÉJÀ PAR
@@ -119,7 +134,8 @@ export const SANCTION_ARTICLE_112 =
   "ARTICLE 112 · la liste est FERMÉE, et son dépassement est PÉNALEMENT SANCTIONNÉ. L'article 321 le vise " +
   "(amende n'excédant pas 20 000 Francs congolais constants) et l'article 328 b) le range parmi ceux dont " +
   "« l'amende est appliquée AUTANT DE FOIS QU'IL Y A DES TRAVAILLEURS CONCERNÉS par l'infraction ». Une " +
-  "retenue illicite pratiquée sur cent bulletins est donc cent amendes, dans la limite de cinquante fois le taux.";
+  "retenue illicite pratiquée sur les bulletins de cent travailleurs est donc cent amendes, quel que soit le " +
+  "nombre de mois, dans la limite de cinquante fois le taux.";
 
 export const REPONSE_COTISATION_SYNDICALE =
   "LA COTISATION SYNDICALE NE SE RETIENT PAS SUR LA PAIE. L'article 279 impose à toute convention collective " +
@@ -130,13 +146,15 @@ export const REPONSE_COTISATION_SYNDICALE =
   "travailleur concerné. L'article 279, lui, n'est dans aucune liste pénale.";
 
 export const RESERVE_CESSION_SYNDICALE =
-  "LA VOIE QUI RESTE EST UNE CESSION, PAS UNE RETENUE, ET C'EST UNE LECTURE D'ÉDITEUR. L'article 114 régit " +
-  "« la CESSION » de la rémunération autant que la saisie. Une cession est un acte DU TRAVAILLEUR : celui qui " +
-  "cède une fraction de sa rémunération à son syndicat, dans la limite de la quotité cessible, fait ce que " +
-  "l'article 114 prévoit, et l'employeur qui paie le cessionnaire EXÉCUTE une cession au lieu de pratiquer " +
-  "une retenue. AUCUNE SOURCE LUE NE L'ÉNONCE EN CES TERMES. Deux conséquences avant de s'en servir : la " +
-  "cession CONSOMME LA QUOTITÉ CESSIBLE et entre donc en concurrence avec les créanciers du travailleur ; et " +
-  "elle suppose un ÉCRIT DU TRAVAILLEUR, révocable, jamais une clause qui vaudrait pour tous.";
+  "LA VOIE QUI RESTE EST UNE CESSION, PAS UNE RETENUE. L'article 114 régit « la CESSION » de la rémunération " +
+  "autant que la saisie, et l'employeur qui paie un cessionnaire EXÉCUTE une cession au lieu de pratiquer une " +
+  "retenue. Qu'une cession au profit d'un syndicat soit admise est une LECTURE D'ÉDITEUR. Sa FORME, elle, est " +
+  "fixée par l'AUPSRVE : déclaration du cédant EN PERSONNE AU GREFFE (art. 205), vérification de la quotité " +
+  "par la juridiction et notification à l'employeur (art. 206), paiement du cessionnaire sur copie de la " +
+  "déclaration (art. 207), fin dans les seuls cas de l'art. 212, dont aucun n'est une révocation par le seul " +
+  "travailleur. Un paiement fait sur un simple écrit remis à l'employeur n'est pas une cession et relève de " +
+  "l'article 112. La cession CONSOMME LA QUOTITÉ CESSIBLE, jamais une clause qui vaudrait pour tous. Vaut pour " +
+  "les cessions engagées depuis l'entrée en vigueur de l'Acte uniforme (art. 337).";
 
 export const RESERVE_LITTERAE_DATEES =
   "Les litterae a) et b) se lisent avec les organismes et impôts actuels (la CNSS pour le b). Cette lecture " +

@@ -6560,8 +6560,9 @@ enum SexeTravailleur {
 /// indéterminée. » Les deux premières valeurs sont celles du texte.
 ///
 /// JOUR_LE_JOUR est la troisième forme, et elle n'est pas un troisième type :
-/// l'art. 44 al. 3 l'exempte de l'écrit, et l'art. 40 al. 2 la requalifie de
-/// plein droit en CDI au-delà de vingt-deux journées sur deux mois. Elle est
+/// l'art. 44 al. 3 l'exempte de l'écrit, et l'art. 40 al. 2 répute conclu
+/// pour une durée indéterminée le NOUVEL engagement conclu avant l'expiration
+/// des deux mois, quand vingt-deux journées y ont déjà été accomplies. Elle est
 /// distinguée pour que ces deux règles puissent s'appliquer · les confondre
 /// avec un CDD ferait réclamer un écrit que la loi n'exige pas, et manquer
 /// une requalification qu'elle impose.

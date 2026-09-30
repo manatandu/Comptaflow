@@ -73,9 +73,12 @@
  *     sécurité sociale pour le modèle du livre de paie, faute d'avoir l'autre.
  *  3. TROIS MENTIONS SONT DES FORMULES DE SOMME · la 20 (brut), la 26 (total
  *     des déductions) et la 28 (jours ouvrant droit aux allocations). Le
- *     modèle ferme donc l'arithmétique de la feuille, ce qu'aucun autre texte
- *     du corpus ne fait. Et la formule du brut CONFIRME l'article 7 : les
- *     allocations familiales n'y sont pas.
+ *     modèle ferme donc l'arithmétique de la feuille · et il n'est PAS le
+ *     seul (passe D2) : l'arrêté ministériel n° 142/2018, art. 12, impose au
+ *     bordereau ou bulletin de paie trente-trois mentions avec les MÊMES
+ *     trois formules (`MENTIONS_ARRETE_142_2018`). La formule du brut laisse
+ *     les allocations familiales dehors dans les deux textes ; celui de 2018
+ *     les dit « extra-légales ».
  *  4. LE SEUIL DU LIVRE « INSPIRÉ DU MODÈLE » EST DE DIX dans l'arrêté, et de
  *     VINGT-CINQ dans l'article 215 alinéa 3 du Code. Contradiction réelle,
  *     traitée plus bas · la loi prime, et le code garde vingt-cinq.
@@ -252,14 +255,18 @@ export const MENTIONS_MODELE_2008: readonly MentionFeuilleDePaie[] = [
 ] as const;
 
 /**
- * LES TROIS FORMULES DE SOMME DU MODÈLE, et c'est le seul texte du corpus qui
- * ferme l'arithmétique d'une feuille de paie.
+ * LES TROIS FORMULES DE SOMME DU MODÈLE. L'arrêté n° 142/2018, art. 12, porte
+ * les mêmes (20, 26, 28) · il était dit ici que 2008 était « le seul texte du
+ * corpus » à fermer l'arithmétique d'une feuille de paie, lacune déclarée à
+ * tort, vérifiée contre le module et non contre le corpus (passe D2).
  *
  * LA PREMIÈRE VAUT DÉMONSTRATION · le brut est la somme des mentions 7, 10,
  * 11, 12, 13, 16 et 19. LES ALLOCATIONS FAMILIALES (27 à 30) N'Y SONT PAS,
  * et les indemnités compensatrices (22) sont en déduction. Le modèle officiel
  * corrobore donc, par sa seule arithmétique, l'exclusion de l'article 7
- * litera h du Code du travail.
+ * litera h du Code du travail. RÉSERVE · l'arrêté de 2018 qualifie ces
+ * allocations d'« extra-légales » (mentions 27 à 30), ce que 2008 ne dit pas ·
+ * la démonstration vaut pour les allocations que chaque texte nomme.
  */
 export const FORMULES_DU_MODELE = {
   /** Mention 20 · le total de la rémunération brute. */
@@ -274,8 +281,79 @@ export const FORMULES_DU_MODELE = {
 export const DESTINATION_DES_DOUBLES = {
   premier:
     "au TRAVAILLEUR, à chaque paie · c'est le bulletin de paie écrit de la rémunération payée, « constitué par un des doubles du livre de paie prévus à l'article 214 du Code du Travail »",
-  second: "à l'INSTITUT NATIONAL DE SÉCURITÉ SOCIALE, « selon la réglementation en vigueur »",
+  // L'arrêté de 2008 écrit « l'Institut National de Sécurité Sociale ».
+  // L'organisme est la CNSS depuis le décret n° 18/027 du 14 juillet 2018 ·
+  // l'écran ne sert pas un organisme renommé (passe D2), le libellé de
+  // l'arrêté va dans l'aide (`TEXTE_ARTICLE_2_SECOND_DOUBLE`).
+  second: 'à la CNSS, selon la réglementation en vigueur',
 } as const;
+
+/** Le libellé de l'arrêté de 2008, art. 2, pour l'aide de l'écran. */
+export const TEXTE_ARTICLE_2_SECOND_DOUBLE =
+  "Arrêté n° 12/CAB.MIN/ETPS/042 du 8 août 2008, art. 2 : « Le second double est à remettre à l'Institut National de Sécurité Sociale, selon la réglementation en vigueur. » L'Institut est devenu la Caisse nationale de sécurité sociale par le décret n° 18/027 du 14 juillet 2018.";
+
+/**
+ * LE SECOND TEXTE · arrêté ministériel n° 142/2018 déterminant les modalités
+ * d'application du mois d'assurance (J.O., numéro spécial du 5 décembre
+ * 2018), art. 10 et 12. L'art. 10 redit le décompte écrit « à chaque paie
+ * ainsi que lors de la résiliation du contrat de travail, pour quelque cause
+ * que ce soit », sur « un bordereau de salaire ou un bulletin de paie » ;
+ * l'art. 12 impose à ce bordereau ou bulletin les trente-trois mentions
+ * ci-dessous, recopiées. Elles sont RESTITUÉES À CÔTÉ de celles de 2008, sans
+ * trancher entre elles · l'art. 13 abroge les dispositions antérieures
+ * « contraires », et dire lesquelles le sont est une qualification que ce
+ * module ne fait pas.
+ */
+export const REFERENCE_ARRETE_142_2018 =
+  "Arrêté ministériel n° 142/2018 déterminant les modalités d'application du mois d'assurance, art. 10 et 12";
+
+export const MENTIONS_ARRETE_142_2018: readonly MentionFeuilleDePaie[] = [
+  { rang: 1, libelle: "le matricule du travailleur, s'il lui en est attribué un dans l'établissement ou l'entreprise" },
+  { rang: 2, libelle: 'le nom du travailleur' },
+  { rang: 3, libelle: "l'emploi et la catégorie professionnelle" },
+  { rang: 4, libelle: "le numéro d'immatriculation à la caisse de sécurité sociale" },
+  { rang: 5, libelle: 'le salaire horaire, journalier ou mensuel' },
+  { rang: 6, libelle: "le nombre d'heures ou de jours pour lesquels le salaire est payé à cent pour cent" },
+  { rang: 7, libelle: 'la rémunération totale à payer de ce chef pour la période à laquelle se rapporte le décompte' },
+  { rang: 8, libelle: "le nombre d'heures supplémentaires" },
+  { rang: 9, libelle: 'les taux auxquels sont payées les heures supplémentaires' },
+  { rang: 10, libelle: 'le montant total à payer pour les heures supplémentaires' },
+  { rang: 11, libelle: 'les suppléments éventuellement payés pour le travail du dimanche et des jours fériés légaux' },
+  { rang: 12, libelle: 'les primes éventuelles' },
+  { rang: 13, libelle: "les arriérés de rémunération, portés sous la rubrique « divers » et accompagnés, le cas échéant, d'une note sous la rubrique « observation »" },
+  { rang: 14, libelle: 'le nombre de jours de congé payés' },
+  { rang: 15, libelle: "le taux journalier de l'allocation de congé" },
+  { rang: 16, libelle: "le total de l'allocation due pour le congé en cas de maladie, d'accident et de congé de maternité" },
+  { rang: 17, libelle: "le nombre de jours pour lesquels le salaire est payé aux deux tiers en cas de maladie, d'accident et de congé de maternité" },
+  { rang: 18, libelle: "le taux journalier de salaire, en cas de maladie ou d'accident" },
+  { rang: 19, libelle: "le total du salaire pour les journées d'incapacité" },
+  { rang: 20, libelle: "le total de la rémunération brute, c'est-à-dire le total des mentions visées ci-dessus sous les numéros 7, 10, 11, 12, 13,16 et 19" },
+  { rang: 21, libelle: 'la cotisation retenue à charge du travailleur pour la branche de pensions à la Caisse de sécurité sociale' },
+  { rang: 22, libelle: 'le montant des indemnités compensatoires' },
+  { rang: 23, libelle: 'le montant des avances hebdomadaires' },
+  { rang: 24, libelle: 'les déductions pour motifs divers, accompagnées d’une note dans la rubrique fiscale' },
+  { rang: 25, libelle: 'la retenue fiscale' },
+  { rang: 26, libelle: "le total des déductions, c'est-à-dire le total des montants visés sous les numéros 21, 22, 23,24 et 25 ci-dessus" },
+  { rang: 27, libelle: "le nombre d'enfants pour lesquels les allocations familiales extra-légales sont dues" },
+  { rang: 28, libelle: "le nombre de jours donnant droit à des allocations familiales extra-légales, c'est-à-dire le total des nombres visés ci-dessus sous les numéros 6, 14 et 17" },
+  { rang: 29, libelle: 'le taux journalier des allocations familiales extra-légales' },
+  { rang: 30, libelle: 'le montant des allocations familiales extra-légales' },
+  { rang: 31, libelle: 'le montant (net) à payer' },
+  { rang: 32, libelle: 'le montant pris en considération pour le calcul des cotisations sociales' },
+  { rang: 33, libelle: 'les observations' },
+] as const;
+
+/**
+ * LES ÉCARTS ENTRE 2008 ET 2018, rang par rang, NOMMÉS SANS ÊTRE TRANCHÉS.
+ * Les trois formules (20, 26, 28) sont identiques.
+ */
+export const ECARTS_2008_2018: readonly { rangs: string; ecart: string }[] = [
+  { rangs: '4', ecart: "« caisse de sécurité sociale » en 2018, « Institut National de Sécurité Sociale » en 2008" },
+  { rangs: '11', ecart: 'le samedi est nommé en 2008, pas en 2018' },
+  { rangs: '16 et 17', ecart: 'le congé de maternité est ajouté en 2018' },
+  { rangs: '24', ecart: 'la note va « dans la rubrique fiscale » en 2018, « observations » en 2008' },
+  { rangs: '27 à 30', ecart: 'les allocations familiales sont dites « extra-légales » en 2018' },
+] as const;
 
 export const DECOMPTE_A_LA_RUPTURE =
   "ARTICLE 2, ALINÉA 3, DE L'ARRÊTÉ · « Lors de la résiliation du contrat de travail, POUR QUELQUE CAUSE QUE " +

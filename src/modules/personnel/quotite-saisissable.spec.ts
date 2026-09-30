@@ -5,6 +5,7 @@ import {
   JOURS_DU_MOIS,
   DIVISEUR_EVALUATION_FORFAITAIRE_LOGEMENT,
   MULTIPLE_DU_MINIMUM_CATEGORIEL,
+  RESERVE_ASSIETTE_AUPSRVE,
   RESERVE_CUMUL,
   RESERVE_CONTINUITE_DES_TEXTES,
   RESERVE_EQUIVALENCE_DES_DEUX_BRANCHES,
@@ -269,6 +270,9 @@ describe("L'alinéa 2 et le cumul de l'alinéa 3", () => {
     expect(v.partInsaisissableFc).toBeCloseTo(400_000, 6);
     expect(v.reserves).toContain(RESERVE_CUMUL);
     expect(RESERVE_CUMUL).toMatch(/AUCUN PLAFOND/i);
+    // Passe O4 · le cumul est le seuil de l'AUPSRVE, art. 177, al. 3.
+    expect(RESERVE_CUMUL).toContain('177, al. 3');
+    expect(RESERVE_CUMUL).toMatch(/EN AUCUN CAS, fût-ce pour dettes alimentaires/);
   });
 
   it("ne porte pas la réserve du cumul quand il n'y a pas de cumul", () => {
@@ -378,5 +382,26 @@ describe('F104 · une retenue non chiffrée n’est pas zéro', () => {
     const v = quotiteSaisissable({ ...base, retenuesFiscalesFc: 0, retenuesSocialesFc: 0 });
     expect(v.abstentions).toEqual([]);
     expect(v.baseFc).toBe(800_000);
+  });
+});
+
+describe("Passe O4 · l'assiette de l'AUPSRVE, art. 177, al. 2, toujours dite", () => {
+  it('la réserve est servie sur toute quotité, chiffrée ou non', () => {
+    const v = quotiteSaisissable({
+      moisDePaie: '2026-03',
+      remunerationFc: 1_000_000,
+      classeProfessionnelle: null,
+      retenuesFiscalesFc: 0,
+      retenuesSocialesFc: 0,
+    } as Parameters<typeof quotiteSaisissable>[0]);
+    expect(v.reserves).toContain(RESERVE_ASSIETTE_AUPSRVE);
+  });
+
+  it("nomme les deux divergences et dit que l'acte notifié prime", () => {
+    expect(RESERVE_ASSIETTE_AUPSRVE).toContain('art. 177, al. 2');
+    expect(RESERVE_ASSIETTE_AUPSRVE).toMatch(/retire d'office l'indemnité de logement/);
+    expect(RESERVE_ASSIETTE_AUPSRVE).toMatch(/forfait logement.*que la liste de l'Acte ne nomme pas/);
+    expect(RESERVE_ASSIETTE_AUPSRVE).toMatch(/art\. 184, 3°.*PRIME ce chiffre/);
+    expect(RESERVE_ASSIETTE_AUPSRVE).toContain('art. 337');
   });
 });

@@ -59,6 +59,10 @@ describe('Les valeurs se lisent par barème', () => {
   it('exige les quatre taux CNSS', () => {
     expect(lireValeurs('CNSS', { prestationsAuxFamilles: 6.5, pensionsEmployeur: 5, pensionsTravailleur: 5 }).ok).toBe(false);
     expect(lireValeurs('CNSS', { prestationsAuxFamilles: 6.5, pensionsEmployeur: 5, pensionsTravailleur: 5, risquesProfessionnels: 1.5 }).ok).toBe(true);
+    // Loi n° 16/009, art. 18 · la part du travailleur ne dépasse jamais la moitié (passe D2).
+    const inverse = lireValeurs('CNSS', { prestationsAuxFamilles: 6.5, pensionsEmployeur: 3, pensionsTravailleur: 7, risquesProfessionnels: 1.5 });
+    expect(inverse.ok).toBe(false);
+    expect(inverse.ok ? '' : inverse.motif).toContain('art. 18');
   });
 
   it('exige des tranches INPP croissantes, la dernière ouverte', () => {

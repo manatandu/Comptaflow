@@ -14,6 +14,7 @@ import {
   avertissementDeductibiliteArticle20,
   avertissementRegimeImpot,
   compteRelevantDe,
+  estEcheanceFiscale,
   obligationsDeclarativesApplicables,
   reservePourReferentiel,
 } from './correspondance-retenues';
@@ -162,7 +163,8 @@ export class RetenuesService {
     // retard » dès le lundi 16 à un redevable qui avait la journée entière
     // pour verser. Voir jour-ouvrable.ts pour ce qui est calculé et ce qui ne
     // l'est pas.
-    return echeanceDeReversement(nature.joursApresPeriode, annee, moisZeroBase);
+    // Le report ne vaut que pour une échéance FISCALE (passe D2).
+    return echeanceDeReversement(nature.joursApresPeriode, annee, moisZeroBase, estEcheanceFiscale(nature));
   }
 
   /**
@@ -177,7 +179,7 @@ export class RetenuesService {
     // appliqué APRÈS le choix du mois : reporter d'abord ferait comparer une
     // date déjà déplacée à la référence et sauterait un mois entier quand le
     // report franchit la fin du mois.
-    return reporterAuJourOuvrable(echeance);
+    return estEcheanceFiscale(nature) ? reporterAuJourOuvrable(echeance) : echeance;
   }
 
   /**
@@ -188,6 +190,8 @@ export class RetenuesService {
    * date de cette année est passée, c'est celle de l'année prochaine.
    */
   private prochaineEcheanceDeclarative(obligation: ObligationDeclarative, reference: Date): Date {
+    // Une déclaration à un organisme social ne se reporte pas (passe D2).
+    const reporter = (d: Date) => (estEcheanceFiscale(obligation) ? reporterAuJourOuvrable(d) : d);
     if (obligation.periodicite === 'MENSUELLE') {
       // N jours après la fin du mois, et le mois suivant si c'est déjà passé.
       //
@@ -199,7 +203,7 @@ export class RetenuesService {
       const jours = obligation.joursApresPeriode ?? 10;
       for (let m = -1; m < 2; m++) {
         const finDeMois = new Date(Date.UTC(reference.getUTCFullYear(), reference.getUTCMonth() + m + 1, 0));
-        const echeance = reporterAuJourOuvrable(
+        const echeance = reporter(
           (() => {
             const d = new Date(finDeMois);
             d.setUTCDate(d.getUTCDate() + jours);
@@ -221,7 +225,7 @@ export class RetenuesService {
         // d'un an sur le trimestre précédent quand il est celui de l'année
         // écoulée (JS rend -1 pour -1 % 4).
         const finTrimestre = new Date(Date.UTC(reference.getUTCFullYear(), (t + 1) * 3, 0));
-        const echeance = reporterAuJourOuvrable(
+        const echeance = reporter(
           (() => {
             const d = new Date(finTrimestre);
             d.setUTCDate(d.getUTCDate() + jours);
@@ -238,7 +242,7 @@ export class RetenuesService {
     // Art. 110 bis, al. 2, comme sur les deux périodicités précédentes. Le
     // report vient APRÈS le choix de l'année, pour la même raison qu'au
     // mensuel : il peut franchir le 31 décembre.
-    return reporterAuJourOuvrable(echeance);
+    return reporter(echeance);
   }
 
   /**

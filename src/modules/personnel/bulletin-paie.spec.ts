@@ -6,6 +6,7 @@ import { PersonnelService } from './personnel.service';
 import { PrismaService } from '../../common/prisma.service';
 import {
   contratCouvrantLeMois,
+  enonciationsDuBulletin,
   moisValide,
   motifRefusRemise,
   motifsRefusEmission,
@@ -142,6 +143,9 @@ const SALARIE = {
       dateFin: null,
       natureTravail: 'Comptable',
       categorieProfessionnelle: 'Maîtrise',
+      remunerationBase: new Prisma.Decimal(1_000_000),
+      periodiciteRemuneration: 'MOIS',
+      deviseRemuneration: 'CDF',
     },
   ],
 };
@@ -200,7 +204,31 @@ describe('émettre · le serveur rejoue le calcul et fige ce qu’il rend', () =
     expect(data.netAPayerFc).toBe(attendu.net.netAPayerFc);
     expect(data.irppFc).toBe(attendu.retenue?.retenueFc);
     expect(data.cotisationsEmployeurFc).toBe(attendu.cotisations.totalEmployeurFc);
-    expect(data.calcul).toEqual(JSON.parse(JSON.stringify(attendu)));
+    // Le salaire du contrat est figé à côté du calcul (mention 5, passe D2).
+    expect(data.calcul).toEqual(
+      JSON.parse(
+        JSON.stringify({ ...attendu, contrat: { remunerationBase: 1_000_000, periodiciteRemuneration: 'MOIS', deviseRemuneration: 'CDF' } }),
+      ),
+    );
+  });
+
+  it('passe D2 · le bulletin relu dit les énonciations du modèle qu’il porte et celles qu’il ne porte pas', async () => {
+    const { svc, create } = service();
+    const relu = await svc.emettreBulletin('t-1', 'u-1', 's-1', dto({ joursPayes: 20, enfantsBeneficiairesAllocations: 2 } as Partial<SimulationPaieDto>));
+    // La relecture du bulletin sert les énonciations · câblage de lireBulletin.
+    expect(relu.enonciations.nonPortees.length).toBeGreaterThan(0);
+    const data = create.mock.calls[0][0].data;
+    const e = enonciationsDuBulletin({ ...data, emploi: 'Comptable' });
+    const valeur = (rang: number) => e.portees.find((p) => p.rang === rang)?.valeur;
+    expect(valeur(5)).toBe('1000000 CDF par mois');
+    expect(valeur(6)).toBe('20 jour(s)');
+    expect(valeur(27)).toBe('2');
+    expect(valeur(29)).toMatch(/par jour et par enfant/);
+    // Les heures supplémentaires (8 à 10) ne sont pas portées, et c'est dit.
+    expect(e.nonPortees).toEqual(expect.arrayContaining([8, 9, 10, 20, 26, 28]));
+    expect(e.portees.length + e.nonPortees.length).toBe(33);
+    // Sans jours déclarés, le mois entier que la simulation a retenu, dit tel.
+    expect(enonciationsDuBulletin({ ...data, entree: {} }).portees.find((p) => p.rang === 6)?.valeur).toMatch(/mois entier/);
   });
 
   it('un salaire en USD est figé au cours du JOUR D’ÉMISSION, et le bulletin garde le cours', async () => {

@@ -5,6 +5,9 @@ import {
   BAREMES_INPP,
   BAREMES_ONEM,
   MAJORATION_RISQUES_PROFESSIONNELS_MAXIMUM,
+  NON_DUES_APPRENTI,
+  RESERVE_SAISIES_ET_CESSIONS,
+  RESERVE_REGIME_CNSS_INCONNU,
   TAUX_CNSS,
   cotisations,
   netAPayer,
@@ -47,18 +50,50 @@ describe('Les taux CNSS, recopiés du décret n° 18/041', () => {
     expect(v.totalEmployeurFc).toBeGreaterThan(v.totalTravailleurFc);
   });
 
-  it('ne double le taux des risques professionnels que sur DÉCLARATION', () => {
+  it('ne majore le taux des risques professionnels que sur DÉCLARATION, au niveau notifié', () => {
     const normal = cotisations(1_000_000, { ...M, natureEmployeurInpp: 'PRIVE', effectif: 10 });
-    const majore = cotisations(1_000_000, {
-      ...M,
-      natureEmployeurInpp: 'PRIVE',
-      effectif: 10,
-      majorationRisquesProfessionnels: true,
-    });
     const rp = (v: typeof normal) => v.lignes.find((l) => l.cle === 'cnss-rp')!;
     expect(rp(normal).tauxPourCent).toBeCloseTo(1.5, 10);
-    expect(rp(majore).tauxPourCent).toBeCloseTo(1.5 * MAJORATION_RISQUES_PROFESSIONNELS_MAXIMUM, 10);
-    expect(rp(majore).reserve).toContain('article 5');
+    // PASSE D2 · 50 % (arrêté n° 140/2018, art. 22) fait 2,25 %, jamais 3 %.
+    const cinquante = cotisations(1_000_000, { ...M, natureEmployeurInpp: 'PRIVE', effectif: 10, majorationRisquesProfessionnelsPourCent: 50 });
+    expect(rp(cinquante).tauxPourCent).toBeCloseTo(2.25, 10);
+    expect(rp(cinquante).reserve).toContain('art. 22');
+    expect(rp(cinquante).reserve).not.toMatch(/RÉCIDIVE/);
+    // 100 % en récidive (art. 24, al. 3) · le double, qui est le plafond.
+    const cent = cotisations(1_000_000, { ...M, natureEmployeurInpp: 'PRIVE', effectif: 10, majorationRisquesProfessionnelsPourCent: 100 });
+    expect(rp(cent).tauxPourCent).toBeCloseTo(1.5 * MAJORATION_RISQUES_PROFESSIONNELS_MAXIMUM, 10);
+    expect(rp(cent).reserve).toContain('art. 24, al. 3');
+    expect(rp(cent).reserve).toContain('article 5');
+  });
+
+  it('refuse une majoration que l’arrêté n° 140/2018 ne connaît pas', () => {
+    expect(() =>
+      cotisations(1_000_000, { ...M, majorationRisquesProfessionnelsPourCent: 150 as never }),
+    ).toThrow(/50 %.*100 %/);
+  });
+});
+
+describe("L'APPRENTI · la seule branche des risques professionnels (loi n° 16/009, art. 4)", () => {
+  it('ne porte ni pensions ni prestations aux familles, et aucune quote-part ouvrière', () => {
+    const v = cotisations(1_000_000, { ...M, natureEmployeurInpp: 'PRIVE', effectif: 10, regimeCnss: 'APPRENTI' });
+    const cnss = v.lignes.filter((l) => l.organisme === 'CNSS').map((l) => l.cle);
+    expect(cnss).toEqual(['cnss-rp']);
+    expect(v.lignes.some((l) => l.cle === 'cnss-pension-travailleur')).toBe(false);
+    expect(v.totalTravailleurFc).toBe(0);
+    // NON DUES est une réponse, pas une abstention · l'émission n'est pas bloquée.
+    expect(v.abstentions.filter((a) => a.startsWith('CNSS'))).toEqual([]);
+    expect(v.reserves).toContain(NON_DUES_APPRENTI);
+    const rp = v.lignes.find((l) => l.cle === 'cnss-rp')!;
+    expect(rp.charge).toBe('EMPLOYEUR');
+    expect(rp.reserve).toContain('art. 13, al. 2');
+  });
+
+  it('un travailleur garde les trois branches, et sans contrat lu l’hypothèse est dite', () => {
+    const t = cotisations(1_000_000, { ...M, natureEmployeurInpp: 'PRIVE', effectif: 10, regimeCnss: 'TRAVAILLEUR' });
+    expect(t.lignes.filter((l) => l.organisme === 'CNSS')).toHaveLength(4);
+    expect(t.reserves).not.toContain(RESERVE_REGIME_CNSS_INCONNU);
+    const inconnu = cotisations(1_000_000, { ...M, natureEmployeurInpp: 'PRIVE', effectif: 10 });
+    expect(inconnu.reserves).toContain(RESERVE_REGIME_CNSS_INCONNU);
   });
 });
 
@@ -123,12 +158,15 @@ describe("L'ONEM · un exercice à cheval porte les deux taux", () => {
 });
 
 describe("L'assiette empruntée de l'INPP et de l'ONEM est DÉCLARÉE", () => {
-  it('porte la réserve sur chacune des deux lignes', () => {
+  it("porte la réserve de lecture sur l'ONEM, et sur l'INPP le renvoi au Code qui la crée", () => {
     const v = cotisations(1_000_000, { ...M, natureEmployeurInpp: 'PRIVE', effectif: 10 });
-    for (const cle of ['inpp', 'onem']) {
-      const ligne = v.lignes.find((l) => l.cle === cle)!;
-      expect(ligne.reserve).toContain("sans renvoyer à l'article 7");
-    }
+    expect(v.lignes.find((l) => l.cle === 'onem')!.reserve).toContain("sans renvoyer à l'article 7");
+    // PASSE D2 · l'INPP naît de l'art. 15 b) du Code du travail, dont l'art. 7
+    // définit le mot · pas une lecture. Reste la période du trimestre précédent.
+    const inpp = v.lignes.find((l) => l.cle === 'inpp')!;
+    expect(inpp.source).toContain('art. 15 b)');
+    expect(inpp.reserve).toContain('article 7 du même Code');
+    expect(inpp.reserve).toMatch(/trimestre précédent.*calcule sur le mois/);
   });
 
   it("ne porte PAS cette réserve sur la CNSS, dont l'assiette est routée par la loi", () => {
@@ -233,6 +271,9 @@ describe('F112 · le plancher de la CNSS', () => {
     const p = plancherCnss('2018-06', 100_000);
     expect(p.baseFc).toBe(100_000);
     expect(p.message).toContain('PLANCHER NON VÉRIFIÉ');
+    // Le motif est celui du barème · le décret n° 18/017 est au corpus.
+    expect(p.message).toContain('décret n° 18/017');
+    expect(p.message).toMatch(/paliers/);
   });
 
   it('au-dessus du SMIG d’un mois entier (21 500 × 26 = 559 000), rien ne change', () => {
@@ -285,5 +326,17 @@ describe('F112 · le plancher de la CNSS', () => {
     expect(v.lignes.some((l) => l.organisme === 'CNSS')).toBe(false);
     expect(v.abstentions.join(' ')).toContain('ASSIETTE SOUS LE PLANCHER');
     expect(v.lignes.map((l) => l.cle)).toEqual(expect.arrayContaining(['inpp', 'onem']));
+  });
+});
+
+describe('Passe O4 · la saisie-arrêt et la cession notifiées ne sont plus « un acte que le registre ne porte pas »', () => {
+  it('le net les nomme avec leurs articles et le compte 4232', () => {
+    for (const avances of [0, 1_000]) {
+      const r = netAPayer(1_000_000, 50_000, 10_000, avances).reserves.join(' ');
+      expect(r).toContain(RESERVE_SAISIES_ET_CESSIONS);
+    }
+    expect(RESERVE_SAISIES_ET_CESSIONS).toMatch(/art\. 184, 3° et 206/);
+    expect(RESERVE_SAISIES_ET_CESSIONS).toMatch(/personnellement débiteur/);
+    expect(RESERVE_SAISIES_ET_CESSIONS).toContain('42320000');
   });
 });

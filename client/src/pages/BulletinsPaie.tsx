@@ -74,10 +74,24 @@ interface Bulletin extends LigneBulletin {
     retenue?: { mensuel?: DetailMensuelIrpp; revenuAnnualiseFc?: number } | null;
     conversion?: { cours: number; dateCours: string } | null;
   };
+  /**
+   * Les énonciations du modèle de 2008 que le bulletin porte, rang par rang,
+   * et celles qu'il ne porte pas (passe D2) · servies par le serveur, rien
+   * n'est certifié.
+   */
+  enonciations?: { portees: { rang: number; valeur: string }[]; nonPortees: number[] };
   reserves: string[];
 }
 
 const fc = montantAffiche;
+
+/** Les mentions du modèle que le bulletin imprime en tête, en plus des n° 1 à 4. */
+const MENTIONS_IMPRIMEES: { rang: number; libelle: string }[] = [
+  { rang: 5, libelle: 'Salaire du contrat' },
+  { rang: 6, libelle: 'Jours payés à 100 %' },
+  { rang: 27, libelle: 'Enfants bénéficiaires des allocations familiales' },
+  { rang: 29, libelle: 'Taux journalier des allocations familiales' },
+];
 const jour = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('fr-FR') : '·');
 const moisCourant = () => new Date().toISOString().slice(0, 7);
 
@@ -256,6 +270,15 @@ export function OngletBulletins({ moisInitial, peutEcrire }: { moisInitial: stri
               <span className="text-text-dim">N° d’affiliation CNSS · </span>
               {ouvert.numeroAffiliationCnss ?? 'non renseigné'}
             </div>
+            {MENTIONS_IMPRIMEES.map((m) => {
+              const portee = ouvert.enonciations?.portees.find((p) => p.rang === m.rang);
+              return portee ? (
+                <div key={m.rang} title={`Arrêté du 8 août 2008, art. 1er, mention ${m.rang}`}>
+                  <span className="text-text-dim">{m.libelle} · </span>
+                  {portee.valeur}
+                </div>
+              ) : null;
+            })}
           </div>
 
           {ouvert.calcul.conversion && (
@@ -331,6 +354,14 @@ export function OngletBulletins({ moisInitial, peutEcrire }: { moisInitial: stri
             net. Remis au travailleur le {jour(ouvert.remisLe)}.
           </div>
 
+          {ouvert.enonciations && ouvert.enonciations.nonPortees.length > 0 && (
+            <div
+              className="text-[11px] text-text-dim mb-1"
+              title="Arrêté n° 12/CAB.MIN/ETPS/042 du 8 août 2008, art. 1er · arrêté n° 142/2018, art. 12"
+            >
+              Énonciations non portées : n° {ouvert.enonciations.nonPortees.join(', ')}.
+            </div>
+          )}
           <ul className="text-[11px] text-text-dim list-disc pl-4 mb-3">
             {ouvert.reserves.map((r, i) => (
               <li key={i}>{r}</li>

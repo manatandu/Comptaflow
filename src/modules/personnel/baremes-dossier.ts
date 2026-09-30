@@ -91,6 +91,18 @@ export function lireValeurs(
   if (bareme === 'CNSS') {
     const cles = ['prestationsAuxFamilles', 'pensionsEmployeur', 'pensionsTravailleur', 'risquesProfessionnels'] as const;
     if (!cles.every((c) => tauxValide(v[c]))) return { ok: false, motif: `CNSS · les quatre taux sont obligatoires. ${refusTaux}` };
+    // LOI n° 16/009, ART. 18 · « La part de la cotisation incombant au
+    // travailleur ne peut EN AUCUN CAS dépasser la moitié du montant de ces
+    // cotisations. » Un décret qui changerait les taux reste soumis à la loi ·
+    // une saisie inversée (3 % employeur, 7 % travailleur) ferait retenir
+    // sur le net ce que la loi interdit, sur un bulletin plausible (passe D2).
+    if ((v.pensionsTravailleur as number) > (v.pensionsEmployeur as number)) {
+      return {
+        ok: false,
+        motif:
+          "CNSS · la part des pensions à la charge du travailleur dépasse celle de l'employeur, donc la moitié de la cotisation, ce que la loi n° 16/009, art. 18 interdit « en aucun cas ».",
+      };
+    }
     return { ok: true, valeurs: Object.fromEntries(cles.map((c) => [c, v[c]])) };
   }
   if (bareme === 'SMIG') {

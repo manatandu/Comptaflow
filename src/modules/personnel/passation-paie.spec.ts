@@ -110,6 +110,14 @@ describe('Les deux tables de natures se complètent exactement', () => {
     ]);
   });
 
+  it("passe D2 · le motif des allocations familiales les dit dues par l'employeur, et la dévolution n'est pas une créance", () => {
+    const motif = NATURES_SANS_IMPUTATION.ALLOCATIONS_FAMILIALES_LEGALES!;
+    expect(motif).toMatch(/que l'EMPLOYEUR doit/);
+    expect(motif).toContain('colonne 19');
+    expect(motif).toMatch(/ni charge ni créance de l'employeur/);
+    expect(motif).toContain('143/2018, art. 3 et 4');
+  });
+
   it("impute bien le logement et le transport, que l'assiette SOCIALE exclut", () => {
     // Piège symétrique de P2a : sortir de l'assiette n'est pas sortir de la
     // comptabilité. Le logement est payé, donc il est en charge.

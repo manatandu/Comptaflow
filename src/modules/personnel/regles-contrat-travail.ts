@@ -21,11 +21,16 @@
  *    type en base serait décider à la place du juge ; le taire serait laisser
  *    un dossier croire qu'il tient un CDD.
  *
- * CE FICHIER NE CALCULE AUCUN MONTANT. Ni préavis, ni indemnité, ni
- * assiette. Le barème de préavis de l'art. 64 et le décompte final sont de
- * P4, et P0 a établi qu'ils butent sur des textes qui ne sont pas au corpus.
+ * LE SEUL MONTANT QUE CE FICHIER CALCULE est le minimum de la classe
+ * (décret n° 25/22) et ce qui manque au contrat pour l'atteindre
+ * (`verdictRemunerationMinimale`). Ni préavis, ni indemnité, ni assiette ·
+ * le préavis et le décompte final vivent dans `decompte-final.ts`, qui sert
+ * le plancher de l'art. 64, seul l'arrêté de son dernier alinéa étant hors
+ * corpus. (La phrase qui disait ici « aucun montant » et « textes absents
+ * du corpus » avait vieilli · passe D2, une garantie négative vieillit.)
  */
 
+import { ajouterMois } from '../../common/ajouter-mois';
 import {
   MULTIPLICATEURS_ARTICLE_7,
   TENSIONS,
@@ -188,6 +193,12 @@ export interface SalariePourControle {
 export interface ContratPourControle {
   type: string;
   constateParEcrit: boolean;
+  /**
+   * Visé par l'Office national de l'emploi · art. 47 pour un contrat de
+   * travail écrit, art. 21 pour un contrat d'apprentissage. Les deux visas
+   * n'ont pas le même effet, et c'est ce qui oblige à le lire ici.
+   */
+  viseParOnem: boolean;
   dateEntreeEnVigueur: Date | string | null;
   dateConclusion: Date | string | null;
   lieuConclusion: string | null;
@@ -298,6 +309,19 @@ export function mentionsManquantes(
   salarie: SalariePourControle,
   contrat: ContratPourControle,
 ): MentionManquante[] {
+  // L'ART. 212 NE VISE QUE « le contrat de travail CONSTATÉ PAR ÉCRIT »
+  // (Titre X), et l'art. 44 al. 3 dispense de l'écrit l'engagement au jour
+  // le jour · un jour le jour non écrit n'a aucune énonciation à porter, et
+  // lui en réclamer quinze fabriquait des manques qui n'existent pas (passe
+  // D2). Le CDI ou le CDD non écrit, lui, les doit toujours : l'art. 44 al. 1
+  // fait de l'écrit « qui comporte les énonciations de l'article 212 » la
+  // règle, et PAS_D_ECRIT le dit déjà.
+  if (contrat.type === 'JOUR_LE_JOUR' && !contrat.constateParEcrit) return [];
+  // LE CONTRAT D'APPRENTISSAGE N'EST PAS UN CONTRAT DE TRAVAIL (art. 7,
+  // point 7) · ses mentions obligatoires sont celles de l'art. 20, pas les
+  // quinze de l'art. 212. Leur défaut d'écrit et de visa est rendu par les
+  // requalifications du Titre III.
+  if (contrat.type === 'APPRENTISSAGE') return [];
   return ENONCIATIONS_ARTICLE_212.filter(
     (e) => !estSatisfait(e.point, employeur, salarie, contrat),
   ).map((e) => ({
@@ -323,7 +347,11 @@ export type MotifRequalification =
   | 'CDD_TROP_LONG'
   | 'CDD_TROP_LONG_SEPARE_DE_SA_FAMILLE'
   | 'TROISIEME_CDD'
-  | 'SECOND_RENOUVELLEMENT';
+  | 'SECOND_RENOUVELLEMENT'
+  | 'ENGAGEMENT_JOUR_LE_JOUR_REPETE'
+  | 'APPRENTISSAGE_SANS_ECRIT'
+  | 'APPRENTISSAGE_NON_VISE'
+  | 'APPRENTISSAGE_TROP_LONG';
 
 export interface Requalification {
   motif: MotifRequalification;
@@ -331,6 +359,19 @@ export interface Requalification {
   /** Ce que le texte dit, verbatim, et qui fait l'effet. */
   formule: string;
   explication: string;
+  /**
+   * L'EFFET, en une ligne, parce qu'il n'est pas le même partout · un CDD
+   * requalifié devient un contrat à durée indéterminée, un apprentissage non
+   * visé fait présumer un contrat de TRAVAIL (art. 21 et 23), et la durée
+   * de l'art. 20, 4° n'emporte aucune requalification écrite.
+   */
+  effet: string;
+  /**
+   * Null quand le texte mord sans condition. Sinon, la condition que le
+   * dossier doit qualifier avant que l'effet soit acquis (l'exception de
+   * l'art. 41 al. 2 pour un ouvrage bien défini, par exemple).
+   */
+  reserve: string | null;
 }
 
 export interface HistoriqueChezCetEmployeur {
@@ -338,7 +379,56 @@ export interface HistoriqueChezCetEmployeur {
   nombreCdd: number;
   /** Nombre de renouvellements de CE contrat, celui-ci compris. */
   nombreRenouvellements: number;
+  /**
+   * Pour un engagement au jour le jour · les journées de travail accomplies
+   * dans les deux mois qui le précèdent (art. 40 al. 2), lues par
+   * `journeesJourLeJourAvant`. Null quand le registre ne permet pas de les
+   * compter · absent pour tout autre contrat.
+   */
+  journeesJourLeJour?: number | null;
 }
+
+/** Les vingt-deux journées de l'art. 40, alinéa 2. */
+export const JOURNEES_ARTICLE_40 = 22;
+
+/**
+ * L'ART. 40 AL. 2 · « si le travailleur a déjà accompli vingt-deux journées
+ * de travail sur une période de deux mois, le NOUVEL engagement conclu, avant
+ * l'expiration des deux mois est, sous peine de pénalité, réputé conclu pour
+ * une durée indéterminée. »
+ *
+ * CE QUE LE REGISTRE SAIT COMPTER, ET CE QU'IL NE SAIT PAS. Un engagement au
+ * jour le jour saisi sur UN jour (entrée et fin le même jour) est une
+ * journée. Un engagement saisi sur plusieurs jours, ou sans fin, ne dit pas
+ * combien de journées ont été travaillées (dimanche, absence) · compter les
+ * jours du calendrier fabriquerait des journées. Dans ce cas la fonction rend
+ * `null`, et la confrontation dit qu'elle s'abstient plutôt que d'annoncer
+ * une règle servie.
+ */
+export function journeesJourLeJourAvant(
+  anterieurs: readonly {
+    type: string;
+    dateEntreeEnVigueur: Date | string | null;
+    dateFin: Date | string | null;
+  }[],
+  nouveau: { dateEntreeEnVigueur: Date | string | null },
+): number | null {
+  const debut = enDate(nouveau.dateEntreeEnVigueur);
+  if (!debut) return null;
+  const fenetre = ajouterMois(debut, -2);
+  let journees = 0;
+  for (const c of anterieurs) {
+    if (c.type !== 'JOUR_LE_JOUR') continue;
+    const entree = enDate(c.dateEntreeEnVigueur);
+    if (!entree || entree.getTime() >= debut.getTime() || entree.getTime() < fenetre.getTime()) continue;
+    const fin = enDate(c.dateFin);
+    if (!fin || fin.toISOString().slice(0, 10) !== entree.toISOString().slice(0, 10)) return null;
+    journees += 1;
+  }
+  return journees;
+}
+
+export const EFFET_REQUALIFICATION_CDI = 'Requalifié en contrat à durée indéterminée';
 
 const MS_PAR_JOUR = 86_400_000;
 
@@ -351,6 +441,73 @@ function enDate(v: Date | string | null): Date | null {
 /** Nombre de jours entiers entre deux dates, bornes comprises côté départ. */
 export function joursEntre(debut: Date, fin: Date): number {
   return Math.floor((fin.getTime() - debut.getTime()) / MS_PAR_JOUR);
+}
+
+/** L'art. 41, alinéas 2 et 3, EN ENTIER · exception comprise. */
+export const FORMULE_ARTICLE_41_ALINEAS_2_ET_3 =
+  "Aucun travailleur ne peut conclure avec le même employeur ou avec la même entreprise plus de deux contrats à durée déterminée ni renouveler plus d'une fois un contrat à durée déterminée, sauf dans le cas d'exécution des travaux saisonniers, d'ouvrages bien définis et autres travaux déterminés par arrêté du Ministre ayant le Travail et la Prévoyance Sociale dans ses attributions, pris après avis du Conseil National du Travail. L'exécution de tout contrat conclu en violation des dispositions du présent article ou la continuation de service en dehors des cas prévus à l'alinéa précédent constituent de plein droit l'exécution d'un contrat de travail à durée indéterminée.";
+
+/**
+ * LE CONTRAT D'APPRENTISSAGE · Titre III, et ses présomptions à lui.
+ *
+ * Les art. 41 et 42 ne le visent pas, et ce n'est pas une raison de ne rien
+ * rendre. Le Titre III porte ses propres effets, et ils ne sont pas une
+ * requalification en CDI · c'est la présomption d'un CONTRAT DE TRAVAIL :
+ *  · art. 19 et 23 · écrit obligatoire, et « en cas d'annulation ou de doute
+ *    sur l'objet du contrat non écrit, les services de l'apprenti sont
+ *    présumés avoir été prestés en exécution d'un contrat de travail » ;
+ *  · art. 21 al. 3 · « tant que le contrat n'a pas été soumis au visa [...]
+ *    les services de l'apprenti sont présumés être prestés en exécution d'un
+ *    contrat de travail » · et non l'art. 47, qui vise le contrat de travail
+ *    et ouvre une résiliation sans préavis (passe D2) ;
+ *  · art. 20, 4° · la durée « ne peut excéder quatre ans ». Le texte n'y
+ *    attache aucune requalification · l'infraction est punie par l'art. 321.
+ */
+export function requalificationsApprentissage(contrat: ContratPourControle): Requalification[] {
+  const sorties: Requalification[] = [];
+  const presomption = "Présumé exécuté en contrat de travail";
+  if (!contrat.constateParEcrit) {
+    sorties.push({
+      motif: 'APPRENTISSAGE_SANS_ECRIT',
+      article: 'art. 19 et 23',
+      formule:
+        "Tout contrat d'apprentissage doit être constaté par écrit et contenir les mentions énumérées à l'article 20 du présent Code. [...] En cas d'annulation ou de doute sur l'objet du contrat non écrit, les services de l'apprenti sont présumés avoir été prestés en exécution d'un contrat de travail.",
+      explication: "Le contrat d'apprentissage n'est pas constaté par écrit.",
+      effet: presomption,
+      reserve: null,
+    });
+  }
+  if (!contrat.viseParOnem) {
+    sorties.push({
+      motif: 'APPRENTISSAGE_NON_VISE',
+      article: 'art. 21, alinéa 3',
+      formule:
+        "Tant que le contrat n'a pas été soumis au visa, ou lorsque le visa a été retiré, les services de l'apprenti sont présumés être prestés en exécution d'un contrat de travail respectivement à la date de la conclusion du contrat et du retrait du visa.",
+      explication:
+        "Le contrat n'est pas visé par l'Office national de l'emploi. La demande de visa incombe au maître (art. 21, al. 2), et le contrat non visé est annulable (art. 23).",
+      effet: presomption,
+      reserve: null,
+    });
+  }
+  const debut = enDate(contrat.dateEntreeEnVigueur);
+  const fin = enDate(contrat.dateFinPrevue);
+  if (debut && fin) {
+    const plafond = new Date(debut.getTime());
+    plafond.setFullYear(plafond.getFullYear() + 4);
+    if (fin.getTime() > plafond.getTime()) {
+      sorties.push({
+        motif: 'APPRENTISSAGE_TROP_LONG',
+        article: 'art. 20, 4°',
+        formule:
+          "de la date du début et de la durée du contrat ; cette dernière est fixée conformément aux usages de la profession, mais ne peut excéder quatre ans",
+        explication: `Le contrat court ${joursEntre(debut, fin)} jours, au-delà des quatre ans comptés de date à date.`,
+        effet: 'Durée au-delà du maximum légal',
+        reserve:
+          "Le texte n'attache à ce dépassement aucune requalification · l'infraction à l'art. 20 est punie par l'art. 321.",
+      });
+    }
+  }
+  return sorties;
 }
 
 /**
@@ -366,7 +523,24 @@ export function requalifications(
   historique: HistoriqueChezCetEmployeur,
 ): Requalification[] {
   const sorties: Requalification[] = [];
-  if (contrat.type === 'APPRENTISSAGE') return sorties;
+  if (contrat.type === 'APPRENTISSAGE') return requalificationsApprentissage(contrat);
+
+  if (
+    contrat.type === 'JOUR_LE_JOUR' &&
+    historique.journeesJourLeJour !== undefined &&
+    historique.journeesJourLeJour !== null &&
+    historique.journeesJourLeJour >= JOURNEES_ARTICLE_40
+  ) {
+    sorties.push({
+      motif: 'ENGAGEMENT_JOUR_LE_JOUR_REPETE',
+      article: 'art. 40, alinéa 2',
+      formule:
+        "Néanmoins, dans le cas d'engagement au jour le jour, si le travailleur a déjà accompli vingt-deux journées de travail sur une période de deux mois, le nouvel engagement conclu, avant l'expiration des deux mois est, sous peine de pénalité, réputé conclu pour une durée indéterminée.",
+      explication: `Le registre porte ${historique.journeesJourLeJour} journées d'engagement au jour le jour de ce travailleur dans les deux mois qui précèdent ce nouvel engagement.`,
+      effet: EFFET_REQUALIFICATION_CDI,
+      reserve: null,
+    });
+  }
 
   if (!contrat.constateParEcrit && contrat.type !== 'JOUR_LE_JOUR') {
     sorties.push({
@@ -376,6 +550,8 @@ export function requalifications(
         "A défaut d'écrit, le contrat est présumé, jusqu'à preuve du contraire, avoir été conclu pour une durée indéterminée.",
       explication:
         "L'alinéa 3 excepte l'engagement au jour le jour, et lui seul. Cette présomption souffre la preuve contraire · c'est la seule de cette liste qui ne soit pas irréfragable.",
+      effet: 'Présumé à durée indéterminée',
+      reserve: null,
     });
   }
 
@@ -389,6 +565,8 @@ export function requalifications(
         'Tout contrat conclu pour une durée déterminée en violation du présent article est réputé conclu pour une durée indéterminée.',
       explication:
         "L'article impose le contrat à durée indéterminée dès lors que le travailleur est engagé pour occuper un EMPLOI PERMANENT. Le caractère permanent du poste est saisi au contrat · aucune colonne ne le déduit.",
+      effet: EFFET_REQUALIFICATION_CDI,
+      reserve: null,
     });
   }
 
@@ -404,6 +582,8 @@ export function requalifications(
         "Le contrat constaté par écrit qui ne mentionne pas expressément qu'il a été conclu soit pour une durée déterminée, soit pour un ouvrage déterminé, soit pour le remplacement d'un travailleur temporairement indisponible […] est réputé avoir été conclu pour une durée indéterminée.",
       explication:
         "Les trois formes de l'article 40 sont alternatives : un terme, un ouvrage, ou un remplacement. Aucune des trois n'est renseignée.",
+      effet: EFFET_REQUALIFICATION_CDI,
+      reserve: null,
     });
   }
 
@@ -425,24 +605,41 @@ export function requalifications(
               formule:
                 "Cette durée ne peut excéder un an, si le travailleur est marié et séparé de sa famille ou s'il est veuf, séparé de corps ou divorcé et séparé de ses enfants dont il doit assumer la garde.",
               explication: `Le contrat court ${jours} jours, au-delà du plafond d'un an applicable à ce travailleur.`,
+              effet: EFFET_REQUALIFICATION_CDI,
+              reserve: null,
             }
           : {
               motif: 'CDD_TROP_LONG',
               article: 'art. 41, alinéa 1er',
               formule: 'Le contrat à durée déterminée ne peut excéder deux ans.',
               explication: `Le contrat court ${jours} jours, au-delà du plafond de deux ans.`,
+              effet: EFFET_REQUALIFICATION_CDI,
+              reserve: null,
             },
       );
     }
   }
 
+  // L'EXCEPTION FAIT PARTIE DE LA PHRASE, et elle se cite avec elle (passe
+  // D2). La loi nomme d'elle-même les travaux saisonniers et les ouvrages
+  // bien définis ; seuls les « autres travaux » attendent un arrêté, non lu.
+  // Quand le contrat porte un ouvrage déterminé, l'effet reste SOUS RÉSERVE ·
+  // qualifier l'ouvrage de « bien défini » est l'affaire du dossier, pas du
+  // logiciel. La syntaxe de l'alinéa laisse d'ailleurs un doute sur la portée
+  // de l'exception (les deux interdictions, ou la seconde), et OmegaX ne le
+  // tranche pas.
+  const reserveExceptionArticle41 = rempli(contrat.ouvrageDetermine)
+    ? "Le contrat porte un ouvrage déterminé · si c'est un ouvrage bien défini, ou un travail saisonnier, l'exception de l'alinéa 2 peut jouer. C'est au dossier de la qualifier."
+    : null;
+
   if (historique.nombreCdd > 2) {
     sorties.push({
       motif: 'TROISIEME_CDD',
       article: 'art. 41, alinéas 2 et 3',
-      formule:
-        "Aucun travailleur ne peut conclure avec le même employeur ou avec la même entreprise plus de deux contrats à durée déterminée […] L'exécution de tout contrat conclu en violation des dispositions du présent article […] constitue de plein droit l'exécution d'un contrat de travail à durée indéterminée.",
-      explication: `C'est le ${historique.nombreCdd}e contrat à durée déterminée conclu avec ce travailleur dans ce dossier.`,
+      formule: FORMULE_ARTICLE_41_ALINEAS_2_ET_3,
+      explication: `C'est le ${historique.nombreCdd}e contrat à durée déterminée conclu avec ce travailleur dans ce dossier. L'exception des travaux saisonniers et des ouvrages bien définis n'est pas déduite : c'est au dossier de l'invoquer.`,
+      effet: reserveExceptionArticle41 ? `${EFFET_REQUALIFICATION_CDI}, sous réserve de l'exception` : EFFET_REQUALIFICATION_CDI,
+      reserve: reserveExceptionArticle41,
     });
   }
 
@@ -450,9 +647,10 @@ export function requalifications(
     sorties.push({
       motif: 'SECOND_RENOUVELLEMENT',
       article: 'art. 41, alinéas 2 et 3',
-      formule:
-        'ni renouveler plus d’une fois un contrat à durée déterminée, sauf dans le cas d’exécution des travaux saisonniers, d’ouvrages bien définis et autres travaux déterminés par arrêté du Ministre',
-      explication: `Ce contrat a été renouvelé ${historique.nombreRenouvellements} fois. L'exception des travaux saisonniers et des ouvrages bien définis n'est pas déduite : elle suppose un arrêté ministériel qui n'est pas au corpus, et c'est au dossier de l'invoquer.`,
+      formule: FORMULE_ARTICLE_41_ALINEAS_2_ET_3,
+      explication: `Ce contrat a été renouvelé ${historique.nombreRenouvellements} fois. L'exception n'est pas déduite : les travaux saisonniers et les ouvrages bien définis sont exceptés par la loi elle-même, seuls les « autres travaux » dépendent d'un arrêté du Ministre qui n'est pas au corpus, et c'est au dossier de l'invoquer.`,
+      effet: reserveExceptionArticle41 ? `${EFFET_REQUALIFICATION_CDI}, sous réserve de l'exception` : EFFET_REQUALIFICATION_CDI,
+      reserve: reserveExceptionArticle41,
     });
   }
 
@@ -577,8 +775,15 @@ export function declarationsDues(
  * soumettre le travailleur à un examen médical DANS LES TROIS MOIS qui
  * suivent le début des prestations de travail. »
  */
-export const JOURS_CONFIRMATION_APTITUDE = 90;
+export const MOIS_CONFIRMATION_APTITUDE = 3;
 
+/**
+ * TROIS MOIS DE DATE À DATE, comme le plafond de l'art. 41 · la version qui
+ * comptait 90 jours signalait un contrat entré en vigueur le 1er juillet dès
+ * le 30 septembre, dans le délai légal (passe D2). Le délai court jusqu'au
+ * même quantième trois mois plus tard, compris ; le signal tombe le
+ * lendemain.
+ */
 export function aptitudeProvisoirePerimee(
   salarie: { aptitudeProvisoire: boolean },
   contrat: { dateEntreeEnVigueur: Date | string | null },
@@ -587,7 +792,8 @@ export function aptitudeProvisoirePerimee(
   if (!salarie.aptitudeProvisoire) return false;
   const debut = enDate(contrat.dateEntreeEnVigueur);
   if (!debut) return false;
-  return joursEntre(debut, aujourdhui) > JOURS_CONFIRMATION_APTITUDE;
+  const finDuDelai = ajouterMois(debut, MOIS_CONFIRMATION_APTITUDE);
+  return aujourdhui.getTime() >= finDuDelai.getTime() + MS_PAR_JOUR;
 }
 
 /**
@@ -832,8 +1038,11 @@ export function verdictRemunerationMinimale(
         `${taux.valeur.tension} : le minimum est de ${minimum} FC par ${unite} au mois de paie ` +
         `${moisDeReference}, et le contrat stipule ${contrat.remunerationBase} FC. ` +
         "Le SMIG est « la somme minimale fixée par le pouvoir public en deçà de laquelle aucun " +
-        "travailleur ne peut être rémunéré sous peine de sanction » (décret n° 25/21, art. 3), et " +
-        "l'article 37 du Code du travail frappe de nullité de plein droit toute clause accordant " +
-        'au travailleur des avantages inférieurs à ceux prescrits par le Code.',
+        "travailleur ne peut être rémunéré sous peine de sanction » (décret n° 25/21, art. 3). Le Code " +
+        "du travail, art. 88, al. 2 : « Est nulle de plein droit toute clause de contrat individuel ou " +
+        'de convention collective fixant des rémunérations inférieures aux salaires minima ' +
+        "interprofessionnels garantis déterminés conformément à l'article 87 » ; l'infraction au décret " +
+        "de l'article 87 est punie par l'article 321, et l'article 37 frappe de nullité toute clause " +
+        'moins favorable que le Code.',
   };
 }

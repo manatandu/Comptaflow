@@ -10,6 +10,7 @@ import {
   IsDateString,
   IsDefined,
   IsEnum,
+  IsIn,
   IsInt,
   IsNumber,
   IsObject,
@@ -480,6 +481,20 @@ export class SimulationPaieDto {
   @Max(30)
   enfantsBeneficiairesAllocations?: number;
 
+  /**
+   * Article 69, 1 · les jours du mois qui ouvrent droit aux allocations
+   * familiales, mention 28 de l'arrêté n° 12/CAB.MIN/ETPS/042 du 8 août 2008
+   * (jours payés à 100 %, de congé payé et payés aux deux tiers, mentions 6,
+   * 14 et 17). Absent, le plafond est mensualisé à 26 jours (décret n° 25/22,
+   * art. 7) et la réserve le dit (passe D2). Ce ne sont pas les `joursPayes`
+   * du plancher CNSS, qui ne comptent que les jours payés.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(31)
+  joursAllocationsFamiliales?: number;
+
   /** Nature de l'employeur au sens de l'arrêté INPP · PUBLIC ou PRIVE. */
   @IsOptional()
   @IsEnum(['PUBLIC', 'PRIVE'])
@@ -514,10 +529,15 @@ export class SimulationPaieDto {
   @Min(0)
   effectif?: number;
 
-  /** Article 5 du décret n° 18/041 · décision de la Caisse, jamais présumée. */
+  /**
+   * La majoration des risques professionnels NOTIFIÉE par la Caisse, en pour
+   * cent du taux · 50 (arrêté n° 140/2018, art. 22) ou 100 en récidive
+   * (art. 24, al. 3), le double étant le plafond (décret n° 18/041, art. 5).
+   * Décision de la Caisse, jamais présumée.
+   */
   @IsOptional()
-  @IsBoolean()
-  majorationRisquesProfessionnels?: boolean;
+  @IsIn([50, 100])
+  majorationRisquesProfessionnelsPourCent?: 50 | 100;
 
   /**
    * Article 114 · la CLASSE de la tension salariale, 1 à 17. Elle place le
@@ -572,8 +592,8 @@ export class ParametresCotisationsDto {
   effectif?: number;
 
   @IsOptional()
-  @IsBoolean()
-  majorationRisquesProfessionnels?: boolean;
+  @IsIn([50, 100])
+  majorationRisquesProfessionnelsPourCent?: 50 | 100;
 }
 
 /**
@@ -764,10 +784,18 @@ export class LivreDePaieDto {
   @IsBoolean()
   exclusivementPersonnelDomestique?: boolean;
 
-  /** Les rangs de l'article 25 de l'arrêté n° 146/2018 que le document porte. */
+  /**
+   * Les rangs (1 à 33) des énonciations de l'art. 1er de l'arrêté
+   * n° 12/CAB.MIN/ETPS/042 du 8 août 2008 que le document porte · c'est la
+   * liste que le service confronte (`MENTIONS_MODELE_2008`), jamais celle de
+   * l'art. 25 de l'arrêté n° 146/2018, dont le rang 4 ne dit pas la même
+   * chose (passe D2).
+   */
   @IsOptional()
   @IsArray()
   @IsInt({ each: true })
+  @Min(1, { each: true })
+  @Max(33, { each: true })
   mentionsPortees?: number[];
 }
 

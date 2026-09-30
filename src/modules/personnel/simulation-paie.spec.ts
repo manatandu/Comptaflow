@@ -176,6 +176,47 @@ describe('Le cloisonnement de la simulation', () => {
   });
 });
 
+describe('Passe F11 · la simulation lit la ville du dossier pour l’indemnité de logement', () => {
+  it('sert la réserve de la DGRK à un siège de Kinshasa, pas ailleurs', async () => {
+    const elements = [
+      { nature: 'SALAIRE_OU_TRAITEMENT', libelle: 'Salaire', montantFc: 1_000_000 },
+      { nature: 'LOGEMENT_OU_SON_INDEMNITE', libelle: 'Logement', montantFc: 200_000 },
+    ];
+    const kin = service();
+    kin.tenantFind.mockResolvedValue({ referentiel: 'SYSCOHADA', ville: 'Kinshasa' });
+    const r = await kin.svc.simulerPaie('t-1', null, dto({ elements } as never));
+    expect(r.reserveIndemniteLogement).toMatch(/DGRK/);
+    expect(kin.tenantFind.mock.calls[0][0].select).toMatchObject({ ville: true });
+    const autre = service();
+    autre.tenantFind.mockResolvedValue({ referentiel: 'SYSCOHADA', ville: 'Goma' });
+    expect((await autre.svc.simulerPaie('t-1', null, dto({ elements } as never))).reserveIndemniteLogement).toBeNull();
+  });
+});
+
+describe('Passe D2 · le régime CNSS se lit sur le contrat qui couvre le mois', () => {
+  const avecContrat = (type: string) => ({
+    nom: 'X',
+    nomConjoint: null,
+    _count: { enfants: 0 },
+    contrats: [{ id: 'c-1', type, dateEntreeEnVigueur: new Date('2026-01-05T00:00:00Z'), dateFin: null }],
+  });
+
+  it('un apprenti ne cotise qu’aux risques professionnels, sans quote-part ouvrière', async () => {
+    const { svc, findFirst } = service(avecContrat('APPRENTISSAGE'));
+    const res = await svc.simulerPaie('t-1', 'sal-9', dto({ natureEmployeurInpp: 'PRIVE', effectif: 10 }));
+    expect(res.cotisations.lignes.filter((l) => l.organisme === 'CNSS').map((l) => l.cle)).toEqual(['cnss-rp']);
+    expect(res.cotisations.totalTravailleurFc).toBe(0);
+    // La lecture demande bien le type du contrat.
+    expect(findFirst.mock.calls[0][0].select.contrats.select).toMatchObject({ type: true });
+  });
+
+  it('un CDI garde la quote-part ouvrière des pensions', async () => {
+    const { svc } = service(avecContrat('DUREE_INDETERMINEE'));
+    const res = await svc.simulerPaie('t-1', 'sal-9', dto({ natureEmployeurInpp: 'PRIVE', effectif: 10 }));
+    expect(res.cotisations.lignes.some((l) => l.cle === 'cnss-pension-travailleur')).toBe(true);
+  });
+});
+
 describe("Les personnes à charge sont PROPOSÉES, jamais substituées", () => {
   it("propose le compte du registre et retient celui que le cabinet a donné", async () => {
     const { svc } = service({ nom: 'X', nomConjoint: 'Y', _count: { enfants: 3 } });
@@ -486,6 +527,25 @@ describe("Le « taux légal » des allocations familiales, calculé et non saisi
     expect(res.tauxLegalAllocationsFamilialesFc).toBeCloseTo(796.3 * 26 * 3, 6);
   });
 
+  it('PASSE D2 · sur un mois incomplet, le plafond suit les jours ouvrant droit (mention 28)', async () => {
+    const { svc } = service();
+    const res = await svc.simulerPaie(
+      't-1',
+      null,
+      dto({ enfantsBeneficiairesAllocations: 2, joursAllocationsFamiliales: 13, joursPayes: 13 } as Partial<SimulationPaieDto>),
+    );
+    expect(res.tauxLegalAllocationsFamilialesFc).toBeCloseTo(796.3 * 13 * 2, 6);
+    expect(res.reserveTauxLegalAllocations).toMatch(/13 jour\(s\) ouvrant droit/);
+    // Sans les jours, 26 et la réserve qui demande de les déclarer.
+    const entier = await svc.simulerPaie(
+      't-1',
+      null,
+      dto({ enfantsBeneficiairesAllocations: 2, joursPayes: 13 } as Partial<SimulationPaieDto>),
+    );
+    expect(entier.tauxLegalAllocationsFamilialesFc).toBeCloseTo(796.3 * 26 * 2, 6);
+    expect(entier.reserveTauxLegalAllocations).toMatch(/déclaré incomplet \(13 jours payés\)/);
+  });
+
   it("ne le devine PAS quand le nombre d'enfants n'est pas déclaré", async () => {
     const { svc } = service();
     const res = await svc.simulerPaie('t-1', null, dto());
@@ -636,7 +696,9 @@ describe('Le livre de paie ne lit ni n\'écrit rien', () => {
     expect(v.mentions).toHaveLength(33);
     expect(v.arreteDuModele.lu).toBe(true);
     expect(v.formules.brut.composantes).toEqual([7, 10, 11, 12, 13, 16, 19]);
-    expect(v.destinationDesDoubles.second).toMatch(/SÉCURITÉ SOCIALE/);
+    expect(v.destinationDesDoubles.second).toMatch(/CNSS/);
+    expect(v.texteSecondDouble).toMatch(/Institut National de Sécurité Sociale/);
+    expect(v.arrete1422018.mentions).toHaveLength(33);
   });
 });
 

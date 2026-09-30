@@ -71,12 +71,58 @@ export const TAUX_CNSS = {
  * Article 5 du même décret · le taux des risques professionnels « peut être
  * MAJORÉ par la Caisse JUSQU'À CONCURRENCE DU DOUBLE à l'égard d'un employeur
  * aussi longtemps qu'il ne se conforme pas aux prescriptions de la Loi ».
+ * Le double est un PLAFOND, pas LA majoration (passe D2) · la constante borne
+ * le contrôle, elle n'est jamais le coefficient appliqué.
  *
  * C'est une DÉCISION DE LA CAISSE, jamais un effet automatique d'un manquement
  * constaté par le logiciel. Elle se déclare, et OmegaX ne la présume pas :
  * l'appliquer d'office ferait cotiser 1,5 point de trop sur tout le parc.
  */
 export const MAJORATION_RISQUES_PROFESSIONNELS_MAXIMUM = 2;
+
+/**
+ * LES DEUX NIVEAUX QUE L'ARRÊTÉ n° 140/2018 NOTIFIE, et aucun autre. Art. 22 ·
+ * « majoré de CINQUANTE POUR CENT » faute de correction des anomalies
+ * notifiées (ou mise en demeure des art. 171, 172 et 175 du Code du travail
+ * restée sans suite) ; art. 24, al. 3 · « en cas de RÉCIDIVE [...] majoré de
+ * CENT POUR CENT ». La case à cocher qui doublait toujours faisait cotiser
+ * 3 % un employeur notifié à 2,25 %, et ne lui laissait aucune saisie juste.
+ */
+export const MAJORATIONS_RISQUES_PROFESSIONNELS_POUR_CENT = [50, 100] as const;
+export type MajorationRisquesProfessionnels = (typeof MAJORATIONS_RISQUES_PROFESSIONNELS_POUR_CENT)[number];
+
+export function reserveMajorationRisquesProfessionnels(pourCent: MajorationRisquesProfessionnels): string {
+  const article =
+    pourCent === 100
+      ? "majoré de cent pour cent en cas de RÉCIDIVE (arrêté n° 140/2018, art. 24, al. 3), soit le double que l'article 5 du décret n° 18/041 fixe pour plafond"
+      : "majoré de cinquante pour cent (arrêté n° 140/2018, art. 22), le double de l'article 5 du décret n° 18/041 n'étant que le plafond";
+  return (
+    `Taux ${article}. La majoration est notifiée par la Caisse · elle court du premier jour du mois civil qui suit ` +
+    "la fin du délai de correction et est suspendue à partir du mois qui suit la correction totale des anomalies " +
+    "(art. 24, al. 1 et 2). Elle se déclare, elle ne se déduit d'aucun manquement constaté par le logiciel."
+  );
+}
+
+/**
+ * L'APPRENTI N'EST ASSUJETTI QU'À UNE BRANCHE (passe D2). Loi n° 16/009,
+ * art. 3 · « pour toutes les branches » le travailleur ; art. 4, 1° · « pour
+ * la branche des risques professionnels », l'apprenti lié par un contrat
+ * d'apprentissage. L'arrêté n° 139/2018 en fait un « travailleur assimilé »
+ * (art. 1er, 1°) et met les obligations de l'employeur à la charge du MAÎTRE
+ * (art. 4, 1°). Poser les pensions sur lui retenait 5 % sans fondement, et la
+ * quote-part sortait ensuite de l'assiette fiscale (art. 71) · net, IRPP et
+ * 422 faux sur un bulletin équilibré.
+ */
+export type RegimeCnss = 'TRAVAILLEUR' | 'APPRENTI';
+
+export const NON_DUES_APPRENTI =
+  "CNSS · prestations aux familles et pensions NON DUES · l'apprenti n'est assujetti qu'à la branche des risques professionnels (loi n° 16/009, art. 4, 1° ; arrêté n° 139/2018, art. 1er, 1°), aucune quote-part ouvrière n'est retenue.";
+
+export const RESERVE_ASSIETTE_ASSIMILE =
+  "Apprenti · travailleur assimilé, la cotisation est à la charge du maître (arrêté n° 139/2018, art. 4, 1°). Pour les assimilés, « les cotisations peuvent être assises sur les revenus fixés par le Conseil d'administration » de la Caisse (loi n° 16/009, art. 13, al. 2) · cette décision n'est pas au corpus, OmegaX garde l'assiette de l'article 7 et le dit.";
+
+export const RESERVE_REGIME_CNSS_INCONNU =
+  "CNSS · calcul valable pour un travailleur assujetti à toutes les branches (loi n° 16/009, art. 3). Le contrat du mois n'est pas lu · un apprenti ne cotise qu'aux risques professionnels (art. 4).";
 
 /**
  * INPP · arrêté interministériel n° 002/CAB/MET/2025 et autres du 24 septembre
@@ -140,6 +186,16 @@ export const BAREMES_ONEM: readonly { aPartirDu: string; tauxPourCent: number; r
 
 const RESERVE_ASSIETTE_EMPRUNTEE =
   "LECTURE · ce texte dit « rémunération » sans renvoyer à l'article 7 du Code du travail. OmegaX retient la même assiette que la CNSS, le mot étant DÉFINI par le Code dont cet arrêté relève. Lue comme le brut versé, l'assiette serait plus large de tout le logement et le transport.";
+
+/**
+ * L'INPP N'EMPRUNTE PAS SON MOT (passe D2) · la cotisation naît de l'art. 15 b)
+ * du Code du travail lui-même, qui ne délègue à l'arrêté que le TAUX, et
+ * l'art. 7 définit « rémunération » « au sens du présent code ». Reste une
+ * divergence de PÉRIODE que le calcul ne tranche pas · aucun texte lu ne dit
+ * comment la proportion au trimestre précédent se forme.
+ */
+export const RESERVE_ASSIETTE_INPP =
+  "Assiette · la cotisation naît de l'article 15 b) du Code du travail, qui ne délègue que le taux à l'arrêté ; « rémunération » s'y lit au sens de l'article 7 du même Code. PÉRIODE · l'article 15 b) rapporte la cotisation mensuelle « à la somme des rémunérations versées [...] au cours du trimestre précédent », et OmegaX la calcule sur le mois, aucun texte lu ne disant comment la proportion se forme.";
 
 /**
  * Le dernier barème dont la date d'effet tombe AU PLUS TARD DANS le mois de
@@ -304,8 +360,16 @@ export type ParametresCotisations = {
   readonly versionsDossier?: VersionsDuDossier;
   readonly natureEmployeurInpp?: NatureEmployeurInpp | null;
   readonly effectif?: number | null;
-  /** Article 5 du décret n° 18/041 · décision de la Caisse, jamais présumée. */
-  readonly majorationRisquesProfessionnels?: boolean;
+  /**
+   * La majoration notifiée par la Caisse, en pour cent du taux · 50 ou 100
+   * (arrêté n° 140/2018, art. 22 et 24). Absente, aucune majoration.
+   */
+  readonly majorationRisquesProfessionnelsPourCent?: MajorationRisquesProfessionnels | null;
+  /**
+   * Le régime CNSS du contrat du mois · null quand aucun contrat n'est lu
+   * (simulation sans salarié), et la réserve dit l'hypothèse retenue.
+   */
+  readonly regimeCnss?: RegimeCnss | null;
 };
 
 export type VerdictCotisations = {
@@ -364,13 +428,18 @@ export function plancherCnss(
   annexesSmig: readonly Annexe[] = [],
 ): PlancherCnss {
   const assiette = Math.max(0, assietteSocialeFc);
-  const annexe = annexeApplicable(moisDePaie, annexesSmig).annexe;
+  const applicable = annexeApplicable(moisDePaie, annexesSmig);
+  const annexe = applicable.annexe;
   if (!annexe) {
+    // LE MOTIF VRAI, pas « le SMIG n'est pas au corpus » (passe D2, D4) · le
+    // décret n° 18/017 est au corpus et transcrit ; ce qui manque est, selon
+    // le mois, l'annexe de ses paliers, le secteur du dossier, ou le texte
+    // d'avant 2018. Le barème dit lequel.
     return {
       baseFc: assiette,
       plancherFc: null,
       applique: false,
-      message: `PLANCHER NON VÉRIFIÉ · le SMIG de ${moisDePaie} n'est pas au corpus d'OmegaX (${SOURCES_PLANCHER}).`,
+      message: `PLANCHER NON VÉRIFIÉ · ${applicable.explication} (${SOURCES_PLANCHER}).`,
     };
   }
   const jours = joursPayes ?? MULTIPLICATEURS_ARTICLE_7.MOIS;
@@ -477,17 +546,38 @@ export function cotisations(
     const reserveCnss = cnss.saisieCabinet ? RESERVE_BAREME_CABINET : null;
     const baseCnss = plancher.baseFc as number;
     if (plancher.message) reserves.push(`CNSS · ${plancher.message}`);
-    if (cnss.prestationsAuxFamilles === null) {
-      abstentions.push(ABSTENTION_CNSS_TRANSITOIRE);
-    } else {
-      poser('cnss-pf', 'CNSS · prestations aux familles', 'CNSS', 'EMPLOYEUR', cnss.prestationsAuxFamilles, srcCnss, reserveCnss, baseCnss);
+    const apprenti = parametres.regimeCnss === 'APPRENTI';
+    if (parametres.regimeCnss === null || parametres.regimeCnss === undefined) {
+      reserves.push(RESERVE_REGIME_CNSS_INCONNU);
     }
-    poser('cnss-pension-employeur', 'CNSS · pensions, part employeur', 'CNSS', 'EMPLOYEUR', cnss.pensionsEmployeur, srcCnss, reserveCnss, baseCnss);
-    poser('cnss-pension-travailleur', 'CNSS · pensions, quote-part ouvrière', 'CNSS', 'TRAVAILLEUR', cnss.pensionsTravailleur, srcCnss, reserveCnss ?? "C'est la SEULE cotisation retenue sur la paie, et la seule que l'article 71 de la loi n° 23/053 laisse déduire du brut imposable.", baseCnss);
+    if (apprenti) {
+      // Une RÉPONSE, pas une abstention · l'émission n'en est pas bloquée.
+      reserves.push(NON_DUES_APPRENTI);
+    } else {
+      if (cnss.prestationsAuxFamilles === null) {
+        abstentions.push(ABSTENTION_CNSS_TRANSITOIRE);
+      } else {
+        poser('cnss-pf', 'CNSS · prestations aux familles', 'CNSS', 'EMPLOYEUR', cnss.prestationsAuxFamilles, srcCnss, reserveCnss, baseCnss);
+      }
+      poser('cnss-pension-employeur', 'CNSS · pensions, part employeur', 'CNSS', 'EMPLOYEUR', cnss.pensionsEmployeur, srcCnss, reserveCnss, baseCnss);
+      poser('cnss-pension-travailleur', 'CNSS · pensions, quote-part ouvrière', 'CNSS', 'TRAVAILLEUR', cnss.pensionsTravailleur, srcCnss, reserveCnss ?? "C'est la SEULE cotisation retenue sur la paie, et la seule que l'article 71 de la loi n° 23/053 laisse déduire du brut imposable.", baseCnss);
+    }
 
-    const tauxRp =
-      cnss.risquesProfessionnels *
-      (parametres.majorationRisquesProfessionnels ? MAJORATION_RISQUES_PROFESSIONNELS_MAXIMUM : 1);
+    const majoration = parametres.majorationRisquesProfessionnelsPourCent ?? null;
+    if (majoration !== null && !MAJORATIONS_RISQUES_PROFESSIONNELS_POUR_CENT.includes(majoration)) {
+      throw new RangeError(
+        `Majoration des risques professionnels de ${majoration} % · l'arrêté n° 140/2018 n'en connaît que deux, 50 % (art. 22) et 100 % en récidive (art. 24), le double étant le plafond (décret n° 18/041, art. 5).`,
+      );
+    }
+    const coefficient = 1 + (majoration ?? 0) / 100;
+    // Le plafond du texte, jamais le coefficient appliqué.
+    if (coefficient > MAJORATION_RISQUES_PROFESSIONNELS_MAXIMUM) throw new RangeError('Majoration au-delà du double.');
+    const tauxRp = cnss.risquesProfessionnels * coefficient;
+    const reservesRp = [
+      reserveCnss,
+      majoration !== null ? reserveMajorationRisquesProfessionnels(majoration) : null,
+      apprenti ? RESERVE_ASSIETTE_ASSIMILE : null,
+    ].filter((r): r is string => r !== null);
     poser(
       'cnss-rp',
       'CNSS · risques professionnels',
@@ -495,9 +585,7 @@ export function cotisations(
       'EMPLOYEUR',
       tauxRp,
       srcCnss,
-      reserveCnss ?? (parametres.majorationRisquesProfessionnels
-        ? "Taux MAJORÉ au double par décision de la Caisse (article 5 du décret n° 18/041). La majoration se déclare, elle ne se déduit d'aucun manquement constaté par le logiciel."
-        : null),
+      reservesRp.length ? reservesRp.join(' ') : null,
       baseCnss,
     );
   }
@@ -512,7 +600,7 @@ export function cotisations(
     if (inpp.tauxPourCent === null) {
       abstentions.push(`INPP · ${inpp.motifAbstention}`);
     } else {
-      poser('inpp', 'INPP · contribution patronale', 'INPP', 'EMPLOYEUR', inpp.tauxPourCent, inpp.source, inpp.saisieCabinet ? `${RESERVE_BAREME_CABINET} ${RESERVE_ASSIETTE_EMPRUNTEE}` : RESERVE_ASSIETTE_EMPRUNTEE);
+      poser('inpp', 'INPP · contribution patronale', 'INPP', 'EMPLOYEUR', inpp.tauxPourCent, `Code du travail, art. 15 b) · ${inpp.source}`, inpp.saisieCabinet ? `${RESERVE_BAREME_CABINET} ${RESERVE_ASSIETTE_INPP}` : RESERVE_ASSIETTE_INPP);
     }
   }
 
@@ -540,6 +628,29 @@ export function cotisations(
     reserves,
   };
 }
+
+/**
+ * LA SAISIE-ARRÊT ET LA CESSION NE SONT PAS HORS D'ATTEINTE (passe O4). Le
+ * motif disait qu'elles « supposent un acte que le registre ne porte pas » ·
+ * l'acte existe, il est NOTIFIÉ à l'employeur par le greffier avec « le mode
+ * de calcul de la fraction saisissable et les modalités de son règlement »
+ * (AUPSRVE, art. 184, 3°), ou avec le montant des retenues par salaire pour
+ * une cession (art. 206). Dès la notification, la quotité est indisponible
+ * (art. 187), l'employeur verse chaque mois au greffe avec une note
+ * (art. 188) ou au cessionnaire (art. 207), et s'il omet de le faire il est
+ * déclaré personnellement débiteur (art. 189). Le registre d'OmegaX ne tient
+ * pas encore ces actes · la réserve dit ce qu'il faut faire à la main, avec
+ * le compte que le Guide d'application nomme (Partie 1 ch. 3, § 4.3, 422 vers
+ * 423) et que les deux semis ouvrent (42320000).
+ */
+export const RESERVE_SAISIES_ET_CESSIONS =
+  "Restent hors du net les indemnités compensatoires de l'article 52 et le cautionnement, qui supposent un acte " +
+  "propre, ET LA SAISIE-ARRÊT OU LA CESSION NOTIFIÉE PAR LE GREFFIER, que le registre d'OmegaX ne tient pas " +
+  "encore · l'acte notifié porte le mode de calcul et le montant de la retenue (AUPSRVE, art. 184, 3° et 206), " +
+  "la quotité est indisponible dès la notification (art. 187), l'employeur verse chaque mois au greffe ou au " +
+  "cessionnaire (art. 188 et 207) et, s'il omet de le faire, il en est déclaré personnellement débiteur " +
+  "(art. 189). La retenue se passe à la main, du 422 au 42320000 « Personnel, saisies-arrêts » (Guide " +
+  "d'application SYSCOHADA, Partie 1 ch. 3, § 4.3), et le net de ce bulletin est à diminuer d'autant.";
 
 export type VerdictNet = {
   /** Tout ce que l'employeur verse, exclusions de l'article 7 comprises. */
@@ -575,8 +686,8 @@ export function netAPayer(
   const reserves = [
     "LE NET PART DU TOTAL VERSÉ · les cinq exclusions de l'article 7, point 8 du Code du travail sortent de l'ASSIETTE des cotisations, pas de ce que l'employeur paie. Le logement et le transport sont bien versés au travailleur, sauf ceux qu'il reçoit EN NATURE, qui ne sont ni dans ce total ni au 422.",
     retenuesAvancesFc > 0
-      ? "NET APRÈS LES RETENUES D'AVANCE ET DE PRÊT (article 112, c et f), tirées du registre des avances. Restent hors du net les indemnités compensatoires de l'article 52, le cautionnement et la saisie-arrêt, qui supposent chacun un acte que le registre ne porte pas."
-      : "NET AVANT LES RETENUES DE L'ARTICLE 112 · aucune avance ni aucun prêt n'est retenu sur ce bulletin. Les indemnités compensatoires de l'article 52, le cautionnement et la saisie-arrêt supposent chacun un acte que le registre ne porte pas.",
+      ? `NET APRÈS LES RETENUES D'AVANCE ET DE PRÊT (article 112, c et f), tirées du registre des avances. ${RESERVE_SAISIES_ET_CESSIONS}`
+      : `NET AVANT LES RETENUES DE L'ARTICLE 112 · aucune avance ni aucun prêt n'est retenu sur ce bulletin. ${RESERVE_SAISIES_ET_CESSIONS}`,
     // UNE GARANTIE NÉGATIVE VIEILLIT · cette réserve disait la quotité « non
     // calculée » depuis P2b, alors qu'elle l'est depuis P5 et P6, et chaque
     // bulletin émis la figeait (audit final F106).

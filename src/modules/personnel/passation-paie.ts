@@ -208,7 +208,12 @@ export const NATURES_SANS_IMPUTATION: Readonly<Partial<Record<NatureElementPaie,
   PARTICIPATION_AUX_BENEFICES:
     "Le SYSCOHADA ouvre 42610000 « Participation aux bénéfices », le SYCEBNL N'OUVRE PAS de 426 du tout. L'absence est elle-même la réponse : une entité à but non lucratif n'a pas de bénéfices à partager. Et côté SYSCOHADA, la participation suit un régime propre (affectation du résultat), non une charge de paie du mois.",
   ALLOCATIONS_FAMILIALES_LEGALES:
-    "Les allocations familiales légales sont SERVIES PAR LA CNSS, et l'arrêté n° 143/2018 organise leur paiement par l'employeur en dévolution. Ce que l'employeur avance est alors une CRÉANCE sur la Caisse, non une charge. Aucune source lue ne dit par quel compte, et l'imputer en charge gonflerait les charges de personnel du montant avancé.",
+    // PASSE D2 · le motif disait « SERVIES PAR LA CNSS » et faisait de la
+    // somme une « CRÉANCE sur la Caisse », contre la lecture des assiettes
+    // (colonne 19 du décret n° 25/22, due par l'employeur) et contre l'arrêté
+    // n° 143/2018 lui-même, où l'employeur ne fait qu'un guichet des fonds
+    // de la Caisse. Le refus survit à son motif, il change donc de motif.
+    "Sur un bulletin, cette nature est l'allocation familiale minima que l'EMPLOYEUR doit (colonne 19 de l'annexe du décret n° 25/22, art. 5 ; Code du travail, art. 87) · c'est une charge. Les fiches des comptes 66 des deux plans ne nomment aucun compte pour elle, et le 4242 « Allocations familiales » est un compte de tiers des œuvres sociales internes, pas une charge · OmegaX ne devine pas le numéro. La prestation de 8 100 FC que la CNSS fait payer par l'employeur en dévolution (arrêté n° 143/2018, art. 3 et 4) est autre chose : ce sont des fonds de la Caisse remis avant le paiement, les non-payés lui revenant sous huit jours · ni charge ni créance de l'employeur, elle ne passe pas par le bulletin.",
   SOINS_DE_SANTE:
     "Le plan ouvre plusieurs comptes qui pourraient la recevoir (66840000 médecine du travail et pharmacie, 66850000 assurances et organismes de santé, 42410000 œuvres sociales internes · assistance médicale), et aucune source lue ne dit lequel reçoit un remboursement de frais médicaux à un travailleur. La qualification appartient au cabinet.",
   FRAIS_DE_VOYAGE_OU_AVANTAGE_DE_FONCTION:
