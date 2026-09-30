@@ -251,6 +251,13 @@ describe('Réserve légale · quelles formes le texte vise', () => {
     expect(r.motif).not.toContain('546');
   });
 
+  it('la coopérative voit aussi les art. 115 et 116 (constat O6-B7)', () => {
+    const regime = regimeReserveLegale(FormeJuridiqueSyscohada.SOCIETE_COOPERATIVE);
+    expect(regime.source).toBe('AUSCOOP, art. 113 à 116');
+    expect('motif' in regime && regime.motif).toContain('« vingt pour cent des excédents nets » (art. 115)');
+    expect('motif' in regime && regime.motif).toContain('réserve de formation » (art. 116)');
+  });
+
   it('la SA dote · art. 546, 2°, et le motif cite CET article', () => {
     const r = dote(FormeJuridiqueSyscohada.SOCIETE_ANONYME);
     expect(r.dotation).toBe(300_000);

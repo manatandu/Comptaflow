@@ -396,7 +396,7 @@ export function regimeReserveLegale(forme: FormeJuridiqueSyscohada | null): Regi
       return {
         exigee: false,
         capital: '101',
-        source: 'AUSCOOP, art. 113 et 114',
+        source: 'AUSCOOP, art. 113 à 116',
         motif:
           "La société coopérative relève de l'AUSCOOP, « nonobstant les dispositions des articles 1er et 6 de " +
           "l'Acte uniforme relatif au droit des sociétés commerciales » (AUSCOOP, art. 1 al. 3) : la réserve " +
@@ -408,7 +408,10 @@ export function regimeReserveLegale(forme: FormeJuridiqueSyscohada | null): Regi
           'par les statuts, les prélèvements opérés au titre de chaque réserve ne peuvent être inférieurs à vingt ' +
           "pour cent des excédents nets d'exploitation » (art. 114). Vérifiez ces deux dotations sur vos statuts " +
           "avant d'enregistrer · le logiciel ne dispose ni des excédents nets d'exploitation au sens de ce texte, " +
-          'ni du capital fixé par les statuts.',
+          'ni du capital fixé par les statuts. Les réserves facultatives que les statuts prévoient ne peuvent ' +
+          "dépasser « vingt pour cent des excédents nets » (art. 115) et « ne peuvent pas être réparties entre les " +
+          "coopérateurs », et les coopérateurs démissionnaires ou exclus « ne peuvent prétendre à aucun droit sur " +
+          "les sommes affectées à la réserve générale et à la réserve de formation » (art. 116).",
       };
     case FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE:
       return {
