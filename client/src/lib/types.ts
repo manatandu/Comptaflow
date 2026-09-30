@@ -2443,7 +2443,7 @@ export interface MoisRetenue {
 export interface NatureRetenueCalculee {
   cle: string;
   libelle: string;
-  beneficiaire: 'ETAT' | 'ORGANISME_SOCIAL';
+  beneficiaire: 'ETAT' | 'ORGANISME_SOCIAL' | 'PROVINCE';
   echeance: string;
   baseLegale: string;
   reserve: string | null;
@@ -2515,7 +2515,7 @@ export interface EcheancierFiscal {
      */
     genre: 'REVERSEMENT' | 'DECLARATION';
     periodicite: 'MENSUELLE' | 'TRIMESTRIELLE' | 'ANNUELLE';
-    beneficiaire: 'ETAT' | 'ORGANISME_SOCIAL';
+    beneficiaire: 'ETAT' | 'ORGANISME_SOCIAL' | 'PROVINCE';
     date: string;
     echeance: string;
     baseLegale: string;
