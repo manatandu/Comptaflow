@@ -343,6 +343,28 @@ l'art. 31, la valeur ajoutée se calculant entre les deux. D'où le contrôle
 `PERSONNEL_EXTERIEUR_NON_VIRE`, qui signale sans virer d'office : le montant,
 la date et le journal appartiennent au comptable.
 
+**Passe R6 · les trois jeux SYCEBNL relus au Journal officiel (2026-09-30).**
+QUATRE RÈGLES À NE PAS DÉFAIRE. (1) LA DATE D'ARRÊTÉ DE LA NOTE 3 VIENT DE
+L'EXERCICE (`Exercice.dateArreteComptes`, `injecterDateArrete`), cellule
+verrouillée et refusée en écriture · deux dates d'arrêté dans une liasse ne se
+rapprochent de rien. (2) LE RENVOI DE LA COLONNE NOTE S'IMPRIME DANS LA COLONNE
+(`ColonneNote.porteLeRenvoi`), et les intitulés de la fiche récapitulative
+comme les titres de note sont TRANSCRITS par jeu (`intitules-notes-sycebnl.ts`),
+jamais repris du premier tableau. (3) UN COMPTE N'EST LU QUE PAR UNE LIGNE D'UNE
+MÊME NOTE (`rubriqueQuiLitDeja`, refus au rattachement). (4) UN RATTACHEMENT
+QUE PLUS AUCUNE RUBRIQUE RATTACHABLE NE LIT EST NOMMÉ (`rattachementsSansRubrique`,
+servi avec les notes et affiché avec un bouton de retrait) · lire par le plan une
+rubrique qui attendait un rattachement laissait sinon le compte sortir de la
+note sans un mot. Les renvois d'un seul caractère des modèles scannés restent la
+seule partie fragile de la transcription (VA, VB, VC du SMT, à lire sur le PDF).
+
+**Recensement du 2026-09-30 · un montant en francs ne se compare pas à un seuil
+en FCFA.** Les seuils de l'AUSCGIE (art. 376, 906) et du SYCEBNL (art. 19, « ou
+l'équivalent dans l'unité monétaire ayant cours légal ») sont en FCFA, et aucune
+parité n'est au corpus · un critère non comparable est rendu `nonCompares`,
+l'obligation `obligationIndeterminee`, jamais « non franchi ». Une mission
+prorogée se dit quand même, c'est un fait sur un mandat existant.
+
 **Rubriques de notes en saisie · ce que le logiciel ne peut pas calculer.**
 322 rubriques des trois jeux portent `saisie: true` : engagements donnés et
 reçus, effectifs, informations sociales et environnementales, événements
@@ -1866,9 +1888,12 @@ payer de P2b, prise par l'autre bout.
 **QUATRE NATURES NE SONT PAS IMPUTÉES**, et deviner produirait une écriture
 équilibrée sur une nature fausse. La PARTICIPATION AUX BÉNÉFICES · le SYCEBNL
 n'ouvre pas de 426 DU TOUT, et l'absence est elle-même la réponse. Les
-ALLOCATIONS FAMILIALES LÉGALES · servies par la CNSS, l'arrêté n° 143/2018
-organisant leur paiement en dévolution, ce que l'employeur avance est une
-CRÉANCE et non une charge. Les SOINS DE SANTÉ · trois comptes pourraient les
+ALLOCATIONS FAMILIALES LÉGALES · celles que le bulletin porte sont les minima
+dus par l'EMPLOYEUR (colonne 19 du décret n° 25/22, voir P5), et la dévolution
+de l'arrêté n° 143/2018, où la Caisse met les fonds à la disposition de
+l'employeur, n'est ni une charge ni une créance de celui-ci · aucune fiche du
+compte 66 ne nomme leur compte (corrigé le 2026-09-30 ; la phrase disait
+« une CRÉANCE et non une charge »). Les SOINS DE SANTÉ · trois comptes pourraient les
 recevoir et aucune source ne dit lequel. Les FRAIS DE VOYAGE · transport,
 avantage de fonction ou remboursement effectif sont trois natures, et l'art. 68,
 1 renvoie à une qualification. Un test vérifie que les deux tables se complètent
@@ -2256,9 +2281,15 @@ prudence.
 **LA VOIE QUI RESTE EST UNE CESSION, PAS UNE RETENUE, ET C'EST UNE LECTURE
 D'ÉDITEUR DÉCLARÉE.** L'article 114 régit « la CESSION » autant que la saisie ;
 une cession est un acte DU TRAVAILLEUR, et l'employeur qui paie le cessionnaire
-EXÉCUTE au lieu de retenir. Deux conséquences dites avant de la proposer · elle
-CONSOMME LA QUOTITÉ CESSIBLE et concurrence donc les créanciers, et elle
-suppose un ÉCRIT RÉVOCABLE du travailleur, jamais une clause qui vaut pour tous.
+EXÉCUTE au lieu de retenir. Elle CONSOMME LA QUOTITÉ CESSIBLE et concurrence donc
+les créanciers. **ET SA FORME EST CELLE DE L'AUPSRVE** (corrigé le 2026-09-30,
+passe O4) · « que par déclaration du cédant en personne, au greffe de la
+juridiction de son domicile » (art. 205), l'employeur payant le cessionnaire
+« sur production d'une copie de la déclaration de cession » (art. 207), et
+elle ne prend fin que dans les cas de l'art. 212. Le « simple écrit révocable
+du travailleur » écrit ici jusque-là n'est pas une cession · remis à
+l'employeur, il relève de l'art. 112 du Code du travail, qui ne nomme pas la
+cotisation syndicale (`RESERVE_CESSION_SYNDICALE`).
 
 **DEUX LITTERAE DE L'ARTICLE 112 SONT DATÉS, ET LA SOUPLESSE A UNE LIMITE.** Le
 a) nomme la « taxe professionnelle », abrogée, et le b) l'« Institut National de
