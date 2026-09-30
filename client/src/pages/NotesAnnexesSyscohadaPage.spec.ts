@@ -183,3 +183,15 @@ describe('rendu partagé des notes annexes', () => {
     }
   });
 });
+
+describe('rattachements que plus aucune rubrique ne lit (passe R6)', () => {
+  it('les deux écrans de notes les nomment et offrent de les retirer par le détachement', () => {
+    for (const source of [page, pageSycebnl]) {
+      expect(source).toMatch(/<RattachementsSansRubrique\s+liste=\{resultat\?\.rattachementsSansRubrique\}[\s\S]*?retirer=\{detacher\}/);
+    }
+  });
+
+  it('le serveur les sert avec le résultat des notes', () => {
+    expect(lireServeur('modules/notes-annexes/note-annexe.service.ts')).toMatch(/rattachementsSansRubrique,/);
+  });
+});

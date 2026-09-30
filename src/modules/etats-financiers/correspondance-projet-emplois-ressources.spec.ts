@@ -178,6 +178,23 @@ describe('emplois-ressources · cohérence des rattachements', () => {
     }
   });
 
+  it('chaque préfixe de DÉDUCTION correspond lui aussi à au moins un compte du semis', () => {
+    // Passe R6, D15 · le test ci-dessus ne parcourait que `p.comptes`. La
+    // déduction du renvoi (8) portait sur un « 166 » que le plan SYCEBNL
+    // n'ouvre pas, et ne captait rien, sans qu'aucun test ne le dise.
+    for (const p of TOUS_LES_POSTES) {
+      for (const d of p.deductions ?? []) {
+        for (const prefixe of d.comptes) {
+          expect([p.ref, prefixe, COMPTES_IMPUTATION.some((c) => c.numero.startsWith(prefixe))]).toEqual([
+            p.ref,
+            prefixe,
+            true,
+          ]);
+        }
+      }
+    }
+  });
+
   it('aucun compte n’est capté par deux postes de la même section', () => {
     for (const [nom, postes] of [
       ['ressources', POSTES_RESSOURCES],

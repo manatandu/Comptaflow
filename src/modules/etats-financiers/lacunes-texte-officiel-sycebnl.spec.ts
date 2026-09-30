@@ -1,3 +1,4 @@
+import { NOTES_PROJETS } from '../notes-annexes/correspondance-notes-projets';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 // Les deux jeux exportent les MÊMES noms (`POSTES_ACTIF`, `POSTES_PASSIF`) ·
@@ -68,15 +69,28 @@ describe('SYCEBNL · lacunes du texte officiel, non comblées et signalées', ()
     expect(projetCE).toContain('[texte officiel]');
   });
 
-  it('six subdivisions du compte 70 ne sont réclamées par aucun poste', () => {
-    // Le tableau n'en cite que trois : 702 en RA, 705 en RC, 707 en RD.
+  it('cinq subdivisions du compte 70 ne sont réclamées par aucun poste', () => {
+    // Le tableau n'en cite que trois : 702 en RA, 705 en RB, 707 en RD (RC
+    // porte le 71). Le plan n'ouvre pas de 700 · « six » comptait un compte
+    // qui n'existe pas (passe R6, D21).
     const capte = prefixesCaptes(POSTES_COMPTE_EXPLOITATION_PROJET);
     for (const present of ['702', '705', '707']) expect(capte).toContain(present);
     for (const absent of ['701', '703', '704', '706', '708']) expect(capte).not.toContain(absent);
     // Et le compte 70 entier n'est pas non plus capté par un préfixe court,
     // qui les absorberait toutes en silence.
     expect(capte).not.toContain('70');
-    expect(projetCE).toContain('Six subdivisions du compte 70 absentes de tout poste');
+    expect(projetCE).toContain('Cinq subdivisions du compte 70 absentes de tout poste');
+  });
+
+  it('la note 14 qui détaille RD ne capte aucune des cinq subdivisions refusées aux postes (passe R6, D5)', () => {
+    // Le compte d'exploitation refuse le 708 à RD (anomalie n° 5) · la note
+    // qui détaille RD le rangeait pourtant dans sa ligne « autres produits »,
+    // et son total dépassait RB + RC + RD du solde du 708, en silence.
+    const note14 = NOTES_PROJETS.filter((n) => n.code === '14').flatMap((n) => n.rubriques);
+    for (const absent of ['701', '703', '704', '706', '708']) {
+      const capteurs = note14.filter((r) => (r.comptes ?? []).some((p) => `${absent}00000`.startsWith(p) || p.startsWith(absent)));
+      expect([absent, capteurs.map((r) => r.libelle)]).toEqual([absent, []]);
+    }
   });
 
   it('les comptes 499 et 599 ne sont réclamés par aucun poste du bilan projets', () => {

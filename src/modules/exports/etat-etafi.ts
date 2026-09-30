@@ -428,7 +428,7 @@ export function texteControleEcheances(
 // Jeu « projets de développement et assimilés » (Partie 4, ch. 3)
 // ---------------------------------------------------------------------------
 
-/** Totaux du bilan projet (présenté EN NET · pas de colonne amortissements). */
+/** Totaux du bilan projet (pas de colonne amortissements · le moteur n'en retranche aucun). */
 export const TOTAUX_PROJETS_BILAN: Record<string, string> = {
   AZ: 'AA+AB+AC+AD+AE+AF+AG+AH',
   BF: 'BA+BB+BC+BD+BE',
@@ -443,13 +443,34 @@ export const TOTAUX_PROJETS_BILAN: Record<string, string> = {
 };
 
 /**
+ * Clés de la liasse des quatre lignes au REF dupliqué du compte
+ * d'exploitation projets (anomalie n° 3 de
+ * `correspondance-projet-compte-exploitation.ts`). La substitution des
+ * formules ne lit qu'un mot de lettres et de chiffres, sans tiret bas : les
+ * clés internes du moteur (TJ_PERSONNEL…) n'y entrent donc pas, et une
+ * composante inconnue vaut 0. Jusqu'à la passe R6 (D1, D8), la feuille
+ * posait les clés du moteur, si bien que XB perdait en silence les comptes
+ * 66, 67, 69 et 82 à 88 et que ces quatre lignes sortaient sans renvoi.
+ */
+export const CLE_ETAFI_PAR_CLE_PROJET: Record<string, string> = {
+  TJ_PERSONNEL: 'TJ',
+  TK_FRAIS_FINANCIERS: 'TK',
+  TJ_DOTATIONS_PROVISIONS: 'TJ2',
+  TK_PRODUITS_HAO: 'TK2',
+};
+
+/**
  * Totaux du compte d'exploitation · les charges sont servies en POSITIF par
  * le serveur (même convention que le jeu associations), donc XC = XA - XB.
  * TJ2/TK2 sont les CLÉS des deux lignes au ref dupliqué du texte officiel.
+ * Le TK Produits H.A.O. (TK2) est servi dans son sens, en positif, et porte
+ * le signe « + » au tableau de correspondance (Partie 4 ch. 3, l. 587),
+ * opposé à celui des charges : il se RETRANCHE du total des charges, comme
+ * le fait le serveur.
  */
 export const TOTAUX_PROJETS_CE: Record<string, string> = {
   XA: 'RA+RB+RC+RD+RE',
-  XB: 'TA+TB+TC+TD+TG+TH+TI+TJ+TK+TJ2+TK2+TL',
+  XB: 'TA+TB+TC+TD+TG+TH+TI+TJ+TK+TJ2-TK2+TL',
   XC: 'XA-XB',
 };
 
@@ -501,7 +522,11 @@ export const NOTE_PAR_CLE_PROJETS: Record<string, string> = {
   DH: '12',
   DW: '13',
   DY: '8',
-  RA: '9 et 14',
+  // Un seul renvoi à la maquette (« 8 », Partie 4 ch. 3 l. 156, au décalage
+  // d'un cran appliqué partout) · la note 14 ne porte aucune ligne du 702,
+  // c'est la note 9, renvoi (2), qui le nomme. Le « 9 et 14 » venait de la
+  // table dérivée du skill, pas du texte (passe R6, D8).
+  RA: '9',
   RB: '14',
   RC: '14',
   RD: '14',

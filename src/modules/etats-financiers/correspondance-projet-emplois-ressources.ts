@@ -39,6 +39,16 @@
  * dette N ». C'est donc une coquille du guide, et le sens créditeur est
  * retenu partout. Le choix est écrit ici pour pouvoir être discuté, et non
  * enfoui dans le code.
+ *
+ * `[texte officiel]` Le renvoi (8) demande de « déduire le mouvement crédit
+ * du compte 166 ». Le plan SYCEBNL n'ouvre pas de 166 (Partie 2 ch. 2 et
+ * fiche du compte 16 : 161 à 165, puis 167 à 169). L'objet visé, le
+ * mouvement crédit des intérêts courus, est au 186 (fiche du compte 18 :
+ * « est crédité le compte 18 à la clôture de l'exercice, des intérêts courus
+ * […] par le débit du compte 671 »). 166 est le numéro SYSCOHADA du même
+ * intitulé : le guide a transposé. OmegaX lit le 186, en LECTURE à
+ * discuter, sans y ajouter le 1876 ni aucun autre compte que le renvoi ne
+ * nomme pas.
  */
 
 export type SensMouvement = 'DEBIT' | 'CREDIT';
@@ -57,7 +67,8 @@ export type SensMouvement = 'DEBIT' | 'CREDIT';
  *    150 000 décaissés. Lire la parenthèse comme une quantité à retrancher
  *    donnerait 250 000, soit plus que la charge elle-même.
  *  - `RETRANCHER_MOUVEMENT` (renvoi 8) : « Déduire le mouvement crédit du
- *    compte 166 ». Là, c'est bien une soustraction sèche d'un mouvement.
+ *    compte 166 » (le 186 au plan SYCEBNL, voir plus haut). Là, c'est bien
+ *    une soustraction sèche d'un mouvement.
  */
 export type OperationCorrection = 'AJOUTER_VARIATION' | 'RETRANCHER_MOUVEMENT';
 
@@ -352,10 +363,17 @@ export const POSTES_CHARGES: PosteEmploisRessources[] = [
     exclusions: ['679'],
     deductions: [
       {
-        comptes: ['166'],
+        // LECTURE D'OMEGAX, ouverte à discussion (passe R6, D15) : le renvoi
+        // (8) cite un « compte 166 » que le plan SYCEBNL n'ouvre pas (Partie 2
+        // ch. 2, division 16 : 161 à 165 puis 167 à 169). 166 « Intérêts
+        // courus » est le numéro SYSCOHADA ; au SYCEBNL, les intérêts courus
+        // sont au 186, crédité à la clôture par le débit du 671 (fiche du
+        // compte 18). Lu à la lettre, le préfixe ne captait aucun compte, et
+        // FS gardait les intérêts courus non décaissés.
+        comptes: ['186'],
         operation: 'RETRANCHER_MOUVEMENT',
         renvoi:
-          "Renvoi (8) : « Déduire le mouvement crédit du compte 166. » Seule déduction du guide qui porte sur un MOUVEMENT et non sur une variation de solde · elle est traitée comme telle.",
+          "Renvoi (8) : « Déduire le mouvement crédit du compte 166. » Le plan SYCEBNL n'ouvre pas de 166 ; les intérêts courus y sont au 186 (fiche du compte 18), lu ici. Seule déduction du guide qui porte sur un MOUVEMENT et non sur une variation de solde · elle est traitée comme telle.",
       },
     ],
     fondement: "Application 21 : « Balance mouvement débit : compte 67 (8) ».",

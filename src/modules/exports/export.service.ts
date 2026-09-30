@@ -83,6 +83,7 @@ import {
   REP_TFT,
   TOTAUX_PROJETS_BILAN,
   TOTAUX_PROJETS_CE,
+  CLE_ETAFI_PAR_CLE_PROJET,
   TOTAUX_TER,
   GroupeColonnes,
   LigneEtatEtafi,
@@ -2051,6 +2052,19 @@ export class ExportService {
     { titre: 'EXERCICE AU 31/12/N', sousTitres: ['BRUT', 'AMORT et DEPREC.', 'NET'] },
     { titre: 'EXERCICE AU 31/12/N-1', sousTitres: ['NET'] },
   ];
+  /**
+   * Colonnes du bilan projets · la maquette écrit « EXERCICE AU 31/12/N |
+   * EXERCICE AU 31/12/N-1 » sans qualifier les montants (Partie 4 ch. 3,
+   * Section 4), là où elle écrit « (NET) » au compte d'exploitation. Le
+   * moteur ne retranche aucun amortissement (`correspondance-projet-bilan.ts`)
+   * · un sous-titre « NET » annonçait un calcul qui n'est pas fait (passe R6,
+   * D11).
+   */
+  private static readonly GROUPES_BILAN_PROJET: GroupeColonnes[] = [
+    { titre: 'EXERCICE AU 31/12/N', sousTitres: [''] },
+    { titre: 'EXERCICE AU 31/12/N-1', sousTitres: [''] },
+  ];
+
   private static readonly GROUPES_NET: GroupeColonnes[] = [
     { titre: 'EXERCICE AU 31/12/N', sousTitres: ['NET'] },
     { titre: 'EXERCICE AU 31/12/N-1', sousTitres: ['NET'] },
@@ -2283,7 +2297,7 @@ export class ExportService {
     };
   }
 
-  /** Lignes ETAFI du jeu projets · bilan (en net) et compte d'exploitation. */
+  /** Lignes ETAFI du jeu projets · bilan et compte d'exploitation. */
   private lignesProjetEtafi(
     postes: Array<PosteCalcule & { cle?: string }>,
   ): LigneEtatEtafi[] {
@@ -2301,10 +2315,10 @@ export class ExportService {
   }
 
   /**
-   * Feuilles `Bilan-Actif` / `Bilan-Passif` du jeu projets · le modèle les
-   * présente EN NET (le tableau officiel du ch. 3 n'a pas de colonne
-   * amortissements, correction documentée dans le skill) : cinq colonnes,
-   * titre « BILAN (EN NET) ».
+   * Feuilles `Bilan-Actif` / `Bilan-Passif` du jeu projets · cinq colonnes,
+   * titre « BILAN ». Le texte officiel ne qualifie pas les colonnes de ce
+   * bilan ; le « EN NET » imprimé jusqu'à la passe R6 (D11) venait de la
+   * compétence, dont le moteur a écarté l'imputation des amortissements.
    */
   private feuillesBilanProjetEtafi(
     classeur: ExcelJS.Workbook,
@@ -2313,23 +2327,23 @@ export class ExportService {
   ): { rangsActif: Map<string, number>; rangsPassif: Map<string, number> } {
     const rangsActif = construireFeuilleEtat(classeur, {
       nom: 'Bilan-Actif',
-      titre: 'BILAN (EN NET)',
+      titre: 'BILAN',
       taille: 16,
       ident,
-      pageRef: 'BILAN (EN NET)\nPAGE 1/2',
+      pageRef: 'BILAN\nPAGE 1/2',
       libelleColonne: 'ACTIF',
-      groupes: ExportService.GROUPES_NET,
+      groupes: ExportService.GROUPES_BILAN_PROJET,
       lignes: this.lignesProjetEtafi(bilan.actif),
       totaux: TOTAUX_PROJETS_BILAN,
     });
     const rangsPassif = construireFeuilleEtat(classeur, {
       nom: 'Bilan-Passif',
-      titre: 'BILAN (EN NET)',
+      titre: 'BILAN',
       taille: 16,
       ident,
-      pageRef: 'BILAN (EN NET)\nPAGE 2/2',
+      pageRef: 'BILAN\nPAGE 2/2',
       libelleColonne: 'PASSIF',
-      groupes: ExportService.GROUPES_NET,
+      groupes: ExportService.GROUPES_BILAN_PROJET,
       lignes: this.lignesProjetEtafi(bilan.passif),
       totaux: TOTAUX_PROJETS_BILAN,
     });
@@ -2373,14 +2387,22 @@ export class ExportService {
       comptes: [],
       estTotal: true,
     });
+    // Les quatre lignes au REF dupliqué prennent la clé de la liasse (TJ, TK,
+    // TJ2, TK2) que TOTAUX_PROJETS_CE et NOTE_PAR_CLE_PROJETS lisent.
     const avecCles = (postes: PosteCalcule[], specs: Array<{ cle: string }>): Array<PosteCalcule & { cle?: string }> =>
-      postes.map((p, i) => ({ ...p, cle: specs[i]?.cle }));
+      postes.map((p, i) => {
+        const cle = specs[i]?.cle;
+        return { ...p, cle: cle ? (CLE_ETAFI_PAR_CLE_PROJET[cle] ?? cle) : cle };
+      });
+    // Libellés des trois totaux : ceux du modèle de la Section 5 (Partie 4
+    // ch. 3, l. 160, 173 et 174), les mêmes qu'à l'écran. « Somme RA à RE »
+    // suit l'anomalie n° 2 de `correspondance-projet-compte-exploitation.ts`.
     const postes: Array<PosteCalcule & { cle?: string }> = [
       ...avecCles(ce.revenus, POSTES_REVENUS_PROJET),
-      total('XA', 'TOTAL REVENUS'),
+      total('XA', 'REVENUS (Somme RA à RE)'),
       ...avecCles(ce.charges, POSTES_CHARGES_PROJET),
-      total('XB', 'TOTAL CHARGES'),
-      total('XC', 'SOLDE : EXCEDENT OU PERTE (XA - XB)'),
+      total('XB', 'CHARGES DE FONCTIONNEMENT (Somme TA à TL)'),
+      total('XC', "SOLDE DES OPERATIONS DE L'EXERCICE : XA-XB"),
     ];
     return construireFeuilleEtat(classeur, {
       nom: 'Compte Exploitation',
@@ -2443,6 +2465,11 @@ export class ExportService {
       { header: 'Administration · Décaissé', key: 'aDecaisse', width: 20 },
       { header: 'Administration · Consommé', key: 'aConsomme', width: 20 },
       { header: 'Administration · Solde restant', key: 'aSolde', width: 22 },
+      // Les deux fonds réunis, par bailleur · la ligne de total y porte
+      // `totalFondsDuBailleur`, que le service calcule (passe R6, D13).
+      { header: 'Total des fonds · Décaissé', key: 'tDecaisse', width: 20 },
+      { header: 'Total des fonds · Consommé', key: 'tConsomme', width: 20 },
+      { header: 'Total des fonds · Solde restant', key: 'tSolde', width: 22 },
     ];
 
     const bailleurs = new Map<string, { nom: string; code: string }>();
@@ -2460,6 +2487,9 @@ export class ExportService {
         aDecaisse: adm?.decaisse ?? 0,
         aConsomme: adm?.consomme ?? 0,
         aSolde: adm?.soldeRestant ?? 0,
+        tDecaisse: (inv?.decaisse ?? 0) + (adm?.decaisse ?? 0),
+        tConsomme: (inv?.consomme ?? 0) + (adm?.consomme ?? 0),
+        tSolde: (inv?.soldeRestant ?? 0) + (adm?.soldeRestant ?? 0),
       });
     }
     if (note.investissementNonAffecte.decaisse !== 0 || note.administrationNonAffecte.decaisse !== 0) {
@@ -2471,9 +2501,15 @@ export class ExportService {
         aDecaisse: note.administrationNonAffecte.decaisse,
         aConsomme: note.administrationNonAffecte.consomme,
         aSolde: note.administrationNonAffecte.soldeRestant,
+        tDecaisse: note.investissementNonAffecte.decaisse + note.administrationNonAffecte.decaisse,
+        tConsomme: note.investissementNonAffecte.consomme + note.administrationNonAffecte.consomme,
+        tSolde: note.investissementNonAffecte.soldeRestant + note.administrationNonAffecte.soldeRestant,
       });
       ligneNonAffecte.font = { italic: true, color: { argb: 'FFB00020' } };
     }
+    // Les colonnes Investissement portent TOTAL FONDS D'INVESTISSEMENT, les
+    // colonnes Administration TOTAL FONDS D'ADMINISTRATION, et les colonnes
+    // Total des fonds le TOTAL DES FONDS DU BAILLEUR de la maquette.
     const ligneTotal = feuille.addRow({
       bailleur: 'TOTAL DES FONDS DU BAILLEUR',
       iDecaisse: note.totalInvestissement.decaisse,
@@ -2482,6 +2518,9 @@ export class ExportService {
       aDecaisse: note.totalAdministration.decaisse,
       aConsomme: note.totalAdministration.consomme,
       aSolde: note.totalAdministration.soldeRestant,
+      tDecaisse: note.totalFondsDuBailleur.decaisse,
+      tConsomme: note.totalFondsDuBailleur.consomme,
+      tSolde: note.totalFondsDuBailleur.soldeRestant,
     });
     ligneTotal.font = ENTETE_FONT;
 
@@ -2492,24 +2531,28 @@ export class ExportService {
       aDecaisse: FORMAT_MONTANT,
       aConsomme: FORMAT_MONTANT,
       aSolde: FORMAT_MONTANT,
+      tDecaisse: FORMAT_MONTANT,
+      tConsomme: FORMAT_MONTANT,
+      tSolde: FORMAT_MONTANT,
     });
     // Remise au bailleur · elle se nomme elle-même (audit final F102). La
     // coiffe passe AVANT toute fusion, que `spliceRows` ne décale pas.
     this.piedDePageEtat(feuille, identite);
     // Le filtre s'arrête avant la ligne des totaux, qu'un tri remonterait.
     const derniereNote9 = ligneTotal.number - 1;
-    const enteteNote9 = this.coifferEtat(feuille, identite, 'NOTE 9 · FONDS DU BAILLEUR', 7);
-    this.finaliserTableau(feuille, 7, derniereNote9 + 3, enteteNote9);
+    const enteteNote9 = this.coifferEtat(feuille, identite, 'NOTE 9 · FONDS DU BAILLEUR', 10);
+    this.finaliserTableau(feuille, 10, derniereNote9 + 3, enteteNote9);
 
     const note9 = feuille.addRow([
       'Montants CUMULÉS depuis l’origine du projet, toutes périodes confondues · la Note 9 suit le cycle de vie du ' +
         'projet, pas l’exercice comptable. Décaissé = mouvements crédit (hors report à-nouveau) sur les sous-comptes ' +
         '162-164/462-464 rattachés au bailleur ; Consommé = mouvements débit ; Solde restant = Décaissé − Consommé. ' +
-        'Convention détaillée dans EtatsFinanciersProjetService.noteBailleur (2 ambiguïtés du texte officiel ' +
-        'signalées, résolues par lecture directe des écritures Partie 3 ch. 3, pas par invention).',
+        'Les deux ambiguïtés du texte officiel sur ces montants sont résolues par lecture directe des écritures ' +
+        '(Partie 3 ch. 3). La colonne « Date des décaissements » de la maquette n’est pas servie : le texte ne ' +
+        'dit pas comment un montant consommé se rattache à un décaissement daté.',
     ]);
     note9.font = { italic: true, color: { argb: 'FF555555' } };
-    feuille.mergeCells(`A${note9.number}:G${note9.number}`);
+    feuille.mergeCells(`A${note9.number}:J${note9.number}`);
 
     return {
       buffer: await this.versBuffer(classeur),
@@ -2586,6 +2629,125 @@ export class ExportService {
    * CONTENU (colonnes et rubriques) vient du moteur déclaratif de notes du
    * serveur · même texte officiel que le moteur Python du skill.
    */
+  /**
+   * NOTE 9 · FONDS DU BAILLEUR, dans l'orientation de la maquette (Partie 4
+   * ch. 3, note 9) : les bailleurs en COLONNES (« Montant décaissé ; Montant
+   * consommé ; Solde restant » chacun), les deux fonds en RUBRIQUES, puis
+   * TOTAL FONDS D'INVESTISSEMENT, TOTAL FONDS D'ADMINISTRATION et TOTAL DES
+   * FONDS DU BAILLEUR. Aucun calcul nouveau : les montants sont ceux de
+   * `EtatsFinanciersProjetService.noteBailleur`, cumulés depuis l'origine du
+   * projet, le total général étant `totalFondsDuBailleur`.
+   *
+   * Deux écarts à la maquette, dits sur la feuille. La colonne « Date des
+   * décaissements » n'est pas servie · [texte officiel] le texte ne dit pas
+   * comment un montant consommé se rattache à un décaissement daté, et la
+   * trancher (une ligne par date de mouvement crédit, par exemple) est une
+   * décision à prendre, pas une lecture. Et une colonne « TOTAL » réunit les
+   * bailleurs, pour porter le total que le service calcule.
+   */
+  private feuilleNote9FondsDuBailleur(
+    classeur: ExcelJS.Workbook,
+    note: Awaited<ReturnType<EtatsFinanciersProjetService['noteBailleur']>>,
+    tableaux: NoteCalculee[],
+    ident: IdentiteLiasse,
+  ) {
+    type Montants = { decaisse: number; consomme: number; soldeRestant: number };
+    const somme = (a: Montants, b: Montants): Montants => ({
+      decaisse: a.decaisse + b.decaisse,
+      consomme: a.consomme + b.consomme,
+      soldeRestant: a.soldeRestant + b.soldeRestant,
+    });
+    const zero: Montants = { decaisse: 0, consomme: 0, soldeRestant: 0 };
+
+    const bailleurs = new Map<string, string>();
+    for (const b of [...note.investissement, ...note.administration]) {
+      bailleurs.set(b.bailleur.id, `${b.bailleur.code} · ${b.bailleur.nom}`);
+    }
+    const groupes: Array<{ titre: string; inv: Montants; adm: Montants; total: Montants }> = [...bailleurs].map(
+      ([id, titre]) => {
+        const inv = note.investissement.find((b) => b.bailleur.id === id) ?? zero;
+        const adm = note.administration.find((b) => b.bailleur.id === id) ?? zero;
+        return { titre, inv, adm, total: somme(inv, adm) };
+      },
+    );
+    const nonAffecte = somme(note.investissementNonAffecte, note.administrationNonAffecte);
+    if (nonAffecte.decaisse !== 0 || nonAffecte.consomme !== 0) {
+      groupes.push({
+        titre: 'NON AFFECTÉ (sans bailleur rattaché)',
+        inv: note.investissementNonAffecte,
+        adm: note.administrationNonAffecte,
+        total: nonAffecte,
+      });
+    }
+    groupes.push({
+      titre: 'TOTAL',
+      inv: note.totalInvestissement,
+      adm: note.totalAdministration,
+      total: note.totalFondsDuBailleur,
+    });
+
+    const ncols = 1 + 3 * groupes.length;
+    const ws = classeur.addWorksheet('NOTE 9');
+    ecrireCartouche(ws, ident, 'NOTE 9', ncols);
+    titreNote(ws, `NOTE 9 : ${(tableaux[0]?.titreNote ?? 'FONDS DU BAILLEUR').toUpperCase()}`, ncols);
+
+    let r = 8;
+    ws.getCell(r, 1).value = 'Libellés';
+    fusion(ws, r, 1, r + 1, 1);
+    groupes.forEach((g, i) => {
+      const c = 2 + 3 * i;
+      ws.getCell(r, c).value = g.titre;
+      fusion(ws, r, c, r, c + 2);
+      ['Montant décaissé', 'Montant consommé', 'Solde restant'].forEach((t, j) => {
+        ws.getCell(r + 1, c + j).value = t;
+      });
+    });
+    entetesBande(ws, r, r + 1, 1, ncols);
+    ws.getRow(r).height = 30;
+    ws.getRow(r + 1).height = 30;
+    const colsMontant = Array.from({ length: 3 * groupes.length }, (_, i) => 2 + i);
+    r += 1;
+
+    const ligne = (libelle: string, montants: ((g: (typeof groupes)[number]) => Montants) | null, niveau: 'normal' | 'inter') => {
+      r += 1;
+      ws.getCell(r, 1).value = libelle;
+      if (montants) {
+        groupes.forEach((g, i) => {
+          const m = montants(g);
+          ws.getCell(r, 2 + 3 * i).value = m.decaisse;
+          ws.getCell(r, 3 + 3 * i).value = m.consomme;
+          ws.getCell(r, 4 + 3 * i).value = m.soldeRestant;
+        });
+      }
+      styleLigne(ws, r, 1, ncols, niveau, colsMontant);
+      if (!montants) ws.getCell(r, 1).font = { name: 'Arial', size: 9, bold: true };
+      ws.getRow(r).height = 18;
+    };
+    ligne("Fonds d'investissement", null, 'normal');
+    ligne("TOTAL FONDS D'INVESTISSEMENT", (g) => g.inv, 'inter');
+    ligne("Fonds d'administration", null, 'normal');
+    ligne("TOTAL FONDS D'ADMINISTRATION", (g) => g.adm, 'inter');
+    ligne('TOTAL DES FONDS DU BAILLEUR', (g) => g.total, 'inter');
+    cadre(ws, 8, 1, r, ncols, MOYEN);
+
+    const spec = tableaux[0];
+    const commentaires = [
+      'Montants cumulés depuis l\'origine du projet. La colonne « Date des décaissements » de la maquette n\'est ' +
+        'pas servie : le texte ne dit pas comment un montant consommé se rattache à un décaissement daté. La ' +
+        'colonne TOTAL, qui réunit les bailleurs, est une précision d\'OmegaX.',
+    ];
+    if (spec?.renvoyeeDepuis?.length) commentaires.push(`Renvoyée depuis les postes : ${spec.renvoyeeDepuis.join(', ')}.`);
+    if (spec?.renvoiOfficiel) commentaires.push(spec.renvoiOfficiel);
+    if (spec?.commentaire) commentaires.push(`Commentaire officiel : ${spec.commentaire}`);
+    ligneControleSousEtat(ws, r + 2, commentaires.join(' '));
+
+    // Par numéro de colonne · au-delà de huit bailleurs, les lettres
+    // dépassent Z.
+    ws.getColumn(1).width = 38;
+    for (const c of colsMontant) ws.getColumn(c).width = 16;
+    ws.views = [{ state: 'frozen', ySplit: 9, showGridLines: false }];
+  }
+
   private feuilleNote(classeur: ExcelJS.Workbook, tableaux: NoteCalculee[], ident: IdentiteLiasse) {
     const code = tableaux[0].code;
     const nomFeuille = `NOTE ${code}`;
@@ -2742,6 +2904,9 @@ export class ExportService {
     ident: IdentiteLiasse,
     parties?: Array<[string, string[]]>,
     classeur?: ExcelJS.Workbook,
+    /** Feuilles dont la forme n'est pas celle du moteur de notes (la NOTE 9
+     *  des projets, une colonne par bailleur) · construites à leur rang. */
+    feuillesPropres: Record<string, (cible: ExcelJS.Workbook, tableaux: NoteCalculee[]) => void> = {},
   ): ExcelJS.Workbook {
     const cible = classeur ?? this.nouveauClasseur();
     this.feuilleFicheRecapitulative(cible, resultat.ficheRecapitulative, ident, parties);
@@ -2776,7 +2941,9 @@ export class ExportService {
     }
     const comparer = this.comparateurNotes(parties);
     for (const code of [...parCode.keys()].sort(comparer)) {
-      this.feuilleNote(cible, parCode.get(code)!, ident);
+      const propre = feuillesPropres[code];
+      if (propre) propre(cible, parCode.get(code)!);
+      else this.feuilleNote(cible, parCode.get(code)!, ident);
     }
     return cible;
   }
@@ -2809,9 +2976,9 @@ export class ExportService {
 
   /**
    * Notes annexes du jeu « projets de développement et assimilés ». La
-   * note 9 « Fonds du bailleur » y figure comme un simple RENVOI (colonnes
-   * dynamiques par bailleur, hors de la forme de ce moteur) vers
-   * `noteBailleurExcel` · voir `NoteAnnexeService.notesProjet`.
+   * note 9 « Fonds du bailleur » y porte ses chiffres, une colonne par
+   * bailleur (`feuilleNote9FondsDuBailleur`), et non plus un renvoi à une
+   * route d'API que le lecteur ne peut pas suivre (passe R6, D13).
    *
    * LA FICHE RÉCAPITULATIVE SUIT LES QUATRE PARTIES OFFICIELLES (audit final
    * F224), comme dans la liasse du même jeu (`liasseProjetsEtafi`) · sans
@@ -2824,7 +2991,12 @@ export class ExportService {
       this.noteAnnexeService.notesProjet(tenantId, exerciceId),
       this.identiteLiasse(tenantId, exerciceId),
     ]);
-    const classeur = this.construireClasseurNotes(resultat, ident, ExportService.PARTIES_NOTES_PROJETS);
+    // Après l'identité · un exercice inconnu du dossier est refusé par elle
+    // (audit final F222) avant toute lecture du cumul du projet.
+    const note9 = await this.etatsFinanciersProjetService.noteBailleur(tenantId, exerciceId);
+    const classeur = this.construireClasseurNotes(resultat, ident, ExportService.PARTIES_NOTES_PROJETS, undefined, {
+      '9': (cible, tableaux) => this.feuilleNote9FondsDuBailleur(cible, note9, tableaux, ident),
+    });
     numeroterPages(classeur);
     return {
       buffer: await this.versBuffer(classeur),
@@ -3532,10 +3704,18 @@ export class ExportService {
     entetesBande(ws, r, r, 1, 5);
     ws.getRow(r).height = 30;
 
+    // TOUS les rangs d'un même REF sont gardés · FA et FB se répètent, une
+    // ligne par bailleur (Guide d'application, Application 21 : « si
+    // plusieurs bailleurs, créer des sous-comptes […] pour remplir FB »).
+    // Indexés par REF seul, seul le DERNIER FB entrait dans GR, et le contrôle
+    // VII sortait non nul dans le classeur quand le serveur bouclait (passe
+    // R6, D9).
+    const rangsParRef = new Map<string, number[]>();
     const rangs = new Map<string, number>();
     for (const l of er.lignes) {
       r += 1;
-      rangs.set(l.ref, r);
+      rangsParRef.set(l.ref, [...(rangsParRef.get(l.ref) ?? []), r]);
+      if (!rangs.has(l.ref)) rangs.set(l.ref, r);
       ws.getCell(r, 1).value = l.ref;
       ws.getCell(r, 2).value = l.libelle;
       if (!TOTAUX_TER[l.ref]) {
@@ -3561,8 +3741,10 @@ export class ExportService {
       for (const col of [3, 4, 5]) {
         const lettre = String.fromCharCode(64 + col);
         const formule = expression.replace(/[A-Z]{2}/g, (composante) => {
-          const rr = rangs.get(composante);
-          return rr ? `${lettre}${rr}` : '0';
+          const rr = rangsParRef.get(composante) ?? [];
+          if (rr.length === 0) return '0';
+          const cellules = rr.map((n) => `${lettre}${n}`).join('+');
+          return rr.length === 1 ? cellules : `(${cellules})`;
         });
         ws.getCell(rang, col).value = { formula: formule };
       }
@@ -3757,9 +3939,6 @@ export class ExportService {
     classeur: ExcelJS.Workbook,
     recon: Awaited<ReturnType<EtatsFinanciersProjetBudgetService['reconciliationTresorerie']>>,
     ident: IdentiteLiasse,
-    /** Rangs du tableau emplois-ressources · fournis par la liasse, les
-     *  lignes B, D et F se lient alors à lui, comme dans le modèle. */
-    terRangs?: Map<string, number>,
   ): { rangs: Map<string, number>; dernier: number } {
     const ws = classeur.addWorksheet('Reconciliation tresorerie');
     ecrireCartouche(ws, ident, 'RECONCILIATION\nPROJETS DE\nDEVELOPPEMENT', 3);
@@ -3781,14 +3960,16 @@ export class ExportService {
       styleLigne(ws, r, 1, 3, NIVEAUX_RECONCILIATION[l.rep] ?? 'normal', [3], 2);
       ws.getRow(r).height = 22;
     }
-    // Dans la liasse, B, D et F se lient au tableau emplois-ressources ·
-    // les deux états ne peuvent alors plus diverger.
-    if (terRangs) {
-      const er = (ref: string) => `'Emplois-Ressources'!D${terRangs.get(ref)}`;
-      if (rangs.has('B')) ws.getCell(rangs.get('B')!, 3).value = { formula: `${er('FA')}+${er('FB')}+${er('FC')}` };
-      if (rangs.has('D')) ws.getCell(rangs.get('D')!, 3).value = { formula: er('FD') };
-      if (rangs.has('F')) ws.getCell(rangs.get('F')!, 3).value = { formula: er('GU') };
-    }
+    // B, C, D, E et F portent les valeurs du serveur, dans la liasse comme
+    // dans l'export individuel et à l'écran. Jusqu'à la passe R6 (D9, D10),
+    // la liasse liait B à FA+FB+FC, D à FD et F à GU du tableau
+    // emplois-ressources : FD comprend le 77 (Guide d'application,
+    // Application 21, l. 961), que C montre déjà sur sa ligne propre (Section
+    // 3, l. 83-84) · G comptait les intérêts deux fois, et la feuille
+    // CONTROLES annonçait un écart que l'écran n'avait pas. B ne lisait
+    // qu'un FB, ou « Dundefined » sans FB. Le tableau de réconciliation n'a
+    // pas de table de correspondance officielle : sa ventilation est celle
+    // du serveur, une seule.
     // G et I en formules, sur la logique que leur libellé annonce.
     if (rangs.has('G')) {
       ws.getCell(rangs.get('G')!, 3).value = {
@@ -4768,14 +4949,14 @@ export class ExportService {
         "Aucun plan analytique à budgets n'est défini pour ce dossier : remplir code et libellé suivant la nomenclature budgétaire du projet.",
       );
     }
-    const { rangs: rangsRecon } = this.feuilleReconciliationEtafi(classeur, recon, ident, terRangs);
+    const { rangs: rangsRecon } = this.feuilleReconciliationEtafi(classeur, recon, ident);
 
     const versCote = (postes: PosteCalcule[], libelle: 'ACTIF' | 'PASSIF') => ({
       feuille: libelle === 'ACTIF' ? 'Bilan-Actif' : 'Bilan-Passif',
       libelle,
       cols: [
-        { entete: 'NET', lettre: 'D' },
-        { entete: 'NET N-1', lettre: 'E' },
+        { entete: 'N', lettre: 'D' },
+        { entete: 'N-1', lettre: 'E' },
       ],
       lignes: postes.map((p, i) => ({
         ref: p.ref,
@@ -4790,12 +4971,18 @@ export class ExportService {
       ident,
       versCote(bilan.actif, 'ACTIF'),
       versCote(bilan.passif, 'PASSIF'),
-      'BILAN (EN NET)',
+      'BILAN',
     );
     const { rangsActif, rangsPassif } = this.feuillesBilanProjetEtafi(classeur, bilan, ident);
     const rangsCe = this.feuilleCompteExploitationEtafi(classeur, ce, ident);
 
-    this.construireClasseurNotes(notes, ident, ExportService.PARTIES_NOTES_PROJETS, classeur);
+    // LA NOTE 9 PORTE SES CHIFFRES (passe R6, D13) · la liasse imprimait une
+    // route d'API et un nom de classe à la place du tableau, alors que le
+    // bilan de la même liasse y renvoie CA, DF et RA.
+    const note9 = await this.etatsFinanciersProjetService.noteBailleur(tenantId, exerciceId);
+    this.construireClasseurNotes(notes, ident, ExportService.PARTIES_NOTES_PROJETS, classeur, {
+      '9': (cible, tableaux) => this.feuilleNote9FondsDuBailleur(cible, note9, tableaux, ident),
+    });
     const parCode = new Map(
       (notes.ficheRecapitulative as Array<{ code: string; titre: string }>).map((n) => [n.code, n.titre]),
     );
@@ -4816,7 +5003,7 @@ export class ExportService {
       ['Total solde de clôture débit balance', `SUM('${NOM_BALANCE}'!G2:G${n + 1})`, ''],
       ['Total solde de clôture crédit balance', `SUM('${NOM_BALANCE}'!H2:H${n + 1})`, ''],
       ['Écart balance (doit être 0)', 'B2-B3', 0],
-      ['Total général actif net (BZ)', `'Bilan-Actif'!D${rangsActif.get('BZ')}`, ''],
+      ['Total général actif (BZ)', `'Bilan-Actif'!D${rangsActif.get('BZ')}`, ''],
       ['Total général passif (DZ)', `'Bilan-Passif'!D${rangsPassif.get('DZ')}`, ''],
       ['Écart bilan actif - passif (doit être 0)', 'B5-B6', 0],
       ["Solde du compte d'exploitation (XC · doit boucler à 0 en régime normal)", `'Compte Exploitation'!D${rangsCe.get('XC')}`, 0],

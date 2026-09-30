@@ -249,6 +249,15 @@ function fabriquerExport(jeu: JeuEtatsFinanciersSycebnl = TENANT.jeuEtatsFinanci
   );
 }
 
+/** Rang du repère `rep` (colonne 2) de la feuille de réconciliation. */
+function rangDeRecon(ws: ExcelJS.Worksheet, rep: string): number {
+  let rang = 0;
+  ws.eachRow((row, n) => {
+    if (row.getCell(2).value === rep) rang = n;
+  });
+  return rang;
+}
+
 async function ouvrir(buffer: Buffer): Promise<ExcelJS.Workbook> {
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buffer as unknown as ExcelJS.Buffer);
@@ -471,6 +480,74 @@ describe('liasse complète · jeu projets de développement', () => {
   });
 
 
+  it('la feuille NOTE 9 porte les montants de la note du bailleur, dans l’orientation de la maquette (passe R6, D13)', async () => {
+    // La liasse imprimait à la place une route d'API et un nom de classe,
+    // alors que le bilan y renvoie CA, DF et RA.
+    const exportService = fabriquerExport(JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT);
+    const projet = (exportService as unknown as { etatsFinanciersProjetService: EtatsFinanciersProjetService })
+      .etatsFinanciersProjetService;
+    const m = (decaisse: number, consomme: number) => ({ decaisse, consomme, soldeRestant: decaisse - consomme });
+    projet.noteBailleur = jest.fn().mockResolvedValue({
+      investissement: [{ bailleur: { id: 'b1', code: 'UE', nom: 'Union' }, ...m(900, 300) }],
+      investissementNonAffecte: m(0, 0),
+      totalInvestissement: m(900, 300),
+      administration: [{ bailleur: { id: 'b1', code: 'UE', nom: 'Union' }, ...m(200, 150) }],
+      administrationNonAffecte: m(0, 0),
+      totalAdministration: m(200, 150),
+      totalFondsDuBailleur: m(1100, 450),
+    });
+    const wb = await ouvrir((await exportService.liasseCompleteExcel('t1', 'e1')).buffer);
+    const ws = wb.getWorksheet('NOTE 9')!;
+    const valeurs: Record<string, unknown[]> = {};
+    ws.eachRow((row) => {
+      const libelle = row.getCell(1).value;
+      if (typeof libelle === 'string') valeurs[libelle] = [2, 3, 4, 5, 6, 7].map((c) => row.getCell(c).value);
+    });
+    expect(ws.getCell(8, 2).value).toBe('UE · Union');
+    expect(ws.getCell(8, 5).value).toBe('TOTAL');
+    expect(valeurs["TOTAL FONDS D'INVESTISSEMENT"]).toEqual([900, 300, 600, 900, 300, 600]);
+    expect(valeurs["TOTAL FONDS D'ADMINISTRATION"]).toEqual([200, 150, 50, 200, 150, 50]);
+    expect(valeurs['TOTAL DES FONDS DU BAILLEUR']).toEqual([1100, 450, 650, 1100, 450, 650]);
+  });
+
+  it('GR additionne CHAQUE ligne FA et FB, dans les trois colonnes (passe R6, D9)', async () => {
+    // Plusieurs bailleurs font plusieurs lignes FB (Guide d'application,
+    // Application 21). Indexés par REF seul, les rangs ne gardaient que le
+    // dernier FB · GR le perdait, et VII. CONTRÔLE sortait non nul dans le
+    // classeur quand le serveur bouclait.
+    const exportService = fabriquerExport(JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT);
+    const projet = (exportService as unknown as { etatsFinanciersProjetService: EtatsFinanciersProjetService })
+      .etatsFinanciersProjetService;
+    const reel = projet.tableauEmploisRessources.bind(projet);
+    projet.tableauEmploisRessources = (async (t: string, e: string) => {
+      const er = await reel(t, e);
+      const fa = er.lignes.findIndex((l) => l.ref === 'FA');
+      const fb = (nom: string) => ({ ...er.lignes[fa], cle: `BAILLEUR:${nom}`, ref: 'FB', libelle: `Fonds reçus, Bailleur ${nom}` });
+      er.lignes.splice(fa + 1, 0, fb('Beta'), fb('Gamma'));
+      return er;
+    }) as typeof projet.tableauEmploisRessources;
+    const wb = await ouvrir((await exportService.liasseCompleteExcel('t1', 'e1')).buffer);
+    const er = wb.getWorksheet('Emplois-Ressources')!;
+    const rangsDe = (ref: string) => {
+      const rangs: number[] = [];
+      er.eachRow((row, n) => {
+        if (row.getCell(1).value === ref) rangs.push(n);
+      });
+      return rangs;
+    };
+    const [fa] = rangsDe('FA');
+    const fbs = rangsDe('FB');
+    const [fc] = rangsDe('FC');
+    const [fd] = rangsDe('FD');
+    const [gr] = rangsDe('GR');
+    expect(fbs).toHaveLength(2);
+    for (const lettre of ['C', 'D', 'E']) {
+      expect((er.getCell(gr, lettre.charCodeAt(0) - 64).value as { formula?: string }).formula).toBe(
+        `${lettre}${fa}+(${fbs.map((n) => `${lettre}${n}`).join('+')})+${lettre}${fc}+${lettre}${fd}`,
+      );
+    }
+  });
+
   it('reproduit le classeur du modèle projets, grille budgétaire vierge comprise', async () => {
     const exportService = fabriquerExport(JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT);
     const { buffer } = await exportService.liasseCompleteExcel('t1', 'e1');
@@ -543,7 +620,23 @@ describe('liasse complète · jeu projets de développement', () => {
     recon.eachRow((row, n) => {
       if (row.getCell(2).value === 'B') rangB = n;
     });
-    expect((recon.getCell(rangB, 3).value as { formula?: string }).formula).toContain("'Emplois-Ressources'!D");
+    /*
+      B PORTE LA VALEUR DU SERVEUR, COMME L'ÉCRAN ET L'EXPORT INDIVIDUEL.
+      Passe R6, D9 et D10 · la liasse liait B à FA+FB+FC, D à FD et F à GU du
+      tableau emplois-ressources. FD comprend le 77 (Application 21), que C
+      montre déjà : G comptait les intérêts deux fois. Et sans ligne FB (ce
+      jeu d'essai), B sortait « 'Emplois-Ressources'!Dundefined ». Le test
+      d'avant exigeait la présence du lien (toContain), et passait dessus.
+    */
+    const reconServeur = await (
+      exportService as unknown as {
+        etatsFinanciersProjetBudgetService: EtatsFinanciersProjetBudgetService;
+      }
+    ).etatsFinanciersProjetBudgetService.reconciliationTresorerie('t1', 'e1', null);
+    const valeurServeur = (rep: string) => reconServeur.lignes.find((l) => l.rep === rep)!.montant;
+    expect(['B', 'C', 'D', 'F'].map((rep) => recon.getCell(rangDeRecon(recon, rep), 3).value)).toEqual(
+      ['B', 'C', 'D', 'F'].map(valeurServeur),
+    );
     // AUDIT FINAL F13 · sans saisie du repère H, la cellule le dit et I n'est
     // pas une formule qui lirait la cellule vide comme zéro.
     const rangDe = (rep: string) => {
@@ -576,6 +669,21 @@ describe('liasse complète · jeu projets de développement', () => {
     });
     expect((eb.getCell(rangTotalEb, 3).value as { formula?: string }).formula).toMatch(/^SUM\(C\d+:C\d+\)$/);
 
+    /*
+      LE BILAN PORTE LE TITRE ET LES EN-TÊTES DE LA MAQUETTE (passe R6, D11).
+      « BILAN » et « EXERCICE AU 31/12/N | EXERCICE AU 31/12/N-1 », sans
+      « NET » · le moteur de ce jeu ne retranche aucun amortissement.
+    */
+    for (const nom of ['Bilan-Actif', 'Bilan-Passif']) {
+      const b = wb.getWorksheet(nom)!;
+      expect([b.getCell(7, 2).value, b.getCell(8, 4).value, b.getCell(8, 5).value, b.getCell(9, 4).value]).toEqual([
+        'BILAN',
+        'EXERCICE AU 31/12/N',
+        'EXERCICE AU 31/12/N-1',
+        '',
+      ]);
+    }
+
     // Compte Exploitation · les deux TJ du texte officiel restent affichés
     // TJ, et XC = XA - XB en formule.
     const ce = wb.getWorksheet('Compte Exploitation')!;
@@ -598,6 +706,43 @@ describe('liasse complète · jeu projets de développement', () => {
       if (row.getCell(1).value === 'XC') rangXc = n;
     });
     expect((ce.getCell(rangXc, 4).value as { formula?: string }).formula).toBe(`D${rangXa}-D${rangXb}`);
+
+    /*
+      XB CITE LES DOUZE LIGNES DE CHARGES, ET RETRANCHE LE PRODUIT H.A.O.
+      Passe R6, D1 et D8 · les quatre lignes au REF dupliqué portaient les clés
+      du moteur (TJ_PERSONNEL…) que la formule ne lit pas : XB sortait
+      « D16+…+D22+0+0+0+0+D27 », sans les comptes 66, 67, 69 ni 82 à 88. Le
+      TK Produits H.A.O. porte « + » au tableau officiel (Partie 4 ch. 3,
+      l. 587), opposé aux charges : il se retranche.
+    */
+    const lignesCharges: number[] = [];
+    ce.eachRow((row, n) => {
+      if (n > rangXa && n < rangXb) lignesCharges.push(n);
+    });
+    expect(lignesCharges).toHaveLength(12);
+    const rangProduitsHao = lignesCharges.find((n) => ce.getCell(n, 2).value === 'Produits H.A.O.')!;
+    const attenduXb = lignesCharges
+      .map((n, i) => `${i === 0 ? '' : n === rangProduitsHao ? '-' : '+'}D${n}`)
+      .join('');
+    expect((ce.getCell(rangXb, 4).value as { formula?: string }).formula).toBe(attenduXb);
+    // Les renvois des quatre lignes au REF dupliqué : maquette 19, 20, 21 et
+    // 22, au décalage d'un cran appliqué partout ailleurs.
+    const noteDe = (libelle: string) =>
+      ce.getCell(lignesCharges.find((n) => ce.getCell(n, 2).value === libelle)!, 3).value;
+    expect(
+      ['Charges de personnel', 'Frais financiers et charges assimilées', 'Dotations aux provisions', 'Produits H.A.O.'].map(
+        noteDe,
+      ),
+    ).toEqual(['20A', '21', '22', '23']);
+    // Libellés des totaux : ceux du modèle (Section 5, l. 160, 173, 174),
+    // comme à l'écran (passe R6, D12).
+    expect([ce.getCell(rangXa, 2).value, ce.getCell(rangXb, 2).value, ce.getCell(rangXc, 2).value]).toEqual([
+      'REVENUS (Somme RA à RE)',
+      'CHARGES DE FONCTIONNEMENT (Somme TA à TL)',
+      "SOLDE DES OPERATIONS DE L'EXERCICE : XA-XB",
+    ]);
+    // RA ne renvoie qu'à la note 9 · la note 14 ne porte pas le 702.
+    expect(ce.getCell(rangsCe.get('RA')!, 3).value).toBe('9');
   });
 });
 

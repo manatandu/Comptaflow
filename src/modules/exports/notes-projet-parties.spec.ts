@@ -55,11 +55,25 @@ function exportService(notesCalculees: unknown[] = []): ExportService {
       couverture: { transcrites: FICHE.length, attendues: 26 },
     }),
   } as unknown as NoteAnnexeService;
+  // La note 9 se lit au service des états du projet (passe R6, D13) · aucun
+  // bailleur ici.
+  const vide = { decaisse: 0, consomme: 0, soldeRestant: 0 };
+  const projet = {
+    noteBailleur: jest.fn().mockResolvedValue({
+      investissement: [],
+      investissementNonAffecte: vide,
+      totalInvestissement: vide,
+      administration: [],
+      administrationNonAffecte: vide,
+      totalAdministration: vide,
+      totalFondsDuBailleur: vide,
+    }),
+  };
   return new ExportService(
     prisma,
     {} as never,
     {} as never,
-    {} as never,
+    projet as never,
     {} as never,
     {} as never,
     notes,
@@ -169,5 +183,30 @@ describe('la colonne « Note » imprime le renvoi de la ligne (passe R6)', () =>
     expect(ligne).toBeGreaterThan(0);
     expect(ws.getCell(ligne, 2).value).toBe('18A');
     expect(ws.getCell(ligne, 4).note).toBeUndefined();
+  });
+});
+
+describe('le classeur des notes porte le tableau de la note 9 (passe R6, D13)', () => {
+  it('la feuille NOTE 9 porte les trois lignes de total de la maquette, pas un renvoi', async () => {
+    const note9 = {
+      code: '9',
+      titre: 'FONDS DU BAILLEUR',
+      titreNote: 'FONDS DU BAILLEUR',
+      colonnes: [{ type: 'LIBRE', libelle: 'Fonds du bailleur' }],
+      lignes: [],
+      horsBalance: true,
+      exerciceN1Disponible: false,
+      applicable: true,
+      rubriquesEnAttente: [],
+    };
+    const { buffer } = await exportService([note9]).notesProjetExcel('t1', 'e1');
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer as unknown as ExcelJS.Buffer);
+    const ws = wb.getWorksheet('NOTE 9')!;
+    const colonneA: string[] = [];
+    ws.eachRow((row) => typeof row.getCell(1).value === 'string' && colonneA.push(row.getCell(1).value as string));
+    expect(colonneA).toEqual(
+      expect.arrayContaining(["TOTAL FONDS D'INVESTISSEMENT", "TOTAL FONDS D'ADMINISTRATION", 'TOTAL DES FONDS DU BAILLEUR']),
+    );
   });
 });

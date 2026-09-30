@@ -56,6 +56,25 @@ const NOTES_PAR_JEU: Record<JeuNotesAnnexes, SpecificationNote[]> = {
   [JeuNotesAnnexes.SYSCOHADA_SYSTEME_NORMAL]: NOTES_SYSCOHADA,
 };
 
+/** Un rattachement du dossier que plus aucune rubrique rattachable ne lit. */
+export interface RattachementSansRubrique {
+  codeNote: string;
+  cleRubrique: string;
+  compteId: string;
+  numero: string;
+}
+
+/**
+ * Vrai si la clé désigne, dans ce jeu, une rubrique qui accepte un
+ * rattachement (`subdivisionAttendue`) · la même règle que la porte de
+ * `rattacher`, lue sans lever.
+ */
+export function estRubriqueRattachable(jeu: JeuNotesAnnexes, codeNote: string, cleRubrique: string): boolean {
+  return NOTES_PAR_JEU[jeu].some(
+    (n) => n.code === codeNote && n.rubriques.some((r) => r.cle === cleRubrique && !!r.subdivisionAttendue),
+  );
+}
+
 /** Nombre de notes que le texte officiel attend pour ce jeu · sert à `couverture`. */
 const NOTES_ATTENDUES_PAR_JEU: Record<JeuNotesAnnexes, number> = {
   [JeuNotesAnnexes.ASSOCIATIONS_ORDRES_PROFESSIONNELS]: 45,
@@ -916,17 +935,32 @@ export class NoteAnnexeService {
    * portant les NUMÉROS de comptes (pas les identifiants) · le résolveur
    * travaille sur les numéros de la balance.
    */
-  private async chargerRattachements(tenantId: string, jeu: JeuNotesAnnexes): Promise<Map<string, string[]>> {
+  private async chargerRattachements(
+    tenantId: string,
+    jeu: JeuNotesAnnexes,
+  ): Promise<{ parRubrique: Map<string, string[]>; sansRubrique: RattachementSansRubrique[] }> {
     const lignes = await this.prisma.rattachementNote.findMany({
       where: { tenantId, jeu },
-      select: { codeNote: true, cleRubrique: true, compte: { select: { numero: true } } },
+      select: { codeNote: true, cleRubrique: true, compteId: true, compte: { select: { numero: true } } },
     });
     const parRubrique = new Map<string, string[]>();
+    const sansRubrique: RattachementSansRubrique[] = [];
     for (const l of lignes) {
+      // UN RATTACHEMENT DONT LA RUBRIQUE N'EST PLUS RATTACHABLE EST NOMMÉ
+      // (passe R6, lot D). La confrontation au plan a fait lire par le texte
+      // des rubriques qui attendaient jusque-là un rattachement (note 15 des
+      // projets, notes 24 et 25 des associations…), et en a retiré d'autres.
+      // Le rattachement reste en base, mais plus aucune rubrique ne le lit ·
+      // sans ce relevé, son compte sortait de la note sans un mot. Il se
+      // retire par `detacher`, qui ne demande pas que la rubrique existe.
+      if (!estRubriqueRattachable(jeu, l.codeNote, l.cleRubrique)) {
+        sansRubrique.push({ codeNote: l.codeNote, cleRubrique: l.cleRubrique, compteId: l.compteId, numero: l.compte.numero });
+        continue;
+      }
       const cle = `${l.codeNote}::${l.cleRubrique}`;
       parRubrique.set(cle, [...(parRubrique.get(cle) ?? []), l.compte.numero]);
     }
-    return parRubrique;
+    return { parRubrique, sansRubrique };
   }
 
   /**
@@ -1102,7 +1136,7 @@ export class NoteAnnexeService {
       chargerLignes(ecriture, tenantId, exerciceN1Id),
     ]);
 
-    const [rattachements, echeances, ventilation, saisies] = await Promise.all([
+    const [{ parRubrique: rattachements, sansRubrique: rattachementsSansRubrique }, echeances, ventilation, saisies] = await Promise.all([
       this.chargerRattachements(tenantId, jeu),
       this.chargerEcheances(tenantId, exerciceId),
       this.chargerVentilationParNature(tenantId, exerciceId),
@@ -1126,6 +1160,7 @@ export class NoteAnnexeService {
     return {
       notes,
       exerciceN1Disponible: exerciceN1Id !== null,
+      rattachementsSansRubrique,
       // La fiche récapitulative recense les NOTES officielles ; une note à
       // plusieurs tableaux (note 1, note 7…) y tient une seule ligne,
       // applicable dès qu'un de ses tableaux l'est.

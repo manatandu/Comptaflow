@@ -68,7 +68,7 @@ function ligne(
   };
 }
 /** Rattachements du dossier tels que la base les renverrait. */
-type Rattachement = { codeNote: string; cleRubrique: string; compte: { numero: string } };
+type Rattachement = { codeNote: string; cleRubrique: string; compteId?: string; compte: { numero: string } };
 
 /** Une ligne d'écriture telle que la ventilation par échéance la lit. */
 type LigneEch = {
@@ -760,14 +760,77 @@ describe('jeu projets de développement · recoupement croisé (anti double comp
     }
   });
 
-  it('619 (achats/transports) reste en attente des deux côtés dans le jeu projets aussi', async () => {
+  it('la note 16 porte les six rubriques de la maquette et le TOTAL, sans ligne de rabais (passe R6, D14)', async () => {
+    // Le test d'avant exigeait une ligne de rabais sur la fiche de la note 16 ·
+    // il gelait une ligne empruntée à la note 25 des associations, que la
+    // maquette de ce jeu ne porte pas (Partie 4 ch. 3, note 16). Le 619 reste
+    // lu par TD et n'a de ligne dans aucune note (anomalie n° 5 de l'en-tête).
     const s = service({ e1: [ligne('61900000', ClasseCompte.CLASSE_6, 0, 500)] });
     const r = await s.notesProjet('t', 'e1');
     expect(sommeParNoteProjet(r, '61900000')).toEqual([]);
-    const fiche15 = r.ficheRecapitulative.find((f: any) => f.code === '15')!;
-    const fiche16 = r.ficheRecapitulative.find((f: any) => f.code === '16')!;
-    expect(fiche15.rubriquesEnAttente.map((x: any) => x.cle)).toContain('rabais-remises-ristournes');
-    expect(fiche16.rubriquesEnAttente.map((x: any) => x.cle)).toContain('rabais-remises-ristournes');
+    // La liste exacte des libellés est gelée par correspondance-notes-projets.spec.
+  });
+
+  it('TOTAL ACHATS de la note 15 comprend la ligne des rabais obtenus (passe R6, D3)', async () => {
+    // Rabais obtenus rattachés (60290000, créditeur) et un achat au 601.
+    const s = service(
+      { e1: [ligne('60100000', ClasseCompte.CLASSE_6, 1000, 0), ligne('60290000', ClasseCompte.CLASSE_6, 0, 100)] },
+      [],
+      prismaAvec([{ codeNote: '15', cleRubrique: 'rabais-remises-ristournes', compte: { numero: '60290000' } }]),
+    );
+    const r = await s.notesProjet('t', 'e1');
+    const note15 = r.notes.find((n: any) => n.code === '15')!;
+    const total = note15.lignes.find((l: any) => l.libelle === 'TOTAL ACHATS')!;
+    const lignes = note15.lignes.filter((l: any) => !l.estTotal);
+    expect(lignes.find((l: any) => l.libelle === 'Remises rabais, et ristournes obtenus')!.montantN).toBe(-100);
+    expect(total.montantN).toBe(lignes.reduce((acc: number, l: any) => acc + (l.montantN ?? 0), 0));
+    expect(total.montantN).toBe(900);
+  });
+
+  it('le 676 n’est lu que par la note 21, jamais aussi par la note 19 (passe R6, D4)', async () => {
+    const s = service({ e1: [ligne('67600000', ClasseCompte.CLASSE_6, 300, 0)] });
+    const r = await s.notesProjet('t', 'e1');
+    expect(sommeParNoteProjet(r, '67600000').map((x: any) => x.note)).toEqual(['21']);
+  });
+
+  it('les sous-comptes semés de 604, 605, 618 et 705 sont lus par la rubrique qui porte leur libellé (passe R6, D2)', async () => {
+    const comptes = ['60410000', '60420000', '60430000', '60510000', '60520000', '60530000', '60540000', '60560000', '61810000', '61830000', '70510000'];
+    const s = service({ e1: comptes.map((n) => ligne(n, n.startsWith('7') ? ClasseCompte.CLASSE_7 : ClasseCompte.CLASSE_6, 100, 0)) });
+    const r = await s.notesProjet('t', 'e1');
+    expect(comptes.map((n) => sommeParNoteProjet(r, n).map((x: any) => `${x.note} / ${x.libelle}`))).toEqual([
+      ['15 / Matières consommables'],
+      ['15 / Matières combustibles'],
+      ["15 / Produits d'entretien"],
+      ['15 / Eau'],
+      ['15 / Electricité'],
+      ['15 / Autres énergies'],
+      ["15 / Fourniture d'entretien"],
+      ['15 / Petit matériel et outillages'],
+      ['16 / Voyages et déplacements'],
+      ['16 / Transports administratifs'],
+      ['14 / Ventes de marchandises'],
+    ]);
+  });
+
+  it('les produits de la note 14 se lisent au crédit, en positif (passe R6, D5)', async () => {
+    const s = service({
+      e1: [
+        ligne('70510000', ClasseCompte.CLASSE_7, 0, 400),
+        ligne('70700000', ClasseCompte.CLASSE_7, 0, 50),
+        ligne('71000000', ClasseCompte.CLASSE_7, 0, 30),
+      ],
+    });
+    const r = await s.notesProjet('t', 'e1');
+    const note14 = r.notes.find((n: any) => n.code === '14')!;
+    expect(note14.lignes.find((l: any) => l.libelle === 'TOTAL : AUTRES PRODUITS')!.montantN).toBe(480);
+  });
+
+  it('le 708 n’entre pas dans la ligne qui détaille RD (passe R6, D5)', async () => {
+    // Le compte d'exploitation refuse le 708 à RD (anomalie n° 5) · la note
+    // 14 qui détaille RD ne le range pas davantage.
+    const s = service({ e1: [ligne('70810000', ClasseCompte.CLASSE_7, 0, 70)] });
+    const r = await s.notesProjet('t', 'e1');
+    expect(sommeParNoteProjet(r, '70810000')).toEqual([]);
   });
 
   it('couverture : 26 notes transcrites, comme attendu par le texte officiel', async () => {
@@ -1142,6 +1205,25 @@ describe('rattachement des comptes du dossier aux rubriques', () => {
     expect(l.rattachementDuDossier).toBe(true);
     expect(l.comptesRattaches).toEqual(['60460000']);
     expect(ligneDe(n24, 'Frais sur achats').comptesRattaches).toEqual(['60450000']);
+  });
+
+  it('un rattachement dont la rubrique ne se rattache plus est NOMMÉ, jamais lu en silence (passe R6, lot D)', async () => {
+    // « Matières consommables » est lue par le plan depuis la passe R6 · un
+    // rattachement posé avant sur cette clé ne se relit plus. Sans ce relevé,
+    // son compte sortait de la note sans un mot.
+    const s = service(
+      { e1: [ligne('60450000', ClasseCompte.CLASSE_6, 5000, 0)] },
+      [],
+      prismaAvec([
+        { codeNote: '24', cleRubrique: 'matieres-consommables', compteId: 'c-old', compte: { numero: '60450000' } },
+        { codeNote: '24', cleRubrique: 'frais-sur-achats', compteId: 'c-ok', compte: { numero: '60450000' } },
+      ]),
+    );
+    const r = await s.notesAssociations('t', 'e1');
+    expect(r.rattachementsSansRubrique).toEqual([
+      { codeNote: '24', cleRubrique: 'matieres-consommables', compteId: 'c-old', numero: '60450000' },
+    ]);
+    expect(ligneDe(note(r, '24'), 'Frais sur achats').comptesRattaches).toEqual(['60450000']);
   });
 
   it('une fois le compte rattaché, la rubrique se chiffre et cesse d’être en attente', async () => {

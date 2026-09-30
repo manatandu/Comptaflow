@@ -37,7 +37,7 @@ import { SpecificationNote } from './note-annexe.types';
  * La note 9 « Fonds du bailleur » a des colonnes DYNAMIQUES · une par
  * bailleur/sous-projet · que ce moteur à colonnes fixes ne représente pas.
  * Elle est servie par `EtatsFinanciersProjetService.noteBailleur()`
- * (`GET /etats-financiers/projet/note-bailleur`), déjà construite, testée,
+ * (l'état « Note 9 · Fonds du bailleur »), déjà construite, testée,
  * et cumulative depuis l'origine du projet (pas seulement l'exercice · voir
  * son propre en-tête). Transcrite ici comme un simple renvoi, pour que la
  * fiche récapitulative et la couverture (26 notes) restent exactes sans
@@ -73,9 +73,24 @@ import { SpecificationNote } from './note-annexe.types';
  *    titres de placement », qu'une seule subdivision · 6771 « Pertes sur
  *    cessions de titres de placement », qui reprend exactement le libellé
  *    de la rubrique. Le compte 678 « Pertes et charges sur risques
- *    financiers », que le jeu associations rattache à sa note 31, n'a pas
- *    de rubrique dans cette note-ci : non comblé, un solde sur 678
- *    ressortira en comptes non rattachés.
+ *    financiers » n'a pas de rubrique dans cette note-ci : non comblé. Il
+ *    est pris par le poste TK (compte 67) du compte d'exploitation, donc
+ *    chiffré à l'état et ABSENT de la note 21, qui ne recoupe alors plus TK
+ *    de son montant. Il ne ressort PAS en comptes non rattachés (l'écrit
+ *    d'avant la passe R6 le disait à tort).
+ * 4. **Note 19** : la rubrique « Perte de change sur créances » n'a aucun
+ *    compte au plan SYCEBNL, qui n'ouvre sous le 65 que 651, 652, 654, 657,
+ *    658 et 659. Déclarée en attente, sans compte prescrit · jamais
+ *    rattachée au 676 « Pertes de change financières », qui relève de TK et
+ *    de la note 21 et y serait compté deux fois (passe R6, D4).
+ * 5. **Note 16** : la maquette ne porte aucune ligne de rabais, remises et
+ *    ristournes, alors que le poste TD lit tout le 61, 619 compris. Non
+ *    comblé : un solde sur 61900000 laisse le total de la note 16 en deçà
+ *    de TD de son montant. La ligne de la note 25 des associations n'est
+ *    pas empruntée (passe R6, D14).
+ * 6. **Note 11** : la maquette ne liste pas les emprunts obligataires
+ *    (181), que le poste DA (compte 18) du bilan prend. Non comblé : un
+ *    solde au 181 n'est chiffré dans aucune rubrique de la note.
  */
 
 const COLONNES_STANDARD = [
@@ -236,6 +251,11 @@ export const NOTES_PROJETS: SpecificationNote[] = [
     code: '4',
     sousTableau: 'ACTIF CIRCULANT HAO',
     titre: 'ACTIF CIRCULANT HAO',
+    // Précision d'OmegaX, pas du texte officiel (passe R6, D7) · art. 15,
+    // référence croisée, et renvoi (1) de la fiche récapitulative (« Leur
+    // contenu peut être amélioré par les entités »). Aucune ligne n'est ajoutée.
+    precisionEditeur:
+      'La ligne des autres créances HAO lit aussi le compte 488, que le poste BA du bilan ne prend pas (il ne lit que le 485) : le montant de la note peut dépasser celui du poste.',
     colonnes: COLONNES_STANDARD,
     renvoyeeDepuis: ['BA'],
     rubriques: [
@@ -253,6 +273,11 @@ export const NOTES_PROJETS: SpecificationNote[] = [
     code: '4',
     sousTableau: 'DETTES CIRCULANTES HAO',
     titre: 'DETTES CIRCULANTES HAO',
+    // Précision d'OmegaX, pas du texte officiel (passe R6, D7) · art. 15,
+    // référence croisée, et renvoi (1) de la fiche récapitulative (« Leur
+    // contenu peut être amélioré par les entités »). Aucune ligne n'est ajoutée.
+    precisionEditeur:
+      'Le poste DE du bilan comprend aussi le compte 4998 (provisions pour risques et charges à court terme H.A.O.), auquel le modèle de cette note ne donne aucune ligne.',
     colonnes: COLONNES_STANDARD,
     renvoyeeDepuis: ['DE'],
     rubriques: [
@@ -264,13 +289,20 @@ export const NOTES_PROJETS: SpecificationNote[] = [
   {
     code: '5',
     titre: 'STOCKS ET ENCOURS',
+    // Précision d'OmegaX, pas du texte officiel (passe R6, D7) · art. 15,
+    // référence croisée, et renvoi (1) de la fiche récapitulative (« Leur
+    // contenu peut être amélioré par les entités »). Aucune ligne n'est ajoutée.
+    precisionEditeur:
+      'Le poste BB du bilan comprend aussi les comptes 34 (dons en nature) et 363 (actifs biologiques), auxquels le modèle de cette note ne donne aucune ligne.',
+    // BB et TC renvoient ici, comme dans la colonne Note de la liasse
+    // (NOTE_PAR_CLE_PROJETS, parité gelée par correspondance-notes-projets.spec).
+    renvoyeeDepuis: ['BB', 'TC'],
     colonnes: [
       { type: 'EXERCICE_N' as const, libelle: 'Année N' },
       { type: 'EXERCICE_N1' as const, libelle: 'Année N-1' },
       { type: 'VARIATION_VALEUR' as const, libelle: 'Variation (Valeur)' },
       { type: 'VARIATION_POURCENT' as const, libelle: 'Variation (%)' },
     ],
-    renvoyeeDepuis: ['BB'],
     rubriques: [
       { libelle: "Biens liés à l'activité", comptes: ['31'] },
       { libelle: 'Marchandises', comptes: ['321', '322'] },
@@ -309,7 +341,7 @@ export const NOTES_PROJETS: SpecificationNote[] = [
     code: '6',
     titre: 'CLIENTS-USAGERS ET AUTRES CREANCES',
     colonnes: COLONNES_AVEC_ECHEANCES_CREANCES,
-    renvoyeeDepuis: ['BE'],
+    renvoyeeDepuis: ['BC', 'BD', 'BE'],
     rubriques: [
       { libelle: 'Fournisseurs, débiteurs', comptes: ['409'] },
       { libelle: 'Clients-usagers', comptes: ['41'], exclusions: ['411', '419'] },
@@ -334,7 +366,7 @@ export const NOTES_PROJETS: SpecificationNote[] = [
     code: '7',
     titre: 'DISPONIBILITES',
     colonnes: COLONNES_STANDARD,
-    renvoyeeDepuis: ['BW'],
+    renvoyeeDepuis: ['BV', 'BW'],
     rubriques: [
       { libelle: 'Chèques à encaisser', comptes: ['513'] },
       { libelle: "Chèques à l'encaissement", comptes: ['514'] },
@@ -375,14 +407,27 @@ export const NOTES_PROJETS: SpecificationNote[] = [
   {
     code: '8',
     titre: 'ECARTS DE CONVERSION',
+    // Les six colonnes de la maquette (Partie 4 ch. 3, note 8), et elles
+    // seules. La devise, le montant en devise et les deux cours ne sont
+    // portés par aucun compte : la comptabilité est tenue en monnaie légale.
+    // « Variation en valeur », rangée après les deux cours, est l'écart
+    // entre le cours d'origine et le cours de clôture, c'est-à-dire le solde
+    // même des comptes 478 et 479 (fiche du compte 47, Partie 2 ch. 3 : ils
+    // « permettent de constater, à la clôture de l'exercice, les écarts entre
+    // créances et dettes en devises converties […] et leur évaluation […] à
+    // la date de clôture »). Même lecture qu'à la note 14 des associations.
+    // « Variation en % » dépend des cours et des montants en devise, qu'aucun
+    // compte ne porte · elle reste à saisir. Jusqu'à la passe R6 (D19), une
+    // colonne « Année N » absente de la maquette portait l'écart, et les deux
+    // colonnes officielles imprimaient un N moins N-1 de ces écarts, autre
+    // grandeur, vide sur un premier exercice.
     colonnes: [
       { type: 'LIBRE' as const, libelle: 'Devises' },
       { type: 'LIBRE' as const, libelle: 'Montant en devises' },
       { type: 'LIBRE' as const, libelle: 'Cours UML Année acquisition' },
       { type: 'LIBRE' as const, libelle: 'Cours UML 31/12' },
-      { type: 'EXERCICE_N' as const, libelle: 'Année N' },
-      { type: 'VARIATION_VALEUR' as const, libelle: 'Variation en valeur' },
-      { type: 'VARIATION_POURCENT' as const, libelle: 'Variation en %' },
+      { type: 'EXERCICE_N' as const, libelle: 'Variation en valeur' },
+      { type: 'LIBRE' as const, libelle: 'Variation en %' },
     ],
     renvoyeeDepuis: ['BY', 'DY'],
     rubriques: [
@@ -395,16 +440,21 @@ export const NOTES_PROJETS: SpecificationNote[] = [
   {
     code: '9',
     titre: 'FONDS DU BAILLEUR',
+    renvoyeeDepuis: ['CA', 'DF', 'RA'],
     // Colonnes dynamiques (une par bailleur/sous-projet) · voir en-tête de
-    // fichier. Servie par un endpoint séparé, déjà construit et testé.
+    // fichier. Le tableau chiffré est servi par l'état « Note 9 · Fonds du
+    // bailleur » (`EtatsFinanciersProjetService.noteBailleur`), et la liasse
+    // comme le classeur des notes l'impriment à la place de ce renvoi
+    // (`ExportService.feuilleNote9FondsDuBailleur`). Le libellé servi au
+    // lecteur ne nomme plus ni route d'API ni classe (passe R6, D13) · la clé
+    // de la rubrique, ancre des saisies, ne change pas.
     horsBalance: true,
-    colonnes: [{ type: 'LIBRE' as const, libelle: 'Voir GET /etats-financiers/projet/note-bailleur' }],
+    colonnes: [{ type: 'LIBRE' as const, libelle: 'Fonds du bailleur' }],
     rubriques: [
       {
         cle: 'cette-note-a-des-colonnes-dynamiques-une-par-bai', libelle:
-          'Cette note a des colonnes dynamiques (une par bailleur/sous-projet) que ce moteur ne représente ' +
-          'pas. Elle est servie par EtatsFinanciersProjetService.noteBailleur(), déjà construite, testée et ' +
-          "cumulée depuis l'origine du projet.",
+          'Tableau servi par l\'état « Note 9 · Fonds du bailleur », une colonne par bailleur, cumulé depuis ' +
+          "l'origine du projet.",
         saisie: true,
       },
     ],
@@ -460,11 +510,18 @@ export const NOTES_PROJETS: SpecificationNote[] = [
   {
     code: '11',
     titre: 'DETTES FINANCIERES ET RESSOURCES ASSIMILEES',
+    // Précision d'OmegaX, pas du texte officiel (passe R6, D7) · art. 15,
+    // référence croisée, et renvoi (1) de la fiche récapitulative (« Leur
+    // contenu peut être amélioré par les entités »). Aucune ligne n'est ajoutée.
+    precisionEditeur:
+      'Le poste DA du bilan comprend aussi le compte 181 (emprunts obligataires) et le poste DB le compte 192 (provisions pour charges sur donations et legs), auxquels le modèle de cette note ne donne aucune ligne.',
     colonnes: COLONNES_AVEC_ECHEANCES_DETTES,
     renvoyeeDepuis: ['DA', 'DB'],
     rubriques: [
       // Compte 181 « Emprunts obligataires » n'est PAS listé par cette note
-      // (contrairement à la note 1 associations) : non comblé, voir en-tête.
+      // (Partie 4 ch. 3, note 11), alors que le poste DA (compte 18) le prend ·
+      // anomalie n° 6 de l'en-tête. Non comblé : un solde au 181 est au bilan
+      // et n'est chiffré dans aucune rubrique de la note.
       { libelle: 'Emprunts et dettes auprès des établissements de crédit', comptes: ['182'], natureCreditrice: true },
       { libelle: "Avances reçues de l'Etat", comptes: ['183'], natureCreditrice: true },
       { libelle: 'Dépôts et cautionnements reçus', comptes: ['185'], natureCreditrice: true },
@@ -503,6 +560,11 @@ export const NOTES_PROJETS: SpecificationNote[] = [
   {
     code: '12',
     titre: 'DETTES FOURNISSEURS ET ASSIMILEES, FISCALES ET SOCIALES',
+    // Précision d'OmegaX, pas du texte officiel (passe R6, D7) · art. 15,
+    // référence croisée, et renvoi (1) de la fiche récapitulative (« Leur
+    // contenu peut être amélioré par les entités »). Aucune ligne n'est ajoutée.
+    precisionEditeur:
+      'Le poste DH du bilan comprend aussi les soldes créditeurs des comptes 47 (hors 478 et 479), ainsi que des comptes 421, 4287 et 4387, auxquels le modèle de cette note ne donne aucune ligne.',
     colonnes: COLONNES_AVEC_ECHEANCES_DETTES,
     renvoyeeDepuis: ['DG', 'DH'],
     rubriques: [
@@ -518,7 +580,14 @@ export const NOTES_PROJETS: SpecificationNote[] = [
       { libelle: 'Mutuelle de santé', comptes: ['4331'], sens: 'CREDITEUR' },
       { libelle: 'Assurance Retraite', comptes: ['4332'], sens: 'CREDITEUR' },
       { libelle: 'Autres charges sociales à payer', comptes: ['4381', '4386'], sens: 'CREDITEUR' },
-      { libelle: 'Autres cotisations et organismes sociaux', comptes: ['4333'], sens: 'CREDITEUR' },
+      // Le reliquat du 433 « Autres organismes sociaux » (fiche du compte 43,
+      // Partie 2 ch. 3 : 4331 mutuelle, 4332 assurances retraite, 4333
+      // assurances et organismes de santé) · 4331 et 4332 ont leur ligne, le
+      // 4333 et les 4334 INPP et 4335 ONEM qu'OmegaX ouvre sous le 433 (et
+      // que la paie crédite) tombent ici. Lu au seul 4333, un INPP ou un ONEM
+      // créditeur à la clôture était au poste du bilan et hors de la note
+      // (passe R6, D6).
+      { libelle: 'Autres cotisations et organismes sociaux', comptes: ['433'], exclusions: ['4331', '4332'], sens: 'CREDITEUR' },
       { libelle: 'TOTAL DETTES SOCIALES', totalDeRubriques: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12] },
       // Voir anomalie n° 2 en tête de fichier : aucun compte 441 au plan
       // SYCEBNL (classe 44 commence à 442).
@@ -544,6 +613,11 @@ export const NOTES_PROJETS: SpecificationNote[] = [
   {
     code: '13',
     titre: "BANQUES, CREDIT D'ESCOMPTE ET DE TRESORERIE",
+    // Précision d'OmegaX, pas du texte officiel (passe R6, D7) · art. 15,
+    // référence croisée, et renvoi (1) de la fiche récapitulative (« Leur
+    // contenu peut être amélioré par les entités »). Aucune ligne n'est ajoutée.
+    precisionEditeur:
+      'Le poste DW du bilan comprend aussi les soldes créditeurs des comptes 53 (établissements financiers et assimilés), auxquels le modèle de cette note ne donne aucune ligne.',
     colonnes: COLONNES_STANDARD,
     renvoyeeDepuis: ['DW'],
     rubriques: [
@@ -581,35 +655,59 @@ export const NOTES_PROJETS: SpecificationNote[] = [
     code: '14',
     titre: 'REVENUS ET AUTRES PRODUITS',
     colonnes: COLONNES_STANDARD,
-    renvoyeeDepuis: ['RB', 'RD'],
+    // RC n'a aucun renvoi au modèle vierge, qui n'imprime même pas la ligne
+    // (anomalie n° 1 du compte d'exploitation) : le renvoi à la note 14, qui
+    // porte la ligne du 71, est une précision d'OmegaX, posée ici ET dans la
+    // liasse (NOTE_PAR_CLE_PROJETS), jamais d'un seul côté.
+    renvoyeeDepuis: ['RB', 'RC', 'RD'],
+    // DES PRODUITS · chaque rubrique se lit au CRÉDIT (`natureCreditrice`),
+    // comme aux notes 21 et 23 de ce jeu. Lus au débit, tous les produits de
+    // la note s'imprimaient en négatif (passe R6, D5).
     rubriques: [
-      // Le compte 705 « ventes marchandises/services/produits finis » n'est
-      // pas subdivisé · la même confusion que « Matières consommables » côté
-      // achats associations. Trois lignes du modèle, un seul compte.
-      enAttente(
-        'ventes-marchandises',
-        'Ventes de marchandises',
-        'Le compte 705 « Ventes marchandises, services et produits finis » ne distingue pas la nature de la ' +
-          'vente : subdiviser 705 et rattacher ici le sous-compte des ventes de marchandises.',
-      ),
-      enAttente(
-        'ventes-produits-fabriques',
-        'Ventes de produits fabriqués',
-        'Même situation que « Ventes de marchandises » : subdiviser le compte 705 et rattacher ici le ' +
-          'sous-compte des ventes de produits fabriqués.',
-      ),
-      enAttente(
-        'ventes-travaux-services',
-        'Ventes de travaux et services',
-        'Même situation que « Ventes de marchandises » : subdiviser le compte 705 et rattacher ici le ' +
-          'sous-compte des ventes de travaux et services.',
-      ),
-      { libelle: 'Produits accessoires', comptes: ['707'] },
-      { libelle: 'Production immobilisée', comptes: ['72'] },
-      { libelle: "Subventions d'exploitation", comptes: ['71'] },
+      // Le plan subdivise 705 (Partie 2 ch. 3, compte 70 : « 7051 Ventes de
+      // marchandises, 7052 Services vendus, 7053 Ventes de produits finis,
+      // 7054 Ventes de produits intermédiaires, 7055 Ventes de produits
+      // résiduels »). 7051 porte le libellé même de la ligne · il se rattache
+      // par le plan. Le motif « 705 ne distingue pas la nature de la vente »
+      // servi jusqu'à la passe R6 (D2) était faux depuis que le semis descend
+      // au quatrième chiffre.
+      { libelle: 'Ventes de marchandises', comptes: ['7051'], natureCreditrice: true },
+      {
+        ...enAttente(
+          'ventes-produits-fabriques',
+          'Ventes de produits fabriqués',
+          'Le plan subdivise 705 (7052 Services vendus, 7053 Ventes de produits finis, 7054 Ventes de ' +
+            'produits intermédiaires, 7055 Ventes de produits résiduels) sans sous-compte nommé « produits ' +
+            'fabriqués » : rattacher ici ceux qui en relèvent.',
+        ),
+        natureCreditrice: true,
+      },
+      {
+        ...enAttente(
+          'ventes-travaux-services',
+          'Ventes de travaux et services',
+          'Le plan subdivise 705 (7052 Services vendus, 7053 à 7055 ventes de produits) sans sous-compte ' +
+            'nommé « travaux » : rattacher ici ceux qui relèvent des travaux et services, 7052 compris.',
+        ),
+        natureCreditrice: true,
+      },
+      { libelle: 'Produits accessoires', comptes: ['707'], natureCreditrice: true },
+      { libelle: 'Production immobilisée', comptes: ['72'], natureCreditrice: true },
+      { libelle: "Subventions d'exploitation", comptes: ['71'], natureCreditrice: true },
+      // [texte officiel] Le poste RD que cette note détaille lit « 707, 72,
+      // 73 (+/-), 75, 77, 78 » (tableau de correspondance), la ligne de la
+      // note dit « d'exploitation », et le plan appelle le 77 « revenus
+      // financiers » et le 787 « transferts de charges financières », que la
+      // note 21 détaille. La capture suit RD pour garder la note d'accord
+      // avec le poste : les 77x et le 787 se lisent donc AUSSI en note 21. La
+      // note 23 du jeu associations a tranché le même libellé en sens
+      // inverse. Le 708, lui, n'est dans AUCUN poste (anomalie n° 5 de
+      // `correspondance-projet-compte-exploitation.ts`) : il n'entre pas dans
+      // la ligne qui détaille RD (passe R6, D5).
       {
         libelle: "Autres produits et transferts de charges d'exploitation",
-        comptes: ['708', '73', '75', '77', '78'],
+        comptes: ['73', '75', '77', '78'],
+        natureCreditrice: true,
       },
       { libelle: 'TOTAL : AUTRES PRODUITS', totalDeRubriques: [0, 1, 2, 3, 4, 5, 6] },
     ],
@@ -620,6 +718,11 @@ export const NOTES_PROJETS: SpecificationNote[] = [
   {
     code: '15',
     titre: 'ACHATS',
+    // Précision d'OmegaX, pas du texte officiel (passe R6, D7) · art. 15,
+    // référence croisée, et renvoi (1) de la fiche récapitulative (« Leur
+    // contenu peut être amélioré par les entités »). Aucune ligne n'est ajoutée.
+    precisionEditeur:
+      'Le poste TB du compte d\'exploitation comprend aussi le compte 606 (achats autres activités), auquel le modèle de cette note ne donne aucune ligne.',
     colonnes: COLONNES_STANDARD,
     renvoyeeDepuis: ['TA', 'TB'],
     rubriques: [
@@ -639,37 +742,59 @@ export const NOTES_PROJETS: SpecificationNote[] = [
         'Même situation que « Achats de marchandises » : subdiviser le compte 602 et rattacher ici le ' +
           'sous-compte des matières premières et fournitures liées.',
       ),
-      enAttente('matieres-consommables', 'Matières consommables', 'Sous-compte de 604 pour les matières consommables.'),
-      enAttente('matieres-combustibles', 'Matières combustibles', 'Sous-compte de 604 pour les matières combustibles.'),
-      enAttente('produits-entretien', "Produits d'entretien", "Sous-compte de 604 pour les produits d'entretien."),
+      // Le plan subdivise 604 et 605 (Partie 2 ch. 3, compte 60) : les
+      // rubriques dont le libellé est celui d'un sous-compte semé se
+      // rattachent par le plan (passe R6, D2). « Fourniture d'entretien »
+      // est le 6054 « Fournitures d'entretien non stockables », seul
+      // sous-compte de ce nom, comme « Eau », « Electricité » et « Autres
+      // énergies » sont les 6051 à 6053 « Fournitures non stockables ».
+      { libelle: 'Matières consommables', comptes: ['6041'] },
+      { libelle: 'Matières combustibles', comptes: ['6042'] },
+      { libelle: "Produits d'entretien", comptes: ['6043'] },
       enAttente(
         'fournitures-atelier',
         "Fournitures d'atelier, d'usine et de magasin",
-        "Sous-compte de 604 pour les fournitures d'atelier, d'usine et de magasin.",
+        "Le plan n'ouvre que 6046 « Fournitures de magasin », qui ne couvre ni l'atelier ni l'usine : " +
+          'rattacher ici les sous-comptes qui en relèvent.',
       ),
-      enAttente('eau', 'Eau', 'Sous-compte de 605 pour la consommation d’eau.'),
-      enAttente('electricite', 'Electricité', 'Sous-compte de 605 pour la consommation d’électricité.'),
-      enAttente('autres-energies', 'Autres énergies', 'Sous-compte de 605 pour les autres énergies.'),
-      enAttente('fourniture-entretien', "Fourniture d'entretien", "Sous-compte de 605 pour les fournitures d'entretien."),
-      enAttente('fourniture-bureau', 'Fourniture de bureau', 'Sous-compte de 605 pour les fournitures de bureau.'),
-      enAttente('petit-materiel', 'Petit matériel et outillages', 'Sous-compte de 605 pour le petit matériel et l’outillage.'),
+      { libelle: 'Eau', comptes: ['6051'] },
+      { libelle: 'Electricité', comptes: ['6052'] },
+      { libelle: 'Autres énergies', comptes: ['6053'] },
+      { libelle: "Fourniture d'entretien", comptes: ['6054'] },
+      enAttente(
+        'fourniture-bureau',
+        'Fourniture de bureau',
+        'Le plan ouvre deux sous-comptes, 6047 « Fournitures de bureau » (stockées) et 6055 « Fournitures ' +
+          'de bureau non stockables » : rattacher ici ceux que le projet mouvemente.',
+      ),
+      { libelle: 'Petit matériel et outillages', comptes: ['6056'] },
       enAttente(
         'achats-etudes',
         'Achats études, prestations de services, de travaux matériels et équipements',
-        'Sous-compte de 605 pour les achats d’études, prestations de services, travaux et équipements.',
+        "Le plan ouvre 6057 « Achats d'études et prestations de service » et 6058 « Achats de travaux, " +
+          'matériels et équipements » : rattacher ici ceux que le projet mouvemente.',
       ),
       { libelle: "Achats d'emballages", comptes: ['608'] },
-      enAttente('frais-sur-achats', 'Frais sur achats', 'Sous-compte de 605 pour les frais accessoires sur achats.'),
-      // Voir en-tête (référence à l'anomalie associations 24/25) : le compte
-      // 619 est listé au plan sous les classes 60 et 61, sans être ventilé.
+      enAttente(
+        'frais-sur-achats',
+        'Frais sur achats',
+        'Les frais sur achats sont aux 6015, 6025, 6045 et 6085 (Partie 2 ch. 3, compte 60). 6015 et 6085 ' +
+          'sont déjà dans « Achats de biens et services liés à l\'activité » (601) et « Achats d\'emballages » ' +
+          '(608) : les rattacher ici les compterait deux fois. Rattacher ici 6025 et 6045.',
+      ),
+      // Les rabais obtenus du 60 ont leurs sous-comptes (6019, 6029, 6049,
+      // 6059, 6089, Partie 2 ch. 3, compte 60) · le 619 n'est que sous le 61.
       enAttente(
         'rabais-remises-ristournes',
         'Remises rabais, et ristournes obtenus',
-        'Le compte 619 est listé au plan sous les classes 60 (Achats) ET 61 (Transports), sans être ' +
-          "ventilé entre les deux. Le rattacher d'office ici compterait deux fois le même solde avec la " +
-          'note 16 « Transports » : subdiviser 619 en un sous-compte propre aux achats et le rattacher ici.',
+        'Les rabais obtenus sur achats sont aux 6029, 6049 et 6059 : les rattacher ici. 6019 et 6089 sont ' +
+          'déjà dans « Achats de biens et services liés à l\'activité » (601) et « Achats d\'emballages » ' +
+          '(608) : les rattacher ici les compterait deux fois.',
       ),
-      { libelle: 'TOTAL ACHATS', totalDeRubriques: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] },
+      // Le TOTAL somme toutes les lignes qui le précèdent, rabais compris, dans
+      // l'ordre du modèle · jusqu'à la passe R6 (D3), il s'arrêtait à l'index
+      // 15 et laissait la ligne des rabais hors du total.
+      { libelle: 'TOTAL ACHATS', totalDeRubriques: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16] },
     ],
     commentaire: 'commenter toute variation significative.',
   },
@@ -683,33 +808,26 @@ export const NOTES_PROJETS: SpecificationNote[] = [
       { libelle: 'Transports pour le compte de tiers', comptes: ['613'] },
       { libelle: 'Transport du personnel', comptes: ['614'] },
       { libelle: 'Transports de plis', comptes: ['616'] },
-      enAttente(
-        'voyages-deplacements',
-        'Voyages et déplacements',
-        "Le plan SYCEBNL s'arrête au compte 618 « Autres frais de transport », qui couvre à la fois les " +
-          'voyages et déplacements et les transports administratifs : subdiviser 618 et rattacher ici le ' +
-          'sous-compte des voyages et déplacements.',
-      ),
-      enAttente(
-        'transports-administratifs',
-        'Transports administratifs',
-        "Même situation que « Voyages et déplacements » : subdiviser le compte 618 et rattacher ici le " +
-          'sous-compte des transports administratifs.',
-      ),
-      enAttente(
-        'rabais-remises-ristournes',
-        'Rabais, remises et ristournes obtenus',
-        'Le compte 619 est listé au plan sous les classes 60 (Achats) ET 61 (Transports), sans être ' +
-          "ventilé entre les deux. Le rattacher d'office ici compterait deux fois le même solde avec la " +
-          "note 15 « Achats » : subdiviser 619 en un sous-compte propre aux transports et le rattacher ici.",
-      ),
-      { libelle: 'TOTAL', totalDeRubriques: [0, 1, 2, 3, 4, 5, 6] },
+      // Le plan subdivise 618 (Partie 2 ch. 3, compte 61 : « 6181 Voyages et
+      // déplacements, 6183 Transports administratifs ») · le motif « le plan
+      // s'arrête au compte 618 » servi jusqu'à la passe R6 (D2) était faux.
+      { libelle: 'Voyages et déplacements', comptes: ['6181'] },
+      { libelle: 'Transports administratifs', comptes: ['6183'] },
+      // La maquette s'arrête là : six rubriques et le TOTAL, sans ligne de
+      // rabais (anomalie n° 5 de l'en-tête). La ligne empruntée à la note 25
+      // des associations est retirée (passe R6, D14).
+      { libelle: 'TOTAL', totalDeRubriques: [0, 1, 2, 3, 4, 5] },
     ],
     commentaire: 'commenter toute variation significative.',
   },
   {
     code: '17',
     titre: 'SERVICES EXTERIEURS',
+    // Précision d'OmegaX, pas du texte officiel (passe R6, D7) · art. 15,
+    // référence croisée, et renvoi (1) de la fiche récapitulative (« Leur
+    // contenu peut être amélioré par les entités »). Aucune ligne n'est ajoutée.
+    precisionEditeur:
+      'Le poste TG du compte d\'exploitation comprend aussi le compte 636 (frais de recherche de fonds), auquel le modèle de cette note ne donne aucune ligne.',
     colonnes: COLONNES_STANDARD,
     renvoyeeDepuis: ['TG'],
     rubriques: [
@@ -757,28 +875,38 @@ export const NOTES_PROJETS: SpecificationNote[] = [
   {
     code: '19',
     titre: 'AUTRES CHARGES',
+    // Précision d'OmegaX, pas du texte officiel (passe R6, D7) · art. 15,
+    // référence croisée, et renvoi (1) de la fiche récapitulative (« Leur
+    // contenu peut être amélioré par les entités »). Aucune ligne n'est ajoutée.
+    precisionEditeur:
+      'Le poste TI du compte d\'exploitation comprend aussi les comptes 6512 (pertes sur créances adhérents) et 652 (subventions accordées par l\'entité), auxquels le modèle de cette note ne donne aucune ligne.',
     colonnes: COLONNES_STANDARD,
     renvoyeeDepuis: ['TI'],
     rubriques: [
-      // 651 est subdivisé au plan : 6511 clients-usagers, 6515 autres
-      // débiteurs (pas de 6512 « adhérents » utile ici, ce jeu n'en a pas).
-      //
-      // MÊME ÉCART QU'AU JEU ASSOCIATIONS · le semis n'ouvre que 65100000, et
-      // son solde, pris en TI au compte de résultat, ne tombe dans aucune de
-      // ces deux lignes. Le manque est au PLAN (`compte-seed.ts`), pas à la
-      // transcription : les rabattre sur '651' inventerait une ventilation.
-      // Gelé par `rattachement-des-notes-au-semis.spec.ts`.
+      // 651 est subdivisé au plan : 6511 clients-usagers, 6512 adhérents,
+      // 6515 autres débiteurs. Le semis ouvre les trois depuis la descente au
+      // quatrième chiffre (CLAUDE.md § 7), et les rubriques captent 6511 et
+      // 6515 nommément. Les rabattre sur '651' inventerait une ventilation ·
+      // le 6512 n'a pas de ligne dans la maquette de ce jeu.
       { libelle: 'Pertes sur créances', comptes: ['6511'] },
       { libelle: 'Pertes sur autres débiteurs', comptes: ['6515'] },
-      { libelle: 'Perte de change sur créances', comptes: ['676'] },
+      // Anomalie n° 4 de l'en-tête · le plan SYCEBNL n'ouvre aucune perte de
+      // change sous le 65. Le 676 « Pertes de change financières » relève du
+      // poste TK et de la note 21 : rattaché ici, il s'imprimait deux fois
+      // et le TOTAL de la note ne recoupait plus TI (passe R6, D4).
+      enAttente(
+        'perte-change-creances',
+        'Perte de change sur créances',
+        "Le plan SYCEBNL n'ouvre aucun compte de perte de change sous le 65 (autres charges). Le 676 " +
+          '« Pertes de change financières » relève des frais financiers (poste TK) et est déjà détaillé en ' +
+          'note 21 : ne pas le rattacher ici. Rattacher ici, le cas échéant, le sous-compte propre du dossier.',
+      ),
       { libelle: 'Pénalités et amendes pénales', comptes: ['657'] },
       { libelle: 'Dons et mécénat', comptes: ['654'] },
       { libelle: 'Autres charges diverses', comptes: ['658'] },
-      {
-        libelle: "Charges pour provisions pour risques à court terme d'exploitation",
-        comptes: ['659'],
-        renvoi: 'voir note 22',
-      },
+      // La maquette de ce jeu n'imprime aucun renvoi sur cette ligne (celui de
+      // la note 28 des associations, « voir note 30 », est de l'autre jeu).
+      { libelle: "Charges pour provisions pour risques à court terme d'exploitation", comptes: ['659'] },
       { libelle: 'TOTAL', totalDeRubriques: [0, 1, 2, 3, 4, 5, 6] },
     ],
     commentaire: 'commenter toute variation significative ; indiquer les organismes bénéficiaires des dons.',
@@ -786,6 +914,11 @@ export const NOTES_PROJETS: SpecificationNote[] = [
   {
     code: '20A',
     titre: 'CHARGES DE PERSONNEL',
+    // Précision d'OmegaX, pas du texte officiel (passe R6, D7) · art. 15,
+    // référence croisée, et renvoi (1) de la fiche récapitulative (« Leur
+    // contenu peut être amélioré par les entités »). Aucune ligne n'est ajoutée.
+    precisionEditeur:
+      'Le poste TJ du compte d\'exploitation comprend aussi le compte 665 (habillement et équipement du personnel), auquel le modèle de cette note ne donne aucune ligne.',
     colonnes: COLONNES_STANDARD,
     renvoyeeDepuis: ['TJ'],
     rubriques: [
@@ -793,8 +926,9 @@ export const NOTES_PROJETS: SpecificationNote[] = [
       { libelle: 'Rémunérations directes versées au personnel non national', comptes: ['662'] },
       { libelle: 'Indemnités forfaitaires versées au personnel', comptes: ['663'] },
       // 664 subdivisé au plan en 6641 national / 6642 non national · le semis
-      // n'ouvre que 66400000 « Charges sociales », dont le solde est pris en TJ
-      // et perdu ici. Défaut de plan, pas de transcription (voir note 19).
+      // ouvre les deux depuis la descente au quatrième chiffre (CLAUDE.md
+      // § 7), et les rubriques les captent nommément. Ne jamais rabattre sur
+      // '664', qui mêlerait les deux personnels.
       { libelle: 'Charges sociales (personnel national)', comptes: ['6641'] },
       { libelle: 'Charges sociales (personnel non national)', comptes: ['6642'] },
       { libelle: 'Rémunération transférée de personnel extérieur', comptes: ['667'] },
@@ -858,6 +992,11 @@ export const NOTES_PROJETS: SpecificationNote[] = [
   {
     code: '21',
     titre: 'CHARGES ET REVENUS FINANCIERS',
+    // Précision d'OmegaX, pas du texte officiel (passe R6, D7) · art. 15,
+    // référence croisée, et renvoi (1) de la fiche récapitulative (« Leur
+    // contenu peut être amélioré par les entités »). Aucune ligne n'est ajoutée.
+    precisionEditeur:
+      'Le poste TK du compte d\'exploitation comprend aussi le compte 678 (pertes et charges sur risques financiers), auquel le modèle de cette note ne donne aucune ligne.',
     colonnes: COLONNES_STANDARD,
     renvoyeeDepuis: ['TK'],
     rubriques: [
@@ -898,6 +1037,8 @@ export const NOTES_PROJETS: SpecificationNote[] = [
   {
     code: '22',
     titre: 'DOTATIONS ET CHARGES POUR PROVISIONS',
+    // RE et le second TJ (Dotations aux provisions) · maquette 21, décalée.
+    renvoyeeDepuis: ['RE', 'TJ'],
     // LACUNE DU TEXTE OFFICIEL, non comblée · voir en-tête de fichier. Le
     // texte ne donne ni colonnes ni rubriques pour cette note, seulement un
     // commentaire. La combler avec la structure de la note 30 associations
@@ -921,8 +1062,14 @@ export const NOTES_PROJETS: SpecificationNote[] = [
   {
     code: '23',
     titre: 'AUTRES CHARGES ET PRODUITS HAO',
+    // Précision d'OmegaX, pas du texte officiel (passe R6, D7) · art. 15,
+    // référence croisée, et renvoi (1) de la fiche récapitulative (« Leur
+    // contenu peut être amélioré par les entités »). Aucune ligne n'est ajoutée.
+    precisionEditeur:
+      'Le poste TL du compte d\'exploitation comprend aussi les comptes 81, 838, 85 et 87, et le poste Produits H.A.O. (TK) les comptes 82 et 846, auxquels le modèle de cette note ne donne aucune ligne.',
     colonnes: COLONNES_STANDARD,
-    renvoyeeDepuis: ['TL'],
+    // Le second TK (Produits H.A.O.) et TL · maquette 22, décalée.
+    renvoyeeDepuis: ['TK', 'TL'],
     rubriques: [
       // Même anomalie de numérotation 8311/8315 que la note 32 associations
       // (subdivisions du compte 832 numérotées dans la plage du 831).

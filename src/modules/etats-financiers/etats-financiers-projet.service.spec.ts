@@ -235,8 +235,32 @@ describe('EtatsFinanciersProjetService', () => {
       const tk = ce.charges.filter((p) => p.ref === 'TK');
       expect(tj.map((p) => p.montant)).toEqual([300, 40]);
       expect(tk.map((p) => p.montant)).toEqual([20, 60]);
-      // XB additionne les deux lignes de chaque ref, y compris le produit HAO en +.
-      expect(ce.totalCharges).toBe(300 + 40 + 20 + 60);
+      // XB suit la colonne « Signe » du tableau officiel (Partie 4 ch. 3,
+      // l. 585-589) : charges « - », TK Produits H.A.O. « + ». Le produit
+      // H.A.O. se RETRANCHE du total des charges. L'attendu « 300 + 40 + 20
+      // + 60 » gelé jusqu'à la passe R6 (D1) additionnait le produit comme
+      // une charge, et faussait XC de deux fois son montant.
+      expect(ce.totalCharges).toBe(300 + 40 + 20 - 60);
+    });
+
+    it('un produit H.A.O. seul (cession de fin de projet, crédit 82) donne un XC positif, en N comme en N-1', async () => {
+      // Partie 3 ch. 3 § 2.5.1 : le prix de cession est crédité au 82, la
+      // sortie du bien passe par le 16x sans 81 · la clôture crédite le 13.
+      const service = serviceAvecExercices(
+        {
+          e1: [ligne('82000000', ClasseCompte.CLASSE_8, 0, 5_000_000)],
+          e0: [ligne('82000000', ClasseCompte.CLASSE_8, 0, 1_000_000)],
+        },
+        [
+          { id: 'e1', dateDebut: new Date('2026-01-01') },
+          { id: 'e0', dateDebut: new Date('2025-01-01') },
+        ],
+      );
+      const ce = await service.compteExploitation('t1', 'e1');
+      expect(ce.charges.find((p) => p.libelle === 'Produits H.A.O.')!.montant).toBe(5_000_000);
+      expect(ce.totalCharges).toBe(-5_000_000);
+      expect(ce.solde).toBe(5_000_000);
+      expect(ce.soldeN1).toBe(1_000_000);
     });
 
     it('XC = XA - XB, exposé même non nul (pas forcé à zéro)', async () => {

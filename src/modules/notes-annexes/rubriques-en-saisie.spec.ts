@@ -252,6 +252,7 @@ describe('cellules LIBRE d’une rubrique chiffrée · ce qui s’ouvre et ce qu
       '8 :: Montant en devises': MOTIF_DEVISE,
       '8 :: Cours UML Année acquisition': MOTIF_DEVISE,
       '8 :: Cours UML 31/12': MOTIF_DEVISE,
+      '8 :: Variation en %': MOTIF_DEVISE,
     },
     SYSCOHADA_SYSTEME_NORMAL: {
       '1|DETTES GARANTIES PAR DES SÛRETÉS RÉELLES :: Note': MOTIF_RENVOI,

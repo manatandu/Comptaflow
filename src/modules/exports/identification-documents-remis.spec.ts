@@ -34,6 +34,9 @@ function service() {
       administrationNonAffecte: ZERO,
       totalInvestissement: ZERO,
       totalAdministration: ZERO,
+      // Le total général que le service calcule · la ligne de total de la
+      // Note 9 le porte (passe R6, D13).
+      totalFondsDuBailleur: { decaisse: 1100, consomme: 450, soldeRestant: 650 },
     }),
   };
   const donations = {
@@ -123,5 +126,17 @@ describe('F102 · chaque feuille remise se nomme elle-même', () => {
     });
     expect(ligneDuPied).toBeGreaterThan(4);
     expect(garde.model.merges).toContain(`A${ligneDuPied}:C${ligneDuPied}`);
+  });
+});
+
+describe('Note 9 · la ligne de total porte le total des fonds du bailleur (passe R6, D13)', () => {
+  it('les trois dernières colonnes de TOTAL DES FONDS DU BAILLEUR sont totalFondsDuBailleur', async () => {
+    const [feuille] = (await relire((await service().noteBailleurExcel('t1', 'ex')).buffer)).worksheets;
+    let rang = 0;
+    feuille.eachRow((r, n) => {
+      if (r.getCell(1).value === 'TOTAL DES FONDS DU BAILLEUR') rang = n;
+    });
+    expect(rang).toBeGreaterThan(0);
+    expect([8, 9, 10].map((c) => feuille.getCell(rang, c).value)).toEqual([1100, 450, 650]);
   });
 });

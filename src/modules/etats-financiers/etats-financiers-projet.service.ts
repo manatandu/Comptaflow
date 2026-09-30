@@ -258,8 +258,8 @@ export class EtatsFinanciersProjetService {
    * COMPTE D'EXPLOITATION · voir `correspondance-projet-compte-exploitation.ts`
    * pour les 3 anomalies du texte officiel reproduites/corrigées ici (RC
    * restituée, RE inclus dans XA, doublon REF TJ/TK conservé via `cle`).
-   * XA = Σrevenus, XB = Σcharges (au sens officiel, TK_PRODUITS_HAO inclus
-   * malgré son signe +), XC = XA − XB · voir la note de tête de fichier du
+   * XA = Σrevenus, XB = Σcharges moins le TK Produits H.A.O. (signe « + »
+   * du tableau officiel, opposé à celui des charges), XC = XA − XB · voir la note de tête de fichier du
    * service pour ce que XC ≠ 0 signale (pas une erreur du moteur).
    */
   async compteExploitation(tenantId: string, exerciceId: string) {
@@ -282,12 +282,24 @@ export class EtatsFinanciersProjetService {
     const revenus = resN.revenus.map((p, i) => fusionnerN1(p, resN1.revenus[i]));
     const charges = resN.charges.map((p, i) => fusionnerN1(p, resN1.charges[i]));
 
+    // XB = « Somme TA à TL » AU SIGNE de la colonne « Signe » du tableau de
+    // correspondance officiel (Partie 4 ch. 3, l. 578 à 589) : les charges
+    // portent « - », le TK Produits H.A.O. porte « + ». Chaque poste est
+    // montré dans SON sens (le produit H.A.O. en positif), si bien que XB,
+    // total de charges, RETRANCHE les postes de sens PRODUIT au lieu de les
+    // ajouter. Additionné, un produit H.A.O. pesait sur XC comme une charge ·
+    // une cession de 5 000 000 en fin de projet (Partie 3 ch. 3 § 2.5.1,
+    // crédit du 82) donnait XC = −5 000 000 quand la clôture crédite le 13
+    // de +5 000 000.
+    const signeDansXB = (i: number) => (POSTES_CHARGES[i].sens === 'PRODUIT' ? -1 : 1);
     const totalRevenus = revenus.reduce((s, p) => s + p.montant, 0); // XA
-    const totalCharges = charges.reduce((s, p) => s + p.montant, 0); // XB
+    const totalCharges = charges.reduce((s, p, i) => s + signeDansXB(i) * p.montant, 0); // XB
     const solde = totalRevenus - totalCharges; // XC
 
     const totalRevenusN1 = exerciceN1Id ? revenus.reduce((s, p) => s + (p.montantN1 ?? 0), 0) : undefined;
-    const totalChargesN1 = exerciceN1Id ? charges.reduce((s, p) => s + (p.montantN1 ?? 0), 0) : undefined;
+    const totalChargesN1 = exerciceN1Id
+      ? charges.reduce((s, p, i) => s + signeDansXB(i) * (p.montantN1 ?? 0), 0)
+      : undefined;
     const soldeN1 = totalRevenusN1 !== undefined && totalChargesN1 !== undefined ? totalRevenusN1 - totalChargesN1 : undefined;
 
     return {
@@ -328,8 +340,9 @@ export class EtatsFinanciersProjetService {
    * ## Une note de PROJET, pas d'exercice · cumul depuis l'origine
    *
    * La Note 9 suit le cycle de vie du PROJET, pas l'exercice comptable :
-   * ses rubriques sont « Date des décaissements » et « TOTAL DES FONDS DU
-   * BAILLEUR », et son objet est le niveau d'utilisation des fonds affectés
+   * sa première COLONNE est « Date des décaissements », sa dernière
+   * rubrique « TOTAL DES FONDS DU BAILLEUR », et son objet est le niveau
+   * d'utilisation des fonds affectés
    * « en pourcentage par catégorie de fonds et de façon globale »
    * (commentaire officiel, Section 6). Les trois colonnes sont donc
    * calculées EN CUMUL depuis l'origine du dossier, toutes périodes
@@ -340,6 +353,12 @@ export class EtatsFinanciersProjetService {
    * sur le seul exercice courant tout en affichant un solde cumulé : dès le
    * 2ᵉ exercice les trois colonnes ne se réconciliaient plus (une ligne
    * pouvait afficher « 0 | 0 | 100 000 »). Corrigé à l'audit du même jour.
+   *
+   * `[texte officiel]` La colonne « Date des décaissements » n'est pas
+   * servie : le texte ne dit pas comment un montant consommé se rattache à
+   * un décaissement daté. La trancher (une ligne par date de mouvement
+   * crédit, par exemple) est une décision à prendre, pas une lecture (passe
+   * R6, D13).
    *
    * ## Convention retenue pour Montant décaissé / Montant consommé
    *
@@ -640,15 +659,31 @@ export class EtatsFinanciersProjetService {
     // (fonds reçus les années précédentes, plus rien cette année) ne doit pas
     // disparaître du tableau : c'est précisément la ligne que la colonne
     // cumulée existe pour montrer.
+    //
+    // UNE LIGNE DE BAILLEUR DU SEUL CUMUL SE RANGE DANS LE BLOC FA/FB, avant
+    // FC · l'ordre de la maquette (Partie 4 ch. 3, Section 1, l. 25 à 29).
+    // Poussée en fin de liste, elle sortait après VII. CONTRÔLE, à l'écran
+    // comme dans le classeur (passe R6, D9). Son REF reste FB : un bailleur
+    // rattaché a toujours sa ligne, FA, dans les trois colonnes, et la ligne
+    // « non rattachés » n'est FA que sans bailleur, donc déjà rendue.
     for (const p of cumulFin.affichage) {
       if (rendu.some((r) => r.cle === p.cle)) continue;
-      rendu.push({
+      const ligne = {
         ...p,
         montant: 0,
         comptes: [],
         montantCumulDebut: cumulDebut.parCle.get(p.cle)?.montant ?? 0,
         montantCumulFin: p.montant,
-      });
+      };
+      if (p.cle.startsWith('BAILLEUR:')) {
+        let dernier = -1;
+        rendu.forEach((r, i) => {
+          if (r.cle.startsWith('BAILLEUR:')) dernier = i;
+        });
+        rendu.splice(dernier + 1, 0, ligne);
+      } else {
+        rendu.push(ligne);
+      }
     }
 
     return {

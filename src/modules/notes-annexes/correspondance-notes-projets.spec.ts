@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { NOTES_PROJETS } from './correspondance-notes-projets';
 import { NOTES_ASSOCIATIONS } from './correspondance-notes-associations';
+import { NOTE_PAR_CLE_PROJETS } from '../exports/etat-etafi';
 import { codesDistincts, compteSeme, etiquette, toutesLesRubriques } from './notes-sycebnl.commun';
 
 /**
@@ -286,5 +287,83 @@ describe('la lacune de la note 22 reste une lacune', () => {
     expect(note30).toBeDefined();
     expect(note22.rubriques.map((r) => r.libelle)).not.toEqual(note30!.rubriques.map((r) => r.libelle));
     expect(note22.rubriques.every((r) => (r.comptes ?? []).length === 0)).toBe(true);
+  });
+});
+
+describe('les renvois des notes et la colonne Note de la liasse disent la même chose', () => {
+  /*
+    Passe R6, D8 · la liasse imprimait 6 sur BC, BD et BE quand la note 6 se
+    disait renvoyée depuis BE seul, 7 sur BV quand la note 7 ne nommait que BW,
+    et les notes 9 et 22 ne se disaient renvoyées depuis aucun poste. Deux
+    tables de la même référence croisée (art. 15), écrites séparément, avaient
+    divergé. Les clés TJ2 et TK2 de la liasse sont le second TJ et le second
+    TK du modèle.
+  */
+  it('chaque note se dit renvoyée depuis exactement les postes que la liasse lui renvoie', () => {
+    const refDeCle = (cle: string) => cle.replace(/2$/, '');
+    const attendu = new Map<string, Set<string>>();
+    for (const [cle, notes] of Object.entries(NOTE_PAR_CLE_PROJETS)) {
+      for (const code of notes.split(' et ')) {
+        const s = attendu.get(code) ?? new Set<string>();
+        s.add(refDeCle(cle));
+        attendu.set(code, s);
+      }
+    }
+    const declare = new Map<string, Set<string>>();
+    for (const n of NOTES_PROJETS) {
+      const s = declare.get(n.code) ?? new Set<string>();
+      for (const r of n.renvoyeeDepuis ?? []) s.add(r);
+      declare.set(n.code, s);
+    }
+    for (const code of CODES_OFFICIELS) {
+      expect([code, [...(declare.get(code) ?? [])].sort()]).toEqual([code, [...(attendu.get(code) ?? [])].sort()]);
+    }
+  });
+});
+
+describe('note 8 · les six colonnes de la maquette, et la variation lue aux 478 et 479', () => {
+  it('les libellés et les types suivent la maquette (Partie 4 ch. 3, note 8)', () => {
+    // Passe R6, D19 · une septième colonne « Année N » portait l'écart, et
+    // les deux colonnes officielles recevaient un N moins N-1 des écarts.
+    const note8 = NOTES_PROJETS.find((n) => n.code === '8')!;
+    expect(note8.colonnes.map((c) => [c.libelle, c.type])).toEqual([
+      ['Devises', 'LIBRE'],
+      ['Montant en devises', 'LIBRE'],
+      ['Cours UML Année acquisition', 'LIBRE'],
+      ['Cours UML 31/12', 'LIBRE'],
+      ['Variation en valeur', 'EXERCICE_N'],
+      ['Variation en %', 'LIBRE'],
+    ]);
+  });
+});
+
+describe('note 16 · la maquette, et elle seule', () => {
+  it('six rubriques et le TOTAL, sans ligne de rabais (passe R6, D14)', () => {
+    // Une septième ligne « Rabais, remises et ristournes obtenus », empruntée
+    // à la note 25 des associations, entrait dans le TOTAL. La maquette de ce
+    // jeu (Partie 4 ch. 3, note 16) ne la porte pas.
+    const note16 = NOTES_PROJETS.find((n) => n.code === '16')!;
+    expect(note16.rubriques.map((r) => r.libelle)).toEqual([
+      'Transports sur ventes',
+      'Transports pour le compte de tiers',
+      'Transport du personnel',
+      'Transports de plis',
+      'Voyages et déplacements',
+      'Transports administratifs',
+      'TOTAL',
+    ]);
+    expect(note16.rubriques[6].totalDeRubriques).toEqual([0, 1, 2, 3, 4, 5]);
+  });
+});
+
+describe('note 19 · les renvois sont ceux de la maquette', () => {
+  it('la ligne du 659 ne porte pas le « voir note 22 » que la maquette n’imprime pas (passe R6, D21)', () => {
+    // Le « (voir note 30) » de la note 28 est au texte des associations ; la
+    // maquette de ce jeu n'en porte aucun, et un renvoi ajouté sortait dans
+    // le classeur comme s'il était officiel.
+    const note19 = NOTES_PROJETS.find((n) => n.code === '19')!;
+    expect(note19.rubriques.map((r) => [r.libelle, r.renvoi ?? null])).toEqual(
+      note19.rubriques.map((r) => [r.libelle, null]),
+    );
   });
 });

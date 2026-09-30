@@ -145,15 +145,23 @@ describe('SYCEBNL · les comptes 65 et 66 semés que les notes 28 et 29A perdent
     // dans la note qui prétend le détailler · un écart qu'aucun total ne
     // signale, puisque le TOTAL de la note est la somme de ses propres
     // rubriques, toutes vides.
-    const rubriques = [...NOTES_ASSOCIATIONS, ...NOTES_PROJETS]
-      .filter((n) => !n.horsBalance)
-      .flatMap((n) => n.rubriques)
-      .filter((r) => (r.comptes ?? []).length > 0);
-
-    const perdus = COMPTES_DETAIL_SEMES.filter(
-      (numero) =>
-        /^6[56]/.test(numero) && !rubriques.some((r) => correspond(numero, r.comptes!, r.exclusions)),
-    );
+    // UNE TABLE À LA FOIS (passe R6, D7) · réunies, les notes 28 et 29A des
+    // associations masquaient la perte des 6512, 652 et 665 dans les notes
+    // 19 et 20A des projets. Le jeu projets a son propre relevé, ci-dessous.
+    const perdusDe = (table: SpecificationNote[]) => {
+      const rubriques = table
+        .filter((n) => !n.horsBalance)
+        .flatMap((n) => n.rubriques)
+        .filter((r) => (r.comptes ?? []).length > 0);
+      return COMPTES_DETAIL_SEMES.filter(
+        (numero) =>
+          /^6[56]/.test(numero) && !rubriques.some((r) => correspond(numero, r.comptes!, r.exclusions)),
+      );
+    };
+    const perdus = perdusDe(NOTES_ASSOCIATIONS);
+    // Jeu projets · lacunes du modèle de ses notes 19 et 20A, dites au lecteur
+    // par leur précision d'éditeur.
+    expect(perdusDe(NOTES_PROJETS)).toEqual(['65120000', '65200000', '66500000']);
     // La liste est VIDE, et c'est l'aboutissement attendu : 65100000 et
     // 66400000 étaient les deux comptes que `compte-seed.ts` ouvrait au
     // divisionnaire au lieu des sous-comptes du texte. Le semis descend
@@ -212,5 +220,55 @@ describe('SYCEBNL · les rubriques des notes 28, 29A, 19 et 20A restent celles d
     const n20a = new Map(attendu(NOTES_PROJETS, '20A'));
     expect(n20a.get('Charges sociales (personnel national)')).toBe('6641');
     expect(n20a.get('Charges sociales (personnel non national)')).toBe('6642');
+  });
+});
+
+describe('SYCEBNL · une rubrique que le plan détermine ne se dit pas « en attente »', () => {
+  /*
+    Passe R6, D2 · les notes 14, 15 et 16 des projets déclaraient en attente
+    de subdivision « Ventes de marchandises », « Matières consommables »,
+    « Eau », « Voyages et déplacements »… avec un motif affirmant que le plan
+    s'arrête au 705, au 604 ou au 618. Le plan les subdivise, et le semis ouvre
+    ces sous-comptes sous le libellé même de la rubrique. Une rubrique dont le
+    libellé est l'intitulé d'un compte Détail semé de classe 6 ou 7 se
+    rattache par le plan : la laisser rattachable dossier par dossier contredit
+    `rubriqueRattachable`, et le motif affiché est faux.
+  */
+  const normaliser = (s: string) =>
+    s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const semes = PLAN_COMPTES_SYCEBNL.filter((c) => c.typeCompte !== 'TOTAL' && /^[67]/.test(c.numero));
+  const intituleDe = (c: { intitule: string }) => {
+    const segments = c.intitule.split(' · ');
+    return [normaliser(c.intitule), normaliser(segments[segments.length - 1])];
+  };
+
+  it('jeu projets · aucune rubrique en attente ne porte l’intitulé d’un compte Détail semé', () => {
+    const fautives: string[] = [];
+    for (const n of NOTES_PROJETS) {
+      for (const r of n.rubriques) {
+        if (!r.subdivisionAttendue) continue;
+        const comptes = semes.filter((c) => intituleDe(c).includes(normaliser(r.libelle))).map((c) => c.numero);
+        if (comptes.length) fautives.push(`${etiquette(n)} · ${r.libelle} · ${comptes.join(', ')}`);
+      }
+    }
+    expect(fautives).toEqual([]);
+  });
+});
+
+describe('SYCEBNL · les dettes sociales semées ont chacune leur ligne', () => {
+  it('tout compte Détail semé du 43 (hors 4387, débiteur) est lu par exactement une rubrique des notes 12 (projets) et 20 (associations)', () => {
+    // Passe R6, D6 · les 4334 INPP et 4335 ONEM, qu'OmegaX sème sous le 433
+    // et que la paie crédite, n'étaient lus par aucune rubrique : pris au
+    // bilan (DH, DI), absents de la note qui détaille le poste.
+    for (const [table, code] of [[NOTES_PROJETS, '12'], [NOTES_ASSOCIATIONS, '20']] as const) {
+      const rubriques = table
+        .filter((n) => n.code === code)
+        .flatMap((n) => n.rubriques)
+        .filter((r) => (r.comptes ?? []).length > 0);
+      for (const numero of COMPTES_DETAIL_SEMES.filter((n) => n.startsWith('43') && !n.startsWith('4387'))) {
+        const lecteurs = rubriques.filter((r) => correspond(numero, r.comptes!, r.exclusions)).map((r) => r.libelle);
+        expect({ code, numero, nombre: lecteurs.length }).toEqual({ code, numero, nombre: 1 });
+      }
+    }
   });
 });

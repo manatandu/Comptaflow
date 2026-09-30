@@ -916,14 +916,12 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       // 6515 autres débiteurs. Les deux rubriques du modèle s'y rattachent
       // donc sans jugement.
       //
-      // MAIS LE SEMIS N'OUVRE PAS CES SOUS-COMPTES · `compte-seed.ts` s'arrête
-      // à 65100000 « Pertes sur créances adhérents/clients-usagers et autres
-      // débiteurs ». Un solde porté là n'alimente donc AUCUNE des deux lignes,
-      // alors que le compte de résultat le prend en TI (comptes ['65']) d'où
-      // cette note est renvoyée. Le défaut est au PLAN, pas ici : rabattre ces
-      // deux rubriques sur '651' rangerait d'office des pertes indifférenciées
-      // chez les adhérents ou chez les clients, ce que ni la maquette ni le
-      // plan ne disent. Gelé par `rattachement-des-notes-au-semis.spec.ts`.
+      // Le semis ouvre 6511, 6512 et 6515 depuis la descente au quatrième
+      // chiffre (CLAUDE.md § 7), et les deux rubriques les captent nommément.
+      // Ne jamais les rabattre sur '651' : ce serait ranger d'office des
+      // pertes indifférenciées chez les adhérents ou chez les clients, ce que
+      // ni la maquette ni le plan ne disent. Gelé par
+      // `rattachement-des-notes-au-semis.spec.ts`.
       { libelle: 'Pertes sur créances adhérents', comptes: ['6512'] },
       { libelle: 'Pertes sur Clients et autres débiteurs', comptes: ['6511', '6515'] },
       { libelle: "Subventions versées par l'entité", comptes: ['652'] },
@@ -950,12 +948,11 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { libelle: 'Rémunérations directes versées au personnel national', comptes: ['661'] },
       { libelle: 'Rémunérations directes versées au personnel non national', comptes: ['662'] },
       { libelle: 'Indemnités forfaitaires versées au personnel', comptes: ['663'] },
-      // 664 est subdivisé au plan : 6641 national, 6642 non national. Même
-      // situation qu'à la note 28 · le semis n'ouvre que 66400000 « Charges
-      // sociales », dont le solde est pris en TJ (comptes ['66']) au compte de
-      // résultat et perdu par ces deux lignes. Ranger d'office un montant
-      // indifférencié chez le personnel national serait une invention : le
-      // texte ne le dit nulle part. Voir `rattachement-des-notes-au-semis.spec.ts`.
+      // 664 est subdivisé au plan : 6641 national, 6642 non national, que le
+      // semis ouvre depuis la descente au quatrième chiffre (CLAUDE.md § 7).
+      // Ranger d'office un montant indifférencié chez le personnel national
+      // serait une invention : le texte ne le dit nulle part. Voir
+      // `rattachement-des-notes-au-semis.spec.ts`.
       { libelle: 'Charges sociales (personnel national)', comptes: ['6641'] },
       { libelle: 'Charges sociales (personnel non national)', comptes: ['6642'] },
       { libelle: 'Habillement et équipement du personnel', comptes: ['665'] },

@@ -1156,6 +1156,8 @@ export interface LigneFicheRecapitulative {
 export interface ResultatNotesJeu {
   notes: NoteCalculee[];
   exerciceN1Disponible: boolean;
+  /** Rattachements du dossier que plus aucune rubrique rattachable ne lit (passe R6). */
+  rattachementsSansRubrique?: { codeNote: string; cleRubrique: string; compteId: string; numero: string }[];
   ficheRecapitulative: LigneFicheRecapitulative[];
   couverture: { transcrites: number; attendues: number };
 }

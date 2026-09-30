@@ -131,10 +131,13 @@ describe('Tableau emplois-ressources · projets de développement', () => {
     expect(fr.montant).toBe(150_000);
   });
 
-  it('le renvoi 8 RETRANCHE le mouvement crédit du 166, il ne l’ajoute pas', async () => {
+  it('le renvoi 8 RETRANCHE le mouvement crédit des intérêts courus (186 au plan SYCEBNL), il ne l’ajoute pas', async () => {
+    // Jusqu'à la passe R6 (D15), ce test fabriquait un 16600000, compte que
+    // le plan SYCEBNL n'ouvre pas : il vérifiait le signe d'une opération sur
+    // un compte qui ne peut exister dans aucun dossier. 18620000 est semé.
     const s = service([
       ligne('67100000', ClasseCompte.CLASSE_6, { debit: 80_000 }),
-      ligne('16600000', ClasseCompte.CLASSE_1, { credit: 30_000 }),
+      ligne('18620000', ClasseCompte.CLASSE_1, { credit: 30_000 }),
     ]);
     const er = await s.tableauEmploisRessources('t1', 'e1');
     expect(poste(er, 'FS').montant).toBe(50_000);
@@ -336,6 +339,26 @@ describe('Tableau emplois-ressources · projets de développement', () => {
         montantCumulFin: number;
       };
       expect(nonRattaches.montantCumulFin).toBe(400_000);
+    });
+
+    it('une ligne de bailleur du SEUL CUMUL se range dans le bloc FA/FB, avant FC (passe R6, D9)', async () => {
+      // Maquette, Section 1, l. 25 à 29 : FA, FB, FC, FD, GR. Poussée en fin
+      // de liste, la ligne « non rattachés » sortait après VII. CONTRÔLE, à
+      // l'écran comme dans le classeur, où elle prenait le rang du FB.
+      const s = service([ligne('46200001', ClasseCompte.CLASSE_4, { credit: 100_000 })], {
+        bailleurs: [{ id: 'b-a', nom: 'Alpha' }],
+        rattachements: { 'id-46200001': 'b-a' },
+        exercicePrecedentId: 'e0',
+        cumulFin: [
+          ligne('46200001', ClasseCompte.CLASSE_4, { credit: 900_000 }),
+          ligne('46200099', ClasseCompte.CLASSE_4, { credit: 400_000 }),
+        ],
+        cumulDebut: [ligne('46200099', ClasseCompte.CLASSE_4, { credit: 400_000 })],
+      });
+      const er = await s.tableauEmploisRessources('t1', 'e1');
+      expect(er.lignes.slice(0, 3).map((l) => l.ref)).toEqual(['FA', 'FB', 'FC']);
+      expect(er.lignes[1].libelle).toContain('non rattachés');
+      expect(er.lignes[er.lignes.length - 1].ref).toBe('GZ');
     });
 
     it('vérifie le CONTRÔLE VII sur chacune des trois colonnes', async () => {

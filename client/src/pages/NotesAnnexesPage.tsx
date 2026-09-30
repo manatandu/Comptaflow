@@ -1,3 +1,4 @@
+import { RattachementsSansRubrique } from '../components/RattachementsSansRubrique';
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
@@ -286,6 +287,13 @@ function NotesAnnexesSycebnlPage() {
           </button>
         </div>
       )}
+
+      <RattachementsSansRubrique
+        liste={resultat?.rattachementsSansRubrique}
+        peutRetirer={peutEcrire}
+        enCours={enCours}
+        retirer={detacher}
+      />
 
       {!resultat && <div className="border border-border px-4 py-4 text-[11.5px] text-text-dim">Chargement…</div>}
 
