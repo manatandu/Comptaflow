@@ -50,7 +50,7 @@ export const FORMES_SYSCOHADA: {
     valeur: 'SOCIETE_RESPONSABILITE_LIMITEE',
     titre: 'Société à responsabilité limitée · SARL',
     detail:
-      "Associés responsables à concurrence de leurs apports, droits représentés par des parts sociales (art. 309). Un seul associé possible. AUCUN CAPITAL MINIMUM EN RDC : l'article 311 fixe un million de FCFA « sauf dispositions nationales contraires », et la RDC a usé de cette réserve · le capital est librement fixé par les associés compte tenu de l'objet social. Le même texte rend le recours au notaire facultatif, les statuts pouvant être établis sous seing privé.",
+      "Associés responsables à concurrence de leurs apports, droits représentés par des parts sociales (art. 309). Un seul associé possible. AUCUN CAPITAL MINIMUM EN RDC : l'article 311 fixe un million de FCFA « sauf dispositions nationales contraires », et la RDC a usé de cette réserve · le capital est librement fixé par les associés compte tenu de l'objet social. Le même texte rend le recours au notaire facultatif, les statuts pouvant être établis sous seing privé. Arrêté interministériel du 30 décembre 2014, non lu au Journal officiel · à vérifier sur le texte primaire.",
   },
   {
     valeur: 'SOCIETE_NOM_COLLECTIF',
@@ -74,7 +74,7 @@ export const FORMES_SYSCOHADA: {
     valeur: 'SOCIETE_COOPERATIVE',
     titre: 'Société coopérative · SCOOPS ou COOP-CA',
     detail:
-      "Groupement autonome de personnes, propriété et gestion collectives, pouvoir exercé démocratiquement (AUSCOOP art. 4). Simplifiée à partir de cinq membres (art. 204), avec conseil d'administration à partir de quinze (art. 267). Immatriculée au Registre des Sociétés Coopératives, PAS au registre du commerce (art. 206).",
+      "Groupement autonome de personnes, propriété et gestion collectives, pouvoir exercé démocratiquement (AUSCOOP art. 4). Simplifiée à partir de cinq membres (art. 204), avec conseil d'administration à partir de quinze (art. 267). Immatriculée au Registre des Sociétés Coopératives, PAS au registre du commerce (art. 74).",
   },
   {
     valeur: 'ENTREPRISE_INDIVIDUELLE',
@@ -96,9 +96,12 @@ export const FORMES_SYSCOHADA: {
   },
   {
     valeur: 'ENTITE_PUBLIQUE',
-    titre: 'Entité publique, parapublique ou d’économie mixte',
+    // AUSCGIE art. 1 · une société d'économie mixte constituée en SA, SARL ou
+    // SAS est une société commerciale · rangée ici, elle perdrait la ligne de
+    // l'art. 17 et la réserve légale (passe O1a).
+    titre: 'Entité publique ou parapublique',
     detail:
-      "Visée en propre par l'AUDCIF art. 2, à l'exception de celles soumises aux règles de la comptabilité publique · celles-là relèvent d'un autre référentiel, pas du SYSCOHADA.",
+      "Visée en propre par l'AUDCIF art. 2, à l'exception de celles soumises aux règles de la comptabilité publique · celles-là relèvent d'un autre référentiel, pas du SYSCOHADA. Une société commerciale dont un État ou une personne morale de droit public est associé (économie mixte) se déclare sous sa forme sociale · SA, SARL, SAS (AUSCGIE art. 1).",
   },
   {
     valeur: 'AUTRE',

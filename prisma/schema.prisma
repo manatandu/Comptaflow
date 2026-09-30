@@ -91,8 +91,10 @@ enum FormeJuridiqueSyscohada {
   // AUSCGIE art. 3 al. 2 et art. 869 à 873 · ni société, ni but lucratif
   // propre, mais soumis au même Acte uniforme (art. 1 al. 2).
   GROUPEMENT_INTERET_ECONOMIQUE
-  // AUSCOOP · SCOOPS (art. 204) ou COOP-CA (art. 267). Immatriculée au
-  // Registre des Sociétés Coopératives, PAS au RCCM (art. 206).
+  // AUSCOOP · SCOOPS (art. 204) ou COOP-CA (art. 267), la variante se
+  // déclarant à part (`Tenant.varianteCooperative`). Immatriculée au
+  // Registre des Sociétés Coopératives, PAS au RCCM (art. 74 · l'art. 206
+  // ne le redit que pour la SCOOPS).
   SOCIETE_COOPERATIVE
   // Commerçant personne physique · AUDCG art. 2 et 13.
   ENTREPRISE_INDIVIDUELLE
@@ -102,9 +104,25 @@ enum FormeJuridiqueSyscohada {
   // AUSCGIE art. 116 à 118 · établissement sans personnalité juridique
   // propre, y compris celui d'une société étrangère.
   SUCCURSALE
-  // AUDCIF art. 2 · entités publiques, parapubliques et d'économie mixte.
+  // AUDCIF art. 2 · entités publiques et parapubliques qui ne sont PAS
+  // constituées en société commerciale. Une société d'économie mixte (SA,
+  // SARL, SAS dont un État ou une personne morale de droit public est
+  // associé) est soumise à l'AUSCGIE (art. 1) et se déclare sous sa forme
+  // sociale · sinon ni la ligne de l'art. 17 ni la réserve légale ne lui
+  // seraient servies.
   ENTITE_PUBLIQUE
   AUTRE
+}
+
+// VARIANTE DE LA SOCIÉTÉ COOPÉRATIVE · AUSCOOP. Chacune impose son
+// expression et son sigle à côté de la dénomination · « Société Coopérative
+// Simplifiée », « SCOOPS » (art. 205) ; « Société Coopérative avec Conseil
+// d'Administration », « COOP-CA » (art. 268). Nullable sur le dossier, sans
+// défaut · jamais déduite du nombre de membres (art. 204 et 267 fixent des
+// minima, pas un choix).
+enum VarianteCooperative {
+  SCOOPS
+  COOP_CA
 }
 
 // RÉGIME D'EXIGIBILITÉ DE LA TVA · ordonnance-loi n° 10/001, art. 25 et 26.
@@ -406,6 +424,21 @@ model Tenant {
   // à indiquer en tête de ses pièces avec le RCCM. null = pas encore dit ;
   // jamais pour l'entreprenant, qui ne peut en être partie (art. 138).
   locataireGerantFonds      Boolean?
+  // AUSCOOP art. 19 al. 3, 74 et 77 · le numéro de la coopérative au
+  // REGISTRE DES SOCIÉTÉS COOPÉRATIVES, à porter sur ses lettres et factures.
+  // Champ distinct du RCCM · une coopérative ne peut être immatriculée « à
+  // plusieurs registres » (art. 77 al. 1), et son numéro imprimé sous le mot
+  // « RCCM » serait faux. Propre à SOCIETE_COOPERATIVE.
+  numeroRegistreCooperatives String?
+  // AUSCOOP art. 205 et 268 · null = pas encore dit, et le manque se dit.
+  varianteCooperative        VarianteCooperative?
+  // AUSCOOP art. 183 · la coopérative est en liquidation « dès l'instant de
+  // sa dissolution », et « la mention « société en liquidation » ainsi que le
+  // nom du ou des liquidateurs » figurent sur ses lettres et factures. Les
+  // deux se DÉCLARENT, aucun n'est déduit · null = pas de dissolution dite.
+  // Propres à SOCIETE_COOPERATIVE, les autres textes n'ayant pas été lus ici.
+  dateDissolution            DateTime?
+  liquidateurs               String?
 
   // --- Identifiants propres aux entités à but non lucratif ---------------
   // Ce qui fonde l'existence d'une ASBL n'est pas un numéro de registre mais

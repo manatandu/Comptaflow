@@ -182,7 +182,15 @@ export function PerimetreConsolidationPage() {
               [
                 ['sousControleEntiteOhadaConsolidante', 'Sous le contrôle d’une entité OHADA qui consolide', 'AUDCIF art. 77'],
                 ['siegesDansDeuxRegions', 'Sièges dans deux régions différentes de l’espace OHADA', 'AUDCIF art. 77 · régions de l’espace OHADA (D4C, ch. XII-1) : CEMAC, UEMOA, R.D. Congo, Comores, Guinée · la R.D. Congo forme une région à elle seule'],
-                ['appelPublicEpargne', 'Appel public à l’épargne ou titres cotés', 'AUDCIF art. 75 et 77'],
+                // La notion vient de l'AUSCGIE, auquel l'AUDCIF renvoie pour la
+                // SA faisant appel public à l'épargne · ses deux exclusions
+                // (art. 81-1) sont celles qu'un cabinet cocherait à tort pour
+                // un placement privé, et la case fait basculer vers les IFRS.
+                [
+                  'appelPublicEpargne',
+                  'Appel public à l’épargne ou titres cotés',
+                  'AUDCIF art. 75 et 77 · AUSCGIE art. 81 : sont réputées faire publiquement appel à l’épargne « les sociétés dont les valeurs mobilières sont admises à la négociation sur la bourse des valeurs d’un État partie » et celles « qui offrent au public d’un État partie des valeurs mobilières dans les conditions énoncées à l’article 83 ». Art. 81-1 : ne constitue pas une offre au public l’offre « a) dont le montant total dans les États parties est inférieur à cinquante millions (50.000.000) de francs CFA, ce montant étant calculé sur une période de douze (12) mois ; b) ou qui est adressée uniquement à des investisseurs qualifiés agissant pour compte propre, ou à moins de cent (100) personnes ». Seuil en francs CFA, sans équivalent en francs congolais dans les textes lus · fait déclaré, jamais calculé.',
+                ],
                 ['demandeAssociesDixieme', 'Consolidation demandée par des associés détenant au moins le dixième', 'AUDCIF art. 77'],
               ] as [keyof Faits, string, string][]
             ).map(([cle, libelle, source]) => (

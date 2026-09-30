@@ -1,4 +1,4 @@
-import { FormeJuridiqueSyscohada, Referentiel } from '@prisma/client';
+import { FormeJuridiqueEbnl, FormeJuridiqueSyscohada, Referentiel, VarianteCooperative } from '@prisma/client';
 import { FORMES_PERSONNES_PHYSIQUES } from '../retenues/correspondance-retenues';
 import { mentionImmatriculation } from './mentions-immatriculation';
 
@@ -23,8 +23,32 @@ import { mentionImmatriculation } from './mentions-immatriculation';
  * sociétés. Une ASBL n'a pas de capital social, une personne physique non
  * plus ; le GIE, la coopérative, la succursale et l'entité publique ne portent
  * pas la ligne de l'art. 17, et le capital leur reste saisissable sans être
- * exigé. LEUR IMMATRICULATION, elle, s'imprime · AUDCG art. 14, 59, 62 et 140,
- * `mentions-immatriculation.ts` (passe O2). `mentionsEmetteur` réunit les deux.
+ * exigé. L'IMMATRICULATION du GIE, de la succursale et de l'entité publique
+ * s'imprime · AUDCG art. 14, 59, 62 et 140, `mentions-immatriculation.ts`
+ * (passe O2). `mentionsEmetteur` réunit les deux.
+ *
+ * DEUX AUTRES TEXTES PRENNENT LE RELAIS, parce qu'une règle hors de son
+ * périmètre rend « pas de réponse » et qu'une liste de manques vide se lit
+ * comme conforme (passe O6, D1) ·
+ *
+ * - la COOPÉRATIVE n'est ni au RCCM ni sous l'art. 17 · l'AUSCOOP art. 19
+ *   al. 3 lui impose sa propre ligne, « l'indication de la forme de la
+ *   société coopérative, de l'adresse de son siège social et de la mention de
+ *   son numéro d'immatriculation au registre des sociétés coopératives », la
+ *   forme étant l'expression et le sigle de l'art. 205 (SCOOPS) ou 268
+ *   (COOP-CA). Pas de capital · l'art. 19 ne le demande pas. Dissoute, elle
+ *   ajoute « société en liquidation » et le nom du ou des liquidateurs
+ *   (art. 183) ;
+ * - l'ASBL DE DROIT CONGOLAIS · loi n° 004/2001, art. 16 : « Tous les actes,
+ *   factures, annonces, publications et autres pièces émanant de
+ *   l'association sans but lucratif doivent mentionner la dénomination
+ *   sociale précédée ou suivie immédiatement de ces mots écrits lisiblement
+ *   en toute lettre : « association sans but lucratif » en sigle
+ *   « A.S.B.L. ». » L'article est à la Section I du Chapitre II (ASBL de droit
+ *   congolais) · l'ONG (art. 35) et l'association confessionnelle (art. 48)
+ *   sont des ASBL, l'établissement d'utilité publique (Titre II), l'unité de
+ *   gestion de projet et l'entité de droit étranger (Section II) ne sont pas
+ *   visés.
  */
 
 export const FORMES_SOCIETES_COMMERCIALES: FormeJuridiqueSyscohada[] = [
@@ -42,6 +66,31 @@ const FORME_SOCIALE: Partial<Record<FormeJuridiqueSyscohada, string>> = {
   SOCIETE_NOM_COLLECTIF: 'Société en nom collectif',
   SOCIETE_COMMANDITE_SIMPLE: 'Société en commandite simple',
 };
+
+/**
+ * AUSCGIE art. 269-1 · la clause de variabilité n'est ouverte qu'aux
+ * « sociétés anonymes ne faisant pas appel public à l'épargne et sociétés par
+ * actions simplifiées ». L'appel public à l'épargne n'est pas tenu sur le
+ * dossier · il est rappelé à l'écran, jamais déduit.
+ */
+export const FORMES_CAPITAL_VARIABLE: FormeJuridiqueSyscohada[] = [
+  FormeJuridiqueSyscohada.SOCIETE_ANONYME,
+  FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE,
+];
+
+/**
+ * Pourquoi le dossier ne peut pas se déclarer « à capital variable », ou null.
+ * Refusé aux seules sociétés commerciales que l'art. 269-1 n'admet pas (SARL,
+ * SNC, SCS) · la coopérative, dont le capital EST variable par la loi
+ * (AUSCOOP art. 52), n'est pas visée, et les autres formes n'impriment pas la
+ * ligne de l'art. 17.
+ */
+export function motifRefusCapitalVariable(forme: FormeJuridiqueSyscohada | null): string | null {
+  if (forme && FORMES_SOCIETES_COMMERCIALES.includes(forme) && !FORMES_CAPITAL_VARIABLE.includes(forme)) {
+    return "Le capital variable n'est ouvert qu'à la société anonyme ne faisant pas appel public à l'épargne et à la société par actions simplifiée (AUSCGIE art. 269-1).";
+  }
+  return null;
+}
 
 /** Pourquoi le dossier ne peut pas porter de capital social, ou null s'il le peut. */
 export function motifRefusCapital(referentiel: Referentiel, forme: FormeJuridiqueSyscohada | null): string | null {
@@ -68,6 +117,16 @@ export interface IdentiteSociete {
   numeroDeclarationActivite?: string | null;
   /** AUDCG art. 140 · null, pas encore dit. */
   locataireGerantFonds?: boolean | null;
+  /** Loi n° 004/2001, art. 16 · forme de l'EBNL et droit étranger (SYCEBNL). */
+  formeJuridique?: FormeJuridiqueEbnl | null;
+  droitEtranger?: boolean | null;
+  /** AUSCOOP art. 19, 74 · numéro au Registre des Sociétés Coopératives. */
+  numeroRegistreCooperatives?: string | null;
+  /** AUSCOOP art. 205 et 268 · null, pas encore dit. */
+  varianteCooperative?: VarianteCooperative | null;
+  /** AUSCOOP art. 183 · dissolution déclarée et liquidateurs. */
+  dateDissolution?: Date | null;
+  liquidateurs?: string | null;
 }
 
 export interface MentionsSociete {
@@ -81,6 +140,22 @@ const montant = (n: number) =>
   n.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).replace(/ | /g, ' ');
 
 /**
+ * LE SIÈGE, ET CE QUI EN FAIT UNE ADRESSE. AUSCGIE art. 25 · le siège « doit
+ * être localisé par une adresse ou une indication géographique suffisamment
+ * précise ». Une ville seule ne l'est pas · elle s'imprime avec ce qui est
+ * connu, mais l'adresse reste DITE manquante (même lecture pour l'AUSCOOP
+ * art. 19, « l'adresse de son siège social »). Aucune détection de boîte
+ * postale · la précision ne se juge pas à la machine.
+ */
+function ligneSiege(t: Pick<IdentiteSociete, 'adresse' | 'ville'>): { texte: string; adresse: boolean } {
+  const renseigne = (v: string | null) => !!v && v.trim() !== '';
+  return {
+    texte: [t.adresse, t.ville].filter((v) => renseigne(v)).join(', '),
+    adresse: renseigne(t.adresse),
+  };
+}
+
+/**
  * La ligne de l'art. 17, et ce qui y manque. Une mention absente n'est pas
  * remplacée · la ligne s'imprime avec ce qui est connu et le manque se DIT,
  * parce qu'une ligne complète en apparence se lirait comme conforme.
@@ -92,15 +167,22 @@ export function mentionsArticle17(t: IdentiteSociete): MentionsSociete {
   const morceaux: string[] = [];
   const manquantes: string[] = [];
   const forme = FORME_SOCIALE[t.formeJuridiqueSyscohada]!;
-  morceaux.push(t.capitalVariable ? `${forme} à capital variable` : forme);
+  // Art. 269-2 · « si la société use de la faculté accordée par l'article
+  // 269-1 », que seules la SA et la SAS ont. Un drapeau hérité sur une autre
+  // forme n'est pas imprimé · il est DIT, pour être retiré.
+  const variableAdmis = FORMES_CAPITAL_VARIABLE.includes(t.formeJuridiqueSyscohada);
+  morceaux.push(t.capitalVariable && variableAdmis ? `${forme} à capital variable` : forme);
+  if (t.capitalVariable && !variableAdmis) {
+    manquantes.push('« à capital variable » non imprimé · réservé à la SA et à la SAS (AUSCGIE art. 269-1)');
+  }
   if (t.capitalSocial !== null) {
     morceaux.push(`au capital de ${montant(t.capitalSocial)} ${t.devise ?? ''}`.trim());
   } else {
     manquantes.push('montant du capital social');
   }
-  const siege = [t.adresse, t.ville].filter((v) => v && v.trim() !== '').join(', ');
-  if (siege) morceaux.push(`siège social : ${siege}`);
-  else manquantes.push('adresse du siège social');
+  const siege = ligneSiege(t);
+  if (siege.texte) morceaux.push(`siège social : ${siege.texte}`);
+  if (!siege.adresse) manquantes.push('adresse du siège social');
   if (t.rccm) morceaux.push(`RCCM ${t.rccm}`);
   else manquantes.push("numéro d'immatriculation au RCCM");
   return { ligne: morceaux.join(' · '), manquantes };
@@ -124,17 +206,77 @@ export interface MentionsRecopiees extends MentionsSociete {
  * un devis ne recopie pas le nom du dossier ailleurs, et la relire au jour de
  * l'impression réécrirait l'offre faite l'an dernier.
  */
-export function mentionsRecopiees(t: IdentiteSociete): MentionsRecopiees {
-  return { denomination: t.nom, ...mentionsEmetteur(t) };
+export function mentionsRecopiees(t: IdentiteSociete, datePiece: Date = new Date()): MentionsRecopiees {
+  return { denomination: t.nom, ...mentionsEmetteur(t, datePiece) };
+}
+
+const EXPRESSION_COOPERATIVE: Record<VarianteCooperative, string> = {
+  // Art. 205 et 268 · l'expression ET le sigle, mot pour mot.
+  SCOOPS: 'Société Coopérative Simplifiée · SCOOPS',
+  COOP_CA: "Société Coopérative avec Conseil d'Administration · COOP-CA",
+};
+
+/**
+ * AUSCOOP art. 19 al. 3 · forme, adresse du siège et numéro au Registre des
+ * Sociétés Coopératives, chacun imprimé s'il est connu, sinon NOMMÉ. Et
+ * l'art. 183 · « société en liquidation » et le liquidateur, en tête, sur les
+ * pièces datées de la dissolution déclarée ou après.
+ */
+export function mentionsCooperative(t: IdentiteSociete, datePiece: Date = new Date()): MentionsSociete {
+  const morceaux: string[] = [];
+  const manquantes: string[] = [];
+  const renseigne = (v: string | null | undefined) => (v && v.trim() ? v.trim() : null);
+  if (t.dateDissolution && t.dateDissolution.getTime() <= datePiece.getTime()) {
+    const liquidateurs = renseigne(t.liquidateurs);
+    morceaux.push(liquidateurs ? `Société en liquidation · liquidateur : ${liquidateurs}` : 'Société en liquidation');
+    if (!liquidateurs) manquantes.push('nom du ou des liquidateurs (AUSCOOP art. 183)');
+  }
+  if (t.varianteCooperative) morceaux.push(EXPRESSION_COOPERATIVE[t.varianteCooperative]);
+  else manquantes.push('forme de la société coopérative (AUSCOOP art. 19, 205 ou 268)');
+  const siege = ligneSiege(t);
+  if (siege.texte) morceaux.push(`siège social : ${siege.texte}`);
+  if (!siege.adresse) manquantes.push('adresse du siège social (AUSCOOP art. 19)');
+  const numero = renseigne(t.numeroRegistreCooperatives);
+  if (numero) morceaux.push(`Registre des Sociétés Coopératives n° ${numero}`);
+  else manquantes.push("numéro d'immatriculation au Registre des Sociétés Coopératives (AUSCOOP art. 19 et 74)");
+  return { ligne: morceaux.length ? morceaux.join(' · ') : null, manquantes };
+}
+
+/** Les formes d'ASBL de droit congolais que vise la loi n° 004/2001, art. 16. */
+export const FORMES_ASBL_ARTICLE_16: FormeJuridiqueEbnl[] = [
+  FormeJuridiqueEbnl.ASSOCIATION,
+  FormeJuridiqueEbnl.ORGANISATION_NON_GOUVERNEMENTALE,
+  FormeJuridiqueEbnl.ASSOCIATION_CONFESSIONNELLE,
+];
+
+export const MENTION_ASBL = 'Association sans but lucratif · A.S.B.L.';
+
+/**
+ * Loi n° 004/2001, art. 16. Une dénomination qui porte déjà les mots ou le
+ * sigle n'appelle rien de plus (l'art. 7, 1° les met dans les statuts). Sinon
+ * les DEUX formes s'impriment à côté, jamais en réécrivant la dénomination ·
+ * « en toute lettre » puis « en sigle » laisse ouverte la lecture (le mot
+ * entier, le sigle, ou les deux), et imprimer les deux satisfait chacune sans
+ * la trancher.
+ */
+export function mentionsAsbl(t: IdentiteSociete): MentionsSociete {
+  if (t.referentiel !== Referentiel.SYCEBNL || !t.formeJuridique || t.droitEtranger) return { ligne: null, manquantes: [] };
+  if (!FORMES_ASBL_ARTICLE_16.includes(t.formeJuridique)) return { ligne: null, manquantes: [] };
+  const portee = /association\s+sans\s+but\s+lucratif|\ba\.?\s*s\.?\s*b\.?\s*l\b/i.test(t.nom);
+  return { ligne: portee ? null : MENTION_ASBL, manquantes: [] };
 }
 
 /**
  * CE QUI ACCOMPAGNE LA DÉNOMINATION sur toute pièce émise et tout document
  * imprimé · la ligne de l'art. 17 pour une société (le RCCM y est déjà), la
  * mention d'immatriculation de l'AUDCG pour les autres formes, et la qualité
- * de locataire-gérant (art. 140) en tête dans les deux cas.
+ * de locataire-gérant (art. 140) en tête dans les deux cas. La coopérative
+ * (AUSCOOP art. 19 et 183) et l'ASBL (loi n° 004/2001, art. 16) ont chacune
+ * leur règle. `datePiece` est la date de la pièce, pour la liquidation.
  */
-export function mentionsEmetteur(t: IdentiteSociete): MentionsSociete {
+export function mentionsEmetteur(t: IdentiteSociete, datePiece: Date = new Date()): MentionsSociete {
+  if (t.referentiel === Referentiel.SYCEBNL) return mentionsAsbl(t);
+  if (t.formeJuridiqueSyscohada === FormeJuridiqueSyscohada.SOCIETE_COOPERATIVE) return mentionsCooperative(t, datePiece);
   const art17 = mentionsArticle17(t);
   if (art17.ligne === null) return mentionImmatriculation(t);
   const locataire = t.locataireGerantFonds === true ? 'Locataire-gérant du fonds de commerce · ' : '';

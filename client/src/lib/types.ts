@@ -1496,7 +1496,12 @@ export interface ParametresDossier {
   capitalSocial: number | null;
   /** AUSCGIE art. 269-2 · « à capital variable » ajouté à la forme sociale. */
   capitalVariable: boolean;
-  /** Ligne de l'art. 17 telle qu'elle s'imprime, et ses mentions manquantes · `ligne` null hors des sociétés commerciales. */
+  /**
+   * Ce qui s'imprime à côté de la dénomination, et ce qui y manque · art. 17
+   * de l'AUSCGIE pour une société, AUDCG pour les autres personnes
+   * immatriculées, AUSCOOP art. 19 et 183 pour la coopérative, loi n° 004/2001
+   * art. 16 pour l'ASBL de droit congolais.
+   */
   mentionsSociete: { ligne: string | null; manquantes: string[] };
   devise: string | null;
   /** Identifiants légaux congolais · CPCC, § 7.4 règle 7-a. */
@@ -1513,6 +1518,13 @@ export interface ParametresDossier {
   numeroDeclarationActivite: string | null;
   /** AUDCG art. 140 · null, pas encore dit. */
   locataireGerantFonds: boolean | null;
+  /** AUSCOOP art. 19, 74 et 77 · numéro au Registre des Sociétés Coopératives, jamais un RCCM. */
+  numeroRegistreCooperatives: string | null;
+  /** AUSCOOP art. 205 et 268 · null, pas encore dit. */
+  varianteCooperative: 'SCOOPS' | 'COOP_CA' | null;
+  /** AUSCOOP art. 183 · dissolution déclarée et liquidateurs, null tant que rien n'est dit. */
+  dateDissolution: string | null;
+  liquidateurs: string | null;
   /** Arrêté (ou décret pour une ONG étrangère) accordant la personnalité juridique · loi n° 004/2001. */
   actePersonnaliteJuridique: string | null;
   dateActePersonnalite: string | null;

@@ -51,6 +51,13 @@ export class FacturationService {
         // AUDCG art. 59, 62 et 140 · immatriculation et location-gérance (passe O2).
         numeroDeclarationActivite: true,
         locataireGerantFonds: true,
+        // AUSCOOP art. 19, 183, 205 et 268 · la ligne de la coopérative, et
+        // loi n° 004/2001, art. 16 · la mention de l'ASBL (passes O6 et D1).
+        numeroRegistreCooperatives: true,
+        varianteCooperative: true,
+        dateDissolution: true,
+        liquidateurs: true,
+        droitEtranger: true,
         devise: true,
         // Décret n° 011/42, art. 60 · la mention n'est due que par le dossier
         // AUTORISÉ, et seulement sur les factures qu'il DÉLIVRE.
@@ -341,7 +348,7 @@ export class FacturationService {
         // de la pièce. Sur un achat, l'émetteur est un tiers dont on ignore le
         // capital, rien n'est recopié.
         mentionsSocieteEmetteur:
-          dto.sens === SensFacture.VENTE ? (mentionsRecopiees(identiteSociete(t)) as unknown as Prisma.InputJsonValue) : Prisma.DbNull,
+          dto.sens === SensFacture.VENTE ? (mentionsRecopiees(identiteSociete(t), dateFacture) as unknown as Prisma.InputJsonValue) : Prisma.DbNull,
         autresImpotsEtTaxes:
           dto.autresImpotsEtTaxes === undefined ? null : new Prisma.Decimal(dto.autresImpotsEtTaxes),
         ecritureId: dto.ecritureId ?? null,

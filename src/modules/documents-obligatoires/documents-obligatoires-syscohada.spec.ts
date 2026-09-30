@@ -93,8 +93,19 @@ describe('rapport de gestion · ce que les trois textes ne partagent PAS', () =>
       expect([s.cle, s.exigence.startsWith('AUSCGIE art. 138')]).toEqual([s.cle, true]);
     }
     for (const s of SECTIONS_RAPPORT_GESTION_AUSCOOP) {
-      expect([s.cle, s.exigence.startsWith('AUSCOOP art. 108')]).toEqual([s.cle, true]);
+      const article = s.cle === 'modificationsPresentationMethodes' ? 'AUSCOOP art. 111' : 'AUSCOOP art. 108';
+      expect([s.cle, s.exigence.startsWith(article)]).toEqual([s.cle, true]);
     }
+  });
+
+  it('l’AUSCOOP art. 111 · les modifications de présentation ou de méthodes ont leur section, exigée toujours', () => {
+    // Conditionnelle dans le texte, elle ne l'est pas ici · le logiciel ne
+    // voit pas tout changement de méthode, et une section facultative
+    // laisserait « complet » un rapport qui tait une modification.
+    expect(SECTIONS_RAPPORT_GESTION_AUSCOOP.map((s) => s.cle)).toContain('modificationsPresentationMethodes');
+    expect(SECTIONS_RAPPORT_GESTION_AUSCOOP).toHaveLength(7);
+    // Règle jumelle de l'AUSCGIE (art. 141) · pas servie depuis l'AUSCOOP.
+    expect(SECTIONS_RAPPORT_GESTION_AUSCGIE.map((s) => s.cle)).not.toContain('modificationsPresentationMethodes');
   });
 });
 

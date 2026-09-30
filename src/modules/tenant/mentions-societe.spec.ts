@@ -1,7 +1,7 @@
 import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { FormeJuridiqueSyscohada, Prisma, Referentiel } from '@prisma/client';
-import { mentionsArticle17, motifRefusCapital, FORMES_SOCIETES_COMMERCIALES } from './mentions-societe';
+import { mentionsArticle17, motifRefusCapital, motifRefusCapitalVariable, FORMES_SOCIETES_COMMERCIALES } from './mentions-societe';
 import { TenantService } from './tenant.service';
 import { ModifierCoordonneesDto } from './dto/parametres-dossier.dto';
 import { AuthService } from '../auth/auth.service';
@@ -33,10 +33,39 @@ describe('Mentions de l’art. 17 AUSCGIE', () => {
     expect(m.manquantes).toEqual([]);
   });
 
-  it('art. 269-2 · « à capital variable » s’ajoute à la forme sociale', () => {
-    expect(mentionsArticle17({ ...sarl, capitalVariable: true }).ligne).toMatch(
-      /^Société à responsabilité limitée à capital variable · au capital de/,
-    );
+  it('art. 269-2 · « à capital variable » s’ajoute à la forme sociale de la SA et de la SAS', () => {
+    const sa = { ...sarl, formeJuridiqueSyscohada: FormeJuridiqueSyscohada.SOCIETE_ANONYME, capitalVariable: true };
+    expect(mentionsArticle17(sa).ligne).toMatch(/^Société anonyme à capital variable · au capital de/);
+    expect(
+      mentionsArticle17({ ...sa, formeJuridiqueSyscohada: FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE }).ligne,
+    ).toMatch(/^Société par actions simplifiée à capital variable/);
+  });
+
+  it('art. 269-1 · un drapeau hérité sur une SARL n’est pas imprimé, il est DIT', () => {
+    const m = mentionsArticle17({ ...sarl, capitalVariable: true });
+    expect(m.ligne).toMatch(/^Société à responsabilité limitée · au capital de/);
+    expect(m.manquantes.join(' ')).toContain('AUSCGIE art. 269-1');
+  });
+
+  it('art. 269-1 · la variabilité est refusée aux SARL, SNC et SCS, pas à la SA, à la SAS ni à la coopérative', () => {
+    for (const f of [
+      FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE,
+      FormeJuridiqueSyscohada.SOCIETE_NOM_COLLECTIF,
+      FormeJuridiqueSyscohada.SOCIETE_COMMANDITE_SIMPLE,
+    ]) {
+      expect(motifRefusCapitalVariable(f)).toMatch(/art\. 269-1/);
+    }
+    expect(motifRefusCapitalVariable(FormeJuridiqueSyscohada.SOCIETE_ANONYME)).toBeNull();
+    expect(motifRefusCapitalVariable(FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE)).toBeNull();
+    // AUSCOOP art. 52 · le capital de la coopérative EST variable.
+    expect(motifRefusCapitalVariable(FormeJuridiqueSyscohada.SOCIETE_COOPERATIVE)).toBeNull();
+  });
+
+  it('art. 25 · une ville seule n’est pas une adresse · elle s’imprime, l’adresse reste manquante', () => {
+    const m = mentionsArticle17({ ...sarl, adresse: null });
+    expect(m.ligne).toContain('siège social : Kinshasa');
+    expect(m.manquantes).toEqual(['adresse du siège social']);
+    expect(mentionsArticle17({ ...sarl, adresse: '  ' }).manquantes).toEqual(['adresse du siège social']);
   });
 
   it('une mention absente n’est pas remplacée, elle est DITE manquante', () => {
@@ -103,7 +132,8 @@ describe('Capital, courriel et site · la route', () => {
 
   it('pose le capital, le courriel et le site, et la chaîne vide efface', async () => {
     const capture: { data?: Record<string, unknown> } = {};
-    await service(capture, sarl).modifierCoordonnees('t1', {
+    const sa = { ...sarl, formeJuridiqueSyscohada: FormeJuridiqueSyscohada.SOCIETE_ANONYME };
+    await service(capture, sa).modifierCoordonnees('t1', {
       capitalSocial: 1000000,
       capitalVariable: true,
       email: '  contact@demo.cd ',
@@ -113,6 +143,14 @@ describe('Capital, courriel et site · la route', () => {
     expect(capture.data!.capitalVariable).toBe(true);
     expect(capture.data!.email).toBe('contact@demo.cd');
     expect(capture.data!.siteWeb).toBeNull();
+  });
+
+  it('art. 269-1 · la route refuse « à capital variable » à une SARL, sans rien écrire, et laisse le retrait', async () => {
+    const capture: { data?: Record<string, unknown> } = {};
+    await expect(service(capture, sarl).modifierCoordonnees('t1', { capitalVariable: true })).rejects.toThrow(/art\. 269-1/);
+    expect(capture.data).toBeUndefined();
+    await service(capture, sarl).modifierCoordonnees('t1', { capitalVariable: false });
+    expect(capture.data!.capitalVariable).toBe(false);
   });
 
   it('null efface le capital · non envoyé, il n’est pas touché', async () => {
@@ -145,7 +183,7 @@ describe('Capital, courriel et site · la route', () => {
     expect(p.siteWeb).toBe('demo.cd');
     expect(p.mentionsSociete).toEqual({
       ligne: 'Société à responsabilité limitée · au capital de 2 500 000,5 CDF · siège social : Kinshasa',
-      manquantes: ["numéro d'immatriculation au RCCM"],
+      manquantes: ['adresse du siège social', "numéro d'immatriculation au RCCM"],
     });
   });
 

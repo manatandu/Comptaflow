@@ -4,7 +4,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { siSycebnl } from '../../common/reponse-referentiel';
 import { PrismaService } from '../../common/prisma.service';
 import { MONNAIE_DE_TENUE } from '../../common/monnaie-de-tenue';
-import { identiteSociete, mentionsEmetteur, motifRefusCapital } from './mentions-societe';
+import { identiteSociete, mentionsEmetteur, motifRefusCapital, motifRefusCapitalVariable } from './mentions-societe';
 import {
   avertissementCodeActivite,
   motifRefusCodeActivite,
@@ -149,6 +149,11 @@ export class TenantService {
       rccm: tenant.rccm,
       numeroDeclarationActivite: tenant.numeroDeclarationActivite,
       locataireGerantFonds: tenant.locataireGerantFonds,
+      // AUSCOOP art. 19, 74, 183, 205 et 268 · la coopérative.
+      numeroRegistreCooperatives: tenant.numeroRegistreCooperatives,
+      varianteCooperative: tenant.varianteCooperative,
+      dateDissolution: tenant.dateDissolution,
+      liquidateurs: tenant.liquidateurs,
       // Identifiants propres aux entités à but non lucratif · voir
       // docs/identifiants-legaux-ebnl-rdc.md. Le RCCM ci-dessus ne concerne
       // qu'un dossier SYSCOHADA : l'AUDCG (art. 35, 1°) immatricule les
@@ -334,6 +339,13 @@ export class TenantService {
       const motif = motifRefusCapital(tenant.referentiel, tenant.formeJuridiqueSyscohada);
       if (motif) throw new BadRequestException(motif);
     }
+    // AUSCGIE art. 269-1 · la variabilité n'est ouverte qu'à la SA et à la
+    // SAS. Refusée à la route aux SARL, SNC et SCS, pas seulement masquée ;
+    // le retrait (false) reste permis.
+    if (dto.capitalVariable === true) {
+      const motif = motifRefusCapitalVariable(tenant.formeJuridiqueSyscohada);
+      if (motif) throw new BadRequestException(motif);
+    }
     // LE CODE ACTIVITÉ PRINCIPALE EST REFUSÉ À LA ROUTE hors SYSCOHADA et
     // hors format (six chiffres, NOTE 36), pas seulement masqué à l'écran
     // (§ 6). Un groupe hors des 44 n'est PAS refusé · aucun texte lu ne donne
@@ -436,6 +448,10 @@ export class TenantService {
       rccm?: string;
       numeroDeclarationActivite?: string;
       locataireGerantFonds?: ReponseFait;
+      numeroRegistreCooperatives?: string;
+      varianteCooperative?: 'SCOOPS' | 'COOP_CA' | 'PAS_ENCORE_DIT';
+      dateDissolution?: string;
+      liquidateurs?: string;
       actePersonnaliteJuridique?: string;
       dateActePersonnalite?: string;
       numeroEnregistrementSecteur?: string;
@@ -477,6 +493,30 @@ export class TenantService {
         "Le numéro de déclaration d'activité est celui de l'entreprenant (AUDCG art. 62) · une personne immatriculée porte son RCCM.",
       );
     }
+    // AUSCOOP art. 74 et 77 al. 1 · la coopérative est au Registre des
+    // Sociétés Coopératives et « ne peut être immatriculée à plusieurs
+    // registres » · son numéro a son champ, le RCCM lui est refusé. Et ce
+    // champ, comme la variante et la dissolution de l'art. 183, n'appartient
+    // qu'à elle · les autres textes n'ont pas été lus ici.
+    const cooperative =
+      tenant.referentiel === Referentiel.SYSCOHADA &&
+      tenant.formeJuridiqueSyscohada === FormeJuridiqueSyscohada.SOCIETE_COOPERATIVE;
+    if (cooperative && renseigne(dto.rccm)) {
+      throw new BadRequestException(
+        "La coopérative est immatriculée au Registre des Sociétés Coopératives (AUSCOOP art. 74), et « aucune société coopérative ne peut être immatriculée à plusieurs registres » (art. 77 al. 1) · saisissez ce numéro-là, pas un RCCM.",
+      );
+    }
+    if (
+      !cooperative &&
+      (renseigne(dto.numeroRegistreCooperatives) ||
+        renseigne(dto.dateDissolution) ||
+        renseigne(dto.liquidateurs) ||
+        (dto.varianteCooperative !== undefined && dto.varianteCooperative !== 'PAS_ENCORE_DIT'))
+    ) {
+      throw new BadRequestException(
+        'Le Registre des Sociétés Coopératives, la variante SCOOPS ou COOP-CA et la liquidation de l’art. 183 sont propres à la société coopérative (AUSCOOP).',
+      );
+    }
     if (dto.locataireGerantFonds === 'OUI' && (entreprenant || tenant.referentiel !== Referentiel.SYSCOHADA)) {
       throw new BadRequestException(
         entreprenant
@@ -511,6 +551,12 @@ export class TenantService {
         ...(dto.locataireGerantFonds === undefined
           ? {}
           : { locataireGerantFonds: dto.locataireGerantFonds === 'OUI' ? true : dto.locataireGerantFonds === 'NON' ? false : null }),
+        numeroRegistreCooperatives: normaliser(dto.numeroRegistreCooperatives),
+        ...(dto.varianteCooperative === undefined
+          ? {}
+          : { varianteCooperative: dto.varianteCooperative === 'PAS_ENCORE_DIT' ? null : dto.varianteCooperative }),
+        dateDissolution: dateSaisieOuEffacement(dto.dateDissolution),
+        liquidateurs: normaliser(dto.liquidateurs),
         actePersonnaliteJuridique: normaliser(dto.actePersonnaliteJuridique),
         // Date vide = pas d'arrêté encore obtenu (autorisation provisoire de
         // l'art. 5) · c'est un état légitime, pas une saisie incomplète. Lue

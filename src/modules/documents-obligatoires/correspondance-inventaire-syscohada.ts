@@ -142,7 +142,9 @@ export const SECTIONS_RAPPORT_GESTION_AUSCGIE: SectionRapportGestion[] = [
  * Deux écarts avec l'article 138, dans les deux sens : l'AUSCOOP ne demande
  * PAS les événements postérieurs à la clôture, et il demande EN PLUS l'état
  * de promotion des coopérateurs, qui n'a aucun équivalent en société
- * commerciale. Servir l'article 138 à une coopérative lui inventerait une
+ * commerciale. L'article 111 ajoute la mention des modifications de
+ * présentation ou de méthodes (passe O6) · l'AUSCGIE art. 141 porte une règle
+ * jumelle pour les sociétés, à traiter depuis son propre article. Servir l'article 138 à une coopérative lui inventerait une
  * exigence et lui en cacherait une autre.
  */
 export const SECTIONS_RAPPORT_GESTION_AUSCOOP: SectionRapportGestion[] = [
@@ -177,6 +179,19 @@ export const SECTIONS_RAPPORT_GESTION_AUSCOOP: SectionRapportGestion[] = [
     titre: 'État de promotion des coopérateurs',
     exigence:
       "AUSCOOP art. 108, alinéa 2 : « Le comité de gestion ou le conseil d'administration expose également dans ce rapport, l'état de promotion des coopérateurs ».",
+  },
+  // AUSCOOP art. 111 · une mention CONDITIONNELLE, et c'est pourquoi elle est
+  // exigée toujours. Le logiciel ne voit qu'une partie des changements (une
+  // imputation d'ouverture au motif CHANGEMENT_METHODE) · un changement passé
+  // par le résultat, ou un changement de présentation, ne laisse aucune
+  // trace. Une section facultative laisserait donc le rapport « complet »
+  // alors qu'une modification est tue · le cabinet écrit « Néant » quand il
+  // n'y en a pas, et c'est une réponse.
+  {
+    cle: 'modificationsPresentationMethodes',
+    titre: 'Modifications de présentation ou de méthodes',
+    exigence:
+      "AUSCOOP art. 111 : « Toute modification dans la présentation des états financiers de synthèse ou dans les méthodes d'évaluation, d'amortissement ou de provisions […] doit être signalée dans le rapport de gestion. » Écrire « Néant » s'il n'y en a pas.",
   },
 ];
 

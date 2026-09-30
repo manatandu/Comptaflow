@@ -26,6 +26,18 @@ describe('AUSCGIE art. 17 sur la pièce imprimée', () => {
     expect(a).toMatch(/^Mentions de l’émetteur/);
   });
 
+  it('AUSCOOP art. 19 · le manque d’une coopérative nomme son texte, pas l’AUSCGIE (passe O6)', () => {
+    const a = avertissementArticle17(
+      {
+        denomination: 'COOPEC',
+        ligne: 'siège social : Bukavu',
+        manquantes: ["numéro d'immatriculation au Registre des Sociétés Coopératives (AUSCOOP art. 19 et 74)"],
+      },
+      false,
+    );
+    expect(a).toMatch(/^AUSCOOP art\. 19 · manquait au dossier/);
+  });
+
   it('une pièce antérieure à la recopie le DIT, chez une société seulement', () => {
     expect(avertissementArticle17(null, true)).toBe(PIECE_ANTERIEURE);
     expect(avertissementArticle17(null, false)).toBeNull();

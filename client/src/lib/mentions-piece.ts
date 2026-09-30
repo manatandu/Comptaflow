@@ -20,7 +20,13 @@ export function avertissementArticle17(
   // Le manque se dit même quand la ligne est vide · un commerçant sans RCCM
   // n'a aucune ligne, et c'est justement le manque de l'AUDCG art. 59 (passe O2).
   if (m.manquantes.length === 0) return null;
-  const texte = m.ligne !== null && m.manquantes.some((x) => !x.includes('AUDCG')) ? 'AUSCGIE art. 17' : 'Mentions de l’émetteur';
+  // Le texte nommé est celui qui parle pour ce dossier · une coopérative
+  // relève de l'AUSCOOP art. 19 (et 183), jamais de l'AUSCGIE art. 17 (passe O6).
+  const texte = m.manquantes.some((x) => x.includes('AUSCOOP'))
+    ? 'AUSCOOP art. 19'
+    : m.ligne !== null && m.manquantes.some((x) => !x.includes('AUDCG'))
+      ? 'AUSCGIE art. 17'
+      : 'Mentions de l’émetteur';
   return `${texte} · manquait au dossier à l'établissement de la pièce : ${m.manquantes.join(', ')}. Complétez Paramètres du dossier pour les pièces suivantes.`;
 }
 

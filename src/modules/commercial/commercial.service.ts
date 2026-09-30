@@ -47,6 +47,14 @@ export class CommercialService {
         // AUDCG art. 59, 62 et 140 · immatriculation et location-gérance (passe O2).
         numeroDeclarationActivite: true,
         locataireGerantFonds: true,
+        // AUSCOOP art. 19, 183, 205 et 268 · la ligne de la coopérative, et
+        // loi n° 004/2001, art. 16 · la mention de l'ASBL (passes O6 et D1).
+        numeroRegistreCooperatives: true,
+        varianteCooperative: true,
+        dateDissolution: true,
+        liquidateurs: true,
+        formeJuridique: true,
+        droitEtranger: true,
         devise: true,
       },
     });
@@ -231,7 +239,7 @@ export class CommercialService {
         // Un devis est un document destiné aux tiers (AUSCGIE art. 17) quand
         // le DOSSIER l'émet · recopié à sa date. Une offre reçue n'en porte pas.
         mentionsSocieteEmetteur:
-          emetteur === 'DOSSIER' ? (mentionsRecopiees(identiteSociete(t)) as unknown as Prisma.InputJsonValue) : Prisma.DbNull,
+          emetteur === 'DOSSIER' ? (mentionsRecopiees(identiteSociete(t), new Date(dto.dateEmission)) as unknown as Prisma.InputJsonValue) : Prisma.DbNull,
         contrePropositionDeId: dto.contrePropositionDeId ?? null,
         lignes: {
           create: dto.lignes.map((l, i) => ({

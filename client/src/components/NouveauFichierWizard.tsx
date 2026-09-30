@@ -43,7 +43,12 @@ const LIBELLE_ETAPE: Record<CleEtape, string> = {
   // AUSCGIE art. 17 (« La dénomination sociale doit figurer sur tous les actes
   // et documents émanant de la société ») et loi n° 004/2001 art. 7, 1° (« la
   // dénomination suivie ou précédée des mots association sans but lucratif »)
-  // et art. 16 (« doivent mentionner la dénomination sociale »). La « raison
+  // et art. 16 (« Tous les actes, factures, annonces, publications et autres
+  // pièces émanant de l'association sans but lucratif doivent mentionner la
+  // dénomination sociale précédée ou suivie immédiatement de ces mots écrits
+  // lisiblement en toute lettre : « association sans but lucratif » en sigle
+  // « A.S.B.L. » », mention que `mentionsEmetteur` porte sur les pièces
+  // émises, passe D1). La « raison
   // sociale » désigne en droit des sociétés le nom formé du nom des associés,
   // propre aux sociétés de personnes · le terme ne convient à aucun des deux
   // référentiels. La clé interne `raisonSociale` reste inchangée : c'est un

@@ -549,6 +549,18 @@ describe('Rapport · le texte cité est celui du dossier (F95)', () => {
     await expect(services().rapport.etablir('t1', 'u1', { ...RAPPORT_COMPLET, etabliLe: '2026-06-30' })).rejects.toThrow(
       "L'article 16-3 rend compte",
     );
+    await expect(societe).rejects.toThrow("il s'établit après sa clôture, et les événements postérieurs se comptent à partir d'elle.");
+  });
+
+  it('le refus servi à une coopérative s’arrête à « l’exercice écoulé » · l’art. 108 ne demande pas les événements postérieurs', async () => {
+    const prisma = enSyscohada(
+      prismaAvec(JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS),
+      SystemeComptableSyscohada.NORMAL,
+      FormeJuridiqueSyscohada.SOCIETE_COOPERATIVE,
+    );
+    await expect(services(undefined, prisma).rapport.etablir('t1', 'u1', { ...RAPPORT_GESTION, etabliLe: '2026-06-30' })).rejects.toThrow(
+      /AUSCOOP, article 108 rend compte de l'exercice écoulé : il s'établit après sa clôture\.$/,
+    );
   });
 });
 

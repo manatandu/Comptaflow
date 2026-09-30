@@ -246,7 +246,7 @@ describe("Désignation du commissaire aux comptes · AUSCGIE, pas SYCEBNL", () =
     expect(r.obligationIndeterminee).toBe(false);
   });
 
-  it('ses seuils sont ceux de l’art. 376, pas ceux de l’art. 19 SYCEBNL', async () => {
+  it('ses seuils sont ceux de l’AUSCGIE art. 376, pas ceux du SYCEBNL art. 19', async () => {
     const r = await service([], SARL).seuilsAuditeur('t1', 'e1', 0);
     expect(r.criteres.map((c) => c.seuil)).toEqual([125_000_000, 250_000_000, 50]);
     expect(r.criteres.map((c) => c.critere)).toEqual(['Total du bilan', "Chiffre d'affaires annuel", 'Effectif permanent']);

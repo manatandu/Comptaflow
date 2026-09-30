@@ -105,7 +105,11 @@ export class ModifierCoordonneesDto {
   @Min(0.01, { message: 'Le capital social est un montant positif.' })
   capitalSocial?: number | null;
 
-  /** AUSCGIE art. 269-2 · « à capital variable » ajouté à la forme sociale. */
+  /**
+   * AUSCGIE art. 269-2 · « à capital variable » ajouté à la forme sociale.
+   * Refusé par le service aux SARL, SNC et SCS (art. 269-1,
+   * `motifRefusCapitalVariable`).
+   */
   @FacultatifNonNul(
     '« À capital variable » se répond par true ou false, jamais par null. Le retrait s’écrit false ; omettez le champ pour le laisser inchangé.',
   )
@@ -166,6 +170,33 @@ export class ModifierIdentiteDto {
   @IsOptional()
   @IsIn(['OUI', 'NON', 'PAS_ENCORE_DIT'], { message: 'La location-gérance se déclare OUI, NON ou PAS_ENCORE_DIT.' })
   locataireGerantFonds?: ReponseFait;
+
+  // --- Propres à la société coopérative (AUSCOOP) --------------------------
+  // Art. 19 al. 3 et 74 · numéro au Registre des Sociétés Coopératives,
+  // jamais au RCCM (art. 77 al. 1). Refusé aux autres formes par le service.
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  numeroRegistreCooperatives?: string;
+
+  // Art. 205 et 268 · la variante se déclare, PAS_ENCORE_DIT efface.
+  @IsOptional()
+  @IsIn(['SCOOPS', 'COOP_CA', 'PAS_ENCORE_DIT'], {
+    message: 'La variante de la coopérative se déclare SCOOPS, COOP_CA ou PAS_ENCORE_DIT.',
+  })
+  varianteCooperative?: 'SCOOPS' | 'COOP_CA' | 'PAS_ENCORE_DIT';
+
+  // Art. 183 · date de la dissolution déclarée ; la chaîne vide l'efface.
+  @IsOptional()
+  @ValidateIf((o: ModifierIdentiteDto) => o.dateDissolution !== '')
+  @IsDateString()
+  dateDissolution?: string;
+
+  // Art. 183 · « le nom du ou des liquidateurs ».
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  liquidateurs?: string;
 
   // --- Propres aux entités à but non lucratif -----------------------------
   // Arrêté du Ministre de la Justice (loi 004/2001, art. 3) ou décret

@@ -627,9 +627,13 @@ export class RelancesService {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     // AUDCG art. 59 · la CORRESPONDANCE d'une personne immatriculée porte son
     // numéro et son lieu d'immatriculation ; celle d'une société, la ligne de
-    // l'AUSCGIE art. 17 (passe O2). La signature {entite} les porte sous la
-    // dénomination · rien en SYCEBNL.
-    const mentionEmetteur = tenant ? mentionsEmetteur(identiteSociete(tenant)).ligne : null;
+    // l'AUSCGIE art. 17 (passe O2) ; celle d'une coopérative, la ligne de
+    // l'AUSCOOP art. 19 (et 183 une fois dissoute, à la date du courrier) ;
+    // celle d'une ASBL de droit congolais, la mention de la loi n° 004/2001,
+    // art. 16 (passes O6 et D1). La signature {entite} les porte sous la
+    // dénomination.
+    const dateCourrier = dto.dateReference ? new Date(dto.dateReference) : new Date();
+    const mentionEmetteur = tenant ? mentionsEmetteur(identiteSociete(tenant), dateCourrier).ligne : null;
     const entite = [tenant?.nom ?? '', mentionEmetteur].filter((x) => x).join('\n');
 
     const positions = await this.positions(tenantId, {

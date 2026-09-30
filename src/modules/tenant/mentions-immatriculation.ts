@@ -23,7 +23,8 @@ import { FORMES_SOCIETES_COMMERCIALES } from './mentions-societe';
  * sociétés commerciales, GIE, succursales, et les établissements publics à
  * activité économique « bénéficiant de l'autonomie juridique et financière ».
  * La coopérative ne l'est pas (Registre des Sociétés Coopératives, AUSCOOP
- * art. 206). Pour l'entité publique et « autre », le texte dépend de faits que
+ * art. 74) · sa ligne est celle de l'AUSCOOP art. 19, que `mentionsEmetteur`
+ * compose (`mentionsCooperative`), jamais une ligne de l'AUDCG. Pour l'entité publique et « autre », le texte dépend de faits que
  * le dossier ne dit pas · le numéro s'imprime s'il est saisi, son absence
  * n'est pas reprochée.
  *
@@ -48,6 +49,8 @@ export interface IdentiteImmatriculation {
   numeroDeclarationActivite?: string | null;
   /** Art. 140 · null, pas encore dit. */
   locataireGerantFonds?: boolean | null;
+  /** AUSCOOP art. 74 · le registre de la coopérative, qui n'est pas le RCCM. */
+  numeroRegistreCooperatives?: string | null;
 }
 
 export interface MentionImmatriculation {
@@ -99,12 +102,20 @@ export function immatriculationDesLivres(t: IdentiteImmatriculation): string {
 /**
  * La case du registre de la liasse (fiche d'identification) · le RCCM d'une
  * personne immatriculée, le numéro de déclaration d'activité de
- * l'entreprenant NOMMÉ comme tel · jamais l'un imprimé pour l'autre (art. 64).
+ * l'entreprenant et celui de la coopérative NOMMÉS comme tels · jamais l'un
+ * imprimé pour l'autre (AUDCG art. 64, AUSCOOP art. 77).
  */
 export function numeroRegistreLiasse(t: IdentiteImmatriculation): string {
   if (t.formeJuridiqueSyscohada === FormeJuridiqueSyscohada.ENTREPRENANT) {
     const n = t.numeroDeclarationActivite?.trim();
     return n ? `N° de déclaration d’activité ${n} · ${MENTION_ENTREPRENANT}` : '';
+  }
+  // AUSCOOP art. 74 et 77 · la coopérative porte son numéro au Registre des
+  // Sociétés Coopératives, NOMMÉ comme tel · la case ZE est générique
+  // (« N° REGISTRE (RCCM, F92, CONVENTION...) »), le registre se dit donc.
+  if (t.formeJuridiqueSyscohada === FormeJuridiqueSyscohada.SOCIETE_COOPERATIVE) {
+    const n = t.numeroRegistreCooperatives?.trim();
+    return n ? `Registre des Sociétés Coopératives n° ${n}` : '';
   }
   return t.rccm?.trim() ?? '';
 }

@@ -162,8 +162,14 @@ export class RapportActiviteService {
           ? articleDeLaRegle(regime.regle!.source)
           : 'Le rapport'
         : "L'article 16-3";
+      // Les événements postérieurs ne se disent que du texte qui les demande
+      // (art. 16-3, AUSCGIE art. 138) · l'AUSCOOP art. 108 ne les nomme pas,
+      // même lecture que `conformiteRapportGestion` (passe O6).
+      const demandeEvenementsPosterieurs =
+        !regime.syscohada ||
+        (regime.regle!.genre === 'EXIGE' && regime.regle!.sections.some((s) => s.cle === 'evenementsPosterieurs'));
       throw new BadRequestException(
-        `La date d'établissement (${etabliLe.toLocaleDateString('fr-FR')}) est antérieure à la clôture de l'exercice (${exercice.dateFin.toLocaleDateString('fr-FR')}). ${texte} rend compte de l'exercice écoulé : il s'établit après sa clôture, et les événements postérieurs se comptent à partir d'elle.`,
+        `La date d'établissement (${etabliLe.toLocaleDateString('fr-FR')}) est antérieure à la clôture de l'exercice (${exercice.dateFin.toLocaleDateString('fr-FR')}). ${texte} rend compte de l'exercice écoulé : il s'établit après sa clôture${demandeEvenementsPosterieurs ? ", et les événements postérieurs se comptent à partir d'elle" : ''}.`,
       );
     }
 

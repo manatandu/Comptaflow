@@ -7,6 +7,7 @@ import { NaturesCompte } from '../components/NaturesCompte';
 import { Ligne, OngletsVerticaux, SectionTitre, champSage } from '../components/FormulaireSage';
 import { SYSTEMES_SYSCOHADA } from '../lib/systemes-syscohada';
 import { FORMES_PERSONNES_PHYSIQUES, FORMES_SYSCOHADA } from '../lib/formes-juridiques-syscohada';
+import { estCooperative, libelleAdresse, proposeCapitalVariable } from '../lib/mentions-dossier';
 import { BoutonImprimer, EnteteImpression } from '../components/chrome/EnteteImpression';
 import { EditionStructure } from '../components/EditionStructure';
 import { editionParametres } from '../lib/editions-structures';
@@ -136,6 +137,9 @@ const ONGLETS = [
 
 type CleOnglet = (typeof ONGLETS)[number]['cle'];
 
+/** `champsIdentificationDeLaForme` du serveur, telle que GET /constitution la sert. */
+type ChampsPortes = { enregistrementSecteur: boolean; certificatPlan: boolean };
+
 export function ParametresDossierPage() {
   const [onglet, setOnglet] = useState<CleOnglet>('identification');
   const { estAdmin, rafraichir } = useAuth();
@@ -169,6 +173,11 @@ export function ParametresDossierPage() {
   // AUDCG art. 62 et 140 (passe O2).
   const [numeroDeclaration, setNumeroDeclaration] = useState('');
   const [locataireGerant, setLocataireGerant] = useState<'OUI' | 'NON' | 'PAS_ENCORE_DIT'>('PAS_ENCORE_DIT');
+  // AUSCOOP art. 19, 74, 183, 205 et 268 (passe O6).
+  const [numeroRsc, setNumeroRsc] = useState('');
+  const [varianteCoop, setVarianteCoop] = useState<'SCOOPS' | 'COOP_CA' | 'PAS_ENCORE_DIT'>('PAS_ENCORE_DIT');
+  const [dateDissolution, setDateDissolution] = useState('');
+  const [liquidateurs, setLiquidateurs] = useState('');
   const [actePersonnalite, setActePersonnalite] = useState('');
   const [dateActe, setDateActe] = useState('');
   const [enregistrementSecteur, setEnregistrementSecteur] = useState('');
@@ -176,6 +185,9 @@ export function ParametresDossierPage() {
   const [attestationIs, setAttestationIs] = useState('');
   const [dateAttestationIs, setDateAttestationIs] = useState('');
   const [exemption, setExemption] = useState<QualificationExemptionIs | null>(null);
+  // Les champs d'identification que la forme porte · règle du serveur
+  // (`champsIdentificationDeLaForme`), lue sur GET /constitution.
+  const [champsPortes, setChampsPortes] = useState<ChampsPortes | null>(null);
 
   // Même règle que `motifRefusCapital` côté serveur · ni une EBNL ni une
   // personne physique n'ont de capital social.
@@ -205,6 +217,10 @@ export function ParametresDossierPage() {
       setRccm(p.rccm ?? '');
       setNumeroDeclaration(p.numeroDeclarationActivite ?? '');
       setLocataireGerant(p.locataireGerantFonds === true ? 'OUI' : p.locataireGerantFonds === false ? 'NON' : 'PAS_ENCORE_DIT');
+      setNumeroRsc(p.numeroRegistreCooperatives ?? '');
+      setVarianteCoop(p.varianteCooperative ?? 'PAS_ENCORE_DIT');
+      setDateDissolution(p.dateDissolution ? p.dateDissolution.slice(0, 10) : '');
+      setLiquidateurs(p.liquidateurs ?? '');
       setActePersonnalite(p.actePersonnaliteJuridique ?? '');
       setDateActe(p.dateActePersonnalite ? p.dateActePersonnalite.slice(0, 10) : '');
       setEnregistrementSecteur(p.numeroEnregistrementSecteur ?? '');
@@ -216,6 +232,7 @@ export function ParametresDossierPage() {
       // l'appeler depuis un dossier SYSCOHADA ferait remonter une erreur à
       // l'écran pour une fenêtre qui, elle, est commune aux deux référentiels.
       if (p.referentiel === 'SYCEBNL') {
+        await lireChampsPortes();
         try {
           setExemption(await api.get<QualificationExemptionIs>('/fiscalite/exemption-is'));
         } catch {
@@ -235,6 +252,17 @@ export function ParametresDossierPage() {
   useEffect(() => {
     charger();
   }, []);
+
+  // Relue après chaque changement de forme ou de droit étranger · la règle en
+  // dépend. Un échec rend null, et l'écran retombe sur la prudence décrite
+  // plus bas plutôt que sur une condition recopiée.
+  async function lireChampsPortes() {
+    try {
+      setChampsPortes((await api.get<{ champsPortes?: ChampsPortes }>('/constitution')).champsPortes ?? null);
+    } catch {
+      setChampsPortes(null);
+    }
+  }
 
   const changerJeu = async (jeu: JeuEtatsFinanciersSycebnl) => {
     if (!params || params.jeuEtatsFinanciersSycebnl === jeu) return;
@@ -414,6 +442,7 @@ export function ParametresDossierPage() {
           ...(droitEtranger === undefined ? {} : { droitEtranger }),
         }),
       );
+      await lireChampsPortes();
       setInfo('Forme juridique enregistrée.');
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Modification impossible');
@@ -437,19 +466,31 @@ export function ParametresDossierPage() {
    * - L'acte de personnalité juridique le remplace : arrêté du ministre de la
    *   Justice (loi n° 004/2001, art. 5) pour une entité de droit congolais,
    *   décret présidentiel pour une entité de droit étranger (art. 30).
-   * - L'enregistrement au ministère sectoriel ne concerne que les ONG
-   *   (régime particulier des art. 35 et suivants).
+   * - L'enregistrement au ministère du secteur est une formalité de l'ONG
+   *   (loi n° 004/2001, art. 36) ET de l'association de droit étranger
+   *   (art. 31 : « l'association étrangère requiert au préalable, l'avis et
+   *   l'enregistrement auprès du Ministère ayant dans ses attributions le
+   *   secteur d'activités visé »), la confessionnelle étrangère s'adressant
+   *   au Ministre de la Justice (art. 32).
    * - Le certificat du Ministère du Plan concerne les entités qui passent par
    *   la procédure d'enregistrement de la note circulaire n° 003/2013 (ONG,
    *   EUP, projets financés par un bailleur).
+   *
+   * CES DEUX CHAMPS NE SE DÉCIDENT PAS ICI · la règle vit au serveur
+   * (`champsIdentificationDeLaForme`, servie par GET /constitution sous
+   * `champsPortes`), la checklist de constitution la lit aussi, et une
+   * condition recopiée à l'écran avait déjà oublié l'association étrangère.
+   * Tant que la règle n'est pas lue, un champ n'est montré que s'il porte
+   * déjà une valeur · on peut l'effacer, jamais en inventer une.
    */
   const estSycebnl = params?.referentiel === 'SYCEBNL';
   const estEntreprenant = params?.formeJuridiqueSyscohada === 'ENTREPRENANT';
-  const champsOng = params?.formeJuridique === 'ORGANISATION_NON_GOUVERNEMENTALE';
-  const champsPlan =
-    champsOng ||
-    params?.formeJuridique === 'ETABLISSEMENT_UTILITE_PUBLIQUE' ||
-    params?.formeJuridique === 'UNITE_GESTION_PROJET';
+  // AUSCOOP art. 74 et 77 al. 1 · la coopérative est au Registre des Sociétés
+  // Coopératives, et à lui seul · lui montrer le RCCM, c'est l'inviter à y
+  // porter un numéro qui n'est pas un RCCM.
+  const estCoop = !estSycebnl && estCooperative(params?.formeJuridiqueSyscohada);
+  const champsOng = champsPortes ? champsPortes.enregistrementSecteur : enregistrementSecteur.trim() !== '';
+  const champsPlan = champsPortes ? champsPortes.certificatPlan : certificatPlan.trim() !== '';
 
   /**
    * Les champs affichés, dans l'ordre. Les intitulés tiennent sur UNE ligne :
@@ -474,7 +515,13 @@ export function ParametresDossierPage() {
           ? []
           : estEntreprenant
             ? [{ label: 'N° de déclaration d’activité', valeur: numeroDeclaration, set: setNumeroDeclaration, exemple: 'CD/KIN/RCCM/24-EN-00123' }]
-            : [{ label: 'RCCM', valeur: rccm, set: setRccm, exemple: 'CD/KIN/RCCM/23-B-01234' }]),
+            : estCoop
+              ? [
+                  { label: 'N° Registre des Sociétés Coopératives', valeur: numeroRsc, set: setNumeroRsc, exemple: '' },
+                  { label: 'Dissoute le', valeur: dateDissolution, set: setDateDissolution, exemple: '', date: true },
+                  { label: 'Liquidateur(s)', valeur: liquidateurs, set: setLiquidateurs, exemple: '' },
+                ]
+              : [{ label: 'RCCM', valeur: rccm, set: setRccm, exemple: 'CD/KIN/RCCM/23-B-01234' }]),
         ...(estSycebnl
           ? [
               {
@@ -598,7 +645,15 @@ export function ParametresDossierPage() {
           telephone,
           email,
           siteWeb,
-          ...(peutPorterCapital ? { capitalSocial: capital, capitalVariable } : {}),
+          // « À capital variable » ne part que là où l'art. 269-1 l'admet, ou
+          // pour un retrait · un drapeau hérité sur une SARL ferait sinon
+          // refuser tout l'enregistrement des coordonnées.
+          ...(peutPorterCapital
+            ? {
+                capitalSocial: capital,
+                ...(proposeCapitalVariable(params?.formeJuridiqueSyscohada) || !capitalVariable ? { capitalVariable } : {}),
+              }
+            : {}),
           // La monnaie n'est envoyée que si elle peut encore changer · sinon
           // le serveur refuserait tout l'enregistrement pour un champ que
           // l'écran affiche de toute façon en lecture seule.
@@ -629,7 +684,15 @@ export function ParametresDossierPage() {
           ...(params?.referentiel === 'SYSCOHADA'
             ? estEntreprenant
               ? { numeroDeclarationActivite: numeroDeclaration }
-              : { rccm, locataireGerantFonds: locataireGerant }
+              : estCoop
+                ? {
+                    numeroRegistreCooperatives: numeroRsc,
+                    varianteCooperative: varianteCoop,
+                    dateDissolution,
+                    liquidateurs,
+                    locataireGerantFonds: locataireGerant,
+                  }
+                : { rccm, locataireGerantFonds: locataireGerant }
             : {}),
           ...(params?.referentiel === 'SYCEBNL'
             ? {
@@ -656,6 +719,17 @@ export function ParametresDossierPage() {
   };
 
   const verrouille = !!params && params.nombreEcritures > 0;
+
+  // Ce qui accompagne la dénomination, et ce qui y manque · servi par le
+  // serveur (`mentionsEmetteur`), jamais recomposé ici.
+  const contenuMentions = (
+    <>
+      {params?.mentionsSociete.ligne}
+      {(params?.mentionsSociete.manquantes.length ?? 0) > 0 && (
+        <div className="text-warning font-semibold">Manque : {params?.mentionsSociete.manquantes.join(', ')}</div>
+      )}
+    </>
+  );
 
   // « Imprimer les paramètres de la société » (Sage i7) · la fiche entière,
   // tous onglets confondus, et non l'onglet ouvert à l'écran.
@@ -702,8 +776,8 @@ export function ParametresDossierPage() {
                 Identification{' '}
                 <Aide
                   titre="Coordonnées et monnaies"
-                  texte="L’adresse, la ville et le pays composent l’adresse imprimée en tête de chaque état financier. La comptabilité est exprimée en francs congolais, et les livres comme les états déposés le restent. La monnaie fonctionnelle est celle dans laquelle votre entité vit réellement : elle commande un second jeu de documents, à côté du jeu légal et sans valeur légale. Elle doit être une devise déjà ouverte dans Structure > Devises et cours, avec ses cours du jour."
-                  source="Loi n° 23/053, art. 141, 1° · AUDCIF, art. 17, 1°"
+                  texte="L’adresse, la ville et le pays composent l’adresse imprimée en tête de chaque état financier. Pour une société ou une coopérative, l’adresse est celle du siège social, portée sur ses pièces : le siège « ne peut pas être constitué uniquement par une domiciliation à une boite postale. Il doit être localisé par une adresse ou une indication géographique suffisamment précise » · une ville seule laisse la mention manquante. La comptabilité est exprimée en francs congolais, et les livres comme les états déposés le restent. La monnaie fonctionnelle est celle dans laquelle votre entité vit réellement : elle commande un second jeu de documents, à côté du jeu légal et sans valeur légale. Elle doit être une devise déjà ouverte dans Structure > Devises et cours, avec ses cours du jour."
+                  source="Loi n° 23/053, art. 141, 1° · AUDCIF, art. 17, 1° · AUSCGIE, art. 17 et 23 à 25 · AUSCOOP, art. 19"
                 />
               </SectionTitre>
               {/* Chaque valeur est POSÉE CONTRE son étiquette, et non
@@ -771,7 +845,11 @@ export function ParametresDossierPage() {
                       )}
                     </Ligne>
                   )}
-                  <Ligne label="Adresse" large>
+                  {/* AUSCGIE art. 17 et 23 à 25, AUSCOOP art. 19 · pour une
+                      société ou une coopérative, c'est l'adresse du SIÈGE
+                      SOCIAL qui s'imprime, et une ville seule n'en est pas
+                      une (art. 25) · le serveur la laisse alors manquante. */}
+                  <Ligne label={libelleAdresse(params?.referentiel, params?.formeJuridiqueSyscohada)} large>
                     <input
                       value={adresse}
                       onChange={(e) => setAdresse(e.target.value)}
@@ -849,35 +927,62 @@ export function ParametresDossierPage() {
                             className={`${champSage} text-right`}
                           />
                           <span className="text-[11px]">{devise}</span>
-                          <label className="flex items-center gap-1 text-[11px] whitespace-nowrap">
-                            <input
-                              type="checkbox"
-                              checked={capitalVariable}
-                              onChange={(e) => setCapitalVariable(e.target.checked)}
-                              disabled={!estAdmin || envoi}
+                          {/* AUSCGIE art. 269-1 · la variabilité n'est ouverte
+                              qu'à la SA et à la SAS, et le serveur la refuse
+                              aux SARL, SNC et SCS. Celle de la coopérative est
+                              légale (AUSCOOP art. 52), il n'y a rien à cocher. */}
+                          {(proposeCapitalVariable(params?.formeJuridiqueSyscohada) || capitalVariable) && (
+                            <label className="flex items-center gap-1 text-[11px] whitespace-nowrap">
+                              <input
+                                type="checkbox"
+                                checked={capitalVariable}
+                                onChange={(e) => setCapitalVariable(e.target.checked)}
+                                disabled={!estAdmin || envoi}
+                              />
+                              À capital variable
+                            </label>
+                          )}
+                          {estCooperative(params?.formeJuridiqueSyscohada) ? (
+                            <Aide
+                              titre="Capital de la coopérative"
+                              texte="Le capital de la société coopérative est variable par la loi : il augmente ou diminue avec l'entrée et le retrait des coopérateurs. Il n'est pas imprimé sur les pièces, la ligne de la coopérative portant sa forme, l'adresse de son siège et son numéro au Registre des Sociétés Coopératives."
+                              source="AUSCOOP art. 19, 52 à 55"
                             />
-                            À capital variable
-                          </label>
-                          <Aide
-                            titre="Capital social"
-                            texte="La dénomination figure sur tous les actes et documents destinés aux tiers, « précédée ou suivie immédiatement […] de l'indication de la forme de la société, du montant de son capital social, de l'adresse de son siège social et de la mention de son numéro d'immatriculation au registre du commerce et du crédit mobilier ». Une société à capital variable ajoute ces mots à sa forme sociale. Le montant est celui des statuts."
-                            source="AUSCGIE art. 17, 269-2, 13, 10° · sanction pénale, art. 891-1, 2°"
-                          />
+                          ) : (
+                            <Aide
+                              titre="Capital social"
+                              texte="La dénomination figure sur tous les actes et documents destinés aux tiers, « précédée ou suivie immédiatement […] de l'indication de la forme de la société, du montant de son capital social, de l'adresse de son siège social et de la mention de son numéro d'immatriculation au registre du commerce et du crédit mobilier ». Seules la société anonyme ne faisant pas appel public à l'épargne et la société par actions simplifiée peuvent être à capital variable, et ajoutent alors ces mots à leur forme sociale : l'appel public à l'épargne n'est pas tenu au dossier, c'est aux statuts de le dire. Le montant est celui des statuts."
+                              source="AUSCGIE art. 17, 269-1, 269-2, 13, 10° · sanction pénale, art. 891-1, 2°"
+                            />
+                          )}
                         </div>
                       </Ligne>
-                      {params?.mentionsSociete.ligne && (
-                        <Ligne label="Mentions légales" large>
-                          <div className="text-[11px]" title="AUSCGIE art. 17 · mentions des actes et documents destinés aux tiers">
-                            {params.mentionsSociete.ligne}
-                            {params.mentionsSociete.manquantes.length > 0 && (
-                              <div className="text-warning font-semibold">
-                                Manque : {params.mentionsSociete.manquantes.join(', ')}
-                              </div>
-                            )}
-                          </div>
-                        </Ligne>
-                      )}
                     </>
+                  )}
+                  {/* LES MENTIONS DE L'ÉMETTEUR, pour toute forme qui en porte ·
+                      société (AUSCGIE art. 17), coopérative (AUSCOOP art. 19
+                      et 183), ASBL de droit congolais (loi n° 004/2001,
+                      art. 16), autre personne immatriculée (AUDCG art. 59).
+                      Rendues aussi quand la ligne est vide et que seul le
+                      manque parle · une liste de manques tue se lit conforme. */}
+                  {(params?.mentionsSociete.ligne || (params?.mentionsSociete.manquantes.length ?? 0) > 0) && (
+                    <Ligne label="Mentions légales" large>
+                      {/* Le texte cité est celui du dossier · jamais l'art. 17
+                          de l'AUSCGIE servi à une coopérative ou à une ASBL. */}
+                      {estCoop ? (
+                        <div className="text-[11px]" title="AUSCOOP art. 19 et 183 · mentions des actes et documents destinés aux tiers">
+                          {contenuMentions}
+                        </div>
+                      ) : estSycebnl ? (
+                        <div className="text-[11px]" title="Loi n° 004/2001, art. 16 · mentions des actes et pièces de l’association">
+                          {contenuMentions}
+                        </div>
+                      ) : (
+                        <div className="text-[11px]" title="AUSCGIE art. 17 · mentions des actes et documents destinés aux tiers">
+                          {contenuMentions}
+                        </div>
+                      )}
+                    </Ligne>
                   )}
                   {/* LA MONNAIE DE TENUE NE SE CHOISIT PAS · loi n° 23/053
                       art. 141, 1° (« Cette comptabilité est exprimée en Franc
@@ -995,9 +1100,19 @@ export function ParametresDossierPage() {
                       ? 'Le numéro d’impôt est porté en tête de chaque page imprimée, au même titre que la dénomination, la date de clôture et la durée de l’exercice. L’acte de personnalité juridique est celui qui reconnaît l’entité (loi n° 004/2001) ; les autres identifiants servent aux dossiers déposés auprès des ministères et des bailleurs. Une entité à but non lucratif n’est pas immatriculée au registre du commerce : l’Acte uniforme sur le droit commercial général (art. 35, 1°) y immatricule les commerçants, les sociétés, les GIE, les succursales et les groupements que la loi y soumet, et la loi n° 004/2001 n’y soumet pas une ASBL. Le champ RCCM n’est donc pas proposé ici. L’identification nationale reste facultative, elle n’est requise que des agents économiques.'
                       : estEntreprenant
                         ? 'L’entreprenant déclare son activité et n’est pas immatriculé au RCCM. Son numéro de déclaration d’activité s’imprime sur ses pièces et ses livres, suivi de la mention « Entreprenant dispensé d’immatriculation ».'
-                        : 'Le numéro d’impôt est porté en tête de chaque page imprimée. Le RCCM s’imprime sur les livres de commerce, les pièces émises et la correspondance ; un locataire-gérant y ajoute sa qualité.'
+                        : estCoop
+                          ? 'La société coopérative est immatriculée au Registre des Sociétés Coopératives, pas au RCCM, et ne peut l’être à plusieurs registres. Sa dénomination figure sur ses lettres et factures, suivie de sa forme (« Société Coopérative Simplifiée » · SCOOPS, ou « Société Coopérative avec Conseil d’Administration » · COOP-CA), de l’adresse de son siège et de son numéro à ce registre. Dissoute, elle y ajoute « société en liquidation » et le nom du ou des liquidateurs.'
+                          : 'Le numéro d’impôt est porté en tête de chaque page imprimée. Le RCCM s’imprime sur les livres de commerce, les pièces émises et la correspondance ; un locataire-gérant y ajoute sa qualité.'
                   }
-                  source={estSycebnl ? 'Loi n° 004/2001 · AUDCG, art. 35, 1°' : estEntreprenant ? 'AUDCG, art. 62 et 64' : 'AUDCG, art. 14, 59 et 140'}
+                  source={
+                    estSycebnl
+                      ? 'Loi n° 004/2001 · AUDCG, art. 35, 1°'
+                      : estEntreprenant
+                        ? 'AUDCG, art. 62 et 64'
+                        : estCoop
+                          ? 'AUSCOOP, art. 19, 74, 77, 183, 205 et 268'
+                          : 'AUDCG, art. 14, 59 et 140'
+                  }
                 />
               </SectionTitre>
               <form onSubmit={enregistrerIdentite} className="flex flex-col gap-3">
@@ -1016,6 +1131,22 @@ export function ParametresDossierPage() {
                       />
                     </Ligne>
                   ))}
+                  {estCoop && (
+                    <Ligne label="Forme de la coopérative">
+                      <select
+                        value={varianteCoop}
+                        onChange={(e) => setVarianteCoop(e.target.value as 'SCOOPS' | 'COOP_CA' | 'PAS_ENCORE_DIT')}
+                        disabled={!estAdmin || envoi}
+                        aria-label="Forme de la coopérative"
+                        title="AUSCOOP art. 205 et 268 · l'expression et le sigle imprimés à côté de la dénomination"
+                        className={champSage}
+                      >
+                        <option value="PAS_ENCORE_DIT">Pas encore dit</option>
+                        <option value="SCOOPS">Société Coopérative Simplifiée · SCOOPS</option>
+                        <option value="COOP_CA">Société Coopérative avec Conseil d’Administration · COOP-CA</option>
+                      </select>
+                    </Ligne>
+                  )}
                   {!estSycebnl && !estEntreprenant && (
                     <Ligne label="Location-gérance du fonds">
                       <select
@@ -1174,8 +1305,8 @@ export function ParametresDossierPage() {
                 Forme juridique OHADA <Aide sujet="formeJuridiqueSyscohada" />
                 <Aide
                   titre="Forme et planning de clôture"
-                  texte="Au sens du droit OHADA des affaires · l’AUSCGIE pour les sociétés commerciales et le groupement d’intérêt économique, l’AUSCOOP pour les coopératives, l’AUDCG pour le commerçant personne physique et l’entreprenant. Ce choix ne change pas vos états financiers : il détermine les obligations annuelles proposées par le planning de clôture, qui ne sont pas les mêmes selon que l’entité tient une assemblée générale, dépose au registre du commerce, ou ni l’un ni l’autre. La forme se lit dans les statuts. Les montants de capital sont ceux de l’Acte uniforme, exprimés en francs CFA. Celui de la SARL ne s’applique PAS en RDC : l’article 311 réserve le cas de « dispositions nationales contraires », et l’arrêté interministériel n° 002/CAB/MIN/JGS&DH/014 et n° 243/CAB/MIN/FINANCES/2014 du 30 décembre 2014 laisse les associés fixer librement le capital compte tenu de l’objet social. Le même arrêté rend le notaire facultatif pour les statuts. La transformation d’une société en une autre forme est prévue par l’article 181 : ce choix se corrige à tout moment."
-                  source="AUSCGIE, art. 181 et 311 · arrêté interministériel du 30 décembre 2014"
+                  texte="Au sens du droit OHADA des affaires · l’AUSCGIE pour les sociétés commerciales et le groupement d’intérêt économique, l’AUSCOOP pour les coopératives, l’AUDCG pour le commerçant personne physique et l’entreprenant. Ce choix ne change pas vos états financiers : il détermine les obligations annuelles proposées par le planning de clôture, qui ne sont pas les mêmes selon que l’entité tient une assemblée générale, dépose au registre du commerce, ou ni l’un ni l’autre. La forme se lit dans les statuts. Les montants de capital sont ceux de l’Acte uniforme, exprimés en francs CFA. Celui de la SARL ne s’applique PAS en RDC : l’article 311 réserve le cas de « dispositions nationales contraires », et l’arrêté interministériel n° 002/CAB/MIN/JGS&DH/014 et n° 243/CAB/MIN/FINANCES/2014 du 30 décembre 2014 laisse les associés fixer librement le capital compte tenu de l’objet social. Le même arrêté rend le notaire facultatif pour les statuts. Cet arrêté n’est pas lu au Journal officiel : à vérifier sur le texte primaire avant de l’opposer à un tiers. La transformation d’une société commerciale en une autre forme est prévue par l’article 181 de l’AUSCGIE, celle d’une coopérative par les articles 167 à 173 de l’AUSCOOP : ce choix se corrige à tout moment."
+                  source="AUSCGIE, art. 181 et 311 · AUSCOOP, art. 167 à 173 · arrêté interministériel du 30 décembre 2014, non lu au Journal officiel"
                 />
               </SectionTitre>
               <div className="flex flex-col gap-2">
