@@ -2845,10 +2845,15 @@ export class ExportService {
       // AUCUNE LIGNE · la note existe, l'exercice ne la chiffre pas. On pose
       // la mention à la place du corps du tableau plutôt que de laisser une
       // grille vide, qui se lirait comme un tableau tronqué.
-      if (note.lignes.length === 0) {
+      // UN TABLEAU NON APPLICABLE SORT NEANT, même s'il porte des lignes en
+      // saisie (passe R2, B1) · le service les garde pour qu'on puisse les
+      // remplir à l'écran, mais vides elles se liraient ici comme un tableau
+      // documenté, sous une fiche qui le coche N/A.
+      const lignesImprimees = note.applicable ? note.lignes : [];
+      if (lignesImprimees.length === 0) {
         r = bandeNeant(ws, r + 1, ncols) - 1;
       }
-      for (const l of note.lignes) {
+      for (const l of lignesImprimees) {
         r += 1;
         ws.getCell(r, 1).value = l.libelle;
         note.colonnes.forEach((c: ColonneNote, i: number) => {
@@ -2896,9 +2901,9 @@ export class ExportService {
       if (note.renvoiOfficiel) commentaires.push(note.renvoiOfficiel);
       if (note.precisionEditeur) commentaires.push(`Précision d'OmegaX (pas du texte officiel) : ${note.precisionEditeur}`);
       if (note.commentaire) commentaires.push(`Commentaire officiel : ${note.commentaire}`);
-      if (note.lignes.length === 0) {
+      if (!note.applicable) {
         commentaires.push(
-          "NEANT : aucune rubrique de cette note n'est chiffrée sur l'exercice. La note est jointe à la liasse et " +
+          "NEANT : aucune rubrique de cette note n'est chiffrée ni renseignée sur l'exercice. La note est jointe à la liasse et " +
             'cochée « N/A » sur la fiche récapitulative · elle figure pour attester qu\'elle a été examinée.',
         );
       }

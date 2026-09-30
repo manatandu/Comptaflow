@@ -193,6 +193,8 @@ function fabriquerExport(lignesTiers: LigneTiersStub[]): ExportService {
       findFirst: jest.fn().mockResolvedValue(EXERCICES[0]),
     },
     rattachementNote: { findMany: jest.fn().mockResolvedValue([]) },
+    // Registre des provisions vide · aucun passif éventuel à porter à la 16C / 18B (passe R2, B2).
+    provisionRisqueCharge: { findMany: jest.fn().mockResolvedValue([]) },
     saisieNote: { findMany: jest.fn().mockResolvedValue([]) },
     compte: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
     ecriture: { findMany: jest.fn().mockResolvedValue([]) },
@@ -464,6 +466,8 @@ function fabriquerExportSyscohada(lignesTiers: LigneTiersStub[]): ExportService 
       findFirst: jest.fn().mockResolvedValue(EXERCICES[0]),
     },
     rattachementNote: { findMany: jest.fn().mockResolvedValue([]) },
+    // Registre des provisions vide · aucun passif éventuel à porter à la 16C / 18B (passe R2, B2).
+    provisionRisqueCharge: { findMany: jest.fn().mockResolvedValue([]) },
     saisieNote: { findMany: jest.fn().mockResolvedValue([]) },
     compte: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
     ecriture: { findMany: jest.fn().mockResolvedValue([]) },

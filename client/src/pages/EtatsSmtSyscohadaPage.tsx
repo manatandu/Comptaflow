@@ -809,6 +809,28 @@ export function EtatsSmtSyscohadaPage() {
             "AUDCIF, Titre X ch. 1 et ch. 3",
           )}
 
+          {/* L'ABSENCE EST NOMMÉE (passes O1a C7, O6 B3) · la forme du dossier
+              exige deux états que le Titre X ne porte pas et qu'OmegaX ne
+              produit pas au SMT. Tus, la liasse sortirait sans eux et
+              l'annexe se lirait complète. */}
+          {notes.etatsDesGaranties && (
+            <div className="border border-warning/40 bg-warning-soft px-3.5 py-2.5 mb-3">
+              <div className="text-[11.5px] font-bold mb-1 flex items-center gap-1.5">
+                États des garanties à joindre · non produits par OmegaX
+                <Aide
+                  titre="États des garanties données"
+                  texte="La forme du dossier exige ces deux états dans les états financiers de synthèse, en plus des notes du Titre X, qui ne les portent pas. La caution de la NOTE 1 est une caution versée (un actif), pas une garantie donnée. OmegaX ne les produit pas au Système minimal de trésorerie : ils sont à établir et à joindre par le cabinet."
+                  source={notes.etatsDesGaranties.article}
+                />
+              </div>
+              <ul className="list-disc ml-4 text-[11.5px]">
+                {notes.etatsDesGaranties.etats.map((e) => (
+                  <li key={e}>{e}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {bloc(
             'NOTE 1 · TABLEAU SMT DE SUIVI DU MATÉRIEL, DU MOBILIER ET DES CAUTIONS',
             <div>

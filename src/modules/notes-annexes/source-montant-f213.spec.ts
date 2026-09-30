@@ -60,6 +60,8 @@ describe('rubriques de notes · le solde, et lui seul (audit final F213)', () =>
     } as unknown as ExerciceService;
     const prisma = {
       rattachementNote: { findMany: jest.fn().mockResolvedValue([]) },
+      // Registre des provisions vide · aucun passif éventuel à porter à la 16C / 18B (passe R2, B2).
+      provisionRisqueCharge: { findMany: jest.fn().mockResolvedValue([]) },
       saisieNote: { findMany: jest.fn().mockResolvedValue([]) },
       exercice: { findFirst: jest.fn().mockResolvedValue({ id: 'e1', dateFin: new Date('2026-12-31T00:00:00Z') }) },
       ecriture: { findMany: jest.fn().mockResolvedValue([]) },

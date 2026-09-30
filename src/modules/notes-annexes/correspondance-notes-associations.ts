@@ -2028,6 +2028,12 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     code: '2',
     titre: 'INFORMATIONS OBLIGATOIRES',
     horsBalance: true,
+    // Toujours due · sa rubrique B porte la déclaration de conformité que le
+    // SYCEBNL rend lui-même obligatoire (passe R2, B1 · la règle du Titre IX
+    // n'est pas transposée, c'est la Partie 4 ch. 1 qui la pose).
+    applicableDOffice:
+      'SYCEBNL Partie 4 ch. 1, section 6 · les Notes annexes « doivent comporter obligatoirement une ' +
+      'déclaration explicite de conformité », portée par la rubrique B de cette note.',
     colonnes: [{ type: 'LIBRE' as const, libelle: 'Informations' }],
     rubriques: [
       { cle: 'a-identite-organisation', libelle: 'A - IDENTITE, ORGANISATION', saisie: true },

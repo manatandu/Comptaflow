@@ -107,6 +107,8 @@ function exercices(): ExerciceService {
 function prisma(): PrismaService {
   return {
     rattachementNote: { findMany: jest.fn().mockResolvedValue([]) },
+    // Registre des provisions vide · aucun passif éventuel à porter à la 16C / 18B (passe R2, B2).
+    provisionRisqueCharge: { findMany: jest.fn().mockResolvedValue([]) },
     saisieNote: { findMany: jest.fn().mockResolvedValue([]) },
     exercice: {
       findFirst: jest.fn(({ where }: { where: { id: string } }) =>

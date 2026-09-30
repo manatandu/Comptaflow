@@ -1,10 +1,11 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { ClasseCompte, TypeCompteDetailTotal } from '@prisma/client';
+import { ClasseCompte, FormeJuridiqueSyscohada, TypeCompteDetailTotal } from '@prisma/client';
 import {
   EtatsFinanciersSmtSyscohadaService,
   PLAFOND_MOUVEMENTS_NOTE_4_SMT_SYSCOHADA,
 } from './etats-financiers-smt-syscohada.service';
 import { LOT_ECRITURES } from '../../common/lecture-par-lots';
+import { etatsDesGarantiesDus } from './etats-garanties-smt';
 import { EcritureService, PLAFOND_LIGNES_GRAND_LIVRE } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
 import { PrismaService } from '../../common/prisma.service';
@@ -215,6 +216,8 @@ function service(
     devise?: string | null;
     campagne?: unknown;
     campagneExerciceId?: string;
+    /** Forme juridique du dossier · les états des garanties en dépendent. */
+    forme?: FormeJuridiqueSyscohada | null;
   } = {},
 ) {
   // LES EXERCICES DU DOSSIER · ceux qu'on déclare, sinon un par balance
@@ -303,6 +306,7 @@ function service(
         .mockResolvedValue({
           devise: 'devise' in options ? options.devise : 'CDF',
           systemeComptableSyscohada: 'MINIMAL_TRESORERIE',
+          formeJuridiqueSyscohada: options.forme ?? null,
         }),
     },
     // Honore le dossier ET l'identifiant · un exercice inconnu ne rend rien,
@@ -1663,5 +1667,48 @@ describe('Journaux de suivi S.M.T SYSCOHADA (passe R2, C4)', () => {
     ]);
     expect(dettes.lignes.map((l) => [l.numeroFacture, l.montant, l.datePaiement])).toEqual([['FA-77', 150_000, null]]);
     expect(j.limite).toContain('comptabilité de trésorerie pure');
+  });
+});
+
+describe('passes O1a C7 et O6 B3 · les états des garanties que la forme exige au SMT', () => {
+  it('une SARL au SMT doit joindre les deux états de l’AUSCGIE art. 139, que le Titre X ne porte pas', async () => {
+    const r = await service({ e1: [] }, { forme: FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE }).etatsDesGaranties('t1');
+    expect(r).toEqual({
+      article: 'AUSCGIE art. 139',
+      etats: [
+        'État des cautionnements, avals et garanties donnés par la société',
+        'État des sûretés réelles consenties par la société',
+      ],
+    });
+  });
+
+  it('une coopérative, ceux de l’AUSCOOP art. 109, jamais l’article de l’AUSCGIE', async () => {
+    const r = await service({ e1: [] }, { forme: FormeJuridiqueSyscohada.SOCIETE_COOPERATIVE }).etatsDesGaranties('t1');
+    expect(r?.article).toBe('AUSCOOP art. 109');
+    expect(r?.etats[0]).toContain('garanties personnelles données par la société coopérative');
+  });
+
+  it('aucune autre forme n’est visée, ni une forme non déclarée', async () => {
+    for (const forme of [
+      FormeJuridiqueSyscohada.GROUPEMENT_INTERET_ECONOMIQUE,
+      FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE,
+      FormeJuridiqueSyscohada.ENTREPRENANT,
+      FormeJuridiqueSyscohada.SUCCURSALE,
+      null,
+    ]) {
+      expect(await service({ e1: [] }, { forme }).etatsDesGaranties('t1')).toBeNull();
+    }
+  });
+
+  it('les cinq sociétés commerciales de l’art. 6 sont toutes visées', () => {
+    for (const forme of [
+      FormeJuridiqueSyscohada.SOCIETE_ANONYME,
+      FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE,
+      FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE,
+      FormeJuridiqueSyscohada.SOCIETE_NOM_COLLECTIF,
+      FormeJuridiqueSyscohada.SOCIETE_COMMANDITE_SIMPLE,
+    ]) {
+      expect(etatsDesGarantiesDus(forme)?.article).toBe('AUSCGIE art. 139');
+    }
   });
 });

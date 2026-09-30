@@ -546,6 +546,11 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
     code: '2',
     titre: 'INFORMATIONS OBLIGATOIRES',
     horsBalance: true,
+    // Toujours due · elle porte la déclaration de conformité que le ch. 6
+    // § 1.1 rend obligatoire (passe R2, B1).
+    applicableDOffice:
+      "AUDCIF Titre IX ch. 6 § 1.1 · « Les Notes annexes doivent comporter obligatoirement une déclaration " +
+      'explicite de conformité », portée par cette note.',
     colonnes: [{ type: 'LIBRE' as const, libelle: 'Informations' }],
     rubriques: [
       { cle: 'a-declaration-de-conformite-au-syscohada', libelle: 'A - DÉCLARATION DE CONFORMITÉ AU SYSCOHADA', saisie: true },

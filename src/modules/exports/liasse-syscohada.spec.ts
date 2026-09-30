@@ -246,6 +246,8 @@ function fabriquerExport(
     rattachementNote: { findMany: jest.fn().mockResolvedValue([]) },
     // La doublure honore l'exercice demandé · une saisie d'un autre exercice
     // ne doit pas sortir dans la liasse de celui-ci.
+    // Registre des provisions vide · aucun passif éventuel à porter à la 16C / 18B (passe R2, B2).
+    provisionRisqueCharge: { findMany: jest.fn().mockResolvedValue([]) },
     saisieNote: {
       findMany: jest.fn().mockImplementation(({ where }: { where: { exerciceId: string } }) =>
         Promise.resolve(
@@ -596,6 +598,12 @@ describe('liasse complète · Système normal SYSCOHADA', () => {
     const sansNeant = feuillesNotes.filter((n) => !texteFeuille(wb, n).includes('NEANT'));
     expect(avecNeant.length).toBeGreaterThan(0);
     expect(sansNeant.length).toBeGreaterThan(0);
+    // Passe R2, B1 · une note HORS BALANCE que le dossier n'a pas renseignée
+    // sort NEANT, comme la fiche la coche N/A · la production (32) et les
+    // informations sociales (35) d'une société qui n'y a rien écrit. La NOTE 2,
+    // qui porte la déclaration de conformité, reste présentée sans NEANT.
+    expect(avecNeant).toEqual(expect.arrayContaining(['NOTE 32', 'NOTE 35']));
+    expect(sansNeant).toContain('NOTE 2');
 
     // BALANCE N · l'identité ouverture + mouvements = clôture, ligne à ligne.
     const bal = wb.getWorksheet(NOM_BALANCE)!;

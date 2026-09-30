@@ -83,3 +83,16 @@ describe('états SMT SYSCOHADA · les deux journaux de suivi (passe R2, C4)', ()
     expect(page).toContain("{l.datePaiement ? jour(l.datePaiement) : l.paiementPartiel ? 'En partie' : '·'}");
   });
 });
+
+describe('états SMT SYSCOHADA · les états des garanties que la forme exige sont nommés (passes O1a C7, O6 B3)', () => {
+  it('l’onglet des notes rend chacun des deux états servis, avec l’article qui les exige en source de l’aide', () => {
+    // Le bloc est gardé sur ce que le serveur sert · null pour une forme
+    // qu'aucun des deux Actes ne vise, et rien ne s'affiche alors.
+    const debut = page.indexOf('{notes.etatsDesGaranties && (');
+    expect(debut).toBeGreaterThan(-1);
+    const bloc = page.slice(debut, page.indexOf('\n          )}', debut));
+    expect(bloc).toContain('source={notes.etatsDesGaranties.article}');
+    expect(bloc).toContain('notes.etatsDesGaranties.etats.map((e) => (');
+    expect(bloc).toContain('non produits par OmegaX');
+  });
+});

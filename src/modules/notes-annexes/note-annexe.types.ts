@@ -269,6 +269,17 @@ export interface SpecificationNote {
    * présente en saisie, sans inventer de chiffre.
    */
   horsBalance?: boolean;
+  /**
+   * Note que son texte déclare applicable sans condition, avec la source qui
+   * le dit (passe R2, B1). Sans ce motif, une note hors balance ne devient
+   * applicable que par ce que le dossier y a écrit ou par ce qu'un service y
+   * a injecté · « Les modèles de Notes non documentés ne doivent pas être
+   * joints aux états financiers » (AUDCIF Titre IX ch. 6 § 1.2 ; SYCEBNL,
+   * renvoi (1) de chaque fiche récapitulative). La forcer applicable faisait
+   * cocher « A » sur la fiche pour une note vide, imprimée sans la mention
+   * NEANT.
+   */
+  applicableDOffice?: string;
 }
 
 // --------------------------------------------------------------------------

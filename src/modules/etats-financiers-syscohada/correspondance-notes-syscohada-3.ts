@@ -199,8 +199,9 @@ import { SpecificationNote } from '../notes-annexes/note-annexe.types';
  *    elle se CALCULE depuis les trois états. Déclarée `horsBalance` pour que
  *    le moteur générique la présente sans inventer de chiffre, et doublée
  *    de `FICHE_SYNTHESE_SYSCOHADA`, description terme à terme (postes du
- *    compte de résultat, du bilan, du tableau des flux, comptes) · AUCUN
- *    service ne la calcule encore, la note reste en saisie (passe R2, B3). Quatre points signalés :
+ *    compte de résultat, du bilan, du tableau des flux, comptes), que
+ *    `NoteAnnexeService` évalue sur les trois états de la liasse
+ *    (`indicateurs-note-34-syscohada.ts`, passe R2, B3). Quatre points signalés :
  *    - « Dettes financières* » = « emprunts et dettes financières diverses
  *      + dettes de location acquisition », soit DA + DB SEULEMENT : les
  *      provisions pour risques et charges (DC) en sont EXCLUES alors que DD
@@ -1232,20 +1233,20 @@ export const NOTES_SYSCOHADA_3: SpecificationNote[] = [
   },
 
   // ======================================================================
-  // NOTE 34 · fiche de synthèse · EN SAISIE, hors balance pour le moteur
-  // des notes (anomalie n° 10, FICHE_SYNTHESE_SYSCOHADA)
+  // NOTE 34 · fiche de synthèse · CALCULÉE depuis les trois états, hors
+  // balance pour le moteur des notes (anomalie n° 10, FICHE_SYNTHESE_SYSCOHADA)
   // ======================================================================
   {
     code: '34',
     titre: 'FICHE DE SYNTHÈSE DES PRINCIPAUX INDICATEURS FINANCIERS',
-    // AUCUN SERVICE NE LA CALCULE ENCORE (passe R2, constat B3) · ses lignes
-    // sont des rubriques EN SAISIE, à reporter à la main depuis le bilan, le
-    // compte de résultat et le tableau des flux de la même liasse, et rien ne
-    // signale un chiffre ressaisi qui divergerait d'eux. `FICHE_SYNTHESE_
-    // SYSCOHADA` décrit chaque terme pour le jour où l'injection sera écrite
-    // (`NoteAnnexeService.injecterIndicateursFinanciers` ne sert aujourd'hui
-    // que la note 33 des associations SYCEBNL). Le moteur des notes ne lit
-    // pas les états, il ne doit rien inventer ici.
+    // CALCULÉE PAR `NoteAnnexeService` (passe R2, constat B3) · ses lignes
+    // sont déclarées EN SAISIE pour que le moteur générique n'invente aucun
+    // chiffre, puis le service des notes les remplace, cellules
+    // verrouillées, par l'évaluation de `FICHE_SYNTHESE_SYSCOHADA` sur le
+    // bilan, le compte de résultat et le tableau des flux de la même liasse
+    // (`indicateurs-note-34-syscohada.ts`). Seule la rentabilité économique
+    // reste à saisir · l'impôt théorique du renvoi (a) n'est porté par
+    // aucun état.
     horsBalance: true,
     colonnes: COLONNES_N_N1_POURCENT,
     // Le marqueur `horsMaquette` ne survivrait pas à ce map : il est reversé

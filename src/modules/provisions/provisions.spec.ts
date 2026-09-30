@@ -1,4 +1,4 @@
-import { NatureProvision, Referentiel, StatutProvision } from '@prisma/client';
+import { JeuEtatsFinanciersSycebnl, NatureProvision, Referentiel, StatutProvision, SystemeComptableSyscohada } from '@prisma/client';
 import { ProvisionsService } from './provisions.service';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
@@ -26,6 +26,9 @@ import { EcritureService } from '../comptabilite/ecriture.service';
 
 type Etat = {
   referentiel?: Referentiel;
+  /** Jeu SYCEBNL et système SYSCOHADA · la note des passifs éventuels en dépend. */
+  jeuEtatsFinanciersSycebnl?: JeuEtatsFinanciersSycebnl;
+  systemeComptableSyscohada?: SystemeComptableSyscohada;
   lignes?: Record<string, unknown>[];
   balance?: { numero: string; solde: number }[];
   /** Le plan · la doublure honore dossier et identifiant (audit final F138). */
@@ -36,7 +39,11 @@ function service(etat: Etat = {}) {
   const creees: Record<string, unknown>[] = [];
   const prisma = {
     tenant: {
-      findFirst: jest.fn().mockResolvedValue({ referentiel: etat.referentiel ?? Referentiel.SYSCOHADA }),
+      findFirst: jest.fn().mockResolvedValue({
+        referentiel: etat.referentiel ?? Referentiel.SYSCOHADA,
+        jeuEtatsFinanciersSycebnl: etat.jeuEtatsFinanciersSycebnl ?? null,
+        systemeComptableSyscohada: etat.systemeComptableSyscohada ?? null,
+      }),
     },
     compte: {
       findFirst: jest.fn(async ({ where }: { where: { id: string; tenantId: string } }) =>
@@ -514,5 +521,34 @@ describe('F138 · le compte d’une provision est celui que sa nature appelle, d
     });
     await expect(svc.modifier('t1', 'p1', { nature: NatureProvision.IMPOTS })).rejects.toThrow(/n'est pas un 195/);
     await expect(svc.modifier('t1', 'p1', { nature: NatureProvision.IMPOTS, compteId: 'c195' })).resolves.toBeDefined();
+  });
+});
+
+describe('Registre des provisions · le refus nomme la note qui reçoit le passif éventuel (passe R2, B2)', () => {
+  const refus = (etat: Etat) =>
+    service(etat).svc.creer('t1', 'ex1', { ...BASE, statut: StatutProvision.COMPTABILISEE }, 'a@b.cd');
+
+  it('Système normal SYSCOHADA · la NOTE 16C, que le service des notes alimente', async () => {
+    await expect(
+      refus({ referentiel: Referentiel.SYSCOHADA, systemeComptableSyscohada: SystemeComptableSyscohada.NORMAL }),
+    ).rejects.toThrow(/PASSIF_EVENTUEL, qui la porte à la NOTE 16C « Actifs et passifs éventuels »/);
+  });
+
+  it('associations SYCEBNL · leur propre NOTE 18B, jamais le numéro du SYSCOHADA', async () => {
+    await expect(
+      refus({
+        referentiel: Referentiel.SYCEBNL,
+        jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS,
+      }),
+    ).rejects.toThrow(/NOTE 18B « Actifs et passifs éventuels »/);
+  });
+
+  it('un jeu sans note d’actifs et passifs éventuels le dit, au lieu de promettre une annexe renseignée', async () => {
+    for (const etat of [
+      { referentiel: Referentiel.SYCEBNL, jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT },
+      { referentiel: Referentiel.SYSCOHADA, systemeComptableSyscohada: SystemeComptableSyscohada.MINIMAL_TRESORERIE },
+    ]) {
+      await expect(refus(etat)).rejects.toThrow(/n'a pas de note d'actifs et passifs éventuels/);
+    }
   });
 });

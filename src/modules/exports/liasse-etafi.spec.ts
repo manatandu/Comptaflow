@@ -211,6 +211,8 @@ function fabriquerExport(jeu: JeuEtatsFinanciersSycebnl = TENANT.jeuEtatsFinanci
       }),
     },
     rattachementNote: { findMany: jest.fn().mockResolvedValue([]) },
+    // Registre des provisions vide · aucun passif éventuel à porter à la 16C / 18B (passe R2, B2).
+    provisionRisqueCharge: { findMany: jest.fn().mockResolvedValue([]) },
     saisieNote: { findMany: jest.fn().mockResolvedValue([]) },
     compte: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
     ecriture: { findMany: jest.fn().mockResolvedValue([]) },
@@ -406,10 +408,15 @@ describe('liasse complète · le classeur entier du modèle', () => {
     // Chiffrée · ne doit surtout PAS la porter, sans quoi le filigrane
     // serait posé à l'aveugle et ne voudrait plus rien dire.
     expect(texteFeuille('NOTE 13')).not.toContain('NEANT');
-    // HORS BALANCE (note 4, changements de méthodes) : en saisie par nature,
-    // elle présente ses rubriques vierges à remplir · un NEANT y préjugerait
-    // de la réponse du préparateur.
-    expect(texteFeuille('NOTE 4')).not.toContain('NEANT');
+    // HORS BALANCE ET VIDE (note 4, changements de méthodes) · depuis la
+    // passe R2 (B1) elle est cochée N/A sur la fiche tant que le dossier n'y
+    // a rien écrit, et sa feuille le dit par la mention NEANT plutôt que par
+    // une grille vierge, qui se lirait comme une note documentée.
+    expect(texteFeuille('NOTE 4')).toContain('NEANT');
+    // La NOTE 2 porte la déclaration de conformité, toujours due (SYCEBNL
+    // Partie 4 ch. 1) · ses rubriques s'impriment, sans NEANT.
+    expect(texteFeuille('NOTE 2')).not.toContain('NEANT');
+    expect(texteFeuille('NOTE 2')).toContain('A - IDENTITE, ORGANISATION');
 
     // BALANCE N · l'identité ouverture + mouvements = clôture, ligne à ligne.
     const bal = wb.getWorksheet(NOM_BALANCE)!;

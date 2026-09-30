@@ -4,6 +4,53 @@
 
 Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104.
 
+## Bilan au 2026-09-30, fin de journée
+
+Les 236 constats ont été traités en quatorze lots (onze lots de module, un lot
+de reliquats, trois lots de fin), chacun avec des tests vus tomber sous
+mutation, puis fusionnés dans `main` après la suite complète (8 586 tests
+serveur, 1 493 client). Ce qui suit n'est PAS fait, ou ne l'est qu'en partie,
+avec son motif. Tout le reste est fait.
+
+**Décisions de l'éditeur à prendre avant de coder**
+- **F14-D1** · entreprise du portefeuille de l'État (O.-L. n° 13/003, art. 112
+  et 113) : un fait déclaré à trois réponses est à créer.
+- **R2-B5** · lignes répétables des notes SYSCOHADA 4, 13, 32 et 33 : migration
+  décrite (`SaisieNote.rang`, unicité recréée, ancres gardées), non faite.
+- **Tableau 20B à seize colonnes M/F** (R6, D20) · même question d'ancrage.
+- **O1a-D2** · drapeau de liquidation sur l'exercice et jalons de liquidation.
+- **R2-A3 / R2-B6** · stockage des cases ZN à ZS de la fiche R2 (agrément,
+  activités déclarées).
+- **Report au jour ouvrable des échéances de pur paiement** (F8-D1) · la
+  réserve est posée, le calcul inchangé.
+
+**Faits en partie**
+- **D4-C4** · la connexion est tracée ; les exports autres que la restitution
+  et les lectures du registre du personnel ne le sont pas (questions au
+  juriste écrites).
+- **R5-B3** · la déclaration « bâtiment sans terrain » n'a pas de colonne.
+- **O1b-G7** · la durée de six exercices du GIE émetteur n'est pas imposée à
+  la saisie du mandat.
+- **O4-C2** · les saisies-arrêts sont tenues ; la CESSION reste passée à la
+  main (aucun compte ne lui est désigné), et la note de l'art. 188 al. 4 n'est
+  pas composée.
+- **D3-A4** · la réserve « ce n'est pas un audit » est sur la circularisation,
+  pas encore sur le dossier de révision ni le questionnaire.
+- **R6 · C18** (note 33 en quatre tableaux), **B12** (totaux saisis des notes
+  29B, 5H, 35 et 24 des projets), **D8** (colonne Note à l'écran des projets).
+- **Avertissement 901-904 contre 911-914** au SYSCOHADA (classe 9).
+- Les libellés du registre des retenues portent encore les taux (14 %, 25 %,
+  20 %) retirés des intitulés semés 44782 à 44784.
+
+**Écartés après relecture de la source** · D1-A9 (grief principal), D2-E3
+(partie confort), D3-C2 b) (obligation du certificateur, pas de l'entité).
+
+**À lire sur un document que le corpus n'a pas**
+- **E5** · renvois de VA, VB et VC du SMT SYCEBNL (un caractère illisible au
+  scan du Journal officiel).
+- **R1-C11** · le semis SYSCOHADA porte 6722 à 6728 sans 6721, que le Titre VII
+  ouvre · le TSV de la compétence est à revoir.
+
 | Passe | Retenus | Écartés | Obligations lues |
 |---|---|---|---|
 | F11 | 10 | 2 | 67 |
@@ -30,7 +77,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · fiscalite-rdc/code-general-2026/references/08-autres-textes-impots-revenus.md ; 07-ol69-009-dispositions-maintenues.md ; fiscalite-rdc/impots-reels-cedulaires/references/arretes-provinciaux-kinshasa-if-irl-2023.md
 - **Code** · src/modules/retenues/correspondance-retenues.ts:327 (libelle 'Retenue sur les revenus locatifs (20 %)'), :335 (« retenue de 20 % »), :353-357 (baseLegale « Le taux de la retenue est de 20 % […] de 22 % ») ; src/modules/comptes/compte-seed.ts:698 ('44781000', 'État, retenue sur les revenus locatifs (20 %)') ; docs/fiscalite-asbl-rdc.md:163-178 et :228
 - **Correction** · Retirer le taux du libellé de la nature et de l'intitulé semé pour les nouveaux dossiers (ne pas réécrire l'intitulé des dossiers existants). Dans la baseLegale, présenter 20 % et 22 % comme les taux des textes nationaux (art. 11 de la loi n° 83/004, art. 11 de l'O.-L. n° 69/009). Ajouter une réserve : l'IRL relève de la compétence exclusive des provinces (Constitution, art. 204, 16°) ; à Kinshasa, depuis le 1er janvier 2024, l'arrêté provincial n° 015/2023, art. 5 fixe la retenue à 20 % et l'IRL à 22 % au 1er rang, et à 15 % et 17 % aux 2e à 4e rangs ; le barème des autres provinces n'est pas au corpus. Aucun taux par défaut, aucun calcul : le registre lit déjà les crédits du 44781. Dans la note ASBL, compléter les lignes 163-178 et 228 du taux de retenue à 15 %.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### F11-B9 · FAUX
 
@@ -38,7 +85,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · fiscalite-rdc/code-general-2026/references/08-autres-textes-impots-revenus.md
 - **Code** · docs/fiscalite-asbl-rdc.md:170 ; comparer avec src/modules/retenues/correspondance-retenues.ts:336-341 (commentaire de la correction)
 - **Correction** · Écrire « art. 11 de la loi n° 83/004 du 23 février 1983, tel que modifié par le D.-L. n° 109/2000 », et y ajouter la réserve provinciale de F11-B1.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### F11-B2 · INCOMPLET
 
@@ -46,7 +93,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · fiscalite-rdc/code-general-2026/references/08-autres-textes-impots-revenus.md ; fiscalite-rdc/impots-reels-cedulaires/references/arretes-provinciaux-kinshasa-if-irl-2023.md ; constitution-rdc/references/titre-3-provinces.md l.65
 - **Code** · src/modules/retenues/correspondance-retenues.ts:53 (type beneficiaire), :329 (beneficiaire: 'ETAT') ; client/src/pages/RetenuesPage.tsx:157 (« État (DGI) »)
 - **Correction** · Ajouter une valeur 'PROVINCE' au type, affichée « Province (régie provinciale) », et l'utiliser pour la nature retenueLocative. Porter en réserve la tension des deux textes : la Constitution, art. 204, 16°, rend l'IRL provincial ; l'art. 57 LPF renvoie au modèle « de l'Administration des Impôts » ; à Kinshasa, l'arrêté n° 015/2023, art. 3 fait reverser au compte de la Ville, sur le modèle de la DGRK. Ne rien trancher pour les autres provinces.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### F11-B3 · INCOMPLET
 
@@ -54,7 +101,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · fiscalite-rdc/code-general-2026/references/19-procedures-titre3-recouvrement.md ; 08-autres-textes-impots-revenus.md
 - **Code** · src/modules/retenues/correspondance-retenues.ts:350-353 (baseLegale, citation « […] du paiement du loyer. »)
 - **Correction** · Rétablir la phrase entière, virgule comprise. Ajouter à la nature un `contenu` : un relevé daté et signé par bailleur, avec les mentions de l'art. 12, § 1. Ajouter un `sourceDonnees` qui dit ce qu'OmegaX détient (nom, adresse et numéro impôt du tiers bailleur) et ce qu'il ne détient pas (adresse de l'immeuble, surface développée, affectation). Aucun modèle de relevé n'est à inventer : le modèle est celui de l'Administration.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### F11-B4 · INCOMPLET
 
@@ -62,7 +109,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · fiscalite-rdc/code-general-2026/references/07-ol69-009-dispositions-maintenues.md
 - **Code** · src/modules/retenues/correspondance-retenues.ts:334-335 ; semis : src/modules/comptes/compte-seed.ts:843-849 et compte-seed-syscohada.ts:1103-1109 (62210000 Locations de terrains, 62220000 Locations de bâtiments, 62230000 matériels, 62240000/62250000 emballages, 62260000 fermages et loyers du foncier)
 - **Correction** · Écrire : « Les loyers de bâtiments et de terrains versés au bailleur, sur lesquels la retenue est opérée (comptes 6221 terrains, 6222 bâtiments, 6226 fermages et loyers du foncier, et la part du 6228 qui s'y rapporte) ; le loyer de meubles ou de matériel n'y entre que loué avec l'immeuble (O.-L. n° 69/009, art. 5, al. 2). » Même numéros aux deux semis, déjà vérifiés. Retirer « 20 % » (voir F11-B1).
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### F11-B5 · INCOMPLET
 
@@ -70,7 +117,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · fiscalite-rdc/code-general-2026/references/08-autres-textes-impots-revenus.md ; 19-procedures-titre3-recouvrement.md
 - **Code** · src/modules/retenues/correspondance-retenues.ts:326-358 (aucun champ `reserve` ; comparer avec les BORNE_* des l.216-244)
 - **Correction** · Ajouter une réserve BORNE_REVENUS_LOCATIFS, sur le modèle des autres. L'art. 57 LPF dans sa rédaction actuelle s'applique depuis le 1er janvier 2026. L'art. 11 de la loi n° 83/004 écrit « dans les dix jours qui suivent le paiement du loyer » : le registre, qui compte par mois, ne date pas au jour du paiement, et une échéance servie sur un exercice antérieur peut être postérieure à celle du texte. Ajouter la mention Kinshasa (10e jour du mois suivant, depuis 2024). Ne modifier aucun calcul de date.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### F11-B6 · INCOMPLET
 
@@ -78,7 +125,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · fiscalite-rdc/code-general-2026/references/08-autres-textes-impots-revenus.md ; 07-ol69-009-dispositions-maintenues.md ; 17-procedures-titre1-obligations-declaratives.md
 - **Code** · src/modules/retenues/correspondance-retenues.ts:780-1060 (liste des obligations déclaratives, aucune déclaration d'IRL) ; src/modules/exercice/planning-cloture.ts (obligations événementielles)
 - **Correction** · Ajouter une obligation conditionnelle ou événementielle « Déclaration annuelle de l'impôt sur les revenus locatifs · si le dossier donne en location des bâtiments ou des terrains », au 1er février (art. 11 LPF, art. 14 de la loi n° 83/004), ouverte aux deux référentiels. Réserves à porter : les exemptions de l'art. 12 de l'O.-L. n° 69/009 (le logiciel ne tranche pas l'objet de l'association), les sociétés immobilières (circulaire n° 0023/2001), le taux provincial (F11-B1) et l'imputation des retenues subies (art. 13). Aucun montant n'est calculé. Aucune détection automatique : ni le 70730000 du SYSCOHADA ni le 70700000 du SYCEBNL ne distinguent un loyer d'immeuble.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### F11-B8 · INCOMPLET
 
@@ -86,7 +133,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · fiscalite-rdc/code-general-2026/references/07-ol69-009-dispositions-maintenues.md ; fiscalite-rdc/impots-reels-cedulaires/references/arretes-provinciaux-kinshasa-if-irl-2023.md
 - **Code** · src/modules/personnel/assiettes-paie.ts:79, 92, 136 (nature LOGEMENT_OU_SON_INDEMNITE), réserves l.505-520 (IRPP seul) ; aucune obligation correspondante dans src/modules/retenues/correspondance-retenues.ts
 - **Correction** · Quand un bulletin du mois porte une indemnité de logement ET que le dossier déclare Kinshasa comme ville (Tenant.ville), servir une réserve ou une obligation : relevé des bénéficiaires à la DGRK dans les dix jours du paiement (arrêté provincial n° 016/2023, art. 3 et 7). Dire que le logiciel ne sait pas si le salarié occupe sa propre habitation (art. 4, al. 2), et que l'IRL dû sur l'indemnité est celui du bénéficiaire (art. 2 de l'arrêté). Rien pour les autres provinces, aucun montant, aucune retenue.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### F11-A1 · CONFORT
 
@@ -94,7 +141,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/fiscalite-rdc/code-general-2026/references/01-impots-reels-ol69-006-foncier-vehicules-concessions.md, l. 31-51, 113-116, 337-342, 366-374
 - **Code** · docs/fiscalite-asbl-rdc.md, l. 148-155 (colonne « Exonération ASBL », l. 152 ; lignes impôt foncier et impôt sur les véhicules, l. 154-155)
 - **Correction** · Dans la note seulement, sans toucher au code : titrer la colonne « Régime ASBL / EUP ». Écrire « exemption (art. 2, 2°) » pour le foncier et « non-établissement (art. 39, 2°, renvoi à l'art. 2, 2°) » pour les véhicules. Citer les quatre litterae de l'art. 2, 2°, dont le c) (EUP, sans condition d'objet) et, au d), la mention « personnalité civile en vertu de décrets spéciaux ». Ajouter une ligne pour l'obligation de l'art. 36 §2 (déclaration dans le mois de l'acquisition ou de la perte de l'exemption). Ne rien trancher sur la correspondance entre ces régimes anciens de personnalité civile et la loi n° 004/2001 : la dire non tranchée.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### F11-B7 · CONFORT
 
@@ -102,7 +149,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · fiscalite-rdc/code-general-2026/references/08-autres-textes-impots-revenus.md
 - **Code** · src/modules/fiscalite/fiscalite.service.ts:304-321 (message « DEUX CAUSES À EXAMINER », l.311) ; filtre startsWith('4492') l.419-420
 - **Correction** · Passer à « TROIS CAUSES À EXAMINER » en ajoutant : si le dossier donne des immeubles en location, les retenues sur loyers opérées par ses locataires en son acquit sont des acomptes sur l'impôt sur les revenus locatifs (loi n° 83/004, art. 11 et 13), imputables sur cet impôt et non sur l'IS. OmegaX ne les distingue pas et la ventilation appartient au cabinet. Ne rien retrancher d'office du solde rapproché.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ## F14 · journal fiscal
 
@@ -112,7 +159,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · recettes-non-fiscales-rdc/references/03-ol-13-003-procedures-recettes-non-fiscales.md l. 2154-2174 (art. 112 et 113), l. 2192-2203 (art. 115)
 - **Code** · src/modules/exercice/planning-cloture.ts l. 770-778 (jalon 21, « SIX MOIS », tout SYSCOHADA) ; l. 812-822 (jalon 23, AG dans les six mois) ; l. 860-869 (jalon 26, affectation aux mois 6 à 8) ; l. 980-994 (proceValAssembleeGenerale, destinataire DGI seul) ; prisma/schema.prisma l. 105-106 (ENTITE_PUBLIQUE, sans notion de portefeuille)
 - **Correction** · Ajouter un fait déclaré à trois réponses sur le dossier SYSCOHADA : « entreprise relevant du portefeuille de l'État » (oui, non, pas encore dit), null par défaut et jamais déduit de la forme, sur le modèle de tenant/faits-declares.ts. Sur « oui », servir trois jalons bornés aux exercices clos à compter du 27 février 2013. (1) Assemblée générale ordinaire au plus tard le 31 mars de l'année suivante, seulement pour un exercice clos au 31 décembre, comme le texte l'écrit : sur une autre date de clôture, ne rien calculer et le dire. (2) Transmission du procès-verbal à l'Administration des recettes non fiscales dans les dix jours de l'assemblée, en plus de celui de l'art. 13 bis LPF à la DGI, sans le remplacer. (3) Affectation dans les soixante jours du dépôt des états financiers au ministère du Portefeuille, sans échéance calculée, cette date de dépôt n'étant dans aucun livre. Porter en réserve la précaution temporelle de la compétence (texte de 2013 à confronter aux textes postérieurs). Ne chiffrer aucune sanction : l'article n'en pose pas.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### F14-A1 · CONFORT
 
@@ -120,7 +167,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/fiscalite-rdc/accises/references/loi-18-002-2018-code-accises.md, l. 375 (art. 19, 3), l. 395 (art. 20, 4), l. 37 (art. 2, 1), l. 1433 (art. 148), l. 9 (J.O. du 18 avril 2018)
 - **Code** · prisma/schema.prisma l. 5972 (un seul champ `autresImpotsEtTaxes Decimal?`) ; src/modules/facturation/mentions-facture.ts l. 412-414 (mention AUTRES_IMPOTS_ET_TAXES satisfaite par ce seul nombre) ; client/src/pages/FacturationPage.tsx l. 934-935 (imprimé « Autres impôts et taxes ») et l. 836-837 (« Tous les groupes exigibles sont servis. »)
 - **Correction** · Permettre de ventiler le montant de l'art. 26 j) en lignes nommées, avec un libellé et un montant SAISIS par le comptable. Chaque ligne est imprimée à part sur la pièce, et leur somme reste la mention j) et entre dans le TTC comme aujourd'hui. OmegaX ne nomme jamais l'accise d'office, n'en calcule aucune et n'écrit aucun taux : les taux de l'art. 28 et la base des art. 25 à 27 restent hors du logiciel. Le verdict n'est pas étendu à l'art. 19, 3 par déduction, puisque le logiciel ne sait pas si l'émetteur fabrique une marchandise de l'art. 3. À défaut de ventilation, ajouter une réserve dans l'Aide du verdict : le fabricant ou le fournisseur d'une marchandise ou d'un service de l'art. 3 du Code des accises doit faire ressortir séparément les droits d'accises et le droit d'accises spécial (art. 19, 3 et 20, 4), ce que le champ unique ne fait pas. Aucune écriture comptable n'est à ajouter : le refus de passer l'écriture d'une facture qui porte d'autres impôts et taxes est déjà déclaré dans CLAUDE.md.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ## F8 · journal fiscal
 
@@ -130,7 +177,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · fiscalite-rdc/code-general-2026/references/24-mesures-execution-recouvrement.md, l. 15-22 (décret art. 1er), l. 28-37 (art. 2), l. 133-136 (A.M. n° 018 du 1er octobre 2020, art. 1er), l. 432-458 (circulaire III.2.2)
 - **Code** · src/modules/retenues/jour-ouvrable.ts l. 266-267 (RESERVE_JOUR_OUVRABLE : « et que la déclaration comme le paiement se font devant eux »), servie par src/modules/retenues/correspondance-retenues.ts l. 1088-1093 (AVERTISSEMENT_REGISTRE) ; même affirmation en commentaire l. 46-59 (« on dépose une déclaration et on verse à un guichet », « un redevable dont l'échéance y tombe ne peut ni déclarer ni payer ») et au § 6 de CLAUDE.md (« LE JOUR OUVRABLE, CORRIGÉ DEUX FOIS »).
 - **Correction** · Corriger la phrase imprimée et le commentaire sans toucher au calcul. La DÉCLARATION se dépose aux services de la DGI, dont le décret n° 24/09 fixe l'horaire (lundi au vendredi). Le PAIEMENT se fait auprès d'un intervenant, en principe une banque ou un établissement de crédit agréé, ou à la BCC (décret n° 20/019, art. 1er et 2 ; circulaire n° 002 du 1er octobre 2020, III.2.2), dont les jours d'ouverture ne relèvent pas de ce décret. Ajouter une réserve (5) : pour une échéance de PUR PAIEMENT (les trois acomptes provisionnels de l'art. 57 bis, versés sur bordereau à la banque), l'exclusion du samedi ne repose sur aucun texte lu, la loi fiscale ne définissant pas le « jour ouvrable ». Soumettre à Manasse la décision de reporter ou non ces échéances-là au lundi, avec le cas du 25 juillet 2026. Ne pas trancher d'office : aucun texte lu ne dit si une banque ouverte le samedi rend ce jour « ouvrable » au sens de l'art. 110 bis, al. 2.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### F8-A1 · INCOMPLET
 
@@ -138,7 +185,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · fiscalite-rdc/code-general-2026/references/18-procedures-titre2-controle.md, l. 568-575 ; forme : prisma/schema.prisma l. 105-106 (« AUDCIF art. 2 · entités publiques, parapubliques et d'économie mixte »)
 - **Code** · src/modules/retenues/correspondance-retenues.ts l. 805-812 (commentaire « le logiciel ne connaît pas ce caractère » et referentiels: [Referentiel.SYCEBNL]) ; src/modules/retenues/retenues.service.ts l. 627-629 (commentaire « amende de 500 000 FC ») ; filtre obligationsDeclarativesApplicables l. 1270-1283
 - **Correction** · Servir aussi releveTrimestrielTiers à un dossier SYSCOHADA de forme ENTITE_PUBLIQUE, par un champ symétrique de formesExclues (formes SYSCOHADA incluses), sans rien changer pour les sociétés privées. Accompagner cette forme d'une réserve écrite, sans trancher : la forme AUDCIF couvre aussi l'économie mixte, que l'art. 47, al. 1er ne nomme pas, alors que l'art. 48 nomme séparément « les entreprises publiques ou d'économie mixte ». Le cabinet confirme donc la qualité de l'entité. Corriger le commentaire des l. 808-811, et celui de retenues.service.ts l. 628-629 pour renvoyer à SANCTION_ARTICLE_94 au lieu d'un montant périmé. Ajouter le spec du câblage (forme ENTITE_PUBLIQUE avec obligation servie, SARL sans obligation).
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### F8-A2 · INCOMPLET
 
@@ -146,7 +193,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · fiscalite-rdc/code-general-2026/references/18-procedures-titre2-controle.md, l. 573-575 ; comptes : src/modules/comptes/compte-seed.ts l. 589-591 (48110000 à 48130000, SYCEBNL)
 - **Code** · src/modules/retenues/correspondance-retenues.ts l. 804 (sourceDonnees) et l. 796 (contenu) ; à comparer à l. 1053 (listeFournisseurs, 40 ET 481)
 - **Correction** · Ajouter le 481 (fournisseurs d'investissements) aux comptes de tiers de sourceDonnees, avec la même justification que la l. 1053. Remplacer l'énumération du contenu par la formule du texte (« toutes les sommes versées à des tiers, à quelque titre que ce soit, à l'exclusion des salaires ») et garder les exemples comme exemples (« notamment »). Aucun autre compte n'est à ajouter sans relecture des deux semis, et un test doit relire les deux plans pour que le 481 y soit ouvert.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### F8-A3 · INCOMPLET
 
@@ -154,7 +201,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · 18-procedures-titre2-controle.md l. 601-612 ; 17-procedures-titre1-obligations-declaratives.md l. 90-93 ; 03-loi23-053-titre1-dispositions-generales.md l. 70-73 ; 04-loi23-053-titre2-impot-societes.md l. 67-77
 - **Code** · src/modules/retenues/correspondance-retenues.ts l. 608-610 (commentaire « sans exception ») et l. 1041-1054 (listeFournisseurs, sans referentiels ni réserve)
 - **Correction** · Ne pas retirer l'obligation, ce serait trancher en sens inverse. Servir listeFournisseurs aux dossiers SYCEBNL avec une réserve écrite. Cette réserve cite l'art. 47 ter (« soumise à l'IS […] exonérée ou non »), la distinction exemption / exonération (loi n° 23/053, art. 2, 10° et 11°) et la dispense des exemptés (LPF art. 3). Elle dit qu'une EBNL dont l'exemption de l'art. 5 n'est pas acquise (qualifierExemptionIs) reste visée. Elle dit aussi que, pour une EBNL exemptée, la question n'est pas tranchée par le texte lu et relève de la confirmation du cabinet ou du service gestionnaire. Remplacer « sans exception » par ce constat dans le commentaire des l. 608-610.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### F8-A4 · INCOMPLET
 
@@ -162,7 +209,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · 18-procedures-titre2-controle.md l. 589-599 ; procedures-fiscales/NOTES.md l. 72 (la L.F. n° 24/011 est la loi de finances de l'exercice 2025, texte exact au skill rgcp-comptabilite-publique, lf-2025.md)
 - **Code** · src/modules/retenues/correspondance-retenues.ts l. 695-1075 (OBLIGATIONS_DECLARATIVES : aucune entrée art. 47 bis) ; src/modules/exercice/planning-cloture.ts l. 563 (seul le relevé de l'art. 13 est cité)
 - **Correction** · Ajouter une obligation ANNUELLE « Liste annuelle des clients » (31 mars, art. 47 bis). Ne pas la filtrer par référentiel. La masquer seulement quand le dossier a déclaré ne pas vendre de biens ni de services (venteBiensServices = false, « pas encore dit » gardant l'obligation). La servir avec une réserve sur la qualité, fabricant, importateur ou vendeur en gros ou demi-gros, qu'aucun livre ne porte et que le cabinet confirme. Source des données : fiche du tiers (adresse, boitePostale, numeroImpot), factures de vente et comptes 41 et 443 pour le hors taxes et la TVA facturée de l'année précédente. Aucune sanction chiffrée tant que l'article qui la porterait n'a pas été lu. Lire la date d'entrée en vigueur dans le texte de la L.F. n° 24/011 avant de poser une borne, sans la déduire de sa date de promulgation.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### F8-B1 · INCOMPLET
 
@@ -170,7 +217,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · fiscalite-rdc/code-general-2026/references/23-mesures-execution-controle.md, l. 234-237, 337-368, 465-486 ; 17-procedures-titre1-obligations-declaratives.md, l. 231-237
 - **Code** · src/modules/exercice/planning-cloture.ts:563 (detail du jalon 15 SYSCOHADA, « certifiés par un expert-comptable inscrit au tableau de l'ONEC ») et :568 (source, « 14 (certification ONEC) ») ; src/modules/retenues/correspondance-retenues.ts:863-872 (contenu de declarationImpotSocietes, « certifiés par un expert-comptable inscrit au tableau de l'Ordre national des experts-comptables (art. 14) »)
 - **Correction** · Compléter les deux textes servis (jalon 15 SYSCOHADA et contenu de declarationImpotSocietes) et leur source : « dans les conditions de l'arrêté ministériel n° 014 du 16 mai 2023 : la certification est incompatible avec l'assistance comptable ou fiscale et ne peut être délivrée que par un expert-comptable indépendant de l'entité (art. 5) ; délivrée par un membre non indépendant, elle est irrégulière et vaut refus de certification (art. 14), ce qui ouvre la taxation d'office pour comptabilité irrégulière (art. 15, renvoyant à l'art. 41 LPF). Le cabinet qui tient les comptes ne peut donc pas les certifier. » Trois réserves à écrire, sans trancher : (1) ANOMALIE DU TEXTE · l'art. 7, al. 2 ouvre « par dérogation à l'article 5 » une désignation pour les entités non astreintes à un commissaire aux comptes, et l'al. 3 fait certifier « eux-mêmes » leurs états aux cabinets comptables non astreints · la portée de cette dérogation n'est pas dite ; (2) l'arrêté vise nommément l'IBP ; il est rattaché à l'art. 14 LPF, toujours en vigueur pour l'IS, et reproduit par la compilation DGI au 19/07/2026, mais sa lecture pour l'IS reste une lecture ; (3) borne d'application : exercice fiscal 2024 / revenus 2023 (art. 28). Aucun contrôle de l'indépendance n'est à coder · OmegaX ne détient pas le certificateur.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### F8-C2 · INCOMPLET
 
@@ -178,7 +225,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/fiscalite-rdc/code-general-2026/references/19-procedures-titre3-recouvrement.md:25
 - **Code** · src/modules/retenues/correspondance-retenues.ts:351-353 (« …reversée dans les dix jours du mois qui suit celui du paiement du loyer. »)
 - **Correction** · Recopier l'alinéa entier et à la lettre (« de loyer, à l'aide d'un relevé conforme au modèle fixé par l'Administration des Impôts »), et nommer ce relevé dans le contenu de la ligne. Ne pas renseigner `imprime` tant qu'aucun imprimé n'a été lu.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### F8-C4 · INCOMPLET
 
@@ -186,7 +233,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/fiscalite-rdc/code-general-2026/references/19-procedures-titre3-recouvrement.md:64
 - **Code** · src/modules/retenues/correspondance-retenues.ts:886-905 (declarationIrpp, 30 avril seul) et 980-996 (premiereQuotitePetiteEntreprise, contenu sans la déclaration) ; src/modules/exercice/planning-cloture.ts:606-612 (jalon « Déclaration annuelle des revenus (personne physique) », debut moisApres 3, échéance 30 avril)
 - **Correction** · Dans la ligne de la première quotité et dans la branche « petites entreprises » du jalon de déclaration, recopier la phrase de l'art. 57 quater, al. 2 (paiement « à la souscription de la déclaration auto liquidative », au plus tard le 31 janvier). Nommer la tension avec le 30 avril de l'art. 17 sans la trancher, et renvoyer au service gestionnaire, comme pour la réserve déjà portée sur la seconde quotité. Ne déplacer aucune date.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### F8-C3 · CONFORT
 
@@ -194,7 +241,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/fiscalite-rdc/code-general-2026/references/19-procedures-titre3-recouvrement.md:13
 - **Code** · src/modules/retenues/retenues.service.ts:61 (« à l'art. 57, alinéa 5 pour la retenue locative ») ; src/modules/retenues/retenues.spec.ts:1182 (« à l'article 57, alinéa 5 pour la retenue locative »)
 - **Correction** · Remplacer « alinéa 5 » par « alinéa 4 » aux deux endroits.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ## R1 · journal referentiels
 
@@ -204,7 +251,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · audcif-acte-uniforme/references/titre-7-comptes-classe-2.md l. 95, 120, 255-258, 292 ; titre-7-ch1-2-cadre-codification.md l. 91
 - **Code** · src/modules/immobilisations/immobilisation.service.ts l. 489-498 (verifierComptesFamille : tout 20-27, 28 et 68 obligatoires), l. 300-315 (26/27 = FINANCIERE), l. 2101-2160 (passerDotation sans filtre de nature) ; src/modules/immobilisations/dto/immobilisation.dto.ts l. 34-35 (@IsPositive dureeAmortissementAns) ; src/modules/controles/controles.service.ts l. 1602-1650 (IMMO_REPRISE_SANS_ANTERIEUR) et l. 1655-1715 (IMMO_SANS_DOTATION, « amortissable » affirmé de tout bien en service)
 - **Correction** · Distinguer à la source les biens non amortissables, lus dans le Titre VII et nulle part ailleurs : parmi les 22, seuls les terrains agricoles et forestiers (221) et les travaux de mise en valeur (224) s'amortissent (fiche 22, l. 95) ; 25, 26 et 27 n'ont aucun compte 28 (fiche 28, l. 255-258) ; les en-cours 2x9 ne s'amortissent pas avant mise en service (l. 120). Une famille ou un bien sur ces racines naît sans plan (ni 28, ni 68, ni durée), `passerDotation` le refuse en citant la fiche, et les contrôles 12 et 13 l'écartent de leur périmètre. Seule la dépréciation (29) reste ouverte à ces biens. Aucune durée n'est inventée pour 221/224.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R1-A2 · FAUX
 
@@ -212,7 +259,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · audcif-acte-uniforme/references/titre-7-comptes-classe-2.md l. 18, 65, 94, 123, 150, 171, 202, 232
 - **Code** · src/modules/immobilisations/contrepartie-acquisition.ts l. 22-28 (4813 et en-cours écartés par commentaire), l. 63-72 (PROPRES), l. 85-91 (motif citant le Titre VII) ; src/modules/immobilisations/immobilisation.service.ts l. 1087-1101 (refus à la création, composants compris) ; client/src/pages/ImmobilisationsPage.tsx l. 1050 (composant DEMANTELEMENT proposé)
 - **Correction** · Compléter la liste SYSCOHADA par la seule lecture des fiches : 2x9 de la même division que le compte du bien (219 pour 21, 229 pour 22, 239 pour 23, 249 pour 24) ; 25 de la nature du bien (251 incorporel, 252 corporel) ; 1984 pour un composant de type DEMANTELEMENT seulement ; 4813 pour un bien 26 ou 27 seulement. Retirer du commentaire les deux affirmations (« les en-cours ne passent pas par la création d'une fiche », « 4813 … pas des contreparties ») et faire citer par le motif de refus la fiche du compte du bien, pas un résumé commun aux 21 à 24. Le SYCEBNL n'est pas touché par ce constat.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R1-A3 · FAUX
 
@@ -220,7 +267,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · audcif-acte-uniforme/references/titre-7-comptes-classe-1.md l. 119, 152-154, 302, 304
 - **Code** · src/modules/affectation/regles-affectation.ts l. 133-136 (destinations ['10', '11', '12', '465']) ; src/modules/affectation/affectation.service.ts l. 78-96 (liste servie à l'écran) et l. 202-207 (refus citant « 10, 11, 12, 465 »)
 - **Correction** · Pour le SYSCOHADA seul, porter deux listes par sens, lues dans les fiches : bénéfice → 101, 103, 11, 12, 465 ; perte → 101, 103, 11, 12, et 105 (fiche 105, absorption des pertes par le crédit du 139). Le 106 reste refusé. Filtrer la liste servie selon `estBenefice`, et faire citer par le message la liste du sens concerné avec la ligne de la fiche. Le SYCEBNL n'est pas touché par ce constat.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R1-B1 · FAUX
 
@@ -228,7 +275,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/audcif-acte-uniforme/references/titre-7-comptes-classe-4.md
 - **Code** · src/modules/comptabilite/ecriture.service.ts:280 (PERIMETRES_BALANCE_AGEE.DIVERS_47.lecture, servie par client/src/pages/BalanceAgeePage.tsx:171) ; CLAUDE.md:3228-3230 ; commentaire src/modules/comptabilite/balance-agee-tranches.spec.ts:224
 - **Correction** · Remplacer la citation par celle du contenu réel du compte 47 (l.252, « opérations en instance de régularisation… »). L'argument de l'écran tient toujours : des opérations « en instance de régularisation » n'ont pas vocation à rester ouvertes, si bien qu'une ligne ancienne appelle la question du réviseur. Corriger la phrase de CLAUDE.md et le commentaire du spec dans le même geste, et ajouter un test qui gèle la PRÉSENCE de la bonne citation, sans bannir l'ancienne.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R1-B2 · FAUX
 
@@ -236,7 +283,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/audcif-acte-uniforme/references/titre-7-comptes-classe-3.md
 - **Code** · src/modules/stocks/nomenclature-stocks.ts:268-277 (entrée racine '38', SYSCOHADA, de STOCKS_HORS_VARIATION_AUTOMATIQUE) ; servie par src/modules/stocks/variation-stocks.ts:135-142
 - **Correction** · Côté SYSCOHADA seulement : ajouter à SYSCOHADA_CORRESPONDANCES les couples 381 → 6031, 382 → 6032 et 383 → 6033 (numéros semés 60310000, 60320000 et 60330000, à revérifier dans le semis). Restreindre l'entrée hors variation aux 386 et 387, avec un motif exact. 386 : le texte renvoie aux sous-comptes 603, qui n'ont aucune subdivision de produits finis (anomalie du texte, à signaler et non à combler). 387 : consignation ou dépôt, la nature du stock n'est pas dans le numéro. Le 388 garde son entrée propre. Ne rien transposer au SYCEBNL, dont le 38 est « Dons en nature H.A.O. ».
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R1-C1 · FAUX
 
@@ -244,7 +291,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · audcif-acte-uniforme/references/titre-7-comptes-classe-7.md l. 83-86, 96-98, 101
 - **Code** · src/modules/controles/controles.service.ts l. 3157 (const productionImmobilisee = cumul((n) => n.startsWith('72'))), l. 3171-3172 (consequence), l. 279 (IMMOBILISATIONS_DE_LA_PRODUCTION)
 - **Correction** · Pour un dossier SYSCOHADA, ne compter au numérateur que les 721 et 722, qui sont les productions dont le texte fait la contrepartie des 21, 23 ou 24. Le 724 est à sortir du contrôle, car le texte lui nomme d'autres contreparties (104, 6617, 6627). Le 726 aussi, car sa contrepartie n'est pas une immobilisation corporelle ou incorporelle. Le texte ne dit rien de plus sur le 726, et le contrôle ne doit rien en inventer. Côté SYCEBNL, la fiche du compte 72 ne décrit aucune contrepartie propre au 724. On ne transpose donc pas la règle de l'AUDCIF : garder ce côté tel quel ou le trancher à la lecture de son propre texte. Ajouter un test par référentiel qui prend un 724 crédité par le 104 (SYSCOHADA) et exige qu'aucune anomalie ne sorte.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R1-C2 · FAUX
 
@@ -252,7 +299,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · audcif-acte-uniforme/references/titre-7-comptes-classe-2.md l. 62, 94, 120, 123, 150 ; titre-7-comptes-classe-7.md l. 101
 - **Code** · src/modules/controles/controles.service.ts l. 3175-3176 (action de PRODUCTION_IMMOBILISEE_SANS_IMMOBILISATION)
 - **Correction** · Remplacer « ou du 22 si les travaux ne sont pas achevés à la clôture » par le renvoi aux comptes en cours que les fiches nomment : 219, 239 ou 249 selon la nature, qui sont des subdivisions des 21, 23 et 24. Geler par un test la présence de ces numéros dans l'action. Aucun changement de calcul n'est requis.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R1-C3 · FAUX
 
@@ -260,7 +307,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · audcif-acte-uniforme/references/titre-7-comptes-classe-6.md l. 116-119, 162 ; titre-7-comptes-classe-9.md l. 67-71, 84-86, 223-235, 253-265, 273-285, 436-448
 - **Code** · scripts/extraire-regles-comptes.cjs l. 191-195 (un en-tête ouvre une fiche vide dès qu'un autre le suit) ; src/modules/controles/regles-comptes-syscohada.ts l. 358-362 (62), 617-628 (9013, 9014), 687-691 (9033), 708-712 (9043), 722-726 (9051), 806-810 (9083) ; client/src/pages/DossierRevisionPage.tsx l. 158-160
 - **Correction** · Dans l'extracteur, quand des en-têtes « COMPTE N » se suivent sans corps entre eux, leur donner le corps de la fiche commune, lu une seule fois. Régénérer ensuite regles-comptes-syscohada.ts. Aucun texte n'est reformulé : c'est la même citation, servie à chacun des comptes que le texte vise. Ajouter un test qui exige, pour 62, 9013, 9014, 9033, 9043, 9051 et 9083, des éléments de contrôle non nuls et identiques à ceux de la fiche commune.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R1-C5 · FAUX
 
@@ -268,7 +315,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · audcif-acte-uniforme/references/titre-7-comptes-classe-8.md l. 30-32, 51-52
 - **Code** · CLAUDE.md l. 3482-3485 (contredit src/modules/immobilisations/immobilisation.service.ts l. 2789-2821 et 2837-2848)
 - **Correction** · Réécrire la puce du CLAUDE.md selon ce que fait le code : la sortie solde le 29 PAR SA REPRISE, au 79 ou au 863 selon le niveau de la dotation, et la VCN portée au 81 est la valeur d'entrée moins les seuls amortissements (fiche du compte 81, Contenu et Exclusions). Ne rien toucher au code.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R1-A4 · INCOMPLET
 
@@ -276,7 +323,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · audcif-acte-uniforme/references/titre-7-ch1-2-cadre-codification.md l. 91 ; titre-7-comptes-classe-2.md l. 255-258, 283-289
 - **Code** · src/modules/immobilisations/immobilisation.service.ts l. 489-498 (famille) et l. 2214-2222 (dépréciation, préfixe « 29 » seul) ; src/modules/etats-financiers-syscohada/correspondance-bilan-syscohada.ts l. 391-419 (amortissements lus par poste)
 - **Correction** · Exiger que le compte 28 commence par « 28 » suivi du deuxième chiffre du compte du bien, et le compte 29 par « 29 » suivi du même chiffre (2x → 28x et 29x, la structure du ch. 2), à la famille comme à la dépréciation, avec un refus nommé qui cite la phrase du ch. 2. Rien de plus fin n'est imposé : au-delà de la division, le choix du sous-compte reste au cabinet.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R1-A5 · INCOMPLET
 
@@ -284,7 +331,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · audcif-acte-uniforme/references/titre-7-comptes-classe-2.md l. 296-297
 - **Code** · src/modules/immobilisations/immobilisation.service.ts l. 2208-2222 (contrepartie lue sans contrôle), l. 2256-2269 (écriture), l. 454-468 (reprise en 863 si dotée en 85) ; client/src/pages/ImmobilisationsPage.tsx l. 1449-1456 (filtre « 69 » ou « 79 » seulement)
 - **Correction** · Au serveur, pour le SYSCOHADA : dotation admise sur 691, 697 ou 853 ; reprise sur 791, 797 ou 863 ; refus nommé citant la fiche 29. À l'écran, ajouter 853 et 863 aux listes, de sorte que la reprise H.A.O. déjà codée devienne atteignable. Le choix entre exploitation, financier et H.A.O. reste au comptable.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R1-B3 · INCOMPLET
 
@@ -292,7 +339,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/audcif-acte-uniforme/references/titre-7-comptes-classe-4.md
 - **Code** · src/modules/controles/controles.service.ts:1020 (const aUnTiers = … startsWith('4')) ; src/modules/modeles-saisie/diagnostic-tiers.ts:78 et :119 (CLASSE_TIERS = '4')
 - **Correction** · Dans les deux tests de « tiers présent », ne plus compter les lignes de TVA : racine 445 pour une charge débitée, 443 pour un produit crédité dans le diagnostic des modèles. Les autres lignes de classe 4 (447 retenue à la source, 40, 42…) absolvent toujours, comme le code le décide aujourd'hui. Fondement côté SYSCOHADA : Titre VII, comptes 40 et 44. Ne l'étendre au SYCEBNL qu'après lecture de la fiche de SON compte 40, que cette passe n'a pas ouverte. Écrire le test de câblage avec la règle : un achat avec TVA réglé en banque doit remonter dans les occurrences.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R1-B4 · INCOMPLET
 
@@ -300,7 +347,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/audcif-acte-uniforme/references/titre-7-comptes-classe-4.md
 - **Code** · src/modules/regularisation/regularisation.service.ts:117-118 (table de rattachement FOURNISSEURS/CLIENTS) et :524-532 (écriture à deux lignes) ; client/src/pages/RegularisationPage.tsx:482 (un seul montant)
 - **Correction** · Pour les natures FOURNISSEURS et CLIENTS d'un dossier SYSCOHADA, accepter un montant de TVA facultatif, déclaré par le comptable et jamais posé d'office (« si la TVA est récupérable », « si le bien entre dans le champ »). Il se porte au 4455 (charge) ou au 4435 (produit), avec le 408 ou le 418 pour le montant toutes taxes. La reprise à l'ouverture l'extourne avec le reste. L'articulation avec la déclaration de TVA (taux porté ou non par cette ligne) relève du module fiscal et doit y être tranchée, jamais supposée ici. Le SYCEBNL se lit dans ses propres fiches 40 et 41 avant toute extension.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R1-B5 · INCOMPLET
 
@@ -308,7 +355,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/audcif-acte-uniforme/references/titre-7-comptes-classe-5.md
 - **Code** · src/modules/controles/controles.service.ts:378-390 (controleCaisse : racine 57 seule) et :1076-1095 (CAISSE_CREDITRICE) ; src/modules/etats-financiers-syscohada/correspondance-bilan-syscohada.ts:134-146 et :473-477 (« visibles et à corriger avant arrêté »)
 - **Correction** · Ajouter au dossier SYSCOHADA un contrôle nommé, en avertissement, sur tout compte 55 de détail dont le solde devient créditeur, au jour comme pour la caisse ou au moins à la clôture. Le message cite la seule phrase l.194, sans la « présomption d'irrégularité », que le texte réserve au 57. Rendre exact le commentaire du bilan : un 55 créditeur n'y est visible que par le contrôle. Au SYCEBNL, n'étendre le contrôle qu'après lecture de sa propre fiche 55.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R1-C7 · INCOMPLET
 
@@ -316,7 +363,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · audcif-acte-uniforme/references/titre-7-comptes-classe-9.md l. 19-22
 - **Code** · src/modules/comptabilite/ecriture.service.ts l. 686-699 (controlesDEntree : seul le compte Total est refusé) ; src/modules/controles/controles.service.ts l. 1461-1486 (CLASSE_9_MOUVEMENTEE, information seulement)
 - **Correction** · Pour un dossier SYSCOHADA seulement, refuser par un message nommé une pièce dont les lignes sur les comptes 90 et 91 ne s'équilibrent pas entre elles, c'est-à-dire qui mêle classe 9 et classes 1 à 8. On peut ajouter un avertissement quand un 901-904 n'est pas contrepassé par un 911-914, ou un 905-908 par un 915-918. Le SYCEBNL est hors de cause : sa classe 9 porte les contributions volontaires en nature et se lit dans son propre texte. Ne rien transposer.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R1-C8 · INCOMPLET
 
@@ -324,7 +371,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · audcif-acte-uniforme/references/titre-7-comptes-classe-7.md l. 32-35 ; titre-7-comptes-classe-6.md l. 31-38 ; titre-7-comptes-classe-7.md l. 86-88, 258-261
 - **Code** · src/modules/comptes/compte-seed-syscohada.ts l. 1049-1089, 1322-1369, 1387, 1450 (marqueurs [5] à [10] sans texte) ; client/src/pages/SaisiePage.tsx l. 1538-1548 (seules les Exclusions sont servies)
 - **Correction** · Servir le texte de chaque renvoi, VERBATIM et tiré de la source (skill syscohada, comptes/references/regles-et-notes.md, notes [5] à [10]), à côté du compte qu'il vise. Il peut s'afficher à la saisie comme une ligne de la fiche, ou en infobulle sur l'intitulé. On corrige à la source et on régénère, sans retoucher le semis à la main. Ne rien poser qui imputerait d'office au 706 : qualifier l'activité principale reste l'affaire du cabinet.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R1-A7 · CONFORT
 
@@ -332,7 +379,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · audcif-acte-uniforme/references/titre-7-comptes-classe-1.md l. 197 (et l. 30, 194-195 pour le fonctionnement couplé)
 - **Code** · src/modules/controles/dossier-revision.service.ts l. 104-122 (fiche citée, rien de calculé) ; src/modules/controles/controles.service.ts (aucun contrôle 109/1011)
 - **Correction** · Contrôle SYSCOHADA en INFORMATION : à la clôture, si /solde 109 + solde 1011/ dépasse le centime, nommer les deux soldes et citer l'élément de contrôle de la fiche 109. Aucune écriture n'est proposée.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R1-A8 · CONFORT
 
@@ -340,7 +387,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · audcif-acte-uniforme/references/titre-7-comptes-classe-2.md l. 13, 18, 26, 28, 247-250, 280
 - **Code** · prisma/schema.prisma l. 3456-3511 (bloc « Hors scope MVP ») et l. 3525 (« DEGRESSIF non couvert par ce MVP · voir le commentaire ci-dessus ») ; comparer l. 3864-3870 (enum TypeComposant) et src/modules/immobilisations/immobilisation.service.ts l. 2186-2240 (dépréciation portée)
 - **Correction** · Réécrire le bloc pour dire ce qui est porté (composants et leurs quatre types, dépréciation, unités d'œuvre, dégressif fiscal et dérogatoire) et ce qui reste hors du module : le dégressif COMPTABLE à taux décroissant, que le DTO déclare déjà non couvert, et les plans multiples. Aucun changement de code.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R1-B6 · CONFORT
 
@@ -348,7 +395,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/audcif-acte-uniforme/references/titre-7-comptes-classe-4.md
 - **Code** · src/modules/immobilisations/immobilisation.service.ts:2710-2712 (seule la présence du compte est exigée) et :2918-2926 (D compteContrepartieId / C produit) ; client/src/pages/ImmobilisationsPage.tsx:1500-1504 (liste = tout comptesFinancement)
 - **Correction** · Côté SYSCOHADA, sur le modèle de contrepartie-acquisition.ts, poser une liste fermée, appliquée par la même règle au serveur et à l'écran : trésorerie (52, 53, 55, 57), plus 485 (4851 ou 4852 selon la nature du bien) pour une cession H.A.O., ou 414 (4141 ou 4142) pour une cession courante. Refuser un 41 hors 414 sur une cession H.A.O. et un 485 sur une cession courante, en citant les fiches 41 et 48. Le SYCEBNL reste sur ses propres fiches, non lues ici.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R1-C10 · CONFORT
 
@@ -356,7 +403,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · audcif-acte-uniforme/references/titre-7-comptes-classe-7.md l. 277 ; titre-7-comptes-classe-8.md l. 190
 - **Code** · scripts/extraire-regles-comptes.cjs l. 173-179 (fenêtre /→\s*([^→]{0,60})/) ; src/modules/controles/regles-comptes-syscohada.ts l. 463-467 (79 : ["759","86"]), l. 505-509 (86 sans 697) ; client/src/pages/SaisiePage.tsx l. 1542-1545
 - **Correction** · Lire tout le segment qui suit une flèche, jusqu'au tiret de puce suivant ou à la fin de la phrase, au lieu d'une fenêtre fixe de soixante caractères. Écarter les nombres entre parenthèses qui ne sont pas des comptes. Régénérer, puis figer par un test : 79 → [759, 779, 849, 86] et 86 → [691, 697, 759, 779, 791, 797].
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R1-C11 · CONFORT
 
@@ -364,7 +411,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · audcif-acte-uniforme/references/titre-7-comptes-classe-6.md l. 296
 - **Code** · src/modules/comptes/compte-seed-syscohada.ts l. 1276-1280 ; src/modules/etats-financiers-syscohada/correspondance-notes-syscohada-2.ts l. 374-387 (anomalie n° 31)
 - **Correction** · Ajouter l'écart du compte 672 à l'anomalie n° 31, sans trancher entre les deux sources, et le signaler à Manasse pour la source (TSV de la compétence syscohada). Ne pas retoucher le semis à la main.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ## R2 · journal referentiels
 
@@ -374,7 +421,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · audcif-acte-uniforme/references/titre-9-ch1-5-bilan-resultat-flux.md, l. 114 et l. 190 (Titre IX ch. 2, « États financiers » et fiche R4)
 - **Code** · src/modules/exports/theme-etafi.ts:953-954 (notePied par défaut) ; src/modules/exports/export.service.ts:2701 (feuilleFicheRecapitulative appelle construireFicheNotes sans notePied) et :5538, :6275 (notes SYSCOHADA et liasse du Système normal passent par ce chemin) ; commentaire de l'écart :2741-2757
 - **Correction** · Passer à construireFicheNotes, pour les deux chemins SYSCOHADA du Système normal, un notePied qui recopie le renvoi (1) de l'AUDCIF mot pour mot : « (1) Les Notes non documentées ne doivent pas être jointes aux états financiers. Leur contenu peut être amélioré par les entités. » Garder le pied actuel pour les seuls jeux SYCEBNL. Compléter le commentaire de construireClasseurNotes : l'écart assumé (toutes les notes jointes, mention NEANT) s'écarte AUSSI du renvoi (1) de l'AUDCIF, et côté SYSCOHADA le filtrage des lignes non chiffrées est une faculté (ch. 2, « peuvent »), pas une obligation. Écrire un test qui relit la cellule de pied de la feuille « NOTES ANNEXES » d'une liasse SYSCOHADA et exige la phrase « Leur contenu peut être amélioré par les entités ».
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R2-B1 · FAUX
 
@@ -382,7 +429,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/audcif-acte-uniforme/references/titre-9-ch6-7-notes-annexes-correspondance.md (l. 36, 118, 684) et titre-9-ch1-5-bilan-resultat-flux.md (l. 188)
 - **Code** · /home/user/Comptaflow/src/modules/notes-annexes/note-annexe.service.ts l. 669-678 (`const applicable = applicableChiffree // saisieRenseignee // (spec.horsBalance ?? false)`) et l. 723 (`applicable: applicable // (spec.horsBalance ?? false)`) ; /home/user/Comptaflow/src/modules/exports/export.service.ts l. 2700 (la fiche coche A d'après ce drapeau)
 - **Correction** · Pour une note hors balance, dériver l'applicabilité de ce que le dossier a saisi (ou de ce qu'un service y a injecté), et ne plus la forcer par `horsBalance`. Garder la NOTE 2 toujours applicable, puisque le texte dit qu'elle n'est jamais N/A. Garder l'affichage de toutes les lignes en saisie pour qu'on puisse les remplir. N'ajouter aucun seuil d'effectif pour la note 35 : le texte se contredit entre 250 et 500 (anomalie n° 11), et le logiciel ne tranche pas. Test : une note 32 vide sort N/A avec NEANT, la NOTE 2 vide sort A.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R2-B2 · FAUX
 
@@ -390,7 +437,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/audcif-acte-uniforme/references/titre-9-ch6-7-notes-annexes-correspondance.md l. 363-370
 - **Code** · /home/user/Comptaflow/src/modules/provisions/provisions.service.ts l. 309-314 (« portez la ligne en PASSIF_EVENTUEL, qui la fait figurer aux Notes annexes sans rien inscrire au bilan ») et l. 540 (`passifsEventuels` servi à la seule fenêtre du registre) ; /home/user/Comptaflow/src/modules/etats-financiers-syscohada/correspondance-notes-syscohada-2.ts l. 678-716 (NOTE 16C en saisie seule)
 - **Correction** · Deux voies possibles. (a) Injecter dans la 16C, sous-tableau PASSIF ÉVENTUEL, les lignes PASSIF_EVENTUEL de l'exercice : objet, incertitudes, échéance attendue, remboursement attendu. On lit le registre sans rien évaluer et on montre la provenance, sur le modèle de l'injection de la note 35 SYCEBNL. (b) À défaut, réécrire le message pour dire la vérité : « à décrire à la NOTE 16C (Actifs et passifs éventuels) ». Le même message est servi aux dossiers SYCEBNL : y citer leur propre note sans lui prêter le numéro 16C.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R2-C1 · FAUX
 
@@ -398,7 +445,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · audcif-acte-uniforme/references/titre-10-systeme-minimal-tresorerie.md l. 35, 109-113 ; audcif-acte-uniforme/references/titre-7-comptes-classe-4.md l. 219-240, 289-311
 - **Code** · src/modules/etats-financiers-syscohada/correspondance-smt-syscohada.ts l. 542-559 (SA3, classe 4 entière), 609-622 (SP4), 773 (CONTREPARTIES_RESULTAT_SMT_SYSCOHADA : '4' entier), 943-961 (SV2 et SV3 sur SA3 et SP4), 1097-1112 (calculerResultatSmt) ; src/modules/etats-financiers-syscohada/etats-financiers-smt-syscohada.service.ts l. 760-767 (creances et dettes lues sur SA3 et SP4 entiers)
 - **Correction** · Sans toucher au bilan (SA3 et SP4 gardent toute la classe 4) : sortir de la base des lignes SV2 et SV3, et du périmètre de A et de B, les comptes de tiers que le Titre VII fait naître contre les classes 1 et 2. Ce sont 461, 465 et 467 (COMPTE 46), 4493 et 4494 (fonds de dotation et subventions d'investissement à recevoir, COMPTE 44), 481 et 482 (fournisseurs d'investissements, COMPTE 48). Leur règlement en caisse va alors dans CONTREPARTIES_HORS_RESULTAT_SMT_SYSCOHADA : 'financement' pour 46 et 449x, 'investissement' pour 481 et 482. Garder 485 dans SV2, sa contrepartie 82 étant un produit que G doit porter. Chaque compte retenu est lu dans sa fiche Titre VII et relu contre le plan semé. Ajouter un test chiffré pour chacun des deux cas (dividende décidé puis payé, immobilisation achetée à crédit puis payée), avec G égal au résultat du bilan, amortissement à part.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R2-C2 · FAUX
 
@@ -406,7 +453,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · audcif-acte-uniforme/references/titre-10-systeme-minimal-tresorerie.md l. 94, 113-115
 - **Code** · src/modules/exports/export.service.ts l. 5752 et l. 6592 ; à confronter à src/modules/etats-financiers-syscohada/etats-financiers-smt-syscohada.service.ts l. 603-645 (composantesEcartConcordance) et client/src/pages/EtatsSmtSyscohadaPage.tsx l. 586-613
 - **Correction** · Reprendre dans les deux lignes d'export le libellé et la décomposition déjà servis à l'écran (cr.controle.composantesEcart : financement et investissement enregistrés SANS passer par la trésorerie, dépréciations 592 à 594, autres comptes, dotations reprises en F, résiduel). Retirer le renvoi aux « flux de trésorerie hors résultat », qui ne participent pas à l'écart.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R2-C3 · FAUX
 
@@ -414,7 +461,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · audcif-acte-uniforme/references/titre-10-systeme-minimal-tresorerie.md l. 27-31, 96-107, 172-175
 - **Code** · src/modules/etats-financiers-syscohada/correspondance-smt-syscohada.ts l. 86-96 (« Les deux tenues fonctionnent »), 798-823 (SR1 = contrepartie 70 seulement) ; src/modules/etats-financiers-syscohada/etats-financiers-smt-syscohada.service.ts l. 481-509 (ventilerFlux sur la contrepartie immédiate) ; client/src/lib/modeles-saisie.ts l. 208-270 (modèles SYSCOHADA 411/70 puis 57/411, 60/401 puis 401/57, sans égard au système)
 - **Correction** · Deux voies, sans règle nouvelle. (a) Quand la contrepartie d'un mouvement de trésorerie est une ligne de 40 ou 41 lettrée avec sa facture, ventiler le montant selon la nature des comptes 6 ou 7 de la facture lettrée, au prorata. Une contrepartie non lettrée reste dans « Autres », et l'état le dit par un montant « non ventilé faute de lettrage » au lieu de le fondre en silence. (b) Pour un dossier SYSCOHADA au SMT, proposer dans les modèles de saisie l'écriture de trésorerie directe (57 ou 52 / 70, 60 / 57 ou 52) que le Titre X prévoit, CHARGE_SANS_TIERS étant déjà écarté au SMT. Dans les deux cas, retirer l'affirmation « Les deux tenues fonctionnent ».
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R2-A2 · INCOMPLET
 
@@ -422,7 +469,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · audcif-acte-uniforme/references/titre-9-ch1-5-bilan-resultat-flux.md, l. 72-77 (Titre IX ch. 1 § 2.4)
 - **Code** · src/modules/exports/theme-etafi.ts:99-157 (IdentiteLiasse sans monnaie) et :207-270 (ecrireCartouche) ; src/modules/exports/export.service.ts:1961-1991 (identiteLiasse) ; comparer à :460 et :504, où les états périodiques impriment « montants en ${identite.devise} »
 - **Correction** · Ajouter à IdentiteLiasse un champ monnaie, rempli dans identiteLiasse par monnaieDuJeuLegal(tenant.devise) (src/common/monnaie-de-tenue.ts), le même porteur que les états périodiques, jamais une valeur écrite en dur. L'imprimer dans ecrireCartouche sur la ligne 5 ou 6 (par exemple « Montants en CDF »), sans ajouter de septième ligne, pour ne décaler aucune référence de page. Toutes les feuilles qui passent par le cartouche en héritent. Le commentaire cite l'AUDCIF Titre IX ch. 1 § 2.4 pour le SYSCOHADA, et non pour le SYCEBNL, où la règle « dans chacune des pages » n'est pas reprise (CLAUDE.md). Test : relire le cartouche de Bilan-Actif, Résultat et TFT d'une liasse SYSCOHADA et exiger la monnaie.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R2-A3 · INCOMPLET
 
@@ -430,7 +477,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · audcif-acte-uniforme/references/titre-9-ch1-5-bilan-resultat-flux.md, l. 154-173 (fiche R2) et l. 776 ; tables des codes : correspondance-notes-syscohada-3.ts:372-449 (NOTE 36 transcrite)
 - **Code** · src/modules/exports/export.service.ts:6186-6191 (commentaire « La fiche R2 […] N'EST PAS produite ») et :6193-6230 (liasse Système normal : garde, Fiche 1, Fiche 2, pas de R2) ; src/modules/etats-financiers-syscohada/correspondance-notes-syscohada-3.ts:1379-1382 (precisionEditeur « la fiche R2 n'est pas produite »)
 - **Correction** · Ajouter une feuille « Fiche R2 » à la liasse du Système normal SYSCOHADA seulement : le Titre X n'est pas lu ici et ne doit pas être transposé. Placer la feuille après la Fiche 1. Elle porte les codes de l'AUDCIF (ZK à ZS) avec une ligne qui dit qu'ils sont distincts des cases homonymes de la Fiche 1 au gabarit ETAFI (l. 776). Contenu, champ par champ. (1) ZK forme juridique. Le second chiffre se déduit de formeJuridiqueSyscohada là où la table de la NOTE 36 est univoque : SARL 02, SCS 03, SNC 04, GIE 06, SAS 08. SA donne 00 ou 01 selon une participation publique déclarée. Coopérative, entreprise individuelle, entreprenant, succursale, entité publique et AUTRE se déclarent, avec « 09 · à préciser » et sa précision. Le premier chiffre se déclare aussi (renvoi (1) : 1 si agrément prioritaire), en trois états : oui, non, pas encore dit. Tant qu'il n'est pas dit, la case dit qu'elle est incomplète, jamais 0 présumé. (2) ZL régime fiscal : déclaré parmi les quatre codes de la table 2, jamais déduit du dossier. (3) ZM pays du siège : déclaré. Le code 17 peut être proposé quand la forme n'est pas SUCCURSALE, jamais lu dans Tenant.pays, comme le dit déjà le commentaire de CODES_PAYS_OHADA_SYSCOHADA. Pour un pays hors OHADA, on prend la table 3, lacunes comprises. (4) ZN, ZO, ZP : déclarés, nullables. Un nombre de cellules du module groupe peut être montré à côté, jamais substitué. (5) Contrôle : trois cases à trois réponses. La deuxième est imprimée « ZQ » comme le texte, avec la mention [texte officiel], sans créer de code ZR. (6) Tableau des activités : lignes déclarées (désignation, code de la NOTE 36 validé par le même contrôle que codeActivitePrincipale, montant), triées par montant décroissant, puis une ligne « Divers » déclarée. Le choix CA HT ou VA se déclare, VA proposée par défaut à l'écran (renvoi (3)). Le TOTAL est lu sur l'état de la liasse, XB pour le CA HT ou XC pour la VA, en formule vers la feuille Résultat. Il n'est jamais ventilé, et l'écart entre la somme déclarée et le total est montré, jamais logé dans « Divers ». Les pourcentages sont calculés sur les montants déclarés. Stockage par exercice (comme SaisieNote), écran d'identification, route cloisonnée @ReferentielsAutorises(SYSCOHADA). Mettre à jour la precisionEditeur de la NOTE 36 et le commentaire de la liasse. Tests : mapping forme→code (dont SA non univoque), agrément non dit, TOTAL relu sur XB et XC.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R2-A4 · INCOMPLET
 
@@ -438,7 +485,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · audcif-acte-uniforme/references/titre-9-ch1-5-bilan-resultat-flux.md, l. 175-180 (Titre IX ch. 2, fiche R3)
 - **Code** · src/modules/exports/theme-etafi.ts:674-733 (construireFiche2 : une seule grille, pied (2) seul) ; src/modules/exports/export.service.ts:6230 (construireFiche2(classeur, ident, 'DIRIGEANTS') sur la liasse du Système normal)
 - **Correction** · Pour la liasse du Système normal, ajouter sous la grille des dirigeants une seconde grille « MEMBRES DU CONSEIL D'ADMINISTRATION » (nom et prénoms, qualité, adresse BP/ville/pays), vide et à compléter, sans condition de forme : le texte l'imprime pour tous, et une entité sans conseil la laisse vide. Imprimer aussi le renvoi (1) du texte, « Dirigeants = Président Directeur Général, Directeur Général, Administrateur Général, Gérant, Autres ». Ne rien préremplir : le dossier ne tient ni dirigeants ni administrateurs. Laisser inchangées les Fiches 2 des jeux SYCEBNL. Test : la liasse SYSCOHADA porte les deux titres de bloc.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R2-A5 · INCOMPLET
 
@@ -446,7 +493,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · audcif-acte-uniforme/references/titre-9-ch1-5-bilan-resultat-flux.md, l. 107, l. 116-128 (Titre IX ch. 2)
 - **Code** · src/modules/exports/theme-etafi.ts:450-481 (lignesAdmin et centreDepot facultatifs, rien d'imprimé sans eux) et :535 (« Réservé à l'administration ») ; src/modules/exports/export.service.ts:6193-6211 (appel sans lignesAdmin ni centreDepot)
 - **Correction** · Dans construireGarde, imprimer toujours les quatre libellés (RÉPUBLIQUE, MINISTÈRE, DIRECTION, CENTRE DE DÉPÔT DE), chacun suivi d'une zone soulignée, vide tant que rien n'est déclaré. Ne déduire ni le ministère, ni la direction, ni le centre de dépôt d'un champ du dossier. Pour la liasse SYSCOHADA, reprendre le libellé du modèle, « Réservé à la Direction Générale des Impôts », et « Nom de l'agent de la DGI ayant réceptionné le dépôt ». Test : la feuille Garde d'une liasse SYSCOHADA porte les quatre libellés.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R2-B3 · INCOMPLET
 
@@ -454,7 +501,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/audcif-acte-uniforme/references/titre-9-ch6-7-notes-annexes-correspondance.md l. 28, 611-680
 - **Code** · /home/user/Comptaflow/src/modules/etats-financiers-syscohada/correspondance-notes-syscohada-3.ts l. 1233-1263 (commentaire l. 1242-1245, rubriques `saisie: true` l. 1251-1256) et l. 631 (FICHE_SYNTHESE_SYSCOHADA, lue seulement par le spec) ; /home/user/Comptaflow/src/modules/notes-annexes/note-annexe.service.ts l. 1244 (`if (jeu !== JeuNotesAnnexes.ASSOCIATIONS_ORDRES_PROFESSIONNELS) return;`)
 - **Correction** · Écrire l'injection SYSCOHADA qui évalue `FICHE_SYNTHESE_SYSCOHADA` sur le bilan, le compte de résultat et le TFT du même appel, avec cellules verrouillées, comme pour la note 33 SYCEBNL. On garde les choix déjà écrits dans la table : DA + DB pour « Dettes financières* », le signe du TFT pour la variation de trésorerie, la ligne hors maquette dite comme telle. Les milliers sont ceux de la maquette. Le renvoi (a), impôt théorique, reste en saisie tant que le taux n'est pas déclaré : on ne l'invente pas. En attendant, corriger le commentaire de la l. 1242 pour qu'il ne se lise plus comme fait.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R2-B5 · INCOMPLET
 
@@ -462,7 +509,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/audcif-acte-uniforme/references/titre-9-ch6-7-notes-annexes-correspondance.md l. 191, 285-292, 597-607
 - **Code** · /home/user/Comptaflow/src/modules/etats-financiers-syscohada/correspondance-notes-syscohada-1.ts l. 1297 (note 13) et l. 930 (note 4) ; /home/user/Comptaflow/src/modules/etats-financiers-syscohada/correspondance-notes-syscohada-3.ts l. 1213 (note 32) et l. 1228 (note 33) ; /home/user/Comptaflow/prisma/schema.prisma l. 2395-2420 (SaisieNote sans rang de ligne)
 - **Correction** · Donner au moteur des rubriques répétables, déclarées dans la spécification, et un rang de ligne dans `SaisieNote`, ajouté à la clé unique et au journal d'audit. Les lignes finales NON VENTILÉ et TOTAL restent en place. Aucune ligne n'est préremplie, aucun apporteur ni produit n'est déduit d'un compte. Test : trois apporteurs saisis en ressortent trois, à l'écran et dans l'export.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R2-B6 · INCOMPLET
 
@@ -470,7 +517,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/audcif-acte-uniforme/references/titre-9-ch6-7-notes-annexes-correspondance.md l. 709-752 ; titre-9-ch1-5-bilan-resultat-flux.md l. 154-172
 - **Code** · /home/user/Comptaflow/src/modules/exports/export.service.ts l. 6186-6191 (« La fiche R2 […] N'EST PAS produite ») ; /home/user/Comptaflow/src/modules/etats-financiers-syscohada/correspondance-notes-syscohada-3.ts l. 377-420 (CODES_FORME_JURIDIQUE_SYSCOHADA, CODES_REGIME_FISCAL_SYSCOHADA, CODES_PAYS_SIEGE_SYSCOHADA, jamais lus) ; /home/user/Comptaflow/prisma/schema.prisma l. 83-108 (FormeJuridiqueSyscohada)
 - **Correction** · Produire la fiche R2, SYSCOHADA seul. ZK : proposer le code seulement pour les cinq formes univoques (02, 03, 04, 06, 08). Laisser vide et à déclarer pour la SA (00 ou 01) et pour toute autre forme (05, 07 ou 09 avec précision). Le premier chiffre suit l'agrément prioritaire DÉCLARÉ, qui est null par défaut, jamais 0 présumé. ZL, ZM (sans jamais le déduire de `Tenant.pays`), ZN, ZO, ZP et le contrôle sont déclarés, avec trois réponses dont « pas encore dit ». Le tableau des activités (désignation, code NOTE 36, CA HT ou VA, %) est déclaré, sans aucune ventilation tirée de la balance. Une case non déclarée s'imprime « non renseignée », jamais vide et muette. Renvoi (1) de la fiche : NOTE 36, et non « NOTE 34 » [texte officiel].
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R2-C4 · INCOMPLET
 
@@ -478,7 +525,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · audcif-acte-uniforme/references/titre-10-systeme-minimal-tresorerie.md l. 29-32, 183-197
 - **Code** · src/modules/etats-financiers-syscohada/correspondance-smt-syscohada.ts l. 1206-1217 (JOURNAUX_DE_SUIVI_SMT_SYSCOHADA, jamais alimentés) ; src/modules/etats-financiers-syscohada/etats-financiers-smt-syscohada.service.ts l. 1303-1306 et l. 1463-1471 (ficheNotes n'expose que les intitulés) ; src/modules/exports/export.service.ts l. 6035 et l. 6117 ; client/src/pages/EtatsSmtSyscohadaPage.tsx l. 768-771
 - **Correction** · Servir les deux journaux dans les colonnes du texte, depuis les lignes des comptes 41 (créances) et 40 (dettes) de l'exercice : date de la pièce, référence de la pièce comme N° facture, tiers rattaché comme nom, montant, et date de la ligne qui les solde par lettrage comme « Date paiement », laissée vide tant que la ligne est ouverte. Les ajouter à la liasse SMT SYSCOHADA. D'ici là, retirer les deux renvois qui présentent ces journaux comme existants.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R2-A7 · CONFORT
 
@@ -486,7 +533,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · audcif-acte-uniforme/references/titre-9-ch1-5-bilan-resultat-flux.md, l. 126 et l. 152 (Titre IX ch. 2)
 - **Code** · src/modules/exports/export.service.ts:2022-2028 (champsFiche1 sans ZW) ; src/modules/exports/theme-etafi.ts:641 (ZW vide par défaut), :572-579 (nombre de pages non rempli), :393-402 (numeroterPages)
 - **Correction** · Dans champsFiche1, préremplir ZW avec les RIB du dossier (intitulé de la banque et numéro de compte ou IBAN, séparés par « · »), lus bornés au dossier. Sans RIB, la case reste vide. Après numeroterPages, écrire sur la garde le nombre de pages numérotées. Laisser vide le nombre d'exemplaires, qui est une décision du déposant.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R2-C5 · CONFORT
 
@@ -494,7 +541,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · audcif-acte-uniforme/references/titre-10-systeme-minimal-tresorerie.md l. 168-179
 - **Code** · src/modules/exports/export.service.ts l. 5766-5850 (feuilleJournalTresorerieSmtSyscohadaEtafi : un bloc par compte sur tout l'exercice) ; src/modules/etats-financiers-syscohada/etats-financiers-smt-syscohada.service.ts, journalTresorerie (aucun découpage par mois)
 - **Correction** · Découper chaque journal par compte de trésorerie en périodes mensuelles, chacune titrée « mois de <mois> Année <année> ». Le report à nouveau d'un mois est le solde à reporter du mois précédent, et le premier mois part de l'ouverture de l'exercice. Aucun montant ne change, seulement la présentation du texte.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ## R5 · journal referentiels
 
@@ -504,7 +551,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · sycebnl/references/partie2-ch2-plan-comptes.md l. 52, 100, 116, 422-423 ; partie2-ch1-cadre-comptable.md l. 56-57 ; partie2-ch3-classe6-comptes60-69.md l. 119, 136, 190 ; partie2-ch3-classe7-comptes70-79.md l. 157 ; partie2-ch3-classe8-comptes80-89.md l. 59, 77
 - **Code** · src/modules/controles/regles-comptes-sycebnl.ts l. 393-394 (64), 400 (65), 414-415 (67), 477-478 (78) ; client/src/pages/SaisiePage.tsx l. 1538-1541 (affichage à la saisie) ; src/modules/controles/regles-comptes.spec.ts l. 55-65 (vérifie l'existence du numéro, pas sa nature) ; scripts/extraire-regles-comptes.cjs (source du fichier engendré)
 - **Correction** · Garder la citation verbatim et corriger à la source, dans scripts/extraire-regles-comptes.cjs, jamais dans le fichier engendré. Pour chacun de ces quatre renvois, l'extracteur ajoute à la fiche une note d'anomalie servie à côté de l'exclusion, qui confronte le numéro cité à l'intitulé du plan SYCEBNL (ch. 2) : « au plan des comptes, 16 est Fonds affectés ; les emprunts et dettes assimilées sont au 18 », « au plan, 848 est Transferts de produits H.A.O. ; les transferts de charges H.A.O. sont au 838 », « au plan, 831 est Charges H.A.O. constatées ; les dons en nature H.A.O. à distribuer sont au 832 ». Ne pas réécrire `comptesAUtiliser` en silence : marquer ces renvois comme discordants. Compléter regles-comptes.spec.ts : quand la fiche nomme un intitulé, le test compare cet intitulé à celui du semis au lieu de s'arrêter à l'existence du numéro.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R5-A4 · FAUX
 
@@ -512,7 +559,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · sycebnl/references/partie2-ch1-cadre-comptable.md l. 32 ; partie2-ch2-plan-comptes.md l. 429-443
 - **Code** · src/modules/controles/controles.service.ts l. 1470-1486 (branche estSycebnlClasse9) ; collecte l. 981 (`n.startsWith('9')`)
 - **Correction** · Dans la branche SYCEBNL, séparer les comptes 90 et 91 (contributions volontaires : note des contributions volontaires) des comptes 92 à 99 (comptabilité analytique de gestion : aucun état de synthèse), comme le fait la branche SYSCOHADA, avec l'intitulé du plan SYCEBNL pour chaque famille.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R5-B1 · FAUX
 
@@ -520,7 +567,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · skill sycebnl, references/partie2-ch3-classe2-comptes20-29.md l. 24 et l. 79 ; references/partie2-ch2-plan-comptes.md (28 AMORTISSEMENTS)
 - **Code** · src/modules/immobilisations/immobilisation.service.ts l. 2101-2160 (passerDotation, aucune garde de nature) et l. 305 (natureImmobilisation rend DONS_LEGS_VENTE) ; src/modules/immobilisations/dto/immobilisation.dto.ts l. 34 et 48 (@IsPositive sur la durée) ; src/modules/controles/controles.service.ts l. 1674-1718 (IMMO_SANS_DOTATION, libellé « Immobilisation amortissable »)
 - **Correction** · Au SYCEBNL, refuser la dotation (et la création d'une famille avec plan d'amortissement) sur un compte 20 autre que 2011, avec la citation de la l. 24 ; la dépréciation 2902/6952 reste ouverte. Exclure ces biens du contrôle IMMO_SANS_DOTATION. Pour les terrains hors 221/224 et les titres 26/27, ne pas trancher d'office : nommer la limite (le module ne connaît pas de bien non amortissable) dans le contrôle et à la création de famille, plutôt que de réclamer une dotation.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R5-B3 · FAUX
 
@@ -528,7 +575,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · skill sycebnl, references/partie2-ch3-classe2-comptes20-29.md l. 93 (et CLAUDE.md, relevé des référentiels l. 1563-1597, qui décrit le déclencheur « l'écriture d'acquisition ne touche aucun compte 22 »)
 - **Code** · src/modules/controles/controles.service.ts l. 2563-2600 (filtre sansTerrain sur ecritureAcquisition.lignes) ; src/modules/immobilisations/immobilisation.service.ts l. 1218-1228 (écriture d'acquisition à deux lignes) ; src/modules/controles/ventilation-terrain-batiment.spec.ts l. 118-121 (cas qui ne peut pas naître du module)
 - **Correction** · Lire la ventilation là où le module peut la porter : un bien du même dossier au compte 22 lié au bâtiment, ou une ligne 22 passée à la même date ou dans la même pièce, ou une déclaration du cabinet sur la fiche (« terrain ventilé » ou « sans terrain », avec sa justification). Ajouter au spec un cas fabriqué par `creer` lui-même, qui doit se taire une fois la ventilation déclarée.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R5-C1 · FAUX
 
@@ -536,7 +583,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · SYCEBNL Partie 2 ch. 3, fiches des comptes 64, 67, 56, 78 et 83
 - **Code** · src/modules/controles/regles-comptes-sycebnl.ts l. 391-394 (64 → ['16','60']), l. 412-415 (67 → ['16','631']), l. 475 (78 → ['72','848']) ; affichage dans client/src/pages/SaisiePage.tsx l. 1542-1545 ; extraction par scripts/extraire-regles-comptes.cjs, fonction comptesAUtiliser ; plan : src/modules/comptes/compte-seed.ts l. 1178-1180 (16 Fonds affectés, 18 Emprunts), l. 1122 et 1131 (838, 848)
 - **Correction** · Ne rien réécrire dans la citation, qui reste verbatim. Dans l'extracteur (source du fichier engendré), confronter chaque numéro « à utiliser » à l'intitulé que le texte lui accole et au plan SYCEBNL semé. Quand les deux divergent, ne pas servir le numéro dans comptesAUtiliser et poser une réserve nommée « anomalie du texte : le numéro cité porte au plan SYCEBNL un autre intitulé » (16 contre 18 Emprunts, 848 contre 838 Transferts de charges H.A.O.), sans choisir à la place du texte. Consigner l'anomalie dans le journal. Ajouter un test qui, pour chaque fiche SYCEBNL, compare l'intitulé cité à l'intitulé semé.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R5-C2 · FAUX
 
@@ -544,7 +591,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · SYCEBNL Partie 2 ch. 3, section 9 (sous-sections 1 et 2)
 - **Code** · src/modules/controles/controles.service.ts l. 981 (if (n.startsWith('9')) comptesClasse9.add(n), sur toutes les écritures de l'exercice) et l. 1470-1487 (libellé et action SYCEBNL) ; src/modules/comptes/compte-seed.ts l. 1154 et 1275-1276 (90/91 en SOLDE), l. 1277-1281 (« c'est au cabinet de créer les siens »)
 - **Correction** · Côté SYCEBNL, réserver le libellé des contributions volontaires aux racines 90 et 91, et nommer les 92 à 99 « comptabilité analytique de gestion », sans renvoi à une note, comme le fait déjà la branche SYSCOHADA. Ne compter comme mouvement que les écritures qui ne viennent pas du report (estGenereeParCloture faux), comme le fait déjà le contrôle VALIDATION_PAR_SON_AUTEUR. Aucun changement du mode de report, qu'aucun texte lu ne tranche.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R5-A2 · INCOMPLET
 
@@ -552,7 +599,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · sycebnl/references/partie2-ch3-classe4-comptes40-49.md l. 37 ; partie2-ch2-plan-comptes.md l. 316-319
 - **Code** · src/modules/comptes/compte-seed.ts l. 507-510, 513-514, 516-519 ; src/modules/comptes/compte-seed.spec.ts l. 157-159 (4133 gelé sous l'intitulé fusionné, commentaire faux) ; comparer src/modules/notes-annexes/correspondance-notes-associations.ts l. 276-277
 - **Correction** · Reprendre dans compte-seed.ts les intitulés du texte, en gardant la convention « parent · enfant » : 41310000 « … · adhérents, chèques impayés », 41320000 « … · clients-usagers, chèques impayés », 41330000 « … · adhérents, autres valeurs impayées », 41380000 « … · clients-usagers, autres valeurs impayées », puis de même pour 4181/4182, 4191/4192/4194/4198. Retirer le suffixe « (2) ». Corriger le couple 41330000 dans compte-seed.spec.ts ainsi que son commentaire. Les dossiers existants gardent leurs intitulés ; on peut proposer l'alignement comme on le fait déjà pour les natures de compte, jamais d'office.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R5-A3 · INCOMPLET
 
@@ -560,7 +607,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · sycebnl/references/partie2-ch1-cadre-comptable.md l. 12 ; partie2-ch3-classe9-comptes90-99.md l. 20-21
 - **Code** · src/modules/comptabilite/ecriture.service.ts l. 614-760 (controlesDEntree) ; src/modules/controles/controles.service.ts l. 1470-1486 (message l. 1480)
 - **Correction** · Pour un dossier SYCEBNL seulement, sans transposition au SYSCOHADA dont la classe 9 porte les engagements, refuser à l'entrée (dans controlesDEntree, qui sert la saisie, la modification et l'import) une pièce dont les lignes sur 90 et 91 ne s'équilibrent pas entre elles. Le message nommé cite le ch. 1 et le fonctionnement « 900 à 904 par le crédit des 910 à 914 ». À défaut de refus, poser un contrôle nommé qui liste ces écritures. Conditionner la phrase de CLASSE_9_MOUVEMENTEE à l'absence de telles écritures.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R5-B2 · INCOMPLET
 
@@ -568,7 +615,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · skill sycebnl, references/partie2-ch3-classe1-comptes10-19.md l. 103 et 136 ; partie2-ch3-classe2-comptes20-29.md l. 42, 96, 114, 133, 150, 168 ; partie2-ch3-classe7-comptes70-79.md l. 60
 - **Code** · src/modules/immobilisations/contrepartie-acquisition.ts l. 18-28 (commentaire : 4813 exclu, en-cours hors création, pas de 72), l. 67-71 (PROPRES SYCEBNL), l. 85-94 (motif de refus) ; appelé par src/modules/immobilisations/immobilisation.service.ts l. 1102 et l. 968
 - **Correction** · Au SYCEBNL, ajouter à la liste les racines que les fiches nomment : 14 (subvention en nature), 17 pour un bien de la division 20 seulement (172 destinés à la vente, 171 pour le 2011), 25 (251 pour un incorporel, 252 pour un corporel), 239 pour un 231-238 et 249 pour un 241-248, 4813 pour un 26 ou un 27, et 72 pour un 21, 23 ou 24, chaque ajout citant sa ligne. Corriger les deux affirmations du commentaire (4813, en-cours) et le libellé du 165. Réexaminer l'admission du 165 au vu de sa fiche, sans rien trancher d'office.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R5-C3 · INCOMPLET
 
@@ -576,7 +623,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · SYCEBNL Partie 2 ch. 3, section 6, comptes 62 et 63 (subdivisions)
 - **Code** · src/modules/comptes/compte-seed.ts l. 866-872 (6271 à 6278 sans 6276) et l. 890-894 (6342, 6343, 6345, 6346, 6348 sans 6344) ; src/modules/tva/exclusions-art41-semees.spec.ts l. 29-33 et 52-58 ; src/modules/tva/taux-tva.service.ts l. 391-395 ; CLAUDE.md l. 5878-5879
 - **Correction** · Semer 62760000 « Cadeaux à la clientèle » et 63440000 « Redevances pour marques » au plan SYCEBNL, sous les intitulés du texte. Corriger le test et CLAUDE.md : le 6276 existe aux deux plans, et le test doit exiger sa présence au SYCEBNL avec cet intitulé, comme il le fait pour les quatre autres racines de l'art. 41. Ajouter au spec du semis un balayage qui confronte les subdivisions du chapitre 3 au semis, avec la seule exception déjà écrite du 6542/6545.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R5-C4 · INCOMPLET
 
@@ -584,7 +631,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · SYCEBNL Partie 2 ch. 3, compte 55 ; AUDCIF Titre VII, compte 55
 - **Code** · src/modules/controles/controles.service.ts l. 372-390 (controleCaisse : numero.startsWith('57') ou journal nommé caisse) et l. 1075-1094 (CAISSE_CREDITRICE)
 - **Correction** · Étendre la lecture jour par jour aux comptes 55 de détail, dans les deux référentiels (les deux textes l'écrivent), sous un code distinct, par exemple MONNAIE_ELECTRONIQUE_CREDITRICE, qui cite chaque texte. Ne pas reprendre la « présomption d'irrégularité », que le texte ne pose que pour la caisse.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R5-C5 · INCOMPLET
 
@@ -592,7 +639,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · SYCEBNL Partie 2 ch. 3, section 6, comptes 62 et 63
 - **Code** · scripts/extraire-regles-comptes.cjs l. 89 (motif /^## COMPTE (\d{1,3}) : (.+)$/, un seul numéro par titre) ; src/modules/controles/regles-comptes-sycebnl.ts l. 384-389 (fiche 62 seule) ; src/modules/controles/dossier-revision.service.ts l. 48-55 (regleDe par préfixe)
 - **Correction** · Corriger à la source, dans l'extracteur, sur le modèle déjà écrit pour 90 et 91 : reconnaître un titre qui porte deux « COMPTE nn », émettre deux fiches (62 « Services extérieurs », 63 « Autres services extérieurs ») portant le même texte verbatim, puis régénérer. Geler la présence de la fiche 63 par un test.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R5-B4 · CONFORT
 
@@ -600,7 +647,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · skill sycebnl, references/partie2-ch3-classe2-comptes20-29.md l. 45 ; partie2-ch3-classe1-comptes10-19.md l. 34
 - **Code** · scripts/extraire-regles-comptes.cjs l. 65-77 (comptesAUtiliser : chiffres pris un à un, aucune portée) ; src/modules/controles/regles-comptes-sycebnl.ts l. 37 et l. 107 (engendré) ; client/src/pages/SaisiePage.tsx l. 1542-1546 (affichage du résumé)
 - **Correction** · Corriger à la source, dans l'extracteur : reconnaître « N à M » comme une plage et la restituer telle quelle (« 21 à 26 »), jamais comme deux numéros ; quand la phrase d'exclusion nomme ses propres comptes (« Les comptes 101 et 102 »), les engendrer dans un champ de portée et ne servir la fiche qu'à ces comptes, ou à défaut ne pas afficher de compte de remplacement égal au compte saisi. Régénérer le fichier, ne jamais le retoucher à la main.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R5-B5 · CONFORT
 
@@ -608,7 +655,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · skill sycebnl, references/partie2-ch3-classe4-comptes40-49.md l. 37 ; partie2-ch3-classe1-comptes10-19.md l. 170 ; partie2-ch2-plan-comptes.md l. 117-120
 - **Code** · src/modules/comptes/compte-seed.ts l. 507-510 (41310000 à 41380000) et l. 41-49 (en-tête « Deux points où le plan et le chapitre 3 divergent »)
 - **Correction** · Reprendre les quatre intitulés de la fiche 41 (Adhérents, chèques impayés · Clients-usagers, chèques impayés · Adhérents, autres valeurs impayées · Clients-usagers, autres valeurs impayées) et retirer le « (2) », par une migration d'intitulés si le semis est déjà en base. Ajouter à l'en-tête le 184 comme troisième divergence, tranchée pour le plan (et la Partie 4), sans le semer d'office.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R5-B6 · CONFORT
 
@@ -616,7 +663,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · skill sycebnl, references/partie2-ch3-classe2-comptes20-29.md l. 9 et l. 195
 - **Code** · prisma/schema.prisma l. 3457-3462 (« Hors scope MVP · Gestion des composants ») et l. 3492-3510 (« Dépréciation (compte 29 …) · non couverte »)
 - **Correction** · Réécrire ces deux entrées au passé (« porté par le module depuis le 2026-09-03, voir immobilisation.service.ts »), en gardant l'historique du manque sous un bandeau plutôt que de l'effacer, et dire ce qui reste réellement non couvert (dégressif comptable, plans multiples).
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R5-C6 · CONFORT
 
@@ -624,7 +671,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · SYCEBNL Partie 2 ch. 3, compte 66
 - **Code** · CLAUDE.md l. 1846 et suivantes (« CINQ ABSENCES ASYMÉTRIQUES EN CLASSE 66 ») ; docs/paie-p3-passation-comptable.md l. 83-88 ; semis contraire : src/modules/comptes/compte-seed.ts l. 958, 965, 967
 - **Correction** · Retirer 6633, 6672 et 6682 de la liste des absences asymétriques, dans CLAUDE.md et dans le journal P3. Garder 666 (SYSCOHADA seul), 665 et 669 (SYCEBNL seul), qui sont vérifiés, et dater la correction.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### R5-C7 · CONFORT
 
@@ -632,7 +679,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · SYCEBNL Partie 2 ch. 3, comptes 60 et 79
 - **Code** · src/modules/controles/rapprochement-guide-plan.ts l. 11-15 ; semis : src/modules/comptes/compte-seed.ts l. 787 (60110000) et l. 1088 (79610000)
 - **Correction** · Remplacer les exemples SYCEBNL du cas 1 par des numéros que le guide cite effectivement plus finement que le texte (28442, sous 2844, reste valable), ou retirer les deux exemples faux. Ne pas toucher au semis.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ## O1a · journal ohada
 
@@ -642,7 +689,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · auscgie-acte-uniforme/references/partie1-livre1a-constitution-statuts-apports.md, l. 538, 543-544, 557
 - **Code** · client/src/pages/AffectationPage.tsx l. 217-218 (libellé écrit en dur) ; src/modules/affectation/affectation.service.ts l. 106-111 et 412-419 (capitalRacine servi et non lu) ; src/modules/affectation/regles-affectation.ts racineCapital (null au SYCEBNL)
 - **Correction** · Dériver le libellé de `prep.capitalRacine` : 101 « Capital social », 102 « Capital par dotation », 103 « Capital personnel », avec l'intitulé lu dans le plan du dossier. Quand `capitalRacine` vaut null (SYCEBNL, succursale, GIE, forme « Autre »), ne pas afficher la case, ou écrire « sans objet » à la place d'un 0 présenté comme un capital social. Aucune règle nouvelle : il suffit que l'écran lise ce que le serveur lui envoie déjà.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1a-A2 · FAUX
 
@@ -650,7 +697,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · auscgie-acte-uniforme/references/partie1-livre1a-constitution-statuts-apports.md, l. 23-26
 - **Code** · prisma/schema.prisma l. 105-106 ; client/src/lib/formes-juridiques-syscohada.ts l. 97-102 ; src/modules/affectation/regles-affectation.ts l. 381-393 ; src/modules/tenant/mentions-societe.ts l. 89-90 ; src/modules/tenant/mentions-immatriculation.ts l. 26-27
 - **Correction** · Retirer « d'économie mixte » du titre de la forme, ou préciser dans son `detail` et dans le commentaire de l'enum qu'une société commerciale dont un État ou une personne morale de droit public est associé se déclare sous sa forme sociale (SA, SARL, SAS…), en vertu de l'AUSCGIE art. 1. ENTITE_PUBLIQUE est alors réservée aux entités qui ne sont pas constituées en société commerciale. Le motif d'affectation reste inchangé mais ne vise plus que ces entités-là. Ne rien écrire sur le droit congolais des entreprises publiques transformées : ce texte n'a pas été lu.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1a-B1 · FAUX
 
@@ -658,7 +705,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/auscgie-acte-uniforme/references/partie1-livre1b-appel-public-epargne-immatriculation.md:550-566
 - **Code** · /home/user/Comptaflow/src/modules/fiscalite/fiscalite.service.ts:1149-1153 (case FormeJuridiqueSyscohada.SUCCURSALE) ; à confronter à /home/user/Comptaflow/src/modules/groupe/groupe.service.ts:104-135 et au commentaire déjà prudent de /home/user/Comptaflow/src/modules/facturation/facturation.service.ts:92-97
 - **Correction** · Ne plus présumer le propriétaire. L'observation dit que la forme SUCCURSALE ne renseigne ni la nature (société ou personne physique, art. 116) ni la résidence (art. 118) du propriétaire, que ses droits et obligations sont compris dans le patrimoine de celui-ci (art. 117), et que la règle de l'établissement stable (loi n° 23/053, art. 7 et 8) et la non-déductibilité des frais du siège étranger (art. 50, 7°) ne valent QUE si le propriétaire est une société non-résidente. Soit la phrase devient conditionnelle, soit ce fait se DÉCLARE (null = pas encore dit, sur le modèle de `droitEtranger` ou `locataireGerantFonds`) avant que l'observation ne l'affirme. Aucune règle fiscale nouvelle n'est à écrire : il s'agit de ne plus affirmer un fait que le dossier ne porte pas. Un test fige qu'un dossier SUCCURSALE sans ce fait ne lit pas « société non-résidente ».
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1a-C1 · FAUX
 
@@ -666,7 +713,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · auscgie-acte-uniforme/references/partie1-livre2-fonctionnement.md l. 178-183 (art. 138)
 - **Code** · src/modules/exercice/planning-cloture.ts l. 625-634 (jalon 16, sans formesSyscohada) contre src/modules/documents-obligatoires/correspondance-inventaire-syscohada.ts l. 209-243 (regleRapportGestion) ; docs/releve-de-manques-referentiels.md l. 65 et 1730
 - **Correction** · Faire lire au jalon 16 la même règle que la fenêtre des documents obligatoires : servi aux cinq sociétés commerciales avec « AUSCGIE, art. 138 », à la coopérative avec « AUSCOOP, art. 108 » (ou un pendant propre), et tu (ou en INTERNE avec le motif de `regleRapportGestion`) pour les autres formes, jamais présumé quand la forme n'est pas renseignée. Ajouter un test qui interdit aux deux de diverger. Corriger le « jalon 16 » du journal l. 65 en « étape 17 ».
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1a-C2 · FAUX
 
@@ -674,7 +721,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · auscgie-acte-uniforme/references/partie1-livre2-fonctionnement.md l. 195-200 (art. 140)
 - **Code** · src/modules/exercice/planning-cloture.ts l. 639 (detail) et l. 641-642 (échéance moisApres 4, FIN) ; comparer l. 666-667 et 674
 - **Correction** · Écrire « impose l'envoi au plus tard vers le 16 du cinquième mois » et aligner l'échéance sur celle du pendant SYCEBNL et de l'étape 18 SYSCOHADA ({ moisApres: 5, jour: 15 }), en disant que le logiciel ne connaît pas la date réelle de l'assemblée.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1a-C3 · FAUX
 
@@ -682,7 +729,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · auscgie-acte-uniforme/references/partie1-livre2-fonctionnement.md l. 210-214 (art. 142)
 - **Code** · src/modules/exercice/planning-cloture.ts l. 860-870 (jalon 26 SYSCOHADA, detail l. 863) contre src/modules/affectation/regles-affectation.ts l. 232-436 (regimeReserveLegale)
 - **Correction** · Composer la phrase de la réserve légale du jalon à partir de `regimeReserveLegale(forme)` : la dire obligatoire, avec son article, pour la SARL (art. 346) et la SA (art. 546, 2°) seulement ; servir le motif existant pour les autres formes (dont la cascade AUSCOOP pour la coopérative) ; ne rien affirmer quand la forme n'est pas renseignée. Ne proposer le 465 qu'aux formes qui ont des associés.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1a-D3 · FAUX
 
@@ -690,7 +737,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/auscgie-acte-uniforme/references/partie1-livre5-6-transformation-fusion-scission.md l. 19-33 (art. 182 et 183) et l. 43-46 (art. 185)
 - **Code** · src/modules/tenant/tenant.service.ts l. 566-591 (modifierFormeSyscohada, sans date) ; src/modules/controles/controles.service.ts l. 773-777 (seuilsAuditeur) et l. 3276 (prorogation) ; src/modules/documents-obligatoires/rapport-activite.service.ts l. 136-145 et l. 222-231 ; src/modules/affectation/affectation.service.ts l. 355-365 ; src/modules/exercice/exercice.service.ts l. 438-443 (contexte du planning)
 - **Correction** · 1) Conserver une date d'effet à chaque changement de forme : la date de la décision, jamais une date antérieure (art. 182). 2) Retenir pour chaque exercice la forme applicable. C'est la nouvelle forme si la date d'effet tombe au plus tard le dernier jour de l'exercice (art. 183 al. 2, répartition des bénéfices comprise), l'ancienne sinon. Toutes les lectures citées passent par cette seule règle. 3) Pour l'exercice de transformation, ajouter une mention au rapport de gestion : il est établi par les anciens et les nouveaux organes, chacun pour sa période (art. 185). À défaut de ce chantier, l'écran de modification doit au moins dire que la nouvelle forme s'appliquera aussi aux contrôles et aux documents des exercices antérieurs. Ne pas qualifier de « transformation » au sens de l'art. 181 un passage vers une forme qui n'est pas une société de l'AUSCGIE (entreprenant, commerçant, coopérative) : l'art. 188 en fait un autre événement.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1a-E1 · FAUX
 
@@ -698,7 +745,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/auscgie-acte-uniforme/references/partie2-livre2-societe-commandite-simple.md l. 16-19 ; partie2-livre1-societe-nom-collectif.md l. 213-234
 - **Code** · /home/user/Comptaflow/src/modules/controles/regles-auditeur.ts l. 26-29 (commentaire « ni la SCS […] dont aucun texte lu ne donne de seuil chiffré »), l. 73-100 (table REGLES_SYSCOHADA sans SOCIETE_COMMANDITE_SIMPLE), l. 123-128 (motif AUCUNE_REGLE_LUE affiché) ; /home/user/Comptaflow/src/modules/exercice/planning-cloture.ts l. 696 (détail du jalon 18 SYSCOHADA)
 - **Correction** · Ajouter à REGLES_SYSCOHADA une entrée SOCIETE_COMMANDITE_SIMPLE identique à celle de la SNC (DEUX_SUR_TROIS, 250 000 000 / 500 000 000 / 50), avec pour source « AUSCGIE, article 289-1, applicable par l'article 293-1 ». Retirer la SCS de la liste des formes « sans seuil lu » du commentaire de tête. Ajouter au spec seuils-auditeur un cas SCS qui exige la règle de l'art. 289-1 (vu tomber contre la version actuelle). Compléter le détail du jalon 18 SYSCOHADA : « et dans la SNC et la SCS au-delà de deux des trois critères de l'art. 289-1 (seuils plus élevés) ». Ne rien changer à la conversion FCFA, déjà déclarée.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1a-E2 · FAUX
 
@@ -706,7 +753,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/auscgie-acte-uniforme/references/partie2-livre1-societe-nom-collectif.md l. 233-234 ; partie2-livre3-sarl.md l. 946-960 ; partie2-livre2-societe-commandite-simple.md l. 16-19
 - **Code** · /home/user/Comptaflow/src/modules/mandat-auditeur/duree-mandat.ts l. 36-42 (commentaire « la SNC (art. 289-1), la société en commandite simple […] n'ont […] AUCUNE durée de mandat chiffrée ») et l. 82-91 (branche default) ; /home/user/Comptaflow/src/modules/mandat-auditeur/mandat-auditeur.spec.ts l. 48-60 (test « SAS et SNC · aucune durée lue » qui fige exercices null pour la SNC)
 - **Correction** · Dans dureeMandat, ajouter SOCIETE_NOM_COLLECTIF et SOCIETE_COMMANDITE_SIMPLE : { exercices: 3, mandatsMaximum: null, source: 'AUSCGIE art. 379, applicable par l'art. 289-1 (SNC) et l'art. 293-1 (SCS)' }, sans limite de renouvellement (l'art. 379 n'en porte pas). Garder la branche default pour la SAS, le GIE, la coopérative et l'entreprenant. Corriger le commentaire de tête. Remplacer le test de la ligne 48 : la SNC et la SCS exigent 3 exercices et la source citant l'art. 289-1 ; la SAS et le GIE restent à null. regleDeProrogation reste inchangée pour elles.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1a-E3 · FAUX
 
@@ -714,7 +761,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/auscgie-acte-uniforme/references/partie1-livre9-10-formalites-publicite-capital-variable.md l. 235-249
 - **Code** · /home/user/Comptaflow/src/modules/tenant/mentions-societe.ts l. 46-55 (motifRefusCapital ne regarde pas le capital variable par forme) et l. 95 (ajout sans condition de forme) ; /home/user/Comptaflow/src/modules/tenant/tenant.service.ts l. 333-336 ; /home/user/Comptaflow/src/modules/tenant/mentions-societe.spec.ts l. 36-40 (fige « Société à responsabilité limitée à capital variable ») ; /home/user/Comptaflow/client/src/pages/ParametresDossierPage.tsx l. 851-864 (case et bulle d'aide)
 - **Correction** · Ajouter une fonction motifRefusCapitalVariable(referentiel, forme) : null pour SOCIETE_ANONYME et SOCIETE_PAR_ACTIONS_SIMPLIFIEE, sinon un refus citant l'art. 269-1 (« la clause n'est ouverte qu'à la SA ne faisant pas appel public à l'épargne et à la SAS »). L'appeler dans modifierCoordonnees quand capitalVariable === true ; le retrait (false) reste toujours permis. Dans mentionsArticle17, n'ajouter les mots que pour ces deux formes, et pour un dossier existant d'une autre forme portant true, ne pas les imprimer et le signaler dans manquantes ou un avertissement. À l'écran, n'afficher la case que pour SA et SAS, et dire dans la bulle que la SA qui fait appel public à l'épargne est exclue (OmegaX ne tient pas ce fait sur le dossier : le rappeler, ne pas le déduire). Remplacer le test de la ligne 36 par un cas SA ou SAS, et ajouter un cas SARL refusé.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1a-E5 · FAUX
 
@@ -722,7 +769,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/auscgie-acte-uniforme/references/partie1-livre2-fonctionnement.md l. 178-183 ; partie2-livre1-societe-nom-collectif.md l. 183-187 ; /home/user/Comptaflow/docs/releve-de-manques-referentiels.md l. 1729-1741
 - **Code** · /home/user/Comptaflow/src/modules/exercice/planning-cloture.ts l. 624-636 (jalon 16, sans formesSyscohada) ; /home/user/Comptaflow/src/modules/documents-obligatoires/correspondance-inventaire-syscohada.ts l. 210-248 (regleRapportGestion)
 - **Correction** · Appliquer le remède déjà écrit au relevé : poser sur le jalon 16 formesSyscohada: FORMES_SOCIETES_COMMERCIALES (les cinq formes pour lesquelles regleRapportGestion rend EXIGE sur l'art. 138). Servir à SOCIETE_COOPERATIVE un jalon distinct citant AUSCOOP art. 108, ou aucun si ce texte n'a pas été relu. Ajouter un test qui, pour chaque forme, exige que la présence du jalon 16 coïncide avec regleRapportGestion(forme).genre === 'EXIGE'. Mettre à jour la ligne du relevé une fois le correctif posé.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1a-A3 · INCOMPLET
 
@@ -730,7 +777,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · auscgie-acte-uniforme/references/partie1-livre1a-constitution-statuts-apports.md, l. 197-201 et 242-243
 - **Code** · src/modules/tenant/mentions-societe.ts l. 101-103 ; client/src/pages/ParametresDossierPage.tsx l. 705 (aide) et l. 774-780 (champ « Adresse »)
 - **Correction** · Ne compter la mention comme présente que si `adresse` est renseignée. La ville seule laisse « adresse du siège social » dans `manquantes`, et la ligne s'imprime tout de même avec ce qui est connu, comme aujourd'hui. Pour une forme soumise à l'art. 17, libeller le champ « Adresse du siège social » et ajouter à l'aide les art. 23 à 25, boîte postale seule exclue. Aucun refus automatique fondé sur une détection heuristique de « B.P. ».
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1a-A5 · INCOMPLET
 
@@ -738,7 +785,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · auscgie-acte-uniforme/references/partie1-livre1a-constitution-statuts-apports.md, l. 117-119 et 563-575
 - **Code** · client/src/lib/formes-juridiques-syscohada.ts l. 20-30 (réserve dans le commentaire) et l. 53 (détail SARL affiché) ; client/src/pages/ParametresDossierPage.tsx l. 1176-1177 (aide) et l. 1208 (affichage du détail)
 - **Correction** · Reporter à l'écran la réserve que porte le code : « arrêté interministériel du 30 décembre 2014, non lu au Journal officiel · à vérifier sur le texte primaire », à côté de l'affirmation sur le capital et de celle sur le notaire. Ne pas écrire de test qui fige l'affirmation. Demander à Manasse de verser l'arrêté au corpus, puis retirer la réserve une fois le texte lu.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1a-C4 · INCOMPLET
 
@@ -746,7 +793,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · auscgie-acte-uniforme/references/partie1-livre2-fonctionnement.md l. 216-232 (art. 143) et l. 236-249 (art. 144)
 - **Code** · src/modules/affectation/affectation.service.ts l. 190-245 (aucun contrôle du 465 hors réserve légale) ; src/modules/affectation/regles-affectation.ts l. 7-8 et 26-27 (restriction écrite, non codée) et l. 142-146 (destinations sans sens)
 - **Correction** · Pour les cinq sociétés commerciales seulement (le Livre 2 de la Partie 1 ne régit pas le GIE ni la coopérative) : refuser toute ligne au 465 quand l'exercice est déficitaire ; refuser un crédit au 465 supérieur à résultat + report créditeur − pertes antérieures − dotation légale de la décision, en citant art. 143 et 144 ; nommer à l'écran ce que le logiciel ne connaît pas (réserves statutaires, dividendes partiels) au lieu de le supposer nul. Le contrôle des capitaux propres de l'al. 4 est signalé avec la réserve légale comme seul plancher connu, sans rien inventer pour les réserves statutaires.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1a-C5 · INCOMPLET
 
@@ -754,7 +801,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · auscgie-acte-uniforme/references/partie1-livre2-fonctionnement.md l. 202-206 (art. 141)
 - **Code** · src/modules/documents-obligatoires/correspondance-inventaire-syscohada.ts l. 93-126 (SECTIONS_RAPPORT_GESTION_AUSCGIE) ; src/modules/comptabilite/ecriture.service.ts l. 457 et 527 ; prisma/schema.prisma l. 3878-3882
 - **Correction** · Ajouter aux cinq sociétés commerciales une septième section « Modifications de présentation et de méthodes » avec l'exigence de l'art. 141, et la signaler à remplir quand l'exercice porte une imputation d'ouverture déclarée CHANGEMENT_METHODE. Le logiciel ne rédige pas la mention ; il ne l'applique pas à la coopérative, dont l'art. 108 AUSCOOP est un autre texte.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1a-C7 · INCOMPLET
 
@@ -762,7 +809,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · auscgie-acte-uniforme/references/partie1-livre2-fonctionnement.md l. 185-191 (art. 139)
 - **Code** · src/modules/etats-financiers-syscohada/etats-financiers-smt-syscohada.service.ts l. 1052-1330 (NOTE 1 à NOTE 3, sans état des garanties) ; comparer src/modules/etats-financiers-syscohada/correspondance-notes-syscohada-1.ts l. 533-534
 - **Correction** · Pour un dossier SMT SYSCOHADA dont la forme est l'une des cinq sociétés commerciales, ajouter un tableau en saisie (deux rubriques, avals-cautions-garanties et sûretés réelles consenties) joint à l'état annexé, avec la source art. 139 · rien n'est rattaché à la balance, comme la NOTE 1 du Système normal. Ne pas l'ajouter aux autres formes ni au SYCEBNL.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1a-D1 · INCOMPLET
 
@@ -770,7 +817,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/auscgie-acte-uniforme/references/partie1-livre7-dissolution-liquidation.md, l. 64-79 (art. 203 et 204)
 - **Code** · src/modules/tenant/mentions-societe.ts l. 88-110 (mentionsArticle17) et l. 137-142 (mentionsEmetteur) ; appels : src/modules/facturation/facturation.service.ts l. 344, src/modules/commercial/commercial.service.ts l. 234, src/modules/relances/relances.service.ts l. 632 ; drapeau non conservé : src/modules/exercice/exercice.service.ts l. 181 et src/modules/exercice/dto/creer-exercice.dto.ts l. 24-26
 - **Correction** · Le correctif reste dans le périmètre de l'art. 203 : les cinq formes de FORMES_SOCIETES_COMMERCIALES, et aucune liquidation conduite sous l'AUPCAP. Déclarer sur le dossier un fait daté : la date de dissolution et le ou les noms des liquidateurs. Ce fait est vide par défaut, puisqu'une société n'est pas présumée dissoute. Une fois déclaré, mentionsEmetteur ajoute en tête « Société en liquidation · liquidateur(s) : <noms> ». La ligne est recopiée à la date de la pièce, comme les autres mentions. Un liquidateur non nommé se signale dans « manquantes », il n'est jamais inventé. Ne rien étendre au GIE, à la coopérative ni à l'EBNL sans avoir lu leur propre texte.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1a-D2 · INCOMPLET
 
@@ -778,7 +825,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/audcif-acte-uniforme/references/titre-1-ch1-3-champ-organisation-etats.md l. 53 ; /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/auscgie-acte-uniforme/references/partie1-livre7-dissolution-liquidation.md l. 225-246 (art. 223), l. 305-319 (art. 232 et 233)
 - **Code** · src/modules/exercice/dto/creer-exercice.dto.ts l. 10-22 (citation tronquée, « sur plusieurs années s'il le faut ») ; src/modules/exercice/exercice.service.ts l. 225-228 (même citation tronquée) et l. 181 (drapeau non conservé) ; src/modules/exercice/planning-cloture.ts (aucun jalon pour un exercice de liquidation)
 - **Correction** · 1) Rétablir la citation entière de l'art. 7 al. 4 dans les deux commentaires, réserve comprise. 2) Conserver le drapeau de liquidation sur l'exercice. 3) Pour un exercice de liquidation, faire rappeler par le planning de clôture la condition de l'AUDCIF (des situations annuelles provisoires, que la situation intermédiaire permet de produire). Pour les cinq sociétés commerciales, rappeler aussi, en information, les art. 232 et 233 : états et rapport du liquidateur dans les trois mois, assemblée dans les six mois, ou dépôt du rapport au RCCM. Préciser que ces deux articles ne valent que dans les cas de l'art. 223. 4) Ne calculer aucune date d'échéance. L'AUDCIF parle d'un seul exercice, l'art. 232 de « la clôture de chaque exercice », et aucun texte lu ne dit à quelle date tombe l'anniversaire. Signaler cette tension au lieu de la trancher.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1a-E4 · INCOMPLET
 
@@ -786,7 +833,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/auscgie-acte-uniforme/references/partie2-livre1-societe-nom-collectif.md l. 183-194 ; partie2-livre2-societe-commandite-simple.md l. 144-155
 - **Code** · /home/user/Comptaflow/src/modules/exercice/planning-cloture.ts l. 79-91 (FORMES_SOCIETES_ASSEMBLEE et son commentaire) et l. 811-821 (jalon 23, source « AUSCGIE, art. 140 al. 2 », formesSyscohada: FORMES_SOCIETES_ASSEMBLEE)
 - **Correction** · Ajouter un jalon LEGALE réservé à SOCIETE_NOM_COLLECTIF et SOCIETE_COMMANDITE_SIMPLE : « Assemblée annuelle des associés et communication préalable des documents ». Le détail doit dire qu'elle se tient dans les six mois de la clôture, et que le rapport de gestion, l'inventaire, les états financiers, le texte des résolutions et, le cas échéant, le rapport du commissaire sont communiqués aux associés au moins quinze jours avant, à peine d'annulation. Il doit préciser que le délai se compte à rebours de l'assemblée, OmegaX ne connaissant pas sa date. Échéance repère : { moisApres: 6, jour: 15 }, soit quinze jours avant une assemblée tenue en fin de sixième mois. Source : « AUSCGIE, art. 288 (SNC) ; art. 306 (SCS) ». Ne pas étendre ce jalon ni l'art. 140 aux autres formes, dont les articles n'ont pas été lus dans ce bloc. Corriger le commentaire de FORMES_SOCIETES_ASSEMBLEE pour dire qu'il suit l'art. 140 seul, la SNC et la SCS relevant des art. 288 et 306.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1a-B3 · CONFORT
 
@@ -794,7 +841,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/auscgie-acte-uniforme/references/partie1-livre1b-appel-public-epargne-immatriculation.md:9-32
 - **Code** · /home/user/Comptaflow/client/src/pages/PerimetreConsolidationPage.tsx:185 (libellé et source « AUDCIF art. 75 et 77 ») ; /home/user/Comptaflow/src/modules/consolidation/perimetre-consolidation.ts:404-405 et 452-456
 - **Correction** · Ajouter à l'infobulle (ou à une bulle Aide) la définition des art. 81 et 81-1 de l'AUSCGIE, citée et non paraphrasée, avec ses deux exclusions, et la mention que le seuil est exprimé en FCFA sans équivalent en francs congolais dans le corpus lu (même réserve que le seuil de l'art. 95 de l'AUDCIF). Aucun calcul : c'est un fait déclaré. Préciser en réserve que le rattachement de la notion de l'AUDCIF art. 75 à la définition de l'AUSCGIE est une lecture d'OmegaX.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1a-C6 · CONFORT
 
@@ -802,7 +849,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · auscgie-acte-uniforme/references/partie1-livre2-fonctionnement.md l. 259-263 (art. 146)
 - **Code** · src/modules/exercice/planning-cloture.ts l. 814-870 (jalons 23 à 26, aucun jalon de mise en paiement)
 - **Correction** · Ajouter un jalon LEGALE SYSCOHADA, filtré aux cinq sociétés commerciales, échéance { moisApres: 9, jour: 'FIN' }, source « AUSCGIE, art. 146 », qui ne vaut que si une distribution a été décidée et rappelle la prolongation judiciaire possible. Éventuellement observer le solde créditeur du 465 né de l'affectation, sans jamais qualifier le retard (seule la juridiction proroge).
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ## O1b · journal ohada
 
@@ -812,7 +859,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · auscgie-acte-uniforme/references/partie2-livre3-sarl.md, l. 513-519 (art. 346)
 - **Code** · src/modules/exercice/planning-cloture.ts:858-869 (detail l. 863, jalon etape 26 SYSCOHADA sans formesSyscohada) ; règle juste : src/modules/affectation/regles-affectation.ts:232-405 (regimeReserveLegale)
 - **Correction** · Scinder le jalon SYSCOHADA : la phrase sur la dotation obligatoire et la nullité seulement pour formesSyscohada [SOCIETE_RESPONSABILITE_LIMITEE, SOCIETE_ANONYME], avec leur article respectif (346 / 546, 2°) ; pour les autres formes, le même jalon sans cette phrase (ou avec le motif rendu par regimeReserveLegale), et pour une forme non renseignée, dire que l'obligation n'a pas pu être déterminée. La règle vit déjà dans regimeReserveLegale : le planning doit l'appeler ou reprendre sa liste, jamais la réécrire. Même vérification sur « du capital (101 ou 103) », le 103 n'étant pas le capital d'une société.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1b-A2 · FAUX
 
@@ -820,7 +867,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · auscgie-acte-uniforme/references/partie2-livre3-sarl.md, l. 893-902 (art. 376) ; partie4-dispositions-finales.md, l. 7 (art. 906)
 - **Code** · src/modules/controles/controles.service.ts:878-891 (comparaison brute FC contre FCFA), 1507-1528 (SEUIL_AUDITEUR_FRANCHI, « Le dossier en remplit deux ou plus », l. 1521), 3269-3330 (AUDITEUR_OBLIGATOIRE_SANS_MANDAT alimenté par obligationDeclenchee) ; src/modules/controles/regles-auditeur.ts:65-71, 84-87
 - **Correction** · Ne jamais conclure « franchi » sur un critère monétaire tant que la contre-valeur en monnaie de tenue n'est pas DÉCLARÉE avec sa source (art. 906 : parité du jour de l'adoption, 30 janvier 2014, taux absent du corpus, à ne pas écrire de mémoire), sur le modèle de SEUIL_DISPENSE_FCFA de la consolidation : sans déclaration, les deux critères monétaires valent « non mesuré » (valeur en FC affichée avec son unité, seuil en FCFA), seul l'effectif se mesure, et le contrôle informe sans affirmer l'obligation. Jumeaux par la même règle : SAS (art. 853-13) et SNC (art. 289-1) dans le même fichier ; le seuil SYCEBNL art. 19 est à revoir avec le texte de son propre article avant toute modification.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1b-C1 · FAUX
 
@@ -828,7 +875,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · auscgie-acte-uniforme/references/partie2-livre4d-sa-assemblees-generales.md l. 383-386 (art. 546, 2°)
 - **Code** · src/modules/affectation/affectation.service.ts:410 (pertesAnterieures: Math.max(0, … solde('12') …)) ; refus bloquant l. 220-238 ; commentaire l. 43-46
 - **Correction** · Deux voies possibles, sans inventer de règle. (1) Compter parmi les pertes antérieures le solde débiteur du résultat antérieur non affecté, c'est-à-dire les comptes 131 à 139 hors colonne de clôture (report plus mouvement), en plus du 12 débiteur. (2) Ou refuser l'affectation de N tant que celle de N-1 n'est pas enregistrée, avec un message qui le dit. Dans les deux cas, ajouter à reserve-legale.spec.ts le cas « perte N-1 au 1391 non affectée », et le voir échouer contre le code actuel.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1b-C3 · FAUX
 
@@ -836,7 +883,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · auscgie-acte-uniforme/references/partie2-livre5-sas.md l. 21 (art. 853-3) ; partie2-livre4b-sa-conseil-administration.md l. 3-5 ; partie2-livre4c-sa-direction-pdg-dg-administrateur-general.md l. 3
 - **Code** · client/src/lib/formes-juridiques-syscohada.ts:47 ; src/modules/affectation/regles-affectation.ts:87 et 265
 - **Correction** · Réécrire la phrase ainsi : « Le régime de la SA s'y applique par renvoi, sauf le capital minimum (art. 387 al. 1er), l'administration, la direction et les assemblées de la SA (art. 414 à 561) et les art. 690 et 751 à 753 (art. 853-3) ». Dans regles-affectation.ts, citer la liste d'exception en entier, ou marquer la coupure par « […] ». La conclusion sur la réserve légale ne change pas.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1b-D4 · FAUX
 
@@ -844,7 +891,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · audcif-acte-uniforme/references/titre-7-comptes-classe-1.md l. 50-51, 86-88
 - **Code** · client/src/pages/AffectationPage.tsx:217-218 (libellé en dur « Capital social (101) ») ; src/modules/affectation/affectation.service.ts:106-111 (capitalRacine servi) ; src/modules/affectation/regles-affectation.ts:351-356 (motif de l'entreprise individuelle)
 - **Correction** · Libeller la case d'après `capitalRacine` : « Capital social (101) », « Capital par dotation (102) », « Capital personnel (103) », et ne pas afficher la case quand la racine est nulle. Geler par un test d'écran que le libellé suit la racine servie.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1b-D5 · FAUX
 
@@ -852,7 +899,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · partie2-livre4d-sa-assemblees-generales.md l. 382-385 ; partie2-livre3-sarl.md l. 516-519 ; audcif-acte-uniforme/references/titre-7-comptes-classe-1.md l. 298
 - **Code** · src/modules/exercice/planning-cloture.ts:860-869 (jalon 26 SYSCOHADA sans `formesSyscohada`) ; contredit src/modules/affectation/regles-affectation.ts:231-360 (regimeReserveLegale)
 - **Correction** · Composer le détail du jalon à partir de `regimeReserveLegale(forme)` : la phrase sur la dotation et la nullité pour la SA et la SARL seulement, le motif de la forme sinon ; ne proposer ni dividendes (465) ni capital social aux formes personnes physiques (FORMES_PERSONNES_PHYSIQUES), dont le résultat va au 103.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1b-E1 · FAUX
 
@@ -860,7 +907,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/auscgie-acte-uniforme/references/partie2-livre4h-sa-controle-commissaires-comptes.md l. 103 et 257
 - **Code** · src/modules/mandat-auditeur/duree-mandat.ts:76-79 (SA : 2 ou 6, rien d'autre) et :182-188 (`motifRefusDuree`, égalité stricte hors SYCEBNL) ; src/modules/mandat-auditeur/mandat-auditeur.service.ts:126-135 (refus) ; client/src/pages/MandatAuditeurPage.tsx:258 (champ désactivé)
 - **Correction** · Pour la SA seulement, faire déclarer si la nomination est un REMPLACEMENT (art. 706) ou l'entrée en fonction d'un SUPPLÉANT (art. 728). Il suffit d'un champ facultatif qui désigne le mandat d'origine. Dans ce cas, admettre une durée inférieure ou égale au reste du mandat d'origine, dernier exercice couvert inchangé, et la vérifier contre ce mandat plutôt que contre les 6 de l'art. 704. Garder l'égalité stricte pour la nomination initiale. N'étendre ni à la SARL ni au SYCEBNL : les art. 706 et 728 sont écrits pour la SA.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1b-E2 · FAUX
 
@@ -868,7 +915,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/auscgie-acte-uniforme/references/partie2-livre4h-sa-controle-commissaires-comptes.md l. 95, 111-113, 269
 - **Code** · src/modules/mandat-auditeur/duree-mandat.ts:76-79 (toute valeur autre que STATUTS_OU_AG_CONSTITUTIVE rend `{ exercices: 6, source: 'AUSCGIE art. 704, second alinéa' }`) ; prisma/schema.prisma:5708-5710 (JURIDICTION documenté par le seul SYCEBNL art. 21) ; client/src/pages/MandatAuditeurPage.tsx:42-48 (cinq organes proposés à toute forme)
 - **Correction** · Dans la branche SA de `dureeMandat`, ne rendre 6 (art. 704, al. 2) que pour ASSEMBLEE_GENERALE_ORDINAIRE. Pour JURIDICTION, rendre `exercices: null` avec la source « AUSCGIE art. 708 et 730 · le mandat prend fin à la nomination (ou à l'entrée en fonction) du commissaire désigné par l'assemblée », sans refus de durée. Refuser à une SA les organes ASSOCIES et BAILLEUR_OU_ETAT, ou ne pas les proposer, plutôt que de leur prêter l'art. 704. Ne rien changer pour le SYCEBNL ni pour la SARL, régis par d'autres articles.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1b-G1 · FAUX
 
@@ -876,7 +923,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · AUSCGIE art. 853-3, 853-11 al. 2, 853-13 al. 1, 704, 705, 709
 - **Code** · src/modules/mandat-auditeur/duree-mandat.ts:36-40 (commentaire « La SAS (art. 853-13) […] AUCUNE durée de mandat chiffrée »), :82-92 (branche default, source « Aucun texte lu ne fixe de durée de mandat pour cette forme »), :131-153 (regleDeProrogation, qui rend null pour la SAS) ; src/modules/controles/controles.service.ts:3329 (« aucun texte lu ne proroge le mandat pour cette forme ») ; client/src/pages/MandatAuditeurPage.tsx:266
 - **Correction** · Pour SOCIETE_PAR_ACTIONS_SIMPLIFIEE, citer le renvoi : source « AUSCGIE art. 853-3, renvoi aux art. 704 et 705 », et servir regleDeProrogation avec « AUSCGIE art. 853-3 et 709 ». La correspondance entre organe et durée est une lecture d'OmegaX et doit être dite comme telle : désignation dans les statuts, deux exercices ; décision collective des associés (art. 853-11 al. 2, qui tient lieu de l'assemblée générale ordinaire, exclue par le renvoi à 414-561), six exercices. La réserve « dans la mesure où elles sont compatibles » de l'art. 853-3 doit figurer dans le message. Si cette lecture n'est pas retenue, la moindre des corrections est de remplacer « aucun texte lu » par le renvoi de l'art. 853-3 et de ne plus émettre AUDITEUR_OBLIGATOIRE_SANS_MANDAT sur le seul motif d'une absence de prorogation pour la SAS. Le commentaire du contrôleur mandat-auditeur.controller.ts:14 reste juste.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1b-G2 · FAUX
 
@@ -884,7 +931,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · AUSCGIE art. 906 ; art. 376, 853-13, 289-1
 - **Code** · src/modules/controles/regles-auditeur.ts:62-70 et :90-100 ; src/modules/controles/controles.service.ts:43-46 (commentaire), :876-909 (critères comparés sans conversion et obligationDeclenchee), :1519-1521 (« Le dossier en remplit deux ou plus. »), :3282 (cascade vers AUDITEUR_OBLIGATOIRE_SANS_MANDAT)
 - **Correction** · Pour la branche AUSCGIE, ne jamais déclarer un critère monétaire « franchi » sur des montants en francs congolais comparés à un seuil en FCFA. L'équivalent en monnaie nationale se déclare avec sa source (texte ou cours, date), comme le seuil de l'art. 95 de la consolidation, et le message rappelle que l'art. 906 fixe ce cours au jour de l'adoption de l'Acte (30 janvier 2014), arrondi à l'unité supérieure. Aucun cours ne doit être inventé ni écrit en dur. Tant que l'équivalent n'est pas déclaré, les deux critères monétaires sont « non mesurés », avec montants et seuils affichés chacun dans son unité, et le verdict « deux sur trois » n'est rendu que s'il est établi sans eux. La branche SYCEBNL (art. 19) a le même mécanisme mais relève de son propre texte : la vérifier contre la clause monétaire de l'Acte uniforme SYCEBNL, sans lui transposer l'art. 906.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1b-A3 · INCOMPLET
 
@@ -892,7 +939,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · auscgie-acte-uniforme/references/partie2-livre3-sarl.md, l. 521-525 (art. 346) ; partie1-livre2-fonctionnement.md, l. 218-220 (art. 143) ; partie3-dispositions-penales.md, l. 35 (art. 889)
 - **Code** · src/modules/affectation/regles-affectation.ts:136 (destinations ['10','11','12','465'] sans condition) et commentaire l. 50-55 ; src/modules/affectation/affectation.service.ts:207-245 (seule la réserve légale est bornée ; aucune borne sur le 465, aucun refus du 465 quand le 13 est une perte)
 - **Correction** · Refuser, avec l'art. 143 cité, une ligne 465 lorsque le résultat est une perte, et une ligne 465 qui excède le bénéfice de l'exercice diminué des pertes antérieures (solde débiteur du 12, déjà lu par soldesDuBilan) et de la dotation à la réserve légale portée dans la même décision. Les réserves STATUTAIRES n'étant dans aucun livre, les dire non contrôlées plutôt que les deviner. Ne pas étendre le refus à une distribution de réserves (art. 143 al. 2), qui ne passe pas par l'affectation du 13.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1b-A4 · INCOMPLET
 
@@ -900,7 +947,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · auscgie-acte-uniforme/references/partie2-livre3-sarl.md, l. 837-861 (art. 371 à 373)
 - **Code** · Aucun porteur · point d'insertion naturel parmi les contrôles propres aux sociétés, src/modules/controles/controles.service.ts:2200 (section 19 bis) ; capitaux propres lus par la résolution du bilan SYSCOHADA (src/modules/etats-financiers-syscohada/correspondance-bilan-syscohada.ts:658-664, total CP)
 - **Correction** · Contrôle d'information borné à formeJuridiqueSyscohada = SOCIETE_RESPONSABILITE_LIMITEE (le jumeau de la SA est l'art. 664, à lire dans son bloc avant toute extension ; aucune transposition à la SAS sans lecture de l'art. 853-3) : signaler quand les capitaux propres, lus par resoudreBilanSurLignes et jamais par une seconde table, sont inférieurs à la moitié du solde du 101, en citant les art. 371 à 373. L'AUSCGIE ne définit pas « capitaux propres » : déclarer l'agrégat retenu (CP comprend les ressources assimilées CL et CM) plutôt que le trancher en silence. Ne calculer aucune échéance : la date d'approbation n'est dans aucun livre ; énoncer les deux délais avec leur point de départ.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1b-A5 · INCOMPLET
 
@@ -908,7 +955,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · auscgie-acte-uniforme/references/partie2-livre3-sarl.md, l. 657-665 (art. 356)
 - **Code** · src/modules/controles/controles.service.ts:2200-2245 (action l. 2238-2240 : « Justifiez chaque solde débiteur (convention de prêt, remboursement intervenu) »)
 - **Correction** · Pour formeJuridiqueSyscohada = SOCIETE_RESPONSABILITE_LIMITEE, ajouter au message la règle de l'art. 356 citée mot pour mot, conditionnée à la qualité de l'associé ou du gérant (personne physique : interdit à peine de nullité ; personne morale : l'art. 356 ne la vise pas), sans trancher, et ne plus présenter la « convention de prêt » comme justification pour cette forme. Laisser la gravité INFORMATION. Jumeau à vérifier dans le bloc SA (conventions interdites des administrateurs) avant toute extension, jamais par transposition.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1b-A6 · INCOMPLET
 
@@ -916,7 +963,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · auscgie-acte-uniforme/references/partie2-livre3-sarl.md, l. 26-29 (art. 311) ; partie1-livre1a-constitution-statuts-apports.md, l. 115-119 (art. 10)
 - **Code** · client/src/lib/formes-juridiques-syscohada.ts:53 (detail affiché, lu par ParametresDossierPage.tsx l. 1147 et 1208) et commentaire l. 20-30 ; client/src/pages/ParametresDossierPage.tsx:1177 (bulle d'aide)
 - **Correction** · Ne rien écrire de plus que ce qui est lu : l'art. 311 fixe 1 000 000 FCFA « sauf dispositions nationales contraires », et une disposition congolaise contraire est SIGNALÉE (référence citée) mais « non lue au Journal officiel, à vérifier avant de l'opposer ». Porter cette réserve à l'écran, là où la phrase s'affiche, et non dans le seul commentaire. Ne geler aucun test sur la dispense tant que l'arrêté n'est pas versé au corpus.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1b-A7 · INCOMPLET
 
@@ -924,7 +971,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · auscgie-acte-uniforme/references/partie2-livre3-sarl.md, l. 487-502 (art. 345), l. 573-600 (art. 350 et 351), l. 613-634 (art. 353)
 - **Code** · src/modules/exercice/planning-cloture.ts:632-645 (jalon 17, 45 jours) et 810-820 (jalon 23, assemblée) · aucun jalon pour les art. 345, 350-353
 - **Correction** · Ajouter, sous formesSyscohada [SOCIETE_RESPONSABILITE_LIMITEE] seulement, trois jalons LÉGAUX sans observation : information du commissaire aux comptes (clôture + 1 mois, « le cas échéant, s'il existe un commissaire et des conventions antérieures poursuivies ») ; rapport sur les conventions (échéance de l'assemblée, contenu des cinq points de l'art. 353 énoncé, « néant » dit plutôt que tu) ; communication aux associés (quinze jours avant l'assemblée, compté à rebours comme le jalon des 45 jours). Le logiciel ne sait ni s'il y a des conventions ni la date réelle de l'assemblée : il énonce la condition, il ne la tranche pas. Les jumeaux de la SA se lisent dans leur bloc, jamais par transposition.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1b-B1 · INCOMPLET
 
@@ -932,7 +979,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · auscgie-acte-uniforme/references/partie2-livre4a-sa-constitution.md l. 22-26 ; partie2-livre4b-sa-conseil-administration.md l. 9-23
 - **Code** · src/modules/tenant/mentions-societe.ts l. 38-44 (FORME_SOCIALE, SOCIETE_ANONYME: 'Société anonyme') et l. 88-107 (mentionsArticle17, manquantes sans le mode) ; affichage client/src/pages/ParametresDossierPage.tsx l. 869-878
 - **Correction** · Ajouter un champ déclaré, nullable et SANS défaut (par exemple Tenant.modeAdministrationSa : CONSEIL_ADMINISTRATION / ADMINISTRATEUR_GENERAL), servi à la seule SOCIETE_ANONYME. Déclaré, la forme s'imprime « Société anonyme avec conseil d'administration » ou « Société anonyme avec administrateur général » (art. 386 et 414) ; non déclaré, la ligne ajoute « mode d'administration (AUSCGIE art. 386) » à `manquantes`, jamais un mode présumé. Ne pas l'étendre à la SAS : l'art. 853-3 exclut les art. 414 à 561 du renvoi à la SA (cité par src/modules/affectation/regles-affectation.ts l. 262-266), et la dénomination de la SAS relève de son propre livre, non lu dans ce bloc. Le changement de mode en cours de vie sociale (art. 414, al. 2 à 4) est déjà couvert par la recopie des mentions à la date de la pièce (mentionsRecopiees). Aucune sanction propre à l'art. 386 n'est à chiffrer : elle ne figure pas dans les fichiers lus.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1b-B3 · INCOMPLET
 
@@ -940,7 +987,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · auscgie-acte-uniforme/references/partie2-livre4b-sa-conseil-administration.md l. 438-452 (art. 450) et l. 283-301 (art. 438)
 - **Code** · src/modules/controles/controles.service.ts l. 2200-2246 (bloc 19 bis, action l. 2238-2240)
 - **Correction** · Sans changer la gravité (INFORMATION) ni le périmètre du contrôle, ajouter au message, pour la seule forme SOCIETE_ANONYME : « Dans une société anonyme, un prêt ou un découvert en compte courant consenti à un administrateur personne physique, au directeur général ou au directeur général adjoint, ou à leur conjoint, ascendant ou descendant, est interdit à peine de nullité (AUSCGIE art. 450) · une convention de prêt ne le régularise pas. Un actionnaire détenant 10 % au moins du capital relève, lui, de l'autorisation préalable du conseil (art. 438). » OmegaX ne sait pas qui est titulaire du compte : il nomme la règle, il ne qualifie aucun solde. Ne pas transposer à la SAS (art. 853-3 exclut les art. 414 à 561) ni à la SARL, dont le régime n'est pas dans ce bloc.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1b-C2 · INCOMPLET
 
@@ -948,7 +995,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · auscgie-acte-uniforme/references/partie2-livre4d-sa-assemblees-generales.md l. 424-425 (art. 547-1) ; partie2-livre4f-sa-apports-attribution-reduction-rachat-amortissement.md l. 152 (art. 626-1-2, « L'information correspondante est publiée dans le rapport mentionné à l'article 547-1 »)
 - **Code** · src/modules/documents-obligatoires/correspondance-inventaire-syscohada.ts:212-222 (SA regroupée avec SAS, SARL, SNC, SCS sur SECTIONS_RAPPORT_GESTION_AUSCGIE) ; src/modules/documents-obligatoires/rapport-activite.service.ts:273 (complet) ; src/modules/exercice/planning-cloture.ts:625-634 (jalon 16)
 - **Correction** · Sortir SOCIETE_ANONYME du groupe commun et lui servir les six sections de l'art. 138, plus une section en saisie « État de la participation des salariés au capital au dernier jour de l'exercice », d'exigence « AUSCGIE art. 547-1 », citée mot pour mot. Ne rien calculer : aucun livre ne porte la détention du capital par les salariés. Ne pas l'étendre à la SAS ni à la SARL. Mettre à jour la phrase de CLAUDE.md « AUSCGIE art. 138, six ».
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1b-C4 · INCOMPLET
 
@@ -956,7 +1003,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · auscgie-acte-uniforme/references/partie2-livre4d-sa-assemblees-generales.md l. 138-159 et 165 (art. 525)
 - **Code** · src/modules/exercice/planning-cloture.ts:636-646 (jalon 17, seul délai à rebours de l'assemblée servi) et 812-822 (jalon 23)
 - **Correction** · Ajouter un jalon LEGALE réservé à SOCIETE_ANONYME, entre les jalons 17 et 23 : « Documents tenus à la disposition des actionnaires au siège social », avec la liste de l'art. 525 et sa sanction. Échéance au 15 du sixième mois, dite comme celle du jalon 17 : « suppose une assemblée tenue au dernier jour du sixième mois ». Source : AUSCGIE, art. 525. Ne pas l'étendre à la SAS, que l'art. 853-3 exclut. Ne calculer aucun montant de rémunération : les dirigeants sociaux non salariés ne sont dans aucun bulletin.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1b-C5 · INCOMPLET
 
@@ -964,7 +1011,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · auscgie-acte-uniforme/references/partie2-livre4c-sa-direction-pdg-dg-administrateur-general.md l. 444-453 (art. 507) ; partie2-livre4b-sa-conseil-administration.md l. 440-444 (art. 450)
 - **Code** · src/modules/controles/controles.service.ts:2231-2244 (action « Justifiez chaque solde débiteur (convention de prêt, remboursement intervenu) »)
 - **Correction** · Pour formeJuridiqueSyscohada === SOCIETE_ANONYME seulement, ajouter à l'action la phrase suivante. « Si le titulaire du compte est un administrateur, le directeur général, un directeur général adjoint, l'administrateur général ou son adjoint, ou leur conjoint, ascendant, descendant ou une personne interposée, l'emprunt et le découvert en compte courant sont interdits à peine de nullité (AUSCGIE art. 450 et 507), sauf pour un établissement bancaire ou financier et pour des opérations courantes à conditions normales. » Garder la gravité INFORMATION. Ne rien présumer sur l'identité de l'associé. Ne pas transposer à la SARL sans lire son propre article.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1b-D1 · INCOMPLET
 
@@ -972,7 +1019,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · auscgie-acte-uniforme/references/partie2-livre4g-sa-variation-capitaux-fusion-scission-transformation.md l. 7, 11, 33 ; partie2-livre5-sas.md l. 21 (853-3) et l. 63 (853-11) ; jumeau partie2-livre3-sarl.md l. 837-840 (art. 371)
 - **Code** · src/modules/controles/controles.service.ts:1536 (famille des contrôles de forme, où aucun ne lit capitaux propres contre capital) ; src/modules/exercice/planning-cloture.ts:923 (OBLIGATIONS_EVENEMENTIELLES, sans entrée pour ce fait) ; src/modules/etats-financiers-syscohada/correspondance-bilan-syscohada.ts:487-501 et 660 (postes CA à CM et total CP déjà calculés)
 - **Correction** · Contrôle de gravité INFORMATION (nom proposé CAPITAUX_PROPRES_INFERIEURS_MOITIE_CAPITAL), borné aux formes SA et SAS (et SARL par l'art. 371 si la passe du livre 3 le retient), lu sur le bilan du livre-journal AVANT le solde des comptes de gestion (balance-trois-colonnes, comme les états). Capital : solde créditeur de la racine 101, même lecture que `racineCapital` de l'affectation. Capitaux propres : aucun texte lu ne les définit pour cet article · déclarer la lecture retenue (postes CA à CJ, hors ressources assimilées CL et CM) et afficher à côté le total CP, sans trancher. Le message ne constate aucun manquement : la date d'approbation et la convocation sont des faits externes. Il nomme l'organe (conseil d'administration ou administrateur général pour la SA, décision collective des associés pour la SAS, art. 853-11 al. 2), le délai de quatre mois après l'approbation (art. 664), l'échéance de reconstitution ou de réduction à la clôture du deuxième exercice suivant (art. 665), et dit que la règle ne vaut pas en redressement judiciaire ou liquidation des biens (art. 669), état que le dossier ne porte pas. Ajouter la même règle à OBLIGATIONS_EVENEMENTIELLES, déclenchée par ce fait et non par le calendrier.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1b-D2 · INCOMPLET
 
@@ -980,7 +1027,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · partie2-livre4e-sa-augmentation-capital.md l. 34-36, 40-42, 512, 516-517 ; partie2-livre4f-sa-apports-attribution-reduction-rachat-amortissement.md l. 260-264, 273-275, 285-286, 319 ; audcif-acte-uniforme/references/titre-7-comptes-classe-1.md l. 36-44 ; partie2-livre5-sas.md l. 63
 - **Code** · src/modules/affectation/regles-affectation.ts:136 (destinations ['10', '11', '12', '465']) ; src/modules/affectation/affectation.service.ts:246-262 (écriture au débit ou crédit du 101 sans message) ; client/src/pages/AffectationPage.tsx:282-285 (organe proposé « Assemblée générale ordinaire ») ; src/modules/exercice/planning-cloture.ts:863
 - **Correction** · Avertissement non bloquant, pour les formes SA et SAS seulement, dès qu'une ligne d'affectation porte sur la racine du capital (101) : bénéfice incorporé = augmentation de capital (AGE seule compétente, art. 564 et 565, rapport du CAC, publicité art. 618, nullité art. 618-1) ; perte imputée = réduction de capital (AGE, art. 628 ; rapport du CAC à peine de nullité, art. 630 ; pas d'opposition des créanciers, art. 632 ; publicité, art. 638) ; pour la SAS, décision collective des associés (art. 853-11 al. 2). Ne pas refuser : le logiciel ne sait pas quel organe a statué, le champ `organe` est libre. Ne rien transposer aux autres formes, dont les règles ne sont pas dans ce bloc.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1b-G3 · INCOMPLET
 
@@ -988,7 +1035,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · AUSCGIE art. 901 ; art. 664 et 665 (SA, et SAS par l'art. 853-3) ; art. 371 et 372 (SARL)
 - **Code** · src/modules/controles/controles.service.ts (aucun contrôle, à placer près des contrôles de clôture, par exemple après :1531) ; src/modules/affectation/regles-affectation.ts:249-262 (le capital de ces formes est déjà lu au 101)
 - **Correction** · Ajouter un contrôle SYSCOHADA borné aux formes SA, SAS et SARL (jamais le SYCEBNL, ni SNC, SCS, GIE ou coopérative). Il compare le total des capitaux propres du bilan, lu par la résolution existante (resoudreBilanSurLignes) et non recalculé, à la moitié du solde du capital, lu au même compte que l'affectation. Il s'abstient si le capital est nul ou absent. Gravité : information ou avertissement. Le message nomme l'article de la forme (664 ou 371) et l'art. 901. Il ne calcule aucune date : le délai de quatre mois court de l'approbation, que les livres ne portent pas. Il ne présume pas davantage de dissolution ou de réduction du capital : le choix appartient aux associés.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1b-G4 · INCOMPLET
 
@@ -996,7 +1043,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · AUSCGIE art. 876, dernier et avant-dernier alinéas
 - **Code** · src/modules/tenant/mentions-immatriculation.ts:73-84 (mentionImmatriculation, branche générale suivie par le GIE) ; src/modules/tenant/mentions-societe.ts:22-26 (commentaire du périmètre) et :148-153 (mentionsEmetteur)
 - **Correction** · Pour GROUPEMENT_INTERET_ECONOMIQUE, faire commencer la ligne rendue par mentionImmatriculation par « Groupement d'intérêt économique » (ou le sigle « G.I.E. », que le texte admet), avant le RCCM. La ligne suit immédiatement la dénomination, comme celle de l'art. 17. La source art. 876 est ajoutée au commentaire de périmètre. Rien n'est réclamé aux autres formes, et aucune mention de capital n'est exigée du GIE (art. 869 al. 3).
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1b-G5 · INCOMPLET
 
@@ -1004,7 +1051,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · AUSCGIE art. 853-3
 - **Code** · client/src/lib/formes-juridiques-syscohada.ts:47
 - **Correction** · Écrire : « Le régime de la SA s'y applique par renvoi, sauf le capital minimum (art. 387 al. 1), l'administration, la direction et les assemblées (art. 414 à 561), la condition de transformation (art. 690) et les règles de vote des art. 751 à 753 · les attributions du conseil d'administration y sont exercées par le président (art. 853-3). » La mention « Appel public à l'épargne interdit » est exacte (art. 853-4) et reste.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1b-G6 · INCOMPLET
 
@@ -1012,7 +1059,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · AUSCGIE art. 853-2 al. 2, 853-11 al. 4 et 5, 891-1, 2°
 - **Code** · src/modules/tenant/mentions-societe.ts:40 et :95 ; src/modules/exercice/planning-cloture.ts:812-822 (jalon 23) et :824-834 (jalon 24) ; src/modules/fiscalite/fiscalite.service.ts:1145-1147 (le caractère unipersonnel n'est pas connu)
 - **Correction** · Ajouter un fait déclaré à trois réponses, réservé à la SAS : associé unique oui, non ou pas encore dit (null par défaut, sans présomption). S'il vaut oui, la ligne imprime « Société par actions simplifiée unipersonnelle ». S'il n'est pas encore dit, la ligne est inchangée et le manque est nommé parmi les manquantes. Le jalon 23 devient « Approbation des comptes par l'associé unique » (art. 853-11 al. 4) et le rapport de gestion est attribué au président. Le cas du dépôt valant approbation n'est servi que si le fait « associé unique personne physique, président » est lui aussi déclaré. Rien n'est transposé à la SARL sans lecture de ses propres articles.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1b-G7 · INCOMPLET
 
@@ -1020,7 +1067,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · AUSCGIE art. 875 et 880
 - **Code** · src/modules/controles/regles-auditeur.ts:26-29 (commentaire) et :123-128 (AUCUNE_REGLE_LUE) ; src/modules/mandat-auditeur/duree-mandat.ts:36-40 et :82-92
 - **Correction** · Pour GROUPEMENT_INTERET_ECONOMIQUE : si un compte 161 porte un solde, rendre une obligation sans seuil (comme la règle TOUJOURS de la SA), avec la source « AUSCGIE art. 875 et 880 », et une durée de six exercices dans dureeMandat. Sinon, garder AUCUNE_REGLE_LUE, en disant que le contrôle est fixé par le contrat (art. 880 al. 1) sauf émission d'obligations. Aucun seuil n'est ajouté.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1b-A8 · CONFORT
 
@@ -1028,7 +1075,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · auscgie-acte-uniforme/references/partie2-livre3-sarl.md, l. 904-906 (art. 376, al. 2)
 - **Code** · src/modules/controles/controles.service.ts:1526-1528 ; même formulation dans le commentaire de src/modules/controles/regles-auditeur.ts:23-25
 - **Correction** · Reprendre les mots du texte : « la société cesse d'être tenue de désigner un commissaire aux comptes lorsqu'elle n'a pas rempli deux des conditions pendant les deux exercices précédant l'expiration du mandat », en citant l'article de la forme (376 pour la SARL ; relire 853-13 et 289-1 pour leurs propres termes avant de les aligner).
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1b-D6 · CONFORT
 
@@ -1036,7 +1083,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · auscgie-acte-uniforme/references/partie2-livre5-sas.md l. 21
 - **Code** · src/modules/affectation/regles-affectation.ts:265 (message servi) et l. 87 (commentaire) ; src/modules/affectation/reserve-legale.spec.ts:181
 - **Correction** · Citer « à l'exception des articles 387 alinéa 1er, 414 à 561, 690, 751 à 753 », ou marquer la coupe par « […] » avant la fermeture des guillemets, dans le message, le commentaire et le spec.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O1b-G8 · CONFORT
 
@@ -1044,7 +1091,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · AUSCGIE art. 897 et 890-1
 - **Code** · src/modules/controles/controles.service.ts:1519-1527 (branche DEUX_SUR_TROIS de SEUIL_AUDITEUR_FRANCHI) ; src/modules/exercice/planning-cloture.ts:827-831 (jalon 24)
 - **Correction** · Ajouter à la conséquence AUSCGIE : « L'article 897 de l'AUSCGIE punit les dirigeants qui n'ont pas provoqué la désignation. » Ajouter à la source du jalon 24 « sanction pénale, art. 890-1 ». Aucune peine n'est chiffrée : la Partie 3 renvoie les peines au droit national, qui n'est pas au corpus.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ## O4 · journal ohada
 
@@ -1054,7 +1101,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/aupsrve-acte-uniforme/references/livre2-titre5-saisie-cession-remunerations.md (l. 219-260) ; livre2-titre10-dispositions-finales.md (l. 54, 58-64)
 - **Code** · /home/user/Comptaflow/src/modules/personnel/retenues-autorisees.ts l. 52-66 (commentaire) et l. 132-139 (RESERVE_CESSION_SYNDICALE : « AUCUNE SOURCE LUE NE L'ÉNONCE EN CES TERMES […] elle suppose un ÉCRIT DU TRAVAILLEUR, révocable ») ; servie par /home/user/Comptaflow/src/modules/personnel/personnel.service.ts l. 1226 et affichée par /home/user/Comptaflow/client/src/pages/PersonnelPage.tsx l. 2903-2907 ; gelée par /home/user/Comptaflow/src/modules/personnel/retenues-autorisees.spec.ts l. 105, 110-111 ; recopiée dans /home/user/Comptaflow/CLAUDE.md l. 2256 et /home/user/Comptaflow/docs/paie-p7-cotisation-syndicale-et-logement.md l. 66
 - **Correction** · Réécrire RESERVE_CESSION_SYNDICALE et le commentaire. Garder la lecture d'éditeur sur le seul point que l'AUPSRVE ne tranche pas : une cession au profit d'un syndicat est-elle admise ? Retirer « aucune source lue » et « écrit révocable », et citer la forme imposée : déclaration du cédant en personne au greffe (art. 205), vérification de la quotité par la juridiction (art. 206), paiement sur copie de la déclaration (art. 207), fin dans les seuls cas de l'art. 212. Dire aussi qu'un paiement fait sur un simple écrit remis à l'employeur n'est pas une cession et relève de l'art. 112. Borner la phrase par l'art. 337 : elle vaut pour les cessions engagées après l'entrée en vigueur de l'Acte, date donnée par l'art. 9 du Traité, non lu ici. Remplacer dans le spec les deux expressions gelées par la présence de « 205 » et de « greffe ». Corriger la ligne de CLAUDE.md. Poser sur docs/paie-p7 un bandeau qui renvoie à O4, sans réécrire le document.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O4-C2 · INCOMPLET
 
@@ -1062,7 +1109,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · aupsrve-acte-uniforme/references/livre2-titre5-saisie-cession-remunerations.md l. 90-129, 233 ; syscohada/ecritures/references/partie-1-ch3-autres-operations-exploitation.md l. 101-130 ; sycebnl/references/partie2-ch3-classe4-comptes40-49.md l. 55-67
 - **Code** · /home/user/Comptaflow/src/modules/personnel/cotisations-paie.ts l. 563-583 (net « AVANT » la saisie-arrêt, « supposent chacun un acte que le registre ne porte pas ») ; /home/user/Comptaflow/src/modules/personnel/passation-paie.ts l. 463 (seuls 4211, 4212, 272x) ; /home/user/Comptaflow/prisma/schema.prisma l. 6913-6917 (TypeAvanceSalaire : AVANCE, ACOMPTE, PRET) ; comptes semés /home/user/Comptaflow/src/modules/comptes/compte-seed-syscohada.ts l. 726 et compte-seed.ts l. 616
 - **Correction** · Ajouter au registre du personnel les saisies et cessions NOTIFIÉES. Chaque fiche porte la référence et la date de l'acte notifié par le greffier (art. 183) ou de la déclaration de cession (art. 206), le greffe, le montant ou le mode de calcul tels que l'acte les fixe (art. 184, 3°), recopiés et jamais calculés par OmegaX, et le destinataire : le greffe (art. 188) ou le cessionnaire (art. 207), qui devient saisissant en cas de saisie (art. 208-209). La fin se déclare : mainlevée (art. 201) ou radiation (art. 212). Rattacher la retenue du bulletin au litera g) de l'art. 112, la figer avec le bulletin et la passer D 422 / C 42320000, le numéro et l'intitulé étant relus dans les deux semis par le spec de passation. Le versement mensuel se passe D 4232 / C trésorerie et reste une écriture que le cabinet passe. La note de l'art. 188, al. 4, se compose à partir de la fiche. Un net négatif reste refusé, comme pour les avances.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O4-C3 · INCOMPLET
 
@@ -1070,7 +1117,7 @@ Total : 236 constats retenus · CONFORT 42, COSMETIQUE 1, FAUX 89, INCOMPLET 104
 - **Source** · aupsrve-acte-uniforme/references/livre2-titre5-saisie-cession-remunerations.md l. 21-29, 93, 225 ; livre2-titre10-dispositions-finales.md l. 54 ; droit-travail-congolais/references/texte-loi-verbatim/05-titre-v-du-salaire.md l. 146-149 (art. 114)
 - **Code** · /home/user/Comptaflow/src/modules/personnel/quotite-saisissable.ts l. 1-22, 139-144 (remunerationFc = assiette de l'art. 7 h), 212-215 (RESERVE_CUMUL), 403-409 (base) ; /home/user/Comptaflow/src/modules/personnel/personnel.service.ts l. 1182-1190 ; /home/user/Comptaflow/client/src/pages/PersonnelPage.tsx l. 2813 (« Base de l'alinéa 4 ») et l. 2853-2856 (« Part insaisissable »)
 - **Correction** · Ne pas changer le calcul : savoir si l'indemnité de logement est une « indemnité déclarée insaisissable » ou une « indemnité représentative de frais » est une qualification qu'aucune source lue ne tranche. Ajouter en revanche une réserve toujours servie. Elle cite l'AUPSRVE art. 177, al. 2, nomme les deux divergences (l'indemnité de logement retirée d'office par l'art. 7 h, la déduction du forfait logement absente de la liste de l'Acte) et dit que le mode de calcul notifié dans l'acte de saisie (art. 184, 3°) ou vérifié par la juridiction pour une cession (art. 206) prime le chiffre d'OmegaX. Compléter RESERVE_CUMUL par l'art. 177, al. 3 : le cumul de l'art. 114 est le seuil que le total des saisies et cessions ne dépasse « en aucun cas ». Bornage : art. 337. Mettre à jour le paragraphe P5/P6 de CLAUDE.md dans le même geste.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ## O5
 
@@ -1084,7 +1131,7 @@ Aucun constat retenu.
 - **Source** · auscoop-acte-uniforme/references/partie1-titre2-3-fonctionnement-responsabilite.md, l. 191
 - **Code** · src/modules/mandat-auditeur/duree-mandat.ts l. 37 (en-tête, « le GIE, la coopérative et l'entreprenant n'ont… AUCUNE durée de mandat chiffrée ») et l. 82-91 (branche default qui sert à SOCIETE_COOPERATIVE « Aucun texte lu ne fixe de durée de mandat pour cette forme ») ; src/modules/mandat-auditeur/mandat-auditeur.service.ts l. 121-124 (même affirmation en commentaire)
 - **Correction** · Ajouter un cas FormeJuridiqueSyscohada.SOCIETE_COOPERATIVE qui rend { exercices: 3, mandatsMaximum: null, source: 'AUSCOOP art. 121, al. 2' }. Le texte ne pose aucune limite de renouvellement, d'où mandatsMaximum null. Retirer la coopérative des deux listes « aucun texte lu », en-tête et commentaire du service. L'organe est l'assemblée générale, que le texte nomme. Ne rien transposer de la prorogation (SYCEBNL art. 22, AUSCGIE art. 709) : l'AUSCOOP lu n'en prévoit pas.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O6-B2 · FAUX
 
@@ -1092,7 +1139,7 @@ Aucun constat retenu.
 - **Source** · auscoop-acte-uniforme/references/partie1-titre2-3-fonctionnement-responsabilite.md, l. 183-195
 - **Code** · src/modules/controles/regles-auditeur.ts l. 24-29 (en-tête) et l. 122-128 (motif AUCUNE_REGLE_LUE « dans l'AUSCGIE » servi à SOCIETE_COOPERATIVE) ; lu par src/modules/controles/controles.service.ts l. 777-790 et mandat-auditeur.service.ts l. 188
 - **Correction** · Donner à la coopérative un motif propre, sans mesure automatique. Il cite l'art. 121 et ses trois conditions, dit que la règle ne vise que la COOP-CA et que la SCOOPS est libre, et donne trois raisons de ne rien mesurer. (1) Le champ formeJuridiqueSyscohada ne distingue pas SCOOPS et COOP-CA : un fait à déclarer, jamais à déduire. (2) « remplissent les conditions suivantes » ne dit pas si les trois sont cumulatives ou s'il suffit d'une seule. (3) Les deux montants n'ont pas d'unité monétaire écrite. Signaler l'anomalie du texte (un total de bilan à cinq millions, sous un chiffre d'affaires à cent millions) sans la corriger. Retirer la coopérative de la liste « aucun texte lu » de l'en-tête.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O6-C1 · FAUX
 
@@ -1100,7 +1147,7 @@ Aucun constat retenu.
 - **Source** · auscoop-acte-uniforme/references/partie2-titre1-societe-cooperative-simplifiee.md l. 275 (art. 239) et l. 279-285 (art. 240) ; partie1-titre2-3-fonctionnement-responsabilite.md l. 127-131 (art. 114)
 - **Code** · src/modules/exercice/planning-cloture.ts l. 859-870 (jalon 26 SYSCOHADA, detail l. 863, source l. 867-868, sans formesSyscohada) ; à confronter à src/modules/affectation/regles-affectation.ts l. 304-345
 - **Correction** · Ne plus écrire la règle de réserve dans le jalon : faire lire au jalon 26 SYSCOHADA le motif de `regimeReserveLegale(forme)` (même fonction que la fenêtre d'affectation, comme le remède déjà décrit pour le jalon 16), et, pour SOCIETE_COOPERATIVE, citer AUSCOOP art. 113 et 114 (et, pour une SCOOPS, art. 239 et 240) sans taux ni plafond inventés, en rappelant que la cascade se lit sur les statuts. Retirer la phrase « délibération contraire est NULLE » partout où `regimeReserveLegale` rend `exigee: false`. Ajouter un test qui interdit au planning et au régime d'affectation de diverger pour une même forme.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O6-A1 · INCOMPLET
 
@@ -1108,7 +1155,7 @@ Aucun constat retenu.
 - **Source** · auscoop-acte-uniforme/references/partie1-titre1-ch1-3-constitution-statuts.md:259 (art. 19), :35 (art. 3) ; partie1-titre1-ch4-registre-immatriculation.md:69 (art. 74)
 - **Code** · src/modules/tenant/mentions-immatriculation.ts:73 ; src/modules/tenant/mentions-societe.ts:137-141 (et commentaire :21-27) ; src/modules/auth/auth.service.ts:692 ; src/modules/relances/relances.service.ts:632 ; client/src/lib/mentions-piece.ts:22 ; prisma/schema.prisma:94-96 et :400 ; test qui gèle le silence : src/modules/tenant/mentions-immatriculation.spec.ts:40
 - **Correction** · Ajouter au Tenant un numéro d'immatriculation au Registre des Sociétés Coopératives (nullable, sans défaut, réservé à SOCIETE_COOPERATIVE) et la forme coopérative déclarée (SCOOPS ou COOP-CA, null = pas encore dit, jamais présumée). Dans `mentionsEmetteur`, une branche AUSCOOP art. 19 : forme, adresse du siège, numéro RSC, chacun imprimé s'il est connu et sinon NOMMÉ dans `manquantes` avec l'article (« forme de la société coopérative (AUSCOOP art. 19) », « numéro au Registre des Sociétés Coopératives (AUSCOOP art. 19) », « adresse du siège social »). Ne pas y mettre le capital : l'art. 19 ne le demande pas, à la différence de l'AUSCGIE art. 17. Libellé de l'avertissement : « AUSCOOP art. 19 » quand c'est lui. Remplacer le test mentions-immatriculation.spec.ts:40 par un test qui exige les manques nommés pour une coopérative sans numéro, et la ligne pour une coopérative renseignée. Aucune sanction chiffrée (aucune n'est lue dans ce bloc).
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O6-A2 · INCOMPLET
 
@@ -1116,7 +1163,7 @@ Aucun constat retenu.
 - **Source** · auscoop-acte-uniforme/references/partie1-titre1-ch4-registre-immatriculation.md:105 (art. 77), :69 (art. 74) ; partie1-titre1-ch1-3-constitution-statuts.md:495 (art. 52)
 - **Code** · client/src/pages/ParametresDossierPage.tsx:477 (champ RCCM), :998 (aide « Le RCCM s'imprime… »), :436 (commentaire), :182 et :839-863 (capital et aide AUSCGIE art. 17) ; src/modules/tenant/tenant.service.ts:459-478 (aucun refus du RCCM pour une coopérative) ; src/modules/exports/export.service.ts:6228 et :6474 (`numeroRegistreLiasse`) ; src/modules/tenant/mentions-immatriculation.ts:104-110
 - **Correction** · Pour SOCIETE_COOPERATIVE : remplacer le champ RCCM par le champ du numéro au Registre des Sociétés Coopératives (O6-A1), avec une aide qui cite l'AUSCOOP art. 19 et 74 ; refuser le RCCM au serveur en citant l'art. 77 al. 1, et déplacer par migration un RCCM déjà saisi par une coopérative vers le nouveau champ (même traitement que l'entreprenant en passe O2). `numeroRegistreLiasse` rend le numéro RSC nommé comme tel (« Registre des Sociétés Coopératives n° … »), jamais dans la case sans son libellé. Pour le capital d'une coopérative : aide qui cite l'AUSCOOP art. 52 à 55 et non l'AUSCGIE art. 17, et pas de case « À capital variable » (la variabilité est légale, art. 52) ; le capital reste saisissable sans être imprimé.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O6-B3 · INCOMPLET
 
@@ -1124,7 +1171,7 @@ Aucun constat retenu.
 - **Source** · auscoop-acte-uniforme/references/partie1-titre2-3-fonctionnement-responsabilite.md, l. 91-97
 - **Code** · src/modules/etats-financiers-syscohada/correspondance-smt-syscohada.ts l. 1152-1190 (NOTES_SMT_SYSCOHADA, notes 1 à 4, aucune garantie donnée ni sûreté consentie) ; src/modules/etats-financiers-syscohada/etats-financiers-smt-syscohada.service.ts l. 1053-1117 (Note 1, cautions lues sur le 275)
 - **Correction** · Pour un dossier SYSCOHADA au SMT dont la forme est SOCIETE_COOPERATIVE, servir deux tableaux en saisie (garanties personnelles données ; sûretés réelles consenties) fondés sur l'AUSCOOP art. 109, aux côtés des notes du Titre X. Aucun compte ne les porte : ce sont des rubriques en saisie, comme leurs pendants de la Note 1 du Système normal. Ne pas les servir aux autres formes au SMT, que l'art. 109 ne vise pas. À défaut, nommer l'absence à l'écran des notes SMT d'une coopérative.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O6-B4 · INCOMPLET
 
@@ -1132,7 +1179,7 @@ Aucun constat retenu.
 - **Source** · auscoop-acte-uniforme/references/partie1-titre2-3-fonctionnement-responsabilite.md, l. 99-103
 - **Code** · src/modules/exercice/planning-cloture.ts l. 81-91 (FORMES_SOCIETES_ASSEMBLEE sans la coopérative), l. 645 et l. 821 (jalons bornés à cette liste), l. 770-779 (étape 21, source AUDCIF seule)
 - **Correction** · Ajouter deux jalons réservés à SOCIETE_COOPERATIVE (formesSyscohada). Le premier : assemblée générale ordinaire dans les six mois de la clôture (AUSCOOP art. 110 al. 1). Le second : transmission des états financiers à l'organisation faîtière immédiate, au moins 45 jours avant cette assemblée (art. 110 al. 2). Le second est rédigé au conditionnel du texte (« le cas échéant », si la coopérative est affiliée), puisque le dossier ne porte pas l'affiliation, et se compte à rebours de l'assemblée comme le jalon des commissaires aux comptes.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O6-B5 · INCOMPLET
 
@@ -1140,7 +1187,7 @@ Aucun constat retenu.
 - **Source** · auscoop-acte-uniforme/references/partie1-titre2-3-fonctionnement-responsabilite.md, l. 105-107
 - **Code** · src/modules/documents-obligatoires/correspondance-inventaire-syscohada.ts l. 130-180 (SECTIONS_RAPPORT_GESTION_AUSCOOP, six sections, art. 108 seul) et l. 222-229 ; src/modules/documents-obligatoires/rapport-activite.service.ts l. 262-278 (complet = toutes sections renseignées) ; src/modules/comptabilite/ecriture.service.ts l. 526-551 (motif CHANGEMENT_METHODE)
 - **Correction** · Ajouter à la table AUSCOOP une septième section « Modifications de présentation ou de méthodes » fondée sur l'art. 111. Elle n'est exigée que si l'exercice porte une imputation d'ouverture au motif CHANGEMENT_METHODE, ou si le cabinet déclare une modification de présentation. Sinon, elle se renseigne « néant » par le cabinet, sans être comptée manquante. Ne pas l'ajouter à la table AUSCGIE : ce n'est pas le même texte.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O6-B6 · INCOMPLET
 
@@ -1148,7 +1195,7 @@ Aucun constat retenu.
 - **Source** · auscoop-acte-uniforme/references/partie1-titre5-8-transformation-fusion-dissolution-nullite.md, l. 141-145
 - **Code** · src/modules/tenant/mentions-societe.ts l. 137 (mentionsEmetteur, aucune mention de liquidation) ; src/modules/tenant/mentions-immatriculation.ts l. 73 (coopérative : aucune ligne) ; src/modules/exercice/exercice.service.ts l. 215-219 (drapeau liquidation non persisté)
 - **Correction** · Permettre à une SOCIETE_COOPERATIVE de déclarer sa dissolution : une date et le nom du ou des liquidateurs, null par défaut, jamais déduits. Quand ils sont déclarés, mentionsEmetteur ajoute « Société en liquidation · liquidateur : … » à toute pièce émise après la date, et le signale comme manquant si le nom du liquidateur manque. Recopier la mention à la date de la pièce, comme les autres. Ne pas étendre aux autres formes sans lire leur propre texte.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O6-C2 · INCOMPLET
 
@@ -1156,7 +1203,7 @@ Aucun constat retenu.
 - **Source** · auscoop-acte-uniforme/references/partie2-titre1-societe-cooperative-simplifiee.md l. 21 (art. 205) ; partie1-titre1-ch1-3-constitution-statuts.md l. 259 (art. 19) ; partie2-titre2a-coop-ca-constitution-administration.md l. 19 (art. 268)
 - **Code** · src/modules/tenant/mentions-immatriculation.ts l. 73 ; src/modules/tenant/mentions-societe.ts l. 90 et l. 137-141 ; src/modules/tenant/mentions-immatriculation.spec.ts l. 39-40 ; prisma/schema.prisma l. 94-96 (enum) et l. 400 (rccm) ; client/src/pages/ParametresDossierPage.tsx l. 477
 - **Correction** · Ajouter une branche coopérative à `mentionsEmetteur` : ligne composée de la forme, de l'adresse du siège et du numéro au Registre des Sociétés Coopératives, chaque absence DITE dans `manquantes` avec son article (AUSCOOP art. 19 ; art. 205 ou 268). Déclarer la catégorie (SCOOPS ou COOP-CA) par un champ nullable sans défaut (null = pas encore dit, et le manque le dit), jamais déduite du nombre de membres. Porter le numéro RSC dans un champ nommé comme tel (ou relibeller le champ pour la coopérative), jamais imprimé sous le mot « RCCM ». Garder la partie juste du spec (pas de reproche au titre du RCCM, AUDCG art. 59) et remplacer « ne se voit rien reprocher » par l'exigence de l'art. 19.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O6-D1 · INCOMPLET
 
@@ -1164,7 +1211,7 @@ Aucun constat retenu.
 - **Source** · auscoop-acte-uniforme/references/partie2-titre2a-coop-ca-constitution-administration.md l. 17-19 (art. 268) ; partie2-titre1-societe-cooperative-simplifiee.md l. 19-21 (art. 205) ; partie1-titre1-ch1-3-constitution-statuts.md l. 253-259 (art. 19)
 - **Code** · prisma/schema.prisma l. 94-96 (SOCIETE_COOPERATIVE unique pour « SCOOPS (art. 204) ou COOP-CA (art. 267) ») ; src/modules/tenant/mentions-immatriculation.ts l. 73 (`if (forme === SOCIETE_COOPERATIVE) return { ligne: null, manquantes: [] }`) ; src/modules/tenant/mentions-societe.ts l. 24-27 (commentaire « LEUR IMMATRICULATION, elle, s'imprime ») et l. 89-90 (mentionsArticle17 : coopérative hors périmètre) ; src/modules/tenant/mentions-immatriculation.ts l. 113-119 (numeroRegistreLiasse rend t.rccm) ; client/src/pages/ParametresDossierPage.tsx l. 477 (champ « RCCM » seul) ; client/src/lib/formes-juridiques-syscohada.ts l. 74-78
 - **Correction** · 1) Déclarer la variante de coopérative sans valeur par défaut : soit deux valeurs d'énumération (SCOOPS, COOP-CA), soit un champ `varianteCooperative` à null tant que rien n'est dit, et le dire à l'écran. 2) Pour une coopérative, faire composer par mentionsEmetteur la forme mot pour mot selon la variante déclarée : art. 268 pour la COOP-CA, art. 205 pour la SCOOPS. Si la variante n'est pas déclarée, lister le manque (« forme de la société coopérative (AUSCOOP art. 19, 205 ou 268) ») au lieu de rendre une ligne vide qui se lit comme conforme. Compléter avec le siège et un numéro au Registre des Sociétés Coopératives, champ distinct du RCCM, sa présence étant exigée par l'art. 19 (bloc de la Partie 1). 3) Corriger le commentaire de mentions-societe.ts l. 26 : l'immatriculation d'une coopérative ne s'imprime pas aujourd'hui. 4) Ne pas imprimer ce numéro dans la case RCCM de la liasse sans le nommer comme numéro du Registre des Sociétés Coopératives. Aucun capital n'est à exiger au titre de l'art. 268, qui ne le mentionne pas.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O6-A4 · CONFORT
 
@@ -1172,7 +1219,7 @@ Aucun constat retenu.
 - **Source** · auscoop-acte-uniforme/references/partie1-titre1-ch4-registre-immatriculation.md:69 (art. 74) ; partie2-titre1-societe-cooperative-simplifiee.md:29 (art. 206)
 - **Code** · prisma/schema.prisma:95 ; src/modules/tenant/mentions-immatriculation.ts:25-26 ; src/modules/exercice/planning-cloture.ts:97-98 (et planning-cloture.spec.ts:212) ; client/src/lib/formes-juridiques-syscohada.ts:77
 - **Correction** · Citer « AUSCOOP art. 74 » (au besoin « art. 74, et art. 206 pour la SCOOPS »). Le commentaire du schéma est un commentaire, pas une migration appliquée : il se corrige.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O6-B7 · CONFORT
 
@@ -1180,7 +1227,7 @@ Aucun constat retenu.
 - **Source** · auscoop-acte-uniforme/references/partie1-titre2-3-fonctionnement-responsabilite.md, l. 133-141
 - **Code** · src/modules/affectation/regles-affectation.ts l. 303-343 (cas SOCIETE_COOPERATIVE, source 'AUSCOOP, art. 113 et 114')
 - **Correction** · Compléter le motif (et la source, « art. 113 à 116 ») par la citation de l'art. 115 et de l'art. 116, sans contrôle chiffré. Le logiciel ne détient pas les « excédents nets d'exploitation », pour la raison déjà écrite au commentaire.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O6-B8 · CONFORT
 
@@ -1188,7 +1235,7 @@ Aucun constat retenu.
 - **Source** · auscoop-acte-uniforme/references/partie1-titre5-8-transformation-fusion-dissolution-nullite.md, l. 7-15
 - **Code** · client/src/pages/ParametresDossierPage.tsx l. 1177
 - **Correction** · Écrire « prévue par l'article 181 de l'AUSCGIE pour les sociétés commerciales, et par les articles 167 à 173 de l'AUSCOOP pour la coopérative ». Ce choix reste une correction de saisie, sans effet sur les états.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O6-B9 · CONFORT
 
@@ -1196,7 +1243,7 @@ Aucun constat retenu.
 - **Source** · auscoop-acte-uniforme/references/partie1-titre2-3-fonctionnement-responsabilite.md, l. 87
 - **Code** · src/modules/documents-obligatoires/rapport-activite.service.ts l. 157-167
 - **Correction** · N'ajouter « et les événements postérieurs se comptent à partir d'elle » que si les sections de la règle contiennent la clé evenementsPosterieurs, comme le fait déjà conformiteRapportGestion (l. 267-270).
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### O6-C4 · CONFORT
 
@@ -1204,7 +1251,7 @@ Aucun constat retenu.
 - **Source** · auscoop-acte-uniforme/references/partie2-titre1-societe-cooperative-simplifiee.md l. 393-401 (art. 255, 256) ; partie1-titre1-ch4-registre-immatriculation.md l. 67-69 (art. 74)
 - **Code** · client/src/pages/ParametresDossierPage.tsx l. 1177 ; client/src/lib/formes-juridiques-syscohada.ts l. 77 ; prisma/schema.prisma l. 94-95 ; src/modules/exercice/planning-cloture.ts l. 98 ; src/modules/tenant/mentions-immatriculation.ts l. 25-26
 - **Correction** · Dans l'aide, dire que la transformation d'une coopérative relève de l'AUSCOOP (art. 255 et 256 pour la SCOOPS) et non de l'art. 181 de l'AUSCGIE, sans en tirer de contrôle automatique. Remplacer « art. 206 » par « art. 74 » là où la phrase vise toute coopérative (garder l'art. 206 pour la seule SCOOPS).
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ## D1 · journal referentiels
 
@@ -1214,7 +1261,7 @@ Aucun constat retenu.
 - **Source** · droit-asbl-ong-rdc/references/loi-004-2001-texte-integral-journal-officiel.md, l. 292-302 et l. 244-247
 - **Code** · src/modules/exercice/planning-cloture.ts l. 435-444 (jalon 11, sans `formes`) ; l. 1072 (seul filtre `droitEtrangerSeulement`) ; comparer src/modules/accord-cadre/conditions-ong-etrangere.ts l. 48-53 et src/modules/accord-cadre/accord-cadre.service.ts l. 188-199
 - **Correction** · Borner le jalon 11 par la même règle que le module et le contrôle 29 : `formes: [ORGANISATION_NON_GOUVERNEMENTALE]` en plus de `droitEtrangerSeulement`, ou un appel à `articleTrenteSeptApplicable` dans `jalonsApplicables`. Retirer de la source la mention « art. 29 à 34 pour les associations étrangères », ou la reformuler pour dire que ces articles régissent l'autorisation et non l'accord-cadre. Ajouter au spec du planning le cas d'une association et celui d'un EUP de droit étranger, qui ne reçoivent pas ce jalon.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D1-A4 · FAUX
 
@@ -1222,7 +1269,7 @@ Aucun constat retenu.
 - **Source** · droit-asbl-ong-rdc/references/loi-004-2001-texte-integral-journal-officiel.md, l. 538-575 et l. 244-256
 - **Code** · src/modules/constitution/catalogue-constitution.ts l. 106-111 (étape personnalité, produit « Arrêté du Ministre de la Justice ») et l. 276-284 (`parcoursConstitution`, seul aiguillage ONG étrangère) ; src/modules/constitution/constitution.service.ts l. 60
 - **Correction** · Aiguiller le parcours par forme et par droit étranger, avec les seuls articles lus : - EUP : art. 60 à 63 (déclaration authentique, autorisation provisoire, statuts, arrêté dans les douze mois) ; - entité de droit étranger : art. 29 à 34, avec le produit « décret d'autorisation (art. 30) », la demande conforme à l'art. 4 (art. 31, al. 3) et l'art. 32 pour la confessionnelle ; - unité de gestion de projet : aucun parcours de la loi n° 004/2001, et l'écran le dit. Ne pas créer de pièce que les articles n'écrivent pas.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D1-B1 · FAUX
 
@@ -1230,7 +1277,7 @@ Aucun constat retenu.
 - **Source** · droit-asbl-ong-rdc/references/guide-pratique-constitution-ong-kahasha.md l. 677-688 ; droit-asbl-ong-rdc/references/loi-004-2001-texte-integral-journal-officiel.md l. 538-573
 - **Code** · src/modules/constitution/catalogue-constitution.ts l. 276-284 (parcoursConstitution ne distingue que l'ONG étrangère ; les étapes 1 et 2, l. 79-155, sont servies à ETABLISSEMENT_UTILITE_PUBLIQUE, UNITE_GESTION_PROJET et AUTRE) ; src/modules/constitution/constitution.controller.ts l. 17-26 (route ouverte à tout dossier SYCEBNL) ; prisma/schema.prisma l. 61-65
 - **Correction** · Faire lire la forme par parcoursConstitution : pour ETABLISSEMENT_UTILITE_PUBLIQUE, un parcours propre tiré des art. 60 à 63 (déclaration authentique, autorisation provisoire du ministre du secteur, arrêté de la Justice après avis dans les douze mois, statuts de l'art. 62), les pièces 7, 9 et 11 de l'annexe I portées en PRATIQUE_ADMINISTRATIVE avec leur source ; pour UNITE_GESTION_PROJET et AUTRE, rendre « ce dossier n'est pas concerné par la loi n° 004/2001 » comme le fait déjà la fenêtre Accord-cadre, sans liste. Ajouter le test par forme.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D1-B2 · FAUX
 
@@ -1238,7 +1285,7 @@ Aucun constat retenu.
 - **Source** · droit-asbl-ong-rdc/references/guide-pratique-constitution-ong-kahasha.md l. 394-423 ; droit-asbl-ong-rdc/references/loi-004-2001-texte-integral-journal-officiel.md l. 244-257
 - **Code** · src/modules/constitution/catalogue-constitution.ts l. 106-111 (libellé « Octroi de la personnalité juridique », produit « Arrêté du Ministre de la Justice ») et l. 188-193 (acte-personnalite, source « art. 3 »), servis quel que soit droitEtranger (l. 276-284)
 - **Correction** · Quand droitEtranger est vrai, servir une variante de l'étape 2 : « Autorisation d'exercer en RDC », destinataire Ministre de la Justice après avis et enregistrement au ministère du secteur (art. 31), produit « décret du Président de la République sur proposition du Ministre de la Justice (art. 30) », pièces de l'art. 4 par le renvoi de l'art. 31 al. 3 (art. 32 pour une confessionnelle). Signaler sans trancher l'écart décret (loi) / ordonnance (guide, arrêté n° 007/2025), comme exemption-is-ebnl.ts le fait déjà. Reprendre le même texte, pas un second.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D1-B4 · FAUX
 
@@ -1246,7 +1293,7 @@ Aucun constat retenu.
 - **Source** · droit-asbl-ong-rdc/references/guide-pratique-constitution-ong-kahasha.md l. 1151-1159
 - **Code** · src/modules/accord-cadre/conditions-ong-etrangere.ts l. 128-143 (la boucle n'avance que si !denonceLe) ; client/src/pages/AccordCadrePage.tsx l. 237 et 247-248 ; src/modules/accord-cadre/accord-cadre.spec.ts l. 84-93
 - **Correction** · Sous tacite reconduction, avancer les périodes jusqu'à celle qui couvre la date de dénonciation (et non la date de référence) et rendre la fin de cette période ; si la dénonciation tombe après fin moins préavis, le dire (« préavis de l'accord non respecté · l'effet dépend de l'accord signé ») sans fixer d'autre date. Libeller la colonne « Dénonciation reçue au plus tard le », la clause citée étant celle du modèle et à confronter à l'accord signé. Ajouter un test de dénonciation en deuxième période.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D1-A5 · INCOMPLET
 
@@ -1254,7 +1301,7 @@ Aucun constat retenu.
 - **Source** · droit-asbl-ong-rdc/references/loi-004-2001-texte-integral-journal-officiel.md, l. 58-61, l. 284-290, l. 249-252
 - **Code** · src/modules/constitution/constitution.service.ts l. 45-58 ; client/src/pages/ParametresDossierPage.tsx l. 436-442 (commentaire) et l. 448-451 (`champsOng`, `champsPlan`) ; client/src/pages/ConstitutionPage.tsx l. 74-78
 - **Correction** · Rendre `produitDetenu: null` (déjà prévu pour « aucun champ ») quand le dossier ne peut pas porter le champ pour sa forme, plutôt que « non renseigné ». Ouvrir le champ d'enregistrement sectoriel à toute entité de droit étranger (art. 31) et corriger le commentaire. Ne pas présenter l'enregistrement sectoriel comme le produit de l'avis favorable de l'art. 5.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D1-A6 · INCOMPLET
 
@@ -1262,7 +1309,7 @@ Aucun constat retenu.
 - **Source** · droit-asbl-ong-rdc/references/loi-004-2001-texte-integral-journal-officiel.md, l. 146-150
 - **Code** · src/modules/tenant/mentions-societe.ts l. 88-89 et l. 137-142 ; src/modules/tenant/mentions-immatriculation.ts l. 63 ; src/modules/facturation/facturation.service.ts l. 343 ; client/src/pages/FacturationPage.tsx l. 904-910 ; client/src/components/NouveauFichierWizard.tsx l. 43-46 (seul rappel)
 - **Correction** · Pour les formes ASSOCIATION, ORGANISATION_NON_GOUVERNEMENTALE et ASSOCIATION_CONFESSIONNELLE de droit congolais, porter la mention de l'art. 16 dans la ligne de l'émetteur, sur le modèle de l'art. 17 : si la dénomination ne contient pas déjà les mots, les imprimer à côté ou les signaler comme mention manquante, jamais en réécrivant la dénomination. Laisser non tranchée, et la dire telle quelle, la lecture de « en toute lettre » suivi de « en sigle » : le mot entier, le sigle, ou les deux.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D1-B3 · INCOMPLET
 
@@ -1270,7 +1317,7 @@ Aucun constat retenu.
 - **Source** · droit-asbl-ong-rdc/references/guide-pratique-constitution-ong-kahasha.md l. 191-205 ; droit-asbl-ong-rdc/references/loi-004-2001-texte-integral-journal-officiel.md l. 249-251, 284-291
 - **Code** · src/modules/constitution/constitution.service.ts l. 45-58 (commentaire « L'avis favorable […] se matérialise […] par le numéro d'enregistrement ») et l. 60-69 ; client/src/pages/ConstitutionPage.tsx l. 74-79 ; à comparer à client/src/pages/ParametresDossierPage.tsx l. 440-452 et 486-506 (champsOng, champsPlan)
 - **Correction** · Faire servir par une seule règle (côté serveur, reprise par l'écran d'identité) quels champs d'identification existent pour une forme, et rendre produitDetenu à null quand la forme n'en porte aucun, avec la phrase « aucun champ du dossier ne porte cet acte ». Renommer le produit de l'étape 1 en « Avis favorable » et ne le rapprocher du numéro d'enregistrement que pour l'ONG (art. 36) et l'association étrangère (art. 31).
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D1-B5 · INCOMPLET
 
@@ -1278,7 +1325,7 @@ Aucun constat retenu.
 - **Source** · droit-asbl-ong-rdc/references/guide-pratique-constitution-ong-kahasha.md l. 685-691 ; droit-asbl-ong-rdc/references/loi-004-2001-texte-integral-journal-officiel.md l. 258-259, 425-430
 - **Code** · src/modules/constitution/catalogue-constitution.ts l. 79-99 (étape 1 servie sans réserve) et l. 106-155 (étape 2 sans la pièce de l'art. 52) ; parcoursConstitution l. 276-284
 - **Correction** · Pour ASSOCIATION_CONFESSIONNELLE, ajouter à l'étape 2 la pièce « Dossier des principes fondamentaux et des lignes maîtresses de l'enseignement religieux », fondement LOI, source « art. 52, 1° », et porter sur l'étape 1 une réserve citant l'art. 32 et le point 12 de l'annexe I (avis réclamé aux seules ASBL non confessionnelles), sans trancher la place de l'art. 32 dans la section des associations étrangères.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D1-B6 · INCOMPLET
 
@@ -1286,7 +1333,7 @@ Aucun constat retenu.
 - **Source** · droit-asbl-ong-rdc/references/guide-pratique-constitution-ong-kahasha.md l. 195-197, 276-277, 303-311 ; droit-asbl-ong-rdc/references/loi-004-2001-texte-integral-journal-officiel.md l. 31-33, 58-66
 - **Code** · src/modules/constitution/catalogue-constitution.ts l. 81-92 (produit « Pour une ONG LOCALE », source de la pièce « art. 5 al. 1 ») et l. 111 (produit de l'étape 2)
 - **Correction** · Produit de l'étape 1 : « autorisation provisoire de fonctionnement de six mois pour toute ASBL de droit congolais (art. 5 al. 1), accordée par le gouverneur pour une ASBL enregistrée en province (al. 2) ». Produit de l'étape 2 : l'arrêté, avec la mention que, passé six mois, la personnalité est censée octroyée et l'arrêté dû dans le mois (art. 5 al. 3). Source de la demande écrite : « art. 3 et 4 ». Ne rien déduire de l'absence d'arrêté.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D1-B7 · INCOMPLET
 
@@ -1294,7 +1341,7 @@ Aucun constat retenu.
 - **Source** · droit-asbl-ong-rdc/references/guide-pratique-constitution-ong-kahasha.md l. 148-155 ; droit-asbl-ong-rdc/references/loi-004-2001-texte-integral-journal-officiel.md l. 146-149
 - **Code** · src/modules/tenant/mentions-immatriculation.ts l. 63 (tout dossier SYCEBNL rend { ligne: null, manquantes: [] }) ; src/modules/tenant/mentions-societe.ts l. 137-142 (mentionsEmetteur) ; src/modules/relances/relances.service.ts l. 632
 - **Correction** · Pour un dossier SYCEBNL de forme ASSOCIATION, ORGANISATION_NON_GOUVERNEMENTALE ou ASSOCIATION_CONFESSIONNELLE non déclaré de droit étranger, faire rendre par mentionsEmetteur la mention « association sans but lucratif (A.S.B.L.) » à accoler à la dénomination, ou la nommer parmi les manquantes quand la dénomination saisie ne la porte pas, avec la source « loi n° 004/2001, art. 16 ». Ne rien servir à l'EUP ni à l'UGP, ni aux associations étrangères, que l'article ne vise pas.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D1-C1 · INCOMPLET
 
@@ -1302,7 +1349,7 @@ Aucun constat retenu.
 - **Source** · droit-asbl-ong-rdc/references/documentation-cenco-asbl-confessionnelles.md l. 251-256 ; loi-004-2001-texte-integral-journal-officiel.md l. 105 et 146-149
 - **Code** · src/modules/tenant/mentions-societe.ts:88-90 et 137-141 (mentionsArticle17 et mentionsEmetteur renvoient null hors SYSCOHADA) ; src/modules/tenant/mentions-immatriculation.ts:63 ; consommateurs : src/modules/facturation/facturation.service.ts:344, src/modules/commercial/commercial.service.ts:234, src/modules/relances/relances.service.ts:632, src/modules/auth/auth.service.ts:688-692 ; citation tronquée : client/src/components/NouveauFichierWizard.tsx:42-46
 - **Correction** · Ajouter à `IdentiteSociete` la forme EBNL (`formeJuridique`) et `droitEtranger`. Dans `mentionsEmetteur`, pour le SYCEBNL et les seules formes ASSOCIATION, ORGANISATION_NON_GOUVERNEMENTALE et ASSOCIATION_CONFESSIONNELLE de droit congolais (art. 16 est dans la Section I du Chapitre II, « ASBL de droit congolais » ; l'EUP relève du Titre II, et l'unité de gestion de projet comme « AUTRE » sont hors loi), deux cas. Si la dénomination porte déjà « association sans but lucratif », « ASBL » ou « A.S.B.L. » (l'art. 7, 1° l'impose dans les statuts), il n'y a rien à ajouter. Sinon, imprimer « Association sans but lucratif (A.S.B.L.) » au plus près de la dénomination, ou le nommer dans `manquantes`. Pour une association de droit étranger, s'abstenir sans rien affirmer. Aucune sanction n'est à chiffrer, l'article n'en porte pas. Citer l'art. 16 en entier dans le commentaire du wizard.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D1-C2 · INCOMPLET
 
@@ -1310,7 +1357,7 @@ Aucun constat retenu.
 - **Source** · droit-asbl-ong-rdc/references/documentation-cenco-asbl-confessionnelles.md l. 686-697 et 509-543
 - **Code** · src/modules/exercice/planning-cloture.ts:285-297 (nature: 'LEGALE', detail l. 289, source l. 294) ; affichage client/src/pages/ExercicePage.tsx:581 et 597-600 ; affirmation contredite : docs/obligations-annuelles-ebnl-rdc.md:106-112
 - **Correction** · Écrire dans `detail` et `source` la réserve que la source porte. Le texte proposé : « mesure réglementaire du Ministère de la Justice décrite par la CENCO ; aucun article de la loi n° 004/2001 ne la porte ; le texte réglementaire n'a pas été identifié ». Remplacer « ministère de tutelle » par « Ministère de la Justice ». Retirer « qui ne le remplace pas », ou le remplacer par « aucune source lue ne dit si la liasse SYCEBNL en tient lieu ». Pour la qualification, le type actuel (INTERNE / LEGALE) exige une sanction que la source ne nomme pas : garder LEGALE avec la réserve écrite, ou décider d'une troisième nature sans l'inventer ici. Ne jamais reprendre de la brochure CENCO une date ni un numéro d'article de la loi. Elle date la signature du 10 juillet 2001 (l. 407) et le JO du 1er août (l. 29), quand le JO porte le 20 juillet et le 15 août. Elle numérote aussi 35 à 37 des « dispositions transitoires » (l. 388-405), quand le texte officiel range l'ONG aux art. 35 à 45.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D1-C3 · INCOMPLET
 
@@ -1318,7 +1365,7 @@ Aucun constat retenu.
 - **Source** · droit-asbl-ong-rdc/references/documentation-cenco-asbl-confessionnelles.md l. 650-651, 684-693, 834-837
 - **Code** · src/modules/exercice/planning-cloture.ts:295 (formes: FORMES_ASBL, aucun critère de personnalité ni de droit étranger) ; filtre src/modules/exercice/planning-cloture.ts:1059
 - **Correction** · Ne pas filtrer sur `actePersonnaliteJuridique` vide, car un champ non saisi ne prouve pas que la personnalité fait défaut. Écrire la condition dans `detail`, avec la citation des l. 834-837 : l'obligation vise l'ASBL de droit congolais dotée de la personnalité juridique. Pour un dossier `droitEtranger`, dire qu'aucune source lue ne l'y soumet, plutôt que de lui servir l'échéance comme due.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D1-C4 · INCOMPLET (latent · table encore servie par aucun écran)
 
@@ -1326,7 +1373,7 @@ Aucun constat retenu.
 - **Source** · droit-asbl-ong-rdc/references/documentation-cenco-asbl-confessionnelles.md l. 239-250
 - **Code** · src/modules/exercice/planning-cloture.ts:934-944 (cle 'mouvementImmeuble', evenement l. 936, ecranDeclencheur l. 943)
 - **Correction** · Élargir `evenement` à « Acquisition ou aliénation d'un immeuble, ou toute opération qui en confère ou en fait perdre l'usage ou la jouissance ». Écrire `delai` : « dans les trois mois de la date de l'acte qui la réalise ». Préciser que le prix n'est exigé que pour une acquisition ou une aliénation. Garder l'écran des Immobilisations comme déclencheur de la seule acquisition ou aliénation, et dire que les opérations d'usage ou de jouissance ne sont détectées par aucun écran. Aucune détection automatique n'est à inventer.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D1-A2 · CONFORT
 
@@ -1334,7 +1381,7 @@ Aucun constat retenu.
 - **Source** · droit-asbl-ong-rdc/references/loi-004-2001-texte-integral-journal-officiel.md, l. 302 et l. 339-342
 - **Code** · src/modules/exercice/planning-cloture.ts l. 436-438 (libellé et détail du jalon 11) ; src/modules/exercice/planning-cloture.spec.ts l. 117 (libellé figé) ; client/src/pages/AccordCadrePage.tsx l. 105 ; src/modules/personnel/effectif-registre.ts l. 80-81
 - **Correction** · Citer le texte : « main-d'œuvre locale, 60 % au minimum (art. 37, 4°) ». Dans la proposition du registre, déclarer comme une LECTURE d'OmegaX, non tranchée par la loi, le fait de compter la main-d'œuvre locale par la nationalité congolaise (art. 37 « locale » contre art. 42 « nationaux »). Mettre à jour le libellé figé par le spec.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D1-A3 · CONFORT
 
@@ -1342,7 +1389,7 @@ Aucun constat retenu.
 - **Source** · droit-asbl-ong-rdc/references/loi-004-2001-texte-integral-journal-officiel.md, l. 593-600 et l. 354-358
 - **Code** · src/modules/exercice/planning-cloture.ts l. 414-421 (jalon 10), l. 435-441 (jalon 11), l. 705-711 (jalon 19) ; src/modules/exercice/exercice.service.ts l. 467 (`enRetard`) ; client/src/pages/AccueilPage.tsx l. 267 et 528-530
 - **Correction** · Distinguer, sur ces jalons, l'obligation légale de la date proposée. Deux voies possibles, sans inventer de délai : un drapeau d'échéance indicative, que `enRetard` n'additionne pas (ou qu'il affiche « repère dépassé »), ou le classement en INTERNE de la seule date. Écrire dans le détail du jalon 10 que l'art. 66 ne fixe aucun délai, et remplacer « Le ministre les transmet » par la formule passive du texte.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D1-A7 · CONFORT
 
@@ -1350,7 +1397,7 @@ Aucun constat retenu.
 - **Source** · droit-asbl-ong-rdc/references/loi-004-2001-texte-integral-journal-officiel.md, l. 137-144
 - **Code** · src/modules/exercice/planning-cloture.ts l. 934-943 (`mouvementImmeuble`), l. 924-932 (`changementAdministrateur`), l. 1031 (`obligationsEvenementiellesApplicables`, sans appelant hors spec)
 - **Correction** · Compléter l'événement avec la phrase de l'art. 15 sur l'usage et la jouissance. Servir l'obligation là où l'événement se constate : entrée et sortie d'un bien immobilier dans la fenêtre Immobilisations, pour les formes ASBL de droit congolais du SYCEBNL, avec le délai de trois mois à compter de l'acte, les deux destinataires et le prix. Ne pas déduire la nature immobilière d'un numéro de compte sans la table du référentiel. Faire de même pour l'art. 11, ou dire à l'écran que la table n'est pas encore servie.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D1-A9 · CONFORT
 
@@ -1358,7 +1405,7 @@ Aucun constat retenu.
 - **Source** · droit-asbl-ong-rdc/references/loi-004-2001-texte-integral-journal-officiel.md, l. 58-63 et l. 35-39
 - **Code** · src/modules/constitution/catalogue-constitution.ts l. 79-98
 - **Correction** · Rattacher la démarche à l'art. 4 (requête transmise sous couvert du ministre du secteur), ou la classer hors du fondement LOI, sans inventer de pièce. Ajouter au destinataire de l'étape le gouverneur de province de l'art. 5, al. 2.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ## D2 · journal referentiels
 
@@ -1368,7 +1415,7 @@ Aucun constat retenu.
 - **Source** · droit-travail-congolais/references/texte-loi-verbatim/04-titre-iv-du-contrat-de-travail.md, l. 153, 182, 186
 - **Code** · src/modules/personnel/decompte-final.ts l. 150-175 (préavis calculé pour tout motif hors faute lourde, force majeure et terme du CDD), l. 318-326 (rubrique « preavis » toujours chiffrée au crédit du travailleur), l. 376 (totalBrutFc) ; client/src/pages/PersonnelPage.tsx l. 568 (initiative 'EMPLOYEUR' par défaut, indépendante du motif) et l. 3007-3035
 - **Correction** · Demander au décompte la part du préavis NON observée (jours) et la partie responsable. N'inscrire l'indemnité au crédit du travailleur que lorsque l'employeur a rompu sans préavis ou sans l'observer entièrement ; pour une démission non observée, la montrer comme due PAR le travailleur, hors du total qui lui est dû ; pour un commun accord, rendre la rubrique à saisir (null, pas zéro) avec la mention que l'art. 61 bis ne fixe aucun préavis. Dériver l'initiative du motif (démission = travailleur) ou refuser les combinaisons incohérentes.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-A2 · FAUX
 
@@ -1376,7 +1423,7 @@ Aucun constat retenu.
 - **Source** · droit-travail-congolais/references/texte-loi-verbatim/04-titre-iv-du-contrat-de-travail.md, l. 130, 142, 275
 - **Code** · src/modules/personnel/decompte-final.ts l. 133-138
 - **Correction** · Remplacer le message par les conditions du texte : constatation par l'Inspecteur du travail (art. 57), résiliation sans indemnité après deux mois de suspension (art. 60 c), faillite et liquidation judiciaire exclues (art. 80). Sans ces deux faits déclarés (constat de l'Inspecteur, deux mois de suspension), ne pas rendre un préavis à zéro mais une rubrique indéterminée.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-A3 · FAUX
 
@@ -1384,7 +1431,7 @@ Aucun constat retenu.
 - **Source** · droit-travail-congolais/references/texte-loi-verbatim/04-titre-iv-du-contrat-de-travail.md, l. 206, 210, 213-214
 - **Code** · src/modules/personnel/decompte-final.ts l. 87-95 (MotifRupture sans rupture anticipée de CDD ni essai), l. 115-178 (preavisLegal) ; src/modules/personnel/dto/personnel.dto.ts l. 583-632 (DecompteFinalDto sans type de contrat ni essai)
 - **Correction** · Ajouter au décompte le type de contrat et la situation d'essai. Essai : 3 jours ouvrables (0 pendant les trois premiers jours), art. 71. CDD rompu avant terme par l'employeur : aucun préavis, rubrique « dommages-intérêts art. 70 » égale aux salaires et avantages jusqu'au terme (nombre de jours restants saisi ou lu sur dateFinPrevue). Réserver l'art. 64 au contrat à durée indéterminée.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-A5 · FAUX
 
@@ -1392,7 +1439,7 @@ Aucun constat retenu.
 - **Source** · droit-travail-congolais/references/texte-loi-verbatim/10-titre-x-des-moyens-de-controle.md, l. 6 ; 04-titre-iv-du-contrat-de-travail.md, l. 51, 206
 - **Code** · src/modules/personnel/regles-contrat-travail.ts l. 296-310 (mentionsManquantes sans test de constateParEcrit), l. 275-276 (DUREE_PREAVIS exigé quel que soit le type) ; src/modules/personnel/personnel.service.ts l. 632 et l. 687-688 (appel sans filtre et décompte des signalements)
 - **Correction** · Ne produire les mentions de l'art. 212 que pour un contrat constaté par écrit (le contrat non écrit relève déjà de la requalification PAS_D_ECRIT, et le jour le jour de l'art. 44 al. 3). Ne pas exiger le point 12 d'un contrat à durée déterminée, en citant l'art. 69, sur le modèle de l'exemption déjà posée pour DUREE_ENGAGEMENT.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-A7 · FAUX
 
@@ -1400,7 +1447,7 @@ Aucun constat retenu.
 - **Source** · droit-travail-congolais/references/texte-loi-verbatim/03-titre-iii-du-contrat-d-apprentissage.md, l. 16, 27, 34, 44
 - **Code** · src/modules/personnel/personnel.service.ts l. 655 (visaOnemManquant sans égard au type) ; client/src/pages/PersonnelPage.tsx l. 1853-1857 (message art. 47) ; src/modules/personnel/regles-contrat-travail.ts l. 369 (retour anticipé pour APPRENTISSAGE)
 - **Correction** · Pour un contrat d'apprentissage, servir le visa sous l'art. 21 avec sa formule (présomption de contrat de travail), et ajouter les requalifications propres au Titre III : défaut d'écrit (art. 19 et 23), défaut de visa (art. 21 al. 3), durée supérieure à quatre ans (art. 20, 4). Garder l'exclusion des art. 41 et 42, qui reste juste.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-B1 · FAUX
 
@@ -1408,7 +1455,7 @@ Aucun constat retenu.
 - **Source** · droit-travail-congolais/references/texte-loi-verbatim/12-titre-xii-des-relations-professionnelles.md l. 177-178
 - **Code** · src/modules/personnel/decompte-final.ts l. 160-165 (doublement seul, plancher non appliqué) et l. 319-327 (montant = jour × jours, versé au total) ; client/src/pages/PersonnelPage.tsx l. 3063-3070 (case « Délégué syndical » seule)
 - **Correction** · Quand le délégué est coché et que le préavis doublé peut rester sous trois mois, rendre la rubrique de préavis `null` avec un motif, donc le total `null` aussi. Deux façons de la chiffrer sans rien inventer : le cabinet saisit la durée retenue en jours ouvrables, ou il saisit la date de notification et OmegaX compte les trois mois de date à date en jours ouvrables au sens de l'art. 7, point 9, samedi compris et jours fériés de l'ordonnance n° 23-042 exclus. Prendre alors le plus grand des deux chiffres. Élargir la case à « délégué ou candidat (art. 258, al. 7) ».
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-B2 · FAUX
 
@@ -1416,7 +1463,7 @@ Aucun constat retenu.
 - **Source** · texte-loi-verbatim/06-titre-vi-des-conditions-generales-de-travail.md l. 121 ; texte-loi-verbatim/01-titre-i-des-dispositions-generales.md l. 96-98
 - **Code** · src/modules/personnel/decompte-final.ts l. 344-345 (reserve de la rubrique 'conge'), affichée par client/src/pages/PersonnelPage.tsx l. 3144-3147
 - **Correction** · Retirer la phrase « une indemnité de logement en ESPÈCES est de la rémunération et y entre ». Écrire à la place ce que disent les deux textes : l'allocation se calcule sur la rémunération ; l'art. 7, point 8 en exclut l'indemnité de logement comme le logement en nature ; l'art. 142 exclut en outre le logement de la conversion en espèces. Si une indemnité de logement reste due pendant le congé, c'est une question du contrat (art. 138), hors de l'indemnité compensatoire. Corriger la même phrase dans CLAUDE.md.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-B3 · FAUX
 
@@ -1424,7 +1471,7 @@ Aucun constat retenu.
 - **Source** · texte-loi-verbatim/06-titre-vi-des-conditions-generales-de-travail.md l. 122 ; texte-loi-verbatim/04-titre-iv-du-contrat-de-travail.md l. 197
 - **Code** · src/modules/personnel/decompte-final.ts l. 349-360 (rubrique 'moyenne-douze-mois' à montant fixe), l. 312-346 (préavis et congé = remunerationJournaliereFc × jours seulement), l. 375-378 (total) ; client/src/pages/PersonnelPage.tsx l. 3070-3077
 - **Correction** · Supprimer la rubrique autonome. Demander la moyenne exprimée par jour et l'ajouter au taux journalier des rubriques de préavis (art. 66) et de congé (art. 142), en disant sur la ligne comment elle a été ramenée au jour. Sans cette moyenne, rendre ces deux rubriques `null`. Retirer « qu'OmegaX ne détient pas » ou le remplacer par « lue sur les bulletins émis des douze mois quand ils existent, saisie sinon ». Mettre le spec à jour.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-B4 · FAUX
 
@@ -1432,7 +1479,7 @@ Aucun constat retenu.
 - **Source** · droit-travail-congolais/references/livre-de-paie-decompte-ecrit/arrete-12-042-2008-modele-livre-de-paie.md l. 117 ; texte-loi-verbatim/05-titre-v-du-salaire.md l. 75-76
 - **Code** · src/modules/personnel/decompte-final.ts l. 388 ; client/src/pages/PersonnelPage.tsx l. 2972-2980 (bandeau et Aide « usage professionnel »)
 - **Correction** · Remplacer « usage professionnel » par l'obligation de l'art. 2, al. 3 de l'arrêté de 2008. Servir dans les réserves du décompte `DECOMPTE_A_LA_RUPTURE` et `SANCTION_ARTICLE_103`, qui existent déjà dans livre-de-paie.ts. Au minimum, dire que l'écran calcule mais n'émet pas le décompte écrit dû à la rupture. Le contenu chiffré reste celui que le Code fixe.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-B5 · FAUX
 
@@ -1440,7 +1487,7 @@ Aucun constat retenu.
 - **Source** · texte-loi-verbatim/15-titre-xv-des-penalites.md l. 181-183
 - **Code** · src/modules/personnel/retenues-autorisees.ts l. 118-122 (SANCTION_ARTICLE_112), servie par personnel.service.ts l. 1224 et affichée par client/src/pages/PersonnelPage.tsx l. 2899-2901
 - **Correction** · Remplacer la dernière phrase par : « Une retenue illicite pratiquée sur les bulletins de cent travailleurs est donc cent amendes, dans la limite de cinquante fois le taux. » Ajouter un test qui gèle « travailleurs » dans cette phrase.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-C1 · FAUX
 
@@ -1448,7 +1495,7 @@ Aucun constat retenu.
 - **Source** · droit-travail-congolais/references/smig-cotisations-textes-application/decret-18-017-2018-fixation-smig-abroge.md l. 3-6, 28-40, 74-76, 130-169
 - **Code** · src/modules/personnel/bareme-smig.ts:236-239 (REFUS_ANTERIEUR, rendu à l'écran par annexeApplicable l. 297) et l. 477-480 ; src/modules/personnel/cotisations-paie.ts:373 ; src/modules/personnel/regles-contrat-travail.ts:813-814 (abstention HORS_BAREME) ; contradiction interne : src/modules/personnel/quotite-saisissable.ts:279-284
 - **Correction** · Corriger le message et le commentaire : le décret n° 18/017 est au corpus. Ajouter à ANNEXES une annexe « décret n° 18/017 » couvrant les paies 2019-01 à 2025-04, sur la base de 7 075 FC (art. 2, 3e palier de l'art. 3), avec les 17 taux transcrits, la colonne 19 (262,04) et la colonne 20. Les deux réserves de lecture du fichier restent attachées : classe 8 lue 18 385,5 et rétablie à 19 385,5 par l'arithmétique ; colonne 20 lue 52,40 contre 52,41 calculé. Pour 2018, s'abstenir sur le motif vrai : les paliers de 2 358,33 et 4 716,66 FC renvoient « suivant l'annexe », qui n'est publiée qu'à 7 075 FC, et le régime agro-industriel à quatre paliers est distinct. Pour 2019-2025, le verdict de minimum doit porter la majoration d'ancienneté de l'art. 7, ou s'abstenir sans l'ancienneté. Ne pas trancher son sort après l'abrogation (question posée au dossier, selon le fichier source).
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-C2 · FAUX
 
@@ -1456,7 +1503,7 @@ Aucun constat retenu.
 - **Source** · droit-travail-congolais/references/smig-cotisations-textes-application/allocation-familiale-deux-textes-une-divergence.md l. 96-106 ; decret-25-22-2025-fixation-smig.md l. 100-105
 - **Code** · src/modules/personnel/passation-paie.ts:210-211 (NATURES_SANS_IMPUTATION.ALLOCATIONS_FAMILIALES_LEGALES, affiché par le refus NATURE_SANS_IMPUTATION l. 370-375 et par rubriques-paie.ts:59) ; lecture contraire du même dépôt : src/modules/personnel/assiettes-paie.ts:182-199
 - **Correction** · Réécrire le motif en distinguant les deux obligations. D'un côté, les allocations minima de la colonne 19, dues par l'employeur (décret n° 25/22 art. 5, Code art. 87), qui sont une charge. De l'autre, la prestation de 8 100 FC de la CNSS avancée en dévolution (arrêté n° 143/2018), qui est une créance. Le refus d'imputer ne peut rester que sous le motif vrai : le compte de charge qui reçoit les allocations minima n'a pas encore été lu dans les fiches des comptes 66 et 42 des deux plans. Ne pas deviner un numéro, par exemple le 42420000 semé, qui est un compte d'œuvres sociales ; lire les deux fiches avant d'ouvrir la nature.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-C4 · FAUX
 
@@ -1464,7 +1511,7 @@ Aucun constat retenu.
 - **Source** · droit-travail-congolais/references/decompte-final-calcul-pratique.md l. 100, 112, 145-147 ; texte-loi-verbatim/04-titre-iv-du-contrat-de-travail.md l. 179-182
 - **Code** · src/modules/personnel/decompte-final.ts:303-328 (rubrique « preavis » toujours positive) et l. 167-173 (démission) ; l. 375-378 (total)
 - **Correction** · Faire DÉCLARER si le préavis a été presté, dispensé par l'employeur, dispensé à la demande du travailleur ou inobservé par l'une des parties. Rendre la rubrique à null tant que ce n'est pas déclaré. Ne la porter au crédit du travailleur que si l'employeur est responsable ou l'a dispensé. En démission non prestée, montrer le montant dû par le travailleur séparément, sans l'ajouter au total qui lui revient. La durée (art. 64, 258) reste calculée comme aujourd'hui.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-C5 · FAUX
 
@@ -1472,7 +1519,7 @@ Aucun constat retenu.
 - **Source** · texte-loi-verbatim/04-titre-iv-du-contrat-de-travail.md l. 194-197 ; texte-loi-verbatim/06-titre-vi-des-conditions-generales-de-travail.md l. 120-123 ; decompte-final-calcul-pratique.md l. 183-189
 - **Code** · src/modules/personnel/decompte-final.ts:349-360 (rubrique « moyenne-douze-mois ») et l. 277-279 ; src/modules/personnel/dto/personnel.dto.ts (moyenneDouzeMoisFc) ; client/src/pages/PersonnelPage.tsx « Moyenne 12 mois (FC) »
 - **Correction** · Ne plus additionner la moyenne comme une rubrique. L'incorporer au taux journalier qui sert au préavis et à l'indemnité de congé. La conversion du mois en jour se fait sur la base de 26 jours que le séminaire pose (l. 307) et que l'art. 7 du décret n° 25/22 emploie, et elle est déclarée comme une convention. À défaut, faire saisir directement le taux journalier incluant la moyenne, avec la règle des articles 66 et 142 dans l'aide.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-D1 · FAUX
 
@@ -1480,7 +1527,7 @@ Aucun constat retenu.
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/cnss-cotisations-sociales-rdc/references/loi-16-009-2016-regime-general-securite-sociale.md l. 42-50 et l. 114 ; .../references/am-139-2018-assujettissement-travailleurs-assimiles-risques-professionnels.md l. 17-18
 - **Code** · src/modules/personnel/cotisations-paie.ts:474-502 (les trois branches posées sans condition) ; src/modules/personnel/personnel.service.ts:1088 (appel de cotisations() sans le type du contrat) ; src/modules/personnel/personnel.service.ts:1367-1374 (le contrat couvrant le mois est lu sans son champ type) ; prisma/schema.prisma:6469 (APPRENTISSAGE existe dans TypeContratTravail)
 - **Correction** · Lire le type du contrat couvrant le mois (contratCouvrantLeMois) et le transmettre à cotisations(). Pour APPRENTISSAGE, ne poser que la ligne des risques professionnels, à la charge du maître (arrêté n° 139/2018, art. 4, 1°), sans quote-part ouvrière ni prestations aux familles. Assortir cette ligne d'une réserve : l'assiette d'un assimilé peut être un revenu fixé par le Conseil d'administration de la CNSS (loi, art. 13, al. 2), décision qui n'est pas au corpus. Pour une simulation sans salarié, dire que le calcul vaut pour un travailleur assujetti à toutes les branches (art. 3). Écrire le test qui fait tomber un bulletin d'apprenti portant une ligne cnss-pension-travailleur.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-D4 · FAUX
 
@@ -1488,7 +1535,7 @@ Aucun constat retenu.
 - **Source** · .../cnss-cotisations-sociales-rdc/references/decret-18-041-2018-taux-cotisations-cnss.md l. 59 ; /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/droit-travail-congolais/references/smig-cotisations-textes-application/decret-18-017-2018-fixation-smig-abroge.md l. 3-4, 26-45
 - **Code** · src/modules/personnel/cotisations-paie.ts:373 (« PLANCHER NON VÉRIFIÉ · le SMIG de … n'est pas au corpus d'OmegaX ») ; src/modules/personnel/bareme-smig.ts:236-239 (REFUS_ANTERIEUR) et 478-480 (« ses montants ne sont pas au corpus ») ; tests qui figent la phrase : src/modules/personnel/bareme-smig.spec.ts:140, src/modules/personnel/regles-contrat-travail.spec.ts:536
 - **Correction** · Encoder l'annexe du décret n° 18/017 dans ANNEXES, avec sa référence. Garder ses paliers PAYÉS distincts du taux FIXÉ par l'art. 2, comme pour le décret n° 25/22. De novembre à décembre 2018, le palier payé (4 716,66 FC) et le taux fixé (7 075 FC) diffèrent, et la branche PLANCHER NON TRANCHÉ déjà codée s'applique. À partir de janvier 2019, les deux lectures coïncident à 7 075 FC, hors secteurs agro-industriel et pastoral jusqu'en juin 2019, que le dossier ne déclare pas. Reprendre en réserve la lecture 19 385,5 de la classe 8 que le fichier signale. À défaut d'encodage immédiat, remplacer la phrase par « texte au corpus, non encore encodé » et corriger les deux tests : on ne gèle pas une absence qui est fausse.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-E1 · FAUX
 
@@ -1496,7 +1543,7 @@ Aucun constat retenu.
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/cnss-cotisations-sociales-rdc/references/am-146-2018-affiliation-immatriculation-cotisations-liquidation-prestations.md, l. 222 et 307-311
 - **Code** · src/modules/retenues/retenues.service.ts l. 153-167 (echeanceDuMois, appliquée à toute nature dont `cnss`) et l. 173-181 (prochaineEcheance) ; src/modules/retenues/jour-ouvrable.ts l. 251-253 (echeanceDeReversement → reporterAuJourOuvrable) et l. 262-264 (RESERVE_JOUR_OUVRABLE) ; nature `cnss` : src/modules/retenues/correspondance-retenues.ts l. 529-541 (joursApresPeriode 15). Jumeaux par le même chemin : `inpp` l. ~553 et `onem` l. ~568, ainsi que la déclaration ONEM (obligations déclaratives, l. ~705).
 - **Correction** · Porter sur chaque nature un drapeau `echeanceFiscale` sur le modèle de planning-cloture.ts (l. 155-160), vrai pour les natures régies par la législation fiscale et absent pour `cnss`, `inpp`, `onem` et `autresOrganismesSociaux`. Ne faire appeler reporterAuJourOuvrable par echeanceDuMois, prochaineEcheance et prochaineEcheanceDeclarative que sous ce drapeau. Pour la CNSS, afficher la date brute (le 15 du mois suivant) et restreindre RESERVE_JOUR_OUVRABLE aux lignes fiscales, en disant sur la ligne CNSS qu'aucun texte du corpus ne reporte cette échéance. Ne rien présumer du délai de régularisation de cinq jours (art. 21 al. 2, art. 31 al. 2) : il n'est pas un report, et la pénalité reste liée au « délai requis ».
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-F1 · FAUX
 
@@ -1504,7 +1551,7 @@ Aucun constat retenu.
 - **Source** · cnss-cotisations-sociales-rdc/references/am-139-2018-assujettissement-travailleurs-assimiles-risques-professionnels.md l. 17-23 ; loi-16-009-2016-regime-general-securite-sociale.md l. 32, 42-48, 114
 - **Code** · src/modules/personnel/personnel.service.ts:1380 (contratCouvrantLeMois, qui ne sélectionne pas le type du contrat, l. 1367-1375) et :1088 (cotisations() appelé sans le type du contrat) ; src/modules/personnel/cotisations-paie.ts:484-502 (les quatre lignes CNSS posées sans condition) ; prisma/schema.prisma:6462-6470 (APPRENTISSAGE, présent au registre)
 - **Correction** · Lire le type du contrat qui couvre le mois et le transmettre au calcul des cotisations. Pour APPRENTISSAGE, ne poser que la branche des risques professionnels, à la charge du maître (arrêté n° 139/2018, art. 4, 1.). Rendre les prestations aux familles et les pensions « non dues » avec leur article (loi n° 16/009, art. 4) : c'est une réponse, pas une abstention, et elle ne doit pas bloquer l'émission. Aucune quote-part ouvrière n'est alors déduite (art. 71 compris). Pour l'assiette de l'apprenti, porter en réserve l'art. 13, al. 2 (revenus fixés par le Conseil d'administration, décision absente du corpus), sans inventer de base. Hors apprentissage, le registre n'a aucun type pour le stagiaire ou l'élève de l'art. 4, 2° et 4°. Le dire plutôt que de les laisser saisir comme CDD.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-F2 · FAUX
 
@@ -1512,7 +1559,7 @@ Aucun constat retenu.
 - **Source** · cnss-cotisations-sociales-rdc/references/am-143-2018-devolution-paiement-allocations-familiales-employeur.md l. 25-27, 36, 40-42 ; am-137-2018-montant-modalites-allocations-familiales.md l. 43
 - **Code** · src/modules/personnel/passation-paie.ts:211 (motif, servi à l'écran par le refus NATURE_SANS_IMPUTATION, l. 370-375, et par rubriques-paie.ts:59) ; même phrase dans docs/paie-p3-passation-comptable.md:114-116 et CLAUDE.md (P3, « ce que l'employeur avance est une CRÉANCE ») ; sens contraire dans src/modules/personnel/assiettes-paie.ts:171-198 et bareme-smig.ts:409-411
 - **Correction** · Ne pas inventer de compte, mais réécrire le motif sur le texte. En dévolution (arrêté n° 143/2018, art. 3 et 4), les sommes sont des fonds de la Caisse remis avant paiement : les non-payés lui reviennent sous huit jours, et elles ne passent pas par le bulletin. Elles ne sont ni une charge ni une créance de l'employeur. Aligner ensuite la passation sur la lecture des assiettes : l'élément ALLOCATIONS_FAMILIALES_LEGALES d'un bulletin est l'allocation que l'employeur accorde (colonne 19 du décret n° 25/22). Son imputation reste à trancher, avec pour seul motif qu'aucune source lue ne nomme le compte, et non une créance sur la Caisse. Corriger les deux documents qui recopient la phrase.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-F3 · FAUX
 
@@ -1520,7 +1567,7 @@ Aucun constat retenu.
 - **Source** · cnss-cotisations-sociales-rdc/references/am-140-2018-modalites-promotion-risques-professionnels.md l. 121-123, 131, 137-141 ; decret-18-041-2018-taux-cotisations-cnss.md l. 47
 - **Code** · src/modules/personnel/cotisations-paie.ts:70-79 (MAJORATION_RISQUES_PROFESSIONNELS_MAXIMUM = 2, présenté comme LA majoration) et :488-500 (taux × 2, réserve « majoré au double ») ; src/modules/personnel/dto/personnel.dto.ts:517-520 et 575-576 (booléen) ; client/src/pages/PersonnelPage.tsx:2057-2063 (case unique)
 - **Correction** · Remplacer le booléen par la majoration notifiée, déclarée : 50 % (arrêté n° 140/2018, art. 22) ou 100 % en récidive (art. 24, al. 3). Refuser toute valeur au-delà du double (décret n° 18/041, art. 5). La réserve cite l'article qui correspond au niveau déclaré et rappelle ce que l'art. 24 prévoit : la majoration court du premier jour du mois civil qui suit la fin du délai de correction, et elle est suspendue le mois qui suit la correction totale. Elle reste une décision notifiée par la Caisse, jamais déduite par le logiciel. La constante MAJORATION_RISQUES_PROFESSIONNELS_MAXIMUM reste le plafond de contrôle, pas le coefficient appliqué.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-A4 · INCOMPLET
 
@@ -1528,7 +1575,7 @@ Aucun constat retenu.
 - **Source** · droit-travail-congolais/references/texte-loi-verbatim/04-titre-iv-du-contrat-de-travail.md, l. 182, 196
 - **Code** · src/modules/personnel/decompte-final.ts l. 319-326
 - **Correction** · Ajouter une rubrique saisie « avantages de toute nature pendant le préavis » (logement, transport, allocations familiales, avantages en nature), null tant qu'elle n'est pas renseignée, avec le fondement de l'art. 63 al. 3 ; et dire dans le fondement de la rubrique préavis que le taux journalier n'en est qu'une partie.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-A6 · INCOMPLET
 
@@ -1536,7 +1583,7 @@ Aucun constat retenu.
 - **Source** · droit-travail-congolais/references/texte-loi-verbatim/04-titre-iv-du-contrat-de-travail.md, l. 31
 - **Code** · src/modules/personnel/regles-contrat-travail.ts l. 439-447 (formule tronquée du troisième CDD), l. 449-456 (explication du second renouvellement)
 - **Correction** · Citer l'alinéa 2 en entier, exception comprise, dans les deux requalifications. Corriger l'explication : les travaux saisonniers et les ouvrages bien définis sont exceptés par la loi elle-même, seuls les « autres travaux » attendent l'arrêté non lu. Quand ouvrageDetermine est renseigné, rendre la requalification sous réserve de l'exception (à qualifier par le dossier) au lieu de l'affirmer de plein droit.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-A8 · INCOMPLET
 
@@ -1544,7 +1591,7 @@ Aucun constat retenu.
 - **Source** · droit-travail-congolais/references/texte-loi-verbatim/04-titre-iv-du-contrat-de-travail.md, l. 27
 - **Code** · src/modules/personnel/regles-contrat-travail.ts l. 17 et l. 322-330 (MotifRequalification) ; prisma/schema.prisma l. 6455-6460 ; client/src/pages/PersonnelPage.tsx l. 1060
 - **Correction** · Ajouter un motif (par exemple ENGAGEMENT_JOUR_LE_JOUR_REPETE) : pour un salarié, compter les journées des engagements au jour le jour des deux mois précédant un nouvel engagement ; à vingt-deux ou plus, rendre la requalification avec la formule de l'art. 40 al. 2. Si les journées ne se lisent pas dans le registre, s'abstenir en le disant plutôt que d'annoncer une règle servie. Corriger la paraphrase du schéma (« le nouvel engagement »).
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-B6 · INCOMPLET
 
@@ -1552,7 +1599,7 @@ Aucun constat retenu.
 - **Source** · texte-loi-verbatim/06-titre-vi-des-conditions-generales-de-travail.md l. 123 ; texte-loi-verbatim/04-titre-iv-du-contrat-de-travail.md l. 196
 - **Code** · src/modules/personnel/decompte-final.ts l. 285-378 (rubriques et total, sans allocations familiales)
 - **Correction** · Ajouter une rubrique « Allocations familiales (art. 66, al. 2 et 142, al. 3) », `null` tant que le nombre d'enfants bénéficiaires et les jours ne sont pas donnés. La tenir hors du brut, comme la formule 20 du modèle de 2008, mais dans le total dû. N'inventer aucun décompte de jours pour le préavis non presté : le laisser saisi.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-B9 · INCOMPLET
 
@@ -1560,7 +1607,7 @@ Aucun constat retenu.
 - **Source** · livre-de-paie-decompte-ecrit/arrete-12-042-2008-modele-livre-de-paie.md l. 72-78 et l. 113 ; texte-loi-verbatim/10-titre-x-des-moyens-de-controle.md l. 183
 - **Code** · client/src/pages/BulletinsPaie.tsx l. 240-258 (en-tête imprimé) et l. 266-312 (corps) ; src/modules/personnel/livre-de-paie.ts l. 218-252 (MENTIONS_MODELE_2008, jamais appliquées au bulletin)
 - **Correction** · Associer une fois pour toutes chaque rang de MENTIONS_MODELE_2008 au champ du bulletin qui le porte. Imprimer les mentions dont la donnée existe (taux et périodicité du contrat, jours payés, enfants bénéficiaires). Sur le bulletin, dire « énonciations non portées : n° … », sans rien certifier, comme RESERVE_MODELE le fait déjà pour la mise en forme.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-C3 · INCOMPLET
 
@@ -1568,7 +1615,7 @@ Aucun constat retenu.
 - **Source** · droit-travail-congolais/references/decompte-final-calcul-pratique.md l. 158-161 ; texte-loi-verbatim/06-titre-vi-des-conditions-generales-de-travail.md l. 114-116, 128-130, 106-111
 - **Code** · src/modules/personnel/decompte-final.ts:192-217 (congeLegal) et l. 339-343 ; src/modules/personnel/decompte-final.spec.ts:104-110 et 134-146 (gèlent le défaut) ; client/src/pages/PersonnelPage.tsx:2992-3006 (libellé « Mois entiers de service »)
 - **Correction** · Saisir les mois de service NON COUVERTS par un congé pris ou payé, avec ce libellé et ce DTO, et non l'ancienneté entière. Appliquer le jour d'ancienneté de l'art. 141 à chaque période annuelle de congé non prise, et non une fois pour tout le décompte. Pour une année incomplète, ne proratiser qu'avec une réserve déclarée : le Code ne dit pas comment répartir la tranche d'ancienneté sur une année incomplète. Corriger les deux tests qui gèlent le calcul sur l'ancienneté totale.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-C6 · INCOMPLET
 
@@ -1576,7 +1623,7 @@ Aucun constat retenu.
 - **Source** · droit-travail-congolais/references/decompte-final-calcul-pratique.md l. 84-88 ; texte-loi-verbatim/04-titre-iv-du-contrat-de-travail.md l. 205-210
 - **Code** · src/modules/personnel/decompte-final.ts:89-95 (MotifRupture) et l. 117-176 ; src/modules/personnel/dto/personnel.dto.ts:601-608 ; client/src/pages/PersonnelPage.tsx:3024-3034
 - **Correction** · Ajouter le type de contrat, ou lire celui du registre, et un motif « rupture anticipée d'un CDD ». Sur un CDD, refuser le préavis de l'art. 64 en citant l'art. 69, et rendre la rubrique de l'art. 70 : les jours restant jusqu'au terme multipliés par le taux journalier, ou la rubrique à null si le terme ou le taux manque. La qualification d'illégalité reste au dossier.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-C7 · INCOMPLET
 
@@ -1584,7 +1631,7 @@ Aucun constat retenu.
 - **Source** · droit-travail-congolais/references/livre-de-paie-decompte-ecrit/arrete-12-042-2008-modele-livre-de-paie.md l. 80, 88, 91, 101-104
 - **Code** · src/modules/personnel/personnel.service.ts:813-832 (tauxLegalAllocationsFamiliales : totalFc × MULTIPLICATEURS_ARTICLE_7.MOIS, joursPayes ignoré alors que le DTO le porte, l. 1096)
 - **Correction** · Quand des jours sont déclarés, calculer le plafond comme colonne 19 × enfants bénéficiaires × jours ouvrant droit aux allocations (jours payés à 100 %, de congé payé et de maladie, mention 28). Garder les 26 jours de l'art. 7 du décret n° 25/22 seulement pour un mois déclaré entier, et le dire en réserve sur la ligne.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-D2 · INCOMPLET
 
@@ -1592,7 +1639,7 @@ Aucun constat retenu.
 - **Source** · .../cnss-cotisations-sociales-rdc/references/decret-18-041-2018-taux-cotisations-cnss.md l. 47 ; .../loi-16-009-2016-regime-general-securite-sociale.md l. 120
 - **Code** · src/modules/personnel/cotisations-paie.ts:79 (MAJORATION_RISQUES_PROFESSIONNELS_MAXIMUM = 2) et 488-500 (coefficient 2 dès que le booléen est vrai, réserve « au double ») ; src/modules/personnel/dto/personnel.dto.ts:517-520 (booléen) ; client/src/pages/PersonnelPage.tsx:2059-2063 (case « Risques prof. majorés »)
 - **Correction** · Remplacer le booléen par le taux (ou le coefficient) que la décision de la Caisse a fixé, déclaré avec sa référence. Le borner à ]1,5 % ; 3 %], c'est-à-dire au double au plus, sans valeur par défaut. La réserve doit citer le taux déclaré, et ne dire « au double » que lorsqu'il vaut 3 %. Dans le registre des retenues (correspondance-retenues.ts:544), « doublable » peut devenir « majorable jusqu'au double ».
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-D3 · INCOMPLET
 
@@ -1600,7 +1647,7 @@ Aucun constat retenu.
 - **Source** · .../cnss-cotisations-sociales-rdc/references/loi-16-009-2016-regime-general-securite-sociale.md l. 124
 - **Code** · src/modules/personnel/baremes-dossier.ts:91-94 (lireValeurs, branche CNSS : seul tauxValide est vérifié sur les quatre taux)
 - **Correction** · Dans lireValeurs, refuser toute version CNSS où pensionsTravailleur dépasse pensionsEmployeur, en nommant l'art. 18 de la loi n° 16/009 dans le motif. Un décret qui changerait les taux reste soumis à la loi, ce n'est donc pas une règle inventée. Ajouter le test qui tombe sur 3 % employeur contre 7 % travailleur.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-E3 · INCOMPLET
 
@@ -1608,7 +1655,7 @@ Aucun constat retenu.
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/cnss-cotisations-sociales-rdc/references/am-146-2018-affiliation-immatriculation-cotisations-liquidation-prestations.md, l. 251, 257-287 et 293
 - **Code** · src/modules/personnel/livre-de-paie.ts l. 147-201 (MENTIONS_ARTICLE_25, sans usage hors spec) et l. 203-209 (« aucun calcul ne la sert ») ; src/modules/retenues/correspondance-retenues.ts l. 541-544 (échéance et base légale de la ligne `cnss`, sans les art. 24 et 28)
 - **Correction** · Ajouter à la base légale ou à la réserve de la ligne `cnss` la phrase des art. 24 et 28 (feuilles de paie jointes, et à défaut, défaut de déclaration), avec l'anomalie de renvoi de l'art. 28. En confort, servir sur la paie du mois une couverture des trente mentions de l'art. 25 par les bulletins émis, en réutilisant MENTIONS_ARTICLE_25. Cette couverture n'est pas une conformité : l'art. 25 dit « notamment » et le « modèle annexé » n'est pas au corpus. Le logiciel ne certifie rien.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-E4 · INCOMPLET
 
@@ -1616,7 +1663,7 @@ Aucun constat retenu.
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/cnss-cotisations-sociales-rdc/references/am-146-2018-affiliation-immatriculation-cotisations-liquidation-prestations.md, l. 65-71 et 204-208
 - **Code** · src/modules/personnel/assiettes-paie.ts l. 62-79 (NatureElementPaie, sans jetons de présence ni rétribution de mandataire) ; src/modules/personnel/personnel.service.ts l. 1383 (refus sans contrat) ; src/modules/retenues/correspondance-retenues.ts l. 544-546 (réserve CNSS muette sur l'art. 3, points 2, 4 et 6)
 - **Correction** · Sans rien calculer ni deviner de compte, ajouter à la réserve de la ligne `cnss` et à l'aide de la fenêtre Personnel que l'art. 3, points 2, 4 et 6 assujettit aussi le mandataire de l'État, le marin et l'associé actif. Préciser que leur assiette est celle de l'art. 17, point 2 (rétributions, jetons de présence compris) et que la paie d'OmegaX, bâtie sur le contrat de travail, ne la calcule pas. La qualification d'« associé actif » reste au cabinet.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-F4 · INCOMPLET
 
@@ -1624,7 +1671,7 @@ Aucun constat retenu.
 - **Source** · cnss-cotisations-sociales-rdc/references/am-142-2018-modalites-application-mois-assurance.md l. 52-89
 - **Code** · src/modules/personnel/livre-de-paie.ts:74-77 (« ce qu'aucun autre texte du corpus ne fait ») et :255-256 (« c'est le seul texte du corpus qui ferme l'arithmétique ») ; src/modules/personnel/bulletin-paie.ts:19-83 (le bulletin ne se rattache qu'à l'arrêté de 2008) ; prisma/schema.prisma:6798-6803 (« Mentions 1 à 4 de l'arrêté de 2008 »)
 - **Correction** · Retirer l'affirmation d'unicité. Citer l'arrêté n° 142/2018, art. 10 et 12, comme second texte, applicable au bulletin de paie, et restituer ses trente-trois mentions à côté de celles de 2008 en nommant leurs écarts (mentions 4, 11, 16-17, 24 et 27-30), sans trancher entre elles. Signaler que les formules 20, 26 et 28 y sont identiques. Relire à cette lumière la « démonstration » tirée de la mention 20 : en 2018, les allocations exclues du brut sont dites « extra-légales ». Ne rien certifier de plus que ce que le module certifie déjà.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-A11 · CONFORT
 
@@ -1632,7 +1679,7 @@ Aucun constat retenu.
 - **Source** · droit-travail-congolais/references/texte-loi-verbatim/02-titre-ii-de-la-formation-et-du-perfectionnement-professionnels.md, l. 47 ; 01-titre-i-des-dispositions-generales.md, l. 63, 82
 - **Code** · src/modules/personnel/cotisations-paie.ts l. 24-31 et l. 141-142 (RESERVE_ASSIETTE_EMPRUNTEE servie à l'INPP) et l. 511-515 ; src/modules/retenues/correspondance-retenues.ts l. 549-560 (baseLegale INPP sans l'art. 15)
 - **Correction** · Citer l'art. 15 b du Code dans la base légale INPP. Pour l'INPP, remplacer la réserve « lecture » par le renvoi à l'art. 7 du même Code (garder la réserve pour l'ONEM seul). Porter sur la ligne INPP une réserve disant que l'art. 15 b rapporte la cotisation mensuelle aux rémunérations du trimestre précédent et qu'OmegaX la calcule sur le mois, sans changer le calcul tant qu'aucun texte lu ne dit comment la proportion se forme.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-A14 · CONFORT
 
@@ -1640,7 +1687,7 @@ Aucun constat retenu.
 - **Source** · droit-travail-congolais/references/texte-loi-verbatim/04-titre-iv-du-contrat-de-travail.md, l. 185-187
 - **Code** · src/modules/personnel/regles-contrat-travail.ts l. 24-27
 - **Correction** · Réécrire l'en-tête : le fichier calcule le minimum de la classe (décret n° 25/22) ; le préavis et le décompte vivent dans decompte-final.ts, qui sert le plancher de l'art. 64, seul l'arrêté de son dernier alinéa étant hors corpus.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-A9 · CONFORT
 
@@ -1648,7 +1695,7 @@ Aucun constat retenu.
 - **Source** · droit-travail-congolais/references/texte-loi-verbatim/04-titre-iv-du-contrat-de-travail.md, l. 16
 - **Code** · src/modules/personnel/regles-contrat-travail.ts l. 580-591 ; client/src/pages/PersonnelPage.tsx l. 1859-1864
 - **Correction** · Compter les trois mois de date à date (début + 3 mois, même procédé que le plafond de l'art. 41) et ne signaler qu'après cette date, ou à défaut porter la réserve de conversion comme pour l'essai.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-B10 · CONFORT
 
@@ -1656,7 +1703,7 @@ Aucun constat retenu.
 - **Source** · texte-loi-verbatim/05-titre-v-du-salaire.md l. 15 ; texte-loi-verbatim/15-titre-xv-des-penalites.md l. 146-148
 - **Code** · src/modules/personnel/regles-contrat-travail.ts l. 833-837
 - **Correction** · Ajouter à l'explication : « art. 88, al. 2 du Code du travail : nullité de plein droit de la clause fixant une rémunération inférieure au SMIG ; infraction au décret de l'art. 87 punie par l'art. 321 ». La citation de l'art. 37 peut rester.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-C8 · CONFORT
 
@@ -1664,7 +1711,7 @@ Aucun constat retenu.
 - **Source** · droit-travail-congolais/references/logement-et-ration-alimentaire/arrete-12-110-2005-logement-contre-valeur.md l. 166-168, 213-223
 - **Code** · src/modules/personnel/bareme-smig.ts:97-103 (DECRET_MODALITES.defalcationLogementEnNature), l. 424-428 (commentaire « retenue sans titre ») et l. 443-447 (explication de contreValeurLogementJournaliere)
 - **Correction** · Réécrire les trois passages pour distinguer les deux défalcations. La première, de l'arrêté n° 12/CAB.MIN/TPS/110/2005 art. 10, se prend sur la rémunération dès que le logement est fourni en nature. La seconde, du décret n° 25/21 art. 15, se prend sur l'indemnité de logement, pour cause de mutation. Supprimer « retenue sans titre ». Signaler aussi à Manasse le point 3 du fichier du décret n° 25/21 (l. 249-252), qui porte la même affirmation dans la compétence.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-C9 · CONFORT
 
@@ -1672,7 +1719,7 @@ Aucun constat retenu.
 - **Source** · droit-travail-congolais/references/livre-de-paie-decompte-ecrit/arrete-12-042-2008-modele-livre-de-paie.md l. 113-115 ; smig-cotisations-textes-application/arrete-137-2018-allocations-familiales.md l. 68-70
 - **Code** · src/modules/personnel/livre-de-paie.ts:277 (DESTINATION_DES_DOUBLES.second) ; client/src/pages/PersonnelPage.tsx:3373-3374
 - **Correction** · Afficher « à la CNSS, selon la réglementation en vigueur ». Placer le libellé de l'arrêté et le décret n° 18/027 dans la bulle Aide. La mention 4 recopiée (verbatim, entre guillemets) peut rester.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-E2 · CONFORT
 
@@ -1680,7 +1727,7 @@ Aucun constat retenu.
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/cnss-cotisations-sociales-rdc/references/am-146-2018-affiliation-immatriculation-cotisations-liquidation-prestations.md, l. 222-224 (et l. 81-83)
 - **Code** · src/modules/retenues/correspondance-retenues.ts l. 546 (fin de la réserve `cnss` : « Déclaration mensuelle unique impôts et cotisations au guichet unique (arrêté interministériel du 12 mai 2015) »)
 - **Correction** · Remplacer la phrase par les deux voies de l'art. 21, chacune avec son destinataire : le guichet unique et la déclaration mensuelle unique pour l'employeur créateur d'entreprise ; pour les autres catégories, la représentation territoriale de la Caisse avec le Mod. DC en trois exemplaires. N'en choisir aucune d'office pour le dossier, puisque le fait d'avoir été créé au guichet unique n'est tenu nulle part.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-E5 · CONFORT
 
@@ -1688,7 +1735,7 @@ Aucun constat retenu.
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/cnss-cotisations-sociales-rdc/references/am-146-2018-affiliation-immatriculation-cotisations-liquidation-prestations.md, l. 99 et 260 ; droit-travail-congolais/references/texte-loi-verbatim/10-titre-x-des-moyens-de-controle.md, l. 8 et 10
 - **Code** · client/src/pages/ParametresDossierPage.tsx l. 1440-1445 ; client/src/pages/PersonnelPage.tsx l. 1228 et 1771 ; prisma/schema.prisma l. 578-583 et 6491-6493
 - **Correction** · Garder les champs tels qu'ils sont. Dans l'aide des deux libellés, indiquer que le numéro de l'employeur est celui du certificat d'affiliation (arrêté n° 146/2018, art. 7), appelé « d'immatriculation » par l'art. 212, 2°. Indiquer de même que celui du travailleur est le numéro d'immatriculation de sa carte de sécurité sociale (art. 9 à 12 et 25, point 3), appelé « d'affiliation » par l'art. 212, 4°.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-E6 · CONFORT
 
@@ -1696,7 +1743,7 @@ Aucun constat retenu.
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/cnss-cotisations-sociales-rdc/references/am-146-2018-affiliation-immatriculation-cotisations-liquidation-prestations.md, l. 257-287
 - **Code** · src/modules/personnel/dto/personnel.dto.ts l. 674-678 ; src/modules/personnel/livre-de-paie.ts l. 409 et 430 (confrontation à MENTIONS_MODELE_2008)
 - **Correction** · Réécrire le commentaire : « Les rangs (1 à 33) des énonciations de l'art. 1er de l'arrêté n° 12/CAB.MIN/ETPS/042 du 8 août 2008 que le document porte ». Borner le champ par @Min(1) et @Max(33), puisque le service ne lit que cette liste.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D2-F5 · CONFORT
 
@@ -1704,7 +1751,7 @@ Aucun constat retenu.
 - **Source** · cnss-cotisations-sociales-rdc/references/am-138-2018-penalites-retard-cotisations-defaut-declaration.md l. 17-23, 35-37
 - **Code** · src/modules/retenues/correspondance-retenues.ts:544-546 (baseLegale et réserve CNSS, sans sanction), à comparer à l'entrée ONEM l. 573
 - **Correction** · Ajouter à la réserve CNSS, avec leurs articles et sans rien calculer : la majoration de 0,5 % par jour à compter du 21e jour du mois suivant (art. 2 et 3), la taxation d'office sur la dernière déclaration majorée de 30 % (art. 9), la pénalité de 0,5 % par jour sur une déclaration produite hors délai (art. 10), et les voies de remise (art. 4, 5, 8). Le montant d'une majoration reste un acte de la Caisse, que le registre ne chiffre pas.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ## D3 · journal referentiels
 
@@ -1714,7 +1761,7 @@ Aucun constat retenu.
 - **Source** · onec-rdc/references/loi-15-002-ch4-6-cac-controle-penal.md l. 10 ; loi-15-002-ch7-transitoire-final.md l. 167
 - **Code** · src/modules/mandat-auditeur/mandat-auditeur.service.ts l. 97-98 (branche non SYCEBNL du refus 1) ; prisma/schema.prisma l. 5733-5741 (commentaire de inscriptionOrdre, SYCEBNL art. 20 seul) ; client/src/pages/MandatAuditeurPage.tsx l. 220 (« le texte veut… » sans nommer le texte)
 - **Correction** · Dans la branche non SYCEBNL du message, citer la loi n° 15/002, art. 59 (commissaire aux comptes inscrit au tableau de l'ONEC), et ajouter l'AUSCGIE art. 695 quand la forme est la SA ou la SARL. Compléter le commentaire du schéma de la même façon, sans toucher à la branche SYCEBNL : elle garde l'art. 20, et on n'y transpose pas l'art. 59, qui parle du commissaire aux comptes et non de l'auditeur d'une EBNL. Le comportement ne change pas : la référence reste exigée et jamais vérifiée.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D3-B2 · INCOMPLET
 
@@ -1722,7 +1769,7 @@ Aucun constat retenu.
 - **Source** · onec-rdc/references/reglement-interieur-ordre.md art. 193 ; auscgie-acte-uniforme partie2-livre4h art. 695
 - **Code** · src/modules/mandat-auditeur/mandat-auditeur.service.ts:97-98 (message SYSCOHADA sans source) ; src/modules/mandat-auditeur/dto/mandat-auditeur.dto.ts:9 (« SYCEBNL art. 20 » seul) ; prisma/schema.prisma:5733
 - **Correction** · Dans la branche SYSCOHADA du message, citer le fondement de l'exigence : AUSCGIE art. 695, dont le texte vise la société anonyme, et règlement intérieur de l'ONEC art. 193 pour la RDC, en gardant la phrase « OmegaX ne consulte aucun tableau et ne vérifie pas cette référence ». Faire citer les deux chemins au commentaire du DTO et du schéma, chacun à son référentiel, sans que l'un serve pour l'autre. N'étendre l'art. 695 à aucune autre forme sans avoir lu l'article qui la régit.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D3-C1 · INCOMPLET
 
@@ -1730,7 +1777,7 @@ Aucun constat retenu.
 - **Source** · /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c1-4d4972fcb762_a1cd7539-5871-4b3d-820b-8de8737ca38b/onec-rdc/references/norme-professionnelle-2024-001-certification-ibp.md l. 52-55 et 141-145 ; fiscalite-rdc/code-general-2026/references/23-mesures-execution-controle.md l. 234-237, 337-345, 353-358
 - **Code** · src/modules/retenues/correspondance-retenues.ts:871 (contenu de 'declarationImpotSocietes') ; src/modules/exercice/planning-cloture.ts:563 (detail du jalon 15, SYSCOHADA)
 - **Correction** · Dans les deux textes, après « inscrit au tableau de l'ONEC », ajouter la condition d'indépendance. Le certificateur est indépendant de l'entité. La certification est incompatible avec la tenue ou l'assistance comptable et fiscale de l'entité (arrêté n° 014 du 16 mai 2023, art. 5). Une certification par un membre non indépendant est irrégulière et assimilée à un refus (art. 14), avec taxation d'office à la clé (art. 15). Mettre la citation longue dans la bulle Aide. Aucun contrôle ni refus : OmegaX ne sait pas qui certifie. Bornes : les dossiers déjà ciblés (SYSCOHADA, Système normal, personnes physiques exclues), à partir des revenus 2023 (arrêté art. 28 ; norme § 4). Signaler l'anomalie des al. 2 et 3 de l'art. 7 (l. 266-272), sans la trancher. L'al. 2 se dit « par dérogation à l'article 5 ». L'al. 3 porte « Les Cabinets comptables […] certifient eux-mêmes leurs états financiers ». Le mot IBP du titre de l'arrêté reste dans le commentaire, pas à l'écran (§ 9 ter). Réserve à écrire : l'arrêté a été pris pour l'IBP, et aucun arrêté d'application de l'art. 14 postérieur au passage à l'IS n'est au corpus.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D3-C2 · INCOMPLET
 
@@ -1738,7 +1785,7 @@ Aucun constat retenu.
 - **Source** · onec-rdc/references/norme-professionnelle-2024-001-certification-ibp.md l. 93-104, 176-180, 240-242, 258-262, 281-285 ; fiscalite-rdc/code-general-2026/references/23-mesures-execution-controle.md l. 229-232, 263-277, 323-335, 353-358, 407-431
 - **Code** · src/modules/retenues/correspondance-retenues.ts:849-884 (seule entrée 'declarationImpotSocietes', aucune échéance au 30 juin) ; src/modules/exercice/planning-cloture.ts:563 ; src/modules/mandat-auditeur/duree-mandat.ts:47-80 (pas d'organe ni de durée pour le certificateur fiscal des entités non astreintes)
 - **Correction** · Rien n'est calculé. (a) Dans le texte du 30 avril, préciser ce qui est joint : l'attestation de certification, portant le timbre spécial ou hologramme fourni par l'ONEC (arrêté art. 20 et 22 ; norme § 7, § 15, § 29). (b) Ajouter une obligation annuelle au 30 juin : « Rapport de certification, avec l'attestation sur le montant global versé aux dix personnes les mieux rémunérées et le rapport spécial sur les conventions réglementées ». Sources : norme § 15, § 22, § 25 ; arrêté art. 13. Mêmes filtres que l'IS : SYSCOHADA, personnes physiques exclues, Système normal seul. Bornée aux revenus 2023 et suivants. (c) Ajouter l'obligation de désignation du certificateur avant le 30 juin (arrêté art. 4 et 8), avec sa sanction (art. 15). Là où la société a un CAC, c'est lui qui certifie (arrêté art. 6 ; norme § 19). Signaler l'anomalie sans la trancher : l'arrêté (art. 13) fait adresser le rapport par le certificateur, la norme (§ 15) fait transmettre par l'entreprise. Le montant des dix rémunérations n'est pas calculé : la norme écrit tantôt « sommes versées » (l. 206), tantôt « montant brut » (l. 424).
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D3-A2 · CONFORT
 
@@ -1746,7 +1793,7 @@ Aucun constat retenu.
 - **Source** · onec-rdc/references/loi-15-002-ch4-6-cac-controle-penal.md l. 10 ; loi-15-002-ch1-2-ordre-organes.md l. 243
 - **Code** · src/modules/exports/theme-etafi.ts l. 636 (['ZR', …, '']) ; src/modules/exports/export.service.ts l. 4592, 4783, 4969, 6209, 6472 (pré-remplissages de la Fiche 1 sans ZR) ; src/modules/controles/controles.service.ts l. 3265-3281 (lecture du mandat couvrant)
 - **Correction** · Pré-remplir ZR avec le nom et la référence inscriptionOrdre du mandat qui couvre l'exercice de la liasse, ou de celui qui est dans sa prorogation, par la même lecture que le contrôle 28 (dernierExerciceCouvert, estDansLaProrogation, regleDeProrogation), jamais une seconde. Adresse, téléphone et courriel restent vides : le module ne les détient pas. Sans mandat couvrant, la case reste vide comme aujourd'hui. Rien n'est déduit ni vérifié.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D3-A4 · CONFORT
 
@@ -1754,7 +1801,7 @@ Aucun constat retenu.
 - **Source** · onec-rdc/references/loi-15-002-ch1-2-ordre-organes.md l. 26 ; loi-15-002-ch3-profession.md l. 71 ; loi-15-002-ch4-6-cac-controle-penal.md l. 87 ; loi-18-017-texte-integral.md l. 15, 45
 - **Code** · client/src/pages/CircularisationPage.tsx l. 255-259 (Aide « Circularisation ») ; client/src/pages/DossierRevisionPage.tsx l. 98 ; client/src/pages/QuestionnaireRevisionPage.tsx l. 151 ; à comparer avec client/src/pages/FaiblessesPage.tsx l. 282 et src/modules/faiblesses/faiblesses.service.ts l. 107
 - **Correction** · Ajouter dans la bulle Aide de ces trois écrans (pas en paragraphe à l'écran, § 9 ter) la même phrase que celle des faiblesses : « Travaux de révision et de contrôle interne préparatoires · ce n'est pas un audit et aucune opinion sur les états financiers n'en sort. » Citer en source la loi n° 15/002, art. 3, 1°, et art. 43, 5°. Aucun refus ni contrôle nouveau : le logiciel ne vérifie pas qui l'utilise.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D3-C3 · COSMETIQUE
 
@@ -1762,7 +1809,7 @@ Aucun constat retenu.
 - **Source** · fiscalite-rdc/code-general-2026/references/17-procedures-titre1-obligations-declaratives.md l. 195-247 ; fiscalite-rdc/procedures-fiscales/references/17-loi-23-052-modifications-2023.md l. 18
 - **Code** · src/modules/exercice/planning-cloture.ts:568 (source du jalon 15, affichée par client/src/pages/ExercicePage.tsx:581)
 - **Correction** · Réécrire la source ainsi : « Loi n° 004/2003 portant réforme des procédures fiscales, art. 12 (échéance) et 13 (états joints), modifiés par la loi n° 23/052 ; art. 14 (certification ONEC), modifié par la L.F. n° 22/071 du 28 décembre 2022 ; art. 15 (déclaration en cas de perte) et 16 (dans le mois en cas de dissolution, de liquidation ou de cessation) ». Garder la suite telle quelle (art. 57 bis, loi n° 23/053 art. 141, 2°). Si un test gèle la chaîne actuelle, le corriger dans le même commit.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ## D4 · journal referentiels
 
@@ -1772,7 +1819,7 @@ Aucun constat retenu.
 - **Source** · droit-numerique-ua-rdc-corpus/references/06-ordonnance-loi-23-10-code-numerique-rdc-2023/partie-1-dispositions-generales-p1-p42.md l. 50-52 et 735-736 ; partie-2-transactions-donnees-p43-p121.md l. 49, 57-59, 98-99 ; partie-3 l. 1351
 - **Code** · src/modules/exports/restitution/manifeste-restitution.ts:67-69 ; client/src/pages/RestitutionPage.tsx:52-54 ; docs/restitution-du-dossier.md:30 ; tests qui figent la phrase : src/modules/exports/restitution/restitution.spec.ts:265-271, client/src/pages/restitution-a-lecran.spec.ts:32-34
 - **Correction** · Remplacer la réserve, aux trois endroits, par ce que le Code permet d'affirmer : l'archive ne porte ni horodatage ni signature électronique certifiée, donc elle n'a pas la force probante de l'écrit papier légalisé à date certaine (ordonnance-loi n° 23/10 du 13 mars 2023, art. 91). Son admission en preuve au titre de l'art. 95 suppose d'identifier son auteur et de la conserver intègre selon la législation des archives ; cette qualification revient à un juriste. Retirer de l'écran la phrase du CPCC, qui relève de l'historique législatif (§ 9 ter). Réécrire les deux tests pour figer la PRÉSENCE de la nouvelle réserve (art. 91 et 95, citation entière du texte), jamais l'absence de l'ancienne phrase. Ne rien affirmer de plus : le décret de l'art. 44 sur les conditions de l'archivage électronique n'est pas au corpus.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D4-A2 · FAUX
 
@@ -1780,7 +1827,7 @@ Aucun constat retenu.
 - **Source** · droit-numerique-ua-rdc-corpus/references/06-ordonnance-loi-23-10-code-numerique-rdc-2023/partie-1-dispositions-generales-p1-p42.md l. 166-167, 285-287, 535-539, 629-632
 - **Code** · client/src/pages/ConfidentialitePage.tsx:88-91 (« il expire au bout de huit heures ») ; règle réelle : src/modules/auth/session-longue.ts:8-19 et 30-34 ; client/src/pages/AuthPage.tsx:351
 - **Correction** · Réécrire la phrase d'après session-longue.ts : sans « Rester connecté », le témoin se ferme avec le navigateur, et la session prend fin au plus tard huit heures après la connexion ; avec l'option, elle dure trente jours au plus depuis la connexion et se ferme après sept jours sans utilisation ; la console de l'éditeur n'admet que la session courte. Écrire le test qui manque : il lit les constantes de session-longue.ts (DUREE_MAXIMALE_SESSION_LONGUE_S, DUREE_INACTIVITE_SESSION_LONGUE_S) et exige que la page porte les mêmes durées. Il fige une présence, sans bannir de mot. Mettre à jour DATE_DE_MISE_A_JOUR.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D4-A3 · FAUX
 
@@ -1788,7 +1835,7 @@ Aucun constat retenu.
 - **Source** · droit-numerique-ua-rdc-corpus/references/06-ordonnance-loi-23-10-code-numerique-rdc-2023/partie-1-dispositions-generales-p1-p42.md l. 108-109, 535-539, 629-632
 - **Code** · client/src/pages/ConfidentialitePage.tsx:188 ; relais : client/firebase.json (rewrites « /api/** » vers le service comptaflow-api, us-east1), client/src/pages/ConfidentialitePage.tsx:127-128 ; src/bootstrap.ts:14-32 (retirerPrefixeApi)
 - **Correction** · Remplacer « chiffrés de bout en bout » par la description exacte : les échanges sont chiffrés en transit (HTTPS) entre le navigateur et le relais Firebase Hosting, puis entre ce relais et le serveur Cloud Run. N'ajouter aucune affirmation de chiffrement au repos qui n'aurait pas été vérifiée chez Neon.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D4-B1 · FAUX
 
@@ -1796,7 +1843,7 @@ Aucun constat retenu.
 - **Source** · droit-numerique-ua-rdc-corpus/references/06-ordonnance-loi-23-10-code-numerique-rdc-2023/partie-2-transactions-donnees-p43-p121.md l. 49, 57-59, 97-102, 134 ; partie-3 l. 1351
 - **Code** · src/modules/exports/restitution/manifeste-restitution.ts:67-69 ; client/src/pages/RestitutionPage.tsx:51-55 ; docs/restitution-du-dossier.md:30 ; gelé par src/modules/exports/restitution/restitution.spec.ts:264-272 et client/src/pages/restitution-a-lecran.spec.ts:30-35
 - **Correction** · Garder la réserve (« Elle n'a pas la valeur probante du papier ») et changer son motif. Depuis l'ordonnance-loi n° 23/10 du 13 mars 2023, l'écrit électronique est admis en preuve à égalité avec le papier sous conditions : identification de son auteur et conservation intègre (art. 95), horodatage et signature électronique certifiée (art. 91), et, pour une copie, certificat de conformité d'un prestataire de services de confiance (art. 98). L'archive CSV n'est ni signée, ni horodatée, ni certifiée : elle ne peut donc revendiquer cette force probante. Retirer de l'écran la phrase du CPCC de 2020 (§ 9 ter, pas d'historique législatif). Refaire les deux specs pour qu'ils figent le nouveau motif. La portée exacte de l'art. 91 (exigence générale ou condition de la force probante renforcée) reste à qualifier par un juriste.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D4-B2 · FAUX
 
@@ -1804,7 +1851,7 @@ Aucun constat retenu.
 - **Source** · partie-2-transactions-donnees-p43-p121.md l. 1215-1216
 - **Code** · client/src/pages/ConfidentialitePage.tsx:88-91 ; contre src/modules/auth/session-longue.ts:9-17 et 31-34, src/modules/auth/session.constants.ts:83
 - **Correction** · Reprendre à la lettre les deux régimes que tient session-longue.ts, comme le fait déjà l'aide de AuthPage.tsx:351. Case décochée : fermé avec le navigateur, au plus tard huit heures après la connexion. Case cochée : trente jours au plus, et fermé après sept jours sans utilisation. Mettre à jour DATE_DE_MISE_A_JOUR. Ajouter au spec confidentialite-code-numerique la présence de ces deux durées (on fige une présence, pas une absence de mot).
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D4-B3 · FAUX
 
@@ -1812,7 +1859,7 @@ Aucun constat retenu.
 - **Source** · partie-2-transactions-donnees-p43-p121.md l. 1215, 1220-1222
 - **Code** · client/src/pages/ConfidentialitePage.tsx:131-133 et 179-183 ; .github/workflows/sauvegarde-base.yml:21-22 et 334-341 ; docs/sauvegardes-et-restauration.md:147-152 et 166-167
 - **Correction** · Réserver les « quatre-vingt-dix jours » à l'artefact GitHub. Pour la copie Cloud Storage, écrire la durée réellement posée par une règle de cycle de vie, ou dire qu'aucune n'est posée, et nommer la région du bucket. Le choix de la durée revient à VMG et ne s'invente pas. Rien à écrire si BUCKET_SAUVEGARDES n'est pas posée.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D4-C1 · FAUX
 
@@ -1820,7 +1867,7 @@ Aucun constat retenu.
 - **Source** · droit-numerique-ua-rdc-corpus/references/06-ordonnance-loi-23-10-code-numerique-rdc-2023/partie-2-transactions-donnees-p43-p121.md, l. 1412-1423 et 1996-1998
 - **Code** · client/src/pages/ConfidentialitePage.tsx:148-152 (affirmation), à confronter à :74-76 (VMG sous-traitant) ; client/src/pages/confidentialite-code-numerique.spec.ts:40 (gèle « nécessaire à l'exécution du contrat ») ; docs/code-du-numerique-et-omegax.md:57-63
 - **Correction** · Garder la règle (art. 201 al. 1) et le fait (hébergement hors RDC). Remplacer l'affirmation du 2° par une réserve : la base du transfert (autorisation préalable de l'art. 201 al. 4, cas de l'art. 202) est en cours de qualification. Pour les données des dossiers, le transfert relève de l'entité responsable, VMG agissant sur ses instructions (art. 229). Faire geler la réserve par le spec, et non plus le 2°. Ne rien trancher avant l'avis du juriste.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D4-C2 · FAUX
 
@@ -1828,7 +1875,7 @@ Aucun constat retenu.
 - **Source** · partie-2-transactions-donnees-p43-p121.md, l. 2219-2224
 - **Code** · client/src/pages/ConfidentialitePage.tsx:197-200 ; client/src/pages/confidentialite-code-numerique.spec.ts:44-46 (gèle « Autorité de protection des données et à vous-même ») ; docs/code-du-numerique-et-omegax.md:78-96
 - **Correction** · Écrire les deux régimes. Pour les données de compte et de traçabilité, dont VMG est responsable, notification sans délai à l'Autorité et à l'utilisateur (al. 1). Pour les données des dossiers, VMG avertit sans délai l'entité (al. 2), à qui il revient de notifier l'Autorité et les personnes concernées (al. 1). Mettre à jour le spec et la note interne en conséquence.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D4-C3 · FAUX
 
@@ -1836,7 +1883,7 @@ Aucun constat retenu.
 - **Source** · partie-2-transactions-donnees-p43-p121.md, l. 1814-1818
 - **Code** · prisma/schema.prisma:4522-4525 (« CE QUE LE TEXTE NE DIT PAS · aucun texte lu n'impose de journaliser une extraction ») ; docs/restitution-du-dossier.md:10-13 (fonde le maillon sur le seul AUDCIF art. 22, 6°)
 - **Correction** · Remplacer la phrase par le double fondement : AUDCIF art. 22, 6° pour le chemin de révision, et art. 219, 14° du Code du numérique pour la constatation a posteriori des copies de données personnelles. Préciser que ce second fondement vise le responsable du traitement et les seules données à caractère personnel. Garder ce qui reste vrai : aucun texte ne fixe la forme du maillon ni la qualité du demandeur.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D4-C5 · FAUX
 
@@ -1844,7 +1891,7 @@ Aucun constat retenu.
 - **Source** · partie-2-transactions-donnees-p43-p121.md, l. 2147-2150 et 1821-1824
 - **Code** · client/src/pages/ConfidentialitePage.tsx:89-91 ; contredit par src/modules/auth/session-longue.ts:31 (`DUREE_MAXIMALE_SESSION_LONGUE_S = 30 * SECONDES_PAR_JOUR`) et :34 (sept jours d'inactivité)
 - **Correction** · Écrire les deux régimes tels que le code les tient. Par défaut, un témoin fermé avec le navigateur et une session de huit heures. Si « Rester connecté » est coché, trente jours au plus depuis la connexion et sept jours sans usage. Geler la phrase par le spec avec les constantes de session-longue.ts.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D4-C6 · FAUX
 
@@ -1852,7 +1899,7 @@ Aucun constat retenu.
 - **Source** · partie-2-transactions-donnees-p43-p121.md, l. 1844
 - **Code** · client/src/pages/ConfidentialitePage.tsx:180-182 ; .github/workflows/sauvegarde-base.yml:21-22 (« copie durable vers Cloud Storage ») et :340-343 ; docs/sauvegardes-et-restauration.md:145-167 (cycle de vie « Facultatif »)
 - **Correction** · Dire 90 jours pour l'artefact GitHub. Pour la copie Cloud Storage, dire la durée que VMG aura fixée par une règle de cycle de vie, ou, tant qu'aucune n'est posée, qu'aucune limite n'est fixée à ce jour. Ne pas écrire 365 jours, qui n'est qu'un exemple de la procédure.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D4-C7 · FAUX
 
@@ -1860,7 +1907,7 @@ Aucun constat retenu.
 - **Source** · partie-2-transactions-donnees-p43-p121.md, l. 1886-1887
 - **Code** · client/src/pages/ConfidentialitePage.tsx:188 ; client/firebase.json:10-14 (réécriture `/api/**` vers le service Cloud Run) ; docs/code-du-numerique-et-omegax.md:105 (« chiffrement en transit »)
 - **Correction** · Remplacer par « chiffrés en transit (HTTPS) », ce que le dépôt vérifie. Ne rien affirmer du tronçon interne entre le relais et le serveur tant qu'il n'est pas documenté.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D4-D1 · FAUX
 
@@ -1868,7 +1915,7 @@ Aucun constat retenu.
 - **Source** · docs/installation-sur-site.md:24 ; src/modules/auth/session.constants.ts:50-52 ; partie-3-cybersecurite-plan-detaille-p122-p172.md:22-24
 - **Code** · client/src/pages/ConfidentialitePage.tsx:188
 - **Correction** · Scinder la section 5 sur `surSite`. Sur site, dire que les échanges passent en http sur le réseau local de l'entité et ne sont pas chiffrés par OmegaX. En ligne, écrire « chiffrés en transit (HTTPS) », sans « de bout en bout ». Ajouter au spec de la page une vérification que la section 5 suit la même branche que les sections 3 et 4. Aucune règle nouvelle : seul l'état réel du dépôt est décrit.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D4-D2 · FAUX
 
@@ -1876,7 +1923,7 @@ Aucun constat retenu.
 - **Source** · src/modules/auth/session-longue.ts:15-17, 30-31 ; client/src/pages/AuthPage.tsx:351
 - **Code** · client/src/pages/ConfidentialitePage.tsx:90
 - **Correction** · Remplacer « il expire au bout de huit heures » par les deux régimes tels que l'écran de connexion les énonce : fermé avec le navigateur et au plus tard huit heures après la connexion si la case est décochée ; trente jours au plus et sept jours sans usage si elle est cochée. Mettre à jour DATE_DE_MISE_A_JOUR. Geler dans le spec la présence des deux durées, sans bannir de mot.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D4-A5 · INCOMPLET
 
@@ -1884,7 +1931,7 @@ Aucun constat retenu.
 - **Source** · droit-numerique-ua-rdc-corpus/references/06-ordonnance-loi-23-10-code-numerique-rdc-2023/partie-1-dispositions-generales-p1-p42.md l. 326-330, 453-459, 473-479, 513-522
 - **Code** · docs/actions-du-proprietaire.md:171-192 (questions au juriste limitées aux art. 189, 201, 202, 244) ; docs/code-du-numerique-et-omegax.md:1-7 (lecture du seul Livre III) ; prisma/schema.prisma:105-106 (FormeJuridiqueSyscohada.ENTITE_PUBLIQUE)
 - **Correction** · Ajouter au § 3 de docs/actions-du-proprietaire.md, et au § 1 de docs/code-du-numerique-et-omegax.md, la question du régime de VMG au titre de l'ordonnance-loi n° 23/10 du 13 mars 2023. Citer les art. 13, 15, 4° et 19, et rappeler que les listes sont complétées par décret ou arrêté, textes qui ne sont pas au corpus. Préciser le cas concret : un dossier ENTITE_PUBLIQUE hébergé en ligne est la situation que vise l'art. 19. Ne rien coder, ne rien afficher, tant que le juriste n'a pas qualifié l'activité.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D4-B5 · INCOMPLET
 
@@ -1892,7 +1939,7 @@ Aucun constat retenu.
 - **Source** · partie-2-transactions-donnees-p43-p121.md l. 1215-1222
 - **Code** · client/src/pages/ConfidentialitePage.tsx:78-84 ; prisma/schema.prisma:4563-4568 (acteurEmail, adresseIp dénormalisés) ; src/common/audit/audit-contexte.interceptor.ts:32 ; client/src/pages/JournalAuditPage.tsx:277-278
 - **Correction** · Ajouter à la section 1 l'adresse d'origine (IP) enregistrée à chaque événement du journal d'audit, ainsi que les éléments du second facteur. Écrire la conservation telle qu'elle est aujourd'hui : aucune purge, le journal étant chaîné. Ne pas inventer de durée : borner la conservation de l'IP est une décision de VMG, à prendre avec le juriste.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D4-C4 · INCOMPLET
 
@@ -1900,7 +1947,7 @@ Aucun constat retenu.
 - **Source** · partie-2-transactions-donnees-p43-p121.md, l. 1814-1818
 - **Code** · src/modules/auth/auth.service.ts:294-409 (connexion réussie sans trace) ; src/modules/exports/restitution/restitution.service.ts:257 (seul emploi de `ActionAudit.EXTRACTION`) ; src/modules/personnel/personnel.controller.ts:47, 176, 182 (lectures des salariés et des bulletins sans trace)
 - **Correction** · Consigner au journal d'audit, par l'écrivain de chaîne unique déjà exporté, la connexion réussie (acteur, moment, adresse) et chaque export du contenu d'un dossier qui porte des données personnelles, sur le modèle du maillon `EXTRACTION`. Deux points relèvent du juriste : faut-il tracer aussi chaque LECTURE à l'écran, et les journaux de requêtes de l'hébergeur (sans identité) suffisent-ils ? Ne rien présenter comme conforme avant.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D4-C8 · INCOMPLET
 
@@ -1908,7 +1955,7 @@ Aucun constat retenu.
 - **Source** · partie-2-transactions-donnees-p43-p121.md, l. 1830, 1844, 1730-1735
 - **Code** · client/src/pages/ConfidentialitePage.tsx:79-83 (catégories sans l'adresse IP), :157-184 (durées sans les données de compte ni le journal), :204-209 (suppression sans réserve) ; prisma/schema.prisma:4563-4568 (`acteurEmail` dénormalisé, `adresseIp`) ; src/common/audit/audit-contexte.interceptor.ts:32
 - **Correction** · Nommer l'adresse IP parmi les données de traçabilité. Dire que le journal d'audit ne s'efface pas, et que la suppression d'un compte laisse son courriel et ses adresses au journal. Donner la durée de conservation de ces données ou, faute de décision de VMG, le dire. Borner la promesse d'effacement par l'exception de l'art. 216 al. 4, 2°. Aucune durée n'est à inventer : l'articulation avec la conservation comptable (AUDCIF art. 24) est à faire confirmer.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D4-C9 · INCOMPLET
 
@@ -1916,7 +1963,7 @@ Aucun constat retenu.
 - **Source** · partie-2-transactions-donnees-p43-p121.md, l. 1843, 2179-2181, 1537-1538
 - **Code** · client/src/pages/ConfidentialitePage.tsx:203-216 (section 7, aucune mention de réclamation ni de directives post mortem)
 - **Correction** · Ajouter à la section 7 deux mentions. La première est le droit de réclamation auprès de l'Autorité de protection des données et le recours juridictionnel, sans nommer l'organe qui l'exerce tant que la question de l'ARPTC n'est pas qualifiée. La seconde est la possibilité de définir des directives sur ses données après sa mort (art. 208). Ajouter aussi le délai de réponse de trente jours, prorogeable de soixante (art. 239), texte à l'appui. Geler les deux mentions par le spec.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D4-D3 · INCOMPLET
 
@@ -1924,7 +1971,7 @@ Aucun constat retenu.
 - **Source** · droit-numerique-ua-rdc-corpus/references/06-ordonnance-loi-23-10-code-numerique-rdc-2023/partie-3-cybersecurite-plan-detaille-p122-p172.md:336-366, 824-827, 1351
 - **Code** · src/modules/sur-site/chiffrement-sauvegarde.ts:5-24 (aussi docs/installation-sur-site.md:129-131, .github/workflows/sauvegarde-base.yml)
 - **Correction** · Ne rien changer au chiffrement : le retirer exposerait les données. Ajouter à docs/actions-du-proprietaire.md § 3 (questions pour un juriste) quatre points. (1) La fourniture du paquet sur site avec son chiffrement relève-t-elle de la déclaration de l'art. 300 et de la description technique de l'art. 301 ? (2) L'art. 298, al. 2 pèse-t-il sur l'usage qu'en fait le client, dont la phrase n'est gérée par aucun prestataire agréé ? (3) Le chiffrement `age` des sauvegardes en ligne entre-t-il dans l'exception « ses propres données » de l'art. 298, al. 3 ? (4) La Commission de cryptologie et l'arrêté de l'art. 299 existent-ils ? Préparer dès maintenant la description technique de l'art. 301 (format OMXSAV01, AES-256-GCM, scrypt N=2^15 ; age), puisqu'elle est déjà écrite dans le code.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D4-D4 · INCOMPLET
 
@@ -1932,7 +1979,7 @@ Aucun constat retenu.
 - **Source** · droit-numerique-ua-rdc-corpus/references/06-ordonnance-loi-23-10-code-numerique-rdc-2023/partie-3-cybersecurite-plan-detaille-p122-p172.md:306-326
 - **Code** · docs/actions-du-proprietaire.md:171
 - **Correction** · Ajouter à docs/actions-du-proprietaire.md § 3 une ligne « Code du numérique, Livre IV, art. 294 à 296 ». Elle porte la qualification de VMG ou d'OmegaX au regard des art. 294 à 296, à trancher par un juriste, et la procédure du certificat, dont l'agrément des experts et le texte d'application ne sont pas au corpus. Si la qualification est retenue, le devoir d'information de l'art. 294, al. 2 se sert sans règle inventée : une note des corrections de sécurité par version, rattachée à la version que « À propos » affiche déjà. Rien n'est codé tant que la qualification n'est pas faite.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus
 
 ### D4-D5 · INCOMPLET
 
@@ -1940,4 +1987,4 @@ Aucun constat retenu.
 - **Source** · droit-numerique-ua-rdc-corpus/references/06-ordonnance-loi-23-10-code-numerique-rdc-2023/partie-3-cybersecurite-plan-detaille-p122-p172.md:71-77
 - **Code** · docs/code-du-numerique-et-omegax.md:76-96 (aussi docs/actions-du-proprietaire.md:182-185, client/src/pages/ConfidentialitePage.tsx:195-201)
 - **Correction** · Dans docs/code-du-numerique-et-omegax.md § 3, et dans la procédure à écrire, ajouter l'art. 276, al. 3 et 4. On y nomme sa condition exacte (atteinte susceptible d'entraver un autre système), sans l'étendre à tout incident, et son destinataire, l'ANCY. On note que l'organisation de l'ANCY relève d'une ordonnance présidentielle (art. 275) non versée au corpus, dont l'existence est à confirmer. Pour le sur site, dire que l'exploitant est l'entité cliente. La page publique n'est pas à modifier : l'obligation vise l'exploitant, pas l'utilisateur.
-- **Statut** · à faire
+- **Statut** · traité, sauf mention au bilan ci-dessus

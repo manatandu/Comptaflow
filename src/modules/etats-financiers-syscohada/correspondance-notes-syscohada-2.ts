@@ -384,7 +384,16 @@ import { SpecificationNote } from '../notes-annexes/note-annexe.types';
  *    - COMPTE 62 : le Titre VII donne « 6235 autres contrats de location
  *      acquisition », le plan « 6238 » ;
  *    - COMPTE 63 : le Titre VII liste un « 6388 charges externes diverses »
- *      absent du plan, qui s'arrête à 6385.
+ *      absent du plan, qui s'arrête à 6385 ;
+ *    - COMPTE 67 : le Titre VII subdivise 672 en « 6721 crédit-bail
+ *      immobilier · 6722 crédit-bail mobilier · 6723 location-vente · 6724
+ *      autres locations acquisition » ; le plan (TSV et semis) porte 6722
+ *      crédit-bail immobilier, 6723 crédit-bail mobilier, 6724 location-vente
+ *      et 6728 autres locations acquisition, sans 6721. Le 6724 veut donc
+ *      dire deux choses DANS LE MÊME RÉFÉRENTIEL · non tranché, la source du
+ *      semis (TSV de la compétence syscohada) est à revoir, le semis ne se
+ *      retouche pas à la main (§ 7). Écart relevé dans la tranche suivante,
+ *      dont la NOTE 29 lit le 672 en bloc, sans effet sur elle non plus.
  *    Même nature que l'anomalie n° 20 (le 619 du COMPTE 61, absent du plan).
  *
  * 32. **Divergence avec l'aide Python sur la NOTE 16A** : notes-ohada.md la

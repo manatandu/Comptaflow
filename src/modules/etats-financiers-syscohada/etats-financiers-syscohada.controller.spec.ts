@@ -109,3 +109,21 @@ describe('EtatsFinanciersSyscohadaController · cloisonnement SYSCOHADA', () => 
     });
   });
 });
+
+describe('notes du SMT SYSCOHADA · câblage des états des garanties (passes O1a C7, O6 B3)', () => {
+  it('la route des notes sert les états que la forme du dossier exige, lus pour le dossier de la session', async () => {
+    const garanties = { article: 'AUSCGIE art. 139', etats: ['a', 'b'] };
+    const smt = {
+      note1MaterielMobilierCautions: jest.fn().mockResolvedValue({}),
+      note2Stocks: jest.fn().mockResolvedValue({}),
+      note3CreancesDettes: jest.fn().mockResolvedValue({}),
+      journauxDeSuivi: jest.fn().mockResolvedValue({}),
+      ficheNotes: jest.fn().mockReturnValue({}),
+      etatsDesGaranties: jest.fn().mockResolvedValue(garanties),
+    };
+    const controleur = new EtatsFinanciersSyscohadaController({} as never, smt as never, {} as never);
+    const r = await controleur.notesSmt({ tenantId: 't1' } as never, 'e1');
+    expect(r.etatsDesGaranties).toBe(garanties);
+    expect(smt.etatsDesGaranties).toHaveBeenCalledWith('t1');
+  });
+});

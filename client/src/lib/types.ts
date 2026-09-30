@@ -3281,6 +3281,13 @@ export interface LigneNote3SmtSyscohada {
 
 export interface NotesSmtSyscohada {
   fiche: FicheSmtSyscohada;
+  /**
+   * États des garanties données et des sûretés consenties que la FORME du
+   * dossier exige en plus du Titre X (AUSCGIE art. 139 pour une société
+   * commerciale, AUSCOOP art. 109 pour une coopérative), et qu'OmegaX ne
+   * produit pas au SMT · `null` pour une forme qu'aucun des deux ne vise.
+   */
+  etatsDesGaranties: { article: string; etats: [string, string] } | null;
   note1: {
     lignes: LigneNote1SmtSyscohada[];
     total: number;

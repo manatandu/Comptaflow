@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ClasseCompte, Prisma, StatutEcriture } from '@prisma/client';
+import { etatsDesGarantiesDus } from './etats-garanties-smt';
 import { PrismaService } from '../../common/prisma.service';
 import { LOT_ECRITURES, lireParLots, pageApres } from '../../common/lecture-par-lots';
 import { monnaieDuJeuLegal } from '../../common/monnaie-de-tenue';
@@ -1703,6 +1704,21 @@ export class EtatsFinanciersSmtSyscohadaService {
    * l'art. 13 parle de chiffre d'affaires, pas de recettes · une entité qui
    * facture beaucoup et encaisse peu n'échappe pas au Système normal.
    */
+  /**
+   * Les deux états des garanties que l'AUSCGIE (art. 139) ou l'AUSCOOP
+   * (art. 109) ajoutent aux états financiers de synthèse d'une société ou
+   * d'une coopérative, et que le Titre X ne porte pas · voir
+   * `etats-garanties-smt.ts`. `null` pour une forme qu'aucun des deux ne
+   * vise, ou tant que la forme n'est pas déclarée.
+   */
+  async etatsDesGaranties(tenantId: string) {
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { formeJuridiqueSyscohada: true },
+    });
+    return etatsDesGarantiesDus(tenant.formeJuridiqueSyscohada);
+  }
+
   async eligibilite(tenantId: string, exerciceId: string) {
     const [lignes, tenant] = await Promise.all([
       this.chargerLignes(tenantId, exerciceId),

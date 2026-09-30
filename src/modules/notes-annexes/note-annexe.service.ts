@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { LOT_LECTURE, lireParLots } from '../../common/lecture-par-lots';
-import { JeuNotesAnnexes, Prisma, Referentiel, StatutEcriture } from '@prisma/client';
+import { JeuNotesAnnexes, Prisma, Referentiel, StatutEcriture, StatutProvision } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
@@ -26,6 +26,13 @@ import { intituleSurLaFiche, titreDeLaNote } from './intitules-notes-sycebnl';
 import { NOTES_PROJETS } from './correspondance-notes-projets';
 import { celluleLibreEnSaisie, colonneLibreEnSaisie } from './cellules-libres-en-saisie';
 import { ecartsDesSaisies } from './controles-saisie-notes';
+import {
+  INDICATEURS_NOTE_34_LAISSES_EN_SAISIE,
+  PRECISION_NOTE_34,
+  indicateursNote34Syscohada,
+} from './indicateurs-note-34-syscohada';
+import { EtatsFinanciersSyscohadaService } from '../etats-financiers-syscohada/etats-financiers-syscohada.service';
+import { TABLEAU_PASSIFS_EVENTUELS, lignesPassifsEventuels } from './passifs-eventuels-en-note';
 import {
   NOMBRE_NOTES_SYSCOHADA,
   NOTES_SYSCOHADA,
@@ -732,7 +739,17 @@ export class NoteAnnexeService {
     // Une sûreté ou une échéance écrite sur une rubrique chiffrée compte
     // aussi : la note qui la porte est documentée.
     const saisieRenseignee = toutes.some((l) => renseignee(l.saisie) || renseignee(l.saisieLibre));
-    const applicable = applicableChiffree || saisieRenseignee || (spec.horsBalance ?? false);
+    // UNE NOTE HORS BALANCE N'EST PLUS APPLICABLE D'OFFICE (passe R2, B1) ·
+    // `|| spec.horsBalance` l'emportait sur les deux signaux ci-dessus, et la
+    // fiche récapitulative cochait « A » pour une note 32 ou 35 vide, que la
+    // liasse imprimait sans la mention NEANT. Le texte veut l'inverse · la
+    // fiche R4 fait cocher N/A la note sans objet (« pour une entité qui n'a
+    // pas de stocks et en-cours, elle doit cocher […] N/A », AUDCIF Titre IX,
+    // SYCEBNL, renvoi de la fiche récapitulative), et « les modèles de Notes
+    // non documentés ne doivent pas être joints » (Titre IX ch. 6 § 1.2 ;
+    // SYCEBNL, renvoi (1)). Seule une note que son texte déclare toujours due
+    // reste applicable vide (`applicableDOffice`, avec sa source).
+    const applicable = applicableChiffree || saisieRenseignee || spec.applicableDOffice !== undefined;
     // DÉFAUT CORRIGÉ : une note `horsBalance` (informations obligatoires,
     // effectifs, note 9 « fonds du bailleur »…) ne porte QUE des rubriques en
     // saisie, jamais chiffrées par construction · `chiffree()` vaut donc
@@ -777,7 +794,7 @@ export class NoteAnnexeService {
       renvoyeeDepuis: spec.renvoyeeDepuis,
       horsBalance: spec.horsBalance ?? false,
       exerciceN1Disponible,
-      applicable: applicable || (spec.horsBalance ?? false),
+      applicable,
       rubriquesEnAttente: spec.rubriques.flatMap<RubriqueEnAttente>((r, i) =>
         r.subdivisionAttendue && !toutes[i].rattachementDuDossier
           ? [{ cle: r.cle!, libelle: r.libelle, attendu: r.subdivisionAttendue }]
@@ -1156,6 +1173,7 @@ export class NoteAnnexeService {
     await this.injecterIndicateursFinanciers(
       notes, tenantId, exerciceId, jeu, lignesN, lignesN1, exerciceN1Id !== null, ecriture,
     );
+    await this.injecterPassifsEventuels(notes, tenantId, exerciceId, jeu);
 
     return {
       notes,
@@ -1368,6 +1386,10 @@ export class NoteAnnexeService {
     // relisent sans repasser par la base (audit final F214).
     ecriture: EcritureService,
   ) {
+    if (jeu === JeuNotesAnnexes.SYSCOHADA_SYSTEME_NORMAL) {
+      await this.injecterFicheSyntheseSyscohada(notes, tenantId, exerciceId, lignesN, lignesN1, exerciceN1Disponible, ecriture);
+      return;
+    }
     if (jeu !== JeuNotesAnnexes.ASSOCIATIONS_ORDRES_PROFESSIONNELS) return;
     const note = notes.find((n) => n.code === '33');
     if (!note) return;
@@ -1428,6 +1450,116 @@ export class NoteAnnexeService {
           `${INDICATEURS_LAISSES_EN_SAISIE.length} attendues. Une clé de rubrique a changé.`,
       );
     }
+  }
+
+  /**
+   * NOTE 34 du Système normal SYSCOHADA · voir `indicateurs-note-34-syscohada.ts`
+   * (passe R2, B3). Les trois états SYSCOHADA sont lus sur la balance DE
+   * L'APPEL, comme ceux de la note 33 (audit final F214).
+   *
+   * Le service des états SYSCOHADA est construit ici plutôt qu'injecté · son
+   * module importe déjà celui des notes (`EtatsFinanciersSyscohadaModule`), et
+   * l'injection ferait un cycle de modules. Ses deux dépendances sont celles
+   * de ce service, la lecture de la balance étant celle de l'appel.
+   */
+  private async injecterFicheSyntheseSyscohada(
+    notes: NoteCalculee[],
+    tenantId: string,
+    exerciceId: string,
+    lignesN: LigneBalancePourEtat[],
+    lignesN1: LigneBalancePourEtat[],
+    exerciceN1Disponible: boolean,
+    ecriture: EcritureService,
+  ) {
+    const note = notes.find((n) => n.code === '34');
+    if (!note) return;
+    const etats = new EtatsFinanciersSyscohadaService(ecriture, this.exerciceService);
+    const [bilan, compteDeResultat, fluxTresorerie] = await Promise.all([
+      etats.bilan(tenantId, exerciceId),
+      etats.compteDeResultat(tenantId, exerciceId),
+      etats.tableauFluxTresorerie(tenantId, exerciceId),
+    ]);
+    const indicateurs = new Map(
+      indicateursNote34Syscohada({ bilan, compteDeResultat, fluxTresorerie }, lignesN, lignesN1, exerciceN1Disponible).map(
+        (i) => [i.cle, i],
+      ),
+    );
+    note.lignes = note.lignes.map((ligne) => {
+      const i = ligne.cle ? indicateurs.get(ligne.cle) : undefined;
+      if (!i) return ligne;
+      const { valeurN, valeurN1 } = i;
+      // Colonnes de la maquette : Année N, Année N-1, Variation en %.
+      const variationPourcent =
+        valeurN === null || valeurN1 === null || Math.abs(valeurN1) < 0.005
+          ? null
+          : ((valeurN - valeurN1) / Math.abs(valeurN1)) * 100;
+      return {
+        ...ligne,
+        saisie: [valeurN, exerciceN1Disponible ? valeurN1 : null, variationPourcent],
+        saisieVerrouillee: true,
+      };
+    });
+    note.precisionEditeur = note.precisionEditeur ? `${note.precisionEditeur} ${PRECISION_NOTE_34}` : PRECISION_NOTE_34;
+    // Applicable dès qu'un indicateur est chiffré, ou que le dossier a écrit
+    // la rubrique laissée en saisie · une ancienne saisie d'une ligne
+    // désormais calculée ne compte plus, elle n'est plus affichée.
+    note.applicable = note.lignes.some((l) =>
+      l.saisieVerrouillee
+        ? (l.saisie ?? []).some((v) => typeof v === 'number' && Math.abs(v) > 0.005)
+        : (l.saisie ?? []).some((v) => v !== null && v !== ''),
+    );
+    // Garde-fou de transcription, comme à la note 33 · une clé changée dans
+    // la table ferait cesser un calcul en silence.
+    const enSaisie = note.lignes.filter((l) => !l.saisieVerrouillee).map((l) => l.cle);
+    if (enSaisie.length !== INDICATEURS_NOTE_34_LAISSES_EN_SAISIE.length) {
+      throw new Error(
+        `Note 34 : ${enSaisie.length} rubriques non calculées (${enSaisie.join(', ')}) au lieu des ` +
+          `${INDICATEURS_NOTE_34_LAISSES_EN_SAISIE.length} attendues. Une clé de rubrique a changé.`,
+      );
+    }
+  }
+
+  /**
+   * Les passifs éventuels du REGISTRE DES PROVISIONS, ajoutés au tableau qui
+   * les reçoit (NOTE 16C du SYSCOHADA, NOTE 18B des associations) · voir
+   * `passifs-eventuels-en-note.ts` (passe R2, B2). Le registre ne se relit
+   * que pour l'exercice présenté, et seulement au statut PASSIF_EVENTUEL ·
+   * les autres lignes sont au bilan ou n'appellent aucune information.
+   */
+  private async injecterPassifsEventuels(
+    notes: NoteCalculee[],
+    tenantId: string,
+    exerciceId: string,
+    jeu: JeuNotesAnnexes,
+  ) {
+    const cible = TABLEAU_PASSIFS_EVENTUELS[jeu];
+    if (!cible) return;
+    const note = notes.find(
+      (n) => n.code === cible.code && (cible.sousTableau === undefined || n.sousTableau === cible.sousTableau),
+    );
+    if (!note) return;
+    const registre = await this.prisma.provisionRisqueCharge.findMany({
+      where: { tenantId, exerciceId, statut: StatutProvision.PASSIF_EVENTUEL },
+      // L'ordre du registre lui-même (`ProvisionsService.registre`) · la note
+      // se relit contre la fenêtre du registre, ligne pour ligne.
+      orderBy: [{ nature: 'asc' }, { objet: 'asc' }],
+      select: {
+        objet: true,
+        statut: true,
+        incertitudes: true,
+        echeanceAttendue: true,
+        motifNonComptabilisation: true,
+        remboursementAttendu: true,
+        remboursementCertain: true,
+        remboursementTiers: true,
+      },
+    });
+    const ajoutees = lignesPassifsEventuels(registre, note.colonnes.length);
+    if (ajoutees.length === 0) return;
+    note.lignes = [...note.lignes, ...ajoutees];
+    // Un passif éventuel décrit DOCUMENTE la note · sans quoi elle sortirait
+    // N/A et NEANT en portant des lignes (passe R2, B1).
+    note.applicable = true;
   }
 
   /** Notes annexes du jeu « associations et ordres professionnels ». */

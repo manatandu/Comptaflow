@@ -46,6 +46,9 @@ import { NOTES_ASSOCIATIONS } from './correspondance-notes-associations';
 import { NOTES_PROJETS } from './correspondance-notes-projets';
 import { PrismaService } from '../../common/prisma.service';
 import { NOTES_SYSCOHADA } from '../etats-financiers-syscohada/correspondance-notes-syscohada';
+import { EtatsFinanciersSyscohadaService } from '../etats-financiers-syscohada/etats-financiers-syscohada.service';
+import { TABLEAU_PASSIFS_EVENTUELS, lignesPassifsEventuels } from './passifs-eventuels-en-note';
+import { INDICATEURS_NOTE_34_LAISSES_EN_SAISIE } from './indicateurs-note-34-syscohada';
 
 /**
  * Une ligne de balance. `report` porte le report à-nouveau (débit, crédit) ·
@@ -97,8 +100,22 @@ function prismaAvec(
   referentiel: Referentiel = Referentiel.SYCEBNL,
   // Cellules déjà saisies dans les rubriques renseignées hors comptabilité.
   saisies: Array<{ codeNote: string; cleRubrique: string; colonne: number; valeurTexte?: string | null; valeurNombre?: unknown }> = [],
+  // Registre des provisions · les passifs éventuels vont à la 16C / 18B
+  // (passe R2, B2).
+  provisions: Array<Record<string, unknown> & { tenantId: string; exerciceId: string; statut: string }> = [],
 ) {
   return {
+    // La doublure honore dossier, exercice et statut · une doublure qui ne
+    // filtre pas validerait une injection qui lirait le registre entier.
+    provisionRisqueCharge: {
+      findMany: jest.fn().mockImplementation(({ where }: any) =>
+        Promise.resolve(
+          provisions.filter(
+            (p) => p.tenantId === where.tenantId && p.exerciceId === where.exerciceId && (!where.statut || p.statut === where.statut),
+          ),
+        ),
+      ),
+    },
     tenant: { findUnique: jest.fn().mockResolvedValue({ referentiel }) },
     saisieNote: {
       findMany: jest.fn().mockResolvedValue(
@@ -569,10 +586,15 @@ describe('DÉFAUT CORRIGÉ : les notes hors balance présentent leurs rubriques 
   it('même garde sur le jeu projets · note 9 (fonds du bailleur, renvoi) et note 22 (lacune officielle)', async () => {
     const s = service({ e1: [] });
     const r = await s.notesProjet('t', 'e1');
-    for (const code of ['1', '2', '9', '22', '24']) {
+    // Les LIGNES restent présentées, applicables ou non. L'applicabilité
+    // suit la passe R2 (B1) · seules la note 1 (déclaration de conformité,
+    // Partie 4 ch. 1) et la note 9 (tableau servi par un autre état) sont
+    // applicables vides ; les autres attendent d'être renseignées.
+    const attendu: Record<string, boolean> = { '1': true, '2': false, '9': true, '22': false, '24': false };
+    for (const code of Object.keys(attendu)) {
       const n = note(r, code);
       expect({ code, applicable: n.applicable, lignes: n.lignes.length > 0 }).toEqual(
-        { code, applicable: true, lignes: true },
+        { code, applicable: attendu[code], lignes: true },
       );
     }
   });
@@ -2162,5 +2184,182 @@ describe('passe R6, lot C · notes des associations lues au texte', () => {
     expect(ligneDe(n5g, 'SOUS TOTAL : IMMOBILISATIONS CORPORELLES').ecartsSaisie).toEqual(
       expect.arrayContaining([{ colonne: 0, saisi: null, attendu: 1500 }]),
     );
+  });
+});
+
+describe('passe R2 · B1, une note hors balance n’est applicable que documentée', () => {
+  const sysco = (saisies: Parameters<typeof prismaAvec>[5] = []) =>
+    service({ e1: [] }, [], prismaAvec([], [], [], [], Referentiel.SYSCOHADA, saisies)).notesSyscohada('t', 'e1');
+  const fiche = (r: { ficheRecapitulative: Array<{ code: string; applicable: boolean }> }, code: string) =>
+    r.ficheRecapitulative.find((f) => f.code === code)!.applicable;
+
+  it('une note 32 ou 35 vide sort N/A sur la fiche, ses lignes à remplir restant présentées', async () => {
+    const r = await sysco();
+    for (const code of ['3D', '3E', '16B', '16C', '27B', '31', '32', '33', '35']) {
+      expect({ code, applicable: fiche(r, code) }).toEqual({ code, applicable: false });
+    }
+    expect(note(r, '32').lignes.length).toBeGreaterThan(0);
+  });
+
+  it('la NOTE 2 reste applicable vide · elle porte la déclaration de conformité (ch. 6 § 1.1)', async () => {
+    const r = await sysco();
+    expect(fiche(r, '2')).toBe(true);
+    expect(NOTES_SYSCOHADA.find((n) => n.code === '2')!.applicableDOffice).toContain('déclaration');
+  });
+
+  it('une note 32 renseignée devient applicable', async () => {
+    const r = await sysco([{ codeNote: '32', cleRubrique: 'non-ventile', colonne: 0, valeurTexte: 'Tôles' }]);
+    expect(fiche(r, '32')).toBe(true);
+  });
+
+  it('côté SYCEBNL, la note 2 des associations et la note 1 des projets sont applicables d’office, la note 34 des associations non', async () => {
+    const a = await service({ e1: [] }).notesAssociations('t', 'e1');
+    expect(fiche(a, '2')).toBe(true);
+    expect(fiche(a, '34')).toBe(false);
+    const p = await service({ e1: [] }).notesProjet('t', 'e1');
+    expect(fiche(p, '1')).toBe(true);
+  });
+});
+
+describe('passe R2 · B2, les passifs éventuels du registre des provisions vont à leur note', () => {
+  const PASSIF = {
+    tenantId: 't',
+    exerciceId: 'e1',
+    statut: 'PASSIF_EVENTUEL',
+    objet: 'Litige avec un ancien fournisseur',
+    incertitudes: 'Issue du procès incertaine',
+    echeanceAttendue: new Date('2027-06-30T00:00:00Z'),
+    motifNonComptabilisation: 'Sortie de ressources non probable.',
+    remboursementAttendu: null,
+    remboursementCertain: false,
+    remboursementTiers: null,
+    createdAt: new Date('2026-05-01'),
+  };
+  const avec = (referentiel: Referentiel, provisions: Parameters<typeof prismaAvec>[6]) =>
+    service({ e1: [] }, [], prismaAvec([], [], [], [], referentiel, [], provisions));
+
+  it('SYSCOHADA · la ligne entre au tableau PASSIF ÉVENTUEL de la 16C, verrouillée, et rend la note applicable', async () => {
+    const r = await avec(Referentiel.SYSCOHADA, [
+      PASSIF,
+      { ...PASSIF, statut: 'COMPTABILISEE', objet: 'Provision au bilan' },
+      { ...PASSIF, exerciceId: 'e0', objet: 'Autre exercice' },
+      { ...PASSIF, tenantId: 'autre', objet: 'Autre dossier' },
+    ]).notesSyscohada('t', 'e1');
+    const n = note(r, '16C', 'PASSIF ÉVENTUEL');
+    const injectees = n.lignes.filter((l: any) => l.libelle.includes('(registre des provisions)'));
+    expect(injectees.map((l: any) => l.libelle)).toEqual([
+      'Passif éventuel · Litige avec un ancien fournisseur (registre des provisions)',
+    ]);
+    expect(injectees[0].saisieVerrouillee).toBe(true);
+    expect(injectees[0].saisie[0]).toContain('Échéance attendue : 30/06/2027');
+    expect(injectees[0].saisie[0]).toContain('Issue du procès incertaine');
+    expect(injectees[0].saisie[1]).toBeNull();
+    // Les rubriques du modèle gardent leurs ancres.
+    expect(n.lignes.filter((l: any) => l.cle).map((l: any) => l.cle)).toEqual(['litiges-passif', 'rubrique-passif', 'rubrique-passif-2']);
+    expect(r.ficheRecapitulative.find((f: any) => f.code === '16C')!.applicable).toBe(true);
+    // Le tableau ACTIF ÉVENTUEL n'en reçoit rien.
+    expect(note(r, '16C', 'ACTIF ÉVENTUEL').lignes.some((l: any) => l.libelle.includes('registre'))).toBe(false);
+  });
+
+  it('associations · la même ligne va à la NOTE 18B', async () => {
+    const r = await avec(Referentiel.SYCEBNL, [PASSIF]).notesAssociations('t', 'e1');
+    const n = note(r, '18B');
+    expect(n.lignes.some((l: any) => l.libelle === 'Passif éventuel · Litige avec un ancien fournisseur (registre des provisions)')).toBe(true);
+    expect(n.applicable).toBe(true);
+  });
+
+  it('la règle écarte d’elle-même une provision comptabilisée ou écartée · elles ne sont pas des passifs éventuels', () => {
+    const lignes = lignesPassifsEventuels(
+      [
+        { ...PASSIF, statut: 'COMPTABILISEE' as never, objet: 'Au bilan' },
+        { ...PASSIF, statut: 'ECARTEE' as never, objet: 'Très faible' },
+        { ...PASSIF, statut: 'PASSIF_EVENTUEL' as never, remboursementAttendu: 250, remboursementTiers: 'Assureur', remboursementCertain: true },
+      ],
+      2,
+    );
+    expect(lignes.map((l) => l.libelle)).toEqual(['Passif éventuel · Litige avec un ancien fournisseur (registre des provisions)']);
+    expect(lignes[0].saisie![0]).toContain('Remboursement attendu : 250.00 (Assureur), certain');
+  });
+
+  it('le registre se lit sur le dossier, l’exercice et le statut · jamais en entier', async () => {
+    const prisma = prismaAvec([], [], [], [], Referentiel.SYSCOHADA, [], []);
+    await service({ e1: [] }, [], prisma).notesSyscohada('t', 'e1');
+    expect((prisma as any).provisionRisqueCharge.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { tenantId: 't', exerciceId: 'e1', statut: 'PASSIF_EVENTUEL' } }),
+    );
+  });
+
+  it('la table ne porte que les notes de passifs éventuels · aucune pour les projets', () => {
+    expect(TABLEAU_PASSIFS_EVENTUELS).toEqual({
+      SYSCOHADA_SYSTEME_NORMAL: { code: '16C', sousTableau: 'PASSIF ÉVENTUEL' },
+      ASSOCIATIONS_ORDRES_PROFESSIONNELS: { code: '18B' },
+      PROJETS_DEVELOPPEMENT: null,
+    });
+    // Chaque cible existe dans son jeu.
+    expect(NOTES_SYSCOHADA.some((n) => n.code === '16C' && n.sousTableau === 'PASSIF ÉVENTUEL')).toBe(true);
+    expect(NOTES_ASSOCIATIONS.some((n) => n.code === '18B')).toBe(true);
+  });
+});
+
+describe('passe R2 · B3, la NOTE 34 SYSCOHADA est calculée depuis les trois états', () => {
+  // Ventes 5 000 000, achats 2 000 000, intérêts 100 000, un don HAO de
+  // 50 000 (la ligne hors maquette de la CAFG), tout réglé en banque.
+  const balance = [
+    ligne('70110000', ClasseCompte.CLASSE_7, 0, 5_000_000),
+    ligne('60110000', ClasseCompte.CLASSE_6, 2_000_000, 0),
+    ligne('67110000', ClasseCompte.CLASSE_6, 100_000, 0),
+    ligne('83500000', ClasseCompte.CLASSE_8, 50_000, 0),
+    ligne('52110000', ClasseCompte.CLASSE_5, 2_850_000, 0),
+  ];
+  const calculer = async () => {
+    const r = await service({ e1: balance }, [], prismaAvec([], [], [], [], Referentiel.SYSCOHADA)).notesSyscohada('t', 'e1');
+    const n34 = note(r, '34');
+    const cellule = (cle: string) => n34.lignes.find((l: any) => l.cle === cle);
+    return { r, n34, cellule };
+  };
+
+  it('chaque ligne calculée est verrouillée, en milliers, et lit l’état qu’elle résume', async () => {
+    const { cellule } = await calculer();
+    expect(cellule('chiffre-affaires').saisieVerrouillee).toBe(true);
+    expect(cellule('chiffre-affaires').saisie[0]).toBeCloseTo(5000);
+    expect(cellule('resultat-net').saisie[0]).toBeCloseTo(2850);
+    // La ligne hors maquette est RETENUE · voir le test suivant.
+    expect(cellule('caf-autres-charges-hao').saisie[0]).toBeCloseTo(-50);
+    // Une charge (RM) est prise en valeur absolue, puis retranchée.
+    expect(cellule('caf-frais-financiers').saisie[0]).toBeCloseTo(-100);
+    // Contrôle de trésorerie · BT − DT.
+    expect(cellule('controle-tresorerie-nette').saisie[0]).toBeCloseTo(2850);
+    expect(cellule('tresorerie-nette').saisie[0]).toBeCloseTo(2850);
+  });
+
+  it('la CAFG de la note égale le poste FA du tableau des flux', async () => {
+    const { cellule } = await calculer();
+    const ecriture = {
+      balance: jest.fn().mockResolvedValue({ lignes: balance, totaux: { debit: 0, credit: 0 } }),
+    } as unknown as EcritureService;
+    const exercice = {
+      lister: jest.fn().mockResolvedValue([{ id: 'e1', dateDebut: new Date('2026-01-01') }]),
+    } as unknown as ExerciceService;
+    const tft = await new EtatsFinanciersSyscohadaService(ecriture, exercice).tableauFluxTresorerie('t', 'e1');
+    const fa = tft.lignes.find((l: any) => l.ref === 'FA') as { montant: number };
+    expect(fa.montant).toBeCloseTo(2_850_000);
+    expect(cellule('cafg').saisie[0]).toBeCloseTo(fa.montant / 1000);
+  });
+
+  it('sans exercice antérieur, les flux sont VIDES (null), jamais un faux zéro, et N-1 aussi', async () => {
+    const { cellule } = await calculer();
+    expect(cellule('flux-operationnels').saisie[0]).toBeNull();
+    expect(cellule('variation-tresorerie-nette').saisie[0]).toBeNull();
+    expect(cellule('chiffre-affaires').saisie[1]).toBeNull();
+  });
+
+  it('la rentabilité économique reste à saisir (renvoi (a)), et la note dit ses lectures', async () => {
+    const { n34, r } = await calculer();
+    const eco = n34.lignes.find((l: any) => l.cle === 'rentabilite-economique');
+    expect(eco.saisieVerrouillee).toBeUndefined();
+    expect(INDICATEURS_NOTE_34_LAISSES_EN_SAISIE).toEqual(['rentabilite-economique']);
+    expect(n34.precisionEditeur).toContain('impôt théorique');
+    expect(n34.applicable).toBe(true);
+    expect(r.ficheRecapitulative.find((f: any) => f.code === '34')!.applicable).toBe(true);
   });
 });

@@ -578,3 +578,23 @@ describe('notes SYSCOHADA, tranche 2 · anti double comptage', () => {
     expect(capte(provisions, '49910000')).toBe(true);
   });
 });
+
+describe('notes SYSCOHADA, tranche 2 · anomalie n° 31, le 672 du Titre VII et celui du semis (passe R1, C11)', () => {
+  it('la prémisse est relue sur le semis · 6724 y est la location-vente, 6728 les autres, et aucun 6721', () => {
+    const intitule = (numero: string) => PLAN_COMPTES_SYSCOHADA.find((c) => c.numero === numero)?.intitule;
+    expect(intitule('67240000')).toContain('location-vente');
+    expect(intitule('67280000')).toContain('autres locations acquisition');
+    expect(intitule('67220000')).toContain('crédit-bail immobilier');
+    expect(PLAN_COMPTES_SYSCOHADA.some((c) => c.numero.startsWith('6721'))).toBe(false);
+  });
+
+  it('l’anomalie n° 31 nomme l’écart du compte 67, sans le trancher', () => {
+    const source = require('fs').readFileSync(require('path').join(__dirname, 'correspondance-notes-syscohada-2.ts'), 'utf8') as string;
+    const debut = source.indexOf(' * 31. **Écarts entre le Titre VII et le plan de comptes**');
+    const fin = source.indexOf(' * 32. ', debut);
+    const anomalie = source.slice(debut, fin);
+    expect(anomalie).toContain('COMPTE 67 : le Titre VII subdivise 672');
+    expect(anomalie).toContain('6724 location-vente');
+    expect(anomalie).toContain('non tranché');
+  });
+});

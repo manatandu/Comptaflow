@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { NatureProvision, Referentiel, StatutProvision } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
+import { notePassifsEventuelsDuDossier } from '../notes-annexes/passifs-eventuels-en-note';
 import { CreerProvisionDto, ModifierProvisionDto, StatuerProvisionDto } from './dto/provision.dto';
 
 /**
@@ -241,6 +242,16 @@ export class ProvisionsService {
     }
   }
 
+  /** Référentiel, jeu SYCEBNL et système SYSCOHADA · la note des passifs éventuels en dépend. */
+  private async dossierDu(tenantId: string) {
+    const tenant = await this.prisma.tenant.findFirst({
+      where: { id: tenantId },
+      select: { referentiel: true, jeuEtatsFinanciersSycebnl: true, systemeComptableSyscohada: true },
+    });
+    if (!tenant) throw new NotFoundException('Dossier introuvable.');
+    return tenant;
+  }
+
   private async referentielDu(tenantId: string): Promise<Referentiel> {
     const tenant = await this.prisma.tenant.findFirst({ where: { id: tenantId }, select: { referentiel: true } });
     if (!tenant) throw new NotFoundException('Dossier introuvable.');
@@ -305,11 +316,22 @@ export class ProvisionsService {
       estimationFiable: dto.estimationFiable ?? etat.estimationFiable,
     });
     if (statut === StatutProvision.COMPTABILISEE && manques.length > 0) {
+      // LA NOTE QUI REÇOIT LE PASSIF ÉVENTUEL, NOMMÉE POUR CE DOSSIER (passe
+      // R2, B2) · le message promettait « les Notes annexes » sans lien avec
+      // elles. Le lien existe désormais pour la 16C et la 18B ; un jeu qui
+      // n'a pas cette note le dit, plutôt que de promettre une annexe
+      // renseignée.
+      const note = notePassifsEventuelsDuDossier(await this.dossierDu(tenantId));
+      const destination = note
+        ? `PASSIF_EVENTUEL, qui la porte à la ${note} de la liasse sans rien inscrire au bilan`
+        : "PASSIF_EVENTUEL, qui la garde au registre sans rien inscrire au bilan · le jeu d'états de ce dossier " +
+          "n'a pas de note d'actifs et passifs éventuels, et rien ne l'y porte d'office : décrivez-la aux Notes " +
+          'annexes';
       throw new BadRequestException(
         `Une provision ne se comptabilise que si les quatre conditions sont réunies · AUDCIF Titre VIII ch. 18 ` +
           `§ 2.1 : « Si ces trois conditions ne sont pas réunies, aucune provision ne peut être constituée. » ` +
           `Il manque ici : ${manques.join(' ; ')}. Le risque ne disparaît pas pour autant · portez la ligne en ` +
-          'PASSIF_EVENTUEL, qui la fait figurer aux Notes annexes sans rien inscrire au bilan, ou en ECARTEE si ' +
+          `${destination}, ou en ECARTEE si ` +
           'la probabilité de sortie de ressources est TRÈS FAIBLE (§ 2.1.2, seul cas où aucune information ' +
           "n'est nécessaire).",
       );

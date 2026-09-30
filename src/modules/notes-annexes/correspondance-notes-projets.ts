@@ -164,6 +164,10 @@ export const NOTES_PROJETS: SpecificationNote[] = [
     code: '1',
     titre: 'INFORMATIONS OBLIGATOIRES',
     horsBalance: true,
+    // Toujours due, même source que la note 2 des associations (passe R2, B1).
+    applicableDOffice:
+      'SYCEBNL Partie 4 ch. 1, section 6 · les Notes annexes « doivent comporter obligatoirement une ' +
+      'déclaration explicite de conformité », portée par la rubrique B de cette note.',
     colonnes: [{ type: 'LIBRE' as const, libelle: 'Informations' }],
     rubriques: [
       { cle: 'a-identite-organisation', libelle: 'A - IDENTITE, ORGANISATION', saisie: true },
@@ -476,6 +480,12 @@ export const NOTES_PROJETS: SpecificationNote[] = [
     // lecteur ne nomme plus ni route d'API ni classe (passe R6, D13) · la clé
     // de la rubrique, ancre des saisies, ne change pas.
     horsBalance: true,
+    // Ce moteur ne lit pas le tableau servi par l'autre état · il ne sait
+    // donc pas le déclarer vide. La note garde la coche « A » qu'elle avait
+    // avant la passe R2 (B1), faute de quoi elle sortirait N/A sur la fiche
+    // pendant que la liasse imprime son tableau chiffré.
+    applicableDOffice:
+      "Tableau servi par l'état « Note 9 · Fonds du bailleur », que le moteur des notes ne lit pas.",
     colonnes: [{ type: 'LIBRE' as const, libelle: 'Fonds du bailleur' }],
     rubriques: [
       {
