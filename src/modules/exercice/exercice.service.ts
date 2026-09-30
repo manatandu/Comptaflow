@@ -224,8 +224,11 @@ export class ExerciceService {
     //
     // L'art. 7 al. 4 ouvre UNE exception, et elle porte sur la DURÉE : « en
     // cas de cessation d'activité, pour quelque cause que ce soit, la durée
-    // des opérations de liquidation est comptée pour un seul exercice ». Rien
-    // dans cet alinéa ne permet à DEUX exercices de couvrir la même période.
+    // des opérations de liquidation est comptée pour un seul exercice, sous
+    // réserve de l'établissement de situations annuelles provisoires ». Rien
+    // dans cet alinéa ne permet à DEUX exercices de couvrir la même période,
+    // et l'exercice unique ne dispense pas des situations annuelles, que la
+    // situation intermédiaire des états permet de produire (passe O1a, D2).
     //
     // Le `return` était posé en tête et court-circuitait donc aussi le
     // contrôle d'unicité posé plus bas · c'est-à-dire l'un des quatre refus du

@@ -22,7 +22,7 @@ import { EtatSurSite } from '../lib/sur-site';
  * dirigerait les demandes vers le vide.
  */
 
-const DATE_DE_MISE_A_JOUR = '27 septembre 2026';
+const DATE_DE_MISE_A_JOUR = '30 septembre 2026';
 
 function Titre({ children }: { children: React.ReactNode }) {
   return <h2 className="text-[12px] font-bold mt-4 mb-1.5">{children}</h2>;
@@ -77,18 +77,25 @@ export function ConfidentialitePage() {
         </P>
         <P>
           <strong>Les données de compte et de traçabilité</strong> · l’adresse de courriel et le rôle de chaque
-          utilisateur, l’empreinte chiffrée de son mot de passe (jamais le mot de passe lui-même), et le journal
-          d’audit qui enregistre qui a fait quoi et quand dans le dossier. Ce journal n’est pas une option : les
-          textes comptables applicables (Acte uniforme relatif au droit comptable, art. 22) imposent que l’origine et
-          l’imputation de chaque écriture puissent être restituées.
+          utilisateur, l’empreinte chiffrée de son mot de passe (jamais le mot de passe lui-même) et, si la double
+          authentification est activée, le secret de l’application d’authentification et l’empreinte des codes de
+          secours. S’y ajoute le journal d’audit, qui enregistre qui a fait quoi et quand dans le dossier, chaque
+          connexion réussie, et l’<strong>adresse réseau (adresse IP)</strong> d’où chaque acte a été fait. Ce
+          journal n’est pas une option : les textes comptables applicables (Acte uniforme relatif au droit
+          comptable, art. 22) imposent que l’origine et l’imputation de chaque écriture puissent être restituées, et
+          le Code du numérique (article 219, 14°) veut que l’on puisse constater après coup qui a eu accès aux
+          données personnelles, et quand.
         </P>
 
         <Titre>2. Ce que le logiciel ne fait pas</Titre>
         <P>
           OmegaX ne dépose <strong>aucun traceur publicitaire</strong> et n’utilise aucun outil de mesure d’audience.
           Le seul témoin de connexion déposé est celui de votre session : il est strictement nécessaire au
-          fonctionnement du logiciel, il n’est pas lisible par le code de la page, et il expire au bout de huit
-          heures.
+          fonctionnement du logiciel, et il n’est pas lisible par le code de la page. Sans l’option « Rester
+          connecté sur cet appareil », il se ferme avec le navigateur, et la session prend fin au plus tard huit
+          heures après la connexion. Avec cette option, la session dure trente jours au plus depuis la connexion,
+          et se ferme après sept jours sans utilisation. La console de l’éditeur n’admet que la session fermée avec
+          le navigateur.
         </P>
         <P>
           Vos données comptables ne sont <strong>ni revendues, ni cédées, ni exploitées à d’autres fins</strong> que
@@ -129,8 +136,8 @@ export function ConfidentialitePage() {
               </li>
               <li>
                 <strong>GitHub</strong> (service GitHub Actions) produit chaque nuit la sauvegarde de la base et la
-                conserve, chiffrée (section 4). Une copie de ce fichier chiffré peut être déposée dans{' '}
-                <strong>Google Cloud Storage</strong>.
+                conserve, chiffrée (section 4). Une copie de ce fichier chiffré est déposée chaque nuit dans{' '}
+                <strong>Google Cloud Storage</strong>, dans la région <strong>europe-west1</strong> (Belgique).
               </li>
               <li>
                 <strong>Le prestataire de messagerie</strong> (SMTP) retenu par VMG Consulting reçoit l’adresse du
@@ -146,10 +153,12 @@ export function ConfidentialitePage() {
             </P>
             <P>
               Le Code du numérique congolais (ordonnance-loi n° 23/10 du 13 mars 2023) pose à son article 201 que les
-              données personnelles sont stockées ou hébergées en République démocratique du Congo, et prévoit à son
-              article 202 les cas où un transfert vers un État tiers reste possible. Le transfert opéré ici est
-              <strong> nécessaire à l’exécution du contrat</strong> qui nous lie à vous, au sens du 2° de cet
-              article : sans hébergement, il n’y a pas de service.
+              données personnelles sont stockées ou hébergées en République démocratique du Congo, et qu’un transfert
+              vers un État tiers suppose l’autorisation préalable de l’Autorité de protection des données ; son
+              article 202 énumère les cas où un tel transfert reste possible. <strong>La base juridique du transfert
+              opéré ici est en cours de qualification.</strong> Pour les données personnelles de vos dossiers, dont
+              votre entité est responsable, le transfert relève de ses instructions, VMG Consulting agissant pour son
+              compte (article 229).
             </P>
           </>
         )}
@@ -168,6 +177,18 @@ export function ConfidentialitePage() {
             et les pièces qui les justifient doivent rester présentables après la clôture.
           </P>
         )}
+        <P>
+          Les <strong>données de compte et le journal d’audit</strong> ne sont soumis à aucune purge. Un compte
+          utilisateur se désactive, il ne se supprime pas ; le journal, dont chaque événement porte l’empreinte du
+          précédent, garde le courriel et l’adresse IP de l’auteur de chaque acte tant que le dossier existe.
+          {!surSite && (
+            <em>
+              {' '}
+              Leur durée de conservation doit être arrêtée par VMG Consulting et portée ici avant toute publication
+              de cette page sur un magasin d’applications.
+            </em>
+          )}
+        </P>
         {surSite ? (
           <P>
             Une <strong>sauvegarde</strong> de la base est produite chaque jour sur cet ordinateur, et les trente plus
@@ -177,15 +198,33 @@ export function ConfidentialitePage() {
           </P>
         ) : (
           <P>
-            Une <strong>sauvegarde chiffrée</strong> de la base est produite chaque nuit et conservée quatre-vingt-dix
-            jours. Elle est chiffrée avant de quitter le serveur qui la produit, et VMG Consulting est seul à détenir
-            la clé qui permet de la lire.
+            Une <strong>sauvegarde chiffrée</strong> de la base est produite chaque nuit. Elle est chiffrée avant de
+            quitter le serveur qui la produit, et VMG Consulting est seul à détenir la clé qui permet de la lire. Le
+            fichier est conservé quatre-vingt-dix jours par GitHub ; sa copie déposée dans Google Cloud Storage
+            (europe-west1) n’a pas de durée fixée par le logiciel.{' '}
+            <em>
+              La durée de conservation de cette copie doit être arrêtée par VMG Consulting et portée ici avant toute
+              publication de cette page sur un magasin d’applications.
+            </em>
           </P>
         )}
 
         <Titre>5. Comment elles sont protégées</Titre>
+        {surSite ? (
+          <P>
+            Sur cette installation, les échanges entre les postes du bureau et l’ordinateur qui porte OmegaX passent
+            en <strong>http, sur le réseau local</strong> de votre entité : OmegaX ne les chiffre pas. Le service
+            n’est ouvert qu’aux réseaux privés et de domaine par la règle de pare-feu posée à l’installation.
+          </P>
+        ) : (
+          <P>
+            Les échanges entre votre navigateur et le service sont <strong>chiffrés en transit (HTTPS)</strong>{' '}
+            jusqu’au relais Firebase Hosting, qui les transmet au serveur d’application. Ce n’est pas un chiffrement
+            de bout en bout : le relais les déchiffre pour les acheminer.
+          </P>
+        )}
         <P>
-          Les échanges entre votre navigateur et le serveur sont chiffrés de bout en bout. Chaque dossier est cloisonné
+          Chaque dossier est cloisonné
           des autres au niveau de chaque requête du serveur : une requête qui ne porte pas la borne de votre dossier
           est refusée par le logiciel, elle n’est pas corrigée en silence. Les mots de passe ne sont jamais stockés en
           clair. Les tentatives de connexion répétées sont ralenties, et une session est révoquée dès qu’un mot de
@@ -193,12 +232,30 @@ export function ConfidentialitePage() {
         </P>
 
         <Titre>6. Si vos données étaient exposées</Titre>
-        <P>
-          L’article 244 du Code du numérique nous oblige à notifier <strong>sans délai</strong>, à l’Autorité de
-          protection des données et à vous-même, toute violation ayant affecté vos données. Nous nous y engageons, et
-          nous vous dirons ce qui a été atteint, quand, et ce que nous avons fait, plutôt que de vous adresser une
-          formule.
-        </P>
+        {surSite ? (
+          <P>
+            Sur cette installation, VMG Consulting n’a accès à aucune donnée. L’article 244 du Code du numérique met
+            la notification d’une violation, <strong>sans délai</strong>, à l’Autorité de protection des données et
+            aux personnes concernées, à la charge du responsable du traitement · votre entité, pour les données
+            qu’elle tient sur cet ordinateur.
+          </P>
+        ) : (
+          <>
+            <P>
+              L’article 244 du Code du numérique distingue deux obligations. Pour les{' '}
+              <strong>données de compte et de traçabilité</strong>, dont VMG Consulting est responsable, nous
+              notifierons <strong>sans délai</strong>, à l’Autorité de protection des données et à vous-même, toute
+              violation les ayant affectées (alinéa 1er).
+            </P>
+            <P>
+              Pour les <strong>données personnelles de vos dossiers</strong>, dont votre entité est responsable, VMG
+              Consulting, sous-traitant, vous avertira <strong>sans délai</strong> de toute atteinte à leur sécurité
+              (alinéa 2) · il revient alors à votre entité de notifier l’Autorité et les personnes concernées
+              (alinéa 1er). Dans les deux cas, nous vous dirons ce qui a été atteint, quand, et ce que nous avons
+              fait, plutôt que de vous adresser une formule.
+            </P>
+          </>
+        )}
 
         <Titre>7. Vos droits</Titre>
         <P>
@@ -207,6 +264,14 @@ export function ConfidentialitePage() {
           livres obligatoires s’exportent au format tableur sans avoir à nous le demander, et
           <strong> Fichier &gt; Restituer le dossier complet</strong> en produit une copie intégrale, table par table,
           en un seul fichier.
+        </P>
+        <P>
+          L’effacement cède devant une obligation légale qui impose de conserver les données (article 216) ; son
+          articulation avec la conservation des documents comptables et du journal d’audit est en cours de
+          qualification. Vous pouvez aussi définir les modalités de la gestion de vos données personnelles après
+          votre mort (article 208), et vous avez le droit d’introduire une réclamation auprès de l’autorité chargée
+          de la protection des données à caractère personnel et de former un recours juridictionnel (articles 220
+          et 239).
         </P>
         <P>
           Pour toute autre demande, écrivez au cabinet VMG Consulting. <em>L’adresse postale du cabinet et l’adresse

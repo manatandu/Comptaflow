@@ -1,0 +1,18 @@
+-- CONNEXION · la cinquième action du journal d'audit (passe D4, D4-C4).
+--
+-- CE QUI LA FONDE. Code du numérique, ordonnance-loi n° 23/10 du 13 mars 2023,
+-- art. 219, 14° : le responsable du traitement doit « Garantir que soit
+-- vérifiée et constatée à posteriori l'identité des personnes ayant eu accès
+-- au système informatique contenant des données à caractère personnel [...]
+-- le moment auquel ces données ont été manipulées ». Une connexion réussie ne
+-- laissait aucune trace datée.
+--
+-- POURQUOI UNE VALEUR NOUVELLE. Une connexion ne crée, ne modifie ni ne
+-- supprime rien, pas plus qu'une extraction · la ranger sous l'une des trois
+-- premières valeurs rendrait le journal faux.
+--
+-- CONTRAINTE POSTGRESQL. Une valeur ajoutée à un type énuméré n'est pas
+-- utilisable dans la transaction qui l'ajoute · cette migration ne fait donc
+-- que l'ajouter, et le premier maillon est écrit par l'application.
+-- `IF NOT EXISTS` · rejouable sur une base restaurée.
+ALTER TYPE "ActionAudit" ADD VALUE IF NOT EXISTS 'CONNEXION';

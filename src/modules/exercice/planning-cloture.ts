@@ -68,6 +68,7 @@
 
 import { FormeJuridiqueEbnl, FormeJuridiqueSyscohada, Referentiel } from '@prisma/client';
 import { FORMES_PERSONNES_PHYSIQUES } from '../retenues/correspondance-retenues';
+import { regimeReserveLegale } from '../affectation/regles-affectation';
 
 /** Toutes les formes relevant de la loi 004/2001 sur les ASBL. */
 const FORMES_ASBL: FormeJuridiqueEbnl[] = [
@@ -82,7 +83,10 @@ const FORMES_ASBL: FormeJuridiqueEbnl[] = [
  *
  * L'art. 140 ne nomme que la SA, la SAS et, le cas échéant, la SARL · le
  * circuit des assemblées suppose des organes que ni l'entreprise
- * individuelle, ni l'entreprenant, ni la succursale n'ont.
+ * individuelle, ni l'entreprenant, ni la succursale n'ont. La liste suit
+ * l'art. 140 SEUL : la SNC et la SCS ont elles aussi une assemblée annuelle
+ * dans les six mois, mais sous leurs propres articles (288 et 306), servis
+ * par l'étape 21 (passe O1a, E4).
  */
 const FORMES_SOCIETES_ASSEMBLEE: FormeJuridiqueSyscohada[] = [
   FormeJuridiqueSyscohada.SOCIETE_ANONYME,
@@ -109,13 +113,20 @@ const FORMES_SOCIETES_ASSEMBLEE: FormeJuridiqueSyscohada[] = [
 // Une seule liste au dépôt (audit du serveur du 2026-09-27, I6) · quatre
 // copies avaient déjà divergé une fois, l'une oubliant l'entreprenant.
 
-const FORMES_DEPOT_RCCM: FormeJuridiqueSyscohada[] = [
+/**
+ * Les cinq sociétés commerciales de l'AUSCGIE art. 6 · celles que vise la
+ * Partie 1 (rapport de gestion de l'art. 138, affectation de l'art. 142,
+ * mise en paiement des dividendes de l'art. 146, dépôt de l'art. 269).
+ */
+const FORMES_SOCIETES_COMMERCIALES: FormeJuridiqueSyscohada[] = [
   FormeJuridiqueSyscohada.SOCIETE_ANONYME,
   FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE,
   FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE,
   FormeJuridiqueSyscohada.SOCIETE_NOM_COLLECTIF,
   FormeJuridiqueSyscohada.SOCIETE_COMMANDITE_SIMPLE,
 ];
+
+const FORMES_DEPOT_RCCM: FormeJuridiqueSyscohada[] = FORMES_SOCIETES_COMMERCIALES;
 
 /** Date de dernière vérification des échéances ci-dessous contre leur source. */
 export const DERNIERE_VERIFICATION = '2026-09-03';
@@ -189,6 +200,19 @@ export interface DefinitionJalon {
   /** Jalon propre aux entités de droit étranger (art. 29-34 et 37). */
   droitEtrangerSeulement?: boolean;
   /**
+   * L'inverse · jalon propre aux entités de droit CONGOLAIS, qu'aucune source
+   * lue n'applique à une association de droit étranger (passe D1, C3).
+   */
+  droitCongolaisSeulement?: boolean;
+  /**
+   * Le détail et la source que le texte donne à CETTE forme OHADA, quand ils
+   * dépendent d'une règle déjà écrite ailleurs · le planning l'APPELLE au
+   * lieu de la réécrire, sans quoi deux fenêtres se contrediraient (passe
+   * O1a, C3 : le jalon affirmait une réserve légale que la fenêtre
+   * d'affectation refusait d'opposer). `jalonsApplicables` l'applique.
+   */
+  selonFormeSyscohada?: (forme: FormeJuridiqueSyscohada | null) => { detail: string; source: string };
+  /**
    * Ce que les DIRIGEANTS encourent si le travail du jalon n'est pas fait du
    * tout · à ne pas confondre avec `nature`. `nature: 'LEGALE'` qualifie une
    * ÉCHÉANCE opposable à un tiers, dont le dépassement se sanctionne ; ici
@@ -210,6 +234,66 @@ export interface DefinitionJalon {
    * par le service, pas ici » ne décrivait plus le code (audit final F209).
    */
   observation?: 'BROUILLARD' | 'INVENTAIRE' | 'RAPPORT_ACTIVITE' | 'DONATEURS' | 'CLOTURE_ANNUELLE';
+}
+
+/**
+ * L'AFFECTATION DU RÉSULTAT, FORME PAR FORME · passes O1a (C3, C6), O1b (A1,
+ * D5) et O6 (C1).
+ *
+ * Le jalon affirmait à TOUTE forme SYSCOHADA que la dotation d'un dixième à
+ * la réserve légale « est obligatoire […] une délibération contraire est
+ * NULLE », et proposait le capital et les dividendes à tous. Or l'art. 346
+ * vise la SARL et l'art. 546, 2° la SA ; l'art. 142 ne fait constituer que
+ * « les dotations NÉCESSAIRES », la nécessité venant d'un autre texte ; et
+ * `regimeReserveLegale` le refusait déjà, motif écrit, aux dix autres cas,
+ * dont la coopérative et sa cascade propre à vingt pour cent (AUSCOOP
+ * art. 114). Deux fenêtres, deux réponses contraires, et le planning était la
+ * plus affirmative. Il APPELLE désormais la fonction de la fenêtre
+ * d'affectation au lieu de réécrire la règle.
+ *
+ * Les comptes proposés suivent la même lecture · le 465 « Associés,
+ * dividendes à payer » aux seules sociétés commerciales, le 103 à l'entité
+ * individuelle (AUDCIF, Titre VII, compte 13 : « Dans les entités
+ * individuelles, le solde du compte 13 est viré au compte 103 »), rien de
+ * plus que réserves et report à nouveau quand la forme ne dit pas où va le
+ * reste.
+ *
+ * L'art. 146 (mise en paiement des dividendes dans les neuf mois) est dit
+ * ICI, conditionnellement, plutôt que posé en jalon daté · un jalon statique
+ * passerait « en retard » chez toute société qui n'a rien distribué.
+ */
+function affectationSyscohada(forme: FormeJuridiqueSyscohada | null): { detail: string; source: string } {
+  const regime = regimeReserveLegale(forme);
+  const commerciale = forme !== null && FORMES_SOCIETES_COMMERCIALES.includes(forme);
+  const individuelle = forme !== null && FORMES_PERSONNES_PHYSIQUES.includes(forme);
+
+  const comptes = individuelle
+    ? 'le compte 13 est SOLDÉ selon la décision ; dans une entité individuelle, son solde est viré au compte 103 (Capital personnel).'
+    : commerciale
+      ? 'le compte 13 est SOLDÉ par le crédit des réserves (11), du report à nouveau (12), du capital social (101) ou des dividendes à payer (465) selon la décision.'
+      : 'le compte 13 est SOLDÉ par le crédit des réserves (11) ou du report à nouveau (12) selon la décision · ce que la forme du dossier permet d’autre se lit dans le texte qui la régit.';
+
+  const reserve = regime.exigee
+    ? `La dotation à la réserve légale, d’un dixième au moins du bénéfice diminué, le cas échéant, des pertes antérieures, est obligatoire tant que la réserve n’atteint pas le cinquième du capital social · une délibération contraire est NULLE (${regime.source}).`
+    : `Réserve légale · ${regime.motif}`;
+
+  const dividendes = commerciale
+    ? ' Si une distribution est décidée, la mise en paiement des dividendes doit avoir lieu dans un délai maximum de NEUF MOIS après la clôture de l’exercice, sauf prolongation accordée par la juridiction compétente (AUSCGIE, art. 146).'
+    : '';
+
+  const sources = [
+    'AUDCIF, Titre VII, compte 13 (« le compte 13 est soldé lors de la comptabilisation de cette affectation »' +
+      (individuelle ? ' ; « dans les entités individuelles, le solde du compte 13 est viré au compte 103 »' : '') +
+      ')',
+    ...(commerciale ? ['AUSCGIE, art. 142 et 143'] : []),
+    regime.source,
+    ...(commerciale ? ['AUSCGIE, art. 146 (mise en paiement des dividendes)'] : []),
+  ];
+
+  return {
+    detail: `Comptabilisation de la décision d’affectation prise par l’organe compétent : ${comptes} ${reserve}${dividendes} Sans cette écriture, le résultat reste au compte 13 et s’y empile d’exercice en exercice.`,
+    source: sources.join(' ; '),
+  };
 }
 
 /**
@@ -284,16 +368,69 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
   },
   {
     etape: 4,
+    /*
+      LA SOURCE BORNE ELLE-MÊME CE JALON, ET IL LE DIT (passe D1, C2 et C3).
+
+      (1) Sa NATURE · la documentation CENCO, seule source lue qui le porte, le
+      qualifie de « mesures réglementaires qu'impose le ministère de la
+      Justice » ; aucun des articles de la loi n° 004/2001 ne l'écrit, et le
+      texte réglementaire n'a pas été identifié. La réserve est donc portée
+      dans `detail` et dans `source` · docs/obligations-annuelles-ebnl-rdc.md
+      l'annonçait faite, elle ne l'était pas. Le jalon reste LEGALE : la date
+      est opposable à une administration, et une troisième nature serait une
+      catégorie inventée.
+
+      (2) Son PÉRIMÈTRE · le Vade Mecum s'intitule « Ce que doit savoir le
+      gestionnaire d'une Association sans But Lucratif de droit Congolais »,
+      présente l'obligation comme une conséquence de la reconnaissance
+      juridique, et répond qu'une ASBL « n'[ayant] pas encore obtenu la
+      personnalité juridique » n'y est « pas tenu[e] ». D'où
+      `droitCongolaisSeulement` · aucune source lue n'y soumet une association
+      de droit étranger. La personnalité juridique, elle, n'est PAS filtrée :
+      un acte non saisi ne prouve pas qu'elle fait défaut, et la condition est
+      écrite dans le détail.
+
+      (3) « Ministère de tutelle » est le mot de la CENCO, mais le même
+      logiciel l'emploie pour le ministère du SECTEUR (avis de l'art. 5) · le
+      destinataire est nommé, le Ministère de la Justice. Et rien dans la
+      source ne dit si la liasse SYCEBNL tient lieu du compte annuel : la
+      phrase qui l'affirmait est remplacée par ce silence, dit comme tel.
+    */
     libelle: 'Compte annuel et liste des membres effectifs au Ministère de la Justice',
     detail:
-      'Dépôt, au ministère de tutelle ET aux autorités administratives locales du siège, du compte annuel et de la liste alphabétique des membres effectifs, indiquant pour chaque administrateur la qualité en laquelle il a été nommé et l’acte l’ayant approuvé. C’est l’obligation annuelle centrale d’une ASBL congolaise, et son destinataire n’est pas l’administration fiscale. Le compte annuel attendu est un état des recettes et des dépenses (cadre de l’annexe VII), plus simple que la liasse SYCEBNL, qui ne le remplace pas.',
+      'Dépôt, au Ministère de la Justice ET aux autorités administratives locales du siège, du compte annuel et de la liste alphabétique des membres effectifs, indiquant pour chaque administrateur la qualité en laquelle il a été nommé et l’acte l’ayant approuvé. Son destinataire n’est pas l’administration fiscale. L’obligation vise l’ASBL de droit congolais DOTÉE DE LA PERSONNALITÉ JURIDIQUE · la même source répond qu’une ASBL qui « n’a pas encore obtenu la personnalité juridique » n’y est pas tenue. Le compte annuel attendu est un état des recettes et des dépenses (cadre de l’annexe VII) ; aucune source lue ne dit si la liasse SYCEBNL en tient lieu. RÉSERVE · la CENCO la présente comme une mesure réglementaire du Ministère de la Justice ; aucun article de la loi n° 004/2001 ne la porte, et le texte réglementaire n’a pas été identifié.',
     nature: 'LEGALE',
     debut: { moisApres: 1, jour: 1 },
     echeance: { moisApres: 1, jour: 'FIN' },
     source:
-      'CENCO, Documentation à l’usage des ASBL, Vade Mecum du gestionnaire, obligations de l’ASBL reconnue, et annexes VI et VII (« à présenter chaque année au courant du mois de janvier »)',
+      'CENCO, Documentation à l’usage des ASBL, Vade Mecum du gestionnaire d’une ASBL de droit congolais, obligations de l’ASBL reconnue, et annexes VI et VII (« à présenter chaque année au courant du mois de janvier ») · mesure réglementaire du Ministère de la Justice selon la CENCO, portée par aucun article de la loi n° 004/2001, texte réglementaire non identifié',
     formes: FORMES_ASBL,
     referentiels: [Referentiel.SYCEBNL],
+    droitCongolaisSeulement: true,
+  },
+  {
+    /*
+      SARL · L'INFORMATION DU COMMISSAIRE SUR LES CONVENTIONS POURSUIVIES
+      (passe O1b, A7). La seule échéance de la SARL qui se date sur la
+      CLÔTURE et non sur l'assemblée : art. 351, al. 2. Rangée sous l'étape 4,
+      que seul le SYCEBNL occupe, parce que son échéance tombe au même jour.
+
+      Le logiciel ne sait ni s'il existe un commissaire aux comptes, ni s'il y
+      a des conventions antérieures poursuivies · le jalon ÉNONCE la
+      condition, il ne la tranche pas. L'avis de l'al. 1er, « dans le délai
+      d'un mois à compter de la conclusion », est événementiel et n'a pas de
+      date de clôture.
+    */
+    etape: 4,
+    libelle: 'Conventions poursuivies · information du commissaire aux comptes (SARL)',
+    detail:
+      'Lorsque l’exécution de conventions conclues au cours d’exercices antérieurs entre la société et l’un de ses gérants ou associés (ou les entreprises et sociétés que l’article 350 leur assimile) s’est poursuivie au cours du dernier exercice, le commissaire aux comptes, s’il en existe un, en est informé dans le délai d’un mois à compter de la clôture de l’exercice. Sans commissaire aux comptes ou sans convention poursuivie, le jalon est sans objet. Une convention nouvelle, elle, s’avise dans le mois de sa conclusion (art. 351, al. 1er).',
+    nature: 'LEGALE',
+    debut: { moisApres: 0, jour: 1 },
+    echeance: { moisApres: 1, jour: 'FIN' },
+    source: 'AUSCGIE, art. 350 et art. 351, al. 2 (société à responsabilité limitée)',
+    referentiels: [Referentiel.SYSCOHADA],
+    formesSyscohada: [FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE],
   },  {
     etape: 5,
     libelle: 'Déclaration semestrielle relative aux ressources',
@@ -414,7 +551,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     etape: 10,
     libelle: 'Budget et comptes annuels au ministre du secteur (établissement d’utilité publique)',
     detail:
-      'Communication au ministre ayant le secteur d’activité dans ses attributions du budget et de tous les comptes annuels de l’établissement. Le ministre les transmet ensuite au Ministre de la Justice, qui les fait publier au Journal officiel · les frais de publication sont à charge de l’établissement. L’obligation porte sur le BUDGET autant que sur les comptes : un EUP qui ne déposerait que ses états financiers ne l’aurait pas remplie.',
+      'Communication, par les administrateurs, au ministre ayant le secteur d’activité dans ses attributions du budget et de tous les comptes annuels de l’établissement. Ce budget et ces comptes annuels « sont transmis au Ministre de la Justice pour publication au Journal officiel », le texte ne disant pas par qui · les frais de publication sont à charge de l’établissement. L’obligation porte sur le BUDGET autant que sur les comptes : un EUP qui ne déposerait que ses états financiers ne l’aurait pas remplie. L’article 66 ne fixe AUCUN délai : l’échéance retenue ici est un repère, pas une date légale.',
     nature: 'LEGALE',
     debut: { moisApres: 1, jour: 1 },
     echeance: { moisApres: 3, jour: 'FIN' },
@@ -431,15 +568,31 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
       Ce que le jalon demande se lit dans le module accord-cadre (contrôle 29),
       jamais sur les conventions de financement, contrats avec des bailleurs
       que le dossier de subvention tient à part (audit final F231).
+
+      L'ART. 37 NE VISE QUE L'ONG ÉTRANGÈRE (passe D1, A1) · il est rangé à
+      la sous-section II « Des organisations Non-Gouvernementales
+      Etrangères ». Le drapeau seul servait donc le jalon à toute forme
+      déclarée de droit étranger · association, association confessionnelle,
+      EUP · alors que le module accord-cadre refuse d'y enregistrer un accord
+      et que le contrôle 29 ne les vise pas. `formes` porte désormais la même
+      règle qu'`articleTrenteSeptApplicable`, et un spec les confronte. Les
+      art. 29 à 34 ne sont plus cités ici : ils régissent l'AUTORISATION
+      (décret de l'art. 30, enregistrement de l'art. 31), pas l'accord-cadre.
+
+      « LOCALE », PAS « NATIONALE » (passe D1, A2) · c'est le mot de
+      l'art. 37, 4°, et la même loi emploie « nationaux » ailleurs (art. 42).
+      Compter la main-d'œuvre locale par la nationalité est une lecture, que
+      le texte ne tranche pas.
     */
     etape: 11,
-    libelle: 'Accord-cadre et main-d’œuvre nationale (ONG de droit étranger)',
+    libelle: 'Accord-cadre et main-d’œuvre locale (ONG de droit étranger)',
     detail:
-      'Une ONG étrangère exerce sur la base d’un accord-cadre conclu avec le Ministère du Plan, et sa main-d’œuvre doit comprendre au moins 60 % de nationaux. Vérifiez à chaque exercice que l’accord-cadre est en cours de validité et que le taux d’emploi national est tenu · les deux se contrôlent ensemble, à l’occasion du rapport d’activité.',
+      'Une ONG étrangère conclut un accord-cadre avec le Ministère ayant le Plan dans ses attributions, et utilise « la main d’œuvre locale à concurrence de 60 % au minimum ». Vérifiez à chaque exercice que l’accord-cadre est en cours de validité et que cette part est tenue · les deux se contrôlent ensemble, à l’occasion du rapport d’activité. L’article 37 ne fixe AUCUN délai : l’échéance retenue ici est un repère, pas une date légale.',
     nature: 'LEGALE',
     debut: { moisApres: 1, jour: 1 },
     echeance: { moisApres: 3, jour: 'FIN' },
-    source: 'Loi n° 004/2001 du 20 juillet 2001, art. 37 (et art. 29 à 34 pour les associations étrangères)',
+    source: 'Loi n° 004/2001 du 20 juillet 2001, art. 37, 2° (accord-cadre) et 4° (main-d’œuvre locale)',
+    formes: [FormeJuridiqueEbnl.ORGANISATION_NON_GOUVERNEMENTALE],
     referentiels: [Referentiel.SYCEBNL],
     droitEtrangerSeulement: true,
   },
@@ -556,16 +709,33 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
       pose une réserve de numérotation expresse, le texte voté ayant été
       amendé au Parlement et la numérotation relevée étant celle du projet.
       La loi se cite donc par son numéro et son objet.
+
+      L'ARRÊTÉ n° 014 DU 16 MAI 2023 (passe F8, B1) · l'art. 14 LPF renvoie
+      expressément aux « conditions définies par Arrêté du Ministre ayant les
+      Finances », et le jalon paraphrasait l'article sans son renvoi, donc se
+      lisait comme complet. L'arrêté nomme l'impôt de l'époque dans son titre
+      et son art. 1er ; il est rattaché à l'art. 14 LPF, toujours en vigueur
+      pour l'IS, et reproduit par la compilation DGI au 19/07/2026 · sa
+      lecture pour l'IS reste une LECTURE, dite ici plutôt qu'à l'écran
+      (CLAUDE.md § 9 ter, aucun historique législatif affiché). La dérogation
+      de son art. 7, al. 2 et 3, n'est pas tranchée : « le cabinet qui tient
+      les comptes ne peut pas les certifier » serait une règle inventée pour
+      la majorité des dossiers, que ce même article vise. Aucun contrôle
+      d'indépendance n'est codé · OmegaX ne détient pas le certificateur.
+
+      DATATION DES ARTICLES (passe D3, C3) · la loi n° 23/052 ne modifie que
+      les art. 12 et 13 ; l'art. 14 l'a été par la loi de finances n° 22/071,
+      et les art. 15 et 16 ne portent aucune mention de modification.
     */
     etape: 15,
     libelle: 'Déclarations fiscales annuelles',
     detail:
-      'Déclaration de l’Impôt sur les Sociétés au plus tard le 30 avril de l’année qui suit celle de la réalisation des revenus, à souscrire MÊME en cas de perte ou d’absence de revenus imposables. Pour une entreprise relevant du Système normal, elle est appuyée du bilan, du compte de résultat, du tableau des flux de trésorerie, du tableau de variation des capitaux propres et des notes annexes, et, sous peine de rejet, certifiés par un expert-comptable inscrit au tableau de l’ONEC. La déclaration est contresignée par le conseil ou le comptable du redevable (art. 13, al. 2). S’y ajoute le relevé récapitulatif des ventes de l’année aux personnes réputées commerçants ou fabricants. Les trois acomptes provisionnels de l’exercice se versent en juillet, septembre et novembre, hors calendrier de clôture. LA MENTION DU COMPTABLE · l’article 141, 2° de la loi n° 23/053 oblige le redevable « d’indiquer dans leur déclaration le nom, l’adresse et la qualification du comptable chargé de tenir leur comptabilité, en précisant si celui-ci est salarié ou non de leur entreprise ». Ce n’est pas le contreseing ci-dessus : signer n’est pas déclarer son adresse, sa qualification et son lien de subordination. OmegaX ne détient aucune de ces quatre données et ne les porte donc sur aucune pièce · à reporter à la main sur la déclaration.',
+      'Déclaration de l’Impôt sur les Sociétés au plus tard le 30 avril de l’année qui suit celle de la réalisation des revenus, à souscrire MÊME en cas de perte ou d’absence de revenus imposables. Pour une entreprise relevant du Système normal, elle est appuyée du bilan, du compte de résultat, du tableau des flux de trésorerie, du tableau de variation des capitaux propres et des notes annexes, et, sous peine de rejet, certifiés par un expert-comptable inscrit au tableau de l’ONEC, « dans les conditions définies par Arrêté du Ministre ayant les Finances » (art. 14). Cet arrêté (n° 014 du 16 mai 2023, applicable depuis les revenus 2023) ne reconnaît qu’un certificateur INDÉPENDANT : la certification est incompatible avec l’assistance comptable et/ou fiscale (art. 5), et celle d’un membre non indépendant, suspendu ou radié, sous poursuites ou non déclaré par l’ONEC à la DGI est irrégulière et « assimilée à un refus de certification » (art. 14) ; la non-désignation d’un certificateur vaut refus de faire certifier et ouvre la taxation d’office pour comptabilité irrégulière (art. 15, renvoyant à l’art. 41 de la loi n° 004/2003). RÉSERVE · l’article 7 ouvre, « par dérogation à l’article 5 », une désignation propre aux entités non astreintes à un commissaire aux comptes, et fait certifier « eux-mêmes » leurs états aux cabinets comptables non astreints ; le texte ne dit pas la portée de cette dérogation, et OmegaX ne la tranche pas. La déclaration est contresignée par le conseil ou le comptable du redevable (art. 13, al. 2). S’y ajoute le relevé récapitulatif des ventes de l’année aux personnes réputées commerçants ou fabricants. Les trois acomptes provisionnels de l’exercice se versent en juillet, septembre et novembre, hors calendrier de clôture. LA MENTION DU COMPTABLE · l’article 141, 2° de la loi n° 23/053 oblige le redevable « d’indiquer dans leur déclaration le nom, l’adresse et la qualification du comptable chargé de tenir leur comptabilité, en précisant si celui-ci est salarié ou non de leur entreprise ». Ce n’est pas le contreseing ci-dessus : signer n’est pas déclarer son adresse, sa qualification et son lien de subordination. OmegaX ne détient aucune de ces quatre données et ne les porte donc sur aucune pièce · à reporter à la main sur la déclaration.',
     nature: 'LEGALE',
     debut: { moisApres: 3, jour: 1 },
     echeance: { moisApres: 4, jour: 'FIN' },
     source:
-      'Loi n° 004/2003 portant réforme des procédures fiscales, art. 12 (échéance), 13 (états joints), 14 (certification ONEC), 15 (déclaration en cas de perte) et 16 (dans le mois en cas de dissolution, de liquidation ou de cessation), modifiés par la loi n° 23/052 ; art. 57 bis LPF tel que modifié par la loi de finances n° 25/060 du 29 décembre 2025 ; loi n° 23/053, art. 141, 2° (mention du comptable)',
+      'Loi n° 004/2003 portant réforme des procédures fiscales, art. 12 (échéance), modifié par la loi n° 23/052 et par la loi de finances n° 25/060, et 13 (états joints), modifié par la loi n° 23/052 ; art. 14 (certification ONEC), modifié par la loi de finances n° 22/071 du 28 décembre 2022 ; art. 15 (déclaration en cas de perte) et 16 (dans le mois en cas de dissolution, de liquidation ou de cessation) ; arrêté ministériel n° 014 du 16 mai 2023 (certification des états financiers), art. 5, 7, 14, 15 et 28 ; art. 57 bis LPF tel que modifié par la loi de finances n° 25/060 du 29 décembre 2025 ; loi n° 23/053, art. 141, 2° (mention du comptable)',
     echeanceFiscale: true,
     referentiels: [Referentiel.SYSCOHADA],
     formesSyscohadaExclues: FORMES_PERSONNES_PHYSIQUES,
@@ -622,6 +792,19 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
       obligation de l'AUSCGIE : un dossier SYSCOHADA voyait le tronc commun du
       CPCC, puis directement le dépôt au RCCM, sans le circuit qui y mène.
     */
+    /*
+      LE RAPPORT DE GESTION NE SE SERT QU'AUX FORMES QU'UN TEXTE LU Y OBLIGE
+      (passe O1a, C1 et E5). Le jalon était servi à toute forme SYSCOHADA
+      sous l'art. 138, alors que la fenêtre des documents obligatoires
+      (`regleRapportGestion`) le réserve aux cinq sociétés commerciales, sert
+      l'AUSCOOP art. 108 à la coopérative, et déclare AUCUNE_REGLE_LUE pour le
+      GIE, les personnes physiques, la succursale, l'entité publique, la forme
+      « Autre » et la forme non renseignée. L'art. 138 nomme « le gérant, le
+      conseil d'administration ou l'administrateur général » · un commerçant
+      personne physique n'est aucun des trois. Deux jalons désormais, et un
+      spec exige, forme par forme, que leur présence coïncide avec
+      `regleRapportGestion(forme).genre === 'EXIGE'`.
+    */
     etape: 16,
     libelle: 'Rapport de gestion',
     detail:
@@ -631,15 +814,37 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     echeance: { moisApres: 4, jour: 'FIN' },
     source: 'AUSCGIE, art. 138',
     referentiels: [Referentiel.SYSCOHADA],
+    formesSyscohada: FORMES_SOCIETES_COMMERCIALES,
+  },
+  {
+    /*
+      Pendant coopératif · l'AUSCOOP art. 108 n'est pas l'art. 138 : ni les
+      événements postérieurs à la clôture, ni le gérant, mais l'état de
+      promotion des coopérateurs, que l'AUSCGIE ne connaît pas.
+    */
+    etape: 16,
+    libelle: 'Rapport de gestion',
+    detail:
+      'Le comité de gestion ou le conseil d’administration, selon le cas, expose la situation de la société coopérative durant l’exercice écoulé, son évolution prévisible et, en particulier, les perspectives de continuation de l’activité, l’évolution de la situation de trésorerie et le plan de financement. Il y expose également l’état de promotion des coopérateurs, et toute modification dans la présentation des états financiers ou dans les méthodes d’évaluation, d’amortissement ou de provisions (art. 111).',
+    nature: 'LEGALE',
+    debut: { moisApres: 3, jour: 1 },
+    echeance: { moisApres: 4, jour: 'FIN' },
+    source: 'AUSCOOP, art. 108 et art. 111',
+    referentiels: [Referentiel.SYSCOHADA],
+    formesSyscohada: [FormeJuridiqueSyscohada.SOCIETE_COOPERATIVE],
   },
   {
     etape: 17,
     libelle: 'États financiers et rapport de gestion aux commissaires aux comptes',
     detail:
-      'Envoi aux commissaires aux comptes des états financiers de synthèse annuels et du rapport de gestion, QUARANTE-CINQ JOURS AU MOINS avant la date de l’assemblée générale ordinaire. Le délai se compte à rebours de l’assemblée, pas de la clôture : une assemblée tenue au dernier jour du sixième mois impose l’envoi vers la mi-quatrième mois. La désignation d’un commissaire aux comptes est obligatoire dans toute société anonyme (art. 702) et, dans la SARL comme dans la SAS, dès que deux des trois critères de taille sont dépassés à la clôture (total du bilan, chiffre d’affaires annuel, effectif permanent au-delà de cinquante personnes) · les deux premiers montants sont donnés par les articles cités, l’écran Paramètres du dossier les reprend.',
+      'Envoi aux commissaires aux comptes des états financiers de synthèse annuels et du rapport de gestion, QUARANTE-CINQ JOURS AU MOINS avant la date de l’assemblée générale ordinaire. Le délai se compte à rebours de l’assemblée, pas de la clôture : une assemblée tenue au dernier jour du sixième mois impose l’envoi au plus tard vers le 16 du cinquième mois. L’échéance portée ici suppose cette assemblée, OmegaX n’en connaissant pas la date réelle. La désignation d’un commissaire aux comptes est obligatoire dans toute société anonyme (art. 702) et, dans la SARL comme dans la SAS, dès que deux des trois critères de taille sont dépassés à la clôture (total du bilan, chiffre d’affaires annuel, effectif permanent au-delà de cinquante personnes) · les deux premiers montants sont donnés par les articles cités, l’écran Paramètres du dossier les reprend.',
     nature: 'LEGALE',
     debut: { moisApres: 3, jour: 15 },
-    echeance: { moisApres: 4, jour: 'FIN' },
+    // Quarante-cinq jours avant le 30 juin tombent le 16 mai · « fin du
+    // quatrième mois » devançait de seize jours le délai de l'art. 140, et le
+    // planning mettait une société « en retard » dès le 1er mai (passe O1a,
+    // C2). Même échéance que le pendant SYCEBNL et l'étape 18.
+    echeance: { moisApres: 5, jour: 15 },
     source: 'AUSCGIE, art. 140 al. 1 ; art. 702 (SA) ; art. 376 (SARL) ; art. 853-13 (SAS)',
     referentiels: [Referentiel.SYSCOHADA],
     formesSyscohada: FORMES_SOCIETES_ASSEMBLEE,
@@ -776,6 +981,55 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     echeance: { moisApres: 6, jour: 'FIN' },
     source: 'AUDCIF, art. 71 (rapport de gestion) et art. 72 (approbation dans les six mois) ; CPCC, § 2.3',
     referentiels: [Referentiel.SYSCOHADA],
+    // La SNC, la SCS et la coopérative ont leurs propres articles, servis
+    // par les deux pendants ci-dessous · la forme non renseignée garde ce
+    // jalon-ci, l'approbation valant pour toute forme (AUDCIF art. 72).
+    formesSyscohadaExclues: [
+      FormeJuridiqueSyscohada.SOCIETE_NOM_COLLECTIF,
+      FormeJuridiqueSyscohada.SOCIETE_COMMANDITE_SIMPLE,
+      FormeJuridiqueSyscohada.SOCIETE_COOPERATIVE,
+    ],
+  },
+  {
+    /*
+      SNC ET SCS · L'ASSEMBLÉE ANNUELLE ET LA COMMUNICATION PRÉALABLE (passe
+      O1a, E4). L'art. 140 ne les vise pas, mais les art. 288 (SNC) et 306
+      (SCS) posent leur propre assemblée dans les six mois ET une obligation
+      d'ENVOI aux associés, quinze jours au moins avant, à peine
+      d'annulation · ce qui manquait, l'approbation elle-même étant déjà
+      servie. Ce n'est pas le DROIT de communication de la SARL (art. 345),
+      exercé par l'associé : les deux régimes ne se transposent pas.
+    */
+    etape: 21,
+    libelle: 'Approbation des états financiers et du rapport de gestion',
+    detail:
+      'Il est tenu chaque année, dans les SIX MOIS qui suivent la clôture, une assemblée générale annuelle qui approuve le rapport de gestion, l’inventaire et les états financiers de synthèse établis par les gérants. Ces documents, le texte des résolutions proposées et, le cas échéant, le rapport du commissaire aux comptes sont COMMUNIQUÉS AUX ASSOCIÉS au moins QUINZE JOURS avant l’assemblée · toute délibération prise en violation de cette règle peut être annulée. Le délai se compte à rebours de l’assemblée, dont OmegaX ne connaît pas la date.',
+    nature: 'LEGALE',
+    debut: { moisApres: 4, jour: 1 },
+    echeance: { moisApres: 6, jour: 'FIN' },
+    source:
+      'AUSCGIE, art. 288 (société en nom collectif) et art. 306 (société en commandite simple) ; AUDCIF, art. 71 et 72',
+    referentiels: [Referentiel.SYSCOHADA],
+    formesSyscohada: [FormeJuridiqueSyscohada.SOCIETE_NOM_COLLECTIF, FormeJuridiqueSyscohada.SOCIETE_COMMANDITE_SIMPLE],
+  },
+  {
+    /*
+      COOPÉRATIVE · L'AUSCOOP art. 110 (passe O6, B4). L'approbation lui
+      était servie sous la seule source de l'AUDCIF, et la transmission à
+      l'organisation faîtière n'était nulle part. Le texte la conditionne
+      (« le cas échéant », si la coopérative est affiliée), et le dossier ne
+      porte pas l'affiliation · le jalon énonce la condition.
+    */
+    etape: 21,
+    libelle: 'Approbation des états financiers et du rapport de gestion',
+    detail:
+      'Les états financiers de synthèse annuels et le rapport de gestion sont présentés à l’assemblée générale ordinaire de la société coopérative, qui doit obligatoirement se tenir dans les SIX MOIS de la clôture de l’exercice. Le cas échéant, si la coopérative est affiliée à une organisation faîtière, ces états financiers sont également adressés à l’organisation faîtière immédiate QUARANTE-CINQ JOURS AU MOINS avant la date de l’assemblée · délai à rebours de l’assemblée, dont OmegaX ne connaît pas la date.',
+    nature: 'LEGALE',
+    debut: { moisApres: 4, jour: 1 },
+    echeance: { moisApres: 6, jour: 'FIN' },
+    source: 'AUSCOOP, art. 110, al. 1er (assemblée) et al. 2 (organisation faîtière) ; AUDCIF, art. 71 et 72',
+    referentiels: [Referentiel.SYSCOHADA],
+    formesSyscohada: [FormeJuridiqueSyscohada.SOCIETE_COOPERATIVE],
   },
   {
     etape: 22,
@@ -809,16 +1063,56 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     referentiels: [Referentiel.SYSCOHADA],
   },
   {
+    /*
+      UN JALON PAR FORME, parce que chacune a SA liste de ce qui précède
+      l'assemblée, et qu'aucune ne se transpose (passes O1b, A7 et C4).
+
+      · SA · art. 525, le droit de prendre connaissance au siège pendant les
+        quinze jours qui précèdent l'assemblée annuelle, sur cinq catégories
+        de pièces dont l'inventaire et les états financiers que le logiciel
+        produit. La SAS en est exclue par l'art. 853-3.
+      · SARL · art. 345 (droit de communication des associés pendant les
+        quinze jours) et art. 350 et 353 (rapport sur les conventions
+        réglementées, dont l'absence rend NULLES les délibérations qui les
+        concernent). L'associé unique n'a qu'une mention au registre.
+      · SAS · l'art. 140 seul, rien n'ayant été lu de plus pour elle.
+
+      Aucun montant de rémunération n'est calculé pour l'art. 525, 5° · les
+      dirigeants sociaux non salariés ne sont dans aucun bulletin.
+    */
     etape: 23,
     libelle: 'Assemblée générale statuant sur les états financiers',
     detail:
-      'L’assemblée générale qui statue sur les états financiers de synthèse doit OBLIGATOIREMENT se tenir dans les six mois de la clôture de l’exercice. C’est elle qui fait courir le délai d’un mois du dépôt au registre du commerce.',
+      'L’assemblée générale qui statue sur les états financiers de synthèse doit OBLIGATOIREMENT se tenir dans les six mois de la clôture de l’exercice. C’est elle qui fait courir le délai d’un mois du dépôt au registre du commerce. Durant les QUINZE JOURS qui précèdent l’assemblée, tout actionnaire peut prendre connaissance au siège social de l’inventaire, des états financiers de synthèse et de la liste des administrateurs, des rapports du commissaire aux comptes et du conseil d’administration ou de l’administrateur général, du texte des résolutions proposées, de la liste des actionnaires, et du montant global certifié par les commissaires aux comptes des rémunérations versées aux dix ou cinq dirigeants sociaux et salariés les mieux rémunérés selon que l’effectif excède ou non deux cents salariés · toute délibération prise en violation de ce droit peut être annulée. Délai à rebours de l’assemblée, dont OmegaX ne connaît pas la date.',
+    nature: 'LEGALE',
+    debut: { moisApres: 4, jour: 1 },
+    echeance: { moisApres: 6, jour: 'FIN' },
+    source: 'AUSCGIE, art. 140 al. 2 ; art. 525 (communication aux actionnaires)',
+    referentiels: [Referentiel.SYSCOHADA],
+    formesSyscohada: [FormeJuridiqueSyscohada.SOCIETE_ANONYME],
+  },
+  {
+    etape: 23,
+    libelle: 'Assemblée générale statuant sur les états financiers',
+    detail:
+      'L’assemblée générale qui statue sur les états financiers de synthèse doit OBLIGATOIREMENT se tenir dans les six mois de la clôture de l’exercice. C’est elle qui fait courir le délai d’un mois du dépôt au registre du commerce. Durant les QUINZE JOURS qui précèdent l’assemblée annuelle, les associés ont un droit de communication sur les états financiers de synthèse, le rapport de gestion, le texte des résolutions proposées et, le cas échéant, les rapports général et spécial du commissaire aux comptes · toute délibération prise en violation de ce droit peut être annulée. Le gérant ou, s’il en existe un, le commissaire aux comptes présente à l’assemblée, ou joint aux documents communiqués, un RAPPORT SUR LES CONVENTIONS intervenues entre la société et l’un de ses gérants ou associés · énumération, parties, nature et objet, modalités essentielles, et sommes versées ou reçues au titre des conventions poursuivies. Les délibérations relatives à ces conventions sont NULLES lorsqu’elles ont été prises en l’absence de ce rapport. Dans une société à associé unique, une convention conclue avec lui est seulement mentionnée au registre des délibérations. Délais à rebours de l’assemblée, dont OmegaX ne connaît pas la date.',
+    nature: 'LEGALE',
+    debut: { moisApres: 4, jour: 1 },
+    echeance: { moisApres: 6, jour: 'FIN' },
+    source: 'AUSCGIE, art. 140 al. 2 ; art. 345 (droit de communication), art. 350 et 353 (rapport sur les conventions)',
+    referentiels: [Referentiel.SYSCOHADA],
+    formesSyscohada: [FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE],
+  },
+  {
+    etape: 23,
+    libelle: 'Assemblée générale statuant sur les états financiers',
+    detail: 'L’assemblée générale qui statue sur les états financiers de synthèse doit OBLIGATOIREMENT se tenir dans les six mois de la clôture de l’exercice. C’est elle qui fait courir le délai d’un mois du dépôt au registre du commerce.',
     nature: 'LEGALE',
     debut: { moisApres: 4, jour: 1 },
     echeance: { moisApres: 6, jour: 'FIN' },
     source: 'AUSCGIE, art. 140 al. 2',
     referentiels: [Referentiel.SYSCOHADA],
-    formesSyscohada: FORMES_SOCIETES_ASSEMBLEE,
+    formesSyscohada: [FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE],
   },
   {
     etape: 24,
@@ -859,14 +1153,17 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     */
     etape: 26,
     libelle: 'Affectation du résultat',
+    // Texte de base, sans rien affirmer de la réserve légale · il n'est servi
+    // tel quel à aucun dossier, `selonFormeSyscohada` le recompose.
     detail:
-      'Comptabilisation de la décision d’affectation prise par l’organe compétent : le compte 13 est SOLDÉ par le crédit des réserves (11), du report à nouveau (12), du capital (101 ou 103) ou des dividendes à payer (465) selon la décision. La dotation à la réserve légale, d’un dixième au moins du bénéfice diminué des pertes antérieures, est obligatoire tant que la réserve n’atteint pas le cinquième du capital social · une délibération contraire est NULLE. Sans cette écriture, le résultat reste au compte 13 et s’y empile d’exercice en exercice.',
+      'Comptabilisation de la décision d’affectation prise par l’organe compétent : le compte 13 est SOLDÉ selon la décision. Sans cette écriture, le résultat reste au compte 13 et s’y empile d’exercice en exercice.',
     nature: 'LEGALE',
     debut: { moisApres: 6, jour: 1 },
     echeance: { moisApres: 8, jour: 'FIN' },
     source:
-      'AUDCIF, Titre VII, compte 13 (« le compte 13 est soldé lors de la comptabilisation de cette affectation ») ; AUSCGIE, art. 142 et 143, art. 346 (SARL) et art. 546, 2° (SA)',
+      'AUDCIF, Titre VII, compte 13 (« le compte 13 est soldé lors de la comptabilisation de cette affectation »)',
     referentiels: [Referentiel.SYSCOHADA],
+    selonFormeSyscohada: affectationSyscohada,
   },
   {
     etape: 26,
@@ -916,6 +1213,8 @@ export interface ObligationEvenementielle {
   /** Formes OHADA écartées · même sens que sur les jalons (passe F7). */
   formesSyscohadaExclues?: FormeJuridiqueSyscohada[];
   droitEtrangerSeulement?: boolean;
+  /** Même sens que sur les jalons · section I du chapitre II, droit congolais. */
+  droitCongolaisSeulement?: boolean;
   /** Écran d'OmegaX depuis lequel l'événement se constate. */
   ecranDeclencheur?: string;
 }
@@ -930,17 +1229,33 @@ export const OBLIGATIONS_EVENEMENTIELLES: ObligationEvenementielle[] = [
     source: 'Loi n° 004/2001, art. 11',
     formes: FORMES_ASBL,
     referentiels: [Referentiel.SYCEBNL],
+    // Les art. 11 et 15 sont au chapitre II, section I, « Des Associations
+    // Sans But Lucratif de Droit Congolais » (passe D1, A7).
+    droitCongolaisSeulement: true,
   },
   {
+    /*
+      L'ART. 15 NE S'ARRÊTE PAS À LA PROPRIÉTÉ (passe D1, A7 et C4) · il
+      vise aussi « toutes opérations en conférant l'usage ou la jouissance ou
+      en entraînant la perte de l'usage ou de la jouissance » (bail consenti
+      ou pris, usufruit, mise à disposition), sous le même délai et vers les
+      mêmes destinataires. Le prix n'est exigé que pour une acquisition ou
+      une aliénation. Seules celles-ci se constatent aux Immobilisations ·
+      les opérations d'usage ou de jouissance ne sont détectées par aucun
+      écran, et c'est dit.
+    */
     cle: 'mouvementImmeuble',
-    evenement: 'Acquisition ou aliénation d’un immeuble',
-    libelle: 'Déclaration écrite du mouvement d’immeuble, prix indiqué',
-    delai: 'Dans les trois mois de l’opération',
+    evenement:
+      'Acquisition ou aliénation d’un immeuble, ou toute opération qui en confère ou en fait perdre l’usage ou la jouissance',
+    libelle: 'Déclaration écrite du mouvement d’immeuble · prix indiqué pour une acquisition ou une aliénation',
+    delai: 'Dans les trois mois à compter de la date de l’acte qui la réalise',
     destinataire: 'Ministre de la Justice, COPIE AU MINISTRE DES FINANCES',
-    source: 'Loi n° 004/2001, art. 15',
+    source: 'Loi n° 004/2001, art. 15, al. 2',
     formes: FORMES_ASBL,
     referentiels: [Referentiel.SYCEBNL],
-    ecranDeclencheur: 'Structure > Immobilisations · entrée ou sortie d’un bien immobilier',
+    droitCongolaisSeulement: true,
+    ecranDeclencheur:
+      'Structure > Immobilisations · entrée ou sortie d’un bien immobilier (acquisition ou aliénation seulement ; les opérations d’usage ou de jouissance ne sont détectées par aucun écran)',
   },
   {
     cle: 'assujettissementTva',
@@ -1039,6 +1354,7 @@ export function obligationsEvenementiellesApplicables(contexte: {
     if (o.formesSyscohadaExclues && contexte.formeJuridiqueSyscohada && o.formesSyscohadaExclues.includes(contexte.formeJuridiqueSyscohada)) return false;
     if (o.formes && !o.formes.includes(contexte.formeJuridique)) return false;
     if (o.droitEtrangerSeulement && !contexte.droitEtranger) return false;
+    if (o.droitCongolaisSeulement && contexte.droitEtranger) return false;
     return true;
   });
 }
@@ -1070,8 +1386,11 @@ export function jalonsApplicables(contexte: {
     )
       return false;
     if (j.droitEtrangerSeulement && !contexte.droitEtranger) return false;
+    if (j.droitCongolaisSeulement && contexte.droitEtranger) return false;
     return true;
-  });
+  }).map((j) =>
+    j.selonFormeSyscohada ? { ...j, ...j.selonFormeSyscohada(contexte.formeJuridiqueSyscohada ?? null) } : j,
+  );
 }
 
 /**

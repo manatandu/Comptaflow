@@ -27,11 +27,14 @@ describe('l’écran de restitution annonce ses réserves', () => {
     expect(deplie).toContain('art. 24');
   });
 
-  it('cite le CPCC sur la valeur probante de l’écrit électronique', () => {
-    expect(deplie).toContain(
-      "Les écrits électroniques ne sont pas encore admis en preuve au même titre que l'écrit papier",
-    );
-    expect(deplie).toContain('§ 1.5.3 b');
+  it('dit la valeur probante d’après le Code du numérique, texte entier à l’appui', () => {
+    // Passe D4 (D4-A1, D4-B1) · la note de cours de 2020 est antérieure à
+    // l'ordonnance-loi n° 23/10 du 13 mars 2023, qui admet l'écrit
+    // électronique (art. 89, 95). Reste la force probante de l'art. 91.
+    expect(deplie).toContain("Elle n'a pas la force probante de l'écrit papier légalisé.");
+    expect(deplie).toContain("ni signature électronique certifiée ni horodatage au sens de l'art. 91");
+    expect(deplie).toContain('Ordonnance-loi n° 23/10 du 13 mars 2023 portant Code du numérique, art. 89, 91 et 95.');
+    expect(deplie).toContain('La qualification de l\'archive comme preuve revient à un juriste.');
   });
 
   it('refuse d’annoncer une réversibilité et nomme les imports qui existent', () => {

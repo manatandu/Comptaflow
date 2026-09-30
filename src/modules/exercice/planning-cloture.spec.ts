@@ -1,5 +1,9 @@
 import { FormeJuridiqueEbnl, FormeJuridiqueSyscohada, Referentiel } from '@prisma/client';
 import { JALONS_CLOTURE, dateJalon, jalonsApplicables , obligationsEvenementiellesApplicables, OBLIGATIONS_EVENEMENTIELLES } from './planning-cloture';
+import { regimeReserveLegale } from '../affectation/regles-affectation';
+import { regleRapportGestion } from '../documents-obligatoires/correspondance-inventaire-syscohada';
+import { articleTrenteSeptApplicable } from '../accord-cadre/conditions-ong-etrangere';
+import { FORMES_PERSONNES_PHYSIQUES } from '../retenues/correspondance-retenues';
 
 /**
  * PLANNING DE CLÔTURE · trois choses doivent tenir.
@@ -109,12 +113,16 @@ describe('planning de clôture', () => {
     // suivants · le test mesurait alors la renumérotation, pas la nature.
     expect(legaux).toEqual([
       'Compte annuel et liste des membres effectifs au Ministère de la Justice',
+      // AJOUTÉ (passe O1b, A7) · l'art. 351, al. 2 de la SARL se date sur la
+      // clôture, et partage l'étape 4, que seul le SYCEBNL occupait.
+      'Conventions poursuivies · information du commissaire aux comptes (SARL)',
       'Déclaration semestrielle relative aux ressources',
       // Deux fois : l'AUDCIF art. 19 impose lui aussi le livre d'inventaire.
       'Livre d’inventaire',
       'Livre d’inventaire',
       'Budget et comptes annuels au ministre du secteur (établissement d’utilité publique)',
-      'Accord-cadre et main-d’œuvre nationale (ONG de droit étranger)',
+      // « Locale », le mot de l'art. 37, 4° (passe D1, A2).
+      'Accord-cadre et main-d’œuvre locale (ONG de droit étranger)',
       'Registre des donateurs arrêté',
       // Deux fois : la déclaration de l'IS et ses états joints n'ont rien de
       // commun avec la déclaration d'une association exemptée.
@@ -125,6 +133,9 @@ describe('planning de clôture', () => {
       // l'art. 17 de la loi n° 004/2003, avec ses propres annexes et son
       // propre calendrier de paiement.
       'Déclaration annuelle des revenus (personne physique)',
+      // Deux fois (passe O1a, C1) · l'art. 138 pour les cinq sociétés
+      // commerciales, l'AUSCOOP art. 108 pour la coopérative.
+      'Rapport de gestion',
       'Rapport de gestion',
       'États financiers et rapport de gestion aux commissaires aux comptes',
       // AJOUTÉ le 2026-09-03 · ce jalon était classé INTERNE, sur le
@@ -135,14 +146,21 @@ describe('planning de clôture', () => {
       'Rapport d’activité au Ministère du Plan et au ministère du secteur',
       'Dépôt au Ministère de l’Économie nationale',
       'Dépôt au Ministère de l’Économie nationale',
+      // Trois fois · la SNC et la SCS (art. 288 et 306) et la coopérative
+      // (AUSCOOP art. 110) ont leur propre article (passes O1a E4, O6 B4).
+      'Approbation des états financiers et du rapport de gestion',
+      'Approbation des états financiers et du rapport de gestion',
       'Approbation des états financiers et du rapport de gestion',
       'Dépôt des états financiers SYCEBNL au CPCC',
       'Dépôt des états financiers au CPCC',
+      // Trois fois · SA (art. 525), SARL (art. 345, 350 et 353), SAS.
+      'Assemblée générale statuant sur les états financiers',
+      'Assemblée générale statuant sur les états financiers',
       'Assemblée générale statuant sur les états financiers',
       'Dépôt des états financiers au RCCM',
-      // Deux fois : l'AUSCGIE impose une réserve légale à la société, le
-      // SYCEBNL renvoie aux statuts d'une association · même geste, deux
-      // sources, et rien de commun entre un dividende et une dotation.
+      // Deux fois : l'un pour le SYSCOHADA, dont le détail se compose forme
+      // par forme (`regimeReserveLegale`), l'autre pour le SYCEBNL, qui
+      // renvoie aux statuts d'une association.
       'Affectation du résultat',
       'Affectation du résultat',
     ]);
@@ -245,7 +263,10 @@ describe('jalons applicables selon la forme juridique', () => {
     expect(l.some((x) => x.includes('Assemblée générale'))).toBe(false);
     // Le tronc commun reste, lui, servi.
     expect(l).toContain('Clôture et réouverture des livres');
-    expect(l.some((x) => x.includes('Rapport de gestion'))).toBe(true);
+    // Le rapport de gestion N'EST PLUS présumé (passe O1a, C1) · l'art. 138
+    // vise le gérant, le conseil d'administration ou l'administrateur
+    // général, et `regleRapportGestion(null)` ne lit aucune règle.
+    expect(l).not.toContain('Rapport de gestion');
   });
 
   it('garde les jalons internes pour toutes les formes', () => {
@@ -791,5 +812,147 @@ describe('Passe F13 · le PV d’assemblée de l’art. 13 bis LPF', () => {
       }).map((o) => o.cle);
     expect(cles(Referentiel.SYSCOHADA)).toContain('proceValAssembleeGenerale');
     expect(cles(Referentiel.SYCEBNL)).not.toContain('proceValAssembleeGenerale');
+  });
+});
+
+/**
+ * RECENSEMENT DU 2026-09-30 · passes D1, D3, F8, O1a, O1b et O6. Chaque bloc
+ * confronte le planning à la règle que le reste du dépôt porte déjà, ou au
+ * texte relu · deux fenêtres qui se contredisent sont le défaut visé.
+ */
+describe('recensement · planning de clôture confronté aux textes', () => {
+  const pourForme = (forme: FormeJuridiqueSyscohada | null) =>
+    jalonsApplicables({
+      referentiel: Referentiel.SYSCOHADA,
+      formeJuridique: FormeJuridiqueEbnl.ASSOCIATION,
+      formeJuridiqueSyscohada: forme,
+      droitEtranger: false,
+    });
+  const toutesFormes: (FormeJuridiqueSyscohada | null)[] = [null, ...Object.values(FormeJuridiqueSyscohada)];
+
+  it('O1a C1 · le rapport de gestion est servi exactement là où regleRapportGestion l’exige, sous le même article', () => {
+    for (const forme of toutesFormes) {
+      const regle = regleRapportGestion(forme);
+      const jalons = pourForme(forme).filter((j) => j.libelle === 'Rapport de gestion');
+      expect({ forme, servi: jalons.length === 1 }).toEqual({ forme, servi: regle.genre === 'EXIGE' });
+      if (regle.genre === 'EXIGE') {
+        const article = /AUSCOOP/.test(regle.source) ? 'AUSCOOP, art. 108' : 'AUSCGIE, art. 138';
+        expect({ forme, source: jalons[0].source.startsWith(article) }).toEqual({ forme, source: true });
+      }
+    }
+  });
+
+  it('O1a C3 · l’affectation SYSCOHADA dit la réserve légale que regimeReserveLegale dit, forme par forme', () => {
+    for (const forme of toutesFormes) {
+      const regime = regimeReserveLegale(forme);
+      const j = pourForme(forme).find((x) => x.libelle === 'Affectation du résultat')!;
+      expect({ forme, nulle: j.detail.includes('NULLE') }).toEqual({ forme, nulle: regime.exigee });
+      if (!regime.exigee) expect(j.detail).toContain(regime.motif);
+      expect(j.source).toContain(regime.source);
+      const commerciale = forme !== null && FORMES_PERSONNES_PHYSIQUES.includes(forme) === false &&
+        ['SOCIETE_ANONYME', 'SOCIETE_PAR_ACTIONS_SIMPLIFIEE', 'SOCIETE_RESPONSABILITE_LIMITEE', 'SOCIETE_NOM_COLLECTIF', 'SOCIETE_COMMANDITE_SIMPLE'].includes(forme);
+      // O1b D5 · le 465 aux seules sociétés, l'art. 146 avec lui (O1a C6).
+      expect({ forme, dividendes: j.detail.includes('(465)') }).toEqual({ forme, dividendes: commerciale });
+      expect({ forme, art146: j.source.includes('art. 146') }).toEqual({ forme, art146: commerciale });
+    }
+    for (const forme of FORMES_PERSONNES_PHYSIQUES) {
+      expect(pourForme(forme).find((x) => x.libelle === 'Affectation du résultat')!.detail).toContain('compte 103 (Capital personnel)');
+    }
+  });
+
+  it('O1a C2 · l’envoi aux commissaires se date quarante-cinq jours avant une assemblée de fin de sixième mois', () => {
+    const j = JALONS_CLOTURE.find((x) => x.libelle === 'États financiers et rapport de gestion aux commissaires aux comptes')!;
+    expect(iso(dateJalon(new Date(Date.UTC(2026, 11, 31)), j.echeance))).toBe('2027-05-15');
+    expect(j.detail).toContain('vers le 16 du cinquième mois');
+  });
+
+  it('O1a E4 et O6 B4 · la SNC, la SCS et la coopérative reçoivent l’approbation sous leur propre article', () => {
+    const approbation = (forme: FormeJuridiqueSyscohada | null) =>
+      pourForme(forme).filter((j) => j.etape === 21);
+    for (const forme of toutesFormes) expect({ forme, n: approbation(forme).length }).toEqual({ forme, n: 1 });
+    for (const forme of [FormeJuridiqueSyscohada.SOCIETE_NOM_COLLECTIF, FormeJuridiqueSyscohada.SOCIETE_COMMANDITE_SIMPLE]) {
+      const j = approbation(forme)[0];
+      expect(j.detail).toContain('QUINZE JOURS');
+      expect(j.source).toContain('art. 288');
+      expect(j.source).toContain('art. 306');
+    }
+    const coop = approbation(FormeJuridiqueSyscohada.SOCIETE_COOPERATIVE)[0];
+    expect(coop.detail).toContain('organisation faîtière');
+    expect(coop.source).toContain('AUSCOOP, art. 110');
+    expect(approbation(FormeJuridiqueSyscohada.SOCIETE_ANONYME)[0].source).not.toContain('AUSCOOP');
+  });
+
+  it('O1b A7 et C4 · SARL et SA reçoivent ce qui précède leur assemblée, chacune sous son article', () => {
+    const sarl = pourForme(FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE);
+    const conventions = sarl.find((j) => j.libelle.startsWith('Conventions poursuivies'))!;
+    expect(conventions.source).toContain('art. 351, al. 2');
+    expect(iso(dateJalon(new Date(Date.UTC(2026, 11, 31)), conventions.echeance))).toBe('2027-01-31');
+    const agSarl = sarl.find((j) => j.etape === 23)!;
+    expect(agSarl.source).toContain('art. 345');
+    expect(agSarl.source).toContain('353');
+    expect(agSarl.detail).toContain('NULLES');
+    const agSa = pourForme(FormeJuridiqueSyscohada.SOCIETE_ANONYME).find((j) => j.etape === 23)!;
+    expect(agSa.source).toContain('art. 525');
+    const agSas = pourForme(FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE).find((j) => j.etape === 23)!;
+    expect(agSas.source).not.toContain('525');
+    for (const forme of toutesFormes.filter((f) => f !== FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE)) {
+      expect({ forme, c: pourForme(forme).some((j) => j.libelle.startsWith('Conventions poursuivies')) }).toEqual({ forme, c: false });
+    }
+  });
+
+  it('F8 B1 et D3 C3 · la certification cite l’arrêté n° 014 et date chaque article de son texte modificatif', () => {
+    const j = pourForme(FormeJuridiqueSyscohada.SOCIETE_ANONYME).find((x) => x.etape === 15)!;
+    expect(j.detail).toContain('n° 014 du 16 mai 2023');
+    expect(j.detail).toContain('INDÉPENDANT');
+    expect(j.detail).toContain('« par dérogation à l’article 5 »');
+    expect(j.source).toContain('art. 14 (certification ONEC), modifié par la loi de finances n° 22/071');
+    expect(j.source).not.toContain('16 (dans le mois en cas de dissolution, de liquidation ou de cessation), modifiés par la loi n° 23/052');
+  });
+
+  it('D1 A1 · le jalon de l’accord-cadre suit la règle d’articleTrenteSeptApplicable', () => {
+    for (const forme of Object.values(FormeJuridiqueEbnl)) {
+      for (const droitEtranger of [false, true]) {
+        const servi = jalonsApplicables({ referentiel: Referentiel.SYCEBNL, formeJuridique: forme, droitEtranger }).some((j) =>
+          j.libelle.startsWith('Accord-cadre'),
+        );
+        expect({ forme, droitEtranger, servi }).toEqual({ forme, droitEtranger, servi: articleTrenteSeptApplicable(forme, droitEtranger) });
+      }
+    }
+    const j = JALONS_CLOTURE.find((x) => x.libelle.startsWith('Accord-cadre'))!;
+    expect(j.detail).toContain('main d’œuvre locale');
+    expect(j.detail).toContain('AUCUN délai');
+  });
+
+  it('D1 A3 · le jalon de l’EUP dit que l’art. 66 ne fixe aucun délai, et reprend sa formule passive', () => {
+    const j = JALONS_CLOTURE.find((x) => x.libelle.includes('établissement d’utilité publique'))!;
+    expect(j.detail).toContain('AUCUN délai');
+    expect(j.detail).toContain('« sont transmis au Ministre de la Justice');
+  });
+
+  it('D1 C2 et C3 · le compte annuel à la Justice porte sa réserve et ne vise que l’ASBL de droit congolais', () => {
+    const lib = 'Compte annuel et liste des membres effectifs au Ministère de la Justice';
+    const pour = (droitEtranger: boolean) =>
+      jalonsApplicables({ referentiel: Referentiel.SYCEBNL, formeJuridique: FormeJuridiqueEbnl.ASSOCIATION, droitEtranger }).find(
+        (j) => j.libelle === lib,
+      );
+    expect(pour(true)).toBeUndefined();
+    const j = pour(false)!;
+    expect(j.detail).toContain('DOTÉE DE LA PERSONNALITÉ JURIDIQUE');
+    expect(j.detail).toContain('aucun article de la loi n° 004/2001 ne la porte');
+    expect(j.detail).toContain('au Ministère de la Justice ET aux autorités');
+    expect(j.source).toContain('texte réglementaire non identifié');
+  });
+
+  it('D1 A7 et C4 · l’art. 15 vise aussi l’usage et la jouissance, et ne vaut que pour le droit congolais', () => {
+    const o = OBLIGATIONS_EVENEMENTIELLES.find((x) => x.cle === 'mouvementImmeuble')!;
+    expect(o.evenement).toContain('l’usage ou la jouissance');
+    expect(o.delai).toContain('date de l’acte');
+    const cles = (droitEtranger: boolean) =>
+      obligationsEvenementiellesApplicables({ referentiel: Referentiel.SYCEBNL, formeJuridique: FormeJuridiqueEbnl.ASSOCIATION, droitEtranger }).map(
+        (x) => x.cle,
+      );
+    expect(cles(false)).toEqual(expect.arrayContaining(['mouvementImmeuble', 'changementAdministrateur']));
+    expect(cles(true)).not.toContain('mouvementImmeuble');
+    expect(cles(true)).not.toContain('changementAdministrateur');
   });
 });

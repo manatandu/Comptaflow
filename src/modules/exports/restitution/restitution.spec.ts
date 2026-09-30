@@ -261,15 +261,33 @@ describe('le manifeste dit ce que l’archive n’est pas', () => {
     lignesParTable: { Journal: 4 },
   });
 
-  it('cite le CPCC mot pour mot sur la valeur probante', () => {
-    // La phrase est celle du § 1.5.3 b), première phrase · le brief d'origine
-    // l'avait tronquée en gardant la suite, plus rassurante.
-    // Le manifeste replie ses lignes · on compare le texte déplié, sinon le
-    // test dépendrait de la largeur de la mise en page et non de la citation.
+  it('dit la valeur probante d’après le Code du numérique, jamais d’après la note de cours de 2020', () => {
+    // Passe D4 (D4-A1, D4-B1) · la réserve citait les notes du CPCC de
+    // novembre 2020, antérieures à l'ordonnance-loi n° 23/10 du 13 mars 2023,
+    // en vigueur à sa promulgation (art. 390), qui pose le principe contraire
+    // (art. 89). Ce qui reste vrai est plus étroit · sans signature électronique
+    // certifiée ni horodatage, pas la force probante de l'art. 91, et
+    // l'admission de l'art. 95 sous conditions, à qualifier par un juriste.
+    // Le manifeste replie ses lignes · on compare le texte déplié.
     const deplie = manifeste.replace(/\s+/g, ' ');
+    expect(deplie).toContain("Elle n'a pas la force probante de l'écrit papier légalisé.");
+    expect(deplie).toContain('ordonnance-loi n° 23/10 du 13 mars 2023');
+    expect(deplie).toContain("« L'écrit électronique a la même valeur juridique que l'écrit sur papier » (art. 89)");
     expect(deplie).toContain(
-      "Les écrits électroniques ne sont pas encore admis en preuve au même titre que l'écrit papier en RDC.",
+      "« L'horodatage et la signature électronique certifiée confèrent à l'écrit électronique la même force probante que l'écrit sur papier légalisé ayant une date certaine » (art. 91)",
     );
+    expect(deplie).toContain('Son admission en preuve relève de l\'art. 95');
+    expect(deplie).toContain('Sa qualification comme preuve revient à un juriste.');
+  });
+
+  it('fonde le maillon EXTRACTION aussi sur l’art. 219, 14° du Code du numérique', () => {
+    // D4-C3 · « aucun texte lu n'impose de journaliser une extraction » était
+    // une lacune déclarée à tort · une restitution copie des données à
+    // caractère personnel, et le 14° veut qu'on constate a posteriori qui les
+    // a copiées et quand.
+    const deplie = manifeste.replace(/\s+/g, ' ');
+    expect(deplie).toContain('art. 219, 14°');
+    expect(deplie).toContain('copiées, effacées ou lues dans le système, le moment auquel ces données ont été manipulées');
   });
 
   it('refuse d’annoncer une conservation, une réversibilité ou un instantané', () => {

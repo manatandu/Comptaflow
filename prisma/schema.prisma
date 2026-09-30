@@ -4519,15 +4519,34 @@ enum ActionAudit {
   /// pas qui a emporté quoi, ni quand. L'art. 3 du SYCEBNL n'exclut pas
   /// l'art. 22, l'obligation vaut donc des deux côtés.
   ///
-  /// CE QUE LE TEXTE NE DIT PAS · aucun texte lu n'impose de journaliser une
-  /// extraction, n'en fixe la forme, ni ne dit qui a qualité pour la demander.
-  /// C'est une décision d'OmegaX, prise parce qu'elle rend le chemin de
-  /// révision plus complet, pas parce qu'un article l'ordonne.
+  /// UN SECOND FONDEMENT, pour les données à caractère personnel que
+  /// l'archive emporte (tiers, registre du personnel, utilisateurs) · Code du
+  /// numérique (ordonnance-loi n° 23/10 du 13 mars 2023), art. 219, 14° : le
+  /// responsable du traitement doit « Garantir que soit vérifiée et constatée
+  /// à posteriori l'identité des personnes ayant eu accès au système […], la
+  /// nature des données qui ont été […] copiées […], le moment auquel ces
+  /// données ont été manipulées ». Écrire qu'aucun texte n'impose de tracer
+  /// une extraction était une lacune déclarée à tort (passe D4, D4-C3).
+  ///
+  /// CE QUE LES TEXTES NE DISENT PAS · ni la forme du maillon, ni qui a
+  /// qualité pour demander l'extraction. Ce sont des décisions d'OmegaX.
   ///
   /// L'extension d'audit n'intercepte que les ÉCRITURES (table ACTIONS, qui
   /// ne connaît ni findMany ni findFirst) · ce maillon-ci s'écrit donc à la
   /// main, par le seul écrivain de chaîne, jamais par un second.
   EXTRACTION
+
+  /// CONNEXION · une ouverture de session réussie (passe D4, D4-C4).
+  ///
+  /// Code du numérique (ordonnance-loi n° 23/10 du 13 mars 2023), art. 219,
+  /// 14° : « l'identité des personnes ayant eu accès au système informatique
+  /// contenant des données à caractère personnel […] le moment » est le
+  /// PREMIER objet de la constatation a posteriori. Aucune trace datée ne
+  /// disait jusque-là qui s'était connecté. Comme EXTRACTION, une connexion ne
+  /// crée, ne modifie ni ne supprime rien · elle a sa valeur propre, et son
+  /// maillon s'écrit par le seul écrivain de chaîne (`ajouterMaillon`).
+  /// Tracer aussi chaque LECTURE à l'écran reste une question au juriste.
+  CONNEXION
 }
 
 /// CHEMIN DE RÉVISION · AUDCIF art. 22, 6° : « l'organisation garantisse toutes

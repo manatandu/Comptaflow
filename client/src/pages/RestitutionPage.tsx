@@ -49,9 +49,17 @@ export function RestitutionPage() {
             classeurs papier restent la conservation.
           </li>
           <li>
-            <strong>Elle n'a pas la valeur probante du papier en RDC.</strong> Les écrits
-            électroniques ne sont pas encore admis en preuve au même titre que l'écrit papier
-            (notes d'organisation comptable du CPCC, § 1.5.3 b).
+            {/* Passe D4 (D4-A1, D4-B1) · la réserve citait les notes du CPCC de
+                novembre 2020, antérieures à l'ordonnance-loi n° 23/10 du 13 mars
+                2023 (art. 89, 91, 95). L'histoire reste ici, pas à l'écran (§ 9 ter). */}
+            <strong>Elle n'a pas la force probante de l'écrit papier légalisé.</strong> Elle ne
+            porte ni signature électronique certifiée ni horodatage au sens de l'art. 91 du Code
+            du numérique.{' '}
+            <Aide
+              titre="Valeur probante de l'archive"
+              texte="L'écrit électronique a la même valeur juridique que l'écrit sur papier (art. 89). L'horodatage et la signature électronique certifiée lui confèrent la force probante de l'écrit sur papier légalisé ayant une date certaine (art. 91) · l'archive n'en porte pas. Son admission en preuve (art. 95) suppose que soit identifiée la personne dont elle émane et qu'elle soit conservée dans des conditions qui garantissent son intégrité, selon la législation relative à la conservation des archives. Le décret de l'art. 44 sur l'archivage électronique n'a pas été lu. La qualification de l'archive comme preuve revient à un juriste."
+              source="Ordonnance-loi n° 23/10 du 13 mars 2023 portant Code du numérique, art. 89, 91 et 95."
+            />
           </li>
           <li>
             <strong>Ce n'est pas une réversibilité.</strong> L'import général recharge un plan de

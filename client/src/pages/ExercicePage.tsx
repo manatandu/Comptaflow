@@ -368,8 +368,8 @@ export function ExercicePage() {
             </button>
             <Aide
               titre="Créer un exercice"
-              texte="Pour un exercice antérieur (reprise d’un dossier), un exercice qui ne suit pas le dernier, ou l’exercice de liquidation. L’exercice suivant naît aussi de la clôture ou des reports provisoires. L’exercice coïncide avec l’année civile ; le premier peut être plus court ou, commencé au second semestre, plus long ; seule la liquidation échappe à l’année civile."
-              source="AUDCIF art. 7 · SYCEBNL, Partie 1 ch. 1 (EXERCICE)"
+              texte="Pour un exercice antérieur (reprise d’un dossier), un exercice qui ne suit pas le dernier, ou l’exercice de liquidation. L’exercice suivant naît aussi de la clôture ou des reports provisoires. L’exercice coïncide avec l’année civile ; le premier peut être plus court ou, commencé au second semestre, plus long ; seule la liquidation échappe à l’année civile. La durée des opérations de liquidation est comptée pour un seul exercice « sous réserve de l’établissement de situations annuelles provisoires » : chaque année de liquidation a la sienne, que la situation intermédiaire des états financiers permet de produire. Pour une société commerciale, dans les cas de l’article 223 de l’AUSCGIE, le liquidateur établit en outre, dans les trois mois de la clôture de chaque exercice, les états financiers annuels et un rapport écrit sur les opérations de la liquidation ; l’assemblée des associés statue dans les six mois, à défaut le rapport est déposé au RCCM. Le planning de clôture ne calcule pas ces échéances."
+              source="AUDCIF art. 7 (al. 4 pour la liquidation) · SYCEBNL, Partie 1 ch. 1 (EXERCICE) · AUSCGIE, art. 223, 232 et 233"
             />
           </div>
           {creationOuverte && (

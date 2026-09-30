@@ -81,8 +81,11 @@ export class AuthController {
   // hachages bcrypt à 12 tours.
   @Throttle({ default: { ttl: 60_000, limit: 20 } })
   @Post('login')
-  async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
-    const r = await this.authService.login(dto);
+  async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response, @Req() req?: Request) {
+    // `req.ip` SEUL, réglé par le nombre de relais de confiance
+    // (sauts-de-confiance.ts, audit final F160) · la tête de X-Forwarded-For
+    // s'écrit par le client. Porté au maillon CONNEXION (passe D4, D4-C4).
+    const r = await this.authService.login(dto, req?.ip ?? null);
     // Mot de passe juste, code attendu · AUCUNE session n'est posée.
     if ('deuxiemeFacteurRequis' in r) return r;
     return this.poserSession(res, r);

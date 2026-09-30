@@ -64,11 +64,23 @@ garde que les documents attachés aux fiches des tiers, restitués dans
 \`documents-tiers/\`, et rien ne les rattache à une écriture. Les classeurs
 papier restent la conservation.
 
-**Elle n'a pas la valeur probante du papier en RDC.** Notes d'organisation
-comptable du CPCC, § 1.5.3 b), première phrase : « Les écrits électroniques ne
-sont pas encore admis en preuve au même titre que l'écrit papier en RDC. »
+**Elle n'a pas la force probante de l'écrit papier légalisé.** Le Code du
+numérique (ordonnance-loi n° 23/10 du 13 mars 2023) pose que « L'écrit
+électronique a la même valeur juridique que l'écrit sur papier » (art. 89), et
+que « L'horodatage et la signature électronique certifiée confèrent à l'écrit
+électronique la même force probante que l'écrit sur papier légalisé ayant une
+date certaine » (art. 91). Cette archive ne porte aucune signature électronique
+certifiée, et la date de ce manifeste est celle du serveur qui l'a produite,
+pas un horodatage au sens de l'art. 91. Son admission en preuve relève de
+l'art. 95 · « sous réserve que puisse être dûment identifiée la personne dont
+il émane et qu'il soit établi et conservé dans des conditions de nature en
+garantir l'intégrité conformément à la législation relative à la conservation
+des archives ». L'archive ne garantit pas elle-même cette conservation, et le
+décret de l'art. 44 sur l'archivage électronique n'a pas été lu. Sa
+qualification comme preuve revient à un juriste.
 
-**Elle ne fixe aucun délai de conservation.** Le même § 1.5.3 constate
+**Elle ne fixe aucun délai de conservation.** Les notes d'organisation
+comptable du CPCC (§ 1.5.3) constatent
 « l'absence de délai fixe unique » · trente ans en droit civil, cinq ans en
 droit commercial, de un à quinze ans en droit fiscal. Afficher un délai sur
 cette archive reviendrait à choisir à la place du cabinet.
@@ -110,9 +122,17 @@ d'OmegaX. Ils sont écrits ici comme tels pour qu'on ne les prenne pas pour
 autre chose.
 
 Le fait de tracer l'extraction dans la chaîne d'audit, en revanche, s'appuie
-sur l'AUDCIF art. 22, 6° · « permettant la reconstitution du chemin de
-révision ». L'art. 3 du SYCEBNL n'écarte pas l'art. 22 : l'obligation vaut
-pour les deux référentiels.
+sur deux textes. L'AUDCIF art. 22, 6° · « permettant la reconstitution du
+chemin de révision ». L'art. 3 du SYCEBNL n'écarte pas l'art. 22 : l'obligation
+vaut pour les deux référentiels. Et, pour les données à caractère personnel
+que l'archive emporte (tiers, registre du personnel, utilisateurs), le Code du
+numérique (ordonnance-loi n° 23/10 du 13 mars 2023), art. 219, 14°, qui charge
+le responsable du traitement de « Garantir que soit vérifiée et constatée à
+posteriori l'identité des personnes ayant eu accès au système informatique
+contenant des données à caractère personnel, la nature des données qui ont été
+introduites, modifiées, altérées, copiées, effacées ou lues dans le système, le
+moment auquel ces données ont été manipulées ». Aucun des deux ne fixe la
+forme du maillon.
 
 ## Inventaire
 

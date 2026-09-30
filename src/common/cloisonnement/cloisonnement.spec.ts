@@ -312,7 +312,13 @@ describe('balayage du code · toute collection porte sa borne', () => {
     const utilisatrices = fichiers('src')
       .filter((f) => f !== 'src/common/prisma.service.ts')
       .filter((f) => readFileSync(join(RACINE, f), 'utf8').includes('clientNu'));
-    expect(utilisatrices.sort()).toEqual(['src/modules/exports/restitution/restitution.service.ts']);
+    // Deux écrivains d'un maillon de LECTURE, que nul crochet d'écriture ne
+    // voit · l'extraction (restitution) et la connexion réussie (passe D4,
+    // D4-C4, Code du numérique, art. 219, 14°). Tous deux par `ajouterMaillon`.
+    expect(utilisatrices.sort()).toEqual([
+      'src/modules/auth/auth.service.ts',
+      'src/modules/exports/restitution/restitution.service.ts',
+    ]);
   });
 });
 

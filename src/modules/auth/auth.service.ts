@@ -18,7 +18,8 @@ import { AnalytiqueService } from '../analytique/analytique.service';
 import { RelancesService } from '../relances/relances.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-import { Referentiel, RoleUtilisateur, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
+import { ActionAudit, Prisma, Referentiel, RoleUtilisateur, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
+import { ajouterMaillon } from '../../common/audit/extension-audit';
 import { horsCloisonnement } from '../../common/cloisonnement/contexte-cloisonnement';
 import { normaliserCourriel } from '../../common/courriel';
 import { dansContexteAudit, acteurCourant, ACTEUR_SYSTEME } from '../../common/audit/contexte-audit';
@@ -291,7 +292,7 @@ export class AuthService {
     return ouverts === 0;
   }
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, adresseIp: string | null = null) {
     // SORTIE DE CLOISONNEMENT · à la connexion, on ne sait pas encore de quel
     // dossier relève celui qui se présente. C'est cette requête qui l'apprend.
     const user = await horsCloisonnement('connexion · le dossier n’est pas encore connu', () =>
@@ -400,10 +401,51 @@ export class AuthService {
     // en session courte, et la réponse le dit.
     const demandee = dto.resterConnecte === true;
     const longue = demandee && !user.estOperateurPlateforme;
+    await this.journaliserConnexion(user, adresseIp, longue);
     return {
       ...emettreSession(this.jwt, user.id, { longue }),
       ...(demandee && !longue ? { motifSessionCourte: MOTIF_CONSOLE_SANS_SESSION_LONGUE } : {}),
     };
+  }
+
+  /**
+   * LA CONNEXION RÉUSSIE LAISSE UN MAILLON (passe D4, D4-C4). Code du
+   * numérique (ordonnance-loi n° 23/10 du 13 mars 2023), art. 219, 14° ·
+   * « l'identité des personnes ayant eu accès au système informatique
+   * contenant des données à caractère personnel […] le moment ». Une
+   * connexion n'écrivait en base que pour remettre un compteur à zéro · aucune
+   * trace ne disait qui s'était connecté, ni quand, ni d'où.
+   *
+   * Écrit APRÈS toutes les vérifications, juste avant que la session parte ·
+   * un refus n'est pas un accès. Par le SEUL écrivain de chaîne
+   * (`ajouterMaillon`), jamais par un second.
+   *
+   * UN MAILLON NON ÉCRIT NE REFUSE PAS LA CONNEXION, et c'est la règle de
+   * toute la chaîne (l'extension d'audit ne fait tomber aucune requête sur un
+   * maillon manqué) · refuser l'accès à tous les cabinets parce que la table
+   * du journal est momentanément indisponible serait une panne plus grave que
+   * la trace manquante. L'échec est écrit au journal du serveur, où il se voit.
+   */
+  private async journaliserConnexion(
+    user: { id: string; email: string; tenantId: string },
+    adresseIp: string | null,
+    longue: boolean,
+  ): Promise<void> {
+    try {
+      await ajouterMaillon(this.prisma.clientNu, {
+        tenantId: user.tenantId,
+        acteurId: user.id,
+        acteurEmail: user.email,
+        adresseIp,
+        action: ActionAudit.CONNEXION,
+        entite: 'User',
+        entiteId: user.id,
+        avant: null,
+        apres: { sessionLongue: longue } as Prisma.InputJsonValue,
+      });
+    } catch (e) {
+      this.logger.error(`Maillon de connexion non écrit · ${(e as Error).message}`);
+    }
   }
 
   // ── DOUBLE AUTHENTIFICATION ─────────────────────────────────────────────

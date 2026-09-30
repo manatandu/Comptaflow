@@ -189,7 +189,66 @@ Relevé : docs/releve-de-manques-referentiels.md, passe 15, écart 15.1.
   l'avis du juriste. La question est concrète : l'art. 201 veut les données
   personnelles « stockées et/ou hébergées en République Démocratique du
   Congo », et la version en ligne d'OmegaX est hébergée hors de RDC (rang 17
-  du plan ordonné, `docs/hebergement-en-rdc.md`).
+  du plan ordonné, `docs/hebergement-en-rdc.md`). Depuis la passe D4
+  (2026-09-30), la page ne fonde plus le transfert sur l'art. 202, 2° · ce 2°
+  vise un contrat « entre la personne concernée et le responsable du
+  traitement », que le contrat de VMG avec un cabinet ne remplit pas, et
+  l'art. 229 réserve au responsable l'instruction des transferts · elle dit la
+  base « en cours de qualification ».
+- **Code du numérique, Livre I · le régime de VMG lui-même** (passe D4,
+  D4-A5). Ordonnance-loi n° 23/10 du 13 mars 2023, art. 13 · « nul ne peut
+  exercer une activité dans le secteur du numérique en République
+  Démocratique du Congo, sans se soumettre à l'un des régimes juridiques
+  prévus » (autorisation, déclaration ou homologation), le Livre régissant les
+  services exercés « à partir ou à destination » de la RDC, par toute
+  personne quel que soit son statut (art. 3). Deux hypothèses à qualifier,
+  aucune tranchée · l'autorisation de l'art. 15, 4° (« les fournisseurs des
+  services d'hébergement d'applications »), alors que VMG exploite sa propre
+  application hébergée chez Google ; et l'homologation de l'art. 19 (« les
+  fournisseurs des services numériques à l'État ou à toute autre entité
+  publique »), situation concrète dès qu'un dossier de forme ENTITE_PUBLIQUE
+  est tenu en ligne. Les listes se complètent par décret et arrêté (art. 13,
+  19), textes qui ne sont pas au corpus. Rien n'est codé ni affiché avant la
+  qualification.
+- **Code du numérique, Livre IV · la cryptologie** (passe D4, D4-D3).
+  Art. 300 · « La fourniture ou l'importation de moyens de cryptologie
+  n'assurant pas exclusivement des fonctions d'authentification ou de
+  contrôle d'intégrité est soumise à une déclaration préalable auprès de la
+  Commission de cryptologie de l'Agence Nationale de Cybersecurité » ;
+  art. 301, description technique tenue à sa disposition ; art. 341 et 342,
+  amende de cinq à dix millions de francs congolais. Quatre questions ·
+  (1) la fourniture du paquet sur site, qui chiffre la copie externe en
+  AES-256-GCM à clé dérivée par scrypt
+  (`src/modules/sur-site/chiffrement-sauvegarde.ts`), relève-t-elle des
+  art. 300 et 301 ? (2) l'art. 298, al. 2 (confidentialité libre « uniquement
+  si les moyens s'appuient sur des conventions gérées par un prestataire
+  agréé ») pèse-t-il sur l'usage qu'en fait le client ? (3) le chiffrement
+  `age` des sauvegardes en ligne (`.github/workflows/sauvegarde-base.yml`)
+  entre-t-il dans l'exception de l'art. 298, al. 3, « sauf dans le cas où le
+  cryptage est fait pour ses propres données », s'agissant de données
+  confiées ? (4) la Commission de cryptologie et l'arrêté de l'art. 299
+  existent-ils ? Ni l'ordonnance d'organisation de l'ANCY (art. 275) ni cet
+  arrêté ne sont au corpus. Le chiffrement ne se retire pas · il protège les
+  données. La description technique de l'art. 301 est déjà écrite dans le
+  code (format OMXSAV01, AES-256-GCM, scrypt N=2^15, r=8, p=1 ; `age`).
+- **Code du numérique, Livre IV · certificat de conformité et vulnérabilités**
+  (passe D4, D4-D4). Art. 294 · le vendeur de produits ou fournisseur de
+  services TIC « est tenu de solliciter, auprès du Ministre ayant le numérique
+  dans ses attributions, un certificat de conformité après analyse de la
+  vulnérabilité », et « d'informer les consommateurs de toutes les
+  vulnérabilités décelées […] ainsi que des solutions déployées pour y
+  remédier » ; art. 295, systèmes qualifiés de détection ; art. 296,
+  contrôles de l'ANCY aux frais du fournisseur. VMG vend un paquet sur site et
+  un abonnement en ligne, et l'audit final a corrigé des failles réelles
+  (F160, F238, F240). À qualifier · la soumission de VMG à ces articles, et la
+  procédure du certificat, dont l'agrément des experts n'est pas au corpus.
+  Si elle est retenue, l'information de l'al. 2 se sert sans règle inventée ·
+  une note des corrections de sécurité par version, rattachée à la version
+  que « À propos » affiche.
+- **Code du numérique, Livre IV · la notification à l'ANCY** (passe D4,
+  D4-D5). La procédure de notification encore à écrire doit porter DEUX
+  textes · l'art. 244 (Autorité de protection des données) et l'art. 276,
+  al. 3 et 4 (voir `docs/code-du-numerique-et-omegax.md` § 3).
 - **Formulaire de déclaration DGI** · toujours ouvert (rang 10 du plan
   ordonné). L'impôt est calculé, l'imprimé se remplit à la main faute d'en
   détenir le modèle officiel (`src/modules/fiscalite/fiscalite.service.ts:44-45`).

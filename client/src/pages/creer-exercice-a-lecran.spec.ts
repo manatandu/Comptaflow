@@ -50,3 +50,18 @@ describe('F80 · créer un exercice depuis l’écran', () => {
     expect(bloc(page, ouverture).includes('Créer un exercice')).toBe(true);
   });
 });
+
+describe('passe O1a, D2 · l’exercice de liquidation porte sa condition', () => {
+  it('l’aide de création cite la réserve de l’art. 7 al. 4 et les art. 232 et 233 de l’AUSCGIE', () => {
+    const i = page.indexOf('titre="Créer un exercice"');
+    expect(i).toBeGreaterThan(0);
+    const aide = page.slice(i, page.indexOf('/>', i));
+    expect(aide).toContain('« sous réserve de l’établissement de situations annuelles provisoires »');
+    expect(aide).toContain('dans les trois mois de la clôture de chaque exercice');
+    expect(aide).toContain('AUSCGIE, art. 223, 232 et 233');
+  });
+
+  it('le DTO cite l’art. 7 al. 4 en entier, réserve comprise', () => {
+    expect(dto.replace(/\s*\n\s*\* /g, ' ')).toContain("comptée pour un seul exercice, sous réserve de l'établissement de situations annuelles provisoires");
+  });
+});
