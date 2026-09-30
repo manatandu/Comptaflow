@@ -28,10 +28,10 @@ const seedSycebnl = readFileSync(join(__dirname, '..', 'comptes', 'compte-seed.t
 const seedSyscohada = readFileSync(join(__dirname, '..', 'comptes', 'compte-seed-syscohada.ts'), 'utf8');
 
 /**
- * Les quatre comptes que les tables reconnaissent, avec le mot de l'article
- * que leur intitulé doit reprendre. Le cinquième, 6276 « Cadeaux à la
- * clientèle », n'existe qu'au semis SYSCOHADA : il est traité à part, parce
- * que c'est le cas « absent d'un plan » qui doit rester sans effet.
+ * Les comptes que les tables reconnaissent, avec le mot de l'article que leur
+ * intitulé doit reprendre. Le 6276 « Cadeaux à la clientèle » est traité à
+ * part · il n'était semé qu'au SYSCOHADA jusqu'à la passe R5 (C3), et il l'est
+ * désormais aux deux plans.
  */
 const RECONNUS: ReadonlyArray<readonly [string, string, string]> = [
   ['63830000', 'Réceptions', 'art. 41, 1° · « dépenses de […] réception »'],

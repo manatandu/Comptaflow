@@ -7,7 +7,7 @@ import { ExportService } from './export.service';
 import { ExportController } from './export.controller';
 import { PrismaService } from '../../common/prisma.service';
 import { SECTIONS_RAPPORT_ACTIVITE } from '../documents-obligatoires/correspondance-inventaire';
-import { SECTIONS_RAPPORT_GESTION_AUSCGIE } from '../documents-obligatoires/correspondance-inventaire-syscohada';
+import { regleRapportGestion, SECTIONS_RAPPORT_GESTION_AUSCGIE } from '../documents-obligatoires/correspondance-inventaire-syscohada';
 
 /**
  * PARITÉ DES DOCUMENTS OBLIGATOIRES · un document dû des deux côtés doit
@@ -45,9 +45,15 @@ const RAPPORT = {
   declarationDirigeants: null,
 };
 
-function service(referentiel: Referentiel, forme: FormeJuridiqueSyscohada | null, rapport: Faux = RAPPORT) {
+function service(
+  referentiel: Referentiel,
+  forme: FormeJuridiqueSyscohada | null,
+  rapport: Faux = RAPPORT,
+  dossier: Faux = {},
+  conformiteGestion: Faux = {},
+) {
   const prisma = {
-    tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel, formeJuridiqueSyscohada: forme }) },
+    tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel, formeJuridiqueSyscohada: forme, ...dossier }) },
     exercice: {
       findFirst: jest.fn().mockResolvedValue({ dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') }),
     },
@@ -64,6 +70,7 @@ function service(referentiel: Referentiel, forme: FormeJuridiqueSyscohada | null
     conformiteRapportGestion: jest.fn().mockResolvedValue({
       fenetreEvenementsPosterieurs: null,
       tresorerie: null,
+      ...conformiteGestion,
     }),
   } as Faux;
 
@@ -171,6 +178,38 @@ describe('le rapport exporté porte les sections de SON texte', () => {
       FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE,
     );
     expect(syscohada.titres.join(' ')).not.toContain('registre des donateurs');
+  });
+});
+
+describe('le rapport de gestion exporté suit la forme de l’EXERCICE (AUSCGIE art. 182, 183 et 185)', () => {
+  const titresDe = async (buffer: unknown) => {
+    const classeur = new ExcelJS.Workbook();
+    await classeur.xlsx.load(buffer as never);
+    const titres: string[] = [];
+    classeur.worksheets[0].eachRow((r, i) => {
+      if (i > 1) titres.push(`${String(r.getCell(1).value ?? '')} ${String(r.getCell(3).value ?? '')}`);
+    });
+    return titres;
+  };
+
+  it('une SA devenue SARL après la clôture exporte les sections de la SA pour cet exercice', async () => {
+    const sa = regleRapportGestion(FormeJuridiqueSyscohada.SOCIETE_ANONYME);
+    const sarl = regleRapportGestion(FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE);
+    if (sa.genre !== 'EXIGE' || sarl.genre !== 'EXIGE') throw new Error('règles attendues');
+    const propreSa = sa.sections.find((x) => !sarl.sections.some((y) => y.cle === x.cle))!;
+    const { buffer } = await service(Referentiel.SYSCOHADA, FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE, RAPPORT, {
+      formeJuridiqueSyscohadaAnterieure: FormeJuridiqueSyscohada.SOCIETE_ANONYME,
+      dateTransformationForme: new Date('2027-05-15'),
+    }).rapportActiviteExcel('t1', 'ex');
+    expect((await titresDe(buffer)).some((t) => t.startsWith(propreSa.titre))).toBe(true);
+  });
+
+  it('l’exercice de la transformation porte la mention de l’art. 185', async () => {
+    const mention = 'La société a changé de forme le 15/05/2026 · (AUSCGIE art. 185).';
+    const { buffer } = await service(Referentiel.SYSCOHADA, FormeJuridiqueSyscohada.SOCIETE_ANONYME, RAPPORT, {}, {
+      mentionTransformation: mention,
+    }).rapportActiviteExcel('t1', 'ex');
+    expect(await titresDe(buffer)).toContain(`Transformation de la société ${mention}`);
   });
 });
 

@@ -364,8 +364,10 @@ const EXCLUSIONS_ART_41: ReadonlyArray<readonly [string, string]> = [
  * Chacune porte une exception que le logiciel N'A PAS LES MOYENS DE VÉRIFIER,
  * et la règle de maison est alors d'avertir avec l'article :
  *
- *  · 62760000 « Cadeaux à la clientèle » · art. 41, 7° exclut les biens cédés
- *    à titre de cadeaux « sauf quand il s'agit d'objets publicitaires de
+ *  · 62760000 « Cadeaux à la clientèle », semé aux DEUX plans
+ *    (`compte-seed-syscohada.ts` et `compte-seed.ts`, la fiche du compte 62
+ *    du SYCEBNL ouvrant le 6276 · passe R5, C3) · art. 41, 7° exclut les biens
+ *    cédés à titre de cadeaux « sauf quand il s'agit d'objets publicitaires de
  *    faible valeur unitaire hors taxe » (l. 1064-1067).
  *
  *    LE SEUIL EXISTE, ET IL EST CHIFFRÉ · décret n° 011/42, art. 107 : « Par

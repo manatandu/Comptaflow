@@ -12,7 +12,7 @@ import {
 } from './mentions-facture';
 import { construireEtatDetaille, FactureAchatSource } from './etat-detaille-tva';
 import { FORMES_PERSONNES_PHYSIQUES } from '../retenues/correspondance-retenues';
-import { identiteSociete, mentionsRecopiees, type MentionsRecopiees } from '../tenant/mentions-societe';
+import { identiteSociete, mentionsRecopiees, SELECT_IDENTITE_SOCIETE, type MentionsRecopiees } from '../tenant/mentions-societe';
 import { lirePeriodeDeListe } from '../../common/periode-de-liste';
 
 const nombre = (d: Prisma.Decimal | number | null): number | null =>
@@ -37,28 +37,11 @@ export class FacturationService {
       where: { id: tenantId },
       select: {
         id: true,
-        nom: true,
         numeroImpot: true,
-        adresse: true,
-        ville: true,
-        formeJuridique: true,
-        formeJuridiqueSyscohada: true,
-        // AUSCGIE art. 17 · les mentions recopiées sur une facture émise.
-        referentiel: true,
-        capitalSocial: true,
-        capitalVariable: true,
-        rccm: true,
-        // AUDCG art. 59, 62 et 140 · immatriculation et location-gérance (passe O2).
-        numeroDeclarationActivite: true,
-        locataireGerantFonds: true,
-        // AUSCOOP art. 19, 183, 205 et 268 · la ligne de la coopérative, et
-        // loi n° 004/2001, art. 16 · la mention de l'ASBL (passes O6 et D1).
-        numeroRegistreCooperatives: true,
-        varianteCooperative: true,
-        dateDissolution: true,
-        liquidateurs: true,
-        droitEtranger: true,
-        devise: true,
+        // AUSCGIE art. 17, 204, 386 et 853-2, AUDCG art. 59, 62 et 140, AUSCOOP
+        // art. 19 et 183, loi n° 004/2001 art. 16 · tout ce que la ligne
+        // recopiée sur une facture émise lit, par la sélection commune.
+        ...SELECT_IDENTITE_SOCIETE,
         // Décret n° 011/42, art. 60 · la mention n'est due que par le dossier
         // AUTORISÉ, et seulement sur les factures qu'il DÉLIVRE.
         regimeExigibiliteTva: true,

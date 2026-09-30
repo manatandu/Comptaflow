@@ -1,4 +1,4 @@
-import { FormeJuridiqueEbnl, FormeJuridiqueSyscohada, Referentiel, VarianteCooperative } from '@prisma/client';
+import { FormeJuridiqueEbnl, FormeJuridiqueSyscohada, Prisma, Referentiel, VarianteCooperative } from '@prisma/client';
 import { FORMES_PERSONNES_PHYSIQUES } from '../retenues/correspondance-retenues';
 import { mentionImmatriculation } from './mentions-immatriculation';
 
@@ -132,6 +132,38 @@ export interface IdentiteSociete {
   dateDissolution?: Date | null;
   liquidateurs?: string | null;
 }
+
+/**
+ * CE QUE TOUTE LECTURE DU DOSSIER QUI ALIMENTE UNE PIÈCE DOIT SÉLECTIONNER.
+ * Un `select` écrit à la main dans chaque service oubliait les faits ajoutés
+ * après lui (mode d'administration de la SA, associé unique de la SAS,
+ * dissolution et liquidateurs) · la fonction les lisait absents et une SA
+ * voyait « mode d'administration » dans ses manques, une société dissoute
+ * émettait sans la mention de l'AUSCGIE art. 204. Le type exige chaque champ
+ * de `IdentiteSociete` · un fait ajouté demain à l'interface fait tomber la
+ * compilation tant qu'il n'est pas sélectionné ici.
+ */
+export const SELECT_IDENTITE_SOCIETE = {
+  referentiel: true,
+  formeJuridiqueSyscohada: true,
+  nom: true,
+  capitalSocial: true,
+  capitalVariable: true,
+  adresse: true,
+  ville: true,
+  rccm: true,
+  devise: true,
+  numeroDeclarationActivite: true,
+  locataireGerantFonds: true,
+  formeJuridique: true,
+  droitEtranger: true,
+  numeroRegistreCooperatives: true,
+  varianteCooperative: true,
+  modeAdministrationSa: true,
+  associeUniqueSas: true,
+  dateDissolution: true,
+  liquidateurs: true,
+} as const satisfies Prisma.TenantSelect & Record<keyof IdentiteSociete, true>;
 
 export interface MentionsSociete {
   /** La ligne à imprimer à côté de la dénomination, ou null hors du périmètre. */

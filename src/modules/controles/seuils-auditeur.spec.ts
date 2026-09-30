@@ -54,7 +54,13 @@ function ligne(
 
 function service(
   lignes: ReturnType<typeof ligne>[],
-  dossier: { referentiel?: Referentiel; formeJuridiqueSyscohada?: FormeJuridiqueSyscohada | null } = {},
+  dossier: {
+    referentiel?: Referentiel;
+    formeJuridiqueSyscohada?: FormeJuridiqueSyscohada | null;
+    formeJuridiqueSyscohadaAnterieure?: FormeJuridiqueSyscohada | null;
+    dateTransformationForme?: Date | null;
+  } = {},
+  dateFinExercice = new Date('2025-12-31'),
 ) {
   // LA DOUBLURE AGRÈGE COMME LA BASE · une ligne par compte, sommes des
   // débits et des crédits, écritures de clôture écartées quand le filtre le
@@ -91,7 +97,15 @@ function service(
       findUniqueOrThrow: jest.fn().mockResolvedValue({
         referentiel: dossier.referentiel ?? Referentiel.SYCEBNL,
         formeJuridiqueSyscohada: dossier.formeJuridiqueSyscohada ?? null,
+        formeJuridiqueSyscohadaAnterieure: dossier.formeJuridiqueSyscohadaAnterieure ?? null,
+        dateTransformationForme: dossier.dateTransformationForme ?? null,
       }),
+    },
+    // L'exercice examiné · la doublure honore l'identifiant et le dossier.
+    exercice: {
+      findFirst: jest.fn().mockImplementation(({ where }: { where: { id: string; tenantId: string } }) =>
+        Promise.resolve(where.id === 'e1' && where.tenantId === 't1' ? { id: 'e1', dateFin: dateFinExercice } : null),
+      ),
     },
   } as unknown as PrismaService;
   return new ControlesService(prisma);
@@ -366,5 +380,25 @@ describe('Le planning de clôture nomme les formes et les sanctions (O1a-E1, O1b
 
   it('le jalon 24 cite la sanction pénale de l’art. 890-1', () => {
     expect(jalon(24).source).toContain('art. 890-1');
+  });
+});
+
+describe('La forme lue est celle de l’EXERCICE, pas celle du jour (AUSCGIE art. 182 et 183)', () => {
+  const transformee = {
+    referentiel: Referentiel.SYSCOHADA,
+    formeJuridiqueSyscohada: FormeJuridiqueSyscohada.SOCIETE_ANONYME,
+    formeJuridiqueSyscohadaAnterieure: FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE,
+    dateTransformationForme: new Date('2027-05-15'),
+  };
+
+  it('une SARL devenue SA en 2027 n’a pas, pour 2025, de commissaire « sans condition de taille »', async () => {
+    const r = await service([], transformee, new Date('2025-12-31')).seuilsAuditeur('t1', 'e1', 0);
+    expect(r.regle.genre).not.toBe('TOUJOURS');
+    expect(r.obligationSansSeuil).toBe(false);
+  });
+
+  it('l’exercice de la transformation suit la nouvelle forme (art. 183 al. 2)', async () => {
+    const r = await service([], transformee, new Date('2027-12-31')).seuilsAuditeur('t1', 'e1', 0);
+    expect(r.regle.genre).toBe('TOUJOURS');
   });
 });

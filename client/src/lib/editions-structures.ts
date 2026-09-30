@@ -151,7 +151,17 @@ export function editionParametres(
   if (!sycebnl) {
     lignes.push(
       ['Capital social', p.capitalSocial === null ? 'non renseigné' : `${p.capitalSocial.toLocaleString('fr-FR')} ${p.devise ?? ''}${p.capitalVariable ? ' · à capital variable' : ''}`.trim()],
-      ['RCCM', v(p.rccm)],
+      // LE REGISTRE DE LA FORME, JAMAIS LE RCCM POUR UN AUTRE · la coopérative
+      // est immatriculée au Registre des Sociétés Coopératives et à lui seul
+      // (AUSCOOP art. 74 et 77 al. 1), l'entreprenant déclare son activité et
+      // n'est pas immatriculé (AUDCG art. 62 et 64). Leur imprimer « RCCM :
+      // non renseigné » les dirait en défaut d'une immatriculation qu'ils
+      // n'ont pas à prendre.
+      p.formeJuridiqueSyscohada === 'SOCIETE_COOPERATIVE'
+        ? ['Registre des Sociétés Coopératives', v(p.numeroRegistreCooperatives)]
+        : p.formeJuridiqueSyscohada === 'ENTREPRENANT'
+          ? ['N° de déclaration d’activité', v(p.numeroDeclarationActivite)]
+          : ['RCCM', v(p.rccm)],
     );
   }
   lignes.push(['N° impôt', v(p.numeroImpot)], ['Identification nationale', v(p.idNat)]);

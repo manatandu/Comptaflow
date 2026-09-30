@@ -271,6 +271,7 @@ function serviceControles(
   actif = 0,
   referentiel: Referentiel = Referentiel.SYSCOHADA,
   obligataire = 0,
+  transformation: { anterieure: FormeJuridiqueSyscohada; date: Date } | null = null,
 ) {
   // Un actif de trésorerie, lu par le regroupement de la balance, pour
   // franchir le seuil du total du bilan quand le test le demande.
@@ -287,7 +288,14 @@ function serviceControles(
     tenant: {
       findUniqueOrThrow: jest
         .fn()
-        .mockResolvedValue({ id: 't', referentiel, formeJuridiqueSyscohada, effectifPermanent }),
+        .mockResolvedValue({
+          id: 't',
+          referentiel,
+          formeJuridiqueSyscohada,
+          effectifPermanent,
+          formeJuridiqueSyscohadaAnterieure: transformation?.anterieure ?? null,
+          dateTransformationForme: transformation?.date ?? null,
+        }),
     },
     ecriture: { findMany: jest.fn().mockResolvedValue([]) },
     compte: {
@@ -372,6 +380,21 @@ describe('Le contrôle du mandat · et le piège de l’article 22', () => {
       'ex',
     );
     expect(rapport.anomalies.some((x) => x.code === 'MANDAT_AUDITEUR_PROROGE')).toBe(false);
+  });
+
+  it('la prorogation suit la forme de l’EXERCICE · une SA devenue SARL après lui garde l’art. 709 (AUSCGIE art. 182 et 183)', async () => {
+    const echu = [{ id: 'm', nom: 'Cabinet X', premierExercice: 2026, nombreExercices: 3, refusDeProrogation: false }];
+    const saDevenueSarl = await serviceControles(echu, FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE, 0, 0, Referentiel.SYSCOHADA, 0, {
+      anterieure: FormeJuridiqueSyscohada.SOCIETE_ANONYME,
+      date: new Date('2030-06-30'),
+    }).analyser('t', 'ex');
+    expect(saDevenueSarl.anomalies.find((x) => x.code === 'MANDAT_AUDITEUR_PROROGE')?.consequence).toContain('AUSCGIE art. 709');
+    // Et la SARL devenue SA APRÈS l'exercice n'y reçoit pas la prorogation de la SA.
+    const sarlDevenueSa = await serviceControles(echu, FormeJuridiqueSyscohada.SOCIETE_ANONYME, 0, 0, Referentiel.SYSCOHADA, 0, {
+      anterieure: FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE,
+      date: new Date('2030-06-30'),
+    }).analyser('t', 'ex');
+    expect(sarlDevenueSa.anomalies.some((x) => x.code === 'MANDAT_AUDITEUR_PROROGE')).toBe(false);
   });
 
   it('un GIE émetteur d’obligations, tenu sans seuil, n’a aucune prorogation servie (art. 880, F69)', async () => {

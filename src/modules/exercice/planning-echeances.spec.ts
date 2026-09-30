@@ -1,5 +1,6 @@
-import { Referentiel, StatutEcriture, StatutExercice } from '@prisma/client';
+import { FormeJuridiqueSyscohada, Referentiel, StatutEcriture, StatutExercice } from '@prisma/client';
 import { ExerciceService } from './exercice.service';
+import { jalonsApplicables } from './planning-cloture';
 
 /**
  * AUDIT FINAL F77 ET F81 · le planning de clôture.
@@ -18,7 +19,7 @@ import { ExerciceService } from './exercice.service';
 
 type Ecr = { statut: StatutEcriture; estANouveauProvisoire: boolean; estGenereeParCloture: boolean };
 
-function service(statut: StatutExercice, ecritures: Ecr[], dateFin = new Date('2027-12-31T00:00:00.000Z')) {
+function service(statut: StatutExercice, ecritures: Ecr[], dateFin = new Date('2027-12-31T00:00:00.000Z'), dossier: Record<string, unknown> = {}) {
   const exercice = { id: 'ex', tenantId: 't', dateDebut: new Date('2027-01-01T00:00:00.000Z'), dateFin, statut };
   const count = jest.fn(({ where }: { where: Record<string, unknown> }) =>
     Promise.resolve(
@@ -37,6 +38,7 @@ function service(statut: StatutExercice, ecritures: Ecr[], dateFin = new Date('2
         formeJuridique: null,
         formeJuridiqueSyscohada: 'SOCIETE_ANONYME',
         droitEtranger: false,
+        ...dossier,
       }),
     },
     ecriture: { count },
@@ -109,5 +111,32 @@ describe('F81 · une échéance se lit au jour, et l’échéance fiscale se rep
     // 23 h 30 UTC le 2 mai, c'est déjà le 3 à Kinshasa (UTC+1).
     expect(fiscal(await aLInstant('2028-05-02T23:30:00.000Z')).enRetard).toBe(true);
     expect(fiscal(await aLInstant('2028-05-02T22:30:00.000Z')).enRetard).toBe(false);
+  });
+});
+
+describe('O1a-D3 · le planning suit la forme de l’EXERCICE (AUSCGIE art. 182 et 183)', () => {
+  it('une SARL devenue SA après la clôture de 2027 garde, pour 2027, les jalons de la SARL', async () => {
+    const p = await service(StatutExercice.OUVERT, [], undefined, {
+      formeJuridiqueSyscohadaAnterieure: FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE,
+      dateTransformationForme: new Date('2028-03-15T00:00:00.000Z'),
+    }).planningCloture('t', 'ex');
+    const attendus = jalonsApplicables({
+      referentiel: Referentiel.SYSCOHADA,
+      formeJuridique: null as never,
+      formeJuridiqueSyscohada: FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE,
+      droitEtranger: false,
+    });
+    expect(p.formeJuridiqueSyscohada).toBe(FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE);
+    expect(p.jalons.map((j) => `${j.etape} ${j.libelle}`)).toEqual(attendus.map((j) => `${j.etape} ${j.libelle}`));
+  });
+});
+
+describe('O1b G6 · le planning lit l’associé unique déclaré du dossier', () => {
+  it('une SASU déclarée voit l’approbation par l’associé unique au jalon 23', async () => {
+    const p = await service(StatutExercice.OUVERT, [], undefined, {
+      formeJuridiqueSyscohada: FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE,
+      associeUniqueSas: true,
+    }).planningCloture('t', 'ex');
+    expect(p.jalons.find((j) => j.etape === 23)?.libelle).toBe('Approbation des comptes par l’associé unique');
   });
 });

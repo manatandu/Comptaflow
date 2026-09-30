@@ -2,7 +2,7 @@ import { FormeJuridiqueEbnl, FormeJuridiqueSyscohada, Referentiel } from '@prism
 import { regimeMoitieCapital } from '../controles/moitie-capital';
 import { OBLIGATIONS_DECLARATIVES } from '../retenues/correspondance-retenues';
 import { JALONS_CLOTURE, dateJalon, jalonsApplicables , obligationsEvenementiellesApplicables, OBLIGATIONS_EVENEMENTIELLES } from './planning-cloture';
-import { regimeReserveLegale } from '../affectation/regles-affectation';
+import { avertissementLigneCapital, regimeReserveLegale } from '../affectation/regles-affectation';
 import { regleRapportGestion } from '../documents-obligatoires/correspondance-inventaire-syscohada';
 import { articleTrenteSeptApplicable } from '../accord-cadre/conditions-ong-etrangere';
 import { FORMES_PERSONNES_PHYSIQUES } from '../retenues/correspondance-retenues';
@@ -1015,5 +1015,56 @@ describe('jalon de déclaration des revenus · réserve de l’art. 57 quater, a
     expect(j.detail).toContain('« à la souscription de la déclaration auto liquidative, au plus tard le 31 janvier');
     expect(j.source).toContain('57 quater, al. 2');
     expect(j.echeance).toEqual({ moisApres: 4, jour: 'FIN' });
+  });
+});
+
+/**
+ * O1b D2 et G6 · le jalon d'affectation dit ce qu'est une ligne au capital,
+ * par la règle de la fenêtre d'affectation ; le jalon 23 d'une SAS suit son
+ * associé unique déclaré.
+ */
+describe('recensement · capital à l’affectation et associé unique de la SAS', () => {
+  const contexte = (forme: FormeJuridiqueSyscohada, associeUniqueSas?: boolean | null) =>
+    jalonsApplicables({
+      referentiel: Referentiel.SYSCOHADA,
+      formeJuridique: FormeJuridiqueEbnl.ASSOCIATION,
+      formeJuridiqueSyscohada: forme,
+      droitEtranger: false,
+      associeUniqueSas,
+    });
+
+  it('O1b D2 · SA, SAS et SARL lisent l’avertissement de la fenêtre d’affectation, les autres formes rien', () => {
+    for (const forme of Object.values(FormeJuridiqueSyscohada)) {
+      const j = contexte(forme).find((x) => x.libelle === 'Affectation du résultat')!;
+      const aug = avertissementLigneCapital(forme, true);
+      const red = avertissementLigneCapital(forme, false);
+      if (aug && red) {
+        expect(j.detail).toContain(aug);
+        expect(j.detail).toContain(red);
+      } else {
+        expect({ forme, capital: j.detail.includes('Capital social (101) ·') }).toEqual({ forme, capital: false });
+      }
+    }
+  });
+
+  it('O1b G6 · la SASU déclarée est approuvée par l’associé unique, sous l’art. 853-11', () => {
+    const j = contexte(FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE, true).find((x) => x.etape === 23)!;
+    expect(j.libelle).toBe('Approbation des comptes par l’associé unique');
+    expect(j.detail).toContain('arrêtés par le président');
+    expect(j.source).toBe('AUSCGIE, art. 853-11, al. 4 et 5');
+    expect(j.echeance).toEqual({ moisApres: 6, jour: 'FIN' });
+  });
+
+  it('O1b G6 · une SAS pluripersonnelle garde l’assemblée, une SAS non déclarée NOMME le cas unipersonnel', () => {
+    const pluri = contexte(FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE, false).find((x) => x.etape === 23)!;
+    expect(pluri.libelle).toBe('Assemblée générale statuant sur les états financiers');
+    expect(pluri.source).toBe('AUSCGIE, art. 140 al. 2');
+    const inconnue = contexte(FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE, null).find((x) => x.etape === 23)!;
+    expect(inconnue.libelle).toBe('Assemblée générale statuant sur les états financiers');
+    expect(inconnue.detail).toContain('pas encore déclaré');
+    expect(inconnue.source).toContain('art. 853-11');
+    // Le fait d'une SAS n'atteint pas la SA.
+    const sa = contexte(FormeJuridiqueSyscohada.SOCIETE_ANONYME, true).find((x) => x.etape === 23)!;
+    expect(sa.source).toContain('art. 525');
   });
 });

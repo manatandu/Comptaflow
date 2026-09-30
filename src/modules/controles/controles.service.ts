@@ -36,6 +36,7 @@ import {
 import { ajouterMois } from '../../common/ajouter-mois';
 import { ENTREE_EN_VIGUEUR_LOI_23_053 } from '../../common/entree-en-vigueur-loi-23-053';
 import { aNouveauEnTrop, filtreANouveauEcarte } from '../rapprochement/rapprochement.service';
+import { formeApplicable } from '../tenant/forme-applicable';
 
 /**
  * SEUILS DE DÉSIGNATION DU CONTRÔLEUR DES COMPTES · ils ne sont PLUS ici.
@@ -843,10 +844,19 @@ export class ControlesService {
     conversionAppliquee: boolean;
     source: string | null;
   }> {
-    const tenant = await this.prisma.tenant.findUniqueOrThrow({
+    const dossier = await this.prisma.tenant.findUniqueOrThrow({
       where: { id: tenantId },
-      select: { referentiel: true, formeJuridiqueSyscohada: true },
+      select: { referentiel: true, formeJuridiqueSyscohada: true, formeJuridiqueSyscohadaAnterieure: true, dateTransformationForme: true },
     });
+    // LA FORME DE L'EXERCICE, PAS CELLE DU JOUR (AUSCGIE art. 182 et 183,
+    // passe O1a, D3). Une SARL devenue SA en 2027 ne se voit pas réclamer pour
+    // 2025 un commissaire « sans condition de taille », et une SA devenue SARL
+    // reste signalée pour l'exercice où l'obligation existait. L'exercice n'est
+    // relu que si une transformation est déclarée.
+    const forme = dossier.dateTransformationForme
+      ? formeApplicable(dossier, (await this.exercice(tenantId, exerciceId)).dateFin)
+      : dossier.formeJuridiqueSyscohada;
+    const tenant = { referentiel: dossier.referentiel, formeJuridiqueSyscohada: forme };
     const filtre = { tenantId, exerciceId, statut: StatutEcriture.VALIDEE };
     // AUSCGIE art. 875 et 880 · le GIE qui émet des obligations doit un
     // commissaire aux comptes. L'émission se lit au solde du compte 161
@@ -1185,7 +1195,11 @@ export class ControlesService {
     const ex = await this.exercice(tenantId, exerciceId);
     // Le jeu d'états commande un contrôle : le S.M.T est une comptabilité de
     // trésorerie, où le passage par un tiers n'a pas lieu d'être exigé.
-    const tenant = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } });
+    const dossier = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } });
+    // LA FORME DE L'EXERCICE EXAMINÉ (AUSCGIE art. 182 et 183, passe O1a, D3) ·
+    // tout contrôle qui dépend de la forme la lit ici, jamais la forme du jour.
+    // Sans transformation déclarée, c'est la forme du dossier.
+    const tenant = { ...dossier, formeJuridiqueSyscohada: formeApplicable(dossier, ex.dateFin) };
     const anomalies: AnomalieControle[] = [];
 
     // --- 1. Caisse créditrice ------------------------------------------------

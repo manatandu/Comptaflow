@@ -31,6 +31,7 @@ import {
 import { estTenueParUnLettrage } from '../lettrage/ligne-lettree';
 import { LOT_LECTURE, lireParLots, pageApres } from '../../common/lecture-par-lots';
 import { libelleExercice } from '../../common/libelle-exercice';
+import { formeApplicable } from '../tenant/forme-applicable';
 
 /**
  * Ce que le refus dit de la voie que le texte ouvre · AUDCIF art. 22, 4°. Le
@@ -367,6 +368,11 @@ export class ExerciceService {
   async planningCloture(tenantId: string, exerciceId: string) {
     const exercice = await this.trouverExercice(tenantId, exerciceId);
     const tenant = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } });
+    // LES JALONS DE LA FORME DE L'EXERCICE, PAS CELLE DU JOUR (AUSCGIE
+    // art. 182 et 183, passe O1a, D3) · l'exercice au cours duquel la
+    // transformation intervient est arrêté et approuvé selon la nouvelle forme,
+    // les précédents gardent l'ancienne.
+    const formeDeLExercice = formeApplicable(tenant, exercice.dateFin);
 
     const [enBrouillard, transcriptions, rapports, donations] = await Promise.all([
       // Le brouillard VALIDABLE · ni le report à-nouveau provisoire ni la
@@ -438,13 +444,14 @@ export class ExerciceService {
       // Le planning n'est pas le même pour une ASBL, une ONG et une entreprise
       // commerciale : voir jalonsApplicables et son commentaire.
       formeJuridique: tenant.formeJuridique,
-      formeJuridiqueSyscohada: tenant.formeJuridiqueSyscohada,
+      formeJuridiqueSyscohada: formeDeLExercice,
       droitEtranger: tenant.droitEtranger,
       jalons: jalonsApplicables({
         referentiel: tenant.referentiel,
         formeJuridique: tenant.formeJuridique,
-        formeJuridiqueSyscohada: tenant.formeJuridiqueSyscohada,
+        formeJuridiqueSyscohada: formeDeLExercice,
         droitEtranger: tenant.droitEtranger,
+        associeUniqueSas: tenant.associeUniqueSas,
       }).map((j) => {
         // Une échéance FISCALE tombant un jour non ouvrable est reportée au
         // premier jour ouvrable qui suit (LPF art. 110 bis, al. 2), comme au

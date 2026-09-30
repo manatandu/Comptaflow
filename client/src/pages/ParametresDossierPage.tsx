@@ -7,7 +7,17 @@ import { NaturesCompte } from '../components/NaturesCompte';
 import { Ligne, OngletsVerticaux, SectionTitre, champSage } from '../components/FormulaireSage';
 import { SYSTEMES_SYSCOHADA } from '../lib/systemes-syscohada';
 import { FORMES_PERSONNES_PHYSIQUES, FORMES_SYSCOHADA } from '../lib/formes-juridiques-syscohada';
-import { estCooperative, libelleAdresse, proposeCapitalVariable } from '../lib/mentions-dossier';
+import {
+  estCooperative,
+  estSocieteCommerciale,
+  faitsDeLaForme,
+  faitsDeLaFormeAEnvoyer,
+  libelleAdresse,
+  proposeCapitalVariable,
+  transformationDatable,
+  type ModeAdministrationSaisi,
+  type ReponseFaitSaisie,
+} from '../lib/mentions-dossier';
 import { BoutonImprimer, EnteteImpression } from '../components/chrome/EnteteImpression';
 import { EditionStructure } from '../components/EditionStructure';
 import { editionParametres } from '../lib/editions-structures';
@@ -178,6 +188,12 @@ export function ParametresDossierPage() {
   const [varianteCoop, setVarianteCoop] = useState<'SCOOPS' | 'COOP_CA' | 'PAS_ENCORE_DIT'>('PAS_ENCORE_DIT');
   const [dateDissolution, setDateDissolution] = useState('');
   const [liquidateurs, setLiquidateurs] = useState('');
+  // AUSCGIE art. 386 et 414 (SA), 853-2 (SAS) · faits de la dénomination.
+  const [modeAdministration, setModeAdministration] = useState<ModeAdministrationSaisi>('PAS_ENCORE_DIT');
+  const [associeUnique, setAssocieUnique] = useState<ReponseFaitSaisie>('PAS_ENCORE_DIT');
+  // AUSCGIE art. 181 et 182 · date de la décision de transformation, saisie
+  // AVANT de choisir la nouvelle forme ; vide, le changement est une correction.
+  const [dateEffetTransformation, setDateEffetTransformation] = useState('');
   const [actePersonnalite, setActePersonnalite] = useState('');
   const [dateActe, setDateActe] = useState('');
   const [enregistrementSecteur, setEnregistrementSecteur] = useState('');
@@ -221,6 +237,8 @@ export function ParametresDossierPage() {
       setVarianteCoop(p.varianteCooperative ?? 'PAS_ENCORE_DIT');
       setDateDissolution(p.dateDissolution ? p.dateDissolution.slice(0, 10) : '');
       setLiquidateurs(p.liquidateurs ?? '');
+      setModeAdministration(p.modeAdministrationSa ?? 'PAS_ENCORE_DIT');
+      setAssocieUnique(p.associeUniqueSas === true ? 'OUI' : p.associeUniqueSas === false ? 'NON' : 'PAS_ENCORE_DIT');
       setActePersonnalite(p.actePersonnaliteJuridique ?? '');
       setDateActe(p.dateActePersonnalite ? p.dateActePersonnalite.slice(0, 10) : '');
       setEnregistrementSecteur(p.numeroEnregistrementSecteur ?? '');
@@ -303,14 +321,35 @@ export function ParametresDossierPage() {
   };
 
   /** Pendant SYSCOHADA de changerForme · droit OHADA des affaires. */
-  const changerFormeSyscohada = async (forme: FormeJuridiqueSyscohada) => {
-    if (!params || params.formeJuridiqueSyscohada === forme) return;
+  const changerFormeSyscohada = async (forme: FormeJuridiqueSyscohada, retirerTransformation = false) => {
+    if (!params || (params.formeJuridiqueSyscohada === forme && !retirerTransformation)) return;
     setEnvoi(true);
     setErreur(null);
     setInfo(null);
+    // UNE TRANSFORMATION SE DATE, UNE CORRECTION NON (AUSCGIE art. 182 et 183) ·
+    // la date n'est envoyée qu'entre deux sociétés commerciales, la chaîne vide
+    // retire une transformation déclarée par erreur.
+    const date = retirerTransformation
+      ? ''
+      : dateEffetTransformation && transformationDatable(params.formeJuridiqueSyscohada, forme)
+        ? dateEffetTransformation
+        : undefined;
     try {
-      setParams(await api.patch<ParametresDossier>('/dossier/forme-syscohada', { formeJuridiqueSyscohada: forme }));
-      setInfo('Forme juridique enregistrée.');
+      setParams(
+        await api.patch<ParametresDossier>('/dossier/forme-syscohada', {
+          formeJuridiqueSyscohada: forme,
+          ...(date === undefined ? {} : { dateEffetTransformation: date }),
+        }),
+      );
+      setDateEffetTransformation('');
+      await rafraichir();
+      setInfo(
+        retirerTransformation
+          ? 'Transformation retirée · la forme vaut pour tous les exercices.'
+          : date
+            ? 'Transformation enregistrée.'
+            : 'Forme juridique enregistrée.',
+      );
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Modification impossible');
     } finally {
@@ -521,7 +560,16 @@ export function ParametresDossierPage() {
                   { label: 'Dissoute le', valeur: dateDissolution, set: setDateDissolution, exemple: '', date: true },
                   { label: 'Liquidateur(s)', valeur: liquidateurs, set: setLiquidateurs, exemple: '' },
                 ]
-              : [{ label: 'RCCM', valeur: rccm, set: setRccm, exemple: 'CD/KIN/RCCM/23-B-01234' }]),
+              : [
+                  { label: 'RCCM', valeur: rccm, set: setRccm, exemple: 'CD/KIN/RCCM/23-B-01234' },
+                  // AUSCGIE art. 203 et 204 · les cinq sociétés commerciales.
+                  ...(faitsDeLaForme(params.formeJuridiqueSyscohada).dissolution
+                    ? [
+                        { label: 'Dissoute le', valeur: dateDissolution, set: setDateDissolution, exemple: '', date: true },
+                        { label: 'Liquidateur(s)', valeur: liquidateurs, set: setLiquidateurs, exemple: '' },
+                      ]
+                    : []),
+                ]),
         ...(estSycebnl
           ? [
               {
@@ -688,11 +736,24 @@ export function ParametresDossierPage() {
                 ? {
                     numeroRegistreCooperatives: numeroRsc,
                     varianteCooperative: varianteCoop,
-                    dateDissolution,
-                    liquidateurs,
                     locataireGerantFonds: locataireGerant,
+                    ...faitsDeLaFormeAEnvoyer(params?.formeJuridiqueSyscohada, {
+                      modeAdministrationSa: modeAdministration,
+                      associeUniqueSas: associeUnique,
+                      dateDissolution,
+                      liquidateurs,
+                    }),
                   }
-                : { rccm, locataireGerantFonds: locataireGerant }
+                : {
+                    rccm,
+                    locataireGerantFonds: locataireGerant,
+                    ...faitsDeLaFormeAEnvoyer(params?.formeJuridiqueSyscohada, {
+                      modeAdministrationSa: modeAdministration,
+                      associeUniqueSas: associeUnique,
+                      dateDissolution,
+                      liquidateurs,
+                    }),
+                  }
             : {}),
           ...(params?.referentiel === 'SYCEBNL'
             ? {
@@ -1102,7 +1163,9 @@ export function ParametresDossierPage() {
                         ? 'L’entreprenant déclare son activité et n’est pas immatriculé au RCCM. Son numéro de déclaration d’activité s’imprime sur ses pièces et ses livres, suivi de la mention « Entreprenant dispensé d’immatriculation ».'
                         : estCoop
                           ? 'La société coopérative est immatriculée au Registre des Sociétés Coopératives, pas au RCCM, et ne peut l’être à plusieurs registres. Sa dénomination figure sur ses lettres et factures, suivie de sa forme (« Société Coopérative Simplifiée » · SCOOPS, ou « Société Coopérative avec Conseil d’Administration » · COOP-CA), de l’adresse de son siège et de son numéro à ce registre. Dissoute, elle y ajoute « société en liquidation » et le nom du ou des liquidateurs.'
-                          : 'Le numéro d’impôt est porté en tête de chaque page imprimée. Le RCCM s’imprime sur les livres de commerce, les pièces émises et la correspondance ; un locataire-gérant y ajoute sa qualité.'
+                          : estSocieteCommerciale(params?.formeJuridiqueSyscohada)
+                            ? 'Le numéro d’impôt est porté en tête de chaque page imprimée. Le RCCM s’imprime sur les livres de commerce, les pièces émises et la correspondance ; un locataire-gérant y ajoute sa qualité. La forme sociale suit la dénomination : la société anonyme y joint son mode d’administration, la SAS à associé unique se désigne « société par actions simplifiée unipersonnelle ». Dissoute, la société est en liquidation dès l’instant de sa dissolution, et ses pièces portent « société en liquidation » et le nom du ou des liquidateurs.'
+                            : 'Le numéro d’impôt est porté en tête de chaque page imprimée. Le RCCM s’imprime sur les livres de commerce, les pièces émises et la correspondance ; un locataire-gérant y ajoute sa qualité.'
                   }
                   source={
                     estSycebnl
@@ -1111,7 +1174,9 @@ export function ParametresDossierPage() {
                         ? 'AUDCG, art. 62 et 64'
                         : estCoop
                           ? 'AUSCOOP, art. 19, 74, 77, 183, 205 et 268'
-                          : 'AUDCG, art. 14, 59 et 140'
+                          : estSocieteCommerciale(params?.formeJuridiqueSyscohada)
+                            ? 'AUDCG, art. 14, 59 et 140 · AUSCGIE, art. 17, 203, 204, 386, 414 et 853-2'
+                            : 'AUDCG, art. 14, 59 et 140'
                   }
                 />
               </SectionTitre>
@@ -1144,6 +1209,38 @@ export function ParametresDossierPage() {
                         <option value="PAS_ENCORE_DIT">Pas encore dit</option>
                         <option value="SCOOPS">Société Coopérative Simplifiée · SCOOPS</option>
                         <option value="COOP_CA">Société Coopérative avec Conseil d’Administration · COOP-CA</option>
+                      </select>
+                    </Ligne>
+                  )}
+                  {!estSycebnl && faitsDeLaForme(params?.formeJuridiqueSyscohada).modeAdministration && (
+                    <Ligne label="Mode d’administration">
+                      <select
+                        value={modeAdministration}
+                        onChange={(e) => setModeAdministration(e.target.value as ModeAdministrationSaisi)}
+                        disabled={!estAdmin || envoi}
+                        aria-label="Mode d’administration"
+                        title="AUSCGIE art. 386 et 414 · imprimé avec la forme sociale, tel que les statuts le choisissent"
+                        className={champSage}
+                      >
+                        <option value="PAS_ENCORE_DIT">Pas encore dit</option>
+                        <option value="CONSEIL_ADMINISTRATION">Avec conseil d’administration</option>
+                        <option value="ADMINISTRATEUR_GENERAL">Avec administrateur général</option>
+                      </select>
+                    </Ligne>
+                  )}
+                  {!estSycebnl && faitsDeLaForme(params?.formeJuridiqueSyscohada).associeUnique && (
+                    <Ligne label="Associé unique (SASU)">
+                      <select
+                        value={associeUnique}
+                        onChange={(e) => setAssocieUnique(e.target.value as ReponseFaitSaisie)}
+                        disabled={!estAdmin || envoi}
+                        aria-label="Associé unique (SASU)"
+                        title="AUSCGIE art. 853-2 al. 2 · « société par actions simplifiée unipersonnelle » ou « SASU » ; art. 853-11 al. 4 · l’associé unique approuve seul les comptes"
+                        className={champSage}
+                      >
+                        <option value="PAS_ENCORE_DIT">Pas encore dit</option>
+                        <option value="OUI">Oui · un seul associé</option>
+                        <option value="NON">Non</option>
                       </select>
                     </Ligne>
                   )}
@@ -1305,8 +1402,8 @@ export function ParametresDossierPage() {
                 Forme juridique OHADA <Aide sujet="formeJuridiqueSyscohada" />
                 <Aide
                   titre="Forme et planning de clôture"
-                  texte="Au sens du droit OHADA des affaires · l’AUSCGIE pour les sociétés commerciales et le groupement d’intérêt économique, l’AUSCOOP pour les coopératives, l’AUDCG pour le commerçant personne physique et l’entreprenant. Ce choix ne change pas vos états financiers : il détermine les obligations annuelles proposées par le planning de clôture, qui ne sont pas les mêmes selon que l’entité tient une assemblée générale, dépose au registre du commerce, ou ni l’un ni l’autre. La forme se lit dans les statuts. Les montants de capital sont ceux de l’Acte uniforme, exprimés en francs CFA. Celui de la SARL ne s’applique PAS en RDC : l’article 311 réserve le cas de « dispositions nationales contraires », et l’arrêté interministériel n° 002/CAB/MIN/JGS&DH/014 et n° 243/CAB/MIN/FINANCES/2014 du 30 décembre 2014 laisse les associés fixer librement le capital compte tenu de l’objet social. Le même arrêté rend le notaire facultatif pour les statuts. Cet arrêté n’est pas lu au Journal officiel : à vérifier sur le texte primaire avant de l’opposer à un tiers. La transformation d’une société commerciale en une autre forme est prévue par l’article 181 de l’AUSCGIE, celle d’une coopérative par les articles 167 à 173 de l’AUSCOOP : ce choix se corrige à tout moment."
-                  source="AUSCGIE, art. 181 et 311 · AUSCOOP, art. 167 à 173 · arrêté interministériel du 30 décembre 2014, non lu au Journal officiel"
+                  texte="Au sens du droit OHADA des affaires · l’AUSCGIE pour les sociétés commerciales et le groupement d’intérêt économique, l’AUSCOOP pour les coopératives, l’AUDCG pour le commerçant personne physique et l’entreprenant. Ce choix ne change pas vos états financiers : il détermine les obligations annuelles proposées par le planning de clôture, qui ne sont pas les mêmes selon que l’entité tient une assemblée générale, dépose au registre du commerce, ou ni l’un ni l’autre. La forme se lit dans les statuts. Les montants de capital sont ceux de l’Acte uniforme, exprimés en francs CFA. Celui de la SARL ne s’applique PAS en RDC : l’article 311 réserve le cas de « dispositions nationales contraires », et l’arrêté interministériel n° 002/CAB/MIN/JGS&DH/014 et n° 243/CAB/MIN/FINANCES/2014 du 30 décembre 2014 laisse les associés fixer librement le capital compte tenu de l’objet social. Le même arrêté rend le notaire facultatif pour les statuts. Cet arrêté n’est pas lu au Journal officiel : à vérifier sur le texte primaire avant de l’opposer à un tiers. La transformation d’une société commerciale en une autre forme est prévue par l’article 181 de l’AUSCGIE, celle d’une coopérative par les articles 167 à 173 de l’AUSCOOP. Une forme mal saisie se corrige à tout moment et vaut alors pour tous les exercices. Une transformation d’une société commerciale en une autre, elle, se date : saisissez la date de la décision avant de choisir la nouvelle forme. Elle prend effet ce jour-là sans effet rétroactif ; l’exercice au cours duquel elle intervient suit la nouvelle forme, les exercices clos avant elle gardent l’ancienne, pour les contrôles, le planning de clôture et le rapport de gestion."
+                  source="AUSCGIE, art. 181 à 183 et 311 · AUSCOOP, art. 167 à 173 · arrêté interministériel du 30 décembre 2014, non lu au Journal officiel"
                 />
               </SectionTitre>
               <div className="flex flex-col gap-2">
@@ -1342,6 +1439,39 @@ export function ParametresDossierPage() {
                     );
                   })}
                 </div>
+                {/* TRANSFORMATION · AUSCGIE art. 181 à 183. La date se saisit
+                    AVANT de choisir la nouvelle forme ; vide, le choix est une
+                    correction qui vaut pour tous les exercices. */}
+                {estSocieteCommerciale(params.formeJuridiqueSyscohada) && estAdmin && (
+                  <Ligne label="Transformation au">
+                    <input
+                      type="date"
+                      value={dateEffetTransformation}
+                      onChange={(e) => setDateEffetTransformation(e.target.value)}
+                      disabled={envoi}
+                      aria-label="Date d’effet de la transformation"
+                      title="AUSCGIE art. 182 et 183 · date de la décision de transformation, jamais antérieure. Les exercices clos avant elle gardent l’ancienne forme ; celui au cours duquel elle intervient suit la nouvelle. Laissez vide pour corriger une forme mal saisie."
+                      className={champSage}
+                    />
+                  </Ligne>
+                )}
+                {params.dateTransformationForme && params.formeJuridiqueSyscohadaAnterieure && (
+                  <p className="text-[11.5px]">
+                    Transformée le {new Date(params.dateTransformationForme).toLocaleDateString('fr-FR')} · forme
+                    antérieure : {FORMES_SYSCOHADA.find((f) => f.valeur === params.formeJuridiqueSyscohadaAnterieure)?.titre}
+                    {estAdmin && params.formeJuridiqueSyscohada && (
+                      <button
+                        type="button"
+                        disabled={envoi}
+                        onClick={() => changerFormeSyscohada(params.formeJuridiqueSyscohada!, true)}
+                        className="ml-2 underline disabled:opacity-60"
+                        title="Retire la transformation déclarée par erreur · la forme actuelle vaudra pour tous les exercices"
+                      >
+                        Retirer
+                      </button>
+                    )}
+                  </p>
+                )}
               </div>
             </>
           )}
@@ -1571,8 +1701,8 @@ export function ParametresDossierPage() {
                   Numéro d’immatriculation à la CNSS (employeur){' '}
                   <Aide
                     titre="N° CNSS de l’employeur"
-                    texte="Deuxième des quinze énonciations que l’article 212 du Code du travail exige de tout contrat constaté par écrit, et la seule qui soit du côté de l’employeur. Tant qu’elle manque, aucun contrat de ce dossier n’est complet au sens de l’article 212, quel que soit le soin mis à la fiche de chaque salarié · le registre du personnel le signale en tête de sa confrontation."
-                    source="Code du travail, art. 212, point 2"
+                    texte="Deuxième des quinze énonciations que l’article 212 du Code du travail exige de tout contrat constaté par écrit, et la seule qui soit du côté de l’employeur. Tant qu’elle manque, aucun contrat de ce dossier n’est complet au sens de l’article 212, quel que soit le soin mis à la fiche de chaque salarié · le registre du personnel le signale en tête de sa confrontation. C’est le numéro que porte le CERTIFICAT D’AFFILIATION délivré par la Caisse, que l’arrêté n° 146/2018 appelle « numéro d’affiliation » et que l’article 212 appelle « numéro d’immatriculation de l’employeur » · les deux textes nomment le même numéro."
+                    source="Code du travail, art. 212, point 2 · arrêté n° 146/2018, art. 7"
                   />
                   <input
                     type="text"

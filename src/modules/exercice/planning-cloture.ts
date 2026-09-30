@@ -69,7 +69,7 @@
 import { FormeJuridiqueEbnl, FormeJuridiqueSyscohada, Referentiel } from '@prisma/client';
 import { FORMES_PERSONNES_PHYSIQUES } from '../retenues/correspondance-retenues';
 import { OBLIGATIONS_DECLARATIVES } from '../retenues/correspondance-retenues';
-import { regimeReserveLegale } from '../affectation/regles-affectation';
+import { avertissementLigneCapital, regimeReserveLegale } from '../affectation/regles-affectation';
 import { formesDuRegimeMoitieCapital } from '../controles/moitie-capital';
 
 /** Toutes les formes relevant de la loi 004/2001 sur les ASBL. */
@@ -101,7 +101,8 @@ const FORMES_SOCIETES_ASSEMBLEE: FormeJuridiqueSyscohada[] = [
  * commerciales ». En sont donc dehors, et chacune pour une raison distincte :
  * l'ENTREPRENANT, expressément DISPENSÉ d'immatriculation au RCCM (AUDCG
  * art. 30 in fine) ; la SOCIETE_COOPERATIVE, immatriculée au Registre des
- * Sociétés Coopératives et non au RCCM (AUSCOOP art. 206) ; le GIE,
+ * Sociétés Coopératives et non au RCCM (AUSCOOP art. 74, que l'art. 206
+ * reprend pour la seule société coopérative simplifiée) ; le GIE,
  * l'entreprise individuelle, la succursale et l'entité publique, qui sont
  * immatriculés ou déclarés mais ne sont pas des sociétés commerciales.
  */
@@ -215,6 +216,13 @@ export interface DefinitionJalon {
    */
   selonFormeSyscohada?: (forme: FormeJuridiqueSyscohada | null) => { detail: string; source: string };
   /**
+   * Le libellé, le détail et la source que le texte donne à une SAS selon
+   * qu'elle compte un seul associé (AUSCGIE art. 853-11, al. 4 et 5) · le
+   * fait se DÉCLARE (`Tenant.associeUniqueSas`, null = pas encore dit), il
+   * n'est jamais présumé. `jalonsApplicables` l'applique.
+   */
+  selonAssocieUniqueSas?: (associeUnique: boolean | null) => { libelle: string; detail: string; source: string };
+  /**
    * Ce que les DIRIGEANTS encourent si le travail du jalon n'est pas fait du
    * tout · à ne pas confondre avec `nature`. `nature: 'LEGALE'` qualifie une
    * ÉCHÉANCE opposable à un tiers, dont le dépassement se sanctionne ; ici
@@ -279,6 +287,13 @@ function affectationSyscohada(forme: FormeJuridiqueSyscohada | null): { detail: 
     ? `La dotation à la réserve légale, d’un dixième au moins du bénéfice diminué, le cas échéant, des pertes antérieures, est obligatoire tant que la réserve n’atteint pas le cinquième du capital social · une délibération contraire est NULLE (${regime.source}).`
     : `Réserve légale · ${regime.motif}`;
 
+  // UNE LIGNE AU CAPITAL N'EST PAS UNE AFFECTATION ORDINAIRE (passe O1b, D2) ·
+  // le jalon propose le 101, il dit donc ce que la décision devient alors,
+  // par la règle même de la fenêtre d'affectation, jamais réécrite ici.
+  const augmentation = avertissementLigneCapital(forme, true);
+  const reduction = avertissementLigneCapital(forme, false);
+  const capital = augmentation && reduction ? ` Capital social (101) · ${augmentation} ${reduction}` : '';
+
   const dividendes = commerciale
     ? ' Si une distribution est décidée, la mise en paiement des dividendes doit avoir lieu dans un délai maximum de NEUF MOIS après la clôture de l’exercice, sauf prolongation accordée par la juridiction compétente (AUSCGIE, art. 146).'
     : '';
@@ -293,7 +308,7 @@ function affectationSyscohada(forme: FormeJuridiqueSyscohada | null): { detail: 
   ];
 
   return {
-    detail: `Comptabilisation de la décision d’affectation prise par l’organe compétent : ${comptes} ${reserve}${dividendes} Sans cette écriture, le résultat reste au compte 13 et s’y empile d’exercice en exercice.`,
+    detail: `Comptabilisation de la décision d’affectation prise par l’organe compétent : ${comptes} ${reserve}${capital}${dividendes} Sans cette écriture, le résultat reste au compte 13 et s’y empile d’exercice en exercice.`,
     source: sources.join(' ; '),
   };
 }
@@ -325,6 +340,39 @@ const RESERVE_PREMIERE_QUOTITE_PETITES_ENTREPRISES: string = (() => {
   if (!reserve) throw new Error('Réserve de l’art. 57 quater, al. 2 introuvable dans le registre des retenues (declarationIrpp).');
   return 'RÉSERVE · ' + reserve;
 })();
+
+/**
+ * L'APPROBATION DES COMPTES D'UNE SAS, SELON QU'ELLE COMPTE UN SEUL ASSOCIÉ
+ * (passe O1b, G6). AUSCGIE art. 853-11, al. 4 · « Dans les sociétés ne
+ * comprenant qu'un seul associé, le rapport de gestion, les comptes annuels
+ * […] sont arrêtés par le président. L'associé unique approuve les comptes,
+ * après rapport du commissaire aux comptes s'il en existe un, dans le délai de
+ * six (6) mois à compter de la clôture de l'exercice » ; al. 5 · le dépôt au
+ * RCCM, dans le même délai, des comptes signés « vaut approbation » quand
+ * l'associé unique, personne physique, préside lui-même. L'échéance ne bouge
+ * pas, seuls l'organe et l'intitulé changent. Tant que le fait n'est pas dit,
+ * le jalon de l'assemblée reste et le cas unipersonnel est NOMMÉ.
+ */
+function approbationSas(associeUnique: boolean | null): { libelle: string; detail: string; source: string } {
+  const assemblee =
+    'L’assemblée générale qui statue sur les états financiers de synthèse doit OBLIGATOIREMENT se tenir dans les six mois de la clôture de l’exercice. C’est elle qui fait courir le délai d’un mois du dépôt au registre du commerce.';
+  if (associeUnique === true) {
+    return {
+      libelle: 'Approbation des comptes par l’associé unique',
+      detail:
+        'Le rapport de gestion et les états financiers sont arrêtés par le président. L’associé unique approuve les comptes, après rapport du commissaire aux comptes s’il en existe un, dans les six mois de la clôture de l’exercice · il ne peut déléguer ses pouvoirs, et ses décisions sont répertoriées dans un registre spécial. Lorsque l’associé unique, personne physique, assume personnellement la présidence, le dépôt au registre du commerce, dans le même délai, de l’inventaire et des comptes annuels dûment signés vaut approbation.',
+      source: 'AUSCGIE, art. 853-11, al. 4 et 5',
+    };
+  }
+  if (associeUnique === false) {
+    return { libelle: 'Assemblée générale statuant sur les états financiers', detail: assemblee, source: 'AUSCGIE, art. 140 al. 2' };
+  }
+  return {
+    libelle: 'Assemblée générale statuant sur les états financiers',
+    detail: `${assemblee} Si la société ne compte qu’un associé (SASU), c’est lui qui approuve seul, dans le même délai, les comptes arrêtés par le président · le caractère unipersonnel n’est pas encore déclaré dans les paramètres du dossier.`,
+    source: 'AUSCGIE, art. 140 al. 2 ; art. 853-11, al. 4 et 5 (associé unique)',
+  };
+}
 
 export const JALONS_CLOTURE: DefinitionJalon[] = [
   {
@@ -1131,6 +1179,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     source: 'AUSCGIE, art. 140 al. 2',
     referentiels: [Referentiel.SYSCOHADA],
     formesSyscohada: [FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE],
+    selonAssocieUniqueSas: approbationSas,
   },
   {
     etape: 24,
@@ -1432,6 +1481,8 @@ export function jalonsApplicables(contexte: {
   formeJuridique: FormeJuridiqueEbnl;
   formeJuridiqueSyscohada?: FormeJuridiqueSyscohada | null;
   droitEtranger: boolean;
+  /** AUSCGIE art. 853-2 et 853-11 · SAS seule ; null ou absent, pas encore dit. */
+  associeUniqueSas?: boolean | null;
 }): DefinitionJalon[] {
   return JALONS_CLOTURE.filter((j) => {
     if (j.referentiels && !j.referentiels.includes(contexte.referentiel)) return false;
@@ -1451,9 +1502,9 @@ export function jalonsApplicables(contexte: {
     if (j.droitEtrangerSeulement && !contexte.droitEtranger) return false;
     if (j.droitCongolaisSeulement && contexte.droitEtranger) return false;
     return true;
-  }).map((j) =>
-    j.selonFormeSyscohada ? { ...j, ...j.selonFormeSyscohada(contexte.formeJuridiqueSyscohada ?? null) } : j,
-  );
+  })
+    .map((j) => (j.selonFormeSyscohada ? { ...j, ...j.selonFormeSyscohada(contexte.formeJuridiqueSyscohada ?? null) } : j))
+    .map((j) => (j.selonAssocieUniqueSas ? { ...j, ...j.selonAssocieUniqueSas(contexte.associeUniqueSas ?? null) } : j));
 }
 
 /**

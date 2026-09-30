@@ -16,6 +16,7 @@ import {
   texteAideSeuilImmobilisation,
   type NatureBaremeFiscal,
 } from '../lib/bareme-fiscal';
+import { contrepartieCessionProposee } from '../lib/contrepartie-cession';
 
 /**
  * Immobilisations (§3.3) : familles (gabarits, comptes + durée par défaut ·
@@ -126,6 +127,10 @@ export function ImmobilisationsPage() {
   const [sType, setSType] = useState<'CESSION' | 'MISE_HORS_SERVICE'>('MISE_HORS_SERVICE');
   const [sPrixCession, setSPrixCession] = useState('');
   const [sCompteContrepartie, setSCompteContrepartie] = useState('');
+  // AUDCIF, Titre VII, compte 81, Exclusions · une cession « fréquente et
+  // récurrente » est courante (654 / 754), une qualification de fait que le
+  // logiciel demande. SYSCOHADA seul, comme au serveur.
+  const [sCessionCourante, setSCessionCourante] = useState(false);
   const [sJournalId, setSJournalId] = useState('');
 
   // Dépréciation · AUDCIF art. 46 et Titre VIII ch. 12 ; SYCEBNL, fiche du
@@ -386,6 +391,7 @@ export function ImmobilisationsPage() {
         journalId: sJournalId,
         prixCession: sType === 'CESSION' ? Number(sPrixCession) : undefined,
         compteContrepartieId: sType === 'CESSION' ? sCompteContrepartie : undefined,
+        ...(sType === 'CESSION' && syscohada ? { cessionCourante: sCessionCourante } : {}),
       });
       setSortieOuvertePour(null);
       setSPrixCession('');
@@ -1515,11 +1521,31 @@ export function ImmobilisationsPage() {
                           Encaissé sur
                           <select required value={sCompteContrepartie} onChange={(e) => setSCompteContrepartie(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]">
                             <option value="" />
-                            {comptesFinancement.map((c) => (
-                              <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
-                            ))}
+                            {comptesFinancement
+                              .filter((c) =>
+                                contrepartieCessionProposee(utilisateur?.tenant.referentiel, sCessionCourante, c.numero),
+                              )
+                              .map((c) => (
+                                <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
+                              ))}
                           </select>
                         </label>
+                        {syscohada && (
+                          <label
+                            className="flex items-center gap-1.5 text-[11.5px] font-semibold text-text-dim"
+                            title="AUDCIF, Titre VII, compte 81, Exclusions · cession fréquente et récurrente, imputée en exploitation (654 / 754) ; sa créance va au 414, jamais au 485 (fiche du compte 48). Hors activités ordinaires, la créance va au 485, jamais sur un client (fiche du compte 41)."
+                          >
+                            <input
+                              type="checkbox"
+                              checked={sCessionCourante}
+                              onChange={(e) => {
+                                setSCessionCourante(e.target.checked);
+                                setSCompteContrepartie('');
+                              }}
+                            />
+                            Cession courante
+                          </label>
+                        )}
                       </>
                     )}
                   </div>

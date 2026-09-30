@@ -729,8 +729,12 @@ export class AuthService {
         numeroImpot: user.tenant.numeroImpot,
         // AUSCGIE art. 17 · forme, capital, siège et RCCM à côté de la
         // dénomination d'une société ; pour les autres formes SYSCOHADA,
-        // l'immatriculation de l'AUDCG (art. 14, 59, 62 et 140) · `null` en
-        // SYCEBNL (`tenant/mentions-societe.ts`, `mentionsEmetteur`).
+        // l'immatriculation de l'AUDCG (art. 14, 59, 62 et 140) ; pour la
+        // coopérative, l'AUSCOOP art. 19 et 183 ; en SYCEBNL, la mention
+        // « Association sans but lucratif » de la loi n° 004/2001, art. 16,
+        // quand la dénomination ne la porte pas déjà, `null` sinon et pour une
+        // entité de droit étranger (`tenant/mentions-societe.ts`,
+        // `mentionsEmetteur`).
         mentionsSociete: mentionsEmetteur(identiteSociete(user.tenant)).ligne,
         // Dossier mère d'un groupe d'établissements · ouvre l'entrée de menu
         // « Balance agrégée du groupe » (le serveur re-vérifie de toute façon

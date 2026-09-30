@@ -104,6 +104,7 @@ import {
 } from './etat-etafi';
 import { libelleExercice } from '../../common/libelle-exercice';
 import { mandatCouvrant } from '../mandat-auditeur/duree-mandat';
+import { formeApplicable } from '../tenant/forme-applicable';
 
 const ENTETE_FONT = { bold: true } as const;
 const ENTETE_FILL = {
@@ -3610,10 +3611,21 @@ export class ExportService {
    * les sections suivent le référentiel.
    */
   async rapportActiviteExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
-    const { referentiel, formeJuridiqueSyscohada } = await this.prisma.tenant.findUniqueOrThrow({
+    const dossier = await this.prisma.tenant.findUniqueOrThrow({
       where: { id: tenantId },
-      select: { referentiel: true, formeJuridiqueSyscohada: true },
+      select: { referentiel: true, formeJuridiqueSyscohada: true, formeJuridiqueSyscohadaAnterieure: true, dateTransformationForme: true },
     });
+    const referentiel = dossier.referentiel;
+    // LA FORME DE L'EXERCICE, PAS CELLE DU JOUR (AUSCGIE art. 182 et 183,
+    // passe O1a, D3) · les sections exportées sont celles que la conformité
+    // juge, jamais celles de la forme prise après la clôture. L'exercice n'est
+    // relu que si une transformation est déclarée.
+    let formeJuridiqueSyscohada = dossier.formeJuridiqueSyscohada;
+    if (dossier.dateTransformationForme) {
+      const exercice = await this.prisma.exercice.findFirst({ where: { id: exerciceId, tenantId }, select: { dateFin: true } });
+      if (!exercice) throw new NotFoundException(MOTIF_EXERCICE_INTROUVABLE);
+      formeJuridiqueSyscohada = formeApplicable(dossier, exercice.dateFin);
+    }
     const [rapport, conformite, identite] = await Promise.all([
       this.rapportActivite.courant(tenantId, exerciceId),
       referentiel === Referentiel.SYSCOHADA
@@ -3691,6 +3703,13 @@ export class ExportService {
           : '·',
       ],
     ];
+
+    // AUSCGIE art. 185 · sur l'exercice au cours duquel la transformation est
+    // intervenue, le rapport est établi par les anciens ET les nouveaux
+    // organes, chacun pour sa période · la conformité le dit, l'export aussi.
+    const mentionTransformation =
+      'mentionTransformation' in conformite ? (conformite.mentionTransformation as string | null) : null;
+    if (mentionTransformation) meta.push(['Transformation de la société', mentionTransformation]);
 
     // LA DÉCLARATION DE L'ART. 18 EST PROPRE AU SYCEBNL · elle porte sur le
     // registre des donateurs, que l'AUDCIF ne connaît pas. La servir à un

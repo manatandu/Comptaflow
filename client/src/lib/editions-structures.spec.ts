@@ -71,6 +71,13 @@ describe('Éditions des structures', () => {
     expect(s.lignes.find((l) => l[0] === 'Capital social')?.[1]).toBe(`${(1000000).toLocaleString('fr-FR')} CDF · à capital variable`);
     expect(cles).toContain('RCCM');
     expect(cles).not.toContain('Enregistrement sectoriel');
+    // AUSCOOP art. 74 et 77 · la coopérative imprime SON registre, jamais un RCCM.
+    const coop = editionParametres({ ...base, formeJuridiqueSyscohada: 'SOCIETE_COOPERATIVE', numeroRegistreCooperatives: 'RSC/KIN/2026/0042' } as ParametresDossier, { jeuOuSysteme: null, forme: null });
+    expect(coop.lignes.find((l) => l[0] === 'Registre des Sociétés Coopératives')?.[1]).toBe('RSC/KIN/2026/0042');
+    expect(coop.lignes.map((l) => l[0])).not.toContain('RCCM');
+    // AUDCG art. 62 et 64 · l'entreprenant, son numéro de déclaration.
+    const ent = editionParametres({ ...base, formeJuridiqueSyscohada: 'ENTREPRENANT', numeroDeclarationActivite: 'CD/KIN/24-EN-1' } as ParametresDossier, { jeuOuSysteme: null, forme: null });
+    expect(ent.lignes.find((l) => l[0] === 'N° de déclaration d’activité')?.[1]).toBe('CD/KIN/24-EN-1');
     const e = editionParametres({ ...base, referentiel: 'SYCEBNL' } as ParametresDossier, { jeuOuSysteme: null, forme: 'Association' });
     expect(e.lignes.map((l) => l[0])).toContain('Enregistrement sectoriel');
     expect(e.lignes.map((l) => l[0])).not.toContain('Capital social');

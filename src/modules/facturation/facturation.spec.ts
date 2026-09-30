@@ -311,7 +311,19 @@ describe('L’état détaillé de l’art. 56 · la condition du droit à déduc
 
 // ---------------------------------------------------------------------------
 
-function service(factures: Faux[] = [], doublon: Faux | null = null) {
+/**
+ * LA DOUBLURE HONORE LE `select` · elle ne rend que les champs demandés, comme
+ * la base. Une doublure qui rendrait le dossier entier validerait un service
+ * dont la sélection oublie un fait (mode d'administration, dissolution), et la
+ * pièce réelle le lirait absent.
+ */
+function projeter(complet: Faux, args: Faux): Faux {
+  const select = args?.select as Faux | undefined;
+  if (!select) return complet;
+  return Object.fromEntries(Object.keys(select).filter((k) => select[k] && k in complet).map((k) => [k, complet[k]]));
+}
+
+function service(factures: Faux[] = [], doublon: Faux | null = null, dossier: Faux = {}) {
   const create = jest.fn().mockImplementation(({ data }: Faux) => {
     const d = data as Faux;
     return Promise.resolve({
@@ -322,7 +334,7 @@ function service(factures: Faux[] = [], doublon: Faux | null = null) {
   });
   const prisma = {
     tenant: {
-      findUniqueOrThrow: jest.fn().mockResolvedValue({
+      findUniqueOrThrow: jest.fn().mockImplementation((args: Faux) => Promise.resolve(projeter({
         id: 't',
         nom: 'Le dossier',
         numeroImpot: 'A0000000A',
@@ -335,7 +347,8 @@ function service(factures: Faux[] = [], doublon: Faux | null = null) {
         ville: 'Kinshasa',
         rccm: null,
         devise: 'CDF',
-      }),
+        ...dossier,
+      }, args))),
     },
     tiers: { findFirst: jest.fn().mockResolvedValue(null) },
     // Le taux « t16 » est au dossier « t », tout autre identifiant est ailleurs.
@@ -397,6 +410,25 @@ describe('Le service · qui est l’émetteur, et qui est la contrepartie', () =
       // Le RCCM manque au dossier · la pièce le garde écrit, elle ne le devine pas.
       manquantes: ["numéro d'immatriculation au RCCM"],
     });
+  });
+
+  it('la sélection du dossier porte les faits de la dénomination · mode de la SA et dissolution recopiés', async () => {
+    // AUSCGIE art. 386 et 204 · une SA dont le mode est déclaré ne le voit pas
+    // dans ses manques, et une société dissoute émet « société en liquidation ».
+    const { svc, create } = service([], null, {
+      formeJuridiqueSyscohada: 'SOCIETE_ANONYME',
+      rccm: 'CD/KIN/RCCM/26-B-00001',
+      modeAdministrationSa: 'CONSEIL_ADMINISTRATION',
+      dateDissolution: new Date('2026-06-30'),
+      liquidateurs: 'M. Liquidateur',
+    });
+    await svc.enregistrer('t', dto() as never);
+    const recopie = ((create.mock.calls[0][0] as Faux).data as Faux).mentionsSocieteEmetteur as Faux;
+    expect(recopie.ligne).toBe(
+      'Société en liquidation · liquidateur(s) : M. Liquidateur · Société anonyme avec conseil d’administration · au capital de ' +
+        '10 000 000 CDF · siège social : 12, avenue de la Justice, Kinshasa · RCCM CD/KIN/RCCM/26-B-00001',
+    );
+    expect(recopie.manquantes).toEqual([]);
   });
 
   it('SUR UN ACHAT, rien n’est recopié · le capital du fournisseur n’est pas connu', async () => {

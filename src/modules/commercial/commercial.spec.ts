@@ -227,7 +227,14 @@ describe('La révocabilité · un délai seul ne rend pas l’offre ferme', () =
 
 // ---------------------------------------------------------------------------
 
-function service(opts: { referentiel?: Referentiel; devis?: Faux[]; unDevis?: Faux | null } = {}) {
+/** La doublure honore le `select`, comme la base (voir le spec de la facturation). */
+function projeter(complet: Faux, args: Faux): Faux {
+  const select = args?.select as Faux | undefined;
+  if (!select) return complet;
+  return Object.fromEntries(Object.keys(select).filter((k) => select[k] && k in complet).map((k) => [k, complet[k]]));
+}
+
+function service(opts: { referentiel?: Referentiel; devis?: Faux[]; unDevis?: Faux | null; dossier?: Faux } = {}) {
   const update = jest.fn().mockImplementation(({ data }: Faux) => Promise.resolve({ ...(opts.unDevis as Faux), ...(data as Faux), lignes: [] }));
   const create = jest.fn().mockImplementation(({ data }: Faux) => {
     const d = data as Faux;
@@ -235,7 +242,7 @@ function service(opts: { referentiel?: Referentiel; devis?: Faux[]; unDevis?: Fa
   });
   const prisma = {
     tenant: {
-      findUniqueOrThrow: jest.fn().mockResolvedValue({
+      findUniqueOrThrow: jest.fn().mockImplementation((args: Faux) => Promise.resolve(projeter({
         id: 't',
         nom: 'Le dossier',
         referentiel: opts.referentiel ?? Referentiel.SYSCOHADA,
@@ -246,7 +253,8 @@ function service(opts: { referentiel?: Referentiel; devis?: Faux[]; unDevis?: Fa
         ville: null,
         rccm: null,
         devise: 'CDF',
-      }),
+        ...opts.dossier,
+      }, args))),
     },
     tiers: { findFirst: jest.fn().mockResolvedValue(null) },
     devis: {
@@ -327,6 +335,16 @@ describe('Le service · la contre-proposition ne naît que d’un rejet', () => 
     expect(recopie.denomination).toBe('Le dossier');
     expect(recopie.ligne).toBe('Société à responsabilité limitée');
     // Rien n'est deviné · ce qui manque au dossier reste écrit sur la pièce.
+    expect(recopie.manquantes).toEqual(['montant du capital social', 'adresse du siège social', "numéro d'immatriculation au RCCM"]);
+  });
+});
+
+describe('Le service · la sélection du dossier porte les faits de la dénomination', () => {
+  it('une SASU déclarée imprime « unipersonnelle » et ne voit plus l’associé unique dans ses manques (AUSCGIE art. 853-2)', async () => {
+    const { svc, create } = service({ dossier: { formeJuridiqueSyscohada: 'SOCIETE_PAR_ACTIONS_SIMPLIFIEE', associeUniqueSas: true } });
+    await svc.emettre('t', dto() as never);
+    const recopie = ((create.mock.calls[0][0] as Faux).data as Faux).mentionsSocieteEmetteur as Faux;
+    expect(recopie.ligne).toBe('Société par actions simplifiée unipersonnelle');
     expect(recopie.manquantes).toEqual(['montant du capital social', 'adresse du siège social', "numéro d'immatriculation au RCCM"]);
   });
 });

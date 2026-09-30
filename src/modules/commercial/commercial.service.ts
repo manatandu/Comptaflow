@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { NatureReponseDevis, Prisma, Referentiel } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
-import { identiteSociete, mentionsRecopiees, type MentionsRecopiees } from '../tenant/mentions-societe';
+import { identiteSociete, mentionsRecopiees, SELECT_IDENTITE_SOCIETE, type MentionsRecopiees } from '../tenant/mentions-societe';
 import { lirePeriodeDeListe } from '../../common/periode-de-liste';
 import { EmettreDevisDto, EnregistrerReponseDto, RevoquerDevisDto } from './dto/devis.dto';
 import {
@@ -35,27 +35,10 @@ export class CommercialService {
       where: { id: tenantId },
       select: {
         id: true,
-        nom: true,
-        referentiel: true,
-        formeJuridiqueSyscohada: true,
-        // AUSCGIE art. 17 · recopié sur un devis que le dossier émet.
-        capitalSocial: true,
-        capitalVariable: true,
-        adresse: true,
-        ville: true,
-        rccm: true,
-        // AUDCG art. 59, 62 et 140 · immatriculation et location-gérance (passe O2).
-        numeroDeclarationActivite: true,
-        locataireGerantFonds: true,
-        // AUSCOOP art. 19, 183, 205 et 268 · la ligne de la coopérative, et
-        // loi n° 004/2001, art. 16 · la mention de l'ASBL (passes O6 et D1).
-        numeroRegistreCooperatives: true,
-        varianteCooperative: true,
-        dateDissolution: true,
-        liquidateurs: true,
-        formeJuridique: true,
-        droitEtranger: true,
-        devise: true,
+        // AUSCGIE art. 17, 204, 386 et 853-2, AUDCG art. 59, 62 et 140, AUSCOOP
+        // art. 19 et 183 · recopié sur un devis que le dossier émet, par la
+        // sélection commune.
+        ...SELECT_IDENTITE_SOCIETE,
       },
     });
   }

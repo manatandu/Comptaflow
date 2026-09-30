@@ -1522,9 +1522,24 @@ export interface ParametresDossier {
   numeroRegistreCooperatives: string | null;
   /** AUSCOOP art. 205 et 268 · null, pas encore dit. */
   varianteCooperative: 'SCOOPS' | 'COOP_CA' | null;
-  /** AUSCOOP art. 183 · dissolution déclarée et liquidateurs, null tant que rien n'est dit. */
+  /** AUSCGIE art. 386 et 414 · SA seule, null tant que rien n'est dit. */
+  modeAdministrationSa: 'CONSEIL_ADMINISTRATION' | 'ADMINISTRATEUR_GENERAL' | null;
+  /** AUSCGIE art. 853-2 · SAS seule, null tant que rien n'est dit. */
+  associeUniqueSas: boolean | null;
+  /**
+   * AUSCGIE art. 203 et 204 (cinq sociétés commerciales), AUSCOOP art. 183
+   * (coopérative) · dissolution déclarée et liquidateurs, null tant que rien
+   * n'est dit.
+   */
   dateDissolution: string | null;
   liquidateurs: string | null;
+  /**
+   * AUSCGIE art. 181 à 183 · la forme d'avant une transformation déclarée, et
+   * la date d'effet, que gardent les exercices clos avant elle. Nulles pour une
+   * forme seulement corrigée.
+   */
+  formeJuridiqueSyscohadaAnterieure: FormeJuridiqueSyscohada | null;
+  dateTransformationForme: string | null;
   /** Arrêté (ou décret pour une ONG étrangère) accordant la personnalité juridique · loi n° 004/2001. */
   actePersonnaliteJuridique: string | null;
   dateActePersonnalite: string | null;
