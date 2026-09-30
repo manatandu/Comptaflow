@@ -1537,9 +1537,11 @@ trancher aucune · sur-corriger une seconde fois aurait été la vraie faute.
 égale ou supérieure à 50 %, art. 5), l'ajustement annuel **à partir de janvier**
 (art. 11), le budget-type familial pour cinq enfants (art. 7 à 9), et surtout
 l'art. 15 : **la contre-valeur du logement est une DÉFALCATION, pas une
-indemnité**, ouverte seulement « pour cause de MUTATION » avec logement en
-nature · hors ce cas ce serait une retenue sans titre, et l'art. 112 du Code du
-travail ferme la liste. **TROIS DATES POUR UN SEUL TEXTE** · décret du 30 mai
+indemnité**, et celle de l'art. 15 porte sur l'INDEMNITÉ, pour cause de
+MUTATION. Ce n'est pas la seule · l'arrêté de 2005, art. 10, en ouvre une
+autre, de même grandeur, sur la RÉMUNÉRATION, dès que le logement est fourni en
+nature et sans condition de mutation (voir P6). La phrase « hors ce cas ce
+serait une retenue sans titre » écrite ici jusqu'au 2026-09-30 était fausse. **TROIS DATES POUR UN SEUL TEXTE** · décret du 30 mai
 2025, annexes du 17 septembre, publication du 28 octobre : la grille n'existait
 pas quand le décret la visait. Huit contresens réinjectés, huit attrapés.
 
@@ -1962,8 +1964,11 @@ préavis sur faute lourde, LUI, est une RÉPONSE, et il porte son article.
 **DEUX AUTRES ÉCARTS RELEVÉS.** L'article 142 fait payer en espèces les
 avantages en nature « EXCEPTION FAITE SEULEMENT POUR LE LOGEMENT », quand le
 séminaire porte une « indemnité congé / logement » · le logement EN NATURE
-n'entre pas dans la conversion, une indemnité de logement en ESPÈCES est de la
-rémunération et y entre. Et les commissions, primes et participations se
+n'entre pas dans la conversion, et l'indemnité de logement n'est pas de la
+rémunération (art. 7, point 8, « Ne sont pas éléments de la rémunération : [...]
+L'indemnité de logement ou le logement en nature ») · elle n'entre donc pas dans
+l'allocation de congé, que l'art. 142 égale à la rémunération. Corrigé le
+2026-09-30 : la phrase disait l'inverse, et le décompte le suivait. Et les commissions, primes et participations se
 prennent sur la MOYENNE DES DOUZE MOIS (art. 66 et 142), jamais sur le dernier.
 
 **ET LES RETENUES DU SÉMINAIRE NE SONT PAS REPRISES** · l'IPR à 10 % est
