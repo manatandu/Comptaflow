@@ -236,11 +236,15 @@ async function feuilleNote3(lignesTiers: LigneTiersStub[]): Promise<ExcelJS.Work
   return wb.getWorksheet('NOTE 3 CREANCES-DETTES')!;
 }
 
-/** Rang de la ligne dont la colonne A porte ce numéro de compte. */
+/**
+ * Rang de la ligne dont la colonne B commence par ce numéro de compte · la
+ * colonne A est la DATE de la maquette, laissée vide, et le numéro précède le
+ * nom en colonne B (même parti que le jumeau SYSCOHADA).
+ */
 function rangDuCompte(ws: ExcelJS.Worksheet, numero: string): number {
   let rang = 0;
   ws.eachRow((row, n) => {
-    if (row.getCell(1).value === numero) rang = n;
+    if (String(row.getCell(2).value ?? '').startsWith(`${numero} `)) rang = n;
   });
   expect(rang).toBeGreaterThan(9);
   return rang;
@@ -276,19 +280,42 @@ describe('NOTE 3 du S.M.T · la ventilation par échéance atteint la feuille', 
     expect(String(ws.getCell(8, 1).value)).toContain('Partie 4, ch. 4, section 3');
     expect(String(ws.getCell(8, 7).value)).toContain('hors maquette');
 
-    // Les six colonnes du texte, dans leur ordre, puis les trois ajoutées.
-    expect(ws.getRow(9).values).toEqual([
+    // Les six colonnes du texte, dans leur ordre et à la lettre, puis les
+    // trois ajoutées · UNE ligne d'en-tête PAR BLOC, chacune avec son libellé
+    // de nom (Partie 4, ch. 4, section 3). Le spec gelait jusqu'ici un
+    // en-tête unique « Compte | Nom », qui renommait la colonne DATE et
+    // fondait deux libellés du texte en un seul.
+    const entetes: unknown[][] = [];
+    ws.eachRow((row) => {
+      if (row.getCell(1).value === 'DATE') entetes.push(row.values as unknown[]);
+    });
+    const ajoutees = ['Dont non échu au 31/12/N', 'Dont échu au 31/12/N', 'Part non ventilée · signal de tenue'];
+    const officielles = (nom: string) => [
       undefined,
-      'Compte',
-      'Nom',
-      'Montant au 31/12/N',
-      'Montant au 01/01/N',
+      'DATE',
+      nom,
+      'Montant au 31 décembre N',
+      'Montant au 1er janvier N',
       'Variation en valeur',
       'Variation en %',
-      'Dont non échu au 31/12/N',
-      'Dont échu au 31/12/N',
-      'Part non ventilée · signal de tenue',
+      ...ajoutees,
+    ];
+    expect(entetes).toEqual([
+      officielles('NOM CLIENTS-USAGERS ET AUTRES DEBITEURS'),
+      officielles('NOM DES FOURNISSEURS ET AUTRES CRÉDITEURS'),
     ]);
+  });
+
+  it('laisse vide la colonne DATE de chaque ligne de détail, le numéro suivant le nom', async () => {
+    const ws = await feuilleNote3(LIGNES_TENUES);
+    for (const numero of ['41100000', '40110000']) {
+      const rang = rangDuCompte(ws, numero);
+      // Un compte de tiers agrège des pièces de dates différentes · la
+      // colonne officielle n'est ni remplie d'une date arbitraire ni
+      // détournée pour porter le numéro.
+      expect(ws.getCell(rang, 1).value ?? null).toBeNull();
+    }
+    expect(ws.getCell(rangDuCompte(ws, '41100000'), 2).value).toBe('41100000 Clients');
   });
 
   it('ventile la créance et la dette, et les trois parts somment au montant du 31/12', async () => {
@@ -340,8 +367,8 @@ describe('NOTE 3 du S.M.T · la ventilation par échéance atteint la feuille', 
     // LES SIX COLONNES DE LA MAQUETTE, inchangées · c'est ce que ce dossier
     // rendait la veille, et une correction qui y déplacerait un chiffre
     // serait une régression pour tous les dossiers déjà tenus.
-    expect(ws.getCell(client, 1).value).toBe('41100000');
-    expect(ws.getCell(client, 2).value).toBe('Clients');
+    expect(ws.getCell(client, 1).value ?? null).toBeNull();
+    expect(ws.getCell(client, 2).value).toBe('41100000 Clients');
     expect(ws.getCell(client, 3).value).toBe(100_000);
     expect(ws.getCell(client, 4).value).toBe(40_000);
     expect(ws.getCell(client, 5).value).toBe(60_000);

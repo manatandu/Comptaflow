@@ -2082,19 +2082,34 @@ export interface RetraitementSmt extends PosteCalcule {
   signe: 1 | -1;
 }
 
+/** KA à JF · le renvoi de note imprimé par la maquette (« 4 »). */
+export interface PosteFluxSmt extends PosteCalcule {
+  note: string | null;
+}
+
 export interface CompteDeResultatSmt {
-  recettes: PosteCalcule[];
+  recettes: PosteFluxSmt[];
   totalRecettes: number;
-  depenses: PosteCalcule[];
+  depenses: PosteFluxSmt[];
   totalDepenses: number;
   soldeCaisse: number;
   retraitements: RetraitementSmt[];
   resultatNet: number;
+  /**
+   * Comparatif N-1 (SYCEBNL art. 16, 7°) · `montantN1` sur chaque poste et
+   * les totaux ci-dessous, undefined sans exercice N-1, jamais zéro.
+   */
+  exerciceN1Disponible: boolean;
+  totalRecettesN1?: number;
+  totalDepensesN1?: number;
+  soldeCaisseN1?: number;
+  resultatNetN1?: number;
   controle: {
     resultatBilan: number;
     /**
      * Encaissements et décaissements qui ne sont ni produit ni charge
-     * (dotation, emprunt, immobilisation). La maquette du S.M.T n'ouvre aucune
+     * (dotation, emprunt, immobilisation, fournisseur d'investissements 481).
+     * La maquette du S.M.T n'ouvre aucune
      * ligne pour les reprendre : ils font diverger KZC du résultat du bilan,
      * et c'est ce montant qui explique l'écart.
      */
@@ -2141,19 +2156,36 @@ export interface Note4Smt {
   nb: string;
 }
 
+/** Une ligne de la Note 1 · un bien du registre, ou une caution lue à la balance (275). */
+export interface LigneNote1Smt {
+  origine: 'REGISTRE' | 'BALANCE';
+  dateMiseEnService: string | null;
+  designation: string;
+  montant: number;
+  /** null pour une caution · le compte ne porte pas la date. */
+  dateAcquisition: string | null;
+  dureeUtiliteAns: number | null;
+  dateSortie: string | null;
+  prixCession: number | null;
+}
+
 export interface NotesSmt {
   fiche: { numero: number; intitule: string; partie: 'BILAN' | 'COMPTE_DE_RESULTAT' }[];
+  /** Numéros des notes applicables · colonnes A et N/A de la fiche (Partie 4, ch. 4, section 3). */
+  applicables: number[];
   note1: {
-    lignes: {
-      dateMiseEnService: string | null;
-      designation: string;
-      montant: number;
-      dateAcquisition: string;
-      dureeUtiliteAns: number;
-      dateSortie: string | null;
-      prixCession: number | null;
-    }[];
+    /** Biens détenus à la clôture, puis cautions. */
+    lignes: LigneNote1Smt[];
+    /** Biens sortis pendant l'exercice · hors du total. */
+    sortiesDeLExercice: LigneNote1Smt[];
     total: number;
+    totalRegistre: number;
+    totalCautions: number;
+    motifCautions: string | null;
+    /** Comptes de la classe 2 que les fiches détenues ne reconstituent pas (poste GA). */
+    ecartsGA: { numero: string; intitule: string; soldeBalance: number; valeurFiches: number; ecart: number }[];
+    fichesSansSolde: { designation: string; montant: number }[];
+    motifEcartsGA: string | null;
   };
   note2: {
     /** Quantité et prix unitaire lus sur la campagne d'inventaire, null sinon (audit final F85). */
@@ -2177,6 +2209,17 @@ export interface NotesSmt {
     totalCreancesNonEchues: number;
     totalCreancesEchues: number;
     totalCreancesNonVentilees: number;
+    /** Dépréciations 490 à 498, en déduction des créances (fiche du COMPTE 49). */
+    depreciationsCreances: {
+      numero: string;
+      intitule: string;
+      montantCloture: number;
+      montantOuverture: number;
+      variationValeur: number;
+    }[];
+    totalDepreciationsCreances: number;
+    /** Le poste GC du bilan · créances moins leurs dépréciations. */
+    totalCreancesNettes: number;
     dettes: LigneCreanceDetteSmt[];
     totalDettes: number;
     totalDettesNonEchues: number;
@@ -2190,9 +2233,16 @@ export interface NotesSmt {
   note5: {
     rubriques: { cle: string; libelle: string; montant: number; comptes: CompteDuPoste[] }[];
     total: number;
-    membres: { nom: string; nationalite: null; montant: number; numero: string }[];
+    /** Part du compte 10 qu'aucune rubrique n'ouvre (106) · TOTAL + hors rubriques = HA. */
+    horsRubriques: CompteDuPoste[];
+    totalHorsRubriques: number;
+    totalPosteHA: number;
+    motifHorsRubriques: string | null;
+    membres: { nom: string; nationalite: null; montant: number; precisionDroitEntree: null; numero: string }[];
     nationaliteTenue: boolean;
-    motifNationalite: string;
+    precisionDroitEntreeTenue: boolean;
+    motifColonnesNonTenues: string;
+    motifMembres: string;
   };
 }
 

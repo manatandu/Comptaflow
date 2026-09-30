@@ -88,9 +88,34 @@ export interface PosteBilanSmt {
   exclusions?: string[];
   /** Ne retenir que les comptes dont le solde va dans ce sens (postes de tiers). */
   sens_qualificatif?: QualificatifSensSmt;
+  /**
+   * Comptes repris QUEL QUE SOIT le sens de leur solde, en solde algébrique,
+   * à côté de ceux que `sens_qualificatif` retient. Sert aux dépréciations de
+   * tiers (490 à 498), créditrices par nature, que la fiche du COMPTE 49 porte
+   * « à l'actif du bilan, en déduction de la valeur des postes qu'elles
+   * concernent » · filtrées par le signe, elles tombaient au passif.
+   */
+  comptesSansFiltreDeSens?: string[];
   /** Pourquoi ces comptes-là · le texte ne fournissant pas de table (voir en-tête). */
   fondement: string;
 }
+
+/**
+ * DÉPRÉCIATIONS DES COMPTES DE TIERS (SYCEBNL, Partie 2, ch. 3, COMPTE 49,
+ * subdivisions 490 à 498). La fiche du compte les dit « portées à l'actif du
+ * bilan, en déduction de la valeur des postes qu'elles concernent », et la
+ * table officielle du jeu associations les déduit en effet de ses postes de
+ * créances (BA 498, BC 490, BD 491, BE 492, 493, 494 et 497 · Partie 4,
+ * ch. 2). Le 499 « Provisions pour risques et charges à court terme » n'en est
+ * PAS : la même fiche en fait « une dette probable à moins d'un an », et la
+ * table associations le range en DI « Autres dettes ». Il reste en HD.
+ *
+ * Sans cette liste, GC et HD se partageaient la classe 4 par le seul signe du
+ * solde, et une dépréciation, créditrice, était présentée en dette alors que
+ * les créances restaient brutes · les totaux égaux, le passif gonflé d'une
+ * dette qui n'existe pas.
+ */
+export const DEPRECIATIONS_DES_TIERS = ['490', '491', '492', '493', '494', '497', '498'];
 
 export const POSTES_BILAN_ACTIF: PosteBilanSmt[] = [
   {
@@ -121,10 +146,14 @@ export const POSTES_BILAN_ACTIF: PosteBilanSmt[] = [
     note: '3',
     // Classe 4 en entier, côté débiteur seulement · le poste passif HD prend
     // le côté créditeur. Aucun compte de tiers n'est perdu entre les deux.
+    // Les dépréciations 490 à 498 font exception : elles sont reprises ICI
+    // quel que soit leur signe, en déduction, et HD les exclut.
     comptes: ['4'],
+    exclusions: DEPRECIATIONS_DES_TIERS,
     sens_qualificatif: 'DEBITEUR',
+    comptesSansFiltreDeSens: DEPRECIATIONS_DES_TIERS,
     fondement:
-      "Classe 4 « Tiers », soldes débiteurs. Le compte 41 s'intitule précisément « Adhérents, clients-usagers et comptes rattachés » (Partie 2, ch. 3) ; « et autres débiteurs » étend le poste au reste de la classe, qui n'a aucun autre poste d'accueil dans cette maquette à cinq lignes d'actif.",
+      "Classe 4 « Tiers », soldes débiteurs. Le compte 41 s'intitule précisément « Adhérents, clients-usagers et comptes rattachés » (Partie 2, ch. 3) ; « et autres débiteurs » étend le poste au reste de la classe, qui n'a aucun autre poste d'accueil dans cette maquette à cinq lignes d'actif. Net des dépréciations 490 à 498, reprises en déduction quel que soit leur signe : la fiche du COMPTE 49 (Partie 2, ch. 3) les porte « à l'actif du bilan, en déduction de la valeur des postes qu'elles concernent », comme la table officielle du jeu associations (Partie 4, ch. 2, BA, BC, BD et BE).",
   },
   {
     ref: 'GD',
@@ -158,7 +187,7 @@ export const POSTES_BILAN_PASSIF: PosteBilanSmt[] = [
     note: '5',
     comptes: ['10'],
     fondement:
-      "Compte 10 « Dotation » (Partie 2, ch. 3, COMPTE 10). La Note 5 le confirme en le détaillant en « Dotation non consomptible / Droit d'entrée / Dotation consomptible ».",
+      "Compte 10 « Dotation » (Partie 2, ch. 3, COMPTE 10), 106 « Écarts de réévaluation » compris, que le plan range sous le 10 (Partie 2, ch. 2). La Note 5 détaille les 101 à 104 dans ses trois rubriques « Dotation non consomptible / Droit d'entrée / Dotation consomptible » ; elle n'en ouvre aucune pour le 106, qu'elle rappelle hors rubriques pour se rapprocher du poste.",
   },
   // HB n'est PAS listé ici : il est arbitré entre les classes 6/7/8 et les
   // comptes 131 à 139 selon que l'exercice est clôturé ou non · voir
@@ -190,9 +219,12 @@ export const POSTES_BILAN_PASSIF: PosteBilanSmt[] = [
     sens: 'PASSIF',
     note: '3',
     comptes: ['4'],
+    // Les dépréciations 490 à 498 vont en déduction de GC, jamais ici · le 499
+    // (provisions pour risques à court terme) reste une dette, en HD.
+    exclusions: DEPRECIATIONS_DES_TIERS,
     sens_qualificatif: 'CREDITEUR',
     fondement:
-      "Classe 4 « Tiers », soldes créditeurs · symétrique de GC. Le compte 40 s'intitule « Fournisseurs et comptes rattachés » (Partie 2, ch. 3), et la Note 3 nomme la colonne « NOM DES FOURNISSEURS ET AUTRES CRÉDITEURS ».",
+      "Classe 4 « Tiers », soldes créditeurs · symétrique de GC. Le compte 40 s'intitule « Fournisseurs et comptes rattachés » (Partie 2, ch. 3), et la Note 3 nomme la colonne « NOM DES FOURNISSEURS ET AUTRES CRÉDITEURS ». Hors les dépréciations 490 à 498, qui se déduisent des créances (GC) ; le 499 y reste, la fiche du COMPTE 49 en faisant « une dette probable à moins d'un an ».",
   },
 ];
 
@@ -245,7 +277,7 @@ export const POSTES_RECETTES: PosteFluxSmt[] = [
     note: '4',
     comptes: ['70'],
     fondement:
-      "Compte 70 « Revenus » (Partie 2, ch. 3, COMPTE 70) : cotisations, générosité du public, ventes, manifestations. C'est l'exacte matière des colonnes « Cotisations » et « Subventions » de la ventilation des recettes de la Note 4.",
+      "Compte 70 « Revenus » (Partie 2, ch. 3, COMPTE 70), subdivisions 701 à 708 : cotisations, générosité du public, ventes, manifestations. Les subventions d'exploitation en sont exclues par la fiche du compte, qui les renvoie au 71, donc en KB. La ventilation des recettes de la Note 4 découpe autrement : sa colonne « Cotisations » ne lit que le 701, sa colonne « Subventions » les 71 et 88 · les deux découpages ne se recoupent pas.",
   },
   {
     ref: 'KB',
@@ -358,7 +390,7 @@ export const RETRAITEMENTS: RetraitementSmt[] = [
     libelle: "- Variation des dettes d'exploitation [N - (N-1)]",
     signe: -1,
     fondement:
-      "Poste HD du bilan, clôture moins OUVERTURE de l'exercice (report à nouveau). Une dette qui augmente correspond à une charge engagée non payée : absente de B, la variation la retranche. L'opérateur « - » est celui du texte officiel.",
+      "Poste HD du bilan hors le 481 « Fournisseurs d'investissements », clôture moins OUVERTURE de l'exercice (report à nouveau). Une dette qui augmente correspond à une charge engagée non payée : absente de B, la variation la retranche. L'opérateur « - » est celui du texte officiel. Le 481 est écarté parce que la maquette dit « dettes d'EXPLOITATION » et que le SYCEBNL range les fournisseurs d'immobilisations hors de l'exploitation (fiche du COMPTE 40, Exclusions : « utiliser le compte ci-après : 481 » ; fiche du COMPTE 48 : dettes « n'ayant pas de lien direct avec l'activité ordinaire ») : sa contrepartie est une immobilisation, pas une charge. Son règlement est donc un flux hors exploitation.",
   },
   {
     ref: 'JG',
@@ -370,6 +402,21 @@ export const RETRAITEMENTS: RetraitementSmt[] = [
 ];
 
 export const COMPTES_DOTATIONS_AMORTISSEMENTS = ['68'];
+
+/**
+ * LES DETTES DU POSTE HD QUE VC NE LIT PAS · le 481 « Fournisseurs
+ * d'investissements », 4811 à 4818 compris (4813 : versements restant à
+ * effectuer sur titres non libérés, contrepartie 26 ou 27). Fondement : voir
+ * le retraitement VC. Le poste HD du bilan et la Note 3, eux, les portent :
+ * ce sont des dettes, et le texte les veut au bilan.
+ *
+ * RÉSERVES, rien n'est tranché pour elles : le 484 « Autres dettes H.A.O. »
+ * a pour contrepartie la classe 8 (fiche du COMPTE 48), et l'exclure
+ * retirerait une charge H.A.O. non payée ; le 4861 et le 488 ne sont pas
+ * davantage écartés. Et un 481 DÉBITEUR (anormal, les avances sur
+ * immobilisations allant au 25) tomberait en GC, donc en VB.
+ */
+export const DETTES_HORS_EXPLOITATION = ['481'];
 
 // ---------------------------------------------------------------------------
 // NOTE 4 · JOURNAL UNIQUE DE TRÉSORERIE (Section 3)
@@ -391,20 +438,28 @@ export interface ColonneVentilationSmt {
 }
 
 export const VENTILATION_RECETTES: ColonneVentilationSmt[] = [
+  // L'ORDRE EST CELUI D'IMPRESSION, celui du texte (« Cotisations ;
+  // Subventions ; Autres ; Matériel Mobilier et autres ») · l'export imprime
+  // les colonnes dans l'ordre du tableau. Il est sans effet sur le calcul :
+  // chaque colonne porte ses propres comptes et exclusions, disjoints, et
+  // « Autres » reste la colonne résiduelle même imprimée en troisième.
   // 701 Cotisations (Partie 2, ch. 3, COMPTE 70).
   { cle: 'cotisations', libelle: 'Cotisations', comptes: ['701'] },
   // 71 Subventions d'exploitation ; 88 Subventions d'équilibre.
   { cle: 'subventions', libelle: 'Subventions', comptes: ['71', '88'] },
-  // « Matériel Mobilier et autres » : côté recettes, la cession d'une
-  // immobilisation · compte 82 Produits des cessions, et le compte 24
-  // lui-même si la cession est saisie directement en diminution de l'actif.
-  { cle: 'materiel', libelle: 'Matériel, mobilier et autres', comptes: ['82', '2'] },
   {
     cle: 'autres',
     libelle: 'Autres',
     comptes: ['1', '3', '4', '6', '7', '8'],
     exclusions: ['701', '71', '82', '88'],
   },
+  // « Matériel Mobilier et autres » : côté recettes, la cession d'une
+  // immobilisation. Lecture d'OmegaX, le texte ne définit pas la colonne ·
+  // elle s'appuie sur la fiche du COMPTE 82 (Partie 2, ch. 3 : crédité « par
+  // le débit […] d'un compte de trésorerie ») et sur la NOTE 1, qui porte le
+  // prix de cession. Le 82, et la classe 2 elle-même si la cession est saisie
+  // directement en diminution de l'actif (cautions 27 comprises).
+  { cle: 'materiel', libelle: 'Matériel, mobilier et autres', comptes: ['82', '2'] },
 ];
 
 export const VENTILATION_DEPENSES: ColonneVentilationSmt[] = [
@@ -427,6 +482,54 @@ export const NB_JOURNAL_TRESORERIE =
   "NB : Prévoir un journal par banque et un journal pour la caisse. Les colonnes « ventilation recettes et dépenses » " +
   "peuvent être complétées en cas de besoin par des rajouts notamment « Charges d'intérêts ». Il est possible si " +
   'nécessaire, de regrouper les opérations mensuellement dans un seul journal de trésorerie.';
+
+// ---------------------------------------------------------------------------
+// NOTE 1 · MATÉRIEL, MOBILIER ET CAUTIONS (Section 3)
+// ---------------------------------------------------------------------------
+
+/**
+ * Les cautions de la Note 1 · la fiche récapitulative intitule la note
+ * « Tableau d'acquisition et de suivi du matériel, du mobilier et des
+ * cautions », et le plan SYCEBNL les loge au 275 « Dépôts et cautionnements
+ * versés » (Partie 2, ch. 2), « créances non commerciales assimilées à des
+ * prêts » (Partie 2, ch. 3, COMPTE 27).
+ */
+export const COMPTES_CAUTIONS_NOTE_1 = ['275'];
+
+// ---------------------------------------------------------------------------
+// NOTE 5 · DOTATION (Section 3)
+// ---------------------------------------------------------------------------
+
+/**
+ * LES SOUS-COMPTES D'APPORTEURS DU COMPTE 45, liste fermée · ceux où la
+ * Note 5 cherche ses « membres ». La fiche du COMPTE 45 (Partie 2, ch. 3)
+ * sépare deux objets : « d'une part les créances/dettes envers les apporteurs
+ * résultant des divers mouvements de dotation ; d'autre part les
+ * créances/dettes temporaires en comptes courants des adhérents et
+ * dirigeants », et veut des « sous comptes particuliers » pour les opérations
+ * de dotation. Ses subdivisions nomment « Apporteurs en nature » et
+ * « Apporteurs en numéraire » sous 451 à 455, et le guide d'application
+ * n'emploie que ceux-là pour la souscription et la libération de la dotation.
+ *
+ * Écartés : les comptes courants 4515, 4525, 4535, 4545, 4555 (dont le débit
+ * est le remboursement de fonds laissés temporairement), le 4572 Bénévoles
+ * (remboursement ou abandon de frais, Partie 3, ch. 6), le 4571 Mécènes, que
+ * nulle source ne décrit comme un mouvement de dotation, et le 456 et le 458,
+ * intitulés « apporteurs » ou « fondateurs » mais que le texte ne développe
+ * pas · un membre qu'ils porteraient reste à ajouter à la main.
+ */
+export const SOUS_COMPTES_APPORTEURS = [
+  '4511',
+  '4512',
+  '4521',
+  '4522',
+  '4531',
+  '4532',
+  '4541',
+  '4542',
+  '4551',
+  '4552',
+];
 
 // ---------------------------------------------------------------------------
 // FICHE RÉCAPITULATIVE DES NOTES ANNEXES (Section 3)

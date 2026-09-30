@@ -239,6 +239,38 @@ describe('correspondance SMT · discipline de la dérivation', () => {
     expect(hd.sens_qualificatif).toBe('CREDITEUR');
   });
 
+  it('les dépréciations 490 à 498 vont en déduction de GC quel que soit leur signe, le 499 reste une dette', () => {
+    // Fiche du COMPTE 49 (Partie 2, ch. 3) : « portées à l'actif du bilan, en
+    // déduction de la valeur des postes qu'elles concernent » ; les
+    // provisions pour risques à court terme, « une dette probable à moins
+    // d'un an ». La prémisse est relue sur le SEMIS, pas sur une liste
+    // recopiée : chaque 49 semé va à un seul endroit.
+    const gc = POSTES_BILAN_ACTIF.find((p) => p.ref === 'GC')!;
+    const hd = POSTES_BILAN_PASSIF.find((p) => p.ref === 'HD')!;
+    const comptes49 = COMPTES_IMPUTATION.filter((c) => c.numero.startsWith('49')).map((c) => c.numero);
+    expect(comptes49.length).toBeGreaterThan(8);
+    for (const n of comptes49) {
+      const enDeduction = correspond(n, gc.comptesSansFiltreDeSens ?? []);
+      const provision = n.startsWith('499');
+      expect([n, enDeduction]).toEqual([n, !provision]);
+      // Une dépréciation n'entre JAMAIS en HD, une provision y entre.
+      expect([n, capte(hd, n)]).toEqual([n, provision]);
+    }
+  });
+
+  it('les fondements disent ce que les fiches des comptes disent (passe R6)', () => {
+    // KA · la fiche du COMPTE 70 EXCLUT les subventions et les renvoie au 71 ;
+    // le fondement disait l'inverse (« l'exacte matière des colonnes
+    // Cotisations et Subventions »). HA · la Note 5 ne détaille pas le 106.
+    // VC · le 481 n'est pas une dette d'exploitation.
+    const ka = POSTES_RECETTES.find((p) => p.ref === 'KA')!;
+    expect(ka.fondement).toContain('renvoie au 71, donc en KB');
+    const ha = POSTES_BILAN_PASSIF.find((p) => p.ref === 'HA')!;
+    expect(ha.fondement).toContain("elle n'en ouvre aucune pour le 106");
+    const vc = RETRAITEMENTS.find((r) => r.ref === 'VC')!;
+    expect(vc.fondement).toContain("hors le 481 « Fournisseurs d'investissements »");
+  });
+
   it('les postes résiduels ramassent exactement ce que les autres laissent', () => {
     // KB et JF sont les « autres » de la maquette. Leurs exclusions doivent
     // reprendre TOUS les préfixes des postes nommés du même bloc · sinon un

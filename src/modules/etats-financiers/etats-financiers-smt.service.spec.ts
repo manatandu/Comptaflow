@@ -156,7 +156,26 @@ function service(
         return Promise.resolve(lireEcritures(options.ecritures ?? [], args));
       }),
     },
-    immobilisation: { findMany: jest.fn().mockResolvedValue(options.immobilisations ?? []) },
+    // Le registre des immobilisations · la doublure honore le dossier, la
+    // borne d'acquisition et l'exclusion des biens sortis avant l'ouverture,
+    // comme la base (voir `note1Immobilisations`).
+    immobilisation: {
+      findMany: jest.fn().mockImplementation(({ where }: any) =>
+        Promise.resolve(
+          ((options.immobilisations ?? []) as any[]).filter((i) => {
+            if (where.tenantId !== undefined && (i.tenantId ?? 't1') !== where.tenantId) return false;
+            if (where.dateAcquisition?.lte && !(i.dateAcquisition <= where.dateAcquisition.lte)) return false;
+            if (where.OR) {
+              const retenu = where.OR.some((o: any) =>
+                o.dateSortie === null ? i.dateSortie === null : i.dateSortie !== null && i.dateSortie >= o.dateSortie.gte,
+              );
+              if (!retenu) return false;
+            }
+            return true;
+          }),
+        ),
+      ),
+    },
     // La campagne d'inventaire lue par la note 2 · la doublure honore le
     // dossier et l'exercice, et l'exigence d'un stock compté (audit final F85).
     campagneInventaire: {
@@ -169,7 +188,15 @@ function service(
         ),
       ),
     },
-    tiersCompte: { findMany: jest.fn().mockResolvedValue(options.tiersComptes ?? []) },
+    // Les rattachements de tiers · la doublure honore le filtre par compte
+    // (`compteId: { in }`) que la Note 5 pose.
+    tiersCompte: {
+      findMany: jest.fn().mockImplementation(({ where }: any) =>
+        Promise.resolve(
+          (options.tiersComptes ?? []).filter((t) => (where?.compteId?.in ? where.compteId.in.includes(t.compteId) : true)),
+        ),
+      ),
+    },
     // Lignes de tiers de la ventilation par échéance de la Note 3. Vide par
     // défaut : c'est l'état d'un dossier qui n'a jamais saisi d'échéance.
     // La doublure respecte `where.lettre`, comme celle des écritures respecte
@@ -763,11 +790,15 @@ describe('Note 4 · journal unique de trésorerie', () => {
       },
     );
     const { journaux, colonnesRecettes } = await s.journalTresorerie('t1', 'e1');
+    // L'ORDRE compte : c'est celui que l'export imprimera, et celui du texte
+    // (« Cotisations ; Subventions ; Autres ; Matériel Mobilier et autres »,
+    // Partie 4, ch. 4, section 3). Le spec gelait jusqu'ici « Matériel »
+    // AVANT « Autres », l'ordre fautif du tableau.
     expect(colonnesRecettes.map((c) => c.libelle)).toEqual([
       'Cotisations',
       'Subventions',
-      'Matériel, mobilier et autres',
       'Autres',
+      'Matériel, mobilier et autres',
     ]);
     expect(journaux[0].operations[0].ventilation.cotisations).toBe(1000);
   });
@@ -1338,5 +1369,348 @@ describe('Exercice introuvable · un refus, jamais un état à zéro (audit fina
   it.each(ETATS)('%s refuse l’exercice d’un AUTRE dossier', async (etat) => {
     const s = service({ e1: BALANCE_CAISSE });
     await expect(s[etat]('t2', 'e1')).rejects.toThrow('Exercice introuvable dans ce dossier');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PASSE R6 · les constats retenus sur le S.M.T SYCEBNL
+// ---------------------------------------------------------------------------
+
+describe('Compte de résultat S.M.T · une contrepartie de classe 3 n’est pas un flux hors exploitation', () => {
+  it('un achat de stock payé (D 31 / C 57) est repris par VA, et le contrôle concorde', async () => {
+    // VA vaut la variation du poste GB, classe 3 ENTIÈRE : compter aussi la
+    // contrepartie 31 en flux hors exploitation faisait un écart de X sur
+    // un résultat qui concorde (KZC = 0 = HB).
+    const s = service(
+      {
+        e1: [ligne('31100000', ClasseCompte.CLASSE_3, 1000, 0), ligne('57100000', ClasseCompte.CLASSE_5, 0, 1000)],
+      },
+      {
+        ecritures: [
+          ecriture('s', '2026-02-01', 'Achat de stock', [
+            { numero: '31100000', debit: 1000 },
+            { numero: '57100000', credit: 1000 },
+          ]),
+        ],
+      },
+    );
+    const cr = await s.compteDeResultat('t1', 'e1');
+    expect(cr.depenses.find((p) => p.ref === 'JF')!.montant).toBe(1000);
+    expect(cr.retraitements.find((r) => r.ref === 'VA')!.montant).toBe(1000);
+    expect(cr.resultatNet).toBe(0);
+    expect(cr.controle.fluxHorsExploitation).toBe(0);
+    expect(cr.controle.comptesHorsExploitation).toEqual([]);
+    expect(cr.controle.ecart).toBe(0);
+    expect(cr.controle.concordant).toBe(true);
+  });
+
+  it('une vente de stock encaissée (D 57 / C 31) concorde de même, dans l’autre sens', async () => {
+    const s = service(
+      {
+        e1: [
+          ligne('31100000', ClasseCompte.CLASSE_3, 1000, 1000, { debit: 1000 }),
+          ligne('57100000', ClasseCompte.CLASSE_5, 1000, 0),
+          ligne('10110000', ClasseCompte.CLASSE_1, 0, 1000, { credit: 1000 }),
+        ],
+      },
+      {
+        ecritures: [
+          ecriture('v', '2026-02-01', 'Cession de stock', [
+            { numero: '57100000', debit: 1000 },
+            { numero: '31100000', credit: 1000 },
+          ]),
+        ],
+      },
+    );
+    const cr = await s.compteDeResultat('t1', 'e1');
+    expect(cr.recettes.find((p) => p.ref === 'KB')!.montant).toBe(1000);
+    expect(cr.retraitements.find((r) => r.ref === 'VA')!.montant).toBe(-1000);
+    expect(cr.resultatNet).toBe(0);
+    expect(cr.controle.fluxHorsExploitation).toBe(0);
+    expect(cr.controle.ecart).toBe(0);
+    expect(cr.controle.concordant).toBe(true);
+  });
+});
+
+describe('Compte de résultat S.M.T · VC ne lit que les dettes d’exploitation (481 écarté)', () => {
+  it('une immobilisation acquise à crédit (D 24 / C 4812) ne fait ni VC ni écart', async () => {
+    const s = service({
+      e1: [ligne('24110000', ClasseCompte.CLASSE_2, 5000, 0), ligne('48120000', ClasseCompte.CLASSE_4, 0, 5000)],
+    });
+    const cr = await s.compteDeResultat('t1', 'e1');
+    expect(cr.retraitements.find((r) => r.ref === 'VC')!.montant).toBe(0);
+    expect(cr.retraitements.find((r) => r.ref === 'VC')!.comptes).toEqual([]);
+    expect(cr.resultatNet).toBe(0);
+    expect(cr.controle.concordant).toBe(true);
+    // La dette reste au bilan · HD porte toutes les dettes, le texte le veut.
+    expect(poste(await s.bilan('t1', 'e1'), 'HD').montant).toBe(5000);
+  });
+
+  it('son règlement l’exercice suivant (D 4812 / C 52) est un flux hors exploitation, et le contrôle concorde', async () => {
+    const s = service(
+      {
+        e1: [
+          ligne('24110000', ClasseCompte.CLASSE_2, 5000, 0, { debit: 5000 }),
+          ligne('48120000', ClasseCompte.CLASSE_4, 5000, 5000, { credit: 5000 }),
+          ligne('52100000', ClasseCompte.CLASSE_5, 0, 5000),
+        ],
+      },
+      {
+        ecritures: [
+          ecriture('r', '2026-03-01', 'Règlement du fournisseur d’immobilisation', [
+            { numero: '48120000', debit: 5000 },
+            { numero: '52100000', credit: 5000 },
+          ]),
+        ],
+      },
+    );
+    const cr = await s.compteDeResultat('t1', 'e1');
+    expect(cr.soldeCaisse).toBe(-5000);
+    expect(cr.retraitements.find((r) => r.ref === 'VC')!.montant).toBe(0);
+    expect(cr.controle.fluxHorsExploitation).toBe(-5000);
+    expect(cr.controle.comptesHorsExploitation.map((c) => c.numero)).toEqual(['48120000']);
+    expect(cr.controle.ecart).toBe(0);
+    expect(cr.controle.concordant).toBe(true);
+  });
+});
+
+describe('Bilan S.M.T · les dépréciations de tiers (490 à 498) en déduction de GC', () => {
+  // Créance 1 000 000 dépréciée de 300 000, dette fournisseur 200 000,
+  // provision pour risques à court terme 50 000 (499, une vraie dette).
+  const BALANCE_49 = [
+    ligne('41110000', ClasseCompte.CLASSE_4, 1_000_000, 0),
+    ligne('49120000', ClasseCompte.CLASSE_4, 0, 300_000),
+    ligne('40110000', ClasseCompte.CLASSE_4, 0, 200_000),
+    ligne('49910000', ClasseCompte.CLASSE_4, 0, 50_000),
+    ligne('65910000', ClasseCompte.CLASSE_6, 350_000, 0),
+    ligne('60100000', ClasseCompte.CLASSE_6, 200_000, 0),
+    ligne('70100000', ClasseCompte.CLASSE_7, 0, 1_000_000),
+  ];
+
+  it('GC est net de la dépréciation, HD ne porte que les dettes et le 499, et le bilan boucle', async () => {
+    const bilan = await service({ e1: BALANCE_49 }).bilan('t1', 'e1');
+    expect(poste(bilan, 'GC').montant).toBe(700_000);
+    expect(poste(bilan, 'GC').comptes.map((c) => c.numero).sort()).toEqual(['41110000', '49120000']);
+    expect(poste(bilan, 'HD').montant).toBe(250_000);
+    expect(poste(bilan, 'HD').comptes.map((c) => c.numero).sort()).toEqual(['40110000', '49910000']);
+    expect(bilan.equilibre).toBe(true);
+  });
+
+  it('la dotation passe par VB, pas par VC, et le résultat concorde', async () => {
+    const cr = await service({ e1: BALANCE_49 }).compteDeResultat('t1', 'e1');
+    expect(cr.retraitements.find((r) => r.ref === 'VB')!.montant).toBe(700_000);
+    expect(cr.retraitements.find((r) => r.ref === 'VC')!.montant).toBe(250_000);
+    expect(cr.resultatNet).toBe(450_000);
+    expect(cr.controle.concordant).toBe(true);
+  });
+
+  it('la Note 3 sort la dépréciation du bloc des dettes et la porte en déduction des créances', async () => {
+    const note = await service({ e1: BALANCE_49 }).note3CreancesDettes('t1', 'e1');
+    expect(note.dettes.map((d) => d.numero)).toEqual(['40110000', '49910000']);
+    expect(note.creances.map((c) => c.numero)).toEqual(['41110000']);
+    expect(note.depreciationsCreances.map((d) => [d.numero, d.montantCloture])).toEqual([['49120000', -300_000]]);
+    expect(note.totalCreancesNettes).toBe(700_000);
+    // Hors ventilation · une dépréciation n'a pas d'échéance, et la part non
+    // ventilée des dettes ne compte que la dette et la provision.
+    expect(note.totalDettesNonVentilees).toBe(250_000);
+  });
+});
+
+describe('Compte de résultat S.M.T · la colonne N-1 (art. 16, 7°)', () => {
+  const exercices = [
+    { id: 'e0', dateDebut: new Date('2025-01-01') },
+    { id: 'e1', dateDebut: new Date('2026-01-01') },
+  ];
+  const ecrituresN1 = [
+    {
+      ...ecriture('n1', '2025-05-01', 'Cotisations 2025', [
+        { numero: '57100000', debit: 3000 },
+        { numero: '70100000', credit: 3000 },
+      ]),
+      exerciceId: 'e0',
+    },
+  ];
+  const ecrituresN = [
+    ecriture('a', '2026-03-01', 'Cotisations', [
+      { numero: '57100000', debit: 9000 },
+      { numero: '70100000', credit: 9000 },
+    ]),
+    ecriture('b', '2026-04-01', 'Achat', [
+      { numero: '60100000', debit: 4000 },
+      { numero: '57100000', credit: 4000 },
+    ]),
+  ];
+
+  it('rend montantN1 sur chaque poste, chaque retraitement et chaque total quand l’exercice N-1 existe', async () => {
+    const s = service(
+      {
+        // N-1 porte aussi une facture de 200 non réglée (60 / 401) · sa
+        // variation de dettes se lit sur la balance de N-1, pas sur celle de N.
+        e0: [
+          ligne('57100000', ClasseCompte.CLASSE_5, 3000, 0),
+          ligne('70100000', ClasseCompte.CLASSE_7, 0, 3000),
+          ligne('60100000', ClasseCompte.CLASSE_6, 200, 0),
+          ligne('40110000', ClasseCompte.CLASSE_4, 0, 200),
+        ],
+        e1: BALANCE_CAISSE,
+      },
+      { exercices, ecritures: [...ecrituresN1, ...ecrituresN] },
+    );
+    const cr = await s.compteDeResultat('t1', 'e1');
+    expect(cr.exerciceN1Disponible).toBe(true);
+    expect(cr.recettes.find((p) => p.ref === 'KA')!.montant).toBe(9000);
+    expect(cr.recettes.find((p) => p.ref === 'KA')!.montantN1).toBe(3000);
+    expect(cr.depenses.find((p) => p.ref === 'JA')!.montantN1).toBe(0);
+    expect(cr.retraitements.find((r) => r.ref === 'VA')!.montantN1).toBe(0);
+    expect(cr.retraitements.find((r) => r.ref === 'VC')!.montantN1).toBe(200);
+    expect(cr.totalRecettesN1).toBe(3000);
+    expect(cr.soldeCaisseN1).toBe(3000);
+    expect(cr.resultatNetN1).toBe(2800);
+  });
+
+  it('sans exercice N-1, montantN1 reste undefined, jamais zéro', async () => {
+    const cr = await service({ e1: BALANCE_CAISSE }, { ecritures: ecrituresN }).compteDeResultat('t1', 'e1');
+    expect(cr.exerciceN1Disponible).toBe(false);
+    expect(cr.recettes.find((p) => p.ref === 'KA')!.montantN1).toBeUndefined();
+    expect(cr.retraitements.find((r) => r.ref === 'JG')!.montantN1).toBeUndefined();
+    expect(cr.resultatNetN1).toBeUndefined();
+  });
+
+  it('chaque poste de flux porte le renvoi de note de la maquette (« 4 »)', async () => {
+    const cr = await service({ e1: BALANCE_CAISSE }, { ecritures: ecrituresN }).compteDeResultat('t1', 'e1');
+    expect([...cr.recettes, ...cr.depenses].map((p) => p.note)).toEqual(['4', '4', '4', '4', '4', '4', '4', '4']);
+  });
+});
+
+describe('Note 5 · dotation, apporteurs et colonnes non tenues', () => {
+  it('rappelle le 106 hors rubriques : TOTAL inchangé, TOTAL + hors rubriques = HA', async () => {
+    const balance = [
+      ligne('10110000', ClasseCompte.CLASSE_1, 0, 5000),
+      ligne('10300000', ClasseCompte.CLASSE_1, 0, 800),
+      ligne('10410000', ClasseCompte.CLASSE_1, 0, 1200),
+      ligne('10611000', ClasseCompte.CLASSE_1, 0, 900),
+    ];
+    const s = service({ e1: balance });
+    const note = await s.note5Dotation('t1', 'e1');
+    expect(note.total).toBe(7000);
+    expect(note.horsRubriques.map((c) => [c.numero, c.montant])).toEqual([['10611000', 900]]);
+    expect(note.totalPosteHA).toBe(poste(await s.bilan('t1', 'e1'), 'HA').montant);
+    expect(note.totalPosteHA).toBe(7900);
+    expect(note.motifHorsRubriques).toContain('106');
+  });
+
+  it('ne retient comme membres que les sous-comptes d’apporteurs, jamais un compte courant ni un bénévole', async () => {
+    const s = service(
+      {
+        e1: [
+          ligne('45120000', ClasseCompte.CLASSE_4, 2000, 2000),
+          ligne('45150000', ClasseCompte.CLASSE_4, 500, 500),
+          ligne('45720000', ClasseCompte.CLASSE_4, 300, 300),
+        ],
+      },
+      {
+        tiersComptes: [
+          { compteId: 'id-45120000', tiers: { nom: 'Apporteur' } },
+          { compteId: 'id-45150000', tiers: { nom: 'Dirigeant en compte courant' } },
+          { compteId: 'id-45720000', tiers: { nom: 'Bénévole' } },
+        ],
+      },
+    );
+    const note = await s.note5Dotation('t1', 'e1');
+    expect(note.membres.map((m) => [m.nom, m.numero, m.montant])).toEqual([['Apporteur', '45120000', 2000]]);
+    expect(note.motifMembres).toContain('4515');
+  });
+
+  it('déclare la quatrième colonne (avec ou sans droit d’entrée) comme la nationalité, sans rien déduire', async () => {
+    const s = service(
+      { e1: [ligne('45120000', ClasseCompte.CLASSE_4, 2000, 2000), ligne('10300000', ClasseCompte.CLASSE_1, 0, 2000)] },
+      { tiersComptes: [{ compteId: 'id-45120000', tiers: { nom: 'Apporteur' } }] },
+    );
+    const note = await s.note5Dotation('t1', 'e1');
+    expect(note.membres[0].precisionDroitEntree).toBeNull();
+    expect(note.precisionDroitEntreeTenue).toBe(false);
+    expect(note.nationaliteTenue).toBe(false);
+    expect(note.motifColonnesNonTenues).toContain('nationalité');
+    expect(note.motifColonnesNonTenues).toContain("avec droit d'entrée ou sans droit d'entrée");
+  });
+});
+
+describe('Note 1 · cautions, rapprochement avec GA et total des biens détenus', () => {
+  const immobilisation = (id: string, compte: string, montant: number, acquisition: string, sortie: string | null) => ({
+    id,
+    tenantId: 't1',
+    compteImmobilisationId: `id-${compte}`,
+    designation: `Bien ${id}`,
+    valeurOrigine: montant,
+    dateAcquisition: new Date(acquisition),
+    dateMiseEnService: new Date(acquisition),
+    dureeAmortissementAns: 5,
+    dateSortie: sortie ? new Date(sortie) : null,
+    prixCession: sortie ? 100 : null,
+  });
+  const IMMOBILISATIONS = [
+    immobilisation('detenu', '24410000', 3000, '2024-02-01', null),
+    immobilisation('sortiN1', '24410000', 700, '2023-02-01', '2025-06-30'),
+    immobilisation('sortiN', '24410000', 900, '2024-03-01', '2026-06-30'),
+  ];
+  const BALANCE_GA = [
+    ligne('24410000', ClasseCompte.CLASSE_2, 3000, 0),
+    ligne('24500000', ClasseCompte.CLASSE_2, 1000, 0),
+    ligne('28440000', ClasseCompte.CLASSE_2, 0, 600),
+    ligne('27510000', ClasseCompte.CLASSE_2, 400, 0),
+  ];
+
+  it('ne totalise que les biens détenus, présente à part ceux sortis dans l’exercice, écarte ceux sortis avant', async () => {
+    const note = await service({ e1: BALANCE_GA }, { immobilisations: IMMOBILISATIONS }).note1Immobilisations('t1', 'e1');
+    expect(note.lignes.filter((l) => l.origine === 'REGISTRE').map((l) => l.designation)).toEqual(['Bien detenu']);
+    expect(note.sortiesDeLExercice.map((l) => l.designation)).toEqual(['Bien sortiN']);
+    expect(note.totalRegistre).toBe(3000);
+  });
+
+  it('reprend les cautions du 275 depuis la balance, sans date inventée', async () => {
+    const note = await service({ e1: BALANCE_GA }, { immobilisations: IMMOBILISATIONS }).note1Immobilisations('t1', 'e1');
+    const cautions = note.lignes.filter((l) => l.origine === 'BALANCE');
+    expect(cautions.map((l) => [l.designation.split(' ')[0], l.montant, l.dateAcquisition])).toEqual([['27510000', 400, null]]);
+    expect(note.totalCautions).toBe(400);
+    expect(note.total).toBe(3400);
+  });
+
+  it('nomme le compte de la classe 2 que les fiches ne reconstituent pas, hors 28 et 275', async () => {
+    const note = await service({ e1: BALANCE_GA }, { immobilisations: IMMOBILISATIONS }).note1Immobilisations('t1', 'e1');
+    expect(note.ecartsGA.map((e) => [e.numero, e.ecart])).toEqual([['24500000', 1000]]);
+    expect(note.motifEcartsGA).toContain('GA');
+  });
+});
+
+describe('Fiche récapitulative · colonnes A et N/A', () => {
+  it('coche applicable la note qui porte une ligne, et N/A les autres', async () => {
+    const s = service({
+      e1: [
+        ligne('41110000', ClasseCompte.CLASSE_4, 500, 0),
+        ligne('57100000', ClasseCompte.CLASSE_5, 1000, 0, { debit: 1000 }),
+        ligne('10110000', ClasseCompte.CLASSE_1, 0, 1500, { credit: 1000 }),
+      ],
+    });
+    const [note1, note2, note3, note5] = await Promise.all([
+      s.note1Immobilisations('t1', 'e1'),
+      s.note2Stocks('t1', 'e1'),
+      s.note3CreancesDettes('t1', 'e1'),
+      s.note5Dotation('t1', 'e1'),
+    ]);
+    const applicables = await s.notesApplicables('t1', 'e1', { note1, note2, note3, note5 });
+    // 3 (la créance), 5 (la dotation) et 4 (la caisse porte un report) · les
+    // notes 1 et 2 n'ont rien à documenter.
+    expect(applicables).toEqual([3, 5, 4]);
+  });
+
+  it('un dossier sans aucun solde n’a aucune note applicable', async () => {
+    const s = service({ e1: [] });
+    const [note1, note2, note3, note5] = await Promise.all([
+      s.note1Immobilisations('t1', 'e1'),
+      s.note2Stocks('t1', 'e1'),
+      s.note3CreancesDettes('t1', 'e1'),
+      s.note5Dotation('t1', 'e1'),
+    ]);
+    expect(await s.notesApplicables('t1', 'e1', { note1, note2, note3, note5 })).toEqual([]);
   });
 });

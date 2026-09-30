@@ -3934,7 +3934,10 @@ export class ExportService {
       'ACTIF',
       bilan.actif,
       'PAGE 1/2',
-      "(1) à faire figurer sur l'état de situation si montants significatifs (Partie 4, ch. 4).",
+      // Le renvoi (1) tel que la maquette l'imprime, transcrit une fois
+      // (`RENVOI_IMMOBILISATIONS`) et servi avec le bilan · une paraphrase ici
+      // aurait fait dire au papier autre chose que l'écran.
+      bilan.renvoiImmobilisations,
     );
     const rangsPassif = construire(
       'Bilan-Passif',
@@ -3988,34 +3991,54 @@ export class ExportService {
     ws.getRow(r).height = 22;
 
     const NIVEAUX_CR_SMT: Record<string, NiveauLigne> = { KX: 'section', JX: 'section', KZ: 'inter', KZC: 'section' };
+    // VA, VB, VC · renvois 2, 3 et 3 que porte le modèle SMT de l'AUDCIF
+    // (Titre X) et le script de liasse de la compétence, mais que la
+    // transcription SYCEBNL laisse vides en signalant ses renvois « à
+    // vérifier sur le PDF officiel » (Partie 4, ch. 4). Gardés tant que le
+    // Journal officiel n'a pas été lu.
     const NOTES_CR_SMT: Record<string, string> = { VA: '2', VB: '3', VC: '3' };
     const rangs = new Map<string, number>();
-    const poser = (ref: string, libelle: string, montant: number | null, note = '') => {
+    // `note` · le renvoi lu dans la table des postes (« 4 » de KA à JF), ou
+    // celui de NOTES_CR_SMT. JAMAIS déduit de la première lettre du code : la
+    // ligne JG commence par « J » et recevait le « 4 » du journal de
+    // trésorerie, qui ne porte aucune dotation · la maquette la laisse vide.
+    const poser = (ref: string, libelle: string, montant: number | null, note: string | null, montantN1?: number) => {
       r += 1;
       rangs.set(ref, r);
       ws.getCell(r, 1).value = ref;
       ws.getCell(r, 2).value = libelle;
-      ws.getCell(r, 3).value = note || (NOTES_CR_SMT[ref] ?? (ref.startsWith('K') || ref.startsWith('J') ? '4' : ''));
+      ws.getCell(r, 3).value = note ?? NOTES_CR_SMT[ref] ?? '';
       if (montant !== null) ws.getCell(r, 4).value = montant;
+      // Colonne N-1 · l'art. 16, 7° du SYCEBNL la veut sur chaque poste ; sans
+      // exercice N-1 enregistré, elle reste VIDE, jamais un zéro.
+      if (montantN1 !== undefined) ws.getCell(r, 5).value = montantN1;
       styleLigne(ws, r, 1, 5, NIVEAUX_CR_SMT[ref] ?? 'normal', [4, 5], 1);
       ws.getCell(r, 3).alignment = { horizontal: 'center', vertical: 'middle' };
       ws.getRow(r).height = 22;
     };
-    for (const p of cr.recettes) poser(p.ref, p.libelle, p.montant);
-    poser('KX', 'TOTAL DES REVENUS ENCAISSÉS (A)', null, ' ');
-    for (const p of cr.depenses) poser(p.ref, p.libelle, p.montant);
-    poser('JX', 'TOTAL DÉPENSES SUR CHARGES (B)', null, ' ');
-    poser('KZ', 'SOLDE : excédent (+) ou insuffisance (-) de recettes (C = A - B)', null, ' ');
-    for (const retraitement of cr.retraitements) poser(retraitement.ref, retraitement.libelle, retraitement.montant);
-    poser('KZC', "RÉSULTAT NET DE L'EXERCICE", null, ' ');
+    for (const p of cr.recettes) poser(p.ref, p.libelle, p.montant, p.note, p.montantN1);
+    poser('KX', 'TOTAL DES REVENUS ENCAISSÉS (A)', null, null);
+    for (const p of cr.depenses) poser(p.ref, p.libelle, p.montant, p.note, p.montantN1);
+    poser('JX', 'TOTAL DÉPENSES SUR CHARGES (B)', null, null);
+    poser('KZ', 'SOLDE : excédent (+) ou insuffisance (-) de recettes (C = A - B)', null, null);
+    for (const retraitement of cr.retraitements) {
+      poser(retraitement.ref, retraitement.libelle, retraitement.montant, null, retraitement.montantN1);
+    }
+    poser('KZC', "RÉSULTAT NET DE L'EXERCICE", null, null);
 
-    const somme = (refs: string[]) => refs.map((x) => `D${rangs.get(x)}`).join('+');
-    ws.getCell(rangs.get('KX')!, 4).value = { formula: somme(cr.recettes.map((p) => p.ref)) };
-    ws.getCell(rangs.get('JX')!, 4).value = { formula: somme(cr.depenses.map((p) => p.ref)) };
-    ws.getCell(rangs.get('KZ')!, 4).value = { formula: `D${rangs.get('KX')}-D${rangs.get('JX')}` };
-    ws.getCell(rangs.get('KZC')!, 4).value = {
-      formula: `D${rangs.get('KZ')}+D${rangs.get('VA')}+D${rangs.get('VB')}-D${rangs.get('VC')}-D${rangs.get('JG')}`,
-    };
+    // Les totaux en formules, sur D et, quand l'exercice N-1 existe, sur E ·
+    // sans lui, une formule sur E rendrait 0 là où il n'y a rien.
+    const colonnesTotaux = cr.exerciceN1Disponible ? ['D', 'E'] : ['D'];
+    for (const [i, col] of colonnesTotaux.entries()) {
+      const c = 4 + i;
+      const somme = (refs: string[]) => refs.map((x) => `${col}${rangs.get(x)}`).join('+');
+      ws.getCell(rangs.get('KX')!, c).value = { formula: somme(cr.recettes.map((p) => p.ref)) };
+      ws.getCell(rangs.get('JX')!, c).value = { formula: somme(cr.depenses.map((p) => p.ref)) };
+      ws.getCell(rangs.get('KZ')!, c).value = { formula: `${col}${rangs.get('KX')}-${col}${rangs.get('JX')}` };
+      ws.getCell(rangs.get('KZC')!, c).value = {
+        formula: `${col}${rangs.get('KZ')}+${col}${rangs.get('VA')}+${col}${rangs.get('VB')}-${col}${rangs.get('VC')}-${col}${rangs.get('JG')}`,
+      };
+    }
     cadre(ws, 8, 1, r, 5, MOYEN);
     ligneControleSousEtat(
       ws,
@@ -4063,7 +4086,7 @@ export class ExportService {
     nomFeuille = 'NOTE 4 JOURNAL TRESORERIE',
   ) {
     const ws = classeur.addWorksheet(nomFeuille);
-    const colonnes = [...journal.colonnesRecettes, ...journal.colonnesDepenses];
+    const colonnes = colonnesVentilationParSens(journal);
     const ncols = 5 + colonnes.length;
     ecrireCartouche(ws, ident, 'NOTE 4\nSYCEBNL - SMT', ncols);
     titreNote(ws, 'NOTE 4 : JOURNAL UNIQUE DE TRESORERIE', ncols);
@@ -4075,6 +4098,9 @@ export class ExportService {
       c.font = { name: 'Arial', size: 9, bold: true };
       fusion(ws, r, 1, r, ncols);
       r += 1;
+      const debutTableau = r;
+      bandeauVentilation(ws, r, journal.colonnesRecettes.length, journal.colonnesDepenses.length);
+      r += 1;
       ws.getCell(r, 1).value = 'Dates';
       ws.getCell(r, 2).value = 'Libellés';
       ws.getCell(r, 3).value = 'Recettes';
@@ -4083,9 +4109,8 @@ export class ExportService {
       colonnes.forEach((col, i) => {
         ws.getCell(r, 6 + i).value = col.libelle;
       });
-      entetesBande(ws, r, r, 1, ncols);
+      entetesBande(ws, debutTableau, r, 1, ncols);
       ws.getRow(r).height = 30;
-      const debutTableau = r;
       r += 1;
       ws.getCell(r, 2).value = 'Report à nouveau';
       ws.getCell(r, 5).value = j.reportANouveau;
@@ -4100,7 +4125,7 @@ export class ExportService {
         if (operation.depense) ws.getCell(r, 4).value = operation.depense;
         ws.getCell(r, 5).value = { formula: `E${r - 1}+C${r}-D${r}` };
         colonnes.forEach((col, i) => {
-          const v = operation.ventilation[col.cle];
+          const v = ventilationDeLaColonne(operation, col);
           if (v) ws.getCell(r, 6 + i).value = v;
         });
         styleLigne(ws, r, 1, ncols, 'normal', colsMontant);
@@ -4166,6 +4191,18 @@ export class ExportService {
   ) {
     const { note1, note2, note3, note5 } = donnees;
 
+    // LES CINQ FEUILLES SONT TOUJOURS JOINTES, celles que l'exercice ne
+    // documente pas portant la mention NEANT. C'EST UN ÉCART, écrit ici pour
+    // qu'il ne passe pas pour un oubli : la Partie 4, ch. 1, § 6 (Notes
+    // annexes) dit que « les modèles de Notes ci-dessous non documentés ne
+    // doivent pas être joints aux états financiers ». La fiche du ch. 4 ne
+    // porte pas le renvoi (1) des ch. 2 et 3, l'interdiction vient donc du
+    // ch. 1. Même décision que pour les deux autres jeux, et pour la même
+    // raison (voir `construireClasseurNotes`) : une liasse amputée ne dit pas
+    // si la note était sans objet ou oubliée. La fiche récapitulative coche
+    // N/A pour chaque note NEANT (`ficheNotesSmtEtafi`) · fiche et feuilles se
+    // recoupent.
+
     // --- NOTE 1 · registre daté des immobilisations ------------------------
     {
       const ws = classeur.addWorksheet('NOTE 1 IMMOBILISATIONS');
@@ -4185,36 +4222,59 @@ export class ExportService {
       }
       entetesBande(ws, r, r, 1, 7);
       ws.getRow(r).height = 30;
-      // Le S.M.T crée toujours ses cinq feuilles · quand l'une n'a aucune
-      // ligne, elle porte la mention plutôt qu'un tableau réduit à son total.
-      if (note1.lignes.length === 0) r = bandeNeant(ws, r + 1, 7) - 1;
-      for (const l of note1.lignes) {
+      const date = (rang: number, colonne: number, d: Date | string | null) => {
+        if (!d) return;
+        ws.getCell(rang, colonne).value = new Date(d);
+        ws.getCell(rang, colonne).numFmt = 'DD/MM/YYYY';
+      };
+      const ligneBien = (l: (typeof note1.lignes)[number]) => {
         r += 1;
         // Un bien acquis et pas encore mis en service reste à l'actif (NOTE 1) ·
         // la cellule le DIT, jamais une date inventée ni un 1er janvier 1970.
-        if (l.dateMiseEnService) {
-          ws.getCell(r, 1).value = new Date(l.dateMiseEnService);
-          ws.getCell(r, 1).numFmt = 'DD/MM/YYYY';
-        } else {
-          ws.getCell(r, 1).value = 'Non mis en service';
-        }
+        // Une caution (origine BALANCE) n'a pas de mise en service : vide.
+        if (l.dateMiseEnService) date(r, 1, l.dateMiseEnService);
+        else if (l.origine === 'REGISTRE') ws.getCell(r, 1).value = 'Non mis en service';
         ws.getCell(r, 2).value = l.designation;
         ws.getCell(r, 3).value = l.montant;
-        ws.getCell(r, 4).value = new Date(l.dateAcquisition);
-        ws.getCell(r, 4).numFmt = 'DD/MM/YYYY';
-        ws.getCell(r, 5).value = l.dureeUtiliteAns;
-        if (l.dateSortie) {
-          ws.getCell(r, 6).value = new Date(l.dateSortie);
-          ws.getCell(r, 6).numFmt = 'DD/MM/YYYY';
-        }
+        date(r, 4, l.dateAcquisition);
+        if (l.dureeUtiliteAns !== null) ws.getCell(r, 5).value = l.dureeUtiliteAns;
+        date(r, 6, l.dateSortie);
         if (l.prixCession !== null && l.prixCession !== undefined) ws.getCell(r, 7).value = l.prixCession;
         styleLigne(ws, r, 1, 7, 'normal', [3, 7]);
+      };
+      // NEANT seulement si rien n'est à dire · une classe 2 soldée hors fiches
+      // n'est pas une note sans objet, et ses comptes sont nommés dessous.
+      if (note1.lignes.length === 0 && note1.sortiesDeLExercice.length === 0 && note1.ecartsGA.length === 0) {
+        r = bandeNeant(ws, r + 1, 7) - 1;
       }
+      for (const l of note1.lignes) ligneBien(l);
       r += 1;
-      ws.getCell(r, 2).value = 'TOTAL';
+      // Le TOTAL est un ajout d'OmegaX (la maquette n'en porte pas) · il ne
+      // somme que ce qui est au bilan à la clôture (audit final F31).
+      ws.getCell(r, 2).value = 'TOTAL DES BIENS DÉTENUS À LA CLÔTURE';
       ws.getCell(r, 3).value = note1.total;
       styleLigne(ws, r, 1, 7, 'inter', [3]);
+      if (note1.sortiesDeLExercice.length > 0) {
+        r += 1;
+        ws.getCell(r, 1).value = "Biens sortis pendant l'exercice · hors du total";
+        fusion(ws, r, 1, r, 7);
+        styleLigne(ws, r, 1, 7, 'bande');
+        for (const l of note1.sortiesDeLExercice) ligneBien(l);
+      }
       cadre(ws, 8, 1, r, 7, MOYEN);
+      const mentions = [note1.motifCautions, note1.motifEcartsGA].filter((m): m is string => Boolean(m));
+      for (const [i, m] of mentions.entries()) ligneControleSousEtat(ws, r + 2 + i, m);
+      let rc = r + 2 + mentions.length;
+      for (const e of note1.ecartsGA) {
+        ligneControleSousEtat(
+          ws,
+          rc++,
+          `${e.numero} ${e.intitule} · solde brut ${e.soldeBalance.toLocaleString('fr-FR')}, fiches ${e.valeurFiches.toLocaleString('fr-FR')}, écart ${e.ecart.toLocaleString('fr-FR')}.`,
+        );
+      }
+      for (const f of note1.fichesSansSolde) {
+        ligneControleSousEtat(ws, rc++, `Fiche sans solde au compte : ${f.designation} (${f.montant.toLocaleString('fr-FR')}).`);
+      }
       largeurs(ws, { A: 14, B: 44, C: 15, D: 15, E: 13, F: 13, G: 15 });
     }
 
@@ -4264,38 +4324,49 @@ export class ExportService {
       // décidait sans voir ce que le logiciel savait (AUDCIF art. 22, 1° :
       // les données doivent pouvoir « être restituées sur papier ou sous une
       // forme directement intelligible »). Voir `ecrireVentilationEcheance`.
+      //
+      // UN EN-TÊTE PAR BLOC, celui du texte · la maquette donne aux créances
+      // « DATE | NOM CLIENTS-USAGERS ET AUTRES DEBITEURS | … » et aux dettes
+      // « DATE | NOM DES FOURNISSEURS ET AUTRES CRÉDITEURS | … » (Partie 4,
+      // ch. 4, section 3). Un en-tête unique « Compte | Nom » renommait la
+      // colonne DATE et fondait deux libellés en un · même parti que le jumeau
+      // SYSCOHADA, qui refuse d'« inventer un libellé ».
       const NB = 9;
       const COL_VENTILATION = 7;
       const ws = classeur.addWorksheet('NOTE 3 CREANCES-DETTES');
       ecrireCartouche(ws, ident, 'NOTE 3\nSYCEBNL - SMT', NB);
       titreNote(ws, 'NOTE 3 : ETAT DES CREANCES ET DES DETTES NON ECHUES', NB);
-      // Bandeau de groupe · le lecteur doit voir où finit la maquette du
-      // texte et où commence ce que le logiciel y ajoute. Les six colonnes
-      // officielles sont celles du SYCEBNL, Partie 4, ch. 4, section 3.
-      ws.getCell(8, 1).value = 'MAQUETTE OFFICIELLE · SYCEBNL, Partie 4, ch. 4, section 3';
-      fusion(ws, 8, 1, 8, 6);
-      ws.getCell(8, COL_VENTILATION).value = 'VENTILATION DU MONTANT AU 31/12/N PAR ÉCHÉANCE · ajout hors maquette';
-      fusion(ws, 8, COL_VENTILATION, 8, NB);
-      let r = 9;
-      for (const [i, h] of [
-        'Compte',
-        'Nom',
-        'Montant au 31/12/N',
-        'Montant au 01/01/N',
-        'Variation en valeur',
-        'Variation en %',
-        ...ENTETES_VENTILATION_ECHEANCE,
-      ].entries()) {
-        ws.getCell(r, i + 1).value = h;
-      }
-      entetesBande(ws, 8, r, 1, NB);
-      ws.getRow(r).height = 30;
+      let r = 7;
       const bloc = (
         titre: string,
+        nomColonne: string,
         blocLignes: typeof note3.creances,
         totalLibelle: string,
         totaux: { montant: number } & VentilationEcheance,
+        deductions: typeof note3.depreciationsCreances = [],
       ) => {
+        r += 1;
+        const debut = r;
+        // Bandeau de groupe · le lecteur doit voir où finit la maquette du
+        // texte et où commence ce que le logiciel y ajoute.
+        ws.getCell(r, 1).value = 'MAQUETTE OFFICIELLE · SYCEBNL, Partie 4, ch. 4, section 3';
+        fusion(ws, r, 1, r, COL_VENTILATION - 1);
+        ws.getCell(r, COL_VENTILATION).value = 'VENTILATION DU MONTANT AU 31/12/N PAR ÉCHÉANCE · ajout hors maquette';
+        fusion(ws, r, COL_VENTILATION, r, NB);
+        r += 1;
+        for (const [i, h] of [
+          'DATE',
+          nomColonne,
+          'Montant au 31 décembre N',
+          'Montant au 1er janvier N',
+          'Variation en valeur',
+          'Variation en %',
+          ...ENTETES_VENTILATION_ECHEANCE,
+        ].entries()) {
+          ws.getCell(r, i + 1).value = h;
+        }
+        entetesBande(ws, debut, r, 1, NB);
+        ws.getRow(r).height = 30;
         r += 1;
         ws.getCell(r, 1).value = titre;
         fusion(ws, r, 1, r, NB);
@@ -4305,8 +4376,11 @@ export class ExportService {
         if (blocLignes.length === 0) r = bandeNeant(ws, r + 1, NB) - 1;
         for (const l of blocLignes) {
           r += 1;
-          ws.getCell(r, 1).value = l.numero;
-          ws.getCell(r, 2).value = l.nom;
+          // Colonne DATE laissée vide, comme le service le déclare : un compte
+          // de tiers agrège des pièces de dates différentes. Le numéro suit le
+          // nom en colonne B, pour que la trace du compte reste sans qu'aucune
+          // colonne officielle ne soit détournée.
+          ws.getCell(r, 2).value = `${l.numero} ${l.nom}`;
           ws.getCell(r, 3).value = l.montantCloture;
           if (l.montantOuverture !== undefined) ws.getCell(r, 4).value = l.montantOuverture;
           if (l.variationValeur !== undefined) ws.getCell(r, 5).value = l.variationValeur;
@@ -4329,25 +4403,44 @@ export class ExportService {
         // construction (la part non ventilée est le RESTE des deux autres).
         ecrireVentilationEcheance(ws, r, COL_VENTILATION, totaux);
         styleLigne(ws, r, 1, NB, 'inter', [3, 7, 8, 9]);
+        // Les dépréciations des créances, en déduction, puis les créances
+        // nettes, qui sont le poste GC · présentation d'OmegaX, la maquette
+        // n'en prévoit pas (voir `note3CreancesDettes`). Hors ventilation : une
+        // dépréciation n'a pas d'échéance.
+        if (deductions.length > 0) {
+          for (const d of deductions) {
+            r += 1;
+            ws.getCell(r, 2).value = `${d.numero} ${d.intitule} · dépréciation, en déduction`;
+            ws.getCell(r, 3).value = d.montantCloture;
+            ws.getCell(r, 4).value = d.montantOuverture;
+            ws.getCell(r, 5).value = d.variationValeur;
+            styleLigne(ws, r, 1, NB, 'normal', [3, 4, 5]);
+          }
+          r += 1;
+          ws.getCell(r, 2).value = 'CRÉANCES NETTES DES DÉPRÉCIATIONS (poste GC)';
+          ws.getCell(r, 3).value = note3.totalCreancesNettes;
+          styleLigne(ws, r, 1, NB, 'inter', [3]);
+        }
+        cadre(ws, debut, 1, r, NB, MOYEN);
+        r += 1;
       };
-      bloc('CRÉANCES', note3.creances, 'TOTAL DES CRÉANCES', {
+      bloc('CRÉANCES', 'NOM CLIENTS-USAGERS ET AUTRES DEBITEURS', note3.creances, 'TOTAL DES CRÉANCES', {
         montant: note3.totalCreances,
         nonEchu: note3.totalCreancesNonEchues,
         echu: note3.totalCreancesEchues,
         nonVentile: note3.totalCreancesNonVentilees,
-      });
-      bloc('DETTES', note3.dettes, 'TOTAL DES DETTES', {
+      }, note3.depreciationsCreances);
+      bloc('DETTES', 'NOM DES FOURNISSEURS ET AUTRES CRÉDITEURS', note3.dettes, 'TOTAL DES DETTES', {
         montant: note3.totalDettes,
         nonEchu: note3.totalDettesNonEchues,
         echu: note3.totalDettesEchues,
         nonVentile: note3.totalDettesNonVentilees,
       });
-      cadre(ws, 8, 1, r, NB, MOYEN);
       // Le motif s'imprime, le commentaire de cellule non · c'est cette
       // ligne qui porte la lacune de tenue jusque sur le papier.
       ligneControleSousEtat(
         ws,
-        r + 2,
+        r + 1,
         texteControleEcheances(note3.motifEcheances, note3.totalCreancesNonVentilees, note3.totalDettesNonVentilees),
       );
       largeurs(ws, { A: 13, B: 42, C: 18, D: 18, E: 18, F: 14, G: 18, H: 18, I: 20 });
@@ -4359,7 +4452,14 @@ export class ExportService {
       ecrireCartouche(ws, ident, 'NOTE 5\nSYCEBNL - SMT', 4);
       titreNote(ws, 'NOTE 5 : DOTATION', 4);
       let r = 8;
-      for (const [i, h] of ['Nom et prénoms des membres', 'Nationalité', 'Montant', 'Avec / sans droit d’entrée'].entries()) {
+      // Les quatre intitulés du texte, le quatrième compris à la lettre
+      // (Partie 4, ch. 4, section 3).
+      for (const [i, h] of [
+        'Nom et prénoms des membres',
+        'Nationalité',
+        'Montant',
+        "Préciser avec droit d'entrée ou sans droit d'entrée",
+      ].entries()) {
         ws.getCell(r, i + 1).value = h;
       }
       entetesBande(ws, r, r, 1, 4);
@@ -4376,15 +4476,35 @@ export class ExportService {
         ws.getCell(r, 1).value = membre.nom;
         ws.getCell(r, 2).value = membre.nationalite ?? '';
         ws.getCell(r, 3).value = membre.montant;
+        // Colonne D laissée vide · la précision n'est pas une donnée du
+        // dossier, et le motif imprimé sous la note le dit.
+        ws.getCell(r, 4).value = membre.precisionDroitEntree ?? '';
         styleLigne(ws, r, 1, 4, 'normal', [3]);
       }
       r += 1;
       ws.getCell(r, 1).value = 'TOTAL';
       ws.getCell(r, 3).value = note5.total;
       styleLigne(ws, r, 1, 4, 'inter', [3]);
+      // Hors rubriques · SOUS le TOTAL de la maquette, qui ne bouge pas : ce
+      // que le poste HA reprend et qu'aucune rubrique n'ouvre (le 106).
+      for (const c of note5.horsRubriques) {
+        r += 1;
+        ws.getCell(r, 1).value = `${c.numero} ${c.intitule} · hors rubriques, rappel balance`;
+        ws.getCell(r, 3).value = c.montant;
+        styleLigne(ws, r, 1, 4, 'normal', [3]);
+      }
+      if (note5.horsRubriques.length > 0) {
+        r += 1;
+        ws.getCell(r, 1).value = 'POSTE HA DU BILAN (TOTAL + hors rubriques)';
+        ws.getCell(r, 3).value = note5.totalPosteHA;
+        styleLigne(ws, r, 1, 4, 'inter', [3]);
+      }
       cadre(ws, 8, 1, r, 4, MOYEN);
-      ligneControleSousEtat(ws, r + 2, note5.motifNationalite);
-      largeurs(ws, { A: 44, B: 16, C: 16, D: 24 });
+      const mentions = [note5.motifColonnesNonTenues, note5.motifMembres, note5.motifHorsRubriques].filter(
+        (m): m is string => Boolean(m),
+      );
+      for (const [i, m] of mentions.entries()) ligneControleSousEtat(ws, r + 2 + i, m);
+      largeurs(ws, { A: 44, B: 16, C: 16, D: 30 });
     }
   }
 
@@ -4399,8 +4519,14 @@ export class ExportService {
       this.etatsFinanciersSmtService.note5Dotation(tenantId, exerciceId),
       this.etatsFinanciersSmtService.journalTresorerie(tenantId, exerciceId),
     ]);
+    const applicables = await this.etatsFinanciersSmtService.notesApplicables(tenantId, exerciceId, {
+      note1,
+      note2,
+      note3,
+      note5,
+    });
     const classeur = this.nouveauClasseur();
-    this.ficheNotesSmtEtafi(classeur, fiche, ident);
+    this.ficheNotesSmtEtafi(classeur, fiche, ident, applicables);
     this.feuillesNotesSmtEtafi(classeur, { note1, note2, note3, note5 }, ident);
     this.feuilleJournalTresorerieEtafi(classeur, journal, ident);
     numeroterPages(classeur);
@@ -4415,6 +4541,10 @@ export class ExportService {
     classeur: ExcelJS.Workbook,
     fiche: ReturnType<EtatsFinanciersSmtService['ficheNotes']>,
     ident: IdentiteLiasse,
+    // Numéros des notes applicables (`EtatsFinanciersSmtService.notesApplicables`)
+    // · la fiche du ch. 4 porte les colonnes « A (Applicable) | N/A (Non
+    // applicable) », et chaque note jointe NEANT y est cochée N/A.
+    applicables: number[],
   ) {
     const parties: PartiesNotes = [
       [
@@ -4426,7 +4556,16 @@ export class ExportService {
         fiche.filter((n) => n.partie !== 'BILAN').map((n) => [`Note ${n.numero}`, n.intitule] as [string, string]),
       ],
     ];
-    construireFicheNotes(classeur, parties, ident);
+    construireFicheNotes(
+      classeur,
+      parties,
+      ident,
+      new Set(applicables.map((n) => `Note ${n}`)),
+      'NOTES ANNEXES',
+      // La fiche du ch. 4 ne porte pas le renvoi (1) des ch. 2 et 3 : la règle
+      // est celle du ch. 1, § 6, citée telle quelle.
+      "(1) Partie 4, ch. 1, § 6 : « Les modèles de Notes ci-dessous non documentés ne doivent pas être joints aux états financiers. » Les notes non applicables sont jointes avec la mention NEANT et cochées N/A.",
+    );
     return parties;
   }
 
@@ -4830,7 +4969,13 @@ export class ExportService {
     const rangsCr = this.feuilleResultatSmtEtafi(classeur, cr, ident);
 
     const fiche = this.etatsFinanciersSmtService.ficheNotes();
-    const parties = this.ficheNotesSmtEtafi(classeur, fiche, ident);
+    const applicables = await this.etatsFinanciersSmtService.notesApplicables(tenantId, exerciceId, {
+      note1,
+      note2,
+      note3,
+      note5,
+    });
+    const parties = this.ficheNotesSmtEtafi(classeur, fiche, ident, applicables);
     this.feuillesNotesSmtEtafi(classeur, { note1, note2, note3, note5 }, ident);
     this.feuilleJournalTresorerieEtafi(classeur, journal, ident);
     construireTableCommentaires(classeur, parties, ident);
@@ -5778,7 +5923,11 @@ export class ExportService {
     nomFeuille = 'NOTE 4 JOURNAL TRESORERIE',
   ) {
     const ws = classeur.addWorksheet(nomFeuille);
-    const colonnes = [...journal.colonnesRecettes, ...journal.colonnesDepenses];
+    // Même défaut, même correction que la NOTE 4 du S.M.T SYCEBNL · voir
+    // `colonnesVentilationParSens` (le Titre X, ch. 3, sépare lui aussi
+    // « Ventilation recettes » et « Ventilation dépenses », chacune avec son
+    // « Autres »).
+    const colonnes = colonnesVentilationParSens(journal);
     const ncols = 5 + colonnes.length;
     ecrireCartouche(ws, ident, 'NOTE 4\nSMT SYSCOHADA', ncols);
     titreNote(ws, 'NOTE 4 : JOURNAL DE TRESORERIE SMT', ncols);
@@ -5790,15 +5939,17 @@ export class ExportService {
       c.font = { name: 'Arial', size: 9, bold: true };
       fusion(ws, r, 1, r, ncols);
       r += 1;
+      const debutTableau = r;
+      bandeauVentilation(ws, r, journal.colonnesRecettes.length, journal.colonnesDepenses.length);
+      r += 1;
       for (const [i, h] of ['Date', 'Libellés', 'Recettes', 'Dépenses', 'Solde'].entries()) {
         ws.getCell(r, i + 1).value = h;
       }
       colonnes.forEach((col, i) => {
         ws.getCell(r, 6 + i).value = col.rajoutAutorise ? `${col.libelle} (rajout NB)` : col.libelle;
       });
-      entetesBande(ws, r, r, 1, ncols);
+      entetesBande(ws, debutTableau, r, 1, ncols);
       ws.getRow(r).height = 30;
-      const debutTableau = r;
       r += 1;
       ws.getCell(r, 2).value = 'Report à nouveau';
       ws.getCell(r, 5).value = j.reportANouveau;
@@ -5815,7 +5966,7 @@ export class ExportService {
         if (operation.depense) ws.getCell(r, 4).value = operation.depense;
         ws.getCell(r, 5).value = { formula: `E${r - 1}+C${r}-D${r}` };
         colonnes.forEach((col, i) => {
-          const v = operation.ventilation[col.cle];
+          const v = ventilationDeLaColonne(operation, col);
           if (v) ws.getCell(r, 6 + i).value = v;
         });
         styleLigne(ws, r, 1, ncols, 'normal', colsMontant);
@@ -6709,6 +6860,49 @@ export class ExportService {
       buffer: await this.versBuffer(natif),
       nomFichier: `liasse-complete${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
     };
+  }
+}
+
+/**
+ * LES COLONNES DE VENTILATION DE LA NOTE 4, CHACUNE AVEC SON CÔTÉ · les deux
+ * S.M.T (SYCEBNL, Partie 4, ch. 4 ; AUDCIF, Titre X, ch. 3) séparent
+ * « Ventilation recettes » et « Ventilation dépenses », et chacun des deux
+ * groupes a sa colonne « Autres », sous la même clé `autres`. Lue par la seule
+ * clé, la ventilation d'une recette rangée en « Autres » s'imprimait aussi
+ * sous « Autres » des dépenses, et inversement · le même montant deux fois,
+ * dans deux colonnes au même intitulé. Une colonne ne se lit donc que du côté
+ * de l'opération.
+ */
+function colonnesVentilationParSens<C extends { cle: string }>(journal: {
+  colonnesRecettes: C[];
+  colonnesDepenses: C[];
+}): Array<C & { sens: 'RECETTE' | 'DEPENSE' }> {
+  return [
+    ...journal.colonnesRecettes.map((c) => ({ ...c, sens: 'RECETTE' as const })),
+    ...journal.colonnesDepenses.map((c) => ({ ...c, sens: 'DEPENSE' as const })),
+  ];
+}
+
+/** La ventilation d'une opération pour UNE colonne · vide hors de son côté. */
+function ventilationDeLaColonne(
+  operation: { sens: 'RECETTE' | 'DEPENSE'; ventilation: Record<string, number> },
+  colonne: { cle: string; sens: 'RECETTE' | 'DEPENSE' },
+): number {
+  return colonne.sens === operation.sens ? (operation.ventilation[colonne.cle] ?? 0) : 0;
+}
+
+/**
+ * Le bandeau des deux groupes de la maquette, au-dessus des libellés de
+ * colonne · sans lui, les deux colonnes « Autres » ne se distinguaient pas.
+ */
+function bandeauVentilation(ws: ExcelJS.Worksheet, r: number, nbRecettes: number, nbDepenses: number) {
+  if (nbRecettes > 0) {
+    ws.getCell(r, 6).value = 'Ventilation recettes';
+    fusion(ws, r, 6, r, 5 + nbRecettes);
+  }
+  if (nbDepenses > 0) {
+    ws.getCell(r, 6 + nbRecettes).value = 'Ventilation dépenses';
+    fusion(ws, r, 6 + nbRecettes, r, 5 + nbRecettes + nbDepenses);
   }
 }
 

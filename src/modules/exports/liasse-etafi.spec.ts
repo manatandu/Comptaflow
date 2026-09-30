@@ -12,6 +12,7 @@ import { NoteAnnexeService } from '../notes-annexes/note-annexe.service';
 import { PrismaService } from '../../common/prisma.service';
 import { ExportService } from './export.service';
 import { NOM_BALANCE } from './theme-etafi';
+import { RENVOI_IMMOBILISATIONS } from '../etats-financiers/correspondance-smt';
 
 /**
  * LIASSE « ETAFI » · vérification de bout en bout sur un dossier synthétique
@@ -788,5 +789,275 @@ describe('Fiche 1 des liasses SYCEBNL · ce que le dossier sait', () => {
     expect(caseFiche1(wb, 'ZK')).toBe('');
     expect(caseFiche1(wb, 'ZM')).toBe('');
     expect(caseFiche1(wb, 'ZG')).toBe('');
+  });
+});
+
+/**
+ * PASSE R6 · le S.M.T SYCEBNL imprimé. Chaque test relit le classeur produit ·
+ * la charge utile peut être juste et la feuille fausse.
+ */
+describe('S.M.T SYCEBNL · feuilles relues (passe R6)', () => {
+  type ServiceSmt = Record<string, jest.Mock>;
+  const smt = (e: ExportService) => (e as unknown as { etatsFinanciersSmtService: ServiceSmt }).etatsFinanciersSmtService;
+  const textes = (ws: ExcelJS.Worksheet): string[] => {
+    const t: string[] = [];
+    ws.eachRow((row) => row.eachCell((c) => typeof c.value === 'string' && t.push(c.value)));
+    return t;
+  };
+  const rangsParRef = (ws: ExcelJS.Worksheet) => {
+    const rangs = new Map<string, number>();
+    ws.eachRow((row, n) => {
+      const ref = row.getCell(1).value;
+      if (typeof ref === 'string') rangs.set(ref, n);
+    });
+    return rangs;
+  };
+
+  it('Résultat · le renvoi « 4 » sur KA à JF, rien sur JG (la maquette ne le porte pas)', async () => {
+    const exportService = fabriquerExport(JeuEtatsFinanciersSycebnl.SYSTEME_MINIMAL_TRESORERIE);
+    const wb = await ouvrir((await exportService.compteDeResultatSmtExcel('t1', 'e1')).buffer);
+    const ws = wb.getWorksheet('Résultat')!;
+    const rangs = rangsParRef(ws);
+    for (const ref of ['KA', 'KB', 'JA', 'JB', 'JC', 'JD', 'JE', 'JF']) {
+      expect([ref, ws.getCell(rangs.get(ref)!, 3).value]).toEqual([ref, '4']);
+    }
+    expect(ws.getCell(rangs.get('JG')!, 3).value ?? '').toBe('');
+  });
+
+  it('Résultat · la colonne EXERCICE N-1 est remplie et totalisée quand l’exercice N-1 existe', async () => {
+    const exportService = fabriquerExport(JeuEtatsFinanciersSycebnl.SYSTEME_MINIMAL_TRESORERIE);
+    const wb = await ouvrir((await exportService.liasseCompleteExcel('t1', 'e1')).buffer);
+    const ws = wb.getWorksheet('Résultat')!;
+    const rangs = rangsParRef(ws);
+    // Le dossier synthétique porte un exercice 2025, vide · son comptable
+    // vaut zéro, écrit, et non une cellule vide sous un en-tête qui promet.
+    expect(ws.getCell(rangs.get('KA')!, 5).value).toBe(0);
+    expect(ws.getCell(rangs.get('JG')!, 5).value).toBe(0);
+    expect((ws.getCell(rangs.get('KZC')!, 5).value as { formula?: string }).formula).toBe(
+      `E${rangs.get('KZ')}+E${rangs.get('VA')}+E${rangs.get('VB')}-E${rangs.get('VC')}-E${rangs.get('JG')}`,
+    );
+  });
+
+  it('Résultat · sans exercice N-1, la colonne E reste vide, sans formule qui rendrait 0', async () => {
+    const exportService = fabriquerExport(JeuEtatsFinanciersSycebnl.SYSTEME_MINIMAL_TRESORERIE);
+    const service = smt(exportService);
+    const reel = service.compteDeResultat.bind(service);
+    service.compteDeResultat = jest.fn(async (t: string, e: string) => {
+      const cr = await reel(t, e);
+      const sansN1 = <T extends object>(l: T[]) => l.map((p) => ({ ...p, montantN1: undefined }));
+      return { ...cr, recettes: sansN1(cr.recettes), depenses: sansN1(cr.depenses), retraitements: sansN1(cr.retraitements), exerciceN1Disponible: false };
+    });
+    const wb = await ouvrir((await exportService.compteDeResultatSmtExcel('t1', 'e1')).buffer);
+    const ws = wb.getWorksheet('Résultat')!;
+    const rangs = rangsParRef(ws);
+    expect(ws.getCell(rangs.get('KA')!, 5).value ?? null).toBeNull();
+    expect(ws.getCell(rangs.get('KZC')!, 5).value ?? null).toBeNull();
+  });
+
+  it('Bilan-Actif · imprime le renvoi (1) mot pour mot, celui que l’écran sert', async () => {
+    const exportService = fabriquerExport(JeuEtatsFinanciersSycebnl.SYSTEME_MINIMAL_TRESORERIE);
+    const wb = await ouvrir((await exportService.bilanSmtExcel('t1', 'e1')).buffer);
+    expect(textes(wb.getWorksheet('Bilan-Actif')!)).toContain(RENVOI_IMMOBILISATIONS);
+  });
+
+  it('Fiche NOTES ANNEXES · chaque note est cochée A ou N/A, N/A pour chaque feuille NEANT', async () => {
+    const exportService = fabriquerExport(JeuEtatsFinanciersSycebnl.SYSTEME_MINIMAL_TRESORERIE);
+    const wb = await ouvrir((await exportService.liasseCompleteExcel('t1', 'e1')).buffer);
+    const fiche = wb.getWorksheet('NOTES ANNEXES')!;
+    const coche = new Map<string, 'A' | 'N/A'>();
+    fiche.eachRow((row) => {
+      const note = row.getCell(1).value;
+      if (typeof note !== 'string' || !note.startsWith('Note ')) return;
+      const a = row.getCell(9).value === 'X';
+      const na = row.getCell(10).value === 'X';
+      expect([note, a !== na]).toEqual([note, true]);
+      coche.set(note, a ? 'A' : 'N/A');
+    });
+    // Le dossier synthétique : une caisse (note 4) et une dotation (note 5),
+    // ni immobilisation, ni stock, ni tiers.
+    expect(Object.fromEntries(coche)).toEqual({
+      'Note 1': 'N/A',
+      'Note 2': 'N/A',
+      'Note 3': 'N/A',
+      'Note 5': 'A',
+      'Note 4': 'A',
+    });
+    // Et chaque note N/A est bien une feuille NEANT · fiche et feuilles se recoupent.
+    for (const [note, feuille] of [
+      ['Note 1', 'NOTE 1 IMMOBILISATIONS'],
+      ['Note 2', 'NOTE 2 STOCKS'],
+    ] as const) {
+      expect(coche.get(note)).toBe('N/A');
+      expect(textes(wb.getWorksheet(feuille)!).some((t) => /n[ée]ant/i.test(t))).toBe(true);
+    }
+  });
+
+  it('NOTE 4 · une recette en « Autres » ne s’imprime pas sous « Autres » des dépenses (SYCEBNL et SYSCOHADA)', async () => {
+    const exportService = fabriquerExport(JeuEtatsFinanciersSycebnl.SYSTEME_MINIMAL_TRESORERIE);
+    const operation = (sens: 'RECETTE' | 'DEPENSE', autres: number) => ({
+      date: new Date('2026-03-01'),
+      libelle: sens === 'RECETTE' ? 'Don reçu' : 'Règlement fournisseur',
+      reference: null,
+      sens,
+      recette: sens === 'RECETTE' ? autres : 0,
+      depense: sens === 'DEPENSE' ? autres : 0,
+      solde: 0,
+      virementInterne: false,
+      ventile: true,
+      ventilation: { autres },
+    });
+    const journal = (colonne: (cle: string, libelle: string) => object) => ({
+      journaux: [
+        {
+          compteId: 'c',
+          numero: '57110000',
+          intitule: 'Caisse',
+          reportANouveau: 0,
+          operations: [operation('RECETTE', 500), operation('DEPENSE', 200)],
+          soldeAReporter: 300,
+          totalRecettes: 500,
+          totalDepenses: 200,
+          lignesNonVentilees: 0,
+          soldeBalance: 300,
+          boucle: true,
+        },
+      ],
+      colonnesRecettes: [colonne('cotisations', 'Cotisations'), colonne('autres', 'Autres')],
+      colonnesDepenses: [colonne('salaires', 'Salaires'), colonne('autres', 'Autres')],
+      nb: 'NB',
+    });
+    const prive = exportService as unknown as Record<string, (...a: unknown[]) => unknown> & {
+      identiteLiasse: (t: string, e: string) => Promise<unknown>;
+    };
+    const ident = await prive.identiteLiasse('t1', 'e1');
+    for (const [methode, colonne] of [
+      ['feuilleJournalTresorerieEtafi', (cle: string, libelle: string) => ({ cle, libelle })],
+      ['feuilleJournalTresorerieSmtSyscohadaEtafi', (cle: string, libelle: string) => ({ cle, libelle, rajoutAutorise: false })],
+    ] as const) {
+      const wb = new ExcelJS.Workbook();
+      const ws = prive[methode].call(exportService, wb, journal(colonne), ident) as ExcelJS.Worksheet;
+      // Colonnes : 6 Cotisations, 7 Autres (recettes), 8 Salaires, 9 Autres (dépenses).
+      let rangRecette = 0;
+      let rangDepense = 0;
+      let rangBandeau = 0;
+      ws.eachRow((row, n) => {
+        if (row.getCell(2).value === 'Don reçu') rangRecette = n;
+        if (row.getCell(2).value === 'Règlement fournisseur') rangDepense = n;
+        if (row.getCell(6).value === 'Ventilation recettes') rangBandeau = n;
+      });
+      expect([methode, ws.getCell(rangRecette, 7).value]).toEqual([methode, 500]);
+      expect([methode, ws.getCell(rangRecette, 9).value ?? null]).toEqual([methode, null]);
+      expect([methode, ws.getCell(rangDepense, 9).value]).toEqual([methode, 200]);
+      expect([methode, ws.getCell(rangDepense, 7).value ?? null]).toEqual([methode, null]);
+      // Les deux groupes de la maquette nommés au-dessus des libellés.
+      expect([methode, ws.getCell(rangBandeau, 8).value]).toEqual([methode, 'Ventilation dépenses']);
+    }
+  });
+
+  it('NOTE 5 · l’intitulé officiel de la quatrième colonne, le motif des deux colonnes et le 106 hors rubriques', async () => {
+    const exportService = fabriquerExport(JeuEtatsFinanciersSycebnl.SYSTEME_MINIMAL_TRESORERIE);
+    smt(exportService).note5Dotation = jest.fn().mockResolvedValue({
+      rubriques: [{ cle: 'nonConsomptible', libelle: 'Dotation non consomptible', montant: 5000, comptes: [] }],
+      total: 5000,
+      horsRubriques: [{ numero: '10611000', intitule: 'Écarts de réévaluation', montant: 900 }],
+      totalHorsRubriques: 900,
+      totalPosteHA: 5900,
+      motifHorsRubriques: 'MOTIF 106',
+      membres: [{ nom: 'Apporteur', nationalite: null, montant: 5000, precisionDroitEntree: null, numero: '45120000' }],
+      nationaliteTenue: false,
+      precisionDroitEntreeTenue: false,
+      motifColonnesNonTenues: 'MOTIF DEUX COLONNES',
+      motifMembres: 'MOTIF MEMBRES',
+    });
+    const wb = await ouvrir((await exportService.notesSmtExcel('t1', 'e1')).buffer);
+    const ws = wb.getWorksheet('NOTE 5 DOTATIONS')!;
+    expect(ws.getCell(8, 4).value).toBe("Préciser avec droit d'entrée ou sans droit d'entrée");
+    const t = textes(ws);
+    expect(t).toEqual(expect.arrayContaining(['MOTIF DEUX COLONNES', 'MOTIF MEMBRES', 'MOTIF 106']));
+    let rangTotal = 0;
+    let rangHa = 0;
+    ws.eachRow((row, n) => {
+      if (row.getCell(1).value === 'TOTAL') rangTotal = n;
+      if (String(row.getCell(1).value ?? '').startsWith('POSTE HA')) rangHa = n;
+    });
+    // Le TOTAL de la maquette ne bouge pas ; le poste HA se lit dessous.
+    expect(ws.getCell(rangTotal, 3).value).toBe(5000);
+    expect(rangHa).toBeGreaterThan(rangTotal);
+    expect(ws.getCell(rangHa, 3).value).toBe(5900);
+  });
+
+  it('NOTE 1 · total des seuls biens détenus, sorties à part, cautions et comptes non couverts nommés', async () => {
+    const exportService = fabriquerExport(JeuEtatsFinanciersSycebnl.SYSTEME_MINIMAL_TRESORERIE);
+    const bien = (designation: string, montant: number, sortie: string | null) => ({
+      origine: 'REGISTRE' as const,
+      dateMiseEnService: new Date('2024-02-01'),
+      designation,
+      montant,
+      dateAcquisition: new Date('2024-02-01'),
+      dureeUtiliteAns: 5,
+      dateSortie: sortie ? new Date(sortie) : null,
+      prixCession: sortie ? 100 : null,
+    });
+    smt(exportService).note1Immobilisations = jest.fn().mockResolvedValue({
+      lignes: [
+        bien('Véhicule', 3000, null),
+        { ...bien('27510000 Cautions', 400, null), origine: 'BALANCE', dateMiseEnService: null, dateAcquisition: null, dureeUtiliteAns: null },
+      ],
+      sortiesDeLExercice: [bien('Ordinateur cédé', 900, '2026-06-30')],
+      total: 3400,
+      totalRegistre: 3000,
+      totalCautions: 400,
+      motifCautions: 'MOTIF CAUTIONS',
+      ecartsGA: [{ numero: '24500000', intitule: 'Matériel', soldeBalance: 1000, valeurFiches: 0, ecart: 1000 }],
+      fichesSansSolde: [],
+      motifEcartsGA: 'MOTIF GA',
+    });
+    const wb = await ouvrir((await exportService.notesSmtExcel('t1', 'e1')).buffer);
+    const ws = wb.getWorksheet('NOTE 1 IMMOBILISATIONS')!;
+    const rangDe = (libelle: string) => {
+      let rang = 0;
+      ws.eachRow((row, n) => {
+        if (String(row.getCell(2).value ?? '').startsWith(libelle)) rang = n;
+      });
+      return rang;
+    };
+    const total = rangDe('TOTAL DES BIENS DÉTENUS');
+    expect(ws.getCell(total, 3).value).toBe(3400);
+    // Le bien cédé est présenté APRÈS le total, jamais dedans.
+    expect(rangDe('Ordinateur cédé')).toBeGreaterThan(total);
+    // Une caution n'a pas de mise en service · pas de « Non mis en service ».
+    expect(ws.getCell(rangDe('27510000'), 1).value ?? null).toBeNull();
+    const t = textes(ws);
+    expect(t).toEqual(expect.arrayContaining(['MOTIF CAUTIONS', 'MOTIF GA']));
+    expect(t.some((x) => x.startsWith('24500000 Matériel') && x.includes('écart'))).toBe(true);
+  });
+
+  it('NOTE 3 · la dépréciation se lit en déduction des créances, puis les créances nettes (poste GC)', async () => {
+    const exportService = fabriquerExport(JeuEtatsFinanciersSycebnl.SYSTEME_MINIMAL_TRESORERIE);
+    const service = smt(exportService);
+    const reel = service.note3CreancesDettes.bind(service);
+    service.note3CreancesDettes = jest.fn(async (t: string, e: string) => ({
+      ...(await reel(t, e)),
+      depreciationsCreances: [
+        { numero: '49120000', intitule: 'Créances douteuses', montantCloture: -300, montantOuverture: 0, variationValeur: -300 },
+      ],
+      totalDepreciationsCreances: -300,
+      totalCreancesNettes: -300,
+    }));
+    const wb = await ouvrir((await exportService.notesSmtExcel('t1', 'e1')).buffer);
+    const ws = wb.getWorksheet('NOTE 3 CREANCES-DETTES')!;
+    let rangDep = 0;
+    let rangNettes = 0;
+    let rangDettes = 0;
+    ws.eachRow((row, n) => {
+      const b = String(row.getCell(2).value ?? '');
+      if (b.startsWith('49120000')) rangDep = n;
+      if (b.startsWith('CRÉANCES NETTES')) rangNettes = n;
+      if (row.getCell(1).value === 'DETTES') rangDettes = n;
+    });
+    expect(ws.getCell(rangDep, 3).value).toBe(-300);
+    expect(ws.getCell(rangNettes, 3).value).toBe(-300);
+    // Dans le bloc des créances, jamais dans celui des dettes.
+    expect(rangNettes).toBeLessThan(rangDettes);
   });
 });

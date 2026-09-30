@@ -18,7 +18,10 @@ import { estCompteDuResultatDeLExercice } from './resultat-de-l-exercice';
 import { PosteCalcule } from './etats-financiers.service';
 import {
   CATEGORIES_RESSOURCES_ART6,
+  COMPTES_CAUTIONS_NOTE_1,
   COMPTES_DOTATIONS_AMORTISSEMENTS,
+  DEPRECIATIONS_DES_TIERS,
+  DETTES_HORS_EXPLOITATION,
   NB_JOURNAL_TRESORERIE,
   NOTES_SMT,
   ORDRE_BILAN_ACTIF,
@@ -26,6 +29,7 @@ import {
   POSTES_BILAN_ACTIF,
   POSTES_BILAN_PASSIF,
   POSTES_DEPENSES,
+  SOUS_COMPTES_APPORTEURS,
   POSTES_RECETTES,
   PosteBilanSmt,
   PosteFluxSmt,
@@ -233,6 +237,13 @@ export class EtatsFinanciersSmtService {
     let matches = lignes.filter((l) => correspond(l.numero, poste.comptes, poste.exclusions));
     if (poste.sens_qualificatif === 'DEBITEUR') matches = matches.filter((l) => l.solde > 0);
     if (poste.sens_qualificatif === 'CREDITEUR') matches = matches.filter((l) => l.solde < 0);
+    // Les comptes que le poste reprend quel que soit leur sens (les
+    // dépréciations de tiers en déduction de GC, fiche du COMPTE 49), en
+    // solde algébrique · voir `DEPRECIATIONS_DES_TIERS`.
+    if (poste.comptesSansFiltreDeSens) {
+      const sansFiltre = poste.comptesSansFiltreDeSens;
+      matches = [...matches, ...lignes.filter((l) => correspond(l.numero, sansFiltre) && Math.abs(l.solde) > 0.005)];
+    }
     // Un poste d'actif porte son solde débiteur en positif, un poste de passif
     // son solde créditeur en positif · même convention que les deux autres jeux.
     const signe = poste.sens === 'ACTIF' ? 1 : -1;
@@ -456,7 +467,7 @@ export class EtatsFinanciersSmtService {
   private ventilerFlux(
     contreparties: Map<string, CompteDuPoste>,
     postes: PosteFluxSmt[],
-  ): { postes: PosteCalcule[]; total: number } {
+  ): { postes: Array<PosteCalcule & { note: string | null }>; total: number } {
     const comptesParRef = new Map<string, Map<string, CompteDuPoste>>();
     for (const poste of postes) comptesParRef.set(poste.ref, new Map());
 
@@ -478,6 +489,10 @@ export class EtatsFinanciersSmtService {
       return {
         ref: p.ref,
         libelle: p.libelle,
+        // Le renvoi de note que la maquette imprime sur la ligne (« 4 » de KA
+        // à JF), lu dans la table · c'est lui que l'export et l'écran servent,
+        // jamais un renvoi déduit de la première lettre du code.
+        note: p.note,
         montant: comptes.reduce((s, c) => s + c.montant, 0),
         comptes,
       };
@@ -499,8 +514,8 @@ export class EtatsFinanciersSmtService {
   /**
    * Encaissements et décaissements qui ne sont NI un produit NI une charge :
    * apport ou reprise de dotation (classe 1), emprunt et remboursement
-   * (compte 18), acquisition et cession d'immobilisation (classe 2), achat
-   * de stock enregistré directement à l'actif (classe 3).
+   * (compte 18), acquisition et cession d'immobilisation (classe 2), et
+   * règlement d'un fournisseur d'investissements (481), que VC ne lit pas.
    *
    * ## Pourquoi ce poste existe alors que la maquette ne le prévoit pas
    *
@@ -527,9 +542,15 @@ export class EtatsFinanciersSmtService {
       [cumuls.depenses, -1],
     ] as const) {
       for (const c of contreparties.values()) {
-        // Classes 1, 2 et 3 seulement. La classe 4 est déjà reprise par VB et
-        // VC ; les classes 6, 7 et 8 SONT le résultat.
-        if (!/^[123]/.test(c.numero)) continue;
+        // Classes 1 et 2, les seules qu'aucune ligne de variation ne reprend.
+        // La classe 3 est déjà reprise par VA (poste GB, classe 3 entière) :
+        // la compter ici aussi faisait d'un achat de stock payé (D 31 / C 57)
+        // un écart de X sur un résultat qui concorde. La classe 4 est reprise
+        // par VB et VC, SAUF le 481, que VC écarte (dette hors exploitation,
+        // voir `DETTES_HORS_EXPLOITATION`) · son règlement est donc un flux
+        // hors exploitation, comme l'achat d'immobilisation payé comptant. Les
+        // classes 6, 7 et 8 SONT le résultat.
+        if (!/^[12]/.test(c.numero) && !correspond(c.numero, DETTES_HORS_EXPLOITATION)) continue;
         // Signe : un encaissement augmente KZ, un décaissement le diminue.
         const montant = signe * c.montant;
         const existant = parCompte.get(c.numero);
@@ -543,13 +564,15 @@ export class EtatsFinanciersSmtService {
     return { montant: comptes.reduce((s, c) => s + c.montant, 0), comptes };
   }
 
-  async compteDeResultat(tenantId: string, exerciceId: string) {
-    const [, cumuls, lignesN] = await Promise.all([
-      this.exercice(tenantId, exerciceId),
-      this.cumulsTresorerie(tenantId, exerciceId),
-      this.chargerLignes(tenantId, exerciceId),
-    ]);
-
+  /**
+   * UN COMPTE DE RÉSULTAT S.M.T, pour UN exercice · le même calcul sert N et
+   * N-1 (art. 16, 7° : « chacun des postes des états financiers comporte
+   * l'indication du chiffre relatif au poste correspondant de l'exercice
+   * précédent », et la maquette porte les colonnes N et N-1, Partie 4, ch. 4,
+   * section 2). Les variations de N-1 se mesurent contre l'ouverture de N-1,
+   * par la même règle `aLOuverture`, jamais par une autre lecture.
+   */
+  private construireCompteDeResultat(cumuls: CumulsTresorerie, lignesN: LigneBalancePourEtat[]) {
     const recettes = this.ventilerFlux(cumuls.recettes, POSTES_RECETTES);
     const depenses = this.ventilerFlux(cumuls.depenses, POSTES_DEPENSES);
     const soldeCaisse = recettes.total - depenses.total; // KZ
@@ -558,6 +581,11 @@ export class EtatsFinanciersSmtService {
     const bilanOuverture = this.resoudreBilan(this.aLOuverture(lignesN));
     const variation = (ref: string) =>
       (bilanCloture.get(ref)?.montant ?? 0) - (bilanOuverture.get(ref)?.montant ?? 0);
+    // VC · « Variation des dettes d'EXPLOITATION » : le poste HD sans le 481
+    // (voir `DETTES_HORS_EXPLOITATION`), à la clôture comme à l'ouverture.
+    const dettesExploitation = (bilan: Map<string, PosteCalcule>) =>
+      bilan.get('HD')!.comptes.filter((c) => !correspond(c.numero, DETTES_HORS_EXPLOITATION));
+    const somme = (comptes: CompteDuPoste[]) => comptes.reduce((s, c) => s + c.montant, 0);
 
     // Dotations aux amortissements : compte 68, charge sans décaissement.
     const lignes68 = lignesN.filter((l) => correspond(l.numero, COMPTES_DOTATIONS_AMORTISSEMENTS));
@@ -566,13 +594,13 @@ export class EtatsFinanciersSmtService {
     const valeurs: Record<string, number> = {
       VA: variation('GB'), // stocks
       VB: variation('GC'), // créances
-      VC: variation('HD'), // dettes d'exploitation
+      VC: somme(dettesExploitation(bilanCloture)) - somme(dettesExploitation(bilanOuverture)), // dettes d'exploitation
       JG: dotations,
     };
     const comptesDe: Record<string, CompteDuPoste[]> = {
       VA: bilanCloture.get('GB')!.comptes,
       VB: bilanCloture.get('GC')!.comptes,
-      VC: bilanCloture.get('HD')!.comptes,
+      VC: dettesExploitation(bilanCloture),
       JG: lignes68
         .filter((l) => Math.abs(l.solde) > 0.005)
         .map((l) => ({ numero: l.numero, intitule: l.intitule, montant: l.solde })),
@@ -587,25 +615,61 @@ export class EtatsFinanciersSmtService {
     }));
 
     const resultatNet = retraitements.reduce((s, r) => s + r.signe * r.montant, soldeCaisse); // KZC
-    const resultatBilan = bilanCloture.get('HB')!.montant;
+    return {
+      recettes: recettes.postes,
+      totalRecettes: recettes.total,
+      depenses: depenses.postes,
+      totalDepenses: depenses.total,
+      soldeCaisse,
+      retraitements,
+      resultatNet,
+      resultatBilan: bilanCloture.get('HB')!.montant,
+    };
+  }
+
+  async compteDeResultat(tenantId: string, exerciceId: string) {
+    const [, exerciceN1Id] = await Promise.all([
+      this.exercice(tenantId, exerciceId),
+      trouverExerciceN1(this.exerciceService, tenantId, exerciceId),
+    ]);
+    const [cumuls, lignesN, cumulsN1, lignesN1] = await Promise.all([
+      this.cumulsTresorerie(tenantId, exerciceId),
+      this.chargerLignes(tenantId, exerciceId),
+      exerciceN1Id ? this.cumulsTresorerie(tenantId, exerciceN1Id) : Promise.resolve(null),
+      exerciceN1Id ? this.chargerLignes(tenantId, exerciceN1Id) : Promise.resolve(null),
+    ]);
+
+    const n = this.construireCompteDeResultat(cumuls, lignesN);
+    // Sans exercice N-1 enregistré, `montantN1` reste undefined, JAMAIS zéro :
+    // un zéro se lirait « rien en N-1 », et l'art. 16 dispense du comparatif
+    // la première année d'application.
+    const n1 = cumulsN1 && lignesN1 ? this.construireCompteDeResultat(cumulsN1, lignesN1) : null;
+    const avecN1 = <T extends { ref: string; montant: number }>(postes: T[], postesN1: T[] | undefined) =>
+      postes.map((p) => ({ ...p, montantN1: postesN1 ? (postesN1.find((x) => x.ref === p.ref)?.montant ?? 0) : undefined }));
+
     const hors = this.fluxHorsExploitation(cumuls);
 
     return {
-      recettes: recettes.postes,
-      totalRecettes: recettes.total, // KX
-      depenses: depenses.postes,
-      totalDepenses: depenses.total, // JX
-      soldeCaisse, // KZ
-      retraitements, // VA, VB, VC, JG
-      resultatNet, // KZC
+      recettes: avecN1(n.recettes, n1?.recettes),
+      totalRecettes: n.totalRecettes, // KX
+      depenses: avecN1(n.depenses, n1?.depenses),
+      totalDepenses: n.totalDepenses, // JX
+      soldeCaisse: n.soldeCaisse, // KZ
+      retraitements: avecN1(n.retraitements, n1?.retraitements), // VA, VB, VC, JG
+      resultatNet: n.resultatNet, // KZC
+      exerciceN1Disponible: n1 !== null,
+      totalRecettesN1: n1?.totalRecettes,
+      totalDepensesN1: n1?.totalDepenses,
+      soldeCaisseN1: n1?.soldeCaisse,
+      resultatNetN1: n1?.resultatNet,
       controle: {
-        resultatBilan,
+        resultatBilan: n.resultatBilan,
         fluxHorsExploitation: hors.montant,
         comptesHorsExploitation: hors.comptes,
         // KZC - flux hors exploitation doit égaler le résultat du bilan ·
         // voir la note ci-dessus sur la limite de la maquette.
-        ecart: resultatNet - hors.montant - resultatBilan,
-        concordant: Math.abs(resultatNet - hors.montant - resultatBilan) < 0.01,
+        ecart: n.resultatNet - hors.montant - n.resultatBilan,
+        concordant: Math.abs(n.resultatNet - hors.montant - n.resultatBilan) < 0.01,
       },
     };
   }
@@ -790,21 +854,105 @@ export class EtatsFinanciersSmtService {
    */
   async note1Immobilisations(tenantId: string, exerciceId: string) {
     const exercice = await this.exercice(tenantId, exerciceId);
-    const immobilisations = await this.prisma.immobilisation.findMany({
-      where: { tenantId, dateAcquisition: { lte: exercice.dateFin } },
-      orderBy: [{ dateAcquisition: 'asc' }],
+    const [immobilisations, lignesBalance] = await Promise.all([
+      this.prisma.immobilisation.findMany({
+        where: {
+          tenantId,
+          dateAcquisition: { lte: exercice.dateFin },
+          // Un bien sorti AVANT l'ouverture n'est plus au bilan depuis un
+          // exercice au moins · il n'a rien à faire dans la note de celui-ci.
+          OR: [{ dateSortie: null }, { dateSortie: { gte: exercice.dateDebut } }],
+        },
+        orderBy: [{ dateAcquisition: 'asc' }],
+      }),
+      this.chargerLignes(tenantId, exerciceId),
+    ]);
+
+    const versLigne = (i: (typeof immobilisations)[number]) => ({
+      origine: 'REGISTRE' as const,
+      dateMiseEnService: i.dateMiseEnService as Date | null,
+      designation: i.designation,
+      montant: Number(i.valeurOrigine),
+      dateAcquisition: i.dateAcquisition as Date | null,
+      dureeUtiliteAns: i.dureeAmortissementAns as number | null,
+      dateSortie: i.dateSortie,
+      prixCession: i.prixCession === null ? null : Number(i.prixCession),
     });
+    // UN BIEN SORTI N'EST PLUS AU BILAN (même règle que le tableau des
+    // immobilisations, audit final F31) · seuls les biens DÉTENUS à la clôture
+    // entrent au total. Ceux sortis pendant l'exercice sont présentés à part,
+    // avec leur date de sortie et leur prix de cession, que la maquette ouvre.
+    const detenus = immobilisations.filter((i) => !i.dateSortie || i.dateSortie > exercice.dateFin);
+    const sortis = immobilisations.filter((i) => i.dateSortie && i.dateSortie <= exercice.dateFin);
+
+    // LES CAUTIONS · la fiche récapitulative intitule la note « … du
+    // matériel, du mobilier et des cautions » (Partie 4, ch. 4, section 3).
+    // Un dépôt de garantie n'est pas amortissable : une famille
+    // d'immobilisations exigeant un 28 et un 68, il n'entre pas proprement au
+    // registre. Ses soldes viennent donc de la BALANCE (compte 275 « Dépôts et
+    // cautionnements versés », Partie 2, ch. 2), marqués `origine: 'BALANCE'`,
+    // sans date ni prix de cession, que le compte ne porte pas · même parti
+    // que le S.M.T du SYSCOHADA.
+    const cautions = lignesBalance
+      .filter((l) => correspond(l.numero, COMPTES_CAUTIONS_NOTE_1) && Math.abs(l.solde) > 0.005)
+      .sort((a, b) => a.numero.localeCompare(b.numero))
+      .map((l) => ({
+        origine: 'BALANCE' as const,
+        dateMiseEnService: null,
+        designation: `${l.numero} ${l.intitule}`,
+        montant: l.solde,
+        dateAcquisition: null,
+        dureeUtiliteAns: null,
+        dateSortie: null,
+        prixCession: null,
+      }));
+
+    // RAPPROCHEMENT AVEC GA · le poste lit toute la classe 2, la note ne lit
+    // que le registre. Une écriture 2x passée au journal sans fiche entrait au
+    // bilan et restait hors de la note, sans que rien le dise. Rien n'est
+    // ventilé ici : chaque compte de la classe 2 (hors amortissements 28,
+    // dépréciations 29 et cautions 275) est confronté à la valeur d'origine
+    // des fiches encore détenues qui le portent, et le compte qui ne se
+    // recoupe pas est NOMMÉ avec son écart · même parti que la Note 2 (audit
+    // final F85) : la ligne reste, la raison est dite.
+    const fichesParCompte = new Map<string, number>();
+    for (const i of detenus) {
+      fichesParCompte.set(i.compteImmobilisationId, (fichesParCompte.get(i.compteImmobilisationId) ?? 0) + Number(i.valeurOrigine));
+    }
+    const comptesBruts = lignesBalance.filter(
+      (l) => l.classe === ClasseCompte.CLASSE_2 && !correspond(l.numero, ['28', '29', ...COMPTES_CAUTIONS_NOTE_1]),
+    );
+    const ecartsGA = comptesBruts
+      .map((l) => {
+        const valeurFiches = fichesParCompte.get(l.compteId) ?? 0;
+        return { numero: l.numero, intitule: l.intitule, soldeBalance: l.solde, valeurFiches, ecart: l.solde - valeurFiches };
+      })
+      .filter((c) => Math.abs(c.ecart) > 0.005)
+      .sort((a, b) => a.numero.localeCompare(b.numero));
+    // Une fiche dont le compte ne porte aucun solde à la balance est un écart
+    // lui aussi, en sens inverse.
+    const comptesVus = new Set(comptesBruts.map((l) => l.compteId));
+    const fichesSansSolde = detenus.filter((i) => !comptesVus.has(i.compteImmobilisationId));
+
+    const lignesRegistre = detenus.map(versLigne);
+    const totalRegistre = lignesRegistre.reduce((s, l) => s + l.montant, 0);
+    const totalCautions = cautions.reduce((s, l) => s + l.montant, 0);
     return {
-      lignes: immobilisations.map((i) => ({
-        dateMiseEnService: i.dateMiseEnService,
-        designation: i.designation,
-        montant: Number(i.valeurOrigine),
-        dateAcquisition: i.dateAcquisition,
-        dureeUtiliteAns: i.dureeAmortissementAns,
-        dateSortie: i.dateSortie,
-        prixCession: i.prixCession === null ? null : Number(i.prixCession),
-      })),
-      total: immobilisations.reduce((s, i) => s + Number(i.valeurOrigine), 0),
+      lignes: [...lignesRegistre, ...cautions],
+      sortiesDeLExercice: sortis.map(versLigne),
+      total: totalRegistre + totalCautions,
+      totalRegistre,
+      totalCautions,
+      motifCautions:
+        cautions.length > 0
+          ? "Le titre de la note vise « le matériel, le mobilier et les cautions ». Les dépôts et cautionnements ne sont pas au registre des immobilisations : ils sont repris depuis le solde du compte 275 « Dépôts et cautionnements versés », sans date ni prix de cession, que la comptabilité ne porte pas au niveau du compte."
+          : null,
+      ecartsGA,
+      fichesSansSolde: fichesSansSolde.map((i) => ({ designation: i.designation, montant: Number(i.valeurOrigine) })),
+      motifEcartsGA:
+        ecartsGA.length > 0 || fichesSansSolde.length > 0
+          ? "Le poste GA du bilan lit toute la classe 2, la Note 1 le seul registre des immobilisations. Les comptes nommés ici portent un solde brut que les fiches détenues à la clôture ne reconstituent pas (écriture passée au journal sans fiche, fiche sans écriture, avance, titre ou prêt) : ils sont au bilan et hors de la note."
+          : null,
     };
   }
 
@@ -1003,16 +1151,46 @@ export class EtatsFinanciersSmtService {
           };
         });
 
-    const creances = construire((l) => l.solde > 0, 1);
-    const dettes = construire((l) => l.solde < 0, -1);
+    // Les dépréciations 490 à 498 ne sont ni des créances ni des dettes · voir
+    // la présentation en déduction ci-dessous.
+    const estDepreciation = (l: LigneBalancePourEtat) => correspond(l.numero, DEPRECIATIONS_DES_TIERS);
+    const creances = construire((l) => l.solde > 0 && !estDepreciation(l), 1);
+    const dettes = construire((l) => l.solde < 0 && !estDepreciation(l), -1);
+    // LES DÉPRÉCIATIONS DES CRÉANCES, EN DÉDUCTION · la fiche du COMPTE 49
+    // les porte « à l'actif du bilan, en déduction de la valeur des postes
+    // qu'elles concernent », et le poste GC que la note justifie en est net
+    // (`DEPRECIATIONS_DES_TIERS`). Filtrées par le signe, elles tombaient
+    // dans le bloc des dettes, nommées comme des créanciers et sans échéance.
+    // Leur présentation, lignes nommées par leur COMPTE après le total des
+    // créances, puis créances nettes, n'est pas écrite par la maquette : c'est
+    // un choix d'OmegaX. Une dépréciation n'a pas d'échéance · elle reste hors
+    // de la ventilation, dont le « non ventilé » mesure une lacune de tenue.
+    const depreciationsCreances = lignes
+      .filter((l) => l.classe === ClasseCompte.CLASSE_4 && estDepreciation(l))
+      .filter((l) => Math.abs(l.solde) > 0.005 || Math.abs(l.reportDebit - l.reportCredit) > 0.005)
+      .sort((a, b) => a.numero.localeCompare(b.numero))
+      .map((l) => ({
+        numero: l.numero,
+        intitule: l.intitule,
+        // Au signe des créances · une dépréciation créditrice se lit en négatif.
+        montantCloture: l.solde,
+        montantOuverture: l.reportDebit - l.reportCredit,
+        variationValeur: l.solde - (l.reportDebit - l.reportCredit),
+      }));
+    const totalDepreciationsCreances = depreciationsCreances.reduce((s, d) => s + d.montantCloture, 0);
     const totalCreancesNonVentilees = creances.reduce((s, c) => s + c.montantNonVentile, 0);
     const totalDettesNonVentilees = dettes.reduce((s, d) => s + d.montantNonVentile, 0);
     // Une seule part non ventilée suffit à rendre la ventilation incomplète :
     // la note ne peut plus affirmer que ses totaux sont ceux du « non échu ».
     const echeancesTenues = Math.abs(totalCreancesNonVentilees) < 0.005 && Math.abs(totalDettesNonVentilees) < 0.005;
+    const totalCreances = creances.reduce((s, c) => s + c.montantCloture, 0);
     return {
       creances,
-      totalCreances: creances.reduce((s, c) => s + c.montantCloture, 0),
+      totalCreances,
+      depreciationsCreances,
+      totalDepreciationsCreances,
+      // Le poste GC du bilan · créances brutes moins leurs dépréciations.
+      totalCreancesNettes: totalCreances + totalDepreciationsCreances,
       totalCreancesNonEchues: creances.reduce((s, c) => s + c.montantNonEchu, 0),
       totalCreancesEchues: creances.reduce((s, c) => s + c.montantEchu, 0),
       totalCreancesNonVentilees,
@@ -1034,12 +1212,25 @@ export class EtatsFinanciersSmtService {
    * les subdivisions du compte 10 (101/102, 103, 104 ; voir Partie 2, ch. 3,
    * COMPTE 10).
    *
-   * La maquette demande aussi le NOM et la NATIONALITÉ de chaque membre
-   * apporteur. Les noms sont retrouvés quand l'apport a transité par un
-   * compte de la classe 45 « Fondateurs » rattaché à un tiers · la
-   * nationalité, elle, n'est pas une donnée du dossier et reste à compléter
-   * à la main. L'état le déclare (`nationaliteTenue: false`) au lieu de
-   * présenter une colonne vide sans explication.
+   * LE TOTAL DE LA MAQUETTE NE JUSTIFIE PAS TOUT LE POSTE HA. HA lit le
+   * compte 10 entier, 106 « Écarts de réévaluation » compris, que le plan
+   * range sous le 10 « DOTATION » (Partie 2, ch. 2) ; la maquette de la
+   * Note 5 n'ouvre aucune rubrique pour lui. C'est une lacune du texte,
+   * signalée et non comblée : la part du compte 10 hors des trois rubriques
+   * est servie À PART (`horsRubriques`), compte par compte, avec le total du
+   * poste HA · le TOTAL de la maquette ne bouge pas, et TOTAL + hors
+   * rubriques rend HA.
+   *
+   * La maquette demande aussi, par membre, le NOM, la NATIONALITÉ, le
+   * montant, et de « Préciser avec droit d'entrée ou sans droit d'entrée ».
+   * Les noms sont retrouvés quand l'apport a transité par un sous-compte
+   * d'APPORTEURS du compte 45 rattaché à un tiers (`SOUS_COMPTES_APPORTEURS`).
+   * La nationalité et la précision sur le droit d'entrée ne sont pas des
+   * données du dossier et restent à compléter à la main · l'état le déclare
+   * (`nationaliteTenue`, `precisionDroitEntreeTenue`, un seul motif qui nomme
+   * les deux colonnes) au lieu de présenter des colonnes vides sans
+   * explication. La précision n'est jamais déduite du 103 : rien dans les
+   * lignes du 45 ne dit si l'apport d'un membre inclut un droit d'entrée.
    */
   async note5Dotation(tenantId: string, exerciceId: string) {
     const [, lignes] = await Promise.all([this.exercice(tenantId, exerciceId), this.chargerLignes(tenantId, exerciceId)]);
@@ -1053,39 +1244,107 @@ export class EtatsFinanciersSmtService {
         .map((l) => ({ numero: l.numero, intitule: l.intitule, montant: -l.solde }));
       return { ...r, montant: comptes.reduce((s, c) => s + c.montant, 0), comptes };
     });
+    const comptesDesRubriques = rubriques.flatMap((r) => r.comptes.map((c) => c.numero));
+    const posteHA = POSTES_BILAN_PASSIF.find((p) => p.ref === 'HA')!;
+    // Même lecture que le poste HA du bilan (`calculerPosteBilan`) : le
+    // compte 10 en solde créditeur positif.
+    const horsRubriques = lignes
+      .filter((l) => correspond(l.numero, posteHA.comptes, posteHA.exclusions) && !comptesDesRubriques.includes(l.numero))
+      .filter((l) => Math.abs(l.solde) > 0.005)
+      .map((l) => ({ numero: l.numero, intitule: l.intitule, montant: -l.solde }));
+    const total = rubriques.reduce((s, r) => s + r.montant, 0);
+    const totalHorsRubriques = horsRubriques.reduce((s, c) => s + c.montant, 0);
 
-    // Membres apporteurs : les tiers rattachés à un compte 45 « Fondateurs »
-    // mouvementé sur l'exercice.
-    const comptes45 = lignes.filter((l) => l.numero.startsWith('45'));
+    // Membres apporteurs : les tiers rattachés à un sous-compte d'APPORTEURS
+    // du compte 45, mouvementé sur l'exercice · voir `SOUS_COMPTES_APPORTEURS`.
+    const comptes45 = lignes.filter((l) => correspond(l.numero, SOUS_COMPTES_APPORTEURS));
     const rattachements = comptes45.length
       ? await this.prisma.tiersCompte.findMany({
           where: { compteId: { in: comptes45.map((l) => l.compteId) } },
           include: { tiers: { select: { nom: true } } },
         })
       : [];
-    const membres = rattachements.map((r) => {
-      const ligne = comptes45.find((l) => l.compteId === r.compteId)!;
-      return {
-        nom: r.tiers.nom,
-        nationalite: null,
-        montant: ligne.mouvementDebit,
-        numero: ligne.numero,
-      };
-    });
+    const membres = rattachements
+      .filter((r) => comptes45.some((l) => l.compteId === r.compteId))
+      .map((r) => {
+        const ligne = comptes45.find((l) => l.compteId === r.compteId)!;
+        return {
+          nom: r.tiers.nom,
+          nationalite: null,
+          // Sur un sous-compte d'apporteur, le seul débit que la fiche du
+          // COMPTE 45 décrit est l'appel de la dotation « par le crédit du
+          // compte 10 » · c'est lui qui mesure l'apport.
+          montant: ligne.mouvementDebit,
+          // « Préciser avec droit d'entrée ou sans droit d'entrée » · null =
+          // non renseigné, jamais une valeur par défaut.
+          precisionDroitEntree: null,
+          numero: ligne.numero,
+        };
+      });
 
     return {
       rubriques,
-      total: rubriques.reduce((s, r) => s + r.montant, 0),
+      total,
+      horsRubriques,
+      totalHorsRubriques,
+      totalPosteHA: total + totalHorsRubriques,
+      motifHorsRubriques:
+        horsRubriques.length > 0
+          ? "La maquette de la Note 5 (Partie 4, ch. 4) n'ouvre aucune rubrique pour le compte 106 « Écarts de réévaluation », que le plan range sous le 10 « DOTATION » et que le poste HA reprend. Lacune du texte, signalée et non comblée : ces comptes sont rappelés hors rubriques, le TOTAL de la maquette reste celui des trois rubriques."
+          : null,
       membres,
       nationaliteTenue: false,
-      motifNationalite:
-        "La nationalité des membres apporteurs n'est pas une donnée du dossier comptable : la colonne de la maquette officielle est à compléter à la main sur l'état imprimé.",
+      precisionDroitEntreeTenue: false,
+      motifColonnesNonTenues:
+        "La nationalité des membres apporteurs et la précision « avec droit d'entrée ou sans droit d'entrée » ne sont pas des données du dossier comptable : ces deux colonnes de la maquette officielle sont à compléter à la main sur l'état imprimé.",
+      motifMembres:
+        "Membres lus sur les seuls sous-comptes d'apporteurs du compte 45 (4511, 4512, 4521, 4522, 4531, 4532, 4541, 4542, 4551, 4552). Les comptes courants (4515, 4525, 4535, 4545, 4555), les mécènes et bénévoles (457), les organisations religieuses (456) et les autres fondateurs (458) n'en sont pas : leur débit n'est pas un apport à la dotation.",
     };
   }
 
   /** Fiche récapitulative des notes annexes · Section 3 du chapitre 4. */
   ficheNotes() {
     return NOTES_SMT;
+  }
+
+  /**
+   * LES NOTES APPLICABLES de la fiche récapitulative, colonnes « A
+   * (Applicable) | N/A (Non applicable) » (Partie 4, ch. 4, section 3) · la
+   * règle que `NoteAnnexeService.calculerNote` applique déjà aux deux autres
+   * jeux : une note est applicable dès qu'elle porte une ligne chiffrée.
+   * Rend les numéros de note applicables ; les autres sont N/A.
+   *
+   * La NOTE 4 se lit sur la BALANCE et non sur le journal, qui n'est
+   * construit qu'à l'ouverture de son onglet (jumeau de l'audit final F258) :
+   * un compte de trésorerie qui porte un report à nouveau ou un mouvement
+   * ouvre un journal, et c'est ce que le journal imprimerait.
+   */
+  async notesApplicables(
+    tenantId: string,
+    exerciceId: string,
+    notes: {
+      note1: Awaited<ReturnType<EtatsFinanciersSmtService['note1Immobilisations']>>;
+      note2: Awaited<ReturnType<EtatsFinanciersSmtService['note2Stocks']>>;
+      note3: Awaited<ReturnType<EtatsFinanciersSmtService['note3CreancesDettes']>>;
+      note5: Awaited<ReturnType<EtatsFinanciersSmtService['note5Dotation']>>;
+    },
+  ): Promise<number[]> {
+    const lignes = await this.chargerLignes(tenantId, exerciceId);
+    const nonNul = (v: number) => Math.abs(v) > 0.005;
+    const journalTenu = lignes.some(
+      (l) =>
+        this.estTresorerie(l.numero) &&
+        (nonNul(l.reportDebit - l.reportCredit) || nonNul(l.mouvementDebit) || nonNul(l.mouvementCredit)),
+    );
+    const { note1, note2, note3, note5 } = notes;
+    const applicable: Record<number, boolean> = {
+      1: note1.lignes.length > 0 || note1.sortiesDeLExercice.length > 0,
+      2: note2.lignes.length > 0,
+      3: note3.creances.length > 0 || note3.dettes.length > 0,
+      4: journalTenu,
+      5: note5.rubriques.some((r) => nonNul(r.montant)) || note5.membres.length > 0 || note5.horsRubriques.length > 0,
+    };
+    return NOTES_SMT.map((n) => n.numero).filter((numero) => applicable[numero]);
   }
 
   // -------------------------------------------------------------------------

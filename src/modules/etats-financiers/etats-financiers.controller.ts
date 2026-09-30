@@ -177,7 +177,15 @@ export class EtatsFinanciersController {
       this.etatsFinanciersSmtService.note3CreancesDettes(user.tenantId, exerciceId),
       this.etatsFinanciersSmtService.note5Dotation(user.tenantId, exerciceId),
     ]);
-    return { fiche: this.etatsFinanciersSmtService.ficheNotes(), note1, note2, note3, note5 };
+    // Colonnes A et N/A de la fiche récapitulative, par la même règle que
+    // l'export (`notesApplicables`).
+    const applicables = await this.etatsFinanciersSmtService.notesApplicables(user.tenantId, exerciceId, {
+      note1,
+      note2,
+      note3,
+      note5,
+    });
+    return { fiche: this.etatsFinanciersSmtService.ficheNotes(), applicables, note1, note2, note3, note5 };
   }
 
   /** Contrôle de l'article 6 · le S.M.T est une exception liée à la taille. */

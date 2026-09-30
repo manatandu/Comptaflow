@@ -13,7 +13,7 @@ import type {
   Note4Smt,
   NotesSmt,
   PosteBilanSmt,
-  PosteCalcule,
+  PosteFluxSmt,
 } from '../lib/types';
 import { montant } from '../lib/montants';
 import { libelleExercice } from '../lib/libelle-exercice';
@@ -166,6 +166,22 @@ export function EtatsSmtPage() {
   const quantite = (v: number | null) => (v === null ? '·' : v.toLocaleString('fr-FR', { maximumFractionDigits: 3 }));
   const jour = (d: string | null) => (d ? new Date(d).toLocaleDateString('fr-FR') : '·');
 
+  // Une ligne de la Note 1 · une caution (origine BALANCE) n'a ni mise en
+  // service ni durée, et ne se dit pas « non mise en service ».
+  const ligneNote1 = (l: NotesSmt['note1']['lignes'][number], i: number) => (
+    <div key={`${l.origine}-${i}`} className="grid grid-cols-[86px_1fr_110px_100px_78px_86px_110px] gap-2 px-4 py-1 text-[11.5px]">
+      <span className="font-mono text-[11.5px]">
+        {l.dateMiseEnService ? jour(l.dateMiseEnService) : l.origine === 'REGISTRE' ? 'Non mis en service' : '·'}
+      </span>
+      <span>{l.designation}</span>
+      <span className="font-mono text-right">{montant(l.montant)}</span>
+      <span className="font-mono text-[11.5px]">{jour(l.dateAcquisition)}</span>
+      <span className="font-mono text-right">{l.dureeUtiliteAns === null ? '·' : `${l.dureeUtiliteAns} ans`}</span>
+      <span className="font-mono text-[11.5px]">{jour(l.dateSortie)}</span>
+      <span className="font-mono text-right">{montant(l.prixCession)}</span>
+    </div>
+  );
+
   // --- Bilan : REF | Libellé | Note | Montant (N) | Montant (N-1) ---
   const ligneBilan = (p: PosteBilanSmt) => (
     <div
@@ -183,23 +199,32 @@ export function EtatsSmtPage() {
     </div>
   );
 
-  const ligneFlux = (p: PosteCalcule) => (
+  // --- Compte de résultat : REF | Libellé | Note | Montant (N) | Montant (N-1) ---
+  // Les colonnes de la maquette (Partie 4, ch. 4, section 2), comme au bilan.
+  // Le renvoi de note est celui que la table porte (« 4 » de KA à JF), rien
+  // sur les totaux ni sur VA à JG · la transcription n'en porte pas.
+  const GRILLE_CR = 'grid-cols-[40px_1fr_44px_120px_120px] min-w-[540px]';
+  const ligneFlux = (p: PosteFluxSmt) => (
     <div
       key={p.ref}
       title={p.comptes.length > 0 ? `Comptes : ${p.comptes.map((c) => c.numero).join(', ')}` : undefined}
-      className={`grid grid-cols-[40px_1fr_130px] gap-2 px-4 py-1 text-[11.5px] ${p.montant === 0 ? 'text-text-dim' : ''}`}
+      className={`grid ${GRILLE_CR} gap-2 px-4 py-1 text-[11.5px] ${p.montant === 0 ? 'text-text-dim' : ''}`}
     >
       <span className="font-mono text-[11px] text-text-dim">{p.ref}</span>
       <span>{p.libelle}</span>
+      <span className="font-mono text-[11px] text-text-dim text-center">{p.note ?? ''}</span>
       <span className="font-mono text-right">{montant(p.montant)}</span>
+      <span className="font-mono text-right text-text-dim">{montant(p.montantN1)}</span>
     </div>
   );
 
-  const ligneTotal = (ref: string, libelle: string, valeur: number) => (
-    <div className="grid grid-cols-[40px_1fr_130px] gap-2 px-4 py-1.5 bg-surface-alt border-y border-border text-[11.5px] font-bold">
+  const ligneTotal = (ref: string, libelle: string, valeur: number, valeurN1: number | undefined) => (
+    <div className={`grid ${GRILLE_CR} gap-2 px-4 py-1.5 bg-surface-alt border-y border-border text-[11.5px] font-bold`}>
       <span className="font-mono text-[11px]">{ref}</span>
       <span>{libelle}</span>
+      <span />
       <span className="font-mono text-right">{montant(valeur)}</span>
+      <span className="font-mono text-right text-text-dim font-normal">{montant(valeurN1)}</span>
     </div>
   );
 
@@ -321,26 +346,28 @@ export function EtatsSmtPage() {
 
       {/* ---------------------------------------------------------------- */}
       {onglet === 'compte-de-resultat' && cr && (
-        <div className="max-w-[760px]">
-          <div className="border border-border bg-surface mb-3">
-            {entete(['REF', 'LIBELLÉ', 'EXERCICE N'], 'grid-cols-[40px_1fr_130px]')}
+        <div className="max-w-[900px]">
+          <div className="border border-border bg-surface mb-3 overflow-x-auto">
+            {entete(['REF', 'LIBELLÉ', 'NOTE', 'EXERCICE N', 'EXERCICE N-1'], GRILLE_CR)}
             {cr.recettes.map(ligneFlux)}
-            {ligneTotal('KX', 'TOTAL DES REVENUS ENCAISSÉS (A)', cr.totalRecettes)}
+            {ligneTotal('KX', 'TOTAL DES REVENUS ENCAISSÉS (A)', cr.totalRecettes, cr.totalRecettesN1)}
             {cr.depenses.map(ligneFlux)}
-            {ligneTotal('JX', 'TOTAL DÉPENSES SUR CHARGES (B)', cr.totalDepenses)}
-            {ligneTotal('KZ', 'SOLDE : excédent (+) ou insuffisance (-) de recettes (C = A-B)', cr.soldeCaisse)}
+            {ligneTotal('JX', 'TOTAL DÉPENSES SUR CHARGES (B)', cr.totalDepenses, cr.totalDepensesN1)}
+            {ligneTotal('KZ', 'SOLDE : excédent (+) ou insuffisance (-) de recettes (C = A-B)', cr.soldeCaisse, cr.soldeCaisseN1)}
             {cr.retraitements.map((r) => (
               <div
                 key={r.ref}
                 title={r.comptes.length > 0 ? `Comptes : ${r.comptes.map((c) => c.numero).join(', ')}` : undefined}
-                className="grid grid-cols-[40px_1fr_130px] gap-2 px-4 py-1 text-[11.5px]"
+                className={`grid ${GRILLE_CR} gap-2 px-4 py-1 text-[11.5px]`}
               >
                 <span className="font-mono text-[11px] text-text-dim">{r.ref}</span>
                 <span>{r.libelle}</span>
+                <span />
                 <span className="font-mono text-right">{montant(r.montant)}</span>
+                <span className="font-mono text-right text-text-dim">{montant(r.montantN1)}</span>
               </div>
             ))}
-            {ligneTotal('KZC', "RÉSULTAT NET DE L'EXERCICE", cr.resultatNet)}
+            {ligneTotal('KZC', "RÉSULTAT NET DE L'EXERCICE", cr.resultatNet, cr.resultatNetN1)}
           </div>
 
           {/* Les deux chemins vers le résultat doivent coïncider, une fois
@@ -353,7 +380,7 @@ export function EtatsSmtPage() {
                 Flux de trésorerie hors exploitation : {montant(cr.controle.fluxHorsExploitation)}
                 <Aide
                   titre="Flux de trésorerie hors exploitation"
-                  texte="Encaissements et décaissements qui ne sont ni un produit ni une charge (apport en dotation, emprunt, acquisition ou cession d'immobilisation). Ils entrent dans le solde de caisse KZ mais pas dans le résultat, et la maquette officielle du Système minimal de trésorerie n'ouvre aucune ligne pour les reprendre. Le montant est donc calculé ici plutôt que laissé en écart inexpliqué."
+                  texte="Encaissements et décaissements qui ne sont ni un produit ni une charge (apport en dotation, emprunt, acquisition ou cession d'immobilisation, règlement d'un fournisseur d'investissements 481, que la variation des dettes d'exploitation VC ne reprend pas). Ils entrent dans le solde de caisse KZ mais pas dans le résultat, et la maquette officielle du Système minimal de trésorerie n'ouvre aucune ligne pour les reprendre. Le montant est donc calculé ici plutôt que laissé en écart inexpliqué."
                   source="SYCEBNL · maquette du Système minimal de trésorerie"
                 />
               </div>
@@ -439,9 +466,12 @@ export function EtatsSmtPage() {
                     o.virementInterne
                       ? "Déplacement entre deux comptes de l'entité : ni recette ni dépense, donc absent du compte de résultat, mais bien un mouvement de ce compte."
                       : o.ventile
-                        ? Object.entries(o.ventilation)
-                            .filter(([, v]) => Math.abs(v) > 0.005)
-                            .map(([k, v]) => `${k} : ${montant(v)}`)
+                        ? // Les LIBELLÉS de la maquette, lus du côté de l'opération ·
+                          // recettes et dépenses ont chacune leur « Autres », sous la
+                          // même clé, et la clé seule ne dit rien au lecteur.
+                          (o.sens === 'RECETTE' ? journalNote4.colonnesRecettes : journalNote4.colonnesDepenses)
+                            .filter((c) => Math.abs(o.ventilation[c.cle] ?? 0) > 0.005)
+                            .map((c) => `${c.libelle} : ${montant(o.ventilation[c.cle])}`)
                             .join(' · ')
                         : 'Écriture partagée entre plusieurs comptes de trésorerie : ventilation non attribuée'
                   }
@@ -473,6 +503,19 @@ export function EtatsSmtPage() {
               </div>
             </div>
           ))}
+          {/* Les colonnes de ventilation de la maquette, listées telles quelles ·
+              même présentation que le jumeau SYSCOHADA. */}
+          <div className="border border-border bg-surface mb-3 px-3.5 py-2.5 max-w-[900px]">
+            <div className="text-[11.5px] font-bold mb-1">Ventilation de la NOTE 4</div>
+            <div className="text-[11.5px] mb-0.5">
+              <span className="text-text-dim">Recettes : </span>
+              {journalNote4.colonnesRecettes.map((c) => c.libelle).join(' · ')}
+            </div>
+            <div className="text-[11.5px]">
+              <span className="text-text-dim">Dépenses : </span>
+              {journalNote4.colonnesDepenses.map((c) => c.libelle).join(' · ')}
+            </div>
+          </div>
           <p className="text-[11px] text-text-dim max-w-[900px]">{journalNote4.nb}</p>
         </div>
       )}
@@ -484,15 +527,29 @@ export function EtatsSmtPage() {
             <div className="bg-surface-alt border-b border-border px-4 py-1.5 text-[11.5px] font-bold">
               FICHE RÉCAPITULATIVE DES NOTES ANNEXES PRÉSENTÉES
             </div>
-            {notes.fiche.map((n) => (
-              <div key={n.numero} className="grid grid-cols-[70px_1fr_180px] gap-2 px-4 py-1 text-[11.5px]">
-                <span className="font-mono text-[11.5px] text-text-dim">Note {n.numero}</span>
-                <span>{n.intitule}</span>
-                <span className="text-[11px] text-text-dim">
-                  {n.partie === 'BILAN' ? 'Notes sur le bilan' : 'Notes sur compte de résultat'}
-                </span>
-              </div>
-            ))}
+            {/* Colonnes « A (Applicable) | N/A (Non applicable) » de la fiche
+                (Partie 4, ch. 4, section 3), servies par le serveur. */}
+            <div className="grid grid-cols-[70px_1fr_180px_40px_40px] gap-2 px-4 py-1 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim">
+              <span>NOTES</span>
+              <span>INTITULÉS</span>
+              <span />
+              <span className="text-center" title="Applicable">A</span>
+              <span className="text-center" title="Non applicable">N/A</span>
+            </div>
+            {notes.fiche.map((n) => {
+              const applicable = notes.applicables.includes(n.numero);
+              return (
+                <div key={n.numero} className="grid grid-cols-[70px_1fr_180px_40px_40px] gap-2 px-4 py-1 text-[11.5px]">
+                  <span className="font-mono text-[11.5px] text-text-dim">Note {n.numero}</span>
+                  <span>{n.intitule}</span>
+                  <span className="text-[11px] text-text-dim">
+                    {n.partie === 'BILAN' ? 'Notes sur le bilan' : 'Notes sur compte de résultat'}
+                  </span>
+                  <span className="text-center font-bold">{applicable ? 'X' : ''}</span>
+                  <span className="text-center font-bold">{applicable ? '' : 'X'}</span>
+                </div>
+              );
+            })}
           </div>
 
           <div className="border border-border bg-surface mb-3">
@@ -508,20 +565,50 @@ export function EtatsSmtPage() {
               <span>SORTIE</span>
               <span className="text-right">PRIX DE CESSION</span>
             </div>
-            {notes.note1.lignes.length === 0 && (
-              <div className="px-4 py-2 text-[11.5px] text-text-dim">Aucune immobilisation enregistrée.</div>
+            {/* « Aucune immobilisation » seulement si la classe 2 n'a rien à
+                dire · un compte soldé hors fiches est nommé plus bas. */}
+            {notes.note1.lignes.length === 0 &&
+              notes.note1.sortiesDeLExercice.length === 0 &&
+              notes.note1.ecartsGA.length === 0 && (
+                <div className="px-4 py-2 text-[11.5px] text-text-dim">Aucune immobilisation enregistrée.</div>
+              )}
+            {notes.note1.lignes.map(ligneNote1)}
+            <div className="grid grid-cols-[86px_1fr_110px_100px_78px_86px_110px] gap-2 px-4 py-1.5 border-t border-border text-[11.5px] font-bold">
+              <span />
+              <span title="Biens détenus à la clôture et cautions · un bien sorti n'est plus au bilan">TOTAL</span>
+              <span className="font-mono text-right">{montant(notes.note1.total)}</span>
+            </div>
+            {notes.note1.sortiesDeLExercice.length > 0 && (
+              <>
+                <div className="px-4 py-1 bg-surface-alt border-y border-border text-[11px] font-bold text-text-dim">
+                  BIENS SORTIS PENDANT L'EXERCICE · HORS DU TOTAL
+                </div>
+                {notes.note1.sortiesDeLExercice.map(ligneNote1)}
+              </>
             )}
-            {notes.note1.lignes.map((l, i) => (
-              <div key={i} className="grid grid-cols-[86px_1fr_110px_100px_78px_86px_110px] gap-2 px-4 py-1 text-[11.5px]">
-                <span className="font-mono text-[11.5px]">{l.dateMiseEnService ? jour(l.dateMiseEnService) : 'Non mis en service'}</span>
-                <span>{l.designation}</span>
-                <span className="font-mono text-right">{montant(l.montant)}</span>
-                <span className="font-mono text-[11.5px]">{jour(l.dateAcquisition)}</span>
-                <span className="font-mono text-right">{l.dureeUtiliteAns} ans</span>
-                <span className="font-mono text-[11.5px]">{jour(l.dateSortie)}</span>
-                <span className="font-mono text-right">{montant(l.prixCession)}</span>
+            {(notes.note1.motifCautions || notes.note1.motifEcartsGA) && (
+              <div className="px-4 py-2 text-[11px] border-t border-border">
+                {notes.note1.ecartsGA.map((e) => (
+                  <div key={e.numero} className="text-warning">
+                    {e.numero} {e.intitule} · solde {montant(e.soldeBalance)}, fiches {montant(e.valeurFiches)}, écart{' '}
+                    {montant(e.ecart)}
+                  </div>
+                ))}
+                {notes.note1.fichesSansSolde.map((f, i) => (
+                  <div key={i} className="text-warning">
+                    Fiche sans solde au compte · {f.designation} ({montant(f.montant)})
+                  </div>
+                ))}
+                <span className="inline-flex items-center gap-1 text-text-dim">
+                  {notes.note1.ecartsGA.length + notes.note1.fichesSansSolde.length > 0 ? 'Rapprochement avec le poste GA' : 'Cautions'}
+                  <Aide
+                    titre="Note 1 et poste GA"
+                    texte={[notes.note1.motifEcartsGA, notes.note1.motifCautions].filter(Boolean).join(' ')}
+                    source="SYCEBNL · Partie 4, ch. 4, section 3"
+                  />
+                </span>
               </div>
-            ))}
+            )}
           </div>
 
           <div className="border border-border bg-surface mb-3">
@@ -656,6 +743,31 @@ export function EtatsSmtPage() {
                   <span />
                   <span />
                 </div>
+                {/* Les dépréciations 490 à 498 en déduction des créances, puis
+                    les créances nettes, qui sont le poste GC (fiche du COMPTE 49).
+                    Hors ventilation : une dépréciation n'a pas d'échéance. */}
+                {titre === 'CRÉANCES' && notes.note3.depreciationsCreances.length > 0 && (
+                  <>
+                    {notes.note3.depreciationsCreances.map((d) => (
+                      <div key={d.numero} className="grid grid-cols-[minmax(170px,1fr)_105px_105px_105px_105px_105px_105px_74px] gap-2 px-4 py-1 text-[11.5px]">
+                        <span title="Dépréciation, en déduction des créances">
+                          <span className="font-mono text-[11.5px] text-text-dim">{d.numero}</span> {d.intitule}
+                        </span>
+                        <span className="font-mono text-right">{montant(d.montantCloture)}</span>
+                        <span />
+                        <span />
+                        <span />
+                        <span className="font-mono text-right">{montant(d.montantOuverture)}</span>
+                        <span className="font-mono text-right">{montant(d.variationValeur)}</span>
+                        <span />
+                      </div>
+                    ))}
+                    <div className="grid grid-cols-[minmax(170px,1fr)_105px_105px_105px_105px_105px_105px_74px] gap-2 px-4 py-1.5 text-[11.5px] font-bold">
+                      <span>CRÉANCES NETTES (poste GC)</span>
+                      <span className="font-mono text-right">{montant(notes.note3.totalCreancesNettes)}</span>
+                    </div>
+                  </>
+                )}
               </div>
             ))}
             {/* La ventilation S'AJOUTE à la maquette, elle ne l'ampute pas :
@@ -684,23 +796,53 @@ export function EtatsSmtPage() {
               <span>TOTAL</span>
               <span className="font-mono text-right">{montant(notes.note5.total)}</span>
             </div>
+            {/* Ce que le poste HA reprend et qu'aucune rubrique n'ouvre (106) ·
+                sous le TOTAL de la maquette, qui ne bouge pas. */}
+            {notes.note5.horsRubriques.length > 0 && (
+              <>
+                {notes.note5.horsRubriques.map((c) => (
+                  <div key={c.numero} className="grid grid-cols-[1fr_140px] gap-2 px-4 py-1 text-[11.5px] text-warning">
+                    <span>
+                      <span className="font-mono text-[11.5px]">{c.numero}</span> {c.intitule} · hors rubriques
+                    </span>
+                    <span className="font-mono text-right">{montant(c.montant)}</span>
+                  </div>
+                ))}
+                <div className="grid grid-cols-[1fr_140px] gap-2 px-4 py-1.5 border-t border-border text-[11.5px] font-bold">
+                  <span className="inline-flex items-center gap-1">
+                    POSTE HA DU BILAN
+                    <Aide
+                      titre="Note 5 et poste HA"
+                      texte={notes.note5.motifHorsRubriques ?? ''}
+                      source="SYCEBNL · Partie 4, ch. 4, section 3 ; Partie 2, ch. 2"
+                    />
+                  </span>
+                  <span className="font-mono text-right">{montant(notes.note5.totalPosteHA)}</span>
+                </div>
+              </>
+            )}
             {notes.note5.membres.length > 0 && (
               <>
-                <div className="grid grid-cols-[1fr_140px_140px] gap-2 px-4 py-1.5 bg-surface-alt border-y border-border text-[11px] font-bold text-text-dim">
-                  <span>MEMBRE APPORTEUR</span>
+                <div className="grid grid-cols-[1fr_120px_120px_170px] gap-2 px-4 py-1.5 bg-surface-alt border-y border-border text-[11px] font-bold text-text-dim">
+                  <span className="inline-flex items-center gap-1">
+                    MEMBRE APPORTEUR
+                    <Aide titre="Membres apporteurs" texte={notes.note5.motifMembres} source="SYCEBNL · Partie 2, ch. 3, COMPTE 45" />
+                  </span>
                   <span>NATIONALITÉ</span>
                   <span className="text-right">MONTANT</span>
+                  <span title="Préciser avec droit d'entrée ou sans droit d'entrée">DROIT D'ENTRÉE</span>
                 </div>
                 {notes.note5.membres.map((m) => (
-                  <div key={m.numero} className="grid grid-cols-[1fr_140px_140px] gap-2 px-4 py-1 text-[11.5px]">
+                  <div key={m.numero} className="grid grid-cols-[1fr_120px_120px_170px] gap-2 px-4 py-1 text-[11.5px]">
                     <span>{m.nom}</span>
                     <span className="text-text-dim">·</span>
                     <span className="font-mono text-right">{montant(m.montant)}</span>
+                    <span className="text-text-dim">·</span>
                   </div>
                 ))}
               </>
             )}
-            <p className="px-4 py-2 text-[11px] text-text-dim border-t border-border">{notes.note5.motifNationalite}</p>
+            <p className="px-4 py-2 text-[11px] text-text-dim border-t border-border">{notes.note5.motifColonnesNonTenues}</p>
           </div>
         </div>
       )}
