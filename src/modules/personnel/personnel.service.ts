@@ -76,8 +76,11 @@ import { BAREMES_SERVIS, annexesSmigDuDossier, versionsDuDossier, type LigneVers
 import { effectifDuRegistre } from './effectif-registre';
 import {
   decompteFinal,
+  motifRefusDecompte,
+  type ExecutionPreavis,
   type InitiativeRupture,
   type MotifRupture,
+  type TypeContratDecompte,
 } from './decompte-final';
 import {
   CONTRAT_A_COMPLETER,
@@ -1298,18 +1301,61 @@ export class PersonnelService {
     };
   }
 
-  decompteFinal(_tenantId: string, dto: DecompteFinalDto) {
+  /**
+   * LE DÉCOMPTE FINAL · le moteur est pur (`decompte-final.ts`). Le service ne
+   * fait que refuser les combinaisons que le texte exclut, et lire la colonne 19
+   * de la grille du mois de cessation (décret n° 25/22, ou version du cabinet)
+   * pour les allocations familiales · jamais un montant saisi pour elle.
+   */
+  async decompteFinal(tenantId: string, dto: DecompteFinalDto) {
+    const initiative = dto.initiative as InitiativeRupture;
+    const motif = dto.motif as MotifRupture;
+    const typeContrat = dto.typeContrat as TypeContratDecompte;
+    const refus = motifRefusDecompte({ initiative, motif, typeContrat });
+    if (refus) throw new BadRequestException(refus);
+
+    let allocationFamilialeParEnfantFc: number | null = null;
+    let explicationAllocationFamiliale: string | null = null;
+    if (dto.moisDeCessation !== undefined) {
+      if (!moisValide(dto.moisDeCessation)) {
+        throw new BadRequestException('Le mois de cessation doit être écrit AAAA-MM.');
+      }
+      const annexesSmig = annexesSmigDuDossier(await this.versionsBaremesDuMois(tenantId, dto.moisDeCessation));
+      const a = allocationFamilialeJournaliere(dto.moisDeCessation, 1, annexesSmig);
+      allocationFamilialeParEnfantFc = a.valeur?.parEnfantFc ?? null;
+      explicationAllocationFamiliale = a.explication;
+    }
+
     return decompteFinal({
       anneesAnciennete: dto.anneesAnciennete,
-      moisEntiersDeService: dto.moisEntiersDeService,
+      moisNonCouvertsParUnConge: dto.moisNonCouvertsParUnConge,
       moinsDeDixHuitAns: dto.moinsDeDixHuitAns ?? false,
-      initiative: dto.initiative as InitiativeRupture,
-      motif: dto.motif as MotifRupture,
+      initiative,
+      motif,
+      typeContrat,
+      periodeDEssai: dto.periodeDEssai ?? false,
+      joursDEssaiEcoules: dto.joursDEssaiEcoules ?? null,
       delegueSyndical: dto.delegueSyndical,
+      dateNotification: dto.dateNotification ? dto.dateNotification.slice(0, 10) : null,
+      preavisRetenuJours: dto.preavisRetenuJours ?? null,
+      forceMajeureConstateeParInspecteur: dto.forceMajeureConstateeParInspecteur ?? false,
+      deuxMoisDeSuspension: dto.deuxMoisDeSuspension ?? false,
+      executionPreavis: (dto.executionPreavis as ExecutionPreavis | undefined) ?? null,
+      joursPreavisNonObserves: dto.joursPreavisNonObserves ?? null,
+      partieResponsable: (dto.partieResponsable as InitiativeRupture | undefined) ?? null,
       remunerationJournaliereFc: dto.remunerationJournaliereFc ?? null,
+      moyenneMensuelleArticle66Fc: dto.moyenneMensuelleArticle66Fc ?? null,
+      moyenneMensuelleArticle142Fc: dto.moyenneMensuelleArticle142Fc ?? null,
+      avantagesPendantPreavisFc: dto.avantagesPendantPreavisFc ?? null,
+      joursRestantsJusquAuTerme: dto.joursRestantsJusquAuTerme ?? null,
+      avantagesJusquAuTermeFc: dto.avantagesJusquAuTermeFc ?? null,
+      montantConvenuCommunAccordFc: dto.montantConvenuCommunAccordFc ?? null,
       arrieresFc: dto.arrieresFc ?? null,
-      moyenneDouzeMoisFc: dto.moyenneDouzeMoisFc ?? null,
       gratificationFc: dto.gratificationFc ?? null,
+      enfantsBeneficiairesAllocations: dto.enfantsBeneficiairesAllocations ?? null,
+      joursAllocationsFamiliales: dto.joursAllocationsFamiliales ?? null,
+      allocationFamilialeParEnfantFc,
+      explicationAllocationFamiliale,
     });
   }
 
@@ -1628,6 +1674,6 @@ export class PersonnelService {
 export type Confrontation = Awaited<ReturnType<PersonnelService['confronter']>>;
 export type Effectif = Awaited<ReturnType<PersonnelService['effectif']>>;
 export type SimulationPaie = Awaited<ReturnType<PersonnelService['simulerPaie']>>;
-export type DecompteFinal = ReturnType<PersonnelService['decompteFinal']>;
+export type DecompteFinal = Awaited<ReturnType<PersonnelService['decompteFinal']>>;
 export type LivreDePaie = ReturnType<PersonnelService['livreDePaie']>;
 export type BulletinPaieLu = Awaited<ReturnType<PersonnelService['lireBulletin']>>;

@@ -511,7 +511,8 @@ describe("Le « taux légal » des allocations familiales, calculé et non saisi
       't-1',
       null,
       dto({
-        moisDePaie: '2024-06',
+        // Avant juillet 2019, aucune annexe (audit D2-C1).
+        moisDePaie: '2018-09',
         enfantsBeneficiairesAllocations: 2,
       } as Partial<SimulationPaieDto>),
     );

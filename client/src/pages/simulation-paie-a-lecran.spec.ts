@@ -340,3 +340,30 @@ describe('Salaire stipulé en USD · le serveur convertit, l’écran ne calcule
     expect(SOURCE).toContain('1 USD = {simulation.conversion.cours.toLocaleString');
   });
 });
+
+describe('D2 · le décompte final déclare les faits de la rupture', () => {
+  const panneau = SOURCE.slice(SOURCE.indexOf("{onglet === 'decompte'"), SOURCE.indexOf("{onglet === 'livre'"));
+
+  it("tire l'initiative du motif quand le texte la fixe (art. 64, al. 2)", () => {
+    expect(SOURCE).toContain("motif === 'DEMISSION' ? 'TRAVAILLEUR' : motif === 'LICENCIEMENT' ? 'EMPLOYEUR' : null");
+    expect(panneau).toContain('initiative: initiativeDuMotif(e.target.value) ?? dec.initiative');
+    expect(panneau).toContain('disabled={initiativeDuMotif(dec.motif) !== null}');
+  });
+
+  it("demande le type de contrat, l'essai et l'exécution du préavis", () => {
+    expect(panneau).toContain('value="DUREE_DETERMINEE"');
+    expect(panneau).toContain('Période d’essai');
+    expect(panneau).toContain('value="NON_OBSERVE"');
+    expect(panneau).toContain('Mois non couverts par un congé');
+  });
+
+  it("dit que le décompte écrit est une obligation, et que l'écran ne l'émet pas", () => {
+    expect(panneau).toContain('arrêté n° 12/CAB.MIN/ETPS/042 du 8 août 2008, art. 2');
+    expect(panneau).toContain('il n’émet pas ce décompte écrit');
+  });
+
+  it('montre à part ce que doit le travailleur, et le total dû', () => {
+    expect(panneau).toContain('decompte.duParLeTravailleur.map');
+    expect(panneau).toContain('decompte.totalDuAuTravailleurFc === null');
+  });
+});

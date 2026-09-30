@@ -301,17 +301,27 @@ interface LivreDePaie {
   reserveArticle104: string;
 }
 
+interface RubriqueDecompte {
+  cle: string;
+  libelle: string;
+  montantFc: number | null;
+  fondement: string;
+  reserve: string | null;
+}
+
 interface Decompte {
-  preavis: { joursOuvrables: number | null; motifAucunPreavis: string | null };
-  conge: { joursOuvrables: number; joursDeBase: number; joursDAnciennete: number };
-  rubriques: {
-    cle: string;
-    libelle: string;
-    montantFc: number | null;
+  preavis: {
+    joursOuvrables: number | null;
+    motifAucunPreavis: string | null;
+    motifIndetermine: string | null;
     fondement: string;
-    reserve: string | null;
-  }[];
+  };
+  conge: { joursOuvrables: number; joursDeBase: number; joursDAnciennete: number };
+  rubriques: RubriqueDecompte[];
   totalBrutFc: number | null;
+  horsBrut: RubriqueDecompte[];
+  totalDuAuTravailleurFc: number | null;
+  duParLeTravailleur: RubriqueDecompte[];
   echeancePaiement: string;
   reserves: string[];
 }
@@ -563,16 +573,43 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
   const [decompte, setDecompte] = useState<Decompte | null>(null);
   const [dec, setDec] = useState({
     anneesAnciennete: '',
-    moisEntiersDeService: '',
+    moisNonCouvertsParUnConge: '',
     moinsDeDixHuitAns: false,
     initiative: 'EMPLOYEUR' as 'EMPLOYEUR' | 'TRAVAILLEUR',
     motif: 'LICENCIEMENT',
+    typeContrat: '',
+    periodeDEssai: false,
+    joursDEssaiEcoules: '',
     delegueSyndical: false,
+    dateNotification: '',
+    preavisRetenuJours: '',
+    forceMajeureConstateeParInspecteur: false,
+    deuxMoisDeSuspension: false,
+    executionPreavis: '',
+    joursPreavisNonObserves: '',
+    partieResponsable: '',
     remunerationJournaliereFc: '',
+    moyenneMensuelleArticle66Fc: '',
+    moyenneMensuelleArticle142Fc: '',
+    avantagesPendantPreavisFc: '',
+    joursRestantsJusquAuTerme: '',
+    avantagesJusquAuTermeFc: '',
+    montantConvenuCommunAccordFc: '',
     arrieresFc: '',
-    moyenneDouzeMoisFc: '',
     gratificationFc: '',
+    moisDeCessation: '',
+    enfantsDecompte: '',
+    joursAllocationsFamiliales: '',
   });
+  /**
+   * L'INITIATIVE SUIT LE MOTIF QUAND LE TEXTE LA FIXE · une démission est
+   * l'initiative du travailleur (art. 64, al. 2), un licenciement celle de
+   * l'employeur. Laisser « Employeur » par défaut sur une démission servait au
+   * démissionnaire le préavis entier de l'employeur (audit D2-A1) ; le serveur
+   * refuse aussi la combinaison.
+   */
+  const initiativeDuMotif = (motif: string) =>
+    motif === 'DEMISSION' ? 'TRAVAILLEUR' : motif === 'LICENCIEMENT' ? 'EMPLOYEUR' : null;
   const [enfantsAllocations, setEnfantsAllocations] = useState('');
   const [classePro, setClassePro] = useState('');
   const [logementNature, setLogementNature] = useState(false);
@@ -841,15 +878,33 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
     api
       .post<Decompte>('/personnel/decompte-final', {
         anneesAnciennete: nombre(dec.anneesAnciennete) ?? 0,
-        moisEntiersDeService: nombre(dec.moisEntiersDeService) ?? 0,
+        moisNonCouvertsParUnConge: nombre(dec.moisNonCouvertsParUnConge) ?? 0,
         moinsDeDixHuitAns: dec.moinsDeDixHuitAns,
         initiative: dec.initiative,
         motif: dec.motif,
+        typeContrat: dec.typeContrat || undefined,
+        periodeDEssai: dec.periodeDEssai,
+        joursDEssaiEcoules: dec.periodeDEssai ? nombre(dec.joursDEssaiEcoules) : undefined,
         delegueSyndical: dec.delegueSyndical,
+        dateNotification: dec.dateNotification || undefined,
+        preavisRetenuJours: nombre(dec.preavisRetenuJours),
+        forceMajeureConstateeParInspecteur: dec.forceMajeureConstateeParInspecteur,
+        deuxMoisDeSuspension: dec.deuxMoisDeSuspension,
+        executionPreavis: dec.executionPreavis || undefined,
+        joursPreavisNonObserves: nombre(dec.joursPreavisNonObserves),
+        partieResponsable: dec.partieResponsable || undefined,
         remunerationJournaliereFc: nombre(dec.remunerationJournaliereFc),
+        moyenneMensuelleArticle66Fc: nombre(dec.moyenneMensuelleArticle66Fc),
+        moyenneMensuelleArticle142Fc: nombre(dec.moyenneMensuelleArticle142Fc),
+        avantagesPendantPreavisFc: nombre(dec.avantagesPendantPreavisFc),
+        joursRestantsJusquAuTerme: nombre(dec.joursRestantsJusquAuTerme),
+        avantagesJusquAuTermeFc: nombre(dec.avantagesJusquAuTermeFc),
+        montantConvenuCommunAccordFc: nombre(dec.montantConvenuCommunAccordFc),
         arrieresFc: nombre(dec.arrieresFc),
-        moyenneDouzeMoisFc: nombre(dec.moyenneDouzeMoisFc),
         gratificationFc: nombre(dec.gratificationFc),
+        moisDeCessation: dec.moisDeCessation || undefined,
+        enfantsBeneficiairesAllocations: nombre(dec.enfantsDecompte),
+        joursAllocationsFamiliales: nombre(dec.joursAllocationsFamiliales),
       })
       .then(
         (r) => {
@@ -2975,54 +3030,24 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
             (art. 100).{' '}
             <Aide
               titre="Décompte final"
-              texte="Le décompte final est un usage professionnel, dont le fondement est l’article 100. OmegaX calcule les durées que le Code fixe, et laisse saisir ce qu’aucun livre ne porte."
-              source="Code du travail, art. 100"
+              texte="À toute résiliation, pour quelque cause que ce soit, l’employeur doit remettre au travailleur un décompte écrit des payements effectués (arrêté de 2008, art. 2, al. 3) ; à défaut, ses allégations sur les paiements sont rejetées (art. 103, al. 2). Cet écran calcule les rubriques, il n’émet pas ce décompte écrit."
+              source="Code du travail, art. 100 et 103 · arrêté n° 12/CAB.MIN/ETPS/042 du 8 août 2008, art. 2"
             />
           </div>
 
           <div className="border border-border px-3.5 py-2.5 mb-2.5">
             <div className="flex flex-wrap gap-3 items-end">
               <label className="flex flex-col gap-0.5">
-                <span className={etiquette}>Ancienneté (années)</span>
-                <input
-                  value={dec.anneesAnciennete}
-                  onChange={(e) => setDec({ ...dec, anneesAnciennete: e.target.value })}
-                  className="border border-border bg-transparent px-2 py-1 w-[110px] text-right"
-                />
-              </label>
-              <label className="flex flex-col gap-0.5">
-                <span className={`${etiquette} flex items-center gap-1`}>
-                  Mois entiers de service
-                  <Aide
-                    titre="Mois entiers de service"
-                    texte="Ils sont saisis : l’article 141, alinéa 2, y fait entrer les jours de repos, de congé payé, les jours fériés et l’incapacité jusqu’à six mois par année. Les reconstituer depuis les dates du contrat donnerait un chiffre plausible et faux."
-                    source="Code du travail, art. 141, al. 2"
-                  />
-                </span>
-                <input
-                  value={dec.moisEntiersDeService}
-                  onChange={(e) => setDec({ ...dec, moisEntiersDeService: e.target.value })}
-                  className="border border-border bg-transparent px-2 py-1 w-[140px] text-right"
-                />
-              </label>
-              <label className="flex flex-col gap-0.5">
-                <span className={etiquette}>Initiative</span>
-                <select
-                  value={dec.initiative}
-                  onChange={(e) =>
-                    setDec({ ...dec, initiative: e.target.value as 'EMPLOYEUR' | 'TRAVAILLEUR' })
-                  }
-                  className="border border-border bg-transparent px-2 py-1 w-[130px]"
-                >
-                  <option value="EMPLOYEUR">Employeur</option>
-                  <option value="TRAVAILLEUR">Travailleur</option>
-                </select>
-              </label>
-              <label className="flex flex-col gap-0.5">
                 <span className={etiquette}>Motif</span>
                 <select
                   value={dec.motif}
-                  onChange={(e) => setDec({ ...dec, motif: e.target.value })}
+                  onChange={(e) =>
+                    setDec({
+                      ...dec,
+                      motif: e.target.value,
+                      initiative: initiativeDuMotif(e.target.value) ?? dec.initiative,
+                    })
+                  }
                   className="border border-border bg-transparent px-2 py-1 w-[160px]"
                 >
                   <option value="LICENCIEMENT">Licenciement</option>
@@ -3032,6 +3057,42 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                   <option value="TERME_DU_CDD">Terme du CDD</option>
                   <option value="COMMUN_ACCORD">Commun accord</option>
                 </select>
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Initiative</span>
+                <select
+                  value={dec.initiative}
+                  disabled={initiativeDuMotif(dec.motif) !== null}
+                  title="Code du travail, art. 61 et 64, al. 2"
+                  onChange={(e) =>
+                    setDec({ ...dec, initiative: e.target.value as 'EMPLOYEUR' | 'TRAVAILLEUR' })
+                  }
+                  className="border border-border bg-transparent px-2 py-1 w-[130px] disabled:opacity-60"
+                >
+                  <option value="EMPLOYEUR">Employeur</option>
+                  <option value="TRAVAILLEUR">Travailleur</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Type de contrat</span>
+                <select
+                  value={dec.typeContrat}
+                  title="Code du travail, art. 64 et 69"
+                  onChange={(e) => setDec({ ...dec, typeContrat: e.target.value })}
+                  className="border border-border bg-transparent px-2 py-1 w-[150px]"
+                >
+                  <option value="">Choisir</option>
+                  <option value="DUREE_INDETERMINEE">Durée indéterminée</option>
+                  <option value="DUREE_DETERMINEE">Durée déterminée</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Ancienneté (années)</span>
+                <input
+                  value={dec.anneesAnciennete}
+                  onChange={(e) => setDec({ ...dec, anneesAnciennete: e.target.value })}
+                  className="border border-border bg-transparent px-2 py-1 w-[110px] text-right"
+                />
               </label>
               <label className="flex flex-col gap-0.5">
                 <span className={etiquette}>Taux journalier (FC)</span>
@@ -3049,17 +3110,217 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                 />
                 <span className="text-[11px]">Moins de 18 ans</span>
               </label>
-              <label className="flex items-center gap-1 pb-1">
+              <label className="flex items-center gap-1 pb-1" title="Code du travail, art. 71">
+                <input
+                  type="checkbox"
+                  checked={dec.periodeDEssai}
+                  onChange={(e) => setDec({ ...dec, periodeDEssai: e.target.checked })}
+                />
+                <span className="text-[11px]">Période d’essai</span>
+              </label>
+              {dec.periodeDEssai && (
+                <label className="flex flex-col gap-0.5">
+                  <span className={etiquette}>Jours d’essai écoulés</span>
+                  <input
+                    value={dec.joursDEssaiEcoules}
+                    onChange={(e) => setDec({ ...dec, joursDEssaiEcoules: e.target.value })}
+                    className="border border-border bg-transparent px-2 py-1 w-[110px] text-right"
+                  />
+                </label>
+              )}
+              <label className="flex items-center gap-1 pb-1" title="Code du travail, art. 258">
                 <input
                   type="checkbox"
                   checked={dec.delegueSyndical}
                   onChange={(e) => setDec({ ...dec, delegueSyndical: e.target.checked })}
                 />
-                <span className="text-[11px]">Délégué syndical</span>
+                <span className="text-[11px]">Délégué ou candidat non élu</span>
               </label>
             </div>
 
             <div className="flex flex-wrap gap-3 items-end mt-2">
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Date de notification</span>
+                <input
+                  type="date"
+                  value={dec.dateNotification}
+                  onChange={(e) => setDec({ ...dec, dateNotification: e.target.value })}
+                  className="border border-border bg-transparent px-2 py-1 w-[150px]"
+                />
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={`${etiquette} flex items-center gap-1`}>
+                  Préavis retenu (jours ouvrables)
+                  <Aide
+                    titre="Préavis retenu"
+                    texte="La durée du préavis de l’employeur que le dossier retient quand elle est plus longue que le plancher légal · convention collective, contrat, ou plancher de trois mois du délégué converti en jours ouvrables."
+                    source="Code du travail, art. 64 et 258"
+                  />
+                </span>
+                <input
+                  value={dec.preavisRetenuJours}
+                  onChange={(e) => setDec({ ...dec, preavisRetenuJours: e.target.value })}
+                  className="border border-border bg-transparent px-2 py-1 w-[120px] text-right"
+                />
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={`${etiquette} flex items-center gap-1`}>
+                  Exécution du préavis
+                  <Aide
+                    titre="Exécution du préavis"
+                    texte="L’indemnité n’est due que si le préavis n’a pas été intégralement observé, par la partie responsable à l’autre. Un préavis presté se paie en salaire, aux arriérés."
+                    source="Code du travail, art. 63, al. 3"
+                  />
+                </span>
+                <select
+                  value={dec.executionPreavis}
+                  onChange={(e) => setDec({ ...dec, executionPreavis: e.target.value })}
+                  className="border border-border bg-transparent px-2 py-1 w-[220px]"
+                >
+                  <option value="">Non déclarée</option>
+                  <option value="PRESTE">Presté</option>
+                  <option value="NON_OBSERVE">Non observé, en tout ou partie</option>
+                  <option value="DISPENSE_PAR_EMPLOYEUR">Dispensé par l’employeur</option>
+                  <option value="DISPENSE_A_LA_DEMANDE_DU_TRAVAILLEUR">Dispensé à la demande du travailleur</option>
+                </select>
+              </label>
+              {dec.executionPreavis === 'NON_OBSERVE' && (
+                <>
+                  <label className="flex flex-col gap-0.5">
+                    <span className={etiquette}>Jours non observés</span>
+                    <input
+                      value={dec.joursPreavisNonObserves}
+                      onChange={(e) => setDec({ ...dec, joursPreavisNonObserves: e.target.value })}
+                      className="border border-border bg-transparent px-2 py-1 w-[110px] text-right"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-0.5">
+                    <span className={etiquette}>Partie responsable</span>
+                    <select
+                      value={dec.partieResponsable}
+                      onChange={(e) => setDec({ ...dec, partieResponsable: e.target.value })}
+                      className="border border-border bg-transparent px-2 py-1 w-[150px]"
+                    >
+                      <option value="">Celle de l’initiative</option>
+                      <option value="EMPLOYEUR">Employeur</option>
+                      <option value="TRAVAILLEUR">Travailleur</option>
+                    </select>
+                  </label>
+                </>
+              )}
+              <label className="flex flex-col gap-0.5">
+                <span className={`${etiquette} flex items-center gap-1`}>
+                  Avantages pendant le préavis (FC)
+                  <Aide
+                    titre="Avantages de toute nature"
+                    texte="Logement, transport, avantages en nature dont le travailleur aurait bénéficié pendant le préavis non observé, pour toute la période. L’indemnité est « la rémunération et les avantages de toute nature »."
+                    source="Code du travail, art. 63, al. 3"
+                  />
+                </span>
+                <input
+                  value={dec.avantagesPendantPreavisFc}
+                  onChange={(e) => setDec({ ...dec, avantagesPendantPreavisFc: e.target.value })}
+                  className="border border-border bg-transparent px-2 py-1 w-[150px] text-right"
+                />
+              </label>
+              {dec.motif === 'FORCE_MAJEURE' && (
+                <>
+                  <label className="flex items-center gap-1 pb-1" title="Code du travail, art. 57">
+                    <input
+                      type="checkbox"
+                      checked={dec.forceMajeureConstateeParInspecteur}
+                      onChange={(e) => setDec({ ...dec, forceMajeureConstateeParInspecteur: e.target.checked })}
+                    />
+                    <span className="text-[11px]">Constatée par l’Inspecteur du travail</span>
+                  </label>
+                  <label className="flex items-center gap-1 pb-1" title="Code du travail, art. 60 c)">
+                    <input
+                      type="checkbox"
+                      checked={dec.deuxMoisDeSuspension}
+                      onChange={(e) => setDec({ ...dec, deuxMoisDeSuspension: e.target.checked })}
+                    />
+                    <span className="text-[11px]">Deux mois de suspension</span>
+                  </label>
+                </>
+              )}
+              {dec.motif === 'COMMUN_ACCORD' && (
+                <label className="flex flex-col gap-0.5">
+                  <span className={etiquette} title="Code du travail, art. 61 bis">Montant convenu (FC)</span>
+                  <input
+                    value={dec.montantConvenuCommunAccordFc}
+                    onChange={(e) => setDec({ ...dec, montantConvenuCommunAccordFc: e.target.value })}
+                    className="border border-border bg-transparent px-2 py-1 w-[150px] text-right"
+                  />
+                </label>
+              )}
+              {dec.typeContrat === 'DUREE_DETERMINEE' && (
+                <>
+                  <label className="flex flex-col gap-0.5">
+                    <span className={etiquette} title="Code du travail, art. 70">Jours restant jusqu’au terme</span>
+                    <input
+                      value={dec.joursRestantsJusquAuTerme}
+                      onChange={(e) => setDec({ ...dec, joursRestantsJusquAuTerme: e.target.value })}
+                      className="border border-border bg-transparent px-2 py-1 w-[130px] text-right"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-0.5">
+                    <span className={etiquette} title="Code du travail, art. 70">Avantages jusqu’au terme (FC)</span>
+                    <input
+                      value={dec.avantagesJusquAuTermeFc}
+                      onChange={(e) => setDec({ ...dec, avantagesJusquAuTermeFc: e.target.value })}
+                      className="border border-border bg-transparent px-2 py-1 w-[150px] text-right"
+                    />
+                  </label>
+                </>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-3 items-end mt-2">
+              <label className="flex flex-col gap-0.5">
+                <span className={`${etiquette} flex items-center gap-1`}>
+                  Mois non couverts par un congé
+                  <Aide
+                    titre="Mois non couverts par un congé"
+                    texte="Les mois entiers de service qu’aucun congé pris ou payé ne couvre · le congé est « remplacé » par l’indemnité (art. 144), jamais deux fois. L’article 141, alinéa 2, y fait entrer les jours de repos, de congé payé, les jours fériés et l’incapacité jusqu’à six mois par année. Les reconstituer depuis les dates du contrat donnerait un chiffre plausible et faux."
+                    source="Code du travail, art. 141, al. 2 et 144"
+                  />
+                </span>
+                <input
+                  value={dec.moisNonCouvertsParUnConge}
+                  onChange={(e) => setDec({ ...dec, moisNonCouvertsParUnConge: e.target.value })}
+                  className="border border-border bg-transparent px-2 py-1 w-[140px] text-right"
+                />
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={`${etiquette} flex items-center gap-1`}>
+                  Moyenne 12 mois, préavis (FC/mois)
+                  <Aide
+                    titre="Moyenne des éléments variables, préavis"
+                    texte="Moyenne mensuelle des commissions, primes, gratifications et participations payées sur les douze mois précédents. Elle entre dans la rémunération de chaque jour de préavis, ramenée au jour par vingt-six (décret n° 25/22, art. 7)."
+                    source="Code du travail, art. 66, al. 3"
+                  />
+                </span>
+                <input
+                  value={dec.moyenneMensuelleArticle66Fc}
+                  onChange={(e) => setDec({ ...dec, moyenneMensuelleArticle66Fc: e.target.value })}
+                  className="border border-border bg-transparent px-2 py-1 w-[150px] text-right"
+                />
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={`${etiquette} flex items-center gap-1`}>
+                  Moyenne 12 mois, congé (FC/mois)
+                  <Aide
+                    titre="Moyenne des éléments variables, congé"
+                    texte="Moyenne mensuelle des commissions, primes, prestations supplémentaires et participation au bénéfice des douze mois précédents. Elle entre dans l’allocation de chaque jour de congé, ramenée au jour par vingt-six (décret n° 25/22, art. 7)."
+                    source="Code du travail, art. 142, al. 2"
+                  />
+                </span>
+                <input
+                  value={dec.moyenneMensuelleArticle142Fc}
+                  onChange={(e) => setDec({ ...dec, moyenneMensuelleArticle142Fc: e.target.value })}
+                  className="border border-border bg-transparent px-2 py-1 w-[150px] text-right"
+                />
+              </label>
               <label className="flex flex-col gap-0.5">
                 <span className={etiquette}>Arriérés (FC)</span>
                 <input
@@ -3069,19 +3330,45 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                 />
               </label>
               <label className="flex flex-col gap-0.5">
-                <span className={etiquette}>Moyenne 12 mois (FC)</span>
-                <input
-                  value={dec.moyenneDouzeMoisFc}
-                  onChange={(e) => setDec({ ...dec, moyenneDouzeMoisFc: e.target.value })}
-                  className="border border-border bg-transparent px-2 py-1 w-[150px] text-right"
-                />
-              </label>
-              <label className="flex flex-col gap-0.5">
                 <span className={etiquette}>Gratification (FC)</span>
                 <input
                   value={dec.gratificationFc}
                   onChange={(e) => setDec({ ...dec, gratificationFc: e.target.value })}
                   className="border border-border bg-transparent px-2 py-1 w-[150px] text-right"
+                />
+              </label>
+            </div>
+
+            <div className="flex flex-wrap gap-3 items-end mt-2">
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Mois de cessation (AAAA-MM)</span>
+                <input
+                  value={dec.moisDeCessation}
+                  onChange={(e) => setDec({ ...dec, moisDeCessation: e.target.value })}
+                  className="border border-border bg-transparent px-2 py-1 w-[120px]"
+                />
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={`${etiquette} flex items-center gap-1`}>
+                  Enfants bénéficiaires
+                  <Aide
+                    titre="Allocations familiales"
+                    texte="Dues pendant toute la durée du congé et pendant le préavis restant à courir. Taux de la colonne 19 de la grille du mois de cessation ; les jours se saisissent."
+                    source="Code du travail, art. 66, al. 2 et 142, al. 3"
+                  />
+                </span>
+                <input
+                  value={dec.enfantsDecompte}
+                  onChange={(e) => setDec({ ...dec, enfantsDecompte: e.target.value })}
+                  className="border border-border bg-transparent px-2 py-1 w-[110px] text-right"
+                />
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Jours d’allocations</span>
+                <input
+                  value={dec.joursAllocationsFamiliales}
+                  onChange={(e) => setDec({ ...dec, joursAllocationsFamiliales: e.target.value })}
+                  className="border border-border bg-transparent px-2 py-1 w-[110px] text-right"
                 />
               </label>
               <button
@@ -3093,25 +3380,23 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                 Calculer
               </button>
             </div>
-            <div className="text-[11px] text-text-dim mt-2">
-              Mois entiers de service saisis (article 141, alinéa 2) · les reconstituer depuis les
-              dates du contrat donnerait un chiffre plausible et faux.
-            </div>
           </div>
 
           {decompte && (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-2.5">
                 <div className="border border-border px-3.5 py-2.5">
-                  <div className={etiquette} title="Code du travail, art. 64">Préavis</div>
+                  <div className={etiquette} title={`Code du travail, ${decompte.preavis.fondement}`}>Préavis</div>
                   <div className="text-[13px] font-bold">
-                    {decompte.preavis.joursOuvrables === null
-                      ? 'Aucun'
-                      : `${decompte.preavis.joursOuvrables} jours ouvrables`}
+                    {decompte.preavis.joursOuvrables !== null
+                      ? `${decompte.preavis.joursOuvrables} jours ouvrables`
+                      : decompte.preavis.motifIndetermine
+                        ? 'Indéterminé'
+                        : 'Aucun'}
                   </div>
-                  {decompte.preavis.motifAucunPreavis && (
+                  {(decompte.preavis.motifAucunPreavis ?? decompte.preavis.motifIndetermine) && (
                     <div className="text-[11px] text-text-dim mt-1">
-                      {decompte.preavis.motifAucunPreavis}
+                      {decompte.preavis.motifAucunPreavis ?? decompte.preavis.motifIndetermine}
                     </div>
                   )}
                 </div>
@@ -3160,9 +3445,47 @@ export function PersonnelPage({ adresse }: { adresse?: string } = {}) {
                         {decompte.echeancePaiement}
                       </td>
                     </tr>
+                    {decompte.horsBrut.map((r) => (
+                      <tr key={r.cle} className="border-b border-border/40 align-top">
+                        <td className="py-1 pr-2">{r.libelle}</td>
+                        <td className="py-1 pr-2 text-right font-mono">
+                          {r.montantFc === null ? 'indéterminé' : fc(r.montantFc)}
+                        </td>
+                        <td className="py-1 text-[11px] text-text-dim">
+                          {r.fondement}
+                          {r.reserve && <div className="mt-0.5">{r.reserve}</div>}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="border-t border-border font-bold">
+                      <td className="py-1">Total dû au travailleur</td>
+                      <td className="py-1 pr-2 text-right font-mono">
+                        {decompte.totalDuAuTravailleurFc === null
+                          ? 'Indéterminé'
+                          : fc(decompte.totalDuAuTravailleurFc)}
+                      </td>
+                      <td />
+                    </tr>
                   </tbody>
                 </table>
               </div>
+
+              {decompte.duParLeTravailleur.length > 0 && (
+                <div className="border border-warning/40 px-3.5 py-2.5 mt-2.5 text-[11px]">
+                  <div className={`${etiquette} mb-1`}>Dû par le travailleur à l’employeur</div>
+                  <ul>
+                    {decompte.duParLeTravailleur.map((r) => (
+                      <li key={r.cle} className="py-1 border-t border-border/40">
+                        <span>{r.libelle}</span>
+                        <span className="font-mono ml-2">
+                          {r.montantFc === null ? 'indéterminé' : fc(r.montantFc)}
+                        </span>
+                        <div className="text-text-dim">{r.reserve ?? r.fondement}</div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               <div className="border border-border px-3.5 py-2.5 mt-2.5 text-[11px]">
                 <div className={`${etiquette} mb-1`}>Réserves de lecture</div>

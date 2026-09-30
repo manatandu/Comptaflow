@@ -57,7 +57,9 @@ describe('Le seuil de la classe', () => {
   });
 
   it("refuse le mois qu'aucune annexe ne couvre", () => {
-    expect(mensuelMinimumDeLaClasse('2025-01', 1)).toBeNull();
+    expect(mensuelMinimumDeLaClasse('2018-06', 1)).toBeNull();
+    // Le décret n° 18/017 régit les paies de juillet 2019 à avril 2025 (audit D2-C1).
+    expect(mensuelMinimumDeLaClasse('2025-01', 1)!.montantFc).toBe(7_075 * 26);
   });
 });
 
@@ -140,7 +142,7 @@ describe("Les abstentions de l'article 114", () => {
 
   it("s'abstient hors période d'annexe", () => {
     const v = quotiteSaisissable({
-      moisDePaie: '2024-06',
+      moisDePaie: '2018-06',
       remunerationFc: 5_000_000,
       classeProfessionnelle: 3,
     });

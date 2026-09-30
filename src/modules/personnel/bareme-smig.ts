@@ -95,12 +95,16 @@ export const DECRET_MODALITES = {
   moisDAjustement: 'janvier',
   /**
    * ART. 15 · « Lorsque, pour cause de MUTATION, l'employeur assure au
-   * travailleur un logement en nature, il peut défalquer de l'indemnité de
-   * logement de celui-ci un montant minimum équivalent au montant fixé à
-   * l'article 14. » C'est ce que « quotité saisissable par l'employeur »
-   * veut dire : une DÉFALCATION, et seulement pour cause de mutation.
+   * travailleur un logement en nature, il peut défalquer de l'INDEMNITÉ DE
+   * LOGEMENT de celui-ci un montant minimum équivalent au montant fixé à
+   * l'article 14. » C'est une DÉFALCATION de l'indemnité, pour cause de
+   * mutation. Elle ne se confond pas avec celle de l'arrêté
+   * n° 12/CAB.MIN/TPS/110/2005, art. 10 · même grandeur, prise sur la
+   * RÉMUNÉRATION dès que le logement est fourni en nature, sans condition de
+   * mutation (audit D2-C8 ; `quotite-saisissable.ts` l'applique).
    */
-  defalcationLogementEnNature: 'art. 15, et pour cause de mutation seulement',
+  defalcationLogementEnNature:
+    "art. 15, de l'indemnité de logement pour cause de mutation ; de la rémunération dès le logement en nature, arrêté n° 12/CAB.MIN/TPS/110/2005, art. 10",
 } as const;
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -161,8 +165,15 @@ export const COLONNE_CONTRE_VALEUR_LOGEMENT = 20;
 export const colonneDeLaClasse = (classe: number): number => classe + 1;
 
 export interface Annexe {
-  /** 1 ou 2 pour les annexes du décret n° 25/22, null pour une version du cabinet. */
+  /** 1 ou 2 pour les annexes du décret n° 25/22, null pour une version du cabinet ou l'annexe du décret n° 18/017. */
   numero: 1 | 2 | null;
+  /**
+   * L'annexe du décret n° 18/017, abrogé mais applicable aux paies qu'il
+   * régissait. Son `numero` reste null · `plancherCnss` lit un numéro comme
+   * une annexe du décret n° 25/22, dont le taux payé diffère du taux fixé,
+   * question que le décret de 2018 ne pose pas.
+   */
+  decret18017?: true;
   /** Le texte d'une version saisie par le cabinet (baremes-dossier.ts). */
   reference?: string;
   /** Premier mois de paie couvert, AAAA-MM. */
@@ -215,6 +226,44 @@ export const ANNEXES: readonly Annexe[] = [
   },
 ];
 
+/**
+ * L'ANNEXE DU DÉCRET n° 18/017 DU 22 MAI 2018, abrogé par l'art. 11 du décret
+ * n° 25/22 et resté le texte des paies antérieures à mai 2025 · il est au
+ * corpus (audit D2-C1 · « ses montants ne sont pas au corpus » était une
+ * lacune déclarée à tort). Base 7 075 FC (art. 2, troisième palier de
+ * l'art. 3, « payables à partir du 1er janvier 2019 suivant l'annexe »).
+ *
+ * TRANSCRITE, et close comme les deux autres · `tension × 7 075 / 100`. Deux
+ * réserves de lecture viennent du fichier source et restent attachées · la
+ * classe 8 se lit 18 385,5 sur la reproduction, 19 385,5 par l'arithmétique
+ * (274 × 70,75), valeur retenue ; la colonne 20 se lit 52,40, et 52,41 est
+ * 262,037… / 5 arrondi (art. 6).
+ *
+ * ELLE NE COUVRE QU'À PARTIR DE JUILLET 2019 · de janvier à juin 2019, les
+ * secteurs agro-industriel et pastoral payaient 5 306,25 FC (art. 3, al. 2),
+ * et OmegaX ne connaît pas le secteur du dossier. Servir 7 075 à un employeur
+ * agricole lui reprocherait un minimum qu'il ne devait pas encore. Avant 2019,
+ * les paliers de 2 358,33 et 4 716,66 FC renvoient « suivant l'annexe », qui
+ * n'est publiée qu'à 7 075 FC.
+ */
+export const ANNEXE_DECRET_18_017: Annexe = {
+  numero: null,
+  decret18017: true,
+  reference: 'Décret n° 18/017 du 22 mai 2018, annexe',
+  duMoisDePaie: '2019-07',
+  auMoisDePaie: '2025-04',
+  smigJournalierFc: 7_075,
+  tauxParClasse: [
+    7_075, 8_207, 9_409.75, 10_895.5, 12_593.5, 14_574.5, 16_767.75, 19_385.5, 22_427.75, 25_894.5, 29_856.5,
+    34_526, 39_903, 46_058.25, 53_204, 61_411, 70_750,
+  ],
+  allocationFamilialeJournaliereFc: 262.04,
+  contreValeurLogementJournaliereFc: 52.41,
+};
+
+export const RESERVE_ANNEXE_18_017 =
+  "DÉCRET n° 18/017 · annexe à 7 075 FC, transcrite avec deux réserves de lecture : la classe 8 se lit 18 385,5 sur la reproduction et vaut 19 385,5 par l'arithmétique (274 × 70,75) ; la colonne 20 se lit 52,40 et vaut 52,41 par l'article 6. Son article 7 majore les taux « de 3 % au moins par année entière de service ininterrompu » dans la même entreprise.";
+
 /** Les deux diviseurs du texte · art. 5 et art. 6 du décret n° 25/22. */
 export const DIVISEUR_ALLOCATION_FAMILIALE = 27;
 export const DIVISEUR_CONTRE_VALEUR_LOGEMENT = 5;
@@ -222,7 +271,11 @@ export const DIVISEUR_CONTRE_VALEUR_LOGEMENT = 5;
 /** Les annexes arrondissent au centime. Observé, et non prescrit par le texte. */
 export const DECIMALES_ANNEXE = 2;
 
-export type MotifRefusSmig = 'MOIS_MAL_FORME' | 'ANTERIEUR_AU_DECRET' | 'CLASSE_HORS_BAREME';
+export type MotifRefusSmig =
+  | 'MOIS_MAL_FORME'
+  | 'ANTERIEUR_AU_DECRET'
+  | 'CLASSE_HORS_BAREME'
+  | 'MAJORATION_ANCIENNETE_NON_RENSEIGNEE';
 
 export interface Applicable<T> {
   valeur: T | null;
@@ -233,14 +286,43 @@ export interface Applicable<T> {
 
 const MOIS_VALIDE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
-const REFUS_ANTERIEUR =
-  "Ce mois de paie est antérieur à mai 2025, premier mois couvert par l'annexe 1 du décret " +
-  "n° 25/22. Les montants applicables avant ce mois ne sont pas au corpus d'OmegaX et ne sont pas " +
-  "reconstitués ici.";
+/**
+ * LE MOTIF VRAI D'UN MOIS SANS ANNEXE (audit D2-C1). Le décret n° 18/017 est
+ * au corpus · ce qui manque est, selon la période, l'annexe des paliers ou le
+ * texte d'avant.
+ */
+function refusAnterieur(moisDePaie: string): string {
+  if (moisDePaie >= '2019-01') {
+    return (
+      "De janvier à juin 2019, le décret n° 18/017 fait payer 7 075 FC au manœuvre ordinaire, mais " +
+      "5 306,25 FC dans les secteurs agro-industriel et pastoral (art. 3, al. 2) · OmegaX ne connaît pas " +
+      "le secteur du dossier, et ne choisit pas entre les deux."
+    );
+  }
+  if (moisDePaie >= '2018-01') {
+    return (
+      "En 2018, le décret n° 18/017 fait payer le SMIG par paliers (2 358,33 FC, puis 4 716,66 FC à " +
+      "partir de juillet, art. 3) « suivant l'annexe », qui n'est publiée qu'à 7 075 FC · les taux des " +
+      "classes à ces paliers ne sont pas au corpus, et les secteurs agro-industriel et pastoral ont leurs " +
+      "propres paliers."
+    );
+  }
+  return (
+    "Ce mois de paie est antérieur au décret n° 18/017 du 22 mai 2018 et à ses paliers · le texte qu'il " +
+    "remplace, l'ordonnance n° 08/040 du 30 avril 2008, n'est pas au corpus d'OmegaX."
+  );
+}
 
-/** Le nom d'une annexe dans un message · celle du décret, ou la version du cabinet. */
+/** Une grille saisie par le cabinet, par opposition aux annexes livrées. */
+const estGrilleDuCabinet = (a: Annexe) => a.numero === null && !a.decret18017;
+
+/** Le nom d'une annexe dans un message · celle d'un décret, ou la version du cabinet. */
 export const nomAnnexe = (a: Annexe) =>
-  a.numero === null ? `la grille saisie par le cabinet (${a.reference ?? 'texte non précisé'})` : `l'annexe ${a.numero} du décret n° 25/22`;
+  a.decret18017
+    ? "l'annexe du décret n° 18/017"
+    : a.numero === null
+      ? `la grille saisie par le cabinet (${a.reference ?? 'texte non précisé'})`
+      : `l'annexe ${a.numero} du décret n° 25/22`;
 
 const arrondiAnnexe = (n: number) => Math.round(n * 10 ** DECIMALES_ANNEXE) / 10 ** DECIMALES_ANNEXE;
 
@@ -289,12 +371,12 @@ export function annexeApplicable(moisDePaie: string, annexesDossier: readonly An
       explication: 'Le mois de paie doit être écrit AAAA-MM.',
     };
   }
-  const trouvee = [...ANNEXES, ...annexesDossier]
+  const trouvee = [ANNEXE_DECRET_18_017, ...ANNEXES, ...annexesDossier]
     .filter((a) => moisDePaie >= a.duMoisDePaie && (a.auMoisDePaie === null || moisDePaie <= a.auMoisDePaie))
     .sort((a, b) => (a.duMoisDePaie < b.duMoisDePaie ? -1 : a.duMoisDePaie > b.duMoisDePaie ? 1 : 0))
     .pop();
   if (!trouvee) {
-    return { valeur: null, annexe: null, refus: 'ANTERIEUR_AU_DECRET', explication: REFUS_ANTERIEUR };
+    return { valeur: null, annexe: null, refus: 'ANTERIEUR_AU_DECRET', explication: refusAnterieur(moisDePaie) };
   }
   const nom = nomAnnexe(trouvee);
   return {
@@ -305,7 +387,8 @@ export function annexeApplicable(moisDePaie: string, annexesDossier: readonly An
       `${nom.charAt(0).toUpperCase()}${nom.slice(1)}, applicable à la paie de ${trouvee.duMoisDePaie}` +
       `${trouvee.auMoisDePaie ? ` à ${trouvee.auMoisDePaie}` : ' et au-delà'}. Manœuvre ordinaire : ` +
       `${trouvee.smigJournalierFc} FC par jour.` +
-      (trouvee.numero === null ? ` ${RESERVE_GRILLE_CABINET}` : ''),
+      (estGrilleDuCabinet(trouvee) ? ` ${RESERVE_GRILLE_CABINET}` : '') +
+      (trouvee.decret18017 ? ` ${RESERVE_ANNEXE_18_017}` : ''),
   };
 }
 
@@ -320,6 +403,12 @@ export function tauxJournalierDeLaClasse(
   classe: number,
   moisDePaie: string,
   annexesDossier: readonly Annexe[] = [],
+  /**
+   * Années entières de service ininterrompu dans l'entreprise · ne sert que
+   * sous le décret n° 18/017, dont l'art. 7 majore les taux « de 3 % au moins
+   * par année ». Non renseignées, le taux ne se rend pas (voir plus bas).
+   */
+  anneesServiceIninterrompu: number | null = null,
 ): Applicable<{ classe: number; tension: number; tauxFc: number; categorie: CategorieProfessionnelle; echelon: string | null; colonne: number }> {
   const a = annexeApplicable(moisDePaie, annexesDossier);
   if (!a.valeur) return { valeur: null, annexe: null, refus: a.refus, explication: a.explication };
@@ -332,6 +421,23 @@ export function tauxJournalierDeLaClasse(
         `La tension salariale des annexes court de la classe 1 (manœuvre ordinaire) à la classe ` +
         `${TENSIONS.length} (cadre de collaboration, 4e échelon). La classe ${classe} n'y figure pas · ` +
         'ce barème ne monte pas au-delà du cadre de collaboration, et rien ne se déduit au-dessus.',
+    };
+  }
+  // DÉCRET n° 18/017, ART. 7 · « majorés de 3 % au moins par année entière
+  // de service ininterrompu ». Le minimum d'un travailleur ancien n'est donc
+  // pas le taux de la colonne, et le texte ne dit ni si la majoration se
+  // compose ni jusqu'où elle monte (« au moins »). Sans ancienneté, le taux
+  // n'est pas rendu · un « conforme » sur le taux nu serait un faux
+  // certificat. À ancienneté nulle, il n'y a rien à majorer.
+  if (a.valeur.decret18017 && anneesServiceIninterrompu !== 0) {
+    return {
+      valeur: null,
+      annexe: a.valeur,
+      refus: 'MAJORATION_ANCIENNETE_NON_RENSEIGNEE',
+      explication:
+        `${a.explication} Le minimum de la classe est majoré selon l'ancienneté, et le texte ne dit pas ` +
+        "si la majoration de 3 % se compose · le taux n'est rendu qu'à ancienneté nulle. La survie de " +
+        "cette majoration après l'abrogation est une question posée au dossier.",
     };
   }
   const categorie = CATEGORIES.find((c) => c.classes.includes(classe))!;
@@ -421,11 +527,14 @@ export function allocationFamilialeJournaliere(
  * montant journalier des allocations familiales ». La lire « 1/5e du SMIG »
  * donne un montant vingt-sept fois trop élevé.
  *
- * ET CE N'EST PAS UNE INDEMNITÉ · c'est une DÉFALCATION. L'article 15 du
- * décret n° 25/21 ne l'ouvre que « lorsque, POUR CAUSE DE MUTATION,
- * l'employeur assure au travailleur un logement EN NATURE ». Hors ce cas, la
- * retenir serait une retenue sans titre, et l'article 112 du Code du travail
- * ferme la liste des retenues autorisées.
+ * ET CE N'EST PAS UNE INDEMNITÉ · c'est une DÉFALCATION, ouverte par DEUX
+ * textes qui ne visent pas la même assiette (audit D2-C8). L'arrêté
+ * n° 12/CAB.MIN/TPS/110/2005, art. 10 · l'employeur qui assure le logement
+ * EN NATURE « peut défalquer de la RÉMUNÉRATION du travailleur 1/5 du taux
+ * journalier des allocations familiales quelle que soit la catégorie
+ * professionnelle », sans condition de mutation. Le décret n° 25/21, art. 15 ·
+ * le même montant se défalque de l'INDEMNITÉ DE LOGEMENT, « pour cause de
+ * mutation ». Le décret de 2025 n'abroge pas l'arrêté de 2005.
  */
 export function contreValeurLogementJournaliere(
   moisDePaie: string,
@@ -443,8 +552,9 @@ export function contreValeurLogementJournaliere(
     explication:
       `Colonne ${COLONNE_CONTRE_VALEUR_LOGEMENT} de ${nomAnnexe(a.valeur)} : ` +
       `${a.valeur.contreValeurLogementJournaliereFc} FC par jour, soit 1/5e de l'allocation ` +
-      "familiale journalière. C'est une DÉFALCATION de l'indemnité de logement, et l'article 15 du " +
-      "décret n° 25/21 ne l'ouvre que pour cause de MUTATION avec logement en nature.",
+      "familiale journalière. C'est une DÉFALCATION · de la RÉMUNÉRATION dès que le logement est fourni " +
+      "en nature (arrêté n° 12/CAB.MIN/TPS/110/2005, art. 10), de l'INDEMNITÉ DE LOGEMENT pour cause de " +
+      "MUTATION (décret n° 25/21, art. 15).",
   };
 }
 
@@ -476,8 +586,9 @@ export function valeurPeriodique(montantJournalierFc: number, periode: PeriodeSm
 //
 // CE QUE LES TEXTES DISENT ET QUE CE BARÈME NE PORTE PAS.
 //  · Le DÉCRET n° 18/017 du 22 mai 2018 (décret n° 25/22, art. 11) régit les
-//    mois de paie antérieurs à mai 2025 · ses montants ne sont pas au corpus,
-//    et aucune annexe ci-dessus ne remonte avant mai 2025.
+//    mois de paie antérieurs à mai 2025 · il EST au corpus, et son annexe à
+//    7 075 FC est servie de juillet 2019 à avril 2025 (`ANNEXE_DECRET_18_017`).
+//    Ses paliers de 2018 et le régime agro-industriel de 2019 ne le sont pas.
 //  · Les SECTEURS AGRO-INDUSTRIELS ET PASTORAUX (décret n° 25/22, art. 10) ·
 //    « des dispositions spécifiques peuvent être prises », par des textes
 //    propres au secteur ; le barème commun s'applique tant qu'un dossier ne

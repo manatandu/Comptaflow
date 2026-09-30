@@ -17,7 +17,42 @@ import {
   contreValeurLogementJournaliere,
   tauxJournalierDeLaClasse,
   valeurPeriodique,
+  ANNEXE_DECRET_18_017,
+  RESERVE_ANNEXE_18_017,
 } from './bareme-smig';
+
+describe('le décret n° 18/017, abrogé mais applicable avant mai 2025 (audit D2-C1)', () => {
+  it('sa grille est CLOSE sur 7 075 FC · la classe 8 rétablie à 19 385,5', () => {
+    const a = ANNEXE_DECRET_18_017;
+    expect(a.smigJournalierFc).toBe(7_075);
+    TENSIONS.forEach((t, i) => expect([i + 1, a.tauxParClasse[i]]).toEqual([i + 1, (t * 7_075) / 100]));
+    expect(a.tauxParClasse[7]).toBe(19_385.5);
+    expect(a.allocationFamilialeJournaliereFc).toBeCloseTo(7_075 / 27, 2);
+    expect(a.contreValeurLogementJournaliereFc).toBeCloseTo(7_075 / 27 / 5, 2);
+  });
+
+  it('régit les paies de juillet 2019 à avril 2025, et dit ses réserves de lecture', () => {
+    for (const mois of ['2019-07', '2022-06', '2025-04']) {
+      const r = annexeApplicable(mois);
+      expect([mois, r.valeur?.smigJournalierFc]).toEqual([mois, 7_075]);
+      expect(r.explication).toContain(RESERVE_ANNEXE_18_017);
+      expect(r.explication).toContain('décret n° 18/017');
+    }
+    expect(annexeApplicable('2025-05').valeur!.smigJournalierFc).toBe(14_500);
+    expect(allocationFamilialeJournaliere('2021-01', 2).valeur!.totalFc).toBeCloseTo(2 * 262.04, 6);
+  });
+
+  it('ne rend le taux d’une classe qu’à ancienneté nulle · art. 7, 3 % au moins par année', () => {
+    const sans = tauxJournalierDeLaClasse(5, '2022-06');
+    expect(sans.valeur).toBeNull();
+    expect(sans.refus).toBe('MAJORATION_ANCIENNETE_NON_RENSEIGNEE');
+    expect(sans.explication).toContain('3 %');
+    expect(tauxJournalierDeLaClasse(5, '2022-06', [], 4).valeur).toBeNull();
+    expect(tauxJournalierDeLaClasse(5, '2022-06', [], 0).valeur!.tauxFc).toBe(12_593.5);
+    // Le décret de 2025 ne porte pas cette majoration · rien ne change après.
+    expect(tauxJournalierDeLaClasse(5, '2026-01').valeur!.tauxFc).toBe(38_270);
+  });
+});
 
 describe('la transcription des annexes est CLOSE · c’est ce qui la prouve', () => {
   it('les trente-quatre taux valent tension × SMIG / 100, sans un écart', () => {
@@ -137,13 +172,17 @@ describe('l’article 2 fixe, l’article 3 échelonne, et L’ANNEXE TRANCHE', 
     expect(tauxJournalierDeLaClasse(0, '2026-01').refus).toBe('CLASSE_HORS_BAREME');
   });
 
-  it('NE RECONSTITUE RIEN avant mai 2025 · le décret de 2018 n’est pas au corpus', () => {
-    const avant = annexeApplicable('2025-04');
-    expect(avant.valeur).toBeNull();
-    expect(avant.refus).toBe('ANTERIEUR_AU_DECRET');
-    expect(avant.explication).toContain('antérieur à mai 2025');
-    expect(allocationFamilialeJournaliere('2025-04').valeur).toBeNull();
-    expect(tauxJournalierDeLaClasse(5, '2025-04').valeur).toBeNull();
+  it('NE RECONSTITUE RIEN avant juillet 2019, et dit le motif vrai', () => {
+    // AUDIT D2-C1 · « le décret de 2018 n'est pas au corpus » était faux. Ce
+    // qui manque est l'annexe des paliers de 2018, et le secteur du dossier
+    // pour le premier semestre 2019.
+    const s1 = annexeApplicable('2019-03');
+    expect(s1.valeur).toBeNull();
+    expect(s1.refus).toBe('ANTERIEUR_AU_DECRET');
+    expect(s1.explication).toContain('agro-industriel');
+    expect(annexeApplicable('2018-09').explication).toContain('suivant l\'annexe');
+    expect(annexeApplicable('2017-06').explication).toContain('08/040');
+    expect(allocationFamilialeJournaliere('2019-06').valeur).toBeNull();
   });
 
   it('refuse un mois mal formé plutôt que d’en deviner un', () => {
@@ -182,14 +221,17 @@ describe('les deux grandeurs dérivées', () => {
     expect(c.montantFc * 27).toBeCloseTo(21_500 / 5, 0);
   });
 
-  it('DIT QUE C’EST UNE DÉFALCATION, et seulement pour cause de mutation', () => {
+  it('DIT QUE C’EST UNE DÉFALCATION, et nomme SES DEUX TEXTES (audit D2-C8)', () => {
     // « quotité saisissable par l'employeur » ne veut pas dire une indemnité.
-    // L'article 15 du décret n° 25/21 ne l'ouvre que si l'employeur assure
-    // un logement EN NATURE pour cause de MUTATION. Hors ce cas, la retenir
-    // serait une retenue sans titre, et l'article 112 du Code du travail
-    // ferme la liste.
-    expect(contreValeurLogementJournaliere('2026-01').explication).toContain('DÉFALCATION');
-    expect(contreValeurLogementJournaliere('2026-01').explication).toContain('MUTATION');
+    // L'arrêté de 2005, art. 10, la prend sur la RÉMUNÉRATION dès que le
+    // logement est en nature ; le décret n° 25/21, art. 15, sur l'INDEMNITÉ
+    // de logement pour cause de mutation. Dire « mutation seulement »
+    // effaçait la première.
+    const e = contreValeurLogementJournaliere('2026-01').explication;
+    expect(e).toContain('DÉFALCATION');
+    expect(e).toContain('de la RÉMUNÉRATION dès que le logement est fourni en nature (arrêté n° 12/CAB.MIN/TPS/110/2005, art. 10)');
+    expect(e).toContain('MUTATION (décret n° 25/21, art. 15)');
+    expect(DECRET_MODALITES.defalcationLogementEnNature).toContain('arrêté n° 12/CAB.MIN/TPS/110/2005, art. 10');
     expect(DECRET_MODALITES.defalcationLogementEnNature).toContain('mutation');
   });
 });

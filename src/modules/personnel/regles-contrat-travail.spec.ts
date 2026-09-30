@@ -533,10 +533,11 @@ describe('la rémunération convenue confrontée au minimum de sa classe', () =>
     expect(enFrancs.convenueFc).toBe(1000);
   });
 
-  it('NE CONTRÔLE RIEN avant mai 2025 · le barème de 2018 n’est pas au corpus', () => {
+  it('NE CONTRÔLE RIEN sous le décret n° 18/017 sans ancienneté · son art. 7 majore les taux (audit D2-C1)', () => {
     const v = verdictRemunerationMinimale(manoeuvre, '2025-03');
     expect(v.abstention).toBe('HORS_BAREME');
-    expect(v.explication).toContain('antérieur à mai 2025');
+    expect(v.explication).toContain('3 %');
+    expect(verdictRemunerationMinimale(manoeuvre, '2018-09').explication).toContain('suivant l');
   });
 
   it('ne déduit PAS la classe de la catégorie de la convention collective', () => {

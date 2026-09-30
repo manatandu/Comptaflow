@@ -577,8 +577,11 @@ export class ParametresCotisationsDto {
 }
 
 /**
- * LE DÉCOMPTE FINAL · rien n'est stocké. Les quatre montants saisis sont ceux
- * qu'aucun livre du dossier ne porte, et OmegaX ne les présume pas.
+ * LE DÉCOMPTE FINAL · rien n'est stocké. Les montants saisis sont ceux
+ * qu'aucun livre du dossier ne porte, et OmegaX ne les présume pas. Les faits
+ * de la rupture (type de contrat, essai, exécution du préavis, force majeure
+ * constatée) se DÉCLARENT · la durée et le sens de l'indemnité en dépendent
+ * (Code du travail, art. 63, 64, 69 à 71).
  */
 export class DecompteFinalDto {
   @IsInt()
@@ -586,10 +589,11 @@ export class DecompteFinalDto {
   @Max(99)
   anneesAnciennete!: number;
 
+  /** Mois entiers de service NON couverts par un congé pris ou payé (art. 141 et 144). */
   @IsInt()
   @Min(0)
   @Max(1200)
-  moisEntiersDeService!: number;
+  moisNonCouvertsParUnConge!: number;
 
   @IsOptional()
   @IsBoolean()
@@ -608,9 +612,56 @@ export class DecompteFinalDto {
   ])
   motif!: string;
 
+  /** L'article 64 ne régit que le contrat à durée indéterminée (art. 69). */
+  @IsEnum(['DUREE_INDETERMINEE', 'DUREE_DETERMINEE'])
+  typeContrat!: string;
+
+  @IsOptional()
+  @IsBoolean()
+  periodeDEssai?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(400)
+  joursDEssaiEcoules?: number;
+
+  /** Délégué titulaire ou suppléant, ou candidat non élu dans les six mois (art. 258). */
   @IsOptional()
   @IsBoolean()
   delegueSyndical?: boolean;
+
+  @IsOptional()
+  @IsDateString()
+  dateNotification?: string;
+
+  /** Durée du préavis de l'employeur retenue par le dossier, en jours ouvrables. */
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(2000)
+  preavisRetenuJours?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  forceMajeureConstateeParInspecteur?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  deuxMoisDeSuspension?: boolean;
+
+  @IsOptional()
+  @IsEnum(['PRESTE', 'NON_OBSERVE', 'DISPENSE_PAR_EMPLOYEUR', 'DISPENSE_A_LA_DEMANDE_DU_TRAVAILLEUR'])
+  executionPreavis?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  joursPreavisNonObserves?: number;
+
+  @IsOptional()
+  @IsEnum(['EMPLOYEUR', 'TRAVAILLEUR'])
+  partieResponsable?: string;
 
   @IsOptional()
   @IsNumber()
@@ -620,17 +671,59 @@ export class DecompteFinalDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
+  moyenneMensuelleArticle66Fc?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  moyenneMensuelleArticle142Fc?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  avantagesPendantPreavisFc?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  joursRestantsJusquAuTerme?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  avantagesJusquAuTermeFc?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  montantConvenuCommunAccordFc?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
   arrieresFc?: number;
 
   @IsOptional()
   @IsNumber()
   @Min(0)
-  moyenneDouzeMoisFc?: number;
+  gratificationFc?: number;
+
+  /** Mois de la cessation, AAAA-MM · il choisit la grille de la colonne 19. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(7)
+  moisDeCessation?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(PLAFOND_ENFANTS_PAR_FICHE)
+  enfantsBeneficiairesAllocations?: number;
 
   @IsOptional()
   @IsNumber()
   @Min(0)
-  gratificationFc?: number;
+  joursAllocationsFamiliales?: number;
 }
 
 /**

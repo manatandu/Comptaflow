@@ -225,8 +225,12 @@ describe('F109 · chaque taux calculé est celui que le registre des retenues ci
  * SMIG est JOURNALIER (décret n° 25/22, art. 2), le mois en compte 26 (art. 7).
  */
 describe('F112 · le plancher de la CNSS', () => {
-  it('hors corpus (avant mai 2025), rien n’est vérifié et c’est dit', () => {
-    const p = plancherCnss('2025-03', 100_000);
+  it('sous le décret n° 18/017, le plancher est le SMIG de 7 075 FC (audit D2-C1)', () => {
+    expect(plancherCnss('2022-06', 100_000, 26).baseFc).toBe(7_075 * 26);
+  });
+
+  it('sans annexe (avant juillet 2019), rien n’est vérifié et c’est dit', () => {
+    const p = plancherCnss('2018-06', 100_000);
     expect(p.baseFc).toBe(100_000);
     expect(p.message).toContain('PLANCHER NON VÉRIFIÉ');
   });
