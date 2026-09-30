@@ -186,16 +186,30 @@ export class ModifierIdentiteDto {
   })
   varianteCooperative?: 'SCOOPS' | 'COOP_CA' | 'PAS_ENCORE_DIT';
 
-  // Art. 183 · date de la dissolution déclarée ; la chaîne vide l'efface.
+  // AUSCGIE art. 386 et 414 · le mode d'administration d'une SA, imprimé avec
+  // la forme. PAS_ENCORE_DIT remet la réponse à null, jamais un mode présumé.
+  @IsOptional()
+  @IsIn(['CONSEIL_ADMINISTRATION', 'ADMINISTRATEUR_GENERAL', 'PAS_ENCORE_DIT'], {
+    message: 'Le mode d’administration se déclare CONSEIL_ADMINISTRATION, ADMINISTRATEUR_GENERAL ou PAS_ENCORE_DIT.',
+  })
+  modeAdministrationSa?: 'CONSEIL_ADMINISTRATION' | 'ADMINISTRATEUR_GENERAL' | 'PAS_ENCORE_DIT';
+
+  // AUSCGIE art. 853-2 al. 2 · SAS à associé unique, désignée « SASU ».
+  @IsOptional()
+  @IsIn(['OUI', 'NON', 'PAS_ENCORE_DIT'], { message: 'L’associé unique se déclare OUI, NON ou PAS_ENCORE_DIT.' })
+  associeUniqueSas?: ReponseFait;
+
+  // Dissolution déclarée (AUSCOOP art. 183 · AUSCGIE art. 203 et 204) ; la
+  // chaîne vide l'efface.
   @IsOptional()
   @ValidateIf((o: ModifierIdentiteDto) => o.dateDissolution !== '')
   @IsDateString()
   dateDissolution?: string;
 
-  // Art. 183 · « le nom du ou des liquidateurs ».
+  // « le nom du ou des liquidateurs » (mêmes articles).
   @IsOptional()
   @IsString()
-  @MaxLength(200)
+  @MaxLength(300)
   liquidateurs?: string;
 
   // --- Propres aux entités à but non lucratif -----------------------------
@@ -272,6 +286,16 @@ export class ModifierFormeJuridiqueDto {
 export class ModifierFormeSyscohadaDto {
   @IsEnum(FormeJuridiqueSyscohada)
   formeJuridiqueSyscohada!: FormeJuridiqueSyscohada;
+
+  /**
+   * AUSCGIE art. 181 à 183 · date de la décision de TRANSFORMATION. Absente =
+   * correction de saisie, valable pour tous les exercices ; chaîne vide =
+   * retrait d'une transformation déclarée par erreur. Voir `formeApplicable`.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  dateEffetTransformation?: string;
 }
 
 /** Réponse à une question déclarée · la troisième valeur n'est pas « non ». */

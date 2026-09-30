@@ -5,6 +5,17 @@ import { Aide } from '../components/chrome/Aide';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import type { AffectationResultat, Exercice, PreparationAffectation } from '../lib/types';
 import { montant } from '../lib/montants';
+import { libelleCapitalAffectation } from '../lib/affectation-capital';
+
+/**
+ * Ce que le serveur sert en plus du type commun · la racine où le capital a été
+ * lu (`capitalRacine`) et ce qu'une ligne au 101 engage pour la forme du
+ * dossier (`avertissementCapital`, `avertissementLigneCapital` du serveur).
+ */
+type Preparation = PreparationAffectation & {
+  capitalRacine?: string | null;
+  avertissementCapital?: string | null;
+};
 
 /**
  * AFFECTATION DU RÉSULTAT · Traitement → Affectation du résultat.
@@ -35,7 +46,8 @@ export function AffectationPage() {
 
   const [exercices, setExercices] = useState<Exercice[]>([]);
   const [exerciceId, setExerciceId] = useState('');
-  const [prep, setPrep] = useState<PreparationAffectation | null>(null);
+  const [prep, setPrep] = useState<Preparation | null>(null);
+  const [avertissements, setAvertissements] = useState<string[]>([]);
   const [historique, setHistorique] = useState<AffectationResultat[]>([]);
   const [lignes, setLignes] = useState<LigneSaisie[]>([]);
   const [dateDecision, setDateDecision] = useState('');
@@ -65,8 +77,9 @@ export function AffectationPage() {
   useEffect(() => {
     if (!exerciceId) return;
     setErreur(null);
+    setAvertissements([]);
     api
-      .get<PreparationAffectation>(`/affectation-resultat/exercice/${exerciceId}`)
+      .get<Preparation>(`/affectation-resultat/exercice/${exerciceId}`)
       .then((p) => {
         setPrep(p);
         // La dotation minimale à la réserve légale est PRÉ-REMPLIE : c'est une
@@ -108,7 +121,7 @@ export function AffectationPage() {
     setEnvoi(true);
     setErreur(null);
     try {
-      await api.post('/affectation-resultat', {
+      const r = await api.post<{ avertissements?: string[] }>('/affectation-resultat', {
         exerciceId,
         dateDecision,
         organe,
@@ -118,8 +131,9 @@ export function AffectationPage() {
           .map((l) => ({ compteId: l.compteId, montant: Number(l.montant), libelle: l.libelle || undefined })),
       });
       setInfo("Affectation enregistrée · son écriture est au brouillard de l'exercice suivant.");
+      setAvertissements(r?.avertissements ?? []);
       await charger();
-      const p = await api.get<PreparationAffectation>(`/affectation-resultat/exercice/${exerciceId}`);
+      const p = await api.get<Preparation>(`/affectation-resultat/exercice/${exerciceId}`);
       setPrep(p);
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : "Enregistrement impossible");
@@ -134,7 +148,7 @@ export function AffectationPage() {
       await api.delete(`/affectation-resultat/${id}`);
       setInfo('Affectation supprimée · son écriture aussi.');
       await charger();
-      if (exerciceId) setPrep(await api.get<PreparationAffectation>(`/affectation-resultat/exercice/${exerciceId}`));
+      if (exerciceId) setPrep(await api.get<Preparation>(`/affectation-resultat/exercice/${exerciceId}`));
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Suppression impossible');
     }
@@ -188,6 +202,15 @@ export function AffectationPage() {
         </div>
       )}
 
+      {avertissements.map((a) => (
+        <div
+          key={a}
+          className="mb-2.5 text-[11.5px] text-warning bg-warning-soft border border-warning/30 rounded-[3px] px-2.5 py-1.5 leading-[1.5]"
+        >
+          {a}
+        </div>
+      ))}
+
       {exercicesClos.length === 0 && (
         <div className="text-[11.5px] text-text-dim italic border border-border rounded-[4px] px-3 py-4">
           Aucun exercice clôturé.
@@ -206,17 +229,24 @@ export function AffectationPage() {
               </div>
             </div>
             <div>
-              <div className="text-[11px] text-text-dim">Pertes antérieures (12 débiteur)</div>
+              <div
+                className="text-[11px] text-text-dim"
+                title="Report à nouveau débiteur et perte d'un exercice antérieur restée non affectée au compte 13"
+              >
+                Pertes antérieures
+              </div>
               <div className="text-[13px] font-mono">{montant(prep.pertesAnterieures)}</div>
             </div>
             <div>
               <div className="text-[11px] text-text-dim">Réserve légale constituée</div>
               <div className="text-[13px] font-mono">{montant(prep.reserveLegaleExistante)}</div>
             </div>
-            <div>
-              <div className="text-[11px] text-text-dim">Capital social (101)</div>
-              <div className="text-[13px] font-mono">{montant(prep.capitalSocial)}</div>
-            </div>
+            {libelleCapitalAffectation(prep.capitalRacine) && (
+              <div>
+                <div className="text-[11px] text-text-dim">{libelleCapitalAffectation(prep.capitalRacine)}</div>
+                <div className="text-[13px] font-mono">{montant(prep.capitalSocial)}</div>
+              </div>
+            )}
           </div>
 
           <div className="mb-3 text-[11.5px] text-text-dim bg-chrome-alt border border-border rounded-[3px] px-2.5 py-1.5 leading-[1.55]">
@@ -343,6 +373,12 @@ export function AffectationPage() {
                 >
                   + Ajouter une destination
                 </button>
+                {prep.avertissementCapital &&
+                  lignes.some((l) => prep.destinations.find((d) => d.id === l.compteId)?.numero.startsWith('101')) && (
+                    <div className="text-[11.5px] text-warning bg-warning-soft border border-warning/30 rounded-[3px] px-2.5 py-1.5 leading-[1.5]">
+                      {prep.avertissementCapital}
+                    </div>
+                  )}
               </div>
 
               <div className="px-3 py-2 border-t border-border flex items-center justify-between text-[11.5px]">

@@ -4,7 +4,14 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { siSycebnl } from '../../common/reponse-referentiel';
 import { PrismaService } from '../../common/prisma.service';
 import { MONNAIE_DE_TENUE } from '../../common/monnaie-de-tenue';
-import { identiteSociete, mentionsEmetteur, motifRefusCapital, motifRefusCapitalVariable } from './mentions-societe';
+import {
+  FORMES_SOCIETES_COMMERCIALES,
+  identiteSociete,
+  mentionsEmetteur,
+  motifRefusCapital,
+  motifRefusCapitalVariable,
+} from './mentions-societe';
+import { motifRefusTransformation } from './forme-applicable';
 import {
   avertissementCodeActivite,
   motifRefusCodeActivite,
@@ -152,8 +159,15 @@ export class TenantService {
       // AUSCOOP art. 19, 74, 183, 205 et 268 · la coopérative.
       numeroRegistreCooperatives: tenant.numeroRegistreCooperatives,
       varianteCooperative: tenant.varianteCooperative,
+      // AUSCGIE art. 386 et 414, 853-2, 203 et 204 · faits de la dénomination.
+      modeAdministrationSa: tenant.modeAdministrationSa,
+      associeUniqueSas: tenant.associeUniqueSas,
       dateDissolution: tenant.dateDissolution,
       liquidateurs: tenant.liquidateurs,
+      // AUSCGIE art. 182 et 183 · la transformation déclarée, et la forme que
+      // gardent les exercices clos avant elle.
+      formeJuridiqueSyscohadaAnterieure: tenant.formeJuridiqueSyscohadaAnterieure,
+      dateTransformationForme: tenant.dateTransformationForme,
       // Identifiants propres aux entités à but non lucratif · voir
       // docs/identifiants-legaux-ebnl-rdc.md. Le RCCM ci-dessus ne concerne
       // qu'un dossier SYSCOHADA : l'AUDCG (art. 35, 1°) immatricule les
@@ -450,6 +464,8 @@ export class TenantService {
       locataireGerantFonds?: ReponseFait;
       numeroRegistreCooperatives?: string;
       varianteCooperative?: 'SCOOPS' | 'COOP_CA' | 'PAS_ENCORE_DIT';
+      modeAdministrationSa?: 'CONSEIL_ADMINISTRATION' | 'ADMINISTRATEUR_GENERAL' | 'PAS_ENCORE_DIT';
+      associeUniqueSas?: ReponseFait;
       dateDissolution?: string;
       liquidateurs?: string;
       actePersonnaliteJuridique?: string;
@@ -509,12 +525,10 @@ export class TenantService {
     if (
       !cooperative &&
       (renseigne(dto.numeroRegistreCooperatives) ||
-        renseigne(dto.dateDissolution) ||
-        renseigne(dto.liquidateurs) ||
         (dto.varianteCooperative !== undefined && dto.varianteCooperative !== 'PAS_ENCORE_DIT'))
     ) {
       throw new BadRequestException(
-        'Le Registre des Sociétés Coopératives, la variante SCOOPS ou COOP-CA et la liquidation de l’art. 183 sont propres à la société coopérative (AUSCOOP).',
+        'Le Registre des Sociétés Coopératives et la variante SCOOPS ou COOP-CA sont propres à la société coopérative (AUSCOOP).',
       );
     }
     if (dto.locataireGerantFonds === 'OUI' && (entreprenant || tenant.referentiel !== Referentiel.SYSCOHADA)) {
@@ -522,6 +536,46 @@ export class TenantService {
         entreprenant
           ? "L'entreprenant ne peut être partie à un contrat de location-gérance (AUDCG art. 138)."
           : "La location-gérance d'un fonds de commerce (AUDCG art. 138 à 140) ne concerne pas une entité à but non lucratif.",
+      );
+    }
+    // LES FAITS DE LA DÉNOMINATION SOCIALE, CHACUN À SA FORME (passe O1b, B1
+    // et G6 ; passe O1a, D1). Refusés à la route hors de la forme qu'ils
+    // concernent · un mode d'administration sur une SARL, ou « SASU » sur une
+    // SA, imprimerait une forme sociale que l'Acte uniforme ne prévoit pas.
+    const forme = tenant.formeJuridiqueSyscohada;
+    if (
+      dto.modeAdministrationSa !== undefined &&
+      dto.modeAdministrationSa !== 'PAS_ENCORE_DIT' &&
+      forme !== FormeJuridiqueSyscohada.SOCIETE_ANONYME
+    ) {
+      throw new BadRequestException(
+        'Le mode d’administration (conseil d’administration ou administrateur général) est celui de la société ' +
+          'anonyme (AUSCGIE art. 386 et 414) · la SAS en est exclue par l’art. 853-3.',
+      );
+    }
+    if (
+      dto.associeUniqueSas !== undefined &&
+      dto.associeUniqueSas !== 'PAS_ENCORE_DIT' &&
+      forme !== FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE
+    ) {
+      throw new BadRequestException(
+        'La désignation « société par actions simplifiée unipersonnelle » est propre à la SAS (AUSCGIE art. 853-2).',
+      );
+    }
+    const dissolution = dateSaisieOuEffacement(dto.dateDissolution);
+    // La liquidation se déclare pour une société commerciale (AUSCGIE art. 203
+    // et 204) et pour une coopérative (AUSCOOP art. 183), qui écrivent la même
+    // règle · les deux lots qui l'ont posée ont été fusionnés sur ces colonnes.
+    if ((dissolution || renseigne(dto.liquidateurs)) && !cooperative && !(forme && FORMES_SOCIETES_COMMERCIALES.includes(forme))) {
+      throw new BadRequestException(
+        'La mention « société en liquidation » et le nom des liquidateurs sont ceux d’une société commerciale ' +
+          '(AUSCGIE art. 203 et 204) ou d’une coopérative (AUSCOOP art. 183) · aucun texte lu ne les étend à cette forme.',
+      );
+    }
+    if (dissolution && dissolution > new Date()) {
+      throw new BadRequestException(
+        '« La société est en liquidation dès l’instant de sa dissolution » (AUSCGIE art. 204) · une dissolution à ' +
+          'venir ne se déclare pas.',
       );
     }
     if (tenant.referentiel === Referentiel.SYSCOHADA) {
@@ -555,7 +609,13 @@ export class TenantService {
         ...(dto.varianteCooperative === undefined
           ? {}
           : { varianteCooperative: dto.varianteCooperative === 'PAS_ENCORE_DIT' ? null : dto.varianteCooperative }),
-        dateDissolution: dateSaisieOuEffacement(dto.dateDissolution),
+        ...(dto.modeAdministrationSa === undefined
+          ? {}
+          : { modeAdministrationSa: dto.modeAdministrationSa === 'PAS_ENCORE_DIT' ? null : dto.modeAdministrationSa }),
+        ...(dto.associeUniqueSas === undefined
+          ? {}
+          : { associeUniqueSas: dto.associeUniqueSas === 'OUI' ? true : dto.associeUniqueSas === 'NON' ? false : null }),
+        dateDissolution: dissolution,
         liquidateurs: normaliser(dto.liquidateurs),
         actePersonnaliteJuridique: normaliser(dto.actePersonnaliteJuridique),
         // Date vide = pas d'arrêté encore obtenu (autorisation provisoire de
@@ -621,7 +681,11 @@ export class TenantService {
    * elle ne change ni le plan de comptes ni la présentation des états, mais
    * elle change les obligations annuelles du planning de clôture.
    */
-  async modifierFormeSyscohada(tenantId: string, formeJuridiqueSyscohada: FormeJuridiqueSyscohada) {
+  async modifierFormeSyscohada(
+    tenantId: string,
+    formeJuridiqueSyscohada: FormeJuridiqueSyscohada,
+    dateEffetTransformation?: string | null,
+  ) {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant) {
       throw new NotFoundException('Dossier introuvable');
@@ -632,7 +696,28 @@ export class TenantService {
           "Une entité à but non lucratif relève de la loi n° 004/2001, pas de l'AUSCGIE.",
       );
     }
-    await this.prisma.tenant.update({ where: { id: tenantId }, data: { formeJuridiqueSyscohada } });
+    // UNE TRANSFORMATION SE DATE, UNE CORRECTION NON (passe O1a, D3). La date
+    // d'effet est celle de la décision (AUSCGIE art. 182, « ne peut avoir
+    // d'effet rétroactif ») ; les exercices clos avant elle gardent l'ancienne
+    // forme (`formeApplicable`). Sans date, la forme vaut pour tous les
+    // exercices, comme une saisie erronée qu'on rectifie, et une transformation
+    // déjà déclarée reste en place ; une chaîne vide la retire.
+    const dateEffet = dateSaisieOuEffacement(dateEffetTransformation);
+    let transformation: { formeJuridiqueSyscohadaAnterieure: FormeJuridiqueSyscohada | null; dateTransformationForme: Date | null } | undefined;
+    if (dateEffet === null) {
+      transformation = { formeJuridiqueSyscohadaAnterieure: null, dateTransformationForme: null };
+    } else if (dateEffet !== undefined) {
+      const motif = motifRefusTransformation(tenant.formeJuridiqueSyscohada, formeJuridiqueSyscohada, dateEffet, new Date());
+      if (motif) throw new BadRequestException(motif);
+      transformation = {
+        formeJuridiqueSyscohadaAnterieure: tenant.formeJuridiqueSyscohada,
+        dateTransformationForme: dateEffet,
+      };
+    }
+    await this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: { formeJuridiqueSyscohada, ...(transformation ?? {}) },
+    });
     return this.parametres(tenantId);
   }
 

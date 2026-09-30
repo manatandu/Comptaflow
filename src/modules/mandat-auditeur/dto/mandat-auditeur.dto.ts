@@ -1,4 +1,4 @@
-import { IsBoolean, IsDateString, IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsDateString, IsEnum, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
 import { OrganeDesignationAuditeur } from '@prisma/client';
 
 export class EnregistrerMandatDto {
@@ -6,7 +6,11 @@ export class EnregistrerMandatDto {
   @MaxLength(200)
   nom!: string;
 
-  /** SYCEBNL art. 20 · exigée, jamais vérifiée. Voir le service. */
+  /**
+   * Exigée, jamais vérifiée · SYCEBNL art. 20 pour une EBNL ; loi n° 15/002,
+   * art. 59, et AUSCGIE art. 695 (SA, SARL par l'art. 377) pour une société.
+   * Voir `fondementInscription`.
+   */
   @IsString()
   @MaxLength(120)
   inscriptionOrdre!: string;
@@ -36,6 +40,17 @@ export class EnregistrerMandatDto {
   @Min(1)
   @Max(10)
   rang?: number;
+
+  /** AUSCGIE art. 706 et 728 · le mandat que celui-ci continue (SA, SAS). */
+  @IsOptional()
+  @IsUUID()
+  mandatOrigineId?: string;
+
+  // Les deux valeurs de l'enum `NatureSuccessionMandat` du schéma, écrites
+  // ici · art. 706 (remplacement) et 728 (suppléant).
+  @IsOptional()
+  @IsIn(['REMPLACEMENT', 'SUPPLEANT'], { message: 'La succession se déclare REMPLACEMENT ou SUPPLEANT.' })
+  natureSuccession?: 'REMPLACEMENT' | 'SUPPLEANT';
 }
 
 export class RefusProrogationDto {

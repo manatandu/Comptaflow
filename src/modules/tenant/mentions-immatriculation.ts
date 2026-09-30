@@ -78,6 +78,12 @@ export function mentionImmatriculation(t: IdentiteImmatriculation): MentionImmat
   const rccm = renseigne(t.rccm);
   const morceaux: string[] = [];
   const manquantes: string[] = [];
+  // LE GIE PORTE SA NATURE APRÈS SA DÉNOMINATION (passe O1b, G4) · AUSCGIE
+  // art. 876 : ses actes et documents destinés aux tiers « doivent indiquer
+  // lisiblement la dénomination du groupement, suivie des mots "groupement
+  // d'intérêt économique" ou du sigle "G.I.E." », à peine de contravention.
+  // Aucun capital ne lui est réclamé (art. 869 al. 3).
+  if (forme === FormeJuridiqueSyscohada.GROUPEMENT_INTERET_ECONOMIQUE) morceaux.push('Groupement d’intérêt économique');
   if (t.locataireGerantFonds === true) morceaux.push('Locataire-gérant du fonds de commerce');
   if (rccm) morceaux.push(`RCCM ${rccm}`);
   else if (estImmatriculeeObligatoirement(forme) || t.locataireGerantFonds === true) {

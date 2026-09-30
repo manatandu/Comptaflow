@@ -1,6 +1,8 @@
 import { FormeJuridiqueSyscohada, Referentiel } from '@prisma/client';
 import {
   REGLES,
+  avertissementLigneCapital,
+  destinationsDuSens,
   dotationReserveLegale,
   racineCapital,
   regimeReserveLegale,
@@ -121,17 +123,52 @@ describe('Réserve légale · SYCEBNL', () => {
   });
 });
 
+describe('Destinations du résultat · une liste par sens, lue dans les fiches (passe R1, A3)', () => {
+  const syscohada = REGLES[Referentiel.SYSCOHADA];
+
+  it('un bénéfice va aux 101, 103, 11, 12 et 465 que la fiche du compte 13 nomme', () => {
+    expect([...syscohada.destinationsBenefice.racines].sort()).toEqual(['101', '103', '11', '12', '465']);
+    expect(syscohada.destinationsBenefice.source).toContain('465 (Associés, dividendes à payer)');
+  });
+
+  it('une perte ne se porte jamais au 465, et le 105 l’absorbe par sa propre fiche', () => {
+    expect([...syscohada.destinationsPerte.racines].sort()).toEqual(['101', '103', '105', '11', '12']);
+    expect(syscohada.destinationsPerte.source).toContain('compte 105');
+  });
+
+  it('le sens choisit sa liste', () => {
+    expect(destinationsDuSens(syscohada, true)).toBe(syscohada.destinationsBenefice);
+    expect(destinationsDuSens(syscohada, false)).toBe(syscohada.destinationsPerte);
+  });
+});
+
+describe('Ligne au capital social · avertie, jamais refusée (passe O1b, D2)', () => {
+  it('SA · augmentation par l’AGE (art. 564), réduction à défaut de rapport du commissaire nulle (art. 630)', () => {
+    expect(avertissementLigneCapital(FormeJuridiqueSyscohada.SOCIETE_ANONYME, true)).toContain('art. 564');
+    expect(avertissementLigneCapital(FormeJuridiqueSyscohada.SOCIETE_ANONYME, false)).toContain('art. 630');
+  });
+
+  it('SAS · décision collective des associés (art. 853-11, al. 2) · SARL · art. 360 et 358', () => {
+    expect(avertissementLigneCapital(FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE, true)).toContain(
+      'art. 853-11, al. 2',
+    );
+    expect(avertissementLigneCapital(FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE, true)).toContain('art. 360');
+    expect(avertissementLigneCapital(FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE, false)).toContain('art. 358');
+  });
+});
+
 describe('Destinations du résultat · les deux plans ne les offrent pas toutes', () => {
   it('le SYCEBNL ne connaît pas les dividendes', () => {
     // « est débité le compte 13 […] par le crédit des comptes 12 - Report à
     // nouveau, 11 - Réserves, 10 - Dotation » · pas de 465. Une EBNL ne
     // distribue rien, c'est ce qui la définit.
-    expect(REGLES[Referentiel.SYCEBNL].destinations).not.toContain('465');
+    expect(REGLES[Referentiel.SYCEBNL].destinationsBenefice.racines).not.toContain('465');
+    expect(REGLES[Referentiel.SYCEBNL].destinationsPerte.racines).not.toContain('465');
     expect(REGLES[Referentiel.SYCEBNL].interdits.map((i) => i.racine)).toContain('465');
   });
 
   it('le SYSCOHADA les connaît · 465 Associés, dividendes à payer', () => {
-    expect(REGLES[Referentiel.SYSCOHADA].destinations).toContain('465');
+    expect(REGLES[Referentiel.SYSCOHADA].destinationsBenefice.racines).toContain('465');
     // MOTIF DU CHANGEMENT · ce test attendait `interdits` VIDE côté SYSCOHADA.
     // Il est tombé à la passe F6, et c'est la correction qui marchait : le 106
     // « Écarts de réévaluation » y est désormais refusé, parce qu'il vit sous
@@ -155,8 +192,10 @@ describe('Destinations du résultat · les deux plans ne les offrent pas toutes'
   it('les deux soldent le 13 par la classe 1, et le report à nouveau y est toujours', () => {
     for (const r of Object.values(REGLES)) {
       expect(r.reportANouveau).toBe('12');
-      expect(r.destinations).toContain('11');
-      expect(r.destinations).toContain('12');
+      for (const sens of [r.destinationsBenefice, r.destinationsPerte]) {
+        expect(sens.racines).toContain('11');
+        expect(sens.racines).toContain('12');
+      }
     }
   });
 });
@@ -178,7 +217,8 @@ describe('Destinations du résultat · les deux plans ne les offrent pas toutes'
  *  · art. 142 · « les dotations NÉCESSAIRES à la réserve légale » · un renvoi,
  *    pas une obligation autonome : ni taux, ni plafond, ni sanction ;
  *  · art. 853-3 · la SAS reçoit les règles de la SA « à l'exception des
- *    articles […] 414 à 561 », donc SANS l'art. 546, 2° ;
+ *    articles […] 414 à 561, 690, 751 à 753 ci-dessus », donc SANS
+ *    l'art. 546, 2° ;
  *  · art. 293-1 · la SCS suit la SNC, qui ne porte aucune réserve légale ;
  *  · art. 869 al. 3 et 870 · le GIE peut n'avoir aucun capital et ne réalise
  *    pas de bénéfice par lui-même ;
@@ -308,5 +348,13 @@ describe('Réserve légale · le capital se lit là où la forme le porte', () =
     // art. 117 (la succursale « n'a pas de personnalité juridique autonome »).
     expect(racineCapital(Referentiel.SYSCOHADA, FormeJuridiqueSyscohada.GROUPEMENT_INTERET_ECONOMIQUE)).toBeNull();
     expect(racineCapital(Referentiel.SYSCOHADA, FormeJuridiqueSyscohada.SUCCURSALE)).toBeNull();
+  });
+});
+
+describe('La citation de l’art. 853-3 n’est pas tronquée (passe O1b, D6)', () => {
+  it('le motif servi à une SAS porte toute la liste des exceptions', () => {
+    const r = regimeReserveLegale(FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE);
+    expect(r.exigee).toBe(false);
+    expect(!r.exigee && r.motif).toContain('414 à 561, 690, 751 à 753 ci-dessus');
   });
 });

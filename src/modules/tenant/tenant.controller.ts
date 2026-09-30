@@ -89,7 +89,7 @@ export class TenantController {
   @Patch('forme-syscohada')
   @Roles(RoleUtilisateur.ADMIN_CABINET)
   async modifierFormeSyscohada(@CurrentUser() user: AuthenticatedUser, @Body() dto: ModifierFormeSyscohadaDto) {
-    return this.tenantService.modifierFormeSyscohada(user.tenantId, dto.formeJuridiqueSyscohada);
+    return this.tenantService.modifierFormeSyscohada(user.tenantId, dto.formeJuridiqueSyscohada, dto.dateEffetTransformation);
   }
 
   /**

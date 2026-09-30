@@ -10,8 +10,17 @@ import {
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { EnregistrerAffectationDto } from './dto/affectation.dto';
-import { REGLES, dotationReserveLegale, racineCapital } from './regles-affectation';
+import {
+  REGLES,
+  avertissementLigneCapital,
+  destinationsDuSens,
+  dotationReserveLegale,
+  racineCapital,
+  regimeReserveLegale,
+} from './regles-affectation';
+import { formeApplicable } from '../tenant/forme-applicable';
 import { transactionJournalisee } from '../../common/audit/transaction-journalisee';
+import { FORMES_SOCIETES_COMMERCIALES } from '../tenant/mentions-societe';
 import { libelleExercice } from '../../common/libelle-exercice';
 
 const EPSILON = 0.005;
@@ -73,14 +82,16 @@ export class AffectationService {
     });
 
     // Les comptes RÉELLEMENT ouverts dans le plan du dossier, sous les racines
-    // que le référentiel autorise · proposer un compte absent du plan
-    // renverrait une erreur à la validation, ce qui se découvre trop tard.
+    // que le référentiel autorise POUR LE SENS DU RÉSULTAT · proposer un compte
+    // absent du plan renverrait une erreur à la validation, et proposer le 465
+    // sur une perte ferait refuser, après le clic, ce que le menu offrait.
+    const sens = destinationsDuSens(regles, soldes.estBenefice);
     const destinationsBrutes = await this.prisma.compte.findMany({
       where: {
         tenantId,
         estActif: true,
         typeCompte: 'DETAIL',
-        OR: regles.destinations.map((r) => ({ numero: { startsWith: r } })),
+        OR: sens.racines.map((r) => ({ numero: { startsWith: r } })),
       },
       select: { id: true, numero: true, intitule: true },
       orderBy: { numero: 'asc' },
@@ -116,6 +127,10 @@ export class AffectationService {
       reserveLegaleExistante: soldes.reserveLegale,
       reserveLegale,
       destinations,
+      // Ce qu'une ligne au capital social (101) engage, pour cette forme et ce
+      // sens · servi AVANT la saisie, l'écran l'affiche dès qu'une ligne porte
+      // sur le 101 (`avertissementLigneCapital`).
+      avertissementCapital: referentiel === Referentiel.SYSCOHADA ? avertissementLigneCapital(forme, soldes.estBenefice) : null,
       existante,
     };
   }
@@ -139,7 +154,10 @@ export class AffectationService {
    * plein, ce qui est exactement le défaut de départ.
    */
   async enregistrer(tenantId: string, createdBy: string, dto: EnregistrerAffectationDto) {
-    const { exercice, referentiel, forme } = await this.contexte(tenantId, dto.exerciceId);
+    const { exercice, referentiel, forme, formeDuJour, dateTransformation } = await this.contexte(
+      tenantId,
+      dto.exerciceId,
+    );
     const regles = REGLES[referentiel];
 
     const dejaFaite = await this.prisma.affectationResultat.findUnique({
@@ -199,11 +217,14 @@ export class AffectationService {
       }
       const interdit = regles.interdits.find((i) => compte.numero.startsWith(i.racine));
       if (interdit) throw new BadRequestException(interdit.motif);
-      if (!regles.destinations.some((r) => compte.numero.startsWith(r))) {
+      // LA LISTE DU SENS, ET SA PHRASE · une perte ne se porte pas au 465, un
+      // bénéfice ne se porte pas au 102, au 104, au 105 ni au 109.
+      const sens = destinationsDuSens(regles, soldes.estBenefice);
+      if (!sens.racines.some((r) => compte.numero.startsWith(r))) {
         throw new BadRequestException(
-          `Le compte ${compte.numero} « ${compte.intitule} » n'est pas une destination admise du résultat. ` +
-            `Le texte solde le compte 13 par les comptes ${regles.destinations.join(', ')} ` +
-            '(AUDCIF, Titre VII, compte 13 · SYCEBNL, Partie 2 ch. 3, compte 13).',
+          `Le compte ${compte.numero} « ${compte.intitule} » n'est pas une destination admise ` +
+            `${soldes.estBenefice ? 'd’un bénéfice' : 'd’une perte'}. Le texte solde le compte 13 par les ` +
+            `comptes ${sens.racines.join(', ')} (${sens.source}).`,
         );
       }
     }
@@ -219,10 +240,33 @@ export class AffectationService {
     }
 
     // --- La réserve légale, sanctionnée par la nullité -----------------------
-    if (soldes.estBenefice && regles.reserveLegale) {
+    //
+    // UN EXERCICE ANTÉRIEUR À LA TRANSFORMATION, AFFECTÉ APRÈS ELLE · le texte
+    // ne tranche pas (l'art. 183 ne vise que l'exercice au cours duquel elle
+    // intervient, et l'art. 184 met fin aux pouvoirs des anciens organes).
+    // Quand l'ancienne et la nouvelle forme ne disent pas la même chose de la
+    // réserve légale, le logiciel ne BLOQUE pas une délibération qu'il ne sait
+    // pas qualifier · il le dit.
+    const avertissementsForme: string[] = [];
+    let formeReserve = forme;
+    if (
+      dateTransformation &&
+      forme !== formeDuJour &&
+      dateDecision >= dateTransformation &&
+      regimeReserveLegale(forme).exigee !== regimeReserveLegale(formeDuJour).exigee
+    ) {
+      formeReserve = null;
+      avertissementsForme.push(
+        'Cet exercice s’est clos sous l’ancienne forme de la société, et son affectation est décidée après la ' +
+          'transformation (AUSCGIE art. 182 à 184) · les deux formes ne soumettent pas la réserve légale aux mêmes ' +
+          'règles, et aucun texte lu ne dit laquelle régit cette décision. Le logiciel ne bloque pas · vérifiez la ' +
+          `dotation au regard de ${regimeReserveLegale(forme).source} et de ${regimeReserveLegale(formeDuJour).source}.`,
+      );
+    }
+    if (soldes.estBenefice && regles.reserveLegale && formeReserve !== null) {
       const exigee = dotationReserveLegale({
         referentiel,
-        forme,
+        forme: formeReserve,
         benefice: soldes.montant,
         pertesAnterieures: soldes.pertesAnterieures,
         reserveExistante: soldes.reserveLegale,
@@ -241,6 +285,12 @@ export class AffectationService {
         }
       }
     }
+
+    // --- Ce que le logiciel signale sans refuser ------------------------------
+    const avertissements = [
+      ...avertissementsForme,
+      ...this.avertissements(referentiel, forme, soldes, dto.lignes, parId, regles.reserveLegale),
+    ];
 
     // --- L'écriture qui solde le compte 13 -----------------------------------
     //
@@ -276,7 +326,7 @@ export class AffectationService {
       lignes: lignesEcriture,
     });
     try {
-      return await this.prisma.affectationResultat.create({
+      const affectation = await this.prisma.affectationResultat.create({
         data: {
           tenantId,
           exerciceId: dto.exerciceId,
@@ -300,6 +350,7 @@ export class AffectationService {
           ecriture: { select: { id: true, numeroPiece: true, date: true, statut: true } },
         },
       });
+      return { ...affectation, avertissements };
     } catch (erreur) {
       await this.prisma.ligneEcriture.deleteMany({ where: { ecritureId: ecriture.id } });
       await this.prisma.ecriture.delete({ where: { id: ecriture.id } });
@@ -337,6 +388,64 @@ export class AffectationService {
     return { supprime: true };
   }
 
+  /**
+   * CE QUE LE TEXTE IMPOSE ET QUE LE LOGICIEL NE PEUT PAS VÉRIFIER · dit, pas
+   * refusé.
+   *
+   *  · une ligne au capital social (101) · `avertissementLigneCapital` ;
+   *  · une ligne au 465 dans une société commerciale (passes O1a C4 et O1b
+   *    A3) · « Le bénéfice distribuable est le résultat de l'exercice,
+   *    augmenté du report bénéficiaire et diminué des pertes antérieures, des
+   *    dividendes partiels régulièrement distribués ainsi que des sommes
+   *    portées en réserve en application de la loi ou des statuts » (AUSCGIE
+   *    art. 143, al. 1), et « Tout dividende distribué en violation des règles
+   *    énoncées au présent article est un dividende fictif » (art. 144).
+   *
+   * LE DIVIDENDE AU-DELÀ DU DISTRIBUABLE CONNU N'EST PAS REFUSÉ. L'art. 143,
+   * al. 2 permet à la même assemblée de distribuer des réserves disponibles en
+   * désignant les postes, et ce prélèvement ne passe pas par l'affectation du
+   * compte 13 · le logiciel ne le voit pas. Les réserves STATUTAIRES et les
+   * dividendes partiels ne sont dans aucun livre · ils sont nommés comme non
+   * contrôlés, jamais supposés nuls.
+   */
+  private avertissements(
+    referentiel: Referentiel,
+    forme: FormeJuridiqueSyscohada | null,
+    soldes: { montant: number; estBenefice: boolean; pertesAnterieures: number; reportBeneficiaire: number },
+    lignes: { compteId: string; montant: number }[],
+    parId: Map<string, { numero: string }>,
+    racineReserveLegale: string | undefined,
+  ): string[] {
+    if (referentiel !== Referentiel.SYSCOHADA) return [];
+    const avertissements: string[] = [];
+    const somme = (racine: string) =>
+      Math.round(
+        lignes.filter((l) => parId.get(l.compteId)!.numero.startsWith(racine)).reduce((s, l) => s + l.montant, 0) * 100,
+      ) / 100;
+
+    const capital = avertissementLigneCapital(forme, soldes.estBenefice);
+    if (capital && somme('101') > EPSILON) avertissements.push(capital);
+
+    const dividendes = somme('465');
+    if (soldes.estBenefice && dividendes > EPSILON && forme && FORMES_SOCIETES_COMMERCIALES.includes(forme)) {
+      const reserveLegale = racineReserveLegale ? somme(racineReserveLegale) : 0;
+      const distribuableConnu =
+        Math.round((soldes.montant + soldes.reportBeneficiaire - soldes.pertesAnterieures - reserveLegale) * 100) / 100;
+      avertissements.push(
+        (dividendes > distribuableConnu + EPSILON
+          ? `Les dividendes (${dividendes.toFixed(2)}) excèdent le bénéfice distribuable que le logiciel connaît ` +
+            `(${distribuableConnu.toFixed(2)} : résultat, augmenté du report bénéficiaire, diminué des pertes ` +
+            'antérieures et de la dotation à la réserve légale de cette décision). Ils ne sont réguliers que si ' +
+            'l’assemblée distribue en outre des réserves disponibles, en indiquant expressément les postes ' +
+            '(AUSCGIE art. 143, al. 2 et 3) · sinon c’est un dividende fictif (art. 144). '
+          : '') +
+          'Le logiciel ne connaît ni les réserves statutaires ni les dividendes partiels déjà distribués, qui ' +
+          'diminuent aussi le bénéfice distribuable (AUSCGIE art. 143, al. 1) · ils ne sont pas contrôlés ici.',
+      );
+    }
+    return avertissements;
+  }
+
   // --- Lectures -------------------------------------------------------------
 
   private async contexte(tenantId: string, exerciceId: string) {
@@ -354,7 +463,12 @@ export class AffectationService {
     // revenait à l'imposer aux douze formes · voir regles-affectation.ts.
     const tenant = await this.prisma.tenant.findUniqueOrThrow({
       where: { id: tenantId },
-      select: { referentiel: true, formeJuridiqueSyscohada: true },
+      select: {
+        referentiel: true,
+        formeJuridiqueSyscohada: true,
+        formeJuridiqueSyscohadaAnterieure: true,
+        dateTransformationForme: true,
+      },
     });
     return {
       exercice,
@@ -362,7 +476,14 @@ export class AffectationService {
       // `null` a deux sens (sans objet en SYCEBNL, non renseignée en
       // SYSCOHADA) et les deux conduisent à ne rien exiger : aucune forme n'est
       // présumée, la forme se lit dans les statuts.
-      forme: (tenant.formeJuridiqueSyscohada ?? null) as FormeJuridiqueSyscohada | null,
+      //
+      // LA FORME DE L'EXERCICE, PAS CELLE DU JOUR (passe O1a, D3) · « Il en
+      // est de même de la répartition des bénéfices » (AUSCGIE art. 183,
+      // al. 2) : l'exercice au cours duquel la transformation intervient suit
+      // la nouvelle forme, un exercice clos avant elle garde l'ancienne.
+      forme: formeApplicable(tenant, exercice.dateFin) as FormeJuridiqueSyscohada | null,
+      formeDuJour: (tenant.formeJuridiqueSyscohada ?? null) as FormeJuridiqueSyscohada | null,
+      dateTransformation: tenant.dateTransformationForme ?? null,
     };
   }
 
@@ -403,11 +524,29 @@ export class AffectationService {
           .reduce((s, l) => s + l.clotureDebit - l.clotureCredit, 0) * 100,
       ) / 100;
 
+    // LES RÉSULTATS ANTÉRIEURS SE LISENT AU 12 ET AU 13 HORS CLÔTURE (passe
+    // O1b, constat C1). Une perte d'un exercice précédent restée NON AFFECTÉE
+    // n'est pas au 12 · l'à-nouveau l'a reportée sur le 139 (ou le 130,
+    // « Résultat en instance d'affectation », AUDCIF Titre VII, compte 13), et
+    // c'est précisément le cas des dossiers dont l'exercice précédent n'a pas
+    // été affecté. Lire le seul 12 faisait asseoir la réserve légale sur le
+    // bénéfice BRUT et refuser comme NULLE une délibération conforme à
+    // l'AUSCGIE art. 346 et 546, 2° (« sur le bénéfice de l'exercice diminué,
+    // le cas échéant, des pertes antérieures »). La colonne de clôture, elle,
+    // porte le résultat de CET exercice et reste hors du compte.
+    const anterieurs13 = balance.lignes
+      .filter((l) => l.numero.startsWith('13'))
+      .reduce((s, l) => s + l.solde - (l.clotureDebit - l.clotureCredit), 0);
+    const anterieurs = Math.round((solde('12') + anterieurs13) * 100) / 100;
+
     return {
       montant: Math.abs(net),
       estBenefice: net >= 0,
-      // Report à nouveau DÉBITEUR · les pertes antérieures de l'AUSCGIE.
-      pertesAnterieures: Math.max(0, Math.round(solde('12') * 100) / 100),
+      // Résultats antérieurs nets DÉBITEURS · les pertes antérieures de
+      // l'AUSCGIE (report à nouveau débiteur et perte antérieure non affectée).
+      pertesAnterieures: Math.max(0, anterieurs),
+      // Et nets CRÉDITEURS · le « report bénéficiaire » de l'art. 143.
+      reportBeneficiaire: Math.max(0, -anterieurs),
       reserveLegale: Math.max(0, Math.round(-solde('111') * 100) / 100),
       // LE CAPITAL SE LIT LÀ OÙ LA FORME LE PORTE · 101 Capital social pour
       // les sociétés, 102 Capital par dotation pour une entité publique, 103

@@ -432,13 +432,34 @@ model Tenant {
   numeroRegistreCooperatives String?
   // AUSCOOP art. 205 et 268 · null = pas encore dit, et le manque se dit.
   varianteCooperative        VarianteCooperative?
-  // AUSCOOP art. 183 · la coopérative est en liquidation « dès l'instant de
-  // sa dissolution », et « la mention « société en liquidation » ainsi que le
-  // nom du ou des liquidateurs » figurent sur ses lettres et factures. Les
-  // deux se DÉCLARENT, aucun n'est déduit · null = pas de dissolution dite.
-  // Propres à SOCIETE_COOPERATIVE, les autres textes n'ayant pas été lus ici.
-  dateDissolution            DateTime?
-  liquidateurs               String?
+  // AUSCGIE art. 386 et 414 · le MODE D'ADMINISTRATION d'une société anonyme,
+  // que la dénomination porte avec la forme (« société anonyme » ET « du mode
+  // d'administration de la société tel que prévu à l'article 414 »). null =
+  // pas encore dit, jamais présumé · les statuts le choisissent « de manière
+  // non équivoque ». Propre à la SA · la SAS en est exclue (art. 853-3).
+  modeAdministrationSa      ModeAdministrationSa?
+  // AUSCGIE art. 853-2 al. 2 · une SAS qui ne comprend qu'un associé est
+  // désignée « société par actions simplifiée unipersonnelle » ou « SASU ».
+  // null = pas encore dit ; propre à la SAS.
+  associeUniqueSas          Boolean?
+  // AUSCGIE art. 203 et 204 · « La société est en liquidation dès l'instant de
+  // sa dissolution », et la mention « société en liquidation » ainsi que le nom
+  // du ou des liquidateurs figurent sur tous ses actes et documents destinés
+  // aux tiers. Fait déclaré, vide par défaut · une société n'est pas présumée
+  // dissoute. Hors liquidation conduite sous l'AUPCAP (art. 203). MÊMES
+  // COLONNES que la liquidation de la coopérative (AUSCOOP art. 183, « dès
+  // l'instant de sa dissolution »), créées par la migration
+  // 20261225000000_mentions_cooperative · un seul fait, une seule place.
+  dateDissolution           DateTime?
+  liquidateurs              String?
+  // AUSCGIE art. 182 et 183 · une TRANSFORMATION prend effet au jour de la
+  // décision, « ne peut avoir d'effet rétroactif », et seul l'exercice au cours
+  // duquel elle intervient suit la nouvelle forme. La forme d'avant et la date
+  // d'effet sont gardées pour que les exercices antérieurs se lisent sous la
+  // forme qu'ils avaient (`formeApplicable`). Nulles quand la forme n'a été
+  // que corrigée · une saisie erronée se corrige pour tous les exercices.
+  formeJuridiqueSyscohadaAnterieure FormeJuridiqueSyscohada?
+  dateTransformationForme           DateTime?
 
   // --- Identifiants propres aux entités à but non lucratif ---------------
   // Ce qui fonde l'existence d'une ASBL n'est pas un numéro de registre mais
@@ -5739,6 +5760,25 @@ model CoupureComptee {
   @@map("coupures_comptees")
 }
 
+/// MODE D'ADMINISTRATION D'UNE SOCIÉTÉ ANONYME · AUSCGIE art. 414, « les
+/// statuts […] choisissent entre : la société anonyme avec conseil
+/// d'administration ; la société anonyme avec administrateur général ».
+enum ModeAdministrationSa {
+  CONSEIL_ADMINISTRATION
+  ADMINISTRATEUR_GENERAL
+}
+
+/// UN MANDAT QUI EN CONTINUE UN AUTRE · AUSCGIE art. 706 (le commissaire
+/// nommé « en remplacement d'un autre ne demeure en fonction que jusqu'à
+/// l'expiration du mandat de son prédécesseur ») et art. 728 (le suppléant
+/// exerce « jusqu'à la cessation de l'empêchement ou, lorsque l'empêchement
+/// est définitif, jusqu'à l'expiration du mandat du commissaire aux comptes
+/// empêché »).
+enum NatureSuccessionMandat {
+  REMPLACEMENT
+  SUPPLEANT
+}
+
 /// ORGANE QUI A DÉSIGNÉ LE CONTRÔLEUR DES COMPTES.
 ///
 /// Ce n'est pas un ornement : chez la société anonyme, la DURÉE du mandat en
@@ -5782,10 +5822,14 @@ model MandatAuditeur {
   /// Nom du contrôleur ou de son cabinet.
   nom String
 
-  /// RÉFÉRENCE D'INSCRIPTION AU TABLEAU DE L'ORDRE · SYCEBNL art. 20,
-  /// « l'auditeur est CHOISI […] parmi les experts-comptables INSCRITS AU
-  /// TABLEAU de l'ordre des experts-comptables ou de l'organe qui en tient lieu
-  /// dans chaque État partie » (l'ONEC en RDC). Le logiciel ne consulte aucun
+  /// RÉFÉRENCE D'INSCRIPTION AU TABLEAU DE L'ORDRE · deux chemins, chacun à
+  /// son référentiel. SYCEBNL art. 20, « l'auditeur est CHOISI […] parmi les
+  /// experts-comptables INSCRITS AU TABLEAU de l'ordre des experts-comptables
+  /// ou de l'organe qui en tient lieu dans chaque État partie » (l'ONEC en
+  /// RDC). SYSCOHADA · loi n° 15/002, art. 59, « Nul ne peut exercer le mandat
+  /// ou la fonction de Commissaire aux comptes s'il n'est inscrit au tableau
+  /// de l'Ordre des Experts-comptables », et AUSCGIE art. 695 pour la SA (et
+  /// la SARL, par l'art. 377). Le logiciel ne consulte aucun
   /// tableau et ne vérifie donc rien · il EXIGE la référence, parce que c'est
   /// elle qu'un réviseur demandera, pas le nom. Même parti que la source d'un
   /// relevé d'unités d'œuvre.
@@ -5821,10 +5865,21 @@ model MandatAuditeur {
   finAnticipeeLe DateTime?
   motifFin       String?
 
+  /// MANDAT QUE CELUI-CI CONTINUE · AUSCGIE art. 706 et 728 (SA, et SAS par
+  /// l'art. 853-3). Nuls pour une nomination initiale. Le dernier exercice
+  /// couvert se lit alors sur le mandat d'origine, jamais sur les six
+  /// exercices de l'art. 704 · RESTRICT, parce qu'un lien dénoué en silence
+  /// rendrait au remplaçant une durée que le texte ne lui donne pas.
+  mandatOrigineId  String?
+  mandatOrigine    MandatAuditeur?         @relation("SuccessionMandat", fields: [mandatOrigineId], references: [id], onDelete: Restrict)
+  successeurs      MandatAuditeur[]        @relation("SuccessionMandat")
+  natureSuccession NatureSuccessionMandat?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([tenantId, premierExercice])
+  @@index([mandatOrigineId])
   @@map("mandats_auditeur")
 }
 

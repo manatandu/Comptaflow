@@ -12,6 +12,7 @@ import { EtatsFinanciersSyscohadaService } from '../etats-financiers-syscohada/e
 import { DonationService } from '../registre-donateurs/donation.service';
 import { SECTIONS_RAPPORT_ACTIVITE } from './correspondance-inventaire';
 import { regleRapportGestion } from './correspondance-inventaire-syscohada';
+import { exerciceDeTransformation, formeApplicable } from '../tenant/forme-applicable';
 import { EtablirRapportActiviteDto } from './dto/documents-obligatoires.dto';
 
 /**
@@ -133,15 +134,23 @@ export class RapportActiviteService {
    * dont l'état de promotion des coopérateurs, et SANS les événements
    * postérieurs à la clôture que les deux premiers exigent).
    */
-  private async regimeRapport(tenantId: string) {
+  private async regimeRapport(tenantId: string, exercice: { dateFin: Date }) {
     const tenant = await this.prisma.tenant.findUniqueOrThrow({
       where: { id: tenantId },
-      select: { referentiel: true, formeJuridiqueSyscohada: true },
+      select: {
+        referentiel: true,
+        formeJuridiqueSyscohada: true,
+        formeJuridiqueSyscohadaAnterieure: true,
+        dateTransformationForme: true,
+      },
     });
     if (tenant.referentiel !== Referentiel.SYSCOHADA) {
       return { syscohada: false as const, regle: null };
     }
-    return { syscohada: true as const, regle: regleRapportGestion(tenant.formeJuridiqueSyscohada) };
+    // LA FORME DE L'EXERCICE (passe O1a, D3) · un rapport arrêté sous
+    // l'ancienne forme n'est pas rejugé selon la nouvelle (AUSCGIE art. 182 et
+    // 183, `formeApplicable`).
+    return { syscohada: true as const, regle: regleRapportGestion(formeApplicable(tenant, exercice.dateFin)) };
   }
 
   async etablir(tenantId: string, userId: string, dto: EtablirRapportActiviteDto) {
@@ -153,7 +162,7 @@ export class RapportActiviteService {
     // construction et la quatrième section n'aurait littéralement rien à
     // mentionner. Ce n'est pas une préférence de saisie, c'est la définition
     // même du contenu exigé.
-    const regime = await this.regimeRapport(tenantId);
+    const regime = await this.regimeRapport(tenantId, exercice);
     if (etabliLe < exercice.dateFin) {
       // Le texte du DOSSIER, jamais l'art. 16-3 servi à une société (audit
       // final F95).
@@ -227,14 +236,21 @@ export class RapportActiviteService {
   async conformiteRapportGestion(tenantId: string, exerciceId: string) {
     const exercice = await this.exercice(tenantId, exerciceId);
     const courant = await this.courant(tenantId, exerciceId);
-    const regle = regleRapportGestion(
-      (
-        await this.prisma.tenant.findUniqueOrThrow({
-          where: { id: tenantId },
-          select: { formeJuridiqueSyscohada: true },
-        })
-      ).formeJuridiqueSyscohada,
-    );
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { formeJuridiqueSyscohada: true, formeJuridiqueSyscohadaAnterieure: true, dateTransformationForme: true },
+    });
+    // La forme de l'EXERCICE, jamais celle du jour (passe O1a, D3).
+    const regle = regleRapportGestion(formeApplicable(tenant, exercice.dateFin));
+    // AUSCGIE art. 185 · « Le rapport de gestion est établi par les anciens et
+    // les nouveaux organes de gestion, chacun de ses organes pour sa période de
+    // gestion » · rappelé sur l'exercice au cours duquel la transformation
+    // est intervenue, et sur lui seul.
+    const mentionTransformation = exerciceDeTransformation(tenant, exercice)
+      ? `La société a changé de forme le ${tenant.dateTransformationForme!.toLocaleDateString('fr-FR')} · « Le rapport ` +
+        'de gestion est établi par les anciens et les nouveaux organes de gestion, chacun de ses organes pour sa ' +
+        'période de gestion » (AUSCGIE art. 185).'
+      : null;
 
     if (regle.genre === 'AUCUNE_REGLE_LUE') {
       // Aucune règle lue · on le DIT. Le livre d'inventaire, lui, reste dû
@@ -250,9 +266,19 @@ export class RapportActiviteService {
         sections: [] as Array<{ cle: string; titre: string; exigence: string; renseignee: boolean }>,
         fenetreEvenementsPosterieurs: null as { du: Date; au: Date; article: string } | null,
         tresorerie: null as TresorerieDuRapport | null,
+        mentionTransformation,
+        modificationsDeMethodeEnregistrees: 0,
         complet: false,
       };
     }
+
+    // AUSCGIE art. 141 (passe O1a, C5) · ce que le dossier SAIT d'un
+    // changement de méthode, montré à côté de la section qui doit le signaler.
+    // Le logiciel ne voit pas tout changement · la section reste exigée même
+    // à zéro, et le cabinet y écrit « Néant ».
+    const modificationsDeMethodeEnregistrees = await this.prisma.ecriture.count({
+      where: { tenantId, exerciceId: exercice.id, motifImputationOuverture: 'CHANGEMENT_METHODE' },
+    });
 
     const enregistrees = (courant?.sections ?? {}) as Record<string, string | undefined>;
     const sections = regle.sections.map((section) => ({
@@ -276,6 +302,8 @@ export class RapportActiviteService {
           ? { du: exercice.dateFin, au: courant.etabliLe, article: articleDeLaRegle(regle.source) }
           : null,
       tresorerie: tresorerieFigee(courant?.tresorerie, await this.tableauDuDossier(tenantId)),
+      mentionTransformation,
+      modificationsDeMethodeEnregistrees,
       complet: courant !== null && sections.every((s) => s.renseignee),
     };
   }

@@ -3,6 +3,8 @@ import {
   ETATS_INVENTAIRE_SMT_SYSCOHADA,
   ETATS_INVENTAIRE_SYSTEME_NORMAL,
   SECTIONS_RAPPORT_GESTION_AUSCGIE,
+  SECTION_MODIFICATIONS_AUSCGIE,
+  SECTION_PARTICIPATION_SALARIES_SA,
   SECTIONS_RAPPORT_GESTION_AUSCOOP,
   etatsExigesParSysteme,
   regleRapportGestion,
@@ -120,8 +122,29 @@ describe('qui doit établir un rapport de gestion', () => {
     ]) {
       const regle = regleRapportGestion(forme);
       expect([forme, regle.genre]).toEqual([forme, 'EXIGE']);
-      expect(regle.genre === 'EXIGE' && regle.sections).toBe(SECTIONS_RAPPORT_GESTION_AUSCGIE);
+      // Les six de l'art. 138 d'abord, puis la mention de l'art. 141 · la SA
+      // ajoute celle de l'art. 547-1.
+      const attendues = [
+        ...SECTIONS_RAPPORT_GESTION_AUSCGIE,
+        SECTION_MODIFICATIONS_AUSCGIE,
+        ...(forme === FormeJuridiqueSyscohada.SOCIETE_ANONYME ? [SECTION_PARTICIPATION_SALARIES_SA] : []),
+      ];
+      expect([forme, regle.genre === 'EXIGE' && regle.sections]).toEqual([forme, attendues]);
     }
+  });
+
+  it('l’art. 141 · les modifications de présentation ou de méthodes, pour les cinq sociétés (passe O1a, C5)', () => {
+    expect(SECTION_MODIFICATIONS_AUSCGIE.exigence.startsWith('AUSCGIE art. 141')).toBe(true);
+    expect(SECTION_MODIFICATIONS_AUSCGIE.exigence).toContain('Néant');
+  });
+
+  it('l’art. 547-1 · la participation des salariés au capital, SA seule (passe O1b, C2)', () => {
+    const sa = regleRapportGestion(FormeJuridiqueSyscohada.SOCIETE_ANONYME);
+    const sas = regleRapportGestion(FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE);
+    expect(sa.genre === 'EXIGE' && sa.sections.map((s) => s.cle)).toContain('participationSalariesCapital');
+    // L'art. 853-3 excepte les art. 414 à 561 · la SAS n'a pas cette section.
+    expect(sas.genre === 'EXIGE' && sas.sections.map((s) => s.cle)).not.toContain('participationSalariesCapital');
+    expect(SECTION_PARTICIPATION_SALARIES_SA.exigence.startsWith('AUSCGIE art. 547-1')).toBe(true);
   });
 
   it('la coopérative relève de son PROPRE texte, pas de l’AUSCGIE', () => {

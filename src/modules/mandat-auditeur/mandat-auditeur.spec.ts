@@ -2,7 +2,15 @@ import { FormeJuridiqueSyscohada, OrganeDesignationAuditeur, Referentiel } from 
 import { MandatAuditeurService } from './mandat-auditeur.service';
 import { ControlesService } from '../controles/controles.service';
 import { PrismaService } from '../../common/prisma.service';
-import { dernierExerciceCouvert, dureeMandat, motifRefusDuree } from './duree-mandat';
+import {
+  dernierExerciceCouvert,
+  dureeMandat,
+  fondementInscription,
+  motifRefusDuree,
+  motifRefusOrgane,
+  motifRefusSuccession,
+  regleDeProrogation,
+} from './duree-mandat';
 
 /**
  * LE CONTRÔLE 6 RÉCLAMAIT DE « VÉRIFIER QUE LE MANDAT EST EN COURS » et aucune
@@ -45,13 +53,10 @@ describe('Durée du mandat · trois textes, trois durées', () => {
     expect(d.source).toContain('AUSCGIE art. 379');
   });
 
-  it('SAS et SNC · aucune durée lue, et le module le DIT', () => {
+  it('entreprenant · aucune durée lue, et le module le DIT', () => {
     // Une règle absente est déclarée absente, jamais remplacée par la plus
     // proche · même discipline que `regles-auditeur.ts`.
-    for (const forme of [
-      FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE,
-      FormeJuridiqueSyscohada.SOCIETE_NOM_COLLECTIF,
-    ]) {
+    for (const forme of [FormeJuridiqueSyscohada.ENTREPRENANT]) {
       const d = dureeMandat(Referentiel.SYSCOHADA, forme, 'ASSEMBLEE_GENERALE_ORDINAIRE');
       expect(d.exercices).toBeNull();
       expect(d.source).toMatch(/aucun texte lu/i);
@@ -66,6 +71,59 @@ describe('Durée du mandat · trois textes, trois durées', () => {
     expect(inconnu.exercices).toBeNull();
     expect(inconnu.source).toContain('AUSCGIE art. 880');
     expect(inconnu.source).toContain('six exercices');
+  });
+
+  it('coopérative · TROIS exercices, AUSCOOP art. 121, al. 2 (constat O6-B1)', () => {
+    const d = dureeMandat(Referentiel.SYSCOHADA, FormeJuridiqueSyscohada.SOCIETE_COOPERATIVE, 'ASSEMBLEE_GENERALE_ORDINAIRE');
+    expect([d.exercices, d.mandatsMaximum, d.source]).toEqual([3, null, 'AUSCOOP art. 121, al. 2']);
+  });
+
+  it('SNC et SCS · TROIS exercices, par le renvoi de l’art. 289-1 à l’art. 379 (passe O1a, E2)', () => {
+    // « Les dispositions des articles 377 et suivants ci-après sont applicables
+    // à tout commissaire aux comptes désigné conformément aux dispositions du
+    // présent article » · déclarées absentes à tort, alors que l'art. 380 annule
+    // les délibérations prises sur le rapport d'un commissaire nommé
+    // contrairement à l'art. 379.
+    const snc = dureeMandat(Referentiel.SYSCOHADA, FormeJuridiqueSyscohada.SOCIETE_NOM_COLLECTIF, 'ASSOCIES');
+    const scs = dureeMandat(Referentiel.SYSCOHADA, FormeJuridiqueSyscohada.SOCIETE_COMMANDITE_SIMPLE, 'ASSOCIES');
+    expect([snc.exercices, snc.mandatsMaximum, scs.exercices, scs.mandatsMaximum]).toEqual([3, null, 3, null]);
+    expect(snc.source).toContain('art. 289-1');
+    expect(scs.source).toContain('art. 293-1');
+  });
+
+  it('SAS · le renvoi de l’art. 853-3 à l’art. 704, et la lecture qui le rend dite (passe O1b, G1)', () => {
+    const sas = FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE;
+    const statuts = dureeMandat(Referentiel.SYSCOHADA, sas, 'STATUTS_OU_AG_CONSTITUTIVE');
+    const associes = dureeMandat(Referentiel.SYSCOHADA, sas, 'ASSOCIES');
+    expect([statuts.exercices, associes.exercices]).toEqual([2, 6]);
+    expect(statuts.source).toContain('art. 853-3');
+    expect(associes.source).toContain('lecture d’OmegaX');
+    expect(associes.source).toContain('dans la mesure où');
+  });
+
+  it('SA · la juridiction ne donne AUCUNE durée · art. 708 et 730 (passe O1b, E2)', () => {
+    const d = dureeMandat(Referentiel.SYSCOHADA, FormeJuridiqueSyscohada.SOCIETE_ANONYME, 'JURIDICTION');
+    expect(d.exercices).toBeNull();
+    expect(d.source).toContain('art. 708 et 730');
+    expect(motifRefusDuree(Referentiel.SYSCOHADA, d.exercices, 1)).toBeNull();
+  });
+
+  it('SA · refuse les associés et le bailleur, que l’art. 703 ne connaît pas', () => {
+    const sa = FormeJuridiqueSyscohada.SOCIETE_ANONYME;
+    expect(motifRefusOrgane(Referentiel.SYSCOHADA, sa, 'ASSOCIES')).toContain('art. 703');
+    expect(motifRefusOrgane(Referentiel.SYSCOHADA, sa, 'BAILLEUR_OU_ETAT')).toContain('art. 703');
+    expect(motifRefusOrgane(Referentiel.SYSCOHADA, sa, 'ASSEMBLEE_GENERALE_ORDINAIRE')).toBeNull();
+    // Rien ne change pour les autres formes.
+    expect(
+      motifRefusOrgane(Referentiel.SYSCOHADA, FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE, 'ASSOCIES'),
+    ).toBeNull();
+    expect(motifRefusOrgane(Referentiel.SYCEBNL, null, 'BAILLEUR_OU_ETAT')).toBeNull();
+  });
+
+  it('la prorogation de la SAS vient de l’art. 709 par l’art. 853-3', () => {
+    const r = regleDeProrogation(Referentiel.SYSCOHADA, FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE);
+    expect(r?.source).toBe('AUSCGIE art. 853-3 et 709');
+    expect(regleDeProrogation(Referentiel.SYSCOHADA, FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE)).toBeNull();
   });
 
   it('la réduction à l’existence de l’entité est PROPRE au SYCEBNL', () => {
@@ -91,13 +149,33 @@ describe('Durée du mandat · trois textes, trois durées', () => {
 
 // ---------------------------------------------------------------------------
 
-function service(referentiel: Referentiel, formeJuridiqueSyscohada: FormeJuridiqueSyscohada | null, nbExercices = 5) {
+interface Origine {
+  id: string;
+  tenantId: string;
+  premierExercice: number;
+  nombreExercices: number;
+}
+
+function service(
+  referentiel: Referentiel,
+  formeJuridiqueSyscohada: FormeJuridiqueSyscohada | null,
+  nbExercices = 5,
+  origines: Origine[] = [],
+) {
   const cree: Faux[] = [];
   const prisma = {
     tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 't', referentiel, formeJuridiqueSyscohada }) },
     exercice: { count: jest.fn().mockResolvedValue(nbExercices) },
     mandatAuditeur: {
       findMany: jest.fn().mockResolvedValue([]),
+      // Honore le filtre · un mandat d'un autre dossier n'existe pas.
+      findFirst: jest
+        .fn()
+        .mockImplementation(({ where }: { where: { id: string; tenantId: string } }) =>
+          Promise.resolve(
+            origines.find((o) => o.id === where.id && o.tenantId === where.tenantId) ?? null,
+          ),
+        ),
       create: jest.fn().mockImplementation(({ data }: { data: Faux }) => {
         cree.push(data);
         return Promise.resolve({ id: 'm1', ...data });
@@ -161,9 +239,12 @@ describe('Enregistrement du mandat · ce que les textes refusent', () => {
     await expect(
       sarl.svc.enregistrer('t', { ...mandatValide, organeDesignation: OrganeDesignationAuditeur.ASSOCIES, nombreExercices: 6 }),
     ).rejects.toThrow(/3 exercice/);
-    // La SAS n'a aucune durée chiffrée · toute durée passe, et c'est voulu.
-    const sas = service(Referentiel.SYSCOHADA, FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE);
-    await expect(sas.svc.enregistrer('t', { ...mandatValide, nombreExercices: 5 })).resolves.toBeDefined();
+    // Le GIE n'a aucune durée chiffrée · toute durée passe, et c'est voulu.
+    const gie = service(Referentiel.SYSCOHADA, FormeJuridiqueSyscohada.GROUPEMENT_INTERET_ECONOMIQUE);
+    await expect(gie.svc.enregistrer('t', { ...mandatValide, nombreExercices: 5 })).resolves.toBeDefined();
+    // Une SNC n'y est plus · l'art. 379 lui vient de l'art. 289-1.
+    const snc = service(Referentiel.SYSCOHADA, FormeJuridiqueSyscohada.SOCIETE_NOM_COLLECTIF);
+    await expect(snc.svc.enregistrer('t', { ...mandatValide, nombreExercices: 6 })).rejects.toThrow(/art\. 289-1/);
   });
 
   it('ne mesure pas l’existence au nombre d’exercices du logiciel (audit final F18)', async () => {
@@ -354,5 +435,107 @@ describe('Le contrôle du mandat · et le piège de l’article 22', () => {
     expect(a!.gravite).toBe('AVERTISSEMENT');
     expect(a!.consequence).toContain('AUSCGIE art. 709');
     expect(await anomalie('MANDAT_AUDITEUR_PROROGE', refuse)).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('Inscription au tableau · le texte du dossier, jamais celui de l’autre (passe D3)', () => {
+  it('une société lit la loi n° 15/002, art. 59, et une SA l’AUSCGIE art. 695', async () => {
+    const sa = service(Referentiel.SYSCOHADA, FormeJuridiqueSyscohada.SOCIETE_ANONYME);
+    await expect(
+      sa.svc.enregistrer('t', { ...mandatValide, nombreExercices: 6, inscriptionOrdre: ' ' }),
+    ).rejects.toThrow(/Loi n° 15\/002, art\. 59 · AUSCGIE art\. 695/);
+    expect(fondementInscription(Referentiel.SYSCOHADA, FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE).source).toBe(
+      'Loi n° 15/002, art. 59 · AUSCGIE art. 695, par l’art. 377',
+    );
+    // La SAS ne reçoit pas l'art. 695 · l'art. 853-13 ne renvoie qu'à l'art. 853-11.
+    expect(fondementInscription(Referentiel.SYSCOHADA, FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE).source).toBe(
+      'Loi n° 15/002, art. 59',
+    );
+  });
+
+  it('une association garde l’art. 20 du SYCEBNL, sans l’art. 59 du commissaire aux comptes', () => {
+    const f = fondementInscription(Referentiel.SYCEBNL, null);
+    expect(f.source).toBe('SYCEBNL art. 20');
+    expect(f.texte).not.toContain('15/002');
+  });
+
+  it('la liste des mandats sert le fondement du dossier à l’écran', async () => {
+    const { svc } = service(Referentiel.SYSCOHADA, FormeJuridiqueSyscohada.SOCIETE_ANONYME);
+    expect((await svc.lister('t')).fondementInscription.source).toContain('AUSCGIE art. 695');
+  });
+});
+
+describe('Organe et succession du commissaire de SA (passe O1b, E1 et E2)', () => {
+  const origine = { id: 'm0', tenantId: 't', premierExercice: 2024, nombreExercices: 6 };
+
+  it('REFUSE à une SA un commissaire désigné par les « associés »', async () => {
+    const { svc } = service(Referentiel.SYSCOHADA, FormeJuridiqueSyscohada.SOCIETE_ANONYME);
+    await expect(
+      svc.enregistrer('t', { ...mandatValide, organeDesignation: OrganeDesignationAuditeur.ASSOCIES, nombreExercices: 6 }),
+    ).rejects.toThrow(/art\. 703/);
+  });
+
+  it('accepte un commissaire désigné en justice pour la durée que l’acte fixe', async () => {
+    const { svc } = service(Referentiel.SYSCOHADA, FormeJuridiqueSyscohada.SOCIETE_ANONYME);
+    await expect(
+      svc.enregistrer('t', { ...mandatValide, organeDesignation: OrganeDesignationAuditeur.JURIDICTION, nombreExercices: 1 }),
+    ).resolves.toBeDefined();
+  });
+
+  it('le remplaçant ne demeure en fonction que jusqu’à l’expiration du mandat de son prédécesseur (art. 706)', async () => {
+    const { svc, cree } = service(Referentiel.SYSCOHADA, FormeJuridiqueSyscohada.SOCIETE_ANONYME, 5, [origine]);
+    // Nommé en 2027 dans un mandat 2024-2029 · trois exercices, pas six.
+    await svc.enregistrer('t', {
+      ...mandatValide,
+      premierExercice: 2027,
+      nombreExercices: 3,
+      mandatOrigineId: 'm0',
+      natureSuccession: 'REMPLACEMENT',
+    });
+    expect(cree[0]).toMatchObject({ mandatOrigineId: 'm0', natureSuccession: 'REMPLACEMENT', nombreExercices: 3 });
+    await expect(
+      svc.enregistrer('t', {
+        ...mandatValide,
+        premierExercice: 2027,
+        nombreExercices: 6,
+        mandatOrigineId: 'm0',
+        natureSuccession: 'REMPLACEMENT',
+      }),
+    ).rejects.toThrow(/art\. 706/);
+  });
+
+  it('le suppléant exerce au plus jusqu’à l’expiration du mandat empêché (art. 728)', async () => {
+    expect(motifRefusSuccession('SUPPLEANT', origine, 2027, 1)).toBeNull();
+    // Le remplaçant, lui, va jusqu'au terme · ni plus, ni MOINS.
+    expect(motifRefusSuccession('REMPLACEMENT', origine, 2027, 1)).toContain('art. 706');
+    expect(motifRefusSuccession('SUPPLEANT', origine, 2027, 4)).toContain('art. 728');
+    expect(motifRefusSuccession('REMPLACEMENT', origine, 2031, 1)).toContain('mandat d’origine');
+  });
+
+  it('ne l’étend pas à la SARL, et une origine d’un autre dossier n’existe pas', async () => {
+    const sarl = service(Referentiel.SYSCOHADA, FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE, 5, [origine]);
+    await expect(
+      sarl.svc.enregistrer('t', { ...mandatValide, mandatOrigineId: 'm0', natureSuccession: 'REMPLACEMENT' }),
+    ).rejects.toThrow(/pas étendues à cette forme/);
+    const sa = service(Referentiel.SYSCOHADA, FormeJuridiqueSyscohada.SOCIETE_ANONYME, 5, [{ ...origine, tenantId: 'autre' }]);
+    await expect(
+      sa.svc.enregistrer('t', { ...mandatValide, premierExercice: 2027, mandatOrigineId: 'm0', natureSuccession: 'REMPLACEMENT' }),
+    ).rejects.toThrow(/introuvable/);
+  });
+});
+
+describe('La SAS n’est plus signalée sans contrôleur l’année où sa mission est prorogée (passe O1b, G1)', () => {
+  it('un mandat de SAS échu l’an dernier est prorogé par les art. 853-3 et 709', async () => {
+    const echu = [{ id: 'm', nom: 'Cabinet X', premierExercice: 2026, nombreExercices: 3, refusDeProrogation: false }];
+    const rapport = await serviceControles(echu, FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE, 500, 200_000_000).analyser(
+      't',
+      'ex',
+    );
+    expect(rapport.anomalies.some((x) => x.code === 'AUDITEUR_OBLIGATOIRE_SANS_MANDAT')).toBe(false);
+    expect(rapport.anomalies.find((x) => x.code === 'MANDAT_AUDITEUR_PROROGE')?.consequence).toContain(
+      'AUSCGIE art. 853-3 et 709',
+    );
   });
 });

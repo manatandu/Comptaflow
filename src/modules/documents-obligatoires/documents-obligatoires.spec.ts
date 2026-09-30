@@ -24,6 +24,7 @@ import { DonationService } from '../registre-donateurs/donation.service';
 const EXERCICE = { id: 'ex1', tenantId: 't1', dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') };
 
 function prismaAvec(jeu: JeuEtatsFinanciersSycebnl, transcriptions: any[] = [], rapports: any[] = []) {
+  const ecritures: any[] = [];
   const suivante = (table: any[]) => (data: any) => {
     const cree = { id: `x${table.length + 1}`, transcritLe: new Date(), createdAt: new Date(), ...data };
     table.push(cree);
@@ -53,9 +54,24 @@ function prismaAvec(jeu: JeuEtatsFinanciersSycebnl, transcriptions: any[] = [], 
       findFirst: jest.fn().mockImplementation(dernierPar(rapports)),
       create: jest.fn().mockImplementation(({ data }: any) => suivante(rapports)(data)),
     },
+    // AUSCGIE art. 141 · les imputations d'ouverture déclarées, comptées par
+    // exercice et par motif · la doublure honore le filtre.
+    ecriture: {
+      count: jest.fn().mockImplementation(({ where }: any) =>
+        Promise.resolve(
+          ecritures.filter(
+            (e) =>
+              e.tenantId === where.tenantId &&
+              e.exerciceId === where.exerciceId &&
+              e.motifImputationOuverture === where.motifImputationOuverture,
+          ).length,
+        ),
+      ),
+    },
     _transcriptions: transcriptions,
     _rapports: rapports,
-  } as unknown as PrismaService & { _transcriptions: any[]; _rapports: any[] };
+    _ecritures: ecritures,
+  } as unknown as PrismaService & { _transcriptions: any[]; _rapports: any[]; _ecritures: any[] };
 }
 
 const TFT_QUI_BOUCLE = {
@@ -592,5 +608,51 @@ describe('Livre d’inventaire · le fondement du dossier (F95)', () => {
     const prisma = enSyscohada(prismaAvec(JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS), SystemeComptableSyscohada.NORMAL);
     const c = await services(undefined, prisma).inventaire.conformite('t1', 'ex1');
     expect(c.fondement.article).toBe('AUDCIF art. 19');
+  });
+});
+
+/**
+ * PASSES O1a (C5, D3) ET O1b (C2) · CE QUE LE RAPPORT DE GESTION D'UNE SOCIÉTÉ
+ * DOIT ENCORE PORTER, ET SOUS QUELLE FORME IL SE JUGE.
+ */
+describe('Rapport de gestion · art. 141, 185 et 547-1, et la forme de l’exercice', () => {
+  it('rend le nombre de changements de méthode enregistrés à côté de la section de l’art. 141', async () => {
+    const prisma = enSyscohada(prismaAvec(JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS), SystemeComptableSyscohada.NORMAL);
+    prisma._ecritures.push(
+      { tenantId: 't1', exerciceId: 'ex1', motifImputationOuverture: 'CHANGEMENT_METHODE' },
+      { tenantId: 't1', exerciceId: 'ex1', motifImputationOuverture: 'CORRECTION_ERREUR' },
+    );
+    const c = await services(undefined, prisma).rapport.conformiteRapportGestion('t1', 'ex1');
+    expect(c.modificationsDeMethodeEnregistrees).toBe(1);
+    expect(c.sections.map((s: { cle: string }) => s.cle)).toEqual(
+      expect.arrayContaining(['modificationsPresentationMethodes', 'participationSalariesCapital']),
+    );
+  });
+
+  it('un exercice clos avant la transformation se juge sous l’ancienne forme, et l’exercice de transformation rappelle l’art. 185', async () => {
+    const prisma = enSyscohada(
+      prismaAvec(JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS),
+      SystemeComptableSyscohada.NORMAL,
+      FormeJuridiqueSyscohada.SOCIETE_ANONYME,
+    );
+    const tenant = await prisma.tenant.findUniqueOrThrow({} as never);
+    // SARL devenue SA APRÈS la clôture de l'exercice · il reste une SARL.
+    prisma.tenant.findUniqueOrThrow = jest.fn().mockResolvedValue({
+      ...tenant,
+      formeJuridiqueSyscohadaAnterieure: FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE,
+      dateTransformationForme: new Date(EXERCICE.dateFin.getTime() + 86_400_000),
+    });
+    const avant = await services(undefined, prisma).rapport.conformiteRapportGestion('t1', 'ex1');
+    expect(avant.sections.map((s: { cle: string }) => s.cle)).not.toContain('participationSalariesCapital');
+    expect(avant.mentionTransformation).toBeNull();
+    // Transformation AU COURS de l'exercice · la nouvelle forme, et l'art. 185.
+    prisma.tenant.findUniqueOrThrow = jest.fn().mockResolvedValue({
+      ...tenant,
+      formeJuridiqueSyscohadaAnterieure: FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE,
+      dateTransformationForme: EXERCICE.dateFin,
+    });
+    const pendant = await services(undefined, prisma).rapport.conformiteRapportGestion('t1', 'ex1');
+    expect(pendant.sections.map((s: { cle: string }) => s.cle)).toContain('participationSalariesCapital');
+    expect(pendant.mentionTransformation).toContain('AUSCGIE art. 185');
   });
 });

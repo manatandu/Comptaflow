@@ -2,7 +2,16 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { OrganeDesignationAuditeur, Referentiel } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { regleAuditeur } from '../controles/regles-auditeur';
-import { dernierExerciceCouvert, dureeMandat, motifRefusDuree } from './duree-mandat';
+import {
+  dernierExerciceCouvert,
+  dureeMandat,
+  fondementInscription,
+  motifRefusDuree,
+  motifRefusOrgane,
+  motifRefusSuccession,
+  NatureSuccession,
+  successionOuverte,
+} from './duree-mandat';
 
 /**
  * MANDAT DU CONTRÔLEUR DES COMPTES · auditeur au SYCEBNL (art. 19 à 22),
@@ -42,6 +51,11 @@ export class MandatAuditeurService {
       // existence inférieure à trois exercices. OmegaX ne la mesure pas
       // (`motifRefusDuree`), le cabinet saisit la durée ramenée.
       reductionPossible: t.referentiel === Referentiel.SYCEBNL && brute.exercices !== null,
+      // L'organe que le texte de la forme ne connaît pas, servi AVANT la
+      // saisie · la route le refuse (`motifRefusOrgane`).
+      organeRefuse: motifRefusOrgane(t.referentiel, t.formeJuridiqueSyscohada, organe),
+      // AUSCGIE art. 706 et 728 · le remplaçant et le suppléant, SA et SAS.
+      successionPossible: successionOuverte(t.referentiel, t.formeJuridiqueSyscohada),
     };
   }
 
@@ -57,6 +71,9 @@ export class MandatAuditeurService {
         dernierExerciceCouvert: dernierExerciceCouvert(m.premierExercice, m.nombreExercices),
       })),
       referentiel: t.referentiel,
+      // Le texte qui exige l'inscription au tableau, celui du DOSSIER · la
+      // bulle d'aide servait « SYCEBNL art. 20 » à toute société.
+      fondementInscription: fondementInscription(t.referentiel, t.formeJuridiqueSyscohada),
     };
   }
 
@@ -70,6 +87,8 @@ export class MandatAuditeurService {
       premierExercice: number;
       nombreExercices: number;
       rang?: number;
+      mandatOrigineId?: string;
+      natureSuccession?: NatureSuccession;
     },
   ) {
     const t = await this.dossier(tenantId);
@@ -80,24 +99,29 @@ export class MandatAuditeurService {
     // SYCEBNL art. 20 · « L'auditeur est CHOISI par les membres de l'entité à
     // but non lucratif parmi les EXPERTS-COMPTABLES INSCRITS AU TABLEAU de
     // l'ordre des experts-comptables ou de l'organe qui en tient lieu dans
-    // chaque État partie » · l'ONEC en RDC.
+    // chaque État partie » · l'ONEC en RDC. Côté SYSCOHADA, loi n° 15/002,
+    // art. 59, et AUSCGIE art. 695 pour la SA et la SARL
+    // (`fondementInscription`, passe D3) · la branche société ne citait aucun
+    // texte, et présentait une condition légale d'exercice comme une
+    // commodité de révision.
     //
     // Le logiciel ne consulte aucun tableau et ne VÉRIFIE donc rien. Il exige
     // la référence, parce que c'est elle qu'un réviseur demandera, pas le nom.
     // Même parti que la source d'un relevé d'unités d'œuvre. Prétendre
     // vérifier serait pire que ne rien exiger.
     if (!dto.inscriptionOrdre.trim()) {
+      const fondement = fondementInscription(t.referentiel, t.formeJuridiqueSyscohada);
       throw new BadRequestException(
-        t.referentiel === Referentiel.SYCEBNL
-          ? 'La référence d’inscription au tableau de l’ordre est exigée · SYCEBNL art. 20, l’auditeur est ' +
-            'choisi « parmi les experts-comptables inscrits au tableau de l’ordre des experts-comptables ou ' +
-            'de l’organe qui en tient lieu dans chaque État partie » (l’ONEC en RDC). OmegaX ne consulte ' +
-            'aucun tableau et ne vérifie pas cette référence · il la conserve, parce que c’est elle qu’un ' +
-            'réviseur demandera.'
-          : 'La référence d’inscription au tableau de l’ordre est exigée · c’est elle qu’un réviseur ' +
-            'demandera, et OmegaX ne consulte aucun tableau : il conserve la référence sans la vérifier.',
+        `La référence d’inscription au tableau de l’ordre est exigée · ${fondement.source}, ${fondement.texte}. ` +
+          'OmegaX ne consulte aucun tableau et ne vérifie pas cette référence · il la conserve, parce que c’est ' +
+          'elle qu’un réviseur demandera.',
       );
     }
+
+    // REFUS 1 BIS · UN ORGANE QUE LE TEXTE DE LA FORME NE CONNAÎT PAS (SA,
+    // art. 703) · passe O1b, E2.
+    const refusOrgane = motifRefusOrgane(t.referentiel, t.formeJuridiqueSyscohada, dto.organeDesignation);
+    if (refusOrgane) throw new BadRequestException(refusOrgane);
 
     // REFUS 2 · LE RENOUVELLEMENT BORNÉ, ET SEULEMENT LÀ OÙ UN TEXTE LE BORNE.
     //
@@ -123,7 +147,15 @@ export class MandatAuditeurService {
     // l'est entièrement pour la SAS, la SNC, la commandite simple, le GIE, la
     // coopérative et l'entreprenant, dont aucun texte lu ne dit rien · d'où
     // `exercices: null`, et aucun refus.
-    const refusDuree = motifRefusDuree(t.referentiel, brute.exercices, dto.nombreExercices);
+    //
+    // SAUF LE MANDAT QUI EN CONTINUE UN AUTRE (art. 706 et 728, passe O1b,
+    // E1) · sa durée se lit sur le mandat d'origine, pas sur l'art. 704.
+    const origine = await this.origineDeLaSuccession(tenantId, t, dto);
+    if (origine) {
+      const refus = motifRefusSuccession(dto.natureSuccession!, origine, dto.premierExercice, dto.nombreExercices);
+      if (refus) throw new BadRequestException(`Durée refusée · ${refus}. Valeur reçue : ${dto.nombreExercices}.`);
+    }
+    const refusDuree = origine ? null : motifRefusDuree(t.referentiel, brute.exercices, dto.nombreExercices);
     if (refusDuree) {
       throw new BadRequestException(
         `La durée du mandat est de ${refusDuree} pour ce dossier · ${brute.source}` +
@@ -144,8 +176,37 @@ export class MandatAuditeurService {
         premierExercice: dto.premierExercice,
         nombreExercices: dto.nombreExercices,
         rang,
+        mandatOrigineId: origine?.id ?? null,
+        natureSuccession: origine ? dto.natureSuccession! : null,
       },
     });
+  }
+
+  /**
+   * Le mandat d'origine d'un remplacement ou d'un suppléant · null pour une
+   * nomination initiale. Les deux champs vont ensemble, la succession n'est
+   * ouverte qu'à la SA et à la SAS, et l'origine est un mandat DE CE DOSSIER.
+   */
+  private async origineDeLaSuccession(
+    tenantId: string,
+    t: { referentiel: Referentiel; formeJuridiqueSyscohada: Parameters<typeof successionOuverte>[1] },
+    dto: { mandatOrigineId?: string; natureSuccession?: NatureSuccession },
+  ) {
+    if (!dto.mandatOrigineId && !dto.natureSuccession) return null;
+    if (!dto.mandatOrigineId || !dto.natureSuccession) {
+      throw new BadRequestException(
+        'Un remplacement ou un suppléant se déclare avec le mandat qu’il continue · les deux vont ensemble.',
+      );
+    }
+    if (!successionOuverte(t.referentiel, t.formeJuridiqueSyscohada)) {
+      throw new BadRequestException(
+        'Le remplacement (AUSCGIE art. 706) et le suppléant (art. 728) sont des règles de la société anonyme, ' +
+          'que l’art. 853-3 rend applicables à la SAS · elles ne sont pas étendues à cette forme.',
+      );
+    }
+    const origine = await this.prisma.mandatAuditeur.findFirst({ where: { id: dto.mandatOrigineId, tenantId } });
+    if (!origine) throw new BadRequestException('Mandat d’origine introuvable dans ce dossier.');
+    return origine;
   }
 
   /**

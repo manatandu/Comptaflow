@@ -37,12 +37,19 @@ type Duree = {
   source: string;
   /** SYCEBNL art. 21, seconde phrase · la durée se ramène, elle se saisit (audit final F18). */
   reductionPossible: boolean;
+  /** AUSCGIE art. 703 · l'organe que le texte de la SA ne connaît pas, refusé par la route. */
+  organeRefuse?: string | null;
+  /** AUSCGIE art. 706 et 728 · remplacement et suppléant, SA et SAS (art. 853-3). */
+  successionPossible?: boolean;
 };
+
+/** Le texte qui exige l'inscription au tableau, celui du dossier (passe D3). */
+type FondementInscription = { source: string; texte: string };
 
 const ORGANES: { valeur: string; libelle: string }[] = [
   { valeur: 'ASSEMBLEE_GENERALE_ORDINAIRE', libelle: 'Assemblée générale ordinaire' },
   { valeur: 'STATUTS_OU_AG_CONSTITUTIVE', libelle: 'Statuts ou assemblée générale constitutive' },
-  { valeur: 'ASSOCIES', libelle: 'Associés (SARL)' },
+  { valeur: 'ASSOCIES', libelle: 'Associés' },
   { valeur: 'BAILLEUR_OU_ETAT', libelle: 'Bailleur de fonds ou État bénéficiaire' },
   { valeur: 'JURIDICTION', libelle: 'Juridiction compétente' },
 ];
@@ -86,13 +93,18 @@ export function MandatAuditeurPage() {
   const [premierExercice, setPremierExercice] = useState(new Date().getFullYear());
   const [nombreExercices, setNombreExercices] = useState(3);
   const [obligation, setObligation] = useState<Obligation | null>(null);
+  const [fondement, setFondement] = useState<FondementInscription | null>(null);
+  // Nomination initiale, ou mandat qui en continue un autre (art. 706 et 728).
+  const [succession, setSuccession] = useState<'' | 'REMPLACEMENT' | 'SUPPLEANT'>('');
+  const [mandatOrigineId, setMandatOrigineId] = useState('');
 
   // La relecture ne lève jamais · un mandat enregistré n'est pas dit refusé
   // parce que la liste n'a pas pu être relue ensuite.
   const recharger = () =>
-    api.get<{ mandats: Mandat[] }>('/mandat-auditeur').then(
+    api.get<{ mandats: Mandat[]; fondementInscription?: FondementInscription }>('/mandat-auditeur').then(
       (r) => {
         setMandats(r.mandats);
+        setFondement(r.fondementInscription ?? null);
         setErreurLecture(null);
       },
       (e) => setErreurLecture(e instanceof ApiError ? e.message : 'La liste des mandats n’a pas pu être lue.'),
@@ -136,6 +148,7 @@ export function MandatAuditeurPage() {
         premierExercice: Number(premierExercice),
         nombreExercices: Number(nombreExercices),
         rang: mandats.filter((m) => m.nom.trim() === nom.trim()).length + 1,
+        ...(succession && mandatOrigineId ? { natureSuccession: succession, mandatOrigineId } : {}),
       });
       setNom('');
       setInscription('');
@@ -215,11 +228,13 @@ export function MandatAuditeurPage() {
             <label className="text-[11.5px]">
               <span className="inline-flex items-center gap-1">
                 Inscription au tableau de l'ordre
-                <Aide
-                  titre="Inscription au tableau de l'ordre"
-                  texte="La référence d'inscription est exigée et jamais vérifiée · le texte veut un expert-comptable inscrit au tableau de l'ordre, mais OmegaX ne consulte aucun tableau. Il conserve la référence, parce que c'est elle qu'un réviseur demandera."
-                  source="SYCEBNL art. 20"
-                />
+                {fondement && (
+                  <Aide
+                    titre="Inscription au tableau de l'ordre"
+                    texte={`La référence d'inscription est exigée et jamais vérifiée · ${fondement.texte}. OmegaX ne consulte aucun tableau : il conserve la référence, parce que c'est elle qu'un réviseur demandera.`}
+                    source={fondement.source}
+                  />
+                )}
               </span>
               <input
                 className="w-full border border-border px-1.5 py-1 text-[11.5px]"
@@ -238,6 +253,38 @@ export function MandatAuditeurPage() {
                 ))}
               </select>
             </label>
+            {duree?.successionPossible && (
+              <label className="text-[11.5px]">
+                Nature de la nomination
+                <select
+                  className="w-full border border-border px-1.5 py-1 text-[11.5px]"
+                  value={succession}
+                  onChange={(e) => setSuccession(e.target.value as '' | 'REMPLACEMENT' | 'SUPPLEANT')}
+                  title="AUSCGIE art. 706 (remplacement) et 728 (suppléant) · le mandat s'arrête au terme de celui qu'il continue"
+                >
+                  <option value="">Nomination</option>
+                  <option value="REMPLACEMENT">Remplacement d'un commissaire</option>
+                  <option value="SUPPLEANT">Suppléant appelé aux fonctions</option>
+                </select>
+              </label>
+            )}
+            {duree?.successionPossible && succession && (
+              <label className="text-[11.5px]">
+                Mandat continué
+                <select
+                  className="w-full border border-border px-1.5 py-1 text-[11.5px]"
+                  value={mandatOrigineId}
+                  onChange={(e) => setMandatOrigineId(e.target.value)}
+                >
+                  <option value="">Choisir…</option>
+                  {(mandats ?? []).map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.nom} · {m.premierExercice} à {m.dernierExerciceCouvert}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label className="text-[11.5px]">
               Date de désignation
               <input type="date" className="w-full border border-border px-1.5 py-1 text-[11.5px]" value={dateDesignation} onChange={(e) => setDateDesignation(e.target.value)} />
@@ -255,15 +302,19 @@ export function MandatAuditeurPage() {
                 onChange={(e) => setNombreExercices(Number(e.target.value))}
                 min={1}
                 max={duree?.reductionPossible ? (duree.exercices ?? undefined) : undefined}
-                disabled={duree?.exercices !== null && duree?.exercices !== undefined && !duree.reductionPossible}
+                disabled={
+                  duree?.exercices !== null && duree?.exercices !== undefined && !duree.reductionPossible && !succession
+                }
               />
             </label>
           </div>
 
           {duree && (
             <p className="text-[11px] text-text-dim mt-2 leading-[1.6]">
-              {duree.exercices === null ? (
-                <>Aucune durée n'est chiffrée pour cette forme · {duree.source} Elle se saisit.</>
+              {duree.organeRefuse ? (
+                <span className="text-danger">{duree.organeRefuse}</span>
+              ) : duree.exercices === null ? (
+                <>Durée à saisir · {duree.source}</>
               ) : (
                 <>
                   Durée : <strong>{duree.exercices} exercice(s)</strong> · {duree.source}.
@@ -286,7 +337,11 @@ export function MandatAuditeurPage() {
           )}
 
           {erreur && <p className="text-[11.5px] text-danger mt-2">{erreur}</p>}
-          <button className="mt-2 border border-border px-2.5 py-1 text-[11.5px]" onClick={() => void enregistrer()}>
+          <button
+            className="mt-2 border border-border px-2.5 py-1 text-[11.5px] disabled:opacity-50"
+            disabled={Boolean(duree?.organeRefuse) || (Boolean(succession) && !mandatOrigineId)}
+            onClick={() => void enregistrer()}
+          >
             Enregistrer
           </button>
         </section>
@@ -322,8 +377,8 @@ export function MandatAuditeurPage() {
                       État
                       <Aide
                         titre="Prorogation du mandat"
-                        texte="Pour une association et pour une société anonyme, un mandat dont le dernier exercice est passé n'est pas un trou · la mission est prorogée « sauf refus exprès » du contrôleur, jusqu'à la plus prochaine assemblée statuant sur les comptes, donc pour le seul exercice qui suit. Seul ce refus laisse l'entité sans contrôleur, et c'est lui que la colonne « État » enregistre. Aucun texte lu ne proroge le mandat des autres formes."
-                        source="SYCEBNL art. 22 · AUSCGIE art. 709 (SA)"
+                        texte="Pour une association, une société anonyme et une SAS, un mandat dont le dernier exercice est passé n'est pas un trou · la mission est prorogée « sauf refus exprès » du contrôleur, jusqu'à la plus prochaine assemblée statuant sur les comptes, donc pour le seul exercice qui suit. Seul ce refus laisse l'entité sans contrôleur, et c'est lui que la colonne « État » enregistre. Aucun texte lu ne proroge le mandat des autres formes."
+                        source="SYCEBNL art. 22 · AUSCGIE art. 709 (SA) · art. 853-3 et 709 (SAS)"
                       />
                     </span>
                   </th>

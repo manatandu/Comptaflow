@@ -3612,7 +3612,12 @@ export class ControlesService {
 
     // L'OBLIGATION DÉCLENCHÉE, PAS UN SEUIL FRANCHI (audit final F17) · deux sur
     // trois aux formes cumulatives, comme le contrôle 6 de la même classe.
-    if (!couvrant && (seuils.obligationDeclenchee || seuils.obligationSansSeuil)) {
+    // Une mission PROROGÉE se dit même quand l'obligation reste indéterminée
+    // (seuils en FCFA non comparés, AUSCGIE art. 906) · c'est un fait sur un
+    // mandat existant, pas un reproche, et le taire laisserait croire le
+    // contrôleur parti.
+    const prorogationEnCours = !!echu && !!prorogation && dansLaProrogation && !echu.refusDeProrogation;
+    if (!couvrant && (seuils.obligationDeclenchee || seuils.obligationSansSeuil || prorogationEnCours)) {
       if (echu && prorogation && echu.refusDeProrogation) {
         // Le contrôleur a refusé de poursuivre · la prorogation de plein droit
         // ne joue pas, et l'entité est réellement sans contrôleur.

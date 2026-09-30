@@ -44,7 +44,13 @@ export const FORMES_SYSCOHADA: {
     valeur: 'SOCIETE_PAR_ACTIONS_SIMPLIFIEE',
     titre: 'Société par actions simplifiée · SAS ou SASU',
     detail:
-      "Un ou plusieurs associés, dont les statuts organisent librement le fonctionnement (art. 853-1). Le régime de la SA s'y applique par renvoi, sauf le capital minimum et tout le titre des assemblées (art. 853-3) · le capital est donc libre. Appel public à l'épargne interdit.",
+      // L'EXCEPTION DE L'ART. 853-3 EN ENTIER (passes O1b, C3 et G5) · « à
+      // l'exception des articles 387 alinéa 1er, 414 à 561, 690, 751 à 753 ».
+      // Les art. 414 à 561 couvrent l'administration (414 à 461), la direction
+      // (462 à 515) et les assemblées (516 à 561) · n'en nommer que les
+      // assemblées laissait croire que le conseil d'administration de la SA
+      // s'impose à une SAS.
+      "Un ou plusieurs associés, dont les statuts organisent librement le fonctionnement (art. 853-1). Le régime de la SA s'y applique par renvoi, sauf le capital minimum (art. 387 al. 1), l'administration, la direction et les assemblées (art. 414 à 561), la condition de transformation (art. 690) et les règles de vote des art. 751 à 753 · les attributions du conseil d'administration y sont exercées par le président (art. 853-3). Le capital est donc libre. Appel public à l'épargne interdit (art. 853-4).",
   },
   {
     valeur: 'SOCIETE_RESPONSABILITE_LIMITEE',

@@ -52,6 +52,9 @@ const COMPTES = [
   // Vit sous la racine 10, qui est une destination admise · c'est tout le
   // piège de la passe F6.
   { id: 'c1061', numero: '10610000', intitule: 'Écarts de réévaluation légale', typeCompte: 'DETAIL' },
+  { id: 'c104', numero: '10410000', intitule: 'Compte de l’exploitant', typeCompte: 'DETAIL' },
+  { id: 'c105', numero: '10510000', intitule: 'Primes d’émission', typeCompte: 'DETAIL' },
+  { id: 'c109', numero: '10900000', intitule: 'Apporteurs, capital souscrit, non appelé', typeCompte: 'DETAIL' },
 ];
 
 interface Options {
@@ -68,6 +71,8 @@ interface Options {
   statutExercice?: 'OUVERT' | 'CLOTURE';
   suivant?: { id: string; statut: string; dateDebut: Date; dateFin: Date } | null;
   affectationExistante?: unknown;
+  /** AUSCGIE art. 182 et 183 · une transformation déclarée (forme d'avant, date). */
+  transformation?: { anterieure: FormeJuridiqueSyscohada; date: Date };
 }
 
 function service(o: Options = {}) {
@@ -96,12 +101,27 @@ function service(o: Options = {}) {
         referentiel: o.referentiel ?? Referentiel.SYSCOHADA,
         formeJuridiqueSyscohada:
           o.forme === undefined ? FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE : o.forme,
+        formeJuridiqueSyscohadaAnterieure: o.transformation?.anterieure ?? null,
+        dateTransformationForme: o.transformation?.date ?? null,
       }),
     },
     compte: {
-      findMany: jest.fn().mockImplementation(({ where }: { where: { id?: { in: string[] } } }) =>
-        Promise.resolve(where.id ? COMPTES.filter((c) => where.id!.in.includes(c.id)) : COMPTES),
-      ),
+      // LA DOUBLURE HONORE LE FILTRE DES RACINES · sans quoi la liste servie à
+      // l'écran passerait ce test quel que soit le sens lu par le service.
+      findMany: jest
+        .fn()
+        .mockImplementation(
+          ({ where }: { where: { id?: { in: string[] }; OR?: { numero: { startsWith: string } }[] } }) =>
+            Promise.resolve(
+              where.id
+                ? COMPTES.filter((c) => where.id!.in.includes(c.id))
+                : COMPTES.filter(
+                    (c) =>
+                      c.typeCompte === 'DETAIL' &&
+                      (!where.OR || where.OR.some((o) => c.numero.startsWith(o.numero.startsWith))),
+                  ),
+            ),
+        ),
       findFirst: jest.fn().mockImplementation(({ where }: { where: { numero: { startsWith: string } } }) =>
         Promise.resolve(COMPTES.find((c) => c.numero.startsWith(where.numero.startsWith)) ?? null),
       ),
@@ -614,5 +634,197 @@ describe('Passe F6 · le compte 106 « Écarts de réévaluation » n’est pas 
       ],
     });
     expect(creerEcriture).toHaveBeenCalled();
+  });
+});
+
+/**
+ * PASSE R1, CONSTAT A3 · UNE LISTE PAR SENS. La racine 10 entière ouvrait à un
+ * bénéfice le 104 (soldé à chaque clôture) et le 109 (capital non appelé), et
+ * le 465 absorbait une perte · des écritures équilibrées que la fiche du
+ * compte 13 ne connaît pas.
+ */
+describe('Affectation · les destinations dépendent du SENS du résultat', () => {
+  it('refuse une perte portée au 465 · la fiche ne crédite le 13 que par le 12, le 11, le 101 ou le 103', async () => {
+    const { svc } = service({ balance: perte(500_000) });
+    await expect(
+      svc.enregistrer('t1', 'u1', { ...DECISION, exerciceId: 'ex2026', lignes: [{ compteId: 'c465', montant: 500_000 }] }),
+    ).rejects.toThrow(/destination admise d’une perte.*101 \(Capital social\) ou 103/);
+  });
+
+  it('refuse un bénéfice porté au 104 ou au 109', async () => {
+    for (const compteId of ['c104', 'c109']) {
+      const { svc } = service({ forme: FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE, balance: benefice(1_000_000) });
+      await expect(
+        svc.enregistrer('t1', 'u1', { ...DECISION, exerciceId: 'ex2026', lignes: [{ compteId, montant: 1_000_000 }] }),
+      ).rejects.toThrow(/destination admise d’un bénéfice/);
+    }
+  });
+
+  it('admet l’absorption d’une perte par le 105, que sa fiche prévoit', async () => {
+    const { svc, creerEcriture } = service({ balance: perte(500_000) });
+    await svc.enregistrer('t1', 'u1', {
+      ...DECISION,
+      exerciceId: 'ex2026',
+      lignes: [{ compteId: 'c105', montant: 500_000 }],
+    });
+    expect(creerEcriture.mock.calls[0][2].lignes[1]).toMatchObject({ compteId: 'c105', debit: 500_000 });
+  });
+
+  it('ne propose pas le 465 sur une perte, et le propose sur un bénéfice', async () => {
+    const surPerte = (await service({ balance: perte(500_000) }).svc.preparer('t1', 'ex2026')).destinations.map(
+      (d: { numero: string }) => d.numero,
+    );
+    const surBenefice = (await service({ balance: benefice(500_000) }).svc.preparer('t1', 'ex2026')).destinations.map(
+      (d: { numero: string }) => d.numero,
+    );
+    expect(surPerte).not.toContain('46500000');
+    expect(surPerte).toContain('10510000');
+    expect(surBenefice).toContain('46500000');
+    expect(surBenefice).not.toContain('10900000');
+    expect(surBenefice).not.toContain('10410000');
+  });
+});
+
+/**
+ * PASSE O1b, CONSTAT C1 · UNE PERTE ANTÉRIEURE NON AFFECTÉE EST UNE PERTE
+ * ANTÉRIEURE. Perte N-1 de 1 000 000 restée au 139, bénéfice N de 3 000 000 :
+ * l'art. 346 veut au moins 200 000, le code lisant le seul 12 en réclamait
+ * 300 000 et refusait comme nulle la délibération conforme.
+ */
+describe('Affectation · les pertes antérieures comptent le 13 non affecté', () => {
+  const balance = benefice(3_000_000, [
+    // L'à-nouveau de N a reporté la perte de N-1 sur le 139, et personne ne
+    // l'a affectée · elle n'est pas dans la colonne de clôture.
+    { numero: '13910000', mouvementDebit: 0, mouvementCredit: 0, solde: 1_000_000 },
+  ]);
+
+  it('lit la perte N-1 au 139 parmi les pertes antérieures', async () => {
+    const p = await service({ balance }).svc.preparer('t1', 'ex2026');
+    expect(p.pertesAnterieures).toBe(1_000_000);
+    expect(p.montant).toBe(3_000_000);
+    expect(p.reserveLegale.dotation).toBe(200_000);
+  });
+
+  it('accepte la délibération qui dote le dixième du bénéfice diminué de cette perte', async () => {
+    const { svc, creerEcriture } = service({ balance });
+    await svc.enregistrer('t1', 'u1', {
+      ...DECISION,
+      exerciceId: 'ex2026',
+      lignes: [
+        { compteId: 'c111', montant: 200_000 },
+        { compteId: 'c121', montant: 2_800_000 },
+      ],
+    });
+    expect(creerEcriture).toHaveBeenCalled();
+  });
+});
+
+/**
+ * PASSES O1a C4, O1b A3 ET D2 · CE QUE LE LOGICIEL DIT SANS REFUSER. Le
+ * dividende au-delà du distribuable connu n'est pas refusé (art. 143, al. 2 :
+ * l'assemblée peut distribuer des réserves), et une ligne au capital est une
+ * augmentation de capital dont l'organe n'est pas connu du logiciel.
+ */
+describe('Affectation · avertissements rendus avec la décision', () => {
+  it('nomme le dividende qui excède le bénéfice distribuable connu (art. 143 et 144)', async () => {
+    const { svc } = service({
+      balance: benefice(1_000_000, [{ numero: '12910000', mouvementDebit: 0, mouvementCredit: 0, solde: 600_000 }]),
+    });
+    const r = await svc.enregistrer('t1', 'u1', {
+      ...DECISION,
+      exerciceId: 'ex2026',
+      lignes: [
+        { compteId: 'c111', montant: 40_000 },
+        { compteId: 'c465', montant: 960_000 },
+      ],
+    });
+    expect(r.avertissements.join(' ')).toContain('excèdent le bénéfice distribuable');
+    expect(r.avertissements.join(' ')).toContain('dividende fictif (art. 144)');
+    expect(r.avertissements.join(' ')).toContain('réserves statutaires');
+  });
+
+  it('ne crie pas au dividende fictif quand il tient dans le distribuable connu', async () => {
+    const { svc } = service({ balance: benefice(1_000_000) });
+    const r = await svc.enregistrer('t1', 'u1', {
+      ...DECISION,
+      exerciceId: 'ex2026',
+      lignes: [
+        { compteId: 'c111', montant: 100_000 },
+        { compteId: 'c465', montant: 900_000 },
+      ],
+    });
+    expect(r.avertissements.join(' ')).not.toContain('excèdent');
+    expect(r.avertissements.join(' ')).toContain('réserves statutaires');
+  });
+
+  it('dit qu’une ligne au capital d’une SA est une augmentation de capital (art. 564)', async () => {
+    const { svc } = service({ forme: FormeJuridiqueSyscohada.SOCIETE_ANONYME, balance: benefice(1_000_000) });
+    const r = await svc.enregistrer('t1', 'u1', {
+      ...DECISION,
+      exerciceId: 'ex2026',
+      lignes: [
+        { compteId: 'c111', montant: 100_000 },
+        { compteId: 'c10', montant: 900_000 },
+      ],
+    });
+    expect(r.avertissements.join(' ')).toContain('AUGMENTATION DE CAPITAL');
+    expect(r.avertissements.join(' ')).toContain('art. 564');
+  });
+
+  it('sert l’avertissement du capital avant la saisie', async () => {
+    const p = await service({ forme: FormeJuridiqueSyscohada.SOCIETE_ANONYME, balance: perte(1_000) }).svc.preparer(
+      't1',
+      'ex2026',
+    );
+    expect(p.avertissementCapital).toContain('art. 630');
+  });
+});
+
+/**
+ * PASSE O1a, CONSTAT D3 · LA FORME DE L'EXERCICE. Une SARL devenue SAS le
+ * 1er mars 2027 : son exercice 2026 s'est clos SARL, et c'est l'art. 346 qui
+ * s'y applique · la réserve légale ne disparaît pas parce que la forme du jour
+ * n'en porte plus. Décidée après la transformation, l'affectation de 2026 n'est
+ * tranchée par aucun texte · le logiciel avertit au lieu de bloquer.
+ */
+describe('Affectation · la forme juridique est celle de l’exercice (art. 182 et 183)', () => {
+  const transformation = {
+    anterieure: FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE,
+    date: new Date('2027-03-01'),
+  };
+
+  it('sert la réserve légale de l’ancienne forme à un exercice clos avant la transformation', async () => {
+    const p = await service({
+      forme: FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE,
+      transformation,
+      balance: benefice(1_000_000),
+    }).svc.preparer('t1', 'ex2026');
+    expect(p.formeJuridiqueSyscohada).toBe(FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE);
+    expect(p.reserveLegale.dotation).toBe(100_000);
+  });
+
+  it('une décision postérieure à la transformation n’est pas bloquée, elle est avertie', async () => {
+    const { svc } = service({
+      forme: FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE,
+      transformation,
+      balance: benefice(1_000_000),
+    });
+    const r = await svc.enregistrer('t1', 'u1', {
+      ...DECISION,
+      exerciceId: 'ex2026',
+      lignes: [{ compteId: 'c121', montant: 1_000_000 }],
+    });
+    expect(r.avertissements.join(' ')).toContain('art. 182 à 184');
+  });
+
+  it('une décision antérieure à la transformation reste bloquée sous l’ancienne forme', async () => {
+    const { svc } = service({
+      forme: FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE,
+      transformation: { ...transformation, date: new Date('2027-09-01') },
+      balance: benefice(1_000_000),
+    });
+    await expect(
+      svc.enregistrer('t1', 'u1', { ...DECISION, exerciceId: 'ex2026', lignes: [{ compteId: 'c121', montant: 1_000_000 }] }),
+    ).rejects.toThrow(/NULLE/);
   });
 });

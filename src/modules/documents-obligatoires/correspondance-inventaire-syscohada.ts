@@ -127,6 +127,50 @@ export const SECTIONS_RAPPORT_GESTION_AUSCGIE: SectionRapportGestion[] = [
 ];
 
 /**
+ * AUSCGIE, article 141 · LA MENTION DES MODIFICATIONS (passe O1a, C5) :
+ *
+ *   « Toute modification dans la présentation des états financiers de
+ *   synthèse ou dans les méthodes d'évaluation, d'amortissement ou de
+ *   provisions conformes au droit comptable doit être signalée dans le rapport
+ *   de gestion et, le cas échéant, dans celui du commissaire aux comptes. »
+ *
+ * Conditionnelle dans le texte, EXIGÉE ICI TOUJOURS · le logiciel ne voit
+ * qu'une partie des changements (une imputation d'ouverture déclarée
+ * CHANGEMENT_METHODE), et une section facultative laisserait « complet » un
+ * rapport qui tait une modification. Le cabinet écrit « Néant » quand il n'y en
+ * a pas, et c'est une réponse. Même parti que la section jumelle de la
+ * coopérative (AUSCOOP art. 111). Tenue à part des six de l'art. 138, pour que
+ * chaque section cite SON article.
+ */
+export const SECTION_MODIFICATIONS_AUSCGIE: SectionRapportGestion = {
+  cle: 'modificationsPresentationMethodes',
+  titre: 'Modifications de présentation ou de méthodes',
+  exigence:
+    "AUSCGIE art. 141 : « Toute modification dans la présentation des états financiers de synthèse ou dans les méthodes d'évaluation, d'amortissement ou de provisions conformes au droit comptable doit être signalée dans le rapport de gestion ». Écrire « Néant » s'il n'y en a pas.",
+};
+
+/**
+ * AUSCGIE, article 547-1 · PROPRE À LA SOCIÉTÉ ANONYME (passe O1b, C2) :
+ *
+ *   « Le rapport présenté par le conseil d'administration ou l'administrateur
+ *   général, selon le cas, à l'assemblée générale rend compte annuellement de
+ *   l'état de la participation des salariés au capital social au dernier jour
+ *   de l'exercice. »
+ *
+ * et l'art. 626-1-2 y renvoie les actions attribuées aux dirigeants
+ * (« L'information correspondante est publiée dans le rapport mentionné à
+ * l'article 547-1 »). La SAS n'y est pas · l'art. 853-3 excepte les art. 414
+ * à 561. Rien n'est calculé · aucun livre ne porte la détention du capital
+ * par les salariés.
+ */
+export const SECTION_PARTICIPATION_SALARIES_SA: SectionRapportGestion = {
+  cle: 'participationSalariesCapital',
+  titre: 'État de la participation des salariés au capital',
+  exigence:
+    "AUSCGIE art. 547-1 : « Le rapport présenté par le conseil d'administration ou l'administrateur général, selon le cas, à l'assemblée générale rend compte annuellement de l'état de la participation des salariés au capital social au dernier jour de l'exercice ».",
+};
+
+/**
  * AUSCOOP, article 108 · LA RÉDACTION N'EST PAS CELLE DE L'AUSCGIE, et c'est
  * pourquoi la coopérative a sa propre table :
  *
@@ -225,6 +269,12 @@ export type RegleRapportGestion =
 export function regleRapportGestion(forme: FormeJuridiqueSyscohada | null): RegleRapportGestion {
   switch (forme) {
     case FormeJuridiqueSyscohada.SOCIETE_ANONYME:
+      return {
+        genre: 'EXIGE',
+        source: 'AUSCGIE, article 138 (transmission aux commissaires aux comptes : article 140)',
+        organe: "le conseil d'administration ou l'administrateur général, selon le cas",
+        sections: [...SECTIONS_RAPPORT_GESTION_AUSCGIE, SECTION_MODIFICATIONS_AUSCGIE, SECTION_PARTICIPATION_SALARIES_SA],
+      };
     case FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE:
     case FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE:
     case FormeJuridiqueSyscohada.SOCIETE_NOM_COLLECTIF:
@@ -233,7 +283,7 @@ export function regleRapportGestion(forme: FormeJuridiqueSyscohada | null): Regl
         genre: 'EXIGE',
         source: 'AUSCGIE, article 138 (transmission aux commissaires aux comptes : article 140)',
         organe: "le gérant, le conseil d'administration ou l'administrateur général, selon le cas",
-        sections: SECTIONS_RAPPORT_GESTION_AUSCGIE,
+        sections: [...SECTIONS_RAPPORT_GESTION_AUSCGIE, SECTION_MODIFICATIONS_AUSCGIE],
       };
     case FormeJuridiqueSyscohada.SOCIETE_COOPERATIVE:
       return {

@@ -302,7 +302,7 @@ describe('TenantService.modifierIdentite · la coopérative (AUSCOOP art. 74, 77
   it('les champs de la coopérative sont refusés aux autres formes, l’effacement reste permis', async () => {
     await expect(service('SOCIETE_ANONYME').s.modifierIdentite('t1', { numeroRegistreCooperatives: 'X' })).rejects.toThrow(/AUSCOOP/);
     await expect(service(null, 'SYCEBNL').s.modifierIdentite('t1', { varianteCooperative: 'COOP_CA' })).rejects.toThrow(/AUSCOOP/);
-    await expect(service('SOCIETE_ANONYME').s.modifierIdentite('t1', { liquidateurs: 'X' })).rejects.toThrow(BadRequestException);
+    await expect(service('ENTREPRENANT').s.modifierIdentite('t1', { liquidateurs: 'X' })).rejects.toThrow(BadRequestException);
     const ok = service('SOCIETE_ANONYME');
     await ok.s.modifierIdentite('t1', { numeroRegistreCooperatives: '', varianteCooperative: 'PAS_ENCORE_DIT' });
     expect(ok.appels).toHaveLength(1);

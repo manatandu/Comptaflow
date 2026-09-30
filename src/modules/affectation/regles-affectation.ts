@@ -24,7 +24,9 @@ import { FormeJuridiqueSyscohada, Referentiel } from '@prisma/client';
  * SYSCOHADA · le bénéfice peut aller au 12 (report à nouveau), au 11
  * (réserves), au 101 (capital social), au 103 (capital personnel) ou au 465
  * (Associés, dividendes à payer). La perte se compense par le 12, le 11, le
- * 101 ou le 103.
+ * 101 ou le 103, et par le 105 (Primes liées au capital social), que sa propre
+ * fiche débite « en cas d'absorption de pertes ». Ces deux listes sont
+ * CODÉES (`destinationsBenefice`, `destinationsPerte`), pas seulement écrites.
  *
  * SYCEBNL · les mêmes destinations MOINS les dividendes et le capital social,
  * PLUS le compte 10 (Dotation) : « est débité le compte 13 […] par le crédit
@@ -84,8 +86,8 @@ import { FormeJuridiqueSyscohada, Referentiel } from '@prisma/client';
  * Aucun autre. Ce qui a été lu pour les dix autres formes :
  *
  *  · SAS · l'art. 853-3 rend applicables « les règles concernant les sociétés
- *    anonymes, À L'EXCEPTION des articles 387 alinéa 1er, 414 à 561 » · le
- *    546 tombe dans l'exception, et le livre 4-2 (art. 853-1 à 853-23) ne le
+ *    anonymes, À L'EXCEPTION des articles 387 alinéa 1er, 414 à 561, 690, 751
+ *    à 753 ci-dessus » · le 546 tombe dans l'exception, et le livre 4-2 (art. 853-1 à 853-23) ne le
  *    remplace par aucune règle de réserve. L'art. 853-11 confie bien aux
  *    associés les attributions « en matière de comptes annuels et de
  *    bénéfices », mais ne pose ni taux ni plafond ;
@@ -117,10 +119,26 @@ import { FormeJuridiqueSyscohada, Referentiel } from '@prisma/client';
  * pas · mais il n'annule pas une délibération qu'aucun texte n'annule.
  */
 
+/**
+ * Les racines admises en contrepartie du compte 13 POUR UN SENS du résultat,
+ * et la phrase de la fiche qui les nomme · un refus cite la liste du sens
+ * concerné, jamais une liste réunie qu'aucun texte n'écrit.
+ */
+export interface DestinationsDuSens {
+  racines: string[];
+  source: string;
+}
+
 /** Racines de compte recevant une affectation, par référentiel. */
 export interface ReglesAffectation {
-  /** Racines admises en contrepartie du compte 13. */
-  destinations: string[];
+  /**
+   * DEUX LISTES, UNE PAR SENS (passe R1, constat A3). Une seule liste,
+   * servie aux deux sens, laissait « Le compte 13 est débité […] par le crédit
+   * […] 465 » valoir pour une perte, et la racine 10 entière ouvrait le 102,
+   * le 104, le 105 et le 109 à un bénéfice.
+   */
+  destinationsBenefice: DestinationsDuSens;
+  destinationsPerte: DestinationsDuSens;
   /** Racines explicitement refusées, avec le motif servi à l'utilisateur. */
   interdits: { racine: string; motif: string }[];
   /** Racine de la réserve légale · absente là où elle n'existe pas. */
@@ -131,9 +149,35 @@ export interface ReglesAffectation {
 
 export const REGLES: Record<Referentiel, ReglesAffectation> = {
   [Referentiel.SYSCOHADA]: {
-    // 10 Capital (101 social, 103 personnel) · 11 Réserves · 12 Report à
-    // nouveau · 465 Associés, dividendes à payer.
-    destinations: ['10', '11', '12', '465'],
+    // LES COMPTES QUE LA FICHE NOMME, ET PAS LEUR RACINE COMMUNE. AUDCIF,
+    // Titre VII, COMPTE 13 : débité d'un bénéfice « par le crédit des comptes
+    // 12 (Report à nouveau), 11 (Réserves), 101 (Capital social), 103 (Capital
+    // personnel) ou 465 (Associés, dividendes à payer) » ; crédité d'une perte
+    // « par le débit des comptes 12 (Report à nouveau), 11 (Réserves), 101
+    // (Capital social) ou 103 (Capital personnel) ». La racine 10 entière
+    // ouvrait le 102 (capital par dotation), le 104 (compte de l'exploitant,
+    // « systématiquement soldé à la clôture de l'exercice ») et le 109
+    // (apporteurs, capital non appelé, qu'un crédit viderait sans qu'aucun
+    // apporteur ait versé). Le 465 n'absorbe aucune perte · un débit du 465
+    // sur une perte s'équilibre et fabrique une créance sur des associés que
+    // personne n'a décidée.
+    //
+    // LE 105 S'AJOUTE AU SEUL SENS DE LA PERTE, par sa propre fiche : « Le
+    // compte 105 est débité […] en cas d'absorption de pertes, par le crédit
+    // du 12 (Report à nouveau) ou du 139 (Résultat net : Pertes) ».
+    destinationsBenefice: {
+      racines: ['101', '103', '11', '12', '465'],
+      source:
+        'AUDCIF, Titre VII, compte 13 · « par le crédit des comptes 12 (Report à nouveau), 11 (Réserves), ' +
+        '101 (Capital social), 103 (Capital personnel) ou 465 (Associés, dividendes à payer) »',
+    },
+    destinationsPerte: {
+      racines: ['101', '103', '105', '11', '12'],
+      source:
+        'AUDCIF, Titre VII, compte 13 · « par le débit des comptes 12 (Report à nouveau), 11 (Réserves), ' +
+        '101 (Capital social) ou 103 (Capital personnel) » ; compte 105 · débité « en cas d’absorption de ' +
+        'pertes, par le crédit du 12 (Report à nouveau) ou du 139 (Résultat net : Pertes) »',
+    },
     interdits: [
       {
         racine: '106',
@@ -156,8 +200,25 @@ export const REGLES: Record<Referentiel, ReglesAffectation> = {
   },
   [Referentiel.SYCEBNL]: {
     // 10 Dotation · 11 Réserves · 12 Report à nouveau. Pas de 465 : son plan
-    // ne le porte pas, et une EBNL ne distribue pas.
-    destinations: ['10', '11', '12'],
+    // ne le porte pas, et une EBNL ne distribue pas. Les deux sens gardent la
+    // même liste · la fiche du COMPTE 13 nomme « 12 – Report à nouveau, 11 –
+    // Réserves, 10 – Dotation » pour un excédent, et la fiche du COMPTE 10
+    // débite les 101 et 102 « par le crédit du compte 12 – Report à nouveau ou
+    // 139 déficit de l'exercice (absorption des déficits antérieurs reportés
+    // ou de l'exercice) ».
+    destinationsBenefice: {
+      racines: ['10', '11', '12'],
+      source:
+        'SYCEBNL, Partie 2 ch. 3, compte 13 · « par le crédit des comptes 12 – Report à nouveau, 11 – ' +
+        'Réserves, 10 – Dotation »',
+    },
+    destinationsPerte: {
+      racines: ['10', '11', '12'],
+      source:
+        'SYCEBNL, Partie 2 ch. 3, compte 13 · « par le débit des comptes 12 – Report à nouveau, ou 11 – ' +
+        'Réserves » ; compte 10 · débité « par le crédit du compte 12 – Report à nouveau ou 139 déficit de ' +
+        'l’exercice (absorption des déficits antérieurs reportés ou de l’exercice) »',
+    },
     interdits: [
       {
         racine: '106',
@@ -185,6 +246,11 @@ export const REGLES: Record<Referentiel, ReglesAffectation> = {
     reportANouveau: '12',
   },
 };
+
+/** Les destinations du sens du résultat à affecter. */
+export function destinationsDuSens(regles: ReglesAffectation, estBenefice: boolean): DestinationsDuSens {
+  return estBenefice ? regles.destinationsBenefice : regles.destinationsPerte;
+}
 
 /**
  * Ce que le texte impose à UNE forme juridique, et où cette forme porte son
@@ -262,7 +328,8 @@ export function regimeReserveLegale(forme: FormeJuridiqueSyscohada | null): Regi
         source: 'AUSCGIE, art. 853-3',
         motif:
           "Aucune dotation obligatoire lue pour la société par actions simplifiée : l'article 853-3 rend " +
-          'applicables les règles de la société anonyme « à l’exception des articles 387 alinéa 1er, 414 à 561 », ' +
+          'applicables les règles de la société anonyme « à l’exception des articles 387 alinéa 1er, 414 à 561, 690, ' +
+          '751 à 753 ci-dessus », ' +
           "et l'article 546, 2°, qui porte la dotation d'un dixième, tombe dans cette exception ; le livre de la " +
           'SAS (art. 853-1 à 853-23) ne la rétablit pas. La dotation reste possible et se règle alors aux statuts ' +
           '(art. 853-1 : « les statuts prévoient librement l’organisation et le fonctionnement de la société »).',
@@ -503,4 +570,71 @@ export function dotationReserveLegale(params: {
       `${dotation.toFixed(2)} · dotation obligatoire à peine de nullité de la délibération contraire ` +
       `(${regime.source}).`,
   };
+}
+
+/**
+ * UNE LIGNE AU CAPITAL N'EST PAS UNE AFFECTATION ORDINAIRE · c'est une
+ * augmentation ou une réduction de capital, avec son organe, son rapport et sa
+ * publicité (passe O1b, constat D2).
+ *
+ * Le logiciel ne sait pas quel organe a statué · le champ « Organe » est libre.
+ * Il AVERTIT donc, il ne refuse pas, et seulement pour les trois formes dont
+ * les articles ont été lus :
+ *
+ *  · SA · augmentation : « L'assemblée générale extraordinaire est seule
+ *    compétente […] sur le rapport du commissaire aux comptes » (art. 564),
+ *    aux conditions de l'assemblée ordinaire pour une incorporation de
+ *    bénéfices (art. 565), publiée (art. 618), et « Les délibérations […] en
+ *    violation des articles […] 564, 565 […] sont nulles » (art. 618-1) ;
+ *    réduction : « autorisée ou décidée par l'assemblée générale
+ *    extraordinaire » (art. 628), « Toute délibération prise à défaut du
+ *    rapport du commissaire aux comptes est nulle » (art. 630), sans
+ *    opposition des créanciers « lorsque celle-ci est motivée par des pertes »
+ *    (art. 632), publiée (art. 638) ;
+ *  · SAS · ces attributions « sont, dans les conditions prévues par les
+ *    statuts, exercées collectivement par les associés. Les décisions prises en
+ *    violation des dispositions du présent alinéa sont nulles » (art. 853-11,
+ *    al. 2) ;
+ *  · SARL · l'incorporation de bénéfices est décidée « par les associés
+ *    représentant au moins la moitié des parts sociales » (art. 360), la
+ *    réduction par les trois quarts du capital (art. 358), nullité à défaut
+ *    (art. 360-1) ; le projet de réduction est communiqué au commissaire aux
+ *    comptes « s'il existe » (art. 367) et ne descend pas sous le minimum
+ *    légal (art. 368).
+ *
+ * Rien n'est transposé aux autres formes, dont les règles n'ont pas été lues.
+ */
+export function avertissementLigneCapital(
+  forme: FormeJuridiqueSyscohada | null,
+  estBenefice: boolean,
+): string | null {
+  switch (forme) {
+    case FormeJuridiqueSyscohada.SOCIETE_ANONYME:
+      return estBenefice
+        ? 'Porter le bénéfice au capital social est une AUGMENTATION DE CAPITAL : l’assemblée générale ' +
+            'extraordinaire est seule compétente, sur le rapport du commissaire aux comptes (AUSCGIE art. 564), ' +
+            'statuant aux quorum et majorité de l’assemblée ordinaire pour une incorporation de bénéfices ' +
+            '(art. 565) ; l’augmentation est publiée (art. 618) et la délibération contraire est nulle (art. 618-1).'
+        : 'Imputer la perte sur le capital social est une RÉDUCTION DE CAPITAL : elle est autorisée ou décidée ' +
+            'par l’assemblée générale extraordinaire (AUSCGIE art. 628), et « toute délibération prise à défaut du ' +
+            'rapport du commissaire aux comptes est nulle » (art. 630). Motivée par des pertes, elle ne peut pas ' +
+            'être frappée d’opposition par les créanciers (art. 632) ; elle est publiée (art. 638).';
+    case FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE:
+      return (
+        (estBenefice ? 'Porter le bénéfice au capital social est une AUGMENTATION DE CAPITAL' : 'Imputer la perte sur le capital social est une RÉDUCTION DE CAPITAL') +
+        ' : dans une SAS, cette attribution est « exercée collectivement par les associés », dans les conditions ' +
+        'des statuts, et la décision prise en violation de cette règle est nulle (AUSCGIE art. 853-11, al. 2).'
+      );
+    case FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE:
+      return estBenefice
+        ? 'Porter le bénéfice au capital social est une AUGMENTATION DE CAPITAL : elle est décidée par les ' +
+            'associés représentant au moins la moitié des parts sociales (AUSCGIE art. 360), et la délibération ' +
+            'contraire est nulle (art. 360-1).'
+        : 'Imputer la perte sur le capital social est une RÉDUCTION DE CAPITAL : c’est une modification des ' +
+            'statuts, décidée par les associés représentant au moins les trois quarts du capital social (AUSCGIE ' +
+            'art. 358, nullité à l’art. 360-1) ; le projet est communiqué au commissaire aux comptes s’il en existe ' +
+            'un (art. 367), et le capital ne descend pas sous le minimum légal (art. 368).';
+    default:
+      return null;
+  }
 }

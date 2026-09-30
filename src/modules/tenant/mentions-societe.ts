@@ -124,7 +124,11 @@ export interface IdentiteSociete {
   numeroRegistreCooperatives?: string | null;
   /** AUSCOOP art. 205 et 268 · null, pas encore dit. */
   varianteCooperative?: VarianteCooperative | null;
-  /** AUSCOOP art. 183 · dissolution déclarée et liquidateurs. */
+  /** AUSCGIE art. 386 et 414 · SA seule ; null ou absent, pas encore dit. */
+  modeAdministrationSa?: 'CONSEIL_ADMINISTRATION' | 'ADMINISTRATEUR_GENERAL' | null;
+  /** AUSCGIE art. 853-2 al. 2 · SAS seule ; null ou absent, pas encore dit. */
+  associeUniqueSas?: boolean | null;
+  /** AUSCGIE art. 203 et 204, AUSCOOP art. 183 · null tant qu'aucune dissolution n'est déclarée. */
   dateDissolution?: Date | null;
   liquidateurs?: string | null;
 }
@@ -166,7 +170,24 @@ export function mentionsArticle17(t: IdentiteSociete): MentionsSociete {
 
   const morceaux: string[] = [];
   const manquantes: string[] = [];
-  const forme = FORME_SOCIALE[t.formeJuridiqueSyscohada]!;
+  let forme = FORME_SOCIALE[t.formeJuridiqueSyscohada]!;
+  // LA FORME SOCIALE, ET CE QUE SON PROPRE LIVRE Y AJOUTE.
+  //  · SA · « les mots "société anonyme" ou le sigle "S.A." et du mode
+  //    d'administration de la société tel que prévu à l'article 414 »
+  //    (art. 386) · non déclaré, le manque se DIT, jamais un mode présumé
+  //    (passe O1b, B1) ;
+  //  · SAS · « Lorsque la société ne comprend qu'un associé […] "société par
+  //    actions simplifiée unipersonnelle" ou le sigle "SASU" » (art. 853-2,
+  //    al. 2 · passe O1b, G6).
+  if (t.formeJuridiqueSyscohada === FormeJuridiqueSyscohada.SOCIETE_ANONYME) {
+    if (t.modeAdministrationSa === 'CONSEIL_ADMINISTRATION') forme = 'Société anonyme avec conseil d’administration';
+    else if (t.modeAdministrationSa === 'ADMINISTRATEUR_GENERAL') forme = 'Société anonyme avec administrateur général';
+    else manquantes.push('mode d’administration de la société anonyme (AUSCGIE art. 386 et 414)');
+  }
+  if (t.formeJuridiqueSyscohada === FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE) {
+    if (t.associeUniqueSas === true) forme = 'Société par actions simplifiée unipersonnelle';
+    else if (t.associeUniqueSas !== false) manquantes.push('associé unique ou non (AUSCGIE art. 853-2)');
+  }
   // Art. 269-2 · « si la société use de la faculté accordée par l'article
   // 269-1 », que seules la SA et la SAS ont. Un drapeau hérité sur une autre
   // forme n'est pas imprimé · il est DIT, pour être retiré.
@@ -279,6 +300,40 @@ export function mentionsEmetteur(t: IdentiteSociete, datePiece: Date = new Date(
   if (t.formeJuridiqueSyscohada === FormeJuridiqueSyscohada.SOCIETE_COOPERATIVE) return mentionsCooperative(t, datePiece);
   const art17 = mentionsArticle17(t);
   if (art17.ligne === null) return mentionImmatriculation(t);
+  const liquidation = mentionLiquidation(t, datePiece);
   const locataire = t.locataireGerantFonds === true ? 'Locataire-gérant du fonds de commerce · ' : '';
-  return { ligne: `${locataire}${art17.ligne}`, manquantes: art17.manquantes };
+  return {
+    ligne: `${liquidation.ligne ? `${liquidation.ligne} · ` : ''}${locataire}${art17.ligne}`,
+    manquantes: [...liquidation.manquantes, ...art17.manquantes],
+  };
+}
+
+/**
+ * LA SOCIÉTÉ EN LIQUIDATION · AUSCGIE art. 204 (passe O1a, D1) : « La société
+ * est en liquidation dès l'instant de sa dissolution pour quelque cause que ce
+ * soit. La mention "société en liquidation" ainsi que le nom du ou des
+ * liquidateurs doivent figurer sur tous les actes et documents émanant de la
+ * société et destinés aux tiers, notamment sur toutes lettres, factures,
+ * annonces et publications diverses. »
+ *
+ * Le périmètre est celui de l'art. 203 · les cinq sociétés commerciales, hors
+ * liquidation conduite sous l'AUPCAP. Une dissolution se DÉCLARE, elle n'est
+ * jamais présumée, et un liquidateur non nommé se dit dans les manques · il
+ * n'est jamais inventé. La mention ne vaut que pour une pièce datée de la
+ * dissolution ou après (`datePiece`, même convention que la coopérative,
+ * AUSCOOP art. 183), et elle est recopiée avec les autres.
+ */
+export function mentionLiquidation(t: IdentiteSociete, datePiece: Date = new Date()): MentionsSociete {
+  if (
+    !t.dateDissolution ||
+    t.dateDissolution.getTime() > datePiece.getTime() ||
+    !t.formeJuridiqueSyscohada ||
+    !FORMES_SOCIETES_COMMERCIALES.includes(t.formeJuridiqueSyscohada)
+  ) {
+    return { ligne: null, manquantes: [] };
+  }
+  const liquidateurs = t.liquidateurs?.trim();
+  return liquidateurs
+    ? { ligne: `Société en liquidation · liquidateur(s) : ${liquidateurs}`, manquantes: [] }
+    : { ligne: 'Société en liquidation', manquantes: ['nom du ou des liquidateurs (AUSCGIE art. 204)'] };
 }
