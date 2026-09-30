@@ -21,7 +21,8 @@ import {
   SpecificationNote,
   TypeColonneNote,
 } from './note-annexe.types';
-import { NOTES_ASSOCIATIONS } from './correspondance-notes-associations';
+import { CLE_DATE_ARRETE_NOTE_3, NOTES_ASSOCIATIONS } from './correspondance-notes-associations';
+import { intituleSurLaFiche, titreDeLaNote } from './intitules-notes-sycebnl';
 import { NOTES_PROJETS } from './correspondance-notes-projets';
 import { celluleLibreEnSaisie, colonneLibreEnSaisie } from './cellules-libres-en-saisie';
 import {
@@ -955,6 +956,13 @@ export class NoteAnnexeService {
     // colonne de montant, jamais la colonne « Note », jamais un total. La
     // règle vit une fois (`celluleLibreEnSaisie`), le calcul de la note la lit
     // aussi : l'écran ne propose que ce que cette porte accepte.
+    // La date d'arrêté de la note 3 est servie par l'exercice (passe R6) ·
+    // l'écrire ici ferait une seconde date, que la note n'afficherait plus.
+    if (rubrique.cle === CLE_DATE_ARRETE_NOTE_3) {
+      throw new BadRequestException(
+        "La date d'arrêté se renseigne dans la fenêtre Exercices · la note 3 la reprend de l'exercice.",
+      );
+    }
     if (!rubrique.saisie && !(celluleLibreEnSaisie(spec, rubrique) && colonneLibreEnSaisie(colonneSpec))) {
       throw new BadRequestException(
         `La cellule « ${colonneSpec.libelle} » de la rubrique « ${rubrique.libelle} » (note ${codeNote}) est ` +
@@ -1067,6 +1075,12 @@ export class NoteAnnexeService {
       this.calculerNote(spec, lignesN, lignesN1, exerciceN1Id !== null, rattachements, echeances, ventilation, saisies),
     );
 
+    // Le titre de la NOTE, commun à ses tableaux · celui du premier tableau
+    // en repli, comme avant la passe R6 (jeu SYSCOHADA).
+    for (const n of notes) {
+      n.titreNote = titreDeLaNote(jeu, n.code, notes.find((x) => x.code === n.code)!.titre);
+    }
+    await this.injecterDateArrete(notes, tenantId, exerciceId);
     await this.injecterExecutionBudgetaire(notes, tenantId, exerciceId, jeu);
     await this.injecterIndicateursFinanciers(
       notes, tenantId, exerciceId, jeu, lignesN, lignesN1, exerciceN1Id !== null, ecriture,
@@ -1082,7 +1096,9 @@ export class NoteAnnexeService {
         const tableaux = notes.filter((n) => n.code === code);
         return {
           code,
-          titre: tableaux[0].titre,
+          // L'intitulé de la FICHE officielle, qui n'est pas toujours le
+          // titre du premier tableau (passe R6).
+          titre: intituleSurLaFiche(jeu, code, tableaux[0].titre),
           applicable: tableaux.some((n) => n.applicable),
           rubriquesEnAttente: tableaux.flatMap((n) => n.rubriquesEnAttente),
         };
@@ -1096,6 +1112,45 @@ export class NoteAnnexeService {
         attendues: NOTES_ATTENDUES_PAR_JEU[jeu],
       },
     };
+  }
+
+  /**
+   * NOTE 3 · la date d'arrêté est celle de l'EXERCICE (passe R6). C'est la
+   * date que le cartouche de chaque feuille imprime (`identiteLiasse`) ; la
+   * laisser se ressaisir dans la note donnait deux dates d'arrêté dans une
+   * même liasse, sans rien pour les rapprocher.
+   *
+   * Absente, la cellule le DIT, comme le cartouche. Une saisie antérieure de
+   * la cellule, du temps où elle se tapait à la main, n'est ni effacée ni
+   * reprise · elle est NOMMÉE à côté quand elle diffère, parce qu'une date
+   * écrite par le cabinet ne disparaît pas sans qu'il le voie.
+   */
+  private async injecterDateArrete(notes: NoteCalculee[], tenantId: string, exerciceId: string) {
+    const porteuses = notes.filter((n) => n.lignes.some((l) => l.cle === CLE_DATE_ARRETE_NOTE_3));
+    if (porteuses.length === 0) return;
+    const exercice = await this.prisma.exercice.findFirst({
+      where: { id: exerciceId, tenantId },
+      select: { dateArreteComptes: true },
+    });
+    const date = exercice?.dateArreteComptes
+      ? exercice.dateArreteComptes.toLocaleDateString('fr-FR', { timeZone: 'UTC' })
+      : null;
+    for (const note of porteuses) {
+      note.lignes = note.lignes.map((ligne) => {
+        if (ligne.cle !== CLE_DATE_ARRETE_NOTE_3) return ligne;
+        const anterieure = ligne.saisie?.[0];
+        const texteAnterieur =
+          anterieure === null || anterieure === undefined || String(anterieure).trim() === ''
+            ? null
+            : String(anterieure).trim();
+        const principal = date ?? 'Non renseignée (fenêtre Exercices)';
+        const texte =
+          texteAnterieur && texteAnterieur !== date
+            ? `${principal} · saisie antérieure de la note : ${texteAnterieur}`
+            : principal;
+        return { ...ligne, saisie: [texte], saisieVerrouillee: true };
+      });
+    }
   }
 
   /**

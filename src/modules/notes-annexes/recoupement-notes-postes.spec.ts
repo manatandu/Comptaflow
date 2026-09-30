@@ -247,11 +247,17 @@ describe('SYCEBNL · les comptes d’une note et ceux de son poste', () => {
     // chiffre : là où un compte 601 unique comptait pour un, ses cinq
     // subdivisions comptent pour cinq. Le PÉRIMÈTRE de l'écart n'a pas changé,
     // seule sa granularité · c'est le même relevé, compté plus finement.
-    expect({ horsPoste, sansLigne }).toEqual({ horsPoste: 176, sansLigne: 160 });
+    // La passe R6 l'a fait baisser de quatre · les quatre subdivisions du 413,
+    // que BD lit, sont désormais chiffrées par la ligne des impayés de la
+    // note 9, qui lisait jusque-là le 416. Elle a aussi fait tomber horsPoste
+    // de dix-sept · les huit subdivisions du 478 sorties de la note 10 (BE
+    // l'exclut), les huit du 479 sorties de la note 21 (DI l'exclut), et le
+    // 4881 sorti de l'actif circulant HAO de la note 7 (BA ne lit pas le 488).
+    expect({ horsPoste, sansLigne }).toEqual({ horsPoste: 159, sansLigne: 156 });
   });
 
   it('le nombre de comptes qu’aucune note ne chiffre reste sous contrôle', () => {
-    // Trouvé par le même balayage : 77 comptes du plan semé n'apparaissent dans
+    // Trouvé par le même balayage : 77 comptes (73 depuis la passe R6) du plan semé n'apparaissent dans
     // la rubrique d'aucune note. Une partie est normale · le résultat de
     // l'exercice (131, 139) se lit au bilan, les virements internes (585, 588)
     // se soldent en cours d'exercice. Le reste est de la matière pour la suite
@@ -263,10 +269,11 @@ describe('SYCEBNL · les comptes d’une note et ceux de son poste', () => {
     // (601, 602, 603, 604, 605, 618, 691, 695, 697, 792, 795, 796) : aucune
     // racine nouvelle n'a rejoint la liste, elle est seulement comptée plus
     // finement. C'est bien la granularité qui change, pas la couverture.
+    // La passe R6 en a retiré quatre, les subdivisions du 413 (note 9).
     const rubriques = NOTES_ASSOCIATIONS.filter((n) => !n.horsBalance)
       .flatMap((n) => n.rubriques)
       .filter((r) => (r.comptes ?? []).length > 0);
     const orphelins = COMPTES_SEMIS.filter((num) => !rubriques.some((r) => capte(r, num)));
-    expect(orphelins.length).toBe(77);
+    expect(orphelins.length).toBe(73);
   });
 });

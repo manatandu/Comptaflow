@@ -85,6 +85,22 @@ const COLONNES_MOUVEMENTS = [
  * dossier doit y rattacher ses propres sous-comptes (voir `RattachementNote`).
  * Le texte passé en second argument est montré tel quel à l'utilisateur.
  */
+/**
+ * NOTE 3 · « Date d'arrêté des états financiers » (Partie 4 ch. 2, NOTE 3).
+ * La même date est portée par l'exercice depuis le 2026-09-03 et imprimée au
+ * cartouche de chaque feuille (quatrième mention du § 2.4, art. 23). Tant
+ * que la cellule de la note restait en saisie, une même liasse pouvait
+ * imprimer deux dates d'arrêté (passe R6). La cellule est désormais servie
+ * par l'exercice, verrouillée, et la porte d'écriture la refuse.
+ */
+export const CLE_DATE_ARRETE_NOTE_3 = 'date-d-arrete-des-etats-financiers';
+
+// Note 5D · le motif commun aux cinq rubriques qui attendent un sous-compte.
+const MOTIF_2902 =
+  'Le compte 2902 « Dépréciations des immobilisations destinées à la vente » ne distingue pas la ' +
+  "nature des biens, et le plan ne prévoit pas d'amortissement pour eux (seul l'usufruit temporaire " +
+  'en a un, compte 280) : subdiviser 2902 par nature et rattacher ici le sous-compte correspondant.';
+
 function enAttente(cle: string, libelle: string, attendu: string) {
   return { cle, libelle, subdivisionAttendue: attendu };
 }
@@ -99,14 +115,21 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     rubriques: [
       { libelle: "Créances sur cessions d'immobilisations", comptes: ['485'] },
       { libelle: "Créances reçues par dons et legs d'immobilisations", comptes: ['4865'] },
-      { libelle: 'Autres créances hors activités ordinaires', comptes: ['488'], sens: 'DEBITEUR' },
+      // [texte officiel] Le plan intitule le 488 « Autres créances hors
+      // activités ordinaires » et ne lui ouvre qu'une subdivision, 4881
+      // « Créditeurs, dons en nature HAO non consommés » (Partie 2 ch. 2) ;
+      // la table du bilan le range en DF et non en BA (Partie 4 ch. 2,
+      // section 6). Signalé, non tranché · la ligne lit ce que l'intitulé du
+      // plan annonce, un 488 débiteur, et le 4881, créditeur par son
+      // fonctionnement (fiche de la classe 8), n'y entre pas.
+      { libelle: 'Autres créances hors activités ordinaires', comptes: ['488'], exclusions: ['4881'], sens: 'DEBITEUR' },
       { libelle: 'TOTAL BRUT', totalDeRubriques: [0, 1, 2] },
       { libelle: 'Dépréciations des créances HAO', comptes: ['498'], presenterEnNegatif: true },
       { libelle: 'TOTAL NET DE DEPRECIATIONS', totalDeRubriques: [3, 4] },
     ],
     commentaire:
-      'commenter toute variation significative ; dépréciations : indiquer les événements et circonstances ; ' +
-      "indiquer la date et la nature de l'immobilisation achetée et/ou cédée.",
+      'commenter toute variation significative ; dépréciations : indiquer les événements et circonstances ' +
+      "motivant la dépréciation ou la reprise ; indiquer la date et la nature de l'immobilisation achetée et/ou cédée.",
   },
   {
     code: '7',
@@ -117,20 +140,36 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     rubriques: [
       { libelle: "Fournisseurs d'investissements", comptes: ['481'], sens: 'CREDITEUR' },
       { libelle: "Dettes des dons et legs d'immobilisations", comptes: ['4861'], sens: 'CREDITEUR' },
-      // Rubrique OMISE à la première transcription, relevée en reprenant le
-      // modèle pour le découper en ses deux tableaux. Le plan ne prévoit un
-      // compte de dons en nature non consommés qu'en COURANT (4713) ; rien
-      // en hors activités ordinaires.
-      enAttente(
-        'crediteurs-dons-nature-hao',
-        'Créditeurs, dons nature HAO non consommés',
-        "Le plan ne prévoit un compte de créditeurs pour dons en nature non consommés qu'en courant " +
-          '(4713) : subdiviser le compte 484 « Autres dettes hors activités ordinaires » et rattacher ici ' +
-          'le sous-compte des dons en nature H.A.O. non consommés.',
-      ),
-      { libelle: 'Autres dettes hors activités ordinaires', comptes: ['484', '488'], sens: 'CREDITEUR' },
+      // Le plan ouvre le compte : « 488 Autres créances hors activités
+      // ordinaires (4881 créditeurs, dons en nature HAO non consommés) »
+      // (Partie 2 ch. 2), et la fiche de la classe 8 le fait créditer du
+      // stock de dons HAO non consommés par le débit du 8415. Jusqu'à la
+      // passe R6, la ligne restait en attente d'un sous-compte du 484 que
+      // le texte n'appelle pas, et le 4881 s'imprimait sous « Autres
+      // dettes ». La clé reste, qui ancre d'éventuels rattachements.
+      {
+        cle: 'crediteurs-dons-nature-hao',
+        libelle: 'Créditeurs, dons nature HAO non consommés',
+        comptes: ['4881'],
+        sens: 'CREDITEUR',
+      },
+      // Le 4998 est dans DF (Partie 4 ch. 2, section 6 · « DF | 481, 484,
+      // 4861, 488, 4998 ») et le modèle de cette note ne lui donne aucune
+      // ligne · voir la précision ci-dessous. Il n'est pas versé ici, ce que
+      // fait le SYSCOHADA à sa note 5 et qui ne se transpose pas.
+      {
+        libelle: 'Autres dettes hors activités ordinaires',
+        comptes: ['484', '488'],
+        exclusions: ['4881'],
+        sens: 'CREDITEUR',
+      },
       { libelle: 'TOTAL', totalDeRubriques: [0, 1, 2, 3] },
     ],
+    // [texte officiel] Provision rangée dans DF sans ligne dans la note de DF.
+    precisionEditeur:
+      'Le poste DF du bilan comprend aussi le compte 4998, auquel le modèle de cette note ne donne ' +
+      'aucune ligne ; il est détaillé à la note 21, sur la ligne des provisions pour risques et ' +
+      'charges à court terme.',
   },
 
   {
@@ -150,7 +189,11 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { libelle: 'Dépréciations des titres de placement', comptes: ['590'], presenterEnNegatif: true },
       { libelle: 'TOTAL NET DE DEPRECIATIONS', totalDeRubriques: [7, 8] },
     ],
-    commentaire: 'commenter toute variation significative ; indiquer les événements et circonstances motivant la dépréciation et la reprise.',
+    commentaire:
+      'justifier toute variation significative ; pour les titres cotés à une bourse de valeur, indiquer le ' +
+      "nombre, le prix unitaire d'acquisition et le cours de bourse au 31 décembre ; faire ressortir les " +
+      "actions ou les parts propres et indiquer la date d'acquisition et le nombre de titres détenus ; " +
+      'indiquer les événements et circonstances motivant la dépréciation et la reprise.',
   },
 
   {
@@ -204,7 +247,19 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { libelle: 'TOTAL NET DE DEPRECIATIONS', totalDeRubriques: [10, 11] },
     ],
     commentaire:
-      'indiquer la date de rapprochement des comptes bancaires ; indiquer la date d’inventaire de la caisse et des instruments de monnaie électronique ; justifier toute variation significative.',
+      'indiquer la date de rapprochement des comptes bancaires ; indiquer la date d’inventaire de la caisse et ' +
+      'des instruments de monnaie électronique ; justifier toute variation significative ; détailler les ' +
+      'instruments de monnaie électronique si le montant est significatif ; indiquer les événements et ' +
+      'circonstances motivant la dépréciation et la reprise.',
+    // [texte officiel] Le NB contredit la table de correspondance, qui envoie
+    // tout 52 et 53 CRÉDITEUR en DW sans exception (« DW | 56, Solde
+    // créditeurs : 52, 53 ») et lit BW sur les soldes débiteurs. Le logiciel
+    // suit la table · une balance ne dit pas à quel compte principal un 5261
+    // ou un 5361 se rattache. Même lecture que la note 7 des projets et la
+    // note 11 du SYSCOHADA.
+    renvoiOfficiel:
+      'NB : Banques et intérêts courus et Etablissement financiers intérêts courus figurent dans cette ' +
+      'rubrique en négatif si le compte principal attaché est débiteur.',
   },
 
   {
@@ -215,8 +270,15 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     rubriques: [
       { libelle: 'Adhérents', comptes: ['411'] },
       { libelle: 'Clients-usagers', comptes: ['412'] },
-      { libelle: 'Adhérents, clients-usagers, chèques, effets et autres valeurs impayés', comptes: ['416'] },
-      { libelle: 'Adhérents, créances litigieuses ou douteuses', comptes: ['417'] },
+      // Le plan range les impayés au 413 et les créances litigieuses ou
+      // douteuses au 416 (Partie 2 ch. 2, compte 41 ; fiche du compte 41 :
+      // « Les chèques, effets à payer et autres valeurs revenus impayés
+      // doivent être enregistrés dans le compte 413 »). Il n'ouvre aucun 417.
+      // Décalées d'un cran jusqu'à la passe R6, ces deux lignes imprimaient
+      // le douteux sur la ligne des impayés et laissaient le 413, que BD lit,
+      // hors de toute note.
+      { libelle: 'Adhérents, clients-usagers, chèques, effets et autres valeurs impayés', comptes: ['413'] },
+      { libelle: 'Adhérents, créances litigieuses ou douteuses', comptes: ['416'] },
       { libelle: 'Adhérents, clients-usagers, produits à recevoir', comptes: ['418'] },
       { libelle: 'TOTAL BRUT ADHERENTS, CLIENTS-USAGERS', totalDeRubriques: [0, 1, 2, 3, 4] },
       { libelle: 'Dépréciations des comptes adhérents et clients-usagers', comptes: ['491'], presenterEnNegatif: true },
@@ -317,8 +379,11 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       ),
       { libelle: 'TOTAL AUTRES ACHATS', totalDeRubriques: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22] },
     ],
+    // [texte officiel] Le modèle écrit « de toute variation significative »,
+    // sans verbe, comme la note 21. Recopié tel quel, signalé sans être
+    // corrigé (passe R6 · la version précédente ajoutait « commenter »).
     commentaire:
-      'commenter toute variation significative ; indiquer la nature des fournitures ; détailler achats autres activités.',
+      'de toute variation significative ; indiquer la nature des fournitures ; détailler achats autres activités.',
   },
 
   // ======================================================================
@@ -507,7 +572,8 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     code: '17B',
     titre: 'FONDS AFFECTES ET REPORTES',
     // La colonne « Note » du modèle officiel est un renvoi croisé (art. 15),
-    // pas un montant : elle est déclarée en saisie.
+    // pas un montant. Le modèle n'y porte aucun renvoi : elle reste vide,
+    // hors saisie (`VIDES_MOTIVEES` de rubriques-en-saisie.spec.ts).
     colonnes: [{ type: 'LIBRE' as const, libelle: 'Note' }, ...COLONNES_STANDARD],
     renvoyeeDepuis: ['CW', 'CX'],
     rubriques: [
@@ -1043,26 +1109,26 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     // exigent que le dossier subdivise le compte 2902.
     rubriques: [
       { libelle: 'Usufruit', comptes: ['280', '2901'] },
+      // Le modèle intercale ses sous-totaux (Partie 4 ch. 2, NOTE 5D) : les
+      // incorporelles, leur sous-total, puis les corporelles et le leur.
+      // Jusqu'à la passe R6, les deux sous-totaux sortaient empilés sous
+      // « Matériel, mobilier ».
       ...(
         [
           ['brevets-licences-logiciels', 'Brevets, licences, logiciels et droits similaires'],
           ['autres-incorporelles', 'Autres immobilisations incorporelles'],
+        ] as const
+      ).map(([cle, libelle]) => enAttente(cle, libelle, MOTIF_2902)),
+      { libelle: 'SOUS TOTAL : IMMOBILISATIONS INCORPORELLES', totalDeRubriques: [0, 1, 2] },
+      ...(
+        [
           ['terrains', 'Terrains'],
           ['batiments', 'Bâtiments'],
           ['materiel-mobilier', 'Matériel, mobilier'],
         ] as const
-      ).map(([cle, libelle]) =>
-        enAttente(
-          cle,
-          libelle,
-          'Le compte 2902 « Dépréciations des immobilisations destinées à la vente » ne distingue pas la ' +
-            "nature des biens, et le plan ne prévoit pas d'amortissement pour eux (seul l'usufruit temporaire " +
-            'en a un, compte 280) : subdiviser 2902 par nature et rattacher ici le sous-compte correspondant.',
-        ),
-      ),
-      { libelle: 'SOUS TOTAL : IMMOBILISATIONS INCORPORELLES', totalDeRubriques: [0, 1, 2] },
-      { libelle: 'SOUS TOTAL : IMMOBILISATIONS CORPORELLES', totalDeRubriques: [3, 4, 5] },
-      { libelle: 'TOTAL GENERAL', totalDeRubriques: [6, 7] },
+      ).map(([cle, libelle]) => enAttente(cle, libelle, MOTIF_2902)),
+      { libelle: 'SOUS TOTAL : IMMOBILISATIONS CORPORELLES', totalDeRubriques: [4, 5, 6] },
+      { libelle: 'TOTAL GENERAL', totalDeRubriques: [3, 7] },
     ],
   },
 
@@ -1126,14 +1192,16 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       },
       { libelle: 'Débiteurs divers', comptes: ['471'], sens: 'DEBITEUR' },
       // Tout le reste du compte 47 : créances sur titres, subventions à
-      // recevoir, générosités à recevoir, charges constatées d'avance, écarts
-      // de conversion. Le modèle ne les nomme pas une à une.
+      // recevoir, charges constatées d'avance. Le modèle ne les nomme pas
+      // une à une. Le 478 n'y est pas · la table du bilan l'exclut de BE
+      // (« 47 (sauf 478) ») et le range seul en BY, que la note 14 détaille.
+      // L'y garder le comptait deux fois (passe R6).
       {
         // 475 « Générosités financières à recevoir » est ABSENT de cette liste :
         // le modèle officiel lui donne une ligne propre à la note 21. L'y
         // laisser aussi le compterait deux fois.
         libelle: 'Autres débiteurs divers',
-        comptes: ['472', '473', '474', '476', '478'],
+        comptes: ['472', '473', '474', '476'],
         sens: 'DEBITEUR',
       },
       { libelle: 'TOTAL BRUT', totalDeRubriques: [0, 1, 2, 3, 4, 5, 6] },
@@ -1322,8 +1390,10 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       // quel, en lecture débitrice, donc en diminution du total.
       { libelle: 'Générosités financières à recevoir', comptes: ['475'], presenterEnNegatif: true },
       {
+        // Sans le 479 · DI vaut « 47 (sauf 479) » et le 479 est porté seul en
+        // DY, détaillé à la note 14 (passe R6).
         libelle: 'Autres créditeurs divers',
-        comptes: ['471', '472', '474', '477', '479'],
+        comptes: ['471', '472', '474', '477'],
         exclusions: ['4711', '4712', '4713', '4726'],
         sens: 'CREDITEUR',
       },
@@ -1337,6 +1407,12 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       },
     ],
     commentaire: 'de toute variation significative ; des dettes anciennes.',
+    // Le 4998 garde sa ligne ici · son libellé est l'intitulé même du 499,
+    // et l'exclure le ferait disparaître de toute note du bilan (la note 7,
+    // qui détaille DF, ne lui donne aucune ligne).
+    precisionEditeur:
+      'La ligne des provisions pour risques et charges à court terme comprend le compte 4998, que ' +
+      'le bilan présente en DF (dettes circulantes HAO) et non en DI.',
   },
 
   // ======================================================================
@@ -1428,7 +1504,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     // rapporte à une dette, et un texte ne s'additionne pas
     // (`cellules-libres-en-saisie.ts`).
     colonnes: [
-      { type: 'LIBRE' as const, libelle: 'Note' },
+      { type: 'LIBRE' as const, libelle: 'Note', porteLeRenvoi: true },
       { type: 'EXERCICE_N' as const, libelle: 'Montant brut (1)' },
       { type: 'LIBRE' as const, libelle: 'SURETES REELLES (2) : Hypothèques', saisieSurLigneChiffree: true },
       { type: 'LIBRE' as const, libelle: 'SURETES REELLES (2) : Nantissements', saisieSurLigneChiffree: true },
@@ -1454,6 +1530,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
         libelle: 'Autres dettes financières',
         comptes: ['183', '185', '186', '188'],
         natureCreditrice: true,
+        renvoi: '18A',
       },
       { libelle: 'SOUS TOTAL (1)', totalDeRubriques: [0, 1, 2] },
       {
@@ -1468,12 +1545,14 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
         libelle: 'Dettes de crédit-bail mobilier',
         comptes: ['1872'],
         natureCreditrice: true,
+        renvoi: '18A',
       },
       {
         cle: 'dettes-garanties-location-vente',
         libelle: 'Dettes sur contrats de location-vente',
         comptes: ['1873'],
         natureCreditrice: true,
+        renvoi: '18A',
       },
       {
         cle: 'dettes-garanties-location-acquisition',
@@ -1481,6 +1560,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
         comptes: ['187'],
         exclusions: ['1871', '1872', '1873'],
         natureCreditrice: true,
+        renvoi: '18A',
       },
       { libelle: 'SOUS TOTAL (2)', totalDeRubriques: [4, 5, 6, 7] },
       // Dettes du passif circulant : comptes de tiers polyvalents, donc
@@ -1532,6 +1612,9 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
         cle: 'dettes-garanties-crediteurs-divers',
         libelle: 'Créditeurs divers',
         comptes: ['47'],
+        // DI vaut « 47 (sauf 479) » · un écart de conversion n'est pas une
+        // dette (passe R6).
+        exclusions: ['479'],
         sens: 'CREDITEUR',
         renvoi: '21',
       },
@@ -1692,8 +1775,13 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { libelle: 'Dotation consomptible', comptes: ['104'], natureCreditrice: true },
       { libelle: 'TOTAL', totalDeRubriques: [0, 1, 2] },
     ],
-    renvoiOfficiel:
-      'Compte 101 : dotation non consomptible SANS droit de reprise ; compte 102 : AVEC droit de reprise.',
+    // Le modèle de la NOTE 15 ne porte aucun renvoi : ce texte est une
+    // précision tirée du plan (Partie 2 ch. 2, « 101 Dotation non
+    // consomptible sans droit de reprise », « 102 Dotation non consomptible
+    // avec droit de reprise »), jamais une citation du modèle (passe R6).
+    precisionEditeur:
+      'Compte 101 : dotation non consomptible SANS droit de reprise ; compte 102 : AVEC droit de reprise ' +
+      '(intitulés du plan des comptes).',
   },
   {
     code: '17A',
@@ -1805,7 +1893,9 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     horsBalance: true,
     colonnes: [{ type: 'LIBRE' as const, libelle: 'Informations' }],
     rubriques: [
-      { cle: 'date-d-arrete-des-etats-financiers', libelle: "Date d'arrêté des états financiers", saisie: true },
+      // Servie par l'exercice (`Exercice.dateArreteComptes`), cellule
+      // verrouillée · voir `CLE_DATE_ARRETE_NOTE_3`.
+      { cle: CLE_DATE_ARRETE_NOTE_3, libelle: "Date d'arrêté des états financiers", saisie: true },
       { cle: 'organe-ayant-autorise-la-publication-des-comptes', libelle: 'Organe ayant autorisé la publication des comptes', saisie: true },
       {
         cle: 'a-evenements-posterieurs-a-la-date-de-cloture-do', libelle:

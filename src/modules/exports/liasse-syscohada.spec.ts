@@ -864,7 +864,8 @@ describe('NOTE 1 · les sûretés réelles saisies sortent dans la liasse (passe
     expect(ligneDette.getCell(3).value).toBe(45_000);
     expect(ligneDette.getCell(6).value).toBe('Gage sur stock');
     expect(ligneDette.getCell(4).value).toBeNull();
-    // La colonne « Note » reste vide : elle ne se saisit pas.
-    expect(ligneDette.getCell(2).value).toBeNull();
+    // La colonne « Note » ne se saisit pas : elle imprime le renvoi que la
+    // spécification fixe à la ligne (passe R6, la note 17 ici).
+    expect(ligneDette.getCell(2).value).toBe('17');
   });
 });

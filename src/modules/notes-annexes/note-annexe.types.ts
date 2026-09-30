@@ -103,6 +103,14 @@ export interface ColonneNote {
    * d'une ligne de détail le ferait valoir pour toutes).
    */
   saisieSurLigneChiffree?: boolean;
+  /**
+   * Colonne LIBRE « Note » du modèle, qui imprime le RENVOI de la ligne
+   * (`RubriqueNote.renvoi`) · la note qui la détaille (note 1 : 18A, 19, 9,
+   * 20, 21). Jusqu'à la passe R6, la colonne sortait vide et le renvoi
+   * partait en commentaire de cellule, posé sur la dernière colonne, qui ne
+   * s'imprime pas. Ne se saisit jamais : la spécification fixe le renvoi.
+   */
+  porteLeRenvoi?: boolean;
 }
 
 /** Restreint une rubrique aux comptes dont le solde va dans ce sens (tiers polyvalents). */
@@ -353,6 +361,12 @@ export interface NoteCalculee {
   /** Voir `SpecificationNote.sousTableau`. */
   sousTableau?: string;
   titre: string;
+  /**
+   * Titre de la NOTE, commun à tous ses tableaux, tel que le modèle l'écrit
+   * en tête (`intitules-notes-sycebnl.ts`) · distinct de `titre`, qui est
+   * celui du tableau (passe R6). Absent : le titre du premier tableau.
+   */
+  titreNote?: string;
   colonnes: ColonneNote[];
   lignes: LigneNoteCalculee[];
   commentaire?: string;

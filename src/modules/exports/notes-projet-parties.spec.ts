@@ -39,7 +39,7 @@ const FICHE = [...new Map(NOTES_PROJETS.map((n) => [n.code, n.titre])).entries()
   rubriquesEnAttente: [],
 }));
 
-function exportService(): ExportService {
+function exportService(notesCalculees: unknown[] = []): ExportService {
   const prisma = {
     tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue(TENANT) },
     exercice: {
@@ -49,8 +49,8 @@ function exportService(): ExportService {
   } as unknown as PrismaService;
   const notes = {
     notesProjet: jest.fn().mockResolvedValue({
-      // Aucune feuille de note · seule la fiche récapitulative est lue ici.
-      notes: [],
+      // Par défaut aucune feuille de note · seule la fiche est lue.
+      notes: notesCalculees,
       ficheRecapitulative: FICHE,
       couverture: { transcrites: FICHE.length, attendues: 26 },
     }),
@@ -110,5 +110,64 @@ describe('notes du jeu projets exportées seules (audit final F224)', () => {
     // EXACTEMENT les titres des parties, et il y en a quatre.
     const bandes = lues.filter((v) => !v.startsWith('NOTE '));
     expect(bandes).toEqual(ExportService['PARTIES_NOTES_PROJETS'].map(([titre]) => titre));
+  });
+});
+
+describe('la feuille d’une note à deux tableaux porte le titre de la NOTE (passe R6)', () => {
+  it('NOTE 4 : ACTIF CIRCULANT ET DETTES CIRCULANTES HAO, et non le nom de son premier tableau', async () => {
+    const tableau = (sousTableau: string) => ({
+      code: '4',
+      sousTableau,
+      titre: sousTableau,
+      titreNote: 'ACTIF CIRCULANT ET DETTES CIRCULANTES HAO',
+      colonnes: [{ type: 'EXERCICE_N', libelle: 'Année N' }],
+      lignes: [],
+      horsBalance: false,
+      exerciceN1Disponible: false,
+      applicable: false,
+      rubriquesEnAttente: [],
+    });
+    const { buffer } = await exportService([tableau('ACTIF CIRCULANT HAO'), tableau('DETTES CIRCULANTES HAO')]).notesProjetExcel(
+      't1',
+      'e1',
+    );
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer as unknown as ExcelJS.Buffer);
+    const ws = wb.getWorksheet('NOTE 4')!;
+    const textes: string[] = [];
+    ws.eachRow((row) => row.eachCell((c) => textes.push(String(c.value))));
+    expect(textes).toContain('NOTE 4 : ACTIF CIRCULANT ET DETTES CIRCULANTES HAO');
+    expect(textes).not.toContain('NOTE 4 : ACTIF CIRCULANT HAO');
+  });
+});
+
+describe('la colonne « Note » imprime le renvoi de la ligne (passe R6)', () => {
+  it('le renvoi est dans la cellule de la colonne, pas en commentaire de la dernière', async () => {
+    const note1 = {
+      code: '1',
+      sousTableau: 'DETTES GARANTIES PAR DES SURETES REELLES',
+      titre: 'DETTES GARANTIES PAR DES SURETES REELLES',
+      colonnes: [
+        { type: 'LIBRE', libelle: 'Note', porteLeRenvoi: true },
+        { type: 'EXERCICE_N', libelle: 'Montant brut (1)' },
+        { type: 'LIBRE', libelle: 'SURETES REELLES (2) : Gages/Autres', saisieSurLigneChiffree: true },
+      ],
+      lignes: [{ libelle: 'Emprunts obligataires', montantN: 1000, comptes: [], renvoi: '18A' }],
+      horsBalance: false,
+      exerciceN1Disponible: false,
+      applicable: true,
+      rubriquesEnAttente: [],
+    };
+    const { buffer } = await exportService([note1]).notesProjetExcel('t1', 'e1');
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer as unknown as ExcelJS.Buffer);
+    const ws = wb.getWorksheet('NOTE 1')!;
+    let ligne = 0;
+    ws.eachRow((row, r) => {
+      if (row.getCell(1).value === 'Emprunts obligataires') ligne = r;
+    });
+    expect(ligne).toBeGreaterThan(0);
+    expect(ws.getCell(ligne, 2).value).toBe('18A');
+    expect(ws.getCell(ligne, 4).note).toBeUndefined();
   });
 });

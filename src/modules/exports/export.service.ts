@@ -2544,8 +2544,7 @@ export class ExportService {
    * chiffrée, sa cellule vient de ce que le dossier a saisi quand la colonne
    * le permet (`saisieLibre` · sûretés réelles de la note 1, nature d'un
    * contrat, échéances). Ailleurs elle reste VIDE, et ce vide n'est pas une
-   * réponse · colonne « Note » (le renvoi part en commentaire de cellule),
-   * virements de poste à poste, devises et cours, identité des membres,
+   * réponse · virements de poste à poste, devises et cours, identité des membres,
    * qu'aucune saisie ne sert encore (`cellules-libres-en-saisie.ts`).
    */
   private valeurColonneNote(ligne: LigneNoteCalculee, type: TypeColonneNote, index: number): number | string | null {
@@ -2588,7 +2587,8 @@ export class ExportService {
     const ws = classeur.addWorksheet(nomFeuille);
     const colMax = Math.max(...tableaux.map((t) => 1 + t.colonnes.length), 5);
     ecrireCartouche(ws, ident, nomFeuille, colMax);
-    titreNote(ws, `NOTE ${code} : ${tableaux[0].titre.toUpperCase()}`, colMax);
+    // Le titre de la NOTE, pas celui de son premier tableau (passe R6).
+    titreNote(ws, `NOTE ${code} : ${(tableaux[0].titreNote ?? tableaux[0].titre).toUpperCase()}`, colMax);
 
     let r = 7;
     const commentaires: string[] = [];
@@ -2627,7 +2627,8 @@ export class ExportService {
         r += 1;
         ws.getCell(r, 1).value = l.libelle;
         note.colonnes.forEach((c: ColonneNote, i: number) => {
-          const v = this.valeurColonneNote(l, c.type, i);
+          // La colonne « Note » imprime le renvoi de la ligne (passe R6).
+          const v = c.porteLeRenvoi ? (l.renvoi ?? null) : this.valeurColonneNote(l, c.type, i);
           if (v !== null && v !== undefined) ws.getCell(r, 2 + i).value = v;
         });
         styleLigne(ws, r, 1, ncols, l.estTotal ? 'inter' : 'normal', colsMontant);
@@ -2651,7 +2652,9 @@ export class ExportService {
             (existante ? `${existante}\n` : '') +
             `Part non ventilée par échéance (aucune date d'échéance saisie) : ${l.echeanceNonVentilee.toFixed(2)}.`;
         }
-        if (l.renvoi) ws.getCell(r, ncols).note = l.renvoi;
+        // Un renvoi sans colonne pour l'imprimer part en commentaire, comme
+        // un renvoi de bas de tableau.
+        if (l.renvoi && !note.colonnes.some((c) => c.porteLeRenvoi)) ws.getCell(r, ncols).note = l.renvoi;
       }
       cadre(ws, debutTableau, 1, r, ncols, MOYEN);
       r += 1; // une ligne d'air entre deux tableaux empilés

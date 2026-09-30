@@ -1871,3 +1871,73 @@ describe('Note 8 · le 377 sur la ligne « Autres stocks HAO », et la note le d
     expect(String(n.renvoiOfficiel)).not.toContain('377');
   });
 });
+
+describe('Note 3 · la date d’arrêté vient de l’exercice (passe R6)', () => {
+  // Partie 4 ch. 2, NOTE 3 : « Date d'arrêté des états financiers ». La même
+  // date est portée par l'exercice et imprimée au cartouche · une seconde
+  // saisie dans la note donnait deux dates dans une même liasse.
+  const CLE = 'date-d-arrete-des-etats-financiers';
+  const JEU_ASSO = JeuNotesAnnexes.ASSOCIATIONS_ORDRES_PROFESSIONNELS;
+  const avecDate = (date: Date | null, saisies: any[] = []) => {
+    const prisma = prismaAvec([], [], [], [], Referentiel.SYCEBNL, saisies);
+    // La même lecture sert les bornes d'échéance (dateFin) · la doublure
+    // rend l'exercice entier, comme la base.
+    (prisma as any).exercice.findFirst = jest
+      .fn()
+      .mockResolvedValue({ id: 'e1', dateFin: new Date('2026-12-31T00:00:00Z'), dateArreteComptes: date });
+    return prisma;
+  };
+  const ligneDate = async (prisma: PrismaService) => {
+    const r = await service({ e1: [] }, [], prisma).notesAssociations('t', 'e1');
+    const note = r.notes.find((n) => n.code === '3')!;
+    return { ligne: note.lignes.find((l) => l.cle === CLE)! };
+  };
+
+  it('sert la date de l’exercice, cellule verrouillée, et la lit dans SON dossier', async () => {
+    const prisma = avecDate(new Date('2027-03-31T00:00:00Z'));
+    const { ligne } = await ligneDate(prisma);
+    expect(ligne.saisie).toEqual(['31/03/2027']);
+    expect(ligne.saisieVerrouillee).toBe(true);
+    expect((prisma as any).exercice.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'e1', tenantId: 't' } }),
+    );
+  });
+
+  it('absente, la cellule le dit, comme le cartouche', async () => {
+    const { ligne } = await ligneDate(avecDate(null));
+    expect(ligne.saisie).toEqual(['Non renseignée (fenêtre Exercices)']);
+    expect(ligne.saisieVerrouillee).toBe(true);
+  });
+
+  it('une saisie antérieure qui diffère est nommée à côté, jamais reprise', async () => {
+    const { ligne } = await ligneDate(
+      avecDate(new Date('2027-03-31T00:00:00Z'), [{ codeNote: '3', cleRubrique: CLE, colonne: 0, valeurTexte: '15/03/2027' }]),
+    );
+    expect(ligne.saisie).toEqual(['31/03/2027 · saisie antérieure de la note : 15/03/2027']);
+  });
+
+  it('la porte d’écriture refuse la cellule', async () => {
+    const s = service({ e1: [] }, [], prismaAvec());
+    await expect(s.enregistrerSaisie('t', 'u', 'e1', JEU_ASSO, '3', CLE, 0, '31/03/2027')).rejects.toThrow(
+      /fenêtre Exercices/,
+    );
+  });
+});
+
+describe('Intitulés servis · la note, pas son premier tableau (passe R6)', () => {
+  it('la fiche récapitulative et la tête de la note 7 portent l’intitulé officiel', async () => {
+    const r = await service({ e1: [] }).notesAssociations('t', 'e1');
+    const fiche7 = (r.ficheRecapitulative as Array<{ code: string; titre: string }>).find((n) => n.code === '7')!;
+    expect(fiche7.titre).toBe('Actif circulant et dettes circulantes HAO');
+    const tableaux7 = r.notes.filter((n) => n.code === '7');
+    expect(tableaux7).toHaveLength(2);
+    expect(tableaux7.every((n) => n.titreNote === 'ACTIF CIRCULANT ET DETTES CIRCULANTES HAO')).toBe(true);
+  });
+
+  it('les projets servent l’intitulé de leur propre fiche', async () => {
+    const r = await service({ e1: [] }).notesProjet('t', 'e1');
+    const fiche = r.ficheRecapitulative as Array<{ code: string; titre: string }>;
+    expect(fiche.find((n) => n.code === '20B')!.titre).toBe('EFFECTIFS, MASSE SALARIALE ET PERSONNEL EXTERIEUR');
+    expect(r.notes.find((n) => n.code === '4')!.titreNote).toBe('ACTIF CIRCULANT ET DETTES CIRCULANTES HAO');
+  });
+});

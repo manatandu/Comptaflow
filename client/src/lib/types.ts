@@ -1076,6 +1076,8 @@ export interface ColonneNote {
    * `lib/cellules-notes.ts` et, côté serveur, `cellules-libres-en-saisie.ts`.
    */
   saisieSurLigneChiffree?: boolean;
+  /** Colonne « Note » qui imprime le renvoi de la ligne (passe R6). */
+  porteLeRenvoi?: boolean;
 }
 
 export interface CompteDeRubrique {
@@ -1128,6 +1130,8 @@ export interface RubriqueEnAttente {
 export interface NoteCalculee {
   code: string;
   sousTableau?: string;
+  /** Titre de la NOTE, commun à ses tableaux (passe R6). */
+  titreNote?: string;
   titre: string;
   colonnes: ColonneNote[];
   lignes: LigneNoteCalculee[];

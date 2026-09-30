@@ -359,7 +359,7 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
     // une sûreté se rapporte à une dette, et un texte ne s'additionne pas
     // (`cellules-libres-en-saisie.ts`).
     colonnes: [
-      { type: 'LIBRE' as const, libelle: 'Note' },
+      { type: 'LIBRE' as const, libelle: 'Note', porteLeRenvoi: true },
       { type: 'EXERCICE_N' as const, libelle: 'Montant brut' },
       { type: 'LIBRE' as const, libelle: 'SÛRETÉS RÉELLES : Hypothèques', saisieSurLigneChiffree: true },
       { type: 'LIBRE' as const, libelle: 'SÛRETÉS RÉELLES : Nantissements', saisieSurLigneChiffree: true },

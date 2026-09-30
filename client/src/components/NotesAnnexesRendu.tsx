@@ -3,6 +3,7 @@ import type { Compte, LigneFicheRecapitulative, LigneNoteCalculee, NoteCalculee 
 import { Aide } from './chrome/Aide';
 import { montant } from '../lib/montants';
 import { celluleLibreSaisissable, texteCelluleLibre } from '../lib/cellules-notes';
+import { sousTitreDuTableau } from '../lib/titre-note';
 
 /**
  * RENDU DES NOTES ANNEXES · pièces d'affichage communes aux deux écrans de
@@ -208,7 +209,10 @@ function LigneTableauNote({
         return (
           <span key={ci} className="font-mono text-right text-text-dim">
             {c.type === 'LIBRE'
-              ? ''
+              ? // La colonne « Note » imprime le renvoi de la ligne (passe R6).
+                c.porteLeRenvoi
+                ? (ligne.renvoi ?? '')
+                : ''
               : c.type === 'VARIATION_POURCENT'
                 ? v === undefined
                   ? ''
@@ -261,10 +265,13 @@ export function BlocTableauNote({
   return (
     <div className="border border-border bg-surface mb-4">
       <div className="px-4 py-2 border-b border-border bg-chrome">
+        {/* Le titre de la NOTE, puis celui du tableau quand il diffère ·
+            une note à plusieurs tableaux s'imprimait sous l'intitulé de l'un
+            d'eux, répété deux fois (passe R6). */}
         <div className="text-[11.5px] font-bold">
-          NOTE {note.code}
-          {note.sousTableau ? ` ${note.sousTableau}` : ''} {note.titre}
+          NOTE {note.code} {note.titreNote ?? note.titre}
         </div>
+        {sousTitreDuTableau(note) && <div className="text-[11px] font-semibold mt-0.5">{sousTitreDuTableau(note)}</div>}
         {note.renvoyeeDepuis && note.renvoyeeDepuis.length > 0 && (
           <div className="text-[11px] text-text-dim mt-0.5">Renvoyée depuis les postes : {note.renvoyeeDepuis.join(', ')}</div>
         )}

@@ -265,3 +265,112 @@ describe('une note hors balance ne chiffre rien', () => {
     expect(horsBalance).toEqual(HORS_BALANCE_RELEVES);
   });
 });
+
+describe('Note 9 · impayés au 413, douteux au 416 (passe R6)', () => {
+  // Partie 2 ch. 2, compte 41 : « 413 Adhérents, Clients-usagers, chèques,
+  // effets et autres valeurs impayés » ; « 416 Créances, adhérents,
+  // clients-usagers litigieuses ou douteuses ». Aucun 417.
+  const note9 = NOTES_ASSOCIATIONS.find((n) => n.code === '9')!;
+  const comptesDe = (libelle: string) =>
+    (note9.rubriques.find((r) => r.libelle === libelle) as { comptes?: string[] }).comptes;
+
+  it('la ligne des impayés lit le 413', () => {
+    expect(comptesDe('Adhérents, clients-usagers, chèques, effets et autres valeurs impayés')).toEqual(['413']);
+  });
+
+  it('la ligne des créances litigieuses ou douteuses lit le 416', () => {
+    expect(comptesDe('Adhérents, créances litigieuses ou douteuses')).toEqual(['416']);
+  });
+});
+
+describe('Notes 1, 7, 10 et 21 · les écarts de conversion et le 4881 à leur place (passe R6)', () => {
+  // Partie 4 ch. 2, section 6 : « BE | 41, 42, 43, 44, 45, 47 (sauf 478) »,
+  // « DI | 42, 43, 44, 45, 47 (sauf 479), 499 (sauf 4998), 599 », « DF | 481,
+  // 484, 4861, 488, 4998 ». Partie 2 ch. 2 : « 488 […] (4881 créditeurs, dons
+  // en nature HAO non consommés) ».
+  const toutes = NOTES_ASSOCIATIONS.flatMap((n) => n.rubriques.map((r) => ({ code: n.code, sous: n.sousTableau, r })));
+  const rubrique = (code: string, libelle: string, sous?: string) =>
+    toutes.find((x) => x.code === code && x.r.libelle === libelle && (sous === undefined || x.sous === sous))!.r as {
+      comptes?: string[];
+      exclusions?: string[];
+      sens?: string;
+    };
+
+  it('la note 10 ne lit pas le 478', () => {
+    expect(rubrique('10', 'Autres débiteurs divers').comptes).toEqual(['472', '473', '474', '476']);
+  });
+
+  it('la note 21 ne lit pas le 479', () => {
+    expect(rubrique('21', 'Autres créditeurs divers').comptes).not.toContain('479');
+  });
+
+  it('les créditeurs divers de la note 1 excluent le 479', () => {
+    expect(rubrique('1', 'Créditeurs divers').exclusions).toContain('479');
+  });
+
+  it('la note 7 lit le 4881 sur sa ligne et l’exclut des autres dettes et des autres créances HAO', () => {
+    expect(rubrique('7', 'Créditeurs, dons nature HAO non consommés')).toMatchObject({
+      comptes: ['4881'],
+      sens: 'CREDITEUR',
+    });
+    expect(rubrique('7', 'Autres dettes hors activités ordinaires').exclusions).toContain('4881');
+    expect(rubrique('7', 'Autres créances hors activités ordinaires').exclusions).toContain('4881');
+  });
+
+  it('la note 7 des dettes HAO et la note 21 disent où va le 4998', () => {
+    const n7 = NOTES_ASSOCIATIONS.find((n) => n.code === '7' && n.sousTableau === 'DETTES CIRCULANTES HAO')!;
+    const n21 = NOTES_ASSOCIATIONS.find((n) => n.code === '21')!;
+    expect(n7.precisionEditeur).toContain('4998');
+    expect(n21.precisionEditeur).toContain('4998');
+  });
+});
+
+describe('Notes 5D, 7, 11, 13, 15 et 24 · recopiées comme le modèle (passe R6)', () => {
+  const note = (code: string, sous?: string) =>
+    NOTES_ASSOCIATIONS.find((n) => n.code === code && (sous === undefined || n.sousTableau === sous))!;
+
+  it('la note 5D suit l’ordre du modèle, sous-totaux intercalés', () => {
+    // Partie 4 ch. 2, NOTE 5D, recopié.
+    expect(note('5D').rubriques.map((r) => r.libelle)).toEqual([
+      'Usufruit',
+      'Brevets, licences, logiciels et droits similaires',
+      'Autres immobilisations incorporelles',
+      'SOUS TOTAL : IMMOBILISATIONS INCORPORELLES',
+      'Terrains',
+      'Bâtiments',
+      'Matériel, mobilier',
+      'SOUS TOTAL : IMMOBILISATIONS CORPORELLES',
+      'TOTAL GENERAL',
+    ]);
+  });
+
+  it('un sous-total de la note 5D additionne les lignes qui le précèdent immédiatement', () => {
+    const r = note('5D').rubriques as { totalDeRubriques?: number[] }[];
+    expect(r[3].totalDeRubriques).toEqual([0, 1, 2]);
+    expect(r[7].totalDeRubriques).toEqual([4, 5, 6]);
+    expect(r[8].totalDeRubriques).toEqual([3, 7]);
+  });
+
+  it('la note 15 ne prête au modèle aucun renvoi, la précision du plan est dite d’OmegaX', () => {
+    expect(note('15').renvoiOfficiel).toBeUndefined();
+    expect(note('15').precisionEditeur).toContain('102');
+  });
+
+  it('les commentaires officiels des notes 7, 11, 13 et 24 sont recopiés mot pour mot', () => {
+    expect(note('7', 'ACTIF CIRCULANT HAO').commentaire).toContain(
+      'dépréciations : indiquer les événements et circonstances motivant la dépréciation ou la reprise',
+    );
+    expect(note('11').commentaire).toContain(
+      "pour les titres cotés à une bourse de valeur, indiquer le nombre, le prix unitaire d'acquisition et le cours de bourse au 31 décembre",
+    );
+    expect(note('11').commentaire).toMatch(/^justifier toute variation significative/);
+    expect(note('13').commentaire).toContain(
+      'détailler les instruments de monnaie électronique si le montant est significatif',
+    );
+    expect(note('24').commentaire).toMatch(/^de toute variation significative/);
+  });
+
+  it('la note 13 porte le NB du modèle', () => {
+    expect(note('13').renvoiOfficiel).toContain('figurent dans cette rubrique en négatif si le compte principal attaché est débiteur');
+  });
+});

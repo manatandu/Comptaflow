@@ -91,8 +91,9 @@ describe('SYCEBNL · un préfixe de note qui ne joint aucun compte semé', () =>
    *    parce que le balayage les voit, pas parce qu'ils sont fautifs.
    *
    *  · 417 (note 9 · « Adhérents, créances litigieuses ou douteuses ») ·
-   *    relevé par ce balayage, HORS du périmètre corrigé ici, et signalé tel
-   *    quel. Le plan ne connaît pas de compte 417 (Partie 2, ch. 3, compte 41 :
+   *    relevé par ce balayage, et CORRIGÉ par la passe R6 (413 pour les
+   *    impayés, 416 pour le douteux). Le constat d'origine était le suivant.
+   *    Le plan ne connaît pas de compte 417 (Partie 2, ch. 3, compte 41 :
    *    « 411 Adhérents ; 412 Clients-usagers ; 413 Adhérents clients-usagers,
    *    chèques, effets et autres valeurs impayés […] ; 416 Créances adhérents,
    *    clients-usagers litigieuses ou douteuses ; 418 […] ; 419 […] »), et la
@@ -107,10 +108,9 @@ describe('SYCEBNL · un préfixe de note qui ne joint aucun compte semé', () =>
    * le plan officiel le fait, et il ouvre 832 et 842. Les huit préfixes gelés
    * ci-dessus ont donc tous trouvé leur compte : 6511, 6512, 6515, 6641, 6642,
    * 832 et 842 joignent, et la liste s'est vidée comme le commentaire le
-   * demandait. Seul reste 417, qui n'est pas un manque du semis mais une
-   * rubrique de note dont le numéro n'existe dans aucun plan · voir plus haut.
+   * demandait. Le 417 de la note 9 est parti avec la passe R6.
    */
-  const MORTS_ASSOCIATIONS = ['417'];
+  const MORTS_ASSOCIATIONS: string[] = [];
   const MORTS_PROJETS: string[] = [];
 
   it('jeu associations · la liste des préfixes qui ne joignent rien ne s’allonge pas', () => {
@@ -126,13 +126,10 @@ describe('SYCEBNL · un préfixe de note qui ne joint aucun compte semé', () =>
     // zéro : une rubrique qui cite deux préfixes morts ne compte qu'une fois,
     // et une rubrique dont un seul préfixe sur deux est mort reste chiffrée.
     // Ce sont ces lignes-là que le réviseur lit, d'où le relevé nominatif.
-    // Il n'en reste qu'une, et ce n'est plus un manque du semis : la note 9
-    // cite un compte 417 qui n'existe dans aucun plan (voir plus haut). Les
-    // huit autres, toutes dues au semis arrêté au divisionnaire, ont disparu
-    // avec la descente au quatrième chiffre.
-    expect(rubriquesMortes(NOTES_ASSOCIATIONS)).toEqual([
-      '9 · Adhérents, créances litigieuses ou douteuses · [417]',
-    ]);
+    // Il n'en reste aucune : les huit dues au semis arrêté au divisionnaire
+    // ont disparu avec la descente au quatrième chiffre, et le 417 de la
+    // note 9 avec la passe R6.
+    expect(rubriquesMortes(NOTES_ASSOCIATIONS)).toEqual([]);
     expect(rubriquesMortes(NOTES_PROJETS)).toEqual([]);
   });
 });
