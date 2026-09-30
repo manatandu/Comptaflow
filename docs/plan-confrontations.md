@@ -170,21 +170,21 @@ gardent l'historique de chaque passe · elles ne portent plus l'ordre.
 | **10** | **F12** | **FAITE le 2026-09-28** · le socle 2026, sept arrêtés ministériels et `parametres-2026.md`. 23 agents, 121 obligations servies, 19 constats réfutés un à un, **5 écartés, 14 retenus dont 4 FAUX, tous traités** (la TVA prêtée à l'arrêté n° 007/2025 ; sa sanction servie à une UGP ; l'acte de personnalité d'une entité étrangère ; le seuil de 500 USD étendu à tout bien ; le dégressif et le registre des retenues sans borne au 1er janvier 2026 ; le plancher de location-acquisition). Journal : `docs/releve-de-manques-fiscal.md` | 1 308 | 2 |
 | **11** | **R3** | **FAITE le 2026-09-28** · AUDCIF Titre XI, cinq nomenclatures. 26 agents, 53 obligations servies, 22 constats réfutés un à un, **3 écartés, 19 retenus dont 3 FAUX, tous traités**. Verdict · aucune nomenclature du Titre XI n'a de place, seul le code d'activité de la NOTE 36 est servi (identité du dossier, case ZI). Corrigés au passage · les dates DU/AU de la Fiche 1, le renvoi de la NOTE 36 vers des cases qui portent autre chose. Fiche R2 renvoyée à R2. Journal : `docs/releve-de-manques-referentiels.md` | 1 493 | 2 |
 | **12** | **O3** | **FAITE le 2026-09-28** · AUS, sûretés. 25 agents, 20 obligations servies, 21 constats réfutés un à un, **11 écartés, 10 retenus dont 2 FAUX, tous traités** (les colonnes de sûretés réelles de la NOTE 1 dites en saisie et non saisissables ; la réserve de propriété du ch. 9 § 3 ; les 48161/48162 du SYCEBNL). Journal : `docs/releve-de-manques-ohada.md` | 1 623 | 2 |
-| 13 | R6 | SYCEBNL Partie 4 · les trois jeux d'états et leurs notes | 1 715 | 2 |
-| 14 | R2 | AUDCIF Titres IX et X · états financiers, Système normal et SMT | 1 888 | 3 |
-| 15 | F11 | Impôts réels et cédulaires | 1 987 | 3 |
-| 16 | R5 | SYCEBNL Partie 2 · cadre comptable et plan des comptes | 2 203 | 3 |
-| 17 | F8 | Procédures fiscales, Titres 2 et 3 · contrôle et recouvrement | 2 794 | 4 |
-| 18 | O6 | AUSCOOP | 3 033 | 4 |
-| 19 | R1 | AUDCIF Titre VII · fonctionnement des comptes, classes 1 à 9 | 3 296 | 4 |
-| 20 | O5 | AUPCAP · procédures collectives | 3 341 | 4 |
-| 21 | O4 | AUPSRVE · recouvrement et voies d'exécution | 3 379 | 4 |
-| 22 | D1 | Loi n° 004/2001 et son appareil | 3 541 | 4 |
-| 23 | D4 | Code du numérique, ordonnance-loi n° 23/10 du 13 mars 2023 | 5 425 | 7 |
-| 24 | D2 | Droit du travail congolais + CNSS | 5 875 | 7 |
-| 25 | D3 | ONEC | 6 622 | 8 |
-| 26 | O1 | AUSCGIE, art. 1 à 920 | 10 359 | 12 |
-| 27 | F14 | Accises + TPI + recettes non fiscales · **périmètre à trancher avant de lancer** | 14 671 | 17 |
+| **13** | **R6** | **FAITE le 2026-09-30** · SYCEBNL Partie 4, les trois jeux d'états et leurs notes. Cinq blocs, **74 constats retenus dont 39 FAUX**, corrigés en cinq lots. Journal : `docs/releve-de-manques-referentiels.md` | 1 715 | 2 |
+| **14** | **R2** | **FAITE le 2026-09-30** · AUDCIF Titres IX et X · états financiers, Système normal et SMT, en recensement (un confronteur par bloc, un réfutateur groupé). **16 constats retenus dont 6 FAUX**, corrigés en lots. Ce qui reste, et pourquoi : `docs/recensement-corrections-restantes.md` | 1 888 | 3 |
+| **15** | **F11** | **FAITE le 2026-09-30** · Impôts réels et cédulaires, en recensement (un confronteur par bloc, un réfutateur groupé). **10 constats retenus dont 2 FAUX**, corrigés en lots. Ce qui reste, et pourquoi : `docs/recensement-corrections-restantes.md` | 1 987 | 3 |
+| **16** | **R5** | **FAITE le 2026-09-30** · SYCEBNL Partie 2 · cadre comptable et plan des comptes, en recensement (un confronteur par bloc, un réfutateur groupé). **17 constats retenus dont 6 FAUX**, corrigés en lots. Ce qui reste, et pourquoi : `docs/recensement-corrections-restantes.md` | 2 203 | 3 |
+| **17** | **F8** | **FAITE le 2026-09-30** · Procédures fiscales, Titres 2 et 3 · contrôle et recouvrement, en recensement (un confronteur par bloc, un réfutateur groupé). **9 constats retenus dont 1 FAUX**, corrigés en lots. Ce qui reste, et pourquoi : `docs/recensement-corrections-restantes.md` | 2 794 | 4 |
+| **18** | **O6** | **FAITE le 2026-09-30** · AUSCOOP, en recensement (un confronteur par bloc, un réfutateur groupé). **16 constats retenus dont 3 FAUX**, corrigés en lots. Ce qui reste, et pourquoi : `docs/recensement-corrections-restantes.md` | 3 033 | 4 |
+| **19** | **R1** | **FAITE le 2026-09-30** · AUDCIF Titre VII · fonctionnement des comptes, classes 1 à 9, en recensement (un confronteur par bloc, un réfutateur groupé). **21 constats retenus dont 9 FAUX**, corrigés en lots. Ce qui reste, et pourquoi : `docs/recensement-corrections-restantes.md` | 3 296 | 4 |
+| **20** | **O5** | **FAITE le 2026-09-30** · AUPCAP · procédures collectives, en recensement (un confronteur par bloc, un réfutateur groupé). **0 constats retenus dont 0 FAUX**, corrigés en lots. Ce qui reste, et pourquoi : `docs/recensement-corrections-restantes.md` | 3 341 | 4 |
+| **21** | **O4** | **FAITE le 2026-09-30** · AUPSRVE · recouvrement et voies d'exécution, en recensement (un confronteur par bloc, un réfutateur groupé). **3 constats retenus dont 1 FAUX**, corrigés en lots. Ce qui reste, et pourquoi : `docs/recensement-corrections-restantes.md` | 3 379 | 4 |
+| **22** | **D1** | **FAITE le 2026-09-30** · Loi n° 004/2001 et son appareil, en recensement (un confronteur par bloc, un réfutateur groupé). **19 constats retenus dont 5 FAUX**, corrigés en lots. Ce qui reste, et pourquoi : `docs/recensement-corrections-restantes.md` | 3 541 | 4 |
+| **23** | **D4** | **FAITE le 2026-09-30** · Code du numérique, ordonnance-loi n° 23/10 du 13 mars 2023, en recensement (un confronteur par bloc, un réfutateur groupé). **22 constats retenus dont 14 FAUX**, corrigés en lots. Ce qui reste, et pourquoi : `docs/recensement-corrections-restantes.md` | 5 425 | 7 |
+| **24** | **D2** | **FAITE le 2026-09-30** · Droit du travail congolais + CNSS, en recensement (un confronteur par bloc, un réfutateur groupé). **43 constats retenus dont 20 FAUX**, corrigés en lots. Ce qui reste, et pourquoi : `docs/recensement-corrections-restantes.md` | 5 875 | 7 |
+| **25** | **D3** | **FAITE le 2026-09-30** · ONEC, en recensement (un confronteur par bloc, un réfutateur groupé). **7 constats retenus dont 1 FAUX**, corrigés en lots. Ce qui reste, et pourquoi : `docs/recensement-corrections-restantes.md` | 6 622 | 8 |
+| **26** | **O1** | **FAITE le 2026-09-30** · AUSCGIE, art. 1 à 920, en recensement (un confronteur par bloc, un réfutateur groupé) · deux runs (O1a, O1b). **51 constats retenus dont 21 FAUX**, corrigés en lots. Ce qui reste, et pourquoi : `docs/recensement-corrections-restantes.md` | 10 359 | 12 |
+| **27** | **F14** | **FAITE le 2026-09-30** · Accises + TPI + recettes non fiscales · **périmètre à trancher avant de lancer**, en recensement (un confronteur par bloc, un réfutateur groupé) · périmètre RÉDUIT (accises, TPI et procédure de l'O.-L. n° 13/003, nomenclatures laissées). **2 constats retenus dont 0 FAUX**, corrigés en lots. Ce qui reste, et pourquoi : `docs/recensement-corrections-restantes.md` | 14 671 | 17 |
 
 **LES SEPT PREMIÈRES SONT LANCÉES D'AFFILÉE**, décidé le 2026-09-18 · 4 094
 lignes, six runs, et elles referment quatre passes du bloc F, la première du
