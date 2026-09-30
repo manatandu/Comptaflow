@@ -248,6 +248,12 @@ describe('cellules LIBRE d’une rubrique chiffrée · ce qui s’ouvre et ce qu
       '17B :: Note': MOTIF_RENVOI,
     },
     PROJETS_DEVELOPPEMENT: {
+      // Même lecture que les 5A et 5B des associations · la 3A porte les
+      // sous-colonnes « Virements de poste à poste » et « Suite à une
+      // réévaluation » du modèle (Partie 4 ch. 3, NOTE 3A), LIBRES et vides.
+      '3A :: B · Virements de poste à poste': MOTIF_MONTANT,
+      "3A :: B · Suite à une réévaluation pratiquée au cours de l'exercice": MOTIF_MONTANT,
+      '3A :: C · Virements de poste à poste': MOTIF_MONTANT,
       '8 :: Devises': MOTIF_DEVISE,
       '8 :: Montant en devises': MOTIF_DEVISE,
       '8 :: Cours UML Année acquisition': MOTIF_DEVISE,

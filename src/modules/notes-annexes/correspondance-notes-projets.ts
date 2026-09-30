@@ -122,6 +122,33 @@ const COLONNES_MOUVEMENTS = [
 ];
 
 /**
+ * Colonnes de la note 3A, que le modèle découpe plus finement · « A (MONTANT
+ * BRUT A L'OUVERTURE DE L'EXERCICE) | AUGMENTATIONS B (Acquisitions/Apports/
+ * Créations ; Virements de poste à poste ; Suite à une Réévaluation pratiquée
+ * au cours de l'exercice) | DIMINUTIONS C (Cessions/Scissions Hors service ;
+ * Virements de poste à poste) | D = A + B - C » (Partie 4 ch. 3, NOTE 3A). La
+ * 3B, elle, n'écrit que « AUGMENTATIONS B | DIMINUTIONS C » et garde
+ * `COLONNES_MOUVEMENTS`.
+ *
+ * Même lecture qu'aux notes 5A et 5B des associations (passe R6, B11) · B et
+ * C restent le mouvement débit et crédit LU EN BALANCE, pour que
+ * D = A + B - C tienne, et les trois sous-colonnes sont des MONTANTS
+ * qu'aucune balance ne distingue : LIBRE, vides, sous le motif écrit dans
+ * `rubriques-en-saisie.spec.ts` (`VIDES_MOTIVEES`), jamais en saisie sur une
+ * ligne chiffrée. Constante PROPRE à ce jeu · les deux jeux ne partagent
+ * aucun objet de note.
+ */
+const COLONNES_MOUVEMENTS_DETAILLEES = [
+  { type: 'OUVERTURE' as const, libelle: "A · Montant brut à l'ouverture de l'exercice" },
+  { type: 'AUGMENTATIONS' as const, libelle: 'AUGMENTATIONS B' },
+  { type: 'LIBRE' as const, libelle: 'B · Virements de poste à poste' },
+  { type: 'LIBRE' as const, libelle: "B · Suite à une réévaluation pratiquée au cours de l'exercice" },
+  { type: 'DIMINUTIONS' as const, libelle: 'DIMINUTIONS C' },
+  { type: 'LIBRE' as const, libelle: 'C · Virements de poste à poste' },
+  { type: 'CLOTURE' as const, libelle: "D = A + B - C (Montant brut à la clôture de l'exercice)" },
+];
+
+/**
  * Rubrique que le plan de comptes NORMALISÉ ne permet pas de déterminer : le
  * dossier doit y rattacher ses propres sous-comptes (voir `RattachementNote`).
  */
@@ -184,7 +211,7 @@ export const NOTES_PROJETS: SpecificationNote[] = [
   {
     code: '3A',
     titre: 'IMMOBILISATIONS BRUTES',
-    colonnes: COLONNES_MOUVEMENTS,
+    colonnes: COLONNES_MOUVEMENTS_DETAILLEES,
     renvoyeeDepuis: ['AA', 'AB', 'AC', 'AD', 'AE', 'AF', 'AG', 'AH'],
     rubriques: [
       { libelle: 'Brevets, licences, logiciels et droits similaires', comptes: ['212', '213'] },
@@ -615,9 +642,14 @@ export const NOTES_PROJETS: SpecificationNote[] = [
     titre: "BANQUES, CREDIT D'ESCOMPTE ET DE TRESORERIE",
     // Précision d'OmegaX, pas du texte officiel (passe R6, D7) · art. 15,
     // référence croisée, et renvoi (1) de la fiche récapitulative (« Leur
-    // contenu peut être amélioré par les entités »). Aucune ligne n'est ajoutée.
+    // contenu peut être amélioré par les entités »). Aucune ligne n'est
+    // ajoutée · les 53 créditeurs vont sur la ligne résiduelle « Autres
+    // Banques », comme à la note 22 des associations (passe R6, C13), pour
+    // que la note recoupe DW au lieu de les laisser dans aucune note.
     precisionEditeur:
-      'Le poste DW du bilan comprend aussi les soldes créditeurs des comptes 53 (établissements financiers et assimilés), auxquels le modèle de cette note ne donne aucune ligne.',
+      'La ligne « Autres Banques » comprend aussi les comptes 53 (établissements financiers et assimilés) à ' +
+      'solde créditeur : la correspondance du bilan les porte en DW, et le modèle de cette note ne leur donne ' +
+      'aucune ligne. La ligne est un choix d’OmegaX, pour que la note recoupe DW.',
     colonnes: COLONNES_STANDARD,
     renvoyeeDepuis: ['DW'],
     rubriques: [
@@ -634,7 +666,10 @@ export const NOTES_PROJETS: SpecificationNote[] = [
       { libelle: "TOTAL : BANQUES, CREDITS D'ESCOMPTE ET DE TRESORERIE", totalDeRubriques: [0, 1] },
       { libelle: 'Banques locales', comptes: ['521'], sens: 'CREDITEUR' },
       { libelle: 'Banques autres états région', comptes: ['522'], sens: 'CREDITEUR' },
-      { libelle: 'Autres Banques', comptes: ['523', '524', '525'], sens: 'CREDITEUR' },
+      // Avec les 53 CRÉDITEURS · même lecture qu'à la note 22 des
+      // associations. Le 536 ne va pas sous « Banques, intérêts courus », le
+      // renvoi ne visant que les banques.
+      { libelle: 'Autres Banques', comptes: ['523', '524', '525', '53'], sens: 'CREDITEUR' },
       { libelle: 'Banques, intérêts courus', comptes: ['526'], sens: 'CREDITEUR' },
       { libelle: 'Crédit de trésorerie', comptes: ['56'], exclusions: ['565'], natureCreditrice: true },
       { libelle: 'TOTAL : BANQUES, CREDITS DE TRESORERIE', totalDeRubriques: [3, 4, 5, 6, 7] },

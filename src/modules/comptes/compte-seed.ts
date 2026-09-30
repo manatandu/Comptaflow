@@ -699,7 +699,16 @@ const classe4Solde: LigneSeed[] = c(ClasseCompte.CLASSE_4, SOLDE, [
   // retenue locative est due dans les dix jours (loi de procédures fiscales,
   // art. 57). Un compte par échéance, donc, faute de quoi la date affichée
   // ne peut pas être juste pour tout le monde.
-  ['44781000', 'État, retenue sur les revenus locatifs (20 %)'],
+  // SANS TAUX dans l'intitulé · la retenue locative n'en a pas un seul. Les
+  // textes nationaux la fixent à 20 % (loi n° 83/004, art. 11), l'impôt
+  // qu'elle acompte à 22 % (O.-L. n° 69/009, art. 11), et l'impôt est
+  // provincial (Constitution, art. 204, 16°) · à Kinshasa, 20 % ou 15 % selon
+  // le rang de la localité (arrêté n° 015/2023, art. 5 et 8), les autres
+  // barèmes n'étant pas au corpus. « (20 %) » faisait lire un taux faux dans
+  // la moitié des cas (même correction qu'au libellé du registre des
+  // retenues, passe F11). Les dossiers déjà semés gardent leur intitulé ·
+  // aucune migration ne réécrit un compte que le cabinet a pu renommer.
+  ['44781000', 'État, retenue sur les revenus locatifs'],
   ['44782000', 'État, prélèvement sur prestataires non-résidents (14 %)'],
   ['44783000', 'État, prélèvement exceptionnel sur le personnel expatrié (25 %)'],
   ['44784000', 'État, retenue sur les revenus de capitaux mobiliers (20 %)'],

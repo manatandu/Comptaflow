@@ -179,6 +179,10 @@ describe('intitulés relus sur le plan des comptes officiel', () => {
     ['24940000', 'Matériel et mobilier de bureau en cours'],
     ['24980000', 'Autres matériels et actifs biologiques en cours'],
     ['29470000', 'Dépréciations du matériel · agencements et aménagements du matériel et des actifs biologiques'],
+    // 44781 · subdivision ouverte par OmegaX. L'intitulé ne porte AUCUN taux ·
+    // 20 % (loi n° 83/004, art. 11) ou, à Kinshasa, 15 % selon le rang de la
+    // localité (arrêté provincial n° 015/2023, art. 5 et 8).
+    ['44781000', 'État, retenue sur les revenus locatifs'],
   ];
 
   it.each(RELUS)('%s porte l’intitulé du texte officiel', (numero, intitule) => {

@@ -102,12 +102,14 @@ describe('SYCEBNL projets · les comptes d’un poste et ceux de la note qui le 
   it('les comptes qu’un poste prend et qu’aucune ligne chiffrée de sa note ne reprend sont GELÉS, un par un', () => {
     // Relevé de la passe R6 (D7), mesuré et non approuvé. Pour l'essentiel,
     // des lacunes du modèle de note : 4998 en note 4, 34 et 363 en note 5,
-    // 181 et 192 en note 11, 47 créditeurs en note 12, 53 créditeurs en
-    // note 13, 606 en note 15, 636 en note 17, 6512 et 652 en note 19, 665
+    // 181 et 192 en note 11, 47 créditeurs en note 12, 606 en note 15, 636 en note 17, 6512 et 652 en note 19, 665
     // en note 20A, 678 en note 21, 81, 838, 85, 87, 82 et 846 en note 23.
     // Les autres sont attendus : le 603 de TC n'est pas un stock (note 5),
     // et les sous-comptes de 602, 604, 605 et 705 que le plan ne rattache à
     // aucune ligne passent par les rubriques en attente des notes 14 et 15.
+    // La note 13 est SORTIE du relevé · ses 53 créditeurs, que DW prend, vont
+    // sur la ligne « Autres Banques », comme à la note 22 des associations
+    // (passe R6, C13), et la precisionEditeur le dit.
     expect(ecartsParNote()).toEqual({
       '4': ['49980000'],
       '5': ['34100000', '34500000', '36310000', '36320000', '36380000', '60310000', '60320000', '60330000', '60340000', '60350000'],
@@ -117,7 +119,6 @@ describe('SYCEBNL projets · les comptes d’un poste et ceux de la note qui le 
         '47190000', '47210000', '47260000', '47310000', '47320000', '47330000', '47380000', '47390000', '47460000',
         '47470000', '47500000', '47600000', '47700000',
       ],
-      '13': ['53100000', '53200000', '53300000', '53610000', '53670000', '53800000'],
       '14': ['70520000', '70530000', '70540000', '70550000'],
       '15': [
         '60210000', '60220000', '60230000', '60250000', '60290000', '60450000', '60460000', '60470000', '60490000',
@@ -175,5 +176,15 @@ describe('SYCEBNL projets · les comptes d’un poste et ceux de la note qui le 
         expect([titre, c, new RegExp(`\\b${c}\\b`).test(note.precisionEditeur ?? '')]).toEqual([titre, c, true]);
       }
     }
+  });
+});
+
+describe('SYCEBNL projets · note 13, les 53 créditeurs de DW', () => {
+  it('la ligne « Autres Banques » lit les 53 au CRÉDIT, comme la note 22 des associations', () => {
+    const note = NOTES_PROJETS.find((n) => n.code === '13')!;
+    const autres = note.rubriques.find((r) => r.libelle === 'Autres Banques')!;
+    expect(autres.comptes).toContain('53');
+    expect(autres.sens).toBe('CREDITEUR');
+    expect(note.precisionEditeur).toContain('La ligne « Autres Banques » comprend aussi les comptes 53');
   });
 });

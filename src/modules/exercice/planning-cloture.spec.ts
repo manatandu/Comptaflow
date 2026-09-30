@@ -1,4 +1,6 @@
 import { FormeJuridiqueEbnl, FormeJuridiqueSyscohada, Referentiel } from '@prisma/client';
+import { regimeMoitieCapital } from '../controles/moitie-capital';
+import { OBLIGATIONS_DECLARATIVES } from '../retenues/correspondance-retenues';
 import { JALONS_CLOTURE, dateJalon, jalonsApplicables , obligationsEvenementiellesApplicables, OBLIGATIONS_EVENEMENTIELLES } from './planning-cloture';
 import { regimeReserveLegale } from '../affectation/regles-affectation';
 import { regleRapportGestion } from '../documents-obligatoires/correspondance-inventaire-syscohada';
@@ -954,5 +956,64 @@ describe('recensement · planning de clôture confronté aux textes', () => {
     expect(cles(false)).toEqual(expect.arrayContaining(['mouvementImmeuble', 'changementAdministrateur']));
     expect(cles(true)).not.toContain('mouvementImmeuble');
     expect(cles(true)).not.toContain('changementAdministrateur');
+  });
+});
+
+/**
+ * O1b-D1 · capitaux propres sous la moitié du capital. L'obligation suit la
+ * règle du contrôle (`regimeMoitieCapital`), jamais une liste recopiée, et
+ * chaque régime garde ses articles.
+ */
+describe('obligation événementielle · capitaux propres inférieurs à la moitié du capital', () => {
+  const cles = (forme: FormeJuridiqueSyscohada | null, referentiel: Referentiel = Referentiel.SYSCOHADA) =>
+    obligationsEvenementiellesApplicables({
+      referentiel,
+      formeJuridique: FormeJuridiqueEbnl.ASSOCIATION,
+      droitEtranger: false,
+      formeJuridiqueSyscohada: forme,
+    }).map((o) => o.cle);
+
+  it('sert à chaque forme le régime que le contrôle lui reconnaît, et à nulle autre', () => {
+    for (const forme of Object.values(FormeJuridiqueSyscohada)) {
+      const regime = regimeMoitieCapital(forme);
+      const c = cles(forme);
+      expect(c.includes('moitieCapitalSarl')).toBe(regime === 'SARL');
+      expect(c.includes('moitieCapitalSaSas')).toBe(regime === 'SA' || regime === 'SAS');
+    }
+    // Forme non renseignée, ou dossier SYCEBNL · rien.
+    expect(cles(null)).not.toContain('moitieCapitalSarl');
+    expect(cles(null)).not.toContain('moitieCapitalSaSas');
+    expect(cles(FormeJuridiqueSyscohada.SOCIETE_ANONYME, Referentiel.SYCEBNL)).not.toContain('moitieCapitalSaSas');
+  });
+
+  it('cite les articles de chaque régime, le délai de quatre mois et la publicité de l’art. 666', () => {
+    const sarl = OBLIGATIONS_EVENEMENTIELLES.find((o) => o.cle === 'moitieCapitalSarl')!;
+    const sa = OBLIGATIONS_EVENEMENTIELLES.find((o) => o.cle === 'moitieCapitalSaSas')!;
+    expect(sarl.source).toContain('AUSCGIE art. 371 à 373');
+    expect(sarl.delai).toContain('quatre mois qui suivent l’approbation');
+    expect(sarl.delai).toContain('deux ans qui suivent la clôture de l’exercice déficitaire');
+    expect(sa.source).toContain('AUSCGIE art. 664 à 669');
+    expect(sa.source).toContain('art. 853-3');
+    expect(sa.delai).toContain('quatre mois qui suivent l’approbation');
+    expect(sa.delai).toContain('clôture du deuxième exercice suivant');
+    expect(sa.delai).toContain('déposée au RCCM et publiée dans un journal d’annonces légales');
+  });
+});
+
+
+/**
+ * F8-C4 · la branche « petites entreprises » du jalon de déclaration d'une
+ * personne physique porte la réserve du registre des retenues, et aucune date
+ * ne bouge.
+ */
+describe('jalon de déclaration des revenus · réserve de l’art. 57 quater, al. 2', () => {
+  it('porte la citation du registre des retenues et garde le 30 avril', () => {
+    const j = JALONS_CLOTURE.find((x) => x.libelle === 'Déclaration annuelle des revenus (personne physique)')!;
+    const reserve = OBLIGATIONS_DECLARATIVES.find((o) => o.cle === 'declarationIrpp')!.reserveRegimePhysique!;
+    expect(reserve).toContain('article 57 quater, alinéa 2');
+    expect(j.detail).toContain(reserve);
+    expect(j.detail).toContain('« à la souscription de la déclaration auto liquidative, au plus tard le 31 janvier');
+    expect(j.source).toContain('57 quater, al. 2');
+    expect(j.echeance).toEqual({ moisApres: 4, jour: 'FIN' });
   });
 });

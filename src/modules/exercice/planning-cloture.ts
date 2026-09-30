@@ -68,7 +68,9 @@
 
 import { FormeJuridiqueEbnl, FormeJuridiqueSyscohada, Referentiel } from '@prisma/client';
 import { FORMES_PERSONNES_PHYSIQUES } from '../retenues/correspondance-retenues';
+import { OBLIGATIONS_DECLARATIVES } from '../retenues/correspondance-retenues';
 import { regimeReserveLegale } from '../affectation/regles-affectation';
+import { formesDuRegimeMoitieCapital } from '../controles/moitie-capital';
 
 /** Toutes les formes relevant de la loi 004/2001 sur les ASBL. */
 const FORMES_ASBL: FormeJuridiqueEbnl[] = [
@@ -310,6 +312,20 @@ function affectationSyscohada(forme: FormeJuridiqueSyscohada | null): { detail: 
  * décompte d'ici s'était périmé). Les décalages viennent du calendrier du
  * § 2.3, transposé en mois après clôture.
  */
+/**
+ * PASSE F8-C4 · la branche « petites entreprises » du jalon de déclaration
+ * d'une personne physique. L'art. 57 quater, al. 2 attache la première
+ * quotité à la souscription de la déclaration, « au plus tard le 31 janvier »,
+ * quand l'art. 17 fixe la déclaration au 30 avril. La réserve est LUE dans le
+ * registre des retenues (`declarationIrpp`), jamais recopiée · deux textes de
+ * la même tension divergeraient au premier correctif. Aucune date ne bouge.
+ */
+const RESERVE_PREMIERE_QUOTITE_PETITES_ENTREPRISES: string = (() => {
+  const reserve = OBLIGATIONS_DECLARATIVES.find((o) => o.cle === 'declarationIrpp')?.reserveRegimePhysique;
+  if (!reserve) throw new Error('Réserve de l’art. 57 quater, al. 2 introuvable dans le registre des retenues (declarationIrpp).');
+  return 'RÉSERVE · ' + reserve;
+})();
+
 export const JALONS_CLOTURE: DefinitionJalon[] = [
   {
     etape: 1,
@@ -775,12 +791,14 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     etape: 15,
     libelle: 'Déclaration annuelle des revenus (personne physique)',
     detail:
-      'Déclaration des revenus de l’exercice au plus tard le 30 avril de l’année qui suit celle de leur réalisation, au Service des Impôts du lieu de résidence. Elle n’est PAS une déclaration d’impôt sur les sociétés : une entreprise individuelle et un entreprenant relèvent de l’Impôt sur le Revenu des Personnes Physiques. Elle n’est appuyée des annexes de l’article 13, et contresignée par le conseil ou le comptable (art. 17, al. 2), que si le dossier relève du SYSTÈME NORMAL de comptabilité et réalise des revenus dans les catégories énumérées par l’article 17, alinéa 2 ; un dossier au Système minimal de trésorerie n’y est pas tenu. S’y ajoute alors le relevé récapitulatif des ventes de l’année aux personnes réputées commerçants ou fabricants. LE CALENDRIER DE PAIEMENT DÉPEND DU RÉGIME : au régime réel, trois acomptes provisionnels aux 25 juillet, 25 septembre et 25 novembre ; au régime des petites entreprises, deux quotités, la première au plus tard le 31 janvier ; au régime des micro-entreprises, ni acompte ni quotité. Le régime applicable se lit dans État > Résultat fiscal et impôt sur les bénéfices, ce calendrier ne le tranche pas. LA MENTION DU COMPTABLE · l’article 141, 2° de la loi n° 23/053 oblige le redevable « d’indiquer dans leur déclaration le nom, l’adresse et la qualification du comptable chargé de tenir leur comptabilité, en précisant si celui-ci est salarié ou non de leur entreprise ». Ce n’est pas le contreseing ci-dessus : signer n’est pas déclarer son adresse, sa qualification et son lien de subordination. OmegaX ne détient aucune de ces quatre données et ne les porte donc sur aucune pièce · à reporter à la main sur la déclaration.',
+      'Déclaration des revenus de l’exercice au plus tard le 30 avril de l’année qui suit celle de leur réalisation, au Service des Impôts du lieu de résidence. Elle n’est PAS une déclaration d’impôt sur les sociétés : une entreprise individuelle et un entreprenant relèvent de l’Impôt sur le Revenu des Personnes Physiques. Elle n’est appuyée des annexes de l’article 13, et contresignée par le conseil ou le comptable (art. 17, al. 2), que si le dossier relève du SYSTÈME NORMAL de comptabilité et réalise des revenus dans les catégories énumérées par l’article 17, alinéa 2 ; un dossier au Système minimal de trésorerie n’y est pas tenu. S’y ajoute alors le relevé récapitulatif des ventes de l’année aux personnes réputées commerçants ou fabricants. LE CALENDRIER DE PAIEMENT DÉPEND DU RÉGIME : au régime réel, trois acomptes provisionnels aux 25 juillet, 25 septembre et 25 novembre ; au régime des petites entreprises, deux quotités, la première au plus tard le 31 janvier ; au régime des micro-entreprises, ni acompte ni quotité. Le régime applicable se lit dans État > Résultat fiscal et impôt sur les bénéfices, ce calendrier ne le tranche pas. ' +
+      RESERVE_PREMIERE_QUOTITE_PETITES_ENTREPRISES +
+      ' LA MENTION DU COMPTABLE · l’article 141, 2° de la loi n° 23/053 oblige le redevable « d’indiquer dans leur déclaration le nom, l’adresse et la qualification du comptable chargé de tenir leur comptabilité, en précisant si celui-ci est salarié ou non de leur entreprise ». Ce n’est pas le contreseing ci-dessus : signer n’est pas déclarer son adresse, sa qualification et son lien de subordination. OmegaX ne détient aucune de ces quatre données et ne les porte donc sur aucune pièce · à reporter à la main sur la déclaration.',
     nature: 'LEGALE',
     debut: { moisApres: 3, jour: 1 },
     echeance: { moisApres: 4, jour: 'FIN' },
     source:
-      'Loi n° 004/2003 portant réforme des procédures fiscales, art. 17 (déclaration des personnes physiques, modifié par la loi n° 23/052 et par la loi de finances n° 25/060), art. 13 (annexes) et art. 57, al. 2 et 3, et 57 bis ; loi n° 23/053, art. 141, 2° (mention du comptable)',
+      'Loi n° 004/2003 portant réforme des procédures fiscales, art. 17 (déclaration des personnes physiques, modifié par la loi n° 23/052 et par la loi de finances n° 25/060), art. 13 (annexes), art. 57, al. 2 et 3, 57 bis et 57 quater, al. 2 (première quotité des petites entreprises) ; loi n° 23/053, art. 141, 2° (mention du comptable)',
     echeanceFiscale: true,
     referentiels: [Referentiel.SYSCOHADA],
     formesSyscohada: FORMES_PERSONNES_PHYSIQUES,
@@ -1212,6 +1230,12 @@ export interface ObligationEvenementielle {
   referentiels?: Referentiel[];
   /** Formes OHADA écartées · même sens que sur les jalons (passe F7). */
   formesSyscohadaExclues?: FormeJuridiqueSyscohada[];
+  /**
+   * Formes OHADA VISÉES · même sens que sur les jalons : une forme non
+   * renseignée ne fait rien afficher, le silence valant mieux qu'une
+   * obligation servie à une forme qui n'y est pas tenue (constat O1b-D1).
+   */
+  formesSyscohada?: FormeJuridiqueSyscohada[];
   droitEtrangerSeulement?: boolean;
   /** Même sens que sur les jalons · section I du chapitre II, droit congolais. */
   droitCongolaisSeulement?: boolean;
@@ -1332,6 +1356,43 @@ export const OBLIGATIONS_EVENEMENTIELLES: ObligationEvenementielle[] = [
     // ne l'aurait retenue côté SYSCOHADA sans ce filtre.
     referentiels: [Referentiel.SYCEBNL],
   },
+  /*
+    CAPITAUX PROPRES INFÉRIEURS À LA MOITIÉ DU CAPITAL (constat O1b-D1). Le
+    fait se lit dans les livres (contrôle CAPITAUX_PROPRES_INFERIEURS_MOITIE_
+    CAPITAL), mais le délai court de l'APPROBATION des comptes, que les livres
+    ne portent pas · d'où sa place ici et non parmi les jalons. Deux régimes,
+    jamais l'un pour l'autre, et les formes viennent de la règle du contrôle
+    (`formesDuRegimeMoitieCapital`), jamais d'une seconde liste.
+  */
+  {
+    cle: 'moitieCapitalSarl',
+    evenement:
+      'Capitaux propres devenus inférieurs à la moitié du capital social du fait des pertes constatées dans les états financiers de synthèse',
+    libelle: 'Consultation des associés sur la dissolution anticipée',
+    delai:
+      'Dans les quatre mois qui suivent l’approbation des comptes ayant fait apparaître la perte · si la dissolution est écartée, reconstitution des capitaux propres dans les deux ans qui suivent la clôture de l’exercice déficitaire, sinon réduction du capital, jamais sous le capital légal. Les art. 371 à 373 ne prescrivent aucune publicité de la décision.',
+    destinataire: 'Associés, consultés par le gérant ou, le cas échéant, le commissaire aux comptes',
+    source:
+      'AUSCGIE art. 371 à 373 · à défaut de décision, ou de reconstitution dans le délai, tout intéressé peut demander la dissolution judiciaire (art. 373)',
+    referentiels: [Referentiel.SYSCOHADA],
+    formesSyscohada: formesDuRegimeMoitieCapital(['SARL']),
+    ecranDeclencheur: 'État > Analyse et contrôles · capitaux propres inférieurs à la moitié du capital social',
+  },
+  {
+    cle: 'moitieCapitalSaSas',
+    evenement:
+      'Capitaux propres devenus inférieurs à la moitié du capital social du fait des pertes constatées dans les états financiers de synthèse',
+    libelle: 'Assemblée générale extraordinaire sur la dissolution anticipée, puis dépôt et publication de sa décision',
+    delai:
+      'Convocation dans les quatre mois qui suivent l’approbation des comptes ayant fait apparaître la perte · si la dissolution n’est pas prononcée, réduction du capital au plus tard à la clôture du deuxième exercice suivant celui de la constatation des pertes, faute de reconstitution. La décision est déposée au RCCM et publiée dans un journal d’annonces légales du lieu du siège.',
+    destinataire:
+      'Assemblée générale extraordinaire, convoquée par le conseil d’administration ou l’administrateur général (en SAS, décision collective des associés) · RCCM et journal d’annonces légales',
+    source:
+      'AUSCGIE art. 664 à 669 (art. 666 pour le dépôt et la publication ; non applicables en redressement judiciaire ou en liquidation des biens, art. 669) ; art. 853-3 et 853-11, al. 2 pour la SAS ; art. 901 pour la sanction des dirigeants',
+    referentiels: [Referentiel.SYSCOHADA],
+    formesSyscohada: formesDuRegimeMoitieCapital(['SA', 'SAS']),
+    ecranDeclencheur: 'État > Analyse et contrôles · capitaux propres inférieurs à la moitié du capital social',
+  },
 ];
 
 /**
@@ -1352,6 +1413,8 @@ export function obligationsEvenementiellesApplicables(contexte: {
   return OBLIGATIONS_EVENEMENTIELLES.filter((o) => {
     if (o.referentiels && !o.referentiels.includes(contexte.referentiel)) return false;
     if (o.formesSyscohadaExclues && contexte.formeJuridiqueSyscohada && o.formesSyscohadaExclues.includes(contexte.formeJuridiqueSyscohada)) return false;
+    if (o.formesSyscohada && !(contexte.formeJuridiqueSyscohada && o.formesSyscohada.includes(contexte.formeJuridiqueSyscohada)))
+      return false;
     if (o.formes && !o.formes.includes(contexte.formeJuridique)) return false;
     if (o.droitEtrangerSeulement && !contexte.droitEtranger) return false;
     if (o.droitCongolaisSeulement && contexte.droitEtranger) return false;

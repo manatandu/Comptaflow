@@ -41,6 +41,32 @@ export interface VerdictMoitieCapital {
   action: string;
 }
 
+/**
+ * Le régime qui vaut pour la forme, ou `null` si aucun des trois ne la vise.
+ * Seule écriture de ce périmètre · le contrôle et l'obligation événementielle
+ * du planning de clôture (`OBLIGATIONS_EVENEMENTIELLES`) la lisent tous deux,
+ * pour qu'une forme ajoutée ici entre des deux côtés à la fois.
+ */
+export type RegimeMoitieCapital = 'SARL' | 'SA' | 'SAS';
+
+export function regimeMoitieCapital(forme: FormeJuridiqueSyscohada | null | undefined): RegimeMoitieCapital | null {
+  return forme === FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE
+    ? 'SARL'
+    : forme === FormeJuridiqueSyscohada.SOCIETE_ANONYME
+      ? 'SA'
+      : forme === FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE
+        ? 'SAS'
+        : null;
+}
+
+/** Les formes que l'un des trois régimes vise, lues sur `regimeMoitieCapital`. */
+export function formesDuRegimeMoitieCapital(regimes: RegimeMoitieCapital[]): FormeJuridiqueSyscohada[] {
+  return Object.values(FormeJuridiqueSyscohada).filter((f) => {
+    const r = regimeMoitieCapital(f);
+    return r !== null && regimes.includes(r);
+  });
+}
+
 export function verdictMoitieCapital(
   forme: FormeJuridiqueSyscohada | null,
   totalCapitauxPropresBilan: number,
@@ -49,14 +75,7 @@ export function verdictMoitieCapital(
 ): VerdictMoitieCapital | null {
   // Sans capital, la moitié ne se mesure pas.
   if (capitalNominal <= 0.005) return null;
-  const regime =
-    forme === FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE
-      ? 'SARL'
-      : forme === FormeJuridiqueSyscohada.SOCIETE_ANONYME
-        ? 'SA'
-        : forme === FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE
-          ? 'SAS'
-          : null;
+  const regime = regimeMoitieCapital(forme);
   if (!regime) return null;
   const capitauxPropres = Math.round((totalCapitauxPropresBilan + Math.max(0, capitalNonAppele)) * 100) / 100;
   if (capitauxPropres >= capitalNominal / 2) return null;
