@@ -33,6 +33,12 @@
  * d'être réparti au jugé. C'est ce que la ligne CONTRÔLE est faite pour
  * montrer.
  *
+ * **Les dotations du renvoi (a) comprennent le H.A.O.** La CAFG ajoute TL et
+ * retranche RH, et y joint le 85 et le 86, que le compte de résultat fond dans
+ * TN et TM (voir `cessionsDeLExercice`) · la NOTE 30 ventile ses dotations
+ * « d'exploitation / financières / Hors activités ordinaires ». Les charges à
+ * court terme (659, 679, 839) n'en sont pas, la NOTE 30 les tenant à part.
+ *
  * **Le ratio d'utilisation des dons reste en SAISIE.** « Sommes versées
  * directement aux bénéficiaires / Sommes collectées brutes » ne correspond à
  * aucun poste ni à aucun compte du plan : le 652 « Subventions accordées par
@@ -128,29 +134,57 @@ export interface IndicateurCalcule {
   valeurN1: number | null;
 }
 
-/** Somme des cessions d'immobilisations de l'exercice, pour la CAFG. */
+/**
+ * Éléments H.A.O. de la CAFG d'un exercice · les cessions d'immobilisations
+ * et les dotations et reprises hors activités ordinaires.
+ */
 export interface CessionsImmobilisations {
   /** Compte 81 · valeurs comptables des cessions (une charge H.A.O.). */
   valeurComptable: number;
   /** Compte 82 · produits des cessions (un produit H.A.O.). */
   produits: number;
+  /** Compte 85 · dotations hors activités ordinaires (une charge H.A.O.). */
+  dotationsHao: number;
+  /** Compte 86 · reprises d'amortissements, provisions et dépréciations H.A.O. (un produit). */
+  reprisesHao: number;
 }
 
 /**
- * Comptes 81 et 82 d'un exercice · la CAFG les demande nommément, et le
- * compte de résultat les fond dans les postes TN et TM avec le reste des
- * opérations hors activités ordinaires.
+ * Comptes 81, 82, 85 et 86 d'un exercice · la CAFG les demande, et le compte
+ * de résultat les fond dans les postes TN et TM avec le reste des opérations
+ * hors activités ordinaires, que la formule ne relit pas.
+ *
+ * LE 85 ET LE 86 Y SONT DEPUIS LA PASSE R6 (constat C12). Le renvoi (a) dit
+ * « Dotations aux amortissements aux dépréciations, provisions et autres » et
+ * « Reprises d'amortissements, de dépréciations provisions et autres », sans
+ * borner aux activités ordinaires ; le SYCEBNL emploie lui-même le mot pour le
+ * H.A.O. (NOTE 30, colonne B « dotations, ventilées d'exploitation /
+ * financières / Hors activités ordinaires »), et ses comptes 85 « DOTATIONS
+ * HORS ACTIVITÉS ORDINAIRES » (851 provisions réglementées, 852
+ * amortissements, 853 dépréciations, 854 provisions pour risques et charges,
+ * 858 autres) et 86 « REPRISES D'AMORTISSEMENTS, PROVISIONS ET DÉPRÉCIATIONS
+ * H.A.O. » reprennent les mots du renvoi (Partie 2 ch. 2). Le 85 est débité
+ * par le crédit des 15, 19, 28 et 29 (fiche du compte 85) · aucune
+ * trésorerie. Oubliés, ils faussaient la CAFG publiée du montant 85 - 86.
+ *
+ * Le 839 et le 849 N'Y SONT PAS · la NOTE 30 les range sous « CHARGES POUR
+ * DEPRECIATIONS ET PROVISIONS A COURT TERME », à part des « DOTATIONS »,
+ * comme le 659 et le 679 restent hors de TL.
  */
 export function cessionsDeLExercice(lignes: LigneBalancePourEtat[]): CessionsImmobilisations {
   let valeurComptable = 0;
   let produits = 0;
+  let dotationsHao = 0;
+  let reprisesHao = 0;
   for (const l of lignes) {
     // Convention de signe du compte de résultat : une charge se lit
     // débit - crédit, un produit crédit - débit.
     if (correspond(l.numero, ['81'])) valeurComptable += l.totalDebit - l.totalCredit;
     if (correspond(l.numero, ['82'])) produits += l.totalCredit - l.totalDebit;
+    if (correspond(l.numero, ['85'])) dotationsHao += l.totalDebit - l.totalCredit;
+    if (correspond(l.numero, ['86'])) reprisesHao += l.totalCredit - l.totalDebit;
   }
-  return { valeurComptable, produits };
+  return { valeurComptable, produits, dotationsHao, reprisesHao };
 }
 
 /** Rubriques de la note 33 que le logiciel ne calcule pas · voir l'en-tête. */
@@ -229,10 +263,19 @@ export function indicateursNote33(
       'resultat-des-activites-ordinaires': resultatAo,
       'resultat-hors-activites-ordinaires': resultatHao,
       'resultat-net': resultatNet,
-      // Renvoi (a), appliqué mot pour mot : résultat net + dotations
-      // - reprises + valeurs comptables des cessions - produits des cessions.
+      // Renvoi (a) : résultat net + dotations - reprises + valeurs
+      // comptables des cessions - produits des cessions. Lecture retenue
+      // (voir `cessionsDeLExercice`) · les dotations sont TL et le 85, les
+      // reprises RH et le 86 ; les charges à court terme (659, 679, 839)
+      // n'en sont pas.
       'capacite-d-autofinancement-globale-cafg':
-        resultatNet + cr('TL') - cr('RH') + cessions.valeurComptable - cessions.produits,
+        resultatNet +
+        cr('TL') +
+        cessions.dotationsHao -
+        cr('RH') -
+        cessions.reprisesHao +
+        cessions.valeurComptable -
+        cessions.produits,
       // Ratio en POURCENTAGE · le renvoi (b) parle de « 2 % à 5 % ».
       'ratio-de-cotisations-acquises-cotisations-charge':
         Math.abs(totalCharges) < 0.005 ? null : (cr('RA') / totalCharges) * 100,

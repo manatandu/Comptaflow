@@ -4,6 +4,7 @@ import { Aide } from './chrome/Aide';
 import { montant } from '../lib/montants';
 import { celluleLibreSaisissable, texteCelluleLibre } from '../lib/cellules-notes';
 import { sousTitreDuTableau } from '../lib/titre-note';
+import { texteEcartSaisie, type EcartSaisieNote } from '../lib/ecarts-saisie-notes';
 
 /**
  * RENDU DES NOTES ANNEXES · pièces d'affichage communes aux deux écrans de
@@ -125,7 +126,9 @@ function LigneTableauNote({
   // elles s'écrivent. `ligne.saisie` porte une case par colonne, `null` là où
   // le dossier n'a rien mis · une case vide n'est pas un zéro.
   const cellules = ligne.saisie;
+  const ecarts = (ligne as LigneNoteCalculee & { ecartsSaisie?: EcartSaisieNote[] }).ecartsSaisie ?? [];
   return (
+    <>
     <div
       title={ligne.comptes.length > 0 ? `Comptes : ${ligne.comptes.map((c) => c.numero).join(', ')}` : undefined}
       className={`grid gap-2 px-4 py-1 text-[11.5px] ${ligne.estTotal ? 'font-bold bg-surface-alt border-y border-border' : ''}`}
@@ -222,6 +225,12 @@ function LigneTableauNote({
         );
       })}
     </div>
+    {ecarts.map((e) => (
+      <div key={e.colonne} className="px-4 pb-1 text-[11px] text-danger">
+        {texteEcartSaisie(note, e)}
+      </div>
+    ))}
+    </>
   );
 }
 

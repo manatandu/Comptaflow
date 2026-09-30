@@ -655,38 +655,28 @@ describe('recoupement croisé des notes (anti double comptage)', () => {
     expect(sommeParNote(r, '47500000').map((x: any) => x.note)).toEqual(['21']);
   });
 
-  it('DÉFAUT CORRIGÉ : le compte 619 (achats ET transports) n’est plus rattaché en dur aux deux notes', async () => {
-    // Le plan officiel liste 619 sous les classes 60 ET 61 sans le ventiler
-    // entre elles. Une version antérieure des notes 24 et 25 le rattachait
-    // en dur toutes les deux : un solde sur 619 était donc compté deux fois.
+  it('le 619 (rabais sur TRANSPORTS) n’alimente que la note 25, jamais la note 24 (passe R6, C1)', async () => {
+    // Le 619 est rangé par la fiche du compte 61 sous les transports, et la
+    // correspondance postes/comptes ne le met que dans TF. Le rattacher aussi
+    // à la ligne de rabais des achats le compterait deux fois.
     const s = service({ e1: [ligne('61900000', ClasseCompte.CLASSE_6, 0, 500)] });
     const r = await s.notesAssociations('t', 'e1');
-    // Par défaut sans rattachement du dossier 619 ne contribue à AUCUNE
-    // des deux notes : il est en attente des deux côtés, jamais compté.
-    expect(sommeParNote(r, '61900000')).toEqual([]);
-    const fiche24 = r.ficheRecapitulative.find((f: any) => f.code === '24')!;
-    const fiche25 = r.ficheRecapitulative.find((f: any) => f.code === '25')!;
-    expect(fiche24.rubriquesEnAttente.map((x: any) => x.cle)).toContain('rabais-remises-ristournes');
-    expect(fiche25.rubriquesEnAttente.map((x: any) => x.cle)).toContain('rabais-remises-ristournes');
+    expect(sommeParNote(r, '61900000').map((x: any) => x.note)).toEqual(['25']);
+    expect(ligneDe(note(r, '25'), 'Rabais, remises et ristournes obtenus').montantN).toBe(-500);
   });
 
-  it('619 subdivisé par le dossier alimente chaque note séparément, sans double compte', async () => {
-    const s = service(
-      { e1: [
-        ligne('61901000', ClasseCompte.CLASSE_6, 0, 300), // sous-compte achats
-        ligne('61902000', ClasseCompte.CLASSE_6, 0, 200), // sous-compte transports
-      ] },
-      [],
-      prismaAvec([
-        { codeNote: '24', cleRubrique: 'rabais-remises-ristournes', compte: { numero: '61901000' } },
-        { codeNote: '25', cleRubrique: 'rabais-remises-ristournes', compte: { numero: '61902000' } },
-      ]),
-    );
+  it('les 60x9 alimentent la ligne de rabais de la note 24, et le 6089 n’est plus lu par les emballages (passe R6, C3)', async () => {
+    const s = service({ e1: [
+      ligne('60490000', ClasseCompte.CLASSE_6, 0, 300),
+      ligne('60890000', ClasseCompte.CLASSE_6, 0, 200),
+      ligne('60810000', ClasseCompte.CLASSE_6, 1000, 0),
+    ] });
     const r = await s.notesAssociations('t', 'e1');
     const n24 = note(r, '24');
-    const n25 = note(r, '25');
-    expect(ligneDe(n24, 'Rabais, remises et ristournes obtenus').montantN).toBe(-300);
-    expect(ligneDe(n25, 'Rabais, remises et ristournes obtenus').montantN).toBe(-200);
+    expect(ligneDe(n24, 'Rabais, remises et ristournes obtenus').montantN).toBe(-500);
+    expect(ligneDe(n24, "Achats d'emballages").montantN).toBe(1000);
+    expect(sommeParNote(r, '60890000').map((x: any) => x.note)).toEqual(['24']);
+    expect(sommeParNote(r, '60890000').map((x: any) => x.libelle)).toEqual(['Rabais, remises et ristournes obtenus']);
   });
 
   it('AUCUN compte du plan de tiers n’est réclamé au même sens par deux notes', async () => {
@@ -1084,23 +1074,23 @@ describe('rattachement des comptes du dossier aux rubriques', () => {
   });
 
   it('ACCEPTE un rattachement sur une rubrique déclarée en attente', async () => {
-    const s = service({ e1: [] }, [], prismaAvec([], [{ id: 'c1', typeCompte: 'DETAIL', numero: '60410000' }]));
-    const r = await s.rattacher('t', 'u', JEU, '24', 'matieres-consommables', 'c1');
-    expect(r).toMatchObject({ codeNote: '24', cleRubrique: 'matieres-consommables', compteId: 'c1' });
+    const s = service({ e1: [] }, [], prismaAvec([], [{ id: 'c1', typeCompte: 'DETAIL', numero: '60450000' }]));
+    const r = await s.rattacher('t', 'u', JEU, '24', 'frais-sur-achats', 'c1');
+    expect(r).toMatchObject({ codeNote: '24', cleRubrique: 'frais-sur-achats', compteId: 'c1' });
   });
 
   it('refuse un compte Total : il n’a pas de mouvement propre et laisserait la rubrique vide', async () => {
     const s = service({ e1: [] }, [], prismaAvec([], [{ id: 'c1', typeCompte: 'TOTAL', numero: '604' }]));
-    await expect(s.rattacher('t', 'u', JEU, '24', 'matieres-consommables', 'c1')).rejects.toThrow(/Total/);
+    await expect(s.rattacher('t', 'u', JEU, '24', 'frais-sur-achats', 'c1')).rejects.toThrow(/Total/);
   });
 
   it('refuse un compte d’un autre dossier', async () => {
     const s = service({ e1: [] }, [], prismaAvec([], []));
-    await expect(s.rattacher('t', 'u', JEU, '24', 'matieres-consommables', 'c-ailleurs')).rejects.toThrow(/introuvable/i);
+    await expect(s.rattacher('t', 'u', JEU, '24', 'frais-sur-achats', 'c-ailleurs')).rejects.toThrow(/introuvable/i);
   });
 
   it('refuse une note ou une rubrique inexistante', async () => {
-    const s = service({ e1: [] }, [], prismaAvec([], [{ id: 'c1', typeCompte: 'DETAIL', numero: '60410000' }]));
+    const s = service({ e1: [] }, [], prismaAvec([], [{ id: 'c1', typeCompte: 'DETAIL', numero: '60450000' }]));
     await expect(s.rattacher('t', 'u', JEU, '999', 'x', 'c1')).rejects.toThrow(/Aucune note/i);
     await expect(s.rattacher('t', 'u', JEU, '24', 'rubrique-inexistante', 'c1')).rejects.toThrow(
       /pas de rubrique rattachable/,
@@ -1108,13 +1098,13 @@ describe('rattachement des comptes du dossier aux rubriques', () => {
   });
 
   it('une rubrique en attente reste NON chiffrée et signalée tant que rien n’est rattaché', async () => {
-    const s = service({ e1: [ligne('60410000', ClasseCompte.CLASSE_6, 5000, 0)] });
+    const s = service({ e1: [ligne('60450000', ClasseCompte.CLASSE_6, 5000, 0)] });
     const r = await s.notesAssociations('t', 'e1');
     // Aucune rubrique chiffrée -> la note entière est non applicable (§1.4),
     // mais la fiche récapitulative porte les rubriques en attente.
     expect(note(r, '24').applicable).toBe(false);
     const fiche = r.ficheRecapitulative.find((f) => f.code === '24')!;
-    expect(fiche.rubriquesEnAttente.map((x) => x.libelle)).toContain('Matières consommables');
+    expect(fiche.rubriquesEnAttente.map((x) => x.libelle)).toContain('Frais sur achats');
   });
 
   it('une note NON applicable expose quand même les clés de ses rubriques en attente', async () => {
@@ -1134,34 +1124,34 @@ describe('rattachement des comptes du dossier aux rubriques', () => {
   });
 
   it('un compte rattaché SANS SOLDE reste visible et détachable (audit final F84)', async () => {
-    // Le compte 60420000, rattaché aux combustibles, n'a aucun mouvement · la
+    // Le compte 60460000, rattaché aux fournitures d'atelier, n'a aucun mouvement · la
     // ligne était retirée au § 1.4 et l'écran bâtissait sur les comptes
     // chiffrés la liste qu'on détache · le rattachement erroné ne se
     // défaisait plus.
     const s = service(
-      { e1: [ligne('60410000', ClasseCompte.CLASSE_6, 5000, 0)] },
+      { e1: [ligne('60450000', ClasseCompte.CLASSE_6, 5000, 0)] },
       [],
       prismaAvec([
-        { codeNote: '24', cleRubrique: 'matieres-consommables', compte: { numero: '60410000' } },
-        { codeNote: '24', cleRubrique: 'matieres-combustibles', compte: { numero: '60420000' } },
+        { codeNote: '24', cleRubrique: 'frais-sur-achats', compte: { numero: '60450000' } },
+        { codeNote: '24', cleRubrique: 'fournitures-atelier', compte: { numero: '60460000' } },
       ]),
     );
     const n24 = note(await s.notesAssociations('t', 'e1'), '24');
-    const l = ligneDe(n24, 'Matières combustibles');
+    const l = ligneDe(n24, "Fournitures d'atelier, d'usine et de magasin");
     expect(l.montantN).toBe(0);
     expect(l.rattachementDuDossier).toBe(true);
-    expect(l.comptesRattaches).toEqual(['60420000']);
-    expect(ligneDe(n24, 'Matières consommables').comptesRattaches).toEqual(['60410000']);
+    expect(l.comptesRattaches).toEqual(['60460000']);
+    expect(ligneDe(n24, 'Frais sur achats').comptesRattaches).toEqual(['60450000']);
   });
 
   it('une fois le compte rattaché, la rubrique se chiffre et cesse d’être en attente', async () => {
     const s = service(
-      { e1: [ligne('60410000', ClasseCompte.CLASSE_6, 5000, 0)] },
+      { e1: [ligne('60450000', ClasseCompte.CLASSE_6, 5000, 0)] },
       [],
-      prismaAvec([{ codeNote: '24', cleRubrique: 'matieres-consommables', compte: { numero: '60410000' } }]),
+      prismaAvec([{ codeNote: '24', cleRubrique: 'frais-sur-achats', compte: { numero: '60450000' } }]),
     );
     const n24 = note(await s.notesAssociations('t', 'e1'), '24');
-    const l = ligneDe(n24, 'Matières consommables');
+    const l = ligneDe(n24, 'Frais sur achats');
     expect(n24.applicable).toBe(true);
     expect(l.montantN).toBe(5000);
     expect(l.enAttenteDeRattachement).toBeUndefined();
@@ -1169,7 +1159,7 @@ describe('rattachement des comptes du dossier aux rubriques', () => {
     expect(ligneDe(n24, 'TOTAL AUTRES ACHATS').montantN).toBe(5000);
     // et elle disparaît des rubriques en attente de la fiche récapitulative
     const fiche = (await s.notesAssociations('t', 'e1')).ficheRecapitulative.find((f) => f.code === '24')!;
-    expect(fiche.rubriquesEnAttente.map((x) => x.cle)).not.toContain('matieres-consommables');
+    expect(fiche.rubriquesEnAttente.map((x) => x.cle)).not.toContain('frais-sur-achats');
   });
 
   it('le rattachement du dossier S’AJOUTE aux préfixes officiels, il ne les remplace pas', async () => {
@@ -1179,15 +1169,15 @@ describe('rattachement des comptes du dossier aux rubriques', () => {
       {
         e1: [
           ligne('60600000', ClasseCompte.CLASSE_6, 700, 0),
-          ligne('60410000', ClasseCompte.CLASSE_6, 300, 0),
+          ligne('60450000', ClasseCompte.CLASSE_6, 300, 0),
         ],
       },
       [],
-      prismaAvec([{ codeNote: '24', cleRubrique: 'matieres-consommables', compte: { numero: '60410000' } }]),
+      prismaAvec([{ codeNote: '24', cleRubrique: 'frais-sur-achats', compte: { numero: '60450000' } }]),
     );
     const n24 = note(await s.notesAssociations('t', 'e1'), '24');
     expect(ligneDe(n24, 'Achats autres activités').montantN).toBe(700);
-    expect(ligneDe(n24, 'Matières consommables').montantN).toBe(300);
+    expect(ligneDe(n24, 'Frais sur achats').montantN).toBe(300);
   });
 });
 
@@ -1249,9 +1239,9 @@ describe('jeu de notes SYSCOHADA · Système normal', () => {
   });
 
   it('CLOISONNEMENT · un dossier SYSCOHADA ne rattache pas à un jeu SYCEBNL', async () => {
-    const s = dossier(Referentiel.SYSCOHADA, [], [{ id: 'c1', typeCompte: 'DETAIL', numero: '60410000' }]);
+    const s = dossier(Referentiel.SYSCOHADA, [], [{ id: 'c1', typeCompte: 'DETAIL', numero: '60450000' }]);
     await expect(
-      s.rattacher('t', 'u', JeuNotesAnnexes.ASSOCIATIONS_ORDRES_PROFESSIONNELS, '24', 'matieres-consommables', 'c1'),
+      s.rattacher('t', 'u', JeuNotesAnnexes.ASSOCIATIONS_ORDRES_PROFESSIONNELS, '24', 'frais-sur-achats', 'c1'),
     ).rejects.toThrow(/relève du référentiel SYCEBNL.*ce dossier est en SYSCOHADA/s);
   });
 
@@ -1363,7 +1353,7 @@ describe('rubriques en saisie · ce que le dossier écrit lui-même', () => {
     // dès qu'un compte lui est rattaché. Deux sources pour une même cellule,
     // c'est exactement ce que le garde-fou empêche.
     await expect(
-      s.enregistrerSaisie('t', 'u', 'e1', JEU_ASSO, '24', 'matieres-consommables', 0, '10'),
+      s.enregistrerSaisie('t', 'u', 'e1', JEU_ASSO, '24', 'frais-sur-achats', 0, '10'),
     ).rejects.toThrow(/chiffrée par la comptabilité/);
   });
 
@@ -1939,5 +1929,156 @@ describe('Intitulés servis · la note, pas son premier tableau (passe R6)', () 
     const fiche = r.ficheRecapitulative as Array<{ code: string; titre: string }>;
     expect(fiche.find((n) => n.code === '20B')!.titre).toBe('EFFECTIFS, MASSE SALARIALE ET PERSONNEL EXTERIEUR');
     expect(r.notes.find((n) => n.code === '4')!.titreNote).toBe('ACTIF CIRCULANT ET DETTES CIRCULANTES HAO');
+  });
+});
+
+/**
+ * PASSE R6, LOT C · notes 18A à 35 des associations. Chaque test porte le
+ * constat qu'il gèle, et chacun a été vu tomber en réinjectant le défaut.
+ */
+describe('passe R6, lot C · notes des associations lues au texte', () => {
+  const r6 = (lignes: ReturnType<typeof ligne>[], prisma: PrismaService = prismaAvec()) =>
+    service({ e1: lignes }, [], prisma).notesAssociations('t', 'e1');
+  const sommeParNote = (r: any, numero: string) =>
+    r.notes.filter((n: any) => n.code !== '1').flatMap((n: any) =>
+      n.lignes
+        .filter((l: any) => !l.estTotal && l.comptes.some((c: any) => c.numero === numero))
+        .map((l: any) => ({ note: n.code, libelle: l.libelle, montant: l.montantN })),
+    );
+
+  it('C1 · les 6181 et 6183 chiffrent leurs lignes de la note 25, qui cessent d’être en attente', async () => {
+    const r = await r6([
+      ligne('61810000', ClasseCompte.CLASSE_6, 400, 0),
+      ligne('61830000', ClasseCompte.CLASSE_6, 250, 0),
+    ]);
+    const n25 = note(r, '25');
+    expect(ligneDe(n25, 'Voyages et déplacements').montantN).toBe(400);
+    expect(ligneDe(n25, 'Transports administratifs').montantN).toBe(250);
+    expect(ligneDe(n25, 'TOTAL').montantN).toBe(650);
+  });
+
+  it('C2 · les sous-comptes des 601, 602, 604 et 605 chiffrent les deux premiers totaux de la note 24', async () => {
+    const r = await r6([
+      ligne('60110000', ClasseCompte.CLASSE_6, 100, 0),
+      ligne('60130000', ClasseCompte.CLASSE_6, 50, 0),
+      ligne('60210000', ClasseCompte.CLASSE_6, 70, 0),
+      ligne('60470000', ClasseCompte.CLASSE_6, 20, 0),
+      ligne('60550000', ClasseCompte.CLASSE_6, 5, 0),
+      ligne('60520000', ClasseCompte.CLASSE_6, 30, 0),
+    ]);
+    const n24 = note(r, '24');
+    expect(ligneDe(n24, "TOTAL : ACHATS DE BIENS ET SERVICES LIES A L'ACTIVITE").montantN).toBe(150);
+    expect(ligneDe(n24, 'TOTAL : ACHATS MARCHANDISES ET MATIERES PREMIERES').montantN).toBe(70);
+    expect(ligneDe(n24, 'Fourniture de bureau').montantN).toBe(25);
+    expect(ligneDe(n24, 'Electricité').montantN).toBe(30);
+    expect(ligneDe(n24, 'TOTAL AUTRES ACHATS').montantN).toBe(55);
+  });
+
+  it('C2 · le rattachement d’un compte déjà lu par une autre ligne de la note est refusé, nommé', async () => {
+    const s = service({ e1: [] }, [], prismaAvec([], [{ id: 'c1', typeCompte: 'DETAIL', numero: '60850000' }]));
+    await expect(s.rattacher('t', 'u', JeuNotesAnnexes.ASSOCIATIONS_ORDRES_PROFESSIONNELS, '24', 'frais-sur-achats', 'c1'))
+      .rejects.toThrow(/déjà lu par la ligne « Achats d'emballages » de la note 24/);
+  });
+
+  it('C2 · un sous-compte que rien ne lit se rattache toujours', async () => {
+    const s = service({ e1: [] }, [], prismaAvec([], [{ id: 'c1', typeCompte: 'DETAIL', numero: '60450000' }]));
+    await expect(
+      s.rattacher('t', 'u', JeuNotesAnnexes.ASSOCIATIONS_ORDRES_PROFESSIONNELS, '24', 'frais-sur-achats', 'c1'),
+    ).resolves.toMatchObject({ cleRubrique: 'frais-sur-achats' });
+  });
+
+  it('C4 · l’INPP (4334) et l’ONEM (4335) créditeurs sont à la note 20, et nulle part ailleurs', async () => {
+    const r = await r6([
+      ligne('43340000', ClasseCompte.CLASSE_4, 0, 300),
+      ligne('43350000', ClasseCompte.CLASSE_4, 0, 200),
+    ]);
+    expect(sommeParNote(r, '43340000')).toEqual([{ note: '20', libelle: 'Autres cotisations et organismes sociaux', montant: 500 }]);
+    expect(sommeParNote(r, '43350000').map((x: any) => x.note)).toEqual(['20']);
+    expect(ligneDe(note(r, '20'), 'TOTAL DETTES SOCIALES').montantN).toBe(500);
+  });
+
+  it('C5 · l’actif du régime de retraite se montre en positif et se RETRANCHE du total, qui recoupe DC', async () => {
+    const r = await r6([
+      ligne('19100000', ClasseCompte.CLASSE_1, 0, 500),
+      ligne('19600000', ClasseCompte.CLASSE_1, 100, 0),
+    ]);
+    const n18 = note(r, '18A');
+    expect(ligneDe(n18, 'Actif du régime de retraite').montantN).toBe(100);
+    // DC lit le 19 EN NET · 500 au crédit, 100 au débit.
+    expect(ligneDe(n18, 'TOTAL PROVISIONS FINANCIERES POUR RISQUES ET CHARGES').montantN).toBe(400);
+  });
+
+  it('C6 · un 475 débiteur RÉDUIT le total des créditeurs divers au lieu de s’y ajouter', async () => {
+    const r = await r6([
+      ligne('47500000', ClasseCompte.CLASSE_4, 250, 0),
+      ligne('47110000', ClasseCompte.CLASSE_4, 0, 1000),
+    ]);
+    const n21 = note(r, '21');
+    expect(ligneDe(n21, 'Générosités financières à recevoir').montantN).toBe(-250);
+    expect(ligneDe(n21, 'TOTAL AUTRES DETTES').montantN).toBe(750);
+  });
+
+  it('C8 · le 599 créditeur est aux provisions à court terme de la note 21', async () => {
+    const r = await r6([ligne('59900000', ClasseCompte.CLASSE_5, 0, 120)]);
+    // La note 30 le lit aussi, mais comme VARIATION de provision (colonnes
+    // de dotation et de reprise), pas comme dette · seule la 21 le range
+    // parmi les dettes.
+    expect(sommeParNote(r, '59900000').filter((x: any) => x.note !== '30')).toEqual([
+      { note: '21', libelle: 'Provisions pour risques et charges à court terme', montant: 120 },
+    ]);
+  });
+
+  it('C9 · un 473 créditeur est aux créditeurs divers de la note 21, et à elle seule', async () => {
+    const r = await r6([ligne('47390000', ClasseCompte.CLASSE_4, 0, 90)]);
+    expect(sommeParNote(r, '47390000')).toEqual([{ note: '21', libelle: 'Autres créditeurs divers', montant: 90 }]);
+  });
+
+  it('C10 · le 791 et le 797 ne sont lus ni par la note 23 ni par la note 31', async () => {
+    const r = await r6([
+      ligne('79110000', ClasseCompte.CLASSE_7, 0, 300),
+      ligne('79710000', ClasseCompte.CLASSE_7, 0, 200),
+      ligne('77900000', ClasseCompte.CLASSE_7, 0, 50),
+    ]);
+    expect(sommeParNote(r, '79110000').map((x: any) => x.note)).not.toContain('23');
+    expect(sommeParNote(r, '79710000').map((x: any) => x.note)).not.toContain('31');
+    expect(sommeParNote(r, '77900000').map((x: any) => x.note)).toEqual(['31']);
+  });
+
+  it('C13 · un 53 créditeur est à la note 22 (« Autres Banques »), pas à la note 13', async () => {
+    const r = await r6([ligne('53100000', ClasseCompte.CLASSE_5, 0, 800)]);
+    expect(sommeParNote(r, '53100000')).toEqual([{ note: '22', libelle: 'Autres Banques', montant: 800 }]);
+    expect(ligneDe(note(r, '22'), 'TOTAL GENERAL').montantN).toBe(800);
+  });
+
+  it('B12 · le TOTAL des engagements saisi est confronté à la somme des lignes saisies', async () => {
+    const prisma = prismaAvec([], [], [], [], Referentiel.SYCEBNL, [
+      { codeNote: '1', cleRubrique: 'avals-cautions-garanties', colonne: 1, valeurNombre: 100 },
+      { codeNote: '1', cleRubrique: 'effets-escomptes-non-echus', colonne: 1, valeurNombre: 50 },
+      { codeNote: '1', cleRubrique: 'total', colonne: 1, valeurNombre: 120 },
+    ]);
+    const r = await r6([], prisma);
+    const n1 = note(r, '1', 'ENGAGEMENTS FINANCIERS');
+    const total = ligneDe(n1, 'TOTAL');
+    expect(total.saisie[1]).toBe(120);
+    expect(total.ecartsSaisie).toEqual([{ colonne: 1, saisi: 120, attendu: 150 }]);
+    expect(ligneDe(n1, 'Avals, cautions, garanties').ecartsSaisie).toBeUndefined();
+  });
+
+  it('B12 · la formule « C = A - B » de la note 5G est confrontée ligne à ligne', async () => {
+    const prisma = prismaAvec([], [], [], [], Referentiel.SYCEBNL, [
+      { codeNote: '5G', cleRubrique: 'terrains', colonne: 0, valeurNombre: 1000 },
+      { codeNote: '5G', cleRubrique: 'terrains', colonne: 1, valeurNombre: 0 },
+      { codeNote: '5G', cleRubrique: 'terrains', colonne: 2, valeurNombre: 900 },
+      { codeNote: '5G', cleRubrique: 'batiments', colonne: 0, valeurNombre: 500 },
+      { codeNote: '5G', cleRubrique: 'batiments', colonne: 1, valeurNombre: 200 },
+      { codeNote: '5G', cleRubrique: 'batiments', colonne: 2, valeurNombre: 300 },
+    ]);
+    const n5g = note(await r6([], prisma), '5G');
+    expect(ligneDe(n5g, 'Terrains').ecartsSaisie).toEqual([{ colonne: 2, saisi: 900, attendu: 1000 }]);
+    expect(ligneDe(n5g, 'Bâtiments').ecartsSaisie).toBeUndefined();
+    // Le sous-total non saisi est signalé vide, avec la somme attendue.
+    expect(ligneDe(n5g, 'SOUS TOTAL : IMMOBILISATIONS CORPORELLES').ecartsSaisie).toEqual(
+      expect.arrayContaining([{ colonne: 0, saisi: null, attendu: 1500 }]),
+    );
   });
 });

@@ -21,12 +21,15 @@ import { SpecificationNote } from './note-annexe.types';
  *    divisionnaire (501 à 508, 513 à 518, 521 à 526…).
  * 2. Quand la rubrique réclame une finesse que le plan normalisé n'a pas, elle
  *    porte `subdivisionAttendue` et reste **non rattachée**. Elle apparaît
- *    dans la note en attente, jamais à zéro. Exemple documenté : la Note 24
- *    « Achats » veut des lignes séparées pour « Matières consommables »,
- *    « Produits d'entretien », « Eau », « Électricité »… alors que le plan
- *    s'arrête au compte 604. Les rattacher au jugé serait une invention ; les
- *    rattacher par ressemblance de libellé serait pire · « Matières
- *    consommables » existe au plan en compte 331, qui est un compte de STOCK.
+ *    dans la note en attente, jamais à zéro. Exemple documenté : la Note 5D
+ *    veut les dépréciations des immobilisations destinées à la vente par
+ *    nature, alors que le plan n'ouvre que le 2902, sans distinction de
+ *    nature. Les rattacher au jugé serait une invention ; les rattacher par
+ *    ressemblance de libellé serait pire · « Matières consommables » existe
+ *    au plan en compte 331, qui est un compte de STOCK, et en 6041, qui est
+ *    l'achat. (La Note 24 « Achats » servait d'exemple jusqu'à la passe R6 :
+ *    le semis descend désormais au quatrième chiffre, et ses lignes sont
+ *    rattachées aux sous-comptes du 60 qui portent leur intitulé.)
  *
  * ## Rubriques créditrices intercalées dans une note d'actif
  *
@@ -77,6 +80,34 @@ const COLONNES_MOUVEMENTS = [
   { type: 'OUVERTURE' as const, libelle: "A · Montant brut à l'ouverture" },
   { type: 'AUGMENTATIONS' as const, libelle: 'AUGMENTATIONS B' },
   { type: 'DIMINUTIONS' as const, libelle: 'DIMINUTIONS C' },
+  { type: 'CLOTURE' as const, libelle: 'D = A + B - C (Montant brut à la clôture)' },
+];
+
+/**
+ * Colonnes des notes 5A et 5B, que le texte découpe plus finement · « A
+ * (Montant brut à l'ouverture) | AUGMENTATIONS B (Acquisitions/Apports/
+ * Créations ; Virements de poste à poste ; Suite à une réévaluation pratiquée
+ * au cours de l'exercice) | DIMINUTIONS C (Cessions/Scissions hors service ;
+ * Virements de poste à poste) | D = A + B - C » (Partie 4 ch. 2, NOTE 5A ;
+ * « Colonnes identiques à la Note 5A » pour la 5B). La 5C, elle, n'écrit que
+ * « AUGMENTATIONS B | DIMINUTIONS C » et garde `COLONNES_MOUVEMENTS`.
+ *
+ * B et C restent le mouvement débit et crédit LU EN BALANCE, pour que
+ * D = A + B - C tienne ; un virement ou une réévaluation n'y est pas
+ * séparable d'une acquisition, d'où l'en-tête du total et non celui de la
+ * première sous-colonne. Les trois sous-colonnes sont des MONTANTS qu'aucune
+ * balance ne distingue : LIBRE, vides, sous le motif écrit dans
+ * `rubriques-en-saisie.spec.ts` (`VIDES_MOTIVEES`), comme les virements des
+ * 5D et 5E et la 3A du SYSCOHADA · jamais en saisie sur une ligne chiffrée,
+ * où elles feraient une seconde source à côté de B et C (passe R6, B11).
+ */
+const COLONNES_MOUVEMENTS_DETAILLEES = [
+  { type: 'OUVERTURE' as const, libelle: "A · Montant brut à l'ouverture" },
+  { type: 'AUGMENTATIONS' as const, libelle: 'AUGMENTATIONS B' },
+  { type: 'LIBRE' as const, libelle: 'B · Virements de poste à poste' },
+  { type: 'LIBRE' as const, libelle: "B · Suite à une réévaluation pratiquée au cours de l'exercice" },
+  { type: 'DIMINUTIONS' as const, libelle: 'DIMINUTIONS C' },
+  { type: 'LIBRE' as const, libelle: 'C · Virements de poste à poste' },
   { type: 'CLOTURE' as const, libelle: 'D = A + B - C (Montant brut à la clôture)' },
 ];
 
@@ -296,87 +327,126 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     titre: 'ACHATS',
     colonnes: COLONNES_STANDARD,
     renvoyeeDepuis: ['TA', 'TC', 'TD'],
-    // C'est la note qui a révélé la nécessité d'une couche de rattachement :
-    // elle veut vingt-et-une lignes de détail là où le plan normalisé s'arrête
-    // aux comptes 601, 602, 604, 605, 606 et 608. Seuls les quatre premiers
-    // blocs et les deux derniers sont déterminables ; tout le bloc central
-    // suppose des sous-comptes du dossier.
+    // Le plan ouvre, sous 601, 602, 604 et 605, les sous-comptes que la
+    // maquette nomme ligne à ligne, sous le même intitulé et au même niveau
+    // (Partie 2 ch. 3, fiche du compte 60 · « 601 […] (6011 dans l'Etat
+    // partie, 6012 dans la Région, 6013 hors Région […]) ; 602 […] (6021,
+    // 6022, 6023 […]) ; 604 […] (6041 Matières consommables, 6042 Matières
+    // combustibles, 6043 Produits d'entretien, 6045 Frais sur Achats, 6046
+    // Fournitures de magasin, 6047 Fournitures de bureau, 6049 […]) ; 605
+    // […] (6051 […]-Eau, 6052 […]-Electricité, 6053 […]-Autres énergies,
+    // 6054 Fournitures d'entretien non stockables, 6055 Fournitures de bureau
+    // non stockables, 6056 Achats de petit matériel et outillage, 6057
+    // Achats d'études et prestations de service, 6058 Achats de travaux,
+    // matériels et équipements, 6059 […]) »). Ces lignes sont donc
+    // rattachées sans jugement, règle 1 de l'en-tête du fichier. Jusqu'à la
+    // passe R6 (constat C2), la note les tenait EN ATTENTE sur la prémisse
+    // que le plan s'arrêtait à 601, 602, 604 et 605 · fausse depuis la
+    // descente du semis au quatrième chiffre. Ses deux premiers totaux
+    // sortaient à zéro alors que TA et TC ne l'étaient pas. Les CLÉS restent,
+    // qui ancrent les rattachements déjà enregistrés (même construction que
+    // 'crediteurs-dons-nature-hao', note 7).
+    //
+    // [texte officiel] Les blocs de TA (601) et de TC (602) n'ont ni ligne
+    // de frais ni ligne de rabais, alors que le plan ouvre 6015, 6019, 6025
+    // et 6029 ; les seules lignes « Frais sur achats » et « Rabais » du
+    // modèle sont dans le bloc dont le total répond à TD (604, 605, 606,
+    // 608). Signalé, non tranché · ces quatre comptes ne sont chiffrés par
+    // aucune ligne de la note.
     rubriques: [
-      enAttente(
-        'biens-services-etat-partie',
-        "Achats de biens et services liés à l'activité dans l'Etat partie",
-        "Sous-compte de 601 réservé aux achats réalisés dans l'État partie.",
-      ),
-      enAttente(
-        'biens-services-region',
-        "Achats de biens et services liés à l'activité dans les autres Etats parties de la Région",
-        'Sous-compte de 601 réservé aux achats réalisés dans les autres États parties de la Région.',
-      ),
-      enAttente(
-        'biens-services-hors-region',
-        "Achats de biens et services liés à l'activité hors Région",
-        'Sous-compte de 601 réservé aux achats réalisés hors Région.',
-      ),
+      {
+        cle: 'biens-services-etat-partie',
+        libelle: "Achats de biens et services liés à l'activité dans l'Etat partie",
+        comptes: ['6011'],
+      },
+      {
+        cle: 'biens-services-region',
+        libelle: "Achats de biens et services liés à l'activité dans les autres Etats parties de la Région",
+        comptes: ['6012'],
+      },
+      {
+        cle: 'biens-services-hors-region',
+        libelle: "Achats de biens et services liés à l'activité hors Région",
+        comptes: ['6013'],
+      },
       { libelle: "TOTAL : ACHATS DE BIENS ET SERVICES LIES A L'ACTIVITE", totalDeRubriques: [0, 1, 2] },
-      enAttente(
-        'marchandises-etat-partie',
-        "Achats de marchandises et matières premières dans l'Etat partie",
-        "Sous-compte de 602 réservé aux achats réalisés dans l'État partie.",
-      ),
-      enAttente(
-        'marchandises-region',
-        'Achats de marchandises et matières premières dans les autres Etats parties de la Région',
-        'Sous-compte de 602 réservé aux achats réalisés dans les autres États parties de la Région.',
-      ),
-      enAttente(
-        'marchandises-hors-region',
-        'Achats de marchandises et matières premières hors Région',
-        'Sous-compte de 602 réservé aux achats réalisés hors Région.',
-      ),
+      {
+        cle: 'marchandises-etat-partie',
+        libelle: "Achats de marchandises et matières premières dans l'Etat partie",
+        comptes: ['6021'],
+      },
+      {
+        cle: 'marchandises-region',
+        libelle: 'Achats de marchandises et matières premières dans les autres Etats parties de la Région',
+        comptes: ['6022'],
+      },
+      {
+        cle: 'marchandises-hors-region',
+        libelle: 'Achats de marchandises et matières premières hors Région',
+        comptes: ['6023'],
+      },
       { libelle: 'TOTAL : ACHATS MARCHANDISES ET MATIERES PREMIERES', totalDeRubriques: [4, 5, 6] },
-      // Le plan SYCEBNL s'arrête à « 604 Achats stockés de matières et
-      // fournitures consommables », sans subdivision. Un rapprochement par
-      // ressemblance de libellé serait pire que rien : « Matières consommables »
-      // existe au plan en compte 331, qui est un compte de STOCK.
-      enAttente('matieres-consommables', 'Matières consommables', 'Sous-compte de 604 pour les matières consommables.'),
-      enAttente('matieres-combustibles', 'Matières combustibles', 'Sous-compte de 604 pour les matières combustibles.'),
-      enAttente('produits-entretien', "Produits d'entretien", "Sous-compte de 604 pour les produits d'entretien."),
+      // « Matières consommables » est aussi l'intitulé d'un compte de STOCK
+      // (331) · la ligne lit l'ACHAT, 6041, sous-compte du 604 que la note
+      // détaille. Rien n'y est rapproché par ressemblance de libellé.
+      { cle: 'matieres-consommables', libelle: 'Matières consommables', comptes: ['6041'] },
+      { cle: 'matieres-combustibles', libelle: 'Matières combustibles', comptes: ['6042'] },
+      { cle: 'produits-entretien', libelle: "Produits d'entretien", comptes: ['6043'] },
+      // Le plan n'ouvre que le 6046 « Fournitures de magasin » · « atelier »
+      // et « usine » n'y sont pas. En faire la ligne entière serait un
+      // jugement, d'où l'attente.
       enAttente(
         'fournitures-atelier',
         "Fournitures d'atelier, d'usine et de magasin",
-        "Sous-compte de 604 pour les fournitures d'atelier, d'usine et de magasin.",
+        "Le plan n'ouvre que le 6046 « Fournitures de magasin » : la ligne vise aussi l'atelier et l'usine. " +
+          'Rattacher ici le ou les sous-comptes du dossier qui portent ces fournitures.',
       ),
-      enAttente('eau', 'Eau', 'Sous-compte de 605 pour la consommation d’eau.'),
-      enAttente('electricite', 'Electricité', 'Sous-compte de 605 pour la consommation d’électricité.'),
-      enAttente('autres-energies', 'Autres énergies', 'Sous-compte de 605 pour les autres énergies.'),
-      enAttente('fourniture-entretien', "Fourniture d'entretien", "Sous-compte de 605 pour les fournitures d'entretien."),
-      enAttente('fourniture-bureau', 'Fourniture de bureau', 'Sous-compte de 605 pour les fournitures de bureau.'),
-      enAttente('petit-materiel', 'Petit matériel et outillages', 'Sous-compte de 605 pour le petit matériel et l’outillage.'),
+      { cle: 'eau', libelle: 'Eau', comptes: ['6051'] },
+      { cle: 'electricite', libelle: 'Electricité', comptes: ['6052'] },
+      { cle: 'autres-energies', libelle: 'Autres énergies', comptes: ['6053'] },
+      { cle: 'fourniture-entretien', libelle: "Fourniture d'entretien", comptes: ['6054'] },
+      // Deux comptes du plan portent l'intitulé : le 6047 (stockables, sous
+      // 604) et le 6055 (non stockables, sous 605).
+      { cle: 'fourniture-bureau', libelle: 'Fourniture de bureau', comptes: ['6047', '6055'] },
+      { cle: 'petit-materiel', libelle: 'Petit matériel et outillages', comptes: ['6056'] },
       { libelle: 'Achats autres activités', comptes: ['606'] },
+      // La ligne réunit les deux sous-comptes qu'elle nomme : 6057 « Achats
+      // d'études et prestations de service » et 6058 « Achats de travaux,
+      // matériels et équipements ».
+      {
+        cle: 'achats-etudes',
+        libelle: 'Achats études, prestations de services, de travaux matériels et équipements',
+        comptes: ['6057', '6058'],
+      },
+      // Sans le 6089 · il a sa ligne, celle des rabais, plus bas. Le 6085
+      // (frais sur achats d'emballages) reste ici tant que « Frais sur
+      // achats » est en attente : le sortir le ferait disparaître du TOTAL
+      // AUTRES ACHATS, que TD lit.
+      { libelle: "Achats d'emballages", comptes: ['608'], exclusions: ['6089'] },
       enAttente(
-        'achats-etudes',
-        'Achats études, prestations de services, de travaux matériels et équipements',
-        'Sous-compte de 605 pour les achats d’études, prestations de services, travaux et équipements.',
+        'frais-sur-achats',
+        'Frais sur achats',
+        'Le plan loge les frais accessoires d’achats sous chaque compte d’achat (6015, 6025, 6045, 6085), ' +
+          'et le 605 n’en a aucun. Le 6085 est déjà lu par « Achats d’emballages » : rattacher ici le 6045, ' +
+          'ou un sous-compte de frais propre au dossier.',
       ),
-      { libelle: "Achats d'emballages", comptes: ['608'] },
-      enAttente('frais-sur-achats', 'Frais sur achats', 'Sous-compte de 605 pour les frais accessoires sur achats.'),
-      // DÉFAUT CORRIGÉ (recoupement croisé Note 24 / Note 25) : le compte 619
-      // « rabais, remises et ristournes obtenus (non ventilés) » est listé au
-      // plan officiel sous LES DEUX classes 60 (Achats) et 61 (Transports) ·
-      // « non ventilés » signifiant précisément que le plan ne le répartit
-      // pas entre les deux domaines. Le rattacher en dur ici ET à la note 25
-      // comptait deux fois le même solde. Une version antérieure faisait
-      // exactement cela. Corrigé en attente de rattachement des DEUX côtés :
-      // le dossier subdivise 619 en un sous-compte « achats » et un
-      // sous-compte « transports » s'il veut la ventilation.
-      enAttente(
-        'rabais-remises-ristournes',
-        'Rabais, remises et ristournes obtenus',
-        'Le compte 619 est listé au plan sous les classes 60 (Achats) ET 61 (Transports), sans être ' +
-          "ventilé entre les deux (précision du plan lui-même : « non ventilés »). Le rattacher d'office " +
-          'ici compterait deux fois le même solde avec la note 25 « Transports » : subdiviser 619 en un ' +
-          'sous-compte propre aux achats et le rattacher ici.',
-      ),
+      // Le plan range les rabais obtenus « aux comptes d'achats concernés »
+      // (fiche du compte 60) et ouvre, sous chaque achat de ce bloc, son
+      // 60x9 « Rabais, Remises et Ristournes obtenus non ventilés ». Le 619
+      // est celui des TRANSPORTS (fiche du compte 61) et va à la note 25.
+      // Le 6019 et le 6029 n'y sont pas · ils relèvent de TA et de TC, que
+      // cette ligne ne détaille pas (voir le [texte officiel] ci-dessus).
+      //
+      // [texte officiel] Le plan du ch. 2 range « 619 rabais/remises/
+      // ristournes obtenus (non ventilés) » sous « 60 ACHATS », ce que la
+      // décimalisation (même chapitre) et les fiches des comptes 60 et 61
+      // contredisent. Signalé, non suivi · la correspondance postes/comptes
+      // de la Partie 4 ne met le 619 que dans TF (61).
+      {
+        cle: 'rabais-remises-ristournes',
+        libelle: 'Rabais, remises et ristournes obtenus',
+        comptes: ['6049', '6059', '6089'],
+      },
       { libelle: 'TOTAL AUTRES ACHATS', totalDeRubriques: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22] },
     ],
     // [texte officiel] Le modèle écrit « de toute variation significative »,
@@ -403,7 +473,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
   {
     code: '5B',
     titre: 'IMMOBILISATIONS BRUTES',
-    colonnes: COLONNES_MOUVEMENTS,
+    colonnes: COLONNES_MOUVEMENTS_DETAILLEES,
     rubriques: [
       { libelle: 'Brevets, licences et droits similaires', comptes: ['212'] },
       { libelle: 'Logiciels et sites internet', comptes: ['213'] },
@@ -634,6 +704,14 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { libelle: 'Marchandises, Matières premières', comptes: ['32', '372'] },
       { libelle: 'Autres approvisionnements', comptes: ['33', '373'] },
       { libelle: 'Dons en nature', comptes: ['34'] },
+      // Le 35 est sur cette ligne par le titre de sa fiche, « Produits finis
+      // et services en cours » (Partie 2 ch. 3, compte 35). [texte officiel]
+      // La correspondance du poste BB, d'où la note est renvoyée, ne cite pas
+      // le 35 (« BB | Stocks et encours | 31, 32, 33, 34, 36, 37, 38 »,
+      // Partie 4 ch. 2) · le total de la note dépasse alors BB de son solde,
+      // et le bilan le liste parmi les comptes non rattachés. Signalé, non
+      // comblé ; `precisionEditeur` le dit. Garder le 35 ici ou le sortir des
+      // totaux, comme la note 5 des projets, reste une décision de Manasse.
       { libelle: 'Produits finis', comptes: ['35', '36', '376'] },
       { libelle: 'Dons en nature HAO', comptes: ['38'] },
       // LE 37 N'A PAS DE LIGNE AU MODÈLE, alors que sa fiche veut « le détail
@@ -656,7 +734,10 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       "La ligne « Autres stocks HAO » comprend le compte 377 « Stocks en consignation ou en dépôt », qui n'est " +
       "pas un stock hors activités ordinaires : le modèle officiel ne prévoit aucune ligne pour les stocks en " +
       "consignation, et le numéro du compte ne dit pas leur nature. Le texte demande « le détail par catégorie " +
-      "des stocks figurant au bilan dans le compte 37 » (Partie 2 ch. 3, compte 37) · à donner dans le commentaire.",
+      "des stocks figurant au bilan dans le compte 37 » (Partie 2 ch. 3, compte 37) · à donner dans le commentaire. " +
+      "La ligne « Produits finis » comprend le compte 35 « Produits finis et services en cours » (titre de sa " +
+      'fiche), que la correspondance officielle du poste BB ne cite pas : le total de la note dépasse alors BB du ' +
+      'solde du 35, et le bilan liste ce compte parmi les comptes non rattachés.',
     commentaire:
       "indiquer la date de prise d'inventaire et décrire la procédure et les méthodes comptables d'évaluation ; " +
       'commenter toute variation significative des stocks ; indiquer le détail des stocks dépréciés ainsi que ' +
@@ -675,7 +756,16 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       // le bilan applique la même règle par `comptesTransferesSiCrediteur`.
       { libelle: 'Banques locales', comptes: ['521'], sens: 'CREDITEUR' },
       { libelle: 'Banques autres états région', comptes: ['522'], sens: 'CREDITEUR' },
-      { libelle: 'Autres Banques', comptes: ['523', '524', '525'], sens: 'CREDITEUR' },
+      // Avec les 53 CRÉDITEURS · DW lit « 56, Solde créditeurs : 52, 53 »
+      // (Partie 4 ch. 2), et le bilan y transfère les 52 et 53 créditeurs
+      // (`comptesTransferesSiCrediteur`). Le modèle de cette note n'a aucune
+      // ligne pour les établissements financiers : la ligne résiduelle les
+      // reçoit, choix d'OmegaX dit par `precisionEditeur`, comme le 377 dans
+      // « Autres stocks HAO ». Jusqu'à la passe R6 (constat C13), un 53
+      // créditeur était au passif en DW et dans aucune note. Le 536 n'est
+      // pas rangé sous « Banques, intérêts courus » · le NB ne vise que les
+      // banques.
+      { libelle: 'Autres Banques', comptes: ['523', '524', '525', '53'], sens: 'CREDITEUR' },
       { libelle: 'Banques, intérêts courus', comptes: ['526'], sens: 'CREDITEUR' },
       { libelle: 'Crédit de trésorerie', comptes: ['56'], natureCreditrice: true },
       { libelle: 'TOTAL : BANQUES, CREDITS DE TRESORERIE', totalDeRubriques: [0, 1, 2, 3, 4] },
@@ -686,6 +776,11 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       "le taux d'intérêt, la durée du crédit.",
     renvoiOfficiel:
       'NB : « Banques et intérêts courus » figure dans cette rubrique si le compte principal attaché est créditeur.',
+    precisionEditeur:
+      'La ligne « Autres Banques » comprend aussi les comptes 53 (établissements financiers et assimilés) à ' +
+      'solde créditeur : la correspondance du bilan les porte en DW (« 56, Solde créditeurs : 52, 53 »), la ' +
+      'fiche du compte 53 inscrit la banque postale créditrice sous « banques, découverts », et le modèle de ' +
+      'cette note ne leur donne aucune ligne. La ligne est un choix d’OmegaX, pour que la note recoupe DW.',
   },
 
   // ======================================================================
@@ -713,9 +808,15 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { libelle: 'Autres revenus', comptes: ['702', '707', '708'], natureCreditrice: true },
       { libelle: 'TOTAL : REVENUS', totalDeRubriques: [0, 1, 2, 3, 4, 5] },
       { libelle: "Subventions d'exploitation", comptes: ['71'], natureCreditrice: true },
+      // Sans le 791 · le compte de résultat range tout le 79 en RH, renvoyé
+      // à « 5D & 30 », et RG ne lit aucun 79 (« RG | … | 706, 707, 708, 72,
+      // 73 (+/-), 75, 77, 78 », « RH | … | 79 », Partie 4 ch. 2). Les reprises
+      // d'exploitation sont détaillées à la note 30, colonne C. Jusqu'à la
+      // passe R6 (constat C10), la note 23 les comptait aussi, et son total
+      // dépassait les postes dont elle est renvoyée.
       {
         libelle: "Autres produits et transferts de charges d'exploitation",
-        comptes: ['72', '73', '75', '781', '791'],
+        comptes: ['72', '73', '75', '781'],
         natureCreditrice: true,
       },
       { libelle: "TOTAL : SUBVENTIONS D'EXPLOITATION ET AUTRES PRODUITS", totalDeRubriques: [7, 8] },
@@ -733,33 +834,21 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { libelle: 'Transports pour le compte de tiers', comptes: ['613'] },
       { libelle: 'Transport du personnel', comptes: ['614'] },
       { libelle: 'Transports de plis', comptes: ['616'] },
-      // Le plan ne donne, pour tout le reste, que le compte 618 « Autres frais
-      // de transport ». Les deux rubriques ci-dessous s'y trouvent donc
-      // confondues : les rattacher toutes deux à 618 compterait deux fois le
-      // même montant, en rattacher une seule serait arbitraire.
-      enAttente(
-        'voyages-deplacements',
-        'Voyages et déplacements',
-        "Le plan SYCEBNL s'arrête au compte 618 « Autres frais de transport », qui couvre à la fois les " +
-          'voyages et déplacements et les transports administratifs : subdiviser 618 et rattacher ici ' +
-          'le sous-compte des voyages et déplacements.',
-      ),
-      enAttente(
-        'transports-administratifs',
-        'Transports administratifs',
-        "Même situation que « Voyages et déplacements » : subdiviser le compte 618 et rattacher ici le " +
-          'sous-compte des transports administratifs.',
-      ),
-      // Voir la note 24 : même compte 619, listé sous les deux classes 60 et
-      // 61, non ventilé par le plan. Les deux notes le déclarent en attente
-      // plutôt que de le compter deux fois.
-      enAttente(
-        'rabais-remises-ristournes',
-        'Rabais, remises et ristournes obtenus',
-        'Le compte 619 est listé au plan sous les classes 60 (Achats) ET 61 (Transports), sans être ' +
-          "ventilé entre les deux. Le rattacher d'office ici compterait deux fois le même solde avec la " +
-          "note 24 « Achats » : subdiviser 619 en un sous-compte propre aux transports et le rattacher ici.",
-      ),
+      // Fiche du compte 61 (Partie 2 ch. 3) : « 618 Autres frais de transport
+      // (6181 Voyages et déplacements, 6183 Transports administratifs) ; 619
+      // Rabais, remises, ristournes (non ventilés) ». Les trois lignes ont
+      // chacune leur compte, sous l'intitulé même de la rubrique. Jusqu'à la
+      // passe R6 (constats C1 et C3), elles restaient EN ATTENTE sur un motif
+      // faux, affiché à l'écran · « le plan s'arrête au compte 618 », et
+      // « le 619 est listé sous les classes 60 ET 61 ». Le total de la note
+      // restait sous TF, qui lit tout le 61. Les CLÉS restent, qui ancrent
+      // les rattachements déjà enregistrés.
+      { cle: 'voyages-deplacements', libelle: 'Voyages et déplacements', comptes: ['6181'] },
+      { cle: 'transports-administratifs', libelle: 'Transports administratifs', comptes: ['6183'] },
+      // Le 619 n'entre que dans TF (« TF | Transports | - | 61 », Partie 4
+      // ch. 2), et les rabais sur achats vont à leurs 60x9 (note 24) · aucun
+      // montant n'est compté deux fois.
+      { cle: 'rabais-remises-ristournes', libelle: 'Rabais, remises et ristournes obtenus', comptes: ['619'] },
       { libelle: 'TOTAL', totalDeRubriques: [0, 1, 2, 3, 4, 5, 6] },
     ],
     commentaire: 'commenter toute variation significative.',
@@ -927,9 +1016,20 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { libelle: 'Gains sur cessions de titres de placement', comptes: ['777'], natureCreditrice: true },
       { libelle: 'Gains sur risques financiers', comptes: ['778'], natureCreditrice: true },
       { libelle: 'Transferts de charges financières', comptes: ['787'], natureCreditrice: true },
+      // Le 779 seul · « à court terme » est l'intitulé du 779 (« 779 reprises
+      // de charges pour dépréciations et provisions à court terme
+      // financières », Partie 2 ch. 2). Le 797 reprend le 19 et les 29
+      // financiers (7971, 7972, fiche du compte 79), relève de RH et se lit à
+      // la note 30, colonne C. Jusqu'à la passe R6 (constat C10), il était
+      // ici, sans ses dotations (697), et le TOTAL de la note en était
+      // majoré. Le jeu projets ne prend lui aussi que le 779.
+      //
+      // [texte officiel] Les exclusions du compte 759 (Partie 2 ch. 3,
+      // classe 7) intitulent le 791 et le 797 « à court terme », contre le
+      // plan (ch. 2) et la fiche du compte 79. Signalé, non suivi.
       {
         libelle: 'Reprises de charges pour dépréciations et provisions à court terme à caractère financier',
-        comptes: ['779', '797'],
+        comptes: ['779'],
         natureCreditrice: true,
         renvoi: 'voir note 30',
       },
@@ -1016,7 +1116,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
   {
     code: '5A',
     titre: "DONS ET LEGS D'IMMOBILISATIONS NON REÇUS DESTINES A LA VENTE ET USUFRUIT TEMPORAIRE",
-    colonnes: COLONNES_MOUVEMENTS,
+    colonnes: COLONNES_MOUVEMENTS_DETAILLEES,
     renvoyeeDepuis: ['AA', 'AD', 'AH'],
     // Le modèle groupe les rubriques sous des intitulés de section
     // (IMMOBILISATIONS INCORPORELLES, CORPORELLES, FINANCIERES) sans en
@@ -1249,9 +1349,15 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { libelle: 'Provisions pour charges sur donations et legs', comptes: ['192'], natureCreditrice: true },
       { libelle: 'Provisions pour pertes de change', comptes: ['194'], natureCreditrice: true },
       // 196 est polyvalent dans cette note : la provision au crédit, l'actif
-      // du régime de retraite au débit. Le renvoi (1) du modèle le dit
-      // expressément (« solde débiteur du compte ») ; l'actif vient en
-      // diminution de la provision, d'où la présentation en négatif.
+      // du régime de retraite au débit. Le renvoi (1) du modèle dit « solde
+      // débiteur du compte », et ne dit RIEN du signe de la ligne : elle
+      // montre ce solde débiteur, en positif. Ce que le texte impose, c'est
+      // que le total détaille DC, poste que la correspondance lit sur le
+      // compte 19 EN NET (« DC | … | 19 », Partie 4 ch. 2) et d'où la note
+      // 18A est renvoyée · d'où l'actif RETRANCHÉ du total. Jusqu'à la passe
+      // R6 (constats C5 et C6), `presenterEnNegatif` sur une ligne `sens:
+      // 'DEBITEUR'` niait deux fois : la ligne sortait en positif et
+      // s'AJOUTAIT au total, qui contredisait DC de deux fois l'actif.
       {
         libelle: 'Provisions pour pensions et obligations similaires',
         comptes: ['196'],
@@ -1261,13 +1367,13 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
         libelle: 'Actif du régime de retraite',
         comptes: ['196'],
         sens: 'DEBITEUR',
-        presenterEnNegatif: true,
         renvoi: '(1) solde débiteur du compte.',
       },
       { libelle: 'Autres provisions pour risques et charges', comptes: ['198'], natureCreditrice: true },
       {
         libelle: 'TOTAL PROVISIONS FINANCIERES POUR RISQUES ET CHARGES',
-        totalDeRubriques: [13, 14, 15, 16, 17, 18],
+        totalDeRubriques: [13, 14, 15, 16, 18],
+        moinsRubriques: [17],
       },
     ],
     commentaire:
@@ -1346,12 +1452,29 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { libelle: 'Mutuelle de santé', comptes: ['4331'], sens: 'CREDITEUR' },
       { libelle: 'Assurance Retraite', comptes: ['4332'], sens: 'CREDITEUR' },
       { libelle: 'Autres charges sociales à payer', comptes: ['4381', '4386'], sens: 'CREDITEUR' },
-      { libelle: 'Autres cotisations et organismes sociaux', comptes: ['4333'], sens: 'CREDITEUR' },
+      // Tout le 433 « Autres organismes sociaux » que les deux lignes voisines
+      // ne prennent pas (4331, 4332) · le 4333 du plan, et les 43340000
+      // (INPP) et 43350000 (ONEM) que le semis ouvre sous le 433
+      // (`compte-seed.ts`) et que la paie crédite. DI les lit (« 42, 43, 44,
+      // 45, 47 (sauf 479) … », Partie 4 ch. 2) ; jusqu'à la passe R6
+      // (constat C4) la note, qui lisait le seul 4333, les perdait, et la
+      // rubrique, officielle, n'acceptait aucun rattachement.
+      {
+        libelle: 'Autres cotisations et organismes sociaux',
+        comptes: ['433'],
+        exclusions: ['4331', '4332'],
+        sens: 'CREDITEUR',
+      },
       { libelle: 'TOTAL DETTES SOCIALES', totalDeRubriques: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] },
       { libelle: 'Etat, autres impôts et taxes', comptes: ['442'], sens: 'CREDITEUR' },
-      // 443 facturée, 444 due ou crédit, 445 récupérable, 446 autres taxes :
-      // la rubrique est le solde net de TVA. 445 étant débiteur, un crédit de
-      // TVA y ressort en négatif · c'est bien une créance sur l'Etat.
+      // 443 facturée, 444 due ou crédit, 445 récupérable, 446 autres taxes.
+      // Le sens se lit COMPTE PAR COMPTE (`calculerRubrique`) : seuls les
+      // comptes créditeurs entrent ici. Un 445 ou un 4449 débiteur, créance
+      // sur l'Etat, est lu à la note 10 (« Etat et Collectivités publiques »)
+      // comme au poste BE. Aucune compensation de TVA n'est faite · elle
+      // déplacerait une créance dans les dettes et romprait le recoupement de
+      // la note 20 avec DI (Partie 4 ch. 2 · BE « 41, 42, 43, 44, 45, 47 (sauf
+      // 478) », DI « 42, 43, 44, 45, 47 (sauf 479), … »).
       { libelle: 'Etat, TVA', comptes: ['443', '444', '445', '446'], sens: 'CREDITEUR' },
       { libelle: 'Etat, impôts retenus à la source', comptes: ['447'], sens: 'CREDITEUR' },
       { libelle: 'Autres dettes Etat', comptes: ['448', '449'], sens: 'CREDITEUR' },
@@ -1385,23 +1508,50 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
         comptes: ['4726'],
         sens: 'CREDITEUR',
       },
-      // 475 « Générosités financières à recevoir » est un compte DÉBITEUR ;
-      // le modèle le range pourtant dans cette note de dettes. Transcrit tel
-      // quel, en lecture débitrice, donc en diminution du total.
-      { libelle: 'Générosités financières à recevoir', comptes: ['475'], presenterEnNegatif: true },
+      // 475 « Générosités financières à recevoir » est une CRÉANCE (Partie 3
+      // ch. 4 : générosités promises « dont l'entité a la certitude de les
+      // encaisser ») ; le modèle le range pourtant dans cette note de dettes.
+      // Transcrit tel quel, lu au crédit (`natureCreditrice`) : un 475
+      // débiteur sort en négatif et DIMINUE les deux totaux. Jusqu'à la passe
+      // R6 (constat C6), `presenterEnNegatif` niait deux fois, et la créance
+      // s'AJOUTAIT aux dettes.
+      //
+      // RÉSERVE, non tranchée · la fiche du compte 47 veut qu'« aucune
+      // compensation n'[est] en principe admise entre les dettes et les
+      // créances dont les soldes créditeurs et débiteurs doivent être inscrits
+      // au bilan dans les rubriques Autres créances à l'actif et Autres dettes
+      // au passif » (Partie 2 ch. 3). Retrancher le 475 du total des dettes
+      // reste donc un choix d'éditeur face à ce principe ; l'autre lecture
+      // garderait la ligne hors des totaux, le solde débiteur étant au bilan
+      // en BE et non en DI. À trancher par Manasse.
+      { libelle: 'Générosités financières à recevoir', comptes: ['475'], natureCreditrice: true },
       {
         // Sans le 479 · DI vaut « 47 (sauf 479) » et le 479 est porté seul en
         // DY, détaillé à la note 14 (passe R6).
+        // Avec le 473 au CRÉDIT, pendant de la ligne de la note 10 qui le lit
+        // au débit · chaque compte va à la note de son sens de solde, sans
+        // compensation (fiche du compte 47), et la note suit DI. Le cas est
+        // ordinaire : le 4739 « Subventions à reverser » porte la dette de
+        // restitution au tiers financeur (fiche du compte 47), et l'opération
+        // spécifique B12 du logiciel le crédite. Le modèle ne nomme aucun
+        // compte · la ligne résiduelle est un choix de lecture d'OmegaX
+        // (passe R6, constat C9).
         libelle: 'Autres créditeurs divers',
-        comptes: ['471', '472', '474', '477'],
+        comptes: ['471', '472', '473', '474', '477'],
         exclusions: ['4711', '4712', '4713', '4726'],
         sens: 'CREDITEUR',
       },
       { libelle: 'TOTAL CREDITEURS DIVERS', totalDeRubriques: [4, 5, 6, 7, 8] },
       { libelle: 'TOTAL AUTRES DETTES', totalDeRubriques: [3, 9] },
+      // Le 599 « provisions pour risque et charges à court terme à caractère
+      // financier » (Partie 2 ch. 2) est dans DI (« … 499 (sauf 4998), 599 »,
+      // Partie 4 ch. 2), que les notes 20 et 21 détaillent · le libellé du
+      // modèle est l'intitulé générique qu'il reprend. Jusqu'à la passe R6
+      // (constat C8), il n'était chiffré qu'à la note 30, renvoyée depuis RH
+      // et TL, et aucune note du bilan ne le montrait.
       {
         libelle: 'Provisions pour risques et charges à court terme',
-        comptes: ['499'],
+        comptes: ['499', '599'],
         sens: 'CREDITEUR',
         renvoi: 'voir note 30',
       },
@@ -1411,8 +1561,8 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     // et l'exclure le ferait disparaître de toute note du bilan (la note 7,
     // qui détaille DF, ne lui donne aucune ligne).
     precisionEditeur:
-      'La ligne des provisions pour risques et charges à court terme comprend le compte 4998, que ' +
-      'le bilan présente en DF (dettes circulantes HAO) et non en DI.',
+      'La ligne des provisions pour risques et charges à court terme comprend les comptes 4991 et 599, ' +
+      'que le bilan présente en DI, et le compte 4998, qu’il présente en DF (dettes circulantes HAO).',
   },
 
   // ======================================================================
@@ -1455,9 +1605,13 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
         comptes: ['290'],
       },
       // Compte 165. Ce n'est pas une provision au sens strict · la maquette
-      // le range pourtant parmi les dotations, le fonds non consommé étant
-      // reporté par une dotation de l'exercice (compte 6595 / 79 selon le
-      // sens). Transcrit tel quel.
+      // le range pourtant parmi les dotations. Le cadre conceptuel § 5.4.2.3
+      // nomme la charge de contrepartie « Dotation fonds affectés à un projet
+      // non consommés » SANS lui donner de numéro, et aucun compte du plan
+      // (659, 69) ne la porte. Le mécanisme chiffré par le texte est celui de
+      // la Partie 3 ch. 2 § 1.2.1 : le 165 est crédité par la trésorerie à
+      // la réception et débité par le 7925 au fil des consommations.
+      // Transcrit tel quel.
       { libelle: 'Dotation de fonds affectés à un projet non consommés', comptes: ['165'] },
       { libelle: 'TOTAL : DOTATIONS', totalDeRubriques: [0, 1, 2, 3, 4] },
       { libelle: 'Dépréciations des stocks et en cours', comptes: ['39'] },
@@ -1639,7 +1793,9 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { cle: 'avals-cautions-garanties', libelle: 'Avals, cautions, garanties', saisie: true },
       { cle: 'hypotheques-nantissements-gages-autres', libelle: 'Hypothèques, nantissements, gages, autres', saisie: true },
       { cle: 'effets-escomptes-non-echus', libelle: 'Effets escomptés non échus', saisie: true },
-      { cle: 'total', libelle: 'TOTAL', saisie: true },
+      // Le « TOTAL » du modèle se saisit comme le reste, et il est CONFRONTÉ
+      // à la somme des trois lignes (`sommeDesSaisies`, passe R6, B12).
+      { cle: 'total', libelle: 'TOTAL', saisie: true, sommeDesSaisies: [0, 1, 2] },
     ],
   },
   {
@@ -1703,28 +1859,34 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     // le faire ici sur une seule note serait fragile, une cession pouvant
     // être passée en deux écritures distinctes.
     colonnes: [
+      // Les deux formules que le modèle écrit dans ses en-têtes sont
+      // CONFRONTÉES aux cellules saisies de la ligne (`formuleSaisie`), comme
+      // les sous-totaux et le total général à leurs lignes (`sommeDesSaisies`)
+      // · rien n'est calculé à la place du dossier, l'écart est dit (passe R6,
+      // B12). « C = A - B » ne compte aucune dépréciation : le modèle n'en met
+      // pas.
       { type: 'LIBRE' as const, libelle: 'Montant brut (A)' },
       { type: 'LIBRE' as const, libelle: 'Amortissements pratiqués (B)' },
-      { type: 'LIBRE' as const, libelle: 'Valeur comptable nette (C = A - B)' },
+      { type: 'LIBRE' as const, libelle: 'Valeur comptable nette (C = A - B)', formuleSaisie: { plus: [0], moins: [1] } },
       { type: 'LIBRE' as const, libelle: 'Prix de cession (D)' },
-      { type: 'LIBRE' as const, libelle: 'Plus-value ou moins-value (E = D - C)' },
+      { type: 'LIBRE' as const, libelle: 'Plus-value ou moins-value (E = D - C)', formuleSaisie: { plus: [3], moins: [2] } },
     ],
     horsBalance: true,
     rubriques: [
       { cle: 'brevets-licences-et-droits-similaires', libelle: 'Brevets, licences et droits similaires', saisie: true },
       { cle: 'logiciel-et-sites-internet', libelle: 'Logiciel et sites internet', saisie: true },
       { cle: 'autres-immobilisations-incorporelles', libelle: 'Autres immobilisations incorporelles', saisie: true },
-      { cle: 'sous-total-immobilisations-incorporelles', libelle: 'SOUS TOTAL : IMMOBILISATIONS INCORPORELLES', saisie: true },
+      { cle: 'sous-total-immobilisations-incorporelles', libelle: 'SOUS TOTAL : IMMOBILISATIONS INCORPORELLES', saisie: true, sommeDesSaisies: [0, 1, 2] },
       { cle: 'terrains', libelle: 'Terrains', saisie: true },
       { cle: 'batiments', libelle: 'Bâtiments', saisie: true },
       { cle: 'amenagements-agencements-et-installations', libelle: 'Aménagements, agencements et installations', saisie: true },
       { cle: 'materiel-mobilier-et-actifs-biologiques', libelle: 'Matériel, mobilier et actifs biologiques', saisie: true },
       { cle: 'materiel-de-transport', libelle: 'Matériel de transport', saisie: true },
-      { cle: 'sous-total-immobilisations-corporelles', libelle: 'SOUS TOTAL : IMMOBILISATIONS CORPORELLES', saisie: true },
+      { cle: 'sous-total-immobilisations-corporelles', libelle: 'SOUS TOTAL : IMMOBILISATIONS CORPORELLES', saisie: true, sommeDesSaisies: [4, 5, 6, 7, 8] },
       { cle: 'titres-de-participations', libelle: 'Titres de participations', saisie: true },
       { cle: 'autres-immobilisations-financieres', libelle: 'Autres immobilisations financières', saisie: true },
-      { cle: 'sous-total-immobilisations-financieres', libelle: 'SOUS TOTAL : IMMOBILISATIONS FINANCIERES', saisie: true },
-      { cle: 'total-general', libelle: 'TOTAL GENERAL', saisie: true },
+      { cle: 'sous-total-immobilisations-financieres', libelle: 'SOUS TOTAL : IMMOBILISATIONS FINANCIERES', saisie: true, sommeDesSaisies: [10, 11] },
+      { cle: 'total-general', libelle: 'TOTAL GENERAL', saisie: true, sommeDesSaisies: [3, 9, 12] },
     ],
     commentaire: 'mentionner la justification de la cession ainsi que la date d’acquisition et la date de sortie.',
   },
@@ -1835,15 +1997,21 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
         natureCreditrice: true,
       },
       { libelle: 'TOTAL SUBVENTIONS', totalDeRubriques: [0, 1, 2, 3, 4, 5, 6, 7] },
+      // Aucun renvoi · le modèle n'en porte aucun sur cette ligne (Partie 4
+      // ch. 2, NOTE 17A). La référence à la note 30, exacte sur le fond, est
+      // une précision d'OmegaX et vit dans `precisionEditeur` (passe R6,
+      // constat B16 · même famille que la note 15).
       {
         cle: 'provisions-reglementees',
         libelle: 'PROVISIONS REGLEMENTEES',
         comptes: ['15'],
         natureCreditrice: true,
-        renvoi: '30',
       },
       { libelle: 'TOTAL SUBVENTIONS ET PROVISIONS REGLEMENTEES', totalDeRubriques: [8, 9] },
     ],
+    precisionEditeur:
+      'Les dotations et reprises de l’exercice sur les provisions réglementées (compte 15) sont détaillées à ' +
+      'la NOTE 30.',
     commentaire:
       "indiquer pour la subvention la date d'octroi, la nature, les obligations éventuelles ; pour les " +
       'provisions réglementées, indiquer le texte de référence, les obligations ; commenter toute variation ' +
@@ -2047,7 +2215,10 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
         saisie: true,
       },
       { cle: 'fonds-propres-et-assimiles', libelle: '+ Fonds propres et assimilés', saisie: true },
-      { cle: 'dettes-financieres-et-ressources-assimilees', libelle: '+ Dettes financières et ressources assimilées', saisie: true, renvoi: '(c)' },
+      // « Dettes financières* et ressources assimilées (c) » au modèle · le
+      // renvoi (*) de bas de tableau se rattache à cette ligne, comme le (**)
+      // à celle du ratio de liquidité.
+      { cle: 'dettes-financieres-et-ressources-assimilees', libelle: '+ Dettes financières et ressources assimilées', saisie: true, renvoi: '(*) (c)' },
       { cle: 'ressources-stables', libelle: '= RESSOURCES STABLES', saisie: true },
       { cle: 'actif-immobilise', libelle: '- Actif immobilisé', saisie: true, renvoi: '(c)' },
       { cle: 'fonds-de-roulement-1', libelle: '= FONDS DE ROULEMENT (1)', saisie: true },

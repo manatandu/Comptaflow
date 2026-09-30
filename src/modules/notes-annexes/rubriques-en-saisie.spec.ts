@@ -223,6 +223,17 @@ describe('cellules LIBRE d’une rubrique chiffrée · ce qui s’ouvre et ce qu
   const VIDES_MOTIVEES: Record<JeuNotesAnnexes, Record<string, string>> = {
     ASSOCIATIONS_ORDRES_PROFESSIONNELS: {
       '1|DETTES GARANTIES PAR DES SURETES REELLES :: Note': MOTIF_RENVOI,
+      // Passe R6, constat B11 · la 5A et la 5B portent les sous-colonnes
+      // « Virements de poste à poste » et « Suite à une réévaluation » du
+      // modèle (Partie 4 ch. 2), laissées LIBRES comme celles de la 3A et de
+      // la 3B au SYSCOHADA · un montant saisi à côté de B et C ferait deux
+      // sources pour la même variation.
+      '5A :: B · Virements de poste à poste': MOTIF_MONTANT,
+      "5A :: B · Suite à une réévaluation pratiquée au cours de l'exercice": MOTIF_MONTANT,
+      '5A :: C · Virements de poste à poste': MOTIF_MONTANT,
+      '5B :: B · Virements de poste à poste': MOTIF_MONTANT,
+      "5B :: B · Suite à une réévaluation pratiquée au cours de l'exercice": MOTIF_MONTANT,
+      '5B :: C · Virements de poste à poste': MOTIF_MONTANT,
       '5D :: D · Virements de poste à poste': MOTIF_MONTANT,
       '5E :: D · Virements de poste à poste': MOTIF_MONTANT,
       '14 :: Devises': MOTIF_DEVISE,

@@ -2651,6 +2651,14 @@ export class ExportService {
             `correspond pas au solde réel de la balance. Anomalie du dossier à examiner (report à-nouveau ` +
             `manquant, écriture hors comptes de la rubrique…).`;
         }
+        // Un total ou une colonne à formule d'un tableau EN SAISIE qui ne rend
+        // pas ce que le modèle écrit (passe R6, B12) · dit sur la cellule
+        // même, jamais corrigé, comme à l'écran.
+        for (const e of l.ecartsSaisie ?? []) {
+          ws.getCell(r, 2 + e.colonne).note =
+            `Contrôle : ${e.saisi === null ? 'cellule vide' : `saisi ${e.saisi.toFixed(2)}`}, attendu ` +
+            `${e.attendu.toFixed(2)} d'après les cellules saisies (formule du modèle).`;
+        }
         if (l.echeanceNonVentilee !== undefined) {
           const existante = ws.getCell(r, 1).note;
           ws.getCell(r, 1).note =

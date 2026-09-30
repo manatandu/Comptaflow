@@ -25,6 +25,7 @@ import { CLE_DATE_ARRETE_NOTE_3, NOTES_ASSOCIATIONS } from './correspondance-not
 import { intituleSurLaFiche, titreDeLaNote } from './intitules-notes-sycebnl';
 import { NOTES_PROJETS } from './correspondance-notes-projets';
 import { celluleLibreEnSaisie, colonneLibreEnSaisie } from './cellules-libres-en-saisie';
+import { ecartsDesSaisies } from './controles-saisie-notes';
 import {
   NOMBRE_NOTES_SYSCOHADA,
   NOTES_SYSCOHADA,
@@ -359,11 +360,38 @@ export class NoteAnnexeService {
           `la rubrique vide. Rattacher les comptes Détail qu'il regroupe.`,
       );
     }
+    // UN COMPTE QU'UNE AUTRE LIGNE DE LA NOTE LIT DÉJÀ NE SE RATTACHE PAS
+    // (passe R6, constat C2). Le rattachement S'AJOUTE aux préfixes officiels
+    // (`calculerRubrique`) · rattacher le 60850000 à « Frais sur achats »
+    // alors que « Achats d'emballages » lit tout le 608 le comptait deux
+    // fois dans la note, sur un total qui ne correspondait plus au poste.
+    const lecteur = this.rubriqueQuiLitDeja(jeu, codeNote, cleRubrique, compte.numero);
+    if (lecteur) {
+      throw new BadRequestException(
+        `Le compte ${compte.numero} est déjà lu par la ligne « ${lecteur} » de la note ${codeNote} : le ` +
+          `rattacher ici le compterait deux fois. Rattacher un sous-compte propre à cette ligne.`,
+      );
+    }
     return this.prisma.rattachementNote.upsert({
       where: { tenantId_jeu_codeNote_cleRubrique_compteId: { tenantId, jeu, codeNote, cleRubrique, compteId } },
       create: { tenantId, jeu, codeNote, cleRubrique, compteId, createdBy: userId },
       update: {},
     });
+  }
+
+  /**
+   * Libellé de la ligne de la même note (tous tableaux du code) dont les
+   * préfixes OFFICIELS captent déjà ce numéro, par la règle même du calcul
+   * (`correspond`, exclusions comprises) · `null` s'il n'y en a aucune.
+   */
+  private rubriqueQuiLitDeja(jeu: JeuNotesAnnexes, codeNote: string, cleRubrique: string, numero: string) {
+    for (const spec of NOTES_PAR_JEU[jeu].filter((n) => n.code === codeNote)) {
+      for (const r of spec.rubriques) {
+        if (r.cle === cleRubrique || !r.comptes?.length) continue;
+        if (correspond(numero, r.comptes, r.exclusions)) return r.libelle;
+      }
+    }
+    return null;
   }
 
   async detacher(tenantId: string, jeu: JeuNotesAnnexes, codeNote: string, cleRubrique: string, compteId: string) {
@@ -616,7 +644,9 @@ export class NoteAnnexeService {
         montantN1,
         variationValeur,
         variationPourcent,
-        estTotal: rubrique.totalDeRubriques !== undefined,
+        // Un total EN SAISIE (`sommeDesSaisies`) se présente comme un total ·
+        // il restait jusque-là rendu comme une ligne de détail (passe R6, B12).
+        estTotal: rubrique.totalDeRubriques !== undefined || rubrique.sommeDesSaisies !== undefined,
         enAttenteDeRattachement: rattachee ? undefined : rubrique.subdivisionAttendue,
         rattachementDuDossier: rattachee || undefined,
         comptesRattaches: rattachee ? numerosRattaches : undefined,
@@ -651,6 +681,13 @@ export class NoteAnnexeService {
             )
           : undefined,
       };
+    });
+
+    // Totaux et formules d'un tableau en saisie, CONFRONTÉS aux cellules
+    // saisies (`controles-saisie-notes.ts`) · l'écart se dit sur la ligne, la
+    // cellule n'est jamais réécrite.
+    ecartsDesSaisies(spec, toutes.map((l) => l.saisie)).forEach((ecarts, i) => {
+      if (ecarts) toutes[i].ecartsSaisie = ecarts;
     });
 
     // § 1.4 : les lignes non chiffrées ne sont pas présentées. Une ligne en

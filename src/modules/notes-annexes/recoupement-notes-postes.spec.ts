@@ -1,5 +1,6 @@
 import { NOTES_ASSOCIATIONS } from './correspondance-notes-associations';
 import {
+  COMPTES_TRESORERIE_PASSIF_SI_CREDITEUR,
   POSTES_ACTIF,
   POSTES_PASSIF,
   TOTAUX_ACTIF,
@@ -188,6 +189,13 @@ describe('SYCEBNL · les comptes d’une note et ceux de son poste', () => {
     const postes = new Map<string, { comptes?: string[]; exclusions?: string[]; comptesAmortissement?: string[] }>();
     for (const p of [...POSTES_ACTIF, ...POSTES_PASSIF]) postes.set(p.ref, p);
     for (const p of POSTES_CR) postes.set(p.ref, p);
+    // DW lit aussi les 52 et 53 CRÉDITEURS que le bilan y transfère depuis BW
+    // (« DW | … | 56, Solde créditeurs : 52, 53 », Partie 4 ch. 2) ·
+    // `POSTES_PASSIF` ne porte que le 56, le transfert vivant à part. Sans
+    // lui, le balayage comptait les 52 de la note 22 « hors poste » et ne
+    // voyait pas qu'aucune note ne lisait les 53 créditeurs (passe R6, C13).
+    const dw = postes.get('DW')!;
+    postes.set('DW', { ...dw, comptes: [...(dw.comptes ?? []), ...COMPTES_TRESORERIE_PASSIF_SI_CREDITEUR] });
 
     // Composantes connexes du graphe biparti note <-> poste, par union-find.
     const parent = new Map<string, string>();
@@ -253,7 +261,20 @@ describe('SYCEBNL · les comptes d’une note et ceux de son poste', () => {
     // de dix-sept · les huit subdivisions du 478 sorties de la note 10 (BE
     // l'exclut), les huit du 479 sorties de la note 21 (DI l'exclut), et le
     // 4881 sorti de l'actif circulant HAO de la note 7 (BA ne lit pas le 488).
-    expect({ horsPoste, sansLigne }).toEqual({ horsPoste: 159, sansLigne: 156 });
+    //
+    // PASSE R6, BLOC C (notes 18A à 35). Lire le transfert de DW (ci-dessus)
+    // fait passer le relevé d'avant de 159 / 156 à 151 / 162 · les huit 52 de
+    // la note 22 cessent d'être « hors poste », et les six 53 que DW lit sans
+    // qu'aucune note ne les chiffre apparaissent. Puis les corrections :
+    //  - horsPoste - 5 · le 791 sort de la note 23 (79110000, 79130000,
+    //    79140000) et le 797 de la note 31 (79710000, 79720000) · C10 ;
+    //  - sansLigne - 37 · vingt sous-comptes du 60 chiffrés par la note 24
+    //    (6011 à 6013, 6021 à 6023, 6041 à 6043, 6047, 6049, 6051 à 6059) ·
+    //    C2 et C3 ; 6181, 6183 et 619 par la note 25 · C1 et C3 ; les cinq
+    //    subdivisions du 473 par la note 21 · C9 ; 4334 et 4335 par la note
+    //    20 · C4 ; 599 par la note 21 · C8 ; les six 53 créditeurs par la
+    //    note 22 · C13.
+    expect({ horsPoste, sansLigne }).toEqual({ horsPoste: 146, sansLigne: 125 });
   });
 
   it('le nombre de comptes qu’aucune note ne chiffre reste sous contrôle', () => {
@@ -270,10 +291,15 @@ describe('SYCEBNL · les comptes d’une note et ceux de son poste', () => {
     // racine nouvelle n'a rejoint la liste, elle est seulement comptée plus
     // finement. C'est bien la granularité qui change, pas la couverture.
     // La passe R6 en a retiré quatre, les subdivisions du 413 (note 9).
+    // Puis, bloc C de la même passe : moins vingt-trois (les vingt
+    // sous-comptes du 60 que la note 24 chiffre désormais, 6181, 6183 et 619
+    // à la note 25), plus cinq (791 et 797, sortis des notes 23 et 31, qui ne
+    // les détaillaient pas · ils relèvent de RH et de la note 30, dont les
+    // rubriques lisent les comptes de bilan et non les reprises).
     const rubriques = NOTES_ASSOCIATIONS.filter((n) => !n.horsBalance)
       .flatMap((n) => n.rubriques)
       .filter((r) => (r.comptes ?? []).length > 0);
     const orphelins = COMPTES_SEMIS.filter((num) => !rubriques.some((r) => capte(r, num)));
-    expect(orphelins.length).toBe(73);
+    expect(orphelins.length).toBe(55);
   });
 });

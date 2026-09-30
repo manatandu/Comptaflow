@@ -111,6 +111,17 @@ export interface ColonneNote {
    * s'imprime pas. Ne se saisit jamais : la spécification fixe le renvoi.
    */
   porteLeRenvoi?: boolean;
+  /**
+   * Colonne d'un tableau EN SAISIE dont le modèle écrit la FORMULE dans
+   * l'en-tête · « Valeur comptable nette (C = A - B) », « Plus-value ou
+   * moins-value (E = D - C) » (NOTE 5G). Rangs des colonnes ajoutées et
+   * retranchées. Rien n'est calculé à la place du dossier : la cellule saisie
+   * est CONFRONTÉE au résultat de la formule sur les cellules saisies de la
+   * même ligne, et l'écart est dit (`LigneNoteCalculee.ecartsSaisie`). Aucun
+   * contrôle tant qu'une cellule de la formule est vide ou n'est pas un
+   * nombre · un montant de détail ne se devine pas (passe R6, constat B12).
+   */
+  formuleSaisie?: { plus: number[]; moins: number[] };
 }
 
 /** Restreint une rubrique aux comptes dont le solde va dans ce sens (tiers polyvalents). */
@@ -194,6 +205,17 @@ export interface RubriqueNote {
    * `ColonneNote.saisieSurLigneChiffree`.
    */
   saisie?: boolean;
+  /**
+   * Ligne de TOTAL d'un tableau EN SAISIE (« TOTAL » des engagements
+   * financiers de la note 1, sous-totaux et total général de la note 5G) ·
+   * rangs des rubriques qu'elle additionne, colonne par colonne. La ligne
+   * reste saisie et présentée comme un total ; ce qu'elle porte est
+   * CONFRONTÉ à la somme des cellules saisies, et l'écart est dit
+   * (`LigneNoteCalculee.ecartsSaisie`). Une cellule vide compte pour zéro
+   * dans la somme, un texte qui n'est pas un nombre suspend le contrôle de
+   * sa colonne (passe R6, constat B12).
+   */
+  sommeDesSaisies?: number[];
   /** Renvoi de bas de tableau du texte officiel, reproduit tel quel. */
   renvoi?: string;
 }
@@ -339,6 +361,21 @@ export interface LigneNoteCalculee {
    * saisie, sur un total et sur une rubrique sans `cle`.
    */
   saisieLibre?: (string | number | null)[];
+  /**
+   * Cellules saisies qui ne rendent pas ce que le modèle écrit · un total
+   * différent de la somme de ses lignes, une colonne à formule différente de
+   * sa formule (`RubriqueNote.sommeDesSaisies`, `ColonneNote.formuleSaisie`).
+   * `saisi` à `null` quand la cellule est vide. Montré, jamais corrigé.
+   */
+  ecartsSaisie?: EcartSaisieNote[];
+}
+
+/** Un écart entre une cellule saisie et ce que le modèle en fait (passe R6, B12). */
+export interface EcartSaisieNote {
+  /** Rang de la colonne dans `SpecificationNote.colonnes`. */
+  colonne: number;
+  saisi: number | null;
+  attendu: number;
 }
 
 /**
